@@ -7,7 +7,7 @@ import {
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { getBrowserCapabilities, canWasmDecodeAC3 } from "@/utils/codec";
-import { appendCodecParams, prefersNativeHLS } from "@/features/playback/hooks/hlsPlayerUtils";
+import { appendCodecParams, prefersNativeHLS, getFmp4AudioPassthrough } from "@/features/playback/hooks/hlsPlayerUtils";
 import { useStreamToken } from "./useStreamToken";
 
 // postStopStream tears down the server-side play session with a raw keepalive
@@ -90,6 +90,11 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     // Deliberately not in supportedAudioCodecs - see canWasmDecodeAC3. Without
     // it the server calls the audio "transcode" and serves it untouched.
     wasmAudio: canWasmDecodeAC3(),
+    // Same declaration appendCodecParams puts on the HLS master URL, so the
+    // stream-info panel describes the bytes the segments will actually carry.
+    // Sending one and not the other is how the panel came to claim a copy the
+    // packager was re-encoding (2026-09-06).
+    fmp4AudioPassthrough: getFmp4AudioPassthrough(),
   }), [caps]);
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {
