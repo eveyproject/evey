@@ -217,10 +217,55 @@ type SoftwareProducerOptions struct {
 	// sequential encoder to arrive; beyond it (a real forward seek) waiting would
 	// blow the wait budget - a 4K HDR encoder paced at 1.5× takes minutes to cross
 	// hundreds of segments - so a fresh encoder seeks (`-ss`) straight to the
-	// target. Default 16 (~48 s of 3 s segments): far above the 0-1 segment gap of
-	// continuous playback (steady viewing never spuriously spawns a second encoder)
-	// yet a small fraction of any deliberate scrub.
+	// target.
+	//
+	// Zero DERIVES it from the pacing (see derivedSeekReachWindow) instead of
+	// taking a fixed count: "how far can a paced encoder be and still arrive in
+	// time" is a function of ReadRate and SegmentSeconds, and the old fixed 16
+	// answered it wrong. 16 segments of 3 s is 48 s of content, which a 1.5×
+	// encoder needs 32 s of wall clock to cross - while the client gives up long
+	// before that (see clientSegmentPatience). The window's LOWER bound was the
+	// only half ever checked: comfortably above the 0-1 segment gap of continuous
+	// playback, so steady viewing never spuriously spawns a second encoder.
 	SeekReachWindowSegs int
+}
+
+// clientSegmentPatience is how long a player actually waits on ONE segment
+// request before abandoning it. AndroidX Media3 (which expo-video wraps, and
+// which exposes no timeout knob to us) defaults to an 8 s read timeout, and
+// prod bytes agree: on 2026-09-06 a mobile session retried the same segment
+// 10.026 s apart, and the server logged `context canceled` on both - the CLIENT
+// hung up, the 60 s WaitBudgetDur was never reached. 6 s leaves room for the
+// request itself inside that budget.
+//
+// This is the ceiling every "make the player wait" decision must respect. A
+// server that is willing to block for a minute is only correct if some client
+// is willing to wait a minute; none is.
+const clientSegmentPatience = 6 * time.Second
+
+// minSeekReachWindowSegs keeps the derived window above the 0-1 segment gap of
+// continuous playback whatever the pacing, so steady viewing never spawns a
+// redundant encoder just because the reader drew slightly ahead.
+const minSeekReachWindowSegs = 2
+
+// derivedSeekReachWindow answers the question the window exists to answer: how
+// many segments ahead of the frontier can a request land and STILL be served
+// before the client hangs up? A paced encoder crosses ReadRate seconds of
+// content per second of wall clock, so clientSegmentPatience buys
+// `patience * ReadRate` seconds of content, i.e. that over SegmentSeconds
+// segments. Anything further away is a forward seek: spawning a fresh `-ss`
+// encoder (which gets `-readrate_initial_burst`, so it lands its first segments
+// fast) beats making the player wait for a crawl it will abandon.
+//
+// Deliberately assumes the STEADY-STATE rate and ignores the initial burst: the
+// burst only makes a real session catch up faster than this predicts, so the
+// error is on the side of spawning, which is the side the viewer feels.
+func derivedSeekReachWindow(readRate, segmentSeconds float64) int {
+	if readRate <= 0 || segmentSeconds <= 0 {
+		return minSeekReachWindowSegs
+	}
+	segs := int((clientSegmentPatience.Seconds() * readRate) / segmentSeconds)
+	return max(segs, minSeekReachWindowSegs)
 }
 
 func (o SoftwareProducerOptions) withDefaults() SoftwareProducerOptions {
@@ -253,7 +298,7 @@ func (o SoftwareProducerOptions) withDefaults() SoftwareProducerOptions {
 		out.NewbornEvictionShield = 60 * time.Second
 	}
 	if out.SeekReachWindowSegs <= 0 {
-		out.SeekReachWindowSegs = 16
+		out.SeekReachWindowSegs = derivedSeekReachWindow(out.ReadRate, out.SegmentSeconds)
 	}
 	if out.ResumeCushionSegs <= 0 {
 		out.ResumeCushionSegs = 8
