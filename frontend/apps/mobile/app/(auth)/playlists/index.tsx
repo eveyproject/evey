@@ -28,11 +28,13 @@ function PlaylistCard({
   theme,
   onPress,
   onLongPress,
+  t,
 }: {
   playlist: Playlist;
   theme: ReturnType<typeof useTheme>;
   onPress: () => void;
   onLongPress: () => void;
+  t: ReturnType<typeof useTranslation>["t"];
 }) {
   return (
     <TouchableOpacity
@@ -73,6 +75,20 @@ function PlaylistCard({
           </View>
         ) : null}
       </View>
+      {/* Deleting a playlist was reachable only by a long press, with nothing
+          on screen saying so - the web shows a visible trash on every card.
+          A hidden gesture is not an affordance. The long press stays as the
+          shortcut people who knew it already use. */}
+      <TouchableOpacity
+        onPress={onLongPress}
+        hitSlop={8}
+        style={{ padding: 6 }}
+        accessible={true}
+        accessibilityLabel={t("common.delete", "Delete")}
+        accessibilityRole="button"
+      >
+        <Ionicons name="trash-outline" size={18} color={theme.colors.textMuted} />
+      </TouchableOpacity>
       <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
     </TouchableOpacity>
   );
@@ -183,6 +199,7 @@ export default function PlaylistsScreen() {
               theme={theme}
               onPress={() => router.push(`/playlists/${item.id}`)}
               onLongPress={() => confirmDelete(item)}
+              t={t}
             />
           )}
           ListEmptyComponent={
