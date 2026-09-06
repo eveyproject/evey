@@ -167,6 +167,14 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 func (s *UserService) UpdateUser(ctx context.Context, u *user.User) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.UpdateUser")
 	defer span.End()
+	// The invariant NewUser enforces at creation has to hold on every write, or
+	// it only ever held for the first millisecond of the row's life: the gRPC
+	// handler assigns req.Email straight onto the aggregate, so without this an
+	// admin could park a syntactically invalid address on an existing account
+	// through a path the create path forbids.
+	if err := u.Validate(); err != nil {
+		return fmt.Errorf("UserService.UpdateUser: %w", err)
+	}
 	// A role change must invalidate outstanding access tokens (the JWT carries
 	// is_admin). Compare against the stored row to detect it.
 	roleChanged := false

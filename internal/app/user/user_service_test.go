@@ -223,6 +223,28 @@ func TestUpdateUser_RepoError(t *testing.T) {
 	}
 }
 
+// An invariant only checked on the create path stops being an invariant at the
+// first update: the gRPC handler assigns req.Email straight onto the aggregate,
+// so nothing else stood between an admin and a malformed address on a live row.
+func TestUpdateUser_RejectsAnInvalidAggregate(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "alice", "pw", false, true)
+
+	err := d.svc.UpdateUser(ctx, &user.User{ID: "u1", Username: "alice", Email: "not-an-email"})
+	if err == nil {
+		t.Fatal("expected UpdateUser to refuse an invalid email, got nil")
+	}
+	// Refused BEFORE the write: the stored row must be untouched.
+	stored, gerr := d.users.GetByID(ctx, "u1")
+	if gerr != nil {
+		t.Fatal(gerr)
+	}
+	if stored.Email == "not-an-email" {
+		t.Fatal("invalid email reached the repository")
+	}
+}
+
 // --- SetUserBitrateLimit ---
 
 func TestSetUserBitrateLimit_Happy(t *testing.T) {
