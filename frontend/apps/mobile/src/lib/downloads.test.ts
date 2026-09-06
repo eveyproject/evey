@@ -443,6 +443,48 @@ describe("deleteDownload", () => {
 // interleaved cycles start from the same snapshot and the second write drops
 // the first one's change - the bytes stay on disk with nothing referencing
 // them, and the orphan sweep deletes them at the next boot.
+// cacheDownloadPoster runs for every non-audio download and swallows all its
+// errors, so a broken poster path is invisible at runtime AND was invisible in
+// this suite: the FS mock had no downloadAsync at all, which meant every
+// download test silently exercised the failure branch and posterPath was never
+// asserted anywhere. The poster is what the Downloads screen shows with no
+// network - exactly when it matters.
+describe("download poster cache", () => {
+  it("stores the cached poster path on the index entry", async () => {
+    const p = startDownload("m-poster", "Poster Title");
+    const h = await waitForTask("m-poster");
+    h.begin?.({ expectedBytes: 10, headers: {} });
+    h.done?.({ bytesDownloaded: 10, bytesTotal: 10 });
+    await p;
+
+    const written = lastIndexWritten();
+    const entry = written.find((e) => e.mediaItemId === "m-poster");
+    expect(entry?.posterPath).toBe("/data/user/0/app/files/downloads/poster-m-poster.jpg");
+  });
+
+  it("leaves posterPath unset when the poster fetch answers non-200", async () => {
+    fsMock.downloadAsync.mockResolvedValue({ status: 404 });
+    const p = startDownload("m-nop", "No Poster");
+    const h = await waitForTask("m-nop");
+    h.begin?.({ expectedBytes: 10, headers: {} });
+    h.done?.({ bytesDownloaded: 10, bytesTotal: 10 });
+    await p;
+
+    const entry = lastIndexWritten().find((e) => e.mediaItemId === "m-nop");
+    expect(entry?.posterPath).toBeUndefined();
+  });
+
+  it("never caches a poster for an audio download", async () => {
+    const p = startDownload("m-audio", "Track", undefined, { kind: "audio" });
+    const h = await waitForTask("m-audio");
+    h.begin?.({ expectedBytes: 10, headers: {} });
+    h.done?.({ bytesDownloaded: 10, bytesTotal: 10 });
+    await p;
+
+    expect(fsMock.downloadAsync).not.toHaveBeenCalled();
+  });
+});
+
 describe("concurrent index writes", () => {
   // A real (if tiny) filesystem: the static mock in beforeEach always answers
   // the same snapshot, which is precisely the interleaving that must NOT be
