@@ -34,6 +34,38 @@ services:
         max-file: "10"
     ports:
       - "${EVEY_HTTP_PORT:-9091}:${EVEY_HTTP_PORT:-9091}"
+    # Runtime hardening: drop every Linux capability, then add back only the
+    # five the boot phase needs. The container starts as root just long enough
+    # to re-map uids/gids and re-own /data, then re-execs unprivileged via
+    # setpriv (the server NEVER runs as root):
+    #   CHOWN        - chown -R evey:evey /data /cache /home/evey on PUID/PGID change
+    #   SETUID       - usermod/setpriv --reuid AND the /evey-plugin-launcher file
+    #                  capability (cap_setuid+ep) used by EVEY_PLUGINS_UID_SEPARATION
+    #   SETGID       - groupmod/setpriv --regid/setgroups
+    #   FOWNER       - chmod on dirs/files now owned by the evey uid, while still root
+    #   DAC_OVERRIDE - traverse/re-own pre-existing evey-owned 700 trees (keys, postgres)
+    # NET_BIND_SERVICE is NOT needed (port 9091 is unprivileged). This is a large
+    # reduction from Docker's default cap set with no functional loss.
+    # NOTE: `security_opt: [no-new-privileges:true]` is intentionally NOT set here -
+    # no_new_privs makes execve ignore file capabilities, which would silently
+    # disable the plugin launcher's cap_setuid and break EVEY_PLUGINS_UID_SEPARATION.
+    # Only add it if you run with uid separation OFF (the default is Landlock).
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - FOWNER
+      - DAC_OVERRIDE
+    # A fork/thread ceiling (ffmpeg + postgres + meili + plugins) - well above
+    # legitimate need, bounds a runaway/fork-bomb. Raise nofile for meili/pg and
+    # the many concurrent HLS segment handles.
+    pids_limit: 4096
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     environment:
       # Postgres as a sibling service (the operator layout, see the comment
       # on the service below). Unset EVEY_DB_HOST and drop that service to
