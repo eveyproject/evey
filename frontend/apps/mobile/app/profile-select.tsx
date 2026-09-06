@@ -19,6 +19,7 @@ import { supportedLanguages } from "../src/i18n";
 import i18n from "../src/i18n";
 import { useBiometricAvailable, useBiometricEnabled } from "../src/hooks/useBiometric";
 import { PinPromptDialog } from "../src/features/profile/PinPromptDialog";
+import { loadProfileCache, type CachedProfile } from "../src/lib/profileCache";
 
 const LAST_PROFILE_KEY = "evey:last_profile_id";
 
@@ -38,9 +39,30 @@ export default function ProfileSelect() {
     query: { enabled: !!userId },
   });
 
+  // Seeded from the on-device cache so the picker paints on the first frame
+  // instead of a spinner: at cold start this screen is the first thing between
+  // the user and their library, and the list it draws changes about once a
+  // year. The live answer replaces it as soon as it lands - and it is the live
+  // one every decision is taken on, since only it carries isDefault and the
+  // rest of V1Profile.
+  const [cached, setCached] = useState<CachedProfile[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void loadProfileCache().then((c) => { if (!cancelled) setCached(c); });
+    return () => { cancelled = true; };
+  }, []);
+
   const profiles = useMemo(() => profilesData?.profiles ?? [], [profilesData]);
-  const loading = userLoading || profilesLoading;
-  const hasKidsProfile = profiles.some((p) => p.isKids === true);
+  // Rows to draw: the live list once it exists, the cache until then.
+  const rows: { id?: string; name?: string; avatarPath?: string; isKids?: boolean }[] =
+    profiles.length > 0 ? profiles : (cached ?? []);
+  // Two different questions, and conflating them is how the cache would break
+  // this screen. "Do I have anything to draw?" is answered by rows - the cache
+  // counts. "Has the server answered?" is liveSettled, and only that may drive
+  // the auto-skip below, which needs isDefault and the rest of V1Profile.
+  const liveSettled = !userLoading && !profilesLoading;
+  const loading = !liveSettled && rows.length === 0;
+  const hasKidsProfile = rows.some((p) => p.isKids === true);
   const defaultProfile = profiles.find((p) => p.isDefault) ?? profiles[0];
 
   const currentProfile = profiles.find((p) => p.id === activeProfileId);
@@ -128,13 +150,17 @@ export default function ProfileSelect() {
 
   // Auto-skip when no kids profile exists.
   useEffect(() => {
-    if (loading || autoRedirectedRef.current) return;
+    // liveSettled, not loading: the fallback below picks the default profile,
+    // and isDefault exists only on the server's answer - never in the cache.
+    if (!liveSettled || autoRedirectedRef.current) return;
     if (profiles.length === 0) {
       autoRedirectedRef.current = true;
       router.replace("/(auth)/(tabs)");
       return;
     }
-    if (!hasKidsProfile) {
+    // No kids profile, or only one profile: nothing anyone could pick wrong,
+    // so the screen has no reason to exist. Straight through.
+    if (!hasKidsProfile || profiles.length === 1) {
       autoRedirectedRef.current = true;
       void (async () => {
         let lastId: string | null = null;
@@ -152,9 +178,9 @@ export default function ProfileSelect() {
         router.replace("/(auth)/(tabs)");
       })();
     }
-  }, [loading, hasKidsProfile, profiles, activeProfileId, switchProfile, setProfile]);
+  }, [liveSettled, hasKidsProfile, profiles, activeProfileId, switchProfile, setProfile]);
 
-  if (loading || !hasKidsProfile) {
+  if (loading || (liveSettled && !hasKidsProfile)) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
         <ActivityIndicator color={theme.colors.accent} size="large" />
@@ -169,7 +195,7 @@ export default function ProfileSelect() {
       <Text style={s.title}>{t("auth.profile.select.title", "Who's watching?")}</Text>
       <Text style={s.subtitle}>{t("auth.profile.select.description", "Select a profile to continue.")}</Text>
       <View style={s.grid}>
-        {profiles.map((p) => {
+        {rows.map((p) => {
           const initial = (p.name ?? "?")[0]?.toUpperCase() ?? "?";
           const avatarUrl = p.avatarPath && p.id && serverUrl && accessToken
             ? `${serverUrl}/api/v1/profiles/${p.id}/avatar?token=${accessToken}`
@@ -179,7 +205,7 @@ export default function ProfileSelect() {
             <Pressable
               key={p.id}
               style={[s.card, busy ? { opacity: 0.5 } : null]}
-              onPress={() => void handleSelect(p)}
+              onPress={() => void handleSelect(p as V1Profile)}
               disabled={busy !== null}
               accessible
               accessibilityLabel={p.name}

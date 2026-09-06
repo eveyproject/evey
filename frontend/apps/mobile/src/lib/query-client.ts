@@ -2,6 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { shouldRetryQuery, useServerListStore } from "@evey/store";
 import { setupOnlineManager } from "./online-manager";
 import { mutationErrorNet } from "./mutationErrorNet";
+import { clearProfileCache } from "./profileCache";
 
 // Wired here rather than in a component so it is installed exactly once, before
 // the first query is ever created. Without it React Query never learns the
@@ -31,5 +32,8 @@ export const queryClient = new QueryClient({
 useServerListStore.subscribe((state, prev) => {
   if (prev.activeServerId !== null && state.activeServerId !== prev.activeServerId) {
     queryClient.clear();
+    // Same reason the query cache goes: the profile list belongs to the server
+    // being left, and the picker would otherwise open on the wrong household.
+    void clearProfileCache();
   }
 });
