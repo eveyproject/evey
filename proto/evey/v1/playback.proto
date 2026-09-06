@@ -180,6 +180,15 @@ message GetStreamInfoRequest {
   // as ?wasmAudio=1 on the master. Needs its own field - such a client must not
   // advertise those codecs in supported_audio_codecs (MSE refuses them muxed).
   bool wasm_audio = 13;
+  // fmp4_audio_passthrough: audio codecs the client accepts as a RAW
+  // passthrough inside our fMP4 segments, beyond the always-wired
+  // AAC/AC-3/E-AC-3. Separate from supported_audio_codecs on purpose:
+  // "I decode MP3" and "I accept MP3 muxed in fMP4" are different questions,
+  // and the web player declares the first unconditionally while AVPlayer
+  // refuses the second. Only "mp3" is honoured today; anything else is
+  // ignored server-side. Empty (older clients) keeps the previous behaviour,
+  // a server-side re-encode to AAC.
+  repeated string fmp4_audio_passthrough = 14;
 }
 
 message StartStreamRequest {

@@ -112,6 +112,13 @@ func clientProfileFromRequest(req *eveyv1.GetStreamInfoRequest) transcoding.Clie
 	if len(req.SupportedContainers) > 0 {
 		client.Containers = req.SupportedContainers
 	}
+	// Codecs this client takes muxed in fMP4, NOT the ones it can decode (see
+	// ClientProfile.FMP4AudioPassthrough). Threaded here so the stream-info
+	// panel describes the same bytes the HLS handler will produce: the two read
+	// the same eligibility, one from the proto field, one from the query param.
+	if len(req.Fmp4AudioPassthrough) > 0 {
+		client.FMP4AudioPassthrough = req.Fmp4AudioPassthrough
+	}
 	if req.MaxWidth > 0 {
 		client.MaxWidth = int(req.MaxWidth)
 	}

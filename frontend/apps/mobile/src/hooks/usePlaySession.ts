@@ -9,7 +9,7 @@ import {
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { getServerUrl } from "../lib/server-config";
-import { getDeviceAudioCodecs, getDeviceHdrSupport } from "../lib/deviceCodecs";
+import { getDeviceAudioCodecs, getDeviceHdrSupport, getFmp4AudioPassthrough } from "../lib/deviceCodecs";
 import { probeMaxOutputChannels } from "../lib/outputChannels";
 
 const DEVICE_ID = "evey-mobile";
@@ -146,6 +146,12 @@ function appendCodecParams(params: URLSearchParams, maxAudioChannels?: number): 
   // Dolby tracks on devices with no Dolby decoder: video without sound.
   params.set("audioCodecs", getDeviceAudioCodecs().join(","));
   params.set("containers", CONTAINERS.join(","));
+  // What the device takes muxed in fMP4, NOT what it decodes - see
+  // getFmp4AudioPassthrough. Lets the server COPY an MP3 track (old DVD rips)
+  // instead of cascading it through its AAC encoder. Omitted when empty so the
+  // URL of every other platform stays byte-identical to before.
+  const passthrough = getFmp4AudioPassthrough();
+  if (passthrough.length > 0) params.set("fmp4AudioPassthrough", passthrough.join(","));
   // hdr=1 lets the decision keep the video COPY rung for HDR10/HLG sources on
   // an HDR panel (exact colors + on-demand seek) instead of tonemapping to SDR.
   if (getDeviceHdrSupport()) params.set("hdr", "1");
@@ -262,6 +268,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             supportedCodecs: VIDEO_CODECS,
             supportedAudioCodecs: getDeviceAudioCodecs(),
             supportedContainers: CONTAINERS,
+            // Same declaration the HLS master URL carries, so the stream-info
+            // panel describes the bytes the segments will actually hold.
+            fmp4AudioPassthrough: getFmp4AudioPassthrough(),
             supportsHdr: getDeviceHdrSupport(),
             maxHeight: explicitMaxHeight,
             audioStreamIndex,

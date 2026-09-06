@@ -323,6 +323,10 @@ func MakePlaybackDecisionWithPrefs(
 	applyCodecPreferences(d, specs, prefs)
 	applyAudioChannelTarget(d, specs, client, prefs)
 	applyDirectPlayPrefs(d, prefs)
+	// Last word on the audio verdict, and it must stay last: it reads the
+	// reasons every pass above may have added to tell a direct play (raw file,
+	// no packaging) from a segmented session (fMP4, passthrough set applies).
+	applyPackagedAudioPassthrough(d, specs, client, prefs)
 	resolvePlayMethod(d, client)
 	applyDefaultBitrates(d)
 
@@ -496,6 +500,41 @@ func applyAudioChannelTarget(d *transcoding.PlaybackDecision, specs []StreamSpec
 	}
 	if target > 2 {
 		d.MaxAudioChannels = target
+	}
+}
+
+// applyPackagedAudioPassthrough demotes a "copy" audio verdict to "transcode"
+// when this session will be SEGMENTED and the selected source codec cannot ride
+// a raw passthrough in our fMP4 segments for this client.
+//
+// Without it the decision advertised a copy the packager then silently refused:
+// AudioCopyEligible dropped the track to the AAC encoder while the decision
+// still said "copy" with an empty AudioCodec. Measured in prod on a 128 kbps
+// MP3 DVD rip (2026-09-06): the mobile stream panel showed "Audio [copy] - MP3
+// - 128 kbps" while the segments carried AAC-LC at 195 kb/s, and `hls: ffmpeg
+// start` logged `audio_codec:""` where every other session logs "aac". Nobody
+// could see, from either the UI or the logs, that the track was being
+// re-encoded at all.
+//
+// Runs BEFORE resolvePlayMethod, and returns early when nothing has demanded a
+// transcode yet: with no reason on the board this is a DIRECT PLAY, the raw
+// file is handed over untouched and no packaging constraint applies. Once any
+// reason exists the session goes out as HLS - including direct_stream, whose
+// "pure remux" still repackages through the same fMP4 copy rung - so the gate
+// is real there. Adding the reason also demotes direct_stream to transcode on
+// its own, because isDirectStreamEligible requires both tracks to copy.
+func applyPackagedAudioPassthrough(d *transcoding.PlaybackDecision, specs []StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
+	if d.AudioDecision != "copy" || len(d.TranscodeReasons) == 0 {
+		return
+	}
+	src := selectedAudioSpec(specs, prefs)
+	if src == nil || AudioCopyCodecAllowedFor(src.Codec, client) {
+		return
+	}
+	d.AudioDecision = "transcode"
+	addReasonOnce(d, "audio_passthrough_unsupported")
+	if d.AudioCodec == "" {
+		d.AudioCodec = transcoding.DefaultAudioCodec
 	}
 }
 

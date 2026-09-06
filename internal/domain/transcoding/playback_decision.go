@@ -9,6 +9,14 @@ type ClientProfile struct {
 	MaxBitrate       int64 // kbps, 0 = unlimited
 	SupportsHDR      bool
 	MaxAudioChannels int // 0 = unlimited
+	// FMP4AudioPassthrough lists the audio codecs this client accepts as a RAW
+	// passthrough inside our fMP4 segments, on top of the always-wired set
+	// (AAC/AC-3/E-AC-3). Deliberately NOT derived from AudioCodecs: "I decode
+	// MP3" and "I accept MP3 muxed in fMP4" are different questions, and the
+	// web player declares mp3 unconditionally (utils/codec.ts) while AVPlayer
+	// refuses it in that container. Empty (the default) keeps every client that
+	// says nothing on the historical behaviour: re-encode to AAC.
+	FMP4AudioPassthrough []string
 }
 
 type PlaybackDecision struct {

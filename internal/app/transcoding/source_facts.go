@@ -81,17 +81,56 @@ func VideoCopyEligible(decision transcoding.PlaybackDecision, streams []*library
 }
 
 // audioCopyCodecs are the source codecs the muxed pipeline may pass through
-// (`-c:a copy`). The DECISION already guarantees the client decodes the
-// selected track (evaluateAudio checks client.AudioCodecs, which the web
-// player fills from canPlayType - ac-3/ec-3 only appear on Safari/TV-class
-// clients); this set additionally bounds passthrough to codecs whose fMP4
-// muxing and RFC 6381 CODECS attribute (mp4a.40.2 / ac-3 / ec-3) are wired.
+// (`-c:a copy`) for EVERY client. The DECISION already guarantees the client
+// decodes the selected track (evaluateAudio checks client.AudioCodecs, which
+// the web player fills from canPlayType - ac-3/ec-3 only appear on Safari/
+// TV-class clients); this set additionally bounds passthrough to codecs whose
+// fMP4 muxing and RFC 6381 CODECS attribute (mp4a.40.2 / ac-3 / ec-3) are
+// wired everywhere.
 var audioCopyCodecs = map[string]bool{"aac": true, "ac3": true, "eac3": true}
 
-// AudioCopyCodecAllowed reports whether a (lowercased) source audio codec is
-// in the passthrough set above - the on-demand packager's per-track gate.
+// fmp4PassthroughOptIn bounds what a client may ADD to the set above by
+// declaring FMP4AudioPassthrough. mp3 muxes into fMP4 as an `mp4a` sample entry
+// and advertises as mp4a.40.34 - verified on prod bytes (2026-09-06): the
+// packaging evey uses (`-c:a copy -f hls -hls_segment_type fmp4`) produces an
+// init + segments that read back as `mp3, mp4a, 48000, 2`. media3/ExoPlayer
+// plays that; AVPlayer does not take MP3 in fMP4 at all, and the web declares
+// mp3 unconditionally, so this stays OPT-IN rather than a blanket widening.
+//
+// Why it matters: re-encoding an already-lossy source cascades. Measured on a
+// 128 kbps MP3 DVD rip (2026-09-06), coding noise under the signal at the
+// 192k AAC rendition: 30.6 dB on dialogue, 20.3 dB on dense music - BELOW the
+// 26.9 dB the 128k rendition scored on a clean source in September, which is
+// what "the background is not on the same plane as the voices" sounds like.
+// A passthrough adds exactly none of it.
+var fmp4PassthroughOptIn = map[string]bool{"mp3": true}
+
+// AudioCopyCodecAllowed reports whether a (lowercased) source audio codec is in
+// the always-wired passthrough set above. Used by the mkvgo CMAF packager gate,
+// which carries tracks verbatim into a container this opt-in says nothing
+// about - do NOT widen that path with the client's declaration.
 func AudioCopyCodecAllowed(codec string) bool {
 	return audioCopyCodecs[codec]
+}
+
+// AudioCopyCodecAllowedFor is AudioCopyCodecAllowed plus whatever THIS client
+// declared it accepts muxed in fMP4. A codec outside fmp4PassthroughOptIn can
+// never be unlocked by a client, so a stale or hostile declaration can only
+// ever select something the muxer and the manifest already know how to emit.
+func AudioCopyCodecAllowedFor(codec string, client transcoding.ClientProfile) bool {
+	codec = normalizeAudioCodec(codec)
+	if audioCopyCodecs[codec] {
+		return true
+	}
+	if !fmp4PassthroughOptIn[codec] {
+		return false
+	}
+	for _, c := range client.FMP4AudioPassthrough {
+		if normalizeAudioCodec(c) == codec {
+			return true
+		}
+	}
+	return false
 }
 
 // AudioCopyEligible reports whether this request's audio is served as a
@@ -99,16 +138,17 @@ func AudioCopyCodecAllowed(codec string) bool {
 //   - loudnorm requires a re-encode;
 //   - single-rung ladders only (the multi-variant builder always re-encodes,
 //     and one hash must yield one byte stream);
-//   - the source codec must be in audioCopyCodecs.
+//   - the source codec must be carriable for THIS client (see
+//     AudioCopyCodecAllowedFor).
 //
 // MUST stay the single source of truth for both the fingerprint (bytes) and
 // the manifest (CODECS attribute): if they disagree, the master advertises a
 // codec the segments don't carry and Safari refuses to play.
-func AudioCopyEligible(decision transcoding.PlaybackDecision, normalize bool, profileCount int, srcCodec string) bool {
+func AudioCopyEligible(decision transcoding.PlaybackDecision, normalize bool, profileCount int, srcCodec string, client transcoding.ClientProfile) bool {
 	return decision.AudioDecision == "copy" &&
 		!normalize &&
 		profileCount == 1 &&
-		audioCopyCodecs[srcCodec]
+		AudioCopyCodecAllowedFor(srcCodec, client)
 }
 
 // ServedAudioCodec is the audio codec the segments will actually carry:

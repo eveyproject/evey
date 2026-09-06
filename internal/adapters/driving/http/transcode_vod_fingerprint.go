@@ -142,17 +142,21 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		VideoCodecs:         splitCSVQuery(r, "videoCodecs"),
 		AudioCodecs:         splitCSVQuery(r, "audioCodecs"),
 		Containers:          splitCSVQuery(r, "containers"),
-		UseFMP4:             h.useFMP4,
-		ChosenVideoCodec:    chosenVideoCodec,
+		// Re-baked into every child URI for the same reason as the lists above:
+		// parseClientCapabilities reads it back on the segment request.
+		FMP4AudioPassthrough: splitCSVQuery(r, "fmp4AudioPassthrough"),
+		UseFMP4:              h.useFMP4,
+		ChosenVideoCodec:     chosenVideoCodec,
 		// The codec the segments will ACTUALLY carry: the source codec on
-		// audio passthrough (ac-3/ec-3 CODECS for Safari-class clients), the
-		// decision's encoder otherwise. Must mirror buildFingerprint or the
-		// master would advertise codecs the segments don't carry.
+		// audio passthrough (ac-3/ec-3 for Safari-class clients, mp3 for a
+		// client that opted into FMP4AudioPassthrough), the decision's encoder
+		// otherwise. Read straight off the RESOLVED fingerprint rather than
+		// re-derived: this used to recompute audioCopyEligible from the request
+		// with its own arguments, so the master could disagree with the bytes
+		// the moment one input drifted (the client profile now being one of
+		// them). One resolution, one answer.
 		ChosenAudioCodec: servedAudioCodec(
-			audioCopyEligible(decision,
-				h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
-				len(profiles), sourceAudioCodec(streams, audioTrack)),
-			sourceAudioCodec(streams, audioTrack), decision),
+			rp.FP.AudioCopy, sourceAudioCodec(streams, audioTrack), decision),
 		ResumeOffsetSec: resumeSec,
 		AudioRenditions: audioRenditions,
 		CopyVideoCodec:  sourceCopyVideoCodec(streams),

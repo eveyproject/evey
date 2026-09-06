@@ -54,6 +54,14 @@ type ManifestInput struct {
 	AudioCodecs []string
 	Containers  []string
 
+	// FMP4AudioPassthrough is the client's audio-passthrough opt-in (today: mp3
+	// and nothing else). A DECISION INPUT, so like the codec lists it MUST ride
+	// every URI the manifest emits: the segment handler re-parses the query to
+	// rebuild the plan, and dropping it there would flip the audio verdict from
+	// copy to AAC re-encode halfway through a presentation - the master would
+	// advertise mp4a.6B over segments carrying AAC-LC.
+	FMP4AudioPassthrough []string
+
 	// UseFMP4 picks the segment container: fMP4 (`.m4s` + `stream_N_init.mp4`)
 	// when true, MPEG-TS (`.ts`) when false. fMP4 is default in production -
 	// segments are ~30% smaller and CMAF-style aligns with hls.js modern path.
@@ -765,6 +773,15 @@ func audioCodecAttr(c string) string {
 		return "opus"
 	case "flac":
 		return "flac"
+	// An MP3 passthrough rung (opt-in clients only, see fmp4PassthroughOptIn)
+	// carries an `mp4a` sample entry whose esds declares
+	// objectTypeIndication 0x6B, MPEG-1 Audio - read off the bytes ffmpeg
+	// actually writes for `-c:a copy` into fMP4 (2026-09-06). The default
+	// below would have advertised mp4a.40.2 (AAC-LC) over MP3 samples, which
+	// is precisely the manifest-vs-bytes disagreement AudioCopyEligible exists
+	// to prevent.
+	case "mp3":
+		return "mp4a.6B"
 	case "", "aac", "aac-lc", "mp4a":
 		return "mp4a.40.2"
 	default:
@@ -802,6 +819,11 @@ func querySuffix(in ManifestInput) string {
 	}
 	if len(in.Containers) > 0 {
 		q.Set("containers", strings.Join(in.Containers, ","))
+	}
+	if len(in.FMP4AudioPassthrough) > 0 {
+		// Decision input like the codec lists: without it the segment request
+		// re-derives a re-encode under a master that promised a passthrough.
+		q.Set("fmp4AudioPassthrough", strings.Join(in.FMP4AudioPassthrough, ","))
 	}
 	if in.HDRCapable {
 		// Decision input like the codec lists: dropping it flips the segment

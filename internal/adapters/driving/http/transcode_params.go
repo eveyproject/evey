@@ -158,6 +158,14 @@ func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscodi
 	if v := r.URL.Query().Get("containers"); v != "" {
 		client.Containers = strings.Split(v, ",")
 	}
+	// Audio codecs this client accepts as a RAW passthrough inside our fMP4
+	// segments - deliberately not `audioCodecs`, which every web and iOS client
+	// fills with mp3 whether or not it can take it in that container. This one
+	// rides the segment URLs like the codec lists do, so a segment request
+	// re-derives the SAME decision the master was built from.
+	if v := r.URL.Query().Get("fmp4AudioPassthrough"); v != "" {
+		client.FMP4AudioPassthrough = strings.Split(v, ",")
+	}
 	// Channel ceiling of the playback DEVICE (a 2.0 TV, a stereo-only cast
 	// target...). Web players normally omit it: browsers decode multichannel
 	// AAC and downmix to the output device themselves, so the profile default

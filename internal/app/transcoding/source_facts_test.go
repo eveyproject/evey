@@ -90,6 +90,8 @@ func TestVideoCopyEligible(t *testing.T) {
 	}
 }
 
+// The CLIENT-BLIND baseline, still the gate the mkvgo CMAF packager reads.
+// Widening it would hand that packager a codec nobody proved it can carry.
 func TestAudioCopyCodecAllowed(t *testing.T) {
 	for _, c := range []string{"aac", "ac3", "eac3"} {
 		if !AudioCopyCodecAllowed(c) {
@@ -104,26 +106,64 @@ func TestAudioCopyCodecAllowed(t *testing.T) {
 	}
 }
 
+// The client-aware gate. An opted-in client unlocks mp3 and NOTHING else: the
+// declaration selects from fmp4PassthroughOptIn, it does not extend it.
+func TestAudioCopyCodecAllowedFor_OptIn(t *testing.T) {
+	none := domaintranscoding.ClientProfile{}
+	mp3OK := domaintranscoding.ClientProfile{FMP4AudioPassthrough: []string{"mp3"}}
+
+	if AudioCopyCodecAllowedFor("mp3", none) {
+		t.Error("mp3 must stay re-encoded for a client that did not opt in")
+	}
+	if !AudioCopyCodecAllowedFor("mp3", mp3OK) {
+		t.Error("an opted-in client must get the mp3 passthrough")
+	}
+	// The baseline is unconditional: opting in changes nothing for aac/ac3/eac3.
+	for _, c := range []string{"aac", "ac3", "eac3"} {
+		if !AudioCopyCodecAllowedFor(c, none) {
+			t.Errorf("%s must stay allowed with no declaration", c)
+		}
+	}
+	// A stale or hostile declaration can only ever pick from the opt-in set.
+	for _, c := range []string{"dts", "truehd", "flac", "opus"} {
+		greedy := domaintranscoding.ClientProfile{FMP4AudioPassthrough: []string{c}}
+		if AudioCopyCodecAllowedFor(c, greedy) {
+			t.Errorf("%q must not be unlockable by a client declaration", c)
+		}
+	}
+	// Codec-name aliases fold on both sides, as everywhere else in the decision.
+	if !AudioCopyCodecAllowedFor("MP3", domaintranscoding.ClientProfile{FMP4AudioPassthrough: []string{"mp3"}}) {
+		t.Error("the source codec spelling must be normalised")
+	}
+	if !AudioCopyCodecAllowedFor("mp3", domaintranscoding.ClientProfile{FMP4AudioPassthrough: []string{"MP3"}}) {
+		t.Error("the client's declared spelling must be normalised")
+	}
+}
+
 // Four independent gates; each one alone must be able to refuse. This is the
 // single source of truth for both the fingerprint and the manifest, so a gate
 // that stops working makes the two disagree.
 func TestAudioCopyEligible_EachGateRefusesAlone(t *testing.T) {
 	copyDecision := domaintranscoding.PlaybackDecision{AudioDecision: "copy"}
+	anyClient := domaintranscoding.ClientProfile{}
 
-	if !AudioCopyEligible(copyDecision, false, 1, "aac") {
+	if !AudioCopyEligible(copyDecision, false, 1, "aac", anyClient) {
 		t.Fatal("the all-clear case must be eligible")
 	}
-	if AudioCopyEligible(domaintranscoding.PlaybackDecision{AudioDecision: "transcode"}, false, 1, "aac") {
+	if AudioCopyEligible(domaintranscoding.PlaybackDecision{AudioDecision: "transcode"}, false, 1, "aac", anyClient) {
 		t.Error("a transcode decision must refuse")
 	}
-	if AudioCopyEligible(copyDecision, true, 1, "aac") {
+	if AudioCopyEligible(copyDecision, true, 1, "aac", anyClient) {
 		t.Error("loudness normalisation requires a re-encode")
 	}
-	if AudioCopyEligible(copyDecision, false, 2, "aac") {
+	if AudioCopyEligible(copyDecision, false, 2, "aac", anyClient) {
 		t.Error("a multi-rung ladder always re-encodes")
 	}
-	if AudioCopyEligible(copyDecision, false, 1, "flac") {
+	if AudioCopyEligible(copyDecision, false, 1, "flac", anyClient) {
 		t.Error("a codec outside the passthrough set must refuse")
+	}
+	if AudioCopyEligible(copyDecision, false, 1, "mp3", anyClient) {
+		t.Error("mp3 without the client opt-in must refuse")
 	}
 }
 

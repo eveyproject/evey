@@ -235,26 +235,37 @@ func TestAudioCopyEligibilityAndServedCodec(t *testing.T) {
 	copyDec := domaintranscoding.PlaybackDecision{AudioDecision: "copy"}
 	transDec := domaintranscoding.PlaybackDecision{AudioDecision: "transcode", AudioCodec: "aac"}
 
+	// A client that opted into MP3-in-fMP4 (our ExoPlayer apps) vs one that
+	// merely DECODES mp3, which every web/iOS client declares unconditionally.
+	mp3Client := domaintranscoding.ClientProfile{FMP4AudioPassthrough: []string{"mp3"}}
+	plainClient := domaintranscoding.ClientProfile{AudioCodecs: []string{"aac", "mp3"}}
+
 	cases := []struct {
 		name      string
 		dec       domaintranscoding.PlaybackDecision
 		normalize bool
 		profiles  int
 		src       string
+		client    domaintranscoding.ClientProfile
 		eligible  bool
 		served    string
 	}{
-		{"aac copy", copyDec, false, 1, "aac", true, "aac"},
-		{"ac3 passthrough (Safari-class client)", copyDec, false, 1, "ac3", true, "ac3"},
-		{"eac3 passthrough", copyDec, false, 1, "eac3", true, "eac3"},
-		{"dts never passes through", copyDec, false, 1, "dts", false, ""},
-		{"loudnorm forces re-encode", copyDec, true, 1, "ac3", false, ""},
-		{"multi-rung ladder forces re-encode", copyDec, false, 3, "aac", false, ""},
-		{"transcode verdict stays aac", transDec, false, 1, "ac3", false, "aac"},
+		{"aac copy", copyDec, false, 1, "aac", plainClient, true, "aac"},
+		{"ac3 passthrough (Safari-class client)", copyDec, false, 1, "ac3", plainClient, true, "ac3"},
+		{"eac3 passthrough", copyDec, false, 1, "eac3", plainClient, true, "eac3"},
+		{"dts never passes through", copyDec, false, 1, "dts", plainClient, false, ""},
+		// The 2026-09-06 bug: an old DVD rip's MP3 track was re-encoded to AAC
+		// for every client. Decoding mp3 is NOT the opt-in.
+		{"mp3 stays re-encoded without the opt-in", copyDec, false, 1, "mp3", plainClient, false, ""},
+		{"mp3 passes through for an opted-in client", copyDec, false, 1, "mp3", mp3Client, true, "mp3"},
+		{"opt-in cannot unlock a codec we can't mux", copyDec, false, 1, "dts", domaintranscoding.ClientProfile{FMP4AudioPassthrough: []string{"dts"}}, false, ""},
+		{"loudnorm forces re-encode", copyDec, true, 1, "ac3", plainClient, false, ""},
+		{"multi-rung ladder forces re-encode", copyDec, false, 3, "aac", plainClient, false, ""},
+		{"transcode verdict stays aac", transDec, false, 1, "ac3", plainClient, false, "aac"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := audioCopyEligible(c.dec, c.normalize, c.profiles, c.src)
+			got := audioCopyEligible(c.dec, c.normalize, c.profiles, c.src, c.client)
 			if got != c.eligible {
 				t.Fatalf("eligible = %v, want %v", got, c.eligible)
 			}
