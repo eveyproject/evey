@@ -3,6 +3,7 @@ serverConnect:
   hint: "输入您自托管 Evey 实例的 URL"
   scanLocalNetwork: "扫描本地网络"
   serversFound_other: "找到 {{count}} 个服务器"
+  noServersFound: "在此网络上未找到服务器 - 请在下方输入地址"
   serversFound_one: "找到 {{count}} 个服务器"
   missingScheme: "地址请以 http:// 或 https:// 开头。"
   insecureTitle: "此连接未加密"

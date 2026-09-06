@@ -4,6 +4,7 @@ serverConnect:
   scanLocalNetwork: "Escanear la red local"
   serversFound_one: "{{count}} servidor encontrado"
   serversFound_other: "{{count}} servidores encontrados"
+  noServersFound: "No se encontró ningún servidor en esta red - introduce la dirección abajo"
   missingScheme: "Empiece la dirección con http:// o https://."
   insecureTitle: "Esta conexión no está cifrada"
   insecureBody: "{{url}} está fuera de su red local y usa http://. Su contraseña y todo lo que vea viajarían sin cifrar. Use https:// si su servidor lo permite."

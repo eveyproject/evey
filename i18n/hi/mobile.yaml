@@ -4,6 +4,7 @@ serverConnect:
   scanLocalNetwork: "स्थानीय नेटवर्क स्कैन करें"
   serversFound_one: "{{count}} सर्वर मिला"
   serversFound_other: "{{count}} सर्वर मिले"
+  noServersFound: "इस नेटवर्क पर कोई सर्वर नहीं मिला - नीचे पता दर्ज करें"
   missingScheme: "पता http:// या https:// से शुरू करें।"
   insecureTitle: "यह कनेक्शन एन्क्रिप्टेड नहीं है"
   insecureBody: "{{url}} आपके होम नेटवर्क के बाहर है और http:// का उपयोग करता है। आपका पासवर्ड और आप जो कुछ भी देखते हैं वह बिना एन्क्रिप्शन के जाएगा। यदि आपका सर्वर समर्थन करता है तो https:// का उपयोग करें।"
