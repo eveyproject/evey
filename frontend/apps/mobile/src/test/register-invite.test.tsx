@@ -10,7 +10,7 @@ vi.mock("react-native", () => ({
   View: ({ children, testID, ...p }: any) =>
     React.createElement("div", { "data-testid": testID, ...p }, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
-  TextInput: ({ accessibilityLabel, onChangeText, ...p }: any) =>
+  TextInput: ({ accessibilityLabel, ...p }: any) =>
     React.createElement("input", { "aria-label": accessibilityLabel, ...p }),
   Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
