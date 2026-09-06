@@ -17,7 +17,13 @@ const api = vi.hoisted(() => ({
   setRefreshHandler: vi.fn(),
   resetRefreshFailure: vi.fn(),
 }));
-vi.mock("@evey/api", () => api);
+// Spread the real module: mockShapeGuard enforces it, because a mock that
+// lists only what it stubs hides every OTHER export the file under test
+// imports, and the test then fails on an unrelated symbol months later.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
+  ...api,
+}));
 
 const routerReplace = vi.hoisted(() => vi.fn());
 vi.mock("expo-router", () => ({ router: { replace: routerReplace } }));
