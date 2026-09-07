@@ -562,6 +562,40 @@ func TestAdminSetupWizard_PostSetupRejected(t *testing.T) {
 	}
 }
 
+// Bad wizard input on a fresh install must map to InvalidArgument, not a
+// generic Internal (500): an empty username or a too-short password is the
+// operator's input to fix, and the wizard needs the reason to show it.
+func TestAdminSetupWizard_InvalidInput(t *testing.T) {
+	cases := []struct {
+		name          string
+		username, pwd string
+	}{
+		{"empty username", "", "password123"},
+		{"too-short password", "admin", "short"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := newTestSystemHandler()
+			_, err := d.SetupWizard(context.Background(), &eveyv1.SetupWizardRequest{
+				AdminUsername: tc.username,
+				AdminPassword: tc.pwd,
+				AdminEmail:    "admin@test.com",
+			})
+			if code := status.Code(err); code != codes.InvalidArgument {
+				t.Fatalf("got code %v, want InvalidArgument", code)
+			}
+			// A rejected wizard must not have bootstrapped an admin.
+			resp, serr := d.GetSetupStatus(context.Background(), &eveyv1.GetSetupStatusRequest{})
+			if serr != nil {
+				t.Fatalf("GetSetupStatus: %v", serr)
+			}
+			if resp.SetupComplete {
+				t.Fatal("setup marked complete after an invalid wizard attempt")
+			}
+		})
+	}
+}
+
 func TestAdminGetDashboard(t *testing.T) {
 	d := newTestSystemHandler()
 	resp, err := d.GetDashboard(context.Background(), &eveyv1.GetDashboardRequest{})

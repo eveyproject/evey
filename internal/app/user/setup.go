@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -58,7 +57,7 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 		return nil, ErrSetupDone
 	}
 	if username == "" {
-		return nil, errors.New("username is required")
+		return nil, ErrUsernameRequired
 	}
 	if len(password) < minPasswordLength {
 		return nil, ErrPasswordTooShort
