@@ -456,6 +456,16 @@ message SeekIndexItem {
   // (the 2026-07-13 batch). It names the touched file; the amount removed is
   // gone from the file and nothing here can restore it. Informational.
   bool audio_track_zeroed = 21;
+  // resync_required = a repair ALREADY ran on this file and the strict rewrite
+  // refused it: the source is structurally corrupt somewhere the scan never
+  // looked. The scan is head-mostly on purpose (7 000 files must not each cost
+  // a full salvage walk on a NAS), so this class of damage is only ever
+  // discovered BY a repair - and before this field the answer was thrown away
+  // with the error, leaving the operator a raw Go string and no button.
+  // It means "only a resync can repair this", exactly like damaged_bytes > 0,
+  // with one difference that must not be blurred: the amount a resync would
+  // drop is UNKNOWN here, so it is never folded into the damaged byte total.
+  bool resync_required = 22;
 }
 
 message ScanSeekIndexRequest {

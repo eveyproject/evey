@@ -48,6 +48,15 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	// EBML) - one fork per request, same cost as a snapshot, so it shares the
 	// identical ceiling instead of the generous global limiter.
 	subtitleRL := ratelimit.NewWithBurst(30, 60.0)
+	// The sync preview is a LOOP, not a one-off: an operator watches a clip,
+	// nudges the candidate offset, watches again, a dozen times before the ear
+	// settles. Sharing adminHeavyRL's burst of 10 refilling at 10/min meant the
+	// tool ran out of budget mid-judgement and refused with "too many requests"
+	// - and, because that limiter is shared, took trickplay generation and the
+	// search reindex down with it. Its own bucket: a burst that covers a whole
+	// session of nudging, a refill of one render every two seconds. Each render
+	// is still one ffmpeg, and the procfork budget is what caps concurrency.
+	syncPreviewRL := ratelimit.NewWithBurst(40, 30.0)
 	// Trickplay (manifest + sprite images) only reads disk/DB, no fork - far
 	// cheaper than subtitle/snapshot. Burst of 120 covers loading a full
 	// storyboard sprite sheet while scrubbing; refill still caps a flood.
@@ -72,6 +81,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		oidcLoginRL.Stop()
 		snapshotRL.Stop()
 		subtitleRL.Stop()
+		syncPreviewRL.Stop()
 		trickplayRL.Stop()
 		subtitleProviderRL.Stop()
 	}()
@@ -277,6 +287,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 			return deps.loadTestRunner.Status().Running
 		},
 		AdminHeavyRL:       adminHeavyRL,
+		SyncPreviewRL:      syncPreviewRL,
 		SnapshotRL:         snapshotRL,
 		SubtitleRL:         subtitleRL,
 		TrickplayRL:        trickplayRL,

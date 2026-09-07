@@ -2,6 +2,7 @@ package maintenance_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -226,6 +227,61 @@ func TestSeekIndexService_RepairAll_CoversEveryRepairableVerdict(t *testing.T) {
 	for _, it := range res.Items {
 		if it.Path == paths["damaged"] {
 			assert.True(t, it.HasBackup, "a lossy repair keeps its original whatever the window says")
+		}
+	}
+}
+
+// The scan is head-mostly on purpose, so a corrupted cluster stream is only
+// ever discovered BY a repair - and before the answer was recorded, the file
+// failed the same way on every run for ever: "Repair all" kept sending it down
+// the strict path that had just refused it, and the operator got a raw parser
+// message with nothing naming the remedy. Reported from prod on 2026-09-07
+// ("top-level element: invalid VINT: leading zero byte ... the source is
+// structurally corrupt", one of three failures in a four-file batch).
+func TestSeekIndexService_StrictRepairRefusal_RemembersThatOnlyAResyncCanHelp(t *testing.T) {
+	_, paths, svc, reidx, _ := triageLibrary(t)
+	ctx := context.Background()
+	corrupt := paths["noindex"]
+	reidx.failStrictWith = map[string]error{
+		corrupt: fmt.Errorf("reindex: rebuild: top-level element: invalid VINT: %w", mkv.ErrCorruptSource),
+	}
+
+	// First run: the strict rewrite refuses it, as it did in prod.
+	require.NoError(t, svc.StartRepairLibrary(ctx, "", appmaintenance.ReindexRunOptions{}))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Equal(t, 1, st.Last.Failed, "the corrupt file failed: %+v", st.Last.Failures)
+
+	res, _, _ := svc.CachedScan("")
+	var got appmaintenance.SeekStatus
+	for _, it := range res.Items {
+		if it.Path == corrupt {
+			got = it
+		}
+	}
+	assert.True(t, got.ResyncRequired, "the refusal names its own remedy - throwing it away is what made the file fail for ever")
+	assert.Zero(t, got.DamagedBytes, "how much a resync would drop is unknown here and must never be invented: the confirmation dialog puts that figure in front of the operator")
+	assert.Equal(t, appmaintenance.VerdictRepairable, got.Verdict())
+
+	// Second run, still strict: the file is no longer offered to the path that
+	// is known to refuse it, so the batch stops reporting the same failure.
+	reidx.reindexed = nil
+	require.NoError(t, svc.StartRepairLibrary(ctx, "", appmaintenance.ReindexRunOptions{}))
+	st = waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Zero(t, st.Last.Failed, "%+v", st.Last.Failures)
+	assert.NotContains(t, reidx.reindexed, corrupt)
+
+	// With the operator's resync consent it is finally repaired - and the flag
+	// clears, so a repaired file does not stay pinned in the resync bucket.
+	reidx.reindexed = nil
+	require.NoError(t, svc.StartRepairLibrary(ctx, "", appmaintenance.ReindexRunOptions{ResyncDamaged: true, BackupWindow: 1}))
+	waitIdle(t, svc)
+	assert.Contains(t, reidx.reindexed, corrupt)
+	res, _, _ = svc.CachedScan("")
+	for _, it := range res.Items {
+		if it.Path == corrupt {
+			assert.False(t, it.ResyncRequired, "the rewrite went through: whatever refused it is not in the file any more")
 		}
 	}
 }

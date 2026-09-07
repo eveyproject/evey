@@ -324,6 +324,12 @@ type HTTPServer struct {
 	// SnapshotRL caps the frame-extraction route - each request spawns an
 	// ffmpeg, so it must not ride the generous global limiter.
 	SnapshotRL *ratelimit.Limiter
+	// SyncPreviewRL caps the sync-preview clip route. It too spawns an ffmpeg,
+	// but unlike the other heavy admin routes it is used in a LOOP - watch,
+	// nudge the offset, watch again - so it gets a bucket sized for that
+	// instead of sharing AdminHeavyRL's ten-per-minute with trickplay
+	// generation and the search reindex.
+	SyncPreviewRL *ratelimit.Limiter
 	// SubtitleRL caps the subtitle-extraction route. mkvgo's fast path handles
 	// most MKV sources without a fork, but any container it can't shortcut
 	// (.avi/.ts/.mov, damaged EBML) falls through to exec.CommandContext'ing
@@ -418,6 +424,17 @@ func trickplayRouteHandlers(libSvc TrickplayGetter, baseURL string, libraryAcces
 // CloseTranscodeProducers kills the long-lived ffmpeg sessions owned by the
 // VOD software/copy producers. Call once at shutdown (idempotent); no-op when
 // the VOD pipeline was never wired (tests).
+// syncPreviewLimiter returns the preview route's own bucket, falling back to
+// the shared heavy-admin one when a caller has not wired it (tests, embedders).
+// Never nil: an unlimited preview route would let one operator's nudge loop
+// spawn ffmpeg without a ceiling.
+func (s *HTTPServer) syncPreviewLimiter() *ratelimit.Limiter {
+	if s.SyncPreviewRL != nil {
+		return s.SyncPreviewRL
+	}
+	return s.AdminHeavyRL
+}
+
 func (s *HTTPServer) CloseTranscodeProducers() {
 	s.transcodeCloserOnce.Do(func() {
 		if s.transcodeCloser != nil {
@@ -754,7 +771,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.MetadataCmdSvc != nil && s.MetadataQuerySvc != nil {
 		registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc)
 	}
-	registerSyncPreviewRoute(mux, s.SeekIndexSvc, s.TokenGen, s.AdminHeavyRL)
+	registerSyncPreviewRoute(mux, s.SeekIndexSvc, s.TokenGen, s.syncPreviewLimiter())
 	if s.MetadataCmdSvc != nil {
 		var cfgSvc *appconfig.Service
 		if s.ServerCfgRepo != nil {

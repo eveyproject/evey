@@ -77,6 +77,15 @@ var ErrMediaNotWritable = errors.New("media not writable by the server user")
 // starving playback/neighbors mid-copy.
 var ErrInsufficientSpace = errors.New("not enough free disk space on the media volume for a rewrite")
 
+// ErrCorruptSource is returned when the strict rewrite refuses a file because
+// its cluster stream does not parse: a corrupted region a RESYNC repair can
+// skip past, at the cost of the bytes it drops. It is the one repair failure
+// that names its own remedy, and the scan cannot anticipate it - the scan is
+// head-mostly on purpose (a 7 000-file library must not each cost a full
+// salvage walk on a NAS), so this damage is only ever discovered BY a repair.
+// Callers record it on the file instead of discarding it with the error.
+var ErrCorruptSource = errors.New("the source is structurally corrupt")
+
 // Reindex modes the operator can demand (ReindexOptions.Mode).
 const (
 	// ModeAuto (empty string): surgical in-place when available, otherwise the

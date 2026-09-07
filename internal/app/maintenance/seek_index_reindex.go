@@ -185,6 +185,16 @@ func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv
 	if err != nil {
 		rec.Outcome, rec.Error = "failed", err.Error()
 		s.journalRepair(bg, rec)
+		// The rewrite just walked the whole file and found corruption the
+		// head-mostly scan could not have seen. Recording that is the ONLY way
+		// the operator ever learns it: before this, the answer died with the
+		// error string, the row kept offering the strict repair that had just
+		// failed, and every subsequent batch failed on the same file the same
+		// way. Only from a STRICT run - a resync that fails has nothing left
+		// to escalate to.
+		if !opts.Resync && errors.Is(err, mkv.ErrCorruptSource) {
+			s.updateCachedFile(path, func(st *SeekStatus) { st.ResyncRequired = true })
+		}
 		return false, err
 	}
 	if res.Skipped {
@@ -384,6 +394,13 @@ func needsReindex(it SeekStatus, resync bool) bool {
 	if it.SeekCoarse() || it.PictureMissing {
 		return false
 	}
+	// A file the strict rewrite already refused as corrupt is NOT a candidate
+	// for the strict rewrite, whatever its index says: that attempt is known to
+	// fail, and re-offering it every run is the same sterile loop SeekCoarse
+	// exists to break. It belongs to the resync bucket now.
+	if it.ResyncRequired {
+		return resync
+	}
 	if !it.HasIndex {
 		return true
 	}
@@ -503,7 +520,15 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 // fine, mid-file corruption, not an incomplete download (whose damage runs to
 // the end - nothing to resynchronise onto).
 func needsResyncForDamage(it SeekStatus) bool {
-	return it.HasIndex && it.DamagedBytes > 0 && !it.Truncated && !it.SeekCoarse()
+	if it.Truncated || it.SeekCoarse() {
+		return false
+	}
+	// ResyncRequired carries no index precondition: the corruption was found by
+	// a rewrite, which says nothing about whether a Cues element exists.
+	if it.ResyncRequired {
+		return true
+	}
+	return it.HasIndex && it.DamagedBytes > 0
 }
 
 // repairAllCandidates is every file the "repair all" job will REWRITE - the
