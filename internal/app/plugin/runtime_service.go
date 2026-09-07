@@ -118,7 +118,10 @@ func (s *RuntimeService) StopPlugin(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrPluginNotFound
 	}
-	if p.Status != plugin.Running {
+	// IsStarted, not Running only: a plugin still in Initializing has a live
+	// process, so an admin must be able to stop it (and a stuck-in-Initializing
+	// plugin must be stoppable at all).
+	if !p.Status.IsStarted() {
 		return ErrNotRunning
 	}
 	if err := s.runner.Stop(ctx, id); err != nil {
@@ -203,7 +206,9 @@ func (s *RuntimeService) DisablePlugin(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrPluginNotFound
 	}
-	if p.Status == plugin.Running {
+	// IsStarted, not Running only: disabling a plugin still in Initializing must
+	// stop its live process too, otherwise it kept running after being disabled.
+	if p.Status.IsStarted() {
 		if err := s.runner.Stop(ctx, id); err != nil {
 			slog.WarnContext(ctx, "stop plugin runner failed", slog.String("pluginID", id), slog.Any("err", err))
 		}

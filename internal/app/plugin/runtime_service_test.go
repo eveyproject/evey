@@ -188,6 +188,24 @@ func TestStopPlugin_InvalidatesPermissions(t *testing.T) {
 	assert.Error(t, pc.CheckPermission("plg-inv", "api.library"))
 }
 
+// An Initializing plugin has a live process, so StopPlugin must stop it rather
+// than reject it as "not running" (which left a stuck-in-Initializing plugin
+// unstoppable short of a server restart).
+func TestStopPlugin_Initializing(t *testing.T) {
+	svc, pluginRepo, runner, _ := newTestRuntimeService()
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-initstop", Name: "init-stop", Language: "go", Status: plugindomain.Initializing, Enabled: true,
+	}))
+	_ = runner.Start(ctx, &plugindomain.Plugin{ID: "plg-initstop"})
+
+	err := svc.StopPlugin(ctx, "plg-initstop")
+	require.NoError(t, err)
+
+	healthy, _ := runner.Health(ctx, "plg-initstop")
+	assert.False(t, healthy, "an Initializing plugin's process must be stoppable")
+}
+
 func TestStartPlugin_EmptyInstallDir_Rebuilt(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	ctx := context.Background()
@@ -249,6 +267,27 @@ func TestDisablePlugin_StopsRunningPlugin(t *testing.T) {
 
 	healthy, _ := runner.Health(ctx, "plg-dis")
 	assert.False(t, healthy)
+}
+
+// Disabling a plugin still in Initializing must stop its live process too;
+// gating the stop on Status==Running left it running after being disabled.
+func TestDisablePlugin_StopsInitializingPlugin(t *testing.T) {
+	svc, pluginRepo, runner, _ := newTestRuntimeService()
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-disinit", Name: "init-dis", Language: "go", Status: plugindomain.Initializing, Enabled: true,
+	}))
+	_ = runner.Start(ctx, &plugindomain.Plugin{ID: "plg-disinit"})
+
+	err := svc.DisablePlugin(ctx, "plg-disinit")
+	require.NoError(t, err)
+
+	p, _ := pluginRepo.GetByID(ctx, "plg-disinit")
+	assert.False(t, p.Enabled)
+	assert.Equal(t, plugindomain.Stopped, p.Status)
+
+	healthy, _ := runner.Health(ctx, "plg-disinit")
+	assert.False(t, healthy, "an Initializing plugin's process must be stopped on disable")
 }
 
 func TestDisablePlugin_AlreadyStopped(t *testing.T) {

@@ -33,8 +33,11 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 
 	// 1) Stop runner gracefully with a tight deadline. If it hangs or errors,
 	//    SIGKILL the whole process group so any child (the plugin process and
-	//    its bwrap sandbox) dies with it.
-	if p.Status == plugin.Running {
+	//    its bwrap sandbox) dies with it. IsStarted (not just Running) so a
+	//    plugin still in Initializing - or stuck there because it never finished
+	//    the IPC handshake - is terminated too, instead of having its row and
+	//    dir wiped while its process runs on until the next server restart.
+	if p.Status.IsStarted() {
 		stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		stopErr := s.runner.Stop(stopCtx, id)
 		cancel()
