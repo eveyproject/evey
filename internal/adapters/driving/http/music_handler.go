@@ -75,6 +75,24 @@ func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen dom
 	mux.HandleFunc("POST /api/v1/admin/music/fetch-missing-art", adminMw(h.fetchMissingArt))
 }
 
+// serveAlbumArt is the ONE handler in this file that does not call
+// checkLibraryAccess, and that is a decision, not an oversight - a repeated
+// audit finding, resolved as won't-do by the project owner on 2026-09-07.
+//
+// It cannot cheaply do otherwise: the path key is sha256(artist|album)
+// (albumArtHash, command_service.go), which is one-way, and nothing indexes a
+// hash back to the library that owns it. Closing it means either a new
+// hash->library_id index written at generation time plus a backfill, serving
+// art by album id instead (which invalidates every cached URL on three
+// clients), or hashing the caller's whole accessible catalogue per request.
+//
+// The exposure that buys: an already-authenticated caller who ALSO guesses the
+// exact artist and album strings learns that this server holds that album, and
+// gets a cover image that is public on the internet anyway. No audio, no
+// metadata, no enumeration (the hash is not listed anywhere they can reach).
+//
+// If that trade ever stops holding - art becomes user-uploaded, or the hash
+// becomes guessable at scale - option one above is the way back.
 func (h *musicHandler) serveAlbumArt(w http.ResponseWriter, r *http.Request) {
 	_, span := tracing.StartSpan(r.Context(), "http.music.AlbumArt")
 	defer span.End()
