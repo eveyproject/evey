@@ -432,6 +432,18 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 			span.SetStatus(otelcodes.Error, "setup already completed")
 			return nil, d.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.admin.setup_already_completed")
 		}
+		// Bad wizard input (empty username, too-short password) is a client
+		// error, not a server fault: map it to InvalidArgument with a clear
+		// reason instead of a generic 500 logged at ERROR, so the wizard can
+		// surface the actual problem.
+		if errors.Is(err, appuser.ErrUsernameRequired) {
+			span.SetStatus(otelcodes.Error, "username required")
+			return nil, status.Error(codes.InvalidArgument, "username is required")
+		}
+		if errors.Is(err, appuser.ErrPasswordTooShort) {
+			span.SetStatus(otelcodes.Error, "password too short")
+			return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.password_too_short")
+		}
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "setup", err)
 	}
