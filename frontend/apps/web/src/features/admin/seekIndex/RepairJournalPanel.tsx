@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAdminMediaServiceListMediaRepairs, baseName } from "@evey/api";
 import type { V1MediaRepairEntry } from "@evey/api";
@@ -90,7 +90,14 @@ export function RepairJournalPanel() {
   const [window, setWindow] = useState<Window>("7d");
   const [job, setJob] = useState<JobFilter>("");
 
-  const sinceMs = WINDOW_MS[window] > 0 ? String(Date.now() - WINDOW_MS[window]) : undefined;
+  // Pinned to the moment the filter changed, NOT recomputed on every render:
+  // this value goes into the query key, so a fresh Date.now() each render made
+  // every render a new key, every new key a new fetch, and the panel sat on
+  // "loading" for ever while refetching itself.
+  const sinceMs = useMemo(
+    () => (WINDOW_MS[window] > 0 ? String(Date.now() - WINDOW_MS[window]) : undefined),
+    [window],
+  );
   const journal = useAdminMediaServiceListMediaRepairs(
     { ...(sinceMs ? { sinceMs } : {}), ...(job && job !== "operator" ? { job } : {}), limit: 200 },
     { query: { enabled: open } },
