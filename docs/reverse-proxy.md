@@ -73,12 +73,17 @@ tokens or features break silently:
 A known-good policy for a curating proxy:
 
 ```
-default-src 'self'; img-src 'self' https: data: blob:; media-src 'self' blob:;
+default-src 'self'; base-uri 'self'; object-src 'none';
+img-src 'self' https: data: blob:; media-src 'self' blob:;
 style-src 'self' 'unsafe-inline';
 script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com;
 connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:;
 frame-src https://www.gstatic.com
 ```
+
+`base-uri` and `object-src` have no fallback to `default-src`, so a policy that
+omits them leaves `<base href>` injection and `<object>`/`<embed>` embedding
+unrestricted. Keep them if you curate your own policy.
 
 Rules of thumb:
 
