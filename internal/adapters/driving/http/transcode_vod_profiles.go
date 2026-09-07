@@ -14,11 +14,11 @@ import (
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
 
-func (h *hlsVODServe) effectiveVideoCodec(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) (codec, accel, device string, features []string, usable bool) {
+func (h *hlsVODServe) effectiveVideoCodec(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {
 	return h.planResolver().EffectiveVideoCodec(decision, streams)
 }
 
-func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string, sourceTenBit, hwTonemap bool) (accel, device string, features []string, usable bool) {
+func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string, sourceTenBit, hwTonemap bool) (accel, device string, features []string, usable, softwareDecode bool) {
 	return h.planResolver().ResolveHW(outputCodec, sourceCodec, sourceTenBit, hwTonemap)
 }
 

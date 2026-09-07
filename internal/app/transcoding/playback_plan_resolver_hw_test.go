@@ -48,15 +48,21 @@ func TestResolveHW_RefusalGates(t *testing.T) {
 	h264OnlyEncoder := vaapiCapable()
 	h264OnlyEncoder.HWCodecs = []string{"h264"}
 
+	nvencNoHEVCDecode := vaapiCapable()
+	nvencNoHEVCDecode.HWBackend = "nvenc"
+	nvencNoHEVCDecode.HWDevice = ""
+	nvencNoHEVCDecode.HWDecodeCodecs = []string{"h264"}
+
 	cases := []struct {
-		name         string
-		resolver     *PlanResolver
-		outputCodec  string
-		sourceCodec  string
-		sourceTenBit bool
-		hwTonemap    bool
-		wantUsable   bool
-		why          string
+		name               string
+		resolver           *PlanResolver
+		outputCodec        string
+		sourceCodec        string
+		sourceTenBit       bool
+		hwTonemap          bool
+		wantUsable         bool
+		wantSoftwareDecode bool
+		why                string
 	}{
 		{
 			name: "operator toggle off", resolver: &PlanResolver{
@@ -81,12 +87,39 @@ func TestResolveHW_RefusalGates(t *testing.T) {
 			why: "an unencodable output codec must not route to the GPU",
 		},
 		{
-			name:     "backend cannot decode the source codec",
+			name:     "backend cannot decode the source codec → decoupled, not software",
 			resolver: hwResolver(oldIGPUNoHEVCDecode),
-			// Pre-Skylake Intel: -hwaccel on an HEVC source fails ENOSYS and the
-			// player stalls on rebuffer rather than erroring.
+			// -hwaccel on such a source fails ENOSYS, so the decode moves to the
+			// CPU - but the GPU still encodes. Losing the encoder too is what put
+			// a library of DVD rips on libx264 next to an idle GPU.
 			outputCodec: "h264", sourceCodec: "hevc",
-			why: "an undecodable source must fall back to full software, not stall",
+			wantUsable: true, wantSoftwareDecode: true,
+			why: "an undecodable source keeps the GPU for scale+encode via hwupload",
+		},
+		{
+			name:     "undecodable source on a backend with no upload chain",
+			resolver: hwResolver(nvencNoHEVCDecode),
+			// NVENC has no wired hwupload chain here (hwUploadFilter returns ""),
+			// so it keeps the historical full-software fallback rather than emit
+			// a pipeline no probe on this host ever validated.
+			outputCodec: "h264", sourceCodec: "hevc",
+			why: "only VAAPI/QSV have a probe-validated upload chain",
+		},
+		{
+			name:     "undecodable source that needs a GPU tone-map",
+			resolver: hwResolver(oldIGPUNoHEVCDecode),
+			// The upload folds to 8-bit nv12 on the CPU, which is exactly the
+			// depth tonemap_vaapi still needs - the two cannot combine.
+			outputCodec: "h264", sourceCodec: "hevc", hwTonemap: true,
+			why: "a decoupled session cannot also tone-map on the GPU",
+		},
+		{
+			name:     "undecodable 10-bit source",
+			resolver: hwResolver(oldIGPUNoHEVCDecode),
+			// The software decode is the expensive half at 4K 10-bit; routing it
+			// to the GPU pool would price a CPU workload as a GPU one.
+			outputCodec: "h264", sourceCodec: "hevc", sourceTenBit: true,
+			why: "a 10-bit software decode must not be billed to the GPU pool",
 		},
 		{
 			name:     "10-bit source without proven VPP",
@@ -118,14 +151,16 @@ func TestResolveHW_RefusalGates(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			accel, device, features, usable := tc.resolver.ResolveHW(
+			accel, device, features, usable, softwareDecode := tc.resolver.ResolveHW(
 				tc.outputCodec, tc.sourceCodec, tc.sourceTenBit, tc.hwTonemap)
 
 			assert.Equal(t, tc.wantUsable, usable, tc.why)
+			assert.Equal(t, tc.wantSoftwareDecode, softwareDecode, tc.why)
 			if !tc.wantUsable {
 				assert.Empty(t, accel, "a refused route must not name a backend")
 				assert.Empty(t, device, "a refused route must not name a device")
 				assert.Empty(t, features, "a refused route must not carry encoder features")
+				assert.False(t, softwareDecode, "a refused route must not flag a decoupled decode")
 				return
 			}
 			assert.Equal(t, "vaapi", accel)

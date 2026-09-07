@@ -52,6 +52,7 @@ var (
 		"HWAccel":             "opts.HWAccel",
 		"HWDevice":            "opts.HWDevice",
 		"HWFeatures":          "opts.HWFeatures",
+		"HWSoftwareDecode":    "opts.HWSoftwareDecode (decoupled route: software decode + hwupload)",
 		"HWTonemap":           "opts.HWTonemap",
 		"DeinterlaceAll":      "opts.DeinterlaceAll",
 		"SourceSAR":           "opts.SourceSAR",
