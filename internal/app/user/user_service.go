@@ -175,6 +175,24 @@ func (s *UserService) UpdateUser(ctx context.Context, u *user.User) error {
 	if err := u.Validate(); err != nil {
 		return fmt.Errorf("UserService.UpdateUser: %w", err)
 	}
+	// An admin account must never OWN a kids profile: its tokens carry is_admin,
+	// which exempts the caller from the parental gate (checkParental / the gRPC
+	// resolver), so a kids profile under an admin would stream unrestricted.
+	// checkProfileInvariants enforces this when a PROFILE is written; enforce the
+	// inverse here, or PROMOTING a user who already has a kids profile to admin
+	// silently disables that profile's parental controls - the invariant held for
+	// every profile write yet broke on the user write.
+	if u.IsAdmin {
+		profs, perr := s.profiles.GetByUserID(ctx, u.ID)
+		if perr != nil {
+			return fmt.Errorf("UserService.UpdateUser: load profiles for admin/kids invariant: %w", perr)
+		}
+		for _, p := range profs {
+			if p != nil && p.IsKids {
+				return ErrAdminCannotBeKids
+			}
+		}
+	}
 	// A role change must invalidate outstanding access tokens (the JWT carries
 	// is_admin). Compare against the stored row to detect it.
 	roleChanged := false
