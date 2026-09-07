@@ -487,9 +487,14 @@ func (s *SeekIndexService) noteReindexed(ctx context.Context, path string, hasBa
 		if !ok {
 			st.HasIndex, st.IndexSparse, st.IndexSparseDetail = true, false, ""
 			st.DamagedBytes, st.Truncated, st.TrailingJunk = 0, false, false
+			st.ResyncRequired = false
 			return
 		}
 		st.DiagVersion = SeekDiagVersion
+		// The rewrite went through, so whatever refused it before is gone from
+		// the file: a stale ResyncRequired would keep a repaired file pinned in
+		// the resync bucket for good.
+		st.ResyncRequired = false
 		st.HasIndex, st.IndexSparse, st.IndexSparseDetail = fresh.HasIndex, fresh.IndexSparse, fresh.IndexSparseDetail
 		st.PictureMissing = fresh.PictureMissing
 		st.WrongContainer = fresh.WrongContainer

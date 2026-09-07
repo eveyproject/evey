@@ -27,6 +27,10 @@ type fakeReindexer struct {
 	hasIndex  map[string]bool
 	hasBackup map[string]bool
 	failWith  map[string]error
+	// failStrictWith fails a path only when the run is NOT a resync - the shape
+	// of a source whose cluster stream the strict rewrite refuses to parse and
+	// only the tolerant one gets past.
+	failStrictWith map[string]error
 	skip      map[string]bool // when true, ReindexInPlace reports Skipped (already indexed)
 	// restoreFail makes putting the original back fail - the case where the
 	// damaged file stays on disk and the journal must not claim otherwise.
@@ -48,7 +52,7 @@ func (f *fakeReindexer) HasSeekIndex(_ context.Context, p string) (bool, error) 
 func (f *fakeReindexer) HasBackup(_ context.Context, p string) (bool, error) {
 	return f.hasBackup[p], nil
 }
-func (f *fakeReindexer) ReindexInPlace(_ context.Context, p string, _ mkv.ReindexOptions) (mkv.ReindexResult, error) {
+func (f *fakeReindexer) ReindexInPlace(_ context.Context, p string, opts mkv.ReindexOptions) (mkv.ReindexResult, error) {
 	if f.gate != nil {
 		<-f.gate
 	}
@@ -56,6 +60,9 @@ func (f *fakeReindexer) ReindexInPlace(_ context.Context, p string, _ mkv.Reinde
 		panic("reindexer exploded on " + p)
 	}
 	if err := f.failWith[p]; err != nil {
+		return mkv.ReindexResult{}, err
+	}
+	if err := f.failStrictWith[p]; err != nil && !opts.Resync {
 		return mkv.ReindexResult{}, err
 	}
 	if f.skip[p] {

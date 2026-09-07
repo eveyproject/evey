@@ -291,6 +291,19 @@ type SeekStatus struct {
 	// skip past, losing this many bytes (repairable in full otherwise). 0 when
 	// clean or not diagnosed.
 	DamagedBytes int64
+	// ResyncRequired → a repair ALREADY ran on this file and the strict rewrite
+	// refused it: the cluster stream does not parse somewhere the scan never
+	// looked. The scan is head-mostly by design (a 7 000-file library must not
+	// each cost a full salvage walk on a NAS), so this class of damage is only
+	// ever discovered BY a repair - and it used to be thrown away with the
+	// error, leaving the operator a raw parser message, no button, and a batch
+	// that would fail the same way on every future run.
+	//
+	// It means what DamagedBytes > 0 means - only a resync repairs this - with
+	// one difference kept deliberately visible: the amount a resync would drop
+	// is UNKNOWN here, so it is never folded into the damaged byte total the
+	// confirmation dialog puts in front of the operator.
+	ResyncRequired bool `json:"ResyncRequired,omitempty"`
 	// WrongContainer → a .mkv whose bytes are really MP4/MOV. There is no
 	// seek-index to build (its sample table IS its index); the remedy is to
 	// rename/remux, not reindex. Kept out of the missing-index bucket so a
@@ -364,7 +377,14 @@ type SeekStatus struct {
 //	   none - none of the 98 files of 2026-07-13 would have been caught); a
 //	   track pulled to exactly 0 next to a sibling keeping its priming offset is
 //	   reported as the fingerprint of that retime
-const SeekDiagVersion = 4
+//	5: mkvgo 0.29 - the reader returns cue times in milliseconds instead of the
+//	   file's raw timecode units. Identical on the 1 ms default, so almost every
+//	   stored verdict is unaffected; on a file declaring another timebase every
+//	   cue time was out by the ratio of the scale, and the index verdict, its
+//	   health, its validation, thumbnail extraction and HLS segment planning were
+//	   each wrong in their own way. Two production DVD rips at 20832 ns/unit sat
+//	   in the repair queue for it, failing every batch with a cue mismatch
+const SeekDiagVersion = 5
 
 // Verdict is what the health page owes the operator for every file: not a
 // pile of flags, but the ONE answer "does this need doing, or is it just
@@ -407,7 +427,7 @@ func (st SeekStatus) Verdict() Verdict {
 	// remark, not as an instruction.
 	case st.Truncated, st.PictureMissing, st.SeekCoarse():
 		return VerdictInformational
-	case !st.HasIndex, st.DamagedBytes > 0, st.WrongContainer:
+	case !st.HasIndex, st.DamagedBytes > 0, st.ResyncRequired, st.WrongContainer:
 		return VerdictRepairable
 	// An audio track that starts after the picture is NOT a defect to rewrite.
 	// It is how a dub gets aligned to a cut, every player honours it, and Evey's

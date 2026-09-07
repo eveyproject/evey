@@ -299,6 +299,7 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 			AudioDelaySec:     it.AudioDelaySec,
 			Truncated:         it.Truncated,
 			DamagedBytes:      it.DamagedBytes,
+			ResyncRequired:    it.ResyncRequired,
 			WrongContainer:    it.WrongContainer,
 			TrailingJunk:      it.TrailingJunk,
 			AudioShortfallSec: it.AudioShortfallSec,

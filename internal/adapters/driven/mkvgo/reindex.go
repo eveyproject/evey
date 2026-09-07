@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	extmatroska "github.com/gravity-zero/mkvgo/matroska"
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/ops"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
@@ -384,6 +385,13 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 			// Neither the file (in-place above) nor its directory (this temp)
 			// is writable by the server user: pure ownership problem.
 			return mkv.ReindexResult{}, permissionRemedy(err)
+		}
+		if errors.Is(err, extmatroska.ErrCorruptSource) {
+			// The one refusal that names its own remedy: the cluster stream
+			// does not parse, and only a resync gets past it. Carried as the
+			// domain sentinel so the caller can RECORD it on the file instead
+			// of leaving the operator a raw parser message and no button.
+			return mkv.ReindexResult{}, fmt.Errorf("reindex: rebuild: %w: %w", err, mkv.ErrCorruptSource)
 		}
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: rebuild: %w", err)
 	}
