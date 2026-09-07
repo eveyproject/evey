@@ -562,6 +562,25 @@ func TestUninstallPlugin_StopsRunning(t *testing.T) {
 	assert.False(t, healthy, "runner should be stopped")
 }
 
+// A plugin auto-started on install is persisted as Initializing until its IPC
+// handshake completes; one that never handshakes (broken or hostile) stays
+// there with a live process. Uninstall must terminate that process too - gating
+// the stop on Status==Running leaked it (row + dir removed, process ran on).
+func TestUninstallPlugin_StopsInitializing(t *testing.T) {
+	svc, pluginRepo, runner, _, _, _ := newTestInstallerService()
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-init", Name: "initializing-uni", Language: "go", Status: plugindomain.Initializing, Enabled: true,
+	}))
+	_ = runner.Start(ctx, &plugindomain.Plugin{ID: "plg-init"})
+
+	err := svc.UninstallPlugin(ctx, "plg-init")
+	require.NoError(t, err)
+
+	healthy, _ := runner.Health(ctx, "plg-init")
+	assert.False(t, healthy, "an Initializing plugin's process must be stopped on uninstall, not leaked")
+}
+
 func TestUninstallPlugin_InvalidatesPermissions(t *testing.T) {
 	svc, pluginRepo, _, _, _, _ := newTestInstallerService()
 	pc := appplugin.NewPermissionChecker(pluginRepo)

@@ -195,6 +195,18 @@ func (s PluginStatus) IsValid() bool {
 	return false
 }
 
+// IsStarted reports whether a runner process is (or should be) alive for this
+// status. A plugin auto-started on install is persisted as Initializing until
+// its IPC handshake completes and it flips to Running - and a plugin that never
+// completes the handshake (a broken or hostile one) sits at Initializing with a
+// live process indefinitely. Lifecycle transitions that must terminate the
+// process (stop, disable, uninstall) have to cover BOTH states: gating them on
+// Running alone leaked the Initializing-state process (the DB row and install
+// dir were removed while the OS process kept running until the next restart).
+func (s PluginStatus) IsStarted() bool {
+	return s == Running || s == Initializing
+}
+
 func (m *PluginManifest) Validate() error {
 	if m.Name == "" {
 		return errors.New("manifest requires a name")
