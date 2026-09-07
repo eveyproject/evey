@@ -75,6 +75,7 @@ export type SeekVerdictInput = Pick<
   | "truncated"
   | "seekCoarse"
   | "damagedBytes"
+  | "resyncRequired"
   | "audioDelaySec"
   | "wrongContainer"
   | "audioShortfallSec"
@@ -105,6 +106,7 @@ export function verdictOf(it: SeekVerdictInput): SeekVerdict {
     it.hasIndex === false ||
     it.hasIndex === undefined ||
     Number(it.damagedBytes ?? 0) > 0 ||
+    it.resyncRequired ||
     it.wrongContainer
   ) {
     return "repairable";
@@ -119,6 +121,20 @@ export function verdictOf(it: SeekVerdictInput): SeekVerdict {
     return "informational";
   }
   return "healthy";
+}
+
+// needsResync reports the files ONLY a resync repair can make playable, from
+// either of the two ways that becomes known: the scan measured mid-file
+// corruption (damagedBytes), or a repair already tried the strict rewrite and
+// the source refused to parse (resyncRequired). Mirrors the Go
+// maintenance.needsResyncForDamage so the button the row offers and the file
+// the batch acts on can never disagree.
+export function needsResync(
+  it: Pick<V1SeekIndexItem, "damagedBytes" | "resyncRequired" | "truncated" | "seekCoarse" | "hasIndex">,
+): boolean {
+  if (it.truncated || it.seekCoarse) return false;
+  if (it.resyncRequired) return true;
+  return Boolean(it.hasIndex) && Number(it.damagedBytes ?? 0) > 0;
 }
 
 export function isAcked(it: Pick<V1SeekIndexItem, "ackedAtMs">): boolean {

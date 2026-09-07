@@ -26,6 +26,7 @@ import {
   audioTracksDisagree,
   baseName,
   errText,
+  needsResync,
   triageOf,
   triageRows,
   verdictOf,
@@ -198,14 +199,21 @@ export default function AdminSeekIndexScreen() {
   const repairable = triage.repairable;
   const counts = viewCounts(items);
   const repairableRows = items.filter((it) => verdictOf(it) === "repairable");
-  const damagedRows = repairableRows.filter((it) => it.hasIndex && Number(it.damagedBytes ?? 0) > 0);
-  const damagedBytes = damagedRows.reduce((sum, it) => sum + Number(it.damagedBytes ?? 0), 0);
+  // The resync bucket: the corruption the scan MEASURED, plus the files a
+  // repair already walked and whose source refused to parse. The byte total
+  // covers only the first kind - how much the second loses is not knowable
+  // before the rewrite - so the two are counted together and stated apart.
+  const measuredDamagedRows = repairableRows.filter((it) => it.hasIndex && Number(it.damagedBytes ?? 0) > 0);
+  const resyncRequiredRows = repairableRows.filter((it) => it.resyncRequired);
+  const damagedRows = repairableRows.filter((it) => needsResync(it));
+  const damagedBytes = measuredDamagedRows.reduce((sum, it) => sum + Number(it.damagedBytes ?? 0), 0);
   const detail = (parts: [number, string][]) =>
     parts.filter(([n]) => n > 0).map(([n, key]) => t(key, { count: n })).join(" · ") || undefined;
   const repairableDetail = detail([
     [repairableRows.filter((it) => !it.hasIndex).length, "admin.seekIndex.partMissing"],
-    [damagedRows.length, "admin.seekIndex.partDamaged"],
+    [measuredDamagedRows.length, "admin.seekIndex.partDamaged"],
     [items.filter((it) => it.wrongContainer).length, "admin.seekIndex.partWrongContainer"],
+    [resyncRequiredRows.length, "admin.seekIndex.partResyncRequired"],
   ]);
   // Everything Evey cannot fix here is ONE pile: a remark, never a chore.
   const infoDetail = detail([

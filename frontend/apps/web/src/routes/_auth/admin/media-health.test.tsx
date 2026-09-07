@@ -101,7 +101,7 @@ const finishedWithFailures = {
 };
 
 async function getPage() {
-  const mod = await import("./seek-index.lazy");
+  const mod = await import("./media-health.lazy");
   return (mod.Route as unknown as { component: React.ComponentType }).component;
 }
 
@@ -112,13 +112,25 @@ describe("SeekIndexPage", () => {
     mockJob.mockReturnValue(idleJob);
   });
 
-  it("renders heading, read-only note and scan button before any scan", async () => {
+  it("renders heading, the two verdicts and the scan button before any scan", async () => {
     const Page = await getPage();
     render(React.createElement(Page));
     expect(screen.getByText("Media Health")).toBeInTheDocument();
-    expect(screen.getByTestId("seek-index-ro-note")).toHaveTextContent(/read-only/i);
+    expect(screen.getByTestId("seek-index-intro-repairable")).toHaveTextContent(/Repairable here/i);
+    expect(screen.getByTestId("seek-index-intro-informational")).toHaveTextContent(/For information/i);
     expect(screen.getByTestId("seek-index-scan-btn")).toBeInTheDocument();
     expect(screen.queryByTestId("seek-index-repair-all-btn")).not.toBeInTheDocument();
+  });
+
+  // The read-only caveat is troubleshooting, not a headline: it moved into the
+  // header's info bubble when the nine-line paragraph was cut down. It must
+  // still be REACHABLE - a warning nobody can find is a warning that is gone.
+  it("keeps the read-only caveat one click away, in the header info bubble", async () => {
+    const Page = await getPage();
+    render(React.createElement(Page));
+    expect(screen.queryByTestId("seek-index-ro-note")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /More about the two verdicts/i }));
+    expect(screen.getByTestId("seek-index-ro-note")).toHaveTextContent(/read-only/i);
   });
 
   it("clicking Scan starts a background scan job", async () => {
@@ -222,6 +234,57 @@ describe("SeekIndexPage", () => {
     expect(row.querySelector('[data-testid="seek-index-repair-resync-btn"]')).toBeNull();
     // Unchanged by the extra flagged file: the batch cannot act on it.
     expect(screen.getByTestId("seek-index-repair-all-btn")).toHaveTextContent("Repair all (1)");
+  });
+
+  // A repair walked this file, its source refused to parse, and the server
+  // recorded that. The row must say so and route to the ONE repair that can
+  // help - offering the strict one again would offer the button that just
+  // failed (2026-09-07 prod batch: 3 failures out of 4 files).
+  it("a file the strict repair refused shows why and offers only the resync", async () => {
+    const refused = {
+      ...scanned,
+      data: {
+        ...scanned.data,
+        items: [
+          ...scanned.data.items,
+          { mediaId: "mi-9", title: "Movie H", path: "/media/h.mkv", hasIndex: false, hasBackup: false, sizeBytes: "4096", container: "mkv", resyncRequired: true, verdict: "repairable" },
+        ],
+        total: 7,
+      },
+    };
+    mockScan.mockReturnValue(refused);
+    const Page = await getPage();
+    render(React.createElement(Page));
+
+    const row = screen.getByText("Movie H").closest("tr")!;
+    expect(within(row).getByTestId("seek-index-resync-required-hint")).toBeInTheDocument();
+    expect(row.querySelector('[data-testid="seek-index-repair-btn"]')).toBeNull();
+    expect(row.querySelector('[data-testid="seek-index-repair-resync-btn"]')).not.toBeNull();
+    expect(screen.getByTestId("seek-index-resync-required-count")).toHaveTextContent("1");
+  });
+
+  // The resync checkbox states a byte total. A file whose corruption was only
+  // found by a rewrite has no such figure, so it is counted in the consent but
+  // called out apart - a total that covered half the files would be the wrong
+  // kind of precise.
+  it("says plainly that the byte figure does not cover the repair-discovered files", async () => {
+    const refused = {
+      ...scanned,
+      data: {
+        ...scanned.data,
+        items: [
+          ...scanned.data.items,
+          { mediaId: "mi-9", title: "Movie H", path: "/media/h.mkv", hasIndex: false, hasBackup: false, sizeBytes: "4096", container: "mkv", resyncRequired: true, verdict: "repairable" },
+        ],
+        total: 7,
+      },
+    };
+    mockScan.mockReturnValue(refused);
+    const Page = await getPage();
+    render(React.createElement(Page));
+
+    fireEvent.click(screen.getByTestId("seek-index-repair-all-btn"));
+    expect(screen.getByTestId("seek-index-resync-required-note")).toHaveTextContent(/1 the normal repair refused/i);
   });
 
   // "138/138 processed" read identically whether the job repaired 138 files or

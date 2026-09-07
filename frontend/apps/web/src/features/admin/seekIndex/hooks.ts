@@ -122,6 +122,11 @@ export function useSeekIndexPage() {
     seekCoarse: items.filter((it) => it.seekCoarse && !it.truncated && !isAcked(it)).length,
     audioShort: items.filter((it) => verdictOf(it) === "informational" && (it.audioShortfallSec ?? 0) > 0 && !isAcked(it)).length,
     trailingJunk: items.filter((it) => verdictOf(it) === "informational" && it.trailingJunk && !isAcked(it)).length,
+    // Counted APART from `damaged`, and never added to `damagedBytes`: these
+    // are the files a repair already refused as corrupt, and how much a resync
+    // would drop is unknown for them. Folding them into the byte total would
+    // put a figure in front of the operator that understates what is at stake.
+    resyncRequired: items.filter((it) => it.resyncRequired).length,
   };
   // Per-filesystem numbers for the candidates: Evey pre-sets the safe backup
   // choice itself (a nearly-full volume must not accumulate one copy per

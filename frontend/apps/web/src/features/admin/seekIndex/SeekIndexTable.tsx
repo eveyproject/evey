@@ -7,7 +7,7 @@ import { RepairHistoryPanel } from "./RepairHistoryPanel";
 import { SyncPreviewPanel } from "./SyncPreviewPanel";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
-import { audioDelayed, audioTrackZeroed, baseName, formatBytes, isAckable, isAcked, verdictOf, audioTracksDisagree } from "@evey/api";
+import { audioDelayed, audioTrackZeroed, baseName, formatBytes, isAckable, isAcked, needsResync, verdictOf, audioTracksDisagree } from "@evey/api";
 import { SEEK_INDEX_PAGE_SIZE, type SeekIndexPageState } from "./hooks";
 
 type SeekIndexTableProps = Pick<
@@ -89,7 +89,6 @@ export function SeekIndexTable({
           {paged.map((it: V1SeekIndexItem) => {
             const verdict = verdictOf(it);
             const acked = isAcked(it);
-            const damagedOnly = it.hasIndex && Number(it.damagedBytes ?? 0) > 0 && !it.truncated;
             const indexRepairable = !it.hasIndex && !it.truncated && !it.seekCoarse;
             return (
               <tr key={it.mediaId} className="border-b border-[var(--border)]" data-testid="seek-index-row">
@@ -213,6 +212,19 @@ export function SeekIndexTable({
                       <Badge variant="error">{t("admin.seekIndex.wrongContainerBadge")}</Badge>
                     </span>
                   )}
+                  {/* A repair already walked this file and the source refused
+                      to parse. Said on the row, because the alternative is the
+                      operator reading a raw parser message in the job card and
+                      having no idea which button answers it. */}
+                  {it.resyncRequired && (
+                    <span
+                      title={t("admin.seekIndex.resyncRequiredHint")}
+                      className="ml-1.5 inline-block"
+                      data-testid="seek-index-resync-required-hint"
+                    >
+                      <Badge variant="warning">{t("admin.seekIndex.resyncRequiredBadge")}</Badge>
+                    </span>
+                  )}
                   {it.trailingJunk && (
                     <span title={t("admin.seekIndex.trailingJunkHint")} className="ml-1.5 inline-block">
                       <Badge variant="info">{t("admin.seekIndex.trailingJunkBadge")}</Badge>
@@ -244,7 +256,7 @@ export function SeekIndexTable({
                         already rebuilt and cannot beat the encode's keyframes.
                         The badge's tooltip says why; the operator acknowledges
                         instead. */}
-                    {indexRepairable && !it.wrongContainer && (
+                    {indexRepairable && !it.resyncRequired && !it.wrongContainer && (
                       <Button
                         variant="secondary"
                         className="text-xs"
@@ -264,7 +276,7 @@ export function SeekIndexTable({
                     {/* Resync: the lossy rewrite, offered where it is the
                         answer - a damaged stretch (index fine or not) - and as
                         the fallback when the normal repair refused a file. */}
-                    {(indexRepairable || damagedOnly) && !it.wrongContainer && (
+                    {(indexRepairable || needsResync(it)) && !it.wrongContainer && (
                       <Button
                         variant="ghost"
                         className="text-xs"
@@ -352,7 +364,7 @@ export function SeekIndexTable({
                   </div>
                   {previewFor && previewFor === it.mediaId && (
                     <SyncPreviewPanel
-                      mediaId={previewFor}
+                      item={it}
                       title={it.title || baseName(it.path ?? "")}
                       onClose={() => setPreviewFor(null)}
                     />
