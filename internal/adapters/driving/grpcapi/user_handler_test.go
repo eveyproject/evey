@@ -290,6 +290,36 @@ func TestUpdateUser_AdminCanSetCaps(t *testing.T) {
 	}
 }
 
+// Promoting a user who already owns a kids profile to admin is refused by the
+// admin/kids invariant. That refusal is a business-rule precondition, not a
+// server fault: it must map to FailedPrecondition with a clear reason, not a
+// generic Internal (500) logged at ERROR. Regression for the F11 error-mapping
+// nit (the security outcome - blocked, user stays non-admin - already held).
+func TestUpdateUser_PromoteWithKidsProfile_FailedPrecondition(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-admin", Username: "root", Email: "r@b.com", IsAdmin: true}, "pass12345678")
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
+	// alice owns a kids profile - legal for a non-admin, forbidden once she is admin.
+	if err := env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-kid", UserID: "usr-1", Name: "kiddo", IsKids: true}); err != nil {
+		t.Fatalf("seed kids profile: %v", err)
+	}
+
+	trueVal := true
+	_, err := env.handler.UpdateUser(adminCtx(), &eveyv1.UpdateUserRequest{
+		Id:      "usr-1",
+		IsAdmin: &trueVal,
+	})
+	assertCode(t, err, codes.FailedPrecondition)
+
+	stored, gerr := env.userRepo.GetByID(context.Background(), shared.UserID("usr-1"))
+	if gerr != nil {
+		t.Fatalf("GetByID: %v", gerr)
+	}
+	if stored.IsAdmin {
+		t.Fatal("user promoted to admin despite the kids-profile invariant refusal")
+	}
+}
+
 // An admin changing another user's password via UpdateUser must actually
 // persist the new hash - the field used to be silently ignored, so the user
 // could never log in with the new password.

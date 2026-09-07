@@ -134,9 +134,16 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		u.MaxDevicesPerProfile = &md
 	}
 	if err := h.userSvc.UpdateUser(ctx, u); err != nil {
-		slog.ErrorContext(ctx, "update user", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		// Promoting a user who already owns a kids profile to admin is a parental
+		// business-rule refusal (the admin/kids invariant), not a server fault:
+		// map it to FailedPrecondition with a clear reason, like CreateProfile,
+		// rather than a generic 500 logged at ERROR (which reads as an alert).
+		if errors.Is(err, appuser.ErrAdminCannotBeKids) {
+			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+		}
+		slog.ErrorContext(ctx, "update user", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	// Password change: routed through ChangePassword so it is hashed, length-
