@@ -214,6 +214,32 @@ func TestUpdateUser_Happy(t *testing.T) {
 	}
 }
 
+// Promoting a user who already owns a kids profile to admin must be refused:
+// an admin's tokens carry is_admin, which exempts the parental gate, so the
+// kids profile would silently stream unrestricted. The invariant was enforced
+// on profile writes (checkProfileInvariants) but not on this user write.
+func TestUpdateUser_PromoteToAdminRejectedWhenUserHasKidsProfile(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "parent", "pw", false, true) // non-admin owner
+	// A kids profile is legal under a NON-admin account.
+	if err := d.profiles.Create(ctx, &user.Profile{ID: "prf-kid", UserID: "u1", Name: "kid", IsKids: true}); err != nil {
+		t.Fatal(err)
+	}
+	err := d.svc.UpdateUser(ctx, &user.User{ID: "u1", Username: "parent", IsAdmin: true})
+	if !errors.Is(err, ErrAdminCannotBeKids) {
+		t.Fatalf("promote-to-admin with a kids profile must return ErrAdminCannotBeKids, got %v", err)
+	}
+	// Control: the same promotion succeeds for a user with only a non-kids profile.
+	seedUserSvcUser(t, d, "u2", "adult", "pw", false, true)
+	if err := d.profiles.Create(ctx, &user.Profile{ID: "prf-adult", UserID: "u2", Name: "adult", IsKids: false}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.svc.UpdateUser(ctx, &user.User{ID: "u2", Username: "adult", IsAdmin: true}); err != nil {
+		t.Fatalf("promoting a user with no kids profile must succeed, got %v", err)
+	}
+}
+
 func TestUpdateUser_RepoError(t *testing.T) {
 	d := newUserTestDeps()
 	d.users.Err = errors.New("fail")
