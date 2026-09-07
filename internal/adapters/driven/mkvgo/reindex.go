@@ -162,6 +162,17 @@ func fmtBytes(n uint64) string {
 	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
+// corruptSource carries mkv.ErrCorruptSource next to mkvgo's refusal without
+// adding a word to what the operator reads. The message is the library's own -
+// it already names the remedy - and the domain sentinel exists so the app layer
+// can route on it without importing mkvgo. Unwrap keeps the library's sentinel
+// reachable too, so both errors.Is checks hold.
+type corruptSource struct{ cause error }
+
+func (e corruptSource) Error() string      { return e.cause.Error() }
+func (e corruptSource) Unwrap() error      { return e.cause }
+func (corruptSource) Is(target error) bool { return target == mkv.ErrCorruptSource }
+
 // permissionRemedy converts a raw EACCES from the repair machinery into the
 // operator-actionable diagnosis: the server user does not own the media file
 // (or its directory). Without this, a whole batch fails as N copies of a
@@ -391,7 +402,13 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 			// does not parse, and only a resync gets past it. Carried as the
 			// domain sentinel so the caller can RECORD it on the file instead
 			// of leaving the operator a raw parser message and no button.
-			return mkv.ReindexResult{}, fmt.Errorf("reindex: rebuild: %w: %w", err, mkv.ErrCorruptSource)
+			//
+			// The sentinel is CARRIED, not appended: mkvgo's own text already
+			// ends with "the source is structurally corrupt", so a second %w
+			// (and errors.Join, which prints both) put that sentence in front
+			// of the operator twice. corruptSource keeps both errors.Is
+			// targets and renders exactly what mkvgo said.
+			return mkv.ReindexResult{}, fmt.Errorf("reindex: rebuild: %w", corruptSource{err})
 		}
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: rebuild: %w", err)
 	}
