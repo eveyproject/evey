@@ -131,6 +131,22 @@ static struct sock_filter filter[] = {
     DENY(__NR_bpf),
     DENY(__NR_perf_event_open),
 
+    /* io_uring / userfaultfd - premier kernel-exploit primitives (long LPE CVE
+       history; ChromeOS/Android/GKE disable io_uring for this). No plugin runtime
+       needs them by default. Guarded: older build headers may lack the numbers. */
+#ifdef __NR_io_uring_setup
+    DENY(__NR_io_uring_setup),
+#endif
+#ifdef __NR_io_uring_enter
+    DENY(__NR_io_uring_enter),
+#endif
+#ifdef __NR_io_uring_register
+    DENY(__NR_io_uring_register),
+#endif
+#ifdef __NR_userfaultfd
+    DENY(__NR_userfaultfd),
+#endif
+
     /* hardware I/O - x86-only syscalls (I/O port space); they do not exist on
        arm64 and other portless arches, so guard them or the build won't compile
        there (there is no such syscall to deny in the first place). */

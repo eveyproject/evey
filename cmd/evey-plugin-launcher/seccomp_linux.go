@@ -60,10 +60,17 @@ func deniedSyscalls() []uint32 {
 		unix.SYS_BPF, unix.SYS_PERF_EVENT_OPEN,
 		unix.SYS_SWAPON, unix.SYS_SWAPOFF, unix.SYS_SYSLOG, unix.SYS_REBOOT,
 		unix.SYS_SETTIMEOFDAY, unix.SYS_CLOCK_SETTIME, unix.SYS_CLOCK_ADJTIME, unix.SYS_ADJTIMEX,
-		unix.SYS_KEXEC_LOAD,
+		unix.SYS_KEXEC_LOAD, unix.SYS_KEXEC_FILE_LOAD,
 		unix.SYS_SETUID, unix.SYS_SETGID, unix.SYS_SETREUID, unix.SYS_SETREGID,
 		unix.SYS_SETRESUID, unix.SYS_SETRESGID, unix.SYS_CAPSET,
 		unix.SYS_ADD_KEY, unix.SYS_REQUEST_KEY, unix.SYS_KEYCTL,
+		// io_uring and userfaultfd are premier kernel-exploit primitives (a long
+		// LPE CVE history; ChromeOS/Android/GKE disable io_uring for this). No
+		// plugin runtime (node/python/Go) needs them by default, and Docker's
+		// default profile does not reliably block them - so deny them here, where
+		// the filter also covers static/compiled plugins the LD_PRELOAD shim misses.
+		unix.SYS_IO_URING_SETUP, unix.SYS_IO_URING_ENTER, unix.SYS_IO_URING_REGISTER,
+		unix.SYS_USERFAULTFD,
 	}
 }
 
@@ -89,7 +96,9 @@ func buildSeccompFilter(denyInet, denyFork bool) []unix.SockFilter {
 	}
 	// Self-contained 2-instruction DENY block per syscall (sandbox.c pattern):
 	// match → fall through to the EPERM ret; no match → skip it.
-	for _, nr := range deniedSyscalls() {
+	// archDeniedSyscalls adds arch-only numbers (e.g. x86 ioperm/iopl that do not
+	// exist on arm64) - see legacyForkSyscalls for the same per-arch pattern.
+	for _, nr := range append(deniedSyscalls(), archDeniedSyscalls()...) {
 		f = append(f,
 			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 1, K: nr},
 			unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},

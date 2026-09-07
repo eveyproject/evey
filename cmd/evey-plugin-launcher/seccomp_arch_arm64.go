@@ -10,3 +10,7 @@ const auditArch = 0xC00000B7
 // check already covers. Denying numbers that do not exist here would silently
 // match whatever syscall happens to hold them.
 func legacyForkSyscalls() []uint32 { return nil }
+
+// archDeniedSyscalls is empty on arm64: ioperm/iopl are x86-only and have no
+// syscall number here, so denying a number would silently match another syscall.
+func archDeniedSyscalls() []uint32 { return nil }
