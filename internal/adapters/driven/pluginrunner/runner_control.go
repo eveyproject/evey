@@ -13,6 +13,29 @@ import (
 // runner_control.go holds the runtime control surface of a running plugin:
 // graceful stop, kill, health check and event delivery.
 
+// signalPluginGroup sends sig to the plugin's process group (Setpgid makes
+// pgid == the leader pid), falling back to the leader pid alone if the group
+// send fails. ESRCH (already gone) is not worth a log line. Mirrors the
+// group-termination the boot-time reaper and Kill already use, so a plugin's
+// forked children die with it on graceful stop too.
+func signalPluginGroup(ctx context.Context, pid int, sig syscall.Signal) {
+	// Guard against a non-positive pid: kill(-1) hits every process the caller
+	// can signal and kill(0) hits the caller's OWN process group - either would
+	// take the server down. A live plugin always has pid > 0; this is belt-and-
+	// braces so a future caller can never turn a zero pid into that catastrophe.
+	if pid <= 0 {
+		return
+	}
+	// Fall back to the leader pid on ANY group-send error (mirrors the reaper):
+	// a process not spawned as its own group leader has no pgid == pid, so
+	// kill(-pid) returns ESRCH and only the direct kill(pid) reaches it.
+	if err := syscall.Kill(-pid, sig); err != nil {
+		if err := syscall.Kill(pid, sig); err != nil && err != syscall.ESRCH {
+			slog.WarnContext(ctx, "signal plugin", slog.Int("pid", pid), slog.String("signal", sig.String()), slog.Any("err", err))
+		}
+	}
+}
+
 func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 	// Always clear the host-socket registry on the way out - including the early
 	// returns below - so a desynced orphan (gone from r.processes but still
@@ -50,16 +73,18 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 		return nil
 	}
 
-	if err := entry.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		slog.WarnContext(ctx, "send SIGTERM to plugin", slog.Any("err", err))
-	}
+	// Signal the whole process GROUP, not just the leader: a plugin holding the
+	// "subprocess" permission can fork children (the seccomp fork-deny is lifted
+	// for it), and a SIGTERM/SIGKILL to the leader alone leaves those children
+	// running - reparented and untracked until the next boot's ReapStaleProcesses.
+	// Plugins are spawned with Setpgid, so pgid == the leader pid; -pid reaches
+	// every descendant. Fall back to the leader pid if the group send fails.
+	signalPluginGroup(ctx, entry.cmd.Process.Pid, syscall.SIGTERM)
 
 	select {
 	case <-entry.done:
 	case <-time.After(shutdownTimeout):
-		if err := entry.cmd.Process.Signal(syscall.SIGKILL); err != nil {
-			slog.WarnContext(ctx, "send SIGKILL to plugin", slog.Any("err", err))
-		}
+		signalPluginGroup(ctx, entry.cmd.Process.Pid, syscall.SIGKILL)
 		select {
 		case <-entry.done:
 		case <-time.After(killTimeout):
@@ -147,8 +172,14 @@ func (r *Runner) Health(ctx context.Context, pluginID string) (bool, error) {
 		return false, nil
 	}
 
-	if entry.cmd.ProcessState != nil && entry.cmd.ProcessState.Exited() {
+	// Reading entry.cmd.ProcessState here races trackLifecycle's cmd.Wait(),
+	// which writes it on exit. entry.done is closed once Wait returns, and
+	// channel receive is synchronised - so a non-blocking receive is the
+	// race-free way to ask "has the process exited?".
+	select {
+	case <-entry.done:
 		return false, nil
+	default:
 	}
 
 	// If IPC client available, do a real health check
