@@ -2,7 +2,7 @@ import { View, Text, Pressable, ActivityIndicator, Alert, StyleSheet } from "rea
 import { useTranslation } from "react-i18next";
 import type { V1SeekIndexItem } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
-import { audioDelayed, audioTracksDisagree, audioTrackZeroed, formatBytes, isAckable, isAcked, verdictOf } from "@evey/api";
+import { audioDelayed, audioTracksDisagree, audioTrackZeroed, formatBytes, isAckable, isAcked, needsResync, verdictOf } from "@evey/api";
 
 type Theme = ReturnType<typeof useTheme>;
 
@@ -74,8 +74,8 @@ export function SeekIndexItemRow({
   // Same rules as the web table: the normal repair for a missing index, the
   // lossy resync for a damaged stretch (index fine or not), no repair at all
   // for a truncated or coarse file - the operator acknowledges those instead.
-  const indexRepairable = !item.hasIndex && !item.truncated && !item.seekCoarse;
-  const damagedOnly = Boolean(item.hasIndex) && damagedBytes > 0 && !item.truncated;
+  const indexRepairable = !item.hasIndex && !item.truncated && !item.seekCoarse && !item.resyncRequired;
+  const resyncable = needsResync(item);
   const verdictColor =
     verdict === "healthy" ? theme.colors.success : verdict === "repairable" ? theme.colors.warning : theme.colors.info;
 
@@ -124,6 +124,16 @@ export function SeekIndexItemRow({
           />
         )}
         {item.hasBackup && <HintBadge label={t("admin.seekIndex.backupBadge")} color={theme.colors.info} />}
+        {/* A repair already walked this file and its source refused to parse.
+            Without this the operator reads a raw parser message in the job
+            card and has no idea which button answers it. */}
+        {item.resyncRequired && (
+          <HintBadge
+            label={t("admin.seekIndex.resyncRequiredBadge")}
+            hint={t("admin.seekIndex.resyncRequiredHint")}
+            color={theme.colors.warning}
+          />
+        )}
         {/* An offset is a FACT, shown in the file's own terms - never an
             alarm. A dub lined up on a cut declares one, every player follows
             it, and rewriting it is what desynchronised films on 2026-07-13.
@@ -199,7 +209,7 @@ export function SeekIndexItemRow({
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
         {indexRepairable && !item.wrongContainer &&
           btn(t("admin.seekIndex.repair"), () => item.mediaId && onRepair(item.mediaId), repairPending, true, t("admin.seekIndex.repairHint"))}
-        {(indexRepairable || damagedOnly) && !item.wrongContainer &&
+        {(indexRepairable || resyncable) && !item.wrongContainer &&
           btn(t("admin.seekIndex.repairResync"), () => item.mediaId && onRepairResync(item.mediaId), repairResyncPending, false, t("admin.seekIndex.repairResyncHint"))}
         {item.wrongContainer && containerFixAvailable &&
           btn(t("admin.seekIndex.fixContainerBtn"), () => item.mediaId && onFixContainer(item.mediaId), fixContainerPending, true, t("admin.seekIndex.fixContainerHint"))}

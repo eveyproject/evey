@@ -4,6 +4,7 @@ import {
   baseName,
   isAckable,
   matchesView,
+  needsResync,
   repairableCount,
   sortSeekItems,
   triageOf,
@@ -169,5 +170,33 @@ describe("views, search and sort of the displayed rows", () => {
     expect(triageRows(rows, "all", "ECHO", "priority").map((r) => r.mediaId)).toEqual(["e"]);
     expect(triageRows(rows, "all", "/m/", "title")).toHaveLength(6);
     expect(triageRows(rows, "informational", "fox", "priority").map((r) => r.mediaId)).toEqual(["f"]);
+  });
+});
+
+// Mirrors the Go maintenance.needsResyncForDamage: the button a row offers and
+// the file a batch acts on must never disagree, or the operator clicks a repair
+// the server will not run (or the batch quietly skips a file the row promised).
+describe("needsResync", () => {
+  it("takes the scan's measured mid-file corruption", () => {
+    expect(needsResync({ hasIndex: true, damagedBytes: "4096" })).toBe(true);
+    expect(needsResync({ hasIndex: true, damagedBytes: "0" })).toBe(false);
+  });
+
+  // The case the 2026-09-07 prod batch exposed: a repair walked the file, the
+  // source refused to parse, and nothing carried that answer forward.
+  it("takes a file the strict repair already refused, whatever its index says", () => {
+    expect(needsResync({ resyncRequired: true, hasIndex: false })).toBe(true);
+    expect(needsResync({ resyncRequired: true, hasIndex: true })).toBe(true);
+  });
+
+  it("never offers a resync where there is nothing to resynchronise onto", () => {
+    expect(needsResync({ resyncRequired: true, truncated: true })).toBe(false);
+    expect(needsResync({ resyncRequired: true, seekCoarse: true })).toBe(false);
+  });
+});
+
+describe("verdictOf with a repair-discovered corruption", () => {
+  it("is repairable - a resync is a repair Evey runs here", () => {
+    expect(verdictOf({ hasIndex: true, resyncRequired: true })).toBe("repairable");
   });
 });

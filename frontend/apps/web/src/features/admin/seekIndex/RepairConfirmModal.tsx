@@ -43,8 +43,15 @@ export function RepairConfirmModal({
   // The damaged files are the one repair that LOSES bytes: asked explicitly,
   // with the count and the bytes, and left out of the count when declined so
   // the dialog never promises more than the job will do.
-  const hasDamaged = breakdown.damaged > 0;
-  const willRepair = repairable - (hasDamaged && !resyncDamaged ? breakdown.damaged : 0);
+  // Two ways a file ends up in the resync bucket, and the checkbox governs
+  // both: the scan MEASURED mid-file corruption (damaged, with a byte figure),
+  // or a repair already tried the strict rewrite and the source refused to
+  // parse (resyncRequired, byte figure unknown). They are counted together for
+  // the consent but stated separately, because promising a byte total that
+  // covers only half the files would be the wrong kind of precise.
+  const resyncCount = breakdown.damaged + breakdown.resyncRequired;
+  const hasDamaged = resyncCount > 0;
+  const willRepair = repairable - (hasDamaged && !resyncDamaged ? resyncCount : 0);
 
   return (
     <Modal
@@ -99,7 +106,7 @@ export function RepairConfirmModal({
             <div>
               <Checkbox
                 label={t("admin.seekIndex.resyncDamaged", {
-                  count: breakdown.damaged,
+                  count: resyncCount,
                   bytes: formatBytes(breakdown.damagedBytes),
                 })}
                 checked={resyncDamaged}
@@ -107,6 +114,11 @@ export function RepairConfirmModal({
                 data-testid="seek-index-resync-damaged"
               />
               <p className="mt-1 text-xs text-muted-foreground">{t("admin.seekIndex.resyncDamagedHint")}</p>
+              {breakdown.resyncRequired > 0 && (
+                <p className="mt-1 text-xs text-[var(--color-warning)]" data-testid="seek-index-resync-required-note">
+                  {t("admin.seekIndex.resyncRequiredNote", { count: breakdown.resyncRequired })}
+                </p>
+              )}
             </div>
           )}
           <div>
