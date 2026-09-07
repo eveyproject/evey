@@ -23,7 +23,12 @@ func TestSignalPluginGroup_NonPositivePidIsNoop(t *testing.T) {
 	for _, pid := range []int{0, -1} {
 		signalPluginGroup(context.Background(), pid, syscall.SIGKILL)
 	}
-	assert.True(t, true, "reached here => the guard stopped a self-directed kill")
+	// kill(pid, 0) signals nothing and answers "is this process still there".
+	// It is the assertion the sibling test below already uses, and it is the
+	// only one that means anything here: if the guard regresses, the calls
+	// above SIGKILL this test's own process group and there is nobody left to
+	// fail. Surviving to this line is the result being checked.
+	assert.NoError(t, syscall.Kill(os.Getpid(), 0), "test process must still be alive")
 }
 
 // signalPluginGroup targets the process group, but a process not spawned as its
