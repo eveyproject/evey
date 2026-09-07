@@ -77,6 +77,11 @@ func (k SegmentKey) fileName(useFMP4 bool) string {
 // Note: stream_token is NOT part of the fingerprint - it changes per session
 // but doesn't change the bytes ffmpeg emits.
 type DecisionFingerprint struct {
+	// AudioEncoder is the concrete ffmpeg AAC implementation these bytes were
+	// made with - see HLSProcessOpts.AudioEncoder. Hashed only when it is not
+	// the native encoder (nonNativeAudioEncoder), so a box that never had
+	// libfdk keeps every segment it already cached.
+	AudioEncoder        string
 	MediaID             string
 	SourcePath          string // absolute path; same media at a different path = different cache
 	VideoCodec          string // domain codec: "h264", "hevc", "av1"
@@ -212,10 +217,14 @@ func ProfileFingerprintOf(p transcoding.HLSProfile) ProfileFingerprint {
 // pipeline's existing knobs so audio settings stay consistent across
 // the two pipelines.
 type AudioFingerprint struct {
-	MediaID          string
-	SourcePath       string
-	SourceTrackIdx   int
-	AudioCodec       string
+	MediaID        string
+	SourcePath     string
+	SourceTrackIdx int
+	AudioCodec     string
+	// AudioEncoder is the concrete ffmpeg AAC implementation these bytes were
+	// made with - see HLSProcessOpts.AudioEncoder. Hashed only when it is not
+	// the native encoder, so existing caches stay valid where nothing changed.
+	AudioEncoder     string
 	AudioBitrate     int64 // kbps; 0 = encoder default
 	AudioNormalize   bool
 	MaxAudioChannels int
@@ -271,6 +280,9 @@ func (a AudioFingerprint) hashWithDownmixPolicy(downmixPolicy string) string {
 	fmt.Fprintf(&b, "src=%s\n", a.SourcePath)
 	fmt.Fprintf(&b, "atrack=%d\n", a.SourceTrackIdx)
 	fmt.Fprintf(&b, "acodec=%s\n", a.AudioCodec)
+	if aenc := nonNativeAudioEncoder(a.AudioEncoder); aenc != "" {
+		fmt.Fprintf(&b, "aenc=%s\n", aenc)
+	}
 	fmt.Fprintf(&b, "abitrate=%d\n", a.AudioBitrate)
 	fmt.Fprintf(&b, "anorm=%t\n", a.AudioNormalize)
 	fmt.Fprintf(&b, "ach=%d\n", a.MaxAudioChannels)
@@ -331,6 +343,13 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 	fmt.Fprintf(&b, "src=%s\n", f.SourcePath)
 	fmt.Fprintf(&b, "vcodec=%s\n", f.VideoCodec)
 	fmt.Fprintf(&b, "acodec=%s\n", f.AudioCodec)
+	// The CONCRETE AAC implementation, and only when it is not the historical
+	// native encoder: libfdk and native produce different bytes at one bitrate,
+	// so they must not share a cache entry. Emitting nothing for the native case
+	// keeps every already-cached segment on a box without libfdk valid.
+	if aenc := nonNativeAudioEncoder(f.AudioEncoder); aenc != "" {
+		fmt.Fprintf(&b, "aenc=%s\n", aenc)
+	}
 	fmt.Fprintf(&b, "atrack=%d\n", f.AudioTrack)
 	fmt.Fprintf(&b, "sub=%d\n", f.SubtitleBurnInTrack)
 	fmt.Fprintf(&b, "hdr=%t\n", f.HDRTonemap)
@@ -807,4 +826,15 @@ func cancelChIfNotNil(ch chan struct{}, has bool) <-chan struct{} {
 		return ch
 	}
 	return nil
+}
+
+// nonNativeAudioEncoder returns the encoder name only when it differs from
+// ffmpeg's built-in AAC. The native encoder is the historical default, so it
+// must hash to NOTHING: adding a field for it would invalidate every segment
+// already on disk on every installation, for bytes that did not change.
+func nonNativeAudioEncoder(enc string) string {
+	if enc == "" || enc == "aac" {
+		return ""
+	}
+	return enc
 }

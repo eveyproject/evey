@@ -1,8 +1,12 @@
 package ffmpeg
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
@@ -133,12 +137,68 @@ func videoEncoderFor(codec string, accel transcoding.HWAccelType) string {
 	return resolveVideoEncoder(codec)
 }
 
+// NativeAACEncoder is ffmpeg's built-in AAC encoder: always present, and the
+// floor this server falls back to.
+const NativeAACEncoder = "aac"
+
+// PreferredAACEncoder is Fraunhofer's, when this ffmpeg carries it. Measurably
+// better in the top octaves at the SAME bitrate, which is where a 5.1 fold's
+// coding noise lands and where a listener hears it as grit. Measured on prod
+// bytes (Arrival, AC-3 5.1 448k folded to stereo, 2026-09-07), noise below
+// signal at 192 kbps CBR:
+//
+//	band     native aac   libfdk_aac
+//	1-4 kHz    24.3 dB      27.6 dB
+//	4-8 kHz    17.8 dB      20.2 dB
+//	8-16 kHz   14.2 dB      16.0 dB
+//
+// Same bitrate, same fold, +2 to +3 dB across the band the complaint was about.
+// It is also what Jellyfin uses on this very box, which is the A/B the user
+// keeps making.
+const PreferredAACEncoder = "libfdk_aac"
+
+// AACEncoder reports which AAC encoder THIS ffmpeg should use. Probed once (an
+// `ffmpeg -encoders` fork) and memoised: the answer is a property of the
+// binary, so re-asking per session would be pure cost.
+//
+// The result MUST reach the cache fingerprint, not just the command line: two
+// encoders at the same bitrate produce different bytes, and a cache that cannot
+// tell them apart would serve a session half in one and half in the other after
+// an image swap. That is why callers thread it through
+// HLSProcessOpts.AudioEncoder rather than letting this function be consulted
+// independently at each site.
+func AACEncoder() string {
+	aacEncoderOnce.Do(func() {
+		// Bounded on purpose: this runs on the first playback of the process and
+		// an ffmpeg that will not answer must not hold a viewer. A timeout keeps
+		// the native encoder, which is always correct, just less clean.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if checkEncoderAvailable(ctx, "ffmpeg", PreferredAACEncoder) {
+			aacEncoder = PreferredAACEncoder
+		}
+		slog.Info("audio: AAC encoder selected", slog.String("encoder", aacEncoder))
+	})
+	return aacEncoder
+}
+
+var (
+	aacEncoderOnce sync.Once
+	aacEncoder     = NativeAACEncoder
+)
+
 // resolveAudioEncoder maps a domain audio codec to the ffmpeg encoder name.
-// Empty → aac (previous hardcoded default).
-func resolveAudioEncoder(codec string) string {
+// Empty → aac (previous hardcoded default). override, when set, names the
+// concrete AAC implementation the SESSION was fingerprinted with - see
+// HLSProcessOpts.AudioEncoder. It only ever applies to the AAC family; asking
+// for a libfdk build of ac3 or opus is meaningless and is ignored.
+func resolveAudioEncoder(codec string, override ...string) string {
 	switch strings.ToLower(codec) {
 	case "", "aac":
-		return "aac"
+		if len(override) > 0 && override[0] != "" {
+			return override[0]
+		}
+		return NativeAACEncoder
 	case "copy":
 		// Passthrough: the source audio is muxed into fMP4 verbatim, no re-encode.
 		// Used by the browser wasm-audio path to serve AC-3/E-AC-3 the client
@@ -151,7 +211,7 @@ func resolveAudioEncoder(codec string) string {
 	case "opus", "libopus":
 		return "libopus"
 	}
-	return "aac"
+	return NativeAACEncoder
 }
 
 // scaledAudioBitrateKbps scales a rung's stereo-quoted audio bitrate to the

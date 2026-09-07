@@ -39,6 +39,7 @@ var (
 	fingerprintEncoderInputs = map[string]string{
 		"VideoCodec":          "opts.VideoCodec",
 		"AudioCodec":          "opts.AudioCodec",
+		"AudioEncoder":        "opts.AudioEncoder (concrete AAC impl - byte input, so hashed too)",
 		"AudioTrack":          "opts.AudioTrackIndex",
 		"SubtitleBurnInTrack": "opts.SubtitleTrackIndex",
 		"SubtitleBurnInCodec": "opts.SubtitleCodec",
@@ -200,6 +201,7 @@ var (
 		"SourcePath":       "AudioProcessOpts.FilePath",
 		"SourceTrackIdx":   "AudioProcessOpts.SourceTrackIdx",
 		"AudioCodec":       "AudioProcessOpts.AudioCodec",
+		"AudioEncoder":     "AudioProcessOpts.AudioEncoder",
 		"AudioBitrate":     "AudioProcessOpts.AudioBitrate",
 		"AudioNormalize":   "AudioProcessOpts.AudioNormalize",
 		"MaxAudioChannels": "AudioProcessOpts.MaxAudioChannels",

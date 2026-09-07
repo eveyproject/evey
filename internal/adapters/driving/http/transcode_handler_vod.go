@@ -36,6 +36,8 @@ type hlsVODServe struct {
 	streamTokens         *appmedia.StreamTokenStore
 	profilePrefs         ProfilePrefsGetter
 	audioNormalizeGetter func(ctx context.Context) bool
+	// audioEncoderIDGetter: see ServerConfig.AudioEncoderIDGetter.
+	audioEncoderIDGetter func() string
 	userMaxStreams       UserMaxStreamsGetter
 	// subtitlePrewarm fills the subtitle cache in the background from playback
 	// start, so the subtitle menu is not the thing that pays for a full read of

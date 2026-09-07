@@ -84,6 +84,11 @@ type AudioProcessOpts struct {
 	StartSec         float64 // for mid-stream rafale; 0 for cold start
 	StartNumber      int     // ffmpeg -start_number; floor(StartSec/3) for rafale
 	AudioNormalize   bool    // insert loudnorm filter
+	// AudioEncoder names the concrete ffmpeg AAC implementation this rendition
+	// was fingerprinted with ("aac" or "libfdk_aac"); empty → native. Same
+	// contract as HLSProcessOpts.AudioEncoder: one value for the bytes AND the
+	// hash, so they cannot disagree.
+	AudioEncoder string
 
 	// VideoCompositionDelay is the seconds by which the VIDEO's first frame is
 	// presented late - has_b_frames/fps, because MP4 forbids a negative DTS. The
@@ -232,6 +237,18 @@ type HLSProcessOpts struct {
 	// rather than a measurement - the stderr ring buffer is 8 KB, overwritten
 	// continuously, and read only when a session FAILS.
 	ProgressLogPath string
+
+	// AudioEncoder names the CONCRETE ffmpeg AAC implementation this session was
+	// fingerprinted with ("aac" or "libfdk_aac"). Empty → the native encoder,
+	// i.e. the historical bytes.
+	//
+	// It rides the OPTS rather than being probed inside the builder on purpose:
+	// the very same string is hashed into the segment cache key. Two encoders at
+	// one bitrate make different bytes, so a cache that could not tell them apart
+	// would hand a player the first half of a session from one and the second
+	// half from the other after an image swap. One value, set once per session,
+	// read by both the command line and the hash - they cannot disagree.
+	AudioEncoder string
 
 	// SourceVideoCodec is the codec of the SOURCE video stream ("h264",
 	// "hevc"…). The COPY builder reads it to tag the fMP4 sample entry

@@ -298,6 +298,7 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		OutputDir:        outputDir,
 		SourceTrackIdx:   fp.SourceTrackIdx,
 		AudioCodec:       fp.AudioCodec,
+		AudioEncoder:     fp.AudioEncoder,
 		AudioBitrate:     int(fp.AudioBitrate),
 		MaxAudioChannels: fp.MaxAudioChannels,
 		// Seek: ffmpeg both decodes from here (-ss) and numbers its output from

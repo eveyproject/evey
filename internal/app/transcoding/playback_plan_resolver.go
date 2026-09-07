@@ -67,6 +67,12 @@ type PlanResolver struct {
 	AdmissionFrozenLadder func(key string) ([]transcoding.HLSProfile, bool)
 	AdmissionFreezeLadder func(key string, ladder []transcoding.HLSProfile)
 
+	// AudioEncoderID returns the concrete ffmpeg AAC implementation this host
+	// will encode with ("aac" / "libfdk_aac"). nil → native, i.e. the historical
+	// bytes. Threaded into the FINGERPRINT and from there into the process opts,
+	// so the cache key and the command line read the SAME value.
+	AudioEncoderID func() string
+
 	// UseFMP4 selects the segment container (project default true);
 	// AudioRenditionEnabled mirrors the audio-rendition feature flag.
 	UseFMP4               bool
@@ -641,6 +647,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		// reaches the orchestrator/builder, which has no source streams to detect it.
 		HDRTonemap:       slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed"),
 		AudioNormalize:   normalize,
+		AudioEncoder:     pr.audioEncoderID(),
 		MaxAudioChannels: decision.MaxAudioChannels,
 		// Audio passthrough eligibility - see AudioCopyEligible (shared with
 		// the manifest input so the master CODECS always matches the bytes).
@@ -717,4 +724,14 @@ func (pr *PlanResolver) ProducerFor(mediaID string, streams []*library.MediaStre
 		return pr.Selector.For(decision, SourceDimsOf(streams))
 	}
 	return pr.Orchestrator
+}
+
+// audioEncoderID is the nil-safe read of the injected probe: an unwired
+// resolver keeps the native encoder, which is exactly the pre-feature
+// behaviour, bytes and hash alike.
+func (pr *PlanResolver) audioEncoderID() string {
+	if pr.AudioEncoderID == nil {
+		return ""
+	}
+	return pr.AudioEncoderID()
 }

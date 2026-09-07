@@ -846,6 +846,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		VariantIndex:       variantIdx,
 		VideoDecision:      videoDecision,
 		AudioDecision:      fp.AudioDecision(),
+		AudioEncoder:       fp.AudioEncoder,
 		AudioTrackIndex:    fp.AudioTrack,
 		AudioUserOffsetSec: float64(fp.AudioOffsetMs) / 1000.0,
 		SubtitleTrackIndex: fp.SubtitleBurnInTrack,

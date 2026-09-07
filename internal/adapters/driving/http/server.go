@@ -351,6 +351,11 @@ type HTTPServer struct {
 
 	// audio normalize getter (closure capturing serverCfgRepo)
 	AudioNormalizeGetter func(ctx context.Context) bool
+	// AudioEncoderIDGetter names the concrete ffmpeg AAC implementation this
+	// host encodes with ("aac"/"libfdk_aac"). nil → native, the historical
+	// bytes. It rides the cache fingerprint, so it must be the SAME value the
+	// arg builder receives.
+	AudioEncoderIDGetter func() string
 
 	// VideoCompositionDelayProbe reports how late a source's video is presented
 	// once packaged as MP4 (has_b_frames/fps). The audio-rendition path shifts
@@ -602,6 +607,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 				cache:                s.HLSVODCache,
 				audioOrch:            aOrch,
 				audioNormalizeGetter: s.AudioNormalizeGetter,
+				audioEncoderIDGetter: s.AudioEncoderIDGetter,
 				segmentWaitTimeout:   30 * time.Second,
 			}
 

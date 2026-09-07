@@ -92,3 +92,18 @@ func indexOf(args []string, want string) int {
 	}
 	return -1
 }
+
+// The encoder the session was fingerprinted with must reach the command line on
+// every builder shape, or the cache key describes bytes ffmpeg did not make.
+func TestBuildFFmpegArgs_AudioEncoderReachesEveryBuilder(t *testing.T) {
+	for name, opts := range progressShapes() {
+		t.Run(name, func(t *testing.T) {
+			base := strings.Join(ffmpeg.BuildFFmpegArgs(opts), " ")
+			assert.Contains(t, base, "-c:a", "sanity: these shapes all encode audio")
+			assert.NotContains(t, base, "libfdk_aac", "unset must stay on the native encoder")
+
+			opts.AudioEncoder = "libfdk_aac"
+			assert.Contains(t, strings.Join(ffmpeg.BuildFFmpegArgs(opts), " "), "libfdk_aac")
+		})
+	}
+}
