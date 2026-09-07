@@ -33,7 +33,7 @@ export function StatsGrid({ result, triage, breakdown, withBackup, ackGroup, lib
   const partList = (parts: ReactNode[]) => {
     const present = parts.filter(Boolean);
     return (
-      <ul className="mt-1 flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
+      <ul className="mt-1 flex list-none flex-col gap-0.5 p-0 text-xs text-[var(--text-muted)]">
         {present.length === 0 ? <li>{t("admin.seekIndex.breakdownNone")}</li> : present}
       </ul>
     );
@@ -75,7 +75,7 @@ export function StatsGrid({ result, triage, breakdown, withBackup, ackGroup, lib
         <p className="mt-2 text-xs text-[var(--text-muted)]">{t("admin.seekIndex.statsInformationalHint")}</p>
         {triage.informational > 0 && (
           <Button
-            variant="ghost"
+            variant="secondary"
             className="mt-2 text-xs"
             disabled={busy || ackGroup.isPending}
             onClick={ackAll}
