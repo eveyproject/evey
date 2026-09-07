@@ -95,7 +95,7 @@ function SeekIndexPage() {
               </InfoTooltip>
             </span>
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
             <p data-testid="seek-index-intro-repairable">
               <strong className="font-semibold text-[var(--text)]">{t("admin.seekIndex.statsRepairable")}</strong>
               {" - "}

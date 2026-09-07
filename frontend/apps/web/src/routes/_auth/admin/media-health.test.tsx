@@ -117,7 +117,7 @@ describe("SeekIndexPage", () => {
     render(React.createElement(Page));
     expect(screen.getByText("Media Health")).toBeInTheDocument();
     expect(screen.getByTestId("seek-index-intro-repairable")).toHaveTextContent(/Repairable here/i);
-    expect(screen.getByTestId("seek-index-intro-informational")).toHaveTextContent(/For information/i);
+    expect(screen.getByTestId("seek-index-intro-informational")).toHaveTextContent(/Information/i);
     expect(screen.getByTestId("seek-index-scan-btn")).toBeInTheDocument();
     expect(screen.queryByTestId("seek-index-repair-all-btn")).not.toBeInTheDocument();
   });
