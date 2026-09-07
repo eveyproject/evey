@@ -50,6 +50,15 @@ func seccompChild(denyInet bool) {
 		fmt.Fprintf(os.Stderr, "unshare not denied: errno=%v\n", errno)
 		os.Exit(11)
 	}
+	// io_uring and userfaultfd are kernel-exploit primitives - must EPERM.
+	if _, _, errno := unix.Syscall(unix.SYS_IO_URING_SETUP, 0, 0, 0); errno != unix.EPERM {
+		fmt.Fprintf(os.Stderr, "io_uring_setup not denied: errno=%v\n", errno)
+		os.Exit(15)
+	}
+	if _, _, errno := unix.Syscall(unix.SYS_USERFAULTFD, 0, 0, 0); errno != unix.EPERM {
+		fmt.Fprintf(os.Stderr, "userfaultfd not denied: errno=%v\n", errno)
+		os.Exit(16)
+	}
 	// AF_UNIX must always work - the plugin talks to HostService over it.
 	if fd, _, errno := unix.Syscall(unix.SYS_SOCKET, uintptr(unix.AF_UNIX), uintptr(unix.SOCK_STREAM), 0); errno != 0 {
 		fmt.Fprintf(os.Stderr, "AF_UNIX socket denied: errno=%v\n", errno)

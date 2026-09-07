@@ -14,3 +14,10 @@ const auditArch = 0xC000003E
 func legacyForkSyscalls() []uint32 {
 	return []uint32{uint32(unix.SYS_FORK), uint32(unix.SYS_VFORK)}
 }
+
+// archDeniedSyscalls are x86-only numbers absent from arm64: ioperm/iopl grant
+// direct access to CPU I/O ports (a device/hardware attack surface a sandboxed
+// plugin never needs). Mirrors sandbox/sandbox.c's #ifdef __NR_ioperm block.
+func archDeniedSyscalls() []uint32 {
+	return []uint32{uint32(unix.SYS_IOPERM), uint32(unix.SYS_IOPL)}
+}
