@@ -141,3 +141,55 @@ sessions (mind the NVENC session cap on consumer cards).
 Remaining future work: route per-variant on demand at the **orchestrator** level
 (spawn only the rung the client actually requests) for the full "only encode
 what's watched" win - the current composite still spawns all N rungs up front.
+
+## Decoupled path: software decode + `hwupload` (implemented 2026-09-07)
+
+The zero-copy pipeline HW-DECODES the source. A source codec the GPU cannot
+decode used to lose the GPU **entirely**, encode included (`ResolveHW`'s decode
+gate returned "software"), which is the honest answer for the *decode* and the
+wrong one for the *encode*: a library of MPEG-4 ASP / MPEG-2 DVD rips
+transcoded on libx264 beside an idle encoder. The calibration certifies decode
+per codec, and that list is `["h264","hevc"]` on a current Coffee Lake box - so
+this was not an edge case, it was every non-modern rip.
+
+Such a source now takes a **decoupled** route: ffmpeg decodes in software, an
+explicit `hwupload` moves the frames onto the GPU, and everything downstream -
+split, `scale_vaapi` per rung, `h264_vaapi` per rung - is the zero-copy pipeline
+unchanged (`HLSProcessOpts.HWSoftwareDecode`, `hwDeviceOnlyArgs` +
+`hwUploadFilter`).
+
+**Why this was safe to build without new hardware evidence**: the shape is
+already certified on every host that reports a usable backend.
+`probeHWEncode` IS this shape (`-vaapi_device … -vf format=nv12,hwupload -c:v
+h264_vaapi`), and `probeHW10BitTranscode` proves `hwupload → scale_vaapi`. A
+backend only reaches `HWBackend` by passing the first; the prod box reports both
+plus `hw_10bit_transcode: true`. The bench already emits the same arg shapes
+(`hwDecoupledInputArgs` / `hwUploadChain`), as a fallback when the zero-copy
+ladder measures nothing.
+
+Deliberate limits, each one a refusal to overclaim:
+
+- **The deinterlacer stays in software**, ahead of the upload. Both
+  deinterlacers act only on frames the decoder FLAGGED as interlaced, and that
+  flag lives on the host-side frame; DVD rips are exactly this path's
+  population, so a GPU deinterlacer that silently saw no flag would lose the
+  point. `bwdif` at SD is small next to the encode being offloaded.
+- **VAAPI/QSV only.** NVENC has no probe-validated upload chain here and keeps
+  the full-software fallback rather than emit an unproven `hwupload_cuda`.
+- **No GPU tone-map**, and **no 10-bit source**. The upload folds to 8-bit nv12
+  on the CPU, which is the depth `tonemap_vaapi` still needs; and a 4K 10-bit
+  software decode is the expensive half, so routing it to the GPU pool would
+  price a CPU workload as a GPU one.
+- **The ladder is capped at the SOFTWARE ceiling** (`SegmentOrchestrator.
+  Profiles`). The calibration benched the HW ladder behind a zero-copy decode
+  and has never measured this mix; advertising the GPU ceiling for it would be
+  the dishonesty ADR-0017 refuses. The software ceiling under-estimates in the
+  safe direction (it was measured with a software encode this path no longer
+  pays for). A decoupled bench would replace this bound with a measured one.
+
+Not done, and worth its own change: the decode probe list itself is hardcoded
+to h264+hevc (`probeHWDecodeCodecs`), so MPEG-2 and VC-1 are excluded by
+omission rather than by silicon - `vainfo` on the prod UHD 630 reports VLD
+entrypoints for both. Adding them would keep those sources on the cheaper
+zero-copy path, but it needs `CanonicalVideoCodec` to learn the names, which
+also feeds the CapOverride source classes.

@@ -18,7 +18,8 @@ type SourceDims struct {
 	Height int
 	// Codec is the source video stream's codec ("h264"/"hevc"/…). The selector
 	// needs it for the HW-decode gate (a pre-Skylake iGPU decodes H.264 but not
-	// HEVC); producers don't branch on it yet.
+	// HEVC), and the hardware producer caps a DECOUPLED session's ladder from
+	// it (see SegmentOrchestrator.Profiles).
 	Codec string
 	// TenBit marks a >=10-bit source (HEVC Main10 / yuv420p10le). Producers
 	// don't currently branch on it, but it travels alongside Width/Height so a

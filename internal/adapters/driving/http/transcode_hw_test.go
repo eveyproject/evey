@@ -65,7 +65,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return nvenc },
 			hwAccelEnabled: func() bool { return true },
 		}
-		accel, device, features, usable := h.resolveHW("h264", "", false, false)
+		accel, device, features, usable, _ := h.resolveHW("h264", "", false, false)
 		if !usable || accel != "nvenc" || device != "" {
 			t.Errorf("got (%q,%q,%v), want (nvenc,'',true)", accel, device, usable)
 		}
@@ -79,7 +79,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return vaapi },
 			hwAccelEnabled: func() bool { return true },
 		}
-		accel, device, _, usable := h.resolveHW("hevc", "", false, false)
+		accel, device, _, usable, _ := h.resolveHW("hevc", "", false, false)
 		if !usable || accel != "vaapi" || device != "/dev/dri/renderD128" {
 			t.Errorf("got (%q,%q,%v), want (vaapi,/dev/dri/renderD128,true)", accel, device, usable)
 		}
@@ -90,12 +90,12 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return vaapi }, // no av1
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("av1", "", false, false); usable {
+		if _, _, _, usable, _ := h.resolveHW("av1", "", false, false); usable {
 			t.Error("av1 unsupported by vaapi caps → must be software")
 		}
 	})
 
-	t.Run("source codec not HW-decodable → software (old iGPU, HEVC)", func(t *testing.T) {
+	t.Run("source codec not HW-decodable → decoupled HW (old iGPU, HEVC)", func(t *testing.T) {
 		// Encodes H.264 + HEVC but DECODES only H.264 - a pre-Skylake Intel iGPU.
 		oldIGPU := domaintranscoding.EncodeCapability{
 			HWBackend:      "vaapi",
@@ -107,11 +107,12 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return oldIGPU },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "h264", false, false); !usable {
+		if _, _, _, usable, _ := h.resolveHW("h264", "h264", false, false); !usable {
 			t.Error("h264 source is HW-decodable → must take the HW path")
 		}
-		if _, _, _, usable := h.resolveHW("h264", "hevc", false, false); usable {
-			t.Error("hevc source not HW-decodable on this GPU → must fall back to software (no stall)")
+		accel, _, _, usable, softwareDecode := h.resolveHW("h264", "hevc", false, false)
+		if !usable || accel != "vaapi" || !softwareDecode {
+			t.Errorf("hevc source not HW-decodable on this GPU → software decode + hwupload, GPU keeps the encode; got (%q,%v,%v)", accel, usable, softwareDecode)
 		}
 	})
 
@@ -120,7 +121,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return nvenc },
 			hwAccelEnabled: func() bool { return false },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "", false, false); usable {
+		if _, _, _, usable, _ := h.resolveHW("h264", "", false, false); usable {
 			t.Error("flag off → must be software")
 		}
 	})
@@ -129,7 +130,7 @@ func TestResolveHW(t *testing.T) {
 		h := &hlsVODServe{
 			capability: func() domaintranscoding.EncodeCapability { return nvenc },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "", false, false); usable {
+		if _, _, _, usable, _ := h.resolveHW("h264", "", false, false); usable {
 			t.Error("nil hwAccelEnabled → must be software")
 		}
 	})
@@ -139,7 +140,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return domaintranscoding.SafeFallback() },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "", false, false); usable {
+		if _, _, _, usable, _ := h.resolveHW("h264", "", false, false); usable {
 			t.Error("no HW backend → must be software")
 		}
 	})
@@ -159,15 +160,15 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return box },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "hevc", false, false); !usable {
+		if _, _, _, usable, _ := h.resolveHW("h264", "hevc", false, false); !usable {
 			t.Error("8-bit hevc source → HW path (decode ok, no 10-bit VPP needed)")
 		}
-		if _, _, _, usable := h.resolveHW("h264", "hevc", true, false); usable {
+		if _, _, _, usable, _ := h.resolveHW("h264", "hevc", true, false); usable {
 			t.Error("10-bit source + !HW10BitTranscode → must software-transcode (p010 aborts the VEBOX)")
 		}
 		// ...but when this request HW-tone-maps, tonemap_vaapi folds the 10-bit p010
 		// itself, so the same 10-bit source CAN take the HW path without HW10BitTranscode.
-		if _, _, _, usable := h.resolveHW("h264", "hevc", true, true); !usable {
+		if _, _, _, usable, _ := h.resolveHW("h264", "hevc", true, true); !usable {
 			t.Error("10-bit source + HW tonemap → HW path (tonemap_vaapi folds p010)")
 		}
 	})
@@ -183,7 +184,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return box },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "hevc", true, false); !usable {
+		if _, _, _, usable, _ := h.resolveHW("h264", "hevc", true, false); !usable {
 			t.Error("10-bit source + HW10BitTranscode → must take the HW path")
 		}
 	})
@@ -232,7 +233,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return domaintranscoding.SafeFallback() },
 			hwAccelEnabled: func() bool { return true },
 		}
-		got, _, _, _, _ := h.effectiveVideoCodec(dec("av1"), nil)
+		got, _, _, _, _, _ := h.effectiveVideoCodec(dec("av1"), nil)
 		if got != "h264" {
 			t.Errorf("av1 must fall back to h264 when not encodable here, got %q", got)
 		}
@@ -245,7 +246,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 			hwAccelEnabled: func() bool { return true },
 			av1Enabled:     func() bool { return true },
 		}
-		got, _, _, _, usable := h.effectiveVideoCodec(dec("av1"), nil)
+		got, _, _, _, usable, _ := h.effectiveVideoCodec(dec("av1"), nil)
 		if got != "av1" || !usable {
 			t.Errorf("av1 with HW av1 + admin opt-in must stay av1 (usable), got %q usable=%v", got, usable)
 		}
@@ -260,7 +261,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 			hwAccelEnabled: func() bool { return true },
 			av1Enabled:     func() bool { return false },
 		}
-		got, _, _, _, _ := h.effectiveVideoCodec(dec("av1"), nil)
+		got, _, _, _, _, _ := h.effectiveVideoCodec(dec("av1"), nil)
 		if got != "h264" {
 			t.Errorf("av1 must fall back to h264 when the admin has not enabled it, got %q", got)
 		}
@@ -275,7 +276,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return box },
 			hwAccelEnabled: func() bool { return true },
 		}
-		got, _, _, _, _ := h.effectiveVideoCodec(dec("av1"), nil)
+		got, _, _, _, _, _ := h.effectiveVideoCodec(dec("av1"), nil)
 		if got != "h264" {
 			t.Errorf("av1 must fall back to h264 when the GPU can't encode it (HW-only policy), got %q", got)
 		}
@@ -286,7 +287,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return domaintranscoding.SafeFallback() },
 			hwAccelEnabled: func() bool { return true },
 		}
-		got, _, _, _, _ := h.effectiveVideoCodec(dec("h264"), nil)
+		got, _, _, _, _, _ := h.effectiveVideoCodec(dec("h264"), nil)
 		if got != "h264" {
 			t.Errorf("h264 must be unchanged, got %q", got)
 		}
@@ -312,7 +313,7 @@ func TestHWRouteUsable_MatchesEffectiveCodec_AV1Fallback(t *testing.T) {
 	decision := domaintranscoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"}
 	src := apptranscoding.SourceDims{Codec: "h264"}
 
-	_, accel, _, _, usable := h.effectiveVideoCodec(decision, []*domainlibrary.MediaStream{{
+	_, accel, _, _, usable, _ := h.effectiveVideoCodec(decision, []*domainlibrary.MediaStream{{
 		StreamType: domainlibrary.StreamTypeVideo, Codec: "h264",
 	}})
 	if !usable || accel != "nvenc" {

@@ -88,7 +88,7 @@ func newSwitchHandler(hwEnabled bool, capFn func() domaintranscoding.EncodeCapab
 	}
 	h.selector = apptranscoding.NewProducerSelector(sw, hw,
 		func(decision domaintranscoding.PlaybackDecision, src apptranscoding.SourceDims) bool {
-			_, _, _, usable := h.resolveHW(decision.VideoCodec, src.Codec, src.TenBit, h.hwTonemapWanted(decision))
+			_, _, _, usable, _ := h.resolveHW(decision.VideoCodec, src.Codec, src.TenBit, h.hwTonemapWanted(decision))
 			return usable
 		},
 	)

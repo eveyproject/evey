@@ -159,6 +159,13 @@ type DecisionFingerprint struct {
 	// interchangeable in the addressable cache (and a level-2 demotion that
 	// drops tuning must not fork it).
 	HWFeatures []string
+	// HWSoftwareDecode marks the DECOUPLED hardware route: software decode +
+	// hwupload + HW scale/encode, for a source this GPU cannot decode (see
+	// HLSProcessOpts.HWSoftwareDecode). EXCLUDED from Hash() for the same reason
+	// as HWAccel: what changes is which silicon decodes, not the codec, bitrate,
+	// resolution, container or naming of the segment produced - a decoupled
+	// segment stays interchangeable with a zero-copy or software one.
+	HWSoftwareDecode bool
 
 	// HWTonemap requests GPU HDR->SDR tone-mapping for this transcode. EXCLUDED
 	// from Hash() like HWAccel/HWFeatures: a HW- vs software-tonemapped segment is

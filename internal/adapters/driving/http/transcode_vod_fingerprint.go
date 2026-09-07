@@ -130,7 +130,7 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 	// Advertise the codec the segments will ACTUALLY carry, after the capability
 	// gate (AV1 → H.264 when AV1 isn't encodable here). Same helper as
 	// buildFingerprint, so the master CODECS can't disagree with the bytes.
-	chosenVideoCodec, _, _, _, _ := h.effectiveVideoCodec(decision, streams)
+	chosenVideoCodec, _, _, _, _, _ := h.effectiveVideoCodec(decision, streams)
 
 	return apptranscoding.ManifestInput{
 		MediaID:             mediaID,

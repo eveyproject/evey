@@ -230,22 +230,36 @@ func (pr *PlanResolver) capabilityOrFallback() transcoding.EncodeCapability {
 // HDR tonemap / bitmap burn-in are not gated here: the orchestrated VOD path
 // does neither today, and the ffmpeg builder independently falls back to
 // software for those, so the two stay consistent.
-func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit, hwTonemap bool) (accel, device string, features []string, usable bool) {
+func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit, hwTonemap bool) (accel, device string, features []string, usable, softwareDecode bool) {
 	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
-		return "", "", nil, false
+		return "", "", nil, false, false
 	}
 	cap := pr.Capability()
 	if !cap.HWSupports(outputCodec) {
-		return "", "", nil, false
+		return "", "", nil, false, false
 	}
-	// The orchestrated pipeline HW-decodes the source (-hwaccel). If this GPU
-	// can't decode the source codec - a pre-Skylake Intel iGPU decodes H.264 but
-	// not HEVC - that decode fails with ENOSYS and the player stalls on rebuffer.
-	// Fall back to full software for such a source rather than risk the stall.
-	// H.264 sources (the common case) keep the full HW path. (A future decoupled
-	// software-decode + hwupload path could keep HW *encode* even here.)
-	if sourceCodec != "" && !cap.HWCanDecode(sourceCodec) {
-		return "", "", nil, false
+	// The zero-copy pipeline HW-decodes the source (-hwaccel). If this GPU can't
+	// decode the source codec - a pre-Skylake Intel iGPU decodes H.264 but not
+	// HEVC; no Intel iGPU decodes MPEG-4 ASP - that decode fails with ENOSYS and
+	// the player stalls on rebuffer. Such a source takes the DECOUPLED path
+	// instead: software decode, hwupload, then the same GPU scale and encode
+	// (HLSProcessOpts.HWSoftwareDecode). Losing the encoder too, which is what
+	// this gate used to do, left a whole library of DVD rips on libx264 beside
+	// an idle GPU.
+	//
+	// Three cases keep the old full-software fallback, because the decoupled
+	// pipeline is not expressible or not honest for them:
+	//   - a backend with no wired upload chain (NVENC),
+	//   - a GPU tone-map, whose filter needs the 10-bit surface the upload's
+	//     CPU-side format=nv12 has already folded away,
+	//   - a 10-bit source, whose software decode is the expensive half at 4K -
+	//     routing it to the GPU pool would price a CPU workload as a GPU one.
+	softwareDecode = sourceCodec != "" && !cap.HWCanDecode(sourceCodec)
+	if softwareDecode {
+		backend := transcoding.HWAccelType(cap.HWBackend)
+		if hwTonemap || sourceTenBit || (backend != transcoding.VAAPI && backend != transcoding.QSV) {
+			return "", "", nil, false, false
+		}
 	}
 	// A 10-bit source (HEVC Main10, ubiquitous at 2160p HDR) needs the HW VPP to
 	// fold p010 down to the 8-bit nv12 the h264 encoder takes (hwScaleFilter's
@@ -258,9 +272,9 @@ func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit,
 	// so the scale_vaapi-on-p010 hazard the gate guards against never arises -
 	// the 10-bit source can take the HW path even without HW10BitTranscode.
 	if sourceTenBit && !cap.HW10BitTranscode && !hwTonemap {
-		return "", "", nil, false
+		return "", "", nil, false, false
 	}
-	return cap.HWBackend, cap.HWDevice, cap.HWFeatures, true
+	return cap.HWBackend, cap.HWDevice, cap.HWFeatures, true, softwareDecode
 }
 
 // EffectiveVideoCodec applies the capability gate to the decision's chosen
@@ -272,12 +286,12 @@ func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit,
 // and the manifest builder (the advertised CODECS) so the master playlist can
 // never advertise a codec the segments don't carry. Re-resolves HW for the
 // fallback codec (H.264 may be HW-encodable where AV1 was not).
-func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable bool) {
+func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {
 	hwTonemap := pr.HWTonemapWanted(decision)
 	srcCodec := SourceVideoCodec(streams)
 	src10 := SourceVideoTenBit(streams)
 	codec = decision.VideoCodec
-	accel, device, features, usable = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
+	accel, device, features, usable, softwareDecode = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
 	// AV1 output must clear TWO gates, else fall back to H.264:
 	//   1. the admin opt-in (transcoding.av1_enabled) - off by default; and
 	//   2. a usable HW AV1 encoder. AV1 is hardware-only for streaming because
@@ -287,9 +301,9 @@ func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecisio
 	//      non-streaming/experimental use but never feeds a live HLS session.
 	if strings.EqualFold(codec, "av1") && ((pr.AV1Enabled != nil && !pr.AV1Enabled()) || !usable) {
 		codec = "h264"
-		accel, device, features, usable = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
+		accel, device, features, usable, softwareDecode = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
 	}
-	return codec, accel, device, features, usable
+	return codec, accel, device, features, usable, softwareDecode
 }
 
 // HWRouteUsable is the selector's routing gate: does the HARDWARE producer
@@ -313,9 +327,9 @@ func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src
 		return false
 	}
 	codec := decision.VideoCodec
-	_, _, _, usable := pr.ResolveHW(codec, src.Codec, src.TenBit, hwTonemap)
+	_, _, _, usable, _ := pr.ResolveHW(codec, src.Codec, src.TenBit, hwTonemap)
 	if strings.EqualFold(codec, "av1") && ((pr.AV1Enabled != nil && !pr.AV1Enabled()) || !usable) {
-		_, _, _, usable = pr.ResolveHW("h264", src.Codec, src.TenBit, hwTonemap)
+		_, _, _, usable, _ = pr.ResolveHW("h264", src.Codec, src.TenBit, hwTonemap)
 	}
 	return usable
 }
@@ -345,7 +359,7 @@ func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision) b
 // distinct titles or codecs never collide. It must be derivable identically at
 // manifest- and segment-time from the request alone.
 func (pr *PlanResolver) PinKey(mediaID string, streams []*library.MediaStream, decision transcoding.PlaybackDecision) string {
-	ec, _, _, _, _ := pr.EffectiveVideoCodec(decision, streams)
+	ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, streams)
 	return mediaID + "|" + ec + "|" + decision.VideoDecision
 }
 
@@ -443,7 +457,7 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 	// invariant holds because both reach this shared head with the same inputs.
 	if pr.AV1MaxHeight != nil {
 		if m := pr.AV1MaxHeight(); m > 0 {
-			if ec, _, _, _, _ := pr.EffectiveVideoCodec(decision, streams); strings.EqualFold(ec, "av1") {
+			if ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, streams); strings.EqualFold(ec, "av1") {
 				laddered = transcoding.CapLadderToHeight(laddered, m)
 			}
 		}
@@ -516,7 +530,7 @@ func profileHeights(profiles []transcoding.HLSProfile) []int {
 // while the spawn consumes another. TestLadderClassFor_AgreesWithFingerprint
 // locks the equivalence.
 func (pr *PlanResolver) LadderClassFor(decision transcoding.PlaybackDecision, streams []*library.MediaStream) LadderClass {
-	ec, accel, _, _, usable := pr.EffectiveVideoCodec(decision, streams)
+	ec, accel, _, _, usable, _ := pr.EffectiveVideoCodec(decision, streams)
 	switch {
 	case usable && accel != "":
 		return LadderClassHW
@@ -541,7 +555,7 @@ func (pr *PlanResolver) legacyProfileShaping(base []transcoding.HLSProfile, src 
 	maxH := 720
 	if pr.Capability != nil {
 		var hwUsable bool
-		_, _, _, hwUsable = pr.ResolveHW(decision.VideoCodec, SourceVideoCodec(streams), src.TenBit, pr.HWTonemapWanted(decision))
+		_, _, _, hwUsable, _ = pr.ResolveHW(decision.VideoCodec, SourceVideoCodec(streams), src.TenBit, pr.HWTonemapWanted(decision))
 		maxH = capability.MaxHeightFor(hwUsable)
 		if !hwUsable && capability.SoftwareHDRMaxHeight > 0 &&
 			capability.SoftwareHDRMaxHeight < maxH &&
@@ -603,7 +617,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 	// Capability gate: AV1 falls back to H.264 when the host can't encode it (no
 	// HW AV1, no admin opt-in). videoCodec is what the segments actually carry -
 	// the cache key MUST use it, not the raw decision codec.
-	videoCodec, hwAccel, hwDevice, hwFeatures, hwUsable := pr.EffectiveVideoCodec(decision, streams)
+	videoCodec, hwAccel, hwDevice, hwFeatures, hwUsable, hwSoftwareDecode := pr.EffectiveVideoCodec(decision, streams)
 	// Admission spill: a hw stream pinned to the software route (GPU pool was
 	// full) must be FINGERPRINTED as software - the fingerprint describes the
 	// bytes the software producer will make, and LadderClassOf(fp) is what the
@@ -611,7 +625,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 	// AV1 stream carries the H.264 the software encoder will actually produce.
 	if hwUsable && pr.AdmissionPinnedClass != nil {
 		if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(req.MediaID, streams, decision)); ok && cls != LadderClassHW {
-			hwAccel, hwDevice, hwFeatures, hwUsable = "", "", nil, false
+			hwAccel, hwDevice, hwFeatures, hwUsable, hwSoftwareDecode = "", "", nil, false, false
 			if strings.EqualFold(videoCodec, "av1") {
 				videoCodec = "h264"
 			}
@@ -661,6 +675,9 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		HWAccel:          hwAccel,
 		HWDevice:         hwDevice,
 		HWFeatures:       hwFeatures,
+		// Decoupled route (software decode + hwupload), only when the HW path is
+		// actually taken. Excluded from Hash() like HWAccel.
+		HWSoftwareDecode: hwSoftwareDecode && hwUsable,
 		// GPU tone-mapping for this request (only when the HW path is actually
 		// taken). Excluded from Hash() like HWAccel - a HW- vs software-tonemapped
 		// segment is interchangeable in the addressable cache.

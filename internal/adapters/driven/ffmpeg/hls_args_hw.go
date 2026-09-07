@@ -82,6 +82,19 @@ func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool
 	if opts.HWAccel == "" || opts.HWAccel == transcoding.None || !opts.HWAccel.IsValid() || burnIn {
 		return false
 	}
+	// A decoupled session needs an upload chain for its backend, and it never
+	// tone-maps on the GPU: its upload folds to 8-bit nv12 on the CPU, which is
+	// precisely the depth the HW tone-mapper needs to still have. Both are
+	// resolver-side gates already; they are repeated here for the reason the
+	// tone-map one is - the builder must never emit a pipeline it cannot
+	// express, whatever the caller believed.
+	// The device check is not redundant with the upload one: VAAPI without a
+	// render node binds nothing, and hwupload would then have no device to
+	// target - a graph that fails at spawn rather than falling back.
+	if opts.HWSoftwareDecode && (hwUploadFilter(opts.HWAccel) == "" ||
+		len(hwDeviceOnlyArgs(opts.HWAccel, opts.HWDevice)) == 0 || toneMap != "") {
+		return false
+	}
 	// A tone-map normally keeps the software path. The exception: the host probed
 	// GPU tone-mapping AND it's wired into this request (opts.HWTonemap) AND the
 	// backend has a HW tone-map filter - then the GPU folds HDR->SDR in-pipeline.
@@ -127,6 +140,72 @@ func hwInitArgs(accel transcoding.HWAccelType, device string) []string {
 		return a
 	}
 	return nil
+}
+
+// hwDeviceOnlyArgs returns the pre-`-i` flags that bind a GPU for FILTERING
+// only, without `-hwaccel`: ffmpeg decodes in software and an explicit
+// hwupload (hwUploadFilter) moves the frames onto the device. This is the
+// decoupled counterpart of hwInitArgs, and deliberately the same device setup
+// the calibration's probeHWEncode / probeHW10BitTranscode already validate on
+// the host - so a backend that reports usable has run this exact prologue.
+func hwDeviceOnlyArgs(accel transcoding.HWAccelType, device string) []string {
+	switch accel {
+	case transcoding.VAAPI:
+		if device == "" {
+			// No render node to bind: hwupload would have no device to target.
+			// The caller's hwUsable gate keeps such a session on software.
+			return nil
+		}
+		return []string{"-vaapi_device", device}
+	case transcoding.QSV:
+		return []string{"-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"}
+	}
+	return nil
+}
+
+// hwUploadFilter returns the filter that moves software-decoded frames onto the
+// GPU for the decoupled path, or "" for a backend with no wired upload chain
+// (NVENC - see HLSProcessOpts.HWSoftwareDecode). format=nv12 does the 8-bit
+// fold on the CPU before the upload, so the surface reaching scale_<backend>
+// is already what the 8-bit HW encoders take - the p010-into-scale_vaapi
+// hazard hwScaleFilter documents cannot arise on this path.
+//
+// Mirrors benchmark.go's hwUploadChain, which is the shape the calibration
+// measures; the two must stay identical or the bench would certify a pipeline
+// the runtime does not emit.
+func hwUploadFilter(accel transcoding.HWAccelType) string {
+	switch accel {
+	case transcoding.VAAPI:
+		return "format=nv12,hwupload"
+	case transcoding.QSV:
+		return "hwupload=extra_hw_frames=16,format=qsv"
+	}
+	return ""
+}
+
+// hwSourceFilterPrefix returns the filters that run BEFORE the GPU scaler(s):
+// on the zero-copy path just the GPU deinterlacer (the decoder already put the
+// frames on the device), on the decoupled path the SOFTWARE deinterlacer
+// followed by the upload.
+//
+// The deinterlacer stays in software there on purpose. Both deinterlacers act
+// only on frames the decoder FLAGGED as interlaced, and that flag is a property
+// of the decoded frame: keeping bwdif on the host side means the decoupled path
+// deinterlaces exactly what the all-software path deinterlaces today, on the
+// very sources that need it (PAL/NTSC DVD rips). Its cost at SD is small next
+// to the encode being offloaded.
+func hwSourceFilterPrefix(opts transcoding.HLSProcessOpts) string {
+	if !opts.HWSoftwareDecode {
+		if d := hwDeinterlaceFilter(opts.HWAccel); d != "" {
+			return d + ","
+		}
+		return ""
+	}
+	prefix := ""
+	if d := deinterlaceFilterFor(opts); d != "" {
+		prefix = d + ","
+	}
+	return prefix + hwUploadFilter(opts.HWAccel) + ","
 }
 
 // hwScaleFilter returns the GPU scaler for the backend. Width pins the output
@@ -241,7 +320,13 @@ func appendHWTranscodeInputArgs(args []string, opts transcoding.HLSProcessOpts) 
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
-	args = append(args, hwInitArgs(opts.HWAccel, opts.HWDevice)...)
+	if opts.HWSoftwareDecode {
+		// Decoupled: bind the device for the filters only. No -hwaccel, so the
+		// video input decodes in software exactly like the all-software path.
+		args = append(args, hwDeviceOnlyArgs(opts.HWAccel, opts.HWDevice)...)
+	} else {
+		args = append(args, hwInitArgs(opts.HWAccel, opts.HWDevice)...)
+	}
 	args = appendInputModifiers(args, opts.ReadRate)
 	args = append(args, "-i", opts.FilePath)
 	// The audio input decodes in software: the hwaccel flags above bind to the
@@ -265,9 +350,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 			vf = tm + "," + vf // GPU HDR->SDR fold before the scaler
 		}
 	}
-	if d := hwDeinterlaceFilter(opts.HWAccel); d != "" {
-		vf = d + "," + vf
-	}
+	vf = hwSourceFilterPrefix(opts) + vf
 	args = append(args, "-map", "0:v:0", "-vf", vf)
 	args = append(args, "-c:v", videoEncoderFor(opts.VideoCodec, opts.HWAccel))
 	args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.HWFeatures)...)
@@ -295,12 +378,11 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 	for i := range n {
 		splitOutputs[i] = fmt.Sprintf("[v%d]", i)
 	}
-	// Deinterlace once on the source surface before the GPU split, so every rung
-	// scales from progressive frames (no-op on progressive sources).
-	src := "[0:v]"
-	if d := hwDeinterlaceFilter(opts.HWAccel); d != "" {
-		src += d + ","
-	}
+	// Deinterlace once before the GPU split, so every rung scales from
+	// progressive frames (no-op on progressive sources), and on the decoupled
+	// path upload once too - the split then fans out GPU surfaces exactly as it
+	// does for a zero-copy decode.
+	src := "[0:v]" + hwSourceFilterPrefix(opts)
 	// Tone-map once on the source surface before the GPU split (not per-rung).
 	if opts.HWTonemap {
 		if tm := hwTonemapFilter(opts.HWAccel); tm != "" {

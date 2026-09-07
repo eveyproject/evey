@@ -178,6 +178,13 @@ func (c LadderClass) Pool() ResourcePool {
 // follows the same precedence the boot benchmark uses to pick a ladder: AV1
 // output first (it gets its own, far heavier, software ceiling), then HDR
 // tonemap, then plain software.
+//
+// A DECOUPLED session (HWSoftwareDecode: software decode + hwupload + GPU
+// scale/encode) counts as HW here, and knowingly: the encode - the expensive,
+// contended half, and the one the GPU pool exists to ration - does run on the
+// GPU. Its software decode is billed to no pool, which is an approximation
+// bounded by ResolveHW refusing the decoupled route for 10-bit sources, where
+// a software decode stops being cheap.
 func LadderClassOf(fp DecisionFingerprint) LadderClass {
 	if fp.HWAccel != "" {
 		return LadderClassHW

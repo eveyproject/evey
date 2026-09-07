@@ -547,6 +547,13 @@ func (o *SegmentOrchestrator) spawnSession(
 		AudioCodec:       fp.AudioCodec,
 		MaxAudioChannels: fp.MaxAudioChannels,
 		ForceSidecarSubs: fp.ForceSidecarSubs,
+		// The idet content verdict, for a source whose container FLAG lies about
+		// being progressive. It only ever reaches a software deinterlacer
+		// (deinterlaceFilterFor), which is why this path could omit it while
+		// every HW session deinterlaced on the GPU off the decoder's flag.
+		// The decoupled route brought bwdif back onto this path, and a lying
+		// flag is a legacy-rip trait - exactly that route's population.
+		DeinterlaceAll: fp.DeinterlaceAll,
 		// fp.UseFMP4 is the container choice baked into the manifest the
 		// player will receive (.m4s vs .ts). Without forwarding it, ffmpeg
 		// always wrote .ts via the multi-variant builder while the manifest
@@ -555,9 +562,13 @@ func (o *SegmentOrchestrator) spawnSession(
 		// Hardware encode backend resolved by the handler (empty = software).
 		// The ffmpeg builder switches to the zero-copy GPU pipeline only when
 		// HWAccel is a valid non-None backend AND the content is simple.
-		HWAccel:      transcoding.HWAccelType(fp.HWAccel),
-		HWDevice:     fp.HWDevice,
-		HWFeatures:   fp.HWFeatures,
+		HWAccel:  transcoding.HWAccelType(fp.HWAccel),
+		HWDevice: fp.HWDevice,
+		// Decoupled route: this source's codec is one the GPU cannot decode, so
+		// ffmpeg decodes it in software and uploads the frames for the GPU to
+		// scale and encode. Everything downstream of the upload is unchanged.
+		HWSoftwareDecode: fp.HWSoftwareDecode,
+		HWFeatures:       fp.HWFeatures,
 		HWTonemap:    fp.HWTonemap, // GPU HDR->SDR fold (resolved by the handler; false -> software tonemap)
 		PerVariantHW: o.opts.HWPerVariant,
 	}
@@ -968,7 +979,21 @@ func (o *SegmentOrchestrator) WaitBudget() time.Duration { return o.opts.WaitBud
 // part of the interface so the software producer can branch on HDR.
 func (o *SegmentOrchestrator) Profiles(base []transcoding.HLSProfile, src SourceDims, _ transcoding.PlaybackDecision, capacity transcoding.EncodeCapability) []transcoding.HLSProfile {
 	sourceCapped := transcoding.CapLadderToSource(base, src.Width, src.Height)
-	return transcoding.CapLadderToHeight(sourceCapped, capacity.MaxHeightFor(true))
+	// A DECOUPLED session (a source codec this GPU cannot decode - see
+	// ResolveHW) encodes on the GPU but decodes on the CPU, and the calibration
+	// never measured that mix: the HW ladder was benched behind a zero-copy
+	// decode. Advertising the GPU ceiling for it would be exactly the
+	// dishonesty ADR-0017 refuses - a rung the pipeline cannot sustain starves
+	// the player. The SOFTWARE ceiling is the conservative bound here: it was
+	// measured with a software encode this session no longer pays for, so it
+	// under-estimates in the safe direction. Revisit when a decoupled bench
+	// gives this mix a ceiling of its own.
+	//
+	// Derived from (src, capacity) alone, like everything else in this
+	// function: manifest-time and segment-time must shape the SAME ladder or
+	// the cache hash forks (the invariant this whole path is built on).
+	zeroCopyDecode := src.Codec == "" || capacity.HWCanDecode(src.Codec)
+	return transcoding.CapLadderToHeight(sourceCapped, capacity.MaxHeightFor(zeroCopyDecode))
 }
 
 // profilesToDomain converts the cache fingerprint profiles into the domain

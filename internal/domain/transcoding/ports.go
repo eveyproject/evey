@@ -284,6 +284,23 @@ type HLSProcessOpts struct {
 	// baseline (preset + NVENC's required -forced-idr). Clearing this is also
 	// the level-2 "HW-minimal" retry tier.
 	HWFeatures []string
+	// HWSoftwareDecode routes this session through the DECOUPLED hardware path:
+	// ffmpeg decodes the source in SOFTWARE and an explicit hwupload hands the
+	// frames to the GPU, which scales and encodes them. Zero-copy decode is
+	// skipped, everything downstream of the upload is identical.
+	//
+	// It exists for a source the GPU cannot DECODE but can still ENCODE. The
+	// calibration certifies decode per codec (HWDecodeCodecs), and a source
+	// outside that set used to lose the GPU entirely - encode included - so an
+	// MPEG-4 ASP / MPEG-2 rip transcoded on the CPU next to an idle encoder.
+	// The upload costs one host->GPU copy per frame; the decode it replaces is
+	// a cheap SD one for exactly the population this serves.
+	//
+	// VAAPI/QSV only: those two are the backends whose upload chain the
+	// calibration probes validate on the host (probeHWEncode uses this very
+	// shape). NVENC keeps the full-software fallback rather than emit an
+	// unproven hwupload_cuda chain.
+	HWSoftwareDecode bool
 
 	// UseFMP4 picks the segment container: true → fMP4 (.m4s + per-variant
 	// init segment), false → MPEG-TS (.ts). Must match the extension baked
