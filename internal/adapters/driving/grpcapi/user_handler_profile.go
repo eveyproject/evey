@@ -101,7 +101,7 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	}
 	if err := h.userSvc.CreateProfile(ctx, p); err != nil {
 		span.RecordError(err)
-		if errors.Is(err, appuser.ErrMaxProfilesReached) || errors.Is(err, appuser.ErrKidsRequiresPIN) {
+		if errors.Is(err, appuser.ErrMaxProfilesReached) || errors.Is(err, appuser.ErrKidsRequiresPIN) || errors.Is(err, appuser.ErrAdminCannotBeKids) {
 			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
 		}
