@@ -141,6 +141,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		castProgress:          s.CastProgress,
 		profilePrefs:          s.ProfilePrefs,
 		audioNormalizeGetter:  s.AudioNormalizeGetter,
+		audioEncoderIDGetter:  s.AudioEncoderIDGetter,
 		userMaxStreams:        s.UserMaxStreams,
 		// Started with the server so it stops with it; nil when there is no
 		// data dir, in which case Enqueue is a no-op.

@@ -74,7 +74,7 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 		args = append(args, "-map", fmt.Sprintf("0:a:%d", t))
 	}
 
-	encoder := resolveAudioEncoder(opts.AudioCodec)
+	encoder := resolveAudioEncoder(opts.AudioCodec, opts.AudioEncoder)
 	args = append(args, "-c:a", encoder)
 
 	// Passthrough (wasm-audio path): the coded AC-3/E-AC-3 samples are muxed into

@@ -271,7 +271,7 @@ func audioOutputArgsSingle(opts transcoding.HLSProcessOpts, bitrateKbps int64) [
 	a := []string{"-map", fmt.Sprintf("%d:a:%d", audioInput(opts), opts.AudioTrackIndex)}
 	if opts.AudioDecision == "transcode" {
 		a = append(a,
-			"-c:a", resolveAudioEncoder(opts.AudioCodec),
+			"-c:a", resolveAudioEncoder(opts.AudioCodec, opts.AudioEncoder),
 			"-ac", resolveAudioChannels(opts.MaxAudioChannels),
 			"-b:a", fmt.Sprintf("%dk", scaledAudioBitrateKbps(bitrateKbps, opts.MaxAudioChannels)),
 		)
@@ -294,7 +294,7 @@ func audioVariantArgs(opts transcoding.HLSProcessOpts, i int, bitrateKbps int64)
 	}
 	a := []string{
 		"-map", fmt.Sprintf("%d:a:%d", audioInput(opts), opts.AudioTrackIndex),
-		fmt.Sprintf("-c:a:%d", i), resolveAudioEncoder(opts.AudioCodec),
+		fmt.Sprintf("-c:a:%d", i), resolveAudioEncoder(opts.AudioCodec, opts.AudioEncoder),
 		"-ac", resolveAudioChannels(opts.MaxAudioChannels),
 		fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", scaledAudioBitrateKbps(bitrateKbps, opts.MaxAudioChannels)),
 	}
@@ -767,7 +767,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	if hasAudio(opts) {
 		if opts.AudioDecision == "transcode" {
 			args = append(args,
-				"-c:a", resolveAudioEncoder(opts.AudioCodec),
+				"-c:a", resolveAudioEncoder(opts.AudioCodec, opts.AudioEncoder),
 				"-ac", resolveAudioChannels(opts.MaxAudioChannels),
 				"-b:a", "192k",
 			)

@@ -525,6 +525,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		VariantIndex:       sessionVariantIdx,
 		VideoDecision:      "transcode",
 		AudioDecision:      fp.AudioDecision(),
+		AudioEncoder:       fp.AudioEncoder,
 		AudioTrackIndex:    fp.AudioTrack,
 		AudioUserOffsetSec: float64(fp.AudioOffsetMs) / 1000.0,
 		SubtitleTrackIndex: fp.SubtitleBurnInTrack,

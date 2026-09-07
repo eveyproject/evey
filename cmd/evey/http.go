@@ -157,11 +157,11 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		CalibrationSvc: deps.media.calibrationSvc,
 		CapOverrideSvc: deps.media.capsOverrideSvc,
 
-		MetadataCmdSvc:   deps.content.metadataCmdSvc,
+		MetadataCmdSvc: deps.content.metadataCmdSvc,
 		// The preview clip route: a few seconds of picture with one audio
 		// track, which is the only way to tell whether the sound follows the
 		// image. Nil until the seek-index service exists.
-		SeekIndexSvc: deps.seekIndexSvc,
+		SeekIndexSvc:     deps.seekIndexSvc,
 		MetadataQuerySvc: deps.content.metadataQuerySvc,
 
 		ActivityQuerySvc: deps.engagement.activityQuerySvc,
@@ -288,6 +288,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		Translator:           deps.translator,
 		AudioNormalizeGetter: audioNormalizeGetter,
+		AudioEncoderIDGetter: ffmpeg.AACEncoder,
 		// Audio renditions ride the video's timeline. mkvgo presents at 0, the
 		// ffmpeg copy fallback presents late by has_b_frames/fps - the HTTP layer
 		// asks this probe how much to shift by. Best-effort: it returns 0 on any

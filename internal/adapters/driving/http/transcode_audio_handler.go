@@ -36,6 +36,9 @@ type audioServe struct {
 
 	// audioNormalizeGetter mirrors the video pipeline knob.
 	audioNormalizeGetter func(ctx context.Context) bool
+	// audioEncoderIDGetter names the concrete ffmpeg AAC implementation this
+	// host encodes with; nil → native, the historical bytes.
+	audioEncoderIDGetter func() string
 
 	// segmentWaitTimeout caps how long serveSegmentFile blocks waiting for
 	// an audio segment to materialise on disk.
@@ -306,10 +309,14 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 		}
 	}
 	return apptranscoding.AudioFingerprint{
-		MediaID:           mediaID,
-		SourcePath:        item.File.Path,
-		SourceTrackIdx:    trackIdx,
-		AudioCodec:        "aac",
+		MediaID:        mediaID,
+		SourcePath:     item.File.Path,
+		SourceTrackIdx: trackIdx,
+		AudioCodec:     "aac",
+		// Same encoder the muxed ladder uses, and hashed with the bytes: a
+		// rendition re-encoded by a different AAC implementation is different
+		// bytes and must not land on the same cache entry.
+		AudioEncoder:      h.audioEncoderID(),
 		AudioBitrate:      domaintranscoding.AudioRenditionBaseKbps, // scaled to the channel count at arg-build
 		AudioNormalize:    h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
 		MaxAudioChannels:  renditionChannels(h.sourceAudioChannels(r.Context(), mediaID, trackIdx), maxAudioChannelsQuery(r)),
@@ -448,4 +455,13 @@ func placeholderProfiles() []domaintranscoding.HLSProfile {
 	return []domaintranscoding.HLSProfile{
 		{Name: "placeholder", Width: 1280, Height: 720, VideoBitrate: 2000, AudioBitrate: 128},
 	}
+}
+
+// audioEncoderID is the nil-safe read of the encoder probe: unwired keeps the
+// native encoder, byte-identical and hash-identical to before the feature.
+func (h *audioServe) audioEncoderID() string {
+	if h.audioEncoderIDGetter == nil {
+		return ""
+	}
+	return h.audioEncoderIDGetter()
 }
