@@ -5,7 +5,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/hdr"
 )
@@ -35,7 +34,7 @@ func resolveToneMap(opts transcoding.HLSProcessOpts, dstWidth int) string {
 	return detectToneMap(opts.HDRSupported, opts.Streams, dstWidth)
 }
 
-func detectToneMap(hdrSupported bool, streams []*library.MediaStream, dstWidth int) string {
+func detectToneMap(hdrSupported bool, streams []transcoding.SourceStream, dstWidth int) string {
 	if hdrSupported {
 		return ""
 	}

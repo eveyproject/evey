@@ -810,9 +810,9 @@ func TestBuildFFmpegArgs_HEVCCopy_UsesFMP4Segments(t *testing.T) {
 		VideoDecision:   "copy",
 		AudioDecision:   "copy",
 		AudioTrackIndex: 0,
-		Streams: []*library.MediaStream{
-			{StreamType: "video", Codec: "hevc"},
-			{StreamType: "audio", Codec: "eac3", IsDefault: true},
+		Streams: []transcoding.SourceStream{
+			&library.MediaStream{StreamType: "video", Codec: "hevc"},
+			&library.MediaStream{StreamType: "audio", Codec: "eac3", IsDefault: true},
 		},
 	}
 	args := ffmpeg.BuildFFmpegArgs(opts)
@@ -833,9 +833,9 @@ func TestBuildFFmpegArgs_H264Copy_UsesFMP4Segments(t *testing.T) {
 		VideoDecision:   "copy",
 		AudioDecision:   "copy",
 		AudioTrackIndex: 0,
-		Streams: []*library.MediaStream{
-			{StreamType: "video", Codec: "h264"},
-			{StreamType: "audio", Codec: "aac", IsDefault: true},
+		Streams: []transcoding.SourceStream{
+			&library.MediaStream{StreamType: "video", Codec: "h264"},
+			&library.MediaStream{StreamType: "audio", Codec: "aac", IsDefault: true},
 		},
 	}
 	args := ffmpeg.BuildFFmpegArgs(opts)
