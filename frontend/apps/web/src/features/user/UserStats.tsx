@@ -60,7 +60,7 @@ export function UserStats() {
   });
   // Hooks must run on every render - keep them above the early returns below
   // (they used to sit after them, a conditional-hook bug).
-  const accent = useCssVar("--accent", "#4f46e5");
+  const accent = useCssVar("--accent", "#c81e1e");
   const textMuted = useCssVar("--text-muted");
   // Genres arrive already folded and labelled by the server (GetUserStats):
   // it is the only side that knows every stored spelling of a genre, so a

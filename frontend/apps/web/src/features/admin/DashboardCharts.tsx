@@ -27,7 +27,7 @@ export function PlayActivityChart() {
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
   const daily = data?.dailyPlays ?? [];
-  const accent = useCssVar("--accent", "#4f46e5");
+  const accent = useCssVar("--accent", "#c81e1e");
   const textMuted = useCssVar("--text-muted");
 
   useEffect(() => { scrollToEnd(); }, [daily.length, scrollToEnd]);
@@ -101,7 +101,7 @@ export function PeakHours() {
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
   const hourly = data?.hourlyPlays ?? [];
-  const accent = useCssVar("--accent", "#4f46e5");
+  const accent = useCssVar("--accent", "#c81e1e");
   const textMuted = useCssVar("--text-muted");
 
   const allHours = useMemo(() => Array.from({ length: 24 }, (_, i) => {

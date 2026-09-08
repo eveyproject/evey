@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Play } from "lucide-react";
+import { EveyWordmark } from "@/components/ui/EveyLogo";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
 import {
   eveyFetch,
@@ -235,13 +235,7 @@ function SetupPage() {
     createLibrary.mutate({ data: { name: libraryForm.name, type: libraryForm.type, paths: validPaths } });
   };
 
-  const logoIcon = (
-    <div
-      className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center mb-4 bg-[var(--accent)]"
-    >
-      <Play size={24} className="text-[var(--filter-active-text)]" fill="currentColor" />
-    </div>
-  );
+  const logoIcon = <EveyWordmark height={36} className="mb-4 text-[var(--text)]" />;
 
   return (
     <div

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Play, Users, ChevronDown } from "lucide-react";
+import { Users, ChevronDown } from "lucide-react";
+import { EveyWordmark } from "@/components/ui/EveyLogo";
 import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useUserServiceLogin, useAdminSystemServiceGetSetupStatus, eveyFetch, normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
@@ -108,12 +109,9 @@ function LoginPage() {
     >
       <Card className="w-full max-w-sm p-8 shadow-2xl">
         <div className="flex flex-col items-center mb-8">
-          <div
-            className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center mb-4 bg-[var(--accent)]"
-          >
-            <Play size={24} className="text-[var(--filter-active-text)]" fill="currentColor" />
-          </div>
-          <h1 className="text-2xl font-bold text-[var(--text)]">Evey</h1>
+          <h1 className="mb-4 text-[var(--text)]">
+            <EveyWordmark height={36} />
+          </h1>
           <p className="text-[var(--text-muted)] text-sm mt-1">{t("auth.login.signInToAccount")}</p>
         </div>
         {oidc_error && (
