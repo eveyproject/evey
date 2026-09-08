@@ -1,0 +1,428 @@
+---
+source_sha: 0676b00518c8ba6dffea0fddca45a36ed080eccd828f4cc17ef4e4bec911f238
+---
+
+# Configuración
+
+El archivo `.env` guarda únicamente lo que tiene que existir **antes de que el
+servidor arranque**: los secretos, el cableado del contenedor (puertos, rutas,
+etiqueta de imagen) y los datos del proxy inverso. Copie `.env.example` en `.env`
+y edítelo.
+
+**Todo lo que un operador ajusta después (nivel de registro, idioma, límites de
+transcodificación, aceleración por hardware, vigilante de bibliotecas, sandbox de
+extensiones y cuotas) vive en el panel de administración
+(Admin > Configuración del servidor), no aquí.** Esos ajustes se guardan en la
+base de datos, sobreviven a la recreación del contenedor y casi todos surten
+efecto sin reiniciar. Definirlos como variables de entorno solo sirve para
+sembrar el primer arranque.
+
+Por ese reparto, esta página no enumera todas las variables `EVEY_*` que reconoce
+el binario: las demás son semillas del primer arranque y válvulas de escape, y
+configurar por esa vía un servidor en marcha es el camino equivocado. Si necesita
+una referencia exhaustiva, la tiene en `internal/config/config.go`.
+
+## Lo que hay que definir
+
+Nada, en la instalación por defecto: la ruta de los archivos multimedia y la
+etiqueta de la imagen están en el propio archivo compose, y no hay ningún `.env`.
+El `docker-compose.yml` del repositorio, en cambio, lee `MEDIA_DIR` desde `.env`:
+
+```env
+MEDIA_DIR=/path/to/your/media
+```
+
+En cualquiera de los dos casos, Postgres y Meilisearch se ejecutan integrados en
+el contenedor y generan sus propios secretos en el primer arranque, que quedan
+bajo `./evey-data/keys` (`postgres.password`, `meili.key`, con permisos 0600). El
+servidor los lee mediante `EVEY_DB_PASSWORD_FILE` y `MEILI_MASTER_KEY_FILE`
+(grabados en la imagen), que es también la razón por la que
+`docker exec evey-server evey admin ...` no necesita ninguna contraseña en la
+línea de órdenes. Defina `EVEY_DB_PASSWORD` y `MEILI_MASTER_KEY` de forma
+explícita solo cuando aporte su propia base de datos o su propio motor de
+búsqueda: un valor explícito siempre gana al archivo.
+
+## Propiedad de los archivos (PUID/PGID)
+
+**Por defecto, automática.** Si no se definen `PUID` ni `PGID`, al arrancar el
+entrypoint mira quién es el propietario de los montajes `/media*` y ejecuta el
+servidor con ese usuario, de manera que las funciones que *escriben en* la
+biblioteca (la reparación del índice de posicionamiento reconstruye los archivos
+en su sitio) funcionan sin más: ni `chown` ni configuración. El registro de
+arranque indica qué se ha elegido:
+
+```
+evey: media mounts owned by 1026:100 (detected on /media) - running the
+server as that user so write features (seek-index repair) work out of the box
+```
+
+Cuando los montajes multimedia pertenecen a **usuarios distintos**, se hace lo
+que se puede: el servidor adopta el usuario propietario del mayor número de
+montajes y se suma a los grupos de los demás como grupos suplementarios, así que
+las reparaciones en esos montajes funcionan si sus archivos son escribibles por
+el grupo (el aviso de arranque enumera los montajes que aún podrían rechazar la
+escritura). La detección automática solo se aparta del todo (y recae en
+`1000:1000`, con un aviso) cuando todos los montajes multimedia pertenecen a root
+o al uid reservado `1001`. En ese caso, cambie el propietario de sus archivos
+multimedia a un usuario normal o defina `PUID` y `PGID` de forma explícita:
+
+```env
+PUID=1026   # ejecutar el servidor con este id de usuario (en el host: `id -u <media-owner>`)
+PGID=100    # ...y con este id de grupo
+```
+
+Los valores explícitos siempre ganan a la detección.
+
+Cómo funciona: el contenedor arranca como root el tiempo justo para reasignar su
+usuario interno (y recuperar la propiedad de los directorios de estado propios de
+Evey, `/data` y `/cache`, **nunca** de sus montajes multimedia) y acto seguido
+renuncia a los privilegios. Los grupos suplementarios concedidos con `group_add:`
+en el compose (por ejemplo el grupo render de su host, para la transcodificación
+por hardware con `/dev/dri`) se conservan tras esa renuncia. El proceso del
+servidor en sí no se ejecuta nunca como root.
+
+Alternativa sin root en ningún momento: si ni siquiera ese root pasajero le
+resulta aceptable, ponga `user: "UID:GID"` en el servicio de su archivo compose.
+El entrypoint detecta el arranque sin root y omite la reasignación (también la
+detección del propietario de los archivos multimedia); a partir de ahí, mantener
+`./evey-data` escribible por ese UID corre de su cuenta.
+
+Notas:
+- `PUID=1001` se rechaza: es el usuario interno `evey-plugin`, que se mantiene
+  aparte para que ninguna extensión pueda compartir la identidad del servidor.
+- Los archivos multimedia se montan en lectura y escritura por defecto para que
+  las reparaciones funcionen sin artificios; añada `:ro` al volumen multimedia si
+  prefiere una biblioteca de solo lectura (las reparaciones fallarán entonces con
+  un error claro).
+
+## Recomendado
+
+```env
+EVEY_SERVER_BASE_URL=https://media.example.com  # su URL pública
+EVEY_TMDB_API_KEY=<your-tmdb-key>               # mejores metadatos (gratis en themoviedb.org)
+```
+
+## Lo que de verdad necesita una instancia publicada
+
+Detrás de un proxy inverso y con transcodificación por hardware, todo el entorno
+se reduce a dos variables. El resto de lo que suele arrastrarse en un archivo
+compose o bien ya está en la imagen, o bien es un valor por defecto:
+
+```yaml
+services:
+  evey:
+    image: gravityz/evey:latest
+    environment:
+      EVEY_SERVER_BASE_URL: https://media.example.com
+      EVEY_TRUSTED_PROXIES: 10.0.0.5/32      # su proxy inverso, /32 si conoce su dirección
+    volumes:
+      - ./evey-data:/data
+      - evey-cache:/cache
+      - /srv/media:/media
+    devices:
+      - /dev/dri:/dev/dri                     # transcodificación por hardware
+    group_add:
+      - "991"                                 # el grupo propietario de /dev/dri/renderD128 en SU host
+```
+
+Líneas que **no** conviene copiar de configuraciones antiguas:
+
+| Línea | Por qué sobra |
+| --- | --- |
+| `EVEY_LOG_DIR`, `EVEY_TRANSCODING_CACHE_DIR`, `EVEY_TRICKPLAY_CACHE_DIR` | La imagen ya las fija en `/data/logs`, `/cache/transcode` y `/data/trickplay`. Repetirlas no cambia nada. |
+| `EVEY_FORWARDED_PROTO` | Obsoleta: se deduce del esquema de `EVEY_SERVER_BASE_URL`. Definirla solo registra un aviso de obsolescencia. |
+| `EVEY_KEYFRAME_BACKFILL=on` | Cualquier valor distinto de `off` lo activa, incluida su ausencia. |
+| `LIBVA_DRIVER_NAME` | libva elige el controlador a partir del id PCI de la GPU. Fuércelo solo si su tarjeta necesita un controlador que libva no escoja (compruébelo con `docker exec evey-server vainfo`). |
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` elige el confinamiento más sólido que admita su host. Defínala de forma explícita solo si quiere una garantía *fail-closed*: `landlock` se niega a ejecutar una extensión que no pueda confinar, mientras que `auto` degrada con un aviso. |
+| un `group_add` para `/dev/dri/card0` | Evey nunca abre nada que no sea `renderD128`. Compruébelo con `ls -ln /dev/dri` y añada únicamente ese grupo. |
+
+### Dos ajustes que el panel de administración NO sustituye
+
+Los dos tienen un parecido razonable en **Admin → Acceso remoto**, y ninguno
+vuelve prescindible la variable de entorno. Es una confusión frecuente, así que
+conviene decirlo con todas las letras.
+
+La diferencia está en dónde vive cada uno. El bloque de acceso remoto (activar o
+desactivar, URL externa, rangos de LAN, límite de tasa de bits remota) se
+**guarda en la base de datos**: sus variables de entorno siembran el primer
+arranque y después se ignoran. `EVEY_SERVER_BASE_URL` y `EVEY_TRUSTED_PROXIES`
+son justo lo contrario: se leen del entorno en cada arranque y **nada del panel
+las sobrescribe jamás**. De modo que un valor que en el panel parece un
+duplicado es, en estos dos casos, un ajuste distinto que da la casualidad de que
+menciona una dirección.
+
+**«External URL» no sustituye a `EVEY_SERVER_BASE_URL`.** El valor del panel
+alimenta las URL que el servidor *construye*. Pero que el servidor confíe o no en
+`X-Forwarded-Proto` (y, por tanto, que se crea servido por HTTPS) se decide **en
+el arranque y únicamente a partir de la variable de entorno**. Si la quita, todo
+recae en `http://localhost:9091`: las cookies `Secure`, las redirecciones y
+cualquier enlace absoluto degradan a `http://`, y las URL de compartir y de
+descarga apuntan a localhost. El valor del panel se lee demasiado tarde para
+servir de algo.
+
+**«LAN networks» no sustituye a `EVEY_TRUSTED_PROXIES`.** Son dos etapas, no dos
+nombres para una misma cosa:
+
+1. `EVEY_TRUSTED_PROXIES` decide **a quién se le cree el `X-Forwarded-For`** y,
+   en consecuencia, qué dirección se le atribuye a un cliente.
+2. Después, las redes LAN clasifican **esa** dirección como local o remota.
+
+La segunda trabaja sobre el resultado de la primera. Sin la primera, todos los
+clientes llegan con la dirección del proxy y se clasifican exactamente igual, que
+es justo por lo que el filtro de acceso remoto estuvo dormido durante cuatro
+meses (véase `internal/config/remote_access_resolve.go`). Loopback es siempre de
+confianza y no se puede quitar; lo que usted indique se le *suma*.
+
+## Variables que quizá tenga que definir
+
+### Servidor
+```env
+EVEY_SERVER_PORT=9090                  # puerto de escucha gRPC (por defecto 9090); la API HTTP escucha en SERVER_PORT+1 = 9091
+EVEY_HTTP_PORT=9091                    # solo para compose: puerto del host que Docker expone para la pasarela HTTP (el binario del servidor no lo lee)
+EVEY_SERVER_NAME=Evey                  # nombre visible
+EVEY_VERSION=latest                    # etiqueta de la imagen Docker (latest, v0.1.0-beta.1, etc.)
+```
+
+### Base de datos
+```env
+# Integrado (por defecto si EVEY_DB_HOST no está definida): Postgres 17 dentro del contenedor.
+EVEY_EMBEDDED_POSTGRES=            # true | false; sin definir = integrado si y solo si EVEY_DB_HOST no está definida
+EVEY_POSTGRES_DATA_DIR=/data/postgres   # ubicación del clúster dentro del contenedor (bajo ./evey-data)
+EVEY_DB_USER=evey
+EVEY_DB_NAME=evey
+EVEY_DB_PASSWORD=                  # sin definir = se genera en el primer arranque en /data/keys/postgres.password
+EVEY_DB_PASSWORD_FILE=/data/keys/postgres.password   # se lee cuando EVEY_DB_PASSWORD no está definida (valor por defecto de la imagen)
+
+# Externo: use estas EN LUGAR del bloque anterior, no junto a él.
+# Definir el host desactiva la base de datos integrada.
+EVEY_DB_HOST=postgres              # el servicio hermano del compose del repositorio se llama `postgres`
+EVEY_DB_PORT=5432
+EVEY_DB_PASSWORD=changeme
+EVEY_DB_SSLMODE=prefer             # o bien disable | require | verify-full
+```
+
+El Postgres integrado escucha solo en el loopback del contenedor y pide una
+contraseña por TCP; la que se genera es la que usan tanto el servidor como
+`evey admin`. Su directorio de datos tiene que estar en un sistema de archivos de
+verdad (ext4, btrfs, xfs...), no en un recurso compartido de red. En ambas
+disposiciones, las migraciones se ejecutan solas al arrancar.
+
+### Autenticación
+```env
+EVEY_JWT_ACCESS_TTL=15m
+EVEY_JWT_REFRESH_TTL=168h              # 7 días
+EVEY_RATELIMIT_LOGIN_MAX=10            # por IP y por minuto
+```
+
+### Bibliotecas
+```env
+EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL=2m # intervalo de sondeo de reserva cuando inotify pierde eventos (por defecto 2m); modificable en Admin → Configuración del servidor
+EVEY_LIBRARY_WATCHER_ENABLED=true      # vigilancia de archivos en tiempo real
+```
+
+El sondeador del análisis de bibliotecas lee los metadatos `.mkv`/`.webm` y
+`.mp4`/`.m4v` dentro del propio proceso (con mkvgo, solo la cabecera, unas 35
+veces más rápido en reanálisis, reparaciones y NAS) y no necesita configuración
+alguna: está siempre activo. ffprobe sigue siendo la autoridad y se hace cargo de
+cualquier archivo que la vía rápida no consiga traducir campo a campo (HDR y
+Dolby Vision, códecs sin correspondencia...). Véase
+[adr/0016-mkv-fastpath-prober.md](adr/0016-mkv-fastpath-prober.md).
+
+### Transcodificación
+```env
+EVEY_TRANSCODING_MAX_CONCURRENT=2
+EVEY_TRANSCODING_HW_ACCEL_ENABLED=false
+```
+
+En [transcoding.md](transcoding.md) se explica la configuración del hardware.
+
+**Audio Dolby en un Chromecast** (`EVEY_CAST_WASM_AUDIO_ENABLED`, `false` por
+defecto). Evey puede entregarle al receptor de emisión la pista AC-3/E-AC-3
+original y dejar que la descodifique en WebAssembly dentro del televisor,
+evitando así una transcodificación. Está **desactivado para los receptores de
+emisión** porque un aparato de operador de gama baja se vino abajo a mitad de
+película, dos veces, con esa vía activa; y encima su descodificador midió allí
+3,13 veces el tiempo real, así que tampoco aportaba nada. Con la opción
+desactivada, una emisión recibe el máster multiplexado de siempre con una versión
+AAC: sonido desde el primer segundo, en cualquier aparato. A los navegadores NO
+les afecta: conservan el descodificador wasm, que allí sí está validado. Póngala
+en `true` para volver a activarla en las emisiones.
+
+**Es preferible el panel de administración.** La concurrencia, la aceleración por
+hardware, AV1, el presupuesto de caché y los límites avanzados (sesiones HLS
+simultáneas máximas, alturas máximas por software y por software con HDR,
+codificación de un peldaño cada vez, un codificador por hardware y peldaño) están
+todos en **Admin > Configuración de transcodificación**. Los valores guardados
+ahí sobreviven a los reinicios y prevalecen sobre el entorno; el panel indica
+cuáles solo surten efecto tras reiniciar.
+
+**Los indicadores de los procesos en segundo plano** se definen como filas en
+**Admin > Configuración del servidor** (el panel sugiere las claves y muestra,
+para cada una, la variable de entorno equivalente y el valor esperado). Todos se
+leen en el arranque, de modo que se aplican al reiniciar:
+
+| Clave | Valor |
+| --- | --- |
+| `transcoding.keyframe_backfill` | `off` para desactivar el relleno del índice de fotogramas clave (activado por defecto) |
+| `transcoding.keyframe_backfill_batch` | elementos por pasada, > 0 |
+| `transcoding.keyframe_backfill_pause_ms` | milisegundos entre elementos, >= 0 |
+| `transcoding.keyframe_backfill_idle_sec` | segundos entre pasadas en reposo, > 0 |
+| `transcoding.level_backfill` | `off` para desactivar el relleno del nivel H.264/HEVC (activado por defecto) |
+| `transcoding.level_backfill_batch` | elementos por pasada, > 0 |
+| `transcoding.level_backfill_pause_ms` | milisegundos entre elementos, >= 0 |
+| `transcoding.level_backfill_idle_sec` | segundos entre pasadas en reposo, > 0 |
+| `transcoding.pause_bg_on_playback` | `off` para que el trabajo en segundo plano siga durante la reproducción (activado por defecto: se aparta) |
+| `transcoding.snapshot_fastpath` | `off` para forzar el extractor exacto de ffmpeg en lugar de la vía rápida de fotogramas clave de mkvgo |
+
+Cada uno tiene además su equivalente en el entorno (`EVEY_KEYFRAME_BACKFILL`,
+`EVEY_LEVEL_BACKFILL_BATCH`...), pero la fila del panel es la que manda.
+
+### Extensiones (sandbox y límites)
+```env
+EVEY_PLUGINS_SANDBOX_MODE=auto         # auto|landlock|bubblewrap|strict|basic - auto elige el más sólido que admita su host
+EVEY_PLUGINS_UID_SEPARATION=auto       # auto|on|off - ejecutar las extensiones con un usuario aparte para tapiar los secretos (auto = activo solo cuando el sandbox efectivo se resuelve como "basic", es decir, ni Landlock ni bubblewrap); incompatible con no-new-privileges
+EVEY_PLUGINS_MEMORY_MB=256             # RAM máxima por extensión (MiB); modificable en Admin → Extensiones
+EVEY_PLUGINS_PIDS_MAX=64               # procesos e hilos máximos por extensión; modificable desde el panel
+EVEY_PLUGINS_DISK_MAX_MB=100           # tamaño máximo del directorio de instalación por extensión (MiB; 0 = sin límite); modificable desde el panel
+EVEY_PLUGINS_CPU_NICE=10               # nice de planificación 0-19 (a mayor valor, menor prioridad); modificable desde el panel
+EVEY_PLUGINS_ENABLED=true              # interruptor general del subsistema de extensiones
+EVEY_PLUGINS_COSIGN_POLICY=warn        # off|warn|enforce - exigir una firma cosign en los ZIP de extensión
+EVEY_PLUGINS_COSIGN_PUBLIC_KEY=        # ruta de la clave pública PEM (obligatoria cuando la política no es off)
+```
+
+Guía escenario por escenario: [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md). Modelo completo: [SECURITY.md](SECURITY.md).
+
+### Correo electrónico (SMTP)
+```env
+EVEY_SMTP_HOST=smtp.example.com
+EVEY_SMTP_PORT=587
+EVEY_SMTP_USERNAME=
+EVEY_SMTP_PASSWORD=
+EVEY_SMTP_FROM=noreply@example.com
+EVEY_SMTP_TLS=starttls                 # starttls, ssl, none
+```
+
+Véase [notifications.md](notifications.md).
+
+### SSO (OIDC)
+```env
+EVEY_OIDC_ENABLED=false
+EVEY_OIDC_ISSUER=https://auth.example.com
+EVEY_OIDC_CLIENT_ID=evey
+EVEY_OIDC_CLIENT_SECRET=
+EVEY_OIDC_ALLOWED_EMAIL_DOMAINS=       # separados por comas; vacío = todos
+```
+
+Véase [oidc.md](oidc.md).
+
+### Copias de seguridad
+```env
+EVEY_BACKUP_INTERVAL_HOURS=0           # 0 = desactivado, 24 = a diario
+EVEY_BACKUP_RETENTION_DAYS=30
+```
+
+Véase [backups.md](backups.md).
+
+### Proxy inverso
+```env
+EVEY_TRUSTED_PROXIES=172.16.0.0/12     # se añade al loopback, siempre de confianza; no lo sustituye
+EVEY_REAL_IP_HEADER=X-Forwarded-For
+EVEY_DOMAIN=media.example.com          # solo para el Caddy incluido
+```
+
+El comportamiento HTTPS (cookies `Secure`, HSTS y confianza en
+`X-Forwarded-Proto`) sigue el esquema de `EVEY_SERVER_BASE_URL`: una URL base en
+`https://` lo activa. `EVEY_FORWARDED_PROTO=true|false` está obsoleta y solo se
+conserva como anulación.
+
+Véase [reverse-proxy.md](reverse-proxy.md).
+
+### Detección de intros
+```env
+EVEY_INTRO_TIDB_API_KEY=                # token Bearer opcional para TheIntroDB (500 consultas al día frente a 100 de forma anónima)
+EVEY_INTRO_FFMPEG_THREADS=1             # hilos por proceso ffmpeg empleado en la detección de intros (1-16)
+EVEY_INTRO_SKIP_PREVIEW_ENABLED=false   # servir al reproductor los segmentos de "avance" (el resumen del episodio siguiente) para que aparezca un botón que permita saltarlos
+EVEY_INTRO_AUTO_SKIP_ENABLED=false      # todos los reproductores saltan solos las intros detectadas (web y móvil leen el indicador en la respuesta de segmentos; a los receptores de emisión, los segmentos de intro se les entregan según este valor)
+```
+
+`api.tidb_key`, `intro_providers.enabled`, `intro_providers.tidb_submit_enabled`,
+`intro_providers.skip_preview_enabled` e `intro_providers.auto_skip_enabled`
+también se pueden configurar desde
+`/admin/server-config` (primero la base de datos, el entorno como respaldo).
+Reinicie el servidor después de cambiar `intro_providers.enabled`; los
+interruptores del salto de avances y del salto automático de intros se aplican en
+caliente, sin reiniciar.
+
+Véase [adr/0011-intro-detection-providers.md](adr/0011-intro-detection-providers.md).
+
+### Registro
+```env
+EVEY_LOG_LEVEL=info                    # debug, info, warn, error
+EVEY_LOG_DIR=/data/logs                # valor por defecto de la imagen; el archivo compose lo asigna a ./evey-data/logs
+EVEY_LOG_RETENTION_DAYS=90
+```
+
+El archivo diario `evey-YYYY-MM-DD.log` que hay bajo `EVEY_LOG_DIR` es el
+registro de referencia. `docker logs evey-server` muestra ese mismo flujo, pero el
+controlador json-file de Docker lo rota y, tras una rotación, la orden puede dar
+la impresión de haberse detenido horas antes que el contenedor. Cuando ambos
+discrepen, fíese del archivo o, como root, de los archivos en bruto
+`/var/lib/docker/containers/<id>/*-json.log*`. Fuera de la imagen, en una
+instalación sin contenedor, el valor por defecto es un directorio `logs` relativo
+al directorio de trabajo, así que apunte `EVEY_LOG_DIR` a una ruta absoluta con
+permiso de escritura.
+
+### Acceso remoto (quién puede conectarse desde fuera de su red)
+```env
+EVEY_REMOTE_ACCESS_ENABLED=                                              # sin definir = automático (véase más abajo); true/false para decidirlo usted
+EVEY_REMOTE_ACCESS_EXTERNAL_URL=                                         # la dirección pública, si difiere de EVEY_SERVER_BASE_URL
+EVEY_REMOTE_ACCESS_LAN_NETWORKS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16  # CIDR que se tratan como LAN
+EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS=0                                    # 0 = sin límite para las sesiones remotas (WAN)
+```
+
+> ⚠️ El filtro protege el escuchador **HTTP** (`EVEY_SERVER_PORT` + 1). El
+> escuchador gRPC nativo, en el propio `EVEY_SERVER_PORT`, es un transporte
+> interno y no está filtrado, así que escucha **solo en loopback**
+> (`EVEY_GRPC_BIND`, `127.0.0.1` por defecto): su único cliente es la pasarela
+> HTTP que corre en el mismo proceso. Ponga `EVEY_GRPC_BIND=0.0.0.0` para
+> exponerlo a propósito; el arranque avisará entonces de que el filtro de acceso
+> remoto no lo cubre, y protegerlo con el cortafuegos pasa a ser cosa suya.
+
+**El filtro.** Cuando el acceso remoto está desactivado, se rechaza en todas las
+rutas a cualquier cliente cuya IP no figure en
+`EVEY_REMOTE_ACCESS_LAN_NETWORKS`, con un
+`403 {"code":"remote_access_disabled"}`. Es una decisión de despliegue («esta
+instancia es para mi propia red»), no una capa de seguridad: lo que protege su
+biblioteca es la autenticación.
+
+**Automático por defecto.** Deje `EVEY_REMOTE_ACCESS_ENABLED` sin definir y el
+servidor decidirá en el arranque: si `EVEY_REMOTE_ACCESS_EXTERNAL_URL` o
+`EVEY_SERVER_BASE_URL` es una dirección accesible públicamente, el acceso remoto
+queda **activado** (un servidor que se ha publicado está para que se llegue a
+él); en caso contrario, se queda limitado a la LAN. La decisión se registra al
+arrancar y `evey admin doctor` la comunica.
+
+Defina la variable, o utilice **Admin → Acceso remoto**, para decidirlo de forma
+explícita; la inferencia nunca anula una elección explícita. Si mantiene a
+propósito un servidor publicado limitado a la LAN, el registro de arranque lleva
+un aviso que lo indica, porque de lo contrario el síntoma que acabará llegándole
+es un «a ti te funciona en el móvil y a mí no».
+
+> Detrás de un proxy inverso, esto solo funciona si el proxy reenvía la IP real
+> del cliente y `EVEY_TRUSTED_PROXIES` cubre a ese proxy. De lo contrario, todos
+> los clientes aparecen con la dirección del propio proxy; véase
+> [reverse-proxy.md](reverse-proxy.md).
+
+Cuando se define `EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS`, las sesiones de
+reproducción cuya IP de cliente se clasifica como WAN quedan limitadas a esa tasa
+de bits; el límite solo puede BAJAR el techo del cliente o del perfil, nunca
+subirlo. Conviene conocer dos normas de seguridad:
+
+- Una IP de cliente privada (RFC1918) **nunca** se limita, aunque se haya
+  olvidado de incluir su rango en `EVEY_REMOTE_ACCESS_LAN_NETWORKS`: el límite
+  solo cae sobre una dirección claramente pública.
+- Si utiliza rangos locales poco habituales (CGNAT `100.64.0.0/10`, una subred de
+  VPN o de Tailscale) y NO quiere limitar a esos espectadores, indíquelos de
+  forma explícita en `EVEY_REMOTE_ACCESS_LAN_NETWORKS`. Detrás de un proxy
+  inverso, asegúrese de que este reenvía la IP real del cliente
+  (`X-Forwarded-For`) o todas las sesiones aparecerán con la dirección del proxy.

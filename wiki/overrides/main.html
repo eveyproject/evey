@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{#
+  Search is scoped to the language you are reading.
+
+  mkdocs-static-i18n 1.3.1 does not build one index per locale: it registers
+  every language with the search plugin and keeps a single shared index. So a
+  reader on /fr/ searching "sauvegarde" also gets German, Hindi and Chinese
+  hits for the same page. Measured before this filter: 1521 entries in one
+  index, 179 per non-English locale.
+
+  This hides the results that do not belong to the current language. It runs on
+  the rendered result list, so if the script never executes the reader simply
+  gets the unfiltered behaviour back - nothing breaks.
+#}
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var LOCALES = ["fr", "de", "es", "hi", "zh"];
+
+      function langOf(path) {
+        var seg = path.replace(/^\/+/, "").split("/")[0];
+        return LOCALES.indexOf(seg) !== -1 ? seg : "en";
+      }
+
+      var current = langOf(window.location.pathname);
+
+      function filter(list) {
+        var items = list.querySelectorAll(".md-search-result__item");
+        var kept = 0;
+        items.forEach(function (item) {
+          var link = item.querySelector("a[href]");
+          if (!link) return;
+          var path;
+          try {
+            path = new URL(link.href, window.location.origin).pathname;
+          } catch (e) {
+            return;
+          }
+          var match = langOf(path) === current;
+          item.hidden = !match;
+          if (match) kept++;
+        });
+        return kept;
+      }
+
+      function watch() {
+        var list = document.querySelector(".md-search-result__list");
+        if (!list) return false;
+        filter(list);
+        new MutationObserver(function () { filter(list); })
+          .observe(list, { childList: true, subtree: true });
+        return true;
+      }
+
+      if (!watch()) {
+        // The result list is created on first query.
+        var root = document.querySelector(".md-search__output") || document.body;
+        new MutationObserver(function (_, obs) {
+          if (watch()) obs.disconnect();
+        }).observe(root, { childList: true, subtree: true });
+      }
+    })();
+  </script>
+{% endblock %}

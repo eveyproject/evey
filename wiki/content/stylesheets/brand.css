@@ -1,0 +1,130 @@
+/* The brand red, measured for WCAG AA (4.5:1) on 2026-09-08 rather than picked
+   by eye: raw #DC2626 lands at 3.9:1 on the dark background and 4.2:1 on the
+   light raised surface, so light and dark carry different reds. These are the
+   same pairs the apps use (frontend/packages/theme/src/themeVars.ts). */
+:root {
+  --md-primary-fg-color: #c81e1e;
+  --md-primary-fg-color--light: #dc2626;
+  --md-primary-fg-color--dark: #b91c1c;
+  --md-accent-fg-color: #b91c1c;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #f36464;
+  --md-primary-fg-color--light: #f87171;
+  --md-primary-fg-color--dark: #e04a4a;
+  --md-accent-fg-color: #f87171;
+  --md-primary-bg-color: #0b0f19;
+  --md-typeset-a-color: #f36464;
+}
+
+/* The header keeps the dark ground of the apps in both schemes - a full-width
+   red bar reads as an error state, not as a brand. */
+.md-header,
+.md-tabs {
+  background-color: #0b0f19;
+  color: #e6e8f0;
+}
+
+/* The boot banner from cmd/evey/banner.go, on the landing page. Same split -
+   E and E and Y in the text colour, V in brand red - so the site opens on the
+   same mark a self-hoster sees in their terminal on first start. It scales with
+   the viewport because at a fixed size it either overflows a phone or looks
+   lost on a desktop. */
+.evey-wordmark {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: clamp(0.36rem, 2.1vw, 0.95rem);
+  line-height: 1.05;
+  letter-spacing: 0;
+  margin: 0 0 1.2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  overflow-x: auto;
+  color: var(--md-default-fg-color);
+  white-space: pre;
+}
+
+.evey-wordmark .v {
+  color: #c81e1e;
+}
+
+[data-md-color-scheme="slate"] .evey-wordmark .v {
+  color: #f36464;
+}
+
+/* Material wraps a <pre> in its own code styling; the landing mark is artwork,
+   not a code sample. */
+.evey-wordmark code,
+.md-typeset .evey-wordmark {
+  background: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* ── Breathing room ───────────────────────────────────────────────────────────
+   Material packs the sidebar, the prose and the table of contents tight against
+   each other. On a documentation site that is read for troubleshooting, that
+   density is what makes a page feel like a wall. These rules only add space -
+   no colour, no size change - so the page stays the same, just less cramped. */
+
+/* Sidebar and table of contents: taller rows, and a real gutter between the
+   navigation and the text it points at. */
+.md-nav__item {
+  padding-top: 0.12rem;
+  padding-bottom: 0.12rem;
+}
+
+.md-nav__link {
+  line-height: 1.5;
+}
+
+.md-nav--secondary .md-nav__link {
+  padding-top: 0.1rem;
+  padding-bottom: 0.1rem;
+}
+
+@media screen and (min-width: 76.25em) {
+  .md-sidebar--primary {
+    padding-right: 0.8rem;
+  }
+  .md-sidebar--secondary {
+    padding-left: 0.8rem;
+  }
+  /* Keep the measure readable: prose sits away from both rails. */
+  .md-content {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+  }
+}
+
+/* Prose: a slightly longer line height and more air above headings, which is
+   what separates one procedure step from the next when skimming. */
+.md-typeset {
+  line-height: 1.68;
+}
+
+.md-typeset h2 {
+  margin-top: 2.2em;
+  margin-bottom: 0.7em;
+}
+
+.md-typeset h3 {
+  margin-top: 1.8em;
+}
+
+.md-typeset ul,
+.md-typeset ol {
+  margin-top: 0.6em;
+}
+
+.md-typeset li + li {
+  margin-top: 0.35em;
+}
+
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td {
+  padding: 0.7em 0.9em;
+}

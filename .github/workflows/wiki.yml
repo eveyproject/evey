@@ -1,0 +1,101 @@
+# Publishes wiki.eveyproject.org from docs/.
+#
+# Two triggers, deliberately different:
+#
+# - Pull requests and non-publishing branches BUILD only. The build is the gate
+#   that catches a nav entry pointing at a file that moved, a translation that
+#   drifted from its English source, and - the reason the guard exists at all -
+#   a hostname or credential that reached docs/ and would have gone public. A
+#   docs change that breaks the site fails here, not after it is served.
+# - master PUBLISHES. Nothing else does: a beta branch that changes a page must
+#   not silently rewrite the public documentation.
+#
+# The site is NOT this repository's GitHub Pages target. It is pushed to
+# Evey-project/wiki, which is public, so the wiki can go live while this
+# repository is still private. When this repository opens, point Pages here and
+# drop the deploy job - the build job is unchanged either way.
+
+name: Wiki
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'docs/**'
+      - 'wiki/**'
+      - '.github/workflows/wiki.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'wiki/**'
+      - '.github/workflows/wiki.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wiki-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the documentation site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: wiki/requirements.txt
+
+      - name: Install
+        run: pip install -r wiki/requirements.txt
+
+      # --check turns the assembler's warnings into failures: a missing page, a
+      # stale translation, a dangling link, or anything the leak guard matches.
+      - name: Assemble (manifest, translations, leak guard)
+        run: python3 wiki/assemble.py --check
+
+      # --strict fails on a broken internal link. Between the two steps, a
+      # documentation link cannot rot unnoticed.
+      - name: Build
+        run: mkdocs build --strict -f wiki/mkdocs.yml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wiki-site
+          path: wiki/site
+          retention-days: 7
+
+  deploy:
+    name: Publish to wiki.eveyproject.org
+    needs: build
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wiki-site
+          path: site
+
+      # CNAME and .nojekyll are recreated on every deploy: the branch is fully
+      # replaced by the generated site, so a file that only lives in the target
+      # repository would be wiped by the first publish that forgets it.
+      - name: Pin the domain
+        run: |
+          echo 'wiki.eveyproject.org' > site/CNAME
+          touch site/.nojekyll
+
+      # WIKI_DEPLOY_KEY: a deploy key with write access on Evey-project/wiki,
+      # and on nothing else. A PAT would carry the whole account.
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          deploy_key: ${{ secrets.WIKI_DEPLOY_KEY }}
+          external_repository: Evey-project/wiki
+          publish_branch: gh-pages
+          publish_dir: site
+          commit_message: 'docs: publish ${{ github.sha }}'

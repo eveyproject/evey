@@ -1,0 +1,476 @@
+---
+source_sha: c5808f750bf9e6683c315a017ac588f93090dfd938b8479a6fdecf6cdeb277e4
+---
+
+# इंस्टॉलेशन और संचालन
+
+यह पृष्ठ उन स्वयं-होस्ट करने वालों के लिए उत्पादन-स्तर के इंस्टॉलेशन के बारे में
+है जो पहले से बनी `gravityz/evey` image को `docker compose` से चलाते हैं (जैसे
+किसी NAS पर)। container **non-root** चलता है और उसे **न `--privileged` चाहिए, न
+`mem_limit`, न `cpus`, न कोई cgroup सेटिंग**
+([adr/0013-userspace-plugin-resource-monitor.md](adr/0013-userspace-plugin-resource-monitor.md) देखें)।
+
+बस दो फ़ाइलों वाली तेज़ शुरुआत के लिए [README](../README.md) देखें। यह पृष्ठ वही
+इंस्टॉलेशन बताता है, और साथ में अपडेट, बैकअप तथा रोज़मर्रा का संचालन भी। Evey को
+**Docker के बाहर** चलाना हो (systemd, या कंटेनर के बिना), तो
+[deployment-bare-metal.md](deployment-bare-metal.md) देखें।
+
+## पूर्वापेक्षाएँ
+
+- Docker और Docker Compose v2 (`docker compose`, पुराना `docker-compose` नहीं)।
+- किसी स्थायी डिस्क पर डेटा रखने की जगह (नीचे दी गई compose, काम कर रही
+  डायरेक्टरी में bind mount इस्तेमाल करती है)।
+- **सुझाव:** HTTPS के लिए एक रिवर्स प्रॉक्सी - Evey सिर्फ़ सादा HTTP परोसता है।
+  [reverse-proxy.md](reverse-proxy.md) देखें।
+
+### आर्किटेक्चर (x86-64 और ARM64)
+
+स्थिर रिलीज़ (`vX.Y.Z` tag), `linux/amd64` और `linux/arm64` दोनों के लिए एक
+**multi-arch** image प्रकाशित करती हैं; `docker pull`/`compose up` अपने आप सही
+वाली उठा लेता है, किसी फ़्लैग की ज़रूरत नहीं। पूर्व-रिलीज़ tag (`-alpha`/`-beta`)
+और हर शाखा के बिल्ड **सिर्फ़ amd64 के लिए** होते हैं - किसी ARM होस्ट के लिए
+(Raspberry Pi, ARM वाला NAS, Ampere VPS) `EVEY_VERSION` में कोई स्थिर `vX.Y.Z`
+तय करें।
+
+ARM पर दो बातें जान लें:
+
+- **Synology जैसे ARM (Realtek) NAS पर हार्डवेयर ट्रांसकोडिंग नहीं होती।** Evey
+  में ठीक तीन त्वरण बैकएंड जुड़े हैं - Intel QSV, VAAPI और NVENC। QSV और Intel के
+  VAAPI ड्राइवर सिर्फ़ x86 के लिए हैं (arm64 image में उन्हें जानबूझकर नहीं डाला
+  जाता); NVENC, NVIDIA का है। ARM के अपने वीडियो एन्कोडर (Raspberry Pi का
+  V4L2 M2M, Rockchip का RKMPP VPU) Evey में जुड़े **नहीं** हैं, इसलिए ARM बोर्ड पर
+  हार्डवेयर एन्कोड का कोई रास्ता ही नहीं है। व्यवहार में ARM का मतलब है **सीधी
+  प्लेबैक** (क्लाइंट फ़ाइल को जस का तस चलाता है, लागत लगभग शून्य) और साथ में CPU
+  पर **सॉफ़्टवेयर ट्रांसकोडिंग**। कमज़ोर ARM कोर पर
+  `transcoding.max_video_sessions` कम रखें (1-2, Admin → Server Config में) और
+  सीधी प्लेबैक का ही सहारा लें।
+- **HDR की tone-mapping, ARM पर भी तेज़ रास्ते से ही होती है।** साथ आने वाला
+  arm64 jellyfin-ffmpeg, SIMD वाला `tonemapx` फ़िल्टर (NEON) लेकर आता है, ठीक
+  वैसे ही जैसे amd64 बिल्ड अपना AVX2 वाला रूप लाता है - यानी HDR→SDR की
+  tone-mapping हार्डवेयर SIMD पर होती है, धीमी zscale शृंखला पर नहीं। (Evey चलते
+  समय `tonemapx` को जाँच लेता है और zscale पर सिर्फ़ तभी लौटता है जब किसी बिल्ड
+  में वह हो ही नहीं।)
+
+आप किसी अप्रकाशित आर्किटेक्चर के लिए image खुद बनाते हैं, तो
+`docker buildx build --platform linux/arm64` सीधे काम करता है - Dockerfile,
+सिर्फ़ x86 वाले हिस्सों को `TARGETARCH` के पीछे रखता है।
+
+## 1. docker-compose.yml
+
+**डिफ़ॉल्ट व्यवस्था: एक ही सेवा।** evey image, API और वेब UI को एक ही पोर्ट पर
+परोसती है **और** साथ ही Postgres तथा Meilisearch, दोनों को embedded चलाती है -
+इन्हें entrypoint, non-root सर्वर उपयोगकर्ता के रूप में शुरू करता है, सिर्फ़
+loopback पर, और उनकी गुप्त कुंजियाँ पहली बार शुरू होने पर `./evey-data/keys` में
+बन जाती हैं। एक ही `docker-compose.yml`, कोई `.env` नहीं:
+
+```yaml
+services:
+  evey:
+    image: gravityz/evey:latest        # यहाँ कोई tag तय करें (जैसे 0.2.0-beta.1, sha-1a2b3c4)
+    container_name: evey-server
+    ports:
+      - "9091:9091"
+    # environment:
+    #   EVEY_SERVER_BASE_URL: http://<your-ip>:9091   # ईमेल के लिंक, OIDC redirect, cast/उपकरण के URL
+    volumes:
+      - ./evey-data:/data              # डेटाबेस, JWT कुंजी, बनी हुई गुप्त कुंजियाँ, खोज सूचकांक, लॉग, बैकअप
+      - evey-cache:/cache              # ट्रांसकोड और trickplay कैश (मिटाना सुरक्षित है)
+      # पढ़ने-लिखने के लिए, ताकि seek-index की मरम्मत फ़ाइलों को वहीं दोबारा बना सके;
+      # सिर्फ़ पढ़ने वाली लाइब्रेरी चाहिए तो `:ro` जोड़ दें और मान लें कि वे मरम्मत नाकाम होंगी।
+      - /path/to/your/media:/media
+    # `docker stop` पर embedded डेटाबेस, सर्वर के बाद साफ़-सुथरे ढंग से बंद होता है;
+    # बड़े कैटलॉग के लिए Docker का 10s वाला डिफ़ॉल्ट कम पड़ता है।
+    stop_grace_period: 60s
+    restart: unless-stopped
+
+volumes:
+  evey-cache:
+```
+
+**कुछ बदलाव, हर एक उसी फ़ाइल में चंद पंक्तियों का:**
+
+- *दूसरा मीडिया फ़ोल्डर*: `volumes:` के नीचे `- /other/path:/media2` जोड़ दें
+  (`/media3`, ... भी इसी तरह)। इन्हें पढ़ने-लिखने के लिए mount करें, ऊपर वाली
+  टिप्पणी देखें।
+- *अपने पहले से चल रहे रिवर्स प्रॉक्सी के पीछे* (Nginx Proxy Manager, Traefik,
+  ... किसी Docker नेटवर्क पर): `ports:` हटा दें, प्रॉक्सी के नेटवर्क से जुड़ें, और
+  सर्वर को उसका सार्वजनिक URL तथा भरोसे लायक पड़ोसी बता दें:
+  ```yaml
+  services:
+    evey:
+      environment:
+        EVEY_SERVER_BASE_URL: https://media.example.com
+        EVEY_TRUSTED_PROXIES: 172.16.0.0/12     # प्रॉक्सी का subnet पता चलते ही इसे उसी तक सीमित कर दें
+  networks:
+    default:
+      name: proxy-net        # वही नेटवर्क जिस पर आपका प्रॉक्सी है
+      external: true
+  ```
+  इसके बाद प्रॉक्सी का लक्ष्य `evey-server:9091` रहता है। हर प्रॉक्सी के लिए
+  सेटिंग्स: [reverse-proxy.md](reverse-proxy.md)।
+- *अभी कोई प्रॉक्सी नहीं है और HTTPS चाहिए*: [reverse-proxy.md](reverse-proxy.md)
+  से साथ आने वाली Caddy सेवा जोड़ लें (Let's Encrypt का प्रमाणपत्र अपने आप)।
+- *Postgres या Meilisearch अपनी-अपनी अलग सेवाओं के रूप में*: नीचे दी गई संचालक
+  वाली व्यवस्था देखें।
+
+एनवायरनमेंट **कम से कम** रखें - compose फ़ाइल में (या गुप्त जानकारी के लिए `.env`
+में) सिर्फ़ आपकी अपनी लाई हुई गुप्त कुंजियाँ, बाहरी डेटाबेस होने पर उसका कनेक्शन,
+भंडारण के पथ और रिवर्स प्रॉक्सी से जुड़ी बातें ही आनी चाहिए। बाकी लगभग सब कुछ
+(सर्वर का नाम, एक साथ कितनी ट्रांसकोडिंग, दर की सीमाएँ, लॉग स्तर, स्कैन और वॉचर
+के अंतराल, बैकअप की समय-सारणी, API कुंजियाँ) **चलते हुए Admin → Server Config से
+बदला जा सकता है** और उसे compose में ठूँसना नहीं चाहिए।
+`PUID`/`PGID`: डिफ़ॉल्ट रूप से खाली → entrypoint आपके `/media` mount के मालिक को
+अपना लेता है ताकि फ़ाइलों को वहीं ठीक करने वाली मरम्मत काम करे; बदलना हो तो
+`id -u`/`id -g` से मिली वैल्यू दें। container सिर्फ़ यह मैपिंग लगाने भर के लिए
+root से शुरू होता है और फिर विशेषाधिकार छोड़ देता है - सर्वर कभी root से नहीं
+चलता।
+
+**embedded डेटाबेस कैसे बरतता है।** cluster `./evey-data/postgres` में रहता है
+(Postgres 17, पहली बार शुरू होने पर `initdb`, और मालिक सर्वर उपयोगकर्ता)। वह
+सिर्फ़ container के loopback पर सुनता है और TCP पर वही बना हुआ पासवर्ड माँगता है,
+इसलिए किसी दूसरे uid पर उतारा गया एक्सटेंशन उसे खोल ही नहीं सकता। `docker stop`
+पर, सर्वर के अपने कनेक्शन बंद कर लेने के बाद, वह क्रम से और तेज़ी से बंद होता है।
+उसकी डेटा डायरेक्टरी किसी असली फ़ाइल-सिस्टम पर होनी चाहिए (ext4, btrfs, xfs,
+...), किसी CIFS/NFS शेयर पर नहीं। बैकअप (`evey admin`, व्यवस्थापन पैनल, तय समय पर
+चलता `pg_dump`) ठीक वैसे ही चलते हैं जैसे बाहरी डेटाबेस के साथ। SQL shell खोलने
+के लिए:
+
+```bash
+docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
+```
+
+### संचालक वाली व्यवस्था: बाहरी Postgres
+
+जो संचालक डेटाबेस का पूरा जीवन-चक्र अपने हाथ में रखना चाहते हैं (कोई प्रबंधित
+Postgres, तय किया हुआ major संस्करण, अलग वॉल्यूम, अपनी शर्तों पर dump और restore),
+वे उसे साथ वाली सेवा के रूप में चलाते हैं: सेवा जोड़ें और सर्वर को उसकी ओर लगा दें
+- **`EVEY_DB_HOST` का सेट होना ही embedded डेटाबेस को बंद करता है**, और इसीलिए embedded डेटाबेस आने से पहले का हर इंस्टॉलेशन बिना छेड़े चलता रहता है:
+
+```yaml
+services:
+  evey:
+    # ... ऊपर जैसा ही, और साथ में:
+    environment:
+      EVEY_DB_HOST: postgres
+      EVEY_DB_SSLMODE: disable          # भीतरी Docker नेटवर्क; साथ आने वाले Postgres में TLS नहीं है
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: evey-postgres
+    environment:
+      POSTGRES_DB: ${EVEY_DB_NAME:-evey}
+      POSTGRES_USER: ${EVEY_DB_USER:-evey}
+      POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:?EVEY_DB_PASSWORD must be set in .env}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${EVEY_DB_USER:-evey}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+```
+
+```env
+EVEY_DB_PASSWORD=<strong-password>   # डिफ़ॉल्ट 'evey' नहीं होना चाहिए - वरना सर्वर शुरू होने से मना कर देता है
+```
+
+**बाहरी Meilisearch, बात वही है।** अलग खोज container अपना जीवन-चक्र और वॉल्यूम खुद
+सँभालता है (और सिर्फ़ सूचकांक को दोबारा शून्य करने के लिए आप
+`docker compose restart meilisearch` कर सकते हैं)। embedded वाला बंद करें, सर्वर
+को उसकी ओर लगाएँ, और कुंजी साझा करें - आपकी दी हुई `MEILI_MASTER_KEY`, अपने आप बनी
+`./evey-data/keys/meili.key` पर हमेशा भारी पड़ती है:
+
+```yaml
+services:
+  evey:
+    # ... और साथ में:
+    environment:
+      EVEY_EMBEDDED_MEILI: "false"
+      EVEY_MEILI_URL: http://meilisearch:7700
+    depends_on:
+      meilisearch: { condition: service_healthy }
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: evey-meilisearch
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - ./meili-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
+      interval: 5s
+      retries: 5
+    restart: unless-stopped
+```
+
+```env
+MEILI_MASTER_KEY=<run: openssl rand -hex 16>
+```
+
+हो सके तो उस container को कोई non-root `user:` और एक `mem_limit` दें - आधिकारिक
+image root से चलती है, और उसका resident set (memory-mapped सूचकांक) बड़ा दिखता है,
+पर वह ज़्यादातर वापस ली जा सकने वाली page cache ही होती है। सूचकांक Postgres से
+दोबारा बन जाता है (`evey admin reindex-search`), इसलिए `meili-data` वैसे भी छोड़ी
+जा सकने लायक है।
+
+सिर्फ़ ये env वेरिएबल ढाँचे या गुप्त जानकारी से जुड़े हैं और **compose/.env में ही
+आने चाहिए** - व्यवस्थापक इन्हें कभी नहीं बदल सकता: `EVEY_DB_PASSWORD`,
+`MEILI_MASTER_KEY`, `EVEY_DB_HOST`, `EVEY_DB_USER`, `EVEY_DB_NAME`,
+`EVEY_DB_SSLMODE`, `EVEY_EMBEDDED_POSTGRES`, `EVEY_EMBEDDED_MEILI`,
+`EVEY_MEILI_URL`, `*_DIR` वाले पथ, `EVEY_JWT_PRIVATE_KEY_PATH`,
+`EVEY_SERVER_BASE_URL`, `EVEY_TRUSTED_PROXIES`, और एक्सटेंशन का मुख्य स्विच
+`EVEY_PLUGINS_ENABLED`। (`EVEY_PLUGINS_SANDBOX_MODE`,
+`EVEY_PLUGINS_UID_SEPARATION` और संसाधन सीमाएँ यहाँ शुरुआती डिफ़ॉल्ट के तौर पर रखी
+जा सकती हैं, पर व्यवस्थापक उन्हें चलते हुए Admin → Plugins से बदल सकता है।) पूरा
+संदर्भ: [configuration.md](configuration.md)।
+
+### एक्सटेंशन का सैंडबॉक्स और हार्डनिंग (image में क्या-क्या आता है)
+
+एक्सटेंशन तीसरे पक्ष का कोड होते हैं और अलग प्रक्रियाओं के रूप में चलते हैं।
+आधिकारिक image को इस तरह कसा गया है कि कंटेनर में चलाने का यही सुझाया गया ढंग बना
+रहे - **न `--privileged`, न Docker के कोई अतिरिक्त सुरक्षा फ़्लैग**:
+
+- **सैंडबॉक्स का डिफ़ॉल्ट Landlock है।** `EVEY_PLUGINS_SANDBOX_MODE=auto` (यही
+  डिफ़ॉल्ट है) **जहाँ भी कर्नेल सहारा देता है वहाँ `landlock`** पर ठहरता है, और
+  आधुनिक Docker होस्ट पर डिफ़ॉल्ट रूप से यही हाल होता है। `auto` इस क्रम में देखता
+  है - **landlock → bubblewrap → basic** - और होस्ट जिस सबसे मज़बूत बैकएंड की
+  इजाज़त देता है, वही चुनता है। container के लिए Landlock ही सही ढंग है: इसे कोई
+  विशेषाधिकार नहीं चाहिए, यह Docker के डिफ़ॉल्ट seccomp और AppArmor के नीचे बिना
+  किसी होस्ट कॉन्फ़िगरेशन के चलता है, हर पथ के लिए फ़ाइल-सिस्टम की allowlist लगाता
+  है (एक्सटेंशन को सिर्फ़ उसकी अपनी डायरेक्टरी दिखती है, `/data` कभी नहीं), और
+  fail-closed है - एक बार लग जाने के बाद उसे ढीला नहीं किया जा सकता। (bubblewrap
+  को `mount` syscall चाहिए, जिसे Docker का डिफ़ॉल्ट seccomp रोक देता है, इसलिए
+  `auto` उसे सिर्फ़ कंटेनर के बिना चलने पर चुनता है; basic आख़िरी सहारा है।)
+- **सर्वर non-root चलता है** (UID 1000, image में `USER evey`) और उसे
+  **non-dumpable** चिह्नित किया जाता है (`PR_SET_DUMPABLE=0`), ताकि साथ चलता कोई
+  एक्सटेंशन सर्वर के `/proc/<pid>/{mem,environ}` से कुछ न उठा सके।
+- **हर एक्सटेंशन पर कर्नेल seccomp** - एक denylist (ptrace, mount, unshare,
+  kernel-module, kexec, setuid वाले, keyring, … syscall) ठीक एक्सटेंशन के
+  `execve` से पहले लगा दी जाती है, इसलिए वह static या कंपाइल किए हुए एक्सटेंशन को
+  भी बाँधती है। जिन एक्सटेंशन को नेटवर्क नहीं चाहिए, उनके लिए
+  `socket(AF_INET/AF_INET6)` भी रोक दिया जाता है।
+- **root के बिना एक्सटेंशन का UID अलग करना।** जिस होस्ट पर Landlock नहीं है, वहाँ
+  एक्सटेंशन बिना-विशेषाधिकार वाले `evey-plugin` उपयोगकर्ता (UID 1001) के नीचे चल
+  सकते हैं, ताकि वे सामान्य फ़ाइल अनुमतियों से सर्वर की गुप्त जानकारी (जैसे
+  `jwt.key`) न पढ़ सकें। एक ही `cap_setuid` file capability, **launcher** बाइनरी
+  के पास होती है (सर्वर के पास नहीं) और वही एक्सटेंशन को नीचे उतारती है - **न
+  root, न `--privileged`** - इसलिए सर्वर पूरी तरह बिना विशेषाधिकार का बना रहता
+  है। यह `EVEY_PLUGINS_UID_SEPARATION` से नियंत्रित होता है (डिफ़ॉल्ट `auto`:
+  सिर्फ़ वहीं चालू जहाँ Landlock न हो, क्योंकि Landlock के नीचे गुप्त जानकारी पहले
+  ही घिरी होती है); यह जितना बन पड़े उतना वाला इंतज़ाम है, और
+  `no-new-privileges` के साथ नहीं चलता।
+- **हर एक्सटेंशन के लिए संसाधन सीमाएँ** (मेमोरी / PID / डिस्क / CPU nice), जिन्हें
+  userspace में चलता एक मॉनिटर लागू करता है - **किसी cgroup / `mem_limit` /
+  `cpus` सेटिंग की ज़रूरत नहीं** - और ये सब **व्यवस्थापक चलते हुए** Admin →
+  Plugins से बदल सकता है।
+
+पहली बार शुरू करने के बाद, **Admin → Plugins → Security Dashboard** में (होस्ट
+सैंडबॉक्स वाले कार्ड में) जाँच लें कि असल में कौन सा सैंडबॉक्स लागू है: आधुनिक
+कर्नेल पर `auto` को `landlock` दिखाना चाहिए; `basic` का मतलब है कि होस्ट,
+एक्सटेंशन की फ़ाइल-सिस्टम पहुँच को अलग नहीं कर पा रहा - नीचे दी गई तैनाती गाइड
+देखें।
+
+आपकी मशीन के लिए कौन सा सेटअप ठीक है (पुराना NAS, कंटेनर के बिना, क्या चालू और क्या बंद करें, और सीधे-सादे शब्दों में जोखिम क्या हैं): [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md)। पूरा ख़तरा-मॉडल और हर परत का ब्योरा: [plugins/security-model.md](plugins/security-model.md)।
+आप डिफ़ॉल्ट `auto` पर रह सकते हैं (यही सुझाया जाता है), या compose में
+`EVEY_PLUGINS_SANDBOX_MODE: landlock` तय करके बात साफ़ और fail-closed कर सकते हैं
+(`landlock`, Landlock लागू न हो पाने पर एक्सटेंशन शुरू करने से मना कर देता है)।
+आधुनिक कर्नेल पर दोनों का नतीजा एक ही है।
+
+## 2. पहली बार शुरू करना
+
+```bash
+docker compose up -d
+docker compose logs -f evey
+```
+
+पहली बार शुरू होने पर सर्वर:
+
+1. **JWT हस्ताक्षर कुंजी अपने आप बनाता है**, `EVEY_JWT_PRIVATE_KEY_PATH` पर
+   (`/data/jwt.key`, यानी `./evey-data` के भीतर)। इसे आपको हाथ से बनाने की ज़रूरत
+   नहीं। `evey-data` को सँभालकर रखें - कुंजी खो गई तो सब लोग लॉग आउट हो जाएँगे।
+2. **डेटाबेस के माइग्रेशन अपने आप चलाता है** (ये भीतर ही हैं और शुरुआत में लागू हो
+   जाते हैं; अलग से कोई migrate चरण नहीं)।
+   [runbooks/migration-runbook.md](runbooks/migration-runbook.md) देखें।
+
+इसके बाद `http://<your-ip>:9091` खोलें। अभी कोई व्यवस्थापक नहीं है, इसलिए आप सीधे
+**सेटअप विज़ार्ड** पर पहुँचते हैं (`/setup`): वहाँ पहला व्यवस्थापक खाता बनाएँ। फिर
+लॉग इन करें और **एक लाइब्रेरी जोड़ें** (Admin → Libraries), जिसका पथ `/media` के
+नीचे हो (यानी आपका `MEDIA_DIR`, जो पढ़ने-लिखने के लिए mount है)। पहला स्कैन अपने
+आप शुरू हो जाता है।
+
+ऊपर वाली compose फ़ाइल उसे जानबूझकर पढ़ने-लिखने के लिए mount करती है: seek-index
+की मरम्मत फ़ाइलों को वहीं दोबारा बनाती है, और `:ro` वाले mount पर वे मरम्मत नाकाम
+हो जाती हैं। `:ro` तभी जोड़ें जब आपको उन्हें खोना मंज़ूर हो।
+
+## 3. रिवर्स प्रॉक्सी (HTTPS)
+
+Evey, 9091 पर सादा HTTP परोसता है। अभी कोई प्रॉक्सी न हो, तो
+[reverse-proxy.md](reverse-proxy.md) में दी गई, साथ आने वाली Caddy सेवा आपके लिए
+Let's Encrypt का प्रमाणपत्र ले आती है (इसके लिए पोर्ट 80/443 होस्ट तक पहुँचने
+चाहिए)। अपना ही प्रॉक्सी हो (Nginx, Traefik, Nginx Proxy Manager), तो
+`EVEY_SERVER_BASE_URL` में अपना सार्वजनिक `https://` वाला URL डालें (यही scheme,
+Secure cookies और HSTS को चालू करती है) और `EVEY_TRUSTED_PROXIES` से उस प्रॉक्सी
+पर भरोसा जताएँ।
+स्ट्रीमिंग वाले endpoint पर buffering बंद चाहिए और कोई timeout नहीं - बने-बनाए
+कॉन्फ़िगरेशन यह सँभाल लेते हैं। पूरे सेटअप: [reverse-proxy.md](reverse-proxy.md)।
+
+## 4. Evey को अपडेट करना
+
+```bash
+docker compose pull && docker compose up -d
+docker compose logs -f evey      # जब तक "healthy" न दिखे (बड़े कैटलॉग पर माइग्रेशन में कुछ मिनट लगते हैं)
+```
+
+इसके अलावा कुछ नहीं करना पड़ता। नई image शुरू होते समय बचे हुए माइग्रेशन लागू करती
+है और उससे पहले डेटाबेस का dump ले लेती है
+(`./evey-data/backups/pre-migration-*`), सेवा शुरू होते ही container की health
+जाँच हरी हो जाती है, और `up -d` सिर्फ़ `evey` सेवा को दोबारा शुरू करता है - साथ
+वाले डेटाबेस या प्रॉक्सी को कभी नहीं छेड़ता।
+
+**पीछे लौटना।** `image:` वाली पंक्ति में पिछला tag डालें (या `EVEY_VERSION` में,
+अगर आपकी compose उसे भरती है) और `docker compose up -d` दोबारा चलाएँ। नए संस्करण
+ने schema का माइग्रेशन किया हो, तो पहले उसका माइग्रेशन-पूर्व dump पुनर्स्थापित
+करें - `docker exec evey-server evey admin
+rollback` सटीक चरण छाप देता है, dump के पथ के साथ।
+
+**क्या चल रहा है, यह जाँचना।** `docker exec evey-server evey version` चल रही
+बाइनरी का संस्करण और commit छाप देता है (`/healthz` भी वही बताता है), इसलिए "यह
+कौन सा कोड है?" का जवाब कभी किसी tag पर निर्भर नहीं रहता।
+
+> जो संचालक रिपॉज़िटरी की checkout से काम करते हैं, उनके लिए यही प्रक्रिया
+> स्क्रिप्ट में भी है: `scripts/evey-update.sh` (डिफ़ॉल्ट रूप से dry-run; स्थिति,
+> अपडेट से पहले का dump, pull, health का इंतज़ार, commit की जाँच, और rollback की
+> पंक्ति) तथा `scripts/evey-rollback.sh`। ये रिपॉज़िटरी की अपनी तैनातियों की
+> सुविधा भर हैं, किसी इंस्टॉलेशन के लिए ज़रूरी नहीं।
+
+**जो चला रहे हैं, उसे तय करें।** `image:` वाली पंक्ति पर कोई रिलीज़ tag
+(`0.2.0-beta.1`) या न बदलने वाला `sha-<short>` tag लगाएँ; `beta-0.0.1` जैसा शाखा
+वाला tag हर push के साथ खिसकता है, इसलिए एक दिन के अंतर पर किए गए दो pull अलग-अलग
+कोड चला सकते हैं और "`beta-0.0.1` पर लौट जाओ" कहीं नहीं पहुँचाता। स्क्रिप्ट जिस
+tag को चलाती है उसे छाप देती है, ताकि आप उसे तय कर सकें।
+
+**Image tag** (`gravityz/evey`):
+
+- रिलीज़ tag `vX.Y.Z` ये प्रकाशित करते हैं: `X.Y.Z`, `X.Y`, `X` और `latest`।
+  `latest` का मतलब हमेशा सबसे नई semver **रिलीज़** होता है।
+- शाखा वाले बिल्ड, शाखा का नाम (जैसे `beta-0.0.1`) और साथ में `sha-<short>`
+  प्रकाशित करते हैं।
+- **Runtime के रूप** - ऐप वही, बस साथ आने वाले एक्सटेंशन runtime अलग:
+  - बिना किसी प्रत्यय के (डिफ़ॉल्ट, यानी "lean") - सिर्फ़ Python 3।
+  - `-nodejs` - JS वाले एक्सटेंशन के लिए Node भी जोड़ता है।
+  - `-full` - इनके अलावा PHP, Ruby और Lua भी जोड़ता है।
+  `-nodejs` / `-full` तभी चुनें जब आपके एक्सटेंशन को वे runtime चाहिए हों; वरना
+  डिफ़ॉल्ट वाली सबसे छोटी है। जैसे `EVEY_VERSION=latest-nodejs` सेट करें।
+
+### पहले से चल रहे इंस्टॉलेशन को embedded डेटाबेस पर लाना
+
+जो इंस्टॉलेशन Postgres को साथ वाली सेवा के रूप में चलाता है (embedded डेटाबेस आने
+से पहले हर रिलीज़ में यही व्यवस्था थी), वह एक ही container पर आ सकता है: डेटा बस
+एक dump की दूरी पर है, और `./evey-data` में पड़ा बाकी सब कुछ (JWT कुंजी,
+एक्सटेंशन, बैकअप, trickplay) जस का तस उठा लिया जाता है। embedded डेटाबेस,
+`./evey-data/postgres-import.sql.gz` पर मिले dump को **एक ही बार, उस cluster में
+आयात करता है जिसे वह अपनी पहली शुरुआत पर बनाता है**, और यह सर्वर के चलने से पहले
+होता है - इसलिए सर्वर के अपने माइग्रेशन उसके ऊपर वैसे ही लागू होते हैं जैसे किसी
+भी अपडेट के बाद।
+
+```bash
+# 1. मौजूदा डेटाबेस का dump लें (सादा SQL, gzip किया हुआ - आयात इसी की उम्मीद करता है)
+docker compose exec -T postgres pg_dump -U evey --no-owner --no-privileges evey \
+  | gzip > evey-data/postgres-import.sql.gz
+docker compose down
+
+# 2. नई compose लिखें (पुरानी की एक नकल रख लें): खंड 1 वाली एक-सेवा फ़ाइल,
+#    उसमें अपने बदलाव (अतिरिक्त मीडिया फ़ोल्डर, प्रॉक्सी वाला हिस्सा) और जो कुछ
+#    आपके `environment:` में था वह भी (हार्डवेयर ट्रांसकोडिंग:
+#    `devices: /dev/dri`, `group_add`, LIBVA_DRIVER_NAME)।
+
+# 3. पहली शुरुआत: initdb, आयात, माइग्रेशन, और फिर सर्वर
+docker compose up -d && docker compose logs -f evey     # "evey: import done"
+
+# 4. खोज सूचकांक: बाहरी Meilisearch का सूचकांक साथ नहीं आता, उसे दोबारा बनाएँ
+docker exec evey-server evey admin reindex-search
+```
+
+अब जिनकी ज़रूरत नहीं रही: `EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY` और
+`EVEY_DB_HOST` / `EVEY_MEILI_URL` वाली जोड़-तोड़ (गुप्त कुंजियाँ अपने आप बन जाती
+हैं), `postgres` तथा `meilisearch` सेवाएँ, और `.env` से डाली गई API कुंजियाँ (वे
+dump किए गए `server_config` में पहले से मौजूद हैं)। जब तक सर्वर जाँच न लें,
+`./postgres-data` और `./meili-data` रहने दें; पीछे लौटना पड़े तो पुरानी compose
+उन्हें अब भी चला लेती है। पहले से बने cluster के बगल में पड़े dump की सूचना दी
+जाती है और उसे अनदेखा कर दिया जाता है, कभी मिलाया नहीं जाता; आयात नाकाम हो जाए तो
+नया cluster हटा दिया जाता है, ताकि अगली शुरुआत उसी dump से फिर कोशिश करे।
+
+### Postgres का major अपग्रेड (embedded डेटाबेस)
+
+image, embedded Postgres का major तय कर देती है (आज 17)। नए major वाली कोई नई
+image, पुराने cluster को **खोलने से मना कर देती है** और संदेश में इसी खंड का नाम
+लेती है - जिस डेटा डायरेक्टरी को वह पढ़ नहीं सकती, उसे चुपचाप कभी नहीं चलाती। पार
+जाने का रास्ता यह है: पुरानी image से dump लें और नई से restore करें:
+
+```bash
+docker compose exec evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) pg_dump -h 127.0.0.1 -U evey -Fc evey' > evey-before-upgrade.dump
+docker compose down
+mv evey-data/postgres evey-data/postgres.old      # जब तक restore जाँच न लें, इसे रहने दें
+# .env में नया EVEY_VERSION सेट करें, फिर:
+docker compose up -d                              # नए major पर एक खाली cluster बनाता है
+docker compose exec -T evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) pg_restore -h 127.0.0.1 -U evey -d evey --no-owner' < evey-before-upgrade.dump
+docker compose restart evey
+```
+
+जो संचालक `pg_upgrade` पसंद करते हैं, या सालों तक एक ही major पर टिके रहना चाहते
+हैं, वे [बाहरी Postgres वाली व्यवस्था](#operator-layout-external-postgres) अपनाते हैं।
+
+## 5. बैकअप और रिकवरी
+
+तय समय पर डेटाबेस के बैकअप चालू करें (`EVEY_BACKUP_INTERVAL_HOURS`; ये
+`EVEY_BACKUP_DIR` → `/data/backups` में, यानी `evey-data` के भीतर रखे जाते हैं),
+या व्यवस्थापन पैनल से एक बैकअप चला दें। बैकअप में उपयोगकर्ता का सारा डेटा आता है,
+आपकी मीडिया फ़ाइलें नहीं। ब्योरा: [backups.md](backups.md)।
+
+बाहर लॉक हो जाने, व्यवस्थापक खाता खो देने या पुनर्स्थापना जैसी हालतों के लिए image
+के साथ एक `evey admin` CLI आती है (`reset-password`, `rotate-jwt-key`,
+`restore-backup`): [runbooks/recovery.md](runbooks/recovery.md)। माइग्रेशन की
+सुरक्षा: [runbooks/migration-runbook.md](runbooks/migration-runbook.md)।
+
+## 6. समस्या निवारण
+
+कुछ गड़बड़ लगे तो सबसे पहले ये देखें:
+
+```bash
+docker compose ps                       # क्या हर सेवा Up / healthy है?
+docker compose logs --tail=200 evey     # सर्वर के लॉग (माइग्रेशन की त्रुटियाँ, कॉन्फ़िगरेशन की जाँच)
+```
+
+- **evey शुरू नहीं होता / कॉन्फ़िगरेशन की त्रुटि।** बाहरी डेटाबेस के साथ,
+  `EVEY_DB_PASSWORD` अब भी डिफ़ॉल्ट `evey` हो तो सर्वर शुरू होने से मना कर देता
+  है; बाहरी Meilisearch के साथ, `MEILI_MASTER_KEY` खाली हो या कोई नमूना वैल्यू हो
+  तो भी (छोटी पर डिफ़ॉल्ट से अलग कुंजी पर सिर्फ़ चेतावनी मिलती है)। लॉग में आया
+  जाँच का संदेश पढ़ें और `.env` ठीक करें।
+- **embedded डेटाबेस शुरू होने से मना करता है।** वजह, लॉग के ऊपर वाली `evey:`
+  पंक्तियाँ बता देती हैं: किसी दूसरे major का cluster (ऊपर अपग्रेड वाला खंड
+  देखें), ऐसी डेटा डायरेक्टरी जो Postgres का cluster है ही नहीं, या `postgres:`
+  से शुरू होती कोई त्रुटि जो खुद Postgres से आई हो (डिस्क भरी हुई,
+  `./evey-data/postgres` की अनुमतियाँ, या नेटवर्क शेयर वाला फ़ाइल-सिस्टम)।
+- **बाहरी डेटाबेस तक पहुँच नहीं बन रही।** पक्का करें कि Postgres स्वस्थ है और
+  पासवर्ड मेल खाता है:
+  ```bash
+  docker exec evey-postgres pg_isready -U "$EVEY_DB_USER"
+  ```
+- **खोज टूटी हुई या खाली है।** Meilisearch की सेहत देखें, फिर सूचकांक दोबारा
+  बनवाएँ - व्यवस्थापन की खोज सेटिंग्स से, या
+  `docker exec evey-server evey admin reindex-search` से।
+  सूचकांक Postgres से दोबारा बनता है, इसलिए `meili-data` मिटा देना सुरक्षित है।
+- **Health endpoint:** `curl -sf http://localhost:9091/healthz && echo OK`।
+
+### कौन से वॉल्यूम मिटाना सुरक्षित है
+
+| वॉल्यूम | इसमें क्या है | मिटाना सुरक्षित? |
+|--------|----------|-----------------|
+| `evey-data` | डेटाबेस (`postgres/`), JWT कुंजी और बनी हुई गुप्त कुंजियाँ (`keys/`), लॉग, बैकअप, एक्सटेंशन, खोज सूचकांक (`meili/`) | नहीं - डेटा, JWT कुंजी और एक्सटेंशन चले जाएँगे। अकेला `meili/`: हाँ, वह `evey admin reindex-search` से दोबारा बन जाता है |
+| `postgres-data` | डेटाबेस (सिर्फ़ बाहरी व्यवस्था में) | नहीं - सारा डेटा चला जाएगा |
+| `evey-cache` | ट्रांसकोड और trickplay कैश | हाँ - ज़रूरत पड़ने पर दोबारा बन जाता है |
