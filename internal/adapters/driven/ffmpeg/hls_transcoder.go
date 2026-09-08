@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
@@ -599,7 +598,7 @@ func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, hlsTime 
 // fMP4 only for HEVC/AV1/VP9 sources because the TS muxer doesn't carry
 // them cleanly. With fMP4 as the default the check is moot. Kept the
 // signature in case we ever need a per-stream opt-out hook.
-func needsFMP4Segments(streams []*library.MediaStream) bool {
+func needsFMP4Segments(streams []transcoding.SourceStream) bool {
 	_ = streams
 	return true
 }

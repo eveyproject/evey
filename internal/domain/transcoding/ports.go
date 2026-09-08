@@ -4,12 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	// library.MediaStream is used in HLSProcessOpts. Duplicating it here would
-	// be worse: the struct has 20+ fields, is referenced in 24 files, and
-	// transcoding inherently depends on stream metadata (codec, resolution, HDR).
-	"github.com/evey-project/evey/internal/domain/library"
 )
+
+// SourceStream is the slice of a probed stream the HLS process reads: the
+// colour metadata behind the HDR -> SDR tonemap decision (internal/pkg/hdr
+// consumes the same getters). It is an interface rather than the library
+// MediaStream so this context does not import another domain (ADR-0001) -
+// *library.MediaStream satisfies it as is, the app layer passes it through.
+type SourceStream interface {
+	GetStreamType() string
+	GetBitDepth() *int
+	GetColorSpace() *string
+	GetColorTransfer() *string
+	GetHDRType() *string
+	GetProfile() string
+	GetDoViProfile() *int
+	GetDoViBLCompat() *int
+}
 
 type Transcoder interface {
 	Start(ctx context.Context, job *TranscodeJob) (string, error)
@@ -221,7 +232,7 @@ type HLSProcessOpts struct {
 	// to today. Only the single-ffmpeg SOFTWARE producer sets it (≈1.5); the HW
 	// orchestrator leaves it 0 and relies on its burst-ahead + SIGSTOP throttle.
 	ReadRate float64
-	Streams  []*library.MediaStream
+	Streams  []SourceStream
 
 	// ProgressLogPath, when non-empty, makes this session write ffmpeg's own
 	// `-progress` stream (frame, fps, out_time, speed, every ~0.5 s) to that
