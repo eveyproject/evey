@@ -155,4 +155,6 @@ works, how to add a language, and the a11y gaps that remain), see
 
 ## License
 
-MIT
+[GNU AGPLv3](LICENSE.md). Free software: use, modify and redistribute under the
+same license, including over a network. For a commercial license under
+different terms, contact the author.
