@@ -49,7 +49,7 @@ import {
   playbackServiceReportProgress,
 } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
-import { clientSubtitleTrack } from "../../../src/lib/clientSubtitleTrack";
+import { burnInSubtitleIndex as pickBurnInSubtitle, clientSubtitleTrack } from "../../../src/lib/clientSubtitleTrack";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
@@ -293,12 +293,6 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
 
-  // Keep the recovery path pointing at the CURRENT selection, so a retry after
-  // a dead token comes back on the same audio, subtitle and quality the viewer
-  // had chosen rather than resetting them.
-  restartWithTracksRef.current = () =>
-    restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
-
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   // Audio resync (lip-sync). Mirrors the web player: audioOffsetMs is the
   // raw value the stepper shows, appliedAudioOffsetMs is what's baked into
@@ -366,6 +360,22 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
         })) ?? [],
     [streamInfo],
   );
+
+  // What the SERVER may be told about the subtitle selection - never the raw
+  // selection, which would add a burn-in (and with it a full transcode) the
+  // running session does not have. See burnInSubtitleIndex for the whole story.
+  // restartForSubtitleChange stays explicit rather than reading this: it acts on
+  // the track the viewer is moving TO, before it lands in state.
+  const burnInSubtitleIndex = useMemo(
+    () => pickBurnInSubtitle(selectedSubtitleIndex, subtitleStreams),
+    [selectedSubtitleIndex, subtitleStreams],
+  );
+
+  // Keep the recovery path pointing at the CURRENT selection, so a retry after
+  // a dead token comes back on the same audio, subtitle and quality the viewer
+  // had chosen rather than resetting them.
+  restartWithTracksRef.current = () =>
+    restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
 
   // Profile audio/subtitle language preference (audio_languages/subtitle_languages,
   // CSV of ISO 639-1 codes in profile.preferences - shared web/tv/mobile convention,
@@ -1219,9 +1229,9 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
         }
       }
       resumeAfterRestartRef.current = player?.playing ?? true;
-      restartWithTracks(index, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+      restartWithTracks(index, burnInSubtitleIndex, selectedQuality || undefined);
     },
-    [player, nativeAudioTracks, audioStreams, restartWithTracks, selectedSubtitleIndex, selectedQuality],
+    [player, nativeAudioTracks, audioStreams, restartWithTracks, burnInSubtitleIndex, selectedQuality],
   );
 
   // Restarts the transcode when entering/leaving a burn-in (PGS/VobSub)
@@ -1298,13 +1308,9 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
     (quality: number) => {
       setSelectedQuality(quality);
       resumeAfterRestartRef.current = player?.playing ?? true;
-      restartWithTracks(
-        selectedAudioIndex,
-        selectedSubtitleIndex ?? undefined,
-        quality || undefined,
-      );
+      restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, quality || undefined);
     },
-    [player, restartWithTracks, selectedAudioIndex, selectedSubtitleIndex],
+    [player, restartWithTracks, selectedAudioIndex, burnInSubtitleIndex],
   );
 
   const handleChapterSeek = useCallback(
@@ -1383,7 +1389,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
         onRetry={() => {
           // Retrying after a shed means the user wants playback back - always autoplay.
           resumeAfterRestartRef.current = true;
-          restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+          restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
         }}
         onBack={handleBack}
       />
@@ -1406,7 +1412,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
           // wants playback back" contract as ShedScreen's onRetry above.
           setNativeError(null);
           resumeAfterRestartRef.current = true;
-          restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+          restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
         }}
       />
     );
