@@ -34,3 +34,35 @@ export function clientSubtitleTrack(
   if (!stream || stream.burnIn) return null;
   return stream.trackIndex;
 }
+
+/**
+ * The other half of the same question: which subtitle index the SERVER is
+ * allowed to see, i.e. what may go in `?subtitleTrack=` on the stream URL.
+ *
+ * That parameter is not "the subtitle the viewer chose", it is an instruction to
+ * burn a track into the frames. Burn-in denies the video copy rung, so passing
+ * it turns a DirectPlay into a full transcode - on a 4K HEVC HDR remux, a
+ * tonemapped four-rung x264 ladder on a box calibrated for one encode.
+ *
+ * Only a bitmap track is ever a server concern. A text track is drawn by
+ * SubtitleOverlay (see clientSubtitleTrack above) and must never reach the URL,
+ * and neither must a bitmap track the viewer has not actually asked to see:
+ * pickDefaultSubtitle auto-selects the track the FILE flags as default, image
+ * tracks included, without restarting the session for it. The selection and the
+ * running stream therefore diverge by design - the subtitle is selected in the
+ * UI and burnt into nothing - and every restart for an unrelated reason (audio
+ * track, quality, a retry after a dead token) used to quietly close that gap by
+ * sending the index along. Prod, 2026-09-08: a 4K remux direct-playing fine
+ * became a transcoded ladder the instant the viewer changed audio track, and
+ * the encoder never kept up.
+ *
+ * Returns undefined - the "omit the param" value buildStreamUrl expects - unless
+ * the selected track is a bitmap one.
+ */
+export function burnInSubtitleIndex(
+  selectedIndex: number | null,
+  streams: ClientSubtitleCandidate[],
+): number | undefined {
+  if (selectedIndex === null) return undefined;
+  return streams.find((s) => s.index === selectedIndex)?.burnIn ? selectedIndex : undefined;
+}
