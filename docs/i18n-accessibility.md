@@ -99,8 +99,12 @@ on AT, expect rough edges and please report specifics.
   announce their state or role correctly.
 - **Focus management isn't audited.** Focus-visible styling and focus order in
   dialogs/overlays are inconsistent in places.
-- **Contrast isn't measured.** No theme has been checked against WCAG AA/AAA
-  contrast ratios; custom/AMOLED themes can certainly fail in spots.
+- **Contrast is measured for the built-in themes only.** A unit test
+  (`frontend/packages/theme/src/contrast.test.ts`) holds every shipped theme to
+  WCAG AA 4.5:1 for the accent, the three text ramps and the danger set against
+  the background and both surfaces; the TV app re-checks its derived tokens.
+  Theme plugins and the colours a plugin injects at runtime are not checked -
+  a custom theme can still fail in spots. AAA is not targeted.
 - **No in-app text scaling** beyond browser/OS zoom, and no dedicated
   high-contrast mode.
 - **Subtitle styling on mobile is limited** (a constraint of the underlying
