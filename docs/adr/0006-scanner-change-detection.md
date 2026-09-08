@@ -19,7 +19,7 @@ These are not bugs in domain logic - they are violations of an implicit contract
 
 Formalise the contract. Any file-backed scanner (TV/movie, photo, music, audiobook, ...) must satisfy the four rules below.
 
-### Rule 1 - `sameMtime` compares at µs with ±1µs tolerance
+**Rule 1 - `sameMtime` compares at µs with ±1µs tolerance.**
 
 ```go
 func sameMtime(a, b time.Time) bool {
@@ -34,11 +34,9 @@ func sameMtime(a, b time.Time) bool {
 
 Two one-directional `Sub == time.Microsecond` checks avoid `MinInt64` overflow when one operand is a zero `time.Time` (e.g. a freshly-created row whose `File.ModTime` hasn't been populated yet). Never `Round(µs).Equal()`: Postgres's rounding rule is not guaranteed to match Go's across driver versions.
 
-### Rule 2 - every scanner-mutated field must be set at `Create`
+**Rule 2 - every scanner-mutated field must be set at `Create`.** Whatever the scanner compares on the next pass must be written on the first. At minimum: `Path`, `Size`, `Fingerprint`, `ModTime`. A missing field stored as a zero value forces a re-upsert on every subsequent scan.
 
-Whatever the scanner compares on the next pass must be written on the first. At minimum: `Path`, `Size`, `Fingerprint`, `ModTime`. A missing field stored as a zero value forces a re-upsert on every subsequent scan.
-
-### Rule 3 - dedup state persists before any side-effect
+**Rule 3 - dedup state persists before any side-effect.**
 
 ```
 1. Mutate in-memory struct (fingerprint, mtime, size, path).
@@ -48,9 +46,7 @@ Whatever the scanner compares on the next pass must be written on the first. At 
 
 If step 3 times out, next scan loses the duration refresh or the meili reindex - recoverable side-effects. If step 2 times out because step 3 was moved ahead, next scan re-processes the same file forever - the non-recoverable failure mode. The critical path is the dedup row; everything else is best-effort.
 
-### Rule 4 - `workerTimeout` bounds the slowest legitimate path, not the average
-
-`processNewItems` spawns one goroutine per scanWork with its own `WithTimeout(ctx, workerTimeout)`. The timeout must accommodate `ffprobe + extractChapters + Update` on the largest UHD file in the library, not the median case. We currently use **5 minutes**; 30 seconds was enough for 1080p but lost the race on 2160p HEVC 40GB+ files.
+**Rule 4 - `workerTimeout` bounds the slowest legitimate path, not the average.** `processNewItems` spawns one goroutine per scanWork with its own `WithTimeout(ctx, workerTimeout)`. The timeout must accommodate `ffprobe + extractChapters + Update` on the largest UHD file in the library, not the median case. We currently use **5 minutes**; 30 seconds was enough for 1080p but lost the race on 2160p HEVC 40GB+ files.
 
 ## Consequences
 

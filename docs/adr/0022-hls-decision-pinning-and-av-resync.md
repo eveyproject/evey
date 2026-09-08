@@ -1,7 +1,8 @@
 # ADR 0022 - HLS decision pinning and A/V resync
 
 Date: 2026-07-09 (amended 2026-07-19: fp seal / 410 refusal, decision moved to the app-layer PlanResolver)
-Status: accepted (implemented incrementally over 2026-07-07..09)
+Status: Accepted
+Scope: implemented incrementally over 2026-07-07..09
 
 ## Context
 
@@ -31,9 +32,7 @@ below exist specifically to prevent each from recurring:
 
 ## Decision
 
-### 1. Every decision input is baked into the child URLs
-
-A playback's first playlist computes the decision and stamps it into every
+**1. Every decision input is baked into the child URLs.** A playback's first playlist computes the decision and stamps it into every
 descendant URL via `querySuffix` (`manifest_generator.go`): `vd=copy|transcode`
 for video, `ad=copy|transcode` for audio. Follow-up polls read the pin back
 (`pinnedVideoDecision`/`pinnedAudioDecision`) instead of re-deriving, so
@@ -51,9 +50,7 @@ so different bytes get a different cache key, and (b) ride `querySuffix` so the
 whole session stays coherent across polls. Miss (a) and two byte-streams alias
 in the cache; miss (b) and the decision flips under the player.
 
-### 1b. The decision hash is SEALED into every URI, and a stale seal is refused (amendment, 2026-07-15 incident)
-
-Pins protect the *decision*; they do not protect the *ladder shape*. `stream_N`
+**1b. The decision hash is SEALED into every URI, and a stale seal is refused (amendment, 2026-07-15 incident).** Pins protect the *decision*; they do not protect the *ladder shape*. `stream_N`
 is a ladder INDEX: when the shaped ladder changed mid-play (capability flap,
 admission pin gone cold), the same URL silently mapped to a *different*
 rendition and the player decoded a stranger's bytes - on-screen, a full-frame
@@ -73,9 +70,7 @@ rainbow. Two mechanisms close this:
   cannot drift in the first place. The 410 seal remains the backstop for
   cross-stream staleness (a pin that expired and re-derived differently).
 
-### 2. Source audio start-delay is cancelled with a second, shifted input
-
-When the probed source delay exceeds the noise floor (~0.1 s) AND the audio is
+**2. Source audio start-delay is cancelled with a second, shifted input.** When the probed source delay exceeds the noise floor (~0.1 s) AND the audio is
 being transcoded, the builder feeds audio from a SECOND ffmpeg input shifted by
 `-itsoffset`, leaving the video input (and its seek bookkeeping) untouched.
 
@@ -84,9 +79,7 @@ seek edge, and a second input there was measured to hijack the `make_zero`
 zero-point of copy-on-seek sessions - the video landed +0.87 s off plan and the
 copy-timeline tripwire fired.
 
-### 3. User resync composes into the same net input shift
-
-- **Subtitles** shift entirely client-side: the player re-anchors each loaded
+**3. User resync composes into the same net input shift.** - **Subtitles** shift entirely client-side: the player re-anchors each loaded
   cue to `sourceTime + offset` (`useSubtitleManager.applySubtitleOffset`,
   keyed by a `WeakMap` of source times so a zero clamp is exactly reversible).
   Instant, no server round-trip, works for embedded and external tracks.
