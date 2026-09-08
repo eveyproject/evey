@@ -1,0 +1,520 @@
+---
+source_sha: c5808f750bf9e6683c315a017ac588f93090dfd938b8479a6fdecf6cdeb277e4
+---
+# Installation und Betrieb
+
+Diese Seite beschreibt die Produktivinstallation für alle, die selbst hosten und
+das fertig gebaute Image `gravityz/evey` mit `docker compose` betreiben (etwa auf
+einem NAS). Der Container läuft **ohne Root-Rechte** und braucht **weder
+`--privileged` noch `mem_limit`, `cpus` oder cgroup-Einstellungen**
+(siehe [adr/0013-userspace-plugin-resource-monitor.md](adr/0013-userspace-plugin-resource-monitor.md)).
+
+Den nackten Schnellstart mit zwei Dateien finden Sie in der
+[README](../README.md). Diese Seite behandelt dieselbe Installation und darüber
+hinaus Aktualisierungen, Sicherungen und den laufenden Betrieb. Wollen Sie Evey
+**außerhalb von Docker** betreiben (systemd oder ohne Container), lesen Sie
+[deployment-bare-metal.md](deployment-bare-metal.md).
+
+## Voraussetzungen
+
+- Docker und Docker Compose v2 (`docker compose`, nicht das alte
+  `docker-compose`).
+- Ein Ort für Ihre Daten auf einer dauerhaften Platte (die untenstehende
+  compose-Datei verwendet Bind-Mounts im Arbeitsverzeichnis).
+- **Empfohlen:** ein Reverse Proxy für HTTPS - Evey liefert ausschließlich
+  unverschlüsseltes HTTP aus. Siehe [reverse-proxy.md](reverse-proxy.md).
+
+### Architektur (x86-64 und ARM64)
+
+Stabile Veröffentlichungen (Tags der Form `vX.Y.Z`) erscheinen als
+**Multi-Arch-Image** für `linux/amd64` und `linux/arm64`; `docker pull` und
+`compose up` greifen automatisch zur passenden Variante, ein Schalter ist nicht
+nötig. Vorabversionen (`-alpha`/`-beta`) und Builds einzelner Branches gibt es
+**nur für amd64** - legen Sie auf einem ARM-Host (Raspberry Pi, ARM-NAS, Ampere-
+VPS) in `EVEY_VERSION` ein stabiles `vX.Y.Z` fest.
+
+Auf ARM sollten Sie zwei Dinge wissen:
+
+- **Auf einem ARM-NAS der Synology-Klasse (Realtek) gibt es keine
+  Hardware-Transkodierung.** Evey bindet genau drei Beschleunigungs-Backends
+  ein: Intel QSV, VAAPI und NVENC. QSV und die VAAPI-Treiber von Intel gibt es
+  nur für x86 (im arm64-Image sind sie bewusst nicht enthalten), NVENC ist
+  NVIDIA. Die ARM-eigenen Video-Encoder (die VPUs V4L2 M2M des Raspberry Pi
+  beziehungsweise Rockchip RKMPP) bindet Evey **nicht** ein, auf einem ARM-Board
+  gibt es also keinen Weg zur Kodierung in Hardware. In der Praxis heißt ARM
+  also: **Direktwiedergabe** (der Client spielt die Datei unverändert ab, nahezu
+  kostenlos) plus **Transkodierung in Software** auf der CPU. Halten Sie auf
+  einem schwachen ARM-Kern `transcoding.max_video_sessions` niedrig (1 bis 2,
+  unter Admin → Serverkonfiguration) und setzen Sie auf die Direktwiedergabe.
+- **Das Tone-Mapping von HDR läuft auch auf ARM auf dem schnellen Weg.** Das
+  mitgelieferte jellyfin-ffmpeg für arm64 bringt den SIMD-Filter `tonemapx`
+  (NEON) mit, so wie der amd64-Build seine AVX2-Variante mitbringt. Das
+  Tone-Mapping von HDR nach SDR läuft damit über SIMD in Hardware und nicht über
+  die langsame zscale-Kette. (Evey prüft `tonemapx` zur Laufzeit und weicht nur
+  dann auf zscale aus, wenn er einem Build tatsächlich einmal fehlt.)
+
+Bauen Sie das Image für eine nicht veröffentlichte Architektur selbst,
+funktioniert `docker buildx build --platform linux/arm64` auf Anhieb - das
+Dockerfile schirmt die x86-eigenen Teile über `TARGETARCH` ab.
+
+## 1. docker-compose.yml
+
+**Standardaufbau: ein einziger Dienst.** Das evey-Image liefert die API und die
+Weboberfläche über einen Port aus **und** betreibt Postgres und Meilisearch
+eingebettet. Der Entrypoint startet beide als der Serverbenutzer ohne
+Root-Rechte, nur auf dem Loopback erreichbar, und ihre Geheimnisse entstehen beim
+ersten Start unter `./evey-data/keys`. Eine `docker-compose.yml`, keine `.env`:
+
+```yaml
+services:
+  evey:
+    image: gravityz/evey:latest        # hier einen Tag festlegen (z. B. 0.2.0-beta.1, sha-1a2b3c4)
+    container_name: evey-server
+    ports:
+      - "9091:9091"
+    # environment:
+    #   EVEY_SERVER_BASE_URL: http://<your-ip>:9091   # Links in E-Mails, OIDC-Weiterleitungen, URLs für Cast und Geräte
+    volumes:
+      - ./evey-data:/data              # Datenbank, JWT-Schlüssel, erzeugte Geheimnisse, Suchindex, Protokolle, Sicherungen
+      - evey-cache:/cache              # Cache für Transkodierung und Trickplay (darf geleert werden)
+      # Les- und schreibbar, damit die Reparatur des Suchindex Dateien an Ort
+      # und Stelle neu aufbaut; hängen Sie `:ro` an für eine nur lesbare
+      # Bibliothek und nehmen Sie in Kauf, dass diese Reparaturen scheitern.
+      - /path/to/your/media:/media
+    # Die eingebettete Datenbank wird bei `docker stop` sauber NACH dem Server
+    # beendet; ein großer Katalog braucht mehr als die 10 s, die Docker
+    # standardmäßig zugesteht.
+    stop_grace_period: 60s
+    restart: unless-stopped
+
+volumes:
+  evey-cache:
+```
+
+**Abwandlungen, jede davon nur ein paar Zeilen in dieser Datei:**
+
+- *Ein zweiter Medienordner*: Ergänzen Sie `- /other/path:/media2` unter
+  `volumes:` (`/media3` und so weiter ebenso). Hängen Sie die Ordner les- und
+  schreibbar ein, siehe den Kommentar oben.
+- *Hinter einem Reverse Proxy, den Sie bereits betreiben* (Nginx Proxy Manager,
+  Traefik, ... in einem Docker-Netzwerk): Entfernen Sie `ports:`, treten Sie dem
+  Netzwerk des Proxys bei und teilen Sie dem Server seine öffentliche URL sowie
+  den zu vertrauenden Gegenüber mit:
+  ```yaml
+  services:
+    evey:
+      environment:
+        EVEY_SERVER_BASE_URL: https://media.example.com
+        EVEY_TRUSTED_PROXIES: 172.16.0.0/12     # sobald bekannt, auf das Subnetz des Proxys eingrenzen
+  networks:
+    default:
+      name: proxy-net        # das Netzwerk, in dem Ihr Proxy liegt
+      external: true
+  ```
+  Der Proxy zeigt danach auf `evey-server:9091`. Die Einstellungen je Proxy:
+  [reverse-proxy.md](reverse-proxy.md).
+- *HTTPS, aber noch kein Proxy*: Ergänzen Sie den mitgelieferten Caddy-Dienst
+  aus [reverse-proxy.md](reverse-proxy.md) (automatisches Zertifikat von
+  Let's Encrypt).
+- *Postgres oder Meilisearch als eigene Dienste*: siehe den Betreiber-Aufbau
+  weiter unten.
+
+Halten Sie die Umgebung **knapp** - in die compose-Datei gehören nur
+Geheimnisse, die Sie selbst mitbringen, die Verbindungsdaten einer externen
+Datenbank, die Speicherpfade und die Angaben zum Reverse Proxy (für die
+Geheimnisse gern eine `.env`). Fast alles andere (Servername, Nebenläufigkeit
+der Transkodierung, Ratenbegrenzungen, Protokollstufe, Abstände für Scan und
+Überwachung, Zeitplan der Sicherungen, API-Schlüssel) ist **zur Laufzeit unter
+Admin → Serverkonfiguration änderbar** und hat in der compose-Datei NICHTS
+verloren.
+`PUID`/`PGID`: standardmäßig nicht gesetzt → der Entrypoint übernimmt den
+Eigentümer Ihrer `/media`-Mounts, damit Reparaturen an Ort und Stelle
+funktionieren; übersteuern lässt sich das mit `id -u`/`id -g`. Der Container
+startet nur zum Anwenden dieser Zuordnung als root und gibt die Sonderrechte
+danach ab - der Server läuft nie als root.
+
+**Wie sich die eingebettete Datenbank verhält.** Das Cluster liegt in
+`./evey-data/postgres` (Postgres 17, `initdb` beim ersten Start, Eigentümer ist
+der Serverbenutzer). Es lauscht nur auf dem Loopback des Containers und verlangt
+über TCP das erzeugte Passwort, eine auf eine andere UID herabgestufte
+Erweiterung kann es also nicht öffnen. `docker stop` erreicht es als geordnetes
+schnelles Herunterfahren, nachdem der Server seine Verbindungen geschlossen hat.
+Das Datenverzeichnis muss auf einem echten Dateisystem liegen (ext4, btrfs, xfs,
+...), nicht auf einer CIFS- oder NFS-Freigabe. Sicherungen (`evey admin`, der
+Administrationsbereich, das eingeplante `pg_dump`) funktionieren genau wie mit
+einer externen Datenbank. So öffnen Sie eine SQL-Konsole:
+
+```bash
+docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
+```
+
+### Betreiber-Aufbau: externes Postgres
+
+Wer den Lebenszyklus der Datenbank selbst in der Hand behalten will (ein
+verwaltetes Postgres, eine festgelegte Hauptversion, ein eigenes Volume, Dump
+und Wiederherstellung nach eigenem Gutdünken), betreibt sie als Nachbardienst:
+Dienst ergänzen und den Server darauf zeigen lassen - **die eingebettete
+Datenbank schaltet sich allein dadurch ab, dass `EVEY_DB_HOST` gesetzt ist**.
+Deshalb läuft auch jede Installation aus der Zeit vor der eingebetteten
+Datenbank unverändert weiter:
+
+```yaml
+services:
+  evey:
+    # ... wie oben, zusätzlich:
+    environment:
+      EVEY_DB_HOST: postgres
+      EVEY_DB_SSLMODE: disable          # internes Docker-Netzwerk; das mitgelieferte Postgres hat kein TLS
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: evey-postgres
+    environment:
+      POSTGRES_DB: ${EVEY_DB_NAME:-evey}
+      POSTGRES_USER: ${EVEY_DB_USER:-evey}
+      POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:?EVEY_DB_PASSWORD must be set in .env}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${EVEY_DB_USER:-evey}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+```
+
+```env
+EVEY_DB_PASSWORD=<strong-password>   # darf NICHT das voreingestellte 'evey' sein - sonst startet der Server nicht
+```
+
+**Ein externes Meilisearch, nach demselben Muster.** Ein eigener Suchcontainer
+behält seinen eigenen Lebenszyklus und sein eigenes Volume (und erlaubt es
+Ihnen, mit `docker compose restart meilisearch` allein den Index
+zurückzusetzen). Schalten Sie das eingebettete ab, lassen Sie den Server darauf
+zeigen und geben Sie beiden denselben Schlüssel - ein ausdrücklich gesetztes
+`MEILI_MASTER_KEY` sticht das erzeugte `./evey-data/keys/meili.key` immer:
+
+```yaml
+services:
+  evey:
+    # ... zusätzlich:
+    environment:
+      EVEY_EMBEDDED_MEILI: "false"
+      EVEY_MEILI_URL: http://meilisearch:7700
+    depends_on:
+      meilisearch: { condition: service_healthy }
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: evey-meilisearch
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - ./meili-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
+      interval: 5s
+      retries: 5
+    restart: unless-stopped
+```
+
+```env
+MEILI_MASTER_KEY=<run: openssl rand -hex 16>
+```
+
+Geben Sie diesem Container nach Möglichkeit ein `user:` ohne Root-Rechte und ein
+`mem_limit` - das offizielle Image läuft als root, und sein Resident Set (der
+über Memory Mapping eingebundene Index) wirkt groß, ist aber größtenteils
+zurückgewinnbarer Page Cache. Der Index wird aus Postgres neu aufgebaut
+(`evey admin reindex-search`), `meili-data` ist also ohnehin entbehrlich.
+
+Nur diese Umgebungsvariablen betreffen Infrastruktur oder Geheimnisse und
+**gehören in compose beziehungsweise in die .env** - sie lassen sich nie im
+Administrationsbereich ändern: `EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY`,
+`EVEY_DB_HOST`, `EVEY_DB_USER`, `EVEY_DB_NAME`, `EVEY_DB_SSLMODE`,
+`EVEY_EMBEDDED_POSTGRES`, `EVEY_EMBEDDED_MEILI`, `EVEY_MEILI_URL`, die
+`*_DIR`-Pfade, `EVEY_JWT_PRIVATE_KEY_PATH`, `EVEY_SERVER_BASE_URL`,
+`EVEY_TRUSTED_PROXIES` sowie der Hauptschalter für Erweiterungen
+`EVEY_PLUGINS_ENABLED`. (`EVEY_PLUGINS_SANDBOX_MODE`,
+`EVEY_PLUGINS_UID_SEPARATION` und die Ressourcengrenzen dürfen Sie hier als
+Ausgangswerte setzen, sie sind aber zur Laufzeit unter Admin → Plugins
+änderbar.) Die vollständige Referenz: [configuration.md](configuration.md).
+
+### Sandbox und Härtung für Erweiterungen (was das Image mitbringt)
+
+Erweiterungen sind fremder Code und laufen als eigene Prozesse. Das offizielle
+Image ist gehärtet, damit dies die empfohlene Ausgangslage im Container bleibt -
+**kein `--privileged`, keine zusätzlichen Sicherheitsschalter für Docker**:
+
+- **Die Sandbox setzt standardmäßig auf Landlock.** Der Standardwert
+  `EVEY_PLUGINS_SANDBOX_MODE=auto` läuft **auf `landlock` hinaus, sobald der
+  Kernel es unterstützt**, und das ist auf einem aktuellen Docker-Host in der
+  Standardeinstellung der Fall. `auto` arbeitet die Reihe **landlock →
+  bubblewrap → basic** ab und nimmt das stärkste Backend, das der Host zulässt.
+  Für den Container ist Landlock die richtige Wahl: Es braucht keine
+  Sonderrechte, läuft unter dem voreingestellten seccomp und AppArmor von Docker
+  ganz ohne Anpassung am Host, wendet eine Positivliste des Dateisystems je Pfad
+  an (Erweiterungen sehen nur ihr eigenes Verzeichnis, nie `/data`) und ist
+  fail-closed - einmal angewandt lässt es sich nicht mehr lockern. (bubblewrap
+  braucht den `mount`-Systemaufruf, den das voreingestellte seccomp von Docker
+  blockiert, deshalb wählt `auto` es nur ohne Container; basic ist der letzte
+  Ausweg.)
+- **Der Server läuft ohne Root-Rechte** (UID 1000, `USER evey` im Image) und ist
+  als **nicht dumpbar** markiert (`PR_SET_DUMPABLE=0`), damit eine daneben
+  laufende Erweiterung `/proc/<pid>/{mem,environ}` des Servers nicht auslesen
+  kann.
+- **seccomp im Kernel für jede Erweiterung** - eine Sperrliste (die
+  Systemaufrufe ptrace, mount, unshare, die für Kernelmodule, kexec, die
+  setuid-Familie, keyring, …) wird unmittelbar vor dem `execve` der Erweiterung
+  eingerichtet und beschränkt damit auch statisch gelinkte oder kompilierte
+  Erweiterungen. Erweiterungen ohne Netzzugriff bekommen zusätzlich
+  `socket(AF_INET/AF_INET6)` verwehrt.
+- **UID-Trennung für Erweiterungen ohne root.** Auf einem Host ohne Landlock
+  können Erweiterungen unter dem Benutzer `evey-plugin` ohne Sonderrechte
+  (UID 1001) laufen und die Geheimnisse des Servers (etwa `jwt.key`) dann schon
+  über die gewöhnlichen Dateirechte nicht mehr lesen. Die einzelne
+  Datei-Capability `cap_setuid` trägt die **Launcher**-Binärdatei, nicht der
+  Server, und sie nimmt die Herabstufung selbst vor - **kein root, kein
+  `--privileged`** -, sodass der Server vollständig ohne Sonderrechte bleibt.
+  Gesteuert wird das über `EVEY_PLUGINS_UID_SEPARATION` (Standardwert `auto`:
+  nur dort an, wo Landlock fehlt, denn unter Landlock sind die Geheimnisse
+  bereits abgeschottet); es ist auf bestes Bemühen angelegt und unverträglich
+  mit `no-new-privileges`.
+- **Ressourcengrenzen je Erweiterung** (Speicher, PIDs, Plattenplatz,
+  nice-Wert), durchgesetzt von einem Monitor im Userspace - **es sind keine
+  cgroup-, `mem_limit`- oder `cpus`-Einstellungen nötig** - und allesamt
+  **zur Laufzeit** unter Admin → Plugins **änderbar**.
+
+Prüfen Sie nach dem ersten Start unter **Admin → Plugins → Security Dashboard**
+(Karte zur Host-Sandbox), welche Sandbox tatsächlich greift: Auf einem aktuellen
+Kernel sollte `auto` dort `landlock` anzeigen; `basic` bedeutet, dass der Host
+den Dateisystemzugriff von Erweiterungen nicht abschotten kann - lesen Sie dazu
+die Anleitung weiter unten.
+
+Welcher Aufbau zu Ihrer Maschine passt (altes NAS, Betrieb ohne Container, was
+Sie ein- oder abschalten sollten, die Risiken in klaren Worten):
+[plugins/sandbox-deployment.md](plugins/sandbox-deployment.md). Das vollständige
+Bedrohungsmodell samt der Einzelheiten je Schicht:
+[plugins/security-model.md](plugins/security-model.md).
+Sie können beim Standardwert `auto` bleiben (empfohlen) oder in der
+compose-Datei `EVEY_PLUGINS_SANDBOX_MODE: landlock` festlegen, um sich
+ausdrücklich und fail-closed festzulegen (`landlock` verweigert den Start einer
+Erweiterung, wenn Landlock nicht durchgesetzt werden kann). Auf einem aktuellen
+Kernel führt beides zur selben Ausgangslage.
+
+## 2. Der erste Start
+
+```bash
+docker compose up -d
+docker compose logs -f evey
+```
+
+Beim ersten Start tut der Server Folgendes:
+
+1. Er **erzeugt den JWT-Signaturschlüssel** automatisch unter
+   `EVEY_JWT_PRIVATE_KEY_PATH` (`/data/jwt.key`, innerhalb von `./evey-data`).
+   Sie legen ihn nicht von Hand an. Gehen Sie sorgsam mit `evey-data` um - geht
+   der Schlüssel verloren, werden alle abgemeldet.
+2. Er **führt die Datenbankmigrationen automatisch aus** (eingebettet, beim
+   Start angewandt; einen eigenen Migrationsschritt gibt es nicht). Siehe
+   [runbooks/migration-runbook.md](runbooks/migration-runbook.md).
+
+Rufen Sie danach `http://<your-ip>:9091` auf. Solange es noch kein Adminkonto
+gibt, landen Sie im **Einrichtungsassistenten** (`/setup`) und legen dort das
+erste Adminkonto an. Melden Sie sich anschließend an und **fügen Sie eine
+Bibliothek hinzu** (Admin → Bibliotheken), die auf einen Pfad unterhalb von
+`/media` zeigt (Ihr `MEDIA_DIR`, les- und schreibbar eingehängt). Der erste Scan
+beginnt von selbst.
+
+Die obige compose-Datei hängt das Verzeichnis mit Absicht les- und schreibbar
+ein: Die Reparatur des Suchindex baut Dateien an Ort und Stelle neu auf, und
+ein Mount mit `:ro` lässt diese Reparaturen scheitern. Ergänzen Sie `:ro` nur,
+wenn Sie darauf verzichten wollen.
+
+## 3. Reverse Proxy (HTTPS)
+
+Evey liefert unverschlüsseltes HTTP auf Port 9091 aus. Haben Sie noch keinen
+Proxy, besorgt Ihnen der mitgelieferte Caddy-Dienst aus
+[reverse-proxy.md](reverse-proxy.md) ein Zertifikat von Let's Encrypt (die
+Ports 80 und 443 müssen den Host erreichen). Mit einem eigenen Proxy (Nginx,
+Traefik, Nginx Proxy Manager) setzen Sie `EVEY_SERVER_BASE_URL` auf Ihre
+öffentliche `https://`-URL (dieses Schema schaltet Secure-Cookies und HSTS ein)
+und erklären den Proxy über `EVEY_TRUSTED_PROXIES` für vertrauenswürdig.
+Bei den Streaming-Endpunkten müssen Pufferung und Zeitlimit abgeschaltet sein -
+die fertigen Konfigurationen erledigen das. Die vollständigen Aufbauten:
+[reverse-proxy.md](reverse-proxy.md).
+
+## 4. Evey aktualisieren
+
+```bash
+docker compose pull && docker compose up -d
+docker compose logs -f evey      # bis "healthy" (eine Migration dauert bei einem großen Katalog Minuten)
+```
+
+Mehr ist nicht nötig. Das neue Image wendet beim Start ausstehende Migrationen
+an und legt zuvor einen Dump der Datenbank an
+(`./evey-data/backups/pre-migration-*`), die Gesundheitsprüfung des Containers
+wird grün, sobald er ausliefert, und `up -d` startet nur den Dienst `evey` neu -
+eine benachbarte Datenbank oder ein Proxy bleiben unangetastet.
+
+**Zurück auf die vorige Version.** Tragen Sie den vorigen Tag in die Zeile
+`image:` ein (oder in `EVEY_VERSION`, wenn Ihre compose-Datei ihn einsetzt) und
+führen Sie `docker compose up -d` erneut aus. Hat die neuere Version das Schema
+migriert, spielen Sie zuerst deren Dump von vor der Migration zurück -
+`docker exec evey-server evey admin rollback` gibt die genauen Schritte samt
+Pfad zum Dump aus.
+
+**Prüfen, was läuft.** `docker exec evey-server evey version` gibt Version und
+Commit der laufenden Binärdatei aus (`/healthz` meldet dasselbe), sodass die
+Frage „welcher Code ist das?“ nie von einem Tag abhängt.
+
+> Betreiber, die aus einem Checkout des Repositorys heraus arbeiten, haben
+> dieselbe Prozedur als Skript zur Hand: `scripts/evey-update.sh` (standardmäßig
+> ein Trockenlauf; Zustand, Dump vor der Aktualisierung, pull, Warten auf die
+> Gesundheitsprüfung, Abgleich des Commits, Zeile zum Zurückrollen) und
+> `scripts/evey-rollback.sh`. Das ist eine Bequemlichkeit für die
+> Installationen des Repositorys selbst, keine Voraussetzung für eine
+> Installation.
+
+**Legen Sie fest, was Sie betreiben.** Tragen Sie in die Zeile `image:` einen
+Release-Tag (`0.2.0-beta.1`) oder einen unveränderlichen Tag der Form
+`sha-<short>` ein. Ein Branch-Tag wie `beta-0.0.1` wandert mit jedem Push
+weiter, zwei Pulls im Abstand eines Tages können also unterschiedlichen Code
+starten, und „zurück auf `beta-0.0.1`“ führt ins Leere. Das Skript gibt den
+gestarteten Tag aus, damit Sie ihn festschreiben können.
+
+**Image-Tags** (`gravityz/evey`):
+
+- Release-Tags `vX.Y.Z` erscheinen als `X.Y.Z`, `X.Y`, `X` und `latest`.
+  `latest` meint immer die jüngste **Veröffentlichung** nach semver.
+- Branch-Builds erscheinen unter dem Namen des Branches (etwa `beta-0.0.1`)
+  sowie als `sha-<short>`.
+- **Laufzeitvarianten** - dieselbe Anwendung, unterschiedliche Laufzeiten für
+  Erweiterungen im Gepäck:
+  - ohne Suffix (Standard, „schlank“) - nur Python 3.
+  - `-nodejs` - ergänzt Node für Erweiterungen in JavaScript.
+  - `-full` - ergänzt zusätzlich PHP, Ruby und Lua.
+  Greifen Sie nur dann zu `-nodejs` oder `-full`, wenn Ihre Erweiterungen diese
+  Laufzeiten brauchen; sonst ist die Standardvariante die kleinste. Setzen Sie
+  dazu etwa `EVEY_VERSION=latest-nodejs`.
+
+### Eine bestehende Installation auf die eingebettete Datenbank umstellen
+
+Eine Installation, die Postgres als Nachbardienst betreibt (der Aufbau, den
+jede Veröffentlichung vor der eingebetteten Datenbank verwendet hat), lässt sich
+auf den einen Container umstellen: Für die Daten genügt ein Dump, alles Übrige
+in `./evey-data` (JWT-Schlüssel, Erweiterungen, Sicherungen, Trickplay) wird
+unverändert übernommen. Die eingebettete Datenbank importiert einen Dump unter
+`./evey-data/postgres-import.sql.gz` **einmalig in das Cluster, das sie bei
+ihrem ersten Start anlegt**, und zwar bevor der Server läuft - dessen eigene
+Migrationen setzen also darauf auf, wie nach jeder Aktualisierung.
+
+```bash
+# 1. Die aktuelle Datenbank sichern (reines SQL, gzip-komprimiert - genau das erwartet der Import)
+docker compose exec -T postgres pg_dump -U evey --no-owner --no-privileges evey \
+  | gzip > evey-data/postgres-import.sql.gz
+docker compose down
+
+# 2. Die neue compose-Datei schreiben (heben Sie eine Kopie der alten auf): die
+#    Datei mit dem einen Dienst aus Abschnitt 1, dazu Ihre Abwandlungen
+#    (weitere Medienordner, der Proxy-Block) und alles, was bei Ihnen unter
+#    `environment:` stand (Hardware-Transkodierung: `devices: /dev/dri`,
+#    `group_add`, LIBVA_DRIVER_NAME).
+
+# 3. Erster Start: initdb, Import, Migrationen, danach der Server
+docker compose up -d && docker compose logs -f evey     # "evey: import done"
+
+# 4. Suchindex: der Index eines externen Meilisearch wird nicht übernommen, bauen Sie ihn neu auf
+docker exec evey-server evey admin reindex-search
+```
+
+Was Sie danach NICHT mehr brauchen: `EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY` und
+die Verdrahtung über `EVEY_DB_HOST` / `EVEY_MEILI_URL` (die Geheimnisse werden
+erzeugt), die Dienste `postgres` und `meilisearch` sowie API-Schlüssel, die aus
+der `.env` vorbelegt wurden (die stecken bereits im gesicherten
+`server_config`). Behalten Sie `./postgres-data` und `./meili-data`, bis Sie den
+Server geprüft haben; die alte compose-Datei betreibt sie weiterhin, falls Sie
+zurück müssen. Ein Dump, der neben einem bereits eingerichteten Cluster liegt,
+wird gemeldet und ignoriert, niemals zusammengeführt; ein fehlgeschlagener
+Import verwirft das neue Cluster, sodass der nächste Start es erneut aus dem
+Dump versucht.
+
+### Hauptversionswechsel bei Postgres (eingebettete Datenbank)
+
+Das Image legt die Hauptversion des eingebetteten Postgres fest (derzeit 17).
+Ein neueres Image mit einer neueren Hauptversion **weigert sich, das alte
+Cluster zu öffnen**, und verweist in der Meldung auf diesen Abschnitt. Es
+betreibt niemals stillschweigend ein Datenverzeichnis, das es nicht lesen kann.
+Der Weg hinüber führt über einen Dump mit dem alten und eine Wiederherstellung
+mit dem neuen Image:
+
+```bash
+docker compose exec evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) pg_dump -h 127.0.0.1 -U evey -Fc evey' > evey-before-upgrade.dump
+docker compose down
+mv evey-data/postgres evey-data/postgres.old      # aufheben, bis die Wiederherstellung geprüft ist
+# das neue EVEY_VERSION in der .env setzen, danach:
+docker compose up -d                              # richtet ein leeres Cluster auf der neuen Hauptversion ein
+docker compose exec -T evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) pg_restore -h 127.0.0.1 -U evey -d evey --no-owner' < evey-before-upgrade.dump
+docker compose restart evey
+```
+
+Wer `pg_upgrade` bevorzugt oder eine Hauptversion über Jahre festschreiben will,
+nimmt den [Aufbau mit externem Postgres](#betreiber-aufbau-externes-postgres).
+
+## 5. Sicherungen und Wiederherstellung
+
+Schalten Sie eingeplante Sicherungen der Datenbank ein
+(`EVEY_BACKUP_INTERVAL_HOURS`, abgelegt in `EVEY_BACKUP_DIR` →
+`/data/backups`, innerhalb von `evey-data`) oder stoßen Sie eine im
+Administrationsbereich an. Sicherungen umfassen alle Benutzerdaten, nicht Ihre
+Mediendateien. Näheres: [backups.md](backups.md).
+
+Für Aussperrungen, verlorene Adminkonten und Wiederherstellungen bringt das
+Image die Kommandozeile `evey admin` mit (`reset-password`, `rotate-jwt-key`,
+`restore-backup`): [runbooks/recovery.md](runbooks/recovery.md). Zur Sicherheit
+bei Migrationen: [runbooks/migration-runbook.md](runbooks/migration-runbook.md).
+
+## 6. Fehlersuche
+
+Erste Handgriffe, wenn etwas nicht stimmt:
+
+```bash
+docker compose ps                       # ist jeder Dienst Up / healthy?
+docker compose logs --tail=200 evey     # Serverprotokolle (Migrationsfehler, Prüfung der Konfiguration)
+```
+
+- **evey startet nicht / Konfigurationsfehler.** Bei einer externen Datenbank
+  verweigert der Server den Start, solange `EVEY_DB_PASSWORD` noch auf dem
+  voreingestellten `evey` steht; bei einem externen Meilisearch, wenn
+  `MEILI_MASTER_KEY` leer oder ein Platzhalter ist (ein kurzer, aber nicht
+  voreingestellter Schlüssel führt nur zu einer Warnung). Lesen Sie die
+  protokollierte Prüfmeldung und korrigieren Sie die `.env`.
+- **Die eingebettete Datenbank startet nicht.** Die `evey:`-Zeilen am Anfang des
+  Protokolls sagen, warum: ein Cluster einer anderen Hauptversion (siehe den
+  Abschnitt zum Versionswechsel oben), ein Datenverzeichnis, das gar kein
+  Postgres-Cluster ist, oder ein Fehler von Postgres selbst mit dem Präfix
+  `postgres:` (Platte voll, Rechte auf `./evey-data/postgres`, ein Dateisystem
+  auf einer Netzwerkfreigabe).
+- **Die externe Datenbank ist nicht erreichbar.** Vergewissern Sie sich, dass
+  Postgres gesund ist und das Passwort stimmt:
+  ```bash
+  docker exec evey-postgres pg_isready -U "$EVEY_DB_USER"
+  ```
+- **Die Suche ist kaputt oder leer.** Prüfen Sie den Zustand von Meilisearch und
+  stoßen Sie dann eine Neuindizierung an - über die Sucheinstellungen im
+  Administrationsbereich oder mit
+  `docker exec evey-server evey admin reindex-search`. Der Index wird aus
+  Postgres neu aufgebaut, `meili-data` darf also gelöscht werden.
+- **Endpunkt für die Gesundheitsprüfung:**
+  `curl -sf http://localhost:9091/healthz && echo OK`.
+
+### Welche Volumes gefahrlos gelöscht werden dürfen
+
+| Volume | Inhalt | Gefahrlos löschbar? |
+|--------|----------|-----------------|
+| `evey-data` | Datenbank (`postgres/`), JWT-Schlüssel und erzeugte Geheimnisse (`keys/`), Protokolle, Sicherungen, Erweiterungen, Suchindex (`meili/`) | Nein - Daten, JWT-Schlüssel und Erweiterungen wären verloren. Nur `meili/`: ja, wird mit `evey admin reindex-search` neu aufgebaut |
+| `postgres-data` | Datenbank (nur beim externen Aufbau) | Nein - sämtliche Daten wären verloren |
+| `evey-cache` | Cache für Transkodierung und Trickplay | Ja - wird bei Bedarf neu erzeugt |

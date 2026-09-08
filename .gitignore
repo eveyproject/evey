@@ -142,3 +142,9 @@ bench/
 .mutation-src/
 .mutation-report.txt
 .bench-wasm/
+
+# Generated documentation site (see wiki/README.md)
+wiki/build/
+wiki/site/
+wiki/.build-*
+wiki/__pycache__/

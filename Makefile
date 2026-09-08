@@ -4,7 +4,8 @@
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go \
-	mutation-test docker-image verify-deploy
+	mutation-test docker-image verify-deploy \
+	wiki wiki-check wiki-serve
 
 BINARY=evey
 DC=docker compose --env-file .env.dev
@@ -629,3 +630,41 @@ mobile-go:
 	adb shell am start -a android.intent.action.VIEW -d "exp://127.0.0.1:8081" host.exp.exponent
 	@echo ""
 	@echo "→ In the app, enter server URL: http://localhost:9091"
+
+# ── Wiki ──────────────────────────────────────────────────────────────────────
+# wiki.eveyproject.org, built from docs/. See wiki/README.md for how a page
+# gets published and what the guards refuse.
+#
+# The build runs in a throwaway container rather than on the host: this machine
+# has no pip, and pinning the toolchain in wiki/requirements.txt is what keeps a
+# local build and the CI build producing the same site. `--user $(id -u)` is not
+# cosmetic - a root-owned wiki/build is the same trap that silently breaks the
+# Android build when node_modules ends up owned by root.
+WIKI_IMAGE := python:3.12-slim
+# Split so a target can add its own docker options (a port publish, say): every
+# option must come BEFORE the image name, and appending one after it makes
+# docker treat it as the command to run inside the container.
+WIKI_DOCKER = docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp \
+	-e PATH=/tmp/.local/bin:/usr/local/bin:/usr/bin:/bin \
+	-v "$(CURDIR)":/repo -w /repo/wiki
+WIKI_RUN = $(WIKI_DOCKER) $(WIKI_IMAGE)
+
+# Fast, host-side, no Docker: the manifest, the translation freshness digests
+# and the leak guard. This is the one that must stay quick enough to run often.
+wiki-check:
+	@echo "→ wiki: assemble + guards"
+	@python3 wiki/assemble.py --check
+
+wiki:
+	@echo "→ wiki: strict build"
+	@$(WIKI_RUN) sh -c 'pip install -q --disable-pip-version-check -r requirements.txt && \
+	  python3 assemble.py --check && mkdocs build --strict -d site'
+	@echo "✅ wiki built - open wiki/site/index.html"
+
+# Live preview. mkdocs watches wiki/build/, which is generated, so a change to
+# a page under docs/ needs `make wiki-check` to be copied across before the
+# reload picks it up.
+wiki-serve:
+	@echo "→ wiki: http://localhost:8000 (Ctrl-C to stop)"
+	@$(WIKI_DOCKER) -p 8000:8000 $(WIKI_IMAGE) sh -c 'pip install -q --disable-pip-version-check -r requirements.txt && \
+	  python3 assemble.py && mkdocs serve -a 0.0.0.0:8000'

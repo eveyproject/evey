@@ -1,0 +1,6 @@
+# Pinned so a wiki build is reproducible: an unpinned mkdocs-material picked up
+# a MkDocs 2.0 that its own maintainer warns against, mid-build, on 2026-09-08.
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+mkdocs-static-i18n==1.3.1
+pyyaml==6.0.2
