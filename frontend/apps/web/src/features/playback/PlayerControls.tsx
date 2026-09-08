@@ -67,6 +67,8 @@ interface PlayerControlsProps {
   isBuffering?: boolean;
   /** True when the video element is actively playing (not paused / not yet started). */
   isPlaying?: boolean;
+  autoplayNext?: boolean;
+  onAutoplayNextChange?: (enabled: boolean) => void;
   sleepTimerState?: SleepTimerState | null;
   onSleepTimerMinutes?: (minutes: number) => void;
   onSleepTimerEndOfEpisode?: () => void;
@@ -107,6 +109,8 @@ function PlayerControlsInner({
   wasmAudioActive,
   isBuffering,
   isPlaying,
+  autoplayNext,
+  onAutoplayNextChange,
   sleepTimerState,
   onSleepTimerMinutes,
   onSleepTimerEndOfEpisode,
@@ -380,8 +384,14 @@ function PlayerControlsInner({
     }
   }
 
-  function handleOverlayClick(e: React.MouseEvent) {
-    if ((e.target as HTMLElement).closest("button, input, [data-controls]")) return;
+  // Click on the bare video surface: single = play/pause, double = fullscreen,
+  // and with a panel open the click only closes it. This handler lives on a
+  // DEDICATED surface element UNDER the bars (see the render below), never on
+  // the root that wraps the bars: the bars and their panels are siblings of the
+  // surface, so a click on the settings gear, on a menu entry or on the seek
+  // bar cannot reach it - not by bubbling, not through a DOM-ancestry filter
+  // that a portal or a re-render could defeat.
+  function handleSurfaceClick() {
     if (openPanel) {
       setOpenPanel(null);
       return;
@@ -444,7 +454,6 @@ function PlayerControlsInner({
       ref={rootRef}
       className="absolute inset-0"
       onMouseMove={resetHideTimer}
-      onClick={handleOverlayClick}
       // Pressing keys on a focused control reveals the (possibly faded) bar,
       // pushes the hide timer back and flips the modality to keyboard so the
       // focus-pinning in scheduleHide engages; pointer activity flips it back.
@@ -453,11 +462,21 @@ function PlayerControlsInner({
       onFocus={resetHideTimer}
       style={{ cursor: visible ? "default" : "none" }}
     >
+      {/* Video surface: the only element whose click toggles play/pause or
+          fullscreen. The bars below in the tree paint over it and stop their
+          own clicks here, so no control can double as a surface tap. */}
+      <div
+        data-player-surface
+        className="absolute inset-0"
+        onClick={handleSurfaceClick}
+      />
+
       {/* top bar */}
       <div
         className={`absolute top-0 left-0 right-0 flex items-center gap-3 py-3 transition-opacity-fast duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         style={{ background: "linear-gradient(to bottom, var(--overlay-bg-strong), transparent)", paddingLeft: "max(1rem, env(safe-area-inset-left, 1rem))", paddingRight: "max(1rem, env(safe-area-inset-right, 1rem))" }}
         data-controls
+        onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
@@ -480,6 +499,7 @@ function PlayerControlsInner({
         className={`absolute bottom-0 left-0 right-0 pt-8 flex flex-col gap-2 transition-opacity-fast duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         style={{ background: "linear-gradient(to top, var(--overlay-bg-strong), transparent)", paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))", paddingLeft: "max(1rem, env(safe-area-inset-left, 1rem))", paddingRight: "max(1rem, env(safe-area-inset-right, 1rem))" }}
         data-controls
+        onClick={(e) => e.stopPropagation()}
       >
         {/* seek bar - subscribes to PlayerTimeContext on its own */}
         <LiveProgressBar
@@ -679,6 +699,8 @@ function PlayerControlsInner({
             brightness={brightness}
             onBrightnessChange={onBrightnessChange}
             availableQualities={availableQualities}
+            autoplayNext={autoplayNext}
+            onAutoplayNextChange={onAutoplayNextChange}
             sleepTimerState={sleepTimerState}
             onSleepTimerMinutes={onSleepTimerMinutes}
             onSleepTimerEndOfEpisode={onSleepTimerEndOfEpisode}
