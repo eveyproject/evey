@@ -438,6 +438,24 @@ jobs:
           cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }},ignore-error=true
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
 
+      # Docker Hub page: short blurb + docs/dockerhub.md as the full description.
+      # Once per run (the lean variant), and best-effort: the image is the
+      # deliverable, a Hub API hiccup must not red-fail a publish that already
+      # happened. Needs DOCKERHUB_TOKEN with read/write/delete scope (a push-only
+      # token is refused by the description endpoint - the step then fails
+      # visibly here without blocking anything).
+      - name: Sync Docker Hub description
+        if: matrix.runtime.name == 'lean'
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/evey
+          short-description: "Self-hosted media server. One container, hardware transcoding included, sandboxed plugins."
+          readme-filepath: ./docs/dockerhub.md
+          enable-url-completion: false
+
   # Sentinel job for branch protection. Required check should target this
   # one job rather than each parallel job individually - that way `docker`
   # being skipped on PRs (event_name != 'push') doesn't break the gate.

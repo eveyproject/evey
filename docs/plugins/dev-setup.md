@@ -204,9 +204,22 @@ Defaults applied to every plugin process:
 
 A plugin that talks to the network needs both `permissions: [network]` and `external_fetch: [<host>...]`. Direct network egress is cut at the sandbox for every plugin, unconditionally, regardless of its permissions (see the sandbox modes above) - the plugin process itself can never open a socket to the internet. The only way out is the host-side `Fetch` RPC broker: the plugin calls it over the `EVEY_PLUGIN_SOCK` Unix socket, the host checks the target host against `external_fetch`, then dials through an SSRF-safe client (private/reserved IPs rejected at connect time, redirects re-validated against both the resolved IP and the allow-listed host). See `internal/adapters/driving/pluginhost/fetch.go`.
 
-## 8. Submit a plugin to the official catalog
+## 8. Distribute a plugin
 
-(Process TBD - placeholder.) Open a PR against `examples/plugins/` with your plugin source and a README. Maintainers review and re-sign with the official key before publishing.
+There is no official catalog yet: an admin installs a plugin by uploading its
+ZIP in the admin panel, from wherever you publish it (a GitHub release, your
+own site). What "distribution" means today:
+
+- Ship the ZIP, its `.sig` and your `cosign.pub` together (section 6), so the
+  receiving admin can verify the upload with `EVEY_PLUGINS_COSIGN_POLICY=warn`
+  or `enforce`.
+- State the permissions and `external_fetch` hosts in your README - the admin
+  sees them at install time and has to approve them; a surprise there is the
+  first reason an install gets refused.
+- To have your plugin listed with the bundled examples, open a PR against
+  `examples/plugins/` with the source and a README. Examples are reviewed and
+  built from source; a PR is not an endorsement and carries no signature from
+  the project.
 
 ## 9. Troubleshooting
 
