@@ -17,21 +17,13 @@ We want per-language audio switching that:
 
 Audio is served as an HLS-native **rendition group** using `EXT-X-MEDIA`, with audio segments produced by a dedicated audio-only pipeline, separate from the video variants.
 
-### EXT-X-MEDIA over a separate audio-only ffmpeg-per-switch
+**EXT-X-MEDIA over a separate audio-only ffmpeg-per-switch.** The master manifest declares the audio tracks as an `EXT-X-MEDIA` rendition group keyed off the source audio streams. The player switches `AUDIO` group member without touching the video playlist - the standard HLS mechanism every native client already implements. This is chosen over spawning a fresh audio-only ffmpeg session on each switch (the EAE-style approach): the rendition group is declarative, the client drives the switch, and there is no per-switch server work.
 
-The master manifest declares the audio tracks as an `EXT-X-MEDIA` rendition group keyed off the source audio streams. The player switches `AUDIO` group member without touching the video playlist - the standard HLS mechanism every native client already implements. This is chosen over spawning a fresh audio-only ffmpeg session on each switch (the EAE-style approach): the rendition group is declarative, the client drives the switch, and there is no per-switch server work.
+**A dedicated audio segment path.** `internal/adapters/driving/http/transcode_audio_handler.go` + `internal/app/transcoding/audio_segment_orchestrator.go` produce the audio segments independently of the video orchestrator, and the manifest generator grows an audio-rendition branch. The audio segment URL is keyed so each track addresses its own segments.
 
-### A dedicated audio segment path
+**Flag-off default preserves the muxed pipeline.** The rendition path is behind a flag that defaults **off**: an install with no need for multi-language audio keeps the proven muxed pipeline exactly as before. The split path is opt-in until it has the same field mileage.
 
-`internal/adapters/driving/http/transcode_audio_handler.go` + `internal/app/transcoding/audio_segment_orchestrator.go` produce the audio segments independently of the video orchestrator, and the manifest generator grows an audio-rendition branch. The audio segment URL is keyed so each track addresses its own segments.
-
-### Flag-off default preserves the muxed pipeline
-
-The rendition path is behind a flag that defaults **off**: an install with no need for multi-language audio keeps the proven muxed pipeline exactly as before. The split path is opt-in until it has the same field mileage.
-
-### Composes with the audio-copy / passthrough work
-
-This sits above the audio *codec* decisions (audio-copy of a source AAC track, multichannel AAC 5.1, AC-3/E-AC-3 passthrough): the rendition group describes *which* audio tracks exist and how to address them; each rendition's bytes are produced by the normal audio decision (copy / transcode / passthrough).
+**Composes with the audio-copy / passthrough work.** This sits above the audio *codec* decisions (audio-copy of a source AAC track, multichannel AAC 5.1, AC-3/E-AC-3 passthrough): the rendition group describes *which* audio tracks exist and how to address them; each rendition's bytes are produced by the normal audio decision (copy / transcode / passthrough).
 
 ## Consequences
 

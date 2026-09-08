@@ -1,7 +1,8 @@
 # ADR 0023 - Refresh-token rotation grace window (sibling sessions for race losers)
 
 Date: 2026-07-18
-Status: accepted (reverses the 2026-04 "strict single-use rotation" stance)
+Status: Accepted
+Supersedes: the 2026-04 "strict single-use rotation" stance
 
 ## Context
 
@@ -13,7 +14,7 @@ present a token that was consumed milliseconds earlier.
 
 The pipeline had already walked back one step of strictness: replay detection
 originally purged the user's *entire* session set, and every purge observed in
-préprod was a false positive (a race loser or an interrupted rotation), so the
+staging was a false positive (a race loser or an interrupted rotation), so the
 purge was dropped. But the loser itself was still rejected with 401 - which
 kills that tab outright: every API call fails (profile, notifications, images)
 until a manual reload. Observed live on 2026-07-18 breaking the media-requests

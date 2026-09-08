@@ -28,7 +28,7 @@ Drop cgroups entirely. Enforce caps from **userspace, inside the server process*
 - **Works in a non-privileged container, as a non-root user** - the only environment we can guarantee. No operator setup, no `--privileged`.
 - **Enforcement granularity is the sweep interval (~2s).** A plugin can briefly exceed a cap before the next sweep kills it. Acceptable: this is a trust-but-verify boundary for a self-hoster's own plugins, not a hostile multi-tenant scheduler.
 - **Disk sizing walks the plugin dir each sweep** (`dirSize`, O(files)). Fine for plugin-sized trees; revisit if a plugin stores large data.
-- **Decision of record: do NOT re-attempt cgroups in non-privileged Docker.** Validated on preprod (monitor armed, memory cap stops over-limit plugins, process runs `uid=1000`, `nice=10`). Pairs with the Landlock/seccomp filesystem-and-syscall sandbox; this ADR covers resource caps only.
+- **Decision of record: do NOT re-attempt cgroups in non-privileged Docker.** Validated on a staging instance (monitor armed, memory cap stops over-limit plugins, process runs `uid=1000`, `nice=10`). Pairs with the Landlock/seccomp filesystem-and-syscall sandbox; this ADR covers resource caps only.
 
 ## References
 

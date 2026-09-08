@@ -22,20 +22,14 @@ Add a dedicated, **deny-by-default** authorization path for plugin-token request
 2. **Method allowlist.** `method` must appear in `rbac.PluginMethodScopes[method]`, which maps the method to the single scope it requires. Absent from the allowlist ⇒ denied. The default for an unlisted method is *deny*, the opposite of the RBAC layer's `RoleUser` default - forgetting to list a method fails safe.
 3. **Scope check.** The token must actually carry the scope the allowlist demands.
 
-### Grantable capabilities (consent at install)
-
-Narrow, read- or self-oriented. Surfaced to the admin at install; enforced at the interceptor:
+**Grantable capabilities (consent at install).** Narrow, read- or self-oriented. Surfaced to the admin at install; enforced at the interceptor:
 
 - **`public`** → `GetPublicMediaItem` / `ListPublicMediaItems` only. A safe projection (`PublicMediaItem`) with **no `file_path`**, reusing the existing access/parental gates.
 - **`prefs`** → `PluginUserDataService` (`GetPref` / `SetPref` / `DeletePref` / `ListPrefs`) only. Strictly the calling plugin's own key/value rows for the calling user; both `plugin_id` and `user_id` come from the token, never the request.
 
-### Hard-locked (never grantable, never bypassable)
+**Hard-locked (never grantable, never bypassable).** Scopes use **dot notation** (`media.read`, `library.write`, …), not colons. Any scope under the prefixes `admin.`, `auth.`, `system.` (prefix-matched in `pkg/auth.forbiddenPrefix`), plus the exact scopes `user.write` and `library.write`, is hard-locked: requested in a manifest ⇒ install rejected; present in a token ⇒ rejected at mint, and the admin method floor (step 1) rejects admin RPCs independently of any scope.
 
-Scopes use **dot notation** (`media.read`, `library.write`, …), not colons. Any scope under the prefixes `admin.`, `auth.`, `system.` (prefix-matched in `pkg/auth.forbiddenPrefix`), plus the exact scopes `user.write` and `library.write`, is hard-locked: requested in a manifest ⇒ install rejected; present in a token ⇒ rejected at mint, and the admin method floor (step 1) rejects admin RPCs independently of any scope.
-
-### Bridge model - the token never enters the sandbox
-
-The iframe (and the mobile WebView) never hold a plugin token:
+**Bridge model - the token never enters the sandbox.** The iframe (and the mobile WebView) never hold a plugin token:
 
 - The parent (`PluginIframe` / mobile `PluginSlot`) mints the token via `IssuePluginToken` and **proxies** `prefs`/`public` RPCs on the plugin's behalf.
 - The sandbox issues `postMessage` RPCs (correlation-id matched); the parent attaches the token and forwards.

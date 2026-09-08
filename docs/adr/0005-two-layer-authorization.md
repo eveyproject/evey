@@ -1,6 +1,7 @@
 # ADR-0005: Two-layer authorization (interceptor RBAC + handler resource check)
 
-- Status: Accepted (the plugin-token "third lever" is revised by [ADR-0012](0012-plugin-token-deny-by-default.md): mint-time scope filtering proved insufficient; enforcement is now deny-by-default at the interceptor)
+- Status: Accepted
+- Amended by: [ADR-0012](0012-plugin-token-deny-by-default.md) - mint-time scope filtering proved insufficient; enforcement is now deny-by-default at the interceptor
 - Date: 2026-04-20
 
 ## Context
@@ -16,9 +17,7 @@ We also run periodic security audits. Every pass so far has surfaced false-posit
 
 Split authorization into two distinct layers with orthogonal responsibilities.
 
-### Layer 1 - Interceptor RBAC: "can you reach this endpoint at all"
-
-A single unary/stream interceptor (`AuthInterceptor.enforceRBAC`) consults `DefaultRBACConfig()` before any handler runs and bucketises every gRPC method:
+**Layer 1 - Interceptor RBAC: "can you reach this endpoint at all".** A single unary/stream interceptor (`AuthInterceptor.enforceRBAC`) consults `DefaultRBACConfig()` before any handler runs and bucketises every gRPC method:
 
 - **`PublicMethods`** - no authentication required (`Login`, `RefreshToken`, `RegisterWithInvite`, `RequestPasswordReset`, `ResetPassword`, `InitiateQuickConnect`, `CheckQuickConnect`, setup-wizard RPCs).
 - **`MethodRoles[m] == RoleAdmin`** - every destructive, system-wide, or cross-user operation. Rejection with `codes.PermissionDenied` if `claims.IsAdmin == false`.
@@ -26,9 +25,7 @@ A single unary/stream interceptor (`AuthInterceptor.enforceRBAC`) consults `Defa
 
 The interceptor is the only authorization code the `/evey.v1.Admin*Service/*` handlers see. They trust the layer.
 
-### Layer 2 - Handler resource check: "can you touch THIS row"
-
-For user-scoped resources the handler runs an owner / library-access check against `claims.UserID` - either a handler helper like `checkLibraryAccess(ctx, libraryID)`, or a delegation to the app service that raises a typed ownership error (e.g. playlists return `appplaylist.ErrNotOwner` when `claims.UserID` isn't the owner). This layer cannot be promoted to the interceptor because the resource identifier is inside the request proto, not in the method name - the interceptor has no way to resolve `media_item_id → library_id → granted?` without decoding each proto.
+**Layer 2 - Handler resource check: "can you touch THIS row".** For user-scoped resources the handler runs an owner / library-access check against `claims.UserID` - either a handler helper like `checkLibraryAccess(ctx, libraryID)`, or a delegation to the app service that raises a typed ownership error (e.g. playlists return `appplaylist.ErrNotOwner` when `claims.UserID` isn't the owner). This layer cannot be promoted to the interceptor because the resource identifier is inside the request proto, not in the method name - the interceptor has no way to resolve `media_item_id → library_id → granted?` without decoding each proto.
 
 Admins skip Layer 2 by design: they're trusted to operate on any library.
 

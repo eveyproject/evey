@@ -18,25 +18,15 @@ We want revocation that is **fail-closed**, costs ~nothing in the common case, a
 
 Each user carries a monotonically increasing **token epoch** (an integer column, migration 000114). Every minted access token embeds the current epoch as an `epoch` claim. Validation accepts the token only if its `epoch` matches the user's current epoch - looked up through a short-TTL cache. A revocation is a single **epoch bump**, which invalidates every token minted before it in one write.
 
-### One decorator, one wire instance
+**One decorator, one wire instance.** `EpochGuardedTokens` decorates the `TokenGenerator` port. A single instance is wired (`cmd/evey/wire.go`) and used by every mint site - gRPC, HTTP, all `register*` flows - so there is exactly one place that stamps and checks the epoch. Mint stamps the current epoch; validate is **fail-closed** (a lookup error denies); Revoke bumps the epoch and drops the cache entry.
 
-`EpochGuardedTokens` decorates the `TokenGenerator` port. A single instance is wired (`cmd/evey/wire.go`) and used by every mint site - gRPC, HTTP, all `register*` flows - so there is exactly one place that stamps and checks the epoch. Mint stamps the current epoch; validate is **fail-closed** (a lookup error denies); Revoke bumps the epoch and drops the cache entry.
+**A narrow `TokenEpochRepository` port.** Epoch read/bump is a dedicated narrow port, deliberately kept out of `UserRepository.Update`/`userColumns` so a routine user update never accidentally moves the epoch. The bump is atomic.
 
-### A narrow `TokenEpochRepository` port
+**30-second cache TTL: the latency/cost knob.** The epoch lookup is cached for 30 s. This bounds the revocation latency (a disabled user keeps access for at most ~30 s after the TTL elapses) while keeping validation a cache hit, not a DB read, in the overwhelmingly common no-revocation case. 30 s was chosen as the security-vs-cost balance: short enough that "disable user" feels immediate, long enough that the cache absorbs request bursts.
 
-Epoch read/bump is a dedicated narrow port, deliberately kept out of `UserRepository.Update`/`userColumns` so a routine user update never accidentally moves the epoch. The bump is atomic.
+**What bumps the epoch (security events only - NOT logout).** `DisableUser`, `ChangePassword`, `ResetPassword`, and role changes (`UpdateUser` when the role moves) bump the epoch. `DeleteUser` is covered by the lookup failing closed. Ordinary logout does **not** bump (it just drops the refresh token) - the epoch is for *security* revocations, not session hygiene, so a logout on one device doesn't kill every other session.
 
-### 30-second cache TTL: the latency/cost knob
-
-The epoch lookup is cached for 30 s. This bounds the revocation latency (a disabled user keeps access for at most ~30 s after the TTL elapses) while keeping validation a cache hit, not a DB read, in the overwhelmingly common no-revocation case. 30 s was chosen as the security-vs-cost balance: short enough that "disable user" feels immediate, long enough that the cache absorbs request bursts.
-
-### What bumps the epoch (security events only - NOT logout)
-
-`DisableUser`, `ChangePassword`, `ResetPassword`, and role changes (`UpdateUser` when the role moves) bump the epoch. `DeleteUser` is covered by the lookup failing closed. Ordinary logout does **not** bump (it just drops the refresh token) - the epoch is for *security* revocations, not session hygiene, so a logout on one device doesn't kill every other session.
-
-### Legacy tokens
-
-Tokens minted before this mechanism carry no epoch (epoch 0) and remain valid until the first bump for that user. There is no flag day.
+**Legacy tokens.** Tokens minted before this mechanism carry no epoch (epoch 0) and remain valid until the first bump for that user. There is no flag day.
 
 ## Consequences
 

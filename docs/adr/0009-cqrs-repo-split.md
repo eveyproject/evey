@@ -28,7 +28,7 @@ Similar problems existed on `MediaItemRepository` (mixed reads/writes) and were 
 
 Split every repository port into two interfaces along the CQRS axis - one for writes (`XCommandRepo`), one for reads (`XQueryRepo`) - and migrate callers progressively.
 
-### The three interfaces during migration
+**The three interfaces during migration.**
 
 1. **`XCommandRepo`** - `Create`, `Update`, `Delete`, and any other mutation.
 2. **`XQueryRepo`** - `Get*`, `List*`, `Count*`, anything that doesn't mutate.
@@ -36,20 +36,18 @@ Split every repository port into two interfaces along the CQRS axis - one for wr
 
 The union interface embeds both so it drifts automatically when either CQRS half gets a new method - no handwritten duplication. The postgres adapter type satisfies all three; fakes satisfy all three.
 
-### Migration order per repository
+**Migration order per repository.**
 
 1. Introduce `XCommandRepo` + `XQueryRepo` side by side with `XRepository`.
 2. Migrate the easy callers first: read-only services take `XQueryRepo`, command services take `XCommandRepo`, watcher-style services take `XQueryRepo`. Each migrated caller ships in its own commit.
 3. When `XRepository` has no remaining callers except the postgres type assertion, either collapse the type assertion or delete the interface.
 
-### No big-bang migration
-
-Rewriting every caller in one commit produced merge conflicts across the pluginrunner, feed, metadata, and scan packages in previous attempts. Per-caller migration is slower on paper but ships faster because each commit is reviewable independently.
+**No big-bang migration.** Rewriting every caller in one commit produced merge conflicts across the pluginrunner, feed, metadata, and scan packages in previous attempts. Per-caller migration is slower on paper but ships faster because each commit is reviewable independently.
 
 ## Applied scope
 
 - `library.LibraryRepository` - union of `LibraryCommandRepo` + `LibraryQueryRepo`. Watcher migrated 2026-04-20 to `LibraryQueryRepo`. Only remaining caller is the postgres type assertion - harmless.
-- `library.MediaItemRepository` → `MediaItemCommandRepo` + `MediaItemQueryRepo` split partial. `watcher.go` migrated; `library_repo.go:114` still uses the unified port. Further migration remains in the backlog (gros blast radius, estimated session dédiée).
+- `library.MediaItemRepository` → `MediaItemCommandRepo` + `MediaItemQueryRepo` split partial. `watcher.go` migrated; `library_repo.go:114` still uses the unified port. Further migration remains in the backlog (large blast radius, needs a dedicated pass).
 
 ## Consequences
 

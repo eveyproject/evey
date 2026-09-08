@@ -5,7 +5,7 @@
 
 ## Context
 
-Evey's player and transcoder need a feedback signal: is the client starving, buffering, or comfortably ahead? Without it the encoder cannot pace its rafales (pause when the client is ahead, prefetch when the buffer is fat), the per-title ladder cannot learn, and the admin has no QoE dashboard - only closed-source commercial "insights" dashboards do this.
+Evey's player and transcoder need a feedback signal: is the client starving, buffering, or comfortably ahead? Without it the encoder cannot pace its bursts (pause when the client is ahead, prefetch when the buffer is fat), the per-title ladder cannot learn, and the admin has no QoE dashboard - only closed-source commercial "insights" dashboards do this.
 
 Three approaches were considered:
 
@@ -19,21 +19,13 @@ A second tension: the ingest path sits next to the **HLS segment hot path**. Tel
 
 QoE is a dedicated bounded context (`internal/app/qoe`) fed by CMCD parsed in a shared package (`internal/pkg/cmcd`), with an **in-process, non-blocking, drop-on-full** sink.
 
-### CMCD over a custom schema
+**CMCD over a custom schema.** Clients send CMCD (CTA-5004) on segment requests. `internal/pkg/cmcd` parses it (capped at a fixed key budget to bound a hostile client). The decision is: speak the standard the player already emits rather than a custom format - no Evey-specific client code, and the data is interpretable by any CMCD-aware tool.
 
-Clients send CMCD (CTA-5004) on segment requests. `internal/pkg/cmcd` parses it (capped at a fixed key budget to bound a hostile client). The decision is: speak the standard the player already emits rather than a custom format - no Evey-specific client code, and the data is interpretable by any CMCD-aware tool.
+**A channel and a worker, never an external queue.** Ingest hands the parsed sample to a buffered channel drained by a worker goroutine that writes the QoE store asynchronously. The HLS hot path does a non-blocking channel send and returns immediately. An in-process sink (not Kafka/NATS) keeps the resource footprint flat and lets the encoder feedback loop read the live signal without a network hop.
 
-### Non-blocking channel-and-worker sink, never an external queue
+**Dropping when full, deliberately.** If the sink channel is full (a burst, or a slow store), the sample is **dropped**, not blocked-on. Telemetry is best-effort by definition; losing a QoE ping is invisible to the user, whereas blocking a segment response is a stall. This trade-off is the whole point of the design and must not be "fixed" by making the send blocking.
 
-Ingest hands the parsed sample to a buffered channel drained by a worker goroutine that writes the QoE store asynchronously. The HLS hot path does a non-blocking channel send and returns immediately. An in-process sink (not Kafka/NATS) keeps the resource footprint flat and lets the encoder feedback loop read the live signal without a network hop.
-
-### Deliberate drop-on-full
-
-If the sink channel is full (a burst, or a slow store), the sample is **dropped**, not blocked-on. Telemetry is best-effort by definition; losing a QoE ping is invisible to the user, whereas blocking a segment response is a stall. This trade-off is the whole point of the design and must not be "fixed" by making the send blocking.
-
-### Feedback loop is variant-neutral and respects the manual quality lock
-
-The encoder reads the QoE signal to pace itself (SIGCONT on a starving client, prefetch on a fat buffer, refined clientHighWater) without ever overriding a user's manual quality selection - the loop adjusts *pacing*, not the chosen rung.
+**The feedback loop respects a manual quality choice.** The encoder reads the QoE signal to pace itself (SIGCONT on a starving client, prefetch on a fat buffer, refined clientHighWater) without ever overriding a user's manual quality selection - the loop adjusts *pacing*, not the chosen rung.
 
 ## Consequences
 
