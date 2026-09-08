@@ -22,6 +22,7 @@ import { shouldHandover, isStarved, type HandoverVerdict } from "./relayGuard";
 import { AAC_SAMPLES_PER_FRAME, adtsFromFrames, extractAacFrames, parseAacConfig, type AacConfig } from "./fmp4Adts";
 import { outputMix } from "./channelMix";
 import { planRelayHandover, type Segment } from "./relayHandover";
+import { SegmentRetryTracker } from "./segmentRetry";
 
 const WASM_URL = "/wasm/ac3go.wasm";
 const WASM_EXEC_URL = "/wasm/wasm_exec.js";
@@ -40,14 +41,105 @@ const RESYNC_THRESHOLD_SEC = 0.3;
 // Delaying the audio by roughly the output latency lines them up. Tunable.
 const DEFAULT_LEAD_COMP_SEC = 0.1;
 const SCHEDULE_TICK_MS = 100;
+// How many segments one tick may hand to Web Audio. See scheduleWindow: each
+// one costs an AudioBuffer allocation (plus, for a cached old worker still on
+// the interleaved protocol, a de-interleave) on the main thread, and doing the
+// whole window at once is what makes the picture hitch.
+const SCHEDULE_PER_TICK = 2;
 
-// Two decode outputs: the wasm worker hands raw interleaved PCM (remapped to
-// the browser's channel order at schedule time); the native leg hands the
-// AudioBuffer decodeAudioData built (already browser-ordered), plus the
-// offset of the preroll samples to skip (see decodeNativeSegment).
-type DecodedSegment =
-  | { kind: "pcm"; channels: number; sampleRate: number; frames: number; pcm: Float32Array }
-  | { kind: "buffer"; audioBuffer: AudioBuffer; offsetSec: number };
+// Two decode outputs: the wasm worker hands PCM in the decoder's channel
+// order (remapped to the browser's order at schedule time); the native leg
+// hands the AudioBuffer decodeAudioData built (already browser-ordered),
+// plus the offset of the preroll samples to skip (see decodeNativeSegment).
+//
+// The worker's PCM reply comes in one of three shapes, newest first:
+//   - planar + mixed: one Float32Array per OUTPUT channel, the mix table
+//     already applied on the worker thread. Nothing but native copies remain
+//     here, whatever the layout - 7.1 included.
+//   - planar, not mixed: one array per SOURCE channel; the permutation is a
+//     native copy, the 7.1 fold still sums on this thread.
+//   - interleaved `pcm`: a cached old ac3Worker.js served against a fresh
+//     page (see that file's protocol comment). De-interleaved here.
+// All three are kept because the worker is a static file the browser caches
+// on its own schedule.
+export type PcmDecoded =
+  | { kind: "pcm"; channels: number; sampleRate: number; frames: number; planar: Float32Array<ArrayBuffer>[]; mixed?: boolean }
+  | { kind: "pcm"; channels: number; sampleRate: number; frames: number; pcm: Float32Array };
+
+// workerMixTable is what the worker needs to hand back OUTPUT channels: the
+// same outputMix, for every layout the decoder can produce, keyed by source
+// channel count. Built here so channelMix.ts stays the single definition.
+export function workerMixTable(): Record<number, Array<Array<[number, number]>>> {
+  const table: Record<number, Array<Array<[number, number]>>> = {};
+  for (let ch = 1; ch <= 8; ch++) table[ch] = outputMix(ch);
+  return table;
+}
+
+type DecodedSegment = PcmDecoded | { kind: "buffer"; audioBuffer: AudioBuffer; offsetSec: number };
+
+// SegmentHttpError carries the response status through the decode Promise
+// chain so the pump loop can tell an auth failure (401/403 - the sliding
+// stream token expired) apart from any other segment error, without the two
+// decode paths (wasm fetch, native fetch) duplicating that logic.
+class SegmentHttpError extends Error {
+  constructor(readonly status: number) {
+    super(`segment ${status}`);
+    this.name = "SegmentHttpError";
+  }
+}
+
+function isAuthStatus(err: unknown): boolean {
+  return err instanceof SegmentHttpError && (err.status === 401 || err.status === 403);
+}
+
+// fillAudioBuffer copies a decoded PCM segment into a Web Audio buffer whose
+// channel layout is already the mix's output order. Exported as a pure seam
+// so the mapping (planar/interleaved, and the 7.1 fold) can be unit-tested
+// without a real AudioContext.
+export function fillAudioBuffer(
+  target: AudioBuffer,
+  d: PcmDecoded,
+  mix: Array<Array<[number, number]>>,
+): void {
+  if ("planar" in d) {
+    if (d.mixed) {
+      // Already in output order with the taps applied: one native copy per
+      // channel and nothing else, whatever the layout.
+      for (let co = 0; co < d.planar.length; co++) target.copyToChannel(d.planar[co], co);
+      return;
+    }
+    for (let co = 0; co < mix.length; co++) {
+      const taps = mix[co];
+      if (taps.length === 1 && taps[0][1] === 1) {
+        // Pure permutation: a native copy, no JS loop over samples.
+        target.copyToChannel(d.planar[taps[0][0]], co);
+      } else {
+        const out = target.getChannelData(co);
+        for (let f = 0; f < d.frames; f++) {
+          let s = 0;
+          for (let t = 0; t < taps.length; t++) s += d.planar[taps[t][0]][f] * taps[t][1];
+          out[f] = s;
+        }
+      }
+    }
+    return;
+  }
+  const ch = d.channels;
+  for (let co = 0; co < mix.length; co++) {
+    const out = target.getChannelData(co);
+    const taps = mix[co];
+    if (taps.length === 1) {
+      const src = taps[0][0];
+      for (let f = 0; f < d.frames; f++) out[f] = d.pcm[f * ch + src];
+    } else {
+      for (let f = 0; f < d.frames; f++) {
+        let s = 0;
+        for (let t = 0; t < taps.length; t++) s += d.pcm[f * ch + taps[t][0]] * taps[t][1];
+        out[f] = s;
+      }
+    }
+  }
+}
 
 export interface WasmAudioEngineOptions {
   // resolveUrl rewrites a URL with the freshest auth token before every fetch,
@@ -84,6 +176,15 @@ export interface WasmAudioEngineOptions {
   // beta report could only be inferred, the gate left no trace. Telemetry only.
   onStallGate?: (cuts: number) => void;
   leadCompensationSec?: number;
+  // onAuthError is called when a segment fetch returns 401/403 - most often
+  // the sliding stream token expiring across a pause longer than its TTL
+  // (hls.js's own buffer rides through it silently; this engine's shorter
+  // look-ahead does not). Resolution means "a fresh token now lives wherever
+  // resolveUrl reads it" - the pump loop's next retry (after its backoff)
+  // picks it up. Optional: without it an expired token just backs off like
+  // any other failure instead of healing. Deduped internally: several
+  // segments failing at once trigger only one call.
+  onAuthError?: () => Promise<string | void>;
   // Credentials for playlist/segment fetches. The web (same-origin) keeps
   // "include" (hls cookie). The Cast Web Receiver is CROSS-origin with the
   // media server: the CORS token-auth reflects the Origin WITHOUT
@@ -171,6 +272,13 @@ export class WasmAudioEngine {
   // segments[0] because a deep resume starts mid-file, never at segment 0.
   private everScheduled = false;
   private decodeFailStreak = 0;
+  // Per-index backoff/attempt-cap state for pump()'s retry loop - see
+  // segmentRetry.ts for the policy itself and why it exists.
+  private readonly retryTracker = new SegmentRetryTracker();
+  // Single-flight gate on opts.onAuthError: several segments can 401 within
+  // the same pump pass (a whole in-flight window went stale together), and
+  // without this each would fire its own refresh call.
+  private authRefreshInFlight: Promise<unknown> | null = null;
 
   private decodeSeq = 0;
   private pendingDecodes = new Map<number, { resolve: (d: DecodedSegment) => void; reject: (e: Error) => void }>();
@@ -197,6 +305,22 @@ export class WasmAudioEngine {
     if (this.destroyed) return;
     console.warn("[WasmAudioEngine] fatal:", reason);
     this.opts.onFatal?.(reason);
+  }
+
+  // requestAuthRefresh asks the host for a fresh token, deduping concurrent
+  // callers (see authRefreshInFlight). Fire-and-forget from the pump loop's
+  // point of view: the token lands in whatever resolveUrl reads, and the
+  // segment's own backoff (already recorded by the caller) is what schedules
+  // the retry that picks it up - this method does not retry anything itself.
+  private requestAuthRefresh(): void {
+    if (!this.opts.onAuthError || this.authRefreshInFlight || this.destroyed) return;
+    this.authRefreshInFlight = Promise.resolve(this.opts.onAuthError())
+      .catch((err) => {
+        console.warn("[WasmAudioEngine] auth refresh failed:", err);
+      })
+      .finally(() => {
+        this.authRefreshInFlight = null;
+      });
   }
 
   async start(): Promise<void> {
@@ -473,6 +597,9 @@ export class WasmAudioEngine {
     }
     this.inflight.clear();
     this.prerollCache = null;
+    // Old indices name different segments in the new timeline - their backoff
+    // history no longer applies.
+    this.retryTracker.clearAll();
   }
 
   // --- worker -------------------------------------------------------------
@@ -492,13 +619,26 @@ export class WasmAudioEngine {
           const p = this.pendingDecodes.get(msg.id);
           if (p) {
             this.pendingDecodes.delete(msg.id);
-            p.resolve({
-              kind: "pcm",
-              channels: msg.channels,
-              sampleRate: msg.sampleRate,
-              frames: msg.frames,
-              pcm: new Float32Array(msg.pcm),
-            });
+            // msg.planar: fresh worker. msg.pcm: a cached old ac3Worker.js
+            // still running the interleaved protocol - keep serving it.
+            if (msg.planar) {
+              p.resolve({
+                kind: "pcm",
+                channels: msg.channels,
+                sampleRate: msg.sampleRate,
+                frames: msg.frames,
+                planar: (msg.planar as ArrayBuffer[]).map((b) => new Float32Array(b)),
+                mixed: msg.mixed === true,
+              });
+            } else {
+              p.resolve({
+                kind: "pcm",
+                channels: msg.channels,
+                sampleRate: msg.sampleRate,
+                frames: msg.frames,
+                pcm: new Float32Array(msg.pcm),
+              });
+            }
           }
         } else if (msg.type === "decodeError") {
           const p = this.pendingDecodes.get(msg.id);
@@ -509,7 +649,7 @@ export class WasmAudioEngine {
         }
       };
       worker.onerror = (e) => reject(new Error("worker error: " + e.message));
-      worker.postMessage({ type: "init", wasmUrl: WASM_URL, wasmExecUrl: WASM_EXEC_URL });
+      worker.postMessage({ type: "init", wasmUrl: WASM_URL, wasmExecUrl: WASM_EXEC_URL, mixes: workerMixTable() });
     });
   }
 
@@ -523,7 +663,7 @@ export class WasmAudioEngine {
       }
       fetch(this.resolve(seg.url), { credentials: this.opts.credentials ?? "include" })
         .then((r) => {
-          if (!r.ok) throw new Error(`segment ${r.status}`);
+          if (!r.ok) throw new SegmentHttpError(r.status);
           return r.arrayBuffer();
         })
         .then((buf) => {
@@ -547,7 +687,7 @@ export class WasmAudioEngine {
     const cfg = this.aacCfg;
     if (!ctx || !cfg) throw new Error("native leg not initialised");
     const r = await fetch(this.resolve(seg.url), { credentials: this.opts.credentials ?? "include" });
-    if (!r.ok) throw new Error(`segment ${r.status}`);
+    if (!r.ok) throw new SegmentHttpError(r.status);
     const bytes = new Uint8Array(await r.arrayBuffer());
     const frames = extractAacFrames(bytes);
     if (frames.length === 0) throw new Error("no AAC frames in segment");
@@ -855,18 +995,27 @@ export class WasmAudioEngine {
           const s = this.segments[idx];
           if (s && s.start + s.dur < ct - 4) this.decodedCache.delete(idx);
         }
+        // Paused: fetch nothing new once a first segment has ever scheduled -
+        // a long pause (stream token TTL, viewer stepping away) must not keep
+        // hammering fetches nothing will play soon (the 2026-09-08 401 storm:
+        // pump() decoded ahead through an entire pause on an expired token).
+        // A cold start still needs to fill in while paused (autoplay blocked,
+        // player opened paused), so the very first segment is exempt.
+        if (this.video.paused && this.everScheduled) break;
         // First not-yet-decoded segment in the window, measured from the LIVE ct.
         let target = -1;
+        const now = Date.now();
         for (let idx = this.segmentIndexAt(ct); idx < this.segments.length; idx++) {
           const seg = this.segments[idx];
           if (seg.start > ct + BUFFER_AHEAD_SEC) break;
           if (seg.start + seg.dur <= ct - 0.05) continue; // wholly past
           if (this.decodedCache.has(idx) || this.inflight.has(idx)) continue;
           if (!seg.native && !this.worker) continue; // wasm segment, worker not up yet
+          if (!this.retryTracker.canAttempt(idx, now)) continue; // backing off / exhausted
           target = idx;
           break;
         }
-        if (target < 0) break; // window fully decoded
+        if (target < 0) break; // window fully decoded (or every candidate is backing off)
         const seg = this.segments[target];
         const gen = this.timelineGen;
         this.inflight.add(target);
@@ -876,6 +1025,7 @@ export class WasmAudioEngine {
           if (gen !== this.timelineGen) continue; // timeline swapped mid-decode: stale index
           this.decodedCache.set(target, d);
           this.decodeFailStreak = 0;
+          this.retryTracker.clear(target);
           // Only wasm decodes feed the starvation watchdog: the native leg
           // delivering is precisely NOT evidence that the wasm leg is alive.
           if (!seg.native) this.lastWasmDecodeAt = Date.now();
@@ -887,6 +1037,13 @@ export class WasmAudioEngine {
           }
         } catch (err) {
           if (gen !== this.timelineGen) continue;
+          // Backoff/attempt-cap for THIS index, independent of everScheduled:
+          // a 401/403 asks for a fresh token (deduped, at most once per
+          // failure streak) in addition to backing off - the refresh does not
+          // bypass the wait, in case the failure wasn't actually auth-related.
+          if (this.retryTracker.recordFailure(target, Date.now(), isAuthStatus(err))) {
+            this.requestAuthRefresh();
+          }
           // A single bad segment once playback is going must not kill it. But if
           // NOTHING has ever scheduled and decodes keep failing, this source is
           // undecodable - fail its leg (relay) or the engine (classic).
@@ -919,6 +1076,21 @@ export class WasmAudioEngine {
   private scheduleWindow(ct: number): void {
     if (!this.anchored) return;
     const start = this.segmentIndexAt(ct);
+    // Budget per tick. Scheduling a segment allocates an AudioBuffer for it (a
+    // 3 s 5.1 segment is ~3.4 MB) and, with the planar worker protocol, fills
+    // it with native copyToChannel calls - a cached old worker still on the
+    // interleaved protocol instead de-interleaves ~864 K samples in a JS loop.
+    // Either way, draining the whole 20 s window in one tick is a single task
+    // doing ~24 MB of allocation (plus the JS loop on the legacy path). The
+    // sound never suffers - it is already scheduled on the audio thread - but
+    // the page cannot paint meanwhile, which is the "picture slows down while
+    // the sound stays fluid" report. A resync empties scheduledIdx, so that
+    // burst landed on exactly the moment the viewer resumed.
+    //
+    // Spreading it costs nothing: the window is 20 s ahead and the tick runs
+    // every 100 ms, so even one segment per tick fills it far faster than
+    // playback drains it.
+    let budget = SCHEDULE_PER_TICK;
     for (let idx = start; idx < this.segments.length; idx++) {
       const seg = this.segments[idx];
       if (seg.start > ct + BUFFER_AHEAD_SEC) break;
@@ -927,6 +1099,9 @@ export class WasmAudioEngine {
       const d = this.decodedCache.get(idx);
       if (!d) continue; // not decoded yet - a later tick schedules it
       this.scheduleDecoded(idx, seg, d);
+      // The loop starts at the segment under the playhead, so with a budget of
+      // at least one that segment is never deferred; the rest can wait a tick.
+      if (--budget <= 0) break;
     }
   }
 
@@ -939,22 +1114,10 @@ export class WasmAudioEngine {
     let baseOffset = seg.trimSec ?? 0;
     if (d.kind === "pcm") {
       const mix = outputMix(d.channels);
-      const ch = d.channels;
+      // The output layout is the mix's; a mixed planar reply already has
+      // exactly that many channels.
       buffer = ctx.createBuffer(mix.length, d.frames, d.sampleRate);
-      for (let co = 0; co < mix.length; co++) {
-        const out = buffer.getChannelData(co);
-        const taps = mix[co];
-        if (taps.length === 1) {
-          const src = taps[0][0];
-          for (let f = 0; f < d.frames; f++) out[f] = d.pcm[f * ch + src];
-        } else {
-          for (let f = 0; f < d.frames; f++) {
-            let s = 0;
-            for (let t = 0; t < taps.length; t++) s += d.pcm[f * ch + taps[t][0]] * taps[t][1];
-            out[f] = s;
-          }
-        }
-      }
+      fillAudioBuffer(buffer, d, mix);
     } else {
       // decodeAudioData output is already in the browser's channel order.
       buffer = d.audioBuffer;

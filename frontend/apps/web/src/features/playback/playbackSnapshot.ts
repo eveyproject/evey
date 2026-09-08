@@ -28,6 +28,19 @@ export function registerEngineStats(video: HTMLVideoElement, stats: () => Engine
   };
 }
 
+// Same idea for the render watch: how many frames actually reached the screen,
+// and how late a 250 ms timer ran. Registered per element so EVERY beacon
+// carries it, not just the slowdown report - the interesting comparison is a
+// stall's numbers against a healthy moment's.
+const renderStatsByVideo = new WeakMap<HTMLVideoElement, () => string | null>();
+
+export function registerRenderStats(video: HTMLVideoElement, stats: () => string | null): () => void {
+  renderStatsByVideo.set(video, stats);
+  return () => {
+    if (renderStatsByVideo.get(video) === stats) renderStatsByVideo.delete(video);
+  };
+}
+
 function fmt(n: number): string {
   return Number.isFinite(n) ? n.toFixed(1) : "-";
 }
@@ -71,6 +84,13 @@ export function playbackSnapshot(video: HTMLVideoElement, engine?: EngineStats |
   if (engine) {
     parts.push(`wasm=${engine.mode ?? "?"}/${engine.ctxState ?? "?"}/${engine.anchored ? "anch" : "free"}/src${engine.activeSources ?? 0}/dec${engine.decoded ?? 0}`);
     if (engine.driftMs != null && Number.isFinite(engine.driftMs)) parts.push(`drift=${Math.round(engine.driftMs)}ms`);
+  }
+  const render = renderStatsByVideo.get(video);
+  if (render) {
+    try {
+      const line = render();
+      if (line) parts.push(line);
+    } catch { /* a broken watch must never cost us the rest of the snapshot */ }
   }
   return parts.join(" ");
 }

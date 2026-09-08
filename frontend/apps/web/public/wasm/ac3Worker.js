@@ -1,24 +1,67 @@
 /* ac3Worker.js - a classic Web Worker that runs the ac3go WebAssembly decoder
  * off the main thread. It loads Go's wasm runtime shim + the ac3go module once,
- * then decodes AC-3 / E-AC-3 CMAF audio segments to interleaved float32 PCM on
+ * then decodes AC-3 / E-AC-3 CMAF audio segments to planar float32 PCM on
  * demand. Kept as a plain-JS file in public/ (not bundled) so it can be a
  * CLASSIC worker and use importScripts for the non-module wasm_exec.js - the one
  * reliable way to pull in Go's runtime without eval (CSP-safe beyond the
  * wasm-unsafe-eval WebAssembly itself needs).
  *
  * Protocol (main <-> worker), all postMessage:
- *   main -> { type:'init', wasmUrl, wasmExecUrl }
+ *   main -> { type:'init', wasmUrl, wasmExecUrl, mixes? }
  *   worker -> { type:'ready' } | { type:'error', error }
- *   main -> { type:'decode', id, bytes:ArrayBuffer, downmix? } (bytes transferred)
- *   worker -> { type:'decoded', id, channels, sampleRate, frames, pcm:ArrayBuffer }
+ *   main -> { type:'decode', id, bytes:ArrayBuffer, downmix?, dither? } (bytes transferred)
+ *   worker -> { type:'decoded', id, channels, sampleRate, frames, planar:ArrayBuffer[], mixed }
  *           | { type:'decodeError', id, error }
+ *
+ * planar carries one ArrayBuffer per channel (all transferred), so the main
+ * thread copies each into an AudioBuffer with the native copyToChannel instead
+ * of a JS loop - that loop used to run on the main thread and stalled painting.
+ *
+ * mixes (init) is the main thread's channel-mix table, keyed by source channel
+ * count: for each OUTPUT channel, the [sourceIndex, gain] taps to sum. It is
+ * defined ONCE, in channelMix.ts, and handed over here so this file never
+ * carries a copy of it. When the table knows the decoded layout, planar is
+ * already in OUTPUT order with the taps applied (mixed:true) - the 7.1 fold
+ * included, which is the one layout that needs real arithmetic and used to
+ * be the last per-sample loop left on the main thread. Without a table entry,
+ * planar is the raw SOURCE layout (mixed:false) and the main thread maps it.
  */
 
 let ac3 = null;
+// Source-channel-count -> output taps, from the init message (see header).
+let mixes = null;
 
 function post(msg, transfer) {
   self.postMessage(msg, transfer || []);
 }
+
+/* mixPlanar builds the OUTPUT channels from the SOURCE ones. A single unity
+ * tap is a permutation and reuses the source array itself (no copy, the
+ * buffer is simply transferred under its output index); anything else is a
+ * weighted sum into a fresh array. Same arithmetic, in the same order, as the
+ * main thread's fillAudioBuffer, so the two paths are sample-identical - the
+ * test in ac3Worker.test.ts holds them to that. */
+function mixPlanar(planarSrc, frames, mix) {
+  const out = new Array(mix.length);
+  for (let co = 0; co < mix.length; co++) {
+    const taps = mix[co];
+    if (taps.length === 1 && taps[0][1] === 1) {
+      out[co] = planarSrc[taps[0][0]];
+      continue;
+    }
+    const dst = new Float32Array(frames);
+    for (let f = 0; f < frames; f++) {
+      let s = 0;
+      for (let t = 0; t < taps.length; t++) s += planarSrc[taps[t][0]][f] * taps[t][1];
+      dst[f] = s;
+    }
+    out[co] = dst;
+  }
+  return out;
+}
+// Reachable from a test that loads this file with a fake `self`; harmless in
+// a real worker.
+self.eveyWorkerTestHooks = { mixPlanar };
 
 /* wasmMemory is the module's linear memory. It is the ONLY honest memory
  * figure for this decoder: performance.memory (the receiver's mem= beacon)
@@ -110,6 +153,7 @@ self.onmessage = async (e) => {
   if (!msg) return;
 
   if (msg.type === "init") {
+    mixes = msg.mixes || null;
     try {
       await init(msg.wasmUrl, msg.wasmExecUrl);
       post({ type: "ready" });
@@ -126,28 +170,50 @@ self.onmessage = async (e) => {
       return;
     }
     try {
-      const opts = msg.downmix ? { downmix: msg.downmix } : undefined;
+      // dither: the decoder's own choice by default (on). A conformance test
+      // turns it off to compare against another decoder, because the noise
+      // AC-3 puts in unallocated mantissas is drawn locally and can never match.
+      const opts = {};
+      if (msg.downmix) opts.downmix = msg.downmix;
+      if (typeof msg.dither === "boolean") opts.dither = msg.dither;
       const res = ac3.decode(new Uint8Array(msg.bytes), opts);
       if (res.error) {
         post({ type: "decodeError", id, error: res.error });
         return;
       }
-      const floatCount = res.frames * res.channels;
-      // Copy the exact PCM span into a fresh ArrayBuffer so it transfers cleanly
-      // (the Go-returned view may alias runtime memory we must not detach).
-      const view = new Uint8Array(res.bytes.buffer, res.bytes.byteOffset, floatCount * 4);
-      const pcm = view.slice().buffer;
+      const channels = res.channels;
+      const frames = res.frames;
+      const floatCount = frames * channels;
+      // Copy the exact PCM span into a fresh ArrayBuffer first (the Go-returned
+      // view may alias runtime memory we must not detach, and its byteOffset
+      // is not guaranteed 4-byte aligned for a Float32Array view), then
+      // de-interleave - on this thread rather than the main one.
+      const byteView = new Uint8Array(res.bytes.buffer, res.bytes.byteOffset, floatCount * 4);
+      const interleaved = new Float32Array(byteView.slice().buffer);
+      const planarSrc = new Array(channels);
+      for (let c = 0; c < channels; c++) planarSrc[c] = new Float32Array(frames);
+      for (let f = 0; f < frames; f++) {
+        const base = f * channels;
+        for (let c = 0; c < channels; c++) planarSrc[c][f] = interleaved[base + c];
+      }
+      const mix = mixes && mixes[channels];
+      const planar = mix ? mixPlanar(planarSrc, frames, mix) : planarSrc;
+      const buffers = planar.map((a) => a.buffer);
+      // A buffer may only be transferred once: a mix that reused one source
+      // array for two outputs (none does today) would otherwise throw.
+      const transfer = Array.from(new Set(buffers));
       post(
         {
           type: "decoded",
           id,
-          channels: res.channels,
+          channels,
           sampleRate: res.sampleRate,
-          frames: res.frames,
-          pcm,
+          frames,
+          planar: buffers,
+          mixed: !!mix,
           wasmMemMB: wasmMemMB(),
         },
-        [pcm],
+        transfer,
       );
     } catch (err) {
       post({ type: "decodeError", id, error: String((err && err.message) || err) });

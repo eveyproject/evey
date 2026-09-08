@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAuthStore, toast } from "@evey/store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
+import { useAuthStore, toast, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from "@evey/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Users, Clock } from "lucide-react";
 import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
@@ -14,6 +15,8 @@ import { nominalQualityTier } from "./playerUtils";
 import { ProgressReporter } from "./ProgressReporter";
 import { AutoMarkWatched } from "./AutoMarkWatched";
 import { ICON } from "@/constants/iconSizes";
+import { createRenderStallWatch, formatRenderWindow } from "./renderStall";
+import { registerRenderStats, playbackSnapshot } from "./playbackSnapshot";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
@@ -167,6 +170,33 @@ export function HLSPlayer({
       profilesResp?.profiles?.[0],
     [profilesResp, activeProfileId],
   );
+
+  // The profile's "auto-play next episode" choice. The player's own toggle
+  // flips it optimistically (override) and persists it on the profile, so the
+  // choice follows the viewer to the phone and the television; the profile
+  // list refetch then takes over and the override is dropped.
+  const qc = useQueryClient();
+  const updateProfile = useUserServiceUpdateProfile();
+  const [autoplayNextOverride, setAutoplayNextOverride] = useState<boolean | null>(null);
+  const autoplayNext = autoplayNextOverride ?? autoplayNextEpisode(activeProfile?.preferences);
+  useEffect(() => { setAutoplayNextOverride(null); }, [activeProfile?.preferences]);
+  const handleAutoplayNextChange = useCallback(async (enabled: boolean) => {
+    if (!activeProfile?.id) return;
+    setAutoplayNextOverride(enabled);
+    try {
+      await updateProfile.mutateAsync({
+        id: activeProfile.id,
+        data: { preferences: autoplayNextPreferences(activeProfile.preferences, enabled) },
+      });
+      if (currentUser?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(currentUser.id) });
+    } catch (err) {
+      console.warn("autoplay next update failed", err);
+      setAutoplayNextOverride(null);
+    }
+  }, [activeProfile, updateProfile, qc, currentUser?.id]);
+  // The next-episode card and the skip button share the bottom-right corner:
+  // the button steps aside while the card is up.
+  const [nextCardVisible, setNextCardVisible] = useState(false);
 
   // Build ordered language lists from profile.preferences, falling back to
   // locale as a last resort (e.g. profile with locale "fr" but no explicit
@@ -691,11 +721,46 @@ export function HLSPlayer({
   // budget is what an hls.js stall storm drains first, and the engine's mode
   // and gate lines are exactly what must survive such a storm.
   const reportWasmAudioEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
+
+  // The picture slowing down while the sound stays fluid left no trace in any
+  // log: the decoder drops nothing (so drop= stays 0/N) and the server sees a
+  // client that stopped asking for anything. This watch measures the symptom
+  // itself - frames actually presented - next to how late a 250 ms timer runs,
+  // which is what a blocked main thread looks like. Read-only: it changes
+  // nothing about playback.
+  const reportRenderEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const watch = createRenderStallWatch(video, {
+      onSlowdown: (w) => {
+        reportRenderEvent({
+          type: "video_slowdown",
+          details: formatRenderWindow(w),
+          fatal: false,
+          posSec: positionRef.current,
+          // The full snapshot is the point: a slowdown with an empty buffer is
+          // the server being late, one with a full buffer and drop=0 is the
+          // page failing to paint what it already has.
+          state: playbackSnapshot(video),
+        });
+      },
+    });
+    const unregister = registerRenderStats(video, () => {
+      const w = watch.latest();
+      return w ? formatRenderWindow(w) : null;
+    });
+    return () => {
+      unregister();
+      watch.stop();
+    };
+  }, [reportRenderEvent, videoRef]);
   useWasmAudioPlayback({
     videoRef,
     mediaId,
     currentTrackIndex,
     streamTokenRef,
+    onStreamTokenRefresh: onStreamTokenRefreshRef,
     active: wasmAudioActive,
     onFallback: () => setWasmAudioDisabled(true),
     reportEvent: reportWasmAudioEvent,
@@ -1250,6 +1315,9 @@ export function HLSPlayer({
         filePath={filePath}
         currentTime={overlayTime}
         onSkip={(t) => handleSeekRequest(t)}
+        onNextEpisode={nextEpisode ? () => handleNextEpisode(nextEpisode.id) : undefined}
+        hidden={nextCardVisible}
+        autoAdvance={autoplayNext}
       />
       {nextEpisode && (
         <NextEpisodeOverlay
@@ -1259,6 +1327,8 @@ export function HLSPlayer({
           onPlayNow={handleNextEpisode}
           onCancel={() => {}}
           suppressAutoAdvance={sleepTimer.state?.kind === "endOfEpisode"}
+          autoAdvance={autoplayNext}
+          onVisibleChange={setNextCardVisible}
         />
       )}
       <PlayerProvider
@@ -1331,6 +1401,8 @@ export function HLSPlayer({
           onCastTrigger={handleCastTap}
           isBuffering={isBuffering}
           isPlaying={isPlaying}
+          autoplayNext={autoplayNext}
+          onAutoplayNextChange={nextEpisode || (episodes && episodes.length > 0) ? handleAutoplayNextChange : undefined}
           sleepTimerState={sleepTimer.state}
           onSleepTimerMinutes={sleepTimer.setMinutes}
           onSleepTimerEndOfEpisode={sleepTimer.setEndOfEpisode}
