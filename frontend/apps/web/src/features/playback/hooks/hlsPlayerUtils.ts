@@ -304,7 +304,22 @@ export function liftForcedMuteOnNextGesture(video: HTMLVideoElement): () => void
       return;
     }
     disarm();
-    if (video.muted) video.muted = false;
+    if (!video.muted) return;
+    // A browser can answer the unmute of an autoplayed media by pausing it
+    // (startPlayback documents Firefox doing exactly that): the viewer would
+    // hear the sound come back for an instant and stop. We are inside the
+    // gesture here, so play() is allowed - put the picture back in motion.
+    // Only when it was playing before the lift: a pause that landed just
+    // before (the pause button runs ahead of this document listener) is the
+    // viewer's own and must stand.
+    const wasPlaying = !video.paused;
+    video.muted = false;
+    if (!wasPlaying) return;
+    const replay = () => {
+      if (video.paused) video.play().catch(() => { /* the viewer's play button remains */ });
+    };
+    replay();
+    setTimeout(replay, 0);
   };
   document.addEventListener("click", onGesture);
   document.addEventListener("keydown", onGesture);
