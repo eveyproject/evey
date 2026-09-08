@@ -32,12 +32,13 @@ const MASTER_WASM = [
 
 const MASTER_MUXED = ["#EXTM3U", '#EXT-X-STREAM-INF:BANDWIDTH=8000000,CODECS="avc1.640028,mp4a.40.2"', "v0.m3u8"].join("\n");
 
-function mount(master: string) {
+function mount(master: string, onStreamTokenRefresh = vi.fn(async () => "fresh-tok")) {
   vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(master, { status: 200 }));
   const video = document.createElement("video");
   Object.defineProperty(video, "currentTime", { value: 12.34, writable: true });
   const videoRef = { current: video };
   const streamTokenRef = { current: "tok" };
+  const onStreamTokenRefreshRef = { current: onStreamTokenRefresh };
   const reportEvent = vi.fn();
   const onFallback = vi.fn();
   renderHook(() =>
@@ -46,12 +47,13 @@ function mount(master: string) {
       mediaId: "media-1",
       currentTrackIndex: 1,
       streamTokenRef,
+      onStreamTokenRefresh: onStreamTokenRefreshRef,
       active: true,
       onFallback,
       reportEvent,
     }),
   );
-  return { reportEvent, onFallback };
+  return { reportEvent, onFallback, streamTokenRef, onStreamTokenRefresh };
 }
 
 describe("useWasmAudioPlayback telemetry", () => {
@@ -92,6 +94,19 @@ describe("useWasmAudioPlayback telemetry", () => {
       expect.objectContaining({ type: "wasm_audio_fatal", details: "wasm load failed", fatal: true }),
     );
     expect(onFallback).toHaveBeenCalledTimes(1);
+  });
+
+  it("wires onAuthError to the same token-refresh callback the video leg uses, and updates the shared ref", async () => {
+    const { streamTokenRef, onStreamTokenRefresh } = mount(MASTER_WASM);
+    await waitFor(() => expect(captured).not.toBeNull());
+
+    const result = await captured!.onAuthError!();
+
+    expect(onStreamTokenRefresh).toHaveBeenCalledTimes(1);
+    expect(result).toBe("fresh-tok");
+    // resolveUrl reads streamTokenRef - the refresh must land there, not just
+    // be returned, or the very next segment fetch would reuse the stale token.
+    expect(streamTokenRef.current).toBe("fresh-tok");
   });
 
   it("reports the server declining the wasm path before falling back", async () => {

@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { extractAudioURI, injectToken } from "./useWasmAudioPlayback";
 import { outputMix, FOLD_GAIN } from "./channelMix";
 import { isWasmDecodableAudioCodec } from "@/utils/codec";
+import { fillAudioBuffer, type PcmDecoded } from "./WasmAudioEngine";
 
 describe("extractAudioURI", () => {
   it("pulls the quoted rendition URI out of the master", () => {
@@ -87,5 +88,143 @@ describe("isWasmDecodableAudioCodec", () => {
     for (const c of ["aac", "flac", "opus", "dts", "truehd", "", undefined]) {
       expect(isWasmDecodableAudioCodec(c)).toBe(false);
     }
+  });
+});
+
+// FakeAudioBuffer stands in for the real Web Audio AudioBuffer (unavailable in
+// jsdom): it records every copyToChannel call so the tests can assert
+// fillAudioBuffer takes the native-copy path, not a JS loop, for a plain
+// permutation tap.
+class FakeAudioBuffer {
+  readonly copyToChannelCalls: Array<{ source: Float32Array; channel: number }> = [];
+  private readonly data: Float32Array[];
+  constructor(numberOfChannels: number, length: number) {
+    this.data = Array.from({ length: numberOfChannels }, () => new Float32Array(length));
+  }
+  copyToChannel(source: Float32Array, channelNumber: number): void {
+    this.copyToChannelCalls.push({ source, channel: channelNumber });
+    this.data[channelNumber].set(source);
+  }
+  getChannelData(channel: number): Float32Array {
+    return this.data[channel];
+  }
+}
+
+describe("fillAudioBuffer", () => {
+  const FRAMES = 4;
+
+  // The worker can now hand back OUTPUT channels with the fold already
+  // applied. Then even 7.1 - the one layout with real arithmetic - costs the
+  // main thread nothing but native copies.
+  it("copies a mixed 7.1 reply channel for channel and never touches a sample", () => {
+    const mix = outputMix(8);
+    const planar = Array.from({ length: mix.length }, (_, co) =>
+      Float32Array.from({ length: FRAMES }, (_, f) => co * 10 + f),
+    );
+    const d: PcmDecoded = { kind: "pcm", channels: 8, sampleRate: 48000, frames: FRAMES, planar, mixed: true };
+    const target = new FakeAudioBuffer(mix.length, FRAMES);
+    const getChannelData = vi.spyOn(target, "getChannelData");
+
+    fillAudioBuffer(target, d, mix);
+
+    expect(target.copyToChannelCalls.map((c) => c.channel)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(getChannelData).not.toHaveBeenCalled();
+    for (let co = 0; co < mix.length; co++) {
+      expect(Array.from(target.getChannelData(co))).toEqual(Array.from(planar[co]));
+    }
+  });
+
+  // A source channel's samples are all == its own index * 10 + frame, so the
+  // schedule/mix mapping can be read straight off the output values.
+  function planarSource(channels: number): Float32Array[] {
+    return Array.from({ length: channels }, (_, c) => {
+      const a = new Float32Array(FRAMES);
+      for (let f = 0; f < FRAMES; f++) a[f] = c * 10 + f;
+      return a;
+    });
+  }
+
+  function interleave(planar: Float32Array[]): Float32Array {
+    const channels = planar.length;
+    const out = new Float32Array(channels * FRAMES);
+    for (let f = 0; f < FRAMES; f++) {
+      for (let c = 0; c < channels; c++) out[f * channels + c] = planar[c][f];
+    }
+    return out;
+  }
+
+  it("lands each 5.1 source channel on the output channel outputMix dictates (planar)", () => {
+    const planar = planarSource(6);
+    const decoded: PcmDecoded = { kind: "pcm", channels: 6, sampleRate: 48000, frames: FRAMES, planar };
+    const mix = outputMix(6);
+    const target = new FakeAudioBuffer(mix.length, FRAMES);
+
+    fillAudioBuffer(target as unknown as AudioBuffer, decoded, mix);
+
+    // mix(6) = L<-0, R<-2, C<-1, LFE<-5, SL<-3, SR<-4 - a pure permutation.
+    expect(Array.from(target.getChannelData(0))).toEqual(Array.from(planar[0]));
+    expect(Array.from(target.getChannelData(1))).toEqual(Array.from(planar[2]));
+    expect(Array.from(target.getChannelData(2))).toEqual(Array.from(planar[1]));
+    expect(Array.from(target.getChannelData(3))).toEqual(Array.from(planar[5]));
+    expect(Array.from(target.getChannelData(4))).toEqual(Array.from(planar[3]));
+    expect(Array.from(target.getChannelData(5))).toEqual(Array.from(planar[4]));
+    // Every output channel is a single unity tap: copyToChannel, not a loop.
+    expect(target.copyToChannelCalls).toHaveLength(6);
+  });
+
+  it("produces the identical result from the legacy interleaved shape (compat proof)", () => {
+    const planar = planarSource(6);
+    const mix = outputMix(6);
+
+    const planarTarget = new FakeAudioBuffer(mix.length, FRAMES);
+    fillAudioBuffer(
+      planarTarget as unknown as AudioBuffer,
+      { kind: "pcm", channels: 6, sampleRate: 48000, frames: FRAMES, planar },
+      mix,
+    );
+
+    const interleavedTarget = new FakeAudioBuffer(mix.length, FRAMES);
+    fillAudioBuffer(
+      interleavedTarget as unknown as AudioBuffer,
+      { kind: "pcm", channels: 6, sampleRate: 48000, frames: FRAMES, pcm: interleave(planar) },
+      mix,
+    );
+
+    for (let co = 0; co < mix.length; co++) {
+      expect(Array.from(interleavedTarget.getChannelData(co))).toEqual(
+        Array.from(planarTarget.getChannelData(co)),
+      );
+    }
+    // The interleaved path never sees copyToChannel - it is the fallback loop.
+    expect(interleavedTarget.copyToChannelCalls).toHaveLength(0);
+  });
+
+  it("still folds 7.1 with both taps and their gain, reading from the planar arrays", () => {
+    const planar = planarSource(8);
+    const mix = outputMix(8);
+    const target = new FakeAudioBuffer(mix.length, FRAMES);
+
+    fillAudioBuffer(
+      target as unknown as AudioBuffer,
+      { kind: "pcm", channels: 8, sampleRate: 48000, frames: FRAMES, planar },
+      mix,
+    );
+
+    // SL (output 4) <- (source 6 + source 4) * FOLD_GAIN
+    // Round-trip through Float32Array so the expected values carry the same
+    // single-precision rounding as fillAudioBuffer's output.
+    const expectedSL = Array.from(
+      new Float32Array(FRAMES).map((_, f) => (planar[6][f] + planar[4][f]) * FOLD_GAIN),
+    );
+    const expectedSR = Array.from(
+      new Float32Array(FRAMES).map((_, f) => (planar[7][f] + planar[5][f]) * FOLD_GAIN),
+    );
+    expect(Array.from(target.getChannelData(4))).toEqual(expectedSL);
+    expect(Array.from(target.getChannelData(5))).toEqual(expectedSR);
+    // The two folded outputs used the loop, not a native copy.
+    expect(target.copyToChannelCalls.map((c) => c.channel)).not.toContain(4);
+    expect(target.copyToChannelCalls.map((c) => c.channel)).not.toContain(5);
+    // The four unity-tap outputs (L,R,C,LFE) still took the native-copy path.
+    expect(target.copyToChannelCalls).toHaveLength(4);
   });
 });

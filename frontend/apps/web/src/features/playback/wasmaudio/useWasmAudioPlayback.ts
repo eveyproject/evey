@@ -14,6 +14,12 @@ interface UseWasmAudioPlaybackArgs {
   mediaId: string;
   currentTrackIndex: number;
   streamTokenRef: React.MutableRefObject<string>;
+  // onStreamTokenRefresh mints a fresh stream token and writes it into
+  // streamTokenRef.current - the SAME callback the video/HLS leg already uses
+  // on its own 401 (see useTranscodePlayback). Reused, not duplicated: the
+  // engine has no way to heal a 401 without it (2026-09-08 storm - a token
+  // expiring during a long pause 401'd every audio segment forever).
+  onStreamTokenRefresh: React.MutableRefObject<() => Promise<string>>;
   // active gates the whole path: the browser can't decode AC-3/E-AC-3 natively
   // (wasm-capable) AND the selected audio track is AC-3/E-AC-3 AND we're in
   // transcode/HLS mode. When false the hook is inert (native audio plays).
@@ -49,6 +55,7 @@ export function useWasmAudioPlayback({
   mediaId,
   currentTrackIndex,
   streamTokenRef,
+  onStreamTokenRefresh,
   active,
   onFallback,
   reportEvent = noopReporter,
@@ -118,6 +125,15 @@ export function useWasmAudioPlayback({
             report("wasm_audio_fatal", reason, true);
             onFallbackRef.current();
           },
+          onAuthError: async () => {
+            // Mirrors the video leg's own 401 handler (useTranscodePlayback):
+            // mint a fresh token and write it into the SHARED streamTokenRef
+            // so both legs' resolveUrl/xhrSetup pick it up on their next
+            // request - one source of truth for the token, not two.
+            const newToken = await onStreamTokenRefresh.current();
+            streamTokenRef.current = newToken;
+            return newToken;
+          },
           aacPlaylistUrl: aacUri ? new URL(aacUri, base).toString() : undefined,
           onModeChange: (mode) => report("wasm_audio_mode", mode),
           onDiagnostic: (detail) => report("wasm_audio_guard", detail),
@@ -143,5 +159,5 @@ export function useWasmAudioPlayback({
       engineRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, mediaId, currentTrackIndex, videoRef, streamTokenRef]);
+  }, [active, mediaId, currentTrackIndex, videoRef, streamTokenRef, onStreamTokenRefresh]);
 }
