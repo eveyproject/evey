@@ -158,9 +158,11 @@ settings:
     devices: "设备"
     security: "安全"
     quickConnect: "快速连接"
+    plugins: "插件"
   playback:
     bitrateTitle: "最大流媒体比特率"
     bitrateDesc: "限制流媒体播放时的最大比特率。较低的值占用更少的带宽。"
+    bitrateUnlimited: "不限"
     cellularBitrateTitle: "最大蜂窝数据比特率"
     cellularBitrateDesc: "使用移动数据时应用的较低上限。"
     subtitleLanguage: "默认字幕语言"
@@ -184,6 +186,8 @@ settings:
     allowDirectStreamDesc: "在可能时重新封装容器而不重新编码。"
     allowTranscoding: "允许转码"
     allowTranscodingDesc: "当直接播放/流不可用时回退到转码。"
+    autoplayNextTitle: "自动播放下一集"
+    autoplayNextDesc: "本集结束后自动开始下一集。无论如何，“下一集”按钮始终可用。"
   quickConnect:
     title: "快速连接"
     description: "输入您要登录的设备上显示的代码。"

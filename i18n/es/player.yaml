@@ -42,6 +42,7 @@ settings:
   normal: Normal
   uploadSubtitle: "Subir subtítulo…"
   "off": Desactivado
+  autoplayNext: "Siguiente episodio automático"
   brightness: Brillo
 sleepTimer:
   minutes_one: "{{count}} min"
@@ -87,6 +88,7 @@ nextEpisodeOverlay:
 skipIntro: "Saltar intro"
 skipRecap: "Saltar resumen"
 skipCredits: "Saltar créditos"
+watchCredits: "Ver los créditos"
 skipPreview: Saltar avance
 introSkipped: "Intro saltada"
 download: "Descargar"

@@ -5,14 +5,17 @@ import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useLibraryServiceGetMediaItem,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceGetWatchProgress,
   useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
+  useUserServiceUpdateProfile,
+  getUserServiceListProfilesQueryKey,
 } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
@@ -111,6 +114,31 @@ export default function PlayerScreen() {
       profilesRespForPrefs?.profiles?.[0],
     [profilesRespForPrefs, profileId],
   );
+  // Per-profile "auto-play next episode" toggle (player.settings.autoplayNext).
+  // The override lets the in-player menu flip the value optimistically
+  // before the profile refetch lands - null means "use the server value".
+  const [autoplayNextOverride, setAutoplayNextOverride] = useState<boolean | null>(null);
+  const autoplayNext = autoplayNextOverride ?? autoplayNextEpisode(activeProfile?.preferences);
+  const qc = useQueryClient();
+  const updateAutoplayNextProfile = useUserServiceUpdateProfile();
+  const handleToggleAutoplayNext = useCallback(async () => {
+    if (!activeProfile?.id) return;
+    const next = !autoplayNext;
+    setAutoplayNextOverride(next);
+    try {
+      await updateAutoplayNextProfile.mutateAsync({
+        id: activeProfile.id,
+        data: { preferences: autoplayNextPreferences(activeProfile.preferences, next) },
+      });
+      if (currentUserForPrefs?.id) {
+        void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(currentUserForPrefs.id) });
+      }
+    } catch {
+      // mutationErrorNet already toasted the failure
+      setAutoplayNextOverride(null);
+    }
+  }, [activeProfile, autoplayNext, updateAutoplayNextProfile, currentUserForPrefs?.id, qc]);
+
   const profileAudioLangs = useMemo((): string[] => {
     const raw = activeProfile?.preferences?.["audio_languages"] ?? "";
     return raw.split(",").map((s) => s.trim()).filter(Boolean);
@@ -644,6 +672,7 @@ export default function PlayerScreen() {
     currentTime,
     duration,
     onNavigate: forwardNextEpNavigate,
+    autoAdvance: autoplayNext,
   });
 
   const { needsPin: nextEpNeedsPin, profileId: nextEpGateProfileId } = useParentalGate(
@@ -1033,6 +1062,8 @@ export default function PlayerScreen() {
           setShowTrackMenu(false);
           handleManualNextEpisode();
         } : undefined}
+        autoplayNext={autoplayNext}
+        onToggleAutoplayNext={handleToggleAutoplayNext}
         hasChapters={chapters.length > 0}
         currentChapterTitle={chapters[findCurrentChapterIndex(chapters, currentTime * 1000)]?.title}
         onOpenChapters={() => {
@@ -1109,6 +1140,8 @@ export default function PlayerScreen() {
         onVisibleChange={setSkipVisible}
         onFocusChange={setSkipFocused}
         liftForNextEpisode={nextEp.visible}
+        onNextEpisode={nextEp.nextEpisode ? nextEp.playNow : undefined}
+        autoAdvance={autoplayNext}
       />
 
       <NextEpisodeOverlay

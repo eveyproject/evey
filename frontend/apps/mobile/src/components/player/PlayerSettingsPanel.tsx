@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
+import { View, Text, Pressable, ScrollView, StyleSheet, Switch, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
@@ -78,6 +78,11 @@ interface PlayerSettingsPanelProps {
   // (direct play, or not read yet) keeps the static ladder.
   availableQualities?: readonly number[];
   style?: StyleProp<ViewStyle>;
+  // Per-profile "auto-play next episode" toggle: optional, same convention
+  // as onSubtitleStyleChange - a caller that doesn't pass
+  // onAutoplayNextChange gets no row.
+  autoplayNext?: boolean;
+  onAutoplayNextChange?: (enabled: boolean) => void;
 }
 
 // Shared +/- control for a millisecond resync value: hold-free discrete
@@ -246,6 +251,8 @@ export function PlayerSettingsPanel({
   onSelectExternalSubtitle,
   availableQualities,
   style,
+  autoplayNext,
+  onAutoplayNextChange,
 }: PlayerSettingsPanelProps) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -385,6 +392,22 @@ export function PlayerSettingsPanel({
             )}
             <Divider />
             <NavRow label={t("player.settings.speed")} value={currentSpeedLabel} onPress={() => setMenu("speed")} />
+            {onAutoplayNextChange && (
+              <>
+                <Divider />
+                <View style={styles.optionRow} accessibilityLabel={t("player.settings.autoplayNext")}>
+                  <Text style={[styles.optionLabel, { color: theme.colors.text }]}>
+                    {t("player.settings.autoplayNext")}
+                  </Text>
+                  <Switch
+                    value={autoplayNext ?? true}
+                    onValueChange={onAutoplayNextChange}
+                    accessibilityRole="switch"
+                    trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
+                  />
+                </View>
+              </>
+            )}
             {onSubtitleStyleChange && (
               <>
                 <Divider />

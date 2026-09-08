@@ -4,6 +4,7 @@ import React from "react";
 
 vi.mock("react-native", () => ({
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
+  View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Pressable: ({ children, onPress, ...p }: any) =>
     React.createElement("button", { onClick: onPress, ...p }, children),
   StyleSheet: { create: (s: any) => s },
@@ -15,8 +16,14 @@ vi.mock("../providers/ThemeProvider", () => ({
   }),
 }));
 
+// The real catalogue interpolates {{seconds}} into English text; this mock
+// only needs to make the countdown value observable, so it appends it
+// rather than reproducing i18next's templating.
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, opts?: { seconds?: number }) =>
+      opts && typeof opts.seconds === "number" ? `${key}:${opts.seconds}` : key,
+  }),
 }));
 
 const useMediaSegmentsMock = vi.fn();
@@ -196,6 +203,105 @@ describe("SkipIntroButton", () => {
       rerender(<SkipIntroButton mediaId="mi-1" currentTime={5} onSkip={onSkip} />);
       expect(onSkip).toHaveBeenCalledTimes(1);
       expect(getByText("player.skipIntro")).toBeTruthy();
+    });
+  });
+
+  // Item 1: "Next episode" appears next to "Skip credits" during the end
+  // credits, so the viewer does not have to dismiss the credits button first.
+  describe("next episode button (end credits only)", () => {
+    const endCredits = { type: "end_credits", startMs: 60000, endMs: 90000, confidence: 0.9, source: "audio" };
+
+    it("renders both buttons during the end credits when onNextEpisode is provided", () => {
+      useMediaSegmentsMock.mockReturnValue({ data: { introAutoSkip: false, segments: [endCredits] } });
+      const onSkip = vi.fn();
+      const onNextEpisode = vi.fn();
+      const { getByText } = render(
+        <SkipIntroButton mediaId="mi-1" currentTime={70} onSkip={onSkip} onNextEpisode={onNextEpisode} />,
+      );
+
+      fireEvent.click(getByText("player.skipCredits"));
+      expect(onSkip).toHaveBeenCalledWith(90);
+
+      fireEvent.click(getByText("player.nextEpisodeOverlay.nextEpisode"));
+      expect(onNextEpisode).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders a single button during the end credits when onNextEpisode is not provided", () => {
+      useMediaSegmentsMock.mockReturnValue({ data: { introAutoSkip: false, segments: [endCredits] } });
+      const { queryByText } = render(<SkipIntroButton mediaId="mi-1" currentTime={70} onSkip={vi.fn()} />);
+
+      expect(queryByText("player.skipCredits")).toBeTruthy();
+      expect(queryByText("player.nextEpisodeOverlay.nextEpisode")).toBeNull();
+    });
+
+    it("never shows the next-episode button for an intro segment, even with onNextEpisode provided", () => {
+      useMediaSegmentsMock.mockReturnValue({
+        data: { introAutoSkip: false, segments: [{ type: "intro", startMs: 0, endMs: 30000, confidence: 0.9, source: "audio" }] },
+      });
+      const { queryByText } = render(
+        <SkipIntroButton mediaId="mi-1" currentTime={10} onSkip={vi.fn()} onNextEpisode={vi.fn()} />,
+      );
+
+      expect(queryByText("player.skipIntro")).toBeTruthy();
+      expect(queryByText("player.nextEpisodeOverlay.nextEpisode")).toBeNull();
+    });
+  });
+
+  // With auto-play on, the credits button becomes a countdown that fires on
+  // its own - unless the viewer asks to watch the credits.
+  describe("countdown with auto-play on", () => {
+    const endCredits = { type: "end_credits", startMs: 3_400_000, endMs: 3_600_000, confidence: 0.9, source: "audio" };
+
+    it("counts down on the playhead from the start of the credits", () => {
+      useMediaSegmentsMock.mockReturnValue({ data: { introAutoSkip: false, segments: [endCredits] } });
+      const { getByText, rerender } = render(
+        <SkipIntroButton mediaId="m1" currentTime={3_400} onSkip={vi.fn()} onNextEpisode={vi.fn()} autoAdvance />,
+      );
+      expect(getByText("player.watchCredits")).toBeTruthy();
+      expect(getByText("player.nextEpisodeOverlay.nextIn:15")).toBeTruthy();
+
+      rerender(<SkipIntroButton mediaId="m1" currentTime={3_405.2} onSkip={vi.fn()} onNextEpisode={vi.fn()} autoAdvance />);
+      expect(getByText("player.nextEpisodeOverlay.nextIn:10")).toBeTruthy();
+    });
+
+    it("fires once when the countdown reaches zero, and not on a later re-render", () => {
+      useMediaSegmentsMock.mockReturnValue({ data: { introAutoSkip: false, segments: [endCredits] } });
+      const onNextEpisode = vi.fn();
+      const { rerender } = render(
+        <SkipIntroButton mediaId="m1" currentTime={3_414} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />,
+      );
+      expect(onNextEpisode).not.toHaveBeenCalled();
+
+      rerender(<SkipIntroButton mediaId="m1" currentTime={3_415} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />);
+      rerender(<SkipIntroButton mediaId="m1" currentTime={3_416} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />);
+      expect(onNextEpisode).toHaveBeenCalledTimes(1);
+    });
+
+    it("Watch credits cancels the countdown for these credits and restores Skip credits", () => {
+      useMediaSegmentsMock.mockReturnValue({ data: { introAutoSkip: false, segments: [endCredits] } });
+      const onNextEpisode = vi.fn();
+      const { getByText, rerender } = render(
+        <SkipIntroButton mediaId="m1" currentTime={3_400} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />,
+      );
+      fireEvent.click(getByText("player.watchCredits"));
+      expect(getByText("player.skipCredits")).toBeTruthy();
+      expect(getByText("player.nextEpisodeOverlay.nextEpisode")).toBeTruthy();
+
+      rerender(<SkipIntroButton mediaId="m1" currentTime={3_500} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />);
+      expect(onNextEpisode).not.toHaveBeenCalled();
+    });
+
+    it("never counts down with auto-play off", () => {
+      useMediaSegmentsMock.mockReturnValue({ data: { introAutoSkip: false, segments: [endCredits] } });
+      const onNextEpisode = vi.fn();
+      const { getByText, rerender } = render(
+        <SkipIntroButton mediaId="m1" currentTime={3_400} onSkip={vi.fn()} onNextEpisode={onNextEpisode} />,
+      );
+      expect(getByText("player.skipCredits")).toBeTruthy();
+      expect(getByText("player.nextEpisodeOverlay.nextEpisode")).toBeTruthy();
+
+      rerender(<SkipIntroButton mediaId="m1" currentTime={3_415} onSkip={vi.fn()} onNextEpisode={onNextEpisode} />);
+      expect(onNextEpisode).not.toHaveBeenCalled();
     });
   });
 });

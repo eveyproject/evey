@@ -32,7 +32,7 @@ import {
 } from "../../../src/lib/offlineProgress";
 import { getDeviceAudioCodecs } from "../../../src/lib/deviceCodecs";
 import { useTranslation } from "react-i18next";
-import { toast, useAuthStore } from "@evey/store";
+import { toast, useAuthStore, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
 import { ICON_SIZE } from "@evey/theme";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import {
@@ -41,11 +41,14 @@ import {
   usePlaybackServiceMarkAsWatched,
   useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
+  useUserServiceUpdateProfile,
+  getUserServiceListProfilesQueryKey,
   createPlayerEventReporter,
   isImageSubtitle,
   pickDefaultSubtitle,
   playbackServiceReportProgress,
 } from "@evey/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { clientSubtitleTrack } from "../../../src/lib/clientSubtitleTrack";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
@@ -381,6 +384,33 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
       profilesRespForPrefs?.profiles?.find((p) => p.isDefault) ??
       profilesRespForPrefs?.profiles?.[0],
     [profilesRespForPrefs, activeProfileId],
+  );
+
+  // "Auto-play next episode" per-profile toggle. Optimistic override so the
+  // switch flips instantly; reset to null (fall back to the server value) if
+  // the save fails - the global mutation error handler toasts the failure.
+  const qc = useQueryClient();
+  const updateProfileMutation = useUserServiceUpdateProfile();
+  const [autoplayNextOverride, setAutoplayNextOverride] = useState<boolean | null>(null);
+  const autoplayNext = autoplayNextOverride ?? autoplayNextEpisode(activeProfile?.preferences);
+  const handleAutoplayNextChange = useCallback(
+    async (enabled: boolean) => {
+      if (!activeProfile?.id) return;
+      setAutoplayNextOverride(enabled);
+      try {
+        await updateProfileMutation.mutateAsync({
+          id: activeProfile.id,
+          data: { preferences: autoplayNextPreferences(activeProfile.preferences, enabled) },
+        });
+        if (currentUserForPrefs?.id) {
+          void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(currentUserForPrefs.id) });
+        }
+      } catch {
+        setAutoplayNextOverride(null);
+        // mutationErrorNet already toasted the failure
+      }
+    },
+    [activeProfile, updateProfileMutation, qc, currentUserForPrefs],
   );
 
   // Resolving the on-disk path is an AUTHORIZATION decision, not a file lookup:
@@ -1041,6 +1071,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
     currentTime,
     duration: effectiveDuration,
     onNavigate: handleNavigateEpisode,
+    autoAdvance: autoplayNext,
   });
 
   // End-of-episode sleep timer: when the user picked "stop after this episode",
@@ -1442,9 +1473,15 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
           filePath={media?.filePath}
           currentTime={currentTime}
           onSkip={handleSkipIntro}
+          bottomOffset={Math.max(controlsHeight, 96) + 16}
+          hidden={nextEp.visible}
+          onNextEpisode={nextEp.nextEpisode ? nextEp.playNow : undefined}
+          autoAdvance={autoplayNext}
         />
 
-        {nextEp.visible && nextEp.nextEpisode && <NextEpisodeOverlay nextEp={nextEp} />}
+        {nextEp.visible && nextEp.nextEpisode && (
+          <NextEpisodeOverlay nextEp={nextEp} bottomOffset={Math.max(controlsHeight, 96) + 16} />
+        )}
 
         {/* Client-side WebVTT rendering: expo-video exposes native subtitle
             TRACK SELECTION only (no cue access, no styling), so a text
@@ -1615,6 +1652,8 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
                 externalSubtitleActive={!!externalSubtitle}
                 onPickExternalSubtitle={handlePickExternalSubtitle}
                 onSelectExternalSubtitle={handleSelectExternalSubtitle}
+                autoplayNext={autoplayNext}
+                onAutoplayNextChange={handleAutoplayNextChange}
                 onClose={() => setSettingsOpen(false)}
                 style={{
                   position: "absolute",

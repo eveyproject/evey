@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { mKVServiceListChapters } from "@evey/api";
@@ -32,6 +32,10 @@ const CHAPTER_PATTERNS: { type: SkippableType; re: RegExp }[] = [
 ];
 
 const MIN_SKIPPABLE_SEC = 5;
+// With auto-play on, the next episode starts this long after the credits
+// begin unless the viewer asks to watch them. Measured on the playhead, not
+// the clock: a pause freezes it, and it can never outlive the segment.
+export const CREDITS_COUNTDOWN_SEC = 15;
 
 interface ResolvedSegment {
   type: SkippableType;
@@ -44,6 +48,16 @@ interface SkipIntroButtonProps {
   filePath?: string; // MKV chapters fallback
   currentTime: number;
   onSkip: (toSec: number) => void;
+  /** Jump straight to the next episode. When given, the end-credits segment
+   *  offers it next to "Skip credits": skipping the credits only lands on the
+   *  end of the episode, most viewers want the next one. */
+  onNextEpisode?: () => void;
+  /** Render nothing - the next-episode card is on screen at the same spot
+   *  and already offers "Play now"; two overlapping prompts help nobody. */
+  hidden?: boolean;
+  /** The profile's auto-play choice. On, the next-episode button counts down
+   *  through the credits and fires on its own; "Watch credits" cancels it. */
+  autoAdvance?: boolean;
 }
 
 // active picks the skippable segment the playhead currently sits inside,
@@ -64,7 +78,10 @@ function active(
   return null;
 }
 
-export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip }: SkipIntroButtonProps) {
+const BUTTON_CLASS =
+  "px-5 py-2.5 text-sm font-semibold text-white rounded-md transition-all duration-200 hover:scale-105 bg-[var(--overlay-btn-bg)] border border-[var(--overlay-dot-inactive)] backdrop-blur-[8px]";
+
+export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip, onNextEpisode, hidden, autoAdvance = false }: SkipIntroButtonProps) {
   const { t } = useTranslation();
 
   const { data: segmentsData } = useMediaSegments(mediaId, [...SKIPPABLE]);
@@ -127,17 +144,64 @@ export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip }: Skip
     toast.info(t("player.introSkipped"));
   }, [autoTarget, t]);
 
-  if (!resolved) return null;
+  // Credits countdown. Cancelled per segment (keyed on its start, like the
+  // auto-skip): "Watch credits" is a decision for this episode's credits, a
+  // seek back into them must not restart the clock on the viewer.
+  const withNext = resolved?.type === "end_credits" && !!onNextEpisode;
+  const [cancelledCredits, setCancelledCredits] = useState<Set<number>>(() => new Set());
+  const [lastCancelMedia, setLastCancelMedia] = useState(mediaId);
+  if (lastCancelMedia !== mediaId) {
+    setLastCancelMedia(mediaId);
+    setCancelledCredits(new Set());
+  }
+  const counting =
+    withNext && autoAdvance && resolved !== null && !cancelledCredits.has(resolved.startSec);
+  const remaining = counting && resolved
+    ? Math.max(0, Math.ceil(Math.min(resolved.startSec + CREDITS_COUNTDOWN_SEC, resolved.endSec) - currentTime))
+    : null;
+  const onNextEpisodeRef = useRef(onNextEpisode);
+  onNextEpisodeRef.current = onNextEpisode;
+  const firedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (remaining !== 0 || !resolved || firedRef.current === resolved.startSec) return;
+    firedRef.current = resolved.startSec;
+    onNextEpisodeRef.current?.();
+  }, [remaining, resolved]);
+
+  if (!resolved || hidden) return null;
 
   const labelKey = LABEL_KEY[resolved.type];
 
   return (
-    <button
-      onClick={() => onSkip(resolved.endSec)}
-      className="absolute bottom-28 right-4 z-float px-5 py-2.5 text-sm font-semibold text-white rounded-md transition-all duration-200 hover:scale-105 animate-fade-in bg-[var(--overlay-btn-bg)] border border-[var(--overlay-dot-inactive)] backdrop-blur-[8px]"
-      aria-label={t(labelKey)}
-    >
-      {t(labelKey)}
-    </button>
+    <div className="absolute bottom-28 right-4 z-float flex gap-2 animate-fade-in">
+      {counting ? (
+        <button
+          onClick={() => setCancelledCredits((prev) => new Set(prev).add(resolved.startSec))}
+          className={BUTTON_CLASS}
+          aria-label={t("player.watchCredits")}
+        >
+          {t("player.watchCredits")}
+        </button>
+      ) : (
+        <button
+          onClick={() => onSkip(resolved.endSec)}
+          className={BUTTON_CLASS}
+          aria-label={t(labelKey)}
+        >
+          {t(labelKey)}
+        </button>
+      )}
+      {withNext && (
+        <button
+          onClick={onNextEpisode}
+          className={BUTTON_CLASS}
+          aria-label={t("player.nextEpisodeOverlay.nextEpisode")}
+        >
+          {counting
+            ? t("player.nextEpisodeOverlay.nextIn", { seconds: remaining })
+            : t("player.nextEpisodeOverlay.nextEpisode")}
+        </button>
+      )}
+    </div>
   );
 }

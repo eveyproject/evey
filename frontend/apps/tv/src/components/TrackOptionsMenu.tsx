@@ -33,6 +33,10 @@ interface TrackOptionsMenuProps {
   speedLabel?: string;
   onPreviousEpisode?: () => void;
   onNextEpisode?: () => void;
+  // Per-profile "auto-play next episode" toggle. Mirrors onCycleSpeed's
+  // shape: no submenu, the row itself flips the value and shows the result.
+  autoplayNext?: boolean;
+  onToggleAutoplayNext?: () => void;
 }
 
 /**
@@ -63,6 +67,8 @@ export function TrackOptionsMenu({
   speedLabel,
   onPreviousEpisode,
   onNextEpisode,
+  autoplayNext,
+  onToggleAutoplayNext,
   hasChapters,
   onOpenChapters,
   currentChapterTitle,
@@ -90,6 +96,14 @@ export function TrackOptionsMenu({
   }
   if (onNextEpisode) {
     items.push({ key: "nextEpisode", label: t("player.controls.nextEpisode"), onPress: onNextEpisode });
+  }
+  if (onToggleAutoplayNext) {
+    items.push({
+      key: "autoplayNext",
+      label: t("player.settings.autoplayNext"),
+      value: autoplayNext ? t("common.enabled") : t("common.disabled"),
+      onPress: onToggleAutoplayNext,
+    });
   }
   if (hasChapters && onOpenChapters) {
     items.push({

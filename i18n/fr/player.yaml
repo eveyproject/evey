@@ -42,6 +42,7 @@ settings:
   normal: Normal
   uploadSubtitle: "Téléverser un sous-titre…"
   "off": Désactivé
+  autoplayNext: "Épisode suivant automatique"
   brightness: Luminosité
 sleepTimer:
   minutes_one: "{{count}} min"
@@ -87,6 +88,7 @@ nextEpisodeOverlay:
 skipIntro: "Passer l'intro"
 skipRecap: "Passer le résumé"
 skipCredits: "Passer le générique"
+watchCredits: "Regarder le générique"
 skipPreview: "Passer l'aperçu"
 introSkipped: "Intro passée"
 download: "Télécharger"

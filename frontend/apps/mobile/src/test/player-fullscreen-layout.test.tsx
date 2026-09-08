@@ -137,12 +137,22 @@ vi.mock("../providers/ThemeProvider", () => ({
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k: string, d?: unknown) => (typeof d === "string" ? d : k) }),
 }));
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", async (importOriginal) => ({
+  // Pure preference helpers (autoplayNextEpisode, ...) stay real; only the
+  // stores are stubbed.
+  ...(await importOriginal<typeof import("@evey/store")>()),
   useAuthStore: (selector: (s: any) => unknown) => selector({ profileId: "profile-1", accessToken: "tok" }),
   toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
+// The screen persists the auto-play choice through the query cache; this
+// layout test renders it without a QueryClientProvider.
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
+  useUserServiceUpdateProfile: () => ({ mutateAsync: vi.fn() }),
   useLibraryServiceGetMediaItem: () => ({ data: { id: "media-1", type: "MEDIA_ITEM_TYPE_MOVIE", title: "Some Movie", durationMs: "3600000" } }),
   useLibraryServiceListMediaItems: () => ({ data: { items: [] } }),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn() }),

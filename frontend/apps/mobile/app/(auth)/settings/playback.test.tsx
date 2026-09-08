@@ -134,18 +134,48 @@ describe("PlaybackSettingsScreen (mobile)", () => {
     });
   });
 
+  // Auto-play next episode: its own section ahead of the transcoding toggles,
+  // so its switch is the first one on the screen.
+  describe("autoplay next episode, on mutation outcome", () => {
+    it("shows the new value once the save succeeds", async () => {
+      mutateAsyncMock.mockResolvedValueOnce(undefined);
+      render(<PlaybackSettingsScreen />);
+      const autoplaySwitch = screen.getAllByRole("switch")[0];
+      expect(autoplaySwitch.getAttribute("aria-checked")).toBe("true");
+
+      await clickAndSettle(autoplaySwitch);
+
+      await waitFor(() =>
+        expect(screen.getAllByRole("switch")[0].getAttribute("aria-checked")).toBe("false"),
+      );
+      expect(mutateAsyncMock).toHaveBeenCalledWith({ autoplay_next_episode: "false" });
+    });
+
+    it("keeps the original value when the save fails", async () => {
+      mutateAsyncMock.mockRejectedValueOnce(new Error("network down"));
+      render(<PlaybackSettingsScreen />);
+      const autoplaySwitch = screen.getAllByRole("switch")[0];
+
+      await clickAndSettle(autoplaySwitch);
+
+      await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.getAllByRole("switch")[0].getAttribute("aria-checked")).toBe("true");
+    });
+  });
+
   // A boolean toggle: covers the same contract for a Switch-style row.
   describe("allow direct play, on mutation outcome", () => {
     it("shows the new value once the save succeeds", async () => {
       mutateAsyncMock.mockResolvedValueOnce(undefined);
       render(<PlaybackSettingsScreen />);
-      const directPlaySwitch = screen.getAllByRole("switch")[0];
+      const directPlaySwitch = screen.getAllByRole("switch")[1];
       expect(directPlaySwitch.getAttribute("aria-checked")).toBe("true");
 
       await clickAndSettle(directPlaySwitch);
 
       await waitFor(() =>
-        expect(screen.getAllByRole("switch")[0].getAttribute("aria-checked")).toBe("false"),
+        expect(screen.getAllByRole("switch")[1].getAttribute("aria-checked")).toBe("false"),
       );
       expect(mutateAsyncMock).toHaveBeenCalledWith({ allow_direct_play: "false" });
     });
@@ -153,13 +183,13 @@ describe("PlaybackSettingsScreen (mobile)", () => {
     it("keeps the original value when the save fails", async () => {
       mutateAsyncMock.mockRejectedValueOnce(new Error("network down"));
       render(<PlaybackSettingsScreen />);
-      const directPlaySwitch = screen.getAllByRole("switch")[0];
+      const directPlaySwitch = screen.getAllByRole("switch")[1];
 
       await clickAndSettle(directPlaySwitch);
 
       await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalled());
       await new Promise((r) => setTimeout(r, 0));
-      expect(screen.getAllByRole("switch")[0].getAttribute("aria-checked")).toBe("true");
+      expect(screen.getAllByRole("switch")[1].getAttribute("aria-checked")).toBe("true");
     });
   });
 });

@@ -66,3 +66,38 @@ describe("TrackOptionsMenu accessibility", () => {
     expect(screen.getByLabelText("Chapters")).toBeTruthy();
   });
 });
+
+describe("TrackOptionsMenu autoplay next row", () => {
+  it("does not appear without onToggleAutoplayNext", () => {
+    render(<TrackOptionsMenu visible onClose={() => {}} />);
+    expect(screen.queryByText("player.settings.autoplayNext")).toBeNull();
+  });
+
+  it("shows Enabled/Disabled and toggles on press", () => {
+    const onToggle = vi.fn();
+    render(
+      <TrackOptionsMenu
+        visible
+        onClose={() => {}}
+        autoplayNext
+        onToggleAutoplayNext={onToggle}
+      />,
+    );
+    expect(screen.getByLabelText("player.settings.autoplayNext, common.enabled")).toBeTruthy();
+
+    screen.getByLabelText("player.settings.autoplayNext, common.enabled").click();
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows Disabled when autoplayNext is false", () => {
+    render(
+      <TrackOptionsMenu
+        visible
+        onClose={() => {}}
+        autoplayNext={false}
+        onToggleAutoplayNext={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText("player.settings.autoplayNext, common.disabled")).toBeTruthy();
+  });
+});

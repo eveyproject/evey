@@ -159,6 +159,7 @@ export default function PlaybackSettingsScreen() {
   const [audioCodec, setAudioCodec] = useState("auto");
   const [audioChannels, setAudioChannels] = useState("auto");
   const [subtitleBurn, setSubtitleBurn] = useState("auto");
+  const [autoplayNext, setAutoplayNext] = useState(true);
   const [allowDirectPlay, setAllowDirectPlay] = useState(true);
   const [allowDirectStream, setAllowDirectStream] = useState(true);
   const [allowTranscoding, setAllowTranscoding] = useState(true);
@@ -173,6 +174,7 @@ export default function PlaybackSettingsScreen() {
     if (prefs.preferred_audio_codec) setAudioCodec(prefs.preferred_audio_codec);
     if (prefs.max_audio_channels) setAudioChannels(prefs.max_audio_channels);
     if (prefs.subtitle_burn_in) setSubtitleBurn(prefs.subtitle_burn_in);
+    if (prefs.autoplay_next_episode !== undefined) setAutoplayNext(prefs.autoplay_next_episode !== "false");
     if (prefs.allow_direct_play !== undefined) setAllowDirectPlay(prefs.allow_direct_play !== "false");
     if (prefs.allow_direct_stream !== undefined) setAllowDirectStream(prefs.allow_direct_stream !== "false");
     if (prefs.allow_transcoding !== undefined) setAllowTranscoding(prefs.allow_transcoding !== "false");
@@ -254,6 +256,14 @@ export default function PlaybackSettingsScreen() {
     try {
       await savePref({ subtitle_burn_in: v });
       setSubtitleBurn(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
+  }
+  async function handleAutoplayNext(v: boolean) {
+    try {
+      await savePref({ autoplay_next_episode: v ? "true" : "false" });
+      setAutoplayNext(v);
     } catch {
       // mutationErrorNet already toasted the failure
     }
@@ -460,6 +470,25 @@ export default function PlaybackSettingsScreen() {
             label={labelOf(opt)}
             selected={subtitleBurn === opt.value}
             onPress={() => handleSubtitleBurn(opt.value)}
+          />
+        ))}
+      </View>
+
+      {/* Auto-play next episode */}
+      <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>
+        {t("auth.settings.playback.autoplayNextTitle", "Auto-play next episode")}
+      </Text>
+      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>
+        {t("auth.settings.playback.autoplayNextDesc", "Start the next episode automatically when this one ends.")}
+      </Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        {TOGGLE_OPTIONS.map((opt) => (
+          <OptionRow
+            key={`autoplay-next-${String(opt.value)}`}
+            rowKey={`autoplay-next-${String(opt.value)}`}
+            label={t(opt.labelKey, opt.fallback)}
+            selected={autoplayNext === opt.value}
+            onPress={() => handleAutoplayNext(opt.value)}
           />
         ))}
       </View>

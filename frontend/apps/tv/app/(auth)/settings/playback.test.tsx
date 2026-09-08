@@ -165,11 +165,23 @@ describe("PlaybackSettingsScreen (TV)", () => {
 
   it("toggles allow direct play off via the Disabled row", async () => {
     render(<PlaybackSettingsScreen />);
+    // Index 0 is the "Auto-play next episode" toggle, which renders before
+    // the Transcoding section's Allow direct play row.
+    const disabledRows = screen.getAllByLabelText("Disabled");
+    await pressAndSettle(disabledRows[1]);
+    expect(mutateMock).toHaveBeenCalledWith({
+      id: "prof-1",
+      data: { preferences: { allow_direct_play: "false" } },
+    });
+  });
+
+  it("toggles auto-play next episode off via the Disabled row", async () => {
+    render(<PlaybackSettingsScreen />);
     const disabledRows = screen.getAllByLabelText("Disabled");
     await pressAndSettle(disabledRows[0]);
     expect(mutateMock).toHaveBeenCalledWith({
       id: "prof-1",
-      data: { preferences: { allow_direct_play: "false" } },
+      data: { preferences: { autoplay_next_episode: "false" } },
     });
   });
 
@@ -231,7 +243,34 @@ describe("PlaybackSettingsScreen (TV)", () => {
   });
 
   // A boolean toggle: covers the same contract for the on/off style rows.
+  // Index 1 is Allow direct play; index 0 (below) is Auto-play next episode.
   describe("allow direct play, on mutation outcome", () => {
+    it("shows the new value once the save succeeds", async () => {
+      mutateMock.mockResolvedValueOnce(undefined);
+      render(<PlaybackSettingsScreen />);
+      expect(within(screen.getAllByLabelText("Enabled")[1]).queryByText("✓")).not.toBeNull();
+
+      await pressAndSettle(screen.getAllByLabelText("Disabled")[1]);
+
+      await waitFor(() =>
+        expect(within(screen.getAllByLabelText("Disabled")[1]).queryByText("✓")).not.toBeNull(),
+      );
+      expect(within(screen.getAllByLabelText("Enabled")[1]).queryByText("✓")).toBeNull();
+    });
+
+    it("keeps the original value when the save fails", async () => {
+      mutateMock.mockRejectedValueOnce(new Error("network down"));
+      render(<PlaybackSettingsScreen />);
+
+      await pressAndSettle(screen.getAllByLabelText("Disabled")[1]);
+
+      expect(mutateMock).toHaveBeenCalled();
+      expect(within(screen.getAllByLabelText("Enabled")[1]).queryByText("✓")).not.toBeNull();
+      expect(within(screen.getAllByLabelText("Disabled")[1]).queryByText("✓")).toBeNull();
+    });
+  });
+
+  describe("auto-play next episode, on mutation outcome", () => {
     it("shows the new value once the save succeeds", async () => {
       mutateMock.mockResolvedValueOnce(undefined);
       render(<PlaybackSettingsScreen />);

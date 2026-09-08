@@ -100,7 +100,10 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 }));
 
 // --- @evey/store mock -------------------------------------------------------------
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", async (importOriginal) => ({
+  // Pure preference helpers (autoplayNextEpisode, ...) stay real; only the
+  // store is stubbed.
+  ...(await importOriginal<typeof import("@evey/store")>()),
   useAuthStore: (selector: any) => selector({ profileId: "prof-1" }),
 }));
 
@@ -114,8 +117,15 @@ const getWatchProgressMock = vi.fn();
 // vi.mocked(...).mockReturnValue.
 const getCurrentUserMock = vi.fn((..._args: unknown[]): { data: unknown } => ({ data: undefined }));
 const listProfilesMock = vi.fn((..._args: unknown[]): { data: unknown } => ({ data: undefined }));
+// The screen persists the auto-play choice through the query cache; mocked
+// flat like the data hooks (no QueryClientProvider here).
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
+  useUserServiceUpdateProfile: () => ({ mutateAsync: vi.fn() }),
   useLibraryServiceGetMediaItem: (...args: unknown[]) => getMediaItemMock(...args),
   usePlaybackServiceMarkAsWatched: (...args: unknown[]) => markAsWatchedMock(...args),
   usePlaybackServiceGetWatchProgress: (...args: unknown[]) => getWatchProgressMock(...args),

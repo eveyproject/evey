@@ -102,6 +102,55 @@ describe("NextEpisodeOverlay", () => {
     expect(screen.queryByText("Up Next")).not.toBeInTheDocument();
   });
 
+  // The profile's choice: with auto-play off the card still offers the next
+  // episode, it just waits for the viewer instead of counting down.
+  describe("autoAdvance off", () => {
+    it("shows the card at the end without a countdown and never advances on its own", () => {
+      vi.useFakeTimers();
+      try {
+        const onPlayNow = vi.fn();
+        // Reach the end the way playback does: from inside the credits.
+        const { rerender } = render(<NextEpisodeOverlay {...creditsProps({ onPlayNow, autoAdvance: false })} />);
+        rerender(<NextEpisodeOverlay {...creditsProps({ onPlayNow, autoAdvance: false, currentTime: 3599.9 })} />);
+        act(() => { vi.advanceTimersByTime(7000); });
+        expect(screen.getByText("Up Next")).toBeInTheDocument();
+        expect(screen.queryByText(/Next in/)).not.toBeInTheDocument();
+        expect(onPlayNow).not.toHaveBeenCalled();
+        expect(screen.getByRole("button", { name: "Play Now" })).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("still advances on Play Now", () => {
+      const onPlayNow = vi.fn();
+      render(<NextEpisodeOverlay {...creditsProps({ onPlayNow, autoAdvance: false, currentTime: 3599.9 })} />);
+      act(() => { screen.getByRole("button", { name: "Play Now" }).click(); });
+      expect(onPlayNow).toHaveBeenCalledWith("ep-2");
+    });
+  });
+
+  it("advances on its own by default once the countdown runs out", () => {
+    vi.useFakeTimers();
+    try {
+      const onPlayNow = vi.fn();
+      const { rerender } = render(<NextEpisodeOverlay {...creditsProps({ onPlayNow })} />);
+      rerender(<NextEpisodeOverlay {...creditsProps({ onPlayNow, currentTime: 3599.9 })} />);
+      act(() => { vi.advanceTimersByTime(7000); });
+      expect(onPlayNow).toHaveBeenCalledWith("ep-2");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports its visibility so the skip button can step aside", () => {
+    const onVisibleChange = vi.fn();
+    const { rerender } = render(<NextEpisodeOverlay {...creditsProps({ onVisibleChange })} />);
+    expect(onVisibleChange).toHaveBeenLastCalledWith(true);
+    rerender(<NextEpisodeOverlay {...creditsProps({ onVisibleChange, currentTime: 1800 })} />);
+    expect(onVisibleChange).toHaveBeenLastCalledWith(false);
+  });
+
   // A "stop at end of episode" sleep timer should just stop playback, never
   // offer to continue - suppressAutoAdvance must hide the overlay and never
   // fire onPlayNow, even once the countdown would otherwise reach zero.
