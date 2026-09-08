@@ -93,4 +93,4 @@ Settings → Social preview → upload `social/github-social.png`.
 
 ## Licence
 
-À définir par l'auteur du projet (MIT recommandé pour cohérence avec Evey).
+À définir par l'auteur du projet (le code d'Evey est sous AGPLv3, voir `LICENSE.md` à la racine ; la marque et le logo ne sont pas couverts par cette licence).
