@@ -10,6 +10,8 @@ const mockUpdateProfile = vi.fn();
 const mockUseMutation = vi.fn();
 const mockInvalidateQueries = vi.fn();
 const mockGetParentalSettings = vi.fn();
+// Plugins that mount the user-settings slot, per test.
+const pluginList = vi.hoisted(() => ({ current: [] as unknown[] }));
 
 vi.mock("@evey/api", () => ({
   useUserServiceGetCurrentUser: (...args: unknown[]) => mockGetCurrentUser(...args),
@@ -24,7 +26,11 @@ vi.mock("@evey/api", () => ({
   getUserServiceListProfilesQueryKey: (id: string) => ["/api/v1/users", id, "profiles"],
   // Resolves to an empty payload: a bare vi.fn() hands react-query
   // `undefined`, which it rejects with a warning on every render.
-  eveyFetch: vi.fn().mockResolvedValue({}),
+  eveyFetch: vi.fn((req: { url?: string }) =>
+    req?.url === "/api/v1/plugins"
+      ? Promise.resolve({ plugins: pluginList.current })
+      : Promise.resolve({}),
+  ),
   eveyFetchRaw: vi.fn(),
 }));
 
@@ -41,7 +47,10 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 // screen reads and WRITES is the whole point of the cases below.
 const authProfileId = vi.hoisted(() => ({ current: null as string | null }));
 
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", async (importActual) => ({
+  // The pure preference helpers (autoplayNextEpisode, ...) come from the real
+  // module; only the stores are stubbed.
+  ...(await importActual<typeof import("@evey/store")>()),
   toast: { success: vi.fn(), error: vi.fn() },
   useAuthStore: Object.assign(
     (selector?: (s: Record<string, unknown>) => unknown) => {
@@ -76,6 +85,17 @@ vi.mock("@/features/user/QuickConnectSettings", () => ({
   QuickConnectSettings: () => React.createElement("div", { "data-testid": "quickconnect-settings" }, "QuickConnect Settings"),
 }));
 
+vi.mock("@/features/user/AutoplayNextSettings", () => ({
+  AutoplayNextSettings: () => React.createElement("div", { "data-testid": "autoplay-next-settings" }, "Autoplay Next"),
+}));
+
+// The real slot renders a sandboxed iframe; here it only has to say WHICH
+// plugin the page asked it for.
+vi.mock("@/features/plugins/PluginSlot", () => ({
+  PluginSlot: ({ name, pluginId }: { name: string; pluginId?: string }) =>
+    React.createElement("div", { "data-testid": "plugin-slot", "data-slot": name, "data-plugin": pluginId ?? "" }),
+}));
+
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: React.ReactNode }) =>
@@ -105,6 +125,7 @@ describe("SettingsPage", () => {
     mockUseMutation.mockReturnValue({ mutate: vi.fn(), isPending: false });
     mockGetParentalSettings.mockReturnValue({ data: { enabled: true, hasPin: false, maxAge: null } });
     authProfileId.current = null;
+    pluginList.current = [];
   });
 
   // The server enforces the PIN and the age cap of the ACTIVE profile
@@ -201,5 +222,86 @@ describe("SettingsPage", () => {
     const SettingsPage = await getSettingsPage();
     render(React.createElement(SettingsPage), { wrapper: createWrapper() });
     expect(screen.getByText("alice")).toBeInTheDocument();
+  });
+});
+
+// The menu used to be a horizontal tab strip: the six translated labels never
+// fit its container, so reaching the last entries meant dragging sideways with
+// no visible scrollbar. These lock the shape that replaced it.
+describe("SettingsPage menu", () => {
+  it("never asks the reader to scroll sideways: no horizontal scroller, no nowrap labels", async () => {
+    const SettingsPage = await getSettingsPage();
+    const { container } = render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+
+    const nav = container.querySelector("nav");
+    expect(nav).not.toBeNull();
+    expect(nav?.className).not.toContain("overflow-x");
+    const firstTab = screen.getByTestId("profile-settings-tab-appearance");
+    expect(firstTab.className).not.toContain("whitespace-nowrap");
+    // The label is free to wrap onto a second line instead of widening the row.
+    expect(firstTab.querySelector("span.min-w-0")?.textContent).toBe("Appearance");
+  });
+
+  it("keeps every section reachable, playback included", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+
+    for (const key of ["appearance", "playback", "profiles", "notifications", "parental", "devices", "quick-connect"]) {
+      expect(screen.getByTestId(`profile-settings-tab-${key}`)).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByTestId("profile-settings-tab-playback"));
+    expect(screen.getByTestId("autoplay-next-settings")).toBeInTheDocument();
+  });
+});
+
+describe("SettingsPage plugins menu", () => {
+  const weather = {
+    id: "weather", name: "Weather", enabled: true, webRoot: "dist",
+    frontend: [{ slot: "settings.user.appearance", src: "dist/settings.js" }],
+  };
+  const notes = {
+    id: "notes", name: "Notes", enabled: true, webRoot: "dist",
+    frontend: [{ slot: "settings.user.appearance", src: "dist/settings.js" }],
+  };
+
+  it("hides the Plugins entry when nothing configurable is installed", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    await waitFor(() => expect(screen.getByTestId("profile-settings-tab-appearance")).toBeInTheDocument());
+    expect(screen.queryByTestId("profile-settings-tab-plugins")).not.toBeInTheDocument();
+  });
+
+  it("lists one sub-entry per plugin and opens the first one", async () => {
+    pluginList.current = [weather, notes];
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+
+    const entry = await screen.findByTestId("profile-settings-tab-plugins");
+    fireEvent.click(entry);
+    expect(screen.getByTestId("profile-settings-plugin-weather")).toHaveTextContent("Weather");
+    expect(screen.getByTestId("profile-settings-plugin-notes")).toHaveTextContent("Notes");
+    expect(screen.getByTestId("plugin-slot")).toHaveAttribute("data-plugin", "weather");
+  });
+
+  it("shows only the plugin picked in the sub-menu", async () => {
+    pluginList.current = [weather, notes];
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+
+    fireEvent.click(await screen.findByTestId("profile-settings-tab-plugins"));
+    fireEvent.click(screen.getByTestId("profile-settings-plugin-notes"));
+    const slots = screen.getAllByTestId("plugin-slot");
+    expect(slots).toHaveLength(1);
+    expect(slots[0]).toHaveAttribute("data-plugin", "notes");
+    expect(slots[0]).toHaveAttribute("data-slot", "settings.user.appearance");
+  });
+
+  it("keeps the sub-menu out of the way until the Plugins entry is open", async () => {
+    pluginList.current = [weather];
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+
+    await screen.findByTestId("profile-settings-tab-plugins");
+    expect(screen.queryByTestId("profile-settings-plugin-weather")).not.toBeInTheDocument();
   });
 });

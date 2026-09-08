@@ -81,9 +81,9 @@ export default function RegionScreen() {
             accessibilityLabel={item.label}
             accessibilityState={{ selected: current === item.code }}
           >
-            <Text style={{ color: theme.colors.text, fontSize: 16 }}>{item.label}</Text>
+            <Text style={[styles.label, { color: theme.colors.text }]} numberOfLines={2}>{item.label}</Text>
             {current === item.code && (
-              <Text style={{ color: theme.colors.accent, fontWeight: "700" }}>{"\u2713"}</Text>
+              <Text style={[styles.check, { color: theme.colors.accent }]}>{"\u2713"}</Text>
             )}
           </Pressable>
         )}
@@ -94,4 +94,6 @@ export default function RegionScreen() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  label: { fontSize: 16, flex: 1 },
+  check: { fontWeight: "700", flexShrink: 0, marginLeft: 8 },
 });

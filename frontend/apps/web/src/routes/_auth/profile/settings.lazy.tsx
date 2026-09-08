@@ -1,4 +1,4 @@
-import { Palette, Bell, Shield, Smartphone, QrCode, Pencil, X, Users, Plus, Inbox, ChevronRight } from "lucide-react";
+import { Palette, Bell, Shield, Smartphone, QrCode, Pencil, X, Users, Plus, Inbox, ChevronRight, PlayCircle, Puzzle } from "lucide-react";
 import type React from "react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
@@ -18,28 +18,70 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ThemeSettings } from "@/features/user/ThemeSettings";
 import { LanguageSettings } from "@/features/user/LanguageSettings";
 import { RegionSettings } from "@/features/user/RegionSettings";
+import { AutoplayNextSettings } from "@/features/user/AutoplayNextSettings";
+import { PlaybackSettings } from "@/features/user/PlaybackSettings";
 import { NotificationSettings } from "@/features/user/NotificationSettings";
 import { DeviceSettings } from "@/features/user/DeviceSettings";
 import { QuickConnectSettings } from "@/features/user/QuickConnectSettings";
 import { ProfileManagerList } from "@/features/profile/ProfileManagerList";
 import { CreateProfileDialog } from "@/features/profile/CreateProfileDialog";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
+import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
 import { ICON } from "@/constants/iconSizes";
 
 export const Route = createLazyFileRoute("/_auth/profile/settings")({
   component: SettingsPage,
 });
 
-type Tab = "appearance" | "profiles" | "notifications" | "parental" | "devices" | "quick-connect";
+// USER_SETTINGS_SLOT is the only slot a plugin may use to add its own
+// per-profile settings UI (the server rejects every other settings.* slot).
+// Each plugin mounting it becomes one entry under the "Plugins" menu.
+const USER_SETTINGS_SLOT = "settings.user.appearance";
+
+type Tab = "appearance" | "playback" | "profiles" | "notifications" | "parental" | "devices" | "quick-connect" | "plugins";
 
 const TABS: { key: Tab; labelKey: string; icon: React.ReactNode }[] = [
   { key: "appearance", labelKey: "auth.settings.tabs.appearance", icon: <Palette size={ICON.md} strokeWidth={1.5} /> },
+  { key: "playback", labelKey: "auth.settings.tabs.playback", icon: <PlayCircle size={ICON.md} strokeWidth={1.5} /> },
   { key: "profiles", labelKey: "auth.settings.tabs.profiles", icon: <Users size={ICON.md} strokeWidth={1.5} /> },
   { key: "notifications", labelKey: "auth.settings.tabs.notifications", icon: <Bell size={ICON.md} strokeWidth={1.5} /> },
   { key: "parental", labelKey: "auth.settings.tabs.parental", icon: <Shield size={ICON.md} strokeWidth={1.5} /> },
   { key: "devices", labelKey: "auth.settings.tabs.devices", icon: <Smartphone size={ICON.md} strokeWidth={1.5} /> },
   { key: "quick-connect", labelKey: "auth.settings.tabs.quickConnect", icon: <QrCode size={ICON.md} strokeWidth={1.5} /> },
 ];
+
+// One menu entry. The label wraps instead of being cut: a vertical menu has
+// the room for it, and the tab strip this replaced forced the reader to
+// scroll sideways to reach "Contrôle parental" / "Schnellverbindung".
+function NavItem({
+  active, onClick, icon, label, testId, nested = false,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  label: string;
+  testId?: string;
+  nested?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+      className={`flex items-center gap-2 min-w-0 text-left rounded-[var(--radius-md)] px-3 py-2 transition-colors-fast ${
+        nested ? "text-xs" : "text-sm"
+      } ${
+        active
+          ? "bg-[var(--surface-raised)] text-[var(--accent)] font-medium"
+          : "text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)]"
+      }`}
+    >
+      {icon && <span className="shrink-0">{icon}</span>}
+      <span className="min-w-0 break-words">{label}</span>
+    </button>
+  );
+}
 
 function ProfileCard() {
   const { t } = useTranslation();
@@ -207,9 +249,16 @@ function SettingsPage() {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("appearance");
   const { data: requestPolicy } = useMediaRequestServiceGetRequestPolicy();
+  // Plugins that ship their own per-profile settings UI. Nothing installed
+  // means no "Plugins" entry at all rather than an empty section.
+  const pluginEntries = usePluginSlotEntries(USER_SETTINGS_SLOT);
+  const [openPluginId, setOpenPluginId] = useState<string | null>(null);
+  // Resolve by id every render: a plugin uninstalled while its sub-menu is
+  // open must fall back to the first one instead of rendering a dead frame.
+  const activePlugin = pluginEntries.find((e) => e.pluginId === openPluginId) ?? pluginEntries[0];
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 min-w-0">
+    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 min-w-0">
       <h1 className="text-2xl font-bold text-[var(--text)]">{t("auth.settings.title")}</h1>
 
       <ProfileCard />
@@ -224,30 +273,51 @@ function SettingsPage() {
         </Link>
       )}
 
-      {/* Tab bar: horizontally scrollable on narrow screens so every tab stays
-          reachable, with an inset fade + snap so partially-cut tabs read as
-          scrollable instead of clipped/broken. */}
-      <div
-        className="flex gap-1 border-b border-[var(--border)] overflow-x-auto scrollbar-none snap-x -mx-4 px-4 sm:mx-0 sm:px-0"
-      >
-        {TABS.map((tb) => (
-          <button
-            key={tb.key}
-            data-testid={`profile-settings-tab-${tb.key}`}
-            onClick={() => setTab(tb.key)}
-            className={`flex shrink-0 snap-start whitespace-nowrap items-center gap-2 px-3 sm:px-4 py-2 text-sm transition-colors-fast border-b-2 -mb-px ${
-              tab === tb.key
-                ? "border-[var(--accent)] text-[var(--accent)]"
-                : "border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"
-            }`}
-          >
-            {tb.icon}
-            {t(tb.labelKey)}
-          </button>
-        ))}
-      </div>
+      {/* Menu + panel. The menu was a horizontal tab strip: six translated
+          labels never fit, so it scrolled sideways even on a desktop, and the
+          entries at the end were reachable only by dragging. A vertical menu
+          (two columns on a phone, one beside the panel from sm up) removes
+          the sideways scroll and gives every label the width to wrap. */}
+      <div className="grid gap-4 sm:gap-6 sm:grid-cols-[14rem_minmax(0,1fr)] sm:items-start min-w-0">
+        <nav aria-label={t("auth.settings.title")} className="grid grid-cols-2 sm:grid-cols-1 gap-1 min-w-0 sm:sticky sm:top-6">
+          {TABS.map((tb) => (
+            <NavItem
+              key={tb.key}
+              testId={`profile-settings-tab-${tb.key}`}
+              active={tab === tb.key}
+              onClick={() => setTab(tb.key)}
+              icon={tb.icon}
+              label={t(tb.labelKey)}
+            />
+          ))}
+          {pluginEntries.length > 0 && (
+            <>
+              <NavItem
+                testId="profile-settings-tab-plugins"
+                active={tab === "plugins"}
+                onClick={() => setTab("plugins")}
+                icon={<Puzzle size={ICON.md} strokeWidth={1.5} />}
+                label={t("auth.settings.tabs.plugins")}
+              />
+              {tab === "plugins" && (
+                <div className="col-span-2 sm:col-span-1 flex flex-col gap-0.5 ml-2 pl-2 border-l border-[var(--border)] min-w-0">
+                  {pluginEntries.map((entry) => (
+                    <NavItem
+                      key={entry.pluginId}
+                      testId={`profile-settings-plugin-${entry.pluginId}`}
+                      active={activePlugin?.pluginId === entry.pluginId}
+                      onClick={() => setOpenPluginId(entry.pluginId)}
+                      label={entry.name}
+                      nested
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </nav>
 
-      <Card>
+      <Card className="min-w-0">
         <div className="p-4 sm:p-6 min-w-0">
           {tab === "appearance" && (
             <>
@@ -258,9 +328,14 @@ function SettingsPage() {
               <div className="border-t border-[var(--border)] mt-6 pt-6">
                 <RegionSettings />
               </div>
-              {/* Plugins that declare a settings.user.appearance module render
-                  their own per-profile settings UI here (e.g. weather residence). */}
-              <PluginSlot name="settings.user.appearance" />
+            </>
+          )}
+          {tab === "playback" && (
+            <>
+              <AutoplayNextSettings />
+              <div className="border-t border-[var(--border)] mt-6 pt-6">
+                <PlaybackSettings />
+              </div>
             </>
           )}
           {tab === "profiles" && <ProfilesSection />}
@@ -268,8 +343,15 @@ function SettingsPage() {
           {tab === "parental" && <ParentalSection />}
           {tab === "devices" && <DeviceSettings />}
           {tab === "quick-connect" && <QuickConnectSettings />}
+          {/* One plugin at a time, picked in the menu: a plugin's settings UI
+              is a full iframe, and stacking every installed one in a single
+              scroll was what made this section unreadable. */}
+          {tab === "plugins" && activePlugin && (
+            <PluginSlot name={USER_SETTINGS_SLOT} pluginId={activePlugin.pluginId} />
+          )}
         </div>
       </Card>
+      </div>
     </div>
   );
 }

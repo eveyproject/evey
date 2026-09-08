@@ -77,8 +77,9 @@ const PLUGIN_INFO = {
   webRoot: ".",
   externalFetch: [] as string[],
 };
+const queryData = { current: { plugins: [PLUGIN_INFO] } as { plugins: typeof PLUGIN_INFO[] } };
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: { plugins: [PLUGIN_INFO] } }),
+  useQuery: () => ({ data: queryData.current }),
 }));
 
 // --- @evey/api ------------------------------------------------------------------------------
@@ -93,7 +94,8 @@ vi.mock("@evey/api", () => ({
 }));
 
 // -------------------------------------------------------------------------------------------
-import { PluginSlot } from "./PluginSlot";
+import { PluginSlot, usePluginSlotEntries } from "./PluginSlot";
+import { renderHook } from "@testing-library/react";
 
 function dispatchToWebView(payload: unknown) {
   act(() => {
@@ -114,6 +116,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   capturedOnMessage = null;
   capturedProps = {};
+  queryData.current = { plugins: [PLUGIN_INFO] };
   eveyFetchMock.mockResolvedValue({ values: {} });
   eveyFetchRawMock.mockResolvedValue({ ok: true, status: 200, text: async () => "{}" });
   issuePluginTokenMock.mockResolvedValue({ token: "PLUGIN-TOKEN" });
@@ -227,5 +230,49 @@ describe("PluginSlot assets.read bridge (TV)", () => {
 
     const traversalCall = eveyFetchRawMock.mock.calls.find(([r]) => (r as { url: string }).url.includes("etc/passwd"));
     expect(traversalCall).toBeFalsy();
+  });
+});
+
+describe("usePluginSlotEntries (TV)", () => {
+  it("lists only the plugins mounting a module in the requested slot, stripping webRoot from the entry path", () => {
+    queryData.current = {
+      plugins: [
+        PLUGIN_INFO,
+        {
+          id: "plg-weather",
+          name: "Weather",
+          enabled: true,
+          frontend: [{ slot: "settings.user.appearance", src: "web/settings.js" }],
+          webRoot: "web",
+          externalFetch: [],
+        },
+      ],
+    };
+    const { result } = renderHook(() => usePluginSlotEntries("settings.user.appearance"));
+    expect(result.current).toEqual([
+      { pluginId: "plg-weather", name: "Weather", entryPath: "settings.js", externalFetch: [] },
+    ]);
+  });
+
+  it("excludes a disabled plugin even when it mounts the slot", () => {
+    queryData.current = {
+      plugins: [
+        {
+          id: "plg-disabled",
+          name: "Disabled",
+          enabled: false,
+          frontend: [{ slot: "settings.user.appearance", src: "index.js" }],
+          webRoot: ".",
+          externalFetch: [],
+        },
+      ],
+    };
+    const { result } = renderHook(() => usePluginSlotEntries("settings.user.appearance"));
+    expect(result.current).toEqual([]);
+  });
+
+  it("returns an empty list when no plugin mounts the slot", () => {
+    const { result } = renderHook(() => usePluginSlotEntries("settings.user.appearance"));
+    expect(result.current).toEqual([]);
   });
 });

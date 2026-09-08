@@ -79,8 +79,9 @@ vi.mock("expo-image", () => ({
     }),
 }));
 
+const pluginEntries = { current: [] as { pluginId: string; name: string }[] };
 vi.mock("../../../src/features/plugins/PluginSlot", () => ({
-  PluginSlot: (props: any) => React.createElement("div", { "data-plugin-slot": props.name }),
+  usePluginSlotEntries: (slot: string) => (slot === "settings.user.appearance" ? pluginEntries.current : []),
 }));
 
 // --- server-config mock ---------------------------------------------------------
@@ -135,6 +136,7 @@ import SettingsScreen from "./settings";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  pluginEntries.current = [];
   authStoreState = { logout: logoutMock, setTokens: vi.fn(), profileId: "prof-2", accessToken: "current-access-token", isAdmin: false };
   currentUserMock.mockReturnValue({ data: { id: "user-1", username: "gravity" } });
   listProfilesMock.mockReturnValue({
@@ -298,10 +300,32 @@ describe("SettingsScreen (TV) profile card avatar", () => {
   });
 });
 
-describe("SettingsScreen (TV) appearance plugin slot", () => {
-  it("mounts the settings.user.appearance plugin slot, same as web/mobile", () => {
+// A raw <PluginSlot name="settings.user.appearance" /> used to sit inline
+// here, stacking every plugin's WebView with nothing saying which plugin
+// owned which block. Parity fix with web/mobile: one named row per plugin,
+// each opening its own screen; no plugin installed means no section at all.
+describe("SettingsScreen (TV) plugins section", () => {
+  it("renders no Plugins section when no plugin mounts the slot", () => {
     render(<SettingsScreen />);
-    expect(document.querySelector('[data-plugin-slot="settings.user.appearance"]')).toBeTruthy();
+    expect(screen.queryByText("auth.settings.tabs.plugins")).toBeNull();
+  });
+
+  it("renders one row per plugin that mounts the slot", () => {
+    pluginEntries.current = [
+      { pluginId: "plg-weather", name: "Weather" },
+      { pluginId: "plg-notes", name: "Notes" },
+    ];
+    render(<SettingsScreen />);
+    expect(screen.getByText("auth.settings.tabs.plugins")).toBeTruthy();
+    expect(screen.getByLabelText("Weather")).toBeTruthy();
+    expect(screen.getByLabelText("Notes")).toBeTruthy();
+  });
+
+  it("navigates to the plugin's own settings screen on press", () => {
+    pluginEntries.current = [{ pluginId: "plg-weather", name: "Weather" }];
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("Weather"));
+    expect(pushMock).toHaveBeenCalledWith("/(auth)/settings/plugins/plg-weather");
   });
 });
 

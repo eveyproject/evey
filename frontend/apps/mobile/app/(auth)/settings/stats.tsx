@@ -260,7 +260,7 @@ const sStyles = (t: ReturnType<typeof useTheme>) =>
       paddingHorizontal: t.spacing.sm,
       borderRadius: t.radii.sm,
     },
-    mpRank: { color: t.colors.accent, fontSize: 14, fontFamily: "monospace", width: 24, textAlign: "center" },
+    mpRank: { color: t.colors.accent, fontSize: 14, fontFamily: "monospace", minWidth: 24, textAlign: "center" },
     mpTitle: { color: t.colors.text, fontSize: 14, flex: 1 },
-    mpMeta: { color: t.colors.textMuted, fontSize: 12 },
+    mpMeta: { color: t.colors.textMuted, fontSize: 12, flexShrink: 0 },
   });

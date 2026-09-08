@@ -15,7 +15,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { supportedLanguages } from "../../../src/i18n";
 import { ThemeSelector } from "../../../src/components/ThemeSelector";
-import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
+import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 
 function ChevronRight({ color }: { color: string }) {
   return <Text style={{ color, fontSize: 18 }}>{"›"}</Text>;
@@ -23,6 +23,8 @@ function ChevronRight({ color }: { color: string }) {
 
 export default function SettingsScreen() {
   const theme = useTheme();
+  // Plugins mounting the only user-settings slot the server allows.
+  const pluginEntries = usePluginSlotEntries("settings.user.appearance");
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const logout = useAuthStore((s) => s.logout);
@@ -248,14 +250,18 @@ export default function SettingsScreen() {
           </Pressable>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700" }}>{user?.username ?? "..."}</Text>
+              {/* A long username used to take its full intrinsic width (RN Text
+                  does not shrink by default) and push the badge out of the card. */}
+              <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", flexShrink: 1 }} numberOfLines={1}>{user?.username ?? "..."}</Text>
               {isAdmin && (
-                <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, flexShrink: 0 }}>
                   <Text style={{ color: theme.colors.onAccent, fontSize: 9, fontWeight: "700" }}>ADMIN</Text>
                 </View>
               )}
             </View>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{user?.email || "-"}</Text>
+            {/* An address is one unbreakable token: ellipsize in the middle so
+                both the mailbox and the domain stay readable. */}
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13 }} numberOfLines={1} ellipsizeMode="middle">{user?.email || "-"}</Text>
             {memberSince && <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 2 }}>{memberSince}</Text>}
           </View>
           <Pressable onPress={editingAccount ? () => setEditingAccount(false) : startEditAccount} hitSlop={8} accessible={true} accessibilityLabel={editingAccount ? t("common.cancel") : t("common.edit") || "Edit"} accessibilityRole="button">
@@ -358,10 +364,30 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      {/* Plugins that declare a settings.user.appearance module render their
-          own per-profile settings UI here (e.g. weather residence) - same
-          placement as web's appearance tab. */}
-      <PluginSlot name="settings.user.appearance" />
+      {/* Plugins that ship their own per-profile settings. They used to be
+          injected inline here, one WebView under another with nothing saying
+          which plugin owned what. Now each gets a menu row and a screen of
+          its own; no plugin installed means no section at all. */}
+      {pluginEntries.length > 0 && (
+        <>
+          <Text style={s.sectionTitle}>{t("auth.settings.tabs.plugins")}</Text>
+          <View style={s.section}>
+            {pluginEntries.map((entry) => (
+              <Pressable
+                key={entry.pluginId}
+                style={s.row}
+                onPress={() => router.push(`/settings/plugins/${entry.pluginId}`)}
+                accessible={true}
+                accessibilityLabel={entry.name}
+                accessibilityRole="button"
+              >
+                <Text style={s.label} numberOfLines={2}>{entry.name}</Text>
+                <ChevronRight color={theme.colors.textMuted} />
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
 
       {/* Playback */}
       <Text style={s.sectionTitle}>{t("auth.settings.tabs.playback")}</Text>
@@ -442,7 +468,7 @@ export default function SettingsScreen() {
         <View style={s.row}><Text style={s.label}>{t("mobile.settings.serverVersion")}</Text><Text style={s.value}>{systemInfo?.version ?? "\u2014"}</Text></View>
         <Pressable style={s.row} onPress={handleManageServers} accessible={true} accessibilityLabel={t("mobile.servers.title", "Servers")} accessibilityRole="button">
           <Text style={s.label}>{t("mobile.servers.title", "Servers")}</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
             <Text style={s.value}>{t("mobile.servers.manageSubtitle", "{{count}} saved", { count: serverCount })}</Text>
             <ChevronRight color={theme.colors.textMuted} />
           </View>
@@ -502,8 +528,11 @@ const sStyles = (t: ReturnType<typeof useTheme>) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: t.colors.border,
     },
-    label: { color: t.colors.text, fontSize: 16 },
-    labelDestructive: { color: t.colors.error, fontSize: 16 },
+    // flexShrink: 1 on the labels, not just on `value`: without it a long
+    // translated label ("Débit maximum en streaming") took the whole row and
+    // the value or the chevron was clipped away by section's overflow:hidden.
+    label: { color: t.colors.text, fontSize: 16, flexShrink: 1 },
+    labelDestructive: { color: t.colors.error, fontSize: 16, flexShrink: 1 },
     value: { color: t.colors.textMuted, fontSize: 15, flexShrink: 1, marginLeft: t.spacing.md },
     qcInput: {
       flex: 1,

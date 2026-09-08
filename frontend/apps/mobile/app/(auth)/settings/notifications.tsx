@@ -63,11 +63,11 @@ function LevelPicker({
             borderBottomColor: theme.colors.border,
           }}
         >
-          <Text style={{ color: theme.colors.text, fontSize: 15 }}>
+          <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, paddingRight: 12 }}>
             {t(LEVEL_LABEL_KEYS[level])}
           </Text>
           {value === level && (
-            <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{"\u2713"}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600", flexShrink: 0 }}>{"\u2713"}</Text>
           )}
         </Pressable>
       ))}

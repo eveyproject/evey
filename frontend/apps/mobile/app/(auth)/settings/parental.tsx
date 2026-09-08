@@ -127,7 +127,7 @@ export default function ParentalSettingsScreen() {
       <Text style={s.sectionTitle}>{t("auth.settings.parental.enable", "Enable")}</Text>
       <View style={s.section}>
         <View style={s.row}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
             <Text style={s.label}>{t("auth.settings.parental.enable", "Parental Controls")}</Text>
             <Text style={s.hint}>{t("auth.settings.parental.enableDesc", "Restrict content based on rating")}</Text>
           </View>
@@ -324,7 +324,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: t.colors.border,
     },
-    label: { color: t.colors.text, fontSize: 16 },
+    label: { color: t.colors.text, fontSize: 16, flex: 1 },
     hint: { color: t.colors.textMuted, fontSize: 13, marginTop: 2 },
     input: {
       borderWidth: 1,

@@ -141,7 +141,7 @@ export function SideDrawer() {
           size={ICON_SIZE.lg}
           color={active ? theme.colors.accent : theme.colors.textMuted}
         />
-        <Text style={[styles.navLabel, { color: active ? theme.colors.accent : theme.colors.text }]}>
+        <Text style={[styles.navLabel, { color: active ? theme.colors.accent : theme.colors.text }]} numberOfLines={1}>
           {t(item.labelKey)}
         </Text>
       </Pressable>
@@ -182,7 +182,7 @@ export function SideDrawer() {
                 accessibilityRole="menuitem"
               >
                 <Ionicons name="arrow-back-outline" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
-                <Text style={[styles.navLabel, { color: theme.colors.text }]}>{t("common.nav.backToApp")}</Text>
+                <Text style={[styles.navLabel, { color: theme.colors.text }]} numberOfLines={1}>{t("common.nav.backToApp")}</Text>
               </Pressable>
               {ADMIN_SECTIONS.map((section) => (
                 <View key={section.titleKey}>
@@ -218,7 +218,7 @@ export function SideDrawer() {
                           size={ICON_SIZE.lg}
                           color={active ? theme.colors.accent : theme.colors.textMuted}
                         />
-                        <Text style={[styles.navLabel, { color: active ? theme.colors.accent : theme.colors.text }]}>
+                        <Text style={[styles.navLabel, { color: active ? theme.colors.accent : theme.colors.text }]} numberOfLines={1}>
                           {entry.name}
                         </Text>
                       </Pressable>
@@ -241,7 +241,7 @@ export function SideDrawer() {
                   accessibilityRole="menuitem"
                 >
                   <Ionicons name="settings-outline" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
-                  <Text style={[styles.navLabel, { color: theme.colors.text }]}>
+                  <Text style={[styles.navLabel, { color: theme.colors.text }]} numberOfLines={1}>
                     {t("common.nav.admin")}
                   </Text>
                 </Pressable>
@@ -295,6 +295,7 @@ const styles = StyleSheet.create({
   navLabel: {
     fontSize: FONT_SIZE.sm,
     fontWeight: "500",
+    flex: 1,
   },
   sectionTitle: {
     fontSize: 11,
