@@ -158,9 +158,11 @@ settings:
     devices: "Appareils"
     security: "Sécurité"
     quickConnect: "Connexion rapide"
+    plugins: "Plugins"
   playback:
     bitrateTitle: "Débit maximum en streaming"
     bitrateDesc: "Limiter le débit maximum lors du streaming. Des valeurs plus basses consomment moins de bande passante."
+    bitrateUnlimited: "Illimité"
     cellularBitrateTitle: "Débit maximum en mobile"
     cellularBitrateDesc: "Limite plus basse appliquée en données mobiles."
     subtitleLanguage: "Langue des sous-titres par défaut"
@@ -184,6 +186,8 @@ settings:
     allowDirectStreamDesc: "Remuxer le conteneur sans ré-encoder si possible."
     allowTranscoding: "Autoriser le transcodage"
     allowTranscodingDesc: "Transcoder en dernier recours si la lecture/flux direct est impossible."
+    autoplayNextTitle: "Épisode suivant automatique"
+    autoplayNextDesc: "Lancer l'épisode suivant tout seul à la fin de celui-ci. Le bouton Épisode suivant reste disponible dans tous les cas."
   quickConnect:
     title: "Connexion rapide"
     description: "Entrez le code affiché sur l'appareil que vous souhaitez connecter."

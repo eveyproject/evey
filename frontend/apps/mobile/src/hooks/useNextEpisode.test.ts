@@ -113,6 +113,25 @@ describe("useNextEpisode", () => {
     expect(onNavigate).toHaveBeenCalledWith("ep2");
   });
 
+  it("with autoAdvance false, ends without ever auto-navigating, but playNow still works", () => {
+    const onNavigate = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ currentTime }) => useNextEpisode({ media: ep1, currentTime, duration: 100, onNavigate, autoAdvance: false }),
+      { initialProps: { currentTime: 50 }, wrapper: createWrapper() },
+    );
+
+    rerender({ currentTime: 99.8 });
+    expect(result.current.ended).toBe(true);
+    expect(result.current.visible).toBe(true);
+
+    act(() => { vi.advanceTimersByTime(6000); });
+    expect(onNavigate).not.toHaveBeenCalled();
+    expect(result.current.visible).toBe(true);
+
+    act(() => { result.current.playNow(); });
+    expect(onNavigate).toHaveBeenCalledWith("ep2");
+  });
+
   it("not visible for non-episode media", () => {
     listMediaItemsMock.mockReturnValue({ data: undefined });
     const movie = { id: "m1", type: "MEDIA_ITEM_TYPE_MOVIE" } as V1MediaItem;

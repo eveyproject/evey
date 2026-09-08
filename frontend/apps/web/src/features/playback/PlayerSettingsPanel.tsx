@@ -238,6 +238,10 @@ export interface SettingsPanelProps {
   onBrightnessChange?: (value: number) => void;
   availableQualities?: number[];
   /** Current sleep timer state, or null/undefined when no timer is active. */
+  /** Per-profile choice, persisted by the caller; the row only shows when
+   *  the caller can persist it (a series context). */
+  autoplayNext?: boolean;
+  onAutoplayNextChange?: (enabled: boolean) => void;
   sleepTimerState?: SleepTimerState | null;
   onSleepTimerMinutes?: (minutes: number) => void;
   onSleepTimerEndOfEpisode?: () => void;
@@ -271,6 +275,8 @@ export function SettingsPanel({
   brightness = 1,
   onBrightnessChange,
   availableQualities,
+  autoplayNext = true,
+  onAutoplayNextChange,
   sleepTimerState = null,
   onSleepTimerMinutes,
   onSleepTimerEndOfEpisode,
@@ -415,6 +421,23 @@ export function SettingsPanel({
                     <span className="flex items-center gap-1">
                       <span className="text-xs text-[var(--text-muted)]">{currentSpeedLabel}</span>
                       <ChevronRightIcon />
+                    </span>
+                  </button>
+                </>
+              )}
+
+              {onAutoplayNextChange && (
+                <>
+                  <div className="mx-3 my-1 border-t border-[var(--border)]" />
+                  <button
+                    role="switch"
+                    aria-checked={autoplayNext}
+                    onClick={() => onAutoplayNextChange(!autoplayNext)}
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
+                  >
+                    <span>{t("player.settings.autoplayNext")}</span>
+                    <span className={`text-xs ${autoplayNext ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}`}>
+                      {autoplayNext ? t("common.enabled") : t("common.disabled")}
                     </span>
                   </button>
                 </>

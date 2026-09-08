@@ -155,6 +155,37 @@ describe("useNextEpisode", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
+  // Item 2: the per-profile "auto-play next episode" preference. Off means
+  // the card stays put instead of counting down into another episode on its
+  // own - only an explicit playNow/playPrevious may navigate.
+  describe("autoAdvance: false", () => {
+    it("never navigates on its own, even long after the video ended", () => {
+      const onNavigate = vi.fn();
+      const { result, rerender } = renderHook(
+        ({ currentTime }) =>
+          useNextEpisode({ media: ep1, currentTime, duration: 100, onNavigate, autoAdvance: false }),
+        { initialProps: { currentTime: 50 }, wrapper: createWrapper() },
+      );
+
+      rerender({ currentTime: 99.8 });
+      act(() => { vi.advanceTimersByTime(6000); });
+
+      expect(onNavigate).not.toHaveBeenCalled();
+      expect(result.current.visible).toBe(true);
+    });
+
+    it("playNow still navigates", () => {
+      const onNavigate = vi.fn();
+      const { result } = renderHook(
+        () => useNextEpisode({ media: ep1, currentTime: 75, duration: 100, onNavigate, autoAdvance: false }),
+        { wrapper: createWrapper() },
+      );
+
+      act(() => { result.current.playNow(); });
+      expect(onNavigate).toHaveBeenCalledWith("ep2");
+    });
+  });
+
   it("not visible for non-episode media", () => {
     listMediaItemsMock.mockReturnValue({ data: undefined });
     const movie = { id: "m1", type: "MEDIA_ITEM_TYPE_MOVIE" } as V1MediaItem;

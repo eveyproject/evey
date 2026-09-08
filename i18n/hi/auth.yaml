@@ -158,9 +158,11 @@ settings:
     devices: "डिवाइस"
     security: "सुरक्षा"
     quickConnect: "क्विक कनेक्ट"
+    plugins: "प्लगइन"
   playback:
     bitrateTitle: "अधिकतम स्ट्रीमिंग बिटरेट"
     bitrateDesc: "स्ट्रीमिंग करते समय अधिकतम बिटरेट सीमित करें। कम मान कम बैंडविड्थ का उपयोग करते हैं।"
+    bitrateUnlimited: "असीमित"
     cellularBitrateTitle: "अधिकतम सेल्युलर बिटरेट"
     cellularBitrateDesc: "मोबाइल डेटा उपयोग करते समय लागू होने वाली कम सीमा।"
     subtitleLanguage: "डिफ़ॉल्ट उपशीर्षक भाषा"
@@ -184,6 +186,8 @@ settings:
     allowDirectStreamDesc: "संभव होने पर बिना री-एनकोडिंग के कंटेनर को रीमक्स करें।"
     allowTranscoding: "ट्रांसकोडिंग की अनुमति दें"
     allowTranscodingDesc: "यदि डायरेक्ट प्ले/स्ट्रीम उपलब्ध न हो तो ट्रांसकोडिंग पर वापस जाएं।"
+    autoplayNextTitle: "अगला एपिसोड अपने आप चलाएँ"
+    autoplayNextDesc: "यह एपिसोड खत्म होने पर अगला एपिसोड अपने आप शुरू करें। अगला एपिसोड बटन हर हाल में उपलब्ध रहता है।"
   quickConnect:
     title: "क्विक कनेक्ट"
     description: "जिस डिवाइस में साइन इन करना है, उस पर दिखाया गया कोड दर्ज करें।"

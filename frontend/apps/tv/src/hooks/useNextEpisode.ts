@@ -12,6 +12,12 @@ interface UseNextEpisodeArgs {
   currentTime: number;
   duration: number;
   onNavigate: (episodeId: string) => void;
+  // Per-profile preference (player.settings.autoplayNext). When false, the
+  // "up next" card still appears and stays put - it just never counts down
+  // or navigates on its own; only playNow/playPrevious move to another
+  // episode. Defaults to true, the behaviour every player had before the
+  // preference existed.
+  autoAdvance?: boolean;
 }
 
 export function useNextEpisode({
@@ -19,6 +25,7 @@ export function useNextEpisode({
   currentTime,
   duration,
   onNavigate,
+  autoAdvance = true,
 }: UseNextEpisodeArgs) {
   const [countdown, setCountdown] = useState(COUNTDOWN_SEC);
   const [cancelled, setCancelled] = useState(false);
@@ -70,7 +77,7 @@ export function useNextEpisode({
   const visible = !!nextEpisode && !cancelled && (isInCredits || ended);
 
   useEffect(() => {
-    if (!ended || cancelled || !nextEpisode) return;
+    if (!ended || cancelled || !nextEpisode || !autoAdvance) return;
     setCountdown(COUNTDOWN_SEC);
     intervalRef.current = setInterval(() => {
       setCountdown((prev) => prev - 1);
@@ -78,15 +85,16 @@ export function useNextEpisode({
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [ended, cancelled, nextEpisode]);
+  }, [ended, cancelled, nextEpisode, autoAdvance]);
 
   useEffect(() => {
+    if (!autoAdvance) return;
     if (countdown <= 0 && nextEpisode && !cancelled) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (!nextEpisode?.id) return;
       onNavigate(nextEpisode.id);
     }
-  }, [countdown, nextEpisode, cancelled, onNavigate]);
+  }, [countdown, nextEpisode, cancelled, onNavigate, autoAdvance]);
 
   // Reset on episode change
   useEffect(() => {

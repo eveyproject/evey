@@ -42,6 +42,7 @@ settings:
   normal: "正常"
   uploadSubtitle: "上传字幕…"
   "off": "关闭"
+  autoplayNext: "自动播放下一集"
   brightness: "亮度"
 sleepTimer:
   minutes_one: "{{count}} 分钟"
@@ -87,6 +88,7 @@ nextEpisodeOverlay:
 skipIntro: "跳过片头"
 skipRecap: "跳过前情提要"
 skipCredits: "跳过片尾"
+watchCredits: "观看片尾"
 skipPreview: 跳过预告
 introSkipped: "已跳过片头"
 download: "下载"

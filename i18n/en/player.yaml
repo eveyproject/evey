@@ -42,6 +42,7 @@ settings:
   normal: Normal
   uploadSubtitle: "Upload subtitle…"
   "off": "Off"
+  autoplayNext: "Auto-play next episode"
   brightness: Brightness
 sleepTimer:
   minutes_one: "{{count}} min"
@@ -87,6 +88,7 @@ nextEpisodeOverlay:
 skipIntro: Skip Intro
 skipRecap: Skip Recap
 skipCredits: Skip Credits
+watchCredits: "Watch credits"
 skipPreview: Skip Preview
 introSkipped: "Intro skipped"
 download: Download

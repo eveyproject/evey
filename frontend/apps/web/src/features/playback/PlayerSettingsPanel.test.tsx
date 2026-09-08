@@ -248,3 +248,20 @@ describe("OffsetStepper (audio/subtitle resync rows)", () => {
     expect(onSubtitleOffsetChange).toHaveBeenLastCalledWith(-100);
   });
 });
+
+describe("SettingsPanel auto-play next episode", () => {
+  it("shows the switch only when the caller can persist the choice", () => {
+    render(<SettingsPanel {...defaultProps} open={true} />);
+    expect(screen.queryByRole("switch", { name: /Auto-play next episode/ })).not.toBeInTheDocument();
+  });
+
+  it("flips the choice on click and reads the current state", async () => {
+    const user = userEvent.setup();
+    const onAutoplayNextChange = vi.fn();
+    render(<SettingsPanel {...defaultProps} open={true} autoplayNext={false} onAutoplayNextChange={onAutoplayNextChange} />);
+    const row = screen.getByRole("switch", { name: /Auto-play next episode/ });
+    expect(row).toHaveAttribute("aria-checked", "false");
+    await user.click(row);
+    expect(onAutoplayNextChange).toHaveBeenCalledWith(true);
+  });
+});

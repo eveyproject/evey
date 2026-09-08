@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { AccessibilityInfo, Pressable, Text, StyleSheet } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Pressable, Text, View, StyleSheet } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { mKVServiceListChapters } from "@evey/api";
@@ -33,6 +33,10 @@ const CHAPTER_PATTERNS: { type: SkippableType; re: RegExp }[] = [
 ];
 
 const MIN_SKIPPABLE_SEC = 5;
+// With auto-play on, the next episode starts this long after the credits
+// begin unless the viewer asks to watch them. Measured on the playhead, not
+// the clock: a pause freezes it, and it can never outlive the segment.
+export const CREDITS_COUNTDOWN_SEC = 15;
 
 interface ResolvedSegment {
   type: SkippableType;
@@ -45,6 +49,19 @@ interface SkipIntroOverlayProps {
   filePath?: string; // MKV chapters fallback
   currentTime: number;
   onSkip: (toSec: number) => void;
+  // Distance from the screen bottom, in px. Defaults to the old hardcoded
+  // 100 - callers with a taller bottom control bar pass a bigger value so
+  // the button doesn't sit on top of the seek bar.
+  bottomOffset?: number;
+  // Render nothing while true. Used while the next-episode card is on
+  // screen so the two overlays never stack.
+  hidden?: boolean;
+  // When set and the active segment is end_credits, a second "Next episode"
+  // button renders next to the skip button.
+  onNextEpisode?: () => void;
+  /** The profile's auto-play choice. On, the next-episode button counts down
+   *  through the credits and fires on its own; "Watch credits" cancels it. */
+  autoAdvance?: boolean;
 }
 
 function active(candidates: ResolvedSegment[], currentTime: number): ResolvedSegment | null {
@@ -56,7 +73,16 @@ function active(candidates: ResolvedSegment[], currentTime: number): ResolvedSeg
   return null;
 }
 
-export function SkipIntroOverlay({ mediaId, filePath, currentTime, onSkip }: SkipIntroOverlayProps) {
+export function SkipIntroOverlay({
+  mediaId,
+  filePath,
+  currentTime,
+  onSkip,
+  bottomOffset = 100,
+  hidden = false,
+  onNextEpisode,
+  autoAdvance = false,
+}: SkipIntroOverlayProps) {
   const { t } = useTranslation();
   const theme = useTheme();
 
@@ -134,28 +160,86 @@ export function SkipIntroOverlay({ mediaId, filePath, currentTime, onSkip }: Ski
     AccessibilityInfo.announceForAccessibility(t(LABEL_KEY[type]));
   }, [announceKey, t]);
 
-  if (!resolved) return null;
+  // Credits countdown. Cancelled per segment (keyed on its start, like the
+  // auto-skip): "Watch credits" is a decision for this episode's credits, a
+  // seek back into them must not restart the clock on the viewer.
+  const withNext = resolved?.type === "end_credits" && !!onNextEpisode;
+  const [cancelledCredits, setCancelledCredits] = useState<Set<number>>(() => new Set());
+  const [lastCancelMedia, setLastCancelMedia] = useState(mediaId);
+  if (lastCancelMedia !== mediaId) {
+    setLastCancelMedia(mediaId);
+    setCancelledCredits(new Set());
+  }
+  const counting =
+    withNext && autoAdvance && resolved !== null && !cancelledCredits.has(resolved.startSec);
+  const remaining = counting && resolved
+    ? Math.max(0, Math.ceil(Math.min(resolved.startSec + CREDITS_COUNTDOWN_SEC, resolved.endSec) - currentTime))
+    : null;
+  const onNextEpisodeRef = useRef(onNextEpisode);
+  onNextEpisodeRef.current = onNextEpisode;
+  const firedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (remaining !== 0 || !resolved || firedRef.current === resolved.startSec) return;
+    firedRef.current = resolved.startSec;
+    onNextEpisodeRef.current?.();
+  }, [remaining, resolved]);
+
+  if (!resolved || hidden) return null;
 
   const labelKey = LABEL_KEY[resolved.type];
+  // Skipping the credits only lands on the end of the episode; most viewers
+  // want the next one, so the credits button comes with a second one.
+  const showNextEpisode = withNext;
+  const buttonStyle = [styles.button, { borderColor: theme.colors.border, backgroundColor: theme.colors.overlay }];
 
   return (
-    <Pressable
-      style={[styles.button, { borderColor: theme.colors.border, backgroundColor: theme.colors.overlay }]}
-      onPress={() => onSkip(resolved.endSec)}
-      accessible={true}
-      accessibilityLabel={t(labelKey)}
-      accessibilityRole="button"
-    >
-      <Text style={[styles.text, { color: theme.colors.text }]}>{t(labelKey)}</Text>
-    </Pressable>
+    <View style={[styles.row, { bottom: bottomOffset }]}>
+      {counting ? (
+        <Pressable
+          style={buttonStyle}
+          onPress={() => setCancelledCredits((prev) => new Set(prev).add(resolved.startSec))}
+          accessible={true}
+          accessibilityLabel={t("player.watchCredits")}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.text, { color: theme.colors.text }]}>{t("player.watchCredits")}</Text>
+        </Pressable>
+      ) : (
+        <Pressable
+          style={buttonStyle}
+          onPress={() => onSkip(resolved.endSec)}
+          accessible={true}
+          accessibilityLabel={t(labelKey)}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.text, { color: theme.colors.text }]}>{t(labelKey)}</Text>
+        </Pressable>
+      )}
+      {showNextEpisode && (
+        <Pressable
+          style={buttonStyle}
+          onPress={onNextEpisode}
+          accessible={true}
+          accessibilityLabel={t("player.nextEpisodeOverlay.nextEpisode")}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.text, { color: theme.colors.text }]}>
+            {counting ? t("player.nextEpisodeOverlay.nextIn", { seconds: remaining }) : t("player.nextEpisodeOverlay.nextEpisode")}
+          </Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
+  row: {
     position: "absolute",
-    bottom: 100,
     right: 20,
+    flexDirection: "row",
+    gap: 8,
+  },
+  button: {
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 20,

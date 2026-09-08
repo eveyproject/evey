@@ -6,14 +6,18 @@ import { FONT_SIZE } from "@evey/theme";
 
 interface NextEpisodeOverlayProps {
   nextEp: ReturnType<typeof useNextEpisode>;
+  // Distance from the screen bottom, in px. Defaults to the old hardcoded
+  // 80 - callers with a taller bottom control bar pass a bigger value so
+  // the card doesn't sit on top of the seek bar.
+  bottomOffset?: number;
 }
 
-export function NextEpisodeOverlay({ nextEp }: NextEpisodeOverlayProps) {
+export function NextEpisodeOverlay({ nextEp, bottomOffset = 80 }: NextEpisodeOverlayProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   if (!nextEp.nextEpisode) return null;
   return (
-    <View style={styles.nextEpOverlay}>
+    <View style={[styles.nextEpOverlay, { bottom: bottomOffset }]}>
       <Text
         style={styles.nextEpLabel}
         // Assertive: this counts down to an action that happens WITHOUT the
@@ -70,7 +74,6 @@ export function NextEpisodeOverlay({ nextEp }: NextEpisodeOverlayProps) {
 const styles = StyleSheet.create({
   nextEpOverlay: {
     position: "absolute",
-    bottom: 80,
     right: 16,
     backgroundColor: "rgba(0,0,0,0.85)",
     borderRadius: 12,

@@ -47,6 +47,110 @@ const introSegment: MediaSegment = {
   source: "audio",
 };
 
+const creditsSegment: MediaSegment = {
+  type: "end_credits",
+  startMs: 3_400_000,
+  endMs: 3_600_000,
+  confidence: 0.9,
+  source: "audio",
+};
+
+// Skipping the credits only lands on the end of the episode; most viewers
+// want the next one. The credits button therefore comes with a second one.
+describe("SkipIntroButton next-episode cluster", () => {
+  beforeEach(() => {
+    mockUseQuery.mockReset();
+    mockUseMediaSegments.mockReset();
+    toastInfoMock.mockReset();
+    mockUseQuery.mockReturnValue({ data: undefined });
+  });
+
+  it("offers Next Episode next to Skip Credits when the caller can advance", async () => {
+    const user = userEvent.setup();
+    mockUseMediaSegments.mockReturnValue({ data: segData([creditsSegment]) });
+    const onSkip = vi.fn();
+    const onNextEpisode = vi.fn();
+    render(<SkipIntroButton mediaId="m1" currentTime={3_500} onSkip={onSkip} onNextEpisode={onNextEpisode} />);
+
+    await user.click(screen.getByRole("button", { name: "Skip Credits" }));
+    expect(onSkip).toHaveBeenCalledWith(3_600);
+    await user.click(screen.getByRole("button", { name: "Next Episode" }));
+    expect(onNextEpisode).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows only Skip Credits when there is nothing to advance to (a season finale, a film)", () => {
+    mockUseMediaSegments.mockReturnValue({ data: segData([creditsSegment]) });
+    render(<SkipIntroButton mediaId="m1" currentTime={3_500} onSkip={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Skip Credits" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next Episode" })).not.toBeInTheDocument();
+  });
+
+  it("never pairs Next Episode with an intro: only the credits lead somewhere", () => {
+    mockUseMediaSegments.mockReturnValue({ data: segData([introSegment]) });
+    render(<SkipIntroButton mediaId="m1" currentTime={30} onSkip={vi.fn()} onNextEpisode={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Skip Intro" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next Episode" })).not.toBeInTheDocument();
+  });
+
+  // With auto-play on, the credits button becomes a countdown that fires on
+  // its own - unless the viewer asks to watch the credits.
+  describe("countdown with auto-play on", () => {
+    it("counts down on the playhead from the start of the credits", () => {
+      mockUseMediaSegments.mockReturnValue({ data: segData([creditsSegment]) });
+      const { rerender } = render(
+        <SkipIntroButton mediaId="m1" currentTime={3_400} onSkip={vi.fn()} onNextEpisode={vi.fn()} autoAdvance />,
+      );
+      expect(screen.getByRole("button", { name: "Next Episode" })).toHaveTextContent("Next in 15s");
+      expect(screen.getByRole("button", { name: "Watch credits" })).toBeInTheDocument();
+      rerender(<SkipIntroButton mediaId="m1" currentTime={3_405.2} onSkip={vi.fn()} onNextEpisode={vi.fn()} autoAdvance />);
+      expect(screen.getByRole("button", { name: "Next Episode" })).toHaveTextContent("Next in 10s");
+    });
+
+    it("fires once when the countdown reaches zero, and not on a later re-render", () => {
+      mockUseMediaSegments.mockReturnValue({ data: segData([creditsSegment]) });
+      const onNextEpisode = vi.fn();
+      const { rerender } = render(
+        <SkipIntroButton mediaId="m1" currentTime={3_414} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />,
+      );
+      expect(onNextEpisode).not.toHaveBeenCalled();
+      rerender(<SkipIntroButton mediaId="m1" currentTime={3_415} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />);
+      rerender(<SkipIntroButton mediaId="m1" currentTime={3_416} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />);
+      expect(onNextEpisode).toHaveBeenCalledTimes(1);
+    });
+
+    it("Watch credits cancels the countdown for these credits and restores Skip Credits", async () => {
+      const user = userEvent.setup();
+      mockUseMediaSegments.mockReturnValue({ data: segData([creditsSegment]) });
+      const onNextEpisode = vi.fn();
+      const { rerender } = render(
+        <SkipIntroButton mediaId="m1" currentTime={3_400} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />,
+      );
+      await user.click(screen.getByRole("button", { name: "Watch credits" }));
+      expect(screen.getByRole("button", { name: "Skip Credits" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Next Episode" })).toHaveTextContent("Next Episode");
+      rerender(<SkipIntroButton mediaId="m1" currentTime={3_500} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />);
+      expect(onNextEpisode).not.toHaveBeenCalled();
+    });
+
+    it("never counts down with auto-play off", () => {
+      mockUseMediaSegments.mockReturnValue({ data: segData([creditsSegment]) });
+      const onNextEpisode = vi.fn();
+      const { rerender } = render(
+        <SkipIntroButton mediaId="m1" currentTime={3_400} onSkip={vi.fn()} onNextEpisode={onNextEpisode} />,
+      );
+      rerender(<SkipIntroButton mediaId="m1" currentTime={3_500} onSkip={vi.fn()} onNextEpisode={onNextEpisode} />);
+      expect(screen.getByRole("button", { name: "Skip Credits" })).toBeInTheDocument();
+      expect(onNextEpisode).not.toHaveBeenCalled();
+    });
+  });
+
+  it("steps aside while the next-episode card is on screen", () => {
+    mockUseMediaSegments.mockReturnValue({ data: segData([creditsSegment]) });
+    render(<SkipIntroButton mediaId="m1" currentTime={3_500} onSkip={vi.fn()} onNextEpisode={vi.fn()} hidden />);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+});
+
 describe("SkipIntroButton", () => {
   beforeEach(() => {
     mockUseQuery.mockReset();

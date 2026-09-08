@@ -158,9 +158,11 @@ settings:
     devices: Devices
     security: Security
     quickConnect: Quick Connect
+    plugins: "Plugins"
   playback:
     bitrateTitle: Max Streaming Bitrate
     bitrateDesc: Limit the maximum bitrate when streaming. Lower values use less bandwidth.
+    bitrateUnlimited: "Unlimited"
     cellularBitrateTitle: Max Cellular Bitrate
     cellularBitrateDesc: Lower cap applied when using mobile data.
     subtitleLanguage: Default Subtitle Language
@@ -184,6 +186,8 @@ settings:
     allowDirectStreamDesc: Remux container without re-encoding when possible.
     allowTranscoding: Allow transcoding
     allowTranscodingDesc: Fall back to transcoding if direct play/stream is unavailable.
+    autoplayNextTitle: "Auto-play next episode"
+    autoplayNextDesc: "Start the next episode on its own when this one ends. The Next episode button stays available either way."
   quickConnect:
     title: Quick Connect
     description: Enter the code displayed on the device you want to sign in to.

@@ -114,6 +114,7 @@ export default function PlaybackSettingsScreen() {
   const [audioCodec, setAudioCodec] = useState("auto");
   const [audioChannels, setAudioChannels] = useState("auto");
   const [subtitleBurn, setSubtitleBurn] = useState("auto");
+  const [autoplayNext, setAutoplayNext] = useState(true);
   const [allowDirectPlay, setAllowDirectPlay] = useState(true);
   const [allowDirectStream, setAllowDirectStream] = useState(true);
   const [allowTranscoding, setAllowTranscoding] = useState(true);
@@ -133,6 +134,7 @@ export default function PlaybackSettingsScreen() {
     if (prefs.preferred_audio_codec) setAudioCodec(prefs.preferred_audio_codec);
     if (prefs.max_audio_channels) setAudioChannels(prefs.max_audio_channels);
     if (prefs.subtitle_burn_in) setSubtitleBurn(prefs.subtitle_burn_in);
+    if (prefs.autoplay_next_episode !== undefined) setAutoplayNext(prefs.autoplay_next_episode !== "false");
     if (prefs.allow_direct_play !== undefined) setAllowDirectPlay(prefs.allow_direct_play !== "false");
     if (prefs.allow_direct_stream !== undefined) setAllowDirectStream(prefs.allow_direct_stream !== "false");
     if (prefs.allow_transcoding !== undefined) setAllowTranscoding(prefs.allow_transcoding !== "false");
@@ -229,6 +231,14 @@ export default function PlaybackSettingsScreen() {
     try {
       await savePref({ subtitle_burn_in: v });
       setSubtitleBurn(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
+  }
+  async function handleAutoplayNext(v: boolean) {
+    try {
+      await savePref({ autoplay_next_episode: v ? "true" : "false" });
+      setAutoplayNext(v);
     } catch {
       // mutationErrorNet already toasted the failure
     }
@@ -445,6 +455,32 @@ export default function PlaybackSettingsScreen() {
         ))}
       </View>
 
+      {/* Auto-play next episode */}
+      <Text style={s.sectionTitle}>
+        {t("auth.settings.playback.autoplayNextTitle", "Auto-play next episode")}
+      </Text>
+      <View style={s.section}>
+        <View style={[s.row, { justifyContent: "space-between" }]}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={s.label}>
+              {t("auth.settings.playback.autoplayNextTitle", "Auto-play next episode")}
+            </Text>
+            <Text style={s.sublabel}>
+              {t(
+                "auth.settings.playback.autoplayNextDesc",
+                "Start the next episode automatically when one finishes.",
+              )}
+            </Text>
+          </View>
+          <Switch
+            value={autoplayNext}
+            onValueChange={handleAutoplayNext}
+            disabled={!editedProfile}
+            trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
+          />
+        </View>
+      </View>
+
       {/* Transcoding toggles */}
       <Text style={s.sectionTitle}>{t("auth.settings.playback.transcodeTitle", "Transcoding")}</Text>
       <View style={s.section}>
@@ -545,7 +581,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: t.colors.border,
     },
-    label: { color: t.colors.text, fontSize: 15 },
+    label: { color: t.colors.text, fontSize: 15, flex: 1, paddingRight: 12 },
     sublabel: { color: t.colors.textMuted, fontSize: 12, marginTop: 2 },
-    check: { color: t.colors.accent, fontSize: 16, fontWeight: "600" },
+    check: { color: t.colors.accent, fontSize: 16, fontWeight: "600", flexShrink: 0 },
   });

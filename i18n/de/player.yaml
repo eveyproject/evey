@@ -42,6 +42,7 @@ settings:
   normal: Normal
   uploadSubtitle: "Untertitel hochladen…"
   "off": Aus
+  autoplayNext: "Nächste Folge automatisch"
   brightness: Helligkeit
 sleepTimer:
   minutes_one: "{{count}} Min."
@@ -87,6 +88,7 @@ nextEpisodeOverlay:
 skipIntro: Intro überspringen
 skipRecap: Rückblick überspringen
 skipCredits: Abspann überspringen
+watchCredits: "Abspann ansehen"
 skipPreview: Vorschau überspringen
 introSkipped: "Intro übersprungen"
 download: Herunterladen

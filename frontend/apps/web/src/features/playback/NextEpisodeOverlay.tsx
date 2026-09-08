@@ -11,6 +11,13 @@ interface NextEpisodeOverlayProps {
    * a "stop at end of episode" sleep timer, which should just stop playback
    * instead of offering to continue. */
   suppressAutoAdvance?: boolean;
+  /** The profile's choice: start the next episode on its own once this one
+   *  ends. Off keeps the card and its "Play now" button, drops the countdown.
+   *  Defaults to on, the behaviour every player had before the choice existed. */
+  autoAdvance?: boolean;
+  /** Fires whenever the card appears or goes, so a sibling overlay (the skip
+   *  button, same corner) can step aside instead of stacking on it. */
+  onVisibleChange?: (visible: boolean) => void;
 }
 
 const CREDITS_THRESHOLD_SEC = 30;
@@ -23,6 +30,8 @@ export function NextEpisodeOverlay({
   onPlayNow,
   onCancel,
   suppressAutoAdvance = false,
+  autoAdvance = true,
+  onVisibleChange,
 }: NextEpisodeOverlayProps) {
   const { t } = useTranslation();
   const [countdown, setCountdown] = useState(COUNTDOWN_SEC);
@@ -42,10 +51,18 @@ export function NextEpisodeOverlay({
     setEnded(videoEnded);
   }, [videoEnded]);
 
-  const visible = nextEpisode && !cancelled && !suppressAutoAdvance && (isInCredits || ended);
+  const visible = !!nextEpisode && !cancelled && !suppressAutoAdvance && (isInCredits || ended);
+  useEffect(() => {
+    onVisibleChange?.(visible);
+  }, [visible, onVisibleChange]);
+  useEffect(() => () => onVisibleChange?.(false), [onVisibleChange]);
+
+  // Counting down is the auto-advance itself: without it the card is a plain
+  // "up next" prompt that waits for the viewer.
+  const counting = ended && autoAdvance;
 
   useEffect(() => {
-    if (!ended || cancelled || !nextEpisode || suppressAutoAdvance) return;
+    if (!counting || cancelled || !nextEpisode || suppressAutoAdvance) return;
     setCountdown(COUNTDOWN_SEC);
     intervalRef.current = setInterval(() => {
       setCountdown((prev) => prev - 1);
@@ -53,7 +70,7 @@ export function NextEpisodeOverlay({
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [ended, cancelled, nextEpisode, suppressAutoAdvance]);
+  }, [counting, cancelled, nextEpisode, suppressAutoAdvance]);
 
   // Fire the advance exactly once per next-episode cycle. onPlayNow's identity
   // is not guaranteed stable by every caller, so without this guard any
@@ -71,12 +88,12 @@ export function NextEpisodeOverlay({
   }, [nextEpisode, onPlayNow]);
 
   useEffect(() => {
-    if (countdown <= 0 && nextEpisode && !cancelled && !firedRef.current && !suppressAutoAdvance) {
+    if (countdown <= 0 && counting && nextEpisode && !cancelled && !firedRef.current && !suppressAutoAdvance) {
       firedRef.current = true;
       if (intervalRef.current) clearInterval(intervalRef.current);
       onPlayNow(nextEpisode.id);
     }
-  }, [countdown, nextEpisode, cancelled, onPlayNow, suppressAutoAdvance]);
+  }, [countdown, counting, nextEpisode, cancelled, onPlayNow, suppressAutoAdvance]);
 
   const handleCancel = useCallback(() => {
     setCancelled(true);
@@ -100,7 +117,7 @@ export function NextEpisodeOverlay({
     <div className="absolute bottom-24 right-4 z-float rounded-lg p-4 max-w-xs animate-in fade-in slide-in-from-right bg-[var(--overlay-scrim)] border border-[var(--border)]"
     >
       <p className="text-xs uppercase tracking-wider mb-1 text-[var(--text-muted)]">
-        {ended ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) }) : t("player.nextEpisodeOverlay.upNext")}
+        {counting ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) }) : t("player.nextEpisodeOverlay.upNext")}
       </p>
       <p className="text-sm font-medium text-white mb-3 truncate">
         {label}{nextEpisode.title ? ` - ${nextEpisode.title}` : ""}
@@ -119,7 +136,7 @@ export function NextEpisodeOverlay({
           {t("common.cancel")}
         </button>
       </div>
-      {ended && (
+      {counting && (
         <div className="mt-2 h-0.5 rounded-full overflow-hidden bg-[var(--overlay-btn-bg)]">
           <div
             className="h-full rounded-full transition-all duration-1000 ease-linear bg-[var(--accent)]"

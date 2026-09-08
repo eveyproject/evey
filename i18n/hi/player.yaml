@@ -42,6 +42,7 @@ settings:
   normal: "सामान्य"
   uploadSubtitle: "उपशीर्षक अपलोड करें…"
   "off": "बंद"
+  autoplayNext: "अगला एपिसोड अपने आप"
   brightness: "चमक"
 sleepTimer:
   minutes_one: "{{count}} मिनट"
@@ -87,6 +88,7 @@ nextEpisodeOverlay:
 skipIntro: "इंट्रो छोड़ें"
 skipRecap: "रीकैप छोड़ें"
 skipCredits: "क्रेडिट्स छोड़ें"
+watchCredits: "क्रेडिट देखें"
 skipPreview: पूर्वावलोकन छोड़ें
 introSkipped: "इंट्रो छोड़ा गया"
 download: "डाउनलोड"

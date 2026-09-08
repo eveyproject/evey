@@ -158,9 +158,11 @@ settings:
     devices: Geräte
     security: Sicherheit
     quickConnect: Schnellverbindung
+    plugins: "Plugins"
   playback:
     bitrateTitle: Maximale Streaming-Bitrate
     bitrateDesc: Maximale Bitrate beim Streaming begrenzen. Niedrigere Werte verbrauchen weniger Bandbreite.
+    bitrateUnlimited: "Unbegrenzt"
     cellularBitrateTitle: Maximale Mobilfunk-Bitrate
     cellularBitrateDesc: Niedrigere Obergrenze bei Nutzung mobiler Daten.
     subtitleLanguage: Standard-Untertitelsprache
@@ -184,6 +186,8 @@ settings:
     allowDirectStreamDesc: Container ohne Neukodierung remuxen, wenn möglich.
     allowTranscoding: Transkodierung erlauben
     allowTranscodingDesc: Auf Transkodierung zurückfallen, wenn Direktwiedergabe/-Stream nicht verfügbar ist.
+    autoplayNextTitle: "Nächste Folge automatisch abspielen"
+    autoplayNextDesc: "Die nächste Folge startet von selbst, wenn diese endet. Der Button Nächste Folge bleibt in jedem Fall verfügbar."
   quickConnect:
     title: Schnellverbindung
     description: Geben Sie den Code ein, der auf dem Gerät angezeigt wird, das Sie anmelden möchten.
