@@ -15,9 +15,9 @@ If you only want the easy install, stop here and use
 ### Binaries (build from source)
 
 Build both Go binaries and **place them in the same directory**. The plugin
-runner locates the launcher by looking next to its own executable
-(`os.Executable()`), then `$EVEY_PLUGIN_LAUNCHER`, then `$PATH` - so keeping
-them adjacent is the simplest correct layout.
+runner locates the launcher by checking `$EVEY_PLUGIN_LAUNCHER` first, then
+next to its own executable (`os.Executable()`), then `$PATH` - so keeping them
+adjacent is the simplest correct layout.
 
 ```bash
 # from the repo root
@@ -74,7 +74,8 @@ Plus the core runtime dependencies:
 ## 2. Run as a dedicated non-root user
 
 **Never run the server as root.** Create two unprivileged users matching the
-UIDs the runner uses (`pluginUID = 1001`, `pluginGID = 1001` in `runner.go`):
+UIDs the plugin host uses (`pluginUID = 1001`, `pluginGID = 1001` in
+`pluginhost/host_server.go`):
 
 ```bash
 sudo useradd --system --uid 1000 --shell /usr/sbin/nologin evey

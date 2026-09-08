@@ -106,7 +106,7 @@ If any of the following substrings appears anywhere in the source, install is re
 | `\b(fetch\|eval\|atob\|btoa\|Function\|setTimeout\|setInterval)\s*\(` | Direct calls to forbidden globals |
 | `\bimport\s*\(` | Dynamic import |
 | `(?:window\|self\|globalThis\|top\|parent\|document\|navigator\|location)\s*\[` | Bracket-notation access on host globals (catches `window["fetch"]`) |
-| `\.cookie\b` | `document.cookie` via property descriptor |
+| `\.cookie\b` | any `.cookie` access, property descriptor or computed |
 | `\.constructor\s*\.\s*constructor` | `[].constructor.constructor` escape |
 | `new\s+Function\b` | `new Function(...)` code construction |
 | `(?:window\|self\|top\|parent\|globalThis)\s*\.\s*(?:Function\|eval\|fetch\|atob\|btoa\|XMLHttpRequest\|WebSocket\|EventSource)\b` | Property read of forbidden globals |
@@ -123,7 +123,7 @@ The only communication channel is the `evey.theme.*` API injected by the host br
 ## What you CAN do in theme.js
 
 - Call `evey.theme.css(rules)` to inject CSS into the host's style surface
-- Call `evey.theme.log(level, msg)` to emit debug messages visible in the admin panel
+- Call `evey.theme.log(level, msg)` to emit debug messages to the browser console
 - Register component render functions via `evey.theme.registerComponent(slot, render)` (V2 - see below)
 - Observe read-only player/app state via `evey.theme.observe(stateKey, cb)` (V2)
 

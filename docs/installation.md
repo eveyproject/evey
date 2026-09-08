@@ -1,14 +1,17 @@
-# Installation & Operations
+# Installation
 
-Production install for self-hosters running the prebuilt `gravityz/evey` image
-with `docker compose` (e.g. on a NAS). The container runs **non-root** and needs
-**no `--privileged`, `mem_limit`, `cpus`, or cgroup settings**
-(see [adr/0013-userspace-plugin-resource-monitor.md](adr/0013-userspace-plugin-resource-monitor.md)).
+Evey runs as **one container**: the image serves the API and the web UI on one
+port and runs Postgres and Meilisearch inside it, as the non-root server user,
+with their secrets generated on first boot. The compose file in section 1 is
+the whole install. It needs no `.env`, no `--privileged`, and no memory or CPU
+setting.
 
-For the bare two-file quick-start see the [README](../README.md). This page
-covers the same install plus updates, backups, and day-2 operations. To run
-Evey **outside Docker** (systemd / bare metal), see
-[deployment-bare-metal.md](deployment-bare-metal.md).
+> The `docker-compose.yml` at the root of the Git repository is **not** that
+> file. It is the operator layout (section 7): Postgres as a sibling service,
+> a bundled Caddy, and a `.env` it refuses to start without. Copy the block
+> below, not the repository's file.
+
+To run Evey outside Docker, see [deployment-bare-metal.md](deployment-bare-metal.md).
 
 ## Prerequisites
 
@@ -18,41 +21,10 @@ Evey **outside Docker** (systemd / bare metal), see
 - **Recommended:** a reverse proxy for HTTPS - Evey serves plain HTTP only. See
   [reverse-proxy.md](reverse-proxy.md).
 
-### Architecture (x86-64 and ARM64)
+## 1. The compose file
 
-Stable releases (`vX.Y.Z` tags) publish a **multi-arch** image for both
-`linux/amd64` and `linux/arm64`; `docker pull`/`compose up` picks the right one
-automatically, no flag needed. Pre-release tags (`-alpha`/`-beta`) and per-branch
-builds are **amd64-only** - pin a stable `vX.Y.Z` in `EVEY_VERSION` for an ARM
-host (a Raspberry Pi, an ARM NAS, an Ampere VPS).
-
-Two things to know on ARM:
-
-- **No hardware transcoding on a Synology-class ARM (Realtek) NAS.** Evey wires
-  exactly three accel backends - Intel QSV, VAAPI, and NVENC. QSV and the Intel
-  VAAPI drivers are x86-only (deliberately not installed on the arm64 image);
-  NVENC is NVIDIA. Evey does **not** wire the ARM-native video encoders (the
-  Raspberry Pi V4L2 M2M / Rockchip RKMPP VPUs), so on an ARM board there is no
-  hardware encode path. In practice ARM = **direct play** (the client plays the
-  file as-is, near-zero cost) plus **software transcode** on the CPU. On a weak
-  ARM core, keep `transcoding.max_video_sessions` low (1-2, in Admin → Server
-  Config) and lean on direct play.
-- **HDR tone-mapping is on the fast path on ARM too.** The bundled arm64
-  jellyfin-ffmpeg ships the SIMD `tonemapx` filter (NEON), just like the amd64
-  build ships its AVX2 variant - so HDR→SDR tone-mapping is hardware-SIMD, not the
-  slow zscale chain. (Evey probes `tonemapx` at runtime and falls back to zscale
-  only if a build ever lacks it.)
-
-If you build the image yourself for an unpublished arch, `docker buildx build
---platform linux/arm64` works out of the box - the Dockerfile guards the x86-only
-bits behind `TARGETARCH`.
-
-## 1. docker-compose.yml
-
-**Default layout: one service.** The evey image serves the API + web UI on one
-port **and** runs both Postgres and Meilisearch embedded - spawned by the
-entrypoint as the non-root server user, loopback-only, their secrets generated
-on first boot into `./evey-data/keys`. One `docker-compose.yml`, no `.env`:
+Save this as `docker-compose.yml`, with your media path on the last volume
+line. Secrets land in `./evey-data/keys` on first boot; nothing to invent.
 
 ```yaml
 services:
@@ -78,6 +50,43 @@ volumes:
   evey-cache:
 ```
 
+Keep the environment **minimal** - only secrets you bring yourself, the DB
+connection when external, storage paths, and reverse-proxy facts belong in the
+compose file (or in a `.env` for the secrets). Almost everything else (server
+name, transcode concurrency, rate limits, log level, scan/watcher intervals,
+backup schedule, API keys) is **editable at runtime from Admin → Server
+Config** and should NOT be stuffed into the compose.
+`PUID`/`PGID`: unset by default → the entrypoint adopts the owner of your
+`/media` mounts so in-place repairs work; override with `id -u`/`id -g`. The
+container starts as root only to apply the mapping, then drops privileges -
+the server never runs as root.
+
+## 2. First launch
+
+```bash
+docker compose up -d
+docker compose logs -f evey
+```
+
+On first boot the server:
+
+1. **Generates the JWT signing key** automatically at `EVEY_JWT_PRIVATE_KEY_PATH`
+   (`/data/jwt.key`, inside `./evey-data`). You do not create it by hand. Keep
+   `evey-data` safe - losing the key logs everyone out.
+2. **Runs database migrations automatically** (embedded, applied at startup; no
+   separate migrate step). See [runbooks/migration-runbook.md](runbooks/migration-runbook.md).
+
+Then open `http://<your-ip>:9091`. With no admin yet, you land on the **setup
+wizard** (`/setup`): create the first admin account. After that, log in and
+**add a library** (Admin → Libraries), pointing it at a path under `/media`
+(your `MEDIA_DIR`, mounted read-write). The first scan starts automatically.
+
+The compose file above mounts it read-write on purpose: the seek-index repair
+rebuilds files in place, and a `:ro` mount makes those repairs fail. Add `:ro`
+only if you accept losing them.
+
+## 3. Common variations
+
 **Variations, each a few lines on that file:**
 
 - *A second media folder*: add `- /other/path:/media2` under `volumes:`
@@ -100,19 +109,112 @@ volumes:
   [reverse-proxy.md](reverse-proxy.md).
 - *HTTPS with no proxy yet*: add the bundled Caddy service from
   [reverse-proxy.md](reverse-proxy.md) (automatic Let's Encrypt certificate).
-- *Postgres or Meilisearch as their own services*: the operator layout
-  below.
+- *Postgres or Meilisearch as their own services*: section 7.
 
-Keep the environment **minimal** - only secrets you bring yourself, the DB
-connection when external, storage paths, and reverse-proxy facts belong in the
-compose file (or in a `.env` for the secrets). Almost everything else (server
-name, transcode concurrency, rate limits, log level, scan/watcher intervals,
-backup schedule, API keys) is **editable at runtime from Admin → Server
-Config** and should NOT be stuffed into the compose.
-`PUID`/`PGID`: unset by default → the entrypoint adopts the owner of your
-`/media` mounts so in-place repairs work; override with `id -u`/`id -g`. The
-container starts as root only to apply the mapping, then drops privileges -
-the server never runs as root.
+**HTTPS and reverse proxies.** Evey serves plain HTTP on 9091. With no proxy yet, the bundled Caddy service
+in [reverse-proxy.md](reverse-proxy.md) obtains a Let's Encrypt certificate
+for you (ports 80/443 must reach the host). With your own proxy (Nginx,
+Traefik, Nginx Proxy Manager): set `EVEY_SERVER_BASE_URL` to your public
+`https://` URL (that scheme is what switches on Secure cookies and HSTS) and
+trust the proxy with `EVEY_TRUSTED_PROXIES`.
+Streaming endpoints need buffering disabled and no timeout - the ready-made
+configs handle this. Full setups: [reverse-proxy.md](reverse-proxy.md).
+
+## 4. Updating Evey
+
+```bash
+docker compose pull && docker compose up -d
+docker compose logs -f evey      # until "healthy" (a migration on a large catalogue takes minutes)
+```
+
+Nothing else is required. The new image applies pending migrations when it
+boots and dumps the database first (`./evey-data/backups/pre-migration-*`),
+the container's health check turns green once it serves, and `up -d` restarts
+only the `evey` service - a sibling database or proxy is never touched.
+
+**Going back.** Put the previous tag on the `image:` line (or in
+`EVEY_VERSION` if your compose interpolates it) and run `docker compose up -d`
+again. If the newer version migrated the schema,
+restore its pre-migration dump first - `docker exec evey-server evey admin
+rollback` prints the exact steps, with the dump's path.
+
+**Verifying what runs.** `docker exec evey-server evey version` prints the
+version and commit of the running binary (`/healthz` reports the same), so
+"which code is this?" never depends on a tag.
+
+> Operators working from a checkout of the repository have the same procedure
+> scripted: `scripts/evey-update.sh` (dry-run by default; state, pre-update
+> dump, pull, health wait, commit check, rollback line) and
+> `scripts/evey-rollback.sh`. They are conveniences for the repository's own
+> deployments, not something an install needs.
+
+**Pin what you run.** Put a release tag (`0.2.0-beta.1`) or an immutable
+`sha-<short>` tag on the `image:` line; a branch tag such as
+`beta-0.0.1` moves with every push, so two pulls a day apart can run different
+code and "roll back to `beta-0.0.1`" goes nowhere. The script prints the tag it
+launched so you can pin it.
+
+**Image tags** (`gravityz/evey`):
+
+- Release tags `vX.Y.Z` publish `X.Y.Z`, `X.Y`, `X`, and `latest`. `latest`
+  always means the most recent semver **release**.
+- Branch builds publish the branch name (e.g. `beta-0.0.1`) plus `sha-<short>`.
+- **Runtime variants** - same app, different plugin runtimes bundled:
+  - no suffix (default / "lean") - Python 3 only.
+  - `-nodejs` - adds Node for JS plugins.
+  - `-full` - adds PHP + Ruby + Lua too.
+  Pick `-nodejs` / `-full` only if your plugins need those runtimes; otherwise
+  the default is smallest. Set e.g. `EVEY_VERSION=latest-nodejs`.
+
+## 5. Backups & recovery
+
+Enable scheduled DB backups (`EVEY_BACKUP_INTERVAL_HOURS`, stored in
+`EVEY_BACKUP_DIR` → `/data/backups`, inside `evey-data`) or trigger one from the
+admin panel. Backups cover all user data, not your media files. Details:
+[backups.md](backups.md).
+
+For lockout / lost-admin / restore situations, the image ships an `evey admin`
+CLI (`reset-password`, `rotate-jwt-key`, `restore-backup`):
+[runbooks/recovery.md](runbooks/recovery.md). Migration safety:
+[runbooks/migration-runbook.md](runbooks/migration-runbook.md).
+
+## 6. Troubleshooting
+
+First checks when something is wrong:
+
+```bash
+docker compose ps                       # is every service Up / healthy?
+docker compose logs --tail=200 evey     # server logs (migration errors, config validation)
+```
+
+- **evey won't start / config error.** With an external database the server
+  refuses to boot if `EVEY_DB_PASSWORD` is still the default `evey`; with an
+  external Meilisearch, if `MEILI_MASTER_KEY` is empty or a placeholder (a short
+  non-default key only warns). Read the logged validation message and fix `.env`.
+- **Embedded DB refuses to start.** The `evey:` lines at the top of the log say
+  why: a cluster from another major (see the upgrade section above), a data
+  directory that is not a Postgres cluster, or a `postgres:`-prefixed error
+  from Postgres itself (disk full, permissions on `./evey-data/postgres`, a
+  network-share filesystem).
+- **External DB not reachable.** Confirm Postgres is healthy and the password
+  matches:
+  ```bash
+  docker exec evey-postgres pg_isready -U "$EVEY_DB_USER"
+  ```
+- **Search broken / empty.** Check Meilisearch health, then trigger a reindex -
+  from the admin search settings, or `docker exec evey-server evey admin reindex-search`.
+  The index is rebuilt from Postgres, so `meili-data` is safe to wipe.
+- **Health endpoint:** `curl -sf http://localhost:9091/healthz && echo OK`.
+
+### Which volumes are safe to delete
+
+| Volume | Contents | Safe to delete? |
+|--------|----------|-----------------|
+| `evey-data` | Database (`postgres/`), JWT key + generated secrets (`keys/`), logs, backups, plugins, search index (`meili/`) | No - data, JWT key + plugins lost. `meili/` alone: yes, rebuilt with `evey admin reindex-search` |
+| `postgres-data` | Database (external layout only) | No - all data lost |
+| `evey-cache` | Transcode + trickplay cache | Yes - regenerated on demand |
+
+## 7. Operator layout: external Postgres and Meilisearch
 
 **How the embedded database behaves.** The cluster lives in
 `./evey-data/postgres` (Postgres 17, `initdb` on first boot, owned by the
@@ -128,7 +230,7 @@ database. To open a SQL shell:
 docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-### Operator layout: external Postgres
+### External Postgres
 
 Operators who want the database lifecycle in their own hands (a managed
 Postgres, pinned major version, separate volume, dump+restore on their terms)
@@ -217,134 +319,6 @@ never admin-editable: `EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY`, `EVEY_DB_HOST`,
 and the resource caps may be set here as initial defaults, but are admin-editable
 at runtime from Admin → Plugins.) Full reference: [configuration.md](configuration.md).
 
-### Plugin sandbox & hardening (what the image ships)
-
-Plugins are third-party code that run as separate processes. The official image
-is hardened so this stays the recommended containerised posture - **no
-`--privileged`, no extra Docker security flags**:
-
-- **Sandbox defaults to Landlock.** `EVEY_PLUGINS_SANDBOX_MODE=auto` (the
-  default) resolves to **`landlock` whenever the kernel supports it**, which is
-  the case on a default modern Docker host. `auto` resolves in the order
-  **landlock → bubblewrap → basic**, picking the strongest backend the host
-  allows. Landlock is the right posture for the container: it needs no
-  privilege, runs under Docker's default seccomp + AppArmor with zero host
-  configuration, applies a per-path filesystem allowlist (plugins see only their
-  own directory, never `/data`), and is fail-closed - once applied it cannot be
-  relaxed. (bubblewrap needs the `mount` syscall, which Docker's default seccomp
-  blocks, so `auto` only picks it on bare metal; basic is a last-resort
-  fallback.)
-- **Server runs non-root** (UID 1000, `USER evey` in the image) and is marked
-  **non-dumpable** (`PR_SET_DUMPABLE=0`) so a co-resident plugin can't scrape
-  the server's `/proc/<pid>/{mem,environ}`.
-- **Kernel seccomp on every plugin** - a denylist (ptrace, mount, unshare,
-  kernel-module, kexec, setuid-family, keyring, … syscalls) is installed right
-  before the plugin `execve`, so it constrains even static/compiled plugins.
-  Non-network plugins additionally get `socket(AF_INET/AF_INET6)` denied.
-- **Plugin UID separation without root.** On a host without Landlock, plugins can
-  run under the unprivileged `evey-plugin` user (UID 1001) so they can't read the
-  server's secrets (e.g. `jwt.key`) by plain file permissions. The **launcher**
-  binary (not the server) carries a single `cap_setuid` file capability and drops
-  the plugin itself - **not root, no `--privileged`** - so the server stays fully
-  unprivileged. Controlled by `EVEY_PLUGINS_UID_SEPARATION` (default `auto`: on
-  only where Landlock is absent, since under Landlock secrets are already walled
-  off); best-effort, and incompatible with `no-new-privileges`.
-- **Per-plugin resource caps** (memory / PID / disk / CPU nice) enforced by a
-  userspace monitor - **no cgroup / `mem_limit` / `cpus` settings needed** - and
-  all **admin-editable at runtime** from Admin → Plugins.
-
-After the first start, verify the sandbox actually in force in **Admin → Plugins
-→ Security Dashboard** (host sandbox card): `auto` should show `landlock` on a
-modern kernel; `basic` means the host can't isolate plugin filesystem access -
-see the deployment guide below.
-
-Which setup for your machine (old NAS, bare-metal, what to enable/disable, the risks in plain words): [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md). Full threat model and per-layer detail: [plugins/security-model.md](plugins/security-model.md).
-You can keep the default `auto` (recommended) or pin `EVEY_PLUGINS_SANDBOX_MODE:
-landlock` in compose to be explicit and fail-closed (`landlock` refuses to start
-a plugin if Landlock can't be enforced). Both give the same posture on a modern
-kernel.
-
-## 2. First launch
-
-```bash
-docker compose up -d
-docker compose logs -f evey
-```
-
-On first boot the server:
-
-1. **Generates the JWT signing key** automatically at `EVEY_JWT_PRIVATE_KEY_PATH`
-   (`/data/jwt.key`, inside `./evey-data`). You do not create it by hand. Keep
-   `evey-data` safe - losing the key logs everyone out.
-2. **Runs database migrations automatically** (embedded, applied at startup; no
-   separate migrate step). See [runbooks/migration-runbook.md](runbooks/migration-runbook.md).
-
-Then open `http://<your-ip>:9091`. With no admin yet, you land on the **setup
-wizard** (`/setup`): create the first admin account. After that, log in and
-**add a library** (Admin → Libraries), pointing it at a path under `/media`
-(your `MEDIA_DIR`, mounted read-write). The first scan starts automatically.
-
-The compose file above mounts it read-write on purpose: the seek-index repair
-rebuilds files in place, and a `:ro` mount makes those repairs fail. Add `:ro`
-only if you accept losing them.
-
-## 3. Reverse proxy (HTTPS)
-
-Evey serves plain HTTP on 9091. With no proxy yet, the bundled Caddy service
-in [reverse-proxy.md](reverse-proxy.md) obtains a Let's Encrypt certificate
-for you (ports 80/443 must reach the host). With your own proxy (Nginx,
-Traefik, Nginx Proxy Manager): set `EVEY_SERVER_BASE_URL` to your public
-`https://` URL (that scheme is what switches on Secure cookies and HSTS) and
-trust the proxy with `EVEY_TRUSTED_PROXIES`.
-Streaming endpoints need buffering disabled and no timeout - the ready-made
-configs handle this. Full setups: [reverse-proxy.md](reverse-proxy.md).
-
-## 4. Updating Evey
-
-```bash
-docker compose pull && docker compose up -d
-docker compose logs -f evey      # until "healthy" (a migration on a large catalogue takes minutes)
-```
-
-Nothing else is required. The new image applies pending migrations when it
-boots and dumps the database first (`./evey-data/backups/pre-migration-*`),
-the container's health check turns green once it serves, and `up -d` restarts
-only the `evey` service - a sibling database or proxy is never touched.
-
-**Going back.** Put the previous tag on the `image:` line (or in
-`EVEY_VERSION` if your compose interpolates it) and run `docker compose up -d`
-again. If the newer version migrated the schema,
-restore its pre-migration dump first - `docker exec evey-server evey admin
-rollback` prints the exact steps, with the dump's path.
-
-**Verifying what runs.** `docker exec evey-server evey version` prints the
-version and commit of the running binary (`/healthz` reports the same), so
-"which code is this?" never depends on a tag.
-
-> Operators working from a checkout of the repository have the same procedure
-> scripted: `scripts/evey-update.sh` (dry-run by default; state, pre-update
-> dump, pull, health wait, commit check, rollback line) and
-> `scripts/evey-rollback.sh`. They are conveniences for the repository's own
-> deployments, not something an install needs.
-
-**Pin what you run.** Put a release tag (`0.2.0-beta.1`) or an immutable
-`sha-<short>` tag on the `image:` line; a branch tag such as
-`beta-0.0.1` moves with every push, so two pulls a day apart can run different
-code and "roll back to `beta-0.0.1`" goes nowhere. The script prints the tag it
-launched so you can pin it.
-
-**Image tags** (`gravityz/evey`):
-
-- Release tags `vX.Y.Z` publish `X.Y.Z`, `X.Y`, `X`, and `latest`. `latest`
-  always means the most recent semver **release**.
-- Branch builds publish the branch name (e.g. `beta-0.0.1`) plus `sha-<short>`.
-- **Runtime variants** - same app, different plugin runtimes bundled:
-  - no suffix (default / "lean") - Python 3 only.
-  - `-nodejs` - adds Node for JS plugins.
-  - `-full` - adds PHP + Ruby + Lua too.
-  Pick `-nodejs` / `-full` only if your plugins need those runtimes; otherwise
-  the default is smallest. Set e.g. `EVEY_VERSION=latest-nodejs`.
-
 ### Moving an existing install onto the embedded database
 
 An install that runs Postgres as a sibling service (the layout every release
@@ -400,52 +374,50 @@ docker compose restart evey
 ```
 
 Operators who prefer `pg_upgrade` or a pinned major for years use the
-[external Postgres layout](#operator-layout-external-postgres).
+[external Postgres layout](#7-operator-layout-external-postgres-and-meilisearch).
 
-## 5. Backups & recovery
+## 8. ARM hosts (x86-64 and ARM64)
 
-Enable scheduled DB backups (`EVEY_BACKUP_INTERVAL_HOURS`, stored in
-`EVEY_BACKUP_DIR` → `/data/backups`, inside `evey-data`) or trigger one from the
-admin panel. Backups cover all user data, not your media files. Details:
-[backups.md](backups.md).
+Stable releases (`vX.Y.Z` tags) publish a **multi-arch** image for both
+`linux/amd64` and `linux/arm64`; `docker pull`/`compose up` picks the right one
+automatically, no flag needed. Pre-release tags (`-alpha`/`-beta`) and per-branch
+builds are **amd64-only** - pin a stable `vX.Y.Z` in `EVEY_VERSION` for an ARM
+host (a Raspberry Pi, an ARM NAS, an Ampere VPS).
 
-For lockout / lost-admin / restore situations, the image ships an `evey admin`
-CLI (`reset-password`, `rotate-jwt-key`, `restore-backup`):
-[runbooks/recovery.md](runbooks/recovery.md). Migration safety:
-[runbooks/migration-runbook.md](runbooks/migration-runbook.md).
+Two things to know on ARM:
 
-## 6. Troubleshooting
+- **No hardware transcoding on a Synology-class ARM (Realtek) NAS.** Evey wires
+  exactly three accel backends - Intel QSV, VAAPI, and NVENC. QSV and the Intel
+  VAAPI drivers are x86-only (deliberately not installed on the arm64 image);
+  NVENC is NVIDIA. Evey does **not** wire the ARM-native video encoders (the
+  Raspberry Pi V4L2 M2M / Rockchip RKMPP VPUs), so on an ARM board there is no
+  hardware encode path. In practice ARM = **direct play** (the client plays the
+  file as-is, near-zero cost) plus **software transcode** on the CPU. On a weak
+  ARM core, keep `transcoding.max_video_sessions` low (1-2, in Admin → Server
+  Config) and lean on direct play.
+- **HDR tone-mapping is on the fast path on ARM too.** The bundled arm64
+  jellyfin-ffmpeg ships the SIMD `tonemapx` filter (NEON), just like the amd64
+  build ships its AVX2 variant - so HDR→SDR tone-mapping is hardware-SIMD, not the
+  slow zscale chain. (Evey probes `tonemapx` at runtime and falls back to zscale
+  only if a build ever lacks it.)
 
-First checks when something is wrong:
+If you build the image yourself for an unpublished arch, `docker buildx build
+--platform linux/arm64` works out of the box - the Dockerfile guards the x86-only
+bits behind `TARGETARCH`.
 
-```bash
-docker compose ps                       # are all three services Up / healthy?
-docker compose logs --tail=200 evey     # server logs (migration errors, config validation)
-```
+## 9. Plugin sandbox
 
-- **evey won't start / config error.** With an external database the server
-  refuses to boot if `EVEY_DB_PASSWORD` is still the default `evey`; with an
-  external Meilisearch, if `MEILI_MASTER_KEY` is empty or a placeholder (a short
-  non-default key only warns). Read the logged validation message and fix `.env`.
-- **Embedded DB refuses to start.** The `evey:` lines at the top of the log say
-  why: a cluster from another major (see the upgrade section above), a data
-  directory that is not a Postgres cluster, or a `postgres:`-prefixed error
-  from Postgres itself (disk full, permissions on `./evey-data/postgres`, a
-  network-share filesystem).
-- **External DB not reachable.** Confirm Postgres is healthy and the password
-  matches:
-  ```bash
-  docker exec evey-postgres pg_isready -U "$EVEY_DB_USER"
-  ```
-- **Search broken / empty.** Check Meilisearch health, then trigger a reindex -
-  from the admin search settings, or `docker exec evey-server evey admin reindex-search`.
-  The index is rebuilt from Postgres, so `meili-data` is safe to wipe.
-- **Health endpoint:** `curl -sf http://localhost:9091/healthz && echo OK`.
+Plugins are third-party code running as separate processes. The official image
+contains everything needed to confine them - no `--privileged`, no extra Docker
+security flag - and `EVEY_PLUGINS_SANDBOX_MODE=auto` (the default) picks the
+strongest backend the host allows, Landlock on any modern kernel. The server
+itself never runs as root. The layer-by-layer detail (seccomp, uid separation,
+resource caps) is in [SECURITY.md](SECURITY.md); this page only tells you what
+to check.
 
-### Which volumes are safe to delete
+After the first start, verify the sandbox actually in force in **Admin → Plugins
+→ Security Dashboard** (host sandbox card): `auto` should show `landlock` on a
+modern kernel; `basic` means the host can't isolate plugin filesystem access -
+see the deployment guide below.
 
-| Volume | Contents | Safe to delete? |
-|--------|----------|-----------------|
-| `evey-data` | Database (`postgres/`), JWT key + generated secrets (`keys/`), logs, backups, plugins, search index (`meili/`) | No - data, JWT key + plugins lost. `meili/` alone: yes, rebuilt with `evey admin reindex-search` |
-| `postgres-data` | Database (external layout only) | No - all data lost |
-| `evey-cache` | Transcode + trickplay cache | Yes - regenerated on demand |
+Which setup for your machine (old NAS, bare-metal, what to enable/disable, the risks in plain words): [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md). Full threat model and per-layer detail: [plugins/security-model.md](plugins/security-model.md).

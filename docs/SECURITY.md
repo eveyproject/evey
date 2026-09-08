@@ -1,8 +1,16 @@
-# Plugin Security Model
+# Plugin sandbox and threat model
+
+> **Which page do you want?** This one describes what the *server* does to
+> contain a plugin: the layers, the sandbox modes, what each one still cannot
+> stop, and how to configure it. If you are writing a plugin and want to know
+> what you may declare and what will be refused, read
+> [the plugin security model](plugins/security-model.md) instead. The two pages
+> cover the same subject from opposite ends and deliberately do not repeat each
+> other.
 
 This document describes the defense layers Evey applies to third-party plugins, the limits of those defenses, and the roadmap for stronger isolation.
 
-## Threat model
+## Threat model: what a hostile plugin would try
 
 Evey plugins run as separate OS processes that exchange gRPC over Unix sockets with the host. The host trusts no plugin code by default. Risks we defend against, in order of severity:
 
@@ -65,7 +73,7 @@ What this buys, **even on a kernel without Landlock** (when active):
 - The server's secrets are DAC-protected from a uid-1001 plugin: `jwt.key` (`0600`) and backups (`0700` dir + `0600` files) are made owner-only **at runtime**, so the protection holds even on a bind-mounted `/data`; a uid-1001 plugin cannot read them. (The image also `chmod 700`s `/data/{keys,logs,backups}`, but a bind-mounted host `/data` keeps its own perms - the runtime modes above are what's guaranteed.)
 - Combined with `PR_SET_DUMPABLE=0` on the server (see [§8](#8-server-process-hardening-pr_set_dumpable0)), the in-memory JWT key and environment secrets (`DB_PASSWORD`, `MEILI_MASTER_KEY`) are unreadable via `/proc/<server>/{mem,environ,maps}`.
 
-All plugins share UID 1001, so they are not isolated from *each other* by DAC alone - that is what the filesystem confinement layer (Landlock / bubblewrap) adds. Under `basic`+uid-separation a malicious plugin could read or disturb a sibling's files; isolating plugins from each other without Landlock would need a UID *per plugin*. See [§4](#4-syscall-confinement-kernel-seccomp--ld_preload), the per-mode table below, and [Known limits](#known-limits).
+All plugins share UID 1001, so they are not isolated from *each other* by DAC alone - that is what the filesystem confinement layer (Landlock / bubblewrap) adds. Under `basic`+uid-separation a malicious plugin could read or disturb a sibling's files; isolating plugins from each other without Landlock would need a UID *per plugin*. See [§4](#4-syscall-confinement-kernel-seccomp--ld_preload), the per-mode table below, and [Known limits](#known-limits-of-the-sandbox).
 
 ### 4. Syscall confinement (kernel seccomp + LD_PRELOAD)
 
@@ -96,7 +104,7 @@ Blocked syscalls, grouped by category:
 
 `execve`/`execveat` is **denied in the LD_PRELOAD shim** (so an interpreted plugin without `subprocess` cannot spawn children) but **NOT denied in the launcher's kernel filter** - the launcher itself must `execve` the plugin. Spawned children inherit the launcher's filter + the Landlock domain, so they stay confined regardless.
 
-**No-IP-egress for ALL plugins (since 2026-07-11).** Every plugin - network-permitted or not - is passed `-deny-inet` (landlock/basic) or `--unshare-net` (bubblewrap): the plugin process can open no `socket(AF_INET)` / `socket(AF_INET6)` at all. A plugin that needs the network does NOT connect directly; it calls the host `Fetch` broker over its `AF_UNIX` HostService socket (left allowed), which enforces the `external_fetch` allow-list and an SSRF-safe dialer host-side. This closes the IP-literal egress hole (e.g. `169.254.169.254`) that a per-host DNS allowlist and per-port kernel filter could not. See [ADR-0014 update](adr/0014-landlock-plugin-sandbox.md#update-2026-07-11-direct-egress-cut-host-fetch-broker).
+**No-IP-egress for ALL plugins (since 2026-07-11).** Every plugin - network-permitted or not - is passed `-deny-inet` (landlock/basic) or `--unshare-net` (bubblewrap): the plugin process can open no `socket(AF_INET)` / `socket(AF_INET6)` at all. A plugin that needs the network does NOT connect directly; it calls the host `Fetch` broker over its `AF_UNIX` HostService socket (left allowed), which enforces the `external_fetch` allow-list and an SSRF-safe dialer host-side. This closes the IP-literal egress hole (e.g. `169.254.169.254`) that a per-host DNS allowlist and per-port kernel filter could not. See [ADR-0014](adr/0014-landlock-plugin-sandbox.md).
 
 Limits - read this carefully:
 
@@ -188,7 +196,7 @@ Resolves the best backend the host actually supports, in order: **landlock → b
 | Docker without Landlock (e.g. old NAS, `auto`→basic) | none (world-readable visible) | no IP egress (`-deny-inet`) | blocked (incl. static) | protected (DAC + DUMPABLE + seccomp) | decent, not Landlock-equivalent |
 | Bare-metal (`auto`→bubblewrap) | namespace + mount whitelist | net namespace | namespaces (PID/mount/net) isolate; LD_PRELOAD seccomp in `strict` - the launcher's kernel filter is *not* applied in bwrap mode | protected | **strongest** |
 
-## Known limits
+## Known limits of the sandbox
 
 | Limit | Impact | Mitigation today | Roadmap |
 |---|---|---|---|
@@ -305,4 +313,7 @@ and [deployment-bare-metal.md](deployment-bare-metal.md).
 
 ## Reporting a vulnerability
 
-Plugin auth, permission, or sandbox issues: open an issue with the `security` label or contact the maintainer directly. Do not exploit against shared/public Evey instances.
+Report privately, never in a public issue: `security@eveyproject.org`. That is
+the address the repository's [security policy](../SECURITY.md) gives, and it
+covers plugin authentication, permissions and sandbox escapes like anything
+else. Do not test against shared or public Evey instances that are not yours.

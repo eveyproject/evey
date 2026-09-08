@@ -264,41 +264,7 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 - Inspect plugin files at `./evey-data/plugins/` (host) == `/data/plugins` (container). Remove the broken plugin zip/dir, restart.
 - Send the panic trace + plugin id to the plugin author.
 
-## 8. WSL git corruption (dev host)
-
-**Symptom**: on a WSL2 dev host, after a hard Windows reboot or WSL crash, git commands fail: `loose object XX is corrupt`, `object file is empty`, `git fetch` errors.
-
-**Why**: git writes objects in two phases; a WSL kill between fopen and fwrite leaves zero-byte object files.
-
-**Fix** (from `memory/a project note`):
-```sh
-# 1. Identify zero-byte objects (use absolute find if rtk intercepts the alias)
-/usr/bin/find .git/objects -type f -size 0
-
-# 2. Quarantine (do not delete)
-mkdir -p /tmp/evey-corrupt-backup
-/usr/bin/find .git/objects -type f -size 0 \
-  -exec mv {} /tmp/evey-corrupt-backup/ \;
-
-# 3. Check what broke
-git fsck
-
-# 4. Prune dangling worktree refs if needed
-git update-ref -d refs/heads/<dead-branch>
-rm -rf .git/worktrees/<dir> .claude/worktrees/<dir>
-git worktree prune
-
-# 5. If a commit poisoned HEAD: reset, expire reflog, gc, re-add, re-commit
-git reset HEAD~1
-git reflog expire --expire=now --all && git gc --prune=now
-
-# 6. Verify
-git fsck && git fetch origin
-```
-
-If the files on disk in a worktree are intact but the commit is toast, `cp` them into the main repo and re-commit there.
-
-## 9. A cast froze, went silent, or the phone keeps spinning
+## 8. A cast froze, went silent, or the phone keeps spinning
 
 Everything below is readable from the admin Logs page (or
 `GET /api/v1/admin/logs/search?q=<term>&limit=200`): no shell on the box is

@@ -52,7 +52,7 @@ this?" is always answerable without trusting a tag.
 5. **Watch CI** publish `0.2.0-beta.1` (+ variants). Then, on the reference
    deployment, `scripts/evey-update.sh --tag 0.2.0-beta.1 --apply` - pinning
    the release tag replaces the `sha-` pin.
-6. **Tell the testers** the tag and the changelog section. Operators pin
+6. **Announce the tag** with its changelog section. Operators pin
    `gravityz/evey:0.2.0-beta.1` (or `-full`) on their `image:` line.
 
 Pre-release tags are cheap: `-beta.2`, `-beta.3` as needed. What they are not
@@ -61,15 +61,10 @@ next one; never re-point a tag.
 
 ## Cutting a stable release
 
-Same steps, tag `vX.Y.Z` without a suffix. Additionally, before the first
-stable release ever:
-
-- a `LICENSE` file at the repository root (the README and the image labels
-  claim MIT; the file does not exist yet);
-- the `docs/runbooks/README.md` contacts table filled in, or removed;
-- the Postgres major the image embeds recorded in the changelog, since an
-  operator on the embedded database has to follow the upgrade section of
-  `docs/installation.md` when it changes.
+Same steps, tag `vX.Y.Z` without a suffix. One thing to check that a
+pre-release does not need: the Postgres major the image embeds must be recorded
+in the changelog, because an operator on the embedded database has to follow the
+upgrade section of [installation.md](../installation.md) when it changes.
 
 ## Rolling back a release
 

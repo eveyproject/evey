@@ -72,7 +72,6 @@ evey admin load-test [minimal|standard|max] [--scenario <s>] [--max-viewers N] [
 ```
 
 > The full, always-current list is `evey admin` with no subcommand - it prints
-> usage and exits non-zero. This page documented 5 of the 16 subcommands until
 > 2026-07-23; `reindex-no-cue`, the seek-index repair behind the recurring slow-
 > resume incidents, was among the missing ones.
 

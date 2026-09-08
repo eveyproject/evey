@@ -44,8 +44,9 @@ for resource caps see [adr/0013-userspace-plugin-resource-monitor.md](adr/0013-u
 
 A plugin can be written in **any language the `entrypoint:` can launch** - the
 runner doesn't constrain it. Pre-generated gRPC SDK stubs ship for Python,
-Node.js, Go, PHP, Ruby, Dart, Java, and Swift (`sdk/<lang>/`, auto-copied at
-install); interpreter languages without bundled stubs (Bash, Lua, Perl, …) work
+Node.js, PHP, Ruby, Dart, Java, and Swift (`sdk/<lang>/`, auto-copied at
+install); Go has no bundled stubs, generate them with `protoc-gen-go` and
+`protoc-gen-go-grpc`; interpreter languages without bundled stubs (Bash, Lua, Perl, …) work
 by invoking the interpreter directly, and compiled binaries (Go, Rust, …) work
 with the `native-binary` permission. Per-language setup:
 [plugins/dev-setup.md](plugins/dev-setup.md#per-language).

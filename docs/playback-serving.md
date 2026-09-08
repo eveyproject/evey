@@ -76,11 +76,11 @@ identical dispatcher (`keyframe_dispatcher.go`) handles the seek index.
 | Operation | mkvgo (free) | ffprobe / ffmpeg (costly) |
 |---|---|---|
 | Metadata probe (codec, dims, HDR, bitrate, duration) | `.mkv/.webm/.mp4/.mov` head-only | everything else, or fallback |
-| Frame-rate mode (cfr/vfr) | `AnalyzeFrameRateMode` | — (migrated) |
-| Remux MKV→MP4 (no re-encode) | `RemuxToMP4` | — |
-| On-demand HLS/DASH (copy rung) | `OnDemandPackager` | — |
-| Video re-encode / HDR tonemap | — | `hls_transcoder.go` |
-| Interlace detect (idet), seek-landing, chromaprint, DoVi P5 | — (needs decode / side-data) | ffmpeg / ffprobe |
+| Frame-rate mode (cfr/vfr) | `AnalyzeFrameRateMode` | - (migrated) |
+| Remux MKV→MP4 (no re-encode) | `RemuxToMP4` | - |
+| On-demand HLS/DASH (copy rung) | `OnDemandPackager` | - |
+| Video re-encode / HDR tonemap | - | `hls_transcoder.go` |
+| Interlace detect (idet), seek-landing, chromaprint, DoVi P5 | - (needs decode / side-data) | ffmpeg / ffprobe |
 
 Three ffprobe forks still run on MKV/MP4 sources whose data mkvgo already exposes
 (duration in `trickplay.go`, bitrate+dims in `complexity_classifier.go`, playback

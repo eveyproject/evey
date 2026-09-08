@@ -1,8 +1,14 @@
-# Plugin Security Model
+# Plugin security model: what an author may declare
+
+> **Which page do you want?** This one is for plugin authors: the permission
+> catalogue, the rules an external fetch must satisfy, the slots you may mount
+> on, and what happens on update. If you operate a server and want to know how a
+> plugin is contained and what the sandbox still cannot stop, read
+> [the plugin sandbox and threat model](../SECURITY.md) instead.
 
 Evey plugins are third-party code that runs as separate OS processes alongside the server. This document explains what a malicious plugin could attempt, how Evey defends against each vector, and the honest limits of the current implementation.
 
-## Threat model
+## Threat model: what a manifest is trusted with
 
 | Threat | Description |
 |---|---|
@@ -286,26 +292,29 @@ Plugin frontend modules run inside an `<iframe>` with:
 
 ## External fetch rules
 
-Declared in `external_fetch: [...]` in the manifest. Validated at install by `internal/pkg/extfetch/validate.go`. All-or-nothing: a single invalid entry causes install to be refused.
+Declared in `external_fetch: [...]` in the manifest and checked at install by
+`validateExternalFetch` (`internal/adapters/driven/pluginrunner/manifest.go`).
+All-or-nothing: one invalid entry refuses the whole install.
+
+An entry is a **bare hostname**. A scheme prefix is tolerated and discarded -
+only the hostname is kept.
 
 | Entry | Valid | Reason |
 |---|---|---|
-| `api.tmdb.org` | Yes | Exact hostname |
-| `*.tmdb.org` | Yes | Wildcard leftmost, TLD+SLD are concrete |
-| `api.tmdb.org/v3/*` | Yes | Path wildcard allowed |
-| `https://api.tmdb.org` | Yes | Explicit https scheme |
-| `*` | No | Catch-all |
-| `https://*` | No | Host wildcard alone |
-| `*.com` | No | Wildcard on SLD (must be concrete) |
-| `*.*.tmdb.org` | No | More than one wildcard label |
-| `cdn.*.tmdb.org` | No | Wildcard must be the leftmost label |
-| `http://api.tmdb.org` | No | Only `https://` is permitted |
-| `192.168.1.1` | No | IP literal not allowed |
-| `localhost` | No | Local host not allowed |
-| `127.0.0.1` | No | Loopback not allowed |
-| `/api/*` | No | Path without host |
+| `api.tmdb.org` | Yes | Exact hostname, the normal form |
+| `https://api.tmdb.org` | Yes | Scheme parsed and dropped, hostname kept |
+| `*.tmdb.org` | No | Wildcards are refused - list every subdomain you need |
+| `*` | No | Same rule |
+| `192.168.1.1`, `::1` | No | IP literals are refused, both families |
 
-Rules: scheme must be `https` (default when absent); wildcard `*` is only allowed as the leftmost label; TLD and SLD must be concrete; no IP literals (IPv4, IPv6, RFC1918, loopback); no `localhost`.
+At run time the host broker adds its own limits, which the manifest cannot
+widen: `http` and `https` only, `GET` and `HEAD` only, the target host matched
+case-insensitively against your list, and private or reserved addresses refused
+after DNS resolution - redirects are re-checked against both rules.
+
+> The broker's matcher also understands a `*.example.com` form, but the
+> installer refuses such an entry, so it can never reach it. Write explicit
+> hostnames.
 
 ## Slot whitelist
 
@@ -335,7 +344,7 @@ Source: `internal/domain/plugin/slots.go`.
 3. The source hash is captured at preview and verified at apply (anti-TOCTOU: the ZIP that was analyzed is the ZIP that gets installed).
 4. If cosign policy is `enforce`, a signature mismatch at the apply step blocks the update even if the preview passed.
 
-## Known limits
+## Known limits of the permission model
 
 | Limit | Impact | Mitigation today |
 |---|---|---|
