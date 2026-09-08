@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Radio, Shield, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { usePresenceServiceListOnline, useAdminSessionServiceSendCastReceiverCommand, apiErrorMessage } from "@evey/api";
+import { usePresenceServiceListOnline, useAdminSessionServiceSendCastReceiverCommand, useUserServiceListAllProfiles, apiErrorMessage } from "@evey/api";
 import type { V1OnlineUser } from "@evey/api";
 import { toast } from "@evey/store";
 import { ICON } from "@/constants/iconSizes";
@@ -35,6 +35,21 @@ export function OnlineNow() {
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.online.receiverStopFailed"))),
     },
   });
+  // Presence carries the profile ID but not its name, and an admin reading
+  // this card wants to know WHO is watching, not a household account. The
+  // admin profile list is already fetched by the neighbouring admin screens,
+  // so this resolves the name from cache rather than widening the presence
+  // payload. Absent (deleted profile, or a client that never sent one) simply
+  // shows nothing extra rather than a raw id.
+  const { data: profileData } = useUserServiceListAllProfiles();
+  const profilesById = useMemo(() => {
+    const map = new Map<string, { name?: string; isDefault?: boolean }>();
+    for (const p of profileData?.profiles ?? []) {
+      if (p.id) map.set(p.id, { name: p.name, isDefault: p.isDefault });
+    }
+    return map;
+  }, [profileData]);
+
   const users = data?.users ?? [];
   const total = data?.total ?? users.length;
 
@@ -69,6 +84,13 @@ export function OnlineNow() {
           {users.map((u) => {
             const Icon = deviceIcon(u.userAgent ?? "");
             const dev = deviceLabel(u.userAgent ?? "");
+            // The household default profile is named after the account, which
+            // says nothing: label it "Default" instead, the same word the
+            // profile manager badges it with.
+            const profile = u.profileId ? profilesById.get(u.profileId) : undefined;
+            const profileLabel = profile
+              ? (profile.isDefault ? t("auth.profile.manage.defaultProfileBadge") : profile.name)
+              : undefined;
             return (
               <li
                 // One row per DEVICE since the tracker keys on (user, user
@@ -87,6 +109,7 @@ export function OnlineNow() {
                   <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] min-w-0">
                     <Icon size={ICON.xs} className="shrink-0" />
                     <span className="truncate">
+                      {profileLabel ? `${profileLabel} · ` : ""}
                       {dev}
                       {u.clientIp ? ` · ${u.clientIp}` : ""}
                     </span>

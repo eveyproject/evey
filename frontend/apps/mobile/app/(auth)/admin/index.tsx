@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 // The icon-name union, so a typo is a compile error rather than a blank square.
 type IoniconName = keyof typeof Ionicons.glyphMap;
 import { Stack, useRouter } from "expo-router";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import Svg, { Circle } from "react-native-svg";
 import {
@@ -19,6 +19,7 @@ import {
   useLibraryServiceListMediaItems,
   useLibraryServiceListLibraries,
   useLibraryServiceScanLibrary,
+  useUserServiceListAllProfiles,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -143,11 +144,34 @@ function OnlineNowCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const users = data?.users ?? [];
   const total = data?.total ?? users.length;
 
+  // Presence carries the profile ID but not its name; resolve it from the
+  // profile list the admin screens already fetch, same as the web dashboard.
+  // Absent (deleted profile, or a client that never sent one) shows nothing
+  // extra rather than a raw id.
+  const { data: profileData } = useUserServiceListAllProfiles();
+  const profilesById = useMemo(() => {
+    const map = new Map<string, { name?: string; isDefault?: boolean }>();
+    for (const p of profileData?.profiles ?? []) {
+      if (p.id) map.set(p.id, { name: p.name, isDefault: p.isDefault });
+    }
+    return map;
+  }, [profileData]);
+
   function lastSeen(idleSeconds?: number): string {
     const idle = idleSeconds ?? 0;
     if (idle < 5) return t("admin.online.justNow");
     if (idle < 60) return t("admin.online.secondsAgo", { count: idle });
     return t("admin.online.minutesAgo", { count: Math.floor(idle / 60) });
+  }
+
+  // The household default profile is named after the account, which says
+  // nothing: label it "Default" instead, the same word the profile manager
+  // badges it with.
+  function profileLabel(profileId?: string): string | undefined {
+    if (!profileId) return undefined;
+    const profile = profilesById.get(profileId);
+    if (!profile) return undefined;
+    return profile.isDefault ? t("auth.profile.manage.defaultProfileBadge") : profile.name;
   }
 
   return (
@@ -166,16 +190,26 @@ function OnlineNowCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
             {t("admin.online.empty")}
           </Text>
         ) : (
-          users.slice(0, 6).map((u, i) => (
-            <View key={`${u.userId}|${u.userAgent ?? i}`} style={[styles.infoRow, { borderBottomColor: theme.colors.border }]}>
-              <Ionicons name={deviceIconName(u.userAgent ?? "")} size={16} color={theme.colors.textMuted} />
-              <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} numberOfLines={1}>
-                {u.username || u.userId}
-                {u.isAdmin ? ` · ${t("admin.online.adminBadge")}` : ""}
-              </Text>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{lastSeen(u.idleSeconds)}</Text>
-            </View>
-          ))
+          users.slice(0, 6).map((u, i) => {
+            const label = profileLabel(u.profileId);
+            return (
+              <View key={`${u.userId}|${u.userAgent ?? i}`} style={[styles.infoRow, { borderBottomColor: theme.colors.border }]}>
+                <Ionicons name={deviceIconName(u.userAgent ?? "")} size={16} color={theme.colors.textMuted} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.colors.text, fontSize: 13 }} numberOfLines={1}>
+                    {u.username || u.userId}
+                    {u.isAdmin ? ` · ${t("admin.online.adminBadge")}` : ""}
+                  </Text>
+                  {label ? (
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 11, flex: 1 }} numberOfLines={1}>
+                      {label}
+                    </Text>
+                  ) : null}
+                </View>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{lastSeen(u.idleSeconds)}</Text>
+              </View>
+            );
+          })
         )}
       </View>
     </View>
