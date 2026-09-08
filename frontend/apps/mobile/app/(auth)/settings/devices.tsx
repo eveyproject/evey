@@ -74,6 +74,8 @@ export default function DevicesScreen() {
             borderRadius: theme.radii.md,
             paddingVertical: 6,
             paddingHorizontal: 12,
+            marginLeft: 12,
+            flexShrink: 0,
           }}
         >
           <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "600" }}>

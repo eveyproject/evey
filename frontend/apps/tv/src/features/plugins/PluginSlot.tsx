@@ -37,6 +37,47 @@ interface ListPluginsResponse {
 // `<base href>` attribute or inject markup into the WebView document.
 const pluginIdShape = /^plg-[a-zA-Z0-9_-]{1,64}$/;
 
+export interface SlotEntry {
+  pluginId: string;
+  /** Display name (manifest name), falling back to the id. */
+  name: string;
+  entryPath: string;
+  externalFetch: string[];
+}
+
+/**
+ * Lists the enabled+running plugins that mount a frontend module in `slot`,
+ * with their display name + resolved entry path. Used by the settings screen
+ * to render a menu row per plugin (each linking to its own dedicated screen) -
+ * TV parity with web/mobile's usePluginSlotEntries.
+ */
+export function usePluginSlotEntries(slot: string): SlotEntry[] {
+  const isAuthenticated = useAuthStore((s) => !!s.accessToken);
+  const { data } = useQuery<ListPluginsResponse>({
+    queryKey: ["/api/v1/plugins"],
+    queryFn: () => eveyFetch<ListPluginsResponse>({ url: "/api/v1/plugins", method: "GET" }),
+    staleTime: 60_000,
+    enabled: isAuthenticated,
+  });
+  const entries: SlotEntry[] = [];
+  for (const p of data?.plugins ?? []) {
+    if (p.enabled === false || !p.id) continue;
+    const webRoot = p.webRoot ?? "";
+    const externalFetch = p.externalFetch ?? [];
+    for (const mod of p.frontend ?? []) {
+      if (mod.slot !== slot) continue;
+      let entry = mod.src;
+      if (webRoot && webRoot !== ".") {
+        const prefix = webRoot.endsWith("/") ? webRoot : webRoot + "/";
+        if (entry.startsWith(prefix)) entry = entry.slice(prefix.length);
+        else if (entry === webRoot) entry = "";
+      }
+      entries.push({ pluginId: p.id, name: p.name || p.id, entryPath: entry, externalFetch });
+    }
+  }
+  return entries;
+}
+
 interface PluginSlotProps {
   /** Slot name declared in the plugin manifest (e.g. "home.section"). */
   name: string;

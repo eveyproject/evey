@@ -13,7 +13,7 @@ import { queryClient } from "../../../src/lib/query-client";
 import { clearRefreshToken } from "../../../src/lib/refresh-token";
 import { clearUnlocked } from "../../../src/hooks/useParentalGate";
 import { supportedLanguages } from "../../../src/i18n";
-import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
+import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 
 // labelKey/fallback pairs mirror mobile's ThemeSelector.tsx builtInI18nKeys
 // mapping - same three built-in themes this TV settings screen exposes.
@@ -25,6 +25,8 @@ const THEME_OPTIONS = [
 
 export default function SettingsScreen() {
   const theme = useTheme();
+  // Plugins mounting the only user-settings slot the server allows.
+  const pluginEntries = usePluginSlotEntries("settings.user.appearance");
   const { t, i18n } = useTranslation();
   const logout = useAuthStore((s) => s.logout);
   const currentTheme = useThemeStore((s) => s.theme);
@@ -349,9 +351,32 @@ export default function SettingsScreen() {
         ))}
       </View>
 
-      {/* Plugins that declare a settings.user.appearance module render their
-          own per-profile settings UI here - same placement as web/mobile. */}
-      <PluginSlot name="settings.user.appearance" />
+      {/* Plugins that ship their own per-profile settings. They used to be
+          injected inline here as a single raw WebView, with nothing saying
+          which plugin owned it. Now each gets a menu row and a screen of its
+          own; no plugin installed means no section at all - same parity fix
+          as web/mobile. */}
+      {pluginEntries.length > 0 && (
+        <>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("auth.settings.tabs.plugins")}</Text>
+          <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+            {pluginEntries.map((entry) => (
+              <Pressable
+                key={entry.pluginId}
+                style={rowStyle(`plugin-${entry.pluginId}`)}
+                onPress={() => router.push(`/(auth)/settings/plugins/${entry.pluginId}`)}
+                onFocus={() => setFocusedItem(`plugin-${entry.pluginId}`)}
+                onBlur={() => setFocusedItem(null)}
+                accessible={true}
+                accessibilityLabel={entry.name}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.label, { color: theme.colors.text }]} numberOfLines={1}>{entry.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
 
       {/* About - the server version row is admin-only info (GetSystemInfo is an
           admin RPC): showing it to everyone else meant a 403 on every visit
