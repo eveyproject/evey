@@ -28,8 +28,7 @@ Operational playbooks for running Evey in production (or a serious home lab).
 | Transcodes failing, playback broken | `incident-runbook.md` → §3, §6 |
 | Postgres / Meilisearch outage | `incident-runbook.md` → §4, §5 |
 | Plugin panic in logs | `incident-runbook.md` → §7 |
-| A cast froze or the phone keeps spinning while casting | `incident-runbook.md` → §9 |
-| WSL2 dev host: corrupt git objects | `incident-runbook.md` → §8 |
+| A cast froze or the phone keeps spinning while casting | `incident-runbook.md` → §8 |
 
 ## Related docs
 
@@ -37,14 +36,3 @@ Operational playbooks for running Evey in production (or a serious home lab).
 - `docs/backups.md` - backup/restore configuration.
 - `docs/transcoding.md` - ffmpeg and cache behaviour.
 - `docs/reverse-proxy.md` - trusted proxies, forwarded headers.
-
-## Contacts / escalation
-
-TODO - fill in for your deployment:
-
-| Role | Name | Contact | Scope |
-|---|---|---|---|
-| Primary on-call | _TODO_ | _TODO_ | _TODO_ |
-| Secondary | _TODO_ | _TODO_ | _TODO_ |
-| DBA / Postgres | _TODO_ | _TODO_ | _TODO_ |
-| Plugin authors | _TODO_ | _TODO_ | _TODO_ |

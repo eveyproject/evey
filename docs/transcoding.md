@@ -13,7 +13,8 @@ Evey picks the best playback method automatically:
 
 ```env
 EVEY_TRANSCODING_MAX_CONCURRENT=2
-EVEY_TRANSCODING_HW_ACCEL_ENABLED=false
+# auto | off | nvenc | vaapi | qsv - see Hardware Acceleration below
+EVEY_TRANSCODING_HW_MODE=off
 ```
 
 ## Hardware Acceleration
@@ -95,7 +96,7 @@ EVEY_TRANSCODING_HW_PER_VARIANT=false
 EVEY_TRANSCODING_SINGLE_VARIANT=0
 ```
 
-> **These five now live in the admin panel** (Admin > Transcoding configuration >
+> **Five settings now live in the admin panel** (Admin > Transcoding configuration >
 > Advanced limits): `HW_PER_VARIANT`, `SINGLE_VARIANT`, `MAX_SESSIONS`,
 > `SOFTWARE_MAX_HEIGHT` and `SOFTWARE_HDR_MAX_HEIGHT`. A value saved there is
 > persisted and wins over the environment, so you no longer have to edit a

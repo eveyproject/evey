@@ -1,8 +1,8 @@
 # Reverse Proxy
 
 Evey serves **both the API and the web UI** on port **9091** (plain HTTP). A
-reverse proxy only needs to terminate TLS and forward everything to `evey:9091`
-- there is **no separate frontend to build or serve**.
+reverse proxy only needs to terminate TLS and forward everything to
+`evey:9091`: there is **no separate frontend to build or serve**.
 
 Wherever you run a proxy, set these so Evey knows its public URL and trusts the
 proxy's forwarded headers:

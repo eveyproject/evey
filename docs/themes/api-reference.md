@@ -25,7 +25,7 @@ min_evey_version: "1.0.0"  # optional
 # NO language, entrypoint, permissions - these are invalid for themes
 ```
 
-The ZIP must contain `theme.css` and/or `theme.js` at its root. A manifest with neither is accepted but the theme has no visible effect.
+The ZIP must contain `theme.css` and/or `theme.js` at its root. A package with neither is accepted but the theme has no visible effect.
 
 ## theme.css
 
@@ -98,7 +98,7 @@ evey.theme.css(`
 
 ### `evey.theme.log(level, msg)`
 
-Emits a log message visible in the admin debug panel. Does not surface to end users.
+Emits a log message to the browser console, prefixed `[evey-theme]`. Does not surface to end users.
 
 - `level`: `"debug"` | `"info"` | `"warn"` | `"error"`
 - `msg`: plain text string

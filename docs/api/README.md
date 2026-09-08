@@ -6,9 +6,9 @@ OpenAPI (Swagger 2.0) specifications for the Evey media server.
 
 | Section | Description |
 |---------|-------------|
-| [Public API](public/) | User-facing endpoints - media browsing, playback, collections, playlists, etc. |
-| [Admin API](admin/) | Server administration - system config, transcoding, backups, metadata, etc. |
-| [Plugin API](plugins/) | Plugin management and webhook integrations. |
+| [Public API](public/README.md) | User-facing endpoints - media browsing, playback, collections, playlists, etc. |
+| [Admin API](admin/README.md) | Server administration - system config, transcoding, backups, metadata, etc. |
+| [Plugin API](plugins/README.md) | Plugin management and webhook integrations. |
 
 ## Usage
 

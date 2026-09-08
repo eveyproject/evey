@@ -32,7 +32,7 @@ than showing a blank or a key.
 
 - **One source of truth:** [`/i18n/<locale>/*.yaml`](../i18n) at the repo root,
   split into namespaces (`common`, `auth`, `media`, `player`, `admin`,
-  `errors`, `notifications`, `mobile`, `downloads`). The same catalog drives
+  `errors`, `notifications`, `mobile`, `downloads`, `requests`). The same catalog drives
   every surface.
 - The **server** loads it and serves it at `GET /api/v1/i18n/{locale}`, and uses
   it directly for translated API error messages and notification text.

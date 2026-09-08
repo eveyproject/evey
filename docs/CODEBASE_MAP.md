@@ -141,4 +141,3 @@ make doctor                     when your environment misbehaves
 | seek-index repair / media health | triaging every MKV/WebM into one verdict (repairable here / needs you / for information), repairing the first group, acknowledging the rest (admin > Media health) |
 | SDUI | sanitized server-driven UI schema (`web/src/features/sdui`) |
 | tripwire | a runtime assertion that logs ERROR + metric instead of corrupting playback |
-```

@@ -1,21 +1,18 @@
 # Configuration
 
-`.env` holds only what must exist **before the server boots**: secrets,
-container wiring (ports, paths, image tag) and reverse-proxy facts. Copy
-`.env.example` to `.env` and edit.
+Two places, one rule. **What must exist before the server boots** - secrets,
+container wiring, reverse-proxy facts - lives in the compose file. **What an
+operator tunes afterwards** - log level, language, transcoding limits, hardware
+acceleration, watcher, plugin sandbox and quotas - lives in **Admin > Server
+config**, is stored in the database, survives a container recreate, and mostly
+applies without a restart.
 
-**Everything an operator tunes afterwards - log level, language, transcoding
-limits, hardware acceleration, library watcher, plugin sandbox and quotas -
-lives in the admin panel (Admin > Server config), not here.** Those settings are
-stored in the database, survive a container recreate, and most apply without a
-restart. Setting them as env vars only seeds a first boot.
+Setting one of those in the environment only seeds a first boot. That is why
+this page does not list every `EVEY_*` the binary accepts: the rest are
+first-boot seeds and escape hatches. `internal/config/config.go` is the
+exhaustive reference if you need one.
 
-That split is why this page does not list every `EVEY_*` variable the binary
-recognises: the rest are first-boot seeds and escape hatches, and configuring a
-running server through them is the wrong path. `internal/config/config.go` is
-the exhaustive reference if you need one.
-
-## Must Set
+## 1. What you must set yourself
 
 Nothing, for the default install: the media path and the image tag are on the
 compose file itself, and there is no `.env`. The
@@ -34,7 +31,82 @@ password on the command line. Set `EVEY_DB_PASSWORD` / `MEILI_MASTER_KEY`
 explicitly only when you bring your own database or search engine - an explicit
 value always wins over the file.
 
-## File ownership (PUID/PGID)
+
+```env
+EVEY_SERVER_BASE_URL=https://media.example.com  # your public URL
+EVEY_TMDB_API_KEY=<your-tmdb-key>               # better metadata (free at themoviedb.org)
+```
+
+## 2. A published instance, in two variables
+
+Behind a reverse proxy, with hardware transcoding, the whole environment is two
+variables. Everything else people commonly carry in a compose file is either
+already in the image or a default:
+
+```yaml
+services:
+  evey:
+    image: gravityz/evey:latest
+    environment:
+      EVEY_SERVER_BASE_URL: https://media.example.com
+      EVEY_TRUSTED_PROXIES: 10.0.0.5/32      # your reverse proxy, /32 if you know its address
+    volumes:
+      - ./evey-data:/data
+      - evey-cache:/cache
+      - /srv/media:/media
+    devices:
+      - /dev/dri:/dev/dri                     # hardware transcoding
+    group_add:
+      - "991"                                 # the group owning /dev/dri/renderD128 on YOUR host
+```
+
+Lines worth **not** copying from older setups:
+
+| Line | Why it is unnecessary |
+| --- | --- |
+| `EVEY_LOG_DIR`, `EVEY_TRANSCODING_CACHE_DIR`, `EVEY_TRICKPLAY_CACHE_DIR` | The image already sets these to `/data/logs`, `/cache/transcode`, `/data/trickplay`. Repeating them changes nothing. |
+| `EVEY_FORWARDED_PROTO` | Deprecated - derived from the scheme of `EVEY_SERVER_BASE_URL`. Setting it only logs a deprecation warning. |
+| `EVEY_KEYFRAME_BACKFILL=on` | Anything other than `off` enables it, including absent. |
+| `LIBVA_DRIVER_NAME` | libva picks the driver from the GPU's PCI id. Force it only if your card needs a driver libva does not choose (verify with `docker exec evey-server vainfo`). |
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` picks the strongest confinement your host supports. Set it explicitly only when you want a *fail-closed* guarantee - `landlock` refuses to run a plugin it cannot confine, where `auto` degrades with a warning. |
+| a `group_add` for `/dev/dri/card0` | Evey only ever opens `renderD128`. Check with `ls -ln /dev/dri` and add that group alone. |
+
+## 3. The two settings the admin panel does not replace
+
+Both of these have a look-alike in **Admin → Remote Access**, and neither
+makes the environment variable redundant. This trips people up, so it is worth
+being explicit.
+
+The reason they differ is where each one lives. The remote-access block
+(enable/disable, external URL, LAN ranges, remote bitrate cap) is **persisted in
+the database** - its environment variables seed the first boot and are ignored
+afterwards. `EVEY_SERVER_BASE_URL` and `EVEY_TRUSTED_PROXIES` are the opposite:
+they are read from the environment at every boot and **nothing in the panel ever
+overwrites them**. So a value that looks like a duplicate in the panel is, in
+these two cases, a different setting that happens to mention an address.
+
+**`EVEY_SERVER_BASE_URL` is not replaced by "External URL".** The panel's value
+feeds the URLs the server *builds*. But whether the server trusts
+`X-Forwarded-Proto` - and therefore whether it believes it is served over HTTPS -
+is decided **at boot, from the environment variable only**. Drop the variable and
+it falls back to `http://localhost:9091`: `Secure` cookies, redirects and every
+absolute link degrade to `http://`, and share/download URLs point at localhost.
+The panel value is read too late to help.
+
+**`EVEY_TRUSTED_PROXIES` is not replaced by "LAN networks".** They are two
+stages, not two names for one thing:
+
+1. `EVEY_TRUSTED_PROXIES` decides **whose `X-Forwarded-For` is believed**, and
+   therefore which address a client is given.
+2. LAN networks then classify **that** address as local or remote.
+
+The second operates on the output of the first. Without the first, every client
+arrives with the proxy's address and they all classify identically - which is
+exactly how the remote-access gate stayed dormant for four months (see
+`internal/config/remote_access_resolve.go`). Loopback is always trusted and
+cannot be removed; your entry is *added* to it.
+
+## 4. File ownership (PUID/PGID)
 
 **Default: automatic.** When `PUID`/`PGID` are not set, the entrypoint looks
 at the owner of your `/media*` mounts at startup and runs the server as that
@@ -83,83 +155,7 @@ Notes:
   `:ro` to the media volume if you prefer a read-only library (repairs will
   then fail with a clear error).
 
-## Recommended
-
-```env
-EVEY_SERVER_BASE_URL=https://media.example.com  # your public URL
-EVEY_TMDB_API_KEY=<your-tmdb-key>               # better metadata (free at themoviedb.org)
-```
-
-## What a published instance actually needs
-
-Behind a reverse proxy, with hardware transcoding, the whole environment is two
-variables. Everything else people commonly carry in a compose file is either
-already in the image or a default:
-
-```yaml
-services:
-  evey:
-    image: ghcr.io/evey-project/evey:latest
-    environment:
-      EVEY_SERVER_BASE_URL: https://media.example.com
-      EVEY_TRUSTED_PROXIES: 10.0.0.5/32      # your reverse proxy, /32 if you know its address
-    volumes:
-      - ./evey-data:/data
-      - evey-cache:/cache
-      - /srv/media:/media
-    devices:
-      - /dev/dri:/dev/dri                     # hardware transcoding
-    group_add:
-      - "991"                                 # the group owning /dev/dri/renderD128 on YOUR host
-```
-
-Lines worth **not** copying from older setups:
-
-| Line | Why it is unnecessary |
-| --- | --- |
-| `EVEY_LOG_DIR`, `EVEY_TRANSCODING_CACHE_DIR`, `EVEY_TRICKPLAY_CACHE_DIR` | The image already sets these to `/data/logs`, `/cache/transcode`, `/data/trickplay`. Repeating them changes nothing. |
-| `EVEY_FORWARDED_PROTO` | Deprecated - derived from the scheme of `EVEY_SERVER_BASE_URL`. Setting it only logs a deprecation warning. |
-| `EVEY_KEYFRAME_BACKFILL=on` | Anything other than `off` enables it, including absent. |
-| `LIBVA_DRIVER_NAME` | libva picks the driver from the GPU's PCI id. Force it only if your card needs a driver libva does not choose (verify with `docker exec evey-server vainfo`). |
-| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` picks the strongest confinement your host supports. Set it explicitly only when you want a *fail-closed* guarantee - `landlock` refuses to run a plugin it cannot confine, where `auto` degrades with a warning. |
-| a `group_add` for `/dev/dri/card0` | Evey only ever opens `renderD128`. Check with `ls -ln /dev/dri` and add that group alone. |
-
-### Two settings the admin panel does NOT replace
-
-Both of these have a look-alike in **Settings → Remote access**, and neither
-makes the environment variable redundant. This trips people up, so it is worth
-being explicit.
-
-The reason they differ is where each one lives. The remote-access block
-(enable/disable, external URL, LAN ranges, remote bitrate cap) is **persisted in
-the database** - its environment variables seed the first boot and are ignored
-afterwards. `EVEY_SERVER_BASE_URL` and `EVEY_TRUSTED_PROXIES` are the opposite:
-they are read from the environment at every boot and **nothing in the panel ever
-overwrites them**. So a value that looks like a duplicate in the panel is, in
-these two cases, a different setting that happens to mention an address.
-
-**`EVEY_SERVER_BASE_URL` is not replaced by "External URL".** The panel's value
-feeds the URLs the server *builds*. But whether the server trusts
-`X-Forwarded-Proto` - and therefore whether it believes it is served over HTTPS -
-is decided **at boot, from the environment variable only**. Drop the variable and
-it falls back to `http://localhost:9091`: `Secure` cookies, redirects and every
-absolute link degrade to `http://`, and share/download URLs point at localhost.
-The panel value is read too late to help.
-
-**`EVEY_TRUSTED_PROXIES` is not replaced by "LAN networks".** They are two
-stages, not two names for one thing:
-
-1. `EVEY_TRUSTED_PROXIES` decides **whose `X-Forwarded-For` is believed**, and
-   therefore which address a client is given.
-2. LAN networks then classify **that** address as local or remote.
-
-The second operates on the output of the first. Without the first, every client
-arrives with the proxy's address and they all classify identically - which is
-exactly how the remote-access gate stayed dormant for four months (see
-`internal/config/remote_access_resolve.go`). Loopback is always trusted and
-cannot be removed; your entry is *added* to it.
-
-## Variables you may need to set
+## 5. Variable reference
 
 ### Server
 ```env
@@ -179,7 +175,8 @@ EVEY_DB_NAME=evey
 EVEY_DB_PASSWORD=                  # unset = generated on first boot into /data/keys/postgres.password
 EVEY_DB_PASSWORD_FILE=/data/keys/postgres.password   # read when EVEY_DB_PASSWORD is unset (image default)
 
-# External: set the host and the secret, the embedded one stays off.
+# External: use these INSTEAD of the block above, not alongside it.
+# Setting the host turns the embedded database off.
 EVEY_DB_HOST=postgres              # the repository compose's sibling service is `postgres`
 EVEY_DB_PORT=5432
 EVEY_DB_PASSWORD=changeme
@@ -373,7 +370,7 @@ is a publicly reachable address, remote access is **enabled** (a server you
 published is meant to be reached); otherwise it stays LAN-only. The decision is
 logged at startup, and `evey admin doctor` reports it.
 
-Set the variable - or use **Admin > Remote access** - to decide explicitly; an
+Set the variable - or use **Admin → Remote Access** - to decide explicitly; an
 explicit choice is never overridden by the inference. If you deliberately keep a
 published server LAN-only, the boot log carries a warning saying so, because the
 symptom otherwise reaching you is "it works on your phone but not on mine".
