@@ -4,11 +4,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockListOnline = vi.fn();
 const mockSendCastCommand = vi.fn();
+const mockListAllProfiles = vi.fn();
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   usePresenceServiceListOnline: () => mockListOnline(),
   useAdminSessionServiceSendCastReceiverCommand: () => ({ mutate: mockSendCastCommand }),
+  useUserServiceListAllProfiles: () => mockListAllProfiles(),
 }));
 
 vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -36,10 +38,18 @@ const BROWSER_ROW = {
   idleSeconds: 3,
 };
 
+// Every describe needs the profile list mocked: the card resolves the profile
+// NAME from it, and an unmocked hook would hand back undefined.
+const PROFILES = [
+  { id: "prf-1", name: "Household", isDefault: true },
+  { id: "prf-2", name: "Camille", isDefault: false },
+];
+
 describe("OnlineNow: stopping a receiver that outlived its session", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListOnline.mockReturnValue({ data: { users: [CAST_ROW], total: 1 }, isError: false });
+    mockListAllProfiles.mockReturnValue({ data: { profiles: PROFILES } });
   });
 
   // The whole point of the control: a television that never really switches off
@@ -86,5 +96,48 @@ describe("OnlineNow: stopping a receiver that outlived its session", () => {
     const C = await OnlineNow();
     render(React.createElement(C));
     expect(screen.queryByTestId("stop-cast-receiver")).not.toBeInTheDocument();
+  });
+});
+
+// An admin reading this card needs to know WHO is watching. The account name
+// is the household; the profile is the person.
+describe("OnlineNow: which profile is watching", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListAllProfiles.mockReturnValue({ data: { profiles: PROFILES } });
+  });
+
+  it("names the profile next to the device", async () => {
+    mockListOnline.mockReturnValue({ data: { users: [BROWSER_ROW], total: 1 }, isError: false });
+    const Comp = await OnlineNow();
+    render(React.createElement(Comp));
+    expect(screen.getByText(/Camille/)).toBeInTheDocument();
+  });
+
+  it("says Default for the household profile instead of repeating the account name", async () => {
+    mockListOnline.mockReturnValue({ data: { users: [CAST_ROW], total: 1 }, isError: false });
+    const Comp = await OnlineNow();
+    render(React.createElement(Comp));
+    expect(screen.getByText(/Default/)).toBeInTheDocument();
+    expect(screen.queryByText(/Household/)).not.toBeInTheDocument();
+  });
+
+  it("shows no profile rather than a raw id when the profile is gone", async () => {
+    mockListOnline.mockReturnValue({
+      data: { users: [{ ...BROWSER_ROW, profileId: "prf-deleted" }], total: 1 },
+      isError: false,
+    });
+    const Comp = await OnlineNow();
+    render(React.createElement(Comp));
+    expect(screen.queryByText(/prf-deleted/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Someone Else/)).toBeInTheDocument();
+  });
+
+  it("survives a profile list that has not arrived yet", async () => {
+    mockListAllProfiles.mockReturnValue({ data: undefined });
+    mockListOnline.mockReturnValue({ data: { users: [BROWSER_ROW], total: 1 }, isError: false });
+    const Comp = await OnlineNow();
+    render(React.createElement(Comp));
+    expect(screen.getByText(/Someone Else/)).toBeInTheDocument();
   });
 });
