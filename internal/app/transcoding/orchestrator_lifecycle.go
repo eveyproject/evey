@@ -197,30 +197,44 @@ func (o *SegmentOrchestrator) gcLoop() {
 }
 
 func (o *SegmentOrchestrator) sweepIdle() {
-	cutoff := time.Now().Add(-o.opts.InactivityTimeout)
+	now := time.Now()
+	cutoff := now.Add(-o.opts.InactivityTimeout)
+	// A rafale no client has ever read is a speculative pre-warm whose bet did
+	// not pay off; it gets the short fuse instead (see UnreadTimeout).
+	unreadCutoff := now.Add(-o.opts.UnreadTimeout)
 	// defer rather than a trailing Unlock: bgloop.Tick recovers panics, so
 	// without it a panicking sweep would leave o.mu held forever and no hardware
 	// session could start or stop again.
-	toKill := func() []*orchestratorSession {
+	type doomed struct {
+		s      *orchestratorSession
+		reason string
+	}
+	toKill := func() []doomed {
 		o.mu.Lock()
 		defer o.mu.Unlock()
-		var toKill []*orchestratorSession
+		var toKill []doomed
 		for _, list := range o.sessions {
 			for _, s := range list {
-				idle := func() bool {
+				reason := func() string {
 					s.mu.Lock()
 					defer s.mu.Unlock()
-					return s.lastAccess.Before(cutoff)
+					if !s.clientRead && s.lastAccess.Before(unreadCutoff) {
+						return "unread_prewarm"
+					}
+					if s.lastAccess.Before(cutoff) {
+						return "inactivity"
+					}
+					return ""
 				}()
-				if idle {
-					toKill = append(toKill, s)
+				if reason != "" {
+					toKill = append(toKill, doomed{s: s, reason: reason})
 				}
 			}
 		}
 		return toKill
 	}()
-	for _, s := range toKill {
-		o.killSession(s, "inactivity")
+	for _, d := range toKill {
+		o.killSession(d.s, d.reason)
 	}
 }
 

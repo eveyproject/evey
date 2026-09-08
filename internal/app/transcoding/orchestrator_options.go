@@ -24,6 +24,17 @@ type OrchestratorOptions struct {
 	// hls.js' default fragment retry window.
 	InactivityTimeout time.Duration
 
+	// UnreadTimeout is the (much shorter) idle budget of a rafale NO client has
+	// ever read a segment from. serveVariant pre-warms segment 0 on every
+	// variant-playlist fetch, and no client tells the server where it is about
+	// to start, so a resume opens an encoder at 0 that the player never touches.
+	// On InactivityTimeout that bet kept a full ABR ladder running next to the
+	// real rafale for ~55 s of the exact window the viewer spends buffering. A
+	// pre-warm that pays off is read within a round-trip (that is its entire
+	// purpose), so this can be tight without ever catching a live viewer.
+	// Default 20 s; clamped to InactivityTimeout when set higher.
+	UnreadTimeout time.Duration
+
 	// GCInterval is the period of the inactivity sweeper. Default 15 s.
 	GCInterval time.Duration
 
@@ -125,6 +136,14 @@ func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
 	}
 	if out.InactivityTimeout <= 0 {
 		out.InactivityTimeout = 60 * time.Second
+	}
+	if out.UnreadTimeout <= 0 {
+		out.UnreadTimeout = 20 * time.Second
+	}
+	if out.UnreadTimeout > out.InactivityTimeout {
+		// An unread rafale must never outlive a read one, whatever an operator
+		// configures - the whole point is that it is the cheaper thing to drop.
+		out.UnreadTimeout = out.InactivityTimeout
 	}
 	if out.GCInterval <= 0 {
 		out.GCInterval = 15 * time.Second
