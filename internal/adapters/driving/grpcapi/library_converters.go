@@ -10,7 +10,6 @@ var libraryTypeToProto = map[string]eveyv1.LibraryType{
 	"tvshow": eveyv1.LibraryType_LIBRARY_TYPE_SHOWS,
 	"music":  eveyv1.LibraryType_LIBRARY_TYPE_MUSIC,
 	"photo":  eveyv1.LibraryType_LIBRARY_TYPE_PHOTOS,
-	"book":   eveyv1.LibraryType_LIBRARY_TYPE_BOOKS,
 }
 
 var libraryTypeFromProto = map[eveyv1.LibraryType]string{
@@ -18,7 +17,6 @@ var libraryTypeFromProto = map[eveyv1.LibraryType]string{
 	eveyv1.LibraryType_LIBRARY_TYPE_SHOWS:  "tvshow",
 	eveyv1.LibraryType_LIBRARY_TYPE_MUSIC:  "music",
 	eveyv1.LibraryType_LIBRARY_TYPE_PHOTOS: "photo",
-	eveyv1.LibraryType_LIBRARY_TYPE_BOOKS:  "book",
 }
 
 func libraryToProto(lib *library.Library) *eveyv1.Library {
@@ -47,7 +45,6 @@ var mediaItemTypeToProto = map[string]eveyv1.MediaItemType{
 	"artist":  eveyv1.MediaItemType_MEDIA_ITEM_TYPE_ARTIST,
 	"track":   eveyv1.MediaItemType_MEDIA_ITEM_TYPE_TRACK,
 	"photo":   eveyv1.MediaItemType_MEDIA_ITEM_TYPE_PHOTO,
-	"book":    eveyv1.MediaItemType_MEDIA_ITEM_TYPE_BOOK,
 }
 
 var mediaItemTypeFromProto = map[eveyv1.MediaItemType]string{
@@ -59,7 +56,6 @@ var mediaItemTypeFromProto = map[eveyv1.MediaItemType]string{
 	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_ARTIST:  "artist",
 	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_TRACK:   "track",
 	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_PHOTO:   "photo",
-	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_BOOK:    "book",
 }
 
 // mediaItemToProto converts a MediaItem to proto. When includeFilePath is false

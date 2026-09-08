@@ -443,7 +443,6 @@ libraries:
     shows: "Séries"
     music: "Musique"
     photos: "Photos"
-    books: "Livres"
     library: "Bibliothèque"
   scan: "Scanner"
   scanAgain: "Scanner à nouveau"

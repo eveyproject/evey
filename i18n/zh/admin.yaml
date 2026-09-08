@@ -444,7 +444,6 @@ libraries:
     shows: "电视剧"
     music: "音乐"
     photos: "照片"
-    books: "书籍"
     library: "媒体库"
   scan: "扫描"
   scanAgain: "重新扫描"

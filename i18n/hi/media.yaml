@@ -103,7 +103,6 @@ itemType:
   album: "एल्बम"
   track: "ट्रैक"
   photo: "फ़ोटो"
-  book: "किताब"
   artist: "कलाकार"
 
 library:
@@ -113,7 +112,6 @@ library:
   tvShows: टीवी शो
   music: संगीत
   photos: फ़ोटो
-  books: किताबें
   noLibraries: कोई लाइब्रेरी कॉन्फ़िगर नहीं है
   noLibrariesDesc: अपनी मीडिया ब्राउज़ करने के लिए एडमिन पैनल में लाइब्रेरी जोड़ें।
   filterByName: "नाम से फ़िल्टर करें..."

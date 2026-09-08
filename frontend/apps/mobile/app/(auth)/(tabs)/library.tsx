@@ -22,7 +22,6 @@ const LIBRARY_TYPE_ICONS: Record<string, string> = {
   LIBRARY_TYPE_SHOWS: "📺",
   LIBRARY_TYPE_MUSIC: "🎵",
   LIBRARY_TYPE_PHOTOS: "📷",
-  LIBRARY_TYPE_BOOKS: "📚",
 };
 
 const LIBRARY_TYPE_KEYS: Record<string, string> = {
@@ -30,7 +29,6 @@ const LIBRARY_TYPE_KEYS: Record<string, string> = {
   LIBRARY_TYPE_SHOWS: "media.library.tvShows",
   LIBRARY_TYPE_MUSIC: "media.library.music",
   LIBRARY_TYPE_PHOTOS: "media.library.photos",
-  LIBRARY_TYPE_BOOKS: "media.library.books",
 };
 
 function getTypeIcon(type?: V1LibraryType): string {

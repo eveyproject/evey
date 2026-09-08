@@ -29,7 +29,6 @@ const TYPE_ICONS: Record<string, string> = {
   LIBRARY_TYPE_SHOWS: "tv-outline",
   LIBRARY_TYPE_MUSIC: "musical-notes-outline",
   LIBRARY_TYPE_PHOTOS: "image-outline",
-  LIBRARY_TYPE_BOOKS: "book-outline",
 };
 
 const LIBRARY_TYPES: { value: V1LibraryType; labelKey: string; fallback: string }[] = [
@@ -37,7 +36,6 @@ const LIBRARY_TYPES: { value: V1LibraryType; labelKey: string; fallback: string 
   { value: "LIBRARY_TYPE_SHOWS", labelKey: "admin.libraries.types.shows", fallback: "TV Shows" },
   { value: "LIBRARY_TYPE_MUSIC", labelKey: "admin.libraries.types.music", fallback: "Music" },
   { value: "LIBRARY_TYPE_PHOTOS", labelKey: "admin.libraries.types.photos", fallback: "Photos" },
-  { value: "LIBRARY_TYPE_BOOKS", labelKey: "admin.libraries.types.books", fallback: "Books" },
 ];
 
 interface LibraryFormData {

@@ -18,7 +18,6 @@ const LIBRARY_TYPE_KEYS: Record<string, string> = {
   LIBRARY_TYPE_SHOWS: "media.library.tvShows",
   LIBRARY_TYPE_MUSIC: "media.library.music",
   LIBRARY_TYPE_PHOTOS: "media.library.photos",
-  LIBRARY_TYPE_BOOKS: "media.library.books",
 };
 
 function libraryTypeIcon(type?: V1LibraryType) {
