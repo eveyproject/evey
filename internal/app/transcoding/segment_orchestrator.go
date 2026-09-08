@@ -66,6 +66,13 @@ type SegmentOrchestrator struct {
 	// pathological hosts - beyond the cap the LRU rafale is evicted.
 	sessions map[string][]*orchestratorSession
 
+	// pendingSpawns holds the spawn windows that have been claimed but not yet
+	// registered in `sessions`. It is what makes a burst of concurrent requests
+	// for the same position exec ONE ffmpeg instead of N (see
+	// EnsureSegmentRange). Guarded by mu; entries live only for the duration of
+	// a spawnSession call.
+	pendingSpawns map[string][]*pendingSpawn
+
 	stopGC chan struct{}
 	gcDone chan struct{}
 
@@ -142,6 +149,17 @@ type orchestratorSession struct {
 	// currently SIGSTOPped; useFMP4 is captured at spawn so the throttle loop
 	// can query the cache without the fingerprint.
 	clientHighWater int
+	// clientRead is set the first time a CLIENT request lands on this rafale
+	// (EnsureSegmentRange finds it covering, or touchSession hits its cache).
+	// It separates a rafale someone is draining from a speculative one - a
+	// PreWarm bet on a position the player never went to - so the GC can retire
+	// the second on a much shorter fuse. serveVariant pre-warms segment 0
+	// unconditionally, so every resume into a transcoded title opens a rafale
+	// at 0 that nobody will ever read; on the ordinary InactivityTimeout it sat
+	// there encoding a full ABR ladder ALONGSIDE the real one for the best part
+	// of a minute (prod, 2026-09-08: rafale at seg 0 spawned 23:06:18, the real
+	// one at seg 121 spawned 23:06:23, the useless one killed only at 23:07:19).
+	clientRead bool
 	// producedHighWater is the last segment index the throttle observed on
 	// disk for this rafale, or startSeg-1 before anything lands. It is a
 	// resume point for SegmentCache.HighestReadyFrom, which is why the
@@ -376,8 +394,37 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	//
 	// When SingleVariant is ON, findCoveringSessionLocked additionally
 	// filters by variantIdx so per-rung sessions stay isolated.
+	// Claim the spawn under the SAME lock that decides nobody covers this
+	// position. Without the claim, the only dedup was the re-check AFTER
+	// process.Start (see spawnSession): every racer resolved the source, took a
+	// video slot and exec'd a real ffmpeg, then all but one killed theirs
+	// milliseconds later. On a 4K HEVC HDR ladder that is three concurrent
+	// software decodes fighting over the box during the exact window the viewer
+	// is waiting on segment 0 - prod, 2026-09-08: three `hls: ffmpeg start` at
+	// 23:06:18.316/.317/.317 for one surviving rafale. The post-Start check
+	// stays as the backstop for the cases this exact-window claim doesn't cover.
 	o.mu.Lock()
 	session := o.findCoveringSessionLocked(hash, variantIdx, segmentIdx, o.opts.LookAheadSegments)
+	var claim *pendingSpawn
+	if session == nil {
+		if winner := o.pendingSpawnCoversLocked(hash, variantIdx, segmentIdx); winner != nil {
+			o.mu.Unlock()
+			// A sibling is already starting the ffmpeg that will produce this
+			// segment. Wait for ITS outcome rather than returning nil blind: a
+			// spawn refused by the video limiter must still reach this caller as
+			// ErrVideoCapacityExhausted, so the handler sheds with a 503 instead
+			// of parking the viewer on a segment nobody is encoding. The wait is
+			// bounded by spawnSession's own work (resolve + exec), which is the
+			// work this goroutine would otherwise have duplicated.
+			select {
+			case <-winner.done:
+				return winner.err
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		claim = o.claimPendingSpawnLocked(hash, variantIdx, segmentIdx)
+	}
 	o.mu.Unlock()
 
 	if session != nil {
@@ -385,6 +432,7 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 		inWindow := segmentIdx >= session.startSeg && segmentIdx <= session.endSeg
 		nearAhead := segmentIdx > session.endSeg && segmentIdx <= session.endSeg+o.opts.LookAheadSegments
 		session.lastAccess = time.Now()
+		session.clientRead = true
 		if segmentIdx > session.clientHighWater {
 			session.clientHighWater = segmentIdx
 		}
@@ -402,7 +450,85 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	o.logger.Info("orchestrator: spawning additional rafale for unserved seek",
 		slog.String("hash", hash),
 		slog.Int("requested", segmentIdx))
-	return o.spawnSession(ctx, fp, variantIdx, segmentIdx)
+	err := o.spawnSession(ctx, fp, variantIdx, segmentIdx)
+	// Publish the outcome to whoever waited on this claim, then drop it. Runs on
+	// every path out of spawnSession - a stranded claim would wedge the hash for
+	// the lifetime of the process.
+	o.settlePendingSpawn(hash, claim, err)
+	return err
+}
+
+// pendingSpawn records a spawn that has passed the covering-session check but
+// whose ffmpeg is not registered in o.sessions yet. Its window is the one
+// spawnSession will install, so a racer asking for a segment inside it waits on
+// `done` and reads `err` instead of exec'ing a second encoder for the same
+// bytes. err is written once, before done is closed, so reading it after the
+// channel is a data race only in theory.
+type pendingSpawn struct {
+	variantIdx int
+	startSeg   int
+	endSeg     int
+	done       chan struct{}
+	err        error
+}
+
+// pendingSpawnCoversLocked returns the in-flight spawn that already promises
+// segmentIdx, or nil. Deliberately the plain [startSeg, endSeg] window and NOT
+// the nearAhead extension findCoveringSessionLocked grants: a pending spawn
+// cannot widen its window on our behalf (it isn't registered yet), so claiming a
+// segment past it would promise bytes nobody produces. Beyond the window we
+// spawn a second rafale exactly as before. Caller holds o.mu.
+func (o *SegmentOrchestrator) pendingSpawnCoversLocked(hash string, variantIdx, segmentIdx int) *pendingSpawn {
+	for _, p := range o.pendingSpawns[hash] {
+		if o.opts.SingleVariant && p.variantIdx != variantIdx {
+			continue
+		}
+		if segmentIdx >= p.startSeg && segmentIdx <= p.endSeg {
+			return p
+		}
+	}
+	return nil
+}
+
+// claimPendingSpawnLocked registers the window spawnSession is about to open and
+// returns the claim to settle once it has. Caller holds o.mu.
+func (o *SegmentOrchestrator) claimPendingSpawnLocked(hash string, variantIdx, startSeg int) *pendingSpawn {
+	if o.pendingSpawns == nil {
+		o.pendingSpawns = map[string][]*pendingSpawn{}
+	}
+	p := &pendingSpawn{
+		variantIdx: variantIdx,
+		startSeg:   startSeg,
+		endSeg:     startSeg + o.opts.LookAheadSegments - 1,
+		done:       make(chan struct{}),
+	}
+	o.pendingSpawns[hash] = append(o.pendingSpawns[hash], p)
+	return p
+}
+
+// settlePendingSpawn records the spawn's outcome, wakes every racer parked on
+// it and drops the claim. Nil claim = this call never took one (a live session
+// covered the request), so there is nothing to settle.
+func (o *SegmentOrchestrator) settlePendingSpawn(hash string, claim *pendingSpawn, err error) {
+	if claim == nil {
+		return
+	}
+	o.mu.Lock()
+	list := o.pendingSpawns[hash]
+	for i, p := range list {
+		if p == claim {
+			o.pendingSpawns[hash] = append(list[:i], list[i+1:]...)
+			break
+		}
+	}
+	if len(o.pendingSpawns[hash]) == 0 {
+		delete(o.pendingSpawns, hash)
+	}
+	// Written under mu and read only after done closes: the close is the
+	// happens-before edge every waiter crosses.
+	claim.err = err
+	o.mu.Unlock()
+	close(claim.done)
 }
 
 // acquireSessionSlot reserves one of the MaxActiveSessions global rafale slots
@@ -868,6 +994,7 @@ func (o *SegmentOrchestrator) touchSession(hash string, variantIdx, segmentIdx i
 	}
 	target.mu.Lock()
 	target.lastAccess = time.Now()
+	target.clientRead = true
 	if segmentIdx > target.clientHighWater {
 		target.clientHighWater = segmentIdx
 	}
