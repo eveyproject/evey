@@ -17,7 +17,6 @@ func TestLibraryTypeEnumMapping(t *testing.T) {
 		"tvshow": eveyv1.LibraryType_LIBRARY_TYPE_SHOWS,
 		"music":  eveyv1.LibraryType_LIBRARY_TYPE_MUSIC,
 		"photo":  eveyv1.LibraryType_LIBRARY_TYPE_PHOTOS,
-		"book":   eveyv1.LibraryType_LIBRARY_TYPE_BOOKS,
 	}
 	for domainT, protoT := range want {
 		assert.Equal(t, protoT, libraryTypeToProto[domainT], "to-proto mapping for %q", domainT)
@@ -32,7 +31,7 @@ func TestLibraryTypeEnumMapping(t *testing.T) {
 
 func TestMediaItemTypeEnumMapping(t *testing.T) {
 	t.Parallel()
-	cases := []string{"movie", "series", "season", "episode", "album", "artist", "track", "photo", "book"}
+	cases := []string{"movie", "series", "season", "episode", "album", "artist", "track", "photo"}
 	for _, c := range cases {
 		pt := mediaItemTypeToProto[c]
 		require.NotEqual(t, eveyv1.MediaItemType_MEDIA_ITEM_TYPE_UNSPECIFIED, pt, "type %q not mapped", c)

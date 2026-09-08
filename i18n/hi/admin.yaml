@@ -444,7 +444,6 @@ libraries:
     shows: "शो"
     music: "संगीत"
     photos: "फ़ोटो"
-    books: "किताबें"
     library: "लाइब्रेरी"
   scan: "स्कैन"
   scanAgain: "फिर से स्कैन करें"

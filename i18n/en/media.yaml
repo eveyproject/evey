@@ -103,7 +103,6 @@ itemType:
   album: "Album"
   track: "Track"
   photo: "Photo"
-  book: "Book"
   artist: "Artist"
 
 library:
@@ -113,7 +112,6 @@ library:
   tvShows: TV Shows
   music: Music
   photos: Photos
-  books: Books
   noLibraries: No libraries configured
   noLibrariesDesc: Add a library in the admin panel to start browsing your media collection.
   filterByName: "Filter by name..."

@@ -444,7 +444,6 @@ libraries:
     shows: "Series"
     music: "Música"
     photos: "Fotos"
-    books: "Libros"
     library: "Biblioteca"
   scan: "Escanear"
   scanAgain: "Escanear de nuevo"

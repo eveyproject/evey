@@ -11,9 +11,9 @@ export const HOME_LIBRARY_ROW_PAGE_SIZE = 20;
 
 // A row only exists for a library type the TV has somewhere to SEND the
 // viewer. Movies and shows go to /media/<id>; music albums to the album
-// screen; photo albums to the photos screen. Books have no TV destination, so
-// a books library still gets no row - a card that lands nowhere is worse than
-// an absent row. Widen this list only alongside a screen that suits the type.
+// screen; photo albums to the photos screen. An unknown or future type gets
+// no row - a card that lands nowhere is worse than an absent row. Widen this
+// list only alongside a screen that suits the type.
 const ROWABLE_LIBRARY_TYPES = new Set([
   "LIBRARY_TYPE_MOVIES",
   "LIBRARY_TYPE_SHOWS",

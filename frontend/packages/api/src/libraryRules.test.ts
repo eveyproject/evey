@@ -43,7 +43,7 @@ describe("dedicatedRouteFor", () => {
     expect(dedicatedRouteFor("LIBRARY_TYPE_PHOTOS", TV_ROUTES)).toBeUndefined();
   });
 
-  it.each(["LIBRARY_TYPE_MOVIES", "LIBRARY_TYPE_SHOWS", "LIBRARY_TYPE_BOOKS", undefined, ""])(
+  it.each(["LIBRARY_TYPE_MOVIES", "LIBRARY_TYPE_SHOWS", "LIBRARY_TYPE_UNSPECIFIED", undefined, ""])(
     "browses %s through the normal media grid",
     (type) => {
       expect(dedicatedRouteFor(type, WEB_ROUTES)).toBeUndefined();
@@ -78,7 +78,7 @@ describe("defaultTypeFilterFor", () => {
     expect(defaultTypeFilterFor("LIBRARY_TYPE_MOVIES")).toBe("MEDIA_ITEM_TYPE_MOVIE");
   });
 
-  it.each(["LIBRARY_TYPE_BOOKS", undefined, ""])("has no default for %s", (type) => {
+  it.each(["LIBRARY_TYPE_UNSPECIFIED", undefined, ""])("has no default for %s", (type) => {
     expect(defaultTypeFilterFor(type)).toBe("");
   });
 });

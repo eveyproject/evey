@@ -11,7 +11,6 @@ const KEYS: Record<string, string> = {
   MEDIA_ITEM_TYPE_TRACK: "media.itemType.track",
   MEDIA_ITEM_TYPE_ARTIST: "media.itemType.artist",
   MEDIA_ITEM_TYPE_PHOTO: "media.itemType.photo",
-  MEDIA_ITEM_TYPE_BOOK: "media.itemType.book",
 };
 
 // Returns null for an unknown or missing type, so callers show nothing rather

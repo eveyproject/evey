@@ -103,7 +103,6 @@ itemType:
   album: "Álbum"
   track: "Pista"
   photo: "Foto"
-  book: "Libro"
   artist: "Artista"
 
 library:
@@ -113,7 +112,6 @@ library:
   tvShows: Series de TV
   music: Música
   photos: Fotos
-  books: Libros
   noLibraries: No hay bibliotecas configuradas
   noLibrariesDesc: Añade una biblioteca en el panel de administración para explorar tu colección multimedia.
   filterByName: "Filtrar por nombre..."

@@ -7,7 +7,7 @@ const movies: V1Library = { id: "lib-mov", name: "Movies", type: "LIBRARY_TYPE_M
 const shows: V1Library = { id: "lib-tv", name: "Shows", type: "LIBRARY_TYPE_SHOWS" };
 const music: V1Library = { id: "lib-mus", name: "Music", type: "LIBRARY_TYPE_MUSIC" };
 const photos: V1Library = { id: "lib-pho", name: "Photos", type: "LIBRARY_TYPE_PHOTOS" };
-const books: V1Library = { id: "lib-bok", name: "Books", type: "LIBRARY_TYPE_BOOKS" };
+const unrouted: V1Library = { id: "lib-unk", name: "Unknown", type: "LIBRARY_TYPE_UNSPECIFIED" };
 
 describe("buildHomeSections", () => {
   // A fresh install has no stored config; the TV must still show the same
@@ -79,10 +79,10 @@ describe("buildHomeSections", () => {
   });
 
   // Music and photo libraries earned a row once the TV gained screens to send
-  // the viewer to. Books still have none, and a card that lands nowhere is
-  // worse than an absent row.
-  it("gives music and photo libraries a row, but not books", () => {
-    const sections = buildHomeSections([], [music, photos, books]);
+  // the viewer to. A type with no screen gets none, and a card that lands
+  // nowhere is worse than an absent row.
+  it("gives music and photo libraries a row, but not an unrouted type", () => {
+    const sections = buildHomeSections([], [music, photos, unrouted]);
     const libs = sections.filter((s) => s.kind === "library").map((s) => s.key);
     expect(libs).toEqual(["library:lib-mus", "library:lib-pho"]);
   });

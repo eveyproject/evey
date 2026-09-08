@@ -444,7 +444,6 @@ libraries:
     shows: Shows
     music: Music
     photos: Photos
-    books: Books
     library: Library
   scan: Scan
   scanAgain: Scan again

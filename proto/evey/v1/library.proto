@@ -146,7 +146,10 @@ enum LibraryType {
   LIBRARY_TYPE_SHOWS = 2;
   LIBRARY_TYPE_MUSIC = 3;
   LIBRARY_TYPE_PHOTOS = 4;
-  LIBRARY_TYPE_BOOKS = 5;
+  // Deprecated: the server never accepted a books library (domain rejects the
+  // type) and no client offers a reader. Kept for wire compatibility only;
+  // remove after two server releases per ADR-0004.
+  LIBRARY_TYPE_BOOKS = 5 [deprecated = true];
 }
 
 message MediaItem {
@@ -216,7 +219,8 @@ enum MediaItemType {
   MEDIA_ITEM_TYPE_ARTIST = 6;
   MEDIA_ITEM_TYPE_TRACK = 7;
   MEDIA_ITEM_TYPE_PHOTO = 8;
-  MEDIA_ITEM_TYPE_BOOK = 9;
+  // Deprecated: see LIBRARY_TYPE_BOOKS.
+  MEDIA_ITEM_TYPE_BOOK = 9 [deprecated = true];
 }
 
 message MediaStream {

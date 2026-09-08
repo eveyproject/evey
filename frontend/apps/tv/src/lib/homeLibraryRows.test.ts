@@ -27,14 +27,14 @@ describe("selectHomeLibraryRows", () => {
   // A row only exists for a type the TV has somewhere to SEND the viewer.
   // Music and photos earned one on 2026-08-02, when the home gained rows that
   // land on the album and photos screens instead of the video detail page.
-  // Books still have no TV destination, and a card that lands nowhere is worse
-  // than an absent row.
-  it("rows video, music and photo libraries, but not books", () => {
+  // A type the TV has no screen for gets no row: a card that lands nowhere is
+  // worse than an absent row.
+  it("rows video, music and photo libraries, but not an unrouted type", () => {
     const libraries = [
       lib("lib-mov", "Films", "LIBRARY_TYPE_MOVIES"),
       lib("lib-pho", "Photos", "LIBRARY_TYPE_PHOTOS"),
       lib("lib-mus", "Musique", "LIBRARY_TYPE_MUSIC"),
-      lib("lib-boo", "Livres", "LIBRARY_TYPE_BOOKS"),
+      lib("lib-unk", "Inconnu", "LIBRARY_TYPE_UNSPECIFIED"),
       lib("lib-sho", "Séries", "LIBRARY_TYPE_SHOWS"),
     ];
     expect(selectHomeLibraryRows(libraries)).toEqual([
