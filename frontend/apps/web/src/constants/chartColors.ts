@@ -6,7 +6,7 @@
 // Defaults live with the other tokens in styles/main.css, where --chart-1 is
 // wired to --accent so the first series keeps following the theme accent.
 export const CHART_COLORS = [
-  "var(--chart-1, #4f46e5)",
+  "var(--chart-1, #c81e1e)",
   "var(--chart-2, #f59e0b)",
   "var(--chart-3, #10b981)",
   "var(--chart-4, #ef4444)",

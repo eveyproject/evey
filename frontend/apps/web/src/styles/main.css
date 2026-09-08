@@ -21,7 +21,7 @@
    --chart-1 tracks the theme accent, the rest are fixed hues chosen for
    separation (a categorical scale cannot derive them all from one accent). */
 :root {
-  --chart-1: var(--accent, #4f46e5);
+  --chart-1: var(--accent, #c81e1e);
   --chart-2: #f59e0b;
   --chart-3: #10b981;
   --chart-4: #ef4444;
