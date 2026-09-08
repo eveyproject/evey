@@ -627,8 +627,8 @@ describe("pickPinnedLevel", () => {
 // video element survives the rebuild, the mute sticks until the viewer touches
 // the volume control themselves.
 describe("liftForcedMuteOnNextGesture", () => {
-  function mutedVideo() {
-    return { muted: true } as unknown as HTMLVideoElement;
+  function mutedVideo(paused = true) {
+    return { muted: true, paused, play: vi.fn().mockResolvedValue(undefined) } as unknown as HTMLVideoElement;
   }
 
   it("lifts the forced mute on the next click", () => {
@@ -675,6 +675,40 @@ describe("liftForcedMuteOnNextGesture", () => {
     liftForcedMuteOnNextGesture(video);
     document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(touched, "force nothing when the sound is already back").toBe(false);
+  });
+
+  it("puts the picture back in motion when the browser answers the unmute with a pause", () => {
+    vi.useFakeTimers();
+    try {
+      // Was playing (muted) before the click; the unmute setter pauses it,
+      // the way Firefox does for a media it considers autoplaying with sound.
+      const video = mutedVideo(false);
+      let muted = true;
+      Object.defineProperty(video, "muted", {
+        get: () => muted,
+        set: (v: boolean) => { muted = v; if (!v) (video as { paused: boolean }).paused = true; },
+      });
+      liftForcedMuteOnNextGesture(video);
+      document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(video.muted).toBe(false);
+      expect(video.play, "the lift must not turn into a silent stop").toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves a media the viewer had paused alone: the lift only unmutes", () => {
+    vi.useFakeTimers();
+    try {
+      const video = mutedVideo(true);
+      liftForcedMuteOnNextGesture(video);
+      document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      vi.runAllTimers();
+      expect(video.muted).toBe(false);
+      expect(video.play, "a pause that came before the lift is the viewer's own").not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("can be disarmed explicitly (teardown)", () => {
