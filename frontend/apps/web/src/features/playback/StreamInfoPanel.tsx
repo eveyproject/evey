@@ -8,6 +8,7 @@ import {
   visibleTranscodeReasons,
   type V1StreamInfo,
   type V1MediaStream,
+  pickAudioStream,
 } from "@evey/api";
 
 function formatBitrate(bitrate?: string): string {
@@ -95,12 +96,20 @@ interface StreamInfoPanelProps {
   // wasmAudioActive: the audio is decoded client-side (ac3go WebAssembly), not
   // transcoded server-side, so the audio section shows a "décodé client" badge.
   wasmAudioActive?: boolean;
+  // audioTrackIndex: the SUBTITLE-relative... no: the AUDIO-relative ordinal of
+  // the track the viewer selected (first audio track 0). Without it this panel
+  // reported `mediaStreams.find(type === AUDIO)` - the file's FIRST audio track,
+  // whatever was playing. Prod, 2026-09-09: a release whose first track is a
+  // TrueHD Atmos 7.1 (eng) showed "TRUEHD / 7.1 / eng" while the viewer was on
+  // the French AC-3, and contradicted the "decoded client" badge, which is
+  // computed from the real selection.
+  audioTrackIndex?: number | null;
 }
 
 // StreamInfoPanel surfaces the playback decision the backend already returns
 // (play method, codecs, transcode reasons) - visibility the mobile app has but the
 // web player lacked. Mirrors the SettingsPanel popover chrome.
-export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }: StreamInfoPanelProps) {
+export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive, audioTrackIndex }: StreamInfoPanelProps) {
   const { t } = useTranslation();
 
   function toggle(e: React.MouseEvent) {
@@ -111,9 +120,7 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }:
   const videoStream = streamInfo?.mediaStreams?.find(
     (s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_VIDEO",
   );
-  const audioStream = streamInfo?.mediaStreams?.find(
-    (s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_AUDIO",
-  );
+  const audioStream = pickAudioStream(streamInfo?.mediaStreams, { relative: audioTrackIndex });
 
   const decisions = {
     playMethod: streamInfo?.playMethod,

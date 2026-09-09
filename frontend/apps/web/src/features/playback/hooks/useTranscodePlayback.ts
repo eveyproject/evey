@@ -203,7 +203,7 @@ export function useTranscodePlayback({
       function onLoadedMetadata() {
         if (initialSeekSec > 0) video!.currentTime = initialSeekSec;
         if (!wasPausedRef.current) {
-          void startPlayback(video!);
+          void startPlayback(video!, wasmAudio);
         }
       }
       function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
@@ -341,7 +341,7 @@ export function useTranscodePlayback({
       if (wasPausedRef.current) return;
       // Sound or nothing: a browser that blocks the autoplay leaves the video
       // paused and unmuted, and the controls' play button starts it on one click.
-      void startPlayback(video).then(() => {
+      void startPlayback(video, wasmAudio).then(() => {
         // The browser forced a muted start while the viewer was listening.
         // Without this recovery the mute sticks for the rest of the viewing
         // (the element is never recreated); the next gesture lifts it.

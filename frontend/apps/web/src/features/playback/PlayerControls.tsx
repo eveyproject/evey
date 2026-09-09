@@ -63,6 +63,8 @@ interface PlayerControlsProps {
   streamInfo?: V1StreamInfo;
   /** True when the AC-3/E-AC-3 audio is decoded client-side (ac3go wasm). */
   wasmAudioActive?: boolean;
+  /** AUDIO-relative ordinal of the selected track, so the info panel reports IT. */
+  audioTrackIndex?: number | null;
   /** True while the HLS pipeline is stalled waiting for segments. */
   isBuffering?: boolean;
   /** True when the video element is actively playing (not paused / not yet started). */
@@ -107,6 +109,7 @@ function PlayerControlsInner({
   onCastTrigger,
   streamInfo,
   wasmAudioActive,
+  audioTrackIndex,
   isBuffering,
   isPlaying,
   autoplayNext,
@@ -286,7 +289,7 @@ function PlayerControlsInner({
     if (!video) return;
     // A play() still in flight rejects with AbortError the moment a pause()
     // interrupts it - expected, not an error worth surfacing.
-    if (video.paused) void startPlayback(video);
+    if (video.paused) void startPlayback(video, wasmAudioActive);
     else video.pause();
   }
 
@@ -410,7 +413,11 @@ function PlayerControlsInner({
           const video = videoRef.current;
           if (video) {
             if (video.paused) {
-              void video.play();
+              // The SAME resume the play button uses. Calling video.play()
+              // straight skipped startPlayback's autoplay ladder, so the two
+              // ways of resuming behaved differently - and the surface is the
+              // one people actually use.
+              void startPlayback(video, wasmAudioActive);
               onActionFlash?.("play");
             } else {
               video.pause();
@@ -713,6 +720,7 @@ function PlayerControlsInner({
             <StreamInfoPanel
               streamInfo={streamInfo}
               wasmAudioActive={wasmAudioActive}
+              audioTrackIndex={audioTrackIndex}
               open={openPanel === "streaminfo"}
               onToggle={() => setOpenPanel(openPanel === "streaminfo" ? null : "streaminfo")}
             />

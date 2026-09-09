@@ -250,13 +250,13 @@ func TestBuildWasmAudioMaster_AudioRenditionURI(t *testing.T) {
 
 	// Trim OFF: audioTrack=1 (2nd audio track) → the 2nd rendition, od_audio2.
 	h.onDemandTrackTrim = false
-	off, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1)
+	off, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1, nil)
 	require.NoError(t, err)
 	assert.Contains(t, off, `#EVEY-AUDIO-URI:"od_audio2.m3u8?audioTrack=1`, "untrimmed: k-th track is audio{k+1} and ?audioTrack rides along")
 
 	// Trim ON: the plan keeps one track, renumbered to audio1, whatever the ordinal.
 	h.onDemandTrackTrim = true
-	on, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1)
+	on, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1, nil)
 	require.NoError(t, err)
 	assert.Contains(t, on, `#EVEY-AUDIO-URI:"od_audio1.m3u8?audioTrack=1`, "trimmed: the kept track is renumbered to audio1")
 	assert.NotContains(t, on, "od_audio2.m3u8", "a trimmed plan has no audio2 to reference")
@@ -286,7 +286,7 @@ func TestBuildWasmAudioMaster_AacRelayURI(t *testing.T) {
 	}
 
 	h.audioRenditionEnabled = true
-	master, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1)
+	master, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1, nil)
 	require.NoError(t, err)
 	assert.Contains(t, master, `#EVEY-AUDIO-AAC-URI:"audio_1.m3u8?`, "relay tag names the AAC rendition of the SAME track")
 	aacLine := ""
@@ -300,7 +300,7 @@ func TestBuildWasmAudioMaster_AacRelayURI(t *testing.T) {
 
 	// Feature off: the AAC handlers 404, so the tag must not be advertised.
 	h.audioRenditionEnabled = false
-	master, err = h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1)
+	master, err = h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1, nil)
 	require.NoError(t, err)
 	assert.NotContains(t, master, "#EVEY-AUDIO-AAC-URI")
 }

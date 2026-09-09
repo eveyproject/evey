@@ -1386,6 +1386,7 @@ export function HLSPlayer({
         <PlayerControls
           streamInfo={streamInfo}
           wasmAudioActive={wasmAudioActive}
+          audioTrackIndex={audioTrackOverrideRef.current ?? currentTrackIndex}
           onClose={onClose}
           onAudioChange={handleAudioChange}
           onQualityChange={handleQualityChange}

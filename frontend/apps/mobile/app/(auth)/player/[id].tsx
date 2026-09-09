@@ -1733,6 +1733,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
         visible={activeSheet === "streamInfo"}
         onClose={() => setActiveSheet(null)}
         streamInfo={streamInfo}
+        audioStreamIndex={selectedAudioIndex}
       />
       )}
 
