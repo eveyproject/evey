@@ -19,6 +19,7 @@ import * as genreColor from "./genreColor";
 import * as hlsRungs from "./hlsRungs";
 import * as imageSubtitles from "./imageSubtitles";
 import * as defaultSubtitle from "./defaultSubtitle";
+import * as pgsCues from "./pgsCues";
 import * as langCodes from "./langCodes";
 import * as regionDefaults from "./regionDefaults";
 import * as libraryRules from "./libraryRules";
@@ -75,6 +76,7 @@ const SHARED_MODULES = {
   hlsRungs,
   imageSubtitles,
   defaultSubtitle,
+  pgsCues,
   langCodes,
   regionDefaults,
   libraryRules,
