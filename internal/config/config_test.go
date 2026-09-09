@@ -76,11 +76,12 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "/data/transcode", cfg.Transcoding.CacheDir)
 	assert.False(t, cfg.Transcoding.HWAccelEnabled)
 	assert.False(t, cfg.Transcoding.HWPerVariant)
-	// Multi-variant (one ffmpeg, one shared decode for all rungs) is the default:
-	// single-variant re-decodes the 4K source per rung, starving a decode-bound
-	// weak NAS when the player probes/seeks across rungs. Opt into single-variant
-	// with EVEY_TRANSCODING_SINGLE_VARIANT=1 on powerful hosts.
-	assert.False(t, cfg.Transcoding.SingleVariant)
+	// Single-variant (encode ONLY the rung the client asked for) is the default:
+	// multi-variant also encodes every rung nobody watches, and on prod that was
+	// four concurrent libx264 outputs - 2160p included - for one viewer pinned to
+	// one rung. Opt back into the shared decode with
+	// EVEY_TRANSCODING_SINGLE_VARIANT=0 on a host with no HW decoder.
+	assert.True(t, cfg.Transcoding.SingleVariant)
 	assert.Equal(t, 0, cfg.Transcoding.MaxSessions) // 0 = runtime.NumCPU()
 	assert.Equal(t, "/cache/trickplay", cfg.Transcoding.TrickplayCacheDir)
 
@@ -146,7 +147,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	t.Setenv("EVEY_DB_PORT", "5433")
 	t.Setenv("EVEY_DB_MAX_OPEN_CONNS", "100")
 	t.Setenv("EVEY_TRANSCODING_HW_ACCEL_ENABLED", "true")
-	t.Setenv("EVEY_TRANSCODING_SINGLE_VARIANT", "1") // opt INTO single-variant (default is multi)
+	t.Setenv("EVEY_TRANSCODING_SINGLE_VARIANT", "0") // opt OUT of single-variant (default is single)
 	t.Setenv("EVEY_TRANSCODING_MAX_SESSIONS", "2")
 	t.Setenv("EVEY_OIDC_ENABLED", "true")
 	t.Setenv("EVEY_JWT_ACCESS_TTL", "30m")
@@ -162,7 +163,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	assert.Equal(t, 5433, cfg.DB.Port)
 	assert.Equal(t, 100, cfg.DB.MaxOpenConns)
 	assert.True(t, cfg.Transcoding.HWAccelEnabled)
-	assert.True(t, cfg.Transcoding.SingleVariant, "EVEY_TRANSCODING_SINGLE_VARIANT=1 opts into single-variant")
+	assert.False(t, cfg.Transcoding.SingleVariant, "EVEY_TRANSCODING_SINGLE_VARIANT=0 opts back into the shared-decode multi-variant graph")
 	assert.Equal(t, 2, cfg.Transcoding.MaxSessions)
 	assert.True(t, cfg.OIDC.Enabled)
 	assert.Equal(t, 30*time.Minute, cfg.JWT.AccessTokenTTL)

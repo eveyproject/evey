@@ -819,3 +819,29 @@ func TestServerSettings_Put_TranscodingKnobs_RejectsOffLadderValues(t *testing.T
 		}
 	}
 }
+
+// The admin panel carries its OWN copy of each default (defaultVal + reset),
+// separate from config.go's. They have to agree, or "Reset to default" in the
+// panel would quietly move the server off the shipped behaviour - here, back to
+// encoding the whole ladder for a viewer watching one rung.
+func TestServerSettings_SingleVariantDefaultsToOn(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/server-settings", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp map[string]settingValue
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("bad json: %v", err)
+	}
+	v, ok := resp["transcodeSingleVariant"]
+	if !ok {
+		t.Fatal("transcodeSingleVariant must be exposed")
+	}
+	if v.Default != true {
+		t.Errorf("panel default = %v, want true - it must match config.go's EVEY_TRANSCODING_SINGLE_VARIANT default", v.Default)
+	}
+}
