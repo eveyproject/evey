@@ -153,3 +153,41 @@ func TestDownloadSubtitle_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, subtitleContent, string(content))
 }
+
+func TestDownloadSubtitle_FileLinkNotFound(t *testing.T) {
+	destDir := t.TempDir()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/login":
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(loginResponse{Token: "test-token"})
+
+		case "/api/v1/download":
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(downloadResponse{
+				Link: "http://" + r.Host + "/files/42.srt",
+			})
+
+		case "/files/42.srt":
+			// CDN error page - must not be written to disk as a subtitle.
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("<html><body>Not Found</body></html>"))
+
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	filePath, err := client.Download(context.Background(), 42, destDir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "status 404")
+	assert.Empty(t, filePath)
+
+	entries, err := os.ReadDir(destDir)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "no subtitle file should be written when the CDN returns a non-2xx status")
+}
