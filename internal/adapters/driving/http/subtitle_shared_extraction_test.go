@@ -28,7 +28,7 @@ func TestRunSharedSubtitleExtraction_AWaiterLeavingDoesNotKillTheWork(t *testing
 	leaver, cancelLeaver := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		_, err := runSharedSubtitleExtraction(leaver, "k", func(ctx context.Context) ([]byte, error) {
+		_, err := runSharedSubtitleExtraction(leaver, "k", "", func(ctx context.Context) ([]byte, error) {
 			ranWith = ctx
 			close(started)
 			<-release
@@ -62,7 +62,7 @@ func TestRunSharedSubtitleExtraction_SurvivingWaitersStillGetTheResult(t *testin
 	errs := make([]error, 3)
 	for i := range got {
 		wg.Go(func() {
-			got[i], errs[i] = runSharedSubtitleExtraction(context.Background(), "shared", func(context.Context) ([]byte, error) {
+			got[i], errs[i] = runSharedSubtitleExtraction(context.Background(), "shared", "", func(context.Context) ([]byte, error) {
 				select {
 				case <-started:
 				default:
@@ -87,7 +87,7 @@ func TestRunSharedSubtitleExtraction_SurvivingWaitersStillGetTheResult(t *testin
 // masked by the detachment.
 func TestRunSharedSubtitleExtraction_PropagatesTheWorkError(t *testing.T) {
 	sentinel := errors.New("no such track")
-	_, err := runSharedSubtitleExtraction(context.Background(), "boom", func(context.Context) ([]byte, error) {
+	_, err := runSharedSubtitleExtraction(context.Background(), "boom", "", func(context.Context) ([]byte, error) {
 		return nil, sentinel
 	})
 	assert.ErrorIs(t, err, sentinel)
@@ -98,7 +98,7 @@ func TestRunSharedSubtitleExtraction_PropagatesTheWorkError(t *testing.T) {
 func TestRunSharedSubtitleExtraction_WorkContextIsBounded(t *testing.T) {
 	var deadline time.Time
 	var ok bool
-	_, err := runSharedSubtitleExtraction(context.Background(), "deadline", func(ctx context.Context) ([]byte, error) {
+	_, err := runSharedSubtitleExtraction(context.Background(), "deadline", "", func(ctx context.Context) ([]byte, error) {
 		deadline, ok = ctx.Deadline()
 		return []byte("x"), nil
 	})

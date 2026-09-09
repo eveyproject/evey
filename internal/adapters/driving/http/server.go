@@ -554,6 +554,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// The index store is process-wide: the extraction path reaches it from both
 	// the route and the prewarmer.
 	subtitleIndexes = newSubtitleIndexCache(s.DataDir)
+	// Every subtitle extraction reads the whole film; while the streaming meter
+	// says somebody is watching one, it reads at a paced rate.
+	subtitleReadPacer = newMediaReadPacer(s.StreamMeter, subtitleReadRateWhilePlaying)
 	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", streamAuth(subtitleRouteHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk, s.SubtitleRL, newSubtitleCache(s.DataDir))))
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", streamAuth(chaptersHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk)))
 	mux.HandleFunc("GET /api/v1/media/{id}/segments", streamAuth(segmentsHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, func() bool { return s.Cfg.EffectiveSkipPreviewEnabled() }, parentalChk, func() bool { return s.Cfg.EffectiveIntroAutoSkipEnabled() })))

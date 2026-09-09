@@ -18,7 +18,6 @@ import (
 
 	"github.com/evey-project/evey/internal/pkg/langcode"
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
-	mkvops "github.com/gravity-zero/mkvgo/mkv/ops"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 	mkvsubtitle "github.com/gravity-zero/mkvgo/mkv/subtitle"
 	mkvgomp4 "github.com/gravity-zero/mkvgo/mp4"
@@ -160,7 +159,7 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 		// One extraction at a time per track. A player that retries what it
 		// believes is a hung request - which a 71-second wait invites - would
 		// otherwise start a second full read of the same film.
-		produced, err := runSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), func(ctx context.Context) ([]byte, error) {
+		produced, err := runSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), filePath, func(ctx context.Context) ([]byte, error) {
 			// Re-check under the flight: the request we queued behind may have
 			// just filled the cache.
 			if data, ok := cache.get(cacheKey); ok {
@@ -286,12 +285,14 @@ func extractMkvgoSubtitleWebVTT(ctx context.Context, ext, filePath string, track
 	// one just means the slow path, which is the correct answer either way -
 	// mkvgo refuses an index that does not match this exact file rather than
 	// read cues out of the wrong bytes.
+	// Paced while a stream is being served - see subtitle_read_pacer.go.
+	opts := subtitleReadOptions(ctx)
 	if ix, ok := subtitleIndexes.get(filePath); ok {
-		if err := matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, ix, w); err == nil {
+		if err := matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, ix, w, opts...); err == nil {
 			return nil
 		}
 	}
-	return mkvops.ExtractSubtitleWebVTT(ctx, filePath, trackID, w)
+	return matroska.ExtractSubtitleWebVTT(ctx, filePath, trackID, w, opts...)
 }
 
 // mkvgoTextSubtitleTrackIDs returns the mkvgo track IDs of the TEXT subtitle
