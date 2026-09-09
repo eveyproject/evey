@@ -186,11 +186,32 @@ func armDeadline(conn net.Conn, timeout time.Duration) error {
 	return nil
 }
 
+// sanitizeHeaderValue neutralizes CR, LF and NUL in a value bound for a
+// single email header line by replacing each with a space. Left unfiltered,
+// a "\r\n" in a subject or an address lets a caller inject arbitrary headers
+// (Bcc, Content-Type) or forge a body. UTF-8 subjects stay intact: only the
+// three control bytes are touched.
+func sanitizeHeaderValue(v string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '\r', '\n', 0:
+			return ' '
+		default:
+			return r
+		}
+	}, v)
+}
+
 func buildMessage(from string, to []string, subject, body string) []byte {
+	sanitizedTo := make([]string, len(to))
+	for i, addr := range to {
+		sanitizedTo[i] = sanitizeHeaderValue(addr)
+	}
+
 	var sb strings.Builder
-	sb.WriteString("From: " + from + "\r\n")
-	sb.WriteString("To: " + strings.Join(to, ", ") + "\r\n")
-	sb.WriteString("Subject: " + subject + "\r\n")
+	sb.WriteString("From: " + sanitizeHeaderValue(from) + "\r\n")
+	sb.WriteString("To: " + strings.Join(sanitizedTo, ", ") + "\r\n")
+	sb.WriteString("Subject: " + sanitizeHeaderValue(subject) + "\r\n")
 	sb.WriteString("MIME-Version: 1.0\r\n")
 	sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
 	sb.WriteString("\r\n")
