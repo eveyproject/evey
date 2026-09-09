@@ -108,8 +108,11 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	if h.audioAllCopyEligible(r.Context(), decision, streams) {
-		// Full packager presentation (video + audio + subtitles).
+	if h.audioAllCopyEligible(r.Context(), decision, streams) || h.audioTrimUnlocksCopy(r, decision, streams) {
+		// Full packager presentation (video + audio + subtitles). When only the
+		// SELECTED track is carriable, buildPlan has trimmed the presentation to
+		// it (audioTrimUnlocksCopy), so what we serve here holds exactly the
+		// tracks the packager can carry verbatim.
 		h.servePlanResourceData(w, r, mediaID, plan, "master.m3u8", span)
 		return true
 	}
@@ -738,7 +741,14 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 			opts.AESKeyURI = "key" // relative to /hls/{id}/ - served by serveHLSKey; not URL-prefixed by mkvgo
 		}
 	}
-	if h.onDemandTrackTrim {
+	// Trim either because the operator asked for a lighter master, or because
+	// trimming is what lets this request's track be carried verbatim instead of
+	// re-encoded (audioTrimUnlocksCopy). The second condition is recomputed from
+	// the request here rather than passed in, so the master and every one of its
+	// sub-resource fetches build the SAME plan.
+	trimForCopy := len(streams) > 0 &&
+		h.audioTrimUnlocksCopy(r, h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r), streams)
+	if h.onDemandTrackTrim || trimForCopy {
 		// Same resolution the ffmpeg pipeline uses for ?audioTrack=/the
 		// profile's language default (resolveAudioTrack), reused here so both
 		// backends agree on which track a request gets. The streams come from
@@ -866,4 +876,40 @@ func (h *hlsVODServe) audioAllCopyEligible(ctx context.Context, decision domaint
 		}
 	}
 	return true // no audio track is fine too: PlanHLS packages video-only
+}
+
+// audioTrimUnlocksCopy reports whether trimming the packaged presentation to
+// the SELECTED audio track is what makes it carriable verbatim: that track is
+// copy-eligible, but some OTHER track in the file is not.
+//
+// audioAllCopyEligible alone is all-or-nothing across every track, and that is
+// how a 4K remux carrying one TrueHD/Atmos track had its three AC-3 5.1 tracks
+// re-encoded to AAC - on a receiver that decodes AC-3 natively, for a track the
+// viewer was not even playing. The packager already drops what it cannot carry
+// (TestOnDemandPackagerIntegration_UnportableAudioTrackIsDropped), so the only
+// real cost of serving it anyway was that the dropped track vanished from the
+// master; KeepAudioTrack removes that objection by packaging exactly one track,
+// and every client switches language by re-requesting the master with
+// ?audioTrack= (buildStreamUrl on mobile/TV, buildTranscodeHlsUrl on web)
+// rather than by picking inside the manifest.
+//
+// The decision's own "copy" verdict already carries this client's side of the
+// question - evaluateAudio checks its declared codecs AND its channel ceiling
+// for the selected track - so a phone whose only outputs are stereo still folds
+// a 5.1 track server-side, exactly as before.
+//
+// Must be a pure function of (request, streams, decision): buildPlan calls it
+// too, and the master and its sub-resources have to agree on the same plan.
+func (h *hlsVODServe) audioTrimUnlocksCopy(r *http.Request, decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
+	if h.onDemand == nil || decision.AudioDecision != "copy" {
+		return false
+	}
+	if h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()) {
+		return false // loudnorm requires a re-encode, trimmed or not
+	}
+	if h.audioAllCopyEligible(r.Context(), decision, streams) {
+		return false // every track carries; nothing to trim for
+	}
+	sel := h.resolveAudioTrack(r, streams)
+	return apptranscoding.AudioCopyCodecAllowed(strings.ToLower(sourceAudioCodec(streams, sel)))
 }

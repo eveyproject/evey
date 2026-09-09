@@ -971,3 +971,105 @@ func TestBuildHybridMaster_FallbackRung_URIResolvesCoherently(t *testing.T) {
 	assert.Contains(t, body, "stream_0_", "segment URIs address rung 0")
 	assert.Contains(t, body, "vd=transcode", "segments inherit the transcode pin")
 }
+
+// The exact shape of the 2026-09-08 report: a 4K remux whose audio is one
+// TrueHD/Atmos track plus several AC-3 5.1 ones, played by a receiver that
+// decodes AC-3 natively. audioAllCopyEligible is all-or-nothing, so the single
+// un-carriable TrueHD track sent all three AC-3 tracks through Evey's AAC
+// encoder - for a track the viewer was not playing. Trimming the presentation
+// to the selected track is what lets it be carried verbatim.
+func multiTrackTrueHDPlusAC3() []*domainlibrary.MediaStream {
+	w, hgt, level := 3840, 2160, 153
+	ch := 6
+	return []*domainlibrary.MediaStream{
+		{
+			StreamType: domainlibrary.StreamTypeVideo,
+			Codec:      "h264",
+			Profile:    "High",
+			Width:      &w,
+			Height:     &hgt,
+			Level:      &level,
+			Keyframes:  []int64{0, 6000, 12000},
+		},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "truehd", Channels: &ch},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "ac3", Channels: &ch, IsDefault: true},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "ac3", Channels: &ch},
+	}
+}
+
+// A receiver that decodes AC-3 and takes 6 channels, asking for the 2nd AC-3
+// track (audio ordinal 2).
+func ac3ReceiverReq() *http.Request {
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264,hevc&audioCodecs=aac,ac3&containers=mp4&maxAudioChannels=6&audioTrack=2", nil)
+	return req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
+		&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+}
+
+func TestAudioTrimUnlocksCopy_OneUncarriableTrackNoLongerPoisonsTheRest(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	streams := multiTrackTrueHDPlusAC3()
+
+	d := decisionFor(h, ac3ReceiverReq(), onDemandItem(), streams)
+	require.Equal(t, "copy", d.AudioDecision, "an AC-3 5.1 track on an AC-3/6-channel receiver is a copy")
+	require.False(t, h.audioAllCopyEligible(context.Background(), d, streams),
+		"the TrueHD track is not CMAF-carriable, so the all-or-nothing gate refuses")
+
+	assert.True(t, h.audioTrimUnlocksCopy(ac3ReceiverReq(), d, streams),
+		"trimming to the selected AC-3 track makes the presentation carriable verbatim")
+}
+
+// The trim must not paper over a track that genuinely cannot be copied: asking
+// for the TrueHD track itself still goes to Evey's encoder.
+func TestAudioTrimUnlocksCopy_SelectedTrackItselfUncarriable(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	streams := multiTrackTrueHDPlusAC3()
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264&audioCodecs=aac,ac3,truehd&containers=mp4&maxAudioChannels=8&audioTrack=0", nil)
+	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
+		&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+
+	d := decisionFor(h, req, onDemandItem(), streams)
+	assert.False(t, h.audioTrimUnlocksCopy(req, d, streams),
+		"TrueHD is the selected track and CMAF cannot carry it - no trim rescues that")
+}
+
+// A phone whose only outputs are stereo still folds a 5.1 track server-side:
+// the decision is already "transcode" on the channel ceiling, and the trim must
+// not resurrect a copy the client cannot use.
+func TestAudioTrimUnlocksCopy_StereoOnlyClientStillFolds(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	streams := multiTrackTrueHDPlusAC3()
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264&audioCodecs=aac,ac3&containers=mp4&maxAudioChannels=2&audioTrack=2", nil)
+	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
+		&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+
+	d := decisionFor(h, req, onDemandItem(), streams)
+	require.NotEqual(t, "copy", d.AudioDecision, "5.1 into a 2-channel output has to be folded")
+	assert.False(t, h.audioTrimUnlocksCopy(req, d, streams),
+		"a folded track is re-encoded, trimmed or not")
+}
+
+// End to end through the serve path: the master comes from the packager (not
+// the hybrid AAC one) and the plan it built was trimmed to the selected track.
+func TestTryServePlanMaster_TrimsToTheCarriableTrack(t *testing.T) {
+	h := newCopyTestHandler(t)
+	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{
+		resources: map[string][]byte{"master.m3u8": []byte("#EXTM3U\nod_playlist.m3u8\n")},
+	}}
+	h.onDemand = pkg
+
+	w := httptest.NewRecorder()
+	served := h.tryServePlanMaster(w, ac3ReceiverReq(), "m1", onDemandItem(), multiTrackTrueHDPlusAC3(), noopSpan())
+
+	assert.True(t, served, "the AC-3 track is carriable once the presentation is trimmed to it")
+	assert.Contains(t, w.Body.String(), "od_playlist.m3u8", "served by the packager, no ffmpeg audio encoder")
+	require.NotNil(t, pkg.lastOpts.KeepAudioTrack, "the plan must be trimmed, or the dropped TrueHD track would renumber the rest")
+	assert.Equal(t, 2, *pkg.lastOpts.KeepAudioTrack, "trimmed to the REQUESTED track, not the first one")
+}
