@@ -76,3 +76,22 @@ describe("burnInSubtitleIndex", () => {
     }
   });
 });
+
+// Depuis que le PGS est décodé côté serveur et dessiné par le lecteur, il n'est
+// plus une incrustation : il doit être rendu par l'overlay et ne JAMAIS partir
+// dans ?subtitleTrack=, qui est ce qui transformait un remux 4K en transcodage.
+// Le VobSub, lui, n'a pas de décodeur chez nous et reste une incrustation.
+describe("répartition depuis que le PGS est dessiné par le client", () => {
+  const PGS = [{ index: 2, trackIndex: 0, burnIn: false }]; // isBurnInSubtitle(pgs) === false
+  const VOBSUB = [{ index: 2, trackIndex: 0, burnIn: true }];
+
+  it("le PGS va au client et pas au serveur", () => {
+    expect(clientSubtitleTrack(2, PGS)).toBe(0);
+    expect(burnInSubtitleIndex(2, PGS)).toBeUndefined();
+  });
+
+  it("le VobSub reste une incrustation serveur", () => {
+    expect(clientSubtitleTrack(2, VOBSUB)).toBeNull();
+    expect(burnInSubtitleIndex(2, VOBSUB)).toBe(2);
+  });
+});

@@ -3,7 +3,7 @@ import { createLazyFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { libraryServiceGetMediaItem, libraryServiceListMediaItems, isImageSubtitle } from "@evey/api";
+import { libraryServiceGetMediaItem, libraryServiceListMediaItems, isBurnInSubtitle } from "@evey/api";
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { useChapters } from "@/hooks/useChapters";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
@@ -256,7 +256,12 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
         ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
         .map((s, i) => {
           const codec = s.codec?.toLowerCase() ?? "";
-          const burnIn = isImageSubtitle(codec);
+          // burnIn now means ONLY "the server must burn this in", i.e. a bitmap
+          // no player can draw. PGS is a bitmap too, but the server decodes it
+          // once and PGSSubtitleOverlay draws it, so it must NOT be flagged here
+          // - flagging it is what sent ?subtitleTrack= and turned a
+          // direct-playing remux into a full transcode.
+          const burnIn = isBurnInSubtitle(codec);
           return {
             index: s.index ?? 0,
             trackIndex: i,

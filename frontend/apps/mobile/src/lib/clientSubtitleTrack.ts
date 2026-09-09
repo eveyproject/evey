@@ -18,6 +18,10 @@
  * Returns null when nothing is selected, when the selection is unknown, or when
  * it is a burn-in track: those the server has already drawn into the video, and
  * drawing them again would double every line.
+ *
+ * A PGS track is NOT a burn-in any more - the server decodes it once into an
+ * image blob and this returns its ordinal like any other, so the overlay fetches
+ * and draws it. That is what stops a bitmap subtitle from costing a transcode.
  */
 export interface ClientSubtitleCandidate {
   index: number;
@@ -44,9 +48,10 @@ export function clientSubtitleTrack(
  * it turns a DirectPlay into a full transcode - on a 4K HEVC HDR remux, a
  * tonemapped four-rung x264 ladder on a box calibrated for one encode.
  *
- * Only a bitmap track is ever a server concern. A text track is drawn by
- * SubtitleOverlay (see clientSubtitleTrack above) and must never reach the URL,
- * and neither must a bitmap track the viewer has not actually asked to see:
+ * Only a track the player CANNOT draw is a server concern - a bitmap with no
+ * decoder on our side (VobSub, DVB). Text is drawn by SubtitleOverlay, and so is
+ * PGS now, so neither must reach the URL. Nor must a burn-in track the viewer
+ * has not actually asked to see:
  * pickDefaultSubtitle auto-selects the track the FILE flags as default, image
  * tracks included, without restarting the session for it. The selection and the
  * running stream therefore diverge by design - the subtitle is selected in the

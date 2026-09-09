@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore, toast, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey, isClientDrawableSubtitle } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Users, Clock } from "lucide-react";
 import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
+import { PGSSubtitleOverlay } from "./PGSSubtitleOverlay";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import { PlayerControls } from "./PlayerControls";
@@ -305,6 +306,14 @@ export function HLSPlayer({
   }, [profileAudioLangs, profileSubtitleLangs]);
 
   const selectedBurnInTrack = getSelectedBurnInTrack(currentSubtitle, subtitleStreams);
+  // The bitmap track the PLAYER draws, as opposed to the one the server burns
+  // in. Both are bitmaps; only PGS has a decoder on our side, and offering any
+  // other as client-drawn would put a track in the menu that renders nothing.
+  const pgsSubtitleTrack =
+    currentSubtitle !== null &&
+    isClientDrawableSubtitle(subtitleStreams.find((s) => s.trackIndex === currentSubtitle)?.codec)
+      ? currentSubtitle
+      : null;
   // A cast failure leaves no server-side trace at all (the fling never reaches
   // us), so the cast path reports through the player beacon. Its OWN reporter,
   // deliberately: the transcode one shares a 20-event budget that a stall storm
@@ -1147,6 +1156,16 @@ export function HLSPlayer({
           (disableRemotePlayback): casting is driven either by the Cast SDK
           (desktop) or by the dedicated hidden cast <video> below (Android). */}
       <video ref={(el) => { videoRef.current = el; if (el) el.disableRemotePlayback = true; onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
+      {/* A bitmap track cannot ride a <track> element, so it is drawn here.
+          Only when it is NOT a burn-in: a burn-in is already in the pixels and
+          drawing it again would double every line. */}
+      <PGSSubtitleOverlay
+        mediaId={mediaId}
+        trackIndex={selectedBurnInTrack === null ? pgsSubtitleTrack : null}
+        streamToken={streamToken}
+        videoRef={videoRef}
+        offsetMs={subtitleOffsetMs}
+      />
 
       {/* Dedicated cast surface for Chrome Android's Remote Playback API. Kept
           in the DOM (some UAs mishandle prompt() on a never-rendered element)

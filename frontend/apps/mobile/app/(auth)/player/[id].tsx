@@ -44,7 +44,7 @@ import {
   useUserServiceUpdateProfile,
   getUserServiceListProfilesQueryKey,
   createPlayerEventReporter,
-  isImageSubtitle,
+  isBurnInSubtitle,
   pickDefaultSubtitle,
   playbackServiceReportProgress,
 } from "@evey/api";
@@ -356,7 +356,12 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
           isDefault: s.isDefault,
           isForced: s.isForced,
           codec: s.codec,
-          burnIn: isImageSubtitle(s.codec),
+          // burnIn now means ONLY "the server must burn this in", i.e. a bitmap
+          // no player can draw. A PGS track is a bitmap too but the server
+          // decodes it once and the overlay draws it, so it is NOT a burn-in and
+          // must never reach ?subtitleTrack= - that is what used to turn a
+          // direct-playing 4K remux into a full transcode.
+          burnIn: isBurnInSubtitle(s.codec),
         })) ?? [],
     [streamInfo],
   );
