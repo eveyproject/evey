@@ -24,6 +24,7 @@ package httpapi
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -150,7 +151,12 @@ func textSubtitleTracks(streams []*library.MediaStream, preferredLang string) []
 			// Already a file on disk; the route serves it without extracting.
 			continue
 		}
-		if apptranscoding.IsImageSubtitle(s.Codec) {
+		// A bitmap track used to be skipped outright: it could only be burnt
+		// into the video, so extracting it ahead of time warmed nothing. It is
+		// now served as decoded images, so it belongs here - and it is the track
+		// that most needs the head start, being the one a retail rip flags
+		// DEFAULT. VobSub stays out: nothing decodes it (see pgsServable).
+		if apptranscoding.IsImageSubtitle(s.Codec) && !pgsServable(s.Codec) {
 			continue
 		}
 		out = append(out, prewarmTrack{index: cur, codec: s.Codec, language: s.Language})
@@ -201,7 +207,12 @@ func (p *subtitlePrewarmer) run(ctx context.Context, job prewarmJob) {
 		if ctx.Err() != nil {
 			return
 		}
-		key := p.cache.keyFor(job.filePath, t.index)
+		bitmap := apptranscoding.IsImageSubtitle(t.codec)
+		kind := subtitleKindVTT
+		if bitmap {
+			kind = subtitleKindPGS
+		}
+		key := p.cache.keyForKind(job.filePath, t.index, kind)
 		if key == "" {
 			continue
 		}
@@ -211,12 +222,22 @@ func (p *subtitlePrewarmer) run(ctx context.Context, job prewarmJob) {
 		started := time.Now()
 		// Same singleflight as the on-demand path: a viewer who asks for this
 		// exact track while we are extracting it waits for THIS run instead of
-		// starting a second full read of the film.
+		// starting a second full read of the film. The flight key carries the
+		// kind through the cache key, so a text and a bitmap track of the same
+		// ordinal never share a flight.
 		_, err, _ := subtitleExtractions.Do(key+"|"+job.filePath, func() (any, error) {
 			if data, ok := p.cache.get(key); ok {
 				return data, nil
 			}
-			data, perr := extractSubtitleVTT(ctx, job.filePath, t.index, t.codec, t.language)
+			var (
+				data []byte
+				perr error
+			)
+			if bitmap {
+				data, perr = p.extractBitmap(ctx, job, t.index)
+			} else {
+				data, perr = extractSubtitleVTT(ctx, job.filePath, t.index, t.codec, t.language)
+			}
 			if perr != nil {
 				return nil, perr
 			}
@@ -282,11 +303,24 @@ func (p *subtitlePrewarmer) ensureIndex(ctx context.Context, job prewarmJob) {
 			slog.String("media_id", job.mediaID), slog.Any("err", err))
 		return
 	}
-	// Only the tracks this job will actually extract: an index entry for a
-	// bitmap track is bytes nobody reads, and the route never serves one as text.
+	// Bitmap tracks are indexed too, now that they are served as decoded images
+	// rather than burnt in. Leaving them out would build an index that the very
+	// tracks needing it most cannot use, and each would then walk the file on its
+	// own - the cost this index exists to pay once.
+	imgIDs, imgErr := mkvgoImageSubtitleTrackIDs(ctx, ext, job.filePath)
+	if imgErr != nil {
+		slog.WarnContext(ctx, "subtitle prewarm: cannot read bitmap track ids for the index",
+			slog.String("media_id", job.mediaID), slog.Any("err", imgErr))
+	}
+	// Only the tracks this job will actually extract: an index entry for a track
+	// nobody reads is a walk paid for nothing.
 	var trackIDs []uint64
 	for _, t := range job.tracks {
 		if id, ok := ids[t.index]; ok {
+			trackIDs = append(trackIDs, id)
+			continue
+		}
+		if id, ok := imgIDs[t.index]; ok {
 			trackIDs = append(trackIDs, id)
 		}
 	}
@@ -303,4 +337,29 @@ func (p *subtitlePrewarmer) ensureIndex(ctx context.Context, job prewarmJob) {
 		slog.String("media_id", job.mediaID),
 		slog.Int("tracks", len(trackIDs)),
 		slog.Duration("took", time.Since(started)))
+}
+
+// extractBitmap decodes one bitmap track into the blob the route serves,
+// reusing the file's subtitle index when the job built one.
+//
+// The index covers every track it was built for, bitmap included, so a film
+// with several PGS tracks pays one walk instead of one per track - which is the
+// whole reason ensureIndex runs before this loop.
+func (p *subtitlePrewarmer) extractBitmap(ctx context.Context, job prewarmJob, trackIndex int) ([]byte, error) {
+	ext := strings.ToLower(filepath.Ext(job.filePath))
+	if !isMkvgoSubtitleFastPath(ext) || isMkvgoMP4Ext(ext) {
+		return nil, fmt.Errorf("bitmap subtitles are only served from Matroska (got %q)", ext)
+	}
+	ids, err := mkvgoImageSubtitleTrackIDs(ctx, ext, job.filePath)
+	if err != nil {
+		return nil, err
+	}
+	trackID, ok := ids[trackIndex]
+	if !ok {
+		return nil, fmt.Errorf("no bitmap subtitle at ordinal %d", trackIndex)
+	}
+	// A missing index is not a failure: mkvgo walks the file itself. It is what
+	// a single-track job deliberately does, since the walk would save nothing.
+	ix, _ := p.indexes.get(job.filePath)
+	return extractPGSBlob(ctx, job.filePath, trackID, ix)
 }

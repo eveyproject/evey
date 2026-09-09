@@ -27,14 +27,27 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"golang.org/x/sync/singleflight"
 )
 
 // subtitleCacheMaxBytes bounds what is stored. A dialogue track is a few KB; an
-// ASS track with typesetting can reach a few hundred. Anything past this is not
-// a subtitle any player will render, and is not worth keeping.
-const subtitleCacheMaxBytes = 8 << 20
+// ASS track with typesetting can reach a few hundred. A decoded BITMAP track is
+// the outlier: ~1000 cues of paletted PNG, 6 to 9 MB measured on real discs, so
+// the cap has to clear that or every PGS track would be extracted again on every
+// request. Anything past it is not a subtitle any player will render.
+const subtitleCacheMaxBytes = 32 << 20
+
+// subtitleKind separates the two things this cache holds under one (file, track)
+// pair: the WebVTT of a text track, and the decoded-image blob of a bitmap one.
+// They are different bytes for the same ordinal, so they need different keys.
+type subtitleKind string
+
+const (
+	subtitleKindVTT subtitleKind = "vtt"
+	subtitleKindPGS subtitleKind = "pgs"
+)
 
 // subtitleExtractions collapses concurrent requests for the SAME track onto one
 // extraction. Without it, a player that retries a request it thinks has hung -
@@ -88,7 +101,24 @@ func (c subtitleCache) keyFor(filePath string, trackIndex int) string {
 	return c.key(filePath, trackIndex, st.Size(), st.ModTime().Unix())
 }
 
+// keyForKind is keyFor with the kind folded in. The VTT kind returns the key
+// UNCHANGED on purpose: every entry already on disk was written under it, and
+// giving text tracks a new key would throw away a cache whose entries each cost
+// a full read of a film to rebuild.
+func (c subtitleCache) keyForKind(filePath string, trackIndex int, kind subtitleKind) string {
+	k := c.keyFor(filePath, trackIndex)
+	if k == "" || kind == subtitleKindVTT {
+		return k
+	}
+	return string(kind) + "-" + k
+}
+
+// path names the file. The extension follows the kind so an operator looking in
+// the directory can tell a WebVTT from a binary blob without opening it.
 func (c subtitleCache) path(key string) string {
+	if strings.HasPrefix(key, string(subtitleKindPGS)+"-") {
+		return filepath.Join(c.dir, key+".bin")
+	}
 	return filepath.Join(c.dir, key+".vtt")
 }
 
