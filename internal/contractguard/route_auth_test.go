@@ -97,11 +97,8 @@ var gatedInHandler = map[string]string{
 	"DELETE /api/v1/media/{id}/subtitles/{subtitleId}": "subtitleRoutes.requireAuth (hand-rolled; 403 instead of 401, no auth metrics)",
 }
 
-// allowedDuplicateRoutes: registering the same pattern twice PANICS
-// http.ServeMux at boot. It is not a 403 anyone reads in a log, it is a server
-// that does not come up. The three below are mutually exclusive if/else
-// branches - which nothing verified until this list existed. A fourth duplicate,
-// or one of these losing its `else`, is a production boot failure.
+// Registering the same pattern twice PANICS http.ServeMux at boot - a server
+// that does not come up, not a 4xx. These three are exclusive if/else branches.
 var allowedDuplicateRoutes = map[string]string{
 	"/":                            "spaHandler vs the bare gateway handler, `if webDirOK {} else {}` in RegisterRoutes",
 	"GET /api/v1/auth/oidc/config": "registerOIDCRoutes vs the {\"enabled\":false} stub, `if s.OIDCSvc != nil {} else {}`",
@@ -295,11 +292,7 @@ func TestEveryHTTPRouteIsClassified(t *testing.T) {
 	}
 }
 
-// TestNoUnexpectedDuplicateRoutes catches the failure mode that is NOT a 403:
-// http.ServeMux panics on a duplicate pattern, so a second registration outside
-// an if/else is a server that will not boot. The classification test above cannot
-// see it - it looks at each route in isolation, and a duplicate is a property of
-// the pair.
+// The test above judges each route alone; a duplicate is a property of the pair.
 func TestNoUnexpectedDuplicateRoutes(t *testing.T) {
 	routes := collectRoutes(t)
 
