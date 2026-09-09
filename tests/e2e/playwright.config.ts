@@ -44,9 +44,10 @@ export default defineConfig({
     },
     // Safari's engine. Needed because the HLS master now advertises an
     // EXT-X-MEDIA audio group by default, and Safari is the strictest consumer
-    // of it. Not in the default run: WebKit needs its own system deps
-    // (`npx playwright install --with-deps webkit`), so ask for it explicitly:
-    //     npx playwright test --project=webkit
+    // of it. Runs by default like the other two, which is a third of the suite's
+    // wall clock - drop it with `--project=chromium --project=firefox` when that
+    // matters. The runner needs its system deps once:
+    //     npx playwright install --with-deps webkit
     // NB: WebKit on Linux is not Safari - no Apple native-HLS stack, GStreamer
     // decoding. It guards the manifest + MSE path, it does not replace a real
     // iOS/macOS run.
