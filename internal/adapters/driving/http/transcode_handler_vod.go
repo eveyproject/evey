@@ -43,9 +43,7 @@ type hlsVODServe struct {
 	// start, so the subtitle menu is not the thing that pays for a full read of
 	// the container. nil = disabled. See subtitle_prewarm.go.
 	subtitlePrewarm *subtitlePrewarmer
-	// startHints carries the player's start position from the master request
-	// to the variant pre-warm. See transcode_start_hint.go.
-	startHints startPositionHints
+	startHints      startPositionHints // master's ?startSec= -> variant pre-warm
 
 	// compositionDelayProbe measures how late a source's video is presented
 	// once packaged as MP4 (has_b_frames/fps). Injected so this adapter keeps
@@ -515,8 +513,6 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// thing every player sends. Useful for "time to first frame" admin views.
 	h.ingestCMCD(r, mediaID, 0, 0, false, true, false)
 
-	// Where the player says it starts: the variant pre-warm opens its rafale
-	// there instead of at 0. See transcode_start_hint.go.
 	if seg, ok := startSegmentHint(r); ok {
 		h.startHints.remember(mediaID, seg, time.Now())
 	}
@@ -761,10 +757,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// without this hint ffmpeg only starts when the .m4s request arrives.
 	// PreWarm runs in a goroutine bound to the orchestrator's shutdownCtx
 	// so Close() cancels every in-flight pre-warm (clean test teardown).
-	//
-	// At the position the master request announced, when it did: a resume or
-	// an audio-track switch restarts mid-film, and a rafale at 0 would be one
-	// nobody reads while the real position waits for its own.
+	// At the announced start position when the master carried one.
 	if producer := h.producerForDecision(rp.Decision, streams, item, rp.IsCopy); producer != nil {
 		producer.PreWarm(rp.FP, profileIdx, h.prewarmSegment(mediaID, in.DurationSec, time.Now()))
 	}
@@ -885,7 +878,14 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		// Pass variantIdx so in single-variant mode the correct per-rung session
 		// is created (or reused). In multi-variant mode variantIdx is forwarded
 		// but the session covers all rungs anyway.
-		ensureSeg = 0
+		// Every rafale writes the same init, so ensure it at the announced start:
+		// ensuring segment 0 opened, or kept alive, a second GPU encoder at 0
+		// next to the one being drained (prod 2026-09-09).
+		durSec := 0.0
+		if item.File != nil {
+			durSec = item.File.Duration.Seconds()
+		}
+		ensureSeg = h.prewarmSegment(mediaID, durSec, time.Now())
 	}
 	if err := producer.EnsureSegmentRange(r.Context(), fp, variantIdx, ensureSeg); err != nil {
 		span.RecordError(err)

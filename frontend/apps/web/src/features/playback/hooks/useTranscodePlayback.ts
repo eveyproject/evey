@@ -177,12 +177,7 @@ export function useTranscodePlayback({
       streamTokenRef.current,
       audioTrackOverrideRef?.current ?? currentTrackIndex,
       selectedBurnInTrack,
-      // The VOD manifest itself ignores startSec (the seek below is what moves
-      // the playhead), but the server reads it off the master as a PRE-WARM
-      // hint: the variant playlist then opens its encoder at this position
-      // instead of at 0. A resume or an audio-track switch restarts mid-film,
-      // and an encoder at 0 was one nobody read while the real position waited
-      // for its own (prod, 2026-09-09: over a minute of spinner).
+      // A pre-warm hint for the server (the seek below moves the playhead).
       initialSeekSec,
       audioOffsetMs,
       gapless,
@@ -242,12 +237,16 @@ export function useTranscodePlayback({
     }
 
     const hls = new Hls({
-      // -1 lets hls.js compute the start position from the manifest
-      // (it'll seek to whatever we set via video.currentTime in
-      // MANIFEST_PARSED). Forcing 0 here defeats the resume.
-      startPosition: -1,
+      // Load from the resume position: with -1 hls.js fetched fragment 0 first,
+      // which opened a GPU encoder at 0 nobody read (prod 2026-09-09).
+      startPosition: initialSeekSec > 0 ? initialSeekSec : -1,
       maxBufferLength: 30,
       maxMaxBufferLength: 60,
+      // ABR only sees bandwidth: a 2160p rung the browser decodes at 2 fps
+      // stayed selected (72 % dropped frames, prod 2026-09-09). Cap it on drops.
+      capLevelOnFPSDrop: true,
+      fpsDroppedMonitoringPeriod: 5000,
+      fpsDroppedMonitoringThreshold: 0.2,
       // Long-distance seeks spawn a fresh rafale on the server side;
       // ffmpeg can take 10-15 s to produce segment 0 of that rafale
       // on a 4K HEVC source. The hls.js default fragLoadingTimeOut
