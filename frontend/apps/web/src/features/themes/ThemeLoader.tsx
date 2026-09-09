@@ -3,20 +3,11 @@ import { useThemeStore } from "@evey/store";
 import { useAuthStore } from "@evey/store";
 import { eveyFetchRaw } from "@evey/api";
 import { THEME_BRIDGE_SCRIPT } from "./theme-bridge";
+import { applyThemeCSSPolicy } from "./theme-css-policy";
 
 const THEME_LINK_ID_PREFIX = "evey-theme-css-";
 const THEME_STYLE_ID_PREFIX = "evey-theme-injected-";
 const THEME_IFRAME_ID_PREFIX = "evey-theme-iframe-";
-
-// CSS rules injected by the theme via evey.theme.css() are sanitized before
-// insertion. This is a client-side defence-in-depth pass; the real sanitization
-// runs server-side at install time.
-function sanitizeThemeCSSRules(raw: string): string {
-  return raw
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/expression\s*\(/gi, "")
-    .replace(/javascript\s*:/gi, "");
-}
 
 function removeAllThemeAssets() {
   // Remove any leftover CSS links and iframes from previous theme activations.
@@ -161,8 +152,14 @@ export function ThemeLoader() {
       switch (data.type) {
         case "theme.css": {
           if (typeof data.rules !== "string") break;
-          const sanitized = sanitizeThemeCSSRules(data.rules);
-          if (!sanitized.trim()) break;
+          const { css: sanitized, rejected } = applyThemeCSSPolicy(data.rules);
+          if (rejected.length) {
+            console.warn(
+              `[evey-theme] ${rejected.length} declaration(s) dropped - evey.theme.css() takes custom properties only:`,
+              rejected.slice(0, 5),
+            );
+          }
+          if (!sanitized) break;
           const currentPluginId = useThemeStore.getState().pluginId;
           if (!currentPluginId) break;
           const styleId = THEME_STYLE_ID_PREFIX + currentPluginId;
