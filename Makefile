@@ -1,4 +1,4 @@
-.PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell lint sec-scan clean \
+.PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell bench lint sec-scan clean \
 	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
 	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch pre-push hooks \
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
@@ -100,6 +100,17 @@ test: test-image
 	  -w /app \
 	  evey-test \
 	  sh -c 'go test $$(go list ./... | grep -v /gen/) -race -count=1 -timeout=600s'
+
+# bench: the Go benchmarks, on demand. NOT in pre-push - wall-clock numbers off a
+# shared dev box are too noisy to gate on, and a gate that cries wolf gets
+# bypassed. What they are for is comparing a before/after on the CPU-heavy pure
+# Go (the pHash intro pass), and seeing the allocation counts, which ARE stable.
+# `make bench BENCH=FrequencyMap` narrows to one.
+BENCH ?= .
+bench:
+	@echo "→ go test -bench $(BENCH) (no gate: read the numbers, compare runs)"
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server \
+	  sh -c 'go test ./... -run XXX -bench "$(BENCH)" -benchmem 2>&1 | grep -v "^ok\|no test files\|^PASS"'
 
 # Copy-rung end-to-end contract test against the BUNDLED ffmpeg (runs inside
 # the evey-server dev container - never in CI, where a distro ffmpeg would
