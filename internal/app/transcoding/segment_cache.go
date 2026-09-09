@@ -173,6 +173,12 @@ type DecisionFingerprint struct {
 	// stays encoder-agnostic (toggling HW tone-mapping must not fork the cache).
 	HWTonemap bool
 
+	// HWOverlay requests a GPU burn-in of the bitmap subtitle. EXCLUDED from
+	// Hash() for the same reason as HWTonemap: the composited picture is the same
+	// subtitle on the same frames, so a GPU- and a software-burnt segment stay
+	// interchangeable in the addressable cache.
+	HWOverlay bool
+
 	// Profiles must be the EXACT ABR ladder ffmpeg will emit. Different ladders
 	// produce different multi-variant runs (variant indices and bitrates differ),
 	// so they belong in the hash. Encoded as `name@WxH@vKbps@aKbps;…` ordered.

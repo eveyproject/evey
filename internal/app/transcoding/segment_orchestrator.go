@@ -695,8 +695,9 @@ func (o *SegmentOrchestrator) spawnSession(
 		// scale and encode. Everything downstream of the upload is unchanged.
 		HWSoftwareDecode: fp.HWSoftwareDecode,
 		HWFeatures:       fp.HWFeatures,
-		HWTonemap:    fp.HWTonemap, // GPU HDR->SDR fold (resolved by the handler; false -> software tonemap)
-		PerVariantHW: o.opts.HWPerVariant,
+		HWTonemap:        fp.HWTonemap, // GPU HDR->SDR fold (resolved by the handler; false -> software tonemap)
+		HWOverlay:        fp.HWOverlay, // GPU bitmap-subtitle blend (false -> the burn-in keeps the software path)
+		PerVariantHW:     o.opts.HWPerVariant,
 	}
 
 	// Video-encode capacity gate: every session this orchestrator spawns

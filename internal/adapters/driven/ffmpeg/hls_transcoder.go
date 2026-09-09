@@ -842,7 +842,7 @@ func cpuBudgetThreadsArgs(streamSpec string) []string {
 }
 
 func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
-	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
+	burnIn := burnInRequested(opts)
 	p := opts.Profiles[len(opts.Profiles)-1]
 	// Fold the downscale into the tonemap for the plain HDR path so the heavy
 	// float pipeline runs at the rung width, not the 4K source. The burn-in path
@@ -921,7 +921,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 
 func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	n := len(opts.Profiles)
-	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
+	burnIn := burnInRequested(opts)
 	// Tonemap the single shared feed at the LARGEST rung width (folded into its
 	// linearizing zscale) instead of the 4K source; the per-rung scaler below
 	// then only downscales from there (top rung = no-op). Burn-in keeps a

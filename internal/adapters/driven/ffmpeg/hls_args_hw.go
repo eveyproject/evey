@@ -78,7 +78,16 @@ func buildToneMapFilter(info *hdr.HDRInfo, dstWidth int) string {
 // is on and a detected device supports the codec; this gate additionally keeps
 // the complex-filtergraph cases (tonemap, burn-in) on the proven software path.
 func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool {
-	if opts.HWAccel == "" || opts.HWAccel == transcoding.None || !opts.HWAccel.IsValid() || burnIn {
+	if opts.HWAccel == "" || opts.HWAccel == transcoding.None || !opts.HWAccel.IsValid() {
+		return false
+	}
+	// A burn-in normally kept the software path - and that single rule sent a 4K
+	// HDR session's decode, tone-map and every encode to the CPU because the
+	// container flagged a forced subtitle DEFAULT (prod, 2026-09-09). Same
+	// exception shape as the tone-map below: the host probed a working GPU
+	// compositor (opts.HWOverlay, set only when the calibration confirmed it) AND
+	// the backend has one wired. Otherwise software, exactly as before.
+	if burnIn && (!opts.HWOverlay || hwOverlayFilter(opts.HWAccel) == "") {
 		return false
 	}
 	// A decoupled session needs an upload chain for its backend, and it never
@@ -115,6 +124,64 @@ func hwTonemapFilter(accel transcoding.HWAccelType) string {
 		return "vpp_qsv=tonemap=1:format=nv12"
 	}
 	return ""
+}
+
+// burnInRequested reports whether this job composites a bitmap subtitle onto the
+// video. Single definition on purpose: "should we burn" and "can the GPU burn"
+// must never be able to disagree, or a job would take the HW path and then be
+// built without its subtitle.
+func burnInRequested(opts transcoding.HLSProcessOpts) bool {
+	return opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
+}
+
+// hwOverlayFilter returns the GPU compositor that blends a decoded bitmap
+// subtitle onto the video surface, or "" when the backend has none wired.
+//
+// No explicit w/h: the overlay runs at the SOURCE resolution, where the PGS/
+// VobSub bitmap is already authored to fit, and the rung scaler runs after it -
+// the same order the software path uses. Sizing only has to be stated when the
+// two surfaces differ, which is exactly what made a scale-before-overlay graph
+// fail with "Failed to render parameter buffer: 18" on Intel VAAPI.
+//
+// eof_action=pass:repeatlast=0 is what makes a SPARSE track work: a forced
+// subtitle carries a handful of cues in a whole film, so its branch hits EOF
+// long before the video and must not stall or freeze the last bitmap on screen.
+func hwOverlayFilter(accel transcoding.HWAccelType) string {
+	switch accel {
+	case transcoding.VAAPI:
+		return "overlay_vaapi=eof_action=pass:repeatlast=0"
+	case transcoding.QSV:
+		return "overlay_qsv=eof_action=pass:repeatlast=0"
+	case transcoding.NVENC:
+		return "overlay_cuda=eof_action=pass:repeatlast=0"
+	}
+	return ""
+}
+
+// hwOverlayUploadFilter returns the filters that put the DECODED subtitle bitmap
+// on the GPU in the pixel format its compositor blends. ffmpeg turns the
+// subtitle stream into video frames itself (sub2video), so this branch only has
+// to convert and upload. CUDA blends in planar YUV with an alpha plane; the VPP
+// backends take packed BGRA.
+func hwOverlayUploadFilter(accel transcoding.HWAccelType) string {
+	switch accel {
+	case transcoding.VAAPI:
+		return "format=bgra,hwupload"
+	case transcoding.QSV:
+		return "format=bgra,hwupload=extra_hw_frames=64"
+	case transcoding.NVENC:
+		return "format=yuva420p,hwupload_cuda"
+	}
+	return ""
+}
+
+// hwBurnInBranch renders the "[0:s:N]<upload>[s]" branch and the blend that
+// consumes it, given the label carrying the main surface. Shared by both HW
+// builders so a single-rung and a multi-rung burn-in can never drift apart.
+func hwBurnInBranch(opts transcoding.HLSProcessOpts, mainLabel string) (subBranch, blend string) {
+	subBranch = fmt.Sprintf("[0:s:%d]%s[subpic]", opts.SubtitleTrackIndex, hwOverlayUploadFilter(opts.HWAccel))
+	blend = fmt.Sprintf("%s[subpic]%s", mainLabel, hwOverlayFilter(opts.HWAccel))
+	return subBranch, blend
 }
 
 // hwInitArgs returns the pre-`-i` flags that put decode + filtering on the GPU
@@ -350,7 +417,27 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 		}
 	}
 	vf = hwSourceFilterPrefix(opts) + vf
-	args = append(args, "-map", "0:v:0", "-vf", vf)
+	if burnInRequested(opts) {
+		// A second input (the subtitle) means -filter_complex, not -vf. The blend
+		// runs at source resolution and the rung scaler after it, so drop the
+		// scaler from the main branch and re-add it past the compositor.
+		main := hwSourceFilterPrefix(opts)
+		if opts.HWTonemap {
+			if tm := hwTonemapFilter(opts.HWAccel); tm != "" {
+				main += tm + ","
+			}
+		}
+		main = strings.TrimSuffix(main, ",")
+		if main == "" {
+			main = "null" // a filter chain cannot be empty
+		}
+		subBranch, blend := hwBurnInBranch(opts, "[main]")
+		args = append(args, "-filter_complex", fmt.Sprintf("[0:v]%s[main];%s;%s,%s[out]",
+			main, subBranch, blend, hwScaleFilter(opts.HWAccel, p.Width)))
+		args = append(args, "-map", "[out]")
+	} else {
+		args = append(args, "-map", "0:v:0", "-vf", vf)
+	}
 	args = append(args, "-c:v", videoEncoderFor(opts.VideoCodec, opts.HWAccel))
 	args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.HWFeatures)...)
 	args = append(args, "-b:v", fmt.Sprintf("%dk", p.VideoBitrate))
@@ -388,7 +475,23 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 			src += tm + ","
 		}
 	}
-	filterParts := []string{fmt.Sprintf("%ssplit=%d%s", src, n, strings.Join(splitOutputs, ""))}
+	// Burn the subtitle in ONCE, before the split, so every rung inherits it from
+	// a single GPU blend instead of compositing per rung.
+	var filterParts []string
+	if burnInRequested(opts) {
+		main := strings.TrimSuffix(strings.TrimPrefix(src, "[0:v]"), ",")
+		if main == "" {
+			main = "null"
+		}
+		subBranch, blend := hwBurnInBranch(opts, "[main]")
+		filterParts = append(filterParts,
+			fmt.Sprintf("[0:v]%s[main]", main),
+			subBranch,
+			fmt.Sprintf("%s,split=%d%s", blend, n, strings.Join(splitOutputs, "")),
+		)
+	} else {
+		filterParts = append(filterParts, fmt.Sprintf("%ssplit=%d%s", src, n, strings.Join(splitOutputs, "")))
+	}
 	for i, p := range opts.Profiles {
 		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s[o%d]", i, hwScaleFilter(opts.HWAccel, p.Width), i))
 	}

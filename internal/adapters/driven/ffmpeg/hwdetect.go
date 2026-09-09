@@ -337,6 +337,55 @@ func probeHWTonemap(ctx context.Context, ffmpegPath, hwType, device string) bool
 	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_tonemap"}, ffmpegPath, args...) == nil
 }
 
+// probeHWOverlay reports whether the HW backend can composite a bitmap subtitle
+// onto decoded frames on the GPU. It runs the real per-backend overlay filter on
+// two synthetic surfaces - an opaque "video" and a translucent "subtitle" - so
+// success means the blend actually configures and processes a frame.
+//
+// Both inputs are uploaded and the overlay is given an EXPLICIT w/h matching the
+// main surface. That is not decoration: with the sizes left implicit the Intel
+// VPP answers "Error querying VPP params: unsupported" (measured on UHD 630,
+// 2026-09-09), so a probe without them would report a false negative on hardware
+// that composites perfectly well once told the geometry. The production builder
+// scales the subtitle to the rung and passes the same explicit w/h.
+//
+// Fail-closed: any error/abort/timeout ⇒ false ⇒ the burn-in keeps the software
+// path, which is what every host did before this capability existed.
+func probeHWOverlay(ctx context.Context, ffmpegPath, hwType, device string) bool {
+	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
+	defer cancel()
+
+	args := []string{"-hide_banner", "-v", "error", "-nostdin"}
+	var main, sub, blend string
+	switch hwType {
+	case "vaapi":
+		if device == "" {
+			return false
+		}
+		args = append(args, "-init_hw_device", "vaapi=va:"+device, "-filter_hw_device", "va")
+		main, sub, blend = "format=nv12,hwupload", "format=bgra,hwupload", "overlay_vaapi"
+	case "qsv":
+		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
+		main = "format=nv12,hwupload=extra_hw_frames=16"
+		sub = "format=bgra,hwupload=extra_hw_frames=16"
+		blend = "overlay_qsv"
+	case "nvenc":
+		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
+		// overlay_cuda takes the overlay as yuva420p, not bgra: it blends in the
+		// planar YUV domain rather than through a VPP colour converter.
+		main, sub, blend = "format=nv12,hwupload_cuda", "format=yuva420p,hwupload_cuda", "overlay_cuda"
+	default:
+		return false
+	}
+	args = append(args,
+		"-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3",
+		"-f", "lavfi", "-i", "color=c=white@0.5:size=128x128:rate=5:duration=0.3",
+		"-filter_complex", fmt.Sprintf("[0:v]%s[m];[1:v]%s[s];[m][s]%s=w=128:h=128", main, sub, blend),
+		"-f", "null", "-")
+
+	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_overlay"}, ffmpegPath, args...) == nil
+}
+
 // classifyGPU labels the calibrated accelerator integrated vs discrete for the
 // admin panel. NVENC is always a discrete NVIDIA card; QSV is always an Intel
 // iGPU. For VAAPI the PCI vendor at /sys/class/drm/<node>/device/vendor decides:

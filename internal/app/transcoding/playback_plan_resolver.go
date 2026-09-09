@@ -353,6 +353,26 @@ func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision) b
 	return slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
 }
 
+// HWOverlayWanted reports whether this request should burn its bitmap subtitle
+// in ON THE GPU: the decision actually burns one, HW accel is on, and the host
+// probed a working overlay compositor for its backend.
+//
+// It exists because a burn-in used to disqualify the hardware path outright, so
+// one flagged-default forced subtitle sent an entire 4K HDR session - decode,
+// tone-map and four encodes - to the CPU on a host whose GPU did all three
+// (prod, 2026-09-09). Every backend is eligible here: unlike the tone-map, the
+// compositor is wired for vaapi, qsv AND cuda, and the calibration probe is what
+// says whether this host's driver honours it.
+func (pr *PlanResolver) HWOverlayWanted(decision transcoding.PlaybackDecision) bool {
+	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
+		return false
+	}
+	if !pr.Capability().HWOverlay {
+		return false
+	}
+	return decision.SubtitleDecision == "burn"
+}
+
 // PinKey identifies a stream for the admission shaper. Coarser than the
 // decision-fingerprint hash on purpose: burn-in/audio variants of the same
 // title share one pinned ceiling (their video ladder is the same shape), while
@@ -682,6 +702,10 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		// taken). Excluded from Hash() like HWAccel - a HW- vs software-tonemapped
 		// segment is interchangeable in the addressable cache.
 		HWTonemap: hwTonemap && hwUsable,
+		// GPU subtitle compositing, same contract as HWTonemap: only when the HW
+		// path is actually taken, and excluded from Hash() - the same subtitle on
+		// the same frames, whoever blended it.
+		HWOverlay: pr.HWOverlayWanted(decision) && hwUsable,
 		Profiles:  fpProfiles,
 	}
 	// Tell the admission shaper which session this pin shaped: while that

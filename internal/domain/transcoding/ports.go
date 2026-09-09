@@ -175,6 +175,12 @@ type HLSProcessOpts struct {
 	// ToneMap above (the HW builder ignores ToneMap, the software builder ignores
 	// this). When false the software path is byte-identical to a no-HW-tonemap host.
 	HWTonemap bool
+	// HWOverlay, when true, lets the HARDWARE builder composite the bitmap
+	// subtitle on the GPU (overlay_vaapi etc.) instead of sending the whole job
+	// to software. Set only when the host probed HWOverlay and this request
+	// actually burns a subtitle in. When false a burn-in keeps the software
+	// path, exactly as it did before the capability existed.
+	HWOverlay bool
 	// DeinterlaceAll switches the software deinterlacer from bwdif
 	// deint=interlaced (flag-gated) to deint=all, for legacy sources whose
 	// container flags lie (repacked DVD rips store interlaced fields as
