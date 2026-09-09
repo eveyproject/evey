@@ -347,15 +347,26 @@ type TranscodingConfig struct {
 	HWPerVariant bool
 	// SingleVariant, when true, makes the VOD orchestrator encode only the
 	// one ABR rung the client is requesting (1 decode + 1 encode, on-demand)
-	// instead of one ffmpeg producing the whole ladder. OFF by default: on a
-	// decode-bound weak host single-variant RE-DECODES the 4K source per rung,
-	// so when the player ABR-probes/seeks across rungs it spawns several
-	// concurrent 4K decodes that starve each other (360p-with-buffering thrash);
-	// multi-variant shares ONE decode across all rungs and is the stable default
-	// for the weak-NAS target. Set EVEY_TRANSCODING_SINGLE_VARIANT=1 on hosts
-	// powerful enough to afford per-rung sessions. The segment cache is keyed
-	// (hash, variantIdx, segmentIdx) in both modes, so flipping is
-	// cache-compatible.
+	// instead of one ffmpeg producing the whole ladder.
+	//
+	// ON by default. Multi-variant shares one decode across the rungs, which
+	// reads well on paper and is ruinous in practice: it also encodes every rung
+	// the viewer will never watch. Measured on prod (2026-09-08, a 2160p HEVC HDR
+	// remux): ONE ffmpeg carrying `split=4` into four concurrent libx264 outputs
+	// - 480p, 720p, 1080p AND a full 3840-wide rung at maxrate 24000k - while the
+	// player was pinned to a single rung. It delivered no segment at all in 89 s
+	// and the viewer sat on `fps=0.0/24.9`. Three of those four encodes were pure
+	// waste, and they are what starved the fourth.
+	//
+	// The historic argument for multi-variant was that single-variant RE-DECODES
+	// the source per rung, so a decode-bound host thrashes when the player probes
+	// across rungs. That holds only while the decode is on the CPU: with a
+	// calibrated HW decoder (HWDecodeCodecs) a 2160p HEVC decode is near-free, and
+	// the wasted encodes dominate by far. On a host with no HW decode AND a heavy
+	// source, set EVEY_TRANSCODING_SINGLE_VARIANT=0 to get the shared decode back.
+	//
+	// The segment cache is keyed (hash, variantIdx, segmentIdx) in both modes, so
+	// flipping is cache-compatible.
 	SingleVariant bool
 	// SoftwareMaxHeightOverride / SoftwareHDRMaxHeightOverride force the software
 	// encode ceilings, bypassing the boot benchmark (0 = use the calibrated
@@ -825,7 +836,7 @@ func Load() (*Config, error) {
 			HWMode:                       strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
 			HWFirstSegmentTimeout:        envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 5*time.Second),
 			HWPerVariant:                 envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
-			SingleVariant:                envBool("EVEY_TRANSCODING_SINGLE_VARIANT", false),
+			SingleVariant:                envBool("EVEY_TRANSCODING_SINGLE_VARIANT", true),
 			SoftwareMaxHeightOverride:    envInt("EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT", 0),
 			SoftwareHDRMaxHeightOverride: envInt("EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT", 0),
 			TrickplayCacheDir:            envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
