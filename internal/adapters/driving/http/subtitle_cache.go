@@ -200,6 +200,22 @@ func (c subtitleCache) purge() (int, error) {
 	return removed, nil
 }
 
+// subtitleFlightKey is the singleflight key for one track's extraction. THE ONE
+// PLACE it is built, because the whole point of the flight is that the on-demand
+// handler and the prewarmer land on the SAME key: they both cost a full read of
+// the container, and two of those at once on a network mount is the worst thing
+// this server can do to itself.
+//
+// They diverged once. When the PGS path was added it spelled its key
+// `cacheKey + "|pgs|" + filePath` while the prewarmer kept `cacheKey + "|" +
+// filePath` - so a viewer asking for a bitmap track the prewarmer was already
+// extracting started a SECOND full pass instead of waiting, and the prewarmer's
+// comment promising otherwise was simply false. The cache key already carries
+// the kind, so the extra marker bought nothing and cost that.
+func subtitleFlightKey(cacheKey, filePath string) string {
+	return cacheKey + "|" + filePath
+}
+
 // subtitleExtractionTimeout bounds one shared extraction. Generously sized: the
 // work is a full sequential read of the container, and a 4K remux on a throttled
 // network mount has been measured past 15 minutes.

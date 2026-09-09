@@ -250,7 +250,7 @@ func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span
 		return
 	}
 
-	data, err := runSharedSubtitleExtraction(ctx, cacheKey+"|pgs|"+filePath, func(ctx context.Context) ([]byte, error) {
+	data, err := runSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), func(ctx context.Context) ([]byte, error) {
 		if data, ok := cache.get(cacheKey); ok {
 			return data, nil
 		}
