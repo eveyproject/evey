@@ -37,6 +37,20 @@ deliberately with `git push --no-verify`.
 
 For proto changes: `make proto-gen`.
 
+## Contributor License Agreement
+
+Evey is AGPLv3 and is also offered under a commercial license. Merging a
+contribution into both requires the right to relicense it, so every external
+pull request needs a one-time acceptance of [CLA.md](CLA.md) - paste this in the
+PR description:
+
+```
+I have read CLA.md and I accept it. Signed: <your full name>, <YYYY-MM-DD>.
+```
+
+You keep the copyright on your work. One acceptance covers everything you send
+afterwards.
+
 ## PR process
 
 - Self-review your diff before merging.
