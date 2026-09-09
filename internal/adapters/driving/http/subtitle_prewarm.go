@@ -225,7 +225,7 @@ func (p *subtitlePrewarmer) run(ctx context.Context, job prewarmJob) {
 		// starting a second full read of the film. The flight key carries the
 		// kind through the cache key, so a text and a bitmap track of the same
 		// ordinal never share a flight.
-		_, err, _ := subtitleExtractions.Do(key+"|"+job.filePath, func() (any, error) {
+		_, err, _ := subtitleExtractions.Do(subtitleFlightKey(key, job.filePath), func() (any, error) {
 			if data, ok := p.cache.get(key); ok {
 				return data, nil
 			}
