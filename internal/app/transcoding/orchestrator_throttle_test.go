@@ -116,11 +116,17 @@ func TestNotifyClientHint_AbsentBufferLengthIsIgnored(t *testing.T) {
 // reuses the running encoder or spawns a second one - on a box that fits one
 // heavy transcode, a spurious spawn is the difference between playback and two
 // encoders splitting the CPU. Both edges are exact, so both are asserted.
+//
+// Coverage is judged from the rafale's PRODUCTION POINT since 2026-09-09: a
+// covered segment is reused only when it is within SeekReachWindowSegs of what
+// the encoder has produced (see segment_orchestrator_reach_test.go), so each
+// case first drains the cache up to the point it needs.
 func TestEnsureSegmentRange_CoverageWindowEdges(t *testing.T) {
 	opts := testOpts() // LookAheadSegments 30
 	look := opts.LookAheadSegments
+	reach := opts.withDefaults().SeekReachWindowSegs
 
-	newOrch := func(t *testing.T) (*SegmentOrchestrator, *fakeProcess, DecisionFingerprint, int) {
+	newOrch := func(t *testing.T) (*SegmentOrchestrator, *SegmentCache, *fakeProcess, DecisionFingerprint, int) {
 		t.Helper()
 		cache, _ := newTestCache(t)
 		proc := newFakeProcess()
@@ -130,26 +136,36 @@ func TestEnsureSegmentRange_CoverageWindowEdges(t *testing.T) {
 		fp := minimalFingerprint(t)
 		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 		require.Equal(t, 1, proc.startCount(), "premise: exactly one encoder is running")
-		return o, proc, fp, endSegOf(t, o, fp)
+		return o, cache, proc, fp, endSegOf(t, o, fp)
+	}
+	// producedThrough makes the rafale's production point `seg`: the segment
+	// lands on disk and the player drains it (a cache hit proves production).
+	producedThrough := func(t *testing.T, o *SegmentOrchestrator, cache *SegmentCache, fp DecisionFingerprint, seg int) {
+		t.Helper()
+		writeReadySegment(t, cache, SegmentKey{DecisionHash: fp.Hash(), VariantIdx: 0, SegmentIdx: seg}, fp.UseFMP4)
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, seg))
 	}
 
 	t.Run("the last segment inside the window reuses", func(t *testing.T) {
-		o, proc, fp, end := newOrch(t)
+		o, cache, proc, fp, end := newOrch(t)
+		producedThrough(t, o, cache, fp, end-1)
 		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, end))
 		assert.Equal(t, 1, proc.startCount(), "a segment AT endSeg is covered - no second encoder")
 	})
 
 	t.Run("the far edge of the near-ahead band reuses and extends", func(t *testing.T) {
-		o, proc, fp, end := newOrch(t)
-		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, end+look))
+		o, cache, proc, fp, end := newOrch(t)
+		producedThrough(t, o, cache, fp, end)
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, end+reach))
 		assert.Equal(t, 1, proc.startCount(),
-			"a request exactly one lookahead past endSeg is still reachable - the rafale extends instead of respawning")
-		assert.Equal(t, end+look+look, endSegOf(t, o, fp),
+			"a request past endSeg but within reach of the point is still reachable - the rafale extends instead of respawning")
+		assert.Equal(t, end+reach+look, endSegOf(t, o, fp),
 			"the window must be pushed to the request plus a fresh lookahead")
 	})
 
 	t.Run("one segment past the band spawns a fresh encoder", func(t *testing.T) {
-		o, proc, fp, end := newOrch(t)
+		o, cache, proc, fp, end := newOrch(t)
+		producedThrough(t, o, cache, fp, end)
 		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, end+look+1))
 		assert.Equal(t, 2, proc.startCount(),
 			"beyond the band the paced encoder cannot reach in time - seek a fresh one rather than buffer forever")

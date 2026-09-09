@@ -149,8 +149,9 @@ export function buildTranscodeHlsUrl(
   appendCodecParams(params);
   // VOD pipeline: server precomputes the manifest from the known media
   // duration so hls.js sees a complete VOD stream from t=0 and never
-  // live-edge-snaps. startSec is harmless here - server ignores it and the
-  // client seeks via video.currentTime.
+  // live-edge-snaps. startSec does not shape the manifest - the client seeks
+  // via video.currentTime - but the server takes it as a pre-warm hint, so
+  // the variant playlist opens its encoder at that position rather than at 0.
   return `/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 

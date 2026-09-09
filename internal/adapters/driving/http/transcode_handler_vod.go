@@ -43,6 +43,9 @@ type hlsVODServe struct {
 	// start, so the subtitle menu is not the thing that pays for a full read of
 	// the container. nil = disabled. See subtitle_prewarm.go.
 	subtitlePrewarm *subtitlePrewarmer
+	// startHints carries the player's start position from the master request
+	// to the variant pre-warm. See transcode_start_hint.go.
+	startHints startPositionHints
 
 	// compositionDelayProbe measures how late a source's video is presented
 	// once packaged as MP4 (has_b_frames/fps). Injected so this adapter keeps
@@ -512,6 +515,12 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// thing every player sends. Useful for "time to first frame" admin views.
 	h.ingestCMCD(r, mediaID, 0, 0, false, true, false)
 
+	// Where the player says it starts: the variant pre-warm opens its rafale
+	// there instead of at 0. See transcode_start_hint.go.
+	if seg, ok := startSegmentHint(r); ok {
+		h.startHints.remember(mediaID, seg, time.Now())
+	}
+
 	// Playback is starting: begin filling the subtitle cache. Deliberately
 	// here, on the master playlist, because that is the earliest moment the
 	// server knows a specific film is about to be watched - and it is a request
@@ -752,8 +761,12 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// without this hint ffmpeg only starts when the .m4s request arrives.
 	// PreWarm runs in a goroutine bound to the orchestrator's shutdownCtx
 	// so Close() cancels every in-flight pre-warm (clean test teardown).
+	//
+	// At the position the master request announced, when it did: a resume or
+	// an audio-track switch restarts mid-film, and a rafale at 0 would be one
+	// nobody reads while the real position waits for its own.
 	if producer := h.producerForDecision(rp.Decision, streams, item, rp.IsCopy); producer != nil {
-		producer.PreWarm(rp.FP, profileIdx, 0)
+		producer.PreWarm(rp.FP, profileIdx, h.prewarmSegment(mediaID, in.DurationSec, time.Now()))
 	}
 }
 

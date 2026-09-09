@@ -177,7 +177,13 @@ export function useTranscodePlayback({
       streamTokenRef.current,
       audioTrackOverrideRef?.current ?? currentTrackIndex,
       selectedBurnInTrack,
-      0, // server ignores startSec on the VOD path
+      // The VOD manifest itself ignores startSec (the seek below is what moves
+      // the playhead), but the server reads it off the master as a PRE-WARM
+      // hint: the variant playlist then opens its encoder at this position
+      // instead of at 0. A resume or an audio-track switch restarts mid-film,
+      // and an encoder at 0 was one nobody read while the real position waited
+      // for its own (prod, 2026-09-09: over a minute of spinner).
+      initialSeekSec,
       audioOffsetMs,
       gapless,
       wasmAudio,

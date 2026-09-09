@@ -139,7 +139,7 @@ type orchestratorSession struct {
 
 	// variantIdx is meaningful only when opts.SingleVariant is true. In that
 	// mode each session encodes exactly one ABR rung and the session-match
-	// logic in findCoveringSessionLocked uses it to keep per-rung sessions
+	// logic in reachableSessionLocked uses it to keep per-rung sessions
 	// isolated. When SingleVariant is false this field is 0 and unused.
 	variantIdx int
 
@@ -266,20 +266,28 @@ func (o *SegmentOrchestrator) SetHWDemoteSink(sink func(ctx context.Context, cla
 	o.hwDemote = sink
 }
 
-// findCoveringSessionLocked picks a live session whose [startSeg, endSeg]
-// range covers segmentIdx (or whose nearAhead window does). Returns nil
-// when no rafale serves this position - caller spawns a new one. Must
-// be called with o.mu held.
+// productionPointLocked is the last segment this rafale is known to have
+// produced: what the throttle observed on disk, or a cache hit proved (see
+// touchSession), or startSeg-1 before anything landed. Caller holds s.mu.
+func productionPointLocked(s *orchestratorSession) int {
+	return max(s.producedHighWater, s.startSeg-1)
+}
+
+// reachableSessionLocked picks the live session that covers segmentIdx - its
+// [startSeg, endSeg] window, or the LookAhead-wide "near ahead" band past it -
+// AND is within SeekReachWindowSegs of it: one worth waiting on. When every
+// covering session is further behind, it returns nil plus the closest of them
+// as `far` (the fallback if a fresh rafale cannot be spawned) and the
+// production point it was judged against, for the log. Must be called with
+// o.mu held.
 //
 // When opts.SingleVariant is true, only sessions whose variantIdx matches the
 // requested variantIdx are eligible - each ABR rung has its own dedicated
-// session. When SingleVariant is false, variantIdx is ignored and the first
-// covering session for the hash is returned (multi-variant behaviour unchanged).
-func (o *SegmentOrchestrator) findCoveringSessionLocked(hash string, variantIdx, segmentIdx, nearAheadBudget int) *orchestratorSession {
+// session. When SingleVariant is false, variantIdx is ignored: every session
+// encodes all rungs (multi-variant behaviour unchanged).
+func (o *SegmentOrchestrator) reachableSessionLocked(hash string, variantIdx, segmentIdx int) (reachable, far *orchestratorSession, farPoint int) {
+	farPoint = -1
 	for _, s := range o.sessions[hash] {
-		// In single-variant mode each rung has its own session; skip sessions
-		// that encode a different rung. In multi-variant mode every session
-		// encodes all rungs, so the variantIdx filter is suppressed.
 		if o.opts.SingleVariant && s.variantIdx != variantIdx {
 			continue
 		}
@@ -291,16 +299,20 @@ func (o *SegmentOrchestrator) findCoveringSessionLocked(hash string, variantIdx,
 		// race check discard the live replacement it was about to install.
 		dead := s.cancelCtx == nil
 		inWindow := segmentIdx >= s.startSeg && segmentIdx <= s.endSeg
-		nearAhead := segmentIdx > s.endSeg && segmentIdx <= s.endSeg+nearAheadBudget
+		nearAhead := segmentIdx > s.endSeg && segmentIdx <= s.endSeg+o.opts.LookAheadSegments
+		point := productionPointLocked(s)
 		s.mu.Unlock()
-		if dead {
+		if dead || (!inWindow && !nearAhead) {
 			continue
 		}
-		if inWindow || nearAhead {
-			return s
+		if segmentIdx-point <= o.opts.SeekReachWindowSegs {
+			return s, nil, point
+		}
+		if far == nil || point > farPoint {
+			far, farPoint = s, point
 		}
 	}
-	return nil
+	return nil, far, farPoint
 }
 
 // PreWarm asks the orchestrator to start producing segments for fp in a
@@ -392,7 +404,7 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	// past the cap the LRU rafale is evicted by evictLRUIfFullLocked
 	// after the new spawn.
 	//
-	// When SingleVariant is ON, findCoveringSessionLocked additionally
+	// When SingleVariant is ON, reachableSessionLocked additionally
 	// filters by variantIdx so per-rung sessions stay isolated.
 	// Claim the spawn under the SAME lock that decides nobody covers this
 	// position. Without the claim, the only dedup was the re-check AFTER
@@ -404,7 +416,11 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	// 23:06:18.316/.317/.317 for one surviving rafale. The post-Start check
 	// stays as the backstop for the cases this exact-window claim doesn't cover.
 	o.mu.Lock()
-	session := o.findCoveringSessionLocked(hash, variantIdx, segmentIdx, o.opts.LookAheadSegments)
+	// Covering is not enough: the rafale also has to be close enough to reach
+	// segmentIdx before the player gives up. A covering rafale too far behind
+	// is kept as `far` - the fallback if no fresh one can be spawned - and the
+	// request otherwise gets its own rafale AT its position, alongside.
+	session, far, farPoint := o.reachableSessionLocked(hash, variantIdx, segmentIdx)
 	var claim *pendingSpawn
 	if session == nil {
 		if winner := o.pendingSpawnCoversLocked(hash, variantIdx, segmentIdx); winner != nil {
@@ -444,13 +460,43 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 		return nil
 	}
 
-	// No rafale covers this position - spawn a new one. If we cross
+	// No rafale reaches this position - spawn a new one. If we cross
 	// MaxRafalesPerHash, the post-spawn evictLRUIfFullLocked pass
 	// retires the LRU.
-	o.logger.Info("orchestrator: spawning additional rafale for unserved seek",
-		slog.String("hash", hash),
-		slog.Int("requested", segmentIdx))
+	if far != nil {
+		o.logger.Info("orchestrator: covering rafale too far behind, spawning at the requested segment",
+			slog.String("hash", hash),
+			slog.Int("variant", variantIdx),
+			slog.Int("requested", segmentIdx),
+			slog.Int("production_point", farPoint),
+			slog.Int("reach", o.opts.SeekReachWindowSegs))
+	} else {
+		o.logger.Info("orchestrator: spawning additional rafale for unserved seek",
+			slog.String("hash", hash),
+			slog.Int("requested", segmentIdx))
+	}
 	err := o.spawnSession(ctx, fp, variantIdx, segmentIdx)
+	if err != nil && far != nil && (errors.Is(err, ErrVideoCapacityExhausted) || errors.Is(err, ErrCapacityExceeded)) {
+		// The host cannot afford a second encoder: riding the far rafale is
+		// slow, but it is what happened before reach existed, and it beats a
+		// 503 the player would only retry into the same wall.
+		o.logger.Info("orchestrator: no capacity for a closer rafale, riding the far one",
+			slog.String("hash", hash),
+			slog.Int("requested", segmentIdx),
+			slog.Int("production_point", farPoint))
+		far.mu.Lock()
+		far.lastAccess = time.Now()
+		far.clientRead = true
+		if segmentIdx > far.clientHighWater {
+			far.clientHighWater = segmentIdx
+		}
+		if segmentIdx > far.endSeg {
+			far.endSeg = segmentIdx + o.opts.LookAheadSegments
+		}
+		far.mu.Unlock()
+		o.settlePendingSpawn(hash, claim, nil)
+		return nil
+	}
 	// Publish the outcome to whoever waited on this claim, then drop it. Runs on
 	// every path out of spawnSession - a stranded claim would wedge the hash for
 	// the lifetime of the process.
@@ -474,7 +520,7 @@ type pendingSpawn struct {
 
 // pendingSpawnCoversLocked returns the in-flight spawn that already promises
 // segmentIdx, or nil. Deliberately the plain [startSeg, endSeg] window and NOT
-// the nearAhead extension findCoveringSessionLocked grants: a pending spawn
+// the nearAhead extension reachableSessionLocked grants: a pending spawn
 // cannot widen its window on our behalf (it isn't registered yet), so claiming a
 // segment past it would promise bytes nobody produces. Beyond the window we
 // spawn a second rafale exactly as before. Caller holds o.mu.
@@ -483,7 +529,9 @@ func (o *SegmentOrchestrator) pendingSpawnCoversLocked(hash string, variantIdx, 
 		if o.opts.SingleVariant && p.variantIdx != variantIdx {
 			continue
 		}
-		if segmentIdx >= p.startSeg && segmentIdx <= p.endSeg {
+		// Same reach rule as a live rafale: a spawn in flight has produced
+		// nothing yet, so its production point is startSeg-1.
+		if segmentIdx >= p.startSeg && segmentIdx <= p.endSeg && segmentIdx-(p.startSeg-1) <= o.opts.SeekReachWindowSegs {
 			return p
 		}
 	}
@@ -756,7 +804,10 @@ func (o *SegmentOrchestrator) spawnSession(
 	// In single-variant mode the race check also filters by variantIdx
 	// so two goroutines requesting the same rung at the same position
 	// are correctly deduplicated.
-	if existing := o.findCoveringSessionLocked(hash, variantIdx, startSegIdx, o.opts.LookAheadSegments); existing != nil {
+	// Reach applies here too: a sibling that covers startSegIdx but sits far
+	// behind it is the very rafale this spawn exists to get away from, and
+	// must not veto it.
+	if existing, _, _ := o.reachableSessionLocked(hash, variantIdx, startSegIdx); existing != nil {
 		o.mu.Unlock()
 		o.logger.Info("orchestrator: spawn race lost (covered by sibling rafale), discarding new session",
 			slog.String("hash", hash),
@@ -961,6 +1012,35 @@ func (o *SegmentOrchestrator) hwSessionAlive(hash string, variantIdx int, useFMP
 	return o.hashProducedSegment(hash, variantIdx, useFMP4)
 }
 
+// closestCoveringSessionLocked is reachableSessionLocked's answer for a
+// CACHE HIT: among the live rafales whose window covers segmentIdx, the one
+// started closest below it. Rafales of one hash share a cache directory, so a
+// segment on disk was written by the closest-behind encoder, not by whichever
+// covering rafale happens to be listed first - crediting the wrong one with the
+// production (see touchSession) would let the throttle pause a rafale that has
+// not reached there at all. Must be called with o.mu held.
+func (o *SegmentOrchestrator) closestCoveringSessionLocked(hash string, variantIdx, segmentIdx int) *orchestratorSession {
+	var best *orchestratorSession
+	bestStart := -1
+	for _, s := range o.sessions[hash] {
+		if o.opts.SingleVariant && s.variantIdx != variantIdx {
+			continue
+		}
+		s.mu.Lock()
+		dead := s.cancelCtx == nil
+		inWindow := segmentIdx >= s.startSeg && segmentIdx <= s.endSeg
+		start := s.startSeg
+		s.mu.Unlock()
+		if dead || !inWindow {
+			continue
+		}
+		if start > bestStart {
+			best, bestStart = s, start
+		}
+	}
+	return best
+}
+
 // touchSession bumps lastAccess + client high-water on the rafale that
 // covers segmentIdx, falling back to the most-recently-accessed
 // rafale of the hash when no exact cover exists (cache-hit case: the
@@ -970,11 +1050,12 @@ func (o *SegmentOrchestrator) hwSessionAlive(hash string, variantIdx int, useFMP
 // consumed from the cache, and so the throttle loop sees client
 // progress and resumes a paused ffmpeg in time.
 //
-// variantIdx is forwarded to findCoveringSessionLocked so that in
+// variantIdx is forwarded to closestCoveringSessionLocked so that in
 // single-variant mode the right per-rung session is touched.
 func (o *SegmentOrchestrator) touchSession(hash string, variantIdx, segmentIdx int) {
 	o.mu.Lock()
-	target := o.findCoveringSessionLocked(hash, variantIdx, segmentIdx, o.opts.LookAheadSegments)
+	target := o.closestCoveringSessionLocked(hash, variantIdx, segmentIdx)
+	covered := target != nil
 	if target == nil {
 		// No exact cover. Bump the most-recently-touched rafale so the
 		// GC keeps at least one session warm for the hash.
@@ -998,6 +1079,12 @@ func (o *SegmentOrchestrator) touchSession(hash string, variantIdx, segmentIdx i
 	target.clientRead = true
 	if segmentIdx > target.clientHighWater {
 		target.clientHighWater = segmentIdx
+	}
+	// A cache hit inside this rafale's window proves it produced through
+	// segmentIdx: advance its production point so the reach test stays honest
+	// between two throttle ticks (and without the throttle at all).
+	if covered && segmentIdx > target.producedHighWater {
+		target.producedHighWater = segmentIdx
 	}
 	target.mu.Unlock()
 }
