@@ -202,3 +202,26 @@ func TestResolveBenchSample_SoundCached_ReusedWithoutRegenerating(t *testing.T) 
 	assert.False(t, fallback)
 	assert.Equal(t, cached, path)
 }
+
+// Prod, 2026-09-09: sample-hdr10.hevc was 0 bytes. The probe fails on an empty
+// file, and "no verdict is not a guilty verdict" then kept it - so the HDR cap
+// was benched against nothing. Emptiness needs no probe to be condemned.
+func TestCachedSampleIsSound_EmptyFile_Rejected(t *testing.T) {
+	empty := filepath.Join(t.TempDir(), "sample-hdr10.hevc")
+	require.NoError(t, os.WriteFile(empty, nil, 0o600))
+
+	r := decodeTestRunner(t, empty)
+	assert.False(t, r.cachedSampleIsSound(context.Background(), "HDR", benchSampleSource{}, empty),
+		"a 0-byte cached sample must be regenerated, not calibrated against")
+}
+
+// An empty file the OPERATOR pinned is still empty: the "keep operator content"
+// exemption covers a deliberate wrong CODEC, not zero bytes.
+func TestCachedSampleIsSound_EmptyFilePinnedByOperator_StillRejected(t *testing.T) {
+	empty := filepath.Join(t.TempDir(), "sample-hdr10.hevc")
+	require.NoError(t, os.WriteFile(empty, nil, 0o600))
+
+	r := decodeTestRunner(t, empty)
+	src := benchSampleSource{url: "https://example.invalid/clip.hevc"}
+	assert.False(t, r.cachedSampleIsSound(context.Background(), "HDR", src, empty))
+}
