@@ -116,11 +116,8 @@ func TestNotifyClientHint_AbsentBufferLengthIsIgnored(t *testing.T) {
 // reuses the running encoder or spawns a second one - on a box that fits one
 // heavy transcode, a spurious spawn is the difference between playback and two
 // encoders splitting the CPU. Both edges are exact, so both are asserted.
-//
-// Coverage is judged from the rafale's PRODUCTION POINT since 2026-09-09: a
-// covered segment is reused only when it is within SeekReachWindowSegs of what
-// the encoder has produced (see segment_orchestrator_reach_test.go), so each
-// case first drains the cache up to the point it needs.
+// Reuse also needs the request within SeekReachWindowSegs of the production
+// point, so each case first drains the cache up to the point it needs.
 func TestEnsureSegmentRange_CoverageWindowEdges(t *testing.T) {
 	opts := testOpts() // LookAheadSegments 30
 	look := opts.LookAheadSegments
@@ -138,8 +135,7 @@ func TestEnsureSegmentRange_CoverageWindowEdges(t *testing.T) {
 		require.Equal(t, 1, proc.startCount(), "premise: exactly one encoder is running")
 		return o, cache, proc, fp, endSegOf(t, o, fp)
 	}
-	// producedThrough makes the rafale's production point `seg`: the segment
-	// lands on disk and the player drains it (a cache hit proves production).
+	// producedThrough moves the production point to seg via a cache hit.
 	producedThrough := func(t *testing.T, o *SegmentOrchestrator, cache *SegmentCache, fp DecisionFingerprint, seg int) {
 		t.Helper()
 		writeReadySegment(t, cache, SegmentKey{DecisionHash: fp.Hash(), VariantIdx: 0, SegmentIdx: seg}, fp.UseFMP4)

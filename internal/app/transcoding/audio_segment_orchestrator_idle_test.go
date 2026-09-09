@@ -11,11 +11,8 @@ import (
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
-// Prod, 2026-09-09: an audio-track switch left the OLD track's AAC encoder
-// running, and the wasm decoder's handover left the relay's running too - each
-// reading a 70 GB source at 8× real-time until the end of the film, next to the
-// viewer's video rafale. Nothing reaped them: a session only ended when ffmpeg
-// did. A rendition nobody asks for must now die on the inactivity fuse.
+// A rendition nobody asks for dies on the inactivity fuse (prod 2026-09-09:
+// orphaned AAC encoders read a 70 GB film to the end).
 func TestAudioOrchestrator_IdleRenditionIsReaped(t *testing.T) {
 	cache, _ := newTestCache(t)
 	fp := minimalAudioFp()
@@ -46,9 +43,7 @@ func (h *audioFakeHandle) isStopped() bool {
 	return h.stopped
 }
 
-// The other half: a rendition that IS being played is served from disk on
-// every request (the encoder runs ahead of the player), so the cache-hit path
-// has to count as activity or steady playback would look idle.
+// Steady playback is all cache hits (the encoder runs ahead): they must count.
 func TestAudioOrchestrator_CacheHitsKeepTheSessionAlive(t *testing.T) {
 	cache, _ := newTestCache(t)
 	fp := minimalAudioFp()
@@ -75,8 +70,7 @@ func TestAudioOrchestrator_CacheHitsKeepTheSessionAlive(t *testing.T) {
 	assert.Equal(t, 1, proc.startCount())
 }
 
-// A session started AHEAD of the request is a forward seek the viewer walked
-// away from: the request behind it must not keep it alive.
+// A session started ahead of the request is an abandoned forward seek.
 func TestAudioOrchestrator_TouchIgnoresSessionsStartedAhead(t *testing.T) {
 	cache, _ := newTestCache(t)
 	fp := minimalAudioFp()

@@ -9,11 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Prod, 2026-09-09: an audio-track switch restarted the player at segment 23
-// while the variant-playlist pre-warm had just opened a rafale at 0. Its
-// window [0, 29] "covered" 23, so the request waited on an encoder 24 segments
-// behind it, blew the 25 s budget, and the viewer stared at a spinner for over
-// a minute on a GPU running at 2× real-time. Covering is not reaching.
+// Covering is not reaching: a request at 23 waited on a fresh rafale at 0
+// whose window reached 29 (prod 2026-09-09, a minute of spinner).
 func TestOrchestrator_CoveringRafaleTooFarBehindGetsAFreshOneAtTheRequest(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
@@ -37,8 +34,7 @@ func TestOrchestrator_CoveringRafaleTooFarBehindGetsAFreshOneAtTheRequest(t *tes
 	assert.InDelta(t, 23.0*3.0, proc.lastOpts().StartSec, 0.001)
 }
 
-// Ordinary playback draws a segment or two ahead of the encoder: those keep
-// riding the rafale they are on. A spawn per segment would be a disaster.
+// Ordinary playback draws a segment or two ahead: no spawn.
 func TestOrchestrator_RequestWithinReachRidesTheExistingRafale(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
@@ -58,8 +54,7 @@ func TestOrchestrator_RequestWithinReachRidesTheExistingRafale(t *testing.T) {
 	assert.Equal(t, 1, o.ActiveCount())
 }
 
-// The point moves with production: once the rafale is proven through segment
-// 20 (cache hits), a request at 25 is within reach of it again.
+// The point moves with production (cache hits).
 func TestOrchestrator_ReachFollowsTheProductionPoint(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
@@ -79,8 +74,7 @@ func TestOrchestrator_ReachFollowsTheProductionPoint(t *testing.T) {
 	assert.Equal(t, 1, proc.startCount(), "25 is 5 past the proven point: ride, don't spawn")
 }
 
-// A spawn still in flight follows the same rule: a far request must not park on
-// a pending rafale that has produced nothing and starts 24 segments below it.
+// A spawn in flight follows the same rule.
 func TestOrchestrator_PendingSpawnFarBehindDoesNotCaptureTheRequest(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()

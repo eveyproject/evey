@@ -16,11 +16,8 @@ package httpapi
 // Two rules govern it, both from the operator of a weak NAS:
 //
 //   - the picture comes first. Nothing starts until the stream has had a head
-//     start, and while a stream is being served every extraction reads the
-//     source at a paced rate (subtitle_read_pacer.go), so it yields the disk
-//     to the segments being served. (ionice was the original plan; the mkvgo
-//     walk is in-process and, behind a FUSE mount, the kernel would only see
-//     the daemon's I/O anyway.);
+//     start, and while a stream is served every extraction reads at a paced
+//     rate (subtitle_read_pacer.go) so it yields the disk to the segments;
 //   - one at a time, in order. Extractions are serialized on a single worker,
 //     because two concurrent full reads of the same file on a spinning NAS are
 //     slower than one after the other, and would compete with playback twice.

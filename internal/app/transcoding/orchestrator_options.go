@@ -19,26 +19,10 @@ type OrchestratorOptions struct {
 	// without paying for segments the user won't watch.
 	LookAheadSegments int
 
-	// SeekReachWindowSegs is how far AHEAD of a rafale's production point a
-	// request may land and still be served by waiting on that rafale, rather
-	// than by spawning a fresh one at the requested segment. The rafale's window
-	// ([startSeg, endSeg]) says what it WILL produce; this says what it can
-	// produce before the player hangs up.
-	//
-	// Without it a request inside the window rode the rafale however far behind
-	// it was. Prod, 2026-09-09: an audio-track switch restarted playback at
-	// segment 23 while the variant-playlist pre-warm had just opened a rafale at
-	// 0 whose window reached 29. The request waited on an encoder 24 segments
-	// (72 s of content) behind it, timed out at the 25 s budget, retried, and
-	// the viewer watched a spinner for over a minute on a GPU that encodes at
-	// 2× real-time. The software producer has had this test since the
-	// 2026-09-06 deep-seek investigation; the hardware orchestrator did not.
-	//
-	// Default 8 (24 s of content at 3 s segments): a 1× real-time encoder
-	// reaches it inside the 25 s wait budget, a 2× GPU in 12 s, and a fresh
-	// rafale at the request costs an init (~2-3 s) - so past 8 the spawn wins
-	// even on the slowest hardware this runs on. Sequential playback draws 0-2
-	// segments ahead of the point, well inside it.
+	// SeekReachWindowSegs bounds how far past a rafale's production point a
+	// request may wait on it instead of spawning at its own position. The window
+	// alone let a request at 23 wait on a fresh rafale at 0 (prod 2026-09-09).
+	// Default 8: a 1x encoder covers it within the 25 s wait budget.
 	SeekReachWindowSegs int
 
 	// InactivityTimeout is how long an idle session lingers before the GC kills
