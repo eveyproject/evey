@@ -60,7 +60,38 @@ type AudioSegmentOrchestrator struct {
 	// producing their start segment - the generic breaker behind the specific
 	// streamEnd handling (covers crash loops the reap cannot classify).
 	strikes map[string]audioSpawnStrikes
+
+	// Idle reaping. inactivityTimeout is how long a rendition may go without a
+	// single request before its sessions are killed; gcInterval the sweep period.
+	// Fields (not consts) so tests run the sweep in milliseconds.
+	inactivityTimeout time.Duration
+	gcInterval        time.Duration
+	stopGC            chan struct{}
+	gcDone            chan struct{}
+	gcOnce            sync.Once
 }
+
+// audioInactivityTimeout is how long a rendition's ffmpeg sessions survive with
+// nobody asking for a segment. Matches the video orchestrator's default.
+//
+// There was no reaping at all before, and a session only ended when ffmpeg had
+// encoded the WHOLE remaining track - at 8× real-time, a quarter of an hour for
+// a feature film, reading the entire container the whole way. Two viewer moves
+// leave a rendition orphaned exactly like that: the wasm decoder hands over
+// from the AAC relay after a few seconds and never asks for it again, and an
+// audio-track switch abandons the old track's session outright. Prod,
+// 2026-09-09: two such AAC encoders on a 70 GB 4K source, each pulling its input
+// at 8× real-time, alongside the viewer's video rafale - the disk was the
+// bottleneck and the viewer waited a minute for the switch.
+//
+// 60 s comfortably covers the segment cadence of a rendition that IS being
+// played (a request every few seconds), so a live viewer never loses their
+// encoder; a paused player that comes back after longer respawns at its
+// position, which the seek path already does in well under a second.
+const audioInactivityTimeout = 60 * time.Second
+
+// audioGCInterval is the idle sweep period.
+const audioGCInterval = 15 * time.Second
 
 type audioStreamEndMark struct {
 	seg int
@@ -128,6 +159,10 @@ type audioSession struct {
 	startSeg  int    // segment this ffmpeg was started at (-ss / -start_number)
 	hash      string // AudioFingerprint.Hash(), without the start-segment suffix
 	silence   bool   // bounded anullsrc tail, not a real source read
+	// lastAccess is the last time a request for this rendition landed at or
+	// past this session's start (guarded by o.mu). The idle sweep reaps a
+	// session nobody has asked anything of for inactivityTimeout.
+	lastAccess time.Time
 
 	// stopped marks a session the ORCHESTRATOR killed (eviction, Close), set
 	// under o.mu BEFORE Stop() is called. The reap goroutine reads it (under
@@ -141,17 +176,96 @@ func NewAudioSegmentOrchestrator(
 	cache *SegmentCache,
 	t transcoding.AudioProcess,
 ) *AudioSegmentOrchestrator {
+	return newAudioSegmentOrchestrator(cache, t, audioInactivityTimeout, audioGCInterval)
+}
+
+// newAudioSegmentOrchestrator is the constructor with the idle-sweep timing
+// exposed, so tests run it in milliseconds. The sweep starts here, after every
+// field is set - nothing may be tuned on the value afterwards.
+func newAudioSegmentOrchestrator(cache *SegmentCache, t transcoding.AudioProcess, inactivity, gcInterval time.Duration) *AudioSegmentOrchestrator {
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
-	return &AudioSegmentOrchestrator{
-		cache:          cache,
-		transcoder:     t,
-		logger:         slog.Default().With("component", "audio_segment_orchestrator"),
-		shutdownCtx:    shutdownCtx,
-		shutdownCancel: shutdownCancel,
-		sessions:       make(map[string]*audioSession),
-		streamEnd:      make(map[string]audioStreamEndMark),
-		strikes:        make(map[string]audioSpawnStrikes),
+	o := &AudioSegmentOrchestrator{
+		cache:             cache,
+		transcoder:        t,
+		logger:            slog.Default().With("component", "audio_segment_orchestrator"),
+		shutdownCtx:       shutdownCtx,
+		shutdownCancel:    shutdownCancel,
+		sessions:          make(map[string]*audioSession),
+		streamEnd:         make(map[string]audioStreamEndMark),
+		strikes:           make(map[string]audioSpawnStrikes),
+		inactivityTimeout: inactivity,
+		gcInterval:        gcInterval,
+		stopGC:            make(chan struct{}),
+		gcDone:            make(chan struct{}),
 	}
+	go o.gcLoop()
+	return o
+}
+
+// gcLoop sweeps idle sessions until Close.
+func (o *AudioSegmentOrchestrator) gcLoop() {
+	defer close(o.gcDone)
+	ticker := time.NewTicker(o.gcInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-o.stopGC:
+			return
+		case <-ticker.C:
+			o.sweepIdle()
+		}
+	}
+}
+
+// sweepIdle kills every session whose rendition has had no request for
+// inactivityTimeout. The kill is an orchestrator kill (stopped set under the
+// lock first), so the reap goroutine never reads it as a natural end of stream.
+func (o *AudioSegmentOrchestrator) sweepIdle() {
+	cutoff := time.Now().Add(-o.inactivityTimeout)
+	var idle []*audioSession
+	o.mu.Lock()
+	for _, sess := range o.sessions {
+		if sess.stopped || sess.handle == nil || !sess.lastAccess.Before(cutoff) {
+			continue
+		}
+		sess.stopped = true
+		idle = append(idle, sess)
+	}
+	o.mu.Unlock()
+
+	for _, sess := range idle {
+		o.logger.Info("audio_orchestrator: session killed",
+			slog.String("hash", sess.hash),
+			slog.String("media_id", sess.fp.MediaID),
+			slog.Int("track", sess.fp.SourceTrackIdx),
+			slog.Int("start_seg", sess.startSeg),
+			slog.String("reason", "inactivity"))
+		_ = sess.handle.Stop() //nolint:errcheck // best-effort: the reap goroutine unblocks on Done() and cleans up
+	}
+}
+
+// touchLocked records a request for the rendition at segIdx on every session
+// that could be serving it: those started at or before segIdx. A session
+// started AFTER the request is a forward seek the viewer walked away from, and
+// is left to idle out. Caller holds o.mu.
+//
+// Called on cache hits too - a session paced ahead of the player (they all are)
+// serves every request from disk, so a touch confined to the spawn path would
+// see a rendition in steady playback as idle.
+func (o *AudioSegmentOrchestrator) touchLocked(audioHash string, segIdx int) {
+	now := time.Now()
+	for _, sess := range o.sessions {
+		if sess.hash == audioHash && sess.startSeg <= segIdx {
+			sess.lastAccess = now
+		}
+	}
+}
+
+// touch is touchLocked under the lock.
+func (o *AudioSegmentOrchestrator) touch(audioHash string, segIdx int) {
+	o.mu.Lock()
+	o.touchLocked(audioHash, segIdx)
+	o.mu.Unlock()
 }
 
 // EnsureAudioSegment guarantees that the audio segment (fp.SourceTrackIdx, segIdx)
@@ -172,8 +286,10 @@ func (o *AudioSegmentOrchestrator) EnsureAudioSegment(ctx context.Context, fp Au
 		Kind:         KindAudio,
 	}
 
-	// Fast path: segment already written to disk.
+	// Fast path: segment already written to disk. Still a sign of life for the
+	// session that wrote it - see touchLocked.
 	if o.cache.IsReady(key, true) {
+		o.touch(audioHash, segIdx)
 		return nil
 	}
 
@@ -208,6 +324,7 @@ func (o *AudioSegmentOrchestrator) EnsureAudioInit(ctx context.Context, fp Audio
 	}
 
 	if o.cache.IsReady(key, true) {
+		o.touch(audioHash, 0)
 		return nil
 	}
 	if err := o.ensureSessionForInit(fp, audioHash); err != nil {
@@ -225,6 +342,7 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
+	o.touchLocked(audioHash, segIdx)
 	if o.coveringSessionLocked(audioHash, segIdx) {
 		return nil
 	}
@@ -257,6 +375,7 @@ func (o *AudioSegmentOrchestrator) ensureSessionForInit(fp AudioFingerprint, aud
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
+	o.touchLocked(audioHash, 0)
 	for _, sess := range o.sessions {
 		if sess.hash == audioHash {
 			return nil
@@ -332,13 +451,14 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 	}
 
 	sess := &audioSession{
-		fp:        fp,
-		handle:    handle,
-		teardown:  teardown,
-		startedAt: time.Now(),
-		startSeg:  segIdx,
-		hash:      audioHash,
-		silence:   silenceDur > 0,
+		fp:         fp,
+		handle:     handle,
+		teardown:   teardown,
+		startedAt:  time.Now(),
+		lastAccess: time.Now(),
+		startSeg:   segIdx,
+		hash:       audioHash,
+		silence:    silenceDur > 0,
 	}
 	sessKey := audioSessionKey(audioHash, segIdx)
 	o.sessions[sessKey] = sess
@@ -476,6 +596,11 @@ func (o *AudioSegmentOrchestrator) ActiveCount() int {
 
 // Close stops all active audio sessions and releases their resources. Idempotent.
 func (o *AudioSegmentOrchestrator) Close() error {
+	// Stop the idle sweep first so it cannot race the teardown below.
+	o.gcOnce.Do(func() {
+		close(o.stopGC)
+		<-o.gcDone
+	})
 	// Cancel the long-lived context - all session reap goroutines unblock via Done().
 	o.shutdownCancel()
 
