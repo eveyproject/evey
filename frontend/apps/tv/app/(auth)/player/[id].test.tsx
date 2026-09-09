@@ -144,7 +144,7 @@ const stopSessionMock = vi.fn();
 const sessionState = {
   streamUrl: "http://srv.test/stream.m3u8",
   isAuthError: false,
-  mediaStreams: [] as { type: string; index: number; language?: string; isDefault?: boolean }[],
+  mediaStreams: [] as { type: string; index: number; language?: string; isDefault?: boolean; codec?: string }[],
 };
 const restartWithTracksMock = vi.fn(() => {
   sessionState.streamUrl = "http://srv.test/stream.m3u8?restarted=1";
@@ -217,10 +217,19 @@ vi.mock("../../../src/components/AudioTrackPicker", () => ({
     return null;
   },
 }));
-let lastSubtitlePickerProps: { currentIndex: number | null } | null = null;
+let lastSubtitlePickerProps: { currentIndex: number | null; onSelect: (i: number | null) => void } | null = null;
 vi.mock("../../../src/components/SubtitlePicker", () => ({
-  SubtitlePicker: (p: { currentIndex: number | null }) => {
+  SubtitlePicker: (p: { currentIndex: number | null; onSelect: (i: number | null) => void }) => {
     lastSubtitlePickerProps = p;
+    return null;
+  },
+}));
+// Captured, not rendered: what the screen hands the overlay IS the assertion -
+// a track drawn client-side must reach it, and must not reach the server.
+let lastOverlayProps: { subtitleIndex: number | null } | null = null;
+vi.mock("../../../src/components/SubtitleOverlay", () => ({
+  SubtitleOverlay: (p: { subtitleIndex: number | null }) => {
+    lastOverlayProps = p;
     return null;
   },
 }));
@@ -313,6 +322,7 @@ beforeEach(() => {
   listProfilesMock.mockReturnValue({ data: undefined });
   lastAudioPickerProps = null;
   lastSubtitlePickerProps = null;
+  lastOverlayProps = null;
   lastTrickplayPreviewProps = null;
   lastSkipIntroProps = null;
   capturedOnNavigate = null;
@@ -1007,3 +1017,58 @@ describe("released player during teardown (TV)", () => {
   });
 });
 
+// La fuite de prod du 08-09, côté TV : `?subtitleTrack=` n'est pas « le
+// sous-titre choisi », c'est l'ordre de l'incruster dans les images, et une
+// incrustation interdit le palier copie. Sur un remux 4K HEVC HDR, changer de
+// piste audio suffisait à transformer un DirectPlay en échelle transcodée
+// tonemappée, parce que le redémarrage emportait au passage un sous-titre PGS
+// que la session n'avait jamais eu.
+describe("le sous-titre ne fuit plus dans le flux (TV)", () => {
+  const pgs = () => {
+    sessionState.mediaStreams = [
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 0, language: "eng", isDefault: true },
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 1, language: "fra" },
+      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 2, language: "fre", codec: "hdmv_pgs_subtitle" },
+    ];
+  };
+  const vobsub = () => {
+    sessionState.mediaStreams = [
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 0, language: "eng", isDefault: true },
+      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 2, language: "fre", codec: "dvd_subtitle" },
+    ];
+  };
+
+  it("une piste PGS part à l'overlay et ne redémarre rien", () => {
+    pgs();
+    render(<PlayerScreen />);
+    act(() => { lastSubtitlePickerProps?.onSelect(2); });
+    // Ordinal RELATIF aux sous-titres (0), pas l'index absolu du flux (2).
+    expect(lastOverlayProps?.subtitleIndex).toBe(0);
+    expect(restartWithTracksMock).not.toHaveBeenCalled();
+  });
+
+  it("changer de piste audio n'ajoute pas l'incrustation que la session n'a pas", () => {
+    pgs();
+    render(<PlayerScreen />);
+    act(() => { lastSubtitlePickerProps?.onSelect(2); });
+    act(() => { lastAudioPickerProps?.onSelect(1); });
+    expect(restartWithTracksMock).toHaveBeenCalledWith(1, undefined, undefined);
+  });
+
+  it("un VobSub, qu'on ne sait pas décoder, reste une incrustation serveur", () => {
+    vobsub();
+    render(<PlayerScreen />);
+    act(() => { lastSubtitlePickerProps?.onSelect(2); });
+    expect(lastOverlayProps?.subtitleIndex).toBeNull();
+    expect(restartWithTracksMock).toHaveBeenCalledWith(0, 2, undefined);
+  });
+
+  it("quitter un VobSub redémarre sans incrustation", () => {
+    vobsub();
+    render(<PlayerScreen />);
+    act(() => { lastSubtitlePickerProps?.onSelect(2); });
+    restartWithTracksMock.mockClear();
+    act(() => { lastSubtitlePickerProps?.onSelect(null); });
+    expect(restartWithTracksMock).toHaveBeenCalledWith(0, undefined, undefined);
+  });
+});

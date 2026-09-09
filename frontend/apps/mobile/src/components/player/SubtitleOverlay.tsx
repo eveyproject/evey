@@ -6,9 +6,13 @@ import {
   isPGSBlob,
   parsePGSBlob,
   pgsCueDataURI,
+  findActiveCueIndex,
+  parseVttCues,
+  shiftCues,
   type PGSTrack,
+  type SubtitleCue,
 } from "@evey/api";
-import { findActiveCueIndex, parseVttCues, shiftCues, type SubtitleCue } from "../../lib/subtitleCues";
+
 import { subtitleBgRgba, subtitleCueFontSizePx, type SubtitleStyle } from "../../lib/subtitleStyle";
 
 interface SubtitleOverlayProps {

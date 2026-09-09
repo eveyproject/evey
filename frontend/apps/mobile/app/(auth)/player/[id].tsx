@@ -44,12 +44,15 @@ import {
   useUserServiceUpdateProfile,
   getUserServiceListProfilesQueryKey,
   createPlayerEventReporter,
+  burnInSubtitleIndex as pickBurnInSubtitle,
+  clientSubtitleTrack,
   isBurnInSubtitle,
+  parseVttCues,
   pickDefaultSubtitle,
   playbackServiceReportProgress,
+  type SubtitleCue,
 } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
-import { burnInSubtitleIndex as pickBurnInSubtitle, clientSubtitleTrack } from "../../../src/lib/clientSubtitleTrack";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
@@ -95,7 +98,7 @@ import {
   type SubtitleStyle,
 } from "../../../src/lib/subtitleStyle";
 import { pickExternalSubtitle } from "../../../src/lib/externalSubtitle";
-import { parseVttCues, type SubtitleCue } from "../../../src/lib/subtitleCues";
+
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 
 // Sheets still carried by a BottomSheet; audio / subtitles / quality / speed

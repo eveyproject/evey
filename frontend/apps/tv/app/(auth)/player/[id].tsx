@@ -1,5 +1,13 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { createPlayerEventReporter, formatTime, itemLabel, isImageSubtitle, pickDefaultSubtitle } from "@evey/api";
+import {
+  burnInSubtitleIndex as pickBurnInSubtitle,
+  clientSubtitleTrack,
+  createPlayerEventReporter,
+  formatTime,
+  itemLabel,
+  isBurnInSubtitle,
+  pickDefaultSubtitle,
+} from "@evey/api";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -38,6 +46,7 @@ import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { VolumePicker } from "../../../src/components/VolumePicker";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
 import { SkipIntroButton } from "../../../src/components/SkipIntroButton";
+import { SubtitleOverlay } from "../../../src/components/SubtitleOverlay";
 import { NextEpisodeOverlay } from "../../../src/components/NextEpisodeOverlay";
 import { TrickplaySeekPreview } from "../../../src/components/TrickplaySeekPreview";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
@@ -234,9 +243,31 @@ export default function PlayerScreen() {
           isDefault: s.isDefault,
           isForced: s.isForced,
           codec: s.codec,
-          burnIn: isImageSubtitle(s.codec),
+          burnIn: isBurnInSubtitle(s.codec),
         })) ?? [],
     [streamInfo],
+  );
+
+  // What the SERVER may be told about the subtitle selection - never the raw
+  // selection. `?subtitleTrack=` is not "the subtitle the viewer chose", it is
+  // an instruction to burn a track into the frames, and a burn-in denies the
+  // video copy rung: on a 4K HEVC HDR remux that turns a DirectPlay into a
+  // tonemapped ladder. pickDefaultSubtitle below auto-selects the track the
+  // FILE flags default without restarting for it, so the selection and the
+  // running stream diverge by design - and every restart for an unrelated
+  // reason (audio, quality, a retry) used to close that gap by sending the
+  // index along. See burnInSubtitleIndex for the whole story.
+  const burnInSubtitleIndex = useMemo(
+    () => pickBurnInSubtitle(selectedSubtitleIndex, subtitleStreams),
+    [selectedSubtitleIndex, subtitleStreams],
+  );
+
+  // The other half: the track SubtitleOverlay fetches and draws itself. Note
+  // the SUBTITLE-RELATIVE ordinal, not the absolute stream index the selection
+  // carries - see clientSubtitleTrack for why the two must not be confused.
+  const clientSubtitleIndex = useMemo(
+    () => clientSubtitleTrack(selectedSubtitleIndex, subtitleStreams),
+    [selectedSubtitleIndex, subtitleStreams],
   );
 
   // Set initial selected audio index: profile preference first, then the
@@ -557,9 +588,9 @@ export default function PlayerScreen() {
     (quality: number) => {
       setSelectedQuality(quality);
       resumeAfterRestartRef.current = player?.playing ?? true;
-      restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, quality || undefined);
+      restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, quality || undefined);
     },
-    [player, restartWithTracks, selectedAudioIndex, selectedSubtitleIndex],
+    [player, restartWithTracks, selectedAudioIndex, burnInSubtitleIndex],
   );
 
   const handleAudioSelect = useCallback(
@@ -567,19 +598,27 @@ export default function PlayerScreen() {
       userPickedAudioRef.current = true;
       setSelectedAudioIndex(index);
       resumeAfterRestartRef.current = player?.playing ?? true;
-      restartWithTracks(index, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+      restartWithTracks(index, burnInSubtitleIndex, selectedQuality || undefined);
     },
-    [player, restartWithTracks, selectedSubtitleIndex, selectedQuality],
+    [player, restartWithTracks, burnInSubtitleIndex, selectedQuality],
   );
 
   const handleSubtitleSelect = useCallback(
     (index: number | null) => {
       userPickedSubtitleRef.current = true;
+      // Text and PGS both render client-side in SubtitleOverlay, so switching
+      // between them (or off) needs no manifest change and is instant. Only a
+      // track we cannot draw - VobSub, DVB - still costs a restart, because the
+      // server has to burn that one into the frames itself.
+      const prev = subtitleStreams.find((s) => s.index === selectedSubtitleIndex);
+      const next = index === null ? null : subtitleStreams.find((s) => s.index === index);
+      if (prev?.burnIn || next?.burnIn) {
+        resumeAfterRestartRef.current = player?.playing ?? true;
+        restartWithTracks(selectedAudioIndex, next?.burnIn ? index ?? undefined : undefined, selectedQuality || undefined);
+      }
       setSelectedSubtitleIndex(index);
-      resumeAfterRestartRef.current = player?.playing ?? true;
-      restartWithTracks(selectedAudioIndex, index ?? undefined, selectedQuality || undefined);
     },
-    [player, restartWithTracks, selectedAudioIndex, selectedQuality],
+    [player, restartWithTracks, selectedAudioIndex, selectedQuality, subtitleStreams, selectedSubtitleIndex],
   );
 
   const handleSkipIntro = useCallback(
@@ -924,7 +963,7 @@ export default function PlayerScreen() {
           onPress={() => {
             // Retrying after a shed means the user wants playback back - always autoplay.
             resumeAfterRestartRef.current = true;
-            restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+            restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
           }}
           style={{ marginTop: 28 }}
           hasTVPreferredFocus
@@ -973,7 +1012,7 @@ export default function PlayerScreen() {
             // the twin bug (a stale error surviving a media CHANGE).
             setNativeError(null);
             resumeAfterRestartRef.current = true;
-            restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+            restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
           }}
           style={{ marginTop: 24 }}
           hasTVPreferredFocus
@@ -1007,6 +1046,17 @@ export default function PlayerScreen() {
         style={[styles.video, { width: screenWidth, height: screenHeight }]}
         nativeControls={false}
         contentFit="contain"
+      />
+
+      {/* Client-side subtitle rendering, which the TV had none of: expo-video
+          exposes track SELECTION only, so a text track sent to the server used
+          to answer a sidecar nobody fetched and simply never appeared, and a
+          bitmap one was burnt into the video at the cost of the copy rung.
+          Sits under the controls (drawn before them in the tree). */}
+      <SubtitleOverlay
+        mediaId={mediaId}
+        subtitleIndex={clientSubtitleIndex}
+        currentTimeSec={currentTime}
       />
 
       {isBuffering && (
