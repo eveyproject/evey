@@ -187,7 +187,15 @@ func (p *subtitlePrewarmer) run(ctx context.Context, job prewarmJob) {
 	//
 	// Matroska only - an MP4's sample table already is this index, and .avi
 	// never reaches mkvgo at all.
-	p.ensureIndex(ctx, job)
+	//
+	// Only from the SECOND track on. The walk is itself a full pass, so building
+	// it to serve a single extraction pays a whole traversal to save none - and
+	// the extraction that follows would have read the file anyway. Measured on
+	// this library (1503 files): 918 carry two text tracks or more and gain,
+	// 227 carry exactly one and were paying an extra pass for nothing.
+	if indexWorthBuilding(job) {
+		p.ensureIndex(ctx, job)
+	}
 
 	for _, t := range job.tracks {
 		if ctx.Err() != nil {
@@ -240,6 +248,18 @@ func startSubtitlePrewarmer(ctx context.Context, cache subtitleCache, indexes su
 	p := newSubtitlePrewarmer(cache, indexes)
 	p.Start(ctx)
 	return p
+}
+
+// indexWorthBuilding reports whether this job extracts enough tracks for the
+// index to pay for itself. The walk is a full pass of the container, so building
+// it to serve ONE extraction pays a whole traversal to save none - the single
+// extraction would have read the file anyway.
+//
+// Measured on a real library (1503 files): 918 carry two text tracks or more and
+// gain from the index, 227 carry exactly one and were paying an extra pass for
+// nothing. The remaining 358 have no text track, so no job is queued at all.
+func indexWorthBuilding(job prewarmJob) bool {
+	return len(job.tracks) >= 2
 }
 
 // ensureIndex builds and stores the file's subtitle index if it is missing.
