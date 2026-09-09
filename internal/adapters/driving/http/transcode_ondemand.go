@@ -486,11 +486,20 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 	// Prefer mkvgo's plan for the AC-3 audio rendition (no ffmpeg). Building it
 	// also warms the cache the od_audio* sub-requests hit. A plan failure routes
 	// the audio to the ffmpeg copy rendition instead - the source is still served.
-	_, planErr := h.buildPlan(r, mediaID, item, streams)
+	plan, planErr := h.buildPlan(r, mediaID, item, streams)
 	useMkvgoAudio := planErr == nil
 	useMkvgoVideo := videoCopy && planErr == nil
 
-	master, err := h.buildWasmAudioMaster(r, mediaID, item, streams, useMkvgoVideo, useMkvgoAudio, audioTrack)
+	// What the plan PUBLISHES about its own audio renditions, so the master can
+	// name the one carrying the resolved track instead of deriving its number -
+	// see transcode_ondemand_audio_rendition.go for the language mix-up that
+	// derivation caused in prod.
+	var rends []planAudioRendition
+	if useMkvgoAudio && !h.onDemandTrackTrim {
+		rends = planAudioRenditionsOf(r.Context(), plan)
+	}
+
+	master, err := h.buildWasmAudioMaster(r, mediaID, item, streams, useMkvgoVideo, useMkvgoAudio, audioTrack, rends)
 	if err != nil {
 		slog.WarnContext(r.Context(), "hls-vod: wasm-audio master failed, falling back",
 			slog.String("media_id", mediaID), slog.Any("err", err))
@@ -519,7 +528,7 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 // ignores. useMkvgoVideo points the single video variant at the packager's copy
 // playlist; otherwise the ffmpeg video-only ladder is kept. useMkvgoAudio picks
 // the audio rendition URI (mkvgo's od_audio{k} vs the ffmpeg audio_{k} copy).
-func (h *hlsVODServe) buildWasmAudioMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, useMkvgoVideo, useMkvgoAudio bool, audioTrack int) (string, error) {
+func (h *hlsVODServe) buildWasmAudioMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, useMkvgoVideo, useMkvgoAudio bool, audioTrack int, rends []planAudioRendition) (string, error) {
 	in, err := h.buildManifestInput(r, mediaID, item, streams)
 	if err != nil {
 		return "", err
@@ -572,7 +581,23 @@ func (h *hlsVODServe) buildWasmAudioMaster(r *http.Request, mediaID string, item
 		if h.onDemandTrackTrim {
 			idx = 1
 		}
-		uri := fmt.Sprintf("%saudio%d.m3u8?audioTrack=%d", onDemandPrefix, idx, audioTrack)
+		name := fmt.Sprintf("%saudio%d.m3u8", onDemandPrefix, idx)
+		// The plan's own master is the authority on which rendition carries which
+		// source track: the arithmetic above is right only when the plan kept
+		// EVERY audio track, and when it did not it addressed another language
+		// rather than 404ing. Falls back to the arithmetic when the two sequences
+		// cannot be aligned, so an unrecognised shape is no worse than before.
+		if resolved, ok := planRenditionURIFor(rends, streams, audioTrack); ok {
+			if resolved != name {
+				slog.InfoContext(r.Context(), "hls-vod: plan drops an audio track, naming the rendition the plan published",
+					slog.String("media_id", mediaID),
+					slog.Int("audio_track", audioTrack),
+					slog.String("derived", name),
+					slog.String("published", resolved))
+			}
+			name = resolved
+		}
+		uri := fmt.Sprintf("%s?audioTrack=%d", name, audioTrack)
 		if in.StreamToken != "" {
 			uri += "&token=" + url.QueryEscape(in.StreamToken)
 		}

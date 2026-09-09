@@ -570,12 +570,22 @@ export function resolveDefaultSubtitle(
 // considers autoplaying with sound). If it does, keep it muted and PLAYING rather
 // than dropping the viewer into a dead player: the volume control shows the muted
 // state, and one click brings the sound back.
-export async function startPlayback(video: HTMLVideoElement): Promise<boolean> {
+export async function startPlayback(video: HTMLVideoElement, silentElement = false): Promise<boolean> {
   try {
     await video.play();
     return true; // sounded autoplay allowed - nothing to work around
   } catch {
     // fall through to the muted start
+  }
+
+  // An element that carries no audio of its own must NEVER be muted here. On
+  // the wasm-audio path the master is video-only and the sound comes from
+  // WasmAudioEngine, whose gain MIRRORS video.muted - so this "muted playback
+  // beats none" ladder, which can end with muted left true, silences the
+  // decoder instead of helping it. And muting cannot buy anything anyway: an
+  // audio-less element is not what the autoplay policy gates on.
+  if (silentElement) {
+    return !video.paused;
   }
 
   video.muted = true;

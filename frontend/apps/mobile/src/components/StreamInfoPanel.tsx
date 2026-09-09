@@ -10,6 +10,7 @@ import {
   visibleTranscodeReasons,
   type V1StreamInfo,
   type V1MediaStream,
+  pickAudioStream,
 } from "@evey/api";
 import { FONT_SIZE } from "@evey/theme";
 
@@ -17,6 +18,8 @@ interface StreamInfoPanelProps {
   visible: boolean;
   onClose: () => void;
   streamInfo: V1StreamInfo | null;
+  /** ABSOLUTE index of the selected audio stream, so the panel describes IT. */
+  audioStreamIndex?: number | null;
 }
 
 function formatBitrate(bitrate?: string): string {
@@ -93,7 +96,7 @@ function SectionHeader({ title, decision }: { title: string; decision?: string }
   );
 }
 
-export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPanelProps) {
+export function StreamInfoPanel({ visible, onClose, streamInfo, audioStreamIndex }: StreamInfoPanelProps) {
   const { t } = useTranslation();
   const theme = useTheme();
 
@@ -102,9 +105,7 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
   const videoStream = streamInfo.mediaStreams?.find(
     (s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_VIDEO",
   );
-  const audioStream = streamInfo.mediaStreams?.find(
-    (s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_AUDIO",
-  );
+  const audioStream = pickAudioStream(streamInfo.mediaStreams, { absolute: audioStreamIndex });
 
   const decisions = {
     playMethod: streamInfo.playMethod,

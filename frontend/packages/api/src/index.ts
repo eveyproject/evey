@@ -16,6 +16,7 @@ export * from "./defaultSubtitle";
 export * from "./pgsCues";
 export * from "./subtitleCues";
 export * from "./clientSubtitleTrack";
+export * from "./selectedAudioStream";
 export * from "./hlsRungs";
 export * from "./apiErrorMessage";
 export * from "./personDepartment";

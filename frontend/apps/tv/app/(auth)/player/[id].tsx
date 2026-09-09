@@ -1181,6 +1181,7 @@ export default function PlayerScreen() {
         visible={showStreamInfoPanel}
         onClose={() => setShowStreamInfoPanel(false)}
         streamInfo={streamInfo ?? null}
+        audioStreamIndex={selectedAudioIndex}
       />
 
       <SkipIntroButton
