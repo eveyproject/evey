@@ -259,10 +259,14 @@ func TestBuildFFmpegArgs_HWGate_SoftwareWhenNone(t *testing.T) {
 	}
 }
 
+// Without a PROBED GPU compositor a burn-in still takes the software path - the
+// pre-capability behaviour, and the safe answer on a driver whose overlay VPP
+// does not configure.
 func TestBuildFFmpegArgs_HWGate_BurnInFallsBackToSoftware(t *testing.T) {
 	opts := sampleHWOpts(transcoding.NVENC, "", 3)
 	opts.SubtitleTrackIndex = 0
-	opts.SubtitleCodec = "pgssub" // bitmap subtitle → burn-in → software path
+	opts.SubtitleCodec = "pgssub" // bitmap subtitle → burn-in
+	opts.HWOverlay = false        // host never certified a GPU compositor
 	args := BuildFFmpegArgs(opts)
 	if argsContain(args, "-hwaccel") {
 		t.Error("burn-in must fall back to software (no -hwaccel)")
@@ -565,5 +569,77 @@ func TestVideoEncoderFor(t *testing.T) {
 		if got := videoEncoderFor(c.codec, c.accel); got != c.want {
 			t.Errorf("videoEncoderFor(%q, %q) = %q, want %q", c.codec, c.accel, got, c.want)
 		}
+	}
+}
+
+// A burn-in must stop disqualifying the GPU once the host has probed a working
+// compositor. This is the gate that sent a whole 4K HDR session - decode,
+// tone-map and every encode - to the CPU because the container flagged a forced
+// subtitle DEFAULT (prod, 2026-09-09), while Jellyfin composited the very same
+// track on the very same GPU.
+func TestHWUsable_BurnInNeedsTheProbedCompositor(t *testing.T) {
+	for _, accel := range []transcoding.HWAccelType{transcoding.VAAPI, transcoding.QSV, transcoding.NVENC} {
+		off := transcoding.HLSProcessOpts{HWAccel: accel, HWOverlay: false}
+		if hwUsable(off, true, "") {
+			t.Errorf("%s: burn-in without a probed compositor must stay on software", accel)
+		}
+		on := transcoding.HLSProcessOpts{HWAccel: accel, HWOverlay: true}
+		if !hwUsable(on, true, "") {
+			t.Errorf("%s: burn-in with a probed compositor must keep the GPU", accel)
+		}
+	}
+	// The capability alone is not enough: a backend with no wired compositor
+	// must not be handed a filtergraph it cannot express.
+	if hwOverlayFilter(transcoding.HWAccelType("nope")) != "" {
+		t.Fatal("an unknown backend must have no overlay filter")
+	}
+	if hwUsable(transcoding.HLSProcessOpts{HWAccel: transcoding.HWAccelType("nope"), HWOverlay: true}, true, "") {
+		t.Error("an unknown backend must not take the GPU path for a burn-in")
+	}
+}
+
+// Multi-variant: the subtitle is blended ONCE on the source surface, before the
+// split, so N rungs inherit one composite instead of paying for N.
+func TestBuildMultiVariantHWArgs_BurnIn_BlendsOnceBeforeSplit(t *testing.T) {
+	opts := sampleHWOpts(transcoding.VAAPI, "/dev/dri/renderD128", 3)
+	opts.SubtitleTrackIndex = 2
+	opts.SubtitleCodec = "pgssub"
+	opts.HWOverlay = true
+
+	args := BuildFFmpegArgs(opts)
+	if !argsContain(args, "-hwaccel") {
+		t.Fatal("a burn-in with a probed compositor must stay on the GPU")
+	}
+	fc := argValue(args, "-filter_complex")
+	if strings.Count(fc, "overlay_vaapi") != 1 {
+		t.Errorf("expected exactly one GPU blend, got %d in %q", strings.Count(fc, "overlay_vaapi"), fc)
+	}
+	if !strings.Contains(fc, "[0:s:2]") {
+		t.Errorf("the subtitle branch must map the requested track, got %q", fc)
+	}
+	if !strings.Contains(fc, "hwupload") {
+		t.Errorf("the subtitle bitmap must be uploaded before the GPU blend, got %q", fc)
+	}
+	if i, j := strings.Index(fc, "overlay_vaapi"), strings.Index(fc, "split="); i < 0 || j < 0 || i > j {
+		t.Errorf("the blend must run BEFORE the split, got %q", fc)
+	}
+}
+
+// Single-rung: the blend runs at source resolution and the rung scaler after it,
+// mirroring the software path. A scaler before the blend mismatches the two
+// surfaces and Intel VAAPI refuses the graph outright.
+func TestBuildSingleTranscodeHWArgs_BurnIn_ScalesAfterTheBlend(t *testing.T) {
+	opts := sampleHWOpts(transcoding.VAAPI, "/dev/dri/renderD128", 1)
+	opts.SubtitleTrackIndex = 0
+	opts.SubtitleCodec = "pgssub"
+	opts.HWOverlay = true
+
+	fc := argValue(BuildFFmpegArgs(opts), "-filter_complex")
+	if fc == "" {
+		t.Fatal("a burn-in needs -filter_complex (the subtitle is a second input)")
+	}
+	i, j := strings.Index(fc, "overlay_vaapi"), strings.Index(fc, "scale_vaapi")
+	if i < 0 || j < 0 || i > j {
+		t.Errorf("expected overlay_vaapi BEFORE scale_vaapi, got %q", fc)
 	}
 }

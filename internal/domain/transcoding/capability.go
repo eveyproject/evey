@@ -87,6 +87,19 @@ type EncodeCapability struct {
 	// omitempty: a false bool must still surface in the admin calibration view.
 	HWTonemap bool `json:"hw_tonemap"`
 
+	// HWOverlay reports whether the calibrated HW backend can composite a bitmap
+	// subtitle onto the decoded frames ON THE GPU (overlay_vaapi / overlay_qsv /
+	// overlay_cuda). Probed separately from every other HW capability because it
+	// is the one that decides whether a burn-in keeps the GPU at all: until it
+	// existed, `hwUsable` refused the hardware path outright for any burn-in, so
+	// a film whose container flags a bitmap subtitle DEFAULT - a forced-subtitle
+	// track, the norm on retail rips - fell back to a full software decode +
+	// tonemap + encode even on a host whose GPU had just been certified for all
+	// three (prod, 2026-09-09). False -> the burn-in keeps the software path, as
+	// before. No omitempty: a false bool must still surface in the admin
+	// calibration view, since it is the case that costs.
+	HWOverlay bool `json:"hw_overlay"`
+
 	// GPUClass labels the calibrated accelerator for the admin panel:
 	// "integrated" (Intel iGPU / QSV), "discrete" (NVIDIA NVENC), or "" when it
 	// can't be told (AMD VAAPI - iGPU vs dGPU share a PCI vendor - or a host

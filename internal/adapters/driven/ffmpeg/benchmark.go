@@ -255,7 +255,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	// HW backend passed the realtime bench.
 	var hwFeatures []string
 	var hwDecodeCodecs []string
-	var hw10Bit, hwTonemap bool
+	var hw10Bit, hwTonemap, hwOverlay bool
 	if hwMax > 0 {
 		hwFeatures = r.probeHWFeatures(ctx, hwBackend)
 		// Probe DECODE support separately - encode-capable ≠ decode-capable
@@ -272,6 +272,11 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// from the 10-bit VPP: a backend may fold 10-bit yet lack a tone-map filter
 		// (or the Vulkan/OpenCL ICD it needs). False -> HDR tone-maps in software.
 		hwTonemap = probeHWTonemap(ctx, r.ffmpegPath, hwBackend, hwDevice)
+		// Probe the GPU subtitle compositor last, and separately again: a backend
+		// that decodes, folds 10-bit and tone-maps can still lack a working
+		// overlay VPP. It is the capability that decides whether a burn-in stays
+		// on the GPU at all - see EncodeCapability.HWOverlay.
+		hwOverlay = probeHWOverlay(ctx, r.ffmpegPath, hwBackend, hwDevice)
 	}
 
 	// What the encode rungs above were DECODED from, and how fast this host
@@ -290,6 +295,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		HWDecodeCodecs:       hwDecodeCodecs,
 		HW10BitTranscode:     hw10Bit,
 		HWTonemap:            hwTonemap,
+		HWOverlay:            hwOverlay,
 		HWDevice:             hwDevice,
 		GPUClass:             classifyGPU(hwBackend, hwDevice),
 		HWFeatures:           hwFeatures,
@@ -319,6 +325,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		slog.String("hw_backend", cap.HWBackend),
 		slog.Bool("hw_10bit_transcode", cap.HW10BitTranscode),
 		slog.Bool("hw_tonemap", cap.HWTonemap),
+		slog.Bool("hw_overlay", cap.HWOverlay),
 		slog.String("gpu_class", cap.GPUClass),
 		slog.Any("detected_backends", cap.DetectedBackends),
 		slog.Any("hw_features", cap.HWFeatures),

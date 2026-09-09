@@ -54,6 +54,7 @@ var (
 		"HWFeatures":          "opts.HWFeatures",
 		"HWSoftwareDecode":    "opts.HWSoftwareDecode (decoupled route: software decode + hwupload)",
 		"HWTonemap":           "opts.HWTonemap",
+		"HWOverlay":           "opts.HWOverlay (GPU bitmap-subtitle blend)",
 		"DeinterlaceAll":      "opts.DeinterlaceAll",
 		"SourceSAR":           "opts.SourceSAR",
 		"SourceVideoCodec":    "opts.SourceVideoCodec (copy path -tag:v)",
