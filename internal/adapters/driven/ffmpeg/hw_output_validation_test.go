@@ -74,3 +74,52 @@ func TestHWVisualValidation_SourceExtractionIgnoresHWInputArgs(t *testing.T) {
 		[]string{"-hwaccel", "definitely_not_a_real_accel"}, "")
 	assert.Error(t, err, "a broken candidate path must surface as inconclusive, not as certified")
 }
+
+// The regression that let prod certify hardware on speed alone: the offsets were
+// fixed at {1.0, 3.0} while sample.hevc ran 2.88 s, so the 3 s extraction failed
+// on EVERY run and every verdict came back inconclusive. Derived offsets always
+// land inside the probe output.
+func TestHWValidateOffsets_StayInsideTheWindow(t *testing.T) {
+	for _, dur := range []float64{0.5, 1.0, 2.88, 4.0, 30.0} {
+		offsets := hwValidateOffsets(dur)
+		require.NotEmpty(t, offsets, "a positive duration must yield at least one sample point (%.2fs)", dur)
+		for _, off := range offsets {
+			assert.Greater(t, off, 0.0, "offset 0 is a keyframe on every path, never diagnostic (%.2fs)", dur)
+			assert.Less(t, off, dur, "an offset past the end fails the extraction and voids the gate (%.2fs)", dur)
+		}
+	}
+}
+
+// Two points far apart are what separate "corrupt from frame one" from "degrades
+// after the first GOP". A window long enough must never collapse to one.
+func TestHWValidateOffsets_SpreadsTwoPointsWhenThereIsRoom(t *testing.T) {
+	offsets := hwValidateOffsets(4.0)
+	require.Len(t, offsets, 2)
+	assert.Greater(t, offsets[1]-offsets[0], 0.4)
+}
+
+// No duration means the gate cannot conclude, and must say so rather than
+// certify: the caller treats an empty offset list as an error, never a pass.
+func TestHWValidateOffsets_NoDurationYieldsNoSamplePoints(t *testing.T) {
+	assert.Empty(t, hwValidateOffsets(0))
+	assert.Empty(t, hwValidateOffsets(-1))
+}
+
+// End to end on a clip SHORTER than hwValidateEncodeSeconds - the production
+// shape. This used to fail the extraction at 3 s and return an error.
+func TestHWVisualValidation_CertifiesAClipShorterThanTheProbeWindow(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not in PATH")
+	}
+	short := filepath.Join(t.TempDir(), "short.mp4")
+	out, err := exec.Command("ffmpeg", "-hide_banner", "-nostats",
+		"-f", "lavfi", "-i", "testsrc=duration=2.88:size=640x360:rate=24",
+		"-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+		"-y", short).CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	r := NewBenchmarkRunner(BenchmarkOpts{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	verdict, err := r.validateHWVisualOutput(context.Background(), short, false, "libx264", nil, "")
+	require.NoError(t, err, "a sample shorter than the probe window must still yield a verdict")
+	assert.True(t, verdict.OK, "worst hamming %d", verdict.WorstHamming)
+}

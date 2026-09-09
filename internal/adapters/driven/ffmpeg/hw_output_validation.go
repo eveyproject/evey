@@ -48,10 +48,34 @@ const (
 	hwCorruptHammingThreshold = 16
 )
 
-// hwValidateSampleOffsets are the timestamps (seconds) sampled from the probe
-// encode. Two frames far apart catch both a corrupt-from-frame-one path and a
-// path that degrades after the first GOP.
-var hwValidateSampleOffsets = []float64{1.0, 3.0}
+// hwValidateOffsets are the timestamps (seconds) sampled from the probe encode.
+// Two frames far apart catch both a corrupt-from-frame-one path and a path that
+// degrades after the first GOP.
+//
+// They are DERIVED from the probe output's own duration rather than fixed,
+// because the encode is bounded by hwValidateEncodeSeconds but the sample can be
+// shorter: prod, 2026-09-09, ran a fixed {1.0, 3.0} against a 2.88 s
+// sample.hevc, so the 3 s extraction failed every single time. An extraction
+// failure means "the gate could not conclude", so every hardware path was kept
+// on its speed measurement alone - the exact thing this gate exists to prevent.
+//
+// Below ~1 s there is no room for two distinct pictures and one is returned;
+// a single frame still catches corrupt-from-frame-one, which is the common
+// failure. dur <= 0 (no verdict from the probe) returns nothing, and the caller
+// treats that as "cannot conclude" rather than a pass.
+func hwValidateOffsets(dur float64) []float64 {
+	if dur <= 0 {
+		return nil
+	}
+	// Inset from both ends: 0 is a keyframe on every path (never diagnostic of
+	// a mid-GOP problem) and the last frame is where a truncated write lands.
+	first := dur * 0.25
+	last := dur * 0.75
+	if last-first < 0.4 {
+		return []float64{first}
+	}
+	return []float64{first, last}
+}
 
 // hwVisualVerdict is the outcome of one decode-back validation.
 type hwVisualVerdict struct {
@@ -120,8 +144,20 @@ func (r *BenchmarkRunner) validateHWVisualOutput(ctx context.Context, sample str
 		return hwVisualVerdict{}, fmt.Errorf("hw validate: probe encode failed: %w (%s)", err, tailString(string(out), 200))
 	}
 
+	// The probe output is the window BOTH extractions have to land inside: the
+	// source is bounded by the same -t, so anything the output holds the source
+	// holds too.
+	probeDur, durErr := mediaDurationSec(runCtx, r.ffprobeBin(), outPath)
+	if durErr != nil {
+		return hwVisualVerdict{}, fmt.Errorf("hw validate: probe output duration: %w", durErr)
+	}
+	offsets := hwValidateOffsets(probeDur)
+	if len(offsets) == 0 {
+		return hwVisualVerdict{}, fmt.Errorf("hw validate: probe output has no usable duration (%.3fs)", probeDur)
+	}
+
 	worst := 0
-	for i, off := range hwValidateSampleOffsets {
+	for i, off := range offsets {
 		// Reference: SOFTWARE decode of the source, deliberately without the
 		// candidate path's input args - a decode-side corruption applied to
 		// both sides would cancel itself out.

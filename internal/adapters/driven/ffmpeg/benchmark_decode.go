@@ -40,6 +40,16 @@ const expectedSampleCodec = "hevc"
 // Only a clip we generated is regenerated: an operator-configured override or
 // SHA-pinned URL is deliberate content, reported and kept.
 func (r *BenchmarkRunner) cachedSampleIsSound(ctx context.Context, label string, src benchSampleSource, path string) bool {
+	// An empty file needs no probe to be condemned, and MUST be condemned here,
+	// because the probe fails on it - which the "no verdict is not a guilty
+	// verdict" rule below then reads as innocence. Prod, 2026-09-09:
+	// sample-hdr10.hevc was 0 bytes and kept on exactly that path, so
+	// software_hdr_max_height was benched against nothing at all.
+	if st, err := os.Stat(path); err == nil && st.Size() == 0 {
+		r.logger.Warn("benchmark: cached "+label+" sample is empty, regenerating it",
+			slog.String("path", path))
+		return false
+	}
 	probed, ok := r.probeSourceClass(ctx, path)
 	if !ok {
 		// No verdict is not a guilty verdict: deleting a cached clip because the
