@@ -4,36 +4,34 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/evey-project/evey/internal/pkg/netmeter"
 )
 
 type nopCloser struct{ io.ReadSeeker }
 
 func (nopCloser) Close() error { return nil }
 
-// Prod, 2026-09-09: a 70 GB source read flat out for its PGS track next to the
-// viewer's rafale. While the streaming meter says somebody is watching, an
-// extraction's reads are held to the paced rate.
-func TestMediaReadPacer_PacesWhilePlaybackIsActive(t *testing.T) {
-	meter := &netmeter.Meter{}
-	p := newMediaReadPacer(meter, 64<<10) // 64 KiB/s: slow enough to measure
-	p.sampleInterval = time.Millisecond
+func testPacer(t *testing.T, playing *atomic.Bool, bytesPerSec int) *mediaReadPacer {
+	t.Helper()
+	p := newMediaReadPacer(playing.Load, bytesPerSec)
+	p.sampleInterval = 0 // ask every time
+	return p
+}
 
-	// Baseline sample, then a burst of served bytes: the box is playing.
-	require.False(t, p.playbackActive(time.Now()))
-	meter.Add(10 << 20)
-	time.Sleep(2 * time.Millisecond)
-	require.True(t, p.playbackActive(time.Now()), "10 MiB served in the window is playback")
+// While somebody is watching, reads are paced.
+func TestMediaReadPacer_PacesWhilePlaybackIsActive(t *testing.T) {
+	var playing atomic.Bool
+	playing.Store(true)
+	p := testPacer(t, &playing, 64<<10) // 64 KiB/s: slow enough to measure
+	require.True(t, p.playbackActive(time.Now()))
 
 	r := &pacedReader{ReadSeekCloser: nopCloser{bytes.NewReader(make([]byte, 256<<10))}, pacer: p, ctx: context.Background()}
-	// The first burst (4 MiB deep bucket) is free; reads beyond it pay the
-	// rate. Drain the bucket, then time one more read.
+	// Drain the free burst, then time one read.
 	p.limiter.AllowN(time.Now(), subtitleReadBurst)
 	start := time.Now()
 	_, err := io.ReadFull(r, make([]byte, 32<<10))
@@ -41,14 +39,11 @@ func TestMediaReadPacer_PacesWhilePlaybackIsActive(t *testing.T) {
 	assert.GreaterOrEqual(t, time.Since(start), 300*time.Millisecond, "32 KiB at 64 KiB/s with an empty bucket takes ~0.5 s")
 }
 
-// An idle box reads unpaced: nobody is waiting on the disk.
+// Idle box: unpaced.
 func TestMediaReadPacer_UnpacedWhileIdle(t *testing.T) {
-	meter := &netmeter.Meter{}
-	p := newMediaReadPacer(meter, 1<<10) // 1 KiB/s - would take minutes if it applied
-	p.sampleInterval = time.Millisecond
+	var playing atomic.Bool
+	p := testPacer(t, &playing, 1<<10) // 1 KiB/s - would take minutes if it applied
 	require.False(t, p.playbackActive(time.Now()))
-	time.Sleep(2 * time.Millisecond)
-	require.False(t, p.playbackActive(time.Now()), "nothing served: idle")
 
 	r := &pacedReader{ReadSeekCloser: nopCloser{bytes.NewReader(make([]byte, 1<<20))}, pacer: p, ctx: context.Background()}
 	start := time.Now()
@@ -57,16 +52,23 @@ func TestMediaReadPacer_UnpacedWhileIdle(t *testing.T) {
 	assert.Less(t, time.Since(start), 200*time.Millisecond, "idle reads must not wait on the limiter")
 }
 
-// A cancelled extraction must not sit in the limiter: the wait ends with the
-// context, and the caller sees the cancellation on its next step.
+// The answer is sampled: a flip is seen after the interval, not before.
+func TestMediaReadPacer_SamplesTheActivityAnswer(t *testing.T) {
+	var playing atomic.Bool
+	p := newMediaReadPacer(playing.Load, 1<<20)
+	p.sampleInterval = time.Hour
+	now := time.Now()
+	require.False(t, p.playbackActive(now))
+	playing.Store(true)
+	assert.False(t, p.playbackActive(now.Add(time.Minute)), "inside the interval the sample stands")
+	assert.True(t, p.playbackActive(now.Add(2*time.Hour)), "past it the answer is refreshed")
+}
+
+// A cancelled extraction must not sit in the limiter.
 func TestMediaReadPacer_CancelledContextStopsTheWait(t *testing.T) {
-	meter := &netmeter.Meter{}
-	p := newMediaReadPacer(meter, 1<<10)
-	p.sampleInterval = time.Millisecond
-	require.False(t, p.playbackActive(time.Now()))
-	meter.Add(10 << 20)
-	time.Sleep(2 * time.Millisecond)
-	require.True(t, p.playbackActive(time.Now()))
+	var playing atomic.Bool
+	playing.Store(true)
+	p := testPacer(t, &playing, 1<<10)
 	p.limiter.AllowN(time.Now(), subtitleReadBurst)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -76,15 +78,14 @@ func TestMediaReadPacer_CancelledContextStopsTheWait(t *testing.T) {
 	assert.Less(t, time.Since(start), 200*time.Millisecond)
 }
 
-// No meter, no pacer, no options: the mkvgo calls run exactly as before.
+// No pacer: no options, mkvgo runs as before.
 func TestMediaReadPacer_NilIsUnpacedAndOptionless(t *testing.T) {
 	var p *mediaReadPacer
 	assert.False(t, p.playbackActive(time.Now()))
 	assert.Nil(t, p.options(context.Background()))
 	p.throttle(context.Background(), 1<<30) // must not block or panic
 
-	// A real pacer hands mkvgo an FS whose Open goes through the reader.
-	opts := newMediaReadPacer(&netmeter.Meter{}, 1).options(context.Background())
+	opts := newMediaReadPacer(func() bool { return false }, 1).options(context.Background())
 	require.Len(t, opts, 1)
 	require.NotNil(t, opts[0].FS)
 	assert.NotNil(t, opts[0].FS.Open)
