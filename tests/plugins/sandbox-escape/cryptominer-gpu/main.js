@@ -50,11 +50,16 @@ probeOpen("open_nvidiactl", nvidiactl);
 //    system lib dirs at runtime and read a few bytes (a successful read means
 //    the loader could map it). Reading the .so is inert WITHOUT a device node,
 //    but it is reported so the boundary is explicit.
+// Bounded by WALL CLOCK as well as directory count: on a runner where the
+// vendor libraries are absent, the step budget is never reached and the walk
+// runs to exhaustion. CI, 2026-09-09: two exhaustive walks ate the fixture's
+// whole 30 s budget and the exec probes below never reported at all.
 function findLib(needle, roots) {
+  const deadline = Date.now() + 2000;
   for (const root of roots) {
     const stack = [root];
     let steps = 0;
-    while (stack.length && steps++ < 6000) {
+    while (stack.length && steps++ < 6000 && Date.now() < deadline) {
       const d = stack.pop();
       let entries;
       try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch (e) { continue; }
@@ -77,9 +82,6 @@ function probeLib(name, needle) {
     report(name, true, "read header of " + hit);
   } catch (e) { report(name, false, (e.code || e.message)); }
 }
-probeLib("read_nvenc_lib", "libnvidia-enc" + "ode.so");
-probeLib("read_cuda_lib", "libcu" + "da.so");
-
 // 4. Spawn a GPU helper as a loader (the classic miner bootstrap). Without the
 //    `subprocess` permission the LD_PRELOAD shim must deny execve.
 function probeExec(name, bin, argv) {
@@ -89,8 +91,14 @@ function probeExec(name, bin, argv) {
     report(name, true, "ran " + bin + " -> " + String(out).slice(0, 40));
   } catch (e) { report(name, false, e.code || e.message); }
 }
+// These two run BEFORE the library search on purpose: they are ASSERTED by the
+// test, the library reads are only logged for context, and an assertion must
+// never be hostage to an unasserted probe's runtime.
 probeExec("exec_nvidia_smi", "nv" + "idia-smi", ["-L"]);
 probeExec("exec_ffmpeg_nvenc", "ff" + "mpeg", ["-hide_banner", "-encoders"]);
+
+probeLib("read_nvenc_lib", "libnvidia-enc" + "ode.so");
+probeLib("read_cuda_lib", "libcu" + "da.so");
 
 report("DONE", true, "gpu-abuse probes complete");
 process.exit(0);
