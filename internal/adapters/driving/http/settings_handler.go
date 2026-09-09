@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -426,8 +427,20 @@ func registerServerSettingsRoutes(
 					if body.ServerName == nil {
 						return ""
 					}
-					cfg.Server.Name = *body.ServerName
-					return *body.ServerName
+					// "" is the loop's "nothing to apply" signal, so an empty
+					// name cannot be told apart from an absent field: assigning
+					// it and THEN returning "" blanked the live name and skipped
+					// the persist, so the panel showed an empty server until a
+					// restart silently put the old one back. Validate before
+					// mutating, like every other string setting here does. A
+					// nameless server is not a legal value anyway - the panel's
+					// Reset (an explicit null) is the way back to "Evey".
+					name := strings.TrimSpace(*body.ServerName)
+					if name == "" {
+						return ""
+					}
+					cfg.Server.Name = name
+					return name
 				}},
 			{cfgKey: cfgKeyTranscodeMaxConc,
 				apply: func() string {
@@ -731,6 +744,10 @@ func registerServerSettingsRoutes(
 		// block live Effective* readers - only the plain field assignment is
 		// serialized against them.
 		mu.Lock()
+		// Keys whose live value changed but whose DB row could not be written.
+		// The setting applies now and vanishes at the next restart, so the call
+		// must NOT report success - see the 500 below.
+		var persistFailed []string
 		for _, u := range updates {
 			var serialized string
 			cfg.ApplyServerSettings(func() { serialized = u.apply() })
@@ -740,7 +757,8 @@ func registerServerSettingsRoutes(
 			overridden[u.cfgKey] = true
 			if store != nil {
 				if err := store.Set(r.Context(), u.cfgKey, serialized); err != nil {
-					slog.WarnContext(r.Context(), "persist server setting", slog.String("key", u.cfgKey), slog.Any("err", err))
+					slog.ErrorContext(r.Context(), "persist server setting", slog.String("key", u.cfgKey), slog.Any("err", err))
+					persistFailed = append(persistFailed, u.cfgKey)
 				}
 			}
 			if u.sideEffect != nil {
@@ -776,6 +794,27 @@ func registerServerSettingsRoutes(
 			}
 		}
 		mu.Unlock()
+
+		// A failed persist used to be logged and then answered 200 with
+		// `source: "override"` - the panel showed the setting as saved while
+		// the DB held nothing, and the value disappeared at the next restart
+		// with no trace. Same class as the Delete branch above, which was
+		// hardened first. The live config keeps the new value on purpose (apply
+		// and its side effect already ran, and there is no previous value to
+		// roll back to), so the honest answer is "applied, not saved".
+		if len(persistFailed) > 0 {
+			span.SetStatus(otelcodes.Error, "persist server setting")
+			payload, err := json.Marshal(map[string]any{
+				"message":         "settings applied but not persisted",
+				"unpersistedKeys": persistFailed,
+			})
+			if err != nil {
+				http.Error(w, `{"message":"settings applied but not persisted"}`, http.StatusInternalServerError)
+				return
+			}
+			http.Error(w, string(payload), http.StatusInternalServerError)
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		mu.RLock()

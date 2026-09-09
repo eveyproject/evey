@@ -66,6 +66,7 @@ type fakeSettingsStore struct {
 	mu        sync.Mutex
 	sets      map[string]string
 	deleteErr error
+	setErr    error
 }
 
 func newFakeSettingsStore() *fakeSettingsStore {
@@ -81,6 +82,9 @@ func (f *fakeSettingsStore) Get(_ context.Context, key string) (string, error) {
 func (f *fakeSettingsStore) Set(_ context.Context, key, value string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.setErr != nil {
+		return f.setErr
+	}
 	f.sets[key] = value
 	return nil
 }
@@ -119,6 +123,102 @@ func TestServerSettings_Put_ResetDeleteFailure_KeepsOverride(t *testing.T) {
 	}
 	if env.store.sets[cfgKeyQoERetention] != "14" {
 		t.Errorf("store row must survive a failed delete")
+	}
+}
+
+// The Set twin of the Delete test above: a persist failure must NOT be answered
+// 200 with `source: "override"`. The setting applies live and then vanishes at
+// the next restart, so a success response is a lie the operator only discovers
+// after a reboot.
+func TestServerSettings_Put_PersistFailure_ReportsError(t *testing.T) {
+	store := newFakeSettingsStore()
+	store.setErr = errors.New("db down")
+	env := newSettingsTestEnvWithStore(t, validUserValidator(true), store)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"qoeRetentionDays":21}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("PUT with a failing store = %d, want 500", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), cfgKeyQoERetention) {
+		t.Errorf("the response must name the key that could not be saved, got %q", rec.Body.String())
+	}
+	// Nothing was written, and the live value did change - that is the state the
+	// 500 is reporting, not a rollback.
+	if _, ok := env.store.sets[cfgKeyQoERetention]; ok {
+		t.Errorf("store must hold nothing after a failed Set")
+	}
+	if env.cfg.Metrics.QoERetentionDays != 21 {
+		t.Errorf("live value = %d, want the applied 21", env.cfg.Metrics.QoERetentionDays)
+	}
+}
+
+// A successful PUT must still answer 200 with the settings payload - the 500
+// path above must not fire when the store is healthy.
+func TestServerSettings_Put_PersistOK_StillReturnsSettings(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"qoeRetentionDays":21}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT = %d, want 200 (body %q)", rec.Code, rec.Body.String())
+	}
+	if env.store.sets[cfgKeyQoERetention] != "21" {
+		t.Errorf("store = %q, want 21", env.store.sets[cfgKeyQoERetention])
+	}
+}
+
+// An empty serverName used to blank the live name and then skip the persist,
+// because "" doubles as the loop's "field absent" signal. The name must survive
+// untouched, and nothing must be written.
+func TestServerSettings_Put_EmptyServerName_KeepsCurrentName(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	env.cfg.Server.Name = "Salon"
+
+	for _, body := range []string{`{"serverName":""}`, `{"serverName":"   "}`} {
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer tok")
+		rec := httptest.NewRecorder()
+		env.mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("PUT %s = %d", body, rec.Code)
+		}
+		if env.cfg.Server.Name != "Salon" {
+			t.Errorf("PUT %s emptied the live server name: %q", body, env.cfg.Server.Name)
+		}
+		if _, ok := env.store.sets[cfgKeyServerName]; ok {
+			t.Errorf("PUT %s persisted an empty name", body)
+		}
+	}
+}
+
+// A real rename still works, and is trimmed on the way in.
+func TestServerSettings_Put_ServerName_TrimsAndPersists(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"serverName":"  Salon  "}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT = %d", rec.Code)
+	}
+	if env.cfg.Server.Name != "Salon" {
+		t.Errorf("live name = %q, want %q", env.cfg.Server.Name, "Salon")
+	}
+	if env.store.sets[cfgKeyServerName] != "Salon" {
+		t.Errorf("store = %q, want %q", env.store.sets[cfgKeyServerName], "Salon")
 	}
 }
 
