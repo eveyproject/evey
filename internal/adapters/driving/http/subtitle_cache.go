@@ -221,11 +221,8 @@ func subtitleFlightKey(cacheKey, filePath string) string {
 // 4K remux on a throttled network mount has been measured past 15 minutes.
 const subtitleExtractionTimeout = 30 * time.Minute
 
-// subtitleExtractionDeadline bounds one extraction of the given source. Never
-// below subtitleExtractionTimeout; above it, what the file takes to read at
-// the paced rate (subtitle_read_pacer.go) with half again for a busy disk. A
-// 70 GB film paced behind a viewer would otherwise be cut off at 30 minutes,
-// its full read wasted, and paid again on the next request.
+// subtitleExtractionDeadline: at least the floor, else the paced read time of
+// the file plus margin - a 70 GB film paced behind a viewer outlives 30 min.
 func subtitleExtractionDeadline(filePath string) time.Duration {
 	st, err := os.Stat(filePath)
 	if err != nil || st.Size() <= 0 {

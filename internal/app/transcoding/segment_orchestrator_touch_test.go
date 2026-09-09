@@ -9,10 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Rafales of one hash share a cache directory. A cache hit at 24 while a
-// rafale at 0 and one at 23 both cover it was written by the one at 23; the
-// production credit (and the throttle's view of a buffer) must land there, or
-// the rafale at 0 is judged 24 segments ahead of a player it has never served.
+// Rafales of one hash share a cache dir: a hit at 24 was written by the
+// rafale at 23, not the one at 0.
 func TestOrchestrator_CacheHitCreditsTheClosestBehindRafale(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()

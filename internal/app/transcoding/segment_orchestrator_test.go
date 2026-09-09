@@ -56,11 +56,8 @@ func TestOrchestrator_EnsureSegmentRange_NoSpawnOnCacheHit(t *testing.T) {
 }
 
 func TestOrchestrator_EnsureSegmentRange_SecondCallSameWindowNoRespawn(t *testing.T) {
-	// A second request inside the live session's [startSeg, endSeg] window
-	// must NOT spawn another ffmpeg - just bump lastAccess - as long as the
-	// rafale is within reach of it (SeekReachWindowSegs past what it has
-	// produced). The window alone used to be enough; that is the 2026-09-09
-	// spinner, see segment_orchestrator_reach_test.go.
+	// A second request inside the window and within reach of the production
+	// point must NOT spawn another ffmpeg - just bump lastAccess.
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
 	src := stubSource{path: "/media/test.mkv"}
@@ -70,8 +67,6 @@ func TestOrchestrator_EnsureSegmentRange_SecondCallSameWindowNoRespawn(t *testin
 	fp := minimalFingerprint(t)
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
-	// The rafale produces through 9 (the player drains 9 from cache), then 10
-	// is one segment past its point.
 	writeReadySegment(t, cache, SegmentKey{DecisionHash: fp.Hash(), VariantIdx: 0, SegmentIdx: 9}, fp.UseFMP4)
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 9))
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 10))

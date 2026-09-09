@@ -57,8 +57,7 @@ func TestStartPositionHints_RememberedPerMediaAndExpire(t *testing.T) {
 	_, ok = hints.peek("m3", now)
 	assert.False(t, ok, "a start at 0 is the default, not a hint")
 
-	// Not consumed by a peek: the second variant playlist of an ABR probe
-	// warms at the same place.
+	// A peek does not consume: an ABR probe fetches two variant playlists.
 	seg, ok = hints.peek("m1", now.Add(2*time.Second))
 	assert.True(t, ok)
 	assert.Equal(t, 23, seg)

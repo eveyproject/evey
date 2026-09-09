@@ -61,9 +61,7 @@ type AudioSegmentOrchestrator struct {
 	// streamEnd handling (covers crash loops the reap cannot classify).
 	strikes map[string]audioSpawnStrikes
 
-	// Idle reaping. inactivityTimeout is how long a rendition may go without a
-	// single request before its sessions are killed; gcInterval the sweep period.
-	// Fields (not consts) so tests run the sweep in milliseconds.
+	// Idle reaping; fields so tests run the sweep in milliseconds.
 	inactivityTimeout time.Duration
 	gcInterval        time.Duration
 	stopGC            chan struct{}
@@ -71,23 +69,9 @@ type AudioSegmentOrchestrator struct {
 	gcOnce            sync.Once
 }
 
-// audioInactivityTimeout is how long a rendition's ffmpeg sessions survive with
-// nobody asking for a segment. Matches the video orchestrator's default.
-//
-// There was no reaping at all before, and a session only ended when ffmpeg had
-// encoded the WHOLE remaining track - at 8× real-time, a quarter of an hour for
-// a feature film, reading the entire container the whole way. Two viewer moves
-// leave a rendition orphaned exactly like that: the wasm decoder hands over
-// from the AAC relay after a few seconds and never asks for it again, and an
-// audio-track switch abandons the old track's session outright. Prod,
-// 2026-09-09: two such AAC encoders on a 70 GB 4K source, each pulling its input
-// at 8× real-time, alongside the viewer's video rafale - the disk was the
-// bottleneck and the viewer waited a minute for the switch.
-//
-// 60 s comfortably covers the segment cadence of a rendition that IS being
-// played (a request every few seconds), so a live viewer never loses their
-// encoder; a paused player that comes back after longer respawns at its
-// position, which the seek path already does in well under a second.
+// audioInactivityTimeout: a rendition nobody has asked for in this long is
+// killed. Without it a session only ended with ffmpeg, reading the whole film
+// at 8x - an audio switch or the wasm handover left one behind (prod 2026-09-09).
 const audioInactivityTimeout = 60 * time.Second
 
 // audioGCInterval is the idle sweep period.
@@ -151,18 +135,15 @@ func audioSessionKey(hash string, startSeg int) string {
 }
 
 type audioSession struct {
-	mu        sync.Mutex // guards teardown nil-out between Close and reap goroutine
-	fp        AudioFingerprint
-	handle    transcoding.HLSProcessHandle
-	teardown  func() // idempotent; release SegmentCache pending refcount
-	startedAt time.Time
-	startSeg  int    // segment this ffmpeg was started at (-ss / -start_number)
-	hash      string // AudioFingerprint.Hash(), without the start-segment suffix
-	silence   bool   // bounded anullsrc tail, not a real source read
-	// lastAccess is the last time a request for this rendition landed at or
-	// past this session's start (guarded by o.mu). The idle sweep reaps a
-	// session nobody has asked anything of for inactivityTimeout.
-	lastAccess time.Time
+	mu         sync.Mutex // guards teardown nil-out between Close and reap goroutine
+	fp         AudioFingerprint
+	handle     transcoding.HLSProcessHandle
+	teardown   func() // idempotent; release SegmentCache pending refcount
+	startedAt  time.Time
+	startSeg   int       // segment this ffmpeg was started at (-ss / -start_number)
+	hash       string    // AudioFingerprint.Hash(), without the start-segment suffix
+	silence    bool      // bounded anullsrc tail, not a real source read
+	lastAccess time.Time // last request at or past startSeg (guarded by o.mu)
 
 	// stopped marks a session the ORCHESTRATOR killed (eviction, Close), set
 	// under o.mu BEFORE Stop() is called. The reap goroutine reads it (under
@@ -179,9 +160,8 @@ func NewAudioSegmentOrchestrator(
 	return newAudioSegmentOrchestrator(cache, t, audioInactivityTimeout, audioGCInterval)
 }
 
-// newAudioSegmentOrchestrator is the constructor with the idle-sweep timing
-// exposed, so tests run it in milliseconds. The sweep starts here, after every
-// field is set - nothing may be tuned on the value afterwards.
+// newAudioSegmentOrchestrator exposes the sweep timing for tests. The sweep
+// goroutine starts here, so nothing may be tuned on the value afterwards.
 func newAudioSegmentOrchestrator(cache *SegmentCache, t transcoding.AudioProcess, inactivity, gcInterval time.Duration) *AudioSegmentOrchestrator {
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 	o := &AudioSegmentOrchestrator{
@@ -217,9 +197,8 @@ func (o *AudioSegmentOrchestrator) gcLoop() {
 	}
 }
 
-// sweepIdle kills every session whose rendition has had no request for
-// inactivityTimeout. The kill is an orchestrator kill (stopped set under the
-// lock first), so the reap goroutine never reads it as a natural end of stream.
+// sweepIdle kills idle sessions. stopped is set under the lock first so the
+// reap goroutine never reads the kill as a natural end of stream.
 func (o *AudioSegmentOrchestrator) sweepIdle() {
 	cutoff := time.Now().Add(-o.inactivityTimeout)
 	var idle []*audioSession
@@ -244,14 +223,9 @@ func (o *AudioSegmentOrchestrator) sweepIdle() {
 	}
 }
 
-// touchLocked records a request for the rendition at segIdx on every session
-// that could be serving it: those started at or before segIdx. A session
-// started AFTER the request is a forward seek the viewer walked away from, and
-// is left to idle out. Caller holds o.mu.
-//
-// Called on cache hits too - a session paced ahead of the player (they all are)
-// serves every request from disk, so a touch confined to the spawn path would
-// see a rendition in steady playback as idle.
+// touchLocked marks the sessions started at or before segIdx as live; one
+// started after it is an abandoned forward seek. Called on cache hits too: a
+// session runs ahead of the player, so steady playback is all cache hits.
 func (o *AudioSegmentOrchestrator) touchLocked(audioHash string, segIdx int) {
 	now := time.Now()
 	for _, sess := range o.sessions {
@@ -286,8 +260,7 @@ func (o *AudioSegmentOrchestrator) EnsureAudioSegment(ctx context.Context, fp Au
 		Kind:         KindAudio,
 	}
 
-	// Fast path: segment already written to disk. Still a sign of life for the
-	// session that wrote it - see touchLocked.
+	// Fast path: segment already written to disk.
 	if o.cache.IsReady(key, true) {
 		o.touch(audioHash, segIdx)
 		return nil
