@@ -1,17 +1,14 @@
-// evey.theme.css() injects into the PARENT document at runtime, so it never
-// meets the Go sanitizer, which only runs on theme.css at install time. Rather
-// than re-implement 800 lines of it here, this accepts one shape: custom
-// property declarations. A `--x: value` does nothing on its own - it only acts
-// where the already-sanitized stylesheet references it - so selectors,
-// at-rules and standard properties are dropped rather than filtered.
+// evey.theme.css() injects into the PARENT document at runtime and never meets
+// the Go sanitizer, which only runs on theme.css at install. Instead of
+// re-implementing it here, accept one shape: custom property declarations. A
+// `--x: value` only acts where the already-sanitized stylesheet references it.
 
 const MAX_DECLARATIONS = 200;
 const MAX_VALUE_LENGTH = 500;
 const CUSTOM_PROPERTY_NAME = /^--[A-Za-z0-9_-]{1,100}$/;
 
-// Mirrors the Go pass reCustomPropExternalURL: a URL parked in a custom property
-// is fetched wherever the stylesheet resolves it. Backslashes go too - CSS escapes
-// are how the server-side regexes get bypassed, and no legitimate token needs one.
+// Mirrors the Go reCustomPropExternalURL pass. Backslashes go too: CSS escapes
+// are how the server-side regexes get bypassed.
 // No `;` here: splitDeclarations already cut on the top-level ones, so any that
 // remains is inside a quoted font name or a parenthesised value.
 const FORBIDDEN_IN_VALUE = /url\s*\(|image-set|expression\s*\(|@import|javascript\s*:|data\s*:|https?\s*:|\/\/|\/\*|[{}<>\\]/i;

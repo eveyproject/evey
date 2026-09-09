@@ -5,23 +5,17 @@ import (
 	"testing"
 )
 
-// The pHash pass is the CPU-heaviest pure-Go work in the product, and it runs on
-// the box the user already said is weak. FrequencyMapHamming is
-// O(candidates x episodes x frames) with no early exit across candidates, so its
-// cost grows with the square of a season's frame count - the shape that turns a
-// background backfill into a box that stops serving.
-//
-// Sizes are the real ones: trickplay aHash at 1 frame/15s, so a 22-minute
-// episode is ~88 frames and a 55-minute one ~220, over seasons of 8 to 24.
-// Defaults from intro_detection_config.go: FreqMapThreshold 0.30, MaxHamming 8.
+// FrequencyMapHamming is O(candidates x episodes x frames), so cost grows with
+// the SQUARE of a season's frame count. Sizes are real: trickplay aHash at
+// 1 frame/15s, i.e. ~88 frames for 22 min and ~220 for 55 min.
 
 const (
 	benchThreshold  = 0.30
 	benchMaxHamming = 8
 )
 
-// makeSeasonHashes builds episodes that share an intro (the same hashes, jittered
-// by a few bits like real frame drift does) and diverge everywhere else.
+// Episodes share an intro, jittered a few bits like real frame drift, and
+// diverge after it.
 func makeSeasonHashes(episodes, frames, introFrames int) [][]uint64 {
 	r := rand.New(rand.NewPCG(1, 2))
 	intro := make([]uint64, introFrames)
@@ -65,9 +59,7 @@ func BenchmarkFrequencyMapHamming(b *testing.B) {
 	}
 }
 
-// FrequencyMap is the maxHamming<=0 path: exact match, one map pass. Benchmarked
-// beside the Hamming one because the gap between them is the price of tolerating
-// frame drift, and that price is what a future optimisation has to beat.
+// The maxHamming<=0 path, for what tolerating frame drift costs.
 func BenchmarkFrequencyMapExact(b *testing.B) {
 	hashes := makeSeasonHashes(24, 220, 8)
 	b.ReportAllocs()
