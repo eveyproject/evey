@@ -255,6 +255,10 @@ func (c *Client) Download(ctx context.Context, fileID int, destPath string) (str
 	}
 	defer fileResp.Body.Close()
 
+	if fileResp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("download subtitle file: status %d", fileResp.StatusCode)
+	}
+
 	f, err := os.Create(filePath)
 	if err != nil {
 		return "", fmt.Errorf("create subtitle file: %w", err)
