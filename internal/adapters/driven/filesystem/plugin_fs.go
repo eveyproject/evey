@@ -40,6 +40,11 @@ func (fs *PluginFileSystem) CopySDKStubs(language, installDir string) error {
 		return nil
 	}
 
+	if !isSafePluginLanguage(lang) {
+		slog.Warn("rejected unsafe plugin language, skipping SDK stubs", slog.String("language", language))
+		return nil
+	}
+
 	sdkDir := filepath.Join(sdkBasePath, lang)
 	if _, statErr := os.Stat(sdkDir); statErr != nil {
 		slog.Debug("no SDK stubs for language", slog.String("language", lang), slog.Any("err", statErr))
@@ -67,6 +72,24 @@ func (fs *PluginFileSystem) CopySDKStubs(language, installDir string) error {
 
 	slog.Info("copied SDK stubs", slog.String("language", lang), slog.String("dir", installDir))
 	return nil
+}
+
+// isSafePluginLanguage rejects any value that isn't a bare directory-name
+// component. language comes from a plugin's manifest and feeds straight into
+// filepath.Join(sdkBasePath, lang) below - "..", a path separator, or an
+// absolute path would walk CopySDKStubs out of sdkBasePath entirely. This
+// intentionally does not hardcode a runtime allowlist (python/nodejs/go/...):
+// that set already lives in the runtime-availability check upstream, and
+// duplicating it here would silently break a legitimate plugin language this
+// function has never needed to know about.
+func isSafePluginLanguage(lang string) bool {
+	if lang == "" || strings.ContainsAny(lang, `/\`) {
+		return false
+	}
+	if lang != filepath.Base(lang) {
+		return false
+	}
+	return lang != "." && lang != ".."
 }
 
 func (fs *PluginFileSystem) ChownPluginDir(dir string) {

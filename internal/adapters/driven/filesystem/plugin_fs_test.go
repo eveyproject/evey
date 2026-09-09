@@ -60,6 +60,53 @@ func TestPluginFileSystem_CopySDKStubs_NodeAlias(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestIsSafePluginLanguage(t *testing.T) {
+	tests := []struct {
+		name string
+		lang string
+		want bool
+	}{
+		{"plain lowercase ident", "nodejs", true},
+		{"plain ident with digits", "go1", true},
+		{"empty", "", false},
+		{"dot", ".", false},
+		{"dotdot", "..", false},
+		{"parent traversal", "../../etc", false},
+		{"parent traversal no leading slash", "..", false},
+		{"nested traversal", "foo/../../etc", false},
+		{"forward slash absolute", "/etc/passwd", false},
+		{"backslash traversal", `..\..\etc`, false},
+		{"embedded forward slash", "a/b", false},
+		{"embedded backslash", `a\b`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isSafePluginLanguage(tt.lang), "language %q", tt.lang)
+		})
+	}
+}
+
+// TestPluginFileSystem_CopySDKStubs_PathTraversal_Rejected guards against a
+// plugin manifest smuggling ".." (or a raw separator) into the language
+// field: filepath.Join(sdkBasePath, lang) would otherwise resolve outside
+// sdkBasePath ("/app/sdk/../../etc" -> "/etc") and CopySDKStubs would happily
+// copy real host files into a plugin's installDir. It must instead behave
+// like the existing "unknown language" branch: no error, nothing copied.
+func TestPluginFileSystem_CopySDKStubs_PathTraversal_Rejected(t *testing.T) {
+	fs := NewPluginFileSystem()
+
+	for _, lang := range []string{"../../etc", "..\\..\\etc", "foo/../../etc", "/etc"} {
+		installDir := t.TempDir()
+
+		err := fs.CopySDKStubs(lang, installDir)
+		require.NoError(t, err, "language %q", lang)
+
+		entries, readErr := os.ReadDir(installDir)
+		require.NoError(t, readErr)
+		assert.Empty(t, entries, "language %q must not copy anything into installDir", lang)
+	}
+}
+
 // TestSDKStubs_InSyncWithSourceProto guards the plugin SDK contract:
 // CopySDKStubs overwrites a plugin's bundled plugin_api.proto with the
 // server-shipped sdk/ copy at every install, so a stale sdk/ silently strips
