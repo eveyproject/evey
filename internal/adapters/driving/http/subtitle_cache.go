@@ -19,6 +19,7 @@ package httpapi
 // where a library's worth of them would not be worth an eviction policy.
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -28,6 +29,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -196,4 +198,44 @@ func (c subtitleCache) purge() (int, error) {
 		}
 	}
 	return removed, nil
+}
+
+// subtitleExtractionTimeout bounds one shared extraction. Generously sized: the
+// work is a full sequential read of the container, and a 4K remux on a throttled
+// network mount has been measured past 15 minutes.
+const subtitleExtractionTimeout = 30 * time.Minute
+
+// runSharedSubtitleExtraction collapses concurrent requests for the same track
+// onto ONE extraction, and - the part singleflight.Do alone gets wrong - runs
+// that extraction on a context nobody's request can cancel.
+//
+// With Do(), the shared work inherits whichever caller happened to win the
+// flight. When THAT caller goes away - a player retrying what it thinks is a
+// hung request, an overlay remounting, a viewer closing the tab - its context is
+// cancelled and every waiter fails with "context canceled", including the ones
+// still perfectly connected. Prod, 2026-09-09: five requests for one PGS track
+// all failed in the same millisecond that way, and since the extraction costs a
+// full read of the film, nothing was cached either - so the next attempt paid
+// the whole price again.
+//
+// The work therefore runs detached with its own deadline (it fills a cache that
+// outlives every request), while each caller still gives up on its OWN context.
+func runSharedSubtitleExtraction(ctx context.Context, key string, work func(context.Context) ([]byte, error)) ([]byte, error) {
+	ch := subtitleExtractions.DoChan(key, func() (any, error) {
+		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), subtitleExtractionTimeout)
+		defer cancel()
+		return work(workCtx)
+	})
+	select {
+	case <-ctx.Done():
+		// This caller is gone; the extraction keeps running and caches its
+		// result for whoever asks next.
+		return nil, ctx.Err()
+	case res := <-ch:
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		data, _ := res.Val.([]byte)
+		return data, nil
+	}
 }

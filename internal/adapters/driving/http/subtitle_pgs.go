@@ -250,7 +250,7 @@ func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span
 		return
 	}
 
-	produced, err, _ := subtitleExtractions.Do(cacheKey+"|pgs|"+filePath, func() (any, error) {
+	data, err := runSharedSubtitleExtraction(ctx, cacheKey+"|pgs|"+filePath, func(ctx context.Context) ([]byte, error) {
 		if data, ok := cache.get(cacheKey); ok {
 			return data, nil
 		}
@@ -290,7 +290,6 @@ func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span
 		http.Error(w, `{"message":"subtitle not available"}`, http.StatusUnprocessableEntity)
 		return
 	}
-	data, _ := produced.([]byte)
 	writePGSBlob(w, r, data)
 }
 

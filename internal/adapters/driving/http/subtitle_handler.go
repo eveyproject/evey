@@ -160,7 +160,7 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 		// One extraction at a time per track. A player that retries what it
 		// believes is a hung request - which a 71-second wait invites - would
 		// otherwise start a second full read of the same film.
-		produced, err, _ := subtitleExtractions.Do(cacheKey+"|"+filePath, func() (any, error) {
+		produced, err := runSharedSubtitleExtraction(ctx, cacheKey+"|"+filePath, func(ctx context.Context) ([]byte, error) {
 			// Re-check under the flight: the request we queued behind may have
 			// just filled the cache.
 			if data, ok := cache.get(cacheKey); ok {
@@ -179,11 +179,9 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 			}
 			return data, nil
 		})
-		if err == nil {
-			if data, ok := produced.([]byte); ok && len(data) > 0 {
-				writeSubtitleVTT(w, r, baseURL, data)
-				return
-			}
+		if err == nil && len(produced) > 0 {
+			writeSubtitleVTT(w, r, baseURL, produced)
+			return
 		}
 		slog.WarnContext(ctx, "subtitle: extraction failed",
 			slog.String("media_id", mediaID), slog.Int("track", trackIndex), slog.Any("err", err))
