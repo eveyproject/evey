@@ -188,11 +188,13 @@ func extractPGSBlob(ctx context.Context, filePath string, trackID uint64, ix *ma
 		return nil
 	}
 
+	// Paced while a stream is being served - see subtitle_read_pacer.go.
+	opts := subtitleReadOptions(ctx)
 	var err error
 	if ix != nil {
-		err = matroska.ForEachSubtitlePGSFrom(ctx, filePath, trackID, ix, collect)
+		err = matroska.ForEachSubtitlePGSFrom(ctx, filePath, trackID, ix, collect, opts...)
 	} else {
-		err = matroska.ForEachSubtitlePGS(ctx, filePath, trackID, collect)
+		err = matroska.ForEachSubtitlePGS(ctx, filePath, trackID, collect, opts...)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("pgs extract: %w", err)
@@ -250,7 +252,7 @@ func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span
 		return
 	}
 
-	data, err := runSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), func(ctx context.Context) ([]byte, error) {
+	data, err := runSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), filePath, func(ctx context.Context) ([]byte, error) {
 		if data, ok := cache.get(cacheKey); ok {
 			return data, nil
 		}

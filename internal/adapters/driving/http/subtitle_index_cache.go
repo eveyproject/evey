@@ -124,7 +124,8 @@ func (c subtitleIndexCache) buildAndStore(ctx context.Context, filePath string, 
 	if len(trackIDs) == 0 {
 		return nil, nil //nolint:nilnil // "nothing to index" is not a failure
 	}
-	ix, err := matroska.BuildSubtitleIndex(ctx, filePath, trackIDs)
+	// Paced while a stream is being served - see subtitle_read_pacer.go.
+	ix, err := matroska.BuildSubtitleIndex(ctx, filePath, trackIDs, subtitleReadOptions(ctx)...)
 	if err != nil {
 		return nil, fmt.Errorf("subtitle index: build: %w", err)
 	}

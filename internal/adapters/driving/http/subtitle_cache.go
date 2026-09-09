@@ -216,10 +216,24 @@ func subtitleFlightKey(cacheKey, filePath string) string {
 	return cacheKey + "|" + filePath
 }
 
-// subtitleExtractionTimeout bounds one shared extraction. Generously sized: the
-// work is a full sequential read of the container, and a 4K remux on a throttled
-// network mount has been measured past 15 minutes.
+// subtitleExtractionTimeout is the floor of one shared extraction's deadline.
+// Generously sized: the work is a full sequential read of the container, and a
+// 4K remux on a throttled network mount has been measured past 15 minutes.
 const subtitleExtractionTimeout = 30 * time.Minute
+
+// subtitleExtractionDeadline bounds one extraction of the given source. Never
+// below subtitleExtractionTimeout; above it, what the file takes to read at
+// the paced rate (subtitle_read_pacer.go) with half again for a busy disk. A
+// 70 GB film paced behind a viewer would otherwise be cut off at 30 minutes,
+// its full read wasted, and paid again on the next request.
+func subtitleExtractionDeadline(filePath string) time.Duration {
+	st, err := os.Stat(filePath)
+	if err != nil || st.Size() <= 0 {
+		return subtitleExtractionTimeout
+	}
+	paced := time.Duration(float64(st.Size())/float64(subtitleReadRateWhilePlaying)*1.5) * time.Second
+	return max(subtitleExtractionTimeout, paced+5*time.Minute)
+}
 
 // runSharedSubtitleExtraction collapses concurrent requests for the same track
 // onto ONE extraction, and - the part singleflight.Do alone gets wrong - runs
@@ -236,9 +250,9 @@ const subtitleExtractionTimeout = 30 * time.Minute
 //
 // The work therefore runs detached with its own deadline (it fills a cache that
 // outlives every request), while each caller still gives up on its OWN context.
-func runSharedSubtitleExtraction(ctx context.Context, key string, work func(context.Context) ([]byte, error)) ([]byte, error) {
+func runSharedSubtitleExtraction(ctx context.Context, key, filePath string, work func(context.Context) ([]byte, error)) ([]byte, error) {
 	ch := subtitleExtractions.DoChan(key, func() (any, error) {
-		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), subtitleExtractionTimeout)
+		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), subtitleExtractionDeadline(filePath))
 		defer cancel()
 		return work(workCtx)
 	})
