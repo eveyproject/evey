@@ -1,9 +1,11 @@
-// WebVTT cue parsing + active-cue lookup for the mobile client-side subtitle
-// renderer (SubtitleOverlay). Built ON TOP of subtitleOffset.ts's offset math
-// instead of duplicating it - that primitive only knows {start,end} pairs (no
-// DOM dependency), this file adds the "text" a cue carries and the lookup a
-// renderer needs, without touching either subtitleParse.ts or
-// subtitleOffset.ts (both already delivered and tested).
+// WebVTT cue parsing + active-cue lookup for the client-side subtitle
+// renderers. Shared by mobile and TV (and available to the web), which is why
+// it lives here rather than in one app: the same server route answers the same
+// WebVTT for all three, and a second copy of this parser would drift.
+//
+// Built ON TOP of subtitleOffset.ts's offset math instead of duplicating it -
+// that primitive only knows {start,end} pairs, this file adds the "text" a cue
+// carries and the lookup a renderer needs.
 
 import { applyCueOffset, type Cue } from "./subtitleOffset";
 

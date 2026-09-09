@@ -14,6 +14,8 @@ export * from "./imageSubtitles";
 export * from "./langCodes";
 export * from "./defaultSubtitle";
 export * from "./pgsCues";
+export * from "./subtitleCues";
+export * from "./clientSubtitleTrack";
 export * from "./hlsRungs";
 export * from "./apiErrorMessage";
 export * from "./personDepartment";

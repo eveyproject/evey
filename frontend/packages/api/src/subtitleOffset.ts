@@ -1,10 +1,8 @@
-// Subtitle resync primitives - pure math only. NOT wired to the player yet:
-// expo-video exposes subtitle TRACK SELECTION only (SubtitleTrack has no cue
-// accessor, see expo-video's VideoPlayer.types), so there is no live cue list
-// to shift the way the web's useSubtitleManager mutates TextTrackCue objects.
-// These functions are the primitive a future client-side WebVTT renderer
-// would need (see the mobile player dispatch report for the renderer plan);
-// kept here, tested, so that renderer doesn't have to re-derive the math.
+// Subtitle resync primitives - pure math only, no DOM and no React, which is
+// why they sit in the shared package: the mobile and TV renderers both shift
+// cues, and the web does the same arithmetic on live TextTrackCue objects in
+// useSubtitleManager. Kept separate from subtitleCues.ts because this half only
+// knows {start,end} pairs - it has no opinion on what a cue carries.
 
 export const SUBTITLE_OFFSET_STEP_MS = 100;
 export const SUBTITLE_OFFSET_MAX_MS = 10_000;
