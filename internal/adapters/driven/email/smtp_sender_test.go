@@ -57,6 +57,32 @@ func TestBuildMessage(t *testing.T) {
 	}
 }
 
+func TestBuildMessage_HeaderInjection(t *testing.T) {
+	injected := "attacker@evil.tld\r\nBcc: attacker@evil.tld"
+	msg := buildMessage(injected, []string{injected}, "Hello\r\nBcc: attacker@evil.tld", "World")
+	s := string(msg)
+
+	if contains(s, "\r\nBcc:") {
+		t.Fatalf("injected Bcc header survived sanitization: %q", s)
+	}
+	if contains(s, "\nBcc:") {
+		t.Fatalf("injected Bcc header survived sanitization (bare LF): %q", s)
+	}
+
+	// The message must still have exactly the 5 expected header lines
+	// followed by the blank line and body - no extra header was smuggled in.
+	wantLines := []string{
+		"From: attacker@evil.tld  Bcc: attacker@evil.tld\r\n",
+		"To: attacker@evil.tld  Bcc: attacker@evil.tld\r\n",
+		"Subject: Hello  Bcc: attacker@evil.tld\r\n",
+	}
+	for _, want := range wantLines {
+		if !contains(s, want) {
+			t.Errorf("message missing sanitized line %q, got %q", want, s)
+		}
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && containsStr(s, substr)
 }
