@@ -9,6 +9,9 @@ type ClientProfile struct {
 	MaxBitrate       int64 // kbps, 0 = unlimited
 	SupportsHDR      bool
 	MaxAudioChannels int // 0 = unlimited
+	// MaxH264Level is the highest H.264 level_idc the device decodes (41 = 4.1,
+	// a first-generation Chromecast). 0 = no limit.
+	MaxH264Level int
 	// FMP4AudioPassthrough lists the audio codecs this client accepts as a RAW
 	// passthrough inside our fMP4 segments, on top of the always-wired set
 	// (AAC/AC-3/E-AC-3). Deliberately NOT derived from AudioCodecs: "I decode

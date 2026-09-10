@@ -660,6 +660,15 @@ func hevcTranscodeCodecString(height int, main10 bool) string {
 	return "hvc1." + profile + ".L" + level + ".B0"
 }
 
+// h264TranscodeCodecString: High @ L4.0 up to 1080p (the historical string
+// every client accepts), High @ L5.1 above, matching the encoder's -level.
+func h264TranscodeCodecString(height int) string {
+	if height > 1080 {
+		return "avc1.640033"
+	}
+	return "avc1.640028"
+}
+
 func videoCodecAttrFor(c string, height int, main10 bool) string {
 	switch c {
 	case "hevc", "h265", "x265":
@@ -674,11 +683,9 @@ func videoCodecAttrFor(c string, height int, main10 bool) string {
 	case "vp9":
 		return "vp09.00.10.08"
 	case "", "h264", "avc", "libx264":
-		// avc1.640028 = High profile @ L4.0 (1080p baseline). Pre-refactor
-		// default; keep for backward compat when ChosenVideoCodec is empty.
-		return "avc1.640028"
+		return h264TranscodeCodecString(height)
 	default:
-		return "avc1.640028"
+		return h264TranscodeCodecString(height)
 	}
 }
 

@@ -15,7 +15,8 @@ func TestHevcTranscodeCodecString(t *testing.T) {
 	assert.Equal(t, "hvc1.1.6.L123.B0", hevcTranscodeCodecString(1080, false))
 	assert.Equal(t, "hvc1.1.6.L150.B0", hevcTranscodeCodecString(1440, false))
 	assert.Equal(t, "hvc1.2.4.L153.B0", hevcTranscodeCodecString(2160, true), "Main10 for the HDR passthrough")
-	assert.Equal(t, "avc1.640028", videoCodecAttrFor("h264", 2160, true), "only HEVC carries a profile/level")
+	assert.Equal(t, "avc1.640033", videoCodecAttrFor("h264", 2160, true), "H.264 above 1080p signals High@L5.1")
+	assert.Equal(t, "avc1.640028", videoCodecAttrFor("h264", 1080, false), "the historical string stays up to 1080p")
 }
 
 // A transcoded HEVC ladder advertises each rung's own level; the HDR

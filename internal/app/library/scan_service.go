@@ -54,10 +54,15 @@ type TypedDirectoryScanner interface {
 }
 
 type ScanService struct {
-	scanner      library.FileScanner
-	prober       library.StreamProber
-	subScanner   library.ExternalSubtitleScanner
-	search       library.SearchIndex
+	scanner    library.FileScanner
+	prober     library.StreamProber
+	subScanner library.ExternalSubtitleScanner
+	search     library.SearchIndex
+	// indexQueue batches search documents during a scan (one Meilisearch task
+	// per page instead of one per item); flushed by processNewItems.
+	indexMu      sync.Mutex
+	indexQueue   []*library.MediaItem
+	indexBatch   atomic.Bool
 	events       shared.EventBus
 	mediaItems   library.MediaItemCommandRepo
 	libQueries   library.LibraryQueryRepo
@@ -472,6 +477,11 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 	// starving the final Update of its budget.
 	const workerTimeout = 5 * time.Minute
 
+	s.indexBatch.Store(true)
+	defer func() {
+		s.indexBatch.Store(false)
+		s.flushIndex(ctx)
+	}()
 	var addedAtomic, updatedAtomic atomic.Int64
 	sem := make(chan struct{}, scanWorkerCount())
 	var wg sync.WaitGroup
@@ -507,6 +517,42 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 	}
 	wg.Wait()
 	return int(addedAtomic.Load()), int(updatedAtomic.Load())
+}
+
+const indexFlushEvery = 200
+
+// indexItem queues the document during a scan and indexes it straight away
+// outside one (single-file ingests).
+func (s *ScanService) indexItem(ctx context.Context, item *library.MediaItem) {
+	if s.search == nil || item == nil {
+		return
+	}
+	if !s.indexBatch.Load() {
+		if err := s.search.IndexMediaItem(ctx, item); err != nil {
+			slog.WarnContext(ctx, "index media item failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+		}
+		return
+	}
+	s.indexMu.Lock()
+	s.indexQueue = append(s.indexQueue, item)
+	full := len(s.indexQueue) >= indexFlushEvery
+	s.indexMu.Unlock()
+	if full {
+		s.flushIndex(ctx)
+	}
+}
+
+func (s *ScanService) flushIndex(ctx context.Context) {
+	s.indexMu.Lock()
+	batch := s.indexQueue
+	s.indexQueue = nil
+	s.indexMu.Unlock()
+	if len(batch) == 0 || s.search == nil {
+		return
+	}
+	if err := s.search.IndexMediaItemsBatch(ctx, batch); err != nil {
+		slog.WarnContext(ctx, "index media item failed", slog.Int("count", len(batch)), slog.Any("err", err))
+	}
 }
 
 func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, libraryID string, added, updated, removed int) {
@@ -708,11 +754,7 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 	if s.metadata != nil {
 		s.metadata.extractAndStoreChapters(ctx, string(item.ID), f.Path)
 	}
-	if s.search != nil {
-		if err := s.search.IndexMediaItem(ctx, item); err != nil {
-			slog.WarnContext(ctx, "index media item failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
-		}
-	}
+	s.indexItem(ctx, item)
 	s.publish(ctx, library.MediaItemAdded{
 		MediaItemID: item.ID,
 		LibraryID:   shared.LibraryID(libraryID),
@@ -798,11 +840,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	if s.metadata != nil {
 		s.metadata.extractAndStoreChapters(ctx, string(existing.ID), f.Path)
 	}
-	if s.search != nil {
-		if err := s.search.IndexMediaItem(ctx, existing); err != nil {
-			slog.WarnContext(ctx, "index media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
-		}
-	}
+	s.indexItem(ctx, existing)
 	if existing.Overview == "" {
 		s.publish(ctx, library.MediaItemAdded{
 			MediaItemID: existing.ID,

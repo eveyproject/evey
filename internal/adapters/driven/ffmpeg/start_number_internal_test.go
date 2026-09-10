@@ -157,16 +157,19 @@ func TestBuildCopyVideoArgs_PacingBurst(t *testing.T) {
 // software-HEVC transcode (client PreferredVideoCodec=hevc, no HW HEVC) must
 // emit NO profile/level and let x265 derive it from the pixel format.
 func TestSoftwareProfileLevelArgs_H264Only(t *testing.T) {
-	if got := joined(softwareProfileLevelArgs("libx264", -1)); !strings.Contains(got, "-profile:v high") {
+	if got := joined(softwareProfileLevelArgs("libx264", -1, 1080)); !strings.Contains(got, "-profile:v high") {
 		t.Fatalf("libx264 single must get -profile:v high, got %s", got)
 	}
-	if got := joined(softwareProfileLevelArgs("libx264", 2)); !strings.Contains(got, "-profile:v:2 high") {
+	if got := joined(softwareProfileLevelArgs("libx264", 2, 1080)); !strings.Contains(got, "-profile:v:2 high") {
 		t.Fatalf("libx264 multi must get -profile:v:2 high, got %s", got)
 	}
-	if got := softwareProfileLevelArgs("libx265", -1); got != nil {
+	if got := softwareProfileLevelArgs("libx265", -1, 1080); got != nil {
 		t.Fatalf("libx265 must get NO profile/level (x265 rejects \"high\"), got %v", got)
 	}
-	if got := softwareProfileLevelArgs("libsvtav1", 1); got != nil {
+	if got := joined(softwareProfileLevelArgs("libx264", -1, 2160)); !strings.Contains(got, "-level:v 5.1") {
+		t.Fatalf("a 2160p rung must be signalled level 5.1, got %s", got)
+	}
+	if got := softwareProfileLevelArgs("libsvtav1", 1, 1080); got != nil {
 		t.Fatalf("av1 must get NO profile/level, got %v", got)
 	}
 

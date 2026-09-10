@@ -174,6 +174,9 @@ func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscodi
 	if n := maxAudioChannelsQuery(r); n > 0 {
 		client.MaxAudioChannels = n
 	}
+	if n := parseIntQuery(r, "maxH264Level", 0); n > 0 {
+		client.MaxH264Level = n
+	}
 	if hdrSupported {
 		client.SupportsHDR = true
 	}

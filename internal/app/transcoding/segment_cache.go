@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -333,6 +334,16 @@ func (f DecisionFingerprint) AudioDecision() string {
 // Hash returns the canonical, stable SHA-256 fingerprint as a hex string. The
 // canonical form sorts/normalises fields so logically-equivalent decisions
 // (e.g. same profiles in a different append order) collide on the same hash.
+func (f DecisionFingerprint) tonemapImpl() string {
+	if !f.HWTonemap {
+		return "sw"
+	}
+	if slices.Contains(f.HWFeatures, transcoding.FeatureTonemapOpenCL) {
+		return "opencl"
+	}
+	return "vpp"
+}
+
 func (f DecisionFingerprint) Hash() string {
 	return f.hashWithDownmixPolicy(f.downmixPolicy())
 }
@@ -395,6 +406,11 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 	}
 	if f.HDRPassthrough {
 		b.WriteString("hdrpass=true\n")
+	}
+	if f.HDRTonemap && !f.HDRPassthrough {
+		// VPP, OpenCL and tonemapx draw different pictures: a capability change
+		// (new ICD, toggle) must not resume a title on the other curve's segments.
+		b.WriteString("tm=" + f.tonemapImpl() + "\n")
 	}
 	if num, den, ok := parseSARRatio(f.SourceSAR); ok && num != den {
 		// Conditional: only an anamorphic source forks its cache (square pixels

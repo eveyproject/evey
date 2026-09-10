@@ -589,3 +589,23 @@ func TestDecisionFingerprint_Hash_DistinguishesAudioOffset(t *testing.T) {
 		t.Fatal("zero offset must keep the pre-feature hash")
 	}
 }
+
+// The tone-map implementation is part of an HDR cache key: a VPP segment and
+// an OpenCL segment of the same title must never share a hash (prod 2026-09-10).
+func TestDecisionFingerprintHash_TonemapImplementationForksHDR(t *testing.T) {
+	base := DecisionFingerprint{MediaID: "m", SourcePath: "/f.mkv", HDRTonemap: true}
+	sw := base.Hash()
+	vpp := base
+	vpp.HWTonemap = true
+	ocl := vpp
+	ocl.HWFeatures = []string{"tonemap_opencl"}
+	if sw == vpp.Hash() || vpp.Hash() == ocl.Hash() {
+		t.Fatalf("tone-map implementations must fork the cache: sw=%s vpp=%s ocl=%s", sw, vpp.Hash(), ocl.Hash())
+	}
+	sdr := DecisionFingerprint{MediaID: "m", SourcePath: "/f.mkv"}
+	sdrHW := sdr
+	sdrHW.HWTonemap = true
+	if sdr.Hash() != sdrHW.Hash() {
+		t.Fatalf("an SDR title ignores the tone-mapper: %s vs %s", sdr.Hash(), sdrHW.Hash())
+	}
+}

@@ -57,18 +57,29 @@ func svtAV1PresetArgs(encoder string) []string {
 const (
 	h264Profile = "high"
 	h264Level   = "4.1"
+	// Above 1080p, level 4.1 is a lie (its macroblock budget stops at 1080p):
+	// 1440p/2160p rungs are signalled 5.1.
+	h264LevelUHD = "5.1"
 )
 
-func softwareProfileLevelArgs(encoder string, variantIdx int) []string {
+func h264LevelFor(height int) string {
+	if height > 1080 {
+		return h264LevelUHD
+	}
+	return h264Level
+}
+
+func softwareProfileLevelArgs(encoder string, variantIdx int, height int) []string {
 	if encoder != "libx264" {
 		return nil
 	}
+	level := h264LevelFor(height)
 	if variantIdx < 0 {
-		return []string{"-profile:v", h264Profile, "-level:v", h264Level}
+		return []string{"-profile:v", h264Profile, "-level:v", level}
 	}
 	return []string{
 		fmt.Sprintf("-profile:v:%d", variantIdx), h264Profile,
-		fmt.Sprintf("-level:v:%d", variantIdx), h264Level,
+		fmt.Sprintf("-level:v:%d", variantIdx), level,
 	}
 }
 
