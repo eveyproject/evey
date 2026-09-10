@@ -107,9 +107,52 @@ func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool
 	// GPU tone-mapping AND it's wired into this request (opts.HWTonemap) AND the
 	// backend has a HW tone-map filter - then the GPU folds HDR->SDR in-pipeline.
 	if toneMap != "" {
-		return opts.HWTonemap && hwTonemapFilter(opts.HWAccel, opts.HWFeatures) != ""
+		if opts.HWTonemap && hwTonemapFilter(opts.HWAccel, opts.HWFeatures) != "" {
+			return true
+		}
+		return hwTonemapBridge(opts.HWAccel, toneMap) != ""
 	}
 	return true
+}
+
+// hwTonemapBridge tone-maps on the CPU between a GPU decode and a GPU encode,
+// for backends without a GPU tone-mapper (AMD VAAPI, NVENC, an Intel without
+// its ICD): download the decoded surface, run the software chain, upload the
+// SDR frames. Measured 4K at 3.1x on a Ryzen 9900X + RTX 4070 Ti.
+func hwTonemapBridge(accel transcoding.HWAccelType, toneMap string) string {
+	if toneMap == "" {
+		return ""
+	}
+	// One format, not a list: a p010le|nv12 alternative broke the CUDA negotiation
+	// (verified on an RTX 4070 Ti); an 8-bit HDR source converts on the way down.
+	pre := "hwdownload,format=p010le,"
+	if !strings.Contains(toneMap, "tonemapx") {
+		pre += "format=yuv420p10le|yuv420p," // the zscale chain is planar-only
+	}
+	switch accel {
+	case transcoding.VAAPI:
+		return pre + toneMap + ",hwupload"
+	case transcoding.QSV:
+		return pre + toneMap + ",hwupload=extra_hw_frames=16,format=qsv"
+	case transcoding.NVENC:
+		return pre + toneMap + ",hwupload_cuda"
+	}
+	return ""
+}
+
+// hwToneMapStage is what runs before the GPU scaler(s) on an HDR->SDR job: the
+// GPU tone-mapper when probed and wanted, else the CPU bridge; "" when none.
+func hwToneMapStage(opts transcoding.HLSProcessOpts) string {
+	toneMap := resolveToneMap(opts, 0)
+	if toneMap == "" {
+		return ""
+	}
+	if opts.HWTonemap {
+		if tm := hwTonemapFilter(opts.HWAccel, opts.HWFeatures); tm != "" {
+			return tm
+		}
+	}
+	return hwTonemapBridge(opts.HWAccel, toneMap)
 }
 
 // hwTonemapFilter returns the GPU HDR->SDR tone-map filter for the backend, or
@@ -498,10 +541,8 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 	args := appendHWTranscodeInputArgs(nil, opts)
 
 	vf := hwRungScaleFilter(opts, p.Width)
-	if opts.HWTonemap {
-		if tm := hwTonemapFilter(opts.HWAccel, opts.HWFeatures); tm != "" {
-			vf = tm + "," + vf // GPU HDR->SDR fold before the scaler
-		}
+	if tm := hwToneMapStage(opts); tm != "" {
+		vf = tm + "," + vf
 	}
 	vf = hwSourceFilterPrefix(opts) + vf
 	if burnInRequested(opts) {
@@ -509,10 +550,8 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 		// runs at source resolution and the rung scaler after it, so drop the
 		// scaler from the main branch and re-add it past the compositor.
 		main := hwSourceFilterPrefix(opts)
-		if opts.HWTonemap {
-			if tm := hwTonemapFilter(opts.HWAccel, opts.HWFeatures); tm != "" {
-				main += tm + ","
-			}
+		if tm := hwToneMapStage(opts); tm != "" {
+			main += tm + ","
 		}
 		main = strings.TrimSuffix(main, ",")
 		if main == "" {
@@ -561,10 +600,8 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 	// does for a zero-copy decode.
 	src := "[0:v]" + hwSourceFilterPrefix(opts)
 	// Tone-map once on the source surface before the GPU split (not per-rung).
-	if opts.HWTonemap {
-		if tm := hwTonemapFilter(opts.HWAccel, opts.HWFeatures); tm != "" {
-			src += tm + ","
-		}
+	if tm := hwToneMapStage(opts); tm != "" {
+		src += tm + ","
 	}
 	// Burn the subtitle in ONCE, before the split, so every rung inherits it from
 	// a single GPU blend instead of compositing per rung.

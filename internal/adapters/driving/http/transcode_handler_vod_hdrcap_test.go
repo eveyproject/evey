@@ -175,7 +175,7 @@ func TestProfilesForDecision_HDRCap(t *testing.T) {
 			// treats "" as "h264" (in HWCodecs), source codec "hevc" is in
 			// HWDecodeCodecs, and HW10BitTranscode=true clears the 10-bit gate.
 			// With hwUsable=true the !hwUsable guard is false → HDR cap is skipped.
-			name: "hw_HDR_not_capped_by_SoftwareHDRMaxHeight",
+			name: "hw_HDR_without_GPU_tonemap_capped_by_SoftwareHDRMaxHeight",
 			setup: func(h *hlsVODServe) {
 				cap := hdrCapHWCapability()
 				h.capability = func() domaintranscoding.EncodeCapability { return cap }
@@ -191,14 +191,13 @@ func TestProfilesForDecision_HDRCap(t *testing.T) {
 			assertFn: func(t *testing.T, profiles []domaintranscoding.HLSProfile) {
 				t.Helper()
 				require.NotEmpty(t, profiles, "ladder must not be empty")
-				// The HDR software cap (480p) must NOT have fired.
-				// LadderFilmNormal tops out at 1080p, so 1080p is the observable
-				// maximum on the HW path - higher than the 480p HDR cap would give.
-				assert.Equal(t, 1080, maxHeight(profiles),
-					"HW path must reach normal ladder ceiling (1080p), not the HDR cap (480p)")
-				// Explicit guard: the HDR cap height must not be the ceiling.
-				assert.Greater(t, maxHeight(profiles), 480,
-					"HW path must exceed SoftwareHDRMaxHeight=480; cap must be suppressed")
+				// GPU decode + encode, CPU tone-map in between (no GPU tone-mapper
+				// probed): the software HDR ceiling (480p here) still caps the ladder.
+				assert.Equal(t, 480, maxHeight(profiles),
+					"no GPU tone-mapper: the CPU tone-maps between GPU decode and encode, so the CPU (SoftwareHDRMaxHeight) stays the ceiling")
+				for _, p := range profiles {
+					assert.LessOrEqual(t, p.Height, 480, "rung %s exceeds the CPU tone-map ceiling", p.Name)
+				}
 			},
 		},
 	}

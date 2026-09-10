@@ -253,24 +253,23 @@ func TestHWRouteUsable(t *testing.T) {
 	}
 	src := SourceDims{Codec: "hevc", TenBit: true, HDRRange: "PQ"}
 
-	t.Run("software tonemap keeps the encode on the CPU", func(t *testing.T) {
-		// tonemapx runs on the CPU and the encoder follows it there. Routing to
-		// the hardware producer anyway made the LADDER inherit the GPU ceiling:
-		// the master advertised 2160p for a libx264 encode, the segment 503'd and
-		// playback collapsed to the bottom rung.
+	t.Run("no GPU tone-mapper: the CPU tone-maps between GPU decode and encode", func(t *testing.T) {
 		noGPUTonemap := vaapiCapable()
 		noGPUTonemap.HWTonemap = false
 		pr := hwResolver(noGPUTonemap)
+		assert.True(t, pr.HWRouteUsable(tonemapNeeded, src), "the GPU decodes and encodes, tonemapx runs in between")
 
-		assert.False(t, pr.HWRouteUsable(tonemapNeeded, src),
-			"the route must follow the silicon that actually runs the encode")
+		// ...unless the GPU cannot decode the source: then nothing is left for it.
+		cpuDecode := noGPUTonemap
+		cpuDecode.HWDecodeCodecs = []string{"h264"}
+		assert.False(t, hwResolver(cpuDecode).HWRouteUsable(tonemapNeeded, src), "a software decode keeps the whole job on the CPU")
 	})
 
 	t.Run("GPU tonemap keeps the encode on the GPU", func(t *testing.T) {
 		assert.True(t, hwResolver(vaapiCapable()).HWRouteUsable(tonemapNeeded, src))
 		hlg := src
 		hlg.HDRRange = "HLG"
-		assert.False(t, hwResolver(vaapiCapable()).HWRouteUsable(tonemapNeeded, hlg), "HLG tone-maps in software")
+		assert.True(t, hwResolver(vaapiCapable()).HWRouteUsable(tonemapNeeded, hlg), "HLG rides the CPU bridge between GPU decode and encode, never the VPP")
 	})
 
 	t.Run("AV1-disabled host routes on the H.264 fallback", func(t *testing.T) {

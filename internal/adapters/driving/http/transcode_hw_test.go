@@ -359,9 +359,12 @@ func TestHWRouteUsable_HDRWithoutHWTonemap_RoutesSoftware(t *testing.T) {
 		VideoDecision:    "transcode",
 		TranscodeReasons: []string{"hdr_tonemapping_needed"},
 	}
-	if h.hwRouteUsable(hdr, src) {
-		t.Error("HDR source + no GPU tone-map must route SOFTWARE: the encode is libx264, " +
-			"so the ladder must take the software ceiling, not the GPU one")
+	if !h.hwRouteUsable(hdr, src) {
+		t.Error("HDR source + no GPU tone-map: the CPU tone-maps between the GPU decode and encode (the ladder is capped by the software HDR ceiling in ShapeLadder)")
+	}
+	// The bridge needs the GPU to decode: a source it cannot decode stays on the CPU.
+	if h.hwRouteUsable(hdr, apptranscoding.SourceDims{Codec: "mpeg2video", TenBit: true}) {
+		t.Error("HDR source the GPU cannot decode + no GPU tone-map must route SOFTWARE")
 	}
 
 	// Same host, an SDR source: nothing to tone-map, the GPU path stands.
