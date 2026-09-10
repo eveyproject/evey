@@ -36,10 +36,15 @@ import (
 // concurrently. A single benchInFlight lock guarantees only one
 // benchmark runs at a time (admin can't pile up requests by spamming
 // the recalibrate button).
+// hwInitStrikeWindow: a second missed HW init inside this window demotes the GPU.
+const hwInitStrikeWindow = 10 * time.Minute
+
 type CalibrationService struct {
 	repo   domaintranscoding.CapabilityRepo
 	runner domaintranscoding.BenchmarkRunner
 	logger *slog.Logger
+	// hwInitStrikeAt is the first missed HW init of the current window (under demoteMu).
+	hwInitStrikeAt time.Time
 
 	// mode is the admin-selectable HW-acceleration policy (auto/off/nvenc/
 	// vaapi/qsv). It projects to a HWPreference the runner honours: a backend
@@ -628,6 +633,20 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 	}
 	s.demoteMu.Lock()
 	defer s.demoteMu.Unlock()
+
+	// One missed init is a slow start as often as a dead GPU (prod 2026-09-10:
+	// a 4K seek during boot load). Two within the window prove the GPU.
+	if class == domaintranscoding.FailureHWInit {
+		now := time.Now()
+		if now.Sub(s.hwInitStrikeAt) > hwInitStrikeWindow {
+			s.hwInitStrikeAt = now
+			s.recordFallback(class, codec)
+			s.logger.Warn("calibration: HW init missed once, keeping the GPU until a second miss",
+				slog.String("codec", codec), slog.Duration("window", hwInitStrikeWindow))
+			return false
+		}
+		s.hwInitStrikeAt = time.Time{}
+	}
 
 	// Hold currentMu across the whole load→store so a concurrent benchAndPersist
 	// store can't land between the snapshot we demote from and the store back

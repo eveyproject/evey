@@ -62,6 +62,9 @@ func TestDemoteCapability_EncoderMissing_RemovesCodec(t *testing.T) {
 
 func TestDemoteCapability_InitFailure_DisablesHW(t *testing.T) {
 	svc, repo := seedHWService(t)
+	assert.False(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWInit, "h264"), "one missed init is a strike, not a verdict")
+	assert.Equal(t, "nvenc", svc.Current().HWBackend)
+	assert.Len(t, svc.RecentFallbacks(), 1, "the strike is still visible on the dashboard")
 	ok := svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWInit, "h264")
 	assert.True(t, ok)
 	cur := svc.Current()

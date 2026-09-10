@@ -365,7 +365,11 @@ func probeHWTonemapOpenCL(ctx context.Context, ffmpegPath, hwType, device string
 		"-f", "null", "-"}
 	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_tonemap_opencl"}, ffmpegPath, args...)
 	if err != nil {
-		slog.Info("hwdetect: OpenCL tone-map probe failed", slog.String("tail", tailString(string(out), 300)))
+		text := string(out)
+		if len(text) > 1200 {
+			text = text[:1200]
+		}
+		slog.Info("hwdetect: OpenCL tone-map probe failed", slog.String("head", text), slog.String("tail", tailString(string(out), 300)))
 		return false
 	}
 	return true

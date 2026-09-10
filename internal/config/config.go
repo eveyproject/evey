@@ -842,7 +842,7 @@ func Load() (*Config, error) {
 			HWAccelEnabled:               envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
 			HWBackend:                    strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
 			HWMode:                       strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
-			HWFirstSegmentTimeout:        envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 5*time.Second),
+			HWFirstSegmentTimeout:        envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 10*time.Second),
 			HWPerVariant:                 envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
 			SingleVariant:                envBool("EVEY_TRANSCODING_SINGLE_VARIANT", true),
 			SoftwareMaxHeightOverride:    envInt("EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT", 0),

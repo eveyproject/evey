@@ -98,7 +98,7 @@ type OrchestratorOptions struct {
 	// a stuck/dead GPU pipeline - demoted to software and killed - instead of
 	// letting the client wait out the full ~25 s segment timeout. The init
 	// (vs a full segment) is the signal because a working-but-slow HW pipeline
-	// writes it within ~1-3 s while a TDR-dead one never does, so a tight 5 s
+	// writes it within ~1-3 s while a TDR-dead one never does, so a 10 s
 	// default won't false-fail a slow weak-NAS GPU. Software sessions are
 	// unaffected; zero disables the watchdog.
 	HWFirstSegmentTimeout time.Duration
@@ -178,7 +178,7 @@ func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
 		out.MaxRafalesPerHash = 3
 	}
 	if out.HWFirstSegmentTimeout <= 0 {
-		out.HWFirstSegmentTimeout = 5 * time.Second
+		out.HWFirstSegmentTimeout = 10 * time.Second
 	}
 	if out.WaitBudgetDur <= 0 {
 		out.WaitBudgetDur = 25 * time.Second
