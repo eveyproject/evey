@@ -310,6 +310,7 @@ func SourceDimsOf(streams []*library.MediaStream) SourceDims {
 			}
 			dims.Codec = s.Codec
 			dims.TenBit = StreamIsTenBit(s)
+			dims.HDRRange = SourceCopyVideoRange(streams)
 			break
 		}
 	}
