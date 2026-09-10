@@ -259,7 +259,7 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
            intel-media-va-driver-non-free i965-va-driver libvpl2 libmfx-gen1.2; \
        fi \
     && if [ "$RUNTIMES" = "nodejs" ] || [ "$RUNTIMES" = "full" ]; then \
-         apt-get install -y --no-install-recommends nodejs npm \
+         apt-get install -y --no-install-recommends nodejs \
          && ([ -e /usr/bin/node ] || ln -sf /usr/bin/nodejs /usr/bin/node); \
        fi \
     && if [ "$RUNTIMES" = "full" ]; then \
@@ -335,6 +335,9 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
       && curl -fsSLO https://github.com/intel/compute-runtime/releases/download/${INTEL_NEO_LEGACY_VER}/intel-opencl-icd-legacy1_${INTEL_NEO_LEGACY_VER}_amd64.deb \
       && apt-get update && apt-get install -y --no-install-recommends ./*.deb \
       && cd / && rm -rf /tmp/neo /var/lib/apt/lists/* \
+      # The legacy IGC ships libopencl-clang.so as a 137 MB COPY of the .so.14, not a link.
+      && ln -sf libopencl-clang.so.14 /usr/local/lib/libopencl-clang.so \
+      && rm -rf /usr/share/doc /usr/share/man /usr/share/info \
       && ls /etc/OpenCL/vendors/ \
       && /usr/local/bin/ffmpeg -hide_banner -filters | grep -q tonemap_opencl; \
     fi
