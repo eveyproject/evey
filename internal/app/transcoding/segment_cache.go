@@ -179,6 +179,11 @@ type DecisionFingerprint struct {
 	// interchangeable in the addressable cache.
 	HWOverlay bool
 
+	// HDRPassthrough: HEVC Main10 with the source HDR kept (different bytes: hashed).
+	// HDRTransfer ("pq"/"hlg") is derived from the source, excluded from Hash().
+	HDRPassthrough bool
+	HDRTransfer    string
+
 	// Profiles must be the EXACT ABR ladder ffmpeg will emit. Different ladders
 	// produce different multi-variant runs (variant indices and bitrates differ),
 	// so they belong in the hash. Encoded as `name@WxH@vKbps@aKbps;…` ordered.
@@ -381,6 +386,9 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 	if f.DeinterlaceAll {
 		// Conditional: only an idet-flagged interlaced title forks its cache.
 		b.WriteString("deintall=true\n")
+	}
+	if f.HDRPassthrough {
+		b.WriteString("hdrpass=true\n")
 	}
 	if num, den, ok := parseSARRatio(f.SourceSAR); ok && num != den {
 		// Conditional: only an anamorphic source forks its cache (square pixels

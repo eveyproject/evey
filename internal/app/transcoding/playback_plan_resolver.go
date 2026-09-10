@@ -204,7 +204,8 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 	servedAsRawCopy := d.VideoDecision == "copy" && pr.CopyProducer != nil && SourceCopyVideoCodec(req.Streams) != ""
 	if !servedAsRawCopy &&
 		!slices.Contains(d.TranscodeReasons, "hdr_tonemapping_needed") &&
-		SourceIsHDR(req.Streams) {
+		SourceIsHDR(req.Streams) &&
+		!pr.HDRPassthroughWanted(*d, req.Streams) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
 		d.VideoDecision = "transcode"
 		if d.VideoCodec == "" {
@@ -290,8 +291,13 @@ func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecisio
 	hwTonemap := pr.HWTonemapWanted(decision)
 	srcCodec := SourceVideoCodec(streams)
 	src10 := SourceVideoTenBit(streams)
-	codec = decision.VideoCodec
+	codec = pr.codecWithPassthrough(pr.outputCodecFor(decision, streams), decision, streams)
 	accel, device, features, usable, softwareDecode = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
+	// Auto-picked HEVC is hardware-only (libx265 is far too slow for live HLS).
+	if codec == "hevc" && decision.VideoCodec != "hevc" && !usable {
+		codec = "h264"
+		accel, device, features, usable, softwareDecode = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
+	}
 	// AV1 output must clear TWO gates, else fall back to H.264:
 	//   1. the admin opt-in (transcoding.av1_enabled) - off by default; and
 	//   2. a usable HW AV1 encoder. AV1 is hardware-only for streaming because
@@ -326,12 +332,73 @@ func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src
 	if !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
 		return false
 	}
-	codec := decision.VideoCodec
+	codec := pr.outputCodecFor(decision, nil)
 	_, _, _, usable, _ := pr.ResolveHW(codec, src.Codec, src.TenBit, hwTonemap)
 	if strings.EqualFold(codec, "av1") && ((pr.AV1Enabled != nil && !pr.AV1Enabled()) || !usable) {
 		_, _, _, usable, _ = pr.ResolveHW("h264", src.Codec, src.TenBit, hwTonemap)
 	}
+	if codec == "hevc" && decision.VideoCodec != "hevc" && !usable {
+		_, _, _, usable, _ = pr.ResolveHW("h264", src.Codec, src.TenBit, hwTonemap)
+	}
 	return usable
+}
+
+// outputCodecFor upgrades the decision's H.264 to HEVC when the client decodes it
+// and the GPU encodes it; an explicit preference is never overridden. streams may be nil.
+func (pr *PlanResolver) outputCodecFor(decision transcoding.PlaybackDecision, streams []*library.MediaStream) string {
+	codec := decision.VideoCodec
+	if decision.VideoDecision != "transcode" || slices.Contains(decision.TranscodeReasons, "preferred_video_codec") {
+		return codec
+	}
+	if codec != "" && !strings.EqualFold(codec, transcoding.DefaultVideoCodec) {
+		return codec
+	}
+	if !pr.clientDecodes(decision, "hevc") || pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
+		return codec
+	}
+	if pr.Capability().HWSupports("hevc") {
+		return "hevc"
+	}
+	return codec
+}
+
+// outputCodecForPassthrough: the HDR passthrough is HEVC by construction.
+func (pr *PlanResolver) codecWithPassthrough(codec string, decision transcoding.PlaybackDecision, streams []*library.MediaStream) string {
+	if pr.HDRPassthroughWanted(decision, streams) {
+		return "hevc"
+	}
+	return codec
+}
+
+func (pr *PlanResolver) clientDecodes(decision transcoding.PlaybackDecision, codec string) bool {
+	for _, c := range decision.ClientVideoCodecs {
+		if transcoding.CanonicalVideoCodec(c) == codec {
+			return true
+		}
+	}
+	return false
+}
+
+// HDRPassthroughWanted: an HDR source transcoded for an HDR client that decodes
+// HEVC, on a GPU probed for Main10 encoding - keep the HDR instead of tone-mapping.
+func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecision, streams []*library.MediaStream) bool {
+	if decision.VideoDecision != "transcode" || slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
+		return false
+	}
+	if SourceCopyVideoRange(streams) == "" || !pr.clientDecodes(decision, "hevc") {
+		return false
+	}
+	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
+		return false
+	}
+	cap := pr.Capability()
+	if !cap.HWHDRPassthroughUsable() || !cap.HW10BitTranscode {
+		return false
+	}
+	if decision.VideoCodec != "" && !strings.EqualFold(decision.VideoCodec, "h264") && !strings.EqualFold(decision.VideoCodec, "hevc") {
+		return false
+	}
+	return true
 }
 
 // HWTonemapWanted reports whether this request should tone-map HDR->SDR on the
@@ -481,6 +548,9 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 				laddered = transcoding.CapLadderToHeight(laddered, m)
 			}
 		}
+	}
+	if ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, streams); strings.EqualFold(ec, "hevc") && !isCopy {
+		laddered = transcoding.ScaleLadderVideoBitrates(laddered, transcoding.HEVCBitrateNum, transcoding.HEVCBitrateDen)
 	}
 
 	// Load-forced route and ceiling (the third cap, same shared-head
@@ -651,6 +721,11 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 			}
 		}
 	}
+	// The HDR passthrough only exists on the GPU: a spill to software tone-maps.
+	hdrPassWanted := pr.HDRPassthroughWanted(decision, streams)
+	if !hwUsable && strings.EqualFold(videoCodec, "hevc") && decision.VideoCodec != "hevc" {
+		videoCodec = "h264"
+	}
 	normalize := pr.AudioNormalize != nil && pr.AudioNormalize(ctx)
 	srcAudio := SourceAudioCodec(streams, audioTrack)
 	audioCopy := AudioCopyEligible(decision, normalize, len(fpProfiles), srcAudio, req.Client)
@@ -679,7 +754,9 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		// non-HDR client, or Dolby Vision). Baked into the fingerprint so it (a)
 		// enters the cache hash - tonemapped vs not are different bytes - and (b)
 		// reaches the orchestrator/builder, which has no source streams to detect it.
-		HDRTonemap:       slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed"),
+		HDRTonemap:       slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") || (hdrPassWanted && !hwUsable),
+		HDRPassthrough:   hdrPassWanted && hwUsable,
+		HDRTransfer:      strings.ToLower(SourceCopyVideoRange(streams)),
 		AudioNormalize:   normalize,
 		AudioEncoder:     pr.audioEncoderID(),
 		MaxAudioChannels: decision.MaxAudioChannels,

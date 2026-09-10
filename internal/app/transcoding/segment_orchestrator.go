@@ -687,6 +687,8 @@ func (o *SegmentOrchestrator) spawnSession(
 		SubtitleCodec:      fp.SubtitleBurnInCodec,
 		HDRSupported:       false,         // tonemap is part of decision; HDRSupported=false on the client forces tonemap
 		ToneMap:            fp.HDRTonemap, // HDR->SDR tonemap decision, carried as a bool (Streams not threaded here)
+		HDRPassthrough:     fp.HDRPassthrough,
+		HDRTransfer:        fp.HDRTransfer,
 		AudioNormalize:     fp.AudioNormalize,
 		StartSec:           float64(startSegIdx) * o.opts.SegmentSeconds,
 		// StartNumber is what tells the transcoder this rafale is a SEEK whose
