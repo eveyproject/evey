@@ -348,7 +348,9 @@ func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device strin
 // Fail-closed: any error/abort/timeout ⇒ false ⇒ HDR tone-maps in software.
 // hwOpenCLTonemapChain maps the VAAPI surface into OpenCL, tone-maps with the
 // same bt2390/peak=100 curve as the software path, and maps back for the encoder.
-const hwOpenCLTonemapChain = "hwmap=derive_device=opencl,tonemap_opencl=format=nv12:primaries=bt709:transfer=bt709:matrix=bt709:tonemap=bt2390:peak=100:desat=0,hwmap=derive_device=vaapi:reverse=1:extra_hw_frames=16"
+// The trailing format=vaapi pins the reverse map's output: without it the
+// next filter can negotiate 'opencl' and the VAAPI pool refuses it (ENOSYS).
+const hwOpenCLTonemapChain = "hwmap=derive_device=opencl:mode=read,tonemap_opencl=format=nv12:primaries=bt709:transfer=bt709:matrix=bt709:tonemap=bt2390:peak=100:desat=0,hwmap=derive_device=vaapi:reverse=1:extra_hw_frames=16,format=vaapi"
 
 // probeHWTonemapOpenCL: VAAPI only; the synthetic frame is tagged PQ because
 // tonemap_opencl refuses an SDR input. Failure output is logged: a missing ICD
