@@ -8,9 +8,9 @@ import * as SecureStore from "expo-secure-store";
 import {
   useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
-  userServiceRefreshToken,
   apiErrorMessage,
 } from "@evey/api";
+import { switchProfileToken } from "../src/lib/profile-switch";
 import type { V1Profile } from "@evey/api";
 import { useAuthStore, useLocaleStore, toast } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
@@ -109,10 +109,8 @@ export default function ProfileSelect() {
   const switchProfile = useCallback(async (target: V1Profile, pinToken?: string): Promise<"ok" | "pin" | "fail"> => {
     if (!target.id) return "fail";
     try {
-      const resp = await userServiceRefreshToken({ profileId: target.id, pinToken });
-      if (resp.accessToken) {
-        useAuthStore.getState().setTokens(resp.accessToken);
-      } else {
+      const resp = await switchProfileToken(target.id, pinToken);
+      if (!resp.accessToken) {
         // No new token returned - at least pin the local profileId so AuthLayout
         // doesn't bounce back to /profile-select.
         setProfile(target.id);
@@ -139,6 +137,15 @@ export default function ProfileSelect() {
     const needsPin = currentIsKids && !targetIsKids;
     if (needsPin) {
       setPinTarget(p);
+      return;
+    }
+    // Picking the profile the session already runs on (the cold-start
+    // "who is watching?") is not a switch: no refresh, no rotation.
+    if (p.id === activeProfileId) {
+      try {
+        await SecureStore.setItemAsync(LAST_PROFILE_KEY, p.id);
+      } catch { /* ignore */ }
+      router.replace("/(auth)/(tabs)");
       return;
     }
     setBusy(p.id);
