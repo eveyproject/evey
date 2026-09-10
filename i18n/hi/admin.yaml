@@ -799,6 +799,7 @@ serverConfig:
     saved: "API कुंजी सहेजी गई"
     usingDefault: "डिफ़ॉल्ट कुंजी का उपयोग"
     usingCustom: "कस्टम कुंजी का उपयोग"
+    keepCurrent: "मौजूदा कुंजी बनाए रखने के लिए खाली छोड़ें"
   introProvidersTitle: "इंट्रो स्किप प्रदाता"
   introProvidersDesc: "इंट्रो/रिकैप/क्रेडिट टाइमस्टैम्प के लिए समुदाय डेटाबेस (TheIntroDB प्राथमिक, IntroDB फ़ॉलबैक) क्वेरी करें। कवर किए गए आइटम पर स्थानीय CPU-भारी पहचान छोड़ता है।"
   introDetectionUseAllCores: "इंट्रो पहचान के लिए सभी उपलब्ध CPU कोर उपयोग करें"

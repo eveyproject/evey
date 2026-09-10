@@ -799,6 +799,7 @@ serverConfig:
     saved: "API 密钥已保存"
     usingDefault: "使用默认密钥"
     usingCustom: "使用自定义密钥"
+    keepCurrent: "留空以保留当前密钥"
   introProvidersTitle: "片头跳过提供商"
   introProvidersDesc: "查询社区数据库（TheIntroDB 为主，IntroDB 为备选）以获取片头/回顾/片尾时间戳。对已覆盖的项目跳过本地 CPU 密集型检测。"
   introDetectionUseAllCores: "片头检测使用所有可用 CPU 核心"

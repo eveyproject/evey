@@ -799,6 +799,7 @@ serverConfig:
     saved: "Clave API guardada"
     usingDefault: "Usando clave predeterminada"
     usingCustom: "Usando clave personalizada"
+    keepCurrent: "Dejar vacío para conservar la clave actual"
   introProvidersTitle: "Proveedores de salto de intro"
   introProvidersDesc: "Consulta bases de datos comunitarias (TheIntroDB primaria, IntroDB alternativa) para marcas de tiempo de intro/recap/créditos. Evita la detección local intensiva en CPU para los elementos que cubren."
   introDetectionUseAllCores: "Usar todos los núcleos de CPU disponibles para la detección de intros"

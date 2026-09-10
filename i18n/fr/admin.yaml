@@ -797,6 +797,7 @@ serverConfig:
     saved: "Clé API enregistrée"
     usingDefault: "Utilise la clé par défaut"
     usingCustom: "Utilise une clé personnalisée"
+    keepCurrent: "Laisser vide pour conserver la clé actuelle"
   introProvidersTitle: "Sources de détection des intros"
   introProvidersDesc: "Sources : TheIntroDB (theintrodb.org) primaire, IntroDB (introdb.app) secours."
   introProvidersInfo: "Deux bases communautaires distinctes pour récupérer les timecodes intro / recap / générique. Évite la détection locale CPU-intensive sur les éléments couverts. Primaire - TheIntroDB (theintrodb.org) : films et séries, clé API gratuite requise. Secours - IntroDB (introdb.app) : épisodes de séries uniquement, sans clé."
