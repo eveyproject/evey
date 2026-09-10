@@ -256,8 +256,9 @@ type DecodeRungSample struct {
 }
 
 // CapabilityProbeVersion bumps whenever a new HW probe is added (1: HDR10
-// encode + Intel low-power features; 2: OpenCL tone-map + per-codec B-frames).
-const CapabilityProbeVersion = 2
+// encode + Intel low-power features; 2: OpenCL tone-map + per-codec B-frames;
+// 3: the OpenCL chain fixed, 2026-09-10).
+const CapabilityProbeVersion = 3
 
 // FeatureTonemapOpenCL: tonemap_opencl runs on this GPU (bt2390 curve, HLG and
 // Dolby Vision RPU handled) - the VPP tone-mapper is the fallback.
