@@ -31,6 +31,11 @@ type EncodeCapability = {
   hw_codecs?: string[];       // codecs the GPU can ENCODE
   hw_decode_codecs?: string[]; // codecs the GPU can DECODE (may differ from encode)
   hw_device?: string;
+  hw_10bit_transcode?: boolean;
+  hw_tonemap?: boolean;
+  hw_overlay?: boolean;
+  hw_hdr10_encode?: boolean;
+  hw_features?: string[]; // probed encoder options (low_power_h264, bframes, ...)
   gpu_class?: string; // "integrated" (iGPU/QSV) | "discrete" (NVENC) | "" (AMD/unknown)
   hw_mode?: string; // active policy: auto | off | nvenc | vaapi | qsv
   detected_backends?: string[]; // accelerators the host advertises
@@ -44,6 +49,30 @@ type EncodeCapability = {
 };
 
 const QK_CALIBRATION = ["admin", "transcode-calibration"] as const;
+
+// gpuPipelineSummary lists what the calibrated GPU was probed to do, so the
+// operator sees which pipelines it gets (and which it does not) at a glance.
+export function gpuPipelineSummary(
+  data: Pick<EncodeCapability, "hw_10bit_transcode" | "hw_tonemap" | "hw_overlay" | "hw_hdr10_encode" | "hw_features">,
+  t: (key: string, fallback: string) => string,
+): string[] {
+  const yes = (v: boolean | undefined, label: string) => `${label}: ${v ? t("admin.calibration.yes", "yes") : t("admin.calibration.no", "no")}`;
+  const out = [
+    yes(data.hw_tonemap, t("admin.calibration.gpuTonemap", "HDR→SDR")),
+    yes(data.hw_10bit_transcode, t("admin.calibration.gpu10bit", "10-bit")),
+    yes(data.hw_hdr10_encode, t("admin.calibration.gpuHdr10", "HDR10 out (HEVC Main10)")),
+    yes(data.hw_overlay, t("admin.calibration.gpuOverlay", "subtitle overlay")),
+  ];
+  const lowPower = (data.hw_features ?? [])
+    .filter((f) => f.startsWith("low_power_"))
+    .map((f) => f.slice("low_power_".length));
+  out.push(
+    lowPower.length > 0
+      ? `${t("admin.calibration.gpuLowPower", "low power")}: ${lowPower.join(", ")}`
+      : yes(false, t("admin.calibration.gpuLowPower", "low power")),
+  );
+  return out;
+}
 const SETTINGS_QK = ["/api/v1/admin/server-settings"] as const;
 
 // EncodeCalibrationCard surfaces the host's measured encode ceiling and
@@ -304,6 +333,9 @@ export function EncodeCalibrationCard() {
                     .join(" · ")}
                 </span>
               )}
+              <span className="mt-0.5 block text-xs text-[var(--text-muted)]" data-testid="gpu-pipeline">
+                {gpuPipelineSummary(data, t).join(" · ")}
+              </span>
             </>
           ) : (
             <span className="text-[var(--text-muted)]">{t("admin.calibration.hwNone", "no GPU accelerator detected")}</span>
