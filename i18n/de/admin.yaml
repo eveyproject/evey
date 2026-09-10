@@ -791,6 +791,7 @@ serverConfig:
     saved: API-Schlüssel gespeichert
     usingDefault: Verwendet Standardschlüssel
     usingCustom: Verwendet benutzerdefinierten Schlüssel
+    keepCurrent: Leer lassen, um den aktuellen Schlüssel zu behalten
   introProvidersTitle: Intro-Skip-Anbieter
   introProvidersDesc: Gemeinschaftsdatenbanken (TheIntroDB primär, IntroDB Fallback) für Intro-/Recap-/Abspann-Zeitstempel abfragen. Überspringt die lokale CPU-intensive Erkennung für abgedeckte Elemente.
   introDetectionUseAllCores: Alle verfügbaren CPU-Kerne für die Intro-Erkennung nutzen

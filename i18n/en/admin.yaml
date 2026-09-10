@@ -798,6 +798,7 @@ serverConfig:
     saved: API key saved
     usingDefault: Using default key
     usingCustom: Using custom key
+    keepCurrent: Leave empty to keep the current key
   introProvidersTitle: Intro Skip Providers
   introProvidersDesc: "Sources: TheIntroDB (theintrodb.org) primary, IntroDB (introdb.app) fallback."
   introProvidersInfo: "Two distinct community databases for intro / recap / credits timestamps. Skips the local CPU-heavy detection on items they cover. Primary - TheIntroDB (theintrodb.org): movies + TV, free API key required. Fallback - IntroDB (introdb.app): TV episodes only, no key required."

@@ -35,6 +35,12 @@ const API_KEY_FIELDS = [
   },
 ] as const;
 
+// Mirrors appconfig.SecretMask (internal/app/config/secrets.go). The server
+// stopped sending API keys back at all: a configured key reads as this mask, so
+// the browser genuinely does not hold the value any more and there is nothing
+// left here to reveal or to retype by accident.
+const SECRET_MASK = "••••••••";
+
 function maskKey(value: string): string {
   if (value.length <= 8) return value;
   return value.slice(0, 4) + "•".repeat(6) + value.slice(-4);
@@ -55,6 +61,15 @@ export function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined })
 
   function handleSave(dbKey: string) {
     const v = drafts[dbKey] ?? "";
+    // An untouched editor on a configured key must not wipe it. The value is
+    // masked, so the operator cannot read it back and retype it - saving ""
+    // here would destroy a credential with no way to recover it. Removing a key
+    // is what Reset is for, and echoing the mask back means "unchanged" to the
+    // server anyway.
+    if (v === "" || v === SECRET_MASK) {
+      setEditing((p) => ({ ...p, [dbKey]: false }));
+      return;
+    }
     setEntry.mutate(
       { key: dbKey, value: v },
       { onSuccess: () => toast.success(t("admin.serverConfig.apiKeys.saved")) },
@@ -106,7 +121,8 @@ export function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined })
                     id={field.dbKey}
                     className="px-3 py-1.5 rounded text-sm flex-1 font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
                     type="text"
-                    value={drafts[field.dbKey] ?? current}
+                    value={drafts[field.dbKey] ?? ""}
+                    placeholder={current ? t("admin.serverConfig.apiKeys.keepCurrent") : ""}
                     onChange={(e) => setDrafts((p) => ({ ...p, [field.dbKey]: e.target.value }))}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleSave(field.dbKey);
@@ -132,7 +148,7 @@ export function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined })
                       {field.hasDefault ? maskKey("eyJhbGciOiJIUzI1NiJ9...V51Q") : "---"}
                     </span>
                   )}
-                  {current && (
+                  {current && current !== SECRET_MASK && (
                     <button
                       type="button"
                       onClick={() => setShowValue((p) => ({ ...p, [field.dbKey]: !p[field.dbKey] }))}
