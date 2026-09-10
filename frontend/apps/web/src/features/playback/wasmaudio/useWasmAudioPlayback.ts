@@ -94,7 +94,7 @@ export function useWasmAudioPlayback({
       streamTokenRef.current,
       currentTrackIndex,
       null,
-      0,
+      video.currentTime, // pre-warm hint: the audio session starts at the position
       0,
       false,
       true, // wasmAudio

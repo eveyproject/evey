@@ -582,6 +582,10 @@ describe("pickTranscodeAudioSwitchPath (audio switch = client-side rendition sel
     expect(pickTranscodeAudioSwitchPath({ ...base, wasmActiveForTarget: true })).toBe("restart");
   });
 
+  it("wasm to wasm only rebuilds the audio engine, the video keeps playing", () => {
+    expect(pickTranscodeAudioSwitchPath({ ...base, wasmActiveNow: true, wasmActiveForTarget: true })).toBe("wasm-engine");
+  });
+
   it("restarts when the rendition is missing from the parsed manifest", () => {
     expect(pickTranscodeAudioSwitchPath({ ...base, targetTrackIndex: 2 })).toBe("restart");
     expect(pickTranscodeAudioSwitchPath({ ...base, targetTrackIndex: -1 })).toBe("restart");
