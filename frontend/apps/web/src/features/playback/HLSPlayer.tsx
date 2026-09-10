@@ -16,7 +16,7 @@ import { nominalQualityTier } from "./playerUtils";
 import { ProgressReporter } from "./ProgressReporter";
 import { AutoMarkWatched } from "./AutoMarkWatched";
 import { ICON } from "@/constants/iconSizes";
-import { createRenderStallWatch, formatRenderWindow } from "./renderStall";
+import { createRenderStallWatch, formatRenderWindow, bufferedAheadSec, decideRenderCap, type RenderCapState } from "./renderStall";
 import { registerRenderStats, playbackSnapshot } from "./playbackSnapshot";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
@@ -259,8 +259,14 @@ export function HLSPlayer({
   // Height of the wanted rung, readable without a re-render: the hook pins it
   // INSIDE MANIFEST_PARSED, before the first fragment. The sync effect below
   // stays responsible for changes made during playback.
+  // Auto normally pins the top rung; a page that cannot paint it lowers this
+  // (see the render watch). 0 = no cap.
+  const [renderCapHeight, setRenderCapHeight] = useState(0);
+  const renderCapStateRef = useRef<RenderCapState>({ streak: 0, lastAt: 0 });
+  const autoQualityRef = useRef(autoQuality);
+  autoQualityRef.current = autoQuality;
   const pinnedQualityRef = useRef(0);
-  pinnedQualityRef.current = autoQuality ? 0 : currentQuality;
+  pinnedQualityRef.current = autoQuality ? renderCapHeight : currentQuality;
 
   // When the profile finishes loading, apply its audio/subtitle preferences if
   // the user hasn't picked a track manually and the initial resolution used no
@@ -679,6 +685,8 @@ export function HLSPlayer({
     setWasmAudioDisabled(false);
     audioTrackOverrideRef.current = null;
     setWasmTrackIndex(null);
+    setRenderCapHeight(0);
+    renderCapStateRef.current = { streak: 0, lastAt: 0 };
   }, [mediaId]);
 
   // The wasm-audio path applies when: we're on the HLS/transcode pipeline, the
@@ -739,8 +747,8 @@ export function HLSPlayer({
   // log: the decoder drops nothing (so drop= stays 0/N) and the server sees a
   // client that stopped asking for anything. This watch measures the symptom
   // itself - frames actually presented - next to how late a 250 ms timer runs,
-  // which is what a blocked main thread looks like. Read-only: it changes
-  // nothing about playback.
+  // which is what a blocked main thread looks like. In Auto it also steps the
+  // pinned rung down when the page keeps under-painting a full buffer.
   const reportRenderEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   useEffect(() => {
     const video = videoRef.current;
@@ -756,6 +764,19 @@ export function HLSPlayer({
           // the server being late, one with a full buffer and drop=0 is the
           // page failing to paint what it already has.
           state: playbackSnapshot(video),
+        });
+        const hls = hlsRef.current;
+        if (!hls || !autoQualityRef.current) return;
+        const heights = hls.levels.map((l) => l.height);
+        const current = heights[hls.currentLevel] ?? 0;
+        const cap = decideRenderCap(renderCapStateRef.current, performance.now(), bufferedAheadSec(video), heights, current);
+        if (cap == null) return;
+        setRenderCapHeight(cap);
+        reportRenderEvent({
+          type: "quality_capped",
+          details: `${current}p->${cap}p ${formatRenderWindow(w)}`,
+          fatal: false,
+          posSec: positionRef.current,
         });
       },
     });
@@ -1038,7 +1059,7 @@ export function HLSPlayer({
     // <-> a height), the hook covers the start.
     const pinned = pickPinnedLevel({
       levelHeights: hls.levels.map((l: { height: number }) => l.height),
-      desiredHeight: autoQuality ? 0 : currentQuality,
+      desiredHeight: autoQuality ? renderCapHeight : currentQuality,
     });
     hls.currentLevel = pinned;
     // hlsLevels MUST be a dep: this effect's mount run happens BEFORE hls.js
@@ -1051,7 +1072,7 @@ export function HLSPlayer({
     // rendition software path masked it (one level = nowhere to fall).
     // hlsLevels is set in MANIFEST_PARSED, so depending on it re-runs the pin
     // exactly when the levels exist.
-  }, [autoQuality, currentQuality, transcodeMode, hlsLevels]);
+  }, [autoQuality, currentQuality, renderCapHeight, transcodeMode, hlsLevels]);
 
   // In Auto, surface the rung ABR actually picked (e.g. "1080p") so the menu
   // shows "Auto (1080p)" rather than a redundant "Auto". Empty until the first
@@ -1078,6 +1099,8 @@ export function HLSPlayer({
 
   function handleAutoQualityToggle(auto: boolean) {
     setAutoQuality(auto);
+    // Re-enabling Auto is the viewer asking for the top rung again.
+    if (auto) setRenderCapHeight(0);
   }
 
   function handleAudioChange(index: number) {
