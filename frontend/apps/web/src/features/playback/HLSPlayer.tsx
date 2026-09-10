@@ -668,6 +668,9 @@ export function HLSPlayer({
   // run (wasm load / decode / no server audio URI), which re-negotiates the
   // stream against the normal muxed/AAC master. Reset per media.
   const [wasmAudioDisabled, setWasmAudioDisabled] = useState(false);
+  // wasm-to-wasm audio switch: only the audio engine follows this; the video
+  // keeps playing (a full restart cost seconds of silence, prod 2026-09-10).
+  const [wasmTrackIndex, setWasmTrackIndex] = useState<number | null>(null);
   useEffect(() => {
     setSubtitleOffsetMs(0);
     setAudioOffsetMs(0);
@@ -675,6 +678,7 @@ export function HLSPlayer({
     setShedReason(null);
     setWasmAudioDisabled(false);
     audioTrackOverrideRef.current = null;
+    setWasmTrackIndex(null);
   }, [mediaId]);
 
   // The wasm-audio path applies when: we're on the HLS/transcode pipeline, the
@@ -767,7 +771,7 @@ export function HLSPlayer({
   useWasmAudioPlayback({
     videoRef,
     mediaId,
-    currentTrackIndex,
+    currentTrackIndex: wasmTrackIndex ?? currentTrackIndex,
     streamTokenRef,
     onStreamTokenRefresh: onStreamTokenRefreshRef,
     active: wasmAudioActive,
@@ -1123,6 +1127,11 @@ export function HLSPlayer({
     if (path === "hls-rendition" && hlsRef.current) {
       audioTrackOverrideRef.current = target;
       hlsRef.current.audioTrack = target;
+      return;
+    }
+    if (path === "wasm-engine") {
+      audioTrackOverrideRef.current = target;
+      setWasmTrackIndex(target);
       return;
     }
     audioTrackOverrideRef.current = null;

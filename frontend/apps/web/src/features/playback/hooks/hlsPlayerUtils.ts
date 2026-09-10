@@ -327,7 +327,7 @@ export function liftForcedMuteOnNextGesture(video: HTMLVideoElement): () => void
   return disarm;
 }
 
-export type TranscodeAudioSwitchPath = "hls-rendition" | "restart";
+export type TranscodeAudioSwitchPath = "hls-rendition" | "wasm-engine" | "restart";
 
 // Switching audio track on a transcode is a CLIENT-side selection of a
 // rendition the master already exposes (hls.audioTrack): instant, and decoupled
@@ -346,6 +346,9 @@ export function pickTranscodeAudioSwitchPath(s: {
   targetTrackIndex: number;
 }): TranscodeAudioSwitchPath {
   if (!s.hasHls) return "restart";
+  // wasm to wasm: the video is out of band and keeps playing; only the audio
+  // engine is rebuilt on the new track (a restart cost seconds of silence).
+  if (s.wasmActiveNow && s.wasmActiveForTarget) return "wasm-engine";
   if (s.wasmActiveNow || s.wasmActiveForTarget) return "restart";
   if (s.targetTrackIndex < 0 || s.targetTrackIndex >= s.audioRenditionCount) return "restart";
   return "hls-rendition";
