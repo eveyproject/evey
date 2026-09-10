@@ -23,6 +23,13 @@ type AudioSegmentEnsurer interface {
 	EnsureAudioInit(ctx context.Context, fp apptranscoding.AudioFingerprint) error
 }
 
+// audioStartAware is the optional half of the ensurer that takes the viewer's
+// position: the real orchestrator has it, test fakes need not.
+type audioStartAware interface {
+	EnsureAudioInitAt(ctx context.Context, fp apptranscoding.AudioFingerprint, startSeg int) error
+	PreWarmAudio(fp apptranscoding.AudioFingerprint, segIdx int)
+}
+
 // audioServe groups the shared dependencies for the three audio-rendition
 // HTTP handlers (playlist / init / segment). Constructed once and shared.
 type audioServe struct {
@@ -33,6 +40,9 @@ type audioServe struct {
 	manifestGen   *apptranscoding.ManifestGenerator
 	cache         *apptranscoding.SegmentCache
 	audioOrch     AudioSegmentEnsurer
+	// startHint is the segment the master request said playback starts at
+	// (transcode_start_hint.go), 0 when unknown.
+	startHint func(mediaID string) int
 
 	// audioNormalizeGetter mirrors the video pipeline knob.
 	audioNormalizeGetter func(ctx context.Context) bool
@@ -144,6 +154,20 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 	slog.Info("audio rendition: playlist served",
 		slog.String("media_id", mediaID),
 		slog.Int("track_idx", trackIdx))
+
+	// The player's next request is the segment at its position: start encoding it now.
+	if pw, ok := h.audioOrch.(audioStartAware); ok {
+		if seg := h.hintFor(mediaID); seg > 0 {
+			pw.PreWarmAudio(h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay), seg)
+		}
+	}
+}
+
+func (h *audioServe) hintFor(mediaID string) int {
+	if h.startHint == nil {
+		return 0
+	}
+	return h.startHint(mediaID)
 }
 
 func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64) {
@@ -173,7 +197,13 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 	// position and never writes segment 0.
 	waitCtx, cancel := context.WithTimeout(r.Context(), h.segmentWaitTimeout)
 	defer cancel()
-	if err := h.audioOrch.EnsureAudioInit(waitCtx, fp); err != nil {
+	ensureInit := h.audioOrch.EnsureAudioInit
+	if at, ok := h.audioOrch.(audioStartAware); ok {
+		ensureInit = func(ctx context.Context, fp apptranscoding.AudioFingerprint) error {
+			return at.EnsureAudioInitAt(ctx, fp, h.hintFor(mediaID))
+		}
+	}
+	if err := ensureInit(waitCtx, fp); err != nil {
 		slog.WarnContext(r.Context(), "audio rendition: ensure init failed",
 			slog.String("media_id", mediaID),
 			slog.Int("track_idx", trackIdx),
