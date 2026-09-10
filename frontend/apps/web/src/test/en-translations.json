@@ -216,7 +216,7 @@
   "admin.calibration.maxBitrateApplied": "Bitrate ceiling applied",
   "admin.calibration.maxBitrateHint": "Each rung is encoded at the source bitrate scaled to its resolution, never below the ladder's floor. Set a ceiling if remote viewers buffer.",
   "admin.calibration.maxBitrateLabel": "Video bitrate ceiling",
-  "admin.calibration.maxBitrateSource": "Follow the source (like Jellyfin)",
+  "admin.calibration.maxBitrateSource": "Follow the source",
   "admin.calibration.modeApplied": "Mode applied - recalibrating…",
   "admin.calibration.no": "no",
   "admin.calibration.recalibrate": "Recalibrate",

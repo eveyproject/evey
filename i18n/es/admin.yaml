@@ -1118,7 +1118,7 @@ calibration:
   lowPowerHint: "Codificador de función fija de Intel (VDEnc): menos carga de GPU y consumo, pero sin B-frames en iGPU antiguas y un control de tasa más simple, por lo que la calidad es algo menor a igual bitrate. Déjelo desactivado salvo que la GPU esté saturada."
   lowPowerApplied: "Ajuste de bajo consumo aplicado"
   maxBitrateLabel: "Tope de bitrate de vídeo"
-  maxBitrateSource: "Seguir la fuente (como Jellyfin)"
+  maxBitrateSource: "Seguir la fuente"
   maxBitrateHint: "Cada peldaño se codifica al bitrate de la fuente escalado a su resolución, nunca por debajo del mínimo de la escalera. Ponga un tope si los espectadores remotos sufren buffering."
   maxBitrateApplied: "Tope de bitrate aplicado"
   transcodesActiveToast: "Detén la reproducción activa antes de recalibrar - el benchmark necesita un host inactivo para medir el límite real."

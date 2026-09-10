@@ -208,7 +208,7 @@ const (
 // ScaleLadderVideoBitrates multiplies every rung's video bitrate by num/den.
 // RaiseLadderToSource lifts each rung's video bitrate to the source's, scaled
 // by pixel count, so a 70 Mb/s UHD remux is not squeezed into 15 Mb/s of H.264
-// (Jellyfin serves up to the source bitrate). Never lowers a rung; ceilingKbps
+// (a remux deserves its own bitrate). Never lowers a rung; ceilingKbps
 // (0 = none) is the client/profile/server cap.
 func RaiseLadderToSource(ladder []HLSProfile, sourceKbps int64, sourceWidth, sourceHeight int, ceilingKbps int64) []HLSProfile {
 	srcPx := int64(sourceWidth) * int64(sourceHeight)

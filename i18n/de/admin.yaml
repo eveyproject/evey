@@ -1118,7 +1118,7 @@ calibration:
   lowPowerHint: "Intels Festfunktions-Encoder (VDEnc): weniger GPU-Last und Stromverbrauch, aber keine B-Frames auf älteren iGPUs und eine einfachere Ratensteuerung, also etwas geringere Qualität bei gleicher Bitrate. Aus lassen, außer die GPU ist ausgelastet."
   lowPowerApplied: "Energiespar-Einstellung angewendet"
   maxBitrateLabel: "Obergrenze Videobitrate"
-  maxBitrateSource: "Der Quelle folgen (wie Jellyfin)"
+  maxBitrateSource: "Der Quelle folgen"
   maxBitrateHint: "Jede Stufe wird mit der auf ihre Auflösung skalierten Quellbitrate codiert, nie unter dem Minimum der Leiter. Eine Obergrenze setzen, wenn entfernte Zuschauer puffern."
   maxBitrateApplied: "Bitraten-Obergrenze angewendet"
   transcodesActiveToast: "Stoppen Sie die laufende Wiedergabe vor dem Neukalibrieren - der Benchmark braucht einen unbeschäftigten Host, um das echte Limit zu messen."
