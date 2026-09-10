@@ -11,6 +11,10 @@ import (
 
 type browseHandler struct {
 	skip map[string]bool
+	// roots lists the trees an admin may browse. Injectable so the tests can
+	// pin the rule without depending on what happens to be mounted under / on
+	// the machine running them.
+	roots func() []string
 }
 
 type browseEntry struct {
@@ -20,7 +24,8 @@ type browseEntry struct {
 
 func browseDirsHandler() http.HandlerFunc {
 	h := &browseHandler{
-		skip: map[string]bool{"cdrom": true, "floppy": true, "usb": true, "sr0": true, "proc": true, "sys": true, "dev": true},
+		skip:  map[string]bool{"cdrom": true, "floppy": true, "usb": true, "sr0": true, "proc": true, "sys": true, "dev": true},
+		roots: discoverMediaRoots,
 	}
 	return h.ServeHTTP
 }
@@ -47,17 +52,51 @@ func (h *browseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	jsonEncodeResponse(w, result)
 }
 
-// mediaBrowseRoot is the only tree an admin may browse to pick a library path.
-const mediaBrowseRoot = "/media"
+// mediaBrowseGlob is the pattern the operator's media volumes are mounted
+// under. It is the SAME pattern listRoots offers, and that is the whole point:
+// the two used to disagree - listRoots advertised every "/media*" directory
+// while the validator only ever accepted "/media" - so on a deployment mounted
+// at /media2 the picker listed the tree and then answered 400 on the first
+// click into it. An admin could not configure a library at all.
+const mediaBrowseGlob = "/media*"
 
-// isUnderMediaRoot reports whether p is mediaBrowseRoot itself or strictly
-// inside it. A bare strings.HasPrefix(p, mediaBrowseRoot) is NOT anchored on
-// a path separator, so a sibling directory whose name merely starts with the
-// same characters - "/media-evil", "/media2" - would pass: it shares the
-// string prefix but is a completely different tree the admin was never meant
-// to browse.
-func isUnderMediaRoot(p string) bool {
-	return p == mediaBrowseRoot || strings.HasPrefix(p, mediaBrowseRoot+string(filepath.Separator))
+// discoverMediaRoots returns the mounted media trees, in glob order. Resolving
+// this per request rather than at boot is deliberate: a volume mounted after
+// startup shows up without a restart, and the cost is one glob plus a stat per
+// root on an admin-only route.
+func discoverMediaRoots() []string {
+	matches, _ := filepath.Glob(mediaBrowseGlob) //nolint:errcheck // best-effort directory discovery; a bad pattern is a compile-time constant here
+	roots := make([]string, 0, len(matches))
+	for _, m := range matches {
+		info, err := os.Stat(m)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		roots = append(roots, m)
+	}
+	return roots
+}
+
+// isUnderMediaRoot reports whether p is one of the browsable roots or strictly
+// inside one. Each comparison is anchored on a path separator: a bare
+// strings.HasPrefix would let "/media-evil" through on the strength of a shared
+// string prefix with "/media", which is a different tree entirely. Being a real
+// mounted "/media*" directory is what earns a root its place here - not looking
+// like one.
+func (h *browseHandler) isUnderMediaRoot(p string) bool {
+	for _, root := range h.mediaRoots() {
+		if p == root || strings.HasPrefix(p, root+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *browseHandler) mediaRoots() []string {
+	if h.roots == nil {
+		return discoverMediaRoots()
+	}
+	return h.roots()
 }
 
 func (h *browseHandler) validatePath(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -66,12 +105,12 @@ func (h *browseHandler) validatePath(w http.ResponseWriter, r *http.Request) (st
 		return "", true
 	}
 	dir = filepath.Clean(dir)
-	if !filepath.IsAbs(dir) || !isUnderMediaRoot(dir) {
+	if !filepath.IsAbs(dir) || !h.isUnderMediaRoot(dir) {
 		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return "", false
 	}
 	resolved, err := filepath.EvalSymlinks(dir)
-	if err != nil || !isUnderMediaRoot(resolved) {
+	if err != nil || !h.isUnderMediaRoot(resolved) {
 		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return "", false
 	}
@@ -80,12 +119,7 @@ func (h *browseHandler) validatePath(w http.ResponseWriter, r *http.Request) (st
 
 func (h *browseHandler) listRoots() []browseEntry {
 	result := []browseEntry{}
-	roots, _ := filepath.Glob("/media*") //nolint:errcheck // best-effort directory discovery
-	for _, root := range roots {
-		info, err := os.Stat(root)
-		if err != nil || !info.IsDir() {
-			continue
-		}
+	for _, root := range h.mediaRoots() {
 		name := filepath.Base(root)
 		result = append(result, browseEntry{Name: name, Path: root})
 		entries, err := os.ReadDir(root)
