@@ -170,7 +170,12 @@ launched so you can pin it.
   A self-built image can keep just its host's family with
   `docker build --build-arg GPU=intel-legacy .` (Intel Gen9 to Gen11, the
   UHD 6xx), `GPU=intel` (Gen12 and newer), `GPU=amd`, or `GPU=none`. The image
-  label `org.evey.gpu` records the choice.
+  label `org.evey.gpu` records the choice. NVIDIA needs no flavour: no NVIDIA
+  library is baked into any image, the NVIDIA Container Toolkit injects the
+  host driver at run time (`--gpus all` or a compose device reservation), so
+  NVENC works with every flavour, `none` included. On a box with both an Intel
+  iGPU and an NVIDIA card, calibration's `auto` mode picks VAAPI first; pin
+  the hardware mode to `nvenc` in the admin transcoding panel to use the card.
 
 ## 5. Backups & recovery
 
