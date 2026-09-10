@@ -288,6 +288,14 @@ const audioInitTimeout = 30 * time.Second
 // resume's session starts at the viewer's position and never writes segment 0, so
 // the wait timed out, the init 503'd, and the title played with no sound.
 func (o *AudioSegmentOrchestrator) EnsureAudioInit(ctx context.Context, fp AudioFingerprint) error {
+	return o.EnsureAudioInitAt(ctx, fp, 0)
+}
+
+// EnsureAudioInitAt is EnsureAudioInit with the segment a fresh session should
+// start at when none is live: the viewer's position, so the session that writes
+// the init is the one the segment requests ride (a session at 0 was pure waste
+// on every resume and track switch, prod 2026-09-10).
+func (o *AudioSegmentOrchestrator) EnsureAudioInitAt(ctx context.Context, fp AudioFingerprint, startSeg int) error {
 	audioHash := fp.Hash()
 	key := SegmentKey{
 		DecisionHash: audioHash,
@@ -297,13 +305,27 @@ func (o *AudioSegmentOrchestrator) EnsureAudioInit(ctx context.Context, fp Audio
 	}
 
 	if o.cache.IsReady(key, true) {
-		o.touch(audioHash, 0)
+		o.touch(audioHash, max(startSeg, 0))
 		return nil
 	}
-	if err := o.ensureSessionForInit(fp, audioHash); err != nil {
+	if err := o.ensureSessionForInit(fp, audioHash, max(startSeg, 0)); err != nil {
 		return err
 	}
 	return o.cache.Wait(ctx, key, true, audioInitTimeout)
+}
+
+// PreWarmAudio starts the rendition's session at segIdx in the background, so
+// the first segment a player asks for after a switch is already encoding.
+func (o *AudioSegmentOrchestrator) PreWarmAudio(fp AudioFingerprint, segIdx int) {
+	if o.shutdownCtx.Err() != nil || segIdx < 0 {
+		return
+	}
+	go func() {
+		if err := o.ensureSession(o.shutdownCtx, fp, fp.Hash(), segIdx); err != nil {
+			o.logger.Debug("audio_orchestrator: prewarm failed (non-fatal)",
+				slog.String("media_id", fp.MediaID), slog.Any("err", err))
+		}
+	}()
 }
 
 // ensureSession guarantees a live ffmpeg session that will reach segIdx. A
@@ -344,17 +366,17 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 // ensureSessionForInit guarantees SOME live session for this rendition, without
 // caring where it starts: every ffmpeg publishes the same init at startup. Only
 // when the rendition has no session at all is one started, at t=0.
-func (o *AudioSegmentOrchestrator) ensureSessionForInit(fp AudioFingerprint, audioHash string) error {
+func (o *AudioSegmentOrchestrator) ensureSessionForInit(fp AudioFingerprint, audioHash string, startSeg int) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	o.touchLocked(audioHash, 0)
+	o.touchLocked(audioHash, startSeg)
 	for _, sess := range o.sessions {
 		if sess.hash == audioHash {
 			return nil
 		}
 	}
-	return o.spawnSessionLocked(fp, audioHash, 0, 0)
+	return o.spawnSessionLocked(fp, audioHash, startSeg, 0)
 }
 
 // spawnSessionLocked starts one ffmpeg audio session at segIdx and registers it.

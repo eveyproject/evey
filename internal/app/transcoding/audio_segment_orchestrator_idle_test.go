@@ -94,3 +94,42 @@ func TestAudioOrchestrator_TouchIgnoresSessionsStartedAhead(t *testing.T) {
 	}
 	assert.Equal(t, 1, o.ActiveCount(), "only the session behind the request survives")
 }
+
+// The init is written by whichever session is live; with none, the session
+// must start at the viewer's position, not at 0 (prod 2026-09-10: a wasted
+// encoder at 0 on every track switch).
+func TestAudioOrchestrator_InitStartsAtTheHintedSegment(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		writeAudioInit(t, cache, fp)
+		return newAudioFakeHandle()
+	}
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	require.NoError(t, o.EnsureAudioInitAt(context.Background(), fp, 130))
+	require.Equal(t, 1, proc.startCount())
+	assert.Equal(t, 130, proc.optsAt(0).StartNumber, "the init session starts where the viewer is")
+
+	// The segment request at that position rides the same session.
+	writeAudioSegment(t, cache, fp, 130)
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 130))
+	assert.Equal(t, 1, proc.startCount(), "no second session for the position the init already started at")
+}
+
+func TestAudioOrchestrator_PreWarmStartsTheSessionInTheBackground(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	proc := newFakeAudioProcess()
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	o.PreWarmAudio(fp, 42)
+	require.Eventually(t, func() bool { return proc.startCount() == 1 }, time.Second, 5*time.Millisecond)
+	assert.Equal(t, 42, proc.optsAt(0).StartNumber)
+	o.PreWarmAudio(fp, 44) // within lookahead of the live session: nothing new
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, 1, proc.startCount())
+}
