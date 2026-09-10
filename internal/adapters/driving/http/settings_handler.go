@@ -22,22 +22,22 @@ import (
 )
 
 const (
-	cfgKeyServerName       = "server.name"
-	cfgKeyTranscodeMaxConc = "transcoding.max_concurrent"
-	cfgKeyTranscodeHWAccel = "transcoding.hw_accel_enabled"
-	cfgKeyTranscodeHWMode  = "transcoding.hw_mode"
-	cfgKeyRateLimitLogin   = "ratelimit.login_max"
-	cfgKeyRateLimitGlobal  = "ratelimit.global_max"
-	cfgKeyLogLevel         = "log.level"
-	cfgKeyWatcherEnabled   = "library.watcher_enabled"
-	cfgKeyScanInterval     = "library.periodic_scan_interval"
-	cfgKeySkipPreview      = "intro_providers.skip_preview_enabled"
-	cfgKeyIntroAutoSkip    = "intro_providers.auto_skip_enabled"
-	cfgKeyTranscodeSWAV1   = "transcoding.software_av1_max_height"
-	cfgKeyTranscodeAV1En   = "transcoding.av1_enabled"
-	cfgKeyTranscodeAV1Max  = "transcoding.av1_max_height"
-	cfgKeyTranscodeLowPwr  = "transcoding.hw_low_power"
-	cfgKeyTranscodeMaxKbps = "transcoding.max_video_bitrate_kbps"
+	cfgKeyServerName        = "server.name"
+	cfgKeyTranscodeMaxConc  = "transcoding.max_concurrent"
+	cfgKeyTranscodeHWAccel  = "transcoding.hw_accel_enabled"
+	cfgKeyTranscodeHWMode   = "transcoding.hw_mode"
+	cfgKeyRateLimitLogin    = "ratelimit.login_max"
+	cfgKeyRateLimitGlobal   = "ratelimit.global_max"
+	cfgKeyLogLevel          = "log.level"
+	cfgKeyWatcherEnabled    = "library.watcher_enabled"
+	cfgKeyScanInterval      = "library.periodic_scan_interval"
+	cfgKeySkipPreview       = "intro_providers.skip_preview_enabled"
+	cfgKeyIntroAutoSkip     = "intro_providers.auto_skip_enabled"
+	cfgKeyTranscodeSWAV1    = "transcoding.software_av1_max_height"
+	cfgKeyTranscodeAV1En    = "transcoding.av1_enabled"
+	cfgKeyTranscodeAV1Max   = "transcoding.av1_max_height"
+	cfgKeyTranscodeLowPower = "transcoding.hw_low_power"
+	cfgKeyTranscodeMaxKbps  = "transcoding.max_video_bitrate_kbps"
 	// Retention windows (days, 0 = keep forever) + transcode cache budget.
 	// Panel-managed per the project rule that operator knobs never live in
 	// env-only. The retention sweeps re-read their window every pass, so these
@@ -272,7 +272,7 @@ func registerServerSettingsRoutes(
 			getter: func() any { return cfg.Transcoding.AV1MaxHeight },
 			reset:  func() { cfg.Transcoding.AV1MaxHeight = 0 }},
 		// Intel low-power encoder: opt-in, it trades quality per bit for GPU headroom.
-		{jsonKey: "hwLowPowerEnabled", cfgKey: cfgKeyTranscodeLowPwr, defaultVal: false,
+		{jsonKey: "hwLowPowerEnabled", cfgKey: cfgKeyTranscodeLowPower, defaultVal: false,
 			getter: func() any { return cfg.Transcoding.HWLowPowerEnabled },
 			reset:  func() { cfg.Transcoding.HWLowPowerEnabled = false }},
 		// Served video bitrate ceiling; 0 follows the source bitrate.
@@ -644,7 +644,7 @@ func registerServerSettingsRoutes(
 					cfg.Transcoding.MaxVideoBitrateKbps = *body.MaxVideoBitrateKbps
 					return strconv.Itoa(*body.MaxVideoBitrateKbps)
 				}},
-			{cfgKey: cfgKeyTranscodeLowPwr,
+			{cfgKey: cfgKeyTranscodeLowPower,
 				apply: func() string {
 					if body.HWLowPowerEnabled == nil {
 						return ""
