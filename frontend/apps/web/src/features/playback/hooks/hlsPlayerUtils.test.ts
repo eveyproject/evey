@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { resetOutputChannelsProbe } from "@/utils/outputChannels";
 import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel, liftForcedMuteOnNextGesture } from "./hlsPlayerUtils";
+import { forwardBufferSeconds } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
 const mockCaps = vi.hoisted(() => ({
@@ -721,5 +722,15 @@ describe("liftForcedMuteOnNextGesture", () => {
     disarm();
     document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(video.muted).toBe(true);
+  });
+});
+
+describe("forwardBufferSeconds", () => {
+  it("shrinks the forward buffer as the rung's bitrate grows", () => {
+    expect(forwardBufferSeconds(5_000_000)).toBe(30);
+    expect(forwardBufferSeconds(15_000_000)).toBe(25);
+    expect(forwardBufferSeconds(40_000_000)).toBe(9);
+    expect(forwardBufferSeconds(70_000_000)).toBe(6);
+    expect(forwardBufferSeconds(0)).toBe(30);
   });
 });
