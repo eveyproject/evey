@@ -309,13 +309,22 @@ func (pr *PlanResolver) effectiveHWFeatures(features []string) []string {
 func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {
 	hwTonemap := pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams))
 	srcCodec := SourceVideoCodec(streams)
+	telecine := SourceTelecine(streams)
 	src10 := SourceVideoTenBit(streams)
 	codec = pr.codecWithPassthrough(pr.outputCodecFor(decision, streams), decision, streams)
 	accel, device, features, usable, softwareDecode = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
+	if telecine {
+		// Inverse telecine is a software filter: the GPU route is off for the title.
+		accel, device, features, usable, softwareDecode = "", "", nil, false, false
+	}
 	// Auto-picked HEVC is hardware-only (libx265 is far too slow for live HLS).
 	if codec == "hevc" && decision.VideoCodec != "hevc" && !usable {
 		codec = "h264"
 		accel, device, features, usable, softwareDecode = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
+		if telecine {
+			// Inverse telecine is a software filter: the GPU route is off for the title.
+			accel, device, features, usable, softwareDecode = "", "", nil, false, false
+		}
 	}
 	// AV1 output must clear TWO gates, else fall back to H.264:
 	//   1. the admin opt-in (transcoding.av1_enabled) - off by default; and
@@ -327,6 +336,10 @@ func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecisio
 	if strings.EqualFold(codec, "av1") && ((pr.AV1Enabled != nil && !pr.AV1Enabled()) || !usable) {
 		codec = "h264"
 		accel, device, features, usable, softwareDecode = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
+		if telecine {
+			// Inverse telecine is a software filter: the GPU route is off for the title.
+			accel, device, features, usable, softwareDecode = "", "", nil, false, false
+		}
 	}
 	return codec, accel, device, features, usable, softwareDecode
 }
@@ -339,6 +352,9 @@ func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecisio
 // AV1 fallback: an AV1-preferring client on an AV1-disabled (or AV1-incapable)
 // host is ENCODED as H.264, so the route must be resolved for H.264 too.
 func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src SourceDims) bool {
+	if src.Telecine {
+		return false
+	}
 	hwTonemap := pr.HWTonemapWanted(decision, src.HDRRange)
 	// A source that must be tone-mapped on a backend that cannot do it on the GPU
 	// is encoded in SOFTWARE: tonemapx runs on the CPU and the encoder follows it
@@ -569,6 +585,7 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 	// invariant holds because both reach this shared head with the same inputs.
 	if !isCopy {
 		laddered = transcoding.RaiseLadderToSource(laddered, req.SourceBitrateKbps, src.Width, src.Height, pr.videoBitrateCeilingKbps(req, decision))
+		laddered = transcoding.CapLadderToScreen(laddered, req.ScreenHeight)
 	}
 
 	if pr.AV1MaxHeight != nil {
@@ -791,6 +808,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		// both hashed conditionally so progressive/square titles keep their
 		// cache. No-ops on modern progressive sources.
 		DeinterlaceAll: SourceDeinterlaceAll(streams),
+		Telecine:       SourceTelecine(streams),
 		SourceSAR:      SourceSAR(streams),
 		// The codec the segments actually carry (source codec on passthrough).
 		// The builder only reads it on the transcode branch; here it keeps the

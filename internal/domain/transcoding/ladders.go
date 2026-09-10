@@ -229,6 +229,25 @@ func RaiseLadderToSource(ladder []HLSProfile, sourceKbps int64, sourceWidth, sou
 	return out
 }
 
+// CapLadderToScreen drops the rungs above the smallest one that still covers
+// the viewer's screen: a 768 px laptop gets up to 1080p, never a 2160p it
+// would only downscale. A screen taller than every rung changes nothing.
+func CapLadderToScreen(ladder []HLSProfile, screenHeight int) []HLSProfile {
+	if screenHeight <= 0 {
+		return ladder
+	}
+	limit := 0
+	for _, p := range ladder {
+		if p.Height >= screenHeight && (limit == 0 || p.Height < limit) {
+			limit = p.Height
+		}
+	}
+	if limit == 0 {
+		return ladder
+	}
+	return CapLadderToHeight(ladder, limit)
+}
+
 func ScaleLadderVideoBitrates(ladder []HLSProfile, num, den int64) []HLSProfile {
 	if den <= 0 || num <= 0 || num == den {
 		return ladder

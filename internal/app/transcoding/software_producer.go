@@ -887,6 +887,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		VideoCodec:       fp.VideoCodec,
 		SourceVideoCodec: fp.SourceVideoCodec,
 		DeinterlaceAll:   fp.DeinterlaceAll,
+		InverseTelecine:  fp.Telecine,
 		SourceSAR:        fp.SourceSAR,
 		AudioCodec:       fp.AudioCodec,
 		MaxAudioChannels: fp.MaxAudioChannels,

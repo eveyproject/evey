@@ -138,6 +138,9 @@ type DecisionFingerprint struct {
 	// emitted CONDITIONALLY (only when true) so enabling it never orphans the
 	// caches of progressive titles whose bytes are unchanged.
 	DeinterlaceAll bool
+	// Telecine switches the software builder to inverse telecine (fieldmatch +
+	// decimate): different frames and frame rate, hashed conditionally.
+	Telecine bool
 	// SourceSAR is the source sample aspect ratio ("64:45" anamorphic, ""/"1:1"
 	// square). Anamorphic correction changes the scaled height, so the served
 	// bytes differ ⇒ Hash() dimension, emitted CONDITIONALLY (only when it
@@ -386,6 +389,9 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 	if f.DeinterlaceAll {
 		// Conditional: only an idet-flagged interlaced title forks its cache.
 		b.WriteString("deintall=true\n")
+	}
+	if f.Telecine {
+		b.WriteString("ivtc=true\n")
 	}
 	if f.HDRPassthrough {
 		b.WriteString("hdrpass=true\n")

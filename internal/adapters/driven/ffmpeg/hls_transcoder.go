@@ -380,7 +380,14 @@ const deinterlaceFilter = "bwdif=mode=send_frame:deint=interlaced"
 // despite its container saying otherwise (DeinterlaceAll), it switches to
 // deint=all so every frame is deinterlaced - the only way to clear the
 // combing a lying flag hides. send_frame still keeps the source frame rate.
+// inverseTelecineFilter: match the pulled-down fields back into film frames,
+// clean the rare leftover comb, then drop the duplicate (29.97 -> 23.976).
+const inverseTelecineFilter = "fieldmatch=order=auto:combmatch=full,bwdif=mode=send_frame:deint=interlaced,decimate"
+
 func deinterlaceFilterFor(opts transcoding.HLSProcessOpts) string {
+	if opts.InverseTelecine {
+		return inverseTelecineFilter
+	}
 	if opts.DeinterlaceAll {
 		return "bwdif=mode=send_frame:deint=all"
 	}

@@ -357,6 +357,9 @@ type MediaStream struct {
 	// flags are absent or lie (repacked DVD rips), nil = never analyzed.
 	// true switches the transcode to bwdif deint=all for this title.
 	IdetInterlaced *bool
+	// IdetTelecine: idet saw repeated fields on an interlaced verdict (3:2
+	// pulldown). true switches the transcode to inverse telecine.
+	IdetTelecine *bool
 	// SampleAspectRatio is ffprobe's sample_aspect_ratio (e.g. "64:45" on an
 	// anamorphic DVD source), nil when unreported. Anything other than 1:1
 	// makes the builder compute the scale height from the DISPLAY aspect -

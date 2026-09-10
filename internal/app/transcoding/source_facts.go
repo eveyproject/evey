@@ -246,6 +246,18 @@ func SourceDeinterlaceAll(streams []*library.MediaStream) bool {
 // SourceSAR returns the first video stream's sample aspect ratio ("64:45" for
 // anamorphic DVD), or "" for square pixels / unprobed. Drives the builder's
 // anamorphic scale correction.
+// SourceTelecine: the idet backfill saw 3:2 pulldown; the software builder
+// runs inverse telecine and the GPU route (no VAAPI IVTC) is skipped.
+func SourceTelecine(streams []*library.MediaStream) bool {
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		return s.IdetTelecine != nil && *s.IdetTelecine
+	}
+	return false
+}
+
 func SourceSAR(streams []*library.MediaStream) string {
 	for _, s := range streams {
 		if s == nil || s.StreamType != "video" {
@@ -340,6 +352,7 @@ func SourceDimsOf(streams []*library.MediaStream) SourceDims {
 			dims.Codec = s.Codec
 			dims.TenBit = StreamIsTenBit(s)
 			dims.HDRRange = SourceTranscodeVideoRange(streams)
+			dims.Telecine = SourceTelecine(streams)
 			break
 		}
 	}

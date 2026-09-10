@@ -98,6 +98,13 @@ export function getSelectedBurnInTrack(
 export function appendCodecParams(params: URLSearchParams): void {
   const caps = getBrowserCapabilities();
   if (caps.videoCodecs.length > 0) params.set("videoCodecs", caps.videoCodecs.join(","));
+  // The short side of the physical screen: the tallest rung worth encoding
+  // for this viewer (a 2160p rung for a 768 px laptop is bandwidth for nothing).
+  const screen = typeof window !== "undefined" ? window.screen : undefined;
+  if (screen && screen.width > 0 && screen.height > 0) {
+    const dpr = window.devicePixelRatio || 1;
+    params.set("screenHeight", String(Math.round(Math.min(screen.width, screen.height) * dpr)));
+  }
   if (caps.audioCodecs.length > 0) params.set("audioCodecs", caps.audioCodecs.join(","));
   if (caps.containers.length > 0) params.set("containers", caps.containers.join(","));
   // What this browser takes muxed in fMP4, NOT what it decodes - see

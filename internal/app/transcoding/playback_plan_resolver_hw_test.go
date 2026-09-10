@@ -227,6 +227,13 @@ func TestHWTonemapWanted(t *testing.T) {
 // The route decides which physical pool the session burns. When it disagrees
 // with what the fingerprint tags, admission prices one pool while the spawn
 // consumes the other.
+func TestHWRouteUsable_TelecineStaysSoftware(t *testing.T) {
+	pr := hwResolver(vaapiCapable())
+	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
+	assert.True(t, pr.HWRouteUsable(decision, SourceDims{Codec: "mpeg2video"}))
+	assert.False(t, pr.HWRouteUsable(decision, SourceDims{Codec: "mpeg2video", Telecine: true}), "no VAAPI inverse telecine")
+}
+
 func TestResolveHW_LowPowerIsOptIn(t *testing.T) {
 	c := vaapiCapable()
 	c.HWFeatures = []string{"low_power_h264", "bframes_h264"}

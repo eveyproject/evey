@@ -191,6 +191,9 @@ type HLSProcessOpts struct {
 	// the idet content-detection verdict (DecisionFingerprint.DeinterlaceAll).
 	// false = the unchanged flag-gated behaviour, a no-op on real progressive.
 	DeinterlaceAll bool
+	// InverseTelecine replaces the deinterlacer with fieldmatch + decimate for a
+	// 3:2 pulldown source (DecisionFingerprint.Telecine). Software path only.
+	InverseTelecine bool
 	// SourceSAR is the source sample aspect ratio ("64:45" on anamorphic DVD),
 	// empty/"1:1" for square pixels. When anamorphic, the builder derives the
 	// scale height from the DISPLAY aspect so the output isn't stretched -

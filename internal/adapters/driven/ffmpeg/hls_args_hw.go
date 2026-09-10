@@ -267,7 +267,7 @@ func hwUploadFilter(accel transcoding.HWAccelType) string {
 // to the encode being offloaded.
 func hwSourceFilterPrefix(opts transcoding.HLSProcessOpts) string {
 	if !opts.HWSoftwareDecode {
-		if d := hwDeinterlaceFilter(opts.HWAccel); d != "" {
+		if d := hwDeinterlaceFilter(opts.HWAccel, opts.DeinterlaceAll); d != "" {
 			return d + ","
 		}
 		return ""
@@ -362,11 +362,19 @@ func hevcTagArgs(codec string, variant int) []string {
 //   - QSV: empty - vpp_qsv's deinterlace has no "only-if-flagged" mode and would
 //     wrongly deinterlace progressive content; left to the software path / a
 //     follow-up that gates on a probed interlace signal.
-func hwDeinterlaceFilter(accel transcoding.HWAccelType) string {
+func hwDeinterlaceFilter(accel transcoding.HWAccelType, all bool) string {
+	// all = the idet verdict said interlaced despite progressive flags: every
+	// frame goes through, like the software deint=all.
 	switch accel {
 	case transcoding.NVENC:
+		if all {
+			return "yadif_cuda=deint=all"
+		}
 		return "yadif_cuda=deint=interlaced"
 	case transcoding.VAAPI:
+		if all {
+			return "deinterlace_vaapi"
+		}
 		return "deinterlace_vaapi=auto=1"
 	}
 	return ""

@@ -56,6 +56,9 @@ type PlaybackRequest struct {
 	SourceBytes int64
 	// SourceBitrateKbps is the file's overall bitrate; the served ladder follows it.
 	SourceBitrateKbps int64
+	// ScreenHeight is the viewer's physical screen height (?screenHeight); rungs
+	// above the one covering it are dropped. 0 = unknown.
+	ScreenHeight int
 }
 
 // PackagerKind names which engine produces the media bytes for a plan - the

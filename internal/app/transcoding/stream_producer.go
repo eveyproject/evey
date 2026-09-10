@@ -28,6 +28,8 @@ type SourceDims struct {
 	TenBit bool
 	// HDRRange is SourceCopyVideoRange: "PQ", "HLG" or "" (SDR, Dolby Vision).
 	HDRRange string
+	// Telecine: inverse telecine needed, a software-only filter.
+	Telecine bool
 }
 
 // StreamProducer is the seam between the HTTP handler and the machine that

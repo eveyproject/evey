@@ -58,6 +58,7 @@ var (
 		"HDRPassthrough":      "opts.HDRPassthrough (HEVC Main10, HDR kept)",
 		"HDRTransfer":         "opts.HDRTransfer (pq/hlg colour signalling)",
 		"DeinterlaceAll":      "opts.DeinterlaceAll",
+		"Telecine":            "opts.InverseTelecine",
 		"SourceSAR":           "opts.SourceSAR",
 		"SourceVideoCodec":    "opts.SourceVideoCodec (copy path -tag:v)",
 	}
