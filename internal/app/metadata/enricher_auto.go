@@ -52,11 +52,17 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 	}
 
 	if item.Type == domainlib.Episode {
+		if !force && item.Overview != "" {
+			return
+		}
 		e.autoEnrichEpisode(ctx, item, log)
 		return
 	}
 
 	if item.Type == domainlib.Season {
+		if !force && item.Overview != "" {
+			return
+		}
 		e.autoEnrichSeason(ctx, item, log)
 		return
 	}
@@ -892,7 +898,11 @@ func (e *Enricher) autoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 				continue
 			}
 		}
-		if !force && item.Overview != "" && len(item.Trailers) > 0 {
+		// An enriched item stays enriched: without this every boot re-queried the
+		// provider for every episode and every trailer-less film (9500 items at
+		// 4/s = 40 min of TMDB + search re-indexing per restart, prod 2026-09-10).
+		// The admin re-enrich (force) is the way to refresh.
+		if !force && item.Overview != "" {
 			continue
 		}
 		if err := e.apiLimiter.Wait(ctx); err != nil {
