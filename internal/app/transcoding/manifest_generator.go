@@ -83,6 +83,10 @@ type ManifestInput struct {
 	// is free for web.
 	CopyVideoRange string
 
+	// TranscodeVideoRange ("PQ"/"HLG") marks the transcoded rungs as HDR: the
+	// HEVC Main10 passthrough. "" = SDR transcode, as always.
+	TranscodeVideoRange string
+
 	// ChosenVideoCodec / ChosenAudioCodec are the codecs the ffmpeg decision
 	// picked for this session (e.g. "h264", "hevc", "av1" / "aac", "ac3",
 	// "eac3"). Used to emit a correct `CODECS=...` attribute on each
@@ -330,13 +334,15 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	// video codec ALONE - advertising any audio codec makes Safari/hls.js
 	// validate the master against an audio track the video-only segments don't
 	// carry and refuse the stream.
-	var codecs string
-	if in.ExternalAudio {
-		codecs = videoCodecAttr(strings.ToLower(in.ChosenVideoCodec))
-	} else {
-		codecs = codecsAttr(in.ChosenVideoCodec, effectiveAudioCodec)
-	}
 	suffix := querySuffix(in)
+	tenBit := in.TranscodeVideoRange != ""
+	codecsForRung := func(p transcoding.HLSProfile) string {
+		v := videoCodecAttrFor(strings.ToLower(in.ChosenVideoCodec), p.Height, tenBit)
+		if in.ExternalAudio {
+			return v
+		}
+		return v + "," + audioCodecAttr(strings.ToLower(effectiveAudioCodec))
+	}
 
 	// Audio rendition path: emit one #EXT-X-MEDIA per source audio
 	// track and tie every variant to the shared "aud" group. The
@@ -405,8 +411,11 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		// avc1.PPCCLL (in.CopyVideoCodec, built from the source profile+level) so
 		// Safari/hls.js don't reject a rendition whose real level exceeds the
 		// conservative default; transcoded rungs keep the encoder codec.
-		rungCodecs := codecs
+		rungCodecs := codecsForRung(p)
 		videoRangeAttr := ""
+		if !p.Copy && in.TranscodeVideoRange != "" {
+			videoRangeAttr = ",VIDEO-RANGE=" + in.TranscodeVideoRange
+		}
 		if p.Copy && in.CopyVideoCodec != "" {
 			// Video-only master carries no audio codec in CODECS (see above).
 			if in.ExternalAudio {
@@ -626,13 +635,32 @@ func codecsAttr(videoCodec, audioCodec string) string {
 }
 
 func videoCodecAttr(c string) string {
+	return videoCodecAttrFor(c, 0, false)
+}
+
+// hevcTranscodeCodecString: RFC 6381 hvc1 for a transcoded rung - Main (1.6) or Main10
+// (2.4), main tier, the level the rung's height needs (0 = the old L93).
+func hevcTranscodeCodecString(height int, main10 bool) string {
+	profile := "1.6"
+	if main10 {
+		profile = "2.4"
+	}
+	level := "93"
+	switch {
+	case height >= 2160:
+		level = "153"
+	case height >= 1440:
+		level = "150"
+	case height >= 1080:
+		level = "123"
+	}
+	return "hvc1." + profile + ".L" + level + ".B0"
+}
+
+func videoCodecAttrFor(c string, height int, main10 bool) string {
 	switch c {
 	case "hevc", "h265", "x265":
-		// hvc1.1.6.L93.B0 = HEVC main profile, main tier, level 3.1 - covers
-		// up to 1080p30. For 4K + main10 you'd want hvc1.2.4.L150.B0; we keep
-		// the broader string because we don't have per-rendition profile/level
-		// data wired through yet, and Safari accepts the permissive form.
-		return "hvc1.1.6.L93.B0"
+		return hevcTranscodeCodecString(height, main10)
 	case "av1", "av01":
 		// av01.0.04M.08 = Main profile, level 3.0, Main tier, 8-bit. The transcode
 		// output is always yuv420p (8-bit) - declaring 10-bit (.10) made MSE create

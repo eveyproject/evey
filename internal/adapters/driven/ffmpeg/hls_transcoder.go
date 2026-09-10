@@ -901,6 +901,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 
 	enc := resolveVideoEncoder(opts.VideoCodec)
 	args = append(args, "-c:v", enc)
+	args = append(args, hevcTagArgs(opts.VideoCodec, -1)...)
 	args = append(args, cpuBudgetThreadsArgs("")...)          // bound to the CPU budget (cgroup quota or NumCPU); operator override wins if set
 	args = append(args, softwareProfileLevelArgs(enc, -1)...) // h264-only; x265/av1 pick their own
 	args = append(args, softwareX264TuningArgs(enc, -1)...)   // motion-search tuning: +24% on encode-bound sources
@@ -1009,7 +1010,8 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 			fmt.Sprintf("-c:v:%d", i), vcodec,
 		)
 		args = append(args, cpuBudgetThreadsArgs(fmt.Sprintf(":v:%d", i))...) // bound to the CPU budget per rung; operator override wins if set
-		args = append(args, softwareProfileLevelArgs(vcodec, i)...)           // h264-only; x265/av1 pick their own
+		args = append(args, hevcTagArgs(opts.VideoCodec, i)...)
+		args = append(args, softwareProfileLevelArgs(vcodec, i)...) // h264-only; x265/av1 pick their own
 		args = append(args, softwareX264TuningArgs(vcodec, i)...)
 		args = append(args,
 			// Capped CRF per rung (see softwareCRF): quality-targeted, rung bitrate

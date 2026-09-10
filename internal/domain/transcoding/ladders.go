@@ -198,3 +198,22 @@ func CapLadderToSource(ladder []HLSProfile, sourceWidth, sourceHeight int) []HLS
 	}
 	return out
 }
+
+// HEVC needs about two thirds of the H.264 bitrate at equal quality.
+const (
+	HEVCBitrateNum = 2
+	HEVCBitrateDen = 3
+)
+
+// ScaleLadderVideoBitrates multiplies every rung's video bitrate by num/den.
+func ScaleLadderVideoBitrates(ladder []HLSProfile, num, den int64) []HLSProfile {
+	if den <= 0 || num <= 0 || num == den {
+		return ladder
+	}
+	out := make([]HLSProfile, len(ladder))
+	for i, p := range ladder {
+		p.VideoBitrate = p.VideoBitrate * num / den
+		out[i] = p
+	}
+	return out
+}

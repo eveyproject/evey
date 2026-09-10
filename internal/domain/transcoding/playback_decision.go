@@ -26,13 +26,15 @@ type PlaybackDecision struct {
 	SubtitleDecision string   `json:"subtitle_decision"`
 	TranscodeReasons []string `json:"transcode_reasons"`
 	VideoCodec       string   `json:"video_codec,omitempty"`
-	AudioCodec       string   `json:"audio_codec,omitempty"`
-	Container        string   `json:"container,omitempty"`
-	VideoBitrate     int64    `json:"video_bitrate,omitempty"`
-	AudioBitrate     int64    `json:"audio_bitrate,omitempty"`
-	MaxWidth         int      `json:"max_width,omitempty"`
-	MaxHeight        int      `json:"max_height,omitempty"`
-	MaxAudioChannels int      `json:"max_audio_channels,omitempty"`
+	// ClientVideoCodecs: what the client decodes, so the resolver can pick HEVC output when the host encodes it.
+	ClientVideoCodecs []string `json:"client_video_codecs,omitempty"`
+	AudioCodec        string   `json:"audio_codec,omitempty"`
+	Container         string   `json:"container,omitempty"`
+	VideoBitrate      int64    `json:"video_bitrate,omitempty"`
+	AudioBitrate      int64    `json:"audio_bitrate,omitempty"`
+	MaxWidth          int      `json:"max_width,omitempty"`
+	MaxHeight         int      `json:"max_height,omitempty"`
+	MaxAudioChannels  int      `json:"max_audio_channels,omitempty"`
 }
 
 var DefaultWebProfile = ClientProfile{
