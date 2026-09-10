@@ -206,6 +206,7 @@ ARG RUNTIMES=lean
 # on arm64, where neither exists - the multi-arch (stable-release) build would
 # otherwise fail at those steps. amd64 behaviour is byte-identical.
 ARG TARGETARCH
+ARG GPU=all
 
 # Tell the NVIDIA Container Toolkit to inject the full driver stack (incl.
 # libnvidia-encode for NVENC) when a GPU is reserved; harmless when none is.
@@ -229,10 +230,15 @@ RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmwa
 # LIBVA_DRIVER_NAME is intentionally NOT forced. NVENC needs none of these (CUDA
 # via the toolkit); software needs none either.
 #
-# python3 is bundled in every variant. cosign verifies plugin signatures when
-# EVEY_PLUGINS_COSIGN_POLICY is warn/enforce (copied from the official image
-# below - Debian doesn't package it). Without it, enforce fails closed and blocks
-# EVERY install (the verifier shells out to `cosign verify-blob`).
+# python3 is bundled in every variant. Plugin signatures (cosign-compatible,
+# key-based) are verified in-process by the server - no cosign binary.
+#
+# GPU picks the accelerator families this image ships (default all):
+#   all          every family below
+#   intel        Intel VAAPI/QSV + OpenCL tone-map for Gen12 and newer
+#   intel-legacy Intel VAAPI/QSV + OpenCL tone-map for Gen9-11 (UHD 6xx)
+#   amd          Mesa VAAPI (radeonsi) only
+#   none         software only
 #
 # postgresql-17 is the EMBEDDED database (entrypoint: EVEY_EMBEDDED_POSTGRES),
 # the same major as the client already shipped for backups. Debian's package
@@ -249,14 +255,15 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
     && apt-get install -y --no-install-recommends \
        ca-certificates curl bubblewrap libcap2-bin libchromaprint-tools \
        postgresql-client-17 postgresql-17 unzip wget python3 \
-       vainfo libva2 libva-drm2 mesa-va-drivers \
+       vainfo libva2 libva-drm2 \
+    && case "$GPU" in all|amd) apt-get install -y --no-install-recommends mesa-va-drivers ;; esac \
     # Intel VAAPI/QSV drivers (iHD/i965 + oneVPL) are x86-only - no arm64 package
     # exists in the archive, so install them only on amd64. On arm64 the host's
     # own VAAPI (mesa: a mapped Mali/Rockchip GPU) is used if present; Synology-
     # class ARM has no usable HW encoder, so it falls back to software transcode.
     && if [ "$TARGETARCH" = "amd64" ]; then \
-         apt-get install -y --no-install-recommends \
-           intel-media-va-driver-non-free i965-va-driver libvpl2 libmfx-gen1.2; \
+         case "$GPU" in all|intel|intel-legacy) apt-get install -y --no-install-recommends \
+           intel-media-va-driver-non-free i965-va-driver libvpl2 libmfx-gen1.2 ;; esac; \
        fi \
     && if [ "$RUNTIMES" = "nodejs" ] || [ "$RUNTIMES" = "full" ]; then \
          apt-get install -y --no-install-recommends nodejs \
@@ -271,9 +278,6 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
     && ! ls /var/lib/postgresql/17/main >/dev/null 2>&1 \
     && /usr/lib/postgresql/17/bin/postgres --version \
     && /usr/lib/postgresql/17/bin/initdb --version >/dev/null
-
-# cosign - Debian has no apt package; ride the official ko-built image (pinned).
-COPY --from=gcr.io/projectsigstore/cosign:v2.4.1 /ko-app/cosign /usr/local/bin/cosign
 
 # Embedded Meilisearch - the glibc release binary fetched and build-time
 # smoke-tested in the meili-download stage above (NOT the official Alpine
@@ -324,20 +328,24 @@ ARG INTEL_IGC2_BUILD=22418
 ARG INTEL_NEO_VER=26.31.39395.13
 ARG INTEL_IGC1_LEGACY_VER=1.0.17537.24
 ARG INTEL_NEO_LEGACY_VER=24.35.30872.36
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-      set -eu && mkdir /tmp/neo && cd /tmp/neo \
+RUN set -eu; rm -rf /usr/share/doc /usr/share/man /usr/share/info; \
+    if [ "$TARGETARCH" = "amd64" ] && { [ "$GPU" = all ] || [ "$GPU" = intel ] || [ "$GPU" = intel-legacy ]; }; then \
+      mkdir /tmp/neo && cd /tmp/neo \
       && curl -fsSLO https://github.com/intel/compute-runtime/releases/download/${INTEL_NEO_VER}/libigdgmm12_${INTEL_GMMLIB_VER}_amd64.deb \
-      && curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/v${INTEL_IGC2_VER}/intel-igc-core-2_${INTEL_IGC2_VER}+${INTEL_IGC2_BUILD}_amd64.deb \
-      && curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/v${INTEL_IGC2_VER}/intel-igc-opencl-2_${INTEL_IGC2_VER}+${INTEL_IGC2_BUILD}_amd64.deb \
-      && curl -fsSLO https://github.com/intel/compute-runtime/releases/download/${INTEL_NEO_VER}/intel-opencl-icd_${INTEL_NEO_VER}-0_amd64.deb \
-      && curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/igc-${INTEL_IGC1_LEGACY_VER}/intel-igc-core_${INTEL_IGC1_LEGACY_VER}_amd64.deb \
-      && curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/igc-${INTEL_IGC1_LEGACY_VER}/intel-igc-opencl_${INTEL_IGC1_LEGACY_VER}_amd64.deb \
-      && curl -fsSLO https://github.com/intel/compute-runtime/releases/download/${INTEL_NEO_LEGACY_VER}/intel-opencl-icd-legacy1_${INTEL_NEO_LEGACY_VER}_amd64.deb \
+      && if [ "$GPU" != intel-legacy ]; then \
+           curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/v${INTEL_IGC2_VER}/intel-igc-core-2_${INTEL_IGC2_VER}+${INTEL_IGC2_BUILD}_amd64.deb \
+           && curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/v${INTEL_IGC2_VER}/intel-igc-opencl-2_${INTEL_IGC2_VER}+${INTEL_IGC2_BUILD}_amd64.deb \
+           && curl -fsSLO https://github.com/intel/compute-runtime/releases/download/${INTEL_NEO_VER}/intel-opencl-icd_${INTEL_NEO_VER}-0_amd64.deb; \
+         fi \
+      && if [ "$GPU" != intel ]; then \
+           curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/igc-${INTEL_IGC1_LEGACY_VER}/intel-igc-core_${INTEL_IGC1_LEGACY_VER}_amd64.deb \
+           && curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/igc-${INTEL_IGC1_LEGACY_VER}/intel-igc-opencl_${INTEL_IGC1_LEGACY_VER}_amd64.deb \
+           && curl -fsSLO https://github.com/intel/compute-runtime/releases/download/${INTEL_NEO_LEGACY_VER}/intel-opencl-icd-legacy1_${INTEL_NEO_LEGACY_VER}_amd64.deb; \
+         fi \
       && apt-get update && apt-get install -y --no-install-recommends ./*.deb \
-      && cd / && rm -rf /tmp/neo /var/lib/apt/lists/* \
+      && cd / && rm -rf /tmp/neo /var/lib/apt/lists/* /usr/share/doc /usr/share/man \
       # The legacy IGC ships libopencl-clang.so as a 137 MB COPY of the .so.14, not a link.
-      && ln -sf libopencl-clang.so.14 /usr/local/lib/libopencl-clang.so \
-      && rm -rf /usr/share/doc /usr/share/man /usr/share/info \
+      && { [ ! -e /usr/local/lib/libopencl-clang.so.14 ] || ln -sf libopencl-clang.so.14 /usr/local/lib/libopencl-clang.so; } \
       && ls /etc/OpenCL/vendors/ \
       && /usr/local/bin/ffmpeg -hide_banner -filters | grep -q tonemap_opencl; \
     fi
@@ -415,7 +423,7 @@ RUN chmod +x /entrypoint.sh
 
 # Surface the variant for `docker inspect` debugging without forcing a rebuild
 # to find out which one is running. Lowercased so labels stay grep-friendly.
-LABEL org.evey.runtimes="${RUNTIMES}"
+LABEL org.evey.runtimes="${RUNTIMES}" org.evey.gpu="${GPU}"
 ENV EVEY_IMAGE_RUNTIMES=${RUNTIMES}
 
 # Same build stamps the binary carries, on the image itself: standard OCI keys

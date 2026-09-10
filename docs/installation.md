@@ -165,6 +165,12 @@ launched so you can pin it.
   - `-full` - adds PHP + Ruby + Lua too.
   Pick `-nodejs` / `-full` only if your plugins need those runtimes; otherwise
   the default is smallest. Set e.g. `EVEY_VERSION=latest-nodejs`.
+- **GPU flavours** - the published tags ship every accelerator family (Intel
+  Gen9 to current, AMD), which is about 900 MB of Intel OpenCL compilers alone.
+  A self-built image can keep just its host's family with
+  `docker build --build-arg GPU=intel-legacy .` (Intel Gen9 to Gen11, the
+  UHD 6xx), `GPU=intel` (Gen12 and newer), `GPU=amd`, or `GPU=none`. The image
+  label `org.evey.gpu` records the choice.
 
 ## 5. Backups & recovery
 

@@ -3,7 +3,6 @@ package pluginrunner
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -21,15 +20,6 @@ func cosignFixtureDir(t *testing.T) string {
 		t.Skipf("cosign fixtures not found at %s: %v", dir, err)
 	}
 	return dir
-}
-
-// requireCosign skips the test when the cosign binary is not on $PATH (dev hosts
-// without it). The official image ships cosign, so CI exercises these paths.
-func requireCosign(t *testing.T) {
-	t.Helper()
-	if _, err := exec.LookPath("cosign"); err != nil {
-		t.Skip("cosign binary not in $PATH")
-	}
 }
 
 // These two need neither cosign nor fixtures - they pin the no-op contract.
@@ -58,32 +48,32 @@ func TestCosignVerifier_Enforce_EmptyKey_FailsClosed(t *testing.T) {
 	assert.False(t, st.Verified)
 }
 
-// Fail-closed when the cosign binary is missing under enforce - no binary needed
-// (we force "not found" by emptying PATH), so this always runs.
-func TestCosignVerifier_Enforce_MissingBinary_FailsClosed(t *testing.T) {
+// A key that is not ECDSA P-256 is refused rather than guessed at - under
+// enforce that blocks, under warn it reports and lets the install through.
+func TestCosignVerifier_UnsupportedKey_FailsClosedUnderEnforce(t *testing.T) {
 	dir := cosignFixtureDir(t)
-	t.Setenv("PATH", "")
-	v := NewCosignVerifier("enforce", filepath.Join(dir, "test.pub"))
-	st, err := v.VerifySignature(context.Background(), filepath.Join(dir, "plugin-valid.zip"), "")
-	require.Error(t, err, "enforce + missing cosign must block (fail-closed)")
+	bad := filepath.Join(t.TempDir(), "rsa.pub")
+	require.NoError(t, os.WriteFile(bad, []byte("-----BEGIN PUBLIC KEY-----\nMFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAMxN0ExampleNotARealKeyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n-----END PUBLIC KEY-----\n"), 0o600))
+	st, err := NewCosignVerifier("enforce", bad).VerifySignature(context.Background(), filepath.Join(dir, "plugin-valid.zip"), "")
+	require.Error(t, err)
 	require.NotNil(t, st)
 	assert.False(t, st.Verified)
-}
 
-// warn never blocks, even when the binary is missing.
-func TestCosignVerifier_Warn_MissingBinary_DoesNotBlock(t *testing.T) {
-	dir := cosignFixtureDir(t)
-	t.Setenv("PATH", "")
-	v := NewCosignVerifier("warn", filepath.Join(dir, "test.pub"))
-	st, err := v.VerifySignature(context.Background(), filepath.Join(dir, "plugin-valid.zip"), "")
+	st, err = NewCosignVerifier("warn", bad).VerifySignature(context.Background(), filepath.Join(dir, "plugin-valid.zip"), "")
 	require.NoError(t, err, "warn must never return a blocking error")
 	require.NotNil(t, st)
 	assert.False(t, st.Verified)
 }
 
-// The real verification paths against the committed fixtures (need cosign).
+func TestCosignVerifier_MissingSignatureFile_Rejected(t *testing.T) {
+	dir := cosignFixtureDir(t)
+	v := NewCosignVerifier("enforce", filepath.Join(dir, "test.pub"))
+	_, err := v.VerifySignature(context.Background(), filepath.Join(dir, "plugin-valid.zip"), filepath.Join(dir, "nope.sig"))
+	require.Error(t, err)
+}
+
+// The real verification paths against the committed fixtures (in-process, no binary).
 func TestCosignVerifier_Enforce_ValidSignature_Accepted(t *testing.T) {
-	requireCosign(t)
 	dir := cosignFixtureDir(t)
 	v := NewCosignVerifier("enforce", filepath.Join(dir, "test.pub"))
 	st, err := v.VerifySignature(context.Background(), filepath.Join(dir, "plugin-valid.zip"), "")
@@ -93,7 +83,6 @@ func TestCosignVerifier_Enforce_ValidSignature_Accepted(t *testing.T) {
 }
 
 func TestCosignVerifier_Enforce_TamperedZip_Rejected(t *testing.T) {
-	requireCosign(t)
 	dir := cosignFixtureDir(t)
 	v := NewCosignVerifier("enforce", filepath.Join(dir, "test.pub"))
 	_, err := v.VerifySignature(context.Background(), filepath.Join(dir, "plugin-tampered.zip"), "")
@@ -101,7 +90,6 @@ func TestCosignVerifier_Enforce_TamperedZip_Rejected(t *testing.T) {
 }
 
 func TestCosignVerifier_Enforce_WrongKey_Rejected(t *testing.T) {
-	requireCosign(t)
 	dir := cosignFixtureDir(t)
 	v := NewCosignVerifier("enforce", filepath.Join(dir, "test.pub"))
 	_, err := v.VerifySignature(context.Background(), filepath.Join(dir, "plugin-wrongkey.zip"), "")
@@ -110,7 +98,6 @@ func TestCosignVerifier_Enforce_WrongKey_Rejected(t *testing.T) {
 
 // warn surfaces a failed verification (status recorded) without blocking.
 func TestCosignVerifier_Warn_TamperedZip_RecordsButAllows(t *testing.T) {
-	requireCosign(t)
 	dir := cosignFixtureDir(t)
 	v := NewCosignVerifier("warn", filepath.Join(dir, "test.pub"))
 	st, err := v.VerifySignature(context.Background(), filepath.Join(dir, "plugin-tampered.zip"), "")
