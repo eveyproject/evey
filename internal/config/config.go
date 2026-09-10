@@ -396,7 +396,10 @@ type TranscodingConfig struct {
 	// HWLowPowerEnabled opts into the Intel low-power (VDEnc) encoder when the
 	// GPU probed it. Persisted under transcoding.hw_low_power. Default false.
 	HWLowPowerEnabled bool
-	TrickplayCacheDir string
+	// MaxVideoBitrateKbps caps the served video bitrate; 0 follows the source
+	// bitrate (Jellyfin-like). Persisted under transcoding.max_video_bitrate_kbps.
+	MaxVideoBitrateKbps int
+	TrickplayCacheDir   string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch language
 	// without re-fetching the video stream.
@@ -523,6 +526,11 @@ func (c *Config) EffectiveAV1Enabled() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Transcoding.AV1Enabled
+}
+func (c *Config) EffectiveMaxVideoBitrateKbps() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Transcoding.MaxVideoBitrateKbps
 }
 func (c *Config) EffectiveHWLowPowerEnabled() bool {
 	c.mu.RLock()

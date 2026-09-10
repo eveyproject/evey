@@ -57,6 +57,13 @@ func sourceBytesOf(item *domainlibrary.MediaItem) int64 {
 	return item.File.Size
 }
 
+func sourceBitrateKbpsOf(item *domainlibrary.MediaItem) int64 {
+	if item == nil || item.File == nil {
+		return 0
+	}
+	return item.File.BitrateBps() / 1000
+}
+
 // containerOf is item.File.ContainerFormat, guarded against a nil file.
 func containerOf(item *domainlibrary.MediaItem) string {
 	if item == nil || item.File == nil {

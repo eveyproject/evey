@@ -59,6 +59,7 @@ func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
 		AV1MaxHeight:          h.av1MaxHeight,
 		HWTonemapEnabled:      h.hwTonemapEnabled,
 		HWLowPowerEnabled:     h.hwLowPowerEnabled,
+		MaxVideoBitrateKbps:   h.maxVideoBitrateKbps,
 		AudioNormalize:        h.audioNormalizeGetter,
 		AudioEncoderID:        h.audioEncoderIDGetter,
 		CapOverride:           h.capOverride,
@@ -107,6 +108,7 @@ func (h *hlsVODServe) marshalPlaybackRequest(r *http.Request, mediaID string, it
 		PinnedAudioDecision: r.URL.Query().Get("ad"),
 		WasmAudio:           wasmAudioEffective(r, h.castWasmAudioEnabled),
 		SourceBytes:         sourceBytesOf(item),
+		SourceBitrateKbps:   sourceBitrateKbpsOf(item),
 	}
 }
 

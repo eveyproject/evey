@@ -35,9 +35,10 @@ func (h *hlsVODServe) hwTonemapWanted(decision domaintranscoding.PlaybackDecisio
 
 func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision) []domaintranscoding.HLSProfile {
 	req := apptranscoding.PlaybackRequest{
-		MediaID:     itemID(item),
-		Streams:     streams,
-		SourceBytes: sourceBytesOf(item),
+		MediaID:           itemID(item),
+		Streams:           streams,
+		SourceBytes:       sourceBytesOf(item),
+		SourceBitrateKbps: sourceBitrateKbpsOf(item),
 	}
 	return h.planResolver().ShapeLadder(ctx, req, decision)
 }
