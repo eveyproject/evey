@@ -6,8 +6,9 @@ import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { userServiceRefreshToken, userServiceLogout, apiErrorMessage } from "@evey/api";
+import { userServiceLogout, apiErrorMessage } from "@evey/api";
 import { clearRefreshToken } from "../../lib/refresh-token";
+import { switchProfileToken } from "../../lib/profile-switch";
 import type { V1Profile } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
@@ -53,8 +54,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
     if (!target.id) return "fail";
     setSwitching(target.id);
     try {
-      const resp = await userServiceRefreshToken({ profileId: target.id, pinToken });
-      if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
+      await switchProfileToken(target.id, pinToken);
       try {
         await SecureStore.setItemAsync(LAST_PROFILE_KEY, target.id);
       } catch { /* ignore */ }
