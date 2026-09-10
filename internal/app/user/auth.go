@@ -348,18 +348,11 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 			}
 		}
 
-		// A profile switch is authorised at this point (PIN gate passed, if it
-		// applied) - but any opaque stream/cast token already minted under the
-		// OLD profile is a capability that outlives the switch: httpStreamAuthMiddleware
-		// resolves its claims from shared.StreamToken.ProfileID, frozen at mint
-		// time, not from the profile active now. Left alone that token keeps
-		// serving media under the old profile's parental rules after the
-		// session has moved to a more restrictive one - the exact bypass the
-		// PIN gate above exists to close. Purging via the same TokenRevoker used
-		// by DisableUser/ChangePassword cuts it immediately (it also bumps the
-		// JWT epoch, which is harmless here: the access token generated below
-		// is minted with the fresh epoch).
-		if s.tokenRevoker != nil {
+		// Stream/cast tokens minted under the OLD profile outlive the switch
+		// (their claims are frozen at mint time). Only a RESTRICTED target can
+		// be bypassed by them, so only that switch purges them: an adult picking
+		// their own profile after a login must not cut the cast running on the TV.
+		if s.tokenRevoker != nil && target.IsParentalRestricted() {
 			if revokeErr := s.tokenRevoker.Revoke(ctx, string(u.ID)); revokeErr != nil {
 				slog.WarnContext(ctx, "revoke stream tokens on profile switch", slog.Any("err", revokeErr))
 			}

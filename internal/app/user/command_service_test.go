@@ -613,14 +613,17 @@ func TestRefreshToken_SwitchOutOfUngatedNonKids_NoPIN(t *testing.T) {
 // exact parental bypass the PIN gate above is meant to close. Reusing the
 // same TokenRevoker plumbing as DisableUser/ChangePassword purges those stale
 // tokens (via media.StreamTokenStore.RevokeByUser) the instant the switch is
-// authorised, so any request still riding the old token is cut.
+// authorised, so any request still riding the old token is cut. The target
+// must actually be restricted (a PIN alone restricts nothing, see
+// Profile.IsParentalRestricted): an age cap behind a PIN here.
 func TestRefreshToken_SwitchRevokesStreamTokensMintedUnderOldProfile(t *testing.T) {
 	d := newAuthTestDeps()
 	rev := &recordingRevoker{}
 	CommandWithTokenRevoker(rev)(d.svc)
 	ctx := context.Background()
 	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
-	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-adult", UserID: "u1", Name: "Adult", IsDefault: true, Parental: &user.ParentalSettings{PINHash: "h"}})
+	maxAge := 12
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-adult", UserID: "u1", Name: "Teen", IsDefault: true, Parental: &user.ParentalSettings{PINHash: "h", Enabled: true, MaxAge: &maxAge}})
 	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-other", UserID: "u1", Name: "Other"})
 
 	raw := "switch-revoke-token"
@@ -660,6 +663,33 @@ func TestRefreshToken_SilentRefreshDoesNotRevokeStreamTokens(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, rev.revoked, "a silent refresh on the same profile must not purge live streams")
+}
+
+// A switch to an UNRESTRICTED profile has nothing to protect: the tokens in
+// flight were minted under a profile at least as restricted. Purging there
+// cut the cast token of a TV the moment the phone picked its own profile
+// after a login (the login binds the default profile, so the pick is a switch).
+func TestRefreshToken_SwitchToUnrestrictedProfileKeepsStreamTokens(t *testing.T) {
+	d := newAuthTestDeps()
+	rev := &recordingRevoker{}
+	CommandWithTokenRevoker(rev)(d.svc)
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-default", UserID: "u1", Name: "Default", IsDefault: true})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-mine", UserID: "u1", Name: "Mine"})
+
+	raw := "switch-keep-token"
+	h := sha256.Sum256([]byte(raw))
+	def := shared.ProfileID("p-default")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &def, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, raw, "p-mine", "")
+	require.NoError(t, err)
+
+	require.Empty(t, rev.revoked, "switching to an unrestricted profile must keep the user's live cast/stream tokens")
 }
 
 // The real-world bypass: the escape profile has NO PIN of its own, so the
