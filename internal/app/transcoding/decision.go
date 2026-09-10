@@ -278,11 +278,12 @@ func MakePlaybackDecisionWithPrefs(
 		attribute.Int("streams.count", len(streams)),
 	)
 	d := &transcoding.PlaybackDecision{
-		PlayMethod:       "direct_play",
-		VideoDecision:    "copy",
-		AudioDecision:    "copy",
-		SubtitleDecision: "",
-		TranscodeReasons: []string{},
+		PlayMethod:        "direct_play",
+		VideoDecision:     "copy",
+		AudioDecision:     "copy",
+		SubtitleDecision:  "",
+		TranscodeReasons:  []string{},
+		ClientVideoCodecs: normalizedCodecList(client.VideoCodecs),
 	}
 
 	specs := toStreamSpecs(streams)
@@ -891,4 +892,15 @@ func preferredContainer(containers []string) string {
 		return containers[0]
 	}
 	return "mp4"
+}
+
+// normalizedCodecList lowercases and trims a client codec list, dropping blanks.
+func normalizedCodecList(in []string) []string {
+	var out []string
+	for _, c := range in {
+		if c = strings.ToLower(strings.TrimSpace(c)); c != "" {
+			out = append(out, c)
+		}
+	}
+	return out
 }
