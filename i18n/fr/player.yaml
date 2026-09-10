@@ -160,6 +160,8 @@ streamInfo:
     video_codec_unsupported: Codec vidéo non lisible par ce lecteur
     audio_codec_unsupported: Codec audio non lisible par ce lecteur
     hdr_tonemapping_needed: HDR converti en SDR (tone-mapping)
+    dovi_base_layer: "Couche de base Dolby Vision réencodée (HDR conservé)"
+    pixel_format_unsupported: "Format de pixels que le lecteur ne décode pas (H.264 10 bits, 4:2:2)"
     container_incompatible: Conteneur non lisible en l'état (remis en HLS)
     resolution_exceeded: Résolution au-dessus de la limite du lecteur
     bitrate_exceeded: Débit au-dessus de la limite autorisée

@@ -160,6 +160,8 @@ streamInfo:
     video_codec_unsupported: Códec de vídeo que este reproductor no puede descodificar
     audio_codec_unsupported: Códec de audio que este reproductor no puede descodificar
     hdr_tonemapping_needed: HDR convertido a SDR (tone-mapping)
+    dovi_base_layer: "Capa base Dolby Vision recodificada (HDR conservado)"
+    pixel_format_unsupported: "Formato de píxel que el reproductor no decodifica (H.264 de 10 bits, 4:2:2)"
     container_incompatible: Contenedor no reproducible tal cual (reempaquetado a HLS)
     resolution_exceeded: Resolución por encima del límite del reproductor
     bitrate_exceeded: Tasa de bits por encima del límite permitido
