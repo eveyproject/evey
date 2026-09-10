@@ -25,7 +25,7 @@ import "strings"
 // ShouldKeepStoredSecret). An operator whose credential is literally eight
 // bullet characters cannot change it through the panel; that is the whole cost
 // of this design, and it is worth it.
-const SecretMask = "••••••••"
+const SecretMask = "••••••••" //nolint:gosec // a display mask, not a credential
 
 // secretKeySuffixes marks a key as holding a credential. Suffix matching rather
 // than an explicit list because the list is exactly what goes stale: a provider
