@@ -100,6 +100,13 @@ type EncodeCapability struct {
 	// calibration view, since it is the case that costs.
 	HWOverlay bool `json:"hw_overlay"`
 
+	// HWHDR10Encode: the backend encodes HEVC Main10 from a 10-bit surface, HDR metadata kept.
+	HWHDR10Encode bool `json:"hw_hdr10_encode"`
+
+	// ProbeVersion is the CapabilityProbeVersion the HW probes ran under; a
+	// persisted capability below it is re-benched at boot so new probes populate.
+	ProbeVersion int `json:"probe_version,omitempty"`
+
 	// GPUClass labels the calibrated accelerator for the admin panel:
 	// "integrated" (Intel iGPU / QSV), "discrete" (NVIDIA NVENC), or "" when it
 	// can't be told (AMD VAAPI - iGPU vs dGPU share a PCI vendor - or a host
@@ -248,6 +255,10 @@ type DecodeRungSample struct {
 	FPS    float64 `json:"fps"`
 }
 
+// CapabilityProbeVersion bumps whenever a new HW probe is added (1: HDR10
+// encode + Intel low-power features, 2026-09-10).
+const CapabilityProbeVersion = 1
+
 // SafeFallback returns the capability used when no calibration has run
 // yet (first boot in progress, or DB unreachable). 720p software is the
 // universal floor that every supported deployment can sustain.
@@ -331,6 +342,19 @@ func (c EncodeCapability) HWCanDecode(codec string) bool {
 // optional tuning flag on this so an unsupported option is never emitted.
 func (c EncodeCapability) HWHasFeature(feature string) bool {
 	return slices.Contains(c.HWFeatures, feature)
+}
+
+// LowPowerFeature names the probed Intel low-power (VDEnc) encoder feature of a codec.
+func LowPowerFeature(codec string) string {
+	codec = strings.ToLower(strings.TrimSpace(codec))
+	if codec == "" {
+		codec = "h264"
+	}
+	return "low_power_" + codec
+}
+
+func (c EncodeCapability) HWHDRPassthroughUsable() bool {
+	return c.HWBackend != "" && c.HWHDR10Encode && c.HWSupports("hevc")
 }
 
 // CapabilityRepo persists EncodeCapability across restarts. Backed by

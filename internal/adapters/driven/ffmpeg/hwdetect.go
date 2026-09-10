@@ -241,6 +241,11 @@ func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, hwType, d
 // never reported as usable. Worst case we fall back to software (a perf cost),
 // which is far better than the broken-NVENC playtime loop it replaces.
 func probeHWEncode(ctx context.Context, ffmpegPath, encoder, hwType, device string) bool {
+	return probeHWEncodeWith(ctx, ffmpegPath, encoder, hwType, device, nil)
+}
+
+// probeHWEncodeWith is probeHWEncode with encoder options appended (feature probes).
+func probeHWEncodeWith(ctx context.Context, ffmpegPath, encoder, hwType, device string, encoderArgs []string) bool {
 	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
 	defer cancel()
 
@@ -259,9 +264,42 @@ func probeHWEncode(ctx context.Context, ffmpegPath, encoder, hwType, device stri
 	}
 	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=256x144:rate=10:duration=0.2")
 	args = append(args, filter...)
-	args = append(args, "-c:v", encoder, "-f", "null", "-")
+	args = append(args, "-c:v", encoder)
+	args = append(args, encoderArgs...)
+	args = append(args, "-f", "null", "-")
 
 	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_encode"}, ffmpegPath, args...) == nil
+}
+
+// probeHWHDR10Encode: HEVC Main10 from a p010 surface with the passthrough args. Fail-closed.
+func probeHWHDR10Encode(ctx context.Context, ffmpegPath, hwType, device string) bool {
+	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
+	defer cancel()
+
+	args := []string{"-hide_banner", "-v", "error", "-nostdin"}
+	var vf, enc string
+	switch hwType {
+	case "vaapi":
+		if device == "" {
+			return false
+		}
+		args = append(args, "-vaapi_device", device)
+		vf, enc = "format=p010le,hwupload,scale_vaapi=128:-2:format=p010", "hevc_vaapi"
+	case "qsv":
+		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
+		vf, enc = "format=p010le,hwupload=extra_hw_frames=16,scale_qsv=128:-2:format=p010", "hevc_qsv"
+	case "nvenc":
+		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
+		vf, enc = "format=p010le,hwupload_cuda,scale_cuda=128:-2:format=p010", "hevc_nvenc"
+	default:
+		return false
+	}
+	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3")
+	args = append(args, "-vf", vf, "-c:v", enc)
+	args = append(args, hwHDRPassthroughArgs(transcoding.HWAccelType(hwType), "pq", -1)...)
+	args = append(args, "-f", "null", "-")
+
+	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_hdr10_encode"}, ffmpegPath, args...) == nil
 }
 
 // probeHW10BitTranscode reports whether the HW VPP can scale a 10-bit (p010)
