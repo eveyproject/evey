@@ -161,6 +161,12 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		AudioRenditions: audioRenditions,
 		CopyVideoCodec:  sourceCopyVideoCodec(streams),
 		CopyVideoRange:  sourceCopyVideoRange(streams),
+		TranscodeVideoRange: func() string {
+			if rp.FP.HDRPassthrough {
+				return sourceCopyVideoRange(streams)
+			}
+			return ""
+		}(),
 		// hdr=1 is a decision input (copy rung vs tonemap) exactly like the
 		// codec lists: it MUST be re-baked into the variant/segment URLs or the
 		// segment-time makeDecision silently downgrades an HDR copy rung to a

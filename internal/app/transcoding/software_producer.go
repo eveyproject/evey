@@ -853,6 +853,8 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		SubtitleCodec:      fp.SubtitleBurnInCodec,
 		HDRSupported:       false, // tonemap is part of the decision; HDRSupported=false forces it
 		ToneMap:            fp.HDRTonemap,
+		HDRPassthrough:     fp.HDRPassthrough,
+		HDRTransfer:        fp.HDRTransfer,
 		AudioNormalize:     fp.AudioNormalize,
 		StartSec:           startSec,
 		// Absolute segment index this session starts at. For copy mode the

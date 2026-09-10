@@ -175,6 +175,9 @@ type HLSProcessOpts struct {
 	// ToneMap above (the HW builder ignores ToneMap, the software builder ignores
 	// this). When false the software path is byte-identical to a no-HW-tonemap host.
 	HWTonemap bool
+	// HDRPassthrough: HW transcode to HEVC Main10 keeping the HDR (HDRTransfer "pq"/"hlg"), no tone-map.
+	HDRPassthrough bool
+	HDRTransfer    string
 	// HWOverlay, when true, lets the HARDWARE builder composite the bitmap
 	// subtitle on the GPU (overlay_vaapi etc.) instead of sending the whole job
 	// to software. Set only when the host probed HWOverlay and this request
