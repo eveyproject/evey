@@ -1103,6 +1103,13 @@ calibration:
   softwareMax: Software encode cap
   hwMax: Hardware encode cap
   hwNone: "no GPU accelerator detected"
+  yes: "yes"
+  no: "no"
+  gpuTonemap: "HDR→SDR"
+  gpu10bit: "10-bit"
+  gpuHdr10: "HDR10 out (HEVC Main10)"
+  gpuOverlay: "subtitle overlay"
+  gpuLowPower: "low power"
   libx264: "libx264 veryfast"
   lastRun: Last calibrated
   cpuSig: CPU signature
