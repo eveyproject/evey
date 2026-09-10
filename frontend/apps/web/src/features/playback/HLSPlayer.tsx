@@ -17,6 +17,7 @@ import { ProgressReporter } from "./ProgressReporter";
 import { AutoMarkWatched } from "./AutoMarkWatched";
 import { ICON } from "@/constants/iconSizes";
 import { createRenderStallWatch, formatRenderWindow, bufferedAheadSec, decideRenderCap, type RenderCapState } from "./renderStall";
+import { decideNetworkStep, formatNetworkStep, newNetworkCapState, recordStall, recordThroughput, type NetworkCapState } from "./networkCap";
 import { registerRenderStats, playbackSnapshot } from "./playbackSnapshot";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
@@ -263,10 +264,18 @@ export function HLSPlayer({
   // (see the render watch). 0 = no cap.
   const [renderCapHeight, setRenderCapHeight] = useState(0);
   const renderCapStateRef = useRef<RenderCapState>({ streak: 0, lastAt: 0 });
+  // The bandwidth follower's rung (0 = none); the lower of the two caps wins.
+  const [networkCapHeight, setNetworkCapHeight] = useState(0);
+  const networkCapStateRef = useRef<NetworkCapState>(newNetworkCapState());
+  const autoCapHeight = renderCapHeight > 0 && networkCapHeight > 0 ? Math.min(renderCapHeight, networkCapHeight) : renderCapHeight || networkCapHeight;
   const autoQualityRef = useRef(autoQuality);
   autoQualityRef.current = autoQuality;
+  const renderCapHeightRef = useRef(renderCapHeight);
+  renderCapHeightRef.current = renderCapHeight;
+  const onFragStatsRef = useRef<((s: { bytes: number; transferMs: number; levelIdx: number }) => void) | null>(null);
+  const onBufferStallRef = useRef<(() => void) | null>(null);
   const pinnedQualityRef = useRef(0);
-  pinnedQualityRef.current = autoQuality ? renderCapHeight : currentQuality;
+  pinnedQualityRef.current = autoQuality ? autoCapHeight : currentQuality;
 
   // When the profile finishes loading, apply its audio/subtitle preferences if
   // the user hasn't picked a track manually and the initial resolution used no
@@ -687,6 +696,8 @@ export function HLSPlayer({
     setWasmTrackIndex(null);
     setRenderCapHeight(0);
     renderCapStateRef.current = { streak: 0, lastAt: 0 };
+    setNetworkCapHeight(0);
+    networkCapStateRef.current = newNetworkCapState();
   }, [mediaId]);
 
   // The wasm-audio path applies when: we're on the HLS/transcode pipeline, the
@@ -708,7 +719,7 @@ export function HLSPlayer({
   const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, manifestAudioTracks } = useTranscodePlayback({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef, audioTrackOverrideRef,
-    pinnedQualityRef,
+    pinnedQualityRef, onFragStatsRef, onBufferStallRef,
     transcodeMode, mediaId, currentTrackIndex, selectedBurnInTrack,
     startPositionMs, onEnded, setIsBuffering: setIsBufferingDebounced, setFatalError,
     setShedReason,
@@ -750,6 +761,27 @@ export function HLSPlayer({
   // which is what a blocked main thread looks like. In Auto it also steps the
   // pinned rung down when the page keeps under-painting a full buffer.
   const reportRenderEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
+  onBufferStallRef.current = () => recordStall(networkCapStateRef.current, performance.now());
+  onFragStatsRef.current = (s) => {
+    const hls = hlsRef.current;
+    const video = videoRef.current;
+    if (!hls || !video || !autoQualityRef.current) return;
+    const now = performance.now();
+    recordThroughput(networkCapStateRef.current, { bytes: s.bytes, transferMs: s.transferMs, at: now });
+    const levels = hls.levels.map((l) => ({ height: l.height, kbps: l.bitrate / 1000 }));
+    const heights = levels.map((l) => l.height);
+    const ceiling = pickPinnedLevel({ levelHeights: heights, desiredHeight: renderCapHeightRef.current });
+    const step = decideNetworkStep(networkCapStateRef.current, now, levels, hls.currentLevel, ceiling, bufferedAheadSec(video));
+    if (!step) return;
+    const from = heights[hls.currentLevel] ?? 0;
+    setNetworkCapHeight(step.index === heights.length - 1 ? 0 : step.height);
+    reportRenderEvent({
+      type: step.direction === "down" ? "quality_capped" : "quality_restored",
+      details: formatNetworkStep(step, from),
+      fatal: false,
+      posSec: positionRef.current,
+    });
+  };
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -1059,7 +1091,7 @@ export function HLSPlayer({
     // <-> a height), the hook covers the start.
     const pinned = pickPinnedLevel({
       levelHeights: hls.levels.map((l: { height: number }) => l.height),
-      desiredHeight: autoQuality ? renderCapHeight : currentQuality,
+      desiredHeight: autoQuality ? autoCapHeight : currentQuality,
     });
     hls.currentLevel = pinned;
     // hlsLevels MUST be a dep: this effect's mount run happens BEFORE hls.js
@@ -1072,7 +1104,7 @@ export function HLSPlayer({
     // rendition software path masked it (one level = nowhere to fall).
     // hlsLevels is set in MANIFEST_PARSED, so depending on it re-runs the pin
     // exactly when the levels exist.
-  }, [autoQuality, currentQuality, renderCapHeight, transcodeMode, hlsLevels]);
+  }, [autoQuality, currentQuality, autoCapHeight, transcodeMode, hlsLevels]);
 
   // In Auto, surface the rung ABR actually picked (e.g. "1080p") so the menu
   // shows "Auto (1080p)" rather than a redundant "Auto". Empty until the first
@@ -1100,7 +1132,11 @@ export function HLSPlayer({
   function handleAutoQualityToggle(auto: boolean) {
     setAutoQuality(auto);
     // Re-enabling Auto is the viewer asking for the top rung again.
-    if (auto) setRenderCapHeight(0);
+    if (auto) {
+      setRenderCapHeight(0);
+      setNetworkCapHeight(0);
+      networkCapStateRef.current = newNetworkCapState();
+    }
   }
 
   function handleAudioChange(index: number) {

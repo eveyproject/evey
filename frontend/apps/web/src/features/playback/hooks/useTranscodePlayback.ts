@@ -79,6 +79,9 @@ interface UseTranscodePlaybackArgs {
    * ref, not a prop: the value must be readable without a re-render, and the
    * sync effect in HLSPlayer still handles changes made during playback. */
   pinnedQualityRef?: React.MutableRefObject<number>;
+  /** Per-segment transfer stats and buffer stalls, for the bandwidth follower. Refs: no rebuild. */
+  onFragStatsRef?: React.MutableRefObject<((s: { bytes: number; transferMs: number; levelIdx: number }) => void) | null>;
+  onBufferStallRef?: React.MutableRefObject<(() => void) | null>;
   selectedBurnInTrack: number | null;
   startPositionMs: number;
   onEnded?: () => void;
@@ -111,6 +114,8 @@ export function useTranscodePlayback({
   currentTrackIndex,
   audioTrackOverrideRef,
   pinnedQualityRef,
+  onFragStatsRef,
+  onBufferStallRef,
   selectedBurnInTrack,
   startPositionMs,
   onEnded,
@@ -360,6 +365,7 @@ export function useTranscodePlayback({
     let retries = 0;
     let consecutive404 = 0;
     hls.on(Hls.Events.ERROR, (_, data) => {
+      if (data.details === "bufferStalledError") onBufferStallRef?.current?.();
       // Beacon every MEDIA error (fatal or not - the non-fatal ones are the
       // first symptom of a garbled stream) and every fatal error of any type.
       // The 2026-07-15 rainbow incident left zero server-side trace; this line
@@ -487,7 +493,14 @@ export function useTranscodePlayback({
         setFatalError(true);
       }
     });
-    hls.on(Hls.Events.FRAG_LOADED, () => { retries = 0; consecutive404 = 0; setShedReason(null); });
+    hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
+      retries = 0; consecutive404 = 0; setShedReason(null);
+      const frag = data?.frag;
+      if (frag?.type === "main" && frag.stats) {
+        const st = frag.stats;
+        onFragStatsRef?.current?.({ bytes: st.total, transferMs: st.loading.end - st.loading.first, levelIdx: frag.level });
+      }
+    });
 
     function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
     function handleEnded() { onEnded?.(); }
