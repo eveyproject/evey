@@ -109,6 +109,8 @@ type BenchReport struct {
 	HW10BitTranscode    bool
 	HWTonemap           bool
 	HWOverlay           bool
+	HWHDR10Encode       bool
+	ProbeVersion        int
 	HWFeatures          []string
 	GPUClass            string
 	DetectedBackends    []string
@@ -144,6 +146,8 @@ func (c EncodeCapability) Report() BenchReport {
 		HW10BitTranscode:    c.HW10BitTranscode,
 		HWTonemap:           c.HWTonemap,
 		HWOverlay:           c.HWOverlay,
+		HWHDR10Encode:       c.HWHDR10Encode,
+		ProbeVersion:        c.ProbeVersion,
 		HWFeatures:          c.HWFeatures,
 		GPUClass:            c.GPUClass,
 		DetectedBackends:    c.DetectedBackends,
@@ -195,6 +199,8 @@ func Derive(rep BenchReport, policy DerivePolicy) EncodeCapability {
 		HW10BitTranscode:     rep.HW10BitTranscode,
 		HWTonemap:            rep.HWTonemap,
 		HWOverlay:            rep.HWOverlay,
+		HWHDR10Encode:        rep.HWHDR10Encode,
+		ProbeVersion:         rep.ProbeVersion,
 		HWDevice:             rep.HWDevice,
 		GPUClass:             rep.GPUClass,
 		HWFeatures:           rep.HWFeatures,

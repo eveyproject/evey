@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -256,8 +257,9 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	var hwFeatures []string
 	var hwDecodeCodecs []string
 	var hw10Bit, hwTonemap, hwOverlay bool
+	var hwHDR10 bool
 	if hwMax > 0 {
-		hwFeatures = r.probeHWFeatures(ctx, hwBackend)
+		hwFeatures = r.probeHWFeatures(ctx, hwBackend, hwDevice, hwDomainCodecs(hwCodecs))
 		// Probe DECODE support separately - encode-capable ≠ decode-capable
 		// (old iGPU encodes H.264 but can't decode HEVC). Drives the pipeline's
 		// per-source -hwaccel gating so an undecodable source software-decodes
@@ -277,6 +279,9 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// overlay VPP. It is the capability that decides whether a burn-in stays
 		// on the GPU at all - see EncodeCapability.HWOverlay.
 		hwOverlay = probeHWOverlay(ctx, r.ffmpegPath, hwBackend, hwDevice)
+		if slices.Contains(hwDomainCodecs(hwCodecs), "hevc") {
+			hwHDR10 = probeHWHDR10Encode(ctx, r.ffmpegPath, hwBackend, hwDevice)
+		}
 	}
 
 	// What the encode rungs above were DECODED from, and how fast this host
@@ -296,6 +301,8 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		HW10BitTranscode:     hw10Bit,
 		HWTonemap:            hwTonemap,
 		HWOverlay:            hwOverlay,
+		HWHDR10Encode:        hwHDR10,
+		ProbeVersion:         transcoding.CapabilityProbeVersion,
 		HWDevice:             hwDevice,
 		GPUClass:             classifyGPU(hwBackend, hwDevice),
 		HWFeatures:           hwFeatures,
@@ -408,19 +415,48 @@ func (r *BenchmarkRunner) HWBackendUsable(ctx context.Context, backend string) b
 	return checkEncoderAvailable(ctx, r.ffmpegPath, enc) && probeHWEncode(ctx, r.ffmpegPath, enc, backend, device)
 }
 
-func (r *BenchmarkRunner) probeHWFeatures(ctx context.Context, backend string) []string {
-	if backend != "nvenc" {
-		return nil
+func (r *BenchmarkRunner) probeHWFeatures(ctx context.Context, backend, device string, codecs []string) []string {
+	switch backend {
+	case "nvenc":
+		var ok []string
+		for _, p := range nvencFeatureProbes {
+			if r.probeOption(ctx, nvencProbeArgs(p.args)) {
+				ok = append(ok, p.name)
+				r.logger.Info("benchmark: HW feature supported",
+					slog.String("backend", backend), slog.String("feature", p.name))
+			} else {
+				r.logger.Debug("benchmark: HW feature rejected",
+					slog.String("backend", backend), slog.String("feature", p.name))
+			}
+		}
+		return ok
+	case "vaapi", "qsv":
+		return r.probeIntelFeatures(ctx, backend, device, codecs)
 	}
+	return nil
+}
+
+// probeIntelFeatures: low-power (VDEnc, needs i915.enable_guc=2) per codec, then B-frames on top.
+func (r *BenchmarkRunner) probeIntelFeatures(ctx context.Context, backend, device string, codecs []string) []string {
 	var ok []string
-	for _, p := range nvencFeatureProbes {
-		if r.probeOption(ctx, nvencProbeArgs(p.args)) {
-			ok = append(ok, p.name)
+	for _, codec := range codecs {
+		enc := resolveHWEncoder(backend, codec)
+		if enc == "" {
+			continue
+		}
+		var mode []string
+		if probeHWEncodeWith(ctx, r.ffmpegPath, enc, backend, device, []string{"-low_power", "1"}) {
+			ok = append(ok, transcoding.LowPowerFeature(codec))
+			mode = []string{"-low_power", "1"}
 			r.logger.Info("benchmark: HW feature supported",
-				slog.String("backend", backend), slog.String("feature", p.name))
-		} else {
-			r.logger.Debug("benchmark: HW feature rejected",
-				slog.String("backend", backend), slog.String("feature", p.name))
+				slog.String("backend", backend), slog.String("feature", transcoding.LowPowerFeature(codec)))
+		}
+		if backend == "vaapi" && codec == "h264" {
+			if probeHWEncodeWith(ctx, r.ffmpegPath, enc, backend, device, append(mode, "-bf", "3")) {
+				ok = append(ok, "bframes")
+				r.logger.Info("benchmark: HW feature supported",
+					slog.String("backend", backend), slog.String("feature", "bframes"))
+			}
 		}
 	}
 	return ok

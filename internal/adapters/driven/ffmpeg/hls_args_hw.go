@@ -283,15 +283,63 @@ func hwSourceFilterPrefix(opts transcoding.HLSProcessOpts) string {
 // segment. This mirrors the software path's `-pix_fmt yuv420p`. (No HDR tonemap
 // here, matching the software path's current behaviour.)
 func hwScaleFilter(accel transcoding.HWAccelType, width int) string {
+	return hwScaleFilterFormat(accel, width, "nv12")
+}
+
+// hwScaleFilterFormat is hwScaleFilter with the output surface format (nv12, or
+// p010 for the 10-bit HDR passthrough).
+func hwScaleFilterFormat(accel transcoding.HWAccelType, width int, format string) string {
 	switch accel {
 	case transcoding.NVENC:
-		return fmt.Sprintf("scale_cuda=%d:-2:format=nv12", width)
+		return fmt.Sprintf("scale_cuda=%d:-2:format=%s", width, format)
 	case transcoding.VAAPI:
-		return fmt.Sprintf("scale_vaapi=%d:-2:format=nv12", width)
+		return fmt.Sprintf("scale_vaapi=%d:-2:format=%s", width, format)
 	case transcoding.QSV:
-		return fmt.Sprintf("scale_qsv=%d:-2:format=nv12", width)
+		return fmt.Sprintf("scale_qsv=%d:-2:format=%s", width, format)
 	}
 	return fmt.Sprintf("scale=%d:-2", width)
+}
+
+// hwRungScaleFilter is the per-rung scaler: p010 surfaces on an HDR passthrough, nv12 otherwise.
+func hwRungScaleFilter(opts transcoding.HLSProcessOpts, width int) string {
+	if opts.HDRPassthrough {
+		return hwScaleFilterFormat(opts.HWAccel, width, "p010")
+	}
+	return hwScaleFilter(opts.HWAccel, width)
+}
+
+// hwHDRPassthroughArgs: HEVC Main10 + the source's HDR signalling, so the encoder
+// writes the VUI/SEI an HDR display needs. variant < 0 = no stream specifier.
+func hwHDRPassthroughArgs(accel transcoding.HWAccelType, transfer string, variant int) []string {
+	spec := ""
+	if variant >= 0 {
+		spec = fmt.Sprintf(":%d", variant)
+	}
+	trc := "smpte2084"
+	if strings.EqualFold(transfer, "hlg") {
+		trc = "arib-std-b67"
+	}
+	args := []string{
+		"-profile:v" + spec, "main10",
+		"-color_primaries:v" + spec, "bt2020",
+		"-color_trc:v" + spec, trc,
+		"-colorspace:v" + spec, "bt2020nc",
+	}
+	if accel == transcoding.VAAPI {
+		args = append(args, "-sei:v"+spec, "hdr")
+	}
+	return args
+}
+
+// hevcTagArgs muxes an HEVC output as hvc1 (Safari refuses ffmpeg's hev1 default).
+func hevcTagArgs(codec string, variant int) []string {
+	if normalizeVideoCodec(codec) != "hevc" {
+		return nil
+	}
+	if variant >= 0 {
+		return []string{fmt.Sprintf("-tag:v:%d", variant), "hvc1"}
+	}
+	return []string{"-tag:v", "hvc1"}
 }
 
 // hwDeinterlaceFilter returns a GPU deinterlacer that, like the software
@@ -330,10 +378,11 @@ func hwDeinterlaceFilter(accel transcoding.HWAccelType) string {
 // passed, so an older NVENC/QSV/VAAPI chip that rejects it is never handed it,
 // and the level-2 safety net catches anything the probe missed. Empty features
 // ⇒ the proven conservative baseline. No `-pix_fmt yuv420p` - GPU surfaces.
-func hwEncoderQualityArgs(accel transcoding.HWAccelType, features []string) []string {
+func hwEncoderQualityArgs(accel transcoding.HWAccelType, codec string, features []string) []string {
 	has := func(f string) bool {
 		return slices.Contains(features, f)
 	}
+	lowPower := has(transcoding.LowPowerFeature(normalizeVideoCodec(codec)))
 	switch accel {
 	case transcoding.NVENC:
 		// -forced-idr 1 is REQUIRED and unconditional: without it NVENC honours
@@ -363,6 +412,9 @@ func hwEncoderQualityArgs(accel transcoding.HWAccelType, features []string) []st
 		// is gated because an older pre-Skylake/Apollo-Lake QSV rejects unknown
 		// options and would fail the whole encode - only emit it once probed.
 		args := []string{"-preset", "veryfast"}
+		if lowPower {
+			args = append(args, "-low_power", "1")
+		}
 		if has("forced_idr") {
 			args = append(args, "-forced_idr", "1")
 		}
@@ -370,6 +422,9 @@ func hwEncoderQualityArgs(accel transcoding.HWAccelType, features []string) []st
 	case transcoding.VAAPI:
 		// VAAPI rate control is the driver default; only add probed extras.
 		var args []string
+		if lowPower {
+			args = append(args, "-low_power", "1")
+		}
 		if has("bframes") {
 			args = append(args, "-bf", "3")
 		}
@@ -410,7 +465,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 
 	args := appendHWTranscodeInputArgs(nil, opts)
 
-	vf := hwScaleFilter(opts.HWAccel, p.Width)
+	vf := hwRungScaleFilter(opts, p.Width)
 	if opts.HWTonemap {
 		if tm := hwTonemapFilter(opts.HWAccel); tm != "" {
 			vf = tm + "," + vf // GPU HDR->SDR fold before the scaler
@@ -433,13 +488,17 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 		}
 		subBranch, blend := hwBurnInBranch(opts, "[main]")
 		args = append(args, "-filter_complex", fmt.Sprintf("[0:v]%s[main];%s;%s,%s[out]",
-			main, subBranch, blend, hwScaleFilter(opts.HWAccel, p.Width)))
+			main, subBranch, blend, hwRungScaleFilter(opts, p.Width)))
 		args = append(args, "-map", "[out]")
 	} else {
 		args = append(args, "-map", "0:v:0", "-vf", vf)
 	}
 	args = append(args, "-c:v", videoEncoderFor(opts.VideoCodec, opts.HWAccel))
-	args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.HWFeatures)...)
+	args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.VideoCodec, opts.HWFeatures)...)
+	if opts.HDRPassthrough {
+		args = append(args, hwHDRPassthroughArgs(opts.HWAccel, opts.HDRTransfer, -1)...)
+	}
+	args = append(args, hevcTagArgs(opts.VideoCodec, -1)...)
 	args = append(args, "-b:v", fmt.Sprintf("%dk", p.VideoBitrate))
 	args = append(args, hlsForceKeyframesArgs...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
@@ -493,13 +552,17 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 		filterParts = append(filterParts, fmt.Sprintf("%ssplit=%d%s", src, n, strings.Join(splitOutputs, "")))
 	}
 	for i, p := range opts.Profiles {
-		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s[o%d]", i, hwScaleFilter(opts.HWAccel, p.Width), i))
+		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s[o%d]", i, hwRungScaleFilter(opts, p.Width), i))
 	}
 	args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
 
 	for i, p := range opts.Profiles {
 		args = append(args, "-map", fmt.Sprintf("[o%d]", i), fmt.Sprintf("-c:v:%d", i), vcodec)
-		args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.HWFeatures)...)
+		args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.VideoCodec, opts.HWFeatures)...)
+		if opts.HDRPassthrough {
+			args = append(args, hwHDRPassthroughArgs(opts.HWAccel, opts.HDRTransfer, i)...)
+		}
+		args = append(args, hevcTagArgs(opts.VideoCodec, i)...)
 		args = append(args, fmt.Sprintf("-b:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate))
 		args = append(args, audioVariantArgs(opts, i, p.AudioBitrate)...)
 	}

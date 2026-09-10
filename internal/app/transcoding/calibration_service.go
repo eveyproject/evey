@@ -368,7 +368,14 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 				slog.String("persisted_backend", persisted.HWBackend),
 				slog.Any("detected_backends", persisted.DetectedBackends))
 		}
-		if currentSig != "" && persisted.CPUSignature == currentSig && !modeMismatch {
+		// New HW probes since this row was benched: re-bench once so they populate.
+		probesStale := persisted.HWBackend != "" && persisted.ProbeVersion < domaintranscoding.CapabilityProbeVersion
+		if probesStale {
+			s.logger.Info("calibration: persisted capability predates the current HW probes, re-benching",
+				slog.Int("probe_version", persisted.ProbeVersion),
+				slog.Int("current", domaintranscoding.CapabilityProbeVersion))
+		}
+		if currentSig != "" && persisted.CPUSignature == currentSig && !modeMismatch && !probesStale {
 			// A matching CPU signature does NOT guarantee the persisted HW backend
 			// is usable here (shared DB across a HW + a non-HW container, a moved
 			// disk, a driver regression). Re-validate it with a real encode probe;

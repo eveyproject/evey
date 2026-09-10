@@ -260,6 +260,7 @@ func TestCalibration_EnsureCalibrated_PersistedHWUnusable_StripsToSoftware(t *te
 			HWDevice:          "/dev/dri/renderD128",
 			HWFeatures:        []string{"rc-lookahead"},
 			CPUSignature:      hostSig,
+			ProbeVersion:      domaintranscoding.CapabilityProbeVersion,
 		},
 	}
 	runner := &fakeBenchmarkRunner{hwUnusable: true} // HW dead on this host
@@ -278,7 +279,7 @@ func TestCalibration_EnsureCalibrated_PersistedHWUsable_Kept(t *testing.T) {
 	hostSig := hostCPUSig(t)
 	repo := &fakeCapabilityRepo{
 		stored: &domaintranscoding.EncodeCapability{
-			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "nvenc", CPUSignature: hostSig,
+			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "nvenc", CPUSignature: hostSig, ProbeVersion: domaintranscoding.CapabilityProbeVersion,
 		},
 	}
 	runner := &fakeBenchmarkRunner{} // hwUnusable=false → usable here
@@ -321,7 +322,7 @@ func TestCalibration_EnsureCalibrated_ModePinMatch_SkipsBench(t *testing.T) {
 	hostSig := hostCPUSig(t)
 	repo := &fakeCapabilityRepo{
 		stored: &domaintranscoding.EncodeCapability{
-			SoftwareMaxHeight: 1080, HWMaxHeight: 1080, HWBackend: "vaapi", CPUSignature: hostSig,
+			SoftwareMaxHeight: 1080, HWMaxHeight: 1080, HWBackend: "vaapi", CPUSignature: hostSig, ProbeVersion: domaintranscoding.CapabilityProbeVersion,
 		},
 	}
 	runner := &fakeBenchmarkRunner{} // hwUnusable=false → usable here
@@ -773,4 +774,32 @@ func TestCalibration_RebenchIfContended_ContendedAgain_BacksOff(t *testing.T) {
 
 	assert.False(t, svc.RebenchIfContended(context.Background()))
 	assert.EqualValues(t, 1, runner.calls.Load(), "inside the backoff window no second bench runs, whatever the probe says")
+}
+
+// A persisted HW capability benched before a new probe existed is re-benched
+// once at boot, so the probe's field is populated; a software-only row is not.
+func TestCalibration_EnsureCalibrated_OldProbeVersion_Rebenches(t *testing.T) {
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "vaapi", CPUSignature: hostSig,
+		},
+	}
+	runner := &fakeBenchmarkRunner{
+		result: domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "vaapi", CPUSignature: hostSig,
+			HWHDR10Encode: true, ProbeVersion: domaintranscoding.CapabilityProbeVersion,
+		},
+	}
+	svc := newIdleHostCalibrationService(repo, runner, nil)
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	assert.EqualValues(t, 1, runner.calls.Load(), "old probe version with a HW backend must re-bench")
+	assert.True(t, svc.Current().HWHDR10Encode)
+
+	softwareOnly := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: hostSig},
+	}
+	runner2 := &fakeBenchmarkRunner{}
+	require.NoError(t, newIdleHostCalibrationService(softwareOnly, runner2, nil).EnsureCalibrated(context.Background()))
+	assert.Zero(t, runner2.calls.Load(), "no HW backend: nothing new to probe")
 }

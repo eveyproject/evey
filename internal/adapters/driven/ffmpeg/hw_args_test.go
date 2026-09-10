@@ -157,18 +157,18 @@ func TestHWEncoderQualityArgs_FeatureGating(t *testing.T) {
 	joined := func(a []string) string { return strings.Join(a, " ") }
 
 	// Baseline (no probed features) must be byte-for-byte the pre-probe args.
-	if got := joined(hwEncoderQualityArgs(transcoding.NVENC, nil)); got != "-preset p4 -forced-idr 1" {
+	if got := joined(hwEncoderQualityArgs(transcoding.NVENC, "h264", nil)); got != "-preset p4 -forced-idr 1" {
 		t.Errorf("NVENC baseline = %q, want '-preset p4 -forced-idr 1'", got)
 	}
-	if got := joined(hwEncoderQualityArgs(transcoding.QSV, nil)); got != "-preset veryfast" {
+	if got := joined(hwEncoderQualityArgs(transcoding.QSV, "h264", nil)); got != "-preset veryfast" {
 		t.Errorf("QSV baseline = %q, want '-preset veryfast'", got)
 	}
-	if got := hwEncoderQualityArgs(transcoding.VAAPI, nil); len(got) != 0 {
+	if got := hwEncoderQualityArgs(transcoding.VAAPI, "h264", nil); len(got) != 0 {
 		t.Errorf("VAAPI baseline must be empty, got %v", got)
 	}
 
 	// NVENC tuning appears only for probed features, forced-idr stays.
-	nv := joined(hwEncoderQualityArgs(transcoding.NVENC, []string{"temporal_aq", "rc_lookahead"}))
+	nv := joined(hwEncoderQualityArgs(transcoding.NVENC, "h264", []string{"temporal_aq", "rc_lookahead"}))
 	for _, want := range []string{"-preset p4", "-forced-idr 1", "-temporal-aq 1", "-rc-lookahead 20"} {
 		if !strings.Contains(nv, want) {
 			t.Errorf("NVENC tuned args %q missing %q", nv, want)
@@ -179,10 +179,10 @@ func TestHWEncoderQualityArgs_FeatureGating(t *testing.T) {
 	}
 
 	// QSV forced_idr is gated (the option an old old iGPU QSV would reject).
-	if got := joined(hwEncoderQualityArgs(transcoding.QSV, []string{"forced_idr"})); !strings.Contains(got, "-forced_idr 1") {
+	if got := joined(hwEncoderQualityArgs(transcoding.QSV, "h264", []string{"forced_idr"})); !strings.Contains(got, "-forced_idr 1") {
 		t.Errorf("QSV with forced_idr probed = %q, want it to include -forced_idr 1", got)
 	}
-	if got := joined(hwEncoderQualityArgs(transcoding.QSV, nil)); strings.Contains(got, "forced_idr") {
+	if got := joined(hwEncoderQualityArgs(transcoding.QSV, "h264", nil)); strings.Contains(got, "forced_idr") {
 		t.Errorf("QSV without the probe must NOT emit forced_idr: %q", got)
 	}
 }
@@ -203,9 +203,9 @@ func TestNVENCProbeArgs_DeviceFree(t *testing.T) {
 // against the probe list and hwEncoderQualityArgs drifting apart (a probed
 // option that the builder ignores, or vice versa).
 func TestNVENCProbeNames_MatchBuilderGating(t *testing.T) {
-	baseline := strings.Join(hwEncoderQualityArgs(transcoding.NVENC, nil), " ")
+	baseline := strings.Join(hwEncoderQualityArgs(transcoding.NVENC, "h264", nil), " ")
 	for _, p := range nvencFeatureProbes {
-		got := strings.Join(hwEncoderQualityArgs(transcoding.NVENC, []string{p.name}), " ")
+		got := strings.Join(hwEncoderQualityArgs(transcoding.NVENC, "h264", []string{p.name}), " ")
 		if got == baseline {
 			t.Errorf("feature %q is probed but never emitted by the builder (drift)", p.name)
 		}
