@@ -68,8 +68,8 @@ func TestHWUsable(t *testing.T) {
 		{transcoding.None, false, "", false},
 		{"", false, "", false},
 		{transcoding.HWAccelType("bogus"), false, "", false},
-		{transcoding.NVENC, true, "", false},                // burn-in → software
-		{transcoding.NVENC, false, "zscale,tonemap", false}, // tonemap → software
+		{transcoding.NVENC, true, "", false},               // burn-in → software
+		{transcoding.NVENC, false, "zscale,tonemap", true}, // tonemap → CPU bridge between GPU decode and encode
 		{transcoding.VAAPI, true, "zscale,tonemap", false},
 	}
 	for _, c := range cases {
@@ -314,18 +314,20 @@ func TestBuildFFmpegArgs_ToneMap_EmitsTonemapOnceBeforeSplit(t *testing.T) {
 	}
 }
 
-func TestBuildFFmpegArgs_ToneMap_ForcesSoftware(t *testing.T) {
-	// Even with a HW backend set, a tonemap request uses software: the
-	// orchestrated VAAPI/NVENC path does no tonemap, and old iGPU VEBOX can't fold
-	// 10-bit. hwUsable already gates on toneMap=="".
+func TestBuildFFmpegArgs_ToneMap_BridgesOnNVENC(t *testing.T) {
+	// NVENC has no GPU tone-mapper in our pipeline: the CPU tone-maps between
+	// the CUDA decode and the NVENC encode instead of dragging the whole job
+	// down to libx264.
 	opts := sampleHWOpts(transcoding.NVENC, "", 3)
 	opts.ToneMap = true
 	joined := strings.Join(BuildFFmpegArgs(opts), " ")
-	if strings.Contains(joined, "-hwaccel") || strings.Contains(joined, "h264_nvenc") {
-		t.Errorf("tonemap must force the software path (no HW): %q", joined)
+	for _, want := range []string{"-hwaccel cuda", "hwdownload,format=p010le,", "tonemap", "hwupload_cuda", "h264_nvenc"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("NVENC tone-map bridge must contain %q: %q", want, joined)
+		}
 	}
-	if !strings.Contains(joined, "libx264") {
-		t.Error("tonemap path must encode with libx264")
+	if strings.Contains(joined, "libx264") {
+		t.Errorf("the bridge must keep the GPU encoder: %q", joined)
 	}
 }
 
@@ -396,19 +398,25 @@ func TestBuildFFmpegArgs_HWTonemap_VAAPI_StaysOnGPU(t *testing.T) {
 	}
 }
 
-func TestBuildFFmpegArgs_HWTonemap_OffStaysSoftware(t *testing.T) {
-	// The invariant: tonemap needed but HWTonemap=false (the probe failed - every
-	// host on the current fleet) must run the software zscale + libx264 path,
-	// byte-identical to a host with no GPU tone-mapping. No HW filters leak in.
-	opts := sampleHWOpts(transcoding.VAAPI, "/dev/dri/renderD128", 3)
+func TestBuildFFmpegArgs_HWTonemap_OffBridgesTheCPUTonemap(t *testing.T) {
+	// No GPU tone-mapper (AMD, an Intel without its ICD): the GPU still decodes
+	// and encodes, the CPU tone-maps in between (hwdownload / hwupload).
+	opts := sampleHWOpts(transcoding.VAAPI, "/dev/dri/renderD128", 1)
 	opts.ToneMap = true
 	opts.HWTonemap = false
 	joined := strings.Join(BuildFFmpegArgs(opts), " ")
-	if strings.Contains(joined, "tonemap_vaapi") || strings.Contains(joined, "h264_vaapi") {
-		t.Errorf("HWTonemap=false must NOT use the HW path: %q", joined)
+	for _, want := range []string{"hwdownload,format=p010le,", "tonemap", ",hwupload,scale_vaapi", "h264_vaapi"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("VAAPI bridge must contain %q: %q", want, joined)
+		}
 	}
-	if !strings.Contains(joined, "tonemap=") || !strings.Contains(joined, "libx264") {
-		t.Errorf("HWTonemap=false must use software zscale tonemap + libx264: %q", joined)
+	if strings.Contains(joined, "libx264") || strings.Contains(joined, "tonemap_vaapi") {
+		t.Errorf("the bridge must neither fall to libx264 nor use the GPU tone-mapper: %q", joined)
+	}
+	// A software-decoded source cannot be bridged: the whole job stays on the CPU.
+	opts.HWSoftwareDecode = true
+	if joined := strings.Join(BuildFFmpegArgs(opts), " "); !strings.Contains(joined, "libx264") {
+		t.Errorf("decoupled + tone-map must stay software: %q", joined)
 	}
 }
 

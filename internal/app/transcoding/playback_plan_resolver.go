@@ -309,37 +309,26 @@ func (pr *PlanResolver) effectiveHWFeatures(features []string) []string {
 func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {
 	hwTonemap := pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams))
 	srcCodec := SourceVideoCodec(streams)
-	telecine := SourceTelecine(streams)
 	src10 := SourceVideoTenBit(streams)
-	codec = pr.codecWithPassthrough(pr.outputCodecFor(decision, streams), decision, streams)
-	accel, device, features, usable, softwareDecode = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
-	if telecine {
-		// Inverse telecine is a software filter: the GPU route is off for the title.
-		accel, device, features, usable, softwareDecode = "", "", nil, false, false
+	telecine := SourceTelecine(streams)
+	// CPU tone-map bridged between GPU decode and encode: the GPU never sees the
+	// 10-bit surface, but it must be the one decoding (the bridge downloads).
+	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
+	resolve := func(c string) {
+		accel, device, features, usable, softwareDecode = pr.ResolveHW(c, srcCodec, src10 && !bridge, hwTonemap)
+		if telecine || (bridge && softwareDecode) {
+			accel, device, features, usable, softwareDecode = "", "", nil, false, false
+		}
 	}
-	// Auto-picked HEVC is hardware-only (libx265 is far too slow for live HLS).
+	codec = pr.codecWithPassthrough(pr.outputCodecFor(decision, streams), decision, streams)
+	resolve(codec)
 	if codec == "hevc" && decision.VideoCodec != "hevc" && !usable {
 		codec = "h264"
-		accel, device, features, usable, softwareDecode = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
-		if telecine {
-			// Inverse telecine is a software filter: the GPU route is off for the title.
-			accel, device, features, usable, softwareDecode = "", "", nil, false, false
-		}
+		resolve(codec)
 	}
-	// AV1 output must clear TWO gates, else fall back to H.264:
-	//   1. the admin opt-in (transcoding.av1_enabled) - off by default; and
-	//   2. a usable HW AV1 encoder. AV1 is hardware-only for streaming because
-	//      libsvtav1 (software AV1) is several times heavier than H.264 and the
-	//      weak-NAS target can't sustain it in realtime - it starves and the
-	//      player rebuffers forever. The software-AV1 calibration stays for
-	//      non-streaming/experimental use but never feeds a live HLS session.
 	if strings.EqualFold(codec, "av1") && ((pr.AV1Enabled != nil && !pr.AV1Enabled()) || !usable) {
 		codec = "h264"
-		accel, device, features, usable, softwareDecode = pr.ResolveHW(codec, srcCodec, src10, hwTonemap)
-		if telecine {
-			// Inverse telecine is a software filter: the GPU route is off for the title.
-			accel, device, features, usable, softwareDecode = "", "", nil, false, false
-		}
+		resolve(codec)
 	}
 	return codec, accel, device, features, usable, softwareDecode
 }
@@ -356,24 +345,21 @@ func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src
 		return false
 	}
 	hwTonemap := pr.HWTonemapWanted(decision, src.HDRRange)
-	// A source that must be tone-mapped on a backend that cannot do it on the GPU
-	// is encoded in SOFTWARE: tonemapx runs on the CPU and the encoder follows it
-	// there (see BuildFFmpegArgs). Routing it to the hardware producer anyway made
-	// the LADDER inherit the GPU ceiling - so the master advertised a 2160p rung
-	// for what is really a libx264 encode, capped by SoftwareHDRMaxHeight. The
-	// player asked for that rung, ffmpeg tried `-c:v libx264 scale=3840:-2
-	// tonemapx`, the segment 503'd, and playback collapsed to the bottom rung.
-	// The route must follow the silicon that actually runs the encode.
-	if !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
-		return false
+	// No GPU tone-mapper: the CPU tone-maps between the GPU decode and encode
+	// (hwTonemapBridge). That needs the GPU to decode the source; a software
+	// decode keeps the whole job on the CPU. Same answer as EffectiveVideoCodec.
+	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
+	resolve := func(c string) bool {
+		_, _, _, usable, softwareDecode := pr.ResolveHW(c, src.Codec, src.TenBit && !bridge, hwTonemap)
+		return usable && (!bridge || !softwareDecode)
 	}
 	codec := pr.outputCodecFor(decision, nil)
-	_, _, _, usable, _ := pr.ResolveHW(codec, src.Codec, src.TenBit, hwTonemap)
+	usable := resolve(codec)
 	if strings.EqualFold(codec, "av1") && ((pr.AV1Enabled != nil && !pr.AV1Enabled()) || !usable) {
-		_, _, _, usable, _ = pr.ResolveHW("h264", src.Codec, src.TenBit, hwTonemap)
+		usable = resolve("h264")
 	}
 	if codec == "hevc" && decision.VideoCodec != "hevc" && !usable {
-		_, _, _, usable, _ = pr.ResolveHW("h264", src.Codec, src.TenBit, hwTonemap)
+		usable = resolve("h264")
 	}
 	return usable
 }
@@ -608,6 +594,13 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 	// shaper, so the manifest a player holds and every segment it fetches
 	// shape the same ladder - the cache-hash invariant that rules this whole
 	// function. Copy requests are exempt: they never take a capacity slot.
+	if !isCopy && capability.SoftwareHDRMaxHeight > 0 && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
+		if _, accel, _, _, usable, _ := pr.EffectiveVideoCodec(decision, streams); usable && accel != "" && !pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams)) {
+			// CPU tone-map between GPU decode and encode: the CPU stays the ceiling.
+			laddered = transcoding.CapLadderToHeight(laddered, capability.SoftwareHDRMaxHeight)
+		}
+	}
+
 	if pr.AdmissionRoute != nil && len(laddered) > 0 && !isCopy {
 		natural := pr.LadderClassFor(decision, streams)
 		softwareShape := func() []transcoding.HLSProfile {
