@@ -44,6 +44,35 @@ func SourceCopyVideoRange(streams []*library.MediaStream) string {
 // or "" when the source is not copy-eligible (the eligibility gates - level,
 // HDR ground truth, DoVi policy - live in CopyVideoCodecString). The manifest
 // only uses it for a rung whose HLSProfile.Copy is true.
+// SourceTranscodeVideoRange is the HDR range the TRANSCODE pipeline sees:
+// "PQ" for HDR10/HDR10+ and for a Dolby Vision base layer (profile 7/8 are
+// PQ underneath), "HLG", "" for SDR and for profile 5 whose IPTPQc2 base
+// layer no PQ-only tone-mapper or Main10 passthrough can carry.
+func SourceTranscodeVideoRange(streams []*library.MediaStream) string {
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		info := hdr.DetectHDR([]hdr.VideoStream{s})
+		if !info.IsHDR {
+			return ""
+		}
+		switch info.Type {
+		case "hlg":
+			return "HLG"
+		case "hdr10", "hdr10+":
+			return "PQ"
+		case "dolby_vision":
+			if info.DoViProfile == 5 {
+				return ""
+			}
+			return "PQ"
+		}
+		return ""
+	}
+	return ""
+}
+
 func SourceCopyVideoCodec(streams []*library.MediaStream) string {
 	for _, s := range streams {
 		if s == nil || s.StreamType != "video" {
@@ -310,7 +339,7 @@ func SourceDimsOf(streams []*library.MediaStream) SourceDims {
 			}
 			dims.Codec = s.Codec
 			dims.TenBit = StreamIsTenBit(s)
-			dims.HDRRange = SourceCopyVideoRange(streams)
+			dims.HDRRange = SourceTranscodeVideoRange(streams)
 			break
 		}
 	}

@@ -299,3 +299,28 @@ func TestSourceVideoCodecAndTenBitAndDims(t *testing.T) {
 		t.Error("no streams must not report ten-bit")
 	}
 }
+
+func TestSourceTranscodeVideoRange(t *testing.T) {
+	v := func(dv *int, trc string) []*library.MediaStream {
+		return []*library.MediaStream{{StreamType: "video", Codec: "hevc", ColorTransfer: new(trc), DoViProfile: dv}}
+	}
+	cases := []struct {
+		name string
+		in   []*library.MediaStream
+		want string
+	}{
+		{"hdr10", v(nil, "smpte2084"), "PQ"},
+		{"hlg", v(nil, "arib-std-b67"), "HLG"},
+		{"dovi profile 7 base layer is PQ", v(new(7), "smpte2084"), "PQ"},
+		{"dovi profile 5 has no PQ base", v(new(5), "smpte2084"), ""},
+		{"sdr", v(nil, "bt709"), ""},
+	}
+	for _, c := range cases {
+		if got := SourceTranscodeVideoRange(c.in); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+	if got := SourceCopyVideoRange(v(new(7), "smpte2084")); got != "" {
+		t.Errorf("the copy path must still refuse profile 7, got %q", got)
+	}
+}

@@ -160,6 +160,8 @@ streamInfo:
     video_codec_unsupported: 此播放器无法解码的视频编码
     audio_codec_unsupported: 此播放器无法解码的音频编码
     hdr_tonemapping_needed: HDR 已转换为 SDR（色调映射）
+    dovi_base_layer: "Dolby Vision 基础层已重新编码（保留 HDR）"
+    pixel_format_unsupported: "播放器无法解码的像素格式（10 位 H.264、4:2:2）"
     container_incompatible: 容器无法直接播放（已重新封装为 HLS）
     resolution_exceeded: 分辨率超出播放器上限
     bitrate_exceeded: 码率超出允许上限

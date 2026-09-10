@@ -160,6 +160,8 @@ streamInfo:
     video_codec_unsupported: Video codec this player cannot decode
     audio_codec_unsupported: Audio codec this player cannot decode
     hdr_tonemapping_needed: HDR converted to SDR (tone-mapping)
+    dovi_base_layer: "Dolby Vision base layer re-encoded (HDR kept)"
+    pixel_format_unsupported: "Pixel format the player cannot decode (10-bit H.264, 4:2:2)"
     container_incompatible: Container not playable as-is (repackaged to HLS)
     resolution_exceeded: Resolution above the player's limit
     bitrate_exceeded: Bitrate above the allowed limit

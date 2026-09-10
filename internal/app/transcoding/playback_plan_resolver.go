@@ -307,7 +307,7 @@ func (pr *PlanResolver) effectiveHWFeatures(features []string) []string {
 // never advertise a codec the segments don't carry. Re-resolves HW for the
 // fallback codec (H.264 may be HW-encodable where AV1 was not).
 func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {
-	hwTonemap := pr.HWTonemapWanted(decision, SourceCopyVideoRange(streams))
+	hwTonemap := pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams))
 	srcCodec := SourceVideoCodec(streams)
 	src10 := SourceVideoTenBit(streams)
 	codec = pr.codecWithPassthrough(pr.outputCodecFor(decision, streams), decision, streams)
@@ -404,7 +404,7 @@ func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecisi
 	if decision.VideoDecision != "transcode" || slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
 		return false
 	}
-	if SourceCopyVideoRange(streams) == "" || !pr.clientDecodes(decision, "hevc") {
+	if SourceTranscodeVideoRange(streams) == "" || !pr.clientDecodes(decision, "hevc") {
 		return false
 	}
 	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
@@ -752,7 +752,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		fpProfiles[i] = ProfileFingerprintOf(p)
 	}
 
-	hwTonemap := pr.HWTonemapWanted(decision, SourceCopyVideoRange(streams))
+	hwTonemap := pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams))
 	// Capability gate: AV1 falls back to H.264 when the host can't encode it (no
 	// HW AV1, no admin opt-in). videoCodec is what the segments actually carry -
 	// the cache key MUST use it, not the raw decision codec.
@@ -805,7 +805,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		// reaches the orchestrator/builder, which has no source streams to detect it.
 		HDRTonemap:       slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") || (hdrPassWanted && !hwUsable),
 		HDRPassthrough:   hdrPassWanted && hwUsable,
-		HDRTransfer:      strings.ToLower(SourceCopyVideoRange(streams)),
+		HDRTransfer:      strings.ToLower(SourceTranscodeVideoRange(streams)),
 		AudioNormalize:   normalize,
 		AudioEncoder:     pr.audioEncoderID(),
 		MaxAudioChannels: decision.MaxAudioChannels,

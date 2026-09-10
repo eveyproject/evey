@@ -741,3 +741,44 @@ func TestVideoTranscode_SoleMJPEGIsStillVideo(t *testing.T) {
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Contains(t, d.TranscodeReasons, "video_codec_unsupported")
 }
+
+// Profile 7 (UHD Blu-ray) hides an HDR10 base layer under its enhancement
+// layer: an HDR client gets that base re-encoded with the HDR kept, not SDR.
+func TestHDR_DoViProfile7_HDRClient_KeepsHDR(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "hevc", Width: new(3840), Height: new(2160), ColorSpace: new("bt2020nc"), ColorTransfer: new("smpte2084"), DoViProfile: new(7), Profile: "Main 10", Bitrate: new(int64(60000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", hdrClient(), 0)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "dovi_base_layer")
+	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
+
+	sdr := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
+	assert.Contains(t, sdr.TranscodeReasons, "hdr_tonemapping_needed", "an SDR client still tone-maps")
+}
+
+// Hi10P anime and 4:2:2 captures advertise a codec the browser knows, in a
+// pixel format it cannot decode.
+func TestPixelFormat_10BitH264_Transcodes(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), BitDepth: new(10), PixelFormat: new("yuv420p10le"), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "pixel_format_unsupported")
+
+	streams[0].BitDepth, streams[0].PixelFormat = new(8), new("yuv422p")
+	assert.Contains(t, apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0).TranscodeReasons, "pixel_format_unsupported", "4:2:2")
+
+	streams[0].BitDepth, streams[0].PixelFormat = new(8), new("yuv420p")
+	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0).PlayMethod)
+
+	hevc := []*library.MediaStream{
+		{StreamType: "video", Codec: "hevc", Width: new(1920), Height: new(1080), BitDepth: new(10), PixelFormat: new("yuv420p10le"), IsDefault: true},
+	}
+	hevcClient := transcoding.DefaultWebProfile
+	hevcClient.VideoCodecs = []string{"h264", "hevc"}
+	assert.NotContains(t, apptranscode.MakePlaybackDecision(t.Context(), hevc, "mp4", hevcClient, 0).TranscodeReasons, "pixel_format_unsupported", "10-bit HEVC is fine")
+}

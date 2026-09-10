@@ -33,6 +33,11 @@ type StreamSpec struct {
 	// (selectedAudioSpec) prefers a non-commentary default over a commentary default
 	// when both exist; an explicit AudioTrack selection always wins regardless.
 	Commentary bool
+	// BitDepth / PixelFormat / DoViProfile gate what a client can DECODE beyond
+	// the codec name: 10-bit H.264, 4:2:2, or a Dolby Vision RPU it cannot read.
+	BitDepth    *int
+	PixelFormat *string
+	DoViProfile *int
 }
 
 // toStreamSpecs adapts the persistence-flavored library.MediaStream slice
@@ -69,15 +74,18 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 			}
 		}
 		out = append(out, StreamSpec{
-			Type:       string(s.StreamType),
-			Codec:      s.Codec,
-			Width:      s.Width,
-			Height:     s.Height,
-			HDRType:    hdrType,
-			Channels:   s.Channels,
-			Bitrate:    s.Bitrate,
-			IsDefault:  s.IsDefault,
-			Commentary: s.Commentary,
+			Type:        string(s.StreamType),
+			Codec:       s.Codec,
+			Width:       s.Width,
+			Height:      s.Height,
+			HDRType:     hdrType,
+			Channels:    s.Channels,
+			Bitrate:     s.Bitrate,
+			IsDefault:   s.IsDefault,
+			Commentary:  s.Commentary,
+			BitDepth:    s.BitDepth,
+			PixelFormat: s.PixelFormat,
+			DoViProfile: s.DoViProfile,
 		})
 	}
 	return out
@@ -381,14 +389,25 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 		d.MaxHeight = client.MaxHeight
 	}
 
+	if !pixelFormatPlayable(s.Codec, s.BitDepth, s.PixelFormat) {
+		addReasonOnce(d, "pixel_format_unsupported")
+		d.VideoDecision = "transcode"
+	}
+
 	if s.HDRType != nil && *s.HDRType != "" {
 		// Direct-play HDR only when the client signalled HDR support, and never
 		// for Dolby Vision: a single SupportsHDR bool can't tell a DoVi-capable
 		// panel from an HDR10-only one, and direct-playing a DoVi stream to an
-		// HDR10-only display renders wrong. DoVi always tonemaps to SDR.
+		// HDR10-only display renders wrong.
 		hdrType := strings.ToLower(*s.HDRType)
 		isDolbyVision := strings.Contains(hdrType, "dolby") || strings.Contains(hdrType, "dovi")
-		if !client.SupportsHDR || isDolbyVision {
+		switch {
+		case isDolbyVision && client.SupportsHDR && doViBaseLayerIsHDR10(s.DoViProfile):
+			// Profile 7 (UHD Blu-ray): the base layer is plain HDR10. Re-encode it
+			// as HEVC Main10 with the HDR kept instead of tone-mapping to SDR.
+			addReasonOnce(d, "dovi_base_layer")
+			d.VideoDecision = "transcode"
+		case !client.SupportsHDR || isDolbyVision:
 			d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
 			d.VideoDecision = "transcode"
 		}
@@ -402,6 +421,37 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 // addReasonOnce appends a transcode reason unless it is already recorded, so a
 // stream that trips the same condition twice (e.g. both width and height over
 // the client cap) lists the reason a single time.
+// doViBaseLayerIsHDR10: profile 7 carries an HDR10 base layer any HEVC decoder
+// plays once the enhancement layer is dropped. Profile 8.1 is already typed
+// hdr10 upstream; profile 5 (IPTPQc2) never is.
+func doViBaseLayerIsHDR10(profile *int) bool {
+	return profile != nil && *profile == 7
+}
+
+// pixelFormatPlayable: browsers decode 8-bit 4:2:0 H.264 and up to 10-bit 4:2:0
+// HEVC/VP9/AV1. Hi10P anime, 4:2:2 captures and 12-bit masters must transcode.
+// Unknown depth/format (older probes) is trusted.
+func pixelFormatPlayable(codec string, bitDepth *int, pixFmt *string) bool {
+	pf := ""
+	if pixFmt != nil {
+		pf = strings.ToLower(strings.TrimSpace(*pixFmt))
+	}
+	depth := 0
+	if bitDepth != nil {
+		depth = *bitDepth
+	}
+	if pf != "" && !strings.HasPrefix(pf, "yuv420p") && !strings.HasPrefix(pf, "yuvj420p") && pf != "nv12" && pf != "p010le" {
+		return false
+	}
+	switch normalizeVideoCodec(codec) {
+	case "h264":
+		return depth <= 8 && !strings.Contains(pf, "10") && !strings.Contains(pf, "12")
+	case "hevc", "vp9", "av1":
+		return depth <= 10 && !strings.Contains(pf, "12")
+	}
+	return true
+}
+
 func addReasonOnce(d *transcoding.PlaybackDecision, reason string) {
 	if !containsReason(d.TranscodeReasons, reason) {
 		d.TranscodeReasons = append(d.TranscodeReasons, reason)
