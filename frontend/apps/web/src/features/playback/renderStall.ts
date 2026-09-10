@@ -165,3 +165,53 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
     },
   };
 }
+
+/** Below this much buffered media, a slowdown is the server being late, not the page. */
+const CAP_MIN_BUFFER_AHEAD_SEC = 8;
+/** Slowdown reports (30 s apart) before a rung is given up. */
+const CAP_AFTER_REPORTS = 2;
+/** Reports further apart than this start a new streak. */
+const CAP_STREAK_WINDOW_MS = 120_000;
+
+export interface RenderCapState {
+  streak: number;
+  lastAt: number;
+}
+
+/** Seconds of media buffered past the playhead, 0 outside any range. */
+export function bufferedAheadSec(video: HTMLVideoElement): number {
+  try {
+    const ct = video.currentTime;
+    const b = video.buffered;
+    for (let i = 0; i < b.length; i++) {
+      if (b.start(i) <= ct + 0.05 && ct <= b.end(i)) return b.end(i) - ct;
+    }
+  } catch { /* detached element */ }
+  return 0;
+}
+
+export function nextLowerRung(levelHeights: readonly number[], currentHeight: number): number | null {
+  const lower = levelHeights.filter((h) => h > 0 && h < currentHeight);
+  return lower.length ? Math.max(...lower) : null;
+}
+
+// A page that keeps under-painting a rung it has fully buffered cannot show
+// it (prod 2026-09-10: 2160p decoded at 24 fps, painted at 12, drop=0 on two
+// browsers). Returns the rung to pin instead, or null to keep watching.
+export function decideRenderCap(
+  s: RenderCapState,
+  now: number,
+  bufferAheadSec: number,
+  levelHeights: readonly number[],
+  currentHeight: number,
+): number | null {
+  if (bufferAheadSec < CAP_MIN_BUFFER_AHEAD_SEC) {
+    s.streak = 0;
+    return null;
+  }
+  s.streak = now - s.lastAt <= CAP_STREAK_WINDOW_MS ? s.streak + 1 : 1;
+  s.lastAt = now;
+  if (s.streak < CAP_AFTER_REPORTS) return null;
+  s.streak = 0;
+  return nextLowerRung(levelHeights, currentHeight);
+}

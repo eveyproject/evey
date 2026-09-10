@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { isRenderSlowdown, formatRenderWindow, createRenderStallWatch } from "./renderStall";
+import { isRenderSlowdown, formatRenderWindow, createRenderStallWatch, decideRenderCap, nextLowerRung } from "./renderStall";
 
 function win(over: Partial<Parameters<typeof isRenderSlowdown>[0]> = {}) {
   return { fps: 25, baselineFps: 25, lagMaxMs: 0, playing: true, visible: true, ...over };
@@ -143,5 +143,35 @@ describe("createRenderStallWatch", () => {
     await advance(3000);
     expect(watch.latest()).toBe(seen);
     expect(onSlowdown).not.toHaveBeenCalled();
+  });
+});
+
+describe("decideRenderCap", () => {
+  const rungs = [360, 720, 1080, 2160];
+
+  it("gives the rung up on the second report with a full buffer", () => {
+    const s = { streak: 0, lastAt: 0 };
+    expect(decideRenderCap(s, 1_000, 40, rungs, 2160)).toBeNull();
+    expect(decideRenderCap(s, 31_000, 40, rungs, 2160)).toBe(1080);
+    expect(s.streak).toBe(0);
+  });
+
+  it("blames the server, not the page, when the buffer is short", () => {
+    const s = { streak: 1, lastAt: 1_000 };
+    expect(decideRenderCap(s, 31_000, 2, rungs, 2160)).toBeNull();
+    expect(s.streak).toBe(0);
+  });
+
+  it("does not chain two reports that are minutes apart", () => {
+    const s = { streak: 0, lastAt: 0 };
+    decideRenderCap(s, 1_000, 40, rungs, 2160);
+    expect(decideRenderCap(s, 500_000, 40, rungs, 2160)).toBeNull();
+  });
+
+  it("has nowhere to go from the lowest rung", () => {
+    const s = { streak: 1, lastAt: 1_000 };
+    expect(decideRenderCap(s, 31_000, 40, rungs, 360)).toBeNull();
+    expect(nextLowerRung(rungs, 2160)).toBe(1080);
+    expect(nextLowerRung([1080], 1080)).toBeNull();
   });
 });
