@@ -417,3 +417,16 @@ func fakeFFprobe(t *testing.T, fakeJSON string) string {
 	require.NoError(t, os.Chmod(script.Name(), 0755))
 	return script.Name()
 }
+
+func TestParseIdetVerdict_Telecine(t *testing.T) {
+	pulldown := []byte("[Parsed_idet_0] Repeated Fields: Neither:   180 Top:    60 Bottom:    60\n[Parsed_idet_0] Multi frame detection: TFF:   200 BFF:     0 Progressive:   100 Undetermined:     0\n")
+	v, ok, err := parseIdetVerdict(pulldown)
+	if err != nil || !ok || !v.Interlaced || !v.Telecine {
+		t.Fatalf("3:2 pulldown = %+v ok=%v err=%v, want interlaced+telecine", v, ok, err)
+	}
+	interlaced := []byte("[Parsed_idet_0] Repeated Fields: Neither:   298 Top:     1 Bottom:     1\n[Parsed_idet_0] Multi frame detection: TFF:   290 BFF:     0 Progressive:    10 Undetermined:     0\n")
+	v, _, _ = parseIdetVerdict(interlaced)
+	if !v.Interlaced || v.Telecine {
+		t.Errorf("clean interlaced = %+v, want interlaced only", v)
+	}
+}

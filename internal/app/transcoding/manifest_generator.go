@@ -160,6 +160,9 @@ type ManifestInput struct {
 	// WITHOUT it and produce tonemapped SDR h264 segments inside a variant the
 	// master advertised as hvc1/PQ copy - codec mismatch, broken playback.
 	HDRCapable bool
+	// ScreenHeight (?screenHeight) shapes the ladder like the codec lists do,
+	// so it rides every baked URL for the same reason.
+	ScreenHeight int
 
 	// MaxAudioChannels is the client's declared channel CEILING (?maxAudioChannels).
 	// A decision input on the audio-rendition path exactly like the codec lists,
@@ -857,6 +860,9 @@ func querySuffix(in ManifestInput) string {
 		// Decision input like the codec lists: dropping it flips the segment
 		// decision from copy to tonemap-transcode mid-presentation (see field doc).
 		q.Set("hdr", "1")
+	}
+	if in.ScreenHeight > 0 {
+		q.Set("screenHeight", fmt.Sprintf("%d", in.ScreenHeight))
 	}
 	if in.MaxAudioChannels > 0 {
 		// Audio-rendition decision input: without it the rendition falls back to

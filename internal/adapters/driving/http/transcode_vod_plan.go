@@ -109,6 +109,7 @@ func (h *hlsVODServe) marshalPlaybackRequest(r *http.Request, mediaID string, it
 		WasmAudio:           wasmAudioEffective(r, h.castWasmAudioEnabled),
 		SourceBytes:         sourceBytesOf(item),
 		SourceBitrateKbps:   sourceBitrateKbpsOf(item),
+		ScreenHeight:        parseIntQuery(r, "screenHeight", 0),
 	}
 }
 

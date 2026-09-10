@@ -76,6 +76,10 @@ func (s *fakeLevelStore) SetVideoLevels(_ context.Context, id shared.MediaItemID
 	return s.setReturn, s.setErr
 }
 
+func (s *fakeLevelStore) SetIdetTelecine(_ context.Context, _ shared.MediaItemID, _ bool) (int, error) {
+	return 1, nil
+}
+
 func (s *fakeLevelStore) SetIdetInterlaced(_ context.Context, id shared.MediaItemID, interlaced bool) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

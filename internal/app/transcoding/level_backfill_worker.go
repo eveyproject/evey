@@ -31,6 +31,19 @@ type LevelBackfillStore interface {
 	// must persist or the decode-heavy probe re-runs forever). Never
 	// overwrites an existing verdict. Returns rows updated.
 	SetIdetInterlaced(ctx context.Context, mediaItemID shared.MediaItemID, interlaced bool) (int, error)
+	SetIdetTelecine(ctx context.Context, mediaItemID shared.MediaItemID, telecine bool) (int, error)
+}
+
+// IdetSummaryDetector is the richer probe: interlace AND telecine in one pass.
+type IdetSummaryDetector interface {
+	ProbeIdetSummary(ctx context.Context, filePath string) (IdetVerdict, error)
+}
+
+// IdetVerdict mirrors the ffmpeg adapter's IdetSummary (same field set, so the
+// adapter's value converts).
+type IdetVerdict = struct {
+	Interlaced bool
+	Telecine   bool
 }
 
 // InterlaceDetector is the OPTIONAL prober capability the idet fallback needs.
@@ -336,11 +349,29 @@ func (w *LevelBackfillWorker) idetPhase(ctx context.Context, mediaItemID, path s
 			return n
 		}
 	}
-	interlaced, err := detector.ProbeInterlaceDetect(ctx, path)
-	if err != nil {
-		w.logger.Warn("idet backfill: probe failed",
-			slog.String("media_id", mediaItemID), slog.Any("err", err))
-		return 0
+	var interlaced, telecine bool
+	if sd, ok := w.prober.(IdetSummaryDetector); ok {
+		v, err := sd.ProbeIdetSummary(ctx, path)
+		if err != nil {
+			w.logger.Warn("idet backfill: probe failed",
+				slog.String("media_id", mediaItemID), slog.Any("err", err))
+			return 0
+		}
+		interlaced, telecine = v.Interlaced, v.Telecine
+		if telecine {
+			if _, err := w.store.SetIdetTelecine(ctx, shared.MediaItemID(mediaItemID), true); err != nil {
+				w.logger.Warn("idet backfill: telecine persist failed",
+					slog.String("media_id", mediaItemID), slog.Any("err", err))
+			}
+		}
+	} else {
+		var err error
+		interlaced, err = detector.ProbeInterlaceDetect(ctx, path)
+		if err != nil {
+			w.logger.Warn("idet backfill: probe failed",
+				slog.String("media_id", mediaItemID), slog.Any("err", err))
+			return 0
+		}
 	}
 	n, err := w.store.SetIdetInterlaced(ctx, shared.MediaItemID(mediaItemID), interlaced)
 	if err != nil {

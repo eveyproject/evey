@@ -313,29 +313,32 @@ func (p *Prober) ProbeKeyframes(ctx context.Context, filePath string) ([]int64, 
 // doubt, don't. Telecined / genuinely interlaced sources clear the majority
 // easily.
 func (p *Prober) ProbeInterlaceDetect(ctx context.Context, filePath string) (bool, error) {
+	v, err := p.ProbeIdetSummary(ctx, filePath)
+	return v.Interlaced, err
+}
+
+// ProbeIdetSummary is ProbeInterlaceDetect with the telecine verdict kept.
+func (p *Prober) ProbeIdetSummary(ctx context.Context, filePath string) (IdetSummary, error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.prober.ProbeInterlaceDetect")
 	defer span.End()
-	// First attempt skips a minute in (past studio logos / black intros). If it
-	// errors OR determines no frames - a short file where -ss 60 seeks past the
-	// end - retry from the start.
-	interlaced, ok, err := p.idetRun(ctx, filePath, true)
+	v, ok, err := p.idetRun(ctx, filePath, true)
 	if err == nil && ok {
-		return interlaced, nil
+		return v, nil
 	}
-	interlaced, ok, err = p.idetRun(ctx, filePath, false)
+	v, ok, err = p.idetRun(ctx, filePath, false)
 	if err != nil {
-		return false, fmt.Errorf("ffmpeg idet probe: %w", err)
+		return IdetSummary{}, fmt.Errorf("ffmpeg idet probe: %w", err)
 	}
 	if !ok {
-		return false, fmt.Errorf("ffmpeg idet probe: zero determined frames")
+		return IdetSummary{}, fmt.Errorf("ffmpeg idet probe: zero determined frames")
 	}
-	return interlaced, nil
+	return v, nil
 }
 
 // idetRun executes one idet pass and parses the verdict. ok=false means the
 // run determined no frames (the caller retries without the seek). seek inserts
 // the -ss 60 skip.
-func (p *Prober) idetRun(ctx context.Context, filePath string, seek bool) (interlaced, ok bool, err error) {
+func (p *Prober) idetRun(ctx context.Context, filePath string, seek bool) (v IdetSummary, ok bool, err error) {
 	args := []string{"-v", "info"}
 	if seek {
 		args = append(args, "-ss", "60")
@@ -345,9 +348,9 @@ func (p *Prober) idetRun(ctx context.Context, filePath string, seek bool) (inter
 	// idet prints its summary on stderr at stream close.
 	out, runErr := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Scan, Site: "prober.idet"}, seekLandingBinary, args...)
 	if runErr != nil {
-		return false, false, runErr
+		return IdetSummary{}, false, runErr
 	}
-	return parseIdetSummary(out)
+	return parseIdetVerdict(out)
 }
 
 // parseIdetSummary extracts the multi-frame detection counters from idet's
@@ -358,23 +361,49 @@ func (p *Prober) idetRun(ctx context.Context, filePath string, seek bool) (inter
 // Returns ok=false when no frames were determined (e.g. a seek past EOF).
 // Compiled once, not per call: parseIdetSummary runs after every idet probe.
 var idetSummaryRe = regexp.MustCompile(`Multi frame detection: TFF:\s*(\d+)\s*BFF:\s*(\d+)\s*Progressive:\s*(\d+)`)
+var idetRepeatRe = regexp.MustCompile(`Repeated Fields: Neither:\s*(\d+)\s*Top:\s*(\d+)\s*Bottom:\s*(\d+)`)
+
+// IdetSummary is one idet pass: Interlaced when combed frames outnumber
+// progressive ones, Telecine when on top of that a good share of frames repeat
+// a field (3:2 pulldown repeats one field in five).
+type IdetSummary struct {
+	Interlaced bool
+	Telecine   bool
+}
+
+// telecineRepeatShare: 3:2 pulldown repeats a field on 2 frames in 5 (40 %);
+// clean interlaced and progressive material sit near 0.
+const telecineRepeatShare = 0.15
 
 func parseIdetSummary(out []byte) (interlaced, ok bool, err error) {
-	// ffmpeg can print more than one idet summary (an initial all-zero one
-	// before frames flow, plus the real one at stream close). The LAST is the
-	// cumulative result.
+	v, ok, err := parseIdetVerdict(out)
+	return v.Interlaced, ok, err
+}
+
+// The LAST summary is the cumulative one (ffmpeg prints an all-zero one first).
+func parseIdetVerdict(out []byte) (v IdetSummary, ok bool, err error) {
 	all := idetSummaryRe.FindAllSubmatch(out, -1)
 	if len(all) == 0 {
-		return false, false, fmt.Errorf("no multi-frame summary in output")
+		return v, false, fmt.Errorf("no multi-frame summary in output")
 	}
 	m := all[len(all)-1]
 	tff, _ := strconv.Atoi(string(m[1]))
 	bff, _ := strconv.Atoi(string(m[2]))
 	prog, _ := strconv.Atoi(string(m[3]))
 	if tff+bff+prog == 0 {
-		return false, false, nil
+		return v, false, nil
 	}
-	return tff+bff > prog, true, nil
+	v.Interlaced = tff+bff > prog
+	if rep := idetRepeatRe.FindAllSubmatch(out, -1); len(rep) > 0 && v.Interlaced {
+		rm := rep[len(rep)-1]
+		neither, _ := strconv.Atoi(string(rm[1]))
+		top, _ := strconv.Atoi(string(rm[2]))
+		bottom, _ := strconv.Atoi(string(rm[3]))
+		if total := neither + top + bottom; total > 0 && float64(top+bottom)/float64(total) >= telecineRepeatShare {
+			v.Telecine = true
+		}
+	}
+	return v, true, nil
 }
 
 // seekLandingBinary is the ffmpeg CLI used by ProbeSeekLanding. It MUST be the

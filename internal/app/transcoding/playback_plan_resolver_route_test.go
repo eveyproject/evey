@@ -365,3 +365,12 @@ func TestShapeLadder_FollowsSourceBitrate(t *testing.T) {
 	base := (&PlanResolver{}).ShapeLadder(context.Background(), req, decision)
 	assert.Less(t, base[len(base)-1].VideoBitrate, want, "no source bitrate keeps the static ladder")
 }
+
+func TestShapeLadder_CapsToScreen(t *testing.T) {
+	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
+	req := ladderRequest(2160)
+	req.ScreenHeight = 480
+	profiles := (&PlanResolver{}).ShapeLadder(context.Background(), req, decision)
+	require.NotEmpty(t, profiles)
+	assert.Equal(t, 480, profiles[len(profiles)-1].Height, "a 480 px screen never gets a taller rung")
+}

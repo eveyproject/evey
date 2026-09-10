@@ -224,9 +224,21 @@ func TestHWDeinterlaceFilter(t *testing.T) {
 		"":                "",
 	}
 	for accel, want := range cases {
-		if got := hwDeinterlaceFilter(accel); got != want {
+		if got := hwDeinterlaceFilter(accel, false); got != want {
 			t.Errorf("hwDeinterlaceFilter(%q) = %q, want %q", accel, got, want)
 		}
+	}
+	// The idet verdict (unflagged interlaced) must reach the GPU path too.
+	if got := hwDeinterlaceFilter(transcoding.VAAPI, true); got != "deinterlace_vaapi" {
+		t.Errorf("VAAPI deint-all = %q", got)
+	}
+	if got := hwDeinterlaceFilter(transcoding.NVENC, true); got != "yadif_cuda=deint=all" {
+		t.Errorf("NVENC deint-all = %q", got)
+	}
+	opts := sampleHWOpts(transcoding.None, "", 1)
+	opts.InverseTelecine = true
+	if got := deinterlaceFilterFor(opts); got != inverseTelecineFilter {
+		t.Errorf("telecine = %q", got)
 	}
 }
 

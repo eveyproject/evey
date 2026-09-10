@@ -172,6 +172,12 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		// segment-time makeDecision silently downgrades an HDR copy rung to a
 		// tonemapped h264 transcode that contradicts the master's CODECS.
 		HDRCapable: r != nil && r.URL.Query().Get("hdr") == "1",
+		ScreenHeight: func() int {
+			if r == nil {
+				return 0
+			}
+			return parseIntQuery(r, "screenHeight", 0)
+		}(),
 		// The channel ceiling is a decision input on the audio rendition the
 		// same way hdr=1 is on the video rung: the EXT-X-MEDIA URIs must carry
 		// it or the rendition re-derives the SOURCE layout (see field doc).
