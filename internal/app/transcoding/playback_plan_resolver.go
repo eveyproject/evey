@@ -34,6 +34,9 @@ type PlanResolver struct {
 	AV1Enabled       func() bool
 	AV1MaxHeight     func() int
 	HWTonemapEnabled func() bool
+	// HWLowPowerEnabled: admin opt-in for the Intel low-power (VDEnc) encoder.
+	// Off (nil) keeps the probed low_power_* features out of the encode.
+	HWLowPowerEnabled func() bool
 	// AudioNormalize reports the loudnorm admin setting (forces audio re-encode).
 	AudioNormalize func(ctx context.Context) bool
 	// CapOverride is the CMCD-feedback adaptive ceiling (never raises, only lowers).
@@ -275,7 +278,21 @@ func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit,
 	if sourceTenBit && !cap.HW10BitTranscode && !hwTonemap {
 		return "", "", nil, false, false
 	}
-	return cap.HWBackend, cap.HWDevice, cap.HWFeatures, true, softwareDecode
+	return cap.HWBackend, cap.HWDevice, pr.effectiveHWFeatures(cap.HWFeatures), true, softwareDecode
+}
+
+// effectiveHWFeatures drops the low-power features unless the admin opted in.
+func (pr *PlanResolver) effectiveHWFeatures(features []string) []string {
+	if pr.HWLowPowerEnabled != nil && pr.HWLowPowerEnabled() {
+		return features
+	}
+	out := make([]string, 0, len(features))
+	for _, f := range features {
+		if !strings.HasPrefix(f, "low_power_") {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // EffectiveVideoCodec applies the capability gate to the decision's chosen
@@ -410,16 +427,17 @@ func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision, h
 	if pr.HWTonemapEnabled != nil && !pr.HWTonemapEnabled() {
 		return false
 	}
-	// tonemap_vaapi / vpp_qsv only read PQ: HLG comes out wrong and a Dolby
-	// Vision RPU is ignored (green/purple on profile 5). Those stay on tonemapx.
-	if hdrRange != "PQ" {
-		return false
-	}
 	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
 		return false
 	}
 	cap := pr.Capability()
 	if !cap.HWTonemap || (cap.HWBackend != "vaapi" && cap.HWBackend != "qsv") {
+		return false
+	}
+	// tonemap_vaapi / vpp_qsv only read PQ: HLG comes out wrong and a Dolby
+	// Vision RPU is ignored (green/purple on profile 5). tonemap_opencl handles
+	// both; without it those sources stay on tonemapx.
+	if hdrRange != "PQ" && !cap.HWHasFeature(transcoding.FeatureTonemapOpenCL) {
 		return false
 	}
 	return slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")

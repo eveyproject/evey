@@ -18,8 +18,33 @@ func TestHWEncoderQualityArgs_LowPowerPerCodec(t *testing.T) {
 	if got := strings.Join(hwEncoderQualityArgs(transcoding.QSV, "h264", []string{"low_power_h264"}), " "); got != "-preset veryfast -low_power 1" {
 		t.Errorf("QSV h264 = %q", got)
 	}
-	if got := strings.Join(hwEncoderQualityArgs(transcoding.VAAPI, "h264", []string{"low_power_h264", "bframes"}), " "); got != "-low_power 1 -bf 3" {
-		t.Errorf("VAAPI h264 low power + bframes = %q", got)
+	if got := strings.Join(hwEncoderQualityArgs(transcoding.VAAPI, "h264", []string{"low_power_h264", "bframes_h264"}), " "); got != "-low_power 1" {
+		t.Errorf("normal-mode B-frames must not leak into a low-power encode: %q", got)
+	}
+	if got := strings.Join(hwEncoderQualityArgs(transcoding.VAAPI, "h264", []string{"low_power_h264", "bframes_h264_lp"}), " "); got != "-low_power 1 -bf 3" {
+		t.Errorf("VAAPI h264 low power + its own bframes = %q", got)
+	}
+	if got := strings.Join(hwEncoderQualityArgs(transcoding.VAAPI, "hevc", []string{"bframes_hevc"}), " "); got != "-bf 3" {
+		t.Errorf("VAAPI hevc bframes = %q", got)
+	}
+}
+
+func TestHWTonemapFilter_OpenCLWhenProbed(t *testing.T) {
+	if got := hwTonemapFilter(transcoding.VAAPI, nil); !strings.HasPrefix(got, "tonemap_vaapi=") {
+		t.Errorf("VPP fallback = %q", got)
+	}
+	got := hwTonemapFilter(transcoding.VAAPI, []string{transcoding.FeatureTonemapOpenCL})
+	for _, want := range []string{"hwmap=derive_device=opencl", "tonemap_opencl=", "tonemap=bt2390", "peak=100", "hwmap=derive_device=vaapi:reverse=1"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("OpenCL chain %q missing %q", got, want)
+		}
+	}
+	opts := sampleHWOpts(transcoding.VAAPI, "/dev/dri/renderD128", 1)
+	opts.ToneMap, opts.HWTonemap = true, true
+	opts.HWFeatures = []string{transcoding.FeatureTonemapOpenCL}
+	joined := strings.Join(BuildFFmpegArgs(opts), " ")
+	if !strings.Contains(joined, "tonemap_opencl=") || strings.Contains(joined, "tonemap_vaapi") {
+		t.Errorf("probed OpenCL must replace the VPP tone-mapper: %q", joined)
 	}
 }
 

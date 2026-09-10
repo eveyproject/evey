@@ -274,6 +274,11 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// from the 10-bit VPP: a backend may fold 10-bit yet lack a tone-map filter
 		// (or the Vulkan/OpenCL ICD it needs). False -> HDR tone-maps in software.
 		hwTonemap = probeHWTonemap(ctx, r.ffmpegPath, hwBackend, hwDevice)
+		if hwTonemap && probeHWTonemapOpenCL(ctx, r.ffmpegPath, hwBackend, hwDevice) {
+			hwFeatures = append(hwFeatures, transcoding.FeatureTonemapOpenCL)
+			r.logger.Info("benchmark: HW feature supported",
+				slog.String("backend", hwBackend), slog.String("feature", transcoding.FeatureTonemapOpenCL))
+		}
 		// Probe the GPU subtitle compositor last, and separately again: a backend
 		// that decodes, folds 10-bit and tone-maps can still lack a working
 		// overlay VPP. It is the capability that decides whether a burn-in stays
@@ -444,18 +449,29 @@ func (r *BenchmarkRunner) probeIntelFeatures(ctx context.Context, backend, devic
 		if enc == "" {
 			continue
 		}
-		var mode []string
-		if probeHWEncodeWith(ctx, r.ffmpegPath, enc, backend, device, []string{"-low_power", "1"}) {
+		lowPower := probeHWEncodeWith(ctx, r.ffmpegPath, enc, backend, device, []string{"-low_power", "1"})
+		if lowPower {
 			ok = append(ok, transcoding.LowPowerFeature(codec))
-			mode = []string{"-low_power", "1"}
 			r.logger.Info("benchmark: HW feature supported",
 				slog.String("backend", backend), slog.String("feature", transcoding.LowPowerFeature(codec)))
 		}
-		if backend == "vaapi" && codec == "h264" {
-			if probeHWEncodeWith(ctx, r.ffmpegPath, enc, backend, device, append(mode, "-bf", "3")) {
-				ok = append(ok, "bframes")
-				r.logger.Info("benchmark: HW feature supported",
-					slog.String("backend", backend), slog.String("feature", "bframes"))
+		// B-frames are probed per codec AND per encoder mode: on Gen9 the normal
+		// encoder has them, the low-power one does not, and ffmpeg never fails.
+		if backend == "vaapi" {
+			modes := []bool{false}
+			if lowPower {
+				modes = append(modes, true)
+			}
+			for _, lp := range modes {
+				var mode []string
+				if lp {
+					mode = []string{"-low_power", "1"}
+				}
+				if probeHWBFrames(ctx, r.ffmpegPath, enc, backend, device, mode) {
+					ok = append(ok, transcoding.BFramesFeature(codec, lp))
+					r.logger.Info("benchmark: HW feature supported",
+						slog.String("backend", backend), slog.String("feature", transcoding.BFramesFeature(codec, lp)))
+				}
 			}
 		}
 	}

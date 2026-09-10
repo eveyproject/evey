@@ -107,7 +107,7 @@ func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool
 	// GPU tone-mapping AND it's wired into this request (opts.HWTonemap) AND the
 	// backend has a HW tone-map filter - then the GPU folds HDR->SDR in-pipeline.
 	if toneMap != "" {
-		return opts.HWTonemap && hwTonemapFilter(opts.HWAccel) != ""
+		return opts.HWTonemap && hwTonemapFilter(opts.HWAccel, opts.HWFeatures) != ""
 	}
 	return true
 }
@@ -116,9 +116,14 @@ func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool
 // "" when no HW tone-mapper is wired. Inserted before the scaler so the GPU
 // folds HDR (and 10-bit) in one pass. NVENC's HW tone-map path is libplacebo
 // (Vulkan) which is not modelled here, so NVENC tone-maps in software.
-func hwTonemapFilter(accel transcoding.HWAccelType) string {
+func hwTonemapFilter(accel transcoding.HWAccelType, features []string) string {
 	switch accel {
 	case transcoding.VAAPI:
+		// OpenCL when probed: bt2390 like the software path, RPU/HLG aware. The
+		// fixed-function VPP curve is the fallback.
+		if slices.Contains(features, transcoding.FeatureTonemapOpenCL) {
+			return hwOpenCLTonemapChain
+		}
 		return "tonemap_vaapi=format=nv12:matrix=bt709:primaries=bt709:transfer=bt709"
 	case transcoding.QSV:
 		return "vpp_qsv=tonemap=1:format=nv12"
@@ -425,7 +430,7 @@ func hwEncoderQualityArgs(accel transcoding.HWAccelType, codec string, features 
 		if lowPower {
 			args = append(args, "-low_power", "1")
 		}
-		if has("bframes") {
+		if has(transcoding.BFramesFeature(normalizeVideoCodec(codec), lowPower)) {
 			args = append(args, "-bf", "3")
 		}
 		return args
@@ -467,7 +472,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 
 	vf := hwRungScaleFilter(opts, p.Width)
 	if opts.HWTonemap {
-		if tm := hwTonemapFilter(opts.HWAccel); tm != "" {
+		if tm := hwTonemapFilter(opts.HWAccel, opts.HWFeatures); tm != "" {
 			vf = tm + "," + vf // GPU HDR->SDR fold before the scaler
 		}
 	}
@@ -478,7 +483,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 		// scaler from the main branch and re-add it past the compositor.
 		main := hwSourceFilterPrefix(opts)
 		if opts.HWTonemap {
-			if tm := hwTonemapFilter(opts.HWAccel); tm != "" {
+			if tm := hwTonemapFilter(opts.HWAccel, opts.HWFeatures); tm != "" {
 				main += tm + ","
 			}
 		}
@@ -530,7 +535,7 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 	src := "[0:v]" + hwSourceFilterPrefix(opts)
 	// Tone-map once on the source surface before the GPU split (not per-rung).
 	if opts.HWTonemap {
-		if tm := hwTonemapFilter(opts.HWAccel); tm != "" {
+		if tm := hwTonemapFilter(opts.HWAccel, opts.HWFeatures); tm != "" {
 			src += tm + ","
 		}
 	}

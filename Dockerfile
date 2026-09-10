@@ -315,6 +315,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends gnupg \
     # the zscale chain if a future build ever drops it.
     && /usr/local/bin/ffmpeg -hide_banner -filters | grep -q tonemapx
 
+# Intel OpenCL runtime (amd64 only) for tonemap_opencl: the same bt2390 curve as
+# the software tone-mapper, run on the GPU, HLG and Dolby Vision RPU included.
+# Same pins as Jellyfin's image: NEO main for Gen12+, legacy1 for Gen9-11.
+ARG INTEL_GMMLIB_VER=22.10.0
+ARG INTEL_IGC2_VER=2.40.13
+ARG INTEL_IGC2_BUILD=22418
+ARG INTEL_NEO_VER=26.31.39395.13
+ARG INTEL_IGC1_LEGACY_VER=1.0.17537.24
+ARG INTEL_NEO_LEGACY_VER=24.35.30872.36
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+      set -eu && mkdir /tmp/neo && cd /tmp/neo \
+      && curl -fsSLO https://github.com/intel/compute-runtime/releases/download/${INTEL_NEO_VER}/libigdgmm12_${INTEL_GMMLIB_VER}_amd64.deb \
+      && curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/v${INTEL_IGC2_VER}/intel-igc-core-2_${INTEL_IGC2_VER}+${INTEL_IGC2_BUILD}_amd64.deb \
+      && curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/v${INTEL_IGC2_VER}/intel-igc-opencl-2_${INTEL_IGC2_VER}+${INTEL_IGC2_BUILD}_amd64.deb \
+      && curl -fsSLO https://github.com/intel/compute-runtime/releases/download/${INTEL_NEO_VER}/intel-opencl-icd_${INTEL_NEO_VER}-0_amd64.deb \
+      && curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/igc-${INTEL_IGC1_LEGACY_VER}/intel-igc-core_${INTEL_IGC1_LEGACY_VER}_amd64.deb \
+      && curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/igc-${INTEL_IGC1_LEGACY_VER}/intel-igc-opencl_${INTEL_IGC1_LEGACY_VER}_amd64.deb \
+      && curl -fsSLO https://github.com/intel/compute-runtime/releases/download/${INTEL_NEO_LEGACY_VER}/intel-opencl-icd-legacy1_${INTEL_NEO_LEGACY_VER}_amd64.deb \
+      && apt-get update && apt-get install -y --no-install-recommends ./*.deb \
+      && cd / && rm -rf /tmp/neo /var/lib/apt/lists/* \
+      && ls /etc/OpenCL/vendors/ \
+      && /usr/local/bin/ffmpeg -hide_banner -filters | grep -q tonemap_opencl; \
+    fi
+
 RUN groupadd -g 1000 evey \
     && useradd -u 1000 -g evey -m -s /usr/sbin/nologin evey \
     && useradd -u 1001 -g evey -m -s /usr/sbin/nologin evey-plugin \

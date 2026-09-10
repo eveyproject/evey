@@ -346,6 +346,48 @@ func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device strin
 // Gen9+ Intel (tonemap_vaapi / vpp_qsv) and a Vulkan libplacebo build pass;
 // old-iGPU-class VEBOX and hosts without a Vulkan/OpenCL ICD (incl. WSL) fail.
 // Fail-closed: any error/abort/timeout ⇒ false ⇒ HDR tone-maps in software.
+// hwOpenCLTonemapChain maps the VAAPI surface into OpenCL, tone-maps with the
+// same bt2390/peak=100 curve as the software path, and maps back for the encoder.
+const hwOpenCLTonemapChain = "hwmap=derive_device=opencl,tonemap_opencl=format=nv12:primaries=bt709:transfer=bt709:matrix=bt709:tonemap=bt2390:peak=100:desat=0,hwmap=derive_device=vaapi:reverse=1:extra_hw_frames=16"
+
+// probeHWTonemapOpenCL: VAAPI only; the synthetic frame is tagged PQ because
+// tonemap_opencl refuses an SDR input. Failure output is logged: a missing ICD
+// or a bad option must be visible in the boot log, not a silent "no".
+func probeHWTonemapOpenCL(ctx context.Context, ffmpegPath, hwType, device string) bool {
+	if hwType != "vaapi" || device == "" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
+	defer cancel()
+	args := []string{"-hide_banner", "-v", "error", "-nostdin", "-vaapi_device", device,
+		"-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3",
+		"-vf", "format=p010le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc,hwupload," + hwOpenCLTonemapChain + ",hwdownload,format=nv12",
+		"-f", "null", "-"}
+	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_tonemap_opencl"}, ffmpegPath, args...)
+	if err != nil {
+		slog.Info("hwdetect: OpenCL tone-map probe failed", slog.String("tail", tailString(string(out), 300)))
+		return false
+	}
+	return true
+}
+
+// probeHWBFrames runs a short encode at -v verbose: vaapi_encode reports the
+// GOP it could build, and a driver without B support silently degrades to P.
+func probeHWBFrames(ctx context.Context, ffmpegPath, encoder, hwType, device string, mode []string) bool {
+	if hwType != "vaapi" || device == "" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
+	defer cancel()
+	args := []string{"-hide_banner", "-v", "verbose", "-nostdin", "-vaapi_device", device,
+		"-f", "lavfi", "-i", "testsrc2=size=256x144:rate=10:duration=0.5",
+		"-vf", "format=nv12,hwupload", "-c:v", encoder}
+	args = append(args, mode...)
+	args = append(args, "-bf", "3", "-f", "null", "-")
+	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_bframes"}, ffmpegPath, args...)
+	return err == nil && strings.Contains(string(out), "P- and B-frames")
+}
+
 func probeHWTonemap(ctx context.Context, ffmpegPath, hwType, device string) bool {
 	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
 	defer cancel()

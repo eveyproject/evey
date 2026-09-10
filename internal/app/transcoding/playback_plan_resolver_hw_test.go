@@ -211,6 +211,13 @@ func TestHWTonemapWanted(t *testing.T) {
 		assert.False(t, hwResolver(vaapiCapable()).HWTonemapWanted(needsTonemap, ""))
 	})
 
+	t.Run("a probed OpenCL tone-mapper takes HLG and Dolby Vision too", func(t *testing.T) {
+		ocl := vaapiCapable()
+		ocl.HWFeatures = append(ocl.HWFeatures, transcoding.FeatureTonemapOpenCL)
+		assert.True(t, hwResolver(ocl).HWTonemapWanted(needsTonemap, "HLG"))
+		assert.True(t, hwResolver(ocl).HWTonemapWanted(needsTonemap, ""))
+	})
+
 	t.Run("nothing to tone-map", func(t *testing.T) {
 		// The decision does not ask for it: a capable host must not tone-map SDR.
 		assert.False(t, hwResolver(vaapiCapable()).HWTonemapWanted(transcoding.PlaybackDecision{}, "PQ"))
@@ -220,6 +227,18 @@ func TestHWTonemapWanted(t *testing.T) {
 // The route decides which physical pool the session burns. When it disagrees
 // with what the fingerprint tags, admission prices one pool while the spawn
 // consumes the other.
+func TestResolveHW_LowPowerIsOptIn(t *testing.T) {
+	c := vaapiCapable()
+	c.HWFeatures = []string{"low_power_h264", "bframes_h264"}
+	pr := hwResolver(c)
+	_, _, feats, usable, _ := pr.ResolveHW("h264", "h264", false, false)
+	assert.True(t, usable)
+	assert.Equal(t, []string{"bframes_h264"}, feats, "low power stays out until the admin opts in")
+	pr.HWLowPowerEnabled = func() bool { return true }
+	_, _, feats, _, _ = pr.ResolveHW("h264", "h264", false, false)
+	assert.Equal(t, []string{"low_power_h264", "bframes_h264"}, feats)
+}
+
 func TestHWRouteUsable(t *testing.T) {
 	tonemapNeeded := transcoding.PlaybackDecision{
 		VideoCodec:       "h264",
