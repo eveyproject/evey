@@ -116,7 +116,7 @@ function PlayerPage() {
 
 function PlayerPageInner({ mediaId }: { mediaId: string }) {
   const { t } = useTranslation();
-  const { room: roomParam, restart } = Route.useSearch();
+  const { room: roomParam, restart, audio: pickedAudio, subtitle: pickedSubtitle } = Route.useSearch();
   const router = useRouter();
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareRoomId, setShareRoomId] = useState<string | null>(null);
@@ -414,6 +414,8 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             filePath={mediaItem?.filePath}
             audioStreams={audioStreams}
             subtitleStreams={subtitleStreams}
+            initialAudioIndex={pickedAudio}
+            initialSubtitle={pickedSubtitle}
             title={mediaItem?.title}
             onClose={handleClose}
             onEnded={handleEnded}

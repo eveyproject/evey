@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatDurationMs, formatTimeMs, itemLabel, seasonLabel } from "@evey/api";
+import { formatDurationMs, formatTimeMs, itemLabel, seasonLabel, trackPickParams, type TrackPick } from "@evey/api";
+import { TrackPickRow } from "../../../src/components/TrackPickRow";
 import { View, Text, ScrollView, Pressable, FlatList, StyleSheet, Linking } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -241,6 +242,8 @@ export default function MediaDetailScreen() {
   const { needsPin, profileId: gateProfileId } = useParentalGate(media?.officialRating);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pendingPlayTarget, setPendingPlayTarget] = useState<{ id: string; restart: boolean } | null>(null);
+  // Audio/subtitle chosen before playback; empty = the player decides.
+  const [trackPick, setTrackPick] = useState<TrackPick>({});
 
   const invalidateWatched = useCallback(() => {
     if (id) void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${id}/progress`] });
@@ -341,8 +344,13 @@ export default function MediaDetailScreen() {
   // choice must survive the detour, or entering a PIN would silently resume
   // the thing the viewer asked to watch from the start.
   const openPlayer = useCallback((target: string, restart: boolean) => {
-    router.push(restart ? `/(auth)/player/${target}?restart=1` : `/(auth)/player/${target}`);
-  }, []);
+    // The track pick belongs to THIS file's streams: an episode launched from
+    // a series page keeps the player's own resolution.
+    const query = new URLSearchParams(trackPickParams(target === media?.id ? trackPick : undefined));
+    if (restart) query.set("restart", "1");
+    const q = query.toString();
+    router.push(q ? `/(auth)/player/${target}?${q}` : `/(auth)/player/${target}`);
+  }, [media?.id, trackPick]);
 
   const handlePlay = useCallback((restart = false) => {
     const target = getPlayTarget();
@@ -693,6 +701,10 @@ export default function MediaDetailScreen() {
             </Pressable>
           ))}
       </View>
+
+      {media.streams && media.id === playTarget ? (
+        <TrackPickRow streams={media.streams} pick={trackPick} onChange={setTrackPick} />
+      ) : null}
 
       {/* Overview */}
       {media.overview ? (

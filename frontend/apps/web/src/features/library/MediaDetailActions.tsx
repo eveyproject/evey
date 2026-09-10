@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatTimeMs, itemLabel } from "@evey/api";
+import { formatTimeMs, itemLabel, type TrackPick } from "@evey/api";
 import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { Play, RotateCcw, EyeOff, Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
@@ -27,6 +27,7 @@ import { AddToCollectionModal } from "../collection/AddToCollectionModal";
 import { PlaySeriesButton, PlaySeasonButton } from "./MediaDetailSeries";
 import { TrailerSection } from "./MediaDetailTrailer";
 import { MetadataEditPanel } from "./MediaDetailEdit";
+import { MediaDetailTracks } from "./MediaDetailTracks";
 import { hasMediaFile } from "./mediaDetailUtils";
 
 interface MediaDetailActionsProps {
@@ -58,6 +59,8 @@ export function MediaDetailActions({
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [pendingPlayId, setPendingPlayId] = useState<{ id: string; restart: boolean } | null>(null);
+  // Audio/subtitle chosen before playback; empty = the player decides.
+  const [trackPick, setTrackPick] = useState<TrackPick>({});
   const profileId = useAuthStore((s) => s.profileId);
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const navigate = useNavigate();
@@ -69,11 +72,14 @@ export function MediaDetailActions({
   // choice must survive the detour, or entering a PIN would silently resume
   // the thing the viewer asked to watch from the start.
   const openPlayer = (episodeId: string, restart: boolean) => {
-    // `search` only when restarting: resuming is the default, and adding an
-    // empty search object would put a pointless `?` on every play.
+    // The track pick belongs to THIS file's streams: an episode launched from
+    // a series page keeps the player's own resolution. `search` only when
+    // there is something to say: an empty object would put a pointless `?`
+    // on every play.
+    const search = { ...(restart ? { restart: true as const } : {}), ...(episodeId === item.id ? trackPick : {}) };
     void navigate(
-      restart
-        ? { to: "/player/$mediaId", params: { mediaId: episodeId }, search: { restart: true } }
+      Object.keys(search).length > 0
+        ? { to: "/player/$mediaId", params: { mediaId: episodeId }, search }
         : { to: "/player/$mediaId", params: { mediaId: episodeId } },
     );
   };
@@ -285,6 +291,9 @@ export function MediaDetailActions({
           </Button>
         )}
       </div>
+      {item.id && !isSeries && !isSeason && item.streams && (
+        <MediaDetailTracks streams={item.streams} pick={trackPick} onChange={setTrackPick} />
+      )}
       {item.id && (
         <AddToPlaylistModal
           open={playlistModalOpen}

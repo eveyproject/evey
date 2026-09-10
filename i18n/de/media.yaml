@@ -595,6 +595,8 @@ streams:
   default: Standard
   forced: Erzwungen
   external: Extern
+  auto: Automatisch
+  none: Keine
 rating:
   like: Gefällt mir
   dislike: Gefällt mir nicht

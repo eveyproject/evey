@@ -77,6 +77,11 @@ interface HLSPlayerProps {
   onEnded?: () => void;
   audioStreams?: AudioStream[];
   subtitleStreams?: SubtitleStream[];
+  // Tracks picked on the media page before playback (absolute stream
+  // indices, "off" = no subtitle). They win over every automatic resolution
+  // and count as a manual pick, so the profile preference never undoes them.
+  initialAudioIndex?: number;
+  initialSubtitle?: number | "off";
   title?: string;
   onClose?: () => void;
   seasons?: SeasonNavItem[];
@@ -109,6 +114,8 @@ export function HLSPlayer({
   onEnded,
   audioStreams: audioStreamsProp = [],
   subtitleStreams = [],
+  initialAudioIndex,
+  initialSubtitle,
   title,
   onClose,
   seasons,
@@ -220,7 +227,9 @@ export function HLSPlayer({
   // Initialize audio/subtitle from streams + whatever prefs are available at
   // first render (profile may not be loaded yet - profileAudioLangs is empty).
   const audioStreams = audioStreamsProp;
-  const defaultAudio = resolveDefaultAudio(
+  // A track picked on the media page beats every automatic resolution.
+  const pickedAudio = initialAudioIndex === undefined ? undefined : audioStreams.find((s) => s.index === initialAudioIndex);
+  const defaultAudio = pickedAudio ?? resolveDefaultAudio(
     audioStreams,
     seriesId,
     getSeriesTrackPrefs,
@@ -234,21 +243,26 @@ export function HLSPlayer({
 
   // Resolved audio language - used for forced subtitle matching.
   const defaultAudioLang = defaultAudio?.language ?? defaultAudio?.title;
-  const [currentSubtitle, setCurrentSubtitle] = useState<number | null>(() =>
-    resolveDefaultSubtitle(
+  const pickedSubtitle = typeof initialSubtitle === "number" ? subtitleStreams.find((s) => s.index === initialSubtitle) : undefined;
+  const subtitlePicked = initialSubtitle === "off" || pickedSubtitle !== undefined;
+  const [currentSubtitle, setCurrentSubtitle] = useState<number | null>(() => {
+    if (initialSubtitle === "off") return null;
+    if (pickedSubtitle) return pickedSubtitle.trackIndex;
+    return resolveDefaultSubtitle(
       subtitleStreams,
       seriesId,
       getSeriesTrackPrefs,
       getPreferredSubtitleLang,
       profileSubtitleLangs.length > 0 ? profileSubtitleLangs : undefined,
       defaultAudioLang,
-    ),
-  );
+    );
+  });
 
-  // Track whether the user has made a manual track selection in this session.
-  // If so, we must not override with profile prefs when they load asynchronously.
-  const userPickedAudioRef = useRef(false);
-  const userPickedSubtitleRef = useRef(false);
+  // Track whether the user has made a manual track selection in this session
+  // (a pick on the media page counts). If so, we must not override with
+  // profile prefs when they load asynchronously.
+  const userPickedAudioRef = useRef(pickedAudio !== undefined);
+  const userPickedSubtitleRef = useRef(subtitlePicked);
 
   // Audio track picked by the CLIENT-side hls.js switch (transcode): it does
   // not go through currentTrackIndex, whose every change destroys/rebuilds the

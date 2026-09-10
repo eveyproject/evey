@@ -51,7 +51,8 @@ import { downloadStageLabel } from "../../../src/lib/downloadStageLabel";
 import { chooseDownloadQuality } from "../../../src/lib/downloadQualityGate";
 import { startReducedDownload, reducedDownloadMessage } from "../../../src/lib/reducedDownload";
 import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
-import { formatBytes, formatDurationMs, formatTimeMs, itemLabel, seasonLabel } from "@evey/api";
+import { formatBytes, formatDurationMs, formatTimeMs, itemLabel, seasonLabel, trackPickParams, type TrackPick } from "@evey/api";
+import { TrackPickChips } from "../../../src/components/TrackPickChips";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
@@ -601,6 +602,8 @@ export default function MediaDetailScreen() {
   const { needsPin, profileId: gateProfileId } = useParentalGate(media?.officialRating);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pendingPlayTarget, setPendingPlayTarget] = useState<{ id: string; restart: boolean } | null>(null);
+  // Audio/subtitle chosen before playback; empty = the player decides.
+  const [trackPick, setTrackPick] = useState<TrackPick>({});
   // null = idle, 0..1 = downloading with known total, NaN = downloading
   // with unknown total (server omits Content-Length).
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
@@ -871,8 +874,13 @@ export default function MediaDetailScreen() {
   const openPlayer = useCallback((target: string, restart: boolean) => {
     if (navigatingRef.current) return;
     navigatingRef.current = true;
-    router.push(restart ? `/(auth)/player/${target}?restart=1` : `/(auth)/player/${target}`);
-  }, []);
+    // The track pick belongs to THIS file's streams: an episode launched from
+    // a series page keeps the player's own resolution.
+    const query = new URLSearchParams(trackPickParams(target === media?.id ? trackPick : undefined));
+    if (restart) query.set("restart", "1");
+    const q = query.toString();
+    router.push(q ? `/(auth)/player/${target}?${q}` : `/(auth)/player/${target}`);
+  }, [media?.id, trackPick]);
 
   const handlePlay = useCallback((restart = false) => {
     const target = getPlayTarget();
@@ -1188,6 +1196,10 @@ export default function MediaDetailScreen() {
             </Pressable>
           ) : null}
         </View>
+
+        {!isSeries && !isSeason && media?.streams ? (
+          <TrackPickChips streams={media.streams} pick={trackPick} onChange={setTrackPick} />
+        ) : null}
 
         {/* Action row: favorite, watched, playlist */}
         <View style={{ flexDirection: "row", gap: theme.spacing.sm, marginTop: theme.spacing.md, flexWrap: "wrap" }}>
