@@ -286,7 +286,7 @@ export function EncodeCalibrationCard() {
               </p>
             )}
 
-            {/* Served video bitrate follows the source (Jellyfin-like); this is the ceiling. */}
+            {/* Served video bitrate follows the source; this is the ceiling. */}
             <div className="mt-2 flex flex-col gap-1">
               <label htmlFor="max-video-bitrate" className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
                 {t("admin.calibration.maxBitrateLabel", "Video bitrate ceiling")}
@@ -299,7 +299,7 @@ export function EncodeCalibrationCard() {
                 onChange={(e) => setMaxBitrate.mutate(parseInt(e.target.value, 10))}
                 className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
               >
-                <option value="0">{t("admin.calibration.maxBitrateSource", "Follow the source (like Jellyfin)")}</option>
+                <option value="0">{t("admin.calibration.maxBitrateSource", "Follow the source")}</option>
                 <option value="20000">20 Mb/s</option>
                 <option value="40000">40 Mb/s</option>
                 <option value="60000">60 Mb/s</option>

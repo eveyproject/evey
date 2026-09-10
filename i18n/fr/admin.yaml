@@ -1088,7 +1088,7 @@ calibration:
   lowPowerHint: "Encodeur à fonction fixe d'Intel (VDEnc) : moins de charge GPU et de consommation, mais pas de B-frames sur les anciens iGPU et un contrôle de débit plus simple, donc une qualité un peu moindre à débit égal. À laisser désactivé sauf si le GPU sature."
   lowPowerApplied: "Réglage basse consommation appliqué"
   maxBitrateLabel: "Plafond de débit vidéo"
-  maxBitrateSource: "Suivre la source (comme Jellyfin)"
+  maxBitrateSource: "Suivre la source"
   maxBitrateHint: "Chaque barreau est encodé au débit de la source ramené à sa résolution, jamais sous le plancher de l'échelle. Mettre un plafond si des spectateurs distants bufferisent."
   maxBitrateApplied: "Plafond de débit appliqué"
   transcodesActiveToast: "Arrêtez la lecture en cours avant de recalibrer - le benchmark a besoin d'une machine au repos pour mesurer le vrai plafond."

@@ -276,9 +276,9 @@ func registerServerSettingsRoutes(
 			getter: func() any { return cfg.Transcoding.HWLowPowerEnabled },
 			reset:  func() { cfg.Transcoding.HWLowPowerEnabled = false }},
 		// Served video bitrate ceiling; 0 follows the source bitrate.
-		{jsonKey: "maxVideoBitrateKbps", cfgKey: cfgKeyTranscodeMaxKbps, defaultVal: 0,
+		{jsonKey: "maxVideoBitrateKbps", cfgKey: cfgKeyTranscodeMaxKbps, defaultVal: 40000,
 			getter: func() any { return cfg.Transcoding.MaxVideoBitrateKbps },
-			reset:  func() { cfg.Transcoding.MaxVideoBitrateKbps = 0 }},
+			reset:  func() { cfg.Transcoding.MaxVideoBitrateKbps = 40000 }},
 		// Retention windows are re-read by their sweeps at every pass, so a
 		// change here applies at the next sweep (<= 24h for the daily ones,
 		// seconds for play_sessions) without a restart. 0 = keep forever.

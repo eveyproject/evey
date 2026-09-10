@@ -397,7 +397,7 @@ type TranscodingConfig struct {
 	// GPU probed it. Persisted under transcoding.hw_low_power. Default false.
 	HWLowPowerEnabled bool
 	// MaxVideoBitrateKbps caps the served video bitrate; 0 follows the source
-	// bitrate (Jellyfin-like). Persisted under transcoding.max_video_bitrate_kbps.
+	// bitrate. Default 40 000. Persisted under transcoding.max_video_bitrate_kbps.
 	MaxVideoBitrateKbps int
 	TrickplayCacheDir   string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
@@ -851,6 +851,9 @@ func Load() (*Config, error) {
 			HWBackend:                    strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
 			HWMode:                       strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
 			HWFirstSegmentTimeout:        envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 10*time.Second),
+			// 40 Mb/s: a browser's MSE quota holds ~10 s of a 70 Mb/s stream and
+			// throws bufferFullError (prod 2026-09-10); 0 follows the source.
+			MaxVideoBitrateKbps:          envInt("EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS", 40000),
 			HWPerVariant:                 envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
 			SingleVariant:                envBool("EVEY_TRANSCODING_SINGLE_VARIANT", true),
 			SoftwareMaxHeightOverride:    envInt("EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT", 0),

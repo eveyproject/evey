@@ -1089,7 +1089,7 @@ calibration:
   lowPowerHint: "Intel's fixed-function encoder (VDEnc): less GPU load and power, but no B-frames on older iGPUs and a simpler rate control, so slightly lower quality at the same bitrate. Leave it off unless the GPU is saturated."
   lowPowerApplied: "Low-power setting applied"
   maxBitrateLabel: "Video bitrate ceiling"
-  maxBitrateSource: "Follow the source (like Jellyfin)"
+  maxBitrateSource: "Follow the source"
   maxBitrateHint: "Each rung is encoded at the source bitrate scaled to its resolution, never below the ladder's floor. Set a ceiling if remote viewers buffer."
   maxBitrateApplied: "Bitrate ceiling applied"
   transcodesActiveToast: "Stop active playback before recalibrating - the benchmark needs an idle host to measure the true ceiling."
