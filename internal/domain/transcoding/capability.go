@@ -256,8 +256,25 @@ type DecodeRungSample struct {
 }
 
 // CapabilityProbeVersion bumps whenever a new HW probe is added (1: HDR10
-// encode + Intel low-power features, 2026-09-10).
-const CapabilityProbeVersion = 1
+// encode + Intel low-power features; 2: OpenCL tone-map + per-codec B-frames).
+const CapabilityProbeVersion = 2
+
+// FeatureTonemapOpenCL: tonemap_opencl runs on this GPU (bt2390 curve, HLG and
+// Dolby Vision RPU handled) - the VPP tone-mapper is the fallback.
+const FeatureTonemapOpenCL = "tonemap_opencl"
+
+// BFramesFeature names the probed B-frame support of a codec; "_lp" suffixed
+// for the low-power encoder, whose support differs (VDEnc has none on Gen9).
+func BFramesFeature(codec string, lowPower bool) string {
+	codec = strings.ToLower(strings.TrimSpace(codec))
+	if codec == "" {
+		codec = "h264"
+	}
+	if lowPower {
+		return "bframes_" + codec + "_lp"
+	}
+	return "bframes_" + codec
+}
 
 // SafeFallback returns the capability used when no calibration has run
 // yet (first boot in progress, or DB unreachable). 720p software is the
