@@ -8,6 +8,7 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.os.Build
 import android.provider.Settings
@@ -74,6 +75,49 @@ class EveyMediaCapsModule : Module() {
     // can fall back or surface its own error.
     Function("moveFile") { from: String, to: String ->
       java.io.File(from).renameTo(java.io.File(to))
+    }
+
+    // Highest H.264 level_idc (41 = 4.1, 51 = 5.1) a HARDWARE decoder on this
+    // device takes; software decoders only count when no hardware one exists.
+    // 0 = unknown, the caller then declares nothing (level-blind, as before).
+    Function("getMaxH264Level") {
+      try { maxH264Level() } catch (e: Exception) { 0 }
+    }
+  }
+
+  private val avcLevelIdc = mapOf(
+    MediaCodecInfo.CodecProfileLevel.AVCLevel1 to 10,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel1b to 9,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel11 to 11,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel12 to 12,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel13 to 13,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel2 to 20,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel21 to 21,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel22 to 22,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel3 to 30,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel31 to 31,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel32 to 32,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel4 to 40,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel41 to 41,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel42 to 42,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel5 to 50,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel51 to 51,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel52 to 52,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel6 to 60,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel61 to 61,
+    MediaCodecInfo.CodecProfileLevel.AVCLevel62 to 62,
+  )
+
+  // A phone whose hardware stops at 4.1 would drop a 5.1 stream onto its
+  // software decoder and stutter: the hardware ceiling is the honest one.
+  private fun maxH264Level(): Int {
+    val avc = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+      .filter { !it.isEncoder && it.supportedTypes.any { t -> t.equals("video/avc", ignoreCase = true) } }
+    if (avc.isEmpty()) return 0
+    val hardware = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) avc.filter { it.isHardwareAccelerated } else emptyList()
+    val pool = if (hardware.isNotEmpty()) hardware else avc
+    return pool.maxOf { info ->
+      info.getCapabilitiesForType("video/avc").profileLevels.maxOfOrNull { avcLevelIdc[it.level] ?: 0 } ?: 0
     }
   }
 

@@ -8,7 +8,7 @@ import {
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { getServerUrl } from "../lib/server-config";
-import { getDeviceAudioCodecs, getFmp4AudioPassthrough } from "../lib/deviceCodecs";
+import { getDeviceAudioCodecs, getDeviceMaxH264Level, getFmp4AudioPassthrough } from "../lib/deviceCodecs";
 import { probeMaxOutputChannels } from "../lib/outputChannels";
 import { logger } from "../lib/log";
 
@@ -113,6 +113,10 @@ function appendCodecParams(params: URLSearchParams, maxAudioChannels?: number): 
   // Omitted when the box cannot answer, which leaves the server profile's own
   // default in place: an unknown output must not silently lose surround.
   if (maxAudioChannels != null) params.set("maxAudioChannels", String(maxAudioChannels));
+  // H.264 level ceiling of the hardware decoder: above it the server
+  // transcodes instead of direct-playing a stream the box cannot open.
+  const level = getDeviceMaxH264Level();
+  if (level) params.set("maxH264Level", String(level));
 }
 
 // The 0-based position of an absolute media-stream index among streams of one
@@ -169,7 +173,15 @@ export function buildStreamUrl(
   return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 
-export function usePlaySession(mediaId: string): PlaySessionResult {
+// Tracks chosen on the media page BEFORE playback (absolute stream indices):
+// the first negotiation carries them, so the manifest opens on that audio.
+export interface PlaySessionInitial {
+  audioStreamIndex?: number;
+  subtitleStreamIndex?: number;
+}
+
+export function usePlaySession(mediaId: string, initial?: PlaySessionInitial): PlaySessionResult {
+  const initialRef = useRef(initial);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [streamInfo, setStreamInfo] = useState<V1StreamInfo | null>(null);
@@ -208,6 +220,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             fmp4AudioPassthrough: getFmp4AudioPassthrough(),
             maxWidth: Math.round(screen.width * (screen.scale ?? 1)),
             maxHeight: maxHeight && maxHeight > 0 ? Math.min(maxHeight, screenH) : screenH,
+            maxH264Level: getDeviceMaxH264Level(),
             audioStreamIndex,
             subtitleStreamIndex,
           }),
@@ -281,7 +294,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     if (!mediaId || startedRef.current) return;
     startedRef.current = true;
     stoppedRef.current = false;
-    startStream();
+    startStream(initialRef.current?.audioStreamIndex, initialRef.current?.subtitleStreamIndex);
   }, [mediaId, startStream]);
 
   const stopSession = useCallback(() => {

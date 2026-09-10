@@ -189,6 +189,10 @@ message GetStreamInfoRequest {
   // ignored server-side. Empty (older clients) keeps the previous behaviour,
   // a server-side re-encode to AAC.
   repeated string fmp4_audio_passthrough = 14;
+  // max_h264_level: the highest H.264 level_idc the device decodes (41 = 4.1,
+  // 51 = 5.1). Same meaning as ?maxH264Level= on the HLS master. 0 (older
+  // clients) leaves the decision level-blind, as before.
+  int32 max_h264_level = 15;
 }
 
 message StartStreamRequest {

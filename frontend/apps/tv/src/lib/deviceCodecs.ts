@@ -1,5 +1,5 @@
 import { NativeModules, Platform } from "react-native";
-import { declarableAudioCodecs, getAudioProbe, type AudioProbe } from "@evey/media-caps";
+import { declarableAudioCodecs, getAudioProbe, getMaxH264Level, type AudioProbe } from "@evey/media-caps";
 
 interface MediaCapsNative {
   getSupportedAudioCodecs(): Promise<string[]>;
@@ -94,7 +94,25 @@ export function resolveAudioCodecs(
   return declarableAudioCodecs(decoders, probe);
 }
 
+let maxH264Level: number | undefined;
+
+/**
+ * Highest H.264 level_idc the box's hardware decoder takes (41 = 4.1), for
+ * the `?maxH264Level=` cap. Undefined until the probe lands or when the box
+ * cannot answer: the server then stays level-blind, exactly as before.
+ */
+export function getDeviceMaxH264Level(): number | undefined {
+  return maxH264Level;
+}
+
 async function probe(): Promise<void> {
+  if (Platform.OS === "android") {
+    try {
+      maxH264Level = (await getMaxH264Level()) ?? undefined;
+    } catch {
+      /* stay level-blind */
+    }
+  }
   let outcome: AudioProbeOutcome = { status: "unavailable" };
   if (native) {
     try {

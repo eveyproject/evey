@@ -128,6 +128,11 @@ func clientProfileFromRequest(req *eveyv1.GetStreamInfoRequest) transcoding.Clie
 	if req.SupportsHdr {
 		client.SupportsHDR = true
 	}
+	// Same level ceiling the HLS master reads from ?maxH264Level=: the
+	// stream-info verdict and the manifest must judge the same decoder.
+	if req.MaxH264Level > 0 {
+		client.MaxH264Level = int(req.MaxH264Level)
+	}
 	return client
 }
 

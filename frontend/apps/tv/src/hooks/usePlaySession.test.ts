@@ -17,8 +17,11 @@ vi.mock("../lib/server-config", () => ({
 }));
 
 const getAudioProbeMock = vi.fn();
+// The hardware H.264 ceiling this fake box answers at module load.
+const getMaxH264LevelMock = vi.fn(async () => 42);
 vi.mock("@evey/media-caps", () => ({
   getAudioProbe: () => getAudioProbeMock(),
+  getMaxH264Level: () => getMaxH264LevelMock(),
 }));
 
 // Minimal shape of the native audio probe; only the two fields the channel
@@ -187,6 +190,15 @@ describe("buildStreamUrl", () => {
   // it made the client believe the timeline was shifted: it set
   // transcodeOffset=startSec and added that to every timeUpdate - and on TV to
   // the reported duration as well - over a playlist that still began at 0.
+  it("carries the hardware H.264 level ceiling the box probed at load", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    // The probe is async at module load; let it land before reading the URL.
+    await new Promise((r) => setTimeout(r, 0));
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
+    expect(url).toContain("maxH264Level=42");
+    expect(getMaxH264LevelMock).toHaveBeenCalled();
+  });
+
   it("carries the probed channel ceiling, and nothing when there is none", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
