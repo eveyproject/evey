@@ -39,7 +39,10 @@ func (h *serverConfigHandler) GetServerConfigEntry(ctx context.Context, req *eve
 		}
 		return nil, internalError(ctx, "get config", err)
 	}
-	return &eveyv1.ServerConfigEntryResponse{Key: e.Key, Value: e.Value, UpdatedAt: toTimestamppb(e.UpdatedAt)}, nil
+	// A credential never leaves the server, not even to an admin: this response
+	// is JSON in a browser, and the panel only ever needed to know whether a
+	// value is set. See appconfig.MaskSecretValue.
+	return &eveyv1.ServerConfigEntryResponse{Key: e.Key, Value: appconfig.MaskSecretValue(e.Key, e.Value), UpdatedAt: toTimestamppb(e.UpdatedAt)}, nil
 }
 
 func (h *serverConfigHandler) SetServerConfigEntry(ctx context.Context, req *eveyv1.SetServerConfigEntryRequest) (*eveyv1.SetServerConfigEntryResponse, error) {
@@ -47,6 +50,13 @@ func (h *serverConfigHandler) SetServerConfigEntry(ctx context.Context, req *eve
 	defer span.End()
 	if req.Key == "" {
 		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.key_required")
+	}
+	// Write-only secrets: the caller was served a mask, so a mask coming back
+	// means "unchanged", not "set my password to eight bullets". Forms that
+	// submit every field at once (the SMTP card) would otherwise destroy the
+	// stored password on any unrelated edit.
+	if appconfig.ShouldKeepStoredSecret(req.Key, req.Value) {
+		return &eveyv1.SetServerConfigEntryResponse{}, nil
 	}
 	if err := h.svc.Set(ctx, req.Key, req.Value); err != nil {
 		return nil, internalError(ctx, "set config", err)
@@ -63,7 +73,7 @@ func (h *serverConfigHandler) ListServerConfigEntries(ctx context.Context, _ *ev
 	}
 	resp := &eveyv1.ListServerConfigEntriesResponse{}
 	for _, e := range entries {
-		resp.Entries = append(resp.Entries, &eveyv1.ServerConfigEntry{Key: e.Key, Value: e.Value, UpdatedAt: toTimestamppb(e.UpdatedAt)})
+		resp.Entries = append(resp.Entries, &eveyv1.ServerConfigEntry{Key: e.Key, Value: appconfig.MaskSecretValue(e.Key, e.Value), UpdatedAt: toTimestamppb(e.UpdatedAt)})
 	}
 	return resp, nil
 }
