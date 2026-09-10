@@ -59,6 +59,7 @@ export function gpuPipelineSummary(
   const yes = (v: boolean | undefined, label: string) => `${label}: ${v ? t("admin.calibration.yes", "yes") : t("admin.calibration.no", "no")}`;
   const out = [
     yes(data.hw_tonemap, t("admin.calibration.gpuTonemap", "HDR→SDR")),
+    yes((data.hw_features ?? []).includes("tonemap_opencl"), t("admin.calibration.gpuTonemapOpenCL", "HDR→SDR OpenCL (bt2390)")),
     yes(data.hw_10bit_transcode, t("admin.calibration.gpu10bit", "10-bit")),
     yes(data.hw_hdr10_encode, t("admin.calibration.gpuHdr10", "HDR10 out (HEVC Main10)")),
     yes(data.hw_overlay, t("admin.calibration.gpuOverlay", "subtitle overlay")),
@@ -89,12 +90,13 @@ export function EncodeCalibrationCard() {
   });
 
   // Server settings carry the AV1 output opt-in + height cap.
-  const { data: settings } = useQuery<{ av1Enabled: { value: boolean }; av1MaxHeight: { value: number } }>({
+  const { data: settings } = useQuery<{ av1Enabled: { value: boolean }; av1MaxHeight: { value: number }; hwLowPowerEnabled: { value: boolean } }>({
     queryKey: SETTINGS_QK,
     queryFn: () => eveyFetch({ url: "/api/v1/admin/server-settings", method: "GET" }),
   });
   const av1Enabled = settings?.av1Enabled?.value ?? false;
   const av1MaxHeight = settings?.av1MaxHeight?.value ?? 0;
+  const hwLowPowerEnabled = settings?.hwLowPowerEnabled?.value ?? false;
 
   const setAV1 = useMutation({
     mutationFn: (patch: { av1Enabled?: boolean; av1MaxHeight?: number }) =>
@@ -105,6 +107,18 @@ export function EncodeCalibrationCard() {
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
+  const setLowPower = useMutation({
+    mutationFn: (enabled: boolean) =>
+      eveyFetch({ url: "/api/v1/admin/server-settings", method: "PUT", data: { hwLowPowerEnabled: enabled } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SETTINGS_QK });
+      toast.success(t("admin.calibration.lowPowerApplied", "Low-power setting applied"));
+    },
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
+  });
+  const lowPowerCodecs = (data?.hw_features ?? [])
+    .filter((f) => f.startsWith("low_power_"))
+    .map((f) => f.slice("low_power_".length));
 
   // Local mirror of the active mode so the <select> stays responsive while the
   // detached re-bench runs server-side (the query refetches a few seconds later).
@@ -281,6 +295,28 @@ export function EncodeCalibrationCard() {
                 ? t("admin.calibration.av1Hint", "Encode to AV1 when a client supports it - better compression. Hardware-only; software AV1 is never used for streaming.")
                 : t("admin.calibration.av1NoHw", "No AV1 hardware encoder detected - turning this on has no effect (streams stay H.264).")}
             </p>
+
+            {/* Intel low-power (VDEnc) encoder: opt-in, quality per bit is lower. */}
+            {lowPowerCodecs.length > 0 && (
+              <>
+                <div className="mt-2 flex items-center gap-3">
+                  <label className="text-sm font-medium text-[var(--text)]">
+                    {t("admin.calibration.lowPowerLabel", "Low-power encoder")}
+                  </label>
+                  <Switch
+                    checked={hwLowPowerEnabled}
+                    onChange={() => setLowPower.mutate(!hwLowPowerEnabled)}
+                    label={t("admin.calibration.lowPowerLabel", "Low-power encoder")}
+                    disabled={setLowPower.isPending}
+                    data-testid="low-power-toggle"
+                  />
+                </div>
+                <p className="text-xs text-[var(--text-muted)]">
+                  {t("admin.calibration.lowPowerHint", "Intel's fixed-function encoder (VDEnc): less GPU load and power, but no B-frames on older iGPUs and a simpler rate control, so slightly lower quality at the same bitrate. Leave it off unless the GPU is saturated.")}
+                  {" "}({lowPowerCodecs.join(", ")})
+                </p>
+              </>
+            )}
 
             {av1Enabled && (
               <div className="flex flex-col gap-1">

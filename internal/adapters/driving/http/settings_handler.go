@@ -36,6 +36,7 @@ const (
 	cfgKeyTranscodeSWAV1   = "transcoding.software_av1_max_height"
 	cfgKeyTranscodeAV1En   = "transcoding.av1_enabled"
 	cfgKeyTranscodeAV1Max  = "transcoding.av1_max_height"
+	cfgKeyTranscodeLowPwr  = "transcoding.hw_low_power"
 	// Retention windows (days, 0 = keep forever) + transcode cache budget.
 	// Panel-managed per the project rule that operator knobs never live in
 	// env-only. The retention sweeps re-read their window every pass, so these
@@ -269,6 +270,10 @@ func registerServerSettingsRoutes(
 		{jsonKey: "av1MaxHeight", cfgKey: cfgKeyTranscodeAV1Max, defaultVal: 0,
 			getter: func() any { return cfg.Transcoding.AV1MaxHeight },
 			reset:  func() { cfg.Transcoding.AV1MaxHeight = 0 }},
+		// Intel low-power encoder: opt-in, it trades quality per bit for GPU headroom.
+		{jsonKey: "hwLowPowerEnabled", cfgKey: cfgKeyTranscodeLowPwr, defaultVal: false,
+			getter: func() any { return cfg.Transcoding.HWLowPowerEnabled },
+			reset:  func() { cfg.Transcoding.HWLowPowerEnabled = false }},
 		// Retention windows are re-read by their sweeps at every pass, so a
 		// change here applies at the next sweep (<= 24h for the daily ones,
 		// seconds for play_sessions) without a restart. 0 = keep forever.
@@ -384,6 +389,7 @@ func registerServerSettingsRoutes(
 			SoftwareAV1MaxHeight    *int    `json:"softwareAV1MaxHeight"`
 			AV1Enabled              *bool   `json:"av1Enabled"`
 			AV1MaxHeight            *int    `json:"av1MaxHeight"`
+			HWLowPowerEnabled       *bool   `json:"hwLowPowerEnabled"`
 			AuditRetentionDays      *int    `json:"auditRetentionDays"`
 			MetricsRetentionDays    *int    `json:"metricsRetentionDays"`
 			QoERetentionDays        *int    `json:"qoeRetentionDays"`
@@ -623,6 +629,14 @@ func registerServerSettingsRoutes(
 					}
 					cfg.Transcoding.AV1Enabled = *body.AV1Enabled
 					return strconv.FormatBool(*body.AV1Enabled)
+				}},
+			{cfgKey: cfgKeyTranscodeLowPwr,
+				apply: func() string {
+					if body.HWLowPowerEnabled == nil {
+						return ""
+					}
+					cfg.Transcoding.HWLowPowerEnabled = *body.HWLowPowerEnabled
+					return strconv.FormatBool(*body.HWLowPowerEnabled)
 				}},
 			{cfgKey: cfgKeyTranscodeAV1Max,
 				apply: func() string {

@@ -181,6 +181,9 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		hwTonemapEnabled: func() bool {
 			return os.Getenv("EVEY_TRANSCODING_HW_TONEMAP") != "0"
 		},
+		hwLowPowerEnabled: func() bool {
+			return s.Cfg != nil && s.Cfg.EffectiveHWLowPowerEnabled()
+		},
 		// fMP4 is now the project default - matches the ffmpeg adapter
 		// (needsFMP4Segments returns true unconditionally) and Apple's
 		// post-WWDC-2024 stance on CMAF. Per-rendition behaviour stays

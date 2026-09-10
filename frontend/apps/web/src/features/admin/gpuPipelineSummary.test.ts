@@ -11,6 +11,7 @@ describe("gpuPipelineSummary", () => {
     );
     expect(out).toEqual([
       "HDR→SDR: yes",
+      "HDR→SDR OpenCL (bt2390): no",
       "10-bit: yes",
       "HDR10 out (HEVC Main10): no",
       "subtitle overlay: yes",
@@ -21,6 +22,7 @@ describe("gpuPipelineSummary", () => {
   it("reads an un-probed host as no everywhere", () => {
     expect(gpuPipelineSummary({}, t)).toEqual([
       "HDR→SDR: no",
+      "HDR→SDR OpenCL (bt2390): no",
       "10-bit: no",
       "HDR10 out (HEVC Main10): no",
       "subtitle overlay: no",

@@ -392,7 +392,10 @@ type TranscodingConfig struct {
 	// AV1MaxHeight caps the AV1 output ladder height when AV1Enabled (0 = no cap,
 	// up to the source/GPU ceiling). Lets an admin keep AV1 at e.g. 1080p even on
 	// a GPU that could push 2160p. Persisted under transcoding.av1_max_height.
-	AV1MaxHeight      int
+	AV1MaxHeight int
+	// HWLowPowerEnabled opts into the Intel low-power (VDEnc) encoder when the
+	// GPU probed it. Persisted under transcoding.hw_low_power. Default false.
+	HWLowPowerEnabled bool
 	TrickplayCacheDir string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch language
@@ -520,6 +523,11 @@ func (c *Config) EffectiveAV1Enabled() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Transcoding.AV1Enabled
+}
+func (c *Config) EffectiveHWLowPowerEnabled() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Transcoding.HWLowPowerEnabled
 }
 func (c *Config) EffectiveAV1MaxHeight() int {
 	c.mu.RLock()
