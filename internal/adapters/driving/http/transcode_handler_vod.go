@@ -206,6 +206,8 @@ type hlsVODServe struct {
 	// have probed EncodeCapability.HWTonemap). Default on; EVEY_TRANSCODING_HW_TONEMAP=0
 	// forces the software tonemap path. Nil-safe (nil/true → allowed).
 	hwTonemapEnabled func() bool
+	// hwLowPowerEnabled: admin opt-in for the Intel low-power encoder (transcoding.hw_low_power).
+	hwLowPowerEnabled func() bool
 
 	// useFMP4 controls the segment container. fMP4 is the project default -
 	// segments are ~30% smaller and the codecs string in the master playlist

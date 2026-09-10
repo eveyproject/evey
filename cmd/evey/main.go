@@ -168,6 +168,7 @@ func run() error {
 	loadOverride(ctx, cfgStore, "transcoding.software_av1_max_height", parseInt, &cfg.Transcoding.SoftwareAV1MaxHeightOverride)
 	loadOverride(ctx, cfgStore, "transcoding.av1_enabled", parseBool, &cfg.Transcoding.AV1Enabled)
 	loadOverride(ctx, cfgStore, "transcoding.av1_max_height", parseInt, &cfg.Transcoding.AV1MaxHeight)
+	loadOverride(ctx, cfgStore, "transcoding.hw_low_power", parseBool, &cfg.Transcoding.HWLowPowerEnabled)
 	loadOverride(ctx, cfgStore, "ratelimit.login_max", parseInt, &cfg.Server.LoginRateLimitMax)
 	loadOverride(ctx, cfgStore, "ratelimit.global_max", parseInt, &cfg.Server.GlobalRateLimitMax)
 	loadOverride(ctx, cfgStore, "log.level", parseStr, &cfg.Log.Level)

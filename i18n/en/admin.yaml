@@ -1085,6 +1085,9 @@ calibration:
   av1MaxLabel: "AV1 max quality"
   av1MaxAuto: "Auto (up to source)"
   av1Applied: "AV1 setting applied"
+  lowPowerLabel: "Low-power encoder"
+  lowPowerHint: "Intel's fixed-function encoder (VDEnc): less GPU load and power, but no B-frames on older iGPUs and a simpler rate control, so slightly lower quality at the same bitrate. Leave it off unless the GPU is saturated."
+  lowPowerApplied: "Low-power setting applied"
   transcodesActiveToast: "Stop active playback before recalibrating - the benchmark needs an idle host to measure the true ceiling."
   softwareHdrMax: "Software HDR cap"
   hdrTonemap: "HDR→SDR tonemap"
@@ -1110,6 +1113,7 @@ calibration:
   gpuHdr10: "HDR10 out (HEVC Main10)"
   gpuOverlay: "subtitle overlay"
   gpuLowPower: "low power"
+  gpuTonemapOpenCL: "HDR→SDR OpenCL (bt2390)"
   libx264: "libx264 veryfast"
   lastRun: Last calibrated
   cpuSig: CPU signature
