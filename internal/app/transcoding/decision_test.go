@@ -782,3 +782,22 @@ func TestPixelFormat_10BitH264_Transcodes(t *testing.T) {
 	hevcClient.VideoCodecs = []string{"h264", "hevc"}
 	assert.NotContains(t, apptranscode.MakePlaybackDecision(t.Context(), hevc, "mp4", hevcClient, 0).TranscodeReasons, "pixel_format_unsupported", "10-bit HEVC is fine")
 }
+
+// A first-generation Chromecast decodes H.264 up to level 4.1: a level 5.1
+// 4K H.264 file must transcode for it even though the codec matches.
+func TestLevel_ClientCapForcesTranscode(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), Level: new(51), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	capped := transcoding.DefaultWebProfile
+	capped.MaxH264Level = 41
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "level_exceeded")
+
+	streams[0].Level = new(40)
+	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0).PlayMethod, "level 4.0 fits")
+	streams[0].Level = new(51)
+	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0).PlayMethod, "no cap, no rule")
+}

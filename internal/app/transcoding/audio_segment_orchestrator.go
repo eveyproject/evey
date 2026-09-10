@@ -125,8 +125,10 @@ const maxAudioSessionsPerHash = 3
 // spike. Do NOT drop toward ~1.5×: that would break the lookahead assumption and
 // re-introduce the buffering-spinner regression documented in copyReadRate.
 // `-readrate` gates INPUT reading only, so segments stay byte-identical and the
-// audio cache/fingerprint is untouched.
-const audioRenditionReadRate = 8
+// audio cache/fingerprint is untouched. 4x: ffmpeg demuxes the WHOLE file even
+// with -vn, and 8x on a 70 Mb/s UHD remux was 70 MB/s of disk for audio alone
+// (prod 2026-09-10); a 3 s segment still lands in under a second.
+const audioRenditionReadRate = 4
 
 // sessionKey namespaces a session by its start segment so a seek's session and
 // the cold-start one coexist instead of aliasing.

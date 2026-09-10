@@ -38,6 +38,7 @@ type StreamSpec struct {
 	BitDepth    *int
 	PixelFormat *string
 	DoViProfile *int
+	Level       *int
 }
 
 // toStreamSpecs adapts the persistence-flavored library.MediaStream slice
@@ -86,6 +87,7 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 			BitDepth:    s.BitDepth,
 			PixelFormat: s.PixelFormat,
 			DoViProfile: s.DoViProfile,
+			Level:       s.Level,
 		})
 	}
 	return out
@@ -391,6 +393,10 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 
 	if !pixelFormatPlayable(s.Codec, s.BitDepth, s.PixelFormat) {
 		addReasonOnce(d, "pixel_format_unsupported")
+		d.VideoDecision = "transcode"
+	}
+	if client.MaxH264Level > 0 && normalizeVideoCodec(s.Codec) == "h264" && s.Level != nil && *s.Level > client.MaxH264Level {
+		addReasonOnce(d, "level_exceeded")
 		d.VideoDecision = "transcode"
 	}
 

@@ -344,6 +344,14 @@ ci-local-frontend:
 # mounts `frontend` at /app. Inside the container those guards skip themselves
 # (visibly, as skipped tests) rather than pass on half the evidence - so this
 # host-side run is the one that actually enforces them.
+# perf: informational, NOT in pre-push. Go benchmarks of the per-request hot
+# paths + the web bundle budget (the budget alone is enforced in CI after build).
+perf:
+	@echo "→ Go benchmarks (decision / ladder / fingerprint / ffmpeg args)"
+	@CGO_ENABLED=0 go test -run '^$$' -bench 'Decision|Ladder|Fingerprint|FFmpegArgs' -benchmem -benchtime=200ms ./internal/app/transcoding/... ./internal/adapters/driven/ffmpeg/...
+	@echo "→ web bundle budget"
+	@sh scripts/bundle-budget.sh frontend/apps/web/dist || echo "   (build the web app first: docker exec evey-web pnpm --filter web build)"
+
 pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-proto-breaking repo-itest-gate transcode-itest-gate tv-audit
 	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + proto compat + repo suite + transcode contract + audit TV)."
 

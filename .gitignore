@@ -113,6 +113,7 @@ scripts/*
 !scripts/tv/
 !scripts/tv/*.sh
 !scripts/tv/README.md
+!scripts/bundle-budget.sh
 # ...mais jamais le compte de dev.
 scripts/tv/.env
 

@@ -162,6 +162,7 @@ streamInfo:
     hdr_tonemapping_needed: HDR nach SDR konvertiert (Tone-Mapping)
     dovi_base_layer: "Dolby-Vision-Basisschicht neu codiert (HDR bleibt)"
     pixel_format_unsupported: "Pixelformat, das der Player nicht decodiert (10-Bit-H.264, 4:2:2)"
+    level_exceeded: "H.264-Level über dem Limit des Geräts"
     container_incompatible: Container nicht direkt abspielbar (zu HLS umverpackt)
     resolution_exceeded: Auflösung über dem Limit des Players
     bitrate_exceeded: Bitrate über dem erlaubten Limit

@@ -267,6 +267,9 @@ jobs:
         working-directory: frontend
         run: pnpm run build
 
+      - name: bundle budget
+        run: sh scripts/bundle-budget.sh frontend/apps/web/dist
+
   docker:
     name: Docker - build & push (${{ matrix.runtime.name }})
     runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
