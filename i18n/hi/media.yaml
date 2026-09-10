@@ -595,6 +595,8 @@ streams:
   default: डिफ़ॉल्ट
   forced: फ़ोर्स्ड
   external: बाहरी
+  auto: स्वचालित
+  none: कोई नहीं
 rating:
   like: पसंद
   dislike: नापसंद

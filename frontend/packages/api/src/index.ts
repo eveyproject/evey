@@ -115,3 +115,4 @@ export type { V1PlaylistProto, V1PlaylistRule, V1PlaylistItemProto } from "./gen
 export { V1PlaylistType } from "./generated/playlist.schemas";
 export type { V1Track, V1MusicAlbum, V1MusicArtist } from "./generated/music.schemas";
 export type { V1CollectionProto, V1CollectionItemProto } from "./generated/collection.schemas";
+export * from "./trackPick";

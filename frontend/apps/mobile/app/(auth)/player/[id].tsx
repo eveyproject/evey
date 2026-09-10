@@ -47,6 +47,7 @@ import {
   burnInSubtitleIndex as pickBurnInSubtitle,
   clientSubtitleTrack,
   isBurnInSubtitle,
+  parseTrackPick,
   parseVttCues,
   pickDefaultSubtitle,
   playbackServiceReportProgress,
@@ -124,7 +125,10 @@ function isAuthPlaybackError(message: string | undefined): boolean {
 export default function PlayerScreen() {
   // `restart=1` means the viewer chose "from the beginning" on the media page.
 // Resuming is the right default; this is the only way to say otherwise.
-const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>();
+const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; restart?: string; audio?: string; subtitle?: string }>();
+  // Tracks picked on the media page (absolute stream indices, "off" = no
+  // subtitle): they seed the selection below and count as a manual pick.
+  const trackPick = parseTrackPick({ audio, subtitle });
   const { t } = useTranslation();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const rawInsets = useSafeAreaInsets();
@@ -261,7 +265,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
   const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
-    usePlaySession(sessionMediaId);
+    usePlaySession(sessionMediaId, trackPick.audio === undefined ? undefined : { audioStreamIndex: trackPick.audio });
 
 
   const { data: chapters = [] } = useChapters(mediaId);
@@ -289,11 +293,13 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   // The status listener is installed before restartWithTracks exists in its
   // closure, so it reaches it through a ref that is kept current below.
   const restartWithTracksRef = useRef<(() => void) | null>(null);
-  const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
+  const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(trackPick.audio ?? 0);
   // Audio tracks the NATIVE player exposes from the HLS manifest - the source
   // of truth for a no-reload client-side switch (see handleAudioSelect).
   const [nativeAudioTracks, setNativeAudioTracks] = useState<{ id?: string; language?: string; label?: string }[]>([]);
-  const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
+  const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(
+    typeof trackPick.subtitle === "number" ? trackPick.subtitle : null,
+  );
   const [selectedQuality, setSelectedQuality] = useState(0);
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -492,7 +498,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   // re-derives audioStreams (new reference), which re-fired this effect and
   // reset the choice back to the isDefault track - the user's language change
   // silently reverted. Mirrors the web player's userPickedAudioRef guard.
-  const userPickedAudioRef = useRef(false);
+  const userPickedAudioRef = useRef(trackPick.audio !== undefined);
   useEffect(() => {
     if (userPickedAudioRef.current) return;
     const preferred = pickPreferredStreamIndex(audioStreams, profileAudioLangs);
@@ -512,12 +518,22 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   // its foreign-language lines untranslated (prod, 2026-09-05). The audio side
   // of this screen has always honoured the file's default; the subtitle side
   // now does too.
-  const userPickedSubtitleRef = useRef(false);
+  const userPickedSubtitleRef = useRef(trackPick.subtitle !== undefined);
+  // A bitmap track picked on the media page is the server's to burn in: one
+  // restart once the streams are known, never again.
+  const pickedBurnInAppliedRef = useRef(false);
   useEffect(() => {
-    if (userPickedSubtitleRef.current) return;
+    if (userPickedSubtitleRef.current) {
+      if (pickedBurnInAppliedRef.current || typeof trackPick.subtitle !== "number") return;
+      const picked = subtitleStreams.find((s) => s.index === trackPick.subtitle);
+      if (!picked) return;
+      pickedBurnInAppliedRef.current = true;
+      if (picked.burnIn) restartWithTracks(selectedAudioIndex, picked.index, undefined);
+      return;
+    }
     const preferred = pickDefaultSubtitle(subtitleStreams, profileSubtitleLangs);
     if (preferred !== null) setSelectedSubtitleIndex(preferred);
-  }, [subtitleStreams, profileSubtitleLangs]);
+  }, [subtitleStreams, profileSubtitleLangs, trackPick.subtitle, restartWithTracks, selectedAudioIndex]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);

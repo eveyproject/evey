@@ -22,6 +22,7 @@ import {
   useUserServiceListProfiles,
   useUserServiceUpdateProfile,
   getUserServiceListProfilesQueryKey,
+  parseTrackPick,
 } from "@evey/api";
 import { useAuthStore, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -65,7 +66,10 @@ export default function PlayerScreen() {
   // `restart=1` means the viewer chose "from the beginning" on the media page.
   // Without it the player always resumes, which is the right default - this is
   // the only way to say otherwise.
-  const { id, roomId, restart } = useLocalSearchParams<{ id: string; roomId?: string; restart?: string }>();
+  const { id, roomId, restart, audio, subtitle } = useLocalSearchParams<{ id: string; roomId?: string; restart?: string; audio?: string; subtitle?: string }>();
+  // Tracks picked on the media page (absolute stream indices, "off" = no
+  // subtitle): they seed the selection below and count as a manual pick.
+  const trackPick = parseTrackPick({ audio, subtitle });
   const theme = useTheme();
   const { t } = useTranslation();
   const mediaId = id ?? "";
@@ -102,7 +106,7 @@ export default function PlayerScreen() {
     if (notPlayable) router.replace(`/media/${mediaId}`);
   }, [notPlayable, mediaId]);
   const { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress } =
-    usePlaySession(mediaId);
+    usePlaySession(mediaId, trackPick.audio === undefined ? undefined : { audioStreamIndex: trackPick.audio });
   const profileId = useAuthStore((s) => s.profileId) ?? "";
 
   // Profile audio/subtitle language preference (audio_languages/subtitle_languages,
@@ -182,8 +186,10 @@ export default function PlayerScreen() {
   // see the remote handler's "select" guard below (B5).
   const [skipFocused, setSkipFocused] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState(0);
-  const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
-  const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
+  const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(trackPick.audio ?? 0);
+  const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(
+    typeof trackPick.subtitle === "number" ? trackPick.subtitle : null,
+  );
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -275,7 +281,7 @@ export default function PlayerScreen() {
   // manually picked a track, this must NOT run again: restartWithTracks
   // re-derives audioStreams (new reference), which would otherwise re-fire
   // this effect and reset the choice back to the isDefault track.
-  const userPickedAudioRef = useRef(false);
+  const userPickedAudioRef = useRef(trackPick.audio !== undefined);
   useEffect(() => {
     if (userPickedAudioRef.current) return;
     const preferred = pickPreferredStreamIndex(audioStreams, profileAudioLangs);
@@ -289,16 +295,26 @@ export default function PlayerScreen() {
   // preference once, and never once the user has picked a subtitle by hand
   // (see handleSubtitleSelect). No preference match leaves subtitles off -
   // matches prior TV behaviour (no isDefault-subtitle fallback).
-  const userPickedSubtitleRef = useRef(false);
+  const userPickedSubtitleRef = useRef(trackPick.subtitle !== undefined);
+  // A bitmap track picked on the media page is the server's to burn in: one
+  // restart once the streams are known, never again.
+  const pickedBurnInAppliedRef = useRef(false);
   useEffect(() => {
-    if (userPickedSubtitleRef.current) return;
+    if (userPickedSubtitleRef.current) {
+      if (pickedBurnInAppliedRef.current || typeof trackPick.subtitle !== "number") return;
+      const picked = subtitleStreams.find((s) => s.index === trackPick.subtitle);
+      if (!picked) return;
+      pickedBurnInAppliedRef.current = true;
+      if (picked.burnIn) restartWithTracks(selectedAudioIndex, picked.index, undefined);
+      return;
+    }
     // Preference first, then the track the FILE marks as default - the same
     // rule the audio side above already follows. "No preference means no
     // subtitle" left a film's forced track off on every client (prod,
     // 2026-09-05); see apps/mobile/src/lib/defaultSubtitle.ts.
     const preferred = pickDefaultSubtitle(subtitleStreams, profileSubtitleLangs);
     if (preferred !== null) setSelectedSubtitleIndex(preferred);
-  }, [subtitleStreams, profileSubtitleLangs]);
+  }, [subtitleStreams, profileSubtitleLangs, trackPick.subtitle, restartWithTracks, selectedAudioIndex]);
 
   // A track pick made on the previous title means nothing on the next one
   // (auto-next-episode or a new navigation reuses this screen) - without this
