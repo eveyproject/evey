@@ -978,6 +978,7 @@
   "admin.segments.timeline": "Timeline",
   "admin.segments.title": "Media segments",
   "admin.serverConfig.apiKeys.description": "Configure API keys for metadata providers. Keys set here override environment variables.",
+  "admin.serverConfig.apiKeys.keepCurrent": "Leave empty to keep the current key",
   "admin.serverConfig.apiKeys.omdb": "OMDB API Key",
   "admin.serverConfig.apiKeys.omdbLink": "Get a free key at omdbapi.com",
   "admin.serverConfig.apiKeys.opensubtitles": "OpenSubtitles API Key",
