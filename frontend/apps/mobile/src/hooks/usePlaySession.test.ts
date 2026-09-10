@@ -18,8 +18,11 @@ vi.mock("../lib/server-config", () => ({
 }));
 
 const getAudioProbeMock = vi.fn();
+// The hardware H.264 ceiling this fake device answers at module load.
+const getMaxH264LevelMock = vi.fn(async () => 41);
 vi.mock("@evey/media-caps", () => ({
   getAudioProbe: () => getAudioProbeMock(),
+  getMaxH264Level: () => getMaxH264LevelMock(),
 }));
 
 // Minimal shape of the native audio probe; only the two fields the channel
@@ -205,6 +208,15 @@ describe("buildStreamUrl", () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 42.7);
     expect(url).not.toContain("startSec");
+  });
+
+  it("carries the hardware H.264 level ceiling the device probed at load", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    // The probe is async at module load; let it land before reading the URL.
+    await new Promise((r) => setTimeout(r, 0));
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
+    expect(url).toContain("maxH264Level=41");
+    expect(getMaxH264LevelMock).toHaveBeenCalled();
   });
 
   it("carries the probed channel ceiling, and nothing when there is none", async () => {

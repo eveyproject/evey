@@ -31,6 +31,13 @@ describe("probeReceiverCaps - the receiver probes ITSELF (no more per-model tabl
     expect(probeReceiverCaps(fakeCDT(["avc1", "ec-3", "ac-3"]), false).nativeDolby).toBe(true);
     expect(probeReceiverCaps(fakeCDT(["avc1"]), false).nativeDolby).toBe(false);
   });
+
+  it("reports the highest H.264 level the device accepts, 4.0 when only the floor answers", () => {
+    expect(probeReceiverCaps(fakeCDT(["avc1", "hev1"]), false).maxH264Level).toBe(51);
+    // A first-generation Chromecast: High 4.0 and 4.1, nothing above.
+    expect(probeReceiverCaps(fakeCDT(["avc1.640028", "avc1.640029"]), false).maxH264Level).toBe(41);
+    expect(probeReceiverCaps(fakeCDT(["avc1.640028"]), false).maxH264Level).toBe(40);
+  });
 });
 
 describe("probeMaxAudioChannels - the device answers, nothing is assumed", () => {
@@ -101,6 +108,7 @@ describe("rewriteCastMasterUrl - negotiation happens on the REAL caps", () => {
     const u = new URL(out!.url);
     expect(u.searchParams.get("videoCodecs")).toBe("h264,hevc,vp9");
     expect(u.searchParams.get("maxHeight")).toBe("2160");
+    expect(u.searchParams.get("maxH264Level")).toBe("51");
     expect(u.searchParams.get("hdr")).toBe("1");
     expect(u.searchParams.get("containers")).toBe("mp4");
     expect(u.searchParams.get("token")).toBe("tok"); // the cast token survives

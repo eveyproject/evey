@@ -24,6 +24,9 @@ export interface ReceiverCaps {
   hdr: boolean;
   nativeDolby: boolean;
   maxAudioChannels: number;
+  // Highest H.264 level_idc the receiver accepts (a 1st/2nd generation
+  // Chromecast stops at 4.1 or 4.2; a 5.1 stream there is a black screen).
+  maxH264Level: number;
 }
 
 // AAC-LC, the codec the server transcodes to. Stereo and 5.1 differ only by
@@ -78,6 +81,13 @@ export async function probeMaxAudioChannels(probe: AudioProbe): Promise<number> 
 // Probe codec strings - same shapes as jellyfin-chromecast's
 // codecSupportHelper: h264 High L4.0, HEVC Main10 L5.1, VP9 profile 2 10-bit.
 const PROBE_H264 = ["video/mp4", "avc1.640028"] as const;
+// H.264 High profile at 5.1, 4.2 and 4.1, probed highest first; the 4.0 floor
+// probe above is what every receiver answers yes to.
+const PROBE_H264_LEVELS: ReadonlyArray<readonly [number, string]> = [
+  [51, "avc1.640033"],
+  [42, "avc1.64002A"],
+  [41, "avc1.640029"],
+];
 const PROBE_HEVC = ["video/mp4", "hev1.2.4.L153.B0"] as const;
 const PROBE_VP9 = ["video/webm", "vp09.02.51.10"] as const;
 // HDR10: HEVC Main10 + PQ transfer (SMPTE ST 2084) via the long-form vp09,
@@ -112,7 +122,9 @@ export function probeReceiverCaps(
   const nativeDolby =
     canDisplayType("audio/mp4", "ec-3") && canDisplayType("audio/mp4", "ac-3");
 
-  return { videoCodecs, maxHeight, hdr, nativeDolby, maxAudioChannels };
+  const maxH264Level = PROBE_H264_LEVELS.find(([, codec]) => canDisplayType("video/mp4", codec))?.[0] ?? 40;
+
+  return { videoCodecs, maxHeight, hdr, nativeDolby, maxAudioChannels, maxH264Level };
 }
 
 export interface RewrittenLoad {
@@ -149,6 +161,7 @@ export function rewriteCastMasterUrl(
   u.searchParams.set("videoCodecs", caps.videoCodecs.join(","));
   u.searchParams.set("containers", "mp4");
   u.searchParams.set("maxHeight", String(caps.maxHeight));
+  u.searchParams.set("maxH264Level", String(caps.maxH264Level));
   if (caps.hdr) u.searchParams.set("hdr", "1");
   else u.searchParams.delete("hdr");
 

@@ -11,6 +11,23 @@ interface EveyMediaCapsNative {
   getPublicDownloadsDir?(): string | null;
   deleteFile?(path: string): boolean;
   moveFile?(from: string, to: string): boolean;
+  getMaxH264Level?(): number;
+}
+
+/**
+ * Highest H.264 level_idc (41 = 4.1, 51 = 5.1) the device's hardware decoder
+ * takes, or null when unknown (module absent, older build, probe failure).
+ * Same lazy-import contract as getAudioProbe: never throws.
+ */
+export async function getMaxH264Level(): Promise<number | null> {
+  try {
+    const { requireOptionalNativeModule } = await import("expo-modules-core");
+    const native = requireOptionalNativeModule<EveyMediaCapsNative>("EveyMediaCaps");
+    const level = native?.getMaxH264Level?.();
+    return typeof level === "number" && level > 0 ? level : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

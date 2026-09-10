@@ -59,6 +59,15 @@ func TestClientProfileFromRequest_DeclaredCapabilitiesReplaceTheDefault(t *testi
 	assert.True(t, got.SupportsHDR)
 }
 
+// The H.264 level ceiling is "> 0 means set": an older client that sends the
+// proto default keeps the level-blind decision, a declared ceiling is copied
+// as-is (the decision compares it to the stream's level_idc).
+func TestClientProfileFromRequest_H264LevelCeiling(t *testing.T) {
+	assert.Equal(t, 0, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{}).MaxH264Level)
+	assert.Equal(t, 41, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxH264Level: 41}).MaxH264Level)
+	assert.Equal(t, 0, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxH264Level: -3}).MaxH264Level)
+}
+
 // The dimension caps are "> 0 means set". A zero (the proto default for an
 // absent field) must leave the default standing rather than cap the client at
 // zero pixels, and a negative must not slip through as a cap either.

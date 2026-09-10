@@ -1,5 +1,5 @@
 import { NativeModules, Platform } from "react-native";
-import { declarableAudioCodecs, getAudioProbe } from "@evey/media-caps";
+import { declarableAudioCodecs, getAudioProbe, getMaxH264Level } from "@evey/media-caps";
 
 interface MediaCapsNative {
   getSupportedAudioCodecs(): Promise<string[]>;
@@ -72,7 +72,25 @@ export function getDeviceHdrSupport(): boolean {
   return hdrSupported;
 }
 
+let maxH264Level: number | undefined;
+
+/**
+ * Highest H.264 level_idc the hardware decoder takes (41 = 4.1), for the
+ * `?maxH264Level=` cap. Undefined until the probe lands or when the device
+ * cannot answer: the server then stays level-blind, exactly as before.
+ */
+export function getDeviceMaxH264Level(): number | undefined {
+  return maxH264Level;
+}
+
 async function probe(): Promise<void> {
+  if (Platform.OS === "android") {
+    try {
+      maxH264Level = (await getMaxH264Level()) ?? undefined;
+    } catch {
+      /* stay level-blind */
+    }
+  }
   if (!native) return;
   try {
     const codecs = await native.getSupportedAudioCodecs();
