@@ -70,8 +70,7 @@ func TestAddCustomArtwork_StorageDisabled(t *testing.T) {
 	cmdSvc := newArtworkCmdSvc(metafakes.NewFakeMetadataOverrideRepository(), metafakes.NewFakeArtworkRepository())
 
 	rec, err := cmdSvc.AddCustomArtwork(context.Background(), "m1", "ARTWORK_TYPE_PRIMARY", strings.NewReader("img"), ".jpg")
-	require.Error(t, err)
-	assert.ErrorIs(t, err, errArtworkStorageDisabled)
+	require.ErrorIs(t, err, errArtworkStorageDisabled)
 	assert.Nil(t, rec)
 }
 
