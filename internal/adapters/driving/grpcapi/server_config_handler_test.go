@@ -125,3 +125,84 @@ func TestServerConfigHandler_SetTranslator_SetsField(t *testing.T) {
 		t.Error("SetTranslator did not assign translator")
 	}
 }
+
+// A credential must never leave the server. The store is a generic key/value
+// table so it had no notion of a secret: the panel received the TMDB key and
+// the SMTP password in clear and masked them with bullets in the DOM, with the
+// full value sitting in the JSON right behind it.
+func TestServerConfigHandler_SecretsAreMaskedOnRead(t *testing.T) {
+	h, repo := newTestServerConfigHandler()
+	ctx := context.Background()
+	require.NoError(t, repo.Set(ctx, "api.tmdb_key", "real-tmdb-key-abcdef"))
+	require.NoError(t, repo.Set(ctx, "smtp.password", "hunter2"))
+	require.NoError(t, repo.Set(ctx, "smtp.host", "smtp.example.com"))
+
+	got, err := h.GetServerConfigEntry(ctx, &eveyv1.GetServerConfigEntryRequest{Key: "api.tmdb_key"})
+	require.NoError(t, err)
+	assert.Equal(t, appconfig.SecretMask, got.Value)
+
+	resp, err := h.ListServerConfigEntries(ctx, &eveyv1.ListServerConfigEntriesRequest{})
+	require.NoError(t, err)
+	values := map[string]string{}
+	for _, e := range resp.Entries {
+		values[e.Key] = e.Value
+	}
+	assert.Equal(t, appconfig.SecretMask, values["api.tmdb_key"])
+	assert.Equal(t, appconfig.SecretMask, values["smtp.password"])
+	// The host is not a credential and the panel still has to show it.
+	assert.Equal(t, "smtp.example.com", values["smtp.host"])
+
+	// Nothing anywhere in the response carries the real values.
+	for _, e := range resp.Entries {
+		assert.NotContains(t, e.Value, "real-tmdb-key")
+		assert.NotContains(t, e.Value, "hunter2")
+	}
+}
+
+// An unset secret must not be reported as configured - otherwise the operator
+// debugs an integration that was never set up.
+func TestServerConfigHandler_UnsetSecretStaysEmpty(t *testing.T) {
+	h, repo := newTestServerConfigHandler()
+	ctx := context.Background()
+	require.NoError(t, repo.Set(ctx, "api.omdb_key", ""))
+
+	got, err := h.GetServerConfigEntry(ctx, &eveyv1.GetServerConfigEntryRequest{Key: "api.omdb_key"})
+	require.NoError(t, err)
+	assert.Empty(t, got.Value)
+}
+
+// Write-only semantics: the SMTP card submits all six fields on every save, so
+// echoing back the mask the server just served must leave the stored password
+// alone instead of overwriting it with bullets.
+func TestServerConfigHandler_SetSecret_MaskKeepsStoredValue(t *testing.T) {
+	h, repo := newTestServerConfigHandler()
+	ctx := context.Background()
+	require.NoError(t, repo.Set(ctx, "smtp.password", "hunter2"))
+
+	_, err := h.SetServerConfigEntry(ctx, &eveyv1.SetServerConfigEntryRequest{Key: "smtp.password", Value: appconfig.SecretMask})
+	require.NoError(t, err)
+
+	stored, err := repo.Get(ctx, "smtp.password")
+	require.NoError(t, err)
+	assert.Equal(t, "hunter2", stored.Value)
+}
+
+// A real new value still gets written, and clearing the field still removes the
+// credential - the mask is the only value with a special meaning.
+func TestServerConfigHandler_SetSecret_RealValueAndClearStillWork(t *testing.T) {
+	h, repo := newTestServerConfigHandler()
+	ctx := context.Background()
+	require.NoError(t, repo.Set(ctx, "smtp.password", "hunter2"))
+
+	_, err := h.SetServerConfigEntry(ctx, &eveyv1.SetServerConfigEntryRequest{Key: "smtp.password", Value: "correct horse"})
+	require.NoError(t, err)
+	stored, err := repo.Get(ctx, "smtp.password")
+	require.NoError(t, err)
+	assert.Equal(t, "correct horse", stored.Value)
+
+	_, err = h.SetServerConfigEntry(ctx, &eveyv1.SetServerConfigEntryRequest{Key: "smtp.password", Value: ""})
+	require.NoError(t, err)
+	stored, err = repo.Get(ctx, "smtp.password")
+	require.NoError(t, err)
+	assert.Empty(t, stored.Value)
+}
