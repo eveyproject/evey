@@ -288,7 +288,7 @@ func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit,
 // never advertise a codec the segments don't carry. Re-resolves HW for the
 // fallback codec (H.264 may be HW-encodable where AV1 was not).
 func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {
-	hwTonemap := pr.HWTonemapWanted(decision)
+	hwTonemap := pr.HWTonemapWanted(decision, SourceCopyVideoRange(streams))
 	srcCodec := SourceVideoCodec(streams)
 	src10 := SourceVideoTenBit(streams)
 	codec = pr.codecWithPassthrough(pr.outputCodecFor(decision, streams), decision, streams)
@@ -320,7 +320,7 @@ func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecisio
 // AV1 fallback: an AV1-preferring client on an AV1-disabled (or AV1-incapable)
 // host is ENCODED as H.264, so the route must be resolved for H.264 too.
 func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src SourceDims) bool {
-	hwTonemap := pr.HWTonemapWanted(decision)
+	hwTonemap := pr.HWTonemapWanted(decision, src.HDRRange)
 	// A source that must be tone-mapped on a backend that cannot do it on the GPU
 	// is encoded in SOFTWARE: tonemapx runs on the CPU and the encoder follows it
 	// there (see BuildFFmpegArgs). Routing it to the hardware producer anyway made
@@ -406,8 +406,13 @@ func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecisi
 // HWTonemap, and the backend has a wired HW tone-map filter (vaapi/qsv - NVENC's
 // libplacebo path is not modelled, so it tone-maps in software). When false the
 // software tonemap path runs, byte-identical to a host with no GPU tone-mapping.
-func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision) bool {
+func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision, hdrRange string) bool {
 	if pr.HWTonemapEnabled != nil && !pr.HWTonemapEnabled() {
+		return false
+	}
+	// tonemap_vaapi / vpp_qsv only read PQ: HLG comes out wrong and a Dolby
+	// Vision RPU is ignored (green/purple on profile 5). Those stay on tonemapx.
+	if hdrRange != "PQ" {
 		return false
 	}
 	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
@@ -645,7 +650,7 @@ func (pr *PlanResolver) legacyProfileShaping(base []transcoding.HLSProfile, src 
 	maxH := 720
 	if pr.Capability != nil {
 		var hwUsable bool
-		_, _, _, hwUsable, _ = pr.ResolveHW(decision.VideoCodec, SourceVideoCodec(streams), src.TenBit, pr.HWTonemapWanted(decision))
+		_, _, _, hwUsable, _ = pr.ResolveHW(decision.VideoCodec, SourceVideoCodec(streams), src.TenBit, pr.HWTonemapWanted(decision, src.HDRRange))
 		maxH = capability.MaxHeightFor(hwUsable)
 		if !hwUsable && capability.SoftwareHDRMaxHeight > 0 &&
 			capability.SoftwareHDRMaxHeight < maxH &&
@@ -703,7 +708,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		fpProfiles[i] = ProfileFingerprintOf(p)
 	}
 
-	hwTonemap := pr.HWTonemapWanted(decision)
+	hwTonemap := pr.HWTonemapWanted(decision, SourceCopyVideoRange(streams))
 	// Capability gate: AV1 falls back to H.264 when the host can't encode it (no
 	// HW AV1, no admin opt-in). videoCodec is what the segments actually carry -
 	// the cache key MUST use it, not the raw decision codec.

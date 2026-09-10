@@ -26,6 +26,8 @@ type SourceDims struct {
 	// producer can refine its ceiling without a signature change. The selector
 	// uses it for the 10-bit HW VPP hazard gate.
 	TenBit bool
+	// HDRRange is SourceCopyVideoRange: "PQ", "HLG" or "" (SDR, Dolby Vision).
+	HDRRange string
 }
 
 // StreamProducer is the seam between the HTTP handler and the machine that

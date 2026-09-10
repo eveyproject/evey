@@ -29,8 +29,8 @@ func (h *hlsVODServe) hwRouteUsable(decision domaintranscoding.PlaybackDecision,
 	return h.planResolver().HWRouteUsable(decision, src)
 }
 
-func (h *hlsVODServe) hwTonemapWanted(decision domaintranscoding.PlaybackDecision) bool {
-	return h.planResolver().HWTonemapWanted(decision)
+func (h *hlsVODServe) hwTonemapWanted(decision domaintranscoding.PlaybackDecision, hdrRange string) bool {
+	return h.planResolver().HWTonemapWanted(decision, hdrRange)
 }
 
 func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision) []domaintranscoding.HLSProfile {

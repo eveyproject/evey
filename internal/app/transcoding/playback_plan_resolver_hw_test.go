@@ -180,34 +180,40 @@ func TestHWTonemapWanted(t *testing.T) {
 	noProbedTonemap.HWTonemap = false
 
 	t.Run("wanted on a proven vaapi host", func(t *testing.T) {
-		assert.True(t, hwResolver(vaapiCapable()).HWTonemapWanted(needsTonemap))
+		assert.True(t, hwResolver(vaapiCapable()).HWTonemapWanted(needsTonemap, "PQ"))
 	})
 
 	t.Run("qsv also carries a wired GPU tone-mapper", func(t *testing.T) {
 		qsv := vaapiCapable()
 		qsv.HWBackend = "qsv"
-		assert.True(t, hwResolver(qsv).HWTonemapWanted(needsTonemap))
+		assert.True(t, hwResolver(qsv).HWTonemapWanted(needsTonemap, "PQ"))
 	})
 
 	t.Run("nvenc tone-maps in software", func(t *testing.T) {
 		// NVENC's libplacebo path is not modelled, so the backend has no wired
 		// GPU tone-map filter even though the probe passed.
-		assert.False(t, hwResolver(nvenc).HWTonemapWanted(needsTonemap))
+		assert.False(t, hwResolver(nvenc).HWTonemapWanted(needsTonemap, "PQ"))
 	})
 
 	t.Run("probe never proved GPU tone-mapping", func(t *testing.T) {
-		assert.False(t, hwResolver(noProbedTonemap).HWTonemapWanted(needsTonemap))
+		assert.False(t, hwResolver(noProbedTonemap).HWTonemapWanted(needsTonemap, "PQ"))
 	})
 
 	t.Run("admin toggle off", func(t *testing.T) {
 		pr := hwResolver(vaapiCapable())
 		pr.HWTonemapEnabled = func() bool { return false }
-		assert.False(t, pr.HWTonemapWanted(needsTonemap))
+		assert.False(t, pr.HWTonemapWanted(needsTonemap, "PQ"))
+	})
+
+	t.Run("HLG and Dolby Vision stay on tonemapx", func(t *testing.T) {
+		// tonemap_vaapi reads PQ only; a DoVi RPU needs apply_dovi (software).
+		assert.False(t, hwResolver(vaapiCapable()).HWTonemapWanted(needsTonemap, "HLG"))
+		assert.False(t, hwResolver(vaapiCapable()).HWTonemapWanted(needsTonemap, ""))
 	})
 
 	t.Run("nothing to tone-map", func(t *testing.T) {
 		// The decision does not ask for it: a capable host must not tone-map SDR.
-		assert.False(t, hwResolver(vaapiCapable()).HWTonemapWanted(transcoding.PlaybackDecision{}))
+		assert.False(t, hwResolver(vaapiCapable()).HWTonemapWanted(transcoding.PlaybackDecision{}, "PQ"))
 	})
 }
 
@@ -219,7 +225,7 @@ func TestHWRouteUsable(t *testing.T) {
 		VideoCodec:       "h264",
 		TranscodeReasons: []string{"hdr_tonemapping_needed"},
 	}
-	src := SourceDims{Codec: "hevc", TenBit: true}
+	src := SourceDims{Codec: "hevc", TenBit: true, HDRRange: "PQ"}
 
 	t.Run("software tonemap keeps the encode on the CPU", func(t *testing.T) {
 		// tonemapx runs on the CPU and the encoder follows it there. Routing to
@@ -236,6 +242,9 @@ func TestHWRouteUsable(t *testing.T) {
 
 	t.Run("GPU tonemap keeps the encode on the GPU", func(t *testing.T) {
 		assert.True(t, hwResolver(vaapiCapable()).HWRouteUsable(tonemapNeeded, src))
+		hlg := src
+		hlg.HDRRange = "HLG"
+		assert.False(t, hwResolver(vaapiCapable()).HWRouteUsable(tonemapNeeded, hlg), "HLG tone-maps in software")
 	})
 
 	t.Run("AV1-disabled host routes on the H.264 fallback", func(t *testing.T) {
