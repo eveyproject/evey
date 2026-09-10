@@ -40,8 +40,8 @@ func TestOrchestratorOptions_WithDefaults_FillsEveryZeroField(t *testing.T) {
 	if got.MaxRafalesPerHash != 3 {
 		t.Errorf("MaxRafalesPerHash = %d, want 3", got.MaxRafalesPerHash)
 	}
-	if got.HWFirstSegmentTimeout != 5*time.Second {
-		t.Errorf("HWFirstSegmentTimeout = %v, want 5s", got.HWFirstSegmentTimeout)
+	if got.HWFirstSegmentTimeout != 10*time.Second {
+		t.Errorf("HWFirstSegmentTimeout = %v, want 10s", got.HWFirstSegmentTimeout)
 	}
 	if got.WaitBudgetDur != 25*time.Second {
 		t.Errorf("WaitBudgetDur = %v, want 25s", got.WaitBudgetDur)

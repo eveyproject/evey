@@ -644,6 +644,7 @@ func TestCalibration_DemoteCapability_StampsWhenHWGoesOff(t *testing.T) {
 	}
 	svc.current.Store(&live)
 
+	require.False(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWInit, "h264"), "first strike")
 	require.True(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWInit, "h264"))
 
 	assert.Empty(t, svc.Current().HWBackend)
