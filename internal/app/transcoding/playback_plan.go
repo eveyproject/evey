@@ -54,6 +54,8 @@ type PlaybackRequest struct {
 	// SourceBytes is the on-disk size of the source file (0 = unknown), read
 	// by the copy-rung disk guard - fail-open on 0.
 	SourceBytes int64
+	// SourceBitrateKbps is the file's overall bitrate; the served ladder follows it.
+	SourceBitrateKbps int64
 }
 
 // PackagerKind names which engine produces the media bytes for a plan - the

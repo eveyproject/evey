@@ -208,6 +208,8 @@ type hlsVODServe struct {
 	hwTonemapEnabled func() bool
 	// hwLowPowerEnabled: admin opt-in for the Intel low-power encoder (transcoding.hw_low_power).
 	hwLowPowerEnabled func() bool
+	// maxVideoBitrateKbps: server ceiling on the served video bitrate (0 = source).
+	maxVideoBitrateKbps func() int
 
 	// useFMP4 controls the segment container. fMP4 is the project default -
 	// segments are ~30% smaller and the codecs string in the master playlist

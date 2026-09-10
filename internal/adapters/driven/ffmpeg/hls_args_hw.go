@@ -442,6 +442,25 @@ func hwEncoderQualityArgs(accel transcoding.HWAccelType, codec string, features 
 // single- and multi-variant HW builders: the seek, the HW init flags (which
 // bind to the video -i that immediately follows), the video input, and the
 // software-decoded audio-delay input.
+// hwRateArgs: capped VBR like the software CRF path (maxrate 160 %, bufsize
+// 2x). A bare -b:v left VAAPI in AVBR, a loose average with no headroom.
+func hwRateArgs(accel transcoding.HWAccelType, kbps int64, variant int) []string {
+	spec := ""
+	if variant >= 0 {
+		spec = fmt.Sprintf(":v:%d", variant)
+	}
+	bflag := "-b:v"
+	if variant >= 0 {
+		bflag = fmt.Sprintf("-b:v:%d", variant)
+	}
+	maxrate, bufsize := cappedCRFRateArgs(kbps)
+	var args []string
+	if accel == transcoding.VAAPI {
+		args = append(args, "-rc_mode"+spec, "VBR")
+	}
+	return append(args, bflag, fmt.Sprintf("%dk", kbps), "-maxrate"+spec, maxrate, "-bufsize"+spec, bufsize)
+}
+
 func appendHWTranscodeInputArgs(args []string, opts transcoding.HLSProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
@@ -504,7 +523,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, hwHDRPassthroughArgs(opts.HWAccel, opts.HDRTransfer, -1)...)
 	}
 	args = append(args, hevcTagArgs(opts.VideoCodec, -1)...)
-	args = append(args, "-b:v", fmt.Sprintf("%dk", p.VideoBitrate))
+	args = append(args, hwRateArgs(opts.HWAccel, p.VideoBitrate, -1)...)
 	args = append(args, hlsForceKeyframesArgs...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 
@@ -568,7 +587,7 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 			args = append(args, hwHDRPassthroughArgs(opts.HWAccel, opts.HDRTransfer, i)...)
 		}
 		args = append(args, hevcTagArgs(opts.VideoCodec, i)...)
-		args = append(args, fmt.Sprintf("-b:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate))
+		args = append(args, hwRateArgs(opts.HWAccel, p.VideoBitrate, i)...)
 		args = append(args, audioVariantArgs(opts, i, p.AudioBitrate)...)
 	}
 	args = append(args, hlsForceKeyframesArgs...)

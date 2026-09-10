@@ -342,3 +342,26 @@ func TestFingerprint_SpilledAV1IsFingerprintedAsH264(t *testing.T) {
 	notSpilled := newResolver(LadderClassHW, true).Fingerprint(context.Background(), req, decision, nil)
 	assert.Equal(t, "av1", notSpilled.VideoCodec, "an HW pin is not a spill: AV1 stays AV1")
 }
+
+func TestShapeLadder_FollowsSourceBitrate(t *testing.T) {
+	// A 70 Mb/s UHD remux is served at the source bitrate, scaled per rung by
+	// pixel count, and the server ceiling wins when set (prod 2026-09-10).
+	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
+	req := ladderRequest(2160)
+	req.SourceBitrateKbps = 70000
+
+	pr := &PlanResolver{}
+	profiles := pr.ShapeLadder(context.Background(), req, decision)
+	require.NotEmpty(t, profiles)
+	top := profiles[len(profiles)-1]
+	want := int64(70000) * int64(top.Width) * int64(top.Height) / (3840 * 2160)
+	assert.Equal(t, want, top.VideoBitrate, "top rung %s follows the source", top.Name)
+
+	pr.MaxVideoBitrateKbps = func() int { return 6000 }
+	capped := pr.ShapeLadder(context.Background(), req, decision)
+	assert.Equal(t, int64(6000), capped[len(capped)-1].VideoBitrate, "the server ceiling caps the raise")
+
+	req.SourceBitrateKbps = 0
+	base := (&PlanResolver{}).ShapeLadder(context.Background(), req, decision)
+	assert.Less(t, base[len(base)-1].VideoBitrate, want, "no source bitrate keeps the static ladder")
+}

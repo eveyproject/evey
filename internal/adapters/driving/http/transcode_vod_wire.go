@@ -184,6 +184,12 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		hwLowPowerEnabled: func() bool {
 			return s.Cfg != nil && s.Cfg.EffectiveHWLowPowerEnabled()
 		},
+		maxVideoBitrateKbps: func() int {
+			if s.Cfg == nil {
+				return 0
+			}
+			return s.Cfg.EffectiveMaxVideoBitrateKbps()
+		},
 		// fMP4 is now the project default - matches the ffmpeg adapter
 		// (needsFMP4Segments returns true unconditionally) and Apple's
 		// post-WWDC-2024 stance on CMAF. Per-rendition behaviour stays

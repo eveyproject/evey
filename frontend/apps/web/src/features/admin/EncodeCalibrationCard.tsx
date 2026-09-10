@@ -90,13 +90,14 @@ export function EncodeCalibrationCard() {
   });
 
   // Server settings carry the AV1 output opt-in + height cap.
-  const { data: settings } = useQuery<{ av1Enabled: { value: boolean }; av1MaxHeight: { value: number }; hwLowPowerEnabled: { value: boolean } }>({
+  const { data: settings } = useQuery<{ av1Enabled: { value: boolean }; av1MaxHeight: { value: number }; hwLowPowerEnabled: { value: boolean }; maxVideoBitrateKbps: { value: number } }>({
     queryKey: SETTINGS_QK,
     queryFn: () => eveyFetch({ url: "/api/v1/admin/server-settings", method: "GET" }),
   });
   const av1Enabled = settings?.av1Enabled?.value ?? false;
   const av1MaxHeight = settings?.av1MaxHeight?.value ?? 0;
   const hwLowPowerEnabled = settings?.hwLowPowerEnabled?.value ?? false;
+  const maxVideoBitrateKbps = settings?.maxVideoBitrateKbps?.value ?? 0;
 
   const setAV1 = useMutation({
     mutationFn: (patch: { av1Enabled?: boolean; av1MaxHeight?: number }) =>
@@ -113,6 +114,15 @@ export function EncodeCalibrationCard() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SETTINGS_QK });
       toast.success(t("admin.calibration.lowPowerApplied", "Low-power setting applied"));
+    },
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
+  });
+  const setMaxBitrate = useMutation({
+    mutationFn: (kbps: number) =>
+      eveyFetch({ url: "/api/v1/admin/server-settings", method: "PUT", data: { maxVideoBitrateKbps: kbps } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SETTINGS_QK });
+      toast.success(t("admin.calibration.maxBitrateApplied", "Bitrate ceiling applied"));
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
@@ -275,6 +285,30 @@ export function EncodeCalibrationCard() {
                 )}
               </p>
             )}
+
+            {/* Served video bitrate follows the source (Jellyfin-like); this is the ceiling. */}
+            <div className="mt-2 flex flex-col gap-1">
+              <label htmlFor="max-video-bitrate" className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
+                {t("admin.calibration.maxBitrateLabel", "Video bitrate ceiling")}
+              </label>
+              <select
+                id="max-video-bitrate"
+                data-testid="max-video-bitrate-select"
+                value={String(maxVideoBitrateKbps)}
+                disabled={setMaxBitrate.isPending}
+                onChange={(e) => setMaxBitrate.mutate(parseInt(e.target.value, 10))}
+                className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
+              >
+                <option value="0">{t("admin.calibration.maxBitrateSource", "Follow the source (like Jellyfin)")}</option>
+                <option value="20000">20 Mb/s</option>
+                <option value="40000">40 Mb/s</option>
+                <option value="60000">60 Mb/s</option>
+                <option value="80000">80 Mb/s</option>
+              </select>
+              <p className="text-xs text-[var(--text-muted)]">
+                {t("admin.calibration.maxBitrateHint", "Each rung is encoded at the source bitrate scaled to its resolution, never below the ladder's floor. Set a ceiling if remote viewers buffer.")}
+              </p>
+            </div>
 
             {/* AV1 output - hardware-only, opt-in. Shown only with HW on (this
                 block) because software AV1 is never used for streaming. */}

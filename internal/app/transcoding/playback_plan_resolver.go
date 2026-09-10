@@ -37,6 +37,8 @@ type PlanResolver struct {
 	// HWLowPowerEnabled: admin opt-in for the Intel low-power (VDEnc) encoder.
 	// Off (nil) keeps the probed low_power_* features out of the encode.
 	HWLowPowerEnabled func() bool
+	// MaxVideoBitrateKbps caps the served video bitrate (transcoding.max_video_bitrate_kbps, 0 = source).
+	MaxVideoBitrateKbps func() int
 	// AudioNormalize reports the loudnorm admin setting (forces audio re-encode).
 	AudioNormalize func(ctx context.Context) bool
 	// CapOverride is the CMCD-feedback adaptive ceiling (never raises, only lowers).
@@ -565,6 +567,10 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 	// recompute the post-gate codec. Applied here (like the CMCD override) so the
 	// manifest- and segment-time ladders trim identically - the cache-hash
 	// invariant holds because both reach this shared head with the same inputs.
+	if !isCopy {
+		laddered = transcoding.RaiseLadderToSource(laddered, req.SourceBitrateKbps, src.Width, src.Height, pr.videoBitrateCeilingKbps(req, decision))
+	}
+
 	if pr.AV1MaxHeight != nil {
 		if m := pr.AV1MaxHeight(); m > 0 {
 			if ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, streams); strings.EqualFold(ec, "av1") {
@@ -628,6 +634,26 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 }
 
 // profileHeights lists the heights of a shaped ladder, in order.
+// videoBitrateCeilingKbps is the tightest of the request cap, the profile cap,
+// a bitrate_exceeded decision and the server setting; 0 = follow the source.
+func (pr *PlanResolver) videoBitrateCeilingKbps(req PlaybackRequest, decision transcoding.PlaybackDecision) int64 {
+	var ceiling int64
+	tighten := func(v int64) {
+		if v > 0 && (ceiling == 0 || v < ceiling) {
+			ceiling = v
+		}
+	}
+	tighten(int64(req.MaxBitrateKbps))
+	tighten(int64(req.Prefs.EffectiveMaxBitrateKbps()))
+	if slices.Contains(decision.TranscodeReasons, "bitrate_exceeded") {
+		tighten(decision.VideoBitrate)
+	}
+	if pr.MaxVideoBitrateKbps != nil {
+		tighten(int64(pr.MaxVideoBitrateKbps()))
+	}
+	return ceiling
+}
+
 func profileHeights(profiles []transcoding.HLSProfile) []int {
 	out := make([]int, 0, len(profiles))
 	for _, p := range profiles {

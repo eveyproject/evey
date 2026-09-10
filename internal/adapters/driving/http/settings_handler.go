@@ -37,6 +37,7 @@ const (
 	cfgKeyTranscodeAV1En   = "transcoding.av1_enabled"
 	cfgKeyTranscodeAV1Max  = "transcoding.av1_max_height"
 	cfgKeyTranscodeLowPwr  = "transcoding.hw_low_power"
+	cfgKeyTranscodeMaxKbps = "transcoding.max_video_bitrate_kbps"
 	// Retention windows (days, 0 = keep forever) + transcode cache budget.
 	// Panel-managed per the project rule that operator knobs never live in
 	// env-only. The retention sweeps re-read their window every pass, so these
@@ -274,6 +275,10 @@ func registerServerSettingsRoutes(
 		{jsonKey: "hwLowPowerEnabled", cfgKey: cfgKeyTranscodeLowPwr, defaultVal: false,
 			getter: func() any { return cfg.Transcoding.HWLowPowerEnabled },
 			reset:  func() { cfg.Transcoding.HWLowPowerEnabled = false }},
+		// Served video bitrate ceiling; 0 follows the source bitrate.
+		{jsonKey: "maxVideoBitrateKbps", cfgKey: cfgKeyTranscodeMaxKbps, defaultVal: 0,
+			getter: func() any { return cfg.Transcoding.MaxVideoBitrateKbps },
+			reset:  func() { cfg.Transcoding.MaxVideoBitrateKbps = 0 }},
 		// Retention windows are re-read by their sweeps at every pass, so a
 		// change here applies at the next sweep (<= 24h for the daily ones,
 		// seconds for play_sessions) without a restart. 0 = keep forever.
@@ -390,6 +395,7 @@ func registerServerSettingsRoutes(
 			AV1Enabled              *bool   `json:"av1Enabled"`
 			AV1MaxHeight            *int    `json:"av1MaxHeight"`
 			HWLowPowerEnabled       *bool   `json:"hwLowPowerEnabled"`
+			MaxVideoBitrateKbps     *int    `json:"maxVideoBitrateKbps"`
 			AuditRetentionDays      *int    `json:"auditRetentionDays"`
 			MetricsRetentionDays    *int    `json:"metricsRetentionDays"`
 			QoERetentionDays        *int    `json:"qoeRetentionDays"`
@@ -629,6 +635,14 @@ func registerServerSettingsRoutes(
 					}
 					cfg.Transcoding.AV1Enabled = *body.AV1Enabled
 					return strconv.FormatBool(*body.AV1Enabled)
+				}},
+			{cfgKey: cfgKeyTranscodeMaxKbps,
+				apply: func() string {
+					if body.MaxVideoBitrateKbps == nil || *body.MaxVideoBitrateKbps < 0 || *body.MaxVideoBitrateKbps > 200000 {
+						return ""
+					}
+					cfg.Transcoding.MaxVideoBitrateKbps = *body.MaxVideoBitrateKbps
+					return strconv.Itoa(*body.MaxVideoBitrateKbps)
 				}},
 			{cfgKey: cfgKeyTranscodeLowPwr,
 				apply: func() string {
