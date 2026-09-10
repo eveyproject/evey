@@ -14,6 +14,13 @@ import {
 } from "@evey/api";
 import { FONT_SIZE } from "@evey/theme";
 
+// Same shape as the mobile panel: 23.976, 24, 25, 30 - never the raw float.
+function formatFrameRate(fps?: number): string | null {
+  if (!fps || !Number.isFinite(fps) || fps <= 0) return null;
+  const rounded = Math.round(fps * 1000) / 1000;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(3)} fps`;
+}
+
 interface StreamInfoPanelProps {
   visible: boolean;
   onClose: () => void;
@@ -130,8 +137,8 @@ export function StreamInfoPanel({ visible, onClose, streamInfo, audioStreamIndex
                   {videoStream.bitrate && (
                     <InfoRow label={t("player.streamInfo.bitrate", "Bitrate")} value={formatBitrate(videoStream.bitrate)} />
                   )}
-                  {videoStream.frameRate && (
-                    <InfoRow label={t("player.streamInfo.framerate", "Frame Rate")} value={`${videoStream.frameRate} fps`} />
+                  {formatFrameRate(videoStream.frameRate) && (
+                    <InfoRow label={t("player.streamInfo.framerate", "Frame Rate")} value={formatFrameRate(videoStream.frameRate)!} />
                   )}
                 </>
               )}
