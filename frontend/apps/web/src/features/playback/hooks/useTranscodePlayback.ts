@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
 import { createPlayerEventReporter } from "@evey/api";
-import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, prefersNativeHLS, startPlayback } from "./hlsPlayerUtils";
+import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, prefersNativeHLS, startPlayback, forwardBufferSeconds, MAX_FORWARD_BUFFER_SEC } from "./hlsPlayerUtils";
 import { playbackSnapshot } from "../playbackSnapshot";
 
 
@@ -293,8 +293,17 @@ export function useTranscodePlayback({
     hls.loadSource(hlsUrl);
     hls.attachMedia(video);
 
+    // The forward buffer follows the rung's bitrate: hls.js reads these on
+    // every buffer check, so a 70 Mb/s rung stays under the MSE byte quota.
+    const fitBufferToLevel = (idx: number) => {
+      const bps = hls.levels?.[idx]?.bitrate ?? 0;
+      const secs = forwardBufferSeconds(bps);
+      hls.config.maxBufferLength = secs;
+      hls.config.maxMaxBufferLength = Math.min(2 * MAX_FORWARD_BUFFER_SEC, secs * 2);
+    };
     // Track the rung ABR actually settled on, so "Auto" can show its resolution.
     hls.on(Hls.Events.LEVEL_SWITCHED, (_evt, data) => {
+      fitBufferToLevel(data.level);
       const h = hls.levels?.[data.level]?.height;
       if (h) setAutoLevelHeight(h);
     });
@@ -312,6 +321,7 @@ export function useTranscodePlayback({
       if (pinned >= 0 && hls.currentLevel !== pinned) {
         hls.currentLevel = pinned;
       }
+      if (pinned >= 0) fitBufferToLevel(pinned);
       setHlsLevels(hls.levels.map((l) => l.height));
       // A master with no audio group has no audioTracks at all, and neither
       // does a stripped-down player in a test: absent is a legitimate answer.

@@ -615,3 +615,18 @@ export async function startPlayback(video: HTMLVideoElement, silentElement = fal
   }
   return !video.paused;
 }
+
+/** Bytes of forward buffer a browser's MSE quota comfortably holds for one
+ *  video SourceBuffer. Firefox threw bufferFullError at ~150 MB (prod 2026-09-10). */
+const FORWARD_BUFFER_BYTES = 48_000_000;
+export const MIN_FORWARD_BUFFER_SEC = 6;
+export const MAX_FORWARD_BUFFER_SEC = 30;
+
+// Seconds of forward buffer that fit the byte budget at this rung's bitrate: a
+// 70 Mb/s rung gets 6 s (what a 4K remux needs to play in a browser), a
+// 5 Mb/s rung keeps the full 30 s.
+export function forwardBufferSeconds(bitrateBps: number): number {
+  if (!Number.isFinite(bitrateBps) || bitrateBps <= 0) return MAX_FORWARD_BUFFER_SEC;
+  const fit = Math.floor((FORWARD_BUFFER_BYTES * 8) / bitrateBps);
+  return Math.max(MIN_FORWARD_BUFFER_SEC, Math.min(MAX_FORWARD_BUFFER_SEC, fit));
+}
