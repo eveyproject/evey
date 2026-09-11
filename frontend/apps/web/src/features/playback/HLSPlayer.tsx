@@ -286,7 +286,7 @@ export function HLSPlayer({
   autoQualityRef.current = autoQuality;
   const renderCapHeightRef = useRef(renderCapHeight);
   renderCapHeightRef.current = renderCapHeight;
-  const onFragStatsRef = useRef<((s: { bytes: number; transferMs: number; levelIdx: number }) => void) | null>(null);
+  const onFragStatsRef = useRef<((s: { bytes: number; transferMs: number; levelIdx: number; durationSec: number }) => void) | null>(null);
   const onBufferStallRef = useRef<(() => void) | null>(null);
   const pinnedQualityRef = useRef(0);
   pinnedQualityRef.current = autoQuality ? autoCapHeight : currentQuality;
@@ -781,7 +781,7 @@ export function HLSPlayer({
     const video = videoRef.current;
     if (!hls || !video || !autoQualityRef.current) return;
     const now = performance.now();
-    recordThroughput(networkCapStateRef.current, { bytes: s.bytes, transferMs: s.transferMs, at: now });
+    recordThroughput(networkCapStateRef.current, { bytes: s.bytes, transferMs: s.transferMs, at: now, durationSec: s.durationSec });
     const levels = hls.levels.map((l) => ({ height: l.height, kbps: l.bitrate / 1000 }));
     const heights = levels.map((l) => l.height);
     const ceiling = pickPinnedLevel({ levelHeights: heights, desiredHeight: renderCapHeightRef.current });

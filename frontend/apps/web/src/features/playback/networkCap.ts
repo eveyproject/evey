@@ -7,6 +7,8 @@ export interface ThroughputSample {
   bytes: number;
   transferMs: number;
   at: number;
+  /** Media seconds the segment covers: what the rung REALLY costs, next to its declared bitrate. */
+  durationSec?: number;
 }
 
 export interface NetworkLevel {
@@ -67,6 +69,17 @@ export function estimateKbps(s: NetworkCapState): number | null {
   return ms > 0 ? (bytes * 8) / ms : null;
 }
 
+/** The heaviest recent segment, in kbps of media: a rung whose encoder bursts
+ * above its declared bitrate (70 Mb/s declared, 3 s segments at 100+ Mb/s,
+ * prod 2026-09-11) is judged on what it ships. 0 when no sample says. */
+export function observedRungKbps(s: NetworkCapState): number {
+  let max = 0;
+  for (const x of s.samples) {
+    if (x.durationSec && x.durationSec > 0) max = Math.max(max, (x.bytes * 8) / x.durationSec / 1000);
+  }
+  return max;
+}
+
 export function decideNetworkStep(
   s: NetworkCapState,
   now: number,
@@ -78,8 +91,9 @@ export function decideNetworkStep(
   const est = estimateKbps(s);
   if (est == null || currentIndex < 0 || currentIndex >= levels.length) return null;
   const current = levels[currentIndex];
+  const need = Math.max(current.kbps, observedRungKbps(s));
 
-  if (currentIndex > 0 && est < current.kbps * DOWN_HEADROOM && now - s.lastChangeAt >= DOWN_COOLDOWN_MS) {
+  if (currentIndex > 0 && est < need * DOWN_HEADROOM && now - s.lastChangeAt >= DOWN_COOLDOWN_MS) {
     let target = 0;
     for (let i = currentIndex - 1; i >= 0; i--) {
       if (levels[i].kbps * DOWN_HEADROOM <= est) {
@@ -93,7 +107,7 @@ export function decideNetworkStep(
   }
 
   // Repeated stalls with a line that only just fits: do not wait for the window.
-  if (currentIndex > 0 && s.stallsAt.length >= STALLS_TO_ACT && est < current.kbps * UP_HEADROOM && now - s.lastChangeAt >= DOWN_COOLDOWN_MS) {
+  if (currentIndex > 0 && s.stallsAt.length >= STALLS_TO_ACT && est < need * UP_HEADROOM && now - s.lastChangeAt >= DOWN_COOLDOWN_MS) {
     s.lastChangeAt = now;
     s.stallsAt = [];
     const target = currentIndex - 1;

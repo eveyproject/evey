@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decideNetworkStep, estimateKbps, newNetworkCapState, recordStall, recordThroughput } from "./networkCap";
+import { decideNetworkStep, estimateKbps, newNetworkCapState, observedRungKbps, recordStall, recordThroughput } from "./networkCap";
 
 const levels = [
   { height: 480, kbps: 1700 },
@@ -32,6 +32,16 @@ describe("networkCap", () => {
     feed(s, 20000, 3);
     const step = decideNetworkStep(s, 30_000, levels, 3, 3, 40);
     expect(step).toMatchObject({ direction: "down", height: 1080 });
+  });
+
+  it("judges a rung on what its segments really weigh, not on the declared bitrate", () => {
+    // Declared 70 Mb/s, segments shipped at 100 Mb/s over a 90 Mb/s line: the
+    // declared figure says the line fits (90 > 70 x 1.2), the segments say no.
+    const s = newNetworkCapState();
+    const bytes = (100_000 * 1000 * 3) / 8;
+    for (let i = 0; i < 3; i++) recordThroughput(s, { bytes, transferMs: (bytes * 8) / 90_000, at: i * 3000, durationSec: 3 });
+    expect(observedRungKbps(s)).toBeCloseTo(100_000, -2);
+    expect(decideNetworkStep(s, 30_000, levels, 3, 3, 4)).toMatchObject({ direction: "down", height: 1080 });
   });
 
   it("does not react to a rafale that was slow to produce", () => {

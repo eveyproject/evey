@@ -3,6 +3,7 @@ package transcoding
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -239,4 +240,72 @@ func clientHighWaterOfSession(s *orchestratorSession) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.clientHighWater
+}
+
+// A rafale nobody reads while it is ahead has lost its viewer (a seek landed on
+// another rafale, or on cache hits): it must pause at IdlePauseAfter, not at
+// PauseAhead. Prod 2026-09-11: the rafale a seek left behind kept a full 2160p
+// decode running for a minute next to the one the viewer was waiting on.
+func TestEvaluateThrottle_PausesTheRafaleItsViewerLeft(t *testing.T) {
+	cache, _ := newTestCache(t)
+	opts := testOpts()
+	opts.IdlePauseAfter = 8 * time.Second
+	o := NewSegmentOrchestrator(cache, newFakeProcess(), stubSource{path: "/media/test.mkv"}, opts, discardLogger())
+	t.Cleanup(o.Close)
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	for seg := range 3 {
+		writeReadySegment(t, cache, SegmentKey{DecisionHash: fp.Hash(), VariantIdx: 0, SegmentIdx: seg}, fp.UseFMP4)
+	}
+	o.mu.Lock()
+	sess := o.sessions[fp.Hash()][0]
+	o.mu.Unlock()
+	handle := sess.handle.(*fakeHandle)
+
+	o.evaluateThrottle()
+	if _, _, paused := handle.counts(); paused {
+		t.Fatal("a rafale read a moment ago must keep running")
+	}
+
+	sess.mu.Lock()
+	sess.lastAccess = time.Now().Add(-9 * time.Second)
+	sess.mu.Unlock()
+	o.evaluateThrottle()
+	if _, _, paused := handle.counts(); !paused {
+		t.Fatal("unread for 9 s and 2 segments ahead: the rafale must be paused")
+	}
+
+	// The viewer comes back inside the window: a cache hit touches the rafale
+	// and the buffer (2 - 1) is under ResumeBelow, so the next tick resumes it.
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 1))
+	o.evaluateThrottle()
+	if _, _, paused := handle.counts(); paused {
+		t.Fatal("a rafale read again must resume")
+	}
+}
+
+// Idle but not ahead: the viewer may be waiting on the very next segment, so
+// the encoder must keep running.
+func TestEvaluateThrottle_IdleRafaleNotAheadKeepsRunning(t *testing.T) {
+	cache, _ := newTestCache(t)
+	opts := testOpts()
+	opts.IdlePauseAfter = 8 * time.Second
+	o := NewSegmentOrchestrator(cache, newFakeProcess(), stubSource{path: "/media/test.mkv"}, opts, discardLogger())
+	t.Cleanup(o.Close)
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	writeReadySegment(t, cache, SegmentKey{DecisionHash: fp.Hash(), VariantIdx: 0, SegmentIdx: 0}, fp.UseFMP4)
+	o.mu.Lock()
+	sess := o.sessions[fp.Hash()][0]
+	o.mu.Unlock()
+	sess.mu.Lock()
+	sess.lastAccess = time.Now().Add(-9 * time.Second)
+	sess.mu.Unlock()
+
+	o.evaluateThrottle()
+	if _, _, paused := sess.handle.(*fakeHandle).counts(); paused {
+		t.Fatal("produced == requested: nothing is ahead, the rafale must not pause")
+	}
 }
