@@ -74,7 +74,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	}
 	// One decision per master request: both the video gate and the audio gate
 	// read it, and makeDecision re-derives client caps + content class each call.
-	decision := h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
+	decision := h.decisionFor(r.Context(), item, streams, r)
 	if !h.planHLSVideoEligible(decision, item, streams) {
 		return false
 	}
@@ -480,7 +480,7 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 		return false
 	}
 
-	decision := h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
+	decision := h.decisionFor(r.Context(), item, streams, r)
 	videoCopy := h.planHLSVideoEligible(decision, item, streams)
 
 	// Prefer mkvgo's plan for the AC-3 audio rendition (no ffmpeg). Building it
@@ -772,7 +772,7 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 	// the request here rather than passed in, so the master and every one of its
 	// sub-resource fetches build the SAME plan.
 	trimForCopy := len(streams) > 0 &&
-		h.audioTrimUnlocksCopy(r, h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r), streams)
+		h.audioTrimUnlocksCopy(r, h.decisionFor(r.Context(), item, streams, r), streams)
 	if h.onDemandTrackTrim || trimForCopy {
 		// Same resolution the ffmpeg pipeline uses for ?audioTrack=/the
 		// profile's language default (resolveAudioTrack), reused here so both

@@ -161,6 +161,7 @@ streamInfo:
     audio_codec_unsupported: Audiocodec, den dieser Player nicht dekodieren kann
     hdr_tonemapping_needed: HDR nach SDR konvertiert (Tone-Mapping)
     dovi_base_layer: "Dolby-Vision-Basisschicht neu codiert (HDR bleibt)"
+    hdr_copy_unavailable: "Kopie nicht verfügbar, HDR beim Neukodieren erhalten"
     pixel_format_unsupported: "Pixelformat, das der Player nicht decodiert (10-Bit-H.264, 4:2:2)"
     level_exceeded: "H.264-Level über dem Limit des Geräts"
     container_incompatible: Container nicht direkt abspielbar (zu HLS umverpackt)

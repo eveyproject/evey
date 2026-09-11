@@ -161,6 +161,7 @@ streamInfo:
     audio_codec_unsupported: Audio codec this player cannot decode
     hdr_tonemapping_needed: HDR converted to SDR (tone-mapping)
     dovi_base_layer: "Dolby Vision base layer re-encoded (HDR kept)"
+    hdr_copy_unavailable: "Copy unavailable, HDR kept through the re-encode"
     pixel_format_unsupported: "Pixel format the player cannot decode (10-bit H.264, 4:2:2)"
     level_exceeded: "H.264 level above the device's limit"
     container_incompatible: Container not playable as-is (repackaged to HLS)

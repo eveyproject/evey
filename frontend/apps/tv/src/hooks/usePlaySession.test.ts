@@ -213,6 +213,19 @@ describe("buildStreamUrl", () => {
     expect(url).not.toContain("startSec");
   });
 
+  // The quality menu used to reach GetStreamInfo alone: the verdict changed,
+  // the master served the same ladder. Both ceilings ride the master URL now.
+  it("carries the picked quality as maxHeight and the panel as screenHeight", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
+    const url = buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, undefined, 0, 720, 1080);
+    expect(url).toContain("maxHeight=720");
+    expect(url).toContain("screenHeight=1080");
+    const auto = buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, undefined, 0, undefined, 1080);
+    expect(auto).not.toContain("maxHeight");
+    expect(auto).toContain("screenHeight=1080");
+  });
+
   // The TV told the gRPC calls which tracks it wanted and then asked for a URL
   // that named neither, so the manifest kept serving the default audio and never
   // burnt a selected bitmap subtitle. Worse, the URL was byte-identical for

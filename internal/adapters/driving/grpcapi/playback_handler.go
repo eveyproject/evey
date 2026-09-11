@@ -265,6 +265,9 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	sourcePath := ""
 	if item.File != nil {
 		sourcePath = item.File.Path
+		// Same bitrate fallback the HLS plan applies, so the verdict here and the
+		// master agree on a cap when the video stream carries no bitrate.
+		prefs.SourceBitrateKbps = item.File.BitrateBps() / 1000
 	}
 	decision := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, containerFormat, client, maxBitrateKbps, prefs, sourcePath)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {

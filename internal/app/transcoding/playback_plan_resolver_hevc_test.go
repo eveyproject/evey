@@ -124,3 +124,27 @@ func TestMakePlaybackDecision_CarriesClientVideoCodecs(t *testing.T) {
 		transcoding.ClientProfile{VideoCodecs: []string{" H264", "HEVC "}, Containers: []string{"mp4"}}, 0, DefaultTranscodingPreferences())
 	assert.Equal(t, []string{"h264", "hevc"}, d.ClientVideoCodecs)
 }
+
+// A copy verdict whose copy rung is unavailable (no keyframe index yet) still
+// re-encodes: for an HDR client on a Main10 GPU that re-encode keeps the HDR
+// instead of tone-mapping to SDR, which is what judging the passthrough on
+// the copy verdict used to do.
+func TestDecide_CopyBlockedHDRClientKeepsPassthrough(t *testing.T) {
+	req := PlaybackRequest{
+		MediaID: "m1", SourcePath: "/f.mkv", Streams: hdrHevcStreams(), Container: "mkv",
+		Client: transcoding.ClientProfile{VideoCodecs: []string{"h264", "hevc"}, AudioCodecs: []string{"aac"}, Containers: []string{"mp4"}, SupportsHDR: true},
+		Prefs:  DefaultTranscodingPreferences(), AudioTrack: -1, SubtitleBurnInTrack: -1,
+	}
+	d := hwResolver(hevcCapable()).Decide(context.Background(), req)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "hdr_copy_unavailable")
+	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
+	fp := hwResolver(hevcCapable()).Fingerprint(context.Background(), req, d, []transcoding.HLSProfile{{Name: "2160p", Width: 3840, Height: 2160, VideoBitrate: 15000, AudioBitrate: 192}})
+	assert.True(t, fp.HDRPassthrough)
+
+	t.Run("no Main10 encoder: tone-map as before", func(t *testing.T) {
+		d := hwResolver(vaapiCapable()).Decide(context.Background(), req)
+		assert.Equal(t, "transcode", d.VideoDecision)
+		assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
+	})
+}

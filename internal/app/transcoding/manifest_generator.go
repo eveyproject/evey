@@ -160,9 +160,11 @@ type ManifestInput struct {
 	// WITHOUT it and produce tonemapped SDR h264 segments inside a variant the
 	// master advertised as hvc1/PQ copy - codec mismatch, broken playback.
 	HDRCapable bool
-	// ScreenHeight (?screenHeight) and MaxH264Level (?maxH264Level) shape the
-	// ladder like the codec lists do, so they ride every baked URL for the same reason.
+	// ScreenHeight (?screenHeight), MaxHeight (?maxHeight) and MaxH264Level
+	// (?maxH264Level) shape the ladder like the codec lists do, so they ride
+	// every baked URL for the same reason.
 	ScreenHeight int
+	MaxHeight    int
 	MaxH264Level int
 
 	// MaxAudioChannels is the client's declared channel CEILING (?maxAudioChannels).
@@ -871,6 +873,9 @@ func querySuffix(in ManifestInput) string {
 	}
 	if in.ScreenHeight > 0 {
 		q.Set("screenHeight", fmt.Sprintf("%d", in.ScreenHeight))
+	}
+	if in.MaxHeight > 0 {
+		q.Set("maxHeight", fmt.Sprintf("%d", in.MaxHeight))
 	}
 	if in.MaxH264Level > 0 {
 		q.Set("maxH264Level", fmt.Sprintf("%d", in.MaxH264Level))

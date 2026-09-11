@@ -346,18 +346,20 @@ func TestFingerprint_SpilledAV1IsFingerprintedAsH264(t *testing.T) {
 }
 
 func TestShapeLadder_FollowsSourceBitrate(t *testing.T) {
-	// A 70 Mb/s UHD remux is served at the source bitrate, scaled per rung by
-	// pixel count, and the server ceiling wins when set (prod 2026-09-10).
+	// A 70 Mb/s UHD remux is served at the source bitrate on its own rung, the
+	// rungs below thin along the pixel-ratio curve (never under their base),
+	// and the server ceiling wins when set (prod 2026-09-10).
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 	req := ladderRequest(2160)
 	req.SourceBitrateKbps = 70000
 
-	pr := &PlanResolver{}
+	pr := &PlanResolver{Capability: func() transcoding.EncodeCapability { return transcoding.EncodeCapability{SoftwareMaxHeight: 2160} }}
 	profiles := pr.ShapeLadder(context.Background(), req, decision)
 	require.NotEmpty(t, profiles)
 	top := profiles[len(profiles)-1]
-	want := int64(70000) * int64(top.Width) * int64(top.Height) / (3840 * 2160)
-	assert.Equal(t, want, top.VideoBitrate, "top rung %s follows the source", top.Name)
+	require.Equal(t, 1080, top.Height, "LadderFilmNormal stops at 1080p")
+	assert.Equal(t, int64(8750), top.VideoBitrate, "1080p of a 70 Mb/s UHD source: 0.25^1.5 x 70000")
+	assert.Equal(t, transcoding.LadderFilmNormal[0].VideoBitrate, profiles[0].VideoBitrate, "the lowest rung keeps its base for a thin line")
 
 	pr.MaxVideoBitrateKbps = func() int { return 6000 }
 	capped := pr.ShapeLadder(context.Background(), req, decision)
@@ -365,7 +367,7 @@ func TestShapeLadder_FollowsSourceBitrate(t *testing.T) {
 
 	req.SourceBitrateKbps = 0
 	base := (&PlanResolver{}).ShapeLadder(context.Background(), req, decision)
-	assert.Less(t, base[len(base)-1].VideoBitrate, want, "no source bitrate keeps the static ladder")
+	assert.Less(t, base[len(base)-1].VideoBitrate, int64(70000), "no source bitrate keeps the static ladder")
 }
 
 func TestShapeLadder_CapsToScreen(t *testing.T) {

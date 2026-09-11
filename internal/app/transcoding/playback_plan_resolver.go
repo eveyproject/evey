@@ -135,6 +135,7 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 	// while the user plays an AAC track, or vice-versa). Mirrors the audioTrack
 	// resolution the fingerprint and the ffmpeg -map already use.
 	prefs.AudioTrack = req.AudioTrack
+	prefs.SourceBitrateKbps = req.SourceBitrateKbps
 	d := MakePlaybackDecisionWithPrefs(ctx, req.Streams, req.Container, req.Client, req.MaxBitrateKbps, prefs, req.SourcePath)
 	if d == nil {
 		return transcoding.PlaybackDecision{}
@@ -213,9 +214,19 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 	servedAsRawCopy := d.VideoDecision == "copy" && pr.CopyProducer != nil && SourceCopyVideoCodec(req.Streams) != ""
 	if !servedAsRawCopy &&
 		!slices.Contains(d.TranscodeReasons, "hdr_tonemapping_needed") &&
-		SourceIsHDR(req.Streams) &&
-		!pr.HDRPassthroughWanted(*d, req.Streams) {
-		d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
+		SourceIsHDR(req.Streams) {
+		// Judge the passthrough on the transcode this will be, not on the copy
+		// verdict it started as: a copy-blocked title (keyframes pending, VFR,
+		// HDR truth unknown) on an HDR client and a Main10 GPU keeps its HDR.
+		asTranscode := *d
+		asTranscode.VideoDecision = "transcode"
+		if pr.HDRPassthroughWanted(asTranscode, req.Streams) {
+			if d.VideoDecision != "transcode" {
+				d.TranscodeReasons = append(d.TranscodeReasons, "hdr_copy_unavailable")
+			}
+		} else {
+			d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
+		}
 		d.VideoDecision = "transcode"
 		if d.VideoCodec == "" {
 			d.VideoCodec = "h264"
@@ -482,8 +493,8 @@ func (pr *PlanResolver) HWOverlayWanted(decision transcoding.PlaybackDecision) b
 // with different caps must not share a pin or the second inherits the first's.
 func (pr *PlanResolver) PinKey(req PlaybackRequest, decision transcoding.PlaybackDecision) string {
 	ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, req.Streams)
-	return fmt.Sprintf("%s|%s|%s|sh=%d|bw=%d|lvl=%d", req.MediaID, ec, decision.VideoDecision,
-		req.ScreenHeight, pr.videoBitrateCeilingKbps(req, decision), req.Client.MaxH264Level)
+	return fmt.Sprintf("%s|%s|%s|sh=%d|mh=%d|bw=%d|lvl=%d", req.MediaID, ec, decision.VideoDecision,
+		req.ScreenHeight, req.Client.MaxHeight, pr.videoBitrateCeilingKbps(req, decision), req.Client.MaxH264Level)
 }
 
 // ShapeLadder picks the ABR ladder for a given (decision, media, streams)
@@ -588,6 +599,8 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 		laddered = transcoding.RaiseLadderToSource(laddered, req.SourceBitrateKbps, src.Width, src.Height, ceiling)
 		laddered = transcoding.CapLadderToVideoBitrate(laddered, ceiling)
 		laddered = transcoding.CapLadderToScreen(laddered, req.ScreenHeight)
+		// The decoder's ceiling, or the quality the viewer picked (?maxHeight).
+		laddered = transcoding.CapLadderToHeight(laddered, req.Client.MaxHeight)
 		// The decoder's H.264 level bounds the frame size it decodes: a 2160p
 		// rung is unplayable on a level-4.1 device whatever the bitrate.
 		if strings.EqualFold(ec, "h264") {

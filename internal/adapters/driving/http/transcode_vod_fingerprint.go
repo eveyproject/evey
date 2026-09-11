@@ -178,6 +178,12 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 			}
 			return parseIntQuery(r, "screenHeight", 0)
 		}(),
+		MaxHeight: func() int {
+			if r == nil {
+				return 0
+			}
+			return parseIntQuery(r, "maxHeight", 0)
+		}(),
 		MaxH264Level: func() int {
 			if r == nil {
 				return 0
@@ -291,6 +297,16 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 // the audio track, marshals the request and delegates to the app-layer
 // resolver's Decide - the same core the plan resolution runs.
 func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, r *http.Request) domaintranscoding.PlaybackDecision {
+	return h.decide(ctx, streams, container, sourcePath, apptranscoding.SourceVideoBitrateKbps(streams), r)
+}
+
+// decisionFor is makeDecision for a resolved item: the container, path and
+// bitrate (video stream, else the file) all come from it.
+func (h *hlsVODServe) decisionFor(ctx context.Context, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, r *http.Request) domaintranscoding.PlaybackDecision {
+	return h.decide(ctx, streams, containerOf(item), sourcePathOf(item), sourceBitrateKbpsOf(item, streams), r)
+}
+
+func (h *hlsVODServe) decide(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, sourceKbps int64, r *http.Request) domaintranscoding.PlaybackDecision {
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := h.profilePrefsFor(ctx, claims.ProfileID)
 	req := apptranscoding.PlaybackRequest{
@@ -305,6 +321,10 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 		PinnedVideoDecision: r.URL.Query().Get("vd"),
 		PinnedAudioDecision: r.URL.Query().Get("ad"),
 		WasmAudio:           wasmAudioEffective(r, h.castWasmAudioEnabled),
+		// The same caps the plan applies: the mkvgo copy path decides off this
+		// call, and a copy under a bitrate ceiling is exactly what it must refuse.
+		MaxBitrateKbps:    h.requestBitrateCapKbps(r),
+		SourceBitrateKbps: sourceKbps,
 	}
 	return h.planResolver().Decide(ctx, req)
 }

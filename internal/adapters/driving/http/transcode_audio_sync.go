@@ -27,7 +27,7 @@ func (h *hlsVODServe) videoCompositionDelaySec(r *http.Request, mediaID string, 
 	if h.compositionDelayProbe == nil || h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
 		return 0
 	}
-	decision := h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
+	decision := h.decisionFor(r.Context(), item, streams, r)
 	if decision.VideoDecision == "transcode" {
 		return h.transcodeCompositionDelaySec(r, mediaID, item, streams)
 	}

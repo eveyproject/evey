@@ -243,6 +243,7 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	sourcePath := ""
 	if item.File != nil {
 		sourcePath = item.File.Path
+		prefs.SourceBitrateKbps = item.File.BitrateBps() / 1000
 	}
 	decision := apptranscoding.MakePlaybackDecisionWithPrefs(r.Context(), streams, containerFormat, client, userMaxBitrate, prefs, sourcePath)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {

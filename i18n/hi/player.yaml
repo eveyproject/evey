@@ -161,6 +161,7 @@ streamInfo:
     audio_codec_unsupported: ऑडियो कोडेक जिसे यह प्लेयर डिकोड नहीं कर सकता
     hdr_tonemapping_needed: HDR को SDR में बदला गया (टोन-मैपिंग)
     dovi_base_layer: "Dolby Vision बेस लेयर पुनः एन्कोड (HDR बरकरार)"
+    hdr_copy_unavailable: "कॉपी उपलब्ध नहीं, री-एन्कोड में HDR बरकरार"
     pixel_format_unsupported: "पिक्सेल फ़ॉर्मेट जिसे प्लेयर डिकोड नहीं कर सकता (10-बिट H.264, 4:2:2)"
     level_exceeded: "H.264 स्तर डिवाइस की सीमा से ऊपर"
     container_incompatible: कंटेनर सीधे चलने योग्य नहीं (HLS में री-पैक किया गया)
