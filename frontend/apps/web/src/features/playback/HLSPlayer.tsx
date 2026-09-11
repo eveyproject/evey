@@ -815,7 +815,9 @@ export function HLSPlayer({
         if (!hls || !autoQualityRef.current) return;
         const heights = hls.levels.map((l) => l.height);
         const current = heights[hls.currentLevel] ?? 0;
-        const cap = decideRenderCap(renderCapStateRef.current, performance.now(), bufferedAheadSec(video), heights, current);
+        // The forward-buffer target shrinks with the rung's bitrate (6 s at
+        // 70 Mb/s), so "full buffer" is judged against it, not a fixed 8 s.
+        const cap = decideRenderCap(renderCapStateRef.current, performance.now(), bufferedAheadSec(video), heights, current, hls.config.maxBufferLength);
         if (cap == null) return;
         setRenderCapHeight(cap);
         reportRenderEvent({

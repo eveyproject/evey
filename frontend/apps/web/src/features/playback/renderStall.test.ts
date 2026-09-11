@@ -168,6 +168,15 @@ describe("decideRenderCap", () => {
     expect(decideRenderCap(s, 500_000, 40, rungs, 2160)).toBeNull();
   });
 
+  it("judges a full buffer against the rung's own target: 6 s at 70 Mb/s", () => {
+    const s = { streak: 1, lastAt: 1_000 };
+    expect(decideRenderCap(s, 31_000, 5, rungs, 2160, 6)).toBe(1080);
+    const short = { streak: 1, lastAt: 1_000 };
+    expect(decideRenderCap(short, 31_000, 3, rungs, 2160, 6)).toBeNull();
+    const wide = { streak: 1, lastAt: 1_000 };
+    expect(decideRenderCap(wide, 31_000, 7, rungs, 2160, 30)).toBeNull();
+  });
+
   it("has nowhere to go from the lowest rung", () => {
     const s = { streak: 1, lastAt: 1_000 };
     expect(decideRenderCap(s, 31_000, 40, rungs, 360)).toBeNull();

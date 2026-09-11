@@ -166,8 +166,17 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
   };
 }
 
-/** Below this much buffered media, a slowdown is the server being late, not the page. */
+/** Below this much buffered media, a slowdown is the server being late, not
+ *  the page. Bounded by the player's own forward-buffer target: at 70 Mb/s the
+ *  buffer is capped to 6 s by design, so a fixed 8 s would never let the cap
+ *  act on the rung that needs it most (prod 2026-09-11, Firefox on 2160p). */
 const CAP_MIN_BUFFER_AHEAD_SEC = 8;
+const CAP_MIN_BUFFER_SHARE = 0.75;
+
+export function capMinBufferSec(bufferTargetSec: number): number {
+  if (!Number.isFinite(bufferTargetSec) || bufferTargetSec <= 0) return CAP_MIN_BUFFER_AHEAD_SEC;
+  return Math.min(CAP_MIN_BUFFER_AHEAD_SEC, bufferTargetSec * CAP_MIN_BUFFER_SHARE);
+}
 /** Slowdown reports (30 s apart) before a rung is given up. */
 const CAP_AFTER_REPORTS = 2;
 /** Reports further apart than this start a new streak. */
@@ -204,8 +213,9 @@ export function decideRenderCap(
   bufferAheadSec: number,
   levelHeights: readonly number[],
   currentHeight: number,
+  bufferTargetSec = CAP_MIN_BUFFER_AHEAD_SEC,
 ): number | null {
-  if (bufferAheadSec < CAP_MIN_BUFFER_AHEAD_SEC) {
+  if (bufferAheadSec < capMinBufferSec(bufferTargetSec)) {
     s.streak = 0;
     return null;
   }

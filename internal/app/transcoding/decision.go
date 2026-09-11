@@ -831,17 +831,13 @@ func TranscodeDisallowed(d *transcoding.PlaybackDecision, prefs TranscodingPrefe
 	return !prefs.AllowTranscoding && d.PlayMethod == "transcode"
 }
 
-// Fallback bitrates (kbps) when a transcode decision carries no explicit
-// target: a mid-quality 1080p video rung and transparent stereo audio.
-const (
-	defaultVideoBitrateKbps = 4000
-	defaultAudioBitrateKbps = 192
-)
+// Fallback audio bitrate (kbps) when a transcode decision carries no explicit
+// target. The VIDEO bitrate stays 0 = "follows the source" (the ladder is
+// raised to the source bitrate); a placeholder here reached the stream panel
+// as "4.0 Mbps" on a 70 Mb/s rung.
+const defaultAudioBitrateKbps = 192
 
 func applyDefaultBitrates(d *transcoding.PlaybackDecision) {
-	if d.VideoDecision == "transcode" && d.VideoBitrate == 0 {
-		d.VideoBitrate = defaultVideoBitrateKbps
-	}
 	if d.AudioDecision == "transcode" && d.AudioBitrate == 0 {
 		d.AudioBitrate = defaultAudioBitrateKbps
 	}

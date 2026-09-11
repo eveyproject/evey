@@ -73,7 +73,7 @@ func TestDefaultBitrates_Applied(t *testing.T) {
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Equal(t, "transcode", d.AudioDecision)
-	assert.Equal(t, int64(4000), d.VideoBitrate)
+	assert.Equal(t, int64(0), d.VideoBitrate, "no cap: the video bitrate follows the source (the ladder raises to it)")
 	assert.Equal(t, int64(192), d.AudioBitrate)
 }
 
