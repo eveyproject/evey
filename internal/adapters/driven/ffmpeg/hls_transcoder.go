@@ -425,33 +425,40 @@ func parseAspect(s string) (num, den int, ok bool) {
 	return num, den, true
 }
 
-// softwareCRF is the x264 quality target for the software ABR ladder. Paired
-// with per-rung -maxrate/-bufsize ("capped CRF"): CRF fixes the perceptual
-// quality so easy scenes spend fewer bits than the rung's bitrate (bandwidth
-// saved, steady quality), while maxrate caps complex scenes at the bitrate the
-// manifest advertises (still ABR-safe - a peak can't blow past what the player
-// budgeted). Lowered from the 23 x264 default to 20: the software path encodes
-// at the realtime veryfast preset, so a tighter CRF buys back sharpness for ~the
-// same encode cost, and the benched ceiling (also veryfast) is CRF-independent.
-// HW encoders ignore CRF (rate-control differs), so this is the software path only.
-const softwareCRF = "20"
+// qualityTargetFor is the rate control of rung i: the plan's target when the
+// session carries one, else the static policy (capped CRF on the CPU, VBR
+// whose peak is the rung's bitrate on the GPU - the pre-engine constants).
+func qualityTargetFor(opts transcoding.HLSProcessOpts, i int, p transcoding.HLSProfile, hw bool) transcoding.QualityTarget {
+	if i >= 0 && i < len(opts.QualityTargets) && !opts.QualityTargets[i].IsZero() {
+		return opts.QualityTargets[i]
+	}
+	return transcoding.StaticQualityPolicy{}.TargetFor(p, transcoding.EncodeRoute{HWUsable: hw})
+}
 
-// maxrateHeadroomPct sizes the -maxrate ceiling above the rung's advertised
-// bitrate. The two are different jobs: the rung bitrate is the manifest's
-// BANDWIDTH (what ABR budgets), the ceiling should only clip outliers. Pinned
-// together, CRF 20 was strangled on re-encodes of already-lossy sources (old
-// XviD .avi), whose grain is expensive to reproduce. Raising the rung bitrate
-// instead would push constrained viewers down a whole rung.
-//
-// Not part of the DecisionFingerprint (like softwareCRF): existing segments
-// keep the ceiling they were encoded with until the cache is purged.
-const maxrateHeadroomPct = 160
-
-// cappedCRFRateArgs returns the -maxrate/-bufsize pair for a rung advertised
-// at kbps. bufsize keeps a 2x-of-ceiling VBV window.
-func cappedCRFRateArgs(kbps int64) (maxrate, bufsize string) {
-	ceiling := kbps * maxrateHeadroomPct / 100
-	return fmt.Sprintf("%dk", ceiling), fmt.Sprintf("%dk", ceiling*2)
+// softwareRateControlArgs renders a target for a CPU encoder. spec is the
+// output stream specifier ("" single output, ":v:N" per rung). Constant
+// quality is x264/x265's CRF and SVT-AV1's crf; the ceiling and its VBV
+// window are distribution constraints, whatever the mode.
+func softwareRateControlArgs(qt transcoding.QualityTarget, spec string) []string {
+	// "-b:v" already names the video stream: per rung it is -b:v:N, unlike
+	// -crf/-maxrate/-bufsize which take the ":v:N" specifier whole.
+	bflag := "-b:v" + strings.TrimPrefix(spec, ":v")
+	var args []string
+	switch qt.Mode {
+	case transcoding.RateControlVBR:
+		args = append(args, bflag, fmt.Sprintf("%dk", qt.TargetKbps))
+	case transcoding.RateControlCBR:
+		args = append(args, bflag, fmt.Sprintf("%dk", qt.TargetKbps), "-minrate"+spec, fmt.Sprintf("%dk", qt.TargetKbps))
+	default:
+		args = append(args, "-crf"+spec, strconv.Itoa(qt.Quality))
+	}
+	if qt.MaxKbps > 0 {
+		args = append(args, "-maxrate"+spec, fmt.Sprintf("%dk", qt.MaxKbps))
+	}
+	if qt.BufferKbps > 0 {
+		args = append(args, "-bufsize"+spec, fmt.Sprintf("%dk", qt.BufferKbps))
+	}
+	return args
 }
 
 // svtAV1Preset is the libsvtav1 numeric speed/quality preset (0-13, higher =
@@ -854,13 +861,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, cpuBudgetThreadsArgs("")...)                                       // bound to the CPU budget (cgroup quota or NumCPU); operator override wins if set
 	args = append(args, softwareProfileLevelArgs(enc, -1, p.Height, opts.MaxH264Level)...) // h264-only; x265/av1 pick their own
 	args = append(args, softwareX264TuningArgs(enc, -1)...)                                // motion-search tuning: +24% on encode-bound sources
-	args = append(args,
-		// Capped CRF (see softwareCRF): quality-targeted with the rung bitrate as a
-		// hard ceiling, instead of a plain -b:v average.
-		"-crf", softwareCRF,
-	)
-	maxrate, bufsize := cappedCRFRateArgs(p.VideoBitrate)
-	args = append(args, "-maxrate", maxrate, "-bufsize", bufsize)
+	args = append(args, softwareRateControlArgs(qualityTargetFor(opts, len(opts.Profiles)-1, p, false), "")...)
 	args = append(args, svtAV1PresetArgs(enc)...)
 	args = append(args, "-pix_fmt", "yuv420p")
 	args = append(args, hlsForceKeyframesArgs...)
@@ -953,16 +954,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, hevcTagArgs(opts.VideoCodec, i)...)
 		args = append(args, softwareProfileLevelArgs(vcodec, i, p.Height, opts.MaxH264Level)...) // h264-only; x265/av1 pick their own
 		args = append(args, softwareX264TuningArgs(vcodec, i)...)
-		args = append(args,
-			// Capped CRF per rung (see softwareCRF): quality-targeted, rung bitrate
-			// as the hard ceiling, instead of a plain -b:v average.
-			fmt.Sprintf("-crf:v:%d", i), softwareCRF,
-		)
-		maxrate, bufsize := cappedCRFRateArgs(p.VideoBitrate)
-		args = append(args,
-			fmt.Sprintf("-maxrate:v:%d", i), maxrate,
-			fmt.Sprintf("-bufsize:v:%d", i), bufsize,
-		)
+		args = append(args, softwareRateControlArgs(qualityTargetFor(opts, i, p, false), fmt.Sprintf(":v:%d", i))...)
 		args = append(args, svtAV1PresetArgs(vcodec)...)
 		args = append(args, "-pix_fmt", "yuv420p")
 		args = append(args, audioVariantArgs(opts, i, p.AudioBitrate)...)

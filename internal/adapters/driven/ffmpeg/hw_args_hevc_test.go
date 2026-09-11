@@ -31,10 +31,10 @@ func TestHWEncoderQualityArgs_LowPowerPerCodec(t *testing.T) {
 
 func TestHWRateArgs_CappedVBR(t *testing.T) {
 	// The peak is the rung's own bitrate: the manifest's BANDWIDTH is a promise.
-	if got := strings.Join(hwRateArgs(transcoding.VAAPI, 15000, -1), " "); got != "-rc_mode VBR -b:v 15000k -maxrate 15000k -bufsize 30000k" {
+	if got := strings.Join(hwRateControlArgs(transcoding.VAAPI, transcoding.StaticQualityPolicy{}.TargetFor(transcoding.HLSProfile{VideoBitrate: 15000}, transcoding.EncodeRoute{HWUsable: true}), -1), " "); got != "-rc_mode VBR -b:v 15000k -maxrate 15000k -bufsize 30000k" {
 		t.Errorf("VAAPI single = %q", got)
 	}
-	if got := strings.Join(hwRateArgs(transcoding.NVENC, 5000, 2), " "); got != "-b:v:2 5000k -maxrate:v:2 5000k -bufsize:v:2 10000k" {
+	if got := strings.Join(hwRateControlArgs(transcoding.NVENC, transcoding.StaticQualityPolicy{}.TargetFor(transcoding.HLSProfile{VideoBitrate: 5000}, transcoding.EncodeRoute{HWUsable: true}), 2), " "); got != "-b:v:2 5000k -maxrate:v:2 5000k -bufsize:v:2 10000k" {
 		t.Errorf("NVENC variant = %q", got)
 	}
 	joined := strings.Join(BuildFFmpegArgs(sampleHWOpts(transcoding.VAAPI, "/dev/dri/renderD128", 1)), " ")

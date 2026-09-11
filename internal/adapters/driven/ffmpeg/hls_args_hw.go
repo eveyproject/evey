@@ -493,24 +493,41 @@ func hwEncoderQualityArgs(accel transcoding.HWAccelType, codec string, features 
 // single- and multi-variant HW builders: the seek, the HW init flags (which
 // bind to the video -i that immediately follows), the video input, and the
 // software-decoded audio-delay input.
-// hwRateArgs: VBR whose peak IS the rung's bitrate (bufsize 2x). The 160 %
-// headroom of the software CRF path let a 70 Mb/s 2160p rung ship 3 s segments
-// at 80-130 Mb/s (VAAPI, prod 2026-09-11): the manifest's BANDWIDTH must be
-// what the line has to carry. A bare -b:v left VAAPI in AVBR.
-func hwRateArgs(accel transcoding.HWAccelType, kbps int64, variant int) []string {
+// hwRateControlArgs renders a target for a GPU encoder. Bitrate-targeted
+// modes are VBR whose peak is the ceiling (bufsize the window): the 160 %
+// headroom of the CPU path let a 70 Mb/s 2160p rung ship 3 s segments at
+// 80-130 Mb/s (VAAPI, prod 2026-09-11), and a bare -b:v left VAAPI in AVBR.
+// The GPU constant-quality modes (QVBR, ICQ, cq) are not calibrated yet, so a
+// constant-quality target is served as VBR at its ceiling until they are.
+func hwRateControlArgs(accel transcoding.HWAccelType, qt transcoding.QualityTarget, variant int) []string {
 	spec := ""
 	if variant >= 0 {
 		spec = fmt.Sprintf(":v:%d", variant)
 	}
-	bflag := "-b:v"
-	if variant >= 0 {
-		bflag = fmt.Sprintf("-b:v:%d", variant)
+	target := qt.TargetKbps
+	if qt.Mode != transcoding.RateControlVBR && qt.Mode != transcoding.RateControlCBR {
+		target = qt.MaxKbps
 	}
 	var args []string
 	if accel == transcoding.VAAPI {
-		args = append(args, "-rc_mode"+spec, "VBR")
+		mode := "VBR"
+		if qt.Mode == transcoding.RateControlCBR {
+			mode = "CBR"
+		}
+		args = append(args, "-rc_mode"+spec, mode)
 	}
-	return append(args, bflag, fmt.Sprintf("%dk", kbps), "-maxrate"+spec, fmt.Sprintf("%dk", kbps), "-bufsize"+spec, fmt.Sprintf("%dk", kbps*2))
+	bflag := "-b:v"
+	if variant >= 0 {
+		bflag = fmt.Sprintf("-b:v:%d", variant) // -b:v:N, not -b:v + :v:N
+	}
+	args = append(args, bflag, fmt.Sprintf("%dk", target))
+	if qt.MaxKbps > 0 {
+		args = append(args, "-maxrate"+spec, fmt.Sprintf("%dk", qt.MaxKbps))
+	}
+	if qt.BufferKbps > 0 {
+		args = append(args, "-bufsize"+spec, fmt.Sprintf("%dk", qt.BufferKbps))
+	}
+	return args
 }
 
 func appendHWTranscodeInputArgs(args []string, opts transcoding.HLSProcessOpts) []string {
@@ -571,7 +588,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, hwHDRPassthroughArgs(opts.HWAccel, opts.HDRTransfer, -1)...)
 	}
 	args = append(args, hevcTagArgs(opts.VideoCodec, -1)...)
-	args = append(args, hwRateArgs(opts.HWAccel, p.VideoBitrate, -1)...)
+	args = append(args, hwRateControlArgs(opts.HWAccel, qualityTargetFor(opts, len(opts.Profiles)-1, p, true), -1)...)
 	args = append(args, hlsForceKeyframesArgs...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 
@@ -630,7 +647,7 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 			args = append(args, hwHDRPassthroughArgs(opts.HWAccel, opts.HDRTransfer, i)...)
 		}
 		args = append(args, hevcTagArgs(opts.VideoCodec, i)...)
-		args = append(args, hwRateArgs(opts.HWAccel, p.VideoBitrate, i)...)
+		args = append(args, hwRateControlArgs(opts.HWAccel, qualityTargetFor(opts, i, p, true), i)...)
 		args = append(args, audioVariantArgs(opts, i, p.AudioBitrate)...)
 	}
 	args = append(args, hlsForceKeyframesArgs...)

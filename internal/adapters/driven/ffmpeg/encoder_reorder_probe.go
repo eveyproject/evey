@@ -78,10 +78,11 @@ func encoderReorderProbeArgs(spec EncoderSpec, outPath string) []string {
 		args = append(args, softwareProfileLevelArgs(enc, -1, 144, 0)...)
 		args = append(args, softwareX264TuningArgs(enc, -1)...)
 		args = append(args, svtAV1PresetArgs(enc)...)
-		args = append(args, "-crf", softwareCRF, "-pix_fmt", "yuv420p")
+		args = append(args, softwareRateControlArgs(transcoding.StaticQualityPolicy{}.TargetFor(transcoding.HLSProfile{VideoBitrate: 1000}, transcoding.EncodeRoute{}), "")...)
+		args = append(args, "-pix_fmt", "yuv420p")
 	} else {
 		args = append(args, hwEncoderQualityArgs(spec.Accel, spec.Codec, spec.Features)...)
-		args = append(args, hwRateArgs(spec.Accel, 1000, -1)...)
+		args = append(args, hwRateControlArgs(spec.Accel, transcoding.StaticQualityPolicy{}.TargetFor(transcoding.HLSProfile{VideoBitrate: 1000}, transcoding.EncodeRoute{HWUsable: true}), -1)...)
 	}
 	args = append(args, hlsForceKeyframesArgs...)
 	return append(args, "-f", "mp4", "-movflags", "+frag_keyframe+empty_moov", outPath)

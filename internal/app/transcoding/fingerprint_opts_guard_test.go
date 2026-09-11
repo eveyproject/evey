@@ -62,6 +62,7 @@ var (
 		"SourceSAR":           "opts.SourceSAR",
 		"MaxH264Level":        "opts.MaxH264Level (libx264 -level cap)",
 		"SourceVideoCodec":    "opts.SourceVideoCodec (copy path -tag:v)",
+		"QualityTargets":      "opts.QualityTargets (per-rung rate control)",
 	}
 	// Part of the cache identity but NOT an encoder input - each with the
 	// reason it legitimately stops at the fingerprint.

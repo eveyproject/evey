@@ -124,9 +124,13 @@ type HLSProcessHandle interface {
 }
 
 type HLSProcessOpts struct {
-	OutputDir          string
-	FilePath           string
-	Profiles           []HLSProfile
+	OutputDir string
+	FilePath  string
+	Profiles  []HLSProfile
+	// QualityTargets is the rate control of each rung, aligned with Profiles
+	// (the plan's QualityPolicy answer). Absent or zero entries fall back to
+	// the static policy, so a producer that does not set them changes nothing.
+	QualityTargets     []QualityTarget
 	VideoDecision      string // "copy", "transcode", or "" (multi-variant)
 	AudioDecision      string // "copy" or "transcode"
 	AudioTrackIndex    int

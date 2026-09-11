@@ -232,7 +232,9 @@ func TestShapeLadder_FreezesTheCappedLadderNotTheRawOne(t *testing.T) {
 func TestShapeLadder_RequestScopedCapsDoNotLeakAcrossViewers(t *testing.T) {
 	frozen := map[string][]transcoding.HLSProfile{}
 	pr := &PlanResolver{
-		Selector: NewProducerSelector(&stubProducer{profiles: transcoding.LadderFilmHighMotion}, nil, nil),
+		// The film_high_motion table reaches 2160p; the CPU ceiling must let it through.
+		ComplexityRepo: goldenComplexity{transcoding.ClassFilmHighMotion},
+		Capability:     func() transcoding.EncodeCapability { return transcoding.EncodeCapability{SoftwareMaxHeight: 2160} },
 		AdmissionFrozenLadder: func(key string) ([]transcoding.HLSProfile, bool) {
 			l, ok := frozen[key]
 			return l, ok
@@ -266,7 +268,9 @@ func TestShapeLadder_RequestScopedCapsDoNotLeakAcrossViewers(t *testing.T) {
 // bitrate: the cap must reach the ladder (and only for an H.264 output).
 func TestShapeLadder_H264LevelCapsTheLadder(t *testing.T) {
 	pr := &PlanResolver{
-		Selector: NewProducerSelector(&stubProducer{profiles: transcoding.LadderFilmHighMotion}, nil, nil),
+		// The film_high_motion table reaches 2160p; the CPU ceiling must let it through.
+		ComplexityRepo: goldenComplexity{transcoding.ClassFilmHighMotion},
+		Capability:     func() transcoding.EncodeCapability { return transcoding.EncodeCapability{SoftwareMaxHeight: 2160} },
 	}
 	req := ladderRequest(2160)
 	req.Client.MaxH264Level = 41
@@ -287,7 +291,9 @@ func TestShapeLadder_H264LevelCapsTheLadder(t *testing.T) {
 // offers, not only the raise: a 3 Mb/s viewer was still offered the 7 Mb/s rung.
 func TestShapeLadder_BitrateCeilingBoundsTheRungs(t *testing.T) {
 	pr := &PlanResolver{
-		Selector: NewProducerSelector(&stubProducer{profiles: transcoding.LadderFilmHighMotion}, nil, nil),
+		// The film_high_motion table reaches 2160p; the CPU ceiling must let it through.
+		ComplexityRepo: goldenComplexity{transcoding.ClassFilmHighMotion},
+		Capability:     func() transcoding.EncodeCapability { return transcoding.EncodeCapability{SoftwareMaxHeight: 2160} },
 	}
 	req := ladderRequest(2160)
 	req.MaxBitrateKbps = 3000
@@ -321,11 +327,10 @@ func TestShapeLadder_HDRBridgeUsesItsOwnCeiling(t *testing.T) {
 		HWBackend: "nvenc", HWCodecs: []string{"h264"}, HWDecodeCodecs: []string{"hevc"},
 		HW10BitTranscode: true, HWTonemap: false, HWBridgeMaxHeight: 1440,
 	}
-	hw := &stubProducer{profiles: transcoding.LadderFilmHighMotion}
 	pr := &PlanResolver{
 		Capability:     func() transcoding.EncodeCapability { return capability },
 		HWAccelEnabled: func() bool { return true },
-		Selector:       NewProducerSelector(&stubProducer{profiles: transcoding.LadderFilmHighMotion}, hw, func(transcoding.PlaybackDecision, SourceDims) bool { return true }),
+		ComplexityRepo: goldenComplexity{transcoding.ClassFilmHighMotion},
 	}
 	req := ladderRequest(2160)
 	req.Streams[0].Codec = "hevc"
