@@ -512,52 +512,12 @@ func (p *SoftwareProducer) Manifest(ctx context.Context, fp DecisionFingerprint)
 
 func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDims, decision transcoding.PlaybackDecision, capacity transcoding.EncodeCapability) []transcoding.HLSProfile {
 	// Copy mode = the paced remux: ONE rung at the source resolution with the
-	// video copied (the handler advertises the source avc1.PPCCLL) and audio→AAC.
-	// No transcode ladder - direct-play quality is the single rendition.
+	// video copied and audio to AAC (transcoding.CopyRung, whose name carries
+	// the cache generation of the copy contract).
 	if p.copyPlanner != nil {
-		w, h := src.Width, src.Height
-		if w <= 0 || h <= 0 {
-			w, h = 1920, 1080 // safe default so the fingerprint stays deterministic
-		}
-		const copyDefaultBitrateKbps int64 = 5_000
-		// "-kf4" suffix = the cache GENERATION of the copy plan/session contract
-		// (every-keyframe plan + seek-landing-corrected sessions). The Name is
-		// part of the cache fingerprint, so bumping it orphans cached copy
-		// segments produced under an older, incompatible contract: "-kf3" plans
-		// invented a segment for the leading partial GOP on sources whose first
-		// keyframe is not at 0, so every seek-spawned .m4s they cached is filed
-		// one index too high; "-kf2" seek segments carried audio content trimmed
-		// at the -ss target but labeled from the landing (audio early by up to a
-		// GOP), "-kf" ones a mislabeled video timeline, and the unsuffixed
-		// generation ≥6s-coalesced numbering. Bump this whenever produced segment
-		// content/labeling changes for the same fingerprint inputs.
-		return []transcoding.HLSProfile{{
-			Name:         fmt.Sprintf("%dp-copy-kf4", h),
-			Width:        w,
-			Height:       h,
-			VideoBitrate: copyDefaultBitrateKbps,
-			AudioBitrate: 192,
-			Copy:         true, // folds into the cache fingerprint (copy vs transcode never alias)
-		}}
+		return transcoding.CopyRung(src.Width, src.Height)
 	}
-
-	sourceCapped := transcoding.CapLadderToSource(base, src.Width, src.Height)
-
-	// Codec-aware software ceiling: AV1 (libsvtav1) is far heavier than H.264 and
-	// carries its own SoftwareAV1MaxHeight; every other codec uses SoftwareMaxHeight.
-	maxH := capacity.SoftwareCeilingFor(decision.VideoCodec)
-	if needsHDRTonemap(decision) && capacity.SoftwareHDRMaxHeight > 0 && capacity.SoftwareHDRMaxHeight < maxH {
-		maxH = capacity.SoftwareHDRMaxHeight
-	}
-
-	// The natural ladder capped to the sustainable ceiling - already ascending
-	// with a 360p floor. No collapse: Auto needs the lower rungs to fall back to
-	// and the viewer needs them to choose from. When the ceiling dropped rungs
-	// the source could feed, the top surviving rung inherits the first dropped
-	// rung's bitrate budget (see BoostCappedTopRung) - quality the box can
-	// afford at the height it can sustain.
-	capped := transcoding.CapLadderToHeight(sourceCapped, maxH)
-	return transcoding.BoostCappedTopRung(sourceCapped, capped)
+	return transcoding.ShapeSoftwareLadder(base, src.facts(), decision.VideoCodec, needsHDRTonemap(decision), capacity)
 }
 
 // needsHDRTonemap reports whether the decision flagged HDR->SDR tone-mapping.
@@ -811,6 +771,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		FilePath:           srcPath,
 		ProgressLogPath:    ffmpegProgressLogPath(progressLogDir, hash, variantIdx, startSeg),
 		Profiles:           profilesToDomain(fp.Profiles[variantIdx : variantIdx+1]),
+		QualityTargets:     qualityTargetsSlice(fp.QualityTargets, variantIdx, variantIdx+1),
 		VariantIndex:       variantIdx,
 		VideoDecision:      videoDecision,
 		AudioDecision:      fp.AudioDecision(),

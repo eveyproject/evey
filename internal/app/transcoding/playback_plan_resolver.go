@@ -86,6 +86,10 @@ type PlanResolver struct {
 	// TranscodeAudioRendition extends the audio rendition to transcoded ladders
 	// (the http adapter sets it when it can compensate the encoder's delay).
 	TranscodeAudioRendition bool
+	// Ladder shapes the rungs (nil = the static class table); Quality turns
+	// each rung into an encoder target (nil = the static policy).
+	Ladder  transcoding.LadderBuilder
+	Quality transcoding.QualityPolicy
 }
 
 var _ PlaybackPlanResolver = (*PlanResolver)(nil)
@@ -540,103 +544,16 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 			}
 		}
 	}
-	// COMMON HEAD (shared by both producers): pick the per-title ladder. The
-	// PRODUCER's pure Profiles() owns the tail - source cap + height ceiling +
-	// (software) single-rendition collapse - so the manifest-time and
-	// segment-time shaping is identical and routes through the SAME producer
-	// (the cache-hash invariant: drift here = permanent cache miss).
-	base := transcoding.LadderFor(class)
+	in := transcoding.LadderInput{
+		Source:     pr.sourceFacts(req),
+		Complexity: transcoding.ComplexityVector{Class: class},
+		Route:      pr.encodeRoute(decision, streams, isCopy),
+		Delivery:   pr.deliveryConstraints(req, decision),
+	}
+	laddered := pr.ladderBuilder().Build(in)
+	base := transcoding.LadderFor(in.Complexity.LadderClass())
 	src := SourceDimsOf(streams)
-
-	capability := pr.capabilityOrFallback()
-
-	var laddered []transcoding.HLSProfile
-	switch {
-	case isCopy:
-		// Copy/remux rung: a single source-resolution rung, no transcode ladder
-		// (the player never ABR-switches a copy stream). Same producer the
-		// segment path resolves, so manifest- and segment-time shaping agree.
-		laddered = pr.CopyProducer.Profiles(base, src, decision, capability)
-	case pr.Selector != nil:
-		// Production path: the wired selector routes to the software or hardware
-		// producer (reusing ResolveHW), and the producer's pure Profiles() owns
-		// the shaping tail. This is the single source of truth for ladder shape;
-		// manifest-time and segment-time both reach it via the same selector.
-		// The producer prices the EFFECTIVE codec (an AV1 request served as
-		// H.264 must not be capped at the AV1 software ceiling).
-		effective := decision
-		effective.VideoCodec, _, _, _, _, _ = pr.EffectiveVideoCodec(decision, streams)
-		laddered = pr.Selector.For(decision, src).Profiles(base, src, effective, capability)
-	default:
-		// No selector wired (hand-constructed test handlers). Reproduce the
-		// legacy shaping so unit tests that probe the ladder directly keep
-		// their contract without standing up a full producer pair.
-		laddered = pr.legacyProfileShaping(base, src, streams, decision, capability)
-	}
-
-	// CMCD-feedback adaptive override (Phase C). Variant-neutral: it only lowers
-	// the ceiling on a source-class showing sustained starvation (MIN with the
-	// benchmark cap), never raises it. Kept out of the pure Profiles because the
-	// override is mutable runtime state read from playback_qoe_events. Applied
-	// AFTER the producer shaped the ladder so it trims the result identically at
-	// manifest- and segment-time (the override value is stable across a request
-	// pair).
-	if pr.CapOverride != nil && src.Height > 0 {
-		if ov, ok := pr.CapOverride(SourceVideoCodec(streams), src.Height); ok && ov.MaxHeight > 0 {
-			laddered = transcoding.CapLadderToHeight(laddered, ov.MaxHeight)
-		}
-	}
-
-	// AV1 max-quality cap: when AV1 is the EFFECTIVE output codec, an admin can
-	// hold its ladder below the source/GPU ceiling (transcoding.av1_max_height,
-	// 0 = no cap). `decision` here still carries the raw preferred codec, so
-	// recompute the post-gate codec. Applied here (like the CMCD override) so the
-	// manifest- and segment-time ladders trim identically - the cache-hash
-	// invariant holds because both reach this shared head with the same inputs.
-	ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, streams)
-	if !isCopy {
-		ceiling := pr.videoBitrateCeilingKbps(req, decision)
-		laddered = transcoding.RaiseLadderToSource(laddered, req.SourceBitrateKbps, src.Width, src.Height, ceiling)
-		laddered = transcoding.CapLadderToVideoBitrate(laddered, ceiling)
-		laddered = transcoding.CapLadderToScreen(laddered, req.ScreenHeight)
-		// The decoder's ceiling, or the quality the viewer picked (?maxHeight).
-		laddered = transcoding.CapLadderToHeight(laddered, req.Client.MaxHeight)
-		// The decoder's H.264 level bounds the frame size it decodes: a 2160p
-		// rung is unplayable on a level-4.1 device whatever the bitrate.
-		if strings.EqualFold(ec, "h264") {
-			laddered = transcoding.CapLadderToH264Level(laddered, req.Client.MaxH264Level)
-		}
-	}
-
-	if pr.AV1MaxHeight != nil {
-		if m := pr.AV1MaxHeight(); m > 0 && strings.EqualFold(ec, "av1") {
-			laddered = transcoding.CapLadderToHeight(laddered, m)
-		}
-	}
-	if strings.EqualFold(ec, "hevc") && !isCopy {
-		laddered = transcoding.ScaleLadderVideoBitrates(laddered, transcoding.HEVCBitrateNum, transcoding.HEVCBitrateDen)
-	}
-
-	// Load-forced route and ceiling (the third cap, same shared-head
-	// discipline as the two above): when the host cannot afford this stream's
-	// top rung but CAN afford a lower one, serve that one instead of refusing
-	// the viewer - and when a HARDWARE stream finds its whole GPU pool full
-	// while the CPU pool has room, spill it to the software route entirely.
-	// Both the route and the ceiling are PINNED per stream by the admission
-	// shaper, so the manifest a player holds and every segment it fetches
-	// shape the same ladder - the cache-hash invariant that rules this whole
-	// function. Copy requests are exempt: they never take a capacity slot.
-	if !isCopy && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
-		if _, accel, _, _, usable, _ := pr.EffectiveVideoCodec(decision, streams); usable && accel != "" && !pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams)) {
-			// CPU tone-map between GPU decode and encode: the bridge's own measured
-			// ceiling when the bench has one, else the software HDR ceiling.
-			if bridgeCap := capability.HWBridgeMaxHeight; bridgeCap > 0 {
-				laddered = transcoding.CapLadderToHeight(laddered, bridgeCap)
-			} else if capability.SoftwareHDRMaxHeight > 0 {
-				laddered = transcoding.CapLadderToHeight(laddered, capability.SoftwareHDRMaxHeight)
-			}
-		}
-	}
+	capability := in.Delivery.Capability
 
 	if pr.AdmissionRoute != nil && len(laddered) > 0 && !isCopy {
 		natural := pr.LadderClassFor(decision, streams)
@@ -729,32 +646,66 @@ func (pr *PlanResolver) LadderClassFor(decision transcoding.PlaybackDecision, st
 	}
 }
 
-// legacyProfileShaping reproduces the ladder tail for hand-built test handlers
-// that have no wired selector. Production NEVER takes this path - it routes
-// through the selector to the real software/hardware producer (whose pure
-// Profiles owns the shaping). This mirrors SoftwareProducer.Profiles exactly
-// (single-rendition collapses to ONE rung at the sustainable software ceiling,
-// maxH), so the test-only fallback can't drift from the production shape.
-func (pr *PlanResolver) legacyProfileShaping(base []transcoding.HLSProfile, src SourceDims, streams []*library.MediaStream, decision transcoding.PlaybackDecision, capability transcoding.EncodeCapability) []transcoding.HLSProfile {
-	capped := transcoding.CapLadderToSource(base, src.Width, src.Height)
+func (pr *PlanResolver) ladderBuilder() transcoding.LadderBuilder {
+	if pr.Ladder != nil {
+		return pr.Ladder
+	}
+	return transcoding.StaticLadderBuilder{}
+}
 
-	maxH := 720
-	if pr.Capability != nil {
-		var hwUsable bool
-		_, _, _, hwUsable, _ = pr.ResolveHW(decision.VideoCodec, SourceVideoCodec(streams), src.TenBit, pr.HWTonemapWanted(decision, src.HDRRange))
-		maxH = capability.MaxHeightFor(hwUsable)
-		if !hwUsable && capability.SoftwareHDRMaxHeight > 0 &&
-			capability.SoftwareHDRMaxHeight < maxH &&
-			slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
-			maxH = capability.SoftwareHDRMaxHeight
+// QualityPolicy is the rate-control policy the encoder plans read.
+func (pr *PlanResolver) QualityPolicy() transcoding.QualityPolicy {
+	if pr.Quality != nil {
+		return pr.Quality
+	}
+	return transcoding.StaticQualityPolicy{}
+}
+
+// sourceFacts projects the request's streams onto the ladder engine's input.
+func (pr *PlanResolver) sourceFacts(req PlaybackRequest) transcoding.SourceFacts {
+	d := SourceDimsOf(req.Streams)
+	return transcoding.SourceFacts{
+		Width: d.Width, Height: d.Height, Codec: d.Codec, TenBit: d.TenBit,
+		HDRRange: d.HDRRange, Telecine: d.Telecine, BitrateKbps: req.SourceBitrateKbps,
+	}
+}
+
+// encodeRoute is the pipeline the ladder is shaped for: the effective codec
+// and the GPU/CPU split EffectiveVideoCodec resolves (the same answer the
+// fingerprint and the producer selector give), plus the tone-map placement.
+func (pr *PlanResolver) encodeRoute(decision transcoding.PlaybackDecision, streams []*library.MediaStream, isCopy bool) transcoding.EncodeRoute {
+	codec, accel, _, _, usable, softwareDecode := pr.EffectiveVideoCodec(decision, streams)
+	tonemap := slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
+	return transcoding.EncodeRoute{
+		Codec:          codec,
+		Accel:          transcoding.HWAccelType(accel),
+		HWUsable:       usable && accel != "",
+		SoftwareDecode: softwareDecode,
+		Tonemap:        tonemap,
+		HWTonemap:      tonemap && pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams)),
+		Copy:           isCopy,
+	}
+}
+
+// deliveryConstraints gathers every cap the request, the operator, the QoE
+// feedback and the host put on the ladder.
+func (pr *PlanResolver) deliveryConstraints(req PlaybackRequest, decision transcoding.PlaybackDecision) transcoding.DeliveryConstraints {
+	dc := transcoding.DeliveryConstraints{
+		ScreenHeight:            req.ScreenHeight,
+		MaxHeight:               req.Client.MaxHeight,
+		MaxH264Level:            req.Client.MaxH264Level,
+		VideoBitrateCeilingKbps: pr.videoBitrateCeilingKbps(req, decision),
+		Capability:              pr.capabilityOrFallback(),
+	}
+	if pr.CapOverride != nil {
+		if ov, ok := pr.CapOverride(SourceVideoCodec(req.Streams), SourceVideoHeight(req.Streams)); ok {
+			dc.QoEMaxHeight = ov.MaxHeight
 		}
 	}
-	// Mirrors SoftwareProducer.Profiles: the natural ladder capped to the
-	// sustainable ceiling (with its 360p floor), no single-rendition collapse,
-	// and the top surviving rung inheriting the first dropped rung's bitrate
-	// budget when the ceiling (not the source) trimmed the ladder.
-	heightCapped := transcoding.CapLadderToHeight(capped, maxH)
-	return transcoding.BoostCappedTopRung(capped, heightCapped)
+	if pr.AV1MaxHeight != nil {
+		dc.AV1MaxHeight = pr.AV1MaxHeight()
+	}
+	return dc
 }
 
 // Fingerprint assembles the DecisionFingerprint - the cache-key object - from
@@ -799,6 +750,12 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 	for i, p := range profiles {
 		// Single, reflection-guarded projection (TestProfileFingerprintOf_CopiesEveryField).
 		fpProfiles[i] = ProfileFingerprintOf(p)
+	}
+	// Each rung's rate control, from the policy the ladder was shaped under.
+	route := pr.encodeRoute(decision, streams, pr.IsCopy(decision, streams, req.SourceBytes))
+	quality := make([]transcoding.QualityTarget, len(profiles))
+	for i, p := range profiles {
+		quality[i] = pr.QualityPolicy().TargetFor(p, route)
 	}
 
 	hwTonemap := pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams))
@@ -882,8 +839,9 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		// GPU subtitle compositing, same contract as HWTonemap: only when the HW
 		// path is actually taken, and excluded from Hash() - the same subtitle on
 		// the same frames, whoever blended it.
-		HWOverlay: pr.HWOverlayWanted(decision) && hwUsable,
-		Profiles:  fpProfiles,
+		HWOverlay:      pr.HWOverlayWanted(decision) && hwUsable,
+		Profiles:       fpProfiles,
+		QualityTargets: quality,
 	}
 	// Tell the admission shaper which session this pin shaped: while that
 	// session holds a limiter slot, the pinned ceiling must not move (see

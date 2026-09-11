@@ -195,6 +195,11 @@ type DecisionFingerprint struct {
 	// produce different multi-variant runs (variant indices and bitrates differ),
 	// so they belong in the hash. Encoded as `name@WxH@vKbps@aKbps;…` ordered.
 	Profiles []ProfileFingerprint
+	// QualityTargets is each rung's rate control (aligned with Profiles), the
+	// QualityPolicy's answer. EXCLUDED from Hash() while the only policy is the
+	// static one the builders already applied: the bytes are those of the
+	// profile's bitrate. An adaptive policy (plan P1) must hash what it changes.
+	QualityTargets []transcoding.QualityTarget
 }
 
 // ProfileFingerprint is the subset of HLSProfile that affects the encoded bytes

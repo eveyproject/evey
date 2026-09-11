@@ -654,6 +654,7 @@ func (o *SegmentOrchestrator) spawnSession(
 	// Single-variant OFF: encode the full ABR ladder in one multi-output
 	// ffmpeg - byte-identical to the pre-flag behaviour.
 	var sessionProfiles []transcoding.HLSProfile
+	var sessionQuality []transcoding.QualityTarget
 	var sessionVariantIdx int
 	if o.opts.SingleVariant {
 		if variantIdx < 0 || variantIdx >= len(fp.Profiles) {
@@ -662,9 +663,11 @@ func (o *SegmentOrchestrator) spawnSession(
 			return fmt.Errorf("spawnSession: variantIdx %d out of range (profiles=%d)", variantIdx, len(fp.Profiles))
 		}
 		sessionProfiles = profilesToDomain(fp.Profiles[variantIdx : variantIdx+1])
+		sessionQuality = qualityTargetsSlice(fp.QualityTargets, variantIdx, variantIdx+1)
 		sessionVariantIdx = variantIdx
 	} else {
 		sessionProfiles = profilesToDomain(fp.Profiles)
+		sessionQuality = qualityTargetsSlice(fp.QualityTargets, 0, len(fp.Profiles))
 		sessionVariantIdx = 0 // multi-variant: VariantIndex unused by the multi-variant builder
 	}
 
@@ -677,6 +680,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		FilePath:           srcPath,
 		ProgressLogPath:    ffmpegProgressLogPath(progressLogDir, hash, sessionVariantIdx, startSegIdx),
 		Profiles:           sessionProfiles,
+		QualityTargets:     sessionQuality,
 		VariantIndex:       sessionVariantIdx,
 		VideoDecision:      "transcode",
 		AudioDecision:      fp.AudioDecision(),
@@ -1163,29 +1167,22 @@ var _ StreamProducer = (*SegmentOrchestrator)(nil)
 // cold-start window (it matches the handler's historical segmentWaitTimeout).
 func (o *SegmentOrchestrator) WaitBudget() time.Duration { return o.opts.WaitBudgetDur }
 
-// Profiles shapes the ABR ladder for the HARDWARE path: the full ladder (a GPU
-// parallelises rungs cheaply) capped to the source resolution and the host's
-// calibrated HW ceiling. Pure in its inputs - the same (base, src, capacity)
-// yields the same ladder at manifest-time and segment-time, the cache-hash
-// invariant. decision is unused here (the HW path keeps every rung); it is
-// part of the interface so the software producer can branch on HDR.
+// Profiles shapes the ABR ladder for the HARDWARE path - the domain's
+// ShapeHardwareLadder (the ladder engine reaches it directly; this method
+// serves the admission spill and the hand-built handlers). decision is unused
+// here (the HW path keeps every rung); it is part of the interface so the
+// software producer can branch on HDR.
 func (o *SegmentOrchestrator) Profiles(base []transcoding.HLSProfile, src SourceDims, _ transcoding.PlaybackDecision, capacity transcoding.EncodeCapability) []transcoding.HLSProfile {
-	sourceCapped := transcoding.CapLadderToSource(base, src.Width, src.Height)
-	// A DECOUPLED session (a source codec this GPU cannot decode - see
-	// ResolveHW) encodes on the GPU but decodes on the CPU, and the calibration
-	// never measured that mix: the HW ladder was benched behind a zero-copy
-	// decode. Advertising the GPU ceiling for it would be exactly the
-	// dishonesty ADR-0017 refuses - a rung the pipeline cannot sustain starves
-	// the player. The SOFTWARE ceiling is the conservative bound here: it was
-	// measured with a software encode this session no longer pays for, so it
-	// under-estimates in the safe direction. Revisit when a decoupled bench
-	// gives this mix a ceiling of its own.
-	//
-	// Derived from (src, capacity) alone, like everything else in this
-	// function: manifest-time and segment-time must shape the SAME ladder or
-	// the cache hash forks (the invariant this whole path is built on).
-	zeroCopyDecode := src.Codec == "" || capacity.HWCanDecode(src.Codec)
-	return transcoding.CapLadderToHeight(sourceCapped, capacity.MaxHeightFor(zeroCopyDecode))
+	return transcoding.ShapeHardwareLadder(base, src.facts(), capacity)
+}
+
+// qualityTargetsSlice is targets[lo:hi] when the policy answered for every
+// rung, nil otherwise (the builders then apply the static policy).
+func qualityTargetsSlice(targets []transcoding.QualityTarget, lo, hi int) []transcoding.QualityTarget {
+	if hi > len(targets) || lo < 0 || lo > hi {
+		return nil
+	}
+	return targets[lo:hi]
 }
 
 // profilesToDomain converts the cache fingerprint profiles into the domain

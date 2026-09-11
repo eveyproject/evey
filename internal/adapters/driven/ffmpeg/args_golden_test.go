@@ -66,24 +66,46 @@ func goldenSessions() map[string]transcoding.HLSProcessOpts {
 		o.HWFeatures = []string{"forced_idr", "low_power_h264"}
 	}
 	return map[string]transcoding.HLSProcessOpts{
-		"copy-cold":      goldenOpts(func(o *transcoding.HLSProcessOpts) { o.VideoDecision = "copy"; o.AudioDecision = "copy"; o.ReadRate = 4; o.Profiles[0].Copy = true }),
-		"copy-seek-plan": goldenOpts(func(o *transcoding.HLSProcessOpts) { o.VideoDecision = "copy"; o.StartSec = 153.2; o.StartNumber = 51; o.CopyOnSeek = true; o.SeekTargetSec = 153.25; o.ReadRate = 4; o.SourceVideoCodec = "hevc"; o.MaxAudioChannels = 6 }),
+		"copy-cold": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			o.VideoDecision = "copy"
+			o.AudioDecision = "copy"
+			o.ReadRate = 4
+			o.Profiles[0].Copy = true
+		}),
+		"copy-seek-plan": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			o.VideoDecision = "copy"
+			o.StartSec = 153.2
+			o.StartNumber = 51
+			o.CopyOnSeek = true
+			o.SeekTargetSec = 153.25
+			o.ReadRate = 4
+			o.SourceVideoCodec = "hevc"
+			o.MaxAudioChannels = 6
+		}),
 		"copy-seek-noplan": goldenOpts(func(o *transcoding.HLSProcessOpts) {
 			o.VideoDecision = "copy"
 			o.StartSec = 30
 			o.AudioDecision = "copy"
 		}),
-		"sw-single":            goldenOpts(func(o *transcoding.HLSProcessOpts) { o.ReadRate = 1.5 }),
-		"sw-single-seek":       goldenOpts(func(o *transcoding.HLSProcessOpts) { o.ReadRate = 1.5; o.StartSec = 60 }),
-		"sw-single-tonemap":    goldenOpts(func(o *transcoding.HLSProcessOpts) { o.ToneMap = true; o.SourceVideoCodec = "hevc" }),
-		"sw-single-burnin":     goldenOpts(func(o *transcoding.HLSProcessOpts) { o.SubtitleTrackIndex = 1; o.SubtitleCodec = "hdmv_pgs_subtitle" }),
-		"sw-single-burnin-hdr": goldenOpts(func(o *transcoding.HLSProcessOpts) { o.SubtitleTrackIndex = 0; o.SubtitleCodec = "dvd_subtitle"; o.ToneMap = true }),
-		"sw-single-telecine":   goldenOpts(func(o *transcoding.HLSProcessOpts) { o.InverseTelecine = true }),
-		"sw-single-deint-all":  goldenOpts(func(o *transcoding.HLSProcessOpts) { o.DeinterlaceAll = true; o.SourceSAR = "64:45"; o.Profiles[0] = transcoding.HLSProfile{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1400, AudioBitrate: 192} }),
-		"sw-single-level31":    goldenOpts(func(o *transcoding.HLSProcessOpts) { o.MaxH264Level = 31 }),
-		"sw-single-hevc":       goldenOpts(func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "hevc" }),
-		"sw-single-av1":        goldenOpts(func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "av1" }),
-		"sw-single-audio-51":   goldenOpts(func(o *transcoding.HLSProcessOpts) { o.MaxAudioChannels = 6; o.AudioNormalize = true }),
+		"sw-single":         goldenOpts(func(o *transcoding.HLSProcessOpts) { o.ReadRate = 1.5 }),
+		"sw-single-seek":    goldenOpts(func(o *transcoding.HLSProcessOpts) { o.ReadRate = 1.5; o.StartSec = 60 }),
+		"sw-single-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) { o.ToneMap = true; o.SourceVideoCodec = "hevc" }),
+		"sw-single-burnin":  goldenOpts(func(o *transcoding.HLSProcessOpts) { o.SubtitleTrackIndex = 1; o.SubtitleCodec = "hdmv_pgs_subtitle" }),
+		"sw-single-burnin-hdr": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			o.SubtitleTrackIndex = 0
+			o.SubtitleCodec = "dvd_subtitle"
+			o.ToneMap = true
+		}),
+		"sw-single-telecine": goldenOpts(func(o *transcoding.HLSProcessOpts) { o.InverseTelecine = true }),
+		"sw-single-deint-all": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			o.DeinterlaceAll = true
+			o.SourceSAR = "64:45"
+			o.Profiles[0] = transcoding.HLSProfile{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1400, AudioBitrate: 192}
+		}),
+		"sw-single-level31":  goldenOpts(func(o *transcoding.HLSProcessOpts) { o.MaxH264Level = 31 }),
+		"sw-single-hevc":     goldenOpts(func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "hevc" }),
+		"sw-single-av1":      goldenOpts(func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "av1" }),
+		"sw-single-audio-51": goldenOpts(func(o *transcoding.HLSProcessOpts) { o.MaxAudioChannels = 6; o.AudioNormalize = true }),
 		"sw-single-audio-delay": goldenOpts(func(o *transcoding.HLSProcessOpts) {
 			o.AudioStartDelaySec = 0.35
 			o.AudioUserOffsetSec = -0.2
@@ -94,32 +116,84 @@ func goldenSessions() map[string]transcoding.HLSProcessOpts {
 		"sw-single-noaudio":    goldenOpts(func(o *transcoding.HLSProcessOpts) { o.AudioTrackIndex = -1 }),
 		"sw-single-opus":       goldenOpts(func(o *transcoding.HLSProcessOpts) { o.AudioCodec = "opus" }),
 		"sw-single-2160p":      goldenOpts(func(o *transcoding.HLSProcessOpts) { o.Profiles = goldenLadder[3:] }),
-		"sw-multi":             goldenOpts(func(o *transcoding.HLSProcessOpts) { o.Profiles = goldenLadder[:3]; o.VideoDecision = ""; o.ReadRate = 1.5 }),
+		"sw-multi": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			o.Profiles = goldenLadder[:3]
+			o.VideoDecision = ""
+			o.ReadRate = 1.5
+		}),
 		"sw-multi-tonemap-burnin": goldenOpts(func(o *transcoding.HLSProcessOpts) {
 			o.Profiles = goldenLadder[:2]
 			o.ToneMap = true
 			o.SubtitleTrackIndex = 0
 			o.SubtitleCodec = "hdmv_pgs_subtitle"
 		}),
-		"hw-vaapi-single":          goldenOpts(vaapi),
-		"hw-vaapi-single-seek":     goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.StartSec = 300; o.Profiles = goldenLadder[3:] }),
-		"hw-vaapi-opencl-tonemap":  goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.ToneMap = true; o.HWTonemap = true; o.HWFeatures = append(o.HWFeatures, transcoding.FeatureTonemapOpenCL) }),
-		"hw-vaapi-vpp-tonemap":     goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.ToneMap = true; o.HWTonemap = true }),
-		"hw-vaapi-bridge-tonemap":  goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.ToneMap = true }),
-		"hw-vaapi-hdr-passthrough": goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.VideoCodec = "hevc"; o.HDRPassthrough = true; o.HDRTransfer = "pq"; o.HDRSupported = true; o.HWFeatures = []string{"bframes_hevc"} }),
-		"hw-vaapi-hevc":            goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.VideoCodec = "hevc"; o.HWFeatures = []string{"bframes_hevc"} }),
-		"hw-vaapi-decoupled":       goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.SourceVideoCodec = "mpeg4"; o.HWSoftwareDecode = true; o.DeinterlaceAll = true }),
-		"hw-vaapi-overlay":         goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.HWOverlay = true; o.SubtitleTrackIndex = 2; o.SubtitleCodec = "hdmv_pgs_subtitle" }),
-		"hw-vaapi-overlay-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.HWOverlay = true; o.SubtitleTrackIndex = 2; o.SubtitleCodec = "hdmv_pgs_subtitle"; o.ToneMap = true; o.HWTonemap = true }),
-		"hw-vaapi-multi":           goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.Profiles = goldenLadder; o.VideoDecision = "" }),
-		"hw-vaapi-multi-overlay":   goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.Profiles = goldenLadder[:2]; o.HWOverlay = true; o.SubtitleTrackIndex = 0; o.SubtitleCodec = "dvd_subtitle" }),
-		"hw-nvenc-single":          goldenOpts(nvenc),
-		"hw-nvenc-bridge-tonemap":  goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.ToneMap = true }),
-		"hw-nvenc-av1":             goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.VideoCodec = "av1" }),
-		"hw-nvenc-multi":           goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.Profiles = goldenLadder[:3]; o.VideoDecision = "" }),
-		"hw-qsv-single":            goldenOpts(qsv),
-		"hw-qsv-vpp-tonemap":       goldenOpts(func(o *transcoding.HLSProcessOpts) { qsv(o); o.ToneMap = true; o.HWTonemap = true; o.SourceVideoCodec = "hevc" }),
-		"hw-qsv-decoupled":         goldenOpts(func(o *transcoding.HLSProcessOpts) { qsv(o); o.SourceVideoCodec = "mpeg2video"; o.HWSoftwareDecode = true }),
+		"hw-vaapi-single":      goldenOpts(vaapi),
+		"hw-vaapi-single-seek": goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.StartSec = 300; o.Profiles = goldenLadder[3:] }),
+		"hw-vaapi-opencl-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			vaapi(o)
+			o.ToneMap = true
+			o.HWTonemap = true
+			o.HWFeatures = append(o.HWFeatures, transcoding.FeatureTonemapOpenCL)
+		}),
+		"hw-vaapi-vpp-tonemap":    goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.ToneMap = true; o.HWTonemap = true }),
+		"hw-vaapi-bridge-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.ToneMap = true }),
+		"hw-vaapi-hdr-passthrough": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			vaapi(o)
+			o.VideoCodec = "hevc"
+			o.HDRPassthrough = true
+			o.HDRTransfer = "pq"
+			o.HDRSupported = true
+			o.HWFeatures = []string{"bframes_hevc"}
+		}),
+		"hw-vaapi-hevc": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			vaapi(o)
+			o.VideoCodec = "hevc"
+			o.HWFeatures = []string{"bframes_hevc"}
+		}),
+		"hw-vaapi-decoupled": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			vaapi(o)
+			o.SourceVideoCodec = "mpeg4"
+			o.HWSoftwareDecode = true
+			o.DeinterlaceAll = true
+		}),
+		"hw-vaapi-overlay": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			vaapi(o)
+			o.HWOverlay = true
+			o.SubtitleTrackIndex = 2
+			o.SubtitleCodec = "hdmv_pgs_subtitle"
+		}),
+		"hw-vaapi-overlay-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			vaapi(o)
+			o.HWOverlay = true
+			o.SubtitleTrackIndex = 2
+			o.SubtitleCodec = "hdmv_pgs_subtitle"
+			o.ToneMap = true
+			o.HWTonemap = true
+		}),
+		"hw-vaapi-multi": goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.Profiles = goldenLadder; o.VideoDecision = "" }),
+		"hw-vaapi-multi-overlay": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			vaapi(o)
+			o.Profiles = goldenLadder[:2]
+			o.HWOverlay = true
+			o.SubtitleTrackIndex = 0
+			o.SubtitleCodec = "dvd_subtitle"
+		}),
+		"hw-nvenc-single":         goldenOpts(nvenc),
+		"hw-nvenc-bridge-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.ToneMap = true }),
+		"hw-nvenc-av1":            goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.VideoCodec = "av1" }),
+		"hw-nvenc-multi":          goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.Profiles = goldenLadder[:3]; o.VideoDecision = "" }),
+		"hw-qsv-single":           goldenOpts(qsv),
+		"hw-qsv-vpp-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			qsv(o)
+			o.ToneMap = true
+			o.HWTonemap = true
+			o.SourceVideoCodec = "hevc"
+		}),
+		"hw-qsv-decoupled": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			qsv(o)
+			o.SourceVideoCodec = "mpeg2video"
+			o.HWSoftwareDecode = true
+		}),
 	}
 }
 

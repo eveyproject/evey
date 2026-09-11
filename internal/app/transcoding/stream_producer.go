@@ -25,6 +25,12 @@ type SourceDims struct {
 	Telecine bool
 }
 
+// facts projects the dims onto the ladder engine's SourceFacts (no bitrate:
+// the producers' shape never read it).
+func (d SourceDims) facts() transcoding.SourceFacts {
+	return transcoding.SourceFacts{Width: d.Width, Height: d.Height, Codec: d.Codec, TenBit: d.TenBit, HDRRange: d.HDRRange, Telecine: d.Telecine}
+}
+
 // StreamProducer is the seam between the HTTP handler and the machine that
 // produces HLS segments: SoftwareProducer (paced single-rung encoders, the
 // client waits) or *SegmentOrchestrator (capacity-capped burst-ahead machine

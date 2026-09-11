@@ -12,7 +12,7 @@ import (
 
 func TestEncoderReorderProbeArgs(t *testing.T) {
 	sw := strings.Join(encoderReorderProbeArgs(EncoderSpec{Codec: "h264"}, "/tmp/p.mp4"), " ")
-	for _, want := range []string{"-c:v libx264", "-preset veryfast", "-x264opts", "-crf " + softwareCRF, "-f mp4"} {
+	for _, want := range []string{"-c:v libx264", "-preset veryfast", "-x264opts", "-crf 20", "-f mp4"} {
 		if !strings.Contains(sw, want) {
 			t.Errorf("software probe must carry the production args (%s): %s", want, sw)
 		}
