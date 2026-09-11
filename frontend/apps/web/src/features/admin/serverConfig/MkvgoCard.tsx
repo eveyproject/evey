@@ -12,7 +12,8 @@ export function MkvgoCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   const setEntry = useSetConfigEntry();
 
   const ingestPlan = entries?.find((e) => e.key === INGEST_SERVING_PLAN_KEY)?.value ?? "";
-  const playabilityShadow = entries?.find((e) => e.key === PLAYABILITY_SHADOW_KEY)?.value ?? "";
+  // Absent = the server default (on); only an explicit "off" disables it.
+  const playabilityShadow = entries?.find((e) => e.key === PLAYABILITY_SHADOW_KEY)?.value || "on";
 
   function handleIngestPlan(v: string) {
     setEntry.mutate(
@@ -53,7 +54,7 @@ export function MkvgoCard({ entries }: { entries: ConfigEntry[] | undefined }) {
           value={playabilityShadow}
           onChange={handlePlayabilityShadow}
           options={[
-            { label: t("admin.serverConfig.playabilityShadowOff"), value: "" },
+            { label: t("admin.serverConfig.playabilityShadowOff"), value: "off" },
             { label: t("admin.serverConfig.playabilityShadowOn"), value: "on" },
           ]}
         />

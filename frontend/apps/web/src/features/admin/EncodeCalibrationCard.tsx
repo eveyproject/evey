@@ -90,7 +90,7 @@ export function EncodeCalibrationCard() {
   });
 
   // Server settings carry the AV1 output opt-in + height cap.
-  const { data: settings } = useQuery<{ av1Enabled: { value: boolean }; av1MaxHeight: { value: number }; hwLowPowerEnabled: { value: boolean }; maxVideoBitrateKbps: { value: number } }>({
+  const { data: settings } = useQuery<{ av1Enabled: { value: boolean }; av1MaxHeight: { value: number }; hwLowPowerEnabled: { value: boolean }; maxVideoBitrateKbps: { value: number }; maxVideoBitrateRemoteKbps: { value: number } }>({
     queryKey: SETTINGS_QK,
     queryFn: () => eveyFetch({ url: "/api/v1/admin/server-settings", method: "GET" }),
   });
@@ -98,6 +98,7 @@ export function EncodeCalibrationCard() {
   const av1MaxHeight = settings?.av1MaxHeight?.value ?? 0;
   const hwLowPowerEnabled = settings?.hwLowPowerEnabled?.value ?? false;
   const maxVideoBitrateKbps = settings?.maxVideoBitrateKbps?.value ?? 0;
+  const maxVideoBitrateRemoteKbps = settings?.maxVideoBitrateRemoteKbps?.value ?? 20000;
 
   const setAV1 = useMutation({
     mutationFn: (patch: { av1Enabled?: boolean; av1MaxHeight?: number }) =>
@@ -118,8 +119,8 @@ export function EncodeCalibrationCard() {
     onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
   const setMaxBitrate = useMutation({
-    mutationFn: (kbps: number) =>
-      eveyFetch({ url: "/api/v1/admin/server-settings", method: "PUT", data: { maxVideoBitrateKbps: kbps } }),
+    mutationFn: (patch: { maxVideoBitrateKbps?: number; maxVideoBitrateRemoteKbps?: number }) =>
+      eveyFetch({ url: "/api/v1/admin/server-settings", method: "PUT", data: patch }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SETTINGS_QK });
       toast.success(t("admin.calibration.maxBitrateApplied", "Bitrate ceiling applied"));
@@ -296,7 +297,7 @@ export function EncodeCalibrationCard() {
                 data-testid="max-video-bitrate-select"
                 value={String(maxVideoBitrateKbps)}
                 disabled={setMaxBitrate.isPending}
-                onChange={(e) => setMaxBitrate.mutate(parseInt(e.target.value, 10))}
+                onChange={(e) => setMaxBitrate.mutate({ maxVideoBitrateKbps: parseInt(e.target.value, 10) })}
                 className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
               >
                 <option value="0">{t("admin.calibration.maxBitrateSource", "Follow the source")}</option>
@@ -307,6 +308,30 @@ export function EncodeCalibrationCard() {
               </select>
               <p className="text-xs text-[var(--text-muted)]">
                 {t("admin.calibration.maxBitrateHint", "Each rung is encoded at the source bitrate scaled to its resolution, never below the ladder's floor. Set a ceiling if remote viewers buffer.")}
+              </p>
+            </div>
+
+            {/* Same ceiling for viewers outside the LAN. */}
+            <div className="mt-2 flex flex-col gap-1">
+              <label htmlFor="max-video-bitrate-remote" className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
+                {t("admin.calibration.maxBitrateRemoteLabel", "Video bitrate ceiling, remote viewers")}
+              </label>
+              <select
+                id="max-video-bitrate-remote"
+                data-testid="max-video-bitrate-remote-select"
+                value={String(maxVideoBitrateRemoteKbps)}
+                disabled={setMaxBitrate.isPending}
+                onChange={(e) => setMaxBitrate.mutate({ maxVideoBitrateRemoteKbps: parseInt(e.target.value, 10) })}
+                className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
+              >
+                <option value="0">{t("admin.calibration.maxBitrateRemoteNone", "Same as the LAN")}</option>
+                <option value="8000">8 Mb/s</option>
+                <option value="12000">12 Mb/s</option>
+                <option value="20000">20 Mb/s</option>
+                <option value="40000">40 Mb/s</option>
+              </select>
+              <p className="text-xs text-[var(--text-muted)]">
+                {t("admin.calibration.maxBitrateRemoteHint", "Applied to clients outside your private network. A per-user limit stays the tightest one.")}
               </p>
             </div>
 
