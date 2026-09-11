@@ -1,0 +1,252 @@
+package transcoding
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/transcoding"
+)
+
+// The ladder golden file pins, for a matrix of hosts, sources, clients and
+// classes, everything the plan resolution decides about a session: the
+// decision, the effective codec and route, the shaped ladder and the cache
+// hash. It is the contract the ladder-engine refactor works under - the
+// abstractions move, the bytes do not. Regenerate on a DELIBERATE change with
+// `go test ./internal/app/transcoding -run TestLadderGolden -update` and read
+// the diff before committing it.
+var updateGolden = flag.Bool("update", false, "rewrite the golden files")
+
+type goldenHost struct {
+	name string
+	pr   func() *PlanResolver
+}
+
+type goldenSource struct {
+	name    string
+	streams []*library.MediaStream
+	kbps    int64
+	bytes   int64
+}
+
+type goldenClient struct {
+	name   string
+	client transcoding.ClientProfile
+	prefs  TranscodingPreferences
+	screen int
+	capKb  int
+}
+
+type goldenComplexity struct{ class transcoding.ContentClass }
+
+func (g goldenComplexity) Get(context.Context, string) (transcoding.ComplexityEntry, bool, error) {
+	return transcoding.ComplexityEntry{Class: g.class}, g.class != "", nil
+}
+func (goldenComplexity) Set(context.Context, string, transcoding.ContentClass, transcoding.ComplexityMetrics, time.Time) error {
+	return nil
+}
+func (goldenComplexity) ListUnclassified(context.Context, int) ([]string, error) { return nil, nil }
+
+func goldenVideo(codec string, w, h int, mutate func(*library.MediaStream)) *library.MediaStream {
+	s := &library.MediaStream{StreamType: library.StreamTypeVideo, Codec: codec, Width: &w, Height: &h, Profile: "High", Level: new(41)}
+	if codec == "hevc" {
+		s.Profile = "Main"
+		s.Level = new(153)
+	}
+	s.ColorTransfer = new("bt709")
+	s.Keyframes = []int64{0, 3000, 6000}
+	if mutate != nil {
+		mutate(s)
+	}
+	return s
+}
+
+func goldenAudio(codec string, ch int, def bool) *library.MediaStream {
+	return &library.MediaStream{StreamType: library.StreamTypeAudio, Codec: codec, Channels: &ch, IsDefault: def}
+}
+
+func goldenSources() []goldenSource {
+	hdr := func(s *library.MediaStream) {
+		s.ColorTransfer = new("smpte2084")
+		s.Profile = "Main 10"
+		s.BitDepth = new(10)
+		s.ColorSpace = new("bt2020nc")
+	}
+	return []goldenSource{
+		{"480p-h264-2m", []*library.MediaStream{goldenVideo("h264", 854, 480, nil), goldenAudio("aac", 2, true)}, 2000, 900e6},
+		{"1080p-h264-8m", []*library.MediaStream{goldenVideo("h264", 1920, 1080, nil), goldenAudio("ac3", 6, true)}, 8000, 7e9},
+		{"1080p-h264-25m-bluray", []*library.MediaStream{goldenVideo("h264", 1920, 1080, nil), goldenAudio("dts", 6, true), goldenAudio("ac3", 6, false)}, 25000, 22e9},
+		{"2160p-hevc-sdr-15m", []*library.MediaStream{goldenVideo("hevc", 3840, 2160, nil), goldenAudio("eac3", 6, true)}, 15000, 13e9},
+		{"2160p-hevc-hdr10-70m", []*library.MediaStream{goldenVideo("hevc", 3840, 2160, hdr), goldenAudio("truehd", 8, true), goldenAudio("ac3", 6, false)}, 70000, 70e9},
+		{"2160p-hevc-hdr10-nokeyframes", []*library.MediaStream{goldenVideo("hevc", 3840, 2160, func(s *library.MediaStream) { hdr(s); s.Keyframes = nil }), goldenAudio("ac3", 6, true)}, 40000, 40e9},
+		{"2160p-hevc-dovi7", []*library.MediaStream{goldenVideo("hevc", 3840, 2160, func(s *library.MediaStream) { hdr(s); s.DoViProfile = new(7) }), goldenAudio("ac3", 6, true)}, 50000, 50e9},
+		{"1080p-h264-telecine", []*library.MediaStream{goldenVideo("h264", 1920, 1080, func(s *library.MediaStream) { s.IdetTelecine = new(true) }), goldenAudio("aac", 2, true)}, 6000, 5e9},
+		{"1080p-h264-nobitrate", []*library.MediaStream{goldenVideo("h264", 1920, 1080, nil), goldenAudio("aac", 2, true)}, 0, 0},
+	}
+}
+
+func goldenClients() []goldenClient {
+	web := transcoding.ClientProfile{VideoCodecs: []string{"h264", "vp9"}, AudioCodecs: []string{"aac", "mp3", "opus", "flac"}, Containers: []string{"mp4", "webm"}, MaxAudioChannels: 6}
+	webHEVC := web
+	webHEVC.VideoCodecs = []string{"h264", "hevc"}
+	hdrTV := transcoding.ClientProfile{VideoCodecs: []string{"h264", "hevc", "av1"}, AudioCodecs: []string{"aac", "ac3", "eac3"}, Containers: []string{"mp4", "mkv"}, SupportsHDR: true, MaxAudioChannels: 8}
+	level41 := webHEVC
+	level41.MaxH264Level = 41
+	pick720 := webHEVC
+	pick720.MaxHeight = 720
+	prefHEVC := DefaultTranscodingPreferences()
+	prefHEVC.PreferredVideoCodec = "hevc"
+	cellular := DefaultTranscodingPreferences()
+	cellular.NetworkType = "cellular"
+	cellular.MaxBitrateCellularKbps = 3000
+	profileCap := DefaultTranscodingPreferences()
+	profileCap.MaxBitrateKbps = 5000
+	return []goldenClient{
+		{"web-h264", web, DefaultTranscodingPreferences(), 0, 0},
+		{"web-hevc", webHEVC, DefaultTranscodingPreferences(), 0, 0},
+		{"hdr-tv", hdrTV, DefaultTranscodingPreferences(), 0, 0},
+		{"tv-level41", level41, DefaultTranscodingPreferences(), 0, 0},
+		{"laptop-768", webHEVC, DefaultTranscodingPreferences(), 768, 0},
+		{"pick-720", pick720, DefaultTranscodingPreferences(), 0, 0},
+		{"remote-20m", webHEVC, DefaultTranscodingPreferences(), 0, 20000},
+		{"profile-5m", webHEVC, profileCap, 0, 0},
+		{"cellular-3m", webHEVC, cellular, 0, 0},
+		{"pref-hevc", webHEVC, prefHEVC, 0, 0},
+	}
+}
+
+func goldenResolver(cap *transcoding.EncodeCapability, hw bool, class transcoding.ContentClass, maxKbps int) *PlanResolver {
+	pr := &PlanResolver{
+		HWAccelEnabled:        func() bool { return hw },
+		HWTonemapEnabled:      func() bool { return true },
+		ComplexityRepo:        goldenComplexity{class},
+		UseFMP4:               true,
+		AudioRenditionEnabled: true,
+		MaxVideoBitrateKbps:   func() int { return maxKbps },
+		CopyProducer:          &SoftwareProducer{copyPlanner: &CopyPlanner{}},
+	}
+	if cap != nil {
+		c := *cap
+		pr.Capability = func() transcoding.EncodeCapability { return c }
+	}
+	pr.Selector = NewProducerSelector(&SoftwareProducer{}, &SegmentOrchestrator{}, pr.HWRouteUsable)
+	return pr
+}
+
+func goldenHosts(class transcoding.ContentClass) []goldenHost {
+	soft := transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 480}
+	vaapi := vaapiCapable()
+	vaapi.HWHDR10Encode = true
+	vaapi.HWFeatures = append(vaapi.HWFeatures, transcoding.FeatureTonemapOpenCL)
+	vaapiH264 := vaapiCapable()
+	vaapiH264.HWCodecs = []string{"h264"}
+	vaapiH264.HWTonemap = false
+	vaapiH264.HWBridgeMaxHeight = 1080
+	nvenc := transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160, HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc", "av1"}, HWDecodeCodecs: []string{"h264", "hevc"}, HW10BitTranscode: true, HWBridgeMaxHeight: 2160}
+	return []goldenHost{
+		{"fallback", func() *PlanResolver { return goldenResolver(nil, false, class, 0) }},
+		{"software-1080", func() *PlanResolver { return goldenResolver(&soft, false, class, 0) }},
+		{"vaapi-full", func() *PlanResolver { return goldenResolver(&vaapi, true, class, 0) }},
+		{"vaapi-h264-bridge", func() *PlanResolver { return goldenResolver(&vaapiH264, true, class, 0) }},
+		{"nvenc", func() *PlanResolver { return goldenResolver(&nvenc, true, class, 0) }},
+		{"vaapi-full-cap40m", func() *PlanResolver { return goldenResolver(&vaapi, true, class, 40000) }},
+	}
+}
+
+func goldenRow(pr *PlanResolver, src goldenSource, cl goldenClient) string {
+	req := PlaybackRequest{
+		MediaID: "m1", SourcePath: "/golden.mkv", Container: "matroska",
+		Streams: src.streams, Client: cl.client, Prefs: cl.prefs,
+		AudioTrack: 0, SubtitleBurnInTrack: -1,
+		MaxBitrateKbps: cl.capKb, SourceBytes: src.bytes, SourceBitrateKbps: src.kbps, ScreenHeight: cl.screen,
+	}
+	plan, err := pr.Resolve(context.Background(), req)
+	if err != nil {
+		return "ERR " + err.Error()
+	}
+	d := plan.Decision
+	var rungs []string
+	for _, p := range plan.Ladder {
+		copyTag := ""
+		if p.Copy {
+			copyTag = " copy"
+		}
+		rungs = append(rungs, fmt.Sprintf("%s %dx%d v%d a%d%s", p.Name, p.Width, p.Height, p.VideoBitrate, p.AudioBitrate, copyTag))
+	}
+	fp := plan.Fingerprint
+	return fmt.Sprintf("%s/%s/%s | audio=%s codec=%s hw=%s class=%s tonemap=%t hwtm=%t pass=%t swdec=%t acopy=%t atrack=%d | %s | %s",
+		d.PlayMethod, d.VideoDecision, strings.Join(d.TranscodeReasons, ","),
+		fp.AudioCodec, plan.VideoCodec, plan.HWAccel, plan.Class, fp.HDRTonemap, fp.HWTonemap, fp.HDRPassthrough, fp.HWSoftwareDecode, fp.AudioCopy, fp.AudioTrack,
+		strings.Join(rungs, " ; "), plan.FingerprintHash)
+}
+
+func TestLadderGolden(t *testing.T) {
+	var out []string
+	for _, host := range goldenHosts(transcoding.ClassFilmNormal) {
+		for _, src := range goldenSources() {
+			for _, cl := range goldenClients() {
+				out = append(out, fmt.Sprintf("%s | %s | %s | %s", host.name, src.name, cl.name, goldenRow(host.pr(), src, cl)))
+			}
+		}
+	}
+	// Every class on three sources and two clients: the per-title table is the
+	// first thing the ladder engine will replace.
+	classes := []transcoding.ContentClass{transcoding.ClassAnimation, transcoding.ClassFilmLowMotion, transcoding.ClassFilmHighMotion, transcoding.ClassSport, ""}
+	srcs := goldenSources()
+	cls := goldenClients()
+	for _, class := range classes {
+		name := string(class)
+		if name == "" {
+			name = "unclassified"
+		}
+		for _, host := range goldenHosts(class)[1:3] {
+			for _, src := range []goldenSource{srcs[1], srcs[2], srcs[4]} {
+				for _, cl := range []goldenClient{cls[0], cls[2]} {
+					out = append(out, fmt.Sprintf("class=%s %s | %s | %s | %s", name, host.name, src.name, cl.name, goldenRow(host.pr(), src, cl)))
+				}
+			}
+		}
+	}
+	sort.Strings(out)
+	got := strings.Join(out, "\n") + "\n"
+
+	path := filepath.Join("testdata", "ladder_golden.txt")
+	if *updateGolden {
+		require.NoError(t, os.MkdirAll("testdata", 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(got), 0o644))
+		t.Logf("golden rewritten: %d rows", len(out))
+		return
+	}
+	want, err := os.ReadFile(path)
+	require.NoError(t, err, "missing golden file: run with -update once")
+	if string(want) != got {
+		wantLines := strings.Split(string(want), "\n")
+		gotLines := strings.Split(got, "\n")
+		var diff []string
+		for i := range max(len(wantLines), len(gotLines)) {
+			w, g := "", ""
+			if i < len(wantLines) {
+				w = wantLines[i]
+			}
+			if i < len(gotLines) {
+				g = gotLines[i]
+			}
+			if w != g {
+				diff = append(diff, "- "+w, "+ "+g)
+			}
+			if len(diff) > 40 {
+				break
+			}
+		}
+		t.Fatalf("ladder golden drifted (%d vs %d rows). First differences:\n%s", len(wantLines), len(gotLines), strings.Join(diff, "\n"))
+	}
+}
