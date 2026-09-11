@@ -10,13 +10,14 @@
 // via EMA, discards outlier samples, and only declares itself usable after a
 // minimum number of samples - before that, the caller keeps its fallback constant.
 
-// Plausibility bounds for a sample: negative beyond jitter = broken
-// measurement; beyond 2s = implausible pipeline, more likely a stall.
-const SAMPLE_MIN_SEC = -0.2;
+// Plausibility bounds for a sample. Negative = the audio sink is slower than
+// the picture (a Bluetooth speaker or a TV over HDMI reports 0.2-1 s of
+// outputLatency) and the audio must be scheduled EARLY by that much: clamping
+// it to 0 left the sound that late (prod 2026-09-11, -900 ms by ear). Beyond
+// +2 s = implausible pipeline, more likely a stall.
+const SAMPLE_MIN_SEC = -2;
 const SAMPLE_MAX_SEC = 2;
-// The final estimate stays within a safe range: never lead audio (< 0),
-// never impose more than 1.5s of delay.
-const ESTIMATE_MIN_SEC = 0;
+const ESTIMATE_MIN_SEC = -1.5;
 const ESTIMATE_MAX_SEC = 1.5;
 const EMA_ALPHA = 0.05;
 const MIN_SAMPLES = 10;
