@@ -181,6 +181,7 @@ export function buildStreamUrl(
   subtitleTrack?: number | null,
   maxAudioChannels?: number,
   startSec = 0,
+  maxHeight?: number,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/stream?token=${token}`;
@@ -207,6 +208,10 @@ export function buildStreamUrl(
   // (a resume used to pay an encoder nobody read); it never shapes the manifest
   // and the client must not offset its clock by it.
   if (startSec > 0) params.set("startSec", String(Math.floor(startSec)));
+  // The quality the viewer picked. It went to GetStreamInfo alone, which only
+  // changed the stream-info verdict: the master never saw it and served the
+  // same ladder whatever the menu said.
+  if (maxHeight && maxHeight > 0) params.set("maxHeight", String(maxHeight));
   return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/hls/master.m3u8?${params.toString()}`;
 }
 
@@ -316,7 +321,7 @@ export function usePlaySession(mediaId: string, initial?: PlaySessionInitial): P
         const audioTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex);
         const subtitleTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex);
         const resumeSec = wp?.positionMs && !wp.played ? Number(wp.positionMs) / 1000 : 0;
-        const url = buildStreamUrl(serverUrl, mediaId, info, token, audioTrack, subtitleTrack, maxAudioChannels, resumeSec);
+        const url = buildStreamUrl(serverUrl, mediaId, info, token, audioTrack, subtitleTrack, maxAudioChannels, resumeSec, explicitMaxHeight);
 
         // Direct play streams the original file with no orchestrator involved,
         // so it cannot be shed - only probe the transcode/HLS paths.

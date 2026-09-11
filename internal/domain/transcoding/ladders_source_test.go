@@ -13,12 +13,23 @@ func TestRaiseLadderToSource(t *testing.T) {
 	}
 	out := RaiseLadderToSource(in, 70000, 3840, 2160, 0)
 	assert.Equal(t, int64(70000), out[1].VideoBitrate, "the source-resolution rung gets the source bitrate")
-	assert.Equal(t, int64(17500), out[0].VideoBitrate, "lower rungs scale by pixel count")
+	assert.Equal(t, int64(8750), out[0].VideoBitrate, "lower rungs follow the pixel ratio to the 1.5 power (0.25^1.5 = 0.125)")
 	assert.Equal(t, int64(15000), in[1].VideoBitrate, "the input ladder is not mutated")
 
 	capped := RaiseLadderToSource(in, 70000, 3840, 2160, 40000)
 	assert.Equal(t, int64(40000), capped[1].VideoBitrate, "the ceiling wins")
-	assert.Equal(t, int64(17500), capped[0].VideoBitrate)
+	assert.Equal(t, int64(8750), capped[0].VideoBitrate)
+
+	// The floor stays reachable on a thin line: the lowest rung of a UHD remux
+	// keeps its base bitrate instead of the 3.5 Mb/s a linear raise gave it.
+	floor := RaiseLadderToSource(LadderFilmHighMotion, 70000, 3840, 2160, 0)
+	assert.Equal(t, int64(1500), floor[0].VideoBitrate, "480p keeps its base")
+	assert.Equal(t, int64(3500), floor[1].VideoBitrate, "720p keeps its base")
+	assert.Equal(t, int64(8750), floor[2].VideoBitrate, "1080p is raised for the grain")
+	assert.Equal(t, int64(70000), floor[3].VideoBitrate)
+	bluray := RaiseLadderToSource(LadderFilmNormal, 25000, 1920, 1080, 0)
+	assert.Equal(t, int64(926), bluray[0].VideoBitrate, "360p of a 25 Mb/s Blu-ray: 0.111^1.5 x 25000")
+	assert.Equal(t, int64(25000), bluray[3].VideoBitrate)
 
 	low := RaiseLadderToSource(in, 8000, 3840, 2160, 0)
 	assert.Equal(t, in, low, "a thin source never lowers a rung")

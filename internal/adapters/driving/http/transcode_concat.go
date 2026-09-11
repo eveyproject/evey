@@ -76,7 +76,7 @@ func (h *hlsVODServe) episodeConcatEligible(r *http.Request, item *domainlibrary
 	if h.parental != nil && h.parental.BlockedByParental(r.Context(), claims.ProfileID, item) {
 		return false
 	}
-	decision := h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
+	decision := h.decisionFor(r.Context(), item, streams, r)
 	return h.planHLSVideoEligible(decision, item, streams) && h.audioAllCopyEligible(r.Context(), decision, streams)
 }
 

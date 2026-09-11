@@ -140,7 +140,12 @@ type TranscodingPreferences struct {
 	// ProgressiveOutput: the session is a fragmented-MP4 pipe the browser's own
 	// demuxer reads (/transcode), not MSE segments - the fMP4 passthrough and
 	// sample-rate gates of the segmented path do not apply. Request-scoped.
-	ProgressiveOutput      bool
+	ProgressiveOutput bool
+	// SourceBitrateKbps is the file's overall bitrate (size / duration), the
+	// bitrate cap's fallback when the video stream carries none - an MKV
+	// without a BPS tag probes 0 per stream, and a 70 Mb/s remux then sailed
+	// under a 20 Mb/s cap as a copy. Request-scoped, injected by the caller.
+	SourceBitrateKbps      int64
 	AllowDirectPlay        bool
 	AllowDirectStream      bool
 	AllowTranscoding       bool
@@ -308,7 +313,7 @@ func MakePlaybackDecisionWithPrefs(
 		maxBitrateKbps = cellCap
 	}
 	effectiveMaxBitrate := resolveMaxBitrate(client.MaxBitrate, maxBitrateKbps)
-	totalBitrate := sumBitrates(specs)
+	servedBitrate := servedBitrateBps(specs, prefs)
 
 	// subIdx is the subtitle-relative index (0,1,2…) so it lines up with the
 	// client's selection (prefs.SubtitleBurnInTrack) and ffmpeg's 0:s:N.
@@ -333,7 +338,7 @@ func MakePlaybackDecisionWithPrefs(
 		evaluateAudio(d, *sel, client, prefs)
 	}
 
-	checkBitrate(d, totalBitrate, effectiveMaxBitrate)
+	checkBitrate(d, servedBitrate, effectiveMaxBitrate)
 	checkContainer(d, containerFormat, client)
 	applyCodecPreferences(d, specs, client, prefs)
 	applyAudioChannelTarget(d, specs, client, prefs)
@@ -367,14 +372,27 @@ func resolveMaxBitrate(clientMax int64, userCapKbps int) int64 {
 	return clientMax
 }
 
-func sumBitrates(streams []StreamSpec) int64 {
-	var total int64
+// servedBitrateBps is what the line carries for THIS playback: the video
+// stream plus the audio track the client will hear, never every track in the
+// file (three unused dubs used to push a title over its cap). Without a probed
+// video bitrate the file's overall bitrate stands in, audio included.
+func servedBitrateBps(streams []StreamSpec, prefs TranscodingPreferences) int64 {
+	var video int64
 	for _, s := range streams {
-		if s.Bitrate != nil {
-			total += *s.Bitrate
+		if s.Type == "video" {
+			if s.Bitrate != nil && *s.Bitrate > 0 {
+				video = *s.Bitrate
+			}
+			break
 		}
 	}
-	return total
+	if video <= 0 {
+		return prefs.SourceBitrateKbps * 1000
+	}
+	if sel := selectedAudioSpec(streams, prefs); sel != nil && sel.Bitrate != nil && *sel.Bitrate > 0 {
+		video += *sel.Bitrate
+	}
+	return video
 }
 
 func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile) {
@@ -716,9 +734,9 @@ func forceBurnVideoTranscode(d *transcoding.PlaybackDecision) {
 	}
 }
 
-func checkBitrate(d *transcoding.PlaybackDecision, totalBitrate, effectiveMaxBitrate int64) {
-	totalBitrateKbps := totalBitrate / 1000
-	if effectiveMaxBitrate > 0 && totalBitrateKbps > effectiveMaxBitrate {
+func checkBitrate(d *transcoding.PlaybackDecision, servedBitrate, effectiveMaxBitrate int64) {
+	servedKbps := servedBitrate / 1000
+	if effectiveMaxBitrate > 0 && servedKbps > effectiveMaxBitrate {
 		d.TranscodeReasons = append(d.TranscodeReasons, "bitrate_exceeded")
 		d.VideoDecision = "transcode"
 		d.VideoBitrate = effectiveMaxBitrate

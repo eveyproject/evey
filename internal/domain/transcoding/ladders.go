@@ -1,6 +1,9 @@
 package transcoding
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 // ContentClass tags each media item with a per-title encoding hint computed
 // at scan time from cheap source-side metrics (signalstats YDEV + scenecut
@@ -208,18 +211,28 @@ const (
 )
 
 // ScaleLadderVideoBitrates multiplies every rung's video bitrate by num/den.
-// RaiseLadderToSource lifts each rung's video bitrate to the source's, scaled
-// by pixel count, so a 70 Mb/s UHD remux is not squeezed into 15 Mb/s of H.264
-// (a remux deserves its own bitrate). Never lowers a rung; ceilingKbps
-// (0 = none) is the client/profile/server cap.
+// sourceRaiseExponent shapes RaiseLadderToSource below the source rung: the
+// bitrate follows (rung pixels / source pixels) to this power. Linear (1.0)
+// handed the 480p rung of a 70 Mb/s UHD remux 3.5 Mb/s and the 360p rung of a
+// 25 Mb/s Blu-ray 2.8 Mb/s - the rungs that exist for a constrained line, made
+// unreachable on one. Published ladders thin faster than the pixel count
+// (Apple's 360p rung is ~5 % of its 1080p bitrate for ~11 % of the pixels).
+const sourceRaiseExponent = 1.5
+
+// RaiseLadderToSource lifts the source-resolution rung to the source bitrate
+// (a 70 Mb/s UHD remux is not squeezed into 15 Mb/s of H.264) and the rungs
+// below it along sourceRaiseExponent, never under their base bitrate, so the
+// lowest rung stays what a thin line can carry. ceilingKbps (0 = none) is the
+// client/profile/server cap.
 func RaiseLadderToSource(ladder []HLSProfile, sourceKbps int64, sourceWidth, sourceHeight int, ceilingKbps int64) []HLSProfile {
-	srcPx := int64(sourceWidth) * int64(sourceHeight)
+	srcPx := float64(sourceWidth) * float64(sourceHeight)
 	if sourceKbps <= 0 || srcPx <= 0 {
 		return ladder
 	}
 	out := make([]HLSProfile, len(ladder))
 	for i, p := range ladder {
-		want := sourceKbps * int64(p.Width) * int64(p.Height) / srcPx
+		ratio := math.Min(1, float64(p.Width)*float64(p.Height)/srcPx)
+		want := int64(math.Round(float64(sourceKbps) * math.Pow(ratio, sourceRaiseExponent)))
 		if ceilingKbps > 0 && want > ceilingKbps {
 			want = ceilingKbps
 		}

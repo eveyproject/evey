@@ -154,6 +154,8 @@ export function buildStreamUrl(
   audioTrack?: number,
   subtitleTrack?: number | null,
   startSec = 0,
+  maxHeight?: number,
+  screenHeight?: number,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${mediaId}/stream?token=${token}`;
@@ -172,6 +174,13 @@ export function buildStreamUrl(
   // hint only (see the mobile twin): the encoder opens at the resume position,
   // the manifest and the client clock are untouched.
   if (startSec > 0) params.set("startSec", String(Math.floor(startSec)));
+  // The quality the viewer picked: it went to GetStreamInfo alone, which only
+  // changed the stream-info verdict, and the master served the same ladder.
+  if (maxHeight && maxHeight > 0) params.set("maxHeight", String(maxHeight));
+  // The panel's height trims the transcode ladder (no 2160p rung for a 1080p
+  // panel) without turning a copy-playable title into a transcode - same
+  // semantics as the web player.
+  if (screenHeight && screenHeight > 0) params.set("screenHeight", String(screenHeight));
   return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 
@@ -220,8 +229,12 @@ export function usePlaySession(mediaId: string, initial?: PlaySessionInitial): P
             // Same declaration the HLS master URL carries, so the stream-info
             // panel describes the bytes the segments will actually hold.
             fmp4AudioPassthrough: getFmp4AudioPassthrough(),
-            maxWidth: Math.round(screen.width * (screen.scale ?? 1)),
-            maxHeight: maxHeight && maxHeight > 0 ? Math.min(maxHeight, screenH) : screenH,
+            // Screen size is not a decode capability (the panel downscales for
+            // free): declaring it here flagged resolution_exceeded on every 4K
+            // title while the master, which never saw it, served the copy. Only
+            // an explicit quality pick is a ceiling; the screen rides the master
+            // URL as ?screenHeight (ladder trim only). Mirrors the mobile player.
+            maxHeight: maxHeight && maxHeight > 0 ? maxHeight : undefined,
             maxH264Level: getDeviceMaxH264Level(),
             audioStreamIndex,
             subtitleStreamIndex,
@@ -245,7 +258,8 @@ export function usePlaySession(mediaId: string, initial?: PlaySessionInitial): P
         const audioTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex);
         const subtitleTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex);
         const resumeSec = wp?.positionMs && !wp.played ? Number(wp.positionMs) / 1000 : 0;
-        const url = buildStreamUrl(serverUrl, mediaId, info, token, maxAudioChannels, audioTrack, subtitleTrack, resumeSec);
+        const url = buildStreamUrl(serverUrl, mediaId, info, token, maxAudioChannels, audioTrack, subtitleTrack, resumeSec,
+          maxHeight && maxHeight > 0 ? maxHeight : undefined, Math.min(screenH, Math.round(screen.width * (screen.scale ?? 1))));
 
         // Direct play streams the original file with no orchestrator involved,
         // so it cannot be shed - only probe the transcode/HLS paths.

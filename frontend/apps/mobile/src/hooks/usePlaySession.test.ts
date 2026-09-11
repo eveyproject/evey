@@ -229,6 +229,15 @@ describe("buildStreamUrl", () => {
     expect(buildStreamUrl("http://srv", "m1", info, "tok")).not.toContain("maxAudioChannels");
   });
 
+  // The quality menu used to reach GetStreamInfo alone: the verdict changed,
+  // the master served the same ladder. The pick rides the master URL now.
+  it("carries the picked quality as maxHeight, nothing on Auto", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const info = { playMethod: "PLAY_METHOD_TRANSCODE" };
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, undefined, 0, 720)).toContain("maxHeight=720");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, undefined, 0, undefined)).not.toContain("maxHeight");
+  });
+
   it("falls back to HLS URL for unknown play method", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const url = buildStreamUrl("http://srv", "m1", { playMethod: "WHATEVER" }, "tok");
