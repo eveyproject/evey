@@ -1140,8 +1140,9 @@ func TestGetStreamInfo_ServedBitrate(t *testing.T) {
 	tc, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-srv-tc"})
 	require.NoError(t, err)
 	require.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE, tc.PlayMethod)
-	assert.Equal(t, int64(4000+192)*1000, tc.Bitrate, "transcode serves the capped target, not the source")
-	assert.Less(t, tc.Bitrate, int64(20_000_000), "served target is far below the fat source")
+	// The ladder follows the source bitrate (no cap set): the panel quotes the
+	// source, not a placeholder.
+	assert.Equal(t, int64(20_000_000), tc.Bitrate, "a transcode with no bitrate cap follows the source")
 }
 
 // TestPlaybackHandler_GetStreamInfo_CrossLibrary_NotFound verifies that a
