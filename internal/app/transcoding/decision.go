@@ -136,7 +136,11 @@ type TranscodingPreferences struct {
 	// WasmAudio: the client decodes AC-3/E-AC-3 itself. Request-scoped like
 	// AudioTrack; it cannot ride the supported-codec list (MSE refuses those
 	// codecs muxed), so it needs its own flag.
-	WasmAudio              bool
+	WasmAudio bool
+	// ProgressiveOutput: the session is a fragmented-MP4 pipe the browser's own
+	// demuxer reads (/transcode), not MSE segments - the fMP4 passthrough and
+	// sample-rate gates of the segmented path do not apply. Request-scoped.
+	ProgressiveOutput      bool
 	AllowDirectPlay        bool
 	AllowDirectStream      bool
 	AllowTranscoding       bool
@@ -331,7 +335,7 @@ func MakePlaybackDecisionWithPrefs(
 
 	checkBitrate(d, totalBitrate, effectiveMaxBitrate)
 	checkContainer(d, containerFormat, client)
-	applyCodecPreferences(d, specs, prefs)
+	applyCodecPreferences(d, specs, client, prefs)
 	applyAudioChannelTarget(d, specs, client, prefs)
 	applyDirectPlayPrefs(d, prefs)
 	// Last word on the audio verdict, and it must stay last: it reads the
@@ -581,7 +585,7 @@ func applyAudioChannelTarget(d *transcoding.PlaybackDecision, specs []StreamSpec
 // is real there. Adding the reason also demotes direct_stream to transcode on
 // its own, because isDirectStreamEligible requires both tracks to copy.
 func applyPackagedAudioPassthrough(d *transcoding.PlaybackDecision, specs []StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
-	if d.AudioDecision != "copy" || len(d.TranscodeReasons) == 0 {
+	if d.AudioDecision != "copy" || len(d.TranscodeReasons) == 0 || prefs.ProgressiveOutput {
 		return
 	}
 	src := selectedAudioSpec(specs, prefs)
@@ -734,25 +738,26 @@ func checkContainer(d *transcoding.PlaybackDecision, containerFormat string, cli
 	}
 }
 
-// applyCodecPreferences overrides VideoCodec / AudioCodec with user-preferred codec
-// when source != preferred AND the client supports the preferred codec. Forces transcode
-// if the source is already copying but the user pref differs.
-func applyCodecPreferences(d *transcoding.PlaybackDecision, streams []StreamSpec, prefs TranscodingPreferences) {
-	if prefs.PreferredVideoCodec != "" && prefs.PreferredVideoCodec != "auto" {
-		srcVideoCodec := findStreamCodec(streams, "video")
-		wantVideoCodec := normalizeVideoCodec(prefs.PreferredVideoCodec)
-		if normalizeVideoCodec(srcVideoCodec) != wantVideoCodec {
-			d.VideoCodec = wantVideoCodec
+// applyCodecPreferences overrides VideoCodec / AudioCodec with the user's
+// preferred codec when the source (the SELECTED audio track) differs AND the
+// client decodes the preferred codec - a preference the client cannot play is
+// ignored, never enforced. Forces a transcode when the source was copying.
+func applyCodecPreferences(d *transcoding.PlaybackDecision, streams []StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
+	if pref := prefs.PreferredVideoCodec; pref != "" && pref != "auto" {
+		want := normalizeVideoCodec(pref)
+		if videoCodecSupported(client.VideoCodecs, want) && normalizeVideoCodec(findStreamCodec(streams, "video")) != want {
+			d.VideoCodec = want
 			if d.VideoDecision != "transcode" {
 				d.VideoDecision = "transcode"
 				d.TranscodeReasons = append(d.TranscodeReasons, "preferred_video_codec")
 			}
 		}
 	}
-	if prefs.PreferredAudioCodec != "" && prefs.PreferredAudioCodec != "auto" {
-		srcAudioCodec := findDefaultAudioCodec(streams)
-		if srcAudioCodec != prefs.PreferredAudioCodec {
-			d.AudioCodec = prefs.PreferredAudioCodec
+	if pref := prefs.PreferredAudioCodec; pref != "" && pref != "auto" {
+		want := normalizeAudioCodec(pref)
+		sel := selectedAudioSpec(streams, prefs)
+		if sel != nil && audioCodecSupported(client.AudioCodecs, want) && normalizeAudioCodec(sel.Codec) != want {
+			d.AudioCodec = want
 			if d.AudioDecision != "transcode" {
 				d.AudioDecision = "transcode"
 				d.TranscodeReasons = append(d.TranscodeReasons, "preferred_audio_codec")
@@ -845,15 +850,6 @@ func applyDefaultBitrates(d *transcoding.PlaybackDecision) {
 func findStreamCodec(streams []StreamSpec, streamType string) string {
 	for _, s := range streams {
 		if s.Type == streamType {
-			return strings.ToLower(s.Codec)
-		}
-	}
-	return ""
-}
-
-func findDefaultAudioCodec(streams []StreamSpec) string {
-	for _, s := range streams {
-		if s.Type == "audio" && s.IsDefault {
 			return strings.ToLower(s.Codec)
 		}
 	}

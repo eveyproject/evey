@@ -16,48 +16,14 @@ import (
 // unrelated global-rafale cap).
 var ErrVideoCapacityExhausted = errors.New("transcoding: max video transcode sessions reached")
 
-// VideoSessionLimiter is a shared, thread-safe cap on the number of
-// concurrently-encoding VIDEO transcode sessions across BOTH StreamProducer
-// implementations (the software path's transcode instance and the hardware
-// SegmentOrchestrator) - never the software producer's dedicated COPY
-// instance, which copies the video stream and must never be gated here (see
-// SoftwareProducer.copyPlanner).
-//
-// The unit of capacity is the STREAM, not the ffmpeg process: slots are keyed
-// by decision hash and ref-counted. One viewer whose player probes a second
-// ABR rung spawns a second encoder for the SAME hash and must NOT be refused
-// by its own stream's slot (verified live: with capacity 1 and per-process
-// counting, a single viewer 503'd itself on an ABR switch). Those sibling
-// encoders are SIGSTOPped by pauseOtherVariants anyway, so they cost no CPU.
-// Distinct viewers at the same position share a hash - and share the same
-// encoder and cache - so they legitimately count as one.
-//
-// Limit()==0 (the zero value) means UNLIMITED: TryAcquire always succeeds.
-// This is the default, so a caller that never wires a limiter (or wires one
-// with limit 0) observes byte-identical behaviour to before this feature
-// existed. Active() is tracked even while unlimited, so a limit applied
-// later via SetLimit immediately sees the true in-flight count instead of
-// starting from zero.
-//
-// SetLimit takes effect on the NEXT TryAcquire only - it never kills an
-// already-running session, matching the "admin can only reduce future
-// capacity" contract.
-//
-// Optionally, WithCostModel wires a VideoCostModel: admission then ALSO
-// spends the new stream's fractional cost (see VideoCostModel.CostFor)
-// against a PER-POOL budget (default 1.0 = one whole pool), on top of the
-// SetLimit counter cap - both gates must pass. A stream's pool is derived
-// from its LadderClass (LadderClass.Pool): every software ladder
-// (plain/HDR/AV1) shares PoolCPU, "hw" gets its own PoolGPU, so a GPU encode
-// (NVENC/QSV/VAAPI - negligible CPU cost) never competes with software
-// encoders for the same budget and vice versa. Two cheap-enough streams in
-// the SAME pool (e.g. 1440p + 1080p software, cost 0.961 combined) can share
-// it instead of each being billed as a full stream, the gap the plain
-// counter cannot express. With no cost model wired (the default), admission
-// is purely by counter - byte-identical to the pre-cost-model behaviour, and
-// to the pre-pool single-budget behaviour on a box with no hw bench samples
-// (CostFor falls back to the software table for any class it has no
-// evidence for).
+// VideoSessionLimiter caps the concurrently-ENCODING video sessions across both
+// producers (never the copy instance, which encodes no video). The unit is the
+// STREAM (decision hash, ref-counted), not the ffmpeg process: a viewer probing
+// a second ABR rung must not be refused by its own stream's slot (seen live at
+// capacity 1). Limit()==0 = unlimited; SetLimit only affects the NEXT TryAcquire.
+// With a VideoCostModel wired, admission also spends the stream's fractional
+// cost against a per-pool budget (software ladders share PoolCPU, hw gets
+// PoolGPU) so two cheap streams can share a pool the plain counter would refuse.
 type VideoSessionLimiter struct {
 	mu    sync.Mutex
 	limit int

@@ -157,20 +157,26 @@ func TestBuildCopyVideoArgs_PacingBurst(t *testing.T) {
 // software-HEVC transcode (client PreferredVideoCodec=hevc, no HW HEVC) must
 // emit NO profile/level and let x265 derive it from the pixel format.
 func TestSoftwareProfileLevelArgs_H264Only(t *testing.T) {
-	if got := joined(softwareProfileLevelArgs("libx264", -1, 1080)); !strings.Contains(got, "-profile:v high") {
+	if got := joined(softwareProfileLevelArgs("libx264", -1, 1080, 0)); !strings.Contains(got, "-profile:v high") {
 		t.Fatalf("libx264 single must get -profile:v high, got %s", got)
 	}
-	if got := joined(softwareProfileLevelArgs("libx264", 2, 1080)); !strings.Contains(got, "-profile:v:2 high") {
+	if got := joined(softwareProfileLevelArgs("libx264", 2, 1080, 0)); !strings.Contains(got, "-profile:v:2 high") {
 		t.Fatalf("libx264 multi must get -profile:v:2 high, got %s", got)
 	}
-	if got := softwareProfileLevelArgs("libx265", -1, 1080); got != nil {
+	if got := softwareProfileLevelArgs("libx265", -1, 1080, 0); got != nil {
 		t.Fatalf("libx265 must get NO profile/level (x265 rejects \"high\"), got %v", got)
 	}
-	if got := joined(softwareProfileLevelArgs("libx264", -1, 2160)); !strings.Contains(got, "-level:v 5.1") {
+	if got := joined(softwareProfileLevelArgs("libx264", -1, 2160, 0)); !strings.Contains(got, "-level:v 5.1") {
 		t.Fatalf("a 2160p rung must be signalled level 5.1, got %s", got)
 	}
-	if got := softwareProfileLevelArgs("libsvtav1", 1, 1080); got != nil {
+	if got := softwareProfileLevelArgs("libsvtav1", 1, 1080, 0); got != nil {
 		t.Fatalf("av1 must get NO profile/level, got %v", got)
+	}
+	if got := joined(softwareProfileLevelArgs("libx264", -1, 1080, 40)); !strings.Contains(got, "-level:v 4.0") {
+		t.Fatalf("a level-4.0 decoder must lower the signalled level, got %s", got)
+	}
+	if got := joined(softwareProfileLevelArgs("libx264", -1, 720, 51)); !strings.Contains(got, "-level:v 4.1") {
+		t.Fatalf("a cap above the natural level must not raise it, got %s", got)
 	}
 
 	hevc := joined(BuildFFmpegArgs(transcoding.HLSProcessOpts{
@@ -214,5 +220,23 @@ func TestScaledAudioBitrateKbps(t *testing.T) {
 		if got := scaledAudioBitrateKbps(c.base, c.ch); got != c.want {
 			t.Fatalf("scaledAudioBitrateKbps(%d,%d)=%d want %d", c.base, c.ch, got, c.want)
 		}
+	}
+}
+
+// The copy rung's re-encoded audio follows the same sizing and sample-rate
+// rules as every other builder: per-channel bitrate, 48 kHz.
+func TestBuildCopyVideoArgs_AudioFollowsChannelSizing(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		FilePath: "/m.mkv", OutputDir: "/o", VideoDecision: "copy", AudioDecision: "transcode",
+		AudioTrackIndex: 0, MaxAudioChannels: 6, UseFMP4: true,
+		Profiles: []transcoding.HLSProfile{{Name: "1080p-copy-kf4", Width: 1920, Height: 1080, VideoBitrate: 5000, AudioBitrate: 192, Copy: true}},
+	}
+	a := joined(buildCopyVideoArgs(opts))
+	if !strings.Contains(a, "-ac 6 -ar 48000 -b:a 384k") {
+		t.Fatalf("5.1 copy-rung audio must be 384k at 48 kHz: %s", a)
+	}
+	opts.MaxAudioChannels = 2
+	if a := joined(buildCopyVideoArgs(opts)); !strings.Contains(a, "-ac 2 -ar 48000 -b:a 192k") {
+		t.Fatalf("stereo keeps the rung base: %s", a)
 	}
 }

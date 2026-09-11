@@ -14,6 +14,7 @@ package httpapi
 // fetches per segment and 6 per master; the plan does one.
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/network"
 )
 
 // requestPlan is the resolved plan: the app-layer PlaybackPlan plus the
@@ -44,6 +46,9 @@ type requestPlan struct {
 	// IsCopy is the ffmpeg copy-rung routing bit: every consumer (bound
 	// check, shed, producer pick) reads it here instead of re-deriving.
 	IsCopy bool
+	// Request is the marshalled input the plan was resolved from (the producer
+	// pick keys the admission pin off it).
+	Request apptranscoding.PlaybackRequest
 }
 
 // planResolver assembles the app-layer resolver from the handler's live
@@ -75,6 +80,9 @@ func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
 		AdmissionFreezeLadder: h.admissionFreezeLadder,
 		UseFMP4:               h.useFMP4,
 		AudioRenditionEnabled: h.audioRenditionEnabled,
+		// Same predicate as audioRenditionsFor's transcode branch (minus the
+		// telecine gate the resolver applies itself).
+		TranscodeAudioRendition: h.encoderReorderProbe != nil && h.frameRateProbe != nil,
 	}
 	if h.cache != nil {
 		pr.FreeBytes = h.cache.FreeBytes
@@ -107,8 +115,9 @@ func (h *hlsVODServe) marshalPlaybackRequest(r *http.Request, mediaID string, it
 		PinnedVideoDecision: r.URL.Query().Get("vd"),
 		PinnedAudioDecision: r.URL.Query().Get("ad"),
 		WasmAudio:           wasmAudioEffective(r, h.castWasmAudioEnabled),
+		MaxBitrateKbps:      h.requestBitrateCapKbps(r),
 		SourceBytes:         sourceBytesOf(item),
-		SourceBitrateKbps:   sourceBitrateKbpsOf(item),
+		SourceBitrateKbps:   sourceBitrateKbpsOf(item, streams),
 		ScreenHeight:        parseIntQuery(r, "screenHeight", 0),
 	}
 }
@@ -157,6 +166,7 @@ func (h *hlsVODServe) probePlan(r *http.Request, mediaID string, item *domainlib
 		FP:         plan.Fingerprint,
 		FPHash:     plan.FingerprintHash,
 		IsCopy:     plan.Packager == apptranscoding.PackagerCopyFFmpeg,
+		Request:    req,
 	}, nil
 }
 
@@ -188,6 +198,52 @@ func (h *hlsVODServe) reclaimSupersededHash(r *http.Request, mediaID string, rp 
 			slog.String("now_on_hash", rp.FPHash),
 			slog.Int("killed", killed))
 	}
+}
+
+// requestBitrateCapKbps is the tightest of the admin per-user limit and the
+// remote ceiling (a client outside the LAN). 0 = none. Both are stable for a
+// session, and the resolver keys the admission pin on the result.
+func (h *hlsVODServe) requestBitrateCapKbps(r *http.Request) int {
+	cap := 0
+	tighten := func(v int) {
+		if v > 0 && (cap == 0 || v < cap) {
+			cap = v
+		}
+	}
+	if claims := HTTPClaimsFromContext(r.Context()); claims != nil && claims.UserID != "" && h.userBitrate != nil {
+		tighten(h.userBitrateLimitFor(r.Context(), claims.UserID))
+	}
+	if h.maxVideoBitrateRemoteKbps != nil && !lanClient(r) {
+		tighten(h.maxVideoBitrateRemoteKbps())
+	}
+	return cap
+}
+
+func (h *hlsVODServe) userBitrateLimitFor(ctx context.Context, userID string) int {
+	if h.userBitrateLookup != nil {
+		if v, ok := h.userBitrateLookup.Get(userID); ok {
+			return v
+		}
+	}
+	limit, err := h.userBitrate.GetUserBitrateLimit(ctx, userID)
+	if err != nil {
+		return 0
+	}
+	if h.userBitrateLookup != nil {
+		h.userBitrateLookup.Set(userID, limit, mediaLookupTTL)
+	}
+	return limit
+}
+
+// lanClient reports whether the request comes from a private, loopback or
+// link-local address (the IP the proxy-trust boundary validated). An unknown
+// address counts as LAN: the cap must never bite on a missing signal.
+func lanClient(r *http.Request) bool {
+	ip := network.ClientIP(r)
+	if ip == nil {
+		return true
+	}
+	return ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified()
 }
 
 // itemID is string(item.ID), nil-safe - the MediaID the resolver keys the

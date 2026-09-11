@@ -369,6 +369,11 @@ type HTTPServer struct {
 	// rather than mkvgo, or the audio runs audibly early. Injected because this
 	// package must not depend on the ffmpeg adapter. nil = no compensation.
 	VideoCompositionDelayProbe func(ctx context.Context, path string) float64
+	// VideoFrameRateProbe and EncoderReorderProbe give a TRANSCODED rung's
+	// composition delay (encoder reorder frames / source fps) for the same
+	// shift. nil = transcoded ladders keep their audio muxed.
+	VideoFrameRateProbe func(ctx context.Context, path string) float64
+	EncoderReorderProbe func(ctx context.Context, codec, accel, device string, features []string) (int, bool)
 
 	// User stream/bitrate adapters
 	UserMaxStreams UserMaxStreamsGetter

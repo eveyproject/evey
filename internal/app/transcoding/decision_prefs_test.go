@@ -110,7 +110,9 @@ func TestPref_PreferredVideoCodec_ForcesTranscode(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.PreferredVideoCodec = "hevc"
-	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	client := transcoding.DefaultWebProfile
+	client.VideoCodecs = []string{"h264", "hevc"}
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", client, 0, prefs)
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Equal(t, "hevc", d.VideoCodec)
 	assert.Contains(t, d.TranscodeReasons, "preferred_video_codec")
@@ -159,7 +161,9 @@ func TestApplyCodecPreferences_DifferentCodec_CanonicalisesOutput(t *testing.T) 
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.PreferredVideoCodec = "h265" // alias of hevc
-	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	client := transcoding.DefaultWebProfile
+	client.VideoCodecs = []string{"h264", "hevc"}
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", client, 0, prefs)
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Equal(t, "hevc", d.VideoCodec, "VideoCodec must be canonicalised, not the raw pref spelling")
 	assert.Contains(t, d.TranscodeReasons, "preferred_video_codec")
@@ -368,4 +372,54 @@ func TestMakePlaybackDecisionWithPrefs_CellularButNoCellularCapUsesGeneral(t *te
 
 	assert.Contains(t, d.TranscodeReasons, "bitrate_exceeded")
 	assert.Equal(t, int64(8_000), d.VideoBitrate)
+}
+
+// A preference the CLIENT cannot decode must not force a transcode into a codec
+// it will refuse: the pref is ignored, not enforced.
+func TestPref_PreferredVideoCodec_UnsupportedByClientIsIgnored(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: new(int64(5000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	prefs.PreferredVideoCodec = "hevc" // DefaultWebProfile decodes h264/vp9 only
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "copy", d.VideoDecision)
+	assert.NotContains(t, d.TranscodeReasons, "preferred_video_codec")
+	assert.NotEqual(t, "hevc", d.VideoCodec)
+}
+
+func TestPref_PreferredAudioCodec_UnsupportedByClientIsIgnored(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: new(int64(5000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	prefs.PreferredAudioCodec = "eac3" // not in DefaultWebProfile.AudioCodecs
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "copy", d.AudioDecision)
+	assert.NotContains(t, d.TranscodeReasons, "preferred_audio_codec")
+}
+
+// The audio preference is judged on the track the client will HEAR, not the
+// container's default track, and on canonical codec names.
+func TestPref_PreferredAudioCodec_JudgesTheSelectedTrack(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: new(int64(5000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: true},
+		{StreamType: "audio", Codec: "eac3", Channels: new(6)},
+	}
+	client := transcoding.DefaultWebProfile
+	client.AudioCodecs = []string{"aac", "e-ac-3"}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	prefs.PreferredAudioCodec = "e-ac-3"
+	prefs.AudioTrack = 1
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", client, 0, prefs)
+	assert.Equal(t, "copy", d.AudioDecision, "the selected track already is the preferred codec")
+	assert.NotContains(t, d.TranscodeReasons, "preferred_audio_codec")
+
+	prefs.AudioTrack = 0
+	d = apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", client, 0, prefs)
+	assert.Equal(t, "transcode", d.AudioDecision)
+	assert.Equal(t, "eac3", d.AudioCodec, "the encoder gets the canonical name")
 }

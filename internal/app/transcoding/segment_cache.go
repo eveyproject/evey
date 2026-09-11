@@ -187,6 +187,9 @@ type DecisionFingerprint struct {
 	// HDRTransfer ("pq"/"hlg") is derived from the source, excluded from Hash().
 	HDRPassthrough bool
 	HDRTransfer    string
+	// MaxH264Level is the client decoder's level_idc cap. Hashed only when it
+	// LOWERS the level a rung signals (a different SPS), see signalledH264LevelCap.
+	MaxH264Level int
 
 	// Profiles must be the EXACT ABR ladder ffmpeg will emit. Different ladders
 	// produce different multi-variant runs (variant indices and bitrates differ),
@@ -421,12 +424,30 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 	if downmixPolicy != "" {
 		fmt.Fprintf(&b, "dmx=%s\n", downmixPolicy)
 	}
+	if lvl := f.signalledH264LevelCap(); lvl > 0 {
+		fmt.Fprintf(&b, "h264lvl=%d\n", lvl)
+	}
 	for _, p := range profiles {
 		fmt.Fprintf(&b, "p=%s|%dx%d|%d|%d|copy=%t\n", p.Name, p.Width, p.Height, p.VideoBitrate, p.AudioBitrate, p.Copy)
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	// 16 hex chars = 64 bits, low enough collision risk for our cache scale.
 	return hex.EncodeToString(sum[:])[:16]
+}
+
+// signalledH264LevelCap is the client level cap when at least one H.264 rung
+// would be signalled above it (the encoder then lowers its SPS level), else 0
+// so the ubiquitous 5.1+ clients keep sharing the uncapped cache.
+func (f DecisionFingerprint) signalledH264LevelCap() int {
+	if f.MaxH264Level <= 0 || (f.VideoCodec != "" && transcoding.CanonicalVideoCodec(f.VideoCodec) != "h264") {
+		return 0
+	}
+	for _, p := range f.Profiles {
+		if !p.Copy && transcoding.H264LevelIdcFor(p.Height) > f.MaxH264Level {
+			return f.MaxH264Level
+		}
+	}
+	return 0
 }
 
 // parseSARRatio parses "N:D" into reduced integer parts (gcd-normalised so

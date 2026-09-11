@@ -846,3 +846,10 @@ func TestQuerySuffix_FMP4AudioPassthrough(t *testing.T) {
 	assert.NotContains(t, QuerySuffixFor(in), "fmp4AudioPassthrough",
 		"a client that declared nothing must keep byte-identical URLs")
 }
+
+// maxH264Level shapes the ladder, so a segment request must carry it like
+// screenHeight or the segment-time plan re-derives a taller ladder.
+func TestQuerySuffix_BakesMaxH264Level(t *testing.T) {
+	assert.Contains(t, QuerySuffixFor(ManifestInput{MaxH264Level: 41}), "maxH264Level=41")
+	assert.NotContains(t, QuerySuffixFor(ManifestInput{}), "maxH264Level")
+}

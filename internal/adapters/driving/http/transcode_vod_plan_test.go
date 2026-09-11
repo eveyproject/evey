@@ -14,6 +14,7 @@ import (
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
 )
 
@@ -156,4 +157,34 @@ func TestResolvePlan_CopyRequest(t *testing.T) {
 	assert.Equal(t, apptranscoding.PackagerCopyFFmpeg, rp.Plan.Packager)
 	assert.False(t, rp.Plan.NeedsVideoEncode(), "a copy plan never spends encode")
 	assert.True(t, rp.Plan.UsesFFmpeg(), "the ffmpeg copy rung still spawns a process")
+}
+
+type stubUserBitrate struct{ kbps int }
+
+func (s stubUserBitrate) GetUserBitrateLimit(context.Context, string) (int, error) {
+	return s.kbps, nil
+}
+
+// The remote ceiling bites only on a public client; the admin per-user limit
+// always does; the tightest of the two wins, and no signal means no cap.
+func TestRequestBitrateCapKbps(t *testing.T) {
+	remote := func() int { return 20000 }
+	lan := httptest.NewRequest("GET", "/hls/master.m3u8", nil)
+	lan.RemoteAddr = "192.168.1.20:5000"
+	public := httptest.NewRequest("GET", "/hls/master.m3u8", nil)
+	public.RemoteAddr = "203.0.113.9:5000"
+
+	h := &hlsVODServe{maxVideoBitrateRemoteKbps: remote}
+	assert.Equal(t, 0, h.requestBitrateCapKbps(lan))
+	assert.Equal(t, 20000, h.requestBitrateCapKbps(public))
+	unknown := httptest.NewRequest("GET", "/hls/master.m3u8", nil)
+	unknown.RemoteAddr = ""
+	assert.Equal(t, 0, h.requestBitrateCapKbps(unknown), "no signal at all: an unknown address counts as LAN")
+
+	withUser := withHTTPClaims(public, &domainuser.Claims{UserID: "u1", ProfileID: "p1"})
+	h.userBitrate = stubUserBitrate{kbps: 8000}
+	assert.Equal(t, 8000, h.requestBitrateCapKbps(withUser), "the per-user limit is the tightest")
+	h.userBitrate = stubUserBitrate{kbps: 50000}
+	assert.Equal(t, 20000, h.requestBitrateCapKbps(withUser), "the remote ceiling is the tightest")
+	assert.Equal(t, 50000, h.requestBitrateCapKbps(withHTTPClaims(lan, &domainuser.Claims{UserID: "u1"})), "on the LAN only the user limit applies")
 }

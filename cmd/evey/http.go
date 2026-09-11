@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+
 	"fmt"
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -305,17 +307,21 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		// asks this probe how much to shift by. Best-effort: it returns 0 on any
 		// failure, which is the uncompensated behaviour.
 		VideoCompositionDelayProbe: ffmpeg.BundledVideoCompositionDelaySec,
-		UserMaxStreams:             httpapi.NewUserMaxStreamsAdapter(deps.repos.userRepo),
-		UserBitrate:                httpapi.NewUserBitrateAdapter(deps.user.querySvc),
-		ProfilePrefs:               httpapi.NewProfilePrefsAdapter(deps.user.querySvc),
-		FrameExtractor:             deps.frameExtractor,
-		CopySeekProber:             deps.copySeekProber,
-		OnDemandPackager:           deps.onDemandPackager,
-		PlaybackActivity:           deps.playbackActivity,
-		OnDemandConcatPackager:     deps.onDemandConcatPackager,
-		HLSAESSecret:               deps.hlsAESSecret,
-		IntroDetector:              deps.library.introDetectionSvc,
-		StreamMeter:                deps.engagement.streamMeter,
+		VideoFrameRateProbe:        ffmpeg.BundledVideoFrameRate,
+		EncoderReorderProbe: func(ctx context.Context, codec, accel, device string, features []string) (int, bool) {
+			return ffmpeg.BundledEncoderReorderFrames(ctx, ffmpeg.EncoderSpec{Codec: codec, Accel: domaintranscoding.HWAccelType(accel), Device: device, Features: features})
+		},
+		UserMaxStreams:         httpapi.NewUserMaxStreamsAdapter(deps.repos.userRepo),
+		UserBitrate:            httpapi.NewUserBitrateAdapter(deps.user.querySvc),
+		ProfilePrefs:           httpapi.NewProfilePrefsAdapter(deps.user.querySvc),
+		FrameExtractor:         deps.frameExtractor,
+		CopySeekProber:         deps.copySeekProber,
+		OnDemandPackager:       deps.onDemandPackager,
+		PlaybackActivity:       deps.playbackActivity,
+		OnDemandConcatPackager: deps.onDemandConcatPackager,
+		HLSAESSecret:           deps.hlsAESSecret,
+		IntroDetector:          deps.library.introDetectionSvc,
+		StreamMeter:            deps.engagement.streamMeter,
 	}
 
 	srv.RegisterRoutes(mux, gwMux)

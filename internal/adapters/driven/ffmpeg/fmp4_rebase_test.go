@@ -404,3 +404,30 @@ func TestRebasePumpGivesUpWaitingAfterTheGrace(t *testing.T) {
 		t.Fatal("pump blocked forever on a process that never exited")
 	}
 }
+
+// A multi-variant seek session writes stream_<i>_init.mp4 for EVERY rung into
+// the private dir; the pump must publish each of them, not only rung 0's.
+func TestRebasePump_PublishesEveryVariantInit(t *testing.T) {
+	priv := t.TempDir()
+	pub := t.TempDir()
+	init := bytes.Join([][]byte{box("ftyp", []byte("iso6")), box("moov", box("trak"))}, nil)
+	for _, name := range []string{"stream_0_init.mp4", "stream_1_init.mp4", "stream_2_init.mp4"} {
+		if err := os.WriteFile(filepath.Join(priv, name), init, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"stream_0_004.m4s", "stream_1_004.m4s"} {
+		if err := os.WriteFile(filepath.Join(priv, name), synthSegment(1, 0), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stop := make(chan struct{})
+	close(stop)
+	runRebasePump(nil, stop, nil, priv, pub, 12000, "stream", 0, nil, "transcode_seek")
+
+	for _, name := range []string{"stream_0_init.mp4", "stream_1_init.mp4", "stream_2_init.mp4", "stream_0_004.m4s", "stream_1_004.m4s"} {
+		if _, err := os.Stat(filepath.Join(pub, name)); err != nil {
+			t.Errorf("%s not published: %v", name, err)
+		}
+	}
+}

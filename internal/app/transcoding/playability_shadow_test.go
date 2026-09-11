@@ -57,18 +57,58 @@ func enableShadow(t *testing.T, repo shared.ServerConfigRepository) {
 	require.NoError(t, repo.Set(context.Background(), PlayabilityShadowConfigKey, "on"))
 }
 
+func disableShadow(t *testing.T, repo shared.ServerConfigRepository) {
+	t.Helper()
+	require.NoError(t, repo.Set(context.Background(), PlayabilityShadowConfigKey, "off"))
+}
+
 func TestPlayabilityShadow_GateOffMeansZeroAnalyzerCalls(t *testing.T) {
 	analyzer := &fakePlayabilityAnalyzer{report: &PlayabilityReport{
 		OverallVerdict: "direct-play",
 		Tracks:         []PlayabilityTrackVerdict{{Type: "video", Verdict: "direct-play"}},
 	}}
-	repo := sharedfakes.NewFakeServerConfigRepository() // key absent -> off by default
+	repo := sharedfakes.NewFakeServerConfigRepository()
+	disableShadow(t, repo)
 	shadow := NewPlayabilityShadow(analyzer, repo, testLogger())
 
 	shadow.Observe(context.Background(), "/media/movie.mkv", copyDecision("direct_play", "copy"), domaintranscoding.ClientProfile{})
 	shadow.Wait()
 
 	assert.Equal(t, 0, analyzer.callCount(), "gate off must not reach the analyzer")
+}
+
+// The key absent is the boot default: on.
+func TestPlayabilityShadow_AbsentKeyMeansOn(t *testing.T) {
+	analyzer := &fakePlayabilityAnalyzer{report: &PlayabilityReport{
+		OverallVerdict: "direct-play",
+		Tracks:         []PlayabilityTrackVerdict{{Type: "video", Verdict: "direct-play"}},
+	}}
+	shadow := NewPlayabilityShadow(analyzer, sharedfakes.NewFakeServerConfigRepository(), testLogger())
+	shadow.Observe(context.Background(), "/media/movie.mkv", copyDecision("direct_play", "copy"), domaintranscoding.ClientProfile{})
+	shadow.Wait()
+	assert.Equal(t, 1, analyzer.callCount())
+}
+
+// One head read per (path, target) per throttle window, whatever the number of
+// segments the decision runs for; a different client is a different pair.
+func TestPlayabilityShadow_ObservesOncePerPathAndTarget(t *testing.T) {
+	analyzer := &fakePlayabilityAnalyzer{report: &PlayabilityReport{
+		OverallVerdict: "direct-play",
+		Tracks:         []PlayabilityTrackVerdict{{Type: "video", Verdict: "direct-play"}},
+	}}
+	shadow := NewPlayabilityShadow(analyzer, sharedfakes.NewFakeServerConfigRepository(), testLogger())
+	client := domaintranscoding.ClientProfile{VideoCodecs: []string{"h264"}}
+	for range 50 {
+		shadow.Observe(context.Background(), "/media/movie.mkv", copyDecision("direct_play", "copy"), client)
+	}
+	shadow.Wait()
+	assert.Equal(t, 1, analyzer.callCount(), "same pair within the window: one read")
+
+	other := client
+	other.MaxH264Level = 41
+	shadow.Observe(context.Background(), "/media/movie.mkv", copyDecision("direct_play", "copy"), other)
+	shadow.Wait()
+	assert.Equal(t, 2, analyzer.callCount(), "a different target is a different pair")
 }
 
 // countingConfigRepo counts Get calls so a test can assert the gate is not
@@ -100,6 +140,7 @@ func (c *countingConfigRepo) getCount() int {
 func TestPlayabilityShadow_GateOffDoesNotSpawnOrQueryPerObservation(t *testing.T) {
 	analyzer := &fakePlayabilityAnalyzer{}
 	repo := &countingConfigRepo{ServerConfigRepository: sharedfakes.NewFakeServerConfigRepository()}
+	disableShadow(t, repo)
 	shadow := NewPlayabilityShadow(analyzer, repo, testLogger())
 
 	const observations = 200
@@ -122,6 +163,7 @@ func TestPlayabilityShadow_GateTurnedOnIsPickedUpAfterTTL(t *testing.T) {
 		Tracks:         []PlayabilityTrackVerdict{{Type: "video", Verdict: "direct-play"}},
 	}}
 	repo := sharedfakes.NewFakeServerConfigRepository()
+	disableShadow(t, repo)
 	shadow := NewPlayabilityShadow(analyzer, repo, testLogger())
 
 	shadow.Observe(context.Background(), "/media/movie.mkv", copyDecision("direct_play", "copy"), domaintranscoding.ClientProfile{})
@@ -168,8 +210,6 @@ func TestPlayabilityShadow_DivergentIsThrottledPerMediaAndTarget(t *testing.T) {
 	shadow.Observe(context.Background(), "/media/movie.mkv", decision, client)
 	shadow.Wait()
 
-	// The analyzer itself is called every time (it's the log that throttles) -
-	// assert the throttle map recorded exactly one entry for this (path,target).
 	key := "/media/movie.mkv::" + targetFingerprint(mapClientProfileToTarget(client))
 	shadow.mu.Lock()
 	_, seen := shadow.seen[key]
@@ -177,7 +217,7 @@ func TestPlayabilityShadow_DivergentIsThrottledPerMediaAndTarget(t *testing.T) {
 	shadow.mu.Unlock()
 	assert.True(t, seen, "divergence key should be recorded after the first log")
 	assert.Equal(t, 1, entries, "second call within the TTL must not add a new throttle entry")
-	assert.Equal(t, 2, analyzer.callCount())
+	assert.Equal(t, 1, analyzer.callCount(), "the second call is served by the observation throttle")
 }
 
 func TestPlayabilityShadow_PanicInGoroutineDoesNotPropagate(t *testing.T) {
@@ -334,6 +374,11 @@ func TestMapClientProfileToTarget(t *testing.T) {
 	assert.Equal(t, client.MaxWidth, target.MaxWidth)
 	assert.Equal(t, client.MaxHeight, target.MaxHeight)
 	assert.True(t, target.HDR)
+	assert.Equal(t, 0, target.MaxLevelH264)
+	assert.True(t, target.HEVCMain10, "10-bit HEVC is decodable per the decision's own rule")
+	assert.True(t, target.VP9Profile2)
+	client.MaxH264Level = 41
+	assert.Equal(t, 41, mapClientProfileToTarget(client).MaxLevelH264)
 }
 
 // The two artifact classes below are the ones the 2026-07-29 production
@@ -347,10 +392,10 @@ func TestPlayabilityShadow_UnmappedCodecSignalIsNotWarned(t *testing.T) {
 		Tracks: []PlayabilityTrackVerdict{{
 			Type:    "video",
 			Verdict: "transcode",
-			// mkvgo's ops.Target got a zero HEVCMain10 because ClientProfile
-			// carries no such signal, so it demands a transcode for a 10-bit
-			// title Evey direct-plays correctly.
-			Reasons: []string{"HEVC Main10 (10-bit) is unsupported on target"},
+			// mkvgo's ops.Target got a zero DolbyVision because ClientProfile
+			// carries no such signal, so it demands a transcode for a DoVi
+			// profile-8 title Evey direct-plays correctly.
+			Reasons: []string{"Dolby Vision is unsupported on target"},
 		}},
 	}}
 	repo := sharedfakes.NewFakeServerConfigRepository()
@@ -423,18 +468,15 @@ func TestKnownMappingArtifact(t *testing.T) {
 		decision     *domaintranscoding.PlaybackDecision
 		wantArtifact string
 	}{
-		{"main10 only", "direct-play", "transcode",
-			[]string{"HEVC Main10 (10-bit) is unsupported on target"}, copied, "unmapped-codec-signal"},
 		{"dovi only", "direct-play", "transcode",
 			[]string{"Dolby Vision is unsupported on target"}, copied, "unmapped-codec-signal"},
-		{"vp9 profile2 only", "direct-play", "transcode",
-			[]string{"VP9 Profile 2 (10-bit) is unsupported on target"}, copied, "unmapped-codec-signal"},
-		{"several unmapped signals together", "direct-play", "transcode",
-			[]string{"Dolby Vision is unsupported on target", "HEVC Main10 (10-bit) is unsupported on target"}, copied, "unmapped-codec-signal"},
+		// Main10 is mapped since 2026-09-11 (declared decodable): a real signal.
+		{"main10 is a mapped signal", "direct-play", "transcode",
+			[]string{"HEVC Main10 (10-bit) is unsupported on target"}, copied, ""},
 		// One real reason alongside an artifact one keeps the whole divergence
 		// visible: the real reason is the thing worth reading.
 		{"unmapped signal mixed with a real reason", "direct-play", "transcode",
-			[]string{"HEVC Main10 (10-bit) is unsupported on target", "height 2160 exceeds target max 1080"}, copied, ""},
+			[]string{"Dolby Vision is unsupported on target", "height 2160 exceeds target max 1080"}, copied, ""},
 		// HDR IS mapped from ClientProfile.SupportsHDR, so this is a real signal.
 		{"hdr10 is a mapped signal", "direct-play", "transcode",
 			[]string{"HDR10 static metadata is unsupported on target"}, copied, ""},

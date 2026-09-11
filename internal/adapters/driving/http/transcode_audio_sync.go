@@ -12,49 +12,27 @@ import (
 	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
 )
 
-// transcode_audio_sync.go answers one question for the audio-rendition path:
-// by how much must this session's audio be shifted to land on the video's
-// timeline?
-//
-// The audio rendition is its own stream and always starts at 0. Whether that
-// is correct depends on WHICH muxer packaged the video for the same session:
-//
-//   - mkvgo (the on-demand packager): presents its first frame at 0 -> no shift.
-//   - ffmpeg `-c:v copy` in fMP4 (the fallback when mkvgo is not eligible or
-//     PlanHLS refuses the source): presents at has_b_frames/fps, because MP4
-//     forbids a negative DTS -> the audio runs EARLY by exactly that much.
-//
-// Measured on real files: 42 ms for 1 B-frame, 83 ms for 2 at 23.976 fps -
-// past the ~45 ms audibility threshold for EARLY audio (ITU-R BT.1359), which
-// is how the operator heard it. Proven live in prod: masters served with
-// mkvgo_video=false alongside a separate audio rendition.
+// transcode_audio_sync.go: by how much must a session's audio rendition be
+// shifted to land on the video's timeline? The rendition starts at 0; mkvgo
+// presents the video's first frame at 0 too, but ffmpeg `-c:v copy` in fMP4
+// presents it at has_b_frames/fps (MP4 forbids a negative DTS), so the audio
+// runs early by that much (42 ms for 1 B-frame at 23.976 fps, audible past ~45 ms).
 
-// videoCompositionDelaySec returns the shift the audio rendition needs for this
-// request, or 0 when the video is packaged by mkvgo (nothing to compensate).
-// Best-effort throughout: any probe or plan failure yields 0, which is exactly
-// the pre-fix behaviour - a rendition must never fail to start because a probe
-// did.
-// The shift applies to exactly ONE configuration, and the guards below exist to
-// keep it there:
-//
-//   - the video must be a `-c:v copy` rung. The probe reads the SOURCE's
-//     has_b_frames, which describes the copied frames verbatim. A re-encoded
-//     video's presentation delay is Evey's own encoder's, not the source's, so
-//     the probe would be measuring the wrong thing;
-//   - mkvgo must not be the one serving that copy, since it presents at 0;
-//   - the packager must be wired at all, so "mkvgo did not take it" is a real
-//     answer rather than an artefact of an unwired handler.
-//
-// Anything else returns 0. Shifting audio against a video that was NOT shifted
-// would create the very desync this removes, so every uncertainty resolves to
-// today's behaviour.
+// videoCompositionDelaySec returns the shift the audio rendition needs, or 0
+// when nothing must be compensated. Only a `-c:v copy` rung NOT served by mkvgo
+// qualifies: the probe reads the SOURCE's has_b_frames, which describes copied
+// frames verbatim, not a re-encode. Every uncertainty resolves to 0 (shifting
+// against an unshifted video would create the very desync this removes).
 func (h *hlsVODServe) videoCompositionDelaySec(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) float64 {
 	if h.compositionDelayProbe == nil || h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
 		return 0
 	}
 	decision := h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
+	if decision.VideoDecision == "transcode" {
+		return h.transcodeCompositionDelaySec(r, mediaID, item, streams)
+	}
 	if !videoCopyEligible(decision, streams) {
-		return 0 // re-encoded video: the delay is the encoder's, not the source's
+		return 0
 	}
 	if h.planBuildsForSource(r, mediaID, item, streams) {
 		return 0 // mkvgo packages it, and mkvgo presents at 0
@@ -62,22 +40,31 @@ func (h *hlsVODServe) videoCompositionDelaySec(r *http.Request, mediaID string, 
 	return h.compositionDelayProbe(r.Context(), item.File.Path)
 }
 
+// transcodeCompositionDelaySec is the shift for a TRANSCODED video: the
+// encoder's reorder frames (probed once per encoder configuration) over the
+// source frame rate. 0 when either probe is unavailable or fails.
+func (h *hlsVODServe) transcodeCompositionDelaySec(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) float64 {
+	if h.encoderReorderProbe == nil || h.frameRateProbe == nil {
+		return 0
+	}
+	rp, err := h.probePlan(r, mediaID, item, streams)
+	if err != nil || rp.IsCopy {
+		return 0
+	}
+	fps := h.frameRateProbe(r.Context(), item.File.Path)
+	frames, ok := h.encoderReorderProbe(r.Context(), rp.Plan.VideoCodec, rp.Plan.HWAccel, rp.FP.HWDevice, rp.FP.HWFeatures)
+	if !ok || fps <= 0 || frames <= 0 {
+		return 0
+	}
+	return float64(frames) / fps
+}
+
 // planBuildsForSource reports whether mp4.PlanHLS succeeds for this source,
-// memoised by file identity.
-//
-// The memo is not a performance tweak, it is a CORRECTNESS guard. The delay is
-// hashed into the audio fingerprint, so a value that flipped mid-playback would
-// fork the segment cache and respawn ffmpeg under the viewer. Plan builds fail
-// for two very different reasons:
-//
-//   - the source genuinely cannot be packaged (`invalid VINT`, a codec CMAF
-//     cannot carry): a property of the FILE, stable, worth remembering;
-//   - the client went away mid-build (`context canceled`): says nothing about
-//     the file and is common in prod (~2 in 3 of the observed failures).
-//
-// Only the first kind is recorded. A cancellation is reported as "packages
-// fine" for this request and left unmemoised, so the answer stays stable
-// instead of oscillating with client behaviour.
+// memoised by file identity. The memo is a CORRECTNESS guard: the delay is
+// hashed into the audio fingerprint, so a value flipping mid-playback would
+// fork the cache under the viewer. Only a failure that is a property of the
+// FILE is recorded; a client cancellation mid-build says nothing about it and
+// is reported as "packages fine", unmemoised.
 func (h *hlsVODServe) planBuildsForSource(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) bool {
 	key, ok := sourceIdentity(item.File.Path)
 	if ok {
@@ -101,28 +88,17 @@ func (h *hlsVODServe) planBuildsForSource(r *http.Request, mediaID string, item 
 	return false
 }
 
-// planBuildMemoTTL bounds how long a per-file verdict is trusted. Matched to
-// onDemandPlanTTL (internal/adapters/driven/mkvgo/ondemand.go, 30 min): this
-// memo answers "does mkvgo's own plan cache have (or build) a plan for this
-// identity", so keeping the two in lock-step means the memo is never trusted
-// past what it describes. It also self-heals a refusal caused by something
-// OTHER than the file's own bytes (a transient stat/read hiccup that is not a
-// context cancellation) within the same order of magnitude as the underlying
-// plan cache, instead of holding it wrong for the rest of the process.
+// planBuildMemoTTL matches onDemandPlanTTL (mkvgo adapter, 30 min): the memo
+// answers "does mkvgo's plan cache have a plan for this identity", so the two
+// stay in lock-step and a transient refusal self-heals.
 const planBuildMemoTTL = 30 * time.Minute
 
-// planBuildMemo caches the per-file "does PlanHLS build?" verdict. Keyed by
-// path+size+mtime like the ffmpeg adapter's own probe caches, so a repaired or
-// replaced file re-proves itself via a fresh key rather than inheriting a
-// stale refusal. A bounded TTL cache (not a bare sync.Map): a NAS running for
-// weeks against a library whose files keep getting replaced/re-encoded would
-// otherwise accumulate one entry per stale identity forever.
+// planBuildMemo caches the per-file "does PlanHLS build?" verdict, keyed by
+// path+size+mtime so a replaced file re-proves itself. Bounded TTL cache: a
+// library whose files keep getting replaced would otherwise grow it forever.
 var planBuildMemo, _ = pkgcache.New[bool](0)
 
-// resetPlanBuildMemoCache swaps planBuildMemo for one capped at maxSize.
-// Test-only (unexported, unused outside *_test.go): production always wants
-// the package default; a test proving the cache stays bounded wants a small,
-// fast-to-fill cap instead of inserting thousands of real entries.
+// resetPlanBuildMemoCache swaps planBuildMemo for one capped at maxSize (test-only).
 func resetPlanBuildMemoCache(maxSize int) {
 	planBuildMemo, _ = pkgcache.NewWithMaxSize[bool](0, maxSize)
 }

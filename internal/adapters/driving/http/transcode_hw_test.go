@@ -374,34 +374,33 @@ func TestHWRouteUsable_HDRWithoutHWTonemap_RoutesSoftware(t *testing.T) {
 	}
 }
 
-// Audio renditions are only safe when the VIDEO IS COPIED.
-//
-// The rendition is offset by the source's composition delay (has_b_frames/fps),
-// which holds when the video is copied bit-for-bit. On a TRANSCODE the delay is
-// the ENCODER's, not the source's - proven: a source with has_b_frames=0 comes
-// out of libx264 with its first frame presented at 0.083 s. The offset would be
-// computed as 0 and the audio would run 83 ms early again.
-//
-// And a transcode never needs the split anyway: the video is already going
-// through ffmpeg, so the audio rides along in the same process and stays in sync
-// by construction. Renditions exist for the HYBRID rung (mkvgo video + separate
-// audio), which is a copy.
-func TestAudioRenditionsOnlyWhenVideoIsCopied(t *testing.T) {
-	h := &hlsVODServe{audioRenditionEnabled: true}
-
+// The rendition serves the copy rung and, when the encoder's reorder delay can
+// be compensated, the transcoded ladder too (one AAC encode for every rung).
+// Inverse telecine changes the frame rate, so it stays muxed.
+func TestAudioRenditionsForCopyAndTranscode(t *testing.T) {
+	probes := func(h *hlsVODServe) *hlsVODServe {
+		h.frameRateProbe = func(context.Context, string) float64 { return 24 }
+		h.encoderReorderProbe = func(context.Context, string, string, string, []string) (int, bool) { return 2, true }
+		return h
+	}
+	h := probes(&hlsVODServe{audioRenditionEnabled: true})
 	copyDec := domaintranscoding.PlaybackDecision{VideoDecision: "copy", AudioDecision: "transcode"}
-	if !h.audioRenditionsFor(copyDec) {
+	transcodeDec := domaintranscoding.PlaybackDecision{VideoDecision: "transcode", AudioDecision: "transcode"}
+	if !h.audioRenditionsFor(copyDec, nil) {
 		t.Error("video COPY + audio transcode is the hybrid rung: renditions must be on")
 	}
-
-	transcodeDec := domaintranscoding.PlaybackDecision{VideoDecision: "transcode", AudioDecision: "transcode"}
-	if h.audioRenditionsFor(transcodeDec) {
-		t.Error("a TRANSCODED video must keep its audio muxed: the encoder's own reorder " +
-			"delay is not the source's, so the rendition offset would be wrong")
+	if !h.audioRenditionsFor(transcodeDec, nil) {
+		t.Error("a transcoded ladder shares one audio rendition when the encoder delay is compensated")
 	}
-
-	off := &hlsVODServe{audioRenditionEnabled: false}
-	if off.audioRenditionsFor(copyDec) {
+	tru := true
+	telecine := []*domainlibrary.MediaStream{{StreamType: "video", Codec: "h264", IdetTelecine: &tru}}
+	if h.audioRenditionsFor(transcodeDec, telecine) {
+		t.Error("inverse telecine changes the frame rate: keep the audio muxed")
+	}
+	if (&hlsVODServe{audioRenditionEnabled: true}).audioRenditionsFor(transcodeDec, nil) {
+		t.Error("without the encoder probes a transcode keeps its audio muxed")
+	}
+	if probes(&hlsVODServe{audioRenditionEnabled: false}).audioRenditionsFor(copyDec, nil) {
 		t.Error("the operator opt-out must still win")
 	}
 }

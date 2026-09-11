@@ -533,9 +533,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		ActivePlayback: hlsVODRemover.ActivePlaybackCount,
 	}, slog.Default())
 
-	// mkvgo Playability shadow (Phase 3, log-only): compares every playback
-	// decision against ops.Playability when transcoding.playability_shadow=on
-	// (server_config, default off). Divergences are throttled WARNs - the
+	// mkvgo Playability shadow (log-only): compares the playback decision against
+	// ops.Playability once per (title, client, hour) unless
+	// transcoding.playability_shadow=off. Divergences are throttled WARNs - the
 	// decision engine itself is never influenced.
 	apptranscoding.SetPlayabilityShadow(apptranscoding.NewPlayabilityShadow(infra.mkvAdapter, r.ServerCfg, slog.Default()))
 

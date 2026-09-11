@@ -391,7 +391,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	params := h.parseParams(r)
 	clientSupportsHDR := hdrQuerySupported(r)
 	client := parseClientCapabilities(r, clientSupportsHDR)
-	analysis := h.analyzeStreams(r.Context(), mediaID, params.remuxOnly, client, params.subtitleTrack)
+	analysis := h.analyzeStreams(r.Context(), mediaID, params.remuxOnly, client, params.subtitleTrack, params.audioTrack)
 	params.audioTrack = clampAudioTrack(params.audioTrack, analysis.streams)
 
 	slog.Debug("transcode: decision", slog.String("media_id", mediaID), slog.Bool("needsVideoTranscode", analysis.needsVideoTranscode), slog.Bool("needsAudioTranscode", analysis.needsAudioTranscode), slog.Bool("remuxOnly", params.remuxOnly), slog.Bool("needsToneMap", analysis.needsToneMap))

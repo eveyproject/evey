@@ -244,24 +244,44 @@ func BundledVideoCompositionDelaySec(ctx context.Context, filePath string) float
 }
 
 func VideoCompositionDelaySec(ctx context.Context, ffprobeBinary, filePath string) float64 {
+	r := videoReorderFor(ctx, ffprobeBinary, filePath)
+	if r.hasBFrames <= 0 || r.fps <= 0 {
+		return 0 // no reorder → the first frame is presented at 0
+	}
+	return float64(r.hasBFrames) / r.fps
+}
+
+// BundledVideoFrameRate is the source video's average frame rate (0 when unknown).
+func BundledVideoFrameRate(ctx context.Context, filePath string) float64 {
+	return videoReorderFor(ctx, audioDelayProbeBinary, filePath).fps
+}
+
+type videoReorder struct {
+	hasBFrames int
+	fps        float64
+}
+
+func videoReorderFor(ctx context.Context, ffprobeBinary, filePath string) videoReorder {
 	fi, err := os.Stat(filePath)
 	if err != nil {
-		return 0
+		return videoReorder{}
 	}
 	key := fmt.Sprintf("%s|%d|%d", filePath, fi.Size(), fi.ModTime().UnixNano())
 	if v, ok := videoCompositionDelayCache.Load(key); ok {
-		return v.(float64)
+		if r, isReorder := v.(videoReorder); isReorder {
+			return r
+		}
 	}
-	d := probeVideoCompositionDelaySec(ctx, ffprobeBinary, filePath)
+	r := probeVideoReorder(ctx, ffprobeBinary, filePath)
 	if videoCompositionDelayCacheLen.Add(1) > videoCompositionDelayCacheCap {
 		videoCompositionDelayCache.Clear()
 		videoCompositionDelayCacheLen.Store(1)
 	}
-	videoCompositionDelayCache.Store(key, d)
-	return d
+	videoCompositionDelayCache.Store(key, r)
+	return r
 }
 
-func probeVideoCompositionDelaySec(ctx context.Context, binary, filePath string) float64 {
+func probeVideoReorder(ctx context.Context, binary, filePath string) videoReorder {
 	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "audio_delay.composition_delay"}, binary,
 		"-v", "quiet",
 		"-select_streams", "v:0",
@@ -270,7 +290,7 @@ func probeVideoCompositionDelaySec(ctx context.Context, binary, filePath string)
 		filePath,
 	)
 	if err != nil {
-		return 0
+		return videoReorder{}
 	}
 	var parsed struct {
 		Streams []struct {
@@ -279,17 +299,10 @@ func probeVideoCompositionDelaySec(ctx context.Context, binary, filePath string)
 		} `json:"streams"`
 	}
 	if err := json.Unmarshal(out, &parsed); err != nil || len(parsed.Streams) == 0 {
-		return 0
+		return videoReorder{}
 	}
 	s := parsed.Streams[0]
-	if s.HasBFrames <= 0 {
-		return 0 // no reorder → the first frame is presented at 0
-	}
-	fps := parseFPS(s.AvgFrameRate)
-	if fps <= 0 {
-		return 0
-	}
-	return float64(s.HasBFrames) / fps
+	return videoReorder{hasBFrames: s.HasBFrames, fps: parseFPS(s.AvgFrameRate)}
 }
 
 // parseFPS reads ffprobe's "24000/1001" rational. Returns 0 when unusable.

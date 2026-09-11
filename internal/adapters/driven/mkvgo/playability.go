@@ -36,25 +36,25 @@ func (a *Adapter) Playability(ctx context.Context, path string, target apptransc
 	return fromOpsPlayabilityReport(report), nil
 }
 
-// toOpsTarget converts the app-owned PlayabilityTarget into mkvgo's
-// ops.Target. MaxLevelH264/MaxLevelHEVC/DolbyVision/HEVCMain10/VP9Profile2
-// have no source in PlayabilityTarget (see playability_shadow.go's
-// mapClientProfileToTarget for why) and are left at zero value: no level
-// ceiling, DoVi/10-bit unsupported - the same conservative default mkvgo's
-// own strictest built-in targets use.
+// toOpsTarget converts the app-owned PlayabilityTarget into mkvgo's ops.Target.
+// MaxLevelHEVC and DolbyVision have no source (zero = no level cap / DoVi
+// unsupported, mkvgo's strictest built-in default).
 func toOpsTarget(t apptranscoding.PlayabilityTarget) ops.Target {
 	name := t.Name
 	if name == "" {
 		name = "custom"
 	}
 	return ops.Target{
-		Name:        name,
-		Container:   t.Containers,
-		VideoCodecs: t.VideoCodecs,
-		AudioCodecs: t.AudioCodecs,
-		MaxWidth:    t.MaxWidth,
-		MaxHeight:   t.MaxHeight,
-		HDR:         t.HDR,
+		Name:         name,
+		Container:    t.Containers,
+		VideoCodecs:  t.VideoCodecs,
+		AudioCodecs:  t.AudioCodecs,
+		MaxWidth:     t.MaxWidth,
+		MaxHeight:    t.MaxHeight,
+		HDR:          t.HDR,
+		MaxLevelH264: t.MaxLevelH264,
+		HEVCMain10:   t.HEVCMain10,
+		VP9Profile2:  t.VP9Profile2,
 	}
 }
 

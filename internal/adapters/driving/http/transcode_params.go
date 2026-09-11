@@ -87,7 +87,9 @@ func clampAudioTrack(idx int, streams []*domainlibrary.MediaStream) int {
 	return idx
 }
 
-func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, remuxOnly bool, client domaintranscoding.ClientProfile, subtitleTrack int) transcodeAnalysis {
+// analyzeStreams projects the shared decision engine onto the progressive
+// pipe's needs; audioTrack is the audio-relative index the pipe will map.
+func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, remuxOnly bool, client domaintranscoding.ClientProfile, subtitleTrack, audioTrack int) transcodeAnalysis {
 	a := transcodeAnalysis{needsAudioTranscode: true}
 
 	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
@@ -96,35 +98,15 @@ func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, rem
 		return a
 	}
 	a.streams = streams
-	for _, s := range streams {
-		slog.Debug("transcode: stream", slog.String("media_id", mediaID), slog.String("type", string(s.StreamType)), slog.String("codec", s.Codec), slog.Bool("default", s.IsDefault))
-		if s.StreamType == "video" && !remuxOnly && !containsCodec(client.VideoCodecs, s.Codec) {
-			a.needsVideoTranscode = true
-		}
-		if s.StreamType == "audio" && s.IsDefault {
-			if containsCodec(client.AudioCodecs, s.Codec) {
-				a.needsAudioTranscode = false
-			}
-		}
-	}
-
-	if subtitleTrack >= 0 {
-		subIdx := 0
-		for _, s := range streams {
-			if s.StreamType != "subtitle" {
-				continue
-			}
-			if subIdx == subtitleTrack {
-				a.subtitleCodec = s.Codec
-				if apptranscoding.IsImageSubtitle(s.Codec) {
-					a.burnInSubtitle = true
-					a.needsVideoTranscode = true
-				}
-				break
-			}
-			subIdx++
-		}
-	}
+	prefs := apptranscoding.DefaultTranscodingPreferences()
+	prefs.SubtitleBurnInTrack = subtitleTrack
+	prefs.AudioTrack = clampAudioTrack(audioTrack, streams)
+	prefs.ProgressiveOutput = true
+	d := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, "", client, 0, prefs)
+	a.burnInSubtitle = d.SubtitleDecision == "burn"
+	a.subtitleCodec = apptranscoding.SourceSubtitleCodec(streams, subtitleTrack)
+	a.needsVideoTranscode = a.burnInSubtitle || (!remuxOnly && d.VideoDecision == "transcode")
+	a.needsAudioTranscode = d.AudioDecision != "copy"
 
 	hdrStreams := make([]hdr.VideoStream, len(streams))
 	for i, s := range streams {
@@ -199,14 +181,4 @@ func maxAudioChannelsQuery(r *http.Request) int {
 		}
 	}
 	return 0
-}
-
-func containsCodec(list []string, codec string) bool {
-	codec = strings.ToLower(codec)
-	for _, v := range list {
-		if strings.EqualFold(v, codec) {
-			return true
-		}
-	}
-	return false
 }

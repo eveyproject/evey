@@ -170,6 +170,7 @@ func run() error {
 	loadOverride(ctx, cfgStore, "transcoding.av1_max_height", parseInt, &cfg.Transcoding.AV1MaxHeight)
 	loadOverride(ctx, cfgStore, "transcoding.hw_low_power", parseBool, &cfg.Transcoding.HWLowPowerEnabled)
 	loadOverride(ctx, cfgStore, "transcoding.max_video_bitrate_kbps", parseInt, &cfg.Transcoding.MaxVideoBitrateKbps)
+	loadOverride(ctx, cfgStore, "transcoding.max_video_bitrate_remote_kbps", parseInt, &cfg.Transcoding.MaxVideoBitrateRemoteKbps)
 	loadOverride(ctx, cfgStore, "ratelimit.login_max", parseInt, &cfg.Server.LoginRateLimitMax)
 	loadOverride(ctx, cfgStore, "ratelimit.global_max", parseInt, &cfg.Server.GlobalRateLimitMax)
 	loadOverride(ctx, cfgStore, "log.level", parseStr, &cfg.Log.Level)

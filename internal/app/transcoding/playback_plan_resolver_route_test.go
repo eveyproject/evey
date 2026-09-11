@@ -41,6 +41,10 @@ func routeSelector(t *testing.T, hwUsable bool) (*ProducerSelector, *namedProduc
 	return sel, sw, hw
 }
 
+func routeRequest(mediaID string) PlaybackRequest {
+	return PlaybackRequest{MediaID: mediaID, Streams: routeStreams(), Prefs: DefaultTranscodingPreferences()}
+}
+
 func routeStreams() []*library.MediaStream {
 	w, h := 3840, 2160
 	return []*library.MediaStream{{
@@ -62,7 +66,7 @@ func TestProducerFor(t *testing.T) {
 			AdmissionPinnedClass: func(string) (LadderClass, bool) { return LadderClassSoftware, true },
 		}
 
-		got := pr.ProducerFor("m1", routeStreams(), decision, false)
+		got := pr.ProducerFor(routeRequest("m1"), decision, false)
 		assert.Same(t, sw, got, "the pin must win over the hw gate - the ladder was shaped for software")
 		assert.NotSame(t, hw, got)
 	})
@@ -74,7 +78,7 @@ func TestProducerFor(t *testing.T) {
 			AdmissionPinnedClass: func(string) (LadderClass, bool) { return LadderClassHW, true },
 		}
 
-		assert.Same(t, hw, pr.ProducerFor("m1", routeStreams(), decision, false),
+		assert.Same(t, hw, pr.ProducerFor(routeRequest("m1"), decision, false),
 			"an HW pin is not a spill: the gate decides as usual")
 	})
 
@@ -85,7 +89,7 @@ func TestProducerFor(t *testing.T) {
 			AdmissionPinnedClass: func(string) (LadderClass, bool) { return LadderClassSoftware, false },
 		}
 
-		got := pr.ProducerFor("m1", routeStreams(), decision, false)
+		got := pr.ProducerFor(routeRequest("m1"), decision, false)
 		assert.Same(t, hw, got, "an absent pin must not be read as a software pin")
 		assert.NotSame(t, sw, got)
 	})
@@ -99,7 +103,7 @@ func TestProducerFor(t *testing.T) {
 			AdmissionPinnedClass: func(string) (LadderClass, bool) { return LadderClassSoftware, true },
 		}
 
-		got := pr.ProducerFor("m1", routeStreams(), decision, true)
+		got := pr.ProducerFor(routeRequest("m1"), decision, true)
 		assert.Same(t, copyProd, got, "a copy rung never encodes, so neither pool serves it")
 		assert.NotSame(t, sw, got)
 		assert.NotSame(t, hw, got)
@@ -109,11 +113,11 @@ func TestProducerFor(t *testing.T) {
 		orch := newNamedProducer("orchestrator")
 		pr := &PlanResolver{Orchestrator: orch}
 
-		assert.Same(t, orch, pr.ProducerFor("m1", routeStreams(), decision, false))
+		assert.Same(t, orch, pr.ProducerFor(routeRequest("m1"), decision, false))
 	})
 
 	t.Run("nothing wired returns nil rather than a wrong producer", func(t *testing.T) {
-		assert.Nil(t, (&PlanResolver{}).ProducerFor("m1", routeStreams(), decision, false))
+		assert.Nil(t, (&PlanResolver{}).ProducerFor(routeRequest("m1"), decision, false))
 	})
 }
 
@@ -174,17 +178,16 @@ func TestIsCopy_DiskGuard(t *testing.T) {
 // the manifest and the segments would then disagree with nothing to show for it.
 func TestPinKey_IsStableAndDiscriminating(t *testing.T) {
 	pr := &PlanResolver{}
-	streams := routeStreams()
 	transcodeH264 := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 
-	base := pr.PinKey("m1", streams, transcodeH264)
-	assert.Equal(t, base, pr.PinKey("m1", streams, transcodeH264), "the key must be a pure function of its inputs")
+	base := pr.PinKey(routeRequest("m1"), transcodeH264)
+	assert.Equal(t, base, pr.PinKey(routeRequest("m1"), transcodeH264), "the key must be a pure function of its inputs")
 
-	assert.NotEqual(t, base, pr.PinKey("m2", streams, transcodeH264), "distinct titles must never collide")
-	assert.NotEqual(t, base, pr.PinKey("m1", streams,
+	assert.NotEqual(t, base, pr.PinKey(routeRequest("m2"), transcodeH264), "distinct titles must never collide")
+	assert.NotEqual(t, base, pr.PinKey(routeRequest("m1"),
 		transcoding.PlaybackDecision{VideoCodec: "hevc", VideoDecision: "transcode"}),
 		"distinct output codecs must never collide")
-	assert.NotEqual(t, base, pr.PinKey("m1", streams,
+	assert.NotEqual(t, base, pr.PinKey(routeRequest("m1"),
 		transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "copy"}),
 		"copy and transcode of the same title are different streams")
 }
@@ -194,10 +197,9 @@ func TestPinKey_IsStableAndDiscriminating(t *testing.T) {
 // tracks two ceilings for what is one encode.
 func TestPinKey_FollowsTheEffectiveCodec(t *testing.T) {
 	pr := &PlanResolver{AV1Enabled: func() bool { return false }} // no HW, AV1 off
-	streams := routeStreams()
 
-	av1 := pr.PinKey("m1", streams, transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"})
-	h264 := pr.PinKey("m1", streams, transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"})
+	av1 := pr.PinKey(routeRequest("m1"), transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"})
+	h264 := pr.PinKey(routeRequest("m1"), transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"})
 
 	assert.Equal(t, h264, av1, "an AV1 request served as H.264 is the same stream to admission")
 }

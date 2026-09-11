@@ -52,28 +52,19 @@ func svtAV1PresetArgs(encoder string) []string {
 // variantIdx < 0 emits the single-output form (-profile:v); else the per-rung
 // -profile:v:N form used by the multi-variant builder. Reachable via a client
 // PreferredVideoCodec=hevc on a software path (no HW HEVC) - found by audit.
-// H.264 profile/level advertised in the manifest CODECS attribute; libx264
-// only (x265/av1 reject a "high" profile), so this stays a named H.264 pair.
-const (
-	h264Profile = "high"
-	h264Level   = "4.1"
-	// Above 1080p, level 4.1 is a lie (its macroblock budget stops at 1080p):
-	// 1440p/2160p rungs are signalled 5.1.
-	h264LevelUHD = "5.1"
-)
+// maxLevel (client decoder level_idc, 0 = none) lowers the signalled level
+// when the rung's natural one exceeds it.
+const h264Profile = "high"
 
-func h264LevelFor(height int) string {
-	if height > 1080 {
-		return h264LevelUHD
-	}
-	return h264Level
-}
-
-func softwareProfileLevelArgs(encoder string, variantIdx int, height int) []string {
+func softwareProfileLevelArgs(encoder string, variantIdx int, height int, maxLevel int) []string {
 	if encoder != "libx264" {
 		return nil
 	}
-	level := h264LevelFor(height)
+	idc := transcoding.H264LevelIdcFor(height)
+	if maxLevel > 0 && maxLevel < idc {
+		idc = maxLevel
+	}
+	level := transcoding.H264LevelString(idc)
 	if variantIdx < 0 {
 		return []string{"-profile:v", h264Profile, "-level:v", level}
 	}

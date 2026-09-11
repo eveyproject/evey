@@ -34,11 +34,10 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 	// before any per-variant fan-out - so BuildFFmpegArgs stays pure.
 	opts.AudioStartDelaySec = audioStartDelayFor(ctx, opts)
 	// Per-variant HW: one single-output ffmpeg per ABR rung behind a composite
-	// handle, instead of one multi-output process. Matches how mature servers
-	// drive HW - the multi-encode-in-one-process graph crashes fragile VA
-	// drivers (and the WSL d3d12 shim) and a single rung's failure shouldn't
-	// take the others down. Software keeps the single-process multi-variant
-	// graph (decode once, encode N - efficient and crash-free on libx264).
+	// handle - the multi-encode-in-one-process graph crashes fragile VA drivers
+	// (and the WSL d3d12 shim). The software producer already spawns one rung
+	// per process; the multi-variant builders serve the HW orchestrator with
+	// single_variant off.
 	if opts.PerVariantHW && opts.HWAccel != "" && opts.HWAccel != transcoding.None && len(opts.Profiles) > 1 {
 		return startPerVariant(ctx, opts)
 	}
@@ -631,74 +630,22 @@ func appendCopyPacingBurst(args []string, readRate float64) []string {
 
 func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	var args []string
-	// HLS seek precision: ffmpeg has -accurate_seek enabled by default
-	// since 2.1, which makes -ss BEFORE -i frame-accurate as soon as the
-	// stream is re-encoded (transcode, not copy). The pre-input -ss is
-	// the fast variant (jumps via the index, then decodes from the
-	// preceding keyframe up to the target second), so the manifest
-	// appears in the m3u8 within ~1s even on 30+ minute seeks.
-	//
-	// The catch is MPEG-TS muxing: by default ffmpeg shifts PTS by ~1.4s
-	// to give the demuxer headroom (PCR initial offset). hls.js then
-	// thinks the first segment starts at t=1.4s rather than t=0 and the
-	// playback clock drifts off by that amount, which the user
-	// experiences as "I clicked 36:41 and landed at ~36:18" (offset +
-	// snap_keyframe combination).
-	//
-	// -muxpreload 0 -muxdelay 0 disables the PTS shift so segments
-	// expose their natural starting timestamp (effectively 0). The HLS
-	// timeline ends up flush with the source-relative seek.
-	//
-	// Earlier attempts that were wrong:
-	//   - post-input -ss + copy : snap keyframe-after (+0..+5s drift)
-	//   - pre-input -ss + force_key_frames + tune zerolatency : -20s
-	//   - hybrid two-stage -ss : second -ss treated as output position
-	//     by ffmpeg, decoded from file-start of the *post-seek* stream
-	//     which gave nonsensical offsets
+	// Pre-input -ss everywhere (index jump, decode from the preceding keyframe);
+	// post-input -ss with copy snapped to the keyframe AFTER the target.
 	switch {
 	case opts.StartSec > 0 && opts.CopyOnSeek:
-		// COPY RUNG mid-stream start: input-seek + -c:v copy. StartSec is a plan
-		// keyframe boundary so pre-input -ss lands exactly, and copying preserves
-		// the SOURCE avcC. The re-encode branch below (libx264) emitted a Baseline
-		// init that OVERWROTE the shared High-profile init → every copied segment
-		// then decoded against the wrong SPS/PPS = scrambled colour-band frames.
-		//
-		// -avoid_negative_ts make_zero (NOT -copyts): the fMP4 init segment is
-		// SHARED per variant (stream_N_init.mp4) - every session, seek or not,
-		// overwrites it and the player decodes ALL segments against whichever init
-		// it loaded. -copyts preserved the absolute source PTS, which fMP4 records
-		// as an EDIT LIST in the init (elst media_time = StartSec). A seek session
-		// thus wrote a NON-canonical init that presentation-shifted EVERY segment -
-		// including the t=0 ones from the cold session - by +StartSec. Proven in a
-		// jellyfin-ffmpeg7 harness: cross-decoding a t=0 segment against a 12s-seek
-		// init reports start_time=12.0 (a 12 s desync / wrong seek landing).
-		// make_zero resets each segment to tfdt=0 and keeps the init BYTE-IDENTICAL
-		// regardless of seek offset, so the shared init stays canonical. Segment
-		// position comes from the VOD playlist (StartNumber + #EXTINF), exactly like
-		// the transcode rung whose segments are also tfdt=0.
-		//
-		// -noaccurate_seek: the WHOLE session must start at the seek LANDING,
-		// audio included. The copied video necessarily starts at the landed
-		// keyframe, and the session's bookkeeping (StartSec/StartNumber/tfdt
-		// rebase) is set to that landing - but ffmpeg's default accurate-seek
-		// DECODES AND DISCARDS the audio between the landing and the -ss target
-		// while the muxer still timestamps the first kept audio frame at the
-		// landing. Content and labels then disagree by (target − landing): the
-		// audio plays EARLY by up to a full GOP (measured: session audio content
-		// started at the 1351.33s target but carried the 1350.52s landing label
-		// → the deep-seek "son décalé" desync, while start-of-file playback was
-		// clean). With -noaccurate_seek the decoded audio from the landing is
-		// kept and encoded, so both tracks start at the landing, labels match
-		// content, and the first segment carries audio immediately (the
-		// "audio one segment-file late" artefact was the discarded-trim gap).
+		// COPY RUNG mid-stream start: -ss + -c:v copy keeps the source avcC (a
+		// libx264 re-encode here overwrote the shared High init with a Baseline
+		// one). -avoid_negative_ts make_zero, NOT -copyts: fMP4 inits are shared
+		// per variant and -copyts writes the seek offset into the init's edit list,
+		// shifting every segment decoded against it (proven on jellyfin-ffmpeg7).
+		// -noaccurate_seek: the default accurate seek discards the audio between the
+		// landing keyframe and the target while labels start at the landing, so the
+		// audio played early by up to a GOP on deep seeks.
 		args = append(args, "-noaccurate_seek")
-		// -ss MUST be the exact timestamp the seek-landing probe ran against
-		// (SeekTargetSec): probe(T) == landing(T) by construction, and the
-		// session's bookkeeping (StartSec/StartNumber = the landing) only holds
-		// for that same T. Re-deriving -ss from the landed StartSec would land
-		// one keyframe earlier AGAIN (ffmpeg CLI's ~130 ms DTS-heuristic seek
-		// offset on B-frame sources). Fallback (no probe ran): the nudged
-		// StartSec, correct for dense-cue, no-B-frame sources.
+		// -ss = the exact target the landing probe ran against (probe(T) ==
+		// landing(T)); re-deriving it from StartSec lands one keyframe earlier on
+		// B-frame sources (ffmpeg CLI's ~130 ms DTS heuristic).
 		target := opts.SeekTargetSec
 		if target <= 0 {
 			target = opts.StartSec + transcoding.CopySeekNudgeSec
@@ -722,15 +669,8 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-c:v", "copy", "-avoid_negative_ts", "make_zero")
 		args = append(args, copyVideoTagArgs(opts)...)
 	case opts.StartSec > 0:
-		// the field-proven recipe for HLS video transcode (verified
-		// against EncodingHelper.cs in master, 2025): pre-input -ss
-		// (accurate_seek default) + libx264 + force_key_frames every 5s
-		// + copyts/avoid_negative_ts/start_at_zero so the segments
-		// preserve source PTS. The client honours the requested seek
-		// position because the m3u8 segments carry the matching
-		// timestamps. No -noaccurate_seek (that's only for mp4 + copy
-		// remux), no -muxpreload/muxdelay (conflicts with -copyts), no
-		// -tune zerolatency (was the culprit of the earlier -20s drift).
+		// Seek without CopyOnSeek (no keyframe plan): re-encode from the target
+		// with a 1 s GOP so the first IDR lands within 1 s of the seek.
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 		args = appendInputModifiers(args, opts.ReadRate)
 		args = append(args, "-i", opts.FilePath)
@@ -745,11 +685,6 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 			"-c:v", "libx264",
 			"-preset", "ultrafast",
 			"-pix_fmt", "yuv420p",
-			// 1s GOP via -g + -keyint_min so the FIRST keyframe is at most
-			// 1s into the output. Combined with -copyts -start_at_zero,
-			// hls.js's startPosition:0 lands within ~1s of the requested
-			// seek instead of waiting for the first IDR at the ~5s GOP
-			// boundary that an expr:gte(t,n_forced*5) policy would produce.
 			"-g", "24",
 			"-keyint_min", "24",
 			"-sc_threshold", "0",
@@ -774,10 +709,15 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 	if hasAudio(opts) {
 		if opts.AudioDecision == "transcode" {
+			base := int64(192)
+			if len(opts.Profiles) > 0 && opts.Profiles[0].AudioBitrate > 0 {
+				base = opts.Profiles[0].AudioBitrate
+			}
 			args = append(args,
 				"-c:a", resolveAudioEncoder(opts.AudioCodec, opts.AudioEncoder),
 				"-ac", resolveAudioChannels(opts.MaxAudioChannels),
-				"-b:a", "192k",
+				"-ar", "48000",
+				"-b:a", fmt.Sprintf("%dk", scaledAudioBitrateKbps(base, opts.MaxAudioChannels)),
 			)
 			args = append(args, transcoding.AudioDownmixArgs(opts.MaxAudioChannels)...)
 			if opts.AudioNormalize {
@@ -911,9 +851,9 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	enc := resolveVideoEncoder(opts.VideoCodec)
 	args = append(args, "-c:v", enc)
 	args = append(args, hevcTagArgs(opts.VideoCodec, -1)...)
-	args = append(args, cpuBudgetThreadsArgs("")...)          // bound to the CPU budget (cgroup quota or NumCPU); operator override wins if set
-	args = append(args, softwareProfileLevelArgs(enc, -1, p.Height)...) // h264-only; x265/av1 pick their own
-	args = append(args, softwareX264TuningArgs(enc, -1)...)   // motion-search tuning: +24% on encode-bound sources
+	args = append(args, cpuBudgetThreadsArgs("")...)                                       // bound to the CPU budget (cgroup quota or NumCPU); operator override wins if set
+	args = append(args, softwareProfileLevelArgs(enc, -1, p.Height, opts.MaxH264Level)...) // h264-only; x265/av1 pick their own
+	args = append(args, softwareX264TuningArgs(enc, -1)...)                                // motion-search tuning: +24% on encode-bound sources
 	args = append(args,
 		// Capped CRF (see softwareCRF): quality-targeted with the rung bitrate as a
 		// hard ceiling, instead of a plain -b:v average.
@@ -959,20 +899,11 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
 		return appendTranscodeInputModifiers(a, opts.ReadRate)
 	})
-	// Preserve source PTS in the output so an fMP4 fragment carries a
-	// tfdt that matches the EXTINF position the Go-precomputed VOD
-	// manifest gave hls.js for that segment. Without `-copyts`, a rafale
-	// spawned at seg N>0 produces fragments whose tfdt restarts at 0;
-	// the browser rejects them as "no decoder for the format" because
-	// the init segment + fragment disagree on time origin.
-	//
-	// Deliberately NOT using `-avoid_negative_ts disabled` (the
-	// single-variant builder uses it together with `-start_at_zero`).
-	// fMP4 muxer requires non-negative timestamps, and we want
-	// ffmpeg's default behaviour to shift if needed without zeroing
-	// the absolute PTS.
-	args = append(args, "-copyts")
-
+	// No -copyts: movenc writes tfdt session-relative either way (the rebase
+	// pump maps a seek to the absolute timeline), and -copyts pushes the seek
+	// offset into the init's edit list, shifting every segment decoded against
+	// it (measured 2026-09-11: a cold segment read against a `-ss 12 -copyts`
+	// init starts at 12 s).
 	var filterParts []string
 	splitOutputs := make([]string, n)
 	for i := range n {
@@ -1020,7 +951,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		)
 		args = append(args, cpuBudgetThreadsArgs(fmt.Sprintf(":v:%d", i))...) // bound to the CPU budget per rung; operator override wins if set
 		args = append(args, hevcTagArgs(opts.VideoCodec, i)...)
-		args = append(args, softwareProfileLevelArgs(vcodec, i, p.Height)...) // h264-only; x265/av1 pick their own
+		args = append(args, softwareProfileLevelArgs(vcodec, i, p.Height, opts.MaxH264Level)...) // h264-only; x265/av1 pick their own
 		args = append(args, softwareX264TuningArgs(vcodec, i)...)
 		args = append(args,
 			// Capped CRF per rung (see softwareCRF): quality-targeted, rung bitrate

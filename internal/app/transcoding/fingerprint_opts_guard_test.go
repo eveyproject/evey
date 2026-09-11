@@ -60,6 +60,7 @@ var (
 		"DeinterlaceAll":      "opts.DeinterlaceAll",
 		"Telecine":            "opts.InverseTelecine",
 		"SourceSAR":           "opts.SourceSAR",
+		"MaxH264Level":        "opts.MaxH264Level (libx264 -level cap)",
 		"SourceVideoCodec":    "opts.SourceVideoCodec (copy path -tag:v)",
 	}
 	// Part of the cache identity but NOT an encoder input - each with the
