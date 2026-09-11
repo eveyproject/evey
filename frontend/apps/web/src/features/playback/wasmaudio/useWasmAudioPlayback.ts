@@ -5,6 +5,10 @@ import { WasmAudioEngine } from "./WasmAudioEngine";
 import { playbackSnapshot, registerEngineStats } from "../playbackSnapshot";
 import { extractAacAudioURI, extractAudioURI, injectToken } from "./wasmAudioShared";
 
+// Two steady-state sync beacons per session: after the relay hand-over has
+// settled, and well into continuous playback.
+const SYNC_SAMPLE_AFTER_MS = [20_000, 120_000];
+
 // Compatibility re-export: the pure helpers live in wasmAudioShared
 // (shared with the Cast Web Receiver, which must not pull in React/hls.js).
 export { extractAudioURI, injectToken } from "./wasmAudioShared";
@@ -75,6 +79,7 @@ export function useWasmAudioPlayback({
 
     let cancelled = false;
     let unregisterStats: (() => void) | null = null;
+    const syncTimers: ReturnType<typeof setTimeout>[] = [];
     // posSec is the picture's clock at the moment of the event: it is what
     // lets an operator line a mode change up with the server's segment lines.
     const report = (type: string, details: string, fatal = false): void =>
@@ -143,6 +148,14 @@ export function useWasmAudioPlayback({
         });
         engineRef.current = engine;
         unregisterStats = registerEngineStats(video, () => engine.debugStats());
+        // Steady-state sync samples: every other beacon fires on an event, so a
+        // film that plays without incident left no trace of lead/drift/output
+        // latency - the figures a "sound is late" report is checked against.
+        for (const afterMs of SYNC_SAMPLE_AFTER_MS) {
+          syncTimers.push(setTimeout(() => {
+            if (!cancelled && !video.paused) report("wasm_audio_sync", `t=${Math.round(afterMs / 1000)}s`);
+          }, afterMs));
+        }
         await engine.start();
       } catch (err) {
         if (cancelled) return;
@@ -154,6 +167,7 @@ export function useWasmAudioPlayback({
 
     return () => {
       cancelled = true;
+      for (const t of syncTimers) clearTimeout(t);
       unregisterStats?.();
       engineRef.current?.destroy();
       engineRef.current = null;

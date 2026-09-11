@@ -1164,12 +1164,18 @@ export class WasmAudioEngine {
     };
   }
 
-  // debugStats reports the live sync state. Used only by the DEV Playwright
-  // harness to measure real A/V drift; carries no production behaviour.
+  // debugStats reports the live sync state: the DEV Playwright harness and the
+  // playback beacons read it. driftMs is the anchor's own view and is small by
+  // construction; leadMs is the delay the schedule ADDS on top of it (measured
+  // estimate, or the static base until it matures) - the figure a viewer's
+  // "audio late by N ms" report has to be checked against.
   debugStats(): {
     videoTime: number;
     audioMediaTime: number;
     driftMs: number;
+    leadMs: number;
+    leadMeasured: boolean;
+    outputLatencyMs: number;
     activeSources: number;
     anchored: boolean;
     ctxState: string;
@@ -1180,10 +1186,14 @@ export class WasmAudioEngine {
     const audioMediaTime = this.anchored
       ? this.anchorMedia + ((this.ctx?.currentTime ?? 0) - this.anchorCtx) * this.anchorRate
       : NaN;
+    const ctx = this.ctx as (AudioContext & { outputLatency?: number }) | null;
     return {
       videoTime: this.video.currentTime,
       audioMediaTime,
       driftMs: (this.video.currentTime - audioMediaTime) * 1000,
+      leadMs: this.leadComp * 1000,
+      leadMeasured: this.leadEstimator.estimate != null,
+      outputLatencyMs: (ctx?.outputLatency ?? ctx?.baseLatency ?? 0) * 1000,
       activeSources: this.activeSources.size,
       anchored: this.anchored,
       ctxState: this.ctx?.state ?? "none",

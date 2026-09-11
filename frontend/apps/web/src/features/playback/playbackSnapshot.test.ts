@@ -36,8 +36,9 @@ describe("playbackSnapshot", () => {
 
   it("carries the wasm audio leg's state once the engine registers it", () => {
     const video = fakeVideo({ ct: 5, ranges: [[0, 20]] });
-    const unregister = registerEngineStats(video, () => ({ mode: "wasm", ctxState: "suspended", anchored: false, activeSources: 0, decoded: 3, driftMs: 41.6 }));
-    expect(playbackSnapshot(video)).toContain("wasm=wasm/suspended/free/src0/dec3 drift=42ms");
+    const unregister = registerEngineStats(video, () => ({ mode: "wasm", ctxState: "suspended", anchored: false, activeSources: 0, decoded: 3, driftMs: 41.6, leadMs: 100, leadMeasured: false, outputLatencyMs: 32.8 }));
+    // lead= is the delay the schedule adds; the star marks the static base, not a measurement.
+    expect(playbackSnapshot(video)).toContain("wasm=wasm/suspended/free/src0/dec3 drift=42ms lead=100ms* out=33ms");
     unregister();
     expect(playbackSnapshot(video)).not.toContain("wasm=");
   });

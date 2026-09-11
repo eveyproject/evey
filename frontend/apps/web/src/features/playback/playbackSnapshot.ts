@@ -14,6 +14,9 @@ export interface EngineStats {
   activeSources?: number;
   decoded?: number;
   driftMs?: number;
+  leadMs?: number;
+  leadMeasured?: boolean;
+  outputLatencyMs?: number;
 }
 
 // Engine stats are registered per <video> element by the wasm audio hook, so
@@ -84,6 +87,10 @@ export function playbackSnapshot(video: HTMLVideoElement, engine?: EngineStats |
   if (engine) {
     parts.push(`wasm=${engine.mode ?? "?"}/${engine.ctxState ?? "?"}/${engine.anchored ? "anch" : "free"}/src${engine.activeSources ?? 0}/dec${engine.decoded ?? 0}`);
     if (engine.driftMs != null && Number.isFinite(engine.driftMs)) parts.push(`drift=${Math.round(engine.driftMs)}ms`);
+    // The delay the schedule adds (measured or base) and the sink's own
+    // latency: a viewer's "audio late" report reads against these, not drift.
+    if (engine.leadMs != null && Number.isFinite(engine.leadMs)) parts.push(`lead=${Math.round(engine.leadMs)}ms${engine.leadMeasured ? "" : "*"}`);
+    if (engine.outputLatencyMs != null && Number.isFinite(engine.outputLatencyMs)) parts.push(`out=${Math.round(engine.outputLatencyMs)}ms`);
   }
   const render = renderStatsByVideo.get(video);
   if (render) {
