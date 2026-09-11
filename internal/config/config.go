@@ -399,7 +399,11 @@ type TranscodingConfig struct {
 	// MaxVideoBitrateKbps caps the served video bitrate; 0 follows the source
 	// bitrate (the default). Persisted under transcoding.max_video_bitrate_kbps.
 	MaxVideoBitrateKbps int
-	TrickplayCacheDir   string
+	// MaxVideoBitrateRemoteKbps is the same ceiling for a client outside the
+	// LAN (public IP): a remux at 70 Mb/s is fine on the LAN and useless over
+	// most uplinks. 0 = no remote-specific cap. transcoding.max_video_bitrate_remote_kbps.
+	MaxVideoBitrateRemoteKbps int
+	TrickplayCacheDir         string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch language
 	// without re-fetching the video stream.
@@ -531,6 +535,11 @@ func (c *Config) EffectiveMaxVideoBitrateKbps() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Transcoding.MaxVideoBitrateKbps
+}
+func (c *Config) EffectiveMaxVideoBitrateRemoteKbps() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Transcoding.MaxVideoBitrateRemoteKbps
 }
 func (c *Config) EffectiveHWLowPowerEnabled() bool {
 	c.mu.RLock()
@@ -843,17 +852,18 @@ func Load() (*Config, error) {
 			RefreshTokenLongTTL: envDuration("EVEY_JWT_REFRESH_LONG_TTL", 180*24*time.Hour),
 		},
 		Transcoding: TranscodingConfig{
-			MaxConcurrent:                envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
-			MaxSessions:                  envInt("EVEY_TRANSCODING_MAX_SESSIONS", 0),
-			CacheMaxGB:                   envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
-			CacheDir:                     envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
-			HWAccelEnabled:               envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
-			HWBackend:                    strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
-			HWMode:                       strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
-			HWFirstSegmentTimeout:        envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 10*time.Second),
+			MaxConcurrent:         envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
+			MaxSessions:           envInt("EVEY_TRANSCODING_MAX_SESSIONS", 0),
+			CacheMaxGB:            envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
+			CacheDir:              envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
+			HWAccelEnabled:        envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
+			HWBackend:             strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
+			HWMode:                strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
+			HWFirstSegmentTimeout: envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 10*time.Second),
 			// 0 follows the source bitrate; the web player sizes its forward buffer
 			// to the rung so a 70 Mb/s remux stays under the browser's MSE quota.
 			MaxVideoBitrateKbps:          envInt("EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS", 0),
+			MaxVideoBitrateRemoteKbps:    envInt("EVEY_TRANSCODING_MAX_VIDEO_BITRATE_REMOTE_KBPS", 20000),
 			HWPerVariant:                 envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
 			SingleVariant:                envBool("EVEY_TRANSCODING_SINGLE_VARIANT", true),
 			SoftwareMaxHeightOverride:    envInt("EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT", 0),

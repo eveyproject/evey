@@ -183,6 +183,13 @@ var (
 		Help: "Total VOD-pipeline ffmpeg rafale spawns, by reason.",
 	}, []string{"reason"})
 
+	// HLSVODTranscodeSessions counts masters served by the ffmpeg TRANSCODE
+	// ladder, by cause (TranscodeCause): what keeps a title off the free copy path.
+	HLSVODTranscodeSessions = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "evey_hlsvod_transcode_sessions_total",
+		Help: "Masters served by the transcode ladder, by the cause that ruled out a copy.",
+	}, []string{"cause"})
+
 	// HLSVODCopyTimelineDrift counts copy-rung segments whose rebased fMP4
 	// timeline does NOT match the keyframe plan's position for that segment
 	// index (beyond tolerance). This is the runtime tripwire for the bug class
@@ -343,6 +350,7 @@ func IncPluginError(id string) {
 
 func init() {
 	prometheus.MustRegister(
+		HLSVODTranscodeSessions,
 		HLSSessionsGauge, TranscodesActive,
 		HTTPRequestsTotal, HTTPRequestDuration, AuthFailuresTotal,
 		AuthzDeniedTotal, RemoteAccessRefusedTotal,

@@ -5,6 +5,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/stretchr/testify/assert"
 )
 
 // source_facts.go had NO test file, and mutation testing found 21 survivors in
@@ -323,4 +324,38 @@ func TestSourceTranscodeVideoRange(t *testing.T) {
 	if got := SourceCopyVideoRange(v(new(7), "smpte2084")); got != "" {
 		t.Errorf("the copy path must still refuse profile 7, got %q", got)
 	}
+}
+
+func TestSourceCopyBlockerAndTranscodeCause(t *testing.T) {
+	lvl := 40
+	ct := "bt709"
+	h264 := &library.MediaStream{StreamType: library.StreamTypeVideo, Codec: "h264", Level: &lvl, Keyframes: []int64{0, 3000}}
+	assert.Empty(t, SourceCopyBlocker([]*library.MediaStream{h264}))
+
+	noKf := *h264
+	noKf.Keyframes = nil
+	assert.Equal(t, "no_keyframes", SourceCopyBlocker([]*library.MediaStream{&noKf}))
+
+	noLevel := *h264
+	noLevel.Level = nil
+	assert.Equal(t, "level_unknown", SourceCopyBlocker([]*library.MediaStream{&noLevel}))
+
+	vfr := *h264
+	vfr.FrameRateMode = "vfr"
+	assert.Equal(t, "vfr", SourceCopyBlocker([]*library.MediaStream{&vfr}))
+
+	hevcNoTruth := &library.MediaStream{StreamType: library.StreamTypeVideo, Codec: "hevc", Profile: "Main 10", Level: &lvl, Keyframes: []int64{0}}
+	assert.Equal(t, "hdr_truth_unknown", SourceCopyBlocker([]*library.MediaStream{hevcNoTruth}))
+	dovi := 5
+	hevcDoVi := *hevcNoTruth
+	hevcDoVi.ColorTransfer = &ct
+	hevcDoVi.DoViProfile = &dovi
+	assert.Equal(t, "dovi_profile", SourceCopyBlocker([]*library.MediaStream{&hevcDoVi}))
+	assert.Equal(t, "no_video", SourceCopyBlocker(nil))
+
+	transcode := domaintranscoding.PlaybackDecision{VideoDecision: "transcode", TranscodeReasons: []string{"container_incompatible", "hdr_tonemapping_needed"}}
+	assert.Equal(t, "hdr_tonemapping_needed", TranscodeCause(transcode, nil), "the container alone never rules out a copy")
+	copyDec := domaintranscoding.PlaybackDecision{VideoDecision: "copy"}
+	assert.Equal(t, "copy_blocked:level_unknown", TranscodeCause(copyDec, []*library.MediaStream{&noLevel}))
+	assert.Equal(t, "copy_rung_unavailable", TranscodeCause(copyDec, []*library.MediaStream{h264}))
 }

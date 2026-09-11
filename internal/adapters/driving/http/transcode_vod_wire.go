@@ -119,6 +119,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	mediaLookup, _ := pkgcache.NewWithMaxSize[cachedMediaLookup](0, mediaLookupMax)
 	classLookup, _ := pkgcache.NewWithMaxSize[domaintranscoding.ContentClass](0, mediaLookupMax)
 	prefsLookup, _ := pkgcache.NewWithMaxSize[apptranscoding.TranscodingPreferences](0, mediaLookupMax)
+	userBitrateLookup, _ := pkgcache.NewWithMaxSize[int](0, mediaLookupMax)
 	h := &hlsVODServe{
 		keyframeWarmer:        s.KeyframeWarmer,
 		videoAdmission:        videoAdmissionOf(s.VideoLimiter),
@@ -138,6 +139,8 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		parental:              parental,
 		streamTokens:          s.StreamTokenStore,
 		compositionDelayProbe: s.VideoCompositionDelayProbe,
+		frameRateProbe:        s.VideoFrameRateProbe,
+		encoderReorderProbe:   s.EncoderReorderProbe,
 		castProgress:          s.CastProgress,
 		profilePrefs:          s.ProfilePrefs,
 		audioNormalizeGetter:  s.AudioNormalizeGetter,
@@ -190,6 +193,14 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 			}
 			return s.Cfg.EffectiveMaxVideoBitrateKbps()
 		},
+		maxVideoBitrateRemoteKbps: func() int {
+			if s.Cfg == nil {
+				return 0
+			}
+			return s.Cfg.EffectiveMaxVideoBitrateRemoteKbps()
+		},
+		userBitrate:       s.UserBitrate,
+		userBitrateLookup: userBitrateLookup,
 		// fMP4 is now the project default - matches the ffmpeg adapter
 		// (needsFMP4Segments returns true unconditionally) and Apple's
 		// post-WWDC-2024 stance on CMAF. Per-rendition behaviour stays

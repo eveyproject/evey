@@ -609,3 +609,25 @@ func TestDecisionFingerprintHash_TonemapImplementationForksHDR(t *testing.T) {
 		t.Fatalf("an SDR title ignores the tone-mapper: %s vs %s", sdr.Hash(), sdrHW.Hash())
 	}
 }
+
+// The client level cap forks the cache ONLY when it lowers a rung's signalled
+// level: a 5.1 phone and a level-less browser must keep sharing one encode.
+func TestDecisionFingerprint_Hash_H264LevelCapOnlyWhenItLowersTheSPS(t *testing.T) {
+	base := minimalFingerprint(t)
+	base.VideoCodec = "h264"
+	base.Profiles = []ProfileFingerprint{{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 5000, AudioBitrate: 192}}
+
+	same := base
+	same.MaxH264Level = 51
+	assert.Equal(t, base.Hash(), same.Hash(), "5.1 on a 1080p ladder signals 4.1 either way")
+
+	lowered := base
+	lowered.MaxH264Level = 40
+	assert.NotEqual(t, base.Hash(), lowered.Hash(), "4.0 lowers the 1080p rung's SPS level")
+
+	hevc := lowered
+	hevc.VideoCodec = "hevc"
+	hevcBase := base
+	hevcBase.VideoCodec = "hevc"
+	assert.Equal(t, hevcBase.Hash(), hevc.Hash(), "an HEVC output ignores the H.264 level")
+}

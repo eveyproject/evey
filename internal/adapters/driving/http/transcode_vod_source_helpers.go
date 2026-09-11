@@ -57,7 +57,12 @@ func sourceBytesOf(item *domainlibrary.MediaItem) int64 {
 	return item.File.Size
 }
 
-func sourceBitrateKbpsOf(item *domainlibrary.MediaItem) int64 {
+// sourceBitrateKbpsOf is the VIDEO stream bitrate when probed, else the file's
+// (which also counts the audio and subtitle tracks).
+func sourceBitrateKbpsOf(item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) int64 {
+	if v := apptranscoding.SourceVideoBitrateKbps(streams); v > 0 {
+		return v
+	}
 	if item == nil || item.File == nil {
 		return 0
 	}

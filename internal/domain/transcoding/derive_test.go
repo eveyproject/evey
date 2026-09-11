@@ -262,3 +262,19 @@ func TestDerivePolicyWithDefaults_FillsEachFieldIndependently(t *testing.T) {
 		}
 	})
 }
+
+func TestDerive_HWBridgeCeiling(t *testing.T) {
+	rep := BenchReport{
+		SourceRate: 24,
+		HWBackend:  "nvenc",
+		Samples: []BenchRungSample{
+			sample(LadderHWBridge, 720, 200, true),
+			sample(LadderHWBridge, 1080, 90, true),
+			sample(LadderHWBridge, 1440, 20, false),
+		},
+	}
+	assert.Equal(t, 1080, Derive(rep, DefaultDerivePolicy()).HWBridgeMaxHeight)
+	rep.HWBackend = ""
+	assert.Equal(t, 0, Derive(rep, DefaultDerivePolicy()).HWBridgeMaxHeight, "no live backend: no bridge ceiling")
+	assert.Equal(t, 0, Derive(BenchReport{SourceRate: 24, HWBackend: "nvenc"}, DefaultDerivePolicy()).HWBridgeMaxHeight, "unmeasured: 0, the software HDR cap applies")
+}

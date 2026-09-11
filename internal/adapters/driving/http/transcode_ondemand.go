@@ -119,7 +119,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 
 	// Hybrid: video from the packager, audio re-encoded by Evey's rendition
 	// pipeline. Only possible when that pipeline is wired and enabled.
-	if !h.audioRenditionsFor(decision) || h.audio == nil {
+	if !h.audioRenditionsFor(decision, streams) || h.audio == nil {
 		return false
 	}
 	master, err := h.buildHybridMaster(r, mediaID, item, streams)
@@ -158,11 +158,11 @@ func (h *hlsVODServe) buildHybridMaster(r *http.Request, mediaID string, item *d
 		Width:        dims.Width,
 		Height:       dims.Height,
 		VideoBitrate: videoKbps,
-		AudioBitrate: 128,
+		AudioBitrate: domaintranscoding.AudioRenditionBaseKbps,
 		Copy:         true,
 	}}
 	in.VideoPlaylistURI = onDemandPrefix + "playlist.m3u8"
-	if fb := h.copyFallbackVariant(r, mediaID, item, streams, videoKbps+128); fb != nil {
+	if fb := h.copyFallbackVariant(r, mediaID, item, streams, videoKbps+domaintranscoding.AudioRenditionBaseKbps); fb != nil {
 		in.FallbackVariants = []apptranscoding.FallbackVariant{*fb}
 	}
 	return h.manifestGen.Master(in)

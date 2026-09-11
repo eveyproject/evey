@@ -123,7 +123,7 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 	// audio playlist handlers agree on the same SourceTrackIdx
 	// numbering (audio-index, matches `ffmpeg -map 0:a:N`).
 	var audioRenditions []apptranscoding.AudioRendition
-	if h.audioRenditionsFor(decision) {
+	if h.audioRenditionsFor(decision, streams) {
 		audioRenditions = buildAudioRenditions(streams)
 	}
 
@@ -177,6 +177,12 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 				return 0
 			}
 			return parseIntQuery(r, "screenHeight", 0)
+		}(),
+		MaxH264Level: func() int {
+			if r == nil {
+				return 0
+			}
+			return parseIntQuery(r, "maxH264Level", 0)
 		}(),
 		// The channel ceiling is a decision input on the audio rendition the
 		// same way hdr=1 is on the video rung: the EXT-X-MEDIA URIs must carry

@@ -11,6 +11,7 @@ package transcoding
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -82,6 +83,9 @@ type PlanResolver struct {
 	// AudioRenditionEnabled mirrors the audio-rendition feature flag.
 	UseFMP4               bool
 	AudioRenditionEnabled bool
+	// TranscodeAudioRendition extends the audio rendition to transcoded ladders
+	// (the http adapter sets it when it can compensate the encoder's delay).
+	TranscodeAudioRendition bool
 }
 
 var _ PlaybackPlanResolver = (*PlanResolver)(nil)
@@ -472,9 +476,14 @@ func (pr *PlanResolver) HWOverlayWanted(decision transcoding.PlaybackDecision) b
 // title share one pinned ceiling (their video ladder is the same shape), while
 // distinct titles or codecs never collide. It must be derivable identically at
 // manifest- and segment-time from the request alone.
-func (pr *PlanResolver) PinKey(mediaID string, streams []*library.MediaStream, decision transcoding.PlaybackDecision) string {
-	ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, streams)
-	return mediaID + "|" + ec + "|" + decision.VideoDecision
+//
+// It also carries every REQUEST-scoped ladder input (screen height, bitrate
+// ceiling): the frozen ladder is read back by key, so two viewers of one title
+// with different caps must not share a pin or the second inherits the first's.
+func (pr *PlanResolver) PinKey(req PlaybackRequest, decision transcoding.PlaybackDecision) string {
+	ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, req.Streams)
+	return fmt.Sprintf("%s|%s|%s|sh=%d|bw=%d|lvl=%d", req.MediaID, ec, decision.VideoDecision,
+		req.ScreenHeight, pr.videoBitrateCeilingKbps(req, decision), req.Client.MaxH264Level)
 }
 
 // ShapeLadder picks the ABR ladder for a given (decision, media, streams)
@@ -495,7 +504,7 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 	isCopy := pr.IsCopy(decision, streams, req.SourceBytes)
 	var streamKey string
 	if !isCopy && pr.AdmissionFrozenLadder != nil {
-		streamKey = pr.PinKey(req.MediaID, streams, decision)
+		streamKey = pr.PinKey(req, decision)
 		if frozen, ok := pr.AdmissionFrozenLadder(streamKey); ok {
 			return frozen
 		}
@@ -542,7 +551,11 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 		// producer (reusing ResolveHW), and the producer's pure Profiles() owns
 		// the shaping tail. This is the single source of truth for ladder shape;
 		// manifest-time and segment-time both reach it via the same selector.
-		laddered = pr.Selector.For(decision, src).Profiles(base, src, decision, capability)
+		// The producer prices the EFFECTIVE codec (an AV1 request served as
+		// H.264 must not be capped at the AV1 software ceiling).
+		effective := decision
+		effective.VideoCodec, _, _, _, _, _ = pr.EffectiveVideoCodec(decision, streams)
+		laddered = pr.Selector.For(decision, src).Profiles(base, src, effective, capability)
 	default:
 		// No selector wired (hand-constructed test handlers). Reproduce the
 		// legacy shaping so unit tests that probe the ladder directly keep
@@ -569,19 +582,25 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 	// recompute the post-gate codec. Applied here (like the CMCD override) so the
 	// manifest- and segment-time ladders trim identically - the cache-hash
 	// invariant holds because both reach this shared head with the same inputs.
+	ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, streams)
 	if !isCopy {
-		laddered = transcoding.RaiseLadderToSource(laddered, req.SourceBitrateKbps, src.Width, src.Height, pr.videoBitrateCeilingKbps(req, decision))
+		ceiling := pr.videoBitrateCeilingKbps(req, decision)
+		laddered = transcoding.RaiseLadderToSource(laddered, req.SourceBitrateKbps, src.Width, src.Height, ceiling)
+		laddered = transcoding.CapLadderToVideoBitrate(laddered, ceiling)
 		laddered = transcoding.CapLadderToScreen(laddered, req.ScreenHeight)
+		// The decoder's H.264 level bounds the frame size it decodes: a 2160p
+		// rung is unplayable on a level-4.1 device whatever the bitrate.
+		if strings.EqualFold(ec, "h264") {
+			laddered = transcoding.CapLadderToH264Level(laddered, req.Client.MaxH264Level)
+		}
 	}
 
 	if pr.AV1MaxHeight != nil {
-		if m := pr.AV1MaxHeight(); m > 0 {
-			if ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, streams); strings.EqualFold(ec, "av1") {
-				laddered = transcoding.CapLadderToHeight(laddered, m)
-			}
+		if m := pr.AV1MaxHeight(); m > 0 && strings.EqualFold(ec, "av1") {
+			laddered = transcoding.CapLadderToHeight(laddered, m)
 		}
 	}
-	if ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, streams); strings.EqualFold(ec, "hevc") && !isCopy {
+	if strings.EqualFold(ec, "hevc") && !isCopy {
 		laddered = transcoding.ScaleLadderVideoBitrates(laddered, transcoding.HEVCBitrateNum, transcoding.HEVCBitrateDen)
 	}
 
@@ -594,10 +613,15 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 	// shaper, so the manifest a player holds and every segment it fetches
 	// shape the same ladder - the cache-hash invariant that rules this whole
 	// function. Copy requests are exempt: they never take a capacity slot.
-	if !isCopy && capability.SoftwareHDRMaxHeight > 0 && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
+	if !isCopy && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
 		if _, accel, _, _, usable, _ := pr.EffectiveVideoCodec(decision, streams); usable && accel != "" && !pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams)) {
-			// CPU tone-map between GPU decode and encode: the CPU stays the ceiling.
-			laddered = transcoding.CapLadderToHeight(laddered, capability.SoftwareHDRMaxHeight)
+			// CPU tone-map between GPU decode and encode: the bridge's own measured
+			// ceiling when the bench has one, else the software HDR ceiling.
+			if bridgeCap := capability.HWBridgeMaxHeight; bridgeCap > 0 {
+				laddered = transcoding.CapLadderToHeight(laddered, bridgeCap)
+			} else if capability.SoftwareHDRMaxHeight > 0 {
+				laddered = transcoding.CapLadderToHeight(laddered, capability.SoftwareHDRMaxHeight)
+			}
 		}
 	}
 
@@ -621,7 +645,7 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 			Codec:  SourceVideoCodec(streams),
 			Height: SourceVideoHeight(streams),
 		}
-		g := pr.AdmissionRoute(pr.PinKey(req.MediaID, streams, decision), natural, profileHeights(laddered), fallback, srcClass)
+		g := pr.AdmissionRoute(pr.PinKey(req, decision), natural, profileHeights(laddered), fallback, srcClass)
 		if g.OK {
 			if g.Class != natural && g.Class == LadderClassSoftware {
 				if swLadder := softwareShape(); len(swLadder) > 0 {
@@ -752,7 +776,9 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 	// Same predicate as the master handler and the decision: the codec alone is
 	// not the condition, the channel gate is part of it.
 	wasmAudioApplies := req.WasmAudio && WasmAudioApplies(streams, audioTrack, req.Prefs.MaxAudioChannels)
-	if (pr.AudioRenditionEnabled && decision.VideoDecision == "copy") || wasmAudioApplies {
+	renditionAudio := pr.AudioRenditionEnabled && !SourceTelecine(streams) &&
+		(decision.VideoDecision == "copy" || (decision.VideoDecision == "transcode" && pr.TranscodeAudioRendition))
+	if renditionAudio || wasmAudioApplies {
 		videoAudioTrack = -1
 	}
 
@@ -773,7 +799,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 	// spawn bills (CPU pool, not GPU). AV1 rides hardware only, so a spilled
 	// AV1 stream carries the H.264 the software encoder will actually produce.
 	if hwUsable && pr.AdmissionPinnedClass != nil {
-		if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(req.MediaID, streams, decision)); ok && cls != LadderClassHW {
+		if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(req, decision)); ok && cls != LadderClassHW {
 			hwAccel, hwDevice, hwFeatures, hwUsable, hwSoftwareDecode = "", "", nil, false, false
 			if strings.EqualFold(videoCodec, "av1") {
 				videoCodec = "h264"
@@ -817,6 +843,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		HDRTonemap:       slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") || (hdrPassWanted && !hwUsable),
 		HDRPassthrough:   hdrPassWanted && hwUsable,
 		HDRTransfer:      strings.ToLower(SourceTranscodeVideoRange(streams)),
+		MaxH264Level:     req.Client.MaxH264Level,
 		AudioNormalize:   normalize,
 		AudioEncoder:     pr.audioEncoderID(),
 		MaxAudioChannels: decision.MaxAudioChannels,
@@ -849,7 +876,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 	// session holds a limiter slot, the pinned ceiling must not move (see
 	// VideoAdmissionShaper - the cache-hash invariant, live edition).
 	if pr.AdmissionBind != nil {
-		pr.AdmissionBind(pr.PinKey(req.MediaID, streams, decision), fp.Hash())
+		pr.AdmissionBind(pr.PinKey(req, decision), fp.Hash())
 	}
 	return fp
 }
@@ -884,7 +911,7 @@ func (pr *PlanResolver) IsCopy(decision transcoding.PlaybackDecision, streams []
 // producer chosen for a segment matches the one the ladder was shaped for
 // (and thus the cache hash). Falls back to the orchestrator when no selector
 // is wired (hand-built test handlers); returns nil only when neither is set.
-func (pr *PlanResolver) ProducerFor(mediaID string, streams []*library.MediaStream, decision transcoding.PlaybackDecision, isCopy bool) StreamProducer {
+func (pr *PlanResolver) ProducerFor(req PlaybackRequest, decision transcoding.PlaybackDecision, isCopy bool) StreamProducer {
 	if pr.Selector != nil {
 		if isCopy {
 			return pr.CopyProducer
@@ -893,13 +920,13 @@ func (pr *PlanResolver) ProducerFor(mediaID string, streams []*library.MediaStre
 		// software producer regardless of the hw gate - the producer must be
 		// the one the ladder was shaped for (see ShapeLadder).
 		if pr.AdmissionPinnedClass != nil {
-			if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(mediaID, streams, decision)); ok && cls != LadderClassHW {
+			if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(req, decision)); ok && cls != LadderClassHW {
 				if sw := pr.Selector.Software(); sw != nil {
 					return sw
 				}
 			}
 		}
-		return pr.Selector.For(decision, SourceDimsOf(streams))
+		return pr.Selector.For(decision, SourceDimsOf(req.Streams))
 	}
 	return pr.Orchestrator
 }

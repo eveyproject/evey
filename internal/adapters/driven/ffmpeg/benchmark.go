@@ -287,6 +287,11 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		if slices.Contains(hwDomainCodecs(hwCodecs), "hevc") {
 			hwHDR10 = probeHWHDR10Encode(ctx, r.ffmpegPath, hwBackend, hwDevice)
 		}
+		// No GPU tone-mapper: HDR runs the CPU tone-map bridged between the GPU
+		// decode and encode. Measure that shape so its ladder gets its own ceiling.
+		if !hwTonemap {
+			hwSamples = append(hwSamples, r.benchHWBridge(ctx, hwBackend, hwDomainCodecs(hwCodecs))...)
+		}
 	}
 
 	// What the encode rungs above were DECODED from, and how fast this host
@@ -934,6 +939,44 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		}
 	}
 	return 0, "", nil, "", nil
+}
+
+// benchHWBridge walks hwBenchLadder through hwTonemapBridge (GPU decode,
+// CPU tone-map at the rung width, GPU encode) on the HDR sample. Nil when the
+// backend has no bridge chain or no H.264 encoder.
+func (r *BenchmarkRunner) benchHWBridge(ctx context.Context, backend string, codecs []string) []transcoding.BenchRungSample {
+	if !slices.Contains(codecs, "h264") {
+		return nil
+	}
+	accel := transcoding.HWAccelType(backend)
+	encoder := "h264_" + backend
+	sample, fallback := r.resolveHDRSample(ctx)
+	useTonemapx := tonemapxAvailable(r.ffmpegPath)
+	required := float64(r.sourceRate()) * r.margin
+	var samples []transcoding.BenchRungSample
+	for i, h := range hwBenchLadder {
+		o := hdr.DefaultToneMapOptions()
+		o.DstWidth = h * 16 / 9
+		o.UseTonemapx = useTonemapx
+		chain := hwTonemapBridge(accel, hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, o))
+		if chain == "" {
+			return nil
+		}
+		laddered := hwBenchLadder[:i+1]
+		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, hwInputArgs(backend), chain)
+		passing := ok && fps >= required
+		r.logger.Info("benchmark: hw tone-map bridge probe",
+			slog.String("backend", backend), slog.Int("height", h),
+			slog.Float64("fps", fps), slog.Float64("required_fps", required), slog.Bool("passing", passing))
+		samples = append(samples, transcoding.BenchRungSample{
+			Ladder: transcoding.LadderHWBridge, Height: h, FPS: fps, RequiredFPS: required,
+			Passing: passing, ParallelEncodes: len(laddered),
+		})
+		if !passing {
+			break
+		}
+	}
+	return samples
 }
 
 // hwDomainCodecs maps probed encoder names (h264_nvenc, hevc_vaapi, ...) back

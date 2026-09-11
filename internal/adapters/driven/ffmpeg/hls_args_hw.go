@@ -585,10 +585,7 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 	vcodec := videoEncoderFor(opts.VideoCodec, opts.HWAccel)
 
 	args := appendHWTranscodeInputArgs(nil, opts)
-	// Same source-PTS preservation as the software multi-variant builder: a
-	// rafale spawned at seg N>0 must emit fMP4 fragments whose tfdt matches the
-	// VOD manifest's EXTINF, or the browser rejects them.
-	args = append(args, "-copyts")
+	// No -copyts, same reason as buildMultiVariantArgs (edit-list poisoning).
 
 	splitOutputs := make([]string, n)
 	for i := range n {

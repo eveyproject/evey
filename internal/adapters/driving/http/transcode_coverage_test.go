@@ -141,7 +141,7 @@ func TestAnalyzeStreams_H264_AAC_DirectPlay(t *testing.T) {
 			{StreamType: "audio", Codec: "aac", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1, 0)
 	if a.needsVideoTranscode {
 		t.Error("h264 should not need video transcode")
 	}
@@ -158,7 +158,7 @@ func TestAnalyzeStreams_HEVC_NeedsTranscode(t *testing.T) {
 			{StreamType: "audio", Codec: "aac", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1, 0)
 	if !a.needsVideoTranscode {
 		t.Error("hevc should need video transcode")
 	}
@@ -172,7 +172,7 @@ func TestAnalyzeStreams_RemuxOnly_NoVideoTranscode(t *testing.T) {
 			{StreamType: "audio", Codec: "aac", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", true, domaintranscoding.DefaultWebProfile, -1)
+	a := h.analyzeStreams(context.Background(), "m1", true, domaintranscoding.DefaultWebProfile, -1, 0)
 	if a.needsVideoTranscode {
 		t.Error("remux mode should not trigger video transcode")
 	}
@@ -186,7 +186,7 @@ func TestAnalyzeStreams_NonAACAudio_NeedsTranscode(t *testing.T) {
 			{StreamType: "audio", Codec: "dts", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1, 0)
 	if !a.needsAudioTranscode {
 		t.Error("dts should need audio transcode")
 	}
@@ -200,7 +200,7 @@ func TestAnalyzeStreams_OpusAudio_NoCopy(t *testing.T) {
 			{StreamType: "audio", Codec: "opus", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1, 0)
 	if a.needsAudioTranscode {
 		t.Error("opus should not need audio transcode")
 	}
@@ -214,7 +214,7 @@ func TestAnalyzeStreams_MP3Audio_NoCopy(t *testing.T) {
 			{StreamType: "audio", Codec: "mp3", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1, 0)
 	if a.needsAudioTranscode {
 		t.Error("mp3 should not need audio transcode")
 	}
@@ -225,7 +225,7 @@ func TestAnalyzeStreams_StreamsError(t *testing.T) {
 		item: testMediaItem("lib1"),
 		sErr: errors.New("db error"),
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1, 0)
 	if a.streams != nil {
 		t.Error("expected nil streams on error")
 	}
@@ -246,7 +246,7 @@ func TestAnalyzeStreams_HEVC_EAC3_Firefox_TranscodeBoth(t *testing.T) {
 		VideoCodecs: []string{"h264", "vp9"},
 		AudioCodecs: []string{"aac", "mp3", "opus", "flac"},
 	}
-	a := h.analyzeStreams(context.Background(), "m1", false, firefox, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, firefox, -1, 0)
 	if !a.needsVideoTranscode {
 		t.Error("HEVC should need transcode on Firefox")
 	}
@@ -267,7 +267,7 @@ func TestAnalyzeStreams_HEVC_EAC3_Safari_CopyBoth(t *testing.T) {
 		VideoCodecs: []string{"h264", "hevc", "vp9"},
 		AudioCodecs: []string{"aac", "mp3", "opus", "flac", "ac3", "eac3"},
 	}
-	a := h.analyzeStreams(context.Background(), "m1", false, safari, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, safari, -1, 0)
 	if a.needsVideoTranscode {
 		t.Error("HEVC should copy on Safari")
 	}
@@ -288,7 +288,7 @@ func TestAnalyzeStreams_HEVC_EAC3_PartialSupport(t *testing.T) {
 		VideoCodecs: []string{"h264", "hevc"},
 		AudioCodecs: []string{"aac", "mp3", "opus"},
 	}
-	a := h.analyzeStreams(context.Background(), "m1", false, client, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, client, -1, 0)
 	if a.needsVideoTranscode {
 		t.Error("HEVC should copy when client supports it")
 	}

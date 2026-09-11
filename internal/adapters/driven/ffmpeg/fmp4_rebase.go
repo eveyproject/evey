@@ -504,11 +504,13 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, procExited <-chan
 				continue
 			}
 			src := filepath.Join(privDir, name)
-			if name == initName {
+			// A multi-variant session writes one init PER rung into the same dir;
+			// every one of them must reach the cache, not only variantIdx's.
+			if strings.HasPrefix(name, namePrefix+"_") && strings.HasSuffix(name, "_init.mp4") {
 				if !fmp4CompleteMoov(src) {
 					continue // still being written
 				}
-				if initTS == nil {
+				if initTS == nil && name == initName {
 					if ts, err := parseInitTimescales(src); err == nil {
 						initTS = ts // best-effort fallback map
 					}

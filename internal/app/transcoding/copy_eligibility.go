@@ -57,16 +57,25 @@ type CopySource struct {
 // contains the codec, SupportsHDR for HDR sources) before VideoDecision lands
 // on "copy"; this guard is about the SOURCE being advertisable and colour-safe.
 func CopyRungEligible(src CopySource) bool {
+	return CopyBlocker(src) == ""
+}
+
+// CopyBlocker names the gate that keeps this source off the copy rung, or ""
+// when it is copy-eligible. The names are metric labels (see
+// SourceCopyBlocker): a closed set, one per gate above.
+func CopyBlocker(src CopySource) string {
 	if src.Level == nil {
-		return false // unknown level → no accurate CODECS → no copy
+		return "level_unknown" // no accurate CODECS without it
 	}
 	if strings.EqualFold(src.FrameRateMode, "vfr") {
-		return false // variable frame rate → keyframe-cut copy segments drift A/V
+		return "vfr" // keyframe-cut copy segments drift A/V
 	}
 	codec := strings.ToLower(strings.TrimSpace(src.Codec))
 	if codec == "h264" {
-		// 10-bit H.264 is out of the copy scope (no meaningful client decode).
-		return !src.TenBit
+		if src.TenBit {
+			return "h264_10bit" // no meaningful client decode
+		}
+		return ""
 	}
 
 	var profileWired bool
@@ -78,25 +87,25 @@ func CopyRungEligible(src CopySource) bool {
 	case "vp9":
 		profileWired = vp9ProfileIdx(src.Profile) >= 0
 	default:
-		return false
+		return "codec_unwired"
 	}
 	if !profileWired {
-		return false // no wired CODECS string for this profile
+		return "profile_unwired" // no wired CODECS string for this profile
 	}
 	if src.ColorTransfer == nil {
-		return false // HDR/DoVi ground truth never probed → not colour-safe
+		return "hdr_truth_unknown" // HDR/DoVi never probed → not colour-safe
 	}
 	if src.DoViProfile != nil {
 		if *src.DoViProfile != 8 || src.DoViBLCompat == nil {
-			return false // P5/P7/P10/unknown: base layer not raw-renderable
+			return "dovi_profile" // P5/P7/P10/unknown: base layer not raw-renderable
 		}
 		switch *src.DoViBLCompat {
 		case 1, 2, 4: // HDR10 / SDR / HLG-compatible base layer
 		default:
-			return false
+			return "dovi_profile"
 		}
 	}
-	return true
+	return ""
 }
 
 // CopyVideoCodecString returns the RFC-6381 codec string to advertise for a

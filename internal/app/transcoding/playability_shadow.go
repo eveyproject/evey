@@ -24,9 +24,8 @@ import (
 // which runs after d is fully computed and never mutates it.
 
 // PlayabilityShadowConfigKey is the server_config key gating the shadow
-// comparison (admin panel, never an env var - see a project note).
-// "on" enables it; any other value, or the key being absent (the boot
-// default), keeps it off.
+// comparison (admin panel). On unless the value is "off" (default on since
+// 2026-09-11: one head read per title, client and hour, see shouldObserve).
 const PlayabilityShadowConfigKey = "transcoding.playability_shadow"
 
 // playabilityShadowThrottleTTL bounds how often the SAME (media path, target)
@@ -61,13 +60,16 @@ const playabilityShadowGateTimeout = 2 * time.Second
 // mkvgo dependency; the mkvgo adapter's Playability method (the
 // PlayabilityAnalyzer implementation) does the ops.Target conversion.
 type PlayabilityTarget struct {
-	Name        string
-	Containers  []string
-	VideoCodecs []string
-	AudioCodecs []string
-	MaxWidth    int
-	MaxHeight   int
-	HDR         bool
+	Name         string
+	Containers   []string
+	VideoCodecs  []string
+	AudioCodecs  []string
+	MaxWidth     int
+	MaxHeight    int
+	HDR          bool
+	MaxLevelH264 int  // level_idc cap, 0 = none
+	HEVCMain10   bool // 10-bit HEVC decodable
+	VP9Profile2  bool // 10-bit VP9 decodable
 }
 
 // PlayabilityTrackVerdict is one track's mkvgo playability verdict, mirroring
@@ -107,8 +109,9 @@ type PlayabilityShadow struct {
 	config   shared.ServerConfigRepository
 	logger   *slog.Logger
 
-	mu   sync.Mutex
-	seen map[string]time.Time // throttleKey -> last time a divergence was logged
+	mu       sync.Mutex
+	seen     map[string]time.Time // throttleKey -> last time a divergence was logged
+	observed map[string]time.Time // throttleKey -> last time (path, target) was analysed at all
 
 	// wg tracks in-flight Observe goroutines. Only Wait (test-only - production
 	// callers never need this, Observe is deliberately fire-and-forget) reads it.
@@ -136,6 +139,7 @@ func NewPlayabilityShadow(analyzer PlayabilityAnalyzer, config shared.ServerConf
 		config:   config,
 		logger:   logger,
 		seen:     make(map[string]time.Time),
+		observed: make(map[string]time.Time),
 	}
 }
 
@@ -153,6 +157,13 @@ func (s *PlayabilityShadow) Observe(ctx context.Context, path string, decision *
 	// every segment of every stream. Off is the default, so that was the normal
 	// case, not the edge case.
 	if !s.gateAllows(ctx) {
+		return
+	}
+	// Observe runs once per decision, i.e. once per HLS segment; the verdict for
+	// a (title, client) pair cannot change between two segments, so one head
+	// read per hour per pair is all the comparison needs.
+	target := mapClientProfileToTarget(client)
+	if !s.shouldObserve(path + "::" + targetFingerprint(target)) {
 		return
 	}
 	// Detached from the request context on purpose (same reasoning as
@@ -181,7 +192,7 @@ func (s *PlayabilityShadow) Observe(ctx context.Context, path string, decision *
 					slog.Any("panic", r), slog.String("path", path))
 			}
 		}()
-		s.observeOnce(bgCtx, path, snap, client)
+		s.observeOnce(bgCtx, path, snap, target)
 	})
 }
 
@@ -200,11 +211,7 @@ func (s *PlayabilityShadow) Wait() {
 // the comparison log. Any of these failing (gate off, analyze error, no video
 // track) is a silent no-op - this feature must never surface as an error to
 // anything downstream.
-func (s *PlayabilityShadow) observeOnce(ctx context.Context, path string, snap decisionSnapshot, client transcoding.ClientProfile) {
-	// No gate check here: Observe already refused to spawn us if the feature is
-	// off. Re-reading it would put a second SELECT per segment on the enabled
-	// path, which is the one that matters once an operator turns this on.
-	target := mapClientProfileToTarget(client)
+func (s *PlayabilityShadow) observeOnce(ctx context.Context, path string, snap decisionSnapshot, target PlayabilityTarget) {
 	report, err := s.analyzer.Playability(ctx, path, target)
 	if err != nil {
 		s.logger.Debug("playability shadow: analyze failed", slog.String("path", path), slog.Any("err", err))
@@ -256,9 +263,6 @@ func (s *PlayabilityShadow) observeOnce(ctx context.Context, path string, snap d
 		slog.Any("mkvgo_reasons", mkvgoReasons))
 }
 
-// enabled reads the PlayabilityShadowConfigKey server_config row. Any failure
-// to read it (nil repo, missing row, store error) defaults to off - the same
-// "must never break the caller" posture the rest of this file follows.
 // gateAllows reports whether the shadow is switched on, re-reading the config
 // at most once per playabilityShadowGateTTL. The read is deliberately
 // synchronous: it is one query per TTL rather than one per segment, and doing
@@ -288,15 +292,37 @@ func (s *PlayabilityShadow) expireGateCache() {
 	s.gateMu.Unlock()
 }
 
+// enabled reads the PlayabilityShadowConfigKey row: only an explicit "off"
+// disables the shadow (absent row, nil repo or store error keep the default).
 func (s *PlayabilityShadow) enabled(ctx context.Context) bool {
 	if s.config == nil {
-		return false
+		return true
 	}
 	entry, err := s.config.Get(ctx, PlayabilityShadowConfigKey)
 	if err != nil || entry == nil {
+		return true
+	}
+	return !strings.EqualFold(strings.TrimSpace(entry.Value), "off")
+}
+
+// shouldObserve reports whether (path, target) has not been analysed within
+// playabilityShadowThrottleTTL, recording "now" when it returns true.
+func (s *PlayabilityShadow) shouldObserve(key string) bool {
+	now := time.Now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if last, ok := s.observed[key]; ok && now.Sub(last) < playabilityShadowThrottleTTL {
 		return false
 	}
-	return strings.EqualFold(strings.TrimSpace(entry.Value), "on")
+	s.observed[key] = now
+	if len(s.observed) > playabilityShadowSeenMax {
+		for k, t := range s.observed {
+			if now.Sub(t) >= playabilityShadowThrottleTTL {
+				delete(s.observed, k)
+			}
+		}
+	}
+	return true
 }
 
 // shouldLog reports whether key's divergence has not been logged within
@@ -322,52 +348,32 @@ func (s *PlayabilityShadow) shouldLog(key string) bool {
 	return true
 }
 
-// mapClientProfileToTarget builds a PlayabilityTarget directly from the
-// fields transcoding.ClientProfile already carries (VideoCodecs, AudioCodecs,
-// Containers, MaxWidth/MaxHeight, SupportsHDR) - the SAME struct the real
-// decision engine judges the stream against, so this is a faithful mapping,
-// not a guess at one of mkvgo's built-in named targets (safari/chrome/...).
-//
-// LIMITATION: ClientProfile carries no H.264/HEVC level ceiling, no Dolby
-// Vision signal, and no HEVC-Main10 / VP9-Profile2 (10-bit) signal, so those
-// ops.Target fields are left at their zero value. The two gaps skew mkvgo's
-// verdict in OPPOSITE directions: a zero level ceiling means "no limit", so a
-// level-bound divergence can only make mkvgo look more permissive than the
-// real client; DoVi/10-bit zero-valued mean "unsupported", so mkvgo demands a
-// transcode for every HEVC Main10 or Dolby Vision stream even when the real
-// client (and Evey's engine, with its per-profile DoVi matrix) plays it fine.
-// Every mkvgo="transcode" divergence whose reasons cite only Main10/DoVi/
-// VP9-Profile2 is therefore an EXPECTED mapping artifact, not evidence
-// against the real decision - confirmed on prod 2026-07-28/29 (6 such WARNs,
-// all 10-bit 2160p titles Evey was serving correctly). Widening ClientProfile
-// with those signals is what would make this class comparable.
+// mapClientProfileToTarget builds the mkvgo target from the SAME ClientProfile
+// the decision engine judges against. 10-bit HEVC/VP9 are declared decodable
+// because that is the decision's own rule (pixelFormatPlayable); Dolby Vision
+// stays unmapped (the decision's per-profile matrix has no ClientProfile
+// signal), so a DoVi-only "transcode" from mkvgo is an expected artifact.
 func mapClientProfileToTarget(client transcoding.ClientProfile) PlayabilityTarget {
 	return PlayabilityTarget{
-		Name:        "client-profile",
-		Containers:  client.Containers,
-		VideoCodecs: client.VideoCodecs,
-		AudioCodecs: client.AudioCodecs,
-		MaxWidth:    client.MaxWidth,
-		MaxHeight:   client.MaxHeight,
-		HDR:         client.SupportsHDR,
+		Name:         "client-profile",
+		Containers:   client.Containers,
+		VideoCodecs:  client.VideoCodecs,
+		AudioCodecs:  client.AudioCodecs,
+		MaxWidth:     client.MaxWidth,
+		MaxHeight:    client.MaxHeight,
+		HDR:          client.SupportsHDR,
+		MaxLevelH264: client.MaxH264Level,
+		HEVCMain10:   true,
+		VP9Profile2:  true,
 	}
 }
 
-// unmappedCodecSignalReasons are the mkvgo reason strings produced by EXACTLY
-// the three ops.Target fields mapClientProfileToTarget cannot fill in
-// (HEVCMain10, VP9Profile2, DolbyVision - see its LIMITATION note). Because a
-// zero value means "unsupported" on mkvgo's side, mkvgo judges a client that is
-// strictly more restrictive than the real one and demands a transcode for
-// content Evey serves correctly. Matching on the reason text is what makes the
-// coupling checkable: each string below is emitted by one of those three fields
-// and by nothing else (mkvgo v0.25.1, mkv/ops/playability.go:207,211,215).
-//
-// Deliberately NOT here: "HDR10 static metadata is unsupported on target" -
-// PlayabilityTarget.HDR IS mapped (from ClientProfile.SupportsHDR), so an HDR
-// divergence is a real signal about a real client, not an artifact.
+// unmappedCodecSignalReasons: the reason mkvgo emits for the one ops.Target
+// field mapClientProfileToTarget cannot fill (DolbyVision, zero = unsupported).
+// Matching the text keeps the coupling checkable (mkvgo v0.25.1,
+// mkv/ops/playability.go:215). "HDR10 static metadata is unsupported on target"
+// is deliberately NOT here: HDR IS mapped, so that divergence is real.
 var unmappedCodecSignalReasons = []string{
-	"HEVC Main10 (10-bit) is unsupported on target",
-	"VP9 Profile 2 (10-bit) is unsupported on target",
 	"Dolby Vision is unsupported on target",
 }
 
@@ -465,6 +471,6 @@ func videoTrackVerdict(report *PlayabilityReport) (string, []string) {
 // stable throttle-key component, so the same media path with two materially
 // different targets (e.g. two different clients) throttles independently.
 func targetFingerprint(t PlayabilityTarget) string {
-	return fmt.Sprintf("%s|%v|%v|%v|%dx%d|hdr=%v",
-		t.Name, t.Containers, t.VideoCodecs, t.AudioCodecs, t.MaxWidth, t.MaxHeight, t.HDR)
+	return fmt.Sprintf("%s|%v|%v|%v|%dx%d|hdr=%v|lvl=%d",
+		t.Name, t.Containers, t.VideoCodecs, t.AudioCodecs, t.MaxWidth, t.MaxHeight, t.HDR, t.MaxLevelH264)
 }

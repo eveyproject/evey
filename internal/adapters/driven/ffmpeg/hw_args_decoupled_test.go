@@ -141,3 +141,18 @@ func TestHWUsable_DecoupledGuards(t *testing.T) {
 		t.Error("a plain decoupled VAAPI session is exactly what this path is for")
 	}
 }
+
+// A HW multi-variant seek must not carry -copyts either: the shared init's
+// edit list would shift every rung's segments (see TestBuildFFmpegArgs_MultiVariant_WithSeek).
+func TestBuildMultiVariantHWArgs_SeekHasNoCopyts(t *testing.T) {
+	opts := sampleHWOpts(transcoding.VAAPI, "/dev/dri/renderD128", 3)
+	opts.StartSec = 30
+	args := buildMultiVariantHWArgs(opts)
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "-ss 30.000") {
+		t.Fatalf("expected the seek, got: %s", joined)
+	}
+	if strings.Contains(joined, "-copyts") {
+		t.Fatalf("-copyts must not be emitted on a HW multi-variant seek: %s", joined)
+	}
+}

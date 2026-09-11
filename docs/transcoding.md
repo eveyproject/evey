@@ -142,6 +142,19 @@ works** (real CUDA passthrough); **VAAPI/QSV do not** - the d3d12 VA driver
 crashes on Evey's multi-variant encode. Evey detects WSL and greys VAAPI/QSV in
 the admin. Validate VAAPI/QSV on a native Linux host.
 
+### HDR passthrough and HDR10+
+
+On a GPU probed for Main10 encoding (`hw_hdr10_encode`), an HDR source played by
+an HDR-capable client that decodes HEVC is re-encoded as HEVC Main10 with the
+HDR kept: the static HDR10 signalling (bt2020 / PQ or HLG, mastering display
+SEI) is carried through. HDR10+ dynamic metadata is **not** re-emitted, so an
+HDR10+ title plays as plain HDR10 on that path. Dolby Vision profile 7 falls
+back to its HDR10 base layer the same way; profile 5 is tone-mapped to SDR.
+
+Audio sample rate is never a reason to re-encode: a 96 kHz track the client's
+codec list accepts is copied as-is. A client whose decoder stops at 48 kHz has
+to say so through its codec declaration, the server does not assume it.
+
 ## Browser AC-3 / E-AC-3 audio (WebAssembly decoder)
 
 Most browsers cannot decode AC-3/E-AC-3 natively (licensing), which classically

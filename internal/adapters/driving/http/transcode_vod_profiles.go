@@ -38,7 +38,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 		MediaID:           itemID(item),
 		Streams:           streams,
 		SourceBytes:       sourceBytesOf(item),
-		SourceBitrateKbps: sourceBitrateKbpsOf(item),
+		SourceBitrateKbps: sourceBitrateKbpsOf(item, streams),
 	}
 	return h.planResolver().ShapeLadder(ctx, req, decision)
 }
@@ -48,19 +48,16 @@ func (h *hlsVODServe) ladderClassFor(decision domaintranscoding.PlaybackDecision
 }
 
 // audioRenditionsFor reports whether THIS request serves its audio as a separate
-// HLS rendition (#EXT-X-MEDIA) rather than muxed into the video segments.
-//
-// Only when the VIDEO IS COPIED. The rendition is placed on the video's timeline
-// by offsetting it with the SOURCE's composition delay (has_b_frames/fps), which
-// is only the truth when the video is copied bit-for-bit. On a transcode the
-// delay belongs to the ENCODER: a source with no B-frames at all comes out of
-// libx264 presented 83 ms late, and the offset would be computed as zero - the
-// audio would run early again, audibly.
-//
-// A transcode does not need the split anyway: the video already goes through
-// ffmpeg, so the audio rides the same process and stays in sync by construction.
-// Renditions exist to unlock the HYBRID rung - mkvgo packaging a COPIED video
-// with zero ffmpeg, while its non-browser audio is re-encoded on the side.
-func (h *hlsVODServe) audioRenditionsFor(decision domaintranscoding.PlaybackDecision) bool {
-	return h.audioRenditionEnabled && decision.VideoDecision == "copy"
+// HLS rendition (#EXT-X-MEDIA): one AAC encode shared by every rung, and a rung
+// switch that never re-fetches audio. The rendition is placed on the video's
+// timeline with the video's composition delay (transcode_audio_sync.go), so a
+// source whose frame rate the transcode changes (inverse telecine) stays muxed.
+func (h *hlsVODServe) audioRenditionsFor(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
+	if !h.audioRenditionEnabled {
+		return false
+	}
+	if decision.VideoDecision == "transcode" {
+		return h.encoderReorderProbe != nil && h.frameRateProbe != nil && !apptranscoding.SourceTelecine(streams)
+	}
+	return decision.VideoDecision == "copy"
 }

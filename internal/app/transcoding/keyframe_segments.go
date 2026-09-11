@@ -14,42 +14,18 @@ type CopySegment struct {
 func (s CopySegment) DurationMs() int64 { return s.EndMs - s.StartMs }
 
 // KeyframeSegments partitions [0, durationMs) into copy-rung segments with a
-// boundary at EVERY source keyframe - one segment per keyframe gap, no
-// coalescing. The function is PURE and DETERMINISTIC in (keyframes, durationMs):
-// the addressable cache and the precalculated manifest both derive segment N's
-// boundary from it, so any drift between the two is a permanent cache miss.
+// boundary at EVERY source keyframe, no coalescing. PURE in (keyframes,
+// durationMs): the cache and the precalculated manifest both derive segment N
+// from it, so any drift is a permanent cache miss.
 //
-// WHY every keyframe (no minimum-duration merging): the ffmpeg HLS muxer is the
-// other half of this contract - the copy session runs `-hls_time 0` so it also
-// splits at every keyframe. That is the ONLY split rule ffmpeg can apply that is
-// independent of where the session started. With any hls_time > 0 the muxer
-// splits on an ABSOLUTE n×hls_time grid relative to the session's own start
-// (NOT "duration since the previous cut"): on long-GOP sources the grid lags
-// behind the cuts until every keyframe qualifies, and a `-ss` session's grid is
-// offset from the cold session's. Measured in prod (Doctor Strange, H.264
-// ~10.4 s GOPs, -hls_time 6): ffmpeg cut at every keyframe while the plan
-// coalesced to ≥6 s spans → the segment NUMBERING drifted minutes from the
-// playlist (segment 226 carried content for t=2021 s where the playlist said
-// t=2216 s). Reproduced and verified against jellyfin-ffmpeg7: `-hls_time 0`
-// splits at every keyframe for cold AND seek sessions alike, which a
-// keyframe-list plan replicates exactly. Pathologically dense keyframes
-// (all-intra sources) are rejected upstream by the planner's density guard.
-//
-// keyframes must be sorted ascending (the prober guarantees it). Keyframes at
-// or beyond durationMs are ignored. Returns nil when there is nothing to
-// segment.
-//
-// THE FIRST KEYFRAME IS BOUNDARY 0, it is not a cut. ffmpeg at `-hls_time 0`
-// opens segment 0 on the first packet it muxes and cuts on every keyframe AFTER
-// that: it never emits a segment for the leading partial GOP. So a source whose
-// first keyframe sits at 44 ms (no cue at exactly 0 - common) yields the SAME
-// segment count and numbering as one with a cue at 0; only the produced
-// timeline's origin moves by those 44 ms, which is what the rebase pump's
-// tolerance absorbs. Emitting both a synthetic 0 bound and that first keyframe
-// invented a phantom [0,44 ms) segment ffmpeg never produced and shifted the
-// whole plan one index against the real output (prod: every copy segment
-// tripping the divergence tripwire, and a manifest whose time<->segment map was
-// a full GOP off for the entire media).
+// Every keyframe because the copy session runs `-hls_time 0`, the only ffmpeg
+// split rule independent of where the session started (a >0 hls_time splits on
+// a grid relative to the session's own start; measured in prod as numbering
+// drifting minutes from the playlist on 10 s GOPs). The FIRST keyframe is
+// boundary 0, not a cut: ffmpeg opens segment 0 on the first packet and cuts on
+// keyframes AFTER it, so a first cue at 44 ms yields the same numbering as one
+// at 0 (a synthetic 0 bound invented a phantom segment and shifted the plan by
+// one index, prod). keyframes sorted ascending; at/beyond durationMs ignored.
 func KeyframeSegments(keyframes []int64, durationMs int64) []CopySegment {
 	if durationMs <= 0 || len(keyframes) == 0 {
 		return nil

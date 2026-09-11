@@ -100,6 +100,49 @@ func SourceCopyVideoCodec(streams []*library.MediaStream) string {
 	return ""
 }
 
+// SourceCopyBlocker names why the source video cannot ride the copy rung
+// ("" when it can): "no_video", "no_keyframes", or a CopyBlocker gate.
+func SourceCopyBlocker(streams []*library.MediaStream) string {
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		if len(s.Keyframes) == 0 {
+			return "no_keyframes"
+		}
+		return CopyBlocker(CopySource{
+			Codec:         s.Codec,
+			Profile:       s.Profile,
+			Level:         s.Level,
+			TenBit:        StreamIsTenBit(s),
+			ColorTransfer: s.ColorTransfer,
+			DoViProfile:   s.DoViProfile,
+			DoViBLCompat:  s.DoViBLCompat,
+			FrameRateMode: s.FrameRateMode,
+		})
+	}
+	return "no_video"
+}
+
+// TranscodeCause labels why a session encodes video instead of copying it: the
+// first client-side reason when the decision transcodes, else the source-side
+// copy blocker ("copy_blocked:<gate>"), else "copy_rung_unavailable" (producer
+// off, disk guard). The closed label set of the transcode-sessions metric.
+func TranscodeCause(decision transcoding.PlaybackDecision, streams []*library.MediaStream) string {
+	if decision.VideoDecision == "transcode" {
+		for _, r := range decision.TranscodeReasons {
+			if r != "container_incompatible" {
+				return r
+			}
+		}
+		return "video_transcode"
+	}
+	if b := SourceCopyBlocker(streams); b != "" {
+		return "copy_blocked:" + b
+	}
+	return "copy_rung_unavailable"
+}
+
 // VideoCopyEligible reports whether the SOURCE itself can ride a copy rung:
 // the decision says copy and the video codec is one we can carry verbatim.
 // This is the only part the mkvgo packager shares with the ffmpeg copy rung -
@@ -296,6 +339,22 @@ func SourceVideoCodec(streams []*library.MediaStream) string {
 
 // SourceVideoHeight returns the first video stream's height (0 when unprobed),
 // the other half of what the pipeline must DECODE. Admission prices the pair.
+// SourceVideoBitrateKbps is the probed bitrate of the first real video stream,
+// 0 when unknown (the caller then falls back to the file bitrate).
+func SourceVideoBitrateKbps(streams []*library.MediaStream) int64 {
+	hasReal := library.HasRealVideoStream(streams)
+	for _, s := range streams {
+		if s == nil || s.StreamType != library.StreamTypeVideo || library.IsCoverArtStream(s, hasReal) {
+			continue
+		}
+		if s.Bitrate != nil && *s.Bitrate > 0 {
+			return *s.Bitrate / 1000
+		}
+		return 0
+	}
+	return 0
+}
+
 func SourceVideoHeight(streams []*library.MediaStream) int {
 	for _, s := range streams {
 		if s != nil && s.StreamType == library.StreamTypeVideo {

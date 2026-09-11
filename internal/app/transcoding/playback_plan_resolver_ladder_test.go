@@ -225,3 +225,137 @@ func TestShapeLadder_FreezesTheCappedLadderNotTheRawOne(t *testing.T) {
 		assert.LessOrEqual(t, p.Height, 480, "the frozen ladder must already carry the caps")
 	}
 }
+
+// The pin key must carry every REQUEST-scoped ladder input: two viewers of the
+// same title with different screens (or bitrate caps) must not share a frozen
+// ladder, or the second inherits the first's ceiling.
+func TestShapeLadder_RequestScopedCapsDoNotLeakAcrossViewers(t *testing.T) {
+	frozen := map[string][]transcoding.HLSProfile{}
+	pr := &PlanResolver{
+		Selector: NewProducerSelector(&stubProducer{profiles: transcoding.LadderFilmHighMotion}, nil, nil),
+		AdmissionFrozenLadder: func(key string) ([]transcoding.HLSProfile, bool) {
+			l, ok := frozen[key]
+			return l, ok
+		},
+		AdmissionFreezeLadder: func(key string, ladder []transcoding.HLSProfile) { frozen[key] = ladder },
+	}
+	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
+
+	phone := ladderRequest(2160)
+	phone.ScreenHeight = 720
+	tv := ladderRequest(2160)
+	tv.ScreenHeight = 2160
+
+	assert.Equal(t, []int{480, 720}, ladderHeights(t, pr.ShapeLadder(context.Background(), phone, decision)))
+	assert.Equal(t, []int{480, 720, 1080, 2160}, ladderHeights(t, pr.ShapeLadder(context.Background(), tv, decision)),
+		"the TV must not read the phone's frozen 720p ladder")
+
+	// Same title, one viewer raised to the 40 Mb/s source, the next capped at
+	// 3 Mb/s: the raise (which the cap holds back) must not leak either.
+	raised := ladderRequest(2160)
+	raised.SourceBitrateKbps = 40_000
+	capped := raised
+	capped.MaxBitrateKbps = 3000
+	assert.Equal(t, int64(40_000), pr.ShapeLadder(context.Background(), raised, decision)[3].VideoBitrate)
+	for _, p := range pr.ShapeLadder(context.Background(), capped, decision) {
+		assert.LessOrEqual(t, p.VideoBitrate, int64(3000), "a capped viewer must not read the raised frozen ladder")
+	}
+}
+
+// A decoder capped at H.264 level 4.1 cannot decode a 2160p rung whatever the
+// bitrate: the cap must reach the ladder (and only for an H.264 output).
+func TestShapeLadder_H264LevelCapsTheLadder(t *testing.T) {
+	pr := &PlanResolver{
+		Selector: NewProducerSelector(&stubProducer{profiles: transcoding.LadderFilmHighMotion}, nil, nil),
+	}
+	req := ladderRequest(2160)
+	req.Client.MaxH264Level = 41
+
+	h264 := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
+	assert.Equal(t, []int{480, 720, 1080}, ladderHeights(t, pr.ShapeLadder(context.Background(), req, h264)))
+
+	hevc := transcoding.PlaybackDecision{VideoCodec: "hevc", VideoDecision: "transcode", TranscodeReasons: []string{"preferred_video_codec"}}
+	assert.Equal(t, []int{480, 720, 1080, 2160}, ladderHeights(t, pr.ShapeLadder(context.Background(), req, hevc)),
+		"an HEVC output is not bound by the H.264 level")
+
+	uncapped := ladderRequest(2160)
+	assert.Equal(t, []int{480, 720, 1080, 2160}, ladderHeights(t, pr.ShapeLadder(context.Background(), uncapped, h264)))
+	assert.NotEqual(t, pr.PinKey(req, h264), pr.PinKey(uncapped, h264), "the level is a ladder input, so it keys the pin")
+}
+
+// A bitrate cap (profile, cellular, admin) must bound the rungs the master
+// offers, not only the raise: a 3 Mb/s viewer was still offered the 7 Mb/s rung.
+func TestShapeLadder_BitrateCeilingBoundsTheRungs(t *testing.T) {
+	pr := &PlanResolver{
+		Selector: NewProducerSelector(&stubProducer{profiles: transcoding.LadderFilmHighMotion}, nil, nil),
+	}
+	req := ladderRequest(2160)
+	req.MaxBitrateKbps = 3000
+	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
+	for _, p := range pr.ShapeLadder(context.Background(), req, decision) {
+		assert.LessOrEqual(t, p.VideoBitrate, int64(3000), "rung %s", p.Name)
+	}
+}
+
+// The software producer prices the codec the segments will CARRY: an AV1
+// preference served as H.264 (AV1 off) is capped at the H.264 ceiling.
+func TestShapeLadder_SoftwareCeilingFollowsTheEffectiveCodec(t *testing.T) {
+	sw := &SoftwareProducer{opts: SoftwareProducerOptions{}}
+	pr := &PlanResolver{
+		Capability: func() transcoding.EncodeCapability {
+			return transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareAV1MaxHeight: 480}
+		},
+		AV1Enabled: func() bool { return false },
+		Selector:   NewProducerSelector(sw, nil, nil),
+	}
+	decision := transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode", TranscodeReasons: []string{"preferred_video_codec"}}
+	got := ladderHeights(t, pr.ShapeLadder(context.Background(), ladderRequest(1080), decision))
+	assert.Equal(t, 1080, got[len(got)-1], "served as H.264, so the H.264 ceiling applies")
+}
+
+// The CPU tone-map bridged between a GPU decode and encode has its own measured
+// ceiling; without one, the software HDR ceiling stays the conservative cap.
+func TestShapeLadder_HDRBridgeUsesItsOwnCeiling(t *testing.T) {
+	capability := transcoding.EncodeCapability{
+		SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160,
+		HWBackend: "nvenc", HWCodecs: []string{"h264"}, HWDecodeCodecs: []string{"hevc"},
+		HW10BitTranscode: true, HWTonemap: false, HWBridgeMaxHeight: 1440,
+	}
+	hw := &stubProducer{profiles: transcoding.LadderFilmHighMotion}
+	pr := &PlanResolver{
+		Capability:     func() transcoding.EncodeCapability { return capability },
+		HWAccelEnabled: func() bool { return true },
+		Selector:       NewProducerSelector(&stubProducer{profiles: transcoding.LadderFilmHighMotion}, hw, func(transcoding.PlaybackDecision, SourceDims) bool { return true }),
+	}
+	req := ladderRequest(2160)
+	req.Streams[0].Codec = "hevc"
+	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode", TranscodeReasons: []string{"hdr_tonemapping_needed"}}
+
+	assert.Equal(t, []int{480, 720, 1080}, ladderHeights(t, pr.ShapeLadder(context.Background(), req, decision)),
+		"the bridge ceiling (1440 > ladder's 1080 rung) bounds the HDR ladder, not the 720 software cap")
+
+	capability.HWBridgeMaxHeight = 0
+	assert.Equal(t, []int{480, 720}, ladderHeights(t, pr.ShapeLadder(context.Background(), req, decision)),
+		"unmeasured bridge: the software HDR ceiling applies")
+}
+
+// With the rendition extended to transcodes, a transcoded ladder's video
+// segments carry no audio (atrack=-1 forks the cache off the muxed ladder);
+// inverse telecine keeps the muxed shape.
+func TestFingerprint_TranscodeAudioRenditionMakesVideoOnly(t *testing.T) {
+	pr := &PlanResolver{AudioRenditionEnabled: true, TranscodeAudioRendition: true}
+	req := ladderRequest(1080)
+	req.Streams = append(req.Streams, &library.MediaStream{StreamType: library.StreamTypeAudio, Codec: "aac"})
+	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode", AudioDecision: "transcode", AudioCodec: "aac"}
+	fp := pr.Fingerprint(context.Background(), req, decision, transcoding.LadderFilmNormal)
+	assert.Equal(t, -1, fp.AudioTrack)
+
+	muxed := &PlanResolver{AudioRenditionEnabled: true}
+	assert.Equal(t, 0, muxed.Fingerprint(context.Background(), req, decision, transcoding.LadderFilmNormal).AudioTrack,
+		"without the transcode extension the ladder stays muxed")
+
+	tru := true
+	req.Streams[0].IdetTelecine = &tru
+	assert.Equal(t, 0, pr.Fingerprint(context.Background(), req, decision, transcoding.LadderFilmNormal).AudioTrack,
+		"inverse telecine changes the frame rate: the audio stays muxed")
+}

@@ -24,6 +24,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -50,6 +51,10 @@ type hlsVODServe struct {
 	// no ffprobe dependency of its own. nil = no compensation, the pre-fix
 	// behaviour. See transcode_audio_sync.go for what it is used for.
 	compositionDelayProbe func(ctx context.Context, path string) float64
+	// frameRateProbe + encoderReorderProbe: the same shift for a TRANSCODED
+	// video (the encoder's reorder delay, not the source's).
+	frameRateProbe      func(ctx context.Context, path string) float64
+	encoderReorderProbe func(ctx context.Context, codec, accel, device string, features []string) (int, bool)
 
 	manifestGen *apptranscoding.ManifestGenerator
 	cache       *apptranscoding.SegmentCache
@@ -208,6 +213,11 @@ type hlsVODServe struct {
 	hwTonemapEnabled func() bool
 	// hwLowPowerEnabled: admin opt-in for the Intel low-power encoder (transcoding.hw_low_power).
 	hwLowPowerEnabled func() bool
+	// maxVideoBitrateRemoteKbps: the ceiling for a public-IP client (0 = none);
+	// userBitrate: the admin per-user limit, cached per user like the prefs.
+	maxVideoBitrateRemoteKbps func() int
+	userBitrate               UserBitrateGetter
+	userBitrateLookup         *pkgcache.TTLCache[int]
 	// maxVideoBitrateKbps: server ceiling on the served video bitrate (0 = source).
 	maxVideoBitrateKbps func() int
 
@@ -577,6 +587,18 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
+	if !rp.IsCopy {
+		// One line and one counter per transcode master: what a copy would have
+		// needed (the reason list) is the backlog of the free path.
+		cause := apptranscoding.TranscodeCause(rp.Decision, streams)
+		metrics.HLSVODTranscodeSessions.WithLabelValues(cause).Inc()
+		slog.InfoContext(r.Context(), "hls-vod: transcode master served",
+			slog.String("media_id", mediaID),
+			slog.String("cause", cause),
+			slog.String("reasons", strings.Join(rp.Decision.TranscodeReasons, ",")),
+			slog.String("video_codec", rp.Plan.VideoCodec),
+			slog.String("hw_accel", rp.Plan.HWAccel))
+	}
 
 	out, err := h.manifestGen.Master(in)
 	if err != nil {
@@ -697,7 +719,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// and 500. Gating on the copy decision makes transcode fall through to the
 	// precalculated manifest, unchanged.
 	if rp.IsCopy {
-		if producer := h.producerForDecision(rp.Decision, streams, item, rp.IsCopy); producer != nil {
+		if producer := h.producerForPlan(rp); producer != nil {
 			if mp, ok := producer.(apptranscoding.ManifestProvider); ok {
 				data, mErr := mp.Manifest(r.Context(), rp.FP)
 				if mErr != nil {
@@ -762,7 +784,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// PreWarm runs in a goroutine bound to the orchestrator's shutdownCtx
 	// so Close() cancels every in-flight pre-warm (clean test teardown).
 	// At the announced start position when the master carried one.
-	if producer := h.producerForDecision(rp.Decision, streams, item, rp.IsCopy); producer != nil {
+	if producer := h.producerForPlan(rp); producer != nil {
 		producer.PreWarm(rp.FP, profileIdx, h.prewarmSegment(mediaID, in.DurationSec, time.Now()))
 	}
 }
@@ -847,7 +869,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// EnsureSegmentRange calls, the client-hint, and the wait budget all target
 	// the same machine - and the same one the ladder was shaped for. Falls back
 	// to the orchestrator when no selector is wired (degenerate setups).
-	producer := h.producerForDecision(rp.Decision, streams, item, rp.IsCopy)
+	producer := h.producerForPlan(rp)
 	if producer == nil {
 		span.SetStatus(codes.Error, "no stream producer wired")
 		http.Error(w, `{"message":"transcode unavailable"}`, http.StatusServiceUnavailable)
@@ -1013,7 +1035,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 // producerForRequest resolves the StreamProducer (software vs hardware) for the
 // current request. Wrapper for the call sites without a resolved plan (prewarm
 // of the NEXT episode, tests): it recomputes the decision the same way the
-// manifest/fingerprint path does, then delegates to producerForDecision.
+// manifest/fingerprint path does, then delegates to producerForPlan.
 func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, streams []*domainlibrary.MediaStream, item *domainlibrary.MediaItem) apptranscoding.StreamProducer {
 	if h.selector == nil {
 		if h.orchestrator != nil {
@@ -1021,14 +1043,17 @@ func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, s
 		}
 		return nil
 	}
-	decision := h.makeDecision(ctx, streams, containerOf(item), sourcePathOf(item), r)
-	return h.producerForDecision(decision, streams, item, h.isCopyRequest(decision, streams, sourceBytesOf(item)))
+	rp, err := h.probePlan(r, itemID(item), item, streams)
+	if err != nil {
+		slog.WarnContext(ctx, "hls-vod: producer pick: plan resolution failed", slog.String("media_id", itemID(item)), slog.Any("err", err))
+		return nil
+	}
+	return h.producerForPlan(rp)
 }
 
-// producerForDecision picks the producer for an already-resolved decision -
-// see PlanResolver.ProducerFor.
-func (h *hlsVODServe) producerForDecision(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream, item *domainlibrary.MediaItem, isCopy bool) apptranscoding.StreamProducer {
-	return h.planResolver().ProducerFor(itemID(item), streams, decision, isCopy)
+// producerForPlan picks the producer for a resolved plan - see PlanResolver.ProducerFor.
+func (h *hlsVODServe) producerForPlan(rp *requestPlan) apptranscoding.StreamProducer {
+	return h.planResolver().ProducerFor(rp.Request, rp.Decision, rp.IsCopy)
 }
 
 // videoCopyEligible / isCopyRequest - the copy-rung routing moved to the app

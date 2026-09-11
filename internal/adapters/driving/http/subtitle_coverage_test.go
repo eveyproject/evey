@@ -405,7 +405,7 @@ func TestAnalyzeStreams_SubtitleTrack(t *testing.T) {
 			{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle"},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, 1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, 1, 0)
 	if !a.burnInSubtitle {
 		t.Error("PGS subtitle should trigger burn-in")
 	}
@@ -426,7 +426,7 @@ func TestAnalyzeStreams_SubtitleTrack_SRT(t *testing.T) {
 			{StreamType: "subtitle", Codec: "srt"},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, 0)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, 0, 0)
 	if a.burnInSubtitle {
 		t.Error("SRT should not burn-in")
 	}

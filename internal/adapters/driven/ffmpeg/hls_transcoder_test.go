@@ -414,6 +414,9 @@ func TestBuildFFmpegArgs_MultiVariant_WithSeek(t *testing.T) {
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, "-ss 30.000")
+	// -copyts writes the seek offset into the shared init's edit list, which
+	// shifts every segment decoded against it (verified against jellyfin-ffmpeg).
+	assert.NotContains(t, joined, "-copyts")
 }
 
 func TestBuildFFmpegArgs_MultiVariant_AudioNormalize(t *testing.T) {

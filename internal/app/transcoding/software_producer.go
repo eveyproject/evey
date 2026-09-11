@@ -16,51 +16,19 @@ import (
 	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
-// SoftwareProducer is the software-transcode StreamProducer: the classic
-// model. For a given DecisionHash it runs a small, bounded set of long-lived
-// ffmpeg encoders, each input-paced with `-readrate` so it stays near
-// wall-clock and never races the whole film ahead of the viewer.
-//
-// Profiles serves a ladder CAPPED at the sustainable software ceiling (a single
-// rung in copy mode). The transcode path keeps the lower rungs so Auto can fall
-// back to a smaller rendition when the top is slow - but the famine the decouple
-// fixed (N unpaced parallel encoders) is held off a different way than forced
-// single-rung: at most MaxConcurrentVariantsPerHash encoders run per hash at
-// once, and requesting a variant SIGSTOPs the siblings (pauseOtherVariants), so
-// only the rung the client is actually pulling burns CPU. The client never gets
-// ErrCapacityExceeded - it WAITS for the paced encoder rather than abort-probing
-// across rungs that each spawn their own starving session.
-//
-// This is the antithesis of SegmentOrchestrator (the hardware path) on the axes
-// that caused the weak-NAS famine: no burst-ahead across ABR rungs, no global
-// capacity cap, no per-segment deadline kill. A weak NAS with hw_accel off
-// serves a stable stream because the client WAITS for the paced encoder instead
-// of abort-and-probing across rungs that each spawn their own starving session.
-//
-// It DOES, however, allow a SMALL bounded number of encoders for the SAME hash
-// when (and only when) two viewers sit at genuinely different live positions of
-// the same film - two browser tabs, or a PC + a phone, started at different
-// offsets. Viewers at the same position share one encoder via the addressable
-// cache; only distinct uncached positions get their own. This is the multi-tab
-// coexistence the orchestrator already guarantees (commit 0ac96ebbb), ported to
-// the software path: a second viewer NEVER kills the first's encoder.
-//
-// Lifecycle (invariants, per the decouple plan):
-//  1. one paced decode-once ffmpeg per (Hash, live position); same-position
-//     viewers share via the cache, distinct positions coexist up to
-//     MaxSessionsPerHash (LRU-evicted past the cap)
-//  2. ReadRate = 1.5 (input pacing)
-//  3. never ErrCapacityExceeded, long WaitBudget (the client waits)
-//  4. no NumCPU cap (only the per-hash MaxSessionsPerHash bound)
-//  5. no per-segment deadline kill (idle GC only, 30 min)
-//  6. Profiles() = ladder capped at the sustainable software ceiling (single
-//     rung in copy mode); concurrency held by MaxConcurrentVariantsPerHash +
-//     SIGSTOP of the non-requested variants, not by collapsing to one rung
-//  7. an uncovered position (e.g. a second viewer cold-starting below a deep
-//     viewer) spawns a session ALONGSIDE - it never kills a sibling another
-//     viewer is consuming; the LRU is evicted only when the cap is exceeded
-//  8. the common VOD manifest is served alongside (the client reads segment N
-//     when the paced process reaches it)
+// SoftwareProducer is the software-transcode StreamProducer: per DecisionHash
+// a bounded set of long-lived, input-paced (`-readrate`) single-rung ffmpeg
+// encoders. The client WAITS for the paced encoder (never ErrCapacityExceeded,
+// long WaitBudget) instead of abort-probing across rungs that starve each other
+// - the weak-NAS famine the decouple fixed. Invariants:
+//   - one paced encoder per (Hash, live position); same-position viewers share
+//     it via the cache, distinct positions coexist up to MaxSessionsPerHash
+//     (LRU-evicted past the cap), a second viewer never kills the first's encoder
+//   - at most MaxConcurrentVariantsPerHash rungs encode at once, the rungs the
+//     client is not pulling are SIGSTOPped (pauseOtherVariants)
+//   - no global capacity cap, no per-segment deadline kill (idle GC only)
+//   - Profiles() = the ladder capped at the sustainable software ceiling (one
+//     rung in copy mode); the common VOD manifest is served alongside
 type SoftwareProducer struct {
 	cache   *SegmentCache
 	process transcoding.HLSProcess
@@ -889,6 +857,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		DeinterlaceAll:   fp.DeinterlaceAll,
 		InverseTelecine:  fp.Telecine,
 		SourceSAR:        fp.SourceSAR,
+		MaxH264Level:     fp.MaxH264Level,
 		AudioCodec:       fp.AudioCodec,
 		MaxAudioChannels: fp.MaxAudioChannels,
 		ForceSidecarSubs: fp.ForceSidecarSubs,

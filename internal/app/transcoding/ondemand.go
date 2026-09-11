@@ -2,78 +2,60 @@ package transcoding
 
 import "context"
 
-// ondemand.go - the port for zero-storage HLS/DASH packaging (the copy rung
-// served straight from mkvgo's mp4.PlanHLS instead of a paced `ffmpeg -c copy`
-// + fMP4 rebase). A plan does a few bounded reads up front (metadata head +
-// seek index) and then builds any single resource - playlist, init, segment,
-// DASH manifest - on request, byte-identical to a full pass, with nothing
-// pre-generated and no server-side session state. The mkvgo driven adapter
-// implements OnDemandPackager.
+// ondemand.go - the port for zero-storage HLS/DASH packaging: the copy rung
+// served straight from mkvgo's mp4.PlanHLS. A plan does a few bounded reads up
+// front, then builds any resource on request, byte-identical to a full pass,
+// with no on-disk segments and no session state.
 
 // OnDemandPlan serves one source file's HLS/DASH presentation resource by
-// resource. It is immutable after the packager returns it and safe for
-// concurrent Resource calls (the hot path a segment request takes).
+// resource. Immutable once returned, safe for concurrent Resource calls.
 type OnDemandPlan interface {
-	// Resource returns the bytes and Content-Type for a player-facing resource
-	// name (master.m3u8, playlist.m3u8, init.mp4, seg00042.m4s, audio1.m3u8,
-	// manifest.mpd, iframe.m3u8, sub1.vtt …). The name is canonical - any URL
-	// decoration (prefix, token) is stripped by the caller before this call.
+	// Resource returns the bytes and Content-Type for a canonical resource name
+	// (master.m3u8, playlist.m3u8, init.mp4, seg00042.m4s, audio1.m3u8,
+	// manifest.mpd, iframe.m3u8, sub1.vtt …); URL decoration is stripped by the caller.
 	Resource(ctx context.Context, name string) (data []byte, contentType string, err error)
-	// Resources lists every servable canonical name (playlists, init, every
-	// segment, subtitles). Cheap to call but O(segments) - avoid on the hot path.
+	// Resources lists every servable canonical name. O(segments) - avoid on the hot path.
 	Resources() []string
 	// NumSegments is the video rendition's segment count.
 	NumSegments() int
-	// HasDASH reports whether a manifest.mpd is available (false for an
-	// AES-128-encrypted presentation - HLS only).
+	// HasDASH reports whether a manifest.mpd is available (false when AES-128 encrypted).
 	HasDASH() bool
 }
 
 // OnDemandOptions configures a plan. The zero value packages a plain HLS/DASH
 // presentation with the default segment duration and canonical resource names.
 type OnDemandOptions struct {
-	// SegmentMs is the target media-segment duration in milliseconds. 0 selects
-	// the packager default (6 s). Segments are cut on video keyframes, so the
-	// real duration is the first keyframe at/after each multiple.
+	// SegmentMs is the target media-segment duration; 0 = the packager default
+	// (6 s). Segments are cut on keyframes, so the real duration may exceed it.
 	SegmentMs int64
-	// URLPrefix is prepended to every resource URI the playlists and the DASH
-	// manifest reference, so the on-the-wire names never collide with the
-	// transcode pipeline's (stream_N_*, audio_N_*) and the dispatcher can route
-	// them by prefix. Resource() still takes the canonical (unprefixed) name.
+	// URLPrefix is prepended to every resource URI the playlists reference so
+	// the on-the-wire names never collide with the transcode pipeline's and the
+	// dispatcher routes them by prefix. Resource() still takes the canonical name.
 	URLPrefix string
-	// AESKey, when set (16 bytes), AES-128-encrypts every media segment and the
-	// playlists advertise EXT-X-KEY pointing at AESKeyURI. HLS only - no DASH
-	// manifest is emitted for an encrypted presentation.
+	// AESKey (16 bytes) AES-128-encrypts every media segment; the playlists
+	// advertise EXT-X-KEY pointing at AESKeyURI. HLS only.
 	AESKey    []byte
 	AESKeyURI string
-	// AESRotateSegments, when > 0 with at least two AESKeys, rotates the segment
-	// key every N segments (forward secrecy: a captured key decrypts only its
-	// period). It supersedes the single AESKey/AESKeyURI. The playlist then
-	// carries a fresh EXT-X-KEY at each period boundary, each pointing at its
-	// key's URI, which the key endpoint must serve.
+	// AESRotateSegments > 0 with at least two AESKeys rotates the key every N
+	// segments (a captured key decrypts only its period); supersedes AESKey.
 	AESRotateSegments int
 	AESKeys           []OnDemandAESKey
-	// KeepAudioTrack, when non-nil, restricts the packaged presentation's
-	// audio to this single track (the 0-based ordinal among the source's
-	// audio streams - the same numbering ?audioTrack= and the ffmpeg pipeline
-	// use). Video and every subtitle track are always kept; nil packages
-	// every audio track, as before. A trimmed plan is keyed separately in the
-	// packager's cache, so it never aliases the untrimmed one.
+	// KeepAudioTrack restricts the packaged audio to this single track (the
+	// 0-based ordinal among the audio streams, ffmpeg's 0:a:N); video and every
+	// subtitle stay. nil packages every audio track. Keyed separately in the cache.
 	KeepAudioTrack *int
 }
 
 // OnDemandAESKey is one rotation key: its 16 bytes plus the URI the EXT-X-KEY
-// line advertises for it (the server serves that URI back to the derived key).
+// line advertises for it.
 type OnDemandAESKey struct {
 	Key []byte
 	URI string
 }
 
-// OnDemandPackager builds an OnDemandPlan for a source file - the copy rung, no
-// transcode. It returns an error when the source cannot be packaged verbatim
-// (a codec CMAF can't carry, a Matroska without a Cues seek index), which is
-// the caller's signal to fall back to the ffmpeg pipeline. Implementations
-// cache plans, so repeated calls for the same source are cheap.
+// OnDemandPackager builds an OnDemandPlan for a source file. An error means
+// the source cannot be packaged verbatim - the caller's signal to fall back to
+// the ffmpeg pipeline. Implementations cache plans.
 type OnDemandPackager interface {
 	Plan(ctx context.Context, srcPath string, opts OnDemandOptions) (OnDemandPlan, error)
 }

@@ -1,5 +1,7 @@
 package transcoding
 
+import "fmt"
+
 // ContentClass tags each media item with a per-title encoding hint computed
 // at scan time from cheap source-side metrics (signalstats YDEV + scenecut
 // rate + source bitrate + resolution). The hint maps to one of four
@@ -256,6 +258,65 @@ func ScaleLadderVideoBitrates(ladder []HLSProfile, num, den int64) []HLSProfile 
 	for i, p := range ladder {
 		p.VideoBitrate = p.VideoBitrate * num / den
 		out[i] = p
+	}
+	return out
+}
+
+// H264LevelIdcFor is the level_idc a rung of this height is signalled at: 4.1
+// up to 1080p, 5.1 above (4.1's macroblock budget stops at 1080p).
+func H264LevelIdcFor(height int) int {
+	if height > 1080 {
+		return 51
+	}
+	return 41
+}
+
+// H264LevelString formats a level_idc for ffmpeg ("41" -> "4.1").
+func H264LevelString(idc int) string {
+	return fmt.Sprintf("%d.%d", idc/10, idc%10)
+}
+
+// H264LevelMaxHeight is the tallest rung a decoder capped at this level_idc
+// decodes (frame-size limits of the H.264 level table). 0 = no cap.
+func H264LevelMaxHeight(idc int) int {
+	switch {
+	case idc <= 0:
+		return 0
+	case idc < 31:
+		return 480
+	case idc < 40:
+		return 720
+	case idc < 50:
+		return 1080
+	case idc < 51:
+		return 1440
+	case idc < 60:
+		return 2160
+	}
+	return 4320
+}
+
+// CapLadderToH264Level drops the rungs a decoder capped at idc cannot decode.
+func CapLadderToH264Level(ladder []HLSProfile, idc int) []HLSProfile {
+	return CapLadderToHeight(ladder, H264LevelMaxHeight(idc))
+}
+
+// CapLadderToVideoBitrate bounds every rung's VIDEO bitrate to ceilingKbps: a
+// rung above it is clamped, and a clamped rung that no longer offers more than
+// the one below it is dropped. Always keeps the lowest rung. 0 = no cap.
+func CapLadderToVideoBitrate(ladder []HLSProfile, ceilingKbps int64) []HLSProfile {
+	if ceilingKbps <= 0 || len(ladder) == 0 {
+		return ladder
+	}
+	out := make([]HLSProfile, 0, len(ladder))
+	for _, p := range ladder {
+		if p.VideoBitrate > ceilingKbps {
+			p.VideoBitrate = ceilingKbps
+		}
+		if len(out) > 0 && p.VideoBitrate <= out[len(out)-1].VideoBitrate {
+			continue
+		}
+		out = append(out, p)
 	}
 	return out
 }

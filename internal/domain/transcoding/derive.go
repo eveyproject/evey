@@ -8,7 +8,7 @@ import "time"
 // capability stamped with an older PolicyVersion is re-derived from its own bench
 // evidence (see CalibrationService.EnsureCalibrated), so a policy change in a
 // release re-caps every host deterministically, without re-benching.
-const PolicyVersion = 1
+const PolicyVersion = 2
 
 // Bench ladder labels (BenchRungSample.Ladder). The benchmark tags each rung with
 // the pipeline shape it measured; Derive groups samples by these to read one
@@ -19,6 +19,9 @@ const (
 	LadderSoftwareHDR = "software-hdr"
 	LadderSoftwareAV1 = "software-av1"
 	LadderHW          = "hw"
+	// LadderHWBridge: GPU decode, CPU tone-map, GPU encode (hwTonemapBridge) -
+	// the HDR route of a backend without a GPU tone-mapper (NVENC, AMD).
+	LadderHWBridge = "hw-bridge"
 )
 
 // DerivePolicy is the tunable policy that turns raw bench EVIDENCE into delivery
@@ -181,11 +184,12 @@ func Derive(rep BenchReport, policy DerivePolicy) EncodeCapability {
 	swHDR := ceilingFor(rep, LadderSoftwareHDR, policy.Margin, policy.SoftwareHDRFloor)
 	swAV1 := ceilingFor(rep, LadderSoftwareAV1, policy.Margin*policy.AV1MarginMultiplier, policy.SoftwareAV1Floor)
 
-	hwMax := 0
+	hwMax, hwBridge := 0, 0
 	if rep.HWBackend != "" {
 		// hw floor is 0: a host with a backend but no passing hw rung has no hw
 		// ceiling (falls back to software), never a forced floor.
 		hwMax = ceilingFor(rep, LadderHW, policy.Margin, 0)
+		hwBridge = ceilingFor(rep, LadderHWBridge, policy.Margin, 0)
 	}
 
 	return EncodeCapability{
@@ -193,6 +197,7 @@ func Derive(rep BenchReport, policy DerivePolicy) EncodeCapability {
 		SoftwareHDRMaxHeight: swHDR,
 		SoftwareAV1MaxHeight: swAV1,
 		HWMaxHeight:          hwMax,
+		HWBridgeMaxHeight:    hwBridge,
 		HWBackend:            rep.HWBackend,
 		HWCodecs:             rep.HWCodecs,
 		HWDecodeCodecs:       rep.HWDecodeCodecs,
