@@ -180,6 +180,7 @@ export function buildStreamUrl(
   audioTrack?: number,
   subtitleTrack?: number | null,
   maxAudioChannels?: number,
+  startSec = 0,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/stream?token=${token}`;
@@ -201,9 +202,11 @@ export function buildStreamUrl(
   if (audioTrack != null && audioTrack >= 0) params.set("audioTrack", String(audioTrack));
   if (subtitleTrack != null && subtitleTrack >= 0) params.set("subtitleTrack", String(subtitleTrack));
   // Server publishes a complete VOD manifest from t=0 (no live-edge snap), so
-  // there is no start offset to declare: the player seeks natively on the
-  // absolute timeline. A startSec param used to be sent here, but no handler
-  // ever parsed it - it only tricked the client into offsetting its clock.
+  // the player seeks natively on the absolute timeline. startSec is a PRE-WARM
+  // hint only: the server opens the encoder at that position instead of 0
+  // (a resume used to pay an encoder nobody read); it never shapes the manifest
+  // and the client must not offset its clock by it.
+  if (startSec > 0) params.set("startSec", String(Math.floor(startSec)));
   return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/hls/master.m3u8?${params.toString()}`;
 }
 
@@ -312,7 +315,8 @@ export function usePlaySession(mediaId: string, initial?: PlaySessionInitial): P
         // needs, so a language switch produces a DIFFERENT url that reloads.
         const audioTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex);
         const subtitleTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex);
-        const url = buildStreamUrl(serverUrl, mediaId, info, token, audioTrack, subtitleTrack, maxAudioChannels);
+        const resumeSec = wp?.positionMs && !wp.played ? Number(wp.positionMs) / 1000 : 0;
+        const url = buildStreamUrl(serverUrl, mediaId, info, token, audioTrack, subtitleTrack, maxAudioChannels, resumeSec);
 
         // Direct play streams the original file with no orchestrator involved,
         // so it cannot be shed - only probe the transcode/HLS paths.

@@ -153,6 +153,7 @@ export function buildStreamUrl(
   maxAudioChannels?: number,
   audioTrack?: number,
   subtitleTrack?: number | null,
+  startSec = 0,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${mediaId}/stream?token=${token}`;
@@ -167,9 +168,10 @@ export function buildStreamUrl(
   if (audioTrack != null && audioTrack >= 0) params.set("audioTrack", String(audioTrack));
   if (subtitleTrack != null && subtitleTrack >= 0) params.set("subtitleTrack", String(subtitleTrack));
   // Server publishes a complete VOD manifest from t=0 (no live-edge snap), so
-  // there is no start offset to declare: the player seeks natively on the
-  // absolute timeline. A startSec param used to be sent here, but no handler
-  // ever parsed it - it only tricked the client into offsetting its clock.
+  // the player seeks natively on the absolute timeline. startSec is a PRE-WARM
+  // hint only (see the mobile twin): the encoder opens at the resume position,
+  // the manifest and the client clock are untouched.
+  if (startSec > 0) params.set("startSec", String(Math.floor(startSec)));
   return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 
@@ -242,7 +244,8 @@ export function usePlaySession(mediaId: string, initial?: PlaySessionInitial): P
         }
         const audioTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex);
         const subtitleTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex);
-        const url = buildStreamUrl(serverUrl, mediaId, info, token, maxAudioChannels, audioTrack, subtitleTrack);
+        const resumeSec = wp?.positionMs && !wp.played ? Number(wp.positionMs) / 1000 : 0;
+        const url = buildStreamUrl(serverUrl, mediaId, info, token, maxAudioChannels, audioTrack, subtitleTrack, resumeSec);
 
         // Direct play streams the original file with no orchestrator involved,
         // so it cannot be shed - only probe the transcode/HLS paths.

@@ -37,7 +37,8 @@ describe("MkvgoCard", () => {
   it("saves the playability shadow key independently of the ingest plan", () => {
     const saveEntry = vi.fn();
     render(<MkvgoCard getEntryValue={getEntryValue({ "library.ingest_serving_plan": "plan" })} saveEntry={saveEntry} saving={false} />);
-    fireEvent.click(screen.getByText("On"));
-    expect(saveEntry).toHaveBeenCalledWith({ key: "transcoding.playability_shadow", value: "on" });
+    // The ingest plan select has its own "Off" chip; the shadow's is the second.
+    fireEvent.click(screen.getAllByText("Off")[1]);
+    expect(saveEntry).toHaveBeenCalledWith({ key: "transcoding.playability_shadow", value: "off" });
   });
 });

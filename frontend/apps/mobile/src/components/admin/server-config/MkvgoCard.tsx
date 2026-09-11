@@ -17,7 +17,8 @@ export function MkvgoCard({ getEntryValue, saveEntry, saving }: MkvgoCardProps) 
   const theme = useTheme();
   const { t } = useTranslation();
   const ingestPlan = getEntryValue(INGEST_SERVING_PLAN_KEY);
-  const playabilityShadow = getEntryValue(PLAYABILITY_SHADOW_KEY);
+  // Absent = the server default (on); only an explicit "off" disables it.
+  const playabilityShadow = getEntryValue(PLAYABILITY_SHADOW_KEY) || "on";
 
   return (
     <View>
@@ -49,7 +50,7 @@ export function MkvgoCard({ getEntryValue, saveEntry, saving }: MkvgoCardProps) 
         onChange={(v) => saveEntry({ key: PLAYABILITY_SHADOW_KEY, value: v })}
         disabled={saving}
         options={[
-          { value: "", label: t("admin.serverConfig.playabilityShadowOff", "Off") },
+          { value: "off", label: t("admin.serverConfig.playabilityShadowOff", "Off") },
           { value: "on", label: t("admin.serverConfig.playabilityShadowOn", "On") },
         ]}
       />

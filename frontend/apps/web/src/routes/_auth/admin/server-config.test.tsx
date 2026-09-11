@@ -254,14 +254,14 @@ describe("ServerConfigPage", () => {
     const ingestSelect = (await screen.findByLabelText(/^Ingest serving plan$/i)) as HTMLSelectElement;
     expect(ingestSelect.value).toBe("");
     const shadowSelect = (await screen.findByLabelText(/^Playability shadow$/i)) as HTMLSelectElement;
-    expect(shadowSelect.value).toBe("");
+    expect(shadowSelect.value).toBe("on");
   });
 
   it("reflects stored library.ingest_serving_plan and transcoding.playability_shadow values", async () => {
     mockUseQuery.mockReturnValue({
       data: [
         { key: "library.ingest_serving_plan", value: "plan+repair", updatedAt: "2024-01-15T10:00:00Z" },
-        { key: "transcoding.playability_shadow", value: "on", updatedAt: "2024-01-15T10:00:00Z" },
+        { key: "transcoding.playability_shadow", value: "off", updatedAt: "2024-01-15T10:00:00Z" },
       ],
       isLoading: false,
     });
@@ -271,7 +271,7 @@ describe("ServerConfigPage", () => {
     const ingestSelect = (await screen.findByLabelText(/^Ingest serving plan$/i)) as HTMLSelectElement;
     expect(ingestSelect.value).toBe("plan+repair");
     const shadowSelect = (await screen.findByLabelText(/^Playability shadow$/i)) as HTMLSelectElement;
-    expect(shadowSelect.value).toBe("on");
+    expect(shadowSelect.value).toBe("off");
   });
 
   it("saves the selected ingest serving plan value", async () => {
@@ -297,9 +297,9 @@ describe("ServerConfigPage", () => {
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /^mkvgo\b/i }));
     const select = await screen.findByLabelText(/^Playability shadow$/i);
-    fireEvent.change(select, { target: { value: "on" } });
+    fireEvent.change(select, { target: { value: "off" } });
     expect(mutate).toHaveBeenCalledWith(
-      { key: "transcoding.playability_shadow", value: "on" },
+      { key: "transcoding.playability_shadow", value: "off" },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
   });
