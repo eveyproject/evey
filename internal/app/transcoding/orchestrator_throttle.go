@@ -58,6 +58,7 @@ func (o *SegmentOrchestrator) evaluateThrottle() {
 		lastProduced := s.producedHighWater
 		startSeg := s.startSeg
 		endSeg := s.endSeg
+		idle := time.Since(s.lastAccess)
 		s.mu.Unlock()
 
 		if handle == nil {
@@ -85,8 +86,11 @@ func (o *SegmentOrchestrator) evaluateThrottle() {
 		}
 		buffer := produced - client
 
+		// An unread rafale that is ahead of its last reader has lost its viewer
+		// (seek elsewhere, cache hits): pause it now rather than at PauseAhead.
+		abandoned := buffer >= 1 && idle >= o.opts.IdlePauseAfter
 		switch {
-		case !paused && buffer >= o.opts.ThrottlePauseAhead:
+		case !paused && (buffer >= o.opts.ThrottlePauseAhead || abandoned):
 			if err := handle.Pause(); err != nil {
 				o.logger.Warn("orchestrator: throttle pause failed",
 					slog.String("hash", hash), slog.Any("err", err))
@@ -99,7 +103,8 @@ func (o *SegmentOrchestrator) evaluateThrottle() {
 				slog.String("hash", hash),
 				slog.Int("client_idx", client),
 				slog.Int("produced_idx", produced),
-				slog.Int("buffer", buffer))
+				slog.Int("buffer", buffer),
+				slog.Bool("abandoned", abandoned))
 			metrics.HLSVODThrottlePause.Inc()
 		case paused && buffer <= o.opts.ThrottleResumeBelow:
 			if err := handle.Resume(); err != nil {

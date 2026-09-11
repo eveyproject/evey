@@ -36,6 +36,7 @@ class MockHls {
   startLoad = vi.fn();
   audioTrack = 0;
   currentLevel = -1;
+  startLevel = -1;
   levels: { height: number }[] = [];
   on = vi.fn((event: string, handler: HlsEventHandler) => {
     if (!hlsEventListeners[event]) hlsEventListeners[event] = [];
@@ -527,5 +528,8 @@ describe("HLSPlayer: transcode rung pinning", () => {
     }
 
     expect(hls.currentLevel).toBe(2);
+    // startLoad picks the FIRST playlist from startLevel, not currentLevel: left
+    // at -1 it fetched level 0 and the server opened a 480p rafale nobody read.
+    expect(hls.startLevel).toBe(2);
   });
 });

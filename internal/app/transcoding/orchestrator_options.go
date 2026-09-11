@@ -51,6 +51,11 @@ type OrchestratorOptions struct {
 	// ThrottleTickInterval is how often the throttle policy is evaluated. Default 1 s.
 	ThrottleTickInterval time.Duration
 
+	// IdlePauseAfter pauses a rafale nobody has read for this long while it is
+	// at least one segment ahead: the encoder a viewer left behind by seeking
+	// (prod 2026-09-11, two 2160p rafales sharing the GPU for a minute). Default 8 s.
+	IdlePauseAfter time.Duration
+
 	// MaxRafalesPerHash bounds the concurrent rafales for one fingerprint (each
 	// serves a disjoint span). Default 3; 1 = the legacy kill-on-conflict.
 	MaxRafalesPerHash int
@@ -121,6 +126,9 @@ func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
 	}
 	if out.ThrottleTickInterval <= 0 {
 		out.ThrottleTickInterval = time.Second
+	}
+	if out.IdlePauseAfter <= 0 {
+		out.IdlePauseAfter = 8 * time.Second
 	}
 	if out.MaxRafalesPerHash <= 0 {
 		out.MaxRafalesPerHash = 3

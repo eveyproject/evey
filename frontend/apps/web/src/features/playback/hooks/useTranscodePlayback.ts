@@ -80,7 +80,7 @@ interface UseTranscodePlaybackArgs {
    * sync effect in HLSPlayer still handles changes made during playback. */
   pinnedQualityRef?: React.MutableRefObject<number>;
   /** Per-segment transfer stats and buffer stalls, for the bandwidth follower. Refs: no rebuild. */
-  onFragStatsRef?: React.MutableRefObject<((s: { bytes: number; transferMs: number; levelIdx: number }) => void) | null>;
+  onFragStatsRef?: React.MutableRefObject<((s: { bytes: number; transferMs: number; levelIdx: number; durationSec: number }) => void) | null>;
   onBufferStallRef?: React.MutableRefObject<(() => void) | null>;
   selectedBurnInTrack: number | null;
   startPositionMs: number;
@@ -245,6 +245,10 @@ export function useTranscodePlayback({
       // Load from the resume position: with -1 hls.js fetched fragment 0 first,
       // which opened a GPU encoder at 0 nobody read (prod 2026-09-09).
       startPosition: initialSeekSec > 0 ? initialSeekSec : -1,
+      // No bandwidth-test fragment on level 0: on this server every rung
+      // playlist opens a GPU decode of the source (prod 2026-09-11, a 480p
+      // rafale nobody read next to the 2160p one).
+      testBandwidth: false,
       maxBufferLength: 30,
       maxMaxBufferLength: 60,
       // ABR only sees bandwidth: a 2160p rung the browser decodes at 2 fps
@@ -318,6 +322,9 @@ export function useTranscodePlayback({
         levelHeights: hls.levels.map((l) => l.height),
         desiredHeight: pinnedQualityRef?.current ?? 0,
       });
+      // startLevel too: startLoad reads it to pick the FIRST playlist, and
+      // currentLevel alone still sent it to level 0.
+      if (pinned >= 0) hls.startLevel = pinned;
       if (pinned >= 0 && hls.currentLevel !== pinned) {
         hls.currentLevel = pinned;
       }
@@ -508,7 +515,7 @@ export function useTranscodePlayback({
       const frag = data?.frag;
       if (frag?.type === "main" && frag.stats) {
         const st = frag.stats;
-        onFragStatsRef?.current?.({ bytes: st.total, transferMs: st.loading.end - st.loading.first, levelIdx: frag.level });
+        onFragStatsRef?.current?.({ bytes: st.total, transferMs: st.loading.end - st.loading.first, levelIdx: frag.level, durationSec: frag.duration });
       }
     });
 

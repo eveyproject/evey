@@ -493,8 +493,10 @@ func hwEncoderQualityArgs(accel transcoding.HWAccelType, codec string, features 
 // single- and multi-variant HW builders: the seek, the HW init flags (which
 // bind to the video -i that immediately follows), the video input, and the
 // software-decoded audio-delay input.
-// hwRateArgs: capped VBR like the software CRF path (maxrate 160 %, bufsize
-// 2x). A bare -b:v left VAAPI in AVBR, a loose average with no headroom.
+// hwRateArgs: VBR whose peak IS the rung's bitrate (bufsize 2x). The 160 %
+// headroom of the software CRF path let a 70 Mb/s 2160p rung ship 3 s segments
+// at 80-130 Mb/s (VAAPI, prod 2026-09-11): the manifest's BANDWIDTH must be
+// what the line has to carry. A bare -b:v left VAAPI in AVBR.
 func hwRateArgs(accel transcoding.HWAccelType, kbps int64, variant int) []string {
 	spec := ""
 	if variant >= 0 {
@@ -504,12 +506,11 @@ func hwRateArgs(accel transcoding.HWAccelType, kbps int64, variant int) []string
 	if variant >= 0 {
 		bflag = fmt.Sprintf("-b:v:%d", variant)
 	}
-	maxrate, bufsize := cappedCRFRateArgs(kbps)
 	var args []string
 	if accel == transcoding.VAAPI {
 		args = append(args, "-rc_mode"+spec, "VBR")
 	}
-	return append(args, bflag, fmt.Sprintf("%dk", kbps), "-maxrate"+spec, maxrate, "-bufsize"+spec, bufsize)
+	return append(args, bflag, fmt.Sprintf("%dk", kbps), "-maxrate"+spec, fmt.Sprintf("%dk", kbps), "-bufsize"+spec, fmt.Sprintf("%dk", kbps*2))
 }
 
 func appendHWTranscodeInputArgs(args []string, opts transcoding.HLSProcessOpts) []string {
