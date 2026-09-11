@@ -551,21 +551,20 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 		Delivery:   pr.deliveryConstraints(req, decision),
 	}
 	laddered := pr.ladderBuilder().Build(in)
-	base := transcoding.LadderFor(in.Complexity.LadderClass())
-	src := SourceDimsOf(streams)
-	capability := in.Delivery.Capability
 
 	if pr.AdmissionRoute != nil && len(laddered) > 0 && !isCopy {
 		natural := pr.LadderClassFor(decision, streams)
+		// The spill ladder (GPU pool full, CPU pool free) is the same request
+		// shaped for the CPU route - every delivery cap included. It used to be
+		// the bare producer shape, so a spilled viewer lost the screen, level and
+		// bitrate caps the master had negotiated.
 		softwareShape := func() []transcoding.HLSProfile {
-			if pr.Selector == nil {
+			if pr.Selector == nil || pr.Selector.Software() == nil {
 				return nil
 			}
-			sw := pr.Selector.Software()
-			if sw == nil {
-				return nil
-			}
-			return sw.Profiles(base, src, decision, capability)
+			sw := in
+			sw.Route = spillRoute(in.Route, decision)
+			return pr.ladderBuilder().Build(sw)
 		}
 		var fallback func() []int
 		if natural == LadderClassHW && pr.Selector != nil {
@@ -644,6 +643,19 @@ func (pr *PlanResolver) LadderClassFor(decision transcoding.PlaybackDecision, st
 	default:
 		return LadderClassSoftware
 	}
+}
+
+// spillRoute is the CPU route a hardware session falls back to: the same
+// codec the software encoder will carry (AV1 rides hardware only; an
+// auto-upgraded HEVC goes back to H.264 - Fingerprint applies the same rule),
+// no GPU, the tone-map in software.
+func spillRoute(hw transcoding.EncodeRoute, decision transcoding.PlaybackDecision) transcoding.EncodeRoute {
+	r := hw
+	r.HWUsable, r.Accel, r.SoftwareDecode, r.HWTonemap = false, "", false, false
+	if strings.EqualFold(r.Codec, "av1") || (strings.EqualFold(r.Codec, "hevc") && !strings.EqualFold(decision.VideoCodec, "hevc")) {
+		r.Codec = "h264"
+	}
+	return r
 }
 
 func (pr *PlanResolver) ladderBuilder() transcoding.LadderBuilder {
