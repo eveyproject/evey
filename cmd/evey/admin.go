@@ -58,6 +58,8 @@ func runAdmin(args []string) error {
 		return adminRollback(args[1:])
 	case "list-users":
 		return adminListUsers(args[1:])
+	case "ladder-bench":
+		return adminLadderBench(args[1:])
 	case "-h", "--help", "help":
 		_ = adminUsage()
 		return nil
@@ -124,6 +126,14 @@ Capacity subcommands (need a LIVE server - HTTP client of the local gateway):
                                     ceiling verdict (exit 0), not an error.
 
 Diagnostics:
+  ladder-bench [--scenes 3] [--window 8] [--heights 1080,720] [--crf 18,23,28] [--out rows.csv] <file>...
+                                    Measure the ladder engine's candidate complexity
+                                    features on a few scenes of each title, encode
+                                    them at fixed CRFs and score bitrate + XPSNR.
+                                    Prints one CSV row per scene and the rank
+                                    correlation of every feature with the encode
+                                    cost. Runs ffmpeg for minutes; never on a box
+                                    that is serving viewers.
   doctor [--repair]                 Health-check DB, schema, jwt.key, Meilisearch
                                     (+ index drift), media mounts (owned by the
                                     server UID?), cache dirs, ffmpeg/mkvgo and
