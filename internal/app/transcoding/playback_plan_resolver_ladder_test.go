@@ -364,3 +364,32 @@ func TestFingerprint_TranscodeAudioRenditionMakesVideoOnly(t *testing.T) {
 	assert.Equal(t, 0, pr.Fingerprint(context.Background(), req, decision, transcoding.LadderFilmNormal).AudioTrack,
 		"inverse telecine changes the frame rate: the audio stays muxed")
 }
+
+// A hardware session spilled to the CPU pool is shaped for the CPU route with
+// every delivery cap the master negotiated: the spill used to be the bare
+// producer shape, so a phone that asked for 720p got the full CPU ladder.
+func TestShapeLadder_SpillKeepsTheDeliveryCaps(t *testing.T) {
+	var swHeights []int
+	pr := &PlanResolver{
+		HWAccelEnabled: func() bool { return true },
+		Capability:     func() transcoding.EncodeCapability { return vaapiCapable() },
+		ComplexityRepo: goldenComplexity{transcoding.ClassFilmHighMotion},
+		AdmissionRoute: func(_ string, natural LadderClass, _ []int, fallback func() []int, _ transcoding.SourceClass) RouteGrant {
+			require.Equal(t, LadderClassHW, natural)
+			swHeights = fallback()
+			return RouteGrant{OK: true, Class: LadderClassSoftware, Forced: true, Ceiling: 720}
+		},
+	}
+	pr.Selector = NewProducerSelector(&SoftwareProducer{}, &SegmentOrchestrator{}, pr.HWRouteUsable)
+	req := ladderRequest(2160)
+	req.ScreenHeight = 720
+	req.MaxBitrateKbps = 3000
+	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
+
+	got := pr.ShapeLadder(context.Background(), req, decision)
+	assert.Equal(t, []int{480, 720}, swHeights, "the fallback offered to admission is the CPU ladder under the screen cap")
+	assert.Equal(t, []int{480, 720}, ladderHeights(t, got))
+	for _, p := range got {
+		assert.LessOrEqual(t, p.VideoBitrate, int64(3000), "rung %s over the viewer's bitrate cap", p.Name)
+	}
+}
