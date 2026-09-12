@@ -423,6 +423,9 @@ func SourceDimsOf(streams []*library.MediaStream) SourceDims {
 			}
 			dims.Codec = s.Codec
 			dims.TenBit = StreamIsTenBit(s)
+			if s.PixelFormat != nil {
+				dims.PixelFormat = *s.PixelFormat
+			}
 			dims.HDRRange = SourceTranscodeVideoRange(streams)
 			dims.Telecine = SourceTelecine(streams)
 			break

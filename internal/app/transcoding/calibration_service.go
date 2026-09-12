@@ -129,12 +129,21 @@ type CalibrationService struct {
 	changeCallbacks []func()
 }
 
-// HWFallbackEvent records one runtime HW-encode demotion for the admin alert.
+// HWFallbackEvent records one runtime HW session failure for the admin alert,
+// with what became of it: the host was demoted, the host was re-confirmed and
+// only the title fell back, or an init miss counted as a strike.
 type HWFallbackEvent struct {
-	Class string    `json:"class"`
-	Codec string    `json:"codec"`
-	At    time.Time `json:"at"`
+	Class   string    `json:"class"`
+	Codec   string    `json:"codec"`
+	At      time.Time `json:"at"`
+	Verdict string    `json:"verdict,omitempty"`
 }
+
+const (
+	fallbackVerdictHost       = "host_demoted"
+	fallbackVerdictMediaRoute = "media_route"
+	fallbackVerdictStrike     = "strike"
+)
 
 // OnCapabilityChange registers fn to run after every capability change that
 // matters at runtime: persisted-capability load, benchmark completion and HW
@@ -160,6 +169,9 @@ func (s *CalibrationService) notifyCapabilityChange() {
 }
 
 const maxFallbackEvents = 20
+
+// fallbackDedupWindow collapses identical back-to-back failure events.
+const fallbackDedupWindow = 10 * time.Second
 
 // CalibrationOption configures a CalibrationService at construction.
 type CalibrationOption func(*CalibrationService)
@@ -614,53 +626,99 @@ func (s *CalibrationService) armContendedRetry() {
 		slog.Duration("retry_in", s.contendedWait))
 }
 
-// DemoteCapability is the level-2 safety net: after a hardware encode fails,
+// DemoteCapability is the level-2 safety net: after a hardware session fails,
 // the orchestrator calls this with the classified failure + the output codec.
-// It applies the minimal-blast-radius PlanDemotion to the live capability -
-// drop tuning on an unsupported option, remove just the codec on a missing
-// encoder, disable HW only on a real init failure - persists deterministic
-// demotions, and records the event for the admin alert. The next request's
-// resolveHW then reads the demoted capability and resolves a lower tier, so the
-// client's automatic 503-retry re-encodes at the working tier with no fork of
-// the (encoder-agnostic) segment cache.
 //
-// Returns true when the capability actually changed. A no-op (already demoted)
-// returns false, which naturally DEBOUNCES the storm of concurrent failures a
-// single bad option produces: only the first call writes + alerts.
+// A failed session is not a verdict on the host. Before anything host-wide
+// changes, the failure has to be CONFIRMED by a proof independent of the media
+// that failed: a synthetic encode through the same backend (HWEncodeUsable),
+// with the same probed tuning features rendered as production renders them.
+// A host that passes keeps its capability untouched - the failure was the
+// media's or the route's (the orchestrator has already sent that title to the
+// CPU) - and the event is recorded for the admin with that verdict. Only a
+// host that fails its own probe is demoted, through the minimal-blast-radius
+// PlanDemotion (features narrowed to the ones re-confirmed, one codec removed,
+// HW disabled), persisted when deterministic.
+//
+// Returns true when the capability actually changed. A no-op (already
+// demoted, or the host confirmed) returns false, which naturally DEBOUNCES the
+// storm of concurrent failures a single title produces.
 func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaintranscoding.FailureClass, codec string) bool {
+	if class == domaintranscoding.FailureRouteIncompatible {
+		// The media and the route disagree; nothing to prove about the host.
+		s.recordFallback(class, codec, fallbackVerdictMediaRoute)
+		return false
+	}
 	if !class.IsHWCapability() {
 		return false
 	}
 	s.demoteMu.Lock()
 	defer s.demoteMu.Unlock()
 
-	// One missed init is a slow start as often as a dead GPU (prod 2026-09-10:
+	cur := *s.current.Load()
+	if cur.HWBackend == "" {
+		return false // already software - nothing left to demote
+	}
+
+	switch class {
+	case domaintranscoding.FailureHWUnsupportedOption:
+		// Narrow the tuning to what the host re-proves feature by feature,
+		// instead of wiping it all on the word of one session.
+		kept := s.runner.ConfirmHWFeatures(ctx, cur.HWBackend, cur.HWDevice, codec, cur.HWFeatures)
+		d := domaintranscoding.PlanFeatureDemotion(cur, kept)
+		if !d.Changed {
+			s.recordFallback(class, codec, fallbackVerdictMediaRoute)
+			s.logger.Warn("calibration: HW tuning re-confirmed by a media-independent probe, the failure was the media's; host keeps its features",
+				slog.String("codec", codec), slog.Any("features", cur.HWFeatures))
+			return false
+		}
+		return s.applyDemotion(ctx, cur, d, class, codec)
+
+	case domaintranscoding.FailureHWDeviceMemory:
+		// Transient by definition: the session fell back, the host is not touched.
+		return false
+	}
+
+	// Init / encoder missing / corrupt output: the backend has to fail a real
+	// encode of a synthetic clip before it is believed dead.
+	if s.runner.HWEncodeUsable(ctx, cur.HWBackend, cur.HWDevice, codec, nil) {
+		s.recordFallback(class, codec, fallbackVerdictMediaRoute)
+		s.logger.Warn("calibration: HW backend re-confirmed by a media-independent probe, the failure was the media's; host keeps its GPU",
+			slog.String("class", string(class)), slog.String("codec", codec), slog.String("backend", cur.HWBackend))
+		return false
+	}
+
+	// One failed probe is a slow start as often as a dead GPU (prod 2026-09-10:
 	// a 4K seek during boot load). Two within the window prove the GPU.
 	if class == domaintranscoding.FailureHWInit {
 		now := time.Now()
 		if now.Sub(s.hwInitStrikeAt) > hwInitStrikeWindow {
 			s.hwInitStrikeAt = now
-			s.recordFallback(class, codec)
-			s.logger.Warn("calibration: HW init missed once, keeping the GPU until a second miss",
+			s.recordFallback(class, codec, fallbackVerdictStrike)
+			s.logger.Warn("calibration: HW init missed once and the probe failed too, keeping the GPU until a second miss",
 				slog.String("codec", codec), slog.Duration("window", hwInitStrikeWindow))
 			return false
 		}
 		s.hwInitStrikeAt = time.Time{}
 	}
 
+	d := domaintranscoding.PlanDemotion(cur, class, codec)
+	if !d.Changed {
+		return false // already demoted - debounces concurrent failures
+	}
+	return s.applyDemotion(ctx, cur, d, class, codec)
+}
+
+// applyDemotion stores a confirmed demotion (in memory + persisted when the
+// plan says so), records it and notifies dependents. Called under demoteMu.
+func (s *CalibrationService) applyDemotion(ctx context.Context, cur domaintranscoding.EncodeCapability, d domaintranscoding.Demotion, class domaintranscoding.FailureClass, codec string) bool {
 	// Hold currentMu across the whole load→store so a concurrent benchAndPersist
 	// store can't land between the snapshot we demote from and the store back
 	// (which would either clobber the fresh bench or be clobbered by it).
 	s.currentMu.Lock()
 	defer s.currentMu.Unlock()
 
-	cur := *s.current.Load()
-	d := domaintranscoding.PlanDemotion(cur, class, codec)
-	if !d.Changed {
-		return false // already demoted - debounces concurrent failures
-	}
-
-	s.recordFallback(class, codec)
+	s.recordFallback(class, codec, fallbackVerdictHost)
 	// Stamp a demotion that actually switched the backend OFF, so it can expire
 	// and be re-probed (ReprobeDemotedHW) instead of outliving its cause. A
 	// demotion that only trimmed features or one codec leaves HW working and is
@@ -676,12 +734,13 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 	}
 	s.current.Store(&d.Capability)
 	s.notifyCapabilityChange()
-	s.logger.Warn("calibration: HW capability demoted after encode failure",
+	s.logger.Warn("calibration: HW capability demoted after a failure the host confirmed",
 		slog.String("class", string(class)),
 		slog.String("codec", codec),
 		slog.Bool("persist", d.Persist),
 		slog.String("new_backend", d.Capability.HWBackend),
-		slog.Int("new_hw_max_height", d.Capability.HWMaxHeight))
+		slog.Int("new_hw_max_height", d.Capability.HWMaxHeight),
+		slog.Any("features", d.Capability.HWFeatures))
 	return true
 }
 
@@ -749,13 +808,23 @@ func (s *CalibrationService) ReprobeDemotedHW(ctx context.Context) bool {
 	return false
 }
 
-func (s *CalibrationService) recordFallback(class domaintranscoding.FailureClass, codec string) {
+func (s *CalibrationService) recordFallback(class domaintranscoding.FailureClass, codec, verdict string) {
 	s.fallbacksMu.Lock()
 	defer s.fallbacksMu.Unlock()
+	now := time.Now().UTC()
+	// A storm of identical failures from one title (every rung, every retry)
+	// is one event on the dashboard, not twenty.
+	if n := len(s.fallbacks); n > 0 {
+		last := s.fallbacks[n-1]
+		if last.Class == string(class) && last.Codec == codec && last.Verdict == verdict && now.Sub(last.At) < fallbackDedupWindow {
+			return
+		}
+	}
 	s.fallbacks = append(s.fallbacks, HWFallbackEvent{
-		Class: string(class),
-		Codec: codec,
-		At:    time.Now().UTC(),
+		Class:   string(class),
+		Codec:   codec,
+		At:      now,
+		Verdict: verdict,
 	})
 	if len(s.fallbacks) > maxFallbackEvents {
 		s.fallbacks = s.fallbacks[len(s.fallbacks)-maxFallbackEvents:]

@@ -94,6 +94,9 @@ func goldenSources() []goldenSource {
 		{"2160p-hevc-dovi7", []*library.MediaStream{goldenVideo("hevc", 3840, 2160, func(s *library.MediaStream) { hdr(s); s.DoViProfile = new(7) }), goldenAudio("ac3", 6, true)}, 50000, 50e9},
 		{"1080p-h264-telecine", []*library.MediaStream{goldenVideo("h264", 1920, 1080, func(s *library.MediaStream) { s.IdetTelecine = new(true) }), goldenAudio("aac", 2, true)}, 6000, 5e9},
 		{"1080p-h264-nobitrate", []*library.MediaStream{goldenVideo("h264", 1920, 1080, nil), goldenAudio("aac", 2, true)}, 0, 0},
+		// Sources no GPU decoder takes: 10-bit H.264 (anime) and 4:2:2 HEVC (captures).
+		{"1080p-hi10p", []*library.MediaStream{goldenVideo("h264", 1920, 1080, func(s *library.MediaStream) { s.Profile = "High 10"; s.BitDepth = new(10); s.PixelFormat = new("yuv420p10le") }), goldenAudio("aac", 2, true)}, 6000, 5e9},
+		{"1080p-hevc-422", []*library.MediaStream{goldenVideo("hevc", 1920, 1080, func(s *library.MediaStream) { s.Profile = "Main 4:2:2 10"; s.BitDepth = new(10); s.PixelFormat = new("yuv422p10le") }), goldenAudio("aac", 2, true)}, 20000, 18e9},
 	}
 }
 
@@ -161,6 +164,14 @@ func goldenHosts(class transcoding.ContentClass) []goldenHost {
 	vaapiH264.HWTonemap = false
 	vaapiH264.HWBridgeMaxHeight = 1080
 	nvenc := transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160, HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc", "av1"}, HWDecodeCodecs: []string{"h264", "hevc"}, HW10BitTranscode: true, HWBridgeMaxHeight: 2160}
+	// A row the v5 calibration wrote: decode classes and builder-proven routes
+	// are authoritative. No bridge proof (the pre-fix NVENC chain failed), no
+	// Main10 decode class: HDR tone-maps on the CPU, Main10 sources stay off
+	// the zero-copy chain.
+	nvencProbed := nvenc
+	nvencProbed.ProbeVersion = transcoding.CapabilityProbeVersion
+	nvencProbed.HWDecodeCodecs = []string{"h264", "hevc"}
+	nvencProbed.HWRoutes = []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteSource10Bit}
 	return []goldenHost{
 		{"fallback", func() *PlanResolver { return goldenResolver(nil, false, class, 0) }},
 		{"software-1080", func() *PlanResolver { return goldenResolver(&soft, false, class, 0) }},
@@ -168,6 +179,7 @@ func goldenHosts(class transcoding.ContentClass) []goldenHost {
 		{"vaapi-h264-bridge", func() *PlanResolver { return goldenResolver(&vaapiH264, true, class, 0) }},
 		{"nvenc", func() *PlanResolver { return goldenResolver(&nvenc, true, class, 0) }},
 		{"vaapi-full-cap40m", func() *PlanResolver { return goldenResolver(&vaapi, true, class, 40000) }},
+		{"nvenc-probed-nobridge", func() *PlanResolver { return goldenResolver(&nvencProbed, true, class, 0) }},
 	}
 }
 

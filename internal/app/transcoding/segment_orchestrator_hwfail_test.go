@@ -218,3 +218,70 @@ func TestOrchestrator_NonHWExit_DoesNotDemote(t *testing.T) {
 		// expected: no demotion
 	}
 }
+
+// The per-title half of the fallback ladder: every deterministic HW failure
+// blocks the TITLE's GPU route (the client's retry then resolves to the CPU),
+// and a media/route incompatibility still reaches the sink - which records it
+// and never touches the host.
+func TestOrchestrator_HWFailure_BlocksTitleRouteBeforeAnyHostVerdict(t *testing.T) {
+	for _, class := range []transcoding.FailureClass{
+		transcoding.FailureRouteIncompatible,
+		transcoding.FailureHWUnsupportedOption,
+		transcoding.FailureHWInit,
+	} {
+		t.Run(string(class), func(t *testing.T) {
+			cache, _ := newTestCache(t)
+			proc := newFakeProcess()
+			proc.failOnExit = class
+			src := stubSource{path: "/media/test.mkv"}
+			o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger()).
+				WithHWRouteBlocklist(NewHWRouteBlocklist(time.Hour, 16))
+			defer o.Close()
+			got := make(chan transcoding.FailureClass, 4)
+			o.SetHWDemoteSink(func(_ context.Context, c transcoding.FailureClass, _ string) { got <- c })
+
+			fp := minimalFingerprint(t)
+			fp.VideoCodec = "h264"
+			fp.HWAccel = "nvenc"
+			require.False(t, o.HWRouteBlocked(fp.MediaID))
+			require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+
+			select {
+			case c := <-got:
+				assert.Equal(t, class, c, "the sink hears the class as classified")
+			case <-time.After(2 * time.Second):
+				t.Fatal("sink not called")
+			}
+			assert.True(t, o.HWRouteBlocked(fp.MediaID), "the title's GPU route is blocked at once")
+			entries := o.HWRouteBlocks()
+			require.Len(t, entries, 1)
+			assert.Equal(t, string(class), entries[0].Reason)
+
+			o.ClearHWRouteBlocks()
+			assert.False(t, o.HWRouteBlocked(fp.MediaID), "a new calibration forgets the block")
+		})
+	}
+}
+
+// A transient failure blocks nothing: the same title retries on the GPU.
+func TestOrchestrator_TransientHWFailure_DoesNotBlockTitle(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	proc.failOnExit = transcoding.FailureHWDeviceMemory
+	src := stubSource{path: "/media/test.mkv"}
+	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger()).
+		WithHWRouteBlocklist(NewHWRouteBlocklist(time.Hour, 16))
+	defer o.Close()
+	done := make(chan struct{}, 4)
+	o.SetHWDemoteSink(func(_ context.Context, _ transcoding.FailureClass, _ string) { done <- struct{}{} })
+
+	fp := minimalFingerprint(t)
+	fp.HWAccel = "nvenc"
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	select {
+	case <-done:
+		t.Fatal("a transient failure must not reach the host sink")
+	case <-time.After(300 * time.Millisecond):
+	}
+	assert.False(t, o.HWRouteBlocked(fp.MediaID))
+}

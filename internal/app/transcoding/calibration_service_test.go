@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -56,6 +57,14 @@ type fakeBenchmarkRunner struct {
 	// existing persisted-HW tests keep their backend; set true to exercise the
 	// re-validation strip path.
 	hwUnusable bool
+	// encodeUnusable makes the media-independent proof (HWEncodeUsable) FAIL, so
+	// a runtime failure is confirmed as the host's; default (false) confirms the
+	// host still encodes, i.e. the failure was the media's.
+	encodeUnusable bool
+	// refusedFeatures is what ConfirmHWFeatures drops; nil keeps every feature.
+	refusedFeatures []string
+	// proofCalls counts HWEncodeUsable calls (the demotion path must probe).
+	proofCalls atomic.Int64
 	// lastPref captures the preference the most recent Run was called with, so
 	// tests can assert the mode projected to the expected backend pin / disable.
 	lastPref atomic.Pointer[domaintranscoding.HWPreference]
@@ -76,6 +85,29 @@ func (r *fakeBenchmarkRunner) Run(ctx context.Context, pref domaintranscoding.HW
 
 func (r *fakeBenchmarkRunner) HWBackendUsable(_ context.Context, _ string) bool {
 	return !r.hwUnusable
+}
+
+func (r *fakeBenchmarkRunner) HWEncodeUsable(_ context.Context, _, _, _ string, features []string) bool {
+	r.proofCalls.Add(1)
+	if r.encodeUnusable {
+		return false
+	}
+	for _, f := range features {
+		if slices.Contains(r.refusedFeatures, f) {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *fakeBenchmarkRunner) ConfirmHWFeatures(ctx context.Context, backend, device, codec string, features []string) []string {
+	kept := make([]string, 0, len(features))
+	for _, f := range features {
+		if r.HWEncodeUsable(ctx, backend, device, codec, []string{f}) {
+			kept = append(kept, f)
+		}
+	}
+	return kept
 }
 
 func TestCalibration_Current_StartsAtSafeFallback(t *testing.T) {
@@ -637,7 +669,7 @@ func TestCalibration_ReprobeDemotedHW_NeverDemoted_DoesNothing(t *testing.T) {
 // failure switches the backend off.
 func TestCalibration_DemoteCapability_StampsWhenHWGoesOff(t *testing.T) {
 	repo := &fakeCapabilityRepo{}
-	svc := newIdleHostCalibrationService(repo, &fakeBenchmarkRunner{}, nil)
+	svc := newIdleHostCalibrationService(repo, &fakeBenchmarkRunner{encodeUnusable: true}, nil)
 	live := domaintranscoding.EncodeCapability{
 		SoftwareMaxHeight: 1080, HWBackend: "vaapi", HWMaxHeight: 2160,
 		HWCodecs: []string{"h264"}, HWDevice: "/dev/dri/renderD128",
@@ -653,7 +685,7 @@ func TestCalibration_DemoteCapability_StampsWhenHWGoesOff(t *testing.T) {
 
 // A feature trim leaves hardware working, so it is not on the clock.
 func TestCalibration_DemoteCapability_FeatureTrim_NotStamped(t *testing.T) {
-	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, &fakeBenchmarkRunner{}, nil)
+	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, &fakeBenchmarkRunner{refusedFeatures: []string{"temporal_aq"}}, nil)
 	live := domaintranscoding.EncodeCapability{
 		SoftwareMaxHeight: 1080, HWBackend: "vaapi", HWMaxHeight: 2160,
 		HWFeatures: []string{"temporal_aq"},

@@ -39,9 +39,21 @@ type EncodeCapability struct {
 	// "av1"): an old QSV box encodes H.264 only and software-encodes HEVC.
 	HWCodecs []string `json:"hw_codecs,omitempty"`
 
-	// HWDecodeCodecs lists what the backend DECODES (probed separately: a
-	// pre-Skylake iGPU encodes H.264 but cannot decode HEVC).
+	// HWDecodeCodecs lists what the backend DECODES, per source class the
+	// probe exercised: "h264" and "hevc" (8-bit 4:2:0) and "hevc10" (HEVC
+	// Main10, the 2160p HDR class). Probed fail-closed: a frame has to come
+	// back from the GPU (hwdownload) for a class to be listed. A Skylake iGPU
+	// decodes HEVC but not Main10; no GPU decodes 10-bit H.264 at all.
 	HWDecodeCodecs []string `json:"hw_decode_codecs,omitempty"`
+
+	// HWRoutes lists the ENCODE ROUTES the calibration ran end-to-end through
+	// the production builder (BuildFFmpegArgs on a mire of the route's class,
+	// real HLS output on disk): HWRouteSDR, HWRouteHEVC, HWRouteSource10Bit,
+	// HWRouteTonemap, HWRouteBridge, HWRoutePassthrough, HWRouteDecoupled.
+	// The resolver only takes a route named here. nil (a row benched before
+	// the route probes existed) is trusted as before - CapabilityProbeVersion
+	// re-benches such a row at boot, so nil never survives a deploy.
+	HWRoutes []string `json:"hw_routes,omitempty"`
 
 	// HW10BitTranscode: the VPP folds a 10-bit source (p010 -> nv12). The Intel
 	// i965 driver aborts the moment a p010 surface reaches scale_vaapi, so false
@@ -161,8 +173,25 @@ type DecodeRungSample struct {
 
 // CapabilityProbeVersion bumps whenever a new HW probe is added (1: HDR10
 // encode + Intel low-power features; 2: OpenCL tone-map + per-codec B-frames;
-// 3: the OpenCL chain fixed, 2026-09-10; 4: the tone-map bridge ladder).
-const CapabilityProbeVersion = 4
+// 3: the OpenCL chain fixed, 2026-09-10; 4: the tone-map bridge ladder;
+// 5: fail-closed decode probes incl. HEVC Main10 + the builder route probes).
+const CapabilityProbeVersion = 5
+
+// Route names the calibration proves through the production builder (see
+// EncodeCapability.HWRoutes). Each is one shape BuildFFmpegArgs can emit for a
+// GPU session; a shape that is not proven is not routed to the GPU.
+const (
+	HWRouteSDR         = "sdr"         // zero-copy decode -> scale -> h264
+	HWRouteHEVC        = "hevc"        // same, hevc encoder
+	HWRouteSource10Bit = "src10"       // 10-bit SDR source folded to nv12 on the GPU
+	HWRouteTonemap     = "tonemap"     // GPU HDR->SDR tone-map (OpenCL / VPP)
+	HWRouteBridge      = "bridge"      // GPU decode, CPU tone-map, GPU encode
+	HWRoutePassthrough = "passthrough" // HEVC Main10 with the HDR kept
+	HWRouteDecoupled   = "decoupled"   // CPU decode, hwupload, GPU scale+encode
+)
+
+// HWDecodeHEVC10 is the HWDecodeCodecs entry for HEVC Main10 sources.
+const HWDecodeHEVC10 = "hevc10"
 
 // FeatureTonemapOpenCL: tonemap_opencl runs on this GPU (bt2390 curve, HLG and
 // Dolby Vision RPU handled) - the VPP tone-mapper is the fallback.
@@ -234,12 +263,62 @@ func (c EncodeCapability) HWSupports(codec string) bool {
 }
 
 // HWCanDecode reports whether the calibrated HW backend can DECODE the given
-// source codec (encode capability does not imply it).
+// 8-bit source codec (encode capability does not imply it).
 func (c EncodeCapability) HWCanDecode(codec string) bool {
 	if c.HWBackend == "" {
 		return false
 	}
 	return slices.Contains(c.HWDecodeCodecs, normaliseSourceCodec(codec))
+}
+
+// decodeClassProbeVersion is the CapabilityProbeVersion from which the decode
+// probe distinguishes HEVC Main10 (HWDecodeHEVC10) from 8-bit HEVC. An older
+// row never had the class and is read as it always was; a re-bench at boot
+// replaces it.
+const decodeClassProbeVersion = 5
+
+// HWCanDecodeSource is HWCanDecode with the source's bit depth: a 10-bit
+// source needs the 10-bit decode class of its codec (only HEVC Main10 has
+// one; 10-bit H.264 / VP9 profile 2 are never GPU-decoded), an 8-bit source
+// the plain class.
+func (c EncodeCapability) HWCanDecodeSource(codec string, tenBit bool) bool {
+	if !tenBit {
+		return c.HWCanDecode(codec)
+	}
+	if c.HWBackend == "" || normaliseSourceCodec(codec) != "hevc" {
+		return false
+	}
+	if c.ProbeVersion < decodeClassProbeVersion {
+		return c.HWCanDecode(codec) // pre-class row: "hevc" covered Main10
+	}
+	return slices.Contains(c.HWDecodeCodecs, HWDecodeHEVC10)
+}
+
+// HWChromaDecodable reports whether a source pixel format is one the GPU
+// decoders take at all: 4:2:0 at 8 or 10 bits. 4:2:2 / 4:4:4 / 12-bit sources
+// (captures, masters, some anime) have no hardware decode path on any backend
+// this engine drives; feeding them to `-hwaccel` fails at filter negotiation
+// (measured 2026-09-12). Unknown ("", never probed) is trusted, as the codec
+// alone was before the format was recorded.
+func HWChromaDecodable(pixFmt string) bool {
+	switch strings.ToLower(strings.TrimSpace(pixFmt)) {
+	case "", "yuv420p", "yuvj420p", "nv12", "yuv420p10le", "p010le":
+		return true
+	}
+	return false
+}
+
+// HWRouteProven reports whether the calibration ran route end-to-end through
+// the production builder on this host. A nil HWRoutes (pre-probe row) is
+// trusted; a probed row is authoritative, fail-closed.
+func (c EncodeCapability) HWRouteProven(route string) bool {
+	if c.HWBackend == "" {
+		return false
+	}
+	if c.HWRoutes == nil {
+		return true
+	}
+	return slices.Contains(c.HWRoutes, route)
 }
 
 // HWHasFeature reports whether the calibration probe confirmed the named
@@ -276,4 +355,14 @@ type BenchmarkRunner interface {
 	// HWBackendUsable confirms the named backend can encode on this host right
 	// now: a matching CPU signature does not guarantee the GPU is still there.
 	HWBackendUsable(ctx context.Context, backend string) bool
+	// HWEncodeUsable is the media-INDEPENDENT proof a runtime failure has to
+	// clear before the host is demoted: a synthetic encode through backend's
+	// encoder for codec (empty = h264) with the given probed tuning features.
+	// Fail-closed; true means the host still encodes, so the failure was the
+	// media's or the route's, not the GPU's.
+	HWEncodeUsable(ctx context.Context, backend, device, codec string, features []string) bool
+	// ConfirmHWFeatures re-probes each of features individually and returns
+	// the subset the backend still accepts, so an "unsupported option" verdict
+	// narrows the host to what it proved rather than wiping everything.
+	ConfirmHWFeatures(ctx context.Context, backend, device, codec string, features []string) []string
 }

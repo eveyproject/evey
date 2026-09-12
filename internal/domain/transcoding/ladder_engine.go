@@ -24,6 +24,9 @@ type SourceFacts struct {
 	Width, Height int
 	Codec         string
 	TenBit        bool
+	// PixelFormat is ffprobe's pix_fmt ("" = unknown): the chroma/depth gate
+	// of the GPU decoder (HWChromaDecodable).
+	PixelFormat string
 	// HDRRange is the transcode-side range: "PQ", "HLG" or "" (SDR).
 	HDRRange string
 	Telecine bool
@@ -308,7 +311,7 @@ const CopyRungPlaceholderKbps int64 = 5_000
 // cannot sustain starves the player.
 func ShapeHardwareLadder(base []HLSProfile, src SourceFacts, cap EncodeCapability) []HLSProfile {
 	sourceCapped := CapLadderToSource(base, src.Width, src.Height)
-	zeroCopyDecode := src.Codec == "" || cap.HWCanDecode(src.Codec)
+	zeroCopyDecode := src.Codec == "" || (cap.HWCanDecodeSource(src.Codec, src.TenBit) && HWChromaDecodable(src.PixelFormat))
 	return CapLadderToHeight(sourceCapped, cap.MaxHeightFor(zeroCopyDecode))
 }
 

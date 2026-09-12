@@ -73,6 +73,13 @@ type PlanResolver struct {
 	AdmissionFrozenLadder func(key string) ([]transcoding.HLSProfile, bool)
 	AdmissionFreezeLadder func(key string, ladder []transcoding.HLSProfile)
 
+	// HWRouteBlocked reports whether this title's GPU route failed recently
+	// (HWRouteBlocklist): the title is then shaped, fingerprinted and produced
+	// exactly like an admission spill - the CPU route, every delivery cap kept
+	// - so the client's retry plays instead of replaying the failure. nil
+	// blocks nothing.
+	HWRouteBlocked func(mediaID string) bool
+
 	// AudioEncoderID returns the concrete ffmpeg AAC implementation this host
 	// will encode with ("aac" / "libfdk_aac"). nil → native, i.e. the historical
 	// bytes. Threaded into the FINGERPRINT and from there into the process opts,
@@ -247,6 +254,13 @@ func (pr *PlanResolver) capabilityOrFallback() transcoding.EncodeCapability {
 	return pr.Capability()
 }
 
+// hwSource is what the GPU decode gate reads about the source.
+type hwSource struct {
+	Codec       string
+	TenBit      bool
+	PixelFormat string
+}
+
 // ResolveHW decides the hardware encode backend for a chosen output codec.
 // Returns ("", "", false) - the software path - unless the flag is on, the
 // host calibrated a HW backend, and that backend can encode this codec. The
@@ -256,33 +270,47 @@ func (pr *PlanResolver) capabilityOrFallback() transcoding.EncodeCapability {
 // does neither today, and the ffmpeg builder independently falls back to
 // software for those, so the two stay consistent.
 func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit, hwTonemap bool) (accel, device string, features []string, usable, softwareDecode bool) {
+	return pr.resolveHW(outputCodec, hwSource{Codec: sourceCodec, TenBit: sourceTenBit}, hwTonemap)
+}
+
+// resolveHW is ResolveHW with the full source facts. Every GPU shape it can
+// answer with has to be PROVEN by the calibration's route probes
+// (EncodeCapability.HWRoutes): the filter-level facts say what the GPU can
+// do, the route proof says the builder's session for it actually runs here.
+func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bool) (accel, device string, features []string, usable, softwareDecode bool) {
 	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
 		return "", "", nil, false, false
 	}
 	cap := pr.Capability()
-	if !cap.HWSupports(outputCodec) {
+	if !cap.HWSupports(outputCodec) || !cap.HWRouteProven(transcoding.HWRouteSDR) {
+		return "", "", nil, false, false
+	}
+	if transcoding.CanonicalVideoCodec(outputCodec) == "hevc" && !cap.HWRouteProven(transcoding.HWRouteHEVC) {
 		return "", "", nil, false, false
 	}
 	// The zero-copy pipeline HW-decodes the source (-hwaccel). If this GPU can't
-	// decode the source codec - a pre-Skylake Intel iGPU decodes H.264 but not
-	// HEVC; no Intel iGPU decodes MPEG-4 ASP - that decode fails with ENOSYS and
-	// the player stalls on rebuffer. Such a source takes the DECOUPLED path
-	// instead: software decode, hwupload, then the same GPU scale and encode
-	// (HLSProcessOpts.HWSoftwareDecode). Losing the encoder too, which is what
-	// this gate used to do, left a whole library of DVD rips on libx264 beside
-	// an idle GPU.
+	// decode the source - a pre-Skylake Intel iGPU decodes H.264 but not HEVC, a
+	// Skylake decodes HEVC but not Main10, no GPU decodes 10-bit H.264 or 4:2:2
+	// - that decode fails at filter negotiation and the player stalls. Such a
+	// source takes the DECOUPLED path instead: software decode, hwupload, then
+	// the same GPU scale and encode (HLSProcessOpts.HWSoftwareDecode). Losing the
+	// encoder too, which is what this gate used to do, left a whole library of
+	// DVD rips on libx264 beside an idle GPU.
 	//
 	// Three cases keep the old full-software fallback, because the decoupled
 	// pipeline is not expressible or not honest for them:
-	//   - a backend with no wired upload chain (NVENC),
+	//   - a backend with no wired upload chain (NVENC), or one whose decoupled
+	//     route the calibration did not prove,
 	//   - a GPU tone-map, whose filter needs the 10-bit surface the upload's
 	//     CPU-side format=nv12 has already folded away,
 	//   - a 10-bit source, whose software decode is the expensive half at 4K -
 	//     routing it to the GPU pool would price a CPU workload as a GPU one.
-	softwareDecode = sourceCodec != "" && !cap.HWCanDecode(sourceCodec)
+	decodable := cap.HWCanDecodeSource(src.Codec, src.TenBit) && transcoding.HWChromaDecodable(src.PixelFormat)
+	softwareDecode = src.Codec != "" && !decodable
 	if softwareDecode {
 		backend := transcoding.HWAccelType(cap.HWBackend)
-		if hwTonemap || sourceTenBit || (backend != transcoding.VAAPI && backend != transcoding.QSV) {
+		if hwTonemap || src.TenBit || (backend != transcoding.VAAPI && backend != transcoding.QSV) ||
+			!cap.HWRouteProven(transcoding.HWRouteDecoupled) {
 			return "", "", nil, false, false
 		}
 	}
@@ -290,16 +318,30 @@ func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit,
 	// fold p010 down to the 8-bit nv12 the h264 encoder takes (hwScaleFilter's
 	// format=nv12). Some drivers - Intel i965 VEBOX - abort (SIGABRT)
 	// the moment a 10-bit surface reaches scale_vaapi. Unless the calibration
-	// proved the 10-bit VPP works, software-transcode the source instead of
-	// crashing the GPU pipeline and churning through a demotion.
+	// proved the 10-bit VPP works AND ran the builder's 10-bit session, software-
+	// transcode the source instead of crashing the GPU pipeline.
 	// Exception: when this request HW-tone-maps (hwTonemap), the GPU tone-mapper
 	// (tonemap_vaapi / vpp_qsv) folds the 10-bit p010 down to 8-bit nv12 itself,
 	// so the scale_vaapi-on-p010 hazard the gate guards against never arises -
 	// the 10-bit source can take the HW path even without HW10BitTranscode.
-	if sourceTenBit && !cap.HW10BitTranscode && !hwTonemap {
+	if src.TenBit && !hwTonemap && (!cap.HW10BitTranscode || !cap.HWRouteProven(transcoding.HWRouteSource10Bit)) {
 		return "", "", nil, false, false
 	}
 	return cap.HWBackend, cap.HWDevice, pr.effectiveHWFeatures(cap.HWFeatures), true, softwareDecode
+}
+
+// burnInStaysSoftware mirrors the builder's own refusal (hwUsable): a bitmap
+// subtitle burn-in without a probed GPU compositor is built as a SOFTWARE
+// encode, so the route, the class and the pool must say software too - or a
+// CPU x264 session runs under the GPU orchestrator, priced on the GPU pool,
+// capped at the GPU ceiling and blamed on the GPU when it fails.
+func (pr *PlanResolver) burnInStaysSoftware(decision transcoding.PlaybackDecision) bool {
+	return decision.SubtitleDecision == "burn" && !pr.HWOverlayWanted(decision)
+}
+
+// titleBlocked reads the per-title GPU route block (nil-safe).
+func (pr *PlanResolver) titleBlocked(mediaID string) bool {
+	return pr.HWRouteBlocked != nil && mediaID != "" && pr.HWRouteBlocked(mediaID)
 }
 
 // effectiveHWFeatures drops the low-power features unless the admin opted in.
@@ -326,16 +368,14 @@ func (pr *PlanResolver) effectiveHWFeatures(features []string) []string {
 // never advertise a codec the segments don't carry. Re-resolves HW for the
 // fallback codec (H.264 may be HW-encodable where AV1 was not).
 func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {
-	hwTonemap := pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams))
-	srcCodec := SourceVideoCodec(streams)
-	src10 := SourceVideoTenBit(streams)
-	telecine := SourceTelecine(streams)
+	dims := SourceDimsOf(streams)
+	hwTonemap := pr.HWTonemapWanted(decision, dims.HDRRange)
 	// CPU tone-map bridged between GPU decode and encode: the GPU never sees the
 	// 10-bit surface, but it must be the one decoding (the bridge downloads).
 	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
 	resolve := func(c string) {
-		accel, device, features, usable, softwareDecode = pr.ResolveHW(c, srcCodec, src10 && !bridge, hwTonemap)
-		if telecine || (bridge && softwareDecode) {
+		accel, device, features, usable, softwareDecode = pr.resolveHW(c, hwSource{Codec: dims.Codec, TenBit: dims.TenBit && !bridge, PixelFormat: dims.PixelFormat}, hwTonemap)
+		if pr.hwRouteRefused(decision, dims, bridge, softwareDecode) {
 			accel, device, features, usable, softwareDecode = "", "", nil, false, false
 		}
 	}
@@ -352,6 +392,22 @@ func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecisio
 	return codec, accel, device, features, usable, softwareDecode
 }
 
+// hwRouteRefused gathers the whole-session reasons a resolved GPU encode still
+// stays on the CPU, shared by EffectiveVideoCodec and HWRouteUsable so the
+// fingerprint, the class and the producer can never disagree: inverse
+// telecine (a software-only filter), a bridge whose decode would be software
+// (the download needs a GPU frame) or whose route the calibration did not
+// prove, and a burn-in the builder refuses to composite on the GPU.
+func (pr *PlanResolver) hwRouteRefused(decision transcoding.PlaybackDecision, src SourceDims, bridge, softwareDecode bool) bool {
+	if src.Telecine || pr.burnInStaysSoftware(decision) {
+		return true
+	}
+	if bridge && (softwareDecode || !pr.capabilityOrFallback().HWRouteProven(transcoding.HWRouteBridge)) {
+		return true
+	}
+	return false
+}
+
 // HWRouteUsable is the selector's routing gate: does the HARDWARE producer
 // take this request? It must answer exactly like EffectiveVideoCodec tags the
 // fingerprint - the route decides which physical resource the session burns
@@ -360,17 +416,14 @@ func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecisio
 // AV1 fallback: an AV1-preferring client on an AV1-disabled (or AV1-incapable)
 // host is ENCODED as H.264, so the route must be resolved for H.264 too.
 func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src SourceDims) bool {
-	if src.Telecine {
-		return false
-	}
 	hwTonemap := pr.HWTonemapWanted(decision, src.HDRRange)
 	// No GPU tone-mapper: the CPU tone-maps between the GPU decode and encode
 	// (hwTonemapBridge). That needs the GPU to decode the source; a software
 	// decode keeps the whole job on the CPU. Same answer as EffectiveVideoCodec.
 	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
 	resolve := func(c string) bool {
-		_, _, _, usable, softwareDecode := pr.ResolveHW(c, src.Codec, src.TenBit && !bridge, hwTonemap)
-		return usable && (!bridge || !softwareDecode)
+		_, _, _, usable, softwareDecode := pr.resolveHW(c, hwSource{Codec: src.Codec, TenBit: src.TenBit && !bridge, PixelFormat: src.PixelFormat}, hwTonemap)
+		return usable && !pr.hwRouteRefused(decision, src, bridge, softwareDecode)
 	}
 	codec := pr.outputCodecFor(decision, nil)
 	usable := resolve(codec)
@@ -432,7 +485,7 @@ func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecisi
 		return false
 	}
 	cap := pr.Capability()
-	if !cap.HWHDRPassthroughUsable() || !cap.HW10BitTranscode {
+	if !cap.HWHDRPassthroughUsable() || !cap.HW10BitTranscode || !cap.HWRouteProven(transcoding.HWRoutePassthrough) {
 		return false
 	}
 	if decision.VideoCodec != "" && !strings.EqualFold(decision.VideoCodec, "h264") && !strings.EqualFold(decision.VideoCodec, "hevc") {
@@ -454,7 +507,7 @@ func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision, h
 		return false
 	}
 	cap := pr.Capability()
-	if !cap.HWTonemap || (cap.HWBackend != "vaapi" && cap.HWBackend != "qsv") {
+	if !cap.HWTonemap || (cap.HWBackend != "vaapi" && cap.HWBackend != "qsv") || !cap.HWRouteProven(transcoding.HWRouteTonemap) {
 		return false
 	}
 	// tonemap_vaapi / vpp_qsv only read PQ: HLG comes out wrong and a Dolby
@@ -497,8 +550,14 @@ func (pr *PlanResolver) HWOverlayWanted(decision transcoding.PlaybackDecision) b
 // with different caps must not share a pin or the second inherits the first's.
 func (pr *PlanResolver) PinKey(req PlaybackRequest, decision transcoding.PlaybackDecision) string {
 	ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, req.Streams)
-	return fmt.Sprintf("%s|%s|%s|sh=%d|mh=%d|bw=%d|lvl=%d", req.MediaID, ec, decision.VideoDecision,
+	key := fmt.Sprintf("%s|%s|%s|sh=%d|mh=%d|bw=%d|lvl=%d", req.MediaID, ec, decision.VideoDecision,
 		req.ScreenHeight, req.Client.MaxHeight, pr.videoBitrateCeilingKbps(req, decision), req.Client.MaxH264Level)
+	// A title whose GPU route just failed gets a fresh pin: the ladder frozen
+	// for its GPU session must not be served to its CPU session.
+	if pr.titleBlocked(req.MediaID) {
+		key += "|rb=1"
+	}
+	return key
 }
 
 // ShapeLadder picks the ABR ladder for a given (decision, media, streams)
@@ -529,13 +588,19 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 	in := transcoding.LadderInput{
 		Source:     pr.sourceFacts(req),
 		Complexity: complexity,
-		Route:      pr.encodeRoute(decision, streams, isCopy),
+		Route:      pr.routeFor(req, decision, streams, isCopy),
 		Delivery:   pr.deliveryConstraints(req, decision),
 	}
 	laddered := pr.ladderBuilder().Build(in)
 
 	if pr.AdmissionRoute != nil && len(laddered) > 0 && !isCopy {
 		natural := pr.LadderClassFor(decision, streams)
+		if natural == LadderClassHW && pr.titleBlocked(req.MediaID) {
+			// The title's GPU route is blocked: it IS a software stream now, the
+			// ladder above already has the CPU shape (routeFor), so admission
+			// prices the CPU pool and never offers the GPU as a fallback.
+			natural = softwareClassFor(in.Route)
+		}
 		// The spill ladder (GPU pool full, CPU pool free) is the same request
 		// shaped for the CPU route - every delivery cap included. It used to be
 		// the bare producer shape, so a spilled viewer lost the screen, level and
@@ -638,6 +703,29 @@ func spillRoute(hw transcoding.EncodeRoute, decision transcoding.PlaybackDecisio
 		r.Codec = "h264"
 	}
 	return r
+}
+
+// routeFor is encodeRoute with the per-title GPU block applied: a blocked
+// title is shaped for the CPU route exactly like an admission spill.
+func (pr *PlanResolver) routeFor(req PlaybackRequest, decision transcoding.PlaybackDecision, streams []*library.MediaStream, isCopy bool) transcoding.EncodeRoute {
+	route := pr.encodeRoute(decision, streams, isCopy)
+	if route.HWUsable && pr.titleBlocked(req.MediaID) {
+		return spillRoute(route, decision)
+	}
+	return route
+}
+
+// softwareClassFor is the admission class of a CPU route (the spill's, the
+// blocked title's): the same precedence LadderClassOf applies to a fingerprint.
+func softwareClassFor(route transcoding.EncodeRoute) LadderClass {
+	switch {
+	case strings.EqualFold(route.Codec, "av1"):
+		return LadderClassSoftwareAV1
+	case route.Tonemap:
+		return LadderClassSoftwareHDR
+	default:
+		return LadderClassSoftware
+	}
 }
 
 func (pr *PlanResolver) ladderBuilder() transcoding.LadderBuilder {
@@ -775,7 +863,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		fpProfiles[i] = ProfileFingerprintOf(p)
 	}
 	// Each rung's rate control, from the policy the ladder was shaped under.
-	route := pr.encodeRoute(decision, streams, pr.IsCopy(decision, streams, req.SourceBytes))
+	route := pr.routeFor(req, decision, streams, pr.IsCopy(decision, streams, req.SourceBytes))
 	quality := make([]transcoding.QualityTarget, len(profiles))
 	for i, p := range profiles {
 		quality[i] = pr.QualityPolicy().TargetFor(p, route)
@@ -791,12 +879,12 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 	// bytes the software producer will make, and LadderClassOf(fp) is what the
 	// spawn bills (CPU pool, not GPU). AV1 rides hardware only, so a spilled
 	// AV1 stream carries the H.264 the software encoder will actually produce.
-	if hwUsable && pr.AdmissionPinnedClass != nil {
-		if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(req, decision)); ok && cls != LadderClassHW {
-			hwAccel, hwDevice, hwFeatures, hwUsable, hwSoftwareDecode = "", "", nil, false, false
-			if strings.EqualFold(videoCodec, "av1") {
-				videoCodec = "h264"
-			}
+	// A title whose GPU route just failed is spilled the same way, by the
+	// per-title block instead of the pool.
+	if hwUsable && pr.spilledToSoftware(req, decision) {
+		hwAccel, hwDevice, hwFeatures, hwUsable, hwSoftwareDecode = "", "", nil, false, false
+		if strings.EqualFold(videoCodec, "av1") {
+			videoCodec = "h264"
 		}
 	}
 	// The HDR passthrough only exists on the GPU: a spill to software tone-maps.
@@ -910,19 +998,32 @@ func (pr *PlanResolver) ProducerFor(req PlaybackRequest, decision transcoding.Pl
 		if isCopy {
 			return pr.CopyProducer
 		}
-		// Admission spill: a stream pinned to the software route spawns on the
-		// software producer regardless of the hw gate - the producer must be
-		// the one the ladder was shaped for (see ShapeLadder).
-		if pr.AdmissionPinnedClass != nil {
-			if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(req, decision)); ok && cls != LadderClassHW {
-				if sw := pr.Selector.Software(); sw != nil {
-					return sw
-				}
+		// Admission spill (pool full) or per-title block (GPU route just failed):
+		// the stream spawns on the software producer regardless of the hw gate -
+		// the producer must be the one the ladder was shaped for (see ShapeLadder).
+		if pr.spilledToSoftware(req, decision) {
+			if sw := pr.Selector.Software(); sw != nil {
+				return sw
 			}
 		}
 		return pr.Selector.For(decision, SourceDimsOf(req.Streams))
 	}
 	return pr.Orchestrator
+}
+
+// spilledToSoftware reports whether a GPU-eligible request is served from the
+// CPU anyway: admission pinned it to the software route (GPU pool full), or
+// the title's GPU route is blocked after a failure.
+func (pr *PlanResolver) spilledToSoftware(req PlaybackRequest, decision transcoding.PlaybackDecision) bool {
+	if pr.titleBlocked(req.MediaID) {
+		return true
+	}
+	if pr.AdmissionPinnedClass != nil {
+		if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(req, decision)); ok && cls != LadderClassHW {
+			return true
+		}
+	}
+	return false
 }
 
 // audioEncoderID is the nil-safe read of the injected probe: an unwired
