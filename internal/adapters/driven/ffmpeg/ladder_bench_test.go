@@ -1,9 +1,14 @@
 package ffmpeg
 
 import (
+	"math"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 func TestParseBenchFeatures(t *testing.T) {
@@ -57,4 +62,57 @@ func TestSpearman(t *testing.T) {
 	assert.InDelta(t, 1.0, spearman([]float64{1, 2, 3, 4}, []float64{1, 10, 100, 1000}), 1e-9, "rank correlation ignores the curve's shape")
 	assert.InDelta(t, 0.0, spearman([]float64{1, 1, 1}, []float64{1, 2, 3}), 1e-12, "a constant series correlates with nothing")
 	assert.InDelta(t, 0.5, ranks([]float64{5, 5})[0]+ranks([]float64{5, 5})[1]-2.5, 1e-9, "ties share the mean rank")
+}
+
+func TestEfficiencyFactor(t *testing.T) {
+	pts := []EffPoint{
+		{ActualKbps: 1000, XPSNRY: 34}, {ActualKbps: 2000, XPSNRY: 37}, {ActualKbps: 4000, XPSNRY: 40},
+	}
+	// The reference spent 2000 for 37: an encoder that reaches 37 at 2000 has factor 1.
+	f, oor := efficiencyFactor(pts, 2000, 37)
+	assert.InDelta(t, 1.0, f, 1e-9)
+	assert.False(t, oor)
+	// Reaching 38.5 halfway (in log bitrate) between 2000 and 4000: sqrt(2) x 2000 over a 2000 reference.
+	f, _ = efficiencyFactor(pts, 2000, 38.5)
+	assert.InDelta(t, math.Sqrt2, f, 1e-6)
+	// A cheaper encoder: the reference needed 3000 for 38.5.
+	f, _ = efficiencyFactor(pts, 3000, 38.5)
+	assert.InDelta(t, math.Sqrt2*2000/3000, f, 1e-6)
+	// Outside the curve: nearest end, flagged.
+	f, oor = efficiencyFactor(pts, 2000, 45)
+	assert.True(t, oor)
+	assert.InDelta(t, 2.0, f, 1e-9)
+	f, oor = efficiencyFactor(pts, 2000, 30)
+	assert.True(t, oor)
+	assert.InDelta(t, 0.5, f, 1e-9)
+	_, oor = efficiencyFactor(pts[:1], 2000, 37)
+	assert.True(t, oor, "one point is no curve")
+}
+
+func TestEffSummaries(t *testing.T) {
+	enc := BenchEncoder{Name: "nvenc-h264", Codec: "h264", Accel: transcoding.NVENC}
+	mk := func(path string, factors ...float64) *EffResult {
+		r := &EffResult{Source: BenchSource{Path: path}}
+		for _, f := range factors {
+			r.Scenes = append(r.Scenes, EffScene{Measures: []EffMeasure{{Encoder: enc, Height: 1080, Factor: f, Points: []EffPoint{{Ratio: 1, EncodeFP: 300}}}}})
+		}
+		return r
+	}
+	s := EffSummaries([]*EffResult{mk("a", 1.2, 1.3, 1.25), mk("b", 1.4, 1.5), mk("c", 1.1)})
+	require.Len(t, s, 1)
+	assert.Equal(t, 6, s[0].Scenes)
+	assert.Equal(t, 3, s[0].Titles)
+	assert.InDelta(t, 1.275, s[0].MedianFactor, 1e-9)
+	assert.InDelta(t, 300, s[0].MedianFPS, 1e-9)
+	assert.Greater(t, s[0].LOOWorst, s[0].LOOP50)
+	assert.GreaterOrEqual(t, s[0].DispWorst, s[0].DispP90)
+}
+
+func TestBenchEncoderArgs_UseTheProductionBuilders(t *testing.T) {
+	nv := strings.Join(benchEncoderArgs(BenchEncoder{Name: "nvenc-h264", Codec: "h264", Accel: transcoding.NVENC, Features: []string{"bframes"}}, 4000), " ")
+	assert.Contains(t, nv, "-c:v h264_nvenc -preset p4 -forced-idr 1 -bf 3 -b:v 4000k -maxrate 4000k -bufsize 8000k")
+	va := strings.Join(benchEncoderArgs(BenchEncoder{Name: "vaapi-hevc", Codec: "hevc", Accel: transcoding.VAAPI}, 4000), " ")
+	assert.Contains(t, va, "-c:v hevc_vaapi -rc_mode VBR -b:v 4000k -maxrate 4000k -bufsize 8000k")
+	sw := strings.Join(benchEncoderArgs(BenchEncoder{Name: "x265", Codec: "hevc", Preset: "veryfast"}, 4000), " ")
+	assert.Contains(t, sw, "-c:v libx265 -preset veryfast -b:v 4000k -maxrate 4000k -bufsize 8000k -pix_fmt yuv420p")
 }
