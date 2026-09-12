@@ -43,13 +43,15 @@ type ProbeSignals struct {
 const ProbeCeilingHitThreshold = 12
 
 // ProbeCandidate reports whether a title should be probed, and why. A title
-// already probed at the current model version is never re-probed (the probe
-// is the ground truth; only a model bump reopens it). The order encodes
-// priority: a title with no prediction at all first, then a measured
-// under-price, then an extrapolation, then a known weak spot.
+// already probed at the current identity (protocol + model version + encoder)
+// is never re-probed - whether that probe succeeded (it is the ground truth) or
+// failed (the source could not be measured; retrying it forever is pointless).
+// Only an identity bump reopens it. The order encodes priority: a title with no
+// prediction at all first, then a measured under-price, then an extrapolation,
+// then a known weak spot.
 func ProbeCandidate(m ComplexityMetrics, sig ProbeSignals, model CostModel) (ProbeReason, bool) {
-	if p := m.Probe; p != nil && !p.Failed && p.Protocol == TitleProbeProtocol && p.ModelVersion == model.Version {
-		return "", false // already ground-truthed for this model
+	if p := m.Probe; p.CurrentIdentity(model.Version) {
+		return "", false // already probed (or terminally failed) for this identity
 	}
 	motion, ok := m.CanonicalMotion()
 	if !ok {

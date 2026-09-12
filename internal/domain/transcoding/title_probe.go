@@ -19,6 +19,18 @@ import (
 // TitleProbeProtocol bumps when the probe's meaning changes.
 const TitleProbeProtocol = 1
 
+// TitleProbeEncoderID names the encoder + preset + tuning a probe measures on.
+// It is part of a probe's reuse identity (see CurrentIdentity): a change that
+// alters the encoded bytes - a different preset, a tuning change, or an ffmpeg
+// build known to shift libx264's output - MUST bump this string, so every probe
+// measured on the old encode is treated as stale on both the read path (the
+// model ignores it) and the queue (the worker re-probes). The build that ran a
+// probe is also recorded in TitleProbe.FFmpeg for audit, but the build id is a
+// runtime value and is not consulted on the pure-domain decision path; bumping
+// this constant is the lever for an output-changing build, exactly as
+// TitleProbeProtocol is for a change of the probe's meaning.
+const TitleProbeEncoderID = "libx264 veryfast (production tuning)"
+
 // TitleProbeMaxScenes and TitleProbeMaxCRFPoints are the hard caps.
 const (
 	TitleProbeMaxScenes    = 3
@@ -83,12 +95,23 @@ func (p *TitleProbe) Margin() float64 {
 	return math.Max(TruthMarginFloor, math.Sqrt(p.Spread))
 }
 
-// Usable reports a probe the model may read: same model version and
-// protocol, not failed, and - the measured rule - NOT confirmed with at least
-// two scenes. A confirmed probe leaves the prediction alone (one scene is a
-// worse estimate than the model); a probe that found the prediction out of
-// its margin replaces it with what it measured.
+// CurrentIdentity reports whether the probe was produced by the encode this
+// build would run now: same protocol, model version and encoder identity. A
+// probe from an older identity is stale - the model ignores it (Usable) and the
+// worker re-probes (ProbeCandidate) - so a protocol, model or encoder bump
+// reopens every persisted probe consistently across both paths. Failed status
+// is orthogonal: a failed probe at the CURRENT identity is terminal (it is not
+// retried until an identity bump), which is why this check does not look at it.
+func (p *TitleProbe) CurrentIdentity(modelVersion int) bool {
+	return p != nil && p.Protocol == TitleProbeProtocol && p.ModelVersion == modelVersion && p.Encoder == TitleProbeEncoderID
+}
+
+// Usable reports a probe the model may read: the current identity, not failed,
+// and - the measured rule - NOT confirmed with at least two scenes. A confirmed
+// probe leaves the prediction alone (one scene is a worse estimate than the
+// model); a probe that found the prediction out of its margin replaces it with
+// what it measured.
 func (p *TitleProbe) Usable(modelVersion, crf int) bool {
-	return p != nil && !p.Failed && p.Protocol == TitleProbeProtocol && p.ModelVersion == modelVersion &&
+	return p.CurrentIdentity(modelVersion) && !p.Failed &&
 		!p.Confirmed && p.Scenes(crf) >= 2 && p.MeasuredBPP > 0
 }

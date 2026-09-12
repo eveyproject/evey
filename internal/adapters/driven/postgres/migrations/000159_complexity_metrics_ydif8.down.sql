@@ -1,9 +1,15 @@
 -- Irreversible in the value sense: the native YDIF is not recoverable from the
 -- canonical one without the bit depth, and the resampled rows are new
--- measurements. The down migration only drops the version stamp so a
--- re-up re-runs; the motion_mean stays canonical (a re-up on a v2 row is a
--- no-op division by 1 for 8-bit and would double-divide 10-bit, so guard by
--- version - which is exactly what the up migration's COALESCE(...) < 2 does).
-UPDATE media_items
-SET complexity_metrics = complexity_metrics - 'metric_version'
-WHERE complexity_metrics ? 'metric_version';
+-- measurements. This migration only converts data (no schema change), so its
+-- down is a deliberate no-op: it must NOT strip metric_version.
+--
+-- metric_version=2 is the ONLY guard the up migration has against converting a
+-- row twice (its `COALESCE(metric_version,1) < 2` predicate). An earlier down
+-- that removed the stamp defeated that guard: a down-then-up cycle re-ran the
+-- known-depth branch on an already-canonical 10-bit row and divided its
+-- motion_mean by four a SECOND time. Leaving the stamp in place makes a re-up a
+-- safe no-op (every row is already >= 2) and keeps the conversion idempotent,
+-- which is the correct behaviour for a one-way data fix. Rolling the binary back
+-- and forward therefore leaves the canonical metrics intact rather than
+-- corrupting them.
+SELECT 1;
