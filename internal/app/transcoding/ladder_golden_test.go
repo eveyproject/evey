@@ -46,10 +46,13 @@ type goldenClient struct {
 	capKb  int
 }
 
-type goldenComplexity struct{ class transcoding.ContentClass }
+type goldenComplexity struct {
+	class   transcoding.ContentClass
+	metrics transcoding.ComplexityMetrics
+}
 
 func (g goldenComplexity) Get(context.Context, string) (transcoding.ComplexityEntry, bool, error) {
-	return transcoding.ComplexityEntry{Class: g.class}, g.class != "", nil
+	return transcoding.ComplexityEntry{Class: g.class, Metrics: g.metrics}, g.class != "" || g.metrics.FramesSampled > 0, nil
 }
 func (goldenComplexity) Set(context.Context, string, transcoding.ContentClass, transcoding.ComplexityMetrics, time.Time) error {
 	return nil
@@ -125,10 +128,14 @@ func goldenClients() []goldenClient {
 }
 
 func goldenResolver(cap *transcoding.EncodeCapability, hw bool, class transcoding.ContentClass, maxKbps int) *PlanResolver {
+	return goldenResolverWith(cap, hw, goldenComplexity{class: class}, maxKbps)
+}
+
+func goldenResolverWith(cap *transcoding.EncodeCapability, hw bool, repo goldenComplexity, maxKbps int) *PlanResolver {
 	pr := &PlanResolver{
 		HWAccelEnabled:        func() bool { return hw },
 		HWTonemapEnabled:      func() bool { return true },
-		ComplexityRepo:        goldenComplexity{class},
+		ComplexityRepo:        repo,
 		UseFMP4:               true,
 		AudioRenditionEnabled: true,
 		MaxVideoBitrateKbps:   func() int { return maxKbps },
@@ -212,6 +219,30 @@ func TestLadderGolden(t *testing.T) {
 			for _, src := range []goldenSource{srcs[1], srcs[2], srcs[4]} {
 				for _, cl := range []goldenClient{cls[0], cls[2]} {
 					out = append(out, fmt.Sprintf("class=%s %s | %s | %s | %s", name, host.name, src.name, cl.name, goldenRow(host.pr(), src, cl)))
+				}
+			}
+		}
+	}
+	// Titles with persisted metrics: the cost model prices the CPU route (the
+	// GPU keeps the table until the codec efficiency model exists). Three
+	// motion levels, two hosts, three sources, three clients.
+	motions := []float64{1.46, 4.05, 8.46} // a remux, Avatar, another title
+	for _, ydif := range motions {
+		repo := goldenComplexity{class: transcoding.ClassFilmNormal, metrics: transcoding.ComplexityMetrics{MotionMean: ydif, FramesSampled: 192}}
+		hosts := []goldenHost{
+			{"software-1080", func() *PlanResolver {
+				return goldenResolverWith(&transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 480}, false, repo, 0)
+			}},
+			{"vaapi-full", func() *PlanResolver {
+				v := vaapiCapable()
+				v.HWHDR10Encode = true
+				return goldenResolverWith(&v, true, repo, 0)
+			}},
+		}
+		for _, host := range hosts {
+			for _, src := range []goldenSource{srcs[1], srcs[2], srcs[4]} {
+				for _, cl := range []goldenClient{cls[0], cls[2], cls[6]} {
+					out = append(out, fmt.Sprintf("ydif=%.2f %s | %s | %s | %s", ydif, host.name, src.name, cl.name, goldenRow(host.pr(), src, cl)))
 				}
 			}
 		}

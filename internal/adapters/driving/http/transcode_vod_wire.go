@@ -117,7 +117,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// Lazy-expiry hot-path caches (interval 0 → no sweeper goroutine; the LRU
 	// cap bounds memory, expiry is checked on Get).
 	mediaLookup, _ := pkgcache.NewWithMaxSize[cachedMediaLookup](0, mediaLookupMax)
-	classLookup, _ := pkgcache.NewWithMaxSize[domaintranscoding.ContentClass](0, mediaLookupMax)
+	classLookup, _ := pkgcache.NewWithMaxSize[domaintranscoding.ComplexityEntry](0, mediaLookupMax)
 	prefsLookup, _ := pkgcache.NewWithMaxSize[apptranscoding.TranscodingPreferences](0, mediaLookupMax)
 	userBitrateLookup, _ := pkgcache.NewWithMaxSize[int](0, mediaLookupMax)
 	h := &hlsVODServe{

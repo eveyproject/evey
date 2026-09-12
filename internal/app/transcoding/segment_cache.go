@@ -215,6 +215,10 @@ type ProfileFingerprint struct {
 	// added here, TestProfileFingerprint_EveryFieldAffectsHash fails until it is
 	// also added to Hash() - the structural guard against the next omission.
 	Copy bool
+	// CostModelled: the bitrate is a cost-model ceiling (no headroom above
+	// it): different bytes, hashed - as a suffix only when set, so every
+	// table-priced rung keeps the hash it had.
+	CostModelled bool
 }
 
 // ProfileFingerprintOf projects a domain HLSProfile onto its cache fingerprint.
@@ -232,6 +236,7 @@ func ProfileFingerprintOf(p transcoding.HLSProfile) ProfileFingerprint {
 		VideoBitrate: p.VideoBitrate,
 		AudioBitrate: p.AudioBitrate,
 		Copy:         p.Copy,
+		CostModelled: p.CostModelled,
 	}
 }
 
@@ -433,7 +438,11 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 		fmt.Fprintf(&b, "h264lvl=%d\n", lvl)
 	}
 	for _, p := range profiles {
-		fmt.Fprintf(&b, "p=%s|%dx%d|%d|%d|copy=%t\n", p.Name, p.Width, p.Height, p.VideoBitrate, p.AudioBitrate, p.Copy)
+		fmt.Fprintf(&b, "p=%s|%dx%d|%d|%d|copy=%t", p.Name, p.Width, p.Height, p.VideoBitrate, p.AudioBitrate, p.Copy)
+		if p.CostModelled {
+			fmt.Fprintf(&b, "|cost=v%d", transcoding.CostModelV1.Version)
+		}
+		b.WriteString("\n")
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	// 16 hex chars = 64 bits, low enough collision risk for our cache scale.

@@ -51,7 +51,7 @@ type PlanResolver struct {
 	// expiry as a miss, so 0 stores an already-expired entry and every segment
 	// re-queries ComplexityRepo. (The http adapter wires 10s.)
 	ComplexityRepo transcoding.ComplexityRepo
-	ClassLookup    *pkgcache.TTLCache[transcoding.ContentClass]
+	ClassLookup    *pkgcache.TTLCache[transcoding.ComplexityEntry]
 	ClassLookupTTL time.Duration
 
 	// Selector routes a transcode to the software or hardware producer;
@@ -525,28 +525,10 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 		}
 	}
 
-	class := transcoding.ClassFilmNormal
-	if pr.ComplexityRepo != nil && req.MediaID != "" {
-		resolved := false
-		if pr.ClassLookup != nil {
-			if c, ok := pr.ClassLookup.Get(req.MediaID); ok {
-				class, resolved = c, true
-			}
-		}
-		if !resolved {
-			if entry, found, err := pr.ComplexityRepo.Get(ctx, req.MediaID); err == nil && found && entry.Class.IsValid() {
-				class = entry.Class
-			}
-			if pr.ClassLookup != nil {
-				// Cache the RESOLVED class (default included) so an unclassified
-				// title doesn't re-query on every segment either.
-				pr.ClassLookup.Set(req.MediaID, class, pr.ClassLookupTTL)
-			}
-		}
-	}
+	complexity := pr.complexityOf(ctx, req.MediaID)
 	in := transcoding.LadderInput{
 		Source:     pr.sourceFacts(req),
-		Complexity: transcoding.ComplexityVector{Class: class},
+		Complexity: complexity,
 		Route:      pr.encodeRoute(decision, streams, isCopy),
 		Delivery:   pr.deliveryConstraints(req, decision),
 	}
@@ -665,6 +647,33 @@ func (pr *PlanResolver) ladderBuilder() transcoding.LadderBuilder {
 	return transcoding.StaticLadderBuilder{}
 }
 
+// complexityOf reads the title's persisted complexity (class + metrics, the
+// cost model's input), through the short-TTL cache on the segment hot path.
+// An unclassified title resolves to the film_normal class and no metrics.
+func (pr *PlanResolver) complexityOf(ctx context.Context, mediaID string) transcoding.ComplexityVector {
+	entry := transcoding.ComplexityEntry{Class: transcoding.ClassFilmNormal}
+	if pr.ComplexityRepo == nil || mediaID == "" {
+		return transcoding.ComplexityVector{Class: entry.Class, Metrics: entry.Metrics}
+	}
+	if pr.ClassLookup != nil {
+		if e, ok := pr.ClassLookup.Get(mediaID); ok {
+			return transcoding.ComplexityVector{Class: e.Class, Metrics: e.Metrics}
+		}
+	}
+	if e, found, err := pr.ComplexityRepo.Get(ctx, mediaID); err == nil && found {
+		if e.Class.IsValid() {
+			entry.Class = e.Class
+		}
+		entry.Metrics = e.Metrics
+	}
+	if pr.ClassLookup != nil {
+		// Cache the RESOLVED entry (default included) so an unclassified
+		// title doesn't re-query on every segment either.
+		pr.ClassLookup.Set(mediaID, entry, pr.ClassLookupTTL)
+	}
+	return transcoding.ComplexityVector{Class: entry.Class, Metrics: entry.Metrics}
+}
+
 // QualityPolicy is the rate-control policy the encoder plans read.
 func (pr *PlanResolver) QualityPolicy() transcoding.QualityPolicy {
 	if pr.Quality != nil {
@@ -679,6 +688,7 @@ func (pr *PlanResolver) sourceFacts(req PlaybackRequest) transcoding.SourceFacts
 	return transcoding.SourceFacts{
 		Width: d.Width, Height: d.Height, Codec: d.Codec, TenBit: d.TenBit,
 		HDRRange: d.HDRRange, Telecine: d.Telecine, BitrateKbps: req.SourceBitrateKbps,
+		FPS: SourceFrameRate(req.Streams),
 	}
 }
 

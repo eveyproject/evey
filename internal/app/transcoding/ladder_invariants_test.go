@@ -17,11 +17,29 @@ import (
 // delivery cap, and never above what the host can encode in real time.
 func TestLadderInvariants(t *testing.T) {
 	classes := []transcoding.ContentClass{transcoding.ClassFilmNormal, transcoding.ClassAnimation, transcoding.ClassFilmLowMotion, transcoding.ClassFilmHighMotion, transcoding.ClassSport}
+	var hostSets [][]goldenHost
 	for _, class := range classes {
-		for _, host := range goldenHosts(class) {
+		hostSets = append(hostSets, goldenHosts(class))
+	}
+	for _, ydif := range []float64{0.3, 1.46, 4.05, 8.46, 30} {
+		repo := goldenComplexity{class: transcoding.ClassFilmHighMotion, metrics: transcoding.ComplexityMetrics{MotionMean: ydif, FramesSampled: 192}}
+		v := vaapiCapable()
+		v.HWHDR10Encode = true
+		hostSets = append(hostSets, []goldenHost{
+			{fmt.Sprintf("software-1080 ydif=%.2f", ydif), func() *PlanResolver {
+				return goldenResolverWith(&transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 480}, false, repo, 0)
+			}},
+			{fmt.Sprintf("vaapi-full ydif=%.2f", ydif), func() *PlanResolver { return goldenResolverWith(&v, true, repo, 0) }},
+			{fmt.Sprintf("software-2160 cap20m ydif=%.2f", ydif), func() *PlanResolver {
+				return goldenResolverWith(&transcoding.EncodeCapability{SoftwareMaxHeight: 2160}, false, repo, 20000)
+			}},
+		})
+	}
+	for _, hosts := range hostSets {
+		for _, host := range hosts {
 			for _, src := range goldenSources() {
 				for _, cl := range goldenClients() {
-					name := fmt.Sprintf("%s/%s/%s/%s", class, host.name, src.name, cl.name)
+					name := fmt.Sprintf("%s/%s/%s", host.name, src.name, cl.name)
 					pr := host.pr()
 					req := PlaybackRequest{
 						MediaID: "m1", SourcePath: "/golden.mkv", Container: "matroska",
@@ -36,6 +54,11 @@ func TestLadderInvariants(t *testing.T) {
 			}
 		}
 	}
+}
+
+func hasCost(pr *PlanResolver, req PlaybackRequest) bool {
+	_, ok := pr.complexityOf(context.Background(), req.MediaID).Cost()
+	return ok
 }
 
 func assertLadderInvariants(t *testing.T, name string, pr *PlanResolver, req PlaybackRequest, plan PlaybackPlan) {
@@ -131,8 +154,9 @@ func assertLadderInvariants(t *testing.T, name string, pr *PlanResolver, req Pla
 	require.Len(t, plan.Fingerprint.QualityTargets, len(ladder), "%s: one rate-control target per rung", name)
 	for i, qt := range plan.Fingerprint.QualityTargets {
 		assert.False(t, qt.IsZero(), "%s: rung %d has no rate control", name, i)
-		if route.HWUsable {
+		if route.HWUsable || ladder[i].CostModelled {
 			assert.Equal(t, ladder[i].VideoBitrate, qt.MaxKbps, "%s: rung %d promises %d kbps but may emit %d", name, i, ladder[i].VideoBitrate, qt.MaxKbps)
 		}
+		assert.Equal(t, !route.HWUsable && !isCopy && hasCost(pr, req), ladder[i].CostModelled, "%s: rung %d cost-modelled exactly on the CPU route of a title with metrics", name, i)
 	}
 }
