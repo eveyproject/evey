@@ -76,7 +76,7 @@ func (h *audioServe) wasmAudio(r *http.Request) bool {
 // /hls/{file}) - the on-the-wire URL the manifest emits resolves relative to
 // /api/v1/media/{id}/hls/master.m3u8, so the dispatcher is the actual
 // production code path.
-func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64) {
+func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64, copyCodec string) {
 	if !h.audioRenditionEnabled() && !h.wasmAudio(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
@@ -158,7 +158,7 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 	// The player's next request is the segment at its position: start encoding it now.
 	if pw, ok := h.audioOrch.(audioStartAware); ok {
 		if seg := h.hintFor(mediaID); seg > 0 {
-			pw.PreWarmAudio(h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay), seg)
+			pw.PreWarmAudio(h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay, copyCodec), seg)
 		}
 	}
 }
@@ -170,7 +170,7 @@ func (h *audioServe) hintFor(mediaID string) int {
 	return h.startHint(mediaID)
 }
 
-func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64) {
+func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64, copyCodec string) {
 	if !h.audioRenditionEnabled() && !h.wasmAudio(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
@@ -189,7 +189,7 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 		return
 	}
 
-	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay)
+	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay, copyCodec)
 
 	// The init describes the codec, not a position: it is served off whatever
 	// session is live. Asking for segment 0 here (as this once did) makes every
@@ -230,7 +230,7 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 	http.ServeFile(w, r, path)
 }
 
-func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx, segIdx int, videoCompositionDelay float64) {
+func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx, segIdx int, videoCompositionDelay float64, copyCodec string) {
 	if !h.audioRenditionEnabled() && !h.wasmAudio(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
@@ -249,7 +249,7 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 		return
 	}
 
-	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay)
+	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay, copyCodec)
 
 	waitCtx, cancel := context.WithTimeout(r.Context(), h.segmentWaitTimeout)
 	defer cancel()
@@ -309,7 +309,7 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 // cast receiver's stereo fallback a placebo: it renegotiated the master down to
 // 2, the rendition kept serving the source's 5.1, and the reload failed the
 // same way as the load it was rescuing (2026-08-08, Chromecast HD).
-func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item *domainlibrary.MediaItem, trackIdx int, videoCompositionDelay float64) apptranscoding.AudioFingerprint {
+func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item *domainlibrary.MediaItem, trackIdx int, videoCompositionDelay float64, copyCodec string) apptranscoding.AudioFingerprint {
 	// wasm-audio passthrough: a Chrome/Firefox-class client that runs the
 	// ac3go wasm decoder asks (?wasmAudio=1) for the source
 	// AC-3/E-AC-3 served VERBATIM instead of re-encoded to AAC. AudioCodec="copy"
@@ -321,6 +321,19 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 	// the silence tail it synthesizes when the track ends before this duration.
 	durationSec := float64(item.File.Duration.Milliseconds()) / 1000.0
 
+	// Native passthrough (copyCodec, decided by the VOD handler for this
+	// client and track) and the wasm passthrough share one fingerprint shape:
+	// the same verbatim samples, whoever decodes them.
+	if copyCodec != "" {
+		return apptranscoding.AudioFingerprint{
+			MediaID:               mediaID,
+			SourcePath:            item.File.Path,
+			SourceTrackIdx:        trackIdx,
+			AudioCodec:            "copy",
+			VideoCompositionDelay: videoCompositionDelay,
+			SourceDurationSec:     durationSec,
+		}
+	}
 	if h.wasmAudio(r) {
 		if c := strings.ToLower(h.sourceAudioCodecForTrack(r.Context(), mediaID, trackIdx)); c == "ac3" || c == "eac3" {
 			return apptranscoding.AudioFingerprint{

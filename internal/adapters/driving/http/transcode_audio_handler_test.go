@@ -136,12 +136,12 @@ func TestBuildAudioFingerprint_DerivesChannelsFromSourceTrack(t *testing.T) {
 	h := buildAudioServe(t, true, &testFakeStreamsGetter{item: item, streams: streams}, nil, nil, nil)
 	r := httptest.NewRequest(http.MethodGet, "/hls/audio_1.m3u8", nil)
 
-	fp := h.buildAudioFingerprint(r, "m1", item, 1, 0) // the 5.1 French track
+	fp := h.buildAudioFingerprint(r, "m1", item, 1, 0, "") // the 5.1 French track
 	if fp.MaxAudioChannels != 6 {
 		t.Errorf("MaxAudioChannels = %d, want 6 (source 5.1 must not be downmixed)", fp.MaxAudioChannels)
 	}
 
-	fpStereo := h.buildAudioFingerprint(r, "m1", item, 0, 0)
+	fpStereo := h.buildAudioFingerprint(r, "m1", item, 0, 0, "")
 	if fpStereo.MaxAudioChannels != 2 {
 		t.Errorf("MaxAudioChannels = %d, want 2 for the stereo track", fpStereo.MaxAudioChannels)
 	}
@@ -156,7 +156,7 @@ func TestBuildAudioFingerprint_CarriesSourceDurationForSilenceBound(t *testing.T
 	h := buildAudioServe(t, true, &testFakeStreamsGetter{item: item, streams: streams}, nil, nil, nil)
 	r := httptest.NewRequest(http.MethodGet, "/hls/audio_0.m3u8", nil)
 
-	fp := h.buildAudioFingerprint(r, "m1", item, 0, 0)
+	fp := h.buildAudioFingerprint(r, "m1", item, 0, 0, "")
 	assert.InDelta(t, 60.0, fp.SourceDurationSec, 0.001,
 		"the declared duration must reach the orchestrator to bound a silence tail")
 }
@@ -177,14 +177,14 @@ func TestBuildAudioFingerprint_CapsChannelsAtSurround(t *testing.T) {
 	h := buildAudioServe(t, true, &testFakeStreamsGetter{item: item, streams: streams}, nil, nil, nil)
 	r := httptest.NewRequest(http.MethodGet, "/hls/audio_0.m3u8", nil)
 
-	fp := h.buildAudioFingerprint(r, "m1", item, 0, 0)
+	fp := h.buildAudioFingerprint(r, "m1", item, 0, 0, "")
 	if fp.MaxAudioChannels > 6 {
 		t.Errorf("MaxAudioChannels = %d for a 7.1 source: no browser decodes AAC 7.1 - "+
 			"the stream is refused and playback never starts", fp.MaxAudioChannels)
 	}
 
 	// 5.1 IS decodable: it must survive untouched (the bug this replaced).
-	if got := h.buildAudioFingerprint(r, "m1", item, 1, 0).MaxAudioChannels; got != 6 {
+	if got := h.buildAudioFingerprint(r, "m1", item, 1, 0, "").MaxAudioChannels; got != 6 {
 		t.Errorf("MaxAudioChannels = %d for a 5.1 source, want 6 (must not be downmixed)", got)
 	}
 }
@@ -205,20 +205,20 @@ func TestBuildAudioFingerprint_ClientCeilingCapsTheSourceLayout(t *testing.T) {
 	h := buildAudioServe(t, true, &testFakeStreamsGetter{item: item, streams: streams}, nil, nil, nil)
 
 	stereo := httptest.NewRequest(http.MethodGet, "/hls/audio_0.m3u8?maxAudioChannels=2", nil)
-	if got := h.buildAudioFingerprint(stereo, "m1", item, 0, 0).MaxAudioChannels; got != 2 {
+	if got := h.buildAudioFingerprint(stereo, "m1", item, 0, 0, "").MaxAudioChannels; got != 2 {
 		t.Errorf("MaxAudioChannels = %d for a client asking for stereo, want 2: "+
 			"a stereo-only sink cannot decode the 5.1 this serves instead", got)
 	}
 
 	// No ceiling declared (every web player): the source layout, untouched.
 	none := httptest.NewRequest(http.MethodGet, "/hls/audio_0.m3u8", nil)
-	if got := h.buildAudioFingerprint(none, "m1", item, 0, 0).MaxAudioChannels; got != 6 {
+	if got := h.buildAudioFingerprint(none, "m1", item, 0, 0, "").MaxAudioChannels; got != 6 {
 		t.Errorf("MaxAudioChannels = %d without a declared ceiling, want 6 (source layout)", got)
 	}
 
 	// A ceiling ABOVE the source never invents channels.
 	high := httptest.NewRequest(http.MethodGet, "/hls/audio_0.m3u8?maxAudioChannels=8", nil)
-	if got := h.buildAudioFingerprint(high, "m1", item, 0, 0).MaxAudioChannels; got != 6 {
+	if got := h.buildAudioFingerprint(high, "m1", item, 0, 0, "").MaxAudioChannels; got != 6 {
 		t.Errorf("MaxAudioChannels = %d for a ceiling above the source, want 6", got)
 	}
 }
