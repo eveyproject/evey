@@ -22,7 +22,7 @@ func TestLadderInvariants(t *testing.T) {
 		hostSets = append(hostSets, goldenHosts(class))
 	}
 	for _, ydif := range []float64{0.3, 1.46, 4.05, 8.46, 30} {
-		repo := goldenComplexity{class: transcoding.ClassFilmHighMotion, metrics: transcoding.ComplexityMetrics{MotionMean: ydif, FramesSampled: 192}}
+		repo := goldenComplexity{class: transcoding.ClassFilmHighMotion, metrics: transcoding.ComplexityMetrics{MotionMean: ydif, FramesSampled: 192, MetricVersion: transcoding.CanonicalMetricVersion}}
 		v := vaapiCapable()
 		v.HWHDR10Encode = true
 		hostSets = append(hostSets, []goldenHost{

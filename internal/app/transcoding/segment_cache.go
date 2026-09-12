@@ -443,7 +443,7 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 	for _, p := range profiles {
 		fmt.Fprintf(&b, "p=%s|%dx%d|%d|%d|copy=%t", p.Name, p.Width, p.Height, p.VideoBitrate, p.AudioBitrate, p.Copy)
 		if p.CostModelled {
-			fmt.Fprintf(&b, "|cost=v%d", transcoding.CostModelV1.Version)
+			fmt.Fprintf(&b, "|cost=v%d", transcoding.CostModelV2.Version)
 		}
 		if p.EfficiencyVersion > 0 {
 			fmt.Fprintf(&b, "|eff=v%d", p.EfficiencyVersion)

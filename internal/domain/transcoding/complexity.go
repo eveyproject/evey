@@ -34,8 +34,44 @@ type ComplexityMetrics struct {
 
 	// FramesSampled lets the admin spot a degenerate classification.
 	FramesSampled int `json:"frames_sampled"`
+	// MetricVersion is the definition the sampled metrics follow. 0/absent =
+	// the original run, where MotionMean was signalstats YDIF in the source's
+	// NATIVE bit depth (a 10-bit HDR title read ~4x an 8-bit one of the same
+	// motion - the defect found 2026-09-12). Version 2 = the canonical 8-bit
+	// YDIF8 (see CanonicalYDIF8). The cost model refuses to read a MotionMean
+	// below the canonical version, so a native value is never priced silently.
+	MetricVersion int `json:"metric_version,omitempty"`
 	// Probe is the per-title ground truth (plan P3), when a probe ran.
 	Probe *TitleProbe `json:"probe,omitempty"`
+}
+
+// CanonicalMetricVersion is the current ComplexityMetrics definition: MotionMean
+// is YDIF8 (see CanonicalYDIF8), scdet unchanged.
+const CanonicalMetricVersion = 2
+
+// CanonicalYDIF8 converts a native-bit-depth signalstats YDIF to the canonical
+// 8-bit scale: YDIF8 = native / 2^(bitDepth-8). signalstats reports the luma
+// difference in the frame's own bit depth, so a 10-bit source reads 4x, a
+// 12-bit one 16x, an 8-bit one of the same motion. Validated exactly against
+// `format=yuv420p,signalstats` on 8- and 10-bit sources (2026-09-12). Depth <=
+// 8 (or unknown) is returned unchanged.
+func CanonicalYDIF8(nativeYDIF float64, bitDepth int) float64 {
+	if bitDepth <= 8 {
+		return nativeYDIF
+	}
+	return nativeYDIF / float64(int64(1)<<(bitDepth-8))
+}
+
+// CanonicalMotion reports the MotionMean the model may read, and whether the
+// metrics are on the canonical definition at all. Pre-canonical metrics
+// (MetricVersion < CanonicalMetricVersion) are refused: their MotionMean is a
+// native YDIF that would misprice HDR, so the caller must fall back rather
+// than consume it.
+func (m ComplexityMetrics) CanonicalMotion() (float64, bool) {
+	if m.MetricVersion < CanonicalMetricVersion {
+		return 0, false
+	}
+	return m.MotionMean, true
 }
 
 // Classify returns the ContentClass that best matches the metrics, using a

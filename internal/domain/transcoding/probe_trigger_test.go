@@ -7,8 +7,8 @@ import (
 )
 
 func TestProbeCandidate(t *testing.T) {
-	m := CostModelV1
-	mid := ComplexityMetrics{MotionMean: 4, FramesSampled: 200} // in range, predictable
+	m := CostModelV2
+	mid := ComplexityMetrics{MotionMean: 4, FramesSampled: 200, MetricVersion: CanonicalMetricVersion} // in range, predictable
 
 	r, ok := ProbeCandidate(mid, ProbeSignals{}, m)
 	assert.False(t, ok, "a predictable title in range earns no probe: %s", r)
@@ -17,7 +17,13 @@ func TestProbeCandidate(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, ProbeNoMetrics, r)
 
-	r, ok = ProbeCandidate(ComplexityMetrics{MotionMean: 0.2, FramesSampled: 200}, ProbeSignals{}, m)
+	// A pre-canonical row (native YDIF, no metric_version) is treated as having
+	// no usable metric: a candidate, never priced on its native value.
+	r, ok = ProbeCandidate(ComplexityMetrics{MotionMean: 4, FramesSampled: 200}, ProbeSignals{}, m)
+	assert.True(t, ok)
+	assert.Equal(t, ProbeNoMetrics, r)
+
+	r, ok = ProbeCandidate(ComplexityMetrics{MotionMean: 0.2, FramesSampled: 200, MetricVersion: CanonicalMetricVersion}, ProbeSignals{}, m)
 	assert.True(t, ok)
 	assert.Equal(t, ProbeYDIFOutOfRange, r)
 

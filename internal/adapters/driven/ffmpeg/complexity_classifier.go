@@ -63,7 +63,10 @@ var _ transcoding.Classifier = (*ComplexityClassifier)(nil)
 // for a typical 1080p film on the dev box; bounded by an internal 90s
 // timeout so a degenerate file doesn't pin a worker forever.
 func (c *ComplexityClassifier) Classify(ctx context.Context, filePath string, durationSec float64, known transcoding.KnownSourceFacts) (transcoding.ComplexityMetrics, error) {
-	metrics := transcoding.ComplexityMetrics{}
+	// MetricVersion stamps the canonical definition (MotionMean = YDIF8): the
+	// -vf below decodes to yuv420p before signalstats, so the YDIF it reports
+	// is already 8-bit-canonical, and the cost model reads it without conversion.
+	metrics := transcoding.ComplexityMetrics{MetricVersion: transcoding.CanonicalMetricVersion}
 	if filePath == "" {
 		return metrics, fmt.Errorf("complexity classifier: empty filePath")
 	}
@@ -184,7 +187,7 @@ func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string,
 		// downstream → scenecuts silently stayed at 0 and ClassSport became
 		// unreachable. scdet emits scd.score continuously so we just need to
 		// threshold in parseSignalStats.
-		"-vf", "signalstats,scdet,metadata=print:file=-",
+		"-vf", "format=yuv420p,signalstats,scdet,metadata=print:file=-", // format=yuv420p first: signalstats YDIF is native-bit-depth, so 8-bit here IS the canonical YDIF8 (validated == YDIF/2^(depth-8))
 		"-an", "-sn",
 		"-f", "null", "-",
 	)

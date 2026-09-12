@@ -45,7 +45,7 @@ type ComplexityVector struct {
 
 // Cost is the cost model's answer for this title, when the sampling allows one.
 func (c ComplexityVector) Cost() (TitleCost, bool) {
-	return CostModelV1.Predict(c.Metrics)
+	return CostModelV2.Predict(c.Metrics)
 }
 
 // LadderClass is the class the base ladder is picked for: the persisted one
@@ -203,7 +203,7 @@ func (b StaticLadderBuilder) cost() CostModel {
 	if b.Cost != nil {
 		return *b.Cost
 	}
-	return CostModelV1
+	return CostModelV2
 }
 
 func (b StaticLadderBuilder) efficiency() CodecEfficiencyModel {
