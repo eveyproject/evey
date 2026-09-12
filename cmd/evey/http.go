@@ -161,6 +161,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		HLSVODOrch:     deps.media.hlsVODOrch,
 		HLSVODSoftware: deps.media.hlsVODSoftware,
 		HLSVODCache:    deps.media.hlsVODCache,
+		ProbeSignals:   deps.media.probeSignals,
 		HLSTranscoder:  deps.media.hlsTranscoder,
 		AudioOrch:      deps.media.audioOrch,
 		QoESink:        deps.media.qoeSink,

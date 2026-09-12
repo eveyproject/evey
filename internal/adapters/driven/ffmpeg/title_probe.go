@@ -243,3 +243,29 @@ func runScanPriority(ctx context.Context, opts ProbeOptions, site string, args [
 	}
 	return nil
 }
+
+// TitleProberAdapter adapts ProbeTitle to the app-layer TitleProber: it holds
+// the shared point cache, the busy predicate (SIGSTOP under playback) and the
+// scratch dir, so the worker passes only the source and the model prediction.
+type TitleProberAdapter struct {
+	cacheDir string
+	workDir  string
+	busy     func() bool
+}
+
+// NewTitleProber builds the adapter. cacheDir is the shared bench/probe point
+// cache (resume for free); busy pauses every probe ffmpeg while it reports a
+// live playback.
+func NewTitleProber(cacheDir, workDir string, busy func() bool) *TitleProberAdapter {
+	return &TitleProberAdapter{cacheDir: cacheDir, workDir: workDir, busy: busy}
+}
+
+// Probe runs the P3 protocol for one title against the model's prediction.
+// Probe runs the P3 protocol; the returned ProbeReport carries the points,
+// cache hits and wall time (the wire layer maps them onto the app interface).
+func (a *TitleProberAdapter) Probe(ctx context.Context, sourcePath string, cost transcoding.TitleCost) (ProbeReport, error) {
+	opts := DefaultProbeOptions()
+	opts.Cost = cost
+	opts.CacheDir, opts.WorkDir, opts.Busy = a.cacheDir, a.workDir, a.busy
+	return ProbeTitle(ctx, sourcePath, opts)
+}

@@ -129,3 +129,63 @@ func (r *MediaComplexityRepo) ListUnclassified(ctx context.Context, limit int) (
 	}
 	return out, rows.Err()
 }
+
+// ListProbeCandidates returns up to `limit` media IDs whose PERSISTED
+// complexity makes them a per-title probe candidate (plan P3): the video item
+// was never classified, OR its motion is outside the cost model's fitted
+// range, OR it is the animation weak spot - and it has NOT already been probed
+// at the current model version. Ceiling-hit candidates come from the runtime
+// signal store, not this query. The motion bounds match CostModelV2's
+// YDIFMin/YDIFMax; they are passed so a model recalibration re-selects
+// correctly without a schema change.
+func (r *MediaComplexityRepo) ListProbeCandidates(ctx context.Context, modelVersion, limit int) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.complexity.ListProbeCandidates")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if limit <= 0 || limit > 1000 {
+		limit = 50
+	}
+	ydifMin := domaintranscoding.CostModelV2.YDIFMin
+	ydifMax := domaintranscoding.CostModelV2.YDIFMax
+	minFrames := domaintranscoding.CostModelV2.MinFrames
+	// A row is "already probed for this model" when its metrics carry a probe
+	// stamped with the current model version (failed or not - a failed probe
+	// must not be retried until the model changes).
+	const q = `
+		SELECT mi.id
+		FROM media_items mi
+		INNER JOIN media_files mf ON mf.media_item_id = mi.id
+		WHERE mf.file_path <> ''
+		  AND mi.type IN ('movie', 'episode')
+		  AND mf.duration_ms > 0
+		  AND COALESCE((mi.complexity_metrics->'probe'->>'model_version')::int, 0) <> $1
+		  AND (
+		        mi.complexity_class IS NULL
+		     OR COALESCE((mi.complexity_metrics->>'metric_version')::int, 1) < 2
+		     OR mi.complexity_class = 'animation'
+		     OR (
+		          COALESCE((mi.complexity_metrics->>'frames_sampled')::int, 0) >= $4
+		          AND (
+		               COALESCE((mi.complexity_metrics->>'motion_mean')::float, 0) < $2
+		            OR COALESCE((mi.complexity_metrics->>'motion_mean')::float, 0) > $3
+		          )
+		        )
+		      )
+		ORDER BY mi.added_at ASC
+		LIMIT $5`
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, modelVersion, ydifMin, ydifMax, minFrames, limit)
+	if err != nil {
+		return nil, fmt.Errorf("complexity ListProbeCandidates: %w", err)
+	}
+	defer rows.Close()
+	out := make([]string, 0, limit)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("complexity ListProbeCandidates scan: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}

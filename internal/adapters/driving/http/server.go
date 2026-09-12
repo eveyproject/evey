@@ -131,7 +131,9 @@ type HTTPServer struct {
 	// newHLSVODServe builds a private one.
 	HLSVODSoftware *apptranscoding.SoftwareProducer
 	HLSVODCache    *apptranscoding.SegmentCache
-	HLSTranscoder  domaintranscoding.HLSProcess
+	// ProbeSignals collects the P3 ceiling-hit signal from the serve path; nil = off.
+	ProbeSignals  *apptranscoding.ProbeSignalStore
+	HLSTranscoder domaintranscoding.HLSProcess
 	// AudioOrch manages audio-only HLS rendition sessions (EXT-X-MEDIA).
 	// Nil-safe: the audio rendition routes return 404 when unset. Wiring
 	// from wire.go lands after the feature flag stabilises.

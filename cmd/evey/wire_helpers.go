@@ -5,13 +5,16 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
 	webpushadapter "github.com/evey-project/evey/internal/adapters/driven/webpush"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	applibrary "github.com/evey-project/evey/internal/app/library"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 )
 
@@ -145,4 +148,19 @@ func resolveVAPIDKeys(ctx context.Context, cfgRepo shared.ServerConfigRepository
 		slog.Info("VAPID keys auto-generated and stored in DB")
 	}
 	return pub, priv
+}
+
+// titleProberFunc adapts the ffmpeg TitleProber (returns a ProbeReport) to the
+// app-layer TitleProber interface (returns the probe plus its stats), so the
+// driven adapter needs no dependency on the app package.
+type titleProberFunc struct {
+	p *ffmpeg.TitleProberAdapter
+}
+
+func (a titleProberFunc) Probe(ctx context.Context, sourcePath string, cost domaintranscoding.TitleCost) (domaintranscoding.TitleProbe, apptranscoding.ProbeStats, error) {
+	rep, err := a.p.Probe(ctx, sourcePath, cost)
+	if err != nil {
+		return domaintranscoding.TitleProbe{}, apptranscoding.ProbeStats{}, err
+	}
+	return rep.Probe, apptranscoding.ProbeStats{Points: rep.Points, CacheHits: rep.CacheHits, Wall: rep.Wall}, nil
 }

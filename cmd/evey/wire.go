@@ -358,6 +358,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	if err != nil {
 		return nil, fmt.Errorf("hls vod cache: %w", err)
 	}
+	// P3 ceiling-hit signal store: the serve path feeds it, the probe worker
+	// drains it. In-memory, transient, always on.
+	probeSignals := apptranscoding.NewProbeSignalStore(0)
 	// Bound the sibling fast-start MP4 remux cache (<CacheDir>/remux) on its own
 	// budget. Source-fingerprint keying orphans the old file on every re-scan, so
 	// without this it grows without bound. Same lifetime/stop semantics as above.
@@ -793,6 +796,29 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		})
 		slog.Default().Info("keyframe backfill worker enabled (default-on; opt out with server_config transcoding.keyframe_backfill=off)")
 	}
+	// P3 per-title probe worker (default-on). Triggers only: missing metrics,
+	// motion out of the model's fitted range, a sustained ceiling hit recorded
+	// by the serve path, or the animation weak spot. Runs one probe at a time
+	// at scan priority (nice/ionice), SIGSTOPped under playback, and skips a
+	// tick entirely while a stream is served; results resume from the shared
+	// point cache. A failure here never touches playback or P1/P2.
+	if resolveFlag(ctx, infra.repos.ServerCfg, "transcoding.title_probe", "EVEY_TITLE_PROBE") != "off" {
+		prober := ffmpeg.NewTitleProber(filepath.Join(cfg.Transcoding.CacheDir, "probe-cache"), "", isBusy)
+		probeWorker := apptranscoding.NewProbeWorker(
+			complexityRepo,
+			titleProberFunc{prober},
+			mediaItemReaderFunc(func(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
+				return libQuerySvc.GetMediaItem(ctx, string(id))
+			}),
+			probeSignals,
+			domaintranscoding.CostModelV2,
+			apptranscoding.ProbeWorkerOpts{},
+			slog.Default(),
+		).WithActivePlayback(hlsVODRemover.ActivePlaybackCount)
+		probeWorker.Start(ctx)
+		bgStoppers = append(bgStoppers, probeWorker.Stop)
+		slog.Default().Info("title probe worker enabled (default-on; opt out with server_config transcoding.title_probe=off)")
+	}
 	// The cast tracker's Stop performs the FINAL flush of derived positions -
 	// the common end of a cast is the user turning everything off, and losing
 	// that last write would defeat the tracker. Registered on the same drain
@@ -961,6 +987,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			transcodingSvc:   transcodingSvc,
 			hlsVODOrch:       hlsVODOrch,
 			hlsVODCache:      hlsVODCache,
+			probeSignals:     probeSignals,
 			hlsTranscoder:    hlsTranscoder,
 			hlsVODSoftware:   hlsVODSoftware,
 			hlsVODRemover:    hlsVODRemover,

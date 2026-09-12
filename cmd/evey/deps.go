@@ -73,6 +73,7 @@ type mediaDeps struct {
 	// HLSManager that used to sit here is fully retired.
 	hlsVODOrch    *apptranscoding.SegmentOrchestrator
 	hlsVODCache   *apptranscoding.SegmentCache
+	probeSignals  *apptranscoding.ProbeSignalStore
 	hlsTranscoder *ffmpeg.HLSTranscoder
 	// hlsVODSoftware is the single shared software StreamProducer (built in
 	// wire.go). The HTTP VOD handler's routing selector and the gRPC StopStream
