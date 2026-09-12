@@ -34,8 +34,11 @@ type hlsVODServe struct {
 	parental      ParentalChecker
 	// streamTokens mints the next episode's cast token in serveCastNext.
 	// nil = cast-next answers 503 (fail closed).
-	streamTokens         *appmedia.StreamTokenStore
-	profilePrefs         ProfilePrefsGetter
+	streamTokens *appmedia.StreamTokenStore
+	profilePrefs ProfilePrefsGetter
+	// probeSignals records a cost-modelled rung shipping at its advertised
+	// ceiling, for the background P3 probe worker. Nil-safe; never runs a probe.
+	probeSignals         *apptranscoding.ProbeSignalStore
 	audioNormalizeGetter func(ctx context.Context) bool
 	// audioEncoderIDGetter: see ServerConfig.AudioEncoderIDGetter.
 	audioEncoderIDGetter func() string
@@ -1007,11 +1010,25 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	h.cache.Touch(key.DecisionHash)
 
 	path := h.cache.Path(key, fp.UseFMP4)
-	if _, statErr := os.Stat(path); statErr != nil {
+	fi, statErr := os.Stat(path)
+	if statErr != nil {
 		span.RecordError(statErr)
-		span.SetStatus(codes.Error, "segment stat")
+		span.SetStatus(codes.Error, "segment missing")
 		http.Error(w, `{"message":"segment missing"}`, http.StatusNotFound)
 		return
+	}
+	// P3 ceiling-hit signal: a cost-modelled rung whose real segment ships at
+	// or above its advertised bitrate is evidence the model under-priced this
+	// title. Record it (in memory, O(1), off any probe) for the background
+	// worker; never act on it here. An init segment or the copy rung carry no
+	// model price, so they never signal.
+	if !isInit && h.probeSignals != nil && variantIdx >= 0 && variantIdx < len(fp.Profiles) {
+		if p := fp.Profiles[variantIdx]; p.CostModelled && !p.Copy && p.VideoBitrate > 0 {
+			segKbps := float64(fi.Size()) * 8 / float64(apptranscoding.ManifestSegmentSeconds) / 1000
+			if segKbps >= float64(p.VideoBitrate) {
+				h.probeSignals.RecordCeilingHit(mediaID)
+			}
+		}
 	}
 
 	setCORSHeaders(w, r, "")

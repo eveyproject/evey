@@ -41,6 +41,11 @@ export const OPERATOR_FLAGS: OperatorFlag[] = [
     valueHint: "off (default: on)",
   },
   {
+    key: "transcoding.title_probe",
+    envVar: "EVEY_TITLE_PROBE",
+    valueHint: "off (default: on)",
+  },
+  {
     key: "transcoding.keyframe_backfill_batch",
     envVar: "EVEY_KEYFRAME_BACKFILL_BATCH",
     valueHint: "items per pass, > 0",
