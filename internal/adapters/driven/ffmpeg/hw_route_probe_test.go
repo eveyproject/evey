@@ -20,12 +20,12 @@ func routeNames(ps []routeProbe) []string {
 // passthrough route; no GPU tone-mapper ⇒ no tonemap route but always the
 // bridge; NVENC has no upload chain ⇒ no decoupled route.
 func TestRouteProbesFor_FollowsTheProbedFacts(t *testing.T) {
-	got := routeNames(routeProbesFor(transcoding.NVENC, []string{"h264", "hevc"}, nil, false, true, true))
+	got := routeNames(routeProbesFor(transcoding.NVENC, []string{"h264", "hevc"}, nil, false, true, true, nil))
 	want := []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteSource10Bit, transcoding.HWRouteBridge, transcoding.HWRoutePassthrough}
 	if !slices.Equal(got, want) {
 		t.Fatalf("nvenc routes = %v, want %v", got, want)
 	}
-	got = routeNames(routeProbesFor(transcoding.VAAPI, []string{"h264"}, []string{transcoding.FeatureTonemapOpenCL}, true, false, false))
+	got = routeNames(routeProbesFor(transcoding.VAAPI, []string{"h264"}, []string{transcoding.FeatureTonemapOpenCL}, true, false, false, nil))
 	want = []string{transcoding.HWRouteSDR, transcoding.HWRouteTonemap, transcoding.HWRouteBridge, transcoding.HWRouteDecoupled}
 	if !slices.Equal(got, want) {
 		t.Fatalf("vaapi routes = %v, want %v", got, want)
@@ -41,7 +41,7 @@ func TestRouteProbeOpts_RunTheProductionBuilder(t *testing.T) {
 	t.Cleanup(func() { tonemapxOK = prevTonemapx })
 	features := []string{"rc_lookahead", "bframes"}
 	byRoute := map[string][]string{}
-	for _, p := range routeProbesFor(transcoding.NVENC, []string{"h264", "hevc"}, features, false, true, true) {
+	for _, p := range routeProbesFor(transcoding.NVENC, []string{"h264", "hevc"}, features, false, true, true, nil) {
 		opts := routeProbeOpts(transcoding.NVENC, "", features, "/bench/route-"+p.mire.name+".hevc", "/tmp/out", p)
 		if err := opts.Validate(); err != nil {
 			t.Fatalf("route %s: opts invalid: %v", p.route, err)
@@ -79,5 +79,16 @@ func TestProgressFrames(t *testing.T) {
 	}
 	if got := progressFrames("progress=end\n"); got != 0 {
 		t.Fatalf("no frame line should read 0, got %d", got)
+	}
+}
+
+// An exotic decode class the GPU measured gets its own end-to-end route probe;
+// the canonical 4:2:0 classes are covered by sdr/src10 and get none.
+func TestRouteProbesFor_ExoticDecodeClassesGetARoute(t *testing.T) {
+	got := routeNames(routeProbesFor(transcoding.NVENC, []string{"h264"}, nil, false, false, false,
+		[]string{"h264", "hevc", transcoding.HWDecodeHEVC10, "hevc:yuv444p", "hevc:yuv420p12le", "hevc:nope"}))
+	want := []string{transcoding.HWRouteSDR, transcoding.HWRouteBridge, "src:yuv444p", "src:yuv420p12le"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("routes = %v, want %v", got, want)
 	}
 }

@@ -86,20 +86,40 @@ func TestCapability_RouteProofAndDecodeClasses(t *testing.T) {
 		t.Fatal("no backend, no route")
 	}
 
-	if !cap.HWCanDecodeSource("hevc", true) || !cap.HWCanDecodeSource("hevc", false) || !cap.HWCanDecodeSource("h264", false) {
+	// Probed matrix row (v6): every answer comes from the listed classes.
+	matrix := probedCap()
+	matrix.HWDecodeCodecs = []string{"h264", "hevc", HWDecodeHEVC10, "hevc:yuv444p"}
+	if !matrix.HWCanDecodeSource("hevc", true, "yuv420p10le") || !matrix.HWCanDecodeSource("hevc", false, "yuv420p") || !matrix.HWCanDecodeSource("h264", false, "yuv420p") {
 		t.Fatal("the probed classes decode")
 	}
-	if cap.HWCanDecodeSource("h264", true) || cap.HWCanDecodeSource("vp9", true) {
-		t.Fatal("10-bit H.264 / VP9 have no GPU decode class")
+	if !matrix.HWCanDecodeSource("hevc", false, "yuv444p") {
+		t.Fatal("a 4:4:4 class the probe measured IS decodable - no universal chroma rule")
 	}
-	noMain10 := cap
+	if matrix.HWCanDecodeSource("h264", true, "yuv420p10le") || matrix.HWCanDecodeSource("hevc", true, "yuv422p10le") || matrix.HWCanDecodeSource("hevc", false, "gbrp") {
+		t.Fatal("a class the probe did not list, or the matrix does not cover, is not decodable (fail-closed)")
+	}
+	if !matrix.HWCanDecodeSource("hevc", true, "") || matrix.HWCanDecodeSource("h264", true, "") {
+		t.Fatal("unknown pix_fmt falls back to the depth rule")
+	}
+	if got, want := DecodeClassKey("h265", "p010le"), HWDecodeHEVC10; got != want {
+		t.Fatalf("DecodeClassKey = %q, want %q", got, want)
+	}
+	if got, want := DecodeClassKey("h264", "yuv422p10le"), "h264:yuv422p10le"; got != want {
+		t.Fatalf("DecodeClassKey = %q, want %q", got, want)
+	}
+	// Rows probed before the matrix: depth rule + the conservative chroma table.
+	noMain10 := probedCap()
+	noMain10.ProbeVersion = 5
 	noMain10.HWDecodeCodecs = []string{"h264", "hevc"}
-	if noMain10.HWCanDecodeSource("hevc", true) {
-		t.Fatal("a probed row without hevc10 does not decode Main10")
+	if noMain10.HWCanDecodeSource("hevc", true, "yuv420p10le") {
+		t.Fatal("a v5 row without hevc10 does not decode Main10")
+	}
+	if noMain10.HWCanDecodeSource("hevc", false, "yuv444p") {
+		t.Fatal("a pre-matrix row keeps the conservative chroma table")
 	}
 	old := noMain10
 	old.ProbeVersion = 4
-	if !old.HWCanDecodeSource("hevc", true) {
+	if !old.HWCanDecodeSource("hevc", true, "yuv420p10le") {
 		t.Fatal("a pre-class row reads hevc as covering Main10, as it always did")
 	}
 

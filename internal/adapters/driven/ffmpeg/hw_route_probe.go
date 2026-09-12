@@ -34,9 +34,21 @@ const (
 
 // routeMire is one source class a route is probed on.
 type routeMire struct {
-	name   string // file suffix
-	pixFmt string // yuv420p (8-bit) or yuv420p10le (Main10)
-	hdr    bool   // tag bt2020/PQ metadata (HDR10 class)
+	name    string   // file suffix
+	pixFmt  string   // yuv420p (8-bit), yuv420p10le (Main10), or an exotic layout
+	hdr     bool     // tag bt2020/PQ metadata (HDR10 class)
+	encoder string   // "" = libx265
+	extra   []string // encoder args the class needs (a profile)
+}
+
+// routeMireForDecodeClass builds the mire of a persisted decode class outside
+// the canonical 4:2:0 ones, from its probe matrix row.
+func routeMireForDecodeClass(class string) (routeMire, bool) {
+	c, ok := decodeProbeFor(class)
+	if !ok || transcoding.CanonicalDecodeFormat(c.pixFmt) {
+		return routeMire{}, false
+	}
+	return routeMire{name: c.codec + "-" + c.pixFmt, pixFmt: c.pixFmt, encoder: c.swEncoder, extra: c.encoderArgs}, true
 }
 
 var (
@@ -55,7 +67,7 @@ type routeProbe struct {
 
 // routeProbesFor lists the routes worth proving on this backend, given the
 // filter-level facts already probed. Pure so the selection is unit-tested.
-func routeProbesFor(accel transcoding.HWAccelType, codecs, features []string, hwTonemap, hw10Bit, hdr10 bool) []routeProbe {
+func routeProbesFor(accel transcoding.HWAccelType, codecs, features []string, hwTonemap, hw10Bit, hdr10 bool, decodeClasses []string) []routeProbe {
 	hevc := slices.Contains(codecs, "hevc")
 	probes := []routeProbe{
 		{route: transcoding.HWRouteSDR, mire: routeMireSDR8, opts: func(o *transcoding.HLSProcessOpts) {}},
@@ -87,6 +99,13 @@ func routeProbesFor(accel transcoding.HWAccelType, codecs, features []string, hw
 		probes = append(probes, routeProbe{route: transcoding.HWRouteDecoupled, mire: routeMireSDR8, opts: func(o *transcoding.HLSProcessOpts) {
 			o.HWSoftwareDecode = true
 		}})
+	}
+	// Every decode class outside 4:2:0 8/10-bit the GPU measured (4:4:4, 12-bit):
+	// decodable is not servable until the builder's scaler folded that layout.
+	for _, class := range decodeClasses {
+		if m, ok := routeMireForDecodeClass(class); ok {
+			probes = append(probes, routeProbe{route: transcoding.HWRouteSourceFormat(m.pixFmt), mire: m, opts: func(o *transcoding.HLSProcessOpts) {}})
+		}
 	}
 	return probes
 }
@@ -133,9 +152,17 @@ func (r *BenchmarkRunner) ensureRouteMire(ctx context.Context, m routeMire) (str
 	}
 	genCtx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
 	defer cancel()
+	enc := m.encoder
+	if enc == "" {
+		enc = "libx265"
+	}
 	args := []string{"-hide_banner", "-v", "error", "-nostdin", "-y",
 		"-f", "lavfi", "-i", fmt.Sprintf("testsrc2=size=%dx%d:rate=24:duration=1,format=%s", routeMireWidth, routeMireHeight, m.pixFmt),
-		"-c:v", "libx265", "-preset", "ultrafast", "-pix_fmt", m.pixFmt, "-tag:v", "hvc1", "-an"}
+		"-c:v", enc, "-preset", "ultrafast", "-pix_fmt", m.pixFmt, "-an"}
+	if enc == "libx265" {
+		args = append(args, "-tag:v", "hvc1")
+	}
+	args = append(args, m.extra...)
 	if m.hdr {
 		args = append(args,
 			"-x265-params", "hdr10=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc",
@@ -154,10 +181,10 @@ func (r *BenchmarkRunner) ensureRouteMire(ctx context.Context, m routeMire) (str
 // returns the names that produced a segment. Never nil once the backend is
 // probed - an empty list is the fail-closed verdict "no route proven", which
 // the resolver honours; nil is reserved for rows benched before this existed.
-func (r *BenchmarkRunner) probeHWRoutes(ctx context.Context, backend, device string, codecs, features []string, hwTonemap, hw10Bit, hdr10 bool) []string {
+func (r *BenchmarkRunner) probeHWRoutes(ctx context.Context, backend, device string, codecs, features []string, hwTonemap, hw10Bit, hdr10 bool, decodeClasses []string) []string {
 	accel := transcoding.HWAccelType(backend)
 	proven := []string{}
-	for _, p := range routeProbesFor(accel, codecs, features, hwTonemap, hw10Bit, hdr10) {
+	for _, p := range routeProbesFor(accel, codecs, features, hwTonemap, hw10Bit, hdr10, decodeClasses) {
 		mire, ok := r.ensureRouteMire(ctx, p.mire)
 		if !ok {
 			continue

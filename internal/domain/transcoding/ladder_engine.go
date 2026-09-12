@@ -311,7 +311,7 @@ const CopyRungPlaceholderKbps int64 = 5_000
 // cannot sustain starves the player.
 func ShapeHardwareLadder(base []HLSProfile, src SourceFacts, cap EncodeCapability) []HLSProfile {
 	sourceCapped := CapLadderToSource(base, src.Width, src.Height)
-	zeroCopyDecode := src.Codec == "" || (cap.HWCanDecodeSource(src.Codec, src.TenBit) && HWChromaDecodable(src.PixelFormat))
+	zeroCopyDecode := src.Codec == "" || cap.HWCanDecodeSource(src.Codec, src.TenBit, src.PixelFormat)
 	return CapLadderToHeight(sourceCapped, cap.MaxHeightFor(zeroCopyDecode))
 }
 
