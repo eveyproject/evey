@@ -280,7 +280,7 @@ type hlsVODServe struct {
 	// requests: treat them as immutable. Nil-safe (hand-built test handlers
 	// keep the direct fetch path).
 	mediaLookup *pkgcache.TTLCache[cachedMediaLookup]
-	classLookup *pkgcache.TTLCache[domaintranscoding.ContentClass]
+	classLookup *pkgcache.TTLCache[domaintranscoding.ComplexityEntry]
 	// prefsLookup caches the per-profile transcoding preferences (up to 2 DB
 	// round-trips per load) for the same burst window: during playback every
 	// segment request re-resolves the plan, and the prefs behind it are

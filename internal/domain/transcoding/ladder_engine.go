@@ -29,6 +29,8 @@ type SourceFacts struct {
 	Telecine bool
 	// BitrateKbps is the video stream's bitrate, else the file's; 0 = unknown.
 	BitrateKbps int64
+	// FPS is the source frame rate (0 = unknown, priced as film cadence).
+	FPS float64
 }
 
 // ComplexityVector is the per-title complexity the ladder is shaped for. The
@@ -39,6 +41,11 @@ type ComplexityVector struct {
 	Metrics ComplexityMetrics
 	// Class is the persisted verdict; "" = never classified.
 	Class ContentClass
+}
+
+// Cost is the cost model's answer for this title, when the sampling allows one.
+func (c ComplexityVector) Cost() (TitleCost, bool) {
+	return CostModelV1.Predict(c.Metrics)
 }
 
 // LadderClass is the class the base ladder is picked for: the persisted one
@@ -167,6 +174,9 @@ func (StaticQualityPolicy) TargetFor(rung HLSProfile, route EncodeRoute) Quality
 		return QualityTarget{Mode: RateControlVBR, TargetKbps: rung.VideoBitrate, MaxKbps: rung.VideoBitrate, BufferKbps: rung.VideoBitrate * 2}
 	}
 	ceiling := rung.VideoBitrate * StaticSoftwareHeadroomPct / 100
+	if rung.CostModelled {
+		ceiling = rung.VideoBitrate // the margin is in the price already
+	}
 	return QualityTarget{Mode: RateControlConstantQuality, Quality: StaticSoftwareCRF, MaxKbps: ceiling, BufferKbps: ceiling * 2}
 }
 
@@ -196,6 +206,17 @@ func (StaticLadderBuilder) Build(in LadderInput) []HLSProfile {
 		laddered = ShapeHardwareLadder(base, src, cap)
 	default:
 		laddered = ShapeSoftwareLadder(base, src, route.Codec, route.Tonemap, cap)
+	}
+
+	// The CPU route is priced by the cost model when the title has one: the
+	// advertised bitrate becomes what CRF 20 costs on THIS title with the P90
+	// margin, instead of the class table's one number for everyone. The GPU
+	// keeps the table until the codec efficiency model (plan P2) relates a
+	// CPU CRF cost to a GPU VBR target.
+	if !route.HWUsable {
+		if cost, ok := in.Complexity.Cost(); ok {
+			laddered = CostModelV1.PriceLadder(laddered, cost, src, StaticSoftwareCRF)
+		}
 	}
 
 	if in.Delivery.QoEMaxHeight > 0 && src.Height > 0 {

@@ -233,7 +233,7 @@ func TestShapeLadder_RequestScopedCapsDoNotLeakAcrossViewers(t *testing.T) {
 	frozen := map[string][]transcoding.HLSProfile{}
 	pr := &PlanResolver{
 		// The film_high_motion table reaches 2160p; the CPU ceiling must let it through.
-		ComplexityRepo: goldenComplexity{transcoding.ClassFilmHighMotion},
+		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
 		Capability:     func() transcoding.EncodeCapability { return transcoding.EncodeCapability{SoftwareMaxHeight: 2160} },
 		AdmissionFrozenLadder: func(key string) ([]transcoding.HLSProfile, bool) {
 			l, ok := frozen[key]
@@ -269,7 +269,7 @@ func TestShapeLadder_RequestScopedCapsDoNotLeakAcrossViewers(t *testing.T) {
 func TestShapeLadder_H264LevelCapsTheLadder(t *testing.T) {
 	pr := &PlanResolver{
 		// The film_high_motion table reaches 2160p; the CPU ceiling must let it through.
-		ComplexityRepo: goldenComplexity{transcoding.ClassFilmHighMotion},
+		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
 		Capability:     func() transcoding.EncodeCapability { return transcoding.EncodeCapability{SoftwareMaxHeight: 2160} },
 	}
 	req := ladderRequest(2160)
@@ -292,7 +292,7 @@ func TestShapeLadder_H264LevelCapsTheLadder(t *testing.T) {
 func TestShapeLadder_BitrateCeilingBoundsTheRungs(t *testing.T) {
 	pr := &PlanResolver{
 		// The film_high_motion table reaches 2160p; the CPU ceiling must let it through.
-		ComplexityRepo: goldenComplexity{transcoding.ClassFilmHighMotion},
+		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
 		Capability:     func() transcoding.EncodeCapability { return transcoding.EncodeCapability{SoftwareMaxHeight: 2160} },
 	}
 	req := ladderRequest(2160)
@@ -330,7 +330,7 @@ func TestShapeLadder_HDRBridgeUsesItsOwnCeiling(t *testing.T) {
 	pr := &PlanResolver{
 		Capability:     func() transcoding.EncodeCapability { return capability },
 		HWAccelEnabled: func() bool { return true },
-		ComplexityRepo: goldenComplexity{transcoding.ClassFilmHighMotion},
+		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
 	}
 	req := ladderRequest(2160)
 	req.Streams[0].Codec = "hevc"
@@ -373,7 +373,7 @@ func TestShapeLadder_SpillKeepsTheDeliveryCaps(t *testing.T) {
 	pr := &PlanResolver{
 		HWAccelEnabled: func() bool { return true },
 		Capability:     func() transcoding.EncodeCapability { return vaapiCapable() },
-		ComplexityRepo: goldenComplexity{transcoding.ClassFilmHighMotion},
+		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
 		AdmissionRoute: func(_ string, natural LadderClass, _ []int, fallback func() []int, _ transcoding.SourceClass) RouteGrant {
 			require.Equal(t, LadderClassHW, natural)
 			swHeights = fallback()

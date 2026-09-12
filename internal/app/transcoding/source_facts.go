@@ -355,6 +355,19 @@ func SourceVideoBitrateKbps(streams []*library.MediaStream) int64 {
 	return 0
 }
 
+// SourceFrameRate is the probed frame rate of the first video stream (0 = unknown).
+func SourceFrameRate(streams []*library.MediaStream) float64 {
+	for _, s := range streams {
+		if s != nil && s.StreamType == library.StreamTypeVideo {
+			if s.Framerate != nil && *s.Framerate > 0 {
+				return *s.Framerate
+			}
+			return 0
+		}
+	}
+	return 0
+}
+
 func SourceVideoHeight(streams []*library.MediaStream) int {
 	for _, s := range streams {
 		if s != nil && s.StreamType == library.StreamTypeVideo {

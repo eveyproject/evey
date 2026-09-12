@@ -202,6 +202,11 @@ type HLSProfile struct {
 	// WxH, so this MUST reach the cache fingerprint (ProfileFingerprint.Copy →
 	// Hash) or copy and transcoded segments alias and corrupt the stream.
 	Copy bool
+	// CostModelled: VideoBitrate is the cost model's ceiling for this title
+	// (margin included), so the encoder's distribution ceiling is the bitrate
+	// itself rather than the class table's headroom above it. Different
+	// bytes at the same nominal bitrate: fingerprinted and hashed.
+	CostModelled bool
 }
 
 // Must stay identical to LadderFilmNormal, which is the fallback ladder - the

@@ -264,9 +264,9 @@ func (r *countingComplexityRepo) ListUnclassified(context.Context, int) ([]strin
 	panic("countingComplexityRepo: the ladder path must never enumerate the queue")
 }
 
-func newTestClassCache(t *testing.T) *pkgcache.TTLCache[transcoding.ContentClass] {
+func newTestClassCache(t *testing.T) *pkgcache.TTLCache[transcoding.ComplexityEntry] {
 	t.Helper()
-	c, stop := pkgcache.New[transcoding.ContentClass](time.Minute)
+	c, stop := pkgcache.New[transcoding.ComplexityEntry](time.Minute)
 	t.Cleanup(stop)
 	return c
 }
