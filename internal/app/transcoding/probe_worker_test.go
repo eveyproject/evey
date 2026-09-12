@@ -152,7 +152,7 @@ func TestProbeWorker_ProbesOnlyCandidatesAndPersists(t *testing.T) {
 			"predictable": {Class: transcoding.ClassFilmNormal, Metrics: canonMetrics(4)},   // in range: not a candidate
 		},
 	}
-	pr := &fakeProber{probe: transcoding.TitleProbe{Protocol: transcoding.TitleProbeProtocol, ModelVersion: transcoding.CostModelV2.Version, Confirmed: true}}
+	pr := &fakeProber{probe: transcoding.TitleProbe{Protocol: transcoding.TitleProbeProtocol, ModelVersion: transcoding.CostModelV2.Version, Encoder: transcoding.TitleProbeEncoderID, Confirmed: true}}
 	w := newProbeWorker(repo, pr, nil)
 	n := w.processBatch(context.Background())
 	assert.Equal(t, 1, n, "only the out-of-range title is probed")
@@ -170,7 +170,7 @@ func TestProbeWorker_CeilingHitFromSignals(t *testing.T) {
 	repo := &fakeProbeRepo{entries: map[string]transcoding.ComplexityEntry{
 		"hot": {Class: transcoding.ClassFilmNormal, Metrics: canonMetrics(4)}, // predictable, but ceiling hit fires
 	}}
-	pr := &fakeProber{probe: transcoding.TitleProbe{Protocol: transcoding.TitleProbeProtocol, ModelVersion: transcoding.CostModelV2.Version}}
+	pr := &fakeProber{probe: transcoding.TitleProbe{Protocol: transcoding.TitleProbeProtocol, ModelVersion: transcoding.CostModelV2.Version, Encoder: transcoding.TitleProbeEncoderID}}
 	w := newProbeWorker(repo, pr, sig)
 	n := w.processBatch(context.Background())
 	assert.Equal(t, 1, n)
@@ -182,7 +182,7 @@ func TestProbeWorker_NoConcurrentDuplicate(t *testing.T) {
 	repo := &fakeProbeRepo{candidates: []string{"x"}, entries: map[string]transcoding.ComplexityEntry{
 		"x": {Class: transcoding.ClassFilmNormal, Metrics: canonMetrics(0.2)},
 	}}
-	pr := &fakeProber{probe: transcoding.TitleProbe{Protocol: transcoding.TitleProbeProtocol, ModelVersion: transcoding.CostModelV2.Version},
+	pr := &fakeProber{probe: transcoding.TitleProbe{Protocol: transcoding.TitleProbeProtocol, ModelVersion: transcoding.CostModelV2.Version, Encoder: transcoding.TitleProbeEncoderID},
 		started: make(chan string, 1), release: make(chan struct{})}
 	w := newProbeWorker(repo, pr, nil)
 	go w.probeOne(context.Background(), "x")

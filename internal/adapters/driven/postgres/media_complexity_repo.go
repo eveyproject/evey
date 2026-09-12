@@ -149,9 +149,15 @@ func (r *MediaComplexityRepo) ListProbeCandidates(ctx context.Context, modelVers
 	ydifMin := domaintranscoding.CostModelV2.YDIFMin
 	ydifMax := domaintranscoding.CostModelV2.YDIFMax
 	minFrames := domaintranscoding.CostModelV2.MinFrames
-	// A row is "already probed for this model" when its metrics carry a probe
-	// stamped with the current model version (failed or not - a failed probe
-	// must not be retried until the model changes).
+	protocol := domaintranscoding.TitleProbeProtocol
+	encoder := domaintranscoding.TitleProbeEncoderID
+	// A row is "already probed for this identity" when its metrics carry a probe
+	// stamped with the current protocol AND model version AND encoder (failed or
+	// not - a failed probe must not be retried until an identity bump). This
+	// mirrors TitleProbe.CurrentIdentity so the SQL queue and the in-memory
+	// ProbeCandidate agree: a bump of the protocol or the encoder tuning alone -
+	// not just the model version - re-queues every title, instead of leaving a
+	// stale ground truth in place because model_version happened to still match.
 	//
 	// A never-classified title (no complexity row, or a pre-canonical one) is
 	// NOT here: the cheap classifier handles it first, and the probe fires only
@@ -169,7 +175,11 @@ func (r *MediaComplexityRepo) ListProbeCandidates(ctx context.Context, modelVers
 		  AND mf.duration_ms > 0
 		  AND mi.complexity_class IS NOT NULL
 		  AND COALESCE((mi.complexity_metrics->>'metric_version')::int, 1) >= 2
-		  AND COALESCE((mi.complexity_metrics->'probe'->>'model_version')::int, 0) <> $1
+		  AND NOT (
+		        COALESCE((mi.complexity_metrics->'probe'->>'protocol')::int, 0) = $6
+		    AND COALESCE((mi.complexity_metrics->'probe'->>'model_version')::int, 0) = $1
+		    AND COALESCE(mi.complexity_metrics->'probe'->>'encoder', '') = $7
+		      )
 		  AND (
 		        COALESCE((mi.complexity_metrics->>'frames_sampled')::int, 0) < $4
 		     OR mi.complexity_class = 'animation'
@@ -183,7 +193,7 @@ func (r *MediaComplexityRepo) ListProbeCandidates(ctx context.Context, modelVers
 		      )
 		ORDER BY mi.added_at ASC
 		LIMIT $5`
-	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, modelVersion, ydifMin, ydifMax, minFrames, limit)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, modelVersion, ydifMin, ydifMax, minFrames, limit, protocol, encoder)
 	if err != nil {
 		return nil, fmt.Errorf("complexity ListProbeCandidates: %w", err)
 	}

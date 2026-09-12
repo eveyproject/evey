@@ -78,7 +78,7 @@ func ProbeTitle(ctx context.Context, path string, opts ProbeOptions) (ProbeRepor
 	margin := opts.Model.CeilingMargin
 	rep := ProbeReport{Source: src}
 	rep.Probe = transcoding.TitleProbe{Protocol: transcoding.TitleProbeProtocol, ModelVersion: opts.Model.Version, FFmpeg: ffmpegBuildID(opts.FFmpeg),
-		Encoder: "libx264 veryfast (production tuning)", Height: opts.Height, PredictedKbps: predicted, MeasuredAt: time.Now().UTC()}
+		Encoder: transcoding.TitleProbeEncoderID, Height: opts.Height, PredictedKbps: predicted, MeasuredAt: time.Now().UTC()}
 	cache := newBenchCache(opts.CacheDir, src, benchOpts)
 	starts := benchSceneStarts(src.DurationSec, transcoding.TitleProbeMaxScenes, opts.WindowSec)
 	var mezz *mezzanine

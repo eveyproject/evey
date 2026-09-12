@@ -100,7 +100,7 @@ func TestCostModelV2_ProbeOverride(t *testing.T) {
 		}
 		return out
 	}
-	probe := &TitleProbe{Protocol: TitleProbeProtocol, ModelVersion: m.Version, Height: 1080, MeasuredBPP: 0.2, Confirmed: false, Spread: 1.8, Points: pts(2)}
+	probe := &TitleProbe{Protocol: TitleProbeProtocol, ModelVersion: m.Version, Encoder: TitleProbeEncoderID, Height: 1080, MeasuredBPP: 0.2, Confirmed: false, Spread: 1.8, Points: pts(2)}
 	withProbe := base
 	withProbe.Probe = probe
 	c, ok := m.Predict(withProbe)
@@ -136,7 +136,7 @@ func TestCostModelV2_ProbeOverride(t *testing.T) {
 		c, _ := m.Predict(mm)
 		assert.False(t, c.Probed)
 	})
-	t.Run("another model version or protocol: ignored", func(t *testing.T) {
+	t.Run("another model version, protocol or encoder: ignored", func(t *testing.T) {
 		p2 := *probe
 		p2.ModelVersion = m.Version + 1
 		mm := base
@@ -148,6 +148,11 @@ func TestCostModelV2_ProbeOverride(t *testing.T) {
 		mm.Probe = &p3
 		c, _ = m.Predict(mm)
 		assert.False(t, c.Probed)
+		p4 := *probe
+		p4.Encoder = "libx264 medium (some other tuning)"
+		mm.Probe = &p4
+		c, _ = m.Predict(mm)
+		assert.False(t, c.Probed, "a probe from a different encoder tuning is stale")
 	})
 	t.Run("a probe alone, without metrics, is still a prediction", func(t *testing.T) {
 		c, ok := m.Predict(ComplexityMetrics{Probe: probe})

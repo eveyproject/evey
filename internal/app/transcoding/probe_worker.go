@@ -284,7 +284,10 @@ func (w *ProbeWorker) probeOne(ctx context.Context, mediaID string) (ran bool) {
 		// Record the failure so the title leaves the candidate set instead of
 		// retrying every idle cycle - a probe that fails on a readable file
 		// fails identically each time.
-		entry.Metrics.Probe = &transcoding.TitleProbe{Protocol: transcoding.TitleProbeProtocol, ModelVersion: w.model.Version, Failed: true, MeasuredAt: time.Now().UTC()}
+		// Stamp the failure marker with the current identity (protocol + model +
+		// encoder), or ProbeCandidate would not recognise it as terminal and the
+		// title would be re-probed every idle cycle - defeating the marker.
+		entry.Metrics.Probe = &transcoding.TitleProbe{Protocol: transcoding.TitleProbeProtocol, ModelVersion: w.model.Version, Encoder: transcoding.TitleProbeEncoderID, Failed: true, MeasuredAt: time.Now().UTC()}
 		if setErr := w.repo.Set(ctx, mediaID, entry.Class, entry.Metrics, entry.ComputedAt); setErr != nil {
 			w.logger.Warn("probe: persist failure marker failed", slog.String("media_id", mediaID), slog.Any("err", setErr))
 		}

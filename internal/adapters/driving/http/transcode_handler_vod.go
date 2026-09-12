@@ -353,6 +353,12 @@ const (
 	mediaLookupMax = 256
 )
 
+// ceilingHitContainerMargin lifts the P3 ceiling-hit threshold above the sum of
+// the rung's video + audio bitrates to absorb the segment container overhead
+// (fMP4/TS muxing), so overhead alone never counts as the video encoder pinning
+// its ceiling. See serveSegment.
+const ceilingHitContainerMargin = 1.05
+
 // vodSegmentNameRE parses the on-the-wire segment file name and returns the
 // (variantIdx, segmentIdx, isInit, ext) tuple. Strict: any other shape 404s.
 // The index is \d+ (not \d{3}): ffmpeg's hls_segment_filename only zero-pads to
@@ -1022,10 +1028,20 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// title. Record it (in memory, O(1), off any probe) for the background
 	// worker; never act on it here. An init segment or the copy rung carry no
 	// model price, so they never signal.
+	//
+	// The measured segKbps is derived from the file SIZE, which on the default
+	// path muxes audio next to the video and carries container overhead - while
+	// VideoBitrate is the VIDEO ceiling alone. A video comfortably inside its
+	// ceiling plus 192/384 kb/s of AAC would otherwise read as a ceiling hit on
+	// the small rungs. Compare against the video ceiling PLUS the rung's muxed
+	// audio, lifted by a small container margin so the mux overhead itself does
+	// not trip it. A true hit (video pinned at maxrate) still clears this: the
+	// segment then ships at VideoBitrate + audio + overhead.
 	if !isInit && h.probeSignals != nil && variantIdx >= 0 && variantIdx < len(fp.Profiles) {
 		if p := fp.Profiles[variantIdx]; p.CostModelled && !p.Copy && p.VideoBitrate > 0 {
 			segKbps := float64(fi.Size()) * 8 / float64(apptranscoding.ManifestSegmentSeconds) / 1000
-			if segKbps >= float64(p.VideoBitrate) {
+			ceiling := float64(p.VideoBitrate+p.AudioBitrate) * ceilingHitContainerMargin
+			if segKbps >= ceiling {
 				h.probeSignals.RecordCeilingHit(mediaID)
 			}
 		}
