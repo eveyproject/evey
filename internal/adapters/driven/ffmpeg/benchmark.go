@@ -256,6 +256,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	// HW backend passed the realtime bench.
 	var hwFeatures []string
 	var hwDecodeCodecs []string
+	var hwRoutes []string
 	var hw10Bit, hwTonemap, hwOverlay bool
 	var hwHDR10 bool
 	if hwMax > 0 {
@@ -292,6 +293,10 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		if !hwTonemap {
 			hwSamples = append(hwSamples, r.benchHWBridge(ctx, hwBackend, hwDomainCodecs(hwCodecs))...)
 		}
+		// Last: every route the builder can emit for this backend, run for real
+		// (BuildFFmpegArgs + the HLS muxer) on a clip of its class. The filter
+		// probes above say what the GPU can do; this says what a SESSION does.
+		hwRoutes = r.probeHWRoutes(ctx, hwBackend, hwDevice, hwDomainCodecs(hwCodecs), hwFeatures, hwTonemap, hw10Bit, hwHDR10)
 	}
 
 	// What the encode rungs above were DECODED from, and how fast this host
@@ -316,6 +321,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		HWDevice:             hwDevice,
 		GPUClass:             classifyGPU(hwBackend, hwDevice),
 		HWFeatures:           hwFeatures,
+		HWRoutes:             hwRoutes,
 		DetectedBackends:     detected,
 		CPUSignature:         sysinfo.CPUSignature(),
 		BenchmarkedAt:        time.Now().UTC(),
@@ -346,6 +352,8 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		slog.String("gpu_class", cap.GPUClass),
 		slog.Any("detected_backends", cap.DetectedBackends),
 		slog.Any("hw_features", cap.HWFeatures),
+		slog.Any("hw_routes", cap.HWRoutes),
+		slog.Any("hw_decode_codecs", cap.HWDecodeCodecs),
 		slog.String("bench_source_codec", cap.BenchSource.Codec),
 		slog.Int("bench_source_height", cap.BenchSource.Height),
 		slog.Int("decode_samples", len(cap.DecodeSamples)),
@@ -423,6 +431,38 @@ func (r *BenchmarkRunner) HWBackendUsable(ctx context.Context, backend string) b
 		device = "/dev/dri/renderD128"
 	}
 	return checkEncoderAvailable(ctx, r.ffmpegPath, enc) && probeHWEncode(ctx, r.ffmpegPath, enc, backend, device)
+}
+
+// HWEncodeUsable is the media-independent proof a runtime failure must clear
+// before the host is demoted: a synthetic encode through the backend's encoder
+// for codec, with the named tuning features rendered exactly as production
+// renders them (hwEncoderQualityArgs). Fail-closed.
+func (r *BenchmarkRunner) HWEncodeUsable(ctx context.Context, backend, device, codec string, features []string) bool {
+	codec = strings.ToLower(strings.TrimSpace(codec))
+	if codec == "" {
+		codec = "h264"
+	}
+	enc := resolveHWEncoder(backend, codec)
+	if enc == "" || !checkEncoderAvailable(ctx, r.ffmpegPath, enc) {
+		return false
+	}
+	if device == "" {
+		device = hwDevicePath(backend)
+	}
+	return probeHWEncodeWith(ctx, r.ffmpegPath, enc, backend, device, hwEncoderQualityArgs(transcoding.HWAccelType(backend), codec, features))
+}
+
+// ConfirmHWFeatures re-probes each feature on its own and keeps the ones the
+// backend still accepts, so a runtime "unsupported option" narrows the host to
+// what it just proved instead of wiping every tuning flag on one session's word.
+func (r *BenchmarkRunner) ConfirmHWFeatures(ctx context.Context, backend, device, codec string, features []string) []string {
+	kept := make([]string, 0, len(features))
+	for _, f := range features {
+		if r.HWEncodeUsable(ctx, backend, device, codec, []string{f}) {
+			kept = append(kept, f)
+		}
+	}
+	return kept
 }
 
 func (r *BenchmarkRunner) probeHWFeatures(ctx context.Context, backend, device string, codecs []string) []string {
@@ -958,7 +998,7 @@ func (r *BenchmarkRunner) benchHWBridge(ctx context.Context, backend string, cod
 		o := hdr.DefaultToneMapOptions()
 		o.DstWidth = h * 16 / 9
 		o.UseTonemapx = useTonemapx
-		chain := hwTonemapBridge(accel, hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, o))
+		chain := hwTonemapBridge(accel, hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, o), deinterlaceFilter)
 		if chain == "" {
 			return nil
 		}

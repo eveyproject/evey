@@ -19,6 +19,9 @@ type SourceDims struct {
 	Codec string
 	// TenBit marks a >=10-bit source (the 10-bit HW VPP hazard gate).
 	TenBit bool
+	// PixelFormat is the probed pix_fmt ("" unknown): the GPU decoder's
+	// chroma/depth gate (transcoding.HWChromaDecodable).
+	PixelFormat string
 	// HDRRange is SourceCopyVideoRange: "PQ", "HLG" or "" (SDR, Dolby Vision).
 	HDRRange string
 	// Telecine: inverse telecine needed, a software-only filter.
@@ -28,7 +31,7 @@ type SourceDims struct {
 // facts projects the dims onto the ladder engine's SourceFacts (no bitrate:
 // the producers' shape never read it).
 func (d SourceDims) facts() transcoding.SourceFacts {
-	return transcoding.SourceFacts{Width: d.Width, Height: d.Height, Codec: d.Codec, TenBit: d.TenBit, HDRRange: d.HDRRange, Telecine: d.Telecine}
+	return transcoding.SourceFacts{Width: d.Width, Height: d.Height, Codec: d.Codec, TenBit: d.TenBit, PixelFormat: d.PixelFormat, HDRRange: d.HDRRange, Telecine: d.Telecine}
 }
 
 // StreamProducer is the seam between the HTTP handler and the machine that

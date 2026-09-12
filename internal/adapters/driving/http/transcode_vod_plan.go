@@ -92,6 +92,7 @@ func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
 	// resolver's nil check.
 	if h.orchestrator != nil {
 		pr.Orchestrator = h.orchestrator
+		pr.HWRouteBlocked = h.orchestrator.HWRouteBlocked
 	}
 	return pr
 }

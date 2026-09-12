@@ -720,6 +720,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// capability so the client's retry re-resolves a lower tier (encoder-agnostic
 	// cache ⇒ transparent). DemoteCapability returns whether it changed; the
 	// orchestrator sink ignores the bool.
+	// Per-title fallback first: a title whose GPU session failed plays on the
+	// CPU at its next request, whatever the host verdict below turns out to
+	// be. A new calibration (or a confirmed demotion) re-proves the routes and
+	// forgets the blocks.
+	hlsVODOrch.WithHWRouteBlocklist(apptranscoding.NewHWRouteBlocklist(0, 0))
+	calibrationSvc.OnCapabilityChange(hlsVODOrch.ClearHWRouteBlocks)
 	hlsVODOrch.SetHWDemoteSink(func(ctx context.Context, class domaintranscoding.FailureClass, codec string) {
 		calibrationSvc.DemoteCapability(ctx, class, codec)
 	})

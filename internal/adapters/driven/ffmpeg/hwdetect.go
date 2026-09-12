@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -166,29 +167,51 @@ func probeHWCodecs(ctx context.Context, ffmpegPath, hwType, device string) []str
 	return codecs
 }
 
-// probeHWDecodeCodecs returns the domain video codecs the GPU can HW-DECODE via
-// hwType. Encode capability does NOT imply decode capability: a pre-Skylake Intel
-// iGPU encodes H.264 but cannot decode HEVC, so feeding such a source to
-// `-hwaccel <type>` fails (ENOSYS) and stalls the player. Probing decode
-// separately lets the transcode pipeline software-decode what the GPU can't, and
-// the admin see an honest encode/decode support matrix.
+// hwProbeMire is the synthetic frame size every probe encodes or decodes:
+// above every accelerator's minimum (NVDEC refuses HEVC under 144x144; a
+// 128x128 mire once made the decode probe fail for a reason that had nothing to
+// do with the host's ability to decode) and small enough to stay instant.
+const hwProbeMire = "256x144"
+
+// hwDecodeProbes are the source classes the decode probe exercises, each with
+// the encoder that makes its sample and the host format hwdownload must
+// return: the 8-bit 4:2:0 class of H.264 and HEVC, and HEVC Main10 - the class
+// of every 2160p HDR title, which a Skylake-era iGPU decodes 8-bit but not
+// 10-bit. 10-bit H.264 has no entry on purpose: no GPU decodes it.
+var hwDecodeProbes = []struct {
+	class, swEncoder, format, pixFmt, download string
+}{
+	{"h264", "libx264", "h264", "yuv420p", "nv12"},
+	{"hevc", "libx265", "hevc", "yuv420p", "nv12"},
+	{transcoding.HWDecodeHEVC10, "libx265", "hevc", "yuv420p10le", "p010le"},
+}
+
+// probeHWDecodeCodecs returns the source classes the GPU HW-DECODES via hwType
+// (see hwDecodeProbes). Encode capability does NOT imply decode capability: a
+// pre-Skylake Intel iGPU encodes H.264 but cannot decode HEVC, so feeding such
+// a source to `-hwaccel <type>` fails and the player stalls. Probing decode
+// separately lets the transcode pipeline software-decode what the GPU can't,
+// and the admin see an honest encode/decode support matrix.
 func probeHWDecodeCodecs(ctx context.Context, ffmpegPath, hwType, device string) []string {
 	var out []string
-	for _, c := range []struct{ name, swEncoder, format string }{
-		{"h264", "libx264", "h264"},
-		{"hevc", "libx265", "hevc"},
-	} {
-		if probeHWDecode(ctx, ffmpegPath, c.swEncoder, c.format, hwType, device) {
-			out = append(out, c.name)
+	for _, c := range hwDecodeProbes {
+		if probeHWDecode(ctx, ffmpegPath, c.swEncoder, c.format, c.pixFmt, c.download, hwType, device) {
+			out = append(out, c.class)
 		}
 	}
 	return out
 }
 
-// probeHWDecode software-encodes a tiny real clip in the target codec, then tries
-// to HW-DECODE it through hwType. Exit 0 → the GPU decodes that codec. Fail-closed
-// on any error/timeout (worst case: software decode, a perf cost, never a stall).
-func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, hwType, device string) bool {
+// probeHWDecode software-encodes a tiny real clip of the class, then HW-decodes
+// it through hwType and pulls the frames BACK from the device (hwdownload).
+// The download is what makes the probe fail-closed: ffmpeg's `-hwaccel` is
+// advisory - when the decoder cannot hand the stream to the GPU it logs
+// "Failed setup for format" and quietly decodes in software, exit 0 - so a bare
+// `-f null` run proved nothing (measured 2026-09-12: every host reported every
+// class). hwdownload only accepts a frame that lives on the device, and the
+// probe additionally requires ffmpeg to report the frames it decoded. Any
+// error/timeout ⇒ false (worst case: software decode, a perf cost, never a stall).
+func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, pixFmt, download, hwType, device string) bool {
 	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
 	defer cancel()
 
@@ -208,16 +231,15 @@ func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, hwType, d
 		return false
 	}
 
-	// 1. software-encode a tiny real sample of the codec.
+	// 1. software-encode a tiny real sample of the class.
 	if procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.decode_sample"}, ffmpegPath, "-hide_banner", "-v", "error", "-nostdin", "-y",
-		"-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.4",
-		"-c:v", swEncoder, "-f", format, tmpPath) != nil {
+		"-f", "lavfi", "-i", "testsrc2=size="+hwProbeMire+":rate=5:duration=0.4",
+		"-pix_fmt", pixFmt, "-c:v", swEncoder, "-f", format, tmpPath) != nil {
 		return false
 	}
 
-	// 2. HW-decode it through the backend; -hwaccel_output_format forces the GPU
-	// decode path (no silent software fallback), so success means real HW decode.
-	args := []string{"-hide_banner", "-v", "error", "-nostdin"}
+	// 2. HW-decode it, download the frames, count them.
+	args := []string{"-hide_banner", "-v", "error", "-nostdin", "-nostats", "-progress", "pipe:1"}
 	switch hwType {
 	case "vaapi":
 		if device == "" {
@@ -231,8 +253,26 @@ func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, hwType, d
 	default:
 		return false
 	}
-	args = append(args, "-i", tmpPath, "-f", "null", "-")
-	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_decode"}, ffmpegPath, args...) == nil
+	args = append(args, "-i", tmpPath, "-vf", "hwdownload,format="+download, "-f", "null", "-")
+	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_decode"}, ffmpegPath, args...)
+	if err != nil {
+		return false
+	}
+	return progressFrames(string(out)) > 0
+}
+
+// progressFrames reads the last `frame=N` of an ffmpeg -progress stream; 0 when
+// none - a run that decoded nothing proved nothing.
+func progressFrames(progress string) int {
+	last := 0
+	for line := range strings.SplitSeq(progress, "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "frame="); ok {
+			if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+				last = n
+			}
+		}
+	}
+	return last
 }
 
 // probeHWEncode runs a tiny real encode through the hardware encoder to confirm
@@ -262,7 +302,7 @@ func probeHWEncodeWith(ctx context.Context, ffmpegPath, encoder, hwType, device 
 		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
 		filter = []string{"-vf", "hwupload=extra_hw_frames=16,format=qsv"}
 	}
-	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=256x144:rate=10:duration=0.2")
+	args = append(args, "-f", "lavfi", "-i", "testsrc2=size="+hwProbeMire+":rate=10:duration=0.2")
 	args = append(args, filter...)
 	args = append(args, "-c:v", encoder)
 	args = append(args, encoderArgs...)
@@ -284,17 +324,17 @@ func probeHWHDR10Encode(ctx context.Context, ffmpegPath, hwType, device string) 
 			return false
 		}
 		args = append(args, "-vaapi_device", device)
-		vf, enc = "format=p010le,hwupload,scale_vaapi=128:-2:format=p010", "hevc_vaapi"
+		vf, enc = "format=p010le,hwupload,scale_vaapi=256:-2:format=p010", "hevc_vaapi"
 	case "qsv":
 		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
-		vf, enc = "format=p010le,hwupload=extra_hw_frames=16,scale_qsv=128:-2:format=p010", "hevc_qsv"
+		vf, enc = "format=p010le,hwupload=extra_hw_frames=16,scale_qsv=256:-2:format=p010", "hevc_qsv"
 	case "nvenc":
 		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
-		vf, enc = "format=p010le,hwupload_cuda,scale_cuda=128:-2:format=p010", "hevc_nvenc"
+		vf, enc = "format=p010le,hwupload_cuda,scale_cuda=256:-2:format=p010", "hevc_nvenc"
 	default:
 		return false
 	}
-	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3")
+	args = append(args, "-f", "lavfi", "-i", "testsrc2=size="+hwProbeMire+":rate=5:duration=0.3")
 	args = append(args, "-vf", vf, "-c:v", enc)
 	args = append(args, hwHDRPassthroughArgs(transcoding.HWAccelType(hwType), "pq", -1)...)
 	args = append(args, "-f", "null", "-")
@@ -334,7 +374,7 @@ func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device strin
 	default:
 		return false
 	}
-	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3")
+	args = append(args, "-f", "lavfi", "-i", "testsrc2=size="+hwProbeMire+":rate=5:duration=0.3")
 	args = append(args, "-vf", vf, "-f", "null", "-")
 
 	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_10bit"}, ffmpegPath, args...) == nil
@@ -362,7 +402,7 @@ func probeHWTonemapOpenCL(ctx context.Context, ffmpegPath, hwType, device string
 	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
 	defer cancel()
 	args := []string{"-hide_banner", "-v", "error", "-nostdin", "-vaapi_device", device,
-		"-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3",
+		"-f", "lavfi", "-i", "testsrc2=size=" + hwProbeMire + ":rate=5:duration=0.3",
 		"-vf", "format=p010le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc,hwupload," + hwOpenCLTonemapChain + ",hwdownload,format=nv12",
 		"-f", "null", "-"}
 	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_tonemap_opencl"}, ffmpegPath, args...)
@@ -386,7 +426,7 @@ func probeHWBFrames(ctx context.Context, ffmpegPath, encoder, hwType, device str
 	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
 	defer cancel()
 	args := []string{"-hide_banner", "-v", "verbose", "-nostdin", "-vaapi_device", device,
-		"-f", "lavfi", "-i", "testsrc2=size=256x144:rate=10:duration=0.5",
+		"-f", "lavfi", "-i", "testsrc2=size=" + hwProbeMire + ":rate=10:duration=0.5",
 		"-vf", "format=nv12,hwupload", "-c:v", encoder}
 	args = append(args, mode...)
 	args = append(args, "-bf", "3", "-f", "null", "-")
@@ -417,7 +457,7 @@ func probeHWTonemap(ctx context.Context, ffmpegPath, hwType, device string) bool
 	default:
 		return false
 	}
-	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3")
+	args = append(args, "-f", "lavfi", "-i", "testsrc2=size="+hwProbeMire+":rate=5:duration=0.3")
 	args = append(args, "-vf", vf, "-f", "null", "-")
 
 	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_tonemap"}, ffmpegPath, args...) == nil
@@ -464,9 +504,9 @@ func probeHWOverlay(ctx context.Context, ffmpegPath, hwType, device string) bool
 		return false
 	}
 	args = append(args,
-		"-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3",
-		"-f", "lavfi", "-i", "color=c=white@0.5:size=128x128:rate=5:duration=0.3",
-		"-filter_complex", fmt.Sprintf("[0:v]%s[m];[1:v]%s[s];[m][s]%s=w=128:h=128", main, sub, blend),
+		"-f", "lavfi", "-i", "testsrc2=size="+hwProbeMire+":rate=5:duration=0.3",
+		"-f", "lavfi", "-i", "color=c=white@0.5:size="+hwProbeMire+":rate=5:duration=0.3",
+		"-filter_complex", fmt.Sprintf("[0:v]%s[m];[1:v]%s[s];[m][s]%s=w=256:h=144", main, sub, blend),
 		"-f", "null", "-")
 
 	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_overlay"}, ffmpegPath, args...) == nil

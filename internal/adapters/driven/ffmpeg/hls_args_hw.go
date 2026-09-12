@@ -110,7 +110,7 @@ func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool
 		if opts.HWTonemap && hwTonemapFilter(opts.HWAccel, opts.HWFeatures) != "" {
 			return true
 		}
-		return hwTonemapBridge(opts.HWAccel, toneMap) != ""
+		return hwTonemapBridge(opts.HWAccel, toneMap, "") != ""
 	}
 	return true
 }
@@ -119,13 +119,26 @@ func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool
 // for backends without a GPU tone-mapper (AMD VAAPI, NVENC, an Intel without
 // its ICD): download the decoded surface, run the software chain, upload the
 // SDR frames. Measured 4K at 3.1x on a Ryzen 9900X + RTX 4070 Ti.
-func hwTonemapBridge(accel transcoding.HWAccelType, toneMap string) string {
+//
+// deint is the SOFTWARE deinterlacer this session would run (deinterlaceFilterFor),
+// placed right after the download: the GPU deinterlacer must NOT sit in front of
+// hwdownload. yadif_cuda / deinterlace_vaapi=auto pass a PROGRESSIVE frame
+// through untouched - still owned by the decoder's frame pool - and hwdownload,
+// configured against the deinterlacer's own pool, refuses it ("Input frame is
+// not the in the configured hwframe context", exit 234). Measured 2026-09-12 on
+// an RTX 4070 Ti: every progressive HDR title failed on this route; an
+// interlaced-flagged clip or deint=all passed. bwdif deint=interlaced on the
+// CPU is the same no-op on progressive content the software path relies on.
+func hwTonemapBridge(accel transcoding.HWAccelType, toneMap, deint string) string {
 	if toneMap == "" {
 		return ""
 	}
 	// One format, not a list: a p010le|nv12 alternative broke the CUDA negotiation
 	// (verified on an RTX 4070 Ti); an 8-bit HDR source converts on the way down.
 	pre := "hwdownload,format=p010le,"
+	if deint != "" {
+		pre += deint + ","
+	}
 	if !strings.Contains(toneMap, "tonemapx") {
 		pre += "format=yuv420p10le|yuv420p," // the zscale chain is planar-only
 	}
@@ -140,6 +153,15 @@ func hwTonemapBridge(accel transcoding.HWAccelType, toneMap string) string {
 	return ""
 }
 
+// hwBridges reports whether this job tone-maps on the CPU between the GPU
+// decode and encode (no GPU tone-mapper probed/wired for it).
+func hwBridges(opts transcoding.HLSProcessOpts) bool {
+	if resolveToneMap(opts, 0) == "" {
+		return false
+	}
+	return !opts.HWTonemap || hwTonemapFilter(opts.HWAccel, opts.HWFeatures) == ""
+}
+
 // hwToneMapStage is what runs before the GPU scaler(s) on an HDR->SDR job: the
 // GPU tone-mapper when probed and wanted, else the CPU bridge; "" when none.
 func hwToneMapStage(opts transcoding.HLSProcessOpts) string {
@@ -152,7 +174,7 @@ func hwToneMapStage(opts transcoding.HLSProcessOpts) string {
 			return tm
 		}
 	}
-	return hwTonemapBridge(opts.HWAccel, toneMap)
+	return hwTonemapBridge(opts.HWAccel, toneMap, deinterlaceFilterFor(opts))
 }
 
 // hwTonemapFilter returns the GPU HDR->SDR tone-map filter for the backend, or
@@ -310,6 +332,12 @@ func hwUploadFilter(accel transcoding.HWAccelType) string {
 // to the encode being offloaded.
 func hwSourceFilterPrefix(opts transcoding.HLSProcessOpts) string {
 	if !opts.HWSoftwareDecode {
+		// A bridged session deinterlaces on the CPU inside the bridge, after
+		// hwdownload (see hwTonemapBridge): a GPU deinterlacer in front of the
+		// download breaks the download on progressive content.
+		if hwBridges(opts) {
+			return ""
+		}
 		if d := hwDeinterlaceFilter(opts.HWAccel, opts.DeinterlaceAll); d != "" {
 			return d + ","
 		}

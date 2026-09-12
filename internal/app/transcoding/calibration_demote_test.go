@@ -13,6 +13,14 @@ import (
 
 func seedHWService(t *testing.T) (*CalibrationService, *fakeCapabilityRepo) {
 	t.Helper()
+	// The default fake runner CONFIRMS the host on every probe; the tests that
+	// exercise a real host demotion make the proof fail explicitly.
+	svc, repo, _ := seedHWServiceWith(t, &fakeBenchmarkRunner{})
+	return svc, repo
+}
+
+func seedHWServiceWith(t *testing.T, runner *fakeBenchmarkRunner) (*CalibrationService, *fakeCapabilityRepo, *fakeBenchmarkRunner) {
+	t.Helper()
 	hwCap := domaintranscoding.EncodeCapability{
 		SoftwareMaxHeight: 1080,
 		HWMaxHeight:       2160,
@@ -22,36 +30,77 @@ func seedHWService(t *testing.T) (*CalibrationService, *fakeCapabilityRepo) {
 		CPUSignature:      "sig",
 	}
 	repo := &fakeCapabilityRepo{}
-	svc := newIdleHostCalibrationService(repo, &fakeBenchmarkRunner{result: hwCap}, nil)
+	runner.result = hwCap
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.Recalibrate(context.Background())) // current = hwCap
-	return svc, repo
+	return svc, repo, runner
 }
 
-func TestDemoteCapability_UnsupportedOption_DropsTuning_Persists(t *testing.T) {
-	svc, repo := seedHWService(t)
+func TestDemoteCapability_UnsupportedOption_NarrowsToReconfirmedFeatures_Persists(t *testing.T) {
+	svc, repo, _ := seedHWServiceWith(t, &fakeBenchmarkRunner{refusedFeatures: []string{"temporal_aq"}})
 	ctx := context.Background()
 
 	ok := svc.DemoteCapability(ctx, domaintranscoding.FailureHWUnsupportedOption, "h264")
-	assert.True(t, ok, "first demote must change the capability")
+	assert.True(t, ok, "a feature the host itself refuses must change the capability")
 
 	cur := svc.Current()
-	assert.Empty(t, cur.HWFeatures, "tuning dropped")
+	assert.Equal(t, []string{"rc_lookahead"}, cur.HWFeatures, "only the refused feature is dropped, the re-confirmed one stays")
 	assert.Equal(t, "nvenc", cur.HWBackend, "HW backend survives an option reject")
 	assert.Equal(t, 2160, cur.HWMaxHeight)
 
 	stored, found, _ := repo.Get(ctx)
 	require.True(t, found, "deterministic demotion must be persisted")
-	assert.Empty(t, stored.HWFeatures)
+	assert.Equal(t, []string{"rc_lookahead"}, stored.HWFeatures)
 
-	assert.Len(t, svc.RecentFallbacks(), 1)
+	events := svc.RecentFallbacks()
+	require.Len(t, events, 1)
+	assert.Equal(t, "host_demoted", events[0].Verdict)
 
-	// Debounce: a second identical failure is a no-op (HWFeatures already empty).
+	// Debounce: a second identical failure re-confirms the remaining feature
+	// and changes nothing.
 	assert.False(t, svc.DemoteCapability(ctx, domaintranscoding.FailureHWUnsupportedOption, "h264"))
-	assert.Len(t, svc.RecentFallbacks(), 1, "no duplicate fallback record")
+	assert.Equal(t, []string{"rc_lookahead"}, svc.Current().HWFeatures)
+}
+
+// The invariant this file exists for: a session failure is NOT a host verdict.
+// When the media-independent probe passes, the host keeps every feature and
+// its backend, whatever class the session reported; only the event is kept.
+func TestDemoteCapability_HostReconfirmed_NoChange(t *testing.T) {
+	for _, class := range []domaintranscoding.FailureClass{
+		domaintranscoding.FailureHWUnsupportedOption,
+		domaintranscoding.FailureHWEncoderMissing,
+		domaintranscoding.FailureHWInit,
+		domaintranscoding.FailureHWCorruptOutput,
+	} {
+		svc, repo, runner := seedHWServiceWith(t, &fakeBenchmarkRunner{})
+		before := svc.Current()
+		assert.False(t, svc.DemoteCapability(context.Background(), class, "hevc"), "class %s: host confirmed, no demotion", class)
+		assert.Equal(t, before, svc.Current(), "class %s: capability untouched", class)
+		assert.Positive(t, runner.proofCalls.Load(), "class %s: the proof must have been asked", class)
+		stored, _, _ := repo.Get(context.Background())
+		assert.Equal(t, before, stored, "class %s: the persisted row is the bench, untouched", class)
+		events := svc.RecentFallbacks()
+		require.Len(t, events, 1, "class %s", class)
+		assert.Equal(t, "media_route", events[0].Verdict)
+	}
+}
+
+// A media/route incompatibility never asks the host anything: the title is
+// the orchestrator's to send to software; here it is only recorded.
+func TestDemoteCapability_RouteIncompatible_RecordsOnly(t *testing.T) {
+	svc, _, runner := seedHWServiceWith(t, &fakeBenchmarkRunner{encodeUnusable: true})
+	before := svc.Current()
+	assert.False(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureRouteIncompatible, "h264"))
+	assert.Equal(t, before, svc.Current())
+	assert.Zero(t, runner.proofCalls.Load(), "no host probe for a media/route failure")
+	events := svc.RecentFallbacks()
+	require.Len(t, events, 1)
+	assert.Equal(t, "route_incompatible", events[0].Class)
+	assert.Equal(t, "media_route", events[0].Verdict)
 }
 
 func TestDemoteCapability_EncoderMissing_RemovesCodec(t *testing.T) {
-	svc, _ := seedHWService(t)
+	svc, _, _ := seedHWServiceWith(t, &fakeBenchmarkRunner{encodeUnusable: true})
 	ok := svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWEncoderMissing, "hevc")
 	assert.True(t, ok)
 	cur := svc.Current()
@@ -61,10 +110,12 @@ func TestDemoteCapability_EncoderMissing_RemovesCodec(t *testing.T) {
 }
 
 func TestDemoteCapability_InitFailure_DisablesHW(t *testing.T) {
-	svc, repo := seedHWService(t)
+	svc, repo, _ := seedHWServiceWith(t, &fakeBenchmarkRunner{encodeUnusable: true})
 	assert.False(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWInit, "h264"), "one missed init is a strike, not a verdict")
 	assert.Equal(t, "nvenc", svc.Current().HWBackend)
-	assert.Len(t, svc.RecentFallbacks(), 1, "the strike is still visible on the dashboard")
+	events := svc.RecentFallbacks()
+	require.Len(t, events, 1, "the strike is still visible on the dashboard")
+	assert.Equal(t, "strike", events[0].Verdict)
 	ok := svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWInit, "h264")
 	assert.True(t, ok)
 	cur := svc.Current()
@@ -97,7 +148,7 @@ func TestDemoteCapability_TransientAndNonHW_AreNoOps(t *testing.T) {
 }
 
 func TestDemoteCapability_ConcurrentFailures_Debounce(t *testing.T) {
-	svc, _ := seedHWService(t)
+	svc, _, _ := seedHWServiceWith(t, &fakeBenchmarkRunner{refusedFeatures: []string{"temporal_aq", "rc_lookahead"}})
 	var wg sync.WaitGroup
 	for range 24 {
 		wg.Go(func() {
@@ -106,8 +157,12 @@ func TestDemoteCapability_ConcurrentFailures_Debounce(t *testing.T) {
 	}
 	wg.Wait()
 	// The storm of concurrent failures from one bad option must collapse to a
-	// single capability change + a single recorded fallback.
-	assert.Len(t, svc.RecentFallbacks(), 1)
+	// single capability change: one host_demoted event, and the losers of the
+	// race - whose re-probe of the narrowed set passes - one media_route event.
+	events := svc.RecentFallbacks()
+	require.NotEmpty(t, events)
+	assert.LessOrEqual(t, len(events), 2)
+	assert.Equal(t, "host_demoted", events[0].Verdict)
 	assert.Empty(t, svc.Current().HWFeatures)
 }
 
@@ -116,7 +171,7 @@ func TestDemoteCapability_ConcurrentFailures_Debounce(t *testing.T) {
 // (seen live: an NVENC init failure demoted hw and nothing repriced). Every
 // runtime mutation - bench completion and demotion alike - must notify.
 func TestCalibration_OnCapabilityChange_FiresOnBenchAndDemote(t *testing.T) {
-	svc, _ := seedHWService(t)
+	svc, _, _ := seedHWServiceWith(t, &fakeBenchmarkRunner{refusedFeatures: []string{"temporal_aq", "rc_lookahead"}})
 	var fired int
 	svc.OnCapabilityChange(func() { fired++ })
 

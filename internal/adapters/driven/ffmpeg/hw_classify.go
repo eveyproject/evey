@@ -18,7 +18,9 @@ import (
 // host on a fluke. A nil error classifies as FailureNone.
 //
 // Ordering matters - most specific signatures first, because some substrings
-// overlap (an OOM also prints "failed to allocate").
+// overlap (an OOM also prints "failed to allocate"; a dead driver prints both
+// "Device creation failed" and the "Failed setup for format" a mere
+// unsupported stream prints too).
 func ClassifyHWFailure(exitErr error, stderrTail string) transcoding.FailureClass {
 	if exitErr == nil {
 		return transcoding.FailureNone
@@ -52,19 +54,52 @@ func ClassifyHWFailure(exitErr error, stderrTail string) transcoding.FailureClas
 		"automatic encoder selection failed", "unsupported codec"):
 		return transcoding.FailureHWEncoderMissing
 
+	// DEVICE-level signatures only: the accelerator itself could not be opened.
+	// "hwaccel initialisation returned error" is deliberately NOT here - ffmpeg
+	// prints it for a stream the decoder cannot hand to the GPU (a profile or a
+	// frame size NVDEC refuses) exactly as for a dead driver, and the two are
+	// told apart by the device lines below being present or not.
 	case stderrContainsAny(s,
-		"failed to create", "device creation failed", "no va display",
-		"failed to initialise", "failed to initialize", "cannot load nvcuda",
-		"cannot load libcuda", "no device available", "cannot open the drm",
-		"could not open the device", "hwaccel initialisation",
-		"hwaccel initialization", "qsv device creation",
+		"device creation failed", "failed to create a cuda device",
+		"failed to create a vaapi device", "no va display",
+		"failed to initialise vaapi", "cannot load nvcuda", "cannot load libcuda",
+		"cannot load libnvidia-encode", "no device available", "cannot open the drm",
+		"could not open the device", "qsv device creation",
 		"cannot create mfx session", "mfxinit"):
 		return transcoding.FailureHWInit
 
+	// The media and the route disagree (measured 2026-09-12 on an RTX 4070 Ti,
+	// prod image): a 10-bit H.264 / 4:2:2 HEVC source the GPU decoder does not
+	// take ("Impossible to convert between the formats"), a filter that hands
+	// hwdownload a frame from another pool ("not the in the configured hwframe
+	// context"), a stream NVDEC refuses ("Failed setup for format"), an encoder
+	// fed a surface it cannot take. The host encodes everything else; only this
+	// (media, route) pair is wrong.
+	case stderrContainsAny(s,
+		"impossible to convert between the formats",
+		"configured hwframe context", "failed setup for format",
+		"nothing was written into output file",
+		"10 bit encode not supported", "doesn't support required nvenc features",
+		"does not support required nvenc features",
+		"function not implemented"):
+		return transcoding.FailureRouteIncompatible
+
+	// An encoder option this device refuses - NAMED as such by ffmpeg. A bare
+	// "Invalid argument" is not one: every filter-graph failure ends its thread
+	// on EINVAL, so that string alone used to wipe the host's tuning features
+	// on any broken session.
 	case stderrContainsAny(s,
 		"unrecognized option", "unknown option", "option not found",
-		"error setting option", "invalid argument", "value out of range"):
+		"error setting option", "not supported by the device",
+		"not supported by this device", "value out of range"):
 		return transcoding.FailureHWUnsupportedOption
+
+	case stderrContainsAny(s,
+		"failed to create", "device creation", "failed to initialise", "failed to initialize"):
+		return transcoding.FailureHWInit
+
+	case stderrContainsAny(s, "invalid argument"):
+		return transcoding.FailureRouteIncompatible
 
 	case stderrContainsAny(s,
 		"no such file", "invalid data found", "broken pipe",

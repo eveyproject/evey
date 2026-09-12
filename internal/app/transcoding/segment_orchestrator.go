@@ -47,6 +47,12 @@ type SegmentOrchestrator struct {
 	// when unset, a HW failure just falls through to the normal 503-retry.
 	hwDemote func(ctx context.Context, class transcoding.FailureClass, codec string)
 
+	// hwRouteBlocks is the per-title half of the fallback ladder: a title whose
+	// GPU session failed for a deterministic reason is served from the CPU at
+	// its next request (the resolver reads HWRouteBlocked), before and
+	// regardless of what the host-level proof in hwDemote concludes.
+	hwRouteBlocks *HWRouteBlocklist
+
 	// shutdownCtx is the long-lived parent context for every ffmpeg session
 	// the orchestrator spawns. Never the HTTP request context - that one is
 	// cancelled the moment the segment is served, which would tear down the
@@ -264,6 +270,45 @@ func (o *SegmentOrchestrator) WithVideoSessionLimiter(limiter *VideoSessionLimit
 
 func (o *SegmentOrchestrator) SetHWDemoteSink(sink func(ctx context.Context, class transcoding.FailureClass, codec string)) {
 	o.hwDemote = sink
+}
+
+// WithHWRouteBlocklist wires the per-title GPU route block (chainable).
+func (o *SegmentOrchestrator) WithHWRouteBlocklist(b *HWRouteBlocklist) *SegmentOrchestrator {
+	o.hwRouteBlocks = b
+	return o
+}
+
+// HWRouteBlocked reports whether mediaID's GPU route is blocked after a
+// failure; the plan resolver's HWRouteBlocked hook. Nil-safe.
+func (o *SegmentOrchestrator) HWRouteBlocked(mediaID string) bool {
+	return o.hwRouteBlocks.Blocked(mediaID)
+}
+
+// ClearHWRouteBlocks forgets every per-title block: a fresh calibration (or a
+// confirmed demotion) re-proves the routes, so what the old proof blocked is
+// re-tried on the new one.
+func (o *SegmentOrchestrator) ClearHWRouteBlocks() {
+	o.hwRouteBlocks.Clear()
+}
+
+// HWRouteBlocks lists the live per-title blocks for the admin view.
+func (o *SegmentOrchestrator) HWRouteBlocks() []HWRouteBlockEntry {
+	return o.hwRouteBlocks.Entries()
+}
+
+// blockTitleRoute records that mediaID's GPU session failed: the title's next
+// request resolves to the CPU route. Logged at Warn: it is the line that
+// explains why a title plays on the CPU on a GPU host.
+func (o *SegmentOrchestrator) blockTitleRoute(mediaID, hash string, accel transcoding.HWAccelType, reason string) {
+	if o.hwRouteBlocks == nil || mediaID == "" {
+		return
+	}
+	o.hwRouteBlocks.Block(mediaID, reason)
+	o.logger.Warn("orchestrator: GPU session failed, title falls back to the CPU route",
+		slog.String("media_id", mediaID),
+		slog.String("hash", hash),
+		slog.String("hw_backend", string(accel)),
+		slog.String("reason", reason))
 }
 
 // productionPointLocked: the last segment known produced, startSeg-1 before any. Caller holds s.mu.
@@ -883,36 +928,40 @@ func (o *SegmentOrchestrator) spawnSession(
 			}
 		})
 
-		// Level-2 safety net: a HW-capability failure demotes the host
-		// capability so the client's automatic retry re-resolves a lower tier
-		// (the cache is encoder-agnostic, so the fallback segments slot into the
-		// same manifest). Cancellation / transient / unknown are ignored.
-		if naturalExit && o.hwDemote != nil {
+		// The fallback ladder of a failed GPU session, in order:
+		//   1. the SESSION is gone (ffmpeg exited);
+		//   2. the TITLE is sent to the CPU route (blockTitleRoute) for every
+		//      deterministic class - a media/route incompatibility, a refused
+		//      option, a missing encoder, a dead device all replay identically
+		//      on the same title, and the client's retry must play;
+		//   3. the HOST is only demoted by the calibration service, once a
+		//      media-independent probe confirms the failure is the GPU's
+		//      (hwDemote -> DemoteCapability). A route incompatibility never
+		//      touches the host: it is recorded there and nothing else.
+		// Cancellation / transient / unknown are ignored. A session that
+		// exited on its own without writing a single segment is a silent HW
+		// death the stderr classifier cannot see: a driver crash (SIGSEGV
+		// inside the GPU .so / a TDR GPU reset on WSL d3d12) or an exit-0
+		// "Nothing was written" - the title falls back, and the host is asked
+		// to prove itself as for an init failure.
+		if naturalExit && procOpts.HWAccel != "" {
 			class := handle.Failure()
-			usedHW := procOpts.HWAccel != ""
 			switch {
-			case usedHW && class.IsHWCapability():
-				o.logger.Warn("orchestrator: HW encode failure, demoting capability",
-					slog.String("hash", hash),
-					slog.String("class", string(class)),
-					slog.String("codec", fp.VideoCodec))
-				o.hwDemote(o.shutdownCtx, class, fp.VideoCodec)
-
-			case usedHW && class != transcoding.FailureCancelled && !o.hashProducedSegment(hash, variantIdx, fp.UseFMP4):
-				// A HW session that exited on its own without writing a single
-				// segment is a silent HW death the stderr classifier can't see:
-				// a driver crash (SIGSEGV inside the GPU .so / a TDR GPU reset on
-				// WSL d3d12) or an exit-0 "Nothing was written" (e.g. a 10-bit
-				// source fed to an 8-bit encoder). Either way the encoder isn't
-				// delivering here, so demote to software (hw_init ⇒ disable HW +
-				// persist) and let the client's retry play on CPU instead of
-				// looping the same broken HW path to the patience timeout.
-				o.logger.Warn("orchestrator: HW session produced no segments, demoting to software",
+			case class.BlocksTitleRoute():
+				o.blockTitleRoute(fp.MediaID, hash, procOpts.HWAccel, string(class))
+				if o.hwDemote != nil {
+					o.hwDemote(o.shutdownCtx, class, fp.VideoCodec)
+				}
+			case class.SilentDeathCandidate() && !o.hashProducedSegment(hash, variantIdx, fp.UseFMP4):
+				o.logger.Warn("orchestrator: HW session produced no segments",
 					slog.String("hash", hash),
 					slog.String("class", string(class)),
 					slog.String("hw_backend", string(procOpts.HWAccel)),
 					slog.String("codec", fp.VideoCodec))
-				o.hwDemote(o.shutdownCtx, transcoding.FailureHWInit, fp.VideoCodec)
+				o.blockTitleRoute(fp.MediaID, hash, procOpts.HWAccel, "no_segment_produced/"+string(class))
+				if o.hwDemote != nil {
+					o.hwDemote(o.shutdownCtx, transcoding.FailureHWInit, fp.VideoCodec)
+				}
 			}
 		}
 
@@ -928,8 +977,8 @@ func (o *SegmentOrchestrator) spawnSession(
 	// HW fast-fail watchdog: a hardware rafale that hasn't written its init
 	// segment within HWFirstSegmentTimeout is a stuck/dead GPU pipeline (a TDR
 	// reset, a hung encoder). Don't make the client wait out the full ~25 s
-	// segment timeout - demote to software now and kill the session so the
-	// retry re-resolves the (encoder-agnostic) software tier. The init is the
+	// segment timeout - send the title to the CPU now and kill the session so
+	// the retry re-resolves the (encoder-agnostic) software tier. The init is the
 	// signal, not a full segment: a working-but-slow GPU writes it within
 	// ~1-3 s while a dead one never does, so the tight window doesn't false-
 	// fail a slow weak-NAS encoder. Only HW sessions, only when a demote sink
@@ -953,11 +1002,14 @@ func (o *SegmentOrchestrator) spawnSession(
 			if o.hwSessionAlive(hash, variantIdx, fp.UseFMP4) {
 				return // the encoder is producing (maybe slowly) - let it run
 			}
-			o.logger.Warn("orchestrator: HW session wrote no init within watchdog window, demoting to software",
+			o.logger.Warn("orchestrator: HW session wrote no init within watchdog window, title falls back to the CPU route",
 				slog.String("hash", hash),
 				slog.String("hw_backend", string(procOpts.HWAccel)),
 				slog.String("codec", fp.VideoCodec),
 				slog.Duration("window", o.opts.HWFirstSegmentTimeout))
+			o.blockTitleRoute(fp.MediaID, hash, procOpts.HWAccel, "hw_watchdog_no_init")
+			// The host proves itself (DemoteCapability's probe) before anything
+			// host-wide changes; a slow start on a loaded box passes the probe.
 			o.hwDemote(o.shutdownCtx, transcoding.FailureHWInit, fp.VideoCodec)
 			o.killSession(session, "hw watchdog: no init segment")
 		}()

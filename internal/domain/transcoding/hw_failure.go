@@ -34,6 +34,13 @@ const (
 	// against the software-decoded source via perceptual hash. Deterministic
 	// → this codec's HW path serves garbage; drop it, no HW retry.
 	FailureHWCorruptOutput FailureClass = "hw_corrupt_output"
+	// FailureRouteIncompatible: THIS media on THIS route does not build - a
+	// pixel format the GPU decoder does not take (Hi10P, 4:2:2), a filter
+	// negotiation that cannot converge, a command the builder emits wrongly.
+	// Deterministic for the (media, route) pair, and says nothing about the
+	// host: the same GPU encodes every other title. Reaction: this session and
+	// this title fall back to software; the host capability is never touched.
+	FailureRouteIncompatible FailureClass = "route_incompatible"
 	// FailureTransient: not HW-related and likely retryable (I/O, broken
 	// pipe). Don't downgrade HW.
 	FailureTransient FailureClass = "transient"
@@ -62,10 +69,32 @@ func (c FailureClass) IsHWCapability() bool {
 func (c FailureClass) Deterministic() bool {
 	switch c {
 	case FailureHWUnsupportedOption, FailureHWEncoderMissing, FailureHWInit,
-		FailureHWCorruptOutput:
+		FailureHWCorruptOutput, FailureRouteIncompatible:
 		return true
 	}
 	return false
+}
+
+// SilentDeathCandidate reports whether a HARDWARE session that exited on its
+// own WITHOUT writing a segment should be read as a silent GPU death (a driver
+// crash the stderr classifier cannot see, an exit-0 "nothing written"): every
+// unclassified exit, but never one we cancelled or one already known to be
+// transient (a VRAM OOM retries as it was).
+func (c FailureClass) SilentDeathCandidate() bool {
+	switch c {
+	case FailureCancelled, FailureHWDeviceMemory, FailureTransient:
+		return false
+	}
+	return true
+}
+
+// BlocksTitleRoute reports whether a failed HARDWARE session should send THIS
+// title's GPU route to software before anything host-wide is considered: every
+// deterministic class does, because a title that just failed on the GPU must
+// play on the CPU at the client's very next retry, whatever the host verdict
+// turns out to be. Memory/transient/cancelled failures retry as they were.
+func (c FailureClass) BlocksTitleRoute() bool {
+	return c.Deterministic()
 }
 
 // RetryTier is the encode strategy to (re-)spawn a job with.
@@ -138,12 +167,45 @@ func PlanDemotion(cap EncodeCapability, class FailureClass, codec string) Demoti
 		// Transient: fall back for this job but keep the capability intact.
 		return Demotion{RetryTier: TierSoftware, Capability: cap, Persist: false}
 
+	case FailureRouteIncompatible:
+		// The media and the route disagree; the host is fine. Software for this
+		// job (and this title, see BlocksTitleRoute), capability untouched.
+		return Demotion{RetryTier: TierSoftware, Capability: cap, Persist: false}
+
 	case FailureTransient, FailureCancelled, FailureNone:
 		return Demotion{RetryTier: TierHWFull, Capability: cap, Persist: false}
 
 	default: // FailureUnknown
 		return Demotion{RetryTier: TierSoftware, Capability: cap, Persist: false}
 	}
+}
+
+// PlanFeatureDemotion narrows the host's HW tuning options to `kept` - the
+// subset a media-independent probe just re-confirmed - instead of wiping them
+// all on the word of one failed session. Persisted (the probe is deterministic);
+// Changed is false when the probe confirmed every feature, which is the answer
+// "that failure was the media's, not the host's".
+func PlanFeatureDemotion(cap EncodeCapability, kept []string) Demotion {
+	d := cap
+	d.HWFeatures = kept
+	return Demotion{RetryTier: TierHWMinimal, Capability: d, Persist: true, Changed: !sameFeatureSet(cap.HWFeatures, kept)}
+}
+
+func sameFeatureSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := make(map[string]int, len(a))
+	for _, f := range a {
+		seen[f]++
+	}
+	for _, f := range b {
+		if seen[f] == 0 {
+			return false
+		}
+		seen[f]--
+	}
+	return true
 }
 
 // removeHWCodec drops codec from c.HWCodecs (case-insensitive, "" ⇒ h264). If
@@ -180,4 +242,5 @@ func disableHW(c *EncodeCapability) {
 	c.HWCodecs = nil
 	c.HWDevice = ""
 	c.HWFeatures = nil
+	c.HWRoutes = nil
 }
