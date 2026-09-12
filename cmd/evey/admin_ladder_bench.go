@@ -161,6 +161,23 @@ func runEfficiencyBench(ctx context.Context, paths []string, opts ffmpeg.BenchOp
 		return fmt.Errorf("ladder-bench: no encoder to measure")
 	}
 
+	// The CSV grows title by title: hours of encodes are not lost to an
+	// interruption, and a run can be read while it is still going.
+	w := os.Stdout
+	if out != "" {
+		f, err := os.Create(out)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		w = f
+	}
+	cw := csv.NewWriter(w)
+	header, _ := ffmpeg.EffRows(nil)
+	if err := cw.Write(header); err != nil {
+		return err
+	}
+	cw.Flush()
 	var results []*ffmpeg.EffResult
 	for _, path := range paths {
 		fmt.Fprintf(os.Stderr, "→ %s\n", path)
@@ -173,32 +190,19 @@ func runEfficiencyBench(ctx context.Context, paths []string, opts ffmpeg.BenchOp
 			continue
 		}
 		results = append(results, r)
+		_, rows := ffmpeg.EffRows([]*ffmpeg.EffResult{r})
+		for _, row := range rows {
+			if err := cw.Write(row); err != nil {
+				return err
+			}
+		}
+		cw.Flush()
+		if err := cw.Error(); err != nil {
+			return err
+		}
 	}
 	if len(results) == 0 {
 		return fmt.Errorf("ladder-bench: nothing measured")
-	}
-	w := os.Stdout
-	if out != "" {
-		f, err := os.Create(out)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		w = f
-	}
-	cw := csv.NewWriter(w)
-	header, rows := ffmpeg.EffRows(results)
-	if err := cw.Write(header); err != nil {
-		return err
-	}
-	for _, row := range rows {
-		if err := cw.Write(row); err != nil {
-			return err
-		}
-	}
-	cw.Flush()
-	if err := cw.Error(); err != nil {
-		return err
 	}
 
 	fmt.Fprintf(os.Stderr, "\nEfficiency = bitrate the encoder needs to match the x264 CRF 23 reference's XPSNR, over the reference's bitrate (< 1: cheaper).\n")
