@@ -706,6 +706,7 @@ func (pr *PlanResolver) encodeRoute(decision transcoding.PlaybackDecision, strea
 		Tonemap:        tonemap,
 		HWTonemap:      tonemap && pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams)),
 		Copy:           isCopy,
+		HDRPassthrough: usable && accel != "" && pr.HDRPassthroughWanted(decision, streams),
 	}
 }
 

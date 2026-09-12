@@ -73,6 +73,14 @@ type EncodeRoute struct {
 	HWTonemap bool
 	// Copy: the single remux rung, no encode at all.
 	Copy bool
+	// HDRPassthrough: HEVC Main10 with the HDR kept - an operating point the
+	// efficiency model does not cover yet.
+	HDRPassthrough bool
+}
+
+// EncoderKey is the efficiency model's key for this route.
+func (r EncodeRoute) EncoderKey() EncoderKey {
+	return EncoderKey{Codec: strings.ToLower(r.Codec), Accel: r.Accel, Preset: ProductionPreset(r.Accel), HDR: r.HDRPassthrough}
 }
 
 // Bridge reports the CPU tone-map between a GPU decode and a GPU encode.
@@ -185,14 +193,32 @@ func (StaticQualityPolicy) TargetFor(rung HLSProfile, route EncodeRoute) Quality
 // StaticLadderBuilder is the per-class table shaped by the delivery caps -
 // the ladder every session got before the engine. It is the fallback the
 // adaptive builders degrade to, and the reference the golden files pin.
-type StaticLadderBuilder struct{}
+// Cost and Efficiency default to the current model versions; tests inject.
+type StaticLadderBuilder struct {
+	Cost       *CostModel
+	Efficiency *CodecEfficiencyModel
+}
+
+func (b StaticLadderBuilder) cost() CostModel {
+	if b.Cost != nil {
+		return *b.Cost
+	}
+	return CostModelV1
+}
+
+func (b StaticLadderBuilder) efficiency() CodecEfficiencyModel {
+	if b.Efficiency != nil {
+		return *b.Efficiency
+	}
+	return CodecEfficiencyModelV1
+}
 
 // Build reproduces, in order: the class table, the producer's own shape
 // (copy rung / GPU ceiling / CPU ceiling with the top-rung boost), the QoE
 // override, the source raise and the bitrate ceiling, the screen and level
 // caps, the AV1 cap, the HEVC scaling, and the CPU tone-map ceiling of a
 // bridged route.
-func (StaticLadderBuilder) Build(in LadderInput) []HLSProfile {
+func (b StaticLadderBuilder) Build(in LadderInput) []HLSProfile {
 	base := LadderFor(in.Complexity.LadderClass())
 	src := in.Source
 	cap := in.Delivery.Capability
@@ -208,14 +234,19 @@ func (StaticLadderBuilder) Build(in LadderInput) []HLSProfile {
 		laddered = ShapeSoftwareLadder(base, src, route.Codec, route.Tonemap, cap)
 	}
 
-	// The CPU route is priced by the cost model when the title has one: the
-	// advertised bitrate becomes what CRF 20 costs on THIS title with the P90
-	// margin, instead of the class table's one number for everyone. The GPU
-	// keeps the table until the codec efficiency model (plan P2) relates a
-	// CPU CRF cost to a GPU VBR target.
-	if !route.HWUsable {
-		if cost, ok := in.Complexity.Cost(); ok {
-			laddered = CostModelV1.PriceLadder(laddered, cost, src, StaticSoftwareCRF)
+	// A title with a cost prediction is priced by the models instead of the
+	// class table: the CPU reference price (what CRF 20 costs on THIS title,
+	// P90 margin included), converted to the route's encoder by its measured
+	// efficiency. A route the efficiency table does not cover (no cell for
+	// this encoder at any confidence, or an HDR passthrough) keeps the table.
+	if cost, ok := b.cost().Predict(in.Complexity.Metrics); ok {
+		key := route.EncoderKey()
+		isReference := key.Accel == "" && key.Codec == "h264"
+		if _, covered := b.efficiency().Lookup(key, laddered[len(laddered)-1].Height); isReference || covered {
+			laddered = b.cost().PriceLadder(laddered, cost, src, StaticSoftwareCRF)
+			if !isReference {
+				laddered = b.efficiency().PriceLadder(laddered, key)
+			}
 		}
 	}
 
@@ -233,7 +264,9 @@ func (StaticLadderBuilder) Build(in LadderInput) []HLSProfile {
 	if strings.EqualFold(route.Codec, "av1") {
 		laddered = CapLadderToHeight(laddered, in.Delivery.AV1MaxHeight)
 	}
-	if strings.EqualFold(route.Codec, "hevc") {
+	if strings.EqualFold(route.Codec, "hevc") && !laddered[0].CostModelled {
+		// The legacy two-thirds rule, for table-priced ladders only: a modelled
+		// ladder carries its measured HEVC efficiency already.
 		laddered = ScaleLadderVideoBitrates(laddered, HEVCBitrateNum, HEVCBitrateDen)
 	}
 	if route.Bridge() {
