@@ -89,15 +89,17 @@ func adminLadderBench(args []string) error {
 		return err
 	}
 
-	corr := ffmpeg.FeatureCorrelations(results, *refHeight, *refCRF)
-	if len(corr) == 0 {
-		fmt.Fprintf(os.Stderr, "\n(no correlation: fewer than 3 scenes encoded at %dp crf %d)\n", *refHeight, *refCRF)
-		return nil
-	}
-	fmt.Fprintf(os.Stderr, "\nSpearman rank correlation at %s (%d scenes) - |rho| > 0.5 is worth a rule, < 0.3 is noise:\n", corr[0].Reference, corr[0].N)
-	fmt.Fprintf(os.Stderr, "  %-12s %9s %9s\n", "feature", "vs bpp", "vs xpsnr")
-	for _, c := range corr {
-		fmt.Fprintf(os.Stderr, "  %-12s %+9.2f %+9.2f\n", c.Feature, c.VsBPP, c.VsXPSNR)
+	for _, perTitle := range []bool{false, true} {
+		corr := ffmpeg.FeatureCorrelations(results, *refHeight, *refCRF, perTitle)
+		if len(corr) == 0 {
+			fmt.Fprintf(os.Stderr, "\n(no correlation: fewer than 3 samples at %dp crf %d)\n", *refHeight, *refCRF)
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "\nSpearman rank correlation at %s - |rho| > 0.5 is worth a rule, < 0.3 is noise:\n", corr[0].Reference)
+		fmt.Fprintf(os.Stderr, "  %-12s %9s %9s\n", "feature", "vs bpp", "vs xpsnr")
+		for _, c := range corr {
+			fmt.Fprintf(os.Stderr, "  %-12s %+9.2f %+9.2f\n", c.Feature, c.VsBPP, c.VsXPSNR)
+		}
 	}
 	return nil
 }
