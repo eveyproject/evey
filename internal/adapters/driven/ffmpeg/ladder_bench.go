@@ -124,8 +124,8 @@ func RunLadderBench(ctx context.Context, path string, opts BenchOptions) (*Bench
 		}
 		scene.Features = f
 		for _, h := range opts.Heights {
-			if h > src.Height {
-				continue // never upscale: the ladder does not either
+			if benchRungWidth(h) > src.Width {
+				continue // never upscale: the ladder frames by width, like the builders
 			}
 			for _, crf := range opts.CRFs {
 				opts.log("encode %s @ %.0fs %dp crf %d", filepath.Base(path), start, h, crf)
@@ -205,14 +205,41 @@ func benchProbe(ctx context.Context, path string, opts BenchOptions) (BenchSourc
 	return src, nil
 }
 
+// benchRungWidth is the frame width of a rung named by its height (the
+// ladder tables' 16:9 widths); a letterboxed source keeps its own aspect.
+func benchRungWidth(height int) int {
+	switch height {
+	case 2160:
+		return 3840
+	case 1440:
+		return 2560
+	case 1080:
+		return 1920
+	case 720:
+		return 1280
+	case 480:
+		return 854
+	case 360:
+		return 640
+	}
+	return height * 16 / 9
+}
+
 // benchFeatureFilter is the one decode pass that yields every candidate
-// feature. 10-bit sources are analysed as they are (every filter takes them).
-const benchFeatureFilter = "signalstats,scdet,entropy,bitplanenoise=bitplane=1,blurdetect,blockdetect,siti,metadata=print:file=-"
+// feature. The grain plane follows the depth: plane 1 of a 10-bit picture is
+// noise by construction, plane 3 is what plane 1 measures on 8-bit.
+func benchFeatureFilter(src BenchSource) string {
+	plane := 1
+	if src.BitDepth > 8 {
+		plane += src.BitDepth - 8
+	}
+	return fmt.Sprintf("signalstats,scdet,entropy,bitplanenoise=bitplane=%d,blurdetect,blockdetect,siti,metadata=print:file=-", plane)
+}
 
 func benchFeatures(ctx context.Context, src BenchSource, start float64, opts BenchOptions) (BenchFeatures, error) {
 	args := []string{"-hide_banner", "-v", "error", "-nostdin",
 		"-ss", fmt.Sprintf("%.3f", start), "-t", fmt.Sprintf("%.3f", opts.WindowSec),
-		"-i", src.Path, "-map", "0:v:0", "-vf", benchFeatureFilter, "-f", "null", "-"}
+		"-i", src.Path, "-map", "0:v:0", "-vf", benchFeatureFilter(src), "-f", "null", "-"}
 	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.features"}, opts.FFmpeg, args...)
 	if err != nil {
 		return BenchFeatures{}, fmt.Errorf("ladder-bench: features: %w", err)
@@ -269,7 +296,11 @@ func parseBenchFeatures(text string, windowSec float64) BenchFeatures {
 	f.SI = mean("lavfi.siti.si")
 	f.TI = mean("lavfi.siti.ti")
 	f.EntropyY = mean("lavfi.entropy.normalized_entropy.normal.Y")
-	f.Grain = mean("lavfi.bitplanenoise.0.1")
+	for k, v := range sum {
+		if strings.HasPrefix(k, "lavfi.bitplanenoise.0.") && n[k] > 0 {
+			f.Grain = v / float64(n[k]) // luma plane, whichever bit plane was measured
+		}
+	}
 	f.Blur = mean("lavfi.blur")
 	f.Block = mean("lavfi.block")
 	if windowSec > 0 {
@@ -290,7 +321,7 @@ func benchPreFilter(src BenchSource, height int) string {
 		tm.UseTonemapx = tonemapxAvailable("ffmpeg")
 		parts = append(parts, hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, tm))
 	}
-	parts = append(parts, fmt.Sprintf("scale=-2:%d", height), "format=yuv420p")
+	parts = append(parts, fmt.Sprintf("scale=%d:-2", benchRungWidth(height)), "format=yuv420p")
 	return strings.Join(parts, ",")
 }
 
@@ -425,7 +456,10 @@ type FeatureCorrelation struct {
 	Reference string
 }
 
-func FeatureCorrelations(results []*BenchResult, height, crf int) []FeatureCorrelation {
+// perTitle averages the scenes of each title first: the ladder is shaped per
+// title, so that is the granularity a rule will be applied at; per scene shows
+// whether the feature tracks the content at all.
+func FeatureCorrelations(results []*BenchResult, height, crf int, perTitle bool) []FeatureCorrelation {
 	type sample struct {
 		feats map[string]float64
 		bpp   float64
@@ -434,15 +468,17 @@ func FeatureCorrelations(results []*BenchResult, height, crf int) []FeatureCorre
 	var samples []sample
 	for _, r := range results {
 		s := r.Source
+		var titleSamples []sample
 		for _, sc := range r.Scenes {
 			for _, e := range sc.Encodes {
 				if e.Height != height || e.CRF != crf || s.FPS <= 0 {
 					continue
 				}
-				w := float64(e.Height) * float64(s.Width) / float64(s.Height)
-				bpp := e.Kbps * 1000 / (w * float64(e.Height) * s.FPS)
+				w := float64(benchRungWidth(e.Height))
+				h := w * float64(s.Height) / float64(s.Width)
+				bpp := e.Kbps * 1000 / (w * h * s.FPS)
 				f := sc.Features
-				samples = append(samples, sample{
+				titleSamples = append(titleSamples, sample{
 					feats: map[string]float64{
 						"ydif": f.MotionYDIF, "si": f.SI, "ti": f.TI, "cuts03_pm": f.SceneCutsPerMin03, "cuts10_pm": f.SceneCutsPerMin10,
 						"entropy_y": f.EntropyY, "grain": f.Grain, "blur": f.Blur, "block": f.Block,
@@ -452,6 +488,19 @@ func FeatureCorrelations(results []*BenchResult, height, crf int) []FeatureCorre
 				})
 			}
 		}
+		if !perTitle || len(titleSamples) == 0 {
+			samples = append(samples, titleSamples...)
+			continue
+		}
+		agg := sample{feats: map[string]float64{}}
+		for _, ts := range titleSamples {
+			for k, v := range ts.feats {
+				agg.feats[k] += v / float64(len(titleSamples))
+			}
+			agg.bpp += ts.bpp / float64(len(titleSamples))
+			agg.xpsnr += ts.xpsnr / float64(len(titleSamples))
+		}
+		samples = append(samples, agg)
 	}
 	if len(samples) < 3 {
 		return nil
@@ -465,7 +514,11 @@ func FeatureCorrelations(results []*BenchResult, height, crf int) []FeatureCorre
 		for i, s := range samples {
 			xs[i], bpps[i], qs[i] = s.feats[name], s.bpp, s.xpsnr
 		}
-		out = append(out, FeatureCorrelation{Feature: name, VsBPP: spearman(xs, bpps), VsXPSNR: spearman(xs, qs), N: len(samples), Reference: fmt.Sprintf("%dp crf %d", height, crf)})
+		unit := "scenes"
+		if perTitle {
+			unit = "titles"
+		}
+		out = append(out, FeatureCorrelation{Feature: name, VsBPP: spearman(xs, bpps), VsXPSNR: spearman(xs, qs), N: len(samples), Reference: fmt.Sprintf("%dp crf %d, %d %s", height, crf, len(samples), unit)})
 	}
 	sort.Slice(out, func(i, j int) bool { return math.Abs(out[i].VsBPP) > math.Abs(out[j].VsBPP) })
 	return out
