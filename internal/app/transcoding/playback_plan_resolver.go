@@ -305,7 +305,7 @@ func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bo
 	//     CPU-side format=nv12 has already folded away,
 	//   - a 10-bit source, whose software decode is the expensive half at 4K -
 	//     routing it to the GPU pool would price a CPU workload as a GPU one.
-	decodable := cap.HWCanDecodeSource(src.Codec, src.TenBit) && transcoding.HWChromaDecodable(src.PixelFormat)
+	decodable := cap.HWCanDecodeSource(src.Codec, src.TenBit, src.PixelFormat)
 	softwareDecode = src.Codec != "" && !decodable
 	if softwareDecode {
 		backend := transcoding.HWAccelType(cap.HWBackend)
@@ -325,6 +325,11 @@ func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bo
 	// so the scale_vaapi-on-p010 hazard the gate guards against never arises -
 	// the 10-bit source can take the HW path even without HW10BitTranscode.
 	if src.TenBit && !hwTonemap && (!cap.HW10BitTranscode || !cap.HWRouteProven(transcoding.HWRouteSource10Bit)) {
+		return "", "", nil, false, false
+	}
+	// A source layout outside 4:2:0 8/10-bit (4:4:4, 12-bit) the GPU decodes
+	// rides the zero-copy chain only once that chain ran on it end-to-end.
+	if !softwareDecode && !transcoding.CanonicalDecodeFormat(src.PixelFormat) && !cap.HWRouteProven(transcoding.HWRouteSourceFormat(src.PixelFormat)) {
 		return "", "", nil, false, false
 	}
 	return cap.HWBackend, cap.HWDevice, pr.effectiveHWFeatures(cap.HWFeatures), true, softwareDecode

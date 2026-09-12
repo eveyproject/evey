@@ -173,17 +173,42 @@ func probeHWCodecs(ctx context.Context, ffmpegPath, hwType, device string) []str
 // do with the host's ability to decode) and small enough to stay instant.
 const hwProbeMire = "256x144"
 
-// hwDecodeProbes are the source classes the decode probe exercises, each with
-// the encoder that makes its sample and the host format hwdownload must
-// return: the 8-bit 4:2:0 class of H.264 and HEVC, and HEVC Main10 - the class
-// of every 2160p HDR title, which a Skylake-era iGPU decodes 8-bit but not
-// 10-bit. 10-bit H.264 has no entry on purpose: no GPU decodes it.
-var hwDecodeProbes = []struct {
-	class, swEncoder, format, pixFmt, download string
-}{
-	{"h264", "libx264", "h264", "yuv420p", "nv12"},
-	{"hevc", "libx265", "hevc", "yuv420p", "nv12"},
-	{transcoding.HWDecodeHEVC10, "libx265", "hevc", "yuv420p10le", "p010le"},
+// hwDecodeProbes is the decode probe MATRIX: every (codec, chroma, depth)
+// class the library can hold, each with the software encoder that makes its
+// sample. The persisted class is transcoding.DecodeClassKey(codec, pixFmt).
+// Nothing here is assumed decodable or undecodable: an Ada NVDEC lists no
+// 4:2:2 class, a Blackwell one does, a Skylake iGPU lists no Main10 - each
+// host answers from its own frames. Extending coverage is adding a row.
+//
+// download is the software layout(s) the device pool hands back for the class
+// (hwdownload output must be pinned: an open-ended list fails negotiation).
+var hwDecodeProbes = []hwDecodeProbe{
+	{"h264", "libx264", "h264", "yuv420p", nil, "nv12"},
+	{"h264", "libx264", "h264", "yuv420p10le", []string{"-profile:v", "high10"}, "p010le"},
+	{"h264", "libx264", "h264", "yuv422p10le", []string{"-profile:v", "high422"}, "y210le|p210le|yuv422p10le"},
+	{"hevc", "libx265", "hevc", "yuv420p", nil, "nv12"},
+	{"hevc", "libx265", "hevc", "yuv420p10le", nil, "p010le"},
+	{"hevc", "libx265", "hevc", "yuv422p10le", []string{"-profile:v", "main422-10"}, "y210le|p210le|yuv422p10le"},
+	{"hevc", "libx265", "hevc", "yuv444p", []string{"-profile:v", "main444-8"}, "yuv444p"},
+	{"hevc", "libx265", "hevc", "yuv444p10le", []string{"-profile:v", "main444-10"}, "yuv444p16le"},
+	{"hevc", "libx265", "hevc", "yuv420p12le", []string{"-profile:v", "main12"}, "p016le|p012le"},
+}
+
+type hwDecodeProbe struct {
+	codec, swEncoder, format, pixFmt string
+	encoderArgs                      []string
+	download                         string
+}
+
+// decodeProbeFor returns the matrix row of a persisted decode class, so a
+// route probe can build a mire of exactly that class.
+func decodeProbeFor(class string) (hwDecodeProbe, bool) {
+	for _, c := range hwDecodeProbes {
+		if transcoding.DecodeClassKey(c.codec, c.pixFmt) == class {
+			return c, true
+		}
+	}
+	return hwDecodeProbe{}, false
 }
 
 // probeHWDecodeCodecs returns the source classes the GPU HW-DECODES via hwType
@@ -195,8 +220,8 @@ var hwDecodeProbes = []struct {
 func probeHWDecodeCodecs(ctx context.Context, ffmpegPath, hwType, device string) []string {
 	var out []string
 	for _, c := range hwDecodeProbes {
-		if probeHWDecode(ctx, ffmpegPath, c.swEncoder, c.format, c.pixFmt, c.download, hwType, device) {
-			out = append(out, c.class)
+		if probeHWDecode(ctx, ffmpegPath, c, hwType, device) {
+			out = append(out, transcoding.DecodeClassKey(c.codec, c.pixFmt))
 		}
 	}
 	return out
@@ -211,7 +236,8 @@ func probeHWDecodeCodecs(ctx context.Context, ffmpegPath, hwType, device string)
 // class). hwdownload only accepts a frame that lives on the device, and the
 // probe additionally requires ffmpeg to report the frames it decoded. Any
 // error/timeout ⇒ false (worst case: software decode, a perf cost, never a stall).
-func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, pixFmt, download, hwType, device string) bool {
+func probeHWDecode(ctx context.Context, ffmpegPath string, c hwDecodeProbe, hwType, device string) bool {
+	swEncoder, format, pixFmt, encoderArgs, download := c.swEncoder, c.format, c.pixFmt, c.encoderArgs, c.download
 	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
 	defer cancel()
 
@@ -231,10 +257,15 @@ func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, pixFmt, d
 		return false
 	}
 
-	// 1. software-encode a tiny real sample of the class.
-	if procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.decode_sample"}, ffmpegPath, "-hide_banner", "-v", "error", "-nostdin", "-y",
-		"-f", "lavfi", "-i", "testsrc2=size="+hwProbeMire+":rate=5:duration=0.4",
-		"-pix_fmt", pixFmt, "-c:v", swEncoder, "-f", format, tmpPath) != nil {
+	// 1. software-encode a tiny real sample of the class. A build whose encoder
+	// cannot make the class (no 12-bit x265) simply leaves it unprobed: unlisted,
+	// so routed to the CPU - the fail-closed answer.
+	sampleArgs := []string{"-hide_banner", "-v", "error", "-nostdin", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=" + hwProbeMire + ":rate=5:duration=0.4",
+		"-pix_fmt", pixFmt, "-c:v", swEncoder}
+	sampleArgs = append(sampleArgs, encoderArgs...)
+	sampleArgs = append(sampleArgs, "-f", format, tmpPath)
+	if procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.decode_sample"}, ffmpegPath, sampleArgs...) != nil {
 		return false
 	}
 
@@ -253,6 +284,8 @@ func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, pixFmt, d
 	default:
 		return false
 	}
+	// hwdownload refuses a frame that never reached the device; the format
+	// behind it is the layout the device pool holds for this class.
 	args = append(args, "-i", tmpPath, "-vf", "hwdownload,format="+download, "-f", "null", "-")
 	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_decode"}, ffmpegPath, args...)
 	if err != nil {

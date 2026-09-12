@@ -169,8 +169,20 @@ func TestGPU_ProbesAreFailClosedAndRoutesRunThroughTheBuilder(t *testing.T) {
 			t.Errorf("decode classes %v lack %s", got, want)
 		}
 	}
+	// Measured on this rig (Ada): no 10-bit H.264, no 4:2:2 - and the matrix
+	// says so from frames, not from a table.
+	for _, absent := range []string{"h264:yuv420p10le", "h264:yuv422p10le", "hevc:yuv422p10le"} {
+		if slices.Contains(got, absent) {
+			t.Errorf("decode classes %v unexpectedly list %s", got, absent)
+		}
+	}
+	t.Logf("decode classes: %v", got)
 	r := NewBenchmarkRunner(BenchmarkOpts{FfmpegPath: ffmpeg, SamplePath: filepath.Join(t.TempDir(), "sample.hevc")}, nil)
-	routes := r.probeHWRoutes(ctx, "nvenc", "", []string{"h264", "hevc"}, gpuReproFeatures, false, true, true)
+	routes := r.probeHWRoutes(ctx, "nvenc", "", []string{"h264", "hevc"}, gpuReproFeatures, false, true, true, got)
+	t.Logf("routes: %v", routes)
+	if slices.Contains(got, "hevc:yuv444p") && !slices.Contains(routes, transcoding.HWRouteSourceFormat("yuv444p")) {
+		t.Errorf("4:4:4 decodes on this GPU but its zero-copy route did not prove: %v", routes)
+	}
 	for _, want := range []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteSource10Bit, transcoding.HWRouteBridge, transcoding.HWRoutePassthrough} {
 		if !slices.Contains(routes, want) {
 			t.Errorf("routes %v lack %s", routes, want)

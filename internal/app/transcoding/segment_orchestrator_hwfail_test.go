@@ -285,3 +285,31 @@ func TestOrchestrator_TransientHWFailure_DoesNotBlockTitle(t *testing.T) {
 	}
 	assert.False(t, o.HWRouteBlocked(fp.MediaID))
 }
+
+// A missed init on its own is transient: the watchdog kills the session and
+// asks the host to prove itself, but never blocks the title - the retry is
+// free to take the GPU again (a slow start under boot load is not a verdict).
+func TestOrchestrator_HWWatchdog_DoesNotBlockTitle(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess() // failOnExit unset → handle blocks (ffmpeg "hangs")
+	src := stubSource{path: "/media/test.mkv"}
+	o := NewSegmentOrchestrator(cache, proc, src, OrchestratorOptions{
+		LookAheadSegments:     30,
+		SegmentSeconds:        3.0,
+		HWFirstSegmentTimeout: 50 * time.Millisecond,
+	}, discardLogger()).WithHWRouteBlocklist(NewHWRouteBlocklist(time.Hour, 16))
+	defer o.Close()
+	got := make(chan transcoding.FailureClass, 4)
+	o.SetHWDemoteSink(func(_ context.Context, class transcoding.FailureClass, _ string) { got <- class })
+
+	fp := minimalFingerprint(t)
+	fp.HWAccel = "nvenc"
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	select {
+	case class := <-got:
+		assert.Equal(t, transcoding.FailureHWInit, class, "the host is asked to prove itself")
+	case <-time.After(2 * time.Second):
+		t.Fatal("watchdog did not fire")
+	}
+	assert.False(t, o.HWRouteBlocked(fp.MediaID), "a watchdog miss alone must not block the title")
+}

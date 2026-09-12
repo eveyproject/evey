@@ -40,10 +40,13 @@ type EncodeCapability struct {
 	HWCodecs []string `json:"hw_codecs,omitempty"`
 
 	// HWDecodeCodecs lists what the backend DECODES, per source class the
-	// probe exercised: "h264" and "hevc" (8-bit 4:2:0) and "hevc10" (HEVC
-	// Main10, the 2160p HDR class). Probed fail-closed: a frame has to come
-	// back from the GPU (hwdownload) for a class to be listed. A Skylake iGPU
-	// decodes HEVC but not Main10; no GPU decodes 10-bit H.264 at all.
+	// probe exercised (DecodeClassKey): "h264" and "hevc" (8-bit 4:2:0),
+	// "hevc10" (HEVC Main10, the 2160p HDR class) and "<codec>:<pix_fmt>" for
+	// every other chroma/depth the probe matrix covers (10-bit H.264, 4:2:2,
+	// 4:4:4, 12-bit). Probed fail-closed: a frame has to come back from the
+	// GPU (hwdownload) for a class to be listed. Measured, not assumed: a
+	// Skylake iGPU decodes HEVC but not Main10, an Ada NVDEC no 4:2:2, a
+	// Blackwell one yes.
 	HWDecodeCodecs []string `json:"hw_decode_codecs,omitempty"`
 
 	// HWRoutes lists the ENCODE ROUTES the calibration ran end-to-end through
@@ -174,8 +177,9 @@ type DecodeRungSample struct {
 // CapabilityProbeVersion bumps whenever a new HW probe is added (1: HDR10
 // encode + Intel low-power features; 2: OpenCL tone-map + per-codec B-frames;
 // 3: the OpenCL chain fixed, 2026-09-10; 4: the tone-map bridge ladder;
-// 5: fail-closed decode probes incl. HEVC Main10 + the builder route probes).
-const CapabilityProbeVersion = 5
+// 5: fail-closed decode probes incl. HEVC Main10 + the builder route probes;
+// 6: the decode probe matrix over chroma/depth).
+const CapabilityProbeVersion = 6
 
 // Route names the calibration proves through the production builder (see
 // EncodeCapability.HWRoutes). Each is one shape BuildFFmpegArgs can emit for a
@@ -190,8 +194,45 @@ const (
 	HWRouteDecoupled   = "decoupled"   // CPU decode, hwupload, GPU scale+encode
 )
 
+// HWRouteSourceFormat names the route of a source class outside 4:2:0 8/10-bit
+// (4:4:4, 12-bit...): decoded on the GPU (its decode class listed) AND run
+// through the builder's zero-copy chain, whose scaler must fold that layout.
+// Only such a route proven end-to-end takes the source to the GPU.
+func HWRouteSourceFormat(pixFmt string) string {
+	return "src:" + strings.ToLower(strings.TrimSpace(pixFmt))
+}
+
+// CanonicalDecodeFormat reports whether pixFmt is one of the 4:2:0 8/10-bit
+// layouts the SDR / 10-bit routes already cover ("" = unknown, treated as such).
+func CanonicalDecodeFormat(pixFmt string) bool {
+	switch strings.ToLower(strings.TrimSpace(pixFmt)) {
+	case "", "yuv420p", "yuvj420p", "nv12", "yuv420p10le", "p010le":
+		return true
+	}
+	return false
+}
+
 // HWDecodeHEVC10 is the HWDecodeCodecs entry for HEVC Main10 sources.
 const HWDecodeHEVC10 = "hevc10"
+
+// DecodeClassKey names the decode class of a (codec, pix_fmt) source in
+// HWDecodeCodecs: the three canonical 4:2:0 classes keep their short names,
+// everything else is "<codec>:<pix_fmt>". Unknown pix_fmt ("") maps to the
+// codec's 8-bit class.
+func DecodeClassKey(codec, pixFmt string) string {
+	c := normaliseSourceCodec(codec)
+	switch f := strings.ToLower(strings.TrimSpace(pixFmt)); f {
+	case "", "yuv420p", "yuvj420p", "nv12":
+		return c
+	case "yuv420p10le", "p010le":
+		if c == "hevc" {
+			return HWDecodeHEVC10
+		}
+		return c + ":yuv420p10le"
+	default:
+		return c + ":" + f
+	}
+}
 
 // FeatureTonemapOpenCL: tonemap_opencl runs on this GPU (bt2390 curve, HLG and
 // Dolby Vision RPU handled) - the VPP tone-mapper is the fallback.
@@ -272,20 +313,37 @@ func (c EncodeCapability) HWCanDecode(codec string) bool {
 }
 
 // decodeClassProbeVersion is the CapabilityProbeVersion from which the decode
-// probe distinguishes HEVC Main10 (HWDecodeHEVC10) from 8-bit HEVC. An older
-// row never had the class and is read as it always was; a re-bench at boot
+// probe distinguishes HEVC Main10 (HWDecodeHEVC10) from 8-bit HEVC;
+// decodeMatrixProbeVersion the one from which it covers the chroma/depth
+// matrix (DecodeClassKey). An older row never had the classes and is read as
+// it always was, with the conservative chroma table; a re-bench at boot
 // replaces it.
-const decodeClassProbeVersion = 5
+const (
+	decodeClassProbeVersion  = 5
+	decodeMatrixProbeVersion = 6
+)
 
-// HWCanDecodeSource is HWCanDecode with the source's bit depth: a 10-bit
-// source needs the 10-bit decode class of its codec (only HEVC Main10 has
-// one; 10-bit H.264 / VP9 profile 2 are never GPU-decoded), an 8-bit source
-// the plain class.
-func (c EncodeCapability) HWCanDecodeSource(codec string, tenBit bool) bool {
+// HWCanDecodeSource reports whether the GPU decodes a source of this codec,
+// bit depth and pixel format. A row from the probe matrix answers from
+// MEASUREMENT: the (codec, pix_fmt) class is decodable iff the probe brought a
+// frame back for it, and a format the matrix does not cover is not decodable
+// (conservative, and extensible by adding a probe, never by assuming). Rows
+// probed before the matrix fall back to the depth rule plus the conservative
+// chroma table (HWChromaDecodable).
+func (c EncodeCapability) HWCanDecodeSource(codec string, tenBit bool, pixFmt string) bool {
+	if c.HWBackend == "" {
+		return false
+	}
+	if c.ProbeVersion >= decodeMatrixProbeVersion && strings.TrimSpace(pixFmt) != "" {
+		return slices.Contains(c.HWDecodeCodecs, DecodeClassKey(codec, pixFmt))
+	}
+	if c.ProbeVersion < decodeMatrixProbeVersion && !HWChromaDecodable(pixFmt) {
+		return false
+	}
 	if !tenBit {
 		return c.HWCanDecode(codec)
 	}
-	if c.HWBackend == "" || normaliseSourceCodec(codec) != "hevc" {
+	if normaliseSourceCodec(codec) != "hevc" {
 		return false
 	}
 	if c.ProbeVersion < decodeClassProbeVersion {
@@ -294,12 +352,13 @@ func (c EncodeCapability) HWCanDecodeSource(codec string, tenBit bool) bool {
 	return slices.Contains(c.HWDecodeCodecs, HWDecodeHEVC10)
 }
 
-// HWChromaDecodable reports whether a source pixel format is one the GPU
-// decoders take at all: 4:2:0 at 8 or 10 bits. 4:2:2 / 4:4:4 / 12-bit sources
-// (captures, masters, some anime) have no hardware decode path on any backend
-// this engine drives; feeding them to `-hwaccel` fails at filter negotiation
-// (measured 2026-09-12). Unknown ("", never probed) is trusted, as the codec
-// alone was before the format was recorded.
+// HWChromaDecodable is the CONSERVATIVE default for a capability row probed
+// before the decode matrix existed: 4:2:0 at 8 or 10 bits, the classes every
+// backend this engine drives decodes. It is a fallback, not a truth: a probed
+// row answers from its own measurement (HWCanDecodeSource), where an NVDEC
+// that takes 4:4:4 or 4:2:2 lists those classes and is routed accordingly.
+// Unknown ("", never probed) is trusted, as the codec alone was before the
+// format was recorded.
 func HWChromaDecodable(pixFmt string) bool {
 	switch strings.ToLower(strings.TrimSpace(pixFmt)) {
 	case "", "yuv420p", "yuvj420p", "nv12", "yuv420p10le", "p010le":

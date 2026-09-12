@@ -22,7 +22,7 @@ func probedNVENC() transcoding.EncodeCapability {
 	return transcoding.EncodeCapability{
 		SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160, HWBridgeMaxHeight: 2160,
 		HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc"},
-		HWDecodeCodecs:   []string{"h264", "hevc", transcoding.HWDecodeHEVC10},
+		HWDecodeCodecs:   []string{"h264", "hevc", transcoding.HWDecodeHEVC10, "hevc:yuv444p"},
 		HW10BitTranscode: true, HWHDR10Encode: true, HWOverlay: false,
 		ProbeVersion: transcoding.CapabilityProbeVersion,
 		HWRoutes: []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteSource10Bit,
@@ -116,6 +116,12 @@ func TestResolver_UndecodableSourcesNeverReachTheGPU(t *testing.T) {
 		{"HEVC 4:2:2 10-bit", sdrStreams("hevc", "yuv422p10le", true)},
 		{"H.264 4:4:4", sdrStreams("h264", "yuv444p", false)},
 	}
+	// A class this host's probe DID measure rides the GPU once its zero-copy
+	// route ran end-to-end: no universal chroma rule, and no assumption either.
+	assert.False(t, pr.HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv444p", false))), "decodable but route unproven")
+	proven := probedNVENC()
+	proven.HWRoutes = append(proven.HWRoutes, transcoding.HWRouteSourceFormat("yuv444p"))
+	assert.True(t, fallbackResolver(proven).HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv444p", false))))
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.False(t, pr.HWRouteUsable(sdrTranscode, SourceDimsOf(tc.stream)))

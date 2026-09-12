@@ -944,13 +944,20 @@ func (o *SegmentOrchestrator) spawnSession(
 		// inside the GPU .so / a TDR GPU reset on WSL d3d12) or an exit-0
 		// "Nothing was written" - the title falls back, and the host is asked
 		// to prove itself as for an init failure.
+		// The title block is set HERE, synchronously, so the client's retry -
+		// which may already be in flight - resolves to the CPU route at once.
+		// The host proof (hwDemote -> DemoteCapability's synthetic encodes, up
+		// to several seconds) runs on its own goroutine, after the slots below
+		// are freed: revalidating the host must never hold a session slot or
+		// delay the session fallback.
+		var hostVerdict func()
 		if naturalExit && procOpts.HWAccel != "" {
 			class := handle.Failure()
 			switch {
 			case class.BlocksTitleRoute():
 				o.blockTitleRoute(fp.MediaID, hash, procOpts.HWAccel, string(class))
 				if o.hwDemote != nil {
-					o.hwDemote(o.shutdownCtx, class, fp.VideoCodec)
+					hostVerdict = func() { o.hwDemote(o.shutdownCtx, class, fp.VideoCodec) }
 				}
 			case class.SilentDeathCandidate() && !o.hashProducedSegment(hash, variantIdx, fp.UseFMP4):
 				o.logger.Warn("orchestrator: HW session produced no segments",
@@ -960,7 +967,7 @@ func (o *SegmentOrchestrator) spawnSession(
 					slog.String("codec", fp.VideoCodec))
 				o.blockTitleRoute(fp.MediaID, hash, procOpts.HWAccel, "no_segment_produced/"+string(class))
 				if o.hwDemote != nil {
-					o.hwDemote(o.shutdownCtx, transcoding.FailureHWInit, fp.VideoCodec)
+					hostVerdict = func() { o.hwDemote(o.shutdownCtx, transcoding.FailureHWInit, fp.VideoCodec) }
 				}
 			}
 		}
@@ -972,13 +979,23 @@ func (o *SegmentOrchestrator) spawnSession(
 		// slot here. Once-guarded (see releaseVideoSlot) so a concurrent kill that
 		// raced this reap can't double-release.
 		o.releaseVideoSlot(session)
+		if hostVerdict != nil {
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.ErrorContext(o.shutdownCtx, "segment_orchestrator: host verdict goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
+					}
+				}()
+				hostVerdict()
+			}()
+		}
 	}()
 
 	// HW fast-fail watchdog: a hardware rafale that hasn't written its init
 	// segment within HWFirstSegmentTimeout is a stuck/dead GPU pipeline (a TDR
 	// reset, a hung encoder). Don't make the client wait out the full ~25 s
-	// segment timeout - send the title to the CPU now and kill the session so
-	// the retry re-resolves the (encoder-agnostic) software tier. The init is the
+	// segment timeout - kill the session so the retry re-resolves (the GPU
+	// again: one missed init is transient, not a title verdict). The init is the
 	// signal, not a full segment: a working-but-slow GPU writes it within
 	// ~1-3 s while a dead one never does, so the tight window doesn't false-
 	// fail a slow weak-NAS encoder. Only HW sessions, only when a demote sink
@@ -1007,11 +1024,12 @@ func (o *SegmentOrchestrator) spawnSession(
 				slog.String("hw_backend", string(procOpts.HWAccel)),
 				slog.String("codec", fp.VideoCodec),
 				slog.Duration("window", o.opts.HWFirstSegmentTimeout))
-			o.blockTitleRoute(fp.MediaID, hash, procOpts.HWAccel, "hw_watchdog_no_init")
-			// The host proves itself (DemoteCapability's probe) before anything
-			// host-wide changes; a slow start on a loaded box passes the probe.
-			o.hwDemote(o.shutdownCtx, transcoding.FailureHWInit, fp.VideoCodec)
+			// A missed init on its own is TRANSIENT (a slow start under boot load
+			// as often as a dead GPU): the title is not blocked, the retry is free
+			// to take the GPU again. The host proves itself off this goroutine's
+			// critical path, after the kill, and only its own probe can demote it.
 			o.killSession(session, "hw watchdog: no init segment")
+			o.hwDemote(o.shutdownCtx, transcoding.FailureHWInit, fp.VideoCodec)
 		}()
 	}
 

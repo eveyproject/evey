@@ -296,7 +296,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// Last: every route the builder can emit for this backend, run for real
 		// (BuildFFmpegArgs + the HLS muxer) on a clip of its class. The filter
 		// probes above say what the GPU can do; this says what a SESSION does.
-		hwRoutes = r.probeHWRoutes(ctx, hwBackend, hwDevice, hwDomainCodecs(hwCodecs), hwFeatures, hwTonemap, hw10Bit, hwHDR10)
+		hwRoutes = r.probeHWRoutes(ctx, hwBackend, hwDevice, hwDomainCodecs(hwCodecs), hwFeatures, hwTonemap, hw10Bit, hwHDR10, hwDecodeCodecs)
 	}
 
 	// What the encode rungs above were DECODED from, and how fast this host
