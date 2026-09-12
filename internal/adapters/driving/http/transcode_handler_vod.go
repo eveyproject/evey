@@ -441,7 +441,7 @@ func (h *hlsVODServe) dispatchAudioPlaylist(w http.ResponseWriter, r *http.Reque
 	}
 	m := audioPlaylistNameRE.FindStringSubmatch(file)
 	trackIdx := atoiIndex(m[1])
-	h.audio.servePlaylistFile(w, r, mediaID, trackIdx, h.videoCompositionDelaySec(r, mediaID, item, streams))
+	h.audio.servePlaylistFile(w, r, mediaID, trackIdx, h.videoCompositionDelaySec(r, mediaID, item, streams), h.audioRenditionCopyCodec(r, item, streams, trackIdx))
 }
 
 func (h *hlsVODServe) dispatchAudioSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
@@ -454,11 +454,11 @@ func (h *hlsVODServe) dispatchAudioSegment(w http.ResponseWriter, r *http.Reques
 	trackIdx := atoiIndex(m[1])
 	if m[2] == "" {
 		// _init.mp4
-		h.audio.serveInitFile(w, r, mediaID, trackIdx, h.videoCompositionDelaySec(r, mediaID, item, streams))
+		h.audio.serveInitFile(w, r, mediaID, trackIdx, h.videoCompositionDelaySec(r, mediaID, item, streams), h.audioRenditionCopyCodec(r, item, streams, trackIdx))
 		return
 	}
 	segIdx := atoiIndex(m[2])
-	h.audio.serveSegmentFile(w, r, mediaID, trackIdx, segIdx, h.videoCompositionDelaySec(r, mediaID, item, streams))
+	h.audio.serveSegmentFile(w, r, mediaID, trackIdx, segIdx, h.videoCompositionDelaySec(r, mediaID, item, streams), h.audioRenditionCopyCodec(r, item, streams, trackIdx))
 }
 
 // commonAuth runs auth + access + parental and resolves the media item +

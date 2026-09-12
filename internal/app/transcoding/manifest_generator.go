@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -249,6 +250,11 @@ type AudioRendition struct {
 	SourceTrackIdx int
 	Name           string
 	LanguageCode   string
+	// Codec the rendition's segments carry ("aac" when re-encoded, the source
+	// codec when copied; "" reads as aac). The master's CODECS lists every
+	// distinct one, so a client validating the attribute never meets an
+	// unannounced sample entry.
+	Codec string
 }
 
 // Validate returns an error if the input can't produce a valid manifest.
@@ -332,9 +338,18 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	// advertise mp4a - not the decision's possibly-ac3/eac3 muxed codec. Otherwise
 	// Safari validates the master against e.g. an "ec-3" claim on an AAC rendition
 	// and refuses it. Muxed path (no renditions) keeps the decision codec.
-	effectiveAudioCodec := in.ChosenAudioCodec
+	audioAttrs := audioCodecAttr(strings.ToLower(in.ChosenAudioCodec))
 	if len(in.AudioRenditions) > 0 {
-		effectiveAudioCodec = "aac"
+		// Every distinct codec the rendition group carries, in rendition
+		// order: a copied AC-3 next to a re-encoded AAC is "ac-3,mp4a.40.2".
+		var attrs []string
+		for _, r := range in.AudioRenditions {
+			a := audioCodecAttr(strings.ToLower(r.Codec))
+			if !slices.Contains(attrs, a) {
+				attrs = append(attrs, a)
+			}
+		}
+		audioAttrs = strings.Join(attrs, ",")
 	}
 	// Video-only master (wasm-audio path): the CODECS attribute must list the
 	// video codec ALONE - advertising any audio codec makes Safari/hls.js
@@ -347,7 +362,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		if in.ExternalAudio {
 			return v
 		}
-		return v + "," + audioCodecAttr(strings.ToLower(effectiveAudioCodec))
+		return v + "," + audioAttrs
 	}
 
 	// Audio rendition path: emit one #EXT-X-MEDIA per source audio
@@ -427,7 +442,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 			if in.ExternalAudio {
 				rungCodecs = in.CopyVideoCodec
 			} else {
-				rungCodecs = in.CopyVideoCodec + "," + audioCodecAttr(strings.ToLower(effectiveAudioCodec))
+				rungCodecs = in.CopyVideoCodec + "," + audioAttrs
 			}
 			if in.CopyVideoRange != "" {
 				videoRangeAttr = ",VIDEO-RANGE=" + in.CopyVideoRange

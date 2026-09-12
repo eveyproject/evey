@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"strconv"
 	"testing"
@@ -40,4 +42,45 @@ func TestHLSVOD_Master_HonoursMaxHeight(t *testing.T) {
 
 	unbounded := doVODRequestQ(h, "m1", "master.m3u8", "videoCodecs=h264").Body.String()
 	assert.Contains(t, unbounded, "RESOLUTION=1920x1080", "without the ceiling the ladder keeps its taller rungs")
+}
+
+// The ffmpeg audio rendition copies a track the client decodes and the fMP4
+// packaging carries; it re-encodes to AAC only what it must. The master's
+// CODECS names every codec the rendition group really carries.
+func TestHLSVOD_AudioRendition_CopiesWhatTheClientDecodes(t *testing.T) {
+	w, hgt := 1920, 1080
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "hevc", Width: &w, Height: &hgt, Profile: "Main"},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "ac3", Channels: new(6), IsDefault: true, Language: "fre"},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "dts", Channels: new(6), Language: "eng"},
+	}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: testMediaItemWith1Minute(), streams: streams}, allowAll(), testFakeParentalChecker{block: false})
+	h.audioRenditionEnabled = true
+	h.frameRateProbe = func(context.Context, string) float64 { return 24 }
+	h.encoderReorderProbe = func(context.Context, string, string, string, []string) (int, bool) { return 2, true }
+	item := testMediaItemWith1Minute()
+
+	// A TV that decodes AC-3: the AC-3 track is copied, the DTS one re-encoded.
+	tv := "videoCodecs=h264&audioCodecs=aac,ac3,eac3&maxAudioChannels=6"
+	rec := doVODRequestQ(h, "m1", "master.m3u8", tv)
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	assert.Contains(t, body, `CODECS="avc1.640028,ac-3,mp4a.40.2"`, "the group carries a copied AC-3 and a re-encoded DTS")
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/audio_0.m3u8?"+tv, nil)
+	req = withHTTPClaims(req, testClaims(false))
+	assert.Equal(t, "ac3", h.audioRenditionCopyCodec(req, item, streams, 0))
+	assert.Empty(t, h.audioRenditionCopyCodec(req, item, streams, 1), "DTS is never carried")
+
+	// A browser without AC-3: both re-encoded, one codec advertised.
+	web := "videoCodecs=h264&audioCodecs=aac,mp3&maxAudioChannels=6"
+	body = doVODRequestQ(h, "m1", "master.m3u8", web).Body.String()
+	assert.Contains(t, body, `CODECS="avc1.640028,mp4a.40.2"`)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/audio_0.m3u8?"+web, nil)
+	req = withHTTPClaims(req, testClaims(false))
+	assert.Empty(t, h.audioRenditionCopyCodec(req, item, streams, 0))
+
+	// A resync offset needs the samples re-encoded: no copy.
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/audio_0.m3u8?"+tv+"&audioOffsetMs=200", nil)
+	req = withHTTPClaims(req, testClaims(false))
+	assert.Empty(t, h.audioRenditionCopyCodec(req, item, streams, 0))
 }

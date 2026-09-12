@@ -125,6 +125,14 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 	var audioRenditions []apptranscoding.AudioRendition
 	if h.audioRenditionsFor(decision, streams) {
 		audioRenditions = buildAudioRenditions(streams)
+		// Each rendition advertises the codec it will really carry: the source
+		// codec when it is copied, AAC when it is re-encoded.
+		for i := range audioRenditions {
+			audioRenditions[i].Codec = "aac"
+			if c := h.audioRenditionCopyCodec(r, item, streams, audioRenditions[i].SourceTrackIdx); c != "" {
+				audioRenditions[i].Codec = c
+			}
+		}
 	}
 
 	// Advertise the codec the segments will ACTUALLY carry, after the capability
@@ -306,16 +314,31 @@ func (h *hlsVODServe) decisionFor(ctx context.Context, item *domainlibrary.Media
 	return h.decide(ctx, streams, containerOf(item), sourcePathOf(item), sourceBitrateKbpsOf(item, streams), r)
 }
 
+// decisionForTrack is decisionFor judged on the audioTrack-th audio track
+// instead of the one the request selected: the master advertises EVERY
+// rendition, and each one is copied or re-encoded on its own merits.
+func (h *hlsVODServe) decisionForTrack(ctx context.Context, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, r *http.Request, audioTrack int) domaintranscoding.PlaybackDecision {
+	return h.decideWith(ctx, streams, containerOf(item), sourcePathOf(item), sourceBitrateKbpsOf(item, streams), r, &audioTrack)
+}
+
 func (h *hlsVODServe) decide(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, sourceKbps int64, r *http.Request) domaintranscoding.PlaybackDecision {
+	return h.decideWith(ctx, streams, container, sourcePath, sourceKbps, r, nil)
+}
+
+func (h *hlsVODServe) decideWith(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, sourceKbps int64, r *http.Request, audioTrack *int) domaintranscoding.PlaybackDecision {
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := h.profilePrefsFor(ctx, claims.ProfileID)
+	selected := h.resolveAudioTrackWith(r, streams, prefs)
+	if audioTrack != nil {
+		selected = *audioTrack
+	}
 	req := apptranscoding.PlaybackRequest{
 		SourcePath:          sourcePath,
 		Container:           container,
 		Streams:             streams,
 		Client:              parseClientCapabilities(r, r.URL.Query().Get("hdr") == "1"),
 		Prefs:               prefs,
-		AudioTrack:          h.resolveAudioTrackWith(r, streams, prefs),
+		AudioTrack:          selected,
 		SubtitleBurnInTrack: parseIntQuery(r, "subtitleTrack", -1),
 		AudioOffsetMs:       audioOffsetMsQuery(r),
 		PinnedVideoDecision: r.URL.Query().Get("vd"),
