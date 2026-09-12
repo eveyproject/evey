@@ -546,3 +546,14 @@ func parseFrameRate(r string) float64 {
 	}
 	return num / den
 }
+
+// ProbeContainerDurationSec returns the container duration in seconds via
+// ffprobe. A thin exported helper for the admin probe CLI.
+func ProbeContainerDurationSec(ctx context.Context, ffprobeBin, path string) (float64, error) {
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "prober.duration"}, ffprobeBin,
+		"-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+}

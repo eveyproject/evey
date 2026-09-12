@@ -34,6 +34,8 @@ type ComplexityMetrics struct {
 
 	// FramesSampled lets the admin spot a degenerate classification.
 	FramesSampled int `json:"frames_sampled"`
+	// Probe is the per-title ground truth (plan P3), when a probe ran.
+	Probe *TitleProbe `json:"probe,omitempty"`
 }
 
 // Classify returns the ContentClass that best matches the metrics, using a
