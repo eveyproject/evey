@@ -110,10 +110,43 @@ func abs(n int) int {
 	return n
 }
 
-// CodecEfficiencyModelV1 is filled from the ladder-bench efficiency corpus;
-// an empty table keeps every non-reference route on the class table.
+// CodecEfficiencyModelV1: `evey admin ladder-bench --efficiency` on 10 titles
+// of the library (3 scenes of 8 s each), 2026-09-12, on a Ryzen 9900X (6
+// cores) + RTX 4070 Ti. Every number below is read off that run's summary:
+// nothing is rounded to a "nicer" ratio. Confidence follows the protocol:
+// 1 with at least 15 valid scenes and a P90 dispersion under x1.4, 0.5 with
+// at least 6 valid scenes. Out-of-range scenes (the encoder reached the
+// reference fidelity BELOW the lowest measured bitrate) are excluded from the
+// median, which therefore over-estimates the HEVC factors slightly.
+//
+// The x264 ABR control cell (not a production route) measured 1.049 at 1080p
+// and 1.037 at 2160p: the ABR mode of the reference encoder itself costs about
+// 4 % over its CRF mode, the scale of the method's own noise.
+//
+// VAAPI and QSV are not in this table: they exist on the production box only,
+// and are calibrated there with the same command. Until then those routes keep
+// the class table.
 var CodecEfficiencyModelV1 = CodecEfficiencyModel{
 	Version:          1,
 	ReferenceEncoder: "libx264 veryfast (production tuning) crf 23, SDR",
-	Entries:          map[EncoderKey][]EfficiencyEntry{},
+	Corpus:           "ladder-efficiency-2026-09-12",
+	Host:             "ryzen-9900x-6c + rtx-4070ti",
+	Entries: map[EncoderKey][]EfficiencyEntry{
+		{Codec: "h264", Accel: NVENC, Preset: "p4"}: {
+			{Height: 1080, Factor: 1.022, Confidence: 1, SampleCount: 30, Titles: 10, OutOfRange: 0,
+				DispP50: 1.04, DispP90: 1.15, DispWorst: 1.29, LOOP50: 1.02, LOOP90: 1.12, LOOWorst: 1.13, MedianFPS: 251},
+			{Height: 2160, Factor: 1.000, Confidence: 1, SampleCount: 15, Titles: 5, OutOfRange: 0,
+				DispP50: 1.03, DispP90: 1.15, DispWorst: 1.21, LOOP50: 1.04, LOOP90: 1.16, LOOWorst: 1.16, MedianFPS: 204},
+		},
+		{Codec: "hevc", Accel: NVENC, Preset: "p4"}: {
+			{Height: 1080, Factor: 0.605, Confidence: 1, SampleCount: 30, Titles: 10, OutOfRange: 3,
+				DispP50: 1.05, DispP90: 1.19, DispWorst: 1.53, LOOP50: 1.07, LOOP90: 1.17, LOOWorst: 1.23, MedianFPS: 280},
+			{Height: 2160, Factor: 0.573, Confidence: 0.5, SampleCount: 15, Titles: 5, OutOfRange: 5,
+				DispP50: 1.02, DispP90: 1.08, DispWorst: 1.13, LOOP50: 1.05, LOOP90: 1.13, LOOWorst: 1.13, MedianFPS: 210},
+		},
+		{Codec: "hevc", Preset: "veryfast"}: {
+			{Height: 1080, Factor: 0.607, Confidence: 1, SampleCount: 30, Titles: 10, OutOfRange: 2,
+				DispP50: 1.12, DispP90: 1.25, DispWorst: 1.58, LOOP50: 1.13, LOOP90: 1.29, LOOWorst: 1.32, MedianFPS: 32},
+		},
+	},
 }

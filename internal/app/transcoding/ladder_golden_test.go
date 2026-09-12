@@ -149,6 +149,8 @@ func goldenResolverWith(cap *transcoding.EncodeCapability, hw bool, repo goldenC
 	return pr
 }
 
+var nvencCapability = transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160, HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc", "av1"}, HWDecodeCodecs: []string{"h264", "hevc"}, HW10BitTranscode: true, HWBridgeMaxHeight: 2160}
+
 func goldenHosts(class transcoding.ContentClass) []goldenHost {
 	soft := transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 480}
 	vaapi := vaapiCapable()
@@ -238,6 +240,9 @@ func TestLadderGolden(t *testing.T) {
 				v.HWHDR10Encode = true
 				return goldenResolverWith(&v, true, repo, 0)
 			}},
+			// NVENC is calibrated: its rungs are the cost price converted by the
+			// measured H.264 / HEVC efficiency.
+			{"nvenc", func() *PlanResolver { return goldenResolverWith(&nvencCapability, true, repo, 0) }},
 		}
 		for _, host := range hosts {
 			for _, src := range []goldenSource{srcs[1], srcs[2], srcs[4]} {

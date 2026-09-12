@@ -33,6 +33,7 @@ func TestLadderInvariants(t *testing.T) {
 			{fmt.Sprintf("software-2160 cap20m ydif=%.2f", ydif), func() *PlanResolver {
 				return goldenResolverWith(&transcoding.EncodeCapability{SoftwareMaxHeight: 2160}, false, repo, 20000)
 			}},
+			{fmt.Sprintf("nvenc ydif=%.2f", ydif), func() *PlanResolver { return goldenResolverWith(&nvencCapability, true, repo, 0) }},
 		})
 	}
 	for _, hosts := range hostSets {
@@ -103,8 +104,8 @@ func assertLadderInvariants(t *testing.T, name string, pr *PlanResolver, req Pla
 		}
 		if dc.VideoBitrateCeilingKbps > 0 {
 			ceiling := dc.VideoBitrateCeilingKbps
-			if route.Codec == "hevc" {
-				ceiling = ceiling * transcoding.HEVCBitrateNum / transcoding.HEVCBitrateDen
+			if route.Codec == "hevc" && !p.CostModelled {
+				ceiling = ceiling * transcoding.HEVCBitrateNum / transcoding.HEVCBitrateDen // the legacy rule, table-priced only
 			}
 			assert.LessOrEqual(t, p.VideoBitrate, ceiling, "%s: %s over the bitrate ceiling", name, p.Name)
 		}
