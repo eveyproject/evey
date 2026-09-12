@@ -47,13 +47,14 @@ func ProbeCandidate(m ComplexityMetrics, sig ProbeSignals, model CostModel) (Pro
 	if p := m.Probe; p != nil && !p.Failed && p.Protocol == TitleProbeProtocol && p.ModelVersion == model.Version {
 		return "", false // already ground-truthed for this model
 	}
-	if m.FramesSampled < model.MinFrames || m.MotionMean <= 0 {
+	motion, ok := m.CanonicalMotion()
+	if !ok || m.FramesSampled < model.MinFrames || motion <= 0 {
 		return ProbeNoMetrics, true
 	}
 	if sig.CeilingHitSegments >= ProbeCeilingHitThreshold {
 		return ProbeCeilingHit, true
 	}
-	if m.MotionMean < model.YDIFMin || m.MotionMean > model.YDIFMax {
+	if motion < model.YDIFMin || motion > model.YDIFMax {
 		return ProbeYDIFOutOfRange, true
 	}
 	if sig.Animation {

@@ -230,7 +230,7 @@ func TestLadderGolden(t *testing.T) {
 	// motion levels, two hosts, three sources, three clients.
 	motions := []float64{1.46, 4.05, 8.46} // a remux, Avatar, another title
 	for _, ydif := range motions {
-		repo := goldenComplexity{class: transcoding.ClassFilmNormal, metrics: transcoding.ComplexityMetrics{MotionMean: ydif, FramesSampled: 192}}
+		repo := goldenComplexity{class: transcoding.ClassFilmNormal, metrics: transcoding.ComplexityMetrics{MotionMean: ydif, FramesSampled: 192, MetricVersion: transcoding.CanonicalMetricVersion}}
 		hosts := []goldenHost{
 			{"software-1080", func() *PlanResolver {
 				return goldenResolverWith(&transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 480}, false, repo, 0)

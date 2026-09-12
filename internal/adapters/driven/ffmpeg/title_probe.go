@@ -46,7 +46,7 @@ type ProbeOptions struct {
 // DefaultProbeOptions: the reference height and the static CRF, a CRF +5
 // second point, 8 s scenes.
 func DefaultProbeOptions() ProbeOptions {
-	return ProbeOptions{Model: transcoding.CostModelV1, Height: transcoding.CostModelV1.RefHeight, CRF: transcoding.StaticSoftwareCRF, SecondCRF: transcoding.StaticSoftwareCRF + 5,
+	return ProbeOptions{Model: transcoding.CostModelV2, Height: transcoding.CostModelV2.RefHeight, CRF: transcoding.StaticSoftwareCRF, SecondCRF: transcoding.StaticSoftwareCRF + 5,
 		WindowSec: 8, FFmpeg: "ffmpeg", FFprobe: "ffprobe"}
 }
 

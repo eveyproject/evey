@@ -38,7 +38,7 @@ func adminLadderProbe(args []string) error {
 	defer stop()
 
 	classifier := ffmpeg.NewComplexityClassifier("ffmpeg", "ffprobe")
-	m := transcoding.CostModelV1
+	m := transcoding.CostModelV2
 
 	type row struct {
 		name              string

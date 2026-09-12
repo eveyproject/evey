@@ -250,7 +250,7 @@ func benchFeatureFilter(src BenchSource) string {
 	if src.BitDepth > 8 {
 		plane += src.BitDepth - 8
 	}
-	return fmt.Sprintf("signalstats,scdet,entropy,bitplanenoise=bitplane=%d,blurdetect,blockdetect,siti,metadata=print:file=-", plane)
+	return fmt.Sprintf("format=yuv420p,signalstats,scdet,entropy,bitplanenoise=bitplane=%d,blurdetect,blockdetect,siti,metadata=print:file=-", plane)
 }
 
 func benchFeatures(ctx context.Context, src BenchSource, start float64, opts BenchOptions) (BenchFeatures, error) {
@@ -759,11 +759,12 @@ func RunEfficiencyBench(ctx context.Context, path string, opts BenchOptions, enc
 
 // mezzanine is the decoded, tone-mapped, framed scene on disk.
 type mezzanine struct {
-	path   string
-	width  int
-	height int
-	fps    float64
-	frames int
+	path     string
+	width    int
+	height   int
+	fps      float64
+	frames   int
+	startSec float64
 }
 
 func (m mezzanine) inputArgs() []string {
@@ -785,7 +786,7 @@ func benchMezzanine(ctx context.Context, src BenchSource, start float64, height 
 	if src.Width <= 0 || src.Height <= 0 {
 		h = height
 	}
-	m := mezzanine{path: filepath.Join(dir, fmt.Sprintf("ladder-mezz-%d-%d-%d.yuv", os.Getpid(), int(start), height)), width: w, height: h, fps: fps, frames: int(math.Round(opts.WindowSec * fps))}
+	m := mezzanine{path: filepath.Join(dir, fmt.Sprintf("ladder-mezz-%d-%d-%d.yuv", os.Getpid(), int(start), height)), width: w, height: h, fps: fps, frames: int(math.Round(opts.WindowSec * fps)), startSec: start}
 	args := []string{"-hide_banner", "-v", "error", "-nostdin", "-y",
 		"-ss", fmt.Sprintf("%.3f", start), "-i", src.Path, "-map", "0:v:0",
 		"-vf", benchPreFilter(src, height), "-frames:v", strconv.Itoa(m.frames), "-f", "rawvideo", m.path}

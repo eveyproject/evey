@@ -43,10 +43,14 @@ type CostModel struct {
 	Corpus                          string
 }
 
-// CostModelV1: 20 titles / 60 scenes of the library, libx264 veryfast with
-// the production tuning, tonemapx on HDR sources, 2026-09-12.
-var CostModelV1 = CostModel{
-	Version:            1,
+// CostModelV2: 20 titles / 60 scenes of the library, libx264 veryfast with
+// the production tuning, tonemapx on HDR sources, 2026-09-12. Re-fit on the
+// canonical YDIF8 metric (2026-09-12 afternoon): the bench corpus was already
+// on the 8-bit scale, so the coefficients are byte-identical to the first fit
+// - only the metric DEFINITION the model consumes changed (native -> YDIF8),
+// which is why this is a new version and bumps the cache.
+var CostModelV2 = CostModel{
+	Version:            2,
 	Intercept:          -3.8748,
 	Slope:              0.6915,
 	RefHeight:          1080,
@@ -63,7 +67,7 @@ var CostModelV1 = CostModel{
 	ErrP50:             1.22,
 	ErrP90:             1.53,
 	ErrWorst:           1.90,
-	Corpus:             "ladder-corpus2-2026-09-12",
+	Corpus:             "ladder-corpus2-2026-09-12 (YDIF8)",
 }
 
 // TitleCost is the model's answer for one title.
@@ -93,10 +97,11 @@ func (m CostModel) Predict(metrics ComplexityMetrics) (TitleCost, bool) {
 		bpp := p.MeasuredBPP / math.Pow(2, float64(m.RefCRF-StaticSoftwareCRF)/m.CRFHalvingStep)
 		return TitleCost{ModelVersion: m.Version, YDIF: metrics.MotionMean, BPPRef: bpp, Confidence: 1, SampleCount: metrics.FramesSampled, Probed: true, Margin: p.Margin()}, true
 	}
-	if metrics.FramesSampled < m.MinFrames || metrics.MotionMean <= 0 {
+	motion, ok := metrics.CanonicalMotion()
+	if !ok || metrics.FramesSampled < m.MinFrames || motion <= 0 {
 		return TitleCost{}, false
 	}
-	c := TitleCost{ModelVersion: m.Version, YDIF: metrics.MotionMean, Confidence: 1, SampleCount: metrics.FramesSampled}
+	c := TitleCost{ModelVersion: m.Version, YDIF: motion, Confidence: 1, SampleCount: metrics.FramesSampled}
 	if c.YDIF < m.YDIFMin || c.YDIF > m.YDIFMax {
 		c.YDIF = math.Min(math.Max(c.YDIF, m.YDIFMin), m.YDIFMax)
 		c.Confidence = 0.5

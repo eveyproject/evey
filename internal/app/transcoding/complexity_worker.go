@@ -289,6 +289,7 @@ func (w *ComplexityWorker) classifyOne(ctx context.Context, mediaItemID string) 
 		metrics = domaintranscoding.ComplexityMetrics{
 			SourceBitrateKbps: known.BitrateBps / 1000,
 			SourceHeight:      known.Height,
+			MetricVersion:     domaintranscoding.CanonicalMetricVersion, // no YDIF sampled, but the row is on the current definition (the class comes from bitrate/height only)
 		}
 	}
 	class := domaintranscoding.Classify(metrics)
