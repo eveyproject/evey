@@ -76,11 +76,23 @@ type TitleCost struct {
 	BPPRef      float64
 	Confidence  float64
 	SampleCount int
+	// Probed: BPPRef is the title's measured cost (plan P3) and Margin the
+	// margin it carries instead of the model's generic P90.
+	Probed bool
+	Margin float64
 }
 
 // Predict answers for a title's persisted metrics; ok is false when the
-// sampling is too thin to say anything (the class table then applies).
+// sampling is too thin to say anything (the class table then applies). A
+// usable probe (see TitleProbe.Usable) overrides the prediction with the
+// measured cost, brought back to the reference point.
 func (m CostModel) Predict(metrics ComplexityMetrics) (TitleCost, bool) {
+	if p := metrics.Probe; p.Usable(m.Version, StaticSoftwareCRF) {
+		// The probe measured bits per pixel per frame at the policy CRF on the
+		// reference height; the model's unit is the same at the reference CRF.
+		bpp := p.MeasuredBPP / math.Pow(2, float64(m.RefCRF-StaticSoftwareCRF)/m.CRFHalvingStep)
+		return TitleCost{ModelVersion: m.Version, YDIF: metrics.MotionMean, BPPRef: bpp, Confidence: 1, SampleCount: metrics.FramesSampled, Probed: true, Margin: p.Margin()}, true
+	}
 	if metrics.FramesSampled < m.MinFrames || metrics.MotionMean <= 0 {
 		return TitleCost{}, false
 	}
@@ -109,7 +121,11 @@ func (m CostModel) RungKbps(c TitleCost, width, height int, fps float64, crf int
 // CeilingKbps is RungKbps under the model's margin: what the rung advertises
 // and what its encoder may not exceed.
 func (m CostModel) CeilingKbps(c TitleCost, width, height int, fps float64, crf int) int64 {
-	return int64(math.Round(float64(m.RungKbps(c, width, height, fps, crf)) * m.CeilingMargin))
+	margin := m.CeilingMargin
+	if c.Probed && c.Margin > 0 {
+		margin = c.Margin
+	}
+	return int64(math.Round(float64(m.RungKbps(c, width, height, fps, crf)) * margin))
 }
 
 // PriceLadder replaces each rung's video bitrate with the model's ceiling at

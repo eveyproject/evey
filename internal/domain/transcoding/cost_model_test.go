@@ -1,6 +1,7 @@
 package transcoding
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -83,4 +84,74 @@ func TestStaticQualityPolicy_CostModelledRungHasNoHeadroom(t *testing.T) {
 	assert.Equal(t, int64(5000), qt.MaxKbps, "cost-modelled rung: the margin is in the price")
 	assert.Equal(t, int64(10000), qt.BufferKbps)
 	assert.Equal(t, StaticSoftwareCRF, qt.Quality)
+}
+
+// A probe replaces the prediction only when it found the prediction out of
+// its margin with at least two scenes; a confirmed probe, or a one-scene
+// probe, leaves the model alone (measured: one scene is a worse estimate).
+func TestCostModelV1_ProbeOverride(t *testing.T) {
+	m := CostModelV1
+	base := ComplexityMetrics{MotionMean: 4, FramesSampled: 200}
+	pred, _ := m.Predict(base)
+	pts := func(n int) []ProbePoint {
+		out := []ProbePoint{}
+		for i := range n {
+			out = append(out, ProbePoint{StartSec: float64(600 * (i + 1)), CRF: StaticSoftwareCRF, Kbps: 9000})
+		}
+		return out
+	}
+	probe := &TitleProbe{Protocol: TitleProbeProtocol, ModelVersion: m.Version, Height: 1080, MeasuredBPP: 0.2, Confirmed: false, Spread: 1.8, Points: pts(2)}
+	withProbe := base
+	withProbe.Probe = probe
+	c, ok := m.Predict(withProbe)
+	require.True(t, ok)
+	assert.True(t, c.Probed)
+	assert.InDelta(t, 0.2/math.Pow(2, 3/m.CRFHalvingStep), c.BPPRef, 1e-9, "brought back from CRF 20 to the reference CRF 23")
+	assert.InDelta(t, math.Sqrt(1.8), c.Margin, 1e-9, "half the observed spread, above the floor")
+	assert.NotEqual(t, pred.BPPRef, c.BPPRef)
+	assert.InDelta(t, math.Sqrt(1.8), float64(m.CeilingKbps(c, 1920, 1080, 24, 20))/float64(m.RungKbps(c, 1920, 1080, 24, 20)), 1e-3) // integer kbps rounding
+
+	t.Run("floor", func(t *testing.T) {
+		p2 := *probe
+		p2.Spread = 1.1
+		mm := base
+		mm.Probe = &p2
+		c, _ := m.Predict(mm)
+		assert.InDelta(t, TruthMarginFloor, c.Margin, 1e-9)
+	})
+	t.Run("confirmed: the model stands", func(t *testing.T) {
+		p2 := *probe
+		p2.Confirmed = true
+		mm := base
+		mm.Probe = &p2
+		c, _ := m.Predict(mm)
+		assert.False(t, c.Probed)
+		assert.InDelta(t, pred.BPPRef, c.BPPRef, 1e-12)
+	})
+	t.Run("one scene: the model stands", func(t *testing.T) {
+		p2 := *probe
+		p2.Points = pts(1)
+		mm := base
+		mm.Probe = &p2
+		c, _ := m.Predict(mm)
+		assert.False(t, c.Probed)
+	})
+	t.Run("another model version or protocol: ignored", func(t *testing.T) {
+		p2 := *probe
+		p2.ModelVersion = m.Version + 1
+		mm := base
+		mm.Probe = &p2
+		c, _ := m.Predict(mm)
+		assert.False(t, c.Probed)
+		p3 := *probe
+		p3.Protocol = TitleProbeProtocol + 1
+		mm.Probe = &p3
+		c, _ = m.Predict(mm)
+		assert.False(t, c.Probed)
+	})
+	t.Run("a probe alone, without metrics, is still a prediction", func(t *testing.T) {
+		c, ok := m.Predict(ComplexityMetrics{Probe: probe})
+		assert.True(t, ok)
+		assert.True(t, c.Probed)
+	})
 }

@@ -60,6 +60,8 @@ func runAdmin(args []string) error {
 		return adminListUsers(args[1:])
 	case "ladder-bench":
 		return adminLadderBench(args[1:])
+	case "ladder-probe":
+		return adminLadderProbe(args[1:])
 	case "-h", "--help", "help":
 		_ = adminUsage()
 		return nil
