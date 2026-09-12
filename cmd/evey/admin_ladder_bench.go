@@ -28,6 +28,9 @@ func adminLadderBench(args []string) error {
 	out := fset.String("out", "", "CSV file for the rows (default: stdout)")
 	refHeight := fset.Int("ref-height", 1080, "height the correlations are computed at")
 	refCRF := fset.Int("ref-crf", 23, "CRF the correlations are computed at")
+	efficiency := fset.Bool("efficiency", false, "codec/encoder efficiency mode: fixed-bitrate curves per production encoder against the x264 CRF 23 reference")
+	encoderList := fset.String("encoders", "", "efficiency mode: comma-separated encoder names to measure (default: every production encoder this host runs)")
+	device := fset.String("device", "/dev/dri/renderD128", "efficiency mode: VAAPI/QSV render node")
 	if err := fset.Parse(args); err != nil {
 		return err
 	}
@@ -47,6 +50,10 @@ func adminLadderBench(args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if *efficiency {
+		return runEfficiencyBench(ctx, fset.Args(), opts, *encoderList, *device, *out)
+	}
 
 	var results []*ffmpeg.BenchResult
 	for _, path := range fset.Args() {
@@ -121,4 +128,92 @@ func parseIntList(s string) ([]int, error) {
 		return nil, fmt.Errorf("empty list")
 	}
 	return out, nil
+}
+
+// runEfficiencyBench is the P2 calibration: which production encoders this
+// host runs, their bitrate/XPSNR curves on every scene against the x264
+// reference, the CSV, and the per-encoder summary the CodecEfficiencyModel is
+// calibrated from.
+func runEfficiencyBench(ctx context.Context, paths []string, opts ffmpeg.BenchOptions, encoderList, device, out string) error {
+	wanted := map[string]bool{}
+	for part := range strings.SplitSeq(encoderList, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			wanted[p] = true
+		}
+	}
+	var encoders []ffmpeg.BenchEncoder
+	var skipped []string
+	for _, e := range ffmpeg.BenchEncoders(device) {
+		if len(wanted) > 0 && !wanted[e.Name] {
+			continue
+		}
+		if ffmpeg.BenchEncoderAvailable(ctx, opts, e) {
+			encoders = append(encoders, e)
+		} else {
+			skipped = append(skipped, e.Name)
+		}
+	}
+	fmt.Fprintf(os.Stderr, "encoders on this host: %s\n", strings.Join(encoderNames(encoders), ", "))
+	if len(skipped) > 0 {
+		fmt.Fprintf(os.Stderr, "not on this host (skipped): %s\n", strings.Join(skipped, ", "))
+	}
+	if len(encoders) == 0 {
+		return fmt.Errorf("ladder-bench: no encoder to measure")
+	}
+
+	var results []*ffmpeg.EffResult
+	for _, path := range paths {
+		fmt.Fprintf(os.Stderr, "→ %s\n", path)
+		r, err := ffmpeg.RunEfficiencyBench(ctx, path, opts, encoders)
+		if err != nil {
+			if ctx.Err() != nil {
+				break
+			}
+			fmt.Fprintf(os.Stderr, "  skipped: %v\n", err)
+			continue
+		}
+		results = append(results, r)
+	}
+	if len(results) == 0 {
+		return fmt.Errorf("ladder-bench: nothing measured")
+	}
+	w := os.Stdout
+	if out != "" {
+		f, err := os.Create(out)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		w = f
+	}
+	cw := csv.NewWriter(w)
+	header, rows := ffmpeg.EffRows(results)
+	if err := cw.Write(header); err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if err := cw.Write(row); err != nil {
+			return err
+		}
+	}
+	cw.Flush()
+	if err := cw.Error(); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(os.Stderr, "\nEfficiency = bitrate the encoder needs to match the x264 CRF 23 reference's XPSNR, over the reference's bitrate (< 1: cheaper).\n")
+	fmt.Fprintf(os.Stderr, "  %-11s %5s %6s %6s %4s %7s %8s %8s %8s %8s %8s %8s %8s\n", "encoder", "rung", "scenes", "titles", "oor", "factor", "dispP50", "dispP90", "dispMax", "looP50", "looP90", "looMax", "fps@1.0")
+	for _, s := range ffmpeg.EffSummaries(results) {
+		fmt.Fprintf(os.Stderr, "  %-11s %4dp %6d %6d %4d %7.3f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.0f\n",
+			s.Encoder, s.Height, s.Scenes, s.Titles, s.OutOfRange, s.MedianFactor, s.DispP50, s.DispP90, s.DispWorst, s.LOOP50, s.LOOP90, s.LOOWorst, s.MedianFPS)
+	}
+	return nil
+}
+
+func encoderNames(es []ffmpeg.BenchEncoder) []string {
+	out := make([]string, len(es))
+	for i, e := range es {
+		out[i] = e.Name
+	}
+	return out
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/hdr"
 	"github.com/evey-project/evey/internal/pkg/procfork"
 )
@@ -575,4 +576,442 @@ func mean(v []float64) float64 {
 		s += x
 	}
 	return s / float64(len(v))
+}
+
+// --- codec / encoder efficiency (plan P2) ---
+//
+// Efficiency is measured, never assumed: for a scene and a rung height the
+// reference (libx264 veryfast, the production tuning, CRF 23) sets an
+// operating point (B_ref, Q_ref). Every production encoder then encodes the
+// same scene with ITS production rate-control arguments at 0.5, 0.7, 1.0, 1.4
+// and 2.0 x B_ref; the bitrate it needs to reach Q_ref, interpolated on
+// (log bitrate, XPSNR), divided by B_ref, is its efficiency factor. Below 1
+// the encoder buys the reference's fidelity for less; above 1 it needs more.
+
+// BenchEncoder is one production encoder configuration.
+type BenchEncoder struct {
+	Name     string // "x264-abr", "x265", "nvenc-h264", "vaapi-hevc"...
+	Codec    string // domain codec
+	Accel    transcoding.HWAccelType
+	Preset   string
+	Features []string
+	Device   string
+}
+
+// EffRatios are the bitrate points around the reference cost.
+var EffRatios = []float64{0.5, 0.7, 1.0, 1.4, 2.0}
+
+// BenchEncoders lists the production encoders to calibrate on this host; the
+// ones the host cannot run are skipped by the availability probe.
+func BenchEncoders(device string) []BenchEncoder {
+	nv := []string{"rc_lookahead", "spatial_aq", "temporal_aq", "b_ref_mode", "bframes"}
+	return []BenchEncoder{
+		{Name: "x264-abr", Codec: "h264", Preset: "veryfast"},
+		{Name: "x265", Codec: "hevc", Preset: "veryfast"},
+		{Name: "nvenc-h264", Codec: "h264", Accel: transcoding.NVENC, Preset: "p4", Features: nv},
+		{Name: "nvenc-hevc", Codec: "hevc", Accel: transcoding.NVENC, Preset: "p4", Features: nv},
+		{Name: "vaapi-h264", Codec: "h264", Accel: transcoding.VAAPI, Preset: "driver", Features: []string{"bframes_h264"}, Device: device},
+		{Name: "vaapi-hevc", Codec: "hevc", Accel: transcoding.VAAPI, Preset: "driver", Features: []string{"bframes_hevc"}, Device: device},
+		{Name: "qsv-h264", Codec: "h264", Accel: transcoding.QSV, Preset: "veryfast", Features: []string{"forced_idr"}, Device: device},
+		{Name: "qsv-hevc", Codec: "hevc", Accel: transcoding.QSV, Preset: "veryfast", Features: []string{"forced_idr"}, Device: device},
+	}
+}
+
+// benchHWInput is the device binding and upload chain of an encoder whose
+// input is decoded on the CPU (the reference chain, then an upload).
+func benchHWInput(e BenchEncoder) (pre []string, upload string) {
+	switch e.Accel {
+	case transcoding.NVENC:
+		return []string{"-init_hw_device", "cuda=cu", "-filter_hw_device", "cu"}, "format=nv12,hwupload_cuda"
+	case transcoding.VAAPI:
+		return []string{"-vaapi_device", e.Device}, "format=nv12,hwupload"
+	case transcoding.QSV:
+		return []string{"-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"}, "hwupload=extra_hw_frames=16,format=qsv"
+	}
+	return nil, ""
+}
+
+// benchEncoderArgs renders the production encoder arguments for a bitrate
+// target: the same helpers the HLS builders use, so the calibration measures
+// what a session gets.
+func benchEncoderArgs(e BenchEncoder, kbps int64) []string {
+	qt := transcoding.QualityTarget{Mode: transcoding.RateControlVBR, TargetKbps: kbps, MaxKbps: kbps, BufferKbps: kbps * 2}
+	if e.Accel != "" && e.Accel != transcoding.None {
+		args := []string{"-c:v", videoEncoderFor(e.Codec, e.Accel)}
+		args = append(args, hwEncoderQualityArgs(e.Accel, e.Codec, e.Features)...)
+		args = append(args, hwRateControlArgs(e.Accel, qt, -1)...)
+		return args
+	}
+	enc := resolveVideoEncoder(e.Codec)
+	args := []string{"-c:v", enc, "-preset", e.Preset}
+	args = append(args, softwareProfileLevelArgs(enc, -1, 1080, 0)...)
+	args = append(args, softwareX264TuningArgs(enc, -1)...)
+	args = append(args, softwareRateControlArgs(qt, "")...)
+	args = append(args, "-pix_fmt", "yuv420p")
+	return args
+}
+
+// BenchEncoderAvailable runs one second of test pattern through the encoder
+// with its production arguments; a failure means "not on this host".
+func BenchEncoderAvailable(ctx context.Context, opts BenchOptions, e BenchEncoder) bool {
+	pre, upload := benchHWInput(e)
+	args := append([]string{"-hide_banner", "-v", "error", "-nostdin"}, pre...)
+	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24:duration=1")
+	if upload != "" {
+		args = append(args, "-vf", "format=yuv420p,"+upload)
+	}
+	args = append(args, benchEncoderArgs(e, 1000)...)
+	args = append(args, "-f", "null", "-")
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.encoder_probe"}, opts.FFmpeg, args...) == nil
+}
+
+// EffPoint is one fixed-bitrate encode of a scene by an encoder.
+type EffPoint struct {
+	Ratio      float64
+	TargetKbps int64
+	ActualKbps float64
+	XPSNRY     float64
+	EncodeFP   float64
+}
+
+// EffMeasure is one encoder's curve on one scene at one height, and the
+// factor read off it.
+type EffMeasure struct {
+	Encoder    BenchEncoder
+	Height     int
+	RefKbps    float64
+	RefXPSNR   float64
+	Points     []EffPoint
+	Factor     float64
+	OutOfRange bool
+}
+
+type EffScene struct {
+	StartSec float64
+	Measures []EffMeasure
+}
+
+type EffResult struct {
+	Source BenchSource
+	Scenes []EffScene
+	// Encoders the host could not run, by name.
+	Skipped []string
+}
+
+// RunEfficiencyBench measures one title's encoder efficiencies.
+func RunEfficiencyBench(ctx context.Context, path string, opts BenchOptions, encoders []BenchEncoder) (*EffResult, error) {
+	src, err := benchProbe(ctx, path, opts)
+	if err != nil {
+		return nil, err
+	}
+	if src.DurationSec < opts.WindowSec*2 {
+		return nil, fmt.Errorf("ladder-bench: %s is too short (%.0f s)", path, src.DurationSec)
+	}
+	res := &EffResult{Source: src}
+	for _, start := range benchSceneStarts(src.DurationSec, opts.Scenes, opts.WindowSec) {
+		scene := EffScene{StartSec: start}
+		// Every encoder reads the same local stream-copied cut of the scene:
+		// one seek into the title instead of one per encode, and a fair speed
+		// reading on a slow mount. The cut starts on the keyframe before the
+		// window, identically for the reference and every encoder.
+		cut, err := benchCutScene(ctx, src, start, opts)
+		if err != nil {
+			return nil, err
+		}
+		local := src
+		local.Path = cut
+		sceneErr := func() error {
+			for _, h := range opts.Heights {
+				if benchRungWidth(h) > src.Width {
+					continue
+				}
+				opts.log("reference %s @ %.0fs %dp", filepath.Base(path), start, h)
+				ref, err := benchEncode(ctx, local, 0, h, 23, opts)
+				if err != nil {
+					return err
+				}
+				decodeWall := benchDecodeWall(ctx, local, 0, h, opts)
+				for _, e := range encoders {
+					if e.Name == "x265" && h > 1080 {
+						continue // libx265 above 1080p is not a production route on the boxes this targets
+					}
+					m := EffMeasure{Encoder: e, Height: h, RefKbps: ref.Kbps, RefXPSNR: ref.XPSNRY}
+					for _, ratio := range EffRatios {
+						target := int64(math.Round(ref.Kbps * ratio))
+						opts.log("encode %s @ %.0fs %dp %s %.1fx (%d kbps)", filepath.Base(path), start, h, e.Name, ratio, target)
+						pt, err := benchEncodeAt(ctx, local, 0, h, e, target, decodeWall, opts)
+						if err != nil {
+							return err
+						}
+						pt.Ratio = ratio
+						m.Points = append(m.Points, pt)
+					}
+					m.Factor, m.OutOfRange = efficiencyFactor(m.Points, ref.Kbps, ref.XPSNRY)
+					scene.Measures = append(scene.Measures, m)
+				}
+			}
+			return nil
+		}()
+		os.Remove(cut) //nolint:errcheck // scratch file
+		if sceneErr != nil {
+			return nil, sceneErr
+		}
+		res.Scenes = append(res.Scenes, scene)
+	}
+	return res, nil
+}
+
+// benchCutScene stream-copies the window (plus the GOP it starts in) to a
+// local file, so the encoders read it without seeking the source.
+func benchCutScene(ctx context.Context, src BenchSource, start float64, opts BenchOptions) (string, error) {
+	dir := opts.WorkDir
+	if dir == "" {
+		dir = os.TempDir()
+	}
+	out := filepath.Join(dir, fmt.Sprintf("ladder-cut-%d-%d.mkv", os.Getpid(), int(start)))
+	args := []string{"-hide_banner", "-v", "error", "-nostdin", "-y",
+		"-ss", fmt.Sprintf("%.3f", start), "-t", fmt.Sprintf("%.3f", opts.WindowSec+1),
+		"-i", src.Path, "-map", "0:v:0", "-c", "copy", "-avoid_negative_ts", "make_zero", out}
+	if err := procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.cut"}, opts.FFmpeg, args...); err != nil {
+		return "", fmt.Errorf("ladder-bench: cut %s @ %.0fs: %w", src.Path, start, err)
+	}
+	return out, nil
+}
+
+// benchDecodeWall times the decode + pre-filter of a scene alone, so an
+// encoder's speed can be read net of the input (a seek into a large file on
+// a slow mount costs seconds that are not the encoder's).
+func benchDecodeWall(ctx context.Context, src BenchSource, start float64, height int, opts BenchOptions) float64 {
+	args := []string{"-hide_banner", "-v", "error", "-nostdin",
+		"-ss", fmt.Sprintf("%.3f", start), "-t", fmt.Sprintf("%.3f", opts.WindowSec), "-i", src.Path,
+		"-map", "0:v:0", "-vf", benchPreFilter(src, height), "-f", "null", "-"}
+	t0 := time.Now()
+	if err := procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.decode_wall"}, opts.FFmpeg, args...); err != nil {
+		return 0
+	}
+	return time.Since(t0).Seconds()
+}
+
+func benchEncodeAt(ctx context.Context, src BenchSource, start float64, height int, e BenchEncoder, kbps int64, decodeWall float64, opts BenchOptions) (EffPoint, error) {
+	dir := opts.WorkDir
+	if dir == "" {
+		dir = os.TempDir()
+	}
+	out := filepath.Join(dir, fmt.Sprintf("ladder-eff-%d-%s-%d-%d.mp4", os.Getpid(), e.Name, height, kbps))
+	defer os.Remove(out) //nolint:errcheck // scratch file
+	pre, upload := benchHWInput(e)
+	vf := benchPreFilter(src, height)
+	if upload != "" {
+		vf += "," + upload
+	}
+	args := append([]string{"-hide_banner", "-v", "error", "-nostdin", "-y"}, pre...)
+	args = append(args, "-ss", fmt.Sprintf("%.3f", start), "-t", fmt.Sprintf("%.3f", opts.WindowSec), "-i", src.Path,
+		"-map", "0:v:0", "-vf", vf)
+	args = append(args, benchEncoderArgs(e, kbps)...)
+	args = append(args, hlsForceKeyframesArgs...)
+	args = append(args, "-an", "-f", "mp4", out)
+	t0 := time.Now()
+	if err := procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.eff_encode"}, opts.FFmpeg, args...); err != nil {
+		return EffPoint{}, fmt.Errorf("ladder-bench: %s %dp at %d kbps: %w", e.Name, height, kbps, err)
+	}
+	wall := math.Max(time.Since(t0).Seconds()-decodeWall, 0.05)
+	fi, err := os.Stat(out)
+	if err != nil {
+		return EffPoint{}, err
+	}
+	pt := EffPoint{TargetKbps: kbps, ActualKbps: float64(fi.Size()) * 8 / opts.WindowSec / 1000}
+	if src.FPS > 0 {
+		pt.EncodeFP = opts.WindowSec * src.FPS / wall
+	}
+	stats := out + ".xpsnr"
+	defer os.Remove(stats) //nolint:errcheck // scratch file
+	q := []string{"-hide_banner", "-v", "error", "-nostdin",
+		"-ss", fmt.Sprintf("%.3f", start), "-t", fmt.Sprintf("%.3f", opts.WindowSec), "-i", src.Path, "-i", out,
+		"-lavfi", fmt.Sprintf("[0:v]%s[ref];[1:v]format=yuv420p[enc];[enc][ref]xpsnr=stats_file=%s", benchPreFilter(src, height), stats),
+		"-f", "null", "-"}
+	if qerr := procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.eff_xpsnr"}, opts.FFmpeg, q...); qerr != nil {
+		return EffPoint{}, fmt.Errorf("ladder-bench: xpsnr %s %dp: %w", e.Name, height, qerr)
+	}
+	raw, err := os.ReadFile(stats)
+	if err != nil {
+		return EffPoint{}, err
+	}
+	pt.XPSNRY = parseXPSNRMeanY(string(raw))
+	return pt, nil
+}
+
+// efficiencyFactor interpolates, on (log actual bitrate, XPSNR), the bitrate
+// at which the curve reaches refXPSNR, over refKbps. Outside the measured
+// range the factor is the nearest end and outOfRange is set.
+func efficiencyFactor(points []EffPoint, refKbps, refXPSNR float64) (factor float64, outOfRange bool) {
+	pts := make([]EffPoint, 0, len(points))
+	for _, p := range points {
+		if p.ActualKbps > 0 && p.XPSNRY > 0 {
+			pts = append(pts, p)
+		}
+	}
+	if len(pts) < 2 || refKbps <= 0 {
+		return 0, true
+	}
+	sort.Slice(pts, func(i, j int) bool { return pts[i].ActualKbps < pts[j].ActualKbps })
+	if refXPSNR <= pts[0].XPSNRY {
+		return pts[0].ActualKbps / refKbps, true
+	}
+	for i := 1; i < len(pts); i++ {
+		lo, hi := pts[i-1], pts[i]
+		if hi.XPSNRY >= refXPSNR && lo.XPSNRY < refXPSNR {
+			t := (refXPSNR - lo.XPSNRY) / (hi.XPSNRY - lo.XPSNRY)
+			lb := math.Log(lo.ActualKbps) + t*(math.Log(hi.ActualKbps)-math.Log(lo.ActualKbps))
+			return math.Exp(lb) / refKbps, false
+		}
+	}
+	return pts[len(pts)-1].ActualKbps / refKbps, true
+}
+
+// EffRows flattens every point for the CSV.
+func EffRows(results []*EffResult) (header []string, rows [][]string) {
+	header = []string{"file", "codec_src", "width", "height", "hdr", "fps", "scene_s", "rung", "encoder", "codec", "backend", "preset",
+		"ref_kbps", "ref_xpsnr", "ratio", "target_kbps", "actual_kbps", "xpsnr", "enc_fps", "factor", "out_of_range"}
+	for _, r := range results {
+		s := r.Source
+		for _, sc := range r.Scenes {
+			for _, m := range sc.Measures {
+				for _, p := range m.Points {
+					rows = append(rows, []string{filepath.Base(s.Path), s.Codec, strconv.Itoa(s.Width), strconv.Itoa(s.Height), strconv.FormatBool(s.HDR), fmtF(s.FPS),
+						fmtF(sc.StartSec), strconv.Itoa(m.Height), m.Encoder.Name, m.Encoder.Codec, string(m.Encoder.Accel), m.Encoder.Preset,
+						fmtF(m.RefKbps), fmtF(m.RefXPSNR), fmtF(p.Ratio), strconv.FormatInt(p.TargetKbps, 10), fmtF(p.ActualKbps), fmtF(p.XPSNRY), fmtF(p.EncodeFP),
+						fmtF(m.Factor), strconv.FormatBool(m.OutOfRange)})
+				}
+			}
+		}
+	}
+	return header, rows
+}
+
+// EffSummary is one (encoder, height) cell of the calibration.
+type EffSummary struct {
+	Encoder      string
+	Height       int
+	Scenes       int
+	Titles       int
+	OutOfRange   int
+	MedianFactor float64
+	// Dispersion of the per-scene factors around the median, as factors.
+	DispP50, DispP90, DispWorst float64
+	// Leave-one-title-out error of the median, as factors.
+	LOOP50, LOOP90, LOOWorst float64
+	MedianFPS                float64
+}
+
+// EffSummaries aggregates the corpus per (encoder, height).
+func EffSummaries(results []*EffResult) []EffSummary {
+	type key struct {
+		enc string
+		h   int
+	}
+	type obs struct {
+		title  string
+		factor float64
+		fps    float64
+		oor    bool
+	}
+	byKey := map[key][]obs{}
+	for _, r := range results {
+		for _, sc := range r.Scenes {
+			for _, m := range sc.Measures {
+				o := obs{title: r.Source.Path, factor: m.Factor, oor: m.OutOfRange}
+				for _, p := range m.Points {
+					if p.Ratio == 1.0 {
+						o.fps = p.EncodeFP
+					}
+				}
+				k := key{m.Encoder.Name, m.Height}
+				byKey[k] = append(byKey[k], o)
+			}
+		}
+	}
+	var out []EffSummary
+	for k, os := range byKey {
+		s := EffSummary{Encoder: k.enc, Height: k.h, Scenes: len(os)}
+		titles := map[string]bool{}
+		var valid []obs
+		var fps []float64
+		for _, o := range os {
+			titles[o.title] = true
+			if o.fps > 0 {
+				fps = append(fps, o.fps)
+			}
+			if o.oor || o.factor <= 0 {
+				s.OutOfRange++
+				continue
+			}
+			valid = append(valid, o)
+		}
+		s.Titles = len(titles)
+		s.MedianFPS = median(fps)
+		if len(valid) == 0 {
+			out = append(out, s)
+			continue
+		}
+		factors := make([]float64, len(valid))
+		for i, o := range valid {
+			factors[i] = o.factor
+		}
+		s.MedianFactor = median(factors)
+		var disp []float64
+		for _, f := range factors {
+			disp = append(disp, math.Abs(math.Log(f)-math.Log(s.MedianFactor)))
+		}
+		s.DispP50, s.DispP90, s.DispWorst = expPct(disp, 0.5), expPct(disp, 0.9), expPct(disp, 1)
+		var loo []float64
+		for t := range titles {
+			var train, held []float64
+			for _, o := range valid {
+				if o.title == t {
+					held = append(held, o.factor)
+				} else {
+					train = append(train, o.factor)
+				}
+			}
+			if len(train) == 0 || len(held) == 0 {
+				continue
+			}
+			pred := median(train)
+			loo = append(loo, math.Abs(math.Log(median(held))-math.Log(pred)))
+		}
+		s.LOOP50, s.LOOP90, s.LOOWorst = expPct(loo, 0.5), expPct(loo, 0.9), expPct(loo, 1)
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Encoder != out[j].Encoder {
+			return out[i].Encoder < out[j].Encoder
+		}
+		return out[i].Height < out[j].Height
+	})
+	return out
+}
+
+func median(v []float64) float64 {
+	if len(v) == 0 {
+		return 0
+	}
+	s := append([]float64(nil), v...)
+	sort.Float64s(s)
+	if len(s)%2 == 1 {
+		return s[len(s)/2]
+	}
+	return (s[len(s)/2-1] + s[len(s)/2]) / 2
+}
+
+// expPct is exp(percentile p of v) - a log-space error read back as a factor.
+func expPct(v []float64, p float64) float64 {
+	if len(v) == 0 {
+		return 0
+	}
+	s := append([]float64(nil), v...)
+	sort.Float64s(s)
+	i := int(math.Round(p * float64(len(s)-1)))
+	return math.Exp(s[i])
 }
