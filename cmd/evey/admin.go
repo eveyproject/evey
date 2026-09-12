@@ -62,6 +62,8 @@ func runAdmin(args []string) error {
 		return adminLadderBench(args[1:])
 	case "ladder-probe":
 		return adminLadderProbe(args[1:])
+	case "route-bench":
+		return adminRouteBench(args[1:])
 	case "-h", "--help", "help":
 		_ = adminUsage()
 		return nil
@@ -136,6 +138,17 @@ Diagnostics:
                                     correlation of every feature with the encode
                                     cost. Runs ffmpeg for minutes; never on a box
                                     that is serving viewers.
+  route-bench [--backend nvenc|vaapi|qsv|none] [--heights 1080,2160] [--fps 24,30,50,60] [--out rows.csv] [--json run.json] [<file>...]
+                                    Measure what a production session of each
+                                    transcode route (GPU zero-copy, bridge,
+                                    tone-map, passthrough, decoupled, CPU) costs
+                                    on this host - fps, CPU cores, GPU engines -
+                                    against the boot calibration and the
+                                    admission cost model, on synthetic clips per
+                                    frame rate plus any real files given. Runs the
+                                    production calibration first unless
+                                    --capability points at a persisted one.
+                                    Minutes of full load; never while serving.
   doctor [--repair]                 Health-check DB, schema, jwt.key, Meilisearch
                                     (+ index drift), media mounts (owned by the
                                     server UID?), cache dirs, ffmpeg/mkvgo and
