@@ -10,8 +10,12 @@ package transcoding
 type ProbeReason string
 
 const (
-	// ProbeNoMetrics: never classified, so the cost model has no prediction.
-	ProbeNoMetrics ProbeReason = "no_metrics"
+	// ProbeClassifyFailed: the classifier produced a row but sampled no motion
+	// (a readable file it could not analyse - the sample-free fallback). The
+	// cheap classifier has already tried and settled; only a probe can price
+	// this title. A title never classified at all is NOT here: the classifier
+	// runs first, and the probe fires only if its result then trips a trigger.
+	ProbeClassifyFailed ProbeReason = "classify_failed"
 	// ProbeYDIFOutOfRange: the motion is outside the fitted range, so the
 	// prediction is an extrapolation (confidence 0.5).
 	ProbeYDIFOutOfRange ProbeReason = "ydif_out_of_range"
@@ -48,8 +52,19 @@ func ProbeCandidate(m ComplexityMetrics, sig ProbeSignals, model CostModel) (Pro
 		return "", false // already ground-truthed for this model
 	}
 	motion, ok := m.CanonicalMotion()
-	if !ok || m.FramesSampled < model.MinFrames || motion <= 0 {
-		return ProbeNoMetrics, true
+	if !ok {
+		// No canonical metrics: never classified, or a pre-canonical row. This
+		// is the CLASSIFIER's job (a cheap YDIF sample -> a P1/P2 prediction),
+		// not the probe's. The probe fires only once the classifier's result
+		// trips a trigger below.
+		return "", false
+	}
+	if m.FramesSampled < model.MinFrames || motion <= 0 {
+		// The classifier ran but sampled no motion (a readable file it could
+		// not analyse): it has settled as failed, so the probe measures the
+		// truth. A single fallback is terminal - the classifier re-fails a
+		// present file identically, so it never retries it.
+		return ProbeClassifyFailed, true
 	}
 	if sig.CeilingHitSegments >= ProbeCeilingHitThreshold {
 		return ProbeCeilingHit, true

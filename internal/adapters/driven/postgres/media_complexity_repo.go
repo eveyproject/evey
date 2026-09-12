@@ -152,6 +152,14 @@ func (r *MediaComplexityRepo) ListProbeCandidates(ctx context.Context, modelVers
 	// A row is "already probed for this model" when its metrics carry a probe
 	// stamped with the current model version (failed or not - a failed probe
 	// must not be retried until the model changes).
+	//
+	// A never-classified title (no complexity row, or a pre-canonical one) is
+	// NOT here: the cheap classifier handles it first, and the probe fires only
+	// if the classifier's result then trips a trigger. The triggers are: the
+	// classifier ran but sampled no motion (a canonical row with a class yet
+	// frames < MinFrames - the sample-free fallback), the animation weak spot,
+	// or a motion outside the model's fitted range. Ceiling hits come from the
+	// runtime signal store, not this query.
 	const q = `
 		SELECT mi.id
 		FROM media_items mi
@@ -159,10 +167,11 @@ func (r *MediaComplexityRepo) ListProbeCandidates(ctx context.Context, modelVers
 		WHERE mf.file_path <> ''
 		  AND mi.type IN ('movie', 'episode')
 		  AND mf.duration_ms > 0
+		  AND mi.complexity_class IS NOT NULL
+		  AND COALESCE((mi.complexity_metrics->>'metric_version')::int, 1) >= 2
 		  AND COALESCE((mi.complexity_metrics->'probe'->>'model_version')::int, 0) <> $1
 		  AND (
-		        mi.complexity_class IS NULL
-		     OR COALESCE((mi.complexity_metrics->>'metric_version')::int, 1) < 2
+		        COALESCE((mi.complexity_metrics->>'frames_sampled')::int, 0) < $4
 		     OR mi.complexity_class = 'animation'
 		     OR (
 		          COALESCE((mi.complexity_metrics->>'frames_sampled')::int, 0) >= $4
