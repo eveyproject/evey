@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -29,6 +30,8 @@ func adminLadderBench(args []string) error {
 	refHeight := fset.Int("ref-height", 1080, "height the correlations are computed at")
 	refCRF := fset.Int("ref-crf", 23, "CRF the correlations are computed at")
 	efficiency := fset.Bool("efficiency", false, "codec/encoder efficiency mode: fixed-bitrate curves per production encoder against the x264 CRF 23 reference")
+	mode := fset.String("mode", "fast", "efficiency mode: full (3 scenes, 5 points, the scientific reference), fast (2 scenes, bracketed points, CPU and GPU lanes in parallel) or incremental (fast, and only the points the cache does not hold)")
+	cacheDir := fset.String("cache", "", "efficiency mode: point cache directory (default <tmp>/ladder-bench-cache; incremental mode requires it)")
 	encoderList := fset.String("encoders", "", "efficiency mode: comma-separated encoder names to measure (default: every production encoder this host runs)")
 	device := fset.String("device", "/dev/dri/renderD128", "efficiency mode: VAAPI/QSV render node")
 	if err := fset.Parse(args); err != nil {
@@ -52,6 +55,20 @@ func adminLadderBench(args []string) error {
 	defer stop()
 
 	if *efficiency {
+		switch *mode {
+		case "full":
+			opts.Scenes, opts.Adaptive, opts.Parallel = 3, false, false
+		case "fast", "incremental":
+			opts.Scenes, opts.Adaptive, opts.Parallel = 2, true, true
+		default:
+			return fmt.Errorf("ladder-bench: --mode must be full, fast or incremental")
+		}
+		opts.CacheDir = *cacheDir
+		if opts.CacheDir == "" {
+			opts.CacheDir = filepath.Join(os.TempDir(), "ladder-bench-cache")
+		}
+		fmt.Fprintf(os.Stderr, "mode %s: %d scenes, %s points, %s lanes, cache %s\n", *mode, opts.Scenes,
+			map[bool]string{true: "bracketed", false: "all five"}[opts.Adaptive], map[bool]string{true: "cpu+gpu", false: "one"}[opts.Parallel], opts.CacheDir)
 		return runEfficiencyBench(ctx, fset.Args(), opts, *encoderList, *device, *out)
 	}
 

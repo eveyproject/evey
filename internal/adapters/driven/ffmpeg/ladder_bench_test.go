@@ -2,6 +2,8 @@ package ffmpeg
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -115,4 +117,69 @@ func TestBenchEncoderArgs_UseTheProductionBuilders(t *testing.T) {
 	assert.Contains(t, va, "-c:v hevc_vaapi -rc_mode VBR -b:v 4000k -maxrate 4000k -bufsize 8000k")
 	sw := strings.Join(benchEncoderArgs(BenchEncoder{Name: "x265", Codec: "hevc", Preset: "veryfast"}, 4000), " ")
 	assert.Contains(t, sw, "-c:v libx265 -preset veryfast -b:v 4000k -maxrate 4000k -bufsize 8000k -pix_fmt yuv420p")
+}
+
+func TestBracketPoints(t *testing.T) {
+	// A monotone curve: XPSNR 34/36/38/40/42 at 0.5/0.7/1.0/1.4/2.0.
+	curve := map[float64]float64{0.5: 34, 0.7: 36, 1.0: 38, 1.4: 40, 2.0: 42}
+	var asked []float64
+	measure := func(r float64) (EffPoint, error) {
+		asked = append(asked, r)
+		return EffPoint{Ratio: r, ActualKbps: 1000 * r, XPSNRY: curve[r]}, nil
+	}
+	// Reference at 39: the 1.0 point is under it, so walk up; 1.4 brackets it.
+	pts, err := bracketPoints(39, measure)
+	require.NoError(t, err)
+	assert.Equal(t, []float64{1.0, 1.4}, asked)
+	f, oor := efficiencyFactor(pts, 1000, 39)
+	full, _ := efficiencyFactor([]EffPoint{{ActualKbps: 500, XPSNRY: 34}, {ActualKbps: 700, XPSNRY: 36}, {ActualKbps: 1000, XPSNRY: 38}, {ActualKbps: 1400, XPSNRY: 40}, {ActualKbps: 2000, XPSNRY: 42}}, 1000, 39)
+	assert.False(t, oor)
+	assert.InDelta(t, full, f, 1e-12, "the bracketed factor is the five-point factor")
+
+	// Reference at 35: walk down, 0.7 then 0.5.
+	asked = nil
+	_, err = bracketPoints(35, measure)
+	require.NoError(t, err)
+	assert.Equal(t, []float64{1.0, 0.7, 0.5}, asked)
+
+	// Reference above the whole curve: three points, then out of range.
+	asked = nil
+	pts, _ = bracketPoints(45, measure)
+	assert.Equal(t, []float64{1.0, 1.4, 2.0}, asked)
+	_, oor = efficiencyFactor(pts, 1000, 45)
+	assert.True(t, oor)
+}
+
+func TestBenchCache_KeyAndRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	src := BenchSource{Path: filepath.Join(dir, "src.mkv"), Width: 1920, Height: 1080, FPS: 24}
+	require.NoError(t, os.WriteFile(src.Path, []byte("x"), 0o644))
+	opts := DefaultBenchOptions()
+	c := newBenchCache(filepath.Join(dir, "cache"), src, opts)
+	require.NotEmpty(t, c.dir)
+	e := BenchEncoder{Name: "nvenc-h264", Codec: "h264", Accel: transcoding.NVENC, Preset: "p4", Features: []string{"bframes"}}
+	_, ok := c.point(600, 1080, e, 3000)
+	assert.False(t, ok)
+	c.putPoint(600, 1080, e, 3000, EffPoint{TargetKbps: 3000, ActualKbps: 2990, XPSNRY: 38.5, EncodeFP: 200})
+	pt, ok := c.point(600, 1080, e, 3000)
+	require.True(t, ok)
+	assert.InDelta(t, 38.5, pt.XPSNRY, 1e-9)
+	// Anything the measurement depends on changes the key.
+	k := c.key(600, 1080, e, 3000)
+	assert.NotEqual(t, k, c.key(600, 720, e, 3000), "height")
+	assert.NotEqual(t, k, c.key(601, 1080, e, 3000), "scene")
+	assert.NotEqual(t, k, c.key(600, 1080, e, 3001), "target")
+	e2 := e
+	e2.Features = []string{"bframes", "rc_lookahead"}
+	assert.NotEqual(t, k, c.key(600, 1080, e2, 3000), "features")
+	// A replaced source file is a different identity.
+	require.NoError(t, os.WriteFile(src.Path, []byte("xy"), 0o644))
+	c2 := newBenchCache(filepath.Join(dir, "cache"), src, opts)
+	_, ok = c2.point(600, 1080, e, 3000)
+	assert.False(t, ok)
+	// No directory: a no-op cache.
+	none := newBenchCache("", src, opts)
+	none.putPoint(1, 1080, e, 1, EffPoint{ActualKbps: 1})
+	_, ok = none.point(1, 1080, e, 1)
+	assert.False(t, ok)
 }

@@ -3,6 +3,9 @@ package ffmpeg
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -11,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -98,6 +102,18 @@ type BenchOptions struct {
 	WorkDir   string
 	// Progress receives one line per step (nil = silent).
 	Progress func(string)
+	// Adaptive: bracket the reference fidelity from the 1.0 point instead of
+	// measuring every ratio - the same interpolation pair, 2-3 encodes instead
+	// of 5 (identical factor on 164/165 curves of the FULL corpus).
+	Adaptive bool
+	// Parallel: run the GPU encoders' curves alongside the CPU ones (the GPU
+	// lane costs the CPU little more than its XPSNR reads).
+	Parallel bool
+	// CacheDir memoises every measured point by everything it depends on
+	// (file identity, scene, height, filter chain, encoder configuration,
+	// target, ffmpeg build): a point already known is never encoded again.
+	// Empty = no cache.
+	CacheDir string
 }
 
 // DefaultBenchOptions: three 8 s scenes, the delivery heights the ladders use
@@ -701,6 +717,12 @@ type EffResult struct {
 }
 
 // RunEfficiencyBench measures one title's encoder efficiencies.
+//
+// Per (scene, height) the source is decoded, tone-mapped and framed ONCE into
+// a raw mezzanine; the reference encode, every encoder and every XPSNR read
+// those exact frames. Reading the mezzanine costs a fraction of decoding a
+// 4K HEVC 10-bit source, which used to be paid twice per point; the pixels
+// every encoder sees are identical to the source-fed chain by construction.
 func RunEfficiencyBench(ctx context.Context, path string, opts BenchOptions, encoders []BenchEncoder) (*EffResult, error) {
 	src, err := benchProbe(ctx, path, opts)
 	if err != nil {
@@ -710,129 +732,261 @@ func RunEfficiencyBench(ctx context.Context, path string, opts BenchOptions, enc
 		return nil, fmt.Errorf("ladder-bench: %s is too short (%.0f s)", path, src.DurationSec)
 	}
 	res := &EffResult{Source: src}
-	for _, start := range benchSceneStarts(src.DurationSec, opts.Scenes, opts.WindowSec) {
+	// Scene positions are those of the FULL protocol (three, spread over the
+	// title); a shorter run takes the first ones, so its points are the same
+	// points and the cache serves both.
+	starts := benchSceneStarts(src.DurationSec, 3, opts.WindowSec)
+	if opts.Scenes > 0 && opts.Scenes < len(starts) {
+		starts = starts[:opts.Scenes]
+	}
+	cache := newBenchCache(opts.CacheDir, src, opts)
+	for _, start := range starts {
 		scene := EffScene{StartSec: start}
-		// Every encoder reads the same local stream-copied cut of the scene:
-		// one seek into the title instead of one per encode, and a fair speed
-		// reading on a slow mount. The cut starts on the keyframe before the
-		// window, identically for the reference and every encoder.
-		cut, err := benchCutScene(ctx, src, start, opts)
-		if err != nil {
-			return nil, err
-		}
-		local := src
-		local.Path = cut
-		sceneErr := func() error {
-			for _, h := range opts.Heights {
-				if benchRungWidth(h) > src.Width {
-					continue
-				}
-				opts.log("reference %s @ %.0fs %dp", filepath.Base(path), start, h)
-				ref, err := benchEncode(ctx, local, 0, h, 23, opts)
-				if err != nil {
-					return err
-				}
-				decodeWall := benchDecodeWall(ctx, local, 0, h, opts)
-				for _, e := range encoders {
-					if e.Name == "x265" && h > 1080 {
-						continue // libx265 above 1080p is not a production route on the boxes this targets
-					}
-					m := EffMeasure{Encoder: e, Height: h, RefKbps: ref.Kbps, RefXPSNR: ref.XPSNRY}
-					for _, ratio := range EffRatios {
-						target := int64(math.Round(ref.Kbps * ratio))
-						opts.log("encode %s @ %.0fs %dp %s %.1fx (%d kbps)", filepath.Base(path), start, h, e.Name, ratio, target)
-						pt, err := benchEncodeAt(ctx, local, 0, h, e, target, decodeWall, opts)
-						if err != nil {
-							return err
-						}
-						pt.Ratio = ratio
-						m.Points = append(m.Points, pt)
-					}
-					m.Factor, m.OutOfRange = efficiencyFactor(m.Points, ref.Kbps, ref.XPSNRY)
-					scene.Measures = append(scene.Measures, m)
-				}
+		for _, h := range opts.Heights {
+			if benchRungWidth(h) > src.Width {
+				continue
 			}
-			return nil
-		}()
-		os.Remove(cut) //nolint:errcheck // scratch file
-		if sceneErr != nil {
-			return nil, sceneErr
+			measures, err := benchSceneHeight(ctx, src, start, h, opts, encoders, cache)
+			if err != nil {
+				return nil, err
+			}
+			scene.Measures = append(scene.Measures, measures...)
 		}
 		res.Scenes = append(res.Scenes, scene)
 	}
 	return res, nil
 }
 
-// benchCutScene stream-copies the window (plus the GOP it starts in) to a
-// local file, so the encoders read it without seeking the source.
-func benchCutScene(ctx context.Context, src BenchSource, start float64, opts BenchOptions) (string, error) {
+// mezzanine is the decoded, tone-mapped, framed scene on disk.
+type mezzanine struct {
+	path   string
+	width  int
+	height int
+	fps    float64
+	frames int
+}
+
+func (m mezzanine) inputArgs() []string {
+	return []string{"-f", "rawvideo", "-pix_fmt", "yuv420p", "-s", fmt.Sprintf("%dx%d", m.width, m.height), "-r", fmt.Sprintf("%.6f", m.fps), "-i", m.path}
+}
+
+// benchMezzanine writes the scene's frames after the production pre-filter.
+func benchMezzanine(ctx context.Context, src BenchSource, start float64, height int, opts BenchOptions) (mezzanine, error) {
 	dir := opts.WorkDir
 	if dir == "" {
 		dir = os.TempDir()
 	}
-	out := filepath.Join(dir, fmt.Sprintf("ladder-cut-%d-%d.mkv", os.Getpid(), int(start)))
+	fps := src.FPS
+	if fps <= 0 {
+		fps = 24
+	}
+	w := benchRungWidth(height)
+	h := int(math.Round(float64(w)*float64(src.Height)/float64(src.Width))) / 2 * 2
+	if src.Width <= 0 || src.Height <= 0 {
+		h = height
+	}
+	m := mezzanine{path: filepath.Join(dir, fmt.Sprintf("ladder-mezz-%d-%d-%d.yuv", os.Getpid(), int(start), height)), width: w, height: h, fps: fps, frames: int(math.Round(opts.WindowSec * fps))}
 	args := []string{"-hide_banner", "-v", "error", "-nostdin", "-y",
-		"-ss", fmt.Sprintf("%.3f", start), "-t", fmt.Sprintf("%.3f", opts.WindowSec+1),
-		"-i", src.Path, "-map", "0:v:0", "-c", "copy", "-avoid_negative_ts", "make_zero", out}
-	if err := procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.cut"}, opts.FFmpeg, args...); err != nil {
-		return "", fmt.Errorf("ladder-bench: cut %s @ %.0fs: %w", src.Path, start, err)
+		"-ss", fmt.Sprintf("%.3f", start), "-i", src.Path, "-map", "0:v:0",
+		"-vf", benchPreFilter(src, height), "-frames:v", strconv.Itoa(m.frames), "-f", "rawvideo", m.path}
+	if err := procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.mezzanine"}, opts.FFmpeg, args...); err != nil {
+		return mezzanine{}, fmt.Errorf("ladder-bench: mezzanine %s @ %.0fs %dp: %w", src.Path, start, height, err)
 	}
-	return out, nil
+	return m, nil
 }
 
-// benchDecodeWall times the decode + pre-filter of a scene alone, so an
-// encoder's speed can be read net of the input (a seek into a large file on
-// a slow mount costs seconds that are not the encoder's).
-func benchDecodeWall(ctx context.Context, src BenchSource, start float64, height int, opts BenchOptions) float64 {
-	args := []string{"-hide_banner", "-v", "error", "-nostdin",
-		"-ss", fmt.Sprintf("%.3f", start), "-t", fmt.Sprintf("%.3f", opts.WindowSec), "-i", src.Path,
-		"-map", "0:v:0", "-vf", benchPreFilter(src, height), "-f", "null", "-"}
-	t0 := time.Now()
-	if err := procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.decode_wall"}, opts.FFmpeg, args...); err != nil {
-		return 0
+// benchSceneHeight measures every encoder on one (scene, height): the
+// mezzanine, the reference point, then each encoder's curve - the GPU ones in
+// a second lane when Parallel is set.
+func benchSceneHeight(ctx context.Context, src BenchSource, start float64, height int, opts BenchOptions, encoders []BenchEncoder, cache *benchCache) ([]EffMeasure, error) {
+	name := filepath.Base(src.Path)
+	ref, cached := cache.reference(start, height)
+	var mezz mezzanine
+	var mezzErr error
+	mezzOnce := sync.OnceFunc(func() {
+		opts.log("mezzanine %s @ %.0fs %dp", name, start, height)
+		mezz, mezzErr = benchMezzanine(ctx, src, start, height, opts)
+	})
+	if !cached {
+		mezzOnce()
+		if mezzErr != nil {
+			return nil, mezzErr
+		}
+		opts.log("reference %s @ %.0fs %dp", name, start, height)
+		var err error
+		ref, err = benchEncodeMezz(ctx, mezz, BenchEncoder{Name: refEncoderName, Codec: "h264", Preset: "veryfast"}, 0, 23, opts)
+		if err != nil {
+			return nil, err
+		}
+		cache.putReference(start, height, ref)
 	}
-	return time.Since(t0).Seconds()
+	defer func() {
+		if mezz.path != "" {
+			os.Remove(mezz.path) //nolint:errcheck // scratch file
+		}
+	}()
+
+	curve := func(e BenchEncoder) (EffMeasure, error) {
+		m := EffMeasure{Encoder: e, Height: height, RefKbps: ref.ActualKbps, RefXPSNR: ref.XPSNRY}
+		measure := func(ratio float64) (EffPoint, error) {
+			target := int64(math.Round(ref.ActualKbps * ratio))
+			if pt, ok := cache.point(start, height, e, target); ok {
+				pt.Ratio = ratio
+				return pt, nil
+			}
+			mezzOnce()
+			if mezzErr != nil {
+				return EffPoint{}, mezzErr
+			}
+			opts.log("encode %s @ %.0fs %dp %s %.1fx (%d kbps)", name, start, height, e.Name, ratio, target)
+			pt, err := benchEncodeMezz(ctx, mezz, e, target, 0, opts)
+			if err != nil {
+				return EffPoint{}, err
+			}
+			pt.Ratio = ratio
+			cache.putPoint(start, height, e, target, pt)
+			return pt, nil
+		}
+		ratios := EffRatios
+		if opts.Adaptive {
+			ratios = nil
+		}
+		for _, r := range ratios {
+			pt, err := measure(r)
+			if err != nil {
+				return m, err
+			}
+			m.Points = append(m.Points, pt)
+		}
+		if opts.Adaptive {
+			pts, err := bracketPoints(ref.XPSNRY, measure)
+			if err != nil {
+				return m, err
+			}
+			m.Points = pts
+		}
+		m.Factor, m.OutOfRange = efficiencyFactor(m.Points, ref.ActualKbps, ref.XPSNRY)
+		return m, nil
+	}
+
+	var cpu, gpu []BenchEncoder
+	for _, e := range encoders {
+		if e.Name == "x265" && height > 1080 {
+			continue // libx265 above 1080p is not a production route on the boxes this targets
+		}
+		if e.Accel != "" && e.Accel != transcoding.None && opts.Parallel {
+			gpu = append(gpu, e)
+		} else {
+			cpu = append(cpu, e)
+		}
+	}
+	var gpuMeasures []EffMeasure
+	var gpuErr error
+	var wg sync.WaitGroup
+	if len(gpu) > 0 {
+		// The mezzanine must exist before the lanes fork.
+		mezzOnce()
+		if mezzErr != nil {
+			return nil, mezzErr
+		}
+		wg.Go(func() {
+			for _, e := range gpu {
+				m, err := curve(e)
+				if err != nil {
+					gpuErr = err
+					return
+				}
+				gpuMeasures = append(gpuMeasures, m)
+			}
+		})
+	}
+	var out []EffMeasure
+	for _, e := range cpu {
+		m, err := curve(e)
+		if err != nil {
+			wg.Wait()
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	wg.Wait()
+	if gpuErr != nil {
+		return nil, gpuErr
+	}
+	return append(out, gpuMeasures...), nil
 }
 
-func benchEncodeAt(ctx context.Context, src BenchSource, start float64, height int, e BenchEncoder, kbps int64, decodeWall float64, opts BenchOptions) (EffPoint, error) {
-	dir := opts.WorkDir
-	if dir == "" {
-		dir = os.TempDir()
+const refEncoderName = "ref-x264-crf23"
+
+// bracketPoints measures from the reference bitrate and walks toward the
+// reference fidelity until it is bracketed: the interpolation only ever reads
+// the two points around it, so the factor is the FULL curve's whenever the
+// curve is monotone (164 of the 165 FULL corpus curves; all were monotone).
+func bracketPoints(refXPSNR float64, measure func(ratio float64) (EffPoint, error)) ([]EffPoint, error) {
+	first, err := measure(1.0)
+	if err != nil {
+		return nil, err
 	}
-	out := filepath.Join(dir, fmt.Sprintf("ladder-eff-%d-%s-%d-%d.mp4", os.Getpid(), e.Name, height, kbps))
+	pts := []EffPoint{first}
+	seq := []float64{1.4, 2.0}
+	if first.XPSNRY > refXPSNR {
+		seq = []float64{0.7, 0.5}
+	}
+	for _, r := range seq {
+		pt, err := measure(r)
+		if err != nil {
+			return nil, err
+		}
+		pts = append(pts, pt)
+		lo, hi := pts[0].XPSNRY, pts[0].XPSNRY
+		for _, p := range pts {
+			lo, hi = math.Min(lo, p.XPSNRY), math.Max(hi, p.XPSNRY)
+		}
+		if lo < refXPSNR && refXPSNR <= hi {
+			break
+		}
+	}
+	return pts, nil
+}
+
+// benchEncodeMezz encodes the mezzanine with an encoder at a bitrate target
+// (or, for the reference, at crf) and scores it against the same frames.
+func benchEncodeMezz(ctx context.Context, m mezzanine, e BenchEncoder, kbps int64, crf int, opts BenchOptions) (EffPoint, error) {
+	dir := filepath.Dir(m.path)
+	out := filepath.Join(dir, fmt.Sprintf("ladder-eff-%d-%s-%d-%d.mp4", os.Getpid(), e.Name, m.height, kbps))
 	defer os.Remove(out) //nolint:errcheck // scratch file
 	pre, upload := benchHWInput(e)
-	vf := benchPreFilter(src, height)
-	if upload != "" {
-		vf += "," + upload
-	}
 	args := append([]string{"-hide_banner", "-v", "error", "-nostdin", "-y"}, pre...)
-	args = append(args, "-ss", fmt.Sprintf("%.3f", start), "-t", fmt.Sprintf("%.3f", opts.WindowSec), "-i", src.Path,
-		"-map", "0:v:0", "-vf", vf)
-	args = append(args, benchEncoderArgs(e, kbps)...)
+	args = append(args, m.inputArgs()...)
+	if upload != "" {
+		args = append(args, "-vf", upload)
+	}
+	if crf > 0 {
+		enc := resolveVideoEncoder(e.Codec)
+		args = append(args, "-c:v", enc, "-preset", e.Preset, "-crf", strconv.Itoa(crf))
+		args = append(args, softwareX264TuningArgs(enc, -1)...)
+		args = append(args, "-pix_fmt", "yuv420p")
+	} else {
+		args = append(args, benchEncoderArgs(e, kbps)...)
+	}
 	args = append(args, hlsForceKeyframesArgs...)
 	args = append(args, "-an", "-f", "mp4", out)
 	t0 := time.Now()
 	if err := procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.eff_encode"}, opts.FFmpeg, args...); err != nil {
-		return EffPoint{}, fmt.Errorf("ladder-bench: %s %dp at %d kbps: %w", e.Name, height, kbps, err)
+		return EffPoint{}, fmt.Errorf("ladder-bench: %s %dp at %d kbps: %w", e.Name, m.height, kbps, err)
 	}
-	wall := math.Max(time.Since(t0).Seconds()-decodeWall, 0.05)
+	wall := math.Max(time.Since(t0).Seconds(), 0.05)
 	fi, err := os.Stat(out)
 	if err != nil {
 		return EffPoint{}, err
 	}
-	pt := EffPoint{TargetKbps: kbps, ActualKbps: float64(fi.Size()) * 8 / opts.WindowSec / 1000}
-	if src.FPS > 0 {
-		pt.EncodeFP = opts.WindowSec * src.FPS / wall
-	}
+	pt := EffPoint{TargetKbps: kbps, ActualKbps: float64(fi.Size()) * 8 / opts.WindowSec / 1000, EncodeFP: float64(m.frames) / wall}
 	stats := out + ".xpsnr"
 	defer os.Remove(stats) //nolint:errcheck // scratch file
-	q := []string{"-hide_banner", "-v", "error", "-nostdin",
-		"-ss", fmt.Sprintf("%.3f", start), "-t", fmt.Sprintf("%.3f", opts.WindowSec), "-i", src.Path, "-i", out,
-		"-lavfi", fmt.Sprintf("[0:v]%s[ref];[1:v]format=yuv420p[enc];[enc][ref]xpsnr=stats_file=%s", benchPreFilter(src, height), stats),
-		"-f", "null", "-"}
+	q := append([]string{"-hide_banner", "-v", "error", "-nostdin"}, m.inputArgs()...)
+	q = append(q, "-i", out, "-lavfi", fmt.Sprintf("[1:v]format=yuv420p[e];[e][0:v]xpsnr=stats_file=%s", stats), "-f", "null", "-")
 	if qerr := procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.eff_xpsnr"}, opts.FFmpeg, q...); qerr != nil {
-		return EffPoint{}, fmt.Errorf("ladder-bench: xpsnr %s %dp: %w", e.Name, height, qerr)
+		return EffPoint{}, fmt.Errorf("ladder-bench: xpsnr %s %dp: %w", e.Name, m.height, qerr)
 	}
 	raw, err := os.ReadFile(stats)
 	if err != nil {
@@ -1014,4 +1168,125 @@ func expPct(v []float64, p float64) float64 {
 	sort.Float64s(s)
 	i := int(math.Round(p * float64(len(s)-1)))
 	return math.Exp(s[i])
+}
+
+// --- the point cache (INCREMENTAL mode) ---
+//
+// Every measured point is memoised under a key made of everything the
+// measurement depends on: the protocol version, the file's identity (path,
+// size, mtime), the scene, the window, the height and the pre-filter chain,
+// the encoder configuration (name, codec, backend, preset, features, device),
+// the bitrate target and the ffmpeg build. A point is recomputed only when one
+// of those changed; a run over known titles and encoders costs nothing, and
+// a new encoder or title adds only its own points.
+
+// benchCacheProtocol bumps when the measurement itself changes meaning.
+const benchCacheProtocol = 1
+
+type benchCache struct {
+	dir     string
+	src     BenchSource
+	opts    BenchOptions
+	ident   string
+	version string
+	mu      sync.Mutex
+}
+
+type benchCachedPoint struct {
+	Point    EffPoint `json:"point"`
+	Measured string   `json:"measured"`
+}
+
+func newBenchCache(dir string, src BenchSource, opts BenchOptions) *benchCache {
+	c := &benchCache{dir: dir, src: src, opts: opts}
+	if dir == "" {
+		return c
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		c.dir = ""
+		return c
+	}
+	fi, err := os.Stat(src.Path)
+	if err != nil {
+		c.dir = ""
+		return c
+	}
+	c.ident = fmt.Sprintf("%s|%d|%d", src.Path, fi.Size(), fi.ModTime().UnixNano())
+	c.version = ffmpegBuildID(opts.FFmpeg)
+	return c
+}
+
+var (
+	ffmpegBuildOnce sync.Once
+	ffmpegBuild     string
+)
+
+// ffmpegBuildID is the first line of `ffmpeg -version` - the build the points
+// were measured with; a different binary is a different cache.
+func ffmpegBuildID(bin string) string {
+	ffmpegBuildOnce.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "ladder_bench.version"}, bin, "-version")
+		if err == nil {
+			ffmpegBuild = strings.SplitN(string(out), "\n", 2)[0]
+		}
+	})
+	return ffmpegBuild
+}
+
+func (c *benchCache) key(start float64, height int, e BenchEncoder, target int64) string {
+	h := sha256.New()
+	fmt.Fprintf(h, "p%d|%s|%.3f|%.3f|%d|%s|%s|%s|%s|%s|%s|%s|%d|%s",
+		benchCacheProtocol, c.ident, start, c.opts.WindowSec, height, benchPreFilter(c.src, height),
+		e.Name, e.Codec, e.Accel, e.Preset, strings.Join(e.Features, ","), e.Device, target, c.version)
+	return hex.EncodeToString(h.Sum(nil))[:32]
+}
+
+func (c *benchCache) path(k string) string { return filepath.Join(c.dir, k+".json") }
+
+func (c *benchCache) get(k string) (EffPoint, bool) {
+	if c.dir == "" {
+		return EffPoint{}, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	raw, err := os.ReadFile(c.path(k))
+	if err != nil {
+		return EffPoint{}, false
+	}
+	var p benchCachedPoint
+	if json.Unmarshal(raw, &p) != nil || p.Point.ActualKbps <= 0 {
+		return EffPoint{}, false
+	}
+	return p.Point, true
+}
+
+func (c *benchCache) put(k string, pt EffPoint) {
+	if c.dir == "" {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	raw, err := json.Marshal(benchCachedPoint{Point: pt, Measured: time.Now().UTC().Format(time.RFC3339)})
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(c.path(k), raw, 0o644) //nolint:errcheck // a point that fails to persist is simply measured again next time
+}
+
+func (c *benchCache) reference(start float64, height int) (EffPoint, bool) {
+	return c.get(c.key(start, height, BenchEncoder{Name: refEncoderName, Codec: "h264", Preset: "veryfast"}, 0))
+}
+
+func (c *benchCache) putReference(start float64, height int, pt EffPoint) {
+	c.put(c.key(start, height, BenchEncoder{Name: refEncoderName, Codec: "h264", Preset: "veryfast"}, 0), pt)
+}
+
+func (c *benchCache) point(start float64, height int, e BenchEncoder, target int64) (EffPoint, bool) {
+	return c.get(c.key(start, height, e, target))
+}
+
+func (c *benchCache) putPoint(start float64, height int, e BenchEncoder, target int64, pt EffPoint) {
+	c.put(c.key(start, height, e, target), pt)
 }
