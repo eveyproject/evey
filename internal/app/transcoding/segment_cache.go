@@ -219,6 +219,8 @@ type ProfileFingerprint struct {
 	// it): different bytes, hashed - as a suffix only when set, so every
 	// table-priced rung keeps the hash it had.
 	CostModelled bool
+	// EfficiencyVersion: the encoder conversion applied on top (0 = none).
+	EfficiencyVersion int
 }
 
 // ProfileFingerprintOf projects a domain HLSProfile onto its cache fingerprint.
@@ -230,13 +232,14 @@ type ProfileFingerprint struct {
 // fails a test rather than silently aliasing the cache.
 func ProfileFingerprintOf(p transcoding.HLSProfile) ProfileFingerprint {
 	return ProfileFingerprint{
-		Name:         p.Name,
-		Width:        p.Width,
-		Height:       p.Height,
-		VideoBitrate: p.VideoBitrate,
-		AudioBitrate: p.AudioBitrate,
-		Copy:         p.Copy,
-		CostModelled: p.CostModelled,
+		Name:              p.Name,
+		Width:             p.Width,
+		Height:            p.Height,
+		VideoBitrate:      p.VideoBitrate,
+		AudioBitrate:      p.AudioBitrate,
+		Copy:              p.Copy,
+		CostModelled:      p.CostModelled,
+		EfficiencyVersion: p.EfficiencyVersion,
 	}
 }
 
@@ -441,6 +444,9 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 		fmt.Fprintf(&b, "p=%s|%dx%d|%d|%d|copy=%t", p.Name, p.Width, p.Height, p.VideoBitrate, p.AudioBitrate, p.Copy)
 		if p.CostModelled {
 			fmt.Fprintf(&b, "|cost=v%d", transcoding.CostModelV1.Version)
+		}
+		if p.EfficiencyVersion > 0 {
+			fmt.Fprintf(&b, "|eff=v%d", p.EfficiencyVersion)
 		}
 		b.WriteString("\n")
 	}

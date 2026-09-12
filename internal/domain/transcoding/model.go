@@ -207,6 +207,10 @@ type HLSProfile struct {
 	// itself rather than the class table's headroom above it. Different
 	// bytes at the same nominal bitrate: fingerprinted and hashed.
 	CostModelled bool
+	// EfficiencyVersion is the CodecEfficiencyModel version that converted the
+	// cost price to this route's encoder (0 = the reference price, or the
+	// table). Hashed like CostModelled: a recalibration is new bytes.
+	EfficiencyVersion int
 }
 
 // Must stay identical to LadderFilmNormal, which is the fallback ladder - the

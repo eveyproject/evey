@@ -157,6 +157,10 @@ func assertLadderInvariants(t *testing.T, name string, pr *PlanResolver, req Pla
 		if route.HWUsable || ladder[i].CostModelled {
 			assert.Equal(t, ladder[i].VideoBitrate, qt.MaxKbps, "%s: rung %d promises %d kbps but may emit %d", name, i, ladder[i].VideoBitrate, qt.MaxKbps)
 		}
-		assert.Equal(t, !route.HWUsable && !isCopy && hasCost(pr, req), ladder[i].CostModelled, "%s: rung %d cost-modelled exactly on the CPU route of a title with metrics", name, i)
+		key := route.EncoderKey()
+		_, covered := transcoding.CodecEfficiencyModelV1.Lookup(key, ladder[len(ladder)-1].Height)
+		isReference := key.Accel == "" && key.Codec == "h264"
+		assert.Equal(t, !isCopy && hasCost(pr, req) && (isReference || covered), ladder[i].CostModelled, "%s: rung %d cost-modelled exactly when the title has metrics and the route is the reference or a calibrated encoder", name, i)
+		assert.Equal(t, ladder[i].CostModelled && !isReference, ladder[i].EfficiencyVersion > 0, "%s: rung %d carries the efficiency version exactly when converted", name, i)
 	}
 }
