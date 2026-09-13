@@ -16,6 +16,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 	"log/slog"
 	"net/http"
 
@@ -58,7 +59,17 @@ type requestPlan struct {
 // resolver itself.
 func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
 	pr := &apptranscoding.PlanResolver{
-		Capability:            h.capability,
+		Capability: h.capability,
+		// The per-route cost model the backend-per-route pick reads (cheapest
+		// correct+proven backend for each route). Built from the live capability;
+		// nil-safe (a pre-v7 capability yields a model with no route evidence,
+		// and the pick falls back to the primary backend).
+		RouteCosts: func() *apptranscoding.RouteCostModel {
+			if h.capability == nil {
+				return nil
+			}
+			return apptranscoding.NewRouteCostModel(h.capability().RouteSamples, sysinfo.CPUBudget())
+		},
 		HWAccelEnabled:        h.hwAccelEnabled,
 		AV1Enabled:            h.av1Enabled,
 		AV1MaxHeight:          h.av1MaxHeight,

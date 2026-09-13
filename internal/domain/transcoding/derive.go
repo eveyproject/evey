@@ -117,6 +117,7 @@ type BenchReport struct {
 	HWFeatures          []string
 	HWRoutes            []string
 	RouteSamples        []RouteSample
+	Backends            []HWBackendCap
 	GPUClass            string
 	DetectedBackends    []string
 	CPUSignature        string
@@ -156,6 +157,7 @@ func (c EncodeCapability) Report() BenchReport {
 		HWFeatures:          c.HWFeatures,
 		HWRoutes:            c.HWRoutes,
 		RouteSamples:        c.RouteSamples,
+		Backends:            c.Backends,
 		GPUClass:            c.GPUClass,
 		DetectedBackends:    c.DetectedBackends,
 		CPUSignature:        c.CPUSignature,
@@ -215,6 +217,7 @@ func Derive(rep BenchReport, policy DerivePolicy) EncodeCapability {
 		HWFeatures:           rep.HWFeatures,
 		HWRoutes:             rep.HWRoutes,
 		RouteSamples:         rep.RouteSamples,
+		Backends:             rep.Backends,
 		DetectedBackends:     rep.DetectedBackends,
 		CPUSignature:         rep.CPUSignature,
 		BenchmarkedAt:        rep.BenchmarkedAt,

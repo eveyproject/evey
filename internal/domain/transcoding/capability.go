@@ -49,6 +49,18 @@ type EncodeCapability struct {
 	// Blackwell one yes.
 	HWDecodeCodecs []string `json:"hw_decode_codecs,omitempty"`
 
+	// Backends is the per-accelerator capability of EVERY certified backend
+	// (not just the primary): VAAPI and QSV on a box that has both, each with
+	// its own device, codecs, decode classes, features and proven routes. The
+	// resolver picks the backend PER ROUTE from this (the cheapest correct,
+	// proven one) instead of one global "best backend" - so HDR->SDR can take
+	// VAAPI's OpenCL tone-map while HEVC/SDR take a faster QSV, on the same host.
+	// The scalar HWBackend/HWDevice/... below are the PRIMARY (the cheapest SDR
+	// backend), kept for backward compatibility and non-route reads; a row from
+	// before this field is read as a single-backend host (Backends synthesised
+	// from the scalars by PrimaryAsBackend at read time).
+	Backends []HWBackendCap `json:"backends,omitempty"`
+
 	// RouteSamples is the per-route single-session cost evidence (see
 	// RouteSample): what a warm, route-faithful transcode of each proven route
 	// actually cost here. The admission cost model prices a route on this
@@ -142,6 +154,140 @@ type EncodeCapability struct {
 
 	// BenchHostBusyPercent is the host CPU busy share sampled before the bench.
 	BenchHostBusyPercent int `json:"bench_host_busy_percent,omitempty"`
+}
+
+// HWBackendCap is one accelerator's full capability - everything the resolver
+// needs to BUILD and gate a route on that specific backend. One per certified
+// backend in EncodeCapability.Backends.
+type HWBackendCap struct {
+	Backend       string   `json:"backend"`
+	Device        string   `json:"device,omitempty"`
+	Codecs        []string `json:"codecs,omitempty"`
+	DecodeCodecs  []string `json:"decode_codecs,omitempty"`
+	Features      []string `json:"features,omitempty"`
+	Routes        []string `json:"routes,omitempty"`
+	HW10Bit       bool     `json:"hw_10bit"`
+	HWTonemap     bool     `json:"hw_tonemap"`
+	HWOverlay     bool     `json:"hw_overlay"`
+	HWHDR10Encode bool     `json:"hw_hdr10_encode"`
+}
+
+// Proves reports whether this backend ran route end-to-end through the builder.
+// nil Routes (pre-probe) is trusted, matching HWRouteProven.
+func (b HWBackendCap) Proves(route string) bool {
+	if b.Routes == nil {
+		return true
+	}
+	return slices.Contains(b.Routes, route)
+}
+
+// SupportsCodec reports whether this backend encodes the domain codec.
+func (b HWBackendCap) SupportsCodec(codec string) bool {
+	codec = strings.ToLower(strings.TrimSpace(codec))
+	if codec == "" {
+		codec = "h264"
+	}
+	return slices.Contains(b.Codecs, codec)
+}
+
+// CanDecodeSource mirrors EncodeCapability.HWCanDecodeSource for one backend
+// (probe-matrix aware via the shared DecodeClassKey).
+func (b HWBackendCap) CanDecodeSource(codec string, tenBit bool, pixFmt string, probeVersion int) bool {
+	if probeVersion >= decodeMatrixProbeVersion && strings.TrimSpace(pixFmt) != "" {
+		return slices.Contains(b.DecodeCodecs, DecodeClassKey(codec, pixFmt))
+	}
+	if probeVersion < decodeMatrixProbeVersion && !HWChromaDecodable(pixFmt) {
+		return false
+	}
+	if !tenBit {
+		return slices.Contains(b.DecodeCodecs, normaliseSourceCodec(codec))
+	}
+	if normaliseSourceCodec(codec) != "hevc" {
+		return false
+	}
+	if probeVersion < decodeClassProbeVersion {
+		return slices.Contains(b.DecodeCodecs, "hevc")
+	}
+	return slices.Contains(b.DecodeCodecs, HWDecodeHEVC10)
+}
+
+// BackendCaps returns the per-backend capabilities, synthesising a single
+// entry from the primary scalars when Backends is empty (a pre-Backends row):
+// such a host behaves exactly as before - one backend for every route.
+func (c EncodeCapability) BackendCaps() []HWBackendCap {
+	if len(c.Backends) > 0 {
+		return c.Backends
+	}
+	if c.HWBackend == "" {
+		return nil
+	}
+	return []HWBackendCap{{
+		Backend: c.HWBackend, Device: c.HWDevice, Codecs: c.HWCodecs, DecodeCodecs: c.HWDecodeCodecs,
+		Features: c.HWFeatures, Routes: c.HWRoutes, HW10Bit: c.HW10BitTranscode, HWTonemap: c.HWTonemap,
+		HWOverlay: c.HWOverlay, HWHDR10Encode: c.HWHDR10Encode,
+	}}
+}
+
+// AnyBackendSupports reports whether ANY certified backend encodes the codec.
+func (c EncodeCapability) AnyBackendSupports(codec string) bool {
+	for _, b := range c.BackendCaps() {
+		if b.SupportsCodec(codec) {
+			return true
+		}
+	}
+	return false
+}
+
+// TonemapBackend returns a backend that tone-maps HDR->SDR on the GPU (proves
+// the tone-map route and carries a usable tonemap for hdrRange): OpenCL handles
+// any range, the fixed VPP only PQ. Empty ok=false when none - HDR then
+// tone-maps in software. QSV's vpp is ineligible so it never proves the route.
+func (c EncodeCapability) TonemapBackend(hdrRange string) (HWBackendCap, bool) {
+	for _, b := range c.BackendCaps() {
+		// b.HWTonemap is the GPU tone-map probe; Proves gates the builder route
+		// (QSV's vpp is ineligible so its route is never proven, even though its
+		// probe may init). Both required so a pre-Backends row (nil Routes,
+		// trusted) still respects the probe flag.
+		if !b.HWTonemap || !b.Proves(HWRouteTonemap) || (b.Backend != "vaapi" && b.Backend != "qsv") {
+			continue
+		}
+		if hdrRange != "PQ" && !slices.Contains(b.Features, FeatureTonemapOpenCL) {
+			continue
+		}
+		return b, true
+	}
+	return HWBackendCap{}, false
+}
+
+// PassthroughBackend returns a backend that keeps HDR (HEVC Main10 passthrough):
+// proves the route, encodes HEVC, HDR10 + 10-bit VPP. Empty ok=false when none.
+func (c EncodeCapability) PassthroughBackend() (HWBackendCap, bool) {
+	for _, b := range c.BackendCaps() {
+		if b.Proves(HWRoutePassthrough) && b.SupportsCodec("hevc") && b.HWHDR10Encode && b.HW10Bit {
+			return b, true
+		}
+	}
+	return HWBackendCap{}, false
+}
+
+// OverlayBackend returns a backend that composites a bitmap subtitle on the GPU.
+func (c EncodeCapability) OverlayBackend() (HWBackendCap, bool) {
+	for _, b := range c.BackendCaps() {
+		if b.HWOverlay {
+			return b, true
+		}
+	}
+	return HWBackendCap{}, false
+}
+
+// BackendCap returns the named backend's capability, ok=false when absent.
+func (c EncodeCapability) BackendCap(name string) (HWBackendCap, bool) {
+	for _, b := range c.BackendCaps() {
+		if strings.EqualFold(b.Backend, name) {
+			return b, true
+		}
+	}
+	return HWBackendCap{}, false
 }
 
 // BenchRungSample is one resolution rung the benchmark measured.

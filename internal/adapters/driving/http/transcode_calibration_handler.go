@@ -59,6 +59,45 @@ type publicEncodeCapability struct {
 	CPUSignature string `json:"cpu_signature,omitempty"`
 }
 
+// routeCostView is one measured route as the admission engine prices it, for
+// the admin panel: the identity (backend, encoder, route class, rung), the warm
+// single-session measurement (fps, CPU cores), and the derived per-pool cost
+// (accelerator fraction + normalised CPU) at the source frame rate it was
+// measured on.
+type routeCostView struct {
+	Backend   string  `json:"backend"`
+	Encoder   string  `json:"encoder"`
+	Route     string  `json:"route"`
+	Height    int     `json:"height"`
+	FPS       float64 `json:"fps"`
+	CPUCores  float64 `json:"cpu_cores"`
+	SourceFPS float64 `json:"source_fps"`
+	AccelCost float64 `json:"accel_cost"`
+	CPUCost   float64 `json:"cpu_cost"`
+}
+
+// routeCostViews prices every RouteSample through the same RouteCostModel the
+// limiter uses, so the panel shows exactly what admission charges. Empty on a
+// capability with no route evidence (a pre-v7 row).
+func routeCostViews(cap domaintranscoding.EncodeCapability) []routeCostView {
+	if len(cap.RouteSamples) == 0 {
+		return nil
+	}
+	m := apptranscoding.NewRouteCostModel(cap.RouteSamples, sysinfo.CPUBudget())
+	out := make([]routeCostView, 0, len(cap.RouteSamples))
+	for _, rs := range cap.RouteSamples {
+		v := routeCostView{
+			Backend: rs.Key.Backend, Encoder: rs.Key.Encoder, Route: string(rs.Key.Route),
+			Height: rs.Height, FPS: rs.FPS, CPUCores: rs.CPUCores, SourceFPS: rs.SourceFPS,
+		}
+		if c, ok := m.Cost(rs.Key, rs.Height, rs.SourceFPS); ok {
+			v.AccelCost, v.CPUCost = c.Accel, c.CPU
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
 // transcodeCalibrationGetHandler returns the current encode capability
 // (read-only). Used by the Server Config admin page to surface "last
 // calibrated 3 days ago" + the actual caps the host is enforcing.
@@ -75,18 +114,28 @@ func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-cache") // freshness wins on an admin-only path
 		// Embed the capability so its fields stay top-level (the frontend reads
 		// them flat) and add the recent HW-fallback events alongside.
+		cap := svc.Current()
 		resp := struct {
 			publicEncodeCapability
 			HWMode      string                           `json:"hw_mode"`
 			IsWSL       bool                             `json:"is_wsl"`
 			HWFallbacks []apptranscoding.HWFallbackEvent `json:"hw_fallbacks"`
+			// RouteCosts is what the ADMISSION cost model actually prices on: one
+			// row per measured route (backend, encoder, route class, rung) with
+			// its warm single-session fps + CPU cores and the derived accel/CPU
+			// pool cost. The bench_samples table above stays a DIAGNOSTIC/fallback
+			// (the cumulative bare-preset HW rung); these RouteCosts are the truth
+			// the engine uses, so "hw 2160 = 55 fps" in that table is not mistaken
+			// for the whole story.
+			RouteCosts []routeCostView `json:"route_costs"`
 		}{
-			publicEncodeCapability: publicEncodeCapability{EncodeCapability: svc.Current()},
+			publicEncodeCapability: publicEncodeCapability{EncodeCapability: cap},
 			HWMode:                 string(svc.HWMode()),
 			// WSL's d3d12 VA driver can't sustain Evey's multi-variant VAAPI/QSV
 			// encode, so the admin UI greys those backends when this is true.
 			IsWSL:       sysinfo.IsWSL(),
 			HWFallbacks: svc.RecentFallbacks(),
+			RouteCosts:  routeCostViews(cap),
 		}
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			span.RecordError(err)

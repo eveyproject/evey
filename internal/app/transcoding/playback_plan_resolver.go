@@ -29,6 +29,10 @@ import (
 type PlanResolver struct {
 	// Capability reports the host's calibrated encode ceiling; nil → SafeFallback.
 	Capability func() transcoding.EncodeCapability
+	// RouteCosts is the per-route cost model (nil-safe) the backend-per-route
+	// pick reads to choose the CHEAPEST correct+proven backend for a route.
+	// nil → the pick falls back to the primary backend (single-backend behaviour).
+	RouteCosts func() *RouteCostModel
 	// HWAccelEnabled / AV1Enabled / AV1MaxHeight / HWTonemapEnabled are the
 	// operator toggles, read dynamically (admin changes apply without restart).
 	HWAccelEnabled   func() bool
@@ -282,59 +286,128 @@ func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bo
 		return "", "", nil, false, false
 	}
 	cap := pr.Capability()
-	if !cap.HWSupports(outputCodec) || !cap.HWRouteProven(transcoding.HWRouteSDR) {
+	// Choose the backend for THIS route (not one global "best host backend"):
+	// the cheapest accelerator that is correct, proves the route and supports
+	// the codec. On a box with both, HDR->SDR takes VAAPI's OpenCL tone-map
+	// while HEVC/SDR take a faster QSV.
+	bc, ok := pr.pickBackend(outputCodec, hwTonemap)
+	if !ok {
 		return "", "", nil, false, false
 	}
-	if transcoding.CanonicalVideoCodec(outputCodec) == "hevc" && !cap.HWRouteProven(transcoding.HWRouteHEVC) {
-		return "", "", nil, false, false
-	}
-	// The zero-copy pipeline HW-decodes the source (-hwaccel). If this GPU can't
-	// decode the source - a pre-Skylake Intel iGPU decodes H.264 but not HEVC, a
-	// Skylake decodes HEVC but not Main10, no GPU decodes 10-bit H.264 or 4:2:2
-	// - that decode fails at filter negotiation and the player stalls. Such a
-	// source takes the DECOUPLED path instead: software decode, hwupload, then
-	// the same GPU scale and encode (HLSProcessOpts.HWSoftwareDecode). Losing the
-	// encoder too, which is what this gate used to do, left a whole library of
-	// DVD rips on libx264 beside an idle GPU.
-	//
-	// Three cases keep the old full-software fallback, because the decoupled
-	// pipeline is not expressible or not honest for them:
-	//   - a backend with no wired upload chain (NVENC), or one whose decoupled
-	//     route the calibration did not prove,
-	//   - a GPU tone-map, whose filter needs the 10-bit surface the upload's
-	//     CPU-side format=nv12 has already folded away,
-	//   - a 10-bit source, whose software decode is the expensive half at 4K -
-	//     routing it to the GPU pool would price a CPU workload as a GPU one.
-	decodable := cap.HWCanDecodeSource(src.Codec, src.TenBit, src.PixelFormat)
+	backend := transcoding.HWAccelType(bc.Backend)
+	// The zero-copy pipeline HW-decodes the source. If this backend can't decode
+	// it (chroma/depth/codec), the source takes the DECOUPLED path (software
+	// decode + hwupload + GPU scale/encode), unless that is not expressible or
+	// honest: no upload chain / unproven decoupled route, a GPU tone-map (needs
+	// the 10-bit surface the upload folds away), or a 10-bit source (its
+	// software decode is the expensive half - price it as CPU, not GPU).
+	decodable := bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat, cap.ProbeVersion)
 	softwareDecode = src.Codec != "" && !decodable
 	if softwareDecode {
-		backend := transcoding.HWAccelType(cap.HWBackend)
 		if hwTonemap || src.TenBit || (backend != transcoding.VAAPI && backend != transcoding.QSV) ||
-			!cap.HWRouteProven(transcoding.HWRouteDecoupled) {
+			!bc.Proves(transcoding.HWRouteDecoupled) {
 			return "", "", nil, false, false
 		}
 	}
-	// A 10-bit source (HEVC Main10, ubiquitous at 2160p HDR) needs the HW VPP to
-	// fold p010 down to the 8-bit nv12 the h264 encoder takes (hwScaleFilter's
-	// format=nv12). Some drivers - Intel i965 VEBOX - abort (SIGABRT)
-	// the moment a 10-bit surface reaches scale_vaapi. Unless the calibration
-	// proved the 10-bit VPP works AND ran the builder's 10-bit session, software-
-	// transcode the source instead of crashing the GPU pipeline.
-	// Exception: when this request HW-tone-maps (hwTonemap), the GPU tone-mapper
-	// (tonemap_vaapi / vpp_qsv) folds the 10-bit p010 down to 8-bit nv12 itself,
-	// so the scale_vaapi-on-p010 hazard the gate guards against never arises -
-	// the 10-bit source can take the HW path even without HW10BitTranscode.
-	if src.TenBit && !hwTonemap && (!cap.HW10BitTranscode || !cap.HWRouteProven(transcoding.HWRouteSource10Bit)) {
+	// A 10-bit source needs the HW VPP to fold p010->nv12 for the 8-bit encoder;
+	// some drivers abort. Unless the 10-bit VPP is proven (and its builder route
+	// ran), software-transcode. Exception: a GPU tone-map folds p010 itself.
+	if src.TenBit && !hwTonemap && (!bc.HW10Bit || !bc.Proves(transcoding.HWRouteSource10Bit)) {
 		return "", "", nil, false, false
 	}
-	// A source layout outside 4:2:0 8/10-bit (4:4:4, 12-bit) the GPU decodes
-	// rides the zero-copy chain only once that chain ran on it end-to-end.
-	if !softwareDecode && !transcoding.CanonicalDecodeFormat(src.PixelFormat) && !cap.HWRouteProven(transcoding.HWRouteSourceFormat(src.PixelFormat)) {
+	// A source layout outside 4:2:0 8/10-bit rides the zero-copy chain only once
+	// that chain ran on it end-to-end for this backend.
+	if !softwareDecode && !transcoding.CanonicalDecodeFormat(src.PixelFormat) && !bc.Proves(transcoding.HWRouteSourceFormat(src.PixelFormat)) {
 		return "", "", nil, false, false
 	}
-	return cap.HWBackend, cap.HWDevice, pr.effectiveHWFeatures(cap.HWFeatures), true, softwareDecode
+	return bc.Backend, bc.Device, pr.effectiveHWFeatures(bc.Features), true, softwareDecode
 }
 
+// pickBackend chooses the accelerator for a route: among the certified backends
+// that prove the route's encode path and support the codec, the CHEAPEST by
+// route cost (RouteCosts), with a <5% hysteresis tie-break (the primary, then
+// alphabetical) so the pick does not flip on measurement noise across
+// recalibrations. A tone-map route needs a backend proving HWRouteTonemap (only
+// a GPU tone-mapper - QSV's vpp is ineligible - so HDR lands on VAAPI/OpenCL);
+// everything else needs SDR (+HEVC for an HEVC output). nil RouteCosts or a
+// pre-Backends capability falls back to the primary backend.
+func (pr *PlanResolver) pickBackend(outputCodec string, hwTonemap bool) (transcoding.HWBackendCap, bool) {
+	cap := pr.Capability()
+	caps := cap.BackendCaps()
+	if len(caps) == 0 {
+		return transcoding.HWBackendCap{}, false
+	}
+	hevc := transcoding.CanonicalVideoCodec(outputCodec) == "hevc"
+	costRoute := transcoding.RouteCostSDR
+	qualifies := func(b transcoding.HWBackendCap) bool {
+		if !b.SupportsCodec(outputCodec) || !b.Proves(transcoding.HWRouteSDR) {
+			return false
+		}
+		if hevc && !b.Proves(transcoding.HWRouteHEVC) {
+			return false
+		}
+		if hwTonemap && !b.Proves(transcoding.HWRouteTonemap) {
+			return false
+		}
+		return true
+	}
+	if hwTonemap {
+		costRoute = transcoding.RouteCostTonemap
+	}
+	var model *RouteCostModel
+	if pr.RouteCosts != nil {
+		model = pr.RouteCosts()
+	}
+	// cost of a backend's route at a reference rung (1080) and source fps (24):
+	// the RELATIVE order of the backends is what matters, and it is stable
+	// across rungs. Missing evidence => +inf (never preferred on cost).
+	const refRung, refFPS = 1080, 24.0
+	costOf := func(b transcoding.HWBackendCap) float64 {
+		if model == nil {
+			return 0 // no cost model: every qualifying backend ties, tie-break decides
+		}
+		enc := transcoding.RouteEncoderName(outputCodec, b.Backend)
+		if c, ok := model.Cost(transcoding.RouteCostKeyFor(transcoding.HWAccelType(b.Backend), enc, costRoute), refRung, refFPS); ok {
+			return c.Accel
+		}
+		return 1e9
+	}
+	var best transcoding.HWBackendCap
+	var bestCost float64
+	found := false
+	for _, b := range caps {
+		if !qualifies(b) {
+			continue
+		}
+		c := costOf(b)
+		if !found || betterBackend(b, c, best, bestCost, cap.HWBackend) {
+			best, bestCost, found = b, c, true
+		}
+	}
+	return best, found
+}
+
+// betterBackend is pickBackend's ordering: strictly cheaper wins beyond a 5%
+// hysteresis band; within the band the PRIMARY backend wins, then the
+// alphabetically-smaller one - both stable across recalibrations.
+func betterBackend(cand transcoding.HWBackendCap, candCost float64, cur transcoding.HWBackendCap, curCost float64, primary string) bool {
+	if hi := max(candCost, curCost); hi > 0 && absFloat(candCost-curCost)/hi >= 0.05 {
+		return candCost < curCost
+	}
+	if strings.EqualFold(cand.Backend, primary) != strings.EqualFold(cur.Backend, primary) {
+		return strings.EqualFold(cand.Backend, primary)
+	}
+	return cand.Backend < cur.Backend
+}
+
+func absFloat(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// burnInStaysSoftware
 // burnInStaysSoftware mirrors the builder's own refusal (hwUsable): a bitmap
 // subtitle burn-in without a probed GPU compositor is built as a SOFTWARE
 // encode, so the route, the class and the pool must say software too - or a
@@ -454,7 +527,7 @@ func (pr *PlanResolver) outputCodecFor(decision transcoding.PlaybackDecision, st
 	if !pr.clientDecodes(decision, "hevc") || pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
 		return codec
 	}
-	if pr.Capability().HWSupports("hevc") {
+	if pr.Capability().AnyBackendSupports("hevc") {
 		return "hevc"
 	}
 	return codec
@@ -489,8 +562,7 @@ func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecisi
 	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
 		return false
 	}
-	cap := pr.Capability()
-	if !cap.HWHDRPassthroughUsable() || !cap.HW10BitTranscode || !cap.HWRouteProven(transcoding.HWRoutePassthrough) {
+	if _, ok := pr.Capability().PassthroughBackend(); !ok {
 		return false
 	}
 	if decision.VideoCodec != "" && !strings.EqualFold(decision.VideoCodec, "h264") && !strings.EqualFold(decision.VideoCodec, "hevc") {
@@ -511,14 +583,10 @@ func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision, h
 	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
 		return false
 	}
-	cap := pr.Capability()
-	if !cap.HWTonemap || (cap.HWBackend != "vaapi" && cap.HWBackend != "qsv") || !cap.HWRouteProven(transcoding.HWRouteTonemap) {
-		return false
-	}
-	// tonemap_vaapi / vpp_qsv only read PQ: HLG comes out wrong and a Dolby
-	// Vision RPU is ignored (green/purple on profile 5). tonemap_opencl handles
-	// both; without it those sources stay on tonemapx.
-	if hdrRange != "PQ" && !cap.HWHasFeature(transcoding.FeatureTonemapOpenCL) {
+	// A backend that tone-maps this range on the GPU (VAAPI OpenCL for any range,
+	// PQ-only for the fixed VPP; QSV vpp is ineligible). Picked PER ROUTE, so a
+	// QSV-primary host still routes HDR->SDR to VAAPI's OpenCL.
+	if _, ok := pr.Capability().TonemapBackend(hdrRange); !ok {
 		return false
 	}
 	return slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
@@ -538,7 +606,7 @@ func (pr *PlanResolver) HWOverlayWanted(decision transcoding.PlaybackDecision) b
 	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
 		return false
 	}
-	if !pr.Capability().HWOverlay {
+	if _, ok := pr.Capability().OverlayBackend(); !ok {
 		return false
 	}
 	return decision.SubtitleDecision == "burn"
