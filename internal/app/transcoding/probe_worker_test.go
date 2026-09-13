@@ -178,6 +178,23 @@ func TestProbeWorker_CeilingHitFromSignals(t *testing.T) {
 	assert.Empty(t, sig.CeilingHitCandidates(), "the signal is cleared once probed")
 }
 
+func TestProbeWorker_UnclassifiedTitleIsNotProbed(t *testing.T) {
+	// A ceiling hit on a title the classifier has not reached yet: probing it
+	// would persist an empty class over the zero entry (prod 2026-09-13, 16
+	// titles orphaned from both queues). The signal must survive for a later tick.
+	sig := NewProbeSignalStore(0)
+	for range transcoding.ProbeCeilingHitThreshold {
+		sig.RecordCeilingHit("fresh")
+	}
+	repo := &fakeProbeRepo{entries: map[string]transcoding.ComplexityEntry{}}
+	pr := &fakeProber{probe: transcoding.TitleProbe{Protocol: transcoding.TitleProbeProtocol, ModelVersion: transcoding.CostModelV2.Version, Encoder: transcoding.TitleProbeEncoderID}}
+	w := newProbeWorker(repo, pr, sig)
+	assert.Zero(t, w.processBatch(context.Background()))
+	assert.Zero(t, pr.callCount(), "no probe on a row without a class")
+	assert.NotContains(t, repo.sets, "fresh", "nothing is persisted over the zero entry")
+	assert.Equal(t, []string{"fresh"}, sig.CeilingHitCandidates(), "the signal is kept for the classifier's pass")
+}
+
 func TestProbeWorker_NoConcurrentDuplicate(t *testing.T) {
 	repo := &fakeProbeRepo{candidates: []string{"x"}, entries: map[string]transcoding.ComplexityEntry{
 		"x": {Class: transcoding.ClassFilmNormal, Metrics: canonMetrics(0.2)},

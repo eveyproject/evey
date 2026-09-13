@@ -71,6 +71,11 @@ func (r *MediaComplexityRepo) Set(ctx context.Context, mediaItemID string, class
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
+	// An empty class is neither NULL (ListUnclassified) nor a classified row
+	// (ListProbeCandidates): the title would leave both queues for good.
+	if class == "" {
+		return fmt.Errorf("complexity Set: empty class for media item %q", mediaItemID)
+	}
 	metricsJSON, err := json.Marshal(metrics)
 	if err != nil {
 		return fmt.Errorf("complexity Set: marshal metrics: %w", err)
