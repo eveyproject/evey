@@ -40,6 +40,9 @@ interface UseWasmAudioPlaybackArgs {
   // first two since 2026-07-30; the web player had NONE, so a beta tester's
   // "no sound" on 2026-09-02 could only be inferred from hls.js stall lines.
   reportEvent?: PlayerEventReporter;
+  // audioOffsetMs is the viewer's menu correction (positive = audio later),
+  // applied live to the engine's schedule - never by reloading the video leg.
+  audioOffsetMs?: number;
 }
 
 // stallGateReportDue thins the stall-gate stream: report the first cut, then
@@ -63,8 +66,14 @@ export function useWasmAudioPlayback({
   active,
   onFallback,
   reportEvent = noopReporter,
+  audioOffsetMs = 0,
 }: UseWasmAudioPlaybackArgs): void {
   const engineRef = useRef<WasmAudioEngine | null>(null);
+  const audioOffsetRef = useRef(audioOffsetMs);
+  audioOffsetRef.current = audioOffsetMs;
+  useEffect(() => {
+    engineRef.current?.setUserOffsetSec(audioOffsetMs / 1000);
+  }, [audioOffsetMs]);
   const onFallbackRef = useRef(onFallback);
   onFallbackRef.current = onFallback;
   const reportRef = useRef(reportEvent);
@@ -140,6 +149,7 @@ export function useWasmAudioPlayback({
             return newToken;
           },
           aacPlaylistUrl: aacUri ? new URL(aacUri, base).toString() : undefined,
+          userOffsetSec: audioOffsetRef.current / 1000,
           onModeChange: (mode) => report("wasm_audio_mode", mode),
           onDiagnostic: (detail) => report("wasm_audio_guard", detail),
           onStallGate: (cuts) => {

@@ -16,6 +16,7 @@ export interface EngineStats {
   driftMs?: number;
   leadMs?: number;
   leadMeasured?: boolean;
+  userOffsetMs?: number;
   outputLatencyMs?: number;
 }
 
@@ -90,6 +91,7 @@ export function playbackSnapshot(video: HTMLVideoElement, engine?: EngineStats |
     // The delay the schedule adds (measured or base) and the sink's own
     // latency: a viewer's "audio late" report reads against these, not drift.
     if (engine.leadMs != null && Number.isFinite(engine.leadMs)) parts.push(`lead=${Math.round(engine.leadMs)}ms${engine.leadMeasured ? "" : "*"}`);
+    if (engine.userOffsetMs) parts.push(`off=${Math.round(engine.userOffsetMs)}ms`);
     if (engine.outputLatencyMs != null && Number.isFinite(engine.outputLatencyMs)) parts.push(`out=${Math.round(engine.outputLatencyMs)}ms`);
   }
   const render = renderStatsByVideo.get(video);

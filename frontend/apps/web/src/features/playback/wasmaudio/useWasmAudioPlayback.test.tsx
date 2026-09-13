@@ -12,6 +12,7 @@ import { stallGateReportDue, useWasmAudioPlayback } from "./useWasmAudioPlayback
 // The engine is replaced by a shell that only captures its options, so the
 // test drives the callbacks by hand - no worker, no AudioContext.
 let captured: WasmAudioEngineOptions | null = null;
+const setUserOffsetSec = vi.fn();
 vi.mock("./WasmAudioEngine", () => ({
   WasmAudioEngine: class {
     constructor(_video: HTMLVideoElement, _url: string, opts: WasmAudioEngineOptions) {
@@ -19,6 +20,7 @@ vi.mock("./WasmAudioEngine", () => ({
     }
     start = vi.fn(async () => {});
     destroy = vi.fn();
+    setUserOffsetSec = setUserOffsetSec;
   },
 }));
 
@@ -32,7 +34,7 @@ const MASTER_WASM = [
 
 const MASTER_MUXED = ["#EXTM3U", '#EXT-X-STREAM-INF:BANDWIDTH=8000000,CODECS="avc1.640028,mp4a.40.2"', "v0.m3u8"].join("\n");
 
-function mount(master: string, onStreamTokenRefresh = vi.fn(async () => "fresh-tok")) {
+function mount(master: string, onStreamTokenRefresh = vi.fn(async () => "fresh-tok"), audioOffsetMs = 0) {
   vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(master, { status: 200 }));
   const video = document.createElement("video");
   Object.defineProperty(video, "currentTime", { value: 12.34, writable: true });
@@ -41,19 +43,22 @@ function mount(master: string, onStreamTokenRefresh = vi.fn(async () => "fresh-t
   const onStreamTokenRefreshRef = { current: onStreamTokenRefresh };
   const reportEvent = vi.fn();
   const onFallback = vi.fn();
-  renderHook(() =>
-    useWasmAudioPlayback({
-      videoRef,
-      mediaId: "media-1",
-      currentTrackIndex: 1,
-      streamTokenRef,
-      onStreamTokenRefresh: onStreamTokenRefreshRef,
-      active: true,
-      onFallback,
-      reportEvent,
-    }),
+  const hook = renderHook(
+    (props: { audioOffsetMs: number }) =>
+      useWasmAudioPlayback({
+        videoRef,
+        mediaId: "media-1",
+        currentTrackIndex: 1,
+        streamTokenRef,
+        onStreamTokenRefresh: onStreamTokenRefreshRef,
+        active: true,
+        onFallback,
+        reportEvent,
+        audioOffsetMs: props.audioOffsetMs,
+      }),
+    { initialProps: { audioOffsetMs } },
   );
-  return { reportEvent, onFallback, streamTokenRef, onStreamTokenRefresh };
+  return { reportEvent, onFallback, streamTokenRef, onStreamTokenRefresh, rerender: hook.rerender };
 }
 
 describe("useWasmAudioPlayback telemetry", () => {
@@ -119,6 +124,16 @@ describe("useWasmAudioPlayback telemetry", () => {
 });
 
 describe("stallGateReportDue", () => {
+  it("hands the viewer's audio offset to the engine at creation and live on change, in seconds, audio-later positive", async () => {
+    // -900 ms by ear on a Bluetooth/HDMI sink the browser under-reports: the
+    // menu used to reach only the native AAC leg and do nothing here.
+    const { rerender } = mount(MASTER_WASM, undefined, -900);
+    await waitFor(() => expect(captured).not.toBeNull());
+    expect(captured!.userOffsetSec).toBeCloseTo(-0.9, 6);
+    rerender({ audioOffsetMs: 250 });
+    await waitFor(() => expect(setUserOffsetSec).toHaveBeenLastCalledWith(0.25));
+  });
+
   it("passes the first cut and every doubling, nothing in between", () => {
     const due = Array.from({ length: 20 }, (_, i) => i + 1).filter(stallGateReportDue);
     expect(due).toEqual([1, 2, 4, 8, 16]);

@@ -737,7 +737,11 @@ export function HLSPlayer({
     transcodeMode, mediaId, currentTrackIndex, selectedBurnInTrack,
     startPositionMs, onEnded, setIsBuffering: setIsBufferingDebounced, setFatalError,
     setShedReason,
-    audioOffsetMs: appliedAudioOffsetMs,
+    // On the wasm branch the correction lives in the audio engine (applied
+    // live, no reload): the video leg is fetched with offset 0 so a menu change
+    // never restarts the transcode. The native AAC leg keeps the server-side
+    // resync (a re-encode with the offset), which needs the reload below.
+    audioOffsetMs: wasmAudioActive ? 0 : appliedAudioOffsetMs,
     gapless,
     wasmAudio: wasmAudioActive,
   });
@@ -846,16 +850,19 @@ export function HLSPlayer({
     active: wasmAudioActive,
     onFallback: () => setWasmAudioDisabled(true),
     reportEvent: reportWasmAudioEvent,
+    audioOffsetMs,
   });
 
   useEffect(() => {
     if (audioOffsetMs === appliedAudioOffsetMs) return;
     const id = setTimeout(() => {
       setAppliedAudioOffsetMs(audioOffsetMs);
-      setTranscodeStartTime(positionRef.current);
+      // The wasm engine took the new offset live; only the native AAC leg has
+      // to restart the transcode at the current position to re-time its audio.
+      if (!wasmAudioActive) setTranscodeStartTime(positionRef.current);
     }, 1200);
     return () => clearTimeout(id);
-  }, [audioOffsetMs, appliedAudioOffsetMs, setTranscodeStartTime]);
+  }, [audioOffsetMs, appliedAudioOffsetMs, setTranscodeStartTime, wasmAudioActive]);
 
   useSubtitleManager({
     videoRef, currentSubtitle, externalSubUrl, mediaId, streamToken,
