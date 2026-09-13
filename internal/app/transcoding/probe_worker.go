@@ -249,9 +249,16 @@ func (w *ProbeWorker) probeOne(ctx context.Context, mediaID string) (ran bool) {
 	ctx, endTask := bgtasks.BeginCtx(ctx, probeTask, mediaID)
 	defer endTask()
 
-	entry, _, err := w.repo.Get(ctx, mediaID)
+	entry, found, err := w.repo.Get(ctx, mediaID)
 	if err != nil {
 		w.logger.Warn("probe: metrics lookup failed", slog.String("media_id", mediaID), slog.Any("err", err))
+		return false
+	}
+	if !found {
+		// Not classified yet (a ceiling hit can arrive before the classifier's
+		// first pass): persisting a probe on the zero entry would write an EMPTY
+		// class and zero metrics, which leaves both queues forever (prod 2026-09-13:
+		// 16 titles). Keep the signal and let the classifier go first.
 		return false
 	}
 	sig := transcoding.ProbeSignals{}

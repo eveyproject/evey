@@ -1169,16 +1169,23 @@ func (r *BenchmarkRunner) probeBackendCap(ctx context.Context, c hwCandidate) tr
 	// The VAAPI->OpenCL derive is the readiness-sensitive step (a cold GPU
 	// fails it with the same -38 that later boots pass); replay it on the
 	// bounded schedule before believing "no OpenCL". No-op for QSV/NVENC.
-	tonemapOpenCL := r.runHWReadinessProbe(ctx, "opencl_tonemap", c.backend, c.device, classifyOpenCLProbe,
-		func() (bool, string, string, error) {
-			return probeHWTonemapOpenCLE(ctx, r.ffmpegPath, c.backend, c.device)
-		})
+	// Only where the derive route exists (VAAPI; OpenCL also on RKMPP): a
+	// backend without one would otherwise log a "failed" readiness step.
+	tonemapOpenCL, tonemapVulkan := false, false
+	if c.backend == "vaapi" || c.backend == "rkmpp" {
+		tonemapOpenCL = r.runHWReadinessProbe(ctx, "opencl_tonemap", c.backend, c.device, classifyOpenCLProbe,
+			func() (bool, string, string, error) {
+				return probeHWTonemapOpenCLE(ctx, r.ffmpegPath, c.backend, c.device)
+			})
+	}
 	// Vulkan/libplacebo, derived from the same node: a third independent
 	// implementation (VAAPI only), replayed on the same readiness schedule.
-	tonemapVulkan := r.runHWReadinessProbe(ctx, "vulkan_tonemap", c.backend, c.device, classifyVulkanProbe,
-		func() (bool, string, string, error) {
-			return probeHWTonemapVulkanE(ctx, r.ffmpegPath, c.backend, c.device)
-		})
+	if c.backend == "vaapi" {
+		tonemapVulkan = r.runHWReadinessProbe(ctx, "vulkan_tonemap", c.backend, c.device, classifyVulkanProbe,
+			func() (bool, string, string, error) {
+				return probeHWTonemapVulkanE(ctx, r.ffmpegPath, c.backend, c.device)
+			})
+	}
 	// A curve that runs is not a curve that is right: measure each probed
 	// implementation against the software reference before certifying it.
 	tonemapNative, tonemapOpenCL, tonemapVulkan = r.gateTonemapImpls(ctx, c.backend, c.device, tonemapNative, tonemapOpenCL, tonemapVulkan)
