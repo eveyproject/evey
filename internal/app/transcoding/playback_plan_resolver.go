@@ -263,6 +263,9 @@ type hwSource struct {
 	Codec       string
 	TenBit      bool
 	PixelFormat string
+	// Interlaced: a backend whose deinterlacer is session-level (QSV) must
+	// have proven it correct to take this source at all (DeinterlacesOnGPU).
+	Interlaced bool
 }
 
 // ResolveHW decides the hardware encode backend for a chosen output codec.
@@ -290,7 +293,7 @@ func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bo
 	// the cheapest accelerator that is correct, proves the route and supports
 	// the codec. On a box with both, HDR->SDR takes VAAPI's OpenCL tone-map
 	// while HEVC/SDR take a faster QSV.
-	bc, ok := pr.pickBackend(outputCodec, hwTonemap)
+	bc, ok := pr.pickBackend(outputCodec, hwTonemap, src.Interlaced)
 	if !ok {
 		return "", "", nil, false, false
 	}
@@ -331,7 +334,7 @@ func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bo
 // a GPU tone-mapper - QSV's vpp is ineligible - so HDR lands on VAAPI/OpenCL);
 // everything else needs SDR (+HEVC / +AV1 for that output). nil RouteCosts or a
 // pre-Backends capability falls back to the primary backend.
-func (pr *PlanResolver) pickBackend(outputCodec string, hwTonemap bool) (transcoding.HWBackendCap, bool) {
+func (pr *PlanResolver) pickBackend(outputCodec string, hwTonemap, interlaced bool) (transcoding.HWBackendCap, bool) {
 	cap := pr.Capability()
 	caps := cap.BackendCaps()
 	if len(caps) == 0 {
@@ -348,6 +351,11 @@ func (pr *PlanResolver) pickBackend(outputCodec string, hwTonemap bool) (transco
 			return false
 		}
 		if av1 && !b.Proves(transcoding.HWRouteAV1) {
+			return false
+		}
+		// An interlaced source on a session-level deinterlacer (QSV) needs the
+		// probed+proven filter; a QSV that never proved it would serve combing.
+		if interlaced && !b.DeinterlacesOnGPU() {
 			return false
 		}
 		if hwTonemap && !b.Proves(transcoding.HWRouteTonemap) {
@@ -456,7 +464,7 @@ func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecisio
 	// 10-bit surface, but it must be the one decoding (the bridge downloads).
 	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
 	resolve := func(c string) {
-		accel, device, features, usable, softwareDecode = pr.resolveHW(c, hwSource{Codec: dims.Codec, TenBit: dims.TenBit && !bridge, PixelFormat: dims.PixelFormat}, hwTonemap)
+		accel, device, features, usable, softwareDecode = pr.resolveHW(c, hwSource{Codec: dims.Codec, TenBit: dims.TenBit && !bridge, PixelFormat: dims.PixelFormat, Interlaced: dims.Interlaced}, hwTonemap)
 		if pr.hwRouteRefused(decision, dims, bridge, softwareDecode) {
 			accel, device, features, usable, softwareDecode = "", "", nil, false, false
 		}
@@ -504,7 +512,7 @@ func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src
 	// decode keeps the whole job on the CPU. Same answer as EffectiveVideoCodec.
 	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
 	resolve := func(c string) bool {
-		_, _, _, usable, softwareDecode := pr.resolveHW(c, hwSource{Codec: src.Codec, TenBit: src.TenBit && !bridge, PixelFormat: src.PixelFormat}, hwTonemap)
+		_, _, _, usable, softwareDecode := pr.resolveHW(c, hwSource{Codec: src.Codec, TenBit: src.TenBit && !bridge, PixelFormat: src.PixelFormat, Interlaced: src.Interlaced}, hwTonemap)
 		return usable && !pr.hwRouteRefused(decision, src, bridge, softwareDecode)
 	}
 	codec := pr.outputCodecFor(decision, nil)
@@ -594,6 +602,18 @@ func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision, h
 		return false
 	}
 	return slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
+}
+
+// HWDeinterlaceWanted reports whether the resolved GPU session should run the
+// backend's SESSION-level deinterlacer: the source is known interlaced (flag or
+// idet) and the backend is one whose deinterlacer is session-level and proven
+// (QSV). Per-frame backends answer false - their filter is always emitted.
+func (pr *PlanResolver) HWDeinterlaceWanted(streams []*library.MediaStream, accel string) bool {
+	if accel != string(transcoding.QSV) || pr.Capability == nil || !SourceInterlaced(streams) {
+		return false
+	}
+	bc, ok := pr.Capability().BackendCap(accel)
+	return ok && bc.DeinterlacesOnGPU()
 }
 
 // HWOverlayWanted reports whether this request should burn its bitmap subtitle
@@ -1037,6 +1057,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		// path is actually taken, and excluded from Hash() - the same subtitle on
 		// the same frames, whoever blended it.
 		HWOverlay:      pr.HWOverlayWanted(decision) && hwUsable,
+		HWDeinterlace:  hwUsable && pr.HWDeinterlaceWanted(streams, hwAccel),
 		Profiles:       fpProfiles,
 		QualityTargets: quality,
 	}

@@ -73,7 +73,7 @@ type EncodeCapability struct {
 	// the production builder (BuildFFmpegArgs on a mire of the route's class,
 	// real HLS output on disk): HWRouteSDR, HWRouteHEVC, HWRouteAV1,
 	// HWRouteSource10Bit, HWRouteTonemap, HWRouteBridge, HWRoutePassthrough,
-	// HWRouteDecoupled.
+	// HWRouteDecoupled, HWRouteDeinterlace.
 	// The resolver only takes a route named here. nil (a row benched before
 	// the route probes existed) is trusted as before - CapabilityProbeVersion
 	// re-benches such a row at boot, so nil never survives a deploy.
@@ -172,6 +172,22 @@ type HWBackendCap struct {
 	HWTonemap     bool     `json:"hw_tonemap"`
 	HWOverlay     bool     `json:"hw_overlay"`
 	HWHDR10Encode bool     `json:"hw_hdr10_encode"`
+	// HWDeinterlace: the backend's SESSION-level GPU deinterlacer (QSV's
+	// deinterlace_qsv, which has no only-if-flagged mode) proved CORRECT on an
+	// interlaced mire: the output idets progressive at the source frame rate.
+	// NVENC/VAAPI deinterlace per frame off the decoder flag and never need it.
+	HWDeinterlace bool `json:"hw_deinterlace,omitempty"`
+}
+
+// DeinterlacesOnGPU reports whether an INTERLACED source may take this
+// backend's zero-copy chain: the session-level deinterlacer probed correct and
+// the builder route ran. Backends whose deinterlacer is per-frame (NVENC,
+// VAAPI) always may - their filter is a no-op on progressive frames.
+func (b HWBackendCap) DeinterlacesOnGPU() bool {
+	if b.Backend != string(QSV) {
+		return true
+	}
+	return b.HWDeinterlace && b.Proves(HWRouteDeinterlace)
 }
 
 // Proves reports whether this backend ran route end-to-end through the builder.
@@ -368,6 +384,7 @@ const (
 	HWRouteBridge      = "bridge"      // GPU decode, CPU tone-map, GPU encode
 	HWRoutePassthrough = "passthrough" // HEVC Main10 with the HDR kept
 	HWRouteDecoupled   = "decoupled"   // CPU decode, hwupload, GPU scale+encode
+	HWRouteDeinterlace = "deint"       // QSV: the session-level GPU deinterlacer on an interlaced source
 )
 
 // HWRouteSourceFormat names the route of a source class outside 4:2:0 8/10-bit

@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
@@ -124,4 +125,45 @@ func TestBackendPerRoute_AV1NeedsAProvenAV1Route(t *testing.T) {
 	cap.Backends[0].Routes = cap.Backends[0].Routes[:len(cap.Backends[0].Routes)-1]
 	codec, _, _, _, _, _ = pr.EffectiveVideoCodec(av1, sdrStreams("h264", "yuv420p", false))
 	assert.Equal(t, "h264", codec)
+}
+
+// An interlaced source (container flag or idet) on a session-level
+// deinterlacer: QSV takes it only once deinterlace_qsv probed correct AND the
+// builder route ran; otherwise the route goes to a per-frame backend (VAAPI,
+// whose deinterlace_vaapi=auto is always on) rather than serve combing. The
+// fingerprint then asks the builder for the QSV deinterlacer only on QSV.
+func TestBackendPerRoute_InterlacedSourceNeedsAProvenQSVDeinterlacer(t *testing.T) {
+	cap := twoBackendCap()
+	pr := &PlanResolver{
+		HWAccelEnabled: func() bool { return true },
+		Capability:     func() transcoding.EncodeCapability { return cap },
+		RouteCosts:     func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 7) },
+	}
+	tff := "tt"
+	flagged := sdrStreams("mpeg2video", "yuv420p", false)
+	flagged[0].FieldOrder = &tff
+	flagged[0].Codec = "h264" // both backends decode it: the deinterlacer alone decides
+	idet := sdrStreams("h264", "yuv420p", false)
+	yes := true
+	idet[0].IdetInterlaced = &yes
+
+	for name, streams := range map[string][]*library.MediaStream{"flagged": flagged, "idet": idet} {
+		_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdrTranscode, streams)
+		assert.True(t, usable, name)
+		assert.Equal(t, "vaapi", accel, "%s: QSV never proved its deinterlacer, the per-frame VAAPI takes the interlaced source", name)
+		assert.False(t, pr.HWDeinterlaceWanted(streams, accel), "%s: VAAPI deinterlaces per frame, no session-level request", name)
+	}
+	_, accel, _, _, _, _ := pr.EffectiveVideoCodec(sdrTranscode, sdrStreams("h264", "yuv420p", false))
+	assert.Equal(t, "qsv", accel, "a progressive source keeps the cheaper QSV")
+
+	cap.Backends[0].HWDeinterlace = true
+	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(sdrTranscode, flagged)
+	assert.Equal(t, "vaapi", accel, "probed but the builder route did not run: still not QSV")
+
+	cap.Backends[0].Routes = append(cap.Backends[0].Routes, transcoding.HWRouteDeinterlace)
+	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdrTranscode, flagged)
+	assert.True(t, usable)
+	assert.Equal(t, "qsv", accel, "probed + proven: the interlaced source takes QSV with its deinterlacer")
+	assert.True(t, pr.HWDeinterlaceWanted(flagged, accel))
+	assert.False(t, pr.HWDeinterlaceWanted(sdrStreams("h264", "yuv420p", false), accel), "a progressive source never gets the session-level deinterlacer")
 }

@@ -777,8 +777,9 @@ func (o *SegmentOrchestrator) spawnSession(
 		// scale and encode. Everything downstream of the upload is unchanged.
 		HWSoftwareDecode: fp.HWSoftwareDecode,
 		HWFeatures:       fp.HWFeatures,
-		HWTonemap:        fp.HWTonemap, // GPU HDR->SDR fold (resolved by the handler; false -> software tonemap)
-		HWOverlay:        fp.HWOverlay, // GPU bitmap-subtitle blend (false -> the burn-in keeps the software path)
+		HWTonemap:        fp.HWTonemap,     // GPU HDR->SDR fold (resolved by the handler; false -> software tonemap)
+		HWOverlay:        fp.HWOverlay,     // GPU bitmap-subtitle blend (false -> the burn-in keeps the software path)
+		HWDeinterlace:    fp.HWDeinterlace, // QSV session-level deinterlacer, only on a known-interlaced source
 		PerVariantHW:     o.opts.HWPerVariant,
 	}
 

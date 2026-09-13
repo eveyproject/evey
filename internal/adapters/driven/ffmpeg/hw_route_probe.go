@@ -34,11 +34,20 @@ const (
 
 // routeMire is one source class a route is probed on.
 type routeMire struct {
-	name    string   // file suffix
-	pixFmt  string   // yuv420p (8-bit), yuv420p10le (Main10), or an exotic layout
-	hdr     bool     // tag bt2020/PQ metadata (HDR10 class)
-	encoder string   // "" = libx265
-	extra   []string // encoder args the class needs (a profile)
+	name       string   // file suffix
+	pixFmt     string   // yuv420p (8-bit), yuv420p10le (Main10), or an exotic layout
+	hdr        bool     // tag bt2020/PQ metadata (HDR10 class)
+	encoder    string   // "" = libx265
+	extra      []string // encoder args the class needs (a profile)
+	interlaced bool     // a woven TFF H.264 clip (interlacedSampleArgs), the deinterlace route's class
+}
+
+// ext is the raw elementary-stream container the mire is written in.
+func (m routeMire) ext() string {
+	if m.interlaced {
+		return "h264"
+	}
+	return "hevc"
 }
 
 // routeMireForDecodeClass builds the mire of a persisted decode class outside
@@ -55,6 +64,7 @@ var (
 	routeMireSDR8  = routeMire{name: "sdr8", pixFmt: "yuv420p"}
 	routeMireSDR10 = routeMire{name: "sdr10", pixFmt: "yuv420p10le"}
 	routeMireHDR10 = routeMire{name: "hdr10", pixFmt: "yuv420p10le", hdr: true}
+	routeMireTFF   = routeMire{name: "tff", pixFmt: "yuv420p", interlaced: true}
 )
 
 // routeProbe is one production shape: the route name persisted in HWRoutes,
@@ -67,7 +77,7 @@ type routeProbe struct {
 
 // routeProbesFor lists the routes worth proving on this backend, given the
 // filter-level facts already probed. Pure so the selection is unit-tested.
-func routeProbesFor(accel transcoding.HWAccelType, codecs, features []string, hwTonemap, hw10Bit, hdr10 bool, decodeClasses []string) []routeProbe {
+func routeProbesFor(accel transcoding.HWAccelType, codecs, features []string, hwTonemap, hw10Bit, hdr10, hwDeint bool, decodeClasses []string) []routeProbe {
 	hevc := slices.Contains(codecs, "hevc")
 	probes := []routeProbe{
 		{route: transcoding.HWRouteSDR, mire: routeMireSDR8, opts: func(o *transcoding.HLSProcessOpts) {}},
@@ -105,6 +115,12 @@ func routeProbesFor(accel transcoding.HWAccelType, codecs, features []string, hw
 			o.HWSoftwareDecode = true
 		}})
 	}
+	// The session-level GPU deinterlacer (QSV), on a genuinely interlaced clip.
+	if hwDeint && hwDeinterlaceFilter(accel, false, true) != "" {
+		probes = append(probes, routeProbe{route: transcoding.HWRouteDeinterlace, mire: routeMireTFF, opts: func(o *transcoding.HLSProcessOpts) {
+			o.HWDeinterlace = true
+		}})
+	}
 	// Every decode class outside 4:2:0 8/10-bit the GPU measured (4:4:4, 12-bit):
 	// decodable is not servable until the builder's scaler folded that layout.
 	for _, class := range decodeClasses {
@@ -140,7 +156,7 @@ func routeProbeOpts(accel transcoding.HWAccelType, device string, features []str
 
 // routeMirePath sits next to the bench samples, class in the name.
 func (r *BenchmarkRunner) routeMirePath(m routeMire) string {
-	return filepath.Join(filepath.Dir(r.samplePath), "route-"+m.name+".hevc")
+	return filepath.Join(filepath.Dir(r.samplePath), "route-"+m.name+"."+m.ext())
 }
 
 // ensureRouteMire encodes the class's clip once (1 s, 24 fps, HEVC, the
@@ -157,6 +173,16 @@ func (r *BenchmarkRunner) ensureRouteMire(ctx context.Context, m routeMire) (str
 	}
 	genCtx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
 	defer cancel()
+	if m.interlaced {
+		args := append([]string{"-hide_banner", "-v", "error", "-nostdin", "-y"}, interlacedSampleArgs(fmt.Sprintf("%dx%d", routeMireWidth, routeMireHeight), 1)...)
+		args = append(args, "-f", "h264", dst)
+		if out, err := procfork.CombinedOutput(genCtx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.route_mire"}, r.ffmpegBin(), args...); err != nil {
+			r.logger.Warn("benchmark: route mire generation failed",
+				slog.String("mire", m.name), slog.Any("err", err), slog.String("tail", tailString(string(out), 200)))
+			return "", false
+		}
+		return dst, true
+	}
 	enc := m.encoder
 	if enc == "" {
 		enc = "libx265"
@@ -186,10 +212,10 @@ func (r *BenchmarkRunner) ensureRouteMire(ctx context.Context, m routeMire) (str
 // returns the names that produced a segment. Never nil once the backend is
 // probed - an empty list is the fail-closed verdict "no route proven", which
 // the resolver honours; nil is reserved for rows benched before this existed.
-func (r *BenchmarkRunner) probeHWRoutes(ctx context.Context, backend, device string, codecs, features []string, hwTonemap, hw10Bit, hdr10 bool, decodeClasses []string) []string {
+func (r *BenchmarkRunner) probeHWRoutes(ctx context.Context, backend, device string, codecs, features []string, hwTonemap, hw10Bit, hdr10, hwDeint bool, decodeClasses []string) []string {
 	accel := transcoding.HWAccelType(backend)
 	proven := []string{}
-	for _, p := range routeProbesFor(accel, codecs, features, hwTonemap, hw10Bit, hdr10, decodeClasses) {
+	for _, p := range routeProbesFor(accel, codecs, features, hwTonemap, hw10Bit, hdr10, hwDeint, decodeClasses) {
 		mire, ok := r.ensureRouteMire(ctx, p.mire)
 		if !ok {
 			continue

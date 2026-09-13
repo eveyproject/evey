@@ -219,21 +219,32 @@ func TestHWDeinterlaceFilter(t *testing.T) {
 	cases := map[transcoding.HWAccelType]string{
 		transcoding.NVENC: "yadif_cuda=deint=interlaced",
 		transcoding.VAAPI: "deinterlace_vaapi=auto=1",
-		transcoding.QSV:   "", // vpp_qsv has no field-flag-respecting mode → none
+		transcoding.QSV:   "", // deinterlace_qsv has no field-flag-respecting mode → only on the resolver's verdict
 		transcoding.None:  "",
 		"":                "",
 	}
 	for accel, want := range cases {
-		if got := hwDeinterlaceFilter(accel, false); got != want {
+		if got := hwDeinterlaceFilter(accel, false, false); got != want {
 			t.Errorf("hwDeinterlaceFilter(%q) = %q, want %q", accel, got, want)
 		}
 	}
 	// The idet verdict (unflagged interlaced) must reach the GPU path too.
-	if got := hwDeinterlaceFilter(transcoding.VAAPI, true); got != "deinterlace_vaapi" {
+	if got := hwDeinterlaceFilter(transcoding.VAAPI, true, false); got != "deinterlace_vaapi" {
 		t.Errorf("VAAPI deint-all = %q", got)
 	}
-	if got := hwDeinterlaceFilter(transcoding.NVENC, true); got != "yadif_cuda=deint=all" {
+	if got := hwDeinterlaceFilter(transcoding.NVENC, true, false); got != "yadif_cuda=deint=all" {
 		t.Errorf("NVENC deint-all = %q", got)
+	}
+	// QSV: the session-level deinterlacer only on the known-interlaced verdict;
+	// the verdict changes nothing for the per-frame backends.
+	if got := hwDeinterlaceFilter(transcoding.QSV, false, true); got != hwQSVDeinterlaceFilter {
+		t.Errorf("QSV hw deint = %q", got)
+	}
+	if got := hwDeinterlaceFilter(transcoding.QSV, true, false); got != "" {
+		t.Errorf("QSV without the proven deinterlacer must emit none even on deint-all, got %q", got)
+	}
+	if got := hwDeinterlaceFilter(transcoding.NVENC, false, true); got != "yadif_cuda=deint=interlaced" {
+		t.Errorf("NVENC ignores HWDeinterlace: %q", got)
 	}
 	opts := sampleHWOpts(transcoding.None, "", 1)
 	opts.InverseTelecine = true

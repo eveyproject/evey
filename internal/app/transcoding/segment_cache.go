@@ -192,6 +192,12 @@ type DecisionFingerprint struct {
 	// interchangeable in the addressable cache.
 	HWOverlay bool
 
+	// HWDeinterlace runs the backend's session-level GPU deinterlacer (QSV) on a
+	// source known interlaced. EXCLUDED from Hash() like HWTonemap: every other
+	// route deinterlaces that same source (bwdif / per-frame GPU filters), so
+	// the picture is the same whoever deinterlaced it.
+	HWDeinterlace bool
+
 	// HDRPassthrough: HEVC Main10 with the source HDR kept (different bytes: hashed).
 	// HDRTransfer ("pq"/"hlg") is derived from the source, excluded from Hash().
 	HDRPassthrough bool

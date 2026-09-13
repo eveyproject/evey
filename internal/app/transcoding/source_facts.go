@@ -286,6 +286,30 @@ func SourceDeinterlaceAll(streams []*library.MediaStream) bool {
 	return false
 }
 
+// SourceInterlaced: the source is KNOWN interlaced - the container flags it
+// (field_order tt/bb/tb/bt) or the idet content detection saw combing. The
+// verdict that lets a session-level GPU deinterlacer (QSV) run: unlike bwdif /
+// yadif_cuda / deinterlace_vaapi=auto it has no per-frame flag gate, so it
+// must never be applied blind to a progressive film.
+func SourceInterlaced(streams []*library.MediaStream) bool {
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		if s.IdetInterlaced != nil && *s.IdetInterlaced {
+			return true
+		}
+		if s.FieldOrder != nil {
+			switch strings.ToLower(strings.TrimSpace(*s.FieldOrder)) {
+			case "tt", "bb", "tb", "bt":
+				return true
+			}
+		}
+		return false
+	}
+	return false
+}
+
 // SourceSAR returns the first video stream's sample aspect ratio ("64:45" for
 // anamorphic DVD), or "" for square pixels / unprobed. Drives the builder's
 // anamorphic scale correction.
@@ -428,6 +452,7 @@ func SourceDimsOf(streams []*library.MediaStream) SourceDims {
 			}
 			dims.HDRRange = SourceTranscodeVideoRange(streams)
 			dims.Telecine = SourceTelecine(streams)
+			dims.Interlaced = SourceInterlaced(streams)
 			break
 		}
 	}

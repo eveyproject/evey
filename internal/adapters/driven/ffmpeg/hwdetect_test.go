@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"context"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -123,5 +124,37 @@ func TestDecodeProbeMatrix_CoversTheLibraryCodecs(t *testing.T) {
 	}
 	if seen["vc1"] {
 		t.Error("VC-1 cannot be probed (no encoder): it must not be listed as if it were")
+	}
+}
+
+// The deinterlace probe reads idet's LAST multi-frame line and judges on the
+// share of determined frames, with the thresholds measured on the woven mire
+// (raw 25/25 TFF; bwdif / yadif_cuda leave 4-5 of 25 judged TFF).
+func TestParseIdetCounts_DeinterlaceVerdict(t *testing.T) {
+	raw := "[Parsed_idet_0 @ 0x1] Multi frame detection: TFF:     0 BFF:     0 Progressive:     0 Undetermined:     0\n" +
+		"[Parsed_idet_0 @ 0x1] Multi frame detection: TFF:    25 BFF:     0 Progressive:     0 Undetermined:     0\n"
+	v, ok := parseIdetCounts(raw)
+	require.True(t, ok)
+	assert.True(t, v.interlaced())
+	assert.False(t, v.progressive())
+
+	deint := "[Parsed_idet_1 @ 0x2] Multi frame detection: TFF:     5 BFF:     0 Progressive:    20 Undetermined:     0\n"
+	v, ok = parseIdetCounts(deint)
+	require.True(t, ok)
+	assert.False(t, v.interlaced())
+	assert.True(t, v.progressive())
+
+	half := "Multi frame detection: TFF:    12 BFF:     0 Progressive:    13 Undetermined:     0"
+	v, _ = parseIdetCounts(half)
+	assert.False(t, v.progressive(), "a deinterlacer that left half the comb is not correct")
+
+	_, ok = parseIdetCounts("frame=25\nprogress=end")
+	assert.False(t, ok, "no idet line = the graph never ran")
+
+	if probeHWDeinterlace(context.Background(), "/nonexistent/ffmpeg", "qsv", "/dev/dri/renderD128") {
+		t.Fatal("no ffmpeg must fail closed")
+	}
+	if probeHWDeinterlace(context.Background(), "/nonexistent/ffmpeg", "vaapi", "/dev/dri/renderD128") {
+		t.Fatal("per-frame backends never claim the session-level deinterlacer")
 	}
 }

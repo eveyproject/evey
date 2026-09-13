@@ -353,7 +353,7 @@ func hwSourceFilterPrefix(opts transcoding.HLSProcessOpts) string {
 		if hwBridges(opts) {
 			return ""
 		}
-		if d := hwDeinterlaceFilter(opts.HWAccel, opts.DeinterlaceAll); d != "" {
+		if d := hwDeinterlaceFilter(opts.HWAccel, opts.DeinterlaceAll, opts.HWDeinterlace); d != "" {
 			return d + ","
 		}
 		return ""
@@ -467,13 +467,22 @@ func hevcTagArgs(codec string, variant int) []string {
 //     progressive films included (softened picture, doubled VPP work; prod
 //     2026-09-04). auto=1 passes frames the decoder did not flag through
 //     unchanged. Covers AMD iGPUs and Intel iGPUs driven through VAAPI.
-//   - QSV: empty - vpp_qsv's deinterlace has no "only-if-flagged" mode and would
-//     wrongly deinterlace progressive content; left to the software path / a
-//     follow-up that gates on a probed interlace signal.
-func hwDeinterlaceFilter(accel transcoding.HWAccelType, all bool) string {
+//   - QSV: deinterlace_qsv has no "only-if-flagged" mode and would wrongly
+//     deinterlace progressive content, so it is emitted ONLY on hwDeint - the
+//     resolver's verdict that the source is known interlaced (field_order flag
+//     or idet) AND the calibration proved the filter correct
+//     (HWBackendCap.HWDeinterlace + the deint route). mode=advanced is the
+//     motion-adaptive one; the default rate=frame keeps one frame per field
+//     pair, like bwdif send_frame.
+func hwDeinterlaceFilter(accel transcoding.HWAccelType, all, hwDeint bool) string {
 	// all = the idet verdict said interlaced despite progressive flags: every
 	// frame goes through, like the software deint=all.
 	switch accel {
+	case transcoding.QSV:
+		if hwDeint {
+			return hwQSVDeinterlaceFilter
+		}
+		return ""
 	case transcoding.NVENC:
 		if all {
 			return "yadif_cuda=deint=all"
@@ -487,6 +496,10 @@ func hwDeinterlaceFilter(accel transcoding.HWAccelType, all bool) string {
 	}
 	return ""
 }
+
+// hwQSVDeinterlaceFilter is the QSV session-level deinterlacer the probe
+// certifies and the builder emits (identical strings: what was proven is what runs).
+const hwQSVDeinterlaceFilter = "deinterlace_qsv=mode=advanced"
 
 // hwEncoderQualityArgs returns the encoder-specific quality flags applied to
 // the output stream currently being defined (no stream specifier - ffmpeg
