@@ -57,7 +57,8 @@ func TestNormaliseSourceCodec(t *testing.T) {
 		"vp9":   "vp9",
 		"":      "any",
 		"   ":   "any",
-		"mpeg2": "any", "theora": "any",
+		"mpeg2video": "mpeg2video", "vc1": "vc1", "vp8": "vp8",
+		"theora": "any", "dirac": "any",
 	}
 	for in, want := range cases {
 		if got := normaliseSourceCodec(in); got != want {

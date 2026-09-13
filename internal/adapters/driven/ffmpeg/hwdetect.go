@@ -177,8 +177,17 @@ const hwProbeMire = "256x144"
 // class the library can hold, each with the software encoder that makes its
 // sample. The persisted class is transcoding.DecodeClassKey(codec, pixFmt).
 // Nothing here is assumed decodable or undecodable: an Ada NVDEC lists no
-// 4:2:2 class, a Blackwell one does, a Skylake iGPU lists no Main10 - each
-// host answers from its own frames. Extending coverage is adding a row.
+// 4:2:2 class, a Blackwell one does, a Skylake iGPU lists no Main10, a
+// pre-Ice-Lake iGPU no AV1 - each host answers from its own frames.
+// Extending coverage is adding a row.
+//
+// Beyond H.264/HEVC the matrix covers the legacy and web codecs a library
+// holds (MPEG-2 TV/DVD rips, VP8/VP9 web rips, AV1 8/10-bit), each through the
+// same fail-closed hwdownload proof - the matrix is codec x pix_fmt, never a
+// per-vendor support table. VC-1 is the one codec NOT probed: ffmpeg carries no
+// VC-1 encoder, so no sample can be made and the class is never listed - a
+// VC-1 source software-decodes (cheap at its 1080p ceiling). The web encoders
+// run at their fastest speed: the sample only has to exist, not look good.
 //
 // download is the software layout(s) the device pool hands back for the class
 // (hwdownload output must be pinned: an open-ended list fails negotiation).
@@ -192,6 +201,12 @@ var hwDecodeProbes = []hwDecodeProbe{
 	{"hevc", "libx265", "hevc", "yuv444p", []string{"-profile:v", "main444-8"}, "yuv444p"},
 	{"hevc", "libx265", "hevc", "yuv444p10le", []string{"-profile:v", "main444-10"}, "yuv444p16le"},
 	{"hevc", "libx265", "hevc", "yuv420p12le", []string{"-profile:v", "main12"}, "p016le|p012le"},
+	{"mpeg2video", "mpeg2video", "mpeg2video", "yuv420p", nil, "nv12"},
+	{"vp8", "libvpx", "ivf", "yuv420p", []string{"-deadline", "realtime", "-cpu-used", "8"}, "nv12"},
+	{"vp9", "libvpx-vp9", "ivf", "yuv420p", []string{"-deadline", "realtime", "-cpu-used", "8"}, "nv12"},
+	{"vp9", "libvpx-vp9", "ivf", "yuv420p10le", []string{"-profile:v", "2", "-deadline", "realtime", "-cpu-used", "8"}, "p010le"},
+	{"av1", "libsvtav1", "ivf", "yuv420p", []string{"-preset", "12"}, "nv12"},
+	{"av1", "libsvtav1", "ivf", "yuv420p10le", []string{"-preset", "12"}, "p010le"},
 }
 
 type hwDecodeProbe struct {

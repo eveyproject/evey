@@ -26,8 +26,13 @@ func TestCanonicalVideoCodec(t *testing.T) {
 		"vp09":       "vp9",
 		"":           "",
 		"   ":        "",
-		"mpeg2":      "",
+		"vp8":        "vp8",
+		"mpeg2video": "mpeg2video",
+		"mpeg2":      "mpeg2video",
+		"vc1":        "vc1",
+		"wmv3":       "vc1",
 		"theora":     "",
+		"dirac":      "",
 		"nonsense":   "",
 	}
 	for in, want := range cases {

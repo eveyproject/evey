@@ -109,6 +109,30 @@ func TestGPU_UndecodableSourcesAreRouteIncompatible(t *testing.T) {
 	}
 }
 
+// The legacy/web source classes the extended decode matrix lists ride the
+// builder's zero-copy chain end-to-end: NVDEC decodes them straight into the
+// CUDA pool the scaler and encoder consume, like an H.264/HEVC source.
+func TestGPU_LegacyAndWebSourcesRideTheZeroCopyChain(t *testing.T) {
+	ffmpeg := gpuTestFFmpeg(t)
+	dir := t.TempDir()
+	cases := map[string]string{
+		"mpeg2":  gpuMire(t, ffmpeg, filepath.Join(dir, "mpeg2.mkv"), "mpeg2video", "yuv420p"),
+		"vp8":    gpuMire(t, ffmpeg, filepath.Join(dir, "vp8.webm"), "libvpx", "yuv420p", "-deadline", "realtime", "-cpu-used", "8"),
+		"vp9":    gpuMire(t, ffmpeg, filepath.Join(dir, "vp9.webm"), "libvpx-vp9", "yuv420p", "-deadline", "realtime", "-cpu-used", "8"),
+		"vp9_10": gpuMire(t, ffmpeg, filepath.Join(dir, "vp9_10.webm"), "libvpx-vp9", "yuv420p10le", "-profile:v", "2", "-deadline", "realtime", "-cpu-used", "8"),
+		"av1":    gpuMire(t, ffmpeg, filepath.Join(dir, "av1.mkv"), "libsvtav1", "yuv420p", "-preset", "12"),
+		"av1_10": gpuMire(t, ffmpeg, filepath.Join(dir, "av1_10.mkv"), "libsvtav1", "yuv420p10le", "-preset", "12"),
+	}
+	for name, src := range cases {
+		t.Run(name, func(t *testing.T) {
+			class, produced, stderr := runSession(t, gpuSessionOpts(src, t.TempDir()))
+			if !produced || class != "" {
+				t.Fatalf("%s: zero-copy session produced=%v class=%q\nstderr:\n%s", name, produced, class, stderr)
+			}
+		})
+	}
+}
+
 // A progressive HDR10 title on the CPU tone-map bridge: the chain the builder
 // emitted until 2026-09-12 (GPU deinterlacer, then hwdownload) fails on the
 // real GPU and classifies as route-incompatible; the chain it emits now
@@ -164,7 +188,10 @@ func TestGPU_ProbesAreFailClosedAndRoutesRunThroughTheBuilder(t *testing.T) {
 	ffmpeg := gpuTestFFmpeg(t)
 	ctx := context.Background()
 	got := probeHWDecodeCodecs(ctx, ffmpeg, "nvenc", "")
-	for _, want := range []string{"h264", "hevc", transcoding.HWDecodeHEVC10} {
+	// Ada NVDEC: H.264, HEVC 8/10, and the legacy/web codecs (MPEG-2, VP8,
+	// VP9 8/10, AV1 8/10) - each listed from a frame pulled off the device.
+	for _, want := range []string{"h264", "hevc", transcoding.HWDecodeHEVC10,
+		"mpeg2video", "vp8", "vp9", "vp9:yuv420p10le", "av1", "av1:yuv420p10le"} {
 		if !slices.Contains(got, want) {
 			t.Errorf("decode classes %v lack %s", got, want)
 		}
