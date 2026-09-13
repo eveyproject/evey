@@ -133,6 +133,34 @@ func (m *RouteCostModel) Cost(key transcoding.RouteCostKey, h int, sourceFPS flo
 	return cost, true
 }
 
+// CheapestPoolCost is the lowest positive per-session cost the evidence shows
+// in each pool - the accelerator fraction of the cheapest GPU route, and the
+// normalised CPU of the cheapest CPU-charging route - each priced at its own
+// measured rung and source fps. It sizes the count belt from ROUTE evidence so
+// that belt is never tighter than route-aware admission (the cumulative table
+// priced a GPU 4K session ~2x dearer, which would have capped the count below
+// what the pools actually admit). 0 for a pool with no measured route.
+func (m *RouteCostModel) CheapestPoolCost() (cpu, gpu float64) {
+	if m == nil {
+		return 0, 0
+	}
+	for _, rs := range m.byKey {
+		for _, r := range rs {
+			c, ok := m.Cost(r.Key, r.Height, r.SourceFPS)
+			if !ok {
+				continue
+			}
+			if c.Accel > 0 && (gpu == 0 || c.Accel < gpu) {
+				gpu = c.Accel
+			}
+			if c.CPU > 0 && (cpu == 0 || c.CPU < cpu) {
+				cpu = c.CPU
+			}
+		}
+	}
+	return cpu, gpu
+}
+
 // Keys lists the measured route keys, for the admin panel / diagnostics.
 func (m *RouteCostModel) Keys() []transcoding.RouteCostKey {
 	if m == nil {
