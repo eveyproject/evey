@@ -428,9 +428,12 @@ const hwOpenCLTonemapChain = "hwmap=derive_device=opencl:mode=read,tonemap_openc
 // probeHWTonemapOpenCL: VAAPI only; the synthetic frame is tagged PQ because
 // tonemap_opencl refuses an SDR input. Failure output is logged: a missing ICD
 // or a bad option must be visible in the boot log, not a silent "no".
-func probeHWTonemapOpenCL(ctx context.Context, ffmpegPath, hwType, device string) bool {
+// probeHWTonemapOpenCLE returns whether the probe succeeded plus the argv it
+// ran and the stderr tail, so the calibration readiness retry can classify and
+// log it (a cold VAAPI->OpenCL derive is an init transient, not a hard "no").
+func probeHWTonemapOpenCLE(ctx context.Context, ffmpegPath, hwType, device string) (bool, string, string, error) {
 	if hwType != "vaapi" || device == "" {
-		return false
+		return false, "", "", nil // not applicable: QSV/NVENC have no VAAPI->OpenCL derive
 	}
 	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
 	defer cancel()
@@ -439,15 +442,11 @@ func probeHWTonemapOpenCL(ctx context.Context, ffmpegPath, hwType, device string
 		"-vf", "format=p010le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc,hwupload," + hwOpenCLTonemapChain + ",hwdownload,format=nv12",
 		"-f", "null", "-"}
 	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_tonemap_opencl"}, ffmpegPath, args...)
+	argv := strings.Join(args, " ")
 	if err != nil {
-		text := string(out)
-		if len(text) > 1200 {
-			text = text[:1200]
-		}
-		slog.Info("hwdetect: OpenCL tone-map probe failed", slog.String("head", text), slog.String("tail", tailString(string(out), 300)))
-		return false
+		return false, argv, tailString(strings.TrimSpace(string(out)), 400), err
 	}
-	return true
+	return true, argv, "", nil
 }
 
 // probeHWBFrames runs a short encode at -v verbose: vaapi_encode reports the

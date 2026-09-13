@@ -75,6 +75,25 @@ func (c FailureClass) Deterministic() bool {
 	return false
 }
 
+// RetryableInit reports whether a failure seen WHILE CALIBRATING is an
+// init/readiness/transient condition worth replaying the SAME probe for,
+// rather than a deterministic incapacity. This is deliberately distinct from
+// Deterministic(): a cold-boot GPU can fail its first device init (hw_init) or
+// starve its surfaces (device_memory) and then succeed seconds later once the
+// render node / driver is ready (measured on the 2026-09-10 prod-host cold boots,
+// where the whole VAAPI stack - encode, native VPP and OpenCL derive - failed
+// at boot then recovered by the next re-bench). For a persisted RUNTIME verdict
+// hw_init stays Deterministic (a driver that is gone is gone); only calibration,
+// which can cheaply replay, treats it as retryable. Route/format/unsupported/
+// encoder-missing/corrupt are never retried - they recur identically.
+func (c FailureClass) RetryableInit() bool {
+	switch c {
+	case FailureHWInit, FailureHWDeviceMemory, FailureTransient:
+		return true
+	}
+	return false
+}
+
 // SilentDeathCandidate reports whether a HARDWARE session that exited on its
 // own WITHOUT writing a segment should be read as a silent GPU death (a driver
 // crash the stderr classifier cannot see, an exit-0 "nothing written"): every
