@@ -109,16 +109,27 @@ func (m *RouteCostModel) Cost(key transcoding.RouteCostKey, h int, sourceFPS flo
 		sourceFPS = 24
 	}
 	required := sourceFPS * transcoding.RouteCostHeadroom
-	cost := RouteCost{CPU: r.CPUCores / float64(m.cpuBudget), FromRoute: true}
+	// CPU is normalised to the REQUIRED (paced) rate, never charged at the
+	// bench's max throughput: the session measured CPUCores while racing at
+	// measuredFPS, but the runtime paces it near realtime, so it burns
+	// CPUCores x required/measuredFPS cores. Charging the raw cores over-priced
+	// every fast route massively (a 200 fps encode "costs" its racing cores, not
+	// the fraction it uses at 30 fps) - the fix this turn targets.
+	requiredCPU := r.CPUCores * required / r.FPS
+	cost := RouteCost{CPU: requiredCPU / float64(m.cpuBudget), FromRoute: true}
 	if key.Backend != "" {
 		cost.Accel = required / r.FPS
 	} else {
-		// A CPU encoder spends no accelerator; its throughput is bounded by the
-		// cores it burns, already on the CPU pool. Price the CPU pool by the
-		// realtime ratio (like VideoCostModel), not by the raw core count, so a
-		// box's software concurrency is still sized by throughput.
-		cost.CPU = required / r.FPS
+		// A CPU encoder spends no accelerator; its cost is entirely the cores it
+		// burns at the paced rate (requiredCPU above), on the CPU pool.
+		cost.Accel = 0
 	}
+	// Decode adjustment (v1): NONE. The measured route fps already includes its
+	// real decode - a zero-copy GPU route decoded on the GPU, a decoupled/CPU
+	// route on the CPU - so there is nothing to add or subtract, and in
+	// particular NO software-decode term is ever applied to a hardware route
+	// (r.SoftwareDecode gates any future adjustment; a HW route has it false).
+	_ = r.SoftwareDecode
 	return cost, true
 }
 

@@ -99,23 +99,33 @@ func (l *VideoSessionLimiter) WithRouteModel(m *RouteCostModel) *VideoSessionLim
 // src, route) reserves. The route model (measured, both pools) wins when it
 // has evidence for the route; otherwise the table (one pool, the class's).
 // Must be called with l.mu held.
-func (l *VideoSessionLimiter) chargesFor(class LadderClass, topHeight int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64) []poolCharge {
+func (l *VideoSessionLimiter) chargesFor(class LadderClass, topHeight int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64) ([]poolCharge, bool) {
+	// A host WITH route evidence is priced ONLY on it. A route that evidence
+	// does not cover is not silently re-priced on the generic (h264-shaped)
+	// table - that is exactly how x265 / hevc_vaapi / bridge / decoupled got
+	// charged as if they were plain h264. It is REFUSED here instead, so the
+	// resolver spills it to the measured software route (or the request retries
+	// / is refused) rather than being admitted on a fiction.
 	if l.routeModel != nil {
-		if rc, ok := l.routeModel.Cost(route, topHeight, sourceFPS); ok {
-			var charges []poolCharge
-			if rc.Accel > 0 {
-				charges = append(charges, poolCharge{class.Pool(), rc.Accel})
-			}
-			if rc.CPU > 0 {
-				charges = append(charges, poolCharge{PoolCPU, rc.CPU})
-			}
-			return charges
+		rc, ok := l.routeModel.Cost(route, topHeight, sourceFPS)
+		if !ok {
+			return nil, false
 		}
+		var charges []poolCharge
+		if rc.Accel > 0 {
+			charges = append(charges, poolCharge{class.Pool(), rc.Accel})
+		}
+		if rc.CPU > 0 {
+			charges = append(charges, poolCharge{PoolCPU, rc.CPU})
+		}
+		return charges, true
 	}
+	// No route evidence at all (a capability benched before it existed): the
+	// table is the only signal there is, priced as before.
 	if l.costModel != nil {
-		return []poolCharge{{class.Pool(), l.costModel.CostForSource(class, topHeight, src)}}
+		return []poolCharge{{class.Pool(), l.costModel.CostForSource(class, topHeight, src)}}, true
 	}
-	return nil
+	return nil, true
 }
 
 // fits reports whether every charge stays inside its pool's budget. Held.
@@ -299,8 +309,8 @@ func (l *VideoSessionLimiter) TryAcquireRoute(key string, class LadderClass, top
 		return false
 	}
 
-	charges := l.chargesFor(class, topHeight, src, route, sourceFPS)
-	if !l.fits(charges) {
+	charges, ok := l.chargesFor(class, topHeight, src, route, sourceFPS)
+	if !ok || !l.fits(charges) {
 		return false
 	}
 
@@ -347,7 +357,8 @@ func (l *VideoSessionLimiter) CanAdmitRoute(key string, class LadderClass, topHe
 	if l.costModel == nil && l.routeModel == nil {
 		return true
 	}
-	return l.fits(l.chargesFor(class, topHeight, src, route, sourceFPS))
+	charges, ok := l.chargesFor(class, topHeight, src, route, sourceFPS)
+	return ok && l.fits(charges)
 }
 
 // Release gives back the reference key took in TryAcquire; the stream's slot

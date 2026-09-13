@@ -879,9 +879,11 @@ func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string
 // benchHardware calibrates the host's hardware encode. It no longer trusts the
 // detector's fixed order (VAAPI before NVENC before QSV): among every detected
 // accelerator that PROVES its ladder AND passes the visual-correctness gate, it
-// picks the one whose measured single-encode is FASTEST (cost). Proved+correct
-// first, cost second - a QSV that outruns the box's VAAPI (measured on an UHD
-// 630: hevc 75 vs 30 fps) is chosen over it, where detector order used to pin
+// measures each one's cost VECTOR (accelerator fraction + normalised CPU cores
+// of a warm single SDR session), ELIMINATES any that would not fit the pools
+// empty, and picks the best by policy (the lowest peak-pool cost - most
+// headroom). Proved+correct first, THEN the vector - a QSV that outruns the
+// box's VAAPI (UHD 630: hevc 75 vs 30 fps) wins where detector order used to pin
 // VAAPI. A backend pin (mode=vaapi/nvenc/qsv) still restricts the field to one.
 // Returns (0, "") when no HW is usable - software-only, fully supported.
 func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool, pinBackend string) (int, string, []string, string, []transcoding.BenchRungSample) {
@@ -890,14 +892,6 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		return 0, "", nil, "", nil
 	}
 	pinBackend = strings.ToLower(strings.TrimSpace(pinBackend))
-
-	type hwCandidate struct {
-		backend, encoder, device string
-		best                     int
-		topFPS                   float64
-		codecs                   []string
-		samples                  []transcoding.BenchRungSample
-	}
 	var candidates []hwCandidate
 
 	for _, dev := range devices {
@@ -984,22 +978,105 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 	if len(candidates) == 0 {
 		return 0, "", nil, "", nil
 	}
-	// Proved + correct, now cost: the fastest single-encode wins, whatever the
-	// detector's order was. Ties break on the taller ceiling, then a stable
-	// backend name so a re-bench is deterministic.
-	bestC := candidates[0]
-	for _, c := range candidates[1:] {
-		if c.topFPS > bestC.topFPS ||
-			(c.topFPS == bestC.topFPS && c.best > bestC.best) ||
-			(c.topFPS == bestC.topFPS && c.best == bestC.best && c.backend < bestC.backend) {
-			bestC = c
+
+	// The cost vector, per certified candidate: a warm single SDR session at its
+	// top rung gives the accelerator fraction (required/fps) and the normalised
+	// CPU it spends (cores x required/fps / cpuBudget). A candidate whose vector
+	// does not fit an EMPTY pool (accel or cpu > 1) is eliminated - it cannot
+	// serve even one session. Among the rest the policy picks the lowest peak
+	// pool cost (max(accel,cpu)): the most sessions, the most headroom.
+	budget := sysinfo.CPUBudget()
+	required := float64(r.sourceRate()) * transcoding.RouteCostHeadroom
+	type ranked struct {
+		c    hwCandidate
+		peak float64
+		fits bool
+	}
+	var rank []ranked
+	for _, c := range candidates {
+		fps, cores := r.warmSDRVector(ctx, sample, fallback, c.backend, c.encoder, c.device, c.best)
+		if fps <= 0 {
+			fps = c.topFPS // fall back to the ladder fps for ranking only
+		}
+		accel, cpu := 1.0, 0.0
+		if fps > 0 {
+			accel = required / fps
+			if budget > 0 {
+				cpu = cores * required / fps / float64(budget)
+			}
+		}
+		peak := accel
+		if cpu > peak {
+			peak = cpu
+		}
+		r.logger.Info("benchmark: hw candidate vector",
+			slog.String("backend", c.backend), slog.Float64("fps", fps), slog.Float64("cpu_cores", cores),
+			slog.Float64("accel", accel), slog.Float64("cpu", cpu), slog.Bool("fits", accel <= 1 && cpu <= 1))
+		rank = append(rank, ranked{c: c, peak: peak, fits: accel <= 1 && cpu <= 1})
+	}
+	// Prefer candidates that fit; among equals, the lower peak wins, then the
+	// taller ceiling, then a stable name so a re-bench is deterministic.
+	best := rank[0]
+	for _, cand := range rank[1:] {
+		if betterCandidate(cand, best) {
+			best = cand
 		}
 	}
-	if len(candidates) > 1 {
-		r.logger.Info("benchmark: multiple accelerators certified, picked the fastest",
-			slog.String("picked", bestC.backend), slog.Float64("top_fps", bestC.topFPS), slog.Int("top_rung", bestC.best))
+	if !best.fits {
+		r.logger.Warn("benchmark: no accelerator fits the pools even empty, staying software",
+			slog.String("closest", best.c.backend), slog.Float64("peak_pool_cost", best.peak))
+		return 0, "", nil, "", nil
 	}
+	if len(candidates) > 1 {
+		r.logger.Info("benchmark: multiple accelerators certified, picked by cost vector",
+			slog.String("picked", best.c.backend), slog.Float64("peak_pool_cost", best.peak))
+	}
+	bestC := best.c
 	return bestC.best, bestC.backend, bestC.codecs, bestC.device, bestC.samples
+}
+
+// betterCandidate is the selection policy: a fitting candidate beats a
+// non-fitting one; between two of the same fit, the lower peak-pool cost wins,
+// then the taller ceiling, then the lexically-smaller backend (determinism).
+func betterCandidate(a, b struct {
+	c    hwCandidate
+	peak float64
+	fits bool
+}) bool {
+	if a.fits != b.fits {
+		return a.fits
+	}
+	if a.peak != b.peak {
+		return a.peak < b.peak
+	}
+	if a.c.best != b.c.best {
+		return a.c.best > b.c.best
+	}
+	return a.c.backend < b.c.backend
+}
+
+// warmSDRVector warms the accelerator then measures one production SDR session
+// at rung h, returning its throughput and CPU cores - the inputs to a
+// candidate's cost vector. 0,0 when it could not be measured.
+func (r *BenchmarkRunner) warmSDRVector(ctx context.Context, sample string, fallback bool, backend, encoder, device string, h int) (float64, float64) {
+	if h <= 0 {
+		h = 1080
+	}
+	cap := &transcoding.EncodeCapability{HWBackend: backend, HWDevice: device}
+	er := evidenceRoute{route: transcoding.RouteCostSDR, codec: "h264", hw: true, opts: func(*transcoding.HLSProcessOpts) {}}
+	r.measureRoutePoint(ctx, sample, fallback, er, cap, h) // warm-up, discarded
+	p := r.measureRoutePoint(ctx, sample, fallback, er, cap, h)
+	return p.fps, p.cpuCores
+}
+
+// hwCandidate is one accelerator that passed the ladder + visual gate, awaiting
+// the cost-vector ranking that picks between certified backends.
+type hwCandidate struct {
+	backend, encoder, device string
+	best                     int
+	topFPS                   float64
+	codecs                   []string
+	samples                  []transcoding.BenchRungSample
 }
 
 // topPassingFPS is the fps of the tallest passing rung in a hw ladder - the

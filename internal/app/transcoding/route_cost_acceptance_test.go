@@ -47,10 +47,15 @@ func TestAcceptance_Ada_NVENC(t *testing.T) {
 	if n := admitN(t, s, 24, k, 2160, 60); n != 1 {
 		t.Errorf("Ada 4K 60p GPU: admitted %d, 0.615 each fits 1", n)
 	}
-	// The bridge charges the CPU pool it really burns (was 0 before).
+	// The bridge charges the CPU pool it burns AT THE PACED RATE (was 0 before,
+	// then over-charged at the racing rate): 2.76 x 28.8/70 / 24 = 0.047, not
+	// the raw 2.76/24 = 0.115.
 	c, _ := NewRouteCostModel(s, 24).Cost(rk("nvenc", "h264_nvenc", transcoding.RouteCostBridge), 1080, 24)
-	if c.CPU <= 0 {
-		t.Error("Ada bridge: the 2.76 CPU cores must land on the CPU pool, not be free")
+	if !approx(c.CPU, 2.76*28.8/70/24) {
+		t.Errorf("Ada bridge cpu=%.4f want ~0.047 (paced, not the racing 0.115)", c.CPU)
+	}
+	if c.CPU >= 2.76/24 {
+		t.Errorf("Ada bridge cpu=%.4f must be below the raw max-throughput charge", c.CPU)
 	}
 }
 
@@ -76,11 +81,63 @@ func TestAcceptance_ProdHost_VAAPI(t *testing.T) {
 	if n := admitN(t, s, 7, hevc, 2160, 60); n != 0 {
 		t.Errorf("prod-host hevc_vaapi 4K 60p: admitted %d, it runs at 0.51x realtime and must be refused", n)
 	}
-	// Decoupled 1080: 5.6 of 7 cores -> the CPU pool binds it to 1, not the 4
-	// the GPU-only price allowed.
+	// Decoupled 1080: 5.6 cores were burnt RACING at 128 fps; paced to realtime
+	// it is 5.6 x 28.8/128 = 1.26 cores = 0.18 of 7, and accel 28.8/128 = 0.225.
+	// So the GPU pool binds it (~4), the CPU pool holds ~5 - NOT the pathological
+	// "1 session" the max-throughput CPU charge wrongly produced.
 	dec := rk("vaapi", "h264_vaapi", transcoding.RouteCostDecoupled)
-	if n := admitN(t, s, 7, dec, 1080, 24); n != 1 {
-		t.Errorf("prod-host decoupled 1080: admitted %d, 5.6/7 CPU fits 1", n)
+	m := NewRouteCostModel(s, 7)
+	dc, _ := m.Cost(dec, 1080, 24)
+	if !approx(dc.CPU, 5.6*28.8/128/7) {
+		t.Errorf("prod-host decoupled cpu=%.3f want ~0.18 (paced)", dc.CPU)
+	}
+	if n := admitN(t, s, 7, dec, 1080, 24); n != 4 {
+		t.Errorf("prod-host decoupled 1080: admitted %d, GPU-bound at 0.225 => 4 (CPU 0.18 holds 5)", n)
+	}
+}
+
+// x264 software: priced by the cores it burns at the paced rate over the CPU
+// budget, so a weak 7-thread box fits a handful of realtime 1080 streams - not
+// the 30+ the racing core count would wrongly imply, nor 1.
+func TestAcceptance_ProdHost_x264(t *testing.T) {
+	s := []transcoding.RouteSample{
+		{Key: rk("", "libx264", transcoding.RouteCostSDR), Height: 1080, FPS: 130, SourceFPS: 24, CPUCores: 5.95},
+	}
+	k := rk("", "libx264", transcoding.RouteCostSDR)
+	c, _ := NewRouteCostModel(s, 7).Cost(k, 1080, 24)
+	if c.Accel != 0 {
+		t.Fatalf("x264 spends no accelerator, got %.3f", c.Accel)
+	}
+	if !approx(c.CPU, 5.95*28.8/130/7) { // ~0.188
+		t.Fatalf("x264 cpu=%.3f want ~0.188", c.CPU)
+	}
+	if n := admitN(t, s, 7, k, 1080, 24); n != 5 {
+		t.Errorf("prod-host x264 1080: admitted %d, ~0.188 each fits 5 on 7 cores", n)
+	}
+}
+
+// A host WITH route evidence must NOT price an uncovered non-equivalent route
+// (x265, hevc_vaapi, bridge...) on the generic h264 table: it is refused so the
+// resolver spills, never admitted on a fiction.
+func TestAcceptance_UncoveredRouteRefusedNotTablePriced(t *testing.T) {
+	s := []transcoding.RouteSample{
+		{Key: rk("vaapi", "h264_vaapi", transcoding.RouteCostSDR), Height: 2160, FPS: 73, SourceFPS: 24, CPUCores: 0.2},
+	}
+	l := NewVideoSessionLimiter(0).
+		WithCostModel(NewVideoCostModel([]transcoding.BenchRungSample{
+			{Ladder: "hw", Height: 2160, FPS: 300, RequiredFPS: 28.8, Passing: true},
+			{Ladder: "software", Height: 1080, FPS: 300, RequiredFPS: 28.8, Passing: true},
+		})).
+		WithRouteModel(NewRouteCostModel(s, 7))
+	// hevc_vaapi has NO route sample; the generous table would admit it, the
+	// route model must refuse it.
+	hevc := rk("vaapi", "hevc_vaapi", transcoding.RouteCostSDR)
+	if l.CanAdmitRoute("x", LadderClassHW, 2160, transcoding.SourceClass{}, hevc, 24) {
+		t.Error("an uncovered hevc_vaapi route must be refused, not priced on the h264 table")
+	}
+	// The covered h264_vaapi route is admitted from its own evidence.
+	if !l.CanAdmitRoute("y", LadderClassHW, 2160, transcoding.SourceClass{}, rk("vaapi", "h264_vaapi", transcoding.RouteCostSDR), 24) {
+		t.Error("the covered route must be admitted from its evidence")
 	}
 }
 

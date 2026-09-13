@@ -27,8 +27,13 @@ func TestRouteCostModel_PricesBothPools(t *testing.T) {
 	if !approx(c.Accel, 24*1.2/98) { // 0.294 - not the 0.483 the cumulative rung priced
 		t.Fatalf("accel=%.3f want ~0.294", c.Accel)
 	}
-	if !approx(c.CPU, 0.63/24) {
-		t.Fatalf("cpu=%.3f want ~0.026 (a GPU session still spends CPU)", c.CPU)
+	// CPU is normalised to the required (paced) rate, not charged at 98 fps:
+	// 0.63 cores x 28.8/98 / 24 = 0.0077, not the raw 0.63/24 = 0.026.
+	if !approx(c.CPU, 0.63*28.8/98/24) {
+		t.Fatalf("cpu=%.4f want ~0.0077 (normalised to required rate)", c.CPU)
+	}
+	if c.CPU > 0.63/24 {
+		t.Fatalf("cpu=%.4f must be BELOW the raw max-throughput charge 0.026", c.CPU)
 	}
 }
 
@@ -54,8 +59,9 @@ func TestRouteCostModel_CPURouteIsCPUOnly(t *testing.T) {
 	if c.Accel != 0 {
 		t.Fatalf("a CPU encoder spends no accelerator, got %.3f", c.Accel)
 	}
-	if !approx(c.CPU, 24*1.2/52) {
-		t.Fatalf("cpu=%.3f want ~0.554", c.CPU)
+	// 2.7 cores x 28.8/52 / 24 = 0.0623 (normalised), not 28.8/52 = 0.554.
+	if !approx(c.CPU, 2.7*28.8/52/24) {
+		t.Fatalf("cpu=%.4f want ~0.062 (cores at the paced rate over budget)", c.CPU)
 	}
 }
 
