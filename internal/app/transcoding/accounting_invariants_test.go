@@ -148,7 +148,7 @@ func (h *invariantHarness) churn(t *testing.T) {
 	// Every one then dies - and the pin must not stay "held" forever on the
 	// strength of a flag no later Bind will ever revisit.
 	overflowKey := "media-overflow|h264|transcode"
-	require.True(t, h.shaper.GrantRoute(overflowKey, LadderClassSoftware, []int{720}, nil, domaintranscoding.SourceClass{}).OK)
+	require.True(t, h.shaper.GrantRoute(overflowKey, RouteAdmission{Natural: LadderClassSoftware, Heights: []int{720}}).OK)
 	var overflowed []string
 	for i := range maxBoundHashes + 1 {
 		hash := fmt.Sprintf("overflow-hash-%d", i)
@@ -171,7 +171,7 @@ func (h *invariantHarness) churn(t *testing.T) {
 		// order of a playback, so the three ledgers are wired to each other and
 		// not just exercised side by side.
 		key := fmt.Sprintf("media-%d|h264|transcode", i)
-		if g := h.shaper.GrantRoute(key, LadderClassSoftware, []int{1080, 720}, nil, domaintranscoding.SourceClass{}); g.OK {
+		if g := h.shaper.GrantRoute(key, RouteAdmission{Natural: LadderClassSoftware, Heights: []int{1080, 720}}); g.OK {
 			h.shaper.Bind(key, fp.Hash())
 		}
 		h.reg.Bind(fmt.Sprintf("tok-%d", i), fp.MediaID, fp.Hash())

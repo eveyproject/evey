@@ -445,10 +445,10 @@ func TestHLSVOD_ForcedCeiling_ShapesManifestAndFingerprintAlike(t *testing.T) {
 
 	var pinKeys []string
 	var boundHashes []string
-	h.admissionRoute = func(key string, natural apptranscoding.LadderClass, _ []int, _ func() []int, _ domaintranscoding.SourceClass) apptranscoding.RouteGrant {
+	h.admissionRoute = func(key string, req apptranscoding.RouteAdmission) apptranscoding.RouteGrant {
 		pinKeys = append(pinKeys, key)
 		// the host can only afford the short rung
-		return apptranscoding.RouteGrant{Class: natural, Ceiling: 720, Forced: true, OK: true}
+		return apptranscoding.RouteGrant{Class: req.Natural, Ceiling: 720, Forced: true, OK: true}
 	}
 	h.admissionBind = func(_ string, fpHash string) { boundHashes = append(boundHashes, fpHash) }
 
@@ -494,7 +494,7 @@ func TestHLSVOD_ForcedCeiling_NeverTouchesACopyRequest(t *testing.T) {
 	copyProd := apptranscoding.NewSoftwareProducer(h.cache, nil, nil, apptranscoding.SoftwareProducerOptions{}, nil)
 	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil), nil)
 	h.copyProducer = copyProd
-	h.admissionRoute = func(string, apptranscoding.LadderClass, []int, func() []int, domaintranscoding.SourceClass) apptranscoding.RouteGrant {
+	h.admissionRoute = func(string, apptranscoding.RouteAdmission) apptranscoding.RouteGrant {
 		t.Fatal("the shaper must not be consulted for a copy request")
 		return apptranscoding.RouteGrant{}
 	}
@@ -623,7 +623,8 @@ func TestHLSVOD_SpilledStream_FingerprintAndSpawnFollowTheSoftwareRoute(t *testi
 	h.selector = apptranscoding.NewProducerSelector(swProd, hwProd, h.hwRouteUsable)
 
 	// The shaper says: GPU full, spilled to software, capped at 1080.
-	h.admissionRoute = func(_ string, natural apptranscoding.LadderClass, _ []int, fallback func() []int, _ domaintranscoding.SourceClass) apptranscoding.RouteGrant {
+	h.admissionRoute = func(_ string, req apptranscoding.RouteAdmission) apptranscoding.RouteGrant {
+		natural, fallback := req.Natural, req.FallbackHeights
 		require.Equal(t, apptranscoding.LadderClassHW, natural, "this stream is hardware-natural")
 		require.NotNil(t, fallback, "a hw-natural stream must offer the software fallback")
 		require.NotEmpty(t, fallback(), "the software ladder must be shapeable")

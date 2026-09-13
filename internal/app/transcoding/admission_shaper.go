@@ -133,7 +133,7 @@ func NewVideoAdmissionShaper(limiter *VideoSessionLimiter) *VideoAdmissionShaper
 // cold, unheld pin re-evaluates, and does so against the newly-requested
 // class.
 func (s *VideoAdmissionShaper) CeilingFor(key string, class LadderClass, heights []int, src transcoding.SourceClass) (int, bool) {
-	g := s.GrantRoute(key, class, heights, nil, src)
+	g := s.GrantRoute(key, RouteAdmission{Natural: class, Heights: heights, Src: src})
 	if !g.OK {
 		return 0, false
 	}
@@ -176,10 +176,25 @@ type RouteGrant struct {
 // routes shape different ladders. The grant is pinned like a plain ceiling -
 // the route shapes the ladder shapes the fingerprint hash, so it must not
 // move for the stream's life (same freshness + bound-session rules).
-func (s *VideoAdmissionShaper) GrantRoute(key string, natural LadderClass, heights []int, fallbackHeights func() []int, src transcoding.SourceClass) RouteGrant {
-	if s == nil || s.limiter == nil || len(heights) == 0 {
+// RouteAdmission is everything GrantRoute prices a stream on: the natural pool
+// class and its ladder heights, the route cost key + source fps the route model
+// prices on, and - for a hardware stream - the software SPILL shape and its own
+// route key, priced on the CPU pool when the accelerator pool is full.
+type RouteAdmission struct {
+	Natural         LadderClass
+	Heights         []int
+	Src             transcoding.SourceClass
+	Route           transcoding.RouteCostKey
+	SourceFPS       float64
+	FallbackHeights func() []int
+	FallbackRoute   transcoding.RouteCostKey
+}
+
+func (s *VideoAdmissionShaper) GrantRoute(key string, req RouteAdmission) RouteGrant {
+	if s == nil || s.limiter == nil || len(req.Heights) == 0 {
 		return RouteGrant{}
 	}
+	natural, heights, src := req.Natural, req.Heights, req.Src
 	top := heights[0]
 	for _, h := range heights[1:] {
 		if h > top {
@@ -209,7 +224,7 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, natural LadderClass, heigh
 		delete(s.pins, key)
 	}
 
-	if granted, ok := s.tallestAdmittable(key, natural, heights, src); ok {
+	if granted, ok := s.tallestAdmittable(key, natural, heights, src, req.Route, req.SourceFPS); ok {
 		s.evictIfFull(now)
 		plan := StreamPlan{Class: natural, Ceiling: granted}
 		s.pins[key] = &streamPin{plan: plan, lastSeen: now}
@@ -224,9 +239,9 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, natural LadderClass, heigh
 	// the software route - a different pool AND a different ladder shape, so
 	// the fallback heights come from the caller (the software producer's
 	// shaping), never guessed from the hw ladder.
-	if natural == LadderClassHW && fallbackHeights != nil {
-		if fh := fallbackHeights(); len(fh) > 0 {
-			if granted, ok := s.tallestAdmittable(key, LadderClassSoftware, fh, src); ok {
+	if natural == LadderClassHW && req.FallbackHeights != nil {
+		if fh := req.FallbackHeights(); len(fh) > 0 {
+			if granted, ok := s.tallestAdmittable(key, LadderClassSoftware, fh, src, req.FallbackRoute, req.SourceFPS); ok {
 				s.evictIfFull(now)
 				plan := StreamPlan{Class: LadderClassSoftware, Ceiling: granted}
 				s.pins[key] = &streamPin{plan: plan, lastSeen: now}
@@ -367,7 +382,7 @@ func (s *VideoAdmissionShaper) Bind(key, fingerprintHash string) {
 // authoritative reservation stays TryAcquire at spawn - a lost race is shed
 // at the segment, and the retry re-evaluates because a shed stream's pin
 // goes cold holding nothing.
-func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, heights []int, src transcoding.SourceClass) (int, bool) {
+func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, heights []int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64) (int, bool) {
 	sorted := make([]int, 0, len(heights))
 	seen := make(map[int]bool, len(heights))
 	for _, h := range heights {
@@ -378,7 +393,7 @@ func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, 
 	}
 	slices.SortFunc(sorted, func(a, b int) int { return b - a }) // tallest first
 	for _, h := range sorted {
-		if s.limiter.CanAdmitFor(key, class, h, src) {
+		if s.limiter.CanAdmitRoute(key, class, h, src, route, sourceFPS) {
 			return h, true
 		}
 	}

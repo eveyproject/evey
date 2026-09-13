@@ -49,6 +49,13 @@ type EncodeCapability struct {
 	// Blackwell one yes.
 	HWDecodeCodecs []string `json:"hw_decode_codecs,omitempty"`
 
+	// RouteSamples is the per-route single-session cost evidence (see
+	// RouteSample): what a warm, route-faithful transcode of each proven route
+	// actually cost here. The admission cost model prices a route on this
+	// instead of the cumulative HW rung. Empty on a row benched before it
+	// existed - CapabilityProbeVersion re-benches such a row at boot.
+	RouteSamples []RouteSample `json:"route_samples,omitempty"`
+
 	// HWRoutes lists the ENCODE ROUTES the calibration ran end-to-end through
 	// the production builder (BuildFFmpegArgs on a mire of the route's class,
 	// real HLS output on disk): HWRouteSDR, HWRouteHEVC, HWRouteSource10Bit,
@@ -178,8 +185,9 @@ type DecodeRungSample struct {
 // encode + Intel low-power features; 2: OpenCL tone-map + per-codec B-frames;
 // 3: the OpenCL chain fixed, 2026-09-10; 4: the tone-map bridge ladder;
 // 5: fail-closed decode probes incl. HEVC Main10 + the builder route probes;
-// 6: the decode probe matrix over chroma/depth).
-const CapabilityProbeVersion = 6
+// 6: the decode probe matrix over chroma/depth; 7: per-route single-session
+// cost evidence, source-fps required rate, QSV scaler fix).
+const CapabilityProbeVersion = 7
 
 // Route names the calibration proves through the production builder (see
 // EncodeCapability.HWRoutes). Each is one shape BuildFFmpegArgs can emit for a

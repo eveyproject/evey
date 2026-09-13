@@ -123,6 +123,12 @@ type DecisionFingerprint struct {
 	// reason as SourceVideoCodec: determined by (MediaID, SourcePath).
 	SourceVideoHeight int
 
+	// SourceFPS is the SOURCE video frame rate, for the route cost's realtime
+	// rate (RequiredFPS = SourceFPS x headroom). EXCLUDED from Hash() like the
+	// two above: a re-encode of the same title at the same rungs is the same
+	// bytes whatever its fps, and admission only prices with it. 0 = unknown.
+	SourceFPS float64
+
 	// SubtitleBurnInCodec is the codec of the burn-in subtitle track
 	// (SubtitleBurnInTrack), set by the handler from the probed streams. The
 	// ffmpeg builder re-derives burn-in eligibility from it (IsImageSubtitle),

@@ -191,7 +191,13 @@ func hwTonemapFilter(accel transcoding.HWAccelType, features []string) string {
 		}
 		return "tonemap_vaapi=format=nv12:matrix=bt709:primaries=bt709:transfer=bt709"
 	case transcoding.QSV:
-		return "vpp_qsv=tonemap=1:format=nv12"
+		// vpp_qsv=tonemap washes out the highlights and halves saturation (exit 0,
+		// wrong pixels - proven on an UHD 630, 2026-09-09), and no visual gate
+		// certifies it. It stays INELIGIBLE: a QSV host tone-maps on the CPU
+		// bridge (correct, slower) or in software until a gate passes. Returning
+		// "" here also keeps the tonemap route out of the calibration's HWRoutes
+		// (routeProbesFor gates on this), so HWTonemapWanted never selects it.
+		return ""
 	}
 	return ""
 }

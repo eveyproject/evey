@@ -789,7 +789,7 @@ func (o *SegmentOrchestrator) spawnSession(
 	// path below exactly once (see videoSlotAcquired / releaseVideoSlot).
 	videoSlotAcquired := false
 	if o.videoLimiter != nil {
-		if !o.videoLimiter.TryAcquireFor(hash, LadderClassOf(fp), topProfileHeight(sessionProfiles), SourceClassOf(fp)) {
+		if !o.videoLimiter.TryAcquireRoute(hash, LadderClassOf(fp), topProfileHeight(sessionProfiles), SourceClassOf(fp), RouteCostKeyOf(fp), fp.SourceFPS) {
 			teardown()
 			releaseSlot()
 			metrics.HLSVODSessionsRejected.Inc()

@@ -30,16 +30,13 @@ type VideoSessionLimiter struct {
 	// refs counts live encoders per decision hash. len(refs) is the number of
 	// distinct encoded STREAMS, which is what the limit caps.
 	refs map[string]int
-	// classes holds the LadderClass reserved by each key's FIRST TryAcquire -
-	// read back by Release to know which pool to credit. Only meaningful for
-	// keys present in costs (i.e. a cost model was wired at reservation time).
-	classes map[string]LadderClass
-	// costs holds the fractional cost reserved per decision hash by the
-	// stream's FIRST TryAcquire (0 when no cost model is wired, or the key's
-	// stream never reserved one). Read back by Release to give the exact
-	// amount back to used, regardless of what CostFor would return NOW (a
-	// live calibration change must never corrupt an in-flight reservation).
-	costs map[string]float64
+	// reservations holds the per-pool charges reserved by each key's FIRST
+	// TryAcquire, read back by Release to credit the EXACT amounts to the same
+	// pools - regardless of what the model would return now (a live
+	// recalibration must never corrupt an in-flight reservation). A route with
+	// evidence charges two pools (accelerator + CPU); a table-priced session
+	// charges one.
+	reservations map[string][]poolCharge
 	// used is the sum of costs currently reserved, PER POOL - the running
 	// total spent against each pool's budget.
 	used map[ResourcePool]float64
@@ -51,6 +48,16 @@ type VideoSessionLimiter struct {
 	// costModel is nil until WithCostModel wires one - admission is then
 	// purely counter-based, matching pre-cost-model behaviour exactly.
 	costModel *VideoCostModel
+	// routeModel prices a session on the per-route single-session evidence
+	// (RouteCostModel). Consulted FIRST for a route it measured; costModel is
+	// the fallback for a class/rung it did not. nil = no route evidence.
+	routeModel *RouteCostModel
+}
+
+// poolCharge is one pool's reserved cost for a stream.
+type poolCharge struct {
+	pool ResourcePool
+	cost float64
 }
 
 // NewVideoSessionLimiter creates a limiter with the given initial limit (0 =
@@ -61,12 +68,11 @@ func NewVideoSessionLimiter(limit int) *VideoSessionLimiter {
 		limit = 0
 	}
 	return &VideoSessionLimiter{
-		limit:   limit,
-		refs:    make(map[string]int),
-		classes: make(map[string]LadderClass),
-		costs:   make(map[string]float64),
-		used:    make(map[ResourcePool]float64),
-		budgets: map[ResourcePool]float64{PoolCPU: 1.0, PoolGPU: 1.0},
+		limit:        limit,
+		refs:         make(map[string]int),
+		reservations: make(map[string][]poolCharge),
+		used:         make(map[ResourcePool]float64),
+		budgets:      map[ResourcePool]float64{PoolCPU: 1.0, PoolGPU: 1.0},
 	}
 }
 
@@ -78,6 +84,48 @@ func (l *VideoSessionLimiter) WithCostModel(m *VideoCostModel) *VideoSessionLimi
 	defer l.mu.Unlock()
 	l.costModel = m
 	return l
+}
+
+// WithRouteModel wires the per-route cost model (RouteCostModel), consulted
+// before the table for a route it measured. nil reverts to table pricing.
+func (l *VideoSessionLimiter) WithRouteModel(m *RouteCostModel) *VideoSessionLimiter {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.routeModel = m
+	return l
+}
+
+// chargesFor returns the per-pool charges a NEW stream of (class, topHeight,
+// src, route) reserves. The route model (measured, both pools) wins when it
+// has evidence for the route; otherwise the table (one pool, the class's).
+// Must be called with l.mu held.
+func (l *VideoSessionLimiter) chargesFor(class LadderClass, topHeight int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64) []poolCharge {
+	if l.routeModel != nil {
+		if rc, ok := l.routeModel.Cost(route, topHeight, sourceFPS); ok {
+			var charges []poolCharge
+			if rc.Accel > 0 {
+				charges = append(charges, poolCharge{class.Pool(), rc.Accel})
+			}
+			if rc.CPU > 0 {
+				charges = append(charges, poolCharge{PoolCPU, rc.CPU})
+			}
+			return charges
+		}
+	}
+	if l.costModel != nil {
+		return []poolCharge{{class.Pool(), l.costModel.CostForSource(class, topHeight, src)}}
+	}
+	return nil
+}
+
+// fits reports whether every charge stays inside its pool's budget. Held.
+func (l *VideoSessionLimiter) fits(charges []poolCharge) bool {
+	for _, c := range charges {
+		if l.usedFor(c.pool)+c.cost > l.budgetFor(c.pool)+budgetEpsilon {
+			return false
+		}
+	}
+	return true
 }
 
 // SetBudget sets the fraction of "one whole pool" new streams may spend in
@@ -219,23 +267,28 @@ const budgetEpsilon = 1e-9
 // The caller must then refuse the spawn with ErrVideoCapacityExhausted.
 // Every successful TryAcquire must be matched by exactly one Release(key).
 func (l *VideoSessionLimiter) TryAcquire(key string, class LadderClass, topHeight int) bool {
-	return l.TryAcquireFor(key, class, topHeight, transcoding.SourceClass{})
+	return l.TryAcquireRoute(key, class, topHeight, transcoding.SourceClass{}, transcoding.RouteCostKey{}, 0)
 }
 
 // TryAcquireFor is TryAcquire with the session's DECODE workload named, so the
 // cost model prices what this stream costs rather than an average one at that
 // rung. A zero src prices as TryAcquire always did.
 func (l *VideoSessionLimiter) TryAcquireFor(key string, class LadderClass, topHeight int, src transcoding.SourceClass) bool {
+	return l.TryAcquireRoute(key, class, topHeight, src, transcoding.RouteCostKey{}, 0)
+}
+
+// TryAcquireRoute is TryAcquireFor with the resolved route (RouteCostKeyOf) and
+// the source frame rate, so the route model prices the accelerator AND the CPU
+// pool the session really spends. route zero / sourceFPS 0 fall back to the
+// table exactly as TryAcquireFor did.
+func (l *VideoSessionLimiter) TryAcquireRoute(key string, class LadderClass, topHeight int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.refs == nil {
 		l.refs = make(map[string]int)
 	}
-	if l.costs == nil {
-		l.costs = make(map[string]float64)
-	}
-	if l.classes == nil {
-		l.classes = make(map[string]LadderClass)
+	if l.reservations == nil {
+		l.reservations = make(map[string][]poolCharge)
 	}
 	if _, joining := l.refs[key]; joining {
 		l.refs[key]++
@@ -246,19 +299,16 @@ func (l *VideoSessionLimiter) TryAcquireFor(key string, class LadderClass, topHe
 		return false
 	}
 
-	pool := class.Pool()
-	cost := 0.0
-	if l.costModel != nil {
-		cost = l.costModel.CostForSource(class, topHeight, src)
-		if l.usedFor(pool)+cost > l.budgetFor(pool)+budgetEpsilon {
-			return false
-		}
+	charges := l.chargesFor(class, topHeight, src, route, sourceFPS)
+	if !l.fits(charges) {
+		return false
 	}
 
 	l.refs[key] = 1
-	l.classes[key] = class
-	l.costs[key] = cost
-	l.addUsed(pool, cost)
+	l.reservations[key] = charges
+	for _, c := range charges {
+		l.addUsed(c.pool, c.cost)
+	}
 	return true
 }
 
@@ -275,12 +325,17 @@ func (l *VideoSessionLimiter) TryAcquireFor(key string, class LadderClass, topHe
 // ref, so for that caller the shortcut is dead and every probe prices as a new
 // stream - harmless today, a trap for a caller that passes a real hash.
 func (l *VideoSessionLimiter) CanAdmit(key string, class LadderClass, topHeight int) bool {
-	return l.CanAdmitFor(key, class, topHeight, transcoding.SourceClass{})
+	return l.CanAdmitRoute(key, class, topHeight, transcoding.SourceClass{}, transcoding.RouteCostKey{}, 0)
 }
 
 // CanAdmitFor is CanAdmit with the decode workload named. The shed probe must
 // price like the spawn, or a viewer is turned away for a cost nothing charges.
 func (l *VideoSessionLimiter) CanAdmitFor(key string, class LadderClass, topHeight int, src transcoding.SourceClass) bool {
+	return l.CanAdmitRoute(key, class, topHeight, src, transcoding.RouteCostKey{}, 0)
+}
+
+// CanAdmitRoute is CanAdmitFor with the route + source fps (see TryAcquireRoute).
+func (l *VideoSessionLimiter) CanAdmitRoute(key string, class LadderClass, topHeight int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if _, joining := l.refs[key]; joining {
@@ -289,11 +344,10 @@ func (l *VideoSessionLimiter) CanAdmitFor(key string, class LadderClass, topHeig
 	if l.limit > 0 && len(l.refs) >= l.limit {
 		return false
 	}
-	if l.costModel == nil {
+	if l.costModel == nil && l.routeModel == nil {
 		return true
 	}
-	pool := class.Pool()
-	return l.usedFor(pool)+l.costModel.CostForSource(class, topHeight, src) <= l.budgetFor(pool)+budgetEpsilon
+	return l.fits(l.chargesFor(class, topHeight, src, route, sourceFPS))
 }
 
 // Release gives back the reference key took in TryAcquire; the stream's slot
@@ -311,12 +365,10 @@ func (l *VideoSessionLimiter) Release(key string) {
 	}
 	if n <= 1 {
 		delete(l.refs, key)
-		class := l.classes[key]
-		if cost, ok := l.costs[key]; ok {
-			l.addUsed(class.Pool(), -cost)
-			delete(l.costs, key)
+		for _, c := range l.reservations[key] {
+			l.addUsed(c.pool, -c.cost)
 		}
-		delete(l.classes, key)
+		delete(l.reservations, key)
 		return
 	}
 	l.refs[key] = n - 1
