@@ -54,9 +54,9 @@ func TestNormaliseSourceCodec(t *testing.T) {
 		"h264": "h264", "avc": "h264", "avc1": "h264", "AVC1": "h264", " h264 ": "h264",
 		"hevc": "hevc", "h265": "hevc", "hev1": "hevc", "hvc1": "hevc", "HEVC": "hevc",
 		"av1": "av1", "av01": "av1",
-		"vp9":   "vp9",
-		"":      "any",
-		"   ":   "any",
+		"vp9":        "vp9",
+		"":           "any",
+		"   ":        "any",
 		"mpeg2video": "mpeg2video", "vc1": "vc1", "vp8": "vp8",
 		"theora": "any", "dirac": "any",
 	}

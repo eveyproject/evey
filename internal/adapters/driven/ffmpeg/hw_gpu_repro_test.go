@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -233,4 +234,75 @@ func TestGPU_ProbesAreFailClosedAndRoutesRunThroughTheBuilder(t *testing.T) {
 	if kept := r.ConfirmHWFeatures(ctx, "nvenc", "", "h264", gpuReproFeatures); !slices.Equal(kept, gpuReproFeatures) {
 		t.Errorf("ConfirmHWFeatures kept %v, want all of %v", kept, gpuReproFeatures)
 	}
+}
+
+// The detector enumerates every device with its identity: on this rig one
+// NVIDIA GPU (index 0 = the empty default device, labelled by nvidia-smi's
+// model) - and every certification probe binds that device explicitly.
+func TestGPU_DetectDevicesEnumeratesAndBinds(t *testing.T) {
+	ffmpeg := gpuTestFFmpeg(t)
+	ctx := context.Background()
+	devices, err := NewHWDetector(ffmpeg).DetectDevices(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nv *transcoding.HWDevice
+	for i := range devices {
+		t.Logf("device: %+v", devices[i])
+		if devices[i].Type == "nvenc" && nv == nil {
+			nv = &devices[i]
+		}
+	}
+	if nv == nil || nv.Name != "" || !strings.Contains(nv.Label, "NVIDIA") || !slices.Contains(nv.SupportedCodecs, "av1_nvenc") {
+		t.Fatalf("NVIDIA GPU 0 not enumerated as the default device with its model: %+v", nv)
+	}
+	// An explicit CUDA index binds the same GPU through every probe shape.
+	if !probeHWEncode(ctx, ffmpeg, "h264_nvenc", "nvenc", "0") || !probeHW10BitTranscode(ctx, ffmpeg, "nvenc", "0") ||
+		!probeHWTonemap(ctx, ffmpeg, "nvenc", "0") || !probeHWOverlay(ctx, ffmpeg, "nvenc", "0") {
+		t.Fatal("probes bound to CUDA index 0 must pass like the default device")
+	}
+	if probeHWEncode(ctx, ffmpeg, "h264_nvenc", "nvenc", "7") {
+		t.Fatal("a CUDA index that does not exist must fail closed")
+	}
+}
+
+// The NVENC GPU burn-in (overlay_cuda) and tone-map (tonemap_cuda) on a REAL
+// HDR10 title with a PGS track, through the production builder, bounded to a
+// few seconds. Needs EVEY_GPU_PGS_SAMPLE=<file> and EVEY_GPU_PGS_TRACK=<n>
+// (the n-th subtitle stream, 0-based) - measured 2026-09-13 on Avatar 2160p.
+func TestGPU_OverlayAndTonemapOnRealTitle(t *testing.T) {
+	ffmpeg := gpuTestFFmpeg(t)
+	src, track := os.Getenv("EVEY_GPU_PGS_SAMPLE"), os.Getenv("EVEY_GPU_PGS_TRACK")
+	if src == "" || track == "" {
+		t.Skip("EVEY_GPU_PGS_SAMPLE / EVEY_GPU_PGS_TRACK not set")
+	}
+	var n int
+	if _, err := fmt.Sscanf(track, "%d", &n); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	opts := gpuSessionOpts(src, out)
+	opts.StartSec = 600
+	opts.SubtitleTrackIndex, opts.SubtitleCodec, opts.HWOverlay = n, "hdmv_pgs_subtitle", true
+	opts.ToneMap, opts.HWTonemap = true, true
+	opts.HWFeatures = append(slices.Clone(gpuReproFeatures), transcoding.FeatureTonemapCUDA)
+	if err := opts.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	args := BuildFFmpegArgs(opts)
+	// Bound the run: -t before the output (the last arg is the playlist path).
+	args = append(args[:len(args)-1], "-t", "4", args[len(args)-1])
+	argv := append([]string{"-hide_banner", "-v", "error", "-nostdin", "-nostats", "-y"}, args...)
+	t.Logf("argv: ffmpeg %s", strings.Join(argv, " "))
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	stderr, err := exec.CommandContext(ctx, ffmpeg, argv...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("overlay+tonemap session failed: %v\n%s", err, stderr)
+	}
+	segs, _ := filepath.Glob(filepath.Join(out, "stream_0_*.m4s"))
+	if len(segs) == 0 {
+		t.Fatalf("no segment written\n%s", stderr)
+	}
+	t.Logf("segments: %d", len(segs))
 }

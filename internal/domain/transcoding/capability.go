@@ -117,6 +117,12 @@ type EncodeCapability struct {
 	// before the mode's pin: informational, for the admin picker.
 	DetectedBackends []string `json:"detected_backends,omitempty"`
 
+	// DetectedDevices lists every (backend, device) the host advertises - each
+	// DRM render node and each NVIDIA GPU identified - before any pin, so an
+	// operator sees the second render node a multi-GPU box exposes and can pin
+	// it (HWPreference.Device). Informational; the certified set is Backends.
+	DetectedDevices []HWDeviceInfo `json:"detected_devices,omitempty"`
+
 	// CPUSignature identifies the host CPU; a changed signature (container
 	// restored elsewhere) invalidates the calibration at boot.
 	CPUSignature string `json:"cpu_signature"`
@@ -156,6 +162,16 @@ type EncodeCapability struct {
 
 	// BenchHostBusyPercent is the host CPU busy share sampled before the bench.
 	BenchHostBusyPercent int `json:"bench_host_busy_percent,omitempty"`
+}
+
+// HWDeviceInfo identifies one detected device for the admin: the backend, the
+// device ffmpeg binds (render node / CUDA index) and a human label (vendor +
+// driver, or GPU model), plus the encoders its real-encode probe passed.
+type HWDeviceInfo struct {
+	Backend  string   `json:"backend"`
+	Device   string   `json:"device,omitempty"`
+	Label    string   `json:"label,omitempty"`
+	Encoders []string `json:"encoders,omitempty"`
 }
 
 // HWBackendCap is one accelerator's full capability - everything the resolver
@@ -611,8 +627,9 @@ type BenchmarkRunner interface {
 	// (empty = auto), DisableHW skips hardware probing entirely.
 	Run(ctx context.Context, pref HWPreference) (EncodeCapability, error)
 	// HWBackendUsable confirms the named backend can encode on this host right
-	// now: a matching CPU signature does not guarantee the GPU is still there.
-	HWBackendUsable(ctx context.Context, backend string) bool
+	// now, on the device the calibration bound (empty = the backend's default):
+	// a matching CPU signature does not guarantee the GPU is still there.
+	HWBackendUsable(ctx context.Context, backend, device string) bool
 	// HWEncodeUsable is the media-INDEPENDENT proof a runtime failure has to
 	// clear before the host is demoted: a synthetic encode through backend's
 	// encoder for codec (empty = h264) with the given probed tuning features.

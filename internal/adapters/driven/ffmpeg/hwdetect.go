@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -33,20 +34,24 @@ func NewHWDetector(ffmpegPath string) *HWDetector {
 	return &HWDetector{ffmpegPath: ffmpegPath}
 }
 
+// DetectDevices enumerates EVERY accelerator the host exposes: each DRM render
+// node (renderD128, renderD129, ...) identified by its PCI vendor and kernel
+// driver, probed for VAAPI and - on an Intel node - for QSV, and each NVIDIA
+// GPU nvidia-smi lists, by CUDA index. One HWDevice per (backend, device): a
+// box with an Intel iGPU and an AMD dGPU yields vaapi@renderD128, qsv@renderD128
+// and vaapi@renderD129, each certified on its own by the calibration.
 func (d *HWDetector) DetectDevices(ctx context.Context) ([]transcoding.HWDevice, error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.hwdetect.DetectDevices")
 	defer span.End()
 	var devices []transcoding.HWDevice
 
-	if dev := detectVAAPI(ctx, d.ffmpegPath); dev != nil {
-		devices = append(devices, *dev)
+	nodes := enumerateRenderNodes()
+	for _, n := range nodes {
+		slog.Info("hwdetect: render node", slog.String("node", n.path), slog.String("vendor", n.vendor), slog.String("driver", n.driver))
 	}
-	if dev := detectNVENC(ctx, d.ffmpegPath); dev != nil {
-		devices = append(devices, *dev)
-	}
-	if dev := detectQSV(ctx, d.ffmpegPath); dev != nil {
-		devices = append(devices, *dev)
-	}
+	devices = append(devices, detectVAAPI(ctx, d.ffmpegPath, nodes)...)
+	devices = append(devices, detectNVENC(ctx, d.ffmpegPath)...)
+	devices = append(devices, detectQSV(ctx, d.ffmpegPath, nodes)...)
 
 	return devices, nil
 }
@@ -61,78 +66,135 @@ func (d *HWDetector) SupportsCodec(ctx context.Context, deviceType, codec string
 	return checkEncoderAvailable(ctx, d.ffmpegPath, encoder), nil
 }
 
-func detectVAAPI(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
-	driPath := "/dev/dri"
-	entries, err := os.ReadDir(driPath)
+// drmNode is one /dev/dri render node with what sysfs says about the GPU
+// behind it: the PCI vendor id and the bound kernel driver.
+type drmNode struct {
+	path   string // /dev/dri/renderD128
+	vendor string // 0x8086 Intel, 0x1002 AMD, 0x10de NVIDIA, "" unknown (WSL d3d12)
+	driver string // i915, xe, amdgpu, radeon, nouveau, nvidia, "" unknown
+}
+
+// intel reports an Intel GPU node (the QSV candidates): the i915/xe driver, or
+// the Intel vendor id when the driver cannot be read.
+func (n drmNode) intel() bool {
+	switch n.driver {
+	case "i915", "xe":
+		return true
+	}
+	return n.driver == "" && n.vendor == "0x8086"
+}
+
+// label is the human identification for the admin.
+func (n drmNode) label() string {
+	vendor := map[string]string{"0x8086": "Intel", "0x1002": "AMD", "0x10de": "NVIDIA"}[n.vendor]
+	if vendor == "" {
+		vendor = n.vendor
+	}
+	parts := []string{}
+	if vendor != "" {
+		parts = append(parts, vendor)
+	}
+	if n.driver != "" {
+		parts = append(parts, n.driver)
+	}
+	if len(parts) == 0 {
+		return filepath.Base(n.path)
+	}
+	return strings.Join(parts, " ") + " (" + filepath.Base(n.path) + ")"
+}
+
+// enumerateRenderNodes lists /dev/dri/renderD* in node order with their sysfs
+// identity. Empty when /dev/dri is absent. sysfs fields are best-effort: a
+// node whose vendor/driver cannot be read is still listed (and probed).
+func enumerateRenderNodes() []drmNode {
+	entries, err := os.ReadDir("/dev/dri")
 	if err != nil {
 		return nil
 	}
-
-	hasRender := false
+	var nodes []drmNode
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), "renderD") {
-			hasRender = true
-			break
+		if !strings.HasPrefix(e.Name(), "renderD") {
+			continue
 		}
+		n := drmNode{path: filepath.Join("/dev/dri", e.Name())}
+		if b, rerr := os.ReadFile("/sys/class/drm/" + e.Name() + "/device/vendor"); rerr == nil {
+			n.vendor = strings.ToLower(strings.TrimSpace(string(b)))
+		}
+		if link, rerr := os.Readlink("/sys/class/drm/" + e.Name() + "/device/driver"); rerr == nil {
+			n.driver = filepath.Base(link)
+		}
+		nodes = append(nodes, n)
 	}
-	if !hasRender {
-		return nil
-	}
-
-	codecs := probeHWCodecs(ctx, ffmpegPath, "vaapi", filepath.Join(driPath, "renderD128"))
-	return &transcoding.HWDevice{
-		Type:            string(transcoding.VAAPI),
-		Name:            filepath.Join(driPath, "renderD128"),
-		SupportedCodecs: codecs,
-	}
+	slices.SortFunc(nodes, func(a, b drmNode) int { return strings.Compare(a.path, b.path) })
+	return nodes
 }
 
-func detectNVENC(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
-	// Check nvidia-smi
+// detectVAAPI probes every render node for VAAPI; a node with no working
+// encoder is not a device (a WSL d3d12 node, an NVIDIA node without the VA
+// bridge, a display-only card).
+func detectVAAPI(ctx context.Context, ffmpegPath string, nodes []drmNode) []transcoding.HWDevice {
+	var out []transcoding.HWDevice
+	for _, n := range nodes {
+		codecs := probeHWCodecs(ctx, ffmpegPath, "vaapi", n.path)
+		if len(codecs) == 0 {
+			continue
+		}
+		out = append(out, transcoding.HWDevice{Type: string(transcoding.VAAPI), Name: n.path, Label: n.label(), SupportedCodecs: codecs})
+	}
+	return out
+}
+
+// detectNVENC lists every NVIDIA GPU by CUDA index. The first GPU keeps the
+// empty device name (ffmpeg's default, byte-identical to every argv this
+// engine emitted on a single-GPU host); the others carry their index, which
+// hwInitArgs/-gpu bind explicitly.
+func detectNVENC(ctx context.Context, ffmpegPath string) []transcoding.HWDevice {
 	smiPath, err := exec.LookPath("nvidia-smi")
 	if err != nil {
 		return nil
 	}
-
-	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.nvidia_smi"}, smiPath, "--query-gpu=name", "--format=csv,noheader")
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.nvidia_smi"}, smiPath, "--query-gpu=index,name", "--format=csv,noheader")
 	if err != nil {
 		return nil
 	}
-
-	gpuName := strings.TrimSpace(string(out))
-	if gpuName == "" {
-		return nil
+	var devices []transcoding.HWDevice
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+		idx, name, ok := strings.Cut(line, ",")
+		if !ok {
+			continue
+		}
+		idx, name = strings.TrimSpace(idx), strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		device := idx
+		if idx == "0" {
+			device = ""
+		}
+		codecs := probeHWCodecs(ctx, ffmpegPath, "nvenc", device)
+		if len(codecs) == 0 {
+			continue
+		}
+		devices = append(devices, transcoding.HWDevice{Type: string(transcoding.NVENC), Name: device, Label: name, SupportedCodecs: codecs})
 	}
-
-	codecs := probeHWCodecs(ctx, ffmpegPath, "nvenc", "")
-	return &transcoding.HWDevice{
-		Type:            string(transcoding.NVENC),
-		Name:            gpuName,
-		SupportedCodecs: codecs,
-	}
+	return devices
 }
 
-func detectQSV(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
-	// Check for /dev/dri/renderD128 with Intel GPU
-	if _, err := os.Stat("/dev/dri/renderD128"); err != nil {
-		return nil
+// detectQSV probes QSV on every INTEL render node - the node's own driver,
+// not card0's (a box whose card0 is the AMD dGPU still has QSV on renderD129).
+func detectQSV(ctx context.Context, ffmpegPath string, nodes []drmNode) []transcoding.HWDevice {
+	var out []transcoding.HWDevice
+	for _, n := range nodes {
+		if !n.intel() {
+			continue
+		}
+		codecs := probeHWCodecs(ctx, ffmpegPath, "qsv", n.path)
+		if len(codecs) == 0 {
+			continue
+		}
+		out = append(out, transcoding.HWDevice{Type: string(transcoding.QSV), Name: n.path, Label: "Intel Quick Sync " + n.label(), SupportedCodecs: codecs})
 	}
-
-	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.drm_driver"}, "ls", "/sys/class/drm/card0/device/driver/module/drivers/")
-	if err != nil {
-		return nil
-	}
-
-	if !strings.Contains(string(out), "i915") {
-		return nil
-	}
-
-	codecs := probeHWCodecs(ctx, ffmpegPath, "qsv", "/dev/dri/renderD128")
-	return &transcoding.HWDevice{
-		Type:            string(transcoding.QSV),
-		Name:            "Intel Quick Sync",
-		SupportedCodecs: codecs,
-	}
+	return out
 }
 
 func probeHWCodecs(ctx context.Context, ffmpegPath, hwType, device string) []string {
@@ -296,10 +358,8 @@ func probeHWDecode(ctx context.Context, ffmpegPath string, c hwDecodeProbe, hwTy
 			return false
 		}
 		args = append(args, "-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi", "-hwaccel_device", device)
-	case "qsv":
-		args = append(args, "-hwaccel", "qsv", "-hwaccel_output_format", "qsv")
-	case "nvenc":
-		args = append(args, "-hwaccel", "cuda", "-hwaccel_output_format", "cuda")
+	case "qsv", "nvenc":
+		args = append(args, hwInitArgs(transcoding.HWAccelType(hwType), device)...)
 	default:
 		return false
 	}
@@ -351,8 +411,10 @@ func probeHWEncodeWith(ctx context.Context, ffmpegPath, encoder, hwType, device 
 		args = append(args, "-vaapi_device", device)
 		filter = []string{"-vf", "format=nv12,hwupload"}
 	case "qsv":
-		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
+		args = append(args, qsvInitDeviceArgs(device)...)
 		filter = []string{"-vf", "hwupload=extra_hw_frames=16,format=qsv"}
+	case "nvenc":
+		encoderArgs = append(nvencGPUArgs(device), encoderArgs...)
 	}
 	args = append(args, "-f", "lavfi", "-i", "testsrc2=size="+hwProbeMire+":rate=10:duration=0.2")
 	args = append(args, filter...)
@@ -378,10 +440,10 @@ func probeHWHDR10Encode(ctx context.Context, ffmpegPath, hwType, device string) 
 		args = append(args, "-vaapi_device", device)
 		vf, enc = "format=p010le,hwupload,scale_vaapi=256:-2:format=p010", "hevc_vaapi"
 	case "qsv":
-		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
+		args = append(args, qsvInitDeviceArgs(device)...)
 		vf, enc = "format=p010le,hwupload=extra_hw_frames=16,scale_qsv=w=256:h=-1:format=p010", "hevc_qsv"
 	case "nvenc":
-		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
+		args = append(args, cudaInitDeviceArgs(device)...)
 		vf, enc = "format=p010le,hwupload_cuda,scale_cuda=256:-2:format=p010", "hevc_nvenc"
 	default:
 		return false
@@ -418,10 +480,10 @@ func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device strin
 		args = append(args, "-vaapi_device", device)
 		vf = "format=p010le,hwupload,scale_vaapi=64:-2:format=nv12"
 	case "qsv":
-		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
+		args = append(args, qsvInitDeviceArgs(device)...)
 		vf = "format=p010le,hwupload=extra_hw_frames=16,scale_qsv=w=64:h=-1:format=nv12"
 	case "nvenc":
-		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
+		args = append(args, cudaInitDeviceArgs(device)...)
 		vf = "format=p010le,hwupload_cuda,scale_cuda=64:-2:format=nv12"
 	default:
 		return false
@@ -510,14 +572,14 @@ func probeHWTonemap(ctx context.Context, ffmpegPath, hwType, device string) bool
 		args = append(args, "-vaapi_device", device)
 		vf = "format=p010le,hwupload,tonemap_vaapi=format=nv12:matrix=bt709:primaries=bt709:transfer=bt709,hwdownload,format=nv12"
 	case "qsv":
-		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
+		args = append(args, qsvInitDeviceArgs(device)...)
 		vf = "format=p010le,hwupload=extra_hw_frames=16,vpp_qsv=tonemap=1:format=nv12,hwdownload,format=nv12"
 	case "nvenc":
 		// tonemap_cuda (jellyfin-ffmpeg) on the CUDA frames themselves - the
 		// chain hwTonemapFilter emits. Tagged PQ like the OpenCL probe: an SDR-
 		// tagged input is refused. A stock ffmpeg without the filter fails here
 		// and NVENC keeps the CPU bridge.
-		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
+		args = append(args, cudaInitDeviceArgs(device)...)
 		vf = "format=p010le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc,hwupload_cuda," + hwCUDATonemapChain + ",hwdownload,format=nv12"
 	default:
 		return false
@@ -660,22 +722,28 @@ func probeHWOverlay(ctx context.Context, ffmpegPath, hwType, device string) bool
 		args = append(args, "-init_hw_device", "vaapi=va:"+device, "-filter_hw_device", "va")
 		main, sub, blend = "format=nv12,hwupload", "format=bgra,hwupload", "overlay_vaapi"
 	case "qsv":
-		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
+		args = append(args, qsvInitDeviceArgs(device)...)
 		main = "format=nv12,hwupload=extra_hw_frames=16"
 		sub = "format=bgra,hwupload=extra_hw_frames=16"
 		blend = "overlay_qsv"
 	case "nvenc":
-		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
+		args = append(args, cudaInitDeviceArgs(device)...)
 		// overlay_cuda takes the overlay as yuva420p, not bgra: it blends in the
 		// planar YUV domain rather than through a VPP colour converter.
 		main, sub, blend = "format=nv12,hwupload_cuda", "format=yuva420p,hwupload_cuda", "overlay_cuda"
 	default:
 		return false
 	}
+	// overlay_cuda has no w/h options ("Option not found", measured on an RTX
+	// 4070 Ti 2026-09-13: the probe failed on every NVIDIA host and GPU burn-in
+	// never certified there); the explicit geometry is the Intel VPP's need.
+	if hwType != "nvenc" {
+		blend += "=w=256:h=144"
+	}
 	args = append(args,
 		"-f", "lavfi", "-i", "testsrc2=size="+hwProbeMire+":rate=5:duration=0.3",
 		"-f", "lavfi", "-i", "color=c=white@0.5:size="+hwProbeMire+":rate=5:duration=0.3",
-		"-filter_complex", fmt.Sprintf("[0:v]%s[m];[1:v]%s[s];[m][s]%s=w=256:h=144", main, sub, blend),
+		"-filter_complex", fmt.Sprintf("[0:v]%s[m];[1:v]%s[s];[m][s]%s", main, sub, blend),
 		"-f", "null", "-")
 
 	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_overlay"}, ffmpegPath, args...) == nil

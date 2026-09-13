@@ -627,6 +627,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	}, slog.Default())
 	calibrationSvc := apptranscoding.NewCalibrationService(capabilityRepo, calibrationRunner, slog.Default(),
 		apptranscoding.WithHWMode(hwMode),
+		apptranscoding.WithHWDevice(cfg.Transcoding.HWDevice),
 		apptranscoding.WithSoftwareCapOverrides(
 			cfg.Transcoding.SoftwareMaxHeightOverride,
 			cfg.Transcoding.SoftwareHDRMaxHeightOverride),

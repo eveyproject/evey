@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"slices"
 	"strings"
 	"testing"
@@ -16,11 +17,11 @@ import (
 func TestHwDecoupledInputArgs(t *testing.T) {
 	cases := map[string][]string{
 		"vaapi": {"-vaapi_device", "/dev/dri/renderD128"},
-		"qsv":   {"-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"},
+		"qsv":   {"-init_hw_device", "qsv=hw,child_device=/dev/dri/renderD128", "-filter_hw_device", "hw"},
 		"nvenc": nil, // NVENC HW-decodes every codec → never needs the decoupled path
 	}
 	for backend, want := range cases {
-		got := hwDecoupledInputArgs(backend)
+		got := hwDecoupledInputArgs(backend, "")
 		if !slices.Equal(got, want) {
 			t.Errorf("hwDecoupledInputArgs(%q) = %v, want %v", backend, got, want)
 		}
@@ -50,9 +51,20 @@ func TestHwUploadChain(t *testing.T) {
 // hwInputArgs (the zero-copy first pass) must still request HW decode for VAAPI,
 // so a capable GPU keeps the production decode→scale→encode path.
 func TestHwInputArgs_ZeroCopyStillHWDecodes(t *testing.T) {
-	args := hwInputArgs("vaapi")
+	args := hwInputArgs("vaapi", "")
 	if !slices.Contains(args, "-hwaccel") || !strings.Contains(strings.Join(args, " "), "vaapi") {
 		t.Errorf("hwInputArgs(vaapi) should keep the HW-decode flags, got %v", args)
+	}
+	// The bench binds the SAME device args the production builder emits, on the
+	// named device - a second render node / GPU reaches every probe and rung.
+	if got := hwInputArgs("vaapi", "/dev/dri/renderD129"); !slices.Equal(got, hwInitArgs(transcoding.VAAPI, "/dev/dri/renderD129")) {
+		t.Errorf("hwInputArgs(vaapi, renderD129) = %v", got)
+	}
+	if got := hwInputArgs("nvenc", "1"); !slices.Contains(got, "-hwaccel_device") || !slices.Contains(got, "1") {
+		t.Errorf("hwInputArgs(nvenc, 1) must bind the CUDA index: %v", got)
+	}
+	if got := hwDecoupledInputArgs("qsv", "/dev/dri/renderD129"); !slices.Contains(got, "qsv=hw,child_device=/dev/dri/renderD129") {
+		t.Errorf("hwDecoupledInputArgs(qsv, renderD129) = %v", got)
 	}
 }
 

@@ -233,9 +233,16 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	// verification probe - wastes CPU and spams "hwdetect: probe failed" on a
 	// box whose operator explicitly turned HW off (e.g. an old iGPU that
 	// can't HEVC-decode). No detection, no probe, no noise when off.
-	var detected []string
+	var (
+		detected        []string
+		detectedDevices []transcoding.HWDeviceInfo
+		devices         []transcoding.HWDevice
+	)
 	if !pref.DisableHW {
-		detected = r.detectBackends(ctx)
+		// One enumeration (every render node and GPU is real-encode probed): the
+		// admin list and the certification loop read the same snapshot.
+		devices = r.detectHWDevices(ctx)
+		detected, detectedDevices = detectedBackends(devices), detectedDeviceInfos(devices)
 	}
 
 	var (
@@ -252,7 +259,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	)
 	// pref.DisableHW (mode=off) calibrates software-only: skip the hardware probe.
 	if !pref.DisableHW {
-		candidates := r.benchHardware(ctx, sample, fallback, pref.Backend)
+		candidates := r.benchHardware(ctx, sample, fallback, pref, devices)
 		// Probe and persist EVERY certified backend, not just the primary: the
 		// resolver picks a backend PER ROUTE from these (VAAPI's OpenCL tone-map
 		// AND a faster QSV for HEVC on the same box). candidates[0] is the primary
@@ -267,7 +274,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 				hw10Bit, hwTonemap, hwOverlay, hwHDR10 = bc.HW10Bit, bc.HWTonemap, bc.HWOverlay, bc.HWHDR10Encode
 				// The primary's HDR bridge ladder feeds the diagnostic hw-bridge table.
 				if !bc.HWTonemap {
-					hwSamples = append(hwSamples, r.benchHWBridge(ctx, c.backend, hwDomainCodecs(c.codecs))...)
+					hwSamples = append(hwSamples, r.benchHWBridge(ctx, c.backend, c.device, hwDomainCodecs(c.codecs))...)
 				}
 			}
 		}
@@ -297,6 +304,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		HWFeatures:           hwFeatures,
 		HWRoutes:             hwRoutes,
 		DetectedBackends:     detected,
+		DetectedDevices:      detectedDevices,
 		CPUSignature:         sysinfo.CPUSignature(),
 		BenchmarkedAt:        time.Now().UTC(),
 		BenchmarkDurationMs:  time.Since(start).Milliseconds(),
@@ -343,15 +351,20 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	return cap, nil
 }
 
-// detectBackends returns the accelerator types the host advertises
-// ("nvenc"/"vaapi"/"qsv"), independent of the active mode. Best-effort: a
-// detector error yields an empty list (the host is treated as software-only
-// for display purposes).
-func (r *BenchmarkRunner) detectBackends(ctx context.Context) []string {
+// detectHWDevices enumerates the accelerators the host advertises, independent
+// of the active mode. Best-effort: a detector error yields none (the host is
+// treated as software-only).
+func (r *BenchmarkRunner) detectHWDevices(ctx context.Context) []transcoding.HWDevice {
 	devices, err := r.hwDetector.DetectDevices(ctx)
-	if err != nil || len(devices) == 0 {
+	if err != nil {
 		return nil
 	}
+	return devices
+}
+
+// detectedBackends folds the devices to their backend types ("nvenc"/"vaapi"/
+// "qsv"), de-duplicated in detection order.
+func detectedBackends(devices []transcoding.HWDevice) []string {
 	seen := make(map[string]bool, len(devices))
 	var out []string
 	for _, d := range devices {
@@ -360,6 +373,18 @@ func (r *BenchmarkRunner) detectBackends(ctx context.Context) []string {
 			seen[t] = true
 			out = append(out, t)
 		}
+	}
+	return out
+}
+
+// detectedDeviceInfos is the admin-facing list of every (backend, device).
+func detectedDeviceInfos(devices []transcoding.HWDevice) []transcoding.HWDeviceInfo {
+	out := make([]transcoding.HWDeviceInfo, 0, len(devices))
+	for _, d := range devices {
+		out = append(out, transcoding.HWDeviceInfo{
+			Backend: strings.ToLower(d.Type), Device: hwDeviceOrDefault(strings.ToLower(d.Type), d.Name),
+			Label: d.Label, Encoders: d.SupportedCodecs,
+		})
 	}
 	return out
 }
@@ -403,14 +428,13 @@ func nvencProbeArgs(optionArgs []string) []string {
 // host: the encoder must be compiled into ffmpeg AND a tiny real encode must
 // succeed. Cheap re-validation guard for a persisted capability whose backend
 // may no longer be usable here.
-func (r *BenchmarkRunner) HWBackendUsable(ctx context.Context, backend string) bool {
+func (r *BenchmarkRunner) HWBackendUsable(ctx context.Context, backend, device string) bool {
 	enc := resolveHWEncoder(backend, "h264")
 	if enc == "" {
 		return false
 	}
-	device := ""
-	if backend == string(transcoding.VAAPI) || backend == string(transcoding.QSV) {
-		device = "/dev/dri/renderD128"
+	if device == "" {
+		device = hwDevicePath(backend)
 	}
 	return checkEncoderAvailable(ctx, r.ffmpegPath, enc) && probeHWEncode(ctx, r.ffmpegPath, enc, backend, device)
 }
@@ -452,7 +476,7 @@ func (r *BenchmarkRunner) probeHWFeatures(ctx context.Context, backend, device s
 	case "nvenc":
 		var ok []string
 		for _, p := range nvencFeatureProbes {
-			if r.probeOption(ctx, nvencProbeArgs(p.args)) {
+			if r.probeOption(ctx, nvencProbeArgs(append(nvencGPUArgs(device), p.args...))) {
 				ok = append(ok, p.name)
 				r.logger.Info("benchmark: HW feature supported",
 					slog.String("backend", backend), slog.String("feature", p.name))
@@ -861,12 +885,12 @@ func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string
 // box's VAAPI (UHD 630: hevc 75 vs 30 fps) wins where detector order used to pin
 // VAAPI. A backend pin (mode=vaapi/nvenc/qsv) still restricts the field to one.
 // Returns (0, "") when no HW is usable - software-only, fully supported.
-func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool, pinBackend string) []hwCandidate {
-	devices, err := r.hwDetector.DetectDevices(ctx)
-	if err != nil || len(devices) == 0 {
+func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool, pref transcoding.HWPreference, devices []transcoding.HWDevice) []hwCandidate {
+	if len(devices) == 0 {
 		return nil
 	}
-	pinBackend = strings.ToLower(strings.TrimSpace(pinBackend))
+	pinBackend := strings.ToLower(strings.TrimSpace(pref.Backend))
+	pinDevice := strings.TrimSpace(pref.Device)
 	var candidates []hwCandidate
 
 	for _, dev := range devices {
@@ -876,6 +900,13 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		if pinBackend != "" && strings.ToLower(dev.Type) != pinBackend {
 			continue
 		}
+		// And the device pin: one render node / CUDA index of a multi-GPU box.
+		if pinDevice != "" && dev.Name != pinDevice && hwDeviceOrDefault(dev.Type, dev.Name) != pinDevice {
+			r.logger.Info("benchmark: device skipped by the operator's device pin",
+				slog.String("backend", dev.Type), slog.String("device", hwDeviceOrDefault(dev.Type, dev.Name)), slog.String("pin", pinDevice))
+			continue
+		}
+		device := dev.Name
 		var encoder string
 		for _, c := range dev.SupportedCodecs {
 			if strings.HasPrefix(c, "h264_") {
@@ -894,9 +925,9 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		// device is skipped - exactly as a failing ladder skips it today, since
 		// a device that cannot do a minimal encode cannot pass the ladder. No
 		// fixed warm-up: on a ready GPU the first attempt passes instantly.
-		if !r.runHWReadinessProbe(ctx, "encode_init", dev.Type, hwDevicePath(dev.Type), ClassifyHWFailure,
+		if !r.runHWReadinessProbe(ctx, "encode_init", dev.Type, device, ClassifyHWFailure,
 			func() (bool, string, string, error) {
-				return r.probeHWEncodeBaseE(ctx, dev.Type, encoder, hwDevicePath(dev.Type))
+				return r.probeHWEncodeBaseE(ctx, dev.Type, encoder, device)
 			}) {
 			continue
 		}
@@ -910,6 +941,7 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 				passing := ok && fps >= required
 				r.logger.Info("benchmark: hardware probe",
 					slog.String("backend", dev.Type),
+					slog.String("device", device),
 					slog.String("encoder", encoder),
 					slog.Int("height", h),
 					slog.Int("parallel_encodes", len(laddered)),
@@ -934,11 +966,11 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 
 		// Production zero-copy path first; decoupled (software decode + hwupload)
 		// only if the GPU cannot HW-decode the sample codec (VAAPI/QSV).
-		usedInput, usedChain := hwInputArgs(dev.Type), ""
+		usedInput, usedChain := hwInputArgs(dev.Type, device), ""
 		best, samples := runLadder(usedInput, usedChain)
 		if best == 0 {
 			if up := hwUploadChain(encoder); up != "" {
-				usedInput, usedChain = hwDecoupledInputArgs(dev.Type), up
+				usedInput, usedChain = hwDecoupledInputArgs(dev.Type, device), up
 				best, samples = runLadder(usedInput, usedChain)
 			}
 		}
@@ -959,7 +991,7 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 			continue // corrupt: never a candidate
 		}
 		candidates = append(candidates, hwCandidate{
-			backend: dev.Type, encoder: encoder, device: hwDevicePath(dev.Type),
+			backend: dev.Type, encoder: encoder, device: device,
 			best: best, topFPS: topPassingFPS(samples), codecs: hwDomainCodecs(dev.SupportedCodecs), samples: samples,
 		})
 	}
@@ -1007,9 +1039,21 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		}
 		return 0
 	})
-	out := make([]hwCandidate, len(ranks))
-	for i, rk := range ranks {
-		out[i] = rk.c
+	// One device per backend: the pools, the route-cost keys and the cache
+	// identity are keyed by backend, so a second device of the same backend
+	// (two Intel nodes, two NVIDIA cards) is certified and reported but not
+	// selected - the operator pins it (HWPreference.Device) or runs one Evey per
+	// GPU. The best-ranked device of each backend wins.
+	out := make([]hwCandidate, 0, len(ranks))
+	seenBackend := map[string]bool{}
+	for _, rk := range ranks {
+		if seenBackend[rk.c.backend] {
+			r.logger.Info("benchmark: second device of an already-selected backend certified but not selected (pin it with EVEY_TRANSCODING_HW_DEVICE to use it)",
+				slog.String("backend", rk.c.backend), slog.String("device", hwDeviceOrDefault(rk.c.backend, rk.c.device)))
+			continue
+		}
+		seenBackend[rk.c.backend] = true
+		out = append(out, rk.c)
 	}
 	if len(out) > 1 {
 		r.logger.Info("benchmark: certified accelerators ranked (backend chosen per route at admission)",
@@ -1153,7 +1197,7 @@ func (r *BenchmarkRunner) probeBackendCap(ctx context.Context, c hwCandidate) tr
 // benchHWBridge walks hwBenchLadder through hwTonemapBridge (GPU decode,
 // CPU tone-map at the rung width, GPU encode) on the HDR sample. Nil when the
 // backend has no bridge chain or no H.264 encoder.
-func (r *BenchmarkRunner) benchHWBridge(ctx context.Context, backend string, codecs []string) []transcoding.BenchRungSample {
+func (r *BenchmarkRunner) benchHWBridge(ctx context.Context, backend, device string, codecs []string) []transcoding.BenchRungSample {
 	if !slices.Contains(codecs, "h264") {
 		return nil
 	}
@@ -1172,7 +1216,7 @@ func (r *BenchmarkRunner) benchHWBridge(ctx context.Context, backend string, cod
 			return nil
 		}
 		laddered := hwBenchLadder[:i+1]
-		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, hwInputArgs(backend), chain)
+		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, hwInputArgs(backend, device), chain)
 		passing := ok && fps >= required
 		r.logger.Info("benchmark: hw tone-map bridge probe",
 			slog.String("backend", backend), slog.Int("height", h),
@@ -1207,8 +1251,9 @@ func hwDomainCodecs(supported []string) []string {
 	return out
 }
 
-// hwDevicePath returns the DRM render node ffmpeg needs for VAAPI/QSV; NVENC
-// selects its device through CUDA and needs none.
+// hwDevicePath returns the DEFAULT device of a backend when a capability row
+// names none: the first DRM render node for VAAPI/QSV (what every single-GPU
+// host bound before devices were enumerated); NVENC's default GPU needs none.
 func hwDevicePath(backend string) string {
 	switch transcoding.HWAccelType(backend) {
 	case transcoding.VAAPI, transcoding.QSV:
@@ -1217,19 +1262,18 @@ func hwDevicePath(backend string) string {
 	return ""
 }
 
-// hwInputArgs prepends the input-level HW init flags for each backend.
-// Empty for NVENC (which works in pure copy-CPU pipeline too) - and the
-// software fallback path inside HW encoders is forgiving.
-func hwInputArgs(backend string) []string {
-	switch backend {
-	case string(transcoding.VAAPI):
-		return []string{"-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi", "-vaapi_device", "/dev/dri/renderD128"}
-	case string(transcoding.NVENC):
-		return []string{"-hwaccel", "cuda", "-hwaccel_output_format", "cuda"}
-	case string(transcoding.QSV):
-		return []string{"-hwaccel", "qsv", "-hwaccel_output_format", "qsv"}
+// hwDeviceOrDefault is device, or the backend's default when empty.
+func hwDeviceOrDefault(backend, device string) string {
+	if device != "" {
+		return device
 	}
-	return nil
+	return hwDevicePath(backend)
+}
+
+// hwInputArgs prepends the input-level HW init flags for each backend, bound
+// to device (the backend's default when empty) - the production hwInitArgs.
+func hwInputArgs(backend, device string) []string {
+	return hwInitArgs(transcoding.HWAccelType(backend), hwDeviceOrDefault(backend, device))
 }
 
 // hwDecoupledInputArgs returns the device-binding input flags WITHOUT -hwaccel,
@@ -1238,14 +1282,8 @@ func hwInputArgs(backend string) []string {
 // HW-decode the sample codec (e.g. pre-Skylake Intel + an HEVC sample). Mirrors
 // the device setup probeHWEncode validated. NVENC is absent: it HW-decodes every
 // codec, so the zero-copy path always works for it.
-func hwDecoupledInputArgs(backend string) []string {
-	switch backend {
-	case string(transcoding.VAAPI):
-		return []string{"-vaapi_device", "/dev/dri/renderD128"}
-	case string(transcoding.QSV):
-		return []string{"-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"}
-	}
-	return nil
+func hwDecoupledInputArgs(backend, device string) []string {
+	return hwDeviceOnlyArgs(transcoding.HWAccelType(backend), hwDeviceOrDefault(backend, device))
 }
 
 // hwUploadChain is the filter prefix that uploads software-decoded frames to the

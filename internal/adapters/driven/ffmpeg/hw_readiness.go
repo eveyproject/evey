@@ -204,12 +204,17 @@ func (r *BenchmarkRunner) probeHWEncodeBaseE(ctx context.Context, backend, encod
 		args = append(args, "-vaapi_device", device, "-f", "lavfi",
 			"-i", "testsrc2=size="+hwProbeMire+":rate=10:duration=0.2", "-vf", "format=nv12,hwupload")
 	case "qsv":
-		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw", "-f", "lavfi",
+		args = append(args, qsvInitDeviceArgs(device)...)
+		args = append(args, "-f", "lavfi",
 			"-i", "testsrc2=size="+hwProbeMire+":rate=10:duration=0.2", "-vf", "hwupload=extra_hw_frames=16,format=qsv")
 	default:
 		args = append(args, "-f", "lavfi", "-i", "testsrc2=size="+hwProbeMire+":rate=10:duration=0.2")
 	}
-	args = append(args, "-c:v", encoder, "-f", "null", "-")
+	args = append(args, "-c:v", encoder)
+	if backend == "nvenc" {
+		args = append(args, nvencGPUArgs(device)...)
+	}
+	args = append(args, "-f", "null", "-")
 	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_readiness"}, r.ffmpegPath, args...)
 	argv := strings.Join(args, " ")
 	if err != nil {

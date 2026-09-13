@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -156,5 +157,38 @@ func TestParseIdetCounts_DeinterlaceVerdict(t *testing.T) {
 	}
 	if probeHWDeinterlace(context.Background(), "/nonexistent/ffmpeg", "vaapi", "/dev/dri/renderD128") {
 		t.Fatal("per-frame backends never claim the session-level deinterlacer")
+	}
+}
+
+// Render-node identification: QSV candidates are the Intel nodes by THEIR
+// driver (i915/xe) or vendor id, never card0's; the admin label carries vendor
+// + driver + node; a device row reports the default node when none was bound.
+func TestRenderNodeIdentity(t *testing.T) {
+	intel := drmNode{path: "/dev/dri/renderD129", vendor: "0x8086", driver: "i915"}
+	amd := drmNode{path: "/dev/dri/renderD128", vendor: "0x1002", driver: "amdgpu"}
+	xe := drmNode{path: "/dev/dri/renderD130", driver: "xe"}
+	unknownIntel := drmNode{path: "/dev/dri/renderD131", vendor: "0x8086"}
+	wsl := drmNode{path: "/dev/dri/renderD128"}
+	assert.True(t, intel.intel())
+	assert.True(t, xe.intel())
+	assert.True(t, unknownIntel.intel(), "vendor id decides when the driver link is unreadable")
+	assert.False(t, amd.intel())
+	assert.False(t, wsl.intel())
+	assert.Equal(t, "Intel i915 (renderD129)", intel.label())
+	assert.Equal(t, "AMD amdgpu (renderD128)", amd.label())
+	assert.Equal(t, "renderD128", wsl.label())
+
+	infos := detectedDeviceInfos([]transcoding.HWDevice{
+		{Type: "vaapi", Name: "/dev/dri/renderD129", Label: intel.label(), SupportedCodecs: []string{"h264_vaapi"}},
+		{Type: "nvenc", Name: "", Label: "NVIDIA GeForce RTX 4070 Ti", SupportedCodecs: []string{"h264_nvenc", "av1_nvenc"}},
+		{Type: "nvenc", Name: "1", Label: "NVIDIA T400"},
+	})
+	assert.Equal(t, "/dev/dri/renderD129", infos[0].Device)
+	assert.Equal(t, "", infos[1].Device, "the first NVIDIA GPU is ffmpeg's default: no index")
+	assert.Equal(t, "1", infos[2].Device)
+	assert.Equal(t, []string{"nvenc", "vaapi"}, detectedBackends([]transcoding.HWDevice{{Type: "nvenc"}, {Type: "vaapi"}, {Type: "nvenc", Name: "1"}}))
+	// Nodes are listed even when sysfs is unreadable (a container without /sys/class/drm).
+	for _, n := range enumerateRenderNodes() {
+		assert.True(t, strings.HasPrefix(n.path, "/dev/dri/renderD"), n.path)
 	}
 }

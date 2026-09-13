@@ -528,7 +528,7 @@ func measureBenchShape(ctx context.Context, opts RouteBenchOptions, cap transcod
 	// Same argv builder as the bench (runMultiVariant), assembled here so the
 	// process can be measured for rusage/GPU like the sessions are.
 	args := []string{"-hide_banner", "-nostats"}
-	args = append(args, hwInputArgs(cap.HWBackend)...)
+	args = append(args, hwInputArgs(cap.HWBackend, cap.HWDevice)...)
 	args = append(args, "-t", strconv.Itoa(opts.DurationSec), "-i", src.path)
 	hwScale, hwPreset := "", ""
 	switch {

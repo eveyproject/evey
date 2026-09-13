@@ -115,8 +115,9 @@ func routeProbesFor(accel transcoding.HWAccelType, codecs, features []string, hw
 			o.HWSoftwareDecode = true
 		}})
 	}
-	// The session-level GPU deinterlacer (QSV), on a genuinely interlaced clip.
-	if hwDeint && hwDeinterlaceFilter(accel, false, true) != "" {
+	// The session-level GPU deinterlacer (QSV only - the per-frame backends
+	// emit theirs on every route already), on a genuinely interlaced clip.
+	if hwDeint && accel == transcoding.QSV && hwDeinterlaceFilter(accel, false, true) != "" {
 		probes = append(probes, routeProbe{route: transcoding.HWRouteDeinterlace, mire: routeMireTFF, opts: func(o *transcoding.HLSProcessOpts) {
 			o.HWDeinterlace = true
 		}})

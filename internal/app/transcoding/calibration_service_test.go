@@ -83,7 +83,7 @@ func (r *fakeBenchmarkRunner) Run(ctx context.Context, pref domaintranscoding.HW
 	return r.result, r.err
 }
 
-func (r *fakeBenchmarkRunner) HWBackendUsable(_ context.Context, _ string) bool {
+func (r *fakeBenchmarkRunner) HWBackendUsable(_ context.Context, _, _ string) bool {
 	return !r.hwUnusable
 }
 

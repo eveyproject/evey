@@ -328,6 +328,12 @@ type TranscodingConfig struct {
 	// another. Honoured by calibration (only the pinned backend is benched, and
 	// a persisted capability for a different backend is re-benched).
 	HWBackend string
+	// HWDevice pins the calibration to ONE device: a DRM render node
+	// ("/dev/dri/renderD129") or a CUDA index ("1"). Empty = every detected
+	// device is certified and the best per backend selected. With HWBackend it
+	// is what binds one Evey container to one GPU on a multi-GPU host
+	// (EVEY_TRANSCODING_HW_DEVICE).
+	HWDevice string
 	// HWMode is the admin-selectable HW-acceleration policy ("auto"/"off"/
 	// "nvenc"/"vaapi"/"qsv"). Empty = derive the bootstrap mode from
 	// HWAccelEnabled + HWBackend. The admin panel persists an override into
@@ -865,6 +871,7 @@ func Load() (*Config, error) {
 			HWAccelEnabled:        envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
 			HWBackend:             strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
 			HWMode:                strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
+			HWDevice:              strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_DEVICE", "")),
 			HWFirstSegmentTimeout: envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 10*time.Second),
 			// 0 follows the source bitrate; the web player sizes its forward buffer
 			// to the rung so a 70 Mb/s remux stays under the browser's MSE quota.
