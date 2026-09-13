@@ -187,10 +187,20 @@ func hwToneMapStage(opts transcoding.HLSProcessOpts) string {
 func hwTonemapFilter(accel transcoding.HWAccelType, features []string) string {
 	switch accel {
 	case transcoding.VAAPI:
-		// OpenCL when probed: bt2390 like the software path, RPU/HLG aware. The
-		// fixed-function VPP curve is the fallback.
-		if slices.Contains(features, transcoding.FeatureTonemapOpenCL) {
+		// Three implementations, one local rule: OpenCL first (the one measured
+		// and validated in production, 3.26x on an UHD 630), Vulkan/libplacebo
+		// second (the Mesa/RADV box that has no OpenCL ICD), the fixed-function
+		// VPP curve last (PQ only). Both GPU chains are bt2390 like the software
+		// path and RPU/HLG aware. The route-cost model keys the tone-map route
+		// per backend, not per implementation, so it cannot yet rank OpenCL
+		// against Vulkan on a host certifying both - when one appears, its route
+		// evidence measures the implementation this rule picked; ranking the two
+		// by measurement is the follow-up, not a scheduler change made blind.
+		switch {
+		case slices.Contains(features, transcoding.FeatureTonemapOpenCL):
 			return hwOpenCLTonemapChain
+		case slices.Contains(features, transcoding.FeatureTonemapVulkan):
+			return hwVulkanTonemapChain
 		}
 		return "tonemap_vaapi=format=nv12:matrix=bt709:primaries=bt709:transfer=bt709"
 	case transcoding.NVENC:

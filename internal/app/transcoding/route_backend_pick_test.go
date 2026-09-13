@@ -214,3 +214,28 @@ func TestBackendPerRoute_RKMPP(t *testing.T) {
 	assert.Equal(t, "h264", codec)
 	assert.True(t, usable)
 }
+
+// The cache identity names the tone-map IMPLEMENTATION (different curves draw
+// different pictures): OpenCL, Vulkan, CUDA and the VPP fork their segments
+// from each other and from the software tonemapx, with the builder's precedence.
+func TestFingerprint_TonemapImplementationForksTheCache(t *testing.T) {
+	base := DecisionFingerprint{MediaID: "m", SourcePath: "/f.mkv", HDRTonemap: true, HWTonemap: true,
+		Profiles: []ProfileFingerprint{{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 8000}}}
+	impl := func(features ...string) string {
+		f := base
+		f.HWFeatures = features
+		return f.tonemapImpl()
+	}
+	assert.Equal(t, "vpp", impl())
+	assert.Equal(t, "opencl", impl(transcoding.FeatureTonemapOpenCL))
+	assert.Equal(t, "vulkan", impl(transcoding.FeatureTonemapVulkan))
+	assert.Equal(t, "opencl", impl(transcoding.FeatureTonemapVulkan, transcoding.FeatureTonemapOpenCL), "same precedence as hwTonemapFilter")
+	assert.Equal(t, "cuda", impl(transcoding.FeatureTonemapCUDA))
+	sw := base
+	sw.HWTonemap = false
+	assert.Equal(t, "sw", sw.tonemapImpl())
+	vk, ocl := base, base
+	vk.HWFeatures, ocl.HWFeatures = []string{transcoding.FeatureTonemapVulkan}, []string{transcoding.FeatureTonemapOpenCL}
+	assert.NotEqual(t, vk.Hash(), ocl.Hash())
+	assert.NotEqual(t, vk.Hash(), sw.Hash())
+}

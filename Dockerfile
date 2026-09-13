@@ -237,7 +237,7 @@ RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmwa
 #   all          every family below
 #   intel        Intel VAAPI/QSV + OpenCL tone-map for Gen12 and newer
 #   intel-legacy Intel VAAPI/QSV + OpenCL tone-map for Gen9-11 (UHD 6xx)
-#   amd          Mesa VAAPI (radeonsi) only
+#   amd          Mesa VAAPI (radeonsi) + Vulkan/RADV for the libplacebo tone-map
 #   none         software only
 #
 # postgresql-17 is the EMBEDDED database (entrypoint: EVEY_EMBEDDED_POSTGRES),
@@ -257,6 +257,14 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
        postgresql-client-17 postgresql-17 unzip wget python3 \
        vainfo libva2 libva-drm2 \
     && case "$GPU" in all|amd) apt-get install -y --no-install-recommends mesa-va-drivers ;; esac \
+    # Vulkan for the VAAPI -> Vulkan/libplacebo tone-map route (the Mesa/RADV
+    # path of an AMD box, which has no OpenCL ICD): the loader jellyfin-ffmpeg
+    # dlopens (libvulkan.so.1) and Mesa's ICDs (radeon_icd = RADV, plus ANV).
+    # Nothing here declares the route usable - the calibration derives a Vulkan
+    # device from the render node, runs libplacebo on it and measures the
+    # picture; a host where that fails simply keeps OpenCL or the CPU bridge.
+    && case "$GPU" in all|amd) apt-get install -y --no-install-recommends libvulkan1 mesa-vulkan-drivers \
+         && ls /usr/share/vulkan/icd.d/*.json >/dev/null ;; esac \
     # Intel VAAPI/QSV drivers (iHD/i965 + oneVPL) are x86-only - no arm64 package
     # exists in the archive, so install them only on amd64. On arm64 the host's
     # own VAAPI (mesa: a mapped Mali/Rockchip GPU) is used if present; Synology-
@@ -317,7 +325,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends gnupg \
     # every arch - a build missing it is a broken ffmpeg layer we want to catch.
     # The Go side still probes tonemapxAvailable at runtime and falls back to
     # the zscale chain if a future build ever drops it.
-    && /usr/local/bin/ffmpeg -hide_banner -filters | grep -q tonemapx
+    && /usr/local/bin/ffmpeg -hide_banner -filters | grep -q tonemapx \
+    # The Vulkan/libplacebo tone-map route (GPU=all|amd, loader + Mesa ICDs
+    # installed above) needs the filter and the hwaccel in THIS binary. Checked
+    # without a GPU: presence in the build, never a claim that a device works -
+    # the calibration proves that on the host.
+    && case "$GPU" in all|amd) /usr/local/bin/ffmpeg -hide_banner -filters | grep -q libplacebo \
+         && /usr/local/bin/ffmpeg -hide_banner -hwaccels | grep -q vulkan \
+         && [ -e /usr/lib/*/libvulkan.so.1 ] ;; esac
 
 # Intel OpenCL runtime (amd64 only) for tonemap_opencl: the same bt2390 curve as
 # the software tone-mapper, run on the GPU, HLG and Dolby Vision RPU included.

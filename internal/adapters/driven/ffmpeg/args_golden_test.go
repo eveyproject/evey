@@ -139,6 +139,26 @@ func goldenSessions() map[string]transcoding.HLSProcessOpts {
 			o.HWTonemap = true
 			o.HWFeatures = append(o.HWFeatures, transcoding.FeatureTonemapOpenCL)
 		}),
+		"hw-vaapi-vulkan-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			vaapi(o)
+			o.ToneMap = true
+			o.HWTonemap = true
+			o.HWFeatures = append(o.HWFeatures, transcoding.FeatureTonemapVulkan)
+		}),
+		"hw-vaapi-vulkan-tonemap-multi": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			vaapi(o)
+			o.ToneMap = true
+			o.HWTonemap = true
+			o.HWFeatures = append(o.HWFeatures, transcoding.FeatureTonemapVulkan)
+			o.Profiles = goldenLadder[:3]
+			o.VideoDecision = ""
+		}),
+		"hw-vaapi-opencl-over-vulkan-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			vaapi(o)
+			o.ToneMap = true
+			o.HWTonemap = true
+			o.HWFeatures = append(o.HWFeatures, transcoding.FeatureTonemapVulkan, transcoding.FeatureTonemapOpenCL)
+		}),
 		"hw-vaapi-vpp-tonemap":    goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.ToneMap = true; o.HWTonemap = true }),
 		"hw-vaapi-bridge-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) { vaapi(o); o.ToneMap = true }),
 		"hw-vaapi-hdr-passthrough": goldenOpts(func(o *transcoding.HLSProcessOpts) {

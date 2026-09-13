@@ -1136,16 +1136,19 @@ func topPassingFPS(samples []transcoding.BenchRungSample) float64 {
 // never gated behind the fixed-function native one. hwTonemapFilter then picks
 // OpenCL when the feature is present; the route is still certified only by the
 // real builder/HLS route probe.
-func resolveTonemapCaps(backend string, features []string, nativeOK, openclOK bool) (bool, []string) {
+func resolveTonemapCaps(backend string, features []string, nativeOK, openclOK, vulkanOK bool) (bool, []string) {
 	if openclOK {
 		features = append(features, transcoding.FeatureTonemapOpenCL)
+	}
+	if vulkanOK {
+		features = append(features, transcoding.FeatureTonemapVulkan)
 	}
 	// NVENC's "native" probe IS tonemap_cuda; the builder emits the chain only
 	// on this feature (a stock ffmpeg has no such filter).
 	if backend == "nvenc" && nativeOK {
 		features = append(features, transcoding.FeatureTonemapCUDA)
 	}
-	return nativeOK || openclOK, features
+	return nativeOK || openclOK || vulkanOK, features
 }
 
 // probeBackendCap runs the per-backend capability probes (features, decode
@@ -1170,10 +1173,23 @@ func (r *BenchmarkRunner) probeBackendCap(ctx context.Context, c hwCandidate) tr
 		func() (bool, string, string, error) {
 			return probeHWTonemapOpenCLE(ctx, r.ffmpegPath, c.backend, c.device)
 		})
-	tonemap, features := resolveTonemapCaps(c.backend, features, tonemapNative, tonemapOpenCL)
-	if tonemapOpenCL {
-		r.logger.Info("benchmark: HW feature supported",
-			slog.String("backend", c.backend), slog.String("feature", transcoding.FeatureTonemapOpenCL))
+	// Vulkan/libplacebo, derived from the same node: a third independent
+	// implementation (VAAPI only), replayed on the same readiness schedule.
+	tonemapVulkan := r.runHWReadinessProbe(ctx, "vulkan_tonemap", c.backend, c.device, classifyVulkanProbe,
+		func() (bool, string, string, error) {
+			return probeHWTonemapVulkanE(ctx, r.ffmpegPath, c.backend, c.device)
+		})
+	// A curve that runs is not a curve that is right: measure each probed
+	// implementation against the software reference before certifying it.
+	tonemapNative, tonemapOpenCL, tonemapVulkan = r.gateTonemapImpls(ctx, c.backend, c.device, tonemapNative, tonemapOpenCL, tonemapVulkan)
+	tonemap, features := resolveTonemapCaps(c.backend, features, tonemapNative, tonemapOpenCL, tonemapVulkan)
+	for _, f := range []struct {
+		ok   bool
+		name string
+	}{{tonemapOpenCL, transcoding.FeatureTonemapOpenCL}, {tonemapVulkan, transcoding.FeatureTonemapVulkan}} {
+		if f.ok {
+			r.logger.Info("benchmark: HW feature supported", slog.String("backend", c.backend), slog.String("feature", f.name))
+		}
 	}
 	overlay := probeHWOverlay(ctx, r.ffmpegPath, c.backend, c.device)
 	hdr10 := false

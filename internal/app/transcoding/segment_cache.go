@@ -369,8 +369,15 @@ func (f DecisionFingerprint) tonemapImpl() string {
 	if !f.HWTonemap {
 		return "sw"
 	}
-	if slices.Contains(f.HWFeatures, transcoding.FeatureTonemapOpenCL) {
+	// Same precedence as the builder's hwTonemapFilter: OpenCL over Vulkan on
+	// VAAPI, CUDA on NVENC, else the fixed VPP curve.
+	switch {
+	case slices.Contains(f.HWFeatures, transcoding.FeatureTonemapOpenCL):
 		return "opencl"
+	case slices.Contains(f.HWFeatures, transcoding.FeatureTonemapVulkan):
+		return "vulkan"
+	case slices.Contains(f.HWFeatures, transcoding.FeatureTonemapCUDA):
+		return "cuda"
 	}
 	return "vpp"
 }

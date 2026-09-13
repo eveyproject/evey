@@ -188,6 +188,24 @@ func classifyOpenCLProbe(err error, stderr string) transcoding.FailureClass {
 	return transcoding.FailureHWInit
 }
 
+// classifyVulkanProbe is classifyOpenCLProbe for the Vulkan/libplacebo interop,
+// with the answers a host gives when it simply has no Vulkan treated as
+// deterministic - no loader/ICD for this GPU, no libplacebo in the build, a
+// device that cannot be derived from the node. Those never recover on a retry;
+// only the remaining (interop/init) failures replay on the readiness schedule.
+func classifyVulkanProbe(err error, stderr string) transcoding.FailureClass {
+	if err == nil {
+		return transcoding.FailureNone
+	}
+	s := strings.ToLower(stderr)
+	if stderrContainsAny(s,
+		"no such filter", "unknown filter", "libvulkan", "failed to create vulkan instance", "no vulkan devices",
+		"unable to find a suitable physical device", "device creation failed", "cannot derive", "no device to derive") {
+		return transcoding.FailureHWUnsupportedOption
+	}
+	return classifyOpenCLProbe(err, stderr)
+}
+
 // probeHWEncodeBaseE is the base HW-encode readiness probe: the minimal
 // media-independent encode through the backend's H.264 encoder, returning the
 // argv and stderr so the readiness retry can classify and log it. This is the

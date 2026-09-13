@@ -62,6 +62,41 @@ func TestHWTonemapFilter_OpenCLWhenProbed(t *testing.T) {
 	}
 }
 
+// Vulkan/libplacebo is chosen only on its OWN certified feature, below OpenCL
+// when both are certified (the local rule documented on hwTonemapFilter) and
+// above the VPP curve; the bridge and software paths never see it.
+func TestHWTonemapFilter_VulkanOnlyWhenCertified(t *testing.T) {
+	vk := hwTonemapFilter(transcoding.VAAPI, []string{transcoding.FeatureTonemapVulkan})
+	for _, want := range []string{"hwmap=derive_device=vulkan:mode=read", "libplacebo=tonemapping=bt.2390", "peak_detect=0", "color_trc=bt709", "format=nv12", "hwmap=derive_device=vaapi:reverse=1", "format=vaapi"} {
+		if !strings.Contains(vk, want) {
+			t.Errorf("Vulkan chain %q missing %q", vk, want)
+		}
+	}
+	if got := hwTonemapFilter(transcoding.VAAPI, []string{transcoding.FeatureTonemapVulkan, transcoding.FeatureTonemapOpenCL}); got != hwOpenCLTonemapChain {
+		t.Errorf("OpenCL keeps precedence when both are certified, got %q", got)
+	}
+	if got := hwTonemapFilter(transcoding.VAAPI, []string{"bframes_h264"}); !strings.HasPrefix(got, "tonemap_vaapi=") {
+		t.Errorf("no certified GPU curve: the VPP fallback, got %q", got)
+	}
+	for _, accel := range []transcoding.HWAccelType{transcoding.NVENC, transcoding.QSV, transcoding.RKMPP} {
+		if got := hwTonemapFilter(accel, []string{transcoding.FeatureTonemapVulkan}); strings.Contains(got, "libplacebo") {
+			t.Errorf("%s must not emit the VAAPI Vulkan interop: %q", accel, got)
+		}
+	}
+	opts := sampleHWOpts(transcoding.VAAPI, "/dev/dri/renderD129", 1)
+	opts.ToneMap, opts.HWTonemap = true, true
+	opts.HWFeatures = []string{transcoding.FeatureTonemapVulkan}
+	joined := strings.Join(BuildFFmpegArgs(opts), " ")
+	if !strings.Contains(joined, "-hwaccel_device /dev/dri/renderD129 -i") || !strings.Contains(joined, "libplacebo=") || strings.Contains(joined, "hwdownload") {
+		t.Errorf("Vulkan session must be zero-copy on the named node: %q", joined)
+	}
+	// Without HWTonemap the same features still bridge on the CPU (tonemapx).
+	opts.HWTonemap = false
+	if b := strings.Join(BuildFFmpegArgs(opts), " "); !strings.Contains(b, "hwdownload,format=p010le") || strings.Contains(b, "libplacebo") {
+		t.Errorf("software bridge intact: %q", b)
+	}
+}
+
 func TestHWHDRPassthroughArgs(t *testing.T) {
 	pq := strings.Join(hwHDRPassthroughArgs(transcoding.VAAPI, "pq", -1), " ")
 	for _, want := range []string{"-profile:v main10", "-color_primaries:v bt2020", "-color_trc:v smpte2084", "-colorspace:v bt2020nc", "-sei:v hdr"} {

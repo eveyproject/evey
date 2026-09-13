@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"context"
 	"errors"
+	"github.com/stretchr/testify/assert"
 	"os/exec"
 	"testing"
 
@@ -129,5 +130,24 @@ func TestClassifyHWFailure_KilledSignalIsCancelled(t *testing.T) {
 	}
 	if got := ClassifyHWFailure(werr, "CUDA_ERROR_OUT_OF_MEMORY"); got != transcoding.FailureCancelled {
 		t.Errorf("SIGKILL must classify as Cancelled, got %q", got)
+	}
+}
+
+// A GPU tone-map interop failing in a session is a (title, route) verdict,
+// never a host one - whatever init-like wording ffmpeg gives it.
+func TestClassifyHWFailure_TonemapInteropIsRouteLevel(t *testing.T) {
+	for _, stderr := range []string{
+		"[AVHWDeviceContext @ 0x1] Failed to create Vulkan instance: -9\n[Parsed_hwmap_1 @ 0x2] Failed to create derived device",
+		"[Parsed_libplacebo_2 @ 0x3] Failed to map frame: -38",
+		"[Parsed_hwmap_1 @ 0x2] Failed to derive device: OpenCL device creation failed",
+		"[Parsed_tonemap_opencl_2 @ 0x3] Failed to run kernel",
+	} {
+		if got := ClassifyHWFailure(assert.AnError, stderr); got != transcoding.FailureRouteIncompatible {
+			t.Errorf("%q => %s, want %s", stderr, got, transcoding.FailureRouteIncompatible)
+		}
+	}
+	// The device-level signatures without any interop wording stay host init.
+	if got := ClassifyHWFailure(assert.AnError, "Failed to create a VAAPI device: -22\nDevice creation failed: -22"); got != transcoding.FailureHWInit {
+		t.Errorf("plain device init => %s", got)
 	}
 }
