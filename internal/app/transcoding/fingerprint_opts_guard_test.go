@@ -55,6 +55,7 @@ var (
 		"HWSoftwareDecode":    "opts.HWSoftwareDecode (decoupled route: software decode + hwupload)",
 		"HWTonemap":           "opts.HWTonemap",
 		"HWOverlay":           "opts.HWOverlay (GPU bitmap-subtitle blend)",
+		"HWDeinterlace":       "opts.HWDeinterlace (QSV session-level deinterlacer on a known-interlaced source)",
 		"HDRPassthrough":      "opts.HDRPassthrough (HEVC Main10, HDR kept)",
 		"HDRTransfer":         "opts.HDRTransfer (pq/hlg colour signalling)",
 		"DeinterlaceAll":      "opts.DeinterlaceAll",

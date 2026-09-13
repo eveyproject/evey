@@ -194,14 +194,25 @@ func goldenSessions() map[string]transcoding.HLSProcessOpts {
 			o.Profiles = goldenLadder[:3]
 			o.VideoDecision = ""
 		}),
-		"hw-nvenc-av1":            goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.VideoCodec = "av1" }),
-		"hw-nvenc-multi":          goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.Profiles = goldenLadder[:3]; o.VideoDecision = "" }),
-		"hw-qsv-single":           goldenOpts(qsv),
+		"hw-nvenc-av1":   goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.VideoCodec = "av1" }),
+		"hw-nvenc-multi": goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.Profiles = goldenLadder[:3]; o.VideoDecision = "" }),
+		"hw-qsv-single":  goldenOpts(qsv),
 		"hw-qsv-tonemap-bridge": goldenOpts(func(o *transcoding.HLSProcessOpts) {
 			qsv(o)
 			o.ToneMap = true
 			o.HWTonemap = true
 			o.SourceVideoCodec = "hevc"
+		}),
+		"hw-qsv-deinterlace": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			qsv(o)
+			o.SourceVideoCodec = "mpeg2video"
+			o.HWDeinterlace = true
+		}),
+		"hw-qsv-deinterlace-multi": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			qsv(o)
+			o.HWDeinterlace = true
+			o.Profiles = goldenLadder[:2]
+			o.VideoDecision = ""
 		}),
 		"hw-qsv-decoupled": goldenOpts(func(o *transcoding.HLSProcessOpts) {
 			qsv(o)

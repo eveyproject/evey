@@ -1136,10 +1136,17 @@ func (r *BenchmarkRunner) probeBackendCap(ctx context.Context, c hwCandidate) tr
 	if slices.Contains(codecs, "hevc") {
 		hdr10 = probeHWHDR10Encode(ctx, r.ffmpegPath, c.backend, c.device)
 	}
-	routes := r.probeHWRoutes(ctx, c.backend, c.device, codecs, features, tonemap, hw10, hdr10, decode)
+	// QSV only: the session-level deinterlacer must prove CORRECT (idet) before
+	// an interlaced source may take the QSV zero-copy chain at all.
+	deint := probeHWDeinterlace(ctx, r.ffmpegPath, c.backend, c.device)
+	if deint {
+		r.logger.Info("benchmark: HW feature supported", slog.String("backend", c.backend), slog.String("feature", "deinterlace"))
+	}
+	routes := r.probeHWRoutes(ctx, c.backend, c.device, codecs, features, tonemap, hw10, hdr10, deint, decode)
 	return transcoding.HWBackendCap{
 		Backend: c.backend, Device: c.device, Codecs: codecs, DecodeCodecs: decode,
 		Features: features, Routes: routes, HW10Bit: hw10, HWTonemap: tonemap, HWOverlay: overlay, HWHDR10Encode: hdr10,
+		HWDeinterlace: deint,
 	}
 }
 

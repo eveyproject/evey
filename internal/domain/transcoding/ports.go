@@ -152,6 +152,12 @@ type HLSProcessOpts struct {
 	// DeinterlaceAll switches bwdif from deint=interlaced to deint=all for
 	// sources whose container flags lie (idet verdict, DecisionFingerprint.DeinterlaceAll).
 	DeinterlaceAll bool
+	// HWDeinterlace makes the HARDWARE builder run the backend's SESSION-level
+	// GPU deinterlacer (QSV's deinterlace_qsv, no only-if-flagged mode): set
+	// only when the source is KNOWN interlaced (field_order flag or idet
+	// verdict) and the calibration proved the filter correct. NVENC/VAAPI
+	// ignore it - their per-frame deinterlacer is always on.
+	HWDeinterlace bool
 	// InverseTelecine replaces the deinterlacer with fieldmatch + decimate for a
 	// 3:2 pulldown source (DecisionFingerprint.Telecine). Software path only.
 	InverseTelecine bool

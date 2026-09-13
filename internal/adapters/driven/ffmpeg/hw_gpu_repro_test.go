@@ -217,7 +217,7 @@ func TestGPU_ProbesAreFailClosedAndRoutesRunThroughTheBuilder(t *testing.T) {
 		t.Errorf("tonemap_cuda probe failed on a jellyfin-ffmpeg + NVIDIA rig: tonemap=%v features=%v", tonemap, features)
 	}
 	r := NewBenchmarkRunner(BenchmarkOpts{FfmpegPath: ffmpeg, SamplePath: filepath.Join(t.TempDir(), "sample.hevc")}, nil)
-	routes := r.probeHWRoutes(ctx, "nvenc", "", hwDomainCodecs(encoders), features, tonemap, true, true, got)
+	routes := r.probeHWRoutes(ctx, "nvenc", "", hwDomainCodecs(encoders), features, tonemap, true, true, false, got)
 	t.Logf("routes: %v", routes)
 	if slices.Contains(got, "hevc:yuv444p") && !slices.Contains(routes, transcoding.HWRouteSourceFormat("yuv444p")) {
 		t.Errorf("4:4:4 decodes on this GPU but its zero-copy route did not prove: %v", routes)

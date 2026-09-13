@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -525,6 +526,110 @@ func probeHWTonemap(ctx context.Context, ffmpegPath, hwType, device string) bool
 	args = append(args, "-vf", vf, "-f", "null", "-")
 
 	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_tonemap"}, ffmpegPath, args...) == nil
+}
+
+// interlacedSampleArgs renders a genuinely INTERLACED H.264 mire: testsrc2 at
+// twice the rate, tinterlace weaves two frames into one TFF frame (real
+// combing on the moving parts), setfield stamps it, and x264 codes it as
+// fields so the decoder flags every frame interlaced - the same signal a
+// PAL/NTSC DVD rip carries. Shared by the deinterlace probe and the route mire.
+func interlacedSampleArgs(size string, seconds float64) []string {
+	return []string{
+		"-f", "lavfi", "-i", fmt.Sprintf("testsrc2=size=%s:rate=50:duration=%g,tinterlace=interleave_top,setfield=tff", size, seconds),
+		"-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-flags", "+ilme+ildct", "-x264opts", "tff=1", "-an",
+	}
+}
+
+// probeHWDeinterlace reports whether the backend's SESSION-level GPU
+// deinterlacer is CORRECT, not merely present: it decodes an interlaced mire
+// on the GPU, runs the very filter the builder emits (hwQSVDeinterlaceFilter),
+// pulls the frames back and asks idet. Correct means the output is
+// progressive (no comb left) at the SOURCE frame rate (one frame per field
+// pair - a bob that doubled the rate would desync the HLS cadence). A control
+// pass without the deinterlacer must idet as interlaced, otherwise the mire
+// proves nothing and the answer is "no". QSV only: NVENC/VAAPI deinterlace per
+// frame off the decoder flag (see hwDeinterlaceFilter). Fail-closed.
+func probeHWDeinterlace(ctx context.Context, ffmpegPath, hwType, device string) bool {
+	if hwType != "qsv" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
+	defer cancel()
+	tmp, err := os.CreateTemp("", "evey-deintprobe-*.h264")
+	if err != nil {
+		return false
+	}
+	tmpPath := tmp.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+	if cerr := tmp.Close(); cerr != nil {
+		return false
+	}
+	sample := append([]string{"-hide_banner", "-v", "error", "-nostdin", "-y"}, interlacedSampleArgs(hwProbeMire, 1)...)
+	sample = append(sample, "-f", "h264", tmpPath)
+	if procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.deint_sample"}, ffmpegPath, sample...) != nil {
+		return false
+	}
+	// Control: the mire itself idets interlaced (software decode).
+	control := []string{"-hide_banner", "-nostdin", "-nostats", "-i", tmpPath, "-vf", "idet", "-f", "null", "-"}
+	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.deint_control"}, ffmpegPath, control...)
+	if err != nil {
+		return false
+	}
+	if v, ok := parseIdetCounts(string(out)); !ok || !v.interlaced() {
+		slog.Warn("hwdetect: interlaced mire does not idet as interlaced - deinterlace probe inconclusive, treated as unsupported")
+		return false
+	}
+	args := []string{"-hide_banner", "-nostdin", "-nostats", "-progress", "pipe:1",
+		"-hwaccel", "qsv", "-hwaccel_output_format", "qsv"}
+	if device != "" {
+		args = append(args, "-qsv_device", device)
+	}
+	args = append(args, "-i", tmpPath, "-vf", hwQSVDeinterlaceFilter+",hwdownload,format=nv12,idet", "-f", "null", "-")
+	out, err = procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_deinterlace"}, ffmpegPath, args...)
+	if err != nil {
+		return false
+	}
+	v, ok := parseIdetCounts(string(out))
+	// 25 frames in at 25 fps (50 fields/s woven); a bob would return ~50.
+	if !ok || !v.progressive() || progressFrames(string(out)) == 0 || progressFrames(string(out)) > 30 {
+		slog.Warn("hwdetect: GPU deinterlacer output is not progressive at the source rate - treated as unsupported",
+			slog.String("hw", hwType), slog.Int("tff", v.tff), slog.Int("bff", v.bff), slog.Int("progressive", v.prog),
+			slog.Int("undetermined", v.undet), slog.Int("frames", progressFrames(string(out))))
+		return false
+	}
+	return true
+}
+
+// idetCounts is idet's multi-frame verdict ("Multi frame detection: TFF: a
+// BFF: b Progressive: c Undetermined: d") with the counts kept - the prober's
+// parseIdetVerdict folds them to a bool, the deinterlace probe needs the share.
+type idetCounts struct{ tff, bff, prog, undet int }
+
+// interlaced: more frames judged interlaced than progressive.
+func (v idetCounts) interlaced() bool { return v.tff+v.bff > v.prog }
+
+// progressive: at least 7 of 10 determined frames progressive. Measured on
+// the woven testsrc2 mire (2026-09-13): the raw mire idets 25/25 TFF, bwdif
+// and yadif_cuda leave 4-5 frames judged TFF out of 25 (idet's own
+// uncertainty on residual motion) - a deinterlacer that did nothing stays
+// near 100 % interlaced, so the two populations are far apart.
+func (v idetCounts) progressive() bool {
+	det := v.tff + v.bff + v.prog
+	return det > 0 && v.prog*10 >= det*7
+}
+
+var idetCountsRE = regexp.MustCompile(`Multi frame detection:\s*TFF:\s*(\d+)\s*BFF:\s*(\d+)\s*Progressive:\s*(\d+)\s*Undetermined:\s*(\d+)`)
+
+// parseIdetCounts reads the LAST multi-frame line of an idet stderr; ok=false
+// when idet printed none (the graph never ran).
+func parseIdetCounts(stderr string) (idetCounts, bool) {
+	m := idetCountsRE.FindAllStringSubmatch(stderr, -1)
+	if len(m) == 0 {
+		return idetCounts{}, false
+	}
+	last := m[len(m)-1]
+	atoi := func(s string) int { n, _ := strconv.Atoi(s); return n }
+	return idetCounts{tff: atoi(last[1]), bff: atoi(last[2]), prog: atoi(last[3]), undet: atoi(last[4])}, true
 }
 
 // probeHWOverlay reports whether the HW backend can composite a bitmap subtitle

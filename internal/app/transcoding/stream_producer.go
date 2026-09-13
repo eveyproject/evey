@@ -26,6 +26,9 @@ type SourceDims struct {
 	HDRRange string
 	// Telecine: inverse telecine needed, a software-only filter.
 	Telecine bool
+	// Interlaced: known interlaced (flag or idet) - the QSV session-level
+	// deinterlacer gate (SourceInterlaced).
+	Interlaced bool
 }
 
 // facts projects the dims onto the ladder engine's SourceFacts (no bitrate:
