@@ -307,7 +307,7 @@ func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bo
 	decodable := bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat, cap.ProbeVersion)
 	softwareDecode = src.Codec != "" && !decodable
 	if softwareDecode {
-		if hwTonemap || src.TenBit || (backend != transcoding.VAAPI && backend != transcoding.QSV) ||
+		if hwTonemap || src.TenBit || (backend != transcoding.VAAPI && backend != transcoding.QSV && backend != transcoding.RKMPP) ||
 			!bc.Proves(transcoding.HWRouteDecoupled) {
 			return "", "", nil, false, false
 		}

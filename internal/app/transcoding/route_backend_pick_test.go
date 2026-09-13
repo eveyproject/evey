@@ -167,3 +167,50 @@ func TestBackendPerRoute_InterlacedSourceNeedsAProvenQSVDeinterlacer(t *testing.
 	assert.True(t, pr.HWDeinterlaceWanted(flagged, accel))
 	assert.False(t, pr.HWDeinterlaceWanted(sdrStreams("h264", "yuv420p", false), accel), "a progressive source never gets the session-level deinterlacer")
 }
+
+// A Rockchip host: RKMPP is a backend like the others for the resolver -
+// proven SDR routes ride it, the OpenCL tone-map only when its feature and
+// route are certified, an interlaced source never (RGA has no deinterlacer),
+// AV1 output never (no MPP AV1 encoder: H.264 fallback on the GPU).
+func TestBackendPerRoute_RKMPP(t *testing.T) {
+	cap := transcoding.EncodeCapability{
+		SoftwareMaxHeight: 1080, HWMaxHeight: 2160, ProbeVersion: transcoding.CapabilityProbeVersion,
+		HWBackend: "rkmpp", HWCodecs: []string{"h264", "hevc"}, HWDecodeCodecs: []string{"h264", "hevc", transcoding.HWDecodeHEVC10},
+		Backends: []transcoding.HWBackendCap{{
+			Backend: "rkmpp", Codecs: []string{"h264", "hevc"}, DecodeCodecs: []string{"h264", "hevc", transcoding.HWDecodeHEVC10},
+			HW10Bit: true, HWTonemap: true, Features: []string{transcoding.FeatureTonemapOpenCL},
+			Routes: []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteSource10Bit, transcoding.HWRouteTonemap, transcoding.HWRouteDecoupled},
+		}},
+	}
+	pr := &PlanResolver{
+		HWAccelEnabled: func() bool { return true }, HWTonemapEnabled: func() bool { return true }, AV1Enabled: func() bool { return true },
+		Capability: func() transcoding.EncodeCapability { return cap },
+	}
+	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdrTranscode, sdrStreams("h264", "yuv420p", false))
+	assert.True(t, usable)
+	assert.Equal(t, "rkmpp", accel)
+
+	tonemap := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"hdr_tonemapping_needed"}}
+	assert.True(t, pr.HWTonemapWanted(tonemap, "PQ"))
+	assert.True(t, pr.HWTonemapWanted(tonemap, "HLG"), "OpenCL reads any range")
+	_, accel, _, _, usable, _ = pr.EffectiveVideoCodec(tonemap, hdrStreams("hevc", "yuv420p10le", true))
+	assert.True(t, usable)
+	assert.Equal(t, "rkmpp", accel)
+
+	tff := "tt"
+	interlaced := sdrStreams("h264", "yuv420p", false)
+	interlaced[0].FieldOrder = &tff
+	_, _, _, _, usable, _ = pr.EffectiveVideoCodec(sdrTranscode, interlaced)
+	assert.False(t, usable, "no RGA deinterlacer: the interlaced source stays off the MPP chain")
+
+	// The decoupled route (software decode + hwupload) serves a codec MPP does not decode.
+	_, accel, _, _, usable, softwareDecode := pr.EffectiveVideoCodec(sdrTranscode, sdrStreams("vc1", "yuv420p", false))
+	assert.True(t, usable)
+	assert.True(t, softwareDecode)
+	assert.Equal(t, "rkmpp", accel)
+
+	av1 := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "av1", TranscodeReasons: []string{"preferred_video_codec"}}
+	codec, _, _, _, usable, _ := pr.EffectiveVideoCodec(av1, sdrStreams("h264", "yuv420p", false))
+	assert.Equal(t, "h264", codec)
+	assert.True(t, usable)
+}

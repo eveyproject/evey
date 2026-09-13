@@ -150,6 +150,8 @@ func hwTonemapBridge(accel transcoding.HWAccelType, toneMap, deint string) strin
 		return pre + toneMap + ",hwupload=extra_hw_frames=16,format=qsv"
 	case transcoding.NVENC:
 		return pre + toneMap + ",hwupload_cuda"
+	case transcoding.RKMPP:
+		return pre + toneMap + ",hwupload"
 	}
 	return ""
 }
@@ -199,6 +201,13 @@ func hwTonemapFilter(accel transcoding.HWAccelType, features []string) string {
 			return hwCUDATonemapChain
 		}
 		return ""
+	case transcoding.RKMPP:
+		// No native RGA tone-mapper: OpenCL on the Mali ICD (RK3588), the same
+		// chain as VAAPI mapped from/to drm_prime. Only when probed.
+		if slices.Contains(features, transcoding.FeatureTonemapOpenCL) {
+			return hwRKMPPOpenCLTonemapChain
+		}
+		return ""
 	case transcoding.QSV:
 		// vpp_qsv=tonemap washes out the highlights and halves saturation (exit 0,
 		// wrong pixels - proven on an UHD 630, 2026-09-09), and no visual gate
@@ -239,6 +248,8 @@ func hwOverlayFilter(accel transcoding.HWAccelType) string {
 		return "overlay_qsv=eof_action=pass:repeatlast=0"
 	case transcoding.NVENC:
 		return "overlay_cuda=eof_action=pass:repeatlast=0"
+	case transcoding.RKMPP:
+		return "overlay_rkrga=eof_action=pass:repeatlast=0"
 	}
 	return ""
 }
@@ -256,6 +267,8 @@ func hwOverlayUploadFilter(accel transcoding.HWAccelType) string {
 		return "format=bgra,hwupload=extra_hw_frames=64"
 	case transcoding.NVENC:
 		return "format=yuva420p,hwupload_cuda"
+	case transcoding.RKMPP:
+		return "format=bgra,hwupload"
 	}
 	return ""
 }
@@ -293,6 +306,11 @@ func hwInitArgs(accel transcoding.HWAccelType, device string) []string {
 			a = append(a, "-qsv_device", device)
 		}
 		return a
+	case transcoding.RKMPP:
+		// drm_prime keeps the MPP frames on the SoC for RGA/the encoder. No
+		// -afbc: the compressed layout cannot be hwdownloaded or mapped to
+		// OpenCL, and every route here may need one of those (perf follow-up).
+		return []string{"-hwaccel", "rkmpp", "-hwaccel_output_format", "drm_prime"}
 	}
 	return nil
 }
@@ -314,8 +332,17 @@ func hwDeviceOnlyArgs(accel transcoding.HWAccelType, device string) []string {
 		return []string{"-vaapi_device", device}
 	case transcoding.QSV:
 		return qsvInitDeviceArgs(device)
+	case transcoding.RKMPP:
+		return rkmppInitDeviceArgs()
 	}
 	return nil
+}
+
+// rkmppInitDeviceArgs binds the (single) Rockchip MPP device for FILTERING:
+// hwupload then lands drm_prime frames for RGA and the encoder. MPP has no
+// device selection.
+func rkmppInitDeviceArgs() []string {
+	return []string{"-init_hw_device", "rkmpp=rk", "-filter_hw_device", "rk"}
 }
 
 // qsvInitDeviceArgs binds a QSV device for FILTERING (no -hwaccel): the
@@ -366,6 +393,8 @@ func hwUploadFilter(accel transcoding.HWAccelType) string {
 		return "format=nv12,hwupload"
 	case transcoding.QSV:
 		return "hwupload=extra_hw_frames=16,format=qsv"
+	case transcoding.RKMPP:
+		return "format=nv12,hwupload"
 	}
 	return ""
 }
@@ -423,6 +452,9 @@ func hwScaleFilterFormat(accel transcoding.HWAccelType, width int, format string
 		return fmt.Sprintf("scale_vaapi=%d:-2:format=%s", width, format)
 	case transcoding.QSV:
 		return fmt.Sprintf("scale_qsv=w=%d:h=%s:format=%s", width, qsvAutoHeight(width), format)
+	case transcoding.RKMPP:
+		// RGA resizer + format fold in one pass (nv15 10-bit -> nv12 included).
+		return fmt.Sprintf("scale_rkrga=w=%d:h=-2:format=%s", width, format)
 	}
 	return fmt.Sprintf("scale=%d:-2", width)
 }
@@ -623,7 +655,9 @@ func hwRateControlArgs(accel transcoding.HWAccelType, qt transcoding.QualityTarg
 		target = qt.MaxKbps
 	}
 	var args []string
-	if accel == transcoding.VAAPI {
+	if accel == transcoding.VAAPI || accel == transcoding.RKMPP {
+		// Both drivers default to a non-VBR mode (VAAPI AVBR, MPP its own
+		// default): name the mode so -maxrate is a ceiling, not a hint.
 		mode := "VBR"
 		if qt.Mode == transcoding.RateControlCBR {
 			mode = "CBR"

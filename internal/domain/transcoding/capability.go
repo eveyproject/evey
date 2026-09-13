@@ -200,10 +200,13 @@ type HWBackendCap struct {
 // the builder route ran. Backends whose deinterlacer is per-frame (NVENC,
 // VAAPI) always may - their filter is a no-op on progressive frames.
 func (b HWBackendCap) DeinterlacesOnGPU() bool {
-	if b.Backend != string(QSV) {
-		return true
+	switch b.Backend {
+	case string(QSV):
+		return b.HWDeinterlace && b.Proves(HWRouteDeinterlace)
+	case string(RKMPP):
+		return false // RGA has no deinterlacer: an interlaced source stays off the MPP zero-copy chain
 	}
-	return b.HWDeinterlace && b.Proves(HWRouteDeinterlace)
+	return true
 }
 
 // Proves reports whether this backend ran route end-to-end through the builder.
@@ -283,7 +286,7 @@ func (c EncodeCapability) TonemapBackend(hdrRange string) (HWBackendCap, bool) {
 		// (QSV's vpp is ineligible so its route is never proven, even though its
 		// probe may init). Both required so a pre-Backends row (nil Routes,
 		// trusted) still respects the probe flag.
-		if !b.HWTonemap || !b.Proves(HWRouteTonemap) || (b.Backend != "vaapi" && b.Backend != "qsv" && b.Backend != "nvenc") {
+		if !b.HWTonemap || !b.Proves(HWRouteTonemap) || !slices.Contains([]string{"vaapi", "qsv", "nvenc", "rkmpp"}, b.Backend) {
 			continue
 		}
 		// NVENC's only GPU tone-mapper is tonemap_cuda: no feature, no route

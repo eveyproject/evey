@@ -10,6 +10,7 @@ var hwAccelTypeToProto = map[string]eveyv1.HWAccelType{
 	"vaapi": eveyv1.HWAccelType_HW_ACCEL_TYPE_VAAPI,
 	"nvenc": eveyv1.HWAccelType_HW_ACCEL_TYPE_NVENC,
 	"qsv":   eveyv1.HWAccelType_HW_ACCEL_TYPE_QSV,
+	"rkmpp": eveyv1.HWAccelType_HW_ACCEL_TYPE_RKMPP,
 }
 
 var hwAccelTypeFromProto = map[eveyv1.HWAccelType]string{
@@ -17,6 +18,7 @@ var hwAccelTypeFromProto = map[eveyv1.HWAccelType]string{
 	eveyv1.HWAccelType_HW_ACCEL_TYPE_VAAPI: "vaapi",
 	eveyv1.HWAccelType_HW_ACCEL_TYPE_NVENC: "nvenc",
 	eveyv1.HWAccelType_HW_ACCEL_TYPE_QSV:   "qsv",
+	eveyv1.HWAccelType_HW_ACCEL_TYPE_RKMPP: "rkmpp",
 }
 
 var transcodeStateToProto = map[string]eveyv1.TranscodeState{

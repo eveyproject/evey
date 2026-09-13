@@ -37,7 +37,7 @@ type EncodeCapability = {
   hw_hdr10_encode?: boolean;
   hw_features?: string[]; // probed encoder options (low_power_h264, bframes, ...)
   gpu_class?: string; // "integrated" (iGPU/QSV) | "discrete" (NVENC) | "" (AMD/unknown)
-  hw_mode?: string; // active policy: auto | off | nvenc | vaapi | qsv
+  hw_mode?: string; // active policy: auto | off | nvenc | vaapi | qsv | rkmpp
   detected_backends?: string[]; // accelerators the host advertises
   is_wsl?: boolean; // WSL2: VAAPI/QSV (Mesa d3d12) unsupported, greyed out
   benchmarked_at: string; // RFC3339
@@ -229,7 +229,7 @@ export function EncodeCalibrationCard() {
   // run through Mesa's d3d12 driver on WSL, which can't sustain our multi-variant
   // encode, so they're disabled there.
   const forceable = Array.from(
-    new Set([...detected, ["nvenc", "vaapi", "qsv"].includes(hwMode) ? hwMode : ""].filter(Boolean)),
+    new Set([...detected, ["nvenc", "vaapi", "qsv", "rkmpp"].includes(hwMode) ? hwMode : ""].filter(Boolean)),
   );
   const wslBlocked = (b: string) => isWsl && (b === "vaapi" || b === "qsv");
 

@@ -71,6 +71,7 @@ enum HWAccelType {
   HW_ACCEL_TYPE_VAAPI = 1;
   HW_ACCEL_TYPE_NVENC = 2;
   HW_ACCEL_TYPE_QSV = 3;
+  HW_ACCEL_TYPE_RKMPP = 4;
 }
 
 enum TranscodeState {

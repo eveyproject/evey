@@ -13,12 +13,17 @@ const (
 	VAAPI HWAccelType = "vaapi"
 	NVENC HWAccelType = "nvenc"
 	QSV   HWAccelType = "qsv"
+	// RKMPP is the Rockchip MPP decoder/encoder with RGA filters (RK3588,
+	// RK3576, RK3568...) as built into jellyfin-ffmpeg's arm64 packages:
+	// drm_prime zero-copy frames, scale_rkrga / overlay_rkrga, OpenCL tone-map
+	// on the Mali ICD when present.
+	RKMPP HWAccelType = "rkmpp"
 	None  HWAccelType = "none"
 )
 
 func (h HWAccelType) IsValid() bool {
 	switch h {
-	case VAAPI, NVENC, QSV, None:
+	case VAAPI, NVENC, QSV, RKMPP, None:
 		return true
 	}
 	return false

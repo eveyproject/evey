@@ -65,6 +65,10 @@ func goldenSessions() map[string]transcoding.HLSProcessOpts {
 		o.HWDevice = "/dev/dri/renderD128"
 		o.HWFeatures = []string{"forced_idr", "low_power_h264"}
 	}
+	rkmpp := func(o *transcoding.HLSProcessOpts) {
+		o.HWAccel = transcoding.RKMPP
+		o.SourceVideoCodec = "hevc"
+	}
 	return map[string]transcoding.HLSProcessOpts{
 		"copy-cold": goldenOpts(func(o *transcoding.HLSProcessOpts) {
 			o.VideoDecision = "copy"
@@ -213,6 +217,27 @@ func goldenSessions() map[string]transcoding.HLSProcessOpts {
 			o.HWDeinterlace = true
 			o.Profiles = goldenLadder[:2]
 			o.VideoDecision = ""
+		}),
+		"hw-rkmpp-single": goldenOpts(rkmpp),
+		"hw-rkmpp-multi":  goldenOpts(func(o *transcoding.HLSProcessOpts) { rkmpp(o); o.Profiles = goldenLadder[:3]; o.VideoDecision = "" }),
+		"hw-rkmpp-hevc":   goldenOpts(func(o *transcoding.HLSProcessOpts) { rkmpp(o); o.VideoCodec = "hevc" }),
+		"hw-rkmpp-opencl-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			rkmpp(o)
+			o.ToneMap = true
+			o.HWTonemap = true
+			o.HWFeatures = []string{transcoding.FeatureTonemapOpenCL}
+		}),
+		"hw-rkmpp-bridge-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) { rkmpp(o); o.ToneMap = true }),
+		"hw-rkmpp-decoupled": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			rkmpp(o)
+			o.SourceVideoCodec = "vc1"
+			o.HWSoftwareDecode = true
+		}),
+		"hw-rkmpp-overlay": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			rkmpp(o)
+			o.HWOverlay = true
+			o.SubtitleTrackIndex = 2
+			o.SubtitleCodec = "hdmv_pgs_subtitle"
 		}),
 		"hw-qsv-decoupled": goldenOpts(func(o *transcoding.HLSProcessOpts) {
 			qsv(o)
