@@ -176,6 +176,14 @@ export interface WasmAudioEngineOptions {
   // beta report could only be inferred, the gate left no trace. Telemetry only.
   onStallGate?: (cuts: number) => void;
   leadCompensationSec?: number;
+  // userOffsetSec is the viewer's own A/V correction from the player menu
+  // (positive = audio later, the server's audioOffsetMs convention), applied
+  // ON TOP of the measured lead. It exists because the lead only sees what the
+  // browser reports: a Bluetooth or HDMI/ARC sink that buffers 0.3-1 s past
+  // outputLatency is invisible to the estimator (prod 2026-09-13, -900 ms by
+  // ear with lead=-35ms measured), and the menu used to reach only the native
+  // AAC leg. Live-adjustable through setUserOffsetSec.
+  userOffsetSec?: number;
   // onAuthError is called when a segment fetch returns 401/403 - most often
   // the sliding stream token expiring across a pause longer than its TTL
   // (hls.js's own buffer rides through it silently; this engine's shorter
@@ -193,6 +201,16 @@ export interface WasmAudioEngineOptions {
   credentials?: RequestCredentials;
 }
 
+// USER_OFFSET_MAX_SEC bounds the menu correction like the server does its
+// audioOffsetMs (+/-30 s): a resync landing that far off is still a valid
+// schedule, anything beyond is a bug, not a setting.
+const USER_OFFSET_MAX_SEC = 30;
+
+function clampUserOffset(sec: number): number {
+  if (!Number.isFinite(sec)) return 0;
+  return Math.min(USER_OFFSET_MAX_SEC, Math.max(-USER_OFFSET_MAX_SEC, sec));
+}
+
 export class WasmAudioEngine {
   private readonly video: HTMLVideoElement;
   private readonly playlistUrl: string;
@@ -202,6 +220,7 @@ export class WasmAudioEngine {
   // actually displayed, outputLatency the audio output; the gap between the
   // two is the pipeline's real latency (0.1s desktop, 0.5-0.6s on a cast TV).
   private readonly leadCompBase: number;
+  private userOffsetSec: number;
   private readonly leadEstimator = new AVLatencyEstimator();
   private rvfcHandle: number | null = null;
 
@@ -295,6 +314,7 @@ export class WasmAudioEngine {
     this.playlistUrl = playlistUrl;
     this.opts = opts;
     this.leadCompBase = opts.leadCompensationSec ?? DEFAULT_LEAD_COMP_SEC;
+    this.userOffsetSec = clampUserOffset(opts.userOffsetSec ?? 0);
   }
 
   private resolve(url: string): string {
@@ -871,6 +891,20 @@ export class WasmAudioEngine {
     return this.leadEstimator.estimate ?? this.leadCompBase;
   }
 
+  // setUserOffsetSec applies a new menu correction immediately: the schedule is
+  // dropped and rebuilt from the decoded cache at the new offset (a resync,
+  // like a seek) - no reload of the video leg, which the AAC path needs.
+  setUserOffsetSec(sec: number): void {
+    const v = clampUserOffset(sec);
+    if (v === this.userOffsetSec || this.destroyed) return;
+    this.userOffsetSec = v;
+    if (this.anchored || this.scheduledIdx.size > 0) this.resync();
+  }
+
+  userOffset(): number {
+    return this.userOffsetSec;
+  }
+
   // A/V measurement loop: on every PRESENTED frame, sample
   // (video display delay) - (audio output latency). Best-effort:
   // without requestVideoFrameCallback, only the static base is used.
@@ -1134,7 +1168,7 @@ export class WasmAudioEngine {
     source.playbackRate.value = this.anchorRate;
     source.connect(this.gain);
 
-    const startAt = this.ctxForMedia(seg.start + trim) + this.leadComp;
+    const startAt = this.ctxForMedia(seg.start + trim) + this.leadComp + this.userOffsetSec;
     const now = ctx.currentTime;
     let late = 0;
     if (startAt >= now) {
@@ -1175,6 +1209,7 @@ export class WasmAudioEngine {
     driftMs: number;
     leadMs: number;
     leadMeasured: boolean;
+    userOffsetMs: number;
     outputLatencyMs: number;
     activeSources: number;
     anchored: boolean;
@@ -1193,6 +1228,7 @@ export class WasmAudioEngine {
       driftMs: (this.video.currentTime - audioMediaTime) * 1000,
       leadMs: this.leadComp * 1000,
       leadMeasured: this.leadEstimator.estimate != null,
+      userOffsetMs: this.userOffsetSec * 1000,
       outputLatencyMs: (ctx?.outputLatency ?? ctx?.baseLatency ?? 0) * 1000,
       activeSources: this.activeSources.size,
       anchored: this.anchored,
