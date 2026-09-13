@@ -94,7 +94,7 @@ func (r EncodeRoute) Bridge() bool { return r.HWUsable && r.Tonemap && !r.HWTone
 // fingerprint the same request assembles (locked by a test), so admission and
 // the spawn agree. A copy rung has no encode route (never priced).
 func (r EncodeRoute) CostKey() RouteCostKey {
-	enc := routeEncoderName(r.Codec, string(r.Accel))
+	enc := RouteEncoderName(r.Codec, string(r.Accel))
 	var route RouteCostClass
 	switch {
 	case r.HWUsable && r.HDRPassthrough:
@@ -113,10 +113,10 @@ func (r EncodeRoute) CostKey() RouteCostKey {
 	return RouteCostKeyFor(r.Accel, enc, route)
 }
 
-// routeEncoderName maps (domain codec, accel) to the ffmpeg encoder name, so
+// RouteEncoderName maps (domain codec, accel) to the ffmpeg encoder name, so
 // x264/x265 and h264_vaapi/hevc_vaapi carry distinct route keys. Mirrors the
 // adapter's videoEncoderFor; accel "" = software.
-func routeEncoderName(codec, accel string) string {
+func RouteEncoderName(codec, accel string) string {
 	c := CanonicalVideoCodec(codec)
 	if c == "" {
 		c = "h264"

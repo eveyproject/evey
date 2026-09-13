@@ -239,64 +239,38 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	}
 
 	var (
-		hwMax     int
-		hwBackend string
-		hwCodecs  []string
-		hwDevice  string
-		hwSamples []transcoding.BenchRungSample
+		hwMax                                  int
+		hwBackend                              string
+		hwCodecs                               []string
+		hwDevice                               string
+		hwSamples                              []transcoding.BenchRungSample
+		hwFeatures                             []string
+		hwDecodeCodecs                         []string
+		hwRoutes                               []string
+		hw10Bit, hwTonemap, hwOverlay, hwHDR10 bool
+		backends                               []transcoding.HWBackendCap
 	)
-	// pref.DisableHW (mode=off) calibrates software-only: skip the hardware
-	// probe entirely so the host never selects a GPU the operator disabled.
+	// pref.DisableHW (mode=off) calibrates software-only: skip the hardware probe.
 	if !pref.DisableHW {
-		hwMax, hwBackend, hwCodecs, hwDevice, hwSamples = r.benchHardware(ctx, sample, fallback, pref.Backend)
-	}
-
-	// Probe which optional encoder tuning options the HW encoder accepts, so
-	// the arg builder only emits validated ones (level-1 safety). Only when a
-	// HW backend passed the realtime bench.
-	var hwFeatures []string
-	var hwDecodeCodecs []string
-	var hwRoutes []string
-	var hw10Bit, hwTonemap, hwOverlay bool
-	var hwHDR10 bool
-	if hwMax > 0 {
-		hwFeatures = r.probeHWFeatures(ctx, hwBackend, hwDevice, hwDomainCodecs(hwCodecs))
-		// Probe DECODE support separately - encode-capable ≠ decode-capable
-		// (old iGPU encodes H.264 but can't decode HEVC). Drives the pipeline's
-		// per-source -hwaccel gating so an undecodable source software-decodes
-		// instead of stalling the player.
-		hwDecodeCodecs = probeHWDecodeCodecs(ctx, r.ffmpegPath, hwBackend, hwDevice)
-		// Probe the 10-bit VPP path separately too: a backend that encodes h264
-		// fine can still abort on the p010→nv12 scale a 10-bit (HEVC Main10)
-		// source needs (Intel i965 old iGPU VEBOX). Gates 10-bit sources to
-		// software so they never crash the HW pipeline.
-		hw10Bit = probeHW10BitTranscode(ctx, r.ffmpegPath, hwBackend, hwDevice)
-		// Probe GPU tone-mapping (tonemap_vaapi / vpp_qsv / libplacebo). Distinct
-		// from the 10-bit VPP: a backend may fold 10-bit yet lack a tone-map filter
-		// (or the Vulkan/OpenCL ICD it needs). False -> HDR tone-maps in software.
-		hwTonemap = probeHWTonemap(ctx, r.ffmpegPath, hwBackend, hwDevice)
-		if hwTonemap && probeHWTonemapOpenCL(ctx, r.ffmpegPath, hwBackend, hwDevice) {
-			hwFeatures = append(hwFeatures, transcoding.FeatureTonemapOpenCL)
-			r.logger.Info("benchmark: HW feature supported",
-				slog.String("backend", hwBackend), slog.String("feature", transcoding.FeatureTonemapOpenCL))
+		candidates := r.benchHardware(ctx, sample, fallback, pref.Backend)
+		// Probe and persist EVERY certified backend, not just the primary: the
+		// resolver picks a backend PER ROUTE from these (VAAPI's OpenCL tone-map
+		// AND a faster QSV for HEVC on the same box). candidates[0] is the primary
+		// (cheapest SDR, hysteresis-stable) whose facts fill the scalar fields for
+		// backward compatibility and non-route reads.
+		for i, c := range candidates {
+			bc := r.probeBackendCap(ctx, c)
+			backends = append(backends, bc)
+			if i == 0 {
+				hwMax, hwBackend, hwCodecs, hwDevice, hwSamples = c.best, c.backend, c.codecs, c.device, c.samples
+				hwFeatures, hwDecodeCodecs, hwRoutes = bc.Features, bc.DecodeCodecs, bc.Routes
+				hw10Bit, hwTonemap, hwOverlay, hwHDR10 = bc.HW10Bit, bc.HWTonemap, bc.HWOverlay, bc.HWHDR10Encode
+				// The primary's HDR bridge ladder feeds the diagnostic hw-bridge table.
+				if !bc.HWTonemap {
+					hwSamples = append(hwSamples, r.benchHWBridge(ctx, c.backend, hwDomainCodecs(c.codecs))...)
+				}
+			}
 		}
-		// Probe the GPU subtitle compositor last, and separately again: a backend
-		// that decodes, folds 10-bit and tone-maps can still lack a working
-		// overlay VPP. It is the capability that decides whether a burn-in stays
-		// on the GPU at all - see EncodeCapability.HWOverlay.
-		hwOverlay = probeHWOverlay(ctx, r.ffmpegPath, hwBackend, hwDevice)
-		if slices.Contains(hwDomainCodecs(hwCodecs), "hevc") {
-			hwHDR10 = probeHWHDR10Encode(ctx, r.ffmpegPath, hwBackend, hwDevice)
-		}
-		// No GPU tone-mapper: HDR runs the CPU tone-map bridged between the GPU
-		// decode and encode. Measure that shape so its ladder gets its own ceiling.
-		if !hwTonemap {
-			hwSamples = append(hwSamples, r.benchHWBridge(ctx, hwBackend, hwDomainCodecs(hwCodecs))...)
-		}
-		// Last: every route the builder can emit for this backend, run for real
-		// (BuildFFmpegArgs + the HLS muxer) on a clip of its class. The filter
-		// probes above say what the GPU can do; this says what a SESSION does.
-		hwRoutes = r.probeHWRoutes(ctx, hwBackend, hwDevice, hwDomainCodecs(hwCodecs), hwFeatures, hwTonemap, hw10Bit, hwHDR10, hwDecodeCodecs)
 	}
 
 	// What the encode rungs above were DECODED from, and how fast this host
@@ -339,6 +313,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// The decode half of the same proof (see EncodeCapability.DecodeSamples).
 		BenchSource:   benchSource,
 		DecodeSamples: decodeSamples,
+		Backends:      backends,
 	}
 	// Per-route single-session cost evidence: what each route the host serves
 	// actually cost, warm and route-faithful. Admission prices on this instead
@@ -886,10 +861,10 @@ func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string
 // box's VAAPI (UHD 630: hevc 75 vs 30 fps) wins where detector order used to pin
 // VAAPI. A backend pin (mode=vaapi/nvenc/qsv) still restricts the field to one.
 // Returns (0, "") when no HW is usable - software-only, fully supported.
-func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool, pinBackend string) (int, string, []string, string, []transcoding.BenchRungSample) {
+func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool, pinBackend string) []hwCandidate {
 	devices, err := r.hwDetector.DetectDevices(ctx)
 	if err != nil || len(devices) == 0 {
-		return 0, "", nil, "", nil
+		return nil
 	}
 	pinBackend = strings.ToLower(strings.TrimSpace(pinBackend))
 	var candidates []hwCandidate
@@ -976,54 +951,57 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 	}
 
 	if len(candidates) == 0 {
-		return 0, "", nil, "", nil
+		return nil
 	}
 
 	// The cost vector RANKS the certified candidates; it does NOT eliminate any
 	// against an empty pool. Which backend a session fits is decided at admission
-	// against the REMAINING pools of that moment (the limiter), not here - a
-	// candidate that is tight on an empty pool may still serve a session when one
-	// frees. The architecture persists ONE backend, so we keep the cheapest-first
-	// order and persist the top: a warm single SDR session at its top rung gives
-	// the accelerator fraction (required/fps) and the normalised CPU it spends
-	// (cores x required/fps / cpuBudget); the policy is the lowest peak-pool cost
-	// (most headroom), then the taller ceiling, then a stable name.
+	// against the REMAINING pools of that moment (the limiter). We keep the whole
+	// ordered list - the caller persists EVERY backend's capability so the
+	// resolver can pick a backend PER ROUTE (VAAPI's OpenCL tone-map AND a faster
+	// QSV for HEVC on the same host). Order: lowest peak-pool cost first (a warm
+	// single SDR session gives accel=required/fps and cpu=cores x required/fps /
+	// cpuBudget), then the taller ceiling, then a stable name; a <5% peak tie
+	// keeps the alphabetically-smaller backend so a re-bench does not flip on noise.
 	budget := sysinfo.CPUBudget()
 	required := float64(r.sourceRate()) * transcoding.RouteCostHeadroom
-	var rank []rankedCandidate
+	ranks := make([]rankedCandidate, 0, len(candidates))
 	for _, c := range candidates {
 		fps, cores := r.warmSDRVector(ctx, sample, fallback, c.backend, c.encoder, c.device, c.best)
 		if fps <= 0 {
-			fps = c.topFPS // fall back to the ladder fps for ranking only
+			fps = c.topFPS
 		}
-		accel, cpu := 1.0, 0.0
+		peak := 1.0
 		if fps > 0 {
-			accel = required / fps
+			peak = required / fps
 			if budget > 0 {
-				cpu = cores * required / fps / float64(budget)
+				if cpu := cores * required / fps / float64(budget); cpu > peak {
+					peak = cpu
+				}
 			}
 		}
-		peak := accel
-		if cpu > peak {
-			peak = cpu
-		}
 		r.logger.Info("benchmark: hw candidate vector",
-			slog.String("backend", c.backend), slog.Float64("fps", fps), slog.Float64("cpu_cores", cores),
-			slog.Float64("accel", accel), slog.Float64("cpu", cpu))
-		rank = append(rank, rankedCandidate{c: c, peak: peak})
+			slog.String("backend", c.backend), slog.Float64("fps", fps), slog.Float64("cpu_cores", cores), slog.Float64("peak_pool_cost", peak))
+		ranks = append(ranks, rankedCandidate{c: c, peak: peak})
 	}
-	best := rank[0]
-	for _, cand := range rank[1:] {
-		if betterCandidate(cand, best) {
-			best = cand
+	slices.SortFunc(ranks, func(a, b rankedCandidate) int {
+		if betterCandidate(a, b) {
+			return -1
 		}
+		if betterCandidate(b, a) {
+			return 1
+		}
+		return 0
+	})
+	out := make([]hwCandidate, len(ranks))
+	for i, rk := range ranks {
+		out[i] = rk.c
 	}
-	if len(candidates) > 1 {
-		r.logger.Info("benchmark: multiple accelerators certified, picked the cheapest by cost vector (admission tests remaining pools per request)",
-			slog.String("picked", best.c.backend), slog.Float64("peak_pool_cost", best.peak))
+	if len(out) > 1 {
+		r.logger.Info("benchmark: certified accelerators ranked (backend chosen per route at admission)",
+			slog.String("primary", out[0].backend), slog.Int("count", len(out)))
 	}
-	bestC := best.c
-	return bestC.best, bestC.backend, bestC.codecs, bestC.device, bestC.samples
+	return out
 }
 
 // rankedCandidate is a certified accelerator with its measured peak-pool cost.
@@ -1037,13 +1015,24 @@ type rankedCandidate struct {
 // lexically-smaller backend (determinism). It does NOT gate on pool fit - that
 // is admission's job against the remaining pools, per request.
 func betterCandidate(a, b rankedCandidate) bool {
-	if a.peak != b.peak {
+	// Hysteresis: peaks within 5% are a tie - decide on the taller ceiling then
+	// the alphabetically-smaller backend, both stable across recalibrations, so
+	// SDR-near-equal backends (VAAPI 0.367 vs QSV 0.361 on the UHD 630) never
+	// flip on measurement noise.
+	if hi := max(a.peak, b.peak); hi > 0 && absf(a.peak-b.peak)/hi >= 0.05 {
 		return a.peak < b.peak
 	}
 	if a.c.best != b.c.best {
 		return a.c.best > b.c.best
 	}
 	return a.c.backend < b.c.backend
+}
+
+func absf(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // warmSDRVector warms the accelerator then measures one production SDR session
@@ -1053,8 +1042,8 @@ func (r *BenchmarkRunner) warmSDRVector(ctx context.Context, sample string, fall
 	if h <= 0 {
 		h = 1080
 	}
-	cap := &transcoding.EncodeCapability{HWBackend: backend, HWDevice: device}
-	er := evidenceRoute{route: transcoding.RouteCostSDR, codec: "h264", hw: true, opts: func(*transcoding.HLSProcessOpts) {}}
+	cap := &transcoding.EncodeCapability{HWBackend: backend, HWDevice: device, HWMaxHeight: 2160}
+	er := evidenceRoute{route: transcoding.RouteCostSDR, codec: "h264", backend: backend, device: device, opts: func(*transcoding.HLSProcessOpts) {}}
 	r.measureRoutePoint(ctx, sample, fallback, er, cap, h) // warm-up, discarded
 	p := r.measureRoutePoint(ctx, sample, fallback, er, cap, h)
 	return p.fps, p.cpuCores
@@ -1080,6 +1069,33 @@ func topPassingFPS(samples []transcoding.BenchRungSample) float64 {
 		}
 	}
 	return fps
+}
+
+// probeBackendCap runs the per-backend capability probes (features, decode
+// matrix, 10-bit VPP, GPU tone-map, overlay, HDR10 encode) and the end-to-end
+// builder route probes for ONE certified accelerator, returning its full
+// HWBackendCap. The tone-map OpenCL feature is appended when it probes.
+func (r *BenchmarkRunner) probeBackendCap(ctx context.Context, c hwCandidate) transcoding.HWBackendCap {
+	codecs := hwDomainCodecs(c.codecs)
+	features := r.probeHWFeatures(ctx, c.backend, c.device, codecs)
+	decode := probeHWDecodeCodecs(ctx, r.ffmpegPath, c.backend, c.device)
+	hw10 := probeHW10BitTranscode(ctx, r.ffmpegPath, c.backend, c.device)
+	tonemap := probeHWTonemap(ctx, r.ffmpegPath, c.backend, c.device)
+	if tonemap && probeHWTonemapOpenCL(ctx, r.ffmpegPath, c.backend, c.device) {
+		features = append(features, transcoding.FeatureTonemapOpenCL)
+		r.logger.Info("benchmark: HW feature supported",
+			slog.String("backend", c.backend), slog.String("feature", transcoding.FeatureTonemapOpenCL))
+	}
+	overlay := probeHWOverlay(ctx, r.ffmpegPath, c.backend, c.device)
+	hdr10 := false
+	if slices.Contains(codecs, "hevc") {
+		hdr10 = probeHWHDR10Encode(ctx, r.ffmpegPath, c.backend, c.device)
+	}
+	routes := r.probeHWRoutes(ctx, c.backend, c.device, codecs, features, tonemap, hw10, hdr10, decode)
+	return transcoding.HWBackendCap{
+		Backend: c.backend, Device: c.device, Codecs: codecs, DecodeCodecs: decode,
+		Features: features, Routes: routes, HW10Bit: hw10, HWTonemap: tonemap, HWOverlay: overlay, HWHDR10Encode: hdr10,
+	}
 }
 
 // benchHWBridge walks hwBenchLadder through hwTonemapBridge (GPU decode,

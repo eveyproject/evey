@@ -399,9 +399,15 @@ type TranscodingConfig struct {
 	// MaxVideoBitrateKbps caps the served video bitrate; 0 follows the source
 	// bitrate (the default). Persisted under transcoding.max_video_bitrate_kbps.
 	MaxVideoBitrateKbps int
-	// MaxVideoBitrateRemoteKbps is the same ceiling for a client outside the
-	// LAN (public IP): a remux at 70 Mb/s is fine on the LAN and useless over
-	// most uplinks. 0 = no remote-specific cap. transcoding.max_video_bitrate_remote_kbps.
+	// MaxVideoBitrateRemoteKbps is the ceiling for a client outside the LAN
+	// (public IP). 0 = NO remote-specific cap: the remote client follows the
+	// LAN ceiling / the source, which is the DEFAULT - a server must not be
+	// throttled to an arbitrary rate it never chose (a 70 Mb/s remux is fine on
+	// the LAN and heavy over an uplink, but capping it is the OPERATOR's call,
+	// not a silent default). 20000 / 40000 are the opt-in presets. A stricter
+	// per-user limit still wins downstream (tighten()). An admin who explicitly
+	// persisted a value keeps it - only the ABSENT default changed from 20000 to
+	// 0. transcoding.max_video_bitrate_remote_kbps.
 	MaxVideoBitrateRemoteKbps int
 	TrickplayCacheDir         string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
@@ -862,8 +868,10 @@ func Load() (*Config, error) {
 			HWFirstSegmentTimeout: envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 10*time.Second),
 			// 0 follows the source bitrate; the web player sizes its forward buffer
 			// to the rung so a 70 Mb/s remux stays under the browser's MSE quota.
-			MaxVideoBitrateKbps:          envInt("EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS", 0),
-			MaxVideoBitrateRemoteKbps:    envInt("EVEY_TRANSCODING_MAX_VIDEO_BITRATE_REMOTE_KBPS", 20000),
+			MaxVideoBitrateKbps: envInt("EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS", 0),
+			// 0 = follow LAN / no remote-specific cap (was 20000: an arbitrary
+			// throttle applied to every server that never chose one). 20/40 opt-in.
+			MaxVideoBitrateRemoteKbps:    envInt("EVEY_TRANSCODING_MAX_VIDEO_BITRATE_REMOTE_KBPS", 0),
 			HWPerVariant:                 envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
 			SingleVariant:                envBool("EVEY_TRANSCODING_SINGLE_VARIANT", true),
 			SoftwareMaxHeightOverride:    envInt("EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT", 0),

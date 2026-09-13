@@ -151,3 +151,57 @@ func TestCapability_RoutesRoundTripAndClearOnDisable(t *testing.T) {
 		t.Fatalf("disabling HW must clear the route proof: %+v", d.Capability)
 	}
 }
+
+func TestBackendCaps_SynthesisAndSelectors(t *testing.T) {
+	// A pre-Backends row synthesises one backend from the scalars (single-backend
+	// behaviour, unchanged).
+	legacy := probedCap() // nvenc scalar, no Backends
+	bcs := legacy.BackendCaps()
+	if len(bcs) != 1 || bcs[0].Backend != "nvenc" {
+		t.Fatalf("legacy row must synthesise one backend, got %v", bcs)
+	}
+
+	// A two-backend row: QSV (no GPU tonemap), VAAPI (OpenCL tonemap).
+	cap := EncodeCapability{
+		ProbeVersion: CapabilityProbeVersion, HWBackend: "qsv",
+		Backends: []HWBackendCap{
+			{Backend: "qsv", Codecs: []string{"h264", "hevc"}, DecodeCodecs: []string{"h264", "hevc", HWDecodeHEVC10},
+				HW10Bit: true, HWHDR10Encode: true, HWOverlay: true,
+				Routes: []string{HWRouteSDR, HWRouteHEVC, HWRoutePassthrough}},
+			{Backend: "vaapi", Codecs: []string{"h264"}, DecodeCodecs: []string{"h264"}, HWTonemap: true,
+				Features: []string{FeatureTonemapOpenCL}, Routes: []string{HWRouteSDR, HWRouteTonemap}},
+		},
+	}
+	// Tone-map: only VAAPI proves it and carries the probe + OpenCL.
+	if b, ok := cap.TonemapBackend("PQ"); !ok || b.Backend != "vaapi" {
+		t.Fatalf("tone-map backend = %v/%v, want vaapi", b.Backend, ok)
+	}
+	if b, ok := cap.TonemapBackend("HLG"); !ok || b.Backend != "vaapi" {
+		t.Fatalf("OpenCL handles HLG too: %v/%v", b.Backend, ok)
+	}
+	// QSV alone (no OpenCL, vpp ineligible => never proves the route): no GPU tonemap.
+	qsvOnly := EncodeCapability{ProbeVersion: CapabilityProbeVersion, HWBackend: "qsv",
+		Backends: []HWBackendCap{{Backend: "qsv", HWTonemap: true, Routes: []string{HWRouteSDR}}}}
+	if _, ok := qsvOnly.TonemapBackend("PQ"); ok {
+		t.Fatal("QSV without a proven tone-map route must not be a tone-map backend")
+	}
+	// Passthrough: QSV qualifies (hevc + hdr10 + 10bit + proves passthrough).
+	if b, ok := cap.PassthroughBackend(); !ok || b.Backend != "qsv" {
+		t.Fatalf("passthrough backend = %v/%v, want qsv", b.Backend, ok)
+	}
+	if !cap.AnyBackendSupports("hevc") {
+		t.Fatal("QSV supports hevc")
+	}
+	if b, ok := cap.OverlayBackend(); !ok || b.Backend != "qsv" {
+		t.Fatalf("overlay backend = %v/%v, want qsv", b.Backend, ok)
+	}
+
+	// Round-trip through Report/Derive keeps Backends; disableHW clears them.
+	if got := Derive(cap.Report(), DefaultDerivePolicy()); len(got.Backends) != 2 {
+		t.Fatalf("Backends lost across Report/Derive: %d", len(got.Backends))
+	}
+	d := PlanDemotion(cap, FailureHWInit, "h264")
+	if d.Capability.Backends != nil {
+		t.Fatal("disabling HW must clear Backends")
+	}
+}

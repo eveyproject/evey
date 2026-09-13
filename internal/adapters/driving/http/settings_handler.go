@@ -281,9 +281,10 @@ func registerServerSettingsRoutes(
 		{jsonKey: "maxVideoBitrateKbps", cfgKey: cfgKeyTranscodeMaxKbps, defaultVal: 0,
 			getter: func() any { return cfg.Transcoding.MaxVideoBitrateKbps },
 			reset:  func() { cfg.Transcoding.MaxVideoBitrateKbps = 0 }},
-		{jsonKey: "maxVideoBitrateRemoteKbps", cfgKey: cfgKeyTranscodeMaxRemoteKbps, defaultVal: 20000,
+		// Default 0 = follow LAN / no remote-specific cap; 20000/40000 are opt-in.
+		{jsonKey: "maxVideoBitrateRemoteKbps", cfgKey: cfgKeyTranscodeMaxRemoteKbps, defaultVal: 0,
 			getter: func() any { return cfg.Transcoding.MaxVideoBitrateRemoteKbps },
-			reset:  func() { cfg.Transcoding.MaxVideoBitrateRemoteKbps = 20000 }},
+			reset:  func() { cfg.Transcoding.MaxVideoBitrateRemoteKbps = 0 }},
 		// Retention windows are re-read by their sweeps at every pass, so a
 		// change here applies at the next sweep (<= 24h for the daily ones,
 		// seconds for play_sessions) without a restart. 0 = keep forever.
