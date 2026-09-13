@@ -243,4 +243,5 @@ func disableHW(c *EncodeCapability) {
 	c.HWDevice = ""
 	c.HWFeatures = nil
 	c.HWRoutes = nil
+	c.RouteSamples = nil
 }

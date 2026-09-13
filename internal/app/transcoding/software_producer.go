@@ -837,7 +837,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// releaseVideoSlot).
 	videoSlotAcquired := false
 	if p.copyPlanner == nil && p.videoLimiter != nil {
-		if !p.videoLimiter.TryAcquireFor(hash, LadderClassOf(fp), topProfileHeight(procOpts.Profiles), SourceClassOf(fp)) {
+		if !p.videoLimiter.TryAcquireRoute(hash, LadderClassOf(fp), topProfileHeight(procOpts.Profiles), SourceClassOf(fp), RouteCostKeyOf(fp), fp.SourceFPS) {
 			teardown()
 			return ErrVideoCapacityExhausted
 		}

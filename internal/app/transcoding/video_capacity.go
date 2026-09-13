@@ -198,6 +198,24 @@ func LadderClassOf(fp DecisionFingerprint) LadderClass {
 	return LadderClassSoftware
 }
 
+// RouteCostKeyOf derives the route cost key from a resolved fingerprint - the
+// same pipeline shape the producer will run, so admission prices the route the
+// spawn takes. The encoder name mirrors the ffmpeg adapter's videoEncoderFor
+// (kept local so app never imports the driven adapter). Shape precedence
+// matches the builder's own gates: passthrough, GPU tone-map, CPU bridge,
+// decoupled, then plain.
+func RouteCostKeyOf(fp DecisionFingerprint) transcoding.RouteCostKey {
+	return transcoding.EncodeRoute{
+		Codec:          fp.VideoCodec,
+		Accel:          transcoding.HWAccelType(fp.HWAccel),
+		HWUsable:       fp.HWAccel != "",
+		SoftwareDecode: fp.HWSoftwareDecode,
+		Tonemap:        fp.HDRTonemap,
+		HWTonemap:      fp.HWTonemap,
+		HDRPassthrough: fp.HDRPassthrough,
+	}.CostKey()
+}
+
 // SourceClassOf names the DECODE workload a fingerprint's session will run.
 // Zero when either half is unknown, which prices the output-rung way.
 func SourceClassOf(fp DecisionFingerprint) transcoding.SourceClass {

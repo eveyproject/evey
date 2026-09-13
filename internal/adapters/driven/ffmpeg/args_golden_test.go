@@ -183,7 +183,7 @@ func goldenSessions() map[string]transcoding.HLSProcessOpts {
 		"hw-nvenc-av1":            goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.VideoCodec = "av1" }),
 		"hw-nvenc-multi":          goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.Profiles = goldenLadder[:3]; o.VideoDecision = "" }),
 		"hw-qsv-single":           goldenOpts(qsv),
-		"hw-qsv-vpp-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+		"hw-qsv-tonemap-bridge": goldenOpts(func(o *transcoding.HLSProcessOpts) {
 			qsv(o)
 			o.ToneMap = true
 			o.HWTonemap = true

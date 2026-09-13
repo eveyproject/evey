@@ -89,6 +89,51 @@ func (r EncodeRoute) EncoderKey() EncoderKey {
 // Bridge reports the CPU tone-map between a GPU decode and a GPU encode.
 func (r EncodeRoute) Bridge() bool { return r.HWUsable && r.Tonemap && !r.HWTonemap }
 
+// CostKey is the route the admission cost model prices this pipeline on. Shape
+// precedence matches the ffmpeg builder's gates and RouteCostKeyOf on the
+// fingerprint the same request assembles (locked by a test), so admission and
+// the spawn agree. A copy rung has no encode route (never priced).
+func (r EncodeRoute) CostKey() RouteCostKey {
+	enc := routeEncoderName(r.Codec, string(r.Accel))
+	var route RouteCostClass
+	switch {
+	case r.HWUsable && r.HDRPassthrough:
+		route = RouteCostPassthrough
+	case r.HWUsable && r.HWTonemap:
+		route = RouteCostTonemap
+	case r.HWUsable && r.Tonemap:
+		route = RouteCostBridge
+	case r.HWUsable && r.SoftwareDecode:
+		route = RouteCostDecoupled
+	case !r.HWUsable && r.Tonemap:
+		route = RouteCostSoftwareHDR
+	default:
+		route = RouteCostSDR
+	}
+	return RouteCostKeyFor(r.Accel, enc, route)
+}
+
+// routeEncoderName maps (domain codec, accel) to the ffmpeg encoder name, so
+// x264/x265 and h264_vaapi/hevc_vaapi carry distinct route keys. Mirrors the
+// adapter's videoEncoderFor; accel "" = software.
+func routeEncoderName(codec, accel string) string {
+	c := CanonicalVideoCodec(codec)
+	if c == "" {
+		c = "h264"
+	}
+	if accel == "" {
+		switch c {
+		case "hevc":
+			return "libx265"
+		case "av1":
+			return "libsvtav1"
+		default:
+			return "libx264"
+		}
+	}
+	return c + "_" + accel
+}
+
 // DeliveryConstraints bound what the ladder may advertise: the viewer's
 // decoder and screen, the line, the operator's ceilings and the host's
 // calibrated throughput. Every field is a cap; zero = unconstrained.

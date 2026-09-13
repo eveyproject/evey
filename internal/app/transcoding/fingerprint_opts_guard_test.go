@@ -73,6 +73,7 @@ var (
 		"Profiles":   "converted by profilesToDomain into opts.Profiles",
 		// Priced, never encoded: ffmpeg learns the height by opening the file.
 		"SourceVideoHeight": "admission input only - VideoCostModel.CostForSource, never an ffmpeg arg",
+		"SourceFPS":         "admission input only - RouteCostModel required rate, never an ffmpeg arg (ffmpeg reads the fps from the file)",
 	}
 )
 

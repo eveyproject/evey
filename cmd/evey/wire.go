@@ -672,6 +672,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		costs := apptranscoding.NewVideoCostModel(samples).
 			WithDecodeEvidence(current.BenchSource, current.DecodeSamples)
 		videoLimiter.WithCostModel(costs)
+		// The per-route cost model: what a warm, route-faithful single session of
+		// each route actually cost (RouteSamples). Consulted BEFORE the table for
+		// a route it measured, pricing both the accelerator AND the CPU pool a GPU
+		// route really spends; the table stays the fallback. nil (a capability
+		// benched before route evidence existed) leaves table pricing unchanged.
+		videoLimiter.WithRouteModel(apptranscoding.NewRouteCostModel(current.RouteSamples, sysinfo.CPUBudget()))
 
 		// Admission is governed by PER-POOL cost budgets: every software flavor
 		// (plain/HDR/AV1) spends the CPU pool, hw encodes spend the GPU pool, so
@@ -692,6 +698,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			slog.Float64("gpu_budget_pool", videoLimiter.BudgetFor(apptranscoding.PoolGPU)),
 			slog.Int("rung_height", ev.Height), slog.Float64("fps", ev.FPS),
 			slog.Float64("required_fps", ev.RequiredFPS), slog.Int("cpu_budget", ev.CPUBudget),
+			slog.Int("route_samples", len(current.RouteSamples)),
 			slog.Bool("derived_from_benchmark", ev.Derived))
 	}
 	applyVideoSessionLimit(ctx)

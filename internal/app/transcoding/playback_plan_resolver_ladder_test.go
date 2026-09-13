@@ -374,9 +374,9 @@ func TestShapeLadder_SpillKeepsTheDeliveryCaps(t *testing.T) {
 		HWAccelEnabled: func() bool { return true },
 		Capability:     func() transcoding.EncodeCapability { return vaapiCapable() },
 		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
-		AdmissionRoute: func(_ string, natural LadderClass, _ []int, fallback func() []int, _ transcoding.SourceClass) RouteGrant {
-			require.Equal(t, LadderClassHW, natural)
-			swHeights = fallback()
+		AdmissionRoute: func(_ string, req RouteAdmission) RouteGrant {
+			require.Equal(t, LadderClassHW, req.Natural)
+			swHeights = req.FallbackHeights()
 			return RouteGrant{OK: true, Class: LadderClassSoftware, Forced: true, Ceiling: 720}
 		},
 	}

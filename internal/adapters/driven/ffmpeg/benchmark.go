@@ -340,6 +340,12 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		BenchSource:   benchSource,
 		DecodeSamples: decodeSamples,
 	}
+	// Per-route single-session cost evidence: what each route the host serves
+	// actually cost, warm and route-faithful. Admission prices on this instead
+	// of the cumulative HW rung above (which stays, diagnostic only). Measured
+	// last, on the samples already resolved, so it adds no clip generation.
+	cap.RouteSamples = r.measureRouteEvidence(ctx, sample, fallback, &cap)
+	sortRouteSamples(cap.RouteSamples)
 	r.logger.Info("benchmark: complete",
 		slog.Int("software_max_height", cap.SoftwareMaxHeight),
 		slog.Int("software_hdr_max_height", cap.SoftwareHDRMaxHeight),
@@ -357,6 +363,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		slog.String("bench_source_codec", cap.BenchSource.Codec),
 		slog.Int("bench_source_height", cap.BenchSource.Height),
 		slog.Int("decode_samples", len(cap.DecodeSamples)),
+		slog.Int("route_samples", len(cap.RouteSamples)),
 		slog.Int64("elapsed_ms", cap.BenchmarkDurationMs))
 	return cap, nil
 }
@@ -869,28 +876,37 @@ func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string
 	return best, samples
 }
 
-// benchHardware picks the HW backend with the most encoders available
-// and probes its ladder under the same multi-variant pipeline as the
-// software path (1 decode + N parallel encodes, matching prod).
-// Returns (0, "") when no HW is usable - software-only operation,
-// fully supported by the handler.
+// benchHardware calibrates the host's hardware encode. It no longer trusts the
+// detector's fixed order (VAAPI before NVENC before QSV): among every detected
+// accelerator that PROVES its ladder AND passes the visual-correctness gate, it
+// picks the one whose measured single-encode is FASTEST (cost). Proved+correct
+// first, cost second - a QSV that outruns the box's VAAPI (measured on an UHD
+// 630: hevc 75 vs 30 fps) is chosen over it, where detector order used to pin
+// VAAPI. A backend pin (mode=vaapi/nvenc/qsv) still restricts the field to one.
+// Returns (0, "") when no HW is usable - software-only, fully supported.
 func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool, pinBackend string) (int, string, []string, string, []transcoding.BenchRungSample) {
 	devices, err := r.hwDetector.DetectDevices(ctx)
 	if err != nil || len(devices) == 0 {
 		return 0, "", nil, "", nil
 	}
 	pinBackend = strings.ToLower(strings.TrimSpace(pinBackend))
+
+	type hwCandidate struct {
+		backend, encoder, device string
+		best                     int
+		topFPS                   float64
+		codecs                   []string
+		samples                  []transcoding.BenchRungSample
+	}
+	var candidates []hwCandidate
+
 	for _, dev := range devices {
 		// Honour the active mode's backend pin: when set, only the matching
 		// backend is considered, so a forced nvenc/vaapi/qsv (or a shared host
-		// with one Evey-per-GPU) doesn't pick the detector's preferred backend
-		// over the one the operator selected.
+		// with one Evey-per-GPU) doesn't pick over the one the operator selected.
 		if pinBackend != "" && strings.ToLower(dev.Type) != pinBackend {
 			continue
 		}
-		// Pick the first device that advertises an h264 encoder. NVENC
-		// preferred over VAAPI/QSV when both are present (production
-		// box on a workstation), which the detector orders naturally.
 		var encoder string
 		for _, c := range dev.SupportedCodecs {
 			if strings.HasPrefix(c, "h264_") {
@@ -901,10 +917,6 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		if encoder == "" {
 			continue
 		}
-		// runLadder probes each rung under the multi-variant pipeline and returns
-		// the tallest passing height (0 if none) plus the per-rung samples (fps vs
-		// threshold) so the admin calibration table can show the HW evidence the
-		// same way it shows the software ladders.
 		runLadder := func(extraInputArgs []string, uploadChain string) (int, []transcoding.BenchRungSample) {
 			best := 0
 			var samples []transcoding.BenchRungSample
@@ -937,48 +949,69 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 			return best, samples
 		}
 
-		// First measure the production zero-copy path: HW decode → scale → encode.
+		// Production zero-copy path first; decoupled (software decode + hwupload)
+		// only if the GPU cannot HW-decode the sample codec (VAAPI/QSV).
 		usedInput, usedChain := hwInputArgs(dev.Type), ""
 		best, samples := runLadder(usedInput, usedChain)
-		// If nothing passed, the GPU may simply be unable to HW-DECODE the sample
-		// codec while still being able to ENCODE - pre-Skylake Intel iGPUs decode
-		// H.264 but NOT HEVC, and our sample is HEVC, so `-hwaccel vaapi` fails with
-		// ENOSYS before any encode runs. Retry measuring encode only: software-
-		// decode + hwupload, the exact shape probeHWEncode already validated.
-		// VAAPI/QSV only - NVENC HW-decodes every codec, so it never needs this.
 		if best == 0 {
 			if up := hwUploadChain(encoder); up != "" {
 				usedInput, usedChain = hwDecoupledInputArgs(dev.Type), up
 				best, samples = runLadder(usedInput, usedChain)
 			}
 		}
-		if best > 0 {
-			// Speed alone doesn't certify a path: a buggy driver/GPU combo can
-			// exit 0 at full FPS while producing garbage pixels. Decode a few
-			// frames back and compare against the software-decoded source
-			// before certifying (see hw_output_validation.go). Only a MEASURED
-			// divergence refuses the path - an inconclusive gate never bricks
-			// working hardware on a fluke of the gate itself.
-			verdict, verr := r.validateHWVisualOutput(ctx, sample, fallback, encoder, usedInput, usedChain)
-			switch {
-			case verr != nil:
-				r.logger.Warn("benchmark: hw visual validation inconclusive - certifying on speed alone",
-					slog.String("backend", dev.Type),
-					slog.String("encoder", encoder),
-					slog.Any("err", verr))
-			case !verdict.OK:
-				r.logger.Warn("benchmark: hardware encoder output is visually corrupt - backend NOT certified",
-					slog.String("backend", dev.Type),
-					slog.String("encoder", encoder),
-					slog.Int("worst_hamming", verdict.WorstHamming),
-					slog.Int("threshold", hwCorruptHammingThreshold),
-					slog.String("failure_class", string(transcoding.FailureHWCorruptOutput)))
-				continue // next device; none left ⇒ software-only, the universal floor
-			}
-			return best, dev.Type, hwDomainCodecs(dev.SupportedCodecs), hwDevicePath(dev.Type), samples
+		if best == 0 {
+			continue
+		}
+		// Correctness gate: a path that exits 0 at full speed can still emit
+		// garbage pixels (buggy driver/GPU). Only a MEASURED divergence refuses it.
+		verdict, verr := r.validateHWVisualOutput(ctx, sample, fallback, encoder, usedInput, usedChain)
+		if verr != nil {
+			r.logger.Warn("benchmark: hw visual validation inconclusive - certifying on speed alone",
+				slog.String("backend", dev.Type), slog.String("encoder", encoder), slog.Any("err", verr))
+		} else if !verdict.OK {
+			r.logger.Warn("benchmark: hardware encoder output is visually corrupt - backend NOT certified",
+				slog.String("backend", dev.Type), slog.String("encoder", encoder),
+				slog.Int("worst_hamming", verdict.WorstHamming), slog.Int("threshold", hwCorruptHammingThreshold),
+				slog.String("failure_class", string(transcoding.FailureHWCorruptOutput)))
+			continue // corrupt: never a candidate
+		}
+		candidates = append(candidates, hwCandidate{
+			backend: dev.Type, encoder: encoder, device: hwDevicePath(dev.Type),
+			best: best, topFPS: topPassingFPS(samples), codecs: hwDomainCodecs(dev.SupportedCodecs), samples: samples,
+		})
+	}
+
+	if len(candidates) == 0 {
+		return 0, "", nil, "", nil
+	}
+	// Proved + correct, now cost: the fastest single-encode wins, whatever the
+	// detector's order was. Ties break on the taller ceiling, then a stable
+	// backend name so a re-bench is deterministic.
+	bestC := candidates[0]
+	for _, c := range candidates[1:] {
+		if c.topFPS > bestC.topFPS ||
+			(c.topFPS == bestC.topFPS && c.best > bestC.best) ||
+			(c.topFPS == bestC.topFPS && c.best == bestC.best && c.backend < bestC.backend) {
+			bestC = c
 		}
 	}
-	return 0, "", nil, "", nil
+	if len(candidates) > 1 {
+		r.logger.Info("benchmark: multiple accelerators certified, picked the fastest",
+			slog.String("picked", bestC.backend), slog.Float64("top_fps", bestC.topFPS), slog.Int("top_rung", bestC.best))
+	}
+	return bestC.best, bestC.backend, bestC.codecs, bestC.device, bestC.samples
+}
+
+// topPassingFPS is the fps of the tallest passing rung in a hw ladder - the
+// throughput that ranks a certified candidate by cost. 0 when none passed.
+func topPassingFPS(samples []transcoding.BenchRungSample) float64 {
+	fps, top := 0.0, 0
+	for _, s := range samples {
+		if s.Passing && s.Height >= top {
+			top, fps = s.Height, s.FPS
+		}
+	}
+	return fps
 }
 
 // benchHWBridge walks hwBenchLadder through hwTonemapBridge (GPU decode,
