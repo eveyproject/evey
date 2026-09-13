@@ -69,6 +69,9 @@ func (r *BenchmarkRunner) measureRouteEvidence(ctx context.Context, sdrSample st
 		if bc.Proves(transcoding.HWRouteHEVC) {
 			routes = append(routes, evidenceRoute{route: transcoding.RouteCostSDR, codec: "hevc", backend: b, device: dev, features: feat, opts: func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "hevc" }})
 		}
+		if bc.Proves(transcoding.HWRouteAV1) {
+			routes = append(routes, evidenceRoute{route: transcoding.RouteCostSDR, codec: "av1", backend: b, device: dev, features: feat, opts: func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "av1" }})
+		}
 		if bc.Proves(transcoding.HWRouteTonemap) && hwTonemapFilter(accel, feat) != "" {
 			routes = append(routes, evidenceRoute{route: transcoding.RouteCostTonemap, codec: "h264", backend: b, device: dev, features: feat, hdrSample: true, opts: func(o *transcoding.HLSProcessOpts) { o.ToneMap, o.HWTonemap = true, true }})
 		}

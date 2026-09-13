@@ -30,6 +30,22 @@ func TestRouteProbesFor_FollowsTheProbedFacts(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("vaapi routes = %v, want %v", got, want)
 	}
+	// An AV1 encoder that passed the real-encode probe gets its own builder
+	// route (av1_<backend> on the SDR mire); without it, no AV1 route.
+	got = routeNames(routeProbesFor(transcoding.QSV, []string{"h264", "hevc", "av1"}, nil, false, false, false, nil))
+	want = []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteAV1, transcoding.HWRouteBridge, transcoding.HWRouteDecoupled}
+	if !slices.Equal(got, want) {
+		t.Fatalf("qsv+av1 routes = %v, want %v", got, want)
+	}
+	for _, p := range routeProbesFor(transcoding.NVENC, []string{"h264", "av1"}, nil, false, false, false, nil) {
+		if p.route != transcoding.HWRouteAV1 {
+			continue
+		}
+		argv := strings.Join(BuildFFmpegArgs(routeProbeOpts(transcoding.NVENC, "", nil, "/bench/route-sdr8.hevc", "/tmp/out", p)), " ")
+		if !strings.Contains(argv, "scale_cuda=384:-2:format=nv12 -c:v av1_nvenc -preset p4 -forced-idr 1") {
+			t.Fatalf("AV1 route argv does not run the production av1_nvenc shape:\n%s", argv)
+		}
+	}
 }
 
 // The probe runs the PRODUCTION builder: its argv carries the very filters a

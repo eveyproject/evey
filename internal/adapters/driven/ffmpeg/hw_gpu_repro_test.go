@@ -204,13 +204,18 @@ func TestGPU_ProbesAreFailClosedAndRoutesRunThroughTheBuilder(t *testing.T) {
 		}
 	}
 	t.Logf("decode classes: %v", got)
+	// Ada encodes AV1: the real-encode probe lists av1_nvenc next to h264/hevc.
+	encoders := probeHWCodecs(ctx, ffmpeg, "nvenc", "")
+	if !slices.Contains(encoders, "av1_nvenc") {
+		t.Errorf("encoders %v lack av1_nvenc on an Ada GPU", encoders)
+	}
 	r := NewBenchmarkRunner(BenchmarkOpts{FfmpegPath: ffmpeg, SamplePath: filepath.Join(t.TempDir(), "sample.hevc")}, nil)
-	routes := r.probeHWRoutes(ctx, "nvenc", "", []string{"h264", "hevc"}, gpuReproFeatures, false, true, true, got)
+	routes := r.probeHWRoutes(ctx, "nvenc", "", hwDomainCodecs(encoders), gpuReproFeatures, false, true, true, got)
 	t.Logf("routes: %v", routes)
 	if slices.Contains(got, "hevc:yuv444p") && !slices.Contains(routes, transcoding.HWRouteSourceFormat("yuv444p")) {
 		t.Errorf("4:4:4 decodes on this GPU but its zero-copy route did not prove: %v", routes)
 	}
-	for _, want := range []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteSource10Bit, transcoding.HWRouteBridge, transcoding.HWRoutePassthrough} {
+	for _, want := range []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteAV1, transcoding.HWRouteSource10Bit, transcoding.HWRouteBridge, transcoding.HWRoutePassthrough} {
 		if !slices.Contains(routes, want) {
 			t.Errorf("routes %v lack %s", routes, want)
 		}

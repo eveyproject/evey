@@ -71,8 +71,9 @@ type EncodeCapability struct {
 
 	// HWRoutes lists the ENCODE ROUTES the calibration ran end-to-end through
 	// the production builder (BuildFFmpegArgs on a mire of the route's class,
-	// real HLS output on disk): HWRouteSDR, HWRouteHEVC, HWRouteSource10Bit,
-	// HWRouteTonemap, HWRouteBridge, HWRoutePassthrough, HWRouteDecoupled.
+	// real HLS output on disk): HWRouteSDR, HWRouteHEVC, HWRouteAV1,
+	// HWRouteSource10Bit, HWRouteTonemap, HWRouteBridge, HWRoutePassthrough,
+	// HWRouteDecoupled.
 	// The resolver only takes a route named here. nil (a row benched before
 	// the route probes existed) is trusted as before - CapabilityProbeVersion
 	// re-benches such a row at boot, so nil never survives a deploy.
@@ -348,6 +349,7 @@ const CapabilityProbeVersion = 9
 const (
 	HWRouteSDR         = "sdr"         // zero-copy decode -> scale -> h264
 	HWRouteHEVC        = "hevc"        // same, hevc encoder
+	HWRouteAV1         = "av1"         // same, av1 encoder (Ada+ / Arc / RDNA3+)
 	HWRouteSource10Bit = "src10"       // 10-bit SDR source folded to nv12 on the GPU
 	HWRouteTonemap     = "tonemap"     // GPU HDR->SDR tone-map (OpenCL / VPP)
 	HWRouteBridge      = "bridge"      // GPU decode, CPU tone-map, GPU encode

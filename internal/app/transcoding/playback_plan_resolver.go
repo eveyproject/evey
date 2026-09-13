@@ -329,7 +329,7 @@ func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bo
 // alphabetical) so the pick does not flip on measurement noise across
 // recalibrations. A tone-map route needs a backend proving HWRouteTonemap (only
 // a GPU tone-mapper - QSV's vpp is ineligible - so HDR lands on VAAPI/OpenCL);
-// everything else needs SDR (+HEVC for an HEVC output). nil RouteCosts or a
+// everything else needs SDR (+HEVC / +AV1 for that output). nil RouteCosts or a
 // pre-Backends capability falls back to the primary backend.
 func (pr *PlanResolver) pickBackend(outputCodec string, hwTonemap bool) (transcoding.HWBackendCap, bool) {
 	cap := pr.Capability()
@@ -338,12 +338,16 @@ func (pr *PlanResolver) pickBackend(outputCodec string, hwTonemap bool) (transco
 		return transcoding.HWBackendCap{}, false
 	}
 	hevc := transcoding.CanonicalVideoCodec(outputCodec) == "hevc"
+	av1 := transcoding.CanonicalVideoCodec(outputCodec) == "av1"
 	costRoute := transcoding.RouteCostSDR
 	qualifies := func(b transcoding.HWBackendCap) bool {
 		if !b.SupportsCodec(outputCodec) || !b.Proves(transcoding.HWRouteSDR) {
 			return false
 		}
 		if hevc && !b.Proves(transcoding.HWRouteHEVC) {
+			return false
+		}
+		if av1 && !b.Proves(transcoding.HWRouteAV1) {
 			return false
 		}
 		if hwTonemap && !b.Proves(transcoding.HWRouteTonemap) {
