@@ -11,6 +11,7 @@ const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined);
 const mockSetQueryData = vi.fn();
 
 let mockCalibrationData: Record<string, unknown> | undefined;
+let mockSettingsData: Record<string, unknown> | undefined;
 let mockCalibrationIsLoading = false;
 let mockRecalibrateIsPending = false;
 let mockSetModeIsPending = false;
@@ -31,6 +32,9 @@ vi.mock("@tanstack/react-query", async (importActual) => {
       const key = opts.queryKey as string[];
       if (key[0] === "admin" && key[1] === "transcode-calibration") {
         return { data: mockCalibrationData, isLoading: mockCalibrationIsLoading };
+      }
+      if (key[0] === "/api/v1/admin/server-settings") {
+        return { data: mockSettingsData, isLoading: false };
       }
       return { data: undefined, isLoading: false };
     },
@@ -159,6 +163,7 @@ describe("EncodeCalibrationCard", () => {
     mockRecalibrateIsPending = false;
     mockSetModeIsPending = false;
     mockCalibrationData = SW_ONLY_DATA;
+    mockSettingsData = undefined;
     recalibrateOnSuccess = undefined;
     recalibrateOnError = undefined;
     setModeOnSuccess = undefined;
@@ -537,5 +542,29 @@ describe("EncodeCalibrationCard - provisional (contended) benchmark", () => {
     mockCalibrationData = { ...SW_ONLY_DATA };
     renderCard();
     expect(screen.queryByTestId("calibration-contended")).toBeNull();
+  });
+});
+
+describe("EncodeCalibrationCard - remote bitrate ceiling", () => {
+  beforeEach(() => {
+    mockCalibrationData = HW_NVENC_DATA; // the bitrate section renders when HW is enabled
+    mockSettingsData = undefined;
+  });
+
+  it("shows Follow the LAN (value 0), never 20 Mb/s, when the setting is unset", () => {
+    mockSettingsData = undefined; // server never persisted the key
+    renderCard();
+    const sel = screen.getByTestId("max-video-bitrate-remote-select") as HTMLSelectElement;
+    expect(sel.value).toBe("0");
+    const opt0 = Array.from(sel.options).find((o) => o.value === "0");
+    expect(opt0?.textContent ?? "").toMatch(/Follow the LAN/i);
+    expect(opt0?.textContent ?? "").not.toMatch(/0\s*Mb/i);
+  });
+
+  it("keeps an explicitly persisted 20 Mb/s selected", () => {
+    mockSettingsData = { maxVideoBitrateRemoteKbps: { value: 20000 } };
+    renderCard();
+    const sel = screen.getByTestId("max-video-bitrate-remote-select") as HTMLSelectElement;
+    expect(sel.value).toBe("20000");
   });
 });
