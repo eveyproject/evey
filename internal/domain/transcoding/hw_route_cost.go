@@ -39,9 +39,17 @@ type RouteCostKey struct {
 // RouteSample is one warm, stable, single-session measurement of a route at
 // one rung. The session is the one the orchestrator spawns (BuildFFmpegArgs,
 // single-variant, production args), measured after a warm-up and taken as the
-// median of a few runs, so the number is the route the runtime serves - not a
-// cold first encode (which ran 2.5-6x slower for its whole window on NVENC)
-// nor a cumulative ladder.
+// conservative min(fps)/max(cpu) over two runs, so the number is the route the
+// runtime serves - not a cold first encode (which ran 2.5-6x slower for its
+// whole window on NVENC) nor a cumulative ladder.
+//
+// SCOPE (v7): the evidence is route-faithful on the VIDEO side - decode,
+// filters, scaler, encoder, rate control, tone-map/bridge, all as production
+// emits them. It is NOT yet the exact TOTAL session cost: the mires carry no
+// audio, so the ~0.05 core a muxed-AAC rendition adds is not in CPUCores (the
+// route-bench CLI, run with an audio bed, measures that fuller figure). A
+// follow-up may fold it in; until then admission slightly under-counts the CPU
+// a muxed session spends, which is small and on the safe side of the video cost.
 type RouteSample struct {
 	Key    RouteCostKey `json:"key"`
 	Height int          `json:"height"`

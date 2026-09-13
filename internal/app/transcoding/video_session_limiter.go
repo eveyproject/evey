@@ -419,6 +419,22 @@ func (l *VideoSessionLimiter) AutoCountCapFor(pool ResourcePool) int {
 // HEVC bench source, stopped at one - the counter silently undid the whole
 // point of pricing by source.
 func (l *VideoSessionLimiter) autoCountCapFor(pool ResourcePool) int {
+	// With route evidence (v7), the count belt is derived from IT, never from
+	// the cumulative table: the table over-prices a GPU session (the ~2x the
+	// route-bench measured), which would make this legacy belt TIGHTER than the
+	// route-aware per-pool admission - the belt must never be the real ceiling.
+	// The per-pool budget stays the authoritative gate; this is only the belt.
+	if l.routeModel != nil {
+		cpu, gpu := l.routeModel.CheapestPoolCost()
+		cheapest := cpu
+		if pool == PoolGPU {
+			cheapest = gpu
+		}
+		if cheapest <= 0 {
+			return 0
+		}
+		return int(l.budgetFor(pool) / cheapest)
+	}
 	if l.costModel == nil {
 		return 0
 	}

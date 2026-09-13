@@ -2,37 +2,33 @@ package ffmpeg
 
 import "testing"
 
-type rc = struct {
-	c    hwCandidate
-	peak float64
-	fits bool
-}
-
-// The backend policy: proved+correct is decided before this (only certified
-// candidates reach it); here a candidate that FITS the pools beats one that
-// does not, then the lower peak-pool cost wins, then the taller ceiling, then a
-// stable name. No fixed VAAPI/QSV/NVENC order.
+// The backend policy RANKS certified candidates (only proved+correct ones reach
+// it); it does NOT gate on pool fit - that is admission's job against the
+// remaining pools. The cheaper (lower peak-pool cost) backend wins, then the
+// taller ceiling, then a stable name. No fixed VAAPI/QSV/NVENC order.
 func TestBetterCandidate_Policy(t *testing.T) {
-	fitCheap := rc{c: hwCandidate{backend: "qsv", best: 2160}, peak: 0.4, fits: true}
-	fitDear := rc{c: hwCandidate{backend: "vaapi", best: 2160}, peak: 0.9, fits: true}
-	noFit := rc{c: hwCandidate{backend: "nvenc", best: 2160}, peak: 1.4, fits: false}
-
-	if !betterCandidate(fitCheap, fitDear) {
-		t.Error("the cheaper fitting candidate must win (QSV over VAAPI here, not detector order)")
+	cheap := rankedCandidate{c: hwCandidate{backend: "qsv", best: 2160}, peak: 0.4}
+	dear := rankedCandidate{c: hwCandidate{backend: "vaapi", best: 2160}, peak: 0.9}
+	if !betterCandidate(cheap, dear) {
+		t.Error("the cheaper candidate must win (QSV over VAAPI here, not detector order)")
 	}
-	if betterCandidate(fitDear, fitCheap) {
+	if betterCandidate(dear, cheap) {
 		t.Error("the dearer candidate must not win")
 	}
-	if !betterCandidate(fitDear, noFit) {
-		t.Error("any fitting candidate beats a non-fitting one")
+	// A candidate that would be tight on an EMPTY pool is still ranked, never
+	// eliminated here (admission decides fit against the remaining pools).
+	tight := rankedCandidate{c: hwCandidate{backend: "nvenc", best: 2160}, peak: 1.4}
+	looser := rankedCandidate{c: hwCandidate{backend: "vaapi", best: 2160}, peak: 0.9}
+	if !betterCandidate(looser, tight) {
+		t.Error("the looser candidate ranks first, but the tight one is not dropped")
 	}
-	// Equal fit and peak: taller ceiling wins, then name.
-	a := rc{c: hwCandidate{backend: "vaapi", best: 2160}, peak: 0.5, fits: true}
-	b := rc{c: hwCandidate{backend: "qsv", best: 1440}, peak: 0.5, fits: true}
+	// Equal peak: taller ceiling wins, then name.
+	a := rankedCandidate{c: hwCandidate{backend: "vaapi", best: 2160}, peak: 0.5}
+	b := rankedCandidate{c: hwCandidate{backend: "qsv", best: 1440}, peak: 0.5}
 	if !betterCandidate(a, b) {
 		t.Error("equal peak: the taller ceiling wins")
 	}
-	c := rc{c: hwCandidate{backend: "nvenc", best: 2160}, peak: 0.5, fits: true}
+	c := rankedCandidate{c: hwCandidate{backend: "nvenc", best: 2160}, peak: 0.5}
 	if !betterCandidate(c, a) {
 		t.Error("equal peak and ceiling: the lexically-smaller backend wins (determinism)")
 	}

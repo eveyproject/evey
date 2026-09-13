@@ -156,3 +156,32 @@ func TestAcceptance_ProdHost_QSVCheaperThanVAAPI(t *testing.T) {
 		t.Fatalf("QSV hevc (%.3f) must price cheaper than VAAPI hevc (%.3f)", qs.Accel, va.Accel)
 	}
 }
+
+// The legacy count belt (AutoCountCap) must not become the real ceiling once
+// route evidence exists: it has to be at least as generous as what the
+// route-aware per-pool admission actually admits. On Ada, the cumulative table
+// priced a 4K GPU session ~0.483 (belt 2), while the route evidence prices it
+// 0.294 (admission fits 3) - the belt must reflect the route evidence, not the
+// table, so it never caps below 3.
+func TestAcceptance_CountBeltNotTighterThanRouteAdmission(t *testing.T) {
+	route := []transcoding.RouteSample{
+		{Key: rk("nvenc", "h264_nvenc", transcoding.RouteCostSDR), Height: 2160, FPS: 98, SourceFPS: 24, CPUCores: 0.63},
+	}
+	// A cumulative-table cost model that prices the hw 2160 rung dear (0.483) -
+	// the very over-charge route evidence replaces.
+	table := NewVideoCostModel([]transcoding.BenchRungSample{
+		{Ladder: "hw", Height: 2160, FPS: 59.6, RequiredFPS: 28.8, Passing: true},
+		{Ladder: "software", Height: 1080, FPS: 188, RequiredFPS: 28.8, Passing: true},
+	})
+	l := NewVideoSessionLimiter(0).WithCostModel(table).WithRouteModel(NewRouteCostModel(route, 24))
+
+	// Route-aware admission fits 3 sessions of the 4K GPU route.
+	admitted := admitN(t, route, 24, rk("nvenc", "h264_nvenc", transcoding.RouteCostSDR), 2160, 24)
+	if admitted != 3 {
+		t.Fatalf("route admission fits %d 4K GPU sessions, expected 3", admitted)
+	}
+	// The GPU count belt must be >= that, not the table's floor(1/0.483)=2.
+	if gpu := l.AutoCountCapFor(PoolGPU); gpu < admitted {
+		t.Errorf("GPU count belt %d is TIGHTER than route admission (%d): the legacy table leaked back in as the ceiling", gpu, admitted)
+	}
+}

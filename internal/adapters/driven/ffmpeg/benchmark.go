@@ -979,20 +979,18 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		return 0, "", nil, "", nil
 	}
 
-	// The cost vector, per certified candidate: a warm single SDR session at its
-	// top rung gives the accelerator fraction (required/fps) and the normalised
-	// CPU it spends (cores x required/fps / cpuBudget). A candidate whose vector
-	// does not fit an EMPTY pool (accel or cpu > 1) is eliminated - it cannot
-	// serve even one session. Among the rest the policy picks the lowest peak
-	// pool cost (max(accel,cpu)): the most sessions, the most headroom.
+	// The cost vector RANKS the certified candidates; it does NOT eliminate any
+	// against an empty pool. Which backend a session fits is decided at admission
+	// against the REMAINING pools of that moment (the limiter), not here - a
+	// candidate that is tight on an empty pool may still serve a session when one
+	// frees. The architecture persists ONE backend, so we keep the cheapest-first
+	// order and persist the top: a warm single SDR session at its top rung gives
+	// the accelerator fraction (required/fps) and the normalised CPU it spends
+	// (cores x required/fps / cpuBudget); the policy is the lowest peak-pool cost
+	// (most headroom), then the taller ceiling, then a stable name.
 	budget := sysinfo.CPUBudget()
 	required := float64(r.sourceRate()) * transcoding.RouteCostHeadroom
-	type ranked struct {
-		c    hwCandidate
-		peak float64
-		fits bool
-	}
-	var rank []ranked
+	var rank []rankedCandidate
 	for _, c := range candidates {
 		fps, cores := r.warmSDRVector(ctx, sample, fallback, c.backend, c.encoder, c.device, c.best)
 		if fps <= 0 {
@@ -1011,41 +1009,34 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		}
 		r.logger.Info("benchmark: hw candidate vector",
 			slog.String("backend", c.backend), slog.Float64("fps", fps), slog.Float64("cpu_cores", cores),
-			slog.Float64("accel", accel), slog.Float64("cpu", cpu), slog.Bool("fits", accel <= 1 && cpu <= 1))
-		rank = append(rank, ranked{c: c, peak: peak, fits: accel <= 1 && cpu <= 1})
+			slog.Float64("accel", accel), slog.Float64("cpu", cpu))
+		rank = append(rank, rankedCandidate{c: c, peak: peak})
 	}
-	// Prefer candidates that fit; among equals, the lower peak wins, then the
-	// taller ceiling, then a stable name so a re-bench is deterministic.
 	best := rank[0]
 	for _, cand := range rank[1:] {
 		if betterCandidate(cand, best) {
 			best = cand
 		}
 	}
-	if !best.fits {
-		r.logger.Warn("benchmark: no accelerator fits the pools even empty, staying software",
-			slog.String("closest", best.c.backend), slog.Float64("peak_pool_cost", best.peak))
-		return 0, "", nil, "", nil
-	}
 	if len(candidates) > 1 {
-		r.logger.Info("benchmark: multiple accelerators certified, picked by cost vector",
+		r.logger.Info("benchmark: multiple accelerators certified, picked the cheapest by cost vector (admission tests remaining pools per request)",
 			slog.String("picked", best.c.backend), slog.Float64("peak_pool_cost", best.peak))
 	}
 	bestC := best.c
 	return bestC.best, bestC.backend, bestC.codecs, bestC.device, bestC.samples
 }
 
-// betterCandidate is the selection policy: a fitting candidate beats a
-// non-fitting one; between two of the same fit, the lower peak-pool cost wins,
-// then the taller ceiling, then the lexically-smaller backend (determinism).
-func betterCandidate(a, b struct {
+// rankedCandidate is a certified accelerator with its measured peak-pool cost.
+type rankedCandidate struct {
 	c    hwCandidate
 	peak float64
-	fits bool
-}) bool {
-	if a.fits != b.fits {
-		return a.fits
-	}
+}
+
+// betterCandidate is the selection policy for WHICH backend to persist: the
+// lower peak-pool cost wins (most headroom), then the taller ceiling, then the
+// lexically-smaller backend (determinism). It does NOT gate on pool fit - that
+// is admission's job against the remaining pools, per request.
+func betterCandidate(a, b rankedCandidate) bool {
 	if a.peak != b.peak {
 		return a.peak < b.peak
 	}
