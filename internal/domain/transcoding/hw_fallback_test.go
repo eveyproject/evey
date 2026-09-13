@@ -205,3 +205,19 @@ func TestBackendCaps_SynthesisAndSelectors(t *testing.T) {
 		t.Fatal("disabling HW must clear Backends")
 	}
 }
+
+// TonemapBackend with the fixed-function VPP only (no OpenCL feature): it
+// tone-maps PQ but refuses non-PQ ranges - the inverse of the OpenCL case, and
+// the reason native and OpenCL must be probed independently (a host with only
+// one of them still gets a correct, range-appropriate verdict).
+func TestTonemapBackend_NativeVPPHandlesPQOnly(t *testing.T) {
+	cap := EncodeCapability{ProbeVersion: CapabilityProbeVersion, HWBackend: "vaapi",
+		Backends: []HWBackendCap{{Backend: "vaapi", Codecs: []string{"h264"}, HWTonemap: true,
+			Routes: []string{HWRouteSDR, HWRouteTonemap}}}} // native VPP, NO FeatureTonemapOpenCL
+	if b, ok := cap.TonemapBackend("PQ"); !ok || b.Backend != "vaapi" {
+		t.Fatalf("fixed VPP must tone-map PQ: %v/%v", b.Backend, ok)
+	}
+	if _, ok := cap.TonemapBackend("HLG"); ok {
+		t.Fatal("fixed VPP must NOT claim non-PQ ranges (needs OpenCL)")
+	}
+}

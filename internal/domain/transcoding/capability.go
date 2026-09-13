@@ -332,8 +332,12 @@ type DecodeRungSample struct {
 // 3: the OpenCL chain fixed, 2026-09-10; 4: the tone-map bridge ladder;
 // 5: fail-closed decode probes incl. HEVC Main10 + the builder route probes;
 // 6: the decode probe matrix over chroma/depth; 7: per-route single-session
-// cost evidence, source-fps required rate, QSV scaler fix).
-const CapabilityProbeVersion = 7
+// cost evidence, source-fps required rate, QSV scaler fix; 8: per-route
+// backend evidence for EVERY certified accelerator (Backends[] of VAAPI AND
+// QSV) - the code landed at v7 but a host already benched at v7 kept its
+// single-primary calibration, so the bump forces the multi-backend re-bench;
+// and the independent VAAPI OpenCL tone-map probe).
+const CapabilityProbeVersion = 8
 
 // Route names the calibration proves through the production builder (see
 // EncodeCapability.HWRoutes). Each is one shape BuildFFmpegArgs can emit for a
