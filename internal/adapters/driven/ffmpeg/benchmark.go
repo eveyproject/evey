@@ -886,6 +886,20 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		if encoder == "" {
 			continue
 		}
+		// Base init/readiness gate: the minimal encode through this device,
+		// replayed on a bounded schedule if it fails with an init/readiness/
+		// transient class (a cold GPU that is not ready yet, the 2026-09-10
+		// prod-host symptom). If it recovers, the full ladder + probes proceed on
+		// a ready GPU; if it stays down (deterministic or retries exhausted) the
+		// device is skipped - exactly as a failing ladder skips it today, since
+		// a device that cannot do a minimal encode cannot pass the ladder. No
+		// fixed warm-up: on a ready GPU the first attempt passes instantly.
+		if !r.runHWReadinessProbe(ctx, "encode_init", dev.Type, hwDevicePath(dev.Type), ClassifyHWFailure,
+			func() (bool, string, string, error) {
+				return r.probeHWEncodeBaseE(ctx, dev.Type, encoder, hwDevicePath(dev.Type))
+			}) {
+			continue
+		}
 		runLadder := func(extraInputArgs []string, uploadChain string) (int, []transcoding.BenchRungSample) {
 			best := 0
 			var samples []transcoding.BenchRungSample
@@ -1100,7 +1114,13 @@ func (r *BenchmarkRunner) probeBackendCap(ctx context.Context, c hwCandidate) tr
 	// fixed-function VPP can abort, so gating OpenCL behind the native probe
 	// (as this once did) silently dropped the whole GPU tone-map route.
 	tonemapNative := probeHWTonemap(ctx, r.ffmpegPath, c.backend, c.device)
-	tonemapOpenCL := probeHWTonemapOpenCL(ctx, r.ffmpegPath, c.backend, c.device)
+	// The VAAPI->OpenCL derive is the readiness-sensitive step (a cold GPU
+	// fails it with the same -38 that later boots pass); replay it on the
+	// bounded schedule before believing "no OpenCL". No-op for QSV/NVENC.
+	tonemapOpenCL := r.runHWReadinessProbe(ctx, "opencl_tonemap", c.backend, c.device, classifyOpenCLProbe,
+		func() (bool, string, string, error) {
+			return probeHWTonemapOpenCLE(ctx, r.ffmpegPath, c.backend, c.device)
+		})
 	tonemap, features := resolveTonemapCaps(features, tonemapNative, tonemapOpenCL)
 	if tonemapOpenCL {
 		r.logger.Info("benchmark: HW feature supported",

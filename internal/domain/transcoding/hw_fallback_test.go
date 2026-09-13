@@ -221,3 +221,22 @@ func TestTonemapBackend_NativeVPPHandlesPQOnly(t *testing.T) {
 		t.Fatal("fixed VPP must NOT claim non-PQ ranges (needs OpenCL)")
 	}
 }
+
+// RetryableInit is the calibration-only retry set (init/readiness/transient),
+// deliberately distinct from Deterministic(): hw_init is Deterministic for a
+// persisted runtime verdict yet retryable while calibrating (a cold GPU clears
+// it on replay). Route/format/unsupported/encoder-missing/corrupt/cancelled
+// are never retried.
+func TestFailureClass_RetryableInit(t *testing.T) {
+	for _, c := range []FailureClass{FailureHWInit, FailureHWDeviceMemory, FailureTransient} {
+		if !c.RetryableInit() {
+			t.Errorf("%s must be retryable at calibration", c)
+		}
+	}
+	for _, c := range []FailureClass{FailureRouteIncompatible, FailureHWUnsupportedOption,
+		FailureHWEncoderMissing, FailureHWCorruptOutput, FailureCancelled, FailureNone} {
+		if c.RetryableInit() {
+			t.Errorf("%s must NOT be retried", c)
+		}
+	}
+}
