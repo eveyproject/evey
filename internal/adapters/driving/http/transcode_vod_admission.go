@@ -71,12 +71,11 @@ func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, med
 	// a single "cheapest" one: hw costs are not monotonic in height (a 720p
 	// NVENC rung can cost more than 1080p), so no single height is safely the
 	// cheapest a priori - the limiter prices each and one admit suffices.
-	// The class is read from the fingerprint itself: its hw fields already
+	// The route is read from the fingerprint itself: its hw fields already
 	// follow the pinned route (a spilled stream is tagged software), so this
-	// is exactly what the spawn's TryAcquire will charge.
-	class := apptranscoding.LadderClassOf(rp.FP)
+	// is exactly what the spawn's TryAcquireRoute will charge.
 	for _, ph := range probeHeights(rp.FP) {
-		if h.videoAdmission(rp.FPHash, class, ph) {
+		if h.videoAdmission(rp.FPHash, rp.FP, ph) {
 			return false
 		}
 	}
@@ -150,11 +149,16 @@ func writeTooManyStreams(w http.ResponseWriter, retryAfterSec int, technicalMsg 
 
 // videoAdmissionOf adapts the limiter to the handler's narrow probe, keeping a
 // TRUE-nil func when no limiter is wired (tests, hand-built servers).
-func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, apptranscoding.LadderClass, int) bool {
+func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, apptranscoding.DecisionFingerprint, int) bool {
 	if l == nil {
 		return nil
 	}
-	return l.CanAdmit
+	// Same class / source / route / fps derivation as the spawn's
+	// TryAcquireRoute (segment_orchestrator, software_producer): a probe priced
+	// on a zero route asks the table, not the route evidence the spawn uses.
+	return func(key string, fp apptranscoding.DecisionFingerprint, topHeight int) bool {
+		return l.CanAdmitRoute(key, apptranscoding.LadderClassOf(fp), topHeight, apptranscoding.SourceClassOf(fp), apptranscoding.RouteCostKeyOf(fp), fp.SourceFPS)
+	}
 }
 
 // admissionCeilingOf / admissionBindOf adapt the shaper the same way: TRUE-nil

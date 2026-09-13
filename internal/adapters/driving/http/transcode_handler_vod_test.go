@@ -389,7 +389,7 @@ func TestHLSVOD_VariantPlaylist_ShedsEarlyWhenHostIsFull(t *testing.T) {
 	)
 
 	// The probe refuses everything: stand in for a host with no budget left.
-	h.videoAdmission = func(string, apptranscoding.LadderClass, int) bool { return false }
+	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool { return false }
 
 	w := doVODRequest(h, "m1", "stream_0.m3u8")
 
@@ -411,12 +411,40 @@ func TestHLSVOD_VariantPlaylist_ServedNormallyWhenAdmitted(t *testing.T) {
 		allowAll(),
 		testFakeParentalChecker{},
 	)
-	h.videoAdmission = func(string, apptranscoding.LadderClass, int) bool { return true }
+	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool { return true }
 
 	w := doVODRequest(h, "m1", "stream_0.m3u8")
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "#EXTM3U")
+}
+
+// Prod 2026-09-13 21:53: a host WITH route evidence turned every master away
+// ("host at video capacity" on an idle server). The shed probe asked the REAL
+// limiter with a zero route, which the route model refused as "uncovered". The
+// probe must price the resolved route exactly as the spawn does, through a
+// limiter that carries route evidence.
+func TestHLSVOD_Master_AdmittedByRealLimiterWithRouteEvidence(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	// prod-host's evidence shape: the software route this test's plan resolves to
+	// (libx264 sdr) plus a GPU route that must not matter here.
+	samples := []domaintranscoding.RouteSample{
+		{Key: domaintranscoding.RouteCostKey{Encoder: "libx264", Route: domaintranscoding.RouteCostSDR}, Height: 1080, FPS: 120.8, CPUCores: 5.06, SourceFPS: 24},
+		{Key: domaintranscoding.RouteCostKey{Backend: "qsv", Encoder: "h264_qsv", Route: domaintranscoding.RouteCostSDR}, Height: 2160, FPS: 74.1, CPUCores: 0.21, SourceFPS: 24},
+	}
+	limiter := apptranscoding.NewVideoSessionLimiter(0).
+		WithRouteModel(apptranscoding.NewRouteCostModel(samples, 7))
+	h.videoAdmission = videoAdmissionOf(limiter)
+
+	w := doVODRequest(h, "m1", "master.m3u8")
+
+	require.Equal(t, http.StatusOK, w.Code, "an idle host with route evidence must serve the master, body: %s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "#EXTM3U")
+	assert.Empty(t, w.Header().Get("X-Evey-Error"))
 }
 
 // The master is what a native mobile/TV player fetches first (and all our
@@ -515,7 +543,7 @@ func TestHLSVOD_Master_ShedsWhenHostIsFull(t *testing.T) {
 	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item}, allowAll(), testFakeParentalChecker{})
 
 	var probedHeights []int
-	h.videoAdmission = func(_ string, _ apptranscoding.LadderClass, topHeight int) bool {
+	h.videoAdmission = func(_ string, _ apptranscoding.DecisionFingerprint, topHeight int) bool {
 		probedHeights = append(probedHeights, topHeight)
 		return false
 	}
@@ -670,7 +698,7 @@ func TestHLSVOD_Master_ServedWhenAdmitted(t *testing.T) {
 		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
 	}
 	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item}, allowAll(), testFakeParentalChecker{})
-	h.videoAdmission = func(string, apptranscoding.LadderClass, int) bool { return true }
+	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool { return true }
 
 	w := doVODRequest(h, "m1", "master.m3u8")
 

@@ -100,13 +100,18 @@ func (l *VideoSessionLimiter) WithRouteModel(m *RouteCostModel) *VideoSessionLim
 // has evidence for the route; otherwise the table (one pool, the class's).
 // Must be called with l.mu held.
 func (l *VideoSessionLimiter) chargesFor(class LadderClass, topHeight int, src transcoding.SourceClass, route transcoding.RouteCostKey, sourceFPS float64) ([]poolCharge, bool) {
-	// A host WITH route evidence is priced ONLY on it. A route that evidence
-	// does not cover is not silently re-priced on the generic (h264-shaped)
-	// table - that is exactly how x265 / hevc_vaapi / bridge / decoupled got
-	// charged as if they were plain h264. It is REFUSED here instead, so the
-	// resolver spills it to the measured software route (or the request retries
-	// / is refused) rather than being admitted on a fiction.
-	if l.routeModel != nil {
+	// A host WITH route evidence is priced ONLY on it. A NAMED route that
+	// evidence does not cover is not silently re-priced on the generic
+	// (h264-shaped) table - that is exactly how x265 / hevc_vaapi / bridge /
+	// decoupled got charged as if they were plain h264. It is REFUSED here
+	// instead, so the resolver spills it to the measured software route (or the
+	// request retries / is refused) rather than being admitted on a fiction.
+	// A ZERO route is not "uncovered", it is "unnamed" (TryAcquire / CanAdmit):
+	// the documented contract is the table, as before route evidence existed.
+	// Refusing it turned every master-playlist shed probe away as soon as a
+	// host had route evidence (prod 2026-09-13 21:53: "host at video capacity"
+	// on an idle server, every title).
+	if l.routeModel != nil && route != (transcoding.RouteCostKey{}) {
 		rc, ok := l.routeModel.Cost(route, topHeight, sourceFPS)
 		if !ok {
 			return nil, false
