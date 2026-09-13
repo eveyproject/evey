@@ -116,9 +116,10 @@ func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool
 }
 
 // hwTonemapBridge tone-maps on the CPU between a GPU decode and a GPU encode,
-// for backends without a GPU tone-mapper (AMD VAAPI, NVENC, an Intel without
-// its ICD): download the decoded surface, run the software chain, upload the
-// SDR frames. Measured 4K at 3.1x on a Ryzen 9900X + RTX 4070 Ti.
+// for backends without a GPU tone-mapper (AMD VAAPI, an NVENC on a stock
+// ffmpeg without tonemap_cuda, an Intel without its ICD): download the decoded
+// surface, run the software chain, upload the SDR frames. Measured 4K at 3.1x
+// on a Ryzen 9900X + RTX 4070 Ti.
 //
 // deint is the SOFTWARE deinterlacer this session would run (deinterlaceFilterFor),
 // placed right after the download: the GPU deinterlacer must NOT sit in front of
@@ -179,8 +180,8 @@ func hwToneMapStage(opts transcoding.HLSProcessOpts) string {
 
 // hwTonemapFilter returns the GPU HDR->SDR tone-map filter for the backend, or
 // "" when no HW tone-mapper is wired. Inserted before the scaler so the GPU
-// folds HDR (and 10-bit) in one pass. NVENC's HW tone-map path is libplacebo
-// (Vulkan) which is not modelled here, so NVENC tone-maps in software.
+// folds HDR (and 10-bit) in one pass. The caller gates on opts.HWTonemap, set
+// only when the calibration probed the filter AND proved the builder route.
 func hwTonemapFilter(accel transcoding.HWAccelType, features []string) string {
 	switch accel {
 	case transcoding.VAAPI:
@@ -190,6 +191,14 @@ func hwTonemapFilter(accel transcoding.HWAccelType, features []string) string {
 			return hwOpenCLTonemapChain
 		}
 		return "tonemap_vaapi=format=nv12:matrix=bt709:primaries=bt709:transfer=bt709"
+	case transcoding.NVENC:
+		// tonemap_cuda on the NVDEC frames (jellyfin-ffmpeg): same curve as
+		// OpenCL, RPU/HLG aware, zero-copy into scale_cuda. Only when probed -
+		// a stock ffmpeg lacks the filter and keeps the CPU bridge.
+		if slices.Contains(features, transcoding.FeatureTonemapCUDA) {
+			return hwCUDATonemapChain
+		}
+		return ""
 	case transcoding.QSV:
 		// vpp_qsv=tonemap washes out the highlights and halves saturation (exit 0,
 		// wrong pixels - proven on an UHD 630, 2026-09-09), and no visual gate

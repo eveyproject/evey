@@ -180,6 +180,20 @@ func goldenSessions() map[string]transcoding.HLSProcessOpts {
 		}),
 		"hw-nvenc-single":         goldenOpts(nvenc),
 		"hw-nvenc-bridge-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.ToneMap = true }),
+		"hw-nvenc-cuda-tonemap": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			nvenc(o)
+			o.ToneMap = true
+			o.HWTonemap = true
+			o.HWFeatures = append(o.HWFeatures, transcoding.FeatureTonemapCUDA)
+		}),
+		"hw-nvenc-cuda-tonemap-multi": goldenOpts(func(o *transcoding.HLSProcessOpts) {
+			nvenc(o)
+			o.ToneMap = true
+			o.HWTonemap = true
+			o.HWFeatures = append(o.HWFeatures, transcoding.FeatureTonemapCUDA)
+			o.Profiles = goldenLadder[:3]
+			o.VideoDecision = ""
+		}),
 		"hw-nvenc-av1":            goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.VideoCodec = "av1" }),
 		"hw-nvenc-multi":          goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.Profiles = goldenLadder[:3]; o.VideoDecision = "" }),
 		"hw-qsv-single":           goldenOpts(qsv),

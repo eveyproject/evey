@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -189,10 +190,18 @@ func TestHWTonemapWanted(t *testing.T) {
 		assert.True(t, hwResolver(qsv).HWTonemapWanted(needsTonemap, "PQ"))
 	})
 
-	t.Run("nvenc tone-maps in software", func(t *testing.T) {
-		// NVENC's libplacebo path is not modelled, so the backend has no wired
-		// GPU tone-map filter even though the probe passed.
+	t.Run("nvenc without tonemap_cuda tone-maps in software", func(t *testing.T) {
+		// A stock ffmpeg has no CUDA tone-mapper: the probe flag alone (a pre-
+		// CUDA row) never routes NVENC to a GPU tone-map it cannot emit.
 		assert.False(t, hwResolver(nvenc).HWTonemapWanted(needsTonemap, "PQ"))
+	})
+
+	t.Run("nvenc with tonemap_cuda takes PQ, HLG and Dolby Vision", func(t *testing.T) {
+		cuda := nvenc
+		cuda.HWFeatures = append(slices.Clone(nvenc.HWFeatures), transcoding.FeatureTonemapCUDA)
+		assert.True(t, hwResolver(cuda).HWTonemapWanted(needsTonemap, "PQ"))
+		assert.True(t, hwResolver(cuda).HWTonemapWanted(needsTonemap, "HLG"))
+		assert.True(t, hwResolver(cuda).HWTonemapWanted(needsTonemap, ""))
 	})
 
 	t.Run("probe never proved GPU tone-mapping", func(t *testing.T) {

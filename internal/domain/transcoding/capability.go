@@ -86,7 +86,7 @@ type EncodeCapability struct {
 	HW10BitTranscode bool `json:"hw_10bit_transcode"`
 
 	// HWTonemap: the backend tone-maps HDR->SDR on the GPU (tonemap_vaapi /
-	// vpp_qsv / libplacebo). False -> software tonemap. No omitempty.
+	// tonemap_opencl / tonemap_cuda). False -> software tonemap. No omitempty.
 	HWTonemap bool `json:"hw_tonemap"`
 
 	// HWOverlay: the backend composites a bitmap subtitle on the GPU; false
@@ -241,8 +241,9 @@ func (c EncodeCapability) AnyBackendSupports(codec string) bool {
 }
 
 // TonemapBackend returns a backend that tone-maps HDR->SDR on the GPU (proves
-// the tone-map route and carries a usable tonemap for hdrRange): OpenCL handles
-// any range, the fixed VPP only PQ. Empty ok=false when none - HDR then
+// the tone-map route and carries a usable tonemap for hdrRange): OpenCL
+// (VAAPI) and CUDA (NVENC) handle any range - HLG and a Dolby Vision RPU
+// included - the fixed VAAPI VPP only PQ. Empty ok=false when none - HDR then
 // tone-maps in software. QSV's vpp is ineligible so it never proves the route.
 func (c EncodeCapability) TonemapBackend(hdrRange string) (HWBackendCap, bool) {
 	for _, b := range c.BackendCaps() {
@@ -250,15 +251,27 @@ func (c EncodeCapability) TonemapBackend(hdrRange string) (HWBackendCap, bool) {
 		// (QSV's vpp is ineligible so its route is never proven, even though its
 		// probe may init). Both required so a pre-Backends row (nil Routes,
 		// trusted) still respects the probe flag.
-		if !b.HWTonemap || !b.Proves(HWRouteTonemap) || (b.Backend != "vaapi" && b.Backend != "qsv") {
+		if !b.HWTonemap || !b.Proves(HWRouteTonemap) || (b.Backend != "vaapi" && b.Backend != "qsv" && b.Backend != "nvenc") {
 			continue
 		}
-		if hdrRange != "PQ" && !slices.Contains(b.Features, FeatureTonemapOpenCL) {
+		// NVENC's only GPU tone-mapper is tonemap_cuda: no feature, no route
+		// (a probed row from a stock ffmpeg, or a pre-CUDA row, bridges on the CPU).
+		if b.Backend == "nvenc" && !slices.Contains(b.Features, FeatureTonemapCUDA) {
+			continue
+		}
+		if hdrRange != "PQ" && !b.TonemapsAnyRange() {
 			continue
 		}
 		return b, true
 	}
 	return HWBackendCap{}, false
+}
+
+// TonemapsAnyRange reports whether the backend's GPU tone-mapper reads the
+// source's transfer and Dolby Vision RPU itself (OpenCL / CUDA), rather than
+// the fixed PQ-only VPP curve.
+func (b HWBackendCap) TonemapsAnyRange() bool {
+	return slices.Contains(b.Features, FeatureTonemapOpenCL) || slices.Contains(b.Features, FeatureTonemapCUDA)
 }
 
 // PassthroughBackend returns a backend that keeps HDR (HEVC Main10 passthrough):
@@ -400,6 +413,12 @@ func DecodeClassKey(codec, pixFmt string) string {
 // FeatureTonemapOpenCL: tonemap_opencl runs on this GPU (bt2390 curve, HLG and
 // Dolby Vision RPU handled) - the VPP tone-mapper is the fallback.
 const FeatureTonemapOpenCL = "tonemap_opencl"
+
+// FeatureTonemapCUDA: tonemap_cuda (the jellyfin-ffmpeg CUDA tone-mapper, same
+// bt2390 curve, HLG and Dolby Vision RPU applied) runs on this NVIDIA GPU
+// directly on the decoder's CUDA frames. NVENC has no other GPU tone-mapper:
+// without it HDR->SDR takes the CPU bridge.
+const FeatureTonemapCUDA = "tonemap_cuda"
 
 // BFramesFeature names the probed B-frame support of a codec; "_lp" suffixed
 // for the low-power encoder, whose support differs (VDEnc has none on Gen9).

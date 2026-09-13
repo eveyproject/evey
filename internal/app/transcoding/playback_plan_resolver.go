@@ -577,9 +577,9 @@ func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecisi
 
 // HWTonemapWanted reports whether this request should tone-map HDR->SDR on the
 // GPU: the decision needs tone-mapping, the toggle is on, the host probed
-// HWTonemap, and the backend has a wired HW tone-map filter (vaapi/qsv - NVENC's
-// libplacebo path is not modelled, so it tone-maps in software). When false the
-// software tonemap path runs, byte-identical to a host with no GPU tone-mapping.
+// HWTonemap, and the backend has a wired HW tone-map filter (VAAPI OpenCL/VPP,
+// NVENC tonemap_cuda; QSV's vpp is ineligible). When false the software
+// tonemap path runs, byte-identical to a host with no GPU tone-mapping.
 func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision, hdrRange string) bool {
 	if pr.HWTonemapEnabled != nil && !pr.HWTonemapEnabled() {
 		return false
@@ -587,8 +587,8 @@ func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision, h
 	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
 		return false
 	}
-	// A backend that tone-maps this range on the GPU (VAAPI OpenCL for any range,
-	// PQ-only for the fixed VPP; QSV vpp is ineligible). Picked PER ROUTE, so a
+	// A backend that tone-maps this range on the GPU (VAAPI OpenCL / NVENC CUDA
+	// for any range, PQ-only for the fixed VPP; QSV vpp is ineligible). Picked PER ROUTE, so a
 	// QSV-primary host still routes HDR->SDR to VAAPI's OpenCL.
 	if _, ok := pr.Capability().TonemapBackend(hdrRange); !ok {
 		return false

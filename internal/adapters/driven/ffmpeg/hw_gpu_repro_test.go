@@ -209,13 +209,20 @@ func TestGPU_ProbesAreFailClosedAndRoutesRunThroughTheBuilder(t *testing.T) {
 	if !slices.Contains(encoders, "av1_nvenc") {
 		t.Errorf("encoders %v lack av1_nvenc on an Ada GPU", encoders)
 	}
+	// The bundled jellyfin-ffmpeg carries tonemap_cuda: the GPU tone-map probe
+	// passes and the feature drives the builder's tonemap route (on a
+	// PROGRESSIVE HDR10 mire, the class the bridge once failed on).
+	tonemap, features := resolveTonemapCaps("nvenc", slices.Clone(gpuReproFeatures), probeHWTonemap(ctx, ffmpeg, "nvenc", ""), false)
+	if !tonemap || !slices.Contains(features, transcoding.FeatureTonemapCUDA) {
+		t.Errorf("tonemap_cuda probe failed on a jellyfin-ffmpeg + NVIDIA rig: tonemap=%v features=%v", tonemap, features)
+	}
 	r := NewBenchmarkRunner(BenchmarkOpts{FfmpegPath: ffmpeg, SamplePath: filepath.Join(t.TempDir(), "sample.hevc")}, nil)
-	routes := r.probeHWRoutes(ctx, "nvenc", "", hwDomainCodecs(encoders), gpuReproFeatures, false, true, true, got)
+	routes := r.probeHWRoutes(ctx, "nvenc", "", hwDomainCodecs(encoders), features, tonemap, true, true, got)
 	t.Logf("routes: %v", routes)
 	if slices.Contains(got, "hevc:yuv444p") && !slices.Contains(routes, transcoding.HWRouteSourceFormat("yuv444p")) {
 		t.Errorf("4:4:4 decodes on this GPU but its zero-copy route did not prove: %v", routes)
 	}
-	for _, want := range []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteAV1, transcoding.HWRouteSource10Bit, transcoding.HWRouteBridge, transcoding.HWRoutePassthrough} {
+	for _, want := range []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteAV1, transcoding.HWRouteSource10Bit, transcoding.HWRouteTonemap, transcoding.HWRouteBridge, transcoding.HWRoutePassthrough} {
 		if !slices.Contains(routes, want) {
 			t.Errorf("routes %v lack %s", routes, want)
 		}
