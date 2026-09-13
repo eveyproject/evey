@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -43,6 +44,8 @@ type CalibrationService struct {
 	repo   domaintranscoding.CapabilityRepo
 	runner domaintranscoding.BenchmarkRunner
 	logger *slog.Logger
+	// hwDevice is the operator's device pin (WithHWDevice), "" = none.
+	hwDevice string
 	// hwInitStrikeAt is the first missed HW init of the current window (under demoteMu).
 	hwInitStrikeAt time.Time
 
@@ -178,6 +181,12 @@ type CalibrationOption func(*CalibrationService)
 
 // WithHWMode sets the initial HW-acceleration mode (the bootstrap value derived
 // from env + any persisted admin override). Empty/unknown is treated as auto.
+// WithHWDevice pins the calibration to one device (render node / CUDA index),
+// see HWPreference.Device. Empty = no pin.
+func WithHWDevice(device string) CalibrationOption {
+	return func(s *CalibrationService) { s.hwDevice = strings.TrimSpace(device) }
+}
+
 func WithHWMode(mode domaintranscoding.HWMode) CalibrationOption {
 	return func(s *CalibrationService) {
 		s.mode = mode
@@ -284,9 +293,12 @@ func (s *CalibrationService) HWMode() domaintranscoding.HWMode {
 	return s.mode
 }
 
-// preference snapshots the current mode as the runner-facing HWPreference.
+// preference snapshots the current mode as the runner-facing HWPreference,
+// with the operator's device pin (WithHWDevice) layered on.
 func (s *CalibrationService) preference() domaintranscoding.HWPreference {
-	return s.HWMode().Preference()
+	pref := s.HWMode().Preference()
+	pref.Device = s.hwDevice
+	return pref
 }
 
 // derivePolicy is the DerivePolicy that turns raw bench evidence into delivery
@@ -399,7 +411,7 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 			// if it's dead, strip HW and keep the still-valid software ceiling
 			// rather than selecting a backend that fails at playtime and loops the
 			// player on a ~30s timeout.
-			if persisted.HWBackend != "" && persisted.HWMaxHeight > 0 && !s.runner.HWBackendUsable(ctx, persisted.HWBackend) {
+			if persisted.HWBackend != "" && persisted.HWMaxHeight > 0 && !s.runner.HWBackendUsable(ctx, persisted.HWBackend, persisted.HWDevice) {
 				s.logger.Warn("calibration: persisted HW backend not usable on this host, falling back to software",
 					slog.String("hw_backend", persisted.HWBackend))
 				persisted.HWBackend = ""
@@ -782,7 +794,7 @@ func (s *CalibrationService) ReprobeDemotedHW(ctx context.Context) bool {
 		candidates = []string{pref.Backend}
 	}
 	for _, backend := range candidates {
-		if !s.runner.HWBackendUsable(ctx, backend) {
+		if !s.runner.HWBackendUsable(ctx, backend, pref.Device) {
 			continue
 		}
 		s.logger.Info("calibration: demoted HW backend passed re-probe, re-benching",

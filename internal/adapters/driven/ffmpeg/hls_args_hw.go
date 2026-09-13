@@ -276,7 +276,11 @@ func hwBurnInBranch(opts transcoding.HLSProcessOpts, mainLabel string) (subBranc
 func hwInitArgs(accel transcoding.HWAccelType, device string) []string {
 	switch accel {
 	case transcoding.NVENC:
-		return []string{"-hwaccel", "cuda", "-hwaccel_output_format", "cuda"}
+		a := []string{"-hwaccel", "cuda", "-hwaccel_output_format", "cuda"}
+		if device != "" {
+			a = append(a, "-hwaccel_device", device) // CUDA index of a non-first GPU
+		}
+		return a
 	case transcoding.VAAPI:
 		a := []string{"-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi"}
 		if device != "" {
@@ -309,9 +313,41 @@ func hwDeviceOnlyArgs(accel transcoding.HWAccelType, device string) []string {
 		}
 		return []string{"-vaapi_device", device}
 	case transcoding.QSV:
-		return []string{"-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"}
+		return qsvInitDeviceArgs(device)
 	}
 	return nil
+}
+
+// qsvInitDeviceArgs binds a QSV device for FILTERING (no -hwaccel): the
+// default child device when none is named, else the given render node - what
+// makes QSV land on the Intel node of a multi-GPU box whose renderD128 is the
+// other vendor's card. Shared by the builder and every QSV probe.
+func qsvInitDeviceArgs(device string) []string {
+	spec := "qsv=hw"
+	if device != "" {
+		spec += ",child_device=" + device
+	}
+	return []string{"-init_hw_device", spec, "-filter_hw_device", "hw"}
+}
+
+// cudaInitDeviceArgs binds a CUDA device for FILTERING: the default GPU, or
+// the given CUDA index. Shared by the NVENC probes.
+func cudaInitDeviceArgs(device string) []string {
+	spec := "cuda=cu"
+	if device != "" {
+		spec += ":" + device
+	}
+	return []string{"-init_hw_device", spec, "-filter_hw_device", "cu"}
+}
+
+// nvencGPUArgs pins an NVENC encoder that receives SYSTEM-memory frames (the
+// feature probes) to a CUDA index; a zero-copy session inherits the GPU from
+// its decoded frames and needs none. Empty for the default GPU.
+func nvencGPUArgs(device string) []string {
+	if device == "" {
+		return nil
+	}
+	return []string{"-gpu", device}
 }
 
 // hwUploadFilter returns the filter that moves software-decoded frames onto the

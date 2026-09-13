@@ -164,9 +164,14 @@ func (p *TranscodeProfile) Validate() error {
 	return nil
 }
 
+// HWDevice is one detected accelerator: Type is the backend, Name the device
+// ffmpeg is bound to (a DRM render node for VAAPI/QSV, the CUDA index for
+// NVENC - "" on a single-GPU host, the historical default), Label the human
+// identification for the admin (PCI vendor + kernel driver, or the GPU model).
 type HWDevice struct {
 	Type            string
 	Name            string
+	Label           string
 	SupportedCodecs []string
 }
 

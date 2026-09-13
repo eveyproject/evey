@@ -55,6 +55,12 @@ type HWPreference struct {
 	Backend string
 	// DisableHW skips hardware probing - the host is calibrated software-only.
 	DisableHW bool
+	// Device pins the bench to one device of the backend(s): a DRM render node
+	// ("/dev/dri/renderD129") or a CUDA index ("1"). Empty = every detected
+	// device is certified and the best one per backend is selected. The knob
+	// that lets a multi-GPU host run one Evey per GPU, or choose the second
+	// render node (EVEY_TRANSCODING_HW_DEVICE).
+	Device string
 }
 
 // Preference derives the bench knobs from the mode.
