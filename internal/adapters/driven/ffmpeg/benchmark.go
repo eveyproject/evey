@@ -1071,6 +1071,20 @@ func topPassingFPS(samples []transcoding.BenchRungSample) float64 {
 	return fps
 }
 
+// resolveTonemapCaps folds the two INDEPENDENT GPU tone-map probes into the
+// scalar HWTonemap flag and the feature list. OpenCL alone is enough to
+// tone-map on the GPU (and is the only correct VAAPI path), so HWTonemap is
+// native OR OpenCL and FeatureTonemapOpenCL is appended on its own probe -
+// never gated behind the fixed-function native one. hwTonemapFilter then picks
+// OpenCL when the feature is present; the route is still certified only by the
+// real builder/HLS route probe.
+func resolveTonemapCaps(features []string, nativeOK, openclOK bool) (bool, []string) {
+	if openclOK {
+		features = append(features, transcoding.FeatureTonemapOpenCL)
+	}
+	return nativeOK || openclOK, features
+}
+
 // probeBackendCap runs the per-backend capability probes (features, decode
 // matrix, 10-bit VPP, GPU tone-map, overlay, HDR10 encode) and the end-to-end
 // builder route probes for ONE certified accelerator, returning its full
@@ -1080,9 +1094,15 @@ func (r *BenchmarkRunner) probeBackendCap(ctx context.Context, c hwCandidate) tr
 	features := r.probeHWFeatures(ctx, c.backend, c.device, codecs)
 	decode := probeHWDecodeCodecs(ctx, r.ffmpegPath, c.backend, c.device)
 	hw10 := probeHW10BitTranscode(ctx, r.ffmpegPath, c.backend, c.device)
-	tonemap := probeHWTonemap(ctx, r.ffmpegPath, c.backend, c.device)
-	if tonemap && probeHWTonemapOpenCL(ctx, r.ffmpegPath, c.backend, c.device) {
-		features = append(features, transcoding.FeatureTonemapOpenCL)
+	// Native VPP (tonemap_vaapi / vpp_qsv) and VAAPI/OpenCL are INDEPENDENT
+	// tone-map implementations - one can pass while the other fails. Probe both
+	// unconditionally: on prod-host OpenCL is validated (3.26x) while the
+	// fixed-function VPP can abort, so gating OpenCL behind the native probe
+	// (as this once did) silently dropped the whole GPU tone-map route.
+	tonemapNative := probeHWTonemap(ctx, r.ffmpegPath, c.backend, c.device)
+	tonemapOpenCL := probeHWTonemapOpenCL(ctx, r.ffmpegPath, c.backend, c.device)
+	tonemap, features := resolveTonemapCaps(features, tonemapNative, tonemapOpenCL)
+	if tonemapOpenCL {
 		r.logger.Info("benchmark: HW feature supported",
 			slog.String("backend", c.backend), slog.String("feature", transcoding.FeatureTonemapOpenCL))
 	}

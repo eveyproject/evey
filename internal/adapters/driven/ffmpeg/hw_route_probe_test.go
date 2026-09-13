@@ -92,3 +92,73 @@ func TestRouteProbesFor_ExoticDecodeClassesGetARoute(t *testing.T) {
 		t.Fatalf("routes = %v, want %v", got, want)
 	}
 }
+
+// resolveTonemapCaps treats the native VPP and VAAPI/OpenCL probes as
+// INDEPENDENT: OpenCL alone certifies HWTonemap and adds its feature (the fix
+// for the gating bug that dropped VAAPI's OpenCL tone-map whenever the
+// fixed-function VPP aborted, as it did on prod-host). Native alone still counts.
+func TestResolveTonemapCaps_NativeAndOpenCLIndependent(t *testing.T) {
+	cases := []struct {
+		name           string
+		native, opencl bool
+		wantTonemap    bool
+		wantOpenCL     bool
+	}{
+		{"opencl only", false, true, true, true}, // prod-host: VPP aborts, OpenCL validated 3.26x
+		{"native only", true, false, true, false},
+		{"both", true, true, true, true},
+		{"neither", false, false, false, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tonemap, features := resolveTonemapCaps(nil, tc.native, tc.opencl)
+			if tonemap != tc.wantTonemap {
+				t.Fatalf("hwTonemap = %v, want %v", tonemap, tc.wantTonemap)
+			}
+			if got := slices.Contains(features, transcoding.FeatureTonemapOpenCL); got != tc.wantOpenCL {
+				t.Fatalf("opencl feature = %v, want %v", got, tc.wantOpenCL)
+			}
+		})
+	}
+}
+
+// tonemapRouteArgv builds the production argv for the tone-map route probe of a
+// backend calibrated with the given (features, hwTonemap), or fails if the
+// route is not even proposed.
+func tonemapRouteArgv(t *testing.T, accel transcoding.HWAccelType, features []string, tonemap bool) string {
+	t.Helper()
+	for _, p := range routeProbesFor(accel, []string{"h264"}, features, tonemap, false, false, nil) {
+		if p.route != transcoding.HWRouteTonemap {
+			continue
+		}
+		opts := routeProbeOpts(accel, "/dev/dri/renderD128", features, "/bench/route-hdr10.hevc", "/tmp/out", p)
+		if err := opts.Validate(); err != nil {
+			t.Fatalf("tone-map route opts invalid: %v", err)
+		}
+		return strings.Join(BuildFFmpegArgs(opts), " ")
+	}
+	t.Fatalf("no tone-map route proposed for %s (features=%v tonemap=%v)", accel, features, tonemap)
+	return ""
+}
+
+// With OpenCL certified while the native VPP failed, the tone-map route is
+// still proposed AND the production builder emits the OpenCL chain for it (so
+// runRouteProbe certifies the REAL pipeline). With only the native VPP, the
+// same route emits the fixed-function tonemap_vaapi. This is what the resolver
+// (TonemapBackend) then reads - the fix's end-to-end shape, pinned as a golden.
+func TestTonemapRoute_OpenCLIndependentOfNativeVPP(t *testing.T) {
+	// OpenCL-only: exactly what probeBackendCap builds when native=false, opencl=true.
+	tonemap, features := resolveTonemapCaps(nil, false, true)
+	routes := routeNames(routeProbesFor(transcoding.VAAPI, []string{"h264"}, features, tonemap, false, false, nil))
+	if !slices.Contains(routes, transcoding.HWRouteTonemap) {
+		t.Fatalf("OpenCL-only must still propose the tone-map route, got %v", routes)
+	}
+	if argv := tonemapRouteArgv(t, transcoding.VAAPI, features, tonemap); !strings.Contains(argv, "tonemap_opencl=format=nv12") {
+		t.Fatalf("OpenCL tone-map route must emit the OpenCL chain:\n%s", argv)
+	}
+	// Native-only inverse: HWTonemap still true, route still proposed, VPP filter.
+	tonemap, features = resolveTonemapCaps(nil, true, false)
+	if argv := tonemapRouteArgv(t, transcoding.VAAPI, features, tonemap); !strings.Contains(argv, "tonemap_vaapi=format=nv12") {
+		t.Fatalf("native-only route must emit the fixed-function VPP filter:\n%s", argv)
+	}
+}
