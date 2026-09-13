@@ -52,6 +52,9 @@ func (d *HWDetector) DetectDevices(ctx context.Context) ([]transcoding.HWDevice,
 	devices = append(devices, detectVAAPI(ctx, d.ffmpegPath, nodes)...)
 	devices = append(devices, detectNVENC(ctx, d.ffmpegPath)...)
 	devices = append(devices, detectQSV(ctx, d.ffmpegPath, nodes)...)
+	if dev := detectRKMPP(ctx, d.ffmpegPath); dev != nil {
+		devices = append(devices, *dev)
+	}
 
 	return devices, nil
 }
@@ -180,6 +183,40 @@ func detectNVENC(ctx context.Context, ffmpegPath string) []transcoding.HWDevice 
 	return devices
 }
 
+// detectRKMPP: a Rockchip SoC exposes the MPP service node (/dev/mpp_service,
+// older kernels /dev/mpp-service); the real-encode probe of h264_rkmpp then
+// decides, as everywhere. No device selection: MPP is one per SoC. The label
+// carries the SoC from the device tree (rockchip,rk3588). Every RKMPP shape
+// beyond the encode probe (drm_prime decode, RGA scale/overlay, OpenCL
+// tone-map) is certified by the calibration's own probes and route proofs -
+// NONE of it is assumed: this engine has not run on the hardware yet.
+func detectRKMPP(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
+	present := false
+	for _, n := range []string{"/dev/mpp_service", "/dev/mpp-service"} {
+		if _, err := os.Stat(n); err == nil {
+			present = true
+			break
+		}
+	}
+	if !present {
+		return nil
+	}
+	codecs := probeHWCodecs(ctx, ffmpegPath, "rkmpp", "")
+	if len(codecs) == 0 {
+		return nil
+	}
+	label := "Rockchip MPP"
+	if b, err := os.ReadFile("/proc/device-tree/compatible"); err == nil {
+		for _, c := range strings.Split(string(b), "\x00") {
+			if soc, ok := strings.CutPrefix(c, "rockchip,"); ok {
+				label += " " + strings.ToUpper(soc)
+				break
+			}
+		}
+	}
+	return &transcoding.HWDevice{Type: string(transcoding.RKMPP), Label: label, SupportedCodecs: codecs}
+}
+
 // detectQSV probes QSV on every INTEL render node - the node's own driver,
 // not card0's (a box whose card0 is the AMD dGPU still has QSV on renderD129).
 func detectQSV(ctx context.Context, ffmpegPath string, nodes []drmNode) []transcoding.HWDevice {
@@ -209,6 +246,8 @@ func probeHWCodecs(ctx context.Context, ffmpegPath, hwType, device string) []str
 		encoderSuffixes = []string{"h264_nvenc", "hevc_nvenc", "av1_nvenc"}
 	case "qsv":
 		encoderSuffixes = []string{"h264_qsv", "hevc_qsv", "av1_qsv"}
+	case "rkmpp":
+		encoderSuffixes = []string{"h264_rkmpp", "hevc_rkmpp"}
 	default:
 		return nil
 	}
@@ -358,7 +397,7 @@ func probeHWDecode(ctx context.Context, ffmpegPath string, c hwDecodeProbe, hwTy
 			return false
 		}
 		args = append(args, "-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi", "-hwaccel_device", device)
-	case "qsv", "nvenc":
+	case "qsv", "nvenc", "rkmpp":
 		args = append(args, hwInitArgs(transcoding.HWAccelType(hwType), device)...)
 	default:
 		return false
@@ -445,6 +484,9 @@ func probeHWHDR10Encode(ctx context.Context, ffmpegPath, hwType, device string) 
 	case "nvenc":
 		args = append(args, cudaInitDeviceArgs(device)...)
 		vf, enc = "format=p010le,hwupload_cuda,scale_cuda=256:-2:format=p010", "hevc_nvenc"
+	case "rkmpp":
+		args = append(args, rkmppInitDeviceArgs()...)
+		vf, enc = "format=p010le,hwupload,scale_rkrga=w=256:h=-2:format=p010", "hevc_rkmpp"
 	default:
 		return false
 	}
@@ -485,6 +527,9 @@ func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device strin
 	case "nvenc":
 		args = append(args, cudaInitDeviceArgs(device)...)
 		vf = "format=p010le,hwupload_cuda,scale_cuda=64:-2:format=nv12"
+	case "rkmpp":
+		args = append(args, rkmppInitDeviceArgs()...)
+		vf = "format=p010le,hwupload,scale_rkrga=w=64:h=-2:format=nv12"
 	default:
 		return false
 	}
@@ -515,6 +560,11 @@ func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device strin
 // next filter can negotiate 'opencl' and the VAAPI pool refuses it (ENOSYS).
 const hwCUDATonemapChain = "tonemap_cuda=format=nv12:p=bt709:t=bt709:m=bt709:tonemap=bt2390:peak=100:desat=0"
 
+// hwRKMPPOpenCLTonemapChain is the same OpenCL tone-map mapped from and back
+// to Rockchip drm_prime frames (RK3588's Mali-G610 ICD); the trailing
+// format=drm_prime pins the reverse map like format=vaapi does.
+const hwRKMPPOpenCLTonemapChain = "hwmap=derive_device=opencl:mode=read,tonemap_opencl=format=nv12:primaries=bt709:transfer=bt709:matrix=bt709:tonemap=bt2390:peak=100:desat=0,hwmap=derive_device=rkmpp:reverse=1:extra_hw_frames=16,format=drm_prime"
+
 const hwOpenCLTonemapChain = "hwmap=derive_device=opencl:mode=read,tonemap_opencl=format=nv12:primaries=bt709:transfer=bt709:matrix=bt709:tonemap=bt2390:peak=100:desat=0,hwmap=derive_device=vaapi:reverse=1:extra_hw_frames=16,format=vaapi"
 
 // probeHWTonemapOpenCL: VAAPI only; the synthetic frame is tagged PQ because
@@ -524,15 +574,23 @@ const hwOpenCLTonemapChain = "hwmap=derive_device=opencl:mode=read,tonemap_openc
 // ran and the stderr tail, so the calibration readiness retry can classify and
 // log it (a cold VAAPI->OpenCL derive is an init transient, not a hard "no").
 func probeHWTonemapOpenCLE(ctx context.Context, ffmpegPath, hwType, device string) (bool, string, string, error) {
-	if hwType != "vaapi" || device == "" {
-		return false, "", "", nil // not applicable: QSV/NVENC have no VAAPI->OpenCL derive
+	var init []string
+	var chain string
+	switch {
+	case hwType == "vaapi" && device != "":
+		init, chain = []string{"-vaapi_device", device}, hwOpenCLTonemapChain
+	case hwType == "rkmpp":
+		init, chain = rkmppInitDeviceArgs(), hwRKMPPOpenCLTonemapChain
+	default:
+		return false, "", "", nil // not applicable: QSV/NVENC have no ->OpenCL derive route here
 	}
 	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
 	defer cancel()
-	args := []string{"-hide_banner", "-v", "error", "-nostdin", "-vaapi_device", device,
-		"-f", "lavfi", "-i", "testsrc2=size=" + hwProbeMire + ":rate=5:duration=0.3",
-		"-vf", "format=p010le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc,hwupload," + hwOpenCLTonemapChain + ",hwdownload,format=nv12",
-		"-f", "null", "-"}
+	args := append([]string{"-hide_banner", "-v", "error", "-nostdin"}, init...)
+	args = append(args,
+		"-f", "lavfi", "-i", "testsrc2=size="+hwProbeMire+":rate=5:duration=0.3",
+		"-vf", "format=p010le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc,hwupload,"+chain+",hwdownload,format=nv12",
+		"-f", "null", "-")
 	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_tonemap_opencl"}, ffmpegPath, args...)
 	argv := strings.Join(args, " ")
 	if err != nil {
@@ -731,13 +789,16 @@ func probeHWOverlay(ctx context.Context, ffmpegPath, hwType, device string) bool
 		// overlay_cuda takes the overlay as yuva420p, not bgra: it blends in the
 		// planar YUV domain rather than through a VPP colour converter.
 		main, sub, blend = "format=nv12,hwupload_cuda", "format=yuva420p,hwupload_cuda", "overlay_cuda"
+	case "rkmpp":
+		args = append(args, rkmppInitDeviceArgs()...)
+		main, sub, blend = "format=nv12,hwupload", "format=bgra,hwupload", "overlay_rkrga"
 	default:
 		return false
 	}
 	// overlay_cuda has no w/h options ("Option not found", measured on an RTX
 	// 4070 Ti 2026-09-13: the probe failed on every NVIDIA host and GPU burn-in
 	// never certified there); the explicit geometry is the Intel VPP's need.
-	if hwType != "nvenc" {
+	if hwType == "vaapi" || hwType == "qsv" {
 		blend += "=w=256:h=144"
 	}
 	args = append(args,
@@ -760,7 +821,7 @@ func classifyGPU(backend, device string) string {
 	switch backend {
 	case "nvenc":
 		return "discrete"
-	case "qsv":
+	case "qsv", "rkmpp":
 		return "integrated"
 	case "vaapi":
 		node := filepath.Base(device)
@@ -806,6 +867,8 @@ func resolveHWEncoder(deviceType, codec string) string {
 		return fmt.Sprintf("%s_nvenc", codec)
 	case string(transcoding.QSV):
 		return fmt.Sprintf("%s_qsv", codec)
+	case string(transcoding.RKMPP):
+		return fmt.Sprintf("%s_rkmpp", codec)
 	}
 	return ""
 }

@@ -259,3 +259,17 @@ func TestFailureClass_RetryableInit(t *testing.T) {
 		}
 	}
 }
+
+func TestHWMode_RKMPP(t *testing.T) {
+	m, ok := ParseHWMode(" RKMPP ")
+	if !ok || m != HWModeRKMPP || m.Preference().Backend != "rkmpp" {
+		t.Fatalf("rkmpp mode = %q ok=%v pref=%+v", m, ok, m.Preference())
+	}
+	if !RKMPP.IsValid() {
+		t.Fatal("rkmpp is a valid accel type")
+	}
+	rk := HWBackendCap{Backend: "rkmpp", HWDeinterlace: true, Routes: []string{HWRouteDeinterlace}}
+	if rk.DeinterlacesOnGPU() {
+		t.Fatal("RGA has no deinterlacer: never session-level on RKMPP, whatever a row claims")
+	}
+}

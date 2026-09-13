@@ -135,6 +135,11 @@ func videoEncoderFor(codec string, accel transcoding.HWAccelType) string {
 		return base + "_vaapi"
 	case transcoding.QSV:
 		return base + "_qsv"
+	case transcoding.RKMPP:
+		if base == "av1" {
+			return resolveVideoEncoder(codec) // MPP has no AV1 encoder
+		}
+		return base + "_rkmpp"
 	}
 	return resolveVideoEncoder(codec)
 }

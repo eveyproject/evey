@@ -60,6 +60,17 @@ func TestRouteProbesFor_FollowsTheProbedFacts(t *testing.T) {
 			t.Fatalf("deint route argv does not run the production QSV deinterlacer:\n%s", argv)
 		}
 	}
+	// RKMPP: every shape goes through the same proofs - SDR/HEVC zero-copy,
+	// the OpenCL tone-map only on its probed feature, the bridge, the
+	// decoupled upload; never a session-level deinterlacer (RGA has none).
+	got = routeNames(routeProbesFor(transcoding.RKMPP, []string{"h264", "hevc"}, []string{transcoding.FeatureTonemapOpenCL}, true, true, false, true, nil))
+	want = []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteSource10Bit, transcoding.HWRouteTonemap, transcoding.HWRouteBridge, transcoding.HWRouteDecoupled}
+	if !slices.Equal(got, want) {
+		t.Fatalf("rkmpp routes = %v, want %v", got, want)
+	}
+	if got := routeNames(routeProbesFor(transcoding.RKMPP, []string{"h264"}, nil, true, false, false, false, nil)); slices.Contains(got, transcoding.HWRouteTonemap) {
+		t.Fatalf("rkmpp without the OpenCL feature has no GPU tone-map route: %v", got)
+	}
 	for _, p := range routeProbesFor(transcoding.NVENC, []string{"h264", "av1"}, nil, false, false, false, false, nil) {
 		if p.route != transcoding.HWRouteAV1 {
 			continue

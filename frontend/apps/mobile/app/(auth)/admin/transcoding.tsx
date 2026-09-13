@@ -197,7 +197,7 @@ export default function AdminTranscodingScreen() {
   const isWsl = calib?.is_wsl ?? false;
   const hwEnabled = hwMode !== "off";
   const forceable = Array.from(
-    new Set([...detected, ["nvenc", "vaapi", "qsv"].includes(hwMode) ? hwMode : ""].filter(Boolean)),
+    new Set([...detected, ["nvenc", "vaapi", "qsv", "rkmpp"].includes(hwMode) ? hwMode : ""].filter(Boolean)),
   );
   const wslBlocked = (b: string) => isWsl && (b === "vaapi" || b === "qsv");
   const fallbacks = calib?.hw_fallbacks ?? [];

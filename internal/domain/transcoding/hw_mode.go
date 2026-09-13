@@ -12,7 +12,7 @@ import "strings"
 //   - HWModeOff: software only, EVEN IF a usable GPU is present. The escape
 //     hatch when HW misbehaves (driver bug, thermal, a TDR-prone box) or when
 //     the operator simply prefers CPU.
-//   - HWModeNVENC / HWModeVAAPI / HWModeQSV: force that backend. If it turns
+//   - HWModeNVENC / HWModeVAAPI / HWModeQSV / HWModeRKMPP: force that backend. If it turns
 //     out unusable on this host, calibration strips it and falls back to
 //     software (the admin GET then shows the active backend so the UI can say
 //     "requested X, running software").
@@ -24,6 +24,7 @@ const (
 	HWModeNVENC HWMode = "nvenc"
 	HWModeVAAPI HWMode = "vaapi"
 	HWModeQSV   HWMode = "qsv"
+	HWModeRKMPP HWMode = "rkmpp"
 )
 
 // ParseHWMode validates an operator-supplied string. Case/space-insensitive.
@@ -41,6 +42,8 @@ func ParseHWMode(s string) (HWMode, bool) {
 		return HWModeVAAPI, true
 	case HWModeQSV:
 		return HWModeQSV, true
+	case HWModeRKMPP:
+		return HWModeRKMPP, true
 	default:
 		return HWModeAuto, false
 	}
@@ -68,7 +71,7 @@ func (m HWMode) Preference() HWPreference {
 	switch m {
 	case HWModeOff:
 		return HWPreference{DisableHW: true}
-	case HWModeNVENC, HWModeVAAPI, HWModeQSV:
+	case HWModeNVENC, HWModeVAAPI, HWModeQSV, HWModeRKMPP:
 		return HWPreference{Backend: string(m)}
 	default: // HWModeAuto (and any unexpected value, treated as auto)
 		return HWPreference{}
