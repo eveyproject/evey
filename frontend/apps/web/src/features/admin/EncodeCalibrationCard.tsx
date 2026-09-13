@@ -98,7 +98,10 @@ export function EncodeCalibrationCard() {
   const av1MaxHeight = settings?.av1MaxHeight?.value ?? 0;
   const hwLowPowerEnabled = settings?.hwLowPowerEnabled?.value ?? false;
   const maxVideoBitrateKbps = settings?.maxVideoBitrateKbps?.value ?? 0;
-  const maxVideoBitrateRemoteKbps = settings?.maxVideoBitrateRemoteKbps?.value ?? 20000;
+  // Absent = follow the LAN (0), matching the backend default. Never fall back
+  // to 20 000: that would show "20 Mb/s" and a save would silently persist it,
+  // turning an unset (follow-LAN) server into a 20 Mb/s-capped one.
+  const maxVideoBitrateRemoteKbps = settings?.maxVideoBitrateRemoteKbps?.value ?? 0;
 
   const setAV1 = useMutation({
     mutationFn: (patch: { av1Enabled?: boolean; av1MaxHeight?: number }) =>
@@ -324,14 +327,14 @@ export function EncodeCalibrationCard() {
                 onChange={(e) => setMaxBitrate.mutate({ maxVideoBitrateRemoteKbps: parseInt(e.target.value, 10) })}
                 className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
               >
-                <option value="0">{t("admin.calibration.maxBitrateRemoteNone", "Same as the LAN")}</option>
+                <option value="0">{t("admin.calibration.maxBitrateRemoteNone", "Follow the LAN (no extra remote cap)")}</option>
                 <option value="8000">8 Mb/s</option>
                 <option value="12000">12 Mb/s</option>
                 <option value="20000">20 Mb/s</option>
                 <option value="40000">40 Mb/s</option>
               </select>
               <p className="text-xs text-[var(--text-muted)]">
-                {t("admin.calibration.maxBitrateRemoteHint", "Applied to clients outside your private network. A per-user limit stays the tightest one.")}
+                {t("admin.calibration.maxBitrateRemoteHint", "Applied to clients outside your private network. \"Follow the LAN\" adds no remote-specific cap, so a high-bitrate remux can go out unless another limit applies. A per-user limit stays the tightest one.")}
               </p>
             </div>
 

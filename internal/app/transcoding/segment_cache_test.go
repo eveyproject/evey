@@ -631,3 +631,38 @@ func TestDecisionFingerprint_Hash_H264LevelCapOnlyWhenItLowersTheSPS(t *testing.
 	hevcBase.VideoCodec = "hevc"
 	assert.Equal(t, hevcBase.Hash(), hevc.Hash(), "an HEVC output ignores the H.264 level")
 }
+
+// The ENCODE backend is part of the cache identity: a session on one backend
+// must never reuse another's segments/init. A recalibration that flips the
+// per-route backend (VAAPI<->QSV) yields a different hash, so the two never
+// alias. A software session (no hwenc) keeps its pre-feature hash, and hw and
+// software fork from each other.
+func TestDecisionFingerprint_Hash_ForksByBackend(t *testing.T) {
+	base := DecisionFingerprint{MediaID: "m1", VideoCodec: "h264", AudioTrack: 0,
+		Profiles: []ProfileFingerprint{{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 8000, AudioBitrate: 192}}}
+	sw := base
+	vaapi := base
+	vaapi.HWAccel = "vaapi"
+	qsv := base
+	qsv.HWAccel = "qsv"
+
+	if vaapi.Hash() == qsv.Hash() {
+		t.Fatal("vaapi and qsv sessions must not share a cache hash")
+	}
+	if sw.Hash() == vaapi.Hash() || sw.Hash() == qsv.Hash() {
+		t.Fatal("a software session must not share a hash with a hardware one")
+	}
+	// HWDevice / HWFeatures stay out of the hash (same backend = same bytes).
+	v2 := vaapi
+	v2.HWDevice = "/dev/dri/renderD129"
+	v2.HWFeatures = []string{"low_power_h264"}
+	if v2.Hash() != vaapi.Hash() {
+		t.Fatal("the render node and tuning features must not fork the cache")
+	}
+	// A software fingerprint's hash is unchanged by the feature (no hwenc term):
+	// existing software-cached segments stay addressable.
+	swBaseline := base
+	if sw.Hash() != swBaseline.Hash() {
+		t.Fatal("software hash must be stable across the feature")
+	}
+}

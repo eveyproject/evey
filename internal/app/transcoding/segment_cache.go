@@ -155,11 +155,14 @@ type DecisionFingerprint struct {
 	SourceSAR string
 
 	// HWAccel / HWDevice select the hardware encode backend ("nvenc"/"vaapi"/
-	// "qsv" + DRM render node) when the handler resolves one. Deliberately
-	// EXCLUDED from Hash(): a hardware-encoded segment is byte-compatible with
-	// the software one (same codec/bitrate/resolution/container/naming), so the
-	// addressable cache stays encoder-agnostic - toggling HW at runtime must
-	// not fork the cache. Empty = software path.
+	// "qsv" + DRM render node) when the handler resolves one. Empty = software.
+	// PART OF Hash() (as "hwenc=", for a HW encode only): the backend is chosen
+	// per route and can flip across a recalibration, and two encoders write
+	// their own init (SPS/PPS) and slices, so a session on one backend must not
+	// reuse another's segments/init - the fork guarantees it. A software session
+	// emits no "hwenc=" so its cache is unchanged, and all software encodes of a
+	// codec share (one libx264/libx265). HWDevice stays out of Hash (same
+	// backend, different render node = same bytes).
 	HWAccel  string
 	HWDevice string
 	// HWFeatures is the probed tuning set forwarded to the HW encoder. Like
@@ -411,6 +414,17 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 	fmt.Fprintf(&b, "ach=%d\n", f.MaxAudioChannels)
 	fmt.Fprintf(&b, "sidecar=%t\n", f.ForceSidecarSubs)
 	fmt.Fprintf(&b, "fmp4=%t\n", f.UseFMP4)
+	if f.HWAccel != "" && !f.allProfilesCopy() {
+		// The ENCODE backend is part of the cache IDENTITY. With a backend chosen
+		// PER ROUTE (VAAPI OpenCL for HDR, QSV for HEVC/SDR on one host) a
+		// recalibration can flip which backend a title resolves to; two encoders
+		// produce their OWN init (avcC/SPS) and slices, so a session that started
+		// on one must NEVER reuse another's segments/init. Forking by backend
+		// makes that impossible at the cache level. Emitted only for a HW encode:
+		// a software session (HWAccel "") keeps its pre-feature hash, and every
+		// software encode of a codec is the one libx264/libx265, so they share.
+		fmt.Fprintf(&b, "hwenc=%s\n", f.HWAccel)
+	}
 	if f.AudioCopy {
 		// Conditional on purpose: see the AudioCopy field comment.
 		b.WriteString("acopy=true\n")
@@ -459,6 +473,22 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 	sum := sha256.Sum256([]byte(b.String()))
 	// 16 hex chars = 64 bits, low enough collision risk for our cache scale.
 	return hex.EncodeToString(sum[:])[:16]
+}
+
+// allProfilesCopy reports whether every rung is a remux (video-copy): a copy
+// session does not ENCODE, so its bytes are the same whatever backend was
+// resolved - it must NOT fork by hwenc (that would split identical remux bytes
+// across per-backend caches). Empty profiles = not a copy session.
+func (f DecisionFingerprint) allProfilesCopy() bool {
+	if len(f.Profiles) == 0 {
+		return false
+	}
+	for _, p := range f.Profiles {
+		if !p.Copy {
+			return false
+		}
+	}
+	return true
 }
 
 // signalledH264LevelCap is the client level cap when at least one H.264 rung
