@@ -199,6 +199,20 @@ func RunRouteBench(ctx context.Context, opts RouteBenchOptions) ([]RouteBenchRow
 	hwOn := opts.Backend != "none"
 	if opts.Capability != nil {
 		cap = *opts.Capability
+		// A pinned backend re-targets a persisted capability of another one (a
+		// prod-host calibrated on VAAPI measured on QSV): same host facts, the
+		// encoder family swapped, its render node, the tuning features that
+		// carry over (low-power), the ones that do not dropped.
+		if hwOn && opts.Backend != "" && opts.Backend != cap.HWBackend {
+			cap.HWBackend, cap.HWDevice = opts.Backend, hwDevicePath(opts.Backend)
+			var kept []string
+			for _, f := range cap.HWFeatures {
+				if strings.HasPrefix(f, "low_power_") {
+					kept = append(kept, f)
+				}
+			}
+			cap.HWFeatures = kept
+		}
 	} else {
 		progress("calibrating with the production BenchmarkRunner (this is what the model prices on)")
 		runner := NewBenchmarkRunner(BenchmarkOpts{FfmpegPath: opts.FfmpegPath, SamplePath: filepath.Join(opts.WorkDir, "bench", "sample.hevc"), SingleVariant: true}, nil)
@@ -528,7 +542,7 @@ func measureBenchShape(ctx context.Context, opts RouteBenchOptions, cap transcod
 		fmt.Fprintf(&fc, "[v%d]", i)
 	}
 	for i, hh := range heights {
-		fmt.Fprintf(&fc, ";[v%d]%s=-2:%d[o%d]", i, hwScale, hh, i)
+		fmt.Fprintf(&fc, ";[v%d]%s[o%d]", i, hwScaleToHeight(hwScale, hh), i)
 	}
 	args = append(args, "-filter_complex", fc.String())
 	for i := range heights {

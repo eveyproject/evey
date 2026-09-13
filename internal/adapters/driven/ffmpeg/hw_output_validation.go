@@ -125,11 +125,7 @@ func (r *BenchmarkRunner) validateHWVisualOutput(ctx context.Context, sample str
 	if uploadChain != "" {
 		head = "[0:v]" + uploadChain + ","
 	}
-	scale := hwScale
-	if scale == "" {
-		scale = "scale"
-	}
-	fc := fmt.Sprintf("%s%s=-2:%d[o0]", head, scale, hwValidateHeight)
+	fc := fmt.Sprintf("%s%s[o0]", head, hwScaleToHeight(hwScale, hwValidateHeight))
 	args = append(args, "-filter_complex", fc, "-map", "[o0]", "-c:v", encoder)
 	switch {
 	case hwScale != "":

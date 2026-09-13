@@ -1228,7 +1228,7 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 	fmt.Fprintf(&fcBuf, "%ssplit=%d%s", head, len(heights), strings.Join(splitOutputs, ""))
 	for i, h := range heights {
 		if hwScale != "" {
-			fmt.Fprintf(&fcBuf, ";[v%d]%s=-2:%d[o%d]", i, hwScale, h, i)
+			fmt.Fprintf(&fcBuf, ";[v%d]%s[o%d]", i, hwScaleToHeight(hwScale, h), i)
 		} else {
 			fmt.Fprintf(&fcBuf, ";[v%d]scale=-2:%d[o%d]", i, h, i)
 		}

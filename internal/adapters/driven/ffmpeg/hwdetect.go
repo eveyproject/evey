@@ -360,7 +360,7 @@ func probeHWHDR10Encode(ctx context.Context, ffmpegPath, hwType, device string) 
 		vf, enc = "format=p010le,hwupload,scale_vaapi=256:-2:format=p010", "hevc_vaapi"
 	case "qsv":
 		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
-		vf, enc = "format=p010le,hwupload=extra_hw_frames=16,scale_qsv=256:-2:format=p010", "hevc_qsv"
+		vf, enc = "format=p010le,hwupload=extra_hw_frames=16,scale_qsv=w=256:h=-1:format=p010", "hevc_qsv"
 	case "nvenc":
 		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
 		vf, enc = "format=p010le,hwupload_cuda,scale_cuda=256:-2:format=p010", "hevc_nvenc"
@@ -400,7 +400,7 @@ func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device strin
 		vf = "format=p010le,hwupload,scale_vaapi=64:-2:format=nv12"
 	case "qsv":
 		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
-		vf = "format=p010le,hwupload=extra_hw_frames=16,scale_qsv=64:-2:format=nv12"
+		vf = "format=p010le,hwupload=extra_hw_frames=16,scale_qsv=w=64:h=-1:format=nv12"
 	case "nvenc":
 		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
 		vf = "format=p010le,hwupload_cuda,scale_cuda=64:-2:format=nv12"

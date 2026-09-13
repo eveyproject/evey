@@ -371,9 +371,31 @@ func hwScaleFilterFormat(accel transcoding.HWAccelType, width int, format string
 	case transcoding.VAAPI:
 		return fmt.Sprintf("scale_vaapi=%d:-2:format=%s", width, format)
 	case transcoding.QSV:
-		return fmt.Sprintf("scale_qsv=%d:-2:format=%s", width, format)
+		return fmt.Sprintf("scale_qsv=w=%d:h=%s:format=%s", width, qsvAutoHeight(width), format)
 	}
 	return fmt.Sprintf("scale=%d:-2", width)
+}
+
+// qsvAutoHeight is the "keep the aspect, round to even" height for scale_qsv,
+// which - unlike scale_cuda / scale_vaapi - refuses the -2 shorthand ("Size
+// values less than -1 are not acceptable"; measured on an UHD 630, 2026-09-13:
+// every QSV session and every QSV probe failed on it). The expression form is
+// what the generic scale's -2 means.
+func qsvAutoHeight(width int) string {
+	return fmt.Sprintf("trunc(%d*ih/iw/2)*2", width)
+}
+
+// hwScaleToHeight renders a GPU (or software) scaler pinning the HEIGHT with
+// the width following the aspect - the bench ladders' form. scale_qsv gets the
+// expression scale's -2 stands for.
+func hwScaleToHeight(scaler string, height int) string {
+	if scaler == "scale_qsv" {
+		return fmt.Sprintf("scale_qsv=w=trunc(%d*iw/ih/2)*2:h=%d", height, height)
+	}
+	if scaler == "" {
+		scaler = "scale"
+	}
+	return fmt.Sprintf("%s=-2:%d", scaler, height)
 }
 
 // hwRungScaleFilter is the per-rung scaler: p010 surfaces on an HDR passthrough, nv12 otherwise.
