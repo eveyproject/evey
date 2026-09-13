@@ -103,7 +103,7 @@ func (r *BenchmarkRunner) measureRouteEvidence(ctx context.Context, sdrSample st
 				r.measureRoutePoint(ctx, sample, fallback, er, cap, h)
 				warmed = true
 			}
-			best := r.bestRoutePoint(ctx, sample, fallback, er, cap, h)
+			best := r.conservativeRoutePoint(ctx, sample, fallback, er, cap, h)
 			if best.fps <= 0 {
 				r.logger.Warn("benchmark: route evidence point produced nothing, skipping",
 					slog.String("route", string(er.route)), slog.String("encoder", enc), slog.Int("height", h))
@@ -161,20 +161,31 @@ type routePoint struct {
 	cpuCores float64
 }
 
-// bestRoutePoint measures a route point twice and keeps the faster run (the
-// one least contended by whatever else the box was doing).
-func (r *BenchmarkRunner) bestRoutePoint(ctx context.Context, sample string, fallback bool, er evidenceRoute, cap *transcoding.EncodeCapability, h int) routePoint {
-	best := routePoint{}
+// conservativeRoutePoint measures a route point twice and keeps the WORST of
+// each dimension: the lower throughput and the higher CPU. A best-of-two would
+// flatter the host (the least-contended run of two), pinning admission on a
+// number it cannot always sustain; the pessimistic combination is what a pool
+// budget should be sized against. fps<=0 (both runs failed) is dropped upstream.
+func (r *BenchmarkRunner) conservativeRoutePoint(ctx context.Context, sample string, fallback bool, er evidenceRoute, cap *transcoding.EncodeCapability, h int) routePoint {
+	var got routePoint
+	n := 0
 	for range 2 {
 		if ctx.Err() != nil {
 			break
 		}
 		p := r.measureRoutePoint(ctx, sample, fallback, er, cap, h)
-		if p.fps > best.fps {
-			best = p
+		if p.fps <= 0 {
+			continue
+		}
+		n++
+		if n == 1 || p.fps < got.fps {
+			got.fps = p.fps
+		}
+		if p.cpuCores > got.cpuCores {
+			got.cpuCores = p.cpuCores
 		}
 	}
-	return best
+	return got
 }
 
 // measureRoutePoint runs one production session of the route at rung h on the
