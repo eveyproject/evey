@@ -54,6 +54,18 @@ func ClassifyHWFailure(exitErr error, stderrTail string) transcoding.FailureClas
 		"automatic encoder selection failed", "unsupported codec"):
 		return transcoding.FailureHWEncoderMissing
 
+	// A GPU tone-map interop that fails INSIDE a session (the Vulkan/libplacebo
+	// or OpenCL device derived from the decoder's node, the map into it, the
+	// filter itself) is a verdict on that route for that title, never on the
+	// accelerator: the same VAAPI/CUDA device keeps encoding every SDR title.
+	// Classified before the device-init tier because those failures word
+	// themselves like a dead device ("Failed to create Vulkan instance",
+	// "device creation failed" on the derived device). The title falls back
+	// to the CPU bridge/software; the host's features and pools stay.
+	case stderrContainsAny(s,
+		"libplacebo", "vulkan", "tonemap_opencl", "opencl", "failed to map frame", "hwmap"):
+		return transcoding.FailureRouteIncompatible
+
 	// DEVICE-level signatures only: the accelerator itself could not be opened.
 	// "hwaccel initialisation returned error" is deliberately NOT here - ffmpeg
 	// prints it for a stream the decoder cannot hand to the GPU (a profile or a

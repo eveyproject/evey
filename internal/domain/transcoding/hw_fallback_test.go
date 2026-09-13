@@ -108,8 +108,9 @@ func TestCapability_RouteProofAndDecodeClasses(t *testing.T) {
 		t.Fatalf("DecodeClassKey = %q, want %q", got, want)
 	}
 	// The legacy/web codecs key on their ffprobe name, 10-bit VP9/AV1 on the
-	// generic "<codec>:yuv420p10le" (only HEVC Main10 has a short name); an
-	// unprobed VC-1 or a codec the matrix never covered is not decodable.
+	// generic "<codec>:yuv420p10le" (only HEVC Main10 has a short name); a
+	// class the host did not list (VC-1 without its fixture, a codec the
+	// matrix never covered) is not decodable.
 	for in, want := range map[[2]string]string{
 		{"mpeg2video", "yuv420p"}: "mpeg2video", {"vp8", "yuv420p"}: "vp8", {"vp9", "yuv420p"}: "vp9",
 		{"vp9", "yuv420p10le"}: "vp9:yuv420p10le", {"av1", "yuv420p10le"}: "av1:yuv420p10le", {"vc1", "yuv420p"}: "vc1",
@@ -123,8 +124,13 @@ func TestCapability_RouteProofAndDecodeClasses(t *testing.T) {
 	if !web.HWCanDecodeSource("mpeg2video", false, "yuv420p") || !web.HWCanDecodeSource("vp9", false, "yuv420p") || !web.HWCanDecodeSource("av1", true, "yuv420p10le") {
 		t.Fatal("a listed legacy/web class is decodable")
 	}
+	withVC1 := probedCap()
+	withVC1.HWDecodeCodecs = []string{"h264", "vc1"}
+	if !withVC1.HWCanDecodeSource("vc1", false, "yuv420p") || !withVC1.HWCanDecodeSource("wmv3", false, "") {
+		t.Fatal("a host whose fixture probe listed VC-1 decodes it like any other class")
+	}
 	if web.HWCanDecodeSource("vc1", false, "yuv420p") || web.HWCanDecodeSource("vp9", true, "yuv420p10le") || web.HWCanDecodeSource("av1", false, "yuv420p") {
-		t.Fatal("an unlisted class (VC-1, 10-bit VP9, 8-bit AV1 here) is not decodable - fail-closed")
+		t.Fatal("an unlisted class (VC-1 here, 10-bit VP9, 8-bit AV1) is not decodable - fail-closed")
 	}
 	// Rows probed before the matrix: depth rule + the conservative chroma table.
 	noMain10 := probedCap()

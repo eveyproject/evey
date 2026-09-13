@@ -835,4 +835,22 @@ func TestCalibration_EnsureCalibrated_OldProbeVersion_Rebenches(t *testing.T) {
 	runner2 := &fakeBenchmarkRunner{}
 	require.NoError(t, newIdleHostCalibrationService(softwareOnly, runner2, nil).EnsureCalibrated(context.Background()))
 	assert.Zero(t, runner2.calls.Load(), "no HW backend: nothing new to probe")
+
+	// A row benched under the PREVIOUS version (v9: before the Vulkan tone-map
+	// probe and the correctness gate) is stale for a HW host and re-benches,
+	// even though it is otherwise complete; the current version is kept.
+	previous := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "vaapi", CPUSignature: hostSig,
+			ProbeVersion: domaintranscoding.CapabilityProbeVersion - 1,
+			HWRoutes:     []string{domaintranscoding.HWRouteSDR}, HWDecodeCodecs: []string{"h264", "hevc", "vc1"},
+		},
+	}
+	runner3 := &fakeBenchmarkRunner{result: runner.result}
+	require.NoError(t, newIdleHostCalibrationService(previous, runner3, nil).EnsureCalibrated(context.Background()))
+	assert.EqualValues(t, 1, runner3.calls.Load(), "a v%d row must re-bench under v%d", domaintranscoding.CapabilityProbeVersion-1, domaintranscoding.CapabilityProbeVersion)
+	current := &fakeCapabilityRepo{stored: &runner.result}
+	runner4 := &fakeBenchmarkRunner{}
+	require.NoError(t, newIdleHostCalibrationService(current, runner4, nil).EnsureCalibrated(context.Background()))
+	assert.Zero(t, runner4.calls.Load(), "a current-version row is not re-benched")
 }

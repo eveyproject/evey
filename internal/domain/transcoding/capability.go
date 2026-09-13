@@ -40,14 +40,15 @@ type EncodeCapability struct {
 	HWCodecs []string `json:"hw_codecs,omitempty"`
 
 	// HWDecodeCodecs lists what the backend DECODES, per source class the
-	// probe exercised (DecodeClassKey): "h264", "hevc", "mpeg2video", "vp8",
-	// "vp9", "av1" (8-bit 4:2:0), "hevc10" (HEVC Main10, the 2160p HDR class)
+	// probe exercised (DecodeClassKey): "h264", "hevc", "mpeg2video", "vc1",
+	// "vp8", "vp9", "av1" (8-bit 4:2:0), "hevc10" (HEVC Main10, the 2160p HDR class)
 	// and "<codec>:<pix_fmt>" for every other chroma/depth the probe matrix
 	// covers (10-bit H.264/VP9/AV1, 4:2:2, 4:4:4, 12-bit). Probed fail-closed:
 	// a frame has to come back from the GPU (hwdownload) for a class to be
 	// listed. Measured, not assumed: a Skylake iGPU decodes HEVC but not
 	// Main10, an Ada NVDEC no 4:2:2, a Blackwell one yes, a Gen9 iGPU no AV1.
-	// VC-1 has no probe (no ffmpeg encoder to make a sample) and is never listed.
+	// VC-1 is probed from a shipped/operator fixture (ffmpeg has no encoder to
+	// synthesise one) and is listed only when that fixture decoded.
 	HWDecodeCodecs []string `json:"hw_decode_codecs,omitempty"`
 
 	// Backends is the per-accelerator capability of EVERY certified backend
@@ -276,9 +277,9 @@ func (c EncodeCapability) AnyBackendSupports(codec string) bool {
 }
 
 // TonemapBackend returns a backend that tone-maps HDR->SDR on the GPU (proves
-// the tone-map route and carries a usable tonemap for hdrRange): OpenCL
-// (VAAPI) and CUDA (NVENC) handle any range - HLG and a Dolby Vision RPU
-// included - the fixed VAAPI VPP only PQ. Empty ok=false when none - HDR then
+// the tone-map route and carries a usable tonemap for hdrRange): OpenCL and
+// Vulkan/libplacebo (VAAPI) and CUDA (NVENC) handle any range - HLG and a
+// Dolby Vision RPU included - the fixed VAAPI VPP only PQ. Empty ok=false when none - HDR then
 // tone-maps in software. QSV's vpp is ineligible so it never proves the route.
 func (c EncodeCapability) TonemapBackend(hdrRange string) (HWBackendCap, bool) {
 	for _, b := range c.BackendCaps() {
@@ -306,7 +307,8 @@ func (c EncodeCapability) TonemapBackend(hdrRange string) (HWBackendCap, bool) {
 // source's transfer and Dolby Vision RPU itself (OpenCL / CUDA), rather than
 // the fixed PQ-only VPP curve.
 func (b HWBackendCap) TonemapsAnyRange() bool {
-	return slices.Contains(b.Features, FeatureTonemapOpenCL) || slices.Contains(b.Features, FeatureTonemapCUDA)
+	return slices.Contains(b.Features, FeatureTonemapOpenCL) || slices.Contains(b.Features, FeatureTonemapCUDA) ||
+		slices.Contains(b.Features, FeatureTonemapVulkan)
 }
 
 // PassthroughBackend returns a backend that keeps HDR (HEVC Main10 passthrough):
@@ -388,8 +390,11 @@ type DecodeRungSample struct {
 // single-primary calibration, so the bump forces the multi-backend re-bench;
 // and the independent VAAPI OpenCL tone-map probe; 9: the decode matrix
 // extended to MPEG-2, VP8, VP9 8/10-bit and AV1 8/10-bit - a v8 row lists
-// none of them and would software-decode every such source).
-const CapabilityProbeVersion = 9
+// none of them and would software-decode every such source; 10: the
+// VAAPI->Vulkan/libplacebo tone-map probe (FeatureTonemapVulkan) and the
+// tone-map correctness gate - a v9 row never ran either, so an AMD/Mesa host
+// would keep bridging on the CPU with a working Vulkan interop).
+const CapabilityProbeVersion = 10
 
 // Route names the calibration proves through the production builder (see
 // EncodeCapability.HWRoutes). Each is one shape BuildFFmpegArgs can emit for a
@@ -449,6 +454,14 @@ func DecodeClassKey(codec, pixFmt string) string {
 // FeatureTonemapOpenCL: tonemap_opencl runs on this GPU (bt2390 curve, HLG and
 // Dolby Vision RPU handled) - the VPP tone-mapper is the fallback.
 const FeatureTonemapOpenCL = "tonemap_opencl"
+
+// FeatureTonemapVulkan: libplacebo on a Vulkan device DERIVED from the VAAPI
+// render node runs on this GPU - the VAAPI surface maps into Vulkan, libplacebo
+// tone-maps (bt.2390, HLG and Dolby Vision RPU handled), the frame maps back to
+// VAAPI for the scaler/encoder. The Mesa/RADV path of an AMD box, where no
+// OpenCL ICD is usually available. Probed by running that exact interop on the
+// node, never inferred from vendor, kernel or the filter's presence.
+const FeatureTonemapVulkan = "tonemap_vulkan"
 
 // FeatureTonemapCUDA: tonemap_cuda (the jellyfin-ffmpeg CUDA tone-mapper, same
 // bt2390 curve, HLG and Dolby Vision RPU applied) runs on this NVIDIA GPU

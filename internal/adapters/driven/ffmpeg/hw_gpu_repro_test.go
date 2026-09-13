@@ -213,7 +213,7 @@ func TestGPU_ProbesAreFailClosedAndRoutesRunThroughTheBuilder(t *testing.T) {
 	// The bundled jellyfin-ffmpeg carries tonemap_cuda: the GPU tone-map probe
 	// passes and the feature drives the builder's tonemap route (on a
 	// PROGRESSIVE HDR10 mire, the class the bridge once failed on).
-	tonemap, features := resolveTonemapCaps("nvenc", slices.Clone(gpuReproFeatures), probeHWTonemap(ctx, ffmpeg, "nvenc", ""), false)
+	tonemap, features := resolveTonemapCaps("nvenc", slices.Clone(gpuReproFeatures), probeHWTonemap(ctx, ffmpeg, "nvenc", ""), false, false)
 	if !tonemap || !slices.Contains(features, transcoding.FeatureTonemapCUDA) {
 		t.Errorf("tonemap_cuda probe failed on a jellyfin-ffmpeg + NVIDIA rig: tonemap=%v features=%v", tonemap, features)
 	}
@@ -305,4 +305,71 @@ func TestGPU_OverlayAndTonemapOnRealTitle(t *testing.T) {
 		t.Fatalf("no segment written\n%s", stderr)
 	}
 	t.Logf("segments: %d", len(segs))
+}
+
+// The tone-map correctness gate on the real GPU: the production tonemap_cuda
+// chain agrees with the software reference on the gate mire (within the
+// measured bounds), a chain that does not tone-map at all is refused, and the
+// backend-level gate keeps CUDA certified.
+func TestGPU_TonemapGateMeasuresCUDA(t *testing.T) {
+	ffmpeg := gpuTestFFmpeg(t)
+	ctx := context.Background()
+	r := NewBenchmarkRunner(BenchmarkOpts{FfmpegPath: ffmpeg, SamplePath: filepath.Join(t.TempDir(), "sample.hevc")}, nil)
+	v, err := r.validateTonemapImpl(ctx, "nvenc", "", hwCUDATonemapChain)
+	if err != nil {
+		t.Fatalf("gate inconclusive: %v", err)
+	}
+	t.Logf("tonemap_cuda vs tonemapx: %s", v)
+	if !v.OK || !v.SatChecked {
+		t.Fatalf("the production CUDA curve must pass the gate: %s", v)
+	}
+	naive, err := r.validateTonemapImpl(ctx, "nvenc", "", "scale_cuda=format=nv12")
+	if err != nil {
+		t.Fatalf("naive gate inconclusive: %v", err)
+	}
+	t.Logf("no tone-map (10->8 bit fold only) vs tonemapx: %s", naive)
+	if naive.OK {
+		t.Fatalf("a chain that does not tone-map must be refused: %s", naive)
+	}
+	if native, _, _ := r.gateTonemapImpls(ctx, "nvenc", "", true, false, false); !native {
+		t.Fatal("gateTonemapImpls dropped a correct CUDA tone-mapper")
+	}
+}
+
+// The fixture path of the decode matrix, end to end on NVDEC: a row whose
+// sample comes from the operator's fixture directory decodes on the GPU with
+// the same hwdownload proof as a synthesised one; a missing fixture is simply
+// not probed.
+func TestGPU_DecodeFixtureRowsProbeLikeTheOthers(t *testing.T) {
+	ffmpeg := gpuTestFFmpeg(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	gpuMire(t, ffmpeg, filepath.Join(dir, "h264-fixture.h264"), "libx264", "yuv420p")
+	t.Setenv(decodeFixtureEnv, dir)
+	row := hwDecodeProbe{codec: "h264", format: "h264", pixFmt: "yuv420p", download: "nv12", fixture: "h264-fixture.h264"}
+	if !probeHWDecode(ctx, ffmpeg, row, "nvenc", "") {
+		t.Fatal("a fixture-driven row must decode like a synthesised one")
+	}
+	row.fixture = "absent.h264"
+	if probeHWDecode(ctx, ffmpeg, row, "nvenc", "") {
+		t.Fatal("a missing fixture must not list the class")
+	}
+	// The real VC-1 row on this rig: no fixture bundled, so it is not listed
+	// even though NVDEC decodes VC-1 - the proof is the fixture, not the GPU.
+	vc1, _ := decodeProbeFor("vc1")
+	if probeHWDecode(ctx, ffmpeg, vc1, "nvenc", "") {
+		t.Fatal("VC-1 without a fixture must stay unlisted")
+	}
+}
+
+// The Vulkan/libplacebo interop probe on a host without a usable Vulkan ICD
+// for the render node (this WSL rig): fail-closed, classified so the boot
+// does not spend the readiness schedule retrying it.
+func TestGPU_VulkanTonemapProbeFailsClosedWithoutICD(t *testing.T) {
+	ffmpeg := gpuTestFFmpeg(t)
+	ok, argv, tail, err := probeHWTonemapVulkanE(context.Background(), ffmpeg, "vaapi", "/dev/dri/renderD128")
+	t.Logf("argv: %s\nclass: %s\nstderr: %s", argv, classifyVulkanProbe(err, tail), tail)
+	if ok {
+		t.Skip("this rig has a working VAAPI->Vulkan interop: nothing to assert here")
+	}
 }

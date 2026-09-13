@@ -220,6 +220,14 @@ func TestHWTonemapWanted(t *testing.T) {
 		assert.False(t, hwResolver(vaapiCapable()).HWTonemapWanted(needsTonemap, ""))
 	})
 
+	t.Run("a certified Vulkan/libplacebo tone-mapper takes HLG and Dolby Vision too", func(t *testing.T) {
+		vk := vaapiCapable()
+		vk.HWFeatures = append(slices.Clone(vk.HWFeatures), transcoding.FeatureTonemapVulkan)
+		assert.True(t, hwResolver(vk).HWTonemapWanted(needsTonemap, "PQ"))
+		assert.True(t, hwResolver(vk).HWTonemapWanted(needsTonemap, "HLG"))
+		assert.True(t, hwResolver(vk).HWTonemapWanted(needsTonemap, ""))
+	})
+
 	t.Run("a probed OpenCL tone-mapper takes HLG and Dolby Vision too", func(t *testing.T) {
 		ocl := vaapiCapable()
 		ocl.HWFeatures = append(ocl.HWFeatures, transcoding.FeatureTonemapOpenCL)
