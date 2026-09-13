@@ -127,7 +127,7 @@ func TestResolveTonemapCaps_NativeAndOpenCLIndependent(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			tonemap, features := resolveTonemapCaps(nil, tc.native, tc.opencl)
+			tonemap, features := resolveTonemapCaps("vaapi", nil, tc.native, tc.opencl)
 			if tonemap != tc.wantTonemap {
 				t.Fatalf("hwTonemap = %v, want %v", tonemap, tc.wantTonemap)
 			}
@@ -164,7 +164,7 @@ func tonemapRouteArgv(t *testing.T, accel transcoding.HWAccelType, features []st
 // (TonemapBackend) then reads - the fix's end-to-end shape, pinned as a golden.
 func TestTonemapRoute_OpenCLIndependentOfNativeVPP(t *testing.T) {
 	// OpenCL-only: exactly what probeBackendCap builds when native=false, opencl=true.
-	tonemap, features := resolveTonemapCaps(nil, false, true)
+	tonemap, features := resolveTonemapCaps("vaapi", nil, false, true)
 	routes := routeNames(routeProbesFor(transcoding.VAAPI, []string{"h264"}, features, tonemap, false, false, nil))
 	if !slices.Contains(routes, transcoding.HWRouteTonemap) {
 		t.Fatalf("OpenCL-only must still propose the tone-map route, got %v", routes)
@@ -173,7 +173,7 @@ func TestTonemapRoute_OpenCLIndependentOfNativeVPP(t *testing.T) {
 		t.Fatalf("OpenCL tone-map route must emit the OpenCL chain:\n%s", argv)
 	}
 	// Native-only inverse: HWTonemap still true, route still proposed, VPP filter.
-	tonemap, features = resolveTonemapCaps(nil, true, false)
+	tonemap, features = resolveTonemapCaps("vaapi", nil, true, false)
 	if argv := tonemapRouteArgv(t, transcoding.VAAPI, features, tonemap); !strings.Contains(argv, "tonemap_vaapi=format=nv12") {
 		t.Fatalf("native-only route must emit the fixed-function VPP filter:\n%s", argv)
 	}

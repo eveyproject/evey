@@ -1092,9 +1092,14 @@ func topPassingFPS(samples []transcoding.BenchRungSample) float64 {
 // never gated behind the fixed-function native one. hwTonemapFilter then picks
 // OpenCL when the feature is present; the route is still certified only by the
 // real builder/HLS route probe.
-func resolveTonemapCaps(features []string, nativeOK, openclOK bool) (bool, []string) {
+func resolveTonemapCaps(backend string, features []string, nativeOK, openclOK bool) (bool, []string) {
 	if openclOK {
 		features = append(features, transcoding.FeatureTonemapOpenCL)
+	}
+	// NVENC's "native" probe IS tonemap_cuda; the builder emits the chain only
+	// on this feature (a stock ffmpeg has no such filter).
+	if backend == "nvenc" && nativeOK {
+		features = append(features, transcoding.FeatureTonemapCUDA)
 	}
 	return nativeOK || openclOK, features
 }
@@ -1121,7 +1126,7 @@ func (r *BenchmarkRunner) probeBackendCap(ctx context.Context, c hwCandidate) tr
 		func() (bool, string, string, error) {
 			return probeHWTonemapOpenCLE(ctx, r.ffmpegPath, c.backend, c.device)
 		})
-	tonemap, features := resolveTonemapCaps(features, tonemapNative, tonemapOpenCL)
+	tonemap, features := resolveTonemapCaps(c.backend, features, tonemapNative, tonemapOpenCL)
 	if tonemapOpenCL {
 		r.logger.Info("benchmark: HW feature supported",
 			slog.String("backend", c.backend), slog.String("feature", transcoding.FeatureTonemapOpenCL))

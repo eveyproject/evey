@@ -434,13 +434,24 @@ func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device strin
 // probeHWTonemap reports whether the HW backend can run an HDR->SDR tone-map on
 // the GPU. It runs the real per-backend tone-map filter on a synthetic p010
 // surface; success means the filter graph initialises and processes a frame.
-// Gen9+ Intel (tonemap_vaapi / vpp_qsv) and a Vulkan libplacebo build pass;
-// old-iGPU-class VEBOX and hosts without a Vulkan/OpenCL ICD (incl. WSL) fail.
+// Gen9+ Intel (tonemap_vaapi / vpp_qsv) and an NVIDIA GPU on jellyfin-ffmpeg
+// (tonemap_cuda) pass; old-iGPU-class VEBOX and a stock ffmpeg fail.
 // Fail-closed: any error/abort/timeout ⇒ false ⇒ HDR tone-maps in software.
+//
+// hwCUDATonemapChain is the NVENC GPU tone-map: tonemap_cuda on the decoder's
+// CUDA frames, the same bt2390 / peak=100 / desat=0 curve as the OpenCL and
+// software paths, output nv12 for the 8-bit encoder. apply_dovi defaults on,
+// so a Dolby Vision RPU is applied rather than ignored. Correctness measured
+// against the production tonemapx chain on real HDR10 titles (RTX 4070 Ti,
+// 2026-09-13): PSNR 41-47 dB, SSIM >= 0.993 across three scenes - the same
+// picture, unlike the QSV VPP curve (washed highlights) that stays ineligible.
+//
 // hwOpenCLTonemapChain maps the VAAPI surface into OpenCL, tone-maps with the
 // same bt2390/peak=100 curve as the software path, and maps back for the encoder.
 // The trailing format=vaapi pins the reverse map's output: without it the
 // next filter can negotiate 'opencl' and the VAAPI pool refuses it (ENOSYS).
+const hwCUDATonemapChain = "tonemap_cuda=format=nv12:p=bt709:t=bt709:m=bt709:tonemap=bt2390:peak=100:desat=0"
+
 const hwOpenCLTonemapChain = "hwmap=derive_device=opencl:mode=read,tonemap_opencl=format=nv12:primaries=bt709:transfer=bt709:matrix=bt709:tonemap=bt2390:peak=100:desat=0,hwmap=derive_device=vaapi:reverse=1:extra_hw_frames=16,format=vaapi"
 
 // probeHWTonemapOpenCL: VAAPI only; the synthetic frame is tagged PQ because
@@ -501,9 +512,12 @@ func probeHWTonemap(ctx context.Context, ffmpegPath, hwType, device string) bool
 		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
 		vf = "format=p010le,hwupload=extra_hw_frames=16,vpp_qsv=tonemap=1:format=nv12,hwdownload,format=nv12"
 	case "nvenc":
-		// NVIDIA has no native tonemap filter; the GPU path is libplacebo (Vulkan).
-		args = append(args, "-init_hw_device", "vulkan=vk", "-filter_hw_device", "vk")
-		vf = "format=p010le,hwupload,libplacebo=tonemapping=bt.2390:colorspace=bt709:color_primaries=bt709:color_trc=bt709:format=nv12,hwdownload,format=nv12"
+		// tonemap_cuda (jellyfin-ffmpeg) on the CUDA frames themselves - the
+		// chain hwTonemapFilter emits. Tagged PQ like the OpenCL probe: an SDR-
+		// tagged input is refused. A stock ffmpeg without the filter fails here
+		// and NVENC keeps the CPU bridge.
+		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
+		vf = "format=p010le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc,hwupload_cuda," + hwCUDATonemapChain + ",hwdownload,format=nv12"
 	default:
 		return false
 	}
