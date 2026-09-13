@@ -207,9 +207,9 @@ func detectRKMPP(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
 	}
 	label := "Rockchip MPP"
 	if b, err := os.ReadFile("/proc/device-tree/compatible"); err == nil {
-		for _, c := range strings.Split(string(b), "\x00") {
+		for c := range strings.SplitSeq(string(b), "\x00") {
 			if soc, ok := strings.CutPrefix(c, "rockchip,"); ok {
-				label += " " + strings.ToUpper(soc)
+				label = "Rockchip MPP " + strings.ToUpper(soc)
 				break
 			}
 		}
@@ -680,7 +680,11 @@ func probeHWDeinterlace(ctx context.Context, ffmpegPath, hwType, device string) 
 		return false
 	}
 	tmpPath := tmp.Name()
-	defer func() { _ = os.Remove(tmpPath) }()
+	defer func() {
+		if rerr := os.Remove(tmpPath); rerr != nil {
+			slog.Debug("hwdetect: deinterlace-probe temp cleanup failed", slog.Any("err", rerr))
+		}
+	}()
 	if cerr := tmp.Close(); cerr != nil {
 		return false
 	}

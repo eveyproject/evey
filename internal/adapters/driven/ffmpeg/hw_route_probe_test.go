@@ -45,8 +45,8 @@ func TestRouteProbesFor_FollowsTheProbedFacts(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("qsv+deint routes = %v, want %v", got, want)
 	}
-	if got := routeNames(routeProbesFor(transcoding.NVENC, []string{"h264"}, nil, false, false, false, true, nil)); slices.Contains(got, transcoding.HWRouteDeinterlace) {
-		t.Fatalf("nvenc must not grow a session-level deinterlace route: %v", got)
+	if nv := routeNames(routeProbesFor(transcoding.NVENC, []string{"h264"}, nil, false, false, false, true, nil)); slices.Contains(nv, transcoding.HWRouteDeinterlace) {
+		t.Fatalf("nvenc must not grow a session-level deinterlace route: %v", nv)
 	}
 	for _, p := range routeProbesFor(transcoding.QSV, []string{"h264"}, nil, false, false, false, true, nil) {
 		if p.route != transcoding.HWRouteDeinterlace {
@@ -68,8 +68,8 @@ func TestRouteProbesFor_FollowsTheProbedFacts(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("rkmpp routes = %v, want %v", got, want)
 	}
-	if got := routeNames(routeProbesFor(transcoding.RKMPP, []string{"h264"}, nil, true, false, false, false, nil)); slices.Contains(got, transcoding.HWRouteTonemap) {
-		t.Fatalf("rkmpp without the OpenCL feature has no GPU tone-map route: %v", got)
+	if rk := routeNames(routeProbesFor(transcoding.RKMPP, []string{"h264"}, nil, true, false, false, false, nil)); slices.Contains(rk, transcoding.HWRouteTonemap) {
+		t.Fatalf("rkmpp without the OpenCL feature has no GPU tone-map route: %v", rk)
 	}
 	for _, p := range routeProbesFor(transcoding.NVENC, []string{"h264", "av1"}, nil, false, false, false, false, nil) {
 		if p.route != transcoding.HWRouteAV1 {

@@ -184,7 +184,7 @@ func TestRenderNodeIdentity(t *testing.T) {
 		{Type: "nvenc", Name: "1", Label: "NVIDIA T400"},
 	})
 	assert.Equal(t, "/dev/dri/renderD129", infos[0].Device)
-	assert.Equal(t, "", infos[1].Device, "the first NVIDIA GPU is ffmpeg's default: no index")
+	assert.Empty(t, infos[1].Device, "the first NVIDIA GPU is ffmpeg's default: no index")
 	assert.Equal(t, "1", infos[2].Device)
 	assert.Equal(t, []string{"nvenc", "vaapi"}, detectedBackends([]transcoding.HWDevice{{Type: "nvenc"}, {Type: "vaapi"}, {Type: "nvenc", Name: "1"}}))
 	// Nodes are listed even when sysfs is unreadable (a container without /sys/class/drm).
