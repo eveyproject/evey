@@ -139,6 +139,15 @@ func TestAcceptance_UncoveredRouteRefusedNotTablePriced(t *testing.T) {
 	if !l.CanAdmitRoute("y", LadderClassHW, 2160, transcoding.SourceClass{}, rk("vaapi", "h264_vaapi", transcoding.RouteCostSDR), 24) {
 		t.Error("the covered route must be admitted from its evidence")
 	}
+	// An UNNAMED route (CanAdmit / TryAcquire, zero key) is the table, as the
+	// contract says - not "uncovered". Prod 2026-09-13 21:53: the master shed
+	// probe asked with a zero route and every title was refused on an idle host.
+	if !l.CanAdmit("z", LadderClassSoftware, 1080) {
+		t.Error("a zero route must fall back to the table, not be refused as uncovered")
+	}
+	if !l.TryAcquire("w", LadderClassHW, 2160) {
+		t.Error("TryAcquire with a zero route must price on the table")
+	}
 }
 
 // QSV beats VAAPI on the UHD 630 (measured hevc 75 vs 30 fps): the fastest

@@ -90,8 +90,9 @@ type hlsVODServe struct {
 	keyframeWarmer func(ctx context.Context, mediaID, path string) bool
 	// videoAdmission is the limiter's read-only probe, used to shed a variant
 	// playlist before a player commits to a stream. Optional (nil = no early
-	// shed; the segment route still gates authoritatively).
-	videoAdmission func(key string, class apptranscoding.LadderClass, topHeight int) bool
+	// shed; the segment route still gates authoritatively). Takes the resolved
+	// fingerprint so the probe prices the very route the spawn will charge.
+	videoAdmission func(key string, fp apptranscoding.DecisionFingerprint, topHeight int) bool
 	// admissionRoute asks the admission shaper for this stream's pinned route
 	// and ladder ceiling (see profilesForDecision's third cap): a hw stream on
 	// a full GPU pool spills to the software route when the CPU pool has room.
