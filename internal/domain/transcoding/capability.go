@@ -40,13 +40,14 @@ type EncodeCapability struct {
 	HWCodecs []string `json:"hw_codecs,omitempty"`
 
 	// HWDecodeCodecs lists what the backend DECODES, per source class the
-	// probe exercised (DecodeClassKey): "h264" and "hevc" (8-bit 4:2:0),
-	// "hevc10" (HEVC Main10, the 2160p HDR class) and "<codec>:<pix_fmt>" for
-	// every other chroma/depth the probe matrix covers (10-bit H.264, 4:2:2,
-	// 4:4:4, 12-bit). Probed fail-closed: a frame has to come back from the
-	// GPU (hwdownload) for a class to be listed. Measured, not assumed: a
-	// Skylake iGPU decodes HEVC but not Main10, an Ada NVDEC no 4:2:2, a
-	// Blackwell one yes.
+	// probe exercised (DecodeClassKey): "h264", "hevc", "mpeg2video", "vp8",
+	// "vp9", "av1" (8-bit 4:2:0), "hevc10" (HEVC Main10, the 2160p HDR class)
+	// and "<codec>:<pix_fmt>" for every other chroma/depth the probe matrix
+	// covers (10-bit H.264/VP9/AV1, 4:2:2, 4:4:4, 12-bit). Probed fail-closed:
+	// a frame has to come back from the GPU (hwdownload) for a class to be
+	// listed. Measured, not assumed: a Skylake iGPU decodes HEVC but not
+	// Main10, an Ada NVDEC no 4:2:2, a Blackwell one yes, a Gen9 iGPU no AV1.
+	// VC-1 has no probe (no ffmpeg encoder to make a sample) and is never listed.
 	HWDecodeCodecs []string `json:"hw_decode_codecs,omitempty"`
 
 	// Backends is the per-accelerator capability of EVERY certified backend
@@ -336,8 +337,10 @@ type DecodeRungSample struct {
 // backend evidence for EVERY certified accelerator (Backends[] of VAAPI AND
 // QSV) - the code landed at v7 but a host already benched at v7 kept its
 // single-primary calibration, so the bump forces the multi-backend re-bench;
-// and the independent VAAPI OpenCL tone-map probe).
-const CapabilityProbeVersion = 8
+// and the independent VAAPI OpenCL tone-map probe; 9: the decode matrix
+// extended to MPEG-2, VP8, VP9 8/10-bit and AV1 8/10-bit - a v8 row lists
+// none of them and would software-decode every such source).
+const CapabilityProbeVersion = 9
 
 // Route names the calibration proves through the production builder (see
 // EncodeCapability.HWRoutes). Each is one shape BuildFFmpegArgs can emit for a

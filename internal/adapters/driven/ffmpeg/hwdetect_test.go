@@ -92,3 +92,36 @@ func TestProbeHWEncode_NonexistentFfmpeg_FailsClosed(t *testing.T) {
 		t.Fatal("probe must fail closed when ffmpeg cannot run")
 	}
 }
+
+// TestDecodeProbeMatrix_CoversTheLibraryCodecs pins the matrix shape: one row
+// per (codec, pix_fmt) class, every class key unique and round-tripping through
+// decodeProbeFor, and the legacy/web codecs a library holds all present at the
+// depths they ship in. VC-1 is deliberately absent (no ffmpeg encoder).
+func TestDecodeProbeMatrix_CoversTheLibraryCodecs(t *testing.T) {
+	seen := map[string]bool{}
+	for _, c := range hwDecodeProbes {
+		key := transcoding.DecodeClassKey(c.codec, c.pixFmt)
+		if seen[key] {
+			t.Fatalf("duplicate decode class %q", key)
+		}
+		seen[key] = true
+		if c.swEncoder == "" || c.format == "" || c.download == "" {
+			t.Fatalf("row %q lacks encoder/format/download", key)
+		}
+		if transcoding.CanonicalVideoCodec(c.codec) != c.codec {
+			t.Fatalf("row codec %q is not the canonical ffprobe name", c.codec)
+		}
+		row, ok := decodeProbeFor(key)
+		if !ok || row.pixFmt != c.pixFmt {
+			t.Fatalf("decodeProbeFor(%q) does not round-trip", key)
+		}
+	}
+	for _, want := range []string{"h264", "hevc", transcoding.HWDecodeHEVC10, "mpeg2video", "vp8", "vp9", "vp9:yuv420p10le", "av1", "av1:yuv420p10le"} {
+		if !seen[want] {
+			t.Errorf("decode class %q missing from the probe matrix", want)
+		}
+	}
+	if seen["vc1"] {
+		t.Error("VC-1 cannot be probed (no encoder): it must not be listed as if it were")
+	}
+}
