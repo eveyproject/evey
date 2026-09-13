@@ -137,6 +137,9 @@ func routeBenchRoutes(cap transcoding.EncodeCapability, hwOn bool) []routeBenchR
 		if hevc {
 			routes = append(routes, routeBenchRoute{"hw-sdr-hevc", "hw", true, "sdr8", func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "hevc" }})
 		}
+		if slices.Contains(cap.HWCodecs, "av1") {
+			routes = append(routes, routeBenchRoute{"hw-sdr-av1", "hw", true, "sdr8", func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "av1" }})
+		}
 		if cap.HW10BitTranscode {
 			routes = append(routes, routeBenchRoute{"hw-src10-h264", "hw", true, "hdr10", func(o *transcoding.HLSProcessOpts) {}})
 		}

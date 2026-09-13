@@ -94,3 +94,34 @@ func TestBackendPerRoute_SDRNearTieStable(t *testing.T) {
 	_, accel, _, _, _, _ := pr.EffectiveVideoCodec(sdr, sdrStreams("h264", "yuv420p", false))
 	assert.Equal(t, "qsv", accel, "within 5% the primary (QSV) holds - no flip to a marginally-faster VAAPI")
 }
+
+// AV1 output needs a backend that proves the AV1 route: a host whose QSV
+// encodes AV1 (Arc / Meteor Lake) takes it there even when VAAPI is the SDR
+// primary; a host with no proven AV1 route answers "not usable" and the caller
+// falls back to H.264 (EffectiveVideoCodec's AV1 rule).
+func TestBackendPerRoute_AV1NeedsAProvenAV1Route(t *testing.T) {
+	cap := twoBackendCap()
+	av1 := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "av1", TranscodeReasons: []string{"preferred_video_codec"}}
+	pr := &PlanResolver{
+		HWAccelEnabled: func() bool { return true }, AV1Enabled: func() bool { return true },
+		Capability: func() transcoding.EncodeCapability { return cap },
+		RouteCosts: func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 7) },
+	}
+	codec, _, _, _, usable, _ := pr.EffectiveVideoCodec(av1, sdrStreams("h264", "yuv420p", false))
+	assert.Equal(t, "h264", codec, "no backend proves the AV1 route: H.264 fallback")
+	assert.True(t, usable, "the H.264 fallback still rides the GPU")
+
+	cap.Backends[0].Codecs = append(cap.Backends[0].Codecs, "av1")
+	cap.Backends[0].Routes = append(cap.Backends[0].Routes, transcoding.HWRouteAV1)
+	cap.RouteSamples = append(cap.RouteSamples, transcoding.RouteSample{Key: rk("qsv", "av1_qsv", transcoding.RouteCostSDR), Height: 1080, FPS: 120, SourceFPS: 24})
+	codec, accel, _, _, usable, _ := pr.EffectiveVideoCodec(av1, sdrStreams("h264", "yuv420p", false))
+	assert.Equal(t, "av1", codec)
+	assert.Equal(t, "qsv", accel, "the backend that proves AV1 takes it")
+	assert.True(t, usable)
+
+	// Encoder present but the builder route did not prove (Codecs lists av1,
+	// Routes does not): fail-closed, back to H.264.
+	cap.Backends[0].Routes = cap.Backends[0].Routes[:len(cap.Backends[0].Routes)-1]
+	codec, _, _, _, _, _ = pr.EffectiveVideoCodec(av1, sdrStreams("h264", "yuv420p", false))
+	assert.Equal(t, "h264", codec)
+}

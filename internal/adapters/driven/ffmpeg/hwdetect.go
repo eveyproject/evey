@@ -135,14 +135,17 @@ func detectQSV(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
 }
 
 func probeHWCodecs(ctx context.Context, ffmpegPath, hwType, device string) []string {
+	// AV1 is probed like the others: the encoder is compiled into every build
+	// but only an Ada+ NVENC, an Arc / Meteor Lake+ QSV or an RDNA3+ / Arc
+	// VAAPI actually encodes it - the real-encode probe decides, never a table.
 	var encoderSuffixes []string
 	switch hwType {
 	case "vaapi":
-		encoderSuffixes = []string{"h264_vaapi", "hevc_vaapi"}
+		encoderSuffixes = []string{"h264_vaapi", "hevc_vaapi", "av1_vaapi"}
 	case "nvenc":
-		encoderSuffixes = []string{"h264_nvenc", "hevc_nvenc"}
+		encoderSuffixes = []string{"h264_nvenc", "hevc_nvenc", "av1_nvenc"}
 	case "qsv":
-		encoderSuffixes = []string{"h264_qsv", "hevc_qsv"}
+		encoderSuffixes = []string{"h264_qsv", "hevc_qsv", "av1_qsv"}
 	default:
 		return nil
 	}

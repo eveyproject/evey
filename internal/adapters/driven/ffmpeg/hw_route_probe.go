@@ -77,6 +77,11 @@ func routeProbesFor(accel transcoding.HWAccelType, codecs, features []string, hw
 			o.VideoCodec = "hevc"
 		}})
 	}
+	if slices.Contains(codecs, "av1") {
+		probes = append(probes, routeProbe{route: transcoding.HWRouteAV1, mire: routeMireSDR8, opts: func(o *transcoding.HLSProcessOpts) {
+			o.VideoCodec = "av1"
+		}})
+	}
 	if hw10Bit {
 		probes = append(probes, routeProbe{route: transcoding.HWRouteSource10Bit, mire: routeMireSDR10, opts: func(o *transcoding.HLSProcessOpts) {}})
 	}
