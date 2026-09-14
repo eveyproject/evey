@@ -17,6 +17,8 @@ setup:
   username: "Nom d'utilisateur"
   password: Mot de passe
   confirmPassword: Confirmer le mot de passe
+  serverName: "Nom du serveur"
+  serverNameHint: "Facultatif. Affiché sur la page de connexion, l'onglet du navigateur, la liste des serveurs de vos applications et les e-mails - ex. « Salon ». Modifiable ensuite dans Paramètres du serveur."
   usernameMin: Au moins 3 caractères
   passwordMin: Au moins 8 caractères
   passwordMismatch: Les mots de passe ne correspondent pas

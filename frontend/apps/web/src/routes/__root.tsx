@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createRootRouteWithContext, Outlet, redirect, useRouterState } from "@tanstack/react-router";
-import { type QueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQuery } from "@tanstack/react-query";
 import { adminSystemServiceGetSetupStatus, activityServiceRecordPageView } from "@evey/api";
 import { useAuthStore, useLocaleStore } from "@evey/store";
 import i18n, { supportedLanguages } from "@/i18n";
@@ -74,10 +74,28 @@ function PageViewReporter() {
   return null;
 }
 
+// DocumentTitle brands the tab with the admin's server name ("Salon", or the
+// default "Evey"), read from the same setup-status query beforeLoad primed so
+// it costs no extra request. Dev keeps its "[DEV]" marker (main.tsx).
+function DocumentTitle() {
+  const { data } = useQuery<{ serverName?: string }>({
+    queryKey: ["setup-status"],
+    queryFn: () => adminSystemServiceGetSetupStatus(),
+    staleTime: 60_000,
+  });
+  useEffect(() => {
+    const name = data?.serverName?.trim();
+    if (!name) return;
+    document.title = import.meta.env.DEV ? `${name} [DEV]` : name;
+  }, [data?.serverName]);
+  return null;
+}
+
 function RootComponent() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
+        <DocumentTitle />
         <PageViewReporter />
         <Outlet />
         <ToastContainer />

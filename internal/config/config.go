@@ -520,12 +520,20 @@ func (c *Config) EffectiveBaseURL() string {
 	return c.Server.BaseURL
 }
 
+// DefaultServerName is the instance name when the admin never picked one:
+// what /healthz, the setup-status endpoint and the mails report, and what the
+// clients treat as "unnamed" (a server list shows the URL instead).
+const DefaultServerName = "Evey"
+
 // The Effective* accessors below are the read side of the runtime-mutable
 // settings guarded by c.mu. They take the read lock so a concurrent admin PUT
 // (ApplyServerSettings) can't tear a value out from under a live reader.
 func (c *Config) EffectiveServerName() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	if strings.TrimSpace(c.Server.Name) == "" {
+		return DefaultServerName
+	}
 	return c.Server.Name
 }
 func (c *Config) EffectiveMaxConcurrent() int {
@@ -830,7 +838,7 @@ func Load() (*Config, error) {
 			Port:               envInt("EVEY_SERVER_PORT", 9090),
 			GRPCBindAddr:       envStr("EVEY_GRPC_BIND", "127.0.0.1"),
 			BaseURL:            baseURL,
-			Name:               envStr("EVEY_SERVER_NAME", "Evey"),
+			Name:               envStr("EVEY_SERVER_NAME", DefaultServerName),
 			WebDir:             envStr("EVEY_WEB_DIR", "/srv"),
 			TrustedProxies:     trustedProxies,
 			RealIPHeader:       envStr("EVEY_REAL_IP_HEADER", "X-Forwarded-For"),

@@ -4,8 +4,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { setBaseURL, isRemoteAccessDisabled, remoteAccessDisabledMessage } from "@evey/api";
-import { useAuthStore, useServerListStore } from "@evey/store";
-import { setServerUrl, getServerUrl, probeServer } from "../src/lib/server-config";
+import { useAuthStore, useServerListStore, serverDisplayName, isDefaultServerName } from "@evey/store";
+import { setServerUrl, getServerUrl, probeServerHealth } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { parseEveyHealth } from "../src/lib/serverIdentity";
@@ -44,13 +44,14 @@ export default function ServerConnect() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [discovered, setDiscovered] = useState<{ url: string; version?: string }[]>([]);
+  const [discovered, setDiscovered] = useState<{ url: string; version?: string; name?: string }[]>([]);
   const [scanned, setScanned] = useState(false);
 
   const servers = useServerListStore((s) => s.servers);
   const activeServerId = useServerListStore((s) => s.activeServerId);
   const addServer = useServerListStore((s) => s.addServer);
   const setActiveServer = useServerListStore((s) => s.setActiveServer);
+  const setServerName = useServerListStore((s) => s.setServerName);
 
   const serverList = useMemo(
     () => Object.values(servers).sort((a, b) => b.lastUsedAt - a.lastUsedAt),
@@ -104,7 +105,7 @@ export default function ServerConnect() {
     // ever reached a server (2026-07-29). Never offer a login we know cannot
     // be delivered.
     setLoading(true);
-    const probe = await probeServer(server.url);
+    const { probe, health } = await probeServerHealth(server.url);
     setLoading(false);
     if (probe !== "ok") {
       Alert.alert(
@@ -115,6 +116,8 @@ export default function ServerConnect() {
       );
       return;
     }
+    // The probe just read the server's own name: keep the list current.
+    setServerName(serverId, health?.name);
     setActiveServer(serverId);
     setBaseURL(server.url);
     await setServerUrl(server.url);
@@ -131,7 +134,7 @@ export default function ServerConnect() {
     } else {
       router.replace("/login");
     }
-  }, [servers, setActiveServer]);
+  }, [servers, setActiveServer, setServerName]);
 
   // Submit a new server URL.
   async function handleConnect() {
@@ -191,6 +194,7 @@ export default function ServerConnect() {
       await initI18n(trimmed);
       await applyServerLanguage(trimmed);
       const saved = addServer(trimmed);
+      setServerName(saved.id, health.name);
       setActiveServer(saved.id);
       setBaseURL(trimmed);
       router.replace("/login");
@@ -233,7 +237,7 @@ export default function ServerConnect() {
                 onPress={() => handleSelectServer(server.id)}
                 style={[s.serverRow, { backgroundColor: theme.colors.surface }]}
                 accessible={true}
-                accessibilityLabel={server.label ?? server.url}
+                accessibilityLabel={serverDisplayName(server)}
                 accessibilityRole="button"
               >
                 <Ionicons
@@ -244,9 +248,9 @@ export default function ServerConnect() {
                 />
                 <View style={{ flex: 1 }}>
                   <Text style={[s.serverLabel, { color: theme.colors.text }]} numberOfLines={1}>
-                    {server.label ?? server.url}
+                    {serverDisplayName(server)}
                   </Text>
-                  {server.label && (
+                  {serverDisplayName(server) !== server.url && (
                     <Text style={[s.serverSub, { color: theme.colors.textMuted }]} numberOfLines={1}>
                       {server.url}
                     </Text>
@@ -358,7 +362,12 @@ export default function ServerConnect() {
               accessibilityRole="button"
             >
               <Ionicons name="server-outline" size={16} color={theme.colors.accent} />
-              <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>{sv.url}</Text>
+              <View style={{ flex: 1 }}>
+                {!isDefaultServerName(sv.name) && (
+                  <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>{sv.name}</Text>
+                )}
+                <Text style={{ color: isDefaultServerName(sv.name) ? theme.colors.text : theme.colors.textMuted, fontSize: isDefaultServerName(sv.name) ? 14 : 12 }}>{sv.url}</Text>
+              </View>
               {versionLabel(sv.version) !== "" && (
                 <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{versionLabel(sv.version)}</Text>
               )}

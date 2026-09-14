@@ -9,6 +9,7 @@ import (
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/config"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
@@ -499,6 +500,57 @@ func TestAdminServerConfig_UnwiredRefusesRatherThanLying(t *testing.T) {
 	}
 	if _, err := d.GetServerConfig(context.Background(), &eveyv1.GetServerConfigRequest{}); status.Code(err) != codes.Unimplemented {
 		t.Errorf("got %v, want Unimplemented", err)
+	}
+}
+
+// The wizard's server name used to be accepted and dropped. It must land under
+// the SAME key the admin settings PUT uses and apply to the live config, so the
+// login page and the mails carry it from the first boot on.
+func TestAdminSetupWizard_PersistsAndAppliesServerName(t *testing.T) {
+	repo := &memServerConfigRepo{m: map[string]string{}}
+	d := newTestSystemHandler()
+	d.serverCfgSvc = appconfig.NewService(repo)
+	d.cfg = &config.Config{}
+	if _, err := d.SetupWizard(context.Background(), &eveyv1.SetupWizardRequest{
+		AdminUsername: "admin", AdminPassword: "password123", ServerName: "  Salon  ",
+	}); err != nil {
+		t.Fatalf("SetupWizard: %v", err)
+	}
+	if got := repo.m["server.name"]; got != "Salon" {
+		t.Errorf("store server.name = %q, want Salon", got)
+	}
+	if got := d.cfg.EffectiveServerName(); got != "Salon" {
+		t.Errorf("live name = %q, want Salon", got)
+	}
+	status, err := d.GetSetupStatus(context.Background(), &eveyv1.GetSetupStatusRequest{})
+	if err != nil {
+		t.Fatalf("GetSetupStatus: %v", err)
+	}
+	if status.ServerName != "Salon" {
+		t.Errorf("setup status ServerName = %q, want Salon", status.ServerName)
+	}
+}
+
+// A blank wizard name is "no choice": nothing is written and the public
+// status reports the default rather than an empty string.
+func TestAdminSetupWizard_BlankServerNameKeepsDefault(t *testing.T) {
+	repo := &memServerConfigRepo{m: map[string]string{}}
+	d := newTestSystemHandler()
+	d.serverCfgSvc = appconfig.NewService(repo)
+	if _, err := d.SetupWizard(context.Background(), &eveyv1.SetupWizardRequest{
+		AdminUsername: "admin", AdminPassword: "password123", ServerName: "   ",
+	}); err != nil {
+		t.Fatalf("SetupWizard: %v", err)
+	}
+	if _, ok := repo.m["server.name"]; ok {
+		t.Error("a blank name must not be persisted")
+	}
+	status, err := d.GetSetupStatus(context.Background(), &eveyv1.GetSetupStatusRequest{})
+	if err != nil {
+		t.Fatalf("GetSetupStatus: %v", err)
+	}
+	if status.ServerName != config.DefaultServerName {
+		t.Errorf("ServerName = %q, want the default %q", status.ServerName, config.DefaultServerName)
 	}
 }
 

@@ -17,6 +17,8 @@ setup:
   username: "用户名"
   password: "密码"
   confirmPassword: "确认密码"
+  serverName: "服务器名称"
+  serverNameHint: "可选。显示在登录页、浏览器标签页、您应用中的服务器列表和邮件中 - 例如「客厅」。之后可在服务器设置中更改。"
   usernameMin: "至少 3 个字符"
   passwordMin: "至少 8 个字符"
   passwordMismatch: "密码不匹配"

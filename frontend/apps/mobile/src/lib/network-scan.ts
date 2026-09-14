@@ -4,6 +4,9 @@ const TIMEOUT_MS = 2000;
 interface DiscoveredServer {
   url: string;
   version?: string;
+  // Admin-chosen server name from /healthz, so a scan row can read
+  // "Salon" rather than a bare IP:port.
+  name?: string;
 }
 
 async function probeHost(ip: string, port: number, outer?: AbortSignal): Promise<DiscoveredServer | null> {
@@ -25,14 +28,16 @@ async function probeHost(ip: string, port: number, outer?: AbortSignal): Promise
     clearTimeout(timeout);
     if (res.ok) {
       let version: string | undefined;
+      let name: string | undefined;
       try {
         const data = await res.json();
         version = data?.version;
+        name = typeof data?.name === "string" && data.name.trim() ? data.name.trim() : undefined;
       } catch {
-        // A healthz that is not JSON is still a server; the version is
-        // just unknown.
+        // A healthz that is not JSON is still a server; the version and
+        // name are just unknown.
       }
-      return { url, version };
+      return { url, version, name };
     }
   } catch {
     // A probe that times out or is refused is the EXPECTED outcome for

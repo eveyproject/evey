@@ -27,6 +27,10 @@ type healthResponse struct {
 	Commit        string `json:"commit"`
 	BuildDate     string `json:"build_date"`
 	UptimeSeconds int64  `json:"uptime_seconds"`
+	// Name is the admin-chosen instance name (Server settings). /healthz is
+	// the mobile/TV discovery probe, so the name reaches the server list from
+	// the same answer that proves this is an Evey server.
+	Name string `json:"name,omitempty"`
 }
 
 func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
@@ -72,6 +76,9 @@ func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 		Commit:        buildStampOrUnknown(s.Commit),
 		BuildDate:     buildStampOrUnknown(s.BuildDate),
 		UptimeSeconds: int64(time.Since(s.StartTime).Seconds()),
+	}
+	if s.Cfg != nil {
+		resp.Name = s.Cfg.EffectiveServerName()
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -1698,6 +1698,8 @@
   "auth.setup.password": "Password",
   "auth.setup.passwordMin": "At least 8 characters",
   "auth.setup.passwordMismatch": "Passwords do not match",
+  "auth.setup.serverName": "Server name",
+  "auth.setup.serverNameHint": "Optional. Shown on the sign-in page, the browser tab, your apps' server list and the e-mails - e.g. \"Living room\". Can be changed later in Server settings.",
   "auth.setup.setupFailed": "Setup failed",
   "auth.setup.stepOf": "Step {{current}} of {{total}} - {{name}}",
   "auth.setup.steps.admin": "Admin account",

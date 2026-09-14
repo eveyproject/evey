@@ -20,4 +20,10 @@ describe("parseEveyHealth", () => {
     expect(parseEveyHealth(null)).toBeNull();
     expect(parseEveyHealth([])).toBeNull();
   });
+
+  it("carries the advertised server name, trimmed, and drops a blank one", () => {
+    expect(parseEveyHealth({ status: "ok", version: "1", name: " Salon " })).toEqual({ status: "ok", version: "1", name: "Salon" });
+    expect(parseEveyHealth({ status: "ok", version: "1", name: "  " })).toEqual({ status: "ok", version: "1" });
+    expect(parseEveyHealth({ status: "ok", version: "1", name: 42 })).toEqual({ status: "ok", version: "1" });
+  });
 });

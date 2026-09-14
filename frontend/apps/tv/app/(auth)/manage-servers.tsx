@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, Alert, ScrollView, Modal, StyleSheet 
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { setBaseURL } from "@evey/api";
-import { useAuthStore, useServerListStore } from "@evey/store";
+import { useAuthStore, useServerListStore, serverDisplayName } from "@evey/store";
 import { setServerUrl } from "../../src/lib/server-config";
 import { initFetcher } from "../../src/lib/fetcher-setup";
 import { interpolateFallback } from "../../src/i18n/interpolateFallback";
@@ -50,7 +50,7 @@ export default function ManageServersScreen() {
       Alert.alert(t("mobile.servers.cantDeleteOnlyServer", "Can't delete the only saved server"));
       return;
     }
-    const name = server.label ?? server.url;
+    const name = serverDisplayName(server);
     Alert.alert(
       t("mobile.servers.deleteConfirmTitle", "Delete server?"),
       interpolateFallback(
@@ -215,7 +215,7 @@ function ManageRow({
         onFocus={() => setMainFocused(true)}
         onBlur={() => setMainFocused(false)}
         accessible={true}
-        accessibilityLabel={server.label ?? server.url}
+        accessibilityLabel={serverDisplayName(server)}
         accessibilityRole="button"
         style={[
           s.serverMain,
@@ -226,7 +226,7 @@ function ManageRow({
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <Text style={[s.serverLabel, { color: isActive ? theme.colors.accent : theme.colors.text }]} numberOfLines={1}>
-              {server.label ?? server.url}
+              {serverDisplayName(server)}
             </Text>
             {isActive && (
               <View style={[s.badge, { backgroundColor: theme.colors.accent }]}>
@@ -234,7 +234,7 @@ function ManageRow({
               </View>
             )}
           </View>
-          {server.label && (
+          {serverDisplayName(server) !== server.url && (
             <Text style={[s.serverSub, { color: theme.colors.textMuted }]} numberOfLines={1}>
               {server.url}
             </Text>

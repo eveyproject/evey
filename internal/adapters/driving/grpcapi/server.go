@@ -217,6 +217,7 @@ func (s *GRPCServer) RegisterServices() {
 		translator:        d.Translator,
 		smtpConfigured:    d.SMTPConfigured,
 		serverCfgSvc:      d.ServerCfgSvc,
+		cfg:               d.Cfg,
 		restartFn:         d.RestartFn,
 		loadTest:          loadTestOrNil(d.LoadTest),
 		loadTestBaseURL:   d.LoadTestBaseURL,

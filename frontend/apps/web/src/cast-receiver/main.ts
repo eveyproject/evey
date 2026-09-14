@@ -15,6 +15,7 @@ import { createAliveHeartbeat, createFrameDropTracker, formatFrameQuality, postP
 import { buildCastNextUrl, buildNextMasterUrl, parseCastNextResponse, shouldFetchNext, upNextLabel, type CastNextInfo } from "./castNext";
 import { buildSegmentsUrl, introSkippedLabel, parseSegments, planIntroSkip, type SkippableSegment } from "./introSkip";
 import { endCardModel, pauseHudModel } from "./hud";
+import { buildSetupStatusUrl, parseServerName } from "./serverBrand";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
 // not packaged - deliberately untyped access, scoped to this file.
@@ -29,6 +30,23 @@ function showDebug(text: string): void {
   if (!dbg) return;
   dbg.textContent = text;
   dbg.style.display = text ? "block" : "none";
+}
+
+// --- Instance name under the idle splash (serverBrand.ts) -----------------
+// Fetched once per origin, on the first LOAD that names it; a failure leaves
+// the caption empty, never blocks the load.
+const idleServerEl = document.getElementById("idle-server");
+let brandedOrigin = "";
+function refreshServerBrand(streamUrl: string): void {
+  const statusUrl = buildSetupStatusUrl(streamUrl);
+  if (!statusUrl || !idleServerEl) return;
+  const origin = new URL(statusUrl).origin;
+  if (origin === brandedOrigin) return;
+  brandedOrigin = origin;
+  fetch(statusUrl)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => { idleServerEl.textContent = parseServerName(data); })
+    .catch(() => { idleServerEl.textContent = ""; });
 }
 
 // appendDebug adds a line instead of replacing the panel. A fallback that
@@ -931,6 +949,7 @@ function interceptLoad(request: any): any {
     try {
       if (new URL(currentUrl).searchParams.get("abr") !== "floor") floorReloads = 0;
     } catch { /* foreign URL: the rescue never runs on it anyway */ }
+    refreshServerBrand(currentUrl);
     return request;
 }
 

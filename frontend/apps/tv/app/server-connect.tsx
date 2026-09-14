@@ -3,8 +3,8 @@ import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet,
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { setBaseURL } from "@evey/api";
-import { useAuthStore, useServerListStore } from "@evey/store";
-import { setServerUrl, getServerUrl } from "../src/lib/server-config";
+import { useAuthStore, useServerListStore, serverDisplayName, isDefaultServerName } from "@evey/store";
+import { setServerUrl, getServerUrl, healthName } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { scanLocalNetwork, type DiscoveredServer } from "../src/lib/network-scan";
@@ -36,6 +36,7 @@ export default function ServerConnect() {
   const setActiveServer = useServerListStore((s) => s.setActiveServer);
   const removeServer = useServerListStore((s) => s.removeServer);
   const renameServer = useServerListStore((s) => s.renameServer);
+  const setServerName = useServerListStore((s) => s.setServerName);
 
   const serverList = useMemo(
     () => Object.values(servers).sort((a, b) => b.lastUsedAt - a.lastUsedAt),
@@ -101,11 +102,13 @@ export default function ServerConnect() {
     try {
       const res = await fetch(`${trimmed}/healthz`);
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const advertisedName = await healthName(res);
       await setServerUrl(trimmed);
       await initFetcher();
       await initI18n(trimmed);
       await applyServerLanguage(trimmed);
       const saved = addServer(trimmed);
+      setServerName(saved.id, advertisedName);
       setActiveServer(saved.id);
       setBaseURL(trimmed);
       router.replace("/login");
@@ -126,7 +129,7 @@ export default function ServerConnect() {
       Alert.alert(t("mobile.servers.cantDeleteOnlyServer", "Can't delete the only saved server"));
       return;
     }
-    const name = server.label ?? server.url;
+    const name = serverDisplayName(server);
     Alert.alert(
       t("mobile.servers.deleteConfirmTitle", "Delete server?"),
       interpolateFallback(t("mobile.servers.deleteConfirmMessage", "{{name}} will be removed.", { name }), { name }),
@@ -390,7 +393,12 @@ function DiscoveredRow({
         },
       ]}
     >
-      <Text style={[s.discoveredUrl, { color: theme.colors.text }]} numberOfLines={1}>
+      {!isDefaultServerName(server.name) && (
+        <Text style={[s.discoveredUrl, { color: theme.colors.text }]} numberOfLines={1}>
+          {server.name}
+        </Text>
+      )}
+      <Text style={[s.discoveredUrl, !isDefaultServerName(server.name) && s.discoveredVersion, { color: isDefaultServerName(server.name) ? theme.colors.text : theme.colors.textMuted }]} numberOfLines={1}>
         {server.url}
       </Text>
       {!!server.version && (
@@ -436,7 +444,7 @@ function ServerRow({
         onBlur={() => setRowFocused(false)}
         hasTVPreferredFocus={isFirst && isActive}
         accessible={true}
-        accessibilityLabel={server.label ?? server.url}
+        accessibilityLabel={serverDisplayName(server)}
         accessibilityRole="button"
         style={[
           s.serverMain,
@@ -446,9 +454,9 @@ function ServerRow({
       >
         <View style={{ flex: 1 }}>
           <Text style={[s.serverLabel, { color: isActive ? theme.colors.accent : theme.colors.text }]} numberOfLines={1}>
-            {server.label ?? server.url}
+            {serverDisplayName(server)}
           </Text>
-          {server.label && (
+          {serverDisplayName(server) !== server.url && (
             <Text style={[s.serverSub, { color: theme.colors.textMuted }]} numberOfLines={1}>
               {server.url}
             </Text>

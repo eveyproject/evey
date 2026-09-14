@@ -22,6 +22,18 @@ type Sender interface {
 	Send(to []string, subject, body string) error
 }
 
+// serverNameOrDefault resolves the instance name an emailer stamps on its
+// mails: the admin-chosen "Server name" when wired, "Evey" otherwise (tests,
+// or a name blanked in config).
+func serverNameOrDefault(fn func() string) string {
+	if fn != nil {
+		if name := strings.TrimSpace(fn()); name != "" {
+			return name
+		}
+	}
+	return "Evey"
+}
+
 // SMTPSender sends emails via SMTP.
 type SMTPSender struct {
 	host     string

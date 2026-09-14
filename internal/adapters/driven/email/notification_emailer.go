@@ -24,10 +24,13 @@ type NotificationEmailer struct {
 	sender   Sender
 	profiles ProfileGetter
 	users    UserGetter
+	// serverNameFn names the instance in the body (admin "Server name"); read
+	// per mail so a rename applies without a restart. nil = "Evey".
+	serverNameFn func() string
 }
 
-func NewNotificationEmailer(sender Sender, profiles ProfileGetter, users UserGetter) *NotificationEmailer {
-	return &NotificationEmailer{sender: sender, profiles: profiles, users: users}
+func NewNotificationEmailer(sender Sender, profiles ProfileGetter, users UserGetter, serverNameFn func() string) *NotificationEmailer {
+	return &NotificationEmailer{sender: sender, profiles: profiles, users: users, serverNameFn: serverNameFn}
 }
 
 // Register subscribes to notification.created on the given bus.
@@ -58,7 +61,7 @@ func (e *NotificationEmailer) handle(ctx context.Context, ev shared.Event) {
 	}
 
 	subject := notif.Title
-	body := notif.Title + "\n\nYou have a new notification on your Evey server."
+	body := notif.Title + "\n\nYou have a new notification on " + serverNameOrDefault(e.serverNameFn) + "."
 
 	if err := e.sender.Send([]string{u.Email}, subject, body); err != nil {
 		slog.Warn("email: send notification", slog.String("to", u.Email), slog.Any("err", err))

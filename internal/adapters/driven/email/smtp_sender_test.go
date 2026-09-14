@@ -166,7 +166,7 @@ func (f *fakeBus) Unsubscribe(_ string) {}
 
 func TestNotificationEmailer_Register(t *testing.T) {
 	bus := &fakeBus{}
-	emailer := NewNotificationEmailer(&fakeSender{}, &fakeProfileGetter{}, &fakeUserGetter{})
+	emailer := NewNotificationEmailer(&fakeSender{}, &fakeProfileGetter{}, &fakeUserGetter{}, nil)
 	emailer.Register(bus)
 
 	if _, ok := bus.handlers["notification.created"]; !ok {
@@ -184,7 +184,7 @@ func TestNotificationEmailer_SendsEmail(t *testing.T) {
 	}}
 
 	bus := &fakeBus{}
-	emailer := NewNotificationEmailer(sender, profiles, users)
+	emailer := NewNotificationEmailer(sender, profiles, users, nil)
 	emailer.Register(bus)
 
 	ev := domainnotif.NotificationCreated{
@@ -216,7 +216,7 @@ func TestNotificationEmailer_NoEmail_SkipsSend(t *testing.T) {
 	}}
 
 	bus := &fakeBus{}
-	emailer := NewNotificationEmailer(sender, profiles, users)
+	emailer := NewNotificationEmailer(sender, profiles, users, nil)
 	emailer.Register(bus)
 
 	ev := domainnotif.NotificationCreated{ProfileID: "prof-1", Title: "X", OccurredAt: time.Now()}
@@ -233,7 +233,7 @@ func TestNotificationEmailer_WrongEventType_NoSend(t *testing.T) {
 	users := &fakeUserGetter{users: map[string]*domainuser.User{}}
 
 	bus := &fakeBus{}
-	emailer := NewNotificationEmailer(sender, profiles, users)
+	emailer := NewNotificationEmailer(sender, profiles, users, nil)
 	emailer.Register(bus)
 
 	// Hand the handler a struct that doesn't satisfy NotificationCreated
@@ -256,7 +256,7 @@ func TestNotificationEmailer_UserNotFound_NoSend(t *testing.T) {
 	users := &fakeUserGetter{users: map[string]*domainuser.User{}}
 
 	bus := &fakeBus{}
-	emailer := NewNotificationEmailer(sender, profiles, users)
+	emailer := NewNotificationEmailer(sender, profiles, users, nil)
 	emailer.Register(bus)
 
 	ev := domainnotif.NotificationCreated{ProfileID: "prof-1", Title: "X", OccurredAt: time.Now()}
@@ -285,7 +285,7 @@ func TestNotificationEmailer_SendFails_NoError(t *testing.T) {
 	}}
 
 	bus := &fakeBus{}
-	emailer := NewNotificationEmailer(sender, profiles, users)
+	emailer := NewNotificationEmailer(sender, profiles, users, nil)
 	emailer.Register(bus)
 
 	ev := domainnotif.NotificationCreated{ProfileID: "prof-1", Title: "Fail", OccurredAt: time.Now()}
@@ -331,7 +331,7 @@ func TestNotificationEmailer_ProfileNotFound_NoSend(t *testing.T) {
 	users := &fakeUserGetter{users: map[string]*domainuser.User{}}
 
 	bus := &fakeBus{}
-	emailer := NewNotificationEmailer(sender, profiles, users)
+	emailer := NewNotificationEmailer(sender, profiles, users, nil)
 	emailer.Register(bus)
 
 	ev := domainnotif.NotificationCreated{ProfileID: "missing", Title: "X", OccurredAt: time.Now()}

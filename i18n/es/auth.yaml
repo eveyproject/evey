@@ -17,6 +17,8 @@ setup:
   username: Nombre de usuario
   password: Contraseña
   confirmPassword: Confirmar contraseña
+  serverName: "Nombre del servidor"
+  serverNameHint: "Opcional. Se muestra en la página de inicio de sesión, la pestaña del navegador, la lista de servidores de tus aplicaciones y los correos - p. ej. «Salón». Se puede cambiar después en Configuración del servidor."
   usernameMin: Mínimo 3 caracteres
   passwordMin: Mínimo 8 caracteres
   passwordMismatch: Las contraseñas no coinciden

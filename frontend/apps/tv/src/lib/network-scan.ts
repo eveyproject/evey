@@ -9,6 +9,9 @@ const BATCH = 50;
 export interface DiscoveredServer {
   url: string;
   version?: string;
+  // Admin-chosen server name from /healthz, so a scan row can read
+  // "Salon" rather than a bare IP:port.
+  name?: string;
 }
 
 async function probeHost(ip: string, port: number, outer?: AbortSignal): Promise<DiscoveredServer | null> {
@@ -30,14 +33,16 @@ async function probeHost(ip: string, port: number, outer?: AbortSignal): Promise
     clearTimeout(timeout);
     if (res.ok) {
       let version: string | undefined;
+      let name: string | undefined;
       try {
         const data = await res.json();
         version = data?.version;
+        name = typeof data?.name === "string" && data.name.trim() ? data.name.trim() : undefined;
       } catch {
         // Any 200 on /healthz counts; a body that isn't JSON just loses the
-        // version hint.
+        // version and name hints.
       }
-      return { url, version };
+      return { url, version, name };
     }
   } catch {
     // Dead hosts are the common case on a subnet sweep, not an error.

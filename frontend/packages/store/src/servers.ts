@@ -5,8 +5,30 @@ import { lazyZustandStorage, registerPersistedStore } from "./storage";
 export interface SavedServer {
   id: string;
   url: string;        // normalized: trailing slash stripped
-  label?: string;
+  label?: string;     // the user's own rename, always wins
+  // The name the server advertises on /healthz (admin "Server name"),
+  // refreshed on every successful probe. Kept apart from label so a server
+  // rename shows up without erasing what the user typed.
+  serverName?: string;
   lastUsedAt: number; // epoch ms
+}
+
+// DEFAULT_SERVER_NAME is what an unnamed instance advertises (server side
+// config.DefaultServerName). It carries no information, so the lists fall
+// back to the URL rather than show "Evey" under an Evey logo.
+export const DEFAULT_SERVER_NAME = "Evey";
+
+export function isDefaultServerName(name: string | undefined | null): boolean {
+  const n = name?.trim() ?? "";
+  return n === "" || n.toLowerCase() === DEFAULT_SERVER_NAME.toLowerCase();
+}
+
+// serverDisplayName is the one line a server list shows for a saved server:
+// the user's label, else the advertised name, else the URL.
+export function serverDisplayName(server: Pick<SavedServer, "url" | "label" | "serverName">): string {
+  if (server.label) return server.label;
+  if (!isDefaultServerName(server.serverName)) return server.serverName!.trim();
+  return server.url;
 }
 
 interface ServerListState {
@@ -16,6 +38,8 @@ interface ServerListState {
   removeServer: (id: string) => void;
   setActiveServer: (id: string | null) => void;
   renameServer: (id: string, label: string) => void;
+  // setServerName records the name a probe just read; unknown id = no-op.
+  setServerName: (id: string, serverName: string | undefined) => void;
   getActiveServer: () => SavedServer | null;
   /** Internal: assign tokens for a server from the auth store migration path */
   _syncActiveToAuth: (() => void) | null;
@@ -94,6 +118,15 @@ export const useServerListStore = create<ServerListState>()(
           const server = state.servers[id];
           if (!server) return {};
           return { servers: { ...state.servers, [id]: { ...server, label } } };
+        });
+      },
+
+      setServerName: (id: string, serverName: string | undefined) => {
+        const trimmed = serverName?.trim();
+        set((state) => {
+          const server = state.servers[id];
+          if (!server || server.serverName === trimmed) return {};
+          return { servers: { ...state.servers, [id]: { ...server, serverName: trimmed } } };
         });
       },
 

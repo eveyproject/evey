@@ -43,8 +43,10 @@ vi.mock("@evey/api", async (importOriginal) => ({
   eveyFetch: vi.fn(() => Promise.resolve({ enabled: false })),
 }));
 
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/store")>()),
   useAuthStore: (selector: (s: any) => unknown) => selector({ setTokens: vi.fn(), accessToken: null }),
+  useServerListStore: (selector: (s: any) => unknown) => selector({ activeServerId: null, setServerName: vi.fn() }),
 }));
 
 vi.mock("../providers/ThemeProvider", () => ({

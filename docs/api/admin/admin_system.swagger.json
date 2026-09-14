@@ -376,7 +376,8 @@
         "HW_ACCEL_TYPE_NONE",
         "HW_ACCEL_TYPE_VAAPI",
         "HW_ACCEL_TYPE_NVENC",
-        "HW_ACCEL_TYPE_QSV"
+        "HW_ACCEL_TYPE_QSV",
+        "HW_ACCEL_TYPE_RKMPP"
       ],
       "default": "HW_ACCEL_TYPE_NONE"
     },
@@ -766,6 +767,10 @@
         "passwordRecoveryEnabled": {
           "type": "boolean",
           "description": "password_recovery_enabled lets the (unauthenticated) login page decide\nwhether to show the \"Forgot password?\" link. The same flag lives on the\nadmin-only SystemInfo; this is its public projection (it only reveals\nwhether SMTP + recovery are configured, no sensitive detail)."
+        },
+        "serverName": {
+          "type": "string",
+          "description": "server_name is the admin-chosen instance name (Server settings, default\n\"Evey\"): the pre-auth screens (login, tab title) brand the instance with\nit. Public projection of the same value /healthz advertises."
         }
       }
     },
