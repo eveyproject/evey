@@ -33,6 +33,21 @@ describe("PlayerProgressBar", () => {
     const slider = screen.getByRole("slider", { name: "Seek" }) as HTMLInputElement;
     expect(slider.value).toBe("45");
   });
+
+  // Regression: the native range thumb reserves half its width at each end, so
+  // the input's click->value was inset from the bar edges while the hover
+  // tooltip mapped clientX linearly over the full width. Clicking "12:25" landed
+  // several seconds earlier (up to tens on a long film) - the long-standing
+  // "click, jump 3-20 s back" bug. The invisible seek input must keep a
+  // zero-width thumb so the browser maps clicks linearly, matching the tooltip.
+  // jsdom does no layout, so this guards the CSS that carries the fix.
+  it("zeroes the native range thumb so clicks map linearly (WYSIWYG seek)", () => {
+    render(<PlayerProgressBar {...defaultProps} />);
+    const slider = screen.getByRole("slider", { name: "Seek" }) as HTMLInputElement;
+    expect(slider.className).toContain("appearance-none");
+    expect(slider.className).toContain("[&::-webkit-slider-thumb]:w-0");
+    expect(slider.className).toContain("[&::-moz-range-thumb]:w-0");
+  });
 });
 
 describe("PlayerProgressBar seek commit", () => {

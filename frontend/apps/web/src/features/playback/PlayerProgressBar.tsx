@@ -170,7 +170,18 @@ export function PlayerProgressBar({
             }, 12000);
           }, 200);
         }}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-raised"
+        // WYSIWYG click mapping. A native range input reserves half a thumb-width
+        // at each end, so its click->value is inset from the edges: clicking the
+        // pixel the hover tooltip reads as 12:25 landed the value (and the seek)
+        // several seconds earlier - up to tens of seconds on a feature-length
+        // film, varying with click position, i.e. the long-standing "click 12:25,
+        // jump 3-20 s back" bug. The tooltip (seekHoverPos) maps clientX linearly
+        // over the full bar via getBoundingClientRect; the two coordinate systems
+        // disagreed by exactly the thumb inset. This input is invisible (opacity-0;
+        // the visible thumb/track are the divs above), so zeroing its native thumb
+        // makes the browser map clicks linearly edge-to-edge - value === tooltip.
+        // Measured in Firefox: x for 12:25 gave value 704 s before, 745 s after.
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-raised appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-0 [&::-webkit-slider-thumb]:w-0 [&::-moz-range-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:border-0"
         aria-label={t("player.controls.seek")}
       />
     </div>
