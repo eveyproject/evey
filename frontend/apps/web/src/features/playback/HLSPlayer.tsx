@@ -42,6 +42,7 @@ import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCas
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback, type ShedReason } from "./hooks/useTranscodePlayback";
 import { useWasmAudioPlayback } from "./wasmaudio/useWasmAudioPlayback";
+import { CONTROLS_FADE_MS, fadeClasses, useFadeParked } from "./hooks/useFadeParked";
 import { canWasmDecodeAC3, isWasmDecodableAudioCodec } from "@/utils/codec";
 import { useSubtitleManager } from "./hooks/useSubtitleManager";
 import { usePlayerKeyboard } from "./hooks/usePlayerKeyboard";
@@ -139,6 +140,7 @@ export function HLSPlayer({
   // top-right Watch-together / cast cluster fades in lockstep instead of
   // staying pinned on screen the whole time during playback.
   const [controlsVisible, setControlsVisible] = useState(true);
+  const controlsParked = useFadeParked(controlsVisible, CONTROLS_FADE_MS);
   // Set by PlayerControls to its reveal action, so hovering the cluster keeps
   // the controls up (and reschedules the hide) just like hovering the bars.
   const revealControlsRef = useRef<(() => void) | null>(null);
@@ -981,6 +983,7 @@ export function HLSPlayer({
     playbackSpeedRef, subtitleStreamsRef, currentSubtitleRef, anyPanelOpenRef,
     closePanelRef, onCloseRef, setPlaybackSpeed, onSubtitleChange: handleSubtitleChange,
     setShowShortcuts, showActionFlash, pipToggleRef, castRef: castKeyboardRef,
+    revealControlsRef,
   });
 
   const { overlayTime, overlayDuration } = useOverlayTime({
@@ -1277,7 +1280,7 @@ export function HLSPlayer({
           playback. */}
       {showWatchTogether && onWatchTogether && (
         <div
-          className={`absolute top-4 right-4 z-[11] flex items-center gap-2 transition-opacity-fast duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+          className={`absolute top-4 right-4 z-[11] flex items-center gap-2 [--fade-duration:300ms] ${fadeClasses(controlsVisible, controlsParked)}`}
           onMouseMove={() => revealControlsRef.current?.()}
           // Reveal on focus, exactly as PlayerControls does for the bottom bar.
           // opacity-0 hides these buttons but leaves them in the tab order, and

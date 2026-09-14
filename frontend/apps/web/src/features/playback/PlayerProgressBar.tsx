@@ -115,16 +115,23 @@ export function PlayerProgressBar({
           </div>
         );
       })()}
+      {/* The three tracks transition their HEIGHT only (the hover thickening).
+          A transition on "all" also animated the width the two fill tracks get
+          on every timeupdate/progress, and a percentage width is not a
+          compositor property: every frame of those 150 ms went through layout
+          and a new display list, ~34 reflows/s for the whole playback, controls
+          hidden or not (Gecko profile, 2026-09-14). A 4 Hz step on a 4 px bar
+          needs no easing. */}
       {/* background track */}
-      <div className="absolute left-0 right-0 h-1 rounded bg-white/20 group-hover:h-1.5 transition-all" />
+      <div className="absolute left-0 right-0 h-1 rounded bg-white/20 group-hover:h-1.5 transition-[height]" />
       {/* buffered track */}
       <div
-        className="absolute left-0 h-1 rounded bg-white/40 group-hover:h-1.5 transition-all"
+        className="absolute left-0 h-1 rounded bg-white/40 group-hover:h-1.5 transition-[height]"
         style={{ width: effectiveDuration > 0 ? `${((transcodeOffset + bufferedEnd) / effectiveDuration) * 100}%` : "0%" }}
       />
       {/* progress track */}
       <div
-        className="absolute left-0 h-1 rounded group-hover:h-1.5 transition-all bg-[var(--accent)]"
+        className="absolute left-0 h-1 rounded group-hover:h-1.5 transition-[height] bg-[var(--accent)]"
         style={{ width: effectiveDuration > 0 ? `${(displayTime / effectiveDuration) * 100}%` : "0%" }}
       />
       {/* Notches only: the seek input below owns every click, so clicking mid-bar
