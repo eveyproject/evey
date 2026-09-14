@@ -60,7 +60,8 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 //   - transcode SEEK: pre-input `-ss` resets the output PTS to 0, so the seek
 //     segment's tfdt is 0 instead of StartSec → the browser can't place it on
 //     the VOD timeline and seeking stalls in permanent buffering. These need
-//     the same shift. A seek is recognised by EITHER StartNumber or StartSec:
+//     the same shift - by the FRAME the seek lands on, not by StartSec itself
+//     (see seek_frame_landing.go). A seek is recognised by EITHER StartNumber or StartSec:
 //     the segment orchestrator only ever filled StartSec (startNumberFor
 //     derives -start_number from it), so keying on StartNumber alone left
 //     every transcode seek un-rebased - 0-based fragments under absolute
@@ -147,8 +148,11 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 
 	go h.run(processCtx)
 	if rebase {
-		deltaMs := int64(opts.StartSec*1000 + 0.5)
-		go runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaMs, "stream", opts.VariantIndex, opts.ExpectedSegmentStartMs, opts.TimelineDriftKind)
+		// The shift is resolved before the pump starts so its first sweep
+		// already has it; the probe behind it (transcode seeks only) reads a
+		// second of packet headers, next to nothing beside the encode it gates.
+		deltaUs := rebaseDeltaUs(ctx, opts.FilePath, opts.VideoDecision, opts.StartSec)
+		go runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaUs, "stream", opts.VariantIndex, opts.ExpectedSegmentStartMs, opts.TimelineDriftKind)
 	}
 	return h, nil
 }

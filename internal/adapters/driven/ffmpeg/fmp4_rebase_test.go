@@ -89,8 +89,8 @@ func readTfdt(t *testing.T, p string) uint64 {
 
 func TestRebaseShiftsTfdtAndSidx(t *testing.T) {
 	p := writeTmp(t, synthSegment(1, 5000))
-	// 2500 ms at timescale 1000 → +2500 units
-	tfdtMs, err := rebaseFMP4Segment(p, 2500, nil)
+	// 2500 ms (2 500 000 µs) at timescale 1000 → +2500 units
+	tfdtMs, err := rebaseFMP4Segment(p, 2_500_000, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestRebaseFMP4Segment_CloseErrorWithholdsSegment(t *testing.T) {
 	}
 	t.Cleanup(func() { closeSegmentFile = orig })
 
-	tfdtMs, err := rebaseFMP4Segment(p, 2500, nil)
+	tfdtMs, err := rebaseFMP4Segment(p, 2_500_000, nil)
 	if err == nil {
 		t.Fatal("want an error when Close fails - a flush failure must not look like success")
 	}
@@ -153,7 +153,7 @@ func TestRunRebasePump_CloseErrorNeverPublishesSegment(t *testing.T) {
 	close(stop) // drives the pump straight to its final sweep, no ticker wait
 	// nil procExited: this test drives the pump directly, with no ffmpeg to
 	// outlive - waitProcExit returns immediately for it.
-	runRebasePump(nil, stop, nil, priv, pub, 2500, "stream", 0, nil, "copy")
+	runRebasePump(nil, stop, nil, priv, pub, 2_500_000, "stream", 0, nil, "copy")
 
 	if _, err := os.Stat(filepath.Join(pub, segName)); err == nil {
 		t.Fatal("segment must NOT be published when its Close failed - the client would receive corrupted bytes")
@@ -163,7 +163,7 @@ func TestRunRebasePump_CloseErrorNeverPublishesSegment(t *testing.T) {
 func TestRebaseV0OverflowLeavesFileUntouched(t *testing.T) {
 	orig := synthSegment(0, 0xFFFFFF00)
 	p := writeTmp(t, orig)
-	_, err := rebaseFMP4Segment(p, 2500, nil)
+	_, err := rebaseFMP4Segment(p, 2_500_000, nil)
 	if err == nil {
 		t.Fatal("want overflow error")
 	}
@@ -180,10 +180,10 @@ func TestRebaseInitFallbackWhenNoSidx(t *testing.T) {
 	seg := bytes.Join([][]byte{box("styp", []byte("msdh")), box("moof", box("traf", tfhd, tfdt)), box("mdat")}, nil)
 	p := writeTmp(t, seg)
 
-	if _, err := rebaseFMP4Segment(p, 1000, nil); err == nil {
+	if _, err := rebaseFMP4Segment(p, 1_000_000, nil); err == nil {
 		t.Fatal("want error without any timescale source")
 	}
-	if _, err := rebaseFMP4Segment(p, 1000, map[uint32]uint32{7: 90000}); err != nil {
+	if _, err := rebaseFMP4Segment(p, 1_000_000, map[uint32]uint32{7: 90000}); err != nil {
 		t.Fatal(err)
 	}
 	if got := readTfdt(t, p); got != 1000+90000 {
@@ -423,7 +423,7 @@ func TestRebasePump_PublishesEveryVariantInit(t *testing.T) {
 	}
 	stop := make(chan struct{})
 	close(stop)
-	runRebasePump(nil, stop, nil, priv, pub, 12000, "stream", 0, nil, "transcode_seek")
+	runRebasePump(nil, stop, nil, priv, pub, 12_000_000, "stream", 0, nil, "transcode_seek")
 
 	for _, name := range []string{"stream_0_init.mp4", "stream_1_init.mp4", "stream_2_init.mp4", "stream_0_004.m4s", "stream_1_004.m4s"} {
 		if _, err := os.Stat(filepath.Join(pub, name)); err != nil {
