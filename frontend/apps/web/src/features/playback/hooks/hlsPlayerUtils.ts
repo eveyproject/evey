@@ -630,3 +630,26 @@ export function forwardBufferSeconds(bitrateBps: number): number {
   const fit = Math.floor((FORWARD_BUFFER_BYTES * 8) / bitrateBps);
   return Math.max(MIN_FORWARD_BUFFER_SEC, Math.min(MAX_FORWARD_BUFFER_SEC, fit));
 }
+
+// pickTranscodeResumeSec chooses where a transcode player rebuild (a new hls.js
+// instance, or the native-HLS loadedmetadata seek) resumes.
+//
+// It must be the LIVE playhead, never the transcodeStartTime state. That state
+// is refreshed only by the deliberate switches that call setTranscodeStartTime
+// (audio track, burn-in subtitle, audio offset); a plain timeline seek moves the
+// live position (positionRef + video.currentTime) but leaves transcodeStartTime
+// stale at the last anchor - usually the resume point. A rebuild NOT routed
+// through a switch (the wasm-audio fallback flipping wasmAudioActive, a gapless
+// toggle) then resumed at that stale anchor and yanked the picture back: the
+// "click 12:25, playback restarts at 12:05" report, where the ~20 s gap is
+// exactly how far the viewer had seeked past the anchor.
+//
+// livePosSec (positionRef.current) is initialised to the resume point and kept
+// current by timeupdate and by the synchronous write in handleSeekRequest, so it
+// is always the right target. startTimeSec (transcodeStartTime) is only the
+// fallback for the degenerate livePos<=0 (pre-first-tick cold mount).
+export function pickTranscodeResumeSec(livePosSec: number, startTimeSec: number): number {
+  if (livePosSec > 0) return livePosSec;
+  if (startTimeSec > 0) return startTimeSec;
+  return 0;
+}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
 import { createPlayerEventReporter } from "@evey/api";
-import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, prefersNativeHLS, startPlayback, forwardBufferSeconds, MAX_FORWARD_BUFFER_SEC } from "./hlsPlayerUtils";
+import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, pickTranscodeResumeSec, prefersNativeHLS, startPlayback, forwardBufferSeconds, MAX_FORWARD_BUFFER_SEC } from "./hlsPlayerUtils";
 import { playbackSnapshot } from "../playbackSnapshot";
 
 
@@ -175,7 +175,20 @@ export function useTranscodePlayback({
     // seek-spawned rafale at segment N lands at N's manifest position regardless
     // of its tfdt.
     transcodeOffsetRef.current = 0;
-    const initialSeekSec = transcodeStartTime > 0 ? transcodeStartTime : 0;
+    // Resume a rebuild at the LIVE playhead, not the transcodeStartTime STATE.
+    // transcodeStartTime is refreshed only by the deliberate switches that call
+    // setTranscodeStartTime (audio/subtitle/offset/track) - a plain seek moves
+    // positionRef + video.currentTime but leaves transcodeStartTime stale at the
+    // last anchor (typically the resume point). So a rebuild NOT routed through a
+    // switch - the wasm-audio fallback (setWasmAudioDisabled flips wasmAudio, a
+    // dep of this effect), a gapless toggle - resumed at the stale anchor and
+    // yanked the picture back: "click 12:25, land at 12:05" (the gap = how far
+    // the viewer seeked past the last anchor). positionRef.current is the true
+    // live position (updated by timeupdate AND written synchronously by
+    // handleSeekRequest), initialised to startPositionMs/1000, so it is always
+    // the correct resume target; transcodeStartTime stays a dep purely as the
+    // rebuild TRIGGER. Fall back to it only if positionRef is somehow 0.
+    const initialSeekSec = pickTranscodeResumeSec(positionRef.current, transcodeStartTime);
 
     const hlsUrl = buildTranscodeHlsUrl(
       mediaId,

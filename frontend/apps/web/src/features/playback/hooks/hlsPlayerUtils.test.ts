@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { resetOutputChannelsProbe } from "@/utils/outputChannels";
 import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel, liftForcedMuteOnNextGesture } from "./hlsPlayerUtils";
-import { forwardBufferSeconds } from "./hlsPlayerUtils";
+import { forwardBufferSeconds, pickTranscodeResumeSec } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
 const mockCaps = vi.hoisted(() => ({
@@ -732,5 +732,31 @@ describe("forwardBufferSeconds", () => {
     expect(forwardBufferSeconds(40_000_000)).toBe(9);
     expect(forwardBufferSeconds(70_000_000)).toBe(6);
     expect(forwardBufferSeconds(0)).toBe(30);
+  });
+});
+
+describe("pickTranscodeResumeSec", () => {
+  // The bug: a rebuild resumed at the stale transcodeStartTime state instead of
+  // the live playhead. Viewer resumes at 12:05 (725 s), seeks to 12:25 (745 s);
+  // transcodeStartTime is never refreshed by a plain seek, so a rebuild not
+  // routed through a switch (wasm-audio fallback, gapless toggle) snapped the
+  // picture back to 725 s. The resume MUST follow the live position.
+  it("resumes at the LIVE playhead, not the stale start-time anchor", () => {
+    // livePos = seek target (745), startTime = stale resume anchor (725)
+    expect(pickTranscodeResumeSec(745, 725)).toBe(745);
+  });
+
+  it("resumes at the live playhead even when the viewer seeked BACKWARD", () => {
+    expect(pickTranscodeResumeSec(120, 725)).toBe(120);
+  });
+
+  it("uses the start-time anchor only when the live position is not yet known", () => {
+    // Cold mount before the first timeupdate: positionRef is 0, fall back to the
+    // resume point so we do not restart at the very beginning.
+    expect(pickTranscodeResumeSec(0, 725)).toBe(725);
+  });
+
+  it("returns 0 for a genuine cold start (no live position, no resume point)", () => {
+    expect(pickTranscodeResumeSec(0, 0)).toBe(0);
   });
 });
