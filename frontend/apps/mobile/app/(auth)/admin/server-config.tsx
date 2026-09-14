@@ -64,12 +64,14 @@ export default function AdminServerConfigScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: config, isLoading: configLoading } = useAdminSystemServiceGetServerConfig();
+  // The server name is a server-settings field (key server.name, live-applied
+  // by the backend), the SAME one the web card edits. It used to be written
+  // here under a free-form "server_name" key that nothing ever read.
   const [serverName, setServerName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
 
   useEffect(() => {
     if (config?.values) {
-      setServerName(config.values["server_name"] ?? "");
       setBaseUrl(config.values["base_url"] ?? "");
     }
   }, [config]);
@@ -83,16 +85,6 @@ export default function AdminServerConfigScreen() {
       onError: () => toast.error(t("admin.serverConfig.failedUpdate", "Failed to save")),
     },
   });
-
-  const handleSaveBasic = useCallback(async () => {
-    try {
-      await updateConfig.mutateAsync({ data: { values: { server_name: serverName.trim(), base_url: baseUrl.trim() } } });
-    } catch {
-      // Not silent: updateConfig's mutation.onError above already surfaces a
-      // toast. This just swallows the rejection mutateAsync re-throws so it
-      // doesn't also warn as an unhandled promise.
-    }
-  }, [serverName, baseUrl, updateConfig]);
 
   const { data: settings, isLoading: settingsLoading, refetch } = useQuery<ServerSettings>({
     queryKey: SETTINGS_KEY,
@@ -117,6 +109,7 @@ export default function AdminServerConfigScreen() {
 
   useEffect(() => {
     if (settings) {
+      setServerName(settings.serverName?.source === "override" ? String(settings.serverName.value) : "");
       setMaxTranscodes(settings.maxConcurrentTranscodes.source === "override" ? String(settings.maxConcurrentTranscodes.value) : "");
       setHwAccel(settings.hwAccelEnabled.value);
       setLoginRate(settings.loginRateLimit.source === "override" ? String(settings.loginRateLimit.value) : "");
@@ -155,6 +148,20 @@ export default function AdminServerConfigScreen() {
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
+
+  const handleSaveBasic = useCallback(async () => {
+    try {
+      // Blank = "no override": the backend keeps the current name on "", so
+      // send an explicit reset (null) to go back to the default.
+      const name = serverName.trim();
+      await saveMutation.mutateAsync({ serverName: name === "" ? null : name });
+      await updateConfig.mutateAsync({ data: { values: { base_url: baseUrl.trim() } } });
+    } catch {
+      // Not silent: both mutations' onError above already surface a toast.
+      // This just swallows the rejection mutateAsync re-throws so it doesn't
+      // also warn as an unhandled promise.
+    }
+  }, [serverName, baseUrl, updateConfig, saveMutation]);
 
   const handleSaveSettings = useCallback(async () => {
     try {
@@ -279,15 +286,15 @@ export default function AdminServerConfigScreen() {
           <Text style={s.sectionTitle}>{t("admin.serverConfig.title", "Server Config")}</Text>
 
           <Text style={s.label}>{t("admin.serverSettings.serverName", "Server Name")}</Text>
-          <TextInput value={serverName} onChangeText={setServerName} style={s.input} placeholderTextColor={theme.colors.textMuted} placeholder="My Server" />
+          <TextInput value={serverName} onChangeText={setServerName} style={s.input} placeholderTextColor={theme.colors.textMuted} placeholder={String(settings?.serverName?.default ?? "Evey")} maxLength={64} />
 
           <Text style={s.label}>Base URL</Text>
           <TextInput value={baseUrl} onChangeText={setBaseUrl} style={s.input} placeholderTextColor={theme.colors.textMuted} placeholder="https://example.com" autoCapitalize="none" keyboardType="url" />
 
           <Pressable
             onPress={handleSaveBasic}
-            disabled={updateConfig.isPending}
-            style={[s.saveBtn, { opacity: updateConfig.isPending ? 0.5 : 1 }]}
+            disabled={updateConfig.isPending || saveMutation.isPending}
+            style={[s.saveBtn, { opacity: updateConfig.isPending || saveMutation.isPending ? 0.5 : 1 }]}
           >
             <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>
           </Pressable>

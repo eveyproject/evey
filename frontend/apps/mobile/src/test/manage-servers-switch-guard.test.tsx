@@ -43,7 +43,8 @@ vi.mock("../providers/ThemeProvider", () => ({
 }));
 
 const SERVER = { id: "srv-1", url: "https://evey.example", label: "Home", lastUsedAt: 1 };
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/store")>()),
   useServerListStore: (selector: (s: any) => unknown) =>
     selector({
       servers: { "srv-1": SERVER },
@@ -51,6 +52,7 @@ vi.mock("@evey/store", () => ({
       setActiveServer: vi.fn(),
       removeServer: vi.fn(),
       renameServer: vi.fn(),
+      setServerName: vi.fn(),
     }),
   useAuthStore: { getState: () => ({ accessToken: "tok" }) },
   toast: { success: vi.fn(), error: vi.fn() },
@@ -59,15 +61,16 @@ vi.mock("@evey/store", () => ({
 vi.mock("@evey/api", () => ({ setBaseURL: vi.fn() }));
 vi.mock("../lib/fetcher-setup", () => ({ initFetcher: vi.fn(async () => undefined) }));
 
-let resolveProbe: (v: string) => void;
+type ProbeResult = { probe: string; health: { status: string; version: string; name?: string } | null };
+let resolveProbe: (v: ProbeResult) => void;
 const probeServerMock = vi.fn(
   () =>
-    new Promise<string>((resolve) => {
+    new Promise<ProbeResult>((resolve) => {
       resolveProbe = resolve;
     }),
 );
 vi.mock("../lib/server-config", () => ({
-  probeServer: (...a: unknown[]) => probeServerMock(...a),
+  probeServerHealth: (...a: unknown[]) => probeServerMock(...a),
   setServerUrl: vi.fn(async () => undefined),
 }));
 
@@ -90,7 +93,7 @@ describe("manage servers - double-tap guard while probing", () => {
     // Only the first tap actually started a probe.
     expect(probeServerMock).toHaveBeenCalledTimes(1);
 
-    resolveProbe("ok");
+    resolveProbe({ probe: "ok", health: { status: "ok", version: "1" } });
     await waitFor(() => expect(screen.queryByTestId("switch-spinner")).toBeNull());
   });
 });

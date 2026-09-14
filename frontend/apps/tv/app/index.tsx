@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Redirect } from "expo-router";
-import { useAuthStore, loadProfileCache, shouldPickProfileOnColdStart } from "@evey/store";
+import { useAuthStore, useServerListStore, loadProfileCache, shouldPickProfileOnColdStart } from "@evey/store";
 import { useServerUrlNullable } from "../src/hooks/useServerUrl";
-import { pingServer } from "../src/lib/server-config";
+import { probeServerHealth } from "../src/lib/server-config";
 import { seedOfflineStrings } from "../src/i18n";
 import { useTheme } from "../src/providers/ThemeProvider";
 
@@ -16,11 +16,15 @@ export default function EntryRedirect() {
 
   useEffect(() => {
     if (!serverUrl) return;
-    pingServer(serverUrl).then((ok) => {
+    probeServerHealth(serverUrl).then(({ ok, name }) => {
       // Translations live on the server. Knowing here that it is unreachable is
       // what lets the next screen speak the viewer's language instead of
       // waiting for i18next's own fetch to time out.
       if (!ok) seedOfflineStrings();
+      // Every launch re-reads the name the server advertises, so an admin
+      // rename reaches the server list without the viewer re-adding it.
+      const { activeServerId, setServerName } = useServerListStore.getState();
+      if (ok && activeServerId) setServerName(activeServerId, name);
       setServerOk(ok);
     });
   }, [serverUrl]);

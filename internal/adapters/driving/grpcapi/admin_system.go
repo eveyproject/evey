@@ -18,6 +18,7 @@ import (
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/config"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/sysinfo"
@@ -88,6 +89,10 @@ type adminSystemHandler struct {
 	translator     *eveyi18n.Translator
 	smtpConfigured bool
 	serverCfgSvc   *appconfig.Service // optional: nil = server.language/region can't be persisted via setup
+	// cfg is the live runtime config: the server name is read from it (the
+	// admin PUT updates it in place) and the setup wizard writes it there so
+	// the name applies without a restart. Optional: nil reports the default.
+	cfg *config.Config
 	// restartFn triggers a graceful shutdown so a supervisor restarts the
 	// process. nil disables the restart RPC (unsupervised / not wired).
 	restartFn func()
@@ -169,7 +174,7 @@ func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSe
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "count admins", err)
 	}
-	resp := &eveyv1.SetupStatusResponse{SetupComplete: admins > 0}
+	resp := &eveyv1.SetupStatusResponse{SetupComplete: admins > 0, ServerName: d.serverName()}
 	// Public projection of the recovery flag so the logged-out login page can
 	// show the "Forgot password?" link (mirrors GetSystemInfo). It only reads
 	// config (SMTP configured + auth.password_recovery_enabled), no auth needed.
@@ -185,6 +190,34 @@ func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSe
 		}
 	}
 	return resp, nil
+}
+
+// serverName is the instance name the pre-auth surfaces show. Read from the
+// live config so an admin rename applies without a restart.
+func (d *adminSystemHandler) serverName() string {
+	if d.cfg == nil {
+		return config.DefaultServerName
+	}
+	return d.cfg.EffectiveServerName()
+}
+
+// applyServerName persists the wizard's server name under the SAME key the
+// admin settings PUT uses (server.name) and applies it to the live config, so
+// the login page and the mails carry it from the first boot on and the
+// settings card shows it as the override it is.
+func (d *adminSystemHandler) applyServerName(ctx context.Context, name string) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return
+	}
+	if d.serverCfgSvc != nil {
+		if err := d.serverCfgSvc.Set(ctx, "server.name", name); err != nil {
+			slog.WarnContext(ctx, "setup: persist server.name", slog.Any("err", err))
+		}
+	}
+	if d.cfg != nil {
+		d.cfg.ApplyServerSettings(func() { d.cfg.Server.Name = name })
+	}
 }
 
 // unknownBuildStamp mirrors cmd/evey's unknownStamp and the HTTP handler's:
@@ -461,6 +494,7 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 			}
 		}
 	}
+	d.applyServerName(ctx, req.ServerName)
 	access, refresh, err := d.userCmd.Login(ctx, req.AdminUsername, req.AdminPassword)
 	if err != nil {
 		span.RecordError(err)

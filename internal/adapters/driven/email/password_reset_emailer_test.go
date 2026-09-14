@@ -12,7 +12,7 @@ import (
 
 func TestPasswordResetEmailer_Register(t *testing.T) {
 	bus := &fakeBus{}
-	emailer := NewPasswordResetEmailer(&fakeSender{}, func() string { return "https://evey.test" })
+	emailer := NewPasswordResetEmailer(&fakeSender{}, func() string { return "https://evey.test" }, nil)
 	emailer.Register(bus)
 
 	if _, ok := bus.handlers["user.password.reset_requested"]; !ok {
@@ -23,7 +23,7 @@ func TestPasswordResetEmailer_Register(t *testing.T) {
 func TestPasswordResetEmailer_SendsEmail(t *testing.T) {
 	sender := &fakeSender{}
 	bus := &fakeBus{}
-	emailer := NewPasswordResetEmailer(sender, func() string { return "https://evey.test" })
+	emailer := NewPasswordResetEmailer(sender, func() string { return "https://evey.test" }, nil)
 	emailer.Register(bus)
 
 	ev := domainuser.PasswordResetRequested{
@@ -49,10 +49,24 @@ func TestPasswordResetEmailer_SendsEmail(t *testing.T) {
 	}
 }
 
+// The admin's server name brands the subject; a blank name falls back to Evey
+// rather than sending " - Password Reset".
+func TestPasswordResetEmailer_SubjectCarriesServerName(t *testing.T) {
+	for name, want := range map[string]string{"Salon": "Salon - Password Reset", "  ": "Evey - Password Reset"} {
+		sender := &fakeSender{}
+		bus := &fakeBus{}
+		NewPasswordResetEmailer(sender, func() string { return "https://evey.test" }, func() string { return name }).Register(bus)
+		_ = bus.Publish(context.Background(), domainuser.PasswordResetRequested{Email: "r@example.com", ResetToken: "t"})
+		if len(sender.sent) != 1 || sender.sent[0].subject != want {
+			t.Errorf("name %q: sent=%+v, want subject %q", name, sender.sent, want)
+		}
+	}
+}
+
 func TestPasswordResetEmailer_WrongEventType_NoSend(t *testing.T) {
 	sender := &fakeSender{}
 	bus := &fakeBus{}
-	emailer := NewPasswordResetEmailer(sender, func() string { return "https://evey.test" })
+	emailer := NewPasswordResetEmailer(sender, func() string { return "https://evey.test" }, nil)
 	emailer.Register(bus)
 
 	// publish a different event on the same topic by calling the handler directly
@@ -68,7 +82,7 @@ func TestPasswordResetEmailer_WrongEventType_NoSend(t *testing.T) {
 func TestPasswordResetEmailer_SendFails_NoPanic(t *testing.T) {
 	sender := &failSender{err: errors.New("smtp down")}
 	bus := &fakeBus{}
-	emailer := NewPasswordResetEmailer(sender, func() string { return "https://evey.test" })
+	emailer := NewPasswordResetEmailer(sender, func() string { return "https://evey.test" }, nil)
 	emailer.Register(bus)
 
 	ev := domainuser.PasswordResetRequested{

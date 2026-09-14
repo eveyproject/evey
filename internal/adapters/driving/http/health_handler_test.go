@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/evey-project/evey/internal/config"
 )
 
 type fakeDBPinger struct{ err error }
@@ -53,6 +55,26 @@ func TestHealthzHandler_OK(t *testing.T) {
 	}
 	if resp.UptimeSeconds < 1 {
 		t.Errorf("uptime_seconds: want >= 1, got %d", resp.UptimeSeconds)
+	}
+}
+
+// /healthz is the mobile/TV discovery probe: the admin's server name rides on
+// it so the server list can show "Salon" instead of a bare URL. A blank name
+// reports the default, never "".
+func TestHealthzHandler_AdvertisesServerName(t *testing.T) {
+	for name, want := range map[string]string{"Salon": "Salon", "": config.DefaultServerName} {
+		cfg := &config.Config{}
+		cfg.Server.Name = name
+		srv := &HTTPServer{Cfg: cfg, StartTime: time.Now(), DB: &fakeDBPinger{}}
+		w := httptest.NewRecorder()
+		srv.healthzHandler(w, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+		var resp healthResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if resp.Name != want {
+			t.Errorf("cfg name %q: healthz name = %q, want %q", name, resp.Name, want)
+		}
 	}
 }
 

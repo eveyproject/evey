@@ -17,6 +17,8 @@ setup:
   username: Username
   password: Password
   confirmPassword: Confirm password
+  serverName: "Server name"
+  serverNameHint: "Optional. Shown on the sign-in page, the browser tab, your apps' server list and the e-mails - e.g. \"Living room\". Can be changed later in Server settings."
   usernameMin: At least 3 characters
   passwordMin: At least 8 characters
   passwordMismatch: Passwords do not match

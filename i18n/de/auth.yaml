@@ -17,6 +17,8 @@ setup:
   username: Benutzername
   password: Passwort
   confirmPassword: Passwort bestätigen
+  serverName: "Servername"
+  serverNameHint: "Optional. Erscheint auf der Anmeldeseite, im Browser-Tab, in der Serverliste Ihrer Apps und in E-Mails - z. B. „Wohnzimmer“. Später unter Servereinstellungen änderbar."
   usernameMin: Mindestens 3 Zeichen
   passwordMin: Mindestens 8 Zeichen
   passwordMismatch: Passwörter stimmen nicht überein

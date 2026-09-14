@@ -1,5 +1,5 @@
 import * as SecureStore from "expo-secure-store";
-import { parseEveyHealth } from "./serverIdentity";
+import { parseEveyHealth, type EveyHealth } from "./serverIdentity";
 
 const SERVER_URL_KEY = "evey-server-url";
 
@@ -45,15 +45,25 @@ export type ServerProbe = "ok" | "not-evey" | "unreachable";
 // that never answers, and a host that answers but is not Evey (captive
 // portal, ISP DNS hijack, router page).
 export async function probeServer(url: string, timeoutMs = 5000): Promise<ServerProbe> {
+  return (await probeServerHealth(url, timeoutMs)).probe;
+}
+
+// probeServerHealth is probeServer plus the health payload on "ok", so a
+// caller that just proved the server can also record the name it advertises.
+export async function probeServerHealth(
+  url: string,
+  timeoutMs = 5000,
+): Promise<{ probe: ServerProbe; health: EveyHealth | null }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${url}/healthz`, { signal: controller.signal });
-    if (!res.ok) return "unreachable";
+    if (!res.ok) return { probe: "unreachable", health: null };
     const body: unknown = await res.json().catch(() => null);
-    return parseEveyHealth(body) ? "ok" : "not-evey";
+    const health = parseEveyHealth(body);
+    return health ? { probe: "ok", health } : { probe: "not-evey", health: null };
   } catch {
-    return "unreachable";
+    return { probe: "unreachable", health: null };
   } finally {
     clearTimeout(timeout);
   }

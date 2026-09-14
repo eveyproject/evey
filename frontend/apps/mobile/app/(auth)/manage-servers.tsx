@@ -4,8 +4,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { setBaseURL } from "@evey/api";
-import { useAuthStore, useServerListStore, toast } from "@evey/store";
-import { setServerUrl, probeServer } from "../../src/lib/server-config";
+import { useAuthStore, useServerListStore, serverDisplayName, toast } from "@evey/store";
+import { setServerUrl, probeServerHealth } from "../../src/lib/server-config";
 import { initFetcher } from "../../src/lib/fetcher-setup";
 import { useTheme } from "../../src/providers/ThemeProvider";
 
@@ -18,6 +18,7 @@ export default function ManageServersScreen() {
   const setActiveServer = useServerListStore((s) => s.setActiveServer);
   const removeServer = useServerListStore((s) => s.removeServer);
   const renameServer = useServerListStore((s) => s.renameServer);
+  const setServerName = useServerListStore((s) => s.setServerName);
 
   const serverList = useMemo(
     () => Object.values(servers).sort((a, b) => b.lastUsedAt - a.lastUsedAt),
@@ -51,7 +52,7 @@ export default function ManageServersScreen() {
       Alert.alert(t("mobile.servers.cantDeleteOnlyServer", "Can't delete the only saved server"));
       return;
     }
-    const name = server.label ?? server.url;
+    const name = serverDisplayName(server);
     Alert.alert(
       t("mobile.servers.deleteConfirmTitle", "Delete server?"),
       t("mobile.servers.deleteConfirmMessage", "{{name}} will be removed from your saved servers. Sign-in tokens for this server will also be cleared.", { name }),
@@ -78,7 +79,7 @@ export default function ManageServersScreen() {
       // cannot answer produces failures the user cannot interpret, and nothing
       // reaches the real server's logs (2026-07-29). Same gate as
       // server-connect and the boot redirect - no path to /login skips it.
-      const probe = await probeServer(server.url);
+      const { probe, health } = await probeServerHealth(server.url);
       if (probe !== "ok") {
         Alert.alert(
           t("mobile.serverConnect.connectionFailed", "Connection failed"),
@@ -88,11 +89,12 @@ export default function ManageServersScreen() {
         );
         return;
       }
+      setServerName(id, health?.name);
       setActiveServer(id);
       setBaseURL(server.url);
       await setServerUrl(server.url);
       await initFetcher();
-      const name = server.label ?? server.url;
+      const name = serverDisplayName({ ...server, serverName: health?.name ?? server.serverName });
       toast.success(t("mobile.servers.switchedTo", "Switched to {{name}}", { name }));
       // Tokens auto-rehydrate via store; check access token now.
       const token = useAuthStore.getState().accessToken;
@@ -104,7 +106,7 @@ export default function ManageServersScreen() {
     } finally {
       setSwitchingId(null);
     }
-  }, [servers, setActiveServer, t, switchingId]);
+  }, [servers, setActiveServer, setServerName, t, switchingId]);
 
   const s = msStyles(theme);
 
@@ -127,7 +129,7 @@ export default function ManageServersScreen() {
                     onPress={() => isActive ? router.back() : handleSwitch(server.id)}
                     disabled={switchingId !== null}
                     accessible={true}
-                    accessibilityLabel={server.label ?? server.url}
+                    accessibilityLabel={serverDisplayName(server)}
                     accessibilityRole="button"
                     accessibilityState={{ disabled: switchingId !== null, busy: switchingId === server.id }}
                   >
@@ -148,7 +150,7 @@ export default function ManageServersScreen() {
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         <Text style={[s.serverLabel, { color: theme.colors.text }]} numberOfLines={1}>
-                          {server.label ?? server.url}
+                          {serverDisplayName(server)}
                         </Text>
                         {isActive && (
                           <View style={[s.badge, { backgroundColor: theme.colors.accent }]}>
@@ -156,7 +158,7 @@ export default function ManageServersScreen() {
                           </View>
                         )}
                       </View>
-                      {server.label && (
+                      {serverDisplayName(server) !== server.url && (
                         <Text style={[s.serverSub, { color: theme.colors.textMuted }]} numberOfLines={1}>
                           {server.url}
                         </Text>

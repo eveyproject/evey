@@ -13,7 +13,7 @@ vi.mock("expo-secure-store", () => ({
   }),
 }));
 
-import { getServerUrl, setServerUrl, clearServerUrl, pingServer } from "./server-config";
+import { getServerUrl, setServerUrl, clearServerUrl, pingServer, probeServerHealth } from "./server-config";
 
 beforeEach(() => {
   Object.keys(store).forEach((k) => delete store[k]);
@@ -54,6 +54,20 @@ describe("server-config", () => {
     it("returns false on network error", async () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error("timeout"));
       expect(await pingServer("http://srv")).toBe(false);
+    });
+  });
+
+  describe("probeServerHealth", () => {
+    it("reads the advertised server name, trimmed", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: "ok", version: "1", name: " Salon " }) });
+      expect(await probeServerHealth("http://srv")).toEqual({ ok: true, name: "Salon" });
+    });
+
+    it("a reachable server without a name (older build, non-JSON body) is still ok", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => { throw new Error("html"); } });
+      expect(await probeServerHealth("http://srv")).toEqual({ ok: true, name: undefined });
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: "ok", version: "1", name: "  " }) });
+      expect(await probeServerHealth("http://srv")).toEqual({ ok: true, name: undefined });
     });
   });
 });

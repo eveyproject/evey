@@ -13,7 +13,7 @@ import {
   isRemoteAccessDisabled,
   remoteAccessDisabledMessage,
 } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, useServerListStore, isDefaultServerName } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
 import { setRefreshToken } from "../src/lib/refresh-token";
@@ -81,6 +81,15 @@ export default function Login() {
   // the user to a screen that can only apologize. Same public setup-status
   // gate the web login already uses.
   const setupStatus = useAdminSystemServiceGetSetupStatus({ query: { staleTime: 60_000 } });
+
+  // The same answer names the instance: show it over the host, and keep the
+  // saved-server row current so a rename made in the admin reaches the list.
+  const advertisedName = setupStatus.data?.serverName?.trim();
+  const activeServerId = useServerListStore((s) => s.activeServerId);
+  const setServerName = useServerListStore((s) => s.setServerName);
+  useEffect(() => {
+    if (activeServerId && setupStatus.data) setServerName(activeServerId, advertisedName);
+  }, [activeServerId, advertisedName, setupStatus.data, setServerName]);
 
   // Handle OIDC deep link callback (evey://oidc-callback)
   useEffect(() => {
@@ -202,7 +211,9 @@ export default function Login() {
           accessibilityRole="button"
         >
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>
-            {serverUrl.replace(/^https?:\/\//, "")}
+            {isDefaultServerName(advertisedName)
+              ? serverUrl.replace(/^https?:\/\//, "")
+              : `${advertisedName} - ${serverUrl.replace(/^https?:\/\//, "")}`}
           </Text>
           <Text style={{ color: theme.colors.accent, fontSize: 12 }}>{t("common.change", "Change")}</Text>
         </Pressable>

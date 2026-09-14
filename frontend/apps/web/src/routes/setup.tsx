@@ -92,6 +92,9 @@ function SetupPage() {
   const [regionUserPicked, setRegionUserPicked] = useState(false);
   const [adminForm, setAdminForm] = useState<AdminForm>({ username: "", password: "", confirmPassword: "" });
   const [adminErrors, setAdminErrors] = useState<AdminErrors>({});
+  // Optional instance name (tab title, login card, server lists, mails).
+  // Blank = keep the default, the backend persists nothing.
+  const [serverName, setServerName] = useState("");
   const [libraryForm, setLibraryForm] = useState<LibraryForm>({ name: "", type: "LIBRARY_TYPE_MOVIES", paths: [""] });
   const [libraryError, setLibraryError] = useState<string | undefined>();
   const [mediaDirs, setMediaDirs] = useState<string[]>([]);
@@ -212,7 +215,7 @@ function SetupPage() {
         adminUsername: adminForm.username,
         adminPassword: adminForm.password,
         adminEmail: "",
-        serverName: "Evey",
+        serverName: serverName.trim() || undefined,
         baseUrl: window.location.origin,
         serverLanguage: serverLang,
         serverRegion: serverRegion || undefined,
@@ -339,6 +342,17 @@ function SetupPage() {
                   {adminErrors.confirmPassword}
                 </p>
               )}
+            </div>
+            <div className="flex flex-col gap-1">
+              <Input
+                label={t("auth.setup.serverName")}
+                value={serverName}
+                onChange={(e) => setServerName(e.target.value)}
+                placeholder="Evey"
+                maxLength={64}
+                data-testid="setup-server-name"
+              />
+              <p className="text-xs text-[var(--text-muted)]">{t("auth.setup.serverNameHint")}</p>
             </div>
             {setupError && (
               <p className="text-sm text-center text-[var(--color-danger)]">

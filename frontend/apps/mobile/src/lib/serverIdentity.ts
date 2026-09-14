@@ -14,6 +14,9 @@
 export interface EveyHealth {
   status: string;
   version: string;
+  // The admin-chosen server name ("Server name" in the admin settings),
+  // absent on servers that predate it.
+  name?: string;
 }
 
 // parseEveyHealth returns the health payload when body is Evey's, else null.
@@ -25,5 +28,6 @@ export function parseEveyHealth(body: unknown): EveyHealth | null {
   const status = typeof b.status === "string" ? b.status : "";
   const version = typeof b.version === "string" ? b.version : "";
   if (!status || !version) return null;
-  return { status, version };
+  const name = typeof b.name === "string" && b.name.trim() !== "" ? b.name.trim() : undefined;
+  return name ? { status, version, name } : { status, version };
 }

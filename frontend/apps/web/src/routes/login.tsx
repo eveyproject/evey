@@ -4,7 +4,7 @@ import { EveyWordmark } from "@/components/ui/EveyLogo";
 import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useUserServiceLogin, useAdminSystemServiceGetSetupStatus, eveyFetch, normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, isDefaultServerName } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -112,6 +112,13 @@ function LoginPage() {
           <h1 className="mb-4 text-[var(--text)]">
             <EveyWordmark height={36} />
           </h1>
+          {/* The instance name the admin picked; the default "Evey" would only
+              repeat the wordmark, so it stays hidden. */}
+          {!isDefaultServerName(setupStatus.data?.serverName) && (
+            <p className="text-[var(--text)] font-semibold text-lg" data-testid="login-server-name">
+              {setupStatus.data?.serverName?.trim()}
+            </p>
+          )}
           <p className="text-[var(--text-muted)] text-sm mt-1">{t("auth.login.signInToAccount")}</p>
         </div>
         {oidc_error && (

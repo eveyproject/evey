@@ -12,6 +12,7 @@ const mockLogin = {
   error: null as Error | null,
 };
 const mockUseQuery = vi.fn();
+const mockSetupStatus: { passwordRecoveryEnabled: boolean; serverName?: string } = { passwordRecoveryEnabled: false };
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (def: Record<string, unknown>) => {
@@ -25,13 +26,14 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useUserServiceLogin: (_opts?: unknown) => mockLogin,
-  useAdminSystemServiceGetSetupStatus: () => ({ data: { passwordRecoveryEnabled: false } }),
+  useAdminSystemServiceGetSetupStatus: () => ({ data: mockSetupStatus }),
   // Resolves to an empty payload: a bare vi.fn() hands react-query
   // `undefined`, which it rejects with a warning on every render.
   eveyFetch: vi.fn().mockResolvedValue({}),
 }));
 
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/store")>()),
   useAuthStore: Object.assign(
     () => ({ setTokens: vi.fn(), accessToken: null }),
     { getState: () => ({ accessToken: null }) },
@@ -66,6 +68,20 @@ describe("LoginPage", () => {
     mockLogin.isPending = false;
     mockUseSearch.mockReturnValue({ oidc_error: undefined });
     mockUseQuery.mockReturnValue({ data: undefined, isLoading: false });
+    mockSetupStatus.serverName = undefined;
+  });
+
+  // The admin's server name brands the login card; the default "Evey" would
+  // only repeat the wordmark and stays hidden.
+  it("shows the server name when the admin picked one, not the default", async () => {
+    const LoginPage = await getLoginPage();
+    mockSetupStatus.serverName = "Salon";
+    const { unmount } = render(React.createElement(LoginPage), { wrapper: createWrapper() });
+    expect(screen.getByTestId("login-server-name")).toHaveTextContent("Salon");
+    unmount();
+    mockSetupStatus.serverName = "Evey";
+    render(React.createElement(LoginPage), { wrapper: createWrapper() });
+    expect(screen.queryByTestId("login-server-name")).toBeNull();
   });
 
   it("renders username and password inputs", async () => {

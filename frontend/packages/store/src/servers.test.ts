@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useServerListStore, normalizeServerUrl } from "./servers";
+import { useServerListStore, normalizeServerUrl, serverDisplayName, isDefaultServerName } from "./servers";
 
 function resetStore() {
   useServerListStore.setState({
@@ -156,5 +156,41 @@ describe("useServerListStore.renameServer", () => {
     const before = { ...useServerListStore.getState().servers };
     useServerListStore.getState().renameServer("ghost-id", "Ghost");
     expect(useServerListStore.getState().servers).toEqual(before);
+  });
+});
+
+describe("server name from /healthz", () => {
+  it("records the advertised name and shows it when the user has no label", () => {
+    const s = useServerListStore.getState().addServer("https://evey.example.com");
+    useServerListStore.getState().setServerName(s.id, "  Salon ");
+    const saved = useServerListStore.getState().servers[s.id];
+    expect(saved.serverName).toBe("Salon");
+    expect(serverDisplayName(saved)).toBe("Salon");
+  });
+
+  it("the user's label always wins over the advertised name", () => {
+    const s = useServerListStore.getState().addServer("https://evey.example.com", "Home");
+    useServerListStore.getState().setServerName(s.id, "Salon");
+    expect(serverDisplayName(useServerListStore.getState().servers[s.id])).toBe("Home");
+  });
+
+  it("the default name carries no information: the URL is shown instead", () => {
+    const s = useServerListStore.getState().addServer("https://evey.example.com");
+    useServerListStore.getState().setServerName(s.id, "Evey");
+    expect(serverDisplayName(useServerListStore.getState().servers[s.id])).toBe("https://evey.example.com");
+    expect(isDefaultServerName("evey")).toBe(true);
+    expect(isDefaultServerName("")).toBe(true);
+    expect(isDefaultServerName(undefined)).toBe(true);
+    expect(isDefaultServerName("Salon")).toBe(false);
+  });
+
+  it("ignores unknown ids and does not rewrite an unchanged name", () => {
+    const s = useServerListStore.getState().addServer("https://evey.example.com");
+    useServerListStore.getState().setServerName("nope", "Salon");
+    useServerListStore.getState().setServerName(s.id, "Salon");
+    const before = useServerListStore.getState().servers;
+    useServerListStore.getState().setServerName(s.id, "Salon");
+    expect(useServerListStore.getState().servers).toBe(before);
+    expect(Object.keys(before)).toHaveLength(1);
   });
 });

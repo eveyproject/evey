@@ -299,6 +299,10 @@ message SetupStatusResponse {
   // admin-only SystemInfo; this is its public projection (it only reveals
   // whether SMTP + recovery are configured, no sensitive detail).
   bool password_recovery_enabled = 4;
+  // server_name is the admin-chosen instance name (Server settings, default
+  // "Evey"): the pre-auth screens (login, tab title) brand the instance with
+  // it. Public projection of the same value /healthz advertises.
+  string server_name = 5;
 }
 
 message GetServerConfigRequest {}
