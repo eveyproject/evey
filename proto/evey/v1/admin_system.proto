@@ -236,8 +236,12 @@ message SetupWizardRequest {
   string admin_username = 1;
   string admin_password = 2;
   string admin_email = 3;
+  // server_name is optional: blank keeps the default, otherwise it is
+  // persisted as server.name (the admin settings key) and applied live.
   string server_name = 4;
-  string base_url = 5;
+  // base_url was never read: the public URL is Remote access -> External URL
+  // (EVEY_SERVER_BASE_URL for the LAN one). Kept for wire compatibility only.
+  string base_url = 5 [deprecated = true];
   // Optional: locale+region chosen during the wizard. Persisted as
   // server.language / server.region so new profiles inherit them.
   string server_language = 6;

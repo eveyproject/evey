@@ -787,10 +787,12 @@
           "type": "string"
         },
         "serverName": {
-          "type": "string"
+          "type": "string",
+          "description": "server_name is optional: blank keeps the default, otherwise it is\npersisted as server.name (the admin settings key) and applied live."
         },
         "baseUrl": {
-          "type": "string"
+          "type": "string",
+          "description": "base_url was never read: the public URL is Remote access -\u003e External URL\n(EVEY_SERVER_BASE_URL for the LAN one). Kept for wire compatibility only."
         },
         "serverLanguage": {
           "type": "string",
