@@ -6,6 +6,25 @@ plugins {
 group = 'com.evey'
 version = '0.1.0'
 
+// The Go pipeline (ac3go decode + mkvgo demux/remux) bound by gomobile, built from go/ into
+// build/gobind by go/refresh-android.sh (pinned Go + gomobile + NDK), never checked in.
+def gobindDir = layout.buildDirectory.dir('gobind')
+def ndkVersion = rootProject.ext.has('ndkVersion') ? rootProject.ext.ndkVersion : android.ndkVersion
+
+tasks.register('bindGo', Exec) {
+  description = 'gomobile bind of go/ into build/gobind (offlineaudio.jar + libgojni.so)'
+  inputs.files(fileTree(dir: '../go', includes: ['*.go', 'go.mod', 'go.sum', 'refresh-android.sh'], excludes: ['*_test.go']))
+  inputs.file('../../../scripts/check-16k-elf.sh')
+  inputs.property('ndkVersion', ndkVersion)
+  outputs.dir(gobindDir)
+  workingDir '../go'
+  environment ANDROID_HOME: android.sdkDirectory.absolutePath,
+              ANDROID_NDK_HOME: new File(android.sdkDirectory, "ndk/${ndkVersion}").absolutePath,
+              JAVA_HOME: System.getProperty('java.home')
+  commandLine 'sh', 'refresh-android.sh', gobindDir.get().asFile.absolutePath
+}
+preBuild.dependsOn 'bindGo'
+
 android {
   namespace "com.evey.offlineaudio"
   defaultConfig {
@@ -13,12 +32,9 @@ android {
     versionName '0.1.0'
     consumerProguardFiles 'consumer-rules.pro'
   }
+  sourceSets.main.jniLibs.srcDir gobindDir.map { it.dir('jni') }
 }
 
 dependencies {
-  // The Go pipeline (ac3go decode + mkvgo demux/remux), bound by gomobile.
-  // A library module cannot depend on a local .aar (AGP refuses), so the
-  // gomobile output ships unpacked: its classes.jar here, its libgojni.so
-  // under src/main/jniLibs/arm64-v8a. Rebuild both: go/refresh-android.sh.
-  implementation files('libs/offlineaudio.jar')
+  implementation files(gobindDir.map { it.file('offlineaudio.jar') }) { builtBy 'bindGo' }
 }

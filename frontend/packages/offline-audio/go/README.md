@@ -6,18 +6,15 @@ track to stereo PCM, and after the Kotlin side has encoded it to AAC the
 same package remuxes the file with the video and every other track copied
 verbatim. See the package doc in `session.go` for the call sequence.
 
-## Rebuild the Android binding
+## Android binding
 
-`../android/libs/offlineaudio.jar` and
-`../android/src/main/jniLibs/arm64-v8a/libgojni.so` are build artifacts of
-this directory (the gomobile AAR, unpacked - AGP refuses a local .aar
-dependency inside a library module). To regenerate after changing the Go
-code:
-
-```sh
-go install golang.org/x/mobile/cmd/gomobile@latest golang.org/x/mobile/cmd/gobind@latest
-./refresh-android.sh
-```
+`refresh-android.sh` builds the gomobile binding (`offlineaudio.jar` +
+`jni/arm64-v8a/libgojni.so`) into `../android/build/gobind`; the Gradle task
+`bindGo` runs it before every Android build, so nothing generated is checked in.
+Pinned: Go via `GOTOOLCHAIN` in the script, gomobile/gobind at the go.mod
+version of golang.org/x/mobile (installed under `build/gobind/tools`), NDK from
+the app's `ndkVersion`. Needs `go` (>= 1.21) in PATH. Links with
+`-z max-page-size=16384` (Android 15 16 KiB pages) and refuses a misaligned .so.
 
 arm64-only on purpose: the app ships `reactNativeArchitectures=arm64-v8a`.
 

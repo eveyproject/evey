@@ -218,3 +218,83 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+// Fails assemble*/bundle* when a packaged 64-bit .so is not 16 KiB page-size compatible
+// (ELF LOAD align < 16384, or uncompressed APK entry off a 16 KiB zip boundary).
+// Inline: a script applied with `apply from:` cannot resolve AGP classes.
+
+abstract class VerifyNativePageSizeTask extends DefaultTask {
+    static final long PAGE = 16384L
+
+    @InputFile @Optional abstract RegularFileProperty getBundle()
+    @InputFiles @Optional abstract DirectoryProperty getApkDir()
+    @Input abstract Property<String> getZipalign()
+
+    @TaskAction
+    void verify() {
+        def offenders = []
+        def checked = 0
+        def archives = []
+        if (bundle.isPresent()) archives << bundle.get().asFile
+        if (apkDir.isPresent()) archives += apkDir.get().asFile.listFiles({ f -> f.name.endsWith('.apk') } as FileFilter)?.toList() ?: []
+        archives.each { archive ->
+            new java.util.zip.ZipFile(archive).withCloseable { zip ->
+                zip.entries().each { entry ->
+                    if (entry.directory || !entry.name.endsWith('.so')) return
+                    def bytes = zip.getInputStream(entry).bytes
+                    def align = minLoadAlign(bytes)
+                    if (align == null) return
+                    checked++
+                    if (align < PAGE) offenders << "${archive.name}!${entry.name} LOAD align=${align} (< ${PAGE})"
+                }
+            }
+            if (archive.name.endsWith('.apk')) {
+                def proc = [zipalign.get(), '-c', '-P', '16', '-v', '4', archive.absolutePath].execute()
+                def out = proc.text
+                if (proc.waitFor() != 0) {
+                    out.readLines().findAll { it.contains('.so') && !it.contains(' OK') }
+                       .each { offenders << "${archive.name} zip offset: ${it.trim()}" }
+                }
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException("Native libraries not 16 KiB page-size compatible:\n  " + offenders.join("\n  "))
+        }
+        logger.lifecycle("verifyNativePageSize: ${checked} 64-bit shared object(s) in ${archives*.name}, every LOAD segment aligned on ${PAGE}")
+    }
+
+    // Smallest PT_LOAD p_align of an ELF64 image; null for 32-bit (no 16 KiB pages) or non-ELF.
+    static Long minLoadAlign(byte[] bytes) {
+        if (bytes.length < 64 || bytes[0] != 0x7f || bytes[1] != 'E' || bytes[2] != 'L' || bytes[3] != 'F') return null
+        if (bytes[4] != 2) return null // ELFCLASS64 only
+        def bb = java.nio.ByteBuffer.wrap(bytes).order(bytes[5] == 2 ? java.nio.ByteOrder.BIG_ENDIAN : java.nio.ByteOrder.LITTLE_ENDIAN)
+        long phoff = bb.getLong(0x20)
+        int phentsize = bb.getShort(0x36) & 0xffff
+        int phnum = bb.getShort(0x38) & 0xffff
+        Long min = null
+        for (int i = 0; i < phnum; i++) {
+            int base = (int) (phoff + (long) i * phentsize)
+            if (bb.getInt(base) != 1) continue // PT_LOAD
+            long align = bb.getLong(base + 0x30)
+            if (min == null || align < min) min = align
+        }
+        return min
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        def cap = variant.name.capitalize()
+        def zipalignPath = new File(android.sdkDirectory, "build-tools/${android.buildToolsVersion}/zipalign").absolutePath
+        def apkCheck = tasks.register("verifyNativePageSize${cap}Apk", VerifyNativePageSizeTask) {
+            apkDir.set(variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.APK.INSTANCE))
+            zipalign.set(zipalignPath)
+        }
+        def bundleCheck = tasks.register("verifyNativePageSize${cap}Bundle", VerifyNativePageSizeTask) {
+            bundle.set(variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.BUNDLE.INSTANCE))
+            zipalign.set(zipalignPath)
+        }
+        tasks.matching { it.name == "assemble${cap}" }.configureEach { finalizedBy apkCheck }
+        tasks.matching { it.name == "bundle${cap}" }.configureEach { finalizedBy bundleCheck }
+    }
+}
