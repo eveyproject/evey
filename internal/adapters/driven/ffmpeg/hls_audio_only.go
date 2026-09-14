@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -238,8 +239,10 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 		// variantIdx = the audio track: the pump's segment matcher and metrics
 		// are per-rendition. No expected-start tripwire on audio (the video
 		// pipeline's copy plan supplies one; audio has no such plan).
-		deltaMs := int64(opts.StartSec*1000 + 0.5)
-		go runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaMs, "audio", opts.SourceTrackIdx, nil, "audio")
+		// Audio seeks are trimmed to the sample by ffmpeg's accurate seek, so
+		// the grid start is the exact landing (no frame-landing probe here).
+		deltaUs := int64(math.Round(opts.StartSec * 1e6))
+		go runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaUs, "audio", opts.SourceTrackIdx, nil, "audio")
 	}
 	return h, nil
 }

@@ -44,9 +44,14 @@ import (
 // plain local file.
 var closeSegmentFile = func(f *os.File) error { return f.Close() }
 
-// scaleDelta converts deltaMs into timescale units, rounding to nearest.
-func scaleDelta(deltaMs int64, timescale uint32) int64 {
-	return (deltaMs*int64(timescale) + 500) / 1000
+// scaleDelta converts deltaUs (microseconds) into timescale units, rounding
+// to nearest. Microseconds, not milliseconds: a transcode-seek session lands
+// on a source FRAME (k × 1001/24000 s = k × 41708.33 µs), and a delta rounded
+// to the millisecond would leave every seek rafale up to 0.5 ms off the cold
+// rafale's grid at the same timescale (24000: 12 ticks). At µs the rounding
+// error is under one tick for every timescale in use (≤ 90000).
+func scaleDelta(deltaUs int64, timescale uint32) int64 {
+	return (deltaUs*int64(timescale) + 500_000) / 1_000_000
 }
 
 // boxHeader reads the box header at off. Returns the box type, total box size
@@ -94,18 +99,18 @@ func childBoxes(buf []byte, start, end int, fn func(typ string, off, size int) b
 }
 
 // rebaseFMP4Segment shifts every tfdt baseMediaDecodeTime and every sidx
-// earliest_presentation_time in the segment at path forward by deltaMs,
-// in place. Per-track timescales come from the segment's own sidx boxes
+// earliest_presentation_time in the segment at path forward by deltaUs
+// (microseconds), in place. Per-track timescales come from the segment's own sidx boxes
 // (hlsenc writes one per track); initTimescales is the fallback map
 // (track_ID → timescale, parsed from the session's init segment) for the
 // hypothetical sidx-less layout. Patches are computed first, written last:
-// any parse error leaves the file untouched. deltaMs == 0 is parse-only
+// any parse error leaves the file untouched. deltaUs == 0 is parse-only
 // (verification pass - nothing written).
 //
 // Returns the FIRST traf's post-rebase tfdt in milliseconds (hlsenc writes
 // the video traf first), or -1 when the segment has none - the publish
 // pump's drift tripwire compares it against the keyframe plan.
-func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uint32) (result int64, err error) {
+func rebaseFMP4Segment(path string, deltaUs int64, initTimescales map[uint32]uint32) (result int64, err error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
 		return -1, err
@@ -163,7 +168,7 @@ func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uin
 				return -1, fmt.Errorf("fmp4: sidx track %d has zero timescale", refID)
 			}
 			tsByTrack[refID] = ts
-			delta := scaleDelta(deltaMs, ts)
+			delta := scaleDelta(deltaUs, ts)
 			if ver == 0 {
 				ept := uint64(binary.BigEndian.Uint32(buf[20:24]))
 				nv := ept + uint64(delta)
@@ -216,7 +221,7 @@ func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uin
 					walkErr = fmt.Errorf("fmp4: no timescale for track %d (no sidx, no init fallback)", trackID)
 					return false
 				}
-				delta := scaleDelta(deltaMs, ts)
+				delta := scaleDelta(deltaUs, ts)
 				nv := tfdtVal + uint64(delta)
 				if tfdtVer == 0 && nv > 0xFFFFFFFF {
 					walkErr = fmt.Errorf("fmp4: tfdt v0 overflow (track %d, %d + %d)", trackID, tfdtVal, delta)
@@ -239,7 +244,7 @@ func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uin
 		off += size
 	}
 
-	if deltaMs == 0 {
+	if deltaUs == 0 {
 		// Verification pass (cold copy sessions): timestamps are already
 		// absolute; nothing to write, only firstTfdtMs is consumed.
 		return firstTfdtMs, nil
@@ -471,7 +476,7 @@ func waitProcExit(procExited <-chan struct{}) {
 // exists so a wedged process cannot leak the directory forever.
 const procExitGrace = 5 * time.Second
 
-func runRebasePump(done <-chan struct{}, stop <-chan struct{}, procExited <-chan struct{}, privDir, pubDir string, deltaMs int64, namePrefix string, variantIdx int, expectedStartMs func(int) (int64, bool), driftKind string) {
+func runRebasePump(done <-chan struct{}, stop <-chan struct{}, procExited <-chan struct{}, privDir, pubDir string, deltaUs int64, namePrefix string, variantIdx int, expectedStartMs func(int) (int64, bool), driftKind string) {
 	// ADR-0007: both call sites spawn this as a bare goroutine, and a parent
 	// recover never covers a child goroutine - a panic here (file I/O races,
 	// box parsing on a truncated segment) would kill the whole server.
@@ -530,7 +535,7 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, procExited <-chan
 			if _, err := os.Stat(src + ".tmp"); err == nil {
 				continue // defence in depth; rename normally beats the scan
 			}
-			tfdtMs, err := rebaseFMP4Segment(src, deltaMs, initTS)
+			tfdtMs, err := rebaseFMP4Segment(src, deltaUs, initTS)
 			if err != nil {
 				failures[name]++
 				if failures[name] == 3 {
