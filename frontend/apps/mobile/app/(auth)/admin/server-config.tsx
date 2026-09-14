@@ -4,9 +4,6 @@ import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  useAdminSystemServiceGetServerConfig,
-  useAdminSystemServiceUpdateServerConfig,
-  getAdminSystemServiceGetServerConfigQueryKey,
   eveyFetch,
   apiErrorMessage,
 } from "@evey/api";
@@ -63,28 +60,11 @@ export default function AdminServerConfigScreen() {
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
 
-  const { data: config, isLoading: configLoading } = useAdminSystemServiceGetServerConfig();
   // The server name is a server-settings field (key server.name, live-applied
-  // by the backend), the SAME one the web card edits. It used to be written
-  // here under a free-form "server_name" key that nothing ever read.
+  // by the backend), the SAME one the web card edits. This "Basic" section
+  // used to write free-form server_name / base_url keys nothing ever read; the
+  // public URL is Remote access -> External URL, so that field is gone.
   const [serverName, setServerName] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-
-  useEffect(() => {
-    if (config?.values) {
-      setBaseUrl(config.values["base_url"] ?? "");
-    }
-  }, [config]);
-
-  const updateConfig = useAdminSystemServiceUpdateServerConfig({
-    mutation: {
-      onSuccess: async () => {
-        toast.success(t("admin.serverConfig.configUpdated", "Config saved"));
-        await qc.invalidateQueries({ queryKey: getAdminSystemServiceGetServerConfigQueryKey() });
-      },
-      onError: () => toast.error(t("admin.serverConfig.failedUpdate", "Failed to save")),
-    },
-  });
 
   const { data: settings, isLoading: settingsLoading, refetch } = useQuery<ServerSettings>({
     queryKey: SETTINGS_KEY,
@@ -155,13 +135,12 @@ export default function AdminServerConfigScreen() {
       // send an explicit reset (null) to go back to the default.
       const name = serverName.trim();
       await saveMutation.mutateAsync({ serverName: name === "" ? null : name });
-      await updateConfig.mutateAsync({ data: { values: { base_url: baseUrl.trim() } } });
     } catch {
-      // Not silent: both mutations' onError above already surface a toast.
+      // Not silent: saveMutation.onError above already surfaces a toast.
       // This just swallows the rejection mutateAsync re-throws so it doesn't
       // also warn as an unhandled promise.
     }
-  }, [serverName, baseUrl, updateConfig, saveMutation]);
+  }, [serverName, saveMutation]);
 
   const handleSaveSettings = useCallback(async () => {
     try {
@@ -239,9 +218,9 @@ export default function AdminServerConfigScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetch(), refetchEntries(), qc.invalidateQueries({ queryKey: getAdminSystemServiceGetServerConfigQueryKey() })]);
+    await Promise.all([refetch(), refetchEntries()]);
     setRefreshing(false);
-  }, [refetch, refetchEntries, qc]);
+  }, [refetch, refetchEntries]);
 
   function DefaultHint({ setting, field }: { setting: SettingValue<unknown>; field: string }) {
     if (setting.source === "default") {
@@ -261,7 +240,7 @@ export default function AdminServerConfigScreen() {
   }
 
   const s = formStyles(theme);
-  const isLoading = configLoading || settingsLoading;
+  const isLoading = settingsLoading;
 
   return (
     <ScrollView
@@ -288,13 +267,10 @@ export default function AdminServerConfigScreen() {
           <Text style={s.label}>{t("admin.serverSettings.serverName", "Server Name")}</Text>
           <TextInput value={serverName} onChangeText={setServerName} style={s.input} placeholderTextColor={theme.colors.textMuted} placeholder={String(settings?.serverName?.default ?? "Evey")} maxLength={64} />
 
-          <Text style={s.label}>Base URL</Text>
-          <TextInput value={baseUrl} onChangeText={setBaseUrl} style={s.input} placeholderTextColor={theme.colors.textMuted} placeholder="https://example.com" autoCapitalize="none" keyboardType="url" />
-
           <Pressable
             onPress={handleSaveBasic}
-            disabled={updateConfig.isPending || saveMutation.isPending}
-            style={[s.saveBtn, { opacity: updateConfig.isPending || saveMutation.isPending ? 0.5 : 1 }]}
+            disabled={saveMutation.isPending}
+            style={[s.saveBtn, { opacity: saveMutation.isPending ? 0.5 : 1 }]}
           >
             <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>
           </Pressable>

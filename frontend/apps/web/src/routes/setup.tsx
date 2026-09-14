@@ -216,7 +216,6 @@ function SetupPage() {
         adminPassword: adminForm.password,
         adminEmail: "",
         serverName: serverName.trim() || undefined,
-        baseUrl: window.location.origin,
         serverLanguage: serverLang,
         serverRegion: serverRegion || undefined,
       },
