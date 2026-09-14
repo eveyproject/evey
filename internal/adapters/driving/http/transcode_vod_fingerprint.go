@@ -135,10 +135,15 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		}
 	}
 
-	// Advertise the codec the segments will ACTUALLY carry, after the capability
-	// gate (AV1 → H.264 when AV1 isn't encodable here). Same helper as
-	// buildFingerprint, so the master CODECS can't disagree with the bytes.
-	chosenVideoCodec, _, _, _, _, _ := h.effectiveVideoCodec(decision, streams)
+	// Advertise the codec the segments will ACTUALLY carry: the RESOLVED
+	// fingerprint's, which is what the spawn hands the encoder. Re-deriving it
+	// (EffectiveVideoCodec) misses what Fingerprint() adds on top - an
+	// admission spill or a per-title GPU block turns the GPU HEVC into a
+	// software H.264 - so the master could read hvc1 over avc1 bytes.
+	chosenVideoCodec := rp.FP.VideoCodec
+	if chosenVideoCodec == "" {
+		chosenVideoCodec, _, _, _, _, _ = h.effectiveVideoCodec(decision, streams)
+	}
 
 	return apptranscoding.ManifestInput{
 		MediaID:             mediaID,
@@ -215,6 +220,7 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		// background enrichment flips copy-eligibility mid-play.
 		PinnedVideoDecision: pinnedVideoDecision(r, decision),
 		PinnedAudioDecision: pinnedAudioDecision(r, decision),
+		PinnedVideoCodec:    r.URL.Query().Get("vc"),
 		// Seal this moment's decision hash into every URI the manifest emits.
 		// stream_N is a ladder INDEX; if the ladder reshapes mid-play the same
 		// URL silently maps to another rendition (the 2026-07-15 rainbow). A
@@ -343,6 +349,7 @@ func (h *hlsVODServe) decideWith(ctx context.Context, streams []*domainlibrary.M
 		AudioOffsetMs:       audioOffsetMsQuery(r),
 		PinnedVideoDecision: r.URL.Query().Get("vd"),
 		PinnedAudioDecision: r.URL.Query().Get("ad"),
+		PinnedVideoCodec:    r.URL.Query().Get("vc"),
 		WasmAudio:           wasmAudioEffective(r, h.castWasmAudioEnabled),
 		// The same caps the plan applies: the mkvgo copy path decides off this
 		// call, and a copy under a bitrate ceiling is exactly what it must refuse.

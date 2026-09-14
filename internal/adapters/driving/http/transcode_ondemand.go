@@ -204,6 +204,13 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 	rT := r.Clone(r.Context())
 	q := rT.URL.Query()
 	q.Set("vd", "transcode")
+	// The rung keeps the copy rung's codec family (vc= pin, honoured only if
+	// the client decodes it): the player's emergency drop must be a plain rung
+	// switch, not an H.264->HEVC decoder swap under starvation - the resolver
+	// otherwise upgrades an HEVC-capable client's transcode to a GPU HEVC.
+	if c := domaintranscoding.CanonicalVideoCodec(apptranscoding.SourceVideoCodec(streams)); c == "h264" || c == "hevc" {
+		q.Set("vc", c)
+	}
 	rT.URL.RawQuery = q.Encode()
 	// probePlan, not resolvePlan: this resolution exists to DECIDE whether to
 	// advertise the rung and is dropped on the three paths below. Binding it

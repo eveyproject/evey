@@ -126,6 +126,7 @@ func (h *hlsVODServe) marshalPlaybackRequest(r *http.Request, mediaID string, it
 		AudioOffsetMs:       audioOffsetMsQuery(r),
 		PinnedVideoDecision: r.URL.Query().Get("vd"),
 		PinnedAudioDecision: r.URL.Query().Get("ad"),
+		PinnedVideoCodec:    r.URL.Query().Get("vc"),
 		WasmAudio:           wasmAudioEffective(r, h.castWasmAudioEnabled),
 		MaxBitrateKbps:      h.requestBitrateCapKbps(r),
 		SourceBytes:         sourceBytesOf(item),

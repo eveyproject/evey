@@ -196,6 +196,11 @@ type ManifestInput struct {
 	// of a live playlist, switching the served audio codec under the player.
 	PinnedAudioDecision string
 
+	// PinnedVideoCodec (vc=) rides every baked URL of a plan whose output codec
+	// was pinned (the copy master's fallback rung), so the segment-time
+	// resolution lands on the same codec, hence the same fingerprint.
+	PinnedVideoCodec string
+
 	// VideoPlaylistURI, when set, overrides the video variant's playlist URI
 	// (the default is stream_<idx>.m3u8). It is honoured ONLY for a
 	// single-variant input - the on-demand copy rung uses it to point the one
@@ -911,6 +916,9 @@ func querySuffix(in ManifestInput) string {
 	}
 	if in.PinnedAudioDecision != "" {
 		q.Set("ad", in.PinnedAudioDecision)
+	}
+	if in.PinnedVideoCodec != "" {
+		q.Set("vc", in.PinnedVideoCodec)
 	}
 	if in.WasmAudio {
 		// Audio-rendition decision input: keeps the passthrough (AC-3 copy)
