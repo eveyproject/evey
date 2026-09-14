@@ -116,6 +116,7 @@ func (o *SegmentOrchestrator) killSession(s *orchestratorSession, reason string)
 	hash := s.hash
 	teardown := s.teardown
 	s.cancelCtx = nil
+	s.killed = true // before Stop(): the reap must never read this exit as natural
 	// Null out teardown so the reap goroutine doesn't try to fire it
 	// after we already did. The released bool inside the closure
 	// remains the canonical idempotency guard at the cache layer, but

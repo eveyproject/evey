@@ -142,6 +142,12 @@ type orchestratorSession struct {
 	teardown   func() // SegmentCache.RegisterSession's teardown
 	cancelCtx  context.CancelFunc
 	done       chan struct{} // closed when ffmpeg exits (success or error)
+	// killed is set by killSession, under mu, BEFORE it stops ffmpeg: the reap
+	// goroutine reads it to tell our own teardown from a natural exit. The
+	// select on handle.Done()/sessionCtx.Done() cannot - Stop() closes the
+	// handle before cancel() fires, so a watchdog kill read as "ffmpeg exited
+	// on its own, no segment produced" and blocked the title's GPU route.
+	killed bool
 
 	// variantIdx is meaningful only when opts.SingleVariant is true. In that
 	// mode each session encodes exactly one ABR rung and the session-match
@@ -906,6 +912,11 @@ func (o *SegmentOrchestrator) spawnSession(
 			naturalExit = true
 		case <-sessionCtx.Done():
 		}
+		session.mu.Lock()
+		if session.killed {
+			naturalExit = false
+		}
+		session.mu.Unlock()
 		close(session.done)
 		session.mu.Lock()
 		teardown := session.teardown
