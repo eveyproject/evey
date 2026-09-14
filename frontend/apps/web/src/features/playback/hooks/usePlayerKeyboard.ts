@@ -23,6 +23,12 @@ interface UsePlayerKeyboardArgs {
   // to pause the local one (its controls are cast-bound).
   castRef: React.MutableRefObject<{ connected: boolean; isPaused: boolean; playPause: () => void } | null>;
   onCloseRef: React.MutableRefObject<(() => void) | undefined>;
+  // Reveals the auto-hidden control bars on a player keystroke. A hidden bar
+  // now leaves layout (visibility, not just opacity), so a control clicked
+  // with the mouse loses its focus when the bar fades and the bar's own
+  // onKeyDown no longer sees the next key: the shortcut handler reveals
+  // instead, as any key on a focused control used to.
+  revealControlsRef?: React.MutableRefObject<(() => void) | null>;
   setPlaybackSpeed: (s: number) => void;
   // Burn-in-aware subtitle selector (same handler the settings panel uses), so
   // the "c" shortcut restarts the transcode for PGS/VobSub tracks instead of
@@ -51,6 +57,7 @@ export function usePlayerKeyboard({
   onSubtitleChange,
   setShowShortcuts,
   showActionFlash,
+  revealControlsRef,
 }: UsePlayerKeyboardArgs) {
   const setPlaybackSpeedRef = useRef(setPlaybackSpeed);
   setPlaybackSpeedRef.current = setPlaybackSpeed;
@@ -82,6 +89,8 @@ export function usePlayerKeyboard({
           return;
         }
       }
+
+      revealControlsRef?.current?.();
 
       switch (e.key) {
         case "Escape":

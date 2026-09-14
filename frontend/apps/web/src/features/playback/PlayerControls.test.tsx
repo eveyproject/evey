@@ -192,7 +192,7 @@ describe("PlayerControls auto-hide vs keyboard focus", () => {
       act(() => { vi.advanceTimersByTime(3500); });
 
       const bar = slider.closest("[data-controls]");
-      expect(bar?.className).toContain("opacity-100");
+      expect(bar?.className).toContain("fade-shown");
     } finally {
       vi.useRealTimers();
     }
@@ -205,7 +205,7 @@ describe("PlayerControls auto-hide vs keyboard focus", () => {
       const slider = screen.getByRole("slider", { name: "Volume" });
       act(() => { vi.advanceTimersByTime(3500); });
       const bar = slider.closest("[data-controls]");
-      expect(bar?.className).toContain("opacity-0");
+      expect(bar?.className).toContain("fade-hidden");
     } finally {
       vi.useRealTimers();
     }

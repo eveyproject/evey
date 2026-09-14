@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Loader, MoreHorizontal, Cast } from "lucide-react";
 import { RemotePlaybackMenu } from "./RemotePlaybackMenu";
 import { startPlayback } from "./hooks/hlsPlayerUtils";
+import { CONTROLS_FADE_MS, fadeClasses, useFadeParked } from "./hooks/useFadeParked";
 import { useTranslation } from "react-i18next";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { SleepTimerState } from "@/hooks/useSleepTimer";
@@ -157,6 +158,7 @@ function PlayerControlsInner({
   const currentChapterIndex = useActiveChapterIndex(chapters, videoRef, transcodeOffset, castTimeSec);
 
   const [visible, setVisible] = useState(true);
+  const parked = useFadeParked(visible, CONTROLS_FADE_MS);
   const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | "streaminfo" | "remote" | null>(null);
   // On phones the secondary controls collapse behind a "⋯" button; this tracks
   // whether that overflow row is revealed. Inline (no overflow) from sm up.
@@ -480,7 +482,7 @@ function PlayerControlsInner({
 
       {/* top bar */}
       <div
-        className={`absolute top-0 left-0 right-0 flex items-center gap-3 py-3 transition-opacity-fast duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`absolute top-0 left-0 right-0 flex items-center gap-3 py-3 [--fade-duration:300ms] ${fadeClasses(visible, parked)}`}
         style={{ background: "linear-gradient(to bottom, var(--overlay-bg-strong), transparent)", paddingLeft: "max(1rem, env(safe-area-inset-left, 1rem))", paddingRight: "max(1rem, env(safe-area-inset-right, 1rem))" }}
         data-controls
         onClick={(e) => e.stopPropagation()}
@@ -503,7 +505,7 @@ function PlayerControlsInner({
 
       {/* bottom controls */}
       <div
-        className={`absolute bottom-0 left-0 right-0 pt-8 flex flex-col gap-2 transition-opacity-fast duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`absolute bottom-0 left-0 right-0 pt-8 flex flex-col gap-2 [--fade-duration:300ms] ${fadeClasses(visible, parked)}`}
         style={{ background: "linear-gradient(to top, var(--overlay-bg-strong), transparent)", paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))", paddingLeft: "max(1rem, env(safe-area-inset-left, 1rem))", paddingRight: "max(1rem, env(safe-area-inset-right, 1rem))" }}
         data-controls
         onClick={(e) => e.stopPropagation()}

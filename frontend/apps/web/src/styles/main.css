@@ -136,6 +136,33 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
   transition: all var(--transition-fast);
 }
 
+/* Auto-hide overlays (the player's control bars), in two phases driven by
+   useFadeParked: fade-hidden fades the opacity out (pointer-events off at
+   once), fade-parked then takes the bar out of layout. With opacity alone
+   the progress tracks kept reflowing behind a transparent layer for the
+   whole playback (~34 reflows/s, one WebRender display list each - Gecko
+   profile, 2026-09-14); parked, the missed video-frame callbacks went from
+   11 a minute to 0. The fade-in gets its origin from @starting-style, which
+   is what lets a bar coming back from display:none still fade.
+   --fade-duration overrides the default pace per element. */
+@utility fade-shown {
+  opacity: 1;
+  transition-property: opacity;
+  transition-duration: var(--fade-duration, var(--transition-fast));
+  @starting-style {
+    opacity: 0;
+  }
+}
+@utility fade-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transition-property: opacity;
+  transition-duration: var(--fade-duration, var(--transition-fast));
+}
+@utility fade-parked {
+  display: none !important;
+}
+
 /* Scrollbar */
 * {
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
