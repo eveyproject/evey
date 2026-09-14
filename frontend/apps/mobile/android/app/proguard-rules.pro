@@ -22,3 +22,18 @@
 # ...and the reflective hop into media3: getAudioSessionId must keep its name.
 -keepclassmembers class * { int getAudioSessionId(); }
 
+
+# react-native-background-downloader persists its task tables with Gson, by field name.
+-keep class com.eko.RNBGDTaskConfig { *; }
+-keep class com.eko.RNBGDUploadTaskConfig { *; }
+-keep class com.eko.utils.StorageManager$PausedDownloadInfoData { *; }
+# Same library: MMKV is compileOnly with a SharedPreferences fallback; Evey does not ship it.
+-dontwarn com.tencent.mmkv.MMKV
+
+# expo-document-picker is prebuilt against an older expo-modules-core; the annotation is gone.
+-dontwarn expo.modules.kotlin.records.IsNotEmpty
+
+# expo Record conversion finds these via kotlin-reflect; R8 -optimize strips their
+# kotlin.Metadata unless kept (SecureStoreOptions cast NPE at boot, expo/expo#28010).
+-keep @interface expo.modules.kotlin.records.Field { *; }
+-keep @interface expo.modules.kotlin.records.Required { *; }
