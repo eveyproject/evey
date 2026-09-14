@@ -1073,3 +1073,76 @@ func TestTryServePlanMaster_TrimsToTheCarriableTrack(t *testing.T) {
 	require.NotNil(t, pkg.lastOpts.KeepAudioTrack, "the plan must be trimmed, or the dropped TrueHD track would renumber the rest")
 	assert.Equal(t, 2, *pkg.lastOpts.KeepAudioTrack, "trimmed to the REQUESTED track, not the first one")
 }
+
+// qsvHEVCCapability is the prod box of 2026-09-15 (UHD 630, QSV primary, HEVC
+// route proven): the resolver upgrades an HEVC-capable client's transcode to a
+// GPU HEVC on it.
+func qsvHEVCCapability() domaintranscoding.EncodeCapability {
+	routes := []string{domaintranscoding.HWRouteSDR, domaintranscoding.HWRouteHEVC, domaintranscoding.HWRouteSource10Bit, domaintranscoding.HWRouteDecoupled}
+	return domaintranscoding.EncodeCapability{
+		SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160,
+		ProbeVersion: domaintranscoding.CapabilityProbeVersion,
+		HWBackend:    "qsv", HWDevice: "/dev/dri/renderD128", HWCodecs: []string{"h264", "hevc"},
+		HWDecodeCodecs: []string{"h264", "hevc"}, HWRoutes: routes,
+		Backends: []domaintranscoding.HWBackendCap{{
+			Backend: "qsv", Device: "/dev/dri/renderD128", Codecs: []string{"h264", "hevc"},
+			DecodeCodecs: []string{"h264", "hevc"}, Routes: routes,
+		}},
+	}
+}
+
+// a series episode, mobile, 2026-09-15: the hybrid master's fallback rung read
+// CODECS="avc1…" while ffmpeg ran hevc_qsv under the very hash the master
+// sealed - the HEVC-capable phone dropped from an H.264 copy onto an HEVC
+// transcode and froze. The rung must (a) keep the copy rung's codec family and
+// (b) advertise exactly what the plan its URL resolves to will encode.
+func TestBuildHybridMaster_FallbackRung_KeepsCopyCodec_OnHEVCCapableGPUAndClient(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+	h.hwAccelEnabled = func() bool { return true }
+	h.capability = func() domaintranscoding.EncodeCapability { return qsvHEVCCapability() }
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 12_000_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	require.NoError(t, err)
+	var fbInf, fbURI string
+	lines := strings.Split(master, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, "stream_0.m3u8") {
+			fbURI, fbInf = line, lines[i-1]
+		}
+	}
+	require.NotEmpty(t, fbURI, "premise: the fallback rung is advertised")
+	assert.Contains(t, fbURI, "vc=h264", "the rung pins the copy rung's codec")
+	assert.Contains(t, fbInf, `CODECS="avc1.`, "the rung advertises the copy rung's codec family: %s", fbInf)
+
+	// The URL re-resolved at segment time must encode what the master said.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/"+fbURI, nil)
+	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
+		&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+	fp, err := h.buildFingerprint(req, "m1", item, streams)
+	require.NoError(t, err)
+	assert.Equal(t, "h264", fp.VideoCodec, "the encoder's codec follows the advertised one")
+	assert.Equal(t, "qsv", fp.HWAccel, "the pin changes the codec, not the GPU route")
+
+	// Same client, same GPU, no pin: the natural transcode IS an HEVC one - the
+	// case the rung must not inherit.
+	nat, err := h.buildFingerprint(func() *http.Request {
+		r := onDemandReq()
+		q := r.URL.Query()
+		q.Set("vd", "transcode")
+		r.URL.RawQuery = q.Encode()
+		return r
+	}(), "m1", item, streams)
+	require.NoError(t, err)
+	assert.Equal(t, "hevc", nat.VideoCodec, "premise: without the pin the transcode is upgraded to HEVC")
+}

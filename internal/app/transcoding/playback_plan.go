@@ -31,6 +31,11 @@ type PlaybackRequest struct {
 	AudioOffsetMs       int
 	PinnedVideoDecision string // "", "copy", or "transcode" (the vd= URL pin)
 	PinnedAudioDecision string // "", "copy", or "transcode" (the ad= URL pin)
+	// PinnedVideoCodec (the vc= URL pin) fixes the OUTPUT codec of a transcode:
+	// the copy master's fallback rung pins the copy rung's codec so a starving
+	// player never switches codec family between the two variants. Honoured
+	// only when the client decodes it; never upgraded to HEVC by the resolver.
+	PinnedVideoCodec string
 	WasmAudio           bool   // the ?wasmAudio=1 client opt-in for browser AC-3 decode
 
 	// SourceBytes is the on-disk size of the source file (0 = unknown), read

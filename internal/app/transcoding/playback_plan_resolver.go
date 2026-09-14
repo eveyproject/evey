@@ -195,6 +195,17 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 				slog.String("reasons", strings.Join(d.TranscodeReasons, ",")))
 		}
 	}
+	// Output-codec pin (vc=): the fallback rung of a hybrid copy master keeps
+	// the copy rung's codec family, so the player's emergency drop is a rung
+	// switch and not an H.264->HEVC decoder swap in the same buffer under
+	// starvation. A codec this client cannot decode is ignored, never forced.
+	// The reason is stamped even when the decision already says the pinned
+	// codec: it is what stops outputCodecFor's HEVC upgrade downstream.
+	if pin := transcoding.CanonicalVideoCodec(req.PinnedVideoCodec); (pin == "h264" || pin == "hevc" || pin == "av1") &&
+		d.VideoDecision == "transcode" && pr.clientDecodes(*d, pin) {
+		d.VideoCodec = pin
+		d.TranscodeReasons = append(d.TranscodeReasons, "video_codec_pinned")
+	}
 	// Audio-side pin, same contract as vd: "transcode" always holds; a broken
 	// "copy" pin (loudnorm toggled on, codec no longer passthrough-eligible)
 	// flips WITH a warning - the session's audio codec changes mid-play and
@@ -530,7 +541,8 @@ func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src
 // and the GPU encodes it; an explicit preference is never overridden. streams may be nil.
 func (pr *PlanResolver) outputCodecFor(decision transcoding.PlaybackDecision, streams []*library.MediaStream) string {
 	codec := decision.VideoCodec
-	if decision.VideoDecision != "transcode" || slices.Contains(decision.TranscodeReasons, "preferred_video_codec") {
+	if decision.VideoDecision != "transcode" || slices.Contains(decision.TranscodeReasons, "preferred_video_codec") ||
+		slices.Contains(decision.TranscodeReasons, "video_codec_pinned") {
 		return codec
 	}
 	if codec != "" && !strings.EqualFold(codec, transcoding.DefaultVideoCodec) {

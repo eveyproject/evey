@@ -1179,3 +1179,43 @@ func TestAtoiIndex(t *testing.T) {
 		}
 	}
 }
+
+// The master's CODECS must describe the bytes the spawn will make. It used to
+// re-derive the codec (EffectiveVideoCodec) instead of reading the resolved
+// fingerprint's, so a hardware-natural HEVC stream spilled to the software
+// route (GPU pool full / title blocked) advertised hvc1 over x264 avc1 bytes.
+func TestHLSVOD_Master_CodecsFollowTheSpilledFingerprint(t *testing.T) {
+	w, hgt := 3840, 2160
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur}}
+	streams := []*domainlibrary.MediaStream{{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264", Width: &w, Height: &hgt}}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
+	h.capability = func() domaintranscoding.EncodeCapability {
+		return domaintranscoding.EncodeCapability{
+			HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc"}, HWDecodeCodecs: []string{"h264", "hevc"}, HWMaxHeight: 2160,
+			ProbeVersion: domaintranscoding.CapabilityProbeVersion,
+			HWRoutes:     []string{domaintranscoding.HWRouteSDR, domaintranscoding.HWRouteHEVC},
+		}
+	}
+	h.hwAccelEnabled = func() bool { return true }
+	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool { return true }
+	h.selector = apptranscoding.NewProducerSelector(&sentinelProducer{tag: "software"}, &sentinelProducer{tag: "hardware"}, h.hwRouteUsable)
+
+	master := func() string {
+		// vd=transcode: a copy-blocked title keeps a "copy" decision under a
+		// transcode ladder and never takes the HEVC upgrade; the pin is how a
+		// genuine transcode (or the copy master's fallback rung) resolves.
+		rec := doVODRequestQ(h, "m1", "master.m3u8", "videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4&vd=transcode")
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return rec.Body.String()
+	}
+	assert.Contains(t, master(), `CODECS="hvc1.`, "premise: on the GPU this HEVC-capable client's ladder is HEVC")
+
+	h.admissionRoute = func(_ string, _ apptranscoding.RouteAdmission) apptranscoding.RouteGrant {
+		return apptranscoding.RouteGrant{Class: apptranscoding.LadderClassSoftware, Ceiling: 1080, Forced: true, OK: true}
+	}
+	h.admissionPinnedClass = func(string) (apptranscoding.LadderClass, bool) { return apptranscoding.LadderClassSoftware, true }
+	spilled := master()
+	assert.NotContains(t, spilled, `CODECS="hvc1.`, "spilled to x264, the master must not promise HEVC: %s", spilled)
+	assert.Contains(t, spilled, `CODECS="avc1.`, "the master advertises the H.264 the software route encodes")
+}
