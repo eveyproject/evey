@@ -447,7 +447,7 @@ func (s *CommandService) validateRefreshToken(ctx context.Context, token string)
 	if err != nil {
 		slog.InfoContext(ctx, "refresh rejected: token not found",
 			slog.String("tokenPrefix", safeTokenPrefix(token)),
-			slog.String("token", s.tokens.DescribeRefreshToken(token)))
+			slog.String("token_info", s.tokens.DescribeRefreshToken(token)))
 		return nil, false, ErrInvalidCredentials
 	}
 

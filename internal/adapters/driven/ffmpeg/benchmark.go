@@ -903,7 +903,7 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		// And the device pin: one render node / CUDA index of a multi-GPU box.
 		if pinDevice != "" && dev.Name != pinDevice && hwDeviceOrDefault(dev.Type, dev.Name) != pinDevice {
 			r.logger.Info("benchmark: device skipped by the operator's device pin",
-				slog.String("backend", dev.Type), slog.String("device", hwDeviceOrDefault(dev.Type, dev.Name)), slog.String("pin", pinDevice))
+				slog.String("backend", dev.Type), slog.String("device", hwDeviceOrDefault(dev.Type, dev.Name)), slog.String("device_pin", pinDevice))
 			continue
 		}
 		device := dev.Name
