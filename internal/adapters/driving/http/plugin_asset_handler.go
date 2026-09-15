@@ -15,12 +15,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
+	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -50,7 +52,22 @@ type pluginAssetHandler struct {
 	pluginTokens PluginTokenParser
 	sanitizeCSS  cssSanitizer
 	wakener      PluginWakener
+	// etags remembers the content ETag per file so a revalidation of an
+	// unchanged asset is a stat, not a full read and hash of the bundle.
+	etags *pkgcache.TTLCache[assetETag]
 }
+
+// assetETag is one etags entry: the ETag is valid while size and mtime match.
+type assetETag struct {
+	size  int64
+	mtime time.Time
+	etag  string
+}
+
+const (
+	assetETagTTL     = time.Hour
+	assetETagMaxSize = 4096
+)
 
 // maxPluginAssetBytes is the per-file size limit for plugin asset responses.
 // The 100 MB total zip limit is enforced separately at install time.
@@ -69,7 +86,8 @@ var corsRequiredAssetExt = map[string]bool{
 
 func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, pluginTokens PluginTokenParser, repo domainplugin.PluginRepository, pluginDir string, sanitize cssSanitizer, wakener PluginWakener) {
 	authMw := httpAuthMiddleware(tokenGen)
-	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo, tokenGen: tokenGen, pluginTokens: pluginTokens, sanitizeCSS: sanitize, wakener: wakener}
+	etags, _ := pkgcache.NewWithMaxSize[assetETag](10*time.Minute, assetETagMaxSize)
+	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo, tokenGen: tokenGen, pluginTokens: pluginTokens, sanitizeCSS: sanitize, wakener: wakener, etags: etags}
 	// Generic asset route - serves any file under <install_dir>/<web_root>/.
 	// Single-bundle frontends only in v1 (no dynamic-import code splitting).
 	// Authentication accepts a user access token OR the scoped plugin token
@@ -206,6 +224,16 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// A revalidation of an unchanged file is answered from the stat: same
+	// size and mtime as when the ETag was computed means the same bytes.
+	if known, ok := h.etags.Get(candidate); ok && known.size == stat.Size() && known.mtime.Equal(stat.ModTime()) &&
+		r.Header.Get("If-None-Match") == known.etag {
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("ETag", known.etag)
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
 	data, readErr := os.ReadFile(candidate)
 	if readErr != nil {
 		span.RecordError(readErr)
@@ -272,7 +300,9 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 	// (2026-07-22). no-cache forces revalidation on every use; the content
 	// ETag turns the unchanged case into a bodyless 304 via ServeContent.
 	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("ETag", fmt.Sprintf(`"%x"`, sha256.Sum256(data)))
+	etag := fmt.Sprintf(`"%x"`, sha256.Sum256(data))
+	w.Header().Set("ETag", etag)
+	h.etags.Set(candidate, assetETag{size: stat.Size(), mtime: stat.ModTime(), etag: etag}, assetETagTTL)
 	// (5) CORS for fonts/binary fetch-targets only.
 	if corsRequiredAssetExt[ext] {
 		w.Header().Set("Access-Control-Allow-Origin", "null")
