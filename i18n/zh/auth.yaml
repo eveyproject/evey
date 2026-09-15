@@ -239,6 +239,7 @@ settings:
       currentPinRequired: "请输入当前 PIN 码"
       updatePin: "更新 PIN 码"
 apiKeys:
+  neverUsed: "从未使用"
   title: "API 密钥"
   description: "为外部集成创建 API 密钥。"
   newKeyTitle: "新建 API 密钥"

@@ -41,6 +41,7 @@ online:
   minutesAgo: "{{count}} 分钟前"
 
 logs:
+  liveOn: "实时跟踪已开启 - 最新日志自动刷新"
   title: "日志与调试"
   subtitle: "搜索并实时查看服务器日志（ffmpeg、mkvgo、播放等），以诊断用户反馈的问题。"
   searchPlaceholder: "搜索日志（文本、路径、id、错误...）"
@@ -130,6 +131,7 @@ artworks:
   purgeVariantsFailed: 清理变体失败
 
 plugin:
+  copySourceHash: "复制源哈希"
   enabled: "已启用"
   disabled: "已禁用"
   config: "配置"
@@ -186,6 +188,7 @@ plugin:
     apply: "应用更新"
 
 plugins:
+  installFromFile: "从文件安装 (.zip)"
   resourceLimits:
     title: "资源限制"
     description: "运行时强制执行的每个插件上限。内存、PID 和磁盘在下次监控扫描时生效；CPU nice 和沙箱模式对此后（重新）启动的插件生效。"
@@ -272,6 +275,9 @@ dashboard:
 scanning: "扫描中..."
 
 users:
+  expiry30d: "30 天"
+  expiry7d: "7 天"
+  expiry1d: "1 天"
   maxProfilesInvalid: "最大配置文件数必须是大于等于 0 的整数"
   maxDevicesInvalid: "最大设备数必须是大于等于 0 的整数"
   usernameRequired: "用户名为必填项"
@@ -835,6 +841,7 @@ remoteAccess:
   publishedInfo: "远程访问已启用，且此服务器可从互联网访问。"
 
 systemHealth:
+  metricsSection: "系统"
   title: "系统健康"
   autoRefresh: "更新于 {{time}} · 每 5 秒自动刷新"
   cpuUsage: "CPU 使用率"

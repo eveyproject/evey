@@ -248,3 +248,5 @@ slideNumber: "स्लाइड {{number}}"
 clearSelection: चयन साफ़ करें
 options: विकल्प
 addNamedRule: "{{name}} नियम जोड़ें"
+copy: "कॉपी करें"
+watched: "देखा गया"

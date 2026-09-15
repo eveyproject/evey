@@ -41,6 +41,7 @@ online:
   minutesAgo: "vor {{count}} Min."
 
 logs:
+  liveOn: "Live-Ansicht aktiv - neue Zeilen werden automatisch geladen"
   title: Protokolle & Debug
   subtitle: "Serverprotokolle durchsuchen und live verfolgen (ffmpeg, mkvgo, Wiedergabe...), um von Nutzern gemeldete Probleme zu diagnostizieren."
   searchPlaceholder: "Protokolle durchsuchen (Text, Pfad, ID, Fehler...)"
@@ -130,6 +131,7 @@ artworks:
   purgeVariantsFailed: Bereinigung der Varianten fehlgeschlagen
 
 plugin:
+  copySourceHash: "Quell-Hash kopieren"
   enabled: Aktiviert
   disabled: Deaktiviert
   config: Konfiguration
@@ -186,6 +188,7 @@ plugin:
     apply: "Aktualisierung anwenden"
 
 plugins:
+  installFromFile: "Aus Datei installieren (.zip)"
   resourceLimits:
     title: "Ressourcenlimits"
     description: "Pro-Plugin-Limits, die die Laufzeit durchsetzt. Arbeitsspeicher, PIDs und Festplatte greifen beim nächsten Monitor-Durchlauf; CPU-Nice und Sandbox-Modus gelten für danach (neu) gestartete Plugins."
@@ -272,6 +275,9 @@ dashboard:
 scanning: Wird gescannt...
 
 users:
+  expiry30d: "30 Tage"
+  expiry7d: "7 Tage"
+  expiry1d: "1 Tag"
   maxProfilesInvalid: "Maximale Profilanzahl muss eine ganze Zahl >= 0 sein"
   maxDevicesInvalid: "Maximale Geräteanzahl muss eine ganze Zahl >= 0 sein"
   usernameRequired: "Benutzername ist erforderlich"
@@ -835,6 +841,7 @@ remoteAccess:
   publishedInfo: "Der Fernzugriff ist aktiviert und dieser Server ist aus dem Internet erreichbar."
 
 systemHealth:
+  metricsSection: "System"
   title: Systemzustand
   autoRefresh: "Aktualisiert {{time}} · automatische Aktualisierung alle 5s"
   cpuUsage: CPU-Auslastung

@@ -41,6 +41,7 @@ online:
   minutesAgo: "hace {{count}} min"
 
 logs:
+  liveOn: "Seguimiento en vivo activo - las líneas nuevas se actualizan solas"
   title: Logs y depuración
   subtitle: "Busca y sigue en vivo los logs del servidor (ffmpeg, mkvgo, reproducción...) para diagnosticar problemas reportados por los usuarios."
   searchPlaceholder: "Buscar en los logs (texto, ruta, id, error...)"
@@ -130,6 +131,7 @@ artworks:
   purgeVariantsFailed: Error al purgar las variantes
 
 plugin:
+  copySourceHash: "Copiar el hash de origen"
   enabled: Activado
   disabled: Desactivado
   config: Config
@@ -186,6 +188,7 @@ plugin:
     apply: "Aplicar actualización"
 
 plugins:
+  installFromFile: "Instalar desde archivo (.zip)"
   resourceLimits:
     title: "Límites de recursos"
     description: "Límites por plugin que el runtime aplica. La memoria, los PID y el disco se aplican en el siguiente barrido del monitor; el nice de CPU y el modo aislado se aplican a los plugins (re)iniciados después."
@@ -272,6 +275,9 @@ dashboard:
 scanning: Escaneando...
 
 users:
+  expiry30d: "30 días"
+  expiry7d: "7 días"
+  expiry1d: "1 día"
   maxProfilesInvalid: "El máximo de perfiles debe ser un número entero >= 0"
   maxDevicesInvalid: "El máximo de dispositivos debe ser un número entero >= 0"
   usernameRequired: "El nombre de usuario es obligatorio"
@@ -835,6 +841,7 @@ remoteAccess:
   publishedInfo: "El acceso remoto está activado y este servidor es accesible desde Internet."
 
 systemHealth:
+  metricsSection: "Sistema"
   title: "Estado del sistema"
   autoRefresh: "Actualizado {{time}} · se actualiza cada 5s"
   cpuUsage: "Uso de CPU"

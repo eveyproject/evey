@@ -41,6 +41,7 @@ online:
   minutesAgo: "{{count}} मिनट पहले"
 
 logs:
+  liveOn: "लाइव टेल चालू - नई पंक्तियाँ अपने आप रीफ़्रेश होती हैं"
   title: "लॉग और डीबग"
   subtitle: "उपयोगकर्ताओं द्वारा बताई गई समस्याओं का निदान करने के लिए सर्वर लॉग (ffmpeg, mkvgo, प्लेबैक...) खोजें और लाइव देखें।"
   searchPlaceholder: "लॉग खोजें (टेक्स्ट, पथ, id, त्रुटि...)"
@@ -130,6 +131,7 @@ artworks:
   purgeVariantsFailed: वैरिएंट साफ़ करने में विफल
 
 plugin:
+  copySourceHash: "स्रोत हैश कॉपी करें"
   enabled: "सक्षम"
   disabled: "अक्षम"
   config: "कॉन्फ़िग"
@@ -186,6 +188,7 @@ plugin:
     apply: "अपडेट लागू करें"
 
 plugins:
+  installFromFile: "फ़ाइल से इंस्टॉल करें (.zip)"
   resourceLimits:
     title: "संसाधन सीमाएँ"
     description: "रनटाइम द्वारा लागू प्रति-प्लगइन सीमाएँ। मेमोरी, PID और डिस्क अगले मॉनिटर स्वीप पर लागू होती हैं; CPU nice और सैंडबॉक्स मोड बाद में (पुनः) शुरू किए गए प्लगइन पर लागू होते हैं।"
@@ -272,6 +275,9 @@ dashboard:
 scanning: "स्कैन हो रहा है..."
 
 users:
+  expiry30d: "30 दिन"
+  expiry7d: "7 दिन"
+  expiry1d: "1 दिन"
   maxProfilesInvalid: "अधिकतम प्रोफ़ाइल एक पूर्ण संख्या >= 0 होनी चाहिए"
   maxDevicesInvalid: "अधिकतम डिवाइस एक पूर्ण संख्या >= 0 होनी चाहिए"
   usernameRequired: "उपयोगकर्ता नाम आवश्यक है"
@@ -835,6 +841,7 @@ remoteAccess:
   publishedInfo: "रिमोट एक्सेस सक्षम है और यह सर्वर इंटरनेट से पहुँच योग्य है।"
 
 systemHealth:
+  metricsSection: "सिस्टम"
   title: "सिस्टम स्वास्थ्य"
   autoRefresh: "अपडेट {{time}} · हर 5 सेकंड ऑटो-रिफ्रेश"
   cpuUsage: "CPU उपयोग"

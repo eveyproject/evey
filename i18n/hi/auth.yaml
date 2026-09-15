@@ -239,6 +239,7 @@ settings:
       currentPinRequired: "अपना वर्तमान PIN दर्ज करें"
       updatePin: "PIN अपडेट करें"
 apiKeys:
+  neverUsed: "कभी उपयोग नहीं हुई"
   title: "API कुंजियां"
   description: "बाहरी इंटीग्रेशन के लिए API कुंजियां बनाएं।"
   newKeyTitle: "नई API कुंजी"

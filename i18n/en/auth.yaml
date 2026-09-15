@@ -244,6 +244,7 @@ apiDocs:
   link: View API documentation
   loadError: Failed to load the API specification.
 apiKeys:
+  neverUsed: "Never used"
   title: API Keys
   description: Create API keys for external integrations.
   newKeyTitle: New API Key

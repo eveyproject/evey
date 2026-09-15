@@ -244,6 +244,7 @@ apiDocs:
   link: Voir la documentation de l'API
   loadError: Échec du chargement de la spécification de l'API.
 apiKeys:
+  neverUsed: "Jamais utilisée"
   title: "Clés API"
   description: "Créez des clés API pour les intégrations externes."
   newKeyTitle: "Nouvelle clé API"

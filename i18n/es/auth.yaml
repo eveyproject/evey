@@ -244,6 +244,7 @@ apiDocs:
   link: Ver la documentación de la API
   loadError: No se pudo cargar la especificación de la API.
 apiKeys:
+  neverUsed: "Nunca usada"
   title: "Claves API"
   description: "Crea claves API para integraciones externas."
   newKeyTitle: "Nueva clave API"

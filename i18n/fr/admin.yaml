@@ -41,6 +41,7 @@ online:
   minutesAgo: "il y a {{count}} min"
 
 logs:
+  liveOn: "Suivi en direct actif - les nouvelles lignes se rafraîchissent"
   title: Logs & Debug
   subtitle: "Recherche et suivi en direct des logs serveur (ffmpeg, mkvgo, lecture...) pour diagnostiquer les problèmes remontés par les utilisateurs."
   searchPlaceholder: "Rechercher dans les logs (texte, chemin, id, erreur...)"
@@ -129,6 +130,7 @@ artworks:
   purgeVariantsSuccess_other: "{{count}} variantes corrompues supprimées."
   purgeVariantsFailed: Échec de la purge des variantes
 plugin:
+  copySourceHash: "Copier le hash de la source"
   enabled: Activé
   disabled: Désactivé
   config: Config
@@ -185,6 +187,7 @@ plugin:
     apply: "Appliquer la mise à jour"
 
 plugins:
+  installFromFile: "Installer depuis un fichier (.zip)"
   resourceLimits:
     title: "Limites de ressources"
     description: "Plafonds par plugin appliqués par le runtime. La mémoire, les PID et le disque s'appliquent au prochain balayage du moniteur ; le nice CPU et le mode bac à sable s'appliquent aux plugins (re)démarrés ensuite."
@@ -271,6 +274,9 @@ dashboard:
 scanning: Analyse en cours...
 
 users:
+  expiry30d: "30 jours"
+  expiry7d: "7 jours"
+  expiry1d: "1 jour"
   maxProfilesInvalid: "Le nombre maximum de profils doit être un entier >= 0"
   maxDevicesInvalid: "Le nombre maximum d'appareils doit être un entier >= 0"
   usernameRequired: "Le nom d'utilisateur est requis"
@@ -834,6 +840,7 @@ remoteAccess:
   publishedInfo: "L'accès distant est activé et ce serveur est accessible depuis Internet."
 
 systemHealth:
+  metricsSection: "Système"
   title: "Santé du système"
   autoRefresh: "Mis à jour {{time}} · actualisation automatique toutes les 5s"
   cpuUsage: "Utilisation CPU"
