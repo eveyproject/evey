@@ -427,17 +427,18 @@ func normalizeCodec(raw string) string {
 	return lower
 }
 
+var knownTags = map[string]bool{
+	"mkv": true, "mp4": true, "avi": true, "mov": true,
+	"aac": true, "dts": true, "flac": true, "ac3": true, "eac3": true,
+	"x264": true, "x265": true, "h264": true, "h265": true, "hevc": true, "avc": true,
+	"hdr": true, "hdr10": true, "sdr": true,
+	"remux": true, "bluray": true, "webrip": true, "hdtv": true,
+	"1080p": true, "720p": true, "480p": true, "2160p": true,
+	"proper": true, "repack": true, "extended": true, "unrated": true,
+	"atmos": true, "truehd": true, "opus": true, "mp3": true,
+	"vf": true, "vostfr": true, "vo": true, "eng": true, "multi": true,
+}
+
 func isKnownTag(s string) bool {
-	known := map[string]bool{
-		"mkv": true, "mp4": true, "avi": true, "mov": true,
-		"aac": true, "dts": true, "flac": true, "ac3": true, "eac3": true,
-		"x264": true, "x265": true, "h264": true, "h265": true, "hevc": true, "avc": true,
-		"hdr": true, "hdr10": true, "sdr": true,
-		"remux": true, "bluray": true, "webrip": true, "hdtv": true,
-		"1080p": true, "720p": true, "480p": true, "2160p": true,
-		"proper": true, "repack": true, "extended": true, "unrated": true,
-		"atmos": true, "truehd": true, "opus": true, "mp3": true,
-		"vf": true, "vostfr": true, "vo": true, "eng": true, "multi": true,
-	}
-	return known[strings.ToLower(s)]
+	return knownTags[strings.ToLower(s)]
 }
