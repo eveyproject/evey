@@ -79,6 +79,14 @@ type SegmentOrchestrator struct {
 	// a spawnSession call.
 	pendingSpawns map[string][]*pendingSpawn
 
+	// pendingSeeks holds, per hash, the LAST unserved-seek target whose spawn is
+	// being debounced by opts.SeekCoalesceWindow. A burst of rapid seeks on one
+	// fingerprint updates the single entry (last target wins) and re-arms its
+	// timer instead of each seek spawning-then-LRU-evicting an encoder before it
+	// produces. Guarded by mu; nil/empty when SeekCoalesceWindow is 0 (off) or no
+	// seek is pending. Entries fire (spawn once) then delete via fireCoalescedSeek.
+	pendingSeeks map[string]*pendingSeek
+
 	stopGC chan struct{}
 	gcDone chan struct{}
 
@@ -241,6 +249,7 @@ func NewSegmentOrchestrator(
 		shutdownCancel: shutdownCancel,
 		sessions:       make(map[string][]*orchestratorSession),
 		spawnedHashes:  make(map[string]struct{}),
+		pendingSeeks:   make(map[string]*pendingSeek),
 		stopGC:         make(chan struct{}),
 		gcDone:         make(chan struct{}),
 		stopThrottle:   make(chan struct{}),
@@ -474,6 +483,23 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 				return ctx.Err()
 			}
 		}
+		// Coalesce rapid unserved seeks. `far == nil` here means no live rafale
+		// even reaches this position - a genuine seek to fresh ground, which is
+		// the storm case: on a heavy rung each such spawn is LRU-evicted by the
+		// next seek before it writes its first segment. Defer it by
+		// SeekCoalesceWindow and let a later seek for the same hash replace the
+		// target; the last one standing spawns once, off the debounce timer. The
+		// `far != nil` path (a nearby rafale to ride or overtake) is left
+		// immediate - it is a continuation, not the storm, and must not stall.
+		if o.opts.SeekCoalesceWindow > 0 && far == nil {
+			o.coalesceSeekLocked(hash, fp, variantIdx, segmentIdx)
+			o.mu.Unlock()
+			// The caller blocks on cache.Wait as always; the deferred spawn
+			// (or a later seek's) produces the segment. A seek the client has
+			// already abandoned (the next seek aborted its fetch) simply never
+			// gets waited on - no encoder was burned for it.
+			return nil
+		}
 		claim = o.claimPendingSpawnLocked(hash, variantIdx, segmentIdx)
 	}
 	o.mu.Unlock()
@@ -609,6 +635,113 @@ func (o *SegmentOrchestrator) settlePendingSpawn(hash string, claim *pendingSpaw
 	claim.err = err
 	o.mu.Unlock()
 	close(claim.done)
+}
+
+// pendingSeek is the debounced spawn of a burst of unserved seeks for one
+// fingerprint. Only the LAST target survives (rapid seeks overwrite it); the
+// single timer fires spawnSession once the window has been quiet for
+// SeekCoalesceWindow. Guarded by o.mu.
+type pendingSeek struct {
+	fp         DecisionFingerprint
+	variantIdx int
+	segmentIdx int
+	// deadline is pushed out on every new seek. The timer re-arms itself for the
+	// remaining time when it fires early (a seek landed after it was scheduled),
+	// which is what makes "last seek wins" hold without racing timer.Reset from
+	// two goroutines: Reset is only ever called from fireCoalescedSeek, under
+	// o.mu, on an already-expired timer.
+	deadline time.Time
+	timer    *time.Timer
+}
+
+// coalesceSeekLocked records segmentIdx as the latest unserved-seek target for
+// hash and (re)arms the debounce. Last write wins. Caller holds o.mu.
+func (o *SegmentOrchestrator) coalesceSeekLocked(hash string, fp DecisionFingerprint, variantIdx, segmentIdx int) {
+	if o.pendingSeeks == nil {
+		o.pendingSeeks = map[string]*pendingSeek{}
+	}
+	ps := o.pendingSeeks[hash]
+	if ps == nil {
+		ps = &pendingSeek{}
+		o.pendingSeeks[hash] = ps
+	}
+	ps.fp = fp
+	ps.variantIdx = variantIdx
+	ps.segmentIdx = segmentIdx
+	ps.deadline = time.Now().Add(o.opts.SeekCoalesceWindow)
+	if ps.timer == nil {
+		ps.timer = time.AfterFunc(o.opts.SeekCoalesceWindow, func() { o.fireCoalescedSeek(hash) })
+	}
+	// No Reset here: a newer seek only moves the deadline, and fireCoalescedSeek
+	// re-arms the timer for the remaining slice when it wakes too early.
+	o.logger.Debug("orchestrator: coalescing unserved seek",
+		slog.String("hash", hash),
+		slog.Int("variant", variantIdx),
+		slog.Int("target", segmentIdx))
+}
+
+// fireCoalescedSeek is the debounce timer callback: it spawns ONE rafale at the
+// last recorded target once the window has been quiet, or re-arms if a newer
+// seek pushed the deadline out. Runs detached (off the timer goroutine).
+func (o *SegmentOrchestrator) fireCoalescedSeek(hash string) {
+	o.mu.Lock()
+	ps := o.pendingSeeks[hash]
+	if ps == nil {
+		o.mu.Unlock()
+		return
+	}
+	if remaining := time.Until(ps.deadline); remaining > 0 {
+		// A seek landed after this timer was scheduled: wait out the new window.
+		ps.timer.Reset(remaining)
+		o.mu.Unlock()
+		return
+	}
+	fp, variantIdx, segmentIdx := ps.fp, ps.variantIdx, ps.segmentIdx
+	delete(o.pendingSeeks, hash)
+	// Bail if the orchestrator is shutting down - shutdownCtx is already
+	// cancelled, so the spawn would only resolve-then-fail. Close stops timers
+	// too, but a fire racing shutdownCancel lands here.
+	if o.shutdownCtx.Err() != nil {
+		o.mu.Unlock()
+		return
+	}
+	o.mu.Unlock()
+
+	// Spawn detached: the request that armed this is likely long gone, so use
+	// the orchestrator's long-lived context (as PreWarm does). ResolveSource
+	// only needs the media id (already in fp), not the request's auth context.
+	ctx, cancel := context.WithTimeout(o.shutdownCtx, 30*time.Second)
+	defer cancel()
+
+	// Re-check under the lock: a rafale may have appeared (a `far`-path spawn, a
+	// concurrent hash) or the segment may have landed while we debounced.
+	if o.cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: variantIdx, SegmentIdx: segmentIdx}, fp.UseFMP4) {
+		return
+	}
+	o.mu.Lock()
+	if s, _, _ := o.reachableSessionLocked(hash, variantIdx, segmentIdx); s != nil {
+		o.mu.Unlock()
+		return
+	}
+	if o.pendingSpawnCoversLocked(hash, variantIdx, segmentIdx) != nil {
+		o.mu.Unlock()
+		return
+	}
+	claim := o.claimPendingSpawnLocked(hash, variantIdx, segmentIdx)
+	o.mu.Unlock()
+
+	o.logger.Info("orchestrator: spawning coalesced rafale for unserved seek",
+		slog.String("hash", hash),
+		slog.Int("variant", variantIdx),
+		slog.Int("requested", segmentIdx))
+	err := o.spawnSession(ctx, fp, variantIdx, segmentIdx)
+	o.settlePendingSpawn(hash, claim, err)
+	if err != nil {
+		o.logger.Info("orchestrator: coalesced seek spawn failed (client retry re-drives it)",
+			slog.String("hash", hash),
+			slog.Int("requested", segmentIdx),
+			slog.Any("err", err))
+	}
 }
 
 // acquireSessionSlot reserves one of the MaxActiveSessions global rafale slots
