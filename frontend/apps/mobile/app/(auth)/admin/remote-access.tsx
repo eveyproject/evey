@@ -14,6 +14,9 @@ interface RemoteAccessConfig {
   serverBaseUrl: string;
   lanNetworks: string[];
   maxRemoteBitrateKbps: number;
+  // The server derives these from the current request/config (mirror web).
+  lockoutRisk?: boolean;
+  published?: boolean;
 }
 
 interface NetworkInterface {
@@ -113,6 +116,22 @@ export default function AdminRemoteAccessScreen() {
         </View>
       ) : (
         <View style={{ padding: 16 }}>
+          {/* Lockout-risk warning: enabling/changing this can lock the admin out. */}
+          {data?.lockoutRisk ? (
+            <View style={{ flexDirection: "row", gap: 10, padding: 12, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.warning, backgroundColor: theme.colors.warning + "1A", marginBottom: 12 }}>
+              <Ionicons name="warning-outline" size={20} color={theme.colors.warning} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: theme.colors.warning, fontWeight: "700", fontSize: 14 }}>{t("admin.remoteAccess.lockoutRiskTitle", "Lockout risk")}</Text>
+                <Text style={{ color: theme.colors.text, fontSize: 13, marginTop: 2 }}>{t("admin.remoteAccess.lockoutRiskMessage", "This change could lock you out of the server.")}</Text>
+              </View>
+            </View>
+          ) : data?.enabled && data?.published ? (
+            <View style={{ flexDirection: "row", gap: 10, padding: 12, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised, marginBottom: 12 }}>
+              <Ionicons name="information-circle-outline" size={20} color={theme.colors.accent} />
+              <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }}>{t("admin.remoteAccess.publishedInfo", "Remote access is published and reachable.")}</Text>
+            </View>
+          ) : null}
+
           {/* Status badge */}
           <View style={[styles.statusBadge, { backgroundColor: enabled ? theme.colors.success + "20" : theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}>
             <Ionicons name={enabled ? "globe-outline" : "lock-closed-outline"} size={20} color={enabled ? theme.colors.success : theme.colors.textMuted} />

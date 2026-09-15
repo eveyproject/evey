@@ -9,7 +9,8 @@ import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { formatBytes } from "@evey/api";
-import { downloadBackupFile, restoreExistingBackup } from "../../../src/components/admin/backup/backupFileOps";
+import * as DocumentPicker from "expo-document-picker";
+import { downloadBackupFile, restoreExistingBackup, restoreFromFile } from "../../../src/components/admin/backup/backupFileOps";
 import { isBackupRestorable } from "../../../src/components/admin/backup/backupTransfer";
 
 interface Backup {
@@ -253,6 +254,30 @@ export default function AdminBackupScreen() {
     onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.backup.restoreFailed"))),
   });
 
+  // Restore from an external archive picked off the device (mirror web RestoreUploadModal).
+  const restoreFromFileMut = useMutation({
+    mutationFn: (uri: string) => restoreFromFile(uri, accessToken),
+    onSuccess: () => { toast.success(t("admin.backup.restoreCompleted")); void qc.invalidateQueries({ queryKey: BACKUPS_KEY }); },
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.backup.restoreFailed"))),
+  });
+
+  const handleRestoreFromFile = useCallback(async () => {
+    const res = await DocumentPicker.getDocumentAsync({
+      type: ["application/gzip", "application/x-gzip", "application/x-tar", "application/octet-stream"],
+      copyToCacheDirectory: true,
+    });
+    if (res.canceled || !res.assets?.[0]?.uri) return;
+    const uri = res.assets[0].uri;
+    Alert.alert(
+      t("admin.backup.restoreFromFileTitle", "Restore from file"),
+      t("admin.backup.restoreFromFileDesc", "This overwrites the current database with the selected archive. Continue?"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("common.restore", "Restore"), style: "destructive", onPress: () => restoreFromFileMut.mutate(uri) },
+      ],
+    );
+  }, [restoreFromFileMut, t]);
+
   const handleDelete = useCallback((backup: Backup) => {
     Alert.alert(
       t("admin.backup.deleteBackupTitle"),
@@ -338,6 +363,21 @@ export default function AdminBackupScreen() {
         )}
         <Text style={{ color: theme.colors.onAccent, fontSize: 15, fontWeight: "600" }}>
           {t("admin.backup.createBackup")}
+        </Text>
+      </Pressable>
+
+      <Pressable
+        onPress={handleRestoreFromFile}
+        disabled={restoreFromFileMut.isPending}
+        style={[styles.createBtn, { marginTop: 0, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radii.md, opacity: restoreFromFileMut.isPending ? 0.6 : 1 }]}
+      >
+        {restoreFromFileMut.isPending ? (
+          <ActivityIndicator size="small" color={theme.colors.text} />
+        ) : (
+          <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.text} />
+        )}
+        <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>
+          {t("admin.backup.restoreFromFile", "Restore from file")}
         </Text>
       </Pressable>
 

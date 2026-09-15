@@ -213,8 +213,19 @@ export default function AdminServerConfigScreen() {
   const introEnabled = getEntryValue("intro_providers.enabled") === "true";
   const tidbKey = getEntryValue("api.tidb_key");
   const tidbSubmitEnabled = getEntryValue("intro_providers.tidb_submit_enabled") === "true";
+  const introUseAllCores = getEntryValue("intro_detection.use_all_cores") === "true";
   const trickplayEnabled = getEntryValue("trickplay.enabled") !== "false";
   const trickplayAdaptiveCpu = getEntryValue("trickplay.adaptive_cpu") !== "false";
+  // Artwork auto-download: default-true, only "false" disables (matches the
+  // server's resolveAutoDownloadDefault). Mirror web ArtworkSettingsCard.
+  const artworkAutoDownload = getEntryValue("artwork.auto_download") !== "false";
+
+  const artworkRetry = useMutation({
+    mutationFn: () =>
+      eveyFetch<{ jobId: string; total: number }>({ url: "/api/v1/admin/artworks/retry-missing", method: "POST" }),
+    onSuccess: () => toast.success(t("admin.serverConfig.artworkRetryStarted", "Retry started")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -353,12 +364,61 @@ export default function AdminServerConfigScreen() {
             })}
           </>
 
+          {/* Artwork section (mirror web ArtworkSettingsCard) */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.artworkTitle", "Artwork")}</Text>
+
+            <View style={staticStyles.switchRow}>
+              <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
+                {t("admin.serverConfig.artworkAutoDownload", "Télécharger les affiches au scan")}
+              </Text>
+              <Switch
+                value={artworkAutoDownload}
+                onValueChange={(v) => saveConfigEntry.mutate({ key: "artwork.auto_download", value: v ? "true" : "false" })}
+                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                disabled={saveConfigEntry.isPending}
+              />
+            </View>
+            <Pressable
+              onPress={() => artworkRetry.mutate()}
+              disabled={artworkRetry.isPending}
+              style={[s.saveBtn, { marginTop: 12, backgroundColor: theme.colors.border, opacity: artworkRetry.isPending ? 0.5 : 1 }]}
+            >
+              {artworkRetry.isPending ? (
+                <ActivityIndicator size="small" color={theme.colors.text} />
+              ) : (
+                <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: 14 }}>
+                  {t("admin.serverConfig.artworkRetryNow", "Réessayer les affiches manquantes")}
+                </Text>
+              )}
+            </Pressable>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 8 }}>
+              {t("admin.serverConfig.artworkRetryDesc", "Retélécharge les affiches encore absentes en local.")}
+            </Text>
+          </>
+
           {/* Intro Providers section */}
           <>
             <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
             <Text style={s.sectionTitle}>{t("admin.intro.providersTitle", "Intro Providers")}</Text>
 
             <View style={staticStyles.switchRow}>
+              <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
+                {t("admin.serverConfig.introDetectionUseAllCores", "Utiliser tous les cœurs CPU")}
+              </Text>
+              <Switch
+                value={introUseAllCores}
+                onValueChange={(v) => saveConfigEntry.mutate({ key: "intro_detection.use_all_cores", value: v ? "true" : "false" })}
+                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                disabled={saveConfigEntry.isPending}
+              />
+            </View>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }}>
+              {t("admin.serverConfig.introDetectionUseAllCoresDesc", "Détection plus rapide, mais sature le CPU pendant les scans.")}
+            </Text>
+
+            <View style={[staticStyles.switchRow, { marginTop: 12 }]}>
               <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
                 {t("admin.intro.enabled", "Enable community intro/recap providers")}
               </Text>
