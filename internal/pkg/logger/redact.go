@@ -27,7 +27,9 @@ var lineRedactions = []struct {
 }{
 	{regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`), "Bearer " + redacted},
 	{regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}`), "[jwt]"},
-	{regexp.MustCompile(`(?i)\b(token|access_token|refresh_token|api_key|apikey|password|pin|secret)=[^&\s"'\\]+`), "$1=" + redacted},
+	// The value stops at a URL/logfmt delimiter, ':' included so "?token=x: 404"
+	// keeps its status.
+	{regexp.MustCompile(`(?i)\b(token|access_token|refresh_token|api_key|apikey|password|pin|secret)=[^&\s"':\\]+`), "$1=" + redacted},
 	{regexp.MustCompile(`(?i)"(token|access_token|refresh_token|api_key|apikey|password|pin|secret)"\s*:\s*"[^"]*"`), `"$1":"` + redacted + `"`},
 }
 
@@ -51,9 +53,16 @@ func redactAttr(_ []string, a slog.Attr) slog.Attr {
 		}
 		return slog.String(a.Key, redacted)
 	}
-	if a.Value.Kind() == slog.KindString {
+	switch a.Value.Kind() {
+	case slog.KindString:
 		if v := a.Value.String(); v != "" {
 			return slog.String(a.Key, RedactLine(v))
+		}
+	case slog.KindAny:
+		// An error is written as its Error() text anyway; a wrapped URL or
+		// header inside it must not escape the scrub.
+		if err, ok := a.Value.Any().(error); ok && err != nil {
+			return slog.String(a.Key, RedactLine(err.Error()))
 		}
 	}
 	return a

@@ -1,6 +1,7 @@
 package logger_test
 
 import (
+	"errors"
 	"log/slog"
 	"os"
 	"strings"
@@ -25,18 +26,19 @@ func TestNew_RedactsCredentialsAtWrite(t *testing.T) {
 	)
 	l.Info("stream url http://h/x?jwt=eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1MSJ9.c2lnbmF0dXJl failed")
 	l.Info("login", slog.Group("req", slog.String("pin", "1234"), slog.String("profile", "kid")))
+	l.Warn("download failed", slog.Any("err", errors.New("GET http://h/plugin.zip?token=err-secret: 404")))
 
 	data, err := os.ReadFile(todayLogFile(dir))
 	if err != nil {
 		t.Fatal(err)
 	}
 	out := string(data)
-	for _, leaked := range []string{"abc.def", "s3cr3t", "hunter2", "q-secret", "eyJhbGciOiJSUzI1NiJ9", `"pin":"1234"`} {
+	for _, leaked := range []string{"abc.def", "s3cr3t", "hunter2", "q-secret", "eyJhbGciOiJSUzI1NiJ9", `"pin":"1234"`, "err-secret"} {
 		if strings.Contains(out, leaked) {
 			t.Errorf("log file leaked %q:\n%s", leaked, out)
 		}
 	}
-	for _, kept := range []string{`"user":"bob"`, `"token_count":3`, `"profile":"kid"`, "&w=1", "proxy dump", "failed"} {
+	for _, kept := range []string{`"user":"bob"`, `"token_count":3`, `"profile":"kid"`, "&w=1", "proxy dump", "failed", "plugin.zip", ": 404"} {
 		if !strings.Contains(out, kept) {
 			t.Errorf("log file lost %q:\n%s", kept, out)
 		}
