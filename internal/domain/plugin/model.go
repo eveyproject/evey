@@ -87,7 +87,7 @@ func (p *Plugin) PublicConfig() map[string]any {
 		return out
 	}
 	for key, schema := range p.ConfigSchema {
-		if isSecretConfigField(schema) {
+		if IsSecretConfigField(schema) {
 			continue
 		}
 		if v, ok := p.Config[key]; ok {
@@ -97,14 +97,14 @@ func (p *Plugin) PublicConfig() map[string]any {
 	return out
 }
 
-// isSecretConfigField reports whether a config_schema entry describes a value
-// that must not be exposed to the front-end: fields of type "password" or any
-// field with an explicit `secret: true` flag. Entries arrive as map[string]any
+// IsSecretConfigField reports whether a config_schema entry describes a value
+// that must not be exposed to any client, admin included: fields of type
+// "password" or any field with an explicit `secret: true` flag. Entries arrive as map[string]any
 // both from the manifest (YAML) and from the repo (JSONB), so the type
 // assertion is safe on the runtime path; an unrecognised shape is treated as
 // non-secret only because such a key would not have been settable via the
 // schema-driven admin form in the first place.
-func isSecretConfigField(schema any) bool {
+func IsSecretConfigField(schema any) bool {
 	m, ok := schema.(map[string]any)
 	if !ok {
 		return false
