@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, FlatList, Pressable, Switch, Alert, ActivityIndicator, Modal, TextInput, StyleSheet, ScrollView } from "react-native";
+import { View, Text, FlatList, Pressable, Switch, Alert, ActivityIndicator, Modal, TextInput, StyleSheet, ScrollView, Share } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -754,9 +754,15 @@ function PluginRow({
             <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>{plugin.name}</Text>
             <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>v{plugin.version}</Text>
             {plugin.sourceHash ? (
-              <Text style={{ color: theme.colors.textMuted, fontSize: 10, fontFamily: "monospace" }}>
-                {plugin.sourceHash.slice(0, 8)}
-              </Text>
+              <Pressable
+                onPress={() => { void Share.share({ message: plugin.sourceHash! }); }}
+                accessibilityRole="button"
+                accessibilityLabel={t("admin.plugin.copySourceHash", "Copy source hash")}
+                style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
+              >
+                <Text style={{ color: theme.colors.textMuted, fontSize: 10, fontFamily: "monospace" }}>{plugin.sourceHash.slice(0, 8)}</Text>
+                <Ionicons name="copy-outline" size={11} color={theme.colors.textMuted} />
+              </Pressable>
             ) : null}
           </View>
           {plugin.description ? (
