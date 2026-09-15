@@ -47,7 +47,7 @@ func (h *adminIntroHandler) InvalidateIntroCache(ctx context.Context, req *eveyv
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "invalidate cache: %v", err)
+		return nil, internalError(ctx, "invalidate intro cache", err)
 	}
 
 	return &eveyv1.InvalidateIntroCacheResponse{RowsDeleted: n}, nil

@@ -95,7 +95,7 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, status.Errorf(codes.Internal, "internal error")
+			return nil, internalError(ctx, "list invite links", err)
 		}
 		owned := false
 		for _, l := range links {
@@ -146,7 +146,7 @@ func (h *userHandler) ValidateInvite(ctx context.Context, req *eveyv1.ValidateIn
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "validate invite", err)
 	}
 	return &eveyv1.ValidateInviteResponse{Valid: valid, IsAdmin: isAdmin}, nil
 }

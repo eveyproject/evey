@@ -65,7 +65,7 @@ func (d *adminTaskHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "list schedules", err)
 	}
 	var current *domainlibrary.ScanSchedule
 	for _, s := range existing {

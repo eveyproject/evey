@@ -35,7 +35,7 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 	if _, err := rand.Read(rawBytes); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "create api key: random", err)
 	}
 	rawKey := fmt.Sprintf("evey_%s", base64.RawURLEncoding.EncodeToString(rawBytes))
 
@@ -102,7 +102,7 @@ func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKey
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, status.Errorf(codes.Internal, "internal error")
+			return nil, internalError(ctx, "list api keys", err)
 		}
 		owned := false
 		for _, k := range keys {
