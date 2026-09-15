@@ -12,6 +12,7 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appconfig "github.com/evey-project/evey/internal/app/config"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -282,13 +283,9 @@ func (d *adminPluginHandler) GetPluginConfig(ctx context.Context, req *eveyv1.Ge
 		span.SetStatus(otelcodes.Error, "get config")
 		return nil, status.Errorf(codes.NotFound, "get config: %v", err)
 	}
-	values := make(map[string]string)
-	for k, v := range result.Config {
-		values[k] = stringFromInterface(v)
-	}
 	resp := &eveyv1.PluginConfig{
 		PluginId: req.PluginId,
-		Values:   values,
+		Values:   maskedPluginConfig(result.Config, result.ConfigSchema),
 	}
 	if len(result.ConfigSchema) > 0 {
 		schemaJSON, err := json.Marshal(result.ConfigSchema)
@@ -313,12 +310,13 @@ func (d *adminPluginHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1
 		span.SetStatus(otelcodes.Error, "get plugin")
 		return nil, status.Errorf(codes.NotFound, "get plugin: %v", err)
 	}
-	if err := validateConfigValues(req.Values, result.ConfigSchema); err != nil {
+	values := restoreMaskedSecrets(req.Values, result.Config, result.ConfigSchema)
+	if err := validateConfigValues(values, result.ConfigSchema); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	cfg := coerceConfigValues(req.Values, result.ConfigSchema)
+	cfg := coerceConfigValues(values, result.ConfigSchema)
 	if err := d.pluginRuntime.UpdatePluginConfig(ctx, req.PluginId, cfg); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -326,8 +324,36 @@ func (d *adminPluginHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1
 	}
 	return &eveyv1.PluginConfig{
 		PluginId: req.PluginId,
-		Values:   req.Values,
+		Values:   maskedPluginConfig(cfg, result.ConfigSchema),
 	}, nil
+}
+
+// maskedPluginConfig renders a config for a client: secret fields (password
+// type or `secret: true`) come back as SecretMask, empty ones stay empty.
+func maskedPluginConfig(cfg, schema map[string]any) map[string]string {
+	out := make(map[string]string, len(cfg))
+	for k, v := range cfg {
+		s := stringFromInterface(v)
+		if s != "" && plugin.IsSecretConfigField(schema[k]) {
+			s = appconfig.SecretMask
+		}
+		out[k] = s
+	}
+	return out
+}
+
+// restoreMaskedSecrets swaps a secret field echoed back as SecretMask for the
+// stored value - the admin form posts every field on save, so the mask means
+// "unchanged", never a new credential.
+func restoreMaskedSecrets(values map[string]string, stored, schema map[string]any) map[string]string {
+	out := make(map[string]string, len(values))
+	for k, v := range values {
+		if v == appconfig.SecretMask && plugin.IsSecretConfigField(schema[k]) {
+			v = stringFromInterface(stored[k])
+		}
+		out[k] = v
+	}
+	return out
 }
 
 func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv1.PreviewPluginUpdateRequest) (*eveyv1.PreviewPluginUpdateResponse, error) {
