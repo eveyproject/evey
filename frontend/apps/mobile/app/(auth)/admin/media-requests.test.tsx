@@ -79,6 +79,14 @@ vi.mock("@evey/store", () => ({
 // --- @tanstack/react-query -----------------------------------------------------------------
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  // The queue pages through useInfiniteQuery; the harness hands it one page.
+  useInfiniteQuery: () => ({
+    ...requestsQueryState,
+    data: requestsQueryState.data ? { pages: [requestsQueryState.data] } : undefined,
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
+    isFetchingNextPage: false,
+  }),
 }));
 
 // --- @evey/api -----------------------------------------------------------------------------
@@ -94,7 +102,7 @@ let requestsQueryState = {
   refetch: vi.fn(),
 };
 vi.mock("@evey/api", () => ({
-  useAdminMediaRequestServiceListRequests: () => requestsQueryState,
+  adminMediaRequestServiceListRequests: vi.fn(),
   useAdminMediaRequestServiceAnswerRequest: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminMediaRequestServiceGetAccessSettings: () => ({ data: { overrides: [] }, isLoading: false, isError: false, refetch: vi.fn() }),
   useAdminMediaRequestServiceSetAccessDefault: () => ({ mutate: vi.fn(), isPending: false }),
