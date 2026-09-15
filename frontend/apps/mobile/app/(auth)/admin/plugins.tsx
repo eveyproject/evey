@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useAdminPluginServiceListPlugins,
   useAdminPluginServiceEnablePlugin,
@@ -33,8 +33,12 @@ import {
   type InstallPreview,
   installPreviewHasWarnings,
 } from "../../../src/components/admin/plugins/pluginConfigUtils";
+import { PluginResourceLimitsCard } from "../../../src/components/admin/plugins/PluginResourceLimitsCard";
+import { PluginSecurityDashboard } from "../../../src/components/admin/plugins/PluginSecurityDashboard";
 
 type Theme = ReturnType<typeof useTheme>;
+
+interface DetectedRuntime { language: string; version: string }
 
 interface PluginExtractedURL {
   url: string;
@@ -865,6 +869,14 @@ export default function AdminPluginsScreen() {
   const { data, isLoading, isError, refetch } = useAdminPluginServiceListPlugins();
   const plugins: Plugin[] = (data?.plugins ?? []) as Plugin[];
 
+  // Runtimes the host detected for plugin execution (mirror web useAvailableRuntimes).
+  const { data: runtimesData } = useQuery({
+    queryKey: ["/api/v1/admin/plugin-runtimes/available"],
+    queryFn: () => eveyFetch<{ runtimes: DetectedRuntime[] }>({ url: "/api/v1/admin/plugin-runtimes/available", method: "GET" }),
+    staleTime: 60_000,
+  });
+  const runtimes = runtimesData?.runtimes ?? [];
+
   const enablePlugin = useAdminPluginServiceEnablePlugin({
     mutation: {
       onSuccess: () => { toast.success(t("admin.plugins.pluginEnabled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); },
@@ -1024,6 +1036,30 @@ export default function AdminPluginsScreen() {
           contentContainerStyle={{ padding: 16, gap: 8 }}
           refreshing={false}
           onRefresh={refetch}
+          ListHeaderComponent={
+            <View style={{ gap: 8, marginBottom: 8 }}>
+              {runtimes.length > 0 && (
+                <View style={[styles.runtimesCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: "600", textTransform: "uppercase" }}>
+                    {t("admin.plugins.availableRuntimes", "Detected runtimes")}
+                  </Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                    {runtimes.map((r) => (
+                      <View key={`${r.language}-${r.version}`} style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radii.sm, backgroundColor: theme.colors.accent + "22" }}>
+                        <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "600" }}>{r.language} {r.version}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              <PluginResourceLimitsCard />
+            </View>
+          }
+          ListFooterComponent={
+            <View style={{ marginTop: 16 }}>
+              <PluginSecurityDashboard />
+            </View>
+          }
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>
               <Ionicons name="extension-puzzle-outline" size={48} color={theme.colors.textMuted} />
@@ -1178,6 +1214,7 @@ export default function AdminPluginsScreen() {
 
 const styles = StyleSheet.create({
   card: { padding: 14 },
+  runtimesCard: { padding: 14 },
   badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1 },
   chipBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
   smallBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6, alignItems: "center", justifyContent: "center" },
