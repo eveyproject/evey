@@ -786,57 +786,61 @@ func registerServerSettingsRoutes(
 		// persist + sideEffect run OUTSIDE cfg's lock so a slow store.Set doesn't
 		// block live Effective* readers - only the plain field assignment is
 		// serialized against them.
-		mu.Lock()
 		// Keys whose live value changed but whose DB row could not be written.
 		// The setting applies now and vanishes at the next restart, so the call
 		// must NOT report success - see the 500 below.
 		var persistFailed []string
-		for _, u := range updates {
-			var serialized string
-			cfg.ApplyServerSettings(func() { serialized = u.apply() })
-			if serialized == "" {
-				continue
-			}
-			overridden[u.cfgKey] = true
-			if store != nil {
-				if err := store.Set(r.Context(), u.cfgKey, serialized); err != nil {
-					slog.ErrorContext(r.Context(), "persist server setting", slog.String("key", u.cfgKey), slog.Any("err", err))
-					persistFailed = append(persistFailed, u.cfgKey)
-				}
-			}
-			if u.sideEffect != nil {
-				u.sideEffect()
-			}
-		}
-		// Explicit nulls = the panel's Reset: restore the default, drop the DB
-		// row (a surviving row would re-apply the override at next boot) and
-		// flip the source back. Keys without a reset closure (hw mode family)
-		// ignore null, as before.
-		//
-		// Delete the DB row FIRST, and only touch the live config if it
-		// succeeded. The reverse order diverges live from persisted on a Delete
-		// failure: cfg would read default now but loadOverride re-applies the
-		// surviving row at the next restart, silently undoing the Reset. This
-		// way a failed Delete leaves BOTH sides on the override - honest (the
-		// panel still shows override) and self-consistent across a restart.
-		for _, def := range settings {
-			raw, present := rawFields[def.jsonKey]
-			if !present || string(raw) != "null" || def.reset == nil {
-				continue
-			}
-			if store != nil {
-				if err := store.Delete(r.Context(), def.cfgKey); err != nil {
-					slog.WarnContext(r.Context(), "delete server setting override, keeping current value", slog.String("key", def.cfgKey), slog.Any("err", err))
+		func() {
+			mu.Lock()
+			// Deferred so a panicking apply/side effect cannot leave every later
+			// settings call waiting on the lock forever.
+			defer mu.Unlock()
+			for _, u := range updates {
+				var serialized string
+				cfg.ApplyServerSettings(func() { serialized = u.apply() })
+				if serialized == "" {
 					continue
 				}
+				overridden[u.cfgKey] = true
+				if store != nil {
+					if err := store.Set(r.Context(), u.cfgKey, serialized); err != nil {
+						slog.ErrorContext(r.Context(), "persist server setting", slog.String("key", u.cfgKey), slog.Any("err", err))
+						persistFailed = append(persistFailed, u.cfgKey)
+					}
+				}
+				if u.sideEffect != nil {
+					u.sideEffect()
+				}
 			}
-			cfg.ApplyServerSettings(def.reset)
-			overridden[def.cfgKey] = false
-			if def.resetSideEffect != nil {
-				def.resetSideEffect()
+			// Explicit nulls = the panel's Reset: restore the default, drop the DB
+			// row (a surviving row would re-apply the override at next boot) and
+			// flip the source back. Keys without a reset closure (hw mode family)
+			// ignore null, as before.
+			//
+			// Delete the DB row FIRST, and only touch the live config if it
+			// succeeded. The reverse order diverges live from persisted on a Delete
+			// failure: cfg would read default now but loadOverride re-applies the
+			// surviving row at the next restart, silently undoing the Reset. This
+			// way a failed Delete leaves BOTH sides on the override - honest (the
+			// panel still shows override) and self-consistent across a restart.
+			for _, def := range settings {
+				raw, present := rawFields[def.jsonKey]
+				if !present || string(raw) != "null" || def.reset == nil {
+					continue
+				}
+				if store != nil {
+					if err := store.Delete(r.Context(), def.cfgKey); err != nil {
+						slog.WarnContext(r.Context(), "delete server setting override, keeping current value", slog.String("key", def.cfgKey), slog.Any("err", err))
+						continue
+					}
+				}
+				cfg.ApplyServerSettings(def.reset)
+				overridden[def.cfgKey] = false
+				if def.resetSideEffect != nil {
+					def.resetSideEffect()
+				}
 			}
-		}
-		mu.Unlock()
+		}()
 
 		// A failed persist used to be logged and then answered 200 with
 		// `source: "override"` - the panel showed the setting as saved while
