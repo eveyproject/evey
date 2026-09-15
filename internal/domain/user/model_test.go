@@ -466,6 +466,16 @@ func TestUser_Validate(t *testing.T) {
 	}{
 		{"valid", user.User{Username: "alice"}, ""},
 		{"empty username", user.User{Username: ""}, "username is required"},
+		{"valid email", user.User{Username: "alice", Email: "a@b.com"}, ""},
+		{"bare host email", user.User{Username: "alice", Email: "x@x"}, ""},
+		// "@" alone used to pass: an address is a local part AND a domain.
+		{"missing domain", user.User{Username: "alice", Email: "a@"}, "email is invalid"},
+		{"missing local part", user.User{Username: "alice", Email: "@b.com"}, "email is invalid"},
+		{"space in address", user.User{Username: "alice", Email: "a b@c.d"}, "email is invalid"},
+		// Display names and lists are not addresses: the SMTP sender would
+		// otherwise mail whatever the operator typed.
+		{"display name form", user.User{Username: "alice", Email: "Bob <a@b.com>"}, "email is invalid"},
+		{"header injection", user.User{Username: "alice", Email: "a@b.com\r\nBcc: x@y.z"}, "email is invalid"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
