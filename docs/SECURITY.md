@@ -311,6 +311,20 @@ file:
 Details and the full variable list: [configuration.md](configuration.md#remote-access-who-may-connect-from-outside-your-network)
 and [deployment-bare-metal.md](deployment-bare-metal.md).
 
+## What the logs may contain
+
+The server log file is what the admin log routes (tail, search, live follow)
+serve, what ends up in bug reports and what a backup carries, so credentials
+are scrubbed **at the write** (`internal/pkg/logger/redact.go`): an attribute
+whose key names a secret (`authorization`, `token`, `access_token`,
+`refresh_token`, `api_key`, `password`, `pin`, `secret`, ...) is replaced whole,
+and any string - the message included - carrying a bearer, a JWT or a
+`secret=value` pair is scrubbed. The admin log routes apply the same rule on the
+way out for lines written before that scrub existed. Two consequences for code:
+a non-secret value must not be logged under a secret key name (it will be
+masked - `token_info`, `device_pin` are the names used today), and a new kind of
+credential must be added to that list before it is ever logged.
+
 ## Reporting a vulnerability
 
 Report privately, never in a public issue: `security@eveyproject.org`. That is
