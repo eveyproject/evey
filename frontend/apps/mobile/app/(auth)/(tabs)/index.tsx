@@ -212,7 +212,9 @@ function MediaLibraryRow({ libraryId, name, libraryType, maxItems, onItemPress }
 
   if (!isLoading && items.length === 0) return null;
 
-  return <MediaRow title={name} items={items} onItemPress={onItemPress} />;
+  // "See all" jumps to the full library grid (web parity: per-library sliders
+  // link to /library/<id>).
+  return <MediaRow title={name} seeAllHref={`/library/${libraryId}`} items={items} onItemPress={onItemPress} />;
 }
 
 // "recently_added" is intentionally absent: it duplicated the per-library
@@ -623,7 +625,7 @@ export default function HomeScreen() {
         if (collections.isError) return <LoadFailed key={feedType} inline onRetry={() => void collections.refetch()} />;
         const allCollections = collections.data?.collections ?? [];
         const cols = maxItems ? allCollections.slice(0, maxItems) : allCollections;
-        return <CollectionRow key={feedType} title={t("media.home.collections")} collections={cols} />;
+        return <CollectionRow key={feedType} title={t("media.home.collections")} collections={cols} seeAllHref="/collections" />;
       }
       case "recommended":
         if (recommended.isError) return <LoadFailed key={feedType} inline onRetry={() => void recommended.refetch()} />;
@@ -649,6 +651,19 @@ export default function HomeScreen() {
         return null;
     }
   }
+
+  // Nothing to show once everything has loaded: no library, no feed row, no
+  // plugin section. Web shows an EmptyState here rather than a blank page under
+  // the Customize button (home.lazy.tsx hasContent). A plugin home section can
+  // still carry its own content, so its presence counts too.
+  const homeHasContent =
+    (resume.data?.items?.length ?? 0) > 0 ||
+    (nextUp.data?.items?.length ?? 0) > 0 ||
+    recommendedItems.length > 0 ||
+    popularItems.length > 0 ||
+    (collections.data?.collections?.length ?? 0) > 0 ||
+    (librariesData?.libraries?.length ?? 0) > 0 ||
+    Object.keys(pluginNames).length > 0;
 
   if (isLoading && !refreshing) {
     const skeletonW = SCREEN_WIDTH * 0.35;
@@ -716,6 +731,25 @@ export default function HomeScreen() {
             .map((lib) => (
               <LibraryFeedRow key={`library:${lib.id}`} libraryId={lib.id!} name={lib.name ?? ""} libraryType={lib.type} onItemPress={handleItemPress} />
             ))}
+          {!homeHasContent && (
+            <View style={{ alignItems: "center", paddingVertical: theme.spacing.xl * 2, paddingHorizontal: theme.spacing.xl }}>
+              <Ionicons name="film-outline" size={48} color={theme.colors.textMuted} />
+              <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600", marginTop: theme.spacing.md, textAlign: "center" }}>
+                {t("media.home.emptyLibrary")}
+              </Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginTop: 6, textAlign: "center" }}>
+                {t("media.home.emptyLibraryDesc")}
+              </Text>
+              <Pressable
+                onPress={() => router.push("/(auth)/(tabs)/library")}
+                style={{ marginTop: theme.spacing.lg, backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.lg }}
+                accessibilityRole="button"
+                accessibilityLabel={t("media.home.goToLibraries")}
+              >
+                <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>{t("media.home.goToLibraries")}</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
       </ScrollView>
       <FeedCustomizeModal
