@@ -23,17 +23,20 @@ vi.mock("react-native", () => ({
       onClick: disabled ? undefined : () => onValueChange?.(!value),
       ...p,
     }),
+  TextInput: (p: any) => React.createElement("input", p),
   StyleSheet: { create: (s: any) => s },
 }));
 
 // --- expo-router -------------------------------------------------------------
+vi.mock("../../../src/components/BottomSheet", () => ({ BottomSheet: () => null }));
+
 vi.mock("expo-router", () => ({
   Stack: { Screen: () => null },
 }));
 
 // --- react-i18next -----------------------------------------------------------
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
+  useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key, i18n: { language: "en" } }),
 }));
 
 // --- @tanstack/react-query ----------------------------------------------------

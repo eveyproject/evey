@@ -27,13 +27,18 @@ vi.mock("react-native", () => ({
       children,
     ),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "loading", ...p }),
+  TextInput: (p: any) => React.createElement("input", p),
   StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
 }));
 
 vi.mock("expo-router", () => ({ Stack: { Screen: () => null } }));
 
+// The language pickers open a BottomSheet (native deps); stub it to a passthrough
+// so this radio-accessibility test keeps rendering the DOM-only screen.
+vi.mock("../components/BottomSheet", () => ({ BottomSheet: () => null }));
+
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key) }),
+  useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key), i18n: { language: "en" } }),
 }));
 
 vi.mock("../providers/ThemeProvider", () => ({

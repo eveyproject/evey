@@ -102,6 +102,11 @@ function HistoryItem({ item, onRemove, isPending }: {
             <ProgressBar percent={pct} />
           </View>
           <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{Math.round(pct)}%</Text>
+          {item.played ? (
+            <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, backgroundColor: theme.colors.success + "22" }}>
+              <Text style={{ color: theme.colors.success, fontSize: 10, fontWeight: "700" }}>{t("common.watched", "Watched")}</Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
