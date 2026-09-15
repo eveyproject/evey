@@ -240,6 +240,27 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return nil
 	}
+	// ABR compatibility gate. The fallback rung is an AUTO-SWITCH variant next
+	// to the copy rung: the player drops onto it on its own under starvation.
+	// That drop must not swap the decoder. The vc= pin above keeps the codec
+	// FAMILY aligned only when the source is h264/hevc AND the client decodes
+	// it; it does nothing for an AV1 source (no pin), for a box that cannot
+	// encode the source family (the resolver falls back to H.264), or for an
+	// HDR source whose copy rung is 10-bit PQ/HLG while the low transcode is
+	// tonemapped SDR 8-bit. In all those the fallback lands in a DIFFERENT ABR
+	// group than the copy rung, and auto-switching to it froze ExoPlayer
+	// (a series episode). When the groups differ we OMIT the rung: the master
+	// stays single-variant and the client reaches a lower quality only through
+	// an explicit source handoff (frontend), never a transparent ABR switch.
+	copyGroup := apptranscoding.NewABRGroup(apptranscoding.SourceVideoCodec(streams), sourceCopyVideoRange(streams))
+	fbGroup := apptranscoding.NewABRGroup(inT.ChosenVideoCodec, inT.TranscodeVideoRange)
+	if !copyGroup.SameAs(fbGroup) {
+		slog.InfoContext(r.Context(), "hls-vod: copy fallback rung skipped, incompatible ABR group (would swap the decoder on an auto-drop; use an explicit source handoff)",
+			slog.String("media_id", mediaID),
+			slog.String("copy_codec", copyGroup.CodecFamily), slog.Bool("copy_hdr", copyGroup.HDR),
+			slog.String("fallback_codec", fbGroup.CodecFamily), slog.Bool("fallback_hdr", fbGroup.HDR))
+		return nil
+	}
 	// The fp here is the KEY log field: a later "software: session started
 	// hash=<fp>" (or "hls: ffmpeg start") on this same hash is the proof the
 	// player actually DROPPED to the rung - advertised vs engaged, one grep.
@@ -253,6 +274,7 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 		Profile:    rung,
 		URI:        "stream_0.m3u8" + apptranscoding.QuerySuffixFor(inT),
 		VideoCodec: inT.ChosenVideoCodec,
+		VideoRange: inT.TranscodeVideoRange,
 		AudioCodec: inT.ChosenAudioCodec,
 	}
 }

@@ -241,6 +241,11 @@ type FallbackVariant struct {
 	Profile    transcoding.HLSProfile
 	URI        string
 	VideoCodec string
+	// VideoRange is the rung's HLS VIDEO-RANGE ("PQ"/"HLG" = HDR, "" = SDR).
+	// Carried so the rung's ABR group (codec family + HDR) can be checked
+	// against the copy rung it sits next to - a mismatch must never be an
+	// auto-switch variant (see ABRGroup / copyFallbackVariant's gate).
+	VideoRange string
 	AudioCodec string
 }
 
