@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { View, Text, FlatList, Pressable, StyleSheet, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import type { Collection } from "../api/collections";
 
@@ -12,6 +13,7 @@ const CARD_TOTAL_WIDTH = CARD_WIDTH + 8;
 interface CollectionRowProps {
   title: string;
   collections: Collection[];
+  seeAllHref?: string;
 }
 
 const getItemLayout = (_: unknown, index: number) => ({
@@ -23,9 +25,10 @@ const getItemLayout = (_: unknown, index: number) => ({
 import React from "react";
 import { FONT_SIZE } from "@evey/theme";
 
-export const CollectionRow = React.memo(function CollectionRow({ title, collections }: CollectionRowProps) {
+export const CollectionRow = React.memo(function CollectionRow({ title, collections, seeAllHref }: CollectionRowProps) {
   const theme = useTheme();
   const router = useRouter();
+  const { t } = useTranslation();
 
   const titleStyle = useMemo(
     () => ({
@@ -106,7 +109,14 @@ export const CollectionRow = React.memo(function CollectionRow({ title, collecti
 
   return (
     <View style={{ marginBottom: theme.spacing.lg }}>
-      <Text style={[styles.rowTitle, titleStyle]}>{title}</Text>
+      <View style={styles.rowHeader}>
+        <Text style={[styles.rowTitle, titleStyle]}>{title}</Text>
+        {seeAllHref && (
+          <Pressable onPress={() => router.push(seeAllHref as never)} style={{ paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.sm }} accessibilityRole="button" accessibilityLabel={t("common.seeAll", "See all")}>
+            <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.xs }}>{t("common.seeAll", "See all")}</Text>
+          </Pressable>
+        )}
+      </View>
       <FlatList
         horizontal
         data={collections}
@@ -128,5 +138,6 @@ function keyExtractor(item: Collection) {
 }
 
 const styles = StyleSheet.create({
+  rowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   rowTitle: { fontSize: FONT_SIZE.lg, fontWeight: "600" },
 });
