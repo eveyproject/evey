@@ -23,6 +23,8 @@ Split authorization into two distinct layers with orthogonal responsibilities.
 - **`MethodRoles[m] == RoleAdmin`** - every destructive, system-wide, or cross-user operation. Rejection with `codes.PermissionDenied` if `claims.IsAdmin == false`.
 - **Default (absent from both maps) == `RoleUser`** - any authenticated caller.
 
+"RBAC" is the interceptor's name, not a role model: there are exactly two roles (`RoleAdmin`, `RoleUser`), derived from the `is_admin` boolean column carried as a JWT claim. There is no role table, no role assignment and no third role; a finer permission (per-user "may manage subtitles", say) would be a new mechanism, not a new entry in `MethodRoles`.
+
 The interceptor is the only authorization code the `/evey.v1.Admin*Service/*` handlers see. They trust the layer.
 
 **Layer 2 - Handler resource check: "can you touch THIS row".** For user-scoped resources the handler runs an owner / library-access check against `claims.UserID` - either a handler helper like `checkLibraryAccess(ctx, libraryID)`, or a delegation to the app service that raises a typed ownership error (e.g. playlists return `appplaylist.ErrNotOwner` when `claims.UserID` isn't the owner). This layer cannot be promoted to the interceptor because the resource identifier is inside the request proto, not in the method name - the interceptor has no way to resolve `media_item_id → library_id → granted?` without decoding each proto.
