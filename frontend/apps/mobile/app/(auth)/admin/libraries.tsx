@@ -358,6 +358,10 @@ function LibraryRow({
   });
 
   const icon = TYPE_ICONS[library.type ?? ""] ?? "folder-outline";
+  // Provider matching (match orphans / refresh metadata) only applies to
+  // movie/show libraries - music and photos have no metadata provider, so the
+  // actions would be no-ops (mirror web supportsProviderMatching).
+  const supportsMatch = library.type === "LIBRARY_TYPE_MOVIES" || library.type === "LIBRARY_TYPE_SHOWS";
   const libStat = stats.find((s) => s.id === library.id);
   const lastScan = libStat?.lastScannedAt
     ? new Date(libStat.lastScannedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
@@ -421,28 +425,32 @@ function LibraryRow({
         >
           <Ionicons name="calendar-outline" size={18} color={theme.colors.accent} />
         </Pressable>
-        <Pressable
-          onPress={() => matchOrphans.mutate()}
-          disabled={matchOrphans.isPending}
-          hitSlop={8}
-          style={{ padding: 4 }}
-          accessible={true}
-          accessibilityLabel={t("admin.libraries.matchOrphansNamed", "Match orphans for {{name}}", { name: library.name })}
-          accessibilityRole="button"
-        >
-          <Ionicons name="link-outline" size={18} color={theme.colors.accent} />
-        </Pressable>
-        <Pressable
-          onPress={() => refreshMetadata.mutate()}
-          disabled={refreshMetadata.isPending}
-          hitSlop={8}
-          style={{ padding: 4 }}
-          accessible={true}
-          accessibilityLabel={t("admin.libraries.refreshMetadataNamed", "Refresh metadata for {{name}}", { name: library.name })}
-          accessibilityRole="button"
-        >
-          <Ionicons name="cloud-download-outline" size={18} color={theme.colors.accent} />
-        </Pressable>
+        {supportsMatch && (
+          <>
+            <Pressable
+              onPress={() => matchOrphans.mutate()}
+              disabled={matchOrphans.isPending}
+              hitSlop={8}
+              style={{ padding: 4 }}
+              accessible={true}
+              accessibilityLabel={t("admin.libraries.matchOrphansNamed", "Match orphans for {{name}}", { name: library.name })}
+              accessibilityRole="button"
+            >
+              <Ionicons name="link-outline" size={18} color={theme.colors.accent} />
+            </Pressable>
+            <Pressable
+              onPress={() => refreshMetadata.mutate()}
+              disabled={refreshMetadata.isPending}
+              hitSlop={8}
+              style={{ padding: 4 }}
+              accessible={true}
+              accessibilityLabel={t("admin.libraries.refreshMetadataNamed", "Refresh metadata for {{name}}", { name: library.name })}
+              accessibilityRole="button"
+            >
+              <Ionicons name="cloud-download-outline" size={18} color={theme.colors.accent} />
+            </Pressable>
+          </>
+        )}
         <Pressable
           onPress={() => onDelete(library)}
           hitSlop={8}
