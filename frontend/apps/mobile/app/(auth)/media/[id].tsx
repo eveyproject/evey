@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListMediaItems,
+  useLibraryServiceGetSeriesAggregate,
   usePlaybackServiceGetWatchProgress,
   usePlaybackServiceGetWatchHistory,
   WATCH_HISTORY_OVERLAY_LIMIT,
@@ -37,7 +38,7 @@ import {
   ratingServicePutThumbRating,
   getRatingServiceGetMyThumbRatingQueryKey,
 } from "@evey/api";
-import type { V1MediaItem, V1MediaPerson, V1Trailer } from "@evey/api";
+import type { V1MediaItem, V1MediaPerson, V1MediaStream, V1Trailer } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -51,7 +52,7 @@ import { downloadStageLabel } from "../../../src/lib/downloadStageLabel";
 import { chooseDownloadQuality } from "../../../src/lib/downloadQualityGate";
 import { startReducedDownload, reducedDownloadMessage } from "../../../src/lib/reducedDownload";
 import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
-import { formatBytes, formatDurationMs, formatTimeMs, itemLabel, seasonLabel, trackPickParams, type TrackPick } from "@evey/api";
+import { formatBytes, formatChannelLayout, formatDurationMs, formatTimeMs, itemLabel, seasonLabel, trackPickParams, type TrackPick } from "@evey/api";
 import { TrackPickChips } from "../../../src/components/TrackPickChips";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
@@ -386,6 +387,52 @@ function renderCastItem({ item }: { item: V1MediaPerson }) {
   return <CastCard person={item} />;
 }
 
+// Per-source critic ratings shown in the hero (web parity: MediaDetailHero).
+const RATING_SOURCE_LABELS: Record<string, string> = { imdb: "IMDb", rt: "RT", metacritic: "Metacritic" };
+function formatRating(value: number, maxValue: number): string {
+  // 100-scale sources (RT, Metacritic) read as a score; 10-scale (IMDb) keeps a decimal.
+  return maxValue === 100 ? `${Math.round(value)}` : value.toFixed(1);
+}
+
+// Aggregate runtime of a whole series, e.g. "2d 5h" (web parity:
+// formatSeriesRuntime). Empty when there is nothing to sum.
+function formatSeriesRuntime(totalMs?: string, episodeCount?: number): string {
+  const ms = totalMs ? parseInt(totalMs, 10) : 0;
+  const eps = episodeCount ?? 0;
+  if (eps === 0 || isNaN(ms) || ms <= 0) return "";
+  const totalMin = Math.floor(ms / 60000);
+  const days = Math.floor(totalMin / (60 * 24));
+  const h = Math.floor((totalMin % (60 * 24)) / 60);
+  const m = totalMin % 60;
+  if (days > 0) return `${days}d ${h}h`;
+  if (h > 0) return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  return `${m}min`;
+}
+
+// At-a-glance tech labels a viewer actually reads before pressing play
+// (web parity: MediaTechSummary). Codec/container names stay in the disclosure
+// below - they mean nothing to most people. Kept coarse like the web helper:
+// a DoVi title reads as HDR10 (the dovi fields aren't in the stream proto).
+function resolutionLabel(height?: number): string | null {
+  const h = height ?? 0;
+  if (h <= 0) return null;
+  if (h >= 2160) return "4K";
+  if (h >= 1440) return "1440p";
+  if (h >= 1080) return "1080p";
+  if (h >= 720) return "720p";
+  return `${h}p`;
+}
+function hdrLabel(s?: V1MediaStream): string | null {
+  if (!s) return null;
+  switch (s.colorTransfer?.trim().toLowerCase()) {
+    case "smpte2084": return "HDR10";
+    case "arib-std-b67": return "HLG";
+  }
+  const cs = s.colorSpace?.trim().toLowerCase() ?? "";
+  if (cs.startsWith("bt2020") && (s.bitDepth ?? 0) >= 10) return "HDR10";
+  return null;
+}
+
 function FileInfoSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -395,8 +442,23 @@ function FileInfoSection({ item }: { item: V1MediaItem }) {
     return null;
   }
 
+  const videoStream = item.streams?.find((s) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
+  const audioStreams = item.streams?.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO") ?? [];
+  const primaryAudio = audioStreams.find((s) => s.isDefault) ?? audioStreams[0];
+  const techBadges = [
+    resolutionLabel(videoStream?.height),
+    hdrLabel(videoStream),
+    formatChannelLayout(primaryAudio?.channels) || null,
+    Number(item.fileSize ?? 0) > 0 ? formatBytes(item.fileSize) : null,
+  ].filter((b): b is string => !!b);
+
   return (
     <View style={{ marginTop: theme.spacing.lg }}>
+      {techBadges.length > 0 && (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: theme.spacing.sm }}>
+          {techBadges.map((b, i) => <InfoBadge key={i} label={b} />)}
+        </View>
+      )}
       <Pressable
         onPress={() => setOpen((v) => !v)}
         style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: theme.spacing.sm }}
@@ -649,6 +711,13 @@ export default function MediaDetailScreen() {
   const isSeries = isSeriesType(media?.type);
   const isSeason = isSeasonType(media?.type);
   const isEpisode = isEpisodeType(media?.type);
+
+  // Aggregate runtime + episode count for a series (web parity): the series
+  // item's own durationMs is empty, so without this a series showed no runtime.
+  const { data: seriesAggregate } = useLibraryServiceGetSeriesAggregate(
+    id ?? "",
+    { query: { enabled: !!id && isSeries } } as never,
+  );
 
   const { data: parentItem } = useLibraryServiceGetMediaItem(
     media?.parentId ?? "",
@@ -1064,11 +1133,20 @@ export default function MediaDetailScreen() {
                 <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{media.year}</Text>
               ) : null}
               {(() => {
-                const runtime = formatDurationMs(media.durationMs);
+                // Series: the whole-show aggregate ("2d 5h"); everything else:
+                // this item's own runtime.
+                const runtime = isSeries
+                  ? formatSeriesRuntime(seriesAggregate?.totalDurationMs, seriesAggregate?.episodeCount)
+                  : formatDurationMs(media.durationMs);
                 return runtime
                   ? <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{runtime}</Text>
                   : null;
               })()}
+              {isSeries && (seriesAggregate?.episodeCount ?? 0) > 0 ? (
+                <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>
+                  {t("media.detail.episodeCount", { count: seriesAggregate!.episodeCount })}
+                </Text>
+              ) : null}
               {(() => {
                 const info = certInfoForLocale(media.certificationsByCountry, i18n.language, media.officialRating, profileRegion);
                 if (!info) return null;
@@ -1089,13 +1167,26 @@ export default function MediaDetailScreen() {
               })()}
             </View>
 
-            {/* Community rating stars */}
-            {media.communityRating != null && media.communityRating > 0 ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
-                <StarIcons rating={media.communityRating} />
-                <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-                  {media.communityRating.toFixed(1)}
-                </Text>
+            {/* Community rating stars + per-source critic ratings (web parity) */}
+            {(media.communityRating != null && media.communityRating > 0) ||
+            (media.ratings ?? []).some((r) => r.source && RATING_SOURCE_LABELS[r.source] && (r.value ?? 0) > 0) ? (
+              <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+                {media.communityRating != null && media.communityRating > 0 ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <StarIcons rating={media.communityRating} />
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                      {media.communityRating.toFixed(1)}
+                    </Text>
+                  </View>
+                ) : null}
+                {(media.ratings ?? [])
+                  .filter((r) => r.source && RATING_SOURCE_LABELS[r.source] && (r.value ?? 0) > 0)
+                  .map((r) => (
+                    <Text key={r.source} style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                      <Text style={{ fontWeight: "700" }}>{RATING_SOURCE_LABELS[r.source!]}</Text>{" "}
+                      {formatRating(r.value ?? 0, r.maxValue ?? 10)}{r.source === "rt" ? "%" : ""}
+                    </Text>
+                  ))}
               </View>
             ) : null}
 
