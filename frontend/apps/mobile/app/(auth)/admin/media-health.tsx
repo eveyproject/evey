@@ -42,6 +42,7 @@ import {
 import { SeekIndexItemRow } from "../../../src/components/admin/seekIndex/SeekIndexItemRow";
 import { RepairConfirmModal, type BatchKind } from "../../../src/components/admin/seekIndex/RepairConfirmModal";
 import { RepairJournalPanel } from "../../../src/components/admin/seekIndex/RepairJournalPanel";
+import { RepairHistoryModal } from "../../../src/components/admin/seekIndex/RepairHistoryModal";
 
 // One card per verdict (same triage as the web grid), and there are two: what
 // Evey repairs here, and what it merely noticed. The number, what it is made
@@ -176,6 +177,7 @@ export default function AdminSeekIndexScreen() {
   // files is part of it. Pre-set when the dialog opens (see openRepairAll).
   const [keepBackups, setKeepBackups] = useState(true);
   const [resyncDamaged, setResyncDamaged] = useState(true);
+  const [historyTarget, setHistoryTarget] = useState<{ mediaId: string; title: string } | null>(null);
 
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -365,6 +367,7 @@ export default function AdminSeekIndexScreen() {
             onFixContainer={(mediaId) => fixContainerOne.mutate({ mediaId })}
             onAck={(mediaId, acked) => ackOne.mutate({ data: { mediaId, acked } })}
             onDeleteBackup={(mediaId) => deleteBackup.mutate({ data: { mediaId } })}
+            onHistory={(mediaId, title) => setHistoryTarget({ mediaId, title })}
             repairPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && !repairOne.variables?.data?.resync}
             repairResyncPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && repairOne.variables?.data?.resync === true}
             rollbackPending={rollbackOne.isPending && rollbackOne.variables?.mediaId === item.mediaId}
@@ -551,6 +554,14 @@ export default function AdminSeekIndexScreen() {
         resyncDamaged={resyncDamaged}
         setResyncDamaged={setResyncDamaged}
       />
+
+      {historyTarget && (
+        <RepairHistoryModal
+          mediaId={historyTarget.mediaId}
+          title={historyTarget.title}
+          onClose={() => setHistoryTarget(null)}
+        />
+      )}
     </View>
   );
 }
