@@ -296,7 +296,9 @@ export default function CollectionsScreen() {
           )}
           ListEmptyComponent={
             <View style={styles.center}>
-              <Text style={{ color: theme.colors.textMuted }}>{t("common.noCollections")}</Text>
+              <Ionicons name="folder-outline" size={48} color={theme.colors.textMuted} style={{ marginBottom: 10 }} />
+              <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600", textAlign: "center" }}>{t("media.collections.noCollections")}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center", marginTop: 6, paddingHorizontal: 24 }}>{t("media.collections.noCollectionsDesc")}</Text>
             </View>
           }
         />

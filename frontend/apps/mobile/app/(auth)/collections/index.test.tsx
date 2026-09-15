@@ -86,7 +86,7 @@ describe("CollectionsScreen - loading vs failure vs genuinely no collections", (
     render(<CollectionsScreen />);
 
     expect(screen.getAllByTestId("skeleton").length).toBeGreaterThan(0);
-    expect(screen.queryByText("common.noCollections")).toBeNull();
+    expect(screen.queryByText("media.collections.noCollections")).toBeNull();
     expect(screen.queryByText("common.loadError")).toBeNull();
   });
 
@@ -96,7 +96,7 @@ describe("CollectionsScreen - loading vs failure vs genuinely no collections", (
     render(<CollectionsScreen />);
 
     expect(screen.getByText("common.loadError")).toBeTruthy();
-    expect(screen.queryByText("common.noCollections")).toBeNull();
+    expect(screen.queryByText("media.collections.noCollections")).toBeNull();
 
     fireEvent.click(screen.getByLabelText("common.retry"));
     expect(refetch).toHaveBeenCalledOnce();
@@ -106,7 +106,7 @@ describe("CollectionsScreen - loading vs failure vs genuinely no collections", (
     collectionsState = { data: { collections: [] }, isLoading: false, isError: false, refetch: vi.fn() };
     render(<CollectionsScreen />);
 
-    expect(screen.getByText("common.noCollections")).toBeTruthy();
+    expect(screen.getByText("media.collections.noCollections")).toBeTruthy();
     expect(screen.queryByText("common.loadError")).toBeNull();
   });
 });

@@ -1275,6 +1275,12 @@ export default function MediaDetailScreen() {
             />
           </Pressable>
 
+          {/* Deliberately NOT offered for a series/season: the server's
+              MarkAsWatched writes a single progress row on the id it is given and
+              nothing cascades it to the episodes (verified: no MediaMarkedWatched
+              consumer descends the tree), so a "watched" series would leave every
+              episode unwatched - a misleading button. Web shows it anyway; this is
+              the one place we keep the mobile behaviour over web parity. */}
           {!isSeries && !isSeason && (
             <Pressable
               onPress={() => {
