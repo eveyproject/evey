@@ -70,7 +70,12 @@ vi.mock("@evey/store", () => ({
 vi.mock("../../../src/components/admin/backup/backupFileOps", () => ({
   downloadBackupFile: vi.fn(),
   restoreExistingBackup: vi.fn(),
+  restoreFromFile: vi.fn(),
 }));
+
+// expo-document-picker pulls in expo-modules-core (native) at import; the
+// screen imports it for the restore-from-file picker.
+vi.mock("expo-document-picker", () => ({ getDocumentAsync: vi.fn() }));
 
 // --- @evey/api -----------------------------------------------------------------------------
 // Spreads the real module: the screen renders backup sizes with formatBytes
