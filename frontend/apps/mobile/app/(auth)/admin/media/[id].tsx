@@ -12,10 +12,12 @@ import {
 import { Stack } from "expo-router";
 import { useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useLibraryServiceGetMediaItem, itemLabel } from "@evey/api";
+import { useLibraryServiceGetMediaItem, itemLabel, eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../../src/providers/ThemeProvider";
 import { HeaderBack } from "../../../../src/components/layout/HeaderBack";
+import { useServerUrl } from "../../../../src/hooks/useServerUrl";
+import { SegmentPlayer } from "../../../../src/components/admin/SegmentPlayer";
 import {
   useAdminMediaSegments,
   useSetSegment,
@@ -66,9 +68,41 @@ export default function AdminMediaSegmentsScreen() {
   const triggerDetect = useTriggerAutoDetect(id ?? "");
 
   const [localSegments, setLocalSegments] = useState<LocalSegment[]>([]);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [streamToken, setStreamToken] = useState<string | null>(null);
+  const serverUrl = useServerUrl();
 
   const isEpisode = mediaItem?.type === "MEDIA_ITEM_TYPE_EPISODE";
   const isLoading = itemLoading || segLoading;
+
+  // Mint a stream token so the native player can fetch the raw file (mirror web).
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await eveyFetch<{ token: string }>({ url: `/api/v1/media/${id}/stream-token`, method: "POST" });
+        if (!cancelled) setStreamToken(res.token);
+      } catch {
+        if (!cancelled) setStreamToken(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  const streamUrl = streamToken ? `${serverUrl}/api/v1/media/${id}/stream?token=${encodeURIComponent(streamToken)}` : null;
+  const mediaDurationMs = Number(mediaItem?.durationMs ?? 0);
+
+  // Mark start/end from the player's playhead onto the selected segment.
+  function handleMark(edge: "start" | "end", ms: number) {
+    if (!selectedType) return;
+    setLocalSegments((prev) => prev.map((sg) => {
+      if (sg.type !== selectedType) return sg;
+      const startMs = edge === "start" ? ms : sg.startMs;
+      const endMs = edge === "end" ? ms : sg.endMs;
+      return { ...sg, startMs, endMs, isDirty: true };
+    }));
+  }
 
   // Sync server segments → local state (don't overwrite dirty entries)
   useEffect(() => {
@@ -89,6 +123,14 @@ export default function AdminMediaSegmentsScreen() {
       return updated;
     });
   }, [serverSegments]);
+
+  // Keep a valid segment selected so the mark buttons are usable.
+  useEffect(() => {
+    if (localSegments.length === 0) { if (selectedType) setSelectedType(null); return; }
+    if (!selectedType || !localSegments.find((sg) => sg.type === selectedType)) {
+      setSelectedType(localSegments[0].type);
+    }
+  }, [localSegments, selectedType]);
 
   async function handleAutoDetect() {
     try {
@@ -198,6 +240,18 @@ export default function AdminMediaSegmentsScreen() {
               </Text>
             )}
           </Pressable>
+
+          {/* Section A: native player + mark start/end + visual timeline. */}
+          {streamUrl ? (
+            <SegmentPlayer
+              streamUrl={streamUrl}
+              durationMsFallback={mediaDurationMs}
+              segments={localSegments.map((sg) => ({ type: sg.type, startMs: sg.startMs, endMs: sg.endMs }))}
+              selectedType={selectedType}
+              onSelectType={setSelectedType}
+              onMark={handleMark}
+            />
+          ) : null}
 
           {/* Segment rows */}
           {localSegments.length === 0 ? (
