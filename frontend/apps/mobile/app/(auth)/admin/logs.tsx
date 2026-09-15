@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, useUserServiceListUsers, useUserServiceListAllProfiles } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 // Mirrors frontend/apps/web/src/features/admin/logsClassify.ts. The search
@@ -131,10 +131,12 @@ const LogRow = memo(function LogRow({
   entry,
   theme,
   t,
+  names,
 }: {
   entry: LogEntry;
   theme: ReturnType<typeof useTheme>;
   t: ReturnType<typeof useTranslation>["t"];
+  names: Map<string, string>;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -175,13 +177,17 @@ const LogRow = memo(function LogRow({
               {entry.component ? (
                 <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>component: {entry.component}</Text>
               ) : null}
-              {ids.map(([k, v]) =>
-                v ? (
+              {ids.map(([k, v]) => {
+                if (!v) return null;
+                // Resolve user/session ids to a human name when known; the id
+                // stays visible in parens so it's still greppable/copyable.
+                const name = k === "user" ? names.get(v) : undefined;
+                return (
                   <Text key={k} style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-                    {k}: {v}
+                    {k}: {name ? `${name} (${v})` : v}
                   </Text>
-                ) : null,
-              )}
+                );
+              })}
               {entry.requestId ? (
                 <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>request_id: {entry.requestId}</Text>
               ) : null}
@@ -272,7 +278,17 @@ export default function AdminLogsScreen() {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const renderItem = useCallback(({ item }: { item: LogEntry }) => <LogRow entry={item} theme={theme} t={t} />, [theme, t]);
+  // Resolve user/profile ids in log rows to names (mirror web buildIdentityIndex).
+  const { data: usersData } = useUserServiceListUsers();
+  const { data: profilesData } = useUserServiceListAllProfiles();
+  const identityById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of usersData?.users ?? []) if (u.id) m.set(u.id, u.username ?? u.id);
+    for (const p of profilesData?.profiles ?? []) if (p.id) m.set(p.id, p.name ?? p.id);
+    return m;
+  }, [usersData, profilesData]);
+
+  const renderItem = useCallback(({ item }: { item: LogEntry }) => <LogRow entry={item} theme={theme} t={t} names={identityById} />, [theme, t, identityById]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
