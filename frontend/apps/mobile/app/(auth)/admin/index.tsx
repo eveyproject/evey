@@ -6,45 +6,36 @@ type IoniconName = keyof typeof Ionicons.glyphMap;
 import { Stack, useRouter } from "expo-router";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import Svg, { Circle } from "react-native-svg";
 import {
   useAdminSystemServiceGetDashboard,
-  useAdminSystemServiceGetSystemInfo,
   useAdminSystemServiceRestartServer,
   useAdminSessionServiceListActiveSessions,
-  useAdminSessionServiceGetAuditLog,
   usePresenceServiceListOnline,
-  useActivityServiceGetServerStats,
   useActivityServiceGetAnalytics,
   useLibraryServiceListMediaItems,
   useLibraryServiceListLibraries,
   useLibraryServiceScanLibrary,
   useUserServiceListAllProfiles,
+  getAdminSessionServiceListActiveSessionsQueryKey,
+  eveyFetch,
+  type V1ActiveSession,
 } from "@evey/api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
-import { formatBytes } from "@evey/api";
+import { SessionCard } from "../../../src/components/admin/SessionCard";
+import { BackgroundTasksPanel } from "../../../src/components/admin/BackgroundTasksPanel";
 
-function StatCard({ label, value, icon, theme }: { label: string; value: string | number; icon: IoniconName; theme: ReturnType<typeof useTheme> }) {
+function StatCard({ label, value, icon, theme, sub, valueColor }: { label: string; value: string | number; icon: IoniconName; theme: ReturnType<typeof useTheme>; sub?: string; valueColor?: string }) {
   return (
     <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
       <Ionicons name={icon} size={24} color={theme.colors.accent} />
-      <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
+      <Text style={[styles.statValue, { color: valueColor ?? theme.colors.text }]}>{value}</Text>
       <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{label}</Text>
+      {sub ? <Text style={[styles.statLabel, { color: theme.colors.textMuted, fontSize: 10 }]}>{sub}</Text> : null}
     </View>
   );
-}
-
-function formatUptime(seconds?: string): string {
-  if (!seconds) return "-";
-  const s = parseInt(seconds, 10);
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
 }
 
 // formatBps mirrors the web dashboard's rendering: -1 means the server has no
@@ -86,50 +77,74 @@ function SectionHeader({ title, theme, onViewAll }: { title: string; theme: Retu
   );
 }
 
-// NowPlayingCard is a compact read-only summary of active playback sessions -
-// full transport controls (pause/kill/message) already live on /admin/sessions.
+// NowPlayingCard is the dashboard's mini control player for active playback:
+// the same rich SessionCard the /admin/sessions screen uses, with live
+// play/pause, stop and message controls (parity with the web dashboard).
 function NowPlayingCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
   const router = useRouter();
+  const qc = useQueryClient();
   const { data, isLoading, isError, refetch } = useAdminSessionServiceListActiveSessions({
     query: { refetchInterval: 5_000, refetchIntervalInBackground: false },
   });
   const sessions = data?.sessions ?? [];
 
+  // Same live controls the Sessions screen has, via the shared SessionCard: the
+  // dashboard's "Now playing" is a mini control player, not a read-only list
+  // (parity with the web DashboardNowPlaying).
+  const listKey = getAdminSessionServiceListActiveSessionsQueryKey();
+  const killSession = useMutation({
+    mutationFn: (sessionId: string) => eveyFetch({ url: `/api/v1/admin/sessions/${sessionId}`, method: "DELETE" }),
+    onSuccess: () => {
+      toast.success(t("admin.sessions.sessionStopped", "Session arrêtée"));
+      void qc.invalidateQueries({ queryKey: listKey });
+    },
+    onError: () => toast.error(t("admin.sessions.failedStop", "Impossible d'arrêter la session")),
+  });
+  const sendCommand = useMutation({
+    mutationFn: ({ sessionId, command }: { sessionId: string; command: string }) =>
+      eveyFetch({ url: `/api/v1/admin/sessions/${sessionId}/command`, method: "POST", headers: { "Content-Type": "application/json" }, data: { command } }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: listKey }); },
+    onError: () => toast.error(t("admin.sessions.commandFailed", "Échec de l'envoi de la commande")),
+  });
+  const handleKill = useCallback((s: V1ActiveSession) => {
+    killSession.mutate(s.sessionId ?? "");
+  }, [killSession]);
+  const handleCommand = useCallback((sessionId: string, command: string) => {
+    sendCommand.mutate({ sessionId, command });
+  }, [sendCommand]);
+
   return (
     <View style={{ marginHorizontal: 16, marginTop: 20 }}>
       <SectionHeader title={t("admin.dashboardStats.nowPlaying")} theme={theme} onViewAll={() => router.push("/admin/sessions" as never)} />
-      <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginTop: 8 }]}>
-        {isLoading ? (
+      {isLoading ? (
+        <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginTop: 8 }]}>
           <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 20 }} />
-        ) : isError ? (
+        </View>
+      ) : isError ? (
+        <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginTop: 8 }]}>
           <LoadFailed inline onRetry={() => void refetch()} />
-        ) : sessions.length === 0 ? (
+        </View>
+      ) : sessions.length === 0 ? (
+        <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginTop: 8 }]}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center", paddingVertical: 20 }}>
             {t("admin.dashboardStats.noActivePlayback")}
           </Text>
-        ) : (
-          sessions.slice(0, 4).map((s, i) => {
-            const progress = Math.min(100, Math.max(0, s.progress ?? 0));
-            const epLabel = s.seriesTitle && (s.seasonNumber ?? 0) > 0 && (s.episodeNumber ?? 0) > 0
-              ? `S${String(s.seasonNumber).padStart(2, "0")}E${String(s.episodeNumber).padStart(2, "0")} - `
-              : "";
-            return (
-              <View key={s.sessionId ?? i} style={[styles.infoRow, { borderBottomColor: theme.colors.border, flexDirection: "column", alignItems: "stretch", gap: 4 }]}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", flex: 1 }} numberOfLines={1}>
-                    {epLabel}{s.mediaTitle ?? "-"}
-                  </Text>
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{s.profileName ?? "-"}</Text>
-                </View>
-                <View style={[styles.progressBg, { backgroundColor: theme.colors.border }]}>
-                  <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: theme.colors.accent }]} />
-                </View>
-              </View>
-            );
-          })
-        )}
-      </View>
+        </View>
+      ) : (
+        <View style={{ gap: 10, marginTop: 8 }}>
+          {sessions.map((s, i) => (
+            <SessionCard
+              key={s.sessionId ?? i}
+              session={s}
+              theme={theme}
+              t={t as never}
+              onKill={handleKill}
+              onCommand={handleCommand}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -311,128 +326,6 @@ function QuickActionsRow({ theme }: { theme: ReturnType<typeof useTheme> }) {
   );
 }
 
-// PopularMediaCard reuses the same server-stats endpoint the web dashboard's
-// PopularMedia widget calls (top played items over the last 90 days).
-function PopularMediaCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
-  const { t } = useTranslation();
-  const router = useRouter();
-  const { data } = useActivityServiceGetServerStats({ popularLimit: 5 });
-  const popular = data?.popularMedia ?? [];
-  if (popular.length === 0) return null;
-
-  return (
-    <View style={{ marginHorizontal: 16, marginTop: 20 }}>
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted, marginTop: 0 }]}>{t("admin.dashboardStats.popularMedia")}</Text>
-      <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginTop: 8 }]}>
-        {popular.map((m, i) => (
-          <Pressable
-            key={m.mediaItemId ?? i}
-            onPress={() => m.mediaItemId && router.push(`/media/${m.mediaItemId}` as never)}
-            style={[styles.infoRow, { borderBottomColor: theme.colors.border }]}
-          >
-            <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "700", width: 20 }}>{i + 1}</Text>
-            <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} numberOfLines={1}>{m.title ?? "-"}</Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-              {t("admin.activity.plays", { count: m.playCount ?? 0, defaultValue: "{{count}} plays" })}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-// RecentActivityCard is a compact read-only preview of the audit log - full
-// filtering/pagination lives on /admin/activity.
-function RecentActivityCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
-  const { t } = useTranslation();
-  const router = useRouter();
-  const { data } = useAdminSessionServiceGetAuditLog({ limit: 5, offset: 0 });
-  const entries = data?.entries ?? [];
-  if (entries.length === 0) return null;
-
-  return (
-    <View style={{ marginHorizontal: 16, marginTop: 20 }}>
-      <SectionHeader title={t("admin.dashboardStats.recentActivity")} theme={theme} onViewAll={() => router.push("/admin/activity" as never)} />
-      <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginTop: 8 }]}>
-        {entries.map((entry, i) => (
-          <View key={entry.id ?? i} style={[styles.infoRow, { borderBottomColor: theme.colors.border }]}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ color: theme.colors.text, fontSize: 13 }} numberOfLines={1}>
-                {entry.username || "system"}{entry.resourceType ? ` · ${entry.resourceType}` : ""}
-              </Text>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>{entry.action ?? "-"}</Text>
-            </View>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-              {entry.createdAt ? new Date(entry.createdAt).toLocaleTimeString() : "-"}
-            </Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-// StorageDonut draws one ring per physical disk (react-native-svg is already
-// a project dependency, used elsewhere for the player's scrub timeline).
-function StorageDonut({ storage, theme }: { storage: { path?: string; totalBytes?: string; usedBytes?: string }[]; theme: ReturnType<typeof useTheme> }) {
-  const { t } = useTranslation();
-  if (!storage || storage.length === 0) return null;
-
-  const radius = 34;
-  const strokeWidth = 8;
-  const circumference = 2 * Math.PI * radius;
-
-  return (
-    <View style={{ marginHorizontal: 16, marginTop: 20 }}>
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted, marginTop: 0 }]}>{t("admin.dashboardStats.storage")}</Text>
-      <View style={[styles.infoCard, styles.storageRow, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginTop: 8 }]}>
-        {storage.map((s, i) => {
-          const used = parseInt(s.usedBytes ?? "0", 10);
-          const total = parseInt(s.totalBytes ?? "1", 10);
-          const pct = total > 0 ? Math.round((used / total) * 100) : 0;
-          const dash = circumference * Math.min(1, Math.max(0, pct / 100));
-          return (
-            <View key={s.path ?? i} style={{ alignItems: "center", gap: 4, width: 100 }}>
-              <View style={{ width: radius * 2 + strokeWidth, height: radius * 2 + strokeWidth }}>
-                <Svg width={radius * 2 + strokeWidth} height={radius * 2 + strokeWidth}>
-                  <Circle
-                    cx={radius + strokeWidth / 2}
-                    cy={radius + strokeWidth / 2}
-                    r={radius}
-                    stroke={theme.colors.border}
-                    strokeWidth={strokeWidth}
-                    fill="none"
-                  />
-                  <Circle
-                    cx={radius + strokeWidth / 2}
-                    cy={radius + strokeWidth / 2}
-                    r={radius}
-                    stroke={theme.colors.accent}
-                    strokeWidth={strokeWidth}
-                    fill="none"
-                    strokeDasharray={`${dash} ${circumference}`}
-                    strokeLinecap="round"
-                    rotation="-90"
-                    origin={`${radius + strokeWidth / 2}, ${radius + strokeWidth / 2}`}
-                  />
-                </Svg>
-                <View style={StyleSheet.absoluteFillObject}>
-                  <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "700" }}>{pct}%</Text>
-                  </View>
-                </View>
-              </View>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>{s.path}</Text>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{formatBytes(s.usedBytes)} / {formatBytes(s.totalBytes)}</Text>
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
 // SimpleBarChart is a plain-View bar chart (no react-native-svg needed for
 // straight rectangles), used for the two time-series mini charts below.
 function SimpleBarChart({ data, theme, maxBarHeight = 60 }: { data: { label: string; value: number }[]; theme: ReturnType<typeof useTheme>; maxBarHeight?: number }) {
@@ -510,7 +403,6 @@ export default function AdminDashboard() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: dashboard, refetch: refetchDash } = useAdminSystemServiceGetDashboard({ query: { refetchInterval: 10_000, refetchIntervalInBackground: false } });
-  const { data: sysInfo, refetch: refetchSys } = useAdminSystemServiceGetSystemInfo();
   const { data: moviesData, refetch: refetchMovies } = useLibraryServiceListMediaItems({
     type: "MEDIA_ITEM_TYPE_MOVIE" as never,
     "pagination.page": 1,
@@ -526,9 +418,13 @@ export default function AdminDashboard() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetchDash(), refetchSys(), refetchMovies(), refetchSeries()]);
+    await Promise.all([refetchDash(), refetchMovies(), refetchSeries()]);
     setRefreshing(false);
-  }, [refetchDash, refetchSys, refetchMovies, refetchSeries]);
+  }, [refetchDash, refetchMovies, refetchSeries]);
+
+  const cpu = dashboard?.cpuPercent;
+  const mem = dashboard?.memoryPercent;
+  const transcodes = dashboard?.activeTranscodes ?? 0;
 
   return (
     <ScrollView
@@ -545,71 +441,65 @@ export default function AdminDashboard() {
         }}
       />
 
+      {/* Inventory on one line - storage, server details and the finer metrics
+          live on System Health; popular media and the audit trail on Analytics
+          and Activity. The dashboard is the live view (mirror of the web). */}
+      <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginHorizontal: 16, marginTop: 16 }}>
+        {t("admin.dashboardStats.inventory", {
+          movies: movieCount,
+          series: seriesCount,
+          media: dashboard?.totalMediaItems ?? 0,
+          users: dashboard?.totalUsers ?? 0,
+        })}
+      </Text>
+
       <NowPlayingCard theme={theme} />
       <OnlineNowCard theme={theme} />
 
-      {/* Stats grid */}
+      {/* The four live headline metrics, same as the web dashboard. */}
       <View style={[styles.statsGrid, { marginTop: 20 }]}>
-        <StatCard label={t("admin.dashboardStats.movies")} value={movieCount} icon="film-outline" theme={theme} />
-        <StatCard label={t("admin.dashboardStats.series")} value={seriesCount} icon="tv-outline" theme={theme} />
-        <StatCard label={t("admin.systemHealth.totalUsers")} value={dashboard?.totalUsers ?? 0} icon="people-outline" theme={theme} />
-        <StatCard label={t("admin.systemHealth.activeStreams")} value={dashboard?.activeStreams ?? 0} icon="play-outline" theme={theme} />
-        <StatCard label={t("admin.systemHealth.activeTranscodes")} value={dashboard?.activeTranscodes ?? 0} icon="swap-horizontal-outline" theme={theme} />
-        <StatCard label={t("admin.systemHealth.totalMedia")} value={dashboard?.totalMediaItems ?? 0} icon="albums-outline" theme={theme} />
-        <StatCard label={t("admin.dashboardStats.throughput")} value={formatBps(dashboard?.streamingBps)} icon="pulse-outline" theme={theme} />
-        <StatCard label={t("admin.dashboardStats.theoretical")} value={formatBps(dashboard?.activeSessionsBps)} icon="speedometer-outline" theme={theme} />
+        <StatCard
+          label={t("admin.dashboardStats.activeStreams")}
+          value={dashboard?.activeStreams ?? 0}
+          sub={transcodes > 0 ? t("admin.dashboardStats.transcodesSub", { count: transcodes }) : undefined}
+          icon="play-outline"
+          theme={theme}
+        />
+        <StatCard
+          label={t("admin.dashboardStats.throughput")}
+          value={formatBps(dashboard?.streamingBps)}
+          sub={t("admin.dashboardStats.theoreticalSub", { rate: formatBps(dashboard?.activeSessionsBps) })}
+          icon="pulse-outline"
+          theme={theme}
+        />
+        <StatCard
+          label={t("admin.dashboardStats.cpu")}
+          value={cpu != null ? `${Math.round(cpu)}%` : "-"}
+          valueColor={cpu != null ? getUsageColor(cpu, theme) : undefined}
+          icon="hardware-chip-outline"
+          theme={theme}
+        />
+        <StatCard
+          label={t("admin.dashboardStats.memory")}
+          value={mem != null ? `${Math.round(mem)}%` : "-"}
+          valueColor={mem != null ? getUsageColor(mem, theme) : undefined}
+          icon="server-outline"
+          theme={theme}
+        />
       </View>
 
-      <StorageDonut storage={dashboard?.storage ?? []} theme={theme} />
-
-      {/* System info */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("admin.systemHealth.serverInfo")}</Text>
-      <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16 }]}>
-        {[
-          { label: "Version", value: sysInfo?.version },
-          { label: "OS", value: sysInfo?.os ? `${sysInfo.os} ${sysInfo.arch}` : undefined },
-          { label: "Go", value: sysInfo?.goVersion },
-          { label: "FFmpeg", value: sysInfo?.ffmpegVersion },
-          { label: "Uptime", value: formatUptime(sysInfo?.uptimeSeconds) },
-        ].map((row) => (
-          <View key={row.label} style={[styles.infoRow, { borderBottomColor: theme.colors.border }]}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{row.label}</Text>
-            <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1, textAlign: "right" }} numberOfLines={1}>{row.value ?? "-"}</Text>
-          </View>
-        ))}
+      {/* What Evey is doing on its own, and its live cost. */}
+      <View style={{ marginHorizontal: 16, marginTop: 20 }}>
+        <BackgroundTasksPanel theme={theme} />
       </View>
-
-      {/* CPU / Memory */}
-      {(dashboard?.cpuPercent != null || dashboard?.memoryPercent != null) && (
-        <>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Resources</Text>
-          <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16 }]}>
-            {dashboard?.cpuPercent != null && (
-              <View style={[styles.infoRow, { borderBottomColor: theme.colors.border }]}>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("admin.dashboardStats.cpu")}</Text>
-                <Text style={{ color: getUsageColor(dashboard.cpuPercent, theme), fontSize: 13, flex: 1, textAlign: "right" }}>{Math.round(dashboard.cpuPercent)}%</Text>
-              </View>
-            )}
-            {dashboard?.memoryPercent != null && (
-              <View style={[styles.infoRow, { borderBottomColor: theme.colors.border }]}>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("admin.dashboardStats.memory")}</Text>
-                <Text style={{ color: getUsageColor(dashboard.memoryPercent, theme), fontSize: 13, flex: 1, textAlign: "right" }}>{Math.round(dashboard.memoryPercent)}%</Text>
-              </View>
-            )}
-          </View>
-        </>
-      )}
 
       <QuickActionsRow theme={theme} />
 
       <PlayActivityCard theme={theme} />
       <PeakHoursCard theme={theme} />
-
-      <PopularMediaCard theme={theme} />
-      <RecentActivityCard theme={theme} />
-      {/* No section-navigation block here: the drawer carries every admin
-          section (plugin admin.nav entries included) since the nav rework -
-          the duplicated list at the bottom of the dashboard is gone. */}
+      {/* Storage, server info, popular media and recent activity are NOT here
+          on purpose: they live on System Health and Analytics (parity with the
+          web dashboard's deliberate split). The drawer carries every section. */}
     </ScrollView>
   );
 }
@@ -623,9 +513,6 @@ const styles = StyleSheet.create({
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   infoCard: { overflow: "hidden" },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth },
-  progressBg: { height: 4, borderRadius: 2, overflow: "hidden" },
-  progressFill: { height: 4, borderRadius: 2 },
   quickActionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
   quickActionBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 14 },
-  storageRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-around", paddingVertical: 16 },
 });

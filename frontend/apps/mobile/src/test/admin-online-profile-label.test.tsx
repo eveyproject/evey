@@ -52,6 +52,20 @@ vi.mock("../providers/ThemeProvider", () => ({
 
 vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+// The dashboard's Now-playing card (shared SessionCard) and Background-tasks
+// panel drive live controls through react-query directly; this test only cares
+// about the Who's-online rows, so stub the query layer instead of wrapping the
+// tree in a provider.
+vi.mock("@tanstack/react-query", () => ({
+  useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQuery: () => ({ data: [], isError: false }),
+}));
+
+// TrickplayPreview pulls in expo-image (native); the online-rows test never
+// renders a session card, so stub it to keep the import graph DOM-only.
+vi.mock("../components/TrickplayPreview", () => ({ TrickplayPreview: () => null }));
+
 const onlineUsers = [
   { userId: "u1", username: "alice", profileId: "p-named", userAgent: "mobile" },
   { userId: "u2", username: "alice", profileId: "p-default", userAgent: "web" },
