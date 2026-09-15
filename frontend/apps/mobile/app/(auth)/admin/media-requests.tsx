@@ -4,9 +4,9 @@ import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  useAdminMediaRequestServiceListRequests,
+  adminMediaRequestServiceListRequests,
   useAdminMediaRequestServiceAnswerRequest,
   useAdminMediaRequestServiceGetAccessSettings,
   useAdminMediaRequestServiceSetAccessDefault,
@@ -175,14 +175,29 @@ function RequestRow({ request, theme }: { request: V1MediaRequestProto; theme: R
   );
 }
 
+const QUEUE_PAGE_SIZE = 50;
+
 function QueueTab({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<StatusFilter>("pending");
 
-  const { data, isLoading, isError, refetch } = useAdminMediaRequestServiceListRequests(
-    filter === "all" ? {} : { statuses: [filter] },
-  );
-  const items = data?.items ?? [];
+  // Pages of QUEUE_PAGE_SIZE loaded as the list is scrolled: the queue used to
+  // ask for nothing and get the server's default 100, past which older
+  // requests were silently gone. The key keeps the generated prefix so the
+  // answer mutation's invalidation still refreshes it.
+  const filterParams = filter === "all" ? {} : { statuses: [filter] };
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: [...getAdminMediaRequestServiceListRequestsQueryKey(filterParams), "pages"],
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) =>
+      adminMediaRequestServiceListRequests({ ...filterParams, limit: QUEUE_PAGE_SIZE, offset: pageParam }, signal),
+    getNextPageParam: (last, _pages, lastOffset) =>
+      (last.items?.length ?? 0) < QUEUE_PAGE_SIZE ? undefined : lastOffset + QUEUE_PAGE_SIZE,
+  });
+  const items = useMemo(() => data?.pages.flatMap((p) => p.items ?? []) ?? [], [data]);
+  const handleEndReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <FlatList
@@ -192,6 +207,9 @@ function QueueTab({ theme }: { theme: ReturnType<typeof useTheme> }) {
       contentContainerStyle={{ padding: 16, gap: 8 }}
       refreshing={isLoading}
       onRefresh={refetch}
+      onEndReached={handleEndReached}
+      onEndReachedThreshold={0.5}
+      ListFooterComponent={isFetchingNextPage ? <ActivityIndicator style={{ marginVertical: 12 }} color={theme.colors.accent} /> : null}
       ListHeaderComponent={
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
           {STATUS_FILTERS.map((f) => (
