@@ -19,6 +19,7 @@ import (
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/reduceddl"
 )
 
@@ -201,7 +202,7 @@ func TestReducedDownload_SlicesAreServedThenReleased(t *testing.T) {
 	assert.EqualValues(t, 3, ready["slices"])
 	assert.EqualValues(t, 1, tr.calls.Load())
 
-	jobDir := filepath.Join(h.cacheDir, reducedJobDirName("m1", "fp1"))
+	jobDir := filepath.Join(h.cacheDir, reducedJobDirName("m1", "fp1", "p:p1"))
 	for i := range 3 {
 		w = doReducedSlice(h, i)
 		require.Equal(t, http.StatusOK, w.Code, "slice %d", i)
@@ -232,7 +233,7 @@ func TestReducedDownload_SlicesAreServedThenReleased(t *testing.T) {
 func TestReducedDownload_SlicesAreCollectableWhileTheProductionRuns(t *testing.T) {
 	tr := newFakeReducedTranscoder(3)
 	h := newTestReducedServe(t, tr, allowAll(), nil)
-	jobDir := filepath.Join(h.cacheDir, reducedJobDirName("m1", "fp1"))
+	jobDir := filepath.Join(h.cacheDir, reducedJobDirName("m1", "fp1", "p:p1"))
 
 	// Two slices on disk, no producer registered and the film is longer than
 	// that: the status must not claim "ready", and slice 0 must still serve.
@@ -293,7 +294,7 @@ func TestReducedDownload_FailureIsReportedAndRetryable(t *testing.T) {
 func TestReducedDownload_DiscardFreesTheJobButNotUnderARunningProduction(t *testing.T) {
 	tr := newFakeReducedTranscoder(3)
 	h := newTestReducedServe(t, tr, allowAll(), nil)
-	jobDir := filepath.Join(h.cacheDir, reducedJobDirName("m1", "fp1"))
+	jobDir := filepath.Join(h.cacheDir, reducedJobDirName("m1", "fp1", "p:p1"))
 
 	doReducedRequest(h.handlePrepare, http.MethodPost, "/api/v1/media/m1/reduced-download")
 	waitReducedStatus(t, h, "ready")
@@ -389,4 +390,40 @@ func TestReducedDownload_RejectsABadSliceIndex(t *testing.T) {
 		h.handleSlice(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code, "slice index %q", bad)
 	}
+}
+
+// Two profiles fetching the same title get their own job: the slices one
+// phone acks (and the discard it sends) must never take the other's bytes away.
+func TestReducedDownload_JobsAreKeyedPerConsumer(t *testing.T) {
+	tr := newFakeReducedTranscoder(3)
+	h := newTestReducedServe(t, tr, allowAll(), nil)
+	as := func(profile string, fn http.HandlerFunc, method, path string, pathVals ...string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, nil)
+		req.SetPathValue("id", "m1")
+		for i := 0; i+1 < len(pathVals); i += 2 {
+			req.SetPathValue(pathVals[i], pathVals[i+1])
+		}
+		req = withHTTPClaims(req, &domainuser.Claims{UserID: "u1", ProfileID: profile})
+		w := httptest.NewRecorder()
+		fn(w, req)
+		return w
+	}
+
+	as("p1", h.handlePrepare, http.MethodPost, "/api/v1/media/m1/reduced-download")
+	as("p2", h.handlePrepare, http.MethodPost, "/api/v1/media/m1/reduced-download")
+	require.Eventually(t, func() bool {
+		a := decodeReduced(t, as("p1", h.handleStatus, http.MethodGet, "/api/v1/media/m1/reduced-download/status"))
+		b := decodeReduced(t, as("p2", h.handleStatus, http.MethodGet, "/api/v1/media/m1/reduced-download/status"))
+		return a["status"] == "ready" && b["status"] == "ready"
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// p2 acks slice 0 by fetching slice 1; p1 must still be able to fetch slice 0.
+	require.Equal(t, http.StatusOK, as("p2", h.handleSlice, http.MethodGet, "/api/v1/media/m1/reduced-download/slice/1", "n", "1").Code)
+	assert.Equal(t, http.StatusOK, as("p1", h.handleSlice, http.MethodGet, "/api/v1/media/m1/reduced-download/slice/0", "n", "0").Code,
+		"p2 consuming its copy released p1's slice")
+
+	// p1 is done; p2's job survives.
+	require.Equal(t, http.StatusNoContent, as("p1", h.handleDiscard, http.MethodDelete, "/api/v1/media/m1/reduced-download").Code)
+	assert.Equal(t, http.StatusOK, as("p2", h.handleSlice, http.MethodGet, "/api/v1/media/m1/reduced-download/slice/2", "n", "2").Code,
+		"p1 discarding its job deleted p2's")
 }
