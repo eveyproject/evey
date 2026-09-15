@@ -152,6 +152,15 @@ function LastJobCard({ last, theme }: { last: NonNullable<V1GetSeekIndexJobRespo
           {t("admin.seekIndex.lastJobError", { error: last.error })}
         </Text>
       ) : null}
+      {(last.failures?.length ?? 0) > 0 ? (
+        <View style={{ marginTop: 4, gap: 2 }}>
+          {last.failures!.map((f, i) => (
+            <Text key={i} style={{ color: theme.colors.error, fontSize: 11 }} numberOfLines={2}>
+              {(f.path ? f.path.split("/").pop() : "-")}: {f.error ?? "-"}
+            </Text>
+          ))}
+        </View>
+      ) : null}
       {last.readOnly ? (
         <Text style={{ color: theme.colors.warning, fontSize: 12, marginTop: 4 }}>
           {t("admin.seekIndex.jobReadOnlyHint")}

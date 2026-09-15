@@ -61,6 +61,7 @@ interface FilterParams {
   sessionId: string;
   userId: string;
   mediaId: string;
+  showAccess: boolean;
 }
 
 function buildSearchQS(f: FilterParams, limit: number, offset: number): string {
@@ -73,9 +74,9 @@ function buildSearchQS(f: FilterParams, limit: number, offset: number): string {
   if (f.userId) p.set("user_id", f.userId);
   if (f.mediaId) p.set("media_id", f.mediaId);
   // Successful gRPC access lines (heartbeats, polls) are four lines in five
-  // on a live server and bury what the operator is looking for. Picking the
-  // grpc source explicitly is the way to see them.
-  if (f.source !== "grpc") p.set("hide_access", "1");
+  // on a live server and bury what the operator is looking for. Hidden unless
+  // the grpc source is picked, or the access-log toggle asks for them.
+  if (f.source !== "grpc" && !f.showAccess) p.set("hide_access", "1");
   p.set("limit", String(limit));
   p.set("offset", String(offset));
   return p.toString();
@@ -217,6 +218,7 @@ export default function AdminLogsScreen() {
   const [sessionId, setSessionId] = useState("");
   const [userId, setUserId] = useState("");
   const [mediaId, setMediaId] = useState("");
+  const [showAccess, setShowAccess] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Debounce the free-text box so we don't refetch on every keystroke.
@@ -226,8 +228,8 @@ export default function AdminLogsScreen() {
   }, [qInput]);
 
   const filters: FilterParams = useMemo(
-    () => ({ levels, where, source, q, sessionId: sessionId.trim(), userId: userId.trim(), mediaId: mediaId.trim() }),
-    [levels, where, source, q, sessionId, userId, mediaId],
+    () => ({ levels, where, source, q, sessionId: sessionId.trim(), userId: userId.trim(), mediaId: mediaId.trim(), showAccess }),
+    [levels, where, source, q, sessionId, userId, mediaId, showAccess],
   );
 
   // Live tail: RN has no EventSource, so the newest page is polled instead of
@@ -378,6 +380,18 @@ export default function AdminLogsScreen() {
                 {live ? t("admin.logs.liveOn", "Live tail on - newest lines auto-refresh") : t("admin.logs.live", "Live tail")}
               </Text>
               {live ? <ActivityIndicator size="small" color={theme.colors.accent} /> : null}
+            </Pressable>
+
+            <Pressable
+              onPress={() => setShowAccess((v) => !v)}
+              style={[styles.notice, { backgroundColor: showAccess ? theme.colors.accent + "22" : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: showAccess }}
+            >
+              <Ionicons name={showAccess ? "eye" : "eye-off-outline"} size={14} color={showAccess ? theme.colors.accent : theme.colors.textMuted} />
+              <Text style={{ color: showAccess ? theme.colors.accent : theme.colors.textMuted, fontSize: 12, flex: 1, fontWeight: showAccess ? "600" : "400" }}>
+                {t("admin.logs.accessLog", "Show access log lines")}
+              </Text>
             </Pressable>
 
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
