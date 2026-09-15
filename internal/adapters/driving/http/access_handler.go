@@ -120,11 +120,20 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		})
 		// Persisted OUTSIDE the lock: the store is a DB round-trip, and the
 		// request-time gate must never wait on it.
+		// The live config keeps the value either way (the gate already reads
+		// it); a refused persist is reported as such, never as 200 - the panel
+		// would otherwise show "saved" for a setting the next boot forgets.
 		if store != nil {
-			if data, err := json.Marshal(snapshot); err == nil {
-				if err2 := store.Set(r.Context(), remoteAccessConfigKey, string(data)); err2 != nil {
-					slog.WarnContext(ctx, "remote-access: persist config failed", slog.Any("err", err2))
-				}
+			data, err := json.Marshal(snapshot)
+			if err == nil {
+				err = store.Set(r.Context(), remoteAccessConfigKey, string(data))
+			}
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(otelcodes.Error, "persist remote-access config")
+				slog.ErrorContext(ctx, "remote-access: persist config failed", slog.Any("err", err))
+				http.Error(w, `{"message":"settings applied but not persisted"}`, http.StatusInternalServerError)
+				return
 			}
 		}
 		encodeRA(w)
@@ -204,11 +213,28 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 		// the boot-time read use (appconfig.Key*) - a private copy of the key
 		// string in either package would silently stop surviving restarts.
 		if cfgSvc != nil {
+			var persistFailed []string
 			if err := cfgSvc.Set(ctx, appconfig.KeyPlaybackSkipForward, strconv.Itoa(fwd)); err != nil {
 				slog.ErrorContext(ctx, "persist playback skip_forward", slog.Any("err", err))
+				persistFailed = append(persistFailed, appconfig.KeyPlaybackSkipForward)
 			}
 			if err := cfgSvc.Set(ctx, appconfig.KeyPlaybackSkipBackward, strconv.Itoa(bwd)); err != nil {
 				slog.ErrorContext(ctx, "persist playback skip_backward", slog.Any("err", err))
+				persistFailed = append(persistFailed, appconfig.KeyPlaybackSkipBackward)
+			}
+			// Applied in memory, not saved: say so instead of answering 200.
+			if len(persistFailed) > 0 {
+				span.SetStatus(otelcodes.Error, "persist playback settings")
+				payload, err := json.Marshal(map[string]any{
+					"message":         "settings applied but not persisted",
+					"unpersistedKeys": persistFailed,
+				})
+				if err != nil {
+					http.Error(w, `{"message":"settings applied but not persisted"}`, http.StatusInternalServerError)
+					return
+				}
+				http.Error(w, string(payload), http.StatusInternalServerError)
+				return
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")

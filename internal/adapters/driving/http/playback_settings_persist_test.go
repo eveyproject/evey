@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +21,7 @@ import (
 type memServerConfigRepo struct {
 	mu      sync.Mutex
 	entries map[string]string
+	setErr  error
 }
 
 func (r *memServerConfigRepo) Get(_ context.Context, key string) (*shared.ServerConfigEntry, error) {
@@ -35,6 +37,9 @@ func (r *memServerConfigRepo) Get(_ context.Context, key string) (*shared.Server
 func (r *memServerConfigRepo) Set(_ context.Context, key, value string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.setErr != nil {
+		return r.setErr
+	}
 	if r.entries == nil {
 		r.entries = map[string]string{}
 	}
@@ -94,5 +99,32 @@ func TestPlaybackSettings_PutPersistsForTheNextBoot(t *testing.T) {
 		if got.Value != want {
 			t.Errorf("%s = %q, want %q", key, got.Value, want)
 		}
+	}
+}
+
+// A persist failure must not be answered 200: the panel would show the value
+// as saved while the next boot reads the old row back. Same contract as the
+// generic settings PUT - applied in memory, reported as not saved.
+func TestPlaybackSettings_PutPersistFailureIs500(t *testing.T) {
+	gen, adminTok, _ := genTokens(t)
+	cfg := &config.Config{Playback: config.PlaybackConfig{SkipForwardSeconds: 30, SkipBackwardSeconds: 10}}
+	repo := &memServerConfigRepo{setErr: errors.New("db down")}
+	mux := http.NewServeMux()
+	registerPlaybackSettingsRoutes(mux, cfg, gen, ratelimit.New(100), appconfig.NewService(repo))
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/playback-settings",
+		strings.NewReader(`{"skipForwardSeconds":45,"skipBackwardSeconds":15}`))
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "not persisted") {
+		t.Errorf("body should say the value was not persisted: %s", rec.Body.String())
+	}
+	if cfg.Playback.SkipForwardSeconds != 45 {
+		t.Errorf("live config should keep the applied value, got %d", cfg.Playback.SkipForwardSeconds)
 	}
 }
