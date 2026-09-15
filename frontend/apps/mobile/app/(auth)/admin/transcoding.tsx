@@ -6,19 +6,22 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   eveyFetch,
   useAdminSystemServiceGetSystemInfo,
+  useServerConfigServiceListServerConfigEntries,
+  getServerConfigServiceListServerConfigEntriesQueryKey,
+  serverConfigServiceSetServerConfigEntry,
   apiErrorMessage,
   type V1VideoPool,
   type V1VideoRungFit,
+  type V1VideoSourceFit,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadTestSection } from "../../../src/components/admin/transcoding/LoadTestSection";
 
 // Mirrors frontend/apps/web/src/routes/_auth/admin/transcoding.lazy.tsx and
-// EncodeCalibrationCard.tsx - same endpoints, same fields, same three
-// sections (encode calibration, job concurrency, video sessions capacity).
-// The web's rich Load-test surface is deliberately NOT ported here; sizing a
-// host from a phone screen isn't the workflow, and that panel is large
-// enough to warrant its own pass.
+// EncodeCalibrationCard.tsx - same endpoints, same fields, same sections:
+// encode calibration, live playback (video sessions capacity + load test),
+// job concurrency, and advanced limits.
 
 type HWFallback = { class: string; codec: string; at: string };
 
@@ -49,17 +52,43 @@ type EncodeCapability = {
   bench_samples?: BenchRungSample[];
 };
 
-type SettingValue<T> = { value: T; default: T; source: string };
+type SettingValue<T> = { value: T; default: T; source: string; requiresRestart?: boolean };
 
 interface TranscodeServerSettings {
   maxConcurrentTranscodes: SettingValue<number>;
   hwMode: SettingValue<string>;
   av1Enabled: SettingValue<boolean>;
   av1MaxHeight: SettingValue<number>;
+  // Advanced limits (mirror web AdvancedTranscodingCard): expert knobs read at
+  // boot, each reports requiresRestart. Optional - an older server omits them.
+  transcodeMaxSessions?: SettingValue<number>;
+  transcodeSingleVariant?: SettingValue<boolean>;
+  transcodeHWPerVariant?: SettingValue<boolean>;
+  softwareMaxHeight?: SettingValue<number>;
+  softwareHDRMaxHeight?: SettingValue<number>;
 }
 
 const CALIBRATION_KEY = ["admin", "transcode-calibration"];
 const SETTINGS_KEY = ["admin", "transcoding-settings"];
+const MAX_VIDEO_SESSIONS_KEY = "transcoding.max_video_sessions";
+const CONFIG_QUERY_KEY = getServerConfigServiceListServerConfigEntriesQueryKey();
+
+// codecLabel uppercases the wire codec for display ("h264" -> "H264").
+function codecLabel(codec?: string): string {
+  return (codec ?? "").toUpperCase();
+}
+
+// sourceFits answers "how many can I serve" for the rung load actually lands on
+// - the CHEAPEST one, the same rung the count cap is derived from (mirror web
+// VideoSessionsCard). Reading the top rung would quote a ceiling nobody hits.
+function sourceFits(rungs: V1VideoRungFit[]): V1VideoSourceFit[] {
+  let cheapest: V1VideoRungFit | undefined;
+  for (const r of rungs) {
+    if (!r.bySource?.length) continue;
+    if (!cheapest || (r.cost ?? 0) < (cheapest.cost ?? 0)) cheapest = r;
+  }
+  return cheapest?.bySource ?? [];
+}
 
 // poolRungFits picks the ONE ladder class each pool is best described by -
 // "software" for the cpu pool (falling back to whatever else is there), and
@@ -182,6 +211,69 @@ export default function AdminTranscodingScreen() {
     onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
+  // Advanced limits (mirror web AdvancedTranscodingCard). Blank field = no
+  // override (clears it with an explicit null on save); these are read at boot,
+  // so a change reports requiresRestart.
+  const [advMaxSessions, setAdvMaxSessions] = useState("");
+  const [advSwMaxHeight, setAdvSwMaxHeight] = useState("");
+  const [advSwHDRMaxHeight, setAdvSwHDRMaxHeight] = useState("");
+  const [advSingleVariant, setAdvSingleVariant] = useState(false);
+  const [advHWPerVariant, setAdvHWPerVariant] = useState(false);
+  const [advDirty, setAdvDirty] = useState(false);
+  useEffect(() => {
+    if (!settings || advDirty) return;
+    setAdvMaxSessions(settings.transcodeMaxSessions?.source === "override" ? String(settings.transcodeMaxSessions.value) : "");
+    setAdvSwMaxHeight(settings.softwareMaxHeight?.source === "override" ? String(settings.softwareMaxHeight.value) : "");
+    setAdvSwHDRMaxHeight(settings.softwareHDRMaxHeight?.source === "override" ? String(settings.softwareHDRMaxHeight.value) : "");
+    setAdvSingleVariant(settings.transcodeSingleVariant?.value ?? false);
+    setAdvHWPerVariant(settings.transcodeHWPerVariant?.value ?? false);
+  }, [settings, advDirty]);
+
+  const saveAdvanced = useMutation({
+    mutationFn: () =>
+      eveyFetch<TranscodeServerSettings>({
+        url: "/api/v1/admin/server-settings",
+        method: "PUT",
+        // Empty clears the override (explicit null); 0 is a meaningful value, so
+        // never coerce a blank to 0.
+        data: {
+          transcodeMaxSessions: advMaxSessions === "" ? null : parseInt(advMaxSessions, 10),
+          softwareMaxHeight: advSwMaxHeight === "" ? null : parseInt(advSwMaxHeight, 10),
+          softwareHDRMaxHeight: advSwHDRMaxHeight === "" ? null : parseInt(advSwHDRMaxHeight, 10),
+          transcodeSingleVariant: advSingleVariant,
+          transcodeHWPerVariant: advHWPerVariant,
+        },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SETTINGS_KEY });
+      setAdvDirty(false);
+      toast.success(t("admin.transcoding.savedRestart", "Enregistré - redémarrez le serveur pour appliquer"));
+    },
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
+  });
+
+  // Max video-encode sessions: a discreet manual override of the measured
+  // capacity (server config entry), mirror web VideoSessionsCard. Blank = auto.
+  const { data: configEntries } = useServerConfigServiceListServerConfigEntries({
+    query: { select: (d) => d.entries ?? [] },
+  });
+  const storedMaxVideo = configEntries?.find((e) => e.key === MAX_VIDEO_SESSIONS_KEY)?.value ?? "";
+  const [maxVideo, setMaxVideo] = useState(storedMaxVideo);
+  const [maxVideoDirty, setMaxVideoDirty] = useState(false);
+  useEffect(() => {
+    if (!maxVideoDirty) setMaxVideo(storedMaxVideo);
+  }, [storedMaxVideo, maxVideoDirty]);
+
+  const saveMaxVideo = useMutation({
+    mutationFn: () => serverConfigServiceSetServerConfigEntry(MAX_VIDEO_SESSIONS_KEY, { value: maxVideo.trim() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CONFIG_QUERY_KEY });
+      setMaxVideoDirty(false);
+      toast.success(t("admin.transcoding.videoSessionsSaved", "Capacité de transcodage vidéo mise à jour"));
+    },
+    onError: () => toast.error(t("admin.transcoding.videoSessionsFailed", "Impossible de mettre à jour la capacité")),
+  });
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([refetchCalib(), refetchSettings(), refetchSys()]);
@@ -205,6 +297,16 @@ export default function AdminTranscodingScreen() {
   const vs = sysData?.videoSessions;
   const ev = vs?.evidence;
   const pools = (vs?.pools ?? []) as V1VideoPool[];
+  const benchSource = vs?.benchSource;
+  const decodeRates = vs?.decodeThroughput ?? [];
+
+  const advNeedsRestart = [
+    settings?.transcodeMaxSessions,
+    settings?.transcodeSingleVariant,
+    settings?.transcodeHWPerVariant,
+    settings?.softwareMaxHeight,
+    settings?.softwareHDRMaxHeight,
+  ].some((sv) => sv?.requiresRestart);
 
   const fmtDate = (iso: string) => {
     try {
@@ -461,6 +563,21 @@ export default function AdminTranscodingScreen() {
               </Text>
             )}
 
+            {(benchSource?.codec || decodeRates.length > 0) && (
+              <Text style={s.hint}>
+                {benchSource?.codec
+                  ? t("admin.transcoding.videoBenchSource", {
+                      codec: codecLabel(benchSource.codec),
+                      height: benchSource.height,
+                    })
+                  : ""}
+                {decodeRates.length > 0 && benchSource?.codec ? " · " : ""}
+                {decodeRates
+                  .map((d) => t("admin.transcoding.videoDecodeRate", { codec: codecLabel(d.codec), fps: Math.round(d.fps ?? 0) }))
+                  .join(" · ")}
+              </Text>
+            )}
+
             {pools.length > 0 ? (
               pools.map((pool) => {
                 const used = pool.budgetUsed ?? 0;
@@ -500,6 +617,26 @@ export default function AdminTranscodingScreen() {
                         })}
                       </Text>
                     ))}
+                    {sourceFits(rungs).length > 0 && (
+                      <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 8 }}>
+                        <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600" }}>
+                          {t("admin.transcoding.videoSourceTitle", "Par source")}
+                        </Text>
+                        {sourceFits(rungs).map((f) => (
+                          <View
+                            key={`${f.source?.codec}-${f.source?.height}`}
+                            style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2 }}
+                          >
+                            <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                              {codecLabel(f.source?.codec)} {f.source?.height}p
+                            </Text>
+                            <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                              {t("admin.transcoding.videoSourceStreams", { count: f.maxStreams ?? 1 })}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
                   </View>
                 );
               })
@@ -534,6 +671,121 @@ export default function AdminTranscodingScreen() {
                 )}
               </>
             )}
+
+            {/* Discreet manual override of the measured video-encode capacity
+                (mirror web VideoSessionsCard's bottom control). Blank = auto. */}
+            <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 12 }}>
+              <Text style={s.label}>{t("admin.transcoding.maxVideoSessionsLabel", "Sessions vidéo max")}</Text>
+              <TextInput
+                value={maxVideo}
+                onChangeText={(v) => { setMaxVideo(v); setMaxVideoDirty(true); }}
+                style={s.input}
+                placeholderTextColor={theme.colors.textMuted}
+                placeholder={t("admin.transcoding.maxVideoSessionsAuto", "Auto (mesuré)")}
+                keyboardType="numeric"
+              />
+              <Text style={s.hint}>
+                {t("admin.transcoding.maxVideoSessionsDesc", "Réduit la capacité mesurée si l'hôte est partagé. Vide = auto.")}
+              </Text>
+              <Pressable
+                onPress={() => saveMaxVideo.mutate()}
+                disabled={!maxVideoDirty || saveMaxVideo.isPending}
+                style={[s.primaryBtn, { opacity: !maxVideoDirty || saveMaxVideo.isPending ? 0.5 : 1 }]}
+              >
+                {saveMaxVideo.isPending ? (
+                  <ActivityIndicator size="small" color={theme.colors.onAccent} />
+                ) : (
+                  <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>
+                )}
+              </Pressable>
+            </View>
+
+            {/* Load test: real simulated viewers, same section as the web's
+                Live-playback card (VideoSessionsCard + LoadTestCard). */}
+            <LoadTestSection pools={pools} />
+          </View>
+
+          {/* --- Advanced limits (mirror web AdvancedTranscodingCard) --------- */}
+          <Text style={s.sectionTitle}>{t("admin.transcoding.advancedTitle", "Limites avancées")}</Text>
+          <View style={s.card}>
+            <Text style={s.hint}>
+              {t(
+                "admin.transcoding.advancedSubtitle",
+                "Plafonds de session et de résolution pour matériel faible. Appliqués au redémarrage.",
+              )}
+            </Text>
+            {advNeedsRestart && (
+              <Text style={[s.hint, { marginTop: 8 }]}>
+                {t(
+                  "admin.transcoding.advancedRestartHint",
+                  "Lus au démarrage du serveur : enregistrer stocke votre choix, redémarrer l'applique.",
+                )}
+              </Text>
+            )}
+
+            <Text style={s.label}>{t("admin.transcoding.maxSessions", "Sessions HLS simultanées max (vide = illimité)")}</Text>
+            <TextInput
+              value={advMaxSessions}
+              onChangeText={(v) => { setAdvMaxSessions(v); setAdvDirty(true); }}
+              style={s.input}
+              placeholderTextColor={theme.colors.textMuted}
+              placeholder={String(settings?.transcodeMaxSessions?.default ?? 0)}
+              keyboardType="numeric"
+            />
+
+            <Text style={s.label}>{t("admin.transcoding.softwareMaxHeight", "Plafond de résolution en transcodage logiciel (vide = aucun)")}</Text>
+            <TextInput
+              value={advSwMaxHeight}
+              onChangeText={(v) => { setAdvSwMaxHeight(v); setAdvDirty(true); }}
+              style={s.input}
+              placeholderTextColor={theme.colors.textMuted}
+              placeholder={String(settings?.softwareMaxHeight?.default ?? 0)}
+              keyboardType="numeric"
+            />
+
+            <Text style={s.label}>{t("admin.transcoding.softwareHDRMaxHeight", "Plafond de résolution HDR logiciel (vide = aucun)")}</Text>
+            <TextInput
+              value={advSwHDRMaxHeight}
+              onChangeText={(v) => { setAdvSwHDRMaxHeight(v); setAdvDirty(true); }}
+              style={s.input}
+              placeholderTextColor={theme.colors.textMuted}
+              placeholder={String(settings?.softwareHDRMaxHeight?.default ?? 0)}
+              keyboardType="numeric"
+            />
+
+            <View style={[s.switchRow, { marginTop: 14 }]}>
+              <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
+                {t("admin.transcoding.singleVariant", "Encoder un barreau d'échelle à la fois")}
+              </Text>
+              <Switch
+                value={advSingleVariant}
+                onValueChange={() => { setAdvSingleVariant((v) => !v); setAdvDirty(true); }}
+                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+              />
+            </View>
+
+            <View style={[s.switchRow, { marginTop: 14 }]}>
+              <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
+                {t("admin.transcoding.hwPerVariant", "Un processus d'encodage matériel par barreau")}
+              </Text>
+              <Switch
+                value={advHWPerVariant}
+                onValueChange={() => { setAdvHWPerVariant((v) => !v); setAdvDirty(true); }}
+                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+              />
+            </View>
+
+            <Pressable
+              onPress={() => saveAdvanced.mutate()}
+              disabled={!advDirty || saveAdvanced.isPending}
+              style={[s.primaryBtn, { opacity: !advDirty || saveAdvanced.isPending ? 0.5 : 1 }]}
+            >
+              {saveAdvanced.isPending ? (
+                <ActivityIndicator size="small" color={theme.colors.onAccent} />
+              ) : (
+                <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>
+              )}
+            </Pressable>
           </View>
         </>
       )}
