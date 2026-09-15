@@ -478,14 +478,19 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// parental filter by hitting these endpoints directly. Gating the HLS master
 	// (which creates the session) transitively protects the segment handler.
 	parentalChk := NewParentalChecker(s.UserQuerySvc)
+	// Short-TTL caches for the per-request hot paths (HLS segments, direct-play
+	// Range requests, trickplay tiles): the access verdict and the library
+	// roots are stable across a playback burst, parental stays live.
+	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
+	libRootsCache := NewCachedLibraryLister(s.LibQuerySvc)
 
 	// Unconditional, unlike the on-demand rung's tracker: direct play has no
 	// feature flag to pair with - it is always a possible serving path.
-	mhOpts := []mediaServeOption{withParental(parentalChk), withLibraryLister(s.LibQuerySvc), withPlaybackActivity(s.PlaybackActivity), withCastProgress(s.CastProgress)}
+	mhOpts := []mediaServeOption{withParental(parentalChk), withLibraryLister(libRootsCache), withPlaybackActivity(s.PlaybackActivity), withCastProgress(s.CastProgress)}
 	if s.ImageConverter != nil {
 		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
 	}
-	mh := mediaHandler(s.LibQuerySvc, s.ArtworkRepo, s.BaseURL(), s.LibraryAccessRepo, mhOpts...)
+	mh := mediaHandler(s.LibQuerySvc, s.ArtworkRepo, s.BaseURL(), hlsAccessCache, mhOpts...)
 	mux.HandleFunc("GET /api/v1/media/{id}/stream", streamAuth(s.StreamMeter.Middleware(mh)))
 	// Progressive fast-start MP4 remux of a browser-incompatible EBML source
 	// (copy, no re-encode), cached once and served with Range support. Same auth
@@ -569,7 +574,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// let anyone fetch a storyboard of any media id. streamAuth like its
 	// siblings: a JWT, or the ?token= stream token a watch-together guest holds
 	// (the handlers reject a token whose media id doesn't match the path).
-	trickplayManifestH, trickplayImageH := trickplayRouteHandlers(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk, s.StreamTokenStore, s.TrickplayRL)
+	trickplayManifestH, trickplayImageH := trickplayRouteHandlers(s.LibQuerySvc, s.BaseURL(), hlsAccessCache, s.LibQuerySvc, parentalChk, s.StreamTokenStore, s.TrickplayRL)
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", streamAuth(trickplayManifestH))
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", streamAuth(trickplayImageH))
 	snapshotH := snapshotHandler(s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL(), parentalChk)
@@ -604,7 +609,6 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/segments/propagate", propagateSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 	}
 	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
-	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
 
 	// VOD-style HLS pipeline: manifest precomputed in Go from durationMs,
 	// segments produced on demand by SegmentOrchestrator into SegmentCache.
