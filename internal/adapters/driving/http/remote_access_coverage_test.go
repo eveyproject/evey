@@ -15,7 +15,8 @@ import (
 // --- shared helpers ---
 
 type fakeRemoteAccessStore struct {
-	data map[string]string
+	data   map[string]string
+	setErr error
 }
 
 func (f *fakeRemoteAccessStore) Get(_ context.Context, key string) (string, error) {
@@ -27,6 +28,9 @@ func (f *fakeRemoteAccessStore) Get(_ context.Context, key string) (string, erro
 }
 
 func (f *fakeRemoteAccessStore) Set(_ context.Context, key, value string) error {
+	if f.setErr != nil {
+		return f.setErr
+	}
 	f.data[key] = value
 	return nil
 }

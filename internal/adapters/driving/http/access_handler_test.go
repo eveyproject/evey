@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -286,5 +287,28 @@ func TestRemoteAccessPut_ExternalURL_EmptyStillClears(t *testing.T) {
 	}
 	if body["externalUrl"] != "" {
 		t.Errorf("expected the external URL to be cleared, got %v", body["externalUrl"])
+	}
+}
+
+// Same contract as the playback-settings and generic settings PUTs: a value
+// the store refused is applied in memory but reported as not saved, never 200.
+func TestRemoteAccessPut_PersistFailureIs500(t *testing.T) {
+	gen, adminTok, _ := genTokens(t)
+	cfg := &config.Config{RemoteAccess: config.RemoteAccessConfig{Enabled: false}}
+	store := &fakeRemoteAccessStore{data: map[string]string{}, setErr: errors.New("db down")}
+	mux := http.NewServeMux()
+	registerRemoteAccessRoutes(mux, cfg, gen, store, ratelimit.New(600))
+
+	b, _ := json.Marshal(map[string]any{"enabled": true})
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/remote-access", bytes.NewReader(b))
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+	if !cfg.RemoteAccess.Enabled {
+		t.Error("live config should keep the applied value")
 	}
 }
