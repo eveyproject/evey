@@ -502,6 +502,7 @@ func (h *reducedServe) handleSlice(w http.ResponseWriter, r *http.Request) {
 	fi, err := f.Stat()
 	if err != nil {
 		span.RecordError(err)
+		logInternal(r.Context(), "reduced-download: stat slice", err)
 		http.Error(w, `{"message":"error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -563,6 +564,7 @@ func (h *reducedServe) handleDiscard(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := os.RemoveAll(t.jobDir); err != nil {
 		span.RecordError(err)
+		logInternal(r.Context(), "reduced-download: remove job dir", err)
 		http.Error(w, `{"message":"error"}`, http.StatusInternalServerError)
 		return
 	}

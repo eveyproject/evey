@@ -326,6 +326,7 @@ func trickplayGenerateAllHandler(libSvc AllTrickplayGenerator) http.HandlerFunc 
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "generate all failed")
+			logInternal(r.Context(), "trickplay: generate all", err)
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}

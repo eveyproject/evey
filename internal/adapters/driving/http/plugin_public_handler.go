@@ -68,6 +68,7 @@ func registerPluginPublicRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGen
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "list plugins failed")
+			logInternal(r.Context(), "plugins: list", err)
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}

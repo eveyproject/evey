@@ -157,6 +157,7 @@ func (h *remuxServe) handle(w http.ResponseWriter, r *http.Request) {
 	f, err := os.Open(outPath)
 	if err != nil {
 		span.RecordError(err)
+		logInternal(r.Context(), "remux: open output", err)
 		http.Error(w, `{"message":"not found"}`, http.StatusInternalServerError)
 		return
 	}
@@ -164,6 +165,7 @@ func (h *remuxServe) handle(w http.ResponseWriter, r *http.Request) {
 	fi, err := f.Stat()
 	if err != nil {
 		span.RecordError(err)
+		logInternal(r.Context(), "remux: stat output", err)
 		http.Error(w, `{"message":"error"}`, http.StatusInternalServerError)
 		return
 	}

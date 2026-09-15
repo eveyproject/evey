@@ -146,6 +146,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "list interfaces failed")
+			logInternal(r.Context(), "network-info: list interfaces", err)
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}

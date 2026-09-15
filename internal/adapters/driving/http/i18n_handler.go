@@ -27,6 +27,7 @@ func i18nHandler(translator *i18n.Translator, devMode ...bool) http.HandlerFunc 
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "encode error")
+			logInternal(r.Context(), "i18n: encode messages", err)
 			http.Error(w, "encode error", http.StatusInternalServerError)
 			return
 		}

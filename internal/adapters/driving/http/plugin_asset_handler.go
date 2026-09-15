@@ -291,6 +291,7 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "list plugins failed")
+		logInternal(r.Context(), "plugin assets: list plugins", err)
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}

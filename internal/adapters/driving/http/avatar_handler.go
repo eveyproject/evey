@@ -86,6 +86,7 @@ func avatarUploadHandler(
 		if _, err := file.Seek(0, 0); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "seek failed")
+			logInternal(r.Context(), "avatar upload: seek", err)
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}

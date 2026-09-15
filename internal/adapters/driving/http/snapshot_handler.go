@@ -67,6 +67,7 @@ func snapshotHandler(frameExt FrameExtractor, libraryAccess LibraryAccessChecker
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "frame extraction failed")
+			logInternal(r.Context(), "snapshot: extract frame", err)
 			http.Error(w, `{"message":"frame extraction failed"}`, http.StatusInternalServerError)
 			return
 		}
