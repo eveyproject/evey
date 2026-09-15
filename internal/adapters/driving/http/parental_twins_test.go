@@ -16,14 +16,15 @@ import (
 // registerSubtitleRoutes) so the parental gate can be swapped per test, mirroring
 // the alwaysBlockChecker/allowAllParental pattern already used in parental_test.go
 // for the stream/download handlers.
-func buildSubtitleRoutesWithParental(svc subtitleService, mg *fakeMediaGetter, pc ParentalChecker) *subtitleRoutes {
-	return &subtitleRoutes{
+func buildSubtitleRoutesWithParental(svc subtitleService, mg *fakeMediaGetter, pc ParentalChecker) subtitleRoutesUnderTest {
+	h := &subtitleRoutes{
 		subtitleSvc:   svc,
-		tokens:        validUserValidator(false),
 		mediaGetter:   mg,
 		libraryAccess: allowAll(),
 		parental:      pc,
 	}
+	auth := httpAuthMiddleware(validUserValidator(false))
+	return subtitleRoutesUnderTest{search: auth(h.search), download: auth(h.download), list: auth(h.list), delete: auth(h.delete)}
 }
 
 // --- Bug 1: subtitle routes skipped checkParental (list + delete) ---

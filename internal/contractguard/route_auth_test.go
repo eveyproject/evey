@@ -91,10 +91,6 @@ var gatedInHandler = map[string]string{
 	"GET /api/v1/plugins/{id}/assets/{path...}":        "pluginAssetHandler.authorizeFrontJS: accepts a user token OR a plugin-scoped token pinned to {id}",
 	"/api/v1/devices/ws":                               "WebSocket: the token rides Sec-WebSocket-Protocol, which no HandlerFunc wrapper can read",
 	"/api/v1/syncplay/rooms/{id}/ws":                   "same, plus guest room tokens",
-	"GET /api/v1/media/{id}/subtitles/search":          "subtitleRoutes.requireAuth (hand-rolled; 403 instead of 401, no auth metrics)",
-	"POST /api/v1/media/{id}/subtitles/download":       "subtitleRoutes.requireAuth (hand-rolled; 403 instead of 401, no auth metrics)",
-	"GET /api/v1/media/{id}/subtitles":                 "subtitleRoutes.requireAuth (hand-rolled; 403 instead of 401, no auth metrics)",
-	"DELETE /api/v1/media/{id}/subtitles/{subtitleId}": "subtitleRoutes.requireAuth (hand-rolled; 403 instead of 401, no auth metrics)",
 }
 
 // Registering the same pattern twice PANICS http.ServeMux at boot - a server
