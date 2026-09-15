@@ -40,6 +40,7 @@ export function SeekIndexItemRow({
   onFixContainer,
   onAck,
   onDeleteBackup,
+  onHistory,
   repairPending,
   repairResyncPending,
   rollbackPending,
@@ -57,6 +58,7 @@ export function SeekIndexItemRow({
   onFixContainer: (mediaId: string) => void;
   onAck: (mediaId: string, acked: boolean) => void;
   onDeleteBackup: (mediaId: string) => void;
+  onHistory?: (mediaId: string, title: string) => void;
   repairPending: boolean;
   repairResyncPending: boolean;
   rollbackPending: boolean;
@@ -218,6 +220,7 @@ export function SeekIndexItemRow({
         {item.hasBackup && btn(t("admin.seekIndex.rollback"), () => item.mediaId && onRollback(item.mediaId), rollbackPending)}
         {item.hasBackup &&
           btn(t("admin.seekIndex.deleteBackup"), () => item.mediaId && onDeleteBackup(item.mediaId), deleteBackupPending, false, undefined, deleteBackupPending)}
+        {onHistory && btn(t("admin.repairHistory.btn", "History"), () => item.mediaId && onHistory(item.mediaId, item.title || item.path || ""), false)}
       </View>
     </View>
   );
