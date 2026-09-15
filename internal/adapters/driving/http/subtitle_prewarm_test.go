@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 )
@@ -182,3 +184,31 @@ func TestIndexWorthBuilding_OnlyFromTheSecondTrack(t *testing.T) {
 		}
 	}
 }
+
+// One extraction that panics (a corrupt container tripping the parser) must
+// not kill the server, nor the worker: the next film still gets its warm-up.
+func TestPrewarmer_ASinglePanicDoesNotStopTheWorker(t *testing.T) {
+	p := newSubtitlePrewarmer(newSubtitleCache(t.TempDir()), subtitleIndexCache{})
+	ran := make(chan string, 2)
+	p.runFn = func(_ context.Context, job prewarmJob) {
+		ran <- job.mediaID
+		if job.mediaID == "bad" {
+			panic("corrupt container")
+		}
+	}
+	p.Start(t.Context())
+	streams := []*domainlibrary.MediaStream{sub("subrip", "fre", false)}
+	p.Enqueue("bad", "/media/bad.mkv", streams, "")
+	p.Enqueue("good", "/media/good.mkv", streams, "")
+
+	var got []string
+	for range 2 {
+		select {
+		case id := <-ran:
+			got = append(got, id)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("worker died after the panic; ran %v", got)
+		}
+	}
+}
+

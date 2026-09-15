@@ -72,6 +72,8 @@ type subtitlePrewarmer struct {
 	seen map[string]struct{}
 	// delay is a field so tests do not wait 20 seconds.
 	delay time.Duration
+	// runFn is p.run unless a test swaps it.
+	runFn func(ctx context.Context, job prewarmJob)
 }
 
 func newSubtitlePrewarmer(cache subtitleCache, indexes subtitleIndexCache) *subtitlePrewarmer {
@@ -91,13 +93,26 @@ func (p *subtitlePrewarmer) Start(ctx context.Context) {
 		// of the film and throw the result away.
 		return
 	}
+	run := p.runFn
+	if run == nil {
+		run = p.run
+	}
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case job := <-p.jobs:
-				p.run(ctx, job)
+				// One corrupt container must not take the server down nor
+				// starve every film queued behind it.
+				func() {
+					defer func() {
+						if rec := recover(); rec != nil {
+							slog.Error("panic in subtitle prewarm", slog.String("media_id", job.mediaID), slog.Any("panic", rec))
+						}
+					}()
+					run(ctx, job)
+				}()
 			}
 		}
 	}()
