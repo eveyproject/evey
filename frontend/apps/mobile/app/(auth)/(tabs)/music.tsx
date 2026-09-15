@@ -61,6 +61,7 @@ interface MusicArtist {
   name: string;
   trackCount: number;
   albumCount: number;
+  coverArtUrl?: string;
 }
 
 type Tab = "tracks" | "albums" | "artists" | "playlists";
@@ -531,9 +532,11 @@ export default function MusicScreen() {
           <View style={{ padding: 8 }}>
             <Text style={[styles.albumTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.title || "-"}</Text>
             <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>{item.artist || "-"}</Text>
-            {item.year > 0 && (
-              <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.year} · {item.trackCount} track{item.trackCount !== 1 ? "s" : ""}</Text>
-            )}
+            {/* Always show the track count (web parity); prepend the year only
+                when it is known - a year-less album used to show no line at all. */}
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+              {item.year > 0 ? `${item.year} · ` : ""}{item.trackCount} track{item.trackCount !== 1 ? "s" : ""}
+            </Text>
           </View>
         </TouchableOpacity>
       );
@@ -547,29 +550,45 @@ export default function MusicScreen() {
   // with "Rendered more hooks than during the previous render" once the
   // libraries query resolved.
   const renderArtist = useCallback(
-    ({ item }: { item: MusicArtist }) => (
-      <TouchableOpacity
-        activeOpacity={0.7}
-        onPress={() => {
-          setArtistFilter(item.name);
-          setAlbumFilter(null);
-          setAlbumFilterLabel("");
-          setTab("tracks");
-        }}
-        style={[styles.artistCard, { width: ALBUM_ART_SIZE, backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
-      >
-        <View style={[styles.artistAvatar, { width: ALBUM_ART_SIZE * 0.6, height: ALBUM_ART_SIZE * 0.6, backgroundColor: theme.colors.surfaceRaised }]}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 24, fontWeight: "700" }}>
-            {item.name?.[0]?.toUpperCase() ?? "?"}
+    ({ item }: { item: MusicArtist }) => {
+      const avatarSize = ALBUM_ART_SIZE * 0.6;
+      const avatarUri = coverArtUri(serverUrl, item.coverArtUrl, Math.round(avatarSize));
+      return (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => {
+            setArtistFilter(item.name);
+            setAlbumFilter(null);
+            setAlbumFilterLabel("");
+            setTab("tracks");
+          }}
+          style={[styles.artistCard, { width: ALBUM_ART_SIZE, backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+        >
+          {avatarUri ? (
+            // Artist cover art (web parity), rounded to a circle; the letter
+            // placeholder stays the fallback for artists with no artwork.
+            <Image
+              source={{ uri: avatarUri, headers: authHeaders }}
+              style={[styles.artistAvatar, { width: avatarSize, height: avatarSize }]}
+              contentFit="cover"
+              transition={200}
+              accessible={false}
+            />
+          ) : (
+            <View style={[styles.artistAvatar, { width: avatarSize, height: avatarSize, backgroundColor: theme.colors.surfaceRaised }]}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 24, fontWeight: "700" }}>
+                {item.name?.[0]?.toUpperCase() ?? "?"}
+              </Text>
+            </View>
+          )}
+          <Text style={[styles.artistName, { color: theme.colors.text }]} numberOfLines={2}>{item.name || "-"}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+            {item.albumCount} album{item.albumCount !== 1 ? "s" : ""} · {item.trackCount} track{item.trackCount !== 1 ? "s" : ""}
           </Text>
-        </View>
-        <Text style={[styles.artistName, { color: theme.colors.text }]} numberOfLines={2}>{item.name || "-"}</Text>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-          {item.albumCount} album{item.albumCount !== 1 ? "s" : ""} · {item.trackCount} track{item.trackCount !== 1 ? "s" : ""}
-        </Text>
-      </TouchableOpacity>
-    ),
-    [theme, setTab],
+        </TouchableOpacity>
+      );
+    },
+    [theme, setTab, serverUrl, authHeaders],
   );
 
   // Every hook above the early returns, without exception: retryTab used to

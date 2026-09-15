@@ -33,7 +33,7 @@ const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
 const ROW_HEIGHT = POSTER_HEIGHT + 30 + SPACING; // poster + text + margin
 
-type SortKey = "addedAt" | "titleAsc" | "titleDesc" | "yearNewest" | "yearOldest";
+type SortKey = "addedAt" | "titleAsc" | "titleDesc" | "yearNewest" | "yearOldest" | "rating";
 type TypeFilter = "all" | "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
 
 function favKeyExtractor(item: FavoriteItem) {
@@ -119,6 +119,7 @@ export default function FavoritesScreen() {
     { key: "titleDesc", label: t("media.favorites.titleZA") || "Title Z-A" },
     { key: "yearNewest", label: t("media.search.yearNewest") || "Year newest" },
     { key: "yearOldest", label: t("media.favorites.yearOldest") || "Year oldest" },
+    { key: "rating", label: t("media.favorites.rating") || "Rating" },
   ];
 
   const typeOptions: Array<{ key: TypeFilter; label: string }> = [
@@ -155,6 +156,9 @@ export default function FavoritesScreen() {
         break;
       case "yearOldest":
         sorted.sort((a, b) => (a.year ?? 0) - (b.year ?? 0));
+        break;
+      case "rating":
+        sorted.sort((a, b) => (b.communityRating ?? 0) - (a.communityRating ?? 0));
         break;
     }
     return sorted;
@@ -321,6 +325,12 @@ export default function FavoritesScreen() {
         ))}
       </ScrollView>
 
+      {displayItems.length > 0 && (
+        <Text style={{ color: theme.colors.textMuted, fontSize: 12, paddingHorizontal: 16, paddingTop: 8 }}>
+          {t("common.itemCount", "{{count}} items", { count: displayItems.length })}
+        </Text>
+      )}
+
       <FlatList
         data={displayItems}
         keyExtractor={favKeyExtractor}
@@ -342,7 +352,17 @@ export default function FavoritesScreen() {
       />
       {bulkMode && (
         <View style={[styles.bulkBar, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>
-          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("common.selectedCount", "{{count}} selected", { count: selected.size })}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("common.selectedCount", "{{count}} selected", { count: selected.size })}</Text>
+            <Pressable
+              onPress={() => setSelected(new Set(displayItems.map((i) => i.mediaItemId)))}
+              hitSlop={BULK_HIT_SLOP}
+              accessibilityRole="button"
+              accessibilityLabel={t("common.selectAll", "Select all")}
+            >
+              <Text style={{ color: theme.colors.accent, fontSize: 12 }}>{t("common.selectAll", "Select all")}</Text>
+            </Pressable>
+          </View>
           <View style={{ flexDirection: "row", gap: 12 }}>
             <Pressable onPress={bulkMarkWatched} disabled={bulkBusy} hitSlop={BULK_HIT_SLOP} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
