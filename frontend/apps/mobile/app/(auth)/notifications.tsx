@@ -55,7 +55,7 @@ function iconForType(type: string | undefined): keyof typeof Ionicons.glyphMap {
   }
 }
 
-function NotificationItem({ item, onPress }: { item: V1Notification; onPress: () => void }) {
+function NotificationItem({ item, onPress, onMarkRead }: { item: V1Notification; onPress: () => void; onMarkRead: () => void }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const isUnread = !item.readAt;
@@ -114,12 +114,16 @@ function NotificationItem({ item, onPress }: { item: V1Notification; onPress: ()
       </View>
 
       {isUnread && (
-        <View style={{
-          width: 8,
-          height: 8,
-          borderRadius: 4,
-          backgroundColor: theme.colors.accent,
-        }} />
+        <Pressable
+          onPress={(e) => { e.stopPropagation(); onMarkRead(); }}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={t("common.notifications.markRead")}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+        >
+          <Text style={{ color: theme.colors.accent, fontSize: 12 }}>{t("common.notifications.markRead")}</Text>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.accent }} />
+        </Pressable>
       )}
     </Pressable>
   );
@@ -173,16 +177,26 @@ export default function NotificationsScreen() {
     if (!n.readAt && n.id) {
       markRead.mutate({ id: n.id });
     }
-    if (n.mediaItemId) {
+    // Where a notification leads (web parity, notificationUtils.notificationUrl):
+    // a media request pages an admin, so it opens the moderation queue (those
+    // carry no mediaItemId - the title is not in the library yet); anything
+    // about a title opens the title.
+    if (n.type === "media_request") {
+      router.push("/(auth)/admin/media-requests");
+    } else if (n.mediaItemId) {
       router.push(`/media/${n.mediaItemId}`);
     }
   }, [markRead, router]);
 
+  const handleMarkRead = useCallback((n: V1Notification) => {
+    if (!n.readAt && n.id) markRead.mutate({ id: n.id });
+  }, [markRead]);
+
   const renderNotifItem = useCallback(
     ({ item }: { item: V1Notification }) => (
-      <NotificationItem item={item} onPress={() => handleTap(item)} />
+      <NotificationItem item={item} onPress={() => handleTap(item)} onMarkRead={() => handleMarkRead(item)} />
     ),
-    [handleTap],
+    [handleTap, handleMarkRead],
   );
 
   const onRefresh = useCallback(async () => {
