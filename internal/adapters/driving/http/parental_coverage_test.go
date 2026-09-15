@@ -210,6 +210,44 @@ func TestParentalUpdateSettings_ClearPIN(t *testing.T) {
 	}
 }
 
+// Rotating, clearing or disabling protection while a PIN exists needs proof of
+// the CURRENT PIN: a stolen JWT alone must not be enough to turn parental off.
+func TestParentalUpdateSettings_ExistingPIN_RequiresCurrentPIN(t *testing.T) {
+	mux, gen := newParentalMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
+	put := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/prof-1/parental", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+	// First-time set with the account password.
+	if w := put(`{"pin":"1234","currentPassword":"secret"}`); w.Code != http.StatusOK {
+		t.Fatalf("set: %d %s", w.Code, w.Body.String())
+	}
+	for name, body := range map[string]string{
+		"rotate without current pin":  `{"pin":"5678"}`,
+		"rotate with wrong pin":       `{"pin":"5678","currentPin":"0000"}`,
+		"clear without current pin":   `{"pin":""}`,
+		"disable without current pin": `{"enabled":false}`,
+	} {
+		w := put(body)
+		if w.Code != http.StatusForbidden {
+			t.Errorf("%s: got %d, want 403: %s", name, w.Code, w.Body.String())
+		}
+		if !strings.Contains(w.Body.String(), "errors.auth.invalid_pin") {
+			t.Errorf("%s: refusal must carry the translatable key: %s", name, w.Body.String())
+		}
+	}
+	if w := put(`{"pin":"5678","currentPin":"1234"}`); w.Code != http.StatusOK {
+		t.Fatalf("rotate with the right pin: %d %s", w.Code, w.Body.String())
+	}
+	if w := put(`{"enabled":false,"currentPin":"5678"}`); w.Code != http.StatusOK {
+		t.Fatalf("disable with the rotated pin: %d %s", w.Code, w.Body.String())
+	}
+}
+
 // ============================================================
 // Stream token handler tests
 // ============================================================
