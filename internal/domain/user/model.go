@@ -3,6 +3,7 @@ package user
 import (
 	"errors"
 	"net/mail"
+	"strings"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -227,7 +228,10 @@ func (u *User) Validate() error {
 	if u.Username == "" {
 		return errors.New("username is required")
 	}
-	if u.Email != "" && !IsPlainAddress(u.Email) {
+	// Surrounding whitespace is tolerated: rows written before this check
+	// tightened may carry it, and refusing them would block the account's
+	// next update until the operator notices a space.
+	if e := strings.TrimSpace(u.Email); e != "" && !IsPlainAddress(e) {
 		return errors.New("email is invalid")
 	}
 	return nil
