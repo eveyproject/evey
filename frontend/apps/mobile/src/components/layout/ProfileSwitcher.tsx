@@ -58,7 +58,12 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
       try {
         await SecureStore.setItemAsync(LAST_PROFILE_KEY, target.id);
       } catch { /* ignore */ }
-      await qc.invalidateQueries();
+      // Drop the WHOLE cache, not just invalidate: invalidateQueries leaves
+      // other screens showing the PREVIOUS profile's content until each refetch
+      // lands - including kids-filtered titles briefly visible after switching
+      // into a kids profile. qc.clear() forces every screen to refetch fresh
+      // (web parity - ProfileSwitcher).
+      qc.clear();
       setSwitchOpen(false);
       setMenuOpen(false);
       return "ok";
@@ -119,6 +124,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
 
   const items: MenuItem[] = [
     { key: "settings", label: t("common.nav.settings", "Settings"), icon: "settings-outline", action: () => go("/(auth)/(tabs)/settings") },
+    { key: "stats", label: t("common.nav.myStats", "My Stats"), icon: "stats-chart-outline", action: () => go("/(auth)/settings/stats") },
     { key: "history", label: t("common.nav.watchHistory", "Watch History"), icon: "time-outline", action: () => go("/history") },
     { key: "quickconnect", label: t("common.nav.quickConnect", "Quick Connect"), icon: "qr-code-outline", action: () => go("/quick-connect") },
   ];

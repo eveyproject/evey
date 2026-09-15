@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet, Switch } from "react-native";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, StyleSheet, Switch } from "react-native";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { BottomSheet } from "../../../src/components/BottomSheet";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUserServiceGetCurrentUser,
@@ -15,20 +16,28 @@ import { useActiveProfile } from "../../../src/hooks/useActiveProfile";
 // Values are ISO 639-1 (2-letter) to match the audio_languages/subtitle_languages
 // convention written by web (frontend/apps/web/src/features/user/LanguageSettings.tsx)
 // and read by HLSPlayer's track resolution.
-const LANG_OPTIONS = [
-  { value: "", label: "None" },
-  { value: "en", label: "English" },
-  { value: "fr", label: "Fran\u00e7ais" },
-  { value: "es", label: "Espa\u00f1ol" },
-  { value: "de", label: "Deutsch" },
-  { value: "it", label: "Italiano" },
-  { value: "pt", label: "Portugu\u00eas" },
-  { value: "ja", label: "\u65e5\u672c\u8a9e" },
-  { value: "ko", label: "\ud55c\uad6d\uc5b4" },
-  { value: "zh", label: "\u4e2d\u6587" },
-  { value: "ru", label: "\u0420\u0443\u0441\u0441\u043a\u0438\u0439" },
-  { value: "ar", label: "\u0627\u0644\u0639\u0631\u0628\u064a\u0629" },
+// The media (audio/subtitle) language set, ISO 639-1, matching the web
+// LanguageSettings MEDIA_LANG_CODES so the two apps offer the same choices.
+const MEDIA_LANG_CODES = [
+  "af", "ar", "bg", "bn", "ca", "cs", "cy", "da", "de", "el",
+  "en", "es", "et", "eu", "fa", "fi", "fil", "fr", "ga", "gl",
+  "gu", "he", "hi", "hr", "hu", "hy", "id", "is", "it", "ja",
+  "ka", "kn", "ko", "lt", "lv", "mk", "ml", "mr", "ms", "mt",
+  "nl", "no", "pa", "pl", "pt", "ro", "ru", "sk", "sl", "sq",
+  "sr", "sv", "sw", "ta", "te", "th", "tr", "uk", "ur", "vi",
+  "zh",
 ];
+
+// Localize each code to the current UI language via Intl.DisplayNames, with a
+// leading "no preference" entry (mirror web buildMediaLangOptions).
+function buildMediaLangOptions(locale: string, noneLabel: string): { value: string; label: string }[] {
+  let names: Intl.DisplayNames | undefined;
+  try { names = new Intl.DisplayNames([locale], { type: "language" }); } catch { names = undefined; }
+  const opts = MEDIA_LANG_CODES
+    .map((c) => ({ value: c, label: names?.of(c) ?? c }))
+    .sort((a, b) => a.label.localeCompare(b.label, locale));
+  return [{ value: "", label: noneLabel }, ...opts];
+}
 
 // Older mobile builds stored a single ISO 639-2/B code under
 // default_audio_language/default_subtitle_language. Map the ones this screen
@@ -96,7 +105,7 @@ type PrefMap = Record<string, string>;
 
 export default function PlaybackSettingsScreen() {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
 
   const { data: user } = useUserServiceGetCurrentUser();
@@ -110,6 +119,20 @@ export default function PlaybackSettingsScreen() {
   const [cellularBitrate, setCellularBitrate] = useState("0");
   const [subtitleLang, setSubtitleLang] = useState("");
   const [audioLang, setAudioLang] = useState("");
+  const [subSheetOpen, setSubSheetOpen] = useState(false);
+  const [audSheetOpen, setAudSheetOpen] = useState(false);
+  const [langQuery, setLangQuery] = useState("");
+
+  const langOptions = useMemo(
+    () => buildMediaLangOptions(i18n.language, t("common.noPreference", "No preference")),
+    [i18n.language, t],
+  );
+  const langLabel = useCallback((v: string) => langOptions.find((o) => o.value === v)?.label ?? (v || t("common.noPreference", "No preference")), [langOptions, t]);
+  const filteredLangs = useMemo(() => {
+    const q = langQuery.trim().toLowerCase();
+    if (!q) return langOptions;
+    return langOptions.filter((o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q));
+  }, [langOptions, langQuery]);
   const [videoCodec, setVideoCodec] = useState("auto");
   const [audioCodec, setAudioCodec] = useState("auto");
   const [audioChannels, setAudioChannels] = useState("auto");
@@ -271,7 +294,36 @@ export default function PlaybackSettingsScreen() {
   const s = styles(theme);
   const labelOf = (o: { labelKey: string; fallback: string }) => (o.labelKey ? t(o.labelKey, o.fallback) : o.fallback);
 
+  const renderLangSheet = (open: boolean, close: () => void, current: string, onPick: (v: string) => void, title: string) => (
+    <BottomSheet visible={open} onClose={close} title={title}>
+      <TextInput
+        value={langQuery}
+        onChangeText={setLangQuery}
+        placeholder={t("common.search", "Search") || "Search"}
+        placeholderTextColor={theme.colors.textMuted}
+        style={[s.langSearch, { backgroundColor: theme.colors.surfaceRaised, color: theme.colors.text, borderRadius: theme.radii.md }]}
+      />
+      {filteredLangs.map((opt) => {
+        const activeOpt = current === opt.value;
+        return (
+          <Pressable
+            key={opt.value || "none"}
+            style={[s.langSheetRow, { borderBottomColor: theme.colors.border }]}
+            onPress={() => { onPick(opt.value); close(); }}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activeOpt }}
+            accessibilityLabel={opt.label}
+          >
+            <Text style={{ color: activeOpt ? theme.colors.accent : theme.colors.text, fontSize: 15, flex: 1 }}>{opt.label}</Text>
+            {activeOpt && <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{"✓"}</Text>}
+          </Pressable>
+        );
+      })}
+    </BottomSheet>
+  );
+
   return (
+    <>
     <ScrollView style={s.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <Stack.Screen
         options={{
@@ -394,37 +446,31 @@ export default function PlaybackSettingsScreen() {
       {/* Default Subtitle Language */}
       <Text style={s.sectionTitle}>{t("auth.settings.playback.subtitleLanguage")}</Text>
       <View style={s.section}>
-        {LANG_OPTIONS.map((opt) => (
-          <Pressable
-            key={opt.value}
-            style={s.row}
-            onPress={() => handleSubtitleLang(opt.value)}
-            disabled={!editedProfile}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: subtitleLang === opt.value, disabled: !editedProfile }}
-          >
-            <Text style={s.label}>{opt.label}</Text>
-            {subtitleLang === opt.value && <Text style={s.check}>{"\u2713"}</Text>}
-          </Pressable>
-        ))}
+        <Pressable
+          style={s.row}
+          onPress={() => { setLangQuery(""); setSubSheetOpen(true); }}
+          disabled={!editedProfile}
+          accessibilityRole="button"
+          accessibilityLabel={t("auth.settings.playback.subtitleLanguage")}
+        >
+          <Text style={s.label}>{langLabel(subtitleLang)}</Text>
+          <Text style={s.check}>{"\u203a"}</Text>
+        </Pressable>
       </View>
 
       {/* Default Audio Language */}
       <Text style={s.sectionTitle}>{t("auth.settings.playback.audioLanguage")}</Text>
       <View style={s.section}>
-        {LANG_OPTIONS.map((opt) => (
-          <Pressable
-            key={opt.value}
-            style={s.row}
-            onPress={() => handleAudioLang(opt.value)}
-            disabled={!editedProfile}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: audioLang === opt.value, disabled: !editedProfile }}
-          >
-            <Text style={s.label}>{opt.label}</Text>
-            {audioLang === opt.value && <Text style={s.check}>{"\u2713"}</Text>}
-          </Pressable>
-        ))}
+        <Pressable
+          style={s.row}
+          onPress={() => { setLangQuery(""); setAudSheetOpen(true); }}
+          disabled={!editedProfile}
+          accessibilityRole="button"
+          accessibilityLabel={t("auth.settings.playback.audioLanguage")}
+        >
+          <Text style={s.label}>{langLabel(audioLang)}</Text>
+          <Text style={s.check}>{"\u203a"}</Text>
+        </Pressable>
       </View>
 
       {/* Subtitle Burn-in Mode */}
@@ -549,6 +595,9 @@ export default function PlaybackSettingsScreen() {
         </View>
       )}
     </ScrollView>
+    {renderLangSheet(subSheetOpen, () => setSubSheetOpen(false), subtitleLang, handleSubtitleLang, t("auth.settings.playback.subtitleLanguage"))}
+    {renderLangSheet(audSheetOpen, () => setAudSheetOpen(false), audioLang, handleAudioLang, t("auth.settings.playback.audioLanguage"))}
+    </>
   );
 }
 
@@ -582,6 +631,8 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       borderBottomColor: t.colors.border,
     },
     label: { color: t.colors.text, fontSize: 15, flex: 1, paddingRight: 12 },
+    langSearch: { paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 8 },
+    langSheetRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
     sublabel: { color: t.colors.textMuted, fontSize: 12, marginTop: 2 },
     check: { color: t.colors.accent, fontSize: 16, fontWeight: "600", flexShrink: 0 },
   });

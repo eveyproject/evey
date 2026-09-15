@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { View, Text, TextInput, Pressable, Switch, Modal, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,6 +10,9 @@ import {
 import { toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { FONT_SIZE } from "@evey/theme";
+import { BottomSheet } from "../../components/BottomSheet";
+import { supportedLanguages } from "../../i18n";
+import { regionOptions } from "../../lib/regionOptions";
 
 interface Props {
   open: boolean;
@@ -23,21 +26,44 @@ type CreateProfileData = {
   isKids?: boolean;
   pin?: string;
   maxAge?: number;
+  locale?: string;
+  region?: string;
 };
 
 const MAX_AGE_OPTIONS = ["", "0", "6", "7", "10", "12", "13", "14", "15", "16", "17", "18"];
 
 export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: Props) {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [isKids, setIsKids] = useState(false);
   const [pin, setPin] = useState("");
   const [maxAge, setMaxAge] = useState("");
+  const [locale, setLocale] = useState("");
+  const [region, setRegion] = useState("");
+  const [langSheetOpen, setLangSheetOpen] = useState(false);
+  const [regionSheetOpen, setRegionSheetOpen] = useState(false);
+  const [regionQuery, setRegionQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const pinRequired = hasKidsProfile && !isKids;
+
+  const localeOptions = useMemo(
+    () => [{ code: "", label: t("auth.profile.fields.localeAuto", "Automatic") }, ...supportedLanguages],
+    [t],
+  );
+  const currentLocaleLabel = localeOptions.find((o) => o.code === locale)?.label ?? locale;
+  const regionOptsWithAuto = useMemo(
+    () => [{ code: "", label: t("common.region.auto", "Auto") }, ...regionOptions(i18n.language)],
+    [i18n.language, t],
+  );
+  const filteredRegionOpts = useMemo(() => {
+    const q = regionQuery.trim().toLowerCase();
+    if (!q) return regionOptsWithAuto;
+    return regionOptsWithAuto.filter((o) => o.label.toLowerCase().includes(q) || o.code.toLowerCase().includes(q));
+  }, [regionOptsWithAuto, regionQuery]);
+  const currentRegionLabel = regionOptsWithAuto.find((o) => o.code === region)?.label ?? region;
 
   const createProfile = useUserServiceCreateProfile({
     mutation: {
@@ -57,6 +83,9 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: P
     setIsKids(false);
     setPin("");
     setMaxAge("");
+    setLocale("");
+    setRegion("");
+    setRegionQuery("");
     setError(null);
   }
 
@@ -83,13 +112,18 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: P
         if (!Number.isNaN(n)) data.maxAge = n;
       }
     }
-    if (pin.length === 4) data.pin = pin;
+    // Only attach a PIN to a NON-kids profile: without the !isKids guard a PIN
+    // typed before ticking "Kids" leaks onto the new kids profile (web parity).
+    if (!isKids && pin.length === 4) data.pin = pin;
+    if (locale) data.locale = locale;
+    if (region) data.region = region;
     createProfile.mutate({ userId, data });
   }
 
   const s = styles(theme);
 
   return (
+    <>
     <Modal visible={open} transparent animationType="fade" onRequestClose={handleClose}>
       <View style={[s.backdrop, { backgroundColor: theme.colors.overlay }]}>
         <View style={[s.dialog, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
@@ -192,6 +226,32 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: P
               </View>
             )}
 
+            {/* Language (locale) - settable at create time, web parity */}
+            <View>
+              <Text style={[s.label, { color: theme.colors.textMuted }]}>{t("auth.profile.fields.locale", "Language")}</Text>
+              <Pressable
+                onPress={() => setLangSheetOpen(true)}
+                style={[s.selectRow, { backgroundColor: theme.colors.bg, borderColor: theme.colors.border, borderRadius: theme.radii.md }]}
+                accessibilityRole="button"
+                accessibilityLabel={t("auth.profile.fields.locale", "Language")}
+              >
+                <Text style={{ color: theme.colors.text, fontSize: FONT_SIZE.sm }}>{currentLocaleLabel}</Text>
+              </Pressable>
+            </View>
+
+            {/* Region */}
+            <View>
+              <Text style={[s.label, { color: theme.colors.textMuted }]}>{t("auth.profile.fields.region", "Region")}</Text>
+              <Pressable
+                onPress={() => setRegionSheetOpen(true)}
+                style={[s.selectRow, { backgroundColor: theme.colors.bg, borderColor: theme.colors.border, borderRadius: theme.radii.md }]}
+                accessibilityRole="button"
+                accessibilityLabel={t("auth.profile.fields.region", "Region")}
+              >
+                <Text style={{ color: theme.colors.text, fontSize: FONT_SIZE.sm }}>{currentRegionLabel}</Text>
+              </Pressable>
+            </View>
+
             {error && (
               <Text style={[s.error, { color: theme.colors.error }]}>{error}</Text>
             )}
@@ -223,6 +283,52 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: P
         </View>
       </View>
     </Modal>
+
+    <BottomSheet visible={langSheetOpen} onClose={() => setLangSheetOpen(false)} title={t("auth.profile.fields.locale", "Language")}>
+      {localeOptions.map((opt) => {
+        const active = locale === opt.code;
+        return (
+          <Pressable
+            key={opt.code || "auto"}
+            style={[s.sheetRow, { borderBottomColor: theme.colors.border }]}
+            onPress={() => { setLocale(opt.code); setLangSheetOpen(false); }}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={opt.label}
+          >
+            <Text style={[s.sheetLabel, { color: active ? theme.colors.accent : theme.colors.text }]}>{opt.label}</Text>
+            {active && <Text style={[s.sheetCheck, { color: theme.colors.accent }]}>{"✓"}</Text>}
+          </Pressable>
+        );
+      })}
+    </BottomSheet>
+
+    <BottomSheet visible={regionSheetOpen} onClose={() => setRegionSheetOpen(false)} title={t("auth.profile.fields.region", "Region")}>
+      <TextInput
+        value={regionQuery}
+        onChangeText={setRegionQuery}
+        placeholder={t("common.search", "Search") || "Search"}
+        placeholderTextColor={theme.colors.textMuted}
+        style={[s.searchInput, { backgroundColor: theme.colors.surfaceRaised, color: theme.colors.text, borderRadius: theme.radii.md }]}
+      />
+      {filteredRegionOpts.map((opt) => {
+        const active = region === opt.code;
+        return (
+          <Pressable
+            key={opt.code || "auto"}
+            style={[s.sheetRow, { borderBottomColor: theme.colors.border }]}
+            onPress={() => { setRegion(opt.code); setRegionSheetOpen(false); }}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={opt.label}
+          >
+            <Text style={[s.sheetLabel, { color: active ? theme.colors.accent : theme.colors.text }]}>{opt.label}</Text>
+            {active && <Text style={[s.sheetCheck, { color: theme.colors.accent }]}>{"✓"}</Text>}
+          </Pressable>
+        );
+      })}
+    </BottomSheet>
+    </>
   );
 }
 
@@ -280,6 +386,11 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       paddingHorizontal: 12,
       borderWidth: 1,
     },
+    selectRow: { borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
+    sheetRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+    sheetLabel: { fontSize: FONT_SIZE.sm, flex: 1 },
+    sheetCheck: { fontSize: FONT_SIZE.lg, fontWeight: "600", marginLeft: 12 },
+    searchInput: { paddingHorizontal: 12, paddingVertical: 10, fontSize: FONT_SIZE.sm, marginBottom: 8 },
     error: {
       fontSize: FONT_SIZE.xs,
     },
