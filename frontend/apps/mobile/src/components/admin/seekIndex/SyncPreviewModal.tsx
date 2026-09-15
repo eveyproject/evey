@@ -122,7 +122,7 @@ export function SyncPreviewModal({ item, title, onClose }: { item: V1SeekIndexIt
           <Pressable onPress={onClose}><Text style={{ color: theme.colors.accent, fontWeight: "600" }}>{t("common.close")}</Text></Pressable>
         </View>
 
-        <ScrollView style={{ maxHeight: "92%" }} contentContainerStyle={{ gap: 12, paddingVertical: 8 }} keyboardShouldPersistTaps="handled">
+        <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 12, paddingVertical: 8 }} keyboardShouldPersistTaps="handled">
           <Text style={s.hint}>{t("admin.syncPreview.intro", "Watch a few seconds and apply what your ear finds.")}</Text>
 
           <View style={s.videoWrap}>
