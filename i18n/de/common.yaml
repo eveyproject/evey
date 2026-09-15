@@ -248,3 +248,5 @@ slideNumber: "Folie {{number}}"
 clearSelection: Auswahl aufheben
 options: Optionen
 addNamedRule: "Regel {{name}} hinzufügen"
+copy: "Kopieren"
+watched: "Gesehen"

@@ -248,3 +248,5 @@ slideNumber: "幻灯片 {{number}}"
 clearSelection: 清除选择
 options: 选项
 addNamedRule: "添加 {{name}} 规则"
+copy: "复制"
+watched: "已观看"

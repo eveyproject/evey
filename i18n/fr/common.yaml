@@ -248,3 +248,5 @@ slideNumber: "Diapositive {{number}}"
 clearSelection: Effacer la sélection
 options: Options
 addNamedRule: "Ajouter une règle {{name}}"
+copy: "Copier"
+watched: "Vu"

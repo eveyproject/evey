@@ -248,3 +248,5 @@ slideNumber: "Slide {{number}}"
 clearSelection: Clear selection
 options: Options
 addNamedRule: "Add {{name}} rule"
+copy: "Copy"
+watched: "Watched"

@@ -41,6 +41,7 @@ online:
   minutesAgo: "{{count}}m ago"
 
 logs:
+  liveOn: "Live tail on - newest lines auto-refresh"
   title: Logs & Debug
   subtitle: "Search and live-tail server logs (ffmpeg, mkvgo, playback...) to diagnose user-reported issues."
   searchPlaceholder: "Search logs (text, path, id, error...)"
@@ -130,6 +131,7 @@ artworks:
   purgeVariantsFailed: Failed to purge variants
 
 plugin:
+  copySourceHash: "Copy source hash"
   enabled: Enabled
   disabled: Disabled
   config: Config
@@ -186,6 +188,7 @@ plugin:
     apply: Apply update
 
 plugins:
+  installFromFile: "Install from file (.zip)"
   title: Plugins
   installPlugin: Install Plugin
   uploadFile: Upload File
@@ -272,6 +275,9 @@ dashboard:
 scanning: Scanning...
 
 users:
+  expiry30d: "30 days"
+  expiry7d: "7 days"
+  expiry1d: "1 day"
   maxProfilesInvalid: "Max profiles must be a whole number >= 0"
   maxDevicesInvalid: "Max devices must be a whole number >= 0"
   usernameRequired: "Username is required"
@@ -835,6 +841,7 @@ remoteAccess:
   publishedInfo: "Remote access is enabled and this server is reachable from the Internet."
 
 systemHealth:
+  metricsSection: "System"
   title: System Health
   autoRefresh: "Updated {{time}} · auto-refreshes every 5s"
   cpuUsage: CPU Usage

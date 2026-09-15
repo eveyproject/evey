@@ -244,6 +244,7 @@ apiDocs:
   link: API-Dokumentation ansehen
   loadError: Die API-Spezifikation konnte nicht geladen werden.
 apiKeys:
+  neverUsed: "Nie verwendet"
   title: API-Schlüssel
   description: API-Schlüssel für externe Integrationen erstellen.
   newKeyTitle: Neuer API-Schlüssel
