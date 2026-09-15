@@ -260,3 +260,41 @@ func TestSandboxStatus_WithSandboxStatus(t *testing.T) {
 		t.Errorf("SandboxStatus: want %+v, got %+v", want, got)
 	}
 }
+
+// A plugin.started event stamps the snapshot's LastStartedAt for THAT plugin
+// only; a foreign event on the same topic is ignored.
+func TestGetSecurityDashboard_LastStartedViaEventBus(t *testing.T) {
+	repo := fakes.NewFakePluginRepository()
+	for _, id := range []string{"plugin-a", "plugin-b"} {
+		if err := repo.Create(context.Background(), &plugin.Plugin{ID: id, Name: id, Version: "1.0.0", InstalledAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appplugin.NewSecurityDashboardService(repo, bus, func() string { return "basic" })
+
+	started := time.Date(2026, 9, 16, 1, 30, 0, 0, time.UTC)
+	if err := bus.Publish(context.Background(), plugin.PluginStarted{PluginID: "plugin-a", OccurredAt: started}); err != nil {
+		t.Fatal(err)
+	}
+	// Same topic, wrong payload type: must be ignored, not panic.
+	if err := bus.Publish(context.Background(), plugin.PluginError{PluginID: "plugin-b", ErrorMessage: "x", OccurredAt: started}); err != nil {
+		t.Fatal(err)
+	}
+
+	snaps, err := svc.GetSecurityDashboard(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]plugin.PluginSecuritySnapshot{}
+	for _, s := range snaps {
+		byID[s.ID] = s
+	}
+	if got := byID["plugin-a"].LastStartedAt; got == nil || !got.Equal(started) {
+		t.Errorf("plugin-a LastStartedAt = %v, want %v", got, started)
+	}
+	if byID["plugin-b"].LastStartedAt != nil {
+		t.Errorf("plugin-b never started, got %v", byID["plugin-b"].LastStartedAt)
+	}
+}
+
