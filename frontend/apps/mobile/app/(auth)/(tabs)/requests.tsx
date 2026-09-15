@@ -44,6 +44,24 @@ const SCOPES: { key: SearchScope; labelKey: string; icon: keyof typeof Ionicons.
 // submitted as - needed once movies and series share one result list.
 type TaggedCandidate = V1TitleCandidate & { requestType: MediaType };
 
+// Poster with a title + media-type fallback (web parity: RequestPoster). A bare
+// surface rectangle for a poster-less title left the row looking broken; the
+// icon + title says what it is at a glance.
+function RequestPoster({ posterUrl, title, mediaType }: { posterUrl?: string; title?: string; mediaType?: string }) {
+  const theme = useTheme();
+  if (posterUrl) {
+    return <Image cachePolicy="memory-disk" source={{ uri: posterUrl }} style={{ width: 48, height: 72, borderRadius: theme.radii.sm }} contentFit="cover" />;
+  }
+  const icon: keyof typeof Ionicons.glyphMap =
+    mediaType === "music" ? "musical-notes-outline" : mediaType === "tv" ? "tv-outline" : "film-outline";
+  return (
+    <View style={{ width: 48, height: 72, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 }}>
+      <Ionicons name={icon} size={18} color={theme.colors.textMuted} />
+      <Text numberOfLines={2} style={{ color: theme.colors.textMuted, fontSize: 8, textAlign: "center", marginTop: 2 }}>{title}</Text>
+    </View>
+  );
+}
+
 // interleave merges two ranked lists preserving each one's own order
 // (movie[0], tv[0], movie[1], tv[1], ...) so neither type buries the other.
 function interleave<T>(a: T[], b: T[]): T[] {
@@ -189,6 +207,9 @@ export default function RequestsScreen() {
       <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl }]}>
         {t("requests.title")}
       </Text>
+      <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginTop: 2, marginBottom: 4 }}>
+        {t("requests.subtitle")}
+      </Text>
 
       <View style={styles.tabRow}>
         {(["search", "mine"] as Tab[]).map((tb) => (
@@ -271,11 +292,7 @@ export default function RequestsScreen() {
                 return (
                   <View style={styles.resultRow}>
                     <View style={{ width: 48, height: 72 }}>
-                      {item.posterUrl ? (
-                        <Image cachePolicy="memory-disk" source={{ uri: item.posterUrl }} style={{ width: 48, height: 72, borderRadius: theme.radii.sm }} contentFit="cover" />
-                      ) : (
-                        <View style={{ width: 48, height: 72, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised }} />
-                      )}
+                      <RequestPoster posterUrl={item.posterUrl} title={item.title} mediaType={item.requestType} />
                       {inLibrary && (
                         <View style={[styles.inLibraryBadge, { backgroundColor: theme.colors.overlay }]}>
                           <Ionicons name="checkmark-circle" size={10} color={theme.colors.text} />
@@ -358,11 +375,7 @@ export default function RequestsScreen() {
           refreshing={mineLoading}
           renderItem={({ item }) => (
             <View style={styles.resultRow}>
-              {item.posterUrl ? (
-                <Image cachePolicy="memory-disk" source={{ uri: item.posterUrl }} style={{ width: 48, height: 72, borderRadius: theme.radii.sm }} contentFit="cover" />
-              ) : (
-                <View style={{ width: 48, height: 72, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised }} />
-              )}
+              <RequestPoster posterUrl={item.posterUrl} title={item.title} mediaType={item.mediaType} />
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={2}>
                   {item.title}{item.year != null && item.year > 0 ? ` (${item.year})` : ""}

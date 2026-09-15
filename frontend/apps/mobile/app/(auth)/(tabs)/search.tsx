@@ -683,15 +683,25 @@ export default function SearchScreen() {
           </View>
         ) : (
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
+            <Ionicons name="search-outline" size={40} color={theme.colors.textMuted} style={{ marginBottom: 10 }} />
+            <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600", textAlign: "center" }}>
               {t("media.search.searchLibrary")}
+            </Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center", marginTop: 6, paddingHorizontal: 24 }}>
+              {t("media.search.searchLibraryDesc")}
             </Text>
           </View>
         )
       ) : searchKind === "music" ? (
         musicItems.length === 0 ? (
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted }}>{t("media.search.noResults")}</Text>
+            <Ionicons name="musical-notes-outline" size={40} color={theme.colors.textMuted} style={{ marginBottom: 10 }} />
+            <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600", textAlign: "center" }}>
+              {t("media.search.noResultsFor", { query: debouncedQuery })}
+            </Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center", marginTop: 6, paddingHorizontal: 24 }}>
+              {t("media.search.noResultsDesc")}
+            </Text>
           </View>
         ) : (
           <>
@@ -717,8 +727,12 @@ export default function SearchScreen() {
         )
       ) : items.length === 0 ? (
         <View style={styles.center}>
-          <Text style={{ color: theme.colors.textMuted }}>
-            {t("media.search.noResults")}
+          <Ionicons name="search-outline" size={40} color={theme.colors.textMuted} style={{ marginBottom: 10 }} />
+          <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600", textAlign: "center" }}>
+            {t("media.search.noResultsFor", { query: debouncedQuery })}
+          </Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center", marginTop: 6, paddingHorizontal: 24 }}>
+            {t("media.search.noResultsDesc")}
           </Text>
         </View>
       ) : (
