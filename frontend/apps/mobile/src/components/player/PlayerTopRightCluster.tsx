@@ -11,6 +11,9 @@ interface PlayerTopRightClusterProps {
   castAvailable: boolean;
   onCast: () => void;
   onSyncPress: () => void;
+  // "Play on" (send this title to another connected Evey client) - web exposes
+  // it in the player's RemotePlaybackMenu alongside cast, so it belongs here too.
+  onPlayOnPress?: () => void;
   style?: ViewStyle;
 }
 
@@ -25,6 +28,7 @@ export function PlayerTopRightCluster({
   castAvailable,
   onCast,
   onSyncPress,
+  onPlayOnPress,
   style,
 }: PlayerTopRightClusterProps) {
   const theme = useTheme();
@@ -42,6 +46,18 @@ export function PlayerTopRightCluster({
       >
         <Ionicons name="people" size={ICON_SIZE.lg} color={syncConnected ? theme.colors.accent : "#fff"} />
       </Pressable>
+      {onPlayOnPress && (
+        <Pressable
+          onPress={onPlayOnPress}
+          hitSlop={8}
+          style={styles.button}
+          accessible={true}
+          accessibilityLabel={t("player.playOn.button")}
+          accessibilityRole="button"
+        >
+          <Ionicons name="phone-portrait-outline" size={ICON_SIZE.lg} color="#fff" />
+        </Pressable>
+      )}
       {castAvailable && (
         <>
           {/* Invisible native cast button, mounted purely so the platform SDK can

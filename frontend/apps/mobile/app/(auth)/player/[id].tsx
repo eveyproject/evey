@@ -76,6 +76,7 @@ import { useCastSession } from "../../../src/hooks/useCastSession";
 import { useSyncPlay } from "../../../src/hooks/useSyncPlay";
 import { SyncPlayBar } from "../../../src/components/SyncPlayBar";
 import { SyncPlayModal } from "../../../src/components/SyncPlayModal";
+import { PlayOnSheet } from "../../../src/components/media/PlayOnSheet";
 import { ShedScreen, ErrorScreen, LoadingScreen } from "../../../src/components/player/PlayerStatusScreens";
 import { CastControllerScreen } from "../../../src/components/player/CastControllerScreen";
 import { GestureIndicators } from "../../../src/components/player/GestureIndicators";
@@ -104,7 +105,7 @@ import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 
 // Sheets still carried by a BottomSheet; audio / subtitles / quality / speed
 // now live in the settings panel (web parity).
-type SheetName = "chapters" | "streamInfo" | "sleepTimer" | "syncPlay" | "episodes";
+type SheetName = "chapters" | "streamInfo" | "sleepTimer" | "syncPlay" | "episodes" | "playOn";
 
 const WATCHED_THRESHOLD = 0.9;
 
@@ -1456,13 +1457,18 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     return (
       <CastControllerScreen
         title={playerTitle}
+        deviceName={castDeviceName}
         currentTime={castCurrentTime}
         duration={castDuration}
         isPlaying={castIsPlaying}
         skipFwd={skipFwd}
         skipBwd={skipBwd}
+        volume={castVolume ?? undefined}
+        muted={castIsMuted ?? undefined}
         onSeekToPosition={(p) => castClient?.seek?.({ position: p })}
         onPlayPause={() => { if (castIsPlaying) castClient?.pause?.(); else castClient?.play?.(); }}
+        onSetVolume={(v) => castClient?.setStreamVolume?.(v)}
+        onSetMuted={(m) => castClient?.setStreamMuted?.(m)}
         onBack={handleBack}
       />
     );
@@ -1571,6 +1577,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
                 else setActiveSheet("syncPlay");
                 resetHideTimer();
               }}
+              onPlayOnPress={() => { setActiveSheet("playOn"); resetHideTimer(); }}
               style={{ paddingTop: Math.max(16, insets.top), paddingRight: Math.max(20, insets.right) }}
             />
 
@@ -1588,6 +1595,15 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
                 onCommit={seekTo}
                 onScrubbingChange={(s) => { seekingRef.current = s; }}
               />
+
+              {/* Active chapter title under the seek bar (web parity:
+                  PlayerControls shows the current chapter's name here). Sighted
+                  users otherwise only got it by opening the chapters picker. */}
+              {currentChapterIndex >= 0 && chapters[currentChapterIndex]?.title ? (
+                <Text style={styles.chapterTitle} numberOfLines={1}>
+                  {chapters[currentChapterIndex].title}
+                </Text>
+              ) : null}
 
               {/* Transport row, copy of the web bar: episodes/chapters,
                   +/-Ns, time, volume, then "..." toward the secondary row. */}
@@ -1764,6 +1780,14 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       />
       )}
 
+      {activeSheet === "playOn" && (
+      <PlayOnSheet
+        visible={activeSheet === "playOn"}
+        mediaId={mediaId}
+        onClose={() => setActiveSheet(null)}
+      />
+      )}
+
       {activeSheet === "syncPlay" && (
       <SyncPlayModal
         visible={activeSheet === "syncPlay"}
@@ -1858,6 +1882,12 @@ const styles = StyleSheet.create({
   transportRow: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  chapterTitle: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 12,
+    marginTop: 2,
+    marginBottom: 2,
   },
   episodesBtn: {
     padding: 4,
