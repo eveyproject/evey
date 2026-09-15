@@ -471,6 +471,12 @@ interface UpdatePreview {
   permissionsRemoved?: string[];
   capabilitiesAdded?: string[];
   capabilitiesRemoved?: string[];
+  slotsAdded?: string[];
+  slotsRemoved?: string[];
+  externalFetchAdded?: string[];
+  externalFetchRemoved?: string[];
+  newFindings?: { category?: string; severity?: string; file?: string; line?: number; description?: string }[];
+  signatureStatus?: string;
   requiresAck?: boolean;
   sourceHash?: string;
 }
@@ -555,7 +561,15 @@ function PluginUpdateModal({
       });
       onApplied();
     } catch (err) {
-      setError(apiErrorMessage(err as Error, t, t("admin.plugin.updateDialog.applyError", "Échec de la mise à jour")));
+      const msg = (err as Error)?.message ?? "";
+      // The candidate changed between preview and apply (409/Aborted): the
+      // acknowledged hash no longer matches, so the admin must re-preview
+      // rather than see a generic failure (mirror web handleApply).
+      if (/409|aborted|hash|changed/i.test(msg)) {
+        setError(t("admin.plugin.updateDialog.hashMismatch", "The plugin changed since preview - re-open to review again."));
+      } else {
+        setError(apiErrorMessage(err as Error, t, t("admin.plugin.updateDialog.applyError", "Échec de la mise à jour")));
+      }
       setPhase("reviewing");
     }
   }
@@ -616,6 +630,43 @@ function PluginUpdateModal({
             )}
             <DiffRows theme={theme} label={t("admin.plugins.permissions", "Permissions")} added={preview.permissionsAdded} removed={preview.permissionsRemoved} />
             <DiffRows theme={theme} label={t("admin.plugins.capabilities", "Capacités")} added={preview.capabilitiesAdded} removed={preview.capabilitiesRemoved} />
+            <DiffRows theme={theme} label={t("admin.plugin.updateDialog.tabSlots", "Slots")} added={preview.slotsAdded} removed={preview.slotsRemoved} />
+            <DiffRows theme={theme} label={t("admin.plugin.updateDialog.tabExternalFetch", "Accès réseau externe")} added={preview.externalFetchAdded} removed={preview.externalFetchRemoved} />
+
+            {/* New security findings introduced by the update. */}
+            <View style={{ marginTop: 10 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: "700", textTransform: "uppercase" }}>
+                {t("admin.plugin.updateDialog.tabFindings", "Alertes de sécurité")}
+              </Text>
+              {(preview.newFindings?.length ?? 0) === 0 ? (
+                <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>{t("admin.plugin.updateDialog.noFindings", "Aucune nouvelle alerte")}</Text>
+              ) : (
+                preview.newFindings!.map((f, i) => (
+                  <View key={i} style={{ marginTop: 4 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <Text style={{ color: f.severity === "critical" ? theme.colors.error : theme.colors.warning, fontSize: 11, fontWeight: "700" }}>{(f.severity ?? "info").toUpperCase()}</Text>
+                      <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{f.category}</Text>
+                    </View>
+                    {f.description ? <Text style={{ color: theme.colors.text, fontSize: 11 }}>{f.description}</Text> : null}
+                    {f.file ? <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{f.file}:{f.line ?? 0}</Text> : null}
+                  </View>
+                ))
+              )}
+            </View>
+
+            {/* Signature status of the candidate. */}
+            <View style={{ marginTop: 10 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: "700", textTransform: "uppercase" }}>
+                {t("admin.plugin.updateDialog.tabSignature", "Signature")}
+              </Text>
+              <Text style={{ fontSize: 12, marginTop: 2, fontWeight: "600", color: (preview.signatureStatus === "signed" || preview.signatureStatus === "SIGNED") ? theme.colors.success : (preview.signatureStatus === "invalid" || preview.signatureStatus === "INVALID") ? theme.colors.error : theme.colors.warning }}>
+                {(preview.signatureStatus === "signed" || preview.signatureStatus === "SIGNED")
+                  ? t("admin.plugins.security.signed", "signed")
+                  : (preview.signatureStatus === "invalid" || preview.signatureStatus === "INVALID")
+                    ? t("admin.plugin.updateDialog.signatureInvalid", "invalid signature")
+                    : t("admin.plugins.security.unsigned", "unsigned")}
+              </Text>
+            </View>
             {preview.requiresAck ? (
               <Pressable onPress={() => setAck((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 }}>
                 <Ionicons name={ack ? "checkbox" : "square-outline"} size={20} color={theme.colors.accent} />
