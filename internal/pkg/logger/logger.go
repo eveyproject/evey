@@ -135,8 +135,9 @@ func newFileHandler(dir string, cfg Config) slog.Handler {
 	}
 	w := newRotatingWriter(dir, "evey", cfg.MaxSizeMB)
 	return slog.NewJSONHandler(w, &slog.HandlerOptions{
-		Level:     globalLevel, // live level (see SetLevel)
-		AddSource: false,
+		Level:       globalLevel, // live level (see SetLevel)
+		AddSource:   false,
+		ReplaceAttr: redactAttr, // see redact.go
 	})
 }
 
