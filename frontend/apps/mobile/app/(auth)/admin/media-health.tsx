@@ -43,6 +43,8 @@ import { SeekIndexItemRow } from "../../../src/components/admin/seekIndex/SeekIn
 import { RepairConfirmModal, type BatchKind } from "../../../src/components/admin/seekIndex/RepairConfirmModal";
 import { RepairJournalPanel } from "../../../src/components/admin/seekIndex/RepairJournalPanel";
 import { RepairHistoryModal } from "../../../src/components/admin/seekIndex/RepairHistoryModal";
+import { SyncPreviewModal } from "../../../src/components/admin/seekIndex/SyncPreviewModal";
+import type { V1SeekIndexItem } from "@evey/api";
 
 // One card per verdict (same triage as the web grid), and there are two: what
 // Evey repairs here, and what it merely noticed. The number, what it is made
@@ -180,6 +182,7 @@ export default function AdminSeekIndexScreen() {
   const [keepBackups, setKeepBackups] = useState(true);
   const [resyncDamaged, setResyncDamaged] = useState(true);
   const [historyTarget, setHistoryTarget] = useState<{ mediaId: string; title: string } | null>(null);
+  const [syncTarget, setSyncTarget] = useState<{ item: V1SeekIndexItem; title: string } | null>(null);
 
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -370,6 +373,7 @@ export default function AdminSeekIndexScreen() {
             onAck={(mediaId, acked) => ackOne.mutate({ data: { mediaId, acked } })}
             onDeleteBackup={(mediaId) => deleteBackup.mutate({ data: { mediaId } })}
             onHistory={(mediaId, title) => setHistoryTarget({ mediaId, title })}
+            onSyncPreview={(it) => setSyncTarget({ item: it, title: it.title || it.path || "" })}
             repairPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && !repairOne.variables?.data?.resync}
             repairResyncPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && repairOne.variables?.data?.resync === true}
             rollbackPending={rollbackOne.isPending && rollbackOne.variables?.mediaId === item.mediaId}
@@ -586,6 +590,14 @@ export default function AdminSeekIndexScreen() {
           mediaId={historyTarget.mediaId}
           title={historyTarget.title}
           onClose={() => setHistoryTarget(null)}
+        />
+      )}
+
+      {syncTarget && (
+        <SyncPreviewModal
+          item={syncTarget.item}
+          title={syncTarget.title}
+          onClose={() => setSyncTarget(null)}
         />
       )}
     </View>

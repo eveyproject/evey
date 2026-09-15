@@ -41,6 +41,7 @@ export function SeekIndexItemRow({
   onAck,
   onDeleteBackup,
   onHistory,
+  onSyncPreview,
   repairPending,
   repairResyncPending,
   rollbackPending,
@@ -59,6 +60,7 @@ export function SeekIndexItemRow({
   onAck: (mediaId: string, acked: boolean) => void;
   onDeleteBackup: (mediaId: string) => void;
   onHistory?: (mediaId: string, title: string) => void;
+  onSyncPreview?: (item: V1SeekIndexItem) => void;
   repairPending: boolean;
   repairResyncPending: boolean;
   rollbackPending: boolean;
@@ -221,6 +223,7 @@ export function SeekIndexItemRow({
         {item.hasBackup &&
           btn(t("admin.seekIndex.deleteBackup"), () => item.mediaId && onDeleteBackup(item.mediaId), deleteBackupPending, false, undefined, deleteBackupPending)}
         {onHistory && btn(t("admin.repairHistory.btn", "History"), () => item.mediaId && onHistory(item.mediaId, item.title || item.path || ""), false)}
+        {onSyncPreview && btn(t("admin.syncPreview.btn", "Sync"), () => onSyncPreview(item), false)}
       </View>
     </View>
   );
