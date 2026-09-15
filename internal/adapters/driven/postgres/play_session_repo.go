@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -269,63 +268,6 @@ func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileI
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaySessionRepo.GetActiveByProfile: %w", err)
-	}
-	defer rows.Close()
-	sessions, err := r.scanPlaySessionRows(rows)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return nil, err
-	}
-	return sessions, nil
-}
-
-func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlaySessionFilter) ([]*playback.PlaySession, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.GetHistory")
-	defer span.End()
-	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
-	defer cancel()
-	var conditions []string
-	var args []any
-	argIdx := 1
-
-	if f.ProfileID != nil {
-		conditions = append(conditions, fmt.Sprintf("profile_id = $%d", argIdx))
-		args = append(args, *f.ProfileID)
-		argIdx++
-	}
-	if f.StartFrom != nil {
-		conditions = append(conditions, fmt.Sprintf("started_at >= $%d", argIdx))
-		args = append(args, *f.StartFrom)
-		argIdx++
-	}
-	if f.StartTo != nil {
-		conditions = append(conditions, fmt.Sprintf("started_at <= $%d", argIdx))
-		args = append(args, *f.StartTo)
-	}
-
-	query := `SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
-		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name
-		 FROM play_sessions`
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-	query += " ORDER BY started_at DESC, id DESC"
-
-	limit := f.Limit
-	if limit <= 0 || limit > 500 {
-		limit = 500
-	}
-	query += fmt.Sprintf(" LIMIT %d", limit)
-	if f.Offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", f.Offset)
-	}
-
-	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return nil, fmt.Errorf("PlaySessionRepo.GetHistory: %w", err)
 	}
 	defer rows.Close()
 	sessions, err := r.scanPlaySessionRows(rows)

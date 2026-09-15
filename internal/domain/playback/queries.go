@@ -30,5 +30,4 @@ type SessionQueryRepo interface {
 	CountActiveByUser(ctx context.Context, userID string) (int, error)
 	GetActiveByProfile(ctx context.Context, profileID string) ([]*PlaySession, error)
 	ListActiveSessions(ctx context.Context) ([]*ActiveSessionInfo, error)
-	GetHistory(ctx context.Context, filter PlaySessionFilter) ([]*PlaySession, error)
 }
