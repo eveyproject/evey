@@ -430,8 +430,24 @@ export default function AdminServerConfigScreen() {
               />
             </View>
 
+            {introEnabled ? (
+              <View style={{ marginTop: 8, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: theme.colors.border, gap: 3 }}>
+                <Text style={{ fontSize: 12, color: theme.colors.textMuted }}>
+                  {t("admin.serverConfig.introProvidersTidbStatus", "TIDB:")}{" "}
+                  <Text style={{ color: tidbKey ? theme.colors.accent : theme.colors.warning }}>
+                    {tidbKey
+                      ? t("admin.serverConfig.introProvidersTidbAuthed", "authenticated")
+                      : t("admin.serverConfig.introProvidersTidbAnonymous", "anonymous")}
+                  </Text>
+                </Text>
+                <Text style={{ fontSize: 12, color: theme.colors.textMuted }}>
+                  {t("admin.serverConfig.introProvidersIntrodbStatus", "IntroDB: community provider")}
+                </Text>
+              </View>
+            ) : null}
+
             {introEnabled && tidbKey ? (
-              <View style={staticStyles.switchRow}>
+              <View style={[staticStyles.switchRow, { marginTop: 8 }]}>
                 <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
                   {t("admin.intro.tidbSubmit", "Submit detected segments to TIDB")}
                 </Text>

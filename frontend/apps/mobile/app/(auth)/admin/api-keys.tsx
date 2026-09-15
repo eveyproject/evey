@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, ActivityIndicator, ScrollView, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, ActivityIndicator, ScrollView, Share, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -135,7 +135,9 @@ export default function AdminAPIKeysScreen() {
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>{item.name ?? t("common.unknown")}</Text>
                   <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-                    {item.lastUsedAt ? `Last used: ${new Date(item.lastUsedAt).toLocaleDateString()}` : "Never used"}
+                    {item.createdAt ? t("auth.apiKeys.created", { date: new Date(item.createdAt).toLocaleDateString(), defaultValue: "Created: {{date}}" }) : ""}
+                    {item.createdAt && (item.lastUsedAt || true) ? " · " : ""}
+                    {item.lastUsedAt ? t("auth.apiKeys.lastUsed", { date: new Date(item.lastUsedAt).toLocaleDateString(), defaultValue: "Last used: {{date}}" }) : t("auth.apiKeys.neverUsed", "Never used")}
                   </Text>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
                     {scopes.length === 0 ? (
@@ -181,9 +183,20 @@ export default function AdminAPIKeysScreen() {
               <View style={{ backgroundColor: theme.colors.bg, padding: 12, borderRadius: theme.radii.sm }}>
                 <Text style={{ color: theme.colors.text, fontFamily: "monospace", fontSize: 12 }} selectable>{newKey}</Text>
               </View>
-              <Pressable onPress={() => setNewKey(null)} style={{ marginTop: 16, alignSelf: "center" }}>
-                <Text style={{ color: theme.colors.accent, fontWeight: "600" }}>{t("common.done")}</Text>
-              </Pressable>
+              <View style={{ flexDirection: "row", justifyContent: "center", gap: 24, marginTop: 16 }}>
+                <Pressable
+                  onPress={() => { void Share.share({ message: newKey }); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("common.copy", "Copy")}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <Ionicons name="copy-outline" size={16} color={theme.colors.accent} />
+                  <Text style={{ color: theme.colors.accent, fontWeight: "600" }}>{t("common.copy", "Copy")}</Text>
+                </Pressable>
+                <Pressable onPress={() => setNewKey(null)}>
+                  <Text style={{ color: theme.colors.accent, fontWeight: "600" }}>{t("common.done")}</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
         </Modal>
