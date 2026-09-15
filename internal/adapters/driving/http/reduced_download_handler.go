@@ -47,6 +47,7 @@ import (
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/bgtasks"
 	"github.com/evey-project/evey/internal/pkg/hdr"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
@@ -126,13 +127,26 @@ func newReducedServe(libSvc MediaItemGetter, streams StreamsByMediaGetter, libra
 	}
 }
 
-// reducedJobDirName keys the job on the item, the layout version and the
-// SOURCE FINGERPRINT, hex-encoded so filepath.Join cannot escape the cache dir
-// whatever the id contains. Same contract as the compat cache: a replaced file
-// yields a new dir, so half a stale film is never joined onto a fresh one.
-func reducedJobDirName(itemID, fingerprint string) string {
-	sum := sha256.Sum256([]byte(itemID + "\x00" + reducedJobFormat + "\x00" + fingerprint))
+// reducedJobDirName keys the job on the item, the layout version, the
+// SOURCE FINGERPRINT and the CONSUMER, hex-encoded so filepath.Join cannot
+// escape the cache dir whatever the id contains. Same contract as the compat
+// cache: a replaced file yields a new dir, so half a stale film is never joined
+// onto a fresh one. The consumer is in the key because slices are deleted as
+// they are acked: two phones on one job would eat each other's bytes.
+func reducedJobDirName(itemID, fingerprint, consumer string) string {
+	sum := sha256.Sum256([]byte(itemID + "\x00" + reducedJobFormat + "\x00" + fingerprint + "\x00" + consumer))
 	return reducedJobFormat + "-" + hex.EncodeToString(sum[:])
+}
+
+// reducedConsumer identifies who a job belongs to: the profile, else the user.
+func reducedConsumer(claims *domainuser.Claims) string {
+	if claims == nil {
+		return ""
+	}
+	if claims.ProfileID != "" {
+		return "p:" + claims.ProfileID
+	}
+	return "u:" + claims.UserID
 }
 
 // reducedTarget is everything resolve() digs out of the item: where to read,
@@ -194,7 +208,7 @@ func (h *reducedServe) resolve(w http.ResponseWriter, r *http.Request) (reducedT
 	t.srcPath = item.File.Path
 	t.sourceSize = item.File.Size
 	t.durationMs = item.File.Duration.Milliseconds()
-	t.jobDir = filepath.Join(h.cacheDir, reducedJobDirName(string(item.ID), fingerprint))
+	t.jobDir = filepath.Join(h.cacheDir, reducedJobDirName(string(item.ID), fingerprint, reducedConsumer(claims)))
 	t.spec = reduceddl.Spec{SliceSec: reduceddl.SliceSec}
 
 	width, toneMap, src := h.videoShape(r.Context(), t.mediaID)
