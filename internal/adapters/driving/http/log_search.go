@@ -280,6 +280,7 @@ func logFilesNewestFirst(dir string) ([]string, error) {
 // parseLogLine turns a raw slog JSON line into a classified entry. Non-JSON
 // lines (e.g. a stray panic dump) are dropped from search results.
 func parseLogLine(line string) (logSearchEntry, bool) {
+	line = redactLogLine(line)
 	var rec map[string]any
 	if err := json.Unmarshal([]byte(line), &rec); err != nil {
 		return logSearchEntry{}, false

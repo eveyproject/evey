@@ -319,7 +319,7 @@ func (h *adminHandler) followLog(w http.ResponseWriter, flusher http.Flusher, r 
 			newLines := strings.Split(string(buf), "\n")
 			for _, l := range newLines {
 				if l != "" {
-					if err := sseWriteLine(w, l); err != nil {
+					if err := sseWriteLine(w, redactLogLine(l)); err != nil {
 						slog.Debug("sse client gone", slog.Any("err", err))
 						return
 					}
@@ -360,6 +360,9 @@ func tailFile(path string, n int) ([]string, error) {
 	}
 	if len(rawLines) > n {
 		rawLines = rawLines[len(rawLines)-n:]
+	}
+	for i, l := range rawLines {
+		rawLines[i] = redactLogLine(l)
 	}
 	return rawLines, nil
 }
