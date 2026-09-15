@@ -21,7 +21,7 @@ import {
   eveyFetch,
   apiErrorMessage,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import {
@@ -35,6 +35,8 @@ import {
 } from "../../../src/components/admin/plugins/pluginConfigUtils";
 import { PluginResourceLimitsCard } from "../../../src/components/admin/plugins/PluginResourceLimitsCard";
 import { PluginSecurityDashboard } from "../../../src/components/admin/plugins/PluginSecurityDashboard";
+import { previewPluginFile, installPluginFile } from "../../../src/components/admin/plugins/pluginFileInstall";
+import * as DocumentPicker from "expo-document-picker";
 
 type Theme = ReturnType<typeof useTheme>;
 
@@ -956,6 +958,11 @@ export default function AdminPluginsScreen() {
   // the plugin was already running.
   const [installPreview, setInstallPreview] = useState<InstallPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  // Install-from-file (mirror web file mode). When set, the confirm/escalation
+  // buttons install via multipart upload instead of the URL/source JSON client.
+  const [installFileUri, setInstallFileUri] = useState<string | null>(null);
+  const [fileBusy, setFileBusy] = useState(false);
+  const accessToken = useAuthStore((st) => st.accessToken);
 
   const installPlugin = useAdminPluginServiceInstallPlugin({
     mutation: {
@@ -1006,17 +1013,65 @@ export default function AdminPluginsScreen() {
     ]);
   }, [uninstallPlugin]);
 
-  const handleConfirmEscalation = useCallback(() => {
-    installPlugin.mutate({ data: { source: installSource.trim(), acceptPermissionChanges: true } });
-  }, [installPlugin, installSource]);
-
   const closeInstallModal = useCallback(() => {
     setInstallOpen(false);
     setInstallSource("");
     setEscalationEntries([]);
     setBlockedIssues([]);
     setInstallPreview(null);
+    setInstallFileUri(null);
   }, []);
+
+  // Run a multipart install of the picked archive, branching the same way the
+  // URL install does: 428 -> escalation diff, 403 -> blocked findings.
+  const runFileInstall = useCallback(async (accept: boolean) => {
+    if (!installFileUri) return;
+    setFileBusy(true);
+    setEscalationEntries([]);
+    setBlockedIssues([]);
+    try {
+      const res = await installPluginFile(installFileUri, { accept }, accessToken);
+      if (res.ok) {
+        toast.success(t("admin.plugins.pluginInstalled", "Plugin installed"));
+        qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() });
+        closeInstallModal();
+      } else if (res.escalation && res.escalation.length > 0) {
+        setEscalationEntries(res.escalation);
+      } else if (res.blocked && res.blocked.length > 0) {
+        setBlockedIssues(res.blocked);
+      } else {
+        toast.error(res.error || t("admin.plugins.installFailed", "Install failed"));
+      }
+    } finally {
+      setFileBusy(false);
+    }
+  }, [installFileUri, accessToken, t, qc, closeInstallModal]);
+
+  const handleConfirmEscalation = useCallback(() => {
+    if (installFileUri) { void runFileInstall(true); return; }
+    installPlugin.mutate({ data: { source: installSource.trim(), acceptPermissionChanges: true } });
+  }, [installFileUri, runFileInstall, installPlugin, installSource]);
+
+  // Pick a .zip off the device, preview it, then the same confirm flow installs it.
+  const handlePickFile = useCallback(async () => {
+    const picked = await DocumentPicker.getDocumentAsync({
+      type: ["application/zip", "application/octet-stream"],
+      copyToCacheDirectory: true,
+    });
+    if (picked.canceled || !picked.assets?.[0]?.uri) return;
+    const uri = picked.assets[0].uri;
+    setPreviewing(true);
+    setInstallFileUri(uri);
+    try {
+      const preview = await previewPluginFile(uri, accessToken);
+      setInstallPreview(preview);
+    } catch (err) {
+      setInstallFileUri(null);
+      toast.error(apiErrorMessage(err as Error, t, t("admin.plugins.previewFailed", "Preview failed")));
+    } finally {
+      setPreviewing(false);
+    }
+  }, [accessToken, t]);
 
   const handlePreviewInstall = useCallback(async () => {
     const source = installSource.trim();
@@ -1037,8 +1092,9 @@ export default function AdminPluginsScreen() {
   }, [installSource, t]);
 
   const handleInstallPreviewed = useCallback(() => {
+    if (installFileUri) { void runFileInstall(false); return; }
     installPlugin.mutate({ data: { source: installSource.trim() } });
-  }, [installPlugin, installSource]);
+  }, [installFileUri, runFileInstall, installPlugin, installSource]);
 
   const renderPlugin = useCallback(({ item }: { item: Plugin }) => (
     <PluginRow
@@ -1174,17 +1230,17 @@ export default function AdminPluginsScreen() {
                 </Pressable>
                 <Pressable
                   onPress={handleConfirmEscalation}
-                  disabled={installPlugin.isPending}
+                  disabled={installPlugin.isPending || fileBusy}
                   style={{
                     flex: 1,
                     alignItems: "center",
                     paddingVertical: theme.spacing.sm + 2,
                     borderRadius: theme.radii.md,
                     backgroundColor: theme.colors.warning,
-                    opacity: installPlugin.isPending ? 0.5 : 1,
+                    opacity: installPlugin.isPending || fileBusy ? 0.5 : 1,
                   }}
                 >
-                  {installPlugin.isPending ? (
+                  {installPlugin.isPending || fileBusy ? (
                     <ActivityIndicator color={theme.colors.onAccent} size="small" />
                   ) : (
                     <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>
@@ -1199,7 +1255,7 @@ export default function AdminPluginsScreen() {
               preview={installPreview}
               theme={theme}
               t={t}
-              installing={installPlugin.isPending}
+              installing={installPlugin.isPending || fileBusy}
               onCancel={closeInstallModal}
               onConfirm={handleInstallPreviewed}
             />
@@ -1255,6 +1311,16 @@ export default function AdminPluginsScreen() {
                   )}
                 </Pressable>
               </View>
+
+              {/* Install from a picked .zip (mirror web file mode). */}
+              <Pressable
+                onPress={() => void handlePickFile()}
+                disabled={previewing}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: theme.spacing.sm, paddingVertical: theme.spacing.sm + 2, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.border, opacity: previewing ? 0.5 : 1 }}
+              >
+                <Ionicons name="folder-open-outline" size={18} color={theme.colors.text} />
+                <Text style={{ color: theme.colors.text, fontWeight: "600" }}>{t("admin.plugins.installFromFile", "Install from file (.zip)")}</Text>
+              </Pressable>
             </>
           )}
         </View>
