@@ -333,6 +333,12 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		return nil, ErrEmailDomainNotAllowed
 	}
 
+	// An IdP claim that is not an address must not lock the user out of SSO:
+	// the account is created without an email rather than not at all.
+	if email != "" && !domainuser.IsPlainAddress(email) {
+		slog.WarnContext(ctx, "oidc: ignoring malformed email claim", slog.String("email", email))
+		email = ""
+	}
 	username := preferredUsername
 	if username == "" && email != "" {
 		at := strings.Index(email, "@")

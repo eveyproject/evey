@@ -2,7 +2,7 @@ package user
 
 import (
 	"errors"
-	"strings"
+	"net/mail"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -227,10 +227,17 @@ func (u *User) Validate() error {
 	if u.Username == "" {
 		return errors.New("username is required")
 	}
-	if u.Email != "" && !strings.Contains(u.Email, "@") {
+	if u.Email != "" && !IsPlainAddress(u.Email) {
 		return errors.New("email is invalid")
 	}
 	return nil
+}
+
+// IsPlainAddress accepts one bare RFC 5322 address (no display name, no list,
+// no folding): what the SMTP sender puts in a To: header verbatim.
+func IsPlainAddress(email string) bool {
+	addr, err := mail.ParseAddress(email)
+	return err == nil && addr.Address == email
 }
 
 // NewUser constructs a User with invariants enforced. Defaults: Enabled=true, IsAdmin=false.
