@@ -38,6 +38,10 @@ interface AuditEntry {
   profileName?: string;
   action?: string;
   resourceType?: string;
+  resourceName?: string;
+  ipAddress?: string;
+  deviceName?: string;
+  userAgent?: string;
   details?: string;
   createdAt?: string;
 }
@@ -196,7 +200,13 @@ function AuditLogTab({ watcher }: { watcher: Watcher }) {
               apart; server-side actions carry none. */}
           {item.profileName ? ` (${item.profileName})` : ""}
           {item.resourceType ? ` · ${item.resourceType}` : ""}
+          {item.resourceName ? ` ${item.resourceName}` : ""}
         </Text>
+        {(item.ipAddress || item.deviceName || item.userAgent) ? (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 1 }} numberOfLines={1}>
+            {[item.ipAddress, item.deviceName || item.userAgent].filter(Boolean).join(" · ")}
+          </Text>
+        ) : null}
         {item.details ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={2}>{item.details}</Text>
         ) : null}
