@@ -23,14 +23,12 @@ general:
   rate_limited: "Trop de requêtes. Réessaye dans {{wait}}."
 
 playlist:
-  not_owner: "Vous n'êtes pas le propriétaire de la liste de lecture"
   cannot_add_smart: "Impossible d'ajouter manuellement des éléments à une liste intelligente"
   cannot_remove_smart: "Impossible de supprimer des éléments d'une liste intelligente"
   limit_reached: "Limite d'éléments de la liste atteinte"
   duplicate_name: "Une liste avec ce nom existe déjà"
 
 playback:
-  parental_blocked: "Contenu bloqué par le contrôle parental"
   cannot_stop_other_session: "Impossible d'arrêter la session d'un autre utilisateur"
   cannot_report_other_session: "Impossible de signaler la progression de la session d'un autre utilisateur"
   session_not_found: "Session introuvable"
@@ -41,7 +39,6 @@ activity:
   cannot_access_other_history: "Impossible d'accéder à l'historique de connexion d'un autre utilisateur"
 
 library:
-  parental_restricted: "Contenu restreint par le contrôle parental"
   name_required: "Le nom de la bibliothèque est obligatoire"
   scan_in_progress: "Un scan est déjà en cours pour cette bibliothèque"
 
