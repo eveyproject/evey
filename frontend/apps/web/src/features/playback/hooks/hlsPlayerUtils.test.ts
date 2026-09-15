@@ -201,6 +201,16 @@ describe("buildTranscodeHlsUrl", () => {
     const url = buildTranscodeHlsUrl("m1", "tok", 0, null, 0, 0, false);
     expect(url).not.toContain("gapless");
   });
+
+  it("omits vd by default (server picks the natural video decision)", () => {
+    const url = buildTranscodeHlsUrl("m1", "tok", 0, null, 0);
+    expect(url).not.toContain("vd=");
+  });
+
+  it("pins vd=transcode on an explicit handoff", () => {
+    const url = buildTranscodeHlsUrl("m1", "tok", 0, null, 0, 0, false, false, true);
+    expect(url).toContain("vd=transcode");
+  });
 });
 
 describe("resolveDefaultAudio", () => {

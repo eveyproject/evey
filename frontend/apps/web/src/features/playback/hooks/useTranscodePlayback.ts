@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
 import { createPlayerEventReporter } from "@evey/api";
 import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, pickTranscodeResumeSec, prefersNativeHLS, startPlayback, forwardBufferSeconds, MAX_FORWARD_BUFFER_SEC } from "./hlsPlayerUtils";
@@ -127,6 +127,25 @@ export function useTranscodePlayback({
   setShedReason,
 }: UseTranscodePlaybackArgs) {
   const [transcodeStartTime, setTranscodeStartTime] = useState(startPositionMs / 1000);
+  // Sticky once set: an explicit handoff to the transcode ladder (see
+  // handoffToTranscode). Read at URL-build time so every rebuild after the
+  // handoff - token refresh, seek restart - keeps the vd=transcode pin, never
+  // slipping back onto the copy master that stalled. Read imperatively (a ref)
+  // so flipping it does not itself re-render; handoffGen drives the rebuild.
+  const forceTranscodeRef = useRef(false);
+  const [handoffGen, setHandoffGen] = useState(0);
+  // Reset the pin when the media changes (the effect re-runs on mediaId): a new
+  // title starts on its own natural decision, not the previous one's handoff.
+  useEffect(() => { forceTranscodeRef.current = false; }, [mediaId]);
+  // handoffToTranscode swaps the source to the transcode ladder at the live
+  // playhead. One-shot (the ref guards re-entry): once on the ladder there are
+  // lower rungs and normal ABR takes over. The rebuild resumes at
+  // positionRef.current (see the effect), so no position is passed here.
+  const handoffToTranscode = useCallback(() => {
+    if (forceTranscodeRef.current) return;
+    forceTranscodeRef.current = true;
+    setHandoffGen((g) => g + 1);
+  }, []);
   // The playback-error beacon: what THIS player sees (decode errors, recovery
   // loops, element-level MediaError) becomes a server-side log line. One
   // reporter per media so its dedupe/budget spans the whole viewing, not one
@@ -200,6 +219,7 @@ export function useTranscodePlayback({
       audioOffsetMs,
       gapless,
       wasmAudio,
+      forceTranscodeRef.current,
     );
 
     if (prefersNativeHLS()) {
@@ -465,7 +485,7 @@ export function useTranscodePlayback({
                 data.details === "levelLoadTimeOut";
               if (isManifestLevel) {
                 const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
-                const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, audioTrackOverrideRef?.current ?? currentTrackIndex, selectedBurnInTrack, seekPos, audioOffsetMs, gapless, wasmAudio);
+                const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, audioTrackOverrideRef?.current ?? currentTrackIndex, selectedBurnInTrack, seekPos, audioOffsetMs, gapless, wasmAudio, forceTranscodeRef.current);
                 hls.loadSource(freshUrl);
                 hls.startLoad();
               } else {
@@ -509,7 +529,7 @@ export function useTranscodePlayback({
             // At position 0 the state setter is a no-op (same value, no
             // re-render): refetch the master in place instead, 401-style. The
             // fresh master carries freshly sealed URLs.
-            const freshUrl = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, audioTrackOverrideRef?.current ?? currentTrackIndex, selectedBurnInTrack, 0, audioOffsetMs, gapless, wasmAudio);
+            const freshUrl = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, audioTrackOverrideRef?.current ?? currentTrackIndex, selectedBurnInTrack, 0, audioOffsetMs, gapless, wasmAudio, forceTranscodeRef.current);
             hls.loadSource(freshUrl);
             hls.startLoad();
           }
@@ -579,7 +599,7 @@ export function useTranscodePlayback({
       setIsBuffering(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setShedReason/setIsBuffering/setTranscodeStartTime are stable setState
-  }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs, gapless, wasmAudio]);
+  }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs, gapless, wasmAudio, handoffGen]);
 
-  return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, manifestAudioTracks };
+  return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, manifestAudioTracks, handoffToTranscode };
 }

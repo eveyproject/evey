@@ -132,3 +132,23 @@ export function decideNetworkStep(
 export function formatNetworkStep(step: NetworkStep, fromHeight: number): string {
   return `${fromHeight}p->${step.height}p est=${Math.round(step.estimateKbps)}kbps ${step.direction}`;
 }
+
+/** Sustained stalls, within the sample window, before an explicit handoff. */
+const HANDOFF_STALLS = 3;
+
+// shouldHandoffToTranscode fires when the player is stuck on a master it CANNOT
+// ABR its way out of: a single-variant master (levelCount <= 1) that keeps
+// stalling. That is the copy/hybrid master whose transcode fallback rung was
+// omitted because it was a different ABR group (codec family / HDR / bit depth
+// - see the backend ABRGroup gate): there is no compatible lower rung to drop
+// onto, so decideNetworkStep can never step down and the picture just stalls.
+// The rescue is an EXPLICIT source change to the transcode ladder (force
+// vd=transcode, rebuild at the current position) - a deliberate decoder swap
+// while stopped, never a transparent ABR switch that would freeze the decoder.
+// Caller must one-shot this (see the handedOff guard): once on the transcode
+// ladder there are lower rungs again and normal ABR takes over.
+export function shouldHandoffToTranscode(s: NetworkCapState, levelCount: number, now: number): boolean {
+  if (levelCount > 1) return false; // a real ABR ladder can step down on its own
+  const recent = s.stallsAt.filter((t) => now - t <= SAMPLE_WINDOW_MS);
+  return recent.length >= HANDOFF_STALLS;
+}
