@@ -1146,3 +1146,75 @@ func TestBuildHybridMaster_FallbackRung_KeepsCopyCodec_OnHEVCCapableGPUAndClient
 	require.NoError(t, err)
 	assert.Equal(t, "hevc", nat.VideoCodec, "premise: without the pin the transcode is upgraded to HEVC")
 }
+
+// hevcSDRAV / hevcHDRAV: copy-eligible sources for the ABR-compat gate tests.
+// Both carry a keyframe index (copy needs it) + a re-encode-forced audio track
+// (dts) so the hybrid master path is exercised exactly like TestBuildHybridMaster_FallbackRung.
+func hevcSDRAV() []*domainlibrary.MediaStream {
+	w, hgt, level := 1920, 1080, 120
+	ch := 2
+	return []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "hevc", Profile: "Main", Width: &w, Height: &hgt, Level: &level, Keyframes: []int64{0, 6000, 12000}},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "dts", Channels: &ch, IsDefault: true},
+	}
+}
+
+func hevcHDRAV() []*domainlibrary.MediaStream {
+	w, hgt, level := 3840, 2160, 153
+	ch := 2
+	pq := "smpte2084"
+	return []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "hevc", Profile: "Main 10", Width: &w, Height: &hgt, Level: &level, ColorTransfer: &pq, Keyframes: []int64{0, 6000, 12000}},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "dts", Channels: &ch, IsDefault: true},
+	}
+}
+
+// Same codec family, same range: an HEVC(SDR) copy gets an HEVC(SDR) fallback
+// rung (the vc= pin keeps the family, software x265 encodes it SDR). The player
+// may auto-drop onto it - same ABR group, no decoder swap - so it IS advertised.
+// The "HEVC copy -> HEVC fallback: switch normal" leg of the freeze fix.
+func TestBuildHybridMaster_FallbackRung_HEVCSource_SameGroupAdvertised(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 12_000_000}}
+
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, hevcSDRAV())
+	require.NoError(t, err)
+	assert.Contains(t, master, "od_playlist.m3u8")
+	assert.Contains(t, master, "stream_0.m3u8",
+		"HEVC-SDR copy + HEVC-SDR fallback are the same ABR group → fallback advertised")
+}
+
+// Different ABR group: an HEVC HDR (10-bit PQ) copy rung next to a tonemapped
+// SDR 8-bit low transcode. Same-or-different codec, but the dynamic range/bit
+// depth differ, so an auto-drop would reconfigure the decoder and freeze the
+// picture (Lanterns-class). The rung MUST be omitted - the master stays
+// single-variant and any drop is an explicit source handoff, never ABR.
+// The "H.264/HDR copy -> incompatible fallback: never a direct ABR switch" leg.
+func TestBuildHybridMaster_FallbackRung_SkippedOnIncompatibleGroup(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 60_000_000}}
+
+	// hdr=1 so the HDR HEVC source is copy-eligible (raw PQ passthrough); the
+	// low transcode fallback tonemaps to SDR → a different ABR group.
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4&hdr=1", nil)
+	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+
+	master, err := h.buildHybridMaster(req, "m1", item, hevcHDRAV())
+	require.NoError(t, err)
+	assert.Contains(t, master, "od_playlist.m3u8", "the HDR copy variant is still served")
+	assert.NotContains(t, master, "stream_0.m3u8",
+		"HDR copy + SDR fallback are different ABR groups → fallback omitted (no auto codec/range swap)")
+}
