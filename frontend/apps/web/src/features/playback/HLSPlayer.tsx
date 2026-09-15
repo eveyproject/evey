@@ -17,7 +17,7 @@ import { ProgressReporter } from "./ProgressReporter";
 import { AutoMarkWatched } from "./AutoMarkWatched";
 import { ICON } from "@/constants/iconSizes";
 import { createRenderStallWatch, formatRenderWindow, bufferedAheadSec, decideRenderCap, type RenderCapState } from "./renderStall";
-import { decideNetworkStep, formatNetworkStep, newNetworkCapState, recordStall, recordThroughput, type NetworkCapState } from "./networkCap";
+import { decideNetworkStep, formatNetworkStep, newNetworkCapState, recordStall, recordThroughput, shouldHandoffToTranscode, type NetworkCapState } from "./networkCap";
 import { registerRenderStats, playbackSnapshot } from "./playbackSnapshot";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
@@ -283,6 +283,10 @@ export function HLSPlayer({
   // The bandwidth follower's rung (0 = none); the lower of the two caps wins.
   const [networkCapHeight, setNetworkCapHeight] = useState(0);
   const networkCapStateRef = useRef<NetworkCapState>(newNetworkCapState());
+  // One-shot guard for the explicit transcode handoff: a single-variant master
+  // that keeps stalling has no lower rung to ABR onto, so it is swapped once to
+  // the transcode ladder (handoffToTranscode). Reset per media below.
+  const handedOffRef = useRef(false);
   const autoCapHeight = renderCapHeight > 0 && networkCapHeight > 0 ? Math.min(renderCapHeight, networkCapHeight) : renderCapHeight || networkCapHeight;
   const autoQualityRef = useRef(autoQuality);
   autoQualityRef.current = autoQuality;
@@ -714,6 +718,7 @@ export function HLSPlayer({
     renderCapStateRef.current = { streak: 0, lastAt: 0 };
     setNetworkCapHeight(0);
     networkCapStateRef.current = newNetworkCapState();
+    handedOffRef.current = false;
   }, [mediaId]);
 
   // The wasm-audio path applies when: we're on the HLS/transcode pipeline, the
@@ -732,7 +737,7 @@ export function HLSPlayer({
     canWasmDecodeAC3() &&
     isWasmDecodableAudioCodec(selectedAudioCodec);
 
-  const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, manifestAudioTracks } = useTranscodePlayback({
+  const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, manifestAudioTracks, handoffToTranscode } = useTranscodePlayback({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef, audioTrackOverrideRef,
     pinnedQualityRef, onFragStatsRef, onBufferStallRef,
@@ -781,7 +786,26 @@ export function HLSPlayer({
   // which is what a blocked main thread looks like. In Auto it also steps the
   // pinned rung down when the page keeps under-painting a full buffer.
   const reportRenderEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
-  onBufferStallRef.current = () => recordStall(networkCapStateRef.current, performance.now());
+  onBufferStallRef.current = () => {
+    const now = performance.now();
+    recordStall(networkCapStateRef.current, now);
+    // A single-variant master (copy/hybrid whose transcode fallback rung was
+    // omitted as a different ABR group) has no lower rung to step down onto:
+    // decideNetworkStep can never rescue it, so repeated stalls just freeze.
+    // Swap once to the transcode ladder, which has lower rungs again.
+    const hls = hlsRef.current;
+    if (!hls || handedOffRef.current || !autoQualityRef.current) return;
+    if (shouldHandoffToTranscode(networkCapStateRef.current, hls.levels.length, now)) {
+      handedOffRef.current = true;
+      reportRenderEvent({
+        type: "quality_capped",
+        details: `handoff->transcode (single-variant master stalled, levels=${hls.levels.length})`,
+        fatal: false,
+        posSec: positionRef.current,
+      });
+      handoffToTranscode();
+    }
+  };
   onFragStatsRef.current = (s) => {
     const hls = hlsRef.current;
     const video = videoRef.current;

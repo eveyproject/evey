@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decideNetworkStep, estimateKbps, newNetworkCapState, observedRungKbps, recordStall, recordThroughput } from "./networkCap";
+import { decideNetworkStep, estimateKbps, newNetworkCapState, observedRungKbps, recordStall, recordThroughput, shouldHandoffToTranscode } from "./networkCap";
 
 const levels = [
   { height: 480, kbps: 1700 },
@@ -81,5 +81,34 @@ describe("networkCap", () => {
     feed(s, 2000, 3);
     expect(decideNetworkStep(s, 30_000, levels, 3, 3, 40)).not.toBeNull();
     expect(decideNetworkStep(s, 35_000, levels, 0, 3, 40)).toBeNull();
+  });
+});
+
+describe("shouldHandoffToTranscode", () => {
+  it("fires after sustained stalls on a single-variant master (no lower rung)", () => {
+    const s = newNetworkCapState();
+    recordStall(s, 1_000);
+    recordStall(s, 2_000);
+    expect(shouldHandoffToTranscode(s, 1, 2_500)).toBe(false); // 2 stalls: not yet
+    recordStall(s, 3_000);
+    expect(shouldHandoffToTranscode(s, 1, 3_500)).toBe(true); // 3 stalls → handoff
+  });
+
+  it("never fires when the master has a real ABR ladder (>1 level can step down)", () => {
+    const s = newNetworkCapState();
+    recordStall(s, 1_000);
+    recordStall(s, 2_000);
+    recordStall(s, 3_000);
+    recordStall(s, 4_000);
+    expect(shouldHandoffToTranscode(s, 3, 4_500)).toBe(false);
+  });
+
+  it("only counts stalls inside the sample window", () => {
+    const s = newNetworkCapState();
+    recordStall(s, 1_000);
+    recordStall(s, 2_000);
+    recordStall(s, 3_000);
+    // 90s later the old stalls have aged out of the 60s window.
+    expect(shouldHandoffToTranscode(s, 1, 93_000)).toBe(false);
   });
 });

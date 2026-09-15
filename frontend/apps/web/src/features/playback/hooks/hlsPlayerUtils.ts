@@ -134,9 +134,16 @@ export function buildTranscodeHlsUrl(
   audioOffsetMs = 0,
   gapless = false,
   wasmAudio = false,
+  forceTranscode = false,
 ): string {
   const params = new URLSearchParams();
   if (token) params.set("token", token);
+  // Explicit handoff off a stalling single-variant master: pin the video
+  // decision to transcode (vd=transcode) so the server drops the copy rung and
+  // serves the full transcode ABR ladder - the one with lower rungs to step
+  // down onto. The pin re-bakes onto every child URL, so the whole session
+  // stays on the ladder. See shouldHandoffToTranscode / networkCap.
+  if (forceTranscode) params.set("vd", "transcode");
   params.set("audioTrack", String(audioTrack));
   if (selectedBurnInTrack !== null) params.set("subtitleTrack", String(selectedBurnInTrack));
   if (startSec > 0) params.set("startSec", String(startSec));
