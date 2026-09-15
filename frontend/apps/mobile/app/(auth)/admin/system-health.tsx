@@ -4,14 +4,25 @@ import { Stack } from "expo-router";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { LineChart } from "react-native-gifted-charts";
+import { useQuery } from "@tanstack/react-query";
 import {
   useAdminSystemServiceGetDashboard,
   useAdminSystemServiceGetSystemInfo,
+  eveyFetch,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { formatBytes } from "@evey/api";
 
 const HISTORY_SIZE = 30;
+
+// /api/v1/admin/system/metrics: the finer facts under the two percentages
+// (mirror web system-health LoadCard/ProcessCard/ForksCard).
+interface SystemMetrics {
+  load: { avg1: number; avg5: number; avg15: number; known: boolean; cpus: number; cpuBudget: number };
+  memory: { totalBytes: number; availableBytes: number; budgetBytes: number };
+  process: { rssBytes: number; heapInUseBytes: number; heapSysBytes: number; goroutines: number; gcCount: number; gcPauseTotalNs: number };
+  forks: { count: number; rssBytes: number; cpuPercent: number; byClass: { class: string; count: number; rssBytes: number; cpuPercent: number }[] };
+}
 
 function formatUptime(seconds?: string): string {
   if (!seconds) return "-";
@@ -56,12 +67,18 @@ export default function SystemHealthScreen() {
     query: { refetchInterval: 5_000, refetchIntervalInBackground: false },
   });
   const { data: sysInfo, refetch: refetchSys } = useAdminSystemServiceGetSystemInfo();
+  const { data: metrics, refetch: refetchMetrics } = useQuery<SystemMetrics>({
+    queryKey: ["/api/v1/admin/system/metrics"],
+    queryFn: () => eveyFetch<SystemMetrics>({ url: "/api/v1/admin/system/metrics", method: "GET" }),
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetchDash(), refetchSys()]);
+    await Promise.all([refetchDash(), refetchSys(), refetchMetrics()]);
     setRefreshing(false);
-  }, [refetchDash, refetchSys]);
+  }, [refetchDash, refetchSys, refetchMetrics]);
 
   const cpuPct = Math.min(100, Math.max(0, dashboard?.cpuPercent ?? 0));
   const memPct = Math.min(100, Math.max(0, dashboard?.memoryPercent ?? 0));
@@ -79,13 +96,6 @@ export default function SystemHealthScreen() {
   const cpuData = cpuHistory.current.map((v) => ({ value: v }));
   const memData = memHistory.current.map((v) => ({ value: v }));
   const bwData = bwHistory.current.map((v) => ({ value: v }));
-
-  const activityItems = [
-    { label: t("admin.systemHealth.activeStreams"), value: dashboard?.activeStreams ?? 0, icon: "play-outline" as const },
-    { label: t("admin.systemHealth.activeTranscodes"), value: dashboard?.activeTranscodes ?? 0, icon: "swap-horizontal-outline" as const },
-    { label: t("admin.systemHealth.totalMedia"), value: dashboard?.totalMediaItems ?? 0, icon: "film-outline" as const },
-    { label: t("admin.systemHealth.totalUsers"), value: dashboard?.totalUsers ?? 0, icon: "people-outline" as const },
-  ];
 
   const serverInfoRows = [
     { label: t("admin.dashboard.version", "Version"), value: sysInfo?.version },
@@ -217,19 +227,62 @@ export default function SystemHealthScreen() {
         </View>
       </View>
 
-      {/* Activity */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
-        {t("admin.systemHealth.activitySection", "Activity")}
-      </Text>
-      <View style={styles.activityGrid}>
-        {activityItems.map((item) => (
-          <View key={item.label} style={[styles.statCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
-            <Ionicons name={item.icon} size={22} color={theme.colors.accent} />
-            <Text style={{ color: theme.colors.text, fontSize: 24, fontWeight: "700" }}>{item.value}</Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 11, textAlign: "center" }}>{item.label}</Text>
+      {/* System metrics: the finer facts under the two percentages (mirror web
+          LoadCard/ProcessCard/ForksCard). Replaces the old activity grid, which
+          duplicated the dashboard. */}
+      {metrics && (
+        <>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+            {t("admin.systemHealth.metricsSection", "System")}
+          </Text>
+          <View style={{ marginHorizontal: 16, gap: 8 }}>
+            {(() => {
+              const budget = metrics.load.cpuBudget > 0 ? metrics.load.cpuBudget : metrics.load.cpus;
+              const loadPct = budget > 0 ? (metrics.load.avg1 / budget) * 100 : 0;
+              return (
+                <View style={[styles.fineCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+                  <View style={styles.fineHead}>
+                    <Text style={styles.fineTitle}>{t("admin.systemHealth.load")}</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "700", color: metrics.load.known ? getUsageColor(loadPct, theme) : theme.colors.textMuted }}>
+                      {metrics.load.known ? `${metrics.load.avg1.toFixed(2)} / ${metrics.load.avg5.toFixed(2)} / ${metrics.load.avg15.toFixed(2)}` : "-"}
+                    </Text>
+                  </View>
+                  <Text style={styles.fineLine}>{t("admin.systemHealth.loadCpus", { budget })}</Text>
+                </View>
+              );
+            })()}
+
+            <View style={[styles.fineCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+              <View style={styles.fineHead}>
+                <Text style={styles.fineTitle}>{t("admin.systemHealth.process")}</Text>
+                <Text style={{ fontSize: 18, fontWeight: "700", color: theme.colors.text }}>{formatBytes(metrics.process.rssBytes)}</Text>
+              </View>
+              <Text style={styles.fineLine}>
+                {t("admin.systemHealth.heap", { size: formatBytes(metrics.process.heapInUseBytes) })} · {t("admin.systemHealth.goroutines", { count: metrics.process.goroutines })}
+              </Text>
+              <Text style={styles.fineLine}>{t("admin.systemHealth.gcCount", { count: metrics.process.gcCount })}</Text>
+            </View>
+
+            <View style={[styles.fineCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+              <View style={styles.fineHead}>
+                <Text style={styles.fineTitle}>{t("admin.systemHealth.forks")}</Text>
+                <Text style={{ fontSize: 18, fontWeight: "700", color: theme.colors.text }}>
+                  {metrics.forks.count === 0 ? "0" : t("admin.systemHealth.forksLine", { count: metrics.forks.count, memory: formatBytes(metrics.forks.rssBytes), cpu: Math.round(metrics.forks.cpuPercent) })}
+                </Text>
+              </View>
+              {metrics.forks.count === 0 ? (
+                <Text style={styles.fineLine}>{t("admin.systemHealth.forksNone")}</Text>
+              ) : (
+                metrics.forks.byClass.map((g) => (
+                  <Text key={g.class} style={styles.fineLine}>
+                    {t(`admin.systemHealth.forkClass.${g.class}`, g.class)}: {t("admin.systemHealth.forksLine", { count: g.count, memory: formatBytes(g.rssBytes), cpu: Math.round(g.cpuPercent) })}
+                  </Text>
+                ))
+              )}
+            </View>
           </View>
-        ))}
-      </View>
+        </>
+      )}
 
       {/* Storage */}
       {dashboard?.storage && dashboard.storage.length > 0 && (
@@ -367,8 +420,10 @@ const styles = StyleSheet.create({
   metricRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   progressTrack: { height: 8, borderRadius: 4, marginTop: 6 },
   progressFill: { height: 8, borderRadius: 4 },
-  activityGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 12 },
-  statCard: { flex: 1, minWidth: "45%", padding: 16, alignItems: "center", gap: 4 },
+  fineCard: { padding: 14, gap: 4 },
+  fineHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  fineTitle: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", color: "#888" },
+  fineLine: { fontSize: 12, color: "#888" },
   collapseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   infoRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
   hwBadge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 },

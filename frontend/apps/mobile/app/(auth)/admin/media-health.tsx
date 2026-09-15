@@ -41,6 +41,7 @@ import {
 } from "@evey/api";
 import { SeekIndexItemRow } from "../../../src/components/admin/seekIndex/SeekIndexItemRow";
 import { RepairConfirmModal, type BatchKind } from "../../../src/components/admin/seekIndex/RepairConfirmModal";
+import { RepairJournalPanel } from "../../../src/components/admin/seekIndex/RepairJournalPanel";
 
 // One card per verdict (same triage as the web grid), and there are two: what
 // Evey repairs here, and what it merely noticed. The number, what it is made
@@ -460,6 +461,9 @@ export default function AdminSeekIndexScreen() {
 
             {running && job ? <JobProgressCard job={job} theme={theme} /> : null}
             {!running && job?.last ? <LastJobCard last={job.last} theme={theme} /> : null}
+
+            {/* Library-wide repair journal (mirror web RepairJournalPanel). */}
+            <RepairJournalPanel />
 
             {scan.isError ? (
               <Text style={{ color: theme.colors.error, fontSize: 13 }}>{errText(scan.error, t("admin.seekIndex.scanFailed"))}</Text>
