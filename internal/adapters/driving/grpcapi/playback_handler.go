@@ -1082,8 +1082,8 @@ func (h *playbackHandler) ClearWatchHistory(ctx context.Context, req *eveyv1.Cle
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.ClearWatchHistory: %w", err)
 	}
-	// resolveProfileID denies a non-admin targeting another profile, so a user
-	// can only clear their own history.
+	// resolveProfileID pins the call to the caller's own profile (admins too),
+	// so nobody clears another profile's history through this RPC.
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
 		span.RecordError(err)
