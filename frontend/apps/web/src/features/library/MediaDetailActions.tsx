@@ -218,7 +218,13 @@ export function MediaDetailActions({
             )}
           </div>
         )}
-        {item.id && (
+        {/* Not offered for a series/season: the server's MarkAsWatched writes a
+            single progress row on the id it is given and nothing cascades it to
+            the episodes (no MediaMarkedWatched consumer descends the tree), so a
+            "watched" series would leave every episode unwatched - a misleading
+            button. Only real playable items (movie/episode) get the toggle.
+            Kept in sync with apps/mobile. */}
+        {item.id && !isSeries && !isSeason && (
           watched ? (
             <Button variant="secondary" size="lg" loading={markUnwatched.isPending} onClick={() => { if (profileId) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-unwatched-btn">
               <EyeOff size={ICON.md} />

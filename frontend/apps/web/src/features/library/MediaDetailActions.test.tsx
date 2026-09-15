@@ -182,6 +182,16 @@ describe("MediaDetailActions", () => {
     expect(screen.getByTestId("mark-watched-btn")).toBeInTheDocument();
   });
 
+  it("hides mark-watched button for a series (server does not cascade to episodes)", () => {
+    render(<MediaDetailActions {...defaultProps} isSeries />, { wrapper: Wrapper });
+    expect(screen.queryByTestId("mark-watched-btn")).not.toBeInTheDocument();
+  });
+
+  it("hides mark-watched button for a season", () => {
+    render(<MediaDetailActions {...defaultProps} isSeason />, { wrapper: Wrapper });
+    expect(screen.queryByTestId("mark-watched-btn")).not.toBeInTheDocument();
+  });
+
   it("shows download button when filePath present", () => {
     render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
     expect(screen.getByTestId("download-btn")).toBeInTheDocument();
