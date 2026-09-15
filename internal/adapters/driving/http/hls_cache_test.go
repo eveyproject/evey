@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
@@ -95,5 +96,49 @@ func TestHLSCacheAccessChecker_ConcurrentSameKey(t *testing.T) {
 	wg.Wait()
 	if got := atomic.LoadInt64(&inner.calls); got > goroutines {
 		t.Fatalf("inner called too many times: %d (max %d)", got, goroutines)
+	}
+}
+
+type countingLibraryLister struct {
+	libs  []*domainlibrary.Library
+	err   error
+	calls atomic.Int64
+}
+
+func (c *countingLibraryLister) ListLibraries(context.Context) ([]*domainlibrary.Library, error) {
+	c.calls.Add(1)
+	return c.libs, c.err
+}
+
+// Direct play and trickplay list every library on every Range request to
+// confine the served path; the roots are stable, so one query per TTL.
+func TestCachedLibraryLister_CachesResult(t *testing.T) {
+	inner := &countingLibraryLister{libs: []*domainlibrary.Library{{ID: "lib1", Paths: []string{"/media"}}}}
+	ch := NewCachedLibraryLister(inner)
+	defer ch.Close()
+
+	for range 3 {
+		libs, err := ch.ListLibraries(context.Background())
+		if err != nil || len(libs) != 1 {
+			t.Fatalf("want 1 library, got %d err=%v", len(libs), err)
+		}
+	}
+	if got := inner.calls.Load(); got != 1 {
+		t.Fatalf("expected 1 inner call, got %d", got)
+	}
+}
+
+func TestCachedLibraryLister_ErrorNotCached(t *testing.T) {
+	inner := &countingLibraryLister{err: errors.New("db down")}
+	ch := NewCachedLibraryLister(inner)
+	defer ch.Close()
+
+	for range 2 {
+		if _, err := ch.ListLibraries(context.Background()); err == nil {
+			t.Fatal("expected error")
+		}
+	}
+	if got := inner.calls.Load(); got != 2 {
+		t.Fatalf("errors must not be cached, got %d inner calls", got)
 	}
 }
