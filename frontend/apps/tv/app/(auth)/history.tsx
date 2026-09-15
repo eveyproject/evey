@@ -2,9 +2,9 @@ import { useCallback } from "react";
 import { View, Text, FlatList, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  usePlaybackServiceGetWatchHistory,
+  playbackServiceGetWatchHistory,
   usePlaybackServiceMarkAsUnwatched,
   getPlaybackServiceGetWatchHistoryQueryKey,
   watchHistoryLabel,
@@ -35,13 +35,31 @@ function TVHistorySeparator() {
   return <View style={{ height: 4 }} />;
 }
 
+const HISTORY_PAGE_SIZE = 30;
+
 export default function HistoryScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data, isLoading, isError, refetch } = usePlaybackServiceGetWatchHistory({ limit: 50 });
-  const items = data?.items ?? [];
+  // Pages of HISTORY_PAGE_SIZE by keyset cursor, loaded as the list is
+  // scrolled: the screen used to ask for 50 and stop there, with nothing
+  // saying older entries existed (mobile already pages). The key keeps the
+  // generated prefix so the unwatch invalidation still refreshes it.
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: [...getPlaybackServiceGetWatchHistoryQueryKey(), "pages"],
+    initialPageParam: "" as string,
+    queryFn: ({ pageParam, signal }) =>
+      playbackServiceGetWatchHistory(
+        { "pagination.pageSize": HISTORY_PAGE_SIZE, ...(pageParam ? { "pagination.cursor": pageParam } : {}) },
+        signal,
+      ),
+    getNextPageParam: (last) => last.pagination?.nextCursor || undefined,
+  });
+  const items = data?.pages.flatMap((p) => p.items ?? []) ?? [];
+  const handleEndReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
@@ -102,6 +120,8 @@ export default function HistoryScreen() {
           maxToRenderPerBatch={10}
           windowSize={5}
           removeClippedSubviews={true}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.5}
         />
       )}
     </View>
