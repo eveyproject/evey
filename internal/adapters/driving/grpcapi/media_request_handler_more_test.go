@@ -11,8 +11,8 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
-	"github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/mediarequest"
+	"github.com/evey-project/evey/internal/domain/metadata"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 )
 
