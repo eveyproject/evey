@@ -20,6 +20,7 @@ auth:
 
 general:
   not_found: "未找到"
+  rate_limited: "请求过多，请在 {{wait}} 后重试。"
 
 playlist:
   not_owner: "您不是播放列表的所有者"

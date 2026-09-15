@@ -20,6 +20,7 @@ auth:
 
 general:
   not_found: "Not found"
+  rate_limited: "Too many requests. Try again in {{wait}}."
 
 playlist:
   not_owner: "You are not the playlist owner"

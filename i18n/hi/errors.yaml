@@ -20,6 +20,7 @@ auth:
 
 general:
   not_found: "नहीं मिला"
+  rate_limited: "बहुत अधिक अनुरोध। {{wait}} में पुनः प्रयास करें।"
 
 playlist:
   not_owner: "आप प्लेलिस्ट के स्वामी नहीं हैं"

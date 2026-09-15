@@ -2032,6 +2032,7 @@
   "errors.config.key_not_found": "Configuration key not found",
   "errors.config.key_required": "Key is required",
   "errors.general.not_found": "Not found",
+  "errors.general.rate_limited": "Too many requests. Try again in {{wait}}.",
   "errors.library.name_required": "Library name is required",
   "errors.library.parental_restricted": "Content restricted by parental controls",
   "errors.library.scan_in_progress": "A scan is already running for this library",

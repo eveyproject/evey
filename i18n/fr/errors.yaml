@@ -20,6 +20,7 @@ auth:
 
 general:
   not_found: "Introuvable"
+  rate_limited: "Trop de requêtes. Réessaye dans {{wait}}."
 
 playlist:
   not_owner: "Vous n'êtes pas le propriétaire de la liste de lecture"
