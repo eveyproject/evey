@@ -468,6 +468,7 @@ func TestUser_Validate(t *testing.T) {
 		{"empty username", user.User{Username: ""}, "username is required"},
 		{"valid email", user.User{Username: "alice", Email: "a@b.com"}, ""},
 		{"bare host email", user.User{Username: "alice", Email: "x@x"}, ""},
+		{"surrounding whitespace tolerated", user.User{Username: "alice", Email: " a@b.com "}, ""},
 		// "@" alone used to pass: an address is a local part AND a domain.
 		{"missing domain", user.User{Username: "alice", Email: "a@"}, "email is invalid"},
 		{"missing local part", user.User{Username: "alice", Email: "@b.com"}, "email is invalid"},
