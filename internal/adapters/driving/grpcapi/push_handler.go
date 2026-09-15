@@ -142,7 +142,7 @@ func (h *webPushHandler) GetPushConsent(ctx context.Context, _ *eveyv1.GetPushCo
 	}
 	subs, err := h.notifQuery.ListPushSubscriptions(ctx, shared.UserID(claims.UserID))
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to check consent")
+		return nil, internalError(ctx, "push consent: list subscriptions", err)
 	}
 	return &eveyv1.GetPushConsentResponse{PushConsent: len(subs) > 0}, nil
 }

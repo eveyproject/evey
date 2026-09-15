@@ -62,7 +62,7 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 		case errors.Is(err, apploadtest.ErrAlreadyRunning):
 			return nil, status.Error(codes.AlreadyExists, "a load test is already running")
 		default:
-			return nil, status.Error(codes.Internal, err.Error())
+			return nil, internalError(ctx, "start load test", err)
 		}
 	}
 	return loadTestStatusToProto(d.loadTest.Status()), nil
