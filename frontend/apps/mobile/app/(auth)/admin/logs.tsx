@@ -230,6 +230,11 @@ export default function AdminLogsScreen() {
     [levels, where, source, q, sessionId, userId, mediaId],
   );
 
+  // Live tail: RN has no EventSource, so the newest page is polled instead of
+  // streamed from /logs/stream - functionally the same auto-updating tail
+  // (new lines land at offset 0). Off by default; only refetches loaded pages.
+  const [live, setLive] = useState(false);
+
   const { data, isLoading, isRefetching, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ["admin-logs-search", filters],
     initialPageParam: 0,
@@ -243,6 +248,8 @@ export default function AdminLogsScreen() {
       const fetched = all.reduce((n, p) => n + p.entries.length, 0);
       return fetched < last.total ? fetched : undefined;
     },
+    refetchInterval: live ? 2500 : false,
+    refetchIntervalInBackground: false,
   });
 
   const entries = useMemo(
@@ -360,12 +367,18 @@ export default function AdminLogsScreen() {
               </View>
             )}
 
-            <View style={[styles.notice, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
-              <Ionicons name="radio-outline" size={13} color={theme.colors.textMuted} />
-              <Text style={{ color: theme.colors.textMuted, fontSize: 11, flex: 1 }}>
-                {t("admin.logs.liveUnavailableMobile", "Le suivi en direct n'est pas encore disponible sur mobile : utilise la recherche ci-dessous.")}
+            <Pressable
+              onPress={() => setLive((v) => !v)}
+              style={[styles.notice, { backgroundColor: live ? theme.colors.accent + "22" : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: live }}
+            >
+              <Ionicons name={live ? "radio" : "radio-outline"} size={14} color={live ? theme.colors.accent : theme.colors.textMuted} />
+              <Text style={{ color: live ? theme.colors.accent : theme.colors.textMuted, fontSize: 12, flex: 1, fontWeight: live ? "600" : "400" }}>
+                {live ? t("admin.logs.liveOn", "Live tail on - newest lines auto-refresh") : t("admin.logs.live", "Live tail")}
               </Text>
-            </View>
+              {live ? <ActivityIndicator size="small" color={theme.colors.accent} /> : null}
+            </Pressable>
 
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("admin.logs.resultCount", { count: total })}</Text>
