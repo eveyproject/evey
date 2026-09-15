@@ -8,7 +8,13 @@ const t = (key: string, options?: Record<string, unknown>) =>
     ? "Code PIN incorrect"
     : key === "errors.auth.too_many_attempts"
       ? "Trop de tentatives"
-      : String(options?.defaultValue ?? key);
+      : key === "errors.general.rate_limited"
+        ? `Trop de requetes. Reessaye dans ${String(options?.wait)}.`
+        : key === "auth.rateLimit.seconds"
+          ? `${String(options?.count)} s`
+          : key === "auth.rateLimit.minutes"
+            ? `${String(options?.count)} min`
+            : String(options?.defaultValue ?? key);
 
 describe("apiErrorMessage", () => {
   it("traduit un message qui EST une cle du catalogue", () => {
@@ -37,5 +43,20 @@ describe("apiErrorMessage", () => {
 
   it("resout la cle que le serveur envoie depuis des mois et que le mobile affichait brute", () => {
     expect(apiErrorMessage({ message: "errors.auth.too_many_attempts" }, t, "Echec")).toBe("Trop de tentatives");
+  });
+
+  // Un 429 sans delai est inactionnable (rapport 2026-07-29) : le fetcher
+  // attache retryAfterSeconds a chaque erreur, l'affichage doit s'en servir
+  // partout, pas seulement sur l'ecran de login mobile.
+  it("nomme l'attente d'un 429 quel que soit le message", () => {
+    expect(apiErrorMessage({ message: "errors.auth.too_many_attempts", httpStatus: 429, retryAfterSeconds: 42 }, t, "Echec"))
+      .toBe("Trop de requetes. Reessaye dans 42 s.");
+    expect(apiErrorMessage({ message: "rate limited", httpStatus: 429, retryAfterSeconds: 90 }, t, "Echec"))
+      .toBe("Trop de requetes. Reessaye dans 2 min.");
+  });
+
+  it("garde le message normal quand le 429 n'annonce aucun delai", () => {
+    expect(apiErrorMessage({ message: "errors.auth.too_many_attempts", httpStatus: 429 }, t, "Echec"))
+      .toBe("Trop de tentatives");
   });
 });

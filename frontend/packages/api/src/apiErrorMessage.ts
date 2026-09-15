@@ -15,6 +15,7 @@
 // "errors.auth.too_many_attempts". That is the beta.38 raw-key regression,
 // still live on one screen. One function, one answer.
 import type { Translate } from "./displayTitle";
+import { formatWait } from "./rateLimitMessage";
 
 // A key is anything the catalogue could resolve. Restricted to the "errors."
 // namespace on purpose: it is the only prefix the server promises, and a
@@ -24,6 +25,10 @@ const ERROR_KEY_PREFIX = "errors.";
 export interface ApiErrorLike {
   message?: string;
   errorCode?: string;
+  httpStatus?: number;
+  // Set by the fetcher on a 429 (header or body): the one thing the viewer
+  // can act on.
+  retryAfterSeconds?: number;
 }
 
 // apiErrorMessage renders a thrown API error into viewer-facing text.
@@ -32,6 +37,17 @@ export interface ApiErrorLike {
 // always given the raw string as its own default, so an unknown key degrades to
 // the server's text rather than to "errors.something" on screen.
 export function apiErrorMessage(err: ApiErrorLike | null | undefined, t: Translate, fallback: string): string {
+  // A 429 with a known wait is rendered as the wait: "too many attempts"
+  // alone sends the viewer retrying into the wall (2026-07-29).
+  const wait = err?.retryAfterSeconds;
+  if (err?.httpStatus === 429 && typeof wait === "number" && wait > 0) {
+    const tCount = (key: string, def: string, params?: Record<string, number>) =>
+      t(key, { defaultValue: def, ...params });
+    return t("errors.general.rate_limited", {
+      defaultValue: "Too many requests. Try again in {{wait}}.",
+      wait: formatWait(wait, tCount),
+    });
+  }
   const code = err?.errorCode ?? "";
   if (code.startsWith(ERROR_KEY_PREFIX)) {
     const out = t(code, { defaultValue: code });
