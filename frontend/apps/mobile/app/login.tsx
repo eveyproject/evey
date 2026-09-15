@@ -20,6 +20,7 @@ import { setRefreshToken } from "../src/lib/refresh-token";
 import { getSavedCredentials, saveCredentials, clearSavedCredentials } from "../src/lib/saved-credentials";
 import { useBiometricAvailable, useBiometricEnabled, authenticateBiometric } from "../src/hooks/useBiometric";
 import { PasswordInput } from "../src/components/PasswordInput";
+import { writeGuestSession } from "../src/features/syncplay/guestSession";
 
 export default function Login() {
   const theme = useTheme();
@@ -34,6 +35,11 @@ export default function Login() {
   const { available: biometricAvailable, biometricType } = useBiometricAvailable();
   const { enabled: biometricEnabled } = useBiometricEnabled();
   const [hasSavedCreds, setHasSavedCreds] = useState(false);
+  // "Watch together" guest join: no account needed, mirrors the web login.
+  const [guestOpen, setGuestOpen] = useState(false);
+  const [guestCode, setGuestCode] = useState("");
+  const [guestJoining, setGuestJoining] = useState(false);
+  const [guestError, setGuestError] = useState(false);
   // Biometric works two ways: with a live session it just unlocks; with saved
   // "remember me" credentials it performs a REAL login - landing here after a
   // session purge is one fingerprint away from being back in, not a retype.
@@ -181,6 +187,29 @@ export default function Login() {
     const p = password.trim();
     if (!u || !p) return;
     login({ data: { username: u, password: p } });
+  }
+
+  // Join a "watch together" room as a guest (no account): the code mints a
+  // media-scoped stream token; stash it and open the public guest player.
+  async function handleGuestJoin() {
+    const code = guestCode.trim();
+    if (code.length < 4) return;
+    setGuestJoining(true);
+    setGuestError(false);
+    try {
+      const info = await eveyFetch<{ token: string; roomId: string; mediaId: string }>({
+        url: "/api/v1/syncplay/join-code",
+        method: "POST",
+        data: { code },
+      });
+      if (!info.token || !info.mediaId || !info.roomId) throw new Error("invalid room");
+      writeGuestSession({ token: info.token, roomId: info.roomId, mediaId: info.mediaId });
+      router.push(`/watch/${info.mediaId}`);
+    } catch {
+      setGuestError(true);
+    } finally {
+      setGuestJoining(false);
+    }
   }
 
   const inputStyle = useMemo(() => ({
@@ -366,6 +395,64 @@ export default function Login() {
               )}
             </Pressable>
           </>
+        )}
+
+        {/* Watch together - guest join by room code (no account needed). */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginVertical: theme.spacing.md, width: "100%" }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginHorizontal: theme.spacing.sm }}>
+            {t("auth.login.or", "or")}
+          </Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+        </View>
+        {!guestOpen ? (
+          <Pressable
+            onPress={() => setGuestOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t("auth.login.guestJoinTrigger", "Watch together")}
+            style={{ borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radii.md, padding: theme.spacing.md, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, width: "100%" }}
+          >
+            <Ionicons name="people-outline" size={18} color={theme.colors.text} />
+            <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: 16 }}>
+              {t("auth.login.guestJoinTrigger", "Watch together")}
+            </Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: "100%", gap: theme.spacing.sm }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>
+              {t("auth.login.guestJoinDesc", "Enter the code - no account needed.")}
+            </Text>
+            <TextInput
+              value={guestCode}
+              onChangeText={(v) => { setGuestCode(v); setGuestError(false); }}
+              placeholder="ABC123"
+              placeholderTextColor={theme.colors.textMuted}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              style={inputStyle}
+              accessibilityLabel={t("media.syncplay.codeLabel", "Code")}
+            />
+            <Pressable
+              onPress={() => void handleGuestJoin()}
+              disabled={guestJoining || guestCode.trim().length < 4}
+              accessibilityRole="button"
+              accessibilityLabel={t("media.syncplay.joinRoom", "Join")}
+              style={{ borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radii.md, padding: theme.spacing.md, alignItems: "center", width: "100%", opacity: guestJoining || guestCode.trim().length < 4 ? 0.5 : 1 }}
+            >
+              {guestJoining ? (
+                <ActivityIndicator color={theme.colors.text} size="small" />
+              ) : (
+                <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: 16 }}>
+                  {t("media.syncplay.joinRoom", "Join")}
+                </Text>
+              )}
+            </Pressable>
+            {guestError && (
+              <Text style={{ color: theme.colors.error, fontSize: 13 }}>
+                {t("auth.login.guestJoinError", "Could not join - check the code.")}
+              </Text>
+            )}
+          </View>
         )}
       </View>
     </ScrollView>
