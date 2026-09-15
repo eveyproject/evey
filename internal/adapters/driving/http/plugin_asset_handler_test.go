@@ -467,3 +467,32 @@ func TestExtractEscalationEntries(t *testing.T) {
 			extractEscalationEntries("new entries requested: net:a.com, , fs:/x"))
 	})
 }
+
+// A revalidation must not re-read and re-hash the whole bundle: the ETag is
+// remembered per (path, size, mtime), so an unchanged file answers 304 from the
+// stat alone. Proven by making the file unreadable between the two requests.
+func TestPluginAsset_RevalidationDoesNotRereadTheFile(t *testing.T) {
+	mux, token, _, dir := setupPluginAssetTest(t)
+	get := func(inm string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("GET", "/api/v1/plugins/p1/assets/index.js", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		if inm != "" {
+			req.Header.Set("If-None-Match", inm)
+		}
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+	first := get("")
+	require.Equal(t, http.StatusOK, first.Code)
+	etag := first.Header().Get("ETag")
+
+	path := filepath.Join(dir, "p1", "dist", "index.js")
+	require.NoError(t, os.Chmod(path, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
+	if _, err := os.ReadFile(path); err == nil {
+		t.Skip("running as root: an unreadable file cannot prove the shortcut")
+	}
+	assert.Equal(t, http.StatusNotModified, get(etag).Code, "unchanged file must revalidate from its stat")
+}
+
