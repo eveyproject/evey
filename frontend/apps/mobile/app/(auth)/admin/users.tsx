@@ -308,6 +308,14 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const serverUrl = useServerUrl();
   const [showCreate, setShowCreate] = useState(false);
   const [maxUses, setMaxUses] = useState("");
+  // Invite scoping (mirror web CreateInviteForm): expiry preset, admin flag,
+  // and per-library access. Mobile uses expiry-day presets rather than a
+  // datetime picker - same resulting expiresAt on the wire.
+  const [expiryDays, setExpiryDays] = useState(0); // 0 = never
+  const [inviteIsAdmin, setInviteIsAdmin] = useState(false);
+  const [inviteLibs, setInviteLibs] = useState<Set<string>>(new Set());
+  const { data: invLibData } = useLibraryServiceListLibraries();
+  const invLibraries = invLibData?.libraries ?? [];
 
   const { data, isLoading, isError, refetch } = useUserServiceListInviteLinks();
   const invites = data?.inviteLinks ?? [];
@@ -318,6 +326,9 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
         toast.success(t("admin.users.inviteCreated", "Invite link created"));
         setShowCreate(false);
         setMaxUses("");
+        setExpiryDays(0);
+        setInviteIsAdmin(false);
+        setInviteLibs(new Set());
         await qc.invalidateQueries({ queryKey: getUserServiceListInviteLinksQueryKey() });
       },
       onError: () => toast.error(t("admin.users.failedCreateInvite", "Failed to create invite")),
@@ -335,14 +346,18 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
   });
 
   const handleCreate = useCallback(async () => {
+    const expiresAt = expiryDays > 0 ? new Date(Date.now() + expiryDays * 86_400_000).toISOString() : undefined;
     try {
       await createInvite.mutateAsync({
         data: {
           maxUses: maxUses ? parseInt(maxUses) : undefined,
+          expiresAt,
+          isAdmin: inviteIsAdmin,
+          libraryIds: inviteIsAdmin ? [] : Array.from(inviteLibs),
         },
       });
     } catch {}
-  }, [maxUses, createInvite]);
+  }, [maxUses, expiryDays, inviteIsAdmin, inviteLibs, createInvite]);
 
   const handleShare = useCallback(async (link: V1InviteLink) => {
     const url = `${serverUrl}/register?invite=${link.code}`;
@@ -450,6 +465,70 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
             accessible={true}
             accessibilityLabel={t("admin.users.maxUsesLabel", "Max uses (empty = unlimited)")}
           />
+
+          {/* Expiry preset */}
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 12, marginBottom: 6 }}>
+            {t("admin.users.expiresAtLabel", "Expiry")}
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {[
+              { d: 0, label: t("admin.users.never", "Never") },
+              { d: 1, label: t("admin.users.expiry1d", "1 day") },
+              { d: 7, label: t("admin.users.expiry7d", "7 days") },
+              { d: 30, label: t("admin.users.expiry30d", "30 days") },
+            ].map((opt) => {
+              const active = expiryDays === opt.d;
+              return (
+                <Pressable
+                  key={opt.d}
+                  onPress={() => setExpiryDays(opt.d)}
+                  style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radii.sm, borderWidth: 1, borderColor: active ? theme.colors.accent : theme.colors.border, backgroundColor: active ? theme.colors.accent : "transparent" }}
+                >
+                  <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 13, fontWeight: "600" }}>{opt.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Admin invite */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 }}>
+            <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
+              {t("admin.users.inviteIsAdmin", "Invitee is an administrator")}
+            </Text>
+            <Switch
+              value={inviteIsAdmin}
+              onValueChange={setInviteIsAdmin}
+              trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+            />
+          </View>
+
+          {/* Library scoping (only when not admin) */}
+          {!inviteIsAdmin && invLibraries.length > 0 && (
+            <View style={{ marginTop: 14 }}>
+              <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>
+                {t("admin.users.inviteLibraries", "Library access")}
+              </Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2, marginBottom: 8 }}>
+                {t("admin.users.inviteLibrariesHelp", "Empty = access to all libraries.")}
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {invLibraries.map((lib) => {
+                  const id = lib.id ?? "";
+                  const active = inviteLibs.has(id);
+                  return (
+                    <Pressable
+                      key={id}
+                      onPress={() => setInviteLibs((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; })}
+                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radii.sm, borderWidth: 1, borderColor: active ? theme.colors.accent : theme.colors.border, backgroundColor: active ? theme.colors.accent : "transparent" }}
+                    >
+                      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 13 }}>{lib.name ?? id}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
           <Pressable
             onPress={handleCreate}
             disabled={createInvite.isPending}

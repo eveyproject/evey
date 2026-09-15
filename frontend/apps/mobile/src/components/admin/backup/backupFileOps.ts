@@ -25,6 +25,24 @@ export async function downloadBackupFile(backup: BackupSummary, accessToken: str
 }
 
 /**
+ * Restores from an EXTERNAL archive the admin picked off the device (mirror of
+ * the web RestoreUploadModal). Streams the file straight to the multipart
+ * restore endpoint - no download round-trip, since the file is already local.
+ */
+export async function restoreFromFile(fileUri: string, accessToken: string | null): Promise<void> {
+  const result = await uploadAsync(buildBackupRestoreUrl(getBaseURL()), fileUri, {
+    httpMethod: "POST",
+    uploadType: FileSystemUploadType.MULTIPART,
+    fieldName: "backup",
+    mimeType: "application/gzip",
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+  });
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(result.body || "restore failed");
+  }
+}
+
+/**
  * Restores a backup that already exists server-side. There is no
  * restore-by-id endpoint (see backup_handler.go): the server only exposes a
  * raw download and a multipart-upload restore, so even a backup already on

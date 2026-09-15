@@ -535,6 +535,14 @@ export default function AdminLibrariesScreen() {
     setModalVisible(true);
   }, []);
 
+  // Server-wide collection-membership rebuild (mirror web libraries "Relink
+  // collections" header action).
+  const relinkCollections = useMutation({
+    mutationFn: () => eveyFetch({ url: "/api/v1/admin/collections/relink", method: "POST", data: {} }),
+    onSuccess: () => toast.success(t("admin.libraries.relinkCollectionsStarted", "Relinking collections…")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
+  });
+
   const openEdit = useCallback((lib: V1Library) => {
     setEditingLibrary(lib);
     setForm(formFromLibrary(lib));
@@ -640,16 +648,31 @@ export default function AdminLibrariesScreen() {
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
         headerRight: () => (
-          <Pressable
-            onPress={openCreate}
-            hitSlop={10}
-            style={{ marginRight: 8 }}
-            accessible={true}
-            accessibilityLabel={t("admin.libraries.addLibrary", "Add Library")}
-            accessibilityRole="button"
-          >
-            <Ionicons name="add-circle-outline" size={26} color={theme.colors.accent} />
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginRight: 8 }}>
+            <Pressable
+              onPress={() => relinkCollections.mutate()}
+              disabled={relinkCollections.isPending}
+              hitSlop={10}
+              accessible={true}
+              accessibilityLabel={t("admin.libraries.relinkCollections", "Relink collections")}
+              accessibilityRole="button"
+            >
+              {relinkCollections.isPending ? (
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+              ) : (
+                <Ionicons name="git-network-outline" size={24} color={theme.colors.accent} />
+              )}
+            </Pressable>
+            <Pressable
+              onPress={openCreate}
+              hitSlop={10}
+              accessible={true}
+              accessibilityLabel={t("admin.libraries.addLibrary", "Add Library")}
+              accessibilityRole="button"
+            >
+              <Ionicons name="add-circle-outline" size={26} color={theme.colors.accent} />
+            </Pressable>
+          </View>
         ),
       }} />
       {isLoading ? (
