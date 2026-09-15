@@ -88,6 +88,18 @@ type OrchestratorOptions struct {
 	// only the requested rung, instead of one multi-variant rafale per
 	// fingerprint. Off = byte-identical to the historical multi-variant path.
 	SingleVariant bool
+
+	// SeekCoalesceWindow debounces a burst of unserved-seek spawns for one
+	// fingerprint. When a fresh rafale would be spawned for a position no live
+	// or pending session covers, the spawn is deferred by this window and
+	// REPLACED by any later unserved seek for the same hash that lands inside
+	// it: last target wins, one ffmpeg for the whole burst. Rapid seeks on a
+	// heavy rung otherwise spawn one encoder per seek and LRU-evict each before
+	// it writes its first segment - a storm of kills + 503s and wasted encode
+	// work (prod 2026-09-15). A single seek pays the window exactly once (~150 ms,
+	// under a fragment RTT, imperceptible). Default 0 = off: spawn immediately,
+	// byte-identical to the pre-feature path.
+	SeekCoalesceWindow time.Duration
 }
 
 func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {

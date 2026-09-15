@@ -42,6 +42,15 @@ func (o *SegmentOrchestrator) doClose() {
 	// entries, so it's safe to call on a hash whose session is already
 	// gone.
 	o.mu.Lock()
+	// Stop any debounced seek timers so none fires after shutdownCancel and tries
+	// to spawn into a torn-down cache. fireCoalescedSeek also re-checks
+	// shutdownCtx, so a fire already past its Stop is a harmless no-op.
+	for h, ps := range o.pendingSeeks {
+		if ps.timer != nil {
+			ps.timer.Stop()
+		}
+		delete(o.pendingSeeks, h)
+	}
 	hashes := make([]string, 0, len(o.spawnedHashes))
 	for h := range o.spawnedHashes {
 		hashes = append(hashes, h)

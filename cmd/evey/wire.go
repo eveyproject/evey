@@ -433,6 +433,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		HWPerVariant:          cfg.Transcoding.HWPerVariant,
 		SingleVariant:         cfg.Transcoding.SingleVariant,
 		FFmpegProgressLogDir:  ffmpegProgressLogDir,
+		// Debounce rapid seeks so a burst on a heavy rung spawns one encoder at
+		// the final position, not one per seek that the next seek kills before it
+		// produces (prod 2026-09-15). ~150 ms is under a fragment RTT: a single
+		// seek is unaffected in practice, a rafale of seeks collapses to one spawn.
+		SeekCoalesceWindow: 150 * time.Millisecond,
 	}, slog.Default())
 
 	// Software producer lifecycle knobs. The low-memory profile trims them hard:
