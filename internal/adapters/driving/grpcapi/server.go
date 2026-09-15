@@ -257,6 +257,7 @@ func (s *GRPCServer) RegisterServices() {
 		heavyOpSemaphore: make(chan struct{}, 1),
 		translator:       d.Translator,
 		serverCtx:        srvCtx,
+		activitySvc:      d.ActivityCmd,
 	})
 	eveyv1.RegisterAdminSessionServiceServer(s.server, &adminSessionHandler{
 		activitySvc: d.ActivityQuery,

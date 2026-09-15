@@ -7,6 +7,8 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	appactivity "github.com/evey-project/evey/internal/app/activity"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
@@ -36,6 +38,22 @@ type adminMediaHandler struct {
 	heavyOpSemaphore chan struct{}
 	translator       *eveyi18n.Translator
 	serverCtx        context.Context
+	// activitySvc records who asked for each repair: these RPCs rewrite media
+	// bytes or delete the only way back, and used to leave no trace.
+	activitySvc *appactivity.CommandService
+}
+
+// audit records an accepted repair against the calling admin.
+func (d *adminMediaHandler) audit(ctx context.Context, action, resourceType, resourceID string, details map[string]any) {
+	userID := ""
+	if c := interceptors.ClaimsFromContext(ctx); c != nil {
+		userID = c.UserID
+	}
+	var rid *string
+	if resourceID != "" {
+		rid = &resourceID
+	}
+	recordAudit(ctx, d.activitySvc, userID, action, resourceType, rid, details)
 }
 
 // guardProviderMatchable rejects provider re-match requests on library types
@@ -216,6 +234,7 @@ func (d *adminMediaHandler) DeleteMediaItem(ctx context.Context, req *eveyv1.Del
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "delete media item", err)
 	}
+	d.audit(ctx, "delete_media_item", "media", req.Id, nil)
 	return &eveyv1.DeleteMediaItemResponse{}, nil
 }
 
@@ -406,6 +425,9 @@ func (d *adminMediaHandler) ReindexMediaSeekIndex(ctx context.Context, req *evey
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "reindex media seek index", err)
 	}
+	d.audit(ctx, "reindex_media_seek_index", "media", req.GetMediaId(), map[string]any{
+		"mode": run.Mode, "deep_verify": run.DeepVerify, "skip_backup": run.SkipBackup, "resync": run.Resync,
+	})
 	return &eveyv1.ReindexMediaSeekIndexResponse{Accepted: true}, nil
 }
 
@@ -420,6 +442,7 @@ func (d *adminMediaHandler) RollbackMediaSeekIndex(ctx context.Context, req *eve
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "rollback media seek index", err)
 	}
+	d.audit(ctx, "rollback_media_seek_index", "media", req.GetMediaId(), nil)
 	return &eveyv1.RollbackMediaSeekIndexResponse{Accepted: true}, nil
 }
 
@@ -443,6 +466,10 @@ func (d *adminMediaHandler) ReindexLibrarySeekIndex(ctx context.Context, req *ev
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "reindex library seek index", err)
 	}
+	d.audit(ctx, "reindex_library_seek_index", "library", req.GetLibraryId(), map[string]any{
+		"mode": run.Mode, "deep_verify": run.DeepVerify, "skip_backup": run.SkipBackup,
+		"backup_window": run.BackupWindow, "resync_damaged": run.ResyncDamaged,
+	})
 	// Queued is deprecated but still WIRED: an old client reads it, and -1
 	// is the agreed "poll GetSeekIndexJob instead" sentinel.
 	return &eveyv1.ReindexLibrarySeekIndexResponse{Queued: -1}, nil //nolint:staticcheck // SA1019: deliberate, see above
@@ -461,6 +488,7 @@ func (d *adminMediaHandler) RollbackLibrarySeekIndex(ctx context.Context, req *e
 	}
 	// Queued is deprecated but still WIRED: an old client reads it, and -1
 	// is the agreed "poll GetSeekIndexJob instead" sentinel.
+	d.audit(ctx, "rollback_library_seek_index", "library", req.GetLibraryId(), nil)
 	return &eveyv1.RollbackLibrarySeekIndexResponse{Queued: -1}, nil //nolint:staticcheck // SA1019: deliberate, see above
 }
 
@@ -500,6 +528,7 @@ func (d *adminMediaHandler) DeleteSeekIndexBackup(ctx context.Context, req *evey
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "delete seek index backup", err)
 	}
+	d.audit(ctx, "delete_seek_index_backup", "media", req.GetMediaId(), nil)
 	return &eveyv1.DeleteSeekIndexBackupResponse{}, nil
 }
 
@@ -515,6 +544,7 @@ func (d *adminMediaHandler) PurgeSeekIndexBackups(ctx context.Context, req *evey
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "purge seek index backups", err)
 	}
+	d.audit(ctx, "purge_seek_index_backups", "library", req.GetLibraryId(), nil)
 	return &eveyv1.PurgeSeekIndexBackupsResponse{}, nil
 }
 
@@ -569,6 +599,7 @@ func (d *adminMediaHandler) UndoMediaRepair(ctx context.Context, req *eveyv1.Und
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "undo media repair", err)
 	}
+	d.audit(ctx, "undo_media_repair", "media", req.GetMediaId(), map[string]any{"shift_sec": shift})
 	return &eveyv1.UndoMediaRepairResponse{ShiftSec: shift}, nil
 }
 
@@ -638,6 +669,7 @@ func (d *adminMediaHandler) ApplyAudioShift(ctx context.Context, req *eveyv1.App
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "apply audio shift", err)
 	}
+	d.audit(ctx, "apply_audio_shift", "media", req.GetMediaId(), map[string]any{"track": req.GetTrack(), "shift_sec": req.GetShiftSec()})
 	return &eveyv1.ApplyAudioShiftResponse{}, nil
 }
 
@@ -669,5 +701,6 @@ func (d *adminMediaHandler) FixContainerMedia(ctx context.Context, req *eveyv1.F
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "fix container media", err)
 	}
+	d.audit(ctx, "fix_container_media", "media", req.GetMediaId(), nil)
 	return &eveyv1.FixContainerMediaResponse{Accepted: true}, nil
 }

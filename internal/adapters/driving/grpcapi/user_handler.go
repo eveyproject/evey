@@ -12,8 +12,6 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/activity"
-	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
@@ -36,32 +34,7 @@ type userHandler struct {
 }
 
 func (h *userHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
-	if h.activitySvc == nil {
-		return
-	}
-	ua := interceptors.UserAgentFromCtx(ctx)
-	dn := interceptors.DeviceNameFromCtx(ctx)
-	ip := interceptors.ClientIPFromCtx(ctx)
-	e := &activity.AuditLogEntry{
-		UserID:       shared.UserID(userID),
-		ProfileID:    auditProfileID(ctx, userID),
-		Action:       action,
-		ResourceType: resourceType,
-		ResourceID:   resourceID,
-		Details:      details,
-	}
-	if ua != "" {
-		e.UserAgent = &ua
-	}
-	if dn != "" {
-		e.DeviceName = &dn
-	}
-	if ip != "" {
-		e.ClientIP = &ip
-	}
-	if err := h.activitySvc.CreateAuditEntry(ctx, e); err != nil {
-		slog.WarnContext(ctx, "audit log failed", slog.String("action", action), slog.Any("err", err))
-	}
+	recordAudit(ctx, h.activitySvc, userID, action, resourceType, resourceID, details)
 }
 
 func (h *userHandler) refreshTTLOverride(ctx context.Context) []time.Duration {

@@ -10,8 +10,10 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	appactivity "github.com/evey-project/evey/internal/app/activity"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -213,6 +215,37 @@ func isClientCanceled(err error) bool {
 // written on behalf of somebody else (admin acting on a target user) or by a
 // path with no claims gets no profile rather than a misleading one - "which
 // profile did this" must never answer with a profile that did not do it.
+// recordAudit writes one admin audit entry with the request's client details.
+// Best-effort: a failed write is logged, never surfaced to the caller.
+func recordAudit(ctx context.Context, svc *appactivity.CommandService, userID, action, resourceType string, resourceID *string, details map[string]any) {
+	if svc == nil {
+		return
+	}
+	ua := interceptors.UserAgentFromCtx(ctx)
+	dn := interceptors.DeviceNameFromCtx(ctx)
+	ip := interceptors.ClientIPFromCtx(ctx)
+	e := &activity.AuditLogEntry{
+		UserID:       shared.UserID(userID),
+		ProfileID:    auditProfileID(ctx, userID),
+		Action:       action,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		Details:      details,
+	}
+	if ua != "" {
+		e.UserAgent = &ua
+	}
+	if dn != "" {
+		e.DeviceName = &dn
+	}
+	if ip != "" {
+		e.ClientIP = &ip
+	}
+	if err := svc.CreateAuditEntry(ctx, e); err != nil {
+		slog.WarnContext(ctx, "audit log failed", slog.String("action", action), slog.Any("err", err))
+	}
+}
+
 func auditProfileID(ctx context.Context, userID string) shared.ProfileID {
 	c := interceptors.ClaimsFromContext(ctx)
 	if c == nil || c.UserID != userID {
