@@ -129,7 +129,7 @@ export function useCreateCollection() {
     // The server field is overview, not description: what was sent under the
     // old name was dropped on the floor, so a description typed at creation
     // never survived the save.
-    mutationFn: (input: { name: string; overview?: string }) =>
+    mutationFn: (input: { name: string; overview?: string; rules?: { field: string; operator: string; value: string }[] }) =>
       eveyFetch<{ id: string }>({ url: "/api/v1/collections", method: "POST", data: input }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["collections"] });
@@ -144,7 +144,7 @@ export function useUpdateCollection() {
   return useMutation({
     // overview is optional on the wire: leaving it out keeps what is stored,
     // which is how a rename spares the synopsis a TMDB saga came with.
-    mutationFn: ({ id, ...body }: { id: string; name: string; overview?: string }) =>
+    mutationFn: ({ id, ...body }: { id: string; name: string; overview?: string; rules?: { field: string; operator: string; value: string }[] }) =>
       eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "PUT", data: body }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["collections"] });

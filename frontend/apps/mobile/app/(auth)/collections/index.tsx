@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { LoadFailed } from "../../../src/components/LoadFailed";
+import { SmartRulesEditor, COLLECTION_FIELDS, type SmartRule } from "../../../src/components/SmartRulesEditor";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import {
   useCollections,
@@ -149,19 +150,30 @@ function CreateCollectionModal({
   const createMut = useCreateCollection();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  // A smart collection is rule-driven (web parity: New Smart Collection); a
+  // manual one holds hand-picked items and takes an optional description.
+  const [isSmart, setIsSmart] = useState(false);
+  const [rules, setRules] = useState<SmartRule[]>([]);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   function handleClose() {
     setName("");
     setDescription("");
+    setIsSmart(false);
+    setRules([]);
     onClose();
   }
 
   async function handleCreate() {
     if (!name.trim()) return;
     try {
-      const res = await createMut.mutateAsync({ name: name.trim(), overview: description.trim() || undefined });
+      const res = await createMut.mutateAsync({
+        name: name.trim(),
+        overview: isSmart ? undefined : description.trim() || undefined,
+        rules: isSmart ? rules.filter((r) => r.value.trim()).map((r) => ({ field: r.field, operator: r.operator, value: r.value })) : undefined,
+      });
       handleClose();
-      if (res?.id) router.push(`/collections/${res.id}`);
+      if (res?.id) router.push(isSmart ? `/collections/smart/${res.id}` : `/collections/${res.id}`);
     } catch {
       Alert.alert(t("common.error", "Error"), t("common.tryAgain", "Please try again."));
     }
@@ -175,8 +187,24 @@ function CreateCollectionModal({
       >
         <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
           <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-            {t("media.collections.newCollection", "New Collection")}
+            {isSmart ? t("media.collections.newSmartCollection", "New Smart Collection") : t("media.collections.newCollection", "New Collection")}
           </Text>
+
+          {/* Manual vs smart segmented toggle */}
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+            {[{ smart: false, label: t("media.playlist.manual", "Manual") }, { smart: true, label: t("media.playlist.smart", "Smart") }].map((opt) => (
+              <TouchableOpacity
+                key={String(opt.smart)}
+                onPress={() => setIsSmart(opt.smart)}
+                style={{ flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: theme.radii.sm, backgroundColor: isSmart === opt.smart ? theme.colors.accent : theme.colors.surfaceRaised }}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSmart === opt.smart }}
+                accessibilityLabel={opt.label}
+              >
+                <Text style={{ color: isSmart === opt.smart ? theme.colors.onAccent : theme.colors.text, fontWeight: "600", fontSize: 13 }}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           <TextInput
             style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.surfaceRaised, backgroundColor: theme.colors.bg }]}
@@ -187,15 +215,29 @@ function CreateCollectionModal({
             autoFocus
           />
 
-          <TextInput
-            style={[styles.input, styles.inputMultiline, { color: theme.colors.text, borderColor: theme.colors.surfaceRaised, backgroundColor: theme.colors.bg }]}
-            placeholderTextColor={theme.colors.textMuted}
-            placeholder={t("common.description", "Description")}
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={3}
-          />
+          {isSmart ? (
+            <TouchableOpacity
+              onPress={() => setRulesOpen(true)}
+              style={[styles.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderColor: theme.colors.surfaceRaised, backgroundColor: theme.colors.bg }]}
+              accessibilityRole="button"
+              accessibilityLabel={t("media.playlist.smartRules", "Smart rules")}
+            >
+              <Text style={{ color: theme.colors.text }}>
+                {t("media.playlist.smartRules", "Smart rules")} ({rules.filter((r) => r.value.trim()).length})
+              </Text>
+              <Ionicons name="options-outline" size={18} color={theme.colors.accent} />
+            </TouchableOpacity>
+          ) : (
+            <TextInput
+              style={[styles.input, styles.inputMultiline, { color: theme.colors.text, borderColor: theme.colors.surfaceRaised, backgroundColor: theme.colors.bg }]}
+              placeholderTextColor={theme.colors.textMuted}
+              placeholder={t("common.description", "Description")}
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={3}
+            />
+          )}
 
           <View style={styles.modalButtons}>
             <TouchableOpacity onPress={handleClose} style={[styles.modalBtn, { backgroundColor: theme.colors.surfaceRaised }]}>
@@ -215,6 +257,15 @@ function CreateCollectionModal({
           </View>
         </View>
       </KeyboardAvoidingView>
+      {isSmart && (
+        <SmartRulesEditor
+          visible={rulesOpen}
+          onClose={() => setRulesOpen(false)}
+          rules={rules}
+          onSave={setRules}
+          availableFields={COLLECTION_FIELDS}
+        />
+      )}
     </Modal>
   );
 }
