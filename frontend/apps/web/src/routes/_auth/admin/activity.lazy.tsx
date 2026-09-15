@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { Film, Download } from "lucide-react";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -13,25 +13,7 @@ import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AuditLogTable } from "@/features/admin/AuditLogTable";
 import { WatcherFilter, type Watcher } from "@/features/admin/WatcherFilter";
-
-// useInfiniteSentinel wires an IntersectionObserver on a bottom sentinel div to
-// auto-load the next page when it scrolls into view. Returns the ref to attach.
-function useInfiniteSentinel(hasNext: boolean, isFetching: boolean, fetchNext: () => void) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && hasNext && !isFetching) fetchNext();
-      },
-      { rootMargin: "300px" },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [hasNext, isFetching, fetchNext]);
-  return ref;
-}
+import { useInfiniteSentinel } from "@/hooks/useInfiniteSentinel";
 
 export const Route = createLazyFileRoute("/_auth/admin/activity")({
   component: ActivityPage,

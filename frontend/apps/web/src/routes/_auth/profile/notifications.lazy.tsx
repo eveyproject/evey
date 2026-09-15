@@ -2,7 +2,7 @@ import { Bell, Plus, Play, Info } from "lucide-react";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-  useNotificationServiceListNotifications,
+  notificationServiceListNotifications,
   useNotificationServiceMarkRead,
   useNotificationServiceMarkAllRead,
   useNotificationServiceDeleteAllNotifications,
@@ -10,7 +10,7 @@ import {
   getNotificationServiceGetUnreadCountQueryKey,
   apiErrorMessage,
 } from "@evey/api";
-import { useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
@@ -18,6 +18,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { Modal } from "@/components/ui/Modal";
 import { translateNotificationTitle, useRelativeTime, notificationUrl } from "@/features/user/notificationUtils";
+import { useInfiniteSentinel } from "@/hooks/useInfiniteSentinel";
+import { Spinner } from "@/components/ui/Spinner";
 
 type Notification = {
   id?: string;
@@ -109,6 +111,8 @@ function NotificationRow({ notif }: { notif: Notification }) {
   );
 }
 
+const NOTIFICATIONS_PAGE_SIZE = 50;
+
 function NotificationsPage() {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -119,7 +123,18 @@ function NotificationsPage() {
     void qc.invalidateQueries({ queryKey: getNotificationServiceGetUnreadCountQueryKey() });
   };
 
-  const { data, isLoading, isError, error, refetch } = useNotificationServiceListNotifications();
+  // Pages of PAGE_SIZE behind a scroll sentinel: this list grows for the
+  // life of the profile, so neither a hard cap (200 used to be silently
+  // dropped past) nor loading everything at once is right for it. The key
+  // keeps the generated prefix so every existing invalidation still hits it.
+  const { data, isLoading, isError, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: [...getNotificationServiceListNotificationsQueryKey(), "pages"],
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) => notificationServiceListNotifications({ limit: NOTIFICATIONS_PAGE_SIZE, offset: pageParam }, signal),
+    getNextPageParam: (last, _pages, lastOffset) =>
+      (last.notifications?.length ?? 0) < NOTIFICATIONS_PAGE_SIZE ? undefined : lastOffset + NOTIFICATIONS_PAGE_SIZE,
+  });
+  const sentinelRef = useInfiniteSentinel(hasNextPage, isFetchingNextPage, fetchNextPage);
   const markAllRead = useNotificationServiceMarkAllRead({ mutation: { onSuccess: invalidate } });
   const deleteAll = useNotificationServiceDeleteAllNotifications({
     mutation: {
@@ -131,7 +146,7 @@ function NotificationsPage() {
     },
   });
 
-  const notifications = data?.notifications ?? [];
+  const notifications = data?.pages.flatMap((p) => p.notifications ?? []) ?? [];
   const hasUnread = notifications.some((n) => !n.readAt);
 
   return (
@@ -171,6 +186,11 @@ function NotificationsPage() {
           {notifications.map((n) => (
             <NotificationRow key={n.id} notif={n} />
           ))}
+        </div>
+      )}
+      {!isLoading && !isError && notifications.length > 0 && (
+        <div ref={sentinelRef} className="flex justify-center py-2" aria-hidden={!isFetchingNextPage}>
+          {isFetchingNextPage && <Spinner size="sm" />}
         </div>
       )}
 
