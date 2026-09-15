@@ -23,14 +23,12 @@ general:
   rate_limited: "Too many requests. Try again in {{wait}}."
 
 playlist:
-  not_owner: "You are not the playlist owner"
   cannot_add_smart: "Cannot manually add items to a smart playlist"
   cannot_remove_smart: "Cannot remove items from a smart playlist"
   limit_reached: "Playlist item limit reached"
   duplicate_name: "A playlist with this name already exists"
 
 playback:
-  parental_blocked: "Content blocked by parental controls"
   cannot_stop_other_session: "Cannot stop another user's session"
   cannot_report_other_session: "Cannot report progress for another user's session"
   session_not_found: "Session not found"
@@ -41,7 +39,6 @@ activity:
   cannot_access_other_history: "Cannot access another user's login history"
 
 library:
-  parental_restricted: "Content restricted by parental controls"
   name_required: "Library name is required"
   scan_in_progress: "A scan is already running for this library"
 

@@ -23,14 +23,12 @@ general:
   rate_limited: "请求过多，请在 {{wait}} 后重试。"
 
 playlist:
-  not_owner: "您不是播放列表的所有者"
   cannot_add_smart: "无法手动向智能播放列表添加项目"
   cannot_remove_smart: "无法从智能播放列表中移除项目"
   limit_reached: "播放列表项目数量已达上限"
   duplicate_name: "已存在同名播放列表"
 
 playback:
-  parental_blocked: "内容被家长控制拦截"
   cannot_stop_other_session: "无法停止其他用户的会话"
   cannot_report_other_session: "无法为其他用户的会话报告进度"
   session_not_found: "会话未找到"
@@ -41,7 +39,6 @@ activity:
   cannot_access_other_history: "无法访问其他用户的登录历史"
 
 library:
-  parental_restricted: "内容被家长控制限制"
   name_required: "媒体库名称为必填项"
   scan_in_progress: "此媒体库已有扫描任务正在进行"
 

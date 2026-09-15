@@ -23,14 +23,12 @@ general:
   rate_limited: "Zu viele Anfragen. Versuche es in {{wait}} erneut."
 
 playlist:
-  not_owner: "Sie sind nicht der Playlist-Besitzer"
   cannot_add_smart: "Elemente können nicht manuell zu einer Smart-Playlist hinzugefügt werden"
   cannot_remove_smart: "Elemente können nicht aus einer Smart-Playlist entfernt werden"
   limit_reached: "Playlist-Elementlimit erreicht"
   duplicate_name: "Eine Playlist mit diesem Namen existiert bereits"
 
 playback:
-  parental_blocked: "Inhalt durch Kindersicherung blockiert"
   cannot_stop_other_session: "Sitzung eines anderen Benutzers kann nicht beendet werden"
   cannot_report_other_session: "Fortschritt für die Sitzung eines anderen Benutzers kann nicht gemeldet werden"
   session_not_found: "Sitzung nicht gefunden"
@@ -41,7 +39,6 @@ activity:
   cannot_access_other_history: "Anmeldeverlauf eines anderen Benutzers kann nicht aufgerufen werden"
 
 library:
-  parental_restricted: "Inhalt durch Kindersicherung eingeschränkt"
   name_required: "Bibliotheksname ist erforderlich"
   scan_in_progress: "Für diese Bibliothek läuft bereits ein Scan"
 

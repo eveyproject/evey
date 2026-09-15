@@ -23,14 +23,12 @@ general:
   rate_limited: "बहुत अधिक अनुरोध। {{wait}} में पुनः प्रयास करें।"
 
 playlist:
-  not_owner: "आप प्लेलिस्ट के स्वामी नहीं हैं"
   cannot_add_smart: "स्मार्ट प्लेलिस्ट में मैन्युअल रूप से आइटम नहीं जोड़े जा सकते"
   cannot_remove_smart: "स्मार्ट प्लेलिस्ट से आइटम नहीं हटाए जा सकते"
   limit_reached: "प्लेलिस्ट आइटम सीमा पूरी हो गई"
   duplicate_name: "इस नाम की प्लेलिस्ट पहले से मौजूद है"
 
 playback:
-  parental_blocked: "अभिभावक नियंत्रण द्वारा सामग्री अवरुद्ध"
   cannot_stop_other_session: "अन्य उपयोगकर्ता का सत्र रोका नहीं जा सकता"
   cannot_report_other_session: "अन्य उपयोगकर्ता के सत्र की प्रगति रिपोर्ट नहीं की जा सकती"
   session_not_found: "सत्र नहीं मिला"
@@ -41,7 +39,6 @@ activity:
   cannot_access_other_history: "अन्य उपयोगकर्ता का लॉगिन इतिहास एक्सेस नहीं किया जा सकता"
 
 library:
-  parental_restricted: "अभिभावक नियंत्रण द्वारा सामग्री प्रतिबंधित"
   name_required: "लाइब्रेरी का नाम आवश्यक है"
   scan_in_progress: "इस लाइब्रेरी के लिए पहले से ही स्कैन चल रहा है"
 
