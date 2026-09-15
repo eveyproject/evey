@@ -44,8 +44,14 @@ frontend:
 config_schema:               # optional; JSON Schema object describing plugin config keys
   api_key:
     type: string
+    secret: true             # or `type: password`: never sent back to any client, admin included
     description: "TMDB API key"
 ```
+
+A field marked `secret: true` (or of `type: password`) is stored and handed to the
+plugin as usual, but every read route - the public one and the admin config panel -
+returns it masked. The admin panel keeps the stored value when the mask is posted
+back unchanged, so saving the other fields never wipes a secret.
 
 **Validation rules enforced at install:**
 
