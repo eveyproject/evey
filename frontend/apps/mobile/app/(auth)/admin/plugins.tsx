@@ -1184,18 +1184,20 @@ export default function AdminPluginsScreen() {
 
       <Modal visible={installOpen} transparent animationType="fade" onRequestClose={closeInstallModal}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} onPress={closeInstallModal} />
-        <View style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: theme.colors.surface,
-          borderTopLeftRadius: theme.radii.lg,
-          borderTopRightRadius: theme.radii.lg,
-          padding: theme.spacing.md,
-          paddingBottom: theme.spacing.xl,
-          gap: theme.spacing.sm,
-        }}>
+        <ScrollView
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            maxHeight: "88%",
+            backgroundColor: theme.colors.surface,
+            borderTopLeftRadius: theme.radii.lg,
+            borderTopRightRadius: theme.radii.lg,
+          }}
+          contentContainerStyle={{ padding: theme.spacing.md, paddingBottom: theme.spacing.xl, gap: theme.spacing.sm }}
+          keyboardShouldPersistTaps="handled"
+        >
           {blockedIssues.length > 0 ? (
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
               <Ionicons name="shield-outline" size={20} color={theme.colors.error} />
@@ -1329,7 +1331,7 @@ export default function AdminPluginsScreen() {
               </Pressable>
             </>
           )}
-        </View>
+        </ScrollView>
       </Modal>
     </View>
   );

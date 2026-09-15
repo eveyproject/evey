@@ -451,7 +451,11 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
           accessibilityElementsHidden={true}
           importantForAccessibility="no-hide-descendants"
         />
-        <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
+        <ScrollView
+          style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg, maxHeight: "85%" }]}
+          contentContainerStyle={{ paddingBottom: 8 }}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 16 }}>
             {t("admin.users.createInviteLink", "Create Invite Link")}
           </Text>
@@ -545,7 +549,7 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
               </Text>
             )}
           </Pressable>
-        </View>
+        </ScrollView>
       </Modal>
     </View>
   );
