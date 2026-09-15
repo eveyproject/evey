@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, ScrollView, ActivityIndicator, Alert, TextInput, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -167,6 +167,8 @@ export default function AdminSeekIndexScreen() {
   // The displayed rows: one view (what awaits attention by default), sorted by
   // priority - the same pipeline as the web page (triageRows).
   const [view, setView] = useState<SeekView>("attention");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<"priority" | "size" | "title">("priority");
   // How much of the disks the next scan may take. Gentle by default, same as
   // the web page: nobody watches a scan, everybody watches their films.
   const [pace, setPace] = useState<SeekScanPace>(SEEK_SCAN_PACE_DEFAULT);
@@ -313,7 +315,7 @@ export default function AdminSeekIndexScreen() {
   });
   const ackAll = () => ackGroup.mutate({ data: { ...(libraryId ? { libraryId } : {}), verdict: "informational" } });
 
-  const visible = triageRows(items, view, "", "priority");
+  const visible = triageRows(items, view, query, sort);
   const busy = running || startScan.isPending;
 
   function openRepairAll() {
@@ -510,6 +512,30 @@ export default function AdminSeekIndexScreen() {
                     </Pressable>
                   ))}
                 </ScrollView>
+
+                {/* Search over title/path + sort (mirror web SeekIndexFilters). */}
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder={t("admin.seekIndex.searchPlaceholder", "Search title or path…")}
+                  placeholderTextColor={theme.colors.textMuted}
+                  style={{ backgroundColor: theme.colors.surface, color: theme.colors.text, borderRadius: theme.radii.md, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }}
+                />
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{t("admin.seekIndex.sortLabel", "Sort")}</Text>
+                  {(["priority", "size", "title"] as const).map((sv) => (
+                    <Pressable
+                      key={sv}
+                      onPress={() => setSort(sv)}
+                      style={[styles.filterChip, { backgroundColor: sort === sv ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
+                    >
+                      <Text style={{ color: sort === sv ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>
+                        {t(`admin.seekIndex.sort_${sv}`, sv)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
                 <Text style={{ color: theme.colors.textMuted, fontSize: 11, textAlign: "right" }}>
                   {t("admin.seekIndex.scannedAt", { date: new Date(Number(result.scannedAtMs)).toLocaleString() })}
                 </Text>
