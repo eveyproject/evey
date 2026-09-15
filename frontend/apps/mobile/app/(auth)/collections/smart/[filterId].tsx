@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -9,13 +9,16 @@ import {
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@evey/store";
 import { Skeleton } from "../../../../src/components/Skeleton";
+import { SmartRulesEditor, COLLECTION_FIELDS, type SmartRule } from "../../../../src/components/SmartRulesEditor";
 import { useTheme } from "../../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../../src/hooks/useAuthenticatedImage";
-import { useCollection, type CollectionItem } from "../../../../src/api/collections";
+import { useCollection, useUpdateCollection, type CollectionItem } from "../../../../src/api/collections";
 import { artworkUrl } from "../../../../src/lib/artwork";
 
 const NUM_COLUMNS = 3;
@@ -49,6 +52,9 @@ export default function SmartFilterScreen() {
   const col = data?.collection;
   const items = data?.items ?? [];
   const rules = col?.rules ?? [];
+  const isAdmin = useAuthStore((s) => s.isAdmin);
+  const updateMut = useUpdateCollection();
+  const [editOpen, setEditOpen] = useState(false);
 
   const renderItem = useCallback(
     ({ item }: { item: CollectionItem }) => {
@@ -100,8 +106,29 @@ export default function SmartFilterScreen() {
           title: col?.name ?? t("media.collections.smart", "Smart Filter"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
+          headerRight: () =>
+            isAdmin && col ? (
+              <TouchableOpacity onPress={() => setEditOpen(true)} hitSlop={8} style={{ marginRight: 8 }} accessibilityRole="button" accessibilityLabel={t("media.playlist.editRules", "Edit rules")}>
+                <Ionicons name="options-outline" size={24} color={theme.colors.accent} />
+              </TouchableOpacity>
+            ) : null,
         }}
       />
+
+      {editOpen && col && (
+        <SmartRulesEditor
+          visible={editOpen}
+          onClose={() => setEditOpen(false)}
+          rules={rules.map((r) => ({ field: r.field as SmartRule["field"], operator: (r.operator || "eq") as SmartRule["operator"], value: r.value }))}
+          onSave={(newRules) => {
+            updateMut.mutate(
+              { id: filterId ?? "", name: col.name ?? "", rules: newRules.map((r) => ({ field: r.field, operator: r.operator, value: r.value })) },
+              { onSuccess: () => void refetch() },
+            );
+          }}
+          availableFields={COLLECTION_FIELDS}
+        />
+      )}
 
       {/* Rules badges */}
       {rules.length > 0 && (

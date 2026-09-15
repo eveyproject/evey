@@ -6,7 +6,7 @@ import { useTheme } from "../providers/ThemeProvider";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 import { useAllGenres } from "../hooks/useAllGenres";
 
-type RuleField = "genre" | "year" | "type" | "library_id";
+type RuleField = "genre" | "year" | "type" | "library_id" | "rating_gte";
 type Operator = "eq" | "gte" | "lte" | "gt" | "lt";
 
 export interface SmartRule {
@@ -20,6 +20,7 @@ const FIELD_LABELS: Record<RuleField, string> = {
   year: "Year",
   type: "Type",
   library_id: "Library",
+  rating_gte: "Rating ≥",
 };
 
 // Maps the (untranslated) chip copy above to its existing i18n key, used only
@@ -29,9 +30,13 @@ const FIELD_I18N_KEYS: Record<RuleField, string> = {
   year: "media.playlist.fieldYear",
   type: "media.playlist.fieldType",
   library_id: "media.playlist.fieldLibrary",
+  rating_gte: "media.playlist.fieldRating",
 };
 
-const ALL_FIELDS: RuleField[] = ["genre", "year", "type", "library_id"];
+// Playlists only support these four fields; collections add rating_gte (web
+// parity: SmartCollectionDialog). Callers pass availableFields to opt in.
+const PLAYLIST_FIELDS: RuleField[] = ["genre", "year", "type", "library_id"];
+export const COLLECTION_FIELDS: RuleField[] = ["genre", "year", "type", "library_id", "rating_gte"];
 
 const YEAR_OPERATORS: { value: Operator; label: string; a11yKey: string; a11yFallback: string }[] = [
   { value: "gte", label: ">=", a11yKey: "media.playlist.opGte", a11yFallback: "Greater than or equal to" },
@@ -49,6 +54,7 @@ function defaultRule(field: RuleField): SmartRule {
   if (field === "year") return { field: "year", operator: "gte", value: "" };
   if (field === "type") return { field: "type", operator: "eq", value: "MEDIA_ITEM_TYPE_MOVIE" };
   if (field === "library_id") return { field: "library_id", operator: "eq", value: "" };
+  if (field === "rating_gte") return { field: "rating_gte", operator: "gte", value: "" };
   return { field: "genre", operator: "eq", value: "" };
 }
 
@@ -57,9 +63,12 @@ interface Props {
   onClose: () => void;
   rules: SmartRule[];
   onSave: (rules: SmartRule[]) => void;
+  // Which rule fields the add-field picker offers. Defaults to the playlist set;
+  // collections pass COLLECTION_FIELDS to also offer rating_gte.
+  availableFields?: RuleField[];
 }
 
-export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
+export function SmartRulesEditor({ visible, onClose, rules, onSave, availableFields = PLAYLIST_FIELDS }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [local, setLocal] = useState<SmartRule[]>(rules);
@@ -110,7 +119,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
             <View key={idx} style={[styles.ruleRow, { borderBottomColor: theme.colors.border }]}>
               {/* Field picker */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
-                {ALL_FIELDS.map((f) => (
+                {availableFields.map((f) => (
                   <Pressable
                     key={f}
                     onPress={() => updateRule(idx, defaultRule(f))}
@@ -154,6 +163,18 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                     keyboardType="number-pad"
                     maxLength={4}
                     accessibilityLabel={t("media.playlist.fields.year", "Year")}
+                    style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.sm, flex: 1 }]}
+                  />
+                ) : rule.field === "rating_gte" ? (
+                  <TextInput
+                    value={rule.value}
+                    // A single decimal on a 0-10 scale: keep digits and at most one dot.
+                    onChangeText={(v) => updateRule(idx, { ...rule, value: v.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1") })}
+                    placeholder="7.5"
+                    placeholderTextColor={theme.colors.textMuted}
+                    keyboardType="decimal-pad"
+                    maxLength={4}
+                    accessibilityLabel={t("media.playlist.fieldRating", "Rating ≥")}
                     style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.sm, flex: 1 }]}
                   />
                 ) : rule.field === "type" ? (
