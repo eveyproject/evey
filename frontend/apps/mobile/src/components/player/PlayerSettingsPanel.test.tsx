@@ -82,6 +82,8 @@ const TRANSLATIONS: Record<string, string> = {
   "player.bgColors.navy": "Navy",
   "player.bgColors.none": "None",
   "common.back": "Back",
+  "player.settings.audio": "Audio",
+  "media.burnIn": "burn-in",
 };
 
 vi.mock("react-i18next", () => ({
@@ -326,3 +328,56 @@ describe("PlayerSettingsPanel - subtitle style", () => {
     expect(onSubtitleOffsetChange).toHaveBeenCalledWith(0);
   });
 });
+
+// Track selection was the one thing the player layout suite stubbed out
+// (PlayerSettingsPanel rendered as null): the audio and subtitle menus, what
+// they list, what they report and that the panel closes on a pick.
+describe("PlayerSettingsPanel - track selection", () => {
+  const audioStreams = [
+    { index: 1, trackIndex: 0, language: "fre", title: "VF", channels: 6 },
+    { index: 2, trackIndex: 1, language: "eng", channels: 2 },
+  ];
+  const subtitleStreams = [
+    { index: 3, trackIndex: 0, language: "fre", title: "Francais" },
+    { index: 4, trackIndex: 1, language: "eng", codec: "hdmv_pgs_subtitle", burnIn: true },
+  ];
+
+  it("hides the Audio entry without tracks and shows the current track's label with it", () => {
+    expect(render(<PlayerSettingsPanel {...baseProps} />).queryByLabelText("Audio")).toBeNull();
+    const { getByLabelText } = render(
+      <PlayerSettingsPanel {...baseProps} audioStreams={audioStreams} currentAudioIndex={1} />,
+    );
+    expect(getByLabelText("Audio").textContent).toContain("VF");
+  });
+
+  it("lists every audio track (title or language, with its layout) and reports the picked index once, then closes", () => {
+    const onAudioChange = vi.fn();
+    const onClose = vi.fn();
+    const { getByLabelText, getByText } = render(
+      <PlayerSettingsPanel {...baseProps} audioStreams={audioStreams} currentAudioIndex={1} onAudioChange={onAudioChange} onClose={onClose} />,
+    );
+    fireEvent.click(getByLabelText("Audio"));
+    expect(getByText("VF - 5.1")).toBeTruthy();
+    fireEvent.click(getByLabelText("eng - 2.0"));
+    expect(onAudioChange).toHaveBeenCalledTimes(1);
+    expect(onAudioChange).toHaveBeenCalledWith(2);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("lists Off plus every subtitle track, flags burn-in, and reports null for Off", () => {
+    const onSubtitleChange = vi.fn();
+    const onClose = vi.fn();
+    const { getByLabelText, getByText } = render(
+      <PlayerSettingsPanel {...baseProps} subtitleStreams={subtitleStreams} currentSubtitleIndex={3} onSubtitleChange={onSubtitleChange} onClose={onClose} />,
+    );
+    expect(getByLabelText("Subtitles").textContent).toContain("Francais");
+    fireEvent.click(getByLabelText("Subtitles"));
+    expect(getByText("burn-in")).toBeTruthy();
+    fireEvent.click(getByLabelText("eng"));
+    expect(onSubtitleChange).toHaveBeenCalledWith(4);
+    fireEvent.click(getByLabelText("Off"));
+    expect(onSubtitleChange).toHaveBeenLastCalledWith(null);
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+});
+
