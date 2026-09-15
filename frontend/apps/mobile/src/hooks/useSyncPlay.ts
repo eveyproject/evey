@@ -35,6 +35,9 @@ interface UseSyncPlayOptions {
   onMemberJoined?: (userId: string, username: string) => void;
   onMemberLeft?: (userId: string) => void;
   onTrackChange?: (trackIndex: number, mediaId: string) => void;
+  // A "watch together" guest has no JWT: it authenticates the room ws with the
+  // media-scoped token from POST /syncplay/join-code instead (web parity).
+  guestToken?: string;
 }
 
 interface GetRoomResponse {
@@ -72,7 +75,9 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
     leftVoluntarilyRef.current = false;
     reconnectAttemptRef.current = 0;
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); wsRef.current = null; }
-    const token = useAuthStore.getState().accessToken;
+    // A guest authenticates the room ws with its media-scoped join-code token;
+    // a logged-in member uses the account JWT.
+    const token = optsRef.current.guestToken ?? useAuthStore.getState().accessToken;
     const wsBase = serverUrl.replace(/^http/, "ws");
     const url = `${wsBase}/api/v1/syncplay/rooms/${roomId}/ws`;
     const ws = new WebSocket(url, [`Bearer.${token ?? ""}`]);
@@ -222,6 +227,13 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
     return { roomId: data.roomId, mediaId: data.mediaId };
   }, [connect]);
 
+  // Connect to a room the caller already resolved (a guest gets roomId from the
+  // join-code response, so it skips the JWT-gated joinByCode POST).
+  const joinRoom = useCallback((roomId: string) => {
+    setState((prev) => ({ ...prev, roomId, isHost: false }));
+    connect(roomId);
+  }, [connect]);
+
   const leaveRoom = useCallback(async () => {
     leftVoluntarilyRef.current = true;
     if (reconnectTimerRef.current) {
@@ -247,6 +259,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
     createRoom,
     createRoomFromPlaylist,
     joinByCode,
+    joinRoom,
     leaveRoom,
     sendPlay: (ms: number) => send({ type: "play", positionMs: ms }),
     sendPause: (ms: number) => send({ type: "pause", positionMs: ms }),
