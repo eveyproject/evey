@@ -82,7 +82,12 @@ type BufferedSink struct {
 	sendMu   sync.RWMutex
 	closed   atomic.Bool
 	workerWG sync.WaitGroup
+	// dropped feeds the throttled warning: one line per dropLogEvery drops,
+	// not one per event, so a full buffer under load cannot flood the log.
+	dropped atomic.Uint64
 }
+
+const dropLogEvery = 1000
 
 // SinkOptions tune the buffer + worker. Zero values produce 1024-event
 // buffer and 1 worker - fine for self-host workloads (single-server, dozens
@@ -132,12 +137,9 @@ func (s *BufferedSink) Record(evt Event) {
 	case s.ch <- evt:
 	default:
 		s.dropMtr.Inc()
-		// TODO: remove after CMCD stabilization - verbose drop warning to
-		// surface a misconfigured buffer size during the Phase 1 rollout.
-		s.logger.Warn("qoe sink buffer full, event dropped",
-			slog.String("media_id", evt.MediaItemID),
-			slog.Int("variant", evt.VariantIdx),
-			slog.Int("seg", evt.SegmentIdx))
+		if n := s.dropped.Add(1); n == 1 || n%dropLogEvery == 0 {
+			s.logger.Warn("qoe sink buffer full, events dropped", slog.Uint64("dropped_total", n))
+		}
 	}
 }
 
@@ -184,19 +186,6 @@ func (s *BufferedSink) processEvent(evt Event) {
 				slog.String("stack", string(debug.Stack())))
 		}
 	}()
-	// TODO: remove after CMCD stabilization - verbose per-event log to
-	// confirm payloads actually arrive during Phase 1.
-	s.logger.Debug("qoe ingest",
-		slog.String("media_id", evt.MediaItemID),
-		slog.String("user_id", evt.UserID),
-		slog.String("session_id", evt.Payload.SessionID),
-		slog.Int("variant", evt.VariantIdx),
-		slog.Int("seg", evt.SegmentIdx),
-		slog.Int("buffer_ms", evt.Payload.BufferLengthMs),
-		slog.Int("encoded_kbps", evt.Payload.EncodedKbps),
-		slog.Int("measured_kbps", evt.Payload.MeasuredKbps),
-		slog.Bool("starved", evt.Payload.BufferStarved),
-		slog.Bool("startup", evt.Payload.Startup))
 
 	// Use Background - the HTTP request context is long gone by the
 	// time we drain this event. The query has its own withTimeout.
