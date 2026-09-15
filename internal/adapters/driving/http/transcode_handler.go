@@ -102,6 +102,7 @@ func chaptersHandler(libSvc ChaptersGetter, baseURL string, libraryAccess Librar
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "get chapters failed")
+			logInternal(r.Context(), "chapters: get", err)
 			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
 			return
 		}
@@ -136,6 +137,7 @@ func libraryStatsHandler(libSvc LibraryLister, counter LibraryItemCounter) http.
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "list libraries failed")
+			logInternal(r.Context(), "transcode: list libraries", err)
 			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
 			return
 		}
@@ -219,6 +221,7 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "get media streams failed")
+		logInternal(r.Context(), "transcode: get media streams", err)
 		http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
 		return
 	}

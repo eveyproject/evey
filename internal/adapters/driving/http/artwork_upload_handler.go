@@ -124,6 +124,7 @@ func registerArtworkUploadRoute(
 		}
 		if _, seekErr := file.Seek(0, 0); seekErr != nil {
 			span.RecordError(seekErr)
+			logInternal(r.Context(), "artwork upload: seek", seekErr)
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}

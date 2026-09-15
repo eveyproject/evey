@@ -56,6 +56,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "list backups failed")
+			logInternal(r.Context(), "backups: list", err)
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}

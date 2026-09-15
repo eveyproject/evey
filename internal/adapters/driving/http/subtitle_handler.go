@@ -713,6 +713,7 @@ func (h *subtitleRoutes) delete(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "list failed")
+		logInternal(r.Context(), "subtitle list", err)
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}

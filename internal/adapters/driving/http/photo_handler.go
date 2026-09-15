@@ -148,6 +148,7 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 	const maxPhotoSize = 50 << 20 // 50 MB
 	data, err := io.ReadAll(io.LimitReader(f2, maxPhotoSize))
 	if err != nil {
+		logInternal(r.Context(), "photo: read file", err)
 		http.Error(w, `{"message":"read error"}`, http.StatusInternalServerError)
 		return
 	}

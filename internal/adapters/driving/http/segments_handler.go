@@ -66,6 +66,7 @@ func segmentsHandler(svc SegmentsGetter, baseURL string, libraryAccess LibraryAc
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "get segments failed")
+			logInternal(r.Context(), "segments: get", err)
 			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
 			return
 		}

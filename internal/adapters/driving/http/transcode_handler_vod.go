@@ -522,6 +522,7 @@ func (h *hlsVODServe) commonAuth(w http.ResponseWriter, r *http.Request, mediaID
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "streams resolve failed")
+			logInternal(r.Context(), "hls: get media streams", err)
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return nil, nil, false
 		}
@@ -614,6 +615,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "manifest master")
+		logInternal(r.Context(), "hls: master manifest", err)
 		http.Error(w, `{"message":"manifest error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -735,6 +737,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 				if mErr != nil {
 					span.RecordError(mErr)
 					span.SetStatus(codes.Error, "copy manifest")
+					logInternal(r.Context(), "hls: copy manifest", mErr)
 					http.Error(w, `{"message":"manifest error"}`, http.StatusInternalServerError)
 					return
 				}
@@ -754,6 +757,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "manifest variant")
+			logInternal(r.Context(), "hls: variant manifest", err)
 			http.Error(w, `{"message":"manifest error"}`, http.StatusInternalServerError)
 			return
 		}

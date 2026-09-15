@@ -50,6 +50,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 		if _, err := rand.Read(nonceBuf[:]); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "rand read failed")
+			logInternal(r.Context(), "oidc login: nonce", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -464,6 +465,7 @@ func (h *parentalHandler) applyPINChange(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "hash failed")
+		logInternal(r.Context(), "parental settings: hash pin", err)
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return false
 	}
@@ -514,12 +516,14 @@ func (h *parentalHandler) persistAndRespond(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		span.SetStatus(codes.Error, "invariant check failed")
+		logInternal(r.Context(), "parental settings: invariant check", err)
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
 	if err := h.profileRepo.UpdateParentalSettings(r.Context(), profile.ID, profile.Parental); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "profile update failed")
+		logInternal(r.Context(), "parental settings: update profile", err)
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -586,6 +590,7 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "verify failed")
+		logInternal(r.Context(), "parental pin: verify", err)
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}

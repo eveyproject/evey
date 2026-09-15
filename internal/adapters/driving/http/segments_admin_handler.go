@@ -81,6 +81,7 @@ func deleteSegmentHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, lib
 		}
 		if err := svc.DeleteSegment(r.Context(), mediaID, segType); err != nil {
 			span.RecordError(err)
+			logInternal(r.Context(), "segments: delete", err)
 			http.Error(w, `{"message":"delete failed"}`, http.StatusInternalServerError)
 			return
 		}

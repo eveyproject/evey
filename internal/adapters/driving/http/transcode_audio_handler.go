@@ -97,6 +97,7 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 
 	streams, err := h.libSvc.GetMediaStreams(r.Context(), mediaID)
 	if err != nil {
+		logInternal(r.Context(), "audio playlist: get media streams", err)
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -142,6 +143,7 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 
 	out, err := h.manifestGen.AudioPlaylist(in, trackIdx)
 	if err != nil {
+		logInternal(r.Context(), "audio playlist: manifest", err)
 		http.Error(w, `{"message":"manifest error"}`, http.StatusInternalServerError)
 		return
 	}
