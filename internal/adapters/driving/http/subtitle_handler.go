@@ -488,7 +488,6 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 
 type subtitleRoutes struct {
 	subtitleSvc   subtitleService
-	tokens        TokenVerifier
 	mediaGetter   MediaItemGetter
 	libraryAccess LibraryAccessChecker
 	parental      ParentalChecker
@@ -505,35 +504,24 @@ type subtitleRoutes struct {
 // it has already bitten this package more than once. A caller with no checker
 // must pass nil explicitly, so the omission is a deliberate, visible choice.
 func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service, tokenGen TokenVerifier, mediaGetter MediaItemGetter, libraryAccess LibraryAccessChecker, providerRL *ratelimit.Limiter, parental ParentalChecker) {
-	h := &subtitleRoutes{subtitleSvc: subtitleSvc, tokens: tokenGen, mediaGetter: mediaGetter, libraryAccess: libraryAccess, parental: parental}
+	h := &subtitleRoutes{subtitleSvc: subtitleSvc, mediaGetter: mediaGetter, libraryAccess: libraryAccess, parental: parental}
+	authMw := httpAuthMiddleware(tokenGen)
 	limited := func(next http.HandlerFunc) http.HandlerFunc {
 		if providerRL == nil {
 			return next
 		}
 		return ratelimit.MiddlewareFunc(providerRL, next)
 	}
-	mux.HandleFunc("GET /api/v1/media/{id}/subtitles/search", limited(h.search))
-	mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", limited(h.download))
-	mux.HandleFunc("GET /api/v1/media/{id}/subtitles", h.list)
-	mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", h.delete)
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles/search", limited(authMw(h.search)))
+	mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", limited(authMw(h.download)))
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles", authMw(h.list))
+	mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", authMw(h.delete))
 }
 
 func (h *subtitleRoutes) requireAuth(w http.ResponseWriter, r *http.Request) (*domainuser.Claims, bool) {
-	tok := r.Header.Get("Authorization")
-	if strings.HasPrefix(tok, "Bearer ") {
-		tok = tok[7:]
-	} else if t := r.URL.Query().Get("token"); t != "" {
-		tok = t
-	} else {
-		tok = ""
-	}
-	if tok == "" {
+	claims := HTTPClaimsFromContext(r.Context())
+	if claims == nil {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return nil, false
-	}
-	claims, err := h.tokens.ValidateAccessToken(tok)
-	if err != nil {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return nil, false
 	}
 	return claims, true

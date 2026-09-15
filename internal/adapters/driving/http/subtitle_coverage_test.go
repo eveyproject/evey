@@ -128,9 +128,10 @@ func TestSubtitleHandler_QueryToken(t *testing.T) {
 // media_handler.go - subtitleRoutes auth coverage
 // =====================================
 
-func TestSubtitleRoutes_RequireAuth_NoToken_401(t *testing.T) {
+// requireAuth reads the claims httpAuthMiddleware injected; a request that
+// somehow reaches the handler without them is refused, never served anonymously.
+func TestSubtitleRoutes_RequireAuth_NoClaims_401(t *testing.T) {
 	h := &subtitleRoutes{
-		tokens:        &fakeTokenVerifier{err: errTest},
 		mediaGetter:   &fakeMediaItemGetter{item: testMediaItem("lib1")},
 		libraryAccess: allowAll(),
 	}
@@ -138,40 +139,20 @@ func TestSubtitleRoutes_RequireAuth_NoToken_401(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	_, ok := h.requireAuth(w, req)
 	if ok {
-		t.Error("expected auth to fail without token")
+		t.Error("expected auth to fail without claims")
 	}
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 
-func TestSubtitleRoutes_RequireAuth_InvalidToken_403(t *testing.T) {
-	h := &subtitleRoutes{
-		tokens:        &fakeTokenVerifier{err: errTest},
-		mediaGetter:   &fakeMediaItemGetter{item: testMediaItem("lib1")},
-		libraryAccess: allowAll(),
-	}
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer bad")
-	_, ok := h.requireAuth(w, req)
-	if ok {
-		t.Error("expected auth to fail with invalid token")
-	}
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
 func TestSubtitleRoutes_RequireAuth_OK(t *testing.T) {
 	h := &subtitleRoutes{
-		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
 		mediaGetter:   &fakeMediaItemGetter{item: testMediaItem("lib1")},
 		libraryAccess: allowAll(),
 	}
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer tok")
+	req := withHTTPClaims(httptest.NewRequest(http.MethodGet, "/test", nil), testClaims(false))
 	claims, ok := h.requireAuth(w, req)
 	if !ok || claims == nil {
 		t.Error("expected auth to pass")
@@ -180,13 +161,11 @@ func TestSubtitleRoutes_RequireAuth_OK(t *testing.T) {
 
 func TestSubtitleRoutes_RequireMediaAccess_NotFound(t *testing.T) {
 	h := &subtitleRoutes{
-		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
 		mediaGetter:   &fakeMediaItemGetter{err: errTest},
 		libraryAccess: allowAll(),
 	}
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer tok")
+	req := withHTTPClaims(httptest.NewRequest(http.MethodGet, "/test", nil), testClaims(false))
 	_, ok := h.requireMediaAccess(w, req, "m1")
 	if ok {
 		t.Error("expected media access to fail")
@@ -198,13 +177,11 @@ func TestSubtitleRoutes_RequireMediaAccess_NotFound(t *testing.T) {
 
 func TestSubtitleRoutes_RequireMediaAccess_IDOR(t *testing.T) {
 	h := &subtitleRoutes{
-		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
 		mediaGetter:   &fakeMediaItemGetter{item: testMediaItem("restricted")},
 		libraryAccess: denyAll(),
 	}
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer tok")
+	req := withHTTPClaims(httptest.NewRequest(http.MethodGet, "/test", nil), testClaims(false))
 	_, ok := h.requireMediaAccess(w, req, "m1")
 	if ok {
 		t.Error("expected IDOR check to block")
@@ -276,7 +253,9 @@ func TestSubtitleSearch_NoAuth_401(t *testing.T) {
 	}
 }
 
-func TestSubtitleSearch_InvalidToken_403(t *testing.T) {
+// A rejected bearer is a 401 like everywhere else on the mux - the routes go
+// through httpAuthMiddleware, not a hand-rolled check answering 403.
+func TestSubtitleSearch_InvalidToken_401(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	repo := subfakes.NewFakeRepository()
@@ -291,8 +270,8 @@ func TestSubtitleSearch_InvalidToken_403(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer bad-token")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 

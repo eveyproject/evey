@@ -58,8 +58,16 @@ func (f *fakeSubtitleService) Delete(_ context.Context, subtitleID string) error
 	return f.deleteErr
 }
 
-func newSubtitleRoutes(svc subtitleService, tokens TokenVerifier, mg MediaItemGetter, la LibraryAccessChecker) *subtitleRoutes {
-	return &subtitleRoutes{subtitleSvc: svc, tokens: tokens, mediaGetter: mg, libraryAccess: la}
+// subtitleRoutesUnderTest exposes each route already wrapped in the auth
+// middleware, exactly as registerSubtitleRoutes mounts it.
+type subtitleRoutesUnderTest struct {
+	search, download, list, delete http.HandlerFunc
+}
+
+func newSubtitleRoutes(svc subtitleService, tokens TokenVerifier, mg MediaItemGetter, la LibraryAccessChecker) subtitleRoutesUnderTest {
+	h := &subtitleRoutes{subtitleSvc: svc, mediaGetter: mg, libraryAccess: la}
+	auth := httpAuthMiddleware(tokens)
+	return subtitleRoutesUnderTest{search: auth(h.search), download: auth(h.download), list: auth(h.list), delete: auth(h.delete)}
 }
 
 func subtitleMediaGetter(libraryID string) *fakeMediaGetter {
