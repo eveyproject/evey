@@ -142,46 +142,6 @@ func (r *FakePlaySessionRepository) GetActiveByProfile(_ context.Context, profil
 	return result, nil
 }
 
-func (r *FakePlaySessionRepository) GetHistory(_ context.Context, filter playback.PlaySessionFilter) ([]*playback.PlaySession, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.Err != nil {
-		return nil, r.Err
-	}
-	var result []*playback.PlaySession
-	for _, s := range r.items {
-		if filter.ProfileID != nil && string(s.ProfileID) != *filter.ProfileID {
-			continue
-		}
-		if filter.StartFrom != nil && s.StartedAt.Before(*filter.StartFrom) {
-			continue
-		}
-		if filter.StartTo != nil && s.StartedAt.After(*filter.StartTo) {
-			continue
-		}
-		result = append(result, s)
-	}
-	if filter.Offset > 0 && filter.Offset < len(result) {
-		result = result[filter.Offset:]
-	} else if filter.Offset >= len(result) {
-		return nil, nil
-	}
-	// Postgres clamps a zero Limit to 500 rather than returning everything
-	// (see the matching repository under adapters/driven/postgres). A fake that
-	// hands back the whole set makes an unpaginated read look correct in tests
-	// and silently truncate in production - the shape of bug this repository
-	// has already shipped once.
-	const defaultListLimit = 500 // mirrors the postgres repository's clamp
-	limit := filter.Limit
-	if limit <= 0 {
-		limit = defaultListLimit
-	}
-	if limit < len(result) {
-		result = result[:limit]
-	}
-	return result, nil
-}
-
 func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time.Duration) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

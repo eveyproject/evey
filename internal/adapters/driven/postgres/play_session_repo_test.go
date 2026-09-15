@@ -187,35 +187,6 @@ func TestPlaySessionRepo_GetActiveByProfile(t *testing.T) {
 	assert.Equal(t, "Living room TV", active[0].CastDeviceName)
 }
 
-func TestPlaySessionRepo_GetHistory(t *testing.T) {
-	db, cleanup := testhelpers.StartPostgres(t)
-	defer cleanup()
-
-	userRepo := postgres.NewUserRepository(db)
-	profileRepo := postgres.NewProfileRepository(db)
-	libRepo := postgres.NewLibraryRepository(db)
-	itemRepo := postgres.NewMediaItemRepository(db)
-	sessionRepo := postgres.NewPlaySessionRepository(db)
-	ctx := context.Background()
-
-	u := newTestUser("psu4")
-	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("psp4", u.ID)
-	require.NoError(t, profileRepo.Create(ctx, p))
-	lib := newTestLibrary("pslib4")
-	require.NoError(t, libRepo.Create(ctx, lib))
-	item := newTestMediaItem("psmi4", lib.ID)
-	require.NoError(t, itemRepo.Create(ctx, item))
-
-	require.NoError(t, sessionRepo.Create(ctx, newTestPlaySession("ps4a", string(p.ID), string(item.ID))))
-	require.NoError(t, sessionRepo.Create(ctx, newTestPlaySession("ps4b", string(p.ID), string(item.ID))))
-
-	pid := string(p.ID)
-	list, err := sessionRepo.GetHistory(ctx, playback.PlaySessionFilter{ProfileID: &pid, Limit: 10})
-	require.NoError(t, err)
-	assert.Len(t, list, 2)
-}
-
 func TestPlaySessionRepo_CloseStale(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
