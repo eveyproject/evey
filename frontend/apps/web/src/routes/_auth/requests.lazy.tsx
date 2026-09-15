@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { Inbox, Film, Tv, Music, Check } from "lucide-react";
 import {
   useMediaRequestServiceGetRequestPolicy,
   useMediaRequestServiceSearchTitles,
   useMediaRequestServiceCreateRequest,
-  useMediaRequestServiceListMyRequests,
+  mediaRequestServiceListMyRequests,
   getMediaRequestServiceListMyRequestsQueryKey,
   type V1TitleCandidate,
   type V1MediaRequestProto,
@@ -22,6 +22,7 @@ import { ICON } from "@/constants/iconSizes";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { RequestPoster } from "@/features/requests/RequestPoster";
+import { useInfiniteSentinel } from "@/hooks/useInfiniteSentinel";
 
 export const Route = createLazyFileRoute("/_auth/requests")({
   component: RequestsPage,
@@ -262,14 +263,21 @@ function MineTab({
   isError,
   error,
   onRetry,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
 }: {
   requests: V1MediaRequestProto[];
   isLoading: boolean;
   isError?: boolean;
   error?: unknown;
   onRetry?: () => void;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  fetchNextPage: () => void;
 }) {
   const { t } = useTranslation();
+  const sentinelRef = useInfiniteSentinel<HTMLLIElement>(hasNextPage, isFetchingNextPage, fetchNextPage);
 
   if (isLoading) {
     return (
@@ -325,6 +333,9 @@ function MineTab({
           </div>
         </Card>
       ))}
+      <li ref={sentinelRef} className="flex justify-center py-2" aria-hidden={!isFetchingNextPage}>
+        {isFetchingNextPage && <Spinner size="sm" />}
+      </li>
     </ul>
   );
 }
@@ -334,26 +345,39 @@ function capitalize(s?: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+const REQUESTS_PAGE_SIZE = 50;
+
 function RequestsPage() {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("search");
 
   const { data: policy, isLoading: policyLoading, isError: policyError, error: policyErr, refetch: refetchPolicy } = useMediaRequestServiceGetRequestPolicy();
+  // Pages of REQUESTS_PAGE_SIZE behind a scroll sentinel: the list used to
+  // ask for nothing and get the server's default 50, past which older
+  // requests were simply gone. The key keeps the generated prefix so the
+  // create-request invalidation still refreshes it.
   const {
-    data: myRequestsResp,
+    data: myRequestsData,
     isLoading: mineLoading,
     isError: mineError,
     error: mineErr,
     refetch: refetchMine,
-  } = useMediaRequestServiceListMyRequests(
-    undefined,
-    { query: { enabled: policy?.canRequest === true } },
-  );
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: [...getMediaRequestServiceListMyRequestsQueryKey(), "pages"],
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) => mediaRequestServiceListMyRequests({ limit: REQUESTS_PAGE_SIZE, offset: pageParam }, signal),
+    getNextPageParam: (last, _pages, lastOffset) =>
+      (last.items?.length ?? 0) < REQUESTS_PAGE_SIZE ? undefined : lastOffset + REQUESTS_PAGE_SIZE,
+    enabled: policy?.canRequest === true,
+  });
   // Same reasoning as the policy read above: an unread list is not an empty
   // one. The empty list also silently clears requestedKeys, which is what puts
   // the "already requested" badge on a search result - so a failed read lets
   // the viewer re-submit what they already asked for.
-  const myRequests = myRequestsResp?.items ?? [];
+  const myRequests = myRequestsData?.pages.flatMap((p) => p.items ?? []) ?? [];
 
   if (policyLoading) {
     return (
@@ -411,6 +435,9 @@ function RequestsPage() {
           isError={mineError}
           error={mineErr}
           onRetry={() => void refetchMine()}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          fetchNextPage={() => void fetchNextPage()}
         />
       )}
     </div>

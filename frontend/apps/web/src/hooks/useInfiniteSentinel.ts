@@ -4,8 +4,8 @@ import { useEffect, useRef } from "react";
 // auto-load the next page when it scrolls into view. Returns the ref to attach.
 // Without IntersectionObserver (older WebViews, jsdom) the list simply stops at
 // the loaded pages instead of throwing.
-export function useInfiniteSentinel(hasNext: boolean, isFetching: boolean, fetchNext: () => void) {
-  const ref = useRef<HTMLDivElement>(null);
+export function useInfiniteSentinel<T extends Element = HTMLDivElement>(hasNext: boolean, isFetching: boolean, fetchNext: () => void) {
+  const ref = useRef<T>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
