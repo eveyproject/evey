@@ -71,3 +71,43 @@ func TestImpersonateUser(t *testing.T) {
 		t.Error("an unauthenticated context must be refused")
 	}
 }
+
+// ValidateInvite is the pre-registration probe: it never errors on a bad code
+// (no oracle beyond valid/invalid), and it reports the admin flag of a usable
+// invite so the sign-up form can say what the account will be.
+func TestValidateInvite(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "adm-1", Username: "admin", IsAdmin: true}, "pw")
+	admin := ctxWithClaims("adm-1", "prf-adm", true)
+
+	plain, err := env.handler.CreateInviteLink(admin, &eveyv1.CreateInviteLinkRequest{MaxUses: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	elevated, err := env.handler.CreateInviteLink(admin, &eveyv1.CreateInviteLinkRequest{MaxUses: 1, IsAdmin: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := env.handler.ValidateInvite(context.Background(), &eveyv1.ValidateInviteRequest{Code: plain.Code})
+	if err != nil || !resp.Valid || resp.IsAdmin {
+		t.Errorf("plain invite: resp=%+v err=%v, want valid and not admin", resp, err)
+	}
+	resp, err = env.handler.ValidateInvite(context.Background(), &eveyv1.ValidateInviteRequest{Code: elevated.Code})
+	if err != nil || !resp.Valid || !resp.IsAdmin {
+		t.Errorf("admin invite: resp=%+v err=%v, want valid and admin", resp, err)
+	}
+	resp, err = env.handler.ValidateInvite(context.Background(), &eveyv1.ValidateInviteRequest{Code: "no-such-code"})
+	if err != nil || resp.Valid || resp.IsAdmin {
+		t.Errorf("unknown code: resp=%+v err=%v, want invalid without error", resp, err)
+	}
+
+	// A revoked invite stops validating.
+	if _, revokeErr := env.handler.RevokeInviteLink(admin, &eveyv1.RevokeInviteLinkRequest{Id: plain.Id}); revokeErr != nil {
+		t.Fatal(revokeErr)
+	}
+	resp, err = env.handler.ValidateInvite(context.Background(), &eveyv1.ValidateInviteRequest{Code: plain.Code})
+	if err != nil || resp.Valid {
+		t.Errorf("revoked invite: resp=%+v err=%v, want invalid", resp, err)
+	}
+}
