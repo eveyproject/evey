@@ -336,6 +336,11 @@ export default function CollectionDetailScreen() {
           {col.overview}
         </Text>
       ) : null}
+      {!isError && !isLoading && items.length > 0 ? (
+        <Text style={{ color: theme.colors.textMuted, fontSize: 12, paddingHorizontal: 16, paddingBottom: 4 }}>
+          {t("common.itemCount", "{{count}} items", { count: items.length })}
+        </Text>
+      ) : null}
       {isError ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <Text style={{ color: theme.colors.textMuted, marginBottom: 12 }}>{t("common.loadError")}</Text>

@@ -217,6 +217,12 @@ export default function PlaylistDetailScreen() {
           headerRight,
         }}
       />
+      {/* Manual/smart type badge under the header (web parity). */}
+      <View style={{ alignSelf: "flex-start", marginHorizontal: 16, marginTop: 8, backgroundColor: isSmart ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+        <Text style={{ color: isSmart ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 10, fontWeight: "700" }}>
+          {isSmart ? t("media.playlist.smart") : t("media.playlist.manual")}
+        </Text>
+      </View>
       {playlist.description ? (
         <Text style={[styles.description, { color: theme.colors.textMuted }]}>
           {playlist.description}

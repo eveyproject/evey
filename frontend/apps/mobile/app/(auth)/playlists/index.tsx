@@ -74,6 +74,11 @@ function PlaylistCard({
             <Text style={{ color: theme.colors.onAccent, fontSize: 10, fontWeight: "700" }}>SMART</Text>
           </View>
         ) : null}
+        {playlist.created_at ? (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 2 }} numberOfLines={1}>
+            {t("media.created")} {new Date(playlist.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+          </Text>
+        ) : null}
       </View>
       {/* Deleting a playlist was reachable only by a long press, with nothing
           on screen saying so - the web shows a visible trash on every card.
