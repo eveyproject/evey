@@ -350,8 +350,9 @@ function StatsTab() {
               {data.popularMedia.map((m) => (
                 <View key={m.mediaItemId} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
                   <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} numberOfLines={1}>{m.title ?? "-"}</Text>
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 12, textAlign: "right" }}>
                     {t("admin.activity.plays", { count: m.playCount ?? 0, defaultValue: "{{count}} plays" })}
+                    {(m.uniqueViewers ?? 0) > 0 ? `\n${t("admin.activity.viewers", { count: m.uniqueViewers, defaultValue: "{{count}} viewers" })}` : ""}
                   </Text>
                 </View>
               ))}
