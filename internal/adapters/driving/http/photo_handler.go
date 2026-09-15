@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"fmt"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"io"
 	"log/slog"
@@ -138,6 +139,17 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 		}
 		http.ServeContent(w, r, filepath.Base(p.FilePath), fi.ModTime(), f)
 		return
+	}
+	// The EXIF strip rewrites the bytes, so the file's mtime cannot be the
+	// Last-Modified; an ETag from its stat gives the browser a revalidation
+	// that costs a stat instead of a 50 MB read and strip.
+	if fi, statErr := os.Stat(p.FilePath); statErr == nil {
+		etag := fmt.Sprintf(`"%x-%x"`, fi.Size(), fi.ModTime().UnixNano())
+		w.Header().Set("ETag", etag)
+		if r.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
 	}
 	f2, err := os.Open(p.FilePath)
 	if err != nil {

@@ -6,10 +6,13 @@ import (
 	"crypto/rsa"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	appphoto "github.com/evey-project/evey/internal/app/photo"
+	"github.com/evey-project/evey/internal/domain/photo"
 	photofakes "github.com/evey-project/evey/internal/domain/photo/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
@@ -97,3 +100,54 @@ func TestServePhoto_NoAuth_401(t *testing.T) {
 		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
+
+// A JPEG is read whole and EXIF-stripped on every request: a revalidation of an
+// unchanged file must answer 304 from its stat, without that work. Proven by
+// making the file unreadable between the two requests.
+func TestServePhoto_JPEGRevalidatesFromStat(t *testing.T) {
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	tokenGen := auth.NewJWTGenerator(key, time.Minute)
+	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", IsAdmin: false})
+	path := filepath.Join(t.TempDir(), "shot.jpg")
+	// Smallest JPEG that the EXIF stripper walks: SOI + EOI.
+	if err := os.WriteFile(path, []byte{0xFF, 0xD8, 0xFF, 0xD9}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repo := photofakes.NewFakeRepository()
+	if err := repo.Upsert(context.Background(), photo.Photo{ID: "ph-1", LibraryID: "lib1", FilePath: path, MimeType: "image/jpeg"}); err != nil {
+		t.Fatal(err)
+	}
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, nil)
+	mux := http.NewServeMux()
+	registerPhotoRoutes(mux, svc, tokenGen, allowAll(), nil, context.Background(), nil, "", nil)
+
+	get := func(inm string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/ph-1/serve", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		if inm != "" {
+			req.Header.Set("If-None-Match", inm)
+		}
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+	first := get("")
+	if first.Code != http.StatusOK {
+		t.Fatalf("first: %d %s", first.Code, first.Body.String())
+	}
+	etag := first.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("a JPEG response must carry an ETag so the browser can revalidate")
+	}
+	if err := os.Chmod(path, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
+	if _, err := os.ReadFile(path); err == nil {
+		t.Skip("running as root: an unreadable file cannot prove the shortcut")
+	}
+	if got := get(etag).Code; got != http.StatusNotModified {
+		t.Fatalf("revalidation of an unchanged file: got %d, want 304", got)
+	}
+}
+
