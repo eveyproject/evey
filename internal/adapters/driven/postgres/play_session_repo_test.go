@@ -330,3 +330,47 @@ func TestPlaySessionRepo_UpdateProgress_GuardedOnEndedAt(t *testing.T) {
 	assert.Equal(t, int64(42000), after.Position.Milliseconds(), "the ended session's fields must be untouched by the late tick")
 	assert.Equal(t, "Living room TV", after.CastDeviceName)
 }
+
+// A draining server ends every open session in one statement; a remote
+// command (admin "stop"/"pause") only lands on a session that is still open
+// and is consumed exactly once.
+func TestPlaySessionRepo_CloseAllActive_AndRemoteCommand(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("psu9")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("psp9", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("pslib9")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	item := newTestMediaItem("psmi9", lib.ID)
+	require.NoError(t, postgres.NewMediaItemRepository(db).Create(ctx, item))
+	repo := postgres.NewPlaySessionRepository(db)
+
+	require.NoError(t, repo.Create(ctx, newTestPlaySession("ps9a", string(p.ID), string(item.ID))))
+	require.NoError(t, repo.Create(ctx, newTestPlaySession("ps9b", string(p.ID), string(item.ID))))
+
+	require.NoError(t, repo.SetRemoteCommand(ctx, "ps9a", "pause"))
+	cmd, err := repo.ConsumeRemoteCommand(ctx, "ps9a")
+	require.NoError(t, err)
+	assert.Equal(t, "pause", cmd)
+	cmd, err = repo.ConsumeRemoteCommand(ctx, "ps9a")
+	require.NoError(t, err)
+	assert.Empty(t, cmd, "a command is delivered once")
+
+	closed, err := repo.CloseAllActive(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, closed)
+	closed, err = repo.CloseAllActive(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, closed, "nothing left open")
+	active, err := repo.CountActiveByUser(ctx, string(u.ID))
+	require.NoError(t, err)
+	assert.Zero(t, active)
+
+	require.NoError(t, repo.SetRemoteCommand(ctx, "ps9b", "stop"))
+	cmd, err = repo.ConsumeRemoteCommand(ctx, "ps9b")
+	require.NoError(t, err)
+	assert.Empty(t, cmd, "an ended session never receives a command")
+}
