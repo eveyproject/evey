@@ -98,6 +98,11 @@ vi.mock("../../../src/lib/query-client", () => ({
   queryClient: { clear: (...a: unknown[]) => queryClientClearMock(...a) },
 }));
 const clearRefreshTokenMock = vi.fn().mockResolvedValue(undefined);
+const signOutDeviceMock = vi.fn();
+vi.mock("../../../src/lib/sign-out", () => ({
+  signOutDevice: () => signOutDeviceMock(),
+}));
+
 const forceRefreshMock = vi.fn(async () => ({ accessToken: "rotated-access-token" }));
 vi.mock("../../../src/lib/auth-refresh", () => ({
   forceRefresh: () => forceRefreshMock(),
@@ -159,6 +164,7 @@ beforeEach(() => {
   });
   systemInfoMock.mockReturnValue({ data: { version: "1.0.0" } });
   userServiceLogoutMock.mockResolvedValue({});
+  signOutDeviceMock.mockResolvedValue(undefined);
   eveyFetchMock.mockResolvedValue({});
 });
 
@@ -176,14 +182,14 @@ describe("SettingsScreen (TV) playback entry", () => {
 });
 
 describe("SettingsScreen (TV) sign out revokes the server session", () => {
-  it("calls the logout RPC so the refresh token is revoked server-side, not just cleared locally", () => {
+  it("ends this device's session server-side (sign-out helper), not just locally", () => {
     render(<SettingsScreen />);
     fireEvent.click(screen.getByLabelText("mobile.settings.signOut"));
-    expect(userServiceLogoutMock).toHaveBeenCalledWith({});
+    expect(signOutDeviceMock).toHaveBeenCalledTimes(1);
   });
 
   it("clears local session state and navigates away immediately, without waiting on the network call", () => {
-    userServiceLogoutMock.mockReturnValue(new Promise(() => {})); // never resolves
+    signOutDeviceMock.mockReturnValue(new Promise(() => {})); // never resolves
     render(<SettingsScreen />);
     fireEvent.click(screen.getByLabelText("mobile.settings.signOut"));
     expect(logoutMock).toHaveBeenCalled();
@@ -191,7 +197,7 @@ describe("SettingsScreen (TV) sign out revokes the server session", () => {
   });
 
   it("still leaves the local session cleared when the offline TV can't reach the server", async () => {
-    userServiceLogoutMock.mockRejectedValue(Object.assign(new Error("network down"), { httpStatus: undefined }));
+    signOutDeviceMock.mockRejectedValue(Object.assign(new Error("network down"), { httpStatus: undefined }));
     render(<SettingsScreen />);
     fireEvent.click(screen.getByLabelText("mobile.settings.signOut"));
     expect(logoutMock).toHaveBeenCalled();
@@ -205,7 +211,7 @@ describe("SettingsScreen (TV) sign out revokes the server session", () => {
     render(<SettingsScreen />);
     fireEvent.click(screen.getByLabelText("mobile.settings.signOut"));
     expect(queryClientClearMock).toHaveBeenCalled();
-    expect(clearRefreshTokenMock).toHaveBeenCalled();
+    expect(signOutDeviceMock).toHaveBeenCalled();
     expect(clearUnlockedMock).toHaveBeenCalled();
   });
 });

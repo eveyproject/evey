@@ -20,10 +20,9 @@ vi.mock("expo-secure-store", () => secure);
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (_k: string, fallback?: string) => (typeof fallback === "string" ? fallback : _k) }) }));
 const qc = vi.hoisted(() => ({ clear: vi.fn() }));
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => qc }));
-const api = vi.hoisted(() => ({ logout: vi.fn().mockResolvedValue({}) }));
-vi.mock("@evey/api", () => ({ userServiceLogout: (...a: unknown[]) => api.logout(...a), apiErrorMessage: (e: Error, _t: unknown, f: string) => e.message || f }));
-const lib = vi.hoisted(() => ({ clearRefreshToken: vi.fn().mockResolvedValue(undefined), switchProfileToken: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("../../lib/refresh-token", () => ({ clearRefreshToken: (...a: unknown[]) => lib.clearRefreshToken(...a) }));
+vi.mock("@evey/api", () => ({ apiErrorMessage: (e: Error, _t: unknown, f: string) => e.message || f }));
+const lib = vi.hoisted(() => ({ signOutDevice: vi.fn().mockResolvedValue(undefined), switchProfileToken: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("../../lib/sign-out", () => ({ signOutDevice: (...a: unknown[]) => lib.signOutDevice(...a) }));
 vi.mock("../../lib/profile-switch", () => ({ switchProfileToken: (...a: unknown[]) => lib.switchProfileToken(...a) }));
 const store = vi.hoisted(() => ({ toast: { success: vi.fn(), error: vi.fn() }, logout: vi.fn(), isAdmin: false }));
 vi.mock("@evey/store", () => ({
@@ -62,7 +61,7 @@ beforeEach(() => {
   vi.useRealTimers();
   store.isAdmin = false;
   lib.switchProfileToken.mockResolvedValue(undefined);
-  lib.clearRefreshToken.mockResolvedValue(undefined);
+  lib.signOutDevice.mockResolvedValue(undefined);
 });
 
 // Switching profiles drops the WHOLE query cache (never a stale kids-filtered
@@ -109,14 +108,14 @@ describe("ProfileSwitcher", () => {
 
   it("signs out: cache cleared, session dropped, refresh token wiped - loudly when it cannot be", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    lib.clearRefreshToken.mockRejectedValueOnce(new Error("keychain locked"));
+    lib.signOutDevice.mockRejectedValueOnce(new Error("keychain locked"));
     render(<ProfileSwitcher profiles={profiles} activeProfileId="p-adult" />);
     fireEvent.click(screen.getByLabelText("User menu"));
     expect(screen.queryByLabelText("Admin")).toBeNull();
     fireEvent.click(screen.getByLabelText("Sign out"));
     expect(qc.clear).toHaveBeenCalled();
     expect(store.logout).toHaveBeenCalled();
-    expect(api.logout).toHaveBeenCalled();
+    expect(lib.signOutDevice).toHaveBeenCalled();
     await waitFor(() => expect(store.toast.error).toHaveBeenCalledWith(expect.stringContaining("Sign-out may be incomplete")));
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/login"));
   });

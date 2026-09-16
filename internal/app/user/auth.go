@@ -568,9 +568,23 @@ func (s *CommandService) lookupProfileLocale(ctx context.Context, profileID stri
 	return prof.Locale
 }
 
-func (s *CommandService) Logout(ctx context.Context, userID string) error {
+// Logout ends ONE device's session when it presents its refresh token: that
+// row alone is deleted and the other devices keep playing. Without a token
+// (older clients) it falls back to the account-wide revoke below - signing out
+// of a phone used to log the TV and the browser out too.
+func (s *CommandService) Logout(ctx context.Context, userID, refreshToken string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.Logout")
 	defer span.End()
+	if refreshToken != "" {
+		h := sha256.Sum256([]byte(refreshToken))
+		rt, err := s.refreshTkns.GetByTokenHash(ctx, hex.EncodeToString(h[:]))
+		if err == nil && string(rt.UserID) == userID {
+			if err := s.refreshTkns.DeleteByID(ctx, rt.ID); err != nil {
+				return fmt.Errorf("CommandService.Logout: %w", err)
+			}
+			return nil
+		}
+	}
 	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
 		return fmt.Errorf("CommandService.Logout: %w", err)
 	}
