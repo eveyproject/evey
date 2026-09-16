@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -355,5 +357,35 @@ func TestSpriteCredential_NoCredentialWithoutAnIdentity(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay", nil)
 	if got := spriteCredential(req, nil, nil, "m1"); got != "" {
 		t.Errorf("got %q, want empty: nothing may be handed to an anonymous caller", got)
+	}
+}
+
+// The sidecar carries the REAL per-frame timestamps the VTT is built from:
+// a missing sprite dir, a missing file or a corrupt one are errors (the
+// caller falls back to the nominal interval), a valid one yields the frames
+// in order.
+func TestReadSidecarTimestamps(t *testing.T) {
+	if _, err := readSidecarTimestamps(""); err == nil {
+		t.Error("empty image path must be refused")
+	}
+	dir := t.TempDir()
+	if _, err := readSidecarTimestamps(dir); err == nil {
+		t.Error("no sidecar yet: an error, not an empty list")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "trickplay.json"), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readSidecarTimestamps(dir); err == nil {
+		t.Error("a corrupt sidecar must be reported")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "trickplay.json"), []byte(`{"frame_ms":[0,10040,20080,30120]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := readSidecarTimestamps(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 4 || got[1] != 10040 || got[3] != 30120 {
+		t.Errorf("frames = %v", got)
 	}
 }
