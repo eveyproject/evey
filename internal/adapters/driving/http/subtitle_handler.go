@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -732,7 +733,14 @@ func (h *subtitleRoutes) delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.subtitleSvc.Delete(r.Context(), subtitleID); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "delete failed")
-		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		// Listed a moment ago: gone now is a race, anything else is a fault
+		// and must not read as "already deleted".
+		if errors.Is(err, shared.ErrNotFound) {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		logInternal(r.Context(), "subtitle delete", err)
+		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

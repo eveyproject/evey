@@ -404,22 +404,33 @@ func TestSubtitleDelete_NotInList_404(t *testing.T) {
 	}
 }
 
-func TestSubtitleDelete_ServiceError_404(t *testing.T) {
-	svc := &fakeSubtitleService{
-		listSubs:  []*domainsubtitle.SubtitleDownload{{ID: "s1"}},
-		deleteErr: errors.New("boom"),
+// The row was just listed, so a failed delete is either a race (someone
+// removed it first: 404) or a storage fault. The fault used to answer 404
+// too, which told the client the file was gone while it was still there.
+func TestSubtitleDelete_ServiceError(t *testing.T) {
+	del := func(deleteErr error) *httptest.ResponseRecorder {
+		svc := &fakeSubtitleService{
+			listSubs:  []*domainsubtitle.SubtitleDownload{{ID: "s1"}},
+			deleteErr: deleteErr,
+		}
+		h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+		mux := http.NewServeMux()
+		mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", h.delete)
+		req := httptest.NewRequest(http.MethodDelete, "/api/v1/media/m1/subtitles/s1", nil)
+		req.Header.Set("Authorization", "Bearer tok")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
 	}
-	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
-	mux := http.NewServeMux()
-	mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", h.delete)
-
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/media/m1/subtitles/s1", nil)
-	req.Header.Set("Authorization", "Bearer tok")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d", w.Code)
+	if w := del(shared.ErrNotFound); w.Code != http.StatusNotFound {
+		t.Fatalf("vanished row: expected 404, got %d", w.Code)
+	}
+	w := del(errors.New("pq: connection reset at /var/lib/postgresql"))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("storage fault: expected 500, got %d", w.Code)
+	}
+	if strings.Contains(w.Body.String(), "postgresql") {
+		t.Errorf("internal detail leaked: %s", w.Body.String())
 	}
 }
 
