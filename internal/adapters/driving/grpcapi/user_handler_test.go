@@ -15,6 +15,8 @@ import (
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -1188,4 +1190,61 @@ func TestCreateProfile_OptionsAndRefusals(t *testing.T) {
 	}
 	_, err = env.handler.CreateProfile(ctx, &eveyv1.CreateProfileRequest{UserId: "usr-1", Name: "Third"})
 	assertCode(t, err, codes.FailedPrecondition)
+}
+
+// The patch semantics of the remaining profile fields: an empty region
+// clears it, a bitrate cap rides the preferences map and is lifted out of
+// it (0 clears it), a negative max age clears the age cap, a new PIN is
+// hashed, an escaping avatar or a malformed PIN is refused with nothing
+// persisted, and removing the guardian PIN next to a kids profile is a
+// FailedPrecondition.
+func TestUpdateProfile_FieldSemantics(t *testing.T) {
+	env := setupUserHandler()
+	region := "fr"
+	age := 12
+	require.NoError(t, env.profileRepo.Create(context.Background(), &user.Profile{
+		ID: "prf-1", UserID: "usr-1", Name: "Parent", Region: &region,
+		Parental: &user.ParentalSettings{MaxAge: &age, PINHash: "hashed:1111"},
+	}))
+	ctx := userCtx("usr-1", "prf-1")
+	get := func() *user.Profile {
+		p, err := env.profileRepo.GetByID(context.Background(), "prf-1")
+		require.NoError(t, err)
+		return p
+	}
+
+	empty, pin, negAge := "", "4321", int32(-1)
+	_, err := env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{
+		Id: "prf-1", Region: &empty, Pin: &pin, MaxAge: &negAge,
+		Preferences: map[string]string{"theme": "dark", "max_bitrate_kbps": "8000"},
+	})
+	require.NoError(t, err)
+	p := get()
+	assert.Nil(t, p.Region, "an empty region clears it")
+	assert.Nil(t, p.Parental.MaxAge, "a negative max age clears the cap")
+	assert.NotEqual(t, "hashed:1111", p.Parental.PINHash)
+	assert.NotEqual(t, "4321", p.Parental.PINHash, "the PIN is hashed")
+	require.NotNil(t, p.MaxBitrateKbps)
+	assert.Equal(t, 8000, *p.MaxBitrateKbps)
+	assert.NotContains(t, p.Preferences, "max_bitrate_kbps", "the cap is lifted out of the map")
+	assert.Equal(t, "dark", p.Preferences["theme"])
+
+	_, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", Preferences: map[string]string{"max_bitrate_kbps": "0"}})
+	require.NoError(t, err)
+	assert.Nil(t, get().MaxBitrateKbps, "0 lifts the cap")
+
+	bad := "avatars/../secret"
+	_, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", AvatarPath: &bad})
+	assertCode(t, err, codes.InvalidArgument)
+	badPIN := "12ab"
+	_, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", Pin: &badPIN})
+	assertCode(t, err, codes.InvalidArgument)
+	assert.Nil(t, get().AvatarPath, "refused patches write nothing")
+
+	// A kids sibling appears: the guardian must keep a PIN.
+	require.NoError(t, env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-kid", UserID: "usr-1", Name: "Kid", IsKids: true}))
+	noPIN := ""
+	_, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", Pin: &noPIN})
+	assertCode(t, err, codes.FailedPrecondition)
+	assert.NotEmpty(t, get().Parental.PINHash, "the refused write left the PIN in place")
 }
