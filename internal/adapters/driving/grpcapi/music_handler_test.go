@@ -9,6 +9,7 @@ import (
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmusic "github.com/evey-project/evey/internal/app/music"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/music"
 	musicfakes "github.com/evey-project/evey/internal/domain/music/fakes"
@@ -407,4 +408,32 @@ func TestMusicHandler_ScanMusicDirectory_RelativePath(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+// The scan target must sit INSIDE one of the library's roots - a sibling
+// whose name merely starts with the root ("/music2" under "/music") is
+// outside - and an unknown library is NotFound; a valid target is accepted
+// and the scan detached (count -1 = started).
+func TestMusicHandler_ScanMusicDirectory_ConfinedToLibraryPaths(t *testing.T) {
+	h, _, _, libQueryRepo := newTestMusicHandler()
+	libQueryRepo.Seed(&library.Library{ID: "lib-m", Name: "Music", Type: library.Music, Paths: []string{"/music"}})
+
+	for _, tc := range []struct {
+		dir  string
+		want codes.Code
+	}{
+		{"/music", codes.OK},
+		{"/music/albums/2024", codes.OK},
+		{"/music/../etc", codes.InvalidArgument},
+		{"/music2", codes.InvalidArgument},
+		{"/photos", codes.InvalidArgument},
+	} {
+		resp, err := h.ScanMusicDirectory(adminCtx(), &eveyv1.ScanMusicDirectoryRequest{LibraryId: "lib-m", Directory: tc.dir})
+		assert.Equal(t, tc.want, status.Code(err), tc.dir)
+		if tc.want == codes.OK {
+			assert.EqualValues(t, -1, resp.GetCount(), "started, counted later")
+		}
+	}
+	_, err := h.ScanMusicDirectory(adminCtx(), &eveyv1.ScanMusicDirectoryRequest{LibraryId: "lib-ghost", Directory: "/music"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
 }
