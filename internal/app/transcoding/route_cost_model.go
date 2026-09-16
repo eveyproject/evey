@@ -66,9 +66,12 @@ func NewRouteCostModel(samples []transcoding.RouteSample, cpuBudget int) *RouteC
 }
 
 // rungFor returns the measured rung that bounds height h for key: the smallest
-// rung >= h, or the tallest measured when h exceeds every rung (extrapolating
-// past what was measured would be a guess; the tallest measured cost is the
-// honest bound). ok=false when the key was never measured.
+// rung >= h (a 1080 sample bounds a 720 request - conservative downwards).
+// ok=false when the key was never measured OR h exceeds the tallest rung that
+// actually produced: a 2160 point the calibration tried and that failed is
+// absent here, and pricing that request as the 1080 rung would admit a
+// session the host never proved. Fail-closed; admission then steps down a
+// rung (the shaper walks the ladder) or a backend.
 func (m *RouteCostModel) rungFor(key transcoding.RouteCostKey, h int) (transcoding.RouteSample, bool) {
 	if m == nil {
 		return transcoding.RouteSample{}, false
@@ -82,7 +85,21 @@ func (m *RouteCostModel) rungFor(key transcoding.RouteCostKey, h int) (transcodi
 			return r, true
 		}
 	}
-	return rs[len(rs)-1], true
+	return transcoding.RouteSample{}, false
+}
+
+// TallestRung is the tallest rung the route named by key actually produced -
+// the highest quality the calibration PROVED for it, whatever the backend's
+// generic encode ceiling says. ok=false when the key was never measured.
+func (m *RouteCostModel) TallestRung(key transcoding.RouteCostKey) (int, bool) {
+	if m == nil {
+		return 0, false
+	}
+	rs, ok := m.byKey[key]
+	if !ok || len(rs) == 0 {
+		return 0, false
+	}
+	return rs[len(rs)-1].Height, true
 }
 
 // Cost prices a session of the route named by key, topping out at height h, on
@@ -130,7 +147,41 @@ func (m *RouteCostModel) Cost(key transcoding.RouteCostKey, h int, sourceFPS flo
 	// particular NO software-decode term is ever applied to a hardware route
 	// (r.SoftwareDecode gates any future adjustment; a HW route has it false).
 	_ = r.SoftwareDecode
+	// The software FLOOR the policy deliberately keeps attemptable (720p SDR /
+	// 480p HDR, DerivePolicy floors): a CPU route sampled AT OR UNDER that floor
+	// and itself under realtime there. The host may still attempt it, with
+	// conservative concurrency: its cost is clamped to one whole pool so exactly
+	// one such session fits an idle CPU pool and nothing joins it. Unclamped it
+	// would price above the pool and be refused forever on a host that has
+	// nothing else. ONLY that case, and only at the cadence it was measured for:
+	// a taller rung under realtime is never made admissible by it, a request at
+	// a higher rate than the sample (a 60p source on a 24p floor, or on a
+	// 24p-certified rung) keeps its honest >1 price and is refused, as does
+	// every accelerator route.
+	if key.Backend == "" && r.Height <= softwareFloorFor(key.Route) &&
+		sourceFPS <= floorSourceFPS(r) && r.FPS < floorSourceFPS(r)*transcoding.RouteCostHeadroom {
+		cost.CPU = math.Min(cost.CPU, 1)
+	}
 	return cost, true
+}
+
+// softwareFloorFor is the policy floor of a CPU route class: the HDR tone-map
+// chain floors at SoftwareHDRFloor, every other software route at SoftwareFloor.
+func softwareFloorFor(route transcoding.RouteCostClass) int {
+	p := transcoding.DefaultDerivePolicy()
+	if route == transcoding.RouteCostSoftwareHDR {
+		return p.SoftwareHDRFloor
+	}
+	return p.SoftwareFloor
+}
+
+// floorSourceFPS is the rate a sample was measured against (film cadence when
+// the row predates SourceFPS).
+func floorSourceFPS(r transcoding.RouteSample) float64 {
+	if r.SourceFPS > 0 {
+		return r.SourceFPS
+	}
+	return 24
 }
 
 // CheapestPoolCost is the lowest positive per-session cost the evidence shows

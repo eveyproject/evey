@@ -561,6 +561,34 @@ func TestHLSVOD_Master_ShedsWhenHostIsFull(t *testing.T) {
 		"a full host must have been probed at every advertised rung, not one")
 }
 
+// Direct play / copy / remux never depend on transcode capacity: a host whose
+// admission refuses every encode (a weak ARM box at its one floor session, or
+// no encode budget at all) still serves a copy-eligible title's master.
+func TestHLSVOD_Master_CopyServedWithNoTranscodeCapacity(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur, ContainerFormat: "matroska"},
+	}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: copyEligibleStreams()}, allowAll(), testFakeParentalChecker{})
+	copyProd := apptranscoding.NewSoftwareProducer(h.cache, nil, nil, apptranscoding.SoftwareProducerOptions{}, nil)
+	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil), nil)
+	h.copyProducer = copyProd
+	// The weakest calibration there is, and an admission that refuses every encode.
+	h.capability = func() domaintranscoding.EncodeCapability { return domaintranscoding.SafeFallback() }
+	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool {
+		t.Fatal("a copy request must never consult the encode admission")
+		return false
+	}
+
+	w := doVODRequest(h, "m1", "master.m3u8")
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "#EXTM3U")
+	assert.Empty(t, w.Header().Get("X-Evey-Error"))
+}
+
 // ladderClassFor (what admission prices) and LadderClassOf (what the spawn
 // charges) must agree for every request shape, or one resource pool is billed
 // while another is consumed. This locks the equivalence across the matrix.
