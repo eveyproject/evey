@@ -295,7 +295,7 @@ func (s *GRPCServer) RegisterServices() {
 		eveyv1.RegisterServerConfigServiceServer(s.server, h)
 	}
 	if d.ShareSvc != nil {
-		eveyv1.RegisterShareServiceServer(s.server, &shareHandler{svc: d.ShareSvc, libQuery: d.LibQuery, userAccess: d.UserAccess})
+		eveyv1.RegisterShareServiceServer(s.server, &shareHandler{svc: d.ShareSvc, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	}
 	if d.SyncplayHub != nil {
 		eveyv1.RegisterSyncPlayServiceServer(s.server, &syncplayHandler{hub: d.SyncplayHub, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, musicSvc: d.Music, playlistSvc: d.Playlist})

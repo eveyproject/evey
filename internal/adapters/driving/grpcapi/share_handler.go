@@ -10,9 +10,9 @@ import (
 	appmedia "github.com/evey-project/evey/internal/app/media"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/shared"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type shareHandler struct {
@@ -20,6 +20,7 @@ type shareHandler struct {
 	svc        *appmedia.ShareService
 	libQuery   *applibrary.QueryService
 	userAccess *appuser.AccessService
+	translator *eveyi18n.Translator
 }
 
 func (h *shareHandler) CreateShareLink(ctx context.Context, req *eveyv1.CreateShareLinkRequest) (*eveyv1.CreateShareLinkResponse, error) {
@@ -32,10 +33,10 @@ func (h *shareHandler) CreateShareLink(ctx context.Context, req *eveyv1.CreateSh
 
 	item, err := h.libQuery.GetMediaItem(ctx, req.MediaItemId)
 	if err != nil || item == nil {
-		return nil, status.Error(codes.NotFound, "media item not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	if ok, _ := h.checkLibraryAccess(ctx, string(item.LibraryID)); !ok {
-		return nil, status.Error(codes.NotFound, "media item not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 
 	durationHours := int(req.DurationHours)
@@ -121,12 +122,12 @@ func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeSh
 
 	link, err := h.svc.GetByID(ctx, req.Id)
 	if err != nil || link == nil {
-		return nil, status.Error(codes.NotFound, "share link not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.share.not_found")
 	}
 	if !claims.IsAdmin && string(link.CreatedBy) != claims.UserID {
 		// NotFound, not PermissionDenied: don't confirm a share link exists to a
 		// non-owner who guessed its ID (matches the not-found response above).
-		return nil, status.Error(codes.NotFound, "share link not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.share.not_found")
 	}
 
 	if err := h.svc.Revoke(ctx, req.Id); err != nil {
@@ -135,7 +136,7 @@ func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeSh
 		// NOT take effect - the link is still live. Reporting NotFound would
 		// falsely tell the admin a leaked link is gone; surface the real failure.
 		if errors.Is(err, shared.ErrNotFound) {
-			return nil, status.Error(codes.NotFound, "share link not found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.share.not_found")
 		}
 		return nil, internalError(ctx, "revoke share link", err)
 	}
@@ -152,14 +153,14 @@ func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.Valida
 	link, err := h.svc.Peek(ctx, req.Token)
 	if err != nil {
 		if errors.Is(err, appmedia.ErrShareExpired) || errors.Is(err, appmedia.ErrShareViewLimit) {
-			return nil, status.Error(codes.Unavailable, "link expired or view limit reached")
+			return nil, h.translator.TranslatedError(ctx, codes.Unavailable, "errors.share.exhausted")
 		}
-		return nil, status.Error(codes.NotFound, "share link not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.share.not_found")
 	}
 
 	item, err := h.libQuery.GetMediaItem(ctx, string(link.MediaItemID))
 	if err != nil || item == nil {
-		return nil, status.Error(codes.NotFound, "media not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 
 	var durationMs int64

@@ -67,7 +67,7 @@ func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryR
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "library not found")
 		slog.WarnContext(ctx, "grpc GetLibrary: query failed", slog.Any("err", err))
-		return nil, status.Error(codes.NotFound, "library not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.library.not_found")
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, lib.ID); !ok {
 		if accessErr != nil {
@@ -75,7 +75,7 @@ func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryR
 			slog.WarnContext(ctx, "check library access", slog.Any("err", accessErr))
 		}
 		span.SetStatus(otelcodes.Error, "library access denied")
-		return nil, status.Error(codes.NotFound, "library not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.library.not_found")
 	}
 	return libraryToProto(lib), nil
 }
@@ -107,14 +107,14 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 	defer span.End()
 	if req.Id == "" {
 		span.SetStatus(otelcodes.Error, "id is required")
-		return nil, status.Error(codes.InvalidArgument, "id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.id_required")
 	}
 	lib, err := h.query.GetLibrary(ctx, req.Id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "library not found")
 		slog.WarnContext(ctx, "grpc UpdateLibrary: query failed", slog.Any("err", err))
-		return nil, status.Error(codes.NotFound, "library not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.library.not_found")
 	}
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
 	// but we re-check here so a future RBAC misconfiguration does not silently
@@ -125,7 +125,7 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 			slog.WarnContext(ctx, "update library access check", slog.Any("err", accessErr))
 		}
 		span.SetStatus(otelcodes.Error, "library access denied")
-		return nil, status.Error(codes.NotFound, "library not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.library.not_found")
 	}
 	if req.Name != nil {
 		lib.Name = *req.Name
@@ -134,7 +134,7 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 		for _, p := range req.Paths {
 			if !filepath.IsAbs(p) || !strings.HasPrefix(filepath.Clean(p), "/media") {
 				span.SetStatus(otelcodes.Error, "invalid path")
-				return nil, status.Error(codes.InvalidArgument, "invalid path: must be an absolute path under /media")
+				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.invalid_path")
 			}
 		}
 		lib.Paths = req.Paths
@@ -152,7 +152,7 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 	defer span.End()
 	if req.Id == "" {
 		span.SetStatus(otelcodes.Error, "id is required")
-		return nil, status.Error(codes.InvalidArgument, "id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.id_required")
 	}
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
 	// but explicitly re-verify access for non-admin claims so a future RBAC
@@ -165,7 +165,7 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 			slog.WarnContext(ctx, "delete library access check", slog.Any("err", accessErr))
 		}
 		span.SetStatus(otelcodes.Error, "library access denied")
-		return nil, status.Error(codes.NotFound, "library not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.library.not_found")
 	}
 	if err := h.cmd.DeleteLibrary(ctx, req.Id); err != nil {
 		// Deleting an already-absent library is not a server error: the desired
@@ -308,7 +308,7 @@ func (h *libraryHandler) GetLibrarySchedule(ctx context.Context, req *eveyv1.Get
 	}
 	if !claims.IsAdmin {
 		span.SetStatus(otelcodes.Error, "admin only")
-		return nil, status.Error(codes.PermissionDenied, "admin only")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	if h.scheduler == nil {
 		return &eveyv1.GetLibraryScheduleResponse{}, nil
@@ -338,15 +338,15 @@ func (h *libraryHandler) SetLibrarySchedule(ctx context.Context, req *eveyv1.Set
 	}
 	if !claims.IsAdmin {
 		span.SetStatus(otelcodes.Error, "admin only")
-		return nil, status.Error(codes.PermissionDenied, "admin only")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	if h.scheduler == nil {
 		span.SetStatus(otelcodes.Error, "scheduler not available")
-		return nil, status.Error(codes.Unimplemented, "scheduler not available")
+		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.scheduler_not_available")
 	}
 	if req.Cron == "" {
 		span.SetStatus(otelcodes.Error, "cron expression required")
-		return nil, status.Error(codes.InvalidArgument, "cron expression required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.cron_required")
 	}
 	sched, err := h.scheduler.SetSchedule(ctx, req.Id, req.Cron, req.Enabled)
 	if err != nil {
@@ -354,7 +354,7 @@ func (h *libraryHandler) SetLibrarySchedule(ctx context.Context, req *eveyv1.Set
 		if strings.HasPrefix(err.Error(), "invalid cron") {
 			span.SetStatus(otelcodes.Error, "invalid cron expression")
 			slog.WarnContext(ctx, "grpc SetLibrarySchedule: invalid cron expression", slog.Any("err", err))
-			return nil, status.Error(codes.InvalidArgument, "invalid cron expression")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.cron_invalid")
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "set schedule", err)
@@ -373,7 +373,7 @@ func (h *libraryHandler) DeleteLibrarySchedule(ctx context.Context, req *eveyv1.
 	}
 	if !claims.IsAdmin {
 		span.SetStatus(otelcodes.Error, "admin only")
-		return nil, status.Error(codes.PermissionDenied, "admin only")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	if h.scheduler != nil {
 		if delErr := h.scheduler.DeleteSchedule(ctx, req.Id); delErr != nil {

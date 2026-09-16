@@ -17,6 +17,7 @@ auth:
   invalid_pin: "PIN 码错误"
   invalid_password: "密码不正确"
   pin_required_for_non_kids: "只要存在儿童配置文件，非儿童配置文件就必须设置 PIN"
+  profiles_need_non_kids: "请切换到非儿童个人资料以管理个人资料"
 
 general:
   not_found: "未找到"
@@ -27,6 +28,7 @@ playlist:
   cannot_remove_smart: "无法从智能播放列表中移除项目"
   limit_reached: "播放列表项目数量已达上限"
   duplicate_name: "已存在同名播放列表"
+  not_found: "未找到播放列表"
 
 playback:
   cannot_stop_other_session: "无法停止其他用户的会话"
@@ -41,6 +43,12 @@ activity:
 library:
   name_required: "媒体库名称为必填项"
   scan_in_progress: "此媒体库已有扫描任务正在进行"
+  not_found: "未找到媒体库"
+  id_required: "需要媒体库 ID"
+  invalid_path: "路径无效：必须是 /media 下的绝对路径"
+  cron_required: "需要 cron 表达式"
+  cron_invalid: "cron 表达式无效"
+  cursor_invalid: "分页游标无效"
 
 admin:
   setup_already_completed: "设置已完成"
@@ -83,6 +91,8 @@ user:
   impersonation_api_key: "不允许通过 API 密钥模拟其他用户"
   limit_negative: "{field} 必须大于或等于 0"
   id_required: "需要用户 ID"
+  profile_id_required: "需要个人资料 ID"
+  invalid_avatar_path: "头像路径无效"
 
 media:
   not_found: "媒体未找到"
@@ -90,3 +100,6 @@ media:
 transcode:
   max_concurrent_reached: "服务器正忙于转码其他流，请稍后重试"
 
+share:
+  not_found: "未找到分享链接"
+  exhausted: "此链接已过期或已达到观看次数上限"
