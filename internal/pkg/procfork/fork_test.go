@@ -1,8 +1,10 @@
 package procfork
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os/exec"
 	"slices"
 	"strings"
@@ -129,5 +131,32 @@ func TestFinish_PlainFailureIsNotAMemoryFailure(t *testing.T) {
 	_, runErr := cmd.Output()
 	if got := finish(runErr, nil); errors.Is(got, ErrMemoryCapExceeded) {
 		t.Fatal("must not be attributed to the cap")
+	}
+}
+
+// A probe's "no" is its answer, not an incident: the exit lands at DEBUG and
+// the caller reports the verdict. Interactive failures keep the WARN.
+func TestFinish_ProbeFailureIsNotAWarning(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	for _, tc := range []struct {
+		class Class
+		want  string
+	}{{Probe, "level=DEBUG"}, {Interactive, "level=WARN"}} {
+		buf.Reset()
+		cmd, finish, err := Command(context.Background(), Options{Class: tc.class, Site: "t", UnboundedThreads: true},
+			"sh", "-c", "exit 1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, runErr := cmd.Output()
+		_ = finish(runErr, nil)
+		line := buf.String()
+		if !strings.Contains(line, "procfork: failed") || !strings.Contains(line, tc.want) {
+			t.Errorf("class %v: want a %s failure line, got %q", tc.class, tc.want, line)
+		}
 	}
 }

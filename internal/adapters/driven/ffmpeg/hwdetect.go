@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/pkg/procfork"
@@ -30,6 +31,10 @@ const hwProbeTimeout = 12 * time.Second
 type HWDetector struct {
 	ffmpegPath string
 }
+
+// unavailableEncoders remembers each (hw/device/encoder) whose real-encode
+// probe already failed, so the repeat is not shouted at WARN again.
+var unavailableEncoders sync.Map
 
 func NewHWDetector(ffmpegPath string) *HWDetector {
 	return &HWDetector{ffmpegPath: ffmpegPath}
@@ -264,7 +269,14 @@ func probeHWCodecs(ctx context.Context, ffmpegPath, hwType, device string) []str
 		// stalls the player ~30s before the level-2 demotion can react. Confirm
 		// the device actually encodes with a tiny real probe; fail closed.
 		if !probeHWEncode(ctx, ffmpegPath, enc, hwType, device) {
-			slog.Warn("hwdetect: encoder present but real-encode probe failed, treating as unavailable",
+			// WARN once per encoder: the matrix is re-probed whenever the
+			// admin panel outlives the cache TTL, and a box without AV1 has
+			// not grown one since. A repeat verdict is INFO.
+			level := slog.LevelInfo
+			if _, seen := unavailableEncoders.LoadOrStore(hwType+"/"+device+"/"+enc, true); !seen {
+				level = slog.LevelWarn
+			}
+			slog.Log(ctx, level, "hwdetect: encoder present but real-encode probe failed, treating as unavailable",
 				slog.String("encoder", enc), slog.String("hw", hwType))
 			continue
 		}
