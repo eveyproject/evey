@@ -513,18 +513,14 @@ func measureRouteSession(ctx context.Context, opts RouteBenchOptions, cap transc
 }
 
 // measureBenchShape runs benchmark.go's OWN probe shape on the clip: the
-// cumulative bare-preset ladder up to h for the HW backend (runMultiVariant,
-// hwInputArgs) - what HWMaxHeight and the hw cost table were derived from.
+// bare-preset hw ladder probe at h (runMultiVariant, hwInputArgs) in the
+// single-variant shape the calibration runner above benches with - one rung
+// per probe, what HWMaxHeight and the hw cost table were derived from.
 func measureBenchShape(ctx context.Context, opts RouteBenchOptions, cap transcoding.EncodeCapability, model routeBenchModel, cpuBudget int, sampler *gpuSampler, src routeBenchSource, h int) RouteBenchRow {
 	row := RouteBenchRow{Backend: cap.HWBackend, Route: "bench-shape-hw", Class: "hw", Source: src.name, SourceCodec: src.codec,
 		SourcePixFmt: src.pixFmt, SourceHeight: src.height, SourceFPS: src.fps, Height: h, GPUUtil: -1, GPUEnc: -1, GPUDec: -1}
 	encoder := resolveHWEncoder(cap.HWBackend, "h264")
-	var heights []int
-	for _, r := range hwBenchLadder {
-		if r <= h {
-			heights = append(heights, r)
-		}
-	}
+	heights := []int{h}
 	// Same argv builder as the bench (runMultiVariant), assembled here so the
 	// process can be measured for rusage/GPU like the sessions are.
 	args := []string{"-hide_banner", "-nostats"}

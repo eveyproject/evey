@@ -277,7 +277,7 @@ func (b StaticLadderBuilder) Build(in LadderInput) []HLSProfile {
 	case route.Copy:
 		return CopyRung(src.Width, src.Height)
 	case route.HWUsable:
-		laddered = ShapeHardwareLadder(base, src, cap)
+		laddered = ShapeHardwareLadderFor(base, src, cap, string(route.Accel))
 	default:
 		laddered = ShapeSoftwareLadder(base, src, route.Codec, route.Tonemap, cap)
 	}
@@ -318,11 +318,10 @@ func (b StaticLadderBuilder) Build(in LadderInput) []HLSProfile {
 		laddered = ScaleLadderVideoBitrates(laddered, HEVCBitrateNum, HEVCBitrateDen)
 	}
 	if route.Bridge() {
-		if cap.HWBridgeMaxHeight > 0 {
-			laddered = CapLadderToHeight(laddered, cap.HWBridgeMaxHeight)
-		} else if cap.SoftwareHDRMaxHeight > 0 {
-			laddered = CapLadderToHeight(laddered, cap.SoftwareHDRMaxHeight)
-		}
+		// The bridge ceiling of the backend the route was resolved on - a
+		// secondary's own measurement, never the primary's; the software HDR
+		// ceiling when its bridge cleared no rung.
+		laddered = CapLadderToHeight(laddered, cap.EffectiveBridgeCeilingFor(string(route.Accel)))
 	}
 	return laddered
 }
@@ -355,9 +354,26 @@ const CopyRungPlaceholderKbps int64 = 5_000
 // ladder was benched behind a zero-copy decode, and a rung the mixed pipeline
 // cannot sustain starves the player.
 func ShapeHardwareLadder(base []HLSProfile, src SourceFacts, cap EncodeCapability) []HLSProfile {
+	return ShapeHardwareLadderFor(base, src, cap, cap.HWBackend)
+}
+
+// ShapeHardwareLadderFor is ShapeHardwareLadder for the backend the route was
+// resolved on: its OWN certified ceiling and decode matrix decide, not the
+// primary's. A route picked on a 1080p-only secondary next to a 2160p primary
+// gets a 1080p ladder; an unnamed or unknown backend reads the primary as
+// before.
+func ShapeHardwareLadderFor(base []HLSProfile, src SourceFacts, cap EncodeCapability, backend string) []HLSProfile {
 	sourceCapped := CapLadderToSource(base, src.Width, src.Height)
 	zeroCopyDecode := src.Codec == "" || cap.HWCanDecodeSource(src.Codec, src.TenBit, src.PixelFormat)
-	return CapLadderToHeight(sourceCapped, cap.MaxHeightFor(zeroCopyDecode))
+	ceiling := cap.MaxHeightFor(zeroCopyDecode)
+	if bc, ok := cap.BackendCap(backend); ok && backend != "" {
+		zeroCopyDecode = src.Codec == "" || bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat, cap.ProbeVersion)
+		ceiling = cap.MaxHeightFor(zeroCopyDecode)
+		if zeroCopyDecode && bc.MaxHeight > 0 {
+			ceiling = bc.MaxHeight
+		}
+	}
+	return CapLadderToHeight(sourceCapped, ceiling)
 }
 
 // ShapeSoftwareLadder: the class ladder capped to the source and to the

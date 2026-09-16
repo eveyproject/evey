@@ -254,7 +254,9 @@ func removeHWCodec(c *EncodeCapability, codec string) bool {
 	return true
 }
 
-// disableHW zeroes every hardware field, leaving software-only capability.
+// disableHW zeroes every hardware field, leaving software-only capability. The
+// software route evidence (Backend == "") is the CPU's own proof and survives:
+// admission keeps pricing the x264/x265 routes it falls back to.
 func disableHW(c *EncodeCapability) {
 	c.HWBackend = ""
 	c.HWMaxHeight = 0
@@ -262,6 +264,20 @@ func disableHW(c *EncodeCapability) {
 	c.HWDevice = ""
 	c.HWFeatures = nil
 	c.HWRoutes = nil
-	c.RouteSamples = nil
+	c.RouteSamples = softwareRouteSamples(c.RouteSamples)
 	c.Backends = nil
+}
+
+// softwareRouteSamples keeps the CPU-measured route samples only.
+func softwareRouteSamples(samples []RouteSample) []RouteSample {
+	if samples == nil {
+		return nil
+	}
+	out := make([]RouteSample, 0, len(samples))
+	for _, s := range samples {
+		if s.Key.Backend == "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }

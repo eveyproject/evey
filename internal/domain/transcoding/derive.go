@@ -196,6 +196,20 @@ func Derive(rep BenchReport, policy DerivePolicy) EncodeCapability {
 		// ceiling (falls back to software), never a forced floor.
 		hwMax = ceilingFor(rep, LadderHW, policy.Margin, 0)
 		hwBridge = ceilingFor(rep, LadderHWBridge, policy.Margin, 0)
+		// The hw ladder samples are the bench-time primary's. A primary promoted
+		// since (WithoutBackend) has no samples here but recorded its own
+		// certified ceiling; without this it would derive to 0 and lose its GPU.
+		for _, b := range rep.Backends {
+			if b.Backend != rep.HWBackend {
+				continue
+			}
+			if hwMax == 0 && b.MaxHeight > 0 {
+				hwMax = b.MaxHeight
+			}
+			if hwBridge == 0 && b.BridgeMaxHeight > 0 {
+				hwBridge = b.BridgeMaxHeight
+			}
+		}
 	}
 
 	return EncodeCapability{
