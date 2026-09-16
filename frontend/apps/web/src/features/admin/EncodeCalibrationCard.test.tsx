@@ -545,6 +545,37 @@ describe("EncodeCalibrationCard - provisional (contended) benchmark", () => {
   });
 });
 
+describe("EncodeCalibrationCard - deferred (opportune) benchmark", () => {
+  beforeEach(() => {
+    mockCalibrationIsLoading = false;
+  });
+
+  it("says the ceilings are interim while the bench waits for a quiet moment, with the reason", () => {
+    mockCalibrationData = { ...SW_ONLY_DATA, calibration: { state: "pending", reason: "first boot" } };
+    renderCard();
+    const line = screen.getByTestId("calibration-pending").textContent ?? "";
+    expect(line).toMatch(/quiet moment/i);
+    expect(line).toMatch(/first start/i);
+    expect(line).toMatch(/interim/i);
+    expect(screen.queryByTestId("calibration-benchmarking")).toBeNull();
+  });
+
+  it("says a bench is running now and that playbacks wait", () => {
+    mockCalibrationData = { ...SW_ONLY_DATA, calibration: { state: "benchmarking" } };
+    renderCard();
+    const line = screen.getByTestId("calibration-benchmarking").textContent ?? "";
+    expect(line).toMatch(/2 minutes/i);
+    expect(screen.queryByTestId("calibration-pending")).toBeNull();
+  });
+
+  it("says nothing once calibrated", () => {
+    mockCalibrationData = { ...SW_ONLY_DATA, calibration: { state: "calibrated" } };
+    renderCard();
+    expect(screen.queryByTestId("calibration-pending")).toBeNull();
+    expect(screen.queryByTestId("calibration-benchmarking")).toBeNull();
+  });
+});
+
 describe("EncodeCalibrationCard - remote bitrate ceiling", () => {
   beforeEach(() => {
     mockCalibrationData = HW_NVENC_DATA; // the bitrate section renders when HW is enabled

@@ -101,6 +101,15 @@ interface HLSPlayerProps {
   showWatchTogether?: boolean;
 }
 
+
+// shedI18nKey maps a server shed code to its player copy: nothing is broken,
+// the server just isn't ready to serve THIS request yet (busy, indexing, or
+// benchmarking itself for a couple of minutes).
+function shedI18nKey(reason: "too_many_streams" | "file_not_ready" | "calibrating", part: "title" | "body"): string {
+  const group = reason === "file_not_ready" ? "fileNotReady" : reason === "calibrating" ? "calibrating" : "tooManyStreams";
+  return `player.shed.${group}.${part}`;
+}
+
 export function HLSPlayer({
   streamInfo,
   sessionId,
@@ -1409,10 +1418,10 @@ export function HLSPlayer({
           <div className="flex flex-col items-center gap-4 text-white text-center px-6">
             <Clock size={ICON["4xl"]} className="text-white/80" strokeWidth={1.5} />
             <p className="text-lg font-medium">
-              {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.title" : "player.shed.tooManyStreams.title")}
+              {t(shedI18nKey(shedReason, "title"))}
             </p>
             <p className="text-sm text-[var(--overlay-text-muted)] max-w-sm">
-              {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.body" : "player.shed.tooManyStreams.body")}
+              {t(shedI18nKey(shedReason, "body"))}
             </p>
             <button
               onClick={handleShedRetry}

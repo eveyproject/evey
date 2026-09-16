@@ -105,6 +105,9 @@ shed:
   fileNotReady:
     title: "这个视频正在准备中"
     body: "这个视频仍在准备中，通常只需几秒钟。请稍后重试。"
+  calibrating:
+    title: "服务器正在自我校准"
+    body: "服务器正在测量这台机器的播放能力，大约需要 2 分钟，且只在没有其他任务运行时进行。请几分钟后再试。"
 retry: "重试"
 goBack: "返回"
 shareDesc: "分享此链接给朋友一起观看："
