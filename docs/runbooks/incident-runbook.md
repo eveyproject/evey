@@ -269,7 +269,10 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 Everything below is readable from the admin Logs page (or
 `GET /api/v1/admin/logs/search?q=<term>&limit=200`): no shell on the box is
 needed. Times are UTC. Every beacon is a `player-client: playback event
-reported` line with `type=` and a `details=` string.
+reported` line with `type=` and a `details=` string. Credentials never appear
+in what these routes return (bearers, JWTs and `token=`/`password=` values read
+`[redacted]`), so a cast URL's token is not something a log search can recover -
+grep for the media id, not the token.
 
 1. **Was the receiver alive, and until when?** Search `cast_receiver_alive`.
    The receiver posts one every 30 s while it plays; `details` carries
