@@ -26,3 +26,18 @@ func TestBatchedSeriesTitle_SingularCounts(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractSeriesName(t *testing.T) {
+	for stored, want := range map[string]string{
+		"new_episode:a series - Pilot":      "a series",
+		"new_episode:a series (3 episodes)": "a series",
+		"new_episode:a series":              "a series",
+		"new_episode:Hyphen - Heavy - Title":   "Hyphen",
+		"new_episode:(Parens) First - Ep":      "(Parens) First",
+		"Untyped Title (2 episodes)":           "Untyped Title",
+	} {
+		if got := extractSeriesName(stored); got != want {
+			t.Errorf("%q: got %q, want %q", stored, got, want)
+		}
+	}
+}
