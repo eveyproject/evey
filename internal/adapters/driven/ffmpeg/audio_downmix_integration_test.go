@@ -62,12 +62,12 @@ func measureFold(ctx context.Context, t *testing.T, path string) foldMeasure {
 	return m
 }
 
-// stripHeadroom removes the guard from an argv, reproducing the pre-fix
-// command line exactly.
+// stripHeadroom removes the guard from an argv, reproducing the unguarded
+// command line: swr's raw fold straight into the encoder.
 func stripHeadroom(args []string) []string {
 	out := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
-		if args[i] == "-rematrix_maxval" {
+		if args[i] == "-af" || args[i] == "-rematrix_maxval" {
 			i++
 			continue
 		}
@@ -170,14 +170,10 @@ func TestAudioDownmixHeadroomIntegration(t *testing.T) {
 	if before.clipped == 0 {
 		t.Fatalf("the unprotected fold did not clip - the source no longer exercises the defect")
 	}
-	// 2026-09-04: the cap is 2.0, not 1.0, so this is no longer "zero clipped" -
-	// on a synthetic bed with every channel coherent at -1 dBFS (a worst case a
-	// real mix does not reach) the fold DOES reach full scale. What must still
-	// hold is that the option normalises: capping the matrix has to leave
-	// materially less clipping than handing swr the raw 2.4142 sum. The level
-	// this buys back is the whole point of the cap - see audio_downmix.go.
-	if after.clipped >= before.clipped {
-		t.Errorf("the cap no longer normalises: %d clipped with it vs %d without", after.clipped, before.clipped)
+	// The limiter holds the fold under its ceiling whatever the bed sums to,
+	// and the AAC overshoot of a -1 dBFS signal stays under full scale.
+	if after.clipped != 0 {
+		t.Errorf("the guarded fold still clips: %d samples at full scale (peak %+.2f dBFS)", after.clipped, after.peakDB)
 	}
 
 	// --- compat download, where the stereo fold is hardcoded and the result is
@@ -193,8 +189,8 @@ func TestAudioDownmixHeadroomIntegration(t *testing.T) {
 	if dlB.clipped == 0 {
 		t.Fatalf("the unprotected download fold did not clip - source no longer exercises the defect")
 	}
-	if dlA.clipped >= dlB.clipped {
-		t.Errorf("the cap no longer normalises the download fold: %d clipped with it vs %d without", dlA.clipped, dlB.clipped)
+	if dlA.clipped != 0 {
+		t.Errorf("the guarded download fold still clips: %d samples at full scale (peak %+.2f dBFS)", dlA.clipped, dlA.peakDB)
 	}
 
 	// --- the nominal path: a 5.1 target keeps its layout, so nothing sums and

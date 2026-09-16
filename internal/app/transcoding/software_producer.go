@@ -812,17 +812,18 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// transcode 1.5x - fast enough that the client never starves and seeks are
 		// instant, bounded so video copy can't outrun the audio re-encode into the
 		// muxer's interleave force-flush (the prod A/V desync). See copyReadRate.
-		ReadRate:         p.copyReadRate(),
-		VideoCodec:       fp.VideoCodec,
-		SourceVideoCodec: fp.SourceVideoCodec,
-		DeinterlaceAll:   fp.DeinterlaceAll,
-		InverseTelecine:  fp.Telecine,
-		SourceSAR:        fp.SourceSAR,
-		MaxH264Level:     fp.MaxH264Level,
-		AudioCodec:       fp.AudioCodec,
-		MaxAudioChannels: fp.MaxAudioChannels,
-		ForceSidecarSubs: fp.ForceSidecarSubs,
-		UseFMP4:          fp.UseFMP4,
+		ReadRate:            p.copyReadRate(),
+		VideoCodec:          fp.VideoCodec,
+		SourceVideoCodec:    fp.SourceVideoCodec,
+		DeinterlaceAll:      fp.DeinterlaceAll,
+		InverseTelecine:     fp.Telecine,
+		SourceSAR:           fp.SourceSAR,
+		MaxH264Level:        fp.MaxH264Level,
+		AudioCodec:          fp.AudioCodec,
+		MaxAudioChannels:    fp.MaxAudioChannels,
+		SourceAudioChannels: fp.SourceAudioChannels,
+		ForceSidecarSubs:    fp.ForceSidecarSubs,
+		UseFMP4:             fp.UseFMP4,
 		// HWAccel deliberately left empty - this is the SOFTWARE producer. Even
 		// if the fingerprint carried a HW backend (it won't, the selector only
 		// routes here when HW is unusable), we never run the GPU pipeline here.

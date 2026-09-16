@@ -2,25 +2,29 @@ package transcoding
 
 import "fmt"
 
-// audio_downmix.go owns ONE decision: the headroom swr gets when it folds a
-// multichannel bed to stereo. swr only normalises the fold matrix for integer
-// sample formats; into a float encoder (aac, libopus) a full-scale bed sums
-// above 1.0 and clips (dialogue in the centre stays clean, music tears).
-// rematrix_maxval caps the coefficient SUM: 1.0 is the only value that cannot
-// clip, but it made this server the one link that never gives the level back
-// (fold 6.4-7.7 dB quieter than a browser folding the same 5.1). 2.0 is the
-// reference player's level to the tenth of a LU (-23.0 LUFS, 2026-09-04) and
-// keeps 1.66 dB under the browser; balance is untouched (global scale). A
-// limiter was measured and rejected: not transparent below threshold, and its
-// look-ahead delays a sample-aligned rendition.
+// audio_downmix.go owns ONE decision: the level policy when a multichannel bed
+// is folded to stereo. A fully normalised fold (maxval 1.0) never clips but sits
+// 6-7.7 dB under every other player (2026-09-04); at 2.0 the level is back but a
+// loud mix exceeds full scale and the integer encoder input hard-clips it
+// (2026-09-16, 0.33% of samples on the rail over a film's last third). So the
+// fold runs in float inside the filter graph, followed by a look-ahead limiter:
+// bit-identical below the ceiling (latency compensated), gain-ridden above.
 const (
 	// DownmixRematrixMaxval is inert on any matrix already summing below it
 	// (stereo -> stereo is bit-identical at 1.0 and 2.0); only a real fold scales.
 	DownmixRematrixMaxval = 2.0
 
-	// DefaultStereoChannels is the channel count the encoders fall back to when
-	// no ceiling was resolved. Zero has always meant "-ac 2" on this path; the
-	// rule lives here so the arg builders and the fold policy cannot drift.
+	// DownmixLimiterCeiling is -2 dBFS, the lossy-delivery margin: alimiter
+	// caps sample peaks, and an AAC decode overshoots by up to ~1.8 dB on tonal
+	// content (measured), which the client's integer output would clip.
+	DownmixLimiterCeiling = 0.7943
+
+	// Look-ahead / release in ms. Release is ffmpeg's default: slower only
+	// lowered the passage after a peak (50 vs 200 ms measured).
+	DownmixLimiterAttackMs  = 5
+	DownmixLimiterReleaseMs = 50
+
+	// DefaultStereoChannels is what "no ceiling resolved" has always encoded to.
 	DefaultStereoChannels = 2
 )
 
@@ -33,36 +37,52 @@ func ResolvedAudioChannels(maxChannels int) int {
 	return DefaultStereoChannels
 }
 
-// AudioDownmixPolicy is the canonical, hashable description of the fold policy
-// applied to an encode targeting maxChannels. Empty when the encode does not
-// fold (a 5.1 target keeps its layout, so nothing sums and nothing is emitted).
-//
-// It is what the segment-cache fingerprints hash, so ANY change to the policy -
-// the maxval, the gating, the option itself - forks the cache instead of
-// serving segments produced under the previous one. Nothing else in the
-// fingerprints covers this: MaxAudioChannels alone is 2 before AND after.
-func AudioDownmixPolicy(maxChannels int) string {
-	if ResolvedAudioChannels(maxChannels) > DefaultStereoChannels {
+// AudioFolds reports whether an encode from sourceChannels to maxChannels sums
+// channels. An unknown source (0) counts as a possible fold: one filter node
+// is cheaper than a clipped film.
+func AudioFolds(sourceChannels, maxChannels int) bool {
+	target := ResolvedAudioChannels(maxChannels)
+	if target > DefaultStereoChannels {
+		return false
+	}
+	return sourceChannels <= 0 || sourceChannels > target
+}
+
+// AudioDownmixPolicy is the hashable description of the fold policy, empty
+// when nothing folds so those sessions keep their cache. The segment-cache
+// fingerprints hash it because none of their fields moves when the policy does.
+func AudioDownmixPolicy(sourceChannels, maxChannels int) string {
+	return AudioFoldFilter(sourceChannels, maxChannels)
+}
+
+// AudioFoldFilter is the audio filter chain of the fold, "" when the encode
+// does not fold. Callers pass the same ceiling as resolveAudioChannels, join it
+// with any other audio filter (ffmpeg keeps only the last -af), and never use
+// it on a stream copy.
+func AudioFoldFilter(sourceChannels, maxChannels int) string {
+	if !AudioFolds(sourceChannels, maxChannels) {
 		return ""
 	}
-	return "rematrix_maxval=" + downmixMaxvalArg()
-}
-
-// AudioDownmixArgs returns the ffmpeg OUTPUT options that bound the fold, or
-// nil when the encode does not fold. Never a filter: this is a resampler
-// option, so it costs no filter-graph node and no CPU, and it is inert by
-// construction on any matrix whose coefficients already sum below the cap
-// (stereo -> stereo, mono -> stereo).
-//
-// Callers must pass the SAME ceiling they hand resolveAudioChannels, and must
-// not call this on a stream copy (there is no resampler to configure).
-func AudioDownmixArgs(maxChannels int) []string {
-	if AudioDownmixPolicy(maxChannels) == "" {
-		return nil
+	layout := "stereo"
+	if ResolvedAudioChannels(maxChannels) == 1 {
+		layout = "mono"
 	}
-	return []string{"-rematrix_maxval", downmixMaxvalArg()}
+	return fmt.Sprintf(
+		"aresample=out_chlayout=%s:rematrix_maxval=%.4f,alimiter=limit=%.4f:attack=%d:release=%d:level=0:latency=1",
+		layout, DownmixRematrixMaxval, DownmixLimiterCeiling, DownmixLimiterAttackMs, DownmixLimiterReleaseMs)
 }
 
-func downmixMaxvalArg() string {
-	return fmt.Sprintf("%.4f", DownmixRematrixMaxval)
+// JoinAudioFilters joins the non-empty parts into one chain, in order.
+func JoinAudioFilters(parts ...string) string {
+	out := ""
+	for _, p := range parts {
+		if p == "" {
+			continue
+		}
+		if out != "" {
+			out += ","
+		}
+		out += p
+	}
+	return out
 }

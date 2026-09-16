@@ -886,12 +886,13 @@ func (o *SegmentOrchestrator) spawnSession(
 		// stamped from 0 under absolute segment names, hls.js placed them at
 		// the wrong position, and the player stayed in buffering (prod,
 		// 2026-09-02/03 - the segment cache then carried them to every viewer).
-		StartNumber:      startSegIdx,
-		Streams:          nil, // HDR tonemap is wired via ToneMap; bitmap burn-in via SubtitleCodec (reads 0:s:N from the source input directly, no Streams needed)
-		VideoCodec:       fp.VideoCodec,
-		AudioCodec:       fp.AudioCodec,
-		MaxAudioChannels: fp.MaxAudioChannels,
-		ForceSidecarSubs: fp.ForceSidecarSubs,
+		StartNumber:         startSegIdx,
+		Streams:             nil, // HDR tonemap is wired via ToneMap; bitmap burn-in via SubtitleCodec (reads 0:s:N from the source input directly, no Streams needed)
+		VideoCodec:          fp.VideoCodec,
+		AudioCodec:          fp.AudioCodec,
+		MaxAudioChannels:    fp.MaxAudioChannels,
+		SourceAudioChannels: fp.SourceAudioChannels,
+		ForceSidecarSubs:    fp.ForceSidecarSubs,
 		// The idet content verdict, for a source whose container FLAG lies about
 		// being progressive. It only ever reaches a software deinterlacer
 		// (deinterlaceFilterFor), which is why this path could omit it while

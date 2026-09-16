@@ -46,6 +46,7 @@ var (
 		"HDRTonemap":          "opts.ToneMap",
 		"AudioNormalize":      "opts.AudioNormalize",
 		"MaxAudioChannels":    "opts.MaxAudioChannels",
+		"SourceAudioChannels": "opts.SourceAudioChannels (gates the fold guard)",
 		"ForceSidecarSubs":    "opts.ForceSidecarSubs",
 		"UseFMP4":             "opts.UseFMP4",
 		"AudioOffsetMs":       "opts.AudioUserOffsetSec (ms -> s)",
@@ -207,13 +208,14 @@ func TestDecisionFingerprint_EncoderInputsAreReadAtAMappingSite(t *testing.T) {
 // bitten.
 var (
 	audioFingerprintEncoderInputs = map[string]string{
-		"SourcePath":       "AudioProcessOpts.FilePath",
-		"SourceTrackIdx":   "AudioProcessOpts.SourceTrackIdx",
-		"AudioCodec":       "AudioProcessOpts.AudioCodec",
-		"AudioEncoder":     "AudioProcessOpts.AudioEncoder",
-		"AudioBitrate":     "AudioProcessOpts.AudioBitrate",
-		"AudioNormalize":   "AudioProcessOpts.AudioNormalize",
-		"MaxAudioChannels": "AudioProcessOpts.MaxAudioChannels",
+		"SourcePath":          "AudioProcessOpts.FilePath",
+		"SourceTrackIdx":      "AudioProcessOpts.SourceTrackIdx",
+		"AudioCodec":          "AudioProcessOpts.AudioCodec",
+		"AudioEncoder":        "AudioProcessOpts.AudioEncoder",
+		"AudioBitrate":        "AudioProcessOpts.AudioBitrate",
+		"AudioNormalize":      "AudioProcessOpts.AudioNormalize",
+		"MaxAudioChannels":    "AudioProcessOpts.MaxAudioChannels",
+		"SourceAudioChannels": "AudioProcessOpts.SourceAudioChannels (gates the fold guard)",
 		// Not an encode input in the codec sense, but it does reach ffmpeg (as
 		// -output_ts_offset) and it changes the emitted bytes, so it belongs here
 		// rather than in the exempt map.

@@ -353,6 +353,7 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 			}
 		}
 	}
+	sourceChannels := h.sourceAudioChannels(r.Context(), mediaID, trackIdx)
 	return apptranscoding.AudioFingerprint{
 		MediaID:        mediaID,
 		SourcePath:     item.File.Path,
@@ -361,11 +362,12 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 		// Same encoder the muxed ladder uses, and hashed with the bytes: a
 		// rendition re-encoded by a different AAC implementation is different
 		// bytes and must not land on the same cache entry.
-		AudioEncoder:      h.audioEncoderID(),
-		AudioBitrate:      domaintranscoding.AudioRenditionBaseKbps, // scaled to the channel count at arg-build
-		AudioNormalize:    h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
-		MaxAudioChannels:  renditionChannels(h.sourceAudioChannels(r.Context(), mediaID, trackIdx), maxAudioChannelsQuery(r)),
-		SourceDurationSec: durationSec,
+		AudioEncoder:        h.audioEncoderID(),
+		AudioBitrate:        domaintranscoding.AudioRenditionBaseKbps, // scaled to the channel count at arg-build
+		AudioNormalize:      h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
+		MaxAudioChannels:    renditionChannels(sourceChannels, maxAudioChannelsQuery(r)),
+		SourceAudioChannels: sourceChannels,
+		SourceDurationSec:   durationSec,
 		// Non-zero only when the video is packaged by the ffmpeg copy fallback
 		// instead of mkvgo - see transcode_audio_sync.go.
 		VideoCompositionDelay: videoCompositionDelay,
