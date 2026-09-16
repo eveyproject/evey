@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
@@ -300,4 +301,68 @@ func TestMediaItemRepo_List_AllowedRatings(t *testing.T) {
 	assert.True(t, ids["cq-mi-pg"])
 	assert.True(t, ids["cq-mi-norating"])
 	assert.False(t, ids["cq-mi-r"])
+}
+
+// The autoplay/warm-up handoff: the next episode is the next index in the
+// same season, else the first episode of the next season, and nil (no
+// error) after the finale. Season and episode aggregates count episodes
+// through the whole tree.
+func TestMediaItemQueryRepoAdapter_NextEpisodeOf_AndSeriesAggregate(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	lib := newTestLibrary("nextlib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	queryRepo := postgres.NewMediaItemQueryRepoAdapter(db)
+
+	seriesID, s1 := seedSeries(t, itemRepo, lib.ID, "nx", 1, 2, 40*time.Minute)
+	// Season 2 hangs off the same series: two more episodes.
+	s2 := newTestMediaItem("nx-s2", lib.ID)
+	s2.Type = library.Season
+	s2.ParentID = seriesID
+	s2.IndexNumber = new(2)
+	require.NoError(t, itemRepo.Create(ctx, s2))
+	d, _ := shared.NewDurationFromTime(50 * time.Minute)
+	for i := 1; i <= 2; i++ {
+		ep := newTestMediaItem("nx-s2e"+string(rune('0'+i)), lib.ID)
+		ep.Type = library.Episode
+		ep.ParentID = string(s2.ID)
+		ep.IndexNumber = new(i)
+		ep.File = &library.MediaFile{Path: "/media/" + string(ep.ID) + ".mkv", Duration: d}
+		require.NoError(t, itemRepo.Create(ctx, ep))
+	}
+	// A special without an index number is never "next" and never breaks the walk.
+	sp := newTestMediaItem("nx-special", lib.ID)
+	sp.Type = library.Episode
+	sp.ParentID = string(s2.ID)
+	require.NoError(t, itemRepo.Create(ctx, sp))
+
+	next, err := queryRepo.NextEpisodeOf(ctx, shared.MediaItemID(s1[0]))
+	require.NoError(t, err)
+	require.NotNil(t, next)
+	assert.Equal(t, s1[1], string(next.ID), "same season, next index")
+
+	next, err = queryRepo.NextEpisodeOf(ctx, shared.MediaItemID(s1[1]))
+	require.NoError(t, err)
+	require.NotNil(t, next)
+	assert.Equal(t, "nx-s2e1", string(next.ID), "end of season 1: first episode of season 2")
+
+	next, err = queryRepo.NextEpisodeOf(ctx, "nx-s2e2")
+	require.NoError(t, err)
+	assert.Nil(t, next, "the finale has no next episode, and that is not an error")
+
+	next, err = queryRepo.NextEpisodeOf(ctx, "nx-special")
+	require.NoError(t, err)
+	assert.Nil(t, next, "an unnumbered episode cannot be walked from")
+
+	agg, err := queryRepo.SeriesAggregate(ctx, shared.MediaItemID(seriesID))
+	require.NoError(t, err)
+	assert.Equal(t, 5, agg.EpisodeCount, "every episode in the tree, the special included")
+	assert.Equal(t, 2, agg.SeasonCount)
+	assert.Equal(t, (2*40*time.Minute + 2*50*time.Minute).Milliseconds(), agg.TotalDuration.Milliseconds(), "only episodes with a file count toward the runtime")
+
+	empty, err := queryRepo.SeriesAggregate(ctx, "ghost")
+	require.NoError(t, err)
+	assert.Zero(t, empty.EpisodeCount)
 }
