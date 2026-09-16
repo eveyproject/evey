@@ -137,3 +137,27 @@ type testErr string
 
 func (e testErr) Error() string { return string(e) }
 func newTestErr(s string) error { return testErr(s) }
+
+// The admin panel prices every measured route through the SAME model the
+// limiter admits with: a route's share of the accelerator is required rate
+// over measured rate, a CPU-only route charges no accelerator, and a
+// capability without route evidence renders no rows.
+func TestRouteCostViews_PricesLikeAdmission(t *testing.T) {
+	assert.Nil(t, routeCostViews(domaintranscoding.EncodeCapability{}))
+
+	nvenc := domaintranscoding.RouteCostKeyFor("nvenc", "h264_nvenc", domaintranscoding.RouteCostSDR)
+	cpu := domaintranscoding.RouteCostKeyFor("", "libx264", domaintranscoding.RouteCostSDR)
+	views := routeCostViews(domaintranscoding.EncodeCapability{RouteSamples: []domaintranscoding.RouteSample{
+		{Key: nvenc, Height: 1080, FPS: 96, SourceFPS: 24, CPUCores: 0.5},
+		{Key: cpu, Height: 1080, FPS: 48, SourceFPS: 24, CPUCores: 4},
+	}})
+	require.Len(t, views, 2)
+	assert.Equal(t, "nvenc", views[0].Backend)
+	assert.Equal(t, "h264_nvenc", views[0].Encoder)
+	assert.Equal(t, "sdr", views[0].Route)
+	assert.Equal(t, 1080, views[0].Height)
+	assert.InDelta(t, 24*domaintranscoding.RouteCostHeadroom/96, views[0].AccelCost, 1e-9, "required over measured fps")
+	assert.Greater(t, views[0].CPUCost, 0.0)
+	assert.Zero(t, views[1].AccelCost, "a CPU encoder spends no accelerator")
+	assert.Greater(t, views[1].CPUCost, views[0].CPUCost, "four cores at half the speed cost more of the CPU pool")
+}
