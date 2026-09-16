@@ -799,3 +799,50 @@ func TestMediaStreamRepo_ExtendedDispositions_RoundTrip(t *testing.T) {
 	assert.True(t, r.TextDescriptions)
 	assert.True(t, r.Original)
 }
+
+// VideoDims serves the complexity worker the resolution the scan already
+// stored (no ffprobe fork): the first video stream with both dimensions,
+// (0,0) without one. The idet verdicts land on video streams only.
+func TestMediaStreamRepo_VideoDims_AndIdetVerdicts(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	lib := newTestLibrary("msdimlib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	video, audioOnly := newTestMediaItem("msdim-v", lib.ID), newTestMediaItem("msdim-a", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, video))
+	require.NoError(t, itemRepo.Create(ctx, audioOnly))
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		// A cover-art "video" stream without dimensions must not answer.
+		{ID: "d0", MediaItemID: video.ID, StreamIndex: 0, StreamType: "video", Codec: "mjpeg"},
+		{ID: "d1", MediaItemID: video.ID, StreamIndex: 1, StreamType: "video", Codec: "hevc", Width: new(3840), Height: new(2160)},
+		{ID: "d2", MediaItemID: video.ID, StreamIndex: 2, StreamType: "audio", Codec: "eac3"},
+		{ID: "d3", MediaItemID: audioOnly.ID, StreamIndex: 0, StreamType: "audio", Codec: "flac"},
+	}))
+
+	w, h, err := streamRepo.VideoDims(ctx, video.ID)
+	require.NoError(t, err)
+	assert.Equal(t, [2]int{3840, 2160}, [2]int{w, h})
+	w, h, err = streamRepo.VideoDims(ctx, audioOnly.ID)
+	require.NoError(t, err)
+	assert.Zero(t, w+h, "no video stream is (0,0), not an error")
+
+	n, err := streamRepo.SetIdetTelecine(ctx, video.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n, "every video stream of the item, never the audio")
+	n, err = streamRepo.SetIdetTelecine(ctx, audioOnly.ID, true)
+	require.NoError(t, err)
+	assert.Zero(t, n)
+	streams, err := streamRepo.GetByMediaItemID(ctx, video.ID)
+	require.NoError(t, err)
+	for _, s := range streams {
+		if s.StreamType == library.StreamTypeVideo {
+			require.NotNil(t, s.IdetTelecine, s.ID)
+			assert.True(t, *s.IdetTelecine)
+		} else {
+			assert.Nil(t, s.IdetTelecine, "audio carries no idet verdict")
+		}
+	}
+}
