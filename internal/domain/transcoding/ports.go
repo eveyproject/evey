@@ -51,6 +51,13 @@ type TranscodeProfileRepository interface {
 	Delete(ctx context.Context, id string) error
 }
 
+// Sentinels DeleteFile returns so the API can answer NotFound / InvalidArgument
+// instead of logging an already-deleted file as a server fault.
+var (
+	ErrCacheFileNotFound    = errors.New("cache file not found")
+	ErrCacheFilenameInvalid = errors.New("invalid cache filename")
+)
+
 type CacheStore interface {
 	GetCacheInfo(ctx context.Context) (*CacheInfo, error)
 	ClearCache(ctx context.Context) error

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -129,15 +130,14 @@ func TestCacheStore_DeleteFile_NotFound(t *testing.T) {
 	dir := t.TempDir()
 	store := filesystem.NewCacheStore(dir)
 	err := store.DeleteFile(context.Background(), "missing.ts")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	require.ErrorIs(t, err, transcoding.ErrCacheFileNotFound)
 }
 
 func TestCacheStore_DeleteFile_InvalidPath(t *testing.T) {
 	dir := t.TempDir()
 	store := filesystem.NewCacheStore(dir)
 
-	require.Error(t, store.DeleteFile(context.Background(), "../etc/passwd"))
+	require.ErrorIs(t, store.DeleteFile(context.Background(), "../etc/passwd"), transcoding.ErrCacheFilenameInvalid)
 	require.Error(t, store.DeleteFile(context.Background(), "foo/bar"))
 	require.Error(t, store.DeleteFile(context.Background(), "foo\\bar"))
 }
