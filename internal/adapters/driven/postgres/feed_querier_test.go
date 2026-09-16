@@ -200,3 +200,78 @@ func TestFeedQuerier_ContinueWatching_AndNextEpisode(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, other)
 }
+
+// "Recently added": a film by its own added_at, a series by its NEWEST
+// episode (an old show with a fresh episode re-surfaces), a fully watched
+// film leaves the row, and a series leaves only once EVERY episode is
+// completed - a new episode brings it back.
+func TestFeedQuerier_RecentlyAdded_WindowAndWatchedFilter(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("ra-u")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("ra-p", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("ralib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	fq := postgres.NewFeedQuerier(db)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+
+	mkMovie := func(id string, added time.Time) {
+		it := newTestMediaItem(id, lib.ID)
+		it.AddedAt = added
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	mkMovie("ra-fresh", now.Add(-24*time.Hour))
+	mkMovie("ra-old", now.Add(-90*24*time.Hour))
+	mkMovie("ra-watched", now.Add(-2*time.Hour))
+	seedProgress(t, db, "ra-p", "ra-watched", 2*time.Hour, true, now)
+
+	// An old series whose latest episode landed yesterday.
+	seriesID, eps := seedSeries(t, itemRepo, lib.ID, "raS", 1, 2, 40*time.Minute)
+	_, err := db.ExecContext(ctx, `UPDATE media_items SET added_at = $1 WHERE id = $2`, now.Add(-200*24*time.Hour), seriesID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE media_items SET added_at = $1 WHERE id = $2`, now.Add(-200*24*time.Hour), eps[0])
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE media_items SET added_at = $1 WHERE id = $2`, now.Add(-12*time.Hour), eps[1])
+	require.NoError(t, err)
+
+	ids := func(items []*feed.FeedItem) []string {
+		out := make([]string, 0, len(items))
+		for _, it := range items {
+			out = append(out, string(it.MediaItemID))
+		}
+		return out
+	}
+	items, err := fq.RecentlyAdded(ctx, "ra-p", 30, 20)
+	require.NoError(t, err)
+	assert.Equal(t, []string{seriesID, "ra-fresh"}, ids(items), "newest first; the old film is outside the window, the watched film is hidden, the series rides its newest episode")
+
+	// Without a profile nothing is filtered on watch state.
+	items, err = fq.RecentlyAdded(ctx, "", 30, 20)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{seriesID, "ra-fresh", "ra-watched"}, ids(items))
+
+	// Completing every episode hides the series; a new episode brings it back.
+	seedProgress(t, db, "ra-p", eps[0], 40*time.Minute, true, now)
+	seedProgress(t, db, "ra-p", eps[1], 40*time.Minute, true, now)
+	items, err = fq.RecentlyAdded(ctx, "ra-p", 30, 20)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"ra-fresh"}, ids(items))
+	e3 := newTestMediaItem("raS-e3", lib.ID)
+	e3.Type = library.Episode
+	e3.ParentID = "raS-s1"
+	e3.IndexNumber = new(3)
+	e3.AddedAt = now
+	require.NoError(t, itemRepo.Create(ctx, e3))
+	items, err = fq.RecentlyAdded(ctx, "ra-p", 30, 20)
+	require.NoError(t, err)
+	assert.Equal(t, []string{seriesID, "ra-fresh"}, ids(items), "an unwatched new episode re-surfaces the series, first")
+
+	// The window is honoured: a 1-day window drops yesterday's film.
+	items, err = fq.RecentlyAdded(ctx, "", 1, 20)
+	require.NoError(t, err)
+	assert.Equal(t, []string{seriesID, "ra-watched"}, ids(items))
+}
