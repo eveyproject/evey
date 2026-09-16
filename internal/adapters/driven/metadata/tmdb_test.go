@@ -780,3 +780,74 @@ func TestMapDetailResult_NoVideos(t *testing.T) {
 	assert.Empty(t, result.Trailers)
 	assert.Nil(t, result.Collection)
 }
+
+// The admin "change IMDb id" flow resolves the TMDb record through /find so
+// the item's TMDb id follows the new IMDb id: a movie hit wins over a TV hit,
+// no hit is nil (not an error), and only IMDb ids are wired.
+func TestLookupByExternalID(t *testing.T) {
+	var body string
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/find/tt0000001", r.URL.Path)
+		assert.Equal(t, "imdb_id", r.URL.Query().Get("external_source"))
+		assert.Equal(t, "en", r.URL.Query().Get("language"))
+		_, _ = w.Write([]byte(body))
+	})
+	defer srv.Close()
+
+	none, err := p.LookupByExternalID(context.Background(), "tvdb", "12345")
+	require.NoError(t, err)
+	assert.Nil(t, none, "only IMDb ids are wired")
+	none, err = p.LookupByExternalID(context.Background(), "imdb", "")
+	require.NoError(t, err)
+	assert.Nil(t, none)
+
+	body = `{"movie_results":[{"id":603}],"tv_results":[{"id":1396}]}`
+	got, err := p.LookupByExternalID(context.Background(), "imdb", "tt0000001")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"tmdb": "603", "imdb": "tt0000001"}, got.ProviderIDs)
+
+	body = `{"movie_results":[],"tv_results":[{"id":1396}]}`
+	got, err = p.LookupByExternalID(context.Background(), "imdb", "tt0000001")
+	require.NoError(t, err)
+	assert.Equal(t, "1396", got.ProviderIDs["tmdb"])
+
+	body = `{"movie_results":[],"tv_results":[]}`
+	got, err = p.LookupByExternalID(context.Background(), "imdb", "tt0000001")
+	require.NoError(t, err)
+	assert.Nil(t, got, "no mapping is not an error")
+}
+
+// Alternative titles feed the ambiguous-match scorer: movies list them under
+// "titles", series under "results"; blanks and duplicates are dropped, and a
+// second call is served from the cache (the path is rate-limited upstream).
+func TestAlternativeTitles(t *testing.T) {
+	calls := 0
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		switch r.URL.Path {
+		case "/movie/603/alternative_titles":
+			_, _ = w.Write([]byte(`{"id":603,"titles":[{"iso_3166_1":"FR","title":"Titre FR"},{"iso_3166_1":"DE","title":""},{"iso_3166_1":"BE","title":"Titre FR"}]}`))
+		case "/tv/1396/alternative_titles":
+			_, _ = w.Write([]byte(`{"id":1396,"results":[{"iso_3166_1":"ES","title":"Titulo ES"}]}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+	defer srv.Close()
+
+	movie, err := p.AlternativeTitles(context.Background(), "603", "movie")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Titre FR"}, movie)
+	tv, err := p.AlternativeTitles(context.Background(), "1396", "tv")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Titulo ES"}, tv)
+
+	again, err := p.AlternativeTitles(context.Background(), "603", "movie")
+	require.NoError(t, err)
+	assert.Equal(t, movie, again)
+	assert.Equal(t, 2, calls, "the repeat is served from the cache")
+
+	_, err = p.AlternativeTitles(context.Background(), "1", "music")
+	require.Error(t, err)
+	assert.Equal(t, 2, calls, "an unsupported type never hits the network")
+}
