@@ -234,3 +234,13 @@ func TestListWebhookDeliveries_Success(t *testing.T) {
 }
 
 func (f *fakeDeliveryRepo) Purge(_ context.Context, _ time.Time) (int64, error) { return 0, nil }
+
+// The signing secret never leaves the server whole: empty stays empty, a
+// short one is fully masked, a long one keeps a 4-char hint.
+func TestMaskSecret(t *testing.T) {
+	for in, want := range map[string]string{"": "", "ab": "****", "abcd": "****", "abcde": "abcd****", "whsec_1234567890": "whse****"} {
+		if got := maskSecret(in); got != want {
+			t.Errorf("maskSecret(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
