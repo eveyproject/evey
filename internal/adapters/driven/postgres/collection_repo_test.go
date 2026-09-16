@@ -469,3 +469,59 @@ func TestCollectionRepo_ReleaseOrderStaysTheDefault(t *testing.T) {
 	assert.Equal(t, old.ID, items[0].ID, "release order stays the default reading order")
 	assert.Equal(t, recent.ID, items[1].ID)
 }
+
+// Update rewrites the editable fields of one collection (a smart
+// collection's rules included) and refuses a vanished id; GetByTmdbID is the
+// relink key; GetByMediaItemID lists every collection holding a title.
+func TestCollectionRepo_Update_GetByTmdbID_GetByMediaItemID(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	repo := postgres.NewCollectionRepository(db)
+	lib := newTestLibrary("colxlib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	item := newTestMediaItem("colxmi", lib.ID)
+	require.NoError(t, postgres.NewMediaItemRepository(db).Create(ctx, item))
+
+	col := newTestCollection("colx-1")
+	require.NoError(t, repo.Create(ctx, col))
+	other := newTestCollection("colx-2")
+	otherTmdb := 777
+	other.TmdbID = &otherTmdb
+	require.NoError(t, repo.Create(ctx, other))
+	require.NoError(t, repo.LinkItem(ctx, col.ID, string(item.ID), 0))
+	require.NoError(t, repo.LinkItem(ctx, other.ID, string(item.ID), 0))
+
+	col.Name = "Renamed"
+	col.Overview = "New overview"
+	col.SortBy = "title"
+	col.Rules = []library.CollectionRule{{Field: "genre", Value: "Action"}}
+	col.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
+	require.NoError(t, repo.Update(ctx, col))
+	got, err := repo.GetByID(ctx, col.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Renamed", got.Name)
+	assert.Equal(t, "New overview", got.Overview)
+	assert.Equal(t, "title", got.SortBy)
+	require.Len(t, got.Rules, 1)
+	assert.Equal(t, "Action", got.Rules[0].Value)
+	assert.Equal(t, 12345, *got.TmdbID, "Update never touches the provider link")
+
+	ghost := newTestCollection("colx-ghost")
+	require.ErrorIs(t, repo.Update(ctx, ghost), shared.ErrNotFound)
+
+	byTmdb, err := repo.GetByTmdbID(ctx, 777)
+	require.NoError(t, err)
+	assert.Equal(t, other.ID, byTmdb.ID)
+	_, err = repo.GetByTmdbID(ctx, 424242)
+	require.ErrorIs(t, err, shared.ErrNotFound)
+
+	holding, err := repo.GetByMediaItemID(ctx, string(item.ID))
+	require.NoError(t, err)
+	require.Len(t, holding, 2)
+	assert.Equal(t, "Collection colx-2", holding[0].Name, "by name")
+	assert.Equal(t, "Renamed", holding[1].Name)
+	none, err := repo.GetByMediaItemID(ctx, "ghost")
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
