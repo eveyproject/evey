@@ -19,10 +19,33 @@ import (
 // runtime never emits. Reuses the bench samples already resolved for the
 // software/HW ladders - no extra clip generation.
 
-// routeEvidenceRungs are the heights measured per route: a low rung and the
-// route's ceiling. Two points are enough for the cost model (smallest rung
-// >= h), and boot stays bounded. Capped to the route's own max below.
+// routeEvidenceRungs are the reference heights measured per route. Two points
+// are enough for the cost model (smallest rung >= h), and boot stays bounded.
+// Capped to the route's own ceiling by routeEvidenceRungsFor, which ALWAYS
+// adds that ceiling: a route whose ceiling is under 1080 (a 720p-only
+// accelerator, the 720p software floor, the 480p HDR floor) used to get no
+// sample at all, and admission - which prices a named route ONLY on evidence -
+// refused it outright. It is that host's whole capacity; it must be priced.
 var routeEvidenceRungs = []int{1080, 2160}
+
+// routeEvidenceRungsFor is the ascending list of heights to measure for a route
+// capped at ceiling: every reference rung at or under it, plus the ceiling
+// itself when it is not one of them. Empty for a route with no ceiling.
+func routeEvidenceRungsFor(ceiling int) []int {
+	if ceiling <= 0 {
+		return nil
+	}
+	var out []int
+	for _, h := range routeEvidenceRungs {
+		if h <= ceiling {
+			out = append(out, h)
+		}
+	}
+	if len(out) == 0 || out[len(out)-1] != ceiling {
+		out = append(out, ceiling)
+	}
+	return out
+}
 
 // evidenceRoute is one route to measure: its cost key parts and the opts
 // mutation that makes BuildFFmpegArgs emit that pipeline.
@@ -100,10 +123,7 @@ func (r *BenchmarkRunner) measureRouteEvidence(ctx context.Context, sdrSample st
 		}
 		enc := videoEncoderFor(codecOrH264(er), transcoding.HWAccelType(er.backend))
 		key := transcoding.RouteCostKeyFor(transcoding.HWAccelType(er.backend), enc, er.route)
-		for _, h := range routeEvidenceRungs {
-			if h > r.routeCeiling(er, cap) {
-				continue
-			}
+		for _, h := range routeEvidenceRungsFor(r.routeCeiling(er, cap)) {
 			// Warm each accelerator once before its first measurement: the first
 			// encode after idle runs far slower for its whole window (2.5-6x on
 			// NVENC), the artefact this evidence exists to avoid.
@@ -137,11 +157,22 @@ func codecOrH264(er evidenceRoute) string {
 }
 
 // routeCeiling caps the measured rungs to the route's own max height so we do
-// not try 2160 on a host that tops out at 1440 (software) for this route.
+// not try 2160 on a host that tops out at 1440 (software) for this route. A
+// hardware route is capped at ITS backend's certified ceiling (a 1080p-only
+// secondary next to a 2160p primary measures to 1080), the primary scalar
+// being the fallback for a backend that recorded none.
 func (r *BenchmarkRunner) routeCeiling(er evidenceRoute, cap *transcoding.EncodeCapability) int {
 	if er.hw() {
-		if cap.HWMaxHeight > 0 {
-			return cap.HWMaxHeight
+		// The bridge route measures up to the backend's OWN bridge ceiling, the
+		// software HDR ceiling when its bridge cleared no rung - never the
+		// backend's plain encode ceiling.
+		if er.route == transcoding.RouteCostBridge {
+			if h := cap.EffectiveBridgeCeilingFor(er.backend); h > 0 {
+				return h
+			}
+		}
+		if h := cap.HWCeilingFor(er.backend); h > 0 {
+			return h
 		}
 		return 2160
 	}

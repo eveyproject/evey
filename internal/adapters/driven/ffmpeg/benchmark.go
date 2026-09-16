@@ -267,15 +267,21 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// backward compatibility and non-route reads.
 		for i, c := range candidates {
 			bc := r.probeBackendCap(ctx, c)
+			// The CPU tone-map bridge is benched PER backend without a GPU
+			// tone-mapper: each records its own ceiling (a route resolved on a
+			// secondary caps at that, never the primary's). The primary's ladder
+			// also feeds the diagnostic hw-bridge table (BenchSamples).
+			var bridge []transcoding.BenchRungSample
+			if !bc.HWTonemap {
+				bridge = r.benchHWBridge(ctx, c.backend, c.device, hwDomainCodecs(c.codecs))
+				bc.BridgeMaxHeight = tallestPassing(bridge)
+			}
 			backends = append(backends, bc)
 			if i == 0 {
 				hwMax, hwBackend, hwCodecs, hwDevice, hwSamples = c.best, c.backend, c.codecs, c.device, c.samples
 				hwFeatures, hwDecodeCodecs, hwRoutes = bc.Features, bc.DecodeCodecs, bc.Routes
 				hw10Bit, hwTonemap, hwOverlay, hwHDR10 = bc.HW10Bit, bc.HWTonemap, bc.HWOverlay, bc.HWHDR10Encode
-				// The primary's HDR bridge ladder feeds the diagnostic hw-bridge table.
-				if !bc.HWTonemap {
-					hwSamples = append(hwSamples, r.benchHWBridge(ctx, c.backend, c.device, hwDomainCodecs(c.codecs))...)
-				}
+				hwSamples = append(hwSamples, bridge...)
 			}
 		}
 	}
@@ -830,6 +836,39 @@ func probeRungs(ladder []int, i int, singleVariant bool) []int {
 	return ladder[: i+1 : i+1]
 }
 
+// walkLadder walks a bench ladder low to high in the runtime's pipeline shape
+// (probeRungs) and returns the tallest rung sustaining required fps plus every
+// rung's sample tagged label. probe runs one measurement of the given heights
+// (fps, ok); onRung observes each sample (logging). Short-circuits at the first
+// failing rung: in either shape a taller rung of the same shape cannot pass.
+// Pure over probe, so the shape decision is unit-tested without ffmpeg.
+func walkLadder(ladder []int, singleVariant bool, required float64, label string, probe func(heights []int) (float64, bool), onRung func(transcoding.BenchRungSample)) (int, []transcoding.BenchRungSample) {
+	best := 0
+	var samples []transcoding.BenchRungSample
+	for i, h := range ladder {
+		laddered := probeRungs(ladder, i, singleVariant)
+		fps, ok := probe(laddered)
+		passing := ok && fps >= required
+		s := transcoding.BenchRungSample{
+			Ladder:          label,
+			Height:          h,
+			FPS:             fps,
+			RequiredFPS:     required,
+			Passing:         passing,
+			ParallelEncodes: len(laddered),
+		}
+		samples = append(samples, s)
+		if onRung != nil {
+			onRung(s)
+		}
+		if !passing {
+			break
+		}
+		best = h
+	}
+	return best, samples
+}
+
 // benchSoftwareLadder walks swBenchLadder under the production pipeline shape,
 // optionally prefixing a filter on the decoded stream before encoding
 // (preFilter, e.g. the HDR tonemap). In single-variant mode each rung is probed
@@ -931,37 +970,28 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 			}) {
 			continue
 		}
+		// The ladder is walked in the SAME pipeline shape the runtime executes
+		// (probeRungs): single-variant = one rung per probe. The cumulative
+		// parallel ladder this used to run regardless of the mode under-certified
+		// a small GPU - one that cannot encode 720p+1080p at once but sustains a
+		// lone 1080p session, which is all a single-variant runtime ever asks.
 		runLadder := func(extraInputArgs []string, uploadChain string) (int, []transcoding.BenchRungSample) {
-			best := 0
-			var samples []transcoding.BenchRungSample
-			for i, h := range hwBenchLadder {
-				laddered := hwBenchLadder[:i+1]
-				fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, extraInputArgs, uploadChain)
-				required := float64(r.sourceRate()) * r.margin
-				passing := ok && fps >= required
-				r.logger.Info("benchmark: hardware probe",
-					slog.String("backend", dev.Type),
-					slog.String("device", device),
-					slog.String("encoder", encoder),
-					slog.Int("height", h),
-					slog.Int("parallel_encodes", len(laddered)),
-					slog.Float64("fps", fps),
-					slog.Bool("passing", passing),
-					slog.Bool("decoupled", uploadChain != ""))
-				samples = append(samples, transcoding.BenchRungSample{
-					Ladder:          "hw",
-					Height:          h,
-					FPS:             fps,
-					RequiredFPS:     required,
-					Passing:         passing,
-					ParallelEncodes: len(laddered),
+			return walkLadder(hwBenchLadder, r.singleVariant, float64(r.sourceRate())*r.margin, transcoding.LadderHW,
+				func(heights []int) (float64, bool) {
+					return r.runMultiVariant(ctx, sample, fallback, heights, encoder, extraInputArgs, uploadChain)
+				},
+				func(s transcoding.BenchRungSample) {
+					r.logger.Info("benchmark: hardware probe",
+						slog.String("backend", dev.Type),
+						slog.String("device", device),
+						slog.String("encoder", encoder),
+						slog.Int("height", s.Height),
+						slog.Int("parallel_encodes", s.ParallelEncodes),
+						slog.Bool("single_variant", r.singleVariant),
+						slog.Float64("fps", s.FPS),
+						slog.Bool("passing", s.Passing),
+						slog.Bool("decoupled", uploadChain != ""))
 				})
-				if !passing {
-					break
-				}
-				best = h
-			}
-			return best, samples
 		}
 
 		// Production zero-copy path first; decoupled (software decode + hwupload)
@@ -1117,6 +1147,18 @@ type hwCandidate struct {
 	samples                  []transcoding.BenchRungSample
 }
 
+// tallestPassing is the height of the tallest passing rung of a ladder's
+// samples (0 when none passed) - a backend's own certified ceiling.
+func tallestPassing(samples []transcoding.BenchRungSample) int {
+	top := 0
+	for _, s := range samples {
+		if s.Passing && s.Height > top {
+			top = s.Height
+		}
+	}
+	return top
+}
+
 // topPassingFPS is the fps of the tallest passing rung in a hw ladder - the
 // throughput that ranks a certified candidate by cost. 0 when none passed.
 func topPassingFPS(samples []transcoding.BenchRungSample) float64 {
@@ -1214,6 +1256,9 @@ func (r *BenchmarkRunner) probeBackendCap(ctx context.Context, c hwCandidate) tr
 		Backend: c.backend, Device: c.device, Codecs: codecs, DecodeCodecs: decode,
 		Features: features, Routes: routes, HW10Bit: hw10, HWTonemap: tonemap, HWOverlay: overlay, HWHDR10Encode: hdr10,
 		HWDeinterlace: deint,
+		// This backend's own certified ceiling: the resolver caps a route picked
+		// on a secondary backend here, and route evidence measures up to it.
+		MaxHeight: c.best,
 	}
 }
 
@@ -1229,29 +1274,28 @@ func (r *BenchmarkRunner) benchHWBridge(ctx context.Context, backend, device str
 	sample, fallback := r.resolveHDRSample(ctx)
 	useTonemapx := tonemapxAvailable(r.ffmpegPath)
 	required := float64(r.sourceRate()) * r.margin
-	var samples []transcoding.BenchRungSample
-	for i, h := range hwBenchLadder {
+	// The bridge chain tone-maps at the width of the TOP rung of the probe (the
+	// production scale-first shape); in single-variant mode that is the rung
+	// itself, exactly as the software HDR ladder is probed.
+	bridgeChain := func(topH int) string {
 		o := hdr.DefaultToneMapOptions()
-		o.DstWidth = h * 16 / 9
+		o.DstWidth = topH * 16 / 9
 		o.UseTonemapx = useTonemapx
-		chain := hwTonemapBridge(accel, hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, o), deinterlaceFilter)
-		if chain == "" {
-			return nil
-		}
-		laddered := hwBenchLadder[:i+1]
-		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, hwInputArgs(backend, device), chain)
-		passing := ok && fps >= required
-		r.logger.Info("benchmark: hw tone-map bridge probe",
-			slog.String("backend", backend), slog.Int("height", h),
-			slog.Float64("fps", fps), slog.Float64("required_fps", required), slog.Bool("passing", passing))
-		samples = append(samples, transcoding.BenchRungSample{
-			Ladder: transcoding.LadderHWBridge, Height: h, FPS: fps, RequiredFPS: required,
-			Passing: passing, ParallelEncodes: len(laddered),
-		})
-		if !passing {
-			break
-		}
+		return hwTonemapBridge(accel, hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, o), deinterlaceFilter)
 	}
+	if bridgeChain(hwBenchLadder[0]) == "" {
+		return nil
+	}
+	_, samples := walkLadder(hwBenchLadder, r.singleVariant, required, transcoding.LadderHWBridge,
+		func(heights []int) (float64, bool) {
+			return r.runMultiVariant(ctx, sample, fallback, heights, encoder, hwInputArgs(backend, device), bridgeChain(heights[len(heights)-1]))
+		},
+		func(s transcoding.BenchRungSample) {
+			r.logger.Info("benchmark: hw tone-map bridge probe",
+				slog.String("backend", backend), slog.Int("height", s.Height),
+				slog.Int("parallel_encodes", s.ParallelEncodes), slog.Bool("single_variant", r.singleVariant),
+				slog.Float64("fps", s.FPS), slog.Float64("required_fps", s.RequiredFPS), slog.Bool("passing", s.Passing))
+		})
 	return samples
 }
 

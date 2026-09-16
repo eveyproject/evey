@@ -225,6 +225,12 @@ func WithHostLoadProbe(probe func() float64) CalibrationOption {
 	}
 }
 
+// routeEvidenceFloorProbeVersion is the CapabilityProbeVersion from which route
+// evidence is measured at a route's ceiling rung (720p / 480p floors included).
+// A software-only row older than this is re-benched once; later probe bumps are
+// hardware-only and leave software-only rows alone.
+const routeEvidenceFloorProbeVersion = 11
+
 // contendedCPUPercent is the host-wide CPU busy share above which a benchmark
 // is not measuring this host but whatever else runs on it. 50 % leaves the
 // normal boot noise alone (the embedded Postgres and Meilisearch settling, a
@@ -398,7 +404,14 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 				slog.Any("detected_backends", persisted.DetectedBackends))
 		}
 		// New HW probes since this row was benched: re-bench once so they populate.
-		probesStale := persisted.HWBackend != "" && persisted.ProbeVersion < domaintranscoding.CapabilityProbeVersion
+		// A software-only row is re-benched only when its ROUTE EVIDENCE is the
+		// stale part: before routeEvidenceFloorProbeVersion a route capped under
+		// 1080p (the 480p HDR floor next to a 1080p SDR ceiling) had no sample,
+		// and admission - which prices a named route only on evidence - refused
+		// every software HDR play on an idle host. A row with no route evidence
+		// at all prices on the table/counter and is not affected: kept as is.
+		probesStale := persisted.ProbeVersion < domaintranscoding.CapabilityProbeVersion &&
+			(persisted.HWBackend != "" || (len(persisted.RouteSamples) > 0 && persisted.ProbeVersion < routeEvidenceFloorProbeVersion))
 		if probesStale {
 			s.logger.Info("calibration: persisted capability predates the current HW probes, re-benching",
 				slog.Int("probe_version", persisted.ProbeVersion),
@@ -411,13 +424,19 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 			// if it's dead, strip HW and keep the still-valid software ceiling
 			// rather than selecting a backend that fails at playtime and loops the
 			// player on a ~30s timeout.
-			if persisted.HWBackend != "" && persisted.HWMaxHeight > 0 && !s.runner.HWBackendUsable(ctx, persisted.HWBackend, persisted.HWDevice) {
-				s.logger.Warn("calibration: persisted HW backend not usable on this host, falling back to software",
-					slog.String("hw_backend", persisted.HWBackend))
-				persisted.HWBackend = ""
-				persisted.HWDevice = ""
-				persisted.HWMaxHeight = 0
-				persisted.HWFeatures = nil
+			// EVERY certified backend is re-validated, not just the primary: the
+			// resolver picks a backend per route from Backends, so a dead secondary
+			// left in the row would still be chosen (and fail) for the routes it
+			// proved. A dead primary hands over to the next live backend.
+			if persisted.HWBackend != "" && persisted.HWMaxHeight > 0 {
+				for _, bc := range persisted.BackendCaps() {
+					if s.runner.HWBackendUsable(ctx, bc.Backend, bc.Device) {
+						continue
+					}
+					s.logger.Warn("calibration: persisted HW backend not usable on this host, dropping it",
+						slog.String("hw_backend", bc.Backend), slog.String("device", bc.Device))
+					persisted = persisted.WithoutBackend(bc.Backend)
+				}
 			}
 			// Re-derive the ceilings from the persisted PROOF under the current
 			// policy: a policy change (PolicyVersion bump, a new margin/floor)

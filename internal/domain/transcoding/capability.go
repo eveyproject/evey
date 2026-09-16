@@ -194,6 +194,20 @@ type HWBackendCap struct {
 	// interlaced mire: the output idets progressive at the source frame rate.
 	// NVENC/VAAPI deinterlace per frame off the decoder flag and never need it.
 	HWDeinterlace bool `json:"hw_deinterlace,omitempty"`
+	// MaxHeight is THIS backend's own certified encode ceiling (the tallest hw
+	// ladder rung it sustained under the realtime margin). The scalar
+	// EncodeCapability.HWMaxHeight is the PRIMARY's; a secondary backend chosen
+	// per route (a 1080p-only VAAPI next to a 2160p QSV) must cap its ladder at
+	// its own ceiling, never the primary's. 0 on a row benched before it existed
+	// (HWCeilingFor then falls back to the primary scalar).
+	MaxHeight int `json:"max_height,omitempty"`
+	// BridgeMaxHeight is THIS backend's certified ceiling for the CPU tone-map
+	// bridge (GPU decode, CPU tone-map, GPU encode - LadderHWBridge), benched
+	// per backend. 0 = not measured (the backend tone-maps on the GPU, or has
+	// no H.264 encoder) or no rung passed: the bridge on it then caps at the
+	// software HDR ceiling. The scalar EncodeCapability.HWBridgeMaxHeight is
+	// the primary's.
+	BridgeMaxHeight int `json:"bridge_max_height,omitempty"`
 }
 
 // DeinterlacesOnGPU reports whether an INTERLACED source may take this
@@ -262,8 +276,91 @@ func (c EncodeCapability) BackendCaps() []HWBackendCap {
 	return []HWBackendCap{{
 		Backend: c.HWBackend, Device: c.HWDevice, Codecs: c.HWCodecs, DecodeCodecs: c.HWDecodeCodecs,
 		Features: c.HWFeatures, Routes: c.HWRoutes, HW10Bit: c.HW10BitTranscode, HWTonemap: c.HWTonemap,
-		HWOverlay: c.HWOverlay, HWHDR10Encode: c.HWHDR10Encode,
+		HWOverlay: c.HWOverlay, HWHDR10Encode: c.HWHDR10Encode, MaxHeight: c.HWMaxHeight,
+		BridgeMaxHeight: c.HWBridgeMaxHeight,
 	}}
+}
+
+// HWBridgeCeilingFor is the CPU tone-map bridge ceiling of the named backend:
+// its own BridgeMaxHeight when it recorded one, the primary scalar for the
+// primary (or an unnamed backend), 0 otherwise - a secondary whose bridge was
+// never proven or failed every rung caps at the software HDR ceiling.
+func (c EncodeCapability) HWBridgeCeilingFor(backend string) int {
+	if b, ok := c.BackendCap(backend); ok && b.BridgeMaxHeight > 0 {
+		return b.BridgeMaxHeight
+	}
+	if backend == "" || strings.EqualFold(backend, c.HWBackend) {
+		return c.HWBridgeMaxHeight
+	}
+	return 0
+}
+
+// EffectiveBridgeCeilingFor is the ceiling a bridge session on the named
+// backend is really capped at: its measured bridge ceiling when one rung
+// passed, else the software HDR ceiling (the CPU tone-map is the bridge's
+// bottleneck, so a bridge that clears no rung is bounded like the all-software
+// HDR chain - 480p floor included). 0 only on an un-benched row: no bridge
+// route is ever ranked, measured or shaped above this.
+func (c EncodeCapability) EffectiveBridgeCeilingFor(backend string) int {
+	if h := c.HWBridgeCeilingFor(backend); h > 0 {
+		return h
+	}
+	return c.SoftwareHDRMaxHeight
+}
+
+// HWCeilingFor is the encode ceiling of the named certified backend: its own
+// MaxHeight when it recorded one, else the primary scalar HWMaxHeight (a row
+// benched before per-backend ceilings, or an unnamed backend). 0 = no hw
+// ceiling. The ladder of a route picked on a secondary backend is capped here,
+// so a 1080p-only accelerator next to a 2160p primary never gets a 2160p rung.
+func (c EncodeCapability) HWCeilingFor(backend string) int {
+	if b, ok := c.BackendCap(backend); ok && b.MaxHeight > 0 {
+		return b.MaxHeight
+	}
+	return c.HWMaxHeight
+}
+
+// WithoutBackend drops one certified backend (a boot re-validation found it
+// dead on this host) and every route sample measured on it, so the resolver
+// can neither pick it per route nor price a session on its evidence. When it
+// was the primary, the next certified backend is promoted to the scalar
+// fields (with ITS ceiling); with none left the host is software-only.
+func (c EncodeCapability) WithoutBackend(backend string) EncodeCapability {
+	kept := make([]HWBackendCap, 0, len(c.Backends))
+	for _, b := range c.Backends {
+		if !strings.EqualFold(b.Backend, backend) {
+			kept = append(kept, b)
+		}
+	}
+	samples := make([]RouteSample, 0, len(c.RouteSamples))
+	for _, s := range c.RouteSamples {
+		if !strings.EqualFold(s.Key.Backend, backend) {
+			samples = append(samples, s)
+		}
+	}
+	c.Backends, c.RouteSamples = kept, samples
+	if !strings.EqualFold(c.HWBackend, backend) {
+		return c
+	}
+	if len(kept) == 0 {
+		disableHW(&c)
+		return c
+	}
+	// The hw ladder samples were the dead primary's: drop them so a re-derive
+	// never reads the promoted backend's ceiling off another device's proof.
+	bench := make([]BenchRungSample, 0, len(c.BenchSamples))
+	for _, s := range c.BenchSamples {
+		if s.Ladder != LadderHW && s.Ladder != LadderHWBridge {
+			bench = append(bench, s)
+		}
+	}
+	c.BenchSamples = bench
+	p := kept[0]
+	c.HWBackend, c.HWDevice, c.HWCodecs, c.HWDecodeCodecs = p.Backend, p.Device, p.Codecs, p.DecodeCodecs
+	c.HWFeatures, c.HWRoutes = p.Features, p.Routes
+	c.HW10BitTranscode, c.HWTonemap, c.HWOverlay, c.HWHDR10Encode = p.HW10Bit, p.HWTonemap, p.HWOverlay, p.HWHDR10Encode
+	c.HWMaxHeight, c.HWBridgeMaxHeight = p.MaxHeight, p.BridgeMaxHeight
+	return c
 }
 
 // AnyBackendSupports reports whether ANY certified backend encodes the codec.
@@ -393,8 +490,13 @@ type DecodeRungSample struct {
 // none of them and would software-decode every such source; 10: the
 // VAAPI->Vulkan/libplacebo tone-map probe (FeatureTonemapVulkan) and the
 // tone-map correctness gate - a v9 row never ran either, so an AMD/Mesa host
-// would keep bridging on the CPU with a working Vulkan interop).
-const CapabilityProbeVersion = 10
+// would keep bridging on the CPU with a working Vulkan interop; 11: the hw
+// ladder benched in the runtime's pipeline shape (single-variant: one rung per
+// probe, not the cumulative parallel ladder that under-certified a small GPU),
+// each backend's OWN ceiling recorded (HWBackendCap.MaxHeight) and route
+// evidence measured at the route's ceiling rung too - a v10 row certified a
+// 720p-only backend with NO route sample, which admission then refused).
+const CapabilityProbeVersion = 11
 
 // Route names the calibration proves through the production builder (see
 // EncodeCapability.HWRoutes). Each is one shape BuildFFmpegArgs can emit for a

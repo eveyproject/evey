@@ -57,6 +57,9 @@ type fakeBenchmarkRunner struct {
 	// existing persisted-HW tests keep their backend; set true to exercise the
 	// re-validation strip path.
 	hwUnusable bool
+	// deadBackends names the backends HWBackendUsable reports dead (per-backend
+	// re-validation of a multi-backend row); hwUnusable kills them all.
+	deadBackends []string
 	// encodeUnusable makes the media-independent proof (HWEncodeUsable) FAIL, so
 	// a runtime failure is confirmed as the host's; default (false) confirms the
 	// host still encodes, i.e. the failure was the media's.
@@ -83,8 +86,8 @@ func (r *fakeBenchmarkRunner) Run(ctx context.Context, pref domaintranscoding.HW
 	return r.result, r.err
 }
 
-func (r *fakeBenchmarkRunner) HWBackendUsable(_ context.Context, _, _ string) bool {
-	return !r.hwUnusable
+func (r *fakeBenchmarkRunner) HWBackendUsable(_ context.Context, backend, _ string) bool {
+	return !r.hwUnusable && !slices.Contains(r.deadBackends, backend)
 }
 
 func (r *fakeBenchmarkRunner) HWEncodeUsable(_ context.Context, _, _, _ string, features []string) bool {
@@ -321,6 +324,54 @@ func TestCalibration_EnsureCalibrated_PersistedHWUsable_Kept(t *testing.T) {
 	cur := svc.Current()
 	assert.Equal(t, 2160, cur.HWMaxHeight, "usable HW kept")
 	assert.Equal(t, "nvenc", cur.HWBackend, "usable HW backend kept")
+}
+
+// A multi-backend row is re-validated backend by backend at boot: a dead
+// SECONDARY is dropped (with its route evidence) while the primary stays; a
+// dead PRIMARY hands over to the next live backend with ITS ceiling. Before,
+// only the primary was probed, so a dead secondary stayed pickable per route.
+func TestCalibration_EnsureCalibrated_MultiBackend_RevalidatesEveryBackend(t *testing.T) {
+	hostSig := hostCPUSig(t)
+	row := func() *domaintranscoding.EncodeCapability {
+		return &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "qsv", HWDevice: "/dev/dri/renderD128",
+			HWCodecs: []string{"h264", "hevc"}, CPUSignature: hostSig, ProbeVersion: domaintranscoding.CapabilityProbeVersion,
+			Backends: []domaintranscoding.HWBackendCap{
+				{Backend: "qsv", Device: "/dev/dri/renderD128", Codecs: []string{"h264", "hevc"}, MaxHeight: 2160},
+				{Backend: "vaapi", Device: "/dev/dri/renderD128", Codecs: []string{"h264"}, MaxHeight: 1080},
+			},
+			RouteSamples: []domaintranscoding.RouteSample{
+				{Key: rk("qsv", "h264_qsv", domaintranscoding.RouteCostSDR), Height: 1080, FPS: 150, SourceFPS: 24},
+				{Key: rk("vaapi", "h264_vaapi", domaintranscoding.RouteCostSDR), Height: 1080, FPS: 90, SourceFPS: 24},
+			},
+			BenchSamples: []domaintranscoding.BenchRungSample{{Ladder: domaintranscoding.LadderSoftware, Height: 1080, FPS: 40, RequiredFPS: 28.8, Passing: true}},
+			SourceRate:   24,
+		}
+	}
+
+	// Dead secondary.
+	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{stored: row()}, &fakeBenchmarkRunner{deadBackends: []string{"vaapi"}}, nil)
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	cur := svc.Current()
+	assert.Equal(t, "qsv", cur.HWBackend)
+	assert.Equal(t, 2160, cur.HWMaxHeight)
+	require.Len(t, cur.Backends, 1)
+	assert.Equal(t, "qsv", cur.Backends[0].Backend)
+	for _, s := range cur.RouteSamples {
+		assert.NotEqual(t, "vaapi", s.Key.Backend, "the dead backend's evidence is gone with it")
+	}
+
+	// Dead primary: vaapi promoted with its own 1080p ceiling.
+	svc = newIdleHostCalibrationService(&fakeCapabilityRepo{stored: row()}, &fakeBenchmarkRunner{deadBackends: []string{"qsv"}}, nil)
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	cur = svc.Current()
+	assert.Equal(t, "vaapi", cur.HWBackend)
+	assert.Equal(t, 1080, cur.HWMaxHeight, "the promoted backend's own ceiling, not the dead primary's 2160")
+	assert.Equal(t, []string{"h264"}, cur.HWCodecs)
+	require.Len(t, cur.Backends, 1)
+	require.Len(t, cur.RouteSamples, 1)
+	assert.Equal(t, "vaapi", cur.RouteSamples[0].Key.Backend)
+	assert.Equal(t, 1080, cur.SoftwareMaxHeight, "software untouched")
 }
 
 func TestCalibration_EnsureCalibrated_ModePinMismatch_Rebench(t *testing.T) {
@@ -853,4 +904,20 @@ func TestCalibration_EnsureCalibrated_OldProbeVersion_Rebenches(t *testing.T) {
 	runner4 := &fakeBenchmarkRunner{}
 	require.NoError(t, newIdleHostCalibrationService(current, runner4, nil).EnsureCalibrated(context.Background()))
 	assert.Zero(t, runner4.calls.Load(), "a current-version row is not re-benched")
+
+	// A software-only row WITH route evidence benched before v11 lacks the
+	// samples of its sub-1080 routes (the 480p HDR floor): admission refused
+	// them. It re-benches once; the same row at the current version does not.
+	swWithRoutes := func(v int) *fakeCapabilityRepo {
+		return &fakeCapabilityRepo{stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 480, CPUSignature: hostSig, ProbeVersion: v,
+			RouteSamples: []domaintranscoding.RouteSample{{Key: rk("", "libx264", domaintranscoding.RouteCostSDR), Height: 1080, FPS: 40, SourceFPS: 24}},
+		}}
+	}
+	runner5 := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: hostSig, ProbeVersion: domaintranscoding.CapabilityProbeVersion}}
+	require.NoError(t, newIdleHostCalibrationService(swWithRoutes(routeEvidenceFloorProbeVersion-1), runner5, nil).EnsureCalibrated(context.Background()))
+	assert.EqualValues(t, 1, runner5.calls.Load(), "software-only route evidence from before the floor rungs must re-bench once")
+	runner6 := &fakeBenchmarkRunner{}
+	require.NoError(t, newIdleHostCalibrationService(swWithRoutes(domaintranscoding.CapabilityProbeVersion), runner6, nil).EnsureCalibrated(context.Background()))
+	assert.Zero(t, runner6.calls.Load())
 }
