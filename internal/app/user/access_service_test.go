@@ -882,3 +882,38 @@ func TestRevokeAPIKey_PublishError_EmitsWarning(t *testing.T) {
 		t.Fatalf("expected publish warning, got: %q", read())
 	}
 }
+
+// The public registration form asks whether a code is still good before
+// showing the fields: a live code answers with its admin flag; an unknown,
+// expired, exhausted or revoked one answers the SAME neutral "no" with no
+// error, so the form gives no oracle on which codes ever existed.
+func TestValidateInvite_NeutralOnEveryDeadCode(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	past := time.Now().Add(-time.Hour)
+	for _, l := range []*user.InviteLink{
+		{ID: "live", Token: "tok-live", CreatedBy: "u1", MaxUses: 1},
+		{ID: "admin", Token: "tok-admin", CreatedBy: "u1", MaxUses: 5, IsAdmin: true},
+		{ID: "expired", Token: "tok-expired", CreatedBy: "u1", MaxUses: 1, ExpiresAt: &past},
+		{ID: "used", Token: "tok-used", CreatedBy: "u1", MaxUses: 2, UsedCount: 2},
+	} {
+		if err := d.svc.CreateInviteLink(ctx, l); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	valid, isAdmin, err := d.svc.ValidateInvite(ctx, "tok-live")
+	if err != nil || !valid || isAdmin {
+		t.Errorf("live member code: valid=%v admin=%v err=%v", valid, isAdmin, err)
+	}
+	valid, isAdmin, err = d.svc.ValidateInvite(ctx, "tok-admin")
+	if err != nil || !valid || !isAdmin {
+		t.Errorf("live admin code: valid=%v admin=%v err=%v", valid, isAdmin, err)
+	}
+	for _, tok := range []string{"tok-expired", "tok-used", "tok-never-existed", ""} {
+		valid, isAdmin, err = d.svc.ValidateInvite(ctx, tok)
+		if err != nil || valid || isAdmin {
+			t.Errorf("%q must be a neutral no: valid=%v admin=%v err=%v", tok, valid, isAdmin, err)
+		}
+	}
+}
