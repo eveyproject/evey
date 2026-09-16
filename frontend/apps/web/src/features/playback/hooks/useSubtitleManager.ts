@@ -160,19 +160,29 @@ export function useSubtitleManager({
   // hook first ran: re-run the track effect when hls.js learns them, and keep
   // the cues styled as their segments land.
   const [hlsSubsVersion, setHlsSubsVersion] = useState(0);
+  // Until the manifest is parsed the master's renditions are unknown: the
+  // /subtitle fallback must not fire meanwhile, it would start a whole-file
+  // extraction on the server for a track the packager serves seconds later.
+  const hlsSubsKnownRef = useRef(false);
   useEffect(() => {
     const hls = hlsRef?.current;
     if (!hls) return;
-    const bump = () => setHlsSubsVersion((v) => v + 1);
+    hlsSubsKnownRef.current = false;
+    const bump = () => {
+      hlsSubsKnownRef.current = true;
+      setHlsSubsVersion((v) => v + 1);
+    };
     const onCues = () => {
       const video = videoRef.current;
       if (!video) return;
       applyCuePosition(video, positionRef.current);
       if (offsetRef.current !== 0) applySubtitleOffset(video, offsetRef.current / 1000, cueBaseTimesRef.current);
     };
+    hls.on(Hls.Events.MANIFEST_PARSED, bump);
     hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, bump);
     hls.on(Hls.Events.CUES_PARSED, onCues);
     return () => {
+      hls.off(Hls.Events.MANIFEST_PARSED, bump);
       hls.off(Hls.Events.SUBTITLE_TRACKS_UPDATED, bump);
       hls.off(Hls.Events.CUES_PARSED, onCues);
     };
@@ -208,6 +218,7 @@ export function useSubtitleManager({
       applyCuePosition(video, positionRef.current);
       return;
     }
+    if (hls && !hlsSubsKnownRef.current && !externalSubUrl && !isBurnIn) return;
 
     const src = externalSubUrl
       ? externalSubUrl.url
