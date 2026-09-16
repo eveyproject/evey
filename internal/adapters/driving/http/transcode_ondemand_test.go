@@ -6,6 +6,7 @@ package httpapi
 // the ffmpeg pipeline when the source can't be packaged.
 
 import (
+	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 	"context"
 	"fmt"
 	"net/http"
@@ -156,6 +157,28 @@ func TestTryServePlanMaster_ServesPlan(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "od_playlist.m3u8")
 	assert.Equal(t, 1, pkg.calls)
+}
+
+// The master render is where the served path is known for sure: the packager
+// copy master records mkvgo on both tracks, keyed to the token's profile so the
+// admin panel names the machinery instead of guessing it from the decision.
+func TestTryServePlanMaster_RecordsTheServedPath(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{
+		resources: map[string][]byte{"master.m3u8": []byte("#EXTM3U\n")},
+	}}
+	var gotProfile, gotMedia string
+	var gotPath domainplayback.ServingPath
+	h.servingRecord = func(_ context.Context, profileID, mediaID string, p domainplayback.ServingPath) {
+		gotProfile, gotMedia, gotPath = profileID, mediaID, p
+	}
+
+	served := h.tryServePlanMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), noopSpan())
+
+	assert.True(t, served)
+	assert.Equal(t, "p1", gotProfile)
+	assert.Equal(t, "m1", gotMedia)
+	assert.Equal(t, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"}, gotPath)
 }
 
 // The wiring that closes the blind spot: serving from the packager must make

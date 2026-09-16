@@ -515,6 +515,16 @@ sessions:
     videoTranscoded: "已转码"
     audioCopied: "已复制"
     audioTranscoded: "已转码"
+    audioClientDecoded: "由播放器解码"
+    engine:
+      mkvgo: "mkvgo"
+      ffmpeg: "ffmpeg"
+      client: "播放器内 ac3go"
+    backend:
+      software: "软件 (CPU)"
+      qsv: "Quick Sync"
+      vaapi: "VAAPI"
+      nvenc: "NVENC"
   refreshStatus: "更新于 {{time}} - 每 {{seconds}} 秒自动刷新"
   sendMessage: "发送消息"
   messageSent: "消息已发送"

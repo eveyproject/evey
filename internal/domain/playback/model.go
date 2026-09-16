@@ -63,6 +63,19 @@ type PlaySession struct {
 	// playing on the session's own device. Updated on every progress report,
 	// so a finished cast clears it.
 	CastDeviceName string
+	// Serving is what the server actually serves, recorded at master render;
+	// zero until then (direct play, or a session older than the column).
+	Serving ServingPath
+}
+
+// ServingPath names the machinery behind each track of a session: the
+// client's start-time decision only says copy/transcode, this says by whom.
+type ServingPath struct {
+	VideoDecision string // "copy" | "transcode"
+	VideoEngine   string // "mkvgo" | "ffmpeg"
+	VideoBackend  string // transcode only: "software" | "qsv" | "vaapi" | "nvenc"
+	AudioDecision string // "copy" | "transcode" | "wasm"
+	AudioEngine   string // "mkvgo" | "ffmpeg" | "client"
 }
 
 func (s *PlaySession) Validate() error {
@@ -157,6 +170,9 @@ type ActiveSessionInfo struct {
 	// CastDeviceName: see PlaySession.CastDeviceName - the real playback
 	// target when the session's client relays to a cast device.
 	CastDeviceName string
+	VideoEngine    string
+	VideoBackend   string
+	AudioEngine    string
 }
 
 func (a *ActiveSessionInfo) ProgressPercent() float64 {

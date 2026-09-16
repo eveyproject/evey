@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 
 	"fmt"
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
@@ -260,6 +261,12 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		CastAudioModeTouch: func(ctx context.Context, profileID, mediaItemID, mode string) {
 			if err := deps.media.playbackSvc.CommandService().SetCastAudioPath(ctx, profileID, mediaItemID, mode); err != nil {
 				slog.WarnContext(ctx, "cast audio path update failed",
+					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
+			}
+		},
+		SessionServingRecord: func(ctx context.Context, profileID, mediaItemID string, p domainplayback.ServingPath) {
+			if err := deps.media.playbackSvc.CommandService().SetSessionServing(ctx, profileID, mediaItemID, p); err != nil {
+				slog.WarnContext(ctx, "session serving record failed",
 					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
 			}
 		},

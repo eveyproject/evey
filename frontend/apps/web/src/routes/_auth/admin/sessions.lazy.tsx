@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Cast, Film, Monitor, Square, Volume2 } from "lucide-react";
+import { Cast, Film, Monitor, Square } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { SessionTrackBadges } from "@/features/admin/SessionTrackBadges";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AdminTrickplayThumbnail } from "@/features/admin/AdminTrickplayThumbnail";
 
@@ -33,49 +34,6 @@ function formatBandwidth(bps: number): string {
   if (bps > 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`;
   if (bps > 1e3) return `${(bps / 1e3).toFixed(0)} Kbps`;
   return `${bps} bps`;
-}
-
-// trackEngine derives the serving tool per track: the copy rung is served by
-// mkvgo's on-demand packager (default), any re-encode by ffmpeg. Assumes the
-// hls_ondemand server flag is on (its default); with it off, copy would be
-// ffmpeg -c copy instead.
-function trackEngine(decision: string): string {
-  return decision === "transcode" ? "ffmpeg" : "mkvgo";
-}
-
-// TrackBadges renders the per-track serving detail (copy vs transcode, served
-// codecs, engine) so an operator can tell a copy rung from a real transcode.
-function TrackBadges({ session }: { session: V1ActiveSession }) {
-  const { t } = useTranslation();
-  const vDec = session.videoDecision ?? "";
-  const aDec = session.audioDecision ?? "";
-  // Nothing to show for direct play (raw file) or older sessions without the field.
-  if (!vDec && !aDec) return null;
-
-  // Per-track gendered labels (fr: "copiée"/"transcodée" for video, "copié"/
-  // "transcodé" for audio) → distinct i18n keys per track.
-  const rows: Array<{ id: string; icon: React.ReactNode; kind: string; decision: string; codec?: string; res?: string }> = [];
-  if (vDec) rows.push({ id: "video", icon: <Film size={12} aria-hidden="true" />, kind: t("admin.sessions.track.video"), decision: vDec, codec: session.videoCodec, res: session.resolution });
-  if (aDec) rows.push({ id: "audio", icon: <Volume2 size={12} aria-hidden="true" />, kind: t("admin.sessions.track.audio"), decision: aDec, codec: session.audioCodec });
-
-  return (
-    <div className="flex flex-col gap-1 mt-1.5">
-      {rows.map((r) => {
-        const isTranscode = r.decision === "transcode";
-        const decLabel = t(`admin.sessions.track.${r.id}${isTranscode ? "Transcoded" : "Copied"}`);
-        const detail = [r.codec, r.res].filter(Boolean).join(", ");
-        return (
-          <div key={r.id} className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-            <span className="text-[var(--text-muted)]">{r.icon}</span>
-            <span className="text-[var(--text)]">{r.kind}:</span>
-            <Badge variant={isTranscode ? "warning" : "success"}>{decLabel}</Badge>
-            {detail && <span className="font-mono">({detail})</span>}
-            <span className="opacity-70">· {trackEngine(r.decision)}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 const DeviceIcon = () => <Monitor size={16} strokeWidth={1.5} />;
@@ -156,7 +114,7 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
               </Badge>
             </div>
           )}
-          <TrackBadges session={session} />
+          <SessionTrackBadges session={session} />
         </div>
 
         <div className="flex items-start justify-between gap-3">

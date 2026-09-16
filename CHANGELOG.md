@@ -8,6 +8,11 @@ line - earlier history lives in git.
 ## [Unreleased]
 
 ### Added
+- Admin: the Now Playing card and the sessions page name what actually serves
+  each track - mkvgo copy, ffmpeg with its backend (software, Quick Sync,
+  VAAPI, NVENC), or audio decoded by the player (ac3go) - recorded by the
+  server when it renders the master playlist and kept in step with the wasm
+  beacons, instead of a single "Transcode" badge.
 - Media health (admin): every MKV/WebM gets one verdict - repairable here,
   your call, or for information - with acknowledgement, "Repair all" acting
   on exactly the repairable set (damaged files only with an explicit resync

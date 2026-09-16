@@ -168,6 +168,9 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 			CastDeviceName: s.CastDeviceName,
 			UserId:         string(s.UserID),
 			Username:       s.Username,
+			VideoEngine:    s.VideoEngine,
+			VideoBackend:   s.VideoBackend,
+			AudioEngine:    s.AudioEngine,
 		}
 		if s.TranscodeInfo != nil {
 			as.TranscodeInfo = *s.TranscodeInfo

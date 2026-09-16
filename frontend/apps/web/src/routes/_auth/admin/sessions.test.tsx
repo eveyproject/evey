@@ -145,9 +145,30 @@ describe("SessionsPage", () => {
     // Codec detail strings (language-neutral) prove the per-track rows rendered.
     expect(screen.getByText("(h264, 1040p)")).toBeInTheDocument();
     expect(screen.getByText("(ac3→aac)")).toBeInTheDocument();
-    // Engine derived per track: copy -> mkvgo, transcode -> ffmpeg.
+    // Engine derived per track when the server recorded none: copy -> mkvgo, transcode -> ffmpeg.
     expect(screen.getByText("· mkvgo")).toBeInTheDocument();
     expect(screen.getByText("· ffmpeg")).toBeInTheDocument();
+  });
+
+  it("names the recorded engine and backend over the guess, and the player-side decode", async () => {
+    // What the server recorded at master render: QSV transcode, audio decoded by ac3go in the browser.
+    const recorded = {
+      ...mockSession,
+      playMethod: "transcode",
+      videoDecision: "transcode",
+      videoEngine: "ffmpeg",
+      videoBackend: "qsv",
+      audioDecision: "wasm",
+      audioEngine: "client",
+      videoCodec: "hevc→h264",
+      audioCodec: "eac3",
+    };
+    mockUseQuery.mockReturnValue({ data: [recorded], isLoading: false, isError: false });
+    const SessionsPage = await getSessionsPage();
+    render(React.createElement(SessionsPage), { wrapper: createWrapper() });
+    expect(screen.getByText("· ffmpeg Quick Sync")).toBeInTheDocument();
+    expect(screen.getByText("· ac3go in the player")).toBeInTheDocument();
+    expect(screen.getByText("decoded by the player")).toBeInTheDocument();
   });
 
   it("renders no per-track badges when decisions are absent (direct play)", async () => {

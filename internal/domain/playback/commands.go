@@ -44,6 +44,9 @@ type SessionCommandRepo interface {
 	// receiver's audio_mode beacon drives it so the admin badge follows the
 	// REAL audio path (server AAC transcode vs TV-side wasm decode).
 	SetSessionAudioDecision(ctx context.Context, sessionID, decision string) (bool, error)
+	// SetSessionServing records what the server serves (per-track decision,
+	// engine, backend) on an ACTIVE session; same ended_at guard.
+	SetSessionServing(ctx context.Context, sessionID string, p ServingPath) (bool, error)
 	CloseStale(ctx context.Context, olderThan time.Duration) (int, error)
 	// CloseAllActive ends every session still open, regardless of age. Called
 	// once as the server drains: the process is going away and every encode

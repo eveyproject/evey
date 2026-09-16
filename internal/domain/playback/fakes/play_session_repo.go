@@ -107,6 +107,9 @@ func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*pl
 				DeviceName:     s.DeviceName,
 				DeviceType:     s.DeviceType,
 				CastDeviceName: s.CastDeviceName,
+				VideoEngine:    s.Serving.VideoEngine,
+				VideoBackend:   s.Serving.VideoBackend,
+				AudioEngine:    s.Serving.AudioEngine,
 				ClientIP:       s.ClientIP,
 				PlayMethod:     s.PlayMethod,
 				VideoCodec:     s.VideoCodec,
@@ -204,6 +207,20 @@ func (r *FakePlaySessionRepository) SetSessionAudioDecision(_ context.Context, s
 		return false, nil
 	}
 	s.AudioDecision = decision
+	return true, nil
+}
+
+func (r *FakePlaySessionRepository) SetSessionServing(_ context.Context, sessionID string, p playback.ServingPath) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return false, r.Err
+	}
+	s, ok := r.items[sessionID]
+	if !ok || s.EndedAt != nil {
+		return false, nil
+	}
+	s.VideoDecision, s.AudioDecision, s.Serving = p.VideoDecision, p.AudioDecision, p
 	return true, nil
 }
 

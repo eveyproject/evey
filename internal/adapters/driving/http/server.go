@@ -300,6 +300,9 @@ type HTTPServer struct {
 	CastSessionTerminate CastSessionEnd
 	CastCommandConsume   CastCommandConsumer
 	CastAudioModeTouch   CastAudioModeTouch
+	// SessionServingRecord tells the play session what a master playlist just
+	// handed its player (packager/encoder per track), for the admin panel.
+	SessionServingRecord SessionServingRecord
 
 	// Config store for remote access persistence
 	CfgStore remoteAccessPersister

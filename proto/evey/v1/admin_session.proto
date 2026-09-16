@@ -106,6 +106,15 @@ message ActiveSession {
   // it belongs to once two accounts use the same profile names.
   string user_id = 28;
   string username = 29;
+  // What the server ACTUALLY serves, recorded when the master playlist is
+  // rendered (the decisions above are the client's start-time declaration,
+  // audio_decision then follows the wasm beacons). video_engine: "mkvgo"
+  // (on-demand copy) | "ffmpeg". video_backend, transcode only: "software" |
+  // "qsv" | "vaapi" | "nvenc". audio_engine: "mkvgo" | "ffmpeg" | "client"
+  // (ac3go wasm decode on the player). Empty on sessions started before this.
+  string video_engine = 30;
+  string video_backend = 31;
+  string audio_engine = 32;
 }
 
 message ListActiveSessionsRequest {}
