@@ -15,6 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { setAudioBoost, releaseAudioBoost } from "../../../src/lib/audioBoost";
+import { resumeNudger } from "../../../src/lib/resumeNudge";
 import { resolveVolume } from "../../../src/lib/volumePolicy";
 import {
   hasDeviceVolumeControl,
@@ -771,9 +772,15 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
         setNativeError(ev.error?.message ?? "playback error");
       }
     });
+    // See lib/resumeNudge.ts: a resume after a long pause seeks in place so
+    // the picture leaves with the sound instead of three seconds behind it.
+    const nudge = resumeNudger((sec) => { try { player.seekBy(sec); } catch { /* released */ } });
     const playSub = player.addListener("playingChange", () => {
       if (!mountedRef.current) return;
-      try { setIsPlaying(player.playing); } catch (err) { console.warn("released", err); }
+      try {
+        setIsPlaying(player.playing);
+        nudge(player.playing);
+      } catch (err) { console.warn("released", err); }
     });
     // The native player parses the HLS audio group into availableAudioTracks
     // once the manifest loads. Switching a track is then a client-side select

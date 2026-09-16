@@ -33,6 +33,7 @@ import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 import { useChapters, findCurrentChapterIndex } from "../../../src/hooks/useChapters";
 import { pickPreferredStreamIndex } from "../../../src/lib/langMatch";
+import { resumeNudger } from "../../../src/lib/resumeNudge";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview } from "../../../src/hooks/playerSeek";
 import { playerExit } from "../../../src/hooks/playerExit";
@@ -444,8 +445,14 @@ export default function PlayerScreen() {
         setNativeError(ev.error?.message ?? "playback error");
       }
     });
+    // See lib/resumeNudge.ts: a resume after a long pause seeks in place so
+    // the picture leaves with the sound instead of three seconds behind it.
+    const nudge = resumeNudger((sec) => withPlayer((p) => p.seekBy(sec)));
     const playSub = player.addListener("playingChange", () => {
-      withPlayer((p) => setIsPlaying(p.playing));
+      withPlayer((p) => {
+        setIsPlaying(p.playing);
+        nudge(p.playing);
+      });
     });
     return () => {
       timeSub.remove();
