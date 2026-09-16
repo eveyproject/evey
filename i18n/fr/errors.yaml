@@ -103,3 +103,17 @@ transcode:
 share:
   not_found: "Lien de partage introuvable"
   exhausted: "Ce lien a expiré ou a atteint sa limite de vues"
+
+syncplay:
+  room_not_found: "Salon introuvable"
+  code_required: "Un code d'invitation est requis"
+  too_many_rooms: "Trop de salons actifs - fermez-en un avant d'en ouvrir un autre"
+  playlist_empty: "Cette liste de lecture est vide"
+  queue_empty: "La file d'attente est vide"
+  name_too_long: "Le nom du salon doit faire 100 caractères au plus"
+
+request:
+  disabled: "Les demandes de médias sont désactivées pour votre compte"
+  duplicate: "Vous avez déjà une demande en cours pour ce titre"
+  already_held: "Ce titre est déjà dans la bibliothèque"
+  not_found: "Demande introuvable"

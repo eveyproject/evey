@@ -38,10 +38,10 @@ func TestStreamingRate(t *testing.T) {
 // anything else is a sanitized internal error.
 func TestCreateRoomError(t *testing.T) {
 	ctx := context.Background()
-	if got := status.Code(createRoomError(ctx, appsyncplay.ErrTooManyRooms)); got != codes.ResourceExhausted {
+	if got := status.Code(createRoomError(ctx, nil, appsyncplay.ErrTooManyRooms)); got != codes.ResourceExhausted {
 		t.Errorf("too many rooms -> %v", got)
 	}
-	err := createRoomError(ctx, errors.New("hub exploded"))
+	err := createRoomError(ctx, nil, errors.New("hub exploded"))
 	if status.Code(err) != codes.Internal {
 		t.Errorf("other -> %v", status.Code(err))
 	}

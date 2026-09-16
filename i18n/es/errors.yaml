@@ -103,3 +103,17 @@ transcode:
 share:
   not_found: "Enlace compartido no encontrado"
   exhausted: "Este enlace ha caducado o ha alcanzado su límite de visualizaciones"
+
+syncplay:
+  room_not_found: "Sala no encontrada"
+  code_required: "Se requiere un código de acceso"
+  too_many_rooms: "Demasiadas salas activas - cierra una antes de abrir otra"
+  playlist_empty: "Esta lista de reproducción está vacía"
+  queue_empty: "La cola está vacía"
+  name_too_long: "El nombre de la sala debe tener 100 caracteres o menos"
+
+request:
+  disabled: "Las solicitudes de contenido están desactivadas para tu cuenta"
+  duplicate: "Ya tienes una solicitud abierta para este título"
+  already_held: "Este título ya está en la biblioteca"
+  not_found: "Solicitud no encontrada"

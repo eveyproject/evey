@@ -9,6 +9,7 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/mediarequest"
 	"github.com/evey-project/evey/internal/domain/shared"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -19,7 +20,8 @@ import (
 // never carry a profile id, so there is no IDOR surface.
 type mediaRequestHandler struct {
 	eveyv1.UnimplementedMediaRequestServiceServer
-	svc *appmediarequest.Service
+	svc        *appmediarequest.Service
+	translator *eveyi18n.Translator
 }
 
 func (h *mediaRequestHandler) SearchTitles(ctx context.Context, req *eveyv1.SearchTitlesRequest) (*eveyv1.SearchTitlesResponse, error) {
@@ -40,7 +42,7 @@ func (h *mediaRequestHandler) SearchTitles(ctx context.Context, req *eveyv1.Sear
 	}
 	candidates, err := h.svc.SearchTitles(ctx, claims.UserID, mediaType, req.Query, year)
 	if err != nil {
-		return nil, mapMediaRequestError(ctx, "search titles", err)
+		return nil, mapMediaRequestError(ctx, h.translator, "search titles", err)
 	}
 	resp := &eveyv1.SearchTitlesResponse{}
 	for _, c := range candidates {
@@ -81,7 +83,7 @@ func (h *mediaRequestHandler) CreateRequest(ctx context.Context, req *eveyv1.Cre
 	}
 	created, err := h.svc.CreateRequest(ctx, shared.ProfileID(claims.ProfileID), claims.UserID, in)
 	if err != nil {
-		return nil, mapMediaRequestError(ctx, "create request", err)
+		return nil, mapMediaRequestError(ctx, h.translator, "create request", err)
 	}
 	return toMediaRequestProto(created, ""), nil
 }
@@ -123,8 +125,9 @@ func (h *mediaRequestHandler) GetRequestPolicy(ctx context.Context, _ *eveyv1.Ge
 // enforced by the RBAC interceptor (MethodRoles) ahead of these handlers.
 type adminMediaRequestHandler struct {
 	eveyv1.UnimplementedAdminMediaRequestServiceServer
-	svc       *appmediarequest.Service
-	userQuery *appuser.QueryService
+	svc        *appmediarequest.Service
+	userQuery  *appuser.QueryService
+	translator *eveyi18n.Translator
 }
 
 func (h *adminMediaRequestHandler) ListRequests(ctx context.Context, req *eveyv1.AdminListRequestsRequest) (*eveyv1.AdminListRequestsResponse, error) {
@@ -181,7 +184,7 @@ func (h *adminMediaRequestHandler) AnswerRequest(ctx context.Context, req *eveyv
 	}
 	answered, err := h.svc.Answer(ctx, req.Id, st, req.Note, shared.ProfileID(claims.ProfileID))
 	if err != nil {
-		return nil, mapMediaRequestError(ctx, "answer request", err)
+		return nil, mapMediaRequestError(ctx, h.translator, "answer request", err)
 	}
 	return toMediaRequestProto(answered, ""), nil
 }
@@ -265,16 +268,16 @@ func toMediaRequestProto(r *mediarequest.Request, requesterName string) *eveyv1.
 }
 
 // mapMediaRequestError translates domain errors to gRPC status codes.
-func mapMediaRequestError(ctx context.Context, op string, err error) error {
+func mapMediaRequestError(ctx context.Context, tr *eveyi18n.Translator, op string, err error) error {
 	switch {
 	case errors.Is(err, mediarequest.ErrDisabled):
-		return status.Error(codes.PermissionDenied, "media requests are disabled for your account")
+		return tr.TranslatedError(ctx, codes.PermissionDenied, "errors.request.disabled")
 	case errors.Is(err, mediarequest.ErrDuplicate):
-		return status.Error(codes.AlreadyExists, "you already have an open request for this title")
+		return tr.TranslatedError(ctx, codes.AlreadyExists, "errors.request.duplicate")
 	case errors.Is(err, mediarequest.ErrAlreadyHeld):
-		return status.Error(codes.AlreadyExists, "this title is already in the library")
+		return tr.TranslatedError(ctx, codes.AlreadyExists, "errors.request.already_held")
 	case errors.Is(err, mediarequest.ErrNotFound):
-		return status.Error(codes.NotFound, "request not found")
+		return tr.TranslatedError(ctx, codes.NotFound, "errors.request.not_found")
 	default:
 		return internalError(ctx, op, err)
 	}

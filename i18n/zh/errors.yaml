@@ -103,3 +103,17 @@ transcode:
 share:
   not_found: "未找到分享链接"
   exhausted: "此链接已过期或已达到观看次数上限"
+
+syncplay:
+  room_not_found: "未找到房间"
+  code_required: "需要加入码"
+  too_many_rooms: "活跃房间过多 - 请先关闭一个再新建"
+  playlist_empty: "此播放列表为空"
+  queue_empty: "队列为空"
+  name_too_long: "房间名称不能超过 100 个字符"
+
+request:
+  disabled: "您的账户已禁用媒体请求"
+  duplicate: "您已对此标题提交了一个待处理的请求"
+  already_held: "此标题已在媒体库中"
+  not_found: "未找到请求"

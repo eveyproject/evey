@@ -125,8 +125,8 @@ func TestMapMediaRequestError(t *testing.T) {
 		{mediarequest.ErrNotFound, codes.NotFound},
 		{assert.AnError, codes.Internal},
 	} {
-		got := mapMediaRequestError(ctx, "op", tc.err)
+		got := mapMediaRequestError(ctx, nil, "op", tc.err)
 		assert.Equal(t, tc.want, status.Code(got), "%v", tc.err)
 	}
-	assert.NotContains(t, mapMediaRequestError(ctx, "op", assert.AnError).Error(), assert.AnError.Error())
+	assert.NotContains(t, mapMediaRequestError(ctx, nil, "op", assert.AnError).Error(), assert.AnError.Error())
 }
