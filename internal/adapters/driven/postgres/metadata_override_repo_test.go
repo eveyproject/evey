@@ -228,3 +228,30 @@ func TestMetadataOverrideRepo_DeleteByMediaItemIDs_Empty(t *testing.T) {
 	overrideRepo := postgres.NewMetadataOverrideRepository(db)
 	assert.NoError(t, overrideRepo.DeleteByMediaItemIDs(context.Background(), nil))
 }
+
+// The library grid asks in one query which of a page of items carry an
+// override (the "edited" badge): one entry per item whatever the number of
+// overridden fields, nothing for the untouched ones, empty in = empty out.
+func TestMetadataOverrideRepo_ListOverriddenMediaItemIDs(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	lib := newTestLibrary("ovlistlib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	edited, plain := newTestMediaItem("ovl-edited", lib.ID), newTestMediaItem("ovl-plain", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, edited))
+	require.NoError(t, itemRepo.Create(ctx, plain))
+	repo := postgres.NewMetadataOverrideRepository(db)
+	require.NoError(t, repo.Set(ctx, newTestOverride("ovl-1", string(edited.ID), "title", "T")))
+	require.NoError(t, repo.Set(ctx, newTestOverride("ovl-2", string(edited.ID), "overview", "O")))
+
+	got, err := repo.ListOverriddenMediaItemIDs(ctx, []string{string(edited.ID), string(plain.ID), "ghost"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{string(edited.ID): true}, got)
+
+	got, err = repo.ListOverriddenMediaItemIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+	assert.NotNil(t, got)
+}
