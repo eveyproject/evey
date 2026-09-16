@@ -395,3 +395,71 @@ func TestWatchProgressRepo_UpsertMany_BatchSemantics(t *testing.T) {
 	// Empty batch is a no-op.
 	require.NoError(t, repo.UpsertMany(ctx, nil))
 }
+
+// The watch-history keyset walk (newest first, tied timestamps broken by
+// media id), the resume shortlist (in-progress rows only), and a targeted
+// delete that leaves the profile's other rows alone.
+func TestWatchProgressRepo_Cursor_Resume_Delete(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("wpc-u")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("wpc-p", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("wpclib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	wpRepo := postgres.NewWatchProgressRepository(db)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	rows := []struct {
+		id        string
+		pos       int64
+		completed bool
+		at        time.Time
+	}{
+		{"wpc-a", 1000, false, now.Add(-3 * time.Hour)},
+		{"wpc-b", 0, false, now.Add(-time.Hour)}, // never really started
+		{"wpc-c", 5000, true, now.Add(-time.Hour)},
+		{"wpc-d", 9000, false, now},
+	}
+	for _, r := range rows {
+		require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(r.id, lib.ID)))
+		require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
+			ID: "wp-" + r.id, ProfileID: p.ID, MediaItemID: shared.MediaItemID(r.id),
+			Position: mustWPDuration(t, r.pos), Completed: r.completed, PlayCount: 1, LastPlayedAt: r.at,
+		}))
+	}
+	ids := func(in []*playback.WatchProgress) []string {
+		out := make([]string, 0, len(in))
+		for _, w := range in {
+			out = append(out, string(w.MediaItemID))
+		}
+		return out
+	}
+
+	page, err := wpRepo.GetByProfileCursor(ctx, string(p.ID), nil, 2)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"wpc-d", "wpc-c"}, ids(page), "newest first, the tie broken by media id descending")
+	last := page[len(page)-1]
+	page, err = wpRepo.GetByProfileCursor(ctx, string(p.ID), &playback.WatchHistoryCursor{LastPlayedAt: last.LastPlayedAt, MediaItemID: string(last.MediaItemID)}, 2)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"wpc-b", "wpc-a"}, ids(page), "the tied sibling is neither repeated nor lost")
+	last = page[len(page)-1]
+	page, err = wpRepo.GetByProfileCursor(ctx, string(p.ID), &playback.WatchHistoryCursor{LastPlayedAt: last.LastPlayedAt, MediaItemID: string(last.MediaItemID)}, 2)
+	require.NoError(t, err)
+	assert.Empty(t, page)
+
+	resume, err := wpRepo.GetResumeItems(ctx, string(p.ID), 10)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"wpc-d", "wpc-a"}, ids(resume), "in progress only: no completed row, no zero position")
+
+	require.NoError(t, wpRepo.Delete(ctx, string(p.ID), "wpc-d"))
+	resume, err = wpRepo.GetResumeItems(ctx, string(p.ID), 10)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"wpc-a"}, ids(resume))
+	require.NoError(t, wpRepo.Delete(ctx, string(p.ID), "wpc-d"), "deleting twice is a no-op")
+	all, err := wpRepo.GetByProfileCursor(ctx, string(p.ID), nil, 10)
+	require.NoError(t, err)
+	assert.Len(t, all, 3, "the other rows stay")
+}
