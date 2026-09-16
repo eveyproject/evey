@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -1123,5 +1124,40 @@ func TestWarnMisroutedProxy_SilentForPublicPeer(t *testing.T) {
 
 	if buf.Len() != 0 {
 		t.Fatalf("a public peer forging a forwarded-for is not a config warning: %s", buf.String())
+	}
+}
+
+// IsTrustedProxy is the gRPC edge's view of the same trust set the HTTP edge
+// applies: the boot defaults trust the private ranges and loopback, a
+// configured list replaces them entirely, an empty list trusts nobody, and a
+// nil ip is never trusted.
+func TestIsTrustedProxy_SharesTheHTTPTrustSet(t *testing.T) {
+	orig := trustedProxyNets
+	t.Cleanup(func() {
+		trustedProxyMu.Lock()
+		trustedProxyNets = orig
+		trustedProxyMu.Unlock()
+	})
+
+	SetTrustedProxies([]string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"}) // the boot defaults
+	for _, ip := range []string{"127.0.0.1", "::1", "10.1.2.3", "172.20.0.9", "192.168.1.1", "fd00::5"} {
+		if !IsTrustedProxy(net.ParseIP(ip)) {
+			t.Errorf("%s must be trusted by default", ip)
+		}
+	}
+	if IsTrustedProxy(net.ParseIP("203.0.113.9")) || IsTrustedProxy(nil) {
+		t.Error("a public address, or no address, is never a trusted proxy")
+	}
+
+	SetTrustedProxies([]string{"203.0.113.0/24"})
+	if !IsTrustedProxy(net.ParseIP("203.0.113.9")) {
+		t.Error("the configured range is trusted")
+	}
+	if IsTrustedProxy(net.ParseIP("127.0.0.1")) {
+		t.Error("a configured list replaces the defaults: loopback is no longer trusted")
+	}
+	SetTrustedProxies(nil)
+	if IsTrustedProxy(net.ParseIP("127.0.0.1")) {
+		t.Error("an empty set trusts nobody")
 	}
 }

@@ -110,3 +110,17 @@ func TestClosedSlicesCountsOnlyCompleteLines(t *testing.T) {
 		t.Errorf("ClosedSlices(nil) = %d, %v; want 0, 0", got, end)
 	}
 }
+
+// The slice name is what the segment muxer writes and what the assembler
+// reads back: five zero-padded digits, so lexical order is index order.
+func TestSliceName(t *testing.T) {
+	if got := SliceName(0); got != "slice-00000.mkv" {
+		t.Errorf("SliceName(0) = %q", got)
+	}
+	if got := SliceName(1234); got != "slice-01234.mkv" {
+		t.Errorf("SliceName(1234) = %q", got)
+	}
+	if SliceName(9) >= SliceName(10) {
+		t.Error("zero padding must keep lexical order equal to index order")
+	}
+}
