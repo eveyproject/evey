@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen } from "@testing-library/react";
+import { render, fireEvent, screen, waitFor } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------
@@ -98,6 +98,11 @@ vi.mock("../../../src/lib/query-client", () => ({
   queryClient: { clear: (...a: unknown[]) => queryClientClearMock(...a) },
 }));
 const clearRefreshTokenMock = vi.fn().mockResolvedValue(undefined);
+const forceRefreshMock = vi.fn(async () => ({ accessToken: "rotated-access-token" }));
+vi.mock("../../../src/lib/auth-refresh", () => ({
+  forceRefresh: () => forceRefreshMock(),
+}));
+
 vi.mock("../../../src/lib/refresh-token", () => ({
   clearRefreshToken: (...a: unknown[]) => clearRefreshTokenMock(...a),
 }));
@@ -269,6 +274,17 @@ describe("SettingsScreen (TV) language change", () => {
     // writing the locale onto the default profile instead of the active one
     // was the bug this screen fixed.
     expect(updateProfileMutateAsyncMock).toHaveBeenCalledWith({ id: "prof-2", data: { locale: "fr" } });
+  });
+
+  // The JWT refresh that follows must go through auth-refresh (which writes
+  // the ROTATED refresh token back to disk), never a bare /auth/refresh call:
+  // the bare call rotated the token server-side and left the old one on the
+  // device, and the next silent refresh replayed it into a forced logout.
+  it("refreshes the JWT through the path that persists the rotated refresh token", async () => {
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("Français"));
+    await waitFor(() => expect(forceRefreshMock).toHaveBeenCalledTimes(1));
+    expect(eveyFetchMock).not.toHaveBeenCalledWith(expect.objectContaining({ url: "/api/v1/auth/refresh" }));
   });
 });
 

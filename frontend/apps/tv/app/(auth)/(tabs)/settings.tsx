@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, userServiceLogout, eveyFetch } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, userServiceLogout } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore, themePreferences } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
@@ -11,6 +11,7 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { clearServerUrl } from "../../../src/lib/server-config";
 import { queryClient } from "../../../src/lib/query-client";
 import { clearRefreshToken } from "../../../src/lib/refresh-token";
+import { forceRefresh } from "../../../src/lib/auth-refresh";
 import { clearUnlocked } from "../../../src/hooks/useParentalGate";
 import { supportedLanguages } from "../../../src/i18n";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
@@ -85,8 +86,10 @@ export default function SettingsScreen() {
     if (activeProfile?.id) {
       try {
         await updateProfile.mutateAsync({ id: activeProfile.id, data: { locale: code } });
-        const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
-        if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
+        // Through the path that writes the rotated refresh token back: a bare
+        // /auth/refresh left the old one on disk and the next silent refresh
+        // replayed it into a forced logout (same fix as mobile).
+        await forceRefresh();
       } catch {
         // The locale was already applied in-app; the server-side persist
         // failure is best-effort and surfaces on next refresh.

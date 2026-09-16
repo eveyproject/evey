@@ -64,6 +64,11 @@ line - earlier history lives in git.
   searchable from the admin panel.
 
 ### Fixed
+- Mobile/TV: changing the app language logged the user out about fifteen
+  minutes later - the JWT refresh that followed rotated the refresh token
+  server-side but never stored the new one on the device, so the next silent
+  refresh replayed a dead token. Mobile settings also no longer calls an
+  admin-only RPC for every user (a server warning per non-admin visit).
 - Accounts: a username, email or password typed with a surrounding space (a
   phone keyboard appends one after autocomplete) was stored as-is while login
   trimmed it, so the new account could never sign in. Registration, setup,
