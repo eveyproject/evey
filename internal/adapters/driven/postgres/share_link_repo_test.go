@@ -219,3 +219,34 @@ func TestShareLinkRepo_DeleteExpired(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 }
+
+// GetByID is the revoke path's lookup: the owner check needs created_by and
+// the row must come back whole; an unknown id is an error, not a nil link.
+func TestShareLinkRepo_GetByID(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("sl-gid")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	lib := newTestLibrary("sl-gidlib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	item := newTestMediaItem("sl-gidmi", lib.ID)
+	require.NoError(t, postgres.NewMediaItemRepository(db).Create(ctx, item))
+	repo := postgres.NewShareLinkRepo(db)
+	maxViews := 3
+	require.NoError(t, repo.Create(ctx, &shared.ShareLink{
+		ID: "sl-gid-1", Token: "share-tok-gid", MediaItemID: item.ID, CreatedBy: u.ID, MaxViews: &maxViews,
+		ExpiresAt: time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond), CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}))
+
+	got, err := repo.GetByID(ctx, "sl-gid-1")
+	require.NoError(t, err)
+	assert.Equal(t, "share-tok-gid", got.Token)
+	assert.Equal(t, u.ID, got.CreatedBy)
+	assert.Equal(t, item.ID, got.MediaItemID)
+	require.NotNil(t, got.MaxViews)
+	assert.Equal(t, 3, *got.MaxViews)
+
+	_, err = repo.GetByID(ctx, "sl-ghost")
+	require.Error(t, err)
+}
