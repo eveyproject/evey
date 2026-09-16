@@ -274,6 +274,8 @@ func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err e
 		return d.translator.TranslatedError(ctx, codes.NotFound, "errors.admin.seek_index_no_backup")
 	case errors.Is(err, shared.ErrNotFound):
 		return status.Error(codes.NotFound, "media item not found")
+	case errors.Is(err, appmaintenance.ErrShiftOutOfRange):
+		return status.Error(codes.InvalidArgument, appmaintenance.ErrShiftOutOfRange.Error())
 	default:
 		// An undo the journal refuses is a verdict on the file, not a fault:
 		// the sentinel's own sentence is the operator's answer.
