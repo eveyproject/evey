@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useAuthStore, toast, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey, isClientDrawableSubtitle } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
-import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Users, Clock } from "lucide-react";
+import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Users, Clock, MessageSquare } from "lucide-react";
 import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
 import { PGSSubtitleOverlay } from "./PGSSubtitleOverlay";
@@ -61,6 +61,8 @@ export type { AudioStream, SubtitleStream };
 // genuine stalls (cold transcode start on a weak host, network loss) exceed it
 // and still get user feedback.
 const BUFFERING_SPINNER_DELAY_MS = 1500;
+// Admin message on screen, same as the cast receiver.
+const ADMIN_MESSAGE_MS = 12_000;
 
 interface HLSPlayerProps {
   streamInfo: V1StreamInfo;
@@ -921,6 +923,17 @@ export function HLSPlayer({
     actionFlashTimer.current = setTimeout(() => setActionFlash(null), 500);
   }
 
+  // Admin message, drawn inside the player container so it survives
+  // fullscreen (a global toast sits outside the fullscreen element and is
+  // never painted). Same 12 s the cast receiver gives it.
+  const [adminMessage, setAdminMessage] = useState<string | null>(null);
+  const adminMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showAdminMessage = useCallback((message: string) => {
+    if (adminMessageTimer.current) clearTimeout(adminMessageTimer.current);
+    setAdminMessage(message);
+    adminMessageTimer.current = setTimeout(() => setAdminMessage(null), ADMIN_MESSAGE_MS);
+  }, []);
+
   // Retries a shed playback without a full page reload: hls.js's own
   // recommendation for a fatal NETWORK_ERROR is startLoad() (it re-issues
   // whichever request last failed - manifest, level or fragment), so this
@@ -1142,6 +1155,7 @@ export function HLSPlayer({
   useEffect(() => {
     return () => {
       if (actionFlashTimer.current) clearTimeout(actionFlashTimer.current);
+      if (adminMessageTimer.current) clearTimeout(adminMessageTimer.current);
       cleanupTimers();
     };
   }, []);
@@ -1389,6 +1403,18 @@ export function HLSPlayer({
           </div>
         </div>
       )}
+      {adminMessage && (
+        <div className="absolute top-6 inset-x-0 flex justify-center pointer-events-none z-[8]">
+          <div
+            role="status"
+            data-testid="admin-message"
+            className="flex items-center gap-3 max-w-xl mx-4 px-4 py-3 rounded-[var(--radius-md)] bg-black/75 border border-white/20 text-white shadow-lg backdrop-blur-sm animate-fade-in"
+          >
+            <MessageSquare size={ICON.md} className="shrink-0 text-white/80" />
+            <span className="text-sm font-medium break-words">{adminMessage}</span>
+          </div>
+        </div>
+      )}
       {isBuffering && !isPlaying && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[5]">
           <div className="flex flex-col items-center gap-2">
@@ -1450,6 +1476,7 @@ export function HLSPlayer({
         mediaId={mediaId}
         mediaType={mediaType}
         onRemoteStop={onClose}
+        onRemoteMessage={showAdminMessage}
         cast={castConnected && castPlayback.isMediaLoaded ? {
           active: true,
           positionSec: castPlayback.currentTime,

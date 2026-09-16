@@ -214,6 +214,36 @@ describe("ProgressReporter", () => {
     expect(onRemoteStop).toHaveBeenCalledTimes(1);
   });
 
+  it("hands an admin message to the player instead of a global toast", async () => {
+    const { ProgressReporter } = await import("./ProgressReporter");
+    const { toast } = await import("@evey/store");
+    const onRemoteMessage = vi.fn();
+    mockReportProgress.mockResolvedValue({ remoteCommand: "message:Dinner in 5" });
+
+    render(
+      React.createElement(ProgressReporter, {
+        sessionId: "sess1",
+        videoRef: createVideoRef(),
+        onRemoteMessage,
+      }),
+    );
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(onRemoteMessage).toHaveBeenCalledWith("Dinner in 5");
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a toast for an admin message when the player gives no handler", async () => {
+    const { ProgressReporter } = await import("./ProgressReporter");
+    const { toast } = await import("@evey/store");
+    mockReportProgress.mockResolvedValue({ remoteCommand: "message:Dinner in 5" });
+
+    render(React.createElement(ProgressReporter, { sessionId: "sess1", videoRef: createVideoRef() }));
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(toast.info).toHaveBeenCalledWith("Dinner in 5");
+  });
+
   it("clears interval on unmount", async () => {
     const clearSpy = vi.spyOn(globalThis, "clearInterval");
 

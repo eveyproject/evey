@@ -120,8 +120,13 @@ vi.mock("./PlayerControls", () => ({
   PlayerControls: () => <div data-testid="player-controls" />,
 }));
 
+// Captured so a test can drive the admin-message path the reporter feeds.
+let lastProgressReporterProps: { onRemoteMessage?: (message: string) => void } | null = null;
 vi.mock("./ProgressReporter", () => ({
-  ProgressReporter: () => null,
+  ProgressReporter: (props: { onRemoteMessage?: (message: string) => void }) => {
+    lastProgressReporterProps = props;
+    return null;
+  },
 }));
 
 vi.mock("./AutoMarkWatched", () => ({
@@ -200,6 +205,27 @@ describe("HLSPlayer", () => {
   it("does not show fatal error overlay initially", () => {
     renderPlayer();
     expect(screen.queryByText("Playback failed")).not.toBeInTheDocument();
+  });
+
+  it("draws an admin message inside the player container (visible in fullscreen) for 12 s", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderPlayer();
+      act(() => { lastProgressReporterProps?.onRemoteMessage?.("Dinner in 5"); });
+      const banner = screen.getByTestId("admin-message");
+      expect(banner).toHaveTextContent("Dinner in 5");
+      // Outside the fullscreen element the browser never paints it.
+      expect(container.querySelector("[data-player-container]")).toContainElement(banner);
+      // No global toast: it would land outside the container.
+      expect(useToastStore.getState().toasts).toHaveLength(0);
+
+      act(() => { vi.advanceTimersByTime(11_000); });
+      expect(screen.getByTestId("admin-message")).toBeInTheDocument();
+      act(() => { vi.advanceTimersByTime(1_000); });
+      expect(screen.queryByTestId("admin-message")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("starts in transcode mode with hls.js when playMethod is TRANSCODE", () => {
