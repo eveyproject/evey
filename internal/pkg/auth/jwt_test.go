@@ -308,3 +308,38 @@ func TestGenerateAccessTokenWithTTL_NonPositiveFallsBackToAccessTTL(t *testing.T
 			"non-positive ttl=%s must fall back to accessTTL (15m)", ttl)
 	}
 }
+
+// DescribeRefreshToken is what the "refresh rejected: token not found" line
+// says about a token the store does not know: its own jti/iat/exp, read
+// WITHOUT verifying the signature (a forged token is exactly what needs
+// describing), and nothing at all for an access token or garbage.
+func TestDescribeRefreshToken(t *testing.T) {
+	t.Parallel()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	gen := auth.NewJWTGenerator(key, 15*time.Minute)
+
+	refresh, err := gen.GenerateRefreshToken()
+	require.NoError(t, err)
+	desc := gen.DescribeRefreshToken(refresh)
+	assert.Contains(t, desc, "jti=")
+	assert.Contains(t, desc, "issued=")
+	assert.Contains(t, desc, "age=")
+	assert.Contains(t, desc, "expires=")
+	assert.NotContains(t, desc, refresh, "the description must never carry the token itself")
+
+	// Signed by someone else: still described (the signature is not what is
+	// being judged here).
+	other, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	forged, err := auth.NewJWTGenerator(other, time.Minute).GenerateRefreshToken()
+	require.NoError(t, err)
+	assert.Contains(t, gen.DescribeRefreshToken(forged), "jti=")
+
+	// An access token is not a refresh token; garbage is not a token.
+	access, err := gen.GenerateAccessToken(user.Claims{UserID: "u1"})
+	require.NoError(t, err)
+	assert.Empty(t, gen.DescribeRefreshToken(access))
+	assert.Empty(t, gen.DescribeRefreshToken("not.a.jwt"))
+	assert.Empty(t, gen.DescribeRefreshToken(""))
+}
