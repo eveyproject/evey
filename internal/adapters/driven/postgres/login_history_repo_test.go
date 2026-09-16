@@ -106,3 +106,59 @@ func TestLoginHistoryRepo_GetByUserID_Empty(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 }
+
+// The keyset walk of a user's login history: newest first, a cursor resumes
+// strictly after the last row even when two rows share a timestamp, and the
+// success/window filters narrow the walk without breaking it.
+func TestLoginHistoryRepo_ListByUserIDCursor(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("lh-cur")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	repo := postgres.NewLoginHistoryRepository(db)
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	// e2 and e3 share a timestamp: the id tiebreak must keep the walk total.
+	entries := []*activity.LoginEntry{
+		newLoginEntry("lhc-1", u.ID, true, now.Add(-3*time.Hour)),
+		newLoginEntry("lhc-2", u.ID, false, now.Add(-time.Hour)),
+		newLoginEntry("lhc-3", u.ID, true, now.Add(-time.Hour)),
+		newLoginEntry("lhc-4", u.ID, true, now),
+	}
+	for _, e := range entries {
+		require.NoError(t, repo.Create(ctx, e))
+	}
+	ids := func(es []*activity.LoginEntry) []string {
+		out := make([]string, 0, len(es))
+		for _, e := range es {
+			out = append(out, e.ID)
+		}
+		return out
+	}
+
+	page, err := repo.ListByUserIDCursor(ctx, u.ID, false, nil, nil, nil, 2)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lhc-4", "lhc-3"}, ids(page))
+	cursor := &activity.LoginHistoryCursor{StartedAt: page[1].CreatedAt, EntryID: page[1].ID}
+	page, err = repo.ListByUserIDCursor(ctx, u.ID, false, nil, nil, cursor, 2)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lhc-2", "lhc-1"}, ids(page), "the tied row is neither repeated nor skipped")
+	cursor = &activity.LoginHistoryCursor{StartedAt: page[1].CreatedAt, EntryID: page[1].ID}
+	page, err = repo.ListByUserIDCursor(ctx, u.ID, false, nil, nil, cursor, 2)
+	require.NoError(t, err)
+	assert.Empty(t, page)
+
+	page, err = repo.ListByUserIDCursor(ctx, u.ID, true, nil, nil, nil, 10)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lhc-4", "lhc-3", "lhc-1"}, ids(page), "successOnly drops the failure")
+
+	from, to := now.Add(-2*time.Hour), now.Add(-30*time.Minute)
+	page, err = repo.ListByUserIDCursor(ctx, u.ID, false, &from, &to, nil, 10)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lhc-3", "lhc-2"}, ids(page), "the window keeps the middle pair")
+
+	page, err = repo.ListByUserIDCursor(ctx, "nobody", false, nil, nil, nil, 10)
+	require.NoError(t, err)
+	assert.Empty(t, page)
+}
