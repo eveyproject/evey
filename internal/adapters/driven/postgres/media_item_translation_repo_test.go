@@ -129,3 +129,42 @@ func TestMediaItemTranslationRepo_GetByMediaItem_OrderedAndDelete(t *testing.T) 
 	require.NoError(t, err)
 	assert.Empty(t, list2)
 }
+
+// Enrichment writes 5-10 locales per item in ONE statement, and the search
+// reindex reads every locale of a page of items in one query, grouped by
+// item and ordered by locale.
+func TestMediaItemTranslationRepo_UpsertBatch_GetByMediaItems(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	lib := newTestLibrary("tblib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	a, b := newTestMediaItem("tb-a", lib.ID), newTestMediaItem("tb-b", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, a))
+	require.NoError(t, itemRepo.Create(ctx, b))
+	repo := postgres.NewMediaItemTranslationRepository(db)
+
+	require.NoError(t, repo.UpsertBatch(ctx, nil), "an empty batch is a no-op")
+	require.NoError(t, repo.UpsertBatch(ctx, []*library.MediaItemTranslation{
+		{MediaItemID: a.ID, Locale: "fr-FR", Title: "Titre A", Overview: "R", Tagline: "S"},
+		{MediaItemID: a.ID, Locale: "de-DE", Title: "Titel A"},
+		{MediaItemID: b.ID, Locale: "fr-FR", Title: "Titre B"},
+	}))
+	// A second batch rewrites an existing locale in place.
+	require.NoError(t, repo.UpsertBatch(ctx, []*library.MediaItemTranslation{
+		{MediaItemID: a.ID, Locale: "fr-FR", Title: "Titre A v2", Overview: "R2", Tagline: "S2"},
+	}))
+
+	got, err := repo.GetByMediaItems(ctx, []string{string(a.ID), string(b.ID), "ghost"})
+	require.NoError(t, err)
+	require.Len(t, got[string(a.ID)], 2)
+	assert.Equal(t, "de-DE", got[string(a.ID)][0].Locale, "locales come back ordered")
+	assert.Equal(t, "Titre A v2", got[string(a.ID)][1].Title)
+	assert.Equal(t, "R2", got[string(a.ID)][1].Overview)
+	require.Len(t, got[string(b.ID)], 1)
+	assert.NotContains(t, got, "ghost")
+	none, err := repo.GetByMediaItems(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
