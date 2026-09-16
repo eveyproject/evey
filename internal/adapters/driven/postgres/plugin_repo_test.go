@@ -226,3 +226,29 @@ func TestPluginRepo_Kind_Backfill(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, plugin.KindTheme, got.Kind)
 }
+
+// UpdateConfig writes the config column ONLY: a plugin calling SetConfig with
+// a stale snapshot must not be able to restore a permission the admin just
+// revoked through the wide Update.
+func TestPluginRepo_UpdateConfig_TouchesOnlyConfig(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewPluginRepository(db)
+	ctx := context.Background()
+	p := newTestPlugin("plg-cfg")
+	p.Permissions = []string{"read", "external_fetch"}
+	require.NoError(t, repo.Create(ctx, p))
+
+	// The admin revokes a permission.
+	p.Permissions = []string{"read"}
+	require.NoError(t, repo.Update(ctx, p))
+
+	require.NoError(t, repo.UpdateConfig(ctx, "plg-cfg", map[string]any{"api_key": "k", "threshold": 3.5}))
+	got, err := repo.GetByID(ctx, "plg-cfg")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"api_key": "k", "threshold": 3.5}, got.Config)
+	assert.Equal(t, []string{"read"}, got.Permissions, "the revoked permission stays revoked")
+	assert.True(t, got.Enabled)
+
+	require.ErrorIs(t, repo.UpdateConfig(ctx, "plg-ghost", map[string]any{}), shared.ErrNotFound)
+}
