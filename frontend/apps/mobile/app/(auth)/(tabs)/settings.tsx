@@ -7,8 +7,9 @@ import { router } from "expo-router";
 import Constants from "expo-constants";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, useUserServiceLogout, eveyFetch, eveyFetchRaw, apiErrorMessage } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, useUserServiceLogout, eveyFetchRaw, apiErrorMessage } from "@evey/api";
 import { clearRefreshToken } from "../../../src/lib/refresh-token";
+import { forceRefresh } from "../../../src/lib/auth-refresh";
 import { useAuthStore, useLocaleStore, useServerListStore, toast } from "@evey/store";
 import { useBiometricAvailable, useBiometricEnabled } from "../../../src/hooks/useBiometric";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -55,7 +56,9 @@ export default function SettingsScreen() {
   const activeProfileId = useAuthStore((s) => s.profileId);
   const activeProfile =
     profilesResp?.profiles?.find((p: { id?: string }) => p.id === activeProfileId) ?? defaultProfile;
-  const { data: systemInfo } = useAdminSystemServiceGetSystemInfo();
+  // Admin RPC: for anyone else it answered PermissionDenied on every visit
+  // (a WARN per non-admin in the server log) and the row read "-" anyway.
+  const { data: systemInfo } = useAdminSystemServiceGetSystemInfo({ query: { enabled: isAdmin } });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const accessToken = useAuthStore((s) => s.accessToken);
 
@@ -196,9 +199,11 @@ export default function SettingsScreen() {
     if (activeProfile?.id) {
       try {
         await updateProfile.mutateAsync({ id: activeProfile.id, data: { locale: code } });
-        // 3. Refresh JWT to get new locale claim
-        const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
-        if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
+        // 3. Refresh JWT to get the new locale claim - through the one path that
+        // writes the ROTATED refresh token back to SecureStore. A bare
+        // /auth/refresh rotated it server-side (cookie jar) and kept the old one
+        // on disk, so the next silent refresh replayed it into a forced logout.
+        await forceRefresh();
       } catch (err) {
         // UI is already updated locally; warn the user that the server side
         // didn't pick up the change so they don't get a silent revert next
@@ -465,7 +470,9 @@ export default function SettingsScreen() {
       <Text style={s.sectionTitle}>{t("mobile.settings.server")}</Text>
       <View style={s.section}>
         <View style={s.row}><Text style={s.label}>URL</Text><Text style={s.value} numberOfLines={1}>{serverUrl ?? "..."}</Text></View>
-        <View style={s.row}><Text style={s.label}>{t("mobile.settings.serverVersion")}</Text><Text style={s.value}>{systemInfo?.version ?? "\u2014"}</Text></View>
+        {isAdmin && (
+          <View style={s.row}><Text style={s.label}>{t("mobile.settings.serverVersion")}</Text><Text style={s.value}>{systemInfo?.version ?? "-"}</Text></View>
+        )}
         <Pressable style={s.row} onPress={handleManageServers} accessible={true} accessibilityLabel={t("mobile.servers.title", "Servers")} accessibilityRole="button">
           <Text style={s.label}>{t("mobile.servers.title", "Servers")}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
