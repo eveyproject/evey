@@ -374,3 +374,41 @@ func TestPlaySessionRepo_CloseAllActive_AndRemoteCommand(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, cmd, "an ended session never receives a command")
 }
+
+// The dashboard's theoretical outgoing rate: the source bitrates of the OPEN
+// sessions only.
+func TestPlaySessionStatsReader_GetActiveSessionsBitrate(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("psu-bw")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("psp-bw", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("pslib-bw")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	item := newTestMediaItem("psmi-bw", lib.ID)
+	require.NoError(t, postgres.NewMediaItemRepository(db).Create(ctx, item))
+	repo := postgres.NewPlaySessionRepository(db)
+	stats := postgres.NewPlaySessionStatsReader(db)
+
+	bps, err := stats.GetActiveSessionsBitrate(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, bps)
+
+	a := newTestPlaySession("ps-bw-a", string(p.ID), string(item.ID))
+	a.BandwidthBps = 8_000_000
+	b := newTestPlaySession("ps-bw-b", string(p.ID), string(item.ID))
+	b.BandwidthBps = 12_000_000
+	require.NoError(t, repo.Create(ctx, a))
+	require.NoError(t, repo.Create(ctx, b))
+	bps, err = stats.GetActiveSessionsBitrate(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, 20_000_000, bps)
+
+	_, err = repo.CloseAllActive(ctx)
+	require.NoError(t, err)
+	bps, err = stats.GetActiveSessionsBitrate(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, bps, "ended sessions no longer count")
+}
