@@ -5,11 +5,14 @@ import (
 	"testing"
 	"time"
 
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Regression: sort_title is empty on rows whose scan ran before that
@@ -191,4 +194,44 @@ func TestClampPagination(t *testing.T) {
 	assert.Equal(t, maxPageSize, offset)
 	_, offset = clampPagination(20, -4, 50)
 	assert.Zero(t, offset)
+}
+
+// The grid walks the library by following NextCursor: a cursor page must
+// start right after the last row of the previous one (no repeat, no gap), win
+// over any page/offset sent alongside it, and a mangled cursor is the
+// caller's fault - InvalidArgument, not a silent first page again.
+func TestLibraryHandler_ListMediaItems_CursorWalk(t *testing.T) {
+	h, _, mediaQuery, _, _, _, _ := newTestLibraryHandler()
+	ctx := adminCtx()
+	for _, id := range []string{"a", "b", "c", "d", "e"} {
+		mediaQuery.Seed(&library.MediaItem{ID: shared.MediaItemID("mi-" + id), LibraryID: "lib-1", Title: id, SortTitle: id, Type: "movie"})
+	}
+
+	first, err := h.ListMediaItems(ctx, &eveyv1.ListMediaItemsRequest{
+		Pagination: &eveyv1.PaginationRequest{Page: 1, PageSize: 2},
+	})
+	require.NoError(t, err)
+	require.Len(t, first.Items, 2)
+	require.NotEmpty(t, first.Pagination.NextCursor)
+
+	// Page 3 by offset would skip rows; with a cursor it is ignored.
+	second, err := h.ListMediaItems(ctx, &eveyv1.ListMediaItemsRequest{
+		Pagination: &eveyv1.PaginationRequest{Page: 3, PageSize: 2, Cursor: first.Pagination.NextCursor},
+	})
+	require.NoError(t, err)
+	require.Len(t, second.Items, 2)
+	assert.Equal(t, []string{"mi-c", "mi-d"}, []string{second.Items[0].Id, second.Items[1].Id})
+
+	third, err := h.ListMediaItems(ctx, &eveyv1.ListMediaItemsRequest{
+		Pagination: &eveyv1.PaginationRequest{PageSize: 2, Cursor: second.Pagination.NextCursor},
+	})
+	require.NoError(t, err)
+	require.Len(t, third.Items, 1)
+	assert.Equal(t, "mi-e", third.Items[0].Id)
+	assert.Empty(t, third.Pagination.NextCursor, "a short page is the last one")
+
+	_, err = h.ListMediaItems(ctx, &eveyv1.ListMediaItemsRequest{
+		Pagination: &eveyv1.PaginationRequest{PageSize: 2, Cursor: "not-a-cursor!!"},
+	})
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }

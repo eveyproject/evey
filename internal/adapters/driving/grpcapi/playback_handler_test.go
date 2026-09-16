@@ -1620,3 +1620,38 @@ func TestPlaybackHandler_GetStreamInfo_StreamReadErrorIsNotDirectPlay(t *testing
 		t.Fatalf("want Internal, got %v", err)
 	}
 }
+
+// The mark-watched pair shares one error contract: another profile's id is
+// refused up front, a profile that vanished (deleted while the client still
+// held its token) answers NotFound, and a storage failure is a sanitized
+// Internal rather than a leaked message or a 404 the client would stop
+// retrying on.
+func TestPlaybackHandler_MarkWatched_ErrorMapping(t *testing.T) {
+	h, _, progressRepo, _, profileRepo, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	_, err := h.MarkAsWatched(ctx, &eveyv1.MarkAsWatchedRequest{MediaItemId: "mi-1", ProfileId: "profile-other"})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	_, err = h.MarkAsUnwatched(ctx, &eveyv1.MarkAsUnwatchedRequest{MediaItemId: "mi-1", ProfileId: "profile-other"})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	progressRepo.Err = errors.New("disk full at /var/lib/evey")
+	_, err = h.MarkAsWatched(ctx, &eveyv1.MarkAsWatchedRequest{MediaItemId: "mi-1"})
+	assert.Equal(t, codes.Internal, status.Code(err))
+	assert.NotContains(t, err.Error(), "/var/lib")
+	_, err = h.MarkAsUnwatched(ctx, &eveyv1.MarkAsUnwatchedRequest{MediaItemId: "mi-1"})
+	assert.Equal(t, codes.Internal, status.Code(err))
+	assert.NotContains(t, err.Error(), "/var/lib")
+	progressRepo.Err = nil
+
+	require.NoError(t, profileRepo.Delete(context.Background(), "profile-1"))
+	_, err = h.MarkAsWatched(ctx, &eveyv1.MarkAsWatchedRequest{MediaItemId: "mi-1"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	_, err = h.MarkAsUnwatched(ctx, &eveyv1.MarkAsUnwatchedRequest{MediaItemId: "mi-1"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+
+	// A transient profile lookup failure is NOT a 404: the client must retry.
+	profileRepo.Err = errors.New("db down")
+	_, err = h.MarkAsWatched(ctx, &eveyv1.MarkAsWatchedRequest{MediaItemId: "mi-1"})
+	assert.Equal(t, codes.Internal, status.Code(err))
+}
