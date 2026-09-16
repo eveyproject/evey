@@ -469,3 +469,36 @@ func TestPlaylistItemRepo_AddNextOrder_CapInsideInsert(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, items, 2)
 }
+
+// Removing a title from a playlist touches that one row and says so when
+// there was nothing to remove.
+func TestPlaylistItemRepo_Remove(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("plu-rm")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("plp-rm", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("pllib-rm")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	mi1, mi2 := newTestMediaItem("plmi-rm1", lib.ID), newTestMediaItem("plmi-rm2", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, mi1))
+	require.NoError(t, itemRepo.Create(ctx, mi2))
+	plRepo := postgres.NewPlaylistRepository(db)
+	plItemRepo := postgres.NewPlaylistItemRepository(db)
+	pl := newTestPlaylist("pl-rm", string(p.ID))
+	require.NoError(t, plRepo.Create(ctx, pl))
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{PlaylistID: pl.ID, MediaItemID: mi1.ID, SortOrder: 0, AddedAt: now}))
+	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{PlaylistID: pl.ID, MediaItemID: mi2.ID, SortOrder: 1, AddedAt: now}))
+
+	require.NoError(t, plItemRepo.Remove(ctx, pl.ID, string(mi1.ID)))
+	items, err := plItemRepo.GetByPlaylistID(ctx, pl.ID)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, mi2.ID, items[0].MediaItemID)
+	require.ErrorIs(t, plItemRepo.Remove(ctx, pl.ID, string(mi1.ID)), shared.ErrNotFound, "already gone")
+	require.ErrorIs(t, plItemRepo.Remove(ctx, "pl-other", string(mi2.ID)), shared.ErrNotFound, "another playlist's row is not touched")
+}
