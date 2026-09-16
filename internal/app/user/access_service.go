@@ -116,6 +116,7 @@ func (s *AccessService) ValidateInvite(ctx context.Context, token string) (valid
 func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username, password, email string) (*user.User, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.RegisterWithInvite")
 	defer span.End()
+	password = normalizePassword(password)
 	if len(password) < 8 {
 		return nil, ErrPasswordTooShort
 	}

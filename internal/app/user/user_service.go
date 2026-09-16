@@ -122,6 +122,7 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 	if err := u.Validate(); err != nil {
 		return fmt.Errorf("invalid user: %w", err)
 	}
+	password = normalizePassword(password)
 	if len(password) < 8 {
 		return ErrPasswordTooShort
 	}
@@ -228,6 +229,7 @@ func (s *UserService) SetUserBitrateLimit(ctx context.Context, userID string, ma
 func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.ChangePassword")
 	defer span.End()
+	newPassword = normalizePassword(newPassword)
 	if len(newPassword) < 8 {
 		return ErrPasswordTooShort
 	}

@@ -959,3 +959,19 @@ func TestInviteLinkValidate_Boundaries(t *testing.T) {
 		})
 	}
 }
+
+// A phone keyboard appends a space after autocomplete; login trims, so an
+// account stored with the space could never sign in (prod, 2026-09-16).
+func TestNewUser_TrimsSurroundingWhitespace(t *testing.T) {
+	t.Parallel()
+	u, err := user.NewUser(" bob ", " b@b.com ", "hash")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if u.Username != "bob" || u.Email != "b@b.com" {
+		t.Errorf("whitespace kept: %q / %q", u.Username, u.Email)
+	}
+	if _, err := user.NewUser("   ", "", "hash"); err == nil {
+		t.Fatal("a whitespace-only username is not a username")
+	}
+}

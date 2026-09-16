@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -56,6 +57,8 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	if s.setupDone {
 		return nil, ErrSetupDone
 	}
+	username = strings.TrimSpace(username)
+	password = normalizePassword(password)
 	if username == "" {
 		return nil, ErrUsernameRequired
 	}

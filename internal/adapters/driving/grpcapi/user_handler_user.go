@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -113,10 +114,10 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
 	}
 	if req.Username != nil {
-		u.Username = *req.Username
+		u.Username = strings.TrimSpace(*req.Username)
 	}
 	if req.Email != nil {
-		u.Email = *req.Email
+		u.Email = strings.TrimSpace(*req.Email)
 	}
 	if req.IsAdmin != nil {
 		u.IsAdmin = *req.IsAdmin

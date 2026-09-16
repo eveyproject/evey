@@ -225,7 +225,7 @@ type LibraryAccess struct {
 }
 
 func (u *User) Validate() error {
-	if u.Username == "" {
+	if strings.TrimSpace(u.Username) == "" {
 		return errors.New("username is required")
 	}
 	// Surrounding whitespace is tolerated: rows written before this check
@@ -246,12 +246,15 @@ func IsPlainAddress(email string) bool {
 
 // NewUser constructs a User with invariants enforced. Defaults: Enabled=true, IsAdmin=false.
 // Caller may mutate IsAdmin/Enabled afterwards if needed.
+// Surrounding whitespace is dropped: a phone keyboard appends a space after
+// autocomplete, and Login trims, so an account stored with the space could
+// never sign in (prod, 2026-09-16).
 func NewUser(username, email, passwordHash string) (*User, error) {
 	now := time.Now()
 	u := &User{
 		ID:           shared.UserID(id.New("usr-")),
-		Username:     username,
-		Email:        email,
+		Username:     strings.TrimSpace(username),
+		Email:        strings.TrimSpace(email),
 		PasswordHash: passwordHash,
 		Enabled:      true,
 		CreatedAt:    now,
