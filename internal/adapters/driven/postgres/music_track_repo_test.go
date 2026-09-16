@@ -820,3 +820,57 @@ func TestMusicTrackRepo_GetAlbums_UntaggedFolderFallsBackToFolderName(t *testing
 	assert.Equal(t, "audio documentary", albums[0].Title,
 		"an all-untagged folder must display its folder name, not an empty header")
 }
+
+// The cover-art fetcher's view of a library: one candidate per album FOLDER
+// (tags voted by mode, blanks ignored), a folder with no usable album or
+// artist skipped, an embedded cover flagged so the fetcher leaves it alone;
+// plus the per-album track listing and the fetched-URL stamp.
+func TestMusicTrackRepo_AlbumFolders_AllAlbums_CoverURL(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	lib := newTestLibrary("mfoldlib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	repo := postgres.NewMusicTrackRepository(db)
+
+	mk := func(id, folder, title, artist, album, cover string) {
+		t.Helper()
+		tr := newTestTrack(id, lib.ID, title, artist, album)
+		tr.AlbumFolder = folder
+		tr.CoverArtURL = cover
+		_, err := repo.Upsert(ctx, tr)
+		require.NoError(t, err)
+	}
+	mk("mf-a1", "/music/A", "One", "Artist A", "Album A", "")
+	mk("mf-a2", "/music/A", "Two", "Artist A", "Album A", "")
+	mk("mf-a3", "/music/A", "Three", "Artist A", "", "") // untagged stray: the mode ignores the blank
+	mk("mf-b1", "/music/B", "Solo", "Artist B", "Album B", "/api/v1/music/tracks/mf-b1/art")
+	mk("mf-c1", "/music/C", "Untagged", "", "", "")     // no album, no artist: not fetchable
+	mk("mf-d1", "", "Loose", "Artist D", "Album D", "") // no folder given: derived from the file's directory
+
+	folders, err := repo.ListAlbumFolders(ctx, lib.ID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"/music/A", "/music/B", "/music/C", "/music"}, folders, "every folder once, the blank one derived from the path")
+
+	albums, err := repo.ListAllAlbums(ctx, lib.ID)
+	require.NoError(t, err)
+	byFolder := map[string]music.AlbumKey{}
+	for _, a := range albums {
+		byFolder[a.AlbumFolder] = a
+	}
+	require.Contains(t, byFolder, "/music/A")
+	assert.Equal(t, music.AlbumKey{AlbumFolder: "/music/A", Artist: "Artist A", Album: "Album A"}, byFolder["/music/A"])
+	require.Contains(t, byFolder, "/music/B")
+	assert.True(t, byFolder["/music/B"].HasEmbeddedArt, "a track carrying its own cover blocks the external fetch")
+	assert.NotContains(t, byFolder, "/music/C", "nothing to search with")
+
+	tracks, err := repo.ListByLibraryAndAlbum(ctx, lib.ID, "Album A")
+	require.NoError(t, err)
+	assert.Len(t, tracks, 2)
+
+	require.NoError(t, repo.SetTrackCoverArtURL(ctx, "mf-a1", "/art/fetched-a"))
+	got, err := repo.GetByID(ctx, "mf-a1")
+	require.NoError(t, err)
+	assert.Equal(t, "/art/fetched-a", got.CoverArtURL)
+	require.NoError(t, repo.SetTrackCoverArtURL(ctx, "ghost", "/x"), "an unknown track is a no-op")
+}
