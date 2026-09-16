@@ -277,6 +277,12 @@ type hwSource struct {
 	// Interlaced: a backend whose deinterlacer is session-level (QSV) must
 	// have proven it correct to take this source at all (DeinterlacesOnGPU).
 	Interlaced bool
+	// WantHeight is the tallest rung the session would ask for (wantedRung);
+	// 0 = unknown. A backend certified under it loses to one that reaches it.
+	WantHeight int
+	// Bridge: the CPU tone-maps between the GPU decode and encode. The backend
+	// must have proven that route and must decode the source itself.
+	Bridge bool
 }
 
 // ResolveHW decides the hardware encode backend for a chosen output codec.
@@ -291,6 +297,17 @@ func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit,
 	return pr.resolveHW(outputCodec, hwSource{Codec: sourceCodec, TenBit: sourceTenBit}, hwTonemap)
 }
 
+// wantedRung is the tallest rung a session for this source and client would
+// ask for: the source height capped by the client's ceiling. 0 = unknown (no
+// rung filter on the backend pick).
+func wantedRung(decision transcoding.PlaybackDecision, sourceHeight int) int {
+	h := sourceHeight
+	if decision.MaxHeight > 0 && (h == 0 || decision.MaxHeight < h) {
+		h = decision.MaxHeight
+	}
+	return h
+}
+
 // resolveHW is ResolveHW with the full source facts. Every GPU shape it can
 // answer with has to be PROVEN by the calibration's route probes
 // (EncodeCapability.HWRoutes): the filter-level facts say what the GPU can
@@ -299,61 +316,84 @@ func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bo
 	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
 		return "", "", nil, false, false
 	}
-	cap := pr.Capability()
-	// Choose the backend for THIS route (not one global "best host backend"):
-	// the cheapest accelerator that is correct, proves the route and supports
-	// the codec. On a box with both, HDR->SDR takes VAAPI's OpenCL tone-map
-	// while HEVC/SDR take a faster QSV.
-	bc, ok := pr.pickBackend(outputCodec, hwTonemap, src.Interlaced)
+	// Choose the backend for THIS route and THIS source (not one global "best
+	// host backend"): among the accelerators that are correct, prove the route,
+	// support the codec AND serve this source (decode matrix, decoupled path,
+	// 10-bit VPP, chroma layout, bridge), the one reaching the wanted rung at
+	// the lowest measured cost. On a box with both, HDR->SDR takes VAAPI's
+	// OpenCL tone-map while HEVC/SDR take a faster QSV; a QSV that cannot decode
+	// this source hands it to a VAAPI that can, never to the CPU.
+	bc, softwareDecode, ok := pr.pickBackend(outputCodec, src, hwTonemap)
 	if !ok {
-		return "", "", nil, false, false
-	}
-	backend := transcoding.HWAccelType(bc.Backend)
-	// The zero-copy pipeline HW-decodes the source. If this backend can't decode
-	// it (chroma/depth/codec), the source takes the DECOUPLED path (software
-	// decode + hwupload + GPU scale/encode), unless that is not expressible or
-	// honest: no upload chain / unproven decoupled route, a GPU tone-map (needs
-	// the 10-bit surface the upload folds away), or a 10-bit source (its
-	// software decode is the expensive half - price it as CPU, not GPU).
-	decodable := bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat, cap.ProbeVersion)
-	softwareDecode = src.Codec != "" && !decodable
-	if softwareDecode {
-		if hwTonemap || src.TenBit || (backend != transcoding.VAAPI && backend != transcoding.QSV && backend != transcoding.RKMPP) ||
-			!bc.Proves(transcoding.HWRouteDecoupled) {
-			return "", "", nil, false, false
-		}
-	}
-	// A 10-bit source needs the HW VPP to fold p010->nv12 for the 8-bit encoder;
-	// some drivers abort. Unless the 10-bit VPP is proven (and its builder route
-	// ran), software-transcode. Exception: a GPU tone-map folds p010 itself.
-	if src.TenBit && !hwTonemap && (!bc.HW10Bit || !bc.Proves(transcoding.HWRouteSource10Bit)) {
-		return "", "", nil, false, false
-	}
-	// A source layout outside 4:2:0 8/10-bit rides the zero-copy chain only once
-	// that chain ran on it end-to-end for this backend.
-	if !softwareDecode && !transcoding.CanonicalDecodeFormat(src.PixelFormat) && !bc.Proves(transcoding.HWRouteSourceFormat(src.PixelFormat)) {
 		return "", "", nil, false, false
 	}
 	return bc.Backend, bc.Device, pr.effectiveHWFeatures(bc.Features), true, softwareDecode
 }
 
-// pickBackend chooses the accelerator for a route: among the certified backends
-// that prove the route's encode path and support the codec, the CHEAPEST by
-// route cost (RouteCosts), with a <5% hysteresis tie-break (the primary, then
-// alphabetical) so the pick does not flip on measurement noise across
-// recalibrations. A tone-map route needs a backend proving HWRouteTonemap (only
-// a GPU tone-mapper - QSV's vpp is ineligible - so HDR lands on VAAPI/OpenCL);
-// everything else needs SDR (+HEVC / +AV1 for that output). nil RouteCosts or a
-// pre-Backends capability falls back to the primary backend.
-func (pr *PlanResolver) pickBackend(outputCodec string, hwTonemap, interlaced bool) (transcoding.HWBackendCap, bool) {
+// backendServes reports whether backend bc can run THIS source on the route
+// (the per-source gates that used to run AFTER the pick, so a backend chosen
+// on cost could fail them and drop the whole request to software), and whether
+// it would software-decode. The zero-copy pipeline HW-decodes the source. If
+// this backend can't decode it (chroma/depth/codec), the source takes the
+// DECOUPLED path (software decode + hwupload + GPU scale/encode), unless that
+// is not expressible or honest: no upload chain / unproven decoupled route, a
+// GPU tone-map (needs the 10-bit surface the upload folds away), a 10-bit
+// source (its software decode is the expensive half - price it as CPU, not
+// GPU), or a bridge (the download needs a GPU frame). A 10-bit source needs the
+// HW VPP to fold p010->nv12 for the 8-bit encoder (proven), unless a GPU
+// tone-map folds p010 itself. A chroma layout outside 4:2:0 8/10-bit rides the
+// zero-copy chain only once that chain ran on it end-to-end for this backend.
+func backendServes(cap transcoding.EncodeCapability, bc transcoding.HWBackendCap, src hwSource, hwTonemap bool) (softwareDecode, ok bool) {
+	backend := transcoding.HWAccelType(bc.Backend)
+	decodable := bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat, cap.ProbeVersion)
+	softwareDecode = src.Codec != "" && !decodable
+	if softwareDecode {
+		if hwTonemap || src.Bridge || src.TenBit || (backend != transcoding.VAAPI && backend != transcoding.QSV && backend != transcoding.RKMPP) ||
+			!bc.Proves(transcoding.HWRouteDecoupled) {
+			return false, false
+		}
+	}
+	if src.Bridge && !bc.Proves(transcoding.HWRouteBridge) {
+		return false, false
+	}
+	if src.TenBit && !hwTonemap && (!bc.HW10Bit || !bc.Proves(transcoding.HWRouteSource10Bit)) {
+		return false, false
+	}
+	if !softwareDecode && !transcoding.CanonicalDecodeFormat(src.PixelFormat) && !bc.Proves(transcoding.HWRouteSourceFormat(src.PixelFormat)) {
+		return false, false
+	}
+	return softwareDecode, true
+}
+
+// pickBackend chooses the accelerator for a route and a source, in this order:
+//  1. COMPATIBILITY: the certified backends that prove the route's encode path,
+//     support the codec and serve THIS source (backendServes: decode matrix,
+//     decoupled path, 10-bit VPP, chroma layout, bridge proof, deinterlacer);
+//  2. QUALITY: among them, those whose certified ceiling (the bridge ceiling
+//     on a bridge) reaches the rung the session wants (src.WantHeight; when
+//     none does, the tallest ceilings - the request is capped there anyway);
+//  3. COST: the cheapest by measured route cost (RouteCosts) at that rung,
+//     with a <5% hysteresis tie-break (the primary, then alphabetical) so the
+//     pick does not flip on measurement noise across recalibrations.
+//
+// Filtering on the source BEFORE ranking is what lets a QSV that cannot decode
+// a source hand it to a VAAPI that can: the incompatible backend is simply not
+// in the field, so the next one is tried instead of the whole request dropping
+// to software. A 720p-only accelerator never beats a 2160p one for a 2160p
+// request however cheap it measures; it may win a 720p request. A tone-map
+// route needs a backend proving HWRouteTonemap (only a GPU tone-mapper - QSV's
+// vpp is ineligible - so HDR lands on VAAPI/OpenCL); everything else needs SDR
+// (+HEVC / +AV1 for that output). nil RouteCosts or a pre-Backends capability
+// falls back to the primary backend. Returns the pick and whether it will
+// software-decode (the decoupled route).
+func (pr *PlanResolver) pickBackend(outputCodec string, src hwSource, hwTonemap bool) (transcoding.HWBackendCap, bool, bool) {
 	cap := pr.Capability()
 	caps := cap.BackendCaps()
 	if len(caps) == 0 {
-		return transcoding.HWBackendCap{}, false
+		return transcoding.HWBackendCap{}, false, false
 	}
 	hevc := transcoding.CanonicalVideoCodec(outputCodec) == "hevc"
 	av1 := transcoding.CanonicalVideoCodec(outputCodec) == "av1"
-	costRoute := transcoding.RouteCostSDR
 	qualifies := func(b transcoding.HWBackendCap) bool {
 		if !b.SupportsCodec(outputCodec) || !b.Proves(transcoding.HWRouteSDR) {
 			return false
@@ -366,7 +406,7 @@ func (pr *PlanResolver) pickBackend(outputCodec string, hwTonemap, interlaced bo
 		}
 		// An interlaced source on a session-level deinterlacer (QSV) needs the
 		// probed+proven filter; a QSV that never proved it would serve combing.
-		if interlaced && !b.DeinterlacesOnGPU() {
+		if src.Interlaced && !b.DeinterlacesOnGPU() {
 			return false
 		}
 		if hwTonemap && !b.Proves(transcoding.HWRouteTonemap) {
@@ -374,40 +414,115 @@ func (pr *PlanResolver) pickBackend(outputCodec string, hwTonemap, interlaced bo
 		}
 		return true
 	}
-	if hwTonemap {
-		costRoute = transcoding.RouteCostTonemap
-	}
 	var model *RouteCostModel
 	if pr.RouteCosts != nil {
 		model = pr.RouteCosts()
 	}
-	// cost of a backend's route at a reference rung (1080) and source fps (24):
-	// the RELATIVE order of the backends is what matters, and it is stable
-	// across rungs. Missing evidence => +inf (never preferred on cost).
-	const refRung, refFPS = 1080, 24.0
-	costOf := func(b transcoding.HWBackendCap) float64 {
-		if model == nil {
-			return 0 // no cost model: every qualifying backend ties, tie-break decides
-		}
-		enc := transcoding.RouteEncoderName(outputCodec, b.Backend)
-		if c, ok := model.Cost(transcoding.RouteCostKeyFor(transcoding.HWAccelType(b.Backend), enc, costRoute), refRung, refFPS); ok {
-			return c.Accel
-		}
-		return 1e9
+	// 1. Compatibility: route + codec + source.
+	type candidate struct {
+		b              transcoding.HWBackendCap
+		softwareDecode bool
 	}
-	var best transcoding.HWBackendCap
-	var bestCost float64
-	found := false
+	// routeOf is the cost route this candidate would really run for the source.
+	routeOf := func(c candidate) transcoding.RouteCostClass {
+		switch {
+		case hwTonemap:
+			return transcoding.RouteCostTonemap
+		case src.Bridge:
+			return transcoding.RouteCostBridge
+		case c.softwareDecode:
+			return transcoding.RouteCostDecoupled
+		}
+		return transcoding.RouteCostSDR
+	}
+	keyOf := func(c candidate) transcoding.RouteCostKey {
+		return transcoding.RouteCostKeyFor(transcoding.HWAccelType(c.b.Backend), transcoding.RouteEncoderName(outputCodec, c.b.Backend), routeOf(c))
+	}
+	// ceilingOf is the quality a session on this candidate is really PROVEN
+	// for: the backend's encode ceiling (the effective bridge ceiling on a
+	// bridge - the software HDR ceiling when its bridge cleared no rung; the
+	// CPU ceiling when it software-decodes, a decode the GPU ladder was never
+	// benched behind), bounded by the tallest rung THIS route produced in the
+	// route evidence. A QSV certified 2160p whose HEVC route only produced
+	// 1080p is a 1080p HEVC backend here, and loses a 2160p request to a
+	// VAAPI whose HEVC route produced 1440p. known=false only without a
+	// route-aware model (legacy: the generic ceiling ranks, 0 = unknown).
+	ceilingOf := func(c candidate) (h int, known bool) {
+		h = cap.HWCeilingFor(c.b.Backend)
+		if src.Bridge {
+			h = cap.EffectiveBridgeCeilingFor(c.b.Backend)
+		}
+		if c.softwareDecode && cap.SoftwareMaxHeight > 0 && (h == 0 || cap.SoftwareMaxHeight < h) {
+			h = cap.SoftwareMaxHeight
+		}
+		if model == nil {
+			return h, h > 0
+		}
+		proven, _ := model.TallestRung(keyOf(c)) // 0 = the route produced nothing
+		if h == 0 || proven < h {
+			h = proven
+		}
+		return h, true
+	}
+	var field []candidate
+	tallest := 0
 	for _, b := range caps {
 		if !qualifies(b) {
 			continue
 		}
-		c := costOf(b)
-		if !found || betterBackend(b, c, best, bestCost, cap.HWBackend) {
-			best, bestCost, found = b, c, true
+		sd, ok := backendServes(cap, b, src, hwTonemap)
+		if !ok {
+			continue
+		}
+		c := candidate{b, sd}
+		field = append(field, c)
+		h, _ := ceilingOf(c)
+		tallest = max(tallest, h)
+	}
+	// 2. Quality: reach the wanted rung, else the tallest PROVEN quality (the
+	// request is capped there anyway). A ceiling the legacy path cannot tell
+	// (unknown) is never a reason to drop a backend.
+	target := tallest
+	if src.WantHeight > 0 && src.WantHeight < tallest {
+		target = src.WantHeight
+	}
+	reaches := func(c candidate) bool {
+		h, known := ceilingOf(c)
+		return !known || h >= target
+	}
+	// 3. Cost: the route priced at the rung it would serve - the wanted rung,
+	// bounded by the proven ceiling, 1080 when unknown - at film cadence. The
+	// RELATIVE order is what matters. Missing evidence => +inf (never
+	// preferred on cost).
+	costOf := func(c candidate) float64 {
+		if model == nil {
+			return 0 // no cost model: every qualifying backend ties, tie-break decides
+		}
+		rung := 1080
+		if src.WantHeight > 0 {
+			rung = src.WantHeight
+		}
+		if h, _ := ceilingOf(c); h > 0 && h < rung {
+			rung = h
+		}
+		if rc, ok := model.Cost(keyOf(c), rung, 24); ok {
+			return rc.Accel
+		}
+		return 1e9
+	}
+	var best candidate
+	var bestCost float64
+	found := false
+	for _, c := range field {
+		if !reaches(c) {
+			continue
+		}
+		cost := costOf(c)
+		if !found || betterBackend(c.b, cost, best.b, bestCost, cap.HWBackend) {
+			best, bestCost, found = c, cost, true
 		}
 	}
-	return best, found
+	return best.b, best.softwareDecode, found
 }
 
 // betterBackend is pickBackend's ordering: strictly cheaper wins beyond a 5%
@@ -475,7 +590,7 @@ func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecisio
 	// 10-bit surface, but it must be the one decoding (the bridge downloads).
 	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
 	resolve := func(c string) {
-		accel, device, features, usable, softwareDecode = pr.resolveHW(c, hwSource{Codec: dims.Codec, TenBit: dims.TenBit && !bridge, PixelFormat: dims.PixelFormat, Interlaced: dims.Interlaced}, hwTonemap)
+		accel, device, features, usable, softwareDecode = pr.resolveHW(c, hwSource{Codec: dims.Codec, TenBit: dims.TenBit && !bridge, PixelFormat: dims.PixelFormat, Interlaced: dims.Interlaced, WantHeight: wantedRung(decision, dims.Height), Bridge: bridge}, hwTonemap)
 		if pr.hwRouteRefused(decision, dims, bridge, softwareDecode) {
 			accel, device, features, usable, softwareDecode = "", "", nil, false, false
 		}
@@ -503,7 +618,10 @@ func (pr *PlanResolver) hwRouteRefused(decision transcoding.PlaybackDecision, sr
 	if src.Telecine || pr.burnInStaysSoftware(decision) {
 		return true
 	}
-	if bridge && (softwareDecode || !pr.capabilityOrFallback().HWRouteProven(transcoding.HWRouteBridge)) {
+	// The bridge's own gates (a proven bridge route on the PICKED backend, a
+	// GPU decode) are enforced per backend in pickBackend; this keeps the
+	// belt for a caller that resolved without the bridge flag.
+	if bridge && softwareDecode {
 		return true
 	}
 	return false
@@ -523,7 +641,7 @@ func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src
 	// decode keeps the whole job on the CPU. Same answer as EffectiveVideoCodec.
 	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
 	resolve := func(c string) bool {
-		_, _, _, usable, softwareDecode := pr.resolveHW(c, hwSource{Codec: src.Codec, TenBit: src.TenBit && !bridge, PixelFormat: src.PixelFormat, Interlaced: src.Interlaced}, hwTonemap)
+		_, _, _, usable, softwareDecode := pr.resolveHW(c, hwSource{Codec: src.Codec, TenBit: src.TenBit && !bridge, PixelFormat: src.PixelFormat, Interlaced: src.Interlaced, WantHeight: wantedRung(decision, src.Height), Bridge: bridge}, hwTonemap)
 		return usable && !pr.hwRouteRefused(decision, src, bridge, softwareDecode)
 	}
 	codec := pr.outputCodecFor(decision, nil)
