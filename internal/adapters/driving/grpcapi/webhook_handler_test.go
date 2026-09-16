@@ -51,6 +51,10 @@ func (r *fakeWebhookRepo) List(_ context.Context) ([]*webhook.Config, error) {
 }
 
 func (r *fakeWebhookRepo) Update(_ context.Context, cfg *webhook.Config) error {
+	// Mirrors the Postgres repository: an update that hits no row is NotFound.
+	if _, ok := r.items[cfg.ID]; !ok {
+		return shared.ErrNotFound
+	}
 	r.items[cfg.ID] = cfg
 	return nil
 }
@@ -254,6 +258,18 @@ func TestMaskSecret(t *testing.T) {
 func TestWebhookHandler_DeleteUnknownIsNotFound(t *testing.T) {
 	h, _, _ := setupWebhookHandler()
 	_, err := h.DeleteWebhook(context.Background(), &eveyv1.DeleteWebhookRequest{Id: "ghost"})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("code = %v, want NotFound", status.Code(err))
+	}
+}
+
+// Updating a webhook that was deleted from another tab is NotFound, not a
+// logged 500 (the repository reports the missing row).
+func TestWebhookHandler_UpdateUnknownIsNotFound(t *testing.T) {
+	h, _, _ := setupWebhookHandler()
+	_, err := h.UpdateWebhook(context.Background(), &eveyv1.UpdateWebhookRequest{
+		Id: "ghost", Name: "x", Url: "https://a.com", Events: []string{"*"}, Enabled: true,
+	})
 	if status.Code(err) != codes.NotFound {
 		t.Fatalf("code = %v, want NotFound", status.Code(err))
 	}
