@@ -7,6 +7,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -190,4 +191,55 @@ func TestMediaSegmentRepo_IntroDetectionExhaustedBatch_MultipleIDs(t *testing.T)
 	assert.False(t, ex[freshID], "an id absent from the underlying table must be absent from the map")
 	_, freshPresent := ex[freshID]
 	assert.False(t, freshPresent, "not-exhausted ids must be absent, not false-valued, per the port contract")
+}
+
+// The season sweep reads a whole page of episodes in one query, keyed by
+// item; deletes are scoped to one item, or one item and one segment type.
+func TestMediaSegmentRepo_BatchReadAndScopedDeletes(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	lib := newTestLibrary("segbatchlib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ep1, ep2, ep3 := newTestMediaItem("segb1", lib.ID), newTestMediaItem("segb2", lib.ID), newTestMediaItem("segb3", lib.ID)
+	for _, it := range []*library.MediaItem{ep1, ep2, ep3} {
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	segRepo := postgres.NewMediaSegmentRepository(db)
+	for _, s := range []*library.MediaSegment{
+		{MediaItemID: ep1.ID, Type: "end_credits", StartMs: 2_500_000, EndMs: 2_600_000, Confidence: 0.9, Source: "phash"},
+		{MediaItemID: ep1.ID, Type: "intro", StartMs: 0, EndMs: 60_000, Confidence: 0.9, Source: "phash"},
+		{MediaItemID: ep2.ID, Type: "intro", StartMs: 1_000, EndMs: 61_000, Confidence: 0.8, Source: "audio"},
+	} {
+		require.NoError(t, segRepo.Upsert(ctx, s))
+	}
+
+	got, err := segRepo.GetByMediaItemIDs(ctx, []shared.MediaItemID{ep1.ID, ep2.ID, ep3.ID, "ghost"})
+	require.NoError(t, err)
+	require.Len(t, got[ep1.ID], 2)
+	assert.Equal(t, "intro", got[ep1.ID][0].Type, "an item's segments come back by start time")
+	assert.Equal(t, "end_credits", got[ep1.ID][1].Type)
+	require.Len(t, got[ep2.ID], 1)
+	assert.NotContains(t, got, ep3.ID, "an item without rows is absent, not an empty slice")
+	assert.NotContains(t, got, shared.MediaItemID("ghost"))
+	empty, err := segRepo.GetByMediaItemIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+
+	require.NoError(t, segRepo.DeleteByMediaItemIDAndType(ctx, ep1.ID, "intro"))
+	rows, err := segRepo.GetByMediaItemID(ctx, ep1.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "end_credits", rows[0].Type, "only the named type goes")
+	rows, _ = segRepo.GetByMediaItemID(ctx, ep2.ID)
+	assert.Len(t, rows, 1, "another item's intro is untouched")
+
+	require.NoError(t, segRepo.DeleteByMediaItemID(ctx, ep1.ID))
+	rows, err = segRepo.GetByMediaItemID(ctx, ep1.ID)
+	require.NoError(t, err)
+	assert.Empty(t, rows)
+	rows, _ = segRepo.GetByMediaItemID(ctx, ep2.ID)
+	assert.Len(t, rows, 1)
+	require.NoError(t, segRepo.DeleteByMediaItemID(ctx, ep1.ID), "deleting nothing is a no-op")
 }
