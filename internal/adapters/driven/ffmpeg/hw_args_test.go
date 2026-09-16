@@ -160,8 +160,8 @@ func TestHWEncoderQualityArgs_FeatureGating(t *testing.T) {
 	if got := joined(hwEncoderQualityArgs(transcoding.NVENC, "h264", nil)); got != "-preset p4 -forced-idr 1" {
 		t.Errorf("NVENC baseline = %q, want '-preset p4 -forced-idr 1'", got)
 	}
-	if got := joined(hwEncoderQualityArgs(transcoding.QSV, "h264", nil)); got != "-preset veryfast" {
-		t.Errorf("QSV baseline = %q, want '-preset veryfast'", got)
+	if got := joined(hwEncoderQualityArgs(transcoding.QSV, "h264", nil)); got != "-preset veryfast -forced_idr 1" {
+		t.Errorf("QSV baseline = %q, want '-preset veryfast -forced_idr 1'", got)
 	}
 	if got := hwEncoderQualityArgs(transcoding.VAAPI, "h264", nil); len(got) != 0 {
 		t.Errorf("VAAPI baseline must be empty, got %v", got)
@@ -178,12 +178,13 @@ func TestHWEncoderQualityArgs_FeatureGating(t *testing.T) {
 		t.Errorf("NVENC emitted an unprobed option: %q", nv)
 	}
 
-	// QSV forced_idr is gated (the option an old old iGPU QSV would reject).
-	if got := joined(hwEncoderQualityArgs(transcoding.QSV, "h264", []string{"forced_idr"})); !strings.Contains(got, "-forced_idr 1") {
-		t.Errorf("QSV with forced_idr probed = %q, want it to include -forced_idr 1", got)
-	}
-	if got := joined(hwEncoderQualityArgs(transcoding.QSV, "h264", nil)); strings.Contains(got, "forced_idr") {
-		t.Errorf("QSV without the probe must NOT emit forced_idr: %q", got)
+	// QSV forced_idr is unconditional, probe or not: the feature was never
+	// probed for Intel, so a gate meant "never", and a Chromecast stalled at
+	// the first 10 s segment of a manifest promising 3 s ones.
+	for _, features := range [][]string{nil, {"forced_idr"}, {"low_power_h264"}} {
+		if got := joined(hwEncoderQualityArgs(transcoding.QSV, "h264", features)); !strings.Contains(got, "-forced_idr 1") {
+			t.Errorf("QSV with features %v = %q, want -forced_idr 1", features, got)
+		}
 	}
 }
 
