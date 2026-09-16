@@ -252,3 +252,61 @@ func TestPluginRepo_UpdateConfig_TouchesOnlyConfig(t *testing.T) {
 
 	require.ErrorIs(t, repo.UpdateConfig(ctx, "plg-ghost", map[string]any{}), shared.ErrNotFound)
 }
+
+// The security dashboard reads the analysis report, the cosign verdict and
+// the egress allowlist back from their JSON columns; a plugin installed
+// without any of them (nil pointers, no hosts) must read back the same way
+// through both Create and Update, not as empty reports that look "verified".
+func TestPluginRepo_SecurityColumns_RoundTrip(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewPluginRepository(db)
+	ctx := context.Background()
+
+	bare := newTestPlugin("plsec-bare")
+	require.NoError(t, repo.Create(ctx, bare))
+	got, err := repo.GetByID(ctx, bare.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.AnalysisReport)
+	assert.Nil(t, got.Signature)
+	assert.Empty(t, got.ExternalFetch)
+
+	full := newTestPlugin("plsec-full")
+	full.SourceHash = "abc123"
+	full.WebRoot = "web"
+	full.ExternalFetch = []string{"api.example.test", "cdn.example.test"}
+	full.AnalysisReport = &plugin.AnalysisReport{
+		Safe: false, Issues: []string{"[HIGH] main.js:3 - eval (dynamic-eval)"}, Categories: []string{"dynamic-eval"}, FileCount: 4,
+		URLs: []plugin.ExtractedURL{{URL: "https://api.example.test", File: "main.js", Line: 7, Type: "literal"}},
+	}
+	full.Signature = &plugin.SignatureStatus{Verified: true, VerifiedBy: "issuer@example.test"}
+	require.NoError(t, repo.Create(ctx, full))
+	got, err = repo.GetByID(ctx, full.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "abc123", got.SourceHash)
+	assert.Equal(t, "web", got.WebRoot)
+	assert.Equal(t, full.ExternalFetch, got.ExternalFetch)
+	require.NotNil(t, got.AnalysisReport)
+	assert.False(t, got.AnalysisReport.Safe)
+	assert.Equal(t, full.AnalysisReport.Issues, got.AnalysisReport.Issues)
+	assert.Equal(t, []string{"dynamic-eval"}, got.AnalysisReport.Categories)
+	assert.Equal(t, 4, got.AnalysisReport.FileCount)
+	assert.Equal(t, full.AnalysisReport.URLs, got.AnalysisReport.URLs)
+	require.NotNil(t, got.Signature)
+	assert.True(t, got.Signature.Verified)
+	assert.Equal(t, "issuer@example.test", got.Signature.VerifiedBy)
+
+	// A re-install (Update) that loses the signature clears it rather than
+	// leaving the old verdict standing.
+	got.Signature = nil
+	got.ExternalFetch = nil
+	got.AnalysisReport = &plugin.AnalysisReport{Safe: true, FileCount: 1}
+	require.NoError(t, repo.Update(ctx, got))
+	again, err := repo.GetByID(ctx, full.ID)
+	require.NoError(t, err)
+	assert.Nil(t, again.Signature)
+	assert.Empty(t, again.ExternalFetch)
+	require.NotNil(t, again.AnalysisReport)
+	assert.True(t, again.AnalysisReport.Safe)
+	assert.Empty(t, again.AnalysisReport.Issues)
+}

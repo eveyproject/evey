@@ -207,3 +207,32 @@ func TestPersonRepo_BioCheckedAt_NilByDefaultThenRoundTrips(t *testing.T) {
 	require.NotNil(t, reloaded.BioCheckedAt)
 	assert.True(t, checkedAt.Equal(*reloaded.BioCheckedAt))
 }
+
+// A cast of N names resolves in one query: known names map to their rows
+// with provider ids intact, unknown names are simply absent (the caller
+// creates them), and an empty list never touches the database.
+func TestPersonRepo_GetByNamesBatch(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewPersonRepository(db)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Create(ctx, newTestPerson("pb1", "Alice Smith")))
+	bob := newTestPerson("pb2", "Bob Jones")
+	bob.ProviderIDs = map[string]string{"tmdb": "42", "imdb": "nm0000042"}
+	require.NoError(t, repo.Create(ctx, bob))
+	require.NoError(t, repo.Create(ctx, newTestPerson("pb3", "Carol White")))
+
+	got, err := repo.GetByNamesBatch(ctx, []string{"Alice Smith", "Bob Jones", "Nobody Here"})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, "pb1", got["Alice Smith"].ID)
+	assert.Equal(t, "pb2", got["Bob Jones"].ID)
+	assert.Equal(t, map[string]string{"tmdb": "42", "imdb": "nm0000042"}, got["Bob Jones"].ProviderIDs)
+	assert.NotContains(t, got, "Carol White", "only the names asked for")
+	assert.NotContains(t, got, "Nobody Here")
+
+	none, err := repo.GetByNamesBatch(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
