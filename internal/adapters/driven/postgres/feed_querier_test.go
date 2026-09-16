@@ -195,8 +195,27 @@ func TestFeedQuerier_ContinueWatching_AndNextEpisode(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []string{eps[1], epsB[1]}, nextIDs, "one next episode per series with a completed episode: the first not completed")
 
+	// "Resume playback" is the same set ordered by the last interaction
+	// (a next-up card dated by the series' last completed episode), with the
+	// limit taking the most recent first.
+	resume, err := fq.ResumePlayback(ctx, "feed-p", 20)
+	require.NoError(t, err)
+	resumeIDs := make([]string, 0, len(resume))
+	for _, it := range resume {
+		resumeIDs = append(resumeIDs, string(it.MediaItemID))
+	}
+	assert.Equal(t, []string{eps[1], "feed-resume", eps[2], epsB[1]}, resumeIDs)
+	top, err := fq.ResumePlayback(ctx, "feed-p", 2)
+	require.NoError(t, err)
+	require.Len(t, top, 2)
+	assert.Equal(t, eps[1], string(top[0].MediaItemID))
+	assert.Equal(t, "feed-resume", string(top[1].MediaItemID))
+
 	// Another profile sees none of this.
 	other, err := fq.ContinueWatching(ctx, "feed-nobody", 20)
+	require.NoError(t, err)
+	assert.Empty(t, other)
+	other, err = fq.ResumePlayback(ctx, "feed-nobody", 20)
 	require.NoError(t, err)
 	assert.Empty(t, other)
 }

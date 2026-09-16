@@ -415,3 +415,57 @@ func TestMediaItemRepo_RefreshFileState_AndBackfillSortTitles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, n, "idempotent")
 }
+
+// The scan reconciles by (library, type, title[, parent]) and the feed
+// hydrates cards by id list: the adapter must resolve both through the same
+// joins as GetByID, answer NotFound (not a nil item) for a miss, and read an
+// empty id list as nothing rather than a query.
+func TestMediaItemQueryRepoAdapter_GetByLibraryTypeTitle_AndGetByIDs(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	queryRepo := postgres.NewMediaItemQueryRepoAdapter(db)
+
+	lib := newTestLibrary("cq-lib5")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	other := newTestLibrary("cq-lib5b")
+	require.NoError(t, libRepo.Create(ctx, other))
+
+	series := newTestMediaItem("cq-series5", lib.ID)
+	series.Type = library.Series
+	series.Title = "Some Show"
+	require.NoError(t, itemRepo.Create(ctx, series))
+	s1 := newTestMediaItem("cq-s5-1", lib.ID)
+	s1.Type = library.Season
+	s1.Title = "Season 1"
+	s1.ParentID = string(series.ID)
+	require.NoError(t, itemRepo.Create(ctx, s1))
+	twin := newTestMediaItem("cq-twin5", other.ID)
+	twin.Type = library.Series
+	twin.Title = "Some Show"
+	require.NoError(t, itemRepo.Create(ctx, twin))
+
+	got, err := queryRepo.GetByLibraryTypeTitle(ctx, lib.ID, string(library.Series), "Some Show", "")
+	require.NoError(t, err)
+	assert.Equal(t, series.ID, got.ID, "scoped to the library: the twin in the other library is not it")
+	got, err = queryRepo.GetByLibraryTypeTitle(ctx, lib.ID, string(library.Season), "Season 1", string(series.ID))
+	require.NoError(t, err)
+	assert.Equal(t, s1.ID, got.ID)
+	_, err = queryRepo.GetByLibraryTypeTitle(ctx, lib.ID, string(library.Season), "Season 1", "cq-not-the-parent")
+	require.ErrorIs(t, err, shared.ErrNotFound, "a parent that does not match is a miss")
+	_, err = queryRepo.GetByLibraryTypeTitle(ctx, lib.ID, string(library.Movie), "Some Show", "")
+	require.ErrorIs(t, err, shared.ErrNotFound, "the type is part of the key")
+
+	items, err := queryRepo.GetByIDs(ctx, []shared.MediaItemID{series.ID, "cq-ghost", twin.ID})
+	require.NoError(t, err)
+	ids := make([]string, 0, len(items))
+	for _, it := range items {
+		ids = append(ids, string(it.ID))
+	}
+	assert.ElementsMatch(t, []string{string(series.ID), string(twin.ID)}, ids, "unknown ids are skipped, not errors")
+	none, err := queryRepo.GetByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}

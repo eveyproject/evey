@@ -412,3 +412,47 @@ func TestPlaySessionStatsReader_GetActiveSessionsBitrate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, bps, "ended sessions no longer count")
 }
+
+// The cast receiver's audio_mode beacon rewrites the LIVE audio decision;
+// a session that has ended is never rewritten, and the caller learns which.
+func TestPlaySessionRepo_SetSessionAudioDecision_ActiveOnly(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("psu9")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("psp9", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("pslib9")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	item := newTestMediaItem("psmi9", lib.ID)
+	require.NoError(t, postgres.NewMediaItemRepository(db).Create(ctx, item))
+	repo := postgres.NewPlaySessionRepository(db)
+
+	live := newTestPlaySession("ps9-live", string(p.ID), string(item.ID))
+	live.AudioDecision = "copy"
+	require.NoError(t, repo.Create(ctx, live))
+	done := newTestPlaySession("ps9-done", string(p.ID), string(item.ID))
+	done.AudioDecision = "copy"
+	ended := time.Now().UTC()
+	done.EndedAt = &ended
+	require.NoError(t, repo.Create(ctx, done))
+
+	ok, err := repo.SetSessionAudioDecision(ctx, live.ID, "transcode")
+	require.NoError(t, err)
+	assert.True(t, ok)
+	got, err := repo.GetByID(ctx, live.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "transcode", got.AudioDecision)
+
+	ok, err = repo.SetSessionAudioDecision(ctx, done.ID, "transcode")
+	require.NoError(t, err)
+	assert.False(t, ok, "an ended session is left as it was")
+	got, err = repo.GetByID(ctx, done.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "copy", got.AudioDecision)
+
+	ok, err = repo.SetSessionAudioDecision(ctx, "ps9-ghost", "transcode")
+	require.NoError(t, err)
+	assert.False(t, ok)
+}

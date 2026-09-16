@@ -128,6 +128,23 @@ func TestProfileRepo_GetByUserID(t *testing.T) {
 	profiles, err := profileRepo.GetByUserID(ctx, shared.UserID(u.ID))
 	require.NoError(t, err)
 	assert.Len(t, profiles, 2)
+
+	// GetAll (the admin session panel's label map) spans every account, the
+	// default profile of each account first.
+	u2 := newTestUser("pu2b")
+	require.NoError(t, userRepo.Create(ctx, u2))
+	def := newTestProfile("p2c", u2.ID)
+	def.IsDefault = true
+	require.NoError(t, profileRepo.Create(ctx, newTestProfile("p2d", u2.ID)))
+	require.NoError(t, profileRepo.Create(ctx, def))
+	all, err := profileRepo.GetAll(ctx)
+	require.NoError(t, err)
+	byUser := map[string][]string{}
+	for _, p := range all {
+		byUser[string(p.UserID)] = append(byUser[string(p.UserID)], string(p.ID))
+	}
+	assert.ElementsMatch(t, []string{"p2a", "p2b"}, byUser[string(u.ID)])
+	assert.Equal(t, []string{"p2c", "p2d"}, byUser[string(u2.ID)], "the default profile leads its account")
 }
 
 func TestProfileRepo_Update(t *testing.T) {
