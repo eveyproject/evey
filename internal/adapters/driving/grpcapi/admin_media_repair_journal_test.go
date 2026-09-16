@@ -153,3 +153,25 @@ func TestAckSeekIndex_OutsideAnyScan(t *testing.T) {
 	_, err = d.AckSeekIndexGroup(ctx, &eveyv1.AckSeekIndexGroupRequest{LibraryId: "lib-1", Verdict: "broken"})
 	assert.Equal(t, codes.FailedPrecondition, status.Code(err), "only informational verdicts are acknowledgeable in bulk")
 }
+
+// A file nobody repaired, or whose last repair discarded bytes, is a verdict
+// the operator can act on - not a server fault to page anyone about.
+func TestUndoMediaRepair_RefusalsAreFailedPreconditionAndUnaudited(t *testing.T) {
+	ctx := ctxWithClaims("adm-1", "prf-adm", true)
+	catalog := fakeSeekCatalog{ref: appmaintenance.MediaRef{MediaID: "mi-1", Path: "/media/m.mkv"}}
+
+	d, repo := newAuditedMediaHandler(t)
+	d.seekIndex = appmaintenance.NewSeekIndexService(fakeReindexer{}, catalog, nil).WithRepairJournal(&recordingJournal{})
+	_, err := d.UndoMediaRepair(ctx, &eveyv1.UndoMediaRepairRequest{MediaId: "mi-1"})
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+	assert.Equal(t, appmaintenance.ErrNoRepairToUndo.Error(), status.Convert(err).Message())
+
+	d.seekIndex = appmaintenance.NewSeekIndexService(fakeReindexer{}, catalog, nil).WithRepairJournal(&recordingJournal{
+		records: []appmaintenance.RepairRecord{{MediaID: "mi-1", Path: "/media/m.mkv", Op: appmaintenance.RepairReindex, Outcome: "applied"}},
+	})
+	_, err = d.UndoMediaRepair(ctx, &eveyv1.UndoMediaRepairRequest{MediaId: "mi-1"})
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+	assert.Equal(t, appmaintenance.ErrNotReversible.Error(), status.Convert(err).Message())
+
+	assert.Empty(t, auditEntries(t, repo, "undo_media_repair"), "nothing happened to the file, nothing to audit")
+}

@@ -81,6 +81,9 @@ func TestSeekIndexError_Mapping(t *testing.T) {
 			{Root: "/media", FreeBytes: 1 << 30, MissingBytes: 40 << 30, MissingFiles: 3},
 		}}, codes.FailedPrecondition},
 		{"unknown media", fmt.Errorf("seek-index reindex: lookup media x: %w", shared.ErrNotFound), codes.NotFound},
+		{"nothing to undo", appmaintenance.ErrNoRepairToUndo, codes.FailedPrecondition},
+		{"not reversible", fmt.Errorf("undo repair: %w", appmaintenance.ErrNotReversible), codes.FailedPrecondition},
+		{"newer journal schema", appmaintenance.ErrJournalSchema, codes.FailedPrecondition},
 		{"anything else sanitized", errors.New("boom"), codes.Internal},
 	}
 	for _, tc := range cases {
