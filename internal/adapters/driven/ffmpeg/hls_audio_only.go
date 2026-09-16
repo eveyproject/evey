@@ -178,11 +178,9 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 	// The composition delay is the MUXER's, not the source's:
 	//   - mkvgo (>= the elst fix): presents its first frame at 0  -> NO shift needed
 	//   - ffmpeg -c:v copy in fMP4: presents at has_b_frames/fps  -> shift needed
-	// The hybrid rung (the only one serving renditions) has its video packaged by
-	// mkvgo, so no shift. TODO: when the video falls back to the ffmpeg copy
-	// producer (mkvgo not eligible), the shift IS still required - the caller must
-	// then set VideoCompositionDelay explicitly. Left probe-free here rather than
-	// re-introducing the ffprobe call the mkvgo fix made unnecessary.
+	// This layer never probes: the caller decides (http videoCompositionDelaySec)
+	// and passes opts.VideoCompositionDelay - 0 when mkvgo packages the video,
+	// the source's has_b_frames/fps when the ffmpeg copy fallback does.
 	// Seeked sessions write into a private subdir; the rebase pump shifts each
 	// fragment's tfdt/sidx by the session's absolute start and atomically renames
 	// into the cache dir - the rename is the publish point SegmentCache.IsReady
