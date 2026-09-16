@@ -76,6 +76,13 @@ user:
   cannot_revoke_apikey_other: "Cannot revoke another user's API key"
   invalid_invite_data: "Invalid invite or registration data"
   invalid_expired_code: "Invalid or expired code"
+  not_found: "User not found"
+  disabled: "This account is disabled"
+  last_admin_remove: "Cannot remove the last admin"
+  last_admin_disable: "Cannot disable the last admin"
+  impersonation_api_key: "Impersonation is not allowed for API-key callers"
+  limit_negative: "{field} must be 0 or more"
+  id_required: "A user id is required"
 
 media:
   not_found: "Media not found"

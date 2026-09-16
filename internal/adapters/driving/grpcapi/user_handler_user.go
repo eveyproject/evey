@@ -38,7 +38,7 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 	if req.MaxProfiles != nil {
 		if *req.MaxProfiles < 0 {
 			span.SetStatus(otelcodes.Error, "max_profiles must be >= 0")
-			return nil, status.Error(codes.InvalidArgument, "max_profiles must be >= 0")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.limit_negative", map[string]string{"field": "max_profiles"})
 		}
 		mp := int(*req.MaxProfiles)
 		u.MaxProfiles = &mp
@@ -46,7 +46,7 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 	if req.MaxDevicesPerProfile != nil {
 		if *req.MaxDevicesPerProfile < 0 {
 			span.SetStatus(otelcodes.Error, "max_devices_per_profile must be >= 0")
-			return nil, status.Error(codes.InvalidArgument, "max_devices_per_profile must be >= 0")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.limit_negative", map[string]string{"field": "max_devices_per_profile"})
 		}
 		md := int(*req.MaxDevicesPerProfile)
 		u.MaxDevicesPerProfile = &md
@@ -56,7 +56,7 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 		span.SetStatus(otelcodes.Error, err.Error())
 		switch {
 		case errors.Is(err, appuser.ErrNotAdmin):
-			return nil, status.Error(codes.PermissionDenied, "admin required")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 		case errors.Is(err, appuser.ErrPasswordTooShort):
 			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.password_too_short")
 		default:
@@ -95,22 +95,22 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 	}
 	if req.MaxStreams != nil && *req.MaxStreams < 0 {
 		span.SetStatus(otelcodes.Error, "max_streams must be >= 0")
-		return nil, status.Error(codes.InvalidArgument, "max_streams must be >= 0")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.limit_negative", map[string]string{"field": "max_streams"})
 	}
 	if req.MaxProfiles != nil && *req.MaxProfiles < 0 {
 		span.SetStatus(otelcodes.Error, "max_profiles must be >= 0")
-		return nil, status.Error(codes.InvalidArgument, "max_profiles must be >= 0")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.limit_negative", map[string]string{"field": "max_profiles"})
 	}
 	if req.MaxDevicesPerProfile != nil && *req.MaxDevicesPerProfile < 0 {
 		span.SetStatus(otelcodes.Error, "max_devices_per_profile must be >= 0")
-		return nil, status.Error(codes.InvalidArgument, "max_devices_per_profile must be >= 0")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.limit_negative", map[string]string{"field": "max_devices_per_profile"})
 	}
 	u, err := h.query.GetUserByID(ctx, req.Id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		slog.WarnContext(ctx, "grpc UpdateUser: user query failed", slog.Any("err", err))
-		return nil, status.Error(codes.NotFound, "user not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
 	}
 	if req.Username != nil {
 		u.Username = *req.Username
@@ -174,9 +174,9 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequ
 		span.SetStatus(otelcodes.Error, err.Error())
 		switch {
 		case errors.Is(err, appuser.ErrLastAdmin):
-			return nil, status.Error(codes.FailedPrecondition, "cannot remove the last admin")
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.last_admin_remove")
 		case errors.Is(err, shared.ErrNotFound):
-			return nil, status.Error(codes.NotFound, "user not found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
 		default:
 			return nil, internalError(ctx, "delete user", err)
 		}
@@ -202,10 +202,10 @@ func (h *userHandler) ImpersonateUser(ctx context.Context, req *eveyv1.Impersona
 	// by the deny-by-default plugin allowlist (ImpersonateUser is not in it). The
 	// admin role itself is enforced by the RBAC interceptor (RoleAdmin).
 	if interceptors.IsAPIKeyAuth(ctx) {
-		return nil, status.Error(codes.PermissionDenied, "impersonation is not allowed for API-key callers")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.impersonation_api_key")
 	}
 	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.id_required")
 	}
 	access, err := h.auth.Impersonate(ctx, claims.UserID, req.UserId, req.ProfileId)
 	if err != nil {
@@ -213,11 +213,11 @@ func (h *userHandler) ImpersonateUser(ctx context.Context, req *eveyv1.Impersona
 		span.SetStatus(otelcodes.Error, err.Error())
 		switch {
 		case errors.Is(err, appuser.ErrUserNotFound):
-			return nil, status.Error(codes.NotFound, "user not found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
 		case errors.Is(err, appuser.ErrProfileNotFound):
-			return nil, status.Error(codes.NotFound, "profile not found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
 		case errors.Is(err, appuser.ErrUserDisabled):
-			return nil, status.Error(codes.FailedPrecondition, "user is disabled")
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.disabled")
 		default:
 			return nil, internalError(ctx, "impersonate user", err)
 		}
@@ -243,9 +243,9 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 			span.SetStatus(otelcodes.Error, err.Error())
 			switch {
 			case errors.Is(err, appuser.ErrLastAdmin):
-				return nil, status.Error(codes.FailedPrecondition, "cannot disable the last admin")
+				return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.last_admin_disable")
 			case errors.Is(err, shared.ErrNotFound):
-				return nil, status.Error(codes.NotFound, "user not found")
+				return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
 			default:
 				return nil, internalError(ctx, "disable user", err)
 			}
@@ -256,7 +256,7 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
 			if errors.Is(err, shared.ErrNotFound) {
-				return nil, status.Error(codes.NotFound, "user not found")
+				return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
 			}
 			return nil, internalError(ctx, "enable user", err)
 		}

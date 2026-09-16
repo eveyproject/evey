@@ -76,6 +76,13 @@ user:
   cannot_revoke_apikey_other: "अन्य उपयोगकर्ता की API कुंजी निरस्त नहीं की जा सकती"
   invalid_invite_data: "अमान्य आमंत्रण या पंजीकरण डेटा"
   invalid_expired_code: "अमान्य या समय-सीमा समाप्त कोड"
+  not_found: "उपयोगकर्ता नहीं मिला"
+  disabled: "यह खाता अक्षम है"
+  last_admin_remove: "अंतिम व्यवस्थापक को हटाया नहीं जा सकता"
+  last_admin_disable: "अंतिम व्यवस्थापक को अक्षम नहीं किया जा सकता"
+  impersonation_api_key: "API कुंजी से किसी अन्य उपयोगकर्ता के रूप में लॉगिन की अनुमति नहीं है"
+  limit_negative: "{field} 0 या उससे अधिक होना चाहिए"
+  id_required: "उपयोगकर्ता आईडी आवश्यक है"
 
 media:
   not_found: "मीडिया नहीं मिला"

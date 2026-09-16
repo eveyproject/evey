@@ -76,6 +76,13 @@ user:
   cannot_revoke_apikey_other: "No se puede revocar la clave API de otro usuario"
   invalid_invite_data: "Datos de invitación o registro inválidos"
   invalid_expired_code: "Código inválido o expirado"
+  not_found: "Usuario no encontrado"
+  disabled: "Esta cuenta está desactivada"
+  last_admin_remove: "No se puede eliminar al último administrador"
+  last_admin_disable: "No se puede desactivar al último administrador"
+  impersonation_api_key: "No se permite suplantar la identidad desde una clave de API"
+  limit_negative: "{field} debe ser 0 o mayor"
+  id_required: "Se requiere un identificador de usuario"
 
 media:
   not_found: "Medio no encontrado"
