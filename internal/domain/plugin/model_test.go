@@ -297,3 +297,57 @@ func TestPluginManifest_FrontendSrcMustStayUnderWebRoot(t *testing.T) {
 		}
 	})
 }
+
+// Initializing holds a LIVE process (the IPC handshake is still pending), so
+// every lifecycle transition that kills the process must treat it as started;
+// gating on Running alone leaked those processes.
+func TestPluginStatus_IsStarted(t *testing.T) {
+	for _, s := range []plugin.PluginStatus{plugin.Running, plugin.Initializing} {
+		if !s.IsStarted() {
+			t.Errorf("%s must count as started", s)
+		}
+	}
+	for _, s := range []plugin.PluginStatus{plugin.Stopped, plugin.Installed, plugin.Error} {
+		if s.IsStarted() {
+			t.Errorf("%s must not count as started", s)
+		}
+	}
+}
+
+func TestPlugin_IsTheme(t *testing.T) {
+	if !(&plugin.Plugin{Kind: plugin.KindTheme}).IsTheme() {
+		t.Error("a theme is a theme")
+	}
+	if (&plugin.Plugin{Kind: plugin.KindPlugin}).IsTheme() || (&plugin.Plugin{}).IsTheme() {
+		t.Error("a backend plugin, or an unset kind, is not a theme")
+	}
+}
+
+// The installer's opt-in gates read the report two ways: a category is
+// present at all (HasCategory), or a WARNING finding exists for it
+// (HasWarningCategory) - CRITICAL findings are already Safe=false.
+func TestAnalysisReport_CategoryLookups(t *testing.T) {
+	r := &plugin.AnalysisReport{
+		Categories: []string{"binary", "archive"},
+		RawFindings: []plugin.PluginFinding{
+			{Category: "binary", Severity: "CRITICAL"},
+			{Category: "archive", Severity: "WARNING"},
+			{Category: "network", Severity: "INFO"},
+		},
+	}
+	if !r.HasCategory("binary") || !r.HasCategory("archive") {
+		t.Error("declared categories must be found")
+	}
+	if r.HasCategory("network") || r.HasCategory("") {
+		t.Error("a category only present in raw findings, or an empty one, is not in Categories")
+	}
+	if !r.HasWarningCategory("archive") {
+		t.Error("a WARNING finding must be found by category")
+	}
+	if r.HasWarningCategory("binary") {
+		t.Error("a CRITICAL finding is not a warning: Safe=false already covers it")
+	}
+	if r.HasWarningCategory("network") || (&plugin.AnalysisReport{}).HasWarningCategory("archive") {
+		t.Error("INFO findings and empty reports carry no warning")
+	}
+}
