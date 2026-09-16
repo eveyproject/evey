@@ -76,6 +76,13 @@ user:
   cannot_revoke_apikey_other: "API-Schlüssel eines anderen Benutzers kann nicht widerrufen werden"
   invalid_invite_data: "Ungültige Einladungs- oder Registrierungsdaten"
   invalid_expired_code: "Ungültiger oder abgelaufener Code"
+  not_found: "Benutzer nicht gefunden"
+  disabled: "Dieses Konto ist deaktiviert"
+  last_admin_remove: "Der letzte Administrator kann nicht entfernt werden"
+  last_admin_disable: "Der letzte Administrator kann nicht deaktiviert werden"
+  impersonation_api_key: "Identitätsübernahme ist über einen API-Schlüssel nicht erlaubt"
+  limit_negative: "{field} muss 0 oder größer sein"
+  id_required: "Eine Benutzer-ID ist erforderlich"
 
 media:
   not_found: "Medium nicht gefunden"
