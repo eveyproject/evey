@@ -208,3 +208,39 @@ func TestLoginAttemptRepo_ImmediateLockAtMaxFailsOne(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, locked, "maxFails=1: first attempt must lock immediately (INSERT path)")
 }
+
+// PurgeStale forgets settled rows only: an outstanding lock is kept whatever
+// its age, because dropping it would hand the attacker a fresh budget.
+func TestLoginAttemptRepo_PurgeStale_KeepsOutstandingLocks(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewLoginAttemptRepository(db)
+	ctx := context.Background()
+
+	// "settled": a couple of failures, no lock.
+	require.NoError(t, repo.Record(ctx, "settled", testMaxFails, testWindow))
+	// "locked": at the threshold, lock outstanding for an hour.
+	for range testMaxFails {
+		require.NoError(t, repo.Record(ctx, "locked", testMaxFails, time.Hour))
+	}
+	// Age both rows so the stale predicate sees them as old.
+	_, err := db.ExecContext(ctx, `UPDATE login_attempts SET updated_at = NOW() - interval '2 days'`)
+	require.NoError(t, err)
+
+	n, err := repo.PurgeStale(ctx, 24*time.Hour)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, n, "only the settled row goes")
+
+	locked, err := repo.IsLocked(ctx, "locked")
+	require.NoError(t, err)
+	assert.True(t, locked, "the outstanding lock survives the purge")
+	locked, err = repo.IsLocked(ctx, "settled")
+	require.NoError(t, err)
+	assert.False(t, locked)
+
+	// A row younger than the horizon is kept even when settled.
+	require.NoError(t, repo.Record(ctx, "fresh", testMaxFails, testWindow))
+	n, err = repo.PurgeStale(ctx, 24*time.Hour)
+	require.NoError(t, err)
+	assert.Zero(t, n)
+}
