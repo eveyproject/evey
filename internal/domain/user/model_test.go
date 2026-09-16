@@ -961,7 +961,7 @@ func TestInviteLinkValidate_Boundaries(t *testing.T) {
 }
 
 // A phone keyboard appends a space after autocomplete; login trims, so an
-// account stored with the space could never sign in (prod, 2026-09-16).
+// account stored with the space could never sign in.
 func TestNewUser_TrimsSurroundingWhitespace(t *testing.T) {
 	t.Parallel()
 	u, err := user.NewUser(" bob ", " b@b.com ", "hash")
