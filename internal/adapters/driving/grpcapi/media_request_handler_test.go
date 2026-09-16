@@ -8,8 +8,11 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/mediarequest"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -396,4 +399,38 @@ func TestAdminMediaRequestHandler_SetUserAccess_RequiresUserID(t *testing.T) {
 	_, err := admin.SetUserAccess(ctx, &eveyv1.SetUserAccessRequest{Mode: eveyv1.AccessMode_ACCESS_MODE_ENABLED})
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+// The moderation queue labels each request with the requester's name, looked
+// up once per account; a deleted account leaves the name blank without
+// failing the listing, and an unwired user port simply labels nothing.
+func TestAdminMediaRequestHandler_ListRequests_RequesterNames(t *testing.T) {
+	_, admin, repo := newTestMediaRequestHandlers(newFakeMediaRequestAccess(true))
+	now := time.Now()
+	for _, r := range []*mediarequest.Request{
+		{ID: "rn-1", ProfileID: "profile-1", UserID: "user-alice", MediaType: mediarequest.MediaTypeMovie, Title: "A", Status: mediarequest.StatusPending, CreatedAt: now, UpdatedAt: now},
+		{ID: "rn-2", ProfileID: "profile-1", UserID: "user-alice", MediaType: mediarequest.MediaTypeMovie, Title: "B", Status: mediarequest.StatusPending, CreatedAt: now, UpdatedAt: now},
+		{ID: "rn-3", ProfileID: "profile-9", UserID: "user-gone", MediaType: mediarequest.MediaTypeMovie, Title: "C", Status: mediarequest.StatusPending, CreatedAt: now, UpdatedAt: now},
+	} {
+		repo.seed(r)
+	}
+	userRepo := userfakes.NewFakeUserRepository()
+	require.NoError(t, userRepo.Create(context.Background(), &user.User{ID: "user-alice", Username: "alice"}))
+	admin.userQuery = appuser.NewQueryService(userRepo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository())
+
+	resp, err := admin.ListRequests(ctxWithClaims("admin-1", "profile-admin", true), &eveyv1.AdminListRequestsRequest{})
+	require.NoError(t, err)
+	names := map[string]string{}
+	for _, it := range resp.Items {
+		names[it.Id] = it.RequesterName
+	}
+	assert.Equal(t, map[string]string{"rn-1": "alice", "rn-2": "alice", "rn-3": ""}, names)
+
+	admin.userQuery = nil
+	resp, err = admin.ListRequests(ctxWithClaims("admin-1", "profile-admin", true), &eveyv1.AdminListRequestsRequest{})
+	require.NoError(t, err)
+	for _, it := range resp.Items {
+		assert.Empty(t, it.RequesterName)
+	}
 }
