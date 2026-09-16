@@ -917,3 +917,25 @@ func TestValidateInvite_NeutralOnEveryDeadCode(t *testing.T) {
 		}
 	}
 }
+
+// The stored username and the hashed password must be what Login will look
+// up and verify: a trailing space on either side locked a real account out.
+func TestRegisterWithInvite_TrimsUsernameAndPasswordLikeLogin(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "valid-token", MaxUses: 10})
+
+	u, err := d.svc.RegisterWithInvite(ctx, "valid-token", "bob ", "longpassword ", "b@b.com ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Username != "bob" || u.Email != "b@b.com" {
+		t.Fatalf("whitespace kept: %q / %q", u.Username, u.Email)
+	}
+	if u.PasswordHash != "hashed:longpassword" {
+		t.Fatalf("password hashed with its surrounding space: %q", u.PasswordHash)
+	}
+	if _, err := d.users.GetByUsername(ctx, "bob"); err != nil {
+		t.Fatalf("the account is not findable under the trimmed name: %v", err)
+	}
+}

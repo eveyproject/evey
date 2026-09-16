@@ -41,7 +41,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	ctx, span := tracing.StartSpan(ctx, "app.user.Login")
 	defer span.End()
 	username = strings.TrimSpace(username)
-	password = strings.TrimSpace(password)
+	password = normalizePassword(password)
 	locked, lockErr := s.loginAttempts.IsLocked(ctx, username)
 	if lockErr != nil {
 		slog.WarnContext(ctx, "login attempt IsLocked", slog.String("username", username), slog.Any("err", lockErr))
@@ -623,4 +623,11 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 		}
 	}
 	return "", errors.New("store refresh token: duplicate hash after retries")
+}
+
+// normalizePassword is applied wherever a password is hashed AND at login:
+// the two sides must agree, or a password typed with a stray space (phone
+// keyboards) hashes one way and verifies another.
+func normalizePassword(p string) string {
+	return strings.TrimSpace(p)
 }

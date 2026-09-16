@@ -64,6 +64,10 @@ line - earlier history lives in git.
   searchable from the admin panel.
 
 ### Fixed
+- Accounts: a username, email or password typed with a surrounding space (a
+  phone keyboard appends one after autocomplete) was stored as-is while login
+  trimmed it, so the new account could never sign in. Registration, setup,
+  admin creation, rename and every password change now trim exactly like login.
 - Playback: the stereo fold of a 5.1 track distorted on loud passages (the
   level makeup pushed the mix past full scale and the encoder hard-clipped it,
   audible on a tablet through a whole action climax). The fold now runs in

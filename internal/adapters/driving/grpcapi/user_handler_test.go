@@ -214,6 +214,23 @@ func TestUpdateUser_Self(t *testing.T) {
 	}
 }
 
+// A rename must not store the space a phone keyboard appends: Login trims.
+func TestUpdateUser_TrimsUsernameAndEmail(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
+
+	newName, newMail := " alice2 ", " a2@b.com "
+	resp, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Username: &newName, Email: &newMail,
+	})
+	if err != nil {
+		t.Fatalf("UpdateUser: %v", err)
+	}
+	if resp.Username != "alice2" || resp.Email != "a2@b.com" {
+		t.Fatalf("whitespace kept: %q / %q", resp.Username, resp.Email)
+	}
+}
+
 func TestUpdateUser_OtherUserDenied(t *testing.T) {
 	env := setupUserHandler()
 	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
