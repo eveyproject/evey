@@ -64,3 +64,13 @@ func TestTagPlanMasterSubtitles_TagsEachRenditionByURI(t *testing.T) {
 	assert.NotContains(t, got, `od_audio1.m3u8?v=v0.30.0"`+`,X-EVEY`, "audio lines untouched")
 	assert.Equal(t, prodPlanMasterWithSubs, tagPlanMasterSubtitles(prodPlanMasterWithSubs, nil))
 }
+
+// The prewarm's full read is skipped for a browser on a packager-subtitled
+// file; the apps and the receiver keep it, they still fetch /subtitle.
+func TestBrowserUserAgent(t *testing.T) {
+	assert.True(t, browserUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:155.0) Gecko/20100101 Firefox/155.0"))
+	assert.False(t, browserUserAgent("EveyMobile/0.0.1-beta.61 (Android 16; BVL-N49)"))
+	assert.False(t, browserUserAgent("EveyTV (Android TV 14; SHIELD)"))
+	assert.False(t, browserUserAgent("Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.225 Safari/537.36 CrKey/1.56.500000 DeviceType/Chromecast"))
+	assert.False(t, browserUserAgent("okhttp/4.12"))
+}
