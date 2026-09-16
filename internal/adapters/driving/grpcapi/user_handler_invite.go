@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -110,9 +111,12 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 		}
 	}
 	if err := h.access.RevokeInviteLink(ctx, req.Id); err != nil {
-		slog.ErrorContext(ctx, "revoke invite link", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
+		}
+		slog.ErrorContext(ctx, "revoke invite link", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.RevokeInviteLinkResponse{}, nil

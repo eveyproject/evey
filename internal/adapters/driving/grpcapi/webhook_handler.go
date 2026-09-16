@@ -6,6 +6,7 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/webhook"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -85,6 +86,9 @@ func (h *webhookHandler) DeleteWebhook(ctx context.Context, req *eveyv1.DeleteWe
 	if err := h.svc.Delete(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, status.Error(codes.NotFound, "webhook not found")
+		}
 		return nil, internalError(ctx, "delete webhook", err)
 	}
 	return &eveyv1.DeleteWebhookResponse{}, nil

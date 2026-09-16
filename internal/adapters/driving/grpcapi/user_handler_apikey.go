@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -117,9 +118,12 @@ func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKey
 		}
 	}
 	if err := h.access.RevokeAPIKey(ctx, req.Id); err != nil {
-		slog.ErrorContext(ctx, "revoke api key", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
+		}
+		slog.ErrorContext(ctx, "revoke api key", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.RevokeAPIKeyResponse{}, nil

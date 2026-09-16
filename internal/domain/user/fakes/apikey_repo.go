@@ -81,6 +81,10 @@ func (r *FakeAPIKeyRepository) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err
 	}
+	// Mirrors the Postgres repository: a delete that hits no row is NotFound.
+	if _, ok := r.items[id]; !ok {
+		return shared.ErrNotFound
+	}
 	delete(r.items, id)
 	return nil
 }
