@@ -31,6 +31,26 @@ describe("applyCuePosition", () => {
     expect(c.snapToLines).toBe(false);
   });
 
+  it("keeps a cue the file places in the upper half (ASS {\\an8} rendered as line:8%) under the bottom preference", () => {
+    const sign = fakeCue(8, false); // authored percentage line, upper half
+    const dialogue = fakeCue();
+    const video = fakeVideo([{ mode: "showing", cues: [sign, dialogue] }]);
+
+    applyCuePosition(video, "bottom");
+    expect(sign.line).toBe(8);
+    expect(dialogue.line).toBe(88);
+
+    // Applied again after our own pass: the authored placement is remembered,
+    // not re-derived from the line we just wrote.
+    applyCuePosition(video, "bottom");
+    expect(sign.line).toBe(8);
+
+    // The viewer asking for everything at the top wins over the author.
+    applyCuePosition(video, "top");
+    expect(sign.line).toBe(8);
+    expect(dialogue.line).toBe(8);
+  });
+
   it("leaves hidden tracks untouched", () => {
     const shown = fakeCue();
     const hidden = fakeCue(42, true);

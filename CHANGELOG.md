@@ -69,6 +69,10 @@ line - earlier history lives in git.
   searchable from the admin panel.
 
 ### Fixed
+- Subtitles: an SRT track ripped from ASS showed its override tags in the
+  text ("{\an8}Une heure."). They are stripped, and the alignment they carry
+  becomes a WebVTT placement - a sign the author put at the top stays at the
+  top on the web player, as it does in VLC.
 - Intel Quick Sync transcodes cut their segments on the encoder's own 10 s GOP
   instead of the 3 s grid the manifest promises (the forced-IDR flag sat
   behind a probe that never ran for Intel), so a Chromecast stalled about
