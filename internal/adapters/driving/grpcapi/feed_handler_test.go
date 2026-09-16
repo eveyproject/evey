@@ -422,3 +422,27 @@ func TestFeedHandler_Recommended_LibraryAccessFilter(t *testing.T) {
 	require.Len(t, resp.Items, 1, "only items from granted library must pass the filter")
 	assert.Equal(t, "mi-rec-ok", resp.Items[0].MediaItemId)
 }
+
+// "Similar to this title" is gated on the seed title: a member who cannot
+// see the seed's library (or a seed that no longer exists) gets NotFound
+// - never the neighbours of a title they were never shown - while an admin
+// is not subject to the grant check.
+func TestFeedHandler_SimilarItems_SeedAccessGate(t *testing.T) {
+	env := newFeedHandlerWithAccess()
+	env.mediaQueryRepo.Seed(&library.MediaItem{ID: "seed-private", LibraryID: "lib-private", Title: "Private"})
+	env.mediaQueryRepo.Seed(&library.MediaItem{ID: "seed-open", LibraryID: "lib-open", Title: "Open"})
+	require.NoError(t, env.libraryAccess.Grant(context.Background(), "user-1", "lib-open"))
+
+	_, err := env.handler.SimilarItems(ctxWithClaims("user-1", "profile-1", false), &eveyv1.SimilarItemsRequest{MediaItemId: "seed-private"})
+	assert.Equal(t, codes.NotFound, status.Code(err), "a library the member was not granted")
+	_, err = env.handler.SimilarItems(ctxWithClaims("user-1", "profile-1", false), &eveyv1.SimilarItemsRequest{MediaItemId: "seed-gone"})
+	assert.Equal(t, codes.NotFound, status.Code(err), "a seed that does not exist")
+	_, err = env.handler.SimilarItems(ctxWithClaims("user-1", "profile-1", false), &eveyv1.SimilarItemsRequest{MediaItemId: "seed-open"})
+	require.NoError(t, err)
+	_, err = env.handler.SimilarItems(ctxWithClaims("adm-1", "profile-adm", true), &eveyv1.SimilarItemsRequest{MediaItemId: "seed-private"})
+	require.NoError(t, err, "an admin bypasses the grant")
+
+	env.handler.userAccess = nil
+	_, err = env.handler.SimilarItems(ctxWithClaims("user-1", "profile-1", false), &eveyv1.SimilarItemsRequest{MediaItemId: "seed-open"})
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err), "an unwired access port refuses rather than fails open")
+}
