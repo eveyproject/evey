@@ -203,3 +203,38 @@ func TestSafeJoin_OK(t *testing.T) {
 		t.Errorf("expected /tmp/safe/file.jpg, got %s", got)
 	}
 }
+
+// TokenFromQuery is how the on-demand manifest decides whether to bake the
+// token back into sub-resource URIs: only a ?token= arrival (cookie-less
+// Chromecast) says yes; cookie and Bearer clients keep bare URIs.
+func TestTokenRedactMiddleware_RemembersQueryArrivalOnly(t *testing.T) {
+	var fromQuery bool
+	var raw string
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fromQuery = TokenFromQuery(r.Context())
+		raw = RawTokenFromContext(r.Context())
+	})
+	h := tokenRedactMiddleware(nil, false, next)
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8?token=opaque1", nil))
+	if !fromQuery || raw != "opaque1" {
+		t.Errorf("query arrival: fromQuery=%v raw=%q", fromQuery, raw)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8", nil)
+	req.AddCookie(&http.Cookie{Name: hlsCookieName, Value: "opaque2"})
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if fromQuery {
+		t.Error("a cookie client must not be told to bake the token into URIs")
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8", nil)
+	req.Header.Set("Authorization", "Bearer opaque3")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if fromQuery {
+		t.Error("a Bearer client must not be told to bake the token into URIs")
+	}
+	if TokenFromQuery(httptest.NewRequest(http.MethodGet, "/", nil).Context()) {
+		t.Error("an untouched context reads false")
+	}
+}
