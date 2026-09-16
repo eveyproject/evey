@@ -358,3 +358,30 @@ func TestUserRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
 	assert.Equal(t, 9876, got.MaxBitrateKbps)
 	assert.True(t, got.PushConsent)
 }
+
+// Lookup by e-mail is the password-reset entry point; TouchLastLogin stamps
+// the account without touching anything else.
+func TestUserRepo_GetByEmail_TouchLastLogin(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewUserRepository(db)
+	ctx := context.Background()
+	u := newTestUser("ue-1")
+	require.NoError(t, repo.Create(ctx, u))
+
+	got, err := repo.GetByEmail(ctx, "ue-1@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, got.ID)
+	_, err = repo.GetByEmail(ctx, "nobody@example.com")
+	require.Error(t, err)
+	_, err = repo.GetByEmail(ctx, "UE-1@example.com")
+	require.Error(t, err, "the column match is exact; normalisation is the caller's job")
+
+	at := time.Date(2026, 9, 16, 3, 0, 0, 0, time.UTC)
+	require.NoError(t, repo.TouchLastLogin(ctx, u.ID, at))
+	got, err = repo.GetByID(ctx, u.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.LastLogin)
+	assert.True(t, got.LastLogin.Equal(at))
+	assert.Equal(t, u.Username, got.Username)
+}
