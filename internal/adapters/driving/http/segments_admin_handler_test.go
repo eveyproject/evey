@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -307,5 +308,44 @@ func TestPropagateSegmentHandler_ServiceError_500(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", w.Code)
+	}
+}
+
+// The service's refusals quote user data ("got \"movie\""): the body must
+// stay valid JSON whatever the message contains, or the admin panel shows a
+// parse failure instead of the reason.
+func TestSegmentsAdminHandlers_ErrorBodiesAreValidJSON(t *testing.T) {
+	gen, adminTok, _ := segAdminTokens(t)
+	reason := `propagate only works on episodes, got "movie"`
+	svc := &fakeIntroDetectionTrigger{propagateErr: errors.New(reason), setErr: errors.New(`bad "type"`)}
+
+	h := propagateSegmentHandler(gen, svc, allowAll(), &fakeMediaItemGetter{item: testMediaItem("lib1")})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/m1/segments/propagate?type=intro", nil)
+	req.SetPathValue("id", "m1")
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("propagate: body is not JSON: %v (%s)", err, w.Body.String())
+	}
+	if body["message"] != reason {
+		t.Errorf("propagate message = %q", body["message"])
+	}
+
+	h = setSegmentHandler(gen, svc, allowAll(), &fakeMediaItemGetter{item: testMediaItem("lib1")})
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/media/m1/segments", strings.NewReader(`{"type":"intro","startMs":0,"endMs":1000}`))
+	req.SetPathValue("id", "m1")
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("set: %d", w.Code)
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("set: body is not JSON: %v (%s)", err, w.Body.String())
+	}
+	if body["message"] != `bad "type"` {
+		t.Errorf("set message = %q", body["message"])
 	}
 }

@@ -92,7 +92,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			if err := urlvalidator.ValidateExternalURL(*body.ExternalURL); err != nil {
 				span.RecordError(err)
 				span.SetStatus(otelcodes.Error, "invalid externalUrl")
-				http.Error(w, `{"message":"invalid externalUrl: `+err.Error()+`"}`, http.StatusBadRequest)
+				messageError(w, "invalid externalUrl: "+err.Error(), http.StatusBadRequest)
 				return
 			}
 		}

@@ -2,11 +2,23 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 )
+
+// messageError writes {"message": msg} with the given status. Use it for any
+// message that may carry user data or quotes: string concatenation into a JSON
+// literal breaks the body as soon as the text contains a `"`.
+func messageError(w http.ResponseWriter, msg string, code int) {
+	body, err := json.Marshal(map[string]string{"message": msg})
+	if err != nil {
+		body = []byte(`{"message":"internal error"}`)
+	}
+	http.Error(w, string(body), code)
+}
 
 // internalError logs the real error server-side (correlated to the
 // request_id / trace_id the logging middleware's contextHandler injects into
