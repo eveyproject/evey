@@ -242,3 +242,97 @@ func TestMediaRequestRepo_UpdateOnAVanishedRowIsNotASuccess(t *testing.T) {
 	require.ErrorIs(t, err, mediarequest.ErrNotFound,
 		"an update that touched no row must not be reported as saved")
 }
+
+// The operator's queue: newest first, one status filter or all of them, and
+// the "open request" probe the duplicate guard's index has to agree with.
+func TestMediaRequestRepo_ListAllAndHasOpenRequest(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	repo, uid, pid := seedRequestOwner(t, db, "list")
+
+	pending := newTestRequest("req-p", "100", mediarequest.StatusPending, uid, pid)
+	pending.CreatedAt = pending.CreatedAt.Add(-2 * time.Hour)
+	rejected := newTestRequest("req-r", "200", mediarequest.StatusRejected, uid, pid)
+	rejected.CreatedAt = rejected.CreatedAt.Add(-time.Hour)
+	approved := newTestRequest("req-a", "300", mediarequest.StatusApproved, uid, pid)
+	for _, r := range []*mediarequest.Request{pending, rejected, approved} {
+		require.NoError(t, repo.Create(ctx, r))
+	}
+
+	all, err := repo.ListAll(ctx, nil, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, all, 3)
+	assert.Equal(t, []string{"req-a", "req-r", "req-p"}, []string{all[0].ID, all[1].ID, all[2].ID}, "newest first")
+
+	open, err := repo.ListAll(ctx, []mediarequest.Status{mediarequest.StatusPending, mediarequest.StatusApproved}, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, open, 2)
+	assert.Equal(t, "req-a", open[0].ID)
+	assert.Equal(t, "req-p", open[1].ID)
+
+	page, err := repo.ListAll(ctx, nil, 1, 1)
+	require.NoError(t, err)
+	require.Len(t, page, 1)
+	assert.Equal(t, "req-r", page[0].ID, "offset walks the same order")
+
+	for providerID, want := range map[string]bool{"100": true, "300": true, "200": false, "999": false} {
+		got, probeErr := repo.HasOpenRequest(ctx, string(pid), mediarequest.MediaTypeMovie, providerID)
+		require.NoError(t, probeErr)
+		assert.Equal(t, want, got, "provider %s", providerID)
+	}
+	got, err := repo.HasOpenRequest(ctx, string(pid), mediarequest.MediaTypeTV, "100")
+	require.NoError(t, err)
+	assert.False(t, got, "the same provider id under another media type is a different title")
+}
+
+// Access policy: a global default in server_config (absent = enabled), and
+// per-user overrides that win over it until cleared.
+func TestMediaRequestAccessRepo(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	_, uid, _ := seedRequestOwner(t, db, "acc")
+	repo := postgres.NewMediaRequestAccessRepository(db)
+
+	enabled, err := repo.GlobalDefault(ctx)
+	require.NoError(t, err)
+	assert.True(t, enabled, "the migration seeds requests as enabled for everyone")
+
+	require.NoError(t, repo.SetGlobalDefault(ctx, false))
+	enabled, err = repo.GlobalDefault(ctx)
+	require.NoError(t, err)
+	assert.False(t, enabled)
+
+	_, found, err := repo.Override(ctx, string(uid))
+	require.NoError(t, err)
+	assert.False(t, found, "no override row = fall back to the default")
+
+	require.NoError(t, repo.SetOverride(ctx, string(uid), true))
+	on, found, err := repo.Override(ctx, string(uid))
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.True(t, on)
+	require.NoError(t, repo.SetOverride(ctx, string(uid), false), "upsert flips the same row")
+	on, _, _ = repo.Override(ctx, string(uid))
+	assert.False(t, on)
+
+	overrides, err := repo.ListOverrides(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{string(uid): false}, overrides)
+
+	require.NoError(t, repo.ClearOverride(ctx, string(uid)))
+	_, found, err = repo.Override(ctx, string(uid))
+	require.NoError(t, err)
+	assert.False(t, found)
+	require.NoError(t, repo.ClearOverride(ctx, string(uid)), "clearing twice is a no-op")
+
+	// Deleting the user takes its override with it (FK cascade), never a
+	// dangling row for an id that no longer logs in.
+	require.NoError(t, repo.SetOverride(ctx, string(uid), true))
+	_, err = db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, string(uid))
+	require.NoError(t, err)
+	overrides, err = repo.ListOverrides(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, overrides)
+}
