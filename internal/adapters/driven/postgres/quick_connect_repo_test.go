@@ -117,3 +117,35 @@ func TestQuickConnectRepo_DeleteExpired(t *testing.T) {
 	_, err := repo.GetByCode(ctx, "GHI789")
 	assert.Error(t, err)
 }
+
+// The short code the viewer types on the TV is the LAST 6 characters of the
+// full code, case-insensitive; only a pending, unexpired request answers,
+// and the newest one when two collide.
+func TestQuickConnectRepo_GetByShortCode(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewQuickConnectRepository(db)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	mk := func(id, code string, status user.QuickConnectStatus, expires, created time.Time) {
+		t.Helper()
+		require.NoError(t, repo.Create(ctx, &user.QuickConnectRequest{
+			ID: id, Code: code, Secret: "s-" + id, Status: status, ExpiresAt: expires, CreatedAt: created,
+		}))
+	}
+	mk("qs-old", "prefix-AAA111", user.Pending, now.Add(10*time.Minute), now.Add(-time.Minute))
+	mk("qs-new", "other-AAA111", user.Pending, now.Add(10*time.Minute), now)
+	mk("qs-used", "xyz-BBB222", user.Authorized, now.Add(10*time.Minute), now)
+	mk("qs-late", "xyz-CCC333", user.Pending, now.Add(-time.Minute), now)
+
+	got, err := repo.GetByShortCode(ctx, "aaa111")
+	require.NoError(t, err)
+	assert.Equal(t, "qs-new", got.ID, "case-insensitive, and the newest pending request wins")
+
+	_, err = repo.GetByShortCode(ctx, "BBB222")
+	require.ErrorIs(t, err, shared.ErrNotFound, "a settled request no longer answers")
+	_, err = repo.GetByShortCode(ctx, "CCC333")
+	require.ErrorIs(t, err, shared.ErrNotFound, "an expired request no longer answers")
+	_, err = repo.GetByShortCode(ctx, "ZZZ999")
+	require.ErrorIs(t, err, shared.ErrNotFound)
+}
