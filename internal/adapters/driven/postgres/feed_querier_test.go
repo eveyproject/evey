@@ -2,10 +2,16 @@ package postgres_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/evey-project/evey/internal/domain/feed"
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -83,4 +89,114 @@ func TestFeedQuerier_SimilarItems_GenrePrefilter(t *testing.T) {
 	for i := 1; i < len(items); i++ {
 		assert.GreaterOrEqual(t, items[i-1].Score, items[i].Score, "items must be score-ordered")
 	}
+}
+
+// seedSeries builds series -> season -> episodes with index numbers, each
+// episode with a file of the given duration, and returns the episode ids.
+func seedSeries(t *testing.T, itemRepo *postgres.MediaItemRepository, libID shared.LibraryID, prefix string, seasonNo int, episodes int, dur time.Duration) (seriesID string, episodeIDs []string) {
+	t.Helper()
+	ctx := context.Background()
+	series := newTestMediaItem(prefix+"-series", libID)
+	series.Type = library.Series
+	require.NoError(t, itemRepo.Create(ctx, series))
+	season := newTestMediaItem(prefix+"-s"+string(rune('0'+seasonNo)), libID)
+	season.Type = library.Season
+	season.ParentID = string(series.ID)
+	season.IndexNumber = new(seasonNo)
+	require.NoError(t, itemRepo.Create(ctx, season))
+	d, err := shared.NewDurationFromTime(dur)
+	require.NoError(t, err)
+	for i := 1; i <= episodes; i++ {
+		ep := newTestMediaItem(prefix+"-e"+string(rune('0'+i)), libID)
+		ep.Type = library.Episode
+		ep.ParentID = string(season.ID)
+		ep.IndexNumber = new(i)
+		ep.File = &library.MediaFile{Path: "/media/" + string(ep.ID) + ".mkv", Duration: d}
+		require.NoError(t, itemRepo.Create(ctx, ep))
+		episodeIDs = append(episodeIDs, string(ep.ID))
+	}
+	return string(series.ID), episodeIDs
+}
+
+func seedProgress(t *testing.T, db *sql.DB, profileID, mediaItemID string, position time.Duration, completed bool, at time.Time) {
+	t.Helper()
+	pos, err := shared.NewDurationFromTime(position)
+	require.NoError(t, err)
+	require.NoError(t, postgres.NewWatchProgressRepository(db).Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-" + profileID + "-" + mediaItemID, ProfileID: shared.ProfileID(profileID), MediaItemID: shared.MediaItemID(mediaItemID),
+		Position: pos, Completed: completed, PlayCount: 1, LastPlayedAt: at,
+	}))
+}
+
+// The home "continue watching" row: a film resumes only past the 5% floor,
+// a completed film is gone, an in-progress episode resumes, and a series the
+// profile has touched offers its first unwatched episode - once per series.
+func TestFeedQuerier_ContinueWatching_AndNextEpisode(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("feed-u")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("feed-p", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("feedlib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	fq := postgres.NewFeedQuerier(db)
+
+	twoHours, _ := shared.NewDurationFromTime(2 * time.Hour)
+	mk := func(id string) {
+		it := newTestMediaItem(id, lib.ID)
+		it.File = &library.MediaFile{Path: "/media/" + id + ".mkv", Duration: twoHours}
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	mk("feed-resume")
+	mk("feed-sampled")
+	mk("feed-done")
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	seedProgress(t, db, "feed-p", "feed-resume", 30*time.Minute, false, now.Add(-time.Hour))
+	seedProgress(t, db, "feed-p", "feed-sampled", 2*time.Minute, false, now)
+	seedProgress(t, db, "feed-p", "feed-done", 2*time.Hour, true, now)
+
+	_, eps := seedSeries(t, itemRepo, lib.ID, "feedA", 1, 3, 40*time.Minute)
+	seedProgress(t, db, "feed-p", eps[0], 40*time.Minute, true, now.Add(-2*time.Hour))
+	seedProgress(t, db, "feed-p", eps[1], 10*time.Minute, false, now.Add(-30*time.Minute))
+	_, epsB := seedSeries(t, itemRepo, lib.ID, "feedB", 1, 2, 40*time.Minute)
+	seedProgress(t, db, "feed-p", epsB[0], 40*time.Minute, true, now.Add(-3*time.Hour))
+
+	items, err := fq.ContinueWatching(ctx, "feed-p", 20)
+	require.NoError(t, err)
+	got := map[string]*feed.FeedItem{}
+	for _, it := range items {
+		got[string(it.MediaItemID)] = it
+	}
+	require.Contains(t, got, "feed-resume", "a film past the resume floor")
+	assert.Equal(t, (30 * time.Minute).Milliseconds(), got["feed-resume"].Position.Milliseconds())
+	assert.NotContains(t, got, "feed-sampled", "2 minutes of a 2-hour film is below the 5%% floor")
+	assert.NotContains(t, got, "feed-done", "a completed film is not resumable")
+	require.Contains(t, got, eps[1], "the in-progress episode resumes")
+	assert.Equal(t, 1, got[eps[1]].SeasonNumber)
+	assert.Equal(t, 2, got[eps[1]].EpisodeNumber)
+	// Observed 2026-09-16: a series with an in-progress episode ALSO gets its
+	// next unwatched episode as a next-up card (the exclusion is per episode,
+	// not per series). Pinned as-is; whether the row should show one card per
+	// series is a product call, not this test's.
+	require.Contains(t, got, eps[2])
+	assert.Zero(t, got[eps[2]].Position.Milliseconds())
+	require.Contains(t, got, epsB[1], "series B: the first unwatched episode is offered")
+	assert.NotContains(t, got, epsB[0])
+	assert.Zero(t, got[epsB[1]].Position.Milliseconds())
+
+	next, err := fq.NextEpisode(ctx, "feed-p", 20)
+	require.NoError(t, err)
+	nextIDs := make([]string, 0, len(next))
+	for _, it := range next {
+		nextIDs = append(nextIDs, string(it.MediaItemID))
+	}
+	assert.ElementsMatch(t, []string{eps[1], epsB[1]}, nextIDs, "one next episode per series with a completed episode: the first not completed")
+
+	// Another profile sees none of this.
+	other, err := fq.ContinueWatching(ctx, "feed-nobody", 20)
+	require.NoError(t, err)
+	assert.Empty(t, other)
 }
