@@ -35,7 +35,9 @@ function mount() {
   render(React.createElement(QueryClientProvider, { client: qc }, React.createElement(PluginSecurityDashboard)));
 }
 
-beforeEach(() => eveyFetchMock.mockReset());
+beforeEach(() => {
+  eveyFetchMock.mockReset();
+});
 
 // The dashboard exists so an admin learns the host cannot isolate plugins:
 // a degraded sandbox names which probe failed, and each plugin reads by its

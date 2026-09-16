@@ -9,7 +9,9 @@ vi.mock("@evey/api", () => ({ getBaseURL: () => "http://evey.local" }));
 
 import { installPluginFile, previewPluginFile } from "./pluginFileInstall";
 
-beforeEach(() => uploadAsync.mockReset());
+beforeEach(() => {
+  uploadAsync.mockReset();
+});
 
 // The upload route answers a refused archive with a JSON message: the
 // operator reads the reason, never the raw JSON. 428 and 403 stay structured
