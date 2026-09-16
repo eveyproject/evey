@@ -16,6 +16,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -89,6 +90,10 @@ type playerEventDeps struct {
 // "aac-latched") onto the active session, so the admin badge follows the REAL
 // audio path in near real time. Fire-and-forget by contract.
 type CastAudioModeTouch func(ctx context.Context, profileID, mediaItemID, mode string)
+
+// SessionServingRecord records the served path of the (profile, media)
+// session at master render. Fire-and-forget by contract.
+type SessionServingRecord func(ctx context.Context, profileID, mediaItemID string, p domainplayback.ServingPath)
 
 // CastCommandConsumer hands the receiver the pending admin remote command of
 // its session ("pause", "play", "stop", "message:<text>"), or "" when none.
@@ -357,17 +362,27 @@ func notifyCastLiveness(r *http.Request, deps *playerEventDeps, mediaID, eventTy
 	}
 }
 
-// notifyCastAudioMode forwards the receiver's relay-leg transition to the
-// session row (cast stream token only; the mode string rides in Details).
+// notifyCastAudioMode forwards an audio-path transition to the session row:
+// the cast receiver's (cast stream token) or the web wasm player's (user JWT,
+// event "wasm_audio_mode"). The mode string rides in Details.
 func notifyCastAudioMode(r *http.Request, deps *playerEventDeps, mediaID, eventType, details string) {
-	if deps.castAudioMode == nil || eventType != "cast_receiver_audio_mode" {
+	if deps.castAudioMode == nil {
 		return
 	}
-	st, ok := StreamTokenFromContext(r.Context())
-	if !ok || st == nil || !st.Cast {
-		return
+	switch eventType {
+	case "cast_receiver_audio_mode":
+		st, ok := StreamTokenFromContext(r.Context())
+		if !ok || st == nil || !st.Cast {
+			return
+		}
+		deps.castAudioMode(r.Context(), string(st.ProfileID), mediaID, details)
+	case "wasm_audio_mode":
+		claims := HTTPClaimsFromContext(r.Context())
+		if claims == nil || claims.ProfileID == "" {
+			return
+		}
+		deps.castAudioMode(r.Context(), claims.ProfileID, mediaID, details)
 	}
-	deps.castAudioMode(r.Context(), string(st.ProfileID), mediaID, details)
 }
 
 // pendingCastCommand consumes the session's remote command for a cast

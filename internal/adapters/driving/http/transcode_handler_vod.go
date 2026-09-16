@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 	"log/slog"
 	"net/http"
 	"os"
@@ -54,6 +55,8 @@ type hlsVODServe struct {
 	// no ffprobe dependency of its own. nil = no compensation, the pre-fix
 	// behaviour. See transcode_audio_sync.go for what it is used for.
 	compositionDelayProbe func(ctx context.Context, path string) float64
+	// servingRecord: see SessionServingRecord; nil = not wired (tests).
+	servingRecord SessionServingRecord
 	// frameRateProbe + encoderReorderProbe: the same shift for a TRANSCODED
 	// video (the encoder's reorder delay, not the source's).
 	frameRateProbe      func(ctx context.Context, path string) float64
@@ -620,6 +623,17 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		return
 	}
 
+	{
+		p := domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rp.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"}
+		if rp.IsCopy {
+			p.VideoDecision, p.VideoBackend = "copy", ""
+		}
+		if rp.FP.AudioCopy {
+			p.AudioDecision = "copy"
+		}
+		h.recordServing(r, mediaID, p)
+	}
+
 	setCORSHeaders(w, r, "")
 	// The ffmpeg pipeline family serves this master (its ladder may mix copy
 	// and transcode rungs - segments carry the precise value). Counterpart of
@@ -641,6 +655,28 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		slog.Int("segments_per_variant", in.SegmentCount()),
 		slog.String("fp", in.FingerprintHash),
 	)
+}
+
+// recordServing tells the (profile, media) play session what this master
+// hands the player. The profile comes from the stream token, so a cast
+// receiver's master lands on the same session as the phone that started it.
+func (h *hlsVODServe) recordServing(r *http.Request, mediaID string, p domainplayback.ServingPath) {
+	if h.servingRecord == nil {
+		return
+	}
+	claims := HTTPClaimsFromContext(r.Context())
+	if claims == nil || claims.ProfileID == "" {
+		return
+	}
+	h.servingRecord(r.Context(), claims.ProfileID, mediaID, p)
+}
+
+// videoBackendLabel names the encoder backend of a transcode rung.
+func videoBackendLabel(hwAccel string) string {
+	if hwAccel == "" {
+		return "software"
+	}
+	return hwAccel
 }
 
 // refuseStaleFP compares the fp the manifest sealed into this URL against the

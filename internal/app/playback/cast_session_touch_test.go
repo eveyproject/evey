@@ -120,11 +120,13 @@ func TestSetCastAudioPath_MapsModesOntoTheSession(t *testing.T) {
 	got, err := sessions.GetByID(context.Background(), "s-1")
 	require.NoError(t, err)
 	assert.Equal(t, "wasm", got.AudioDecision)
+	assert.Equal(t, "client", got.Serving.AudioEngine, "wasm = the player decodes")
 
 	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", "aac"))
 	got, err = sessions.GetByID(context.Background(), "s-1")
 	require.NoError(t, err)
 	assert.Equal(t, "transcode", got.AudioDecision, "the AAC leg is a server transcode")
+	assert.Equal(t, "ffmpeg", got.Serving.AudioEngine)
 
 	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", "aac-latched"))
 	got, err = sessions.GetByID(context.Background(), "s-1")
@@ -491,4 +493,22 @@ func TestTouchCastSession_AnOlderReceiverFallsBackToThePlayhead(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.True(t, touched)
+}
+
+// The master render names the machinery behind each track; the panel reads
+// it off the session instead of guessing "copy = mkvgo".
+func TestSetSessionServing_RecordsThePathOnTheActiveSession(t *testing.T) {
+	t.Parallel()
+	svc, sessions := newTouchSvc(t)
+	require.NoError(t, sessions.Create(context.Background(), activeSession("s-1", "prof-1", "media-1", "")))
+
+	p := playback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: "qsv", AudioDecision: "transcode", AudioEngine: "ffmpeg"}
+	require.NoError(t, svc.SetSessionServing(context.Background(), "prof-1", "media-1", p))
+	got, err := sessions.GetByID(context.Background(), "s-1")
+	require.NoError(t, err)
+	assert.Equal(t, p, got.Serving)
+	assert.Equal(t, "transcode", got.VideoDecision)
+
+	// No active session for that media: a quiet no-op.
+	require.NoError(t, svc.SetSessionServing(context.Background(), "prof-1", "media-OTHER", p))
 }

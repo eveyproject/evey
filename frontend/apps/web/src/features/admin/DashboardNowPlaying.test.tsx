@@ -233,6 +233,28 @@ describe("NowPlaying", () => {
     expect(screen.queryByTestId("play-method-badge")).toBeNull();
   });
 
+  // The dashboard card used to say only "Transcode": it now names what serves
+  // each track, from what the server recorded when it rendered the master.
+  it("renders the per-track serving lines (engine + backend, player-side decode)", () => {
+    mockSessions = [{
+      ...SESSION_MOVIE,
+      playMethod: "transcode",
+      videoDecision: "transcode", videoEngine: "ffmpeg", videoBackend: "qsv", videoCodec: "hevc→h264",
+      audioDecision: "wasm", audioEngine: "client", audioCodec: "eac3",
+    }];
+    renderNowPlaying();
+    expect(screen.getByTestId("session-track-badges")).toBeInTheDocument();
+    expect(screen.getByText("· ffmpeg Quick Sync")).toBeInTheDocument();
+    expect(screen.getByText("· ac3go in the player")).toBeInTheDocument();
+    expect(screen.getByText("(hevc→h264, 1080p)")).toBeInTheDocument();
+  });
+
+  it("renders no serving lines for a direct play (no per-track decision)", () => {
+    mockSessions = [{ ...SESSION_MOVIE, videoDecision: "", audioDecision: "" }];
+    renderNowPlaying();
+    expect(screen.queryByTestId("session-track-badges")).toBeNull();
+  });
+
   // ── Progress / time formatting ────────────────────────────────────────────────
 
   it("renders formatted position time (1:00:00 for 1h)", () => {

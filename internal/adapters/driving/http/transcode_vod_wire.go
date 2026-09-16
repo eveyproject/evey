@@ -140,6 +140,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		probeSignals:          s.ProbeSignals,
 		streamTokens:          s.StreamTokenStore,
 		compositionDelayProbe: s.VideoCompositionDelayProbe,
+		servingRecord:         s.SessionServingRecord,
 		frameRateProbe:        s.VideoFrameRateProbe,
 		encoderReorderProbe:   s.EncoderReorderProbe,
 		castProgress:          s.CastProgress,

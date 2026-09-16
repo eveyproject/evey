@@ -507,6 +507,29 @@ func TestPlayerEvent_CastAudioModeReachesTheSession(t *testing.T) {
 	}
 }
 
+// The web player's own wasm beacon (user JWT, no stream token) reaches the
+// session too: without it a browser decoding AC-3 itself stayed labelled as
+// a server transcode on the admin panel.
+func TestPlayerEvent_WebWasmAudioModeReachesTheSession(t *testing.T) {
+	var got []string
+	touch := func(_ context.Context, profileID, mediaID, mode string) {
+		got = append(got, profileID+"|"+mediaID+"|"+mode)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event",
+		strings.NewReader(`{"type":"wasm_audio_mode","details":"aac-latched"}`))
+	req.SetPathValue("id", "media-1")
+	ctx := context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "usr-1", ProfileID: "prof-web"})
+	rec := httptest.NewRecorder()
+	logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	playerEventHandler(logger, WithPlayerEventCastAudioMode(touch))(rec, req.WithContext(ctx))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d (body=%s)", rec.Code, rec.Body.String())
+	}
+	if len(got) != 1 || got[0] != "prof-web|media-1|aac-latched" {
+		t.Fatalf("touches = %v, want the web wasm_audio_mode one", got)
+	}
+}
+
 // A sender reporting a receiver that stopped answering is not fatal to the
 // client, yet it is exactly the line an operator searches for after "the
 // phone kept spinning": it must land at WARN like a fatal error, not drown

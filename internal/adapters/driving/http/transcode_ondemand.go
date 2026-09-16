@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
+	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -113,6 +114,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 		// SELECTED track is carriable, buildPlan has trimmed the presentation to
 		// it (audioTrimUnlocksCopy), so what we serve here holds exactly the
 		// tracks the packager can carry verbatim.
+		h.recordServing(r, mediaID, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"})
 		h.servePlanResourceData(w, r, mediaID, plan, "master.m3u8", span)
 		return true
 	}
@@ -137,6 +139,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	// from the logs (the copy fallback rung logs its own outcome just before).
 	slog.Info("hls-vod: hybrid on-demand master served",
 		slog.String("media_id", mediaID))
+	h.recordServing(r, mediaID, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"})
 	return true
 }
 
@@ -396,6 +399,7 @@ func (h *hlsVODServe) buildCappedMaster(r *http.Request, mediaID string, item *d
 		slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
 		slog.Int64("max_kbps", maxKbps),
 		slog.String("fp", rpT.FPHash))
+	h.recordServing(r, mediaID, domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rpT.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"})
 	return master, true
 }
 
@@ -548,6 +552,17 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 		slog.Int("audio_track", audioTrack),
 		slog.Bool("mkvgo_video", useMkvgoVideo),
 		slog.Bool("mkvgo_audio", useMkvgoAudio))
+	p := domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "wasm", AudioEngine: "client"}
+	if !useMkvgoVideo {
+		p.VideoEngine = "ffmpeg"
+		if !videoCopy {
+			p.VideoDecision = "transcode"
+			if rp, err := h.probePlan(r, mediaID, item, streams); err == nil {
+				p.VideoBackend = videoBackendLabel(rp.Plan.HWAccel)
+			}
+		}
+	}
+	h.recordServing(r, mediaID, p)
 	return true
 }
 

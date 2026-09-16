@@ -89,6 +89,26 @@ func (r *PlaySessionRepository) SetSessionAudioDecision(ctx context.Context, ses
 	return n > 0, nil
 }
 
+// SetSessionServing records the served path on an ACTIVE session (master
+// render time); same ended_at guard as SetSessionAudioDecision.
+func (r *PlaySessionRepository) SetSessionServing(ctx context.Context, sessionID string, p playback.ServingPath) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.SetSessionServing")
+	defer span.End()
+	span.SetAttributes(attribute.String("session.id", sessionID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE play_sessions SET video_decision = $2, audio_decision = $3, video_engine = $4, video_backend = $5, audio_engine = $6
+		 WHERE id = $1 AND ended_at IS NULL`,
+		sessionID, p.VideoDecision, p.AudioDecision, p.VideoEngine, p.VideoBackend, p.AudioEngine)
+	if err != nil {
+		span.RecordError(err)
+		return false, fmt.Errorf("PlaySessionRepo.SetSessionServing: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 // AcquireUserStreamLock takes a tx-scoped Postgres advisory lock keyed by
 // hashtext(userID). Serializes the MaxStreams quota check+Create pair so
 // concurrent StartStream calls can't race past the cap. Outside a tx the
@@ -203,7 +223,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		        ps.started_at, ps.device_name, ps.device_type, ps.client_ip,
 		        ps.play_method, ps.video_codec, ps.audio_codec, ps.resolution, ps.video_decision, ps.audio_decision, ps.bandwidth_bps,
 		        COALESCE(series.title, ''), COALESCE(season.index_number, 0), COALESCE(mi.index_number, 0),
-		        ps.is_paused, ps.cast_device_name
+		        ps.is_paused, ps.cast_device_name, ps.video_engine, ps.video_backend, ps.audio_engine
 		 FROM play_sessions ps
 		 INNER JOIN profiles p ON p.id = ps.profile_id
 		 LEFT JOIN users u ON u.id = p.user_id
@@ -232,6 +252,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 			&s.StartedAt, &s.DeviceName, &s.DeviceType, &s.ClientIP,
 			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.VideoDecision, &s.AudioDecision, &s.BandwidthBps,
 			&s.SeriesTitle, &s.SeasonNumber, &s.EpisodeNumber, &s.IsPaused, &s.CastDeviceName,
+			&s.VideoEngine, &s.VideoBackend, &s.AudioEngine,
 		); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())

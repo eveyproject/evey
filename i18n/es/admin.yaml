@@ -515,6 +515,16 @@ sessions:
     videoTranscoded: "transcodificado"
     audioCopied: "copiado"
     audioTranscoded: "transcodificado"
+    audioClientDecoded: "decodificado por el reproductor"
+    engine:
+      mkvgo: "mkvgo"
+      ffmpeg: "ffmpeg"
+      client: "ac3go en el reproductor"
+    backend:
+      software: "software (CPU)"
+      qsv: "Quick Sync"
+      vaapi: "VAAPI"
+      nvenc: "NVENC"
   refreshStatus: "Actualizado {{time}} - actualización automática cada {{seconds}}s"
   sendMessage: "Enviar mensaje"
   messageSent: "Mensaje enviado"

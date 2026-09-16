@@ -17,6 +17,7 @@ import { formatTimeMs, isRealTranscode } from "@evey/api";
 import { useSessionPlayMethodLabel } from "./playMethodLabel";
 import { toast, useAuthStore } from "@evey/store";
 import { Badge } from "@/components/ui/Badge";
+import { SessionTrackBadges } from "@/features/admin/SessionTrackBadges";
 import { AdminTrickplayThumbnail } from "./AdminTrickplayThumbnail";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -248,6 +249,8 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
             )}
           </div>
         </div>
+
+        <SessionTrackBadges session={session} />
 
         {bandwidthBps > 0 && (
           <div className="text-xs text-[var(--text-muted)]">

@@ -671,38 +671,64 @@ func (s *CommandService) EndCastSession(ctx context.Context, profileID, mediaIte
 	return nil
 }
 
-// SetCastAudioPath mirrors the receiver's audio_mode beacon onto the active
-// session so the admin badge follows the REAL audio path: "aac" (and the
-// aac-latched fallback) IS a server transcode; "wasm" means the TV decodes
-// and the server's ffmpeg dies at idle seconds later. Unknown modes are
-// ignored - a future receiver string must not corrupt the column.
+// SetCastAudioPath mirrors a player's audio_mode beacon (cast receiver or web
+// wasm player) onto the active session so the admin badge follows the REAL
+// audio path: "aac" (and the aac-latched fallback) IS a server transcode;
+// "wasm" means the player decodes and the server's ffmpeg dies at idle seconds
+// later. Unknown modes are ignored - a future string must not corrupt the column.
 func (s *CommandService) SetCastAudioPath(ctx context.Context, profileID, mediaItemID, mode string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.SetCastAudioPath")
 	defer span.End()
-	var decision string
+	var decision, engine string
 	switch mode {
 	case "aac", "aac-latched":
-		decision = "transcode"
+		decision, engine = "transcode", "ffmpeg"
 	case "wasm":
-		decision = "wasm"
+		decision, engine = "wasm", "client"
 	default:
 		return nil
 	}
+	sess, err := s.activeSessionFor(ctx, profileID, mediaItemID)
+	if err != nil || sess == nil {
+		return err
+	}
+	p := sess.Serving
+	p.VideoDecision, p.AudioDecision, p.AudioEngine = sess.VideoDecision, decision, engine
+	_, err = s.sessions.SetSessionServing(ctx, sess.ID, p)
+	return err
+}
+
+// SetSessionServing records what the master playlist just handed the
+// (profile, media) session: which packager/encoder serves each track. Called
+// on every master render, so a mid-session reshape (fallback rung, wasm
+// latch-off) keeps the admin panel truthful.
+func (s *CommandService) SetSessionServing(ctx context.Context, profileID, mediaItemID string, p playback.ServingPath) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.SetSessionServing")
+	defer span.End()
+	sess, err := s.activeSessionFor(ctx, profileID, mediaItemID)
+	if err != nil || sess == nil {
+		return err
+	}
+	_, err = s.sessions.SetSessionServing(ctx, sess.ID, p)
+	return err
+}
+
+// activeSessionFor is the (profile, media) → live session lookup the beacon
+// paths share; nil when nothing matches.
+func (s *CommandService) activeSessionFor(ctx context.Context, profileID, mediaItemID string) (*playback.PlaySession, error) {
 	if profileID == "" || mediaItemID == "" {
-		return nil
+		return nil, nil
 	}
 	sessions, err := s.sessionQueries.GetActiveByProfile(ctx, profileID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, sess := range sessions {
-		if sess == nil || string(sess.MediaItemID) != mediaItemID {
-			continue
+		if sess != nil && string(sess.MediaItemID) == mediaItemID {
+			return sess, nil
 		}
-		_, err := s.sessions.SetSessionAudioDecision(ctx, sess.ID, decision)
-		return err
 	}
-	return nil
+	return nil, nil
 }
 
 // ConsumeCastCommand hands the pending remote command of the ACTIVE

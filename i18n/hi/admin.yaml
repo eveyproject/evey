@@ -515,6 +515,16 @@ sessions:
     videoTranscoded: "ट्रांसकोड किया गया"
     audioCopied: "कॉपी किया गया"
     audioTranscoded: "ट्रांसकोड किया गया"
+    audioClientDecoded: "प्लेयर द्वारा डिकोड किया गया"
+    engine:
+      mkvgo: "mkvgo"
+      ffmpeg: "ffmpeg"
+      client: "प्लेयर में ac3go"
+    backend:
+      software: "सॉफ़्टवेयर (CPU)"
+      qsv: "Quick Sync"
+      vaapi: "VAAPI"
+      nvenc: "NVENC"
   refreshStatus: "अपडेट {{time}} - हर {{seconds}}s ऑटो-रिफ्रेश"
   sendMessage: "संदेश भेजें"
   messageSent: "संदेश भेजा गया"
