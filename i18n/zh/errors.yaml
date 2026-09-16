@@ -49,6 +49,9 @@ library:
   cron_required: "需要 cron 表达式"
   cron_invalid: "cron 表达式无效"
   cursor_invalid: "分页游标无效"
+  no_access: "您无权访问此媒体库"
+  directory_invalid: "目录无效"
+  directory_outside: "该目录不在媒体库路径内"
 
 admin:
   setup_already_completed: "设置已完成"
@@ -99,6 +102,7 @@ media:
 
 transcode:
   max_concurrent_reached: "服务器正忙于转码其他流，请稍后重试"
+  job_not_found: "未找到转码任务"
 
 share:
   not_found: "未找到分享链接"
@@ -117,3 +121,15 @@ request:
   duplicate: "您已对此标题提交了一个待处理的请求"
   already_held: "此标题已在媒体库中"
   not_found: "未找到请求"
+
+photo:
+  not_found: "未找到照片"
+
+music:
+  track_not_found: "未找到曲目"
+
+plugin:
+  not_found: "未找到插件"
+  not_enabled: "插件未启用"
+  already_running: "插件已在运行"
+  not_running: "插件未运行"

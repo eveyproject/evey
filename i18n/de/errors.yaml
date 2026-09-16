@@ -49,6 +49,9 @@ library:
   cron_required: "Ein Cron-Ausdruck ist erforderlich"
   cron_invalid: "Ungültiger Cron-Ausdruck"
   cursor_invalid: "Ungültiger Seitencursor"
+  no_access: "Sie haben keinen Zugriff auf diese Bibliothek"
+  directory_invalid: "Ungültiges Verzeichnis"
+  directory_outside: "Das Verzeichnis liegt nicht innerhalb der Bibliothekspfade"
 
 admin:
   setup_already_completed: "Einrichtung bereits abgeschlossen"
@@ -99,6 +102,7 @@ media:
 
 transcode:
   max_concurrent_reached: "Der Server transkodiert gerade andere Streams. Bitte versuche es gleich erneut."
+  job_not_found: "Transkodierungsauftrag nicht gefunden"
 
 share:
   not_found: "Freigabelink nicht gefunden"
@@ -117,3 +121,15 @@ request:
   duplicate: "Sie haben bereits eine offene Anfrage für diesen Titel"
   already_held: "Dieser Titel ist bereits in der Bibliothek"
   not_found: "Anfrage nicht gefunden"
+
+photo:
+  not_found: "Foto nicht gefunden"
+
+music:
+  track_not_found: "Titel nicht gefunden"
+
+plugin:
+  not_found: "Plugin nicht gefunden"
+  not_enabled: "Das Plugin ist nicht aktiviert"
+  already_running: "Das Plugin läuft bereits"
+  not_running: "Das Plugin läuft nicht"

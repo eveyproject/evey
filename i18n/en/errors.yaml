@@ -49,6 +49,9 @@ library:
   cron_required: "A cron expression is required"
   cron_invalid: "Invalid cron expression"
   cursor_invalid: "Invalid pagination cursor"
+  no_access: "You do not have access to this library"
+  directory_invalid: "Invalid directory"
+  directory_outside: "The directory is not within the library paths"
 
 admin:
   setup_already_completed: "Setup already completed"
@@ -99,6 +102,7 @@ media:
 
 transcode:
   max_concurrent_reached: "The server is busy transcoding other streams. Please try again in a moment."
+  job_not_found: "Transcoding job not found"
 
 share:
   not_found: "Share link not found"
@@ -117,3 +121,15 @@ request:
   duplicate: "You already have an open request for this title"
   already_held: "This title is already in the library"
   not_found: "Request not found"
+
+photo:
+  not_found: "Photo not found"
+
+music:
+  track_not_found: "Track not found"
+
+plugin:
+  not_found: "Plugin not found"
+  not_enabled: "Plugin is not enabled"
+  already_running: "Plugin is already running"
+  not_running: "Plugin is not running"

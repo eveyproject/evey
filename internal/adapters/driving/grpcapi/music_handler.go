@@ -13,6 +13,7 @@ import (
 	appmusic "github.com/evey-project/evey/internal/app/music"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/shared"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -26,6 +27,7 @@ type musicHandler struct {
 	userAccess *appuser.AccessService
 	libQuery   *applibrary.QueryService
 	serverCtx  context.Context
+	translator *eveyi18n.Translator
 }
 
 // allowedLibraryIDs returns the library ids the caller may access, or nil for
@@ -59,7 +61,7 @@ func (h *musicHandler) allowedLibraryIDs(ctx context.Context) (map[string]bool, 
 }
 
 func (h *musicHandler) checkLibraryAccess(ctx context.Context, libraryID string) error {
-	return libraryAccessOrStatus(ctx, h.userAccess, libraryID, "musicHandler.checkLibraryAccess")
+	return libraryAccessOrStatus(ctx, h.translator, h.userAccess, libraryID, "musicHandler.checkLibraryAccess")
 }
 
 func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksRequest) (*eveyv1.ListTracksResponse, error) {
@@ -114,7 +116,7 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 			span.RecordError(cErr)
 			span.SetStatus(otelcodes.Error, "invalid cursor")
 			slog.WarnContext(ctx, "grpc ListTracks: invalid cursor", slog.Any("err", cErr))
-			return nil, status.Error(codes.InvalidArgument, "invalid cursor")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.cursor_invalid")
 		}
 		tracks, err := h.svc.QueryService().ListTracksCursor(ctx, shared.LibraryID(req.LibraryId), req.Search, cursor, limit)
 		if err != nil {
@@ -185,7 +187,7 @@ func (h *musicHandler) GetTrack(ctx context.Context, req *eveyv1.GetTrackRequest
 	}
 	if track == nil {
 		span.SetStatus(otelcodes.Error, "track not found")
-		return nil, status.Error(codes.NotFound, "track not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.music.track_not_found")
 	}
 	// Access check AFTER resolving the track: the caller supplies only an id, so
 	// the track's own library decides whether they may see it (don't leak tracks
@@ -339,7 +341,7 @@ func (h *musicHandler) ScanMusicDirectory(ctx context.Context, req *eveyv1.ScanM
 	}
 	if !claims.IsAdmin {
 		span.SetStatus(otelcodes.Error, "admin only")
-		return nil, status.Error(codes.PermissionDenied, "admin only")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	if req.LibraryId == "" || req.Directory == "" {
 		span.SetStatus(otelcodes.Error, "library_id and directory required")
@@ -353,7 +355,7 @@ func (h *musicHandler) ScanMusicDirectory(ctx context.Context, req *eveyv1.ScanM
 	dir := filepath.Clean(req.Directory)
 	if !filepath.IsAbs(dir) || strings.Contains(dir, "..") {
 		span.SetStatus(otelcodes.Error, "invalid directory")
-		return nil, status.Error(codes.InvalidArgument, "invalid directory")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.directory_invalid")
 	}
 	lib, libErr := h.libQuery.GetLibrary(ctx, req.LibraryId)
 	if libErr != nil || lib == nil {
@@ -361,7 +363,7 @@ func (h *musicHandler) ScanMusicDirectory(ctx context.Context, req *eveyv1.ScanM
 			span.RecordError(libErr)
 		}
 		span.SetStatus(otelcodes.Error, "library not found")
-		return nil, status.Error(codes.NotFound, "library not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.library.not_found")
 	}
 	allowed := false
 	for _, p := range lib.Paths {
@@ -373,7 +375,7 @@ func (h *musicHandler) ScanMusicDirectory(ctx context.Context, req *eveyv1.ScanM
 	}
 	if !allowed {
 		span.SetStatus(otelcodes.Error, "directory not within library paths")
-		return nil, status.Error(codes.InvalidArgument, "directory not within library paths")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.directory_outside")
 	}
 	// Detach from the request context: a music scan walks the filesystem and
 	// fans tag-parsing across NumCPU workers - for a large library that runs
@@ -415,7 +417,7 @@ func (h *musicHandler) DeleteTrack(ctx context.Context, req *eveyv1.DeleteTrackR
 	// not be able to delete tracks from the server.
 	if !claims.IsAdmin {
 		span.SetStatus(otelcodes.Error, "admin only")
-		return nil, status.Error(codes.PermissionDenied, "admin only")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	track, err := h.svc.GetTrack(ctx, req.Id)
 	if err != nil {
@@ -425,7 +427,7 @@ func (h *musicHandler) DeleteTrack(ctx context.Context, req *eveyv1.DeleteTrackR
 	}
 	if track == nil {
 		span.SetStatus(otelcodes.Error, "track not found")
-		return nil, status.Error(codes.NotFound, "track not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.music.track_not_found")
 	}
 	if err := h.svc.DeleteTrack(ctx, req.Id); err != nil {
 		span.RecordError(err)

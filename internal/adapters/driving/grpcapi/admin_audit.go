@@ -11,6 +11,7 @@ import (
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/activity"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -43,7 +44,8 @@ type adminSessionHandler struct {
 	// userQuery resolves a music session's profile id to a profile name and an
 	// owning account. Video sessions get both straight from SQL; the music
 	// registry is in-memory and holds no profile repository. May be nil.
-	userQuery *appuser.QueryService
+	userQuery  *appuser.QueryService
+	translator *eveyi18n.Translator
 }
 
 // profileLabel is the display identity behind a profile id: which profile, and
@@ -252,7 +254,7 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 	}
 	if !claims.IsAdmin {
 		span.SetStatus(otelcodes.Error, "admin required")
-		return nil, status.Error(codes.PermissionDenied, "admin required")
+		return nil, d.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	if req.SessionId == "" {
 		span.SetStatus(otelcodes.Error, "session_id required")
@@ -263,7 +265,7 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "session not found")
 		slog.WarnContext(ctx, "grpc KillSession: session query failed", slog.Any("err", err))
-		return nil, status.Error(codes.NotFound, "session not found")
+		return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
 	}
 	// Send stop command so the player closes gracefully. This stops the
 	// PLAYBACK session only - it deliberately does NOT revoke the owner's auth
@@ -312,7 +314,7 @@ func (d *adminSessionHandler) SendSessionCommand(ctx context.Context, req *eveyv
 	}
 	if !claims.IsAdmin {
 		span.SetStatus(otelcodes.Error, "admin required")
-		return nil, status.Error(codes.PermissionDenied, "admin required")
+		return nil, d.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	if req.SessionId == "" || req.Command == "" {
 		span.SetStatus(otelcodes.Error, "session_id and command required")
@@ -349,7 +351,7 @@ func (d *adminSessionHandler) SendCastReceiverCommand(ctx context.Context, req *
 	}
 	if !claims.IsAdmin {
 		span.SetStatus(otelcodes.Error, "admin required")
-		return nil, status.Error(codes.PermissionDenied, "admin required")
+		return nil, d.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	if req.ProfileId == "" || req.Command == "" {
 		span.SetStatus(otelcodes.Error, "profile_id and command required")

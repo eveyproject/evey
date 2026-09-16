@@ -16,6 +16,7 @@ import (
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -39,6 +40,7 @@ type adminPluginHandler struct {
 	pluginQuery     *appplugin.QueryService
 	tokenSvc        *appplugin.TokenService
 	logDir          string
+	translator      *eveyi18n.Translator
 	// resource-limits RPCs: the runner (live caps), the server-config store
 	// (persist + publish; also read back for the effective values), and the
 	// env/boot defaults used when a cap has no stored override. pluginRes is nil
@@ -93,10 +95,10 @@ func (d *adminPluginHandler) IssuePluginToken(ctx context.Context, req *eveyv1.I
 		switch {
 		case errors.Is(err, appplugin.ErrPluginNotFound):
 			span.SetStatus(otelcodes.Error, "plugin not found")
-			return nil, status.Error(codes.NotFound, "plugin not found")
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 		case errors.Is(err, appplugin.ErrPluginNotEnabled):
 			span.SetStatus(otelcodes.Error, "plugin not enabled")
-			return nil, status.Error(codes.FailedPrecondition, "plugin not enabled")
+			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.not_enabled")
 		default:
 			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, internalError(ctx, "issue plugin token", err)
@@ -221,10 +223,10 @@ func (d *adminPluginHandler) EnablePlugin(ctx context.Context, req *eveyv1.Enabl
 		switch {
 		case errors.Is(err, appplugin.ErrPluginNotFound):
 			span.SetStatus(otelcodes.Error, "plugin not found")
-			return nil, status.Error(codes.NotFound, "plugin not found")
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 		case errors.Is(err, appplugin.ErrAlreadyRunning):
 			span.SetStatus(otelcodes.Error, "plugin already running")
-			return nil, status.Error(codes.FailedPrecondition, "plugin already running")
+			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.already_running")
 		default:
 			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, internalError(ctx, "enable plugin", err)
@@ -246,10 +248,10 @@ func (d *adminPluginHandler) DisablePlugin(ctx context.Context, req *eveyv1.Disa
 		switch {
 		case errors.Is(err, appplugin.ErrPluginNotFound):
 			span.SetStatus(otelcodes.Error, "plugin not found")
-			return nil, status.Error(codes.NotFound, "plugin not found")
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 		case errors.Is(err, appplugin.ErrNotRunning):
 			span.SetStatus(otelcodes.Error, "plugin not running")
-			return nil, status.Error(codes.FailedPrecondition, "plugin not running")
+			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.not_running")
 		default:
 			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, internalError(ctx, "disable plugin", err)
@@ -375,7 +377,7 @@ func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		if errors.Is(err, appplugin.ErrPluginNotFound) {
-			return nil, status.Error(codes.NotFound, "plugin not found")
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 		}
 		return nil, internalError(ctx, "preview update", err)
 	}
@@ -429,7 +431,7 @@ func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.
 		span.SetStatus(otelcodes.Error, err.Error())
 		switch {
 		case errors.Is(err, appplugin.ErrPluginNotFound):
-			return nil, status.Error(codes.NotFound, "plugin not found")
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 		case errors.Is(err, appplugin.ErrCandidateChanged):
 			return nil, status.Error(codes.Aborted, err.Error())
 		default:

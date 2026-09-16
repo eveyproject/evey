@@ -15,6 +15,7 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/user"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -167,7 +168,7 @@ func libraryAccessDecision(ctx context.Context, userAccess *appuser.AccessServic
 
 // libraryAccessOrStatus is libraryAccessDecision for the handlers that want a
 // gRPC status rather than a boolean: nil means allowed.
-func libraryAccessOrStatus(ctx context.Context, userAccess *appuser.AccessService, libraryID, op string) error {
+func libraryAccessOrStatus(ctx context.Context, tr *eveyi18n.Translator, userAccess *appuser.AccessService, libraryID, op string) error {
 	ok, err := libraryAccessDecision(ctx, userAccess, libraryID, op)
 	if err != nil {
 		// A missing port already produced its own status; anything else is a
@@ -178,7 +179,7 @@ func libraryAccessOrStatus(ctx context.Context, userAccess *appuser.AccessServic
 		return internalError(ctx, "check library access", err)
 	}
 	if !ok {
-		return status.Error(codes.PermissionDenied, "no access to library")
+		return tr.TranslatedError(ctx, codes.PermissionDenied, "errors.library.no_access")
 	}
 	return nil
 }

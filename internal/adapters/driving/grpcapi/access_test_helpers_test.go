@@ -54,9 +54,9 @@ func TestLibraryAccessDecision_Invariants(t *testing.T) {
 	})
 
 	t.Run("the status wrapper reports the same two answers", func(t *testing.T) {
-		require.NoError(t, libraryAccessOrStatus(ctxWithClaims("admin-1", "p", true), nil, "lib-1", "test"))
+		require.NoError(t, libraryAccessOrStatus(ctxWithClaims("admin-1", "p", true), nil, nil, "lib-1", "test"))
 
-		err := libraryAccessOrStatus(ctxWithClaims("usr-1", "p", false), nil, "lib-1", "test")
+		err := libraryAccessOrStatus(ctxWithClaims("usr-1", "p", false), nil, nil, "lib-1", "test")
 		require.Error(t, err)
 		// The missing-port status must survive the wrapper rather than being
 		// flattened into a generic internal error.
