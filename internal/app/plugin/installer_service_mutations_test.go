@@ -399,3 +399,54 @@ func TestPreviewPlugin_TmpdirRemoveError_Tolerated(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, preview)
 }
+
+// WARNING-severity findings the analyzer files as non-blocking are escalated
+// for three categories: unsafe deserialization and obfuscation always block,
+// native/unsafe Go code blocks unless the manifest opts in with the
+// native-binary permission. A blocked install leaves no directory behind.
+func TestInstallPlugin_EscalatedWarnings(t *testing.T) {
+	newSvc := func(report *plugindomain.AnalysisReport, perms []string) (*appplugin.InstallerService, *plgfakes.FakePluginFileSystem) {
+		pluginRepo := plgfakes.NewFakePluginRepository()
+		parser := plgfakes.NewFakeManifestParser()
+		analyzer := plgfakes.NewFakePluginAnalyzer()
+		pluginFS := plgfakes.NewFakePluginFileSystem()
+		svc := appplugin.NewInstallerService(pluginRepo, plgfakes.NewFakePluginRunner(), parser, sharedfakes.NewFakeEventBus(),
+			appplugin.InstallerWithInstaller(plgfakes.NewFakePluginInstaller()),
+			appplugin.InstallerWithAnalyzer(analyzer),
+			appplugin.InstallerWithPluginDir("/tmp/test-escalated"),
+			appplugin.InstallerWithFileSystem(pluginFS),
+		)
+		m := goManifest("escalated")
+		m.Permissions = perms
+		parser.Result = m
+		analyzer.Report = report
+		return svc, pluginFS
+	}
+	warning := func(category string) *plugindomain.AnalysisReport {
+		return &plugindomain.AnalysisReport{Safe: true, RawFindings: []plugindomain.PluginFinding{{Category: category, Severity: "WARNING"}}}
+	}
+
+	for _, category := range []string{"deserialization", "obfuscation", "native_code"} {
+		svc, fs := newSvc(warning(category), nil)
+		_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "x"))
+		require.Error(t, err, category)
+		assert.Contains(t, err.Error(), "plugin blocked", category)
+		require.NotEmpty(t, fs.Removed, "%s: the staged directory is cleaned up", category)
+		for _, removed := range fs.Removed {
+			assert.Contains(t, removed, "/tmp/test-escalated/plg-", category)
+		}
+	}
+
+	// The native-binary opt-in lifts the native_code block only.
+	svc, _ := newSvc(warning("native_code"), []string{"native-binary"})
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "x"))
+	require.NoError(t, err)
+	svc, _ = newSvc(warning("deserialization"), []string{"native-binary"})
+	_, err = svc.InstallPlugin(context.Background(), tmpZip(t, "x"))
+	require.Error(t, err, "no permission excuses unsafe deserialization")
+
+	// An INFO finding in the same category is not escalated.
+	svc, _ = newSvc(&plugindomain.AnalysisReport{Safe: true, RawFindings: []plugindomain.PluginFinding{{Category: "obfuscation", Severity: "INFO"}}}, nil)
+	_, err = svc.InstallPlugin(context.Background(), tmpZip(t, "x"))
+	require.NoError(t, err)
+}
