@@ -189,9 +189,24 @@ func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.Inst
 		if errors.Is(err, appplugin.ErrPluginPermissionEscalation) {
 			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		}
-		return nil, internalError(ctx, "install plugin", err)
+		return nil, installPluginError(ctx, err)
 	}
 	return pluginToProto(p), nil
+}
+
+// installPluginError separates a refused archive (the caller's problem, said
+// with its reason - the upload route already does) from a server fault.
+func installPluginError(ctx context.Context, err error) error {
+	var blocked *appplugin.PluginBlockedError
+	switch {
+	case errors.As(err, &blocked), strings.Contains(err.Error(), "plugin blocked:"):
+		return status.Error(codes.PermissionDenied, err.Error())
+	case errors.Is(err, appplugin.ErrInvalidManifest), errors.Is(err, appplugin.ErrHashMismatch):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, appplugin.ErrSourceUnavailable):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	}
+	return internalError(ctx, "install plugin", err)
 }
 
 func (d *adminPluginHandler) UninstallPlugin(ctx context.Context, req *eveyv1.UninstallPluginRequest) (*eveyv1.UninstallPluginResponse, error) {

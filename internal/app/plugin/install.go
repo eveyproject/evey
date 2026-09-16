@@ -65,6 +65,15 @@ type PluginBlockedError struct {
 	Categories []string
 }
 
+// Refusal sentinels: the archive or its address is the problem, not the
+// server. The API maps them to the caller's fault with the reason attached;
+// anything else on the install path stays a sanitized internal error.
+var (
+	ErrInvalidManifest   = errors.New("invalid plugin manifest")
+	ErrHashMismatch      = errors.New("plugin hash mismatch")
+	ErrSourceUnavailable = errors.New("plugin source unavailable")
+)
+
 func (e *PluginBlockedError) Error() string {
 	return fmt.Sprintf("plugin blocked: critical security issues found: %v", e.Issues)
 }
@@ -146,7 +155,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	localPath, expectedHash, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
-		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
+		return nil, fmt.Errorf("resolve plugin source: %w: %w", ErrSourceUnavailable, dlErr)
 	}
 	zipPath := localPath
 
@@ -218,10 +227,10 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 func (s *InstallerService) parseAndValidateManifest(zipPath string) (*plugin.PluginManifest, error) {
 	manifest, err := s.parser.Parse(zipPath)
 	if err != nil {
-		return nil, fmt.Errorf("parse manifest: %w", err)
+		return nil, fmt.Errorf("parse manifest: %w: %w", ErrInvalidManifest, err)
 	}
 	if err := manifest.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid manifest: %w", err)
+		return nil, fmt.Errorf("invalid manifest: %w: %w", ErrInvalidManifest, err)
 	}
 
 	if s.runtimes != nil && manifest.Kind != plugin.KindTheme && manifest.Language != "" {
@@ -280,7 +289,7 @@ func (s *InstallerService) verifyPluginIntegrity(ctx context.Context, zipPath, e
 		return "", nil, fmt.Errorf("hash plugin file: %w", hashErr)
 	}
 	if expectedHash != "" && sourceHash != expectedHash {
-		return "", nil, fmt.Errorf("plugin hash mismatch: expected %s, got %s", expectedHash, sourceHash)
+		return "", nil, fmt.Errorf("%w: expected %s, got %s", ErrHashMismatch, expectedHash, sourceHash)
 	}
 
 	if s.sigVerifier != nil {
