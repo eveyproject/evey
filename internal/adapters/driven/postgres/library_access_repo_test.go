@@ -6,6 +6,7 @@ import (
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -173,4 +174,49 @@ func TestLibraryAccessRepo_GrantMany_SkipsDeletedLibraries(t *testing.T) {
 	ok, err := accessRepo.HasAccess(ctx, u.ID, lib.ID)
 	require.NoError(t, err)
 	assert.True(t, ok, "the surviving library is still granted")
+}
+
+// ReplaceAccess is the admin's "set this user's libraries" in one atomic
+// swap: the old set goes, exactly the new set comes, an empty set means
+// "no restriction row at all" - and a library that no longer exists must
+// fail the whole swap, never leave the user half-granted.
+func TestLibraryAccessRepo_ReplaceAccess_AtomicSwap(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	userRepo := postgres.NewUserRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewLibraryAccessRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("ra-u")
+	require.NoError(t, userRepo.Create(ctx, u))
+	libA, libB, libC := newTestLibrary("ra-a"), newTestLibrary("ra-b"), newTestLibrary("ra-c")
+	for _, l := range []*library.Library{libA, libB, libC} {
+		require.NoError(t, libRepo.Create(ctx, l))
+	}
+	require.NoError(t, repo.GrantMany(ctx, u.ID, []shared.LibraryID{libA.ID, libB.ID}))
+
+	require.NoError(t, repo.ReplaceAccess(ctx, u.ID, []shared.LibraryID{libB.ID, libC.ID, libC.ID}))
+	ids, err := repo.GetByUserID(ctx, u.ID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []shared.LibraryID{libB.ID, libC.ID}, ids, "old grant gone, new set exactly, duplicate collapsed")
+
+	// A vanished library id violates the FK: the swap rolls back as a whole.
+	err = repo.ReplaceAccess(ctx, u.ID, []shared.LibraryID{libA.ID, "lib-gone"})
+	require.Error(t, err)
+	ids, err = repo.GetByUserID(ctx, u.ID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []shared.LibraryID{libB.ID, libC.ID}, ids, "a failed swap leaves the previous grants intact")
+
+	require.NoError(t, repo.ReplaceAccess(ctx, u.ID, nil))
+	ids, err = repo.GetByUserID(ctx, u.ID)
+	require.NoError(t, err)
+	assert.Empty(t, ids, "an empty set lifts every restriction")
+
+	require.NoError(t, repo.GrantMany(ctx, u.ID, []shared.LibraryID{libA.ID, libB.ID}))
+	require.NoError(t, repo.DeleteByUserID(ctx, u.ID))
+	ids, err = repo.GetByUserID(ctx, u.ID)
+	require.NoError(t, err)
+	assert.Empty(t, ids, "DeleteByUserID revokes everything in one statement")
+	require.NoError(t, repo.DeleteByUserID(ctx, u.ID), "revoking nothing is fine")
 }
