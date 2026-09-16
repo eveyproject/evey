@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"testing"
 	"time"
 
@@ -212,4 +213,47 @@ func TestRefreshTokenRepo_NilClientIP(t *testing.T) {
 	got, err := repo.GetByTokenHash(ctx, "hash_nilip")
 	require.NoError(t, err)
 	assert.Nil(t, got.ClientIP)
+}
+
+// Single-use rotation: the first consumer of a refresh token wins, every
+// concurrent or later attempt on the same id loses, and the row records
+// when it was spent. This is the database-side guard that makes a replayed
+// refresh token worthless.
+func TestRefreshTokenRepo_MarkUsedIfNotUsed_ExactlyOnceUnderContention(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	seedUser(t, db, "rt-once")
+	repo := postgres.NewRefreshTokenRepository(db)
+	ctx := context.Background()
+	require.NoError(t, repo.Create(ctx, newRefreshToken("rt-once-1", "rt-once", "hash_once")))
+
+	const racers = 8
+	wins := make(chan bool, racers)
+	var wg sync.WaitGroup
+	for range racers {
+		wg.Go(func() {
+			ok, err := repo.MarkUsedIfNotUsed(ctx, "rt-once-1")
+			require.NoError(t, err)
+			wins <- ok
+		})
+	}
+	wg.Wait()
+	close(wins)
+	won := 0
+	for ok := range wins {
+		if ok {
+			won++
+		}
+	}
+	assert.Equal(t, 1, won, "exactly one consumer may spend the token")
+
+	got, err := repo.GetByTokenHash(ctx, "hash_once")
+	require.NoError(t, err)
+	require.NotNil(t, got.UsedAt, "the spend is timestamped")
+	ok, err := repo.MarkUsedIfNotUsed(ctx, "rt-once-1")
+	require.NoError(t, err)
+	assert.False(t, ok, "a spent token stays spent")
+	ok, err = repo.MarkUsedIfNotUsed(ctx, "rt-ghost")
+	require.NoError(t, err)
+	assert.False(t, ok, "an unknown id is not a success")
 }
