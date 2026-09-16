@@ -128,3 +128,18 @@ func TestExpandGenreAliases_KeepsUnknownRequest(t *testing.T) {
 		t.Error("an unknown genre must still filter on itself")
 	}
 }
+
+// GenreIdentity is what the stats fold keys on: every spelling of one genre
+// shares an identity, an unknown spelling is its own (case-insensitively), and
+// it is never a label - callers pair it with CanonicalGenre for that.
+func TestGenreIdentity_SharedAcrossSpellings(t *testing.T) {
+	if GenreIdentity("Drama") != GenreIdentity("Drame") || GenreIdentity("Drama") != GenreIdentity(" drama ") {
+		t.Error("the spellings of one genre must share an identity")
+	}
+	if GenreIdentity("Drama") == GenreIdentity("Comedy") {
+		t.Error("two genres must not collide")
+	}
+	if GenreIdentity("Mecha") != "mecha" || GenreIdentity("MECHA") != "mecha" {
+		t.Errorf("an unknown genre is its own lowercased identity, got %q / %q", GenreIdentity("Mecha"), GenreIdentity("MECHA"))
+	}
+}
