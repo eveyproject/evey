@@ -132,8 +132,20 @@ func TestCalibration_EnsureCalibrated_FirstBootRunsBench(t *testing.T) {
 	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
-	assert.EqualValues(t, 1, runner.calls.Load(), "benchmark must run on first boot")
+	// Boot never benchmarks: the safe fallback is served and the bench is
+	// flagged for the first idle window.
+	assert.Zero(t, runner.calls.Load(), "boot must not block on a benchmark")
+	assert.Equal(t, 720, svc.Current().SoftwareMaxHeight, "safe fallback until the host is measured")
+	assert.Equal(t, CalibrationStatus{State: "pending", Reason: "first boot"}, svc.Status())
+	assert.True(t, svc.NeedsBench())
+
+	assert.True(t, svc.BenchWhenOpportune(context.Background()), "an idle host runs the pending bench")
+	assert.EqualValues(t, 1, runner.calls.Load(), "benchmark must run once on first boot")
 	assert.Equal(t, 1080, svc.Current().SoftwareMaxHeight, "Current() must reflect the fresh bench result")
+	assert.Equal(t, CalibrationStatus{State: "calibrated"}, svc.Status())
+	assert.False(t, svc.NeedsBench())
+	assert.False(t, svc.BenchWhenOpportune(context.Background()), "nothing pending: no second bench")
+	assert.EqualValues(t, 1, runner.calls.Load())
 	// Persistence must happen so the next boot skips the bench.
 	persisted, found, err := repo.Get(context.Background())
 	require.NoError(t, err)
@@ -391,6 +403,13 @@ func TestCalibration_EnsureCalibrated_ModePinMismatch_Rebench(t *testing.T) {
 	}
 	svc := newIdleHostCalibrationService(repo, runner, nil, WithHWMode(domaintranscoding.HWModeVAAPI))
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	// Meanwhile the sibling's nvenc row is served WITHOUT its accelerator (the
+	// pin forbids it) but with its software ceiling, and the bench is pending.
+	assert.Zero(t, runner.calls.Load())
+	assert.Empty(t, svc.Current().HWBackend, "the un-pinned backend is never served")
+	assert.Equal(t, 1080, svc.Current().SoftwareMaxHeight, "the software ceiling is kept meanwhile")
+	assert.Equal(t, "pending", svc.Status().State)
+	assert.True(t, svc.BenchWhenOpportune(context.Background()))
 
 	assert.EqualValues(t, 1, runner.calls.Load(), "mode pin mismatch must force a fresh bench, not trust the sibling's nvenc cache")
 	assert.Equal(t, "vaapi", svc.Current().HWBackend, "Current() must reflect the pinned backend after re-bench")
@@ -430,6 +449,9 @@ func TestCalibration_EnsureCalibrated_ModeOff_RebenchesSoftwareOnly(t *testing.T
 	}
 	svc := newIdleHostCalibrationService(repo, runner, nil, WithHWMode(domaintranscoding.HWModeOff))
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	assert.Empty(t, svc.Current().HWBackend, "off: the persisted HW is stripped right away, before any bench")
+	assert.Equal(t, 1080, svc.Current().SoftwareMaxHeight)
+	assert.True(t, svc.BenchWhenOpportune(context.Background()))
 
 	assert.EqualValues(t, 1, runner.calls.Load(), "mode=off with persisted HW must re-bench software-only")
 	assert.Empty(t, svc.Current().HWBackend, "software-only after off")
@@ -477,6 +499,10 @@ func TestCalibration_EnsureCalibrated_StaleCpuSig_Rebench(t *testing.T) {
 	}
 	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	assert.Zero(t, runner.calls.Load())
+	assert.Equal(t, 720, svc.Current().SoftwareMaxHeight, "another host's ceilings are never served: safe fallback")
+	assert.Equal(t, CalibrationStatus{State: "pending", Reason: "cpu signature changed"}, svc.Status())
+	assert.True(t, svc.BenchWhenOpportune(context.Background()))
 
 	assert.EqualValues(t, 1, runner.calls.Load())
 	assert.Equal(t, 720, svc.Current().SoftwareMaxHeight)
@@ -585,10 +611,14 @@ func TestCalibration_Recalibrate_IdleGate(t *testing.T) {
 		assert.Equal(t, int64(1), runner.calls.Load())
 	})
 
-	t.Run("first-boot EnsureCalibrated is never gated", func(t *testing.T) {
+	t.Run("the opportune bench waits for the streams to end", func(t *testing.T) {
 		svc, runner := newSvc(func() int { return 5 })
 		require.NoError(t, svc.EnsureCalibrated(context.Background()))
-		assert.Equal(t, int64(1), runner.calls.Load(), "first-boot bench runs regardless of active streams (no streams at boot)")
+		assert.False(t, svc.BenchWhenOpportune(context.Background()))
+		assert.Equal(t, int64(0), runner.calls.Load(), "a live stream ends the idle window")
+		svc.SetActiveStreamChecker(func() int { return 0 })
+		assert.True(t, svc.BenchWhenOpportune(context.Background()))
+		assert.Equal(t, int64(1), runner.calls.Load())
 	})
 }
 
@@ -754,7 +784,18 @@ func TestCalibration_DemoteCapability_FeatureTrim_NotStamped(t *testing.T) {
 // real /proc/stat for a second before each bench; here that would only slow
 // the suite down and make the contention verdict depend on the CI runner.
 func newIdleHostCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaintranscoding.BenchmarkRunner, logger *slog.Logger, opts ...CalibrationOption) *CalibrationService {
-	return NewCalibrationService(repo, runner, logger, append([]CalibrationOption{WithHostLoadProbe(func() float64 { return 0 })}, opts...)...)
+	svc := NewCalibrationService(repo, runner, logger, append([]CalibrationOption{WithHostLoadProbe(func() float64 { return 0 })}, opts...)...)
+	svc.idleProbeEvery = 0 // the idle window probes without waiting in tests
+	return svc
+}
+
+// bootAndBench mirrors production in one call: the non-blocking boot, then the
+// opportune-moment bench the tick loop runs once the host is idle.
+func bootAndBench(t *testing.T, svc *CalibrationService) bool {
+	t.Helper()
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	svc.idleProbeEvery = 0
+	return svc.BenchWhenOpportune(context.Background())
 }
 
 // ============================================================================
@@ -768,10 +809,18 @@ func TestCalibration_BenchOnBusyHost_IsFlaggedContended(t *testing.T) {
 	repo := &fakeCapabilityRepo{}
 	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 720, CPUSignature: "fake-sig"}}
 	svc := NewCalibrationService(repo, runner, nil, WithHostLoadProbe(func() float64 { return 87 }))
+	svc.idleProbeEvery = 0
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	// The automatic path never benches a busy host: the idle window fails.
+	assert.False(t, svc.BenchWhenOpportune(context.Background()))
+	assert.Zero(t, runner.calls.Load(), "no idle window, no automatic bench")
+	assert.Equal(t, "pending", svc.Status().State)
+	// A manual recalibration does, and the result is flagged provisional.
+	require.NoError(t, svc.Recalibrate(context.Background()))
 
 	cur := svc.Current()
 	assert.True(t, cur.BenchContended, "a bench started on a busy host must be marked provisional")
+	assert.Equal(t, "provisional", svc.Status().State)
 	assert.Equal(t, 87, cur.BenchHostBusyPercent, "the evidence travels with the verdict")
 	persisted, found, err := repo.Get(context.Background())
 	require.NoError(t, err)
@@ -783,7 +832,7 @@ func TestCalibration_BenchOnIdleHost_IsNotContended(t *testing.T) {
 	repo := &fakeCapabilityRepo{}
 	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: "fake-sig"}}
 	svc := NewCalibrationService(repo, runner, nil, WithHostLoadProbe(func() float64 { return 12 }))
-	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	require.True(t, bootAndBench(t, svc))
 	assert.False(t, svc.Current().BenchContended)
 	assert.Equal(t, 12, svc.Current().BenchHostBusyPercent)
 }
@@ -793,6 +842,7 @@ func TestCalibration_BenchOnIdleHost_IsNotContended(t *testing.T) {
 func contendedService(t *testing.T, runner *fakeBenchmarkRunner, probe func() float64) *CalibrationService {
 	t.Helper()
 	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil, WithHostLoadProbe(probe))
+	svc.idleProbeEvery = 0
 	cur := domaintranscoding.EncodeCapability{SoftwareMaxHeight: 720, CPUSignature: "fake-sig", BenchContended: true, BenchHostBusyPercent: 91}
 	svc.current.Store(&cur)
 	return svc
@@ -845,8 +895,8 @@ func TestCalibration_RebenchIfContended_ContendedAgain_BacksOff(t *testing.T) {
 	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 720, CPUSignature: "fake-sig"}}
 	var probes atomic.Int64
 	svc := contendedService(t, runner, func() float64 {
-		// 1st probe: the idle pre-check passes; 2nd probe (inside the bench): busy.
-		if probes.Add(1) == 1 {
+		// The whole idle window passes; the bench's own sample (right after) is busy.
+		if probes.Add(1) <= idleProbes {
 			return 0
 		}
 		return 95
@@ -857,7 +907,56 @@ func TestCalibration_RebenchIfContended_ContendedAgain_BacksOff(t *testing.T) {
 	assert.True(t, svc.Current().BenchContended)
 
 	assert.False(t, svc.RebenchIfContended(context.Background()))
-	assert.EqualValues(t, 1, runner.calls.Load(), "inside the backoff window no second bench runs, whatever the probe says")
+	assert.EqualValues(t, 1, runner.calls.Load(), "inside the cooldown no second bench runs, whatever the probe says")
+
+	// The cooldown is fixed and short, never a growing backoff: once it has
+	// elapsed the idle test resumes and, the host being idle for a whole
+	// window this time, the bench runs again and lands a trusted calibration.
+	svc.contendedMu.Lock()
+	svc.contendedNextAt = time.Now().Add(-time.Second)
+	svc.contendedMu.Unlock()
+	probes.Store(-1000) // idle for the window AND for the bench's own sample
+	assert.True(t, svc.RebenchIfContended(context.Background()), "after the cooldown the idle test resumes")
+	assert.EqualValues(t, 2, runner.calls.Load())
+	assert.False(t, svc.Current().BenchContended)
+	assert.False(t, svc.NeedsBench())
+}
+
+// The idle test keeps running as long as no trusted calibration exists: a
+// pending first-boot bench that comes back contended is provisional, still
+// NeedsBench, and is retried (after the cooldown) until it lands idle.
+func TestCalibration_IdleTestRepeatsUntilCalibrated(t *testing.T) {
+	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: "sig"}}
+	busy := true
+	var probes atomic.Int64
+	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil, WithHostLoadProbe(func() float64 {
+		n := probes.Add(1)
+		// Window probes idle; the bench's own sample busy while `busy` holds.
+		if busy && n%(idleProbes+1) == 0 {
+			return 90
+		}
+		return 3
+	}))
+	svc.idleProbeEvery = 0
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	assert.True(t, svc.NeedsBench())
+
+	assert.False(t, svc.BenchWhenOpportune(context.Background()), "first attempt: contended")
+	assert.EqualValues(t, 1, runner.calls.Load())
+	assert.Equal(t, "provisional", svc.Status().State)
+	assert.True(t, svc.NeedsBench(), "a provisional calibration is not a done one: keep testing")
+
+	assert.False(t, svc.BenchWhenOpportune(context.Background()), "cooldown: no immediate retry")
+	assert.EqualValues(t, 1, runner.calls.Load())
+
+	svc.contendedMu.Lock()
+	svc.contendedNextAt = time.Now().Add(-time.Second)
+	svc.contendedMu.Unlock()
+	busy = false
+	assert.True(t, svc.BenchWhenOpportune(context.Background()), "the idle test resumed and the host was idle: trusted calibration")
+	assert.EqualValues(t, 2, runner.calls.Load())
+	assert.Equal(t, "calibrated", svc.Status().State)
+	assert.False(t, svc.NeedsBench(), "done: the loop drops back to the 5-minute clock")
 }
 
 // A persisted HW capability benched before a new probe existed is re-benched
@@ -877,6 +976,9 @@ func TestCalibration_EnsureCalibrated_OldProbeVersion_Rebenches(t *testing.T) {
 	}
 	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	assert.Equal(t, "vaapi", svc.Current().HWBackend, "the outdated row is served meanwhile - same host, older probes")
+	assert.Equal(t, CalibrationStatus{State: "pending", Reason: "calibration probes outdated"}, svc.Status())
+	assert.True(t, svc.BenchWhenOpportune(context.Background()))
 	assert.EqualValues(t, 1, runner.calls.Load(), "old probe version with a HW backend must re-bench")
 	assert.True(t, svc.Current().HWHDR10Encode)
 
@@ -884,7 +986,7 @@ func TestCalibration_EnsureCalibrated_OldProbeVersion_Rebenches(t *testing.T) {
 		stored: &domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: hostSig},
 	}
 	runner2 := &fakeBenchmarkRunner{}
-	require.NoError(t, newIdleHostCalibrationService(softwareOnly, runner2, nil).EnsureCalibrated(context.Background()))
+	bootAndBench(t, newIdleHostCalibrationService(softwareOnly, runner2, nil))
 	assert.Zero(t, runner2.calls.Load(), "no HW backend: nothing new to probe")
 
 	// A row benched under the PREVIOUS version (v9: before the Vulkan tone-map
@@ -898,11 +1000,11 @@ func TestCalibration_EnsureCalibrated_OldProbeVersion_Rebenches(t *testing.T) {
 		},
 	}
 	runner3 := &fakeBenchmarkRunner{result: runner.result}
-	require.NoError(t, newIdleHostCalibrationService(previous, runner3, nil).EnsureCalibrated(context.Background()))
+	bootAndBench(t, newIdleHostCalibrationService(previous, runner3, nil))
 	assert.EqualValues(t, 1, runner3.calls.Load(), "a v%d row must re-bench under v%d", domaintranscoding.CapabilityProbeVersion-1, domaintranscoding.CapabilityProbeVersion)
 	current := &fakeCapabilityRepo{stored: &runner.result}
 	runner4 := &fakeBenchmarkRunner{}
-	require.NoError(t, newIdleHostCalibrationService(current, runner4, nil).EnsureCalibrated(context.Background()))
+	bootAndBench(t, newIdleHostCalibrationService(current, runner4, nil))
 	assert.Zero(t, runner4.calls.Load(), "a current-version row is not re-benched")
 
 	// A software-only row WITH route evidence benched before v11 lacks the
@@ -915,9 +1017,75 @@ func TestCalibration_EnsureCalibrated_OldProbeVersion_Rebenches(t *testing.T) {
 		}}
 	}
 	runner5 := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: hostSig, ProbeVersion: domaintranscoding.CapabilityProbeVersion}}
-	require.NoError(t, newIdleHostCalibrationService(swWithRoutes(routeEvidenceFloorProbeVersion-1), runner5, nil).EnsureCalibrated(context.Background()))
+	bootAndBench(t, newIdleHostCalibrationService(swWithRoutes(routeEvidenceFloorProbeVersion-1), runner5, nil))
 	assert.EqualValues(t, 1, runner5.calls.Load(), "software-only route evidence from before the floor rungs must re-bench once")
 	runner6 := &fakeBenchmarkRunner{}
-	require.NoError(t, newIdleHostCalibrationService(swWithRoutes(domaintranscoding.CapabilityProbeVersion), runner6, nil).EnsureCalibrated(context.Background()))
+	bootAndBench(t, newIdleHostCalibrationService(swWithRoutes(domaintranscoding.CapabilityProbeVersion), runner6, nil))
 	assert.Zero(t, runner6.calls.Load())
+}
+
+// ============================================================================
+// The opportune moment: a whole idle window, not a single lucky sample
+// ============================================================================
+
+// Five consecutive idle probes are required: a busy sample anywhere in the
+// window ends it without a bench, and the next attempt starts a fresh window.
+func TestCalibration_IdleWindow_BusyProbeMidWindowAborts(t *testing.T) {
+	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: "sig"}}
+	var probes atomic.Int64
+	// Probes 1-3 idle, probe 4 busy (a scan batch), then idle forever.
+	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil, WithHostLoadProbe(func() float64 {
+		if probes.Add(1) == 4 {
+			return 65
+		}
+		return 5
+	}))
+	svc.idleProbeEvery = 0
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+
+	assert.False(t, svc.BenchWhenOpportune(context.Background()), "a busy probe inside the window cancels the bench")
+	assert.EqualValues(t, 4, probes.Load(), "the window stops at the first busy probe")
+	assert.Zero(t, runner.calls.Load())
+	assert.True(t, svc.NeedsBench(), "still pending: the loop keeps probing")
+
+	assert.True(t, svc.BenchWhenOpportune(context.Background()), "the next attempt starts a fresh window of five idle probes")
+	assert.EqualValues(t, 4+idleProbes+1, probes.Load(), "five window probes, then the bench's own load sample")
+	assert.EqualValues(t, 1, runner.calls.Load())
+	assert.False(t, svc.NeedsBench())
+}
+
+// The window sleeps between probes (the seam is injected): idleProbes-1 waits
+// of idleProbeEvery, and a cancelled context ends it without benching.
+func TestCalibration_IdleWindow_SleepsBetweenProbesAndHonoursCancel(t *testing.T) {
+	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: "sig"}}
+	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, runner, nil)
+	svc.idleProbeEvery = idleProbeEvery
+	var slept []time.Duration
+	svc.sleep = func(_ context.Context, d time.Duration) error { slept = append(slept, d); return nil }
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	assert.True(t, svc.BenchWhenOpportune(context.Background()))
+	assert.Len(t, slept, idleProbes-1, "no wait after the last probe")
+	for _, d := range slept {
+		assert.Equal(t, idleProbeEvery, d)
+	}
+
+	cancelled := newIdleHostCalibrationService(&fakeCapabilityRepo{}, &fakeBenchmarkRunner{}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.NoError(t, cancelled.EnsureCalibrated(context.Background()))
+	assert.False(t, cancelled.BenchWhenOpportune(ctx), "a cancelled context never benches")
+}
+
+// A manual recalibration is not subject to the idle window (the admin asked
+// for it now) and clears the pending flag like any successful bench.
+func TestCalibration_ManualRecalibrate_ClearsPending(t *testing.T) {
+	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: "sig"}}
+	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil, WithHostLoadProbe(func() float64 { return 45 }))
+	svc.idleProbeEvery = 0
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	assert.False(t, svc.BenchWhenOpportune(context.Background()), "45% busy: no automatic bench")
+	require.NoError(t, svc.Recalibrate(context.Background()))
+	assert.EqualValues(t, 1, runner.calls.Load())
+	assert.False(t, svc.NeedsBench())
+	assert.Equal(t, "calibrated", svc.Status().State)
 }
