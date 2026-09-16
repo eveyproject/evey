@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"testing"
+	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/domain/library"
@@ -72,4 +73,34 @@ func TestMatchOrphansInLibrary_ShowLibrary_PassesGuard(t *testing.T) {
 	res, err := h.MatchOrphansInLibrary(context.Background(), &eveyv1.MatchOrphansInLibraryRequest{LibraryId: "lib-shows"})
 	require.NoError(t, err)
 	assert.Zero(t, res.Queued)
+}
+
+// The heavy-op slot: a second library-wide job is refused while one runs
+// (ResourceExhausted, not queued), the slot is held by the DETACHED work and
+// handed back only when it finishes, and an unwired service is Unimplemented.
+func TestHeavyOpSlot_RefreshAllAndRelink(t *testing.T) {
+	h, _ := newOrphansHandler()
+	h.heavyOpSemaphore = make(chan struct{}, 1)
+	h.libQuery = fakeLibraryGetter{lib: &library.Library{ID: "lib-1", Type: library.Movie}}
+
+	_, err := (&adminMediaHandler{}).RefreshAllMetadata(context.Background(), &eveyv1.RefreshAllMetadataRequest{LibraryId: "lib-1"})
+	assert.Equal(t, codes.Unimplemented, status.Code(err))
+	_, err = (&adminMediaHandler{}).RelinkCollections(context.Background(), &eveyv1.RelinkCollectionsRequest{})
+	assert.Equal(t, codes.Unimplemented, status.Code(err))
+	_, err = (&adminMediaHandler{}).GenerateAllTrickplays(context.Background(), &eveyv1.GenerateAllTrickplaysRequest{})
+	assert.Equal(t, codes.Unimplemented, status.Code(err))
+
+	// Occupy the slot as a running job would.
+	require.True(t, h.acquireHeavyOp())
+	_, err = h.RefreshAllMetadata(context.Background(), &eveyv1.RefreshAllMetadataRequest{LibraryId: "lib-1"})
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
+	_, err = h.RelinkCollections(context.Background(), &eveyv1.RelinkCollectionsRequest{})
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
+	h.releaseHeavyOp()
+
+	// The RPC returns at once; the slot is released by the background work.
+	_, err = h.RelinkCollections(context.Background(), &eveyv1.RelinkCollectionsRequest{Limit: 5})
+	require.NoError(t, err)
+	require.Eventually(t, h.acquireHeavyOp, 2*time.Second, 10*time.Millisecond, "the detached relink must hand the slot back")
+	h.releaseHeavyOp()
 }
