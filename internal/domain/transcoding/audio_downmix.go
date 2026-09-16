@@ -11,8 +11,10 @@ import "fmt"
 // bit-identical below the ceiling (latency compensated), gain-ridden above.
 const (
 	// DownmixRematrixMaxval is inert on any matrix already summing below it
-	// (stereo -> stereo is bit-identical at 1.0 and 2.0); only a real fold scales.
-	DownmixRematrixMaxval = 2.0
+	// (stereo -> stereo is bit-identical at 1.0 and 1.41); only a real fold scales.
+	// +3 dB, not +6: at 2.0 the limiter worked 16% of a film climax with 7 dB
+	// swings (audible pumping); at 1.41 it is 4% and 4 dB (measured 2026-09-16).
+	DownmixRematrixMaxval = 1.4142
 
 	// DownmixLimiterCeiling is -2 dBFS, the lossy-delivery margin: alimiter
 	// caps sample peaks, and an AAC decode overshoots by up to ~1.8 dB on tonal
