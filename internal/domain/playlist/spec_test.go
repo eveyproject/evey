@@ -197,3 +197,59 @@ func TestRatingGteSpec_IncludesTheExactThreshold(t *testing.T) {
 		t.Error("an unrated title must not match a minimum-rating filter")
 	}
 }
+
+// library_id is the rule that scopes a smart playlist to one library: in
+// memory it must match the exact id, in SQL it must bind the id as a
+// placeholder (never inline it) and advance the index like every other spec.
+func TestLibraryIDSpec_MatchesExactlyAndBindsInSQL(t *testing.T) {
+	spec, err := CompileRules([]Rule{{Field: "library_id", Value: "lib-1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !spec.IsSatisfiedBy(Candidate{LibraryID: "lib-1"}) {
+		t.Fatal("same library must satisfy")
+	}
+	if spec.IsSatisfiedBy(Candidate{LibraryID: "lib-10"}) || spec.IsSatisfiedBy(Candidate{}) {
+		t.Fatal("a different or empty library must not satisfy (exact match, not prefix)")
+	}
+	argIdx := 4
+	clause, args := spec.(SQLSpec).ToSQL(&argIdx)
+	if clause != "mi.library_id = $4" {
+		t.Fatalf("clause = %q", clause)
+	}
+	if len(args) != 1 || args[0] != "lib-1" {
+		t.Fatalf("args = %v", args)
+	}
+	if argIdx != 5 {
+		t.Fatalf("argIdx = %d, want 5", argIdx)
+	}
+	// An empty value is "no rule", not "match nothing".
+	spec, err = CompileRules([]Rule{{Field: "library_id"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !spec.IsSatisfiedBy(Candidate{LibraryID: "anything"}) {
+		t.Fatal("an empty library_id rule must be dropped, not turned into an impossible filter")
+	}
+}
+
+func TestRatingGteSpec_ToSQL_CastsToDoublePrecision(t *testing.T) {
+	spec, err := CompileRules([]Rule{{Field: "rating_gte", Value: "7.5"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	argIdx := 1
+	clause, args := spec.(SQLSpec).ToSQL(&argIdx)
+	if clause != "mcl.community_rating >= $1::double precision" {
+		t.Fatalf("clause = %q", clause)
+	}
+	if len(args) != 1 || args[0] != 7.5 {
+		t.Fatalf("args = %v", args)
+	}
+	if argIdx != 2 {
+		t.Fatalf("argIdx = %d, want 2", argIdx)
+	}
+	if _, err := CompileRules([]Rule{{Field: "rating_gte", Value: "high"}}); err == nil {
+		t.Fatal("a non-numeric rating threshold must be refused, not silently dropped")
+	}
+}

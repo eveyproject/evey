@@ -55,3 +55,32 @@ func TestTrailingJunk(t *testing.T) {
 		t.Fatal("mid-Segment damage must not be reported as trailing junk")
 	}
 }
+
+func TestIndexSparse_DetailAndPictureMissing(t *testing.T) {
+	// mkvgo's own sentence is what the operator reads; a bare finding still
+	// reports sparse, with the kind as the placeholder.
+	withDetail := &Diagnosis{Findings: []DiagnosisFinding{{Kind: "index-sparse", Detail: "the video cues leave a 44s hole", Remedy: "reindex"}}}
+	if !withDetail.IndexSparse() || withDetail.IndexSparseDetail() != "the video cues leave a 44s hole" {
+		t.Fatalf("detail = %q, want mkvgo's sentence", withDetail.IndexSparseDetail())
+	}
+	if withDetail.IndexSparsePictureMissing() {
+		t.Fatal("a reindexable hole is not a hole in the picture")
+	}
+	bare := &Diagnosis{Findings: []DiagnosisFinding{{Kind: "no-index"}, {Kind: "index-sparse"}}}
+	if !bare.IndexSparse() || bare.IndexSparseDetail() != "index-sparse" {
+		t.Fatalf("bare finding: detail = %q, want the kind as placeholder", bare.IndexSparseDetail())
+	}
+	// The hole is in the VIDEO: mkvgo keeps the kind and says "re-acquire".
+	picture := &Diagnosis{Findings: []DiagnosisFinding{{Kind: "index-sparse", Detail: "no picture packets for 3m12s", Remedy: "Re-acquire the source"}}}
+	if !picture.IndexSparsePictureMissing() {
+		t.Fatal("a re-acquire remedy on a sparse index means the picture itself is missing (case-insensitive)")
+	}
+	// Other kinds never count, even with a re-acquire remedy.
+	other := &Diagnosis{Findings: []DiagnosisFinding{{Kind: "truncated", Remedy: "re-acquire the source"}}}
+	if other.IndexSparse() || other.IndexSparsePictureMissing() || other.IndexSparseDetail() != "" {
+		t.Fatal("a non-sparse finding must not read as sparse")
+	}
+	if (&Diagnosis{}).IndexSparse() {
+		t.Fatal("no findings = not sparse")
+	}
+}
