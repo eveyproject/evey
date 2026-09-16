@@ -71,3 +71,14 @@ func TestInstallPlugin_RefusalsAreNotServerFaults(t *testing.T) {
 	assert.Equal(t, codes.PermissionDenied, status.Code(installPluginError(ctx, errors.New("plugin blocked: theme.js contains forbidden pattern: eval"))))
 	assert.Equal(t, codes.Internal, status.Code(installPluginError(ctx, errors.New("write plugin dir: disk full"))))
 }
+
+// Removing what is already gone (a double click on the row) is NotFound, not
+// a logged 500, for a plugin and for a runtime alike.
+func TestUninstallAndRemoveRuntime_UnknownIdIsNotFound(t *testing.T) {
+	h := newTestPluginHandler()
+	ctx := context.Background()
+	_, err := h.UninstallPlugin(ctx, &eveyv1.UninstallPluginRequest{Id: "ghost"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	_, err = h.RemovePluginRuntime(ctx, &eveyv1.RemovePluginRuntimeRequest{Id: "ghost"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}

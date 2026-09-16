@@ -159,6 +159,9 @@ func (d *adminPluginHandler) RemovePluginRuntime(ctx context.Context, req *eveyv
 	if err := d.pluginRuntime.RemoveRuntime(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, status.Error(codes.NotFound, "runtime not found")
+		}
 		return nil, internalError(ctx, "remove runtime", err)
 	}
 	return &eveyv1.RemovePluginRuntimeResponse{}, nil
@@ -220,6 +223,9 @@ func (d *adminPluginHandler) UninstallPlugin(ctx context.Context, req *eveyv1.Un
 	if err := d.pluginInstaller.UninstallPlugin(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		if errors.Is(err, appplugin.ErrPluginNotFound) {
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
+		}
 		return nil, internalError(ctx, "uninstall plugin", err)
 	}
 	return &eveyv1.UninstallPluginResponse{}, nil
