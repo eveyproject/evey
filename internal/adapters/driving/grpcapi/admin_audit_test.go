@@ -2,6 +2,8 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func newTestAdminSessionHandler() (*adminSessionHandler, *pbfakes.FakePlaySessionRepository) {
@@ -290,5 +293,44 @@ func TestListActiveSessions_AppendsMusicSessions(t *testing.T) {
 	o := byID["ms-orphan"]
 	if o.ProfileName != "bob" || o.Username != "bob" || o.UserId != "" || !o.IsPaused {
 		t.Errorf("a deleted profile falls back to the registry's account name: %+v", o)
+	}
+}
+
+// An admin command is routed by session kind: a live music session takes it
+// in the in-memory registry (consumed by its next heartbeat), anything else
+// lands on the play_sessions row the video player polls; both fields are
+// required, and a storage failure is a sanitized internal error.
+func TestSendSessionCommand_RoutesMusicAndVideo(t *testing.T) {
+	h, sessionRepo := newTestAdminSessionHandler()
+	h.musicNow = appmusic.NewNowPlayingRegistry()
+	h.musicNow.Heartbeat("ms-1", "p1", "alice", "trk-1", "Kitchen", 0, false)
+	ctx := ctxWithClaims("adm-1", "prf-adm", true)
+
+	_, err := h.SendSessionCommand(ctx, &eveyv1.SendSessionCommandRequest{SessionId: "ms-1"})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Errorf("missing command: %v", err)
+	}
+
+	if _, sendErr := h.SendSessionCommand(ctx, &eveyv1.SendSessionCommandRequest{SessionId: "ms-1", Command: "pause"}); sendErr != nil {
+		t.Fatal(sendErr)
+	}
+	if got := h.musicNow.Heartbeat("ms-1", "p1", "alice", "trk-1", "Kitchen", 1000, false); got != "pause" {
+		t.Errorf("the music session's next heartbeat must carry the command, got %q", got)
+	}
+	if cmd, _ := sessionRepo.ConsumeRemoteCommand(context.Background(), "ms-1"); cmd != "" {
+		t.Error("a music command must not touch play_sessions")
+	}
+
+	if _, sendErr := h.SendSessionCommand(ctx, &eveyv1.SendSessionCommandRequest{SessionId: "vid-1", Command: "stop"}); sendErr != nil {
+		t.Fatal(sendErr)
+	}
+	if cmd, _ := sessionRepo.ConsumeRemoteCommand(context.Background(), "vid-1"); cmd != "stop" {
+		t.Errorf("a video command lands on the play session row, got %q", cmd)
+	}
+
+	sessionRepo.Err = errors.New("db down")
+	_, err = h.SendSessionCommand(ctx, &eveyv1.SendSessionCommandRequest{SessionId: "vid-1", Command: "stop"})
+	if status.Code(err) != codes.Internal || strings.Contains(err.Error(), "db down") {
+		t.Errorf("storage failure must be a sanitized internal error, got %v", err)
 	}
 }
