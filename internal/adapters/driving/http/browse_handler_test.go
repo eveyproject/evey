@@ -1,10 +1,12 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -154,5 +156,66 @@ func TestBrowseDirs_NoPath_200(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+// Inside a root the picker lists only directories, skipping hidden ones and
+// the operator's skip list, with the trailing slash of the request normalised
+// away; a symlink that escapes the media tree is refused even though its
+// path reads as inside it; an unreadable directory answers an empty list.
+func TestBrowseDirs_ListDirRules(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"Films", ".hidden", "lost+found", "Series"} {
+		if err := os.Mkdir(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(root, "escape")); err != nil {
+		t.Skip("symlinks unavailable")
+	}
+	h := &browseHandler{
+		skip:  map[string]bool{"lost+found": true},
+		roots: func() []string { return []string{root} },
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/fs/browse?path="+root+"/", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+	var entries []browseEntry
+	if err := json.Unmarshal(w.Body.Bytes(), &entries); err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name)
+		if strings.HasSuffix(filepath.Dir(e.Path), "/") {
+			t.Errorf("trailing slash leaked into %q", e.Path)
+		}
+	}
+	// A symlink is not a directory entry (ReadDir reports its own type), so
+	// it is not offered; following it by hand is what the validator refuses.
+	if strings.Join(names, ",") != "Films,Series" {
+		t.Errorf("entries = %v, want the plain directories only", names)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/fs/browse?path="+root+"/escape", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("a symlink out of the media tree must be refused, got %d", w.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/fs/browse?path="+root+"/Films/missing", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("a path that does not resolve is refused, got %d", w.Code)
 	}
 }
