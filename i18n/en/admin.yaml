@@ -1147,6 +1147,14 @@ calibration:
   successToast: "Recalibration complete"
   busyToast: "Recalibration already in progress"
   contendedLine: "Provisional: the server was already busy when it measured itself (CPU at {{percent}}%), so these ceilings are underestimated - they describe a shared machine, not this one. It will measure again on its own once idle."
+  pendingLine: 'Waiting for a quiet moment to calibrate ({{reason}}): the server measures itself only once nothing else is running, so the ceilings below are interim. Use "Recalibrate" to run it now.'
+  benchmarkingLine: "Calibrating now - about 2 minutes. New playbacks are held off until it is done."
+  pendingReason:
+    firstBoot: "first start"
+    cpuChanged: "the CPU changed"
+    hwModeChanged: "the hardware mode changed"
+    acceleratorUncalibrated: "an accelerator was detected but never measured"
+    probesOutdated: "this version adds measurements"
   errorToast: "Recalibration failed"
   setupTitle: "Calibrating encode capability"
   setupSubtitle: "Measuring how high your host can encode in realtime. This usually takes ~20 seconds and only runs once."

@@ -105,6 +105,9 @@ shed:
   fileNotReady:
     title: Dieses Video wird vorbereitet
     body: "Dieses Video wird noch vorbereitet - das dauert normalerweise nur wenige Sekunden. Versuchen Sie es gleich noch einmal."
+  calibrating:
+    title: "Der Server kalibriert sich"
+    body: "Der Server misst gerade, was dieser Rechner wiedergeben kann. Das dauert etwa 2 Minuten und geschieht nur, wenn sonst nichts läuft. Versuchen Sie es in ein paar Minuten noch einmal."
 retry: Erneut versuchen
 goBack: Zurück
 shareDesc: "Teilen Sie diesen Link mit Freunden, um zusammen zu schauen:"

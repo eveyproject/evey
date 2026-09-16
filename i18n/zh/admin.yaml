@@ -1176,6 +1176,14 @@ calibration:
   successToast: "重新校准完成"
   busyToast: "重新校准已在进行中"
   contendedLine: "临时结果：服务器测量自身时已经很忙（CPU 占用 {{percent}}%），因此这些上限被低估了 - 它们描述的是一台共享的机器，而不是这台。服务器空闲后会自动重新测量。"
+  pendingLine: '正在等待空闲时刻进行校准（{{reason}}）：服务器只在没有其他任务运行时测量自身，因此下方的上限为临时值。点击"重新校准"可立即测量。'
+  benchmarkingLine: "正在校准 - 约 2 分钟。新的播放将等待校准完成。"
+  pendingReason:
+    firstBoot: "首次启动"
+    cpuChanged: "CPU 已更改"
+    hwModeChanged: "硬件模式已更改"
+    acceleratorUncalibrated: "检测到加速器但尚未测量"
+    probesOutdated: "此版本新增了测量项"
   errorToast: "重新校准失败"
   setupTitle: "正在校准编码能力"
   setupSubtitle: "正在测量主机的实时编码上限。此过程通常约需 20 秒，且仅运行一次。"

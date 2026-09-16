@@ -46,6 +46,19 @@ type EncodeCapability = {
   bench_samples?: BenchRungSample[]; // per-rung fps evidence behind the caps
   bench_contended?: boolean; // benchmarked while the host was busy: provisional, auto re-benched when idle
   bench_host_busy_percent?: number; // host-wide CPU busy share right before the bench (0-100)
+  // Lifecycle: a boot never benchmarks, so "pending" means the ceilings are
+  // interim until the first idle window; "benchmarking" means it runs now.
+  calibration?: { state: "pending" | "benchmarking" | "provisional" | "calibrated"; reason?: string };
+};
+
+// pendingReasonKey maps the server's pending reason to its i18n key (an
+// unknown reason falls back to the raw string).
+const PENDING_REASON_KEYS: Record<string, string> = {
+  "first boot": "firstBoot",
+  "cpu signature changed": "cpuChanged",
+  "hw mode changed": "hwModeChanged",
+  "accelerator detected but not calibrated": "acceleratorUncalibrated",
+  "calibration probes outdated": "probesOutdated",
 };
 
 const QK_CALIBRATION = ["admin", "transcode-calibration"] as const;
@@ -448,6 +461,22 @@ export function EncodeCalibrationCard() {
       {/* A bench run on an already-busy host measured the neighbours, not the
           box: say so next to the ceilings it produced, or a shared-box floor
           reads as this host's ceiling. The server re-benches by itself. */}
+      {/* A boot never benchmarks: say the ceilings are interim while the
+          bench waits for a quiet moment, or that it is running right now. */}
+      {data.calibration?.state === "pending" && (
+        <p className="mt-2 text-xs font-medium text-[var(--color-warning)]" data-testid="calibration-pending">
+          {t("admin.calibration.pendingLine", "Waiting for a quiet moment to calibrate ({{reason}}): the server measures itself only once nothing else is running, so the ceilings below are interim. Use \"Recalibrate\" to run it now.", {
+            reason: data.calibration.reason
+              ? t(`admin.calibration.pendingReason.${PENDING_REASON_KEYS[data.calibration.reason] ?? ""}`, data.calibration.reason)
+              : "",
+          })}
+        </p>
+      )}
+      {data.calibration?.state === "benchmarking" && (
+        <p className="mt-2 text-xs font-medium text-[var(--color-warning)]" data-testid="calibration-benchmarking">
+          {t("admin.calibration.benchmarkingLine", "Calibrating now - about 2 minutes. New playbacks are held off until it is done.")}
+        </p>
+      )}
       {data.bench_contended && (
         <p className="mt-2 text-xs font-medium text-[var(--color-warning)]" data-testid="calibration-contended">
           {t(
