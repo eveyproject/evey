@@ -33,7 +33,7 @@ Run it as the user who owns your media (`user: "1000:1000"` or the `PUID` / `PGI
 
 ## Hardware transcoding
 
-One image covers Intel Quick Sync (VAAPI / QSV) and NVIDIA (NVENC). Pass the device (`/dev/dri` or the NVIDIA runtime) and Evey benchmarks the box at boot to size how many streams it can serve. Nothing to buy, nothing to unlock. No hardware encoder on ARM boards: those play direct and transcode in software.
+One image covers Intel Quick Sync (VAAPI / QSV), NVIDIA (NVENC) and, on arm64, Rockchip (RKMPP, best-effort). Pass the device (`/dev/dri`, the NVIDIA runtime, or the Rockchip MPP node) and Evey detects, probes, benchmarks and calibrates the box at boot to decide what it can encode and how many streams it can serve. Nothing to buy, nothing to unlock. Other ARM boards (Raspberry Pi, Realtek NAS) have no hardware encoder: those play direct and transcode in software.
 
 ## Tags
 

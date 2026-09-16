@@ -44,8 +44,10 @@ embedded database keep working unchanged - `EVEY_DB_HOST` being set is what
 keeps their own Postgres in charge.
 
 > **ARM (Raspberry Pi, ARM NAS)?** Stable `vX.Y.Z` releases ship a multi-arch
-> image (amd64 + arm64) - the same `docker pull` works, but ARM has no hardware
-> transcoding (direct-play + software only). Details, PUID/PGID, an external
+> image (amd64 + arm64) - the same `docker pull` works. Hardware transcoding on
+> ARM is Rockchip RKMPP only (best-effort, certified by the boot calibration);
+> a Raspberry Pi or a Realtek NAS plays direct and transcodes in software.
+> Details, PUID/PGID, an external
 > Postgres or Meilisearch, and every other option are in
 > [docs/installation.md](docs/installation.md).
 
