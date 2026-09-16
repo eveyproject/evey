@@ -23,7 +23,7 @@ export async function previewPluginFile(fileUri: string, token: string | null): 
     headers: authHeaders(token),
   });
   if (res.status < 200 || res.status >= 300) {
-    throw new Error(res.body || `preview failed (${res.status})`);
+    throw new Error(refusalMessage(res.body, `preview failed (${res.status})`));
   }
   return JSON.parse(res.body) as InstallPreview;
 }
@@ -70,11 +70,19 @@ export async function installPluginFile(
     return { ok: false, blocked: body?.issues ?? (body?.message ? [body.message] : []) };
   }
   if (res.status < 200 || res.status >= 300) {
-    return { ok: false, error: res.body || `install failed (${res.status})` };
+    return { ok: false, error: refusalMessage(res.body, `install failed (${res.status})`) };
   }
   return { ok: true };
 }
 
 function safeJson(s: string): unknown {
   try { return JSON.parse(s); } catch { return null; }
+}
+
+// The server answers a refused archive with {"message": "..."}: the operator
+// reads the reason, not the JSON envelope.
+function refusalMessage(body: string, fallback: string): string {
+  const parsed = safeJson(body) as { message?: unknown } | null;
+  if (parsed && typeof parsed.message === "string" && parsed.message) return parsed.message;
+  return body || fallback;
 }
