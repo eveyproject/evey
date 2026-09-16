@@ -32,6 +32,12 @@ interface ProgressReporterProps {
   /** Media type (episode / movie / ...) - gates the warm-up to episodes. */
   mediaType?: string;
   onRemoteStop?: () => void;
+  /**
+   * Admin `message:` command. The player draws it INSIDE its container: a
+   * global toast lives outside the fullscreen element, which the browser
+   * never paints while the player is fullscreen. Falls back to a toast.
+   */
+  onRemoteMessage?: (message: string) => void;
   /** Present and active while a cast session plays this media. */
   cast?: CastProgressSource;
 }
@@ -42,7 +48,7 @@ interface ProgressReporterProps {
 // transcode budget on abandoned plays.
 const PREWARM_PROGRESS_THRESHOLD = 0.85;
 
-export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, mediaId, mediaType, onRemoteStop, cast }: ProgressReporterProps) {
+export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, mediaId, mediaType, onRemoteStop, onRemoteMessage, cast }: ProgressReporterProps) {
   const pendingRef = useRef(false);
   const errorCountRef = useRef(0);
   // One prewarm per media item per mount - fires exactly when the
@@ -51,6 +57,8 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
   const prewarmedForRef = useRef<string | null>(null);
   const onRemoteStopRef = useRef(onRemoteStop);
   onRemoteStopRef.current = onRemoteStop;
+  const onRemoteMessageRef = useRef(onRemoteMessage);
+  onRemoteMessageRef.current = onRemoteMessage;
   // Mirrored into a ref so the 3s interval closure always reads the LIVE cast
   // state (the effect below deliberately doesn't re-run on every cast tick).
   const castRef = useRef(cast);
@@ -136,7 +144,9 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
             }
             onRemoteStopRef.current?.();
           } else if (res.remoteCommand.startsWith("message:")) {
-            toast.info(res.remoteCommand.slice(8));
+            const message = res.remoteCommand.slice(8);
+            if (onRemoteMessageRef.current) onRemoteMessageRef.current(message);
+            else toast.info(message);
           }
         }
       } catch (err) {
