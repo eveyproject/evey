@@ -106,6 +106,9 @@ func (h *transcodingHandler) StopTranscode(ctx context.Context, req *eveyv1.Stop
 		return nil, err
 	}
 	if err := h.svc.StopTranscode(ctx, req.JobId); err != nil {
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.transcode.job_not_found")
+		}
 		return nil, internalError(ctx, "stop transcode", err)
 	}
 	return &eveyv1.StopTranscodeResponse{}, nil
