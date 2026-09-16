@@ -851,3 +851,36 @@ func TestAlternativeTitles(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 2, calls, "an unsupported type never hits the network")
 }
+
+// The parental gate reads OfficialRating; TMDb spreads certifications per
+// country, per release type for movies and per country for series. The map
+// keeps every country, the first non-empty entry per country wins, the US
+// entry is the backcompat default and an already-set rating is not overridden.
+func TestMapDetailCertifications(t *testing.T) {
+	movie := tmdbDetailResponse{ReleaseDates: &tmdbReleaseDates{Results: []tmdbCountryReleaseDates{
+		{Country: "FR", ReleaseDates: []tmdbReleaseDateEntry{{Certification: ""}, {Certification: "12"}, {Certification: "16"}}},
+		{Country: "US", ReleaseDates: []tmdbReleaseDateEntry{{Certification: "PG-13"}}},
+		{Country: "XX", ReleaseDates: []tmdbReleaseDateEntry{{Certification: ""}}},
+	}}}
+	var r domain.MetadataResult
+	mapDetailCertifications(&r, movie, "movie")
+	assert.Equal(t, map[string]string{"FR": "12", "US": "PG-13"}, r.CertificationsByCountry)
+	assert.Equal(t, "PG-13", r.OfficialRating)
+
+	tv := tmdbDetailResponse{ContentRatings: &tmdbContentRatings{Results: []tmdbCountryContentRating{
+		{Country: "DE", Rating: "16"}, {Country: "US", Rating: "TV-MA"}, {Country: "ES", Rating: ""},
+	}}}
+	preset := domain.MetadataResult{OfficialRating: "TV-14"}
+	mapDetailCertifications(&preset, tv, "tv")
+	assert.Equal(t, map[string]string{"DE": "16", "US": "TV-MA"}, preset.CertificationsByCountry)
+	assert.Equal(t, "TV-14", preset.OfficialRating, "a rating already set is kept")
+
+	// A series payload read as a movie (or the reverse) contributes nothing, and
+	// no certifications at all leaves the result untouched.
+	var cross domain.MetadataResult
+	mapDetailCertifications(&cross, tv, "movie")
+	assert.Nil(t, cross.CertificationsByCountry)
+	mapDetailCertifications(&cross, tmdbDetailResponse{}, "tv")
+	assert.Nil(t, cross.CertificationsByCountry)
+	assert.Empty(t, cross.OfficialRating)
+}

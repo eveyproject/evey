@@ -2,8 +2,11 @@ package mkvgo
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/mkv"
@@ -57,5 +60,31 @@ func TestHasSeekIndex_NonEBML_False(t *testing.T) {
 	}
 	if has {
 		t.Errorf("non-EBML file must report no seek index")
+	}
+}
+
+// The EACCES a repair hits is turned into the operator's diagnosis: the
+// domain sentinel the API maps, the server uid, the PUID/PGID remedy, and the
+// raw cause still unwrappable for the log.
+func TestPermissionRemedy(t *testing.T) {
+	cause := &os.PathError{Op: "rename", Path: "/media/film.mkv", Err: os.ErrPermission}
+	err := permissionRemedy(cause)
+	if !errors.Is(err, mkv.ErrMediaNotWritable) {
+		t.Errorf("must carry the domain sentinel, got %v", err)
+	}
+	if !errors.Is(err, os.ErrPermission) {
+		t.Errorf("must keep the raw cause, got %v", err)
+	}
+	for _, want := range []string{"PUID/PGID", strconv.Itoa(os.Getuid()), "/media/film.mkv"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("message %q lacks %q", err.Error(), want)
+		}
+	}
+}
+
+func TestCanRemux_EBMLOnly(t *testing.T) {
+	a := New()
+	if !a.CanRemux("/x/a.mkv") || !a.CanRemux("/x/a.WEBM") || a.CanRemux("/x/a.mp4") {
+		t.Error("only EBML containers can be remuxed to MP4")
 	}
 }
