@@ -7,6 +7,7 @@ import (
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
 	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
@@ -158,3 +159,26 @@ var errBatchDeleteFailed = &staticErr{"artwork batch delete failed"}
 type staticErr struct{ msg string }
 
 func (e *staticErr) Error() string { return e.msg }
+
+// GetOverride is the hop the gRPC handler uses to find WHICH media item an
+// override targets before gating Remove on that item's library.
+func TestGetOverride_ResolvesTheTargetItem(t *testing.T) {
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		overrideRepo, metafakes.NewFakeArtworkRepository(), metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(), nil,
+	)
+	ctx := context.Background()
+	ov, err := domainmetadata.NewMetadataOverride("ov-1", "mi-1", "title",
+		domainmetadata.WithOverrideValue("Corrected"), domainmetadata.WithOverrideEditor("adm-1"))
+	require.NoError(t, err)
+	require.NoError(t, cmdSvc.SetOverride(ctx, ov))
+
+	got, err := cmdSvc.GetOverride(ctx, ov.ID)
+	require.NoError(t, err)
+	assert.Equal(t, shared.MediaItemID("mi-1"), got.MediaItemID)
+	assert.Equal(t, "title", got.FieldName)
+
+	_, err = cmdSvc.GetOverride(ctx, "ghost")
+	assert.Error(t, err, "an unknown override must not resolve to a nil target the caller then dereferences")
+}
