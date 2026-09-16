@@ -349,3 +349,38 @@ func TestNotificationRepo_MarkReadDistinguishesNotFoundFromAlreadyRead(t *testin
 	// stays unguessable - and it must NOT have been marked read.
 	require.ErrorIs(t, repo.MarkRead(ctx, n.ID, "profile-b"), shared.ErrNotFound)
 }
+
+// Batching rewrites the grouped fields of an existing row (subject, season
+// and episode counts, title) - scoped to the owning profile, so another
+// profile's row with the same id is never touched.
+func TestNotificationRepo_Update_RewritesGroupedFieldsForOwnerOnly(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	seedNotifProfile(t, db, "profile-up", "notif-up")
+	repo := postgres.NewNotificationRepository(db)
+	ctx := context.Background()
+
+	n := &notification.Notification{
+		ID: "notif-up-1", ProfileID: "profile-up", Type: notification.TypeNewEpisode,
+		Title: "New Episodes: Some Series", Subject: "Some Series", SeasonCount: 1, EpisodeCount: 1,
+		Level: notification.LevelAll, CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}
+	require.NoError(t, repo.Create(ctx, n))
+
+	n.Title, n.SeasonCount, n.EpisodeCount = "New Episodes: Some Series (3)", 2, 3
+	require.NoError(t, repo.Update(ctx, n))
+	list, err := repo.ListByProfile(ctx, "profile-up", false, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Equal(t, "New Episodes: Some Series (3)", list[0].Title)
+	assert.Equal(t, 2, list[0].SeasonCount)
+	assert.Equal(t, 3, list[0].EpisodeCount)
+
+	// Another profile cannot rewrite it through the same id.
+	foreign := *n
+	foreign.ProfileID = "profile-other"
+	foreign.Title = "hijacked"
+	require.NoError(t, repo.Update(ctx, &foreign))
+	list, _ = repo.ListByProfile(ctx, "profile-up", false, 10, 0)
+	assert.Equal(t, "New Episodes: Some Series (3)", list[0].Title)
+}
