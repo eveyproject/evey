@@ -248,7 +248,7 @@ func IsPlainAddress(email string) bool {
 // Caller may mutate IsAdmin/Enabled afterwards if needed.
 // Surrounding whitespace is dropped: a phone keyboard appends a space after
 // autocomplete, and Login trims, so an account stored with the space could
-// never sign in (prod, 2026-09-16).
+// never sign in.
 func NewUser(username, email, passwordHash string) (*User, error) {
 	now := time.Now()
 	u := &User{

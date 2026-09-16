@@ -4,16 +4,15 @@ import "fmt"
 
 // audio_downmix.go owns ONE decision: the level policy when a multichannel bed
 // is folded to stereo. A fully normalised fold (maxval 1.0) never clips but sits
-// 6-7.7 dB under every other player (2026-09-04); at 2.0 the level is back but a
-// loud mix exceeds full scale and the integer encoder input hard-clips it
-// (2026-09-16, 0.33% of samples on the rail over a film's last third). So the
-// fold runs in float inside the filter graph, followed by a look-ahead limiter:
-// bit-identical below the ceiling (latency compensated), gain-ridden above.
+// 6-7.7 dB under every other player; with makeup a loud mix exceeds full scale
+// and the integer encoder input hard-clips it. So the fold runs in float inside
+// the filter graph, followed by a look-ahead limiter: bit-identical below the
+// ceiling (latency compensated), gain-ridden above.
 const (
 	// DownmixRematrixMaxval is inert on any matrix already summing below it
 	// (stereo -> stereo is bit-identical at 1.0 and 1.41); only a real fold scales.
 	// +3 dB, not +6: at 2.0 the limiter worked 16% of a film climax with 7 dB
-	// swings (audible pumping); at 1.41 it is 4% and 4 dB (measured 2026-09-16).
+	// swings (audible pumping); at 1.41 it is 4% and 4 dB.
 	DownmixRematrixMaxval = 1.4142
 
 	// DownmixLimiterCeiling is -2 dBFS, the lossy-delivery margin: alimiter
