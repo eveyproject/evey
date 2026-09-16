@@ -160,3 +160,22 @@ func TestIndex_Moved_HashUnknown(t *testing.T) {
 		t.Fatalf("unknown hash must not match, got id=%s ok=%v", id, ok)
 	}
 }
+
+// A row flagged for reprobe is reprocessed even though its path/size/mtime
+// match; an unflagged or unknown row is not.
+func TestIndex_NeedsReprobe(t *testing.T) {
+	t.Parallel()
+	idx := scanindex.New([]scanindex.Summary{
+		{ID: "1", Path: "/a.mp4", NeedsReprobe: true},
+		{ID: "2", Path: "/b.mp4"},
+	})
+	if !idx.NeedsReprobe("/a.mp4") {
+		t.Fatal("flagged row must need a reprobe")
+	}
+	if idx.NeedsReprobe("/b.mp4") {
+		t.Fatal("unflagged row must not")
+	}
+	if idx.NeedsReprobe("/nope") {
+		t.Fatal("unknown path must not")
+	}
+}
