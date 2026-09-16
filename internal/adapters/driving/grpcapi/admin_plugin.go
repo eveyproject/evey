@@ -283,7 +283,7 @@ func (d *adminPluginHandler) GetPluginConfig(ctx context.Context, req *eveyv1.Ge
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "get config")
-		return nil, status.Errorf(codes.NotFound, "get config: %v", err)
+		return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 	}
 	resp := &eveyv1.PluginConfig{
 		PluginId: req.PluginId,
@@ -310,7 +310,7 @@ func (d *adminPluginHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "get plugin")
-		return nil, status.Errorf(codes.NotFound, "get plugin: %v", err)
+		return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 	}
 	values := restoreMaskedSecrets(req.Values, result.Config, result.ConfigSchema)
 	if err := validateConfigValues(values, result.ConfigSchema); err != nil {

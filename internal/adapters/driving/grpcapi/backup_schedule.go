@@ -77,10 +77,9 @@ func (h *backupScheduleHandler) RunBackupNow(ctx context.Context, _ *eveyv1.RunB
 			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, status.Error(codes.FailedPrecondition, "a backup is already running")
 		}
-		slog.ErrorContext(ctx, "run backup now", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "backup failed: %v", err)
+		return nil, internalError(ctx, "run backup now", err)
 	}
 	return &eveyv1.RunBackupNowResponse{BackupId: m.ID}, nil
 }

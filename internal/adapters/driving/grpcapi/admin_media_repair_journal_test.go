@@ -175,3 +175,22 @@ func TestUndoMediaRepair_RefusalsAreFailedPreconditionAndUnaudited(t *testing.T)
 
 	assert.Empty(t, auditEntries(t, repo, "undo_media_repair"), "nothing happened to the file, nothing to audit")
 }
+
+// An unknown collection or plugin answers a plain NotFound: the repository's
+// own error text (SQL, driver wording) stays out of the wire.
+func TestNotFoundAnswersCarryNoRepositoryText(t *testing.T) {
+	ctx := ctxWithClaims("adm-1", "prf-adm", true)
+
+	col, _ := newTestCollectionHandler()
+	_, err := col.GetCollection(ctx, &eveyv1.GetCollectionRequest{Id: "ghost"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.NotContains(t, status.Convert(err).Message(), ":")
+
+	pl := newTestPluginHandler()
+	_, err = pl.GetPluginConfig(ctx, &eveyv1.GetPluginConfigRequest{PluginId: "ghost"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.NotContains(t, status.Convert(err).Message(), ":")
+	_, err = pl.UpdatePluginConfig(ctx, &eveyv1.UpdatePluginConfigRequest{PluginId: "ghost"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.NotContains(t, status.Convert(err).Message(), ":")
+}

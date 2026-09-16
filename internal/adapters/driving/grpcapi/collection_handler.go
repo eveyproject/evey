@@ -139,7 +139,7 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "collection not found")
-		return nil, status.Errorf(codes.NotFound, "collection not found: %v", err)
+		return nil, status.Error(codes.NotFound, "collection not found")
 	}
 	allowed, filterErr := h.allowedLibraryIDs(ctx)
 	if filterErr != nil {

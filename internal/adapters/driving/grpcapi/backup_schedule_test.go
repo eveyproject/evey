@@ -2,9 +2,14 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appbackup "github.com/evey-project/evey/internal/app/backup"
@@ -163,5 +168,22 @@ func TestBackupScheduleHandler_RunBackupNow(t *testing.T) {
 	}
 	if resp.BackupId != "bk-handler-test" {
 		t.Errorf("expected backup_id 'bk-handler-test', got %q", resp.BackupId)
+	}
+}
+
+// A failed backup's cause (pg_dump stderr, a filesystem path) belongs in the
+// server log, not on the wire: the RPC answers a sanitized internal error.
+func TestBackupScheduleHandler_RunBackupNow_FailureIsSanitized(t *testing.T) {
+	repo := newFakeHandlerScheduleRepo()
+	runner := newFakeRunnerForHandler()
+	runner.createErr = errors.New("pg_dump: /var/lib/evey/backups/full.sql: no space left on device")
+	h := &backupScheduleHandler{scheduler: newTestBackupScheduler(repo, runner)}
+
+	_, err := h.RunBackupNow(context.Background(), &eveyv1.RunBackupNowRequest{})
+	if status.Code(err) != codes.Internal {
+		t.Fatalf("code = %v, want Internal", status.Code(err))
+	}
+	if msg := status.Convert(err).Message(); strings.Contains(msg, "pg_dump") || strings.Contains(msg, "/var/lib") {
+		t.Errorf("internal detail leaked on the wire: %q", msg)
 	}
 }
