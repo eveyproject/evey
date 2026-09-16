@@ -484,3 +484,37 @@ func TestParentalUpdateSettings_RefusalsCarryTranslatableKeys(t *testing.T) {
 		t.Fatalf("refusal must carry an i18n key, got English prose %q", body.Message)
 	}
 }
+
+// The write side of a parental change: the kids/PIN household invariant is
+// re-checked on the fully mutated profile (removing the guardian PIN while a
+// kids profile exists is a 409 with a translatable key, nothing persisted),
+// and a storage failure is a sanitized 500 rather than a false "ok".
+func TestParentalUpdateSettings_PersistGuards(t *testing.T) {
+	mux, gen, _ := newKidsCallerMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
+	do := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/prof-1/parental", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+
+	// Clearing the parent's own PIN would leave the kids sibling unguarded.
+	w := do(`{"currentPin":"parent-pin","pin":""}`)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("removing the guardian PIN next to a kids profile: want 409, got %d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "errors.auth.pin_required_for_non_kids") {
+		t.Errorf("409 must carry the translatable key, got %s", w.Body.String())
+	}
+
+	// A valid change on the parent profile persists.
+	w = do(`{"currentPin":"parent-pin","blockedTags":["gore"]}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("valid parental change: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"ok":true`) {
+		t.Errorf("body = %s", w.Body.String())
+	}
+}
