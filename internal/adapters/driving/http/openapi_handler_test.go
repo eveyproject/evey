@@ -2,8 +2,11 @@ package httpapi
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	authpkg "github.com/evey-project/evey/internal/pkg/auth"
@@ -154,5 +157,46 @@ func TestBuildPublicOpenAPISpec_PrunesUnreachableDefinitions(t *testing.T) {
 		if _, ok := spec.Definitions[dropped]; ok {
 			t.Errorf("definition %s is unreachable from the kept operations and must be pruned", dropped)
 		}
+	}
+}
+
+// The handler builds the spec once from the first candidate dir that exists,
+// caches the bytes for every later request, and answers 503 (not a panic, not
+// an empty 200) when no dir is there - a dev tree without gen/.
+func TestOpenAPIPublicHandler_BuildsOnceAnd503WithoutSpecs(t *testing.T) {
+	saved := publicOpenAPIDirs
+	t.Cleanup(func() { publicOpenAPIDirs = saved })
+
+	publicOpenAPIDirs = []string{filepath.Join(t.TempDir(), "missing")}
+	rec := httptest.NewRecorder()
+	openAPIPublicHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/openapi.json", nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("no specs dir: status %d, want 503", rec.Code)
+	}
+
+	dir := t.TempDir()
+	fixture := `{"swagger":"2.0","paths":{"/api/v1/libraries":{"get":{"operationId":"LibraryService_ListLibraries","description":"list","tags":["LibraryService"]}}},"definitions":{}}`
+	if err := os.WriteFile(filepath.Join(dir, "library.swagger.json"), []byte(fixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	publicOpenAPIDirs = []string{filepath.Join(t.TempDir(), "missing"), dir}
+	h := openAPIPublicHandler()
+	first := httptest.NewRecorder()
+	h.ServeHTTP(first, httptest.NewRequest(http.MethodGet, "/api/v1/openapi.json", nil))
+	if first.Code != http.StatusOK || first.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("status %d content-type %q", first.Code, first.Header().Get("Content-Type"))
+	}
+	if !strings.Contains(first.Body.String(), "LibraryService_ListLibraries") {
+		t.Errorf("spec body = %s", first.Body.String())
+	}
+
+	// Remove the source: a cached handler must keep serving the same bytes.
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	second := httptest.NewRecorder()
+	h.ServeHTTP(second, httptest.NewRequest(http.MethodGet, "/api/v1/openapi.json", nil))
+	if second.Code != http.StatusOK || second.Body.String() != first.Body.String() {
+		t.Error("second request must be served from the cache")
 	}
 }
