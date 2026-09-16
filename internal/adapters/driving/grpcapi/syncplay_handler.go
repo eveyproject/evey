@@ -15,6 +15,7 @@ import (
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -32,6 +33,7 @@ type syncplayHandler struct {
 	// guest token the parental gate cannot see.
 	userQuery   *appuser.QueryService
 	musicSvc    *appmusic.Service
+	translator  *eveyi18n.Translator
 	playlistSvc *appplaylist.Service
 }
 
@@ -45,11 +47,11 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 			return nil
 		}
 		if h.musicSvc == nil {
-			return status.Error(codes.NotFound, "media not found")
+			return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 		}
 		t, err := h.musicSvc.GetTrack(ctx, mediaID)
 		if err != nil || t == nil {
-			return status.Error(codes.NotFound, "media not found")
+			return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 		}
 		if h.userAccess == nil {
 			return errUserAccessNotConfigured(ctx, "syncplayHandler.requireMediaAccess")
@@ -65,7 +67,7 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 				slog.Any("err", accErr))
 		}
 		if !ok {
-			return status.Error(codes.NotFound, "media not found")
+			return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 		}
 		return nil
 	}
@@ -77,7 +79,7 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, mediaID)
 	if err != nil || item == nil {
-		return status.Error(codes.NotFound, "media not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	ok, accErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 	if accErr != nil {
@@ -87,7 +89,7 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 			slog.Any("err", accErr))
 	}
 	if !ok {
-		return status.Error(codes.NotFound, "media not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	// Parental gate, same opaque NotFound as the access denial above so the
 	// caller can't tell "forbidden" from "absent".
@@ -98,7 +100,7 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 	// mints a media-scoped guest token carrying NO profile, and the parental
 	// gate no-ops on an empty profile, so the blocked media became streamable.
 	if mediaItemBlockedByParental(resolveParentalFilterFromUserQuery(ctx, h.userQuery), item) {
-		return status.Error(codes.NotFound, "media not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	return nil
 }
@@ -106,9 +108,9 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 // createRoomError maps a room-creation failure to a gRPC status: the per-user
 // room cap is a client-actionable limit (ResourceExhausted), everything else
 // is a sanitized internal error.
-func createRoomError(ctx context.Context, err error) error {
+func createRoomError(ctx context.Context, tr *eveyi18n.Translator, err error) error {
 	if errors.Is(err, appsyncplay.ErrTooManyRooms) {
-		return status.Error(codes.ResourceExhausted, "too many active rooms")
+		return tr.TranslatedError(ctx, codes.ResourceExhausted, "errors.syncplay.too_many_rooms")
 	}
 	return internalError(ctx, "create room", err)
 }
@@ -139,13 +141,13 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 				span.RecordError(plErr)
 			}
 			span.SetStatus(otelcodes.Error, "playlist not found")
-			return nil, status.Error(codes.NotFound, "playlist not found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.playlist.not_found")
 		}
 		mediaItems, plItems, itemsErr := h.playlistSvc.GetItems(ctx, req.PlaylistId, shared.ProfileID(claims.ProfileID))
 		if itemsErr != nil {
 			span.RecordError(itemsErr)
 			span.SetStatus(otelcodes.Error, "playlist not found")
-			return nil, status.Error(codes.NotFound, "playlist not found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.playlist.not_found")
 		}
 		trackIDs := make([]string, 0)
 		if pl.IsSmart() {
@@ -159,7 +161,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		}
 		if len(trackIDs) == 0 {
 			span.SetStatus(otelcodes.Error, "playlist is empty")
-			return nil, status.Error(codes.FailedPrecondition, "playlist is empty")
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.syncplay.playlist_empty")
 		}
 		// Validate first-track access (music). If user has no access, fail.
 		if err := h.requireMediaAccess(ctx, trackIDs[0], "music"); err != nil {
@@ -169,7 +171,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		}
 		name := req.Name
 		if len(name) > 100 {
-			return nil, status.Error(codes.InvalidArgument, "room name must be 100 characters or fewer")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.syncplay.name_too_long")
 		}
 		if name == "" {
 			name = pl.Name
@@ -181,7 +183,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, createRoomError(ctx, err)
+			return nil, createRoomError(ctx, h.translator, err)
 		}
 		return &eveyv1.CreateSyncPlayRoomResponse{
 			Id:        room.ID,
@@ -211,7 +213,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		}
 		if len(trackIDs) == 0 {
 			span.SetStatus(otelcodes.Error, "queue is empty")
-			return nil, status.Error(codes.InvalidArgument, "queue is empty")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.syncplay.queue_empty")
 		}
 		// Gate on the first track's library access (the rest are enforced per
 		// track at playback time, same as the playlist path).
@@ -222,7 +224,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		}
 		name := req.Name
 		if len(name) > 100 {
-			return nil, status.Error(codes.InvalidArgument, "room name must be 100 characters or fewer")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.syncplay.name_too_long")
 		}
 		if name == "" {
 			name = "Listen Together"
@@ -231,7 +233,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		if createErr != nil {
 			span.RecordError(createErr)
 			span.SetStatus(otelcodes.Error, createErr.Error())
-			return nil, createRoomError(ctx, createErr)
+			return nil, createRoomError(ctx, h.translator, createErr)
 		}
 		return &eveyv1.CreateSyncPlayRoomResponse{
 			Id:        room.ID,
@@ -258,7 +260,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 	}
 	name := req.Name
 	if len(name) > 100 {
-		return nil, status.Error(codes.InvalidArgument, "room name must be 100 characters or fewer")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.syncplay.name_too_long")
 	}
 	if name == "" {
 		if mediaType == "music" {
@@ -271,7 +273,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, createRoomError(ctx, err)
+		return nil, createRoomError(ctx, h.translator, err)
 	}
 	return &eveyv1.CreateSyncPlayRoomResponse{
 		Id:        room.ID,
@@ -294,7 +296,7 @@ func (h *syncplayHandler) JoinByCode(ctx context.Context, req *eveyv1.JoinSyncPl
 	}
 	if req.Code == "" {
 		span.SetStatus(otelcodes.Error, "code required")
-		return nil, status.Error(codes.InvalidArgument, "code required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.syncplay.code_required")
 	}
 	room, err := h.hub.GetRoomByCode(ctx, req.Code)
 	if err != nil || room == nil {
@@ -302,7 +304,7 @@ func (h *syncplayHandler) JoinByCode(ctx context.Context, req *eveyv1.JoinSyncPl
 			span.RecordError(err)
 		}
 		span.SetStatus(otelcodes.Error, "room not found")
-		return nil, status.Error(codes.NotFound, "room not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.syncplay.room_not_found")
 	}
 	if err := h.requireMediaAccess(ctx, string(room.MediaID), room.MediaType); err != nil {
 		span.RecordError(err)
@@ -312,7 +314,7 @@ func (h *syncplayHandler) JoinByCode(ctx context.Context, req *eveyv1.JoinSyncPl
 	if err := h.hub.JoinRoom(ctx, room.ID, claims.UserID, claims.Username); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "room not found")
-		return nil, status.Error(codes.NotFound, "room not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.syncplay.room_not_found")
 	}
 	return &eveyv1.JoinSyncPlayByCodeResponse{
 		RoomId:    room.ID,
@@ -335,7 +337,7 @@ func (h *syncplayHandler) GetRoom(ctx context.Context, req *eveyv1.GetSyncPlayRo
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "room not found")
-		return nil, status.Error(codes.NotFound, "room not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.syncplay.room_not_found")
 	}
 	if err := h.requireMediaAccess(ctx, string(room.MediaID), room.MediaType); err != nil {
 		span.RecordError(err)
@@ -354,7 +356,7 @@ func (h *syncplayHandler) GetRoom(ctx context.Context, req *eveyv1.GetSyncPlayRo
 		// existing room they're not in from a non-existent one (matches the
 		// missing-room response above). Span keeps the real reason.
 		span.SetStatus(otelcodes.Error, "not a room member")
-		return nil, status.Error(codes.NotFound, "room not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.syncplay.room_not_found")
 	}
 	members := make([]*eveyv1.SyncPlayMember, 0, len(room.Members))
 	for _, m := range room.Members {
@@ -403,7 +405,7 @@ func (h *syncplayHandler) JoinRoom(ctx context.Context, req *eveyv1.JoinSyncPlay
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "room not found")
-		return nil, status.Error(codes.NotFound, "room not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.syncplay.room_not_found")
 	}
 	if err := h.requireMediaAccess(ctx, string(room.MediaID), room.MediaType); err != nil {
 		span.RecordError(err)
@@ -413,7 +415,7 @@ func (h *syncplayHandler) JoinRoom(ctx context.Context, req *eveyv1.JoinSyncPlay
 	if err := h.hub.JoinRoom(ctx, req.RoomId, claims.UserID, claims.Username); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "room not found")
-		return nil, status.Error(codes.NotFound, "room not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.syncplay.room_not_found")
 	}
 	return &eveyv1.JoinSyncPlayRoomResponse{
 		RoomId: req.RoomId,

@@ -103,3 +103,17 @@ transcode:
 share:
   not_found: "Freigabelink nicht gefunden"
   exhausted: "Dieser Link ist abgelaufen oder hat sein Aufruflimit erreicht"
+
+syncplay:
+  room_not_found: "Raum nicht gefunden"
+  code_required: "Ein Beitrittscode ist erforderlich"
+  too_many_rooms: "Zu viele aktive Räume - schließen Sie einen, bevor Sie einen neuen öffnen"
+  playlist_empty: "Diese Wiedergabeliste ist leer"
+  queue_empty: "Die Warteschlange ist leer"
+  name_too_long: "Der Raumname darf höchstens 100 Zeichen lang sein"
+
+request:
+  disabled: "Medienanfragen sind für Ihr Konto deaktiviert"
+  duplicate: "Sie haben bereits eine offene Anfrage für diesen Titel"
+  already_held: "Dieser Titel ist bereits in der Bibliothek"
+  not_found: "Anfrage nicht gefunden"

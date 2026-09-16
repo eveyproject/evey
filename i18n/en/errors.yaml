@@ -103,3 +103,17 @@ transcode:
 share:
   not_found: "Share link not found"
   exhausted: "This link has expired or reached its view limit"
+
+syncplay:
+  room_not_found: "Room not found"
+  code_required: "A join code is required"
+  too_many_rooms: "Too many active rooms - close one before opening another"
+  playlist_empty: "This playlist is empty"
+  queue_empty: "The queue is empty"
+  name_too_long: "Room name must be 100 characters or fewer"
+
+request:
+  disabled: "Media requests are disabled for your account"
+  duplicate: "You already have an open request for this title"
+  already_held: "This title is already in the library"
+  not_found: "Request not found"
