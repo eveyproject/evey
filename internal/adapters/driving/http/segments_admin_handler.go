@@ -48,7 +48,7 @@ func setSegmentHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, librar
 		if err := svc.SetManualSegment(r.Context(), mediaID, body.Type, body.StartMs, body.EndMs); err != nil {
 			span.RecordError(err)
 			slog.WarnContext(ctx, "set manual segment failed", slog.String("media_id", mediaID), slog.Any("err", err))
-			http.Error(w, `{"message":"`+err.Error()+`"}`, http.StatusBadRequest)
+			messageError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -118,7 +118,7 @@ func propagateSegmentHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, 
 		if err != nil {
 			span.RecordError(err)
 			slog.WarnContext(ctx, "propagate failed", slog.String("media_id", mediaID), slog.Any("err", err))
-			http.Error(w, `{"message":"`+err.Error()+`"}`, http.StatusInternalServerError)
+			messageError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
