@@ -75,6 +75,9 @@ func (h *webhookHandler) UpdateWebhook(ctx context.Context, req *eveyv1.UpdateWe
 		if errors.Is(err, appwebhook.ErrInvalidConfig) {
 			return nil, status.Error(codes.InvalidArgument, "invalid webhook configuration")
 		}
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, status.Error(codes.NotFound, "webhook not found")
+		}
 		return nil, internalError(ctx, "update webhook", err)
 	}
 	return webhookConfigToProto(cfg), nil
