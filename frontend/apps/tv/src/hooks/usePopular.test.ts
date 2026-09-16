@@ -13,7 +13,9 @@ function wrapper() {
   return ({ children }: { children: React.ReactNode }) => React.createElement(QueryClientProvider, { client: qc }, children);
 }
 
-beforeEach(() => eveyFetchMock.mockReset());
+beforeEach(() => {
+  eveyFetchMock.mockReset();
+});
 
 // The "most popular" row is one endpoint for the three clients: the hook
 // reads the items and turns a missing array into an empty row rather than a

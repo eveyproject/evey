@@ -40,7 +40,9 @@ function mount(data: ReturnType<typeof settings>) {
   render(React.createElement(QueryClientProvider, { client: qc }, React.createElement(ServerSettingsCard)));
 }
 
-beforeEach(() => eveyFetchMock.mockReset());
+beforeEach(() => {
+  eveyFetchMock.mockReset();
+});
 
 // The card only sends what the operator set: a default-sourced setting stays
 // out of the PUT (an empty field means "keep the default", never "0"), an
