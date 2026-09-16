@@ -2,6 +2,7 @@ package netmeter
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,5 +65,52 @@ func TestNilMeter_MiddlewareIsPassthrough(t *testing.T) {
 	h(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 	if !called {
 		t.Error("nil meter must pass through")
+	}
+}
+
+type readerFromRecorder struct {
+	*httptest.ResponseRecorder
+	readFromCalls int
+}
+
+func (r *readerFromRecorder) ReadFrom(src io.Reader) (int64, error) {
+	r.readFromCalls++
+	return io.Copy(r.ResponseRecorder, src)
+}
+
+// http.ServeContent / io.Copy reach for ReadFrom when the underlying writer
+// offers it (sendfile): the bytes must still be metered, exactly once, and the
+// fast path must actually be taken rather than degraded to Write.
+func TestCountingWriter_ReadFromFastPathIsMeteredOnce(t *testing.T) {
+	m := &Meter{}
+	rec := &readerFromRecorder{ResponseRecorder: httptest.NewRecorder()}
+	h := m.Middleware(func(w http.ResponseWriter, _ *http.Request) {
+		n, err := w.(io.ReaderFrom).ReadFrom(strings.NewReader(strings.Repeat("x", 1000)))
+		if err != nil || n != 1000 {
+			t.Fatalf("ReadFrom = %d, %v", n, err)
+		}
+	})
+	h(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if m.Total() != 1000 {
+		t.Fatalf("metered %d bytes, want 1000", m.Total())
+	}
+	if rec.readFromCalls != 1 {
+		t.Fatalf("fast path taken %d times, want 1", rec.readFromCalls)
+	}
+	if rec.Body.Len() != 1000 {
+		t.Fatalf("body = %d bytes", rec.Body.Len())
+	}
+}
+
+// http.ResponseController reaches the real writer through Unwrap (deadlines,
+// hijack): the meter must not hide it.
+func TestCountingWriter_Unwrap(t *testing.T) {
+	rec := httptest.NewRecorder()
+	var got http.ResponseWriter
+	(&Meter{}).Middleware(func(w http.ResponseWriter, _ *http.Request) {
+		got = w.(interface{ Unwrap() http.ResponseWriter }).Unwrap()
+	})(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if got != rec {
+		t.Fatal("Unwrap must hand back the wrapped writer")
 	}
 }
