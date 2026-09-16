@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { PluginCard } from "@/features/admin/PluginCard";
 import { PluginSecurityDashboard } from "@/features/admin/PluginSecurityDashboard";
+import { uploadRefusalMessage } from "@/features/plugins/uploadRefusal";
 import { PluginResourceLimits } from "@/features/admin/PluginResourceLimits";
 
 export const Route = createLazyFileRoute("/_auth/admin/plugins")({
@@ -317,7 +318,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
           return;
         }
       }
-      if (!res.ok) throw new Error(t("admin.plugins.installFailed"));
+      if (!res.ok) throw new Error(await uploadRefusalMessage(res, t("admin.plugins.installFailed")));
       setEscalationEntries([]);
       setStep("done");
       onSuccess();
