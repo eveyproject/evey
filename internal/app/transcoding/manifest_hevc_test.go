@@ -45,3 +45,22 @@ func TestMaster_HevcTranscodeRungs_CodecsAndVideoRange(t *testing.T) {
 	assert.Contains(t, out, `CODECS="hvc1.2.4.L153.B0,mp4a.40.2",VIDEO-RANGE=PQ`)
 	assert.Contains(t, out, `CODECS="hvc1.2.4.L123.B0,mp4a.40.2",VIDEO-RANGE=PQ`)
 }
+
+// Every codec spelling the plan can carry maps to the CODECS string the
+// player probes against: the HEVC aliases share one string, AV1 always
+// declares 8-bit (a 10-bit declaration made MSE open a buffer the 8-bit
+// segments never matched), VP9 is fixed, and anything unknown is H.264.
+func TestVideoCodecAttrFor_EveryCodecSpelling(t *testing.T) {
+	for _, c := range []string{"hevc", "h265", "x265"} {
+		assert.Equal(t, "hvc1.1.6.L123.B0", videoCodecAttrFor(c, 1080, false), c)
+		assert.Equal(t, "hvc1.2.4.L153.B0", videoCodecAttrFor(c, 2160, true), c)
+	}
+	for _, c := range []string{"av1", "av01"} {
+		assert.Equal(t, "av01.0.04M.08", videoCodecAttrFor(c, 2160, true), "AV1 declares 8-bit whatever the source depth")
+	}
+	assert.Equal(t, "vp09.00.10.08", videoCodecAttrFor("vp9", 1080, false))
+	for _, c := range []string{"", "h264", "avc", "libx264", "mpeg2video", "something-new"} {
+		assert.Equal(t, "avc1.640028", videoCodecAttrFor(c, 1080, false), c)
+		assert.Equal(t, "avc1.640033", videoCodecAttrFor(c, 2160, false), c)
+	}
+}
