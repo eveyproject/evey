@@ -2,7 +2,6 @@ package filesystem
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -206,13 +205,13 @@ func (s *CacheStore) ClearCache(_ context.Context) error {
 func (s *CacheStore) DeleteFile(_ context.Context, filename string) error {
 	defer s.invalidate()
 	if strings.Contains(filename, "..") {
-		return errors.New("invalid filename")
+		return transcoding.ErrCacheFilenameInvalid
 	}
 	// Try direct child first, then search in subdirs (e.g. hls/<mediaId>)
 	path := filepath.Join(s.dir, filename)
 	clean := filepath.Clean(path)
 	if !strings.HasPrefix(clean, filepath.Clean(s.dir)+string(os.PathSeparator)) {
-		return errors.New("invalid filename")
+		return transcoding.ErrCacheFilenameInvalid
 	}
 	if _, err := os.Stat(clean); os.IsNotExist(err) {
 		// Search in subdirectories
@@ -231,7 +230,7 @@ func (s *CacheStore) DeleteFile(_ context.Context, filename string) error {
 	fi, err := os.Stat(clean)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return errors.New("file not found")
+			return transcoding.ErrCacheFileNotFound
 		}
 		return fmt.Errorf("stat file: %w", err)
 	}

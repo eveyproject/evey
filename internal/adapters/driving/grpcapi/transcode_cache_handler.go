@@ -2,10 +2,14 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -49,6 +53,12 @@ func (h *transcodeCacheHandler) DeleteTranscodeCacheFile(ctx context.Context, re
 	ctx, span := tracing.StartSpan(ctx, "grpc.transcode_cache.DeleteTranscodeCacheFile")
 	defer span.End()
 	if err := h.svc.DeleteCacheFile(ctx, req.Filename); err != nil {
+		switch {
+		case errors.Is(err, transcoding.ErrCacheFileNotFound):
+			return nil, status.Error(codes.NotFound, "cache file not found")
+		case errors.Is(err, transcoding.ErrCacheFilenameInvalid):
+			return nil, status.Error(codes.InvalidArgument, "invalid filename")
+		}
 		return nil, internalError(ctx, "delete cache file", err)
 	}
 	return &eveyv1.DeleteTranscodeCacheFileResponse{}, nil

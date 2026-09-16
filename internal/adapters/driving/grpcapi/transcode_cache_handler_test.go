@@ -93,11 +93,21 @@ func TestTranscodeCacheHandler_DeleteFile_Success(t *testing.T) {
 	assert.Equal(t, int32(0), resp.FileCount)
 }
 
-func TestTranscodeCacheHandler_DeleteFile_NotFound(t *testing.T) {
-	h, _ := newTestTranscodeCacheHandler()
+// A file already gone (the admin double-clicked, or the sweep got there
+// first) is NotFound, and a name that tries to leave the cache directory is
+// InvalidArgument - neither is a server fault worth a logged 500.
+func TestTranscodeCacheHandler_DeleteFile_NotFoundAndInvalid(t *testing.T) {
+	h, store := newTestTranscodeCacheHandler()
 
 	_, err := h.DeleteTranscodeCacheFile(context.Background(), &eveyv1.DeleteTranscodeCacheFileRequest{Filename: "nonexistent.ts"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
 
-	require.Error(t, err)
+	store.Err = transcoding.ErrCacheFilenameInvalid
+	_, err = h.DeleteTranscodeCacheFile(context.Background(), &eveyv1.DeleteTranscodeCacheFileRequest{Filename: "../etc/passwd"})
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	store.Err = errors.New("disk gone")
+	_, err = h.DeleteTranscodeCacheFile(context.Background(), &eveyv1.DeleteTranscodeCacheFileRequest{Filename: "job-1.ts"})
 	assert.Equal(t, codes.Internal, status.Code(err))
+	assert.NotContains(t, err.Error(), "disk gone")
 }

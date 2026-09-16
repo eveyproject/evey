@@ -2,7 +2,6 @@ package fakes
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -56,7 +55,7 @@ func (s *FakeCacheStore) DeleteFile(_ context.Context, filename string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.files[filename]; !ok {
-		return errors.New("file not found")
+		return transcoding.ErrCacheFileNotFound
 	}
 	delete(s.files, filename)
 	return nil
