@@ -91,6 +91,16 @@ func TestScanScheduleRepo_ListEnabled(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, got, 1)
 	assert.Equal(t, lib1.ID, got[0].LibraryID)
+
+	// The admin table lists every schedule, disabled ones included, by library.
+	all, err := schedRepo.List(ctx)
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+	assert.Equal(t, lib1.ID, all[0].LibraryID)
+	assert.True(t, all[0].Enabled)
+	assert.Equal(t, lib2.ID, all[1].LibraryID)
+	assert.False(t, all[1].Enabled)
+	assert.Equal(t, "0 12 * * *", all[1].CronExpression)
 }
 
 func TestScanScheduleRepo_Delete(t *testing.T) {
