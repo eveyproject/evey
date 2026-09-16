@@ -121,3 +121,32 @@ func TestClearRefreshCookie_SetsNegativeMaxAge(t *testing.T) {
 		t.Error("cookie should be cleared with MaxAge -1")
 	}
 }
+
+// The refresh cookie is minted from wherever the login body carries the
+// token: top-level for login/refresh, nested under auth for QuickConnect;
+// an empty or non-string value is no token at all.
+func TestExtractRefreshToken(t *testing.T) {
+	parse := func(s string) map[string]json.RawMessage {
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(s), &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	for _, tc := range []struct {
+		body, wantTok, wantWhere string
+	}{
+		{`{"refreshToken":"rt-1","accessToken":"a"}`, "rt-1", "refreshToken"},
+		{`{"auth":{"refreshToken":"rt-2"}}`, "rt-2", "auth"},
+		{`{"refreshToken":"rt-top","auth":{"refreshToken":"rt-nested"}}`, "rt-top", "refreshToken"},
+		{`{"refreshToken":"","auth":{"refreshToken":"rt-nested"}}`, "rt-nested", "auth"},
+		{`{"refreshToken":42}`, "", ""},
+		{`{"auth":"not-an-object"}`, "", ""},
+		{`{"accessToken":"a"}`, "", ""},
+	} {
+		tok, where := extractRefreshToken(parse(tc.body))
+		if tok != tc.wantTok || where != tc.wantWhere {
+			t.Errorf("%s: got (%q,%q) want (%q,%q)", tc.body, tok, where, tc.wantTok, tc.wantWhere)
+		}
+	}
+}
