@@ -126,6 +126,7 @@ notifications:
   clearTitle: Benachrichtigungen löschen
   clearFailed: Benachrichtigungen konnten nicht gelöscht werden
 offline:
+  openDownloads: Meine Downloads öffnen
   description: Prüfe deine Internetverbindung und versuche es erneut.
   title: Offline
 noNotifications: Keine Benachrichtigungen

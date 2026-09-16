@@ -1,8 +1,8 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
-import { usePathname } from "expo-router";
+import { usePathname, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../providers/ThemeProvider";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
@@ -68,6 +68,18 @@ function OfflineBannerImpl() {
     >
       <Ionicons name="cloud-offline-outline" size={ICON_SIZE.sm} color={theme.colors.onWarning} />
       <Text style={[styles.text, { color: theme.colors.onWarning }]}>{t("common.offline.title", "Offline")}</Text>
+      {/* Downloads is the one screen that works offline, so the strip is the
+          way there - unless the viewer already is. */}
+      {!pathname?.startsWith("/downloads") && (
+        <Pressable
+          onPress={() => router.push("/(auth)/downloads")}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t("common.offline.openDownloads", "Open my downloads")}
+        >
+          <Text style={[styles.text, styles.link, { color: theme.colors.onWarning }]}>{t("common.offline.openDownloads", "Open my downloads")}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -94,5 +106,9 @@ const styles = StyleSheet.create({
   text: {
     fontSize: FONT_SIZE.xs,
     fontWeight: "600",
+  },
+  link: {
+    marginLeft: 10,
+    textDecorationLine: "underline",
   },
 });

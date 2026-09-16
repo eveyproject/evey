@@ -22,7 +22,6 @@ import {
 import { downloadStageLabel } from "../../src/lib/downloadStageLabel";
 import { downloadLabel } from "../../src/lib/downloadLabel";
 import { canPlayOffline, type OfflineDenialReason, type OfflineProfileInfo } from "../../src/lib/offlineAccess";
-import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
 import { getAudioPassState, subscribeToAudioPass, type AudioPassState } from "../../src/lib/audioCompatPass";
 
 // A download still running is invisible in getDownloads() - an item only
@@ -68,7 +67,6 @@ interface DownloadRowProps {
 function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProfile }: DownloadRowProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const online = useOnlineStatus();
   // Live progress for a download that's still running: either a placeholder
   // row for an in-flight download (see the merge in DownloadsScreen below) or
   // one resumed from rehydrateBackgroundDownloads right after the app was
@@ -119,15 +117,16 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
 
   return (
     <Pressable
-      // Offline the media page is a dead end: every part of it comes from the
-      // server, so tapping a file the device already holds led to a screen
-      // that could not load. The player is the one destination that works
-      // without a network - it prefers the local file and skips its own
-      // loading/error screens whenever bytes are on disk - so offline a tap
-      // goes straight to playback.
+      // A tap plays the file this phone already holds - always the player,
+      // never the media page. The page loads everything from the server, and
+      // the online flag it used to be gated on means "internet" (polled every
+      // 15 s), not "server reachable": on a wifi away from home it sent the
+      // viewer to a screen that ends on a dead "retry" while the bytes sat on
+      // disk. The player prefers the local file and skips its own loading and
+      // error screens whenever bytes are on disk, online or not.
       onPress={() => {
         if (item.inProgress || blocked) return;
-        router.push(online ? `/media/${item.mediaItemId}` : `/player/${item.mediaItemId}`);
+        router.push(`/player/${item.mediaItemId}`);
       }}
       style={{
         flexDirection: "row",

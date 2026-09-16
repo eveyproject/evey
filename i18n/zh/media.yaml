@@ -285,6 +285,7 @@ detail:
   noProfileSelected: 未选择配置文件
   alreadyDownloaded: 已下载
   downloadStarted: 开始下载
+  playDownloadedCopy: 播放已下载的副本
   mobileDataTitle: 您正在使用移动数据
   mobileDataBody: 此下载可能消耗数 GB 流量，建议使用 Wi-Fi。
   turnOnWifi: 开启 Wi-Fi

@@ -285,6 +285,7 @@ detail:
   noProfileSelected: कोई प्रोफ़ाइल चयनित नहीं
   alreadyDownloaded: पहले से डाउनलोड किया गया
   downloadStarted: डाउनलोड शुरू हुआ
+  playDownloadedCopy: डाउनलोड की गई कॉपी चलाएँ
   mobileDataTitle: आप मोबाइल डेटा पर हैं
   mobileDataBody: इस डाउनलोड में कई गीगाबाइट लग सकते हैं। वाई-फ़ाई की सलाह दी जाती है।
   turnOnWifi: वाई-फ़ाई चालू करें

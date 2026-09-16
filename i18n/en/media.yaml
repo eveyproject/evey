@@ -296,6 +296,7 @@ detail:
   noProfileSelected: No profile selected
   alreadyDownloaded: Already downloaded
   downloadStarted: Download started
+  playDownloadedCopy: Play the downloaded copy
   mobileDataTitle: You are on mobile data
   mobileDataBody: This download may use several gigabytes. Wi-Fi is recommended.
   turnOnWifi: Turn on Wi-Fi

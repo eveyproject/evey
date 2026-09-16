@@ -128,6 +128,7 @@ notifications:
   clearTitle: Effacer les notifications
   clearFailed: "Échec de la suppression"
 offline:
+  openDownloads: Voir mes téléchargements
   description: Vérifie ta connexion internet et réessaie.
   title: "Hors ligne"
 watchHistory:
