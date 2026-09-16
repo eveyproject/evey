@@ -64,6 +64,12 @@ line - earlier history lives in git.
   searchable from the admin panel.
 
 ### Fixed
+- Intel Quick Sync transcodes cut their segments on the encoder's own 10 s GOP
+  instead of the 3 s grid the manifest promises (the forced-IDR flag sat
+  behind a probe that never ran for Intel), so a Chromecast stalled about
+  20 s in and every seek landed off-grid. The flag is now always set. Clear
+  the transcode cache after deploying: segments already produced keep the
+  old cut.
 - Sign-out ends the session of the device that signs out, not every device of
   the account (a phone signing out logged the TV and the browser out too). The
   clients also now send the sign-out with their credentials: it used to leave

@@ -620,15 +620,13 @@ func hwEncoderQualityArgs(accel transcoding.HWAccelType, codec string, features 
 		}
 		return args
 	case transcoding.QSV:
-		// QSV baseline: veryfast keeps cold starts low on weak iGPUs. -forced_idr
-		// is gated because an older pre-Skylake/Apollo-Lake QSV rejects unknown
-		// options and would fail the whole encode - only emit it once probed.
-		args := []string{"-preset", "veryfast"}
+		// -forced_idr is as unconditional as NVENC's: without it the forced
+		// keyframes are plain I-frames, the HLS muxer cuts on the encoder's own
+		// 250-frame GOP (10.4 s segments on a 3 s manifest) and every player
+		// stalls at the first boundary. An ffmpeg option, not a GPU capability.
+		args := []string{"-preset", "veryfast", "-forced_idr", "1"}
 		if lowPower {
 			args = append(args, "-low_power", "1")
-		}
-		if has("forced_idr") {
-			args = append(args, "-forced_idr", "1")
 		}
 		return args
 	case transcoding.VAAPI:

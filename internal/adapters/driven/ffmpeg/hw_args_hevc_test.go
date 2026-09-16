@@ -15,7 +15,7 @@ func TestHWEncoderQualityArgs_LowPowerPerCodec(t *testing.T) {
 	if got := hwEncoderQualityArgs(transcoding.VAAPI, "h264", feats); len(got) != 0 {
 		t.Errorf("the hevc probe must not switch h264 to low power: %v", got)
 	}
-	if got := strings.Join(hwEncoderQualityArgs(transcoding.QSV, "h264", []string{"low_power_h264"}), " "); got != "-preset veryfast -low_power 1" {
+	if got := strings.Join(hwEncoderQualityArgs(transcoding.QSV, "h264", []string{"low_power_h264"}), " "); got != "-preset veryfast -forced_idr 1 -low_power 1" {
 		t.Errorf("QSV h264 = %q", got)
 	}
 	if got := strings.Join(hwEncoderQualityArgs(transcoding.VAAPI, "h264", []string{"low_power_h264", "bframes_h264"}), " "); got != "-low_power 1" {
