@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -365,4 +366,52 @@ func TestMediaItemQueryRepoAdapter_NextEpisodeOf_AndSeriesAggregate(t *testing.T
 	empty, err := queryRepo.SeriesAggregate(ctx, "ghost")
 	require.NoError(t, err)
 	assert.Zero(t, empty.EpisodeCount)
+}
+
+// RefreshFileState is the "file unchanged" fast path of a repair: it stamps
+// the new size/mtime/fingerprint on the file row without touching streams,
+// keyed by path, and is a no-op for an unknown path. BackfillEmptySortTitles
+// repairs pre-fix rows once and only once.
+func TestMediaItemRepo_RefreshFileState_AndBackfillSortTitles(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	lib := newTestLibrary("rfslib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	queryRepo := postgres.NewMediaItemQueryRepoAdapter(db)
+
+	item := newTestMediaItem("rfs-1", lib.ID)
+	item.File = &library.MediaFile{Path: "/media/rfs/one.mkv", Size: 100, Fingerprint: "100-1"}
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	mod := time.Date(2026, 9, 16, 3, 0, 0, 0, time.UTC)
+	require.NoError(t, itemRepo.RefreshFileState(ctx, "/media/rfs/one.mkv", 250, mod))
+	got, err := queryRepo.GetByFilePath(ctx, "/media/rfs/one.mkv")
+	require.NoError(t, err)
+	require.NotNil(t, got.File)
+	assert.EqualValues(t, 250, got.File.Size)
+	assert.Equal(t, "250-"+strconv.FormatInt(mod.UnixNano(), 10), got.File.Fingerprint, "the scanner's size-mtime format")
+	require.NoError(t, itemRepo.RefreshFileState(ctx, "/media/rfs/missing.mkv", 1, mod), "an unknown path is a no-op")
+	_, err = queryRepo.GetByFilePath(ctx, "/media/rfs/missing.mkv")
+	require.Error(t, err)
+
+	// Rows left with an empty sort_title by a pre-fix scan.
+	for _, id := range []string{"rfs-bf1", "rfs-bf2"} {
+		it := newTestMediaItem(id, lib.ID)
+		it.Title = "The " + id
+		it.SortTitle = "x"
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	_, err = db.ExecContext(ctx, `UPDATE media_items SET sort_title = '' WHERE id IN ('rfs-bf1', 'rfs-bf2')`)
+	require.NoError(t, err)
+	n, err := itemRepo.BackfillEmptySortTitles(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+	fixed, err := queryRepo.GetByID(ctx, "rfs-bf1")
+	require.NoError(t, err)
+	assert.Equal(t, library.NormalizeSortTitle("The rfs-bf1"), fixed.SortTitle)
+	n, err = itemRepo.BackfillEmptySortTitles(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, n, "idempotent")
 }
