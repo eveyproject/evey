@@ -338,3 +338,63 @@ func TestProfileRepo_AvatarAndParentalWritesDoNotClobberEachOther(t *testing.T) 
 	assert.Equal(t, avatar, *got2.AvatarPath)
 	assert.Equal(t, "a-newer-pin", got2.Parental.PINHash)
 }
+
+// SetDefault moves the one default flag of an account in a single
+// transaction, refuses a profile of another account (and rolls the clear
+// back, so the account keeps its default), ListAdminProfiles is what pages
+// admins only, and TouchLastActive stamps the profile.
+func TestProfileRepo_SetDefault_ListAdminProfiles_TouchLastActive(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	userRepo := postgres.NewUserRepository(db)
+	repo := postgres.NewProfileRepository(db)
+	admin := newTestUser("pd-admin")
+	admin.IsAdmin = true
+	require.NoError(t, userRepo.Create(ctx, admin))
+	member := newTestUser("pd-member")
+	require.NoError(t, userRepo.Create(ctx, member))
+	a1, a2 := newTestProfile("pd-a1", admin.ID), newTestProfile("pd-a2", admin.ID)
+	a1.IsDefault = true
+	m1 := newTestProfile("pd-m1", member.ID)
+	m1.IsDefault = true
+	for _, p := range []*user.Profile{a1, a2, m1} {
+		require.NoError(t, repo.Create(ctx, p))
+	}
+
+	require.NoError(t, repo.SetDefault(ctx, admin.ID, a2.ID))
+	got, err := repo.GetByUserID(ctx, admin.ID)
+	require.NoError(t, err)
+	defaults := map[shared.ProfileID]bool{}
+	for _, p := range got {
+		defaults[p.ID] = p.IsDefault
+	}
+	assert.Equal(t, map[shared.ProfileID]bool{a1.ID: false, a2.ID: true}, defaults, "exactly one default after the move")
+
+	// Another account's profile: refused, and the admin keeps its default.
+	require.ErrorIs(t, repo.SetDefault(ctx, admin.ID, m1.ID), shared.ErrNotFound)
+	got, _ = repo.GetByUserID(ctx, admin.ID)
+	for _, p := range got {
+		if p.ID == a2.ID {
+			assert.True(t, p.IsDefault, "the rolled-back attempt must not have cleared the default")
+		}
+	}
+	mp, err := repo.GetByID(ctx, m1.ID)
+	require.NoError(t, err)
+	assert.True(t, mp.IsDefault, "the other account is untouched")
+
+	admins, err := repo.ListAdminProfiles(ctx)
+	require.NoError(t, err)
+	ids := make([]shared.ProfileID, 0, len(admins))
+	for _, p := range admins {
+		ids = append(ids, p.ID)
+	}
+	assert.Equal(t, []shared.ProfileID{a2.ID, a1.ID}, ids, "admin profiles only, default first")
+
+	at := time.Date(2026, 9, 16, 3, 0, 0, 0, time.UTC)
+	require.NoError(t, repo.TouchLastActive(ctx, m1.ID, at))
+	mp, err = repo.GetByID(ctx, m1.ID)
+	require.NoError(t, err)
+	require.NotNil(t, mp.LastActiveAt)
+	assert.True(t, mp.LastActiveAt.Equal(at))
+}
