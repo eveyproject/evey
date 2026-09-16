@@ -606,6 +606,9 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
+	// Even under an encoder the text subtitles come from the packager: the
+	// transcode timeline is the source's, so the windowed cues line up.
+	in.SubtitleRenditions = h.planSubtitleRenditions(r, mediaID, item, streams)
 	if !rp.IsCopy {
 		// One line and one counter per transcode master: what a copy would have
 		// needed (the reason list) is the backlog of the free path.

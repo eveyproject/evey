@@ -1,8 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import Hls from "hls.js";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 
 interface UseSubtitleManagerArgs {
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  /** The hls.js instance, when the picture plays through it: a master that
+   * declares the packager's windowed WebVTT renditions (X-EVEY-TRACK) serves
+   * the selected track segment by segment, instead of the /subtitle route
+   * that extracts the whole file first. */
+  hlsRef?: React.RefObject<InstanceType<typeof Hls> | null>;
   currentSubtitle: number | null;
   externalSubUrl: { url: string; label: string } | null;
   mediaId: string;
@@ -15,6 +21,18 @@ interface UseSubtitleManagerArgs {
    * LOADED cues in place - instant, no track reload, works for embedded and
    * external tracks alike. */
   subtitleOffsetMs?: number;
+}
+
+// hlsSubtitleTrackFor finds the hls.js subtitle track the master tagged with
+// the picker's ordinal (X-EVEY-TRACK), or -1 when this master has none.
+export function hlsSubtitleTrackFor(hls: InstanceType<typeof Hls> | null, ordinal: number | null): number {
+  if (!hls || ordinal === null) return -1;
+  const wanted = String(ordinal);
+  for (const t of hls.subtitleTracks ?? []) {
+    const attrs = t.attrs as unknown as Record<string, string | undefined> | undefined;
+    if (attrs?.["X-EVEY-TRACK"] === wanted) return t.id;
+  }
+  return -1;
 }
 
 // Cue anchor as a percentage of the video element height (snapToLines=false).
@@ -106,6 +124,7 @@ export function applyCuePosition(video: HTMLVideoElement, position: SubtitleStyl
 
 export function useSubtitleManager({
   videoRef,
+  hlsRef,
   currentSubtitle,
   externalSubUrl,
   mediaId,
@@ -137,6 +156,30 @@ export function useSubtitleManager({
     applySubtitleOffset(video, subtitleOffsetMs / 1000, cueBaseTimesRef.current);
   }, [subtitleOffsetMs, videoRef]);
 
+  // The master's subtitle renditions arrive with the manifest, after this
+  // hook first ran: re-run the track effect when hls.js learns them, and keep
+  // the cues styled as their segments land.
+  const [hlsSubsVersion, setHlsSubsVersion] = useState(0);
+  useEffect(() => {
+    const hls = hlsRef?.current;
+    if (!hls) return;
+    const bump = () => setHlsSubsVersion((v) => v + 1);
+    const onCues = () => {
+      const video = videoRef.current;
+      if (!video) return;
+      applyCuePosition(video, positionRef.current);
+      if (offsetRef.current !== 0) applySubtitleOffset(video, offsetRef.current / 1000, cueBaseTimesRef.current);
+    };
+    hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, bump);
+    hls.on(Hls.Events.CUES_PARSED, onCues);
+    return () => {
+      hls.off(Hls.Events.SUBTITLE_TRACKS_UPDATED, bump);
+      hls.off(Hls.Events.CUES_PARSED, onCues);
+    };
+    // The instance is recreated with the stream; the token change tracks that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hlsRef, streamToken, currentTrackIndex, transcodeStartTime, videoRef]);
+
   // Dynamic <track> element management
   useEffect(() => {
     const video = videoRef.current;
@@ -151,6 +194,20 @@ export function useSubtitleManager({
     }
 
     const isBurnIn = selectedBurnInTrack !== null;
+
+    // Packager rendition first: the cues come with the segments, no full read
+    // of the film behind the subtitle button.
+    const hls = hlsRef?.current ?? null;
+    const hlsTrack = externalSubUrl || isBurnIn ? -1 : hlsSubtitleTrackFor(hls, currentSubtitle);
+    if (hls) {
+      if (hls.subtitleTrack !== hlsTrack) hls.subtitleTrack = hlsTrack;
+      hls.subtitleDisplay = hlsTrack >= 0;
+    }
+    if (hlsTrack >= 0) {
+      cueBaseTimesRef.current = new WeakMap();
+      applyCuePosition(video, positionRef.current);
+      return;
+    }
 
     const src = externalSubUrl
       ? externalSubUrl.url
@@ -189,7 +246,8 @@ export function useSubtitleManager({
         video.textTracks[i].mode = "hidden";
       }
     }
-  }, [currentSubtitle, externalSubUrl, mediaId, streamToken, transcodeStartTime, currentTrackIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSubtitle, externalSubUrl, mediaId, streamToken, transcodeStartTime, currentTrackIndex, hlsSubsVersion]);
 
   // Subtitle position (top/bottom) live toggle
   useEffect(() => {

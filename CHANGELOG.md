@@ -8,6 +8,12 @@ line - earlier history lives in git.
 ## [Unreleased]
 
 ### Added
+- Subtitles on MKV/MP4 playback come from the packager as segmented WebVTT
+  renditions in the HLS master (copy, hybrid, wasm-audio and transcode
+  masters alike), served window by window next to the video segments - the
+  web player switches to them the moment a track is picked, instead of the
+  whole-file extraction that took minutes on a large file. Other containers
+  keep the extraction route.
 - Admin: the Now Playing card and the sessions page name what actually serves
   each track - mkvgo copy, ffmpeg with its backend (software, Quick Sync,
   VAAPI, NVENC), or audio decoded by the player (ac3go) - recorded by the

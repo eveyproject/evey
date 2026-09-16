@@ -143,6 +143,20 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	return true
 }
 
+// planSubtitleRenditions is the packager's segmented-WebVTT renditions for
+// this file, mapped to the picker's ordinals; nil when the file cannot be
+// planned (the extraction route still serves the tracks).
+func (h *hlsVODServe) planSubtitleRenditions(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) []apptranscoding.SubtitleRendition {
+	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
+		return nil
+	}
+	plan, err := h.buildPlan(r, mediaID, item, streams)
+	if err != nil {
+		return nil
+	}
+	return planSubtitleRenditionsFor(r.Context(), plan, streams)
+}
+
 // buildHybridMaster renders the hybrid master: a single video-COPY variant
 // whose playlist is the packager's (od_playlist.m3u8) tied to Evey's ffmpeg
 // AAC audio group. Reuses buildManifestInput so the audio renditions, token,
@@ -165,6 +179,7 @@ func (h *hlsVODServe) buildHybridMaster(r *http.Request, mediaID string, item *d
 		Copy:         true,
 	}}
 	in.VideoPlaylistURI = onDemandPrefix + "playlist.m3u8"
+	in.SubtitleRenditions = h.planSubtitleRenditions(r, mediaID, item, streams)
 	if fb := h.copyFallbackVariant(r, mediaID, item, streams, videoKbps+domaintranscoding.AudioRenditionBaseKbps); fb != nil {
 		in.FallbackVariants = []apptranscoding.FallbackVariant{*fb}
 	}
@@ -661,6 +676,7 @@ func (h *hlsVODServe) buildWasmAudioMaster(r *http.Request, mediaID string, item
 		aacIn.WasmAudio = false
 		in.ExternalAudioAACURI = fmt.Sprintf("audio_%d.m3u8%s", audioTrack, apptranscoding.QuerySuffixFor(aacIn))
 	}
+	in.SubtitleRenditions = h.planSubtitleRenditions(r, mediaID, item, streams)
 	return h.manifestGen.Master(in)
 }
 
@@ -773,12 +789,33 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 		if strings.HasSuffix(name, ".mpd") {
 			data = []byte(rebakeDASHManifestURIs(string(data), suffix))
 		} else {
-			data = []byte(rebakeManifestURIs(string(data), suffix))
+			master := string(data)
+			if name == "master.m3u8" {
+				master = tagPlanMasterSubtitles(master, h.planSubtitleRenditionsOf(r, mediaID, plan))
+			}
+			data = []byte(rebakeManifestURIs(master, suffix))
 		}
 	} else {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		if strings.HasSuffix(name, ".vtt") {
+			data = sanitizeSubtitleVTT(data)
+		}
 	}
 	_, _ = w.Write(data)
+}
+
+// planSubtitleRenditionsOf maps an already-built plan's subtitle renditions
+// onto the picker's ordinals; the stream list is re-read, so a lookup failure
+// only means an untagged master.
+func (h *hlsVODServe) planSubtitleRenditionsOf(r *http.Request, mediaID string, plan apptranscoding.OnDemandPlan) []apptranscoding.SubtitleRendition {
+	if h.libSvc == nil {
+		return nil
+	}
+	streams, err := h.libSvc.GetMediaStreams(r.Context(), mediaID)
+	if err != nil {
+		return nil
+	}
+	return planSubtitleRenditionsFor(r.Context(), plan, streams)
 }
 
 // buildPlan resolves the plan for this request's media file with the fixed
