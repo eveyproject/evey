@@ -556,8 +556,15 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// every client makes exactly once per session. The prewarmer waits for the
 	// picture to have its head start before touching the disk, and drops the
 	// job rather than delay this response.
+	// Not for a browser on a file the packager subtitles: it reads the
+	// renditions segment by segment and would never open the cache this full
+	// read fills - a full read next to its own playback. The native apps and
+	// the cast receiver still fetch /subtitle, so they keep the head start.
 	if h.subtitlePrewarm != nil && item != nil && item.File != nil {
-		h.subtitlePrewarm.Enqueue(mediaID, item.File.Path, streams, h.subtitlePrewarmLang(r.Context()))
+		packagerServes := browserUserAgent(r.UserAgent()) && len(h.planSubtitleRenditions(r, mediaID, item, streams)) > 0
+		if !packagerServes {
+			h.subtitlePrewarm.Enqueue(mediaID, item.File.Path, streams, h.subtitlePrewarmLang(r.Context()))
+		}
 	}
 
 	// Gapless multi-episode session: only when the request opts in
@@ -663,6 +670,13 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		slog.Int("segments_per_variant", in.SegmentCount()),
 		slog.String("fp", in.FingerprintHash),
 	)
+}
+
+// browserUserAgent: a web browser, as opposed to the native apps (EveyMobile/,
+// EveyTV/) and the cast receiver (CrKey), which all present a Mozilla/ UA too.
+func browserUserAgent(ua string) bool {
+	return strings.Contains(ua, "Mozilla/") && !strings.Contains(ua, "CrKey") &&
+		!strings.Contains(ua, "EveyMobile") && !strings.Contains(ua, "EveyTV")
 }
 
 // recordServing tells the (profile, media) play session what this master
