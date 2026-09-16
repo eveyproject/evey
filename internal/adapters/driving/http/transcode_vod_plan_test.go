@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -187,4 +189,45 @@ func TestRequestBitrateCapKbps(t *testing.T) {
 	h.userBitrate = stubUserBitrate{kbps: 50000}
 	assert.Equal(t, 20000, h.requestBitrateCapKbps(withUser), "the remote ceiling is the tightest")
 	assert.Equal(t, 50000, h.requestBitrateCapKbps(withHTTPClaims(lan, &domainuser.Claims{UserID: "u1"})), "on the LAN only the user limit applies")
+}
+
+type countingUserBitrate struct {
+	kbps  int
+	err   error
+	calls int
+}
+
+func (c *countingUserBitrate) GetUserBitrateLimit(context.Context, string) (int, error) {
+	c.calls++
+	return c.kbps, c.err
+}
+
+// The per-user limit sits on the segment hot path: it is read through the
+// short-TTL cache (one lookup per user per TTL, a second user is its own
+// entry) and a lookup failure means "no cap", never an error on the stream.
+func TestUserBitrateLimitFor_CachedPerUser(t *testing.T) {
+	src := &countingUserBitrate{kbps: 6000}
+	cache, stop := pkgcache.New[int](time.Hour)
+	defer stop()
+	h := &hlsVODServe{userBitrate: src, userBitrateLookup: cache}
+	ctx := context.Background()
+
+	assert.Equal(t, 6000, h.userBitrateLimitFor(ctx, "u1"))
+	assert.Equal(t, 6000, h.userBitrateLimitFor(ctx, "u1"))
+	assert.Equal(t, 1, src.calls, "the second read is served by the cache")
+	assert.Equal(t, 6000, h.userBitrateLimitFor(ctx, "u2"))
+	assert.Equal(t, 2, src.calls, "another user is another entry")
+
+	failing := &countingUserBitrate{err: errors.New("db down")}
+	h = &hlsVODServe{userBitrate: failing, userBitrateLookup: cache}
+	assert.Equal(t, 0, h.userBitrateLimitFor(ctx, "u3"), "a failed lookup is no cap")
+	assert.Equal(t, 0, h.userBitrateLimitFor(ctx, "u3"))
+	assert.Equal(t, 2, failing.calls, "a failure is not cached: the next read retries")
+
+	// No cache wired (hand-built handlers): every read goes to the source.
+	bare := &countingUserBitrate{kbps: 3000}
+	h = &hlsVODServe{userBitrate: bare}
+	h.userBitrateLimitFor(ctx, "u1")
+	h.userBitrateLimitFor(ctx, "u1")
+	assert.Equal(t, 2, bare.calls)
 }
