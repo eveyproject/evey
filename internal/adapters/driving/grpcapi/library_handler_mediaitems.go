@@ -17,7 +17,6 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // library_handler_mediaitems.go holds the media-item read surface: get/list/
@@ -33,7 +32,7 @@ func (h *libraryHandler) loadGatedMediaItem(ctx context.Context, span trace.Span
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "media item not found")
 		slog.WarnContext(ctx, "grpc: media item query failed", slog.Any("err", err))
-		return nil, status.Error(codes.NotFound, "media item not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
 		if accessErr != nil {
@@ -207,7 +206,7 @@ func (h *libraryHandler) applyMediaItemsPagination(ctx context.Context, span tra
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "invalid cursor")
 			slog.WarnContext(ctx, "grpc ListMediaItems: invalid cursor", slog.Any("err", err))
-			return status.Error(codes.InvalidArgument, "invalid cursor")
+			return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.cursor_invalid")
 		}
 		filter.Cursor = cursor
 		filter.Offset = 0
@@ -358,7 +357,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		span.RecordError(err)
 		if errors.Is(err, shared.ErrCursorMismatch) {
 			span.SetStatus(otelcodes.Error, "cursor mismatch")
-			return nil, status.Error(codes.InvalidArgument, "cursor was generated for a different sort field")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.cursor_invalid")
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "list media items", err)
@@ -558,7 +557,7 @@ func (h *libraryHandler) ListGenres(ctx context.Context, req *eveyv1.ListGenresR
 		return nil, err
 	}
 	if req.LibraryId == "" {
-		return nil, status.Error(codes.InvalidArgument, "library_id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.id_required")
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); !ok {
 		if accessErr != nil {

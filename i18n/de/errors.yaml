@@ -17,6 +17,7 @@ auth:
   invalid_pin: "Falsche PIN"
   invalid_password: "Falsches Passwort"
   pin_required_for_non_kids: "Ein Nicht-Kinderprofil braucht eine PIN, solange ein Kinderprofil existiert"
+  profiles_need_non_kids: "Wechseln Sie zu einem Nicht-Kinderprofil, um Profile zu verwalten"
 
 general:
   not_found: "Nicht gefunden"
@@ -27,6 +28,7 @@ playlist:
   cannot_remove_smart: "Elemente können nicht aus einer Smart-Playlist entfernt werden"
   limit_reached: "Playlist-Elementlimit erreicht"
   duplicate_name: "Eine Playlist mit diesem Namen existiert bereits"
+  not_found: "Wiedergabeliste nicht gefunden"
 
 playback:
   cannot_stop_other_session: "Sitzung eines anderen Benutzers kann nicht beendet werden"
@@ -41,6 +43,12 @@ activity:
 library:
   name_required: "Bibliotheksname ist erforderlich"
   scan_in_progress: "Für diese Bibliothek läuft bereits ein Scan"
+  not_found: "Bibliothek nicht gefunden"
+  id_required: "Eine Bibliotheks-ID ist erforderlich"
+  invalid_path: "Ungültiger Pfad: er muss ein absoluter Pfad unter /media sein"
+  cron_required: "Ein Cron-Ausdruck ist erforderlich"
+  cron_invalid: "Ungültiger Cron-Ausdruck"
+  cursor_invalid: "Ungültiger Seitencursor"
 
 admin:
   setup_already_completed: "Einrichtung bereits abgeschlossen"
@@ -83,6 +91,8 @@ user:
   impersonation_api_key: "Identitätsübernahme ist über einen API-Schlüssel nicht erlaubt"
   limit_negative: "{field} muss 0 oder größer sein"
   id_required: "Eine Benutzer-ID ist erforderlich"
+  profile_id_required: "Eine Profil-ID ist erforderlich"
+  invalid_avatar_path: "Ungültiger Avatar-Pfad"
 
 media:
   not_found: "Medium nicht gefunden"
@@ -90,3 +100,6 @@ media:
 transcode:
   max_concurrent_reached: "Der Server transkodiert gerade andere Streams. Bitte versuche es gleich erneut."
 
+share:
+  not_found: "Freigabelink nicht gefunden"
+  exhausted: "Dieser Link ist abgelaufen oder hat sein Aufruflimit erreicht"

@@ -17,6 +17,7 @@ auth:
   invalid_pin: "ग़लत PIN"
   invalid_password: "गलत पासवर्ड"
   pin_required_for_non_kids: "जब तक कोई बाल प्रोफ़ाइल मौजूद है, गैर-बाल प्रोफ़ाइल में PIN होना आवश्यक है"
+  profiles_need_non_kids: "प्रोफ़ाइल प्रबंधित करने के लिए गैर-बच्चों वाली प्रोफ़ाइल पर जाएँ"
 
 general:
   not_found: "नहीं मिला"
@@ -27,6 +28,7 @@ playlist:
   cannot_remove_smart: "स्मार्ट प्लेलिस्ट से आइटम नहीं हटाए जा सकते"
   limit_reached: "प्लेलिस्ट आइटम सीमा पूरी हो गई"
   duplicate_name: "इस नाम की प्लेलिस्ट पहले से मौजूद है"
+  not_found: "प्लेलिस्ट नहीं मिली"
 
 playback:
   cannot_stop_other_session: "अन्य उपयोगकर्ता का सत्र रोका नहीं जा सकता"
@@ -41,6 +43,12 @@ activity:
 library:
   name_required: "लाइब्रेरी का नाम आवश्यक है"
   scan_in_progress: "इस लाइब्रेरी के लिए पहले से ही स्कैन चल रहा है"
+  not_found: "लाइब्रेरी नहीं मिली"
+  id_required: "लाइब्रेरी आईडी आवश्यक है"
+  invalid_path: "अमान्य पथ: यह /media के अंतर्गत एक पूर्ण पथ होना चाहिए"
+  cron_required: "एक क्रॉन अभिव्यक्ति आवश्यक है"
+  cron_invalid: "अमान्य क्रॉन अभिव्यक्ति"
+  cursor_invalid: "अमान्य पेजिनेशन कर्सर"
 
 admin:
   setup_already_completed: "सेटअप पहले ही पूर्ण हो चुका है"
@@ -83,6 +91,8 @@ user:
   impersonation_api_key: "API कुंजी से किसी अन्य उपयोगकर्ता के रूप में लॉगिन की अनुमति नहीं है"
   limit_negative: "{field} 0 या उससे अधिक होना चाहिए"
   id_required: "उपयोगकर्ता आईडी आवश्यक है"
+  profile_id_required: "प्रोफ़ाइल आईडी आवश्यक है"
+  invalid_avatar_path: "अमान्य अवतार पथ"
 
 media:
   not_found: "मीडिया नहीं मिला"
@@ -90,3 +100,6 @@ media:
 transcode:
   max_concurrent_reached: "सर्वर अन्य स्ट्रीम ट्रांसकोड करने में व्यस्त है। कृपया थोड़ी देर में पुनः प्रयास करें।"
 
+share:
+  not_found: "साझा लिंक नहीं मिला"
+  exhausted: "यह लिंक समाप्त हो गया है या इसकी देखने की सीमा पूरी हो गई है"

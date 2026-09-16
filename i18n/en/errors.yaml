@@ -17,6 +17,7 @@ auth:
   invalid_pin: "Incorrect PIN"
   invalid_password: "Incorrect password"
   pin_required_for_non_kids: "A non-kids profile must have a PIN while a kids profile exists"
+  profiles_need_non_kids: "Switch to a non-kids profile to manage profiles"
 
 general:
   not_found: "Not found"
@@ -27,6 +28,7 @@ playlist:
   cannot_remove_smart: "Cannot remove items from a smart playlist"
   limit_reached: "Playlist item limit reached"
   duplicate_name: "A playlist with this name already exists"
+  not_found: "Playlist not found"
 
 playback:
   cannot_stop_other_session: "Cannot stop another user's session"
@@ -41,6 +43,12 @@ activity:
 library:
   name_required: "Library name is required"
   scan_in_progress: "A scan is already running for this library"
+  not_found: "Library not found"
+  id_required: "A library id is required"
+  invalid_path: "Invalid path: it must be an absolute path under /media"
+  cron_required: "A cron expression is required"
+  cron_invalid: "Invalid cron expression"
+  cursor_invalid: "Invalid pagination cursor"
 
 admin:
   setup_already_completed: "Setup already completed"
@@ -83,6 +91,8 @@ user:
   impersonation_api_key: "Impersonation is not allowed for API-key callers"
   limit_negative: "{field} must be 0 or more"
   id_required: "A user id is required"
+  profile_id_required: "A profile id is required"
+  invalid_avatar_path: "Invalid avatar path"
 
 media:
   not_found: "Media not found"
@@ -90,3 +100,6 @@ media:
 transcode:
   max_concurrent_reached: "The server is busy transcoding other streams. Please try again in a moment."
 
+share:
+  not_found: "Share link not found"
+  exhausted: "This link has expired or reached its view limit"

@@ -17,6 +17,7 @@ auth:
   invalid_pin: "Code PIN incorrect"
   invalid_password: "Mot de passe incorrect"
   pin_required_for_non_kids: "Un profil non-enfant doit avoir un code PIN tant qu'un profil enfant existe"
+  profiles_need_non_kids: "Passez sur un profil non-enfant pour gérer les profils"
 
 general:
   not_found: "Introuvable"
@@ -27,6 +28,7 @@ playlist:
   cannot_remove_smart: "Impossible de supprimer des éléments d'une liste intelligente"
   limit_reached: "Limite d'éléments de la liste atteinte"
   duplicate_name: "Une liste avec ce nom existe déjà"
+  not_found: "Liste de lecture introuvable"
 
 playback:
   cannot_stop_other_session: "Impossible d'arrêter la session d'un autre utilisateur"
@@ -41,6 +43,12 @@ activity:
 library:
   name_required: "Le nom de la bibliothèque est obligatoire"
   scan_in_progress: "Un scan est déjà en cours pour cette bibliothèque"
+  not_found: "Bibliothèque introuvable"
+  id_required: "Un identifiant de bibliothèque est requis"
+  invalid_path: "Chemin invalide : il doit être un chemin absolu sous /media"
+  cron_required: "Une expression cron est requise"
+  cron_invalid: "Expression cron invalide"
+  cursor_invalid: "Curseur de pagination invalide"
 
 admin:
   setup_already_completed: "La configuration est déjà terminée"
@@ -83,6 +91,8 @@ user:
   impersonation_api_key: "L'usurpation d'identité n'est pas autorisée depuis une clé API"
   limit_negative: "{field} doit être supérieur ou égal à 0"
   id_required: "Un identifiant d'utilisateur est requis"
+  profile_id_required: "Un identifiant de profil est requis"
+  invalid_avatar_path: "Chemin d'avatar invalide"
 
 media:
   not_found: "Média introuvable"
@@ -90,3 +100,6 @@ media:
 transcode:
   max_concurrent_reached: "Le serveur est occupé par d'autres transcodages. Réessaye dans un instant."
 
+share:
+  not_found: "Lien de partage introuvable"
+  exhausted: "Ce lien a expiré ou a atteint sa limite de vues"

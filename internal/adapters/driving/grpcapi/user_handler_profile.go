@@ -55,7 +55,7 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	if req.AvatarPath != "" {
 		if strings.Contains(req.AvatarPath, "..") || !strings.HasPrefix(req.AvatarPath, "avatars/") {
 			span.SetStatus(otelcodes.Error, "invalid avatar path")
-			return nil, status.Error(codes.InvalidArgument, "invalid avatar path")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.invalid_avatar_path")
 		}
 		opts = append(opts, user.WithProfileAvatar(req.AvatarPath))
 	}
@@ -129,7 +129,7 @@ func (h *userHandler) loadProfileForUpdate(ctx context.Context, span trace.Span,
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
 		}
 		span.SetStatus(otelcodes.Error, "profile not found")
-		return nil, status.Errorf(codes.NotFound, "profile not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
 	}
 	if !claims.IsAdmin && string(p.UserID) != claims.UserID {
 		span.SetStatus(otelcodes.Error, "cannot update profile other")
@@ -160,7 +160,7 @@ func (h *userHandler) refuseFromRestrictedProfile(ctx context.Context, span trac
 	}
 	if cp.IsKids {
 		span.SetStatus(otelcodes.Error, "profile management from kids profile")
-		return status.Error(codes.PermissionDenied, "switch to a non-kids profile to manage profiles")
+		return h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.profiles_need_non_kids")
 	}
 	return nil
 }
@@ -183,7 +183,7 @@ func (h *userHandler) enforceParentalUpdateGate(ctx context.Context, span trace.
 	}
 	if callerIsKids {
 		span.SetStatus(otelcodes.Error, "parental change from kids profile")
-		return status.Error(codes.PermissionDenied, "switch to a non-kids profile to change parental settings")
+		return h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.parental_needs_non_kids")
 	}
 	return nil
 }
@@ -191,7 +191,7 @@ func (h *userHandler) enforceParentalUpdateGate(ctx context.Context, span trace.
 // applyProfileUpdateFields patches every non-nil field of req onto p. Fields
 // left unset in the request leave the existing column untouched, so p must
 // be freshly loaded from storage (see loadProfileForUpdate) before this call.
-func (h *userHandler) applyProfileUpdateFields(span trace.Span, req *eveyv1.UpdateProfileRequest, p *user.Profile) error {
+func (h *userHandler) applyProfileUpdateFields(ctx context.Context, span trace.Span, req *eveyv1.UpdateProfileRequest, p *user.Profile) error {
 	if req.Preferences != nil {
 		p.Preferences = req.Preferences
 	}
@@ -201,7 +201,7 @@ func (h *userHandler) applyProfileUpdateFields(span trace.Span, req *eveyv1.Upda
 	if req.AvatarPath != nil {
 		if strings.Contains(*req.AvatarPath, "..") || !strings.HasPrefix(*req.AvatarPath, "avatars/") {
 			span.SetStatus(otelcodes.Error, "invalid avatar path")
-			return status.Error(codes.InvalidArgument, "invalid avatar path")
+			return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.invalid_avatar_path")
 		}
 		p.AvatarPath = req.AvatarPath
 	}
@@ -292,7 +292,7 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 	if err := h.enforceParentalUpdateGate(ctx, span, req, claims, p); err != nil {
 		return nil, err
 	}
-	if err := h.applyProfileUpdateFields(span, req, p); err != nil {
+	if err := h.applyProfileUpdateFields(ctx, span, req, p); err != nil {
 		return nil, err
 	}
 	return h.persistProfileUpdate(ctx, span, p)
@@ -310,14 +310,14 @@ func (h *userHandler) SetDefaultProfile(ctx context.Context, req *eveyv1.SetDefa
 	// RBAC interceptor already gates this to admin; double-check is unnecessary.
 	if req.Id == "" {
 		span.SetStatus(otelcodes.Error, "missing profile id")
-		return nil, status.Error(codes.InvalidArgument, "profile id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.profile_id_required")
 	}
 	updated, err := h.userSvc.SetDefaultProfile(ctx, shared.ProfileID(req.Id))
 	if err != nil {
 		span.RecordError(err)
 		if errors.Is(err, shared.ErrNotFound) {
 			span.SetStatus(otelcodes.Error, "profile not found")
-			return nil, status.Errorf(codes.NotFound, "profile not found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
 		}
 		slog.ErrorContext(ctx, "set default profile", slog.Any("err", err))
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -404,7 +404,7 @@ func (h *userHandler) ListAllProfiles(ctx context.Context, _ *eveyv1.ListAllProf
 		return nil, fmt.Errorf("userHandler.ListAllProfiles: %w", err)
 	}
 	if !claims.IsAdmin {
-		return nil, status.Error(codes.PermissionDenied, "admin only")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	profiles, err := h.query.ListAllProfiles(ctx)
 	if err != nil {

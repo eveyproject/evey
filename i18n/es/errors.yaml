@@ -17,6 +17,7 @@ auth:
   invalid_pin: "PIN incorrecto"
   invalid_password: "Contraseña incorrecta"
   pin_required_for_non_kids: "Un perfil no infantil debe tener un PIN mientras exista un perfil infantil"
+  profiles_need_non_kids: "Cambia a un perfil que no sea infantil para gestionar los perfiles"
 
 general:
   not_found: "No encontrado"
@@ -27,6 +28,7 @@ playlist:
   cannot_remove_smart: "No se pueden eliminar elementos de una lista inteligente"
   limit_reached: "Límite de elementos de la lista alcanzado"
   duplicate_name: "Ya existe una lista con este nombre"
+  not_found: "Lista de reproducción no encontrada"
 
 playback:
   cannot_stop_other_session: "No se puede detener la sesión de otro usuario"
@@ -41,6 +43,12 @@ activity:
 library:
   name_required: "El nombre de la biblioteca es obligatorio"
   scan_in_progress: "Ya hay un escaneo en curso para esta biblioteca"
+  not_found: "Biblioteca no encontrada"
+  id_required: "Se requiere un identificador de biblioteca"
+  invalid_path: "Ruta no válida: debe ser una ruta absoluta bajo /media"
+  cron_required: "Se requiere una expresión cron"
+  cron_invalid: "Expresión cron no válida"
+  cursor_invalid: "Cursor de paginación no válido"
 
 admin:
   setup_already_completed: "La configuración ya fue completada"
@@ -83,6 +91,8 @@ user:
   impersonation_api_key: "No se permite suplantar la identidad desde una clave de API"
   limit_negative: "{field} debe ser 0 o mayor"
   id_required: "Se requiere un identificador de usuario"
+  profile_id_required: "Se requiere un identificador de perfil"
+  invalid_avatar_path: "Ruta de avatar no válida"
 
 media:
   not_found: "Medio no encontrado"
@@ -90,3 +100,6 @@ media:
 transcode:
   max_concurrent_reached: "El servidor está ocupado transcodificando otros flujos. Inténtalo de nuevo en un momento."
 
+share:
+  not_found: "Enlace compartido no encontrado"
+  exhausted: "Este enlace ha caducado o ha alcanzado su límite de visualizaciones"
