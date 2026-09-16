@@ -6,8 +6,8 @@ import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { userServiceLogout, apiErrorMessage } from "@evey/api";
-import { clearRefreshToken } from "../../lib/refresh-token";
+import { apiErrorMessage } from "@evey/api";
+import { signOutDevice } from "../../lib/sign-out";
 import { switchProfileToken } from "../../lib/profile-switch";
 import type { V1Profile } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
@@ -99,18 +99,13 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
   const handleLogout = useCallback(() => {
     setMenuOpen(false);
     qc.clear();
-    logout();
-    // Best-effort revoke server-side; never block the UI on it.
-    void userServiceLogout({}).catch(() => {});
-    // Drop the persisted refresh token so the bootstrap refresh on cold
-    // start doesn't silently re-authenticate the user. On a shared device a
-    // failure here means the token survives on disk after the user believes
-    // they signed out, so it must never be swallowed silently: log it and
-    // tell the user their sign-out may be incomplete.
-    void clearRefreshToken().catch((err) => {
+    // Server revoke + local token drop, never blocking the UI. On a shared
+    // device a token surviving on disk must not be swallowed silently.
+    void signOutDevice().catch((err) => {
       console.warn("failed to clear refresh token on logout", err);
       toast.error(t("auth.profile.logoutIncomplete", "Sign-out may be incomplete on this device. Restart the app to finish clearing your session."));
     });
+    logout();
     setTimeout(() => router.replace("/login"), 50);
   }, [qc, logout, t]);
 

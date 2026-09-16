@@ -5,7 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore, toast } from "@evey/store";
-import { userServiceRefreshToken, userServiceLogout, syncPlayServiceJoinByCode, normalizeRoomCode, ROOM_CODE_LENGTH, apiErrorMessage } from "@evey/api";
+import { userServiceRefreshToken, eveyFetch, syncPlayServiceJoinByCode, normalizeRoomCode, ROOM_CODE_LENGTH, apiErrorMessage } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { Users, Check, Settings, Clock, BarChart3, QrCode, LayoutList, LogOut, ArrowLeftRight } from "lucide-react";
 import { PinPromptDialog } from "@/features/profile/PinPromptDialog";
@@ -128,10 +128,20 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
 
   const handleLogout = useCallback(() => {
     setOpen(false);
+    // Captured before logout() empties the store: the fetcher reads the token
+    // after an await, and the request used to leave unauthenticated - the
+    // server never revoked anything. The refresh cookie names this tab's
+    // session, so only this device is signed out.
+    const access = useAuthStore.getState().accessToken;
+    void eveyFetch({
+      url: "/api/v1/auth/logout",
+      method: "POST",
+      data: {},
+      headers: access ? { Authorization: `Bearer ${access}` } : {},
+    }).catch((err) => console.warn("logout failed", err));
     qc.clear();
     logout();
     localStorage.removeItem("evey-recent-searches");
-    void userServiceLogout({}).catch((err) => console.warn("logout failed", err));
     void navigate({ to: "/login" });
   }, [qc, logout, navigate]);
 

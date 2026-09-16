@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, userServiceLogout } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore, themePreferences } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
@@ -11,6 +11,7 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { clearServerUrl } from "../../../src/lib/server-config";
 import { queryClient } from "../../../src/lib/query-client";
 import { clearRefreshToken } from "../../../src/lib/refresh-token";
+import { signOutDevice } from "../../../src/lib/sign-out";
 import { forceRefresh } from "../../../src/lib/auth-refresh";
 import { clearUnlocked } from "../../../src/hooks/useParentalGate";
 import { supportedLanguages } from "../../../src/i18n";
@@ -125,16 +126,13 @@ export default function SettingsScreen() {
     // react-query's 5-minute window; and a refresh token left on disk cold-
     // starts the session straight back. Clear both, and drop parental unlocks
     // so the next viewer starts locked.
+    void signOutDevice().catch((err) => {
+      console.warn("failed to clear refresh token on logout", err);
+    });
     queryClient.clear();
     clearUnlocked();
     logout();
     router.replace("/login");
-    void userServiceLogout({}).catch((err) => {
-      console.warn("logout revoke failed", err);
-    });
-    void clearRefreshToken().catch((err) => {
-      console.warn("failed to clear refresh token on logout", err);
-    });
   }
 
   const rowStyle = useCallback(

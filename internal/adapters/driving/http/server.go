@@ -713,6 +713,8 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
 		}))
 		mux.HandleFunc("POST /api/v1/auth/logout", func(w http.ResponseWriter, r *http.Request) {
+			// The cookie names THIS device's session, so only it is ended.
+			r = injectRefreshTokenFromCookie(r)
 			clearRefreshCookie(w, s.HTTPSOnly)
 			if s.OIDCSvc != nil {
 				if ep := s.OIDCSvc.EndSessionEndpoint(); ep != "" {

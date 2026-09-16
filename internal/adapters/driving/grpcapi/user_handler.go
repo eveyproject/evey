@@ -51,7 +51,11 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 	access, refresh, err := h.auth.Login(ctx, req.Username, req.Password, h.refreshTTLOverride(ctx)...)
 	if err != nil {
 		metrics.AuthLatency.WithLabelValues("login", "failure").Observe(time.Since(start).Seconds())
-		slog.WarnContext(ctx, "login failed", slog.String("username", sanitizeLogValue(req.Username)), slog.Any("err", err))
+		// Credential failures are already logged by the service with their
+		// reason; only the other refusals (locked, disabled) are worth a line here.
+		if !errors.Is(err, appuser.ErrInvalidCredentials) {
+			slog.WarnContext(ctx, "login failed", slog.String("username", sanitizeLogValue(req.Username)), slog.Any("err", err))
+		}
 		h.audit(ctx, "", "login", "user", nil, map[string]any{"username": req.Username, "status": "failed"})
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "invalid credentials")
@@ -93,7 +97,7 @@ func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshToken
 	return &eveyv1.AuthResponse{AccessToken: access, RefreshToken: newRefresh}, nil
 }
 
-func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eveyv1.LogoutResponse, error) {
+func (h *userHandler) Logout(ctx context.Context, req *eveyv1.LogoutRequest) (*eveyv1.LogoutResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.user.Logout")
 	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
@@ -101,7 +105,7 @@ func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eve
 		span.SetStatus(otelcodes.Error, "unauthenticated")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
-	if err := h.auth.Logout(ctx, claims.UserID); err != nil {
+	if err := h.auth.Logout(ctx, claims.UserID, req.GetRefreshToken()); err != nil {
 		slog.ErrorContext(ctx, "logout", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())

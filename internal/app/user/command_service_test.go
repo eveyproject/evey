@@ -1062,7 +1062,7 @@ func TestLogout_Happy(t *testing.T) {
 	ctx := context.Background()
 	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{ID: "rt1", UserID: "u1", TokenHash: "h1", ExpiresAt: time.Now().Add(time.Hour)})
 
-	err := d.svc.Logout(ctx, "u1")
+	err := d.svc.Logout(ctx, "u1", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1071,7 +1071,7 @@ func TestLogout_Happy(t *testing.T) {
 func TestLogout_RepoError(t *testing.T) {
 	d := newAuthTestDeps()
 	d.refreshTkns.Err = errors.New("fail")
-	err := d.svc.Logout(context.Background(), "u1")
+	err := d.svc.Logout(context.Background(), "u1", "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1089,12 +1089,68 @@ func TestLogout_RevokesStreamTokens(t *testing.T) {
 	ctx := context.Background()
 	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{ID: "rt1", UserID: "u1", TokenHash: "h1", ExpiresAt: time.Now().Add(time.Hour)})
 
-	if err := d.svc.Logout(ctx, "u1"); err != nil {
+	if err := d.svc.Logout(ctx, "u1", ""); err != nil {
 		t.Fatal(err)
 	}
 
 	if len(rev.revoked) != 1 || rev.revoked[0] != "u1" {
 		t.Errorf("want one revoke for u1, got %v", rev.revoked)
+	}
+}
+
+// A device that presents its refresh token ends its own session only: the
+// account's other devices keep their tokens and no account-wide revoke fires.
+func TestLogout_WithToken_EndsThatDeviceOnly(t *testing.T) {
+	d := newAuthTestDeps()
+	rev := &recordingRevoker{}
+	CommandWithTokenRevoker(rev)(d.svc)
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_, phone, err := d.svc.Login(ctx, "alice", "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, tv, err := d.svc.Login(ctx, "alice", "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := d.svc.Logout(ctx, "u1", phone); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := d.svc.RefreshToken(ctx, phone, "", ""); err == nil {
+		t.Error("the signed-out device's token must be dead")
+	}
+	if _, _, err := d.svc.RefreshToken(ctx, tv, "", ""); err != nil {
+		t.Errorf("the other device must keep its session: %v", err)
+	}
+	if len(rev.revoked) != 0 {
+		t.Errorf("a per-device logout must not revoke the account's tokens, got %v", rev.revoked)
+	}
+}
+
+// A token that is not this user's (or unknown) is ignored and the logout
+// falls back to the account-wide revoke rather than trusting the caller.
+func TestLogout_ForeignToken_FallsBackToAccountWide(t *testing.T) {
+	d := newAuthTestDeps()
+	rev := &recordingRevoker{}
+	CommandWithTokenRevoker(rev)(d.svc)
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	seedAuthUser(t, d, "u2", "bob", "pw", false, true)
+	_, bobs, err := d.svc.Login(ctx, "bob", "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := d.svc.Logout(ctx, "u1", bobs); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := d.svc.RefreshToken(ctx, bobs, "", ""); err != nil {
+		t.Errorf("bob's session must survive alice's logout: %v", err)
+	}
+	if len(rev.revoked) != 1 || rev.revoked[0] != "u1" {
+		t.Errorf("want the account-wide revoke for u1, got %v", rev.revoked)
 	}
 }
 

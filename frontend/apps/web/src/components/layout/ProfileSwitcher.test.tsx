@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mockNavigate = vi.fn();
 const mockRefreshToken = vi.fn().mockResolvedValue({ accessToken: "new-token" });
+const mockEveyFetch = vi.fn().mockResolvedValue({});
+const mockLogout = vi.fn();
 const mockSetProfile = vi.fn();
 const mockSetTokens = vi.fn();
 const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined);
@@ -18,19 +20,22 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   userServiceRefreshToken: (...args: unknown[]) => mockRefreshToken(...args),
+  eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
 }));
 
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign(
     (selector?: (s: Record<string, unknown>) => unknown) => {
-      const state = { profileId: "p1" };
+      const state = { profileId: "p1", logout: mockLogout };
       return selector ? selector(state) : state;
     },
     {
       getState: () => ({
         profileId: "p1",
+        accessToken: "live-access",
         setProfile: mockSetProfile,
         setTokens: mockSetTokens,
+        logout: mockLogout,
       }),
     },
   ),
@@ -116,6 +121,23 @@ describe("ProfileSwitcher", () => {
     await user.click(screen.getByTestId("profile-switcher-item-p2"));
     await waitFor(() => expect(mockRefreshToken).toHaveBeenCalled());
     expect(mockSetTokens).not.toHaveBeenCalled();
+  });
+
+  // The revoke used to be sent AFTER logout() emptied the store: the fetcher
+  // read the token late, the request left unauthenticated, the server never
+  // ended the session. The token is now captured first and carried explicitly.
+  it("sign out sends the server revoke with the access token it had before clearing the store", async () => {
+    const user = userEvent.setup();
+    renderSwitcher();
+    await user.click(screen.getByTestId("profile-switcher-btn"));
+    await user.click(screen.getByTestId("logout-btn"));
+    expect(mockEveyFetch).toHaveBeenCalledWith(expect.objectContaining({
+      url: "/api/v1/auth/logout",
+      method: "POST",
+      headers: { Authorization: "Bearer live-access" },
+    }));
+    expect(mockLogout).toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/login" });
   });
 
   it("manage profiles button navigates to /profile/manage", async () => {

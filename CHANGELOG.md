@@ -64,6 +64,10 @@ line - earlier history lives in git.
   searchable from the admin panel.
 
 ### Fixed
+- Sign-out ends the session of the device that signs out, not every device of
+  the account (a phone signing out logged the TV and the browser out too). The
+  clients also now send the sign-out with their credentials: it used to leave
+  after the local session was cleared, so the server never revoked anything.
 - Mobile/TV: changing the app language logged the user out about fifteen
   minutes later - the JWT refresh that followed rotated the refresh token
   server-side but never stored the new one on the device, so the next silent
