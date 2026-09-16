@@ -1248,3 +1248,20 @@ func TestUpdateProfile_FieldSemantics(t *testing.T) {
 	assertCode(t, err, codes.FailedPrecondition)
 	assert.NotEmpty(t, get().Parental.PINHash, "the refused write left the PIN in place")
 }
+
+// Revoking a key or an invite that is already gone is NotFound for the admin
+// (a viewer never learns whether another user's id exists: PermissionDenied
+// comes first for them).
+func TestRevokeAPIKeyAndInvite_UnknownIsNotFound(t *testing.T) {
+	env := setupUserHandler()
+	ctx := adminCtx()
+	_, err := env.handler.RevokeAPIKey(ctx, &eveyv1.RevokeAPIKeyRequest{Id: "ghost"})
+	assertCode(t, err, codes.NotFound)
+	_, err = env.handler.RevokeInviteLink(ctx, &eveyv1.RevokeInviteLinkRequest{Id: "ghost"})
+	assertCode(t, err, codes.NotFound)
+
+	_, err = env.handler.RevokeAPIKey(userCtx("u-viewer", "p-viewer"), &eveyv1.RevokeAPIKeyRequest{Id: "ghost"})
+	assertCode(t, err, codes.PermissionDenied)
+	_, err = env.handler.RevokeInviteLink(userCtx("u-viewer", "p-viewer"), &eveyv1.RevokeInviteLinkRequest{Id: "ghost"})
+	assertCode(t, err, codes.PermissionDenied)
+}

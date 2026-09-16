@@ -8,6 +8,7 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/webhook"
 	"google.golang.org/grpc/codes"
@@ -55,6 +56,9 @@ func (r *fakeWebhookRepo) Update(_ context.Context, cfg *webhook.Config) error {
 }
 
 func (r *fakeWebhookRepo) Delete(_ context.Context, id string) error {
+	if _, ok := r.items[id]; !ok {
+		return shared.ErrNotFound
+	}
 	delete(r.items, id)
 	return nil
 }
@@ -242,5 +246,15 @@ func TestMaskSecret(t *testing.T) {
 		if got := maskSecret(in); got != want {
 			t.Errorf("maskSecret(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// Deleting a webhook that is already gone (a double click, a second admin
+// tab) is NotFound, not a logged 500.
+func TestWebhookHandler_DeleteUnknownIsNotFound(t *testing.T) {
+	h, _, _ := setupWebhookHandler()
+	_, err := h.DeleteWebhook(context.Background(), &eveyv1.DeleteWebhookRequest{Id: "ghost"})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("code = %v, want NotFound", status.Code(err))
 	}
 }
