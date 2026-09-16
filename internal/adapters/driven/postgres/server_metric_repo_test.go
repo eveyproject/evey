@@ -61,3 +61,34 @@ func TestServerMetricRepo_Purge(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }
+
+// Consumed bandwidth integrates the sampled rate over the gap to the previous
+// sample, with the gap capped at 5 minutes so downtime is never billed as
+// served traffic; a lone sample integrates to nothing.
+func TestServerMetricRepo_TotalBandwidthBytes(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewServerMetricRepository(db)
+	ctx := context.Background()
+	base := time.Date(2026, 9, 16, 1, 0, 0, 0, time.UTC)
+	mk := func(id string, at time.Time, bps int64) {
+		t.Helper()
+		require.NoError(t, repo.Create(ctx, &activity.ServerMetric{ID: id, BandwidthBps: bps, RecordedAt: at}))
+	}
+	mk("bw-1", base, 80_000_000)
+	total, err := repo.TotalBandwidthBytes(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, total, "one sample has no gap to integrate over")
+
+	// 60 s later at 80 Mb/s: 10 MB/s x 60 s.
+	mk("bw-2", base.Add(60*time.Second), 80_000_000)
+	total, err = repo.TotalBandwidthBytes(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, 600_000_000, total)
+
+	// An hour of downtime, then a sample at 8 Mb/s: billed for 300 s only.
+	mk("bw-3", base.Add(61*time.Minute), 8_000_000)
+	total, err = repo.TotalBandwidthBytes(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, 600_000_000+1_000_000*300, total)
+}
