@@ -75,6 +75,13 @@ export function applySubtitleOffset(
 // lines (snapToLines=false) are used instead of line numbers: the previous
 // `line=100, snapToLines=true` meant "the 100th text line from the top",
 // which the browser clamps to the bottom edge. Exported for tests.
+// A cue the file itself places in the upper half (a WebVTT `line:N%` under
+// 50, which is how the server renders an ASS {\an8} sign or caption) keeps
+// that placement under the bottom preference: the author put it there so it
+// would not collide with the dialogue. Remembered on first sight, because the
+// pass below rewrites every cue's line.
+const authoredUpper = new WeakMap<VTTCue, boolean>();
+
 export function applyCuePosition(video: HTMLVideoElement, position: SubtitleStyle["position"]) {
   const line = position === "top" ? CUE_LINE_TOP_PCT : CUE_LINE_BOTTOM_PCT;
   for (let i = 0; i < video.textTracks.length; i++) {
@@ -85,6 +92,12 @@ export function applyCuePosition(video: HTMLVideoElement, position: SubtitleStyl
     for (let j = 0; j < cues.length; j++) {
       const cue = cues[j] as VTTCue;
       if (typeof cue.line === "undefined") continue;
+      let upper = authoredUpper.get(cue);
+      if (upper === undefined) {
+        upper = cue.snapToLines === false && typeof cue.line === "number" && cue.line < 50;
+        authoredUpper.set(cue, upper);
+      }
+      if (upper && position === "bottom") continue;
       cue.snapToLines = false; // before line: percentages outside 0-100 throw
       cue.line = line;
     }

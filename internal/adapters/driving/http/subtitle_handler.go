@@ -191,6 +191,8 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 
 // writeSubtitleVTT sends an already-produced WebVTT body.
 func writeSubtitleVTT(w http.ResponseWriter, r *http.Request, baseURL string, data []byte) {
+	// Entries cached before the sanitizer existed still carry the overrides.
+	data = sanitizeSubtitleVTT(data)
 	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 	// The bytes are pinned to the source file's size and mtime by the cache key,
 	// so a client may keep them: re-fetching costs a full read of the film.
@@ -209,10 +211,14 @@ func extractSubtitleVTT(ctx context.Context, filePath string, trackIndex int, ma
 	ext := strings.ToLower(filepath.Ext(filePath))
 	if isMkvgoSubtitleFastPath(ext) {
 		if data, ok := tryMKVGoSubtitleBytes(ctx, ext, filePath, trackIndex, matchedCodec, matchedLanguage); ok {
-			return data, nil
+			return sanitizeSubtitleVTT(data), nil
 		}
 	}
-	return extractSubtitleWithFFmpeg(ctx, filePath, trackIndex)
+	data, err := extractSubtitleWithFFmpeg(ctx, filePath, trackIndex)
+	if err != nil {
+		return nil, err
+	}
+	return sanitizeSubtitleVTT(data), nil
 }
 
 // extractSubtitleWithFFmpeg is the fallback for containers mkvgo does not read
