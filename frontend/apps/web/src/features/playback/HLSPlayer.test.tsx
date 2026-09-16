@@ -21,6 +21,8 @@ class MockHls {
   static Events = {
     MANIFEST_PARSED: "hlsManifestParsed",
     AUDIO_TRACKS_UPDATED: "hlsAudioTracksUpdated",
+    SUBTITLE_TRACKS_UPDATED: "hlsSubtitleTracksUpdated",
+    CUES_PARSED: "hlsCuesParsed",
     ERROR: "hlsError",
     FRAG_LOADED: "hlsFragLoaded",
   };
@@ -35,12 +37,18 @@ class MockHls {
   destroy = vi.fn();
   startLoad = vi.fn();
   audioTrack = 0;
+  subtitleTrack = -1;
+  subtitleDisplay = false;
+  subtitleTracks: unknown[] = [];
   currentLevel = -1;
   startLevel = -1;
   levels: { height: number }[] = [];
   on = vi.fn((event: string, handler: HlsEventHandler) => {
     if (!hlsEventListeners[event]) hlsEventListeners[event] = [];
     hlsEventListeners[event].push(handler);
+  });
+  off = vi.fn((event: string, handler: HlsEventHandler) => {
+    hlsEventListeners[event] = (hlsEventListeners[event] ?? []).filter((h) => h !== handler);
   });
   constructor(config: MockHlsConfig = {}) {
     this.config = config;

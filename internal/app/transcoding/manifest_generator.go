@@ -116,6 +116,13 @@ type ManifestInput struct {
 	// behaviour bit-for-bit - every existing client and test keeps
 	// working without change.
 	AudioRenditions []AudioRendition
+	// SubtitleRenditions, when non-empty, declares a `#EXT-X-MEDIA
+	// TYPE=SUBTITLES,GROUP-ID="subs"` per text track and ties every variant
+	// to it. The URIs are the on-demand packager's windowed WebVTT playlists,
+	// served next to the video segments - no full-file extraction ahead of
+	// playback. X-EVEY-TRACK carries the subtitle-relative ordinal the
+	// players' pickers count in.
+	SubtitleRenditions []SubtitleRendition
 
 	// ExternalAudio switches the master to VIDEO-ONLY: video variants with no
 	// muxed audio, no `#EXT-X-MEDIA:TYPE=AUDIO` group, and a CODECS attribute
@@ -265,6 +272,19 @@ type AudioRendition struct {
 	// distinct one, so a client validating the attribute never meets an
 	// unannounced sample entry.
 	Codec string
+}
+
+// SubtitleRendition is one text subtitle track served as segmented WebVTT.
+// TrackIdx is the subtitle-relative ordinal (0-based among the source's
+// subtitle streams, image tracks included) - the number the pickers and the
+// /subtitle/{track} route count in. URI is the bare playlist name; the
+// master's own query suffix is appended.
+type SubtitleRendition struct {
+	TrackIdx     int
+	Name         string
+	LanguageCode string
+	URI          string
+	Forced       bool
 }
 
 // Validate returns an error if the input can't produce a valid manifest.
@@ -422,6 +442,36 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		}
 	}
 
+	// Subtitle renditions: DEFAULT/AUTOSELECT off on purpose - the app picks
+	// the track (profile preference, forced flag, the viewer's menu); a
+	// player-side auto-selection would fight it.
+	subsGroup := ""
+	if len(in.SubtitleRenditions) > 0 {
+		subsGroup = "subs"
+		for _, r := range in.SubtitleRenditions {
+			name := r.Name
+			if name == "" {
+				name = fmt.Sprintf("Subtitle %d", r.TrackIdx+1)
+			}
+			lang := ""
+			if r.LanguageCode != "" {
+				lang = fmt.Sprintf(`,LANGUAGE=%q`, hlsAttrSafe(r.LanguageCode))
+			}
+			forced := ""
+			if r.Forced {
+				forced = ",FORCED=YES"
+			}
+			fmt.Fprintf(&b,
+				"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=%q,NAME=%q,DEFAULT=NO,AUTOSELECT=NO%s%s,X-EVEY-TRACK=\"%d\",URI=\"%s%s\"\n",
+				subsGroup, hlsAttrSafe(name), lang, forced, r.TrackIdx, r.URI, suffix,
+			)
+		}
+	}
+	subsAttr := ""
+	if subsGroup != "" {
+		subsAttr = fmt.Sprintf(",SUBTITLES=%q", subsGroup)
+	}
+
 	for i, p := range in.Profiles {
 		// BANDWIDTH is the playlist's peak bitrate in bps. We use video + audio
 		// (both in kbps from the profile, so multiply by 1000). hls.js uses it
@@ -459,8 +509,8 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 			}
 		}
 		fmt.Fprintf(&b,
-			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%s,CODECS=%q%s%s\n",
-			bps, avg, res, rungCodecs, videoRangeAttr, audioAttr,
+			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%s,CODECS=%q%s%s%s\n",
+			bps, avg, res, rungCodecs, videoRangeAttr, audioAttr, subsAttr,
 		)
 		// The video variant's playlist URI. Default stream_<idx>.m3u8; the
 		// on-demand copy rung overrides it (single-variant only) so the video
@@ -481,9 +531,9 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	for _, v := range in.FallbackVariants {
 		bps := (v.Profile.VideoBitrate + v.Profile.AudioBitrate) * 1000
 		fmt.Fprintf(&b,
-			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=%q\n",
+			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=%q%s\n",
 			bps, bps*85/100, v.Profile.Width, v.Profile.Height,
-			codecsAttr(v.VideoCodec, v.AudioCodec),
+			codecsAttr(v.VideoCodec, v.AudioCodec), subsAttr,
 		)
 		b.WriteString(v.URI + "\n")
 	}

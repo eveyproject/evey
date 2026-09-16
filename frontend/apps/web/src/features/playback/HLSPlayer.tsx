@@ -900,7 +900,7 @@ export function HLSPlayer({
   }, [audioOffsetMs, appliedAudioOffsetMs, setTranscodeStartTime, wasmAudioActive]);
 
   useSubtitleManager({
-    videoRef, currentSubtitle, externalSubUrl, mediaId, streamToken,
+    videoRef, hlsRef, currentSubtitle, externalSubUrl, mediaId, streamToken,
     selectedBurnInTrack, transcodeStartTime, currentTrackIndex, subtitleStyle,
     subtitleOffsetMs,
   });

@@ -853,3 +853,30 @@ func TestQuerySuffix_BakesMaxH264Level(t *testing.T) {
 	assert.Contains(t, QuerySuffixFor(ManifestInput{MaxH264Level: 41}), "maxH264Level=41")
 	assert.NotContains(t, QuerySuffixFor(ManifestInput{}), "maxH264Level")
 }
+
+// Text subtitles ride the master as a "subs" rendition group pointing at the
+// packager's windowed WebVTT, with the picker's ordinal on each line; every
+// variant (copy and fallback) is tied to the group. Off = byte-identical.
+func TestManifestGenerator_Master_SubtitleRenditions(t *testing.T) {
+	in := baseInput(single360p, 10.0)
+	in.StreamToken = "tok"
+	in.SubtitleRenditions = []SubtitleRendition{
+		{TrackIdx: 0, Name: "European (Forced)", LanguageCode: "fre", URI: "od_sub1.m3u8", Forced: true},
+		{TrackIdx: 2, Name: "", LanguageCode: "", URI: "od_sub2.m3u8"},
+	}
+	in.FallbackVariants = []FallbackVariant{{Profile: transcoding.HLSProfile{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1000, AudioBitrate: 128}, VideoCodec: "h264", AudioCodec: "aac", URI: "stream_0.m3u8?fp=x"}}
+	out, err := NewManifestGenerator().Master(in)
+	require.NoError(t, err)
+	assert.Contains(t, out, `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="European (Forced)",DEFAULT=NO,AUTOSELECT=NO,LANGUAGE="fre",FORCED=YES,X-EVEY-TRACK="0",URI="od_sub1.m3u8?audioTrack=0&token=tok"`)
+	assert.Contains(t, out, `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Subtitle 3",DEFAULT=NO,AUTOSELECT=NO,X-EVEY-TRACK="2",URI="od_sub2.m3u8?audioTrack=0&token=tok"`)
+	for line := range strings.SplitSeq(out, "\n") {
+		if strings.HasPrefix(line, "#EXT-X-STREAM-INF:") {
+			assert.Contains(t, line, `,SUBTITLES="subs"`, line)
+		}
+	}
+
+	in.SubtitleRenditions = nil
+	plain, err := NewManifestGenerator().Master(in)
+	require.NoError(t, err)
+	assert.NotContains(t, plain, "SUBTITLES")
+}
