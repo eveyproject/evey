@@ -536,6 +536,9 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 				}); encErr != nil {
 					slog.WarnContext(ctx, "encode blocked response", slog.Any("err", encErr))
 				}
+			} else if errors.Is(installErr, appplugin.ErrInvalidManifest) || errors.Is(installErr, appplugin.ErrHashMismatch) {
+				// The archive itself is the problem: say why, like the blocked path does.
+				messageError(w, installErr.Error(), http.StatusBadRequest)
 			} else {
 				http.Error(w, `{"message":"plugin installation failed"}`, http.StatusInternalServerError)
 			}
