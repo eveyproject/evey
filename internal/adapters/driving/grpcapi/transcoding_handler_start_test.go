@@ -64,11 +64,14 @@ func TestTranscodingStartTranscode_NoLibQuery_FailedPrecondition(t *testing.T) {
 	}
 }
 
+// Stopping a job that is already gone (finished on its own, or stopped from
+// another tab) is NotFound, not a logged 500 - for the admin, who skips the
+// ownership lookup, as much as for a viewer.
 func TestTranscodingStopTranscode_UnknownJob(t *testing.T) {
 	h, _, _, _ := newTestTranscodingHandler()
-	_, err := h.StopTranscode(context.Background(), &eveyv1.StopTranscodeRequest{JobId: "does-not-exist"})
-	if err == nil {
-		t.Fatal("expected error for unknown job")
+	_, err := h.StopTranscode(adminCtx(), &eveyv1.StopTranscodeRequest{JobId: "does-not-exist"})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("code = %v, want NotFound", status.Code(err))
 	}
 }
 

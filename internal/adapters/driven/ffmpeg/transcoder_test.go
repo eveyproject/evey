@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -242,8 +243,8 @@ func TestTranscoder_Stop_NotFound(t *testing.T) {
 	t.Parallel()
 	tr := newTestTranscoder()
 	err := tr.Stop(t.Context(), "nonexistent-job")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	require.ErrorIs(t, err, shared.ErrNotFound, "the API maps an already-gone job to NotFound")
+	assert.Contains(t, err.Error(), "nonexistent-job")
 }
 
 func TestTranscoder_Progress_NotFound(t *testing.T) {

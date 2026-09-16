@@ -16,6 +16,7 @@ import (
 
 	"github.com/evey-project/evey/internal/pkg/procfork"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
@@ -134,7 +135,7 @@ func (t *Transcoder) StopAll() {
 func (t *Transcoder) Stop(_ context.Context, jobID string) error {
 	v, ok := t.jobs.Load(jobID)
 	if !ok {
-		return fmt.Errorf("job %s not found", jobID)
+		return fmt.Errorf("job %s: %w", jobID, shared.ErrNotFound)
 	}
 	rj, ok2 := v.(*runningJob)
 	if !ok2 {
