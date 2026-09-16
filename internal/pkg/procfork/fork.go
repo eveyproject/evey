@@ -197,7 +197,9 @@ func logExit(ctx context.Context, o Options, cmd *exec.Cmd, runErr error, stderr
 	}
 	attrs = append(attrs, slog.Any("err", runErr), slog.String("stderr_tail", tail(stderr, 300)))
 	level := slog.LevelWarn
-	if ctx.Err() != nil {
+	// A probe exists to find out whether something works: "no" is an answer,
+	// not an incident. The caller reports the verdict at its own level.
+	if ctx.Err() != nil || o.Class == Probe {
 		level = slog.LevelDebug
 	}
 	slog.LogAttrs(ctx, level, "procfork: failed", attrs...)
