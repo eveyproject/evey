@@ -354,3 +354,53 @@ func TestSettings_Defaults(t *testing.T) {
 		t.Errorf("MusicLevel = %q, want %q", s2.MusicLevel, notification.LevelDisabled)
 	}
 }
+
+// The admin-only set drives ListAdminNotifications and the web bell's type
+// filter; a type added to the wrong side either hides a user's own row from
+// them or leaks an operational one into a child profile's feed.
+func TestType_IsAdminOnly(t *testing.T) {
+	t.Parallel()
+	adminOnly := map[notification.Type]bool{
+		notification.TypeBackupFailed: true,
+		notification.TypePluginError:  true,
+		notification.TypeMediaRequest: true,
+	}
+	all := []notification.Type{
+		notification.TypeNewMovie, notification.TypeNewEpisode, notification.TypeNewSeason,
+		notification.TypeNewSeries, notification.TypeNewAlbum, notification.TypeLibraryScanned,
+		notification.TypeBackupFailed, notification.TypePluginError, notification.TypeCustom,
+		notification.TypeMediaRequest, notification.TypeRequestAnswered,
+	}
+	for _, typ := range all {
+		if got := typ.IsAdminOnly(); got != adminOnly[typ] {
+			t.Errorf("%s.IsAdminOnly() = %v, want %v", typ, got, adminOnly[typ])
+		}
+	}
+}
+
+// The series key is "<library>:<title>", scoped per library so two libraries
+// holding the same show do not collapse into one thread, and an untitled
+// series yields the empty key (no grouping) rather than a dangling ":" one.
+func TestNewSeriesKey_And_LabelParts(t *testing.T) {
+	t.Parallel()
+	if got := notification.NewSeriesKey("lib1", "Some Show"); got != "lib1:Some Show" {
+		t.Errorf("NewSeriesKey = %q", got)
+	}
+	if got := notification.NewSeriesKey("lib1", ""); got != "" {
+		t.Errorf("empty title must give the empty key, got %q", got)
+	}
+	if notification.NewSeriesKey("lib1", "Show") == notification.NewSeriesKey("lib2", "Show") {
+		t.Error("the same title in two libraries must not share a key")
+	}
+
+	n, err := notification.NewNotification("n1", "p1", notification.TypeNewEpisode, "New episodes",
+		notification.WithSeriesKey(notification.NewSeriesKey("lib1", "Some Show")),
+		notification.WithLabelParts("Some Show", 1, 3),
+	)
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if n.SeriesKey != "lib1:Some Show" || n.Subject != "Some Show" || n.SeasonCount != 1 || n.EpisodeCount != 3 {
+		t.Errorf("label parts not wired: %+v", n)
+	}
+}

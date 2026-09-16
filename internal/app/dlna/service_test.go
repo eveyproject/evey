@@ -1,7 +1,9 @@
 package dlna
 
 import (
+	"context"
 	"testing"
+	"time"
 )
 
 func TestNew(t *testing.T) {
@@ -196,5 +198,39 @@ func TestParseLocationHeader_UppercasingDoesNotShiftTheValue(t *testing.T) {
 				t.Errorf("parseLocationHeader(%q) = %q, want %q", tc.resp, got, tc.want)
 			}
 		})
+	}
+}
+
+// A fresh scan is served from the cache for its TTL, and the caller gets a
+// copy: the picker mutating its list must not rewrite what the next caller
+// sees. An empty result is never cached, so a TV switched on after a
+// miss shows up on the next click rather than a minute later.
+func TestDiscover_CacheServesCopy(t *testing.T) {
+	s := New("http://evey.local")
+	s.renderers = []Renderer{{ID: "r1", Name: "Salon", Location: "http://tv/desc.xml"}}
+	s.lastScan = time.Now()
+
+	got, err := s.Discover(context.Background())
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "r1" {
+		t.Fatalf("got %+v, want the cached renderer", got)
+	}
+	got[0].Name = "changed"
+	if s.renderers[0].Name != "Salon" {
+		t.Error("cache was mutated through the returned slice")
+	}
+
+	s.renderers = nil
+	if time.Since(s.lastScan) >= cacheTTL || len(s.renderers) > 0 {
+		t.Fatal("precondition: fresh scan with no renderers")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, _ = s.Discover(ctx)
+	if time.Since(start) > time.Second {
+		t.Error("an empty cache must rescan bounded by the caller's deadline, not the 3s SSDP window")
 	}
 }
