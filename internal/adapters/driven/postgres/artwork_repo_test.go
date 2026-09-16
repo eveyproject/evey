@@ -225,3 +225,59 @@ func TestArtworkRepo_DeleteByMediaItemIDs_Empty(t *testing.T) {
 	artRepo := postgres.NewArtworkRepository(db)
 	assert.NoError(t, artRepo.DeleteByMediaItemIDs(context.Background(), nil))
 }
+
+// The artwork maintenance loops: the download backlog is "has a source, no
+// local file", the blurhash backlog is "has a local file, no blurhash", the
+// stats count both sides, and the batched read keys records by item.
+func TestArtworkRepo_BacklogsStatsAndBatchRead(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	lib := newTestLibrary("artlib9")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	a, b := newTestMediaItem("artmi9a", lib.ID), newTestMediaItem("artmi9b", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, a))
+	require.NoError(t, itemRepo.Create(ctx, b))
+	artRepo := postgres.NewArtworkRepository(db)
+
+	pending := newTestArtwork("art9-pending", string(a.ID), 0) // source, no local file
+	local := newTestArtwork("art9-local", string(a.ID), 1)     // downloaded, no blurhash yet
+	done := newTestArtwork("art9-done", string(b.ID), 0)       // downloaded and hashed
+	for _, rec := range []*metadata.ArtworkRecord{pending, local, done} {
+		require.NoError(t, artRepo.Create(ctx, rec))
+	}
+	require.NoError(t, artRepo.UpdateLocalPath(ctx, "art9-local", "/data/artworks/a/poster.jpg"))
+	require.NoError(t, artRepo.UpdateLocalPath(ctx, "art9-done", "/data/artworks/b/poster.jpg"))
+	require.NoError(t, artRepo.UpdateBlurhash(ctx, "art9-done", "LEHV6nWB2yk8"))
+	require.Error(t, artRepo.UpdateLocalPath(ctx, "ghost", "/x"), "a vanished record is not a silent success")
+	require.Error(t, artRepo.UpdateBlurhash(ctx, "ghost", "x"))
+
+	missingLocal, err := artRepo.ListMissingLocalPath(ctx)
+	require.NoError(t, err)
+	require.Len(t, missingLocal, 1)
+	assert.Equal(t, "art9-pending", missingLocal[0].ID)
+
+	missingHash, err := artRepo.ListMissingBlurhash(ctx)
+	require.NoError(t, err)
+	require.Len(t, missingHash, 1)
+	assert.Equal(t, "art9-local", missingHash[0].ID, "only a downloaded file can be hashed")
+
+	stats, err := artRepo.LocalPathStats(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, 3, stats.TotalRecords)
+	assert.EqualValues(t, 2, stats.WithLocalPath)
+	assert.EqualValues(t, 1, stats.MissingLocalPath)
+
+	byItem, err := artRepo.GetByMediaItems(ctx, []string{string(a.ID), string(b.ID), "ghost"})
+	require.NoError(t, err)
+	require.Len(t, byItem[string(a.ID)], 2)
+	assert.Equal(t, "art9-pending", byItem[string(a.ID)][0].ID, "sort order within an item")
+	require.Len(t, byItem[string(b.ID)], 1)
+	require.NotNil(t, byItem[string(b.ID)][0].Blurhash)
+	assert.Equal(t, "LEHV6nWB2yk8", *byItem[string(b.ID)][0].Blurhash)
+	assert.NotContains(t, byItem, "ghost")
+	none, err := artRepo.GetByMediaItems(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
