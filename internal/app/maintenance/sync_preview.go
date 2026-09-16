@@ -38,6 +38,10 @@ const SyncPreviewMaxShiftSec = 60.0
 // a clip. Said plainly rather than returned as an empty video.
 var ErrPreviewUnavailable = errors.New("sync preview rendering is not available on this server")
 
+// ErrShiftOutOfRange is an operator shift past SyncPreviewMaxShiftSec: a
+// mistyped number, refused before it touches a file.
+var ErrShiftOutOfRange = fmt.Errorf("a shift beyond %.0fs is not something this tool will move a track by", SyncPreviewMaxShiftSec)
+
 // SyncPreviewRequest is one clip to build.
 type SyncPreviewRequest struct {
 	Path string
@@ -120,8 +124,7 @@ func (s *SeekIndexService) ApplyOperatorShift(ctx context.Context, mediaID strin
 		return ErrNotReversible
 	}
 	if shiftSec > SyncPreviewMaxShiftSec || shiftSec < -SyncPreviewMaxShiftSec {
-		return fmt.Errorf("apply shift: %+.3fs is beyond the %.0fs this tool will move a track",
-			shiftSec, SyncPreviewMaxShiftSec)
+		return fmt.Errorf("apply shift: %+.3fs: %w", shiftSec, ErrShiftOutOfRange)
 	}
 	f, err := s.catalog.GetMediaFile(ctx, mediaID)
 	if err != nil {

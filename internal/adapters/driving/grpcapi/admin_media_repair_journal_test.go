@@ -194,3 +194,31 @@ func TestNotFoundAnswersCarryNoRepositoryText(t *testing.T) {
 	assert.Equal(t, codes.NotFound, status.Code(err))
 	assert.NotContains(t, status.Convert(err).Message(), ":")
 }
+
+type recordingRetimer struct{ calls int }
+
+func (r *recordingRetimer) RetimeTracks(context.Context, string, map[uint64]float64) error {
+	r.calls++
+	return nil
+}
+
+// An operator's shift beyond what the tool moves is the caller's mistake
+// (InvalidArgument, the sentence says how far it goes), a server with no
+// retimer says so as a precondition, and both leave the file untouched.
+func TestApplyAudioShift_RefusalsAreNotServerFaults(t *testing.T) {
+	ctx := context.Background()
+	_, err := (&adminMediaHandler{}).ApplyAudioShift(ctx, &eveyv1.ApplyAudioShiftRequest{MediaId: "mi-1", Track: 2, ShiftSec: 1})
+	assert.Equal(t, codes.Unimplemented, status.Code(err))
+
+	catalog := fakeSeekCatalog{ref: appmaintenance.MediaRef{MediaID: "mi-1", Path: "/media/m.mkv"}}
+	noRetimer := &adminMediaHandler{seekIndex: appmaintenance.NewSeekIndexService(fakeReindexer{}, catalog, nil)}
+	_, err = noRetimer.ApplyAudioShift(ctx, &eveyv1.ApplyAudioShiftRequest{MediaId: "mi-1", Track: 2, ShiftSec: 1})
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+
+	r := &recordingRetimer{}
+	d := &adminMediaHandler{seekIndex: appmaintenance.NewSeekIndexService(fakeReindexer{}, catalog, nil).WithTrackRetimer(r)}
+	_, err = d.ApplyAudioShift(ctx, &eveyv1.ApplyAudioShiftRequest{MediaId: "mi-1", Track: 2, ShiftSec: 3600})
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Contains(t, status.Convert(err).Message(), "60")
+	assert.Zero(t, r.calls, "nothing may be written for a value out of range")
+}

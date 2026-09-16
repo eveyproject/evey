@@ -120,7 +120,9 @@ func TestOperatorShift_RefusesAnAbsurdAmount(t *testing.T) {
 	r := &fakeRetimer{}
 	_, svc := previewService(t, nil, r, &fakeJournal{})
 
-	require.Error(t, svc.ApplyOperatorShift(context.Background(), "m1", 2, 3600))
+	err := svc.ApplyOperatorShift(context.Background(), "m1", 2, 3600)
+	require.ErrorIs(t, err, appmaintenance.ErrShiftOutOfRange, "the API maps this to the caller's fault, not a server fault")
+	require.ErrorIs(t, svc.ApplyOperatorShift(context.Background(), "m1", 2, -61), appmaintenance.ErrShiftOutOfRange)
 	assert.Empty(t, r.calls, "nothing may be written for a value out of range")
 }
 
