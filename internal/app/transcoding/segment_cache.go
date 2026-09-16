@@ -92,6 +92,9 @@ type DecisionFingerprint struct {
 	HDRTonemap          bool
 	AudioNormalize      bool
 	MaxAudioChannels    int
+	// SourceAudioChannels only gates the fold policy (hashed through it);
+	// 0 = unknown, which keeps the guard on.
+	SourceAudioChannels int
 	ForceSidecarSubs    bool
 	UseFMP4             bool
 	// AudioCopy passes the source audio through (`-c:a copy`) instead of
@@ -281,6 +284,9 @@ type AudioFingerprint struct {
 	AudioBitrate     int64 // kbps; 0 = encoder default
 	AudioNormalize   bool
 	MaxAudioChannels int
+	// SourceAudioChannels only gates the fold policy (hashed through it);
+	// 0 = unknown, which keeps the guard on.
+	SourceAudioChannels int
 
 	// SourceDurationSec is the container-declared media duration, in seconds.
 	// TRANSPORT ONLY - deliberately excluded from Hash(): it is not an encode
@@ -318,7 +324,7 @@ func (a AudioFingerprint) downmixPolicy() string {
 	if a.AudioCodec == "copy" {
 		return ""
 	}
-	return transcoding.AudioDownmixPolicy(a.MaxAudioChannels)
+	return transcoding.AudioDownmixPolicy(a.SourceAudioChannels, a.MaxAudioChannels)
 }
 
 // hashWithDownmixPolicy is Hash with the policy injected, so a test can prove
@@ -392,7 +398,7 @@ func (f DecisionFingerprint) downmixPolicy() string {
 	if f.AudioCopy {
 		return ""
 	}
-	return transcoding.AudioDownmixPolicy(f.MaxAudioChannels)
+	return transcoding.AudioDownmixPolicy(f.SourceAudioChannels, f.MaxAudioChannels)
 }
 
 // hashWithDownmixPolicy is Hash with the policy injected - see the twin on

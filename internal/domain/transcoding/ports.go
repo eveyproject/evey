@@ -85,15 +85,17 @@ type AudioProcess interface {
 // AudioProcessOpts configures one audio-only HLS rendition encode; T in the
 // filenames is SourceTrackIdx.
 type AudioProcessOpts struct {
-	FilePath         string  // source media absolute path
-	OutputDir        string  // destination for audio_T_NNN.m4s + audio_T_init.mp4
-	SourceTrackIdx   int     // 0-indexed audio stream in source
-	AudioCodec       string  // "aac", "ac3", "eac3", "opus" → resolveAudioEncoder
-	AudioBitrate     int     // kbps; 0 = encoder default
-	MaxAudioChannels int     // for resolveAudioChannels; 0 = passthrough (→ "2")
-	StartSec         float64 // for mid-stream rafale; 0 for cold start
-	StartNumber      int     // ffmpeg -start_number; floor(StartSec/3) for rafale
-	AudioNormalize   bool    // insert loudnorm filter
+	FilePath         string // source media absolute path
+	OutputDir        string // destination for audio_T_NNN.m4s + audio_T_init.mp4
+	SourceTrackIdx   int    // 0-indexed audio stream in source
+	AudioCodec       string // "aac", "ac3", "eac3", "opus" → resolveAudioEncoder
+	AudioBitrate     int    // kbps; 0 = encoder default
+	MaxAudioChannels int    // for resolveAudioChannels; 0 = passthrough (→ "2")
+	// SourceAudioChannels gates the stereo fold guard (AudioFoldFilter); 0 = unknown, guard on.
+	SourceAudioChannels int
+	StartSec            float64 // for mid-stream rafale; 0 for cold start
+	StartNumber         int     // ffmpeg -start_number; floor(StartSec/3) for rafale
+	AudioNormalize      bool    // insert loudnorm filter
 	// AudioEncoder is the concrete AAC implementation the rendition was
 	// fingerprinted with ("aac" / "libfdk_aac"); empty = native. One value for
 	// the bytes and the hash, like HLSProcessOpts.AudioEncoder.
@@ -219,7 +221,9 @@ type HLSProcessOpts struct {
 	VideoCodec       string // domain codec name: "h264"|"hevc"/"h265"|"av1". Empty → libx264.
 	AudioCodec       string // domain codec name: "aac"|"ac3"|"eac3"|"opus". Empty → aac.
 	MaxAudioChannels int    // 0 = no cap (preserves current -ac 2 default when transcoding audio).
-	ForceSidecarSubs bool   // true → skip burn-in even for bitmap subs (served as sidecar externally).
+	// SourceAudioChannels gates the stereo fold guard (AudioFoldFilter); 0 = unknown, guard on.
+	SourceAudioChannels int
+	ForceSidecarSubs    bool // true → skip burn-in even for bitmap subs (served as sidecar externally).
 
 	// HWAccel selects the hardware backend (None/"" = software). Set by the
 	// wiring only when the flag is on and a probed device encodes the codec;

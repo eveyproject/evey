@@ -1,7 +1,6 @@
 package ffmpeg
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -32,7 +31,7 @@ func TestBuildReducedArgs(t *testing.T) {
 		"-force_key_frames", "expr:gte(t,n_forced*2)",
 		"-c:a", "aac", "-ac", "2", "-b:a", "128k",
 		// Derived, not literal - see the same note in compat_transcode_test.go.
-		"-rematrix_maxval", fmt.Sprintf("%.4f", transcoding.DownmixRematrixMaxval),
+		"-af", transcoding.AudioFoldFilter(0, 2),
 		"-c:s", "copy",
 		"-f", "segment",
 		"-segment_format", "matroska",

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/hdr"
 )
 
@@ -268,16 +269,16 @@ func TestBuildFFmpegArgs_StereoFoldCarriesMatrixHeadroom(t *testing.T) {
 		transcodeParams{subtitleTrack: -1},
 		transcodeAnalysis{needsAudioTranscode: true},
 	)
-	if !argsHas(args, "-rematrix_maxval") {
-		t.Fatalf("stereo fold shipped without matrix headroom: %v", args)
+	if !argsHas(args, "-af") || !argsHas(args, domaintranscoding.AudioFoldFilter(0, 2)) {
+		t.Fatalf("stereo fold shipped without the fold guard: %v", args)
 	}
 
-	// A stream copy has no resampler to configure.
+	// A stream copy has nothing to filter.
 	copied := h.buildFFmpegArgs("/video.mkv",
 		transcodeParams{subtitleTrack: -1},
 		transcodeAnalysis{},
 	)
-	if argsHas(copied, "-rematrix_maxval") {
-		t.Errorf("audio copy must not carry a resampler option: %v", copied)
+	if argsHas(copied, "-af") {
+		t.Errorf("audio copy must not carry an audio filter: %v", copied)
 	}
 }

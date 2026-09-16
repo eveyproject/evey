@@ -64,6 +64,11 @@ line - earlier history lives in git.
   searchable from the admin panel.
 
 ### Fixed
+- Playback: the stereo fold of a 5.1 track distorted on loud passages (the
+  level makeup pushed the mix past full scale and the encoder hard-clipped it,
+  audible on a tablet through a whole action climax). The fold now runs in
+  float behind a look-ahead limiter: same level, no clipping, and a source
+  already in stereo is left untouched.
 - Mobile: the Music tab crashed with "Rendered more hooks than during the
   previous render"; the same class was removed from the TV home banner, the
   web library page and the mobile home rows, and the lint gate now refuses

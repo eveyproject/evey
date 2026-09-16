@@ -199,6 +199,26 @@ func hasAudio(opts transcoding.HLSProcessOpts) bool {
 	return opts.AudioTrackIndex >= 0
 }
 
+const loudnormFilter = "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true"
+
+// audioFilterArgs is the single audio filter option of a re-encoded stream
+// (flag = -af or -filter:a:N): the stereo fold guard, then loudnorm when asked.
+func audioFilterArgs(flag string, opts transcoding.HLSProcessOpts) []string {
+	return audioFilterOption(flag, opts.SourceAudioChannels, opts.MaxAudioChannels, opts.AudioNormalize)
+}
+
+func audioFilterOption(flag string, sourceChannels, maxChannels int, normalize bool) []string {
+	norm := ""
+	if normalize {
+		norm = loudnormFilter
+	}
+	chain := transcoding.JoinAudioFilters(transcoding.AudioFoldFilter(sourceChannels, maxChannels), norm)
+	if chain == "" {
+		return nil
+	}
+	return []string{flag, chain}
+}
+
 // audioDelayCancelMinSec is the floor below which a probed source audio start
 // delay is ignored. Legitimate small offsets (AAC priming ~21-40ms, muxer
 // interleave jitter) live well under it; the mux-defect class this fix targets
@@ -278,10 +298,7 @@ func audioOutputArgsSingle(opts transcoding.HLSProcessOpts, bitrateKbps int64) [
 			"-ar", "48000", // a 96/192 kHz source would otherwise ship AAC at 96 kHz, which TVs and casts refuse
 			"-b:a", fmt.Sprintf("%dk", scaledAudioBitrateKbps(bitrateKbps, opts.MaxAudioChannels)),
 		)
-		a = append(a, transcoding.AudioDownmixArgs(opts.MaxAudioChannels)...)
-		if opts.AudioNormalize {
-			a = append(a, "-filter:a:0", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
-		}
+		a = append(a, audioFilterArgs("-filter:a:0", opts)...)
 	} else {
 		a = append(a, "-c:a", "copy")
 	}
@@ -302,10 +319,7 @@ func audioVariantArgs(opts transcoding.HLSProcessOpts, i int, bitrateKbps int64)
 		fmt.Sprintf("-ar:a:%d", i), "48000",
 		fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", scaledAudioBitrateKbps(bitrateKbps, opts.MaxAudioChannels)),
 	}
-	a = append(a, transcoding.AudioDownmixArgs(opts.MaxAudioChannels)...)
-	if opts.AudioNormalize {
-		a = append(a, fmt.Sprintf("-filter:a:%d", i), "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
-	}
+	a = append(a, audioFilterArgs(fmt.Sprintf("-filter:a:%d", i), opts)...)
 	return a
 }
 
@@ -730,10 +744,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 				"-ar", "48000",
 				"-b:a", fmt.Sprintf("%dk", scaledAudioBitrateKbps(base, opts.MaxAudioChannels)),
 			)
-			args = append(args, transcoding.AudioDownmixArgs(opts.MaxAudioChannels)...)
-			if opts.AudioNormalize {
-				args = append(args, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
-			}
+			args = append(args, audioFilterArgs("-af", opts)...)
 		} else {
 			args = append(args, "-c:a", "copy")
 		}

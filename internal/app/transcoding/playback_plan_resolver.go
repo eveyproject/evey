@@ -1046,6 +1046,8 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		AudioNormalize:   normalize,
 		AudioEncoder:     pr.audioEncoderID(),
 		MaxAudioChannels: decision.MaxAudioChannels,
+		// Gates the fold guard on a real fold; wasm (-1) reads as unknown, guard on.
+		SourceAudioChannels: SourceAudioChannels(streams, videoAudioTrack),
 		// Audio passthrough eligibility - see AudioCopyEligible (shared with
 		// the manifest input so the master CODECS always matches the bytes).
 		AudioCopy: audioCopy,

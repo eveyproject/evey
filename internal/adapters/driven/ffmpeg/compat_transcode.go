@@ -73,7 +73,7 @@ func BuildCompatArgs(src, dst string) []string {
 	}
 	// The stereo fold is HARDCODED here, so a downloaded file carries the
 	// clipping in its own samples forever - the guard matters most on this path.
-	args = append(args, transcoding.AudioDownmixArgs(2)...)
+	args = append(args, "-af", transcoding.AudioFoldFilter(0, 2))
 	return append(args,
 		"-f", "matroska",
 		dst,

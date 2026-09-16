@@ -47,7 +47,7 @@ func TestDownmixPolicyChange_ForksBothCaches(t *testing.T) {
 // MUST have moved off them.
 func TestDownmixPolicy_MovedOffTheUnprotectedHashes(t *testing.T) {
 	afp := stereoAudioFp()
-	require.Equal(t, domaintranscoding.AudioDownmixPolicy(2), afp.downmixPolicy())
+	require.Equal(t, domaintranscoding.AudioDownmixPolicy(0, 2), afp.downmixPolicy())
 	assert.NotEqual(t, afp.hashWithDownmixPolicy(""), afp.Hash(),
 		"stereo audio rendition still hashes like the unprotected fold")
 
@@ -64,7 +64,7 @@ func TestDownmixPolicy_MovedOffTheUnprotectedHashes(t *testing.T) {
 // exists so it stays that way.
 func TestDownmixPolicy_LevelChangeForksTheCache(t *testing.T) {
 	const fullyNormalised = "rematrix_maxval=1.0000"
-	require.NotEqual(t, fullyNormalised, domaintranscoding.AudioDownmixPolicy(2),
+	require.NotEqual(t, fullyNormalised, domaintranscoding.AudioDownmixPolicy(0, 2),
 		"this test is stale: the cap is back at the fully normalised value")
 
 	afp := stereoAudioFp()
@@ -107,10 +107,32 @@ func TestDownmixPolicy_IsTheOneTheBuilderEmits(t *testing.T) {
 	for _, ch := range []int{0, 2, 6} {
 		afp := stereoAudioFp()
 		afp.MaxAudioChannels = ch
-		assert.Equal(t, domaintranscoding.AudioDownmixPolicy(ch), afp.downmixPolicy(), "channels=%d", ch)
+		assert.Equal(t, domaintranscoding.AudioDownmixPolicy(0, ch), afp.downmixPolicy(), "channels=%d", ch)
 
 		dfp := stereoDecisionFp()
 		dfp.MaxAudioChannels = ch
-		assert.Equal(t, domaintranscoding.AudioDownmixPolicy(ch), dfp.downmixPolicy(), "channels=%d", ch)
+		assert.Equal(t, domaintranscoding.AudioDownmixPolicy(0, ch), dfp.downmixPolicy(), "channels=%d", ch)
+	}
+}
+
+// A source known to be stereo sums nothing: no policy, so its segments keep
+// the hash they had before any fold policy existed. An unknown source (0)
+// keeps the guard - and the forked hash - because it may be a 5.1.
+func TestDownmixPolicy_KnownStereoSourceKeepsItsHash(t *testing.T) {
+	afp := stereoAudioFp()
+	afp.SourceAudioChannels = 2
+	assert.Empty(t, afp.downmixPolicy())
+	assert.Equal(t, afp.hashWithDownmixPolicy(""), afp.Hash())
+
+	dfp := stereoDecisionFp()
+	dfp.SourceAudioChannels = 2
+	assert.Empty(t, dfp.downmixPolicy())
+	assert.Equal(t, dfp.hashWithDownmixPolicy(""), dfp.Hash())
+
+	for _, src := range []int{0, 6, 8} {
+		a := stereoAudioFp()
+		a.SourceAudioChannels = src
+		assert.NotEmpty(t, a.downmixPolicy(), "source=%d", src)
+		assert.NotEqual(t, a.hashWithDownmixPolicy(""), a.Hash(), "source=%d", src)
 	}
 }

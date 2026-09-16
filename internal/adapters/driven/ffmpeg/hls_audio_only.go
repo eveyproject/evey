@@ -98,10 +98,6 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 		}
 
 		args = append(args, "-ac", resolveAudioChannels(opts.MaxAudioChannels))
-		// Headroom for the channel matrix when this rendition folds a
-		// multichannel bed to stereo - see domain/transcoding/audio_downmix.go.
-		// Nothing is emitted when the target keeps the source layout.
-		args = append(args, transcoding.AudioDownmixArgs(opts.MaxAudioChannels)...)
 		// 48 kHz is the HLS/CMAF standard sample rate; avoids resampler surprises
 		// when the source carries 44.1 kHz or 96 kHz PCM tracks.
 		args = append(args, "-ar", "48000")
@@ -117,13 +113,10 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 		args = append(args, "-output_ts_offset", fmt.Sprintf("%.3f", opts.VideoCompositionDelay))
 	}
 
-	// loudnorm is a filter (re-encode); it cannot run on a stream copy. A
-	// passthrough rendition is served verbatim regardless of the normalize knob -
-	// the wasm-audio path never re-encodes, so audio normalization simply does
-	// not apply to it (the AudioFingerprint below drops it too for AC-3 copy).
-	// Silence skips it too: measuring loudness on digital zero is pointless.
-	if opts.AudioNormalize && !isCopy && !silence {
-		args = append(args, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
+	// Filters need a re-encode: a passthrough rendition is served verbatim
+	// whatever the normalize knob says, and silence has nothing to fold or measure.
+	if !isCopy && !silence {
+		args = append(args, audioFilterOption("-af", opts.SourceAudioChannels, opts.MaxAudioChannels, opts.AudioNormalize)...)
 	}
 
 	// HLS muxer - event-mode, fMP4 container, temp_file for atomic renames.

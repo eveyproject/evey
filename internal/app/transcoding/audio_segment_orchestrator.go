@@ -410,13 +410,14 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 	teardown := o.cache.RegisterSession(audioHash)
 
 	opts := transcoding.AudioProcessOpts{
-		FilePath:         fp.SourcePath,
-		OutputDir:        outputDir,
-		SourceTrackIdx:   fp.SourceTrackIdx,
-		AudioCodec:       fp.AudioCodec,
-		AudioEncoder:     fp.AudioEncoder,
-		AudioBitrate:     int(fp.AudioBitrate),
-		MaxAudioChannels: fp.MaxAudioChannels,
+		FilePath:            fp.SourcePath,
+		OutputDir:           outputDir,
+		SourceTrackIdx:      fp.SourceTrackIdx,
+		AudioCodec:          fp.AudioCodec,
+		AudioEncoder:        fp.AudioEncoder,
+		AudioBitrate:        int(fp.AudioBitrate),
+		MaxAudioChannels:    fp.MaxAudioChannels,
+		SourceAudioChannels: fp.SourceAudioChannels,
 		// Seek: ffmpeg both decodes from here (-ss) and numbers its output from
 		// here (-start_number), so segment N on disk is always source second
 		// N*ManifestSegmentSeconds - the invariant the playlist addresses.

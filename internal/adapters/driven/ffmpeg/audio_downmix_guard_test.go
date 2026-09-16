@@ -12,15 +12,12 @@ import (
 	"github.com/evey-project/evey/internal/pkg/reduceddl"
 )
 
-// Every server-side path that folds a multichannel bed to stereo must bound the
-// channel matrix. Without it swr sums FL + clev*FC + slev*BL into a float
-// encoder and never normalises: measured through this very argv, +2.67 dBFS
-// with 816 clipped samples on a 5.1 AC-3 bed mastered at -1 dBFS per channel
-// (audio_downmix_integration_test.go).
+// Every server-side path that folds a multichannel bed to stereo must carry
+// the fold guard (float fold + limiter, audio_downmix.go): without it the
+// integer encoder input hard-clips a loud mix (audio_downmix_integration_test.go).
 func TestStereoFold_CarriesMatrixHeadroom(t *testing.T) {
-	guard := transcoding.AudioDownmixArgs(2)
+	guard := transcoding.AudioFoldFilter(0, 2)
 	require.NotEmpty(t, guard)
-	needle := strings.Join(guard, " ")
 
 	cases := map[string][]string{
 		"compat download": ffmpeg.BuildCompatArgs("/media/film.mkv", "/cache/out.mkv.tmp"),
@@ -65,8 +62,48 @@ func TestStereoFold_CarriesMatrixHeadroom(t *testing.T) {
 	for name, args := range cases {
 		joined := strings.Join(args, " ")
 		require.Contains(t, joined, "-ac 2", "%s: expected a stereo fold", name)
-		assert.Contains(t, joined, needle, "%s: stereo fold ships without matrix headroom", name)
+		assert.Contains(t, joined, guard, "%s: stereo fold ships without the guard", name)
 	}
+}
+
+// A source the handler knows to be stereo sums nothing, so the guard - a
+// filter node, and a limiter that would touch a hot master - stays out and the
+// bytes are the pre-policy ones.
+func TestStereoFold_SkipsTheGuardOnAKnownStereoSource(t *testing.T) {
+	guard := transcoding.AudioFoldFilter(0, 2)
+	cases := map[string][]string{
+		"audio rendition": ffmpeg.BuildFFmpegAudioOnlyArgs(transcoding.AudioProcessOpts{
+			FilePath: "/f.mkv", OutputDir: "/o", AudioCodec: "aac",
+			AudioBitrate: transcoding.AudioRenditionBaseKbps, MaxAudioChannels: 2, SourceAudioChannels: 2,
+		}),
+		"muxed multi-variant": ffmpeg.BuildFFmpegArgs(transcoding.HLSProcessOpts{
+			OutputDir: "/o", FilePath: "/f.mkv", Profiles: transcoding.DefaultHLSProfiles,
+			VideoDecision: "transcode", AudioDecision: "transcode", MaxAudioChannels: 2, SourceAudioChannels: 2,
+		}),
+	}
+	for name, args := range cases {
+		joined := strings.Join(args, " ")
+		require.Contains(t, joined, "-ac 2", name)
+		assert.NotContains(t, joined, guard, "%s: a stereo source must not be guarded", name)
+		assert.NotContains(t, joined, "alimiter", name)
+	}
+}
+
+// loudnorm stacks on the guard in ONE filter option: ffmpeg keeps only the
+// last -af, so a second option would silently drop the fold.
+func TestStereoFold_StacksLoudnormInTheSameFilterOption(t *testing.T) {
+	args := ffmpeg.BuildFFmpegAudioOnlyArgs(transcoding.AudioProcessOpts{
+		FilePath: "/f.mkv", OutputDir: "/o", AudioCodec: "aac",
+		AudioBitrate: transcoding.AudioRenditionBaseKbps, MaxAudioChannels: 2, AudioNormalize: true,
+	})
+	afs := 0
+	for i, a := range args {
+		if a == "-af" {
+			afs++
+			assert.True(t, strings.HasPrefix(args[i+1], transcoding.AudioFoldFilter(0, 2)+",loudnorm="), args[i+1])
+		}
+	}
+	assert.Equal(t, 1, afs, "exactly one audio filter option: %v", args)
 }
 
 // The nominal 5.1 path must be untouched: nothing sums, so no option and above
@@ -119,4 +156,5 @@ func TestAudioPassthrough_KeepsNoResamplerOption(t *testing.T) {
 	joined := strings.Join(args, " ")
 	require.Contains(t, joined, "-c:a copy")
 	assert.NotContains(t, joined, "-rematrix_maxval")
+	assert.NotContains(t, joined, "-af")
 }

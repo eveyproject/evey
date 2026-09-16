@@ -140,7 +140,7 @@ func BuildReducedArgs(src, pattern, listPath string, spec reduceddl.Spec) []stri
 	)
 	// Same hardcoded stereo fold as the compat production, same permanent
 	// consequence in the delivered file - see domain/transcoding/audio_downmix.go.
-	args = append(args, transcoding.AudioDownmixArgs(2)...)
+	args = append(args, "-af", transcoding.AudioFoldFilter(0, 2))
 	args = append(args,
 		"-c:s", "copy",
 		"-f", "segment",
