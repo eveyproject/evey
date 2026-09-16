@@ -75,6 +75,11 @@ line - earlier history lives in git.
   searchable from the admin panel.
 
 ### Fixed
+- Web player: resuming after a pause of a few seconds or more showed a frozen
+  picture with the sound running for about three seconds before the video
+  jumped ahead (the browser had parked the decoder and its clock restarted
+  before any frame was decoded). The player now seeks in place on such a
+  resume so picture and sound leave together.
 - Subtitles: an SRT track ripped from ASS showed its override tags in the
   text ("{\an8}Une heure."). They are stripped, and the alignment they carry
   becomes a WebVTT placement - a sign the author put at the top stays at the

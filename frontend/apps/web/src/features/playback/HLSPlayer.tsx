@@ -45,6 +45,7 @@ import { useWasmAudioPlayback } from "./wasmaudio/useWasmAudioPlayback";
 import { CONTROLS_FADE_MS, fadeClasses, useFadeParked } from "./hooks/useFadeParked";
 import { canWasmDecodeAC3, isWasmDecodableAudioCodec } from "@/utils/codec";
 import { useSubtitleManager } from "./hooks/useSubtitleManager";
+import { nudgeOnResume } from "./hooks/resumeNudge";
 import { usePlayerKeyboard } from "./hooks/usePlayerKeyboard";
 import { useTouchGestures } from "./hooks/useTouchGestures";
 import { useOverlayTime } from "./hooks/useOverlayTime";
@@ -1084,8 +1085,18 @@ export function HLSPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
+    let pausedAt: number | null = null;
+    const onPlay = () => {
+      setIsPlaying(true);
+      // See resumeNudge.ts: a decoder parked by a long pause restarts on a
+      // seek, not on play - without it the clock runs on a frozen picture.
+      nudgeOnResume(video, pausedAt);
+      pausedAt = null;
+    };
+    const onPause = () => {
+      setIsPlaying(false);
+      pausedAt = Date.now();
+    };
     const onEnded = () => {
       setIsPlaying(false);
       // "Stop at end of episode" sleep timer: the video already paused itself
