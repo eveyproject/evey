@@ -16,6 +16,17 @@ const CACHE_KEY = "evey_i18n_";
 const CACHE_TTL = 24 * 60 * 60 * 1000;
 const IS_DEV = import.meta.env.DEV;
 
+// A lazily loaded route chunk asking for a key the in-memory catalogue lacks
+// means the catalogue predates the bundle (tab left open across a deploy):
+// refetch it once instead of showing raw keys until the next reload.
+let staleRefetchAt = 0;
+const STALE_REFETCH_MIN_GAP = 60 * 1000;
+export function refetchOnMissingKey(now = Date.now()): void {
+  if (IS_DEV || now - staleRefetchAt < STALE_REFETCH_MIN_GAP) return;
+  staleRefetchAt = now;
+  void i18n.reloadResources();
+}
+
 function getCached(lng: string): Record<string, string> | null {
   if (IS_DEV) return null;
   try {
@@ -57,8 +68,13 @@ void i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
+    saveMissing: true,
+    missingKeyHandler: () => refetchOnMissingKey(),
     backend: {
       loadPath: "/api/v1/i18n/{{lng}}",
+      // saveMissing would otherwise POST every missing key to the backend's
+      // default /locales/add path; the handler above only refetches.
+      addPath: "",
       request: async (
         _options: unknown,
         url: string,
