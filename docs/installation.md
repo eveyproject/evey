@@ -397,15 +397,26 @@ host (a Raspberry Pi, an ARM NAS, an Ampere VPS).
 
 Two things to know on ARM:
 
-- **No hardware transcoding on a Synology-class ARM (Realtek) NAS.** Evey wires
-  exactly three accel backends - Intel QSV, VAAPI, and NVENC. QSV and the Intel
-  VAAPI drivers are x86-only (deliberately not installed on the arm64 image);
-  NVENC is NVIDIA. Evey does **not** wire the ARM-native video encoders (the
-  Raspberry Pi V4L2 M2M / Rockchip RKMPP VPUs), so on an ARM board there is no
-  hardware encode path. In practice ARM = **direct play** (the client plays the
-  file as-is, near-zero cost) plus **software transcode** on the CPU. On a weak
-  ARM core, keep `transcoding.max_video_sessions` low (1-2, in Admin → Server
-  Config) and lean on direct play.
+- **Hardware transcoding on ARM: Rockchip only, and only what the calibration
+  proves.** Evey wires four accel backends - Intel QSV, VAAPI, NVENC, and
+  Rockchip **RKMPP** (RK3588 / RK3576 / RK3568-class SoCs, through the arm64
+  jellyfin-ffmpeg's `h264_rkmpp` / `hevc_rkmpp` encoders, `drm_prime` decode,
+  RGA scaling and an OpenCL tone-map on the Mali ICD when present). QSV and the
+  Intel VAAPI drivers are x86-only (deliberately not installed on the arm64
+  image); NVENC is NVIDIA. To use RKMPP, map the MPP service node and the DRM
+  render node into the container (`/dev/mpp_service`, `/dev/dri`, and `/dev/rga`
+  where the kernel exposes it); Evey detects it, runs a real encode probe, then
+  benchmarks and route-proves each shape on your board before offering it -
+  nothing is assumed from the SoC name, and a shape that does not prove stays on
+  the CPU. RKMPP has not been validated by the project on real hardware yet: treat
+  it as best-effort and check **Admin → Encode calibration** for what was
+  certified. The Raspberry Pi **V4L2 M2M** encoder is **not** wired: on a Pi or
+  a Synology-class ARM (Realtek) NAS there is no hardware encode path, so ARM =
+  **direct play** (the client plays the file as-is, near-zero cost) plus
+  **software transcode** on the CPU. Capacity is calibrated, not guessed: a weak
+  core keeps the 720p software floor and admits one encode at a time; you may
+  still lower `transcoding.max_video_sessions` (Admin → Server Config) and lean
+  on direct play.
 - **HDR tone-mapping is on the fast path on ARM too.** The bundled arm64
   jellyfin-ffmpeg ships the SIMD `tonemapx` filter (NEON), just like the amd64
   build ships its AVX2 variant - so HDR→SDR tone-mapping is hardware-SIMD, not the

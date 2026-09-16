@@ -13,7 +13,7 @@ Evey picks the best playback method automatically:
 
 ```env
 EVEY_TRANSCODING_MAX_CONCURRENT=2
-# auto | off | nvenc | vaapi | qsv - see Hardware Acceleration below
+# auto | off | nvenc | vaapi | qsv | rkmpp - see Hardware Acceleration below
 EVEY_TRANSCODING_HW_MODE=off
 ```
 
@@ -66,8 +66,36 @@ calibration**:
 - A master **Hardware acceleration** toggle. Off = software only (the escape
   hatch for a flaky GPU/driver), on = use the GPU.
 - When on, a **backend** picker: `Auto` (calibration picks the best detected),
-  or force `NVENC` / `VAAPI` / `QSV`. If a forced backend turns out unusable it
-  falls back to software and the card shows the active backend.
+  or force `NVENC` / `VAAPI` / `QSV` / `RKMPP`. If a forced backend turns out
+  unusable it falls back to software and the card shows the active backend.
+
+**What `Auto` does.** You expose the hardware to the container (`/dev/dri`, the
+NVIDIA reservation, the Rockchip MPP node); Evey does the rest, from measurement
+only - never from a CPU or GPU name:
+
+1. **Detect**: every DRM render node is probed for VAAPI and, on an Intel node,
+   for QSV; every NVIDIA GPU by CUDA index; the Rockchip MPP node. Each encoder
+   must pass a real encode before it counts.
+2. **Certify**: each detected accelerator walks the encode ladder (720p → 2160p)
+   in the runtime's own pipeline shape and keeps the tallest rung it sustains at
+   1.2× realtime, then passes a visual-correctness gate. Under realtime at 720p =
+   rejected, software only. Every certified backend is kept with its **own**
+   ceiling, decode matrix, features and proven routes - a 1080p-only accelerator
+   next to a 2160p one serves 1080p ladders, never the other's.
+3. **Measure the routes**: for every route each backend proved (SDR, HEVC, AV1,
+   GPU tone-map, CPU bridge, HDR passthrough, decoupled decode) and for the
+   software routes, a warm production session is measured at the reference
+   rungs and at the route's ceiling - so a backend certified only at 720p, or
+   the 720p software floor, has its cost too.
+4. **Choose per workload**: the resolver picks, per request, the cheapest
+   certified backend that proves the route and supports the codec (HDR→SDR can
+   land on VAAPI's OpenCL tone-map while HEVC takes a faster QSV on the same box).
+   Admission prices the session on that route's measurement against a CPU pool
+   and an accelerator pool; a full pool spills a GPU stream to the CPU or sheds.
+
+The software ladder floors at **720p SDR / 480p HDR**: a CPU that clears no rung
+at the margin still offers those rungs, admitted one session at a time. Direct
+play and copy/remux never take an encode slot and are unaffected by any of this.
 
 The choice persists and re-benches live (no restart). It can also be seeded from
 the environment for headless deploys:
@@ -75,7 +103,7 @@ the environment for headless deploys:
 ```env
 # Either the legacy on/off flag…
 EVEY_TRANSCODING_HW_ACCEL_ENABLED=true
-# …or the unified mode (auto|off|nvenc|vaapi|qsv); the admin override wins.
+# …or the unified mode (auto|off|nvenc|vaapi|qsv|rkmpp); the admin override wins.
 EVEY_TRANSCODING_HW_MODE=auto
 # Fast-fail a wedged GPU to software after this delay (default 5s).
 EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT=5s
@@ -86,14 +114,15 @@ EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT=5s
 EVEY_TRANSCODING_HW_PER_VARIANT=false
 # Encode only the one ABR rung the client is actually requesting (on-demand,
 # one-encoder-per-rung) instead of one ffmpeg producing the whole ladder.
-# OFF by default (=0, the multi-variant ladder) - and that IS the right setting
-# for a weak NAS: multi-variant shares ONE decode of the source across every
-# rung. Single-variant (=1) re-decodes the source PER rung, so when the player
-# ABR-probes or seeks across rungs it spawns several concurrent (e.g. 4K)
-# decodes that starve each other - the classic 360p-with-buffering thrash on a
-# decode-bound host. Set =1 only on a host powerful enough to afford per-rung
-# decode sessions. Cache-compatible either way.
-EVEY_TRANSCODING_SINGLE_VARIANT=0
+# ON by default (=1). Multi-variant shares one decode across the rungs but
+# also encodes every rung the viewer never watches - measured on prod, three
+# wasted encodes starved the fourth. The calibration benches the SAME shape the
+# runtime runs (one rung per probe in single-variant, the cumulative parallel
+# ladder in multi-variant), for the software AND the hardware ladders, so the
+# ceilings match what a session actually costs. Set =0 only on a host with no
+# hardware decode AND heavy sources, to get the shared decode back.
+# Cache-compatible either way.
+EVEY_TRANSCODING_SINGLE_VARIANT=1
 ```
 
 > **Five settings now live in the admin panel** (Admin > Transcoding configuration >
