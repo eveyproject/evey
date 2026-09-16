@@ -2,9 +2,17 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -87,4 +95,47 @@ func TestActivityHandler_GetPopularMedia_DefaultLimit(t *testing.T) {
 	_, err = h.GetPopularMedia(ctx, &eveyv1.GetPopularMediaRequest{Limit: 7})
 	require.NoError(t, err)
 	assert.Equal(t, 7, stats.LastMostPopularLimit)
+}
+
+// The popular row is scoped like every other row: a title in a library the
+// member was not granted, or one that no longer exists, is dropped; an admin
+// sees all of them; a failing access lookup fails closed.
+func TestActivityHandler_GetPopularMedia_LibraryScoped(t *testing.T) {
+	h, _, stats, _, _ := newActivityHandler()
+	stats.MostPopular = []activity.MediaPlayCount{
+		{MediaItemID: "mi-mine", Title: "Mine", PlayCount: 9},
+		{MediaItemID: "mi-other", Title: "Other", PlayCount: 5},
+		{MediaItemID: "mi-gone", Title: "Deleted", PlayCount: 3},
+	}
+	mediaRepo := libfakes.NewFakeMediaItemQueryRepo()
+	mediaRepo.Seed(&library.MediaItem{ID: "mi-mine", LibraryID: "lib-mine", Type: library.MovieItem, Title: "Mine"})
+	mediaRepo.Seed(&library.MediaItem{ID: "mi-other", LibraryID: "lib-other", Type: library.MovieItem, Title: "Other"})
+	h.libQuery = applibrary.NewQueryService(libfakes.NewFakeLibraryQueryRepo(), mediaRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	libAccess := userfakes.NewFakeLibraryAccessRepository()
+	h.userAccess = appuser.NewAccessService(userfakes.NewFakeUserRepository(), userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(), sharedfakes.NewFakeEventBus(), appuser.WithLibraryAccess(libAccess))
+	ids := func(resp *eveyv1.GetPopularMediaResponse) []string {
+		out := make([]string, 0, len(resp.Items))
+		for _, it := range resp.Items {
+			out = append(out, it.MediaItemId)
+		}
+		return out
+	}
+
+	require.NoError(t, libAccess.Grant(context.Background(), "user-1", "lib-mine"))
+	resp, err := h.GetPopularMedia(ctxWithClaims("user-1", "profile-1", false), &eveyv1.GetPopularMediaRequest{Limit: 10})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"mi-mine"}, ids(resp))
+	assert.Equal(t, "movie", resp.Items[0].Type)
+	assert.EqualValues(t, 9, resp.Items[0].PlayCount)
+
+	resp, err = h.GetPopularMedia(ctxWithClaims("adm", "profile-adm", true), &eveyv1.GetPopularMediaRequest{Limit: 10})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"mi-mine", "mi-other"}, ids(resp), "an admin sees every existing title; the deleted one is still dropped")
+
+	libAccess.Err = errors.New("db down")
+	_, err = h.GetPopularMedia(ctxWithClaims("user-1", "profile-1", false), &eveyv1.GetPopularMediaRequest{Limit: 10})
+	assert.Equal(t, codes.Internal, status.Code(err), "an access lookup failure never reads as unrestricted")
 }
