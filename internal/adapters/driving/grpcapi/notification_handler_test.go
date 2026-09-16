@@ -2,11 +2,16 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	appnotification "github.com/evey-project/evey/internal/app/notification"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/notification"
 	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
@@ -282,4 +287,67 @@ func TestNotificationHandler_GetUnreadCount_IDORAnotherProfile(t *testing.T) {
 	_, err := h.GetUnreadCount(ctx, &eveyv1.GetUnreadCountRequest{ProfileId: "profile-stranger"})
 	require.Error(t, err)
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+// Library scoping of the bell: a restricted member only sees notifications
+// about titles in libraries they were granted (a deleted title's row is
+// dropped too), an admin sees everything, an unwired access port fails
+// closed rather than reading as "unrestricted", and a lookup failure is an
+// error, never a leak.
+func TestNotificationHandler_ListNotifications_LibraryScoped(t *testing.T) {
+	h, repo, _ := newNotificationHandler()
+	ctx := context.Background()
+	now := time.Now()
+	for _, n := range []*notification.Notification{
+		{ID: "n-mine", ProfileID: "profile-1", Type: notification.TypeNewMovie, Title: "Mine", MediaItemID: "mi-mine", CreatedAt: now},
+		{ID: "n-other", ProfileID: "profile-1", Type: notification.TypeNewMovie, Title: "Other lib", MediaItemID: "mi-other", CreatedAt: now.Add(-time.Second)},
+		{ID: "n-gone", ProfileID: "profile-1", Type: notification.TypeNewMovie, Title: "Deleted", MediaItemID: "mi-gone", CreatedAt: now.Add(-2 * time.Second)},
+		{ID: "n-system", ProfileID: "profile-1", Type: notification.TypeBackupFailed, Title: "Backup", CreatedAt: now.Add(-3 * time.Second)},
+	} {
+		require.NoError(t, repo.Create(ctx, n))
+	}
+	mediaRepo := libfakes.NewFakeMediaItemQueryRepo()
+	mediaRepo.Seed(&library.MediaItem{ID: "mi-mine", LibraryID: "lib-mine", Title: "Mine"})
+	mediaRepo.Seed(&library.MediaItem{ID: "mi-other", LibraryID: "lib-other", Title: "Other"})
+	h.libQuery = applibrary.NewQueryService(libfakes.NewFakeLibraryQueryRepo(), mediaRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	libAccess := userfakes.NewFakeLibraryAccessRepository()
+	h.userAccess = appuser.NewAccessService(userfakes.NewFakeUserRepository(), userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(), sharedfakes.NewFakeEventBus(), appuser.WithLibraryAccess(libAccess))
+	ids := func(resp *eveyv1.ListNotificationsResponse) []string {
+		out := make([]string, 0, len(resp.Notifications))
+		for _, n := range resp.Notifications {
+			out = append(out, n.Id)
+		}
+		return out
+	}
+
+	// Restricted member: granted lib-mine only.
+	require.NoError(t, libAccess.Grant(ctx, "user-1", "lib-mine"))
+	resp, err := h.ListNotifications(ctxWithClaims("user-1", "profile-1", false), &eveyv1.ListNotificationsRequest{Limit: 10})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"n-mine", "n-system"}, ids(resp), "other library and deleted title dropped, system notice kept")
+
+	// Admin: no filtering at all, the deleted title's row included.
+	resp, err = h.ListNotifications(ctxWithClaims("user-1", "profile-1", true), &eveyv1.ListNotificationsRequest{Limit: 10})
+	require.NoError(t, err)
+	assert.Len(t, resp.Notifications, 4)
+
+	// Unrestricted member (no grant rows): everything, like an admin.
+	resp, err = h.ListNotifications(ctxWithClaims("user-free", "profile-1", false), &eveyv1.ListNotificationsRequest{Limit: 10})
+	require.NoError(t, err)
+	assert.Len(t, resp.Notifications, 4)
+
+	// Access lookup failing: fail closed with an error, never a full list.
+	libAccess.Err = errors.New("db down")
+	_, err = h.ListNotifications(ctxWithClaims("user-1", "profile-1", false), &eveyv1.ListNotificationsRequest{Limit: 10})
+	assert.Equal(t, codes.Internal, status.Code(err))
+	libAccess.Err = nil
+
+	// Unwired access port: a member sees only title-less notices.
+	h.userAccess = nil
+	resp, err = h.ListNotifications(ctxWithClaims("user-1", "profile-1", false), &eveyv1.ListNotificationsRequest{Limit: 10})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"n-system"}, ids(resp))
 }
