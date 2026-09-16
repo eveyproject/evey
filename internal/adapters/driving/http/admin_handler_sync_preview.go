@@ -8,7 +8,6 @@ package httpapi
 // without touching the metadata route group.
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -48,7 +47,7 @@ func registerSyncPreviewRoute(mux *http.ServeMux, seekIndex *appmaintenance.Seek
 			if err != nil {
 				span.RecordError(err)
 				span.SetStatus(otelcodes.Error, err.Error())
-				http.Error(w, fmt.Sprintf(`{"message":%q}`, err.Error()), http.StatusUnprocessableEntity)
+				messageError(w, err.Error(), http.StatusUnprocessableEntity)
 				return
 			}
 			if len(clip) > syncPreviewMaxBytes {
