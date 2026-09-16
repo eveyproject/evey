@@ -41,13 +41,13 @@ func TestAudioFoldFilter_OnlyWhenFolding(t *testing.T) {
 }
 
 // The chain folds in float THEN limits: the fold must come first, with the
-// level cap that gives the 6 dB back, and the limiter must be latency
+// level cap that gives part of the level back, and the limiter must be latency
 // compensated (an uncompensated look-ahead shifts a sample-aligned rendition).
 func TestAudioFoldFilter_FoldsThenLimits(t *testing.T) {
 	f := AudioFoldFilter(6, 2)
 	parts := strings.Split(f, ",")
 	require.Len(t, parts, 2)
-	assert.True(t, strings.HasPrefix(parts[0], "aresample=out_chlayout=stereo:rematrix_maxval=2.0000"), parts[0])
+	assert.True(t, strings.HasPrefix(parts[0], "aresample=out_chlayout=stereo:rematrix_maxval=1.4142"), parts[0])
 	assert.True(t, strings.HasPrefix(parts[1], "alimiter="), parts[1])
 	assert.Contains(t, parts[1], "latency=1")
 	assert.Contains(t, parts[1], "level=0", "auto-level would undo the ceiling")
