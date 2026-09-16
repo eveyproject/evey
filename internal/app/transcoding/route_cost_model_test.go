@@ -105,3 +105,80 @@ func TestRouteCostKeyOf_AgreesWithEncodeRouteCostKey(t *testing.T) {
 		}
 	}
 }
+
+// Keys is the admin panel's listing: deterministic order (backend, encoder,
+// route) whatever the map iteration, and nil-safe.
+func TestRouteCostModel_KeysSortedAndNilSafe(t *testing.T) {
+	var none *RouteCostModel
+	if none.Keys() != nil {
+		t.Fatal("nil model lists nil")
+	}
+	m := NewRouteCostModel([]transcoding.RouteSample{
+		{Key: rk("vaapi", "h264_vaapi", transcoding.RouteCostSDR), Height: 1080, FPS: 60, SourceFPS: 24, CPUCores: 1},
+		{Key: rk("nvenc", "hevc_nvenc", transcoding.RouteCostSDR), Height: 1080, FPS: 60, SourceFPS: 24, CPUCores: 1},
+		{Key: rk("nvenc", "h264_nvenc", transcoding.RouteCostTonemap), Height: 1080, FPS: 60, SourceFPS: 24, CPUCores: 1},
+		{Key: rk("nvenc", "h264_nvenc", transcoding.RouteCostSDR), Height: 1080, FPS: 60, SourceFPS: 24, CPUCores: 1},
+		{Key: rk("nvenc", "h264_nvenc", transcoding.RouteCostSDR), Height: 2160, FPS: 30, SourceFPS: 24, CPUCores: 1},
+	}, 8)
+	keys := m.Keys()
+	if len(keys) != 4 {
+		t.Fatalf("keys = %d, want 4 distinct routes (two rungs of one route count once)", len(keys))
+	}
+	for i := 1; i < len(keys); i++ {
+		a, b := keys[i-1], keys[i]
+		if a.Backend > b.Backend || (a.Backend == b.Backend && a.Encoder > b.Encoder) ||
+			(a.Backend == b.Backend && a.Encoder == b.Encoder && string(a.Route) > string(b.Route)) {
+			t.Fatalf("keys out of order at %d: %+v then %+v", i, a, b)
+		}
+	}
+	if keys[0].Backend != "nvenc" || keys[len(keys)-1].Backend != "vaapi" {
+		t.Fatalf("order = %+v", keys)
+	}
+}
+
+// MaxStreams is floor(1/worst pool share), never below 1, only with evidence.
+func TestRouteCostModel_MaxStreams(t *testing.T) {
+	key := rk("nvenc", "h264_nvenc", transcoding.RouteCostSDR)
+	// 24p source needs 28.8 fps; measured 96 fps -> accel 0.3 -> 3 streams.
+	m := NewRouteCostModel([]transcoding.RouteSample{
+		{Key: key, Height: 1080, FPS: 96, SourceFPS: 24, CPUCores: 0.5},
+	}, 24)
+	n, ok := m.MaxStreams(key, 1080, 24)
+	if !ok || n != 3 {
+		t.Fatalf("got %d,%v want 3 streams", n, ok)
+	}
+	// A 60p source needs 72 fps of a 96 fps route: 0.75 -> 1 stream.
+	if n, _ := m.MaxStreams(key, 1080, 60); n != 1 {
+		t.Fatalf("60p: got %d want 1", n)
+	}
+	// An encoder faster than the whole budget still admits at least 1.
+	tiny := NewRouteCostModel([]transcoding.RouteSample{
+		{Key: key, Height: 1080, FPS: 10, SourceFPS: 24, CPUCores: 4},
+	}, 4)
+	if n, ok := tiny.MaxStreams(key, 1080, 24); !ok || n != 1 {
+		t.Fatalf("over-budget route: got %d,%v want floor of 1", n, ok)
+	}
+	if _, ok := m.MaxStreams(rk("vaapi", "h264_vaapi", transcoding.RouteCostSDR), 1080, 24); ok {
+		t.Fatal("no evidence for the route: no verdict")
+	}
+}
+
+// The CPU spill's admission class follows the same precedence as a
+// fingerprint's: AV1 first (its own ceiling), then a tone-map, else plain.
+func TestSoftwareClassFor(t *testing.T) {
+	cases := []struct {
+		route transcoding.EncodeRoute
+		want  LadderClass
+	}{
+		{transcoding.EncodeRoute{Codec: "AV1", Tonemap: true}, LadderClassSoftwareAV1},
+		{transcoding.EncodeRoute{Codec: "av1"}, LadderClassSoftwareAV1},
+		{transcoding.EncodeRoute{Codec: "h264", Tonemap: true}, LadderClassSoftwareHDR},
+		{transcoding.EncodeRoute{Codec: "hevc"}, LadderClassSoftware},
+		{transcoding.EncodeRoute{}, LadderClassSoftware},
+	}
+	for _, tc := range cases {
+		if got := softwareClassFor(tc.route); got != tc.want {
+			t.Errorf("%+v: got %v want %v", tc.route, got, tc.want)
+		}
+	}
+}
