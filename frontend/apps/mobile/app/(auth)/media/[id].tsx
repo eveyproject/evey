@@ -48,6 +48,7 @@ import { artworkUrl } from "../../../src/lib/artwork";
 import { certInfoForLocale } from "../../../src/lib/certifications";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
 import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey, subscribeToProgress, type ProgressBytes } from "../../../src/lib/downloads";
+import { MediaLoadFailed } from "../../../src/components/media/MediaLoadFailed";
 import { downloadStageLabel } from "../../../src/lib/downloadStageLabel";
 import { chooseDownloadQuality } from "../../../src/lib/downloadQualityGate";
 import { startReducedDownload, reducedDownloadMessage } from "../../../src/lib/reducedDownload";
@@ -1004,20 +1005,16 @@ export default function MediaDetailScreen() {
     // here - an old notification, a stale deep link. Retrying can never
     // succeed; the way out is back.
     const gone = (mediaError as { httpStatus?: number } | null)?.httpStatus === 404;
+    // A downloaded title stays playable from here: the player prefers the
+    // local file and needs nothing from this page.
     return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center", alignItems: "center", paddingHorizontal: theme.spacing.xl }}>
-        <Text style={{ color: theme.colors.textMuted, marginBottom: 12, textAlign: "center" }}>
-          {gone ? t("common.mediaGone") : t("common.loadError")}
-        </Text>
-        <Pressable
-          onPress={() => (gone ? (router.canGoBack() ? router.back() : router.replace("/(auth)/(tabs)")) : refetch())}
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel={gone ? t("common.back") : t("common.retry")}
-        >
-          <Text style={{ color: theme.colors.accent }}>{gone ? t("common.back") : t("common.retry")}</Text>
-        </Pressable>
-      </View>
+      <MediaLoadFailed
+        mediaId={id ?? ""}
+        gone={gone}
+        onRetry={() => void refetch()}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace("/(auth)/(tabs)"))}
+        onPlayLocal={() => openPlayer(id ?? "", false)}
+      />
     );
   }
 

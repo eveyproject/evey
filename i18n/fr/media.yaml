@@ -296,6 +296,7 @@ detail:
   noProfileSelected: Aucun profil sélectionné
   alreadyDownloaded: Déjà téléchargé
   downloadStarted: Téléchargement lancé
+  playDownloadedCopy: Lire la copie téléchargée
   mobileDataTitle: Vous êtes en données mobiles
   mobileDataBody: Ce téléchargement peut consommer plusieurs gigaoctets. Le Wi-Fi est conseillé.
   turnOnWifi: Activer le Wi-Fi

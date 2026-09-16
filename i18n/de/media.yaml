@@ -285,6 +285,7 @@ detail:
   noProfileSelected: Kein Profil ausgewählt
   alreadyDownloaded: Bereits heruntergeladen
   downloadStarted: Download gestartet
+  playDownloadedCopy: Heruntergeladene Kopie abspielen
   mobileDataTitle: Du bist im Mobilfunknetz
   mobileDataBody: Dieser Download kann mehrere Gigabyte verbrauchen. WLAN wird empfohlen.
   turnOnWifi: WLAN einschalten

@@ -5,14 +5,16 @@ import React, { useSyncExternalStore } from "react";
 vi.mock("react-native", () => ({
   View: ({ children, accessibilityLabel }: any) => React.createElement("div", { role: "alert", "aria-label": accessibilityLabel }, children),
   Text: ({ children }: any) => React.createElement("span", null, children),
+  Pressable: ({ children, onPress, accessibilityRole, accessibilityLabel }: any) =>
+    React.createElement("button", { onClick: onPress, role: accessibilityRole, "aria-label": accessibilityLabel }, children),
   StyleSheet: { create: (s: any) => s },
 }));
 vi.mock("@expo/vector-icons/Ionicons", () => ({ default: () => null }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (_k: string, f?: string) => f ?? _k }) }));
 vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 20 }) }));
 vi.mock("../providers/ThemeProvider", () => ({ useTheme: () => ({ colors: { warning: "#fa0", onWarning: "#000" } }) }));
-const nav = vi.hoisted(() => ({ pathname: "/home" }));
-vi.mock("expo-router", () => ({ usePathname: () => nav.pathname }));
+const nav = vi.hoisted(() => ({ pathname: "/home", push: vi.fn() }));
+vi.mock("expo-router", () => ({ usePathname: () => nav.pathname, router: { push: (...a: unknown[]) => nav.push(...a) } }));
 // The online flag is a tiny external store so a flip re-renders the memoised
 // banner the way the real hook would.
 const net = vi.hoisted(() => {
@@ -60,6 +62,20 @@ describe("OfflineBanner", () => {
     expect(screen.getByRole("alert")).toBeTruthy();
     act(() => net.set(true));
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // Offline the one screen that works is Downloads, so the strip is the way
+  // there - except when the viewer already is there.
+  it("offers the way to Downloads, except from Downloads itself", () => {
+    render(<OfflineBanner />);
+    act(() => net.set(false));
+    act(() => { screen.getByRole("button", { name: "Open my downloads" }).click(); });
+    expect(nav.push).toHaveBeenCalledWith("/(auth)/downloads");
+    act(() => net.set(true));
+    nav.pathname = "/downloads";
+    act(() => net.set(false));
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Open my downloads" })).toBeNull();
   });
 
   it("never shows over the player", () => {

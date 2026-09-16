@@ -225,7 +225,8 @@ describe("(auth) layout - an unanswered refresh is not a logout", () => {
     await waitFor(() => expect(redirectedTo()).toBe("/login"));
   });
 
-  it("renders nothing while the refresh is still in flight", async () => {
+  it("renders nothing while the refresh is still in flight ONLINE", async () => {
+    online = true;
     authState.accessToken = staleToken();
     authState.profileId = "p1";
     ensureAccessTokenMock.mockImplementation(() => new Promise(() => {}));
@@ -233,6 +234,21 @@ describe("(auth) layout - an unanswered refresh is not a logout", () => {
     render(React.createElement(AuthLayout));
 
     expect(screen.queryByTestId("stack")).toBeNull();
+    expect(redirectedTo()).toBeNull();
+  });
+
+  // Offline the refresh cannot be refused, so there is nothing to wait for:
+  // holding the tree blank until the attempt timed out (8 s on a silent
+  // link) kept the viewer from the one screen that works there, Downloads.
+  it("renders the app at once while the refresh is in flight OFFLINE", async () => {
+    online = false;
+    authState.accessToken = staleToken();
+    authState.profileId = "p1";
+    ensureAccessTokenMock.mockImplementation(() => new Promise(() => {}));
+
+    render(React.createElement(AuthLayout));
+
+    expect(screen.getByTestId("stack")).toBeTruthy();
     expect(redirectedTo()).toBeNull();
   });
 

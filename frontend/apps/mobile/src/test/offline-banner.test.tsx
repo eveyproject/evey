@@ -5,6 +5,7 @@ import React from "react";
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
+  Pressable: ({ children, onPress, accessibilityLabel }: any) => React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel }, children),
   StyleSheet: { create: (s: any) => s },
 }));
 
@@ -52,6 +53,7 @@ vi.mock("../hooks/useOnlineStatus", async () => {
 });
 vi.mock("expo-router", () => ({
   usePathname: () => state.pathname,
+  router: { push: vi.fn() },
 }));
 
 import { OfflineBanner } from "../components/OfflineBanner";

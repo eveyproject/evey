@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Redirect, Stack } from "expo-router";
 import { useAuthStore, useServerListStore } from "@evey/store";
 import { ensureAccessToken } from "../../src/lib/auth-refresh";
+import { authGateDecision } from "../../src/lib/authGate";
 import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
 import { useProfileCacheSync } from "../../src/hooks/useProfileCacheSync";
 import { initI18n } from "../../src/i18n";
@@ -78,20 +79,13 @@ export default function AuthLayout() {
     return () => { cancelled = true; };
   }, [expired, accessToken, online]);
 
-  if (!accessToken) return <Redirect href="/login" />;
-  if (expired) {
-    // Only a REFUSAL ends the session. An unanswered refresh means the network
-    // is gone, not the credential: bouncing to /login there locked a user out
-    // of their own downloads the moment the access token aged out offline (a
-    // plane, a tunnel, a flat data plan) - and /login cannot be completed
-    // offline either, so it was a dead end. Fall through into the app instead:
-    // every screen degrades to its own error state, the Downloads screen and
-    // local playback need no token at all, and the effect above retries the
-    // refresh as soon as connectivity returns.
-    if (refreshState === "refused") return <Redirect href="/login" />;
-    if (refreshState === "pending") return null; // refresh in flight
-  }
-  if (!profileId) return <Redirect href="/profile-select" />;
+  // Only a REFUSAL ends the session; offline the tree renders at once so the
+  // Downloads screen and local playback (which need no token) stay reachable
+  // while the access token is aged out - see authGate.ts.
+  const gate = authGateDecision({ accessToken, expired, refreshState, online, profileId });
+  if (gate === "login") return <Redirect href="/login" />;
+  if (gate === "wait") return null; // refresh in flight, online
+  if (gate === "profile-select") return <Redirect href="/profile-select" />;
 
   return (
     <DrawerProvider>

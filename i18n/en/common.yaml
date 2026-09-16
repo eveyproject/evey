@@ -126,6 +126,7 @@ notifications:
   clearTitle: Clear notifications
   clearFailed: Failed to clear notifications
 offline:
+  openDownloads: Open my downloads
   description: Check your internet connection and try again.
   title: Offline
 noNotifications: No notifications

@@ -179,7 +179,10 @@ describe("DownloadsScreen", () => {
     expect(pushMock).toHaveBeenCalledWith("/player/fresh");
   });
 
-  it("keeps opening the media page when online", async () => {
+  // The online flag means "internet" (polled every 15 s), not "server
+  // reachable": routing on it sent a phone away from home to a media page
+  // that ends on a dead retry. A download plays from here whatever it says.
+  it("opens the player when online too, never the media page", async () => {
     getDownloadsMock.mockResolvedValue([FRESH]);
     render(<DownloadsScreen />);
     await waitFor(() => expect(screen.getByText("Fresh Movie")).toBeTruthy());
@@ -188,7 +191,8 @@ describe("DownloadsScreen", () => {
       fireEvent.click(screen.getByLabelText("Fresh Movie"));
     });
 
-    expect(pushMock).toHaveBeenCalledWith("/media/fresh");
+    expect(pushMock).toHaveBeenCalledWith("/player/fresh");
+    expect(pushMock).not.toHaveBeenCalledWith("/media/fresh");
   });
 
   it("still refuses to open a download this profile may not play, offline included", async () => {

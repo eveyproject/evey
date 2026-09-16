@@ -128,6 +128,7 @@ notifications:
   clearTitle: सूचनाएं साफ़ करें
   clearFailed: सूचनाएं साफ़ करने में विफल
 offline:
+  openDownloads: मेरे डाउनलोड खोलें
   description: अपना इंटरनेट कनेक्शन जांचें और फिर से कोशिश करें।
   title: "ऑफ़लाइन"
 watchHistory:
