@@ -104,3 +104,29 @@ func TestWebhookDeliveryRepo(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, deliveries, 2)
 }
+
+// Delivery retention: rows older than the cutoff go, the recent trail stays.
+func TestWebhookDeliveryRepo_Purge(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	require.NoError(t, postgres.NewWebhookRepository(db).Create(ctx, &webhook.Config{
+		ID: "wh-purge", Name: "Purge", URL: "http://x.com", Enabled: true, CreatedAt: time.Now(),
+	}))
+	delivRepo := postgres.NewWebhookDeliveryRepository(db)
+	now := time.Now().UTC()
+	for id, at := range map[string]time.Time{"dp-old": now.Add(-40 * 24 * time.Hour), "dp-new": now.Add(-time.Hour)} {
+		require.NoError(t, delivRepo.Create(ctx, &webhook.Delivery{ID: id, WebhookID: "wh-purge", Event: "media.item.added", StatusCode: 200, SentAt: at}))
+	}
+
+	n, err := delivRepo.Purge(ctx, now.Add(-30*24*time.Hour))
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, n)
+	left, err := delivRepo.ListByWebhook(ctx, "wh-purge", 10)
+	require.NoError(t, err)
+	require.Len(t, left, 1)
+	assert.Equal(t, "dp-new", left[0].ID)
+	n, err = delivRepo.Purge(ctx, now.Add(-30*24*time.Hour))
+	require.NoError(t, err)
+	assert.Zero(t, n)
+}
