@@ -407,7 +407,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Two attempts: the failure mode seen is Docker Hub's auth endpoint
+      # resetting the runner's connection while fetching the base images' pull
+      # tokens, before the Dockerfile even starts - a retry a minute later
+      # passes. build-push-action has no retry input, so the step is doubled.
       - name: Build and push
+        id: build
+        continue-on-error: true
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -437,6 +443,23 @@ jobs:
           # hiccup mask a successful publish. (If the cache stays down, builds
           # just run uncached - switch to type=local for persistent on-disk
           # caching on the runner if speed becomes an issue.)
+          cache-from: type=gha,scope=docker-${{ matrix.runtime.name }}
+          cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }},ignore-error=true
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
+
+      - name: Build and push (retry)
+        if: steps.build.outcome == 'failure'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ steps.platforms.outputs.value }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            RUNTIMES=${{ matrix.runtime.name }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.stamp.outputs.date }}
           cache-from: type=gha,scope=docker-${{ matrix.runtime.name }}
           cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }},ignore-error=true
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
