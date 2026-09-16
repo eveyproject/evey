@@ -6,8 +6,12 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -103,4 +107,29 @@ func TestHeavyOpSlot_RefreshAllAndRelink(t *testing.T) {
 	require.NoError(t, err)
 	require.Eventually(t, h.acquireHeavyOp, 2*time.Second, 10*time.Millisecond, "the detached relink must hand the slot back")
 	h.releaseHeavyOp()
+}
+
+// Deleting a title that is already gone (a double click, a stale admin tab)
+// is NotFound, not a server fault paged as a 500; nothing is audited for it.
+func TestDeleteMediaItem_UnknownIsNotFound(t *testing.T) {
+	mediaRepo := libfakes.NewFakeMediaItemCommandRepo()
+	libCmd := applibrary.NewCommandService(
+		libfakes.NewFakeLibraryCommandRepo(), libfakes.NewFakeLibraryQueryRepo(), mediaRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakePersonRepository(), libfakes.NewFakeMediaPersonRepository(),
+		libfakes.NewFakeFileScanner(), libfakes.NewFakeStreamProber(), libfakes.NewFakeSearchIndex(), sharedfakes.NewFakeEventBus(),
+		libfakes.NewFakeChapterRepository(), mkvfakes.NewFakeContainerReader(),
+		libfakes.NewFakeTrickplayRepository(), libfakes.NewFakeTrickplayGenerator(), t.TempDir(), sharedfakes.NewFakeServerConfigRepository(),
+	)
+	d, repo := newAuditedMediaHandler(t)
+	d.libCmd = libCmd
+	ctx := ctxWithClaims("adm-1", "prf-adm", true)
+
+	_, err := d.DeleteMediaItem(ctx, &eveyv1.DeleteMediaItemRequest{Id: "ghost"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Empty(t, auditEntries(t, repo, "delete_media_item"))
+
+	require.NoError(t, mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Heat"}))
+	_, err = d.DeleteMediaItem(ctx, &eveyv1.DeleteMediaItemRequest{Id: "mi-1"})
+	require.NoError(t, err)
+	assert.Len(t, auditEntries(t, repo, "delete_media_item"), 1)
 }

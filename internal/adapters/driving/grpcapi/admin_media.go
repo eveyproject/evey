@@ -232,6 +232,9 @@ func (d *adminMediaHandler) DeleteMediaItem(ctx context.Context, req *eveyv1.Del
 	if err := d.libCmd.DeleteMediaItem(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
+		}
 		return nil, internalError(ctx, "delete media item", err)
 	}
 	d.audit(ctx, "delete_media_item", "media", req.Id, nil)
