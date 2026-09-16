@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -45,11 +46,11 @@ type fakeLibraryAccessChecker struct {
 	// SKIPS the check (as the trickplay ones did for anonymous callers) is
 	// indistinguishable from one that passes it when you only look at the
 	// status code, so some tests assert on this instead.
-	called bool
+	called atomic.Bool
 }
 
 func (f *fakeLibraryAccessChecker) HasAccess(_ context.Context, _ shared.UserID, _ shared.LibraryID) (bool, error) {
-	f.called = true
+	f.called.Store(true)
 	return f.allowed, f.err
 }
 

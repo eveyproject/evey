@@ -331,7 +331,7 @@ func TestTrickplayImageHandler_AnonymousMustNotBeServed(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("got %d, want 401 for an anonymous caller", w.Code)
 	}
-	if access.called {
+	if access.called.Load() {
 		t.Error("the repository was queried for a caller with no identity")
 	}
 }

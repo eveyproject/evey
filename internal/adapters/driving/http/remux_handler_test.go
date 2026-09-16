@@ -2,12 +2,15 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -142,4 +145,37 @@ func TestRemux_LibraryAccessDenied_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Equal(t, 0, rmx.calls, "denied access must never trigger a remux")
+}
+
+// A stream token authenticates ONE media: presenting media A's token on media
+// B's remux is forbidden before any lookup. A remux that fails mid-produce is a
+// 500 with no half-written output left for the next request to serve, and
+// concurrent first requests produce once.
+func TestRemux_TokenScopeAndProduceFailure(t *testing.T) {
+	rmx := &fakeRemuxer{canRemux: true, payload: []byte("DATA")}
+	h := newTestRemuxServe(t, rmx, allowAll())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/remux.mp4", nil)
+	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(false))
+	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{Token: "t", MediaItemID: "other"}))
+	w := httptest.NewRecorder()
+	h.handle(w, req)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, 0, rmx.calls)
+
+	failing := &fakeRemuxer{canRemux: true, err: errors.New("mkvgo: broken cluster")}
+	hf := newTestRemuxServe(t, failing, allowAll())
+	w = doRemuxRequest(hf, false, "")
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NotContains(t, w.Body.String(), "broken cluster")
+	entries, _ := os.ReadDir(hf.cacheDir)
+	assert.Empty(t, entries, "no partial output survives a failed produce")
+
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() { doRemuxRequest(h, false, "") })
+	}
+	wg.Wait()
+	assert.Equal(t, 1, rmx.calls, "concurrent first requests share one produce")
 }
