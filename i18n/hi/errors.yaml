@@ -49,6 +49,9 @@ library:
   cron_required: "एक क्रॉन अभिव्यक्ति आवश्यक है"
   cron_invalid: "अमान्य क्रॉन अभिव्यक्ति"
   cursor_invalid: "अमान्य पेजिनेशन कर्सर"
+  no_access: "आपके पास इस लाइब्रेरी तक पहुँच नहीं है"
+  directory_invalid: "अमान्य निर्देशिका"
+  directory_outside: "निर्देशिका लाइब्रेरी पथों के भीतर नहीं है"
 
 admin:
   setup_already_completed: "सेटअप पहले ही पूर्ण हो चुका है"
@@ -99,6 +102,7 @@ media:
 
 transcode:
   max_concurrent_reached: "सर्वर अन्य स्ट्रीम ट्रांसकोड करने में व्यस्त है। कृपया थोड़ी देर में पुनः प्रयास करें।"
+  job_not_found: "ट्रांसकोडिंग कार्य नहीं मिला"
 
 share:
   not_found: "साझा लिंक नहीं मिला"
@@ -117,3 +121,15 @@ request:
   duplicate: "इस शीर्षक के लिए आपका एक अनुरोध पहले से खुला है"
   already_held: "यह शीर्षक पहले से लाइब्रेरी में है"
   not_found: "अनुरोध नहीं मिला"
+
+photo:
+  not_found: "फ़ोटो नहीं मिली"
+
+music:
+  track_not_found: "ट्रैक नहीं मिला"
+
+plugin:
+  not_found: "प्लगइन नहीं मिला"
+  not_enabled: "प्लगइन सक्षम नहीं है"
+  already_running: "प्लगइन पहले से चल रहा है"
+  not_running: "प्लगइन नहीं चल रहा है"

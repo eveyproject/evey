@@ -109,3 +109,46 @@ func TestSyncplayAndRequestRefusals_AreTranslated(t *testing.T) {
 		assert.NotEqual(t, key, tr.T("en", key), "missing in the English catalogue")
 	}
 }
+
+// Photos, music, transcodes and plugins: the same rule for the remaining
+// household-facing refusals.
+func TestPhotoMusicTranscodePluginRefusals_AreTranslated(t *testing.T) {
+	tr := realTranslator(t)
+	fr := frenchCtx("user-1", "profile-1", false)
+	frAdmin := frenchCtx("adm-1", "prf-adm", true)
+
+	ph, _, libraryAccess, _ := newTestPhotoHandler()
+	ph.translator = tr
+	_, err := ph.GetPhoto(frAdmin, &eveyv1.GetPhotoRequest{Id: "ghost"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Equal(t, tr.T("fr", "errors.photo.not_found"), grpcMessage(err))
+	require.NoError(t, libraryAccess.Grant(context.Background(), "user-1", "lib-other"))
+	_, err = ph.ListPhotos(fr, &eveyv1.ListPhotosRequest{LibraryId: "lib-private"})
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	assert.Equal(t, tr.T("fr", "errors.library.no_access"), grpcMessage(err))
+
+	mu, _, _, _ := newTestMusicHandler()
+	mu.translator = tr
+	_, err = mu.GetTrack(frAdmin, &eveyv1.GetTrackRequest{Id: "ghost"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Equal(t, tr.T("fr", "errors.music.track_not_found"), grpcMessage(err))
+
+	tc, _, _, _, _ := newTranscodingHandlerWithAccess()
+	tc.translator = tr
+	_, err = tc.GetTranscodeStatus(fr, &eveyv1.GetTranscodeStatusRequest{JobId: "ghost"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Equal(t, tr.T("fr", "errors.transcode.job_not_found"), grpcMessage(err))
+
+	pl := newTestPluginHandler()
+	pl.translator = tr
+	_, err = pl.EnablePlugin(frAdmin, &eveyv1.EnablePluginRequest{Id: "ghost"})
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Equal(t, tr.T("fr", "errors.plugin.not_found"), grpcMessage(err))
+	_, err = pl.DisablePlugin(frAdmin, &eveyv1.DisablePluginRequest{Id: "ghost"})
+	assert.Equal(t, tr.T("fr", "errors.plugin.not_found"), grpcMessage(err))
+
+	for _, key := range []string{"errors.photo.not_found", "errors.music.track_not_found", "errors.library.no_access", "errors.library.directory_invalid", "errors.library.directory_outside", "errors.transcode.job_not_found", "errors.plugin.not_found", "errors.plugin.not_enabled", "errors.plugin.already_running", "errors.plugin.not_running"} {
+		assert.NotEqual(t, tr.T("en", key), tr.T("fr", key), key)
+		assert.NotEqual(t, key, tr.T("en", key), "missing in the English catalogue")
+	}
+}

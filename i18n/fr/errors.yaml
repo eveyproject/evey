@@ -49,6 +49,9 @@ library:
   cron_required: "Une expression cron est requise"
   cron_invalid: "Expression cron invalide"
   cursor_invalid: "Curseur de pagination invalide"
+  no_access: "Vous n'avez pas accès à cette bibliothèque"
+  directory_invalid: "Dossier invalide"
+  directory_outside: "Le dossier n'est pas dans les chemins de la bibliothèque"
 
 admin:
   setup_already_completed: "La configuration est déjà terminée"
@@ -99,6 +102,7 @@ media:
 
 transcode:
   max_concurrent_reached: "Le serveur est occupé par d'autres transcodages. Réessaye dans un instant."
+  job_not_found: "Tâche de transcodage introuvable"
 
 share:
   not_found: "Lien de partage introuvable"
@@ -117,3 +121,15 @@ request:
   duplicate: "Vous avez déjà une demande en cours pour ce titre"
   already_held: "Ce titre est déjà dans la bibliothèque"
   not_found: "Demande introuvable"
+
+photo:
+  not_found: "Photo introuvable"
+
+music:
+  track_not_found: "Piste introuvable"
+
+plugin:
+  not_found: "Plugin introuvable"
+  not_enabled: "Le plugin n'est pas activé"
+  already_running: "Le plugin est déjà en cours d'exécution"
+  not_running: "Le plugin n'est pas en cours d'exécution"

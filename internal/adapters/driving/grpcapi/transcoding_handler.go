@@ -42,7 +42,7 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, req.MediaItemId)
 	if err != nil || item == nil || item.File == nil || item.File.Path == "" {
-		return status.Error(codes.NotFound, "media item not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	// IDOR: restrict to libraries the caller has access to.
 	//
@@ -62,7 +62,7 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 		}
 		ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 		if accessErr != nil || !ok {
-			return status.Error(codes.NotFound, "media item not found")
+			return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 		}
 	}
 
@@ -120,7 +120,7 @@ func (h *transcodingHandler) GetTranscodeStatus(ctx context.Context, req *eveyv1
 	progress, err := h.svc.GetProgress(ctx, req.JobId)
 	if err != nil {
 		slog.WarnContext(ctx, "grpc GetTranscodeStatus: progress query failed", slog.Any("err", err))
-		return nil, status.Error(codes.NotFound, "job not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.transcode.job_not_found")
 	}
 	return &eveyv1.TranscodeJob{
 		Id:              progress.JobID,
@@ -160,15 +160,15 @@ func (h *transcodingHandler) checkJobAccess(ctx context.Context, jobID string) e
 	}
 	job, err := h.svc.GetJob(ctx, jobID)
 	if err != nil || job == nil {
-		return status.Error(codes.NotFound, "job not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.transcode.job_not_found")
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, string(job.MediaItemID))
 	if err != nil || item == nil {
-		return status.Error(codes.NotFound, "job not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.transcode.job_not_found")
 	}
 	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 	if accessErr != nil || !ok {
-		return status.Error(codes.NotFound, "job not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.transcode.job_not_found")
 	}
 	return nil
 }

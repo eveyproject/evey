@@ -49,6 +49,9 @@ library:
   cron_required: "Se requiere una expresión cron"
   cron_invalid: "Expresión cron no válida"
   cursor_invalid: "Cursor de paginación no válido"
+  no_access: "No tienes acceso a esta biblioteca"
+  directory_invalid: "Directorio no válido"
+  directory_outside: "El directorio no está dentro de las rutas de la biblioteca"
 
 admin:
   setup_already_completed: "La configuración ya fue completada"
@@ -99,6 +102,7 @@ media:
 
 transcode:
   max_concurrent_reached: "El servidor está ocupado transcodificando otros flujos. Inténtalo de nuevo en un momento."
+  job_not_found: "Tarea de transcodificación no encontrada"
 
 share:
   not_found: "Enlace compartido no encontrado"
@@ -117,3 +121,15 @@ request:
   duplicate: "Ya tienes una solicitud abierta para este título"
   already_held: "Este título ya está en la biblioteca"
   not_found: "Solicitud no encontrada"
+
+photo:
+  not_found: "Foto no encontrada"
+
+music:
+  track_not_found: "Pista no encontrada"
+
+plugin:
+  not_found: "Complemento no encontrado"
+  not_enabled: "El complemento no está activado"
+  already_running: "El complemento ya se está ejecutando"
+  not_running: "El complemento no se está ejecutando"

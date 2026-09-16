@@ -237,6 +237,7 @@ func (s *GRPCServer) RegisterServices() {
 		pluginQuery:     d.PluginQuery,
 		tokenSvc:        d.PluginToken,
 		logDir:          d.LogDir,
+		translator:      d.Translator,
 		pluginRes:       d.PluginRunner,
 		serverCfg:       pluginCfgRepo,
 		resDefaults:     d.PluginResourceDefaults,
@@ -267,6 +268,7 @@ func (s *GRPCServer) RegisterServices() {
 		musicNow:    d.MusicNowPlaying,
 		musicSvc:    d.Music,
 		userQuery:   d.UserQuery,
+		translator:  d.Translator,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, cmd: d.ActivityCmd, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})
@@ -301,10 +303,10 @@ func (s *GRPCServer) RegisterServices() {
 		eveyv1.RegisterSyncPlayServiceServer(s.server, &syncplayHandler{hub: d.SyncplayHub, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, musicSvc: d.Music, playlistSvc: d.Playlist, translator: d.Translator})
 	}
 	if d.Music != nil {
-		eveyv1.RegisterMusicServiceServer(s.server, &musicHandler{svc: d.Music, userAccess: d.UserAccess, libQuery: d.LibQuery, serverCtx: srvCtx})
+		eveyv1.RegisterMusicServiceServer(s.server, &musicHandler{svc: d.Music, userAccess: d.UserAccess, libQuery: d.LibQuery, serverCtx: srvCtx, translator: d.Translator})
 	}
 	if d.Photo != nil {
-		eveyv1.RegisterPhotoServiceServer(s.server, &photoHandler{svc: d.Photo, userAccess: d.UserAccess, libQuery: d.LibQuery})
+		eveyv1.RegisterPhotoServiceServer(s.server, &photoHandler{svc: d.Photo, userAccess: d.UserAccess, libQuery: d.LibQuery, translator: d.Translator})
 	}
 	if d.PushEnabled {
 		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{notifCmd: d.NotifCmd, notifQuery: d.NotifQuery, vapidPubKey: d.VAPIDPubKey})
