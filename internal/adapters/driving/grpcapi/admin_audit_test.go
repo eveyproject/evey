@@ -194,3 +194,33 @@ func TestKillSession_Unauthenticated(t *testing.T) {
 	_, err := audit.KillSession(context.Background(), &eveyv1.KillSessionRequest{SessionId: "s-1"})
 	assertCode(t, err, codes.Unauthenticated)
 }
+
+// SendCastReceiverCommand is the admin's lever on a receiver that is still
+// beating with no session: admin-only, both fields required, and the command
+// is what the receiver's next beacon consumes for that profile.
+func TestSendCastReceiverCommand(t *testing.T) {
+	h, _ := newTestAdminSessionHandler()
+	admin := ctxWithClaims("adm-1", "prf-adm", true)
+
+	if _, err := h.SendCastReceiverCommand(admin, &eveyv1.SendCastReceiverCommandRequest{ProfileId: "prf-tv", Command: "stop"}); err != nil {
+		t.Fatal(err)
+	}
+	cmd, err := h.playbackCmd.ConsumeCastCommand(context.Background(), "prf-tv", "mi-1")
+	if err != nil || cmd != "stop" {
+		t.Errorf("consumed %q err=%v, want the queued stop", cmd, err)
+	}
+	// Consumed once: a second read finds nothing.
+	if cmd, _ := h.playbackCmd.ConsumeCastCommand(context.Background(), "prf-tv", "mi-1"); cmd != "" {
+		t.Errorf("command must be consumed once, got %q again", cmd)
+	}
+
+	_, err = h.SendCastReceiverCommand(ctxWithClaims("u-1", "prf-1", false), &eveyv1.SendCastReceiverCommandRequest{ProfileId: "prf-tv", Command: "stop"})
+	assertCode(t, err, codes.PermissionDenied)
+	_, err = h.SendCastReceiverCommand(admin, &eveyv1.SendCastReceiverCommandRequest{ProfileId: "", Command: "stop"})
+	assertCode(t, err, codes.InvalidArgument)
+	_, err = h.SendCastReceiverCommand(admin, &eveyv1.SendCastReceiverCommandRequest{ProfileId: "prf-tv", Command: ""})
+	assertCode(t, err, codes.InvalidArgument)
+	if _, err := h.SendCastReceiverCommand(context.Background(), &eveyv1.SendCastReceiverCommandRequest{ProfileId: "prf-tv", Command: "stop"}); err == nil {
+		t.Error("no claims must be refused")
+	}
+}
