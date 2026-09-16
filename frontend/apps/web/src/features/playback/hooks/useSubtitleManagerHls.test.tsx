@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 import type Hls from "hls.js";
 import { hlsSubtitleTrackFor, useSubtitleManager } from "./useSubtitleManager";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
@@ -8,14 +8,16 @@ import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 // the selected track is served segment by segment by the packager instead of
 // the /subtitle route, which extracted the whole film first.
 function fakeHls(tracks: Array<{ id: number; track: string }>) {
+  const handlers: Record<string, Array<() => void>> = {};
   const hls = {
     subtitleTracks: tracks.map((t) => ({ id: t.id, attrs: { "X-EVEY-TRACK": t.track } })),
     subtitleTrack: -1,
     subtitleDisplay: false,
-    on: vi.fn(),
+    on: vi.fn((ev: string, h: () => void) => { (handlers[ev] ??= []).push(h); }),
     off: vi.fn(),
+    fire: (ev: string) => (handlers[ev] ?? []).forEach((h) => h()),
   };
-  return hls as unknown as InstanceType<typeof Hls>;
+  return hls as unknown as InstanceType<typeof Hls> & { fire: (ev: string) => void };
 }
 
 const style: SubtitleStyle = { position: "bottom", fontSize: 100, color: "#fff", fontFamily: "", bgColor: "#000000", bgOpacity: 0, shadow: true } as SubtitleStyle;
@@ -52,9 +54,13 @@ describe("useSubtitleManager with packager renditions", () => {
     expect(video.querySelector("track[data-dynamic]")).toBeNull();
   });
 
-  it("falls back to the /subtitle route when the master has no rendition for the track", () => {
-    const { video, hls } = renderManager(fakeHls([{ id: 0, track: "0" }]), 1);
-    expect(hls!.subtitleTrack).toBe(-1);
+  it("falls back to the /subtitle route only once the manifest is known to lack the rendition", () => {
+    const hls = fakeHls([{ id: 0, track: "0" }]);
+    const { video } = renderManager(hls, 1);
+    // Manifest not parsed yet: no fallback, that would start a full-file extraction for nothing.
+    expect(video.querySelector("track[data-dynamic]")).toBeNull();
+    act(() => hls.fire("hlsManifestParsed"));
+    expect(hls.subtitleTrack).toBe(-1);
     const track = video.querySelector("track[data-dynamic]") as HTMLTrackElement | null;
     expect(track?.getAttribute("src")).toBe("/api/v1/media/m1/subtitle/1?token=tok");
   });
