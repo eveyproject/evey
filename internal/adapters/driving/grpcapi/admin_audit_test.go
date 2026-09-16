@@ -6,11 +6,17 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appmusic "github.com/evey-project/evey/internal/app/music"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/music"
+	musicfakes "github.com/evey-project/evey/internal/domain/music/fakes"
 	"github.com/evey-project/evey/internal/domain/playback"
 	pbfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"google.golang.org/grpc/codes"
 )
@@ -222,5 +228,67 @@ func TestSendCastReceiverCommand(t *testing.T) {
 	assertCode(t, err, codes.InvalidArgument)
 	if _, err := h.SendCastReceiverCommand(context.Background(), &eveyv1.SendCastReceiverCommandRequest{ProfileId: "prf-tv", Command: "stop"}); err == nil {
 		t.Error("no claims must be refused")
+	}
+}
+
+// Live music sessions ride the same "now playing" panel as video: each is
+// labelled with its track (artist - title), its profile and account, a
+// session whose track vanished is skipped rather than shown blank, and a
+// profile deleted mid-play falls back to the registry's account name.
+func TestListActiveSessions_AppendsMusicSessions(t *testing.T) {
+	h, _ := newTestAdminSessionHandler()
+	ctx := context.Background()
+	trackRepo := musicfakes.NewFakeMusicTrackRepository()
+	_, err := trackRepo.Upsert(ctx, music.Track{ID: "trk-1", LibraryID: "lib-m", Title: "Song", Artist: "Band", Duration: 200, MimeType: "audio/flac", CoverArtURL: "/art/trk-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.musicSvc = appmusic.NewService(trackRepo, sharedfakes.NewFakeEventBus(), libfakes.NewFakeLibraryQueryRepo(), musicfakes.NewFakeMusicScanner())
+	h.musicNow = appmusic.NewNowPlayingRegistry()
+	userRepo := userfakes.NewFakeUserRepository()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	if createErr := userRepo.Create(ctx, &user.User{ID: "u1", Username: "alice"}); createErr != nil {
+		t.Fatal(createErr)
+	}
+	if createErr := profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Salon"}); createErr != nil {
+		t.Fatal(createErr)
+	}
+	h.userQuery = appuser.NewQueryService(userRepo, profileRepo, userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository())
+
+	h.musicNow.Heartbeat("ms-1", "p1", "alice", "trk-1", "Kitchen", 50_000, false)
+	h.musicNow.Heartbeat("ms-gone", "p1", "alice", "trk-deleted", "Bedroom", 0, false)
+	h.musicNow.Heartbeat("ms-orphan", "p-deleted", "bob", "trk-1", "Car", 10_000, true)
+
+	resp, err := h.ListActiveSessions(ctx, &eveyv1.ListActiveSessionsRequest{})
+	if err != nil {
+		t.Fatalf("ListActiveSessions: %v", err)
+	}
+	byID := map[string]*eveyv1.ActiveSession{}
+	for _, s := range resp.Sessions {
+		byID[s.SessionId] = s
+	}
+	if len(byID) != 2 {
+		t.Fatalf("sessions = %v, want the two resolvable music sessions", byID)
+	}
+	if _, ok := byID["ms-gone"]; ok {
+		t.Error("a session whose track vanished must be skipped, not shown blank")
+	}
+	s := byID["ms-1"]
+	if s.MediaTitle != "Band - Song" || s.MediaType != "track" || s.MediaItemId != "trk-1" {
+		t.Errorf("track label: %+v", s)
+	}
+	if s.ProfileName != "Salon" || s.Username != "alice" || s.UserId != "u1" {
+		t.Errorf("identity: %+v", s)
+	}
+	if s.DurationMs != 200_000 || s.PositionMs != 50_000 || s.Progress != 25 {
+		t.Errorf("progress: dur=%d pos=%d pct=%v", s.DurationMs, s.PositionMs, s.Progress)
+	}
+	if s.DeviceName != "Kitchen" || s.CoverArtUrl != "/art/trk-1" || s.AudioCodec != "audio/flac" || s.IsPaused {
+		t.Errorf("device/art: %+v", s)
+	}
+	o := byID["ms-orphan"]
+	if o.ProfileName != "bob" || o.Username != "bob" || o.UserId != "" || !o.IsPaused {
+		t.Errorf("a deleted profile falls back to the registry's account name: %+v", o)
 	}
 }
