@@ -272,6 +272,13 @@ func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err e
 	case errors.Is(err, shared.ErrNotFound):
 		return status.Error(codes.NotFound, "media item not found")
 	default:
+		// An undo the journal refuses is a verdict on the file, not a fault:
+		// the sentinel's own sentence is the operator's answer.
+		for _, refusal := range []error{appmaintenance.ErrNoRepairToUndo, appmaintenance.ErrNotReversible, appmaintenance.ErrJournalSchema} {
+			if errors.Is(err, refusal) {
+				return status.Error(codes.FailedPrecondition, refusal.Error())
+			}
+		}
 		return internalError(ctx, op, err)
 	}
 }
