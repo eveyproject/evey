@@ -1133,3 +1133,59 @@ func TestDeleteProfile_FromKidsProfileDenied(t *testing.T) {
 	})
 	assertCode(t, err, codes.PermissionDenied)
 }
+
+// The optional fields of a new profile land as given (avatar under avatars/,
+// region upper-cased, PIN hashed and max age kept as parental settings), an
+// escaping avatar path and a malformed PIN are refused before anything is
+// written, and the account's profile cap answers FailedPrecondition.
+func TestCreateProfile_OptionsAndRefusals(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice"}, "pass12345678")
+	seedAdultProfile(t, env, "prf-1", "usr-1")
+	ctx := userCtx("usr-1", "prf-1")
+
+	pin, region, maxAge := "1234", "fr", int32(12)
+	resp, err := env.handler.CreateProfile(ctx, &eveyv1.CreateProfileRequest{
+		UserId: "usr-1", Name: "Junior", AvatarPath: "avatars/kid.png", MaxRating: "PG", Region: &region, Pin: &pin, MaxAge: &maxAge, IsKids: false,
+	})
+	if err != nil {
+		t.Fatalf("CreateProfile: %v", err)
+	}
+	stored, err := env.profileRepo.GetByID(context.Background(), shared.ProfileID(resp.Id))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.AvatarPath == nil || *stored.AvatarPath != "avatars/kid.png" || stored.Region == nil || *stored.Region != "FR" {
+		t.Errorf("avatar/region: %+v", stored)
+	}
+	if stored.Parental == nil || stored.Parental.PINHash == "" || stored.Parental.PINHash == "1234" || stored.Parental.MaxAge == nil || *stored.Parental.MaxAge != 12 {
+		t.Errorf("parental: %+v", stored.Parental)
+	}
+
+	_, err = env.handler.CreateProfile(ctx, &eveyv1.CreateProfileRequest{UserId: "usr-1", Name: "Sneaky", AvatarPath: "avatars/../../etc/passwd"})
+	assertCode(t, err, codes.InvalidArgument)
+	_, err = env.handler.CreateProfile(ctx, &eveyv1.CreateProfileRequest{UserId: "usr-1", Name: "Elsewhere", AvatarPath: "/tmp/x.png"})
+	assertCode(t, err, codes.InvalidArgument)
+	badPIN := "12"
+	_, err = env.handler.CreateProfile(ctx, &eveyv1.CreateProfileRequest{UserId: "usr-1", Name: "BadPIN", Pin: &badPIN})
+	assertCode(t, err, codes.InvalidArgument)
+	_, err = env.handler.CreateProfile(ctx, &eveyv1.CreateProfileRequest{UserId: "usr-1", Name: ""})
+	assertCode(t, err, codes.InvalidArgument)
+	all, _ := env.profileRepo.GetByUserID(context.Background(), "usr-1")
+	if len(all) != 2 {
+		t.Errorf("refused creations must write nothing: %d profiles", len(all))
+	}
+
+	// The account's cap: usr-1 already has two profiles.
+	cap := 2
+	u, err := env.userRepo.GetByID(context.Background(), "usr-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.MaxProfiles = &cap
+	if updErr := env.userRepo.Update(context.Background(), u); updErr != nil {
+		t.Fatal(updErr)
+	}
+	_, err = env.handler.CreateProfile(ctx, &eveyv1.CreateProfileRequest{UserId: "usr-1", Name: "Third"})
+	assertCode(t, err, codes.FailedPrecondition)
+}
