@@ -34,6 +34,16 @@ const ErrCodeFileNotReady = "file_not_ready"
 // "transcoding capacity".
 const ErrCodeTooManyStreams = "too_many_streams"
 
+// ErrCodeCalibrating is the reason a playback request is shed while the
+// server is benchmarking its own encode capacity: the bench pins the host for
+// ~2 minutes, and only ever starts on an idle host, so a viewer arriving in
+// that window is told to wait a moment rather than blamed on other viewers.
+const ErrCodeCalibrating = "calibrating"
+
+// calibratingRetryAfterSec is the Retry-After of a calibrating shed: the bench
+// lasts ~2-3 min on a small host; a retry sooner just meets it again.
+const calibratingRetryAfterSec = 120
+
 // fingerprintHeights lists the distinct positive heights this fingerprint's
 // ladder offers, unordered. The shed probe tries each: a request is refused
 // only when NO height admits - never because one particular rung does not.
@@ -65,6 +75,13 @@ func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, med
 	}
 	if rp.IsCopy {
 		return false // remuxed, never encoded: no capacity slot is taken
+	}
+	// A running calibration bench owns the host for a couple of minutes: an
+	// encode started under it stalls and skews the measure. Say so honestly.
+	if h.calibrating != nil && h.calibrating() {
+		slog.Info("hls-vod: shedding, calibration benchmark in progress", slog.String("media_id", mediaID))
+		writeShed(w, ErrCodeCalibrating, calibratingRetryAfterSec, "server is benchmarking its encode capacity; retry once it is done")
+		return true
 	}
 	// Price in the class this session will actually be billed as (GPU vs CPU
 	// pool, HDR/AV1 software tables). Probe EVERY candidate height rather than
@@ -145,6 +162,15 @@ func copyBlockedOnlyByMissingIndex(decision domaintranscoding.PlaybackDecision, 
 // for logs and operators, not for the screen.
 func writeTooManyStreams(w http.ResponseWriter, retryAfterSec int, technicalMsg string) {
 	writeShed(w, ErrCodeTooManyStreams, retryAfterSec, technicalMsg)
+}
+
+// calibratingOf adapts the calibration service's bench flag, TRUE-nil when it
+// is not wired (tests, hand-built servers).
+func calibratingOf(c *apptranscoding.CalibrationService) func() bool {
+	if c == nil {
+		return nil
+	}
+	return c.IsBenchmarking
 }
 
 // videoAdmissionOf adapts the limiter to the handler's narrow probe, keeping a

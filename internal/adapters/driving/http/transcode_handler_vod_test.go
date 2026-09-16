@@ -589,6 +589,54 @@ func TestHLSVOD_Master_CopyServedWithNoTranscodeCapacity(t *testing.T) {
 	assert.Empty(t, w.Header().Get("X-Evey-Error"))
 }
 
+// While the server benchmarks its own encode capacity, a NEW encoded playback
+// is shed with the dedicated `calibrating` code (a ~2 min Retry-After) so the
+// client tells the viewer to wait a moment - never "too many streams". A copy
+// request takes no encode slot and is served as usual.
+func TestHLSVOD_Master_ShedsAsCalibratingWhileBenchmarking(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item}, allowAll(), testFakeParentalChecker{})
+	benchmarking := true
+	h.calibrating = func() bool { return benchmarking }
+	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool {
+		t.Fatal("a calibrating shed answers before the admission probe")
+		return false
+	}
+
+	w := doVODRequest(h, "m1", "master.m3u8")
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, ErrCodeCalibrating, w.Header().Get("X-Evey-Error"))
+	assert.Equal(t, "120", w.Header().Get("Retry-After"))
+	assert.Contains(t, w.Body.String(), `"code":"calibrating"`)
+	assert.NotContains(t, w.Body.String(), "#EXTM3U")
+
+	// Bench over: served normally.
+	benchmarking = false
+	h.videoAdmission = nil
+	w = doVODRequest(h, "m1", "master.m3u8")
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// A copy-eligible title is remuxed, never encoded: no shed during a bench.
+	copyItem := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur, ContainerFormat: "matroska"},
+	}
+	hc, _ := buildVODHandler(t, &testFakeStreamsGetter{item: copyItem, streams: copyEligibleStreams()}, allowAll(), testFakeParentalChecker{})
+	copyProd := apptranscoding.NewSoftwareProducer(hc.cache, nil, nil, apptranscoding.SoftwareProducerOptions{}, nil)
+	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil), nil)
+	hc.copyProducer = copyProd
+	hc.calibrating = func() bool { return true }
+	w = doVODRequest(hc, "m1", "master.m3u8")
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, w.Header().Get("X-Evey-Error"))
+}
+
 // ladderClassFor (what admission prices) and LadderClassOf (what the spawn
 // charges) must agree for every request shape, or one resource pool is billed
 // while another is consumed. This locks the equivalence across the matrix.

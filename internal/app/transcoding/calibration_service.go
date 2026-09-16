@@ -24,14 +24,25 @@ import (
 //  1. NewCalibrationService - wires the repo + runner; capability starts
 //     at SafeFallback() (720p software, no HW) so requests served BEFORE
 //     EnsureCalibrated finishes still work.
-//  2. EnsureCalibrated(ctx) - called once at boot. Reads the repo,
-//     re-bench if (a) nothing persisted yet, (b) CPU signature changed
-//     (container migrated), or (c) caller forced refresh via
-//     Recalibrate. Persists the result. Updates the in-memory snapshot.
-//  3. Current() - lock-free read of the latest capability, used by the
+//  2. EnsureCalibrated(ctx) - called once at boot, NEVER benchmarks. Reads
+//     the repo and publishes the best capability it can serve right now: the
+//     persisted row when it is valid, the persisted row stripped of its HW
+//     when the mode disagrees, the safe fallback when nothing usable exists.
+//     When a bench is needed - nothing persisted, CPU signature changed
+//     (container migrated), probes stale, mode mismatch - it is flagged
+//     PENDING, not run: a boot benchmark blocked the whole server for
+//     2-5 min (healthz 502) and measured the migrations, scans and backfills
+//     that boot alongside it, not the box.
+//  3. BenchWhenOpportune(ctx) - called from a tick loop. Runs the pending
+//     (or provisional) bench once the host has been idle for a whole probe
+//     window: idleProbes consecutive samples, idleProbeEvery apart, each
+//     with no active stream and host CPU under idleCPUPercent. Dumb and
+//     robust: a one-second dip between two scan batches cannot fake it, and
+//     a loaded boot never yields 20 quiet seconds in a row.
+//  4. Current() - lock-free read of the latest capability, used by the
 //     HLS-VOD handler on every request.
-//  4. Recalibrate(ctx) - admin endpoint trigger. Bypasses the cache,
-//     reruns the benchmark, persists, updates the snapshot.
+//  5. Recalibrate(ctx) - admin endpoint trigger. Bypasses the cache and the
+//     idle window, reruns the benchmark, persists, updates the snapshot.
 //
 // Concurrency: Current/EnsureCalibrated/Recalibrate are safe to call
 // concurrently. A single benchInFlight lock guarantees only one
@@ -99,12 +110,25 @@ type CalibrationService struct {
 	// the neighbour. See WithHostLoadProbe; nil never reports contention.
 	hostBusy func() float64
 
-	// contendedMu guards the automatic re-bench backoff of a provisional
-	// (contended) calibration: contendedNextAt is the earliest next attempt,
-	// contendedWait the doubling delay behind it.
+	// contendedMu guards contendedNextAt, the earliest moment the idle test
+	// resumes after an attempt that failed or came back contended (a fixed
+	// cooldown, see benchRetryCooldown) - never a growing backoff: the idle
+	// window itself is the pacing, and the test keeps running until a trusted
+	// calibration lands.
 	contendedMu     sync.Mutex
 	contendedNextAt time.Time
-	contendedWait   time.Duration
+
+	// pendingBench is set by EnsureCalibrated when the persisted state calls
+	// for a benchmark that boot deliberately did not run; pendingReason says
+	// why (admin status). Cleared by the next successful bench, whoever ran it.
+	pendingBench  atomic.Bool
+	pendingMu     sync.Mutex
+	pendingReason string
+	// idleProbes / idleProbeEvery shape the opportune-moment window (see
+	// BenchWhenOpportune); sleep is the seam tests replace.
+	idleProbes     int
+	idleProbeEvery time.Duration
+	sleep          func(ctx context.Context, d time.Duration) error
 
 	// currentMu serialises the read-modify-write of `current` between a runtime
 	// demotion (load→PlanDemotion→store) and a (re)bench store. They take
@@ -231,6 +255,14 @@ func WithHostLoadProbe(probe func() float64) CalibrationOption {
 // hardware-only and leave software-only rows alone.
 const routeEvidenceFloorProbeVersion = 11
 
+// idleProbes consecutive host samples, idleProbeEvery apart, must all read
+// idle (no active stream, CPU under idleCPUPercent) before a pending or
+// provisional benchmark runs: ~20 s of continuous calm, the "opportune moment".
+const (
+	idleProbes     = 5
+	idleProbeEvery = 4 * time.Second
+)
+
 // contendedCPUPercent is the host-wide CPU busy share above which a benchmark
 // is not measuring this host but whatever else runs on it. 50 % leaves the
 // normal boot noise alone (the embedded Postgres and Meilisearch settling, a
@@ -243,14 +275,13 @@ const contendedCPUPercent = 50.0
 // provisional calibration is worth its ~3 minutes of full CPU.
 const idleCPUPercent = 20.0
 
-// contendedRebenchInitialWait and contendedRebenchMaxWait bound the retry
-// backoff after a re-bench that came back contended again (the host looked
-// idle for the pre-check, then got busy): doubling from 10 minutes to 6 hours,
-// so a host that stays busy for a day is not benched every tick.
-const (
-	contendedRebenchInitialWait = 10 * time.Minute
-	contendedRebenchMaxWait     = 6 * time.Hour
-)
+// benchRetryCooldown is how long the idle test pauses after a bench that
+// failed or came back contended (the host looked idle for the whole window,
+// then got busy during the encodes). A fixed, short pause - not a doubling
+// backoff that used to push the next test out by hours: as long as the host
+// has no trusted calibration, the idle test must keep running, and a host
+// that is really busy fails the window within 4 s at no cost.
+const benchRetryCooldown = 5 * time.Minute
 
 // SetSoftwareAV1MaxOverride updates the AV1 software ceiling override live (0
 // clears it, restoring the calibrated value). Applied by Current() on the next
@@ -279,7 +310,10 @@ func NewCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaint
 		mode:   domaintranscoding.HWModeAuto,
 		// Real host load by default: a service built without the option must
 		// still tell a bench run on a busy host from a trusted one.
-		hostBusy: func() float64 { return sysinfo.CPUBusyPercent(time.Second) },
+		hostBusy:       func() float64 { return sysinfo.CPUBusyPercent(time.Second) },
+		idleProbes:     idleProbes,
+		idleProbeEvery: idleProbeEvery,
+		sleep:          sleepCtx,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -287,6 +321,20 @@ func NewCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaint
 	fallback := domaintranscoding.SafeFallback()
 	s.current.Store(&fallback)
 	return s
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return ctx.Err()
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 // HWMode returns the active HW-acceleration mode (for the admin GET).
@@ -466,14 +514,87 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 			s.notifyCapabilityChange()
 			return nil
 		}
-		s.logger.Info("calibration: persisted capability stale, re-benching",
-			slog.String("persisted_sig", persisted.CPUSignature),
-			slog.String("current_sig", currentSig))
-	} else {
-		s.logger.Info("calibration: no persisted capability, running first-boot benchmark")
+		// Not trusted as-is, but boot never benchmarks: serve the best of what
+		// is there and flag the bench for the next opportune moment.
+		switch {
+		case currentSig != "" && persisted.CPUSignature != currentSig:
+			// Another CPU's ceilings say nothing about this one: safe fallback.
+			s.logger.Info("calibration: persisted capability is another host's, serving the safe fallback until the host is benchmarked",
+				slog.String("persisted_sig", persisted.CPUSignature),
+				slog.String("current_sig", currentSig))
+			s.markPending("cpu signature changed")
+		case modeMismatch && (pref.DisableHW || pref.Backend != ""):
+			// The row's accelerator is not what the mode allows: keep its
+			// software ceiling, drop its HW, bench for the pinned/off mode.
+			for _, bc := range persisted.BackendCaps() {
+				persisted = persisted.WithoutBackend(bc.Backend)
+			}
+			s.publishInterim(persisted, "hw mode changed")
+		case modeMismatch:
+			s.publishInterim(persisted, "accelerator detected but not calibrated")
+		default:
+			s.publishInterim(persisted, "calibration probes outdated")
+		}
+		return nil
 	}
+	s.logger.Info("calibration: no persisted capability, first-boot benchmark deferred to the first idle window")
+	s.markPending("first boot")
+	return nil
+}
 
-	return s.benchAndPersist(ctx)
+// publishInterim serves a persisted-but-stale capability (re-derived from its
+// proof when it has one) while the bench that will replace it is pending.
+func (s *CalibrationService) publishInterim(cap domaintranscoding.EncodeCapability, reason string) {
+	if len(cap.BenchSamples) > 0 {
+		cap = domaintranscoding.Derive(cap.Report(), s.derivePolicy())
+	}
+	s.logger.Info("calibration: serving the persisted capability until the host is re-benchmarked",
+		slog.String("reason", reason),
+		slog.Int("software_max_height", cap.SoftwareMaxHeight),
+		slog.Int("hw_max_height", cap.HWMaxHeight),
+		slog.String("hw_backend", cap.HWBackend))
+	s.current.Store(&cap)
+	s.notifyCapabilityChange()
+	s.markPending(reason)
+}
+
+func (s *CalibrationService) markPending(reason string) {
+	s.pendingMu.Lock()
+	s.pendingReason = reason
+	s.pendingMu.Unlock()
+	s.pendingBench.Store(true)
+}
+
+// CalibrationStatus is the admin-facing lifecycle of the calibration.
+type CalibrationStatus struct {
+	// State: "benchmarking" (a bench runs now), "pending" (a bench is due and
+	// waits for an idle window), "provisional" (benched on a busy host, will
+	// re-bench when idle), "calibrated".
+	State string `json:"state"`
+	// Reason says why a bench is pending ("first boot", "calibration probes
+	// outdated", ...); empty otherwise.
+	Reason string `json:"reason,omitempty"`
+}
+
+// Status reports where the calibration stands, for the admin card.
+func (s *CalibrationService) Status() CalibrationStatus {
+	switch {
+	case s.benchmarking.Load():
+		return CalibrationStatus{State: "benchmarking"}
+	case s.pendingBench.Load():
+		s.pendingMu.Lock()
+		defer s.pendingMu.Unlock()
+		return CalibrationStatus{State: "pending", Reason: s.pendingReason}
+	case s.Current().BenchContended:
+		return CalibrationStatus{State: "provisional"}
+	}
+	return CalibrationStatus{State: "calibrated"}
+}
+
+// NeedsBench reports whether a bench is due (pending or provisional): the tick
+// loop probes the host closely while true, lazily otherwise.
+func (s *CalibrationService) NeedsBench() bool {
+	return s.pendingBench.Load() || s.Current().BenchContended
 }
 
 // Recalibrate forces a fresh benchmark + persist, ignoring any cached
@@ -586,6 +707,7 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 		// even if the DB write failed. Next boot will re-bench.
 	}
 	s.current.Store(&cap)
+	s.pendingBench.Store(false)
 	s.notifyCapabilityChange()
 	return nil
 }
@@ -598,21 +720,21 @@ func (s *CalibrationService) hostBusyPercent() float64 {
 	return s.hostBusy()
 }
 
-// RebenchIfContended replaces a provisional calibration - one benchmarked while
-// the host was busy with something else - by a real one, as soon as the host is
-// idle: no active stream, no bench in flight, host-wide CPU under
-// idleCPUPercent. Meant for a periodic tick; every check but the bench itself
-// is a one-second CPU sample. Reports whether a trusted calibration replaced
-// the provisional one.
+// BenchWhenOpportune runs the bench the host is waiting for - the one boot
+// deferred (pending) or the replacement of a provisional calibration (benched
+// while the host was busy) - as soon as the host has been idle for a whole
+// probe window (hostIdleWindow). Meant for a tick loop; a check that fails
+// costs at most the window. Reports whether a trusted calibration landed.
 //
-// A re-bench that comes back contended again (the host got busy between the
-// pre-check and the encodes) arms a doubling backoff, so a host that stays busy
-// for hours is not benched on every tick.
-func (s *CalibrationService) RebenchIfContended(ctx context.Context) bool {
-	if !s.Current().BenchContended || s.benchmarking.Load() {
+// A bench that fails or comes back contended (the host got busy between the
+// window and the encodes) pauses the test for benchRetryCooldown, then the
+// idle test resumes - it keeps running until a trusted calibration lands.
+func (s *CalibrationService) BenchWhenOpportune(ctx context.Context) bool {
+	if s.benchmarking.Load() {
 		return false
 	}
-	if s.activeStreams != nil && s.activeStreams() > 0 {
+	pending, contended := s.pendingBench.Load(), s.Current().BenchContended
+	if !pending && !contended {
 		return false
 	}
 	s.contendedMu.Lock()
@@ -621,40 +743,71 @@ func (s *CalibrationService) RebenchIfContended(ctx context.Context) bool {
 	if tooSoon {
 		return false
 	}
-	if busy := s.hostBusyPercent(); busy >= idleCPUPercent {
-		s.logger.Debug("calibration: host still busy, keeping the provisional calibration for now",
-			slog.Float64("host_busy_percent", busy), slog.Float64("idle_threshold_percent", idleCPUPercent))
+	if !s.hostIdleWindow(ctx) {
 		return false
 	}
-	s.logger.Info("calibration: host idle, re-benching the provisional calibration")
+	reason := "provisional calibration"
+	if pending {
+		s.pendingMu.Lock()
+		reason = s.pendingReason
+		s.pendingMu.Unlock()
+	}
+	s.logger.Info("calibration: host idle for the whole probe window, benchmarking",
+		slog.String("reason", reason), slog.Int("probes", s.idleProbes), slog.Duration("probe_every", s.idleProbeEvery))
 	if err := s.benchAndPersist(ctx); err != nil {
-		s.logger.Warn("calibration: re-bench of the provisional calibration failed", slog.Any("err", err))
-		s.armContendedRetry()
+		s.logger.Warn("calibration: opportune benchmark failed", slog.Any("err", err))
+		s.armRetryCooldown()
 		return false
 	}
 	if s.Current().BenchContended {
-		s.armContendedRetry()
+		s.armRetryCooldown()
 		return false
 	}
 	s.contendedMu.Lock()
-	s.contendedWait = 0
 	s.contendedNextAt = time.Time{}
 	s.contendedMu.Unlock()
 	return true
 }
 
-// armContendedRetry pushes the next automatic re-bench out by a doubling delay.
-func (s *CalibrationService) armContendedRetry() {
+// RebenchIfContended is BenchWhenOpportune under its former name.
+func (s *CalibrationService) RebenchIfContended(ctx context.Context) bool {
+	return s.BenchWhenOpportune(ctx)
+}
+
+// hostIdleWindow reports whether the host stayed idle for idleProbes
+// consecutive samples idleProbeEvery apart: no active stream and host-wide
+// CPU under idleCPUPercent at every one of them. The first busy sample ends
+// the window early.
+func (s *CalibrationService) hostIdleWindow(ctx context.Context) bool {
+	for i := range s.idleProbes {
+		if ctx.Err() != nil {
+			return false
+		}
+		if s.activeStreams != nil && s.activeStreams() > 0 {
+			return false
+		}
+		if busy := s.hostBusyPercent(); busy >= idleCPUPercent {
+			s.logger.Debug("calibration: host busy, the idle window restarts",
+				slog.Int("probe", i+1), slog.Float64("host_busy_percent", busy), slog.Float64("idle_threshold_percent", idleCPUPercent))
+			return false
+		}
+		if i+1 < s.idleProbes {
+			if err := s.sleep(ctx, s.idleProbeEvery); err != nil {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// armRetryCooldown pauses the idle test for benchRetryCooldown; it resumes
+// on its own afterwards (the loop keeps ticking while NeedsBench is true).
+func (s *CalibrationService) armRetryCooldown() {
 	s.contendedMu.Lock()
 	defer s.contendedMu.Unlock()
-	if s.contendedWait == 0 {
-		s.contendedWait = contendedRebenchInitialWait
-	} else {
-		s.contendedWait = min(2*s.contendedWait, contendedRebenchMaxWait)
-	}
-	s.contendedNextAt = time.Now().Add(s.contendedWait)
-	s.logger.Info("calibration: re-bench came back contended, next attempt deferred",
-		slog.Duration("retry_in", s.contendedWait))
+	s.contendedNextAt = time.Now().Add(benchRetryCooldown)
+	s.logger.Info("calibration: benchmark did not land a trusted calibration, the idle test resumes after a cooldown",
+		slog.Duration("retry_in", benchRetryCooldown))
 }
 
 // DemoteCapability is the level-2 safety net: after a hardware session fails,

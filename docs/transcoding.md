@@ -135,9 +135,18 @@ EVEY_TRANSCODING_SINGLE_VARIANT=1
 
 ### Encode calibration sample
 
-At boot (and on `POST /api/v1/admin/transcode/calibration/recalibrate`) the bench
-measures the host's realtime encode ceiling against a 4K clip, separately for
-SDR and HDR (`software_max_height` / `software_hdr_max_height`). The clip's
+The bench measures the host's realtime encode ceiling against a 4K clip,
+separately for SDR and HDR (`software_max_height` / `software_hdr_max_height`).
+**Boot never runs it**: the server starts in milliseconds on whatever it has
+(the persisted calibration, or a 720p software fallback on a first start) and
+runs the bench at the first *quiet moment* - five consecutive probes, 4 s
+apart, with no playback and host CPU under 20 %. That keeps a ~2-5 min bench
+off the boot path and off a host busy with a migration or a library scan (a
+bench measured under load is flagged *provisional* and redone when idle). While
+the bench runs, a new playback is told to wait about 2 minutes (`calibrating`);
+**Admin → Encode calibration** shows whether the calibration is pending, running
+or done, and "Recalibrate" (`POST /api/v1/admin/transcode/calibration/recalibrate`)
+runs it right away. The clip's
 decode + tonemap + encode cost is what the cap is derived from, so a
 **real-content clip calibrates far more honestly than a synthetic one** - a
 synthetic over-states cost and pins the cap low (the classic symptom: a 4K HDR

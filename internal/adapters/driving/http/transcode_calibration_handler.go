@@ -29,6 +29,10 @@ type calibrationSvc interface {
 	// RecentFallbacks surfaces the level-2 HW-demotion events (newest last) so
 	// the admin can see a degraded host without log diving.
 	RecentFallbacks() []apptranscoding.HWFallbackEvent
+	// Status is the calibration lifecycle (pending / benchmarking / provisional
+	// / calibrated), so the card can say a bench is waiting for an idle host
+	// instead of presenting the interim ceilings as final.
+	Status() apptranscoding.CalibrationStatus
 }
 
 // capOverrideLister is the narrow port the overrides GET handler needs.
@@ -128,9 +132,13 @@ func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 			// the engine uses, so "hw 2160 = 55 fps" in that table is not mistaken
 			// for the whole story.
 			RouteCosts []routeCostView `json:"route_costs"`
+			// Calibration is the lifecycle: a boot never benchmarks, so the
+			// ceilings above may be interim until the first idle window.
+			Calibration apptranscoding.CalibrationStatus `json:"calibration"`
 		}{
 			publicEncodeCapability: publicEncodeCapability{EncodeCapability: cap},
 			HWMode:                 string(svc.HWMode()),
+			Calibration:            svc.Status(),
 			// WSL's d3d12 VA driver can't sustain Evey's multi-variant VAAPI/QSV
 			// encode, so the admin UI greys those backends when this is true.
 			IsWSL:       sysinfo.IsWSL(),

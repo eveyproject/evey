@@ -659,6 +659,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		infra.introDetector.WithBusyChecker(isBusy)
 	}
 	complexityClassifier.WithBusyChecker(isBusy)
+	// Boot never benchmarks (a bench here blocked the whole server for 2-5 min
+	// and measured the migrations/scans booting alongside it): this publishes
+	// what is persisted and flags a pending bench, run by the opportune-moment
+	// loop below once the host has been idle for a whole probe window.
 	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
 		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
 	}
@@ -748,19 +752,30 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// that way, from a single 4K HEVC play. ReprobeDemotedHW is a no-op until the
 	// demotion is older than HWDemotionTTL and only restores on a real encode
 	// probe, so the tick is cheap and a genuinely dead GPU stays off.
+	//
+	// The same loop runs the opportune-moment bench: while a bench is due
+	// (deferred at boot, or provisional after a bench on a busy host) the host
+	// is probed every few seconds and benched once it has been idle for a whole
+	// probe window (5 samples 4 s apart, no stream, CPU under 20 %); otherwise
+	// the loop idles on the 5-minute clock.
 	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
+		reprobe := time.NewTicker(5 * time.Minute)
+		defer reprobe.Stop()
 		for {
+			wait := 5 * time.Minute
+			if calibrationSvc.NeedsBench() {
+				wait = 4 * time.Second
+			}
+			timer := time.NewTimer(wait)
 			select {
 			case <-ctx.Done():
+				timer.Stop()
 				return
-			case <-ticker.C:
+			case <-reprobe.C:
+				timer.Stop()
 				calibrationSvc.ReprobeDemotedHW(ctx)
-				// Same clock, same idea: a calibration benchmarked while the
-				// host was busy with something else is provisional, and only
-				// an idle host can replace it with the truth.
-				calibrationSvc.RebenchIfContended(ctx)
+			case <-timer.C:
+				calibrationSvc.BenchWhenOpportune(ctx)
 			}
 		}
 	}()

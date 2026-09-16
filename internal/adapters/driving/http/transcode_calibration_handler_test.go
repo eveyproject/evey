@@ -31,6 +31,9 @@ func (f *fakeCalibrationSvc) HWMode() domaintranscoding.HWMode {
 	}
 	return f.hwMode
 }
+func (f *fakeCalibrationSvc) Status() apptranscoding.CalibrationStatus {
+	return apptranscoding.CalibrationStatus{State: "calibrated"}
+}
 func (f *fakeCalibrationSvc) RecentFallbacks() []apptranscoding.HWFallbackEvent {
 	return f.fallbacks
 }
