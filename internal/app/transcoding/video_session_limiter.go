@@ -271,6 +271,36 @@ func (l *VideoSessionLimiter) Classes() []LadderClass {
 // 0.961) is never refused by a last-bit rounding artifact.
 const budgetEpsilon = 1e-9
 
+// SessionCost is what admission needs to price one session: the class (its
+// pool), the tallest rung it encodes, the decode workload, the exact route and
+// the source rate. Built in ONE place (SessionCostOf) from the fingerprint, so
+// the spawn and the shed probe cannot price the same stream differently.
+type SessionCost struct {
+	Class     LadderClass
+	TopHeight int
+	Src       transcoding.SourceClass
+	Route     transcoding.RouteCostKey
+	SourceFPS float64
+}
+
+// SessionCostOf prices the session a fingerprint describes, topping out at
+// topHeight (the tallest rung it will encode).
+func SessionCostOf(fp DecisionFingerprint, topHeight int) SessionCost {
+	return SessionCost{Class: LadderClassOf(fp), TopHeight: topHeight, Src: SourceClassOf(fp), Route: RouteCostKeyOf(fp), SourceFPS: fp.SourceFPS}
+}
+
+// TryAcquireSession reserves a slot for a NEW stream priced as c - the entry
+// the producers use at spawn. See TryAcquireRoute for the contract.
+func (l *VideoSessionLimiter) TryAcquireSession(key string, c SessionCost) bool {
+	return l.TryAcquireRoute(key, c.Class, c.TopHeight, c.Src, c.Route, c.SourceFPS)
+}
+
+// CanAdmitSession is TryAcquireSession without the reservation - the shed
+// probe's question.
+func (l *VideoSessionLimiter) CanAdmitSession(key string, c SessionCost) bool {
+	return l.CanAdmitRoute(key, c.Class, c.TopHeight, c.Src, c.Route, c.SourceFPS)
+}
+
 // TryAcquire reserves a video-encode slot for the stream identified by key
 // (the decision hash), non-blocking, for a session in ladder class class
 // whose tallest encoded rendition is topHeight. An encoder joining a stream
