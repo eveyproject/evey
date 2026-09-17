@@ -1189,6 +1189,7 @@
   "admin.sessions.track.audioTranscoded": "transcoded",
   "admin.sessions.track.backend.nvenc": "NVENC",
   "admin.sessions.track.backend.qsv": "Quick Sync",
+  "admin.sessions.track.backend.rkmpp": "RKMPP",
   "admin.sessions.track.backend.software": "software (CPU)",
   "admin.sessions.track.backend.vaapi": "VAAPI",
   "admin.sessions.track.engine.client": "ac3go in the player",

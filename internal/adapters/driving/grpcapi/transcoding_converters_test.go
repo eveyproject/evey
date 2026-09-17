@@ -13,7 +13,7 @@ import (
 
 func TestHWAccelTypeEnumRoundTrip(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"none", "vaapi", "nvenc", "qsv"} {
+	for _, name := range []string{"none", "vaapi", "nvenc", "qsv", "rkmpp"} {
 		pt := hwAccelTypeToProto[name]
 		assert.Equal(t, name, hwAccelTypeFromProto[pt], "round-trip %q", name)
 	}
