@@ -59,9 +59,9 @@ func (s *SeekIndexService) StartFixContainerMedia(ctx context.Context, mediaID s
 // disagree. On success the file leaves the cached scan: it is no longer an
 // EBML file and the next scan will not list it.
 func (s *SeekIndexService) fixContainerStep(bg context.Context, path string) (bool, error) {
-	st, ok := s.cachedStatusByPath(path)
-	if !ok {
-		return false, fmt.Errorf("%w: %s", ErrNotInScan, path)
+	st, err := s.freshStatusForRepair(bg, path)
+	if err != nil {
+		return false, err
 	}
 	if !st.WrongContainer {
 		return true, nil
@@ -85,6 +85,44 @@ func (s *SeekIndexService) fixContainerStep(bg context.Context, path string) (bo
 	s.logger.Info("seek-index: container fixed - mislabelled .mkv renamed",
 		slog.String("path", path), slog.String("new_path", newPath))
 	return false, nil
+}
+
+// freshStatusForRepair is the invariant every repair that acts on a CACHED
+// verdict goes through: the status is only trusted while the file still has
+// the (size, mtime) fingerprint the diagnosis was made on, under the current
+// detectors. A file replaced since the scan (an *arr upgrade, a re-acquire) is
+// re-diagnosed on the spot and the cache updated, so the repair judges the
+// bytes on disk - a rename or a re-mux on the strength of a verdict about a
+// file that no longer exists is not a repair. Nothing here can be cheap for a
+// stale file: the re-probe is the price of acting on it at all.
+func (s *SeekIndexService) freshStatusForRepair(ctx context.Context, path string) (SeekStatus, error) {
+	cached, ok := s.cachedStatusByPath(path)
+	if !ok {
+		return SeekStatus{}, fmt.Errorf("%w: %s", ErrNotInScan, path)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return SeekStatus{}, fmt.Errorf("seek-index: %s vanished since its diagnosis: %w", path, err)
+	}
+	if !cached.Unreadable && cached.DiagVersion == SeekDiagVersion &&
+		cached.SizeBytes == fi.Size() && cached.ModTimeUnix == fi.ModTime().Unix() {
+		return cached, nil
+	}
+	s.logger.Info("seek-index: file changed since its diagnosis, re-probing before the repair",
+		slog.String("path", path), slog.Int64("cached_size", cached.SizeBytes), slog.Int64("size", fi.Size()))
+	fresh, _, ok := s.probeFile(ctx, MediaRef{MediaID: cached.MediaID, Title: cached.Title, Path: path}, nil)
+	if !ok {
+		if ctx.Err() != nil {
+			return SeekStatus{}, ctx.Err()
+		}
+		return SeekStatus{}, fmt.Errorf("%w: %s could not be re-diagnosed", ErrDiagnosisStale, path)
+	}
+	if fresh.Unreadable {
+		return SeekStatus{}, fmt.Errorf("%w: %s: %s", ErrDiagnosisStale, path, fresh.UnreadableDetail)
+	}
+	s.updateCachedFile(path, func(c *SeekStatus) { *c = fresh })
+	s.saveScans()
+	return fresh, nil
 }
 
 // cachedStatusByPath finds a file in any cached scope.

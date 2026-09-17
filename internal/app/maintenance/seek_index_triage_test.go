@@ -52,6 +52,24 @@ func TestSeekStatus_Verdict(t *testing.T) {
 	assert.True(t, appmaintenance.SeekStatus{Truncated: true}.Ackable())
 }
 
+// triageProbers keeps the fixture's fakes reachable for the tests that change
+// a file after the scan (the diagnoser and the re-mux probe decide what the
+// re-diagnosis sees). Set by triageLibrary; the tests are sequential.
+var triageProbers struct {
+	diag  fakeDiagnoser
+	reint *fakeReinterleaver
+}
+
+func diagOf(t *testing.T) fakeDiagnoser {
+	t.Helper()
+	return triageProbers.diag
+}
+
+func reinterleaverOf(t *testing.T) *fakeReinterleaver {
+	t.Helper()
+	return triageProbers.reint
+}
+
 // triageLibrary: one file per verdict, diagnosed by the fake diagnoser.
 func triageLibrary(t *testing.T) (dir string, paths map[string]string, svc *appmaintenance.SeekIndexService, reidx *fakeReindexer, reloc *fakeRelocator) {
 	t.Helper()
@@ -85,6 +103,7 @@ func triageLibrary(t *testing.T) (dir string, paths map[string]string, svc *appm
 	// The re-mux "fixes" the file: the probe must then read 0 on it.
 	probe := fakeInterleaveProber{backsteps: map[string]float64{paths["chunked"]: 366, paths["healthy"]: 4}}
 	reint := &fakeReinterleaver{probe: probe}
+	triageProbers.diag, triageProbers.reint = diag, reint
 	svc = appmaintenance.NewSeekIndexService(reidx, fakeCatalog{files: refs}, nil).
 		WithDiagnoser(diag).
 		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{paths["delayed"]: 0.9}}).
@@ -548,4 +567,49 @@ func TestSeekIndexService_IncoherentAudioTracksAreOnlyEverReported(t *testing.T)
 	}
 	assert.Equal(t, appmaintenance.VerdictInformational, coherent.Verdict(),
 		"a large offset PROVEN coherent is information, nothing more")
+}
+
+// A repair acts on the bytes on disk, not on a verdict about a file that no
+// longer exists. Scan at 18:00 says "MP4 mislabelled .mkv"; at 19:00 an *arr
+// upgrade drops a genuine MKV under the same name; "Repair all" at 20:00
+// reuses the scan. The rename used to go through on the old verdict.
+func TestSeekIndexService_RepairRefusesAStaleDiagnosis(t *testing.T) {
+	_, paths, svc, _, reloc := triageLibrary(t)
+	ctx := context.Background()
+
+	// The file is replaced: new bytes, and the diagnoser now sees a sound MKV.
+	require.NoError(t, os.WriteFile(paths["wrongct"], []byte("a real matroska now"), 0o644))
+	diagOf(t).byPath[paths["wrongct"]] = &mkv.Diagnosis{Healthy: true}
+
+	require.NoError(t, svc.StartFixContainerMedia(ctx, "m-wrongct"))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Zero(t, st.Last.Failed, "%+v", st.Last.Failures)
+	assert.Equal(t, 1, st.Last.Skipped, "re-diagnosed sound: nothing to rename")
+	_, err := os.Stat(paths["wrongct"])
+	require.NoError(t, err, "the replaced file keeps its name")
+	assert.Empty(t, reloc.moved, "the catalog is not repointed")
+	res, _, _ := svc.CachedScan("")
+	for _, it := range res.Items {
+		if it.Path == paths["wrongct"] {
+			assert.False(t, it.WrongContainer, "the cache carries the fresh verdict")
+		}
+	}
+}
+
+// Same invariant on the re-mux: a chunked file replaced by a sound one is
+// not re-muxed on the strength of the old probe.
+func TestSeekIndexService_ReinterleaveRefusesAStaleDiagnosis(t *testing.T) {
+	_, paths, svc, _, _ := triageLibrary(t)
+	ctx := context.Background()
+	reint := reinterleaverOf(t)
+	reint.probe.backsteps[paths["chunked"]] = 0 // the new file reads sane
+	require.NoError(t, os.WriteFile(paths["chunked"], []byte("replaced by a sane remux"), 0o644))
+
+	require.NoError(t, svc.StartReinterleaveMedia(ctx, "m-chunked"))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Zero(t, st.Last.Failed, "%+v", st.Last.Failures)
+	assert.Equal(t, 1, st.Last.Skipped)
+	assert.Empty(t, reint.done, "no re-mux of a file nobody re-diagnosed as chunked")
 }
