@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,6 +84,51 @@ func TestDemoteCapability_HostReconfirmed_NoChange(t *testing.T) {
 		require.Len(t, events, 1, "class %s", class)
 		assert.Equal(t, "media_route", events[0].Verdict)
 	}
+}
+
+// A host proof that just passed is not run again for the next failures of
+// the same (backend, codec): a storm of sessions dying on one bad title costs
+// one probe, not one per session queued behind demoteMu. The memo expires, and
+// any demotion forgets it - the capability it described is gone.
+func TestDemoteCapability_RecentProof_IsReused(t *testing.T) {
+	ctx := context.Background()
+	svc, _, runner := seedHWServiceWith(t, &fakeBenchmarkRunner{})
+
+	assert.False(t, svc.DemoteCapability(ctx, domaintranscoding.FailureHWInit, "hevc"))
+	assert.False(t, svc.DemoteCapability(ctx, domaintranscoding.FailureHWCorruptOutput, "hevc"))
+	assert.False(t, svc.DemoteCapability(ctx, domaintranscoding.FailureHWEncoderMissing, "hevc"))
+	assert.EqualValues(t, 1, runner.proofCalls.Load(), "one encode proof serves every failure of the window")
+	events := svc.RecentFallbacks()
+	require.NotEmpty(t, events)
+	assert.Equal(t, "media_route", events[0].Verdict, "the reused proof still records the failure as the media's")
+
+	// Another codec, and the feature probe, are their own proofs.
+	assert.False(t, svc.DemoteCapability(ctx, domaintranscoding.FailureHWInit, "h264"))
+	assert.EqualValues(t, 2, runner.proofCalls.Load())
+	assert.False(t, svc.DemoteCapability(ctx, domaintranscoding.FailureHWUnsupportedOption, "hevc"))
+	featureProbe := runner.proofCalls.Load()
+	assert.Greater(t, featureProbe, int64(2), "the feature proof runs once")
+	assert.False(t, svc.DemoteCapability(ctx, domaintranscoding.FailureHWUnsupportedOption, "hevc"))
+	assert.Equal(t, featureProbe, runner.proofCalls.Load(), "and is reused inside the window")
+
+	// Expired: the host is asked again.
+	svc.demoteMu.Lock()
+	svc.hwProofOK[hwProofKey("nvenc", "hevc", "encode")] = time.Now().Add(-hwProofReuseWindow)
+	svc.demoteMu.Unlock()
+	assert.False(t, svc.DemoteCapability(ctx, domaintranscoding.FailureHWInit, "hevc"))
+	assert.Equal(t, featureProbe+1, runner.proofCalls.Load(), "an expired proof is re-run")
+
+	// A demotion forgets every proof: the next failure probes the new capability.
+	// (The h264 proof is expired first: inside its window even a dead GPU is not
+	// re-asked - that is the 30 s the memo trades for the queue.)
+	runner.encodeUnusable = true
+	svc.demoteMu.Lock()
+	svc.hwProofOK[hwProofKey("nvenc", "h264", "encode")] = time.Now().Add(-hwProofReuseWindow)
+	svc.demoteMu.Unlock()
+	assert.True(t, svc.DemoteCapability(ctx, domaintranscoding.FailureHWEncoderMissing, "h264"), "a failed proof demotes")
+	svc.demoteMu.Lock()
+	assert.Empty(t, svc.hwProofOK, "no proof survives a capability change")
+	svc.demoteMu.Unlock()
 }
 
 // A media/route incompatibility never asks the host anything: the title is

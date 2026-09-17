@@ -51,6 +51,12 @@ import (
 // hwInitStrikeWindow: a second missed HW init inside this window demotes the GPU.
 const hwInitStrikeWindow = 10 * time.Minute
 
+// hwProofReuseWindow: a host proof that just PASSED answers the next failures
+// of the same (backend, codec) without re-encoding. Concurrent sessions of one
+// bad title all fail within seconds, and each would otherwise wait its turn on
+// demoteMu to run the same multi-second probe and reach the same verdict.
+const hwProofReuseWindow = 30 * time.Second
+
 type CalibrationService struct {
 	repo   domaintranscoding.CapabilityRepo
 	runner domaintranscoding.BenchmarkRunner
@@ -59,6 +65,9 @@ type CalibrationService struct {
 	hwDevice string
 	// hwInitStrikeAt is the first missed HW init of the current window (under demoteMu).
 	hwInitStrikeAt time.Time
+	// hwProofOK remembers when a host proof last passed, per proof key (under
+	// demoteMu); cleared by any demotion.
+	hwProofOK map[string]time.Time
 
 	// mode is the admin-selectable HW-acceleration policy (auto/off/nvenc/
 	// vaapi/qsv). It projects to a HWPreference the runner honours: a backend
@@ -848,9 +857,15 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 	case domaintranscoding.FailureHWUnsupportedOption:
 		// Narrow the tuning to what the host re-proves feature by feature,
 		// instead of wiping it all on the word of one session.
+		proof := hwProofKey(cur.HWBackend, codec, "features")
+		if s.hostProvenRecentlyLocked(proof) {
+			s.recordFallback(class, codec, fallbackVerdictMediaRoute)
+			return false
+		}
 		kept := s.runner.ConfirmHWFeatures(ctx, cur.HWBackend, cur.HWDevice, codec, cur.HWFeatures)
 		d := domaintranscoding.PlanFeatureDemotion(cur, kept)
 		if !d.Changed {
+			s.markHostProvenLocked(proof)
 			s.recordFallback(class, codec, fallbackVerdictMediaRoute)
 			s.logger.Warn("calibration: HW tuning re-confirmed by a media-independent probe, the failure was the media's; host keeps its features",
 				slog.String("codec", codec), slog.Any("features", cur.HWFeatures))
@@ -865,7 +880,13 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 
 	// Init / encoder missing / corrupt output: the backend has to fail a real
 	// encode of a synthetic clip before it is believed dead.
+	proof := hwProofKey(cur.HWBackend, codec, "encode")
+	if s.hostProvenRecentlyLocked(proof) {
+		s.recordFallback(class, codec, fallbackVerdictMediaRoute)
+		return false
+	}
 	if s.runner.HWEncodeUsable(ctx, cur.HWBackend, cur.HWDevice, codec, nil) {
+		s.markHostProvenLocked(proof)
 		s.recordFallback(class, codec, fallbackVerdictMediaRoute)
 		s.logger.Warn("calibration: HW backend re-confirmed by a media-independent probe, the failure was the media's; host keeps its GPU",
 			slog.String("class", string(class)), slog.String("codec", codec), slog.String("backend", cur.HWBackend))
@@ -893,9 +914,27 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 	return s.applyDemotion(ctx, cur, d, class, codec)
 }
 
+func hwProofKey(backend, codec, probe string) string { return backend + "/" + codec + "/" + probe }
+
+// hostProvenRecentlyLocked reports whether the proof passed inside
+// hwProofReuseWindow. Caller holds demoteMu.
+func (s *CalibrationService) hostProvenRecentlyLocked(key string) bool {
+	at, ok := s.hwProofOK[key]
+	return ok && time.Since(at) < hwProofReuseWindow
+}
+
+func (s *CalibrationService) markHostProvenLocked(key string) {
+	if s.hwProofOK == nil {
+		s.hwProofOK = make(map[string]time.Time)
+	}
+	s.hwProofOK[key] = time.Now()
+}
+
 // applyDemotion stores a confirmed demotion (in memory + persisted when the
 // plan says so), records it and notifies dependents. Called under demoteMu.
 func (s *CalibrationService) applyDemotion(ctx context.Context, cur domaintranscoding.EncodeCapability, d domaintranscoding.Demotion, class domaintranscoding.FailureClass, codec string) bool {
+	// The capability is about to change: no earlier proof describes it.
+	s.hwProofOK = nil
 	// Hold currentMu across the whole load→store so a concurrent benchAndPersist
 	// store can't land between the snapshot we demote from and the store back
 	// (which would either clobber the fresh bench or be clobbered by it).
