@@ -239,3 +239,84 @@ func TestFingerprint_TonemapImplementationForksTheCache(t *testing.T) {
 	assert.NotEqual(t, vk.Hash(), ocl.Hash())
 	assert.NotEqual(t, vk.Hash(), sw.Hash())
 }
+
+// The resolver upgrades H.264 to HEVC on a GPU that encodes it, on every
+// route; admission prices a named route ONLY on its own evidence. A HEVC
+// decoupled session whose only measured variant was the H.264 one used to be
+// PICKED (no other candidate outranked it), refused by the limiter for lack of
+// a sample, and spilled to software - the CPU paying for the GPU's best route.
+// An unmeasured tuple is not in the field, so the codec fallback lands the
+// session on the measured H.264 GPU route instead.
+func TestBackendPerRoute_UnmeasuredHEVCVariantFallsBackToMeasuredH264OnTheGPU(t *testing.T) {
+	cap := transcoding.EncodeCapability{
+		SoftwareMaxHeight: 1080, HWMaxHeight: 2160, ProbeVersion: transcoding.CapabilityProbeVersion,
+		HWBackend: "qsv", HWDevice: "/dev/dri/renderD128", HWCodecs: []string{"h264", "hevc"},
+		HWDecodeCodecs: []string{"h264", "hevc"},
+		HWRoutes:       []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteDecoupled},
+		Backends: []transcoding.HWBackendCap{{
+			Backend: "qsv", Device: "/dev/dri/renderD128", Codecs: []string{"h264", "hevc"},
+			DecodeCodecs: []string{"h264", "hevc"}, // no VP9 decode: a VP9 source takes the decoupled route
+			Routes:       []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteDecoupled},
+		}},
+		RouteSamples: []transcoding.RouteSample{
+			{Key: rk("qsv", "h264_qsv", transcoding.RouteCostSDR), Height: 1080, FPS: 149, SourceFPS: 24},
+			{Key: rk("qsv", "hevc_qsv", transcoding.RouteCostSDR), Height: 1080, FPS: 155, SourceFPS: 24},
+			// The decoupled route was measured for H.264 only (the pre-derived matrix).
+			{Key: rk("qsv", "h264_qsv", transcoding.RouteCostDecoupled), Height: 1080, FPS: 90, SourceFPS: 24, CPUCores: 2, SoftwareDecode: true},
+		},
+	}
+	pr := &PlanResolver{
+		HWAccelEnabled: func() bool { return true },
+		Capability:     func() transcoding.EncodeCapability { return cap },
+		RouteCosts:     func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 8) },
+	}
+	// A client that decodes HEVC: the auto-upgrade wants hevc_qsv.
+	d := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"video_codec_unsupported"}, ClientVideoCodecs: []string{"h264", "hevc"}}
+	vp9 := sdrStreams("vp9", "yuv420p", false)
+
+	codec, accel, _, _, usable, softwareDecode := pr.EffectiveVideoCodec(d, vp9)
+	assert.True(t, usable, "the GPU keeps the session")
+	assert.Equal(t, "qsv", accel)
+	assert.True(t, softwareDecode, "the VP9 source is software-decoded (decoupled)")
+	assert.Equal(t, "h264", codec, "HEVC decoupled has no evidence: fall back to the measured H.264 decoupled route, not to the CPU")
+	assert.True(t, pr.HWRouteUsable(d, SourceDimsOf(vp9)), "the gate agrees with the fingerprint")
+
+	// Once the HEVC variant is measured, the upgrade goes through.
+	cap.RouteSamples = append(cap.RouteSamples, transcoding.RouteSample{Key: rk("qsv", "hevc_qsv", transcoding.RouteCostDecoupled), Height: 1080, FPS: 88, SourceFPS: 24, CPUCores: 2, SoftwareDecode: true})
+	codec, accel, _, _, usable, _ = pr.EffectiveVideoCodec(d, vp9)
+	assert.True(t, usable)
+	assert.Equal(t, "qsv", accel)
+	assert.Equal(t, "hevc", codec, "measured: the HEVC decoupled route is taken")
+}
+
+// The cost model prices two pools and MaxStreams caps on the worse one; the
+// pick used to rank on the accelerator alone. A route slightly cheaper on the
+// GPU but several cores dearer on the CPU (a decoupled/bridged shape) won over
+// one that is nearly free on the CPU - the CPU pool then refused what the GPU
+// pool had room for. The pick ranks on the same figure admission caps on.
+func TestBackendPerRoute_CostRanksOnTheMostConstrainedPool(t *testing.T) {
+	cap := transcoding.EncodeCapability{
+		SoftwareMaxHeight: 1080, HWMaxHeight: 2160, ProbeVersion: transcoding.CapabilityProbeVersion,
+		HWBackend: "qsv", HWCodecs: []string{"h264"}, HWDecodeCodecs: []string{"h264"},
+		HWRoutes: []string{transcoding.HWRouteSDR},
+		Backends: []transcoding.HWBackendCap{
+			{Backend: "qsv", Codecs: []string{"h264"}, DecodeCodecs: []string{"h264"}, Routes: []string{transcoding.HWRouteSDR}},
+			{Backend: "vaapi", Codecs: []string{"h264"}, DecodeCodecs: []string{"h264"}, Routes: []string{transcoding.HWRouteSDR}},
+		},
+		RouteSamples: []transcoding.RouteSample{
+			// required = 24 x 1.2 = 28.8 fps; cpuBudget 4.
+			// qsv:   accel 28.8/96 = 0.30, cpu 1.33 x 0.30 / 4 = 0.10  -> worst 0.30
+			// vaapi: accel 28.8/110 = 0.26, cpu 9.2 x 0.26 / 4 = 0.60  -> worst 0.60
+			{Key: rk("qsv", "h264_qsv", transcoding.RouteCostSDR), Height: 1080, FPS: 96, SourceFPS: 24, CPUCores: 1.33},
+			{Key: rk("vaapi", "h264_vaapi", transcoding.RouteCostSDR), Height: 1080, FPS: 110, SourceFPS: 24, CPUCores: 9.2},
+		},
+	}
+	pr := &PlanResolver{
+		HWAccelEnabled: func() bool { return true },
+		Capability:     func() transcoding.EncodeCapability { return cap },
+		RouteCosts:     func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 4) },
+	}
+	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdrTranscode, sdrStreams("h264", "yuv420p", false))
+	assert.True(t, usable)
+	assert.Equal(t, "qsv", accel, "the route that is cheaper on its most constrained pool wins, not the one cheaper on the GPU alone")
+}

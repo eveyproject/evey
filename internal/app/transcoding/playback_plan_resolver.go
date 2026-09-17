@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -372,7 +373,8 @@ func backendServes(cap transcoding.EncodeCapability, bc transcoding.HWBackendCap
 //  2. QUALITY: among them, those whose certified ceiling (the bridge ceiling
 //     on a bridge) reaches the rung the session wants (src.WantHeight; when
 //     none does, the tallest ceilings - the request is capped there anyway);
-//  3. COST: the cheapest by measured route cost (RouteCosts) at that rung,
+//  3. COST: the cheapest by measured route cost (RouteCosts) at that rung -
+//     the larger of its accelerator and CPU pool fractions -
 //     with a <5% hysteresis tie-break (the primary, then alphabetical) so the
 //     pick does not flip on measurement noise across recalibrations.
 //
@@ -502,8 +504,12 @@ func (pr *PlanResolver) pickBackend(outputCodec string, src hwSource, hwTonemap 
 	}
 	// 3. Cost: the route priced at the rung it would serve - the wanted rung,
 	// bounded by the proven ceiling, 1080 when unknown - at film cadence. The
-	// RELATIVE order is what matters. Missing evidence => +inf (never
-	// preferred on cost).
+	// RELATIVE order is what matters. The price is the route's pressure on
+	// its most constrained pool (max of the accelerator and CPU fractions),
+	// the same figure MaxStreams caps on: ranking on the accelerator alone
+	// preferred a decoupled/bridged route whose software decode or CPU
+	// tone-map eats cores over one slightly dearer on the GPU and nearly free
+	// on the CPU. Missing evidence => +inf (never preferred on cost).
 	costOf := func(c candidate) float64 {
 		if model == nil {
 			return 0 // no cost model: every qualifying backend ties, tie-break decides
@@ -516,7 +522,7 @@ func (pr *PlanResolver) pickBackend(outputCodec string, src hwSource, hwTonemap 
 			rung = h
 		}
 		if rc, ok := model.Cost(keyOf(c), rung, 24); ok {
-			return rc.Accel
+			return math.Max(rc.Accel, rc.CPU)
 		}
 		return 1e9
 	}
