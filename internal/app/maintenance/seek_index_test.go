@@ -122,14 +122,17 @@ func waitIdle(t *testing.T, svc *appmaintenance.SeekIndexService) appmaintenance
 	return st
 }
 
-// A scan job inspects only EBML files that exist on disk, rolls up the missing-
-// index / has-backup counts and caches the result for CachedScan.
+// A scan job inspects only EBML files, rolls up the missing-index / has-backup
+// counts and caches the result for CachedScan. A file the catalog names but
+// the scan cannot read is a ROW of its own (Unreadable) and a failure of the
+// scan job - it used to vanish into a log line, which hid the most broken
+// files of a library from the very page meant to show them.
 func TestSeekIndexService_ScanJob(t *testing.T) {
 	dir := t.TempDir()
 	indexed := filepath.Join(dir, "indexed.mkv")
 	missing := filepath.Join(dir, "missing.mkv") // exists on disk, no Cues, has backup
 	notEBML := filepath.Join(dir, "movie.mp4")   // not an EBML container → skipped
-	absent := filepath.Join(dir, "ghost.mkv")    // recorded in DB but not on disk → skipped
+	absent := filepath.Join(dir, "ghost.mkv")    // recorded in DB but not on disk → unreadable row
 	for _, p := range []string{indexed, missing, notEBML} {
 		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
 	}
@@ -156,14 +159,21 @@ func TestSeekIndexService_ScanJob(t *testing.T) {
 	assert.Equal(t, appmaintenance.JobScan, st.Last.Kind)
 	assert.Empty(t, st.Last.Err)
 	assert.Equal(t, 3, st.Last.Total, "the three on-disk-or-not EBML candidates were walked")
+	assert.Equal(t, 1, st.Last.Failed, "the ghost is a failure of the scan, not a silence")
+	require.Len(t, st.Last.Failures, 1)
+	assert.Equal(t, absent, st.Last.Failures[0].Path)
+	assert.Contains(t, st.Last.Failures[0].Error, "no such file")
 
 	res, at, ok := svc.CachedScan("")
 	require.True(t, ok, "scan result is cached")
 	assert.False(t, at.IsZero())
-	assert.Equal(t, 2, res.Total, "only the two on-disk EBML files are counted")
-	assert.Equal(t, 1, res.MissingIndex, "exactly the un-indexed file")
+	assert.Equal(t, 3, res.Total, "the three EBML candidates, the unreadable one included")
+	assert.Equal(t, 1, res.MissingIndex, "exactly the un-indexed file - the ghost is not a repair candidate")
 	assert.Equal(t, 1, res.WithBackup, "exactly the file with a .mkvgobak")
-	require.Len(t, res.Items, 2)
+	assert.Equal(t, 1, res.Unreadable)
+	assert.Equal(t, 1, res.Informational, "unreadable is a remark, never a chore")
+	assert.Equal(t, 1, res.Repairable)
+	require.Len(t, res.Items, 3)
 	byID := map[string]appmaintenance.SeekStatus{}
 	for _, it := range res.Items {
 		byID[it.MediaID] = it
@@ -172,6 +182,43 @@ func TestSeekIndexService_ScanJob(t *testing.T) {
 	assert.Equal(t, "mkv", byID["m1"].Container)
 	assert.False(t, byID["m2"].HasIndex)
 	assert.True(t, byID["m2"].HasBackup)
+	ghost := byID["m4"]
+	assert.True(t, ghost.Unreadable)
+	assert.True(t, ghost.HasIndex, "kept out of every repair queue")
+	assert.Equal(t, appmaintenance.VerdictInformational, ghost.Verdict())
+	assert.True(t, ghost.Ackable(), "the operator may acknowledge what nobody here can fix")
+	assert.Contains(t, ghost.UnreadableDetail, "no such file")
+}
+
+// An unreadable verdict is never reused by the incremental re-scan: a mount
+// that was down for one scan must not condemn its files until they change.
+func TestSeekIndexService_UnreadableIsReprobedEveryScan(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "a.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	old := time.Now().Add(-time.Hour)
+	require.NoError(t, os.Chtimes(p, old, old))
+	diag := fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{}, calls: map[string]int{}} // no entry = the fake refuses the path
+	svc := appmaintenance.NewSeekIndexService(&fakeReindexer{hasIndex: map[string]bool{p: true}},
+		fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: p}}}, nil).WithDiagnoser(diag)
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	st := waitIdle(t, svc)
+	assert.Equal(t, 1, st.Last.Failed)
+	res, _, _ := svc.CachedScan("")
+	require.Len(t, res.Items, 1)
+	assert.True(t, res.Items[0].Unreadable)
+	assert.Contains(t, res.Items[0].UnreadableDetail, os.ErrInvalid.Error())
+
+	// The parser recovers (same bytes, same mtime): the file is judged afresh.
+	diag.byPath[p] = &mkv.Diagnosis{Healthy: true}
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	st = waitIdle(t, svc)
+	assert.Zero(t, st.Last.Failed)
+	res, _, _ = svc.CachedScan("")
+	require.Len(t, res.Items, 1)
+	assert.False(t, res.Items[0].Unreadable, "an unreadable status is never reused")
+	assert.Equal(t, appmaintenance.VerdictHealthy, res.Items[0].Verdict())
 }
 
 func TestSeekIndexService_ReindexMedia_AsyncAndUpdatesCache(t *testing.T) {
@@ -466,13 +513,17 @@ func newScanGate(path string) *scanGate {
 	return &scanGate{path: path, started: make(chan struct{}), release: make(chan struct{})}
 }
 
-func (f fakeDiagnoser) Diagnose(_ context.Context, p string) (*mkv.Diagnosis, error) {
+func (f fakeDiagnoser) Diagnose(ctx context.Context, p string) (*mkv.Diagnosis, error) {
 	if f.calls != nil {
 		f.calls[p]++
 	}
 	if f.gate != nil && f.gate.armed.Load() && p == f.gate.path {
 		f.gate.onceOpen.Do(func() { close(f.gate.started) })
 		<-f.gate.release
+		// Like the real prober: a read cut short by the context reports it.
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 	}
 	d, ok := f.byPath[p]
 	if !ok {

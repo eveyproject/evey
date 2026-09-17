@@ -106,6 +106,7 @@ export type SeekVerdictInput = Pick<
   | "interleaveBackstepSec"
   | "audioPictureLagSec"
   | "audioPictureChecked"
+  | "unreadable"
 >;
 
 // verdictOf trusts the server's verdict and, for a server that predates it,
@@ -121,10 +122,11 @@ export function verdictOf(it: SeekVerdictInput): SeekVerdict {
     case "manual":
       return "informational";
   }
-  // Same precedence as the Go SeekStatus.Verdict, and the order matters:
-  // rebuilding the index of an incomplete download is wasted work, so those
-  // files leave the repair queue BEFORE the missing-index test sees them.
-  if (it.truncated || it.seekCoarse) return "informational";
+  // Same precedence as the Go SeekStatus.Verdict, and the order matters: a
+  // file nothing could read is a remark before anything else, and rebuilding
+  // the index of an incomplete download is wasted work, so those files leave
+  // the repair queue BEFORE the missing-index test sees them.
+  if (it.unreadable || it.truncated || it.seekCoarse) return "informational";
   if (
     it.hasIndex === false ||
     it.hasIndex === undefined ||

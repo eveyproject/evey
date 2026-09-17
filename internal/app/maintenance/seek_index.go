@@ -408,6 +408,16 @@ type SeekStatus struct {
 	// wasted work, the operator re-acquires the source. Manual verdict at once,
 	// without the "rebuild once, then give up" round trip SeekCoarse needs.
 	PictureMissing bool `json:"PictureMissing,omitempty"`
+	// Unreadable → the scan could not diagnose this file at all: missing or
+	// unreadable on disk, or a container the parser refused. It used to be
+	// dropped from the result with a log line, which made the most broken
+	// files of a library the only ones the health page never showed. Every
+	// other flag is unset and HasIndex is true so no repair ever picks it up
+	// (nothing here can be repaired; the operator re-acquires or fixes the
+	// mount). UnreadableDetail is the error, in the prober's own words. Never
+	// reused by an incremental re-scan: a transient I/O error must not stick.
+	Unreadable       bool   `json:"Unreadable,omitempty"`
+	UnreadableDetail string `json:"UnreadableDetail,omitempty"`
 	// ReindexAttempted → this file's index was actually rewritten by a repair
 	// (not skipped) since it was last modified. Set by the repair itself and
 	// carried by the incremental re-scan, which only reuses a status whose
@@ -499,6 +509,11 @@ const (
 // nothing could be done for.
 func (st SeekStatus) Verdict() Verdict {
 	switch {
+	// A file nothing here could read is a remark before anything else: no
+	// measure exists to repair, and "impossible to diagnose" is worth more to
+	// the operator than the absence of a diagnosis.
+	case st.Unreadable:
+		return VerdictInformational
 	// Repairing the index of an incomplete download is wasted work until the
 	// source is re-acquired, so a truncated file stays out of the queue - as a
 	// remark, not as an instruction.
@@ -570,6 +585,7 @@ type ScanResult struct {
 	SeekCoarse       int // count rebuilt and still too coarse to seek into (re-encode; no repair can improve them)
 	BrokenInterleave int // count stored as blocks of one track at a time (re-mux by timestamp; unplayable sequentially)
 	AudioPictureOff  int // count whose sound is measured off the picture (operator applies the shift with the preview)
+	Unreadable       int // count the scan could not diagnose at all (missing, unreadable, unparseable)
 
 	// The triage the page is built on (see Verdict). Repairable is exactly
 	// what "Repair all" will act on. Informational counts only the remarks

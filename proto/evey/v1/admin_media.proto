@@ -495,6 +495,15 @@ message SeekIndexItem {
   double audio_picture_lag_sec = 24;
   int32 audio_picture_track = 25;
   bool audio_picture_checked = 26;
+  // unreadable = the scan could not diagnose this file at all: missing or
+  // unreadable on disk, or a container the parser refused. Every other flag
+  // is unset and has_index is true so it never enters a repair queue;
+  // unreadable_detail is the error in the prober's words. Informational: the
+  // operator re-acquires the file or fixes the mount. Such a file used to be
+  // dropped from the scan with a log line - the sickest files of a library
+  // were the ones the health page never showed.
+  bool unreadable = 27;
+  string unreadable_detail = 28;
 }
 
 message ScanSeekIndexRequest {
@@ -551,6 +560,8 @@ message ScanSeekIndexResponse {
   bool reinterleave_available = 21;
   // Count whose sound is measured off the picture (see audio_picture_lag_sec).
   int32 audio_picture_off = 22;
+  // Count the scan could not diagnose at all (see unreadable).
+  int32 unreadable = 23;
 }
 
 // SeekIndexVolume aggregates the repair candidates of one filesystem.

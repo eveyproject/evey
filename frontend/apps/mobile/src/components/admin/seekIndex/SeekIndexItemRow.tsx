@@ -123,6 +123,13 @@ export function SeekIndexItemRow({
           <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{formatBytes(Number(item.sizeBytes ?? 0))}</Text>
         </View>
 
+        {item.unreadable && (
+          <HintBadge
+            label={t("admin.seekIndex.unreadableBadge")}
+            hint={t("admin.seekIndex.unreadableHint", { detail: item.unreadableDetail || "" })}
+            color={theme.colors.error}
+          />
+        )}
         {!item.hasIndex && !item.seekCoarse && !item.truncated && !item.wrongContainer && (
           <HintBadge label={t("admin.seekIndex.statusMissing")} color={theme.colors.warning} />
         )}

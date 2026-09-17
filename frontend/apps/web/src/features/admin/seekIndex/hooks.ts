@@ -126,6 +126,7 @@ export function useSeekIndexPage() {
     trailingJunk: items.filter((it) => verdictOf(it) === "informational" && it.trailingJunk && !isAcked(it)).length,
     brokenInterleave: items.filter((it) => brokenInterleave(it) && !isAcked(it)).length,
     audioPictureOff: items.filter((it) => audioPictureOff(it) && !isAcked(it)).length,
+    unreadable: items.filter((it) => it.unreadable && !isAcked(it)).length,
     // Counted APART from `damaged`, and never added to `damagedBytes`: these
     // are the files a repair already refused as corrupt, and how much a resync
     // would drop is unknown for them. Folding them into the byte total would
