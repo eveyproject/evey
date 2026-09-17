@@ -57,14 +57,16 @@ type CodecEfficiencyModel struct {
 }
 
 // ProductionPreset names the preset a route encodes with, the key the
-// calibration was made under.
+// calibration was made under. An accelerator whose encoder takes no -preset
+// (VAAPI and MPP tune through -rc_mode only) is keyed "driver"; the CPU
+// reference and QSV encode at libx264's veryfast.
 func ProductionPreset(accel HWAccelType) string {
 	switch accel {
 	case NVENC:
 		return "p4"
-	case VAAPI:
+	case VAAPI, RKMPP:
 		return "driver"
-	case QSV:
+	case QSV, None, "":
 		return "veryfast"
 	}
 	return "veryfast"
