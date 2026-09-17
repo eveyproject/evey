@@ -34,9 +34,13 @@ func (pr *PlanResolver) resolveRoute(req PlaybackRequest, decision transcoding.P
 // spill: what the host would serve this request with, all else being free.
 func (pr *PlanResolver) naturalRoute(req PlaybackRequest, decision transcoding.PlaybackDecision, isCopy bool) ResolvedRoute {
 	snap := snapshot(req)
-	codec, accel, device, features, usable, softwareDecode := pr.EffectiveVideoCodec(decision, req.Streams)
+	// The operator's toggles were read ONCE by Resolve (req.Policy) and are
+	// threaded down: a toggle flipped mid-request cannot allow the GPU at the
+	// pick and refuse its features a line later.
+	pol := pr.policy(req)
+	codec, accel, device, features, usable, softwareDecode := pr.effectiveVideoCodec(pol, decision, req.Streams)
 	hwUsable := usable && accel != ""
-	passWanted := pr.HDRPassthroughWanted(decision, req.Streams)
+	passWanted := pr.hdrPassthroughWanted(pol, decision, req.Streams)
 	// The HDR passthrough only exists on the GPU: wanted but not served by
 	// one (the source the GPU cannot decode, a spill, a blocked title), the
 	// CPU tone-maps, and the ladder takes the HDR floor the session really
@@ -48,7 +52,7 @@ func (pr *PlanResolver) naturalRoute(req PlaybackRequest, decision transcoding.P
 		HWUsable:       hwUsable,
 		SoftwareDecode: softwareDecode,
 		Tonemap:        tonemap,
-		HWTonemap:      hwUsable && pr.HWTonemapWanted(decision, snap.HDRRange),
+		HWTonemap:      hwUsable && pr.hwTonemapWanted(pol, decision, snap.HDRRange),
 		HDRPassthrough: hwUsable && passWanted,
 	}
 	route := ResolvedRoute{
@@ -56,7 +60,7 @@ func (pr *PlanResolver) naturalRoute(req PlaybackRequest, decision transcoding.P
 		Topology:    er.Topology(),
 		Copy:        isCopy,
 		Deinterlace: hwUsable && pr.hwDeinterlaceWanted(snap.Interlaced, accel),
-		Overlay:     hwUsable && pr.HWOverlayWanted(decision),
+		Overlay:     hwUsable && pr.hwOverlayWanted(pol, decision),
 	}
 	if hwUsable {
 		route.Backend = BackendSelection{Name: accel, Device: device, Features: features}
@@ -85,9 +89,13 @@ func (pr *PlanResolver) shadowExpressibility(route ResolvedRoute, decision trans
 // reaches a sub-derivation without Resolve (the adapter's wrappers, tests)
 // still sees the admission spill of a stream already pinned to the CPU.
 func (pr *PlanResolver) routeWithPin(req PlaybackRequest, decision transcoding.PlaybackDecision, isCopy bool) ResolvedRoute {
-	route := pr.resolveRoute(req, decision, isCopy)
+	return pr.withPin(req, decision, pr.resolveRoute(req, decision, isCopy))
+}
+
+// withPin applies the LIVE pin's spill to a resolved route.
+func (pr *PlanResolver) withPin(req PlaybackRequest, decision transcoding.PlaybackDecision, route ResolvedRoute) ResolvedRoute {
 	if route.HW() && pr.AdmissionPinnedClass != nil {
-		if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(req, decision)); ok && cls != LadderClassHW {
+		if cls, ok := pr.AdmissionPinnedClass(pr.pinKeyFor(req, decision, route)); ok && cls != LadderClassHW {
 			route = route.spill(SpillPoolFull, decision)
 		}
 	}
@@ -108,12 +116,26 @@ type HWPolicy struct {
 	AV1 bool
 	// AV1MaxHeight caps AV1 output (0 = none).
 	AV1MaxHeight int
+	taken        bool
+}
+
+// Taken reports whether the policy was read (a zero PlaybackRequest.Policy
+// means the caller skipped Resolve; the resolver then reads it itself).
+func (p HWPolicy) Taken() bool { return p.taken }
+
+// policy returns the request's policy snapshot, reading it when a caller
+// reached a sub-derivation without going through Resolve.
+func (pr *PlanResolver) policy(req PlaybackRequest) HWPolicy {
+	if req.Policy.Taken() {
+		return req.Policy
+	}
+	return pr.hwPolicy()
 }
 
 // hwPolicy reads the toggles. The capability is a separate question (a policy
 // that allows the GPU on a host that has none allows nothing).
 func (pr *PlanResolver) hwPolicy() HWPolicy {
-	pol := HWPolicy{Tonemap: true, AV1: true}
+	pol := HWPolicy{Tonemap: true, AV1: true, taken: true}
 	if pr.HWAccelEnabled != nil {
 		pol.Accel = pr.HWAccelEnabled()
 	}
@@ -133,8 +155,8 @@ func (pr *PlanResolver) hwPolicy() HWPolicy {
 }
 
 // gpuAllowed: the policy allows the GPU and the host calibrated one.
-func (pr *PlanResolver) gpuAllowed() bool {
-	return pr.hwPolicy().Accel && pr.Capability != nil
+func (pr *PlanResolver) gpuAllowed(pol HWPolicy) bool {
+	return pol.Accel && pr.Capability != nil
 }
 
 // capabilityOrFallback resolves the calibrated capability, nil-safe.
@@ -170,7 +192,7 @@ type hwSource struct {
 // does neither today, and the ffmpeg builder independently falls back to
 // software for those, so the two stay consistent.
 func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit, hwTonemap bool) (accel, device string, features []string, usable, softwareDecode bool) {
-	return pr.resolveHW(outputCodec, hwSource{Codec: sourceCodec, TenBit: sourceTenBit}, hwTonemap)
+	return pr.resolveHW(pr.hwPolicy(), outputCodec, hwSource{Codec: sourceCodec, TenBit: sourceTenBit}, hwTonemap)
 }
 
 // wantedRung is the tallest rung a session for this source and client would
@@ -188,8 +210,8 @@ func wantedRung(decision transcoding.PlaybackDecision, sourceHeight int) int {
 // answer with has to be PROVEN by the calibration's route probes
 // (EncodeCapability.HWRoutes): the filter-level facts say what the GPU can
 // do, the route proof says the builder's session for it actually runs here.
-func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bool) (accel, device string, features []string, usable, softwareDecode bool) {
-	if !pr.gpuAllowed() {
+func (pr *PlanResolver) resolveHW(pol HWPolicy, outputCodec string, src hwSource, hwTonemap bool) (accel, device string, features []string, usable, softwareDecode bool) {
+	if !pr.gpuAllowed(pol) {
 		return "", "", nil, false, false
 	}
 	// Choose the backend for THIS route and THIS source (not one global "best
@@ -203,7 +225,7 @@ func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bo
 	if !ok {
 		return "", "", nil, false, false
 	}
-	return bc.Backend, bc.Device, pr.effectiveHWFeatures(bc.Features), true, softwareDecode
+	return bc.Backend, bc.Device, effectiveHWFeatures(pol, bc.Features), true, softwareDecode
 }
 
 // backendServes reports whether backend bc can run THIS source on the route
@@ -442,8 +464,8 @@ func absFloat(x float64) float64 {
 // encode, so the route, the class and the pool must say software too - or a
 // CPU x264 session runs under the GPU orchestrator, priced on the GPU pool,
 // capped at the GPU ceiling and blamed on the GPU when it fails.
-func (pr *PlanResolver) burnInStaysSoftware(decision transcoding.PlaybackDecision) bool {
-	return decision.SubtitleDecision == "burn" && !pr.HWOverlayWanted(decision)
+func (pr *PlanResolver) burnInStaysSoftware(pol HWPolicy, decision transcoding.PlaybackDecision) bool {
+	return decision.SubtitleDecision == "burn" && !pr.hwOverlayWanted(pol, decision)
 }
 
 // titleBlocked reads the per-title GPU route block (nil-safe).
@@ -452,8 +474,8 @@ func (pr *PlanResolver) titleBlocked(mediaID string) bool {
 }
 
 // effectiveHWFeatures drops the low-power features unless the admin opted in.
-func (pr *PlanResolver) effectiveHWFeatures(features []string) []string {
-	if pr.hwPolicy().LowPower {
+func effectiveHWFeatures(pol HWPolicy, features []string) []string {
+	if pol.LowPower {
 		return features
 	}
 	out := make([]string, 0, len(features))
@@ -475,24 +497,28 @@ func (pr *PlanResolver) effectiveHWFeatures(features []string) []string {
 // never advertise a codec the segments don't carry. Re-resolves HW for the
 // fallback codec (H.264 may be HW-encodable where AV1 was not).
 func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {
+	return pr.effectiveVideoCodec(pr.hwPolicy(), decision, streams)
+}
+
+func (pr *PlanResolver) effectiveVideoCodec(pol HWPolicy, decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {
 	dims := SourceDimsOf(streams)
-	hwTonemap := pr.HWTonemapWanted(decision, dims.HDRRange)
+	hwTonemap := pr.hwTonemapWanted(pol, decision, dims.HDRRange)
 	// CPU tone-map bridged between GPU decode and encode: the GPU never sees the
 	// 10-bit surface, but it must be the one decoding (the bridge downloads).
 	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
 	resolve := func(c string) {
-		accel, device, features, usable, softwareDecode = pr.resolveHW(c, hwSource{Codec: dims.Codec, TenBit: dims.TenBit && !bridge, PixelFormat: dims.PixelFormat, Interlaced: dims.Interlaced, WantHeight: wantedRung(decision, dims.Height), Bridge: bridge}, hwTonemap)
-		if pr.hwRouteRefused(decision, dims, bridge, softwareDecode) {
+		accel, device, features, usable, softwareDecode = pr.resolveHW(pol, c, hwSource{Codec: dims.Codec, TenBit: dims.TenBit && !bridge, PixelFormat: dims.PixelFormat, Interlaced: dims.Interlaced, WantHeight: wantedRung(decision, dims.Height), Bridge: bridge}, hwTonemap)
+		if pr.hwRouteRefused(pol, decision, dims, bridge, softwareDecode) {
 			accel, device, features, usable, softwareDecode = "", "", nil, false, false
 		}
 	}
-	codec = pr.codecWithPassthrough(pr.outputCodecFor(decision, streams), decision, streams)
+	codec = pr.codecWithPassthrough(pol, pr.outputCodecFor(pol, decision, streams), decision, streams)
 	resolve(codec)
 	if codec == "hevc" && decision.VideoCodec != "hevc" && !usable {
 		codec = "h264"
 		resolve(codec)
 	}
-	if strings.EqualFold(codec, "av1") && (!pr.hwPolicy().AV1 || !usable) {
+	if strings.EqualFold(codec, "av1") && (!pol.AV1 || !usable) {
 		codec = "h264"
 		resolve(codec)
 	}
@@ -505,8 +531,8 @@ func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecisio
 // telecine (a software-only filter), a bridge whose decode would be software
 // (the download needs a GPU frame) or whose route the calibration did not
 // prove, and a burn-in the builder refuses to composite on the GPU.
-func (pr *PlanResolver) hwRouteRefused(decision transcoding.PlaybackDecision, src SourceDims, bridge, softwareDecode bool) bool {
-	if src.Telecine || pr.burnInStaysSoftware(decision) {
+func (pr *PlanResolver) hwRouteRefused(pol HWPolicy, decision transcoding.PlaybackDecision, src SourceDims, bridge, softwareDecode bool) bool {
+	if src.Telecine || pr.burnInStaysSoftware(pol, decision) {
 		return true
 	}
 	// The bridge's own gates (a proven bridge route on the PICKED backend, a
@@ -526,18 +552,19 @@ func (pr *PlanResolver) hwRouteRefused(decision transcoding.PlaybackDecision, sr
 // AV1 fallback: an AV1-preferring client on an AV1-disabled (or AV1-incapable)
 // host is ENCODED as H.264, so the route must be resolved for H.264 too.
 func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src SourceDims) bool {
-	hwTonemap := pr.HWTonemapWanted(decision, src.HDRRange)
+	pol := pr.hwPolicy()
+	hwTonemap := pr.hwTonemapWanted(pol, decision, src.HDRRange)
 	// No GPU tone-mapper: the CPU tone-maps between the GPU decode and encode
 	// (hwTonemapBridge). That needs the GPU to decode the source; a software
 	// decode keeps the whole job on the CPU. Same answer as EffectiveVideoCodec.
 	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
 	resolve := func(c string) bool {
-		_, _, _, usable, softwareDecode := pr.resolveHW(c, hwSource{Codec: src.Codec, TenBit: src.TenBit && !bridge, PixelFormat: src.PixelFormat, Interlaced: src.Interlaced, WantHeight: wantedRung(decision, src.Height), Bridge: bridge}, hwTonemap)
-		return usable && !pr.hwRouteRefused(decision, src, bridge, softwareDecode)
+		_, _, _, usable, softwareDecode := pr.resolveHW(pol, c, hwSource{Codec: src.Codec, TenBit: src.TenBit && !bridge, PixelFormat: src.PixelFormat, Interlaced: src.Interlaced, WantHeight: wantedRung(decision, src.Height), Bridge: bridge}, hwTonemap)
+		return usable && !pr.hwRouteRefused(pol, decision, src, bridge, softwareDecode)
 	}
-	codec := pr.outputCodecFor(decision, nil)
+	codec := pr.outputCodecFor(pol, decision, nil)
 	usable := resolve(codec)
-	if strings.EqualFold(codec, "av1") && (!pr.hwPolicy().AV1 || !usable) {
+	if strings.EqualFold(codec, "av1") && (!pol.AV1 || !usable) {
 		usable = resolve("h264")
 	}
 	if codec == "hevc" && decision.VideoCodec != "hevc" && !usable {
@@ -548,7 +575,7 @@ func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src
 
 // outputCodecFor upgrades the decision's H.264 to HEVC when the client decodes it
 // and the GPU encodes it; an explicit preference is never overridden. streams may be nil.
-func (pr *PlanResolver) outputCodecFor(decision transcoding.PlaybackDecision, streams []*library.MediaStream) string {
+func (pr *PlanResolver) outputCodecFor(pol HWPolicy, decision transcoding.PlaybackDecision, streams []*library.MediaStream) string {
 	codec := decision.VideoCodec
 	if decision.VideoDecision != "transcode" || slices.Contains(decision.TranscodeReasons, "preferred_video_codec") ||
 		slices.Contains(decision.TranscodeReasons, "video_codec_pinned") {
@@ -557,7 +584,7 @@ func (pr *PlanResolver) outputCodecFor(decision transcoding.PlaybackDecision, st
 	if codec != "" && !strings.EqualFold(codec, transcoding.DefaultVideoCodec) {
 		return codec
 	}
-	if !pr.clientDecodes(decision, "hevc") || !pr.gpuAllowed() {
+	if !pr.clientDecodes(decision, "hevc") || !pr.gpuAllowed(pol) {
 		return codec
 	}
 	if pr.Capability().AnyBackendSupports("hevc") {
@@ -567,8 +594,8 @@ func (pr *PlanResolver) outputCodecFor(decision transcoding.PlaybackDecision, st
 }
 
 // outputCodecForPassthrough: the HDR passthrough is HEVC by construction.
-func (pr *PlanResolver) codecWithPassthrough(codec string, decision transcoding.PlaybackDecision, streams []*library.MediaStream) string {
-	if pr.HDRPassthroughWanted(decision, streams) {
+func (pr *PlanResolver) codecWithPassthrough(pol HWPolicy, codec string, decision transcoding.PlaybackDecision, streams []*library.MediaStream) string {
+	if pr.hdrPassthroughWanted(pol, decision, streams) {
 		return "hevc"
 	}
 	return codec
@@ -586,13 +613,17 @@ func (pr *PlanResolver) clientDecodes(decision transcoding.PlaybackDecision, cod
 // HDRPassthroughWanted: an HDR source transcoded for an HDR client that decodes
 // HEVC, on a GPU probed for Main10 encoding - keep the HDR instead of tone-mapping.
 func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecision, streams []*library.MediaStream) bool {
+	return pr.hdrPassthroughWanted(pr.hwPolicy(), decision, streams)
+}
+
+func (pr *PlanResolver) hdrPassthroughWanted(pol HWPolicy, decision transcoding.PlaybackDecision, streams []*library.MediaStream) bool {
 	if decision.VideoDecision != "transcode" || slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
 		return false
 	}
 	if SourceTranscodeVideoRange(streams) == "" || !pr.clientDecodes(decision, "hevc") {
 		return false
 	}
-	if !pr.gpuAllowed() {
+	if !pr.gpuAllowed(pol) {
 		return false
 	}
 	if _, ok := pr.Capability().PassthroughBackend(); !ok {
@@ -610,7 +641,11 @@ func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecisi
 // NVENC tonemap_cuda; QSV's vpp is ineligible). When false the software
 // tonemap path runs, byte-identical to a host with no GPU tone-mapping.
 func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision, hdrRange string) bool {
-	if !pr.hwPolicy().Tonemap || !pr.gpuAllowed() {
+	return pr.hwTonemapWanted(pr.hwPolicy(), decision, hdrRange)
+}
+
+func (pr *PlanResolver) hwTonemapWanted(pol HWPolicy, decision transcoding.PlaybackDecision, hdrRange string) bool {
+	if !pol.Tonemap || !pr.gpuAllowed(pol) {
 		return false
 	}
 	// A backend that tone-maps this range on the GPU (VAAPI OpenCL / NVENC CUDA
@@ -649,7 +684,11 @@ func (pr *PlanResolver) hwDeinterlaceWanted(interlaced bool, accel string) bool 
 // compositor is wired for vaapi, qsv AND cuda, and the calibration probe is what
 // says whether this host's driver honours it.
 func (pr *PlanResolver) HWOverlayWanted(decision transcoding.PlaybackDecision) bool {
-	if !pr.gpuAllowed() {
+	return pr.hwOverlayWanted(pr.hwPolicy(), decision)
+}
+
+func (pr *PlanResolver) hwOverlayWanted(pol HWPolicy, decision transcoding.PlaybackDecision) bool {
+	if !pr.gpuAllowed(pol) {
 		return false
 	}
 	if _, ok := pr.Capability().OverlayBackend(); !ok {
