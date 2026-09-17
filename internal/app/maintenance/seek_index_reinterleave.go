@@ -73,9 +73,9 @@ func (s *SeekIndexService) StartReinterleaveMedia(ctx context.Context, mediaID s
 // before and after (a loss restores the backup), the probe re-run on the
 // result, then the catalog told the file is playable again.
 func (s *SeekIndexService) reinterleaveStep(bg context.Context, path string, rb *rollingBackups) (bool, error) {
-	st, ok := s.cachedStatusByPath(path)
-	if !ok {
-		return false, fmt.Errorf("%w: %s", ErrNotInScan, path)
+	st, err := s.freshStatusForRepair(bg, path)
+	if err != nil {
+		return false, err
 	}
 	if !st.BrokenInterleave() {
 		return true, nil
