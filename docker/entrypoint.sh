@@ -140,16 +140,25 @@ if [ "$(id -u)" = "0" ]; then
     [ "$(id -g evey)" = "$PGID" ] || groupmod -o -g "$PGID" evey
     [ "$(id -u evey)" = "$PUID" ] || usermod -o -u "$PUID" evey
     # Re-own Evey's internal state when the identity changed - /data, /cache
-    # and the (rarely used) home. One-time cost after a PUID change. The
+    # and the (rarely used) home, EACH on its own test. One-time cost after a
+    # PUID change. Keying everything on /data alone left /cache at the image's
+    # 1000:1000 whenever the operator had pre-created ./evey-data as PUID
+    # (Synology's Container Manager insists on existing folders): the named
+    # cache volume was then unwritable and the server crash-looped. The
     # SERVER owns /data/plugins (it extracts installs there; giving it to
     # evey-plugin broke every install with EACCES in prod 2026-07-11, and
     # would let a plugin tamper with its own validated files); mode 750 keeps
     # it group-readable for the dropped plugin uid and closed to others.
-    if [ "$(stat -c %u /data)" != "$PUID" ] || [ "$(stat -c %g /data)" != "$PGID" ]; then
-        echo "evey: re-owning internal state to ${PUID}:${PGID} (one-time after a PUID/PGID change)"
-        chown -R evey:evey /data /cache /home/evey
-        chmod 750 /data/plugins
-    fi
+    for d in /data /cache /home/evey; do
+        [ -d "$d" ] || continue
+        if [ "$(stat -c %u "$d")" != "$PUID" ] || [ "$(stat -c %g "$d")" != "$PGID" ]; then
+            echo "evey: re-owning $d to ${PUID}:${PGID} (one-time after a PUID/PGID change)"
+            chown -R evey:evey "$d"
+        fi
+    done
+    mkdir -p /data/plugins
+    chown evey:evey /data/plugins
+    chmod 750 /data/plugins
     # Supplementary groups after the drop: evey's own /etc/group memberships
     # (what --init-groups would grant) PLUS the groups the container runtime
     # injected into this root process (compose `group_add:`, typically the
