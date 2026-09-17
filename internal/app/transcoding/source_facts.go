@@ -484,3 +484,67 @@ func SourceAudioChannels(streams []*library.MediaStream, audioIdx int) int {
 	}
 	return 0
 }
+
+// SourceSnapshot is every fact about the source a resolution reads, taken
+// ONCE at the start of Resolve with the helpers above and carried by the
+// request (PlaybackRequest.Source), so the ladder, the route, the fingerprint
+// and the producer pick read the same facts instead of each walking the
+// stream slice again (ADR-0030). The track-scoped facts are those of the
+// request's selected audio and burn-in subtitle tracks.
+type SourceSnapshot struct {
+	SourceDims
+	// CopyVideoCodec is the codec a raw copy rung would carry, "" when the
+	// source is not copy-eligible (SourceCopyVideoCodec).
+	CopyVideoCodec string
+	IsHDR          bool
+	DeinterlaceAll bool
+	SAR            string
+	FPS            float64
+	// BitrateKbps is the request's SourceBitrateKbps (the file's when the
+	// stream's is unknown); 0 = unknown.
+	BitrateKbps int64
+	// AudioCodec / AudioChannels are the selected audio track's (request
+	// AudioTrack, audio-relative); "" / 0 when absent or unprobed.
+	AudioCodec    string
+	AudioChannels int
+	// SubtitleCodec is the burn-in track's codec, "" when none is selected.
+	SubtitleCodec string
+	taken         bool
+}
+
+// SnapshotOf reads the snapshot off a request. Pure: the same request always
+// yields the same snapshot (the golden files lock every field's derivation).
+func SnapshotOf(req PlaybackRequest) SourceSnapshot {
+	s := req.Streams
+	return SourceSnapshot{
+		SourceDims:     SourceDimsOf(s),
+		CopyVideoCodec: SourceCopyVideoCodec(s),
+		IsHDR:          SourceIsHDR(s),
+		DeinterlaceAll: SourceDeinterlaceAll(s),
+		SAR:            SourceSAR(s),
+		FPS:            SourceFrameRate(s),
+		BitrateKbps:    req.SourceBitrateKbps,
+		AudioCodec:     SourceAudioCodec(s, req.AudioTrack),
+		AudioChannels:  SourceAudioChannels(s, req.AudioTrack),
+		SubtitleCodec:  SourceSubtitleCodec(s, req.SubtitleBurnInTrack),
+		taken:          true,
+	}
+}
+
+// Taken reports whether the snapshot was read (a zero PlaybackRequest.Source
+// means the caller skipped Resolve; the resolver then takes it itself).
+func (s SourceSnapshot) Taken() bool { return s.taken }
+
+// Facts projects the snapshot onto the ladder engine's input.
+func (s SourceSnapshot) Facts() transcoding.SourceFacts {
+	return transcoding.SourceFacts{
+		Width: s.Width, Height: s.Height, Codec: s.Codec, TenBit: s.TenBit,
+		HDRRange: s.HDRRange, Telecine: s.Telecine, BitrateKbps: s.BitrateKbps,
+		FPS: s.FPS,
+	}
+}
+
+// Class names the DECODE workload admission prices.
+func (s SourceSnapshot) Class() transcoding.SourceClass {
+	return transcoding.SourceClass{Codec: s.Codec, Height: s.Height}
+}
