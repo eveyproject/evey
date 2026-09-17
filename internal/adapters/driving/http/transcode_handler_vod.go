@@ -1151,9 +1151,10 @@ func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, s
 	return h.producerForPlan(rp)
 }
 
-// producerForPlan picks the producer for a resolved plan - see PlanResolver.ProducerFor.
+// producerForPlan picks the producer for a resolved plan: a projection of
+// plan.Route (ADR-0030), nothing is re-derived here.
 func (h *hlsVODServe) producerForPlan(rp *requestPlan) apptranscoding.StreamProducer {
-	return h.planResolver().ProducerFor(rp.Request, rp.Decision, rp.IsCopy)
+	return h.planResolver().ProducerForPlan(rp.Plan)
 }
 
 // videoCopyEligible / isCopyRequest - the copy-rung routing moved to the app

@@ -93,6 +93,12 @@ type PlaybackPlan struct {
 	// WasmAudio is true when the AC-3/E-AC-3 audio is served as an out-of-band
 	// rendition for the browser wasm decoder (the master is video-only).
 	WasmAudio bool
+	// Route is THE resolution of how the session encodes (ADR-0030): codec,
+	// pipeline topology, frozen backend, spill. Class, VideoCodec, HWAccel and
+	// the fingerprint's HW fields are projections of it.
+	Route ResolvedRoute
+	// Admission is what the shaper answered for this stream (pin, granted, ceiling).
+	Admission AdmissionGrant
 }
 
 // NeedsVideoEncode reports whether serving this plan spends encode CPU/GPU (a real
