@@ -260,7 +260,7 @@ func derivedSeekReachWindow(readRate, segmentSeconds float64) int {
 func (o SoftwareProducerOptions) withDefaults() SoftwareProducerOptions {
 	out := o
 	if out.ReadRate <= 0 {
-		out.ReadRate = 1.5
+		out.ReadRate = transcoding.SoftwareReadRate
 	}
 	if out.SegmentSeconds <= 0 {
 		out.SegmentSeconds = ManifestSegmentSeconds

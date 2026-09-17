@@ -16,7 +16,7 @@ import (
 // before it refuses, on a fresh limiter with unit budgets.
 func admitN(t *testing.T, samples []transcoding.RouteSample, cpuBudget int, key transcoding.RouteCostKey, h int, fps float64) int {
 	t.Helper()
-	l := NewVideoSessionLimiter(0).WithRouteModel(NewRouteCostModel(samples, cpuBudget))
+	l := NewVideoSessionLimiter(0).WithRouteModel(NewRouteCostModel(samples, float64(cpuBudget)))
 	class := LadderClassSoftware
 	if key.Backend != "" {
 		class = LadderClassHW
@@ -108,11 +108,32 @@ func TestAcceptance_ProdHost_x264(t *testing.T) {
 	if c.Accel != 0 {
 		t.Fatalf("x264 spends no accelerator, got %.3f", c.Accel)
 	}
-	if !approx(c.CPU, 5.95*28.8/130/7) { // ~0.188
-		t.Fatalf("x264 cpu=%.3f want ~0.188", c.CPU)
+	// A software session is input-paced at SoftwareReadRate (1.5x), not at the
+	// 1.2x headroom it must clear: its cores are charged at the rate it really
+	// runs. Priced at 1.2x the same session was 0.188 and five "fit" on seven
+	// cores while the five producers together asked for 8.8 of them.
+	if !approx(c.CPU, 5.95*24*transcoding.SoftwareReadRate/130/7) { // ~0.235
+		t.Fatalf("x264 cpu=%.3f want ~0.235", c.CPU)
 	}
-	if n := admitN(t, s, 7, k, 1080, 24); n != 5 {
-		t.Errorf("prod-host x264 1080: admitted %d, ~0.188 each fits 5 on 7 cores", n)
+	if n := admitN(t, s, 7, k, 1080, 24); n != 4 {
+		t.Errorf("prod-host x264 1080: admitted %d, ~0.235 each fits 4 on 7 cores", n)
+	}
+}
+
+// The steady-state price of a software route is its paced consumption; the
+// exact cgroup quota is the capacity it is a fraction of (a 0.75-core route
+// is half of `cpus: 1.5`, not 37.5 % of the two workers the quota rounds to).
+func TestRouteCostModel_CPUIsAFractionOfTheExactCapacity(t *testing.T) {
+	s := []transcoding.RouteSample{
+		{Key: rk("vaapi", "h264_vaapi", transcoding.RouteCostSDR), Height: 1080, FPS: 28.8, SourceFPS: 24, CPUCores: 0.75},
+	}
+	k := rk("vaapi", "h264_vaapi", transcoding.RouteCostSDR)
+	c, _ := NewRouteCostModel(s, 1.5).Cost(k, 1080, 24)
+	if !approx(c.CPU, 0.5) {
+		t.Fatalf("0.75 core on a 1.5-CPU quota = 0.5 of the pool, got %.3f", c.CPU)
+	}
+	if !approx(c.Accel, 1.0) {
+		t.Fatalf("a route measured exactly at the required rate fills the accelerator pool, got %.3f", c.Accel)
 	}
 }
 

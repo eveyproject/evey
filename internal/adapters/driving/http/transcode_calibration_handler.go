@@ -87,7 +87,7 @@ func routeCostViews(cap domaintranscoding.EncodeCapability) []routeCostView {
 	if len(cap.RouteSamples) == 0 {
 		return nil
 	}
-	m := apptranscoding.NewRouteCostModel(cap.RouteSamples, sysinfo.CPUBudget())
+	m := apptranscoding.NewRouteCostModel(cap.RouteSamples, sysinfo.CPUCapacity())
 	out := make([]routeCostView, 0, len(cap.RouteSamples))
 	for _, rs := range cap.RouteSamples {
 		v := routeCostView{

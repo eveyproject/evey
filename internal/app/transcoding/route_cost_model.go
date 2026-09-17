@@ -32,8 +32,31 @@ type RouteCost struct {
 
 // RouteCostModel is built from a capability's RouteSamples. Nil (no evidence)
 // prices nothing - the limiter then uses VideoCostModel as before.
+//
+// WHAT THE PRICE IS. Both pools are priced as the session's STEADY-STATE,
+// paced consumption - a budget of averages, not of instantaneous peaks:
+//
+//   - a software session is input-paced at SoftwareReadRate x realtime for
+//     its whole life (`-readrate`), so its cores at that rate are its cost;
+//   - a hardware session is NOT paced by ffmpeg: it bursts at full speed
+//     until it is ThrottlePauseAhead segments ahead of the viewer, is then
+//     SIGSTOPped, and thereafter runs at the viewer's pace. The burst is
+//     bounded (ThrottlePauseAhead x SegmentSeconds of content, ~30 s, so a
+//     few wall-clock seconds on a fast route) and happens once per start or
+//     seek; in steady state the session costs what the paced price says.
+//
+// So the CPU pool is a capacity guarantee for the steady state and NOT a
+// guard against several sessions bursting at the same instant: N viewers
+// pressing play together can saturate the CPU for a few seconds (each burst
+// then runs slower and the throttle parks it sooner). That transient is
+// accepted by design - pacing the HW path would trade it for a slower start
+// and seek on every session - and bounded by the global session caps
+// (MaxActiveSessions, MaxRafalesPerHash); it is not what this model prices.
 type RouteCostModel struct {
-	cpuBudget int
+	// cpuCapacity is the CPU time this process may consume, in cores, exactly
+	// (sysinfo.CPUCapacity - the cgroup quota, not the rounded-up worker
+	// count: a 0.75-core route is half of a 1.5-CPU container).
+	cpuCapacity float64
 	// byKey[key] holds that route's rungs, ascending by height.
 	byKey map[transcoding.RouteCostKey][]transcoding.RouteSample
 }
@@ -41,14 +64,14 @@ type RouteCostModel struct {
 // NewRouteCostModel groups the samples by key. Returns nil when there are none
 // (a pre-evidence capability, a software-only host that measured no route),
 // so callers treat nil as "no route evidence, price the old way".
-func NewRouteCostModel(samples []transcoding.RouteSample, cpuBudget int) *RouteCostModel {
+func NewRouteCostModel(samples []transcoding.RouteSample, cpuCapacity float64) *RouteCostModel {
 	if len(samples) == 0 {
 		return nil
 	}
-	if cpuBudget < 1 {
-		cpuBudget = 1
+	if cpuCapacity <= 0 {
+		cpuCapacity = 1
 	}
-	m := &RouteCostModel{cpuBudget: cpuBudget, byKey: map[transcoding.RouteCostKey][]transcoding.RouteSample{}}
+	m := &RouteCostModel{cpuCapacity: cpuCapacity, byKey: map[transcoding.RouteCostKey][]transcoding.RouteSample{}}
 	for _, s := range samples {
 		if s.FPS <= 0 {
 			continue
@@ -103,11 +126,14 @@ func (m *RouteCostModel) TallestRung(key transcoding.RouteCostKey) (int, bool) {
 }
 
 // Cost prices a session of the route named by key, topping out at height h, on
-// a source of sourceFPS. Both pools:
+// a source of sourceFPS. Both pools, at the session's steady-state pace (see
+// RouteCostModel for what that means and does not mean):
 //
 //	required = sourceFPS x headroom
-//	accel    = required / measuredFPS   (0 for a CPU encoder)
-//	cpu      = measuredCPUcores / cpuBudget
+//	pace     = required                        (a hardware route: viewer-paced)
+//	         = max(required, sourceFPS x SoftwareReadRate)  (a software route)
+//	accel    = required / measuredFPS          (0 for a CPU encoder)
+//	cpu      = measuredCPUcores x pace / measuredFPS / cpuCapacity
 //
 // The accelerator cost scales with the SOURCE fps (a 60p source needs 60x
 // headroom frames a second) against the fps the route was MEASURED to sustain
@@ -126,14 +152,22 @@ func (m *RouteCostModel) Cost(key transcoding.RouteCostKey, h int, sourceFPS flo
 		sourceFPS = 24
 	}
 	required := sourceFPS * transcoding.RouteCostHeadroom
-	// CPU is normalised to the REQUIRED (paced) rate, never charged at the
-	// bench's max throughput: the session measured CPUCores while racing at
-	// measuredFPS, but the runtime paces it near realtime, so it burns
-	// CPUCores x required/measuredFPS cores. Charging the raw cores over-priced
-	// every fast route massively (a 200 fps encode "costs" its racing cores, not
-	// the fraction it uses at 30 fps) - the fix this turn targets.
-	requiredCPU := r.CPUCores * required / r.FPS
-	cost := RouteCost{CPU: requiredCPU / float64(m.cpuBudget), FromRoute: true}
+	// CPU is normalised to the rate the session really runs at in steady
+	// state, never charged at the bench's max throughput: the session measured
+	// CPUCores while racing at measuredFPS, but the runtime paces it - the
+	// viewer's pace on a hardware route (after its bounded burst), the
+	// producer's -readrate on a software one - so it burns CPUCores x
+	// pace/measuredFPS cores. Charging the raw cores over-priced every fast
+	// route massively (a 200 fps encode "costs" its racing cores, not the
+	// fraction it uses at 30 fps). A route SLOWER than its pace prices above
+	// its cores on purpose: that is the "cannot sustain it" signal admission
+	// refuses on.
+	pace := required
+	if key.Backend == "" {
+		pace = math.Max(required, sourceFPS*transcoding.SoftwareReadRate)
+	}
+	requiredCPU := r.CPUCores * pace / r.FPS
+	cost := RouteCost{CPU: requiredCPU / m.cpuCapacity, FromRoute: true}
 	if key.Backend != "" {
 		cost.Accel = required / r.FPS
 	} else {

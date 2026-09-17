@@ -68,7 +68,7 @@ func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
 			if h.capability == nil {
 				return nil
 			}
-			return apptranscoding.NewRouteCostModel(h.capability().RouteSamples, sysinfo.CPUBudget())
+			return apptranscoding.NewRouteCostModel(h.capability().RouteSamples, sysinfo.CPUCapacity())
 		},
 		HWAccelEnabled:        h.hwAccelEnabled,
 		AV1Enabled:            h.av1Enabled,

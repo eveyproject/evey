@@ -687,7 +687,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// a route it measured, pricing both the accelerator AND the CPU pool a GPU
 		// route really spends; the table stays the fallback. nil (a capability
 		// benched before route evidence existed) leaves table pricing unchanged.
-		videoLimiter.WithRouteModel(apptranscoding.NewRouteCostModel(current.RouteSamples, sysinfo.CPUBudget()))
+		videoLimiter.WithRouteModel(apptranscoding.NewRouteCostModel(current.RouteSamples, sysinfo.CPUCapacity()))
 
 		// Admission is governed by PER-POOL cost budgets: every software flavor
 		// (plain/HDR/AV1) spends the CPU pool, hw encodes spend the GPU pool, so

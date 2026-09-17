@@ -83,6 +83,30 @@ func TestCPUBudget_CgroupV1Quota(t *testing.T) {
 	}
 }
 
+// The worker count rounds a fractional quota UP; the capacity admission
+// budgets against is the exact quota. A route burning 0.75 core is half of
+// `cpus: 1.5`, not 37.5 % of the 2 workers the rounding allows.
+func TestCPUCapacity_IsTheExactQuota(t *testing.T) {
+	v2 := stageFS(t, map[string]string{"sys/fs/cgroup/cpu.max": "150000 100000\n"})
+	if got := cpuCapacity(v2); got != 1.5 {
+		t.Errorf("cgroup v2 1.5 CPU quota: capacity %v, want 1.5", got)
+	}
+	v1 := stageFS(t, map[string]string{
+		"sys/fs/cgroup/cpu/cpu.cfs_quota_us":  "50000\n",
+		"sys/fs/cgroup/cpu/cpu.cfs_period_us": "100000\n",
+	})
+	if got := cpuCapacity(v1); got != 0.5 {
+		t.Errorf("cgroup v1 0.5 CPU quota: capacity %v, want 0.5", got)
+	}
+	if got := cpuBudget(v1); got != 1 {
+		t.Errorf("0.5 CPU quota still allows 1 worker, got %d", got)
+	}
+	unlimited := stageFS(t, map[string]string{"sys/fs/cgroup/cpu.max": "max 100000\n"})
+	if got := cpuCapacity(unlimited); got != float64(runtime.NumCPU()) {
+		t.Errorf("unlimited: capacity %v, want NumCPU %d", got, runtime.NumCPU())
+	}
+}
+
 func TestCPUBudget_Unlimited_FallsBackToNumCPU(t *testing.T) {
 	root := stageFS(t, map[string]string{
 		"sys/fs/cgroup/cpu.max": "max 100000\n",
