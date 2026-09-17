@@ -171,6 +171,11 @@ func (r *MediaComplexityRepo) ListProbeCandidates(ctx context.Context, modelVers
 	// frames < MinFrames - the sample-free fallback), the animation weak spot,
 	// or a motion outside the model's fitted range. Ceiling hits come from the
 	// runtime signal store, not this query.
+	//
+	// A sequential scan on purpose: the selective part is NOT(protocol AND
+	// version AND encoder) over OR-ed JSONB branches, which no b-tree can
+	// serve, and the indexable part (type, classified) matches nearly every
+	// row. Runs every 30 min off the playback path, bounded by LIMIT.
 	const q = `
 		SELECT mi.id
 		FROM media_items mi
