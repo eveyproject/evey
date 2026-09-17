@@ -231,3 +231,25 @@ func TestCalibration_OnCapabilityChange_FiresOnBenchAndDemote(t *testing.T) {
 	svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWUnsupportedOption, "h264")
 	assert.Equal(t, 2, fired)
 }
+
+// A failed hardware session reports the exact route (backend, encoder, cost
+// class), not just its codec: the fallback record names what failed, so the
+// admin panel can tell a bridge failure from a zero-copy one (ADR-0030, 7).
+// The verdict rules themselves are unchanged (still keyed on class + codec).
+func TestDemoteRoute_RecordsTheExactRouteOnTheFallbackEvent(t *testing.T) {
+	svc, _ := seedHWService(t)
+	fp := DecisionFingerprint{VideoCodec: "hevc", HWAccel: "nvenc", HDRTonemap: true,
+		Profiles: []ProfileFingerprint{{Name: "1080p", Width: 1920, Height: 1080}}}
+	report := hwFailure(domaintranscoding.FailureRouteIncompatible, fp)
+	assert.Equal(t, RouteCostKeyOf(fp), report.Route)
+	assert.Equal(t, domaintranscoding.RouteCostBridge, report.Route.Route, "HEVC tone-mapped on NVENC without a GPU tone-map = the bridge")
+	assert.Equal(t, "hevc", report.Codec)
+
+	assert.False(t, svc.DemoteRoute(context.Background(), report), "a media/route incompatibility never touches the host")
+	events := svc.RecentFallbacks()
+	require.Len(t, events, 1)
+	assert.Equal(t, "nvenc", events[0].Backend)
+	assert.Equal(t, "bridge", events[0].Route)
+	assert.Equal(t, "hevc", events[0].Codec)
+	assert.Equal(t, fallbackVerdictMediaRoute, events[0].Verdict)
+}

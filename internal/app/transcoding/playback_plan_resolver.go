@@ -363,6 +363,49 @@ func snapshot(req PlaybackRequest) SourceSnapshot {
 	return SnapshotOf(req)
 }
 
+// HWPolicy is the operator's hardware policy as ONE value: what the toggles
+// say, read through one accessor instead of at eleven sites (ADR-0030, 8).
+// A nil toggle keeps its historical default.
+type HWPolicy struct {
+	// Accel: the GPU may be used at all (nil toggle = false: no GPU).
+	Accel bool
+	// Tonemap: the GPU may tone-map (nil toggle = true).
+	Tonemap bool
+	// LowPower: the Intel low-power (VDEnc) features may be used (nil = false).
+	LowPower bool
+	// AV1: AV1 output may be served (nil toggle = true, historical).
+	AV1 bool
+	// AV1MaxHeight caps AV1 output (0 = none).
+	AV1MaxHeight int
+}
+
+// hwPolicy reads the toggles. The capability is a separate question (a policy
+// that allows the GPU on a host that has none allows nothing).
+func (pr *PlanResolver) hwPolicy() HWPolicy {
+	pol := HWPolicy{Tonemap: true, AV1: true}
+	if pr.HWAccelEnabled != nil {
+		pol.Accel = pr.HWAccelEnabled()
+	}
+	if pr.HWTonemapEnabled != nil {
+		pol.Tonemap = pr.HWTonemapEnabled()
+	}
+	if pr.HWLowPowerEnabled != nil {
+		pol.LowPower = pr.HWLowPowerEnabled()
+	}
+	if pr.AV1Enabled != nil {
+		pol.AV1 = pr.AV1Enabled()
+	}
+	if pr.AV1MaxHeight != nil {
+		pol.AV1MaxHeight = pr.AV1MaxHeight()
+	}
+	return pol
+}
+
+// gpuAllowed: the policy allows the GPU and the host calibrated one.
+func (pr *PlanResolver) gpuAllowed() bool {
+	return pr.hwPolicy().Accel && pr.Capability != nil
+}
+
 // capabilityOrFallback resolves the calibrated capability, nil-safe.
 func (pr *PlanResolver) capabilityOrFallback() transcoding.EncodeCapability {
 	if pr.Capability == nil {
@@ -415,7 +458,7 @@ func wantedRung(decision transcoding.PlaybackDecision, sourceHeight int) int {
 // (EncodeCapability.HWRoutes): the filter-level facts say what the GPU can
 // do, the route proof says the builder's session for it actually runs here.
 func (pr *PlanResolver) resolveHW(outputCodec string, src hwSource, hwTonemap bool) (accel, device string, features []string, usable, softwareDecode bool) {
-	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
+	if !pr.gpuAllowed() {
 		return "", "", nil, false, false
 	}
 	// Choose the backend for THIS route and THIS source (not one global "best
@@ -679,7 +722,7 @@ func (pr *PlanResolver) titleBlocked(mediaID string) bool {
 
 // effectiveHWFeatures drops the low-power features unless the admin opted in.
 func (pr *PlanResolver) effectiveHWFeatures(features []string) []string {
-	if pr.HWLowPowerEnabled != nil && pr.HWLowPowerEnabled() {
+	if pr.hwPolicy().LowPower {
 		return features
 	}
 	out := make([]string, 0, len(features))
@@ -718,7 +761,7 @@ func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecisio
 		codec = "h264"
 		resolve(codec)
 	}
-	if strings.EqualFold(codec, "av1") && ((pr.AV1Enabled != nil && !pr.AV1Enabled()) || !usable) {
+	if strings.EqualFold(codec, "av1") && (!pr.hwPolicy().AV1 || !usable) {
 		codec = "h264"
 		resolve(codec)
 	}
@@ -763,7 +806,7 @@ func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src
 	}
 	codec := pr.outputCodecFor(decision, nil)
 	usable := resolve(codec)
-	if strings.EqualFold(codec, "av1") && ((pr.AV1Enabled != nil && !pr.AV1Enabled()) || !usable) {
+	if strings.EqualFold(codec, "av1") && (!pr.hwPolicy().AV1 || !usable) {
 		usable = resolve("h264")
 	}
 	if codec == "hevc" && decision.VideoCodec != "hevc" && !usable {
@@ -783,7 +826,7 @@ func (pr *PlanResolver) outputCodecFor(decision transcoding.PlaybackDecision, st
 	if codec != "" && !strings.EqualFold(codec, transcoding.DefaultVideoCodec) {
 		return codec
 	}
-	if !pr.clientDecodes(decision, "hevc") || pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
+	if !pr.clientDecodes(decision, "hevc") || !pr.gpuAllowed() {
 		return codec
 	}
 	if pr.Capability().AnyBackendSupports("hevc") {
@@ -818,7 +861,7 @@ func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecisi
 	if SourceTranscodeVideoRange(streams) == "" || !pr.clientDecodes(decision, "hevc") {
 		return false
 	}
-	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
+	if !pr.gpuAllowed() {
 		return false
 	}
 	if _, ok := pr.Capability().PassthroughBackend(); !ok {
@@ -836,10 +879,7 @@ func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecisi
 // NVENC tonemap_cuda; QSV's vpp is ineligible). When false the software
 // tonemap path runs, byte-identical to a host with no GPU tone-mapping.
 func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision, hdrRange string) bool {
-	if pr.HWTonemapEnabled != nil && !pr.HWTonemapEnabled() {
-		return false
-	}
-	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
+	if !pr.hwPolicy().Tonemap || !pr.gpuAllowed() {
 		return false
 	}
 	// A backend that tone-maps this range on the GPU (VAAPI OpenCL / NVENC CUDA
@@ -888,7 +928,7 @@ func audioChannelsFor(snap SourceSnapshot, videoAudioTrack, selected int) int {
 // compositor is wired for vaapi, qsv AND cuda, and the calibration probe is what
 // says whether this host's driver honours it.
 func (pr *PlanResolver) HWOverlayWanted(decision transcoding.PlaybackDecision) bool {
-	if pr.HWAccelEnabled == nil || !pr.HWAccelEnabled() || pr.Capability == nil {
+	if !pr.gpuAllowed() {
 		return false
 	}
 	if _, ok := pr.Capability().OverlayBackend(); !ok {
@@ -1122,9 +1162,7 @@ func (pr *PlanResolver) deliveryConstraints(req PlaybackRequest, decision transc
 			dc.QoEMaxHeight = ov.MaxHeight
 		}
 	}
-	if pr.AV1MaxHeight != nil {
-		dc.AV1MaxHeight = pr.AV1MaxHeight()
-	}
+	dc.AV1MaxHeight = pr.hwPolicy().AV1MaxHeight
 	return dc
 }
 
