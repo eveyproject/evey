@@ -525,6 +525,7 @@ sessions:
       qsv: "Quick Sync"
       vaapi: "VAAPI"
       nvenc: "NVENC"
+      rkmpp: "RKMPP"
   refreshStatus: "अपडेट {{time}} - हर {{seconds}}s ऑटो-रिफ्रेश"
   sendMessage: "संदेश भेजें"
   messageSent: "संदेश भेजा गया"

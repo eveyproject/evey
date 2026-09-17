@@ -55,6 +55,7 @@ const BACKEND_KEYS: Record<string, string> = {
   qsv: "admin.sessions.track.backend.qsv",
   vaapi: "admin.sessions.track.backend.vaapi",
   nvenc: "admin.sessions.track.backend.nvenc",
+  rkmpp: "admin.sessions.track.backend.rkmpp",
 };
 
 export function SessionTrackBadges({ session }: { session: V1ActiveSession }) {

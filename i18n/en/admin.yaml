@@ -525,6 +525,7 @@ sessions:
       qsv: "Quick Sync"
       vaapi: "VAAPI"
       nvenc: "NVENC"
+      rkmpp: "RKMPP"
   refreshStatus: "Updated {{time}} - auto-refresh every {{seconds}}s"
   sendMessage: Send message
   messageSent: Message sent
