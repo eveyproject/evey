@@ -133,3 +133,42 @@ func TestAudioOrchestrator_PreWarmStartsTheSessionInTheBackground(t *testing.T) 
 	time.Sleep(20 * time.Millisecond)
 	assert.Equal(t, 1, proc.startCount())
 }
+
+// The per-hash index is what every served segment walks; it must forget a
+// session exactly when the flat map does (reap) and be emptied by Close, or a
+// dead rendition would keep looking covered and never respawn.
+func TestAudioOrchestrator_HashIndexStaysInStepWithSessions(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	proc := newFakeAudioProcess()
+	proc.onStart = func(transcoding.AudioProcessOpts) *audioFakeHandle {
+		writeAudioSegment(t, cache, fp, 0)
+		return newAudioFakeHandle()
+	}
+	o := newAudioSegmentOrchestrator(cache, proc, 30*time.Millisecond, 5*time.Millisecond)
+	defer func() { _ = o.Close() }()
+
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 0))
+	hash := fp.Hash()
+	o.mu.Lock()
+	indexed := len(o.byHash[hash])
+	covered := o.coveringSessionLocked(hash, 0)
+	o.mu.Unlock()
+	require.Equal(t, 1, indexed, "a spawned session is indexed under its hash")
+	require.True(t, covered, "the index is what answers 'is this segment covered'")
+
+	require.Eventually(t, func() bool { return o.ActiveCount() == 0 }, 2*time.Second, 5*time.Millisecond)
+	o.mu.Lock()
+	_, still := o.byHash[hash]
+	covered = o.coveringSessionLocked(hash, 0)
+	o.mu.Unlock()
+	assert.False(t, still, "a reaped session leaves no index entry behind")
+	assert.False(t, covered, "a reaped rendition is no longer covered, so the next miss respawns")
+
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 0))
+	require.NoError(t, o.Close())
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	assert.Empty(t, o.byHash, "Close empties the index with the sessions")
+	assert.Empty(t, o.sessions)
+}
