@@ -197,11 +197,11 @@ func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, apptra
 	if l == nil {
 		return nil
 	}
-	// Same class / source / route / fps derivation as the spawn's
-	// TryAcquireRoute (segment_orchestrator, software_producer): a probe priced
-	// on a zero route asks the table, not the route evidence the spawn uses.
+	// The SAME price as the spawn's (SessionCostOf, one derivation): a probe
+	// priced on a zero route would ask the table, not the route evidence the
+	// spawn uses.
 	return func(key string, fp apptranscoding.DecisionFingerprint, topHeight int) bool {
-		return l.CanAdmitRoute(key, apptranscoding.LadderClassOf(fp), topHeight, apptranscoding.SourceClassOf(fp), apptranscoding.RouteCostKeyOf(fp), fp.SourceFPS)
+		return l.CanAdmitSession(key, apptranscoding.SessionCostOf(fp, topHeight))
 	}
 }
 
