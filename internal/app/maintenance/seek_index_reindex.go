@@ -442,12 +442,12 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 			}
 		}
 	}
-	if !s.tryStart(JobReindex, libraryID) {
+	bg, ok := s.tryStart(JobReindex, libraryID)
+	if !ok {
 		return ErrJobRunning
 	}
 	go func() {
 		defer s.recoverJob()
-		bg := s.jobContext()
 		scan, _, ok := s.CachedScan(libraryID)
 		if !ok {
 			var err error

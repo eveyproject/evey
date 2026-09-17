@@ -615,6 +615,9 @@ type JobSummary struct {
 	Err        string // job-level error (e.g. the scan itself failed)
 	ReadOnly   bool   // at least one failure came from a read-only mount
 	Failures   []Failure
+	// Cancelled: the job stopped at a file boundary on request (Cancel, the
+	// server going down) - Done < Total is not a failure here.
+	Cancelled bool
 }
 
 // JobStatus is the pollable state of the seek-index job runner.
@@ -675,9 +678,16 @@ type SeekIndexService struct {
 	now   func() time.Time
 	sleep func(ctx context.Context, d time.Duration)
 
+	// baseCtx parents every job context: the server's lifetime when wired
+	// (WithBaseContext), so a SIGTERM reaches a running batch the moment it
+	// lands, not only when Stop is called. Background otherwise.
+	baseCtx context.Context
+
 	mu          sync.Mutex
 	running     bool
+	jobCtx      context.Context    // the running job's context (tryStart)
 	cancel      context.CancelFunc // non-nil while a job runs; see Cancel
+	cancelled   bool               // Cancel (or Stop) was asked of the running job
 	cur         JobStatus          // valid while running (Last excluded)
 	curFailures jobFailures
 	last        *JobSummary
@@ -711,7 +721,18 @@ func NewSeekIndexService(reindexer mkv.Reindexer, catalog MediaCatalog, logger *
 		idlePoll:  defaultIdlePoll,
 		now:       time.Now,
 		sleep:     sleepCtx,
+		baseCtx:   context.Background(),
 	}
+}
+
+// WithBaseContext parents every job on ctx - the server's lifetime context -
+// so a job is cancelled at the next file boundary when the server goes down,
+// without anyone remembering to call Stop. Chainable; nil keeps Background.
+func (s *SeekIndexService) WithBaseContext(ctx context.Context) *SeekIndexService {
+	if ctx != nil {
+		s.baseCtx = ctx
+	}
+	return s
 }
 
 // sleepCtx waits d, or until the job is cancelled - whichever comes first. A

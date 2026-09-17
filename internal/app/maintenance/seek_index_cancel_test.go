@@ -1,6 +1,7 @@
 package maintenance_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
+	"github.com/evey-project/evey/internal/domain/mkv"
 )
 
 // countingStreams reports a playback count the test can flip at will.
@@ -104,4 +106,95 @@ func (f *fakeReindexer) reindexCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.reindexed)
+}
+
+// A stopped job says so. Done < Total with no error and no failure used to
+// read exactly like a batch that ran out of work; the operator could not tell
+// "finished" from "stopped".
+func TestSeekIndex_CancelledJobIsReportedAsCancelled(t *testing.T) {
+	files := manyFiles(t, 20)
+	gate := make(chan struct{})
+	reidx := &fakeReindexer{hasIndex: map[string]bool{}, gate: gate}
+	svc := appmaintenance.NewSeekIndexService(reidx, fakeCatalog{files: files}, nil)
+
+	require.NoError(t, svc.StartReindexLibrary(t.Context(), "lib1", appmaintenance.ReindexRunOptions{}))
+	require.Eventually(t, func() bool { return svc.Status().Phase == appmaintenance.PhaseProcessing }, 5*time.Second, 10*time.Millisecond)
+	require.True(t, svc.Cancel())
+	close(gate)
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.True(t, st.Last.Cancelled)
+	assert.Empty(t, st.Last.Err, "a cancellation is not an error")
+
+	// A job that runs to its end is not.
+	require.NoError(t, svc.StartReindexLibrary(t.Context(), "lib1", appmaintenance.ReindexRunOptions{}))
+	st = waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.False(t, st.Last.Cancelled)
+}
+
+// Shutdown: the server's lifetime context is the job's parent, so the signal
+// itself stops the batch at its next file, and Stop waits for the summary to
+// land before returning - the journal and the marker are written under a live
+// pool, not raced against db.Close.
+func TestSeekIndex_StopOnServerShutdownFinishesTheJob(t *testing.T) {
+	files := manyFiles(t, 40)
+	gate := make(chan struct{})
+	reidx := &fakeReindexer{hasIndex: map[string]bool{}, gate: gate}
+	serverCtx, shutdown := context.WithCancel(context.Background())
+	svc := appmaintenance.NewSeekIndexService(reidx, fakeCatalog{files: files}, nil).WithBaseContext(serverCtx)
+
+	require.NoError(t, svc.StartReindexLibrary(context.Background(), "lib1", appmaintenance.ReindexRunOptions{}))
+	require.Eventually(t, func() bool { return svc.Status().Phase == appmaintenance.PhaseProcessing }, 5*time.Second, 10*time.Millisecond)
+
+	shutdown() // SIGTERM
+	close(gate)
+	done := make(chan struct{})
+	go func() {
+		svc.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not return once the job finished")
+	}
+	st := svc.Status()
+	assert.False(t, st.Running, "Stop returns only once the job has finished")
+	require.NotNil(t, st.Last)
+	assert.True(t, st.Last.Cancelled, "a job stopped by the server going down is reported as cancelled")
+	assert.Less(t, reidx.reindexCount(), len(files))
+}
+
+// Stop with nothing running is a no-op that returns at once.
+func TestSeekIndex_StopIsANoopWhenIdle(t *testing.T) {
+	svc := appmaintenance.NewSeekIndexService(&fakeReindexer{hasIndex: map[string]bool{}}, fakeCatalog{}, nil)
+	start := time.Now()
+	svc.Stop()
+	assert.Less(t, time.Since(start), time.Second)
+}
+
+// A cancellation that lands while a file is open is flow control, not a
+// verdict: the file in flight must not come back "unreadable: context
+// canceled" with a failure in a summary that also says cancelled.
+func TestSeekIndex_CancelDuringAProbeIsNotAnUnreadableFile(t *testing.T) {
+	dir := t.TempDir()
+	slow := filepath.Join(dir, "slow.mkv")
+	require.NoError(t, os.WriteFile(slow, []byte("x"), 0o644))
+	gate := newScanGate(slow)
+	gate.armed.Store(true)
+	diag := fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{slow: {Healthy: true}}, gate: gate}
+	svc := appmaintenance.NewSeekIndexService(&fakeReindexer{hasIndex: map[string]bool{slow: true}},
+		fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: slow}}}, nil).WithDiagnoser(diag)
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	<-gate.started
+	require.True(t, svc.Cancel())
+	close(gate.release)
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.True(t, st.Last.Cancelled)
+	assert.Zero(t, st.Last.Failed, "the interrupted probe is not a failure: %+v", st.Last.Failures)
+	_, _, cached := svc.CachedScan("")
+	assert.False(t, cached, "a cancelled scan leaves no half result behind")
 }

@@ -10,6 +10,10 @@ vi.mock("react-i18next", () => ({
 vi.mock("@/components/ui/Card", () => ({ Card: ({ children, ...p }: any) => React.createElement("div", { "data-testid": p["data-testid"] }, children) }));
 vi.mock("@/components/ui/Badge", () => ({ Badge: ({ children, variant }: any) => React.createElement("span", { "data-testid": `badge-${variant}` }, children) }));
 vi.mock("@/components/ui/Spinner", () => ({ Spinner: () => null }));
+vi.mock("@/components/ui/Button", () => ({
+  Button: ({ children, ...p }: any) =>
+    React.createElement("button", { onClick: p.onClick, disabled: p.disabled, title: p.title, "data-testid": p["data-testid"] }, children),
+}));
 
 // The last-job line names the kind and counts, and "processed" includes
 // skips, so the skipped count is shown on its own (a repair batch skipping
@@ -48,6 +52,15 @@ describe("LastJobCard", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("admin.seekIndex.lastJobError:disk gone");
     expect(screen.queryByTestId("badge-success")).toBeNull();
   });
+
+  // A stopped job is neither a success nor a failure: 3/9 with a "Completed"
+  // badge read like a batch that ran out of work.
+  it("a stopped run says so instead of OK", () => {
+    render(<LastJobCard last={{ kind: "reindex", done: 3, total: 9, failed: 0, cancelled: true }} />);
+    expect(screen.getByTestId("badge-default")).toHaveTextContent("admin.seekIndex.lastJobCancelled");
+    expect(screen.queryByTestId("badge-success")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });
 
 // While scanning the total is unknown: an indeterminate bar with no value.
@@ -79,5 +92,24 @@ describe("JobProgressCard", () => {
   it("never overshoots 100 % when done outruns total", () => {
     render(<JobProgressCard job={{ kind: "scan", phase: "processing", done: 12, total: 10 }} />);
     expect((screen.getByRole("progressbar").firstElementChild as HTMLElement).style.width).toBe("100%");
+  });
+
+  // The stop button asks the server once and then stays disabled: the job
+  // endpoint reports the end, a second click would only repeat the request.
+  it("offers to stop the job and disables the button once asked", () => {
+    const onCancel = vi.fn();
+    const { rerender } = render(<JobProgressCard job={{ kind: "reindex", phase: "processing", done: 1, total: 9 }} onCancel={onCancel} />);
+    const btn = screen.getByTestId("seek-index-job-cancel");
+    expect(btn).toHaveTextContent("admin.seekIndex.jobCancel");
+    expect(btn).toHaveAttribute("title", "admin.seekIndex.jobCancelHint");
+    btn.click();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    rerender(<JobProgressCard job={{ kind: "reindex", phase: "processing", done: 1, total: 9 }} onCancel={onCancel} cancelling />);
+    expect(screen.getByTestId("seek-index-job-cancel")).toBeDisabled();
+  });
+
+  it("has no stop button when nobody handles it", () => {
+    render(<JobProgressCard job={{ kind: "scan", phase: "scanning", done: 0, total: 0 }} />);
+    expect(screen.queryByTestId("seek-index-job-cancel")).toBeNull();
   });
 });

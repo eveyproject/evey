@@ -36,9 +36,14 @@ export function LastJobCard({ last }: { last: NonNullable<V1GetSeekIndexJobRespo
             {t("admin.seekIndex.jobSkippedCount", { count: skipped })}
           </span>
         )}
+        {last.cancelled && (
+          <Badge variant="default" data-testid="seek-index-last-cancelled">
+            {t("admin.seekIndex.lastJobCancelled")}
+          </Badge>
+        )}
         {failed > 0 ? (
           <Badge variant="warning">{t("admin.seekIndex.jobFailedCount", { count: failed })}</Badge>
-        ) : !last.error ? (
+        ) : !last.error && !last.cancelled ? (
           <Badge variant="success">{t("admin.seekIndex.lastJobOk")}</Badge>
         ) : null}
       </div>

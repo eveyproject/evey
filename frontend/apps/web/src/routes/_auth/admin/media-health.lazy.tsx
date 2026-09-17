@@ -55,6 +55,7 @@ function SeekIndexPage() {
     repairVolumes,
     backupsRisky,
     startScan,
+    cancelJob,
     repairOne,
     rollbackOne,
     repairLib,
@@ -126,7 +127,13 @@ function SeekIndexPage() {
         withBackup={withBackup}
       />
 
-      {running && job && <JobProgressCard job={job} />}
+      {running && job && (
+        <JobProgressCard
+          job={job}
+          onCancel={() => cancelJob.mutate({ data: {} })}
+          cancelling={cancelJob.isPending || cancelJob.isSuccess}
+        />
+      )}
       {!running && job?.last && <LastJobCard last={job.last} />}
       <RepairJournalPanel />
 

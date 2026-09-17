@@ -2,9 +2,21 @@ import { useTranslation } from "react-i18next";
 import type { V1GetSeekIndexJobResponse } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { SEEK_INDEX_KIND_KEYS, baseName } from "@evey/api";
 
-export function JobProgressCard({ job }: { job: V1GetSeekIndexJobResponse }) {
+// onCancel asks the server to stop the job at its next file boundary; the
+// button disables while the request is in flight and stays so afterwards -
+// the job endpoint reports the end. Optional so a read-only surface can omit it.
+export function JobProgressCard({
+  job,
+  onCancel,
+  cancelling = false,
+}: {
+  job: V1GetSeekIndexJobResponse;
+  onCancel?: () => void;
+  cancelling?: boolean;
+}) {
   const { t } = useTranslation();
   const done = job.done ?? 0;
   const total = job.total ?? 0;
@@ -25,14 +37,27 @@ export function JobProgressCard({ job }: { job: V1GetSeekIndexJobResponse }) {
             {t("admin.seekIndex.jobRunning", { kind, phase })}
           </span>
         </div>
-        <span className="text-sm text-[var(--text-muted)]" data-testid="seek-index-job-progress">
-          {total > 0 ? `${done}/${total}` : "…"}
-          {failed > 0 && (
-            <span className="text-[var(--color-danger)] ml-2">
-              {t("admin.seekIndex.jobFailedCount", { count: failed })}
-            </span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-[var(--text-muted)]" data-testid="seek-index-job-progress">
+            {total > 0 ? `${done}/${total}` : "…"}
+            {failed > 0 && (
+              <span className="text-[var(--color-danger)] ml-2">
+                {t("admin.seekIndex.jobFailedCount", { count: failed })}
+              </span>
+            )}
+          </span>
+          {onCancel && (
+            <Button
+              variant="secondary"
+              onClick={onCancel}
+              disabled={cancelling}
+              title={t("admin.seekIndex.jobCancelHint")}
+              data-testid="seek-index-job-cancel"
+            >
+              {t("admin.seekIndex.jobCancel")}
+            </Button>
           )}
-        </span>
+        </div>
       </div>
       <div
         className="h-2 rounded-full bg-[var(--surface-hover)] overflow-hidden"

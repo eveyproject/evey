@@ -22,6 +22,9 @@ import (
 func (s *SeekIndexService) Cancel() bool {
 	s.mu.Lock()
 	cancel := s.cancel
+	if cancel != nil {
+		s.cancelled = true
+	}
 	s.mu.Unlock()
 	if cancel == nil {
 		return false
@@ -30,15 +33,26 @@ func (s *SeekIndexService) Cancel() bool {
 	return true
 }
 
-// jobContext builds the context a background job runs under and publishes its
-// cancel func so Cancel can reach it. Detached from the caller's request (the
-// job outlives it) but cancellable, which context.Background() was not.
-func (s *SeekIndexService) jobContext() context.Context {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.mu.Lock()
-	s.cancel = cancel
-	s.mu.Unlock()
-	return ctx
+// stopWait bounds Stop: with the context cancelled, ffmpeg is killed at once
+// and a rewrite gives up at its next check, so a job that has not finished
+// within this is one nothing here can hurry - the process exits over it.
+const stopWait = 15 * time.Second
+
+// Stop is the shutdown hook: cancel whatever job runs and wait for it to
+// finish - journal entry written, marker cleared, cache saved - before the
+// database closes under it. Returns at once when nothing runs.
+func (s *SeekIndexService) Stop() {
+	if !s.Cancel() {
+		return
+	}
+	deadline := time.Now().Add(stopWait)
+	for time.Now().Before(deadline) {
+		if !s.Status().Running {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	s.logger.Warn("seek-index: job still running at shutdown, leaving it (marker stays for the restart)")
 }
 
 // waitForIdlePlayback blocks until nothing is being watched, or until the job
@@ -97,13 +111,13 @@ func (s *SeekIndexService) startSingle(ctx context.Context, kind, mediaID string
 	if f.Path == "" {
 		return fmt.Errorf("seek-index %s: media %s has no file", kind, mediaID)
 	}
-	if !s.tryStart(kind, "") {
+	bg, ok := s.tryStart(kind, "")
+	if !ok {
 		return ErrJobRunning
 	}
 	s.setPhase(PhaseProcessing, 1)
 	go func() {
 		defer s.recoverJob()
-		bg := s.jobContext()
 		s.processFiles(bg, kind, []string{f.Path}, fn)
 		s.finish(nil)
 	}()
@@ -117,16 +131,18 @@ func (s *SeekIndexService) startSingle(ctx context.Context, kind, mediaID string
 // runs after the last file, still inside the job slot (e.g. the rolling
 // backup window's end-of-job drain).
 func (s *SeekIndexService) startBatch(kind, libraryID string, preflight func([]SeekStatus) error, keep func(SeekStatus) bool, fn func(context.Context, string) (bool, error), epilogue func(context.Context)) error {
-	if !s.tryStart(kind, libraryID) {
+	bg, ok := s.tryStart(kind, libraryID)
+	if !ok {
 		return ErrJobRunning
 	}
 	go func() {
 		defer s.recoverJob()
-		bg := s.jobContext()
 		// Phase 1: reuse the cached scan when one exists - a full re-walk is
 		// minutes of per-file probes and every repair re-checks its own file
-		// anyway (an already-indexed file is Skipped, a vanished one fails
-		// cleanly). The scan job itself always walks fresh.
+		// before acting: the reindexer re-reads the index (an indexed file is
+		// Skipped), the cache-driven repairs go through freshStatusForRepair
+		// (a file replaced since the scan is re-diagnosed first, a vanished
+		// one fails cleanly). The scan job itself always walks fresh.
 		scan, _, ok := s.CachedScan(libraryID)
 		if !ok {
 			var err error
@@ -190,12 +206,18 @@ func (s *SeekIndexService) processFiles(bg context.Context, op string, paths []s
 	}
 }
 
-func (s *SeekIndexService) tryStart(kind, libraryID string) bool {
+// tryStart takes the single job slot and returns the context the job runs
+// under: detached from the caller's request (the job outlives it), a child of
+// the server's lifetime, and cancellable. Born under the lock with the slot, so
+// there is no instant where a job runs and Cancel finds nothing to cancel.
+func (s *SeekIndexService) tryStart(kind, libraryID string) (context.Context, bool) {
 	s.mu.Lock()
 	if s.running {
 		s.mu.Unlock()
-		return false
+		return nil, false
 	}
+	ctx, cancel := context.WithCancel(s.baseCtx)
+	s.jobCtx, s.cancel, s.cancelled = ctx, cancel, false
 	s.running = true
 	s.cur = JobStatus{
 		Kind:      kind,
@@ -206,7 +228,7 @@ func (s *SeekIndexService) tryStart(kind, libraryID string) bool {
 	data := s.marshalJobMarker()
 	s.mu.Unlock()
 	s.writeJobMarker(data)
-	return true
+	return ctx, true
 }
 
 func (s *SeekIndexService) setPhase(phase string, total int) {
@@ -262,12 +284,17 @@ func (s *SeekIndexService) recordFailure(path string, err error) {
 func (s *SeekIndexService) finish(jobErr error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Cancelled by the operator (Cancel/Stop) or by the server going down (the
+	// base context): read BEFORE releasing the context below, which cancels it
+	// in every case.
+	cancelled := s.cancelled || (s.jobCtx != nil && s.jobCtx.Err() != nil)
 	// Release the job's context: leaving the CancelFunc live would leak it and
 	// let a late Cancel() apply to whatever job starts next.
 	if s.cancel != nil {
 		s.cancel()
 		s.cancel = nil
 	}
+	s.jobCtx = nil
 	sum := &JobSummary{
 		Kind:       s.cur.Kind,
 		Scope:      s.cur.Scope,
@@ -278,6 +305,7 @@ func (s *SeekIndexService) finish(jobErr error) {
 		FinishedAt: time.Now(),
 		ReadOnly:   s.curFailures.readOnly,
 		Failures:   s.curFailures.list,
+		Cancelled:  cancelled,
 	}
 	if jobErr != nil {
 		sum.Err = jobErr.Error()
@@ -301,5 +329,5 @@ func (s *SeekIndexService) finish(jobErr error) {
 		slog.String("kind", sum.Kind), slog.String("scope", sum.Scope),
 		slog.Int("done", sum.Done), slog.Int("failed", sum.Failed),
 		slog.Int("skipped", sum.Skipped), slog.Int("total", sum.Total),
-		slog.String("err", sum.Err))
+		slog.Bool("cancelled", sum.Cancelled), slog.String("err", sum.Err))
 }

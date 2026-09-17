@@ -9,6 +9,7 @@ import {
   useAdminMediaServiceScanSeekIndex,
   useAdminMediaServiceStartSeekIndexScan,
   useAdminMediaServiceGetSeekIndexJob,
+  useAdminMediaServiceCancelSeekIndexJob,
   useAdminMediaServiceReindexMediaSeekIndex,
   useAdminMediaServiceRollbackMediaSeekIndex,
   useAdminMediaServiceReindexLibrarySeekIndex,
@@ -88,7 +89,19 @@ const VIEW_KEYS: Record<SeekView, string> = {
   all: "admin.seekIndex.viewAll",
 };
 
-function JobProgressCard({ job, theme }: { job: V1GetSeekIndexJobResponse; theme: ReturnType<typeof useTheme> }) {
+// onCancel asks the server to stop at the next file boundary; the button
+// disables once asked - the job endpoint reports the end.
+function JobProgressCard({
+  job,
+  theme,
+  onCancel,
+  cancelling,
+}: {
+  job: V1GetSeekIndexJobResponse;
+  theme: ReturnType<typeof useTheme>;
+  onCancel: () => void;
+  cancelling: boolean;
+}) {
   const { t } = useTranslation();
   const done = job.done ?? 0;
   const total = job.total ?? 0;
@@ -106,6 +119,19 @@ function JobProgressCard({ job, theme }: { job: V1GetSeekIndexJobResponse; theme
         <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
           {total > 0 ? `${done}/${total}` : "..."}
         </Text>
+        <Pressable
+          disabled={cancelling}
+          onPress={() => Alert.alert(t("admin.seekIndex.jobCancel"), t("admin.seekIndex.jobCancelHint"), [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("admin.seekIndex.jobCancel"), style: "destructive", onPress: onCancel },
+          ])}
+          accessibilityRole="button"
+          accessibilityLabel={t("admin.seekIndex.jobCancel")}
+          testID="seek-index-job-cancel"
+          style={[styles.smallBtn, { backgroundColor: theme.colors.bg, opacity: cancelling ? 0.6 : 1, minWidth: 0 }]}
+        >
+          <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600" }}>{t("admin.seekIndex.jobCancel")}</Text>
+        </Pressable>
       </View>
       {failed > 0 && (
         <Text style={{ color: theme.colors.error, fontSize: 12, marginTop: 4 }}>
@@ -126,7 +152,7 @@ function LastJobCard({ last, theme }: { last: NonNullable<V1GetSeekIndexJobRespo
   const kind = t(SEEK_INDEX_KIND_KEYS[last.kind ?? ""] ?? SEEK_INDEX_KIND_KEYS.scan);
   const failed = last.failed ?? 0;
   const skipped = last.skipped ?? 0;
-  const isSuccess = failed === 0 && !last.error;
+  const isSuccess = failed === 0 && !last.error && !last.cancelled;
 
   return (
     <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
@@ -136,6 +162,12 @@ function LastJobCard({ last, theme }: { last: NonNullable<V1GetSeekIndexJobRespo
           <View style={[styles.badge, { backgroundColor: theme.colors.success + "22" }]}>
             <Text style={{ color: theme.colors.success, fontSize: 10, fontWeight: "600" }}>
               {t("admin.seekIndex.lastJobOk")}
+            </Text>
+          </View>
+        ) : last.cancelled ? (
+          <View style={[styles.badge, { backgroundColor: theme.colors.bg }]}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 10, fontWeight: "600" }}>
+              {t("admin.seekIndex.lastJobCancelled")}
             </Text>
           </View>
         ) : null}
@@ -260,6 +292,8 @@ export default function AdminSeekIndexScreen() {
         const kind = t(SEEK_INDEX_KIND_KEYS[last.kind ?? ""] ?? SEEK_INDEX_KIND_KEYS.scan);
         if (last.error) {
           toast.error(t("admin.seekIndex.lastJobError", { error: last.error }));
+        } else if (last.cancelled) {
+          toast.info(t("admin.seekIndex.jobCancelled", { kind, done: last.done ?? 0, total: last.total ?? 0 }));
         } else if ((last.failed ?? 0) > 0) {
           toast.error(t("admin.seekIndex.jobCompletedFailures", { kind, done: last.done ?? 0, failed: last.failed ?? 0 }));
         } else if ((last.skipped ?? 0) > 0) {
@@ -282,6 +316,15 @@ export default function AdminSeekIndexScreen() {
 
   const startScan = useAdminMediaServiceStartSeekIndexScan({
     mutation: { onSuccess: onStarted("admin.seekIndex.scanStarted"), onError: onStartError },
+  });
+  const cancelJob = useAdminMediaServiceCancelSeekIndexJob({
+    mutation: {
+      onSuccess: () => {
+        toast.info(t("admin.seekIndex.jobCancelRequested"));
+        void queryClient.invalidateQueries({ queryKey: jobQuery.queryKey ?? [] });
+      },
+      onError: (err) => toast.error(errText(err, t("admin.seekIndex.jobCancelFailed"))),
+    },
   });
   const repairOne = useAdminMediaServiceReindexMediaSeekIndex({
     mutation: { onSuccess: onStarted("admin.seekIndex.repairStarted"), onError: onStartError },
@@ -490,7 +533,14 @@ export default function AdminSeekIndexScreen() {
               )}
             </View>
 
-            {running && job ? <JobProgressCard job={job} theme={theme} /> : null}
+            {running && job ? (
+              <JobProgressCard
+                job={job}
+                theme={theme}
+                onCancel={() => cancelJob.mutate({ data: {} })}
+                cancelling={cancelJob.isPending || cancelJob.isSuccess}
+              />
+            ) : null}
             {!running && job?.last ? <LastJobCard last={job.last} theme={theme} /> : null}
 
             {/* Library-wide repair journal (mirror web RepairJournalPanel). */}

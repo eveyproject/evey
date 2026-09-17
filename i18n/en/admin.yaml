@@ -1405,6 +1405,12 @@ seekIndex:
   lastJob: Last operation
   lastJobLine: "{{kind}} - {{done}}/{{total}} file(s) processed"
   lastJobOk: Completed
+  jobCancel: Stop
+  jobCancelHint: "Stops at the next file: the file in progress is finished or restored, never left half-written."
+  jobCancelRequested: "Stop requested - the job ends after the current file"
+  jobCancelFailed: "Could not stop the job"
+  lastJobCancelled: Stopped
+  jobCancelled: "{{kind}} stopped - {{done}}/{{total}} file(s) processed"
   lastJobError: "The operation failed: {{error}}"
   jobCompleted: "{{kind}} finished - {{done}} file(s) processed"
   jobCompletedFailures: "{{kind}} finished - {{done}} file(s) processed, {{failed}} failed"

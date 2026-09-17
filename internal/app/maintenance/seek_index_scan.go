@@ -30,7 +30,8 @@ func (s *SeekIndexService) CachedScan(libraryID string) (ScanResult, time.Time, 
 // run is variadic so the ~30 existing call sites (and every caller that has no
 // opinion on the pace) keep the two-argument form and the gentle default.
 func (s *SeekIndexService) StartScan(_ context.Context, libraryID string, run ...ScanRunOptions) error {
-	if !s.tryStart(JobScan, libraryID) {
+	bg, ok := s.tryStart(JobScan, libraryID)
+	if !ok {
 		return ErrJobRunning
 	}
 	var opts ScanRunOptions
@@ -39,9 +40,6 @@ func (s *SeekIndexService) StartScan(_ context.Context, libraryID string, run ..
 	}
 	go func() {
 		defer s.recoverJob()
-		// Detached from the triggering request (the job outlives it) but
-		// cancellable, so Cancel and shutdown can stop it.
-		bg := s.jobContext()
 		_, err := s.scanAndCachePaced(bg, libraryID, opts)
 		s.finish(err)
 	}()
