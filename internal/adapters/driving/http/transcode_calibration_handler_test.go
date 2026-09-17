@@ -56,7 +56,7 @@ func (f *fakeCalibrationSvc) Recalibrate(_ context.Context) error {
 func TestTranscodeCalibrationGet_NoSvc_Returns503(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/transcode/calibration", nil)
 	w := httptest.NewRecorder()
-	transcodeCalibrationGetHandler(nil)(w, req)
+	transcodeCalibrationGetHandler(nil, nil)(w, req)
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code,
 		"missing svc must surface as 503, not 500 (helps the admin distinguish 'feature off' from 'real error')")
 }
@@ -75,7 +75,7 @@ func TestTranscodeCalibrationGet_ReturnsSnapshot(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/transcode/calibration", nil)
 	w := httptest.NewRecorder()
-	transcodeCalibrationGetHandler(svc)(w, req)
+	transcodeCalibrationGetHandler(svc, nil)(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var got domaintranscoding.EncodeCapability
@@ -163,4 +163,49 @@ func TestRouteCostViews_PricesLikeAdmission(t *testing.T) {
 	assert.Greater(t, views[0].CPUCost, 0.0)
 	assert.Zero(t, views[1].AccelCost, "a CPU encoder spends no accelerator")
 	assert.Greater(t, views[1].CPUCost, views[0].CPUCost, "four cores at half the speed cost more of the CPU pool")
+}
+
+// fakeExpressibility answers "expressible" to everything and expects one cell:
+// the GET must carry the coverage report with that cell missing until both
+// checkers record it.
+type fakeExpressibility struct{}
+
+func (fakeExpressibility) Expressible(domaintranscoding.Topology, domaintranscoding.HWAccelType, string, []string, domaintranscoding.RouteNeeds) error {
+	return nil
+}
+func (fakeExpressibility) ExpectedCells(domaintranscoding.EncodeCapability) []domaintranscoding.ExpressibilityCell {
+	return []domaintranscoding.ExpressibilityCell{{Backend: "nvenc", Topology: "zero-copy", Needs: "plain"}}
+}
+
+func TestTranscodeCalibrationGet_CarriesTheExpressibilityCoverage(t *testing.T) {
+	domaintranscoding.ExpressibilityCoverageTable.Reset()
+	t.Cleanup(domaintranscoding.ExpressibilityCoverageTable.Reset)
+	svc := &fakeCalibrationSvc{current: domaintranscoding.EncodeCapability{HWBackend: "nvenc"}}
+	get := func() map[string]any {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/transcode/calibration", nil)
+		w := httptest.NewRecorder()
+		transcodeCalibrationGetHandler(svc, fakeExpressibility{})(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var got map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+		rep, ok := got["expressibility"].(map[string]any)
+		require.True(t, ok, "the report rides the calibration GET")
+		return rep
+	}
+	rep := get()
+	assert.Len(t, rep["missing"], 1)
+	assert.Equal(t, false, rep["ready_to_leave_shadow"])
+
+	cell := domaintranscoding.ExpressibilityCell{Backend: "nvenc", Topology: "zero-copy", Needs: "plain"}
+	domaintranscoding.ExpressibilityCoverageTable.Record(domaintranscoding.ExpressibilitySiteBuilder, cell, false)
+	domaintranscoding.ExpressibilityCoverageTable.Record(domaintranscoding.ExpressibilitySiteResolver, cell, false)
+	rep = get()
+	assert.Empty(t, rep["missing"])
+	assert.Equal(t, true, rep["ready_to_leave_shadow"])
+
+	// Without a planner wired the field is simply absent.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/transcode/calibration", nil)
+	w := httptest.NewRecorder()
+	transcodeCalibrationGetHandler(svc, nil)(w, req)
+	assert.NotContains(t, w.Body.String(), "expressibility")
 }
