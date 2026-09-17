@@ -171,21 +171,28 @@ func TestRouteCostModel_MaxStreams(t *testing.T) {
 	}
 }
 
-// The CPU spill's admission class follows the same precedence as a
+// The CPU route's billed class follows the same precedence as a
 // fingerprint's: AV1 first (its own ceiling), then a tone-map, else plain.
-func TestSoftwareClassFor(t *testing.T) {
+func TestResolvedRoute_SoftwareClass(t *testing.T) {
+	sw := func(codec string, tonemap bool) ResolvedRoute {
+		tm := transcoding.ToneMapNone
+		if tonemap {
+			tm = transcoding.ToneMapCPU
+		}
+		return ResolvedRoute{Codec: codec, Topology: transcoding.MustTopology(transcoding.StageCPU, transcoding.StageCPU, tm, transcoding.OutputSDR)}
+	}
 	cases := []struct {
-		route transcoding.EncodeRoute
+		route ResolvedRoute
 		want  LadderClass
 	}{
-		{transcoding.EncodeRoute{Codec: "AV1", Tonemap: true}, LadderClassSoftwareAV1},
-		{transcoding.EncodeRoute{Codec: "av1"}, LadderClassSoftwareAV1},
-		{transcoding.EncodeRoute{Codec: "h264", Tonemap: true}, LadderClassSoftwareHDR},
-		{transcoding.EncodeRoute{Codec: "hevc"}, LadderClassSoftware},
-		{transcoding.EncodeRoute{}, LadderClassSoftware},
+		{sw("AV1", true), LadderClassSoftwareAV1},
+		{sw("av1", false), LadderClassSoftwareAV1},
+		{sw("h264", true), LadderClassSoftwareHDR},
+		{sw("hevc", false), LadderClassSoftware},
+		{sw("", false), LadderClassSoftware},
 	}
 	for _, tc := range cases {
-		if got := softwareClassFor(tc.route); got != tc.want {
+		if got := tc.route.Class(); got != tc.want {
 			t.Errorf("%+v: got %v want %v", tc.route, got, tc.want)
 		}
 	}

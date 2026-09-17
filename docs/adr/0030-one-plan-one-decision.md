@@ -52,9 +52,13 @@ or EXECUTES the plan.
    Device, Features}, Spill: SpillReason, Deinterlace, Overlay}`. The
    backend is a FROZEN selection (what the builder needs), not the
    capability row. `Route.Class()` and `Route.CostKey()` are the only
-   derivations of the billed class and the route key; `LadderClassFor`,
-   `LadderClassOf`, `softwareClassFor`, `RouteCostKeyOf` and
-   `spilledToSoftware` are removed.
+   DERIVATIONS of the billed class and the route key. `LadderClassOf(fp)` and
+   `RouteCostKeyOf(fp)` stay as pure projections of the fingerprint - the
+   producers hold only the fingerprint at spawn - and are locked equal to the
+   route's (invariant 2); the request-side re-derivations (`encodeRoute`,
+   `routeFor`, `spillRoute`, `softwareClassFor`, `spilledToSoftware`) are
+   removed, and `LadderClassFor` survives only as "the natural route's class"
+   for the adapter's wrappers and tests.
 
 4. **`AdmissionGrant`** - the admission outcome is an explicit value on the
    plan `{PinKey, Granted, Ceiling, Probe}`. It carries nothing derivable from

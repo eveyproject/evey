@@ -175,7 +175,6 @@ func routeGoldenScenarios() []routeScenario {
 	for _, h := range hosts {
 		for _, sn := range sourceNames {
 			for _, cn := range []string{"web-h264", "web-hevc", "hdr-tv", "hdr-tv-20m", "web-h264-4m", "web-hevc-4m"} {
-				h, sn, cn := h, sn, cn
 				out = append(out, routeScenario{fmt.Sprintf("%s | %s | %s | plain", h.name, sn, cn), func() (*PlanResolver, PlaybackRequest) {
 					pr, _ := routeGoldenResolver(h.cap, h.hw)
 					return pr, routeGoldenRequest(srcs[sn], client(cn))
@@ -188,7 +187,6 @@ func routeGoldenScenarios() []routeScenario {
 		name string
 		cap  *transcoding.EncodeCapability
 	}{{"qsv-deint", &qsv}, {"vaapi-full", &vaapi}, {"nvenc-pass", &pass}} {
-		h := h
 		out = append(out, routeScenario{fmt.Sprintf("%s | 1080p-h264-pgs | web-h264 | burn-in", h.name), func() (*PlanResolver, PlaybackRequest) {
 			pr, _ := routeGoldenResolver(h.cap, true)
 			req := routeGoldenRequest(srcs["1080p-h264-pgs"], client("web-h264"))
@@ -201,9 +199,7 @@ func routeGoldenScenarios() []routeScenario {
 		name string
 		cap  *transcoding.EncodeCapability
 	}{{"vaapi-full", &vaapi}, {"two-backend", &two}, {"qsv-deint", &qsv}} {
-		h := h
 		for _, sn := range []string{"1080p-h264-8m", "2160p-hevc-hdr10-70m", "1080p-vp9-8m"} {
-			sn := sn
 			out = append(out, routeScenario{fmt.Sprintf("%s | %s | web-hevc-4m | gpu-full", h.name, sn), func() (*PlanResolver, PlaybackRequest) {
 				pr, limiter := routeGoldenResolver(h.cap, true)
 				limiter.SetBudget(PoolGPU, 0.0001) // nothing hardware fits
@@ -214,7 +210,6 @@ func routeGoldenScenarios() []routeScenario {
 	// The HDR passthrough spilled to the CPU: the fingerprint tone-maps (no
 	// GPU keeps the range), a corner the plain scenarios never reach.
 	for _, sc := range []string{"gpu-full", "title-blocked"} {
-		sc := sc
 		out = append(out, routeScenario{"nvenc-pass | 2160p-hevc-hdr10-70m | hdr-tv-20m | " + sc, func() (*PlanResolver, PlaybackRequest) {
 			pr, limiter := routeGoldenResolver(&pass, true)
 			if sc == "gpu-full" {
@@ -234,7 +229,6 @@ func routeGoldenScenarios() []routeScenario {
 	}})
 	// Title blocked: the GPU route failed for this title, served from the CPU.
 	for _, sn := range []string{"1080p-h264-8m", "2160p-hevc-hdr10-70m"} {
-		sn := sn
 		out = append(out, routeScenario{fmt.Sprintf("vaapi-full | %s | web-hevc-4m | title-blocked", sn), func() (*PlanResolver, PlaybackRequest) {
 			pr, _ := routeGoldenResolver(&vaapi, true)
 			pr.HWRouteBlocked = func(mediaID string) bool { return mediaID == "m1" }
@@ -367,5 +361,32 @@ func TestRouteGolden(t *testing.T) {
 			}
 		}
 		t.Fatalf("route golden drifted (%d lines differ) - a route derivation changed. If deliberate, re-run with -update and read the diff:\n%s", len(diff)/2, strings.Join(diff, "\n"))
+	}
+}
+
+// Invariant 2 of ADR-0030: the fingerprint is a projection of the route. For
+// every golden scenario the class and the route key read off the fingerprint
+// equal the route's own, and the plan's summary fields are the route's.
+func TestResolvedRoute_ProjectionsAgree(t *testing.T) {
+	for _, sc := range routeGoldenScenarios() {
+		pr, req := sc.build()
+		plan, err := pr.Resolve(context.Background(), req)
+		require.NoError(t, err, sc.name)
+		fp := plan.Fingerprint
+		require.Equal(t, plan.Route.Class(), LadderClassOf(fp), "%s: class", sc.name)
+		require.Equal(t, plan.Route.CostKey(), RouteCostKeyOf(fp), "%s: cost key", sc.name)
+		require.Equal(t, plan.Route.Class(), plan.Class, "%s: plan class", sc.name)
+		require.Equal(t, plan.Route.Codec, plan.VideoCodec, "%s: plan codec", sc.name)
+		require.Equal(t, plan.Route.Backend.Name, plan.HWAccel, "%s: plan accel", sc.name)
+		require.True(t, plan.Route.Topology.Legal(), "%s: topology %s", sc.name, plan.Route.Topology)
+		require.Equal(t, plan.Route.Copy, plan.Packager == PackagerCopyFFmpeg, "%s: copy", sc.name)
+		// A spilled route is a software route with its reason; an unspilled
+		// HW route has a backend.
+		if plan.Route.Spilled() {
+			require.False(t, plan.Route.HW(), "%s: a spilled route encodes on the CPU", sc.name)
+		}
+		if plan.Route.HW() {
+			require.NotEmpty(t, plan.Route.Backend.Name, "%s: a GPU route names its backend", sc.name)
+		}
 	}
 }

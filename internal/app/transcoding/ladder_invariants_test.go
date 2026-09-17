@@ -81,7 +81,7 @@ func assertLadderInvariants(t *testing.T, name string, pr *PlanResolver, req Pla
 		assert.False(t, ladder[i].Copy, "%s: no copy rung inside a transcode ladder", name)
 	}
 
-	route := pr.encodeRoute(plan.Decision, req.Streams, false)
+	route := plan.Route.Encode()
 	dc := pr.deliveryConstraints(req, plan.Decision)
 	src := pr.sourceFacts(req)
 

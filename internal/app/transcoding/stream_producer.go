@@ -129,6 +129,16 @@ func (s *ProducerSelector) For(decision transcoding.PlaybackDecision, src Source
 	return s.software
 }
 
+// forRoute returns the producer of the resolved route's side: the hardware
+// one when the accelerator encodes and one is wired, else the software one.
+// No gate is evaluated here - the route already decided (ADR-0030).
+func (s *ProducerSelector) forRoute(hw bool) StreamProducer {
+	if hw && s.hardware != nil {
+		return s.hardware
+	}
+	return s.software
+}
+
 // Software returns the software producer, for the admission spill (GPU pool
 // full): the producer the pinned fingerprint describes.
 func (s *ProducerSelector) Software() StreamProducer {

@@ -58,40 +58,53 @@ func routeStreams() []*library.MediaStream {
 func TestProducerFor(t *testing.T) {
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 
-	t.Run("a spilled stream spawns on the software producer despite a usable GPU", func(t *testing.T) {
-		sel, sw, hw := routeSelector(t, true) // the hw gate says yes...
-		pr := &PlanResolver{
-			Selector: sel,
-			// ...but admission pinned this stream to the CPU pool.
-			AdmissionPinnedClass: func(string) (LadderClass, bool) { return LadderClassSoftware, true },
+	// The producer is a projection of the resolved route (ADR-0030): a host
+	// whose route resolves to the GPU spawns on the hardware producer unless
+	// the route was spilled - the selector evaluates no gate of its own.
+	hwHost := func(sel *ProducerSelector, pinned func(string) (LadderClass, bool)) *PlanResolver {
+		cap := vaapiCapable()
+		return &PlanResolver{
+			Selector:             sel,
+			HWAccelEnabled:       func() bool { return true },
+			Capability:           func() transcoding.EncodeCapability { return cap },
+			AdmissionPinnedClass: pinned,
 		}
+	}
+
+	t.Run("a spilled stream spawns on the software producer despite a usable GPU", func(t *testing.T) {
+		sel, sw, hw := routeSelector(t, true) // the route resolves to the GPU...
+		// ...but admission pinned this stream to the CPU pool.
+		pr := hwHost(sel, func(string) (LadderClass, bool) { return LadderClassSoftware, true })
 
 		got := pr.ProducerFor(routeRequest("m1"), decision, false)
-		assert.Same(t, sw, got, "the pin must win over the hw gate - the ladder was shaped for software")
+		assert.Same(t, sw, got, "the pin must win: the ladder was shaped for software")
 		assert.NotSame(t, hw, got)
 	})
 
-	t.Run("a stream pinned to HW follows the gate", func(t *testing.T) {
+	t.Run("a stream pinned to HW follows its route", func(t *testing.T) {
 		sel, _, hw := routeSelector(t, true)
-		pr := &PlanResolver{
-			Selector:             sel,
-			AdmissionPinnedClass: func(string) (LadderClass, bool) { return LadderClassHW, true },
-		}
+		pr := hwHost(sel, func(string) (LadderClass, bool) { return LadderClassHW, true })
 
 		assert.Same(t, hw, pr.ProducerFor(routeRequest("m1"), decision, false),
-			"an HW pin is not a spill: the gate decides as usual")
+			"an HW pin is not a spill: the route decides")
 	})
 
-	t.Run("no pin at all follows the gate", func(t *testing.T) {
+	t.Run("no pin at all follows the route", func(t *testing.T) {
 		sel, sw, hw := routeSelector(t, true)
-		pr := &PlanResolver{
-			Selector:             sel,
-			AdmissionPinnedClass: func(string) (LadderClass, bool) { return LadderClassSoftware, false },
-		}
+		pr := hwHost(sel, func(string) (LadderClass, bool) { return LadderClassSoftware, false })
 
 		got := pr.ProducerFor(routeRequest("m1"), decision, false)
 		assert.Same(t, hw, got, "an absent pin must not be read as a software pin")
 		assert.NotSame(t, sw, got)
+	})
+
+	t.Run("a route resolved to the CPU spawns on the software producer whatever the selector's gate says", func(t *testing.T) {
+		sel, sw, hw := routeSelector(t, true) // the legacy gate stub says GPU...
+		pr := &PlanResolver{Selector: sel}    // ...but no capability: the route is software
+
+		got := pr.ProducerFor(routeRequest("m1"), decision, false)
+		assert.Same(t, sw, got, "the route, not the gate, picks the side")
+		assert.NotSame(t, hw, got)
 	})
 
 	t.Run("a copy request takes the copy producer, pin or not", func(t *testing.T) {

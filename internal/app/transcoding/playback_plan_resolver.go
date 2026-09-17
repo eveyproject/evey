@@ -114,27 +114,93 @@ func (pr *PlanResolver) Resolve(ctx context.Context, req PlaybackRequest) (Playb
 	// The source is read ONCE here; every derivation below reads req.Source.
 	req.Source = SnapshotOf(req)
 	decision := pr.Decide(ctx, req)
-	profiles := pr.ShapeLadder(ctx, req, decision)
-	fp := pr.Fingerprint(ctx, req, decision, profiles)
 	isCopy := pr.IsCopy(decision, req.Streams, req.SourceBytes)
+	// The route is resolved ONCE (ADR-0030): the natural route with the
+	// per-title block applied, then admission may spill it to the CPU. The
+	// ladder, the fingerprint, the class and the producer project it.
+	route := pr.resolveRoute(req, decision, isCopy)
+	profiles, grant, spilled := pr.shapeLadderFor(ctx, req, decision, route)
+	if spilled {
+		route = route.spill(SpillPoolFull, decision)
+	}
+	fp := pr.fingerprintFor(ctx, req, decision, route, profiles)
 	packager := PackagerTranscodeFFmpeg
 	if isCopy {
 		packager = PackagerCopyFFmpeg
 	}
 	return PlaybackPlan{
-		Decision: decision,
-		// The class the spawn will be billed as - read from the fingerprint,
-		// whose hw fields already follow the pinned route (a spilled stream
-		// is tagged software).
-		Class:           LadderClassOf(fp),
+		Decision:        decision,
+		Class:           route.Class(),
 		Ladder:          profiles,
-		VideoCodec:      fp.VideoCodec,
-		HWAccel:         fp.HWAccel,
+		VideoCodec:      route.Codec,
+		HWAccel:         route.Backend.Name,
 		Packager:        packager,
 		FingerprintHash: fp.Hash(),
 		WasmAudio:       req.WasmAudio,
 		Fingerprint:     fp,
+		Route:           route,
+		Admission:       grant,
 	}, nil
+}
+
+// resolveRoute is the one derivation of the route: the effective codec and
+// backend (EffectiveVideoCodec: capability gate, backend pick, codec
+// fallbacks, whole-session refusals), the tone-map placement, the HDR
+// passthrough, the GPU runtime options, then the per-title block. Admission
+// may still spill it (Resolve).
+func (pr *PlanResolver) resolveRoute(req PlaybackRequest, decision transcoding.PlaybackDecision, isCopy bool) ResolvedRoute {
+	route := pr.naturalRoute(req, decision, isCopy)
+	if route.HW() && pr.titleBlocked(req.MediaID) {
+		route = route.spill(SpillTitleBlocked, decision)
+	}
+	return route
+}
+
+// naturalRoute is the route before the per-title block and the admission
+// spill: what the host would serve this request with, all else being free.
+func (pr *PlanResolver) naturalRoute(req PlaybackRequest, decision transcoding.PlaybackDecision, isCopy bool) ResolvedRoute {
+	snap := snapshot(req)
+	codec, accel, device, features, usable, softwareDecode := pr.EffectiveVideoCodec(decision, req.Streams)
+	hwUsable := usable && accel != ""
+	passWanted := pr.HDRPassthroughWanted(decision, req.Streams)
+	// The HDR passthrough only exists on the GPU: wanted but not served by
+	// one (the source the GPU cannot decode, a spill, a blocked title), the
+	// CPU tone-maps, and the ladder takes the HDR floor the session really
+	// runs under.
+	tonemap := slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") || (!hwUsable && passWanted)
+	er := transcoding.EncodeRoute{
+		Codec:          codec,
+		Accel:          transcoding.HWAccelType(accel),
+		HWUsable:       hwUsable,
+		SoftwareDecode: softwareDecode,
+		Tonemap:        tonemap,
+		HWTonemap:      hwUsable && pr.HWTonemapWanted(decision, snap.HDRRange),
+		HDRPassthrough: hwUsable && passWanted,
+	}
+	route := ResolvedRoute{
+		Codec:       codec,
+		Topology:    er.Topology(),
+		Copy:        isCopy,
+		Deinterlace: hwUsable && pr.hwDeinterlaceWanted(snap.Interlaced, accel),
+		Overlay:     hwUsable && pr.HWOverlayWanted(decision),
+	}
+	if hwUsable {
+		route.Backend = BackendSelection{Name: accel, Device: device, Features: features}
+	}
+	return route
+}
+
+// routeWithPin is the resolved route as the LIVE pin has it: a caller that
+// reaches a sub-derivation without Resolve (the adapter's wrappers, tests)
+// still sees the admission spill of a stream already pinned to the CPU.
+func (pr *PlanResolver) routeWithPin(req PlaybackRequest, decision transcoding.PlaybackDecision, isCopy bool) ResolvedRoute {
+	route := pr.resolveRoute(req, decision, isCopy)
+	if route.HW() && pr.AdmissionPinnedClass != nil {
+		if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(req, decision)); ok && cls != LadderClassHW {
+			route = route.spill(SpillPoolFull, decision)
+		}
+	}
+	return route
 }
 
 // Decide is the per-track copy/transcode decision with the request-time pins
@@ -835,7 +901,16 @@ func (pr *PlanResolver) PinKey(req PlaybackRequest, decision transcoding.Playbac
 // classified yet (safe: matches pre-refactor behaviour). Caps the ladder to
 // the source resolution so we never advertise a 4K rung for a 1080p source.
 func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision) []transcoding.HLSProfile {
-	streams := req.Streams
+	isCopy := pr.IsCopy(decision, req.Streams, req.SourceBytes)
+	profiles, _, _ := pr.shapeLadderFor(ctx, req, decision, pr.resolveRoute(req, decision, isCopy))
+	return profiles
+}
+
+// shapeLadderFor shapes the ladder for the resolved route and runs admission
+// on it. Returns the ladder, the grant, and whether admission spilled the
+// stream to the CPU route (the caller rewrites the route; the ladder returned
+// is already the CPU shape).
+func (pr *PlanResolver) shapeLadderFor(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision, route ResolvedRoute) (profiles []transcoding.HLSProfile, grant AdmissionGrant, spilled bool) {
 	// Read-verbatim (Étape 2): a live stream's ABR ladder is shaped ONCE and
 	// frozen on its admission pin; return it unchanged so the manifest and every
 	// segment shape the SAME ladder BY CONSTRUCTION - immune to a mid-stream drift
@@ -844,12 +919,19 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 	// rungs take no admission pin (never frozen); their single source-res rung is
 	// stable regardless. streamKey is set only on the freezable (transcode) path,
 	// and gates the freeze at the tail.
-	isCopy := pr.IsCopy(decision, streams, req.SourceBytes)
+	isCopy := route.Copy
 	var streamKey string
 	if !isCopy && pr.AdmissionFrozenLadder != nil {
 		streamKey = pr.PinKey(req, decision)
 		if frozen, ok := pr.AdmissionFrozenLadder(streamKey); ok {
-			return frozen
+			// The pin governs: a stream pinned to the CPU while the GPU pool was
+			// full stays there for its whole life (the URLs address CPU bytes).
+			if route.HW() && pr.AdmissionPinnedClass != nil {
+				if cls, ok := pr.AdmissionPinnedClass(streamKey); ok && cls != LadderClassHW {
+					spilled = true
+				}
+			}
+			return frozen, AdmissionGrant{PinKey: streamKey, Granted: true}, spilled
 		}
 	}
 
@@ -857,29 +939,27 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 	in := transcoding.LadderInput{
 		Source:     pr.sourceFacts(req),
 		Complexity: complexity,
-		Route:      pr.routeFor(req, decision, streams, isCopy),
+		Route:      route.Encode(),
 		Delivery:   pr.deliveryConstraints(req, decision),
 	}
 	laddered := pr.ladderBuilder().Build(in)
 
 	if pr.AdmissionRoute != nil && len(laddered) > 0 && !isCopy {
-		natural := pr.LadderClassFor(decision, streams)
-		if natural == LadderClassHW && pr.titleBlocked(req.MediaID) {
-			// The title's GPU route is blocked: it IS a software stream now, the
-			// ladder above already has the CPU shape (routeFor), so admission
-			// prices the CPU pool and never offers the GPU as a fallback.
-			natural = softwareClassFor(in.Route)
-		}
+		// The class admission prices: the route's - a blocked title IS a
+		// software stream now (its route was spilled), so admission prices the
+		// CPU pool and never offers the GPU as a fallback.
+		natural := route.Class()
 		// The spill ladder (GPU pool full, CPU pool free) is the same request
 		// shaped for the CPU route - every delivery cap included. It used to be
 		// the bare producer shape, so a spilled viewer lost the screen, level and
 		// bitrate caps the master had negotiated.
+		spillRoute := route.spill(SpillPoolFull, decision)
 		softwareShape := func() []transcoding.HLSProfile {
 			if pr.Selector == nil || pr.Selector.Software() == nil {
 				return nil
 			}
 			sw := in
-			sw.Route = spillRoute(in.Route, decision)
+			sw.Route = spillRoute.Encode()
 			return pr.ladderBuilder().Build(sw)
 		}
 		var fallback func() []int
@@ -887,20 +967,23 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 			fallback = func() []int { return profileHeights(softwareShape()) }
 		}
 		snap := snapshot(req)
-		g := pr.AdmissionRoute(pr.PinKey(req, decision), RouteAdmission{
+		key := pr.PinKey(req, decision)
+		g := pr.AdmissionRoute(key, RouteAdmission{
 			Natural:         natural,
 			Heights:         profileHeights(laddered),
 			Src:             snap.Class(),
-			Route:           in.Route.CostKey(),
+			Route:           route.CostKey(),
 			SourceFPS:       snap.FPS,
 			FallbackHeights: fallback,
-			FallbackRoute:   spillRoute(in.Route, decision).CostKey(),
+			FallbackRoute:   spillRoute.CostKey(),
 		})
+		grant = AdmissionGrant{PinKey: key, Granted: g.OK, Ceiling: g.Ceiling}
 		if g.OK {
 			if g.Class != natural && g.Class == LadderClassSoftware {
 				if swLadder := softwareShape(); len(swLadder) > 0 {
 					laddered = swLadder
 				}
+				spilled = natural == LadderClassHW
 			}
 			if g.Ceiling > 0 {
 				laddered = transcoding.CapLadderToHeight(laddered, g.Ceiling)
@@ -914,7 +997,7 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 	if streamKey != "" && pr.AdmissionFreezeLadder != nil {
 		pr.AdmissionFreezeLadder(streamKey, laddered)
 	}
-	return laddered
+	return laddered, grant, spilled
 }
 
 // profileHeights lists the heights of a shaped ladder, in order.
@@ -946,66 +1029,12 @@ func profileHeights(profiles []transcoding.HLSProfile) []int {
 	return out
 }
 
-// LadderClassFor derives, from the request alone, the LadderClass this
-// stream's session will be billed as. It MUST agree with LadderClassOf on the
-// fingerprint the same request builds - the producers charge LadderClassOf(fp)
-// at spawn, so a disagreement here makes admission price one resource pool
-// while the spawn consumes another. TestLadderClassFor_AgreesWithFingerprint
-// locks the equivalence.
+// LadderClassFor is the class of the NATURAL route (before the per-title
+// block and the admission spill) - what admission is offered first. The
+// billed class of a plan is plan.Route.Class(); this stays for the adapter's
+// wrappers and tests.
 func (pr *PlanResolver) LadderClassFor(decision transcoding.PlaybackDecision, streams []*library.MediaStream) LadderClass {
-	ec, accel, _, _, usable, _ := pr.EffectiveVideoCodec(decision, streams)
-	switch {
-	case usable && accel != "":
-		return LadderClassHW
-	case strings.EqualFold(ec, "av1"):
-		return LadderClassSoftwareAV1
-	case slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed"):
-		return LadderClassSoftwareHDR
-	default:
-		return LadderClassSoftware
-	}
-}
-
-// spillRoute is the CPU route a hardware session falls back to: the same
-// codec the software encoder will carry (AV1 rides hardware only; an
-// auto-upgraded HEVC goes back to H.264 - Fingerprint applies the same rule),
-// no GPU, the tone-map in software.
-func spillRoute(hw transcoding.EncodeRoute, decision transcoding.PlaybackDecision) transcoding.EncodeRoute {
-	r := hw
-	r.HWUsable, r.Accel, r.SoftwareDecode, r.HWTonemap = false, "", false, false
-	// A spilled HDR passthrough tone-maps on the CPU (no GPU keeps the range):
-	// the ladder must take the HDR floor, as the fingerprint's HDRTonemap
-	// already said.
-	if r.HDRPassthrough {
-		r.HDRPassthrough, r.Tonemap = false, true
-	}
-	if strings.EqualFold(r.Codec, "av1") || (strings.EqualFold(r.Codec, "hevc") && !strings.EqualFold(decision.VideoCodec, "hevc")) {
-		r.Codec = "h264"
-	}
-	return r
-}
-
-// routeFor is encodeRoute with the per-title GPU block applied: a blocked
-// title is shaped for the CPU route exactly like an admission spill.
-func (pr *PlanResolver) routeFor(req PlaybackRequest, decision transcoding.PlaybackDecision, streams []*library.MediaStream, isCopy bool) transcoding.EncodeRoute {
-	route := pr.encodeRoute(decision, streams, isCopy)
-	if route.HWUsable && pr.titleBlocked(req.MediaID) {
-		return spillRoute(route, decision)
-	}
-	return route
-}
-
-// softwareClassFor is the admission class of a CPU route (the spill's, the
-// blocked title's): the same precedence LadderClassOf applies to a fingerprint.
-func softwareClassFor(route transcoding.EncodeRoute) LadderClass {
-	switch {
-	case strings.EqualFold(route.Codec, "av1"):
-		return LadderClassSoftwareAV1
-	case route.Tonemap:
-		return LadderClassSoftwareHDR
-	default:
-		return LadderClassSoftware
-	}
+	return pr.naturalRoute(PlaybackRequest{Streams: streams}, decision, false).Class()
 }
 
 func (pr *PlanResolver) ladderBuilder() transcoding.LadderBuilder {
@@ -1055,30 +1084,6 @@ func (pr *PlanResolver) sourceFacts(req PlaybackRequest) transcoding.SourceFacts
 	return snapshot(req).Facts()
 }
 
-// encodeRoute is the pipeline the ladder is shaped for: the effective codec
-// and the GPU/CPU split EffectiveVideoCodec resolves (the same answer the
-// fingerprint and the producer selector give), plus the tone-map placement.
-func (pr *PlanResolver) encodeRoute(decision transcoding.PlaybackDecision, streams []*library.MediaStream, isCopy bool) transcoding.EncodeRoute {
-	codec, accel, _, _, usable, softwareDecode := pr.EffectiveVideoCodec(decision, streams)
-	// The HDR passthrough only exists on the GPU: wanted but not served by
-	// one (the source the GPU cannot decode, a spill, a blocked title), the
-	// CPU tone-maps - the same rule the fingerprint's HDRTonemap applies, so
-	// the ladder is shaped for the HDR floor the session really runs under.
-	hwUsable := usable && accel != ""
-	tonemap := slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") ||
-		(!hwUsable && pr.HDRPassthroughWanted(decision, streams))
-	return transcoding.EncodeRoute{
-		Codec:          codec,
-		Accel:          transcoding.HWAccelType(accel),
-		HWUsable:       usable && accel != "",
-		SoftwareDecode: softwareDecode,
-		Tonemap:        tonemap,
-		HWTonemap:      tonemap && pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams)),
-		Copy:           isCopy,
-		HDRPassthrough: usable && accel != "" && pr.HDRPassthroughWanted(decision, streams),
-	}
-}
-
 // deliveryConstraints gathers every cap the request, the operator, the QoE
 // feedback and the host put on the ladder.
 func (pr *PlanResolver) deliveryConstraints(req PlaybackRequest, decision transcoding.PlaybackDecision) transcoding.DeliveryConstraints {
@@ -1105,6 +1110,13 @@ func (pr *PlanResolver) deliveryConstraints(req PlaybackRequest, decision transc
 // manifest-time and segment-time resolutions of the same request shape, or
 // the cache lookup misses on every segment.
 func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision, profiles []transcoding.HLSProfile) DecisionFingerprint {
+	isCopy := pr.IsCopy(decision, req.Streams, req.SourceBytes)
+	return pr.fingerprintFor(ctx, req, decision, pr.routeWithPin(req, decision, isCopy), profiles)
+}
+
+// fingerprintFor PROJECTS the resolved route and the shaped ladder onto the
+// cache-key object: it decides nothing about codec, backend or pipeline.
+func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision, route ResolvedRoute, profiles []transcoding.HLSProfile) DecisionFingerprint {
 	streams := req.Streams
 	audioTrack := req.AudioTrack
 	subBurnIn := req.SubtitleBurnInTrack
@@ -1145,42 +1157,24 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		fpProfiles[i] = ProfileFingerprintOf(p)
 	}
 	// Each rung's rate control, from the policy the ladder was shaped under.
-	route := pr.routeFor(req, decision, streams, pr.IsCopy(decision, streams, req.SourceBytes))
+	encode := route.Encode()
 	quality := make([]transcoding.QualityTarget, len(profiles))
 	for i, p := range profiles {
-		quality[i] = pr.QualityPolicy().TargetFor(p, route)
+		quality[i] = pr.QualityPolicy().TargetFor(p, encode)
 	}
-
-	hwTonemap := pr.HWTonemapWanted(decision, snap.HDRRange)
-	// Capability gate: AV1 falls back to H.264 when the host can't encode it (no
-	// HW AV1, no admin opt-in). videoCodec is what the segments actually carry -
-	// the cache key MUST use it, not the raw decision codec.
-	videoCodec, hwAccel, hwDevice, hwFeatures, hwUsable, hwSoftwareDecode := pr.EffectiveVideoCodec(decision, streams)
-	// Admission spill: a hw stream pinned to the software route (GPU pool was
-	// full) must be FINGERPRINTED as software - the fingerprint describes the
-	// bytes the software producer will make, and LadderClassOf(fp) is what the
-	// spawn bills (CPU pool, not GPU). AV1 rides hardware only, so a spilled
-	// AV1 stream carries the H.264 the software encoder will actually produce.
-	// A title whose GPU route just failed is spilled the same way, by the
-	// per-title block instead of the pool.
-	if hwUsable && pr.spilledToSoftware(req, decision) {
-		hwAccel, hwDevice, hwFeatures, hwUsable, hwSoftwareDecode = "", "", nil, false, false
-		if strings.EqualFold(videoCodec, "av1") {
-			videoCodec = "h264"
-		}
-	}
-	// The HDR passthrough only exists on the GPU: a spill to software tone-maps.
-	hdrPassWanted := pr.HDRPassthroughWanted(decision, streams)
-	if !hwUsable && strings.EqualFold(videoCodec, "hevc") && decision.VideoCodec != "hevc" {
-		videoCodec = "h264"
-	}
+	// The route's projections: the codec the segments carry (capability
+	// gate, spill, codec fallback already applied), the frozen backend, the
+	// pipeline shape. A spilled stream reads as software here because its
+	// route IS software - LadderClassOf(fp) then bills the CPU pool.
+	hwUsable := route.HW()
+	topology := route.Topology
 	normalize := pr.AudioNormalize != nil && pr.AudioNormalize(ctx)
 	srcAudio := snap.AudioCodec
 	audioCopy := AudioCopyEligible(decision, normalize, len(fpProfiles), srcAudio, req.Client)
 	fp := DecisionFingerprint{
 		MediaID:    req.MediaID,
 		SourcePath: req.SourcePath,
-		VideoCodec: videoCodec,
+		VideoCodec: route.Codec,
 		// The SOURCE codec (excluded from Hash - derivable from MediaID): the
 		// copy builder tags the fMP4 sample entry from it (-tag:v hvc1).
 		SourceVideoCodec: snap.Codec,
@@ -1204,8 +1198,8 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		// non-HDR client, or Dolby Vision). Baked into the fingerprint so it (a)
 		// enters the cache hash - tonemapped vs not are different bytes - and (b)
 		// reaches the orchestrator/builder, which has no source streams to detect it.
-		HDRTonemap:       slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") || (hdrPassWanted && !hwUsable),
-		HDRPassthrough:   hdrPassWanted && hwUsable,
+		HDRTonemap:       topology.ToneMap != transcoding.ToneMapNone,
+		HDRPassthrough:   topology.Output == transcoding.OutputHDRPassthrough,
 		HDRTransfer:      strings.ToLower(snap.HDRRange),
 		MaxH264Level:     req.Client.MaxH264Level,
 		AudioNormalize:   normalize,
@@ -1222,21 +1216,21 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		AudioOffsetMs:    req.AudioOffsetMs,
 		ForceSidecarSubs: decision.SubtitleDecision == "external",
 		UseFMP4:          pr.UseFMP4,
-		HWAccel:          hwAccel,
-		HWDevice:         hwDevice,
-		HWFeatures:       hwFeatures,
+		HWAccel:          route.Backend.Name,
+		HWDevice:         route.Backend.Device,
+		HWFeatures:       route.Backend.Features,
 		// Decoupled route (software decode + hwupload), only when the HW path is
 		// actually taken. Excluded from Hash() like HWAccel.
-		HWSoftwareDecode: hwSoftwareDecode && hwUsable,
+		HWSoftwareDecode: topology.SoftwareDecode(),
 		// GPU tone-mapping for this request (only when the HW path is actually
 		// taken). Excluded from Hash() like HWAccel - a HW- vs software-tonemapped
 		// segment is interchangeable in the addressable cache.
-		HWTonemap: hwTonemap && hwUsable,
+		HWTonemap: topology.ToneMap == transcoding.ToneMapGPU,
 		// GPU subtitle compositing, same contract as HWTonemap: only when the HW
 		// path is actually taken, and excluded from Hash() - the same subtitle on
 		// the same frames, whoever blended it.
-		HWOverlay:      pr.HWOverlayWanted(decision) && hwUsable,
-		HWDeinterlace:  hwUsable && pr.hwDeinterlaceWanted(snap.Interlaced, hwAccel),
+		HWOverlay:      route.Overlay && hwUsable,
+		HWDeinterlace:  route.Deinterlace && hwUsable,
 		Profiles:       fpProfiles,
 		QualityTargets: quality,
 	}
@@ -1280,36 +1274,24 @@ func (pr *PlanResolver) IsCopy(decision transcoding.PlaybackDecision, streams []
 // (and thus the cache hash). Falls back to the orchestrator when no selector
 // is wired (hand-built test handlers); returns nil only when neither is set.
 func (pr *PlanResolver) ProducerFor(req PlaybackRequest, decision transcoding.PlaybackDecision, isCopy bool) StreamProducer {
-	if pr.Selector != nil {
-		if isCopy {
-			return pr.CopyProducer
-		}
-		// Admission spill (pool full) or per-title block (GPU route just failed):
-		// the stream spawns on the software producer regardless of the hw gate -
-		// the producer must be the one the ladder was shaped for (see ShapeLadder).
-		if pr.spilledToSoftware(req, decision) {
-			if sw := pr.Selector.Software(); sw != nil {
-				return sw
-			}
-		}
-		return pr.Selector.For(decision, snapshot(req).SourceDims)
-	}
-	return pr.Orchestrator
+	return pr.producerForRoute(pr.routeWithPin(req, decision, isCopy))
 }
 
-// spilledToSoftware reports whether a GPU-eligible request is served from the
-// CPU anyway: admission pinned it to the software route (GPU pool full), or
-// the title's GPU route is blocked after a failure.
-func (pr *PlanResolver) spilledToSoftware(req PlaybackRequest, decision transcoding.PlaybackDecision) bool {
-	if pr.titleBlocked(req.MediaID) {
-		return true
-	}
-	if pr.AdmissionPinnedClass != nil {
-		if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(req, decision)); ok && cls != LadderClassHW {
-			return true
+// ProducerForPlan picks the producer a resolved plan spawns on: the copy
+// producer for the remux rung, else the producer of the route's side - a
+// PROJECTION of plan.Route, which already carries the spill and the block.
+func (pr *PlanResolver) ProducerForPlan(plan PlaybackPlan) StreamProducer {
+	return pr.producerForRoute(plan.Route)
+}
+
+func (pr *PlanResolver) producerForRoute(route ResolvedRoute) StreamProducer {
+	if pr.Selector != nil {
+		if route.Copy {
+			return pr.CopyProducer
 		}
+		return pr.Selector.forRoute(route.HW())
 	}
-	return false
+	return pr.Orchestrator
 }
 
 // audioEncoderID is the nil-safe read of the injected probe: an unwired
