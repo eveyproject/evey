@@ -89,28 +89,12 @@ func (r EncodeRoute) EncoderKey() EncoderKey {
 // Bridge reports the CPU tone-map between a GPU decode and a GPU encode.
 func (r EncodeRoute) Bridge() bool { return r.HWUsable && r.Tonemap && !r.HWTonemap }
 
-// CostKey is the route the admission cost model prices this pipeline on. Shape
-// precedence matches the ffmpeg builder's gates and RouteCostKeyOf on the
-// fingerprint the same request assembles (locked by a test), so admission and
-// the spawn agree. A copy rung has no encode route (never priced).
+// CostKey is the route the admission cost model prices this pipeline on: the
+// accelerator, the encoder and the cost class of the route's Topology (route.go)
+// - so admission, the calibration matrix and the fingerprint's RouteCostKeyOf
+// price one and the same shape. A copy rung has no encode route (never priced).
 func (r EncodeRoute) CostKey() RouteCostKey {
-	enc := RouteEncoderName(r.Codec, string(r.Accel))
-	var route RouteCostClass
-	switch {
-	case r.HWUsable && r.HDRPassthrough:
-		route = RouteCostPassthrough
-	case r.HWUsable && r.HWTonemap:
-		route = RouteCostTonemap
-	case r.HWUsable && r.Tonemap:
-		route = RouteCostBridge
-	case r.HWUsable && r.SoftwareDecode:
-		route = RouteCostDecoupled
-	case !r.HWUsable && r.Tonemap:
-		route = RouteCostSoftwareHDR
-	default:
-		route = RouteCostSDR
-	}
-	return RouteCostKeyFor(r.Accel, enc, route)
+	return RouteCostKeyFor(r.Accel, RouteEncoderName(r.Codec, string(r.Accel)), r.Topology().CostClass())
 }
 
 // RouteEncoderName maps (domain codec, accel) to the ffmpeg encoder name, so

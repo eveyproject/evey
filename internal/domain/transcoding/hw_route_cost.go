@@ -1,9 +1,6 @@
 package transcoding
 
-import (
-	"sort"
-	"strings"
-)
+import "strings"
 
 // hw_route_cost.go - the ROUTE evidence (ADR-0029): what one real, warm, single-session
 // transcode of a given route measured on this host. It is the proof the
@@ -90,68 +87,4 @@ const SoftwareReadRate = 1.5
 // RouteCostKeyFor builds the cost key for a resolved route. accel empty ⇒ CPU.
 func RouteCostKeyFor(accel HWAccelType, encoder string, route RouteCostClass) RouteCostKey {
 	return RouteCostKey{Backend: strings.ToLower(string(accel)), Encoder: strings.ToLower(encoder), Route: route}
-}
-
-// RouteShape is one pipeline shape admission can be asked to price: the route
-// class, the codec the segments carry (the encoder follows from codec and
-// accelerator) and whether an accelerator runs it. It is the unit the
-// calibration must measure - a shape the runtime emits and nobody measured is
-// refused by admission for lack of evidence, and the request spills to
-// software however good the GPU route was (ADR-0029).
-type RouteShape struct {
-	Route RouteCostClass
-	Codec string
-	HW    bool
-}
-
-// routeShapeCodecs are the output codecs a plan can carry.
-var routeShapeCodecs = []string{"h264", "hevc", "av1"}
-
-// RuntimeRouteShapes enumerates every shape EncodeRoute.CostKey can name, by
-// running CostKey over the whole well-formed EncodeRoute space rather than by
-// listing them: a new route class or codec changes this set and the
-// calibration's coverage test fails until it measures the newcomer. Sorted,
-// duplicates folded. The well-formed gates mirror the resolver's: a GPU
-// tone-map or a software decode only on a GPU route, a bridge is a CPU
-// tone-map on a GPU route, the HDR passthrough is HEVC on a GPU by
-// construction (codecWithPassthrough).
-func RuntimeRouteShapes() []RouteShape {
-	seen := map[RouteShape]bool{}
-	var out []RouteShape
-	for _, codec := range routeShapeCodecs {
-		for _, hw := range []bool{false, true} {
-			for _, tonemap := range []bool{false, true} {
-				for _, hwTonemap := range []bool{false, true} {
-					for _, swDecode := range []bool{false, true} {
-						for _, passthrough := range []bool{false, true} {
-							if (hwTonemap && (!tonemap || !hw)) || (swDecode && !hw) ||
-								(passthrough && (!hw || tonemap || codec != "hevc")) {
-								continue
-							}
-							r := EncodeRoute{Codec: codec, HWUsable: hw, Tonemap: tonemap, HWTonemap: hwTonemap, SoftwareDecode: swDecode, HDRPassthrough: passthrough}
-							if hw {
-								r.Accel = VAAPI // any accelerator: the shape does not depend on which
-							}
-							sh := RouteShape{Route: r.CostKey().Route, Codec: codec, HW: hw}
-							if !seen[sh] {
-								seen[sh] = true
-								out = append(out, sh)
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	sort.Slice(out, func(i, j int) bool {
-		a, b := out[i], out[j]
-		if a.HW != b.HW {
-			return !a.HW
-		}
-		if a.Route != b.Route {
-			return a.Route < b.Route
-		}
-		return a.Codec < b.Codec
-	})
-	return out
 }
