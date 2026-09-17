@@ -1,6 +1,7 @@
 package sysinfo
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -64,22 +65,41 @@ func readMeminfoTotal(path string) (int64, bool) {
 	return readMeminfoField(path, "MemTotal:")
 }
 
-// CPUBudget returns the number of cores this process may actually use: the
-// cgroup CPU quota when one is set (v2 `cpu.max`, then v1 cfs_quota/period),
-// else runtime.NumCPU(). Fractional quotas round up (a 1.5-CPU limit can
-// still run 2 workers at reduced speed). Never returns less than 1.
+// CPUBudget returns the number of WORKERS this process may run: the cgroup CPU
+// quota when one is set (v2 `cpu.max`, then v1 cfs_quota/period), else
+// runtime.NumCPU(). Fractional quotas round up (a 1.5-CPU limit can still run
+// 2 workers at reduced speed). Never returns less than 1. For how much CPU
+// time is actually available - the denominator of a capacity fraction - use
+// CPUCapacity: a route burning 0.75 core is half of a 1.5-CPU container, not
+// 37.5 % of the 2 workers this rounds it to.
 func CPUBudget() int {
 	return cpuBudget("/")
 }
 
 func cpuBudget(fsRoot string) int {
-	if n, ok := readCgroupCPUQuota(fsRoot); ok {
-		return n
+	if q, ok := readCgroupCPUQuota(fsRoot); ok {
+		return ceilCores(q)
 	}
 	return runtime.NumCPU()
 }
 
-func readCgroupCPUQuota(fsRoot string) (int, bool) {
+// CPUCapacity returns the CPU time this process may actually consume, in
+// cores, exactly: quota/period of the cgroup limit when one is set (1.5 for
+// `cpus: 1.5`), else runtime.NumCPU(). Never returns less than a hundredth
+// of a core. This is the physical capacity admission budgets against.
+func CPUCapacity() float64 {
+	return cpuCapacity("/")
+}
+
+func cpuCapacity(fsRoot string) float64 {
+	if q, ok := readCgroupCPUQuota(fsRoot); ok {
+		return math.Max(q, 0.01)
+	}
+	return float64(runtime.NumCPU())
+}
+
+// readCgroupCPUQuota returns the exact quota in cores (quota/period).
+func readCgroupCPUQuota(fsRoot string) (float64, bool) {
 	// cgroup v2: "max 100000" or "<quota> <period>"
 	if data, err := os.ReadFile(filepath.Join(fsRoot, "sys/fs/cgroup/cpu.max")); err == nil {
 		fields := strings.Fields(string(data))
@@ -87,7 +107,7 @@ func readCgroupCPUQuota(fsRoot string) (int, bool) {
 			quota, qerr := strconv.ParseInt(fields[0], 10, 64)
 			period, perr := strconv.ParseInt(fields[1], 10, 64)
 			if qerr == nil && perr == nil && quota > 0 && period > 0 {
-				return ceilDiv(quota, period), true
+				return float64(quota) / float64(period), true
 			}
 		}
 		return 0, false
@@ -99,14 +119,15 @@ func readCgroupCPUQuota(fsRoot string) (int, bool) {
 		quota, qe := strconv.ParseInt(strings.TrimSpace(string(quotaData)), 10, 64)
 		period, pe := strconv.ParseInt(strings.TrimSpace(string(periodData)), 10, 64)
 		if qe == nil && pe == nil && quota > 0 && period > 0 {
-			return ceilDiv(quota, period), true
+			return float64(quota) / float64(period), true
 		}
 	}
 	return 0, false
 }
 
-func ceilDiv(a, b int64) int {
-	n := int((a + b - 1) / b)
+// ceilCores rounds a fractional quota up to whole workers, never under 1.
+func ceilCores(cores float64) int {
+	n := int(math.Ceil(cores))
 	if n < 1 {
 		return 1
 	}
