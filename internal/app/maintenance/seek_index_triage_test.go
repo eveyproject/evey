@@ -108,9 +108,13 @@ func triageLibrary(t *testing.T) (dir string, paths map[string]string, svc *appm
 
 type fakeInterleaveProber struct {
 	backsteps map[string]float64
+	errs      map[string]error // a path whose probe fails outright
 }
 
 func (f fakeInterleaveProber) ProbeInterleaveBackstepSec(_ context.Context, p string) (float64, error) {
+	if err := f.errs[p]; err != nil {
+		return 0, err
+	}
 	return f.backsteps[p], nil
 }
 

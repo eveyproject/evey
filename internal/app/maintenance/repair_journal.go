@@ -203,15 +203,25 @@ func (s *SeekIndexService) WithRepairJournal(j RepairJournal) *SeekIndexService 
 	return s
 }
 
+// journalWriteTimeout bounds the detached journal write below.
+const journalWriteTimeout = 10 * time.Second
+
 // journalRepair writes one entry, best effort. A journal that is down must not
 // cost the operator a repair, so the failure is logged and swallowed - but it
 // is logged at ERROR, because a rewrite nobody recorded is how the July
 // incident became unexplainable.
+//
+// The write is detached from the job's cancellation: a job stopped mid-file
+// (Cancel, the server going down) is exactly when the entry for that file -
+// failed, rolled back, applied - must land, and a cancelled ctx would have
+// refused the write with "context canceled" at that very moment.
 func (s *SeekIndexService) journalRepair(ctx context.Context, rec RepairRecord) {
 	if s.journal == nil {
 		return
 	}
 	rec.Schema = RepairJournalSchema
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), journalWriteTimeout)
+	defer cancel()
 	if err := s.journal.RecordRepair(ctx, rec); err != nil {
 		s.logger.Error("seek-index: the repair journal refused an entry - this rewrite is now untraceable",
 			"path", rec.Path, "op", string(rec.Op), "err", err)
