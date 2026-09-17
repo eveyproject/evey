@@ -5,6 +5,7 @@ import { eveyFetchRaw, formatTime } from "@evey/api";
 import { toast, useAuthStore, useMusicPlayerStore, type MusicTrack, type MusicSource } from "@evey/store";
 import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, VolumeX, Shuffle, ListMusic } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
+import { randomUUID } from "@/lib/randomId";
 
 function MiniTrackArt({ trackID, coverArtURL }: { trackID: string; coverArtURL?: string }) {
   const [error, setError] = useState(false);
@@ -106,8 +107,10 @@ function QueuePanel({ queue, playing, onJump, onRemove, onClose }: QueuePanelPro
 }
 
 // A stable id for this tab's music playback, so the admin "En cours de lecture"
-// panel tracks one session per player (not one per track).
-const nowPlayingSessionId = `music-${crypto.randomUUID()}`;
+// panel tracks one session per player (not one per track). Module-level, so it
+// MUST NOT touch crypto.randomUUID directly: absent on plain http, and this
+// module is in AuthLayout's chunk - the throw blanked every page.
+const nowPlayingSessionId = `music-${randomUUID()}`;
 
 // nowPlayingDeviceName is the short client label shown on the admin card.
 function nowPlayingDeviceName(): string {

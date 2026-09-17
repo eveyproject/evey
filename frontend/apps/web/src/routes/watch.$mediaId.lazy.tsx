@@ -5,6 +5,7 @@ import { HLSPlayer } from "@/features/playback/HLSPlayer";
 import { SyncPlayBar } from "@/features/syncplay/SyncPlayBar";
 import { useSyncPlay } from "@/features/syncplay/useSyncPlay";
 import { readGuestSession, clearGuestSession } from "@/features/syncplay/guestSession";
+import { randomUUID } from "@/lib/randomId";
 
 export const Route = createLazyFileRoute("/watch/$mediaId")({
   component: GuestWatch,
@@ -48,7 +49,7 @@ function GuestWatch() {
   // with a client-side session id (the id is opaque server-side, only a metering
   // key). HLSPlayer only reads streamInfo.playMethod / directPlayUrl.
   const streamInfo = useMemo(() => ({ playMethod: "PLAY_METHOD_TRANSCODE" }) as V1StreamInfo, []);
-  const sessionId = useMemo(() => crypto.randomUUID(), []);
+  const sessionId = useMemo(() => randomUUID(), []);
 
   useEffect(() => {
     if (!guest) {
