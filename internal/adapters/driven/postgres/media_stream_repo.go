@@ -386,14 +386,11 @@ func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID 
 	return updated, nil
 }
 
-// SetIdetInterlaced stores the idet content-detection verdict on the item's
-// video stream(s). Unlike the other backfill columns it writes a DEFINITIVE
-// verdict (true OR false): the candidate query keys on idet_interlaced IS
-// NULL, so a "not interlaced" result must persist as FALSE or the worker
-// would re-run the (decode-heavy) probe on every pass. Never overwrites an
-// existing verdict.
 // SetIdetTelecine stores the idet telecine verdict on the item's video stream.
 func (r *MediaStreamRepository) SetIdetTelecine(ctx context.Context, mediaItemID shared.MediaItemID, telecine bool) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.SetIdetTelecine")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
@@ -401,12 +398,20 @@ func (r *MediaStreamRepository) SetIdetTelecine(ctx context.Context, mediaItemID
 		 WHERE media_item_id = $2 AND stream_type = 'video'`,
 		telecine, string(mediaItemID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return 0, err
 	}
 	n, _ := res.RowsAffected()
 	return int(n), nil
 }
 
+// SetIdetInterlaced stores the idet content-detection verdict on the item's
+// video stream(s). Unlike the other backfill columns it writes a DEFINITIVE
+// verdict (true OR false): the candidate query keys on idet_interlaced IS
+// NULL, so a "not interlaced" result must persist as FALSE or the worker
+// would re-run the (decode-heavy) probe on every pass. Never overwrites an
+// existing verdict.
 func (r *MediaStreamRepository) SetIdetInterlaced(ctx context.Context, mediaItemID shared.MediaItemID, interlaced bool) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.SetIdetInterlaced")
 	defer span.End()
