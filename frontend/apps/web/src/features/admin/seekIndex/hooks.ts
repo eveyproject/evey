@@ -7,6 +7,7 @@ import {
   useAdminMediaServiceScanSeekIndex,
   useAdminMediaServiceStartSeekIndexScan,
   useAdminMediaServiceGetSeekIndexJob,
+  useAdminMediaServiceCancelSeekIndexJob,
   useAdminMediaServiceReindexMediaSeekIndex,
   useAdminMediaServiceRollbackMediaSeekIndex,
   useAdminMediaServiceReindexLibrarySeekIndex,
@@ -150,6 +151,10 @@ export function useSeekIndexPage() {
         const kind = t(SEEK_INDEX_KIND_KEYS[last.kind ?? ""] ?? SEEK_INDEX_KIND_KEYS.scan);
         if (last.error) {
           toast.error(t("admin.seekIndex.lastJobError", { error: last.error }));
+        } else if (last.cancelled) {
+          toast.info(
+            t("admin.seekIndex.jobCancelled", { kind, done: last.done ?? 0, total: last.total ?? 0 }),
+          );
         } else if ((last.failed ?? 0) > 0) {
           toast.error(
             t("admin.seekIndex.jobCompletedFailures", {
@@ -190,6 +195,16 @@ export function useSeekIndexPage() {
     mutation: {
       onSuccess: onStarted("admin.seekIndex.scanStarted"),
       onError: onStartError,
+    },
+  });
+  // Stops at the next file boundary; the job endpoint reports the end.
+  const cancelJob = useAdminMediaServiceCancelSeekIndexJob({
+    mutation: {
+      onSuccess: () => {
+        toast.info(t("admin.seekIndex.jobCancelRequested"));
+        void queryClient.invalidateQueries({ queryKey: jobQuery.queryKey ?? [] });
+      },
+      onError: (err) => toast.error(errText(err, t("admin.seekIndex.jobCancelFailed"))),
     },
   });
   const repairOne = useAdminMediaServiceReindexMediaSeekIndex({
@@ -305,6 +320,7 @@ export function useSeekIndexPage() {
     repairVolumes,
     backupsRisky,
     startScan,
+    cancelJob,
     repairOne,
     rollbackOne,
     repairLib,

@@ -83,6 +83,17 @@ service AdminMediaService {
     };
   }
 
+  // CancelSeekIndexJob stops the running seek-index job at its next file
+  // boundary (a repair in flight finishes or rolls back; no file is left
+  // half-written) and returns at once. cancelled=false when nothing was
+  // running. Observe the end via GetSeekIndexJob (last.cancelled).
+  rpc CancelSeekIndexJob(CancelSeekIndexJobRequest) returns (CancelSeekIndexJobResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/seek-index/job/cancel"
+      body: "*"
+    };
+  }
+
   // ReindexMediaSeekIndex rebuilds one media file's seek index in the
   // background (a rewrite of a multi-GB file takes minutes) and returns
   // immediately with accepted=true. Outcome is observable via GetSeekIndexJob.
@@ -590,6 +601,12 @@ message StartSeekIndexScanResponse {}
 
 message GetSeekIndexJobRequest {}
 
+message CancelSeekIndexJobRequest {}
+
+message CancelSeekIndexJobResponse {
+  bool cancelled = 1; // a job was running and has been asked to stop
+}
+
 // SeekIndexJobFailure records one file a job could not process.
 message SeekIndexJobFailure {
   string path = 1;
@@ -611,6 +628,9 @@ message SeekIndexJobSummary {
   string error = 8;  // job-level error (e.g. the scan itself failed)
   bool read_only = 9; // at least one failure came from a read-only mount
   repeated SeekIndexJobFailure failures = 10; // capped at 50
+  // cancelled: the job stopped at a file boundary on request (the cancel RPC
+  // or the server going down); done < total is not a failure here.
+  bool cancelled = 11;
 }
 
 message GetSeekIndexJobResponse {

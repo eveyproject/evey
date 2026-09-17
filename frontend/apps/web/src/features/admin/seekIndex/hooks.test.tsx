@@ -24,6 +24,7 @@ vi.mock("@evey/api", async (importOriginal) => {
     },
     useAdminMediaServiceScanSeekIndex: () => ({ data: srv.scan }),
     useAdminMediaServiceStartSeekIndexScan: mutation("startScan"),
+    useAdminMediaServiceCancelSeekIndexJob: mutation("cancelJob"),
     useAdminMediaServiceReindexMediaSeekIndex: mutation("repairOne"),
     useAdminMediaServiceRollbackMediaSeekIndex: mutation("rollbackOne"),
     useAdminMediaServiceReindexLibrarySeekIndex: mutation("repairLib"),

@@ -148,7 +148,13 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// files in place on the library disk, and running them against a live
 		// viewer is what starved playback of I/O on 2026-07-19. Same source as
 		// the trickplay generator and the transcode calibrator use.
-		WithActiveStreamChecker(deps.media.hlsVODRemover)
+		WithActiveStreamChecker(deps.media.hlsVODRemover).
+		// A job is a child of the server's lifetime: SIGTERM cancels it at its
+		// next file boundary. Stop then waits for it to write its journal entry
+		// and clear its marker before the pool closes (stopBackgroundWorkers
+		// runs ahead of the deferred db.Close).
+		WithBaseContext(serverCtx)
+	deps.bgStoppers = append(deps.bgStoppers, seekIndexSvc.Stop)
 	deps.seekIndexSvc = seekIndexSvc
 
 	grpcDeps := grpcapi.GRPCServerDeps{

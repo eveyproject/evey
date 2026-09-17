@@ -430,6 +430,21 @@ func (d *adminMediaHandler) GetSeekIndexJob(ctx context.Context, _ *eveyv1.GetSe
 	return out, nil
 }
 
+// CancelSeekIndexJob asks the running job to stop at its next file boundary.
+// Idempotent and cheap: nothing running is an answer, not an error.
+func (d *adminMediaHandler) CancelSeekIndexJob(ctx context.Context, _ *eveyv1.CancelSeekIndexJobRequest) (*eveyv1.CancelSeekIndexJobResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.CancelSeekIndexJob")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	cancelled := d.seekIndex.Cancel()
+	if cancelled {
+		d.audit(ctx, "cancel_seek_index_job", "seek_index", "", nil)
+	}
+	return &eveyv1.CancelSeekIndexJobResponse{Cancelled: cancelled}, nil
+}
+
 func (d *adminMediaHandler) ReindexMediaSeekIndex(ctx context.Context, req *eveyv1.ReindexMediaSeekIndexRequest) (*eveyv1.ReindexMediaSeekIndexResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ReindexMediaSeekIndex")
 	defer span.End()

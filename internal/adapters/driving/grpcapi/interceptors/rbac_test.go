@@ -98,6 +98,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminMediaService/ScanSeekIndex",
 		"/evey.v1.AdminMediaService/StartSeekIndexScan",
 		"/evey.v1.AdminMediaService/GetSeekIndexJob",
+		"/evey.v1.AdminMediaService/CancelSeekIndexJob",
 		"/evey.v1.AdminMediaService/ReindexMediaSeekIndex",
 		"/evey.v1.AdminMediaService/RollbackMediaSeekIndex",
 		"/evey.v1.AdminMediaService/ReindexLibrarySeekIndex",

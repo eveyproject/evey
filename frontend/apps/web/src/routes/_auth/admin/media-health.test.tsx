@@ -24,6 +24,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useAdminMediaServiceScanSeekIndex: (...args: unknown[]) => mockScan(...args),
   useAdminMediaServiceGetSeekIndexJob: (...args: unknown[]) => mockJob(...args),
   useAdminMediaServiceStartSeekIndexScan: () => ({ mutate: startScanMutate, isPending: false }),
+  useAdminMediaServiceCancelSeekIndexJob: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false }),
   useAdminMediaServiceReindexMediaSeekIndex: () => ({ mutate: repairOneMutate, isPending: false, variables: undefined }),
   useAdminMediaServiceRollbackMediaSeekIndex: () => ({ mutate: rollbackOneMutate, isPending: false, variables: undefined }),
   useAdminMediaServiceReindexLibrarySeekIndex: () => ({ mutate: repairLibMutate, isPending: false }),
