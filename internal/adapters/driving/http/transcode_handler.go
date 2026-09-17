@@ -98,6 +98,10 @@ func chaptersHandler(libSvc ChaptersGetter, baseURL string, libraryAccess Librar
 			span.SetStatus(codes.Error, "parental restricted")
 			return
 		}
+		if !checkPlayable(w, item) {
+			span.SetStatus(codes.Error, "file needs remux")
+			return
+		}
 		chapters, err := libSvc.GetChapters(r.Context(), mediaID)
 		if err != nil {
 			span.RecordError(err)
@@ -214,6 +218,10 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !checkParental(r.Context(), w, claims, item, h.parental) {
 		span.SetStatus(codes.Error, "parental restricted")
+		return
+	}
+	if !checkPlayable(w, item) {
+		span.SetStatus(codes.Error, "file needs remux")
 		return
 	}
 
@@ -377,6 +385,10 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !checkParental(r.Context(), w, claims, item, h.parental) {
 		span.SetStatus(codes.Error, "parental restricted")
+		return
+	}
+	if !checkPlayable(w, item) {
+		span.SetStatus(codes.Error, "file needs remux")
 		return
 	}
 	maxStreams := 0

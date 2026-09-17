@@ -231,6 +231,15 @@ service AdminMediaService {
     };
   }
 
+  // ReinterleaveMedia re-muxes one file whose tracks are stored in blocks of
+  // one track at a time (see SeekIndexItem.interleave_backstep_sec), in the
+  // background; the original is kept as a backup. Outcome via GetSeekIndexJob.
+  rpc ReinterleaveMedia(ReinterleaveMediaRequest) returns (ReinterleaveMediaResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/{media_id}/reinterleave"
+    };
+  }
+
   // PurgeSeekIndexBackups kicks a background job that re-scans the scope then
   // deletes EVERY reindex backup in it. Returns immediately; progress via
   // GetSeekIndexJob.
@@ -360,6 +369,13 @@ message FixContainerMediaRequest {
   string media_id = 1;
 }
 message FixContainerMediaResponse {
+  bool accepted = 1;
+}
+
+message ReinterleaveMediaRequest {
+  string media_id = 1;
+}
+message ReinterleaveMediaResponse {
   bool accepted = 1;
 }
 
@@ -522,6 +538,9 @@ message ScanSeekIndexResponse {
   bool container_fix_available = 19;
   // Count stored as blocks of one track at a time (see interleave_backstep_sec).
   int32 broken_interleave = 20;
+  // reinterleave_available: the server can re-mux a file stored in blocks
+  // (part of Repair all when true).
+  bool reinterleave_available = 21;
 }
 
 // SeekIndexVolume aggregates the repair candidates of one filesystem.

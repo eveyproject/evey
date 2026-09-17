@@ -14,6 +14,7 @@ export const SEEK_INDEX_KIND_KEYS: Record<string, string> = {
   rollback: "admin.seekIndex.jobRollback",
   purge: "admin.seekIndex.jobPurge",
   fix_container: "admin.seekIndex.jobFixContainer",
+  reinterleave: "admin.seekIndex.jobReinterleave",
 };
 
 // Mirror of the backend's maintenance.AudioDelayFlagSec: above it the file's
@@ -117,7 +118,8 @@ export function verdictOf(it: SeekVerdictInput): SeekVerdict {
     it.hasIndex === undefined ||
     Number(it.damagedBytes ?? 0) > 0 ||
     it.resyncRequired ||
-    it.wrongContainer
+    it.wrongContainer ||
+    brokenInterleave(it)
   ) {
     return "repairable";
   }
@@ -126,7 +128,6 @@ export function verdictOf(it: SeekVerdictInput): SeekVerdict {
     audioDelayed(it) ||
     audioTrackZeroed(it) ||
     (it.audioShortfallSec ?? 0) > AUDIO_SHORTFALL_FLOOR_SEC ||
-    brokenInterleave(it) ||
     it.trailingJunk
   ) {
     return "informational";

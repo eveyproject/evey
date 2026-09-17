@@ -524,6 +524,10 @@ func (h *hlsVODServe) commonAuth(w http.ResponseWriter, r *http.Request, mediaID
 		span.SetStatus(codes.Error, "parental restricted")
 		return nil, nil, false
 	}
+	if !checkPlayable(w, item) {
+		span.SetStatus(codes.Error, "file needs remux")
+		return nil, nil, false
+	}
 	if !cached {
 		var err error
 		streams, err = h.libSvc.GetMediaStreams(r.Context(), mediaID)

@@ -113,6 +113,10 @@ func (h *remuxServe) handle(w http.ResponseWriter, r *http.Request) {
 		span.SetStatus(codes.Error, "parental restricted")
 		return
 	}
+	if !checkPlayable(w, item) {
+		span.SetStatus(codes.Error, "file needs remux")
+		return
+	}
 	if item.File == nil || item.File.Path == "" {
 		span.SetStatus(codes.Error, "media file missing")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)

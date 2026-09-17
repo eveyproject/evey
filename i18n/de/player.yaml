@@ -108,6 +108,9 @@ shed:
   calibrating:
     title: "Der Server kalibriert sich"
     body: "Der Server misst gerade, was dieser Rechner wiedergeben kann. Das dauert etwa 2 Minuten und geschieht nur, wenn sonst nichts läuft. Versuchen Sie es in ein paar Minuten noch einmal."
+  fileNeedsRemux:
+    title: "Dieses Video muss repariert werden"
+    body: "Diese Datei wurde so zusammengesetzt, dass kein Player sie bis zum Ende lesen kann (Ton und Bild liegen in getrennten Blöcken). Ein Administrator kann sie unter Medien-Gesundheit reparieren; bis dahin bringt ein erneuter Versuch nichts."
 retry: Erneut versuchen
 goBack: Zurück
 shareDesc: "Teilen Sie diesen Link mit Freunden, um zusammen zu schauen:"

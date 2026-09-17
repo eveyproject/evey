@@ -156,6 +156,10 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 		span.SetStatus(codes.Error, "parental restricted")
 		return
 	}
+	if !checkPlayable(w, item) {
+		span.SetStatus(codes.Error, "file needs remux")
+		return
+	}
 	if item.File == nil || item.File.Path == "" {
 		span.SetStatus(codes.Error, "media file missing")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
@@ -241,6 +245,10 @@ func downloadHandler(libSvc MediaArchiveSource, baseURL string, libraryAccess Li
 		if !checkParental(r.Context(), w, claims, item, parental) {
 			span.SetStatus(codes.Error, "parental restricted")
 			logDownloadRefusal(r, mediaID, "parental_restricted", claims)
+			return
+		}
+		if !checkPlayable(w, item) {
+			span.SetStatus(codes.Error, "file needs remux")
 			return
 		}
 

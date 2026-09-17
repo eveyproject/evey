@@ -17,8 +17,8 @@ const mutation = () => ({ mutate: vi.fn(), isPending: false, variables: undefine
 
 function mount(items: any[], over: Record<string, unknown> = {}) {
   const props = {
-    items, visible: items, paged: items, page: 1, setPage: vi.fn(), totalPages: 1, busy: false, containerFixAvailable: true,
-    repairOne: mutation(), rollbackOne: mutation(), deleteBackup: mutation(), fixContainerOne: mutation(), ackOne: mutation(),
+    items, visible: items, paged: items, page: 1, setPage: vi.fn(), totalPages: 1, busy: false, containerFixAvailable: true, reinterleaveAvailable: true,
+    repairOne: mutation(), rollbackOne: mutation(), deleteBackup: mutation(), fixContainerOne: mutation(), reinterleaveOne: mutation(), ackOne: mutation(),
     ...over,
   };
   render(<SeekIndexTable {...(props as any)} />);
@@ -40,9 +40,10 @@ describe("SeekIndexTable", () => {
       { mediaId: "wrongc", path: "/m/c.mkv", title: "C", container: "mkv", verdict: "repairable", hasIndex: false, wrongContainer: true },
       { mediaId: "info", path: "/m/d.mkv", title: "D", container: "mkv", verdict: "informational", hasIndex: true, hasBackup: true, audioDelaySec: 0.5 },
       { mediaId: "acked", path: "/m/e.mkv", title: "E", container: "mkv", verdict: "informational", hasIndex: true, ackedAtMs: "1758000000000" },
+      { mediaId: "chunked", path: "/m/f.mkv", title: "F", container: "mkv", verdict: "repairable", hasIndex: true, interleaveBackstepSec: 366 },
     ];
     const p = mount(rows);
-    const byId = Object.fromEntries(screen.getAllByTestId("seek-index-row").map((r) => [within(r).getByText(/^[A-E]$/).textContent, r]));
+    const byId = Object.fromEntries(screen.getAllByTestId("seek-index-row").map((r) => [within(r).getByText(/^[A-F]$/).textContent, r]));
 
     within(byId.A).getByTestId("seek-index-repair-btn").click();
     expect(p.repairOne.mutate).toHaveBeenCalledWith({ mediaId: "missing", data: { mode: "auto" } });
@@ -56,6 +57,12 @@ describe("SeekIndexTable", () => {
     expect(within(byId.C).queryByTestId("seek-index-repair-btn")).toBeNull();
     within(byId.C).getByTestId("seek-index-fix-container-btn").click();
     expect(p.fixContainerOne.mutate).toHaveBeenCalledWith({ mediaId: "wrongc" });
+
+    // Tracks stored in blocks: the re-mux, never an index rebuild or an ack.
+    expect(within(byId.F).queryByTestId("seek-index-repair-btn")).toBeNull();
+    expect(within(byId.F).queryByTestId("seek-index-ack-btn")).toBeNull();
+    within(byId.F).getByTestId("seek-index-reinterleave-btn").click();
+    expect(p.reinterleaveOne.mutate).toHaveBeenCalledWith({ mediaId: "chunked" });
 
     expect(within(byId.D).queryByTestId("seek-index-repair-btn")).toBeNull();
     within(byId.D).getByTestId("seek-index-ack-btn").click();

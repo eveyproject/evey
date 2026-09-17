@@ -33,6 +33,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useAdminMediaServiceAckSeekIndexMedia: () => ({ mutate: ackOneMutate, isPending: false, variables: undefined }),
   useAdminMediaServiceAckSeekIndexGroup: () => ({ mutate: ackGroupMutate, isPending: false }),
   useAdminMediaServiceFixContainerMedia: () => ({ mutate: fixContainerMutate, isPending: false, variables: undefined }),
+  useAdminMediaServiceReinterleaveMedia: () => ({ mutate: vi.fn(), isPending: false, variables: undefined }),
   useAdminMediaServiceListMediaRepairs: (...args: unknown[]) => mockJournal(...args),
 }));
 

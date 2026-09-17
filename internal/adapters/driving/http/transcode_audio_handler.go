@@ -94,6 +94,9 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 	if !checkParental(r.Context(), w, claims, item, h.parental) {
 		return
 	}
+	if !checkPlayable(w, item) {
+		return
+	}
 
 	streams, err := h.libSvc.GetMediaStreams(r.Context(), mediaID)
 	if err != nil {
@@ -190,6 +193,9 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 	if !checkParental(r.Context(), w, claims, item, h.parental) {
 		return
 	}
+	if !checkPlayable(w, item) {
+		return
+	}
 
 	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay, copyCodec)
 
@@ -248,6 +254,9 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 		return
 	}
 	if !checkParental(r.Context(), w, claims, item, h.parental) {
+		return
+	}
+	if !checkPlayable(w, item) {
 		return
 	}
 

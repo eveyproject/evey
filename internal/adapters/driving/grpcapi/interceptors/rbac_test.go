@@ -110,6 +110,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminMediaService/ListMediaRepairs",
 		"/evey.v1.AdminMediaService/AckSeekIndexGroup",
 		"/evey.v1.AdminMediaService/FixContainerMedia",
+		"/evey.v1.AdminMediaService/ReinterleaveMedia",
 		"/evey.v1.AdminMediaService/PurgeSeekIndexBackups",
 		"/evey.v1.AdminMediaService/RemuxAudioMedia",
 		"/evey.v1.AdminMediaService/RemuxAudioLibrary",

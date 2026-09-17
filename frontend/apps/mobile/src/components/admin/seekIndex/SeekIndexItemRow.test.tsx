@@ -43,16 +43,19 @@ const row = (item: Record<string, unknown>) =>
       theme={THEME}
       busy={false}
       containerFixAvailable={false}
+      reinterleaveAvailable={true}
       onRepair={noop}
       onRepairResync={noop}
       onRollback={noop}
       onFixContainer={noop}
+      onReinterleave={noop}
       onAck={noop}
       onDeleteBackup={noop}
       repairPending={false}
       repairResyncPending={false}
       rollbackPending={false}
       fixContainerPending={false}
+      reinterleavePending={false}
       ackPending={false}
       deleteBackupPending={false}
     />,
@@ -90,5 +93,14 @@ describe("SeekIndexItemRow, the audio offset badges", () => {
   it("shows nothing about audio on a file with neither", () => {
     row({});
     expect(screen.queryByText(/audioOffset|audioTracksDisagree/)).toBeNull();
+  });
+});
+
+describe("SeekIndexItemRow, tracks stored in blocks", () => {
+  it("offers the re-mux and no index rebuild for a chunked file", () => {
+    row({ interleaveBackstepSec: 366, verdict: "repairable" });
+    expect(screen.getByText("admin.seekIndex.brokenInterleaveBadge")).toBeTruthy();
+    expect(screen.getByText("admin.seekIndex.reinterleaveBtn")).toBeTruthy();
+    expect(screen.queryByText("admin.seekIndex.repair")).toBeNull();
   });
 });

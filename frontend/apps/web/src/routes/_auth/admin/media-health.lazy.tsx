@@ -60,6 +60,8 @@ function SeekIndexPage() {
     repairLib,
     rollbackLib,
     fixContainerOne,
+    reinterleaveOne,
+    reinterleaveAvailable,
     deleteBackup,
     purgeLib,
     ackOne,
@@ -174,10 +176,12 @@ function SeekIndexPage() {
             totalPages={totalPages}
             busy={busy}
             containerFixAvailable={containerFixAvailable}
+            reinterleaveAvailable={reinterleaveAvailable}
             repairOne={repairOne}
             rollbackOne={rollbackOne}
             deleteBackup={deleteBackup}
             fixContainerOne={fixContainerOne}
+            reinterleaveOne={reinterleaveOne}
             ackOne={ackOne}
           />
         </>

@@ -85,6 +85,7 @@ type ScanService struct {
 	reindexer            mkv.Reindexer
 	ingestActivePlayback func() int
 	keyframeWarmer       func(ctx context.Context, mediaItemID, path string) bool
+	interleave           InterleaveProber // optional; see WithInterleaveProber
 
 	scanMu   sync.Mutex
 	scanning map[string]bool
@@ -167,6 +168,34 @@ func (s *ScanService) WithIngestActivePlayback(count func() int) *ScanService {
 func (s *ScanService) WithKeyframeWarmer(warm func(ctx context.Context, mediaItemID, path string) bool) *ScanService {
 	s.keyframeWarmer = warm
 	return s
+}
+
+// InterleaveProber measures a container's interleave defect (see
+// library.MediaFile.InterleaveBackstepMs). Satisfied by the mkvgo adapter.
+type InterleaveProber interface {
+	ProbeInterleaveBackstepSec(ctx context.Context, path string) (float64, error)
+}
+
+// WithInterleaveProber measures every probed file for tracks stored in blocks
+// (~11 MB of sampled reads) so the playback gate refuses it before a viewer
+// stalls on it. Optional; without it the media-health scan is the only source.
+func (s *ScanService) WithInterleaveProber(p InterleaveProber) *ScanService {
+	s.interleave = p
+	return s
+}
+
+// probeInterleave fills f.InterleaveBackstepMs; a probe failure keeps the
+// previous value (no finding is not a clearance).
+func (s *ScanService) probeInterleave(ctx context.Context, f *library.MediaFile, path string) {
+	if s.interleave == nil || f == nil {
+		return
+	}
+	back, err := s.interleave.ProbeInterleaveBackstepSec(ctx, path)
+	if err != nil {
+		slog.WarnContext(ctx, "scan: interleave probe failed", slog.String("path", path), slog.Any("err", err))
+		return
+	}
+	f.InterleaveBackstepMs = int64(back * 1000)
 }
 
 type scanWork struct {
@@ -732,6 +761,7 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 	if container != "" {
 		item.File.ContainerFormat = container
 	}
+	s.probeInterleave(ctx, item.File, f.Path)
 	// Persist whenever the probe taught us anything - container included. Gating
 	// only on duration silently dropped ContainerFormat for a file whose probe
 	// succeeded but reported no duration: a successful probe leaves
@@ -833,6 +863,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	if container != "" {
 		existing.File.ContainerFormat = container
 	}
+	s.probeInterleave(ctx, existing.File, f.Path)
 	existing.UpdatedAt = time.Now()
 	if err := s.mediaItems.Update(ctx, existing); err != nil {
 		slog.WarnContext(ctx, "update media item after probe failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
@@ -875,6 +906,7 @@ func (s *ScanService) reprobeStreamlessFile(ctx context.Context, item *library.M
 		if container != "" {
 			item.File.ContainerFormat = container
 		}
+		s.probeInterleave(ctx, item.File, path)
 		slog.InfoContext(ctx, "scan: streamless file re-probe succeeded",
 			slog.String("mediaItemID", string(item.ID)), slog.String("path", path))
 	} else {

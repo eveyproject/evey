@@ -143,6 +143,12 @@ func (s *CommandService) WithIngestKeyframeWarmer(warm func(ctx context.Context,
 	s.scan.WithKeyframeWarmer(warm)
 }
 
+// WithInterleaveProber arms the scan-time interleave measure (see
+// ScanService.WithInterleaveProber).
+func (s *CommandService) WithInterleaveProber(p InterleaveProber) {
+	s.scan.WithInterleaveProber(p)
+}
+
 func (s *CommandService) WithMusicScanner(sc TypedDirectoryScanner) {
 	s.scan.WithMusicScanner(sc)
 }

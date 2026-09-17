@@ -44,6 +44,9 @@ const (
 	// is the operation that caused the 2026-07-13 incident; it is no longer
 	// performed automatically, and any future use MUST be journalled.
 	RepairAudioRetime RepairOp = "audio_retime"
+	// RepairReinterleave re-muxed a file stored in one-track blocks; content
+	// verified packet for packet, the original kept as backup.
+	RepairReinterleave RepairOp = "reinterleave"
 	// RepairRollback put a backup back in place.
 	RepairRollback RepairOp = "rollback"
 )
@@ -144,7 +147,7 @@ func (r RepairRecord) Reversible() bool {
 		return len(r.ShiftSec) > 0
 	case RepairContainerFix:
 		return true
-	case RepairResync:
+	case RepairResync, RepairReinterleave:
 		return r.BackupPath != ""
 	case RepairReindex, RepairRollback:
 		return false

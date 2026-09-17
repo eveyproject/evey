@@ -95,6 +95,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.AdminMediaService/ListMediaRepairs":                   RoleAdmin,
 			"/evey.v1.AdminMediaService/AckSeekIndexGroup":                  RoleAdmin,
 			"/evey.v1.AdminMediaService/FixContainerMedia":                  RoleAdmin,
+			"/evey.v1.AdminMediaService/ReinterleaveMedia":                  RoleAdmin,
 			"/evey.v1.AdminMediaService/PurgeSeekIndexBackups":              RoleAdmin,
 			"/evey.v1.AdminMediaService/RemuxAudioMedia":                    RoleAdmin,
 			"/evey.v1.AdminMediaService/RemuxAudioLibrary":                  RoleAdmin,
