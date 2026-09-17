@@ -47,6 +47,9 @@ type PlaybackRequest struct {
 	// (SnapshotOf). Callers leave it zero; a sub-derivation called on its own
 	// (the adapter's wrappers, tests) takes it on demand.
 	Source SourceSnapshot
+	// Policy is the operator's hardware policy this request is resolved
+	// under, read once by Resolve (hwPolicy) like Source.
+	Policy HWPolicy
 	// ScreenHeight is the viewer's physical screen height (?screenHeight); rungs
 	// above the one covering it are dropped. 0 = unknown.
 	ScreenHeight int

@@ -82,7 +82,7 @@ func assertLadderInvariants(t *testing.T, name string, pr *PlanResolver, req Pla
 	}
 
 	route := plan.Route.Encode()
-	dc := pr.deliveryConstraints(req, plan.Decision)
+	dc := pr.deliveryConstraints(pr.hwPolicy(), req, plan.Decision)
 	src := pr.sourceFacts(req)
 
 	// Delivery caps. The lowest rung is exempt from the height caps: a cap

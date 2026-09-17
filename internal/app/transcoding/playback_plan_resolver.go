@@ -113,19 +113,22 @@ var _ PlaybackPlanResolver = (*PlanResolver)(nil)
 // admission pin and freezes the ladder), then the fingerprint (which binds
 // its hash to that pin).
 func (pr *PlanResolver) Resolve(ctx context.Context, req PlaybackRequest) (PlaybackPlan, error) {
-	// The source is read ONCE here; every derivation below reads req.Source.
+	// The source facts and the operator's policy are read ONCE here; every
+	// derivation below reads req.Source and req.Policy.
 	req.Source = SnapshotOf(req)
+	req.Policy = pr.hwPolicy()
 	decision := pr.Decide(ctx, req)
 	isCopy := pr.IsCopy(decision, req.Streams, req.SourceBytes)
 	// The route is resolved ONCE (ADR-0030): the natural route with the
 	// per-title block applied, then admission may spill it to the CPU. The
 	// ladder, the fingerprint, the class and the producer project it.
 	route := pr.resolveRoute(req, decision, isCopy)
-	profiles, grant, spilled := pr.shapeLadderFor(ctx, req, decision, route)
+	pinKey := pr.pinKeyFor(req, decision, route)
+	profiles, grant, spilled := pr.shapeLadderFor(ctx, req, decision, route, pinKey)
 	if spilled {
 		route = route.spill(SpillPoolFull, decision)
 	}
-	fp := pr.fingerprintFor(ctx, req, decision, route, profiles)
+	fp := pr.fingerprintFor(ctx, req, decision, route, profiles, pinKey)
 	packager := PackagerTranscodeFFmpeg
 	if isCopy {
 		packager = PackagerCopyFFmpeg
@@ -258,7 +261,7 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 		// HDR truth unknown) on an HDR client and a Main10 GPU keeps its HDR.
 		asTranscode := *d
 		asTranscode.VideoDecision = "transcode"
-		if pr.HDRPassthroughWanted(asTranscode, req.Streams) {
+		if pr.hdrPassthroughWanted(pr.policy(req), asTranscode, req.Streams) {
 			if d.VideoDecision != "transcode" {
 				d.TranscodeReasons = append(d.TranscodeReasons, "hdr_copy_unavailable")
 			}

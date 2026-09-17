@@ -12,22 +12,29 @@ import (
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
-// PinKey identifies a stream for the admission shaper. Coarser than the
+// PinKey identifies a stream for the admission shaper - the (request, route)
+// form for callers outside Resolve; Resolve itself uses pinKeyFor on the route
+// it just resolved.
+func (pr *PlanResolver) PinKey(req PlaybackRequest, decision transcoding.PlaybackDecision) string {
+	return pr.pinKeyFor(req, decision, pr.resolveRoute(req, decision, false))
+}
+
+// pinKeyFor identifies a stream for the admission shaper. Coarser than the
 // decision-fingerprint hash on purpose: burn-in/audio variants of the same
 // title share one pinned ceiling (their video ladder is the same shape), while
 // distinct titles or codecs never collide. It must be derivable identically at
-// manifest- and segment-time from the request alone.
+// manifest- and segment-time, so it reads the route BEFORE the pool spill
+// (the spill is the pin's own answer, never its input): the codec the route
+// carries and, for a title whose GPU route just failed, the block itself - the
+// ladder frozen for its GPU session must not be served to its CPU session.
 //
 // It also carries every REQUEST-scoped ladder input (screen height, bitrate
 // ceiling): the frozen ladder is read back by key, so two viewers of one title
 // with different caps must not share a pin or the second inherits the first's.
-func (pr *PlanResolver) PinKey(req PlaybackRequest, decision transcoding.PlaybackDecision) string {
-	ec, _, _, _, _, _ := pr.EffectiveVideoCodec(decision, req.Streams)
-	key := fmt.Sprintf("%s|%s|%s|sh=%d|mh=%d|bw=%d|lvl=%d", req.MediaID, ec, decision.VideoDecision,
+func (pr *PlanResolver) pinKeyFor(req PlaybackRequest, decision transcoding.PlaybackDecision, route ResolvedRoute) string {
+	key := fmt.Sprintf("%s|%s|%s|sh=%d|mh=%d|bw=%d|lvl=%d", req.MediaID, route.Codec, decision.VideoDecision,
 		req.ScreenHeight, req.Client.MaxHeight, pr.videoBitrateCeilingKbps(req, decision), req.Client.MaxH264Level)
-	// A title whose GPU route just failed gets a fresh pin: the ladder frozen
-	// for its GPU session must not be served to its CPU session.
-	if pr.titleBlocked(req.MediaID) {
+	if route.Spill == SpillTitleBlocked {
 		key += "|rb=1"
 	}
 	return key
@@ -40,7 +47,8 @@ func (pr *PlanResolver) PinKey(req PlaybackRequest, decision transcoding.Playbac
 // the source resolution so we never advertise a 4K rung for a 1080p source.
 func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision) []transcoding.HLSProfile {
 	isCopy := pr.IsCopy(decision, req.Streams, req.SourceBytes)
-	profiles, _, _ := pr.shapeLadderFor(ctx, req, decision, pr.resolveRoute(req, decision, isCopy))
+	route := pr.resolveRoute(req, decision, isCopy)
+	profiles, _, _ := pr.shapeLadderFor(ctx, req, decision, route, pr.pinKeyFor(req, decision, route))
 	return profiles
 }
 
@@ -48,7 +56,7 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 // on it. Returns the ladder, the grant, and whether admission spilled the
 // stream to the CPU route (the caller rewrites the route; the ladder returned
 // is already the CPU shape).
-func (pr *PlanResolver) shapeLadderFor(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision, route ResolvedRoute) (profiles []transcoding.HLSProfile, grant AdmissionGrant, spilled bool) {
+func (pr *PlanResolver) shapeLadderFor(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision, route ResolvedRoute, pinKey string) (profiles []transcoding.HLSProfile, grant AdmissionGrant, spilled bool) {
 	// Read-verbatim (Étape 2): a live stream's ABR ladder is shaped ONCE and
 	// frozen on its admission pin; return it unchanged so the manifest and every
 	// segment shape the SAME ladder BY CONSTRUCTION - immune to a mid-stream drift
@@ -60,7 +68,7 @@ func (pr *PlanResolver) shapeLadderFor(ctx context.Context, req PlaybackRequest,
 	isCopy := route.Copy
 	var streamKey string
 	if !isCopy && pr.AdmissionFrozenLadder != nil {
-		streamKey = pr.PinKey(req, decision)
+		streamKey = pinKey
 		if frozen, ok := pr.AdmissionFrozenLadder(streamKey); ok {
 			// The pin governs: a stream pinned to the CPU while the GPU pool was
 			// full stays there for its whole life (the URLs address CPU bytes).
@@ -74,11 +82,12 @@ func (pr *PlanResolver) shapeLadderFor(ctx context.Context, req PlaybackRequest,
 	}
 
 	complexity := pr.complexityOf(ctx, req.MediaID)
+	pol := pr.policy(req)
 	in := transcoding.LadderInput{
 		Source:     pr.sourceFacts(req),
 		Complexity: complexity,
 		Route:      route.Encode(),
-		Delivery:   pr.deliveryConstraints(req, decision),
+		Delivery:   pr.deliveryConstraints(pol, req, decision),
 	}
 	laddered := pr.ladderBuilder().Build(in)
 
@@ -105,7 +114,7 @@ func (pr *PlanResolver) shapeLadderFor(ctx context.Context, req PlaybackRequest,
 			fallback = func() []int { return profileHeights(softwareShape()) }
 		}
 		snap := snapshot(req)
-		key := pr.PinKey(req, decision)
+		key := pinKey
 		g := pr.AdmissionRoute(key, RouteAdmission{
 			Natural:         natural,
 			Heights:         profileHeights(laddered),
@@ -224,7 +233,7 @@ func (pr *PlanResolver) sourceFacts(req PlaybackRequest) transcoding.SourceFacts
 
 // deliveryConstraints gathers every cap the request, the operator, the QoE
 // feedback and the host put on the ladder.
-func (pr *PlanResolver) deliveryConstraints(req PlaybackRequest, decision transcoding.PlaybackDecision) transcoding.DeliveryConstraints {
+func (pr *PlanResolver) deliveryConstraints(pol HWPolicy, req PlaybackRequest, decision transcoding.PlaybackDecision) transcoding.DeliveryConstraints {
 	dc := transcoding.DeliveryConstraints{
 		ScreenHeight:            req.ScreenHeight,
 		MaxHeight:               req.Client.MaxHeight,
@@ -237,6 +246,6 @@ func (pr *PlanResolver) deliveryConstraints(req PlaybackRequest, decision transc
 			dc.QoEMaxHeight = ov.MaxHeight
 		}
 	}
-	dc.AV1MaxHeight = pr.hwPolicy().AV1MaxHeight
+	dc.AV1MaxHeight = pol.AV1MaxHeight
 	return dc
 }

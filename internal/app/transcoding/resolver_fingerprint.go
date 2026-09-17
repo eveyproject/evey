@@ -27,12 +27,13 @@ func audioChannelsFor(snap SourceSnapshot, videoAudioTrack, selected int) int {
 // the cache lookup misses on every segment.
 func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision, profiles []transcoding.HLSProfile) DecisionFingerprint {
 	isCopy := pr.IsCopy(decision, req.Streams, req.SourceBytes)
-	return pr.fingerprintFor(ctx, req, decision, pr.routeWithPin(req, decision, isCopy), profiles)
+	route := pr.resolveRoute(req, decision, isCopy)
+	return pr.fingerprintFor(ctx, req, decision, pr.withPin(req, decision, route), profiles, pr.pinKeyFor(req, decision, route))
 }
 
 // fingerprintFor PROJECTS the resolved route and the shaped ladder onto the
 // cache-key object: it decides nothing about codec, backend or pipeline.
-func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision, route ResolvedRoute, profiles []transcoding.HLSProfile) DecisionFingerprint {
+func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision, route ResolvedRoute, profiles []transcoding.HLSProfile, pinKey string) DecisionFingerprint {
 	streams := req.Streams
 	audioTrack := req.AudioTrack
 	subBurnIn := req.SubtitleBurnInTrack
@@ -154,7 +155,7 @@ func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest,
 	// session holds a limiter slot, the pinned ceiling must not move (see
 	// VideoAdmissionShaper - the cache-hash invariant, live edition).
 	if pr.AdmissionBind != nil {
-		pr.AdmissionBind(pr.PinKey(req, decision), fp.Hash())
+		pr.AdmissionBind(pinKey, fp.Hash())
 	}
 	return fp
 }
