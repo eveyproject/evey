@@ -40,6 +40,24 @@ const ErrCodeTooManyStreams = "too_many_streams"
 // that window is told to wait a moment rather than blamed on other viewers.
 const ErrCodeCalibrating = "calibrating"
 
+// ErrCodeFileNeedsRemux is the reason a request is refused because the FILE
+// cannot be played by anyone: its tracks sit in separate blocks of minutes
+// (see library.MediaFile.NeedsRemux) and every sequential reader - a phone,
+// the HLS packager - stalls at the first block. Nothing to retry: an admin
+// re-muxes it from the media-health page.
+const ErrCodeFileNeedsRemux = "file_needs_remux"
+
+// checkPlayable refuses, with the shed contract, a file no player can get
+// through. Sits next to the parental check on every route that serves bytes
+// of the file, so a client that skipped stream-info cannot stall on it.
+func checkPlayable(w http.ResponseWriter, item *domainlibrary.MediaItem) bool {
+	if item == nil || !item.File.NeedsRemux() {
+		return true
+	}
+	writeShed(w, ErrCodeFileNeedsRemux, 0, "tracks stored in one-track blocks; re-mux the file from the media-health page")
+	return false
+}
+
 // calibratingRetryAfterSec is the Retry-After of a calibrating shed: the bench
 // lasts ~2-3 min on a small host; a retry sooner just meets it again.
 const calibratingRetryAfterSec = 120

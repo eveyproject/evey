@@ -1655,3 +1655,29 @@ func TestPlaybackHandler_MarkWatched_ErrorMapping(t *testing.T) {
 	_, err = h.MarkAsWatched(ctx, &eveyv1.MarkAsWatchedRequest{MediaItemId: "mi-1"})
 	assert.Equal(t, codes.Internal, status.Code(err))
 }
+
+// A file stored in one-track blocks is never handed out as a raw direct-play
+// URL: routed to the HLS master, where the VOD gate answers the typed 503
+// (file_needs_remux) every client renders instead of a stall.
+func TestGetStreamInfo_ChunkedFile_RoutesToHLSForTheRefusal(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID:    "mi-chunked",
+		Title: "Blocks Movie",
+		Type:  "movie",
+		File:  &library.MediaFile{ContainerFormat: "mp4", InterleaveBackstepMs: 366_000},
+	})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-chunked", StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-chunked", StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	})
+
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-chunked", SupportedAudioCodecs: []string{"aac"}})
+
+	require.NoError(t, err)
+	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE, resp.PlayMethod)
+	assert.Contains(t, resp.TranscodeUrl, "hls/master.m3u8")
+	assert.Empty(t, resp.DirectPlayUrl)
+}

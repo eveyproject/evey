@@ -117,6 +117,12 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// header healthy, no sequential player gets past the first block.
 		// Sampled cluster timestamps, ~11 MB per file.
 		WithInterleaveProber(mkvgo.New()).
+		// The measure reaches the catalog so playback refuses such a file
+		// (file_needs_remux) instead of stalling on it; cleared by the repair.
+		WithInterleaveRecorder(deps.interleaveRecorder).
+		// The re-mux itself: three demuxers of the file and a muxer that waits
+		// for no block, proven packet for packet before the swap.
+		WithReinterleaver(ffmpeg.NewReinterleaver("ffmpeg", "ffprobe")).
 		// Audio tail-gap probe: does the audio content reach the declared
 		// duration? Catches the truncated-audio-track mux (structurally
 		// healthy file, dead audio over the credits) ops.Diagnose cannot

@@ -286,6 +286,12 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	resp.AudioCodec = decision.AudioCodec
 	resp.Resolution = servedResolution(decision, streams)
 
+	// A file stored in one-track blocks is refused everywhere; routing it to the
+	// HLS master (never the raw file) lets every client meet the typed 503
+	// (file_needs_remux) it already knows how to show instead of a stall.
+	if item.File.NeedsRemux() {
+		decision.PlayMethod = "transcode"
+	}
 	switch decision.PlayMethod {
 	case "direct_play":
 		resp.PlayMethod = eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY

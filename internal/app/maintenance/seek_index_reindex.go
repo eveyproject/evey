@@ -462,7 +462,7 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 				}
 			}
 		}
-		var idx, resync, containers []string
+		var idx, resync, containers, chunked []string
 		touched := map[string]bool{}
 		for _, it := range scan.Items {
 			switch {
@@ -471,6 +471,9 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 				touched[it.Path] = true
 			case run.ResyncDamaged && needsResyncForDamage(it):
 				resync = append(resync, it.Path)
+				touched[it.Path] = true
+			case s.reinterleaver != nil && it.BrokenInterleave():
+				chunked = append(chunked, it.Path)
 				touched[it.Path] = true
 			}
 		}
@@ -491,7 +494,7 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 				}
 			}
 		}
-		s.setPhase(PhaseProcessing, len(idx)+len(resync)+len(containers))
+		s.setPhase(PhaseProcessing, len(idx)+len(resync)+len(containers)+len(chunked))
 		// One rolling window shared across the phases: index and audio
 		// backups roll and drain together, so declining backups leaves NONE
 		// on the volume (the audio backups used to survive the drain). The
@@ -509,6 +512,11 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 		}
 		if len(containers) > 0 {
 			s.processFiles(bg, JobFixContainer, containers, s.fixContainerStep)
+		}
+		if len(chunked) > 0 {
+			s.processFiles(bg, JobReinterleave, chunked, func(bg context.Context, path string) (bool, error) {
+				return s.reinterleaveStep(bg, path, rb)
+			})
 		}
 		s.drainRollingBackups(bg, rb)
 		s.finish(nil)

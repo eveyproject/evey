@@ -188,6 +188,9 @@ func (h *reducedServe) resolve(w http.ResponseWriter, r *http.Request) (reducedT
 	if !checkParental(r.Context(), w, claims, item, h.parental) {
 		return t, false
 	}
+	if !checkPlayable(w, item) {
+		return t, false
+	}
 	if item.File == nil || item.File.Path == "" {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return t, false

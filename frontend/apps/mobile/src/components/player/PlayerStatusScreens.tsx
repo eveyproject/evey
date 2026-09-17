@@ -7,7 +7,7 @@ import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 // usePlaySession's ShedReason type isn't exported (usePlaySession.ts is out of
 // scope for this refactor) - mirrored here for the non-null variant this
 // screen is rendered with.
-type ShedReason = "too_many_streams" | "file_not_ready" | "calibrating";
+type ShedReason = "too_many_streams" | "file_not_ready" | "calibrating" | "file_needs_remux";
 
 interface ShedScreenProps {
   shedReason: ShedReason;
@@ -23,10 +23,10 @@ export function ShedScreen({ shedReason, onRetry, onBack }: ShedScreenProps) {
       <StatusBar hidden />
       <Ionicons name="time-outline" size={ICON_SIZE["3xl"]} color={theme.colors.textMuted} />
       <Text style={{ color: theme.colors.text, fontSize: FONT_SIZE.lg, fontWeight: "600", marginTop: 16, textAlign: "center", paddingHorizontal: 24 }}>
-        {t(`player.shed.${shedReason === "file_not_ready" ? "fileNotReady" : shedReason === "calibrating" ? "calibrating" : "tooManyStreams"}.title`)}
+        {t(`player.shed.${shedReason === "file_not_ready" ? "fileNotReady" : shedReason === "calibrating" ? "calibrating" : shedReason === "file_needs_remux" ? "fileNeedsRemux" : "tooManyStreams"}.title`)}
       </Text>
       <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.sm, marginTop: 8, textAlign: "center", paddingHorizontal: 32 }}>
-        {t(`player.shed.${shedReason === "file_not_ready" ? "fileNotReady" : shedReason === "calibrating" ? "calibrating" : "tooManyStreams"}.body`)}
+        {t(`player.shed.${shedReason === "file_not_ready" ? "fileNotReady" : shedReason === "calibrating" ? "calibrating" : shedReason === "file_needs_remux" ? "fileNeedsRemux" : "tooManyStreams"}.body`)}
       </Text>
       <Pressable
         onPress={onRetry}

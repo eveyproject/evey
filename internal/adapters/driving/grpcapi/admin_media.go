@@ -318,6 +318,7 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 	out.Acked = int32(res.Acked)
 	out.InplaceAvailable = d.seekIndex.SupportsInPlace()
 	out.ContainerFixAvailable = d.seekIndex.SupportsContainerFix()
+	out.ReinterleaveAvailable = d.seekIndex.SupportsReinterleave()
 	out.ScannedAtMs = at.UnixMilli()
 	for _, it := range res.Items {
 		out.Items = append(out.Items, &eveyv1.SeekIndexItem{
@@ -701,6 +702,22 @@ func (d *adminMediaHandler) AckSeekIndexGroup(ctx context.Context, req *eveyv1.A
 		return nil, d.seekIndexError(ctx, "ack seek index group", err)
 	}
 	return &eveyv1.AckSeekIndexGroupResponse{Acked: int32(n)}, nil //nolint:gosec // bounded by the library size
+}
+
+// ReinterleaveMedia re-muxes one file stored in one-track blocks in the background.
+func (d *adminMediaHandler) ReinterleaveMedia(ctx context.Context, req *eveyv1.ReinterleaveMediaRequest) (*eveyv1.ReinterleaveMediaResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ReinterleaveMedia")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	if err := d.seekIndex.StartReinterleaveMedia(ctx, req.GetMediaId()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "reinterleave media", err)
+	}
+	d.audit(ctx, "reinterleave_media", "media", req.GetMediaId(), nil)
+	return &eveyv1.ReinterleaveMediaResponse{Accepted: true}, nil
 }
 
 // FixContainerMedia renames one mislabelled .mkv to .mp4 in the background.

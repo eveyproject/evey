@@ -181,6 +181,9 @@ func (h *compatServe) resolve(w http.ResponseWriter, r *http.Request) (mediaID, 
 	if !checkParental(r.Context(), w, claims, item, h.parental) {
 		return "", "", "", 0, false
 	}
+	if !checkPlayable(w, item) {
+		return "", "", "", 0, false
+	}
 	if item.File == nil || item.File.Path == "" {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return "", "", "", 0, false

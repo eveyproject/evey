@@ -998,6 +998,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// reindexed file isn't re-probed (and its keyframe index dropped) by the
 		// next scan. r.MediaItem satisfies appmaintenance.FileStateRefresher.
 		seekIndexFileState: r.MediaItem,
+		interleaveRecorder: r.MediaItem,
 		keyframeOnDemand:   keyframeOnDemand,
 		loadTestRunner:     loadTestRunner,
 		loadTestBaseURL:    loadTestBaseURL,

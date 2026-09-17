@@ -12,9 +12,11 @@ import { playbackSnapshot } from "../playbackSnapshot";
 //   still being built and will serve fine once that finishes.
 // - calibrating: the server is benchmarking its own encode capacity (~2 min,
 //   only ever on an idle host); playback works again once it is done.
+// - file_needs_remux: the FILE is stored in one-track blocks and no player
+//   gets past the first; an admin re-muxes it from the media-health page.
 // Never surface the server's `message` field (English, technical) to users -
 // the client picks its own non-technical copy from this code.
-export type ShedReason = "too_many_streams" | "file_not_ready" | "calibrating" | null;
+export type ShedReason = "too_many_streams" | "file_not_ready" | "calibrating" | "file_needs_remux" | null;
 
 interface ShedErrorData {
   response?: { code?: number; text?: string };
@@ -40,13 +42,13 @@ function extractShedReason(data: ShedErrorData): ShedReason {
   // body - so a real file_not_ready shed on a segment is still recognised.
   const xhr = data.networkDetails as { getResponseHeader?: (name: string) => string | null } | undefined;
   const header = xhr?.getResponseHeader?.("X-Evey-Error");
-  if (header === "too_many_streams" || header === "file_not_ready" || header === "calibrating") return header;
+  if (header === "too_many_streams" || header === "file_not_ready" || header === "calibrating" || header === "file_needs_remux") return header;
 
   const raw = data.response?.text || (data.networkDetails as { responseText?: string } | undefined)?.responseText;
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as { code?: string };
-      if (parsed.code === "too_many_streams" || parsed.code === "file_not_ready" || parsed.code === "calibrating") return parsed.code;
+      if (parsed.code === "too_many_streams" || parsed.code === "file_not_ready" || parsed.code === "calibrating" || parsed.code === "file_needs_remux") return parsed.code;
     } catch {
       // Not our JSON shape (e.g. a proxy's plain-text 503 page) - no explicit
       // shed signal.

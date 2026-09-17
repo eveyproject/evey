@@ -21,6 +21,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/mkv"
 )
 
@@ -40,6 +41,9 @@ const (
 	// .mp4 and repoints the catalog: there is no Matroska index to build in
 	// them, the extension is the defect.
 	JobFixContainer = "fix_container"
+	// JobReinterleave re-muxes files whose tracks sit in blocks of one track
+	// at a time: every header fine, no sequential player past the first block.
+	JobReinterleave = "reinterleave"
 
 	PhaseScanning   = "scanning"
 	PhaseProcessing = "processing"
@@ -140,6 +144,13 @@ type InterleaveProber interface {
 	ProbeInterleaveBackstepSec(ctx context.Context, path string) (float64, error)
 }
 
+// InterleaveRecorder stores the interleave measure on the catalog entry, where
+// the playback gate reads it (library.MediaFile.NeedsRemux). Implemented by
+// the media-item repository; optional.
+type InterleaveRecorder interface {
+	SetInterleaveBackstep(ctx context.Context, path string, backstepMs int64) error
+}
+
 // AudioCoherenceProber answers the only question that turns a declared audio
 // offset into a defect: do this file's OWN audio tracks tell the same story at
 // the same instant? Two tracks of one film share their music and effects bed,
@@ -234,10 +245,9 @@ const AudioTrackLagFlagSec = 0.25
 // class is measured in minutes (249 s on the file that motivated this).
 const AudioShortfallFlagSec = 10.0
 
-// InterleaveBackstepFlagSec is the floor above which a sampled cluster
-// timestamp going backwards is surfaced. Every muxer keeps them monotonic
-// (494 real files read 0); the 20 prod victims read 17 s to 2259 s.
-const InterleaveBackstepFlagSec = 10.0
+// InterleaveBackstepFlagSec mirrors library.InterleaveBackstepFlagMs, the
+// floor above which a file is refused for playback until a re-mux.
+const InterleaveBackstepFlagSec = float64(library.InterleaveBackstepFlagMs) / 1000
 
 // SeekStatus is the per-file diagnosis surfaced by a scan.
 type SeekStatus struct {
@@ -449,7 +459,9 @@ func (st SeekStatus) Verdict() Verdict {
 	// remark, not as an instruction.
 	case st.Truncated, st.PictureMissing, st.SeekCoarse():
 		return VerdictInformational
-	case !st.HasIndex, st.DamagedBytes > 0, st.ResyncRequired, st.WrongContainer:
+	// A chunked interleave is unplayable everywhere and the re-mux is proven
+	// lossless (same packets per stream): repaired, never waved through.
+	case !st.HasIndex, st.DamagedBytes > 0, st.ResyncRequired, st.WrongContainer, st.BrokenInterleave():
 		return VerdictRepairable
 	// An audio track that starts after the picture is NOT a defect to rewrite.
 	// It is how a dub gets aligned to a cut, every player honours it, and Evey's
@@ -460,14 +472,10 @@ func (st SeekStatus) Verdict() Verdict {
 	// disagreement between the file's own tracks (AudioTracksLagSec) is worth
 	// SAYING, because it is the one case where the offset is probably wrong -
 	// but it is still not something Evey will rewrite behind the operator.
-	// A chunked interleave is unplayable everywhere, yet the cure is a re-mux
-	// Evey does not perform (mkvgo's Merge reads one file with one reader and
-	// keeps its order): mentioned, with the remedy, until it does.
 	case st.AudioTracksLagSec > AudioTrackLagFlagSec,
 		st.AudioDelaySec > AudioDelayFlagSec,
 		st.AudioTrackZeroed,
 		st.AudioShortfallSec > AudioShortfallFlagSec,
-		st.BrokenInterleave(),
 		st.TrailingJunk:
 		return VerdictInformational
 	}
@@ -563,20 +571,22 @@ type cachedScan struct {
 
 // SeekIndexService is the admin-facing seek-index maintenance use case.
 type SeekIndexService struct {
-	reindexer  mkv.Reindexer
-	catalog    MediaCatalog
-	fileState  FileStateRefresher   // optional; see WithFileStateRefresher
-	audioDelay AudioDelayProber     // optional; see WithAudioDelayProber
-	interleave InterleaveProber     // optional; see WithInterleaveProber
-	audioCoh   AudioCoherenceProber // optional; see WithAudioCoherenceProber
-	audible    AudibleTracksProber  // optional; see WithAudibleTracksProber
-	journal    RepairJournal        // optional; see WithRepairJournal
-	retimer    TrackRetimer         // optional; see WithTrackRetimer
-	preview    SyncPreviewRenderer  // optional; see WithSyncPreviewRenderer
-	diagnoser  mkv.Diagnoser        // optional; see WithDiagnoser
-	integrity  AudioIntegrityProber // optional; see WithAudioIntegrityProber
-	relocator  MediaRelocator       // optional; see WithMediaRelocator
-	logger     *slog.Logger
+	reindexer     mkv.Reindexer
+	catalog       MediaCatalog
+	fileState     FileStateRefresher   // optional; see WithFileStateRefresher
+	audioDelay    AudioDelayProber     // optional; see WithAudioDelayProber
+	interleave    InterleaveProber     // optional; see WithInterleaveProber
+	interleaveRec InterleaveRecorder   // optional; see WithInterleaveRecorder
+	audioCoh      AudioCoherenceProber // optional; see WithAudioCoherenceProber
+	audible       AudibleTracksProber  // optional; see WithAudibleTracksProber
+	journal       RepairJournal        // optional; see WithRepairJournal
+	retimer       TrackRetimer         // optional; see WithTrackRetimer
+	preview       SyncPreviewRenderer  // optional; see WithSyncPreviewRenderer
+	diagnoser     mkv.Diagnoser        // optional; see WithDiagnoser
+	integrity     AudioIntegrityProber // optional; see WithAudioIntegrityProber
+	relocator     MediaRelocator       // optional; see WithMediaRelocator
+	reinterleaver Reinterleaver        // optional; see WithReinterleaver
+	logger        *slog.Logger
 
 	stateDir string // "" = no persistence (WithStateDir enables it)
 
@@ -686,6 +696,13 @@ func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexSe
 // without it InterleaveBackstepSec stays 0 everywhere.
 func (s *SeekIndexService) WithInterleaveProber(p InterleaveProber) *SeekIndexService {
 	s.interleave = p
+	return s
+}
+
+// WithInterleaveRecorder makes the scan's interleave measure reach the catalog,
+// so a file it flags is refused for playback (and cleared after a re-mux).
+func (s *SeekIndexService) WithInterleaveRecorder(r InterleaveRecorder) *SeekIndexService {
+	s.interleaveRec = r
 	return s
 }
 

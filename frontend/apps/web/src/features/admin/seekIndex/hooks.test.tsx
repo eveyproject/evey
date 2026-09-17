@@ -33,6 +33,7 @@ vi.mock("@evey/api", async (importOriginal) => {
     useAdminMediaServiceAckSeekIndexMedia: mutation("ackOne"),
     useAdminMediaServiceAckSeekIndexGroup: mutation("ackGroup"),
     useAdminMediaServiceFixContainerMedia: mutation("fixContainerOne"),
+    useAdminMediaServiceReinterleaveMedia: mutation("reinterleaveOne"),
   };
 });
 vi.mock("react-i18next", () => ({

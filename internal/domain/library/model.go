@@ -245,6 +245,23 @@ type MediaFile struct {
 	// failure self-heals, then stops so a durably-unprobeable file isn't
 	// re-probed forever. A successful probe resets it to 0.
 	StreamProbeAttempts int
+	// InterleaveBackstepMs is how far a sampled cluster timestamp steps BACK
+	// between two positions of the file (0 = tracks side by side). Above
+	// InterleaveBackstepFlagMs the tracks sit in separate blocks of minutes
+	// and no sequential player gets past the first one: playback is refused
+	// until a re-mux. Measured at probe time and by the media-health scan.
+	InterleaveBackstepMs int64
+}
+
+// InterleaveBackstepFlagMs is the floor above which a file NeedsRemux. Every
+// muxer keeps cluster timestamps monotonic (494 real files read 0); the 20
+// prod victims of the 2026-07-12 two-input remux read 17 s to 2259 s.
+const InterleaveBackstepFlagMs = 10_000
+
+// NeedsRemux reports a file whose tracks are stored in blocks of one track at
+// a time - unplayable everywhere until re-interleaved.
+func (f *MediaFile) NeedsRemux() bool {
+	return f != nil && f.InterleaveBackstepMs > InterleaveBackstepFlagMs
 }
 
 type Trailer struct {

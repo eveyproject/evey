@@ -13,6 +13,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
 	itunesadapter "github.com/evey-project/evey/internal/adapters/driven/itunes"
+	"github.com/evey-project/evey/internal/adapters/driven/mkvgo"
 	musicbrainzadapter "github.com/evey-project/evey/internal/adapters/driven/musicbrainz"
 	"github.com/evey-project/evey/internal/adapters/driven/opensubtitles"
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
@@ -299,6 +300,9 @@ func startTranscodingWorkers(
 	// time through the bounded on-demand walker, so the copy rung is live on
 	// the very first request instead of after the debounced backfill.
 	libCmdSvc.WithIngestKeyframeWarmer(keyframeOnDemand.TryIndex)
+	// Every probed file is measured for tracks stored in blocks, so playback
+	// refuses it (file_needs_remux) instead of stalling on it.
+	libCmdSvc.WithInterleaveProber(mkvgo.New())
 
 	// kfProber is returned because the PACED keyframe backfill worker (built at
 	// the call site, after the load-test runner) shares this same dispatcher.

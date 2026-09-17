@@ -18,6 +18,7 @@ import {
   useAdminMediaServiceAckSeekIndexMedia,
   useAdminMediaServiceAckSeekIndexGroup,
   useAdminMediaServiceFixContainerMedia,
+  useAdminMediaServiceReinterleaveMedia,
 } from "@evey/api";
 import type { V1GetSeekIndexJobResponse, SeekView, SeekScanPace } from "@evey/api";
 import { toast } from "@evey/store";
@@ -211,6 +212,7 @@ export default function AdminSeekIndexScreen() {
   const items = result?.items ?? [];
   const withBackup = result?.withBackup ?? 0;
   const containerFixAvailable = result?.containerFixAvailable ?? false;
+  const reinterleaveAvailable = result?.reinterleaveAvailable ?? false;
   // The triage is derived from the very rows the list shows, so the cards, the
   // button and the rows can never disagree.
   const triage = triageOf(items);
@@ -307,6 +309,9 @@ export default function AdminSeekIndexScreen() {
   const fixContainerOne = useAdminMediaServiceFixContainerMedia({
     mutation: { onSuccess: onStarted("admin.seekIndex.fixContainerStarted"), onError: onStartError },
   });
+  const reinterleaveOne = useAdminMediaServiceReinterleaveMedia({
+    mutation: { onSuccess: onStarted("admin.seekIndex.reinterleaveStarted"), onError: onStartError },
+  });
   // Acknowledging is the operator saying "seen, nothing to do here": the row
   // leaves the attention list until the file's bytes change.
   const ackOne = useAdminMediaServiceAckSeekIndexMedia({
@@ -377,10 +382,12 @@ export default function AdminSeekIndexScreen() {
             theme={theme}
             busy={busy}
             containerFixAvailable={containerFixAvailable}
+            reinterleaveAvailable={reinterleaveAvailable}
             onRepair={(mediaId) => repairOne.mutate({ mediaId, data: { mode: "auto" } })}
             onRepairResync={(mediaId) => repairOne.mutate({ mediaId, data: { resync: true } })}
             onRollback={(mediaId) => rollbackOne.mutate({ mediaId })}
             onFixContainer={(mediaId) => fixContainerOne.mutate({ mediaId })}
+            onReinterleave={(mediaId) => reinterleaveOne.mutate({ mediaId })}
             onAck={(mediaId, acked) => ackOne.mutate({ data: { mediaId, acked } })}
             onDeleteBackup={(mediaId) => deleteBackup.mutate({ data: { mediaId } })}
             onHistory={(mediaId, title) => setHistoryTarget({ mediaId, title })}
@@ -389,6 +396,7 @@ export default function AdminSeekIndexScreen() {
             repairResyncPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && repairOne.variables?.data?.resync === true}
             rollbackPending={rollbackOne.isPending && rollbackOne.variables?.mediaId === item.mediaId}
             fixContainerPending={fixContainerOne.isPending && fixContainerOne.variables?.mediaId === item.mediaId}
+            reinterleavePending={reinterleaveOne.isPending && reinterleaveOne.variables?.mediaId === item.mediaId}
             ackPending={ackOne.isPending && ackOne.variables?.data?.mediaId === item.mediaId}
             deleteBackupPending={deleteBackup.isPending && deleteBackup.variables?.data?.mediaId === item.mediaId}
           />

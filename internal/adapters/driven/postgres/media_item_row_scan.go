@@ -26,7 +26,7 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		parentID, scanTitle                             *string
 		filePath, fingerprint, containerFormat          *string
 		fileSize, durationMs, bitrate                   *int64
-		streamProbeAttempts                             sql.NullInt64
+		streamProbeAttempts, interleaveBackstepMs       sql.NullInt64
 		modTimeRaw                                      sql.NullTime
 		premiereDate                                    sql.NullTime
 		year                                            sql.NullInt64
@@ -40,7 +40,7 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &scanTitle,
 		&item.SortTitle, &item.OriginalTitle, &item.Overview, &item.Tagline, &item.IndexNumber,
 		&item.AddedAt, &item.UpdatedAt,
-		&filePath, &fileSize, &fingerprint, &modTimeRaw, &durationMs, &bitrate, &containerFormat, &streamProbeAttempts,
+		&filePath, &fileSize, &fingerprint, &modTimeRaw, &durationMs, &bitrate, &containerFormat, &streamProbeAttempts, &interleaveBackstepMs,
 		&premiereDate, &year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
 		&communityRating, &officialRating, &certJSON, &providerRatingsJSON,
 		&trailersJSON,
@@ -55,6 +55,9 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 	}
 
 	item.File = buildMediaFile(filePath, fileSize, fingerprint, modTimeRaw, durationMs, bitrate, containerFormat, streamProbeAttempts)
+	if item.File != nil && interleaveBackstepMs.Valid {
+		item.File.InterleaveBackstepMs = interleaveBackstepMs.Int64
+	}
 	cat, err := buildMediaCatalog(premiereDate, year, providerJSON, genresJSON, studiosJSON, tagsJSON)
 	if err != nil {
 		return err

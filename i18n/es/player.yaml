@@ -108,6 +108,9 @@ shed:
   calibrating:
     title: "El servidor se está calibrando"
     body: "El servidor está midiendo lo que esta máquina puede reproducir; tarda unos 2 minutos y solo ocurre cuando no hay nada más en marcha. Inténtalo de nuevo en un par de minutos."
+  fileNeedsRemux:
+    title: "Este vídeo necesita una reparación"
+    body: "Este archivo se ensambló de una forma que ningún reproductor puede leer hasta el final (el sonido y la imagen están guardados en bloques separados). Un administrador puede repararlo desde Salud de los medios; no sirve reintentar hasta entonces."
 retry: "Reintentar"
 goBack: "Volver"
 shareDesc: "Comparte este enlace con tus amigos para ver juntos:"

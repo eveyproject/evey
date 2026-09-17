@@ -20,10 +20,12 @@ type SeekIndexTableProps = Pick<
   | "totalPages"
   | "busy"
   | "containerFixAvailable"
+  | "reinterleaveAvailable"
   | "repairOne"
   | "rollbackOne"
   | "deleteBackup"
   | "fixContainerOne"
+  | "reinterleaveOne"
   | "ackOne"
 >;
 
@@ -42,10 +44,12 @@ export function SeekIndexTable({
   totalPages,
   busy,
   containerFixAvailable,
+  reinterleaveAvailable,
   repairOne,
   rollbackOne,
   deleteBackup,
   fixContainerOne,
+  reinterleaveOne,
   ackOne,
 }: SeekIndexTableProps) {
   const { t } = useTranslation();
@@ -313,6 +317,19 @@ export function SeekIndexTable({
                         data-testid="seek-index-fix-container-btn"
                       >
                         {t("admin.seekIndex.fixContainerBtn")}
+                      </Button>
+                    )}
+                    {brokenInterleave(it) && reinterleaveAvailable && (
+                      <Button
+                        variant="secondary"
+                        className="text-xs"
+                        disabled={busy}
+                        loading={reinterleaveOne.isPending && reinterleaveOne.variables?.mediaId === it.mediaId}
+                        title={t("admin.seekIndex.reinterleaveHint")}
+                        onClick={() => it.mediaId && reinterleaveOne.mutate({ mediaId: it.mediaId })}
+                        data-testid="seek-index-reinterleave-btn"
+                      >
+                        {t("admin.seekIndex.reinterleaveBtn")}
                       </Button>
                     )}
                     {/* What was done to this file's bytes. Evey keeps no copy

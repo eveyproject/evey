@@ -108,8 +108,8 @@ interface HLSPlayerProps {
 // shedI18nKey maps a server shed code to its player copy: nothing is broken,
 // the server just isn't ready to serve THIS request yet (busy, indexing, or
 // benchmarking itself for a couple of minutes).
-function shedI18nKey(reason: "too_many_streams" | "file_not_ready" | "calibrating", part: "title" | "body"): string {
-  const group = reason === "file_not_ready" ? "fileNotReady" : reason === "calibrating" ? "calibrating" : "tooManyStreams";
+function shedI18nKey(reason: "too_many_streams" | "file_not_ready" | "calibrating" | "file_needs_remux", part: "title" | "body"): string {
+  const group = reason === "file_not_ready" ? "fileNotReady" : reason === "calibrating" ? "calibrating" : reason === "file_needs_remux" ? "fileNeedsRemux" : "tooManyStreams";
   return `player.shed.${group}.${part}`;
 }
 

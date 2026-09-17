@@ -210,6 +210,7 @@ type appDeps struct {
 	presenceTracker    *apppresence.Tracker
 	hlsAESSecret       []byte
 	seekIndexFileState appmaintenance.FileStateRefresher
+	interleaveRecorder appmaintenance.InterleaveRecorder
 	// seekIndexSvc is published by buildGRPCServer so the HTTP layer can serve
 	// the sync-preview clip from the same instance. Built before the HTTP
 	// handler, so it is never nil by the time that route is registered.

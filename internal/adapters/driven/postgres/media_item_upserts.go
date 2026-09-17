@@ -39,6 +39,20 @@ func (r *MediaItemRepository) RefreshFileState(ctx context.Context, path string,
 	return nil
 }
 
+// SetInterleaveBackstep records the media-health scan's interleave measure on
+// the file's row, so the playback gate (MediaFile.NeedsRemux) sees a defect the
+// library scan did not measure itself - and its clearing after a re-mux.
+func (r *MediaItemRepository) SetInterleaveBackstep(ctx context.Context, path string, backstepMs int64) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE media_files SET interleave_backstep_ms = $1 WHERE file_path = $2`,
+		backstepMs, path); err != nil {
+		return fmt.Errorf("set media_files interleave backstep: %w", err)
+	}
+	return nil
+}
+
 // upsertMediaFile writes (or deletes) the 1:1 media_files row driven by
 // item.File. nil File (or empty Path) means the item owns no on-disk
 // artefact (series root, season, album); we DELETE so a subsequent JOIN
@@ -76,8 +90,8 @@ func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) e
 		}
 	}
 	_, err := tx.ExecContext(ctx,
-		`INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, stream_probe_attempts)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		`INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, stream_probe_attempts, interleave_backstep_ms)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		 ON CONFLICT (media_item_id) DO UPDATE SET
 		   file_path = EXCLUDED.file_path,
 		   file_size = EXCLUDED.file_size,
@@ -86,9 +100,10 @@ func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) e
 		   duration_ms = EXCLUDED.duration_ms,
 		   bitrate = EXCLUDED.bitrate,
 		   container_format = EXCLUDED.container_format,
-		   stream_probe_attempts = EXCLUDED.stream_probe_attempts`,
+		   stream_probe_attempts = EXCLUDED.stream_probe_attempts,
+		   interleave_backstep_ms = EXCLUDED.interleave_backstep_ms`,
 		string(item.ID), f.Path, f.Size, fingerprint,
-		f.ModTime, f.Duration.Milliseconds(), f.Bitrate, f.ContainerFormat, f.StreamProbeAttempts,
+		f.ModTime, f.Duration.Milliseconds(), f.Bitrate, f.ContainerFormat, f.StreamProbeAttempts, f.InterleaveBackstepMs,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert media_files: %w", err)

@@ -103,7 +103,7 @@ describe("verdictOf", () => {
     expect(verdictOf({ hasIndex: true, audioShortfallSec: 40 })).toBe("informational");
     expect(verdictOf({ hasIndex: true, trailingJunk: true })).toBe("informational");
     expect(verdictOf({ hasIndex: true, trailingJunk: true, audioDelaySec: 0.5 })).toBe("informational");
-    expect(verdictOf({ hasIndex: true, interleaveBackstepSec: 366 })).toBe("informational");
+    expect(verdictOf({ hasIndex: true, interleaveBackstepSec: 366 })).toBe("repairable");
   });
 
   it("only lets what nobody can repair be acknowledged", () => {

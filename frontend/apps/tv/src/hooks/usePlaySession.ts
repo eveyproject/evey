@@ -32,9 +32,11 @@ interface StreamTokenResponse {
 //   still being built and will serve fine once that finishes.
 // - calibrating: the server is benchmarking its own encode capacity (~2 min,
 //   only ever on an idle host); playback works again once it is done.
+// - file_needs_remux: the FILE is stored in one-track blocks and no player
+//   gets past the first; an admin re-muxes it from the media-health page.
 // Never surface the server's `message` field (English, technical) to users -
 // the screen picks its own non-technical copy from this code.
-type ShedReason = "too_many_streams" | "file_not_ready" | "calibrating" | null;
+type ShedReason = "too_many_streams" | "file_not_ready" | "calibrating" | "file_needs_remux" | null;
 
 // expo-video's PlayerError is just `{ message: string }` - ExoPlayer/AVPlayer
 // give no structured HTTP status or response body, so there is no reliable
@@ -50,10 +52,10 @@ async function detectShed(url: string): Promise<ShedReason> {
     const res = await fetch(url);
     if (res.status !== 503) return null;
     const headerCode = res.headers.get("X-Evey-Error");
-    if (headerCode === "too_many_streams" || headerCode === "file_not_ready" || headerCode === "calibrating") return headerCode;
+    if (headerCode === "too_many_streams" || headerCode === "file_not_ready" || headerCode === "calibrating" || headerCode === "file_needs_remux") return headerCode;
     try {
       const body = (await res.json()) as { code?: string };
-      if (body.code === "too_many_streams" || body.code === "file_not_ready" || body.code === "calibrating") return body.code;
+      if (body.code === "too_many_streams" || body.code === "file_not_ready" || body.code === "calibrating" || body.code === "file_needs_remux") return body.code;
     } catch {
       // Not parseable JSON - fall through to the default below.
     }

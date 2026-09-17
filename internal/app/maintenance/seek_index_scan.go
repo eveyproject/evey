@@ -395,6 +395,19 @@ func (s *SeekIndexService) probeInterleave(ctx context.Context, path string, st 
 	if back > InterleaveBackstepFlagSec {
 		st.InterleaveBackstepSec = back
 	}
+	s.recordInterleave(ctx, path, back)
+}
+
+// recordInterleave pushes the measure to the catalog (0 included: a repaired
+// or re-acquired file must lose its refusal).
+func (s *SeekIndexService) recordInterleave(ctx context.Context, path string, backstepSec float64) {
+	if s.interleaveRec == nil {
+		return
+	}
+	if err := s.interleaveRec.SetInterleaveBackstep(ctx, path, int64(backstepSec*1000)); err != nil {
+		s.logger.Warn("seek-index scan: interleave record failed",
+			slog.String("path", path), slog.Any("err", err))
+	}
 }
 
 // addToRollups folds one file's status into the result's rollup counters. THE

@@ -34,10 +34,12 @@ export function SeekIndexItemRow({
   theme,
   busy,
   containerFixAvailable,
+  reinterleaveAvailable,
   onRepair,
   onRepairResync,
   onRollback,
   onFixContainer,
+  onReinterleave,
   onAck,
   onDeleteBackup,
   onHistory,
@@ -46,6 +48,7 @@ export function SeekIndexItemRow({
   repairResyncPending,
   rollbackPending,
   fixContainerPending,
+  reinterleavePending,
   ackPending,
   deleteBackupPending,
 }: {
@@ -53,10 +56,12 @@ export function SeekIndexItemRow({
   theme: Theme;
   busy: boolean;
   containerFixAvailable: boolean;
+  reinterleaveAvailable: boolean;
   onRepair: (mediaId: string) => void;
   onRepairResync: (mediaId: string) => void;
   onRollback: (mediaId: string) => void;
   onFixContainer: (mediaId: string) => void;
+  onReinterleave: (mediaId: string) => void;
   onAck: (mediaId: string, acked: boolean) => void;
   onDeleteBackup: (mediaId: string) => void;
   onHistory?: (mediaId: string, title: string) => void;
@@ -65,6 +70,7 @@ export function SeekIndexItemRow({
   repairResyncPending: boolean;
   rollbackPending: boolean;
   fixContainerPending: boolean;
+  reinterleavePending: boolean;
   ackPending: boolean;
   deleteBackupPending: boolean;
 }) {
@@ -224,6 +230,8 @@ export function SeekIndexItemRow({
           btn(t("admin.seekIndex.repairResync"), () => item.mediaId && onRepairResync(item.mediaId), repairResyncPending, false, t("admin.seekIndex.repairResyncHint"))}
         {item.wrongContainer && containerFixAvailable &&
           btn(t("admin.seekIndex.fixContainerBtn"), () => item.mediaId && onFixContainer(item.mediaId), fixContainerPending, true, t("admin.seekIndex.fixContainerHint"))}
+        {brokenInterleave(item) && reinterleaveAvailable &&
+          btn(t("admin.seekIndex.reinterleaveBtn"), () => item.mediaId && onReinterleave(item.mediaId), reinterleavePending, true, t("admin.seekIndex.reinterleaveHint"))}
         {isAckable(item) &&
           btn(acked ? t("admin.seekIndex.unackBtn") : t("admin.seekIndex.ackBtn"), () => item.mediaId && onAck(item.mediaId, !acked), ackPending, false, undefined, ackPending)}
         {item.hasBackup && btn(t("admin.seekIndex.rollback"), () => item.mediaId && onRollback(item.mediaId), rollbackPending)}

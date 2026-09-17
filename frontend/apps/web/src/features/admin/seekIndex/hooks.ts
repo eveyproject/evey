@@ -15,7 +15,8 @@ import {
   useAdminMediaServicePurgeSeekIndexBackups,
   useAdminMediaServiceAckSeekIndexMedia,
   useAdminMediaServiceAckSeekIndexGroup,
-  useAdminMediaServiceFixContainerMedia, audioDelayed, audioTracksDisagree, brokenInterleave } from "@evey/api";
+  useAdminMediaServiceFixContainerMedia,
+  useAdminMediaServiceReinterleaveMedia, audioDelayed, audioTracksDisagree, brokenInterleave } from "@evey/api";
 import {
   SEEK_INDEX_SCAN_QUERY_BASE,
   SEEK_INDEX_KIND_KEYS,
@@ -101,6 +102,7 @@ export function useSeekIndexPage() {
   const items = result?.items ?? [];
   const withBackup = result?.withBackup ?? 0;
   const containerFixAvailable = result?.containerFixAvailable ?? false;
+  const reinterleaveAvailable = result?.reinterleaveAvailable ?? false;
   // The triage is derived from the very rows the table shows, so the group
   // cards, the button and the table can never disagree with each other.
   const triage = triageOf(items);
@@ -218,6 +220,12 @@ export function useSeekIndexPage() {
       onError: onStartError,
     },
   });
+  const reinterleaveOne = useAdminMediaServiceReinterleaveMedia({
+    mutation: {
+      onSuccess: onStarted("admin.seekIndex.reinterleaveStarted"),
+      onError: onStartError,
+    },
+  });
   const deleteBackup = useAdminMediaServiceDeleteSeekIndexBackup({
     mutation: {
       onSuccess: () => {
@@ -288,6 +296,7 @@ export function useSeekIndexPage() {
     items,
     withBackup,
     containerFixAvailable,
+    reinterleaveAvailable,
     triage,
     breakdown,
     repairable,
@@ -299,6 +308,7 @@ export function useSeekIndexPage() {
     repairLib,
     rollbackLib,
     fixContainerOne,
+    reinterleaveOne,
     deleteBackup,
     purgeLib,
     ackOne,
