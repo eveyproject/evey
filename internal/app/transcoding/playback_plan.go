@@ -43,6 +43,10 @@ type PlaybackRequest struct {
 	SourceBytes int64
 	// SourceBitrateKbps is the video stream's bitrate (else the file's); the served ladder follows it.
 	SourceBitrateKbps int64
+	// Source is the snapshot of the facts above, taken once by Resolve
+	// (SnapshotOf). Callers leave it zero; a sub-derivation called on its own
+	// (the adapter's wrappers, tests) takes it on demand.
+	Source SourceSnapshot
 	// ScreenHeight is the viewer's physical screen height (?screenHeight); rungs
 	// above the one covering it are dropped. 0 = unknown.
 	ScreenHeight int

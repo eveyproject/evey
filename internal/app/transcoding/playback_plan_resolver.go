@@ -111,6 +111,8 @@ var _ PlaybackPlanResolver = (*PlanResolver)(nil)
 // admission pin and freezes the ladder), then the fingerprint (which binds
 // its hash to that pin).
 func (pr *PlanResolver) Resolve(ctx context.Context, req PlaybackRequest) (PlaybackPlan, error) {
+	// The source is read ONCE here; every derivation below reads req.Source.
+	req.Source = SnapshotOf(req)
 	decision := pr.Decide(ctx, req)
 	profiles := pr.ShapeLadder(ctx, req, decision)
 	fp := pr.Fingerprint(ctx, req, decision, profiles)
@@ -238,10 +240,11 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 	// NOT be served as a raw copy. The disk guard can still flip copy→ladder
 	// at serve time without re-adding it - accepted bounded edge (hashing
 	// FreeBytes would be worse).
-	servedAsRawCopy := d.VideoDecision == "copy" && pr.CopyProducer != nil && SourceCopyVideoCodec(req.Streams) != ""
+	snap := snapshot(req)
+	servedAsRawCopy := d.VideoDecision == "copy" && pr.CopyProducer != nil && snap.CopyVideoCodec != ""
 	if !servedAsRawCopy &&
 		!slices.Contains(d.TranscodeReasons, "hdr_tonemapping_needed") &&
-		SourceIsHDR(req.Streams) {
+		snap.IsHDR {
 		// Judge the passthrough on the transcode this will be, not on the copy
 		// verdict it started as: a copy-blocked title (keyframes pending, VFR,
 		// HDR truth unknown) on an HDR client and a Main10 GPU keeps its HDR.
@@ -260,6 +263,15 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 		}
 	}
 	return *d
+}
+
+// snapshot returns the request's source snapshot, taking it when a caller
+// reached a sub-derivation without going through Resolve.
+func snapshot(req PlaybackRequest) SourceSnapshot {
+	if req.Source.Taken() {
+		return req.Source
+	}
+	return SnapshotOf(req)
 }
 
 // capabilityOrFallback resolves the calibrated capability, nil-safe.
@@ -755,11 +767,25 @@ func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision, h
 // idet) and the backend is one whose deinterlacer is session-level and proven
 // (QSV). Per-frame backends answer false - their filter is always emitted.
 func (pr *PlanResolver) HWDeinterlaceWanted(streams []*library.MediaStream, accel string) bool {
-	if accel != string(transcoding.QSV) || pr.Capability == nil || !SourceInterlaced(streams) {
+	return pr.hwDeinterlaceWanted(SourceInterlaced(streams), accel)
+}
+
+func (pr *PlanResolver) hwDeinterlaceWanted(interlaced bool, accel string) bool {
+	if accel != string(transcoding.QSV) || pr.Capability == nil || !interlaced {
 		return false
 	}
 	bc, ok := pr.Capability().BackendCap(accel)
 	return ok && bc.DeinterlacesOnGPU()
+}
+
+// audioChannelsFor is the channel count of the track the VIDEO segments carry:
+// the selected track's, or 0 (unknown, guard on) when the audio is served as
+// its own rendition (videoAudioTrack -1).
+func audioChannelsFor(snap SourceSnapshot, videoAudioTrack, selected int) int {
+	if videoAudioTrack != selected {
+		return 0
+	}
+	return snap.AudioChannels
 }
 
 // HWOverlayWanted reports whether this request should burn its bitmap subtitle
@@ -860,16 +886,13 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 		if natural == LadderClassHW && pr.Selector != nil {
 			fallback = func() []int { return profileHeights(softwareShape()) }
 		}
-		srcClass := transcoding.SourceClass{
-			Codec:  SourceVideoCodec(streams),
-			Height: SourceVideoHeight(streams),
-		}
+		snap := snapshot(req)
 		g := pr.AdmissionRoute(pr.PinKey(req, decision), RouteAdmission{
 			Natural:         natural,
 			Heights:         profileHeights(laddered),
-			Src:             srcClass,
+			Src:             snap.Class(),
 			Route:           in.Route.CostKey(),
-			SourceFPS:       SourceFrameRate(streams),
+			SourceFPS:       snap.FPS,
 			FallbackHeights: fallback,
 			FallbackRoute:   spillRoute(in.Route, decision).CostKey(),
 		})
@@ -1023,12 +1046,7 @@ func (pr *PlanResolver) QualityPolicy() transcoding.QualityPolicy {
 
 // sourceFacts projects the request's streams onto the ladder engine's input.
 func (pr *PlanResolver) sourceFacts(req PlaybackRequest) transcoding.SourceFacts {
-	d := SourceDimsOf(req.Streams)
-	return transcoding.SourceFacts{
-		Width: d.Width, Height: d.Height, Codec: d.Codec, TenBit: d.TenBit,
-		HDRRange: d.HDRRange, Telecine: d.Telecine, BitrateKbps: req.SourceBitrateKbps,
-		FPS: SourceFrameRate(req.Streams),
-	}
+	return snapshot(req).Facts()
 }
 
 // encodeRoute is the pipeline the ladder is shaped for: the effective codec
@@ -1060,7 +1078,7 @@ func (pr *PlanResolver) deliveryConstraints(req PlaybackRequest, decision transc
 		Capability:              pr.capabilityOrFallback(),
 	}
 	if pr.CapOverride != nil {
-		if ov, ok := pr.CapOverride(SourceVideoCodec(req.Streams), SourceVideoHeight(req.Streams)); ok {
+		if ov, ok := pr.CapOverride(snapshot(req).Codec, snapshot(req).Height); ok {
 			dc.QoEMaxHeight = ov.MaxHeight
 		}
 	}
@@ -1102,7 +1120,8 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 	// Same predicate as the master handler and the decision: the codec alone is
 	// not the condition, the channel gate is part of it.
 	wasmAudioApplies := req.WasmAudio && WasmAudioApplies(streams, audioTrack, req.Prefs.MaxAudioChannels)
-	renditionAudio := pr.AudioRenditionEnabled && !SourceTelecine(streams) &&
+	snap := snapshot(req)
+	renditionAudio := pr.AudioRenditionEnabled && !snap.Telecine &&
 		(decision.VideoDecision == "copy" || (decision.VideoDecision == "transcode" && pr.TranscodeAudioRendition))
 	if renditionAudio || wasmAudioApplies {
 		videoAudioTrack = -1
@@ -1120,7 +1139,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		quality[i] = pr.QualityPolicy().TargetFor(p, route)
 	}
 
-	hwTonemap := pr.HWTonemapWanted(decision, SourceTranscodeVideoRange(streams))
+	hwTonemap := pr.HWTonemapWanted(decision, snap.HDRRange)
 	// Capability gate: AV1 falls back to H.264 when the host can't encode it (no
 	// HW AV1, no admin opt-in). videoCodec is what the segments actually carry -
 	// the cache key MUST use it, not the raw decision codec.
@@ -1144,7 +1163,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		videoCodec = "h264"
 	}
 	normalize := pr.AudioNormalize != nil && pr.AudioNormalize(ctx)
-	srcAudio := SourceAudioCodec(streams, audioTrack)
+	srcAudio := snap.AudioCodec
 	audioCopy := AudioCopyEligible(decision, normalize, len(fpProfiles), srcAudio, req.Client)
 	fp := DecisionFingerprint{
 		MediaID:    req.MediaID,
@@ -1152,36 +1171,36 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		VideoCodec: videoCodec,
 		// The SOURCE codec (excluded from Hash - derivable from MediaID): the
 		// copy builder tags the fMP4 sample entry from it (-tag:v hvc1).
-		SourceVideoCodec: SourceVideoCodec(streams),
+		SourceVideoCodec: snap.Codec,
 		// The decode workload admission prices (excluded from Hash, as the codec).
-		SourceVideoHeight: SourceVideoHeight(streams),
-		SourceFPS:         SourceFrameRate(streams),
+		SourceVideoHeight: snap.Height,
+		SourceFPS:         snap.FPS,
 		// Legacy-codec corrections (B3): idet content verdict + anamorphic SAR,
 		// both hashed conditionally so progressive/square titles keep their
 		// cache. No-ops on modern progressive sources.
-		DeinterlaceAll: SourceDeinterlaceAll(streams),
-		Telecine:       SourceTelecine(streams),
-		SourceSAR:      SourceSAR(streams),
+		DeinterlaceAll: snap.DeinterlaceAll,
+		Telecine:       snap.Telecine,
+		SourceSAR:      snap.SAR,
 		// The codec the segments actually carry (source codec on passthrough).
 		// The builder only reads it on the transcode branch; here it keeps the
 		// hash truthful per served bytes.
 		AudioCodec:          ServedAudioCodec(audioCopy, srcAudio, decision),
 		AudioTrack:          videoAudioTrack,
 		SubtitleBurnInTrack: subBurnIn,
-		SubtitleBurnInCodec: SourceSubtitleCodec(streams, subBurnIn),
+		SubtitleBurnInCodec: snap.SubtitleCodec,
 		// HDR->SDR tonemap is needed whenever the decision flagged it (HDR source +
 		// non-HDR client, or Dolby Vision). Baked into the fingerprint so it (a)
 		// enters the cache hash - tonemapped vs not are different bytes - and (b)
 		// reaches the orchestrator/builder, which has no source streams to detect it.
 		HDRTonemap:       slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") || (hdrPassWanted && !hwUsable),
 		HDRPassthrough:   hdrPassWanted && hwUsable,
-		HDRTransfer:      strings.ToLower(SourceTranscodeVideoRange(streams)),
+		HDRTransfer:      strings.ToLower(snap.HDRRange),
 		MaxH264Level:     req.Client.MaxH264Level,
 		AudioNormalize:   normalize,
 		AudioEncoder:     pr.audioEncoderID(),
 		MaxAudioChannels: decision.MaxAudioChannels,
 		// Gates the fold guard on a real fold; wasm (-1) reads as unknown, guard on.
-		SourceAudioChannels: SourceAudioChannels(streams, videoAudioTrack),
+		SourceAudioChannels: audioChannelsFor(snap, videoAudioTrack, audioTrack),
 		// Audio passthrough eligibility - see AudioCopyEligible (shared with
 		// the manifest input so the master CODECS always matches the bytes).
 		AudioCopy: audioCopy,
@@ -1205,7 +1224,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		// path is actually taken, and excluded from Hash() - the same subtitle on
 		// the same frames, whoever blended it.
 		HWOverlay:      pr.HWOverlayWanted(decision) && hwUsable,
-		HWDeinterlace:  hwUsable && pr.HWDeinterlaceWanted(streams, hwAccel),
+		HWDeinterlace:  hwUsable && pr.hwDeinterlaceWanted(snap.Interlaced, hwAccel),
 		Profiles:       fpProfiles,
 		QualityTargets: quality,
 	}
@@ -1261,7 +1280,7 @@ func (pr *PlanResolver) ProducerFor(req PlaybackRequest, decision transcoding.Pl
 				return sw
 			}
 		}
-		return pr.Selector.For(decision, SourceDimsOf(req.Streams))
+		return pr.Selector.For(decision, snapshot(req).SourceDims)
 	}
 	return pr.Orchestrator
 }
