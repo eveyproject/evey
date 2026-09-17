@@ -277,10 +277,12 @@ func cmpString(a, b string) int {
 	return 0
 }
 
-// MaxStreams is floor(1/max(accel,cpu)), never < 1: how many sessions of the
-// route named by key (topping out at h, source sourceFPS) fit before the
-// tighter of the two pools it draws on is full. For the admin capacity panel;
-// admission itself sums fractional cost per pool rather than this per-route.
+// MaxStreams is floor(1/max(accel,cpu)): how many sessions of the route named
+// by key (topping out at h, source sourceFPS) fit before the tighter of the
+// two pools it draws on is full. 0 when even the first would not fit an idle
+// pool (a route priced above a whole pool - admission refuses it, and a panel
+// saying "1" would promise a stream the limiter never grants). For the admin
+// capacity panel; admission itself sums fractional cost per pool.
 func (m *RouteCostModel) MaxStreams(key transcoding.RouteCostKey, h int, sourceFPS float64) (int, bool) {
 	c, ok := m.Cost(key, h, sourceFPS)
 	if !ok {
@@ -290,5 +292,7 @@ func (m *RouteCostModel) MaxStreams(key transcoding.RouteCostKey, h int, sourceF
 	if worst <= 0 {
 		return 1, true
 	}
-	return max(int(math.Floor(1.0/worst)), 1), true
+	// budgetEpsilon: a route priced exactly one pool (worst = 1 up to float
+	// rounding) is the one stream admission does grant.
+	return int(math.Floor((1.0 + budgetEpsilon) / worst)), true
 }

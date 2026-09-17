@@ -151,12 +151,20 @@ func TestRouteCostModel_MaxStreams(t *testing.T) {
 	if n, _ := m.MaxStreams(key, 1080, 60); n != 1 {
 		t.Fatalf("60p: got %d want 1", n)
 	}
-	// An encoder faster than the whole budget still admits at least 1.
+	// A route priced above a whole pool (10 fps for a 28.8 fps need) is one
+	// admission refuses outright: the panel says 0, not a "1" nobody gets.
 	tiny := NewRouteCostModel([]transcoding.RouteSample{
 		{Key: key, Height: 1080, FPS: 10, SourceFPS: 24, CPUCores: 4},
 	}, 4)
-	if n, ok := tiny.MaxStreams(key, 1080, 24); !ok || n != 1 {
-		t.Fatalf("over-budget route: got %d,%v want floor of 1", n, ok)
+	if n, ok := tiny.MaxStreams(key, 1080, 24); !ok || n != 0 {
+		t.Fatalf("over-budget route: got %d,%v want 0", n, ok)
+	}
+	// Priced exactly one pool: the one stream admission grants.
+	exact := NewRouteCostModel([]transcoding.RouteSample{
+		{Key: key, Height: 1080, FPS: 28.8, SourceFPS: 24, CPUCores: 0.5},
+	}, 4)
+	if n, ok := exact.MaxStreams(key, 1080, 24); !ok || n != 1 {
+		t.Fatalf("route priced exactly one pool: got %d,%v want 1", n, ok)
 	}
 	if _, ok := m.MaxStreams(rk("vaapi", "h264_vaapi", transcoding.RouteCostSDR), 1080, 24); ok {
 		t.Fatal("no evidence for the route: no verdict")
