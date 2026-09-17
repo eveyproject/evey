@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -299,6 +301,7 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[s
 		}
 		s.probeInterleave(ctx, f.Path, &st)
 		s.proveAudioCoherence(ctx, f.Path, &st)
+		s.measureAudioPicture(ctx, f.Path, &st)
 	}
 
 	hasBak, bakErr := s.reindexer.HasBackup(ctx, f.Path)
@@ -410,6 +413,39 @@ func (s *SeekIndexService) recordInterleave(ctx context.Context, path string, ba
 	}
 }
 
+// measureAudioPicture runs the sound-vs-picture measure on the files a muxer
+// could have shifted, and keeps the worst track. Secondary diagnostics: a
+// failure logs and leaves no finding.
+func (s *SeekIndexService) measureAudioPicture(ctx context.Context, path string, st *SeekStatus) {
+	if st.WrongContainer || st.Truncated {
+		return
+	}
+	if s.muxer != nil {
+		app, err := s.muxer.ProbeMuxingApp(ctx, path)
+		if err != nil {
+			s.logger.Warn("seek-index scan: muxer probe failed", slog.String("path", path), slog.Any("err", err))
+		}
+		st.MuxedByFFmpeg = strings.HasPrefix(app, "Lavf")
+	}
+	if s.audioPicture == nil || (!st.MuxedByFFmpeg && !st.AudioTrackZeroed) {
+		return
+	}
+	lags, err := s.audioPicture.ProbeAudioPictureLag(ctx, path)
+	if err != nil {
+		s.logger.Warn("seek-index scan: sound-vs-picture measure failed", slog.String("path", path), slog.Any("err", err))
+		return
+	}
+	if len(lags) == 0 {
+		return
+	}
+	st.AudioPictureChecked = true
+	for _, l := range lags {
+		if math.Abs(l.LagSec) > math.Abs(st.AudioPictureLagSec) {
+			st.AudioPictureLagSec, st.AudioPictureTrack, st.AudioPictureConfidence = l.LagSec, l.Track, l.Confidence
+		}
+	}
+}
+
 // addToRollups folds one file's status into the result's rollup counters. THE
 // single rollup rule - the scan loop, the cached-file update and the persisted
 // -scan reload all fold through here, so a new category cannot be counted in
@@ -448,6 +484,9 @@ func addToRollups(res *ScanResult, st SeekStatus) {
 	if st.BrokenInterleave() {
 		res.BrokenInterleave++
 	}
+	if st.AudioPictureOff() {
+		res.AudioPictureOff++
+	}
 	switch v := st.Verdict(); {
 	case v == VerdictRepairable:
 		res.Repairable++
@@ -463,7 +502,7 @@ func recomputeRollups(res *ScanResult) {
 	res.MissingIndex, res.WithBackup, res.AudioDelayed = 0, 0, 0
 	res.Truncated, res.Damaged, res.WrongContainer = 0, 0, 0
 	res.TrailingJunk, res.AudioShort, res.SeekCoarse = 0, 0, 0
-	res.BrokenInterleave = 0
+	res.BrokenInterleave, res.AudioPictureOff = 0, 0
 	res.Repairable, res.Informational, res.Acked = 0, 0, 0
 	for _, it := range res.Items {
 		addToRollups(res, it)

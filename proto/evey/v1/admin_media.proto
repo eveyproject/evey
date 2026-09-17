@@ -487,6 +487,14 @@ message SeekIndexItem {
   // timestamp between two sampled positions. No sequential player gets past
   // the first block; only a re-mux by timestamp fixes it. Informational.
   double interleave_backstep_sec = 23;
+  // audio_picture_lag_sec is the measured offset of the worst audio track
+  // against the PICTURE, read off the file's own subtitles (positive = the
+  // sound must move later); audio_picture_track is that track's ordinal and
+  // audio_picture_checked says the measure ran and concluded. Informational:
+  // the operator applies the value with the preview.
+  double audio_picture_lag_sec = 24;
+  int32 audio_picture_track = 25;
+  bool audio_picture_checked = 26;
 }
 
 message ScanSeekIndexRequest {
@@ -541,6 +549,8 @@ message ScanSeekIndexResponse {
   // reinterleave_available: the server can re-mux a file stored in blocks
   // (part of Repair all when true).
   bool reinterleave_available = 21;
+  // Count whose sound is measured off the picture (see audio_picture_lag_sec).
+  int32 audio_picture_off = 22;
 }
 
 // SeekIndexVolume aggregates the repair candidates of one filesystem.

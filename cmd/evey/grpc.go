@@ -123,6 +123,11 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// The re-mux itself: three demuxers of the file and a muxer that waits
 		// for no block, proven packet for packet before the swap.
 		WithReinterleaver(ffmpeg.NewReinterleaver("ffmpeg", "ffprobe")).
+		// Sound vs PICTURE, off the file's own subtitles: the only measure that
+		// sees every track pulled early together (2026-07-12). Gated on
+		// ffmpeg-written or retimed files by the muxer probe.
+		WithMuxerProber(mkvgo.New()).
+		WithAudioPictureProber(ffmpeg.NewSubtitleSync("ffmpeg", "ffprobe", "")).
 		// Audio tail-gap probe: does the audio content reach the declared
 		// duration? Catches the truncated-audio-track mux (structurally
 		// healthy file, dead audio over the credits) ops.Diagnose cannot

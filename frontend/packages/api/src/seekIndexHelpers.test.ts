@@ -104,6 +104,8 @@ describe("verdictOf", () => {
     expect(verdictOf({ hasIndex: true, trailingJunk: true })).toBe("informational");
     expect(verdictOf({ hasIndex: true, trailingJunk: true, audioDelaySec: 0.5 })).toBe("informational");
     expect(verdictOf({ hasIndex: true, interleaveBackstepSec: 366 })).toBe("repairable");
+    expect(verdictOf({ hasIndex: true, audioPictureChecked: true, audioPictureLagSec: 0.9 })).toBe("informational");
+    expect(verdictOf({ hasIndex: true, audioPictureChecked: true, audioPictureLagSec: -0.04 })).toBe("healthy");
   });
 
   it("only lets what nobody can repair be acknowledged", () => {

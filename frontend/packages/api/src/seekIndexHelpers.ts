@@ -66,6 +66,16 @@ export const AUDIO_SHORTFALL_FLOOR_SEC = 10;
 // minutes - no sequential player gets past the first one.
 export const INTERLEAVE_BACKSTEP_FLOOR_SEC = 10;
 
+// Mirror of maintenance.AudioPictureLagFlagSec: how far the sound may sit from
+// the picture (measured on the file's own subtitles) before it is worth a look.
+export const AUDIO_PICTURE_LAG_FLOOR_SEC = 0.25;
+
+// audioPictureOff: the measure ran and the sound is off the picture. Positive
+// lag = the audio must move later - the value to feed the preview's shift.
+export function audioPictureOff(it: Pick<V1SeekIndexItem, "audioPictureLagSec" | "audioPictureChecked">): boolean {
+  return !!it.audioPictureChecked && Math.abs(Number(it.audioPictureLagSec ?? 0)) > AUDIO_PICTURE_LAG_FLOOR_SEC;
+}
+
 export function brokenInterleave(it: Pick<V1SeekIndexItem, "interleaveBackstepSec">): boolean {
   return Number(it.interleaveBackstepSec ?? 0) > INTERLEAVE_BACKSTEP_FLOOR_SEC;
 }
@@ -94,6 +104,8 @@ export type SeekVerdictInput = Pick<
   | "audioTracksChecked"
   | "audioTrackZeroed"
   | "interleaveBackstepSec"
+  | "audioPictureLagSec"
+  | "audioPictureChecked"
 >;
 
 // verdictOf trusts the server's verdict and, for a server that predates it,
@@ -127,6 +139,7 @@ export function verdictOf(it: SeekVerdictInput): SeekVerdict {
     audioTracksDisagree(it) ||
     audioDelayed(it) ||
     audioTrackZeroed(it) ||
+    audioPictureOff(it) ||
     (it.audioShortfallSec ?? 0) > AUDIO_SHORTFALL_FLOOR_SEC ||
     it.trailingJunk
   ) {

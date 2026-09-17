@@ -68,6 +68,7 @@ export function StatsGrid({ result, triage, breakdown, withBackup, ackGroup, lib
           part(breakdown.truncated, "admin.seekIndex.partTruncated", "seek-index-truncated-count"),
           part(breakdown.seekCoarse, "admin.seekIndex.partSeekCoarse", "seek-index-coarse-count"),
           part(breakdown.tracksDisagree, "admin.seekIndex.partTracksDisagree", "seek-index-tracks-disagree-count"),
+          part(breakdown.audioPictureOff, "admin.seekIndex.partAudioPictureOff", "seek-index-audio-picture-off-count"),
           part(breakdown.delayedAudio, "admin.seekIndex.partAudioDelay", "seek-index-audio-delay-count"),
           part(breakdown.audioShort, "admin.seekIndex.partAudioShort", "seek-index-audio-short-count"),
           part(breakdown.trailingJunk, "admin.seekIndex.partTrailingJunk", "seek-index-trailing-junk-count"),
