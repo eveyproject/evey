@@ -211,6 +211,20 @@ func routeGoldenScenarios() []routeScenario {
 			}})
 		}
 	}
+	// The HDR passthrough spilled to the CPU: the fingerprint tone-maps (no
+	// GPU keeps the range), a corner the plain scenarios never reach.
+	for _, sc := range []string{"gpu-full", "title-blocked"} {
+		sc := sc
+		out = append(out, routeScenario{"nvenc-pass | 2160p-hevc-hdr10-70m | hdr-tv-20m | " + sc, func() (*PlanResolver, PlaybackRequest) {
+			pr, limiter := routeGoldenResolver(&pass, true)
+			if sc == "gpu-full" {
+				limiter.SetBudget(PoolGPU, 0.0001)
+			} else {
+				pr.HWRouteBlocked = func(mediaID string) bool { return mediaID == "m1" }
+			}
+			return pr, routeGoldenRequest(srcs["2160p-hevc-hdr10-70m"], client("hdr-tv-20m"))
+		}})
+	}
 	// Both pools full: refused - the plan still resolves (natural route), admission says no.
 	out = append(out, routeScenario{"vaapi-full | 1080p-h264-8m | web-hevc-4m | all-full", func() (*PlanResolver, PlaybackRequest) {
 		pr, limiter := routeGoldenResolver(&vaapi, true)
