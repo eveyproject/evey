@@ -127,6 +127,17 @@ export function SeekIndexTable({
                       {t("admin.seekIndex.ackedBadge")}
                     </Badge>
                   )}
+                  {/* Nothing here could read the file: the error itself is the
+                      finding, in the prober's words on hover. */}
+                  {it.unreadable && (
+                    <span
+                      title={t("admin.seekIndex.unreadableHint", { detail: it.unreadableDetail || "" })}
+                      className="ml-1.5 inline-block"
+                      data-testid="seek-index-unreadable-hint"
+                    >
+                      <Badge variant="error">{t("admin.seekIndex.unreadableBadge")}</Badge>
+                    </span>
+                  )}
                   {!it.hasIndex && !it.seekCoarse && !it.truncated && !it.wrongContainer && (
                     <Badge variant="warning" className="ml-1.5">{t("admin.seekIndex.statusMissing")}</Badge>
                   )}

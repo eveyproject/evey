@@ -1370,6 +1370,8 @@ seekIndex:
   wrongContainerHint: "This .mkv is really an MP4/MOV file: there is no Matroska index to build. Repair renames it to .mp4 and updates the library."
   brokenInterleaveBadge: "Tracks stored in blocks"
   brokenInterleaveHint: "The tracks are stored in separate blocks of minutes (video alone, then audio alone) instead of side by side - a timestamp steps back {{sec}}s between two points of the file. Every header is fine and every stream decodes, but no sequential player gets past the first block: mobile direct play stalls, the HLS packager waits minutes for its first audio segment. The Re-mux button rewrites it losslessly (the original is kept as backup); a plain stream copy elsewhere reproduces the layout."
+  unreadableBadge: Unreadable
+  unreadableHint: "The scan could not diagnose this file: missing or unreadable on disk, or a container the parser refused. Nothing can be repaired from here - check the mount or re-acquire the source. Detail: {{detail}}"
   trailingJunkBadge: "Trailing bytes"
   trailingJunkHint: "Surplus bytes lie after the declared end of the Segment - the media is complete and plays fine. Nothing to do: a rewrite for another repair drops them in passing."
   statsAudioShort: "Audio ends early"
@@ -1432,6 +1434,7 @@ seekIndex:
   partAudioShort_other: "{{count}} shorter audio tracks"
   partTrailingJunk: "{{count}} with surplus bytes"
   partBrokenInterleave: "{{count}} stored in blocks"
+  partUnreadable: "{{count}} unreadable"
   breakdownNone: "nothing"
   verdictHealthy: "Healthy"
   verdictRepairable: "Repairable"

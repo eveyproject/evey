@@ -85,6 +85,8 @@ describe("verdictOf", () => {
   it("derives the Go precedence from the flags for an older server", () => {
     expect(verdictOf({ hasIndex: true })).toBe("healthy");
     expect(verdictOf({ hasIndex: false })).toBe("repairable");
+    // A file nothing could read is a remark before anything else.
+    expect(verdictOf({ hasIndex: true, unreadable: true })).toBe("informational");
     expect(verdictOf({ hasIndex: true, damagedBytes: "512" })).toBe("repairable");
     // An offset alone is a fact about the file, never a repair: rewriting one
     // erased a deliberate 12s dub alignment in prod (a prod title).

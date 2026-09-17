@@ -314,6 +314,7 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 	out.SeekCoarse = int32(res.SeekCoarse)
 	out.BrokenInterleave = int32(res.BrokenInterleave)
 	out.AudioPictureOff = int32(res.AudioPictureOff)
+	out.Unreadable = int32(res.Unreadable)
 	out.Repairable = int32(res.Repairable)
 	out.Informational = int32(res.Informational)
 	out.Acked = int32(res.Acked)
@@ -350,6 +351,8 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 			AudioPictureLagSec:    it.AudioPictureLagSec,
 			AudioPictureTrack:     int32(it.AudioPictureTrack), //nolint:gosec // audio ordinal
 			AudioPictureChecked:   it.AudioPictureChecked,
+			Unreadable:            it.Unreadable,
+			UnreadableDetail:      it.UnreadableDetail,
 		})
 	}
 	// Live per-volume numbers (free space vs candidate sizes) so the client

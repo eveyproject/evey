@@ -224,8 +224,15 @@ func TestScanSeekIndex_ServesCachedResult(t *testing.T) {
 	if res.ScannedAtMs == 0 {
 		t.Error("scanned_at_ms must be set after a completed scan")
 	}
-	// The fake catalog's only file doesn't exist on disk → walked but skipped.
-	if res.Total != 0 {
-		t.Errorf("ghost file must not be counted, got total=%d", res.Total)
+	// The fake catalog's only file doesn't exist on disk: it is a row of its
+	// own (unreadable, with the error), never a silent skip and never a repair.
+	if res.Total != 1 || res.Unreadable != 1 || len(res.Items) != 1 {
+		t.Fatalf("ghost file must be reported as unreadable, got total=%d unreadable=%d items=%d", res.Total, res.Unreadable, len(res.Items))
+	}
+	if it := res.Items[0]; !it.Unreadable || it.UnreadableDetail == "" || it.Verdict != "informational" || !it.HasIndex {
+		t.Errorf("ghost row = %+v; want unreadable, with detail, informational, kept out of the repair queue", it)
+	}
+	if res.Repairable != 0 {
+		t.Errorf("an unreadable file is not repairable, got %d", res.Repairable)
 	}
 }

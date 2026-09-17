@@ -2,6 +2,7 @@ package maintenance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -139,7 +140,7 @@ func (s *SeekIndexService) probeGently(ctx context.Context, candidates []MediaRe
 		s.setCurrent(f.Path)
 		start := s.now()
 		st, reused, ok := s.probeGuarded(ctx, f, prev)
-		s.recordDone(false)
+		s.recordProbe(f.Path, st, ok)
 		out[i] = probeOutcome{st: st, reused: reused, ok: ok}
 		if reused {
 			continue
@@ -171,7 +172,7 @@ func (s *SeekIndexService) probeInParallel(ctx context.Context, candidates []Med
 				f := candidates[i]
 				s.setCurrent(f.Path)
 				st, reused, ok := s.probeGuarded(ctx, f, prev)
-				s.recordDone(false)
+				s.recordProbe(f.Path, st, ok)
 				// Disjoint indices, so no lock: the slots are read only after
 				// wg.Wait, which is the happens-before edge.
 				out[i] = probeOutcome{st: st, reused: reused, ok: ok}
@@ -193,18 +194,48 @@ feeding:
 	wg.Wait()
 }
 
-// probeGuarded turns a panic in a prober into one skipped file. The job
+// probeGuarded turns a panic in a prober into one UNREADABLE file. The job
 // goroutine has recoverJob; a worker goroutine has nothing, and a panic
 // escaping there takes the whole server down instead of the scan.
 func (s *SeekIndexService) probeGuarded(ctx context.Context, f MediaRef, prev map[string]SeekStatus) (st SeekStatus, reused, ok bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			s.logger.Error("seek-index scan: probe panicked, skipping file",
+			s.logger.Error("seek-index scan: probe panicked",
 				slog.String("path", f.Path), slog.Any("panic", r))
-			st, reused, ok = SeekStatus{}, false, false
+			st, reused, ok = unreadableStatus(f, fmt.Sprintf("probe panicked: %v", r)), false, true
 		}
 	}()
 	return s.probeFile(ctx, f, prev)
+}
+
+// recordProbe counts one probed candidate in the job: a file the scan could
+// not read is a FAILURE of the scan, listed in the summary with its error -
+// the log used to be the only place it existed. A probe cut short by the
+// job's cancellation (ok=false) is neither done nor failed.
+func (s *SeekIndexService) recordProbe(path string, st SeekStatus, ok bool) {
+	if !ok {
+		return
+	}
+	if st.Unreadable {
+		s.recordFailure(path, errors.New(st.UnreadableDetail))
+		return
+	}
+	s.recordDone(false)
+}
+
+// unreadableStatus is the row the scan keeps for a file it could not
+// diagnose. HasIndex is true on purpose: nothing may try to repair it.
+func unreadableStatus(f MediaRef, detail string) SeekStatus {
+	return SeekStatus{
+		MediaID:          f.MediaID,
+		Title:            f.Title,
+		Path:             f.Path,
+		Container:        containerOf(f.Path),
+		HasIndex:         true,
+		Unreadable:       true,
+		UnreadableDetail: detail,
+		DiagVersion:      SeekDiagVersion,
+	}
 }
 
 // carryAcksLocked copies the acknowledgement stamp of every cached status
@@ -269,18 +300,18 @@ func (s *SeekIndexService) previousStatuses() map[string]SeekStatus {
 func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[string]SeekStatus) (st SeekStatus, reused, ok bool) {
 	fi, statErr := os.Stat(f.Path)
 	if statErr != nil {
-		// File recorded in the DB but missing/unreadable on disk - skip it
-		// rather than reporting a misleading "no index".
-		s.logger.Warn("seek-index scan: file unreadable, skipping",
+		// File recorded in the DB but missing/unreadable on disk: kept as its
+		// own row (Unreadable), never as a misleading "no index".
+		s.logger.Warn("seek-index scan: file unreadable",
 			slog.String("path", f.Path), slog.Any("err", statErr))
-		return SeekStatus{}, false, false
+		return unreadableStatus(f, statErr.Error()), false, true
 	}
 
 	// Incremental reuse: (size, mtime) unchanged since the last completed scan
 	// → the file's bytes are the same, so its diagnosis is too. Only the
 	// backup flag is live state (a rollback/purge changes it without touching
 	// the media), so it is re-stat'ed below either way.
-	if p, hit := prev[f.Path]; hit && p.ModTimeUnix != 0 && p.DiagVersion == SeekDiagVersion &&
+	if p, hit := prev[f.Path]; hit && !p.Unreadable && p.ModTimeUnix != 0 && p.DiagVersion == SeekDiagVersion &&
 		p.SizeBytes == fi.Size() && p.ModTimeUnix == fi.ModTime().Unix() {
 		st = p
 		// Identity may have moved (rename in the DB) even when the file did not.
@@ -296,8 +327,15 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[s
 			ModTimeUnix: fi.ModTime().Unix(),
 			DiagVersion: SeekDiagVersion,
 		}
-		if !s.diagnose(ctx, f.Path, &st) {
-			return SeekStatus{}, false, false
+		if derr := s.diagnose(ctx, f.Path, &st); derr != nil {
+			// The job was stopped while this file was open: that is flow
+			// control, not a verdict on the media. The slot stays empty.
+			if ctx.Err() != nil || errors.Is(derr, context.Canceled) || errors.Is(derr, context.DeadlineExceeded) {
+				return SeekStatus{}, false, false
+			}
+			u := unreadableStatus(f, derr.Error())
+			u.SizeBytes, u.ModTimeUnix = st.SizeBytes, st.ModTimeUnix
+			return u, false, true
 		}
 		s.probeInterleave(ctx, f.Path, &st)
 		s.proveAudioCoherence(ctx, f.Path, &st)
@@ -318,15 +356,15 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[s
 // diagnose fills the defect fields of st (HasIndex, AudioDelaySec, Truncated,
 // DamagedBytes). With a Diagnoser wired one head-mostly Diagnose subsumes the
 // HasSeekIndex + audio-delay probes and adds the truncated/damaged split;
-// without one it falls back to the separate probes. Returns false only when
-// the file cannot be parsed at all (skip it from the scan).
-func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekStatus) bool {
+// without one it falls back to the separate probes. Returns the error only
+// when the file cannot be parsed at all (the scan keeps it as Unreadable).
+func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekStatus) error {
 	if s.diagnoser != nil {
 		d, err := s.diagnoser.Diagnose(ctx, path)
 		if err != nil {
-			s.logger.Warn("seek-index scan: diagnose failed, skipping",
+			s.logger.Warn("seek-index scan: diagnose failed",
 				slog.String("path", path), slog.Any("err", err))
-			return false
+			return err
 		}
 		st.WrongContainer = d.WrongContainer()
 		// A mislabelled MP4 has no Matroska seek index to build and a reindex
@@ -359,14 +397,14 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 				st.AudioShortfallSec = gap
 			}
 		}
-		return true
+		return nil
 	}
 
 	hasIdx, err := s.reindexer.HasSeekIndex(ctx, path)
 	if err != nil {
-		s.logger.Warn("seek-index scan: parse failed, skipping",
+		s.logger.Warn("seek-index scan: parse failed",
 			slog.String("path", path), slog.Any("err", err))
-		return false
+		return err
 	}
 	st.HasIndex = hasIdx
 	if s.audioDelay != nil {
@@ -380,7 +418,7 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 			st.AudioDelaySec = d
 		}
 	}
-	return true
+	return nil
 }
 
 // probeInterleave fills InterleaveBackstepSec. Secondary diagnostics: a probe
@@ -493,6 +531,9 @@ func addToRollups(res *ScanResult, st SeekStatus) {
 	if st.AudioPictureOff() {
 		res.AudioPictureOff++
 	}
+	if st.Unreadable {
+		res.Unreadable++
+	}
 	switch v := st.Verdict(); {
 	case v == VerdictRepairable:
 		res.Repairable++
@@ -508,7 +549,7 @@ func recomputeRollups(res *ScanResult) {
 	res.MissingIndex, res.WithBackup, res.AudioDelayed = 0, 0, 0
 	res.Truncated, res.Damaged, res.WrongContainer = 0, 0, 0
 	res.TrailingJunk, res.AudioShort, res.SeekCoarse = 0, 0, 0
-	res.BrokenInterleave, res.AudioPictureOff = 0, 0
+	res.BrokenInterleave, res.AudioPictureOff, res.Unreadable = 0, 0, 0
 	res.Repairable, res.Informational, res.Acked = 0, 0, 0
 	for _, it := range res.Items {
 		addToRollups(res, it)
@@ -553,7 +594,7 @@ func (s *SeekIndexService) updateCachedFile(path string, mut func(*SeekStatus)) 
 // keeps the historic optimistic answer rather than inventing a defect.
 func (s *SeekIndexService) noteReindexed(ctx context.Context, path string, hasBak bool) {
 	var fresh SeekStatus
-	ok := s.diagnoser != nil && s.diagnose(ctx, path, &fresh)
+	ok := s.diagnoser != nil && s.diagnose(ctx, path, &fresh) == nil
 	var size, mtime int64
 	if fi, err := os.Stat(path); err == nil {
 		size, mtime = fi.Size(), fi.ModTime().Unix()

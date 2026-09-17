@@ -246,6 +246,7 @@ export default function AdminSeekIndexScreen() {
     [items.filter((it) => verdictOf(it) === "informational" && (it.audioShortfallSec ?? 0) > 0 && !it.ackedAtMs).length, "admin.seekIndex.partAudioShort"],
     [items.filter((it) => verdictOf(it) === "informational" && it.trailingJunk && !it.ackedAtMs).length, "admin.seekIndex.partTrailingJunk"],
     [items.filter((it) => brokenInterleave(it) && !it.ackedAtMs).length, "admin.seekIndex.partBrokenInterleave"],
+    [items.filter((it) => it.unreadable && !it.ackedAtMs).length, "admin.seekIndex.partUnreadable"],
   ]);
   const repairVolumes = (result?.volumes ?? []).filter((v) => (v.missingFiles ?? 0) > 0);
   const backupsRisky = repairVolumes.some(volumeBackupsRisky);

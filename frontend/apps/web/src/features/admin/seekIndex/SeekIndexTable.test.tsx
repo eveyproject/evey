@@ -41,9 +41,10 @@ describe("SeekIndexTable", () => {
       { mediaId: "info", path: "/m/d.mkv", title: "D", container: "mkv", verdict: "informational", hasIndex: true, hasBackup: true, audioDelaySec: 0.5 },
       { mediaId: "acked", path: "/m/e.mkv", title: "E", container: "mkv", verdict: "informational", hasIndex: true, ackedAtMs: "1758000000000" },
       { mediaId: "chunked", path: "/m/f.mkv", title: "F", container: "mkv", verdict: "repairable", hasIndex: true, interleaveBackstepSec: 366 },
+      { mediaId: "ghost", path: "/m/g.mkv", title: "G", container: "mkv", verdict: "informational", hasIndex: true, unreadable: true, unreadableDetail: "stat: no such file" },
     ];
     const p = mount(rows);
-    const byId = Object.fromEntries(screen.getAllByTestId("seek-index-row").map((r) => [within(r).getByText(/^[A-F]$/).textContent, r]));
+    const byId = Object.fromEntries(screen.getAllByTestId("seek-index-row").map((r) => [within(r).getByText(/^[A-G]$/).textContent, r]));
 
     within(byId.A).getByTestId("seek-index-repair-btn").click();
     expect(p.repairOne.mutate).toHaveBeenCalledWith({ mediaId: "missing", data: { mode: "auto" } });
@@ -76,6 +77,15 @@ describe("SeekIndexTable", () => {
     expect(within(byId.E).getByTestId("seek-index-acked-badge")).toBeInTheDocument();
     within(byId.E).getByTestId("seek-index-unack-btn").click();
     expect(p.ackOne.mutate).toHaveBeenCalledWith({ data: { mediaId: "acked", acked: false } });
+
+    // A file the scan could not read: its own badge with the error on hover,
+    // no repair button (nothing here can fix it), acknowledgeable like any
+    // remark - and never the "index missing" badge, whatever has_index says.
+    expect(within(byId.G).getByTestId("seek-index-unreadable-hint")).toHaveAttribute("title", "admin.seekIndex.unreadableHint");
+    expect(within(byId.G).getByText("admin.seekIndex.unreadableBadge")).toBeInTheDocument();
+    expect(within(byId.G).queryByTestId("seek-index-repair-btn")).toBeNull();
+    expect(within(byId.G).queryByText("admin.seekIndex.statusMissing")).toBeNull();
+    expect(within(byId.G).getByTestId("seek-index-ack-btn")).toBeInTheDocument();
   });
 
   it("busy freezes the repairs but not the acknowledgment; one journal and one preview at a time", () => {
