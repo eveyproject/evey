@@ -137,15 +137,39 @@ own: an HDR passthrough spilled to the CPU (pool full, blocked title) is now
 shaped as the tone-map it runs - the HDR floor - where it was shaped as a
 plain SDR ladder while billed and fingerprinted as software HDR.
 
-Still to do, each gated on something outside the code: the builder's
-fallback becomes a refusal once the shadow counter has read zero in
-production long enough (6); the legacy wrappers (`EffectiveVideoCodec`,
-`HWRouteUsable`, `LadderClassFor`, `ProducerFor`, `Fingerprint`,
-`ShapeLadder` on their own) and the adapter's aliases go once their tests are
-rewritten against `Resolve`, which is when invariant 1 becomes a contract
-guard; a demotion that targets the failed route's proof rather than the
-codec needs a per-topology probe in the calibration runner (7); reading the
-policy atomically per request needs the same wrapper removal (8).
+Also landed: the admission pin key derives from the resolved route (its
+codec and its title block, read before the pool spill - the spill is the pin's
+answer, never its input), and the hardware policy is read once per `Resolve`
+(`PlaybackRequest.Policy`, threaded through the route derivation like the
+source snapshot; only the legacy wrappers still read the toggles themselves).
+
+Still to do, each gated on something outside the code, in this order:
+
+1. **Expressibility out of shadow** - once
+   `evey_hlsvod_route_not_expressible_total` has read zero in production long
+   enough: `pickBackend` consults `RouteExpressibility` to exclude a backend
+   from the field (the resolver's mirrors `burnInStaysSoftware` and the
+   decoupled gates of `backendServes` go), and `BuildFFmpegArgs` returns
+   `ErrRouteNotExpressible` instead of falling back. Nothing else changes.
+2. **Demotion by exact route** - when the calibration runner can probe one
+   topology on one backend (today it probes an encode of a codec):
+   `DemoteRoute` re-proves the failed `HWFailureReport.Route` and, on a
+   confirmed failure, removes THAT proof (`HWRoute*`) from the backend rather
+   than the codec. The report already carries the route.
+3. **Legacy wrappers** - `EffectiveVideoCodec`, `ResolveHW`, `HWRouteUsable`,
+   `LadderClassFor`, `ProducerFor`, `Fingerprint` and `ShapeLadder` called
+   on their own, and the adapter's aliases, go once their tests are rewritten
+   against `Resolve`; invariant 1 then becomes a contract guard.
+4. **Direct / mkvgo / copy vs transcode** - the zero-process paths (mkvgo
+   on-demand `od_`/`cc_`, the plan master) are dispatched before this
+   resolver runs and the copy rung is a `Packager`, not a route; a single
+   picture of "which engine serves which request" is a separate clarification,
+   deliberately kept out of this ADR.
+
+Not added, on purpose: a `Pricer` interface (`chargesFor` is already the one
+pricing function), a struct split of `DecisionFingerprint` (the classification
+guard removes the double source of truth the split was for), a route frozen
+on the pin (a behaviour change to decide on its own).
 
 ## Consequences
 
