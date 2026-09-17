@@ -2,7 +2,7 @@ import { View, Text, Pressable, ActivityIndicator, Alert, StyleSheet } from "rea
 import { useTranslation } from "react-i18next";
 import type { V1SeekIndexItem } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
-import { audioDelayed, audioTracksDisagree, audioTrackZeroed, brokenInterleave, formatBytes, isAckable, isAcked, needsResync, verdictOf } from "@evey/api";
+import { audioDelayed, audioPictureOff, audioTracksDisagree, audioTrackZeroed, brokenInterleave, formatBytes, isAckable, isAcked, needsResync, verdictOf } from "@evey/api";
 
 type Theme = ReturnType<typeof useTheme>;
 
@@ -174,6 +174,13 @@ export function SeekIndexItemRow({
               color={theme.colors.info}
             />
           )
+        )}
+        {audioPictureOff(item) && (
+          <HintBadge
+            label={t("admin.seekIndex.audioPictureOffBadge", { sec: Number(item.audioPictureLagSec ?? 0).toFixed(2) })}
+            hint={t("admin.seekIndex.audioPictureOffHint", { sec: Number(item.audioPictureLagSec ?? 0).toFixed(2), track: (item.audioPictureTrack ?? 0) + 1 })}
+            color={theme.colors.warning}
+          />
         )}
         {audioTrackZeroed(item) && (
           <HintBadge

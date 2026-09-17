@@ -7,7 +7,7 @@ import { RepairHistoryPanel } from "./RepairHistoryPanel";
 import { SyncPreviewPanel } from "./SyncPreviewPanel";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
-import { audioDelayed, audioTrackZeroed, baseName, brokenInterleave, formatBytes, isAckable, isAcked, needsResync, verdictOf, audioTracksDisagree } from "@evey/api";
+import { audioDelayed, audioPictureOff, audioTrackZeroed, baseName, brokenInterleave, formatBytes, isAckable, isAcked, needsResync, verdictOf, audioTracksDisagree } from "@evey/api";
 import { SEEK_INDEX_PAGE_SIZE, type SeekIndexPageState } from "./hooks";
 
 type SeekIndexTableProps = Pick<
@@ -181,6 +181,23 @@ export function SeekIndexTable({
                   {/* The mark an earlier repair left: one track pulled to 0
                       while its sibling kept its priming. Names the file; the
                       amount removed is not in it any more. */}
+                  {/* The sound measured against the PICTURE (its subtitles),
+                      not against a sibling track: the one measure that sees
+                      every track pulled early together. */}
+                  {audioPictureOff(it) && (
+                    <span
+                      title={t("admin.seekIndex.audioPictureOffHint", {
+                        sec: Number(it.audioPictureLagSec ?? 0).toFixed(2),
+                        track: (it.audioPictureTrack ?? 0) + 1,
+                      })}
+                      className="ml-1.5 inline-block"
+                      data-testid="seek-index-audio-picture-hint"
+                    >
+                      <Badge variant="warning">
+                        {t("admin.seekIndex.audioPictureOffBadge", { sec: Number(it.audioPictureLagSec ?? 0).toFixed(2) })}
+                      </Badge>
+                    </span>
+                  )}
                   {audioTrackZeroed(it) && (
                     <span
                       title={t("admin.seekIndex.audioTrackZeroedHint")}

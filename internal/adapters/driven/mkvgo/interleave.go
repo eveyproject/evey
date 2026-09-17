@@ -104,3 +104,16 @@ func maxBackstepMs(stamps []int64) int64 {
 	}
 	return worst
 }
+
+// ProbeMuxingApp implements maintenance.MuxerProber: the Segment Info's
+// MuxingApp (head-only), "" for a non-EBML container.
+func (a *Adapter) ProbeMuxingApp(ctx context.Context, path string) (string, error) {
+	if !IsEBMLContainer(path) {
+		return "", nil
+	}
+	c, err := reader.OpenMeta(ctx, path)
+	if err != nil {
+		return "", fmt.Errorf("muxer probe: %w", err)
+	}
+	return c.Info.MuxingApp, nil
+}

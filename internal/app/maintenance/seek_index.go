@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -150,6 +151,34 @@ type InterleaveProber interface {
 type InterleaveRecorder interface {
 	SetInterleaveBackstep(ctx context.Context, path string, backstepMs int64) error
 }
+
+// AudioPictureLag is one audio track's offset against the PICTURE, read off
+// the file's own text subtitles: positive = the audio must move later.
+type AudioPictureLag struct {
+	Track      int // audio ordinal (ffmpeg 0:a:N)
+	LagSec     float64
+	Confidence float64 // weakest correlation among the agreeing windows, 0..1
+	Windows    int     // windows that agreed on the lag
+}
+
+// AudioPictureProber measures each audio track against the file's subtitles
+// (timed to the picture, never touched by an audio repair). It is the only
+// measure that sees ALL tracks pulled early together - the tracks still agree
+// with each other and the container declares nothing. nil = no text subtitle
+// to anchor on. Satisfied by the ffmpeg adapter; optional.
+type AudioPictureProber interface {
+	ProbeAudioPictureLag(ctx context.Context, path string) ([]AudioPictureLag, error)
+}
+
+// MuxerProber reads which application wrote the container (head-only).
+// Satisfied by the mkvgo adapter; optional.
+type MuxerProber interface {
+	ProbeMuxingApp(ctx context.Context, path string) (string, error)
+}
+
+// AudioPictureLagFlagSec is how far the sound may sit from the picture before
+// it is reported; the 20 files of 2026-07-12 read 0.9 s and more.
+const AudioPictureLagFlagSec = 0.25
 
 // AudioCoherenceProber answers the only question that turns a declared audio
 // offset into a defect: do this file's OWN audio tracks tell the same story at
@@ -301,6 +330,19 @@ type SeekStatus struct {
 	// track comparison could establish on 4 of the 81 victims. It does not say
 	// by how much: that value is gone from the file.
 	AudioTrackZeroed bool `json:"AudioTrackZeroed,omitempty"`
+	// MuxedByFFmpeg → the container was written by libavformat. The one
+	// muxer through which an audio offset gets baked into the samples (an
+	// -itsoffset remux), so it is what gates the picture measurement.
+	MuxedByFFmpeg bool `json:"MuxedByFFmpeg,omitempty"`
+	// AudioPictureLagSec is the measured offset of the worst audio track
+	// against the picture (its subtitles): positive = the sound must move
+	// later. Reported above AudioPictureLagFlagSec; the operator applies it
+	// with the preview. AudioPictureTrack names the track (audio ordinal).
+	AudioPictureLagSec     float64 `json:"AudioPictureLagSec,omitempty"`
+	AudioPictureTrack      int     `json:"AudioPictureTrack,omitempty"`
+	AudioPictureConfidence float64 `json:"AudioPictureConfidence,omitempty"`
+	// AudioPictureChecked records the measurement ran and concluded.
+	AudioPictureChecked bool `json:"AudioPictureChecked,omitempty"`
 	// Truncated → the file is an incomplete download whose damage runs to the
 	// end: no tool can recover the missing tail, a resync would only produce a
 	// playable prefix. The operator must re-acquire the source. Only a
@@ -416,7 +458,10 @@ type SeekStatus struct {
 //	6: the interleave probe (InterleaveBackstepSec): a film re-muxed by the
 //	   two-input ffmpeg audio repair of 2026-07-12 sat "healthy" for two months
 //	   while no client could play it past its first block of video
-const SeekDiagVersion = 6
+//	7: the sound-vs-picture measure (AudioPictureLagSec) on ffmpeg-written and
+//	   retimed files: the same 2026-07-12 remux had also pulled every audio
+//	   track 0.9 s early, which no track-vs-track comparison can see
+const SeekDiagVersion = 7
 
 // Verdict is what the health page owes the operator for every file: not a
 // pile of flags, but the ONE answer "does this need doing, or is it just
@@ -475,6 +520,7 @@ func (st SeekStatus) Verdict() Verdict {
 	case st.AudioTracksLagSec > AudioTrackLagFlagSec,
 		st.AudioDelaySec > AudioDelayFlagSec,
 		st.AudioTrackZeroed,
+		st.AudioPictureOff(),
 		st.AudioShortfallSec > AudioShortfallFlagSec,
 		st.TrailingJunk:
 		return VerdictInformational
@@ -498,6 +544,11 @@ func (st SeekStatus) Ackable() bool { return st.Verdict() == VerdictInformationa
 // re-encode or a better source, neither of which evey performs.
 func (st SeekStatus) SeekCoarse() bool { return st.IndexSparse && st.ReindexAttempted }
 
+// AudioPictureOff reports a measured sound-vs-picture offset worth a look.
+func (st SeekStatus) AudioPictureOff() bool {
+	return st.AudioPictureChecked && math.Abs(st.AudioPictureLagSec) > AudioPictureLagFlagSec
+}
+
 // BrokenInterleave reports a file whose tracks are stored in separate blocks
 // of minutes (see InterleaveBackstepSec).
 func (st SeekStatus) BrokenInterleave() bool {
@@ -518,6 +569,7 @@ type ScanResult struct {
 	AudioShort       int // count whose audio ends before the declared duration (re-acquire; playback fills silence)
 	SeekCoarse       int // count rebuilt and still too coarse to seek into (re-encode; no repair can improve them)
 	BrokenInterleave int // count stored as blocks of one track at a time (re-mux by timestamp; unplayable sequentially)
+	AudioPictureOff  int // count whose sound is measured off the picture (operator applies the shift with the preview)
 
 	// The triage the page is built on (see Verdict). Repairable is exactly
 	// what "Repair all" will act on. Informational counts only the remarks
@@ -577,6 +629,8 @@ type SeekIndexService struct {
 	audioDelay    AudioDelayProber     // optional; see WithAudioDelayProber
 	interleave    InterleaveProber     // optional; see WithInterleaveProber
 	interleaveRec InterleaveRecorder   // optional; see WithInterleaveRecorder
+	audioPicture  AudioPictureProber   // optional; see WithAudioPictureProber
+	muxer         MuxerProber          // optional; see WithMuxerProber
 	audioCoh      AudioCoherenceProber // optional; see WithAudioCoherenceProber
 	audible       AudibleTracksProber  // optional; see WithAudibleTracksProber
 	journal       RepairJournal        // optional; see WithRepairJournal
@@ -703,6 +757,22 @@ func (s *SeekIndexService) WithInterleaveProber(p InterleaveProber) *SeekIndexSe
 // so a file it flags is refused for playback (and cleared after a re-mux).
 func (s *SeekIndexService) WithInterleaveRecorder(r InterleaveRecorder) *SeekIndexService {
 	s.interleaveRec = r
+	return s
+}
+
+// WithAudioPictureProber wires the sound-vs-picture measure. It decodes three
+// 8 min windows per audio track, so it only runs on files a muxer could have
+// shifted: written by ffmpeg (see WithMuxerProber) or carrying the retime
+// fingerprint. Optional and chainable.
+func (s *SeekIndexService) WithAudioPictureProber(p AudioPictureProber) *SeekIndexService {
+	s.audioPicture = p
+	return s
+}
+
+// WithMuxerProber wires the head-only read of the writing application that
+// gates the sound-vs-picture measure.
+func (s *SeekIndexService) WithMuxerProber(p MuxerProber) *SeekIndexService {
+	s.muxer = p
 	return s
 }
 
