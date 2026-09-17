@@ -3,6 +3,8 @@ package ffmpeg
 import (
 	"log/slog"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 )
@@ -46,20 +48,93 @@ func (Expressibility) Expressible(t transcoding.Topology, accel transcoding.HWAc
 	return nil
 }
 
-// noteRouteNotExpressible records the SHADOW of the builder's refusal: the
-// plan resolved a GPU route, hwUsable found no pipeline for it and the
-// builder is about to emit a software encode under a GPU-billed session. The
-// resolver consults Expressibility before resolving, so this is a
-// planner/builder disagreement - counted and logged, never silent. Once the
-// counter reads zero in production the fallback becomes a refusal (ADR-0030).
-func noteRouteNotExpressible(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) {
+// noteExpressibility records the builder's own verdict on a GPU plan (the
+// SHADOW of its refusal): the cell it checked and whether hwUsable found a
+// pipeline for it. A refusal means the builder is about to emit a software
+// encode under a GPU-billed session - a planner/builder disagreement, counted
+// and logged, never silent. Once every reachable cell is covered with zero
+// disagreements the fallback becomes a refusal (ADR-0030).
+func noteExpressibility(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string, ok bool) {
 	if opts.HWAccel == "" || opts.HWAccel == transcoding.None {
-		return // a software plan: nothing to disagree about
+		return // a software plan: nothing to check
+	}
+	cell := builderCell(opts, burnIn, toneMap)
+	recordExpressibility(transcoding.ExpressibilitySiteBuilder, cell, !ok)
+	if ok {
+		return
 	}
 	metrics.HLSVODRouteNotExpressible.Inc()
 	slog.Warn("hls: resolved GPU route not expressible by the builder - software fallback (planner/builder disagreement, ADR-0030)",
-		slog.String("accel", string(opts.HWAccel)), slog.String("device", opts.HWDevice),
-		slog.Bool("burn_in", burnIn), slog.Bool("hw_overlay", opts.HWOverlay),
-		slog.Bool("tone_map", toneMap != ""), slog.Bool("hw_tonemap", opts.HWTonemap),
-		slog.Bool("software_decode", opts.HWSoftwareDecode), slog.Any("features", opts.HWFeatures))
+		slog.String("accel", string(opts.HWAccel)), slog.String("device", opts.HWDevice), slog.String("topology", cell.Topology), slog.String("needs", cell.Needs),
+		slog.Bool("tone_map", toneMap != ""), slog.Bool("hw_tonemap", opts.HWTonemap), slog.Any("features", opts.HWFeatures))
 }
+
+// builderCell reads the cell off the process options exactly as hwUsable
+// reads them (the topology by the CostKey precedence, the needs by the
+// burn-in / overlay / deinterlace flags).
+func builderCell(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) transcoding.ExpressibilityCell {
+	t := transcoding.EncodeRoute{
+		HWUsable: true, SoftwareDecode: opts.HWSoftwareDecode,
+		Tonemap: toneMap != "", HWTonemap: opts.HWTonemap && toneMap != "", HDRPassthrough: opts.HDRPassthrough,
+	}.Topology()
+	return transcoding.ExpressibilityCell{
+		Backend:  string(opts.HWAccel),
+		Topology: t.Name(),
+		Needs:    transcoding.RouteNeedsLabel(burnIn, opts.HWOverlay, opts.HWDeinterlace),
+	}
+}
+
+// recordExpressibility feeds the coverage table and the per-cell counters for
+// one check at the builder site (the resolver records its own site in the app).
+func recordExpressibility(site transcoding.ExpressibilitySite, cell transcoding.ExpressibilityCell, disagreed bool) {
+	transcoding.ExpressibilityCoverageTable.Record(site, cell, disagreed)
+	labels := prometheus.Labels{"site": string(site), "backend": cell.Backend, "topology": cell.Topology, "needs": cell.Needs}
+	metrics.HLSVODRouteExpressibilityChecks.With(labels).Inc()
+	if disagreed {
+		metrics.HLSVODRouteExpressibilityDisagreements.With(labels).Inc()
+	}
+}
+
+// ExpectedCells enumerates the cells THIS host can really reach - never a
+// cartesian product, so no impossible cell can show up as missing:
+//   - for each certified backend, every hardware topology it proved through
+//     the builder (the same rule the calibration plan uses, backendServesShape),
+//     with plain needs;
+//   - burn-in on the GPU only where the host probed a compositor AND the
+//     backend has one wired, and only on the zero-copy shape (the one the
+//     resolver composites on);
+//   - the session-level deinterlacer only on a QSV that proved it, zero-copy.
+//
+// Anything the checkers meet outside this set is reported as an extra cell,
+// never required.
+func (Expressibility) ExpectedCells(cap transcoding.EncodeCapability) []transcoding.ExpressibilityCell {
+	var out []transcoding.ExpressibilityCell
+	for _, bc := range cap.BackendCaps() {
+		accel := transcoding.HWAccelType(bc.Backend)
+		for _, t := range transcoding.AllTopologies() {
+			if !t.HW() {
+				continue
+			}
+			codec := "h264"
+			if t.Output == transcoding.OutputHDRPassthrough {
+				codec = "hevc"
+			}
+			if !backendServesShape(bc, transcoding.RouteShape{Route: t.CostClass(), Codec: codec, HW: true}) {
+				continue
+			}
+			out = append(out, transcoding.ExpressibilityCell{Backend: bc.Backend, Topology: t.Name(), Needs: transcoding.NeedsPlain})
+		}
+		if !bc.Proves(transcoding.HWRouteSDR) {
+			continue
+		}
+		if bc.HWOverlay && hwOverlayFilter(accel) != "" {
+			out = append(out, transcoding.ExpressibilityCell{Backend: bc.Backend, Topology: transcoding.TopologyZeroCopy.Name(), Needs: transcoding.NeedsBurnInOverlay})
+		}
+		if bc.DeinterlacesOnGPU() && accel == transcoding.QSV {
+			out = append(out, transcoding.ExpressibilityCell{Backend: bc.Backend, Topology: transcoding.TopologyZeroCopy.Name(), Needs: transcoding.NeedsDeinterlace})
+		}
+	}
+	return out
+}
+
+var _ transcoding.ExpressibilityPlanner = Expressibility{}

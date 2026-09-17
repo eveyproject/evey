@@ -824,9 +824,10 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 	toneMap := resolveToneMap(opts, dstWidth)
 	if hwUsable(opts, burnIn, toneMap) {
+		noteExpressibility(opts, burnIn, toneMap, true)
 		return buildSingleTranscodeHWArgs(opts)
 	}
-	noteRouteNotExpressible(opts, burnIn, toneMap)
+	noteExpressibility(opts, burnIn, toneMap, false)
 
 	var args []string
 	if opts.StartSec > 0 {
@@ -903,9 +904,10 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 	toneMap := resolveToneMap(opts, dstWidth)
 	if hwUsable(opts, burnIn, toneMap) {
+		noteExpressibility(opts, burnIn, toneMap, true)
 		return buildMultiVariantHWArgs(opts)
 	}
-	noteRouteNotExpressible(opts, burnIn, toneMap)
+	noteExpressibility(opts, burnIn, toneMap, false)
 	vcodec := resolveVideoEncoder(opts.VideoCodec)
 
 	var args []string

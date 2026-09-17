@@ -597,7 +597,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// the container). Both gated admin + AdminHeavyRL - the recalibrate
 	// can hammer CPU for ~30 s, can't be spammed.
 	if s.CalibrationSvc != nil {
-		mux.HandleFunc("GET /api/v1/admin/transcode/calibration", admin(transcodeCalibrationGetHandler(s.CalibrationSvc)))
+		mux.HandleFunc("GET /api/v1/admin/transcode/calibration", admin(transcodeCalibrationGetHandler(s.CalibrationSvc, s.RouteExpressibility)))
 		mux.HandleFunc("POST /api/v1/admin/transcode/calibration/recalibrate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, transcodeRecalibrateHandler(s.CalibrationSvc))))
 	}
 	if s.CapOverrideSvc != nil {

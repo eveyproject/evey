@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/metrics"
@@ -77,11 +79,21 @@ func (pr *PlanResolver) shadowExpressibility(route ResolvedRoute, decision trans
 	if pr.Expressibility == nil {
 		return
 	}
-	needs := transcoding.RouteNeeds{BurnInBitmap: decision.SubtitleDecision == "burn", GPUOverlay: route.Overlay}
-	if err := pr.Expressibility.Expressible(route.Topology, transcoding.HWAccelType(route.Backend.Name), route.Backend.Device, route.Backend.Features, needs); err != nil {
+	burnIn := decision.SubtitleDecision == "burn"
+	needs := transcoding.RouteNeeds{BurnInBitmap: burnIn, GPUOverlay: route.Overlay}
+	err := pr.Expressibility.Expressible(route.Topology, transcoding.HWAccelType(route.Backend.Name), route.Backend.Device, route.Backend.Features, needs)
+	// The coverage table and the per-cell counters: the exit criterion of the
+	// shadow reads them (every reachable cell checked here AND at the builder,
+	// zero disagreements) - see route_coverage.go.
+	cell := transcoding.ExpressibilityCell{Backend: route.Backend.Name, Topology: route.Topology.Name(), Needs: transcoding.RouteNeedsLabel(burnIn, route.Overlay, route.Deinterlace)}
+	transcoding.ExpressibilityCoverageTable.Record(transcoding.ExpressibilitySiteResolver, cell, err != nil)
+	labels := prometheus.Labels{"site": string(transcoding.ExpressibilitySiteResolver), "backend": cell.Backend, "topology": cell.Topology, "needs": cell.Needs}
+	metrics.HLSVODRouteExpressibilityChecks.With(labels).Inc()
+	if err != nil {
+		metrics.HLSVODRouteExpressibilityDisagreements.With(labels).Inc()
 		metrics.HLSVODRouteNotExpressible.Inc()
 		slog.Warn("plan resolver: resolved GPU route the builder cannot express (planner/builder disagreement, ADR-0030)",
-			slog.String("topology", route.Topology.String()), slog.String("accel", route.Backend.Name), slog.Any("err", err))
+			slog.String("topology", cell.Topology), slog.String("needs", cell.Needs), slog.String("accel", route.Backend.Name), slog.Any("err", err))
 	}
 }
 
