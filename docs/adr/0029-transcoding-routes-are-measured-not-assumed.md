@@ -1,7 +1,8 @@
 # ADR-0029: Transcoding routes are measured, not assumed
 
 - Status: Accepted
-- Date: 2026-09-13 (decisions taken 2026-09-12/13, recorded 2026-09-17)
+- Date: 2026-09-13 (decisions taken 2026-09-12/13, recorded 2026-09-17; the
+  no-evidence rule and the calibration matrix aligned with the code 2026-09-17)
 
 ## Context
 
@@ -34,9 +35,25 @@ serves, and falls back one level at a time.
    `RouteCostModel` (`internal/app/transcoding/route_cost_model.go`) prices a
    session from those samples in two pools, accelerator and CPU, because a GPU
    route also spends CPU (demux, mux, audio, driver, or the whole software
-   decode of a decoupled session). The ladder-table model stays as the fallback
-   for a route with no evidence; the cumulative rung is kept for diagnostics
-   only.
+   decode of a decoupled session). On a host WITH route evidence a named route
+   is priced ONLY on its own sample: a (backend, encoder, route) nobody
+   measured is refused by admission rather than re-priced on the H.264-shaped
+   table (`chargesFor`, `video_session_limiter.go` - that re-pricing is how
+   x265, hevc_vaapi, the bridge and the decoupled route were once charged as
+   plain H.264), and the resolver never fields such a tuple in the first place
+   (`pickBackend` drops a candidate whose route has no sample; the codec
+   fallback then re-resolves HEVC onto the measured H.264 GPU route). The
+   ladder-table model prices only a host with no route evidence at all (a row
+   benched before evidence existed) and the unnamed, zero-route requests of
+   the master-playlist shed probe; the cumulative rung is kept for diagnostics
+   only. So that the refusal never bites a route the host really serves, the
+   calibration measures the SAME matrix the resolver emits: every
+   `RouteShape` of `RuntimeRouteShapes()` (`hw_route_cost.go`, derived from
+   `EncodeRoute.CostKey` over the whole route space) that the software chain
+   or a certified backend proves, and a coverage test
+   (`route_evidence_plan_test.go`) fails on a shape with no measuring strategy
+   unless it is listed as deliberately unmeasured with its reason (software
+   AV1, an admin opt-in too slow to bench on every host).
 
 2. **The backend is chosen per route, not per host.** Calibration certifies
    and persists every accelerator it finds (`HWBackendCap`,
@@ -76,9 +93,34 @@ confirms).
 
 ## Consequences
 
-- A route with no measurement is priced the old way and never refused for
-  lack of evidence; a new accelerator (RKMPP, arm64, 2026-09) enters by being
-  certified and measured through the same probes, not by a table entry.
+- On a host with route evidence, a named route with no measurement is REFUSED
+  for lack of evidence, never re-priced on the table: the resolver spills it
+  to a measured route (the H.264 variant on the same GPU, else software) and
+  the calibration matrix is derived from the resolver's own shapes so that
+  refusal only ever meets a route the host does not serve. A new accelerator
+  (RKMPP, arm64, 2026-09) enters by being certified and measured through the
+  same probes, not by a table entry; a new route class or codec enters by
+  extending `RuntimeRouteShapes` and its measuring strategy together.
+- The price is the session's STEADY-STATE consumption, a budget of averages,
+  not of instantaneous peaks (`RouteCostModel`, `route_cost_model.go`): a
+  software session is charged at the rate it is really paced at
+  (`SoftwareReadRate`, 1.5x, one constant with the producer's default - it was
+  paced at 1.5x and priced at 1.2x); a hardware session bursts unpaced until
+  it is `ThrottlePauseAhead` segments ahead, is SIGSTOPped, and thereafter
+  runs at the viewer's pace, so its steady state is the priced one. Several
+  sessions starting at the same instant can saturate the CPU for the few
+  seconds of their bursts; that transient is accepted rather than traded for
+  a slower start and seek on every session, and bounded by the global session
+  caps, not by this model. The CPU pool's denominator is the exact cgroup
+  quota (`sysinfo.CPUCapacity`, 1.5 for `cpus: 1.5`), never the rounded-up
+  worker count (`CPUBudget`). Every rate threshold of the calibration follows
+  the probed frame rate of the sample it runs on (`sampleRate`), not a
+  literal 24: an operator's 60p clip is judged at 60.
+- The backend pick ranks routes on their pressure on the most constrained pool
+  (the larger of the accelerator and CPU fractions, the figure `MaxStreams`
+  caps on), not on the accelerator alone: a decoupled or bridged route slightly
+  cheaper on the GPU but several cores dearer on the CPU no longer wins over
+  one that is nearly free on the CPU.
 - Two accelerators on one box each serve what they are best at; the admin
   sees every backend, its routes and its samples.
 - A broken source costs its viewers one failed session, not the host its GPU.
