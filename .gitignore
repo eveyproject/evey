@@ -114,6 +114,8 @@ scripts/*
 !scripts/tv/*.sh
 !scripts/tv/README.md
 !scripts/bundle-budget.sh
+# The shadow-exit corpus of ADR-0030 (temporary, goes with the shadow).
+!scripts/route-shadow-corpus.sh
 # ...mais jamais le compte de dev.
 scripts/tv/.env
 
