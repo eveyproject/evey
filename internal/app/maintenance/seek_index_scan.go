@@ -398,19 +398,25 @@ func (s *SeekIndexService) probeInterleave(ctx context.Context, path string, st 
 	if back > InterleaveBackstepFlagSec {
 		st.InterleaveBackstepSec = back
 	}
-	s.recordInterleave(ctx, path, back)
+	// Logged inside; the next scan records again.
+	if err := s.recordInterleave(ctx, path, back); err != nil {
+		return
+	}
 }
 
 // recordInterleave pushes the measure to the catalog (0 included: a repaired
-// or re-acquired file must lose its refusal).
-func (s *SeekIndexService) recordInterleave(ctx context.Context, path string, backstepSec float64) {
+// or re-acquired file must lose its refusal). The scan only logs the error
+// (the next scan records again); a repair turns it into the file's failure.
+func (s *SeekIndexService) recordInterleave(ctx context.Context, path string, backstepSec float64) error {
 	if s.interleaveRec == nil {
-		return
+		return nil
 	}
 	if err := s.interleaveRec.SetInterleaveBackstep(ctx, path, int64(backstepSec*1000)); err != nil {
 		s.logger.Warn("seek-index scan: interleave record failed",
 			slog.String("path", path), slog.Any("err", err))
+		return err
 	}
+	return nil
 }
 
 // measureAudioPicture runs the sound-vs-picture measure on the files a muxer

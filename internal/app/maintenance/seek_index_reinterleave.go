@@ -27,6 +27,19 @@ var ErrReinterleaveUnavailable = errors.New("seek-index: reinterleave not availa
 // tracks in blocks - the original is put back.
 var ErrStillChunked = errors.New("seek-index: the re-mux still reads as one-track blocks")
 
+// ErrReinterleaveUnverified: the rewrite went through but the probe that
+// should confirm the layout could not run. A verification that failed is not
+// a verification that passed: the original is put back.
+var ErrReinterleaveUnverified = errors.New("seek-index: the re-mux could not be verified")
+
+// ErrDiagnosisStale: the file changed since its diagnosis and could not be
+// re-diagnosed - nothing acts on the old verdict.
+var ErrDiagnosisStale = errors.New("seek-index: the diagnosis is stale and the file could not be re-diagnosed")
+
+// ErrCatalogNotUpdated: the file is re-muxed and verified, but the catalog
+// still carries the playback refusal - a scan re-records the measure.
+var ErrCatalogNotUpdated = errors.New("seek-index: file re-muxed and verified, but the catalog could not be updated - run a scan to lift the playback refusal")
+
 // WithReinterleaver wires the re-mux repair of chunked files.
 func (s *SeekIndexService) WithReinterleaver(r Reinterleaver) *SeekIndexService {
 	s.reinterleaver = r
@@ -100,21 +113,35 @@ func (s *SeekIndexService) reinterleaveStep(bg context.Context, path string, rb 
 		}
 	}
 	if s.interleave != nil {
+		// Fail-closed: a probe that errors is not a probe that passed. The
+		// re-mux is proven lossless, so putting the original back costs
+		// nothing but the retry - declaring the file healthy on no evidence
+		// would hand playback a file nobody measured.
 		back, perr := s.interleave.ProbeInterleaveBackstepSec(bg, path)
-		if perr == nil && back > InterleaveBackstepFlagSec {
-			err := fmt.Errorf("%w (%.0f s)", ErrStillChunked, back)
+		var verr error
+		switch {
+		case perr != nil:
+			verr = fmt.Errorf("%w: %w", ErrReinterleaveUnverified, perr)
+		case back > InterleaveBackstepFlagSec:
+			verr = fmt.Errorf("%w (%.0f s)", ErrStillChunked, back)
+		}
+		if verr != nil {
 			if res.BackupPath != "" && restore() == nil {
 				rec.Outcome, rec.BackupPath = "rolled_back", ""
 			} else {
 				rec.Outcome = "failed"
 			}
-			rec.Error = err.Error()
+			rec.Error = verr.Error()
 			s.journalRepair(bg, rec)
-			return false, err
+			return false, verr
 		}
 	}
 	s.refreshFileState(bg, path)
-	s.recordInterleave(bg, path, 0)
+	// The cache reflects the file (re-muxed, verified) whatever the catalog
+	// says: a stale cache would send the next batch re-muxing a sound file.
+	// The catalog failure is surfaced as this file's failure instead, and a
+	// scan - which re-probes the changed fingerprint - re-records the measure.
+	catErr := s.recordInterleave(bg, path, 0)
 	hasBak := res.BackupPath != ""
 	s.updateCachedFile(path, func(c *SeekStatus) {
 		c.InterleaveBackstepSec = 0
@@ -131,7 +158,11 @@ func (s *SeekIndexService) reinterleaveStep(bg context.Context, path string, rb 
 	}
 	rec.Outcome = "applied"
 	rec.SizeAfter = fileSizeOf(path)
+	if catErr != nil {
+		catErr = fmt.Errorf("%w: %w", ErrCatalogNotUpdated, catErr)
+		rec.Error = catErr.Error()
+	}
 	s.journalRepair(bg, rec)
 	s.logger.Info("seek-index: tracks re-interleaved", slog.String("path", path), slog.Bool("backup", hasBak))
-	return false, nil
+	return false, catErr
 }
