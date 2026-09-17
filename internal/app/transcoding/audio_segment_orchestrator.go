@@ -46,6 +46,10 @@ type AudioSegmentOrchestrator struct {
 
 	mu       sync.Mutex
 	sessions map[string]*audioSession // keyed by sessionKey(hash, startSeg)
+	// byHash indexes sessions per rendition hash (then start segment): every
+	// per-request walk - touch on each served segment, cache hits included -
+	// only visits the sessions of its own rendition, not the whole process.
+	byHash map[string]map[int]*audioSession
 
 	// streamEnd records, per rendition hash, the earliest start segment at
 	// which a session died NATURALLY without producing any output - the proof
@@ -173,6 +177,7 @@ func newAudioSegmentOrchestrator(cache *SegmentCache, t transcoding.AudioProcess
 		shutdownCtx:       shutdownCtx,
 		shutdownCancel:    shutdownCancel,
 		sessions:          make(map[string]*audioSession),
+		byHash:            make(map[string]map[int]*audioSession),
 		streamEnd:         make(map[string]audioStreamEndMark),
 		strikes:           make(map[string]audioSpawnStrikes),
 		inactivityTimeout: inactivity,
@@ -230,10 +235,29 @@ func (o *AudioSegmentOrchestrator) sweepIdle() {
 // session runs ahead of the player, so steady playback is all cache hits.
 func (o *AudioSegmentOrchestrator) touchLocked(audioHash string, segIdx int) {
 	now := time.Now()
-	for _, sess := range o.sessions {
-		if sess.hash == audioHash && sess.startSeg <= segIdx {
+	for _, sess := range o.byHash[audioHash] {
+		if sess.startSeg <= segIdx {
 			sess.lastAccess = now
 		}
+	}
+}
+
+// indexSessionLocked / unindexSessionLocked keep byHash in step with sessions.
+// Caller holds o.mu.
+func (o *AudioSegmentOrchestrator) indexSessionLocked(sess *audioSession) {
+	byStart := o.byHash[sess.hash]
+	if byStart == nil {
+		byStart = make(map[int]*audioSession)
+		o.byHash[sess.hash] = byStart
+	}
+	byStart[sess.startSeg] = sess
+}
+
+func (o *AudioSegmentOrchestrator) unindexSessionLocked(sess *audioSession) {
+	byStart := o.byHash[sess.hash]
+	delete(byStart, sess.startSeg)
+	if len(byStart) == 0 {
+		delete(o.byHash, sess.hash)
 	}
 }
 
@@ -373,10 +397,8 @@ func (o *AudioSegmentOrchestrator) ensureSessionForInit(fp AudioFingerprint, aud
 	defer o.mu.Unlock()
 
 	o.touchLocked(audioHash, startSeg)
-	for _, sess := range o.sessions {
-		if sess.hash == audioHash {
-			return nil
-		}
+	if len(o.byHash[audioHash]) > 0 {
+		return nil
 	}
 	return o.spawnSessionLocked(fp, audioHash, startSeg, 0)
 }
@@ -460,6 +482,7 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 	}
 	sessKey := audioSessionKey(audioHash, segIdx)
 	o.sessions[sessKey] = sess
+	o.indexSessionLocked(sess)
 
 	o.logger.Info("audio_orchestrator: session spawned",
 		slog.String("hash", audioHash),
@@ -494,6 +517,7 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 
 		o.mu.Lock()
 		delete(o.sessions, sessKey)
+		o.unindexSessionLocked(sess)
 		if producedStart {
 			// A healthy run clears the strike history for this start segment.
 			delete(o.strikes, sessKey)
@@ -546,8 +570,8 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 // seek target minutes away - waiting on it is what made a seek take 30 s.
 // Caller holds o.mu.
 func (o *AudioSegmentOrchestrator) coveringSessionLocked(audioHash string, segIdx int) bool {
-	for _, sess := range o.sessions {
-		if sess.hash != audioHash || sess.startSeg > segIdx {
+	for _, sess := range o.byHash[audioHash] {
+		if sess.startSeg > segIdx {
 			continue
 		}
 		if segIdx-sess.startSeg <= audioSessionLookahead {
@@ -563,10 +587,7 @@ func (o *AudioSegmentOrchestrator) coveringSessionLocked(audioHash string, segId
 func (o *AudioSegmentOrchestrator) evictOldestLocked(audioHash string) {
 	var oldest *audioSession
 	live := 0
-	for _, sess := range o.sessions {
-		if sess.hash != audioHash {
-			continue
-		}
+	for _, sess := range o.byHash[audioHash] {
 		live++
 		if oldest == nil || sess.startedAt.Before(oldest.startedAt) {
 			oldest = sess
@@ -612,6 +633,7 @@ func (o *AudioSegmentOrchestrator) Close() error {
 		toStop = append(toStop, sess)
 	}
 	o.sessions = make(map[string]*audioSession)
+	o.byHash = make(map[string]map[int]*audioSession)
 	o.mu.Unlock()
 
 	for _, sess := range toStop {
