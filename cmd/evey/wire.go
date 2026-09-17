@@ -743,8 +743,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// forgets the blocks.
 	hlsVODOrch.WithHWRouteBlocklist(apptranscoding.NewHWRouteBlocklist(0, 0))
 	calibrationSvc.OnCapabilityChange(hlsVODOrch.ClearHWRouteBlocks)
-	hlsVODOrch.SetHWDemoteSink(func(ctx context.Context, class domaintranscoding.FailureClass, codec string) {
-		calibrationSvc.DemoteCapability(ctx, class, codec)
+	hlsVODOrch.SetHWFailureSink(func(ctx context.Context, report apptranscoding.HWFailureReport) {
+		calibrationSvc.DemoteRoute(ctx, report)
 	})
 	// ...and the way back. Without this the demotion above is permanent: it is
 	// persisted, so a GPU that failed once stays off until something else happens

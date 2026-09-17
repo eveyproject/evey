@@ -173,6 +173,10 @@ type HWFallbackEvent struct {
 	Codec   string    `json:"codec"`
 	At      time.Time `json:"at"`
 	Verdict string    `json:"verdict,omitempty"`
+	// Backend / Route name the exact route that failed (ADR-0030, 7); empty
+	// on a report that did not carry one.
+	Backend string `json:"backend,omitempty"`
+	Route   string `json:"route,omitempty"`
 }
 
 const (
@@ -840,9 +844,17 @@ func (s *CalibrationService) armRetryCooldown() {
 // demoted, or the host confirmed) returns false, which naturally DEBOUNCES the
 // storm of concurrent failures a single title produces.
 func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaintranscoding.FailureClass, codec string) bool {
+	return s.DemoteRoute(ctx, HWFailureReport{Class: class, Codec: codec})
+}
+
+// DemoteRoute is DemoteCapability with the exact route that failed: the
+// verdict rules are unchanged (keyed on class and codec), the route reaches
+// the fallback record the admin panel shows.
+func (s *CalibrationService) DemoteRoute(ctx context.Context, report HWFailureReport) bool {
+	class, codec := report.Class, report.Codec
 	if class == domaintranscoding.FailureRouteIncompatible {
 		// The media and the route disagree; nothing to prove about the host.
-		s.recordFallback(class, codec, fallbackVerdictMediaRoute)
+		s.recordFallback(report, fallbackVerdictMediaRoute)
 		return false
 	}
 	if !class.IsHWCapability() {
@@ -862,19 +874,19 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 		// instead of wiping it all on the word of one session.
 		proof := hwProofKey(cur.HWBackend, codec, "features")
 		if s.hostProvenRecentlyLocked(proof) {
-			s.recordFallback(class, codec, fallbackVerdictMediaRoute)
+			s.recordFallback(report, fallbackVerdictMediaRoute)
 			return false
 		}
 		kept := s.runner.ConfirmHWFeatures(ctx, cur.HWBackend, cur.HWDevice, codec, cur.HWFeatures)
 		d := domaintranscoding.PlanFeatureDemotion(cur, kept)
 		if !d.Changed {
 			s.markHostProvenLocked(proof)
-			s.recordFallback(class, codec, fallbackVerdictMediaRoute)
+			s.recordFallback(report, fallbackVerdictMediaRoute)
 			s.logger.Warn("calibration: HW tuning re-confirmed by a media-independent probe, the failure was the media's; host keeps its features",
 				slog.String("codec", codec), slog.Any("features", cur.HWFeatures))
 			return false
 		}
-		return s.applyDemotion(ctx, cur, d, class, codec)
+		return s.applyDemotion(ctx, cur, d, report)
 
 	case domaintranscoding.FailureHWDeviceMemory:
 		// Transient by definition: the session fell back, the host is not touched.
@@ -885,12 +897,12 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 	// encode of a synthetic clip before it is believed dead.
 	proof := hwProofKey(cur.HWBackend, codec, "encode")
 	if s.hostProvenRecentlyLocked(proof) {
-		s.recordFallback(class, codec, fallbackVerdictMediaRoute)
+		s.recordFallback(report, fallbackVerdictMediaRoute)
 		return false
 	}
 	if s.runner.HWEncodeUsable(ctx, cur.HWBackend, cur.HWDevice, codec, nil) {
 		s.markHostProvenLocked(proof)
-		s.recordFallback(class, codec, fallbackVerdictMediaRoute)
+		s.recordFallback(report, fallbackVerdictMediaRoute)
 		s.logger.Warn("calibration: HW backend re-confirmed by a media-independent probe, the failure was the media's; host keeps its GPU",
 			slog.String("class", string(class)), slog.String("codec", codec), slog.String("backend", cur.HWBackend))
 		return false
@@ -902,7 +914,7 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 		now := time.Now()
 		if now.Sub(s.hwInitStrikeAt) > hwInitStrikeWindow {
 			s.hwInitStrikeAt = now
-			s.recordFallback(class, codec, fallbackVerdictStrike)
+			s.recordFallback(report, fallbackVerdictStrike)
 			s.logger.Warn("calibration: HW init missed once and the probe failed too, keeping the GPU until a second miss",
 				slog.String("codec", codec), slog.Duration("window", hwInitStrikeWindow))
 			return false
@@ -914,7 +926,7 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 	if !d.Changed {
 		return false // already demoted - debounces concurrent failures
 	}
-	return s.applyDemotion(ctx, cur, d, class, codec)
+	return s.applyDemotion(ctx, cur, d, report)
 }
 
 func hwProofKey(backend, codec, probe string) string { return backend + "/" + codec + "/" + probe }
@@ -935,7 +947,8 @@ func (s *CalibrationService) markHostProvenLocked(key string) {
 
 // applyDemotion stores a confirmed demotion (in memory + persisted when the
 // plan says so), records it and notifies dependents. Called under demoteMu.
-func (s *CalibrationService) applyDemotion(ctx context.Context, cur domaintranscoding.EncodeCapability, d domaintranscoding.Demotion, class domaintranscoding.FailureClass, codec string) bool {
+func (s *CalibrationService) applyDemotion(ctx context.Context, cur domaintranscoding.EncodeCapability, d domaintranscoding.Demotion, report HWFailureReport) bool {
+	class, codec := report.Class, report.Codec
 	// The capability is about to change: no earlier proof describes it.
 	s.hwProofOK = nil
 	// Hold currentMu across the whole load→store so a concurrent benchAndPersist
@@ -944,7 +957,7 @@ func (s *CalibrationService) applyDemotion(ctx context.Context, cur domaintransc
 	s.currentMu.Lock()
 	defer s.currentMu.Unlock()
 
-	s.recordFallback(class, codec, fallbackVerdictHost)
+	s.recordFallback(report, fallbackVerdictHost)
 	// Stamp a demotion that actually switched the backend OFF, so it can expire
 	// and be re-probed (ReprobeDemotedHW) instead of outliving its cause. A
 	// demotion that only trimmed features or one codec leaves HW working and is
@@ -1034,7 +1047,8 @@ func (s *CalibrationService) ReprobeDemotedHW(ctx context.Context) bool {
 	return false
 }
 
-func (s *CalibrationService) recordFallback(class domaintranscoding.FailureClass, codec, verdict string) {
+func (s *CalibrationService) recordFallback(report HWFailureReport, verdict string) {
+	class, codec := report.Class, report.Codec
 	s.fallbacksMu.Lock()
 	defer s.fallbacksMu.Unlock()
 	now := time.Now().UTC()
@@ -1051,6 +1065,8 @@ func (s *CalibrationService) recordFallback(class domaintranscoding.FailureClass
 		Codec:   codec,
 		At:      now,
 		Verdict: verdict,
+		Backend: report.Route.Backend,
+		Route:   string(report.Route.Route),
 	})
 	if len(s.fallbacks) > maxFallbackEvents {
 		s.fallbacks = s.fallbacks[len(s.fallbacks)-maxFallbackEvents:]

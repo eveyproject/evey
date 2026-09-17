@@ -109,6 +109,17 @@ func (r ResolvedRoute) spill(why SpillReason, decision transcoding.PlaybackDecis
 	return out
 }
 
+// HWFailureReport is what a failed HARDWARE session reports upward (ADR-0030,
+// 7): the failure class AND the exact route that failed - backend, encoder,
+// cost class - so a host verdict can target the proof of that route rather
+// than "the codec". Codec is the route's output codec, kept explicit for the
+// demotion rules that are still keyed on it.
+type HWFailureReport struct {
+	Class transcoding.FailureClass
+	Codec string
+	Route transcoding.RouteCostKey
+}
+
 // AdmissionGrant is what admission answered for this plan's stream. Nothing
 // here is derivable from the route: the billed class is Route.Class(), a
 // spill is Route.Spill.

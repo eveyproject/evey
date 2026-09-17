@@ -45,7 +45,7 @@ type SegmentOrchestrator struct {
 	// when a session's ffmpeg exits with a hardware-capability failure, so the
 	// calibration service can demote the host capability. Optional/nil-safe -
 	// when unset, a HW failure just falls through to the normal 503-retry.
-	hwDemote func(ctx context.Context, class transcoding.FailureClass, codec string)
+	hwDemote func(ctx context.Context, report HWFailureReport)
 
 	// hwRouteBlocks is the per-title half of the fallback ladder: a title whose
 	// GPU session failed for a deterministic reason is served from the CPU at
@@ -283,8 +283,25 @@ func (o *SegmentOrchestrator) WithVideoSessionLimiter(limiter *VideoSessionLimit
 	return o
 }
 
-func (o *SegmentOrchestrator) SetHWDemoteSink(sink func(ctx context.Context, class transcoding.FailureClass, codec string)) {
+// SetHWFailureSink wires the level-2 safety net: every failed hardware session
+// reports its class and its exact route here (ADR-0030, 7).
+func (o *SegmentOrchestrator) SetHWFailureSink(sink func(ctx context.Context, report HWFailureReport)) {
 	o.hwDemote = sink
+}
+
+// SetHWDemoteSink is the (class, codec) form of SetHWFailureSink, kept for the
+// callers that do not read the route.
+func (o *SegmentOrchestrator) SetHWDemoteSink(sink func(ctx context.Context, class transcoding.FailureClass, codec string)) {
+	if sink == nil {
+		o.hwDemote = nil
+		return
+	}
+	o.hwDemote = func(ctx context.Context, r HWFailureReport) { sink(ctx, r.Class, r.Codec) }
+}
+
+// hwFailure builds the report of a failed hardware session from its fingerprint.
+func hwFailure(class transcoding.FailureClass, fp DecisionFingerprint) HWFailureReport {
+	return HWFailureReport{Class: class, Codec: fp.VideoCodec, Route: RouteCostKeyOf(fp)}
 }
 
 // WithHWRouteBlocklist wires the per-title GPU route block (chainable).
@@ -1103,7 +1120,7 @@ func (o *SegmentOrchestrator) spawnSession(
 			case class.BlocksTitleRoute():
 				o.blockTitleRoute(fp.MediaID, hash, procOpts.HWAccel, string(class))
 				if o.hwDemote != nil {
-					hostVerdict = func() { o.hwDemote(o.shutdownCtx, class, fp.VideoCodec) }
+					hostVerdict = func() { o.hwDemote(o.shutdownCtx, hwFailure(class, fp)) }
 				}
 			case class.SilentDeathCandidate() && !o.hashProducedSegment(hash, variantIdx, fp.UseFMP4):
 				o.logger.Warn("orchestrator: HW session produced no segments",
@@ -1113,7 +1130,7 @@ func (o *SegmentOrchestrator) spawnSession(
 					slog.String("codec", fp.VideoCodec))
 				o.blockTitleRoute(fp.MediaID, hash, procOpts.HWAccel, "no_segment_produced/"+string(class))
 				if o.hwDemote != nil {
-					hostVerdict = func() { o.hwDemote(o.shutdownCtx, transcoding.FailureHWInit, fp.VideoCodec) }
+					hostVerdict = func() { o.hwDemote(o.shutdownCtx, hwFailure(transcoding.FailureHWInit, fp)) }
 				}
 			}
 		}
@@ -1175,7 +1192,7 @@ func (o *SegmentOrchestrator) spawnSession(
 			// to take the GPU again. The host proves itself off this goroutine's
 			// critical path, after the kill, and only its own probe can demote it.
 			o.killSession(session, "hw watchdog: no init segment")
-			o.hwDemote(o.shutdownCtx, transcoding.FailureHWInit, fp.VideoCodec)
+			o.hwDemote(o.shutdownCtx, hwFailure(transcoding.FailureHWInit, fp))
 		}()
 	}
 
