@@ -225,3 +225,27 @@ func TestCachedSampleIsSound_EmptyFilePinnedByOperator_StillRejected(t *testing.
 	src := benchSampleSource{url: "https://example.invalid/clip.hevc"}
 	assert.False(t, r.cachedSampleIsSound(context.Background(), "HDR", src, empty))
 }
+
+// The rate every bench threshold is built on is the SAMPLE's, probed once:
+// an operator clip at 60p used to be measured at its real cost and recorded
+// as a 24p source, so a route that could not hold its 60 fps passed.
+func TestBenchmark_SampleRateFollowsTheClip(t *testing.T) {
+	requireFFmpegBin(t)
+	dir := t.TempDir()
+	clip60 := filepath.Join(dir, "sixty.mkv")
+	cmd := exec.Command("ffmpeg", "-hide_banner", "-nostats", "-y",
+		"-f", "lavfi", "-i", "testsrc=duration=1:size=320x240:rate=60",
+		"-c:v", "libx264", "-preset", "ultrafast", "-an", "-f", "matroska", clip60)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "ffmpeg: %s", tailString(string(out), 300))
+	clip24 := filepath.Join(dir, "twentyfour.mkv")
+	writeClip(t, clip24, "libx264", "matroska")
+
+	r := decodeTestRunner(t, clip24)
+	ctx := context.Background()
+	assert.InDelta(t, 60, r.sampleRate(ctx, clip60, false), 0.01)
+	assert.InDelta(t, 24, r.sampleRate(ctx, clip24, false), 0.01)
+	assert.InDelta(t, 24, r.sampleRate(ctx, "", true), 0.001, "the lavfi fallback is 24 by construction")
+	assert.InDelta(t, 24, r.sampleRate(ctx, filepath.Join(dir, "missing.mkv"), false), 0.001, "an unprobeable file falls back to 24, never to 0")
+	assert.InDelta(t, 60, r.sampleRate(ctx, clip60, false), 0.01, "cached: same answer on the second ask")
+}
