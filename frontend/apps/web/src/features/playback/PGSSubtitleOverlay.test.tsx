@@ -48,6 +48,7 @@ beforeEach(() => {
   fetchMock.mockResolvedValue({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
   vi.stubGlobal("fetch", fetchMock);
   URL.createObjectURL = vi.fn(() => `blob:cue-${objectUrls++}`);
+  URL.revokeObjectURL = vi.fn();
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -101,5 +102,32 @@ describe("PGSSubtitleOverlay", () => {
 
     mount({ mediaId: "m-none", trackIndex: null });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  // A binge must not keep every track's blobs alive for the life of the tab:
+  // past the cap the oldest track is dropped and its object URLs revoked, and
+  // coming back to it fetches again instead of drawing a revoked URL.
+  it("evicts the oldest cached track and revokes its object URLs past the cap", async () => {
+    const revoke = URL.revokeObjectURL as ReturnType<typeof vi.fn>;
+    const ids = ["m-evict-1", "m-evict-2", "m-evict-3", "m-evict-4"];
+    for (const mediaId of ids) {
+      const { video, container, unmount } = mount({ mediaId });
+      seekTo(video, 1.5);
+      await waitFor(() => expect(container.querySelector("img")).toBeTruthy());
+      unmount();
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    // Each track built 2 URLs; only the first track's pair may be gone. The
+    // earlier tests' tracks were evicted along the way, which is the point.
+    const firstPair = (URL.createObjectURL as ReturnType<typeof vi.fn>).mock.results.slice(0, 2).map((r) => r.value);
+    for (const u of firstPair) expect(revoke).toHaveBeenCalledWith(u);
+    const lastPair = (URL.createObjectURL as ReturnType<typeof vi.fn>).mock.results.slice(-2).map((r) => r.value);
+    for (const u of lastPair) expect(revoke).not.toHaveBeenCalledWith(u);
+
+    const back = mount({ mediaId: ids[0] });
+    seekTo(back.video, 1.5);
+    await waitFor(() => expect(back.container.querySelector("img")).toBeTruthy());
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(back.container.querySelector("img")?.getAttribute("src")).not.toBe(firstPair[0]);
   });
 });
