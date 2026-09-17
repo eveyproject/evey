@@ -118,12 +118,34 @@ ADR-0029's steady-state pricing).
 
 ## Migration
 
-Additive first, code moves last: golden corpus; this ADR; `Topology` in the
-domain with `EncodeRoute.Topology()` and the calibration matrix rebuilt on
-it; `SourceSnapshot`; `ResolvedRoute` on the plan and the old derivations
-removed; `AdmissionGrant`; expressibility in shadow (log + counter) then
-refusal; `EncodeSpec`/`RuntimeOptions` behind `FingerprintOf`; `HWPolicy` and
-route-keyed demotion; one admission entry; file moves.
+Additive first, code moves last. Landed 2026-09-17, one commit each, the
+goldens byte-identical throughout: the route golden corpus; this ADR;
+`Topology` with `EncodeRoute.Topology()` and the calibration matrix rebuilt on
+it; `SourceSnapshot`; `ResolvedRoute` on the plan with the old derivations
+removed and `AdmissionGrant` beside it; `RouteExpressibility` in shadow (the
+resolver asks the port, a disagreement is logged and counted as
+`evey_hlsvod_route_not_expressible_total`, the builder still falls back);
+the identity / runtime / admission classification of every fingerprint field
+proven by mutation (the `EncodeSpec`/`RuntimeOptions` split as a guard rather
+than a struct change - the struct is built in 30 test literals); `HWPolicy`
+read through one accessor; `HWFailureReport` carrying the exact route to the
+fallback record; `SessionCost` as the one pricing derivation of spawn and
+probe; the resolver split by topic and the domain's reading index.
+
+One deliberate behaviour change surfaced by the corpus and committed on its
+own: an HDR passthrough spilled to the CPU (pool full, blocked title) is now
+shaped as the tone-map it runs - the HDR floor - where it was shaped as a
+plain SDR ladder while billed and fingerprinted as software HDR.
+
+Still to do, each gated on something outside the code: the builder's
+fallback becomes a refusal once the shadow counter has read zero in
+production long enough (6); the legacy wrappers (`EffectiveVideoCodec`,
+`HWRouteUsable`, `LadderClassFor`, `ProducerFor`, `Fingerprint`,
+`ShapeLadder` on their own) and the adapter's aliases go once their tests are
+rewritten against `Resolve`, which is when invariant 1 becomes a contract
+guard; a demotion that targets the failed route's proof rather than the
+codec needs a per-topology probe in the calibration runner (7); reading the
+policy atomically per request needs the same wrapper removal (8).
 
 ## Consequences
 
