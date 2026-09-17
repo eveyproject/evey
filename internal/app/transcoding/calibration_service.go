@@ -259,10 +259,13 @@ func WithHostLoadProbe(probe func() float64) CalibrationOption {
 }
 
 // routeEvidenceFloorProbeVersion is the CapabilityProbeVersion from which route
-// evidence is measured at a route's ceiling rung (720p / 480p floors included).
-// A software-only row older than this is re-benched once; later probe bumps are
-// hardware-only and leave software-only rows alone.
-const routeEvidenceFloorProbeVersion = 11
+// evidence covers every shape the software chain serves: measured at a route's
+// ceiling rung (720p / 480p floors included, v11) and x265 measured on the
+// tone-map route too (v12 - a HEVC-preferring client with no GPU lands on
+// sw-hdr/libx265, which a v11 row never priced and admission refused). A
+// software-only row older than this is re-benched once; later probe bumps
+// are hardware-only and leave software-only rows alone.
+const routeEvidenceFloorProbeVersion = 12
 
 // idleProbes consecutive host samples, idleProbeEvery apart, must all read
 // idle (no active stream, CPU under idleCPUPercent) before a pending or

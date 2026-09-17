@@ -221,8 +221,13 @@ type DecodeRungSample struct {
 // probe, not the cumulative parallel ladder that under-certified a small GPU),
 // each backend's OWN ceiling recorded (HWBackendCap.MaxHeight) and route
 // evidence measured at the route's ceiling rung too - a v10 row certified a
-// 720p-only backend with NO route sample, which admission then refused).
-const CapabilityProbeVersion = 11
+// 720p-only backend with NO route sample, which admission then refused);
+// 12: route evidence derived from the runtime's own shape matrix
+// (RuntimeRouteShapes): the tone-map, bridge and decoupled routes measured
+// for EVERY codec the backend encodes and x265 measured on the tone-map
+// route - a v11 row priced them for H.264 only, so admission refused the
+// HEVC variant the resolver upgrades to and spilled it to software.
+const CapabilityProbeVersion = 12
 
 // Route names the calibration proves through the production builder (see
 // EncodeCapability.HWRoutes). Each is one shape BuildFFmpegArgs can emit for a

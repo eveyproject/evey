@@ -475,6 +475,16 @@ func (pr *PlanResolver) pickBackend(outputCodec string, src hwSource, hwTonemap 
 			continue
 		}
 		c := candidate{b, sd}
+		// A host WITH route evidence prices a named route ONLY on it: admission
+		// refuses a (backend, encoder, route) it has no sample for. Picking it
+		// here would send the session to the limiter to be refused and spilled
+		// to software - so it is not in the field, and the codec fallback
+		// (HEVC -> H.264) re-resolves onto a measured GPU route instead.
+		if model != nil {
+			if proven, _ := model.TallestRung(keyOf(c)); proven == 0 {
+				continue
+			}
+		}
 		field = append(field, c)
 		h, _ := ceilingOf(c)
 		tallest = max(tallest, h)

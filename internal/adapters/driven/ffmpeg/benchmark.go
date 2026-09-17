@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/pkg/procfork"
@@ -42,8 +44,11 @@ import (
 // Sample mire path is configurable to let tests use a tiny generated
 // file instead of bundling 5 MB into the binary for unit tests.
 type BenchmarkRunner struct {
-	ffmpegPath  string
-	samplePath  string
+	ffmpegPath string
+	samplePath string
+	// sampleRates caches the probed frame rate per bench input (sampleRate).
+	rateMu      sync.Mutex
+	sampleRates map[string]float64
 	hwDetector  *HWDetector
 	logger      *slog.Logger
 	durationSec int     // per-height bench duration; 5 s by default
@@ -317,7 +322,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// SourceRate is the fps the samples were measured against - proof the
 		// domain's Derive needs to RE-derive each rung's pass/fail under a
 		// (possibly changed) policy margin, instead of the bench-time one.
-		SourceRate: r.sourceRate(),
+		SourceRate: int(math.Round(r.sampleRate(ctx, sample, fallback))),
 		// Per-rung evidence (fps vs realtime threshold) behind the ceilings above,
 		// surfaced in the admin calibration API so the operator can see WHY the
 		// HDR cap floored to 480p instead of guessing. Includes the hardware ladder
@@ -877,7 +882,7 @@ func walkLadder(ladder []int, singleVariant bool, required float64, label string
 // rung sustaining >= sourceRate×margin wins; floor when none pass.
 func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter func(topHeight int) string, label, encoder string, margin float64, floor int) (int, []transcoding.BenchRungSample) {
 	best := 0
-	required := float64(r.sourceRate()) * margin
+	required := r.sampleRate(ctx, sample, fallback) * margin
 	var samples []transcoding.BenchRungSample
 	for i, h := range swBenchLadder {
 		laddered := probeRungs(swBenchLadder, i, r.singleVariant)
@@ -976,7 +981,7 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		// a small GPU - one that cannot encode 720p+1080p at once but sustains a
 		// lone 1080p session, which is all a single-variant runtime ever asks.
 		runLadder := func(extraInputArgs []string, uploadChain string) (int, []transcoding.BenchRungSample) {
-			return walkLadder(hwBenchLadder, r.singleVariant, float64(r.sourceRate())*r.margin, transcoding.LadderHW,
+			return walkLadder(hwBenchLadder, r.singleVariant, r.sampleRate(ctx, sample, fallback)*r.margin, transcoding.LadderHW,
 				func(heights []int) (float64, bool) {
 					return r.runMultiVariant(ctx, sample, fallback, heights, encoder, extraInputArgs, uploadChain)
 				},
@@ -1039,8 +1044,8 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 	// single SDR session gives accel=required/fps and cpu=cores x required/fps /
 	// cpuBudget), then the taller ceiling, then a stable name; a <5% peak tie
 	// keeps the alphabetically-smaller backend so a re-bench does not flip on noise.
-	budget := sysinfo.CPUBudget()
-	required := float64(r.sourceRate()) * transcoding.RouteCostHeadroom
+	budget := sysinfo.CPUCapacity()
+	required := r.sampleRate(ctx, sample, fallback) * transcoding.RouteCostHeadroom
 	ranks := make([]rankedCandidate, 0, len(candidates))
 	for _, c := range candidates {
 		fps, cores := r.warmSDRVector(ctx, sample, fallback, c.backend, c.encoder, c.device, c.best)
@@ -1051,7 +1056,7 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		if fps > 0 {
 			peak = required / fps
 			if budget > 0 {
-				if cpu := cores * required / fps / float64(budget); cpu > peak {
+				if cpu := cores * required / fps / budget; cpu > peak {
 					peak = cpu
 				}
 			}
@@ -1273,7 +1278,7 @@ func (r *BenchmarkRunner) benchHWBridge(ctx context.Context, backend, device str
 	encoder := "h264_" + backend
 	sample, fallback := r.resolveHDRSample(ctx)
 	useTonemapx := tonemapxAvailable(r.ffmpegPath)
-	required := float64(r.sourceRate()) * r.margin
+	required := r.sampleRate(ctx, sample, fallback) * r.margin
 	// The bridge chain tone-maps at the width of the TOP rung of the probe (the
 	// production scale-first shape); in single-variant mode that is the rung
 	// itself, exactly as the software HDR ladder is probed.
@@ -1569,10 +1574,63 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 	return float64(frames) / wall, true
 }
 
-// sourceRate returns the assumed source frame-rate against which we
-// compare encode FPS. testsrc is 24, the bundled mire is 24 - anything
-// else would force us to probe the sample, which adds cost for no
-// material improvement on the cap decision.
-func (r *BenchmarkRunner) sourceRate() int {
-	return 24
+// defaultSampleRate is the frame rate of the synthetic clips (testsrc, the
+// generated mires) and the answer when a sample cannot be probed.
+const defaultSampleRate = 24.0
+
+// sampleRate returns the frame rate of the bench input every fps measured on
+// it is compared against. The lavfi fallback is 24 by construction; a file -
+// the generated mire, the pinned download, and above all a clip the operator
+// dropped in - is probed once (ffprobe avg_frame_rate, cached per path). The
+// rate used to be a literal 24: a 60p operator clip was then encoded at its
+// real cost but recorded as a 24p source and judged against 24 x margin, so a
+// route that could not hold the clip's own 60 fps passed as realtime and its
+// evidence priced every 60p title at less than half its cost.
+func (r *BenchmarkRunner) sampleRate(ctx context.Context, path string, fallback bool) float64 {
+	if fallback || path == "" {
+		return defaultSampleRate
+	}
+	r.rateMu.Lock()
+	defer r.rateMu.Unlock()
+	if r.sampleRates == nil {
+		r.sampleRates = map[string]float64{}
+	}
+	if fps, ok := r.sampleRates[path]; ok {
+		return fps
+	}
+	fps, ok := r.probeSampleRate(ctx, path)
+	if !ok {
+		fps = defaultSampleRate
+	}
+	r.sampleRates[path] = fps
+	return fps
+}
+
+// probeSampleRate reads the first video stream's average frame rate.
+func (r *BenchmarkRunner) probeSampleRate(ctx context.Context, path string) (float64, bool) {
+	probeCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	out, err := procfork.Output(probeCtx, procfork.Options{Class: procfork.Probe, Site: "benchmark.probe_sample_rate"}, r.ffprobeBin(),
+		"-v", "error",
+		"-select_streams", "v:0",
+		"-show_entries", "stream=avg_frame_rate",
+		"-of", "default=noprint_wrappers=1:nokey=1",
+		path,
+	)
+	if err != nil {
+		r.logger.Warn("benchmark: could not probe the bench sample's frame rate, assuming 24",
+			slog.String("path", path), slog.Any("err", err))
+		return 0, false
+	}
+	fps := parseFrameRate(strings.TrimSpace(string(out))) // the prober's "num/den" reader
+	if fps <= 0 {
+		r.logger.Warn("benchmark: unreadable frame rate for the bench sample, assuming 24",
+			slog.String("path", path), slog.String("raw", strings.TrimSpace(string(out))))
+		return 0, false
+	}
+	if math.Abs(fps-defaultSampleRate) > 0.5 {
+		r.logger.Info("benchmark: sample is not 24p - every rate threshold follows it",
+			slog.String("path", path), slog.Float64("fps", fps))
+	}
+	return fps, true
 }

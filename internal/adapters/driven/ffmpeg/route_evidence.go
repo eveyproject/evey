@@ -62,54 +62,127 @@ type evidenceRoute struct {
 
 func (er evidenceRoute) hw() bool { return er.backend != "" }
 
+// unmeasuredShapes are the runtime shapes the calibration deliberately leaves
+// without evidence, each with the reason. Admission refuses a named shape it
+// has no sample for, so every entry here is a shape that spills to software
+// (or is shed) when the resolver emits it - the coverage test holds this list
+// to exactly these, so a new shape cannot go unmeasured by omission.
+//
+//   - software AV1 (libsvtav1): several times x264's cost, reached only behind
+//     the admin opt-in, and a 5 s clip takes minutes on the NAS this ships to -
+//     every host would pay that at boot for a path almost none enables.
+var unmeasuredShapes = map[transcoding.RouteShape]string{
+	{Route: transcoding.RouteCostSDR, Codec: "av1", HW: false}:         "software AV1 is an admin opt-in; too slow to bench on every host",
+	{Route: transcoding.RouteCostSoftwareHDR, Codec: "av1", HW: false}: "software AV1 is an admin opt-in; too slow to bench on every host",
+}
+
+// routeShapeOpts is the calibration strategy of one shape: the opts mutation
+// that makes BuildFFmpegArgs emit that pipeline, plus which sample it runs on
+// and whether it software-decodes. ok=false for a shape with no strategy.
+func routeShapeOpts(sh transcoding.RouteShape) (opts func(o *transcoding.HLSProcessOpts), hdrSample, softwareDecode, ok bool) {
+	codec := sh.Codec
+	switch sh.Route {
+	case transcoding.RouteCostSDR:
+		return func(o *transcoding.HLSProcessOpts) { o.VideoCodec = codec }, false, false, true
+	case transcoding.RouteCostSoftwareHDR:
+		return func(o *transcoding.HLSProcessOpts) { o.VideoCodec, o.ToneMap = codec, true }, true, false, true
+	case transcoding.RouteCostTonemap:
+		return func(o *transcoding.HLSProcessOpts) { o.VideoCodec, o.ToneMap, o.HWTonemap = codec, true, true }, true, false, true
+	case transcoding.RouteCostBridge:
+		return func(o *transcoding.HLSProcessOpts) { o.VideoCodec, o.ToneMap, o.HWTonemap = codec, true, false }, true, false, true
+	case transcoding.RouteCostPassthrough:
+		return func(o *transcoding.HLSProcessOpts) {
+			o.VideoCodec, o.HDRPassthrough, o.HDRTransfer = codec, true, "pq"
+		}, true, false, true
+	case transcoding.RouteCostDecoupled:
+		return func(o *transcoding.HLSProcessOpts) { o.VideoCodec, o.HWSoftwareDecode = codec, true }, false, true, true
+	}
+	return nil, false, false, false
+}
+
+// backendServesShape reports whether certified backend bc proved everything
+// the shape needs: the route's own proof (SDR, tone-map with a GPU tone-mapper,
+// bridge, passthrough, decoupled with an upload chain) AND the codec's.
+func backendServesShape(bc transcoding.HWBackendCap, sh transcoding.RouteShape) bool {
+	accel := transcoding.HWAccelType(bc.Backend)
+	switch sh.Codec {
+	case "hevc":
+		if !bc.Proves(transcoding.HWRouteHEVC) {
+			return false
+		}
+	case "av1":
+		if !bc.Proves(transcoding.HWRouteAV1) {
+			return false
+		}
+	}
+	switch sh.Route {
+	case transcoding.RouteCostSDR:
+		return bc.Proves(transcoding.HWRouteSDR)
+	case transcoding.RouteCostTonemap:
+		return bc.Proves(transcoding.HWRouteTonemap) && hwTonemapFilter(accel, bc.Features) != ""
+	case transcoding.RouteCostBridge:
+		return bc.Proves(transcoding.HWRouteBridge)
+	case transcoding.RouteCostPassthrough:
+		return bc.Proves(transcoding.HWRoutePassthrough)
+	case transcoding.RouteCostDecoupled:
+		return bc.Proves(transcoding.HWRouteDecoupled) && hwUploadFilter(accel) != ""
+	}
+	return false
+}
+
+// routeEvidencePlan lists the routes to measure on this capability: every
+// runtime shape (RuntimeRouteShapes - the same set the resolver emits, so the
+// matrix cannot drift from it) the software chain serves, and per certified
+// backend, every shape that backend proved. The resolver upgrades H.264 to HEVC
+// (or AV1) on a GPU that encodes it, on EVERY route - a decoupled or bridged
+// HEVC session that only the H.264 variant measured was refused by admission
+// and spilled to software, exactly the streams the GPU is there for.
+func routeEvidencePlan(cap *transcoding.EncodeCapability) []evidenceRoute {
+	var routes []evidenceRoute
+	for _, sh := range transcoding.RuntimeRouteShapes() {
+		if sh.HW {
+			continue
+		}
+		if _, skip := unmeasuredShapes[sh]; skip {
+			continue
+		}
+		opts, hdr, swDec, ok := routeShapeOpts(sh)
+		if !ok {
+			continue
+		}
+		routes = append(routes, evidenceRoute{route: sh.Route, codec: sh.Codec, hdrSample: hdr, softwareDecode: swDec, opts: opts})
+	}
+	for _, bc := range cap.BackendCaps() {
+		for _, sh := range transcoding.RuntimeRouteShapes() {
+			if !sh.HW || !backendServesShape(bc, sh) {
+				continue
+			}
+			if _, skip := unmeasuredShapes[sh]; skip {
+				continue
+			}
+			opts, hdr, swDec, ok := routeShapeOpts(sh)
+			if !ok {
+				continue
+			}
+			routes = append(routes, evidenceRoute{
+				route: sh.Route, codec: sh.Codec, backend: bc.Backend, device: bc.Device, features: bc.Features,
+				hdrSample: hdr, softwareDecode: swDec, opts: opts,
+			})
+		}
+	}
+	return routes
+}
+
 // measureRouteEvidence measures every route the calibrated capability can
-// serve and returns the per-route samples. Warm-up + best-of-two per point.
-// Best-effort: a route that fails to produce a segment is skipped (it should
-// not have been in HWRoutes), never fatal.
+// serve and returns the per-route samples. Warm-up + conservative-of-two per
+// point. Best-effort: a route that fails to produce a segment is skipped (it
+// should not have been in HWRoutes), never fatal.
 func (r *BenchmarkRunner) measureRouteEvidence(ctx context.Context, sdrSample string, sdrFallback bool, cap *transcoding.EncodeCapability) []transcoding.RouteSample {
 	if sdrFallback || sdrSample == "" {
 		return nil // the synthetic lavfi fallback is not a real decode workload
 	}
 	hdrSample, hdrFallback := r.resolveHDRSample(ctx)
-	sourceFPS := float64(r.sourceRate())
-
-	var routes []evidenceRoute
-	// Software routes (always, on every host): x264 SDR, x264 HDR tone-map, x265.
-	swFn := func(*transcoding.HLSProcessOpts) {}
-	routes = append(routes,
-		evidenceRoute{route: transcoding.RouteCostSDR, codec: "h264", opts: swFn},
-		evidenceRoute{route: transcoding.RouteCostSoftwareHDR, codec: "h264", hdrSample: true, opts: func(o *transcoding.HLSProcessOpts) { o.ToneMap = true }},
-		evidenceRoute{route: transcoding.RouteCostSDR, codec: "hevc", opts: func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "hevc" }},
-	)
-	// Hardware routes, PER certified backend (VAAPI and QSV both, if both proved):
-	// only the routes that backend ran end-to-end, with ITS device and features.
-	for _, bc := range cap.BackendCaps() {
-		accel := transcoding.HWAccelType(bc.Backend)
-		b, dev, feat := bc.Backend, bc.Device, bc.Features
-		if bc.Proves(transcoding.HWRouteSDR) {
-			routes = append(routes, evidenceRoute{route: transcoding.RouteCostSDR, codec: "h264", backend: b, device: dev, features: feat, opts: swFn})
-		}
-		if bc.Proves(transcoding.HWRouteHEVC) {
-			routes = append(routes, evidenceRoute{route: transcoding.RouteCostSDR, codec: "hevc", backend: b, device: dev, features: feat, opts: func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "hevc" }})
-		}
-		if bc.Proves(transcoding.HWRouteAV1) {
-			routes = append(routes, evidenceRoute{route: transcoding.RouteCostSDR, codec: "av1", backend: b, device: dev, features: feat, opts: func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "av1" }})
-		}
-		if bc.Proves(transcoding.HWRouteTonemap) && hwTonemapFilter(accel, feat) != "" {
-			routes = append(routes, evidenceRoute{route: transcoding.RouteCostTonemap, codec: "h264", backend: b, device: dev, features: feat, hdrSample: true, opts: func(o *transcoding.HLSProcessOpts) { o.ToneMap, o.HWTonemap = true, true }})
-		}
-		if bc.Proves(transcoding.HWRouteBridge) {
-			routes = append(routes, evidenceRoute{route: transcoding.RouteCostBridge, codec: "h264", backend: b, device: dev, features: feat, hdrSample: true, opts: func(o *transcoding.HLSProcessOpts) { o.ToneMap, o.HWTonemap = true, false }})
-		}
-		if bc.Proves(transcoding.HWRoutePassthrough) {
-			routes = append(routes, evidenceRoute{route: transcoding.RouteCostPassthrough, codec: "hevc", backend: b, device: dev, features: feat, hdrSample: true, opts: func(o *transcoding.HLSProcessOpts) {
-				o.VideoCodec, o.HDRPassthrough, o.HDRTransfer = "hevc", true, "pq"
-			}})
-		}
-		if bc.Proves(transcoding.HWRouteDecoupled) && hwUploadFilter(accel) != "" {
-			routes = append(routes, evidenceRoute{route: transcoding.RouteCostDecoupled, codec: "h264", backend: b, device: dev, features: feat, softwareDecode: true, opts: func(o *transcoding.HLSProcessOpts) { o.HWSoftwareDecode = true }})
-		}
-	}
+	routes := routeEvidencePlan(cap)
 
 	warmed := map[string]bool{}
 	var samples []transcoding.RouteSample
@@ -121,6 +194,9 @@ func (r *BenchmarkRunner) measureRouteEvidence(ctx context.Context, sdrSample st
 		if fallback || sample == "" {
 			continue
 		}
+		// The rate of the sample THIS route runs on: the HDR clip and the SDR
+		// clip need not share one.
+		sourceFPS := r.sampleRate(ctx, sample, fallback)
 		enc := videoEncoderFor(codecOrH264(er), transcoding.HWAccelType(er.backend))
 		key := transcoding.RouteCostKeyFor(transcoding.HWAccelType(er.backend), enc, er.route)
 		for _, h := range routeEvidenceRungsFor(r.routeCeiling(er, cap)) {
