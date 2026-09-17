@@ -21,6 +21,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // PlanResolver resolves a PlaybackRequest into an immutable PlaybackPlan. It
@@ -43,6 +44,11 @@ type PlanResolver struct {
 	// HWLowPowerEnabled: admin opt-in for the Intel low-power (VDEnc) encoder.
 	// Off (nil) keeps the probed low_power_* features out of the encode.
 	HWLowPowerEnabled func() bool
+	// Expressibility is the ffmpeg builder's own knowledge of the routes it
+	// can emit (ADR-0030). Consulted on every resolved GPU route; in this
+	// stage a disagreement is logged and counted (shadow), the resolver's own
+	// mirrors of the builder's rules still decide. nil = not consulted.
+	Expressibility transcoding.RouteExpressibility
 	// MaxVideoBitrateKbps caps the served video bitrate (transcoding.max_video_bitrate_kbps, 0 = source).
 	MaxVideoBitrateKbps func() int
 	// AudioNormalize reports the loudnorm admin setting (forces audio re-encode).
@@ -186,8 +192,25 @@ func (pr *PlanResolver) naturalRoute(req PlaybackRequest, decision transcoding.P
 	}
 	if hwUsable {
 		route.Backend = BackendSelection{Name: accel, Device: device, Features: features}
+		pr.shadowExpressibility(route, decision)
 	}
 	return route
+}
+
+// shadowExpressibility asks the builder whether it can emit the route the
+// resolver just picked. A refusal here is a planner/builder disagreement:
+// counted and logged, never acted on yet - the builder still falls back on
+// its own gates, and the two must read zero disagreements before it refuses.
+func (pr *PlanResolver) shadowExpressibility(route ResolvedRoute, decision transcoding.PlaybackDecision) {
+	if pr.Expressibility == nil {
+		return
+	}
+	needs := transcoding.RouteNeeds{BurnInBitmap: decision.SubtitleDecision == "burn", GPUOverlay: route.Overlay}
+	if err := pr.Expressibility.Expressible(route.Topology, transcoding.HWAccelType(route.Backend.Name), route.Backend.Device, route.Backend.Features, needs); err != nil {
+		metrics.HLSVODRouteNotExpressible.Inc()
+		slog.Warn("plan resolver: resolved GPU route the builder cannot express (planner/builder disagreement, ADR-0030)",
+			slog.String("topology", route.Topology.String()), slog.String("accel", route.Backend.Name), slog.Any("err", err))
+	}
 }
 
 // routeWithPin is the resolved route as the LIVE pin has it: a caller that

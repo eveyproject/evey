@@ -260,3 +260,38 @@ func RuntimeRouteShapes() []RouteShape {
 	})
 	return out
 }
+
+// RouteNeeds are the per-request demands on the filtergraph beyond the
+// topology: what the session must composite, and whether the resolver wired
+// the GPU compositor for it.
+type RouteNeeds struct {
+	// BurnInBitmap: a bitmap subtitle (PGS/VobSub) is burnt into the picture.
+	BurnInBitmap bool
+	// GPUOverlay: the resolver wired the accelerator's compositor for that
+	// burn-in (the host probed one). Without it a burn-in composites on the
+	// CPU, which no GPU topology expresses.
+	GPUOverlay bool
+}
+
+// ErrRouteNotExpressible: the ffmpeg builder has no pipeline for this
+// topology on this accelerator with these needs. Asked BEFORE a route is
+// resolved it excludes the accelerator from the pick; raised AT BUILD it is a
+// planner/builder invariant violation (a bug to log and count), never a
+// reason to block a title or demote a host (ADR-0030).
+type ErrRouteNotExpressible struct {
+	Topology Topology
+	Accel    HWAccelType
+	Why      string
+}
+
+func (e ErrRouteNotExpressible) Error() string {
+	return fmt.Sprintf("transcoding: %s not expressible on %s: %s", e.Topology, e.Accel, e.Why)
+}
+
+// RouteExpressibility is the builder's own knowledge of what it can emit,
+// exposed as a port so the resolver never resolves a route the builder
+// would have to swap for another. Implemented by the ffmpeg adapter from its
+// filter tables; software topologies are always expressible.
+type RouteExpressibility interface {
+	Expressible(t Topology, accel HWAccelType, device string, features []string, needs RouteNeeds) error
+}
