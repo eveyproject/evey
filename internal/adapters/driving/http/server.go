@@ -283,6 +283,9 @@ type HTTPServer struct {
 	// VideoAdmissionShaper serves a lower ladder rung instead of refusing when
 	// the top one does not fit the budget. Optional (nil = shed instead).
 	VideoAdmissionShaper *apptranscoding.VideoAdmissionShaper
+	// RouteExpressibility is the ffmpeg builder's own answer to "can you emit
+	// this route", consulted by the plan resolver (ADR-0030). Optional.
+	RouteExpressibility domaintranscoding.RouteExpressibility
 
 	// DLNA
 	DLNASvc *appdlna.Service

@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
@@ -388,5 +389,23 @@ func TestResolvedRoute_ProjectionsAgree(t *testing.T) {
 		if plan.Route.HW() {
 			require.NotEmpty(t, plan.Route.Backend.Name, "%s: a GPU route names its backend", sc.name)
 		}
+	}
+}
+
+// Every GPU route the corpus resolves is one the builder can express: the
+// resolver's mirrors of the builder's gates and the builder agree on every
+// scenario, which is what lets the builder stop falling back (ADR-0030, 6).
+func TestResolvedRoute_EveryGPURouteIsExpressible(t *testing.T) {
+	e := ffmpeg.Expressibility{} // the production port, not a mirror
+	for _, sc := range routeGoldenScenarios() {
+		pr, req := sc.build()
+		plan, err := pr.Resolve(context.Background(), req)
+		require.NoError(t, err, sc.name)
+		r := plan.Route
+		if !r.HW() {
+			continue
+		}
+		needs := transcoding.RouteNeeds{BurnInBitmap: plan.Decision.SubtitleDecision == "burn", GPUOverlay: r.Overlay}
+		require.NoError(t, e.Expressible(r.Topology, transcoding.HWAccelType(r.Backend.Name), r.Backend.Device, r.Backend.Features, needs), "%s: %s on %s", sc.name, r.Topology, r.Backend.Name)
 	}
 }

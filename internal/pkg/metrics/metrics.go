@@ -243,6 +243,17 @@ var (
 		Help: "Total VOD-pipeline rafale spawns refused due to the global session cap.",
 	})
 
+	// HLSVODRouteNotExpressible counts the times a resolved GPU route reached
+	// the ffmpeg builder and the builder had no pipeline for it (it then fell
+	// back to a software encode under a GPU-billed session). Every hit is a
+	// planner/builder disagreement - an ADR-0030 invariant violation - and the
+	// counter must read zero before the builder is switched from fallback to
+	// refusal.
+	HLSVODRouteNotExpressible = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_route_not_expressible_total",
+		Help: "Total resolved GPU routes the ffmpeg builder could not express (planner/builder disagreement).",
+	})
+
 	// HLSVODCacheHits / HLSVODCacheMisses split segment requests by whether
 	// they hit the disk cache before waiting for ffmpeg. Hit-rate >> 0 is
 	// the primary KPI for the multi-session cache: low hit-rate means users
@@ -360,6 +371,7 @@ func init() {
 		WatcherProbeTotal, WatcherAlive, LibraryScanTotal,
 		TranscodeDuration,
 		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled, HLSVODSessionsCompleted, HLSVODSessionsRejected,
+		HLSVODRouteNotExpressible,
 		HLSVODCopyTimelineDrift, HLSVODTranscodeSeekTimelineDrift,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,

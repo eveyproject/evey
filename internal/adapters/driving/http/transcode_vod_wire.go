@@ -190,6 +190,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		hwLowPowerEnabled: func() bool {
 			return s.Cfg != nil && s.Cfg.EffectiveHWLowPowerEnabled()
 		},
+		expressibility: s.RouteExpressibility,
 		maxVideoBitrateKbps: func() int {
 			if s.Cfg == nil {
 				return 0

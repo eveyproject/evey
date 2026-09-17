@@ -826,6 +826,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	if hwUsable(opts, burnIn, toneMap) {
 		return buildSingleTranscodeHWArgs(opts)
 	}
+	noteRouteNotExpressible(opts, burnIn, toneMap)
 
 	var args []string
 	if opts.StartSec > 0 {
@@ -904,6 +905,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	if hwUsable(opts, burnIn, toneMap) {
 		return buildMultiVariantHWArgs(opts)
 	}
+	noteRouteNotExpressible(opts, burnIn, toneMap)
 	vcodec := resolveVideoEncoder(opts.VideoCodec)
 
 	var args []string

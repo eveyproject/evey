@@ -75,6 +75,7 @@ func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
 		AV1MaxHeight:          h.av1MaxHeight,
 		HWTonemapEnabled:      h.hwTonemapEnabled,
 		HWLowPowerEnabled:     h.hwLowPowerEnabled,
+		Expressibility:        h.expressibility,
 		MaxVideoBitrateKbps:   h.maxVideoBitrateKbps,
 		AudioNormalize:        h.audioNormalizeGetter,
 		AudioEncoderID:        h.audioEncoderIDGetter,

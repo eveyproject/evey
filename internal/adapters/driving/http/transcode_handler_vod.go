@@ -225,6 +225,8 @@ type hlsVODServe struct {
 	hwTonemapEnabled func() bool
 	// hwLowPowerEnabled: admin opt-in for the Intel low-power encoder (transcoding.hw_low_power).
 	hwLowPowerEnabled func() bool
+	// expressibility is the builder's port the resolver consults (ADR-0030); nil = not wired.
+	expressibility domaintranscoding.RouteExpressibility
 	// maxVideoBitrateRemoteKbps: the ceiling for a public-IP client (0 = none);
 	// userBitrate: the admin per-user limit, cached per user like the prefs.
 	maxVideoBitrateRemoteKbps func() int
