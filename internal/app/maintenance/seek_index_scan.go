@@ -297,6 +297,7 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[s
 		if !s.diagnose(ctx, f.Path, &st) {
 			return SeekStatus{}, false, false
 		}
+		s.probeInterleave(ctx, f.Path, &st)
 		s.proveAudioCoherence(ctx, f.Path, &st)
 	}
 
@@ -379,6 +380,23 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 	return true
 }
 
+// probeInterleave fills InterleaveBackstepSec. Secondary diagnostics: a probe
+// failure logs and leaves the file in the scan with no finding.
+func (s *SeekIndexService) probeInterleave(ctx context.Context, path string, st *SeekStatus) {
+	if s.interleave == nil || st.WrongContainer {
+		return
+	}
+	back, err := s.interleave.ProbeInterleaveBackstepSec(ctx, path)
+	if err != nil {
+		s.logger.Warn("seek-index scan: interleave probe failed",
+			slog.String("path", path), slog.Any("err", err))
+		return
+	}
+	if back > InterleaveBackstepFlagSec {
+		st.InterleaveBackstepSec = back
+	}
+}
+
 // addToRollups folds one file's status into the result's rollup counters. THE
 // single rollup rule - the scan loop, the cached-file update and the persisted
 // -scan reload all fold through here, so a new category cannot be counted in
@@ -414,6 +432,9 @@ func addToRollups(res *ScanResult, st SeekStatus) {
 	if st.AudioShortfallSec > AudioShortfallFlagSec {
 		res.AudioShort++
 	}
+	if st.BrokenInterleave() {
+		res.BrokenInterleave++
+	}
 	switch v := st.Verdict(); {
 	case v == VerdictRepairable:
 		res.Repairable++
@@ -429,6 +450,7 @@ func recomputeRollups(res *ScanResult) {
 	res.MissingIndex, res.WithBackup, res.AudioDelayed = 0, 0, 0
 	res.Truncated, res.Damaged, res.WrongContainer = 0, 0, 0
 	res.TrailingJunk, res.AudioShort, res.SeekCoarse = 0, 0, 0
+	res.BrokenInterleave = 0
 	res.Repairable, res.Informational, res.Acked = 0, 0, 0
 	for _, it := range res.Items {
 		addToRollups(res, it)

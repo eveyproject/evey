@@ -113,6 +113,10 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// cover a tenth of a film and pass a track whose frames change format
 		// at a joint, which decodes cleanly and plays silent (prod 2026-09-01).
 		WithAudioIntegrityProber(ffmpeg.NewAudioIntegrity("ffmpeg", "ffprobe")).
+		// Chunked interleave (minutes of video, then minutes of audio): every
+		// header healthy, no sequential player gets past the first block.
+		// Sampled cluster timestamps, ~11 MB per file.
+		WithInterleaveProber(mkvgo.New()).
 		// Audio tail-gap probe: does the audio content reach the declared
 		// duration? Catches the truncated-audio-track mux (structurally
 		// healthy file, dead audio over the credits) ops.Diagnose cannot

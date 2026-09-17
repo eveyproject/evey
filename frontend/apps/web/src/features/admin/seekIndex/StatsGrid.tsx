@@ -71,6 +71,7 @@ export function StatsGrid({ result, triage, breakdown, withBackup, ackGroup, lib
           part(breakdown.delayedAudio, "admin.seekIndex.partAudioDelay", "seek-index-audio-delay-count"),
           part(breakdown.audioShort, "admin.seekIndex.partAudioShort", "seek-index-audio-short-count"),
           part(breakdown.trailingJunk, "admin.seekIndex.partTrailingJunk", "seek-index-trailing-junk-count"),
+          part(breakdown.brokenInterleave, "admin.seekIndex.partBrokenInterleave", "seek-index-broken-interleave-count"),
         ])}
         <p className="mt-2 text-xs text-[var(--text-muted)]">{t("admin.seekIndex.statsInformationalHint")}</p>
         {triage.informational > 0 && (

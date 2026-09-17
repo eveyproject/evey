@@ -32,6 +32,7 @@ import {
   verdictOf,
   viewCounts,
   volumeBackupsRisky,
+  brokenInterleave,
   SEEK_INDEX_BACKUP_WINDOW,
   SEEK_INDEX_SCAN_QUERY_BASE,
   SEEK_INDEX_KIND_KEYS,
@@ -240,6 +241,7 @@ export default function AdminSeekIndexScreen() {
     [items.filter((it) => verdictOf(it) === "informational" && (it.audioDelaySec ?? 0) > 0.1 && !it.ackedAtMs).length, "admin.seekIndex.partAudioDelay"],
     [items.filter((it) => verdictOf(it) === "informational" && (it.audioShortfallSec ?? 0) > 0 && !it.ackedAtMs).length, "admin.seekIndex.partAudioShort"],
     [items.filter((it) => verdictOf(it) === "informational" && it.trailingJunk && !it.ackedAtMs).length, "admin.seekIndex.partTrailingJunk"],
+    [items.filter((it) => brokenInterleave(it) && !it.ackedAtMs).length, "admin.seekIndex.partBrokenInterleave"],
   ]);
   const repairVolumes = (result?.volumes ?? []).filter((v) => (v.missingFiles ?? 0) > 0);
   const backupsRisky = repairVolumes.some(volumeBackupsRisky);

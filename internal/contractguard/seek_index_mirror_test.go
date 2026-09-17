@@ -44,6 +44,15 @@ func TestSeekIndexClientMirrorsMatchServer(t *testing.T) {
 		t.Errorf("AUDIO_DELAY_FLOOR_SEC = %v, server maintenance.AudioDelayFlagSec = %v", got, appmaintenance.AudioDelayFlagSec)
 	}
 
+	back := tsConst(t, src, "INTERLEAVE_BACKSTEP_FLOOR_SEC", `([0-9.]+)`)
+	gotBack, err := strconv.ParseFloat(back, 64)
+	if err != nil {
+		t.Fatalf("parse INTERLEAVE_BACKSTEP_FLOOR_SEC %q: %v", back, err)
+	}
+	if gotBack != appmaintenance.InterleaveBackstepFlagSec {
+		t.Errorf("INTERLEAVE_BACKSTEP_FLOOR_SEC = %v, server maintenance.InterleaveBackstepFlagSec = %v", gotBack, appmaintenance.InterleaveBackstepFlagSec)
+	}
+
 	// volumeHeadroomBytes is unexported server-side, so pin both files to the
 	// same MiB figure read out of their source.
 	mib := tsConst(t, src, "VOLUME_HEADROOM_BYTES", `(\d+) \* 1024 \* 1024`)

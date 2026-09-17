@@ -15,7 +15,7 @@ import {
   useAdminMediaServicePurgeSeekIndexBackups,
   useAdminMediaServiceAckSeekIndexMedia,
   useAdminMediaServiceAckSeekIndexGroup,
-  useAdminMediaServiceFixContainerMedia, audioDelayed, audioTracksDisagree } from "@evey/api";
+  useAdminMediaServiceFixContainerMedia, audioDelayed, audioTracksDisagree, brokenInterleave } from "@evey/api";
 import {
   SEEK_INDEX_SCAN_QUERY_BASE,
   SEEK_INDEX_KIND_KEYS,
@@ -122,6 +122,7 @@ export function useSeekIndexPage() {
     seekCoarse: items.filter((it) => it.seekCoarse && !it.truncated && !isAcked(it)).length,
     audioShort: items.filter((it) => verdictOf(it) === "informational" && (it.audioShortfallSec ?? 0) > 0 && !isAcked(it)).length,
     trailingJunk: items.filter((it) => verdictOf(it) === "informational" && it.trailingJunk && !isAcked(it)).length,
+    brokenInterleave: items.filter((it) => brokenInterleave(it) && !isAcked(it)).length,
     // Counted APART from `damaged`, and never added to `damagedBytes`: these
     // are the files a repair already refused as corrupt, and how much a resync
     // would drop is unknown for them. Folding them into the byte total would

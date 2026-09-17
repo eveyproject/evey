@@ -38,6 +38,7 @@ func TestSeekStatus_Verdict(t *testing.T) {
 		"audio tracks disagree":        {appmaintenance.SeekStatus{HasIndex: true, AudioTracksLagSec: 11.9, AudioTracksChecked: true}, appmaintenance.VerdictInformational},
 		"offset proven coherent":       {appmaintenance.SeekStatus{HasIndex: true, AudioDelaySec: 12, AudioTracksLagSec: 0, AudioTracksChecked: true}, appmaintenance.VerdictInformational},
 		"retime fingerprint":           {appmaintenance.SeekStatus{HasIndex: true, AudioTrackZeroed: true}, appmaintenance.VerdictInformational},
+		"chunked interleave":           {appmaintenance.SeekStatus{HasIndex: true, InterleaveBackstepSec: 366}, appmaintenance.VerdictInformational},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -54,7 +55,7 @@ func triageLibrary(t *testing.T) (dir string, paths map[string]string, svc *appm
 	t.Helper()
 	dir = t.TempDir()
 	paths = map[string]string{}
-	for _, n := range []string{"noindex", "damaged", "delayed", "wrongct", "truncated", "short", "junk", "healthy"} {
+	for _, n := range []string{"noindex", "damaged", "delayed", "wrongct", "truncated", "short", "junk", "chunked", "healthy"} {
 		paths[n] = filepath.Join(dir, n+".mkv")
 		require.NoError(t, os.WriteFile(paths[n], []byte("x"), 0o644))
 	}
@@ -71,6 +72,7 @@ func triageLibrary(t *testing.T) (dir string, paths map[string]string, svc *appm
 		paths["truncated"]: {Findings: []mkv.DiagnosisFinding{{Kind: "no-index"}, {Kind: "damaged"}}, DamagedBytes: 16, Truncated: true},
 		paths["short"]:     {Healthy: true, AudioShortfallMs: 42_000},
 		paths["junk"]:      {Findings: []mkv.DiagnosisFinding{{Kind: "trailing-junk"}}},
+		paths["chunked"]:   {Healthy: true},
 		paths["healthy"]:   {Healthy: true},
 	}}
 	// A rewrite really repairs the file: once rebuilt, the diagnoser must see
@@ -80,10 +82,21 @@ func triageLibrary(t *testing.T) (dir string, paths map[string]string, svc *appm
 	svc = appmaintenance.NewSeekIndexService(reidx, fakeCatalog{files: refs}, nil).
 		WithDiagnoser(diag).
 		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{paths["delayed"]: 0.9}}).
+		// Every header of the chunked file is healthy; only the sampled
+		// cluster order tells it apart.
+		WithInterleaveProber(fakeInterleaveProber{backsteps: map[string]float64{paths["chunked"]: 366, paths["healthy"]: 4}}).
 		WithMediaRelocator(reloc)
 	require.NoError(t, svc.StartScan(context.Background(), ""))
 	waitIdle(t, svc)
 	return dir, paths, svc, reidx, reloc
+}
+
+type fakeInterleaveProber struct {
+	backsteps map[string]float64
+}
+
+func (f fakeInterleaveProber) ProbeInterleaveBackstepSec(_ context.Context, p string) (float64, error) {
+	return f.backsteps[p], nil
 }
 
 type fakeRelocator struct {
@@ -109,13 +122,14 @@ func TestSeekIndexService_Scan_RollsUpTheTriage(t *testing.T) {
 	_, _, svc, _, _ := triageLibrary(t)
 	res, _, ok := svc.CachedScan("")
 	require.True(t, ok)
-	assert.Equal(t, 8, res.Total)
+	assert.Equal(t, 9, res.Total)
 	// noindex, damaged, wrongct - the delayed file is NOT here any more: a
 	// start offset is a fact, not something Repair all rewrites.
 	assert.Equal(t, 3, res.Repairable, "exactly what Repair all acts on")
-	// short, junk, delayed + truncated: everything Evey cannot fix here is
-	// one and the same answer now - a remark, never an instruction.
-	assert.Equal(t, 4, res.Informational)
+	// short, junk, delayed, chunked + truncated: everything Evey cannot fix
+	// here is one and the same answer now - a remark, never an instruction.
+	assert.Equal(t, 5, res.Informational)
+	assert.Equal(t, 1, res.BrokenInterleave, "a 4 s backstep on the healthy file stays under the floor")
 	assert.Zero(t, res.Acked)
 }
 
@@ -129,9 +143,9 @@ func TestSeekIndexService_Ack_MovesFilesOutOfTheQueue(t *testing.T) {
 
 	require.NoError(t, svc.AckMedia(ctx, "m-junk", true))
 	res, _, _ := svc.CachedScan("")
-	// short, delayed - junk left the pending pile (the offset file is
+	// short, delayed, chunked - junk left the pending pile (the offset file is
 	// informational now: a start offset is a fact, never a repair).
-	assert.Equal(t, 3, res.Informational, "junk left the pending pile")
+	assert.Equal(t, 4, res.Informational, "junk left the pending pile")
 	assert.Equal(t, 1, res.Acked)
 	for _, it := range res.Items {
 		if it.Path == paths["junk"] {
@@ -142,18 +156,18 @@ func TestSeekIndexService_Ack_MovesFilesOutOfTheQueue(t *testing.T) {
 	// Withdrawing puts it back.
 	require.NoError(t, svc.AckMedia(ctx, "m-junk", false))
 	res, _, _ = svc.CachedScan("")
-	assert.Equal(t, 4, res.Informational)
+	assert.Equal(t, 5, res.Informational)
 	assert.Zero(t, res.Acked)
 
 	// A whole group at once - and a repairable group is refused.
 	n, err := svc.AckGroup(ctx, "", appmaintenance.VerdictInformational)
 	require.NoError(t, err)
-	assert.Equal(t, 4, n)
+	assert.Equal(t, 5, n)
 	_, err = svc.AckGroup(ctx, "", appmaintenance.VerdictRepairable)
 	require.ErrorIs(t, err, appmaintenance.ErrAckNotApplicable)
 	res, _, _ = svc.CachedScan("")
 	assert.Zero(t, res.Informational)
-	assert.Equal(t, 4, res.Acked)
+	assert.Equal(t, 5, res.Acked)
 }
 
 // The acknowledgement is a judgement on THESE bytes: it survives restarts and
@@ -214,7 +228,7 @@ func TestSeekIndexService_RepairAll_CoversEveryRepairableVerdict(t *testing.T) {
 	assert.Equal(t, 2, st.Last.Total, "1 index + 1 container - the offset file is deliberately left alone")
 
 	res, _, _ := svc.CachedScan("")
-	assert.Equal(t, 7, res.Total, "the renamed file is no longer the scan's business")
+	assert.Equal(t, 8, res.Total, "the renamed file is no longer the scan's business")
 	assert.Equal(t, 1, res.Repairable, "only the damaged file (awaiting consent) remains repairable")
 
 	// With consent, the damaged file is resynced too - and keeps its backup.
