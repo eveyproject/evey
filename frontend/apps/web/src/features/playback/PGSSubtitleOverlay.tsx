@@ -31,6 +31,41 @@ const trackCache = new Map<string, PGSTrack>();
 // One object URL per cue, built once per track. Revoking them is what keeps a
 // long viewing session from leaking a blob URL per subtitle shown.
 const urlCache = new Map<string, string[]>();
+// A binge is many tracks, and each one is megabytes of PNG held twice (the
+// parsed cues and their blobs). Past this many the oldest is dropped and its
+// URLs revoked; the one on screen is always the most recently touched.
+const maxCachedTracks = 3;
+
+function touchCached(key: string): { track: PGSTrack; urls: string[] } | null {
+  const track = trackCache.get(key);
+  const urls = urlCache.get(key);
+  if (!track || !urls) return null;
+  trackCache.delete(key);
+  urlCache.delete(key);
+  trackCache.set(key, track);
+  urlCache.set(key, urls);
+  return { track, urls };
+}
+
+function remember(key: string, track: PGSTrack, built: string[]): string[] {
+  // Two mounts fetching the same track at once: the second to finish keeps
+  // the first one's URLs instead of leaking its own on top.
+  const existing = touchCached(key);
+  if (existing) {
+    for (const u of built) URL.revokeObjectURL(u);
+    return existing.urls;
+  }
+  while (trackCache.size >= maxCachedTracks) {
+    const oldest = trackCache.keys().next().value;
+    if (oldest === undefined) break;
+    for (const u of urlCache.get(oldest) ?? []) URL.revokeObjectURL(u);
+    trackCache.delete(oldest);
+    urlCache.delete(oldest);
+  }
+  trackCache.set(key, track);
+  urlCache.set(key, built);
+  return built;
+}
 
 export function PGSSubtitleOverlay({ mediaId, trackIndex, streamToken, videoRef, offsetMs = 0 }: Props) {
   const [track, setTrack] = useState<PGSTrack | null>(null);
@@ -45,11 +80,10 @@ export function PGSSubtitleOverlay({ mediaId, trackIndex, streamToken, videoRef,
       return;
     }
     const key = `${mediaId}:${trackIndex}`;
-    const cached = trackCache.get(key);
-    const cachedUrls = urlCache.get(key);
-    if (cached && cachedUrls) {
-      setTrack(cached);
-      setUrls(cachedUrls);
+    const cached = touchCached(key);
+    if (cached) {
+      setTrack(cached.track);
+      setUrls(cached.urls);
       return;
     }
     let cancelled = false;
@@ -70,10 +104,8 @@ export function PGSSubtitleOverlay({ mediaId, trackIndex, streamToken, videoRef,
         const built = parsed.cues.map((c) =>
           URL.createObjectURL(new Blob([new Uint8Array(c.png)], { type: "image/png" })),
         );
-        trackCache.set(key, parsed);
-        urlCache.set(key, built);
         setTrack(parsed);
-        setUrls(built);
+        setUrls(remember(key, parsed, built));
       } catch {
         // A subtitle that fails to load must never take playback with it.
       }
