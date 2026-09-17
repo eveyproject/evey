@@ -973,6 +973,12 @@ func (pr *PlanResolver) LadderClassFor(decision transcoding.PlaybackDecision, st
 func spillRoute(hw transcoding.EncodeRoute, decision transcoding.PlaybackDecision) transcoding.EncodeRoute {
 	r := hw
 	r.HWUsable, r.Accel, r.SoftwareDecode, r.HWTonemap = false, "", false, false
+	// A spilled HDR passthrough tone-maps on the CPU (no GPU keeps the range):
+	// the ladder must take the HDR floor, as the fingerprint's HDRTonemap
+	// already said.
+	if r.HDRPassthrough {
+		r.HDRPassthrough, r.Tonemap = false, true
+	}
 	if strings.EqualFold(r.Codec, "av1") || (strings.EqualFold(r.Codec, "hevc") && !strings.EqualFold(decision.VideoCodec, "hevc")) {
 		r.Codec = "h264"
 	}
@@ -1054,7 +1060,13 @@ func (pr *PlanResolver) sourceFacts(req PlaybackRequest) transcoding.SourceFacts
 // fingerprint and the producer selector give), plus the tone-map placement.
 func (pr *PlanResolver) encodeRoute(decision transcoding.PlaybackDecision, streams []*library.MediaStream, isCopy bool) transcoding.EncodeRoute {
 	codec, accel, _, _, usable, softwareDecode := pr.EffectiveVideoCodec(decision, streams)
-	tonemap := slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
+	// The HDR passthrough only exists on the GPU: wanted but not served by
+	// one (the source the GPU cannot decode, a spill, a blocked title), the
+	// CPU tone-maps - the same rule the fingerprint's HDRTonemap applies, so
+	// the ladder is shaped for the HDR floor the session really runs under.
+	hwUsable := usable && accel != ""
+	tonemap := slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") ||
+		(!hwUsable && pr.HDRPassthroughWanted(decision, streams))
 	return transcoding.EncodeRoute{
 		Codec:          codec,
 		Accel:          transcoding.HWAccelType(accel),
