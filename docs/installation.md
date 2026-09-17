@@ -61,6 +61,22 @@ Config** and should NOT be stuffed into the compose.
 container starts as root only to apply the mapping, then drops privileges -
 the server never runs as root.
 
+**On a NAS (Synology Container Manager, QNAP Container Station):**
+
+- Create the data folder **before** the first start (`mkdir evey-data` next
+  to the compose, or from File Station): those UIs refuse a bind mount whose
+  folder does not exist, unlike the Docker CLI. Nothing else to pre-create -
+  the entrypoint makes `plugins/`, `keys/`, `postgres/` itself.
+- Set `PUID`/`PGID` to the DSM user that owns the media (`id <user>` over
+  SSH; on Synology that is typically `1026`-ish and group `100` = `users`)
+  rather than relying on the automatic detection: a DSM share is often owned
+  by `root`, which the entrypoint never adopts.
+- Intel NAS with Quick Sync: add the `devices:` and `group_add:` lines from
+  `docker-compose.gpu.yml` (the render group's GID from `getent group render`
+  or `stat -c %g /dev/dri/renderD128`).
+- No `.env` is needed - the `.env`-gated `docker-compose.yml` at the root of
+  the repository is the operator layout, not this one.
+
 ## 2. First launch
 
 ```bash
@@ -207,6 +223,13 @@ docker compose logs --tail=200 evey     # server logs (migration errors, config 
   directory that is not a Postgres cluster, or a `postgres:`-prefixed error
   from Postgres itself (disk full, permissions on `./evey-data/postgres`, a
   network-share filesystem).
+- **Restart loop with `permission denied` on `/cache/...` in the log.** The
+  `evey-cache` volume belongs to another uid than the one the server runs as
+  (`PUID`, or the adopted media owner). Images from before 2026-09-17 only
+  re-owned it when `./evey-data` changed owner too, so a data folder
+  pre-created as `PUID` (the NAS case above) left the cache behind. Update the
+  image; on an older one, `docker run --rm -v evey_evey-cache:/c alpine chown
+  -R <PUID>:<PGID> /c` once (the volume name is `<project>_evey-cache`).
 - **External DB not reachable.** Confirm Postgres is healthy and the password
   matches:
   ```bash

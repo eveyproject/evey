@@ -13,6 +13,8 @@
 #   F. root-owned media -> no adoption, fall back to 1000
 #   G. mixed-owner media -> majority owner adopted, other mounts' groups joined
 #   H. root + regular mixed -> the regular owner is adopted (root never is)
+#   I. /data pre-created by the operator as PUID (Synology) while the cache
+#      volume is still the image's 1000 -> /cache is re-owned on its own test
 #
 # Usage: scripts/entrypoint-sim-test.sh   (needs docker)
 set -eu
@@ -24,6 +26,8 @@ RENDER_GID=105
 
 # MEDIA_SPEC (optional): space-separated "<dir>=<uid>:<gid>" entries creating
 # fake media mounts before the entrypoint runs, e.g. "/media=4242:4242".
+# DATA_OWNER (optional): "<uid>:<gid>" the operator pre-created ./evey-data
+# with (a bind mount hides the image's /data, so plugins/ is absent too).
 setup='
     groupadd -g 1000 evey
     useradd -u 1000 -g evey -m -s /usr/sbin/nologin evey
@@ -31,12 +35,16 @@ setup='
     mkdir -p /data/plugins /cache
     chown -R evey:evey /data /cache
     chmod 750 /data/plugins
+    if [ -n "${DATA_OWNER:-}" ]; then
+        rm -rf /data/plugins
+        chown "$DATA_OWNER" /data
+    fi
     for spec in ${MEDIA_SPEC:-}; do
         dir="${spec%%=*}"; own="${spec#*=}"
         mkdir -p "$dir"
         chown "$own" "$dir"
     done
-    printf "#!/bin/sh\ngrep -E \"^(Uid|Gid|Groups):\" /proc/self/status\necho \"plugins=\$(stat -c \"%%u:%%g %%a\" /data/plugins)\"\n" > /evey
+    printf "#!/bin/sh\ngrep -E \"^(Uid|Gid|Groups):\" /proc/self/status\necho \"plugins=\$(stat -c \"%%u:%%g %%a\" /data/plugins)\"\necho \"cache=\$(stat -c \"%%u:%%g\" /cache)\"\n" > /evey
     chmod +x /evey
     exec /entrypoint.sh
 '
@@ -124,6 +132,14 @@ outH=$(run_case -e MEDIA_SPEC="/media=0:0 /media2=4242:4242")
 echo "$outH"
 assert_uid "$outH" 4242 H
 refute_group "$outH" 0 H
+
+echo "--- case I: /data pre-owned by PUID, /cache still 1000 -> /cache re-owned, plugins/ created"
+outI=$(run_case -e PUID=1026 -e PGID=100 -e DATA_OWNER=1026:100)
+echo "$outI"
+assert_uid "$outI" 1026 I
+assert_plugins_dir "$outI" "1026:100" I
+echo "$outI" | grep -q "^cache=1026:100$" \
+    || { echo "FAIL [I]: /cache must be re-owned 1026:100 even when /data already is (got: $(echo "$outI" | grep '^cache='))"; fail=1; }
 
 if [ "$fail" -ne 0 ]; then
     echo "entrypoint sim-test: FAILED"
