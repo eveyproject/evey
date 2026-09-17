@@ -2,7 +2,7 @@ package transcoding
 
 import "strings"
 
-// hw_route_cost.go - the ROUTE evidence: what one real, warm, single-session
+// hw_route_cost.go - the ROUTE evidence (ADR-0029): what one real, warm, single-session
 // transcode of a given route measured on this host. It is the proof the
 // admission cost model prices a route on, replacing the cumulative bare-preset
 // HW rung whose shape and arguments the runtime never emits (measured
