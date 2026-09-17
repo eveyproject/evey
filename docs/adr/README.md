@@ -49,6 +49,7 @@ to.
 | [0025](0025-server-driven-cast.md) | Server-driven cast with a custom Web Receiver (app ID D36A449B) | 2026-07-25 | Accepted |
 | [0026](0026-remote-access-inferred-from-a-published-url.md) | Remote access inferred from a published URL, unless the operator chose | 2026-07-30 | Accepted |
 | [0028](0028-install-is-one-compose-file.md) | The install is one compose file | 2026-08-29 | Accepted |
+| [0029](0029-transcoding-routes-are-measured-not-assumed.md) | Transcoding routes are measured, not assumed (route-priced admission, per-route backend, proof-gated fallback) | 2026-09-13 | Accepted |
 
 ## Retired
 

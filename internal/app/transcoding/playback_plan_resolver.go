@@ -365,7 +365,7 @@ func backendServes(cap transcoding.EncodeCapability, bc transcoding.HWBackendCap
 	return softwareDecode, true
 }
 
-// pickBackend chooses the accelerator for a route and a source, in this order:
+// pickBackend chooses the accelerator for a route and a source (ADR-0029), in this order:
 //  1. COMPATIBILITY: the certified backends that prove the route's encode path,
 //     support the codec and serve THIS source (backendServes: decode matrix,
 //     decoupled path, 10-bit VPP, chroma layout, bridge proof, deinterlacer);

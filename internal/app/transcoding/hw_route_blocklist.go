@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// HWRouteBlocklist remembers the titles whose GPU route just failed, so the
+// HWRouteBlocklist (ADR-0029) remembers the titles whose GPU route just failed, so the
 // client's very next retry - and every other viewer of the same title - is
 // served from the CPU instead of replaying the same broken session until the
 // player gives up. It is the per-title half of the fallback ladder: session

@@ -7,7 +7,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
-// route_cost_model.go - RouteCostModel prices a session on the per-route,
+// route_cost_model.go - RouteCostModel (ADR-0029) prices a session on the per-route,
 // single-session, warm evidence the calibration measured (transcoding.RouteSample),
 // instead of the cumulative bare-preset HW rung VideoCostModel reads. It is a
 // SEPARATE model, consulted first by the limiter for a route it has evidence
