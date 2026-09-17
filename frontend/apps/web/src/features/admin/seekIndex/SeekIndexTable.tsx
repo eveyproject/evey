@@ -7,7 +7,7 @@ import { RepairHistoryPanel } from "./RepairHistoryPanel";
 import { SyncPreviewPanel } from "./SyncPreviewPanel";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
-import { audioDelayed, audioTrackZeroed, baseName, formatBytes, isAckable, isAcked, needsResync, verdictOf, audioTracksDisagree } from "@evey/api";
+import { audioDelayed, audioTrackZeroed, baseName, brokenInterleave, formatBytes, isAckable, isAcked, needsResync, verdictOf, audioTracksDisagree } from "@evey/api";
 import { SEEK_INDEX_PAGE_SIZE, type SeekIndexPageState } from "./hooks";
 
 type SeekIndexTableProps = Pick<
@@ -210,6 +210,15 @@ export function SeekIndexTable({
                   {it.wrongContainer && (
                     <span title={t("admin.seekIndex.wrongContainerHint")} className="ml-1.5 inline-block">
                       <Badge variant="error">{t("admin.seekIndex.wrongContainerBadge")}</Badge>
+                    </span>
+                  )}
+                  {brokenInterleave(it) && (
+                    <span
+                      title={t("admin.seekIndex.brokenInterleaveHint", { sec: Math.round(Number(it.interleaveBackstepSec ?? 0)) })}
+                      className="ml-1.5 inline-block"
+                      data-testid="seek-index-broken-interleave-hint"
+                    >
+                      <Badge variant="error">{t("admin.seekIndex.brokenInterleaveBadge")}</Badge>
                     </span>
                   )}
                   {/* A repair already walked this file and the source refused

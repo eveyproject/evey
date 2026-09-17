@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   audioDelayed,
   baseName,
+  brokenInterleave,
   isAckable,
   matchesView,
   needsResync,
@@ -25,6 +26,14 @@ describe("audioDelayed", () => {
   it("is true above the defect floor", () => {
     expect(audioDelayed({ audioDelaySec: 0.11 })).toBe(true);
     expect(audioDelayed({ audioDelaySec: 1.5 })).toBe(true);
+  });
+});
+
+describe("brokenInterleave", () => {
+  it("only flags a cluster timestamp stepping back further than the floor", () => {
+    expect(brokenInterleave({})).toBe(false);
+    expect(brokenInterleave({ interleaveBackstepSec: 4 })).toBe(false);
+    expect(brokenInterleave({ interleaveBackstepSec: 366 })).toBe(true);
   });
 });
 
@@ -94,6 +103,7 @@ describe("verdictOf", () => {
     expect(verdictOf({ hasIndex: true, audioShortfallSec: 40 })).toBe("informational");
     expect(verdictOf({ hasIndex: true, trailingJunk: true })).toBe("informational");
     expect(verdictOf({ hasIndex: true, trailingJunk: true, audioDelaySec: 0.5 })).toBe("informational");
+    expect(verdictOf({ hasIndex: true, interleaveBackstepSec: 366 })).toBe("informational");
   });
 
   it("only lets what nobody can repair be acknowledged", () => {

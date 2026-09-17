@@ -466,6 +466,11 @@ message SeekIndexItem {
   // with one difference that must not be blurred: the amount a resync would
   // drop is UNKNOWN here, so it is never folded into the damaged byte total.
   bool resync_required = 22;
+  // interleave_backstep_sec > 0 = the tracks sit in separate blocks of minutes
+  // (video alone, then audio alone): the largest step BACKWARDS of the cluster
+  // timestamp between two sampled positions. No sequential player gets past
+  // the first block; only a re-mux by timestamp fixes it. Informational.
+  double interleave_backstep_sec = 23;
 }
 
 message ScanSeekIndexRequest {
@@ -515,6 +520,8 @@ message ScanSeekIndexResponse {
   // container_fix_available: the server can rename a mislabelled .mkv to .mp4
   // and repoint the catalog (part of Repair all when true).
   bool container_fix_available = 19;
+  // Count stored as blocks of one track at a time (see interleave_backstep_sec).
+  int32 broken_interleave = 20;
 }
 
 // SeekIndexVolume aggregates the repair candidates of one filesystem.

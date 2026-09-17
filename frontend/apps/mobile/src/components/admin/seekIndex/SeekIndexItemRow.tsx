@@ -2,7 +2,7 @@ import { View, Text, Pressable, ActivityIndicator, Alert, StyleSheet } from "rea
 import { useTranslation } from "react-i18next";
 import type { V1SeekIndexItem } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
-import { audioDelayed, audioTracksDisagree, audioTrackZeroed, formatBytes, isAckable, isAcked, needsResync, verdictOf } from "@evey/api";
+import { audioDelayed, audioTracksDisagree, audioTrackZeroed, brokenInterleave, formatBytes, isAckable, isAcked, needsResync, verdictOf } from "@evey/api";
 
 type Theme = ReturnType<typeof useTheme>;
 
@@ -197,6 +197,13 @@ export function SeekIndexItemRow({
         )}
         {item.wrongContainer && (
           <HintBadge label={t("admin.seekIndex.wrongContainerBadge")} hint={t("admin.seekIndex.wrongContainerHint")} color={theme.colors.error} />
+        )}
+        {brokenInterleave(item) && (
+          <HintBadge
+            label={t("admin.seekIndex.brokenInterleaveBadge")}
+            hint={t("admin.seekIndex.brokenInterleaveHint", { sec: Math.round(Number(item.interleaveBackstepSec ?? 0)) })}
+            color={theme.colors.error}
+          />
         )}
         {item.trailingJunk && (
           <HintBadge label={t("admin.seekIndex.trailingJunkBadge")} hint={t("admin.seekIndex.trailingJunkHint")} color={theme.colors.info} />

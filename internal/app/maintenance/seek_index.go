@@ -131,6 +131,15 @@ type AudioDelayProber interface {
 	ProbeMaxAudioStartDelaySec(ctx context.Context, path string) (float64, error)
 }
 
+// InterleaveProber samples a file's clusters in FILE order and reports the
+// largest step BACKWARDS of the cluster timestamp between two samples
+// (seconds). A muxer that wrote minutes of video then minutes of audio (the
+// two-input ffmpeg remux Evey ran until 2026-09-02) reads back hundreds; a sane
+// file reads 0. Satisfied by the mkvgo adapter; optional (nil skips it).
+type InterleaveProber interface {
+	ProbeInterleaveBackstepSec(ctx context.Context, path string) (float64, error)
+}
+
 // AudioCoherenceProber answers the only question that turns a declared audio
 // offset into a defect: do this file's OWN audio tracks tell the same story at
 // the same instant? Two tracks of one film share their music and effects bed,
@@ -224,6 +233,11 @@ const AudioTrackLagFlagSec = 0.25
 // couple of seconds of slack (priming, final-cluster rounding); the defect
 // class is measured in minutes (249 s on the file that motivated this).
 const AudioShortfallFlagSec = 10.0
+
+// InterleaveBackstepFlagSec is the floor above which a sampled cluster
+// timestamp going backwards is surfaced. Every muxer keeps them monotonic
+// (494 real files read 0); the 20 prod victims read 17 s to 2259 s.
+const InterleaveBackstepFlagSec = 10.0
 
 // SeekStatus is the per-file diagnosis surfaced by a scan.
 type SeekStatus struct {
@@ -324,6 +338,11 @@ type SeekStatus struct {
 	// silence, a real fix means re-acquiring the source. 0 when clean or not
 	// probed.
 	AudioShortfallSec float64
+	// InterleaveBackstepSec > InterleaveBackstepFlagSec → the tracks sit in
+	// separate blocks of minutes: no sequential player (mobile direct play,
+	// the HLS packager) gets past the first one. Only a re-mux by timestamp
+	// fixes it; a plain stream copy reproduces the layout.
+	InterleaveBackstepSec float64 `json:"InterleaveBackstepSec,omitempty"`
 	// IndexSparse → the video cues are keyed right but too far apart to seek
 	// into (mkvgo "index-sparse"). It is an index defect like the others, so
 	// HasIndex is false; this says WHICH one, because it is the only one a
@@ -384,7 +403,10 @@ type SeekStatus struct {
 //	   health, its validation, thumbnail extraction and HLS segment planning were
 //	   each wrong in their own way. Two production DVD rips at 20832 ns/unit sat
 //	   in the repair queue for it, failing every batch with a cue mismatch
-const SeekDiagVersion = 5
+//	6: the interleave probe (InterleaveBackstepSec): a film re-muxed by the
+//	   two-input ffmpeg audio repair of 2026-07-12 sat "healthy" for two months
+//	   while no client could play it past its first block of video
+const SeekDiagVersion = 6
 
 // Verdict is what the health page owes the operator for every file: not a
 // pile of flags, but the ONE answer "does this need doing, or is it just
@@ -438,10 +460,14 @@ func (st SeekStatus) Verdict() Verdict {
 	// disagreement between the file's own tracks (AudioTracksLagSec) is worth
 	// SAYING, because it is the one case where the offset is probably wrong -
 	// but it is still not something Evey will rewrite behind the operator.
+	// A chunked interleave is unplayable everywhere, yet the cure is a re-mux
+	// Evey does not perform (mkvgo's Merge reads one file with one reader and
+	// keeps its order): mentioned, with the remedy, until it does.
 	case st.AudioTracksLagSec > AudioTrackLagFlagSec,
 		st.AudioDelaySec > AudioDelayFlagSec,
 		st.AudioTrackZeroed,
 		st.AudioShortfallSec > AudioShortfallFlagSec,
+		st.BrokenInterleave(),
 		st.TrailingJunk:
 		return VerdictInformational
 	}
@@ -464,19 +490,26 @@ func (st SeekStatus) Ackable() bool { return st.Verdict() == VerdictInformationa
 // re-encode or a better source, neither of which evey performs.
 func (st SeekStatus) SeekCoarse() bool { return st.IndexSparse && st.ReindexAttempted }
 
+// BrokenInterleave reports a file whose tracks are stored in separate blocks
+// of minutes (see InterleaveBackstepSec).
+func (st SeekStatus) BrokenInterleave() bool {
+	return st.InterleaveBackstepSec > InterleaveBackstepFlagSec
+}
+
 // ScanResult bundles the per-file statuses with rollup counts.
 type ScanResult struct {
-	Items          []SeekStatus
-	Total          int
-	MissingIndex   int
-	WithBackup     int
-	AudioDelayed   int // count with AudioDelaySec > AudioDelayFlagSec
-	Truncated      int // count that are incomplete downloads (re-acquire, not repair)
-	Damaged        int // count with mid-file corruption (resync-repairable)
-	WrongContainer int // count that are MP4/MOV mislabelled .mkv (rename/remux, not reindex)
-	TrailingJunk   int // count carrying surplus bytes past the Segment end (harmless, a rewrite drops them)
-	AudioShort     int // count whose audio ends before the declared duration (re-acquire; playback fills silence)
-	SeekCoarse     int // count rebuilt and still too coarse to seek into (re-encode; no repair can improve them)
+	Items            []SeekStatus
+	Total            int
+	MissingIndex     int
+	WithBackup       int
+	AudioDelayed     int // count with AudioDelaySec > AudioDelayFlagSec
+	Truncated        int // count that are incomplete downloads (re-acquire, not repair)
+	Damaged          int // count with mid-file corruption (resync-repairable)
+	WrongContainer   int // count that are MP4/MOV mislabelled .mkv (rename/remux, not reindex)
+	TrailingJunk     int // count carrying surplus bytes past the Segment end (harmless, a rewrite drops them)
+	AudioShort       int // count whose audio ends before the declared duration (re-acquire; playback fills silence)
+	SeekCoarse       int // count rebuilt and still too coarse to seek into (re-encode; no repair can improve them)
+	BrokenInterleave int // count stored as blocks of one track at a time (re-mux by timestamp; unplayable sequentially)
 
 	// The triage the page is built on (see Verdict). Repairable is exactly
 	// what "Repair all" will act on. Informational counts only the remarks
@@ -534,6 +567,7 @@ type SeekIndexService struct {
 	catalog    MediaCatalog
 	fileState  FileStateRefresher   // optional; see WithFileStateRefresher
 	audioDelay AudioDelayProber     // optional; see WithAudioDelayProber
+	interleave InterleaveProber     // optional; see WithInterleaveProber
 	audioCoh   AudioCoherenceProber // optional; see WithAudioCoherenceProber
 	audible    AudibleTracksProber  // optional; see WithAudibleTracksProber
 	journal    RepairJournal        // optional; see WithRepairJournal
@@ -644,6 +678,14 @@ func (s *SeekIndexService) WithFileStateRefresher(r FileStateRefresher) *SeekInd
 // Optional and chainable; without it AudioDelaySec stays 0 everywhere.
 func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexService {
 	s.audioDelay = p
+	return s
+}
+
+// WithInterleaveProber wires the chunked-interleave diagnosis into scans (a
+// sixteen sampled cluster reads per file, ~11 MB). Optional and chainable;
+// without it InterleaveBackstepSec stays 0 everywhere.
+func (s *SeekIndexService) WithInterleaveProber(p InterleaveProber) *SeekIndexService {
+	s.interleave = p
 	return s
 }
 

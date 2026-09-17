@@ -60,6 +60,15 @@ export function baseName(p: string): string {
 // Mirror of the backend's maintenance.AudioShortfallFlagSec.
 export const AUDIO_SHORTFALL_FLOOR_SEC = 10;
 
+// Mirror of maintenance.InterleaveBackstepFlagSec: a sampled cluster timestamp
+// stepping back further than this means the tracks sit in separate blocks of
+// minutes - no sequential player gets past the first one.
+export const INTERLEAVE_BACKSTEP_FLOOR_SEC = 10;
+
+export function brokenInterleave(it: Pick<V1SeekIndexItem, "interleaveBackstepSec">): boolean {
+  return Number(it.interleaveBackstepSec ?? 0) > INTERLEAVE_BACKSTEP_FLOOR_SEC;
+}
+
 // The ONE answer per file the health page is built on - see the Go Verdict.
 // The ONE answer per file, and deliberately only two non-healthy ones:
 // "repairable" (Evey fixes it here) and "informational" (something we
@@ -83,6 +92,7 @@ export type SeekVerdictInput = Pick<
   | "audioTracksLagSec"
   | "audioTracksChecked"
   | "audioTrackZeroed"
+  | "interleaveBackstepSec"
 >;
 
 // verdictOf trusts the server's verdict and, for a server that predates it,
@@ -116,6 +126,7 @@ export function verdictOf(it: SeekVerdictInput): SeekVerdict {
     audioDelayed(it) ||
     audioTrackZeroed(it) ||
     (it.audioShortfallSec ?? 0) > AUDIO_SHORTFALL_FLOOR_SEC ||
+    brokenInterleave(it) ||
     it.trailingJunk
   ) {
     return "informational";
