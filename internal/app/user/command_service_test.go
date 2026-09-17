@@ -535,6 +535,28 @@ func TestRefreshToken_PreservesBoundProfile(t *testing.T) {
 	require.Equal(t, "p-kid", claims.ProfileID, "silent refresh must preserve the bound profile, not fall back to default")
 }
 
+// An explicit switch to a profile that is not the caller's is refused outright,
+// never quietly downgraded to the default profile. Uncovered until 2026-09-17
+// (mutation run): the gate was fail-closed, but nothing pinned it.
+func TestRefreshToken_ExplicitForeignProfile_Rejected(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	seedAuthUser(t, d, "u2", "bob", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-alice", UserID: "u1", Name: "Main", IsDefault: true})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-bob", UserID: "u2", Name: "Main", IsDefault: true})
+
+	raw := "alice-token"
+	h := sha256.Sum256([]byte(raw))
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, raw, "p-bob", "")
+	require.ErrorIs(t, err, ErrInvalidCredentials)
+}
+
 // Switching OUT of a kids profile INTO a PIN-protected non-kids one is rejected
 // without a valid PIN proof - even via a direct API call that bypasses the UI.
 func TestRefreshToken_SwitchOutOfKids_RequiresPIN(t *testing.T) {
