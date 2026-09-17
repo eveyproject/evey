@@ -169,11 +169,14 @@ type DecisionFingerprint struct {
 	HWAccel  string
 	HWDevice string
 	// HWFeatures is the probed tuning set forwarded to the HW encoder. Like
-	// HWAccel/HWDevice it is EXCLUDED from Hash(): tuning options affect the
+	// HWDevice it is EXCLUDED from Hash() as tuning: options affect the
 	// encoder's internal RC, not the segment's codec/bitrate/resolution/
 	// container/naming, so a segment encoded with or without them stays
 	// interchangeable in the addressable cache (and a level-2 demotion that
-	// drops tuning must not fork it).
+	// drops tuning must not fork it). ONE exception, deliberate: on a
+	// tone-mapped session the tone-map FEATURE (OpenCL / Vulkan / CUDA / VPP)
+	// names the curve that drew the picture and enters the hash as "tm="
+	// (tonemapImpl) - see HWTonemap.
 	HWFeatures []string
 	// HWSoftwareDecode marks the DECOUPLED hardware route: software decode +
 	// hwupload + HW scale/encode, for a source this GPU cannot decode (see
@@ -183,10 +186,13 @@ type DecisionFingerprint struct {
 	// segment stays interchangeable with a zero-copy or software one.
 	HWSoftwareDecode bool
 
-	// HWTonemap requests GPU HDR->SDR tone-mapping for this transcode. EXCLUDED
-	// from Hash() like HWAccel/HWFeatures: a HW- vs software-tonemapped segment is
-	// the same codec/bitrate/resolution/container/naming, so the addressable cache
-	// stays encoder-agnostic (toggling HW tone-mapping must not fork the cache).
+	// HWTonemap requests GPU HDR->SDR tone-mapping for this transcode. PART OF
+	// Hash() on a tone-mapped session, through the implementation it selects
+	// ("tm=sw|opencl|vulkan|cuda|vpp", tonemapImpl): the curves draw different
+	// pictures, and a capability change (new ICD, toggle) must not resume a
+	// title on the other curve's segments. Not hashed on its own otherwise.
+	// TestDecisionFingerprint_EveryFieldIsIdentityRuntimeOrAdmission pins
+	// every field's bucket.
 	HWTonemap bool
 
 	// HWOverlay requests a GPU burn-in of the bitmap subtitle. EXCLUDED from
