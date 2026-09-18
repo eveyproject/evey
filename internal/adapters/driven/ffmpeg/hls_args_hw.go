@@ -73,46 +73,59 @@ func buildToneMapFilter(info *hdr.HDRInfo, dstWidth int) string {
 // `-2` auto-height, split fans out GPU surfaces, and the *_nvenc/*_vaapi
 // encoders consume them with no hwdownload round-trip.
 
-// hwUsable reports whether the hardware encode path applies to this job. The
-// wiring layer only sets HWAccel to a non-None value after confirming the flag
-// is on and a detected device supports the codec; this gate additionally keeps
-// the complex-filtergraph cases (tonemap, burn-in) on the proven software path.
-func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool {
-	if opts.HWAccel == "" || opts.HWAccel == transcoding.None || !opts.HWAccel.IsValid() {
-		return false
+// gpuPlan reports whether opts is a plan the resolver routed to an
+// accelerator. The wiring layer only sets HWAccel after the pick (ADR-0030):
+// the builder trusts it and refuses, never swaps, when it cannot express it.
+func gpuPlan(opts transcoding.HLSProcessOpts) bool {
+	return opts.HWAccel != "" && opts.HWAccel != transcoding.None
+}
+
+// planTopology is the shape a GPU plan asks the builder for, read off the
+// process options as the resolver named it: the decode stage (a software
+// decode = the decoupled route), the tone-map placement (on the GPU when the
+// plan says so, else the CPU bridge), the output mode. TopologyFor refuses
+// the illegal shapes (a decoupled decode that tone-maps, ...).
+func planTopology(opts transcoding.HLSProcessOpts, toneMap string) (transcoding.Topology, error) {
+	decode := transcoding.StageGPU
+	if opts.HWSoftwareDecode {
+		decode = transcoding.StageCPU
 	}
-	// A burn-in normally kept the software path - and that single rule sent a 4K
-	// HDR session's decode, tone-map and every encode to the CPU because the
-	// container flagged a forced subtitle DEFAULT (prod, 2026-09-09). Same
-	// exception shape as the tone-map below: the host probed a working GPU
-	// compositor (opts.HWOverlay, set only when the calibration confirmed it) AND
-	// the backend has one wired. Otherwise software, exactly as before.
-	if burnIn && (!opts.HWOverlay || hwOverlayFilter(opts.HWAccel) == "") {
-		return false
-	}
-	// A decoupled session needs an upload chain for its backend, and it never
-	// tone-maps on the GPU: its upload folds to 8-bit nv12 on the CPU, which is
-	// precisely the depth the HW tone-mapper needs to still have. Both are
-	// resolver-side gates already; they are repeated here for the reason the
-	// tone-map one is - the builder must never emit a pipeline it cannot
-	// express, whatever the caller believed.
-	// The device check is not redundant with the upload one: VAAPI without a
-	// render node binds nothing, and hwupload would then have no device to
-	// target - a graph that fails at spawn rather than falling back.
-	if opts.HWSoftwareDecode && (hwUploadFilter(opts.HWAccel) == "" ||
-		len(hwDeviceOnlyArgs(opts.HWAccel, opts.HWDevice)) == 0 || toneMap != "") {
-		return false
-	}
-	// A tone-map normally keeps the software path. The exception: the host probed
-	// GPU tone-mapping AND it's wired into this request (opts.HWTonemap) AND the
-	// backend has a HW tone-map filter - then the GPU folds HDR->SDR in-pipeline.
+	placement := transcoding.ToneMapNone
 	if toneMap != "" {
-		if opts.HWTonemap && hwTonemapFilter(opts.HWAccel, opts.HWFeatures) != "" {
-			return true
+		placement = transcoding.ToneMapCPU
+		if opts.HWTonemap {
+			placement = transcoding.ToneMapGPU
 		}
-		return hwTonemapBridge(opts.HWAccel, toneMap, "") != ""
 	}
-	return true
+	output := transcoding.OutputSDR
+	if opts.HDRPassthrough {
+		output = transcoding.OutputHDRPassthrough
+	}
+	return transcoding.TopologyFor(decode, transcoding.StageGPU, placement, output)
+}
+
+// routeRefusal is the builder's fail-fast on a GPU plan (ADR-0030, out of
+// shadow): the typed ErrRouteNotExpressible when no pipeline expresses the
+// plan's topology and needs on its accelerator, nil for every plan the
+// builder emits as planned. A refusal is an invariant violation - the pick
+// filtered on the very same port - so it is never a software fallback: the
+// spawn fails, the alert counter moves, and the plan is wrong, not the host.
+func routeRefusal(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) error {
+	if !gpuPlan(opts) {
+		return nil
+	}
+	t, err := planTopology(opts, toneMap)
+	if err != nil {
+		return transcoding.ErrRouteNotExpressible{Topology: t, Accel: opts.HWAccel, Why: err.Error()}
+	}
+	needs := transcoding.RouteNeeds{BurnInBitmap: burnIn, GPUOverlay: opts.HWOverlay}
+	return Expressibility{}.Expressible(t, opts.HWAccel, opts.HWDevice, opts.HWFeatures, needs)
+}
+
+// RouteRefusal is routeRefusal on the plan's own burn-in and tone-map
+// facts: the pre-flight the spawn runs before building a single argument.
+func RouteRefusal(opts transcoding.HLSProcessOpts) error {
+	return routeRefusal(opts, burnInRequested(opts), resolveToneMap(opts, 0))
 }
 
 // hwTonemapBridge tone-maps on the CPU between a GPU decode and a GPU encode,
@@ -157,25 +170,22 @@ func hwTonemapBridge(accel transcoding.HWAccelType, toneMap, deint string) strin
 }
 
 // hwBridges reports whether this job tone-maps on the CPU between the GPU
-// decode and encode (no GPU tone-mapper probed/wired for it).
+// decode and encode: the plan placed the tone-map there (no GPU tone-mapper
+// picked for it). The placement is the plan's, never re-decided here.
 func hwBridges(opts transcoding.HLSProcessOpts) bool {
-	if resolveToneMap(opts, 0) == "" {
-		return false
-	}
-	return !opts.HWTonemap || hwTonemapFilter(opts.HWAccel, opts.HWFeatures) == ""
+	return resolveToneMap(opts, 0) != "" && !opts.HWTonemap
 }
 
 // hwToneMapStage is what runs before the GPU scaler(s) on an HDR->SDR job: the
-// GPU tone-mapper when probed and wanted, else the CPU bridge; "" when none.
+// GPU tone-mapper when the plan placed it there (routeRefusal already proved
+// the filter is wired), else the CPU bridge; "" when none.
 func hwToneMapStage(opts transcoding.HLSProcessOpts) string {
 	toneMap := resolveToneMap(opts, 0)
 	if toneMap == "" {
 		return ""
 	}
 	if opts.HWTonemap {
-		if tm := hwTonemapFilter(opts.HWAccel, opts.HWFeatures); tm != "" {
-			return tm
-		}
+		return hwTonemapFilter(opts.HWAccel, opts.HWFeatures)
 	}
 	return hwTonemapBridge(opts.HWAccel, toneMap, deinterlaceFilterFor(opts))
 }

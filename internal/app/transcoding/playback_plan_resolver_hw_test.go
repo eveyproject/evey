@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
@@ -36,6 +37,7 @@ func hwResolver(cap transcoding.EncodeCapability) *PlanResolver {
 		HWAccelEnabled:   func() bool { return true },
 		HWTonemapEnabled: func() bool { return true },
 		Capability:       func() transcoding.EncodeCapability { return cap },
+		Expressibility:   ffmpeg.Expressibility{}, // the builder's port, the one rule set the pick refuses on
 	}
 }
 
@@ -100,9 +102,9 @@ func TestResolveHW_RefusalGates(t *testing.T) {
 		{
 			name:     "undecodable source on a backend with no upload chain",
 			resolver: hwResolver(nvencNoHEVCDecode),
-			// NVENC has no wired hwupload chain here (hwUploadFilter returns ""),
-			// so it keeps the historical full-software fallback rather than emit
-			// a pipeline no probe on this host ever validated.
+			// NVENC has no wired hwupload chain (hwUploadFilter returns ""): the
+			// builder's port refuses the decoupled topology on it, so the pick
+			// leaves it out and the request stays on the CPU.
 			outputCodec: "h264", sourceCodec: "hevc",
 			why: "only VAAPI/QSV have a probe-validated upload chain",
 		},

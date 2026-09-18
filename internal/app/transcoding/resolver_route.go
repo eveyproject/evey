@@ -66,25 +66,23 @@ func (pr *PlanResolver) naturalRoute(req PlaybackRequest, decision transcoding.P
 	}
 	if hwUsable {
 		route.Backend = BackendSelection{Name: accel, Device: device, Features: features}
-		pr.shadowExpressibility(route, decision)
+		pr.assertExpressible(route, decision)
 	}
 	return route
 }
 
-// shadowExpressibility asks the builder whether it can emit the route the
-// resolver just picked. A refusal here is a planner/builder disagreement:
-// counted and logged, never acted on yet - the builder still falls back on
-// its own gates, and the two must read zero disagreements before it refuses.
-func (pr *PlanResolver) shadowExpressibility(route ResolvedRoute, decision transcoding.PlaybackDecision) {
+// assertExpressible re-asks the builder's port on the route as resolved
+// (the pick already filtered on it): a refusal here is an invariant
+// violation - a topology or need the pick did not name - counted on the
+// alert counter that must stay at zero, never acted on: the builder refuses
+// the same plan at spawn (ErrRouteNotExpressible), which is where it fails.
+func (pr *PlanResolver) assertExpressible(route ResolvedRoute, decision transcoding.PlaybackDecision) {
 	if pr.Expressibility == nil {
 		return
 	}
 	burnIn := decision.SubtitleDecision == "burn"
 	needs := transcoding.RouteNeeds{BurnInBitmap: burnIn, GPUOverlay: route.Overlay}
 	err := pr.Expressibility.Expressible(route.Topology, transcoding.HWAccelType(route.Backend.Name), route.Backend.Device, route.Backend.Features, needs)
-	// The coverage table and the per-cell counters: the exit criterion of the
-	// shadow reads them (every reachable cell checked here AND at the builder,
-	// zero disagreements) - see route_coverage.go.
 	cell := transcoding.ExpressibilityCell{Backend: route.Backend.Name, Topology: route.Topology.Name(), Needs: transcoding.RouteNeedsLabel(burnIn, route.Overlay, route.Deinterlace)}
 	transcoding.ExpressibilityCoverageTable.Record(transcoding.ExpressibilitySiteResolver, cell, err != nil)
 	labels := prometheus.Labels{"site": string(transcoding.ExpressibilitySiteResolver), "backend": cell.Backend, "topology": cell.Topology, "needs": cell.Needs}
@@ -92,7 +90,7 @@ func (pr *PlanResolver) shadowExpressibility(route ResolvedRoute, decision trans
 	if err != nil {
 		metrics.HLSVODRouteExpressibilityDisagreements.With(labels).Inc()
 		metrics.HLSVODRouteNotExpressible.Inc()
-		slog.Warn("plan resolver: resolved GPU route the builder cannot express (planner/builder disagreement, ADR-0030)",
+		slog.Error("plan resolver: resolved a GPU route the builder cannot express - the pick did not name this topology or need (invariant, ADR-0030)",
 			slog.String("topology", cell.Topology), slog.String("needs", cell.Needs), slog.String("accel", route.Backend.Name), slog.Any("err", err))
 	}
 }
@@ -193,6 +191,12 @@ type hwSource struct {
 	// Bridge: the CPU tone-maps between the GPU decode and encode. The backend
 	// must have proven that route and must decode the source itself.
 	Bridge bool
+	// Passthrough: the session keeps the HDR range (a GPU Main10 encoder).
+	Passthrough bool
+	// Needs is what the session composites beyond its topology (a bitmap
+	// burn-in, on the GPU compositor or not): the builder's port refuses a
+	// backend per need, so the pick moves to the next one.
+	Needs transcoding.RouteNeeds
 }
 
 // ResolveHW decides the hardware encode backend for a chosen output codec.
@@ -200,9 +204,8 @@ type hwSource struct {
 // host calibrated a HW backend, and that backend can encode this codec. The
 // boolean is both the ladder's hwAccelUsable (taller HW ceiling) and the
 // signal that tags the fingerprint so the orchestrator runs the GPU pipeline.
-// HDR tonemap / bitmap burn-in are not gated here: the orchestrated VOD path
-// does neither today, and the ffmpeg builder independently falls back to
-// software for those, so the two stay consistent.
+// A legacy entry point: no burn-in need and no passthrough are declared, so
+// the builder's port judges the plain topology only.
 func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit, hwTonemap bool) (accel, device string, features []string, usable, softwareDecode bool) {
 	return pr.resolveHW(pr.hwPolicy(), outputCodec, hwSource{Codec: sourceCodec, TenBit: sourceTenBit}, hwTonemap)
 }
@@ -233,7 +236,7 @@ func (pr *PlanResolver) resolveHW(pol HWPolicy, outputCodec string, src hwSource
 	// the lowest measured cost. On a box with both, HDR->SDR takes VAAPI's
 	// OpenCL tone-map while HEVC/SDR take a faster QSV; a QSV that cannot decode
 	// this source hands it to a VAAPI that can, never to the CPU.
-	bc, softwareDecode, ok := pr.pickBackend(outputCodec, src, hwTonemap)
+	bc, softwareDecode, ok := pr.pickBackend(pol, outputCodec, src, hwTonemap)
 	if !ok {
 		return "", "", nil, false, false
 	}
@@ -246,20 +249,20 @@ func (pr *PlanResolver) resolveHW(pol HWPolicy, outputCodec string, src hwSource
 // it would software-decode. The zero-copy pipeline HW-decodes the source. If
 // this backend can't decode it (chroma/depth/codec), the source takes the
 // DECOUPLED path (software decode + hwupload + GPU scale/encode), unless that
-// is not expressible or honest: no upload chain / unproven decoupled route, a
-// GPU tone-map (needs the 10-bit surface the upload folds away), a 10-bit
-// source (its software decode is the expensive half - price it as CPU, not
-// GPU), or a bridge (the download needs a GPU frame). A 10-bit source needs the
-// HW VPP to fold p010->nv12 for the 8-bit encoder (proven), unless a GPU
-// tone-map folds p010 itself. A chroma layout outside 4:2:0 8/10-bit rides the
-// zero-copy chain only once that chain ran on it end-to-end for this backend.
+// is not legal or honest: an unproven decoupled route, a GPU tone-map or a
+// bridge (no legal topology: the upload folds the 10-bit surface away, the
+// download needs a GPU frame), a 10-bit source (its software decode is the
+// expensive half - price it as CPU, not GPU). Whether the backend HAS an
+// upload chain is the builder's knowledge, asked of its port by pickBackend.
+// A 10-bit source needs the HW VPP to fold p010->nv12 for the 8-bit encoder
+// (proven), unless a GPU tone-map folds p010 itself. A chroma layout outside
+// 4:2:0 8/10-bit rides the zero-copy chain only once that chain ran on it
+// end-to-end for this backend.
 func backendServes(cap transcoding.EncodeCapability, bc transcoding.HWBackendCap, src hwSource, hwTonemap bool) (softwareDecode, ok bool) {
-	backend := transcoding.HWAccelType(bc.Backend)
 	decodable := bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat, cap.ProbeVersion)
 	softwareDecode = src.Codec != "" && !decodable
 	if softwareDecode {
-		if hwTonemap || src.Bridge || src.TenBit || (backend != transcoding.VAAPI && backend != transcoding.QSV && backend != transcoding.RKMPP) ||
-			!bc.Proves(transcoding.HWRouteDecoupled) {
+		if hwTonemap || src.Bridge || src.TenBit || !bc.Proves(transcoding.HWRouteDecoupled) {
 			return false, false
 		}
 	}
@@ -277,8 +280,12 @@ func backendServes(cap transcoding.EncodeCapability, bc transcoding.HWBackendCap
 
 // pickBackend chooses the accelerator for a route and a source (ADR-0029), in this order:
 //  1. COMPATIBILITY: the certified backends that prove the route's encode path,
-//     support the codec and serve THIS source (backendServes: decode matrix,
-//     decoupled path, 10-bit VPP, chroma layout, bridge proof, deinterlacer);
+//     support the codec, serve THIS source (backendServes: decode matrix,
+//     decoupled path, 10-bit VPP, chroma layout, bridge proof, deinterlacer)
+//     AND whose pipeline the builder can express for the topology and the
+//     needs (its RouteExpressibility port, ADR-0030: the compositor for a
+//     burn-in, the upload chain and device for a decoupled decode, the GPU
+//     tone-map filter) - the resolver keeps no mirror of those rules;
 //  2. QUALITY: among them, those whose certified ceiling (the bridge ceiling
 //     on a bridge) reaches the rung the session wants (src.WantHeight; when
 //     none does, the tallest ceilings - the request is capped there anyway);
@@ -297,7 +304,7 @@ func backendServes(cap transcoding.EncodeCapability, bc transcoding.HWBackendCap
 // (+HEVC / +AV1 for that output). nil RouteCosts or a pre-Backends capability
 // falls back to the primary backend. Returns the pick and whether it will
 // software-decode (the decoupled route).
-func (pr *PlanResolver) pickBackend(outputCodec string, src hwSource, hwTonemap bool) (transcoding.HWBackendCap, bool, bool) {
+func (pr *PlanResolver) pickBackend(pol HWPolicy, outputCodec string, src hwSource, hwTonemap bool) (transcoding.HWBackendCap, bool, bool) {
 	cap := pr.Capability()
 	caps := cap.BackendCaps()
 	if len(caps) == 0 {
@@ -349,6 +356,12 @@ func (pr *PlanResolver) pickBackend(outputCodec string, src hwSource, hwTonemap 
 	keyOf := func(c candidate) transcoding.RouteCostKey {
 		return transcoding.RouteCostKeyFor(transcoding.HWAccelType(c.b.Backend), transcoding.RouteEncoderName(outputCodec, c.b.Backend), routeOf(c))
 	}
+	// topologyOf is the shape this candidate's session would run - what the
+	// builder is asked to express, exactly as naturalRoute names it afterwards.
+	topologyOf := func(c candidate) transcoding.Topology {
+		return transcoding.EncodeRoute{HWUsable: true, SoftwareDecode: c.softwareDecode,
+			Tonemap: hwTonemap || src.Bridge, HWTonemap: hwTonemap, HDRPassthrough: src.Passthrough}.Topology()
+	}
 	// ceilingOf is the quality a session on this candidate is really PROVEN
 	// for: the backend's encode ceiling (the effective bridge ceiling on a
 	// bridge - the software HDR ceiling when its bridge cleared no rung; the
@@ -386,6 +399,9 @@ func (pr *PlanResolver) pickBackend(outputCodec string, src hwSource, hwTonemap 
 			continue
 		}
 		c := candidate{b, sd}
+		if pr.expressible(pol, topologyOf(c), b, src.Needs) != nil {
+			continue
+		}
 		// A host WITH route evidence prices a named route ONLY on it: admission
 		// refuses a (backend, encoder, route) it has no sample for. Picking it
 		// here would send the session to the limiter to be refused and spilled
@@ -470,14 +486,23 @@ func absFloat(x float64) float64 {
 	return x
 }
 
-// burnInStaysSoftware
-// burnInStaysSoftware mirrors the builder's own refusal (hwUsable): a bitmap
-// subtitle burn-in without a probed GPU compositor is built as a SOFTWARE
-// encode, so the route, the class and the pool must say software too - or a
-// CPU x264 session runs under the GPU orchestrator, priced on the GPU pool,
-// capped at the GPU ceiling and blamed on the GPU when it fails.
-func (pr *PlanResolver) burnInStaysSoftware(pol HWPolicy, decision transcoding.PlaybackDecision) bool {
-	return decision.SubtitleDecision == "burn" && !pr.hwOverlayWanted(pol, decision)
+// expressible asks the builder's port whether it can emit topology t on this
+// backend with these needs (ADR-0030, out of shadow). A refusal takes the
+// backend out of the field - the next one serves the source, or the request
+// stays on the CPU - so the builder never swaps a pipeline at spawn. The
+// features are the ones the session will really carry (effectiveHWFeatures).
+// A nil port (a resolver built without one, tests) refuses nothing.
+func (pr *PlanResolver) expressible(pol HWPolicy, t transcoding.Topology, b transcoding.HWBackendCap, needs transcoding.RouteNeeds) error {
+	if pr.Expressibility == nil {
+		return nil
+	}
+	return pr.Expressibility.Expressible(t, transcoding.HWAccelType(b.Backend), b.Device, effectiveHWFeatures(pol, b.Features), needs)
+}
+
+// routeNeeds is what a request composites beyond its topology: a bitmap
+// burn-in, on the GPU compositor when the host probed one.
+func (pr *PlanResolver) routeNeeds(pol HWPolicy, decision transcoding.PlaybackDecision) transcoding.RouteNeeds {
+	return transcoding.RouteNeeds{BurnInBitmap: decision.SubtitleDecision == "burn", GPUOverlay: pr.hwOverlayWanted(pol, decision)}
 }
 
 // titleBlocked reads the per-title GPU route block (nil-safe).
@@ -518,9 +543,13 @@ func (pr *PlanResolver) effectiveVideoCodec(pol HWPolicy, decision transcoding.P
 	// CPU tone-map bridged between GPU decode and encode: the GPU never sees the
 	// 10-bit surface, but it must be the one decoding (the bridge downloads).
 	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
+	needs := pr.routeNeeds(pol, decision)
 	resolve := func(c string) {
-		accel, device, features, usable, softwareDecode = pr.resolveHW(pol, c, hwSource{Codec: dims.Codec, TenBit: dims.TenBit && !bridge, PixelFormat: dims.PixelFormat, Interlaced: dims.Interlaced, WantHeight: wantedRung(decision, dims.Height), Bridge: bridge}, hwTonemap)
-		if pr.hwRouteRefused(pol, decision, dims, bridge, softwareDecode) {
+		src := hwSource{Codec: dims.Codec, TenBit: dims.TenBit && !bridge, PixelFormat: dims.PixelFormat, Interlaced: dims.Interlaced,
+			WantHeight: wantedRung(decision, dims.Height), Bridge: bridge, Needs: needs,
+			Passthrough: c == "hevc" && pr.passthroughWanted(pol, decision, dims.HDRRange)}
+		accel, device, features, usable, softwareDecode = pr.resolveHW(pol, c, src, hwTonemap)
+		if pr.hwRouteRefused(dims, bridge, softwareDecode) {
 			accel, device, features, usable, softwareDecode = "", "", nil, false, false
 		}
 	}
@@ -540,11 +569,11 @@ func (pr *PlanResolver) effectiveVideoCodec(pol HWPolicy, decision transcoding.P
 // hwRouteRefused gathers the whole-session reasons a resolved GPU encode still
 // stays on the CPU, shared by EffectiveVideoCodec and HWRouteUsable so the
 // fingerprint, the class and the producer can never disagree: inverse
-// telecine (a software-only filter), a bridge whose decode would be software
-// (the download needs a GPU frame) or whose route the calibration did not
-// prove, and a burn-in the builder refuses to composite on the GPU.
-func (pr *PlanResolver) hwRouteRefused(pol HWPolicy, decision transcoding.PlaybackDecision, src SourceDims, bridge, softwareDecode bool) bool {
-	if src.Telecine || pr.burnInStaysSoftware(pol, decision) {
+// telecine (a software-only filter) and a bridge whose decode would be
+// software (no legal topology). What the builder cannot express (a burn-in
+// without its compositor, ...) is refused per backend in pickBackend.
+func (pr *PlanResolver) hwRouteRefused(src SourceDims, bridge, softwareDecode bool) bool {
+	if src.Telecine {
 		return true
 	}
 	// The bridge's own gates (a proven bridge route on the PICKED backend, a
@@ -570,9 +599,13 @@ func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src
 	// (hwTonemapBridge). That needs the GPU to decode the source; a software
 	// decode keeps the whole job on the CPU. Same answer as EffectiveVideoCodec.
 	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
+	needs := pr.routeNeeds(pol, decision)
 	resolve := func(c string) bool {
-		_, _, _, usable, softwareDecode := pr.resolveHW(pol, c, hwSource{Codec: src.Codec, TenBit: src.TenBit && !bridge, PixelFormat: src.PixelFormat, Interlaced: src.Interlaced, WantHeight: wantedRung(decision, src.Height), Bridge: bridge}, hwTonemap)
-		return usable && !pr.hwRouteRefused(pol, decision, src, bridge, softwareDecode)
+		hs := hwSource{Codec: src.Codec, TenBit: src.TenBit && !bridge, PixelFormat: src.PixelFormat, Interlaced: src.Interlaced,
+			WantHeight: wantedRung(decision, src.Height), Bridge: bridge, Needs: needs,
+			Passthrough: c == "hevc" && pr.passthroughWanted(pol, decision, src.HDRRange)}
+		_, _, _, usable, softwareDecode := pr.resolveHW(pol, c, hs, hwTonemap)
+		return usable && !pr.hwRouteRefused(src, bridge, softwareDecode)
 	}
 	codec := pr.outputCodecFor(pol, decision, nil)
 	usable := resolve(codec)
@@ -629,10 +662,16 @@ func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecisi
 }
 
 func (pr *PlanResolver) hdrPassthroughWanted(pol HWPolicy, decision transcoding.PlaybackDecision, streams []*library.MediaStream) bool {
+	return pr.passthroughWanted(pol, decision, SourceTranscodeVideoRange(streams))
+}
+
+// passthroughWanted is hdrPassthroughWanted on the source's transcode range
+// (SourceDims.HDRRange), for callers that hold the dims and not the streams.
+func (pr *PlanResolver) passthroughWanted(pol HWPolicy, decision transcoding.PlaybackDecision, hdrRange string) bool {
 	if decision.VideoDecision != "transcode" || slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
 		return false
 	}
-	if SourceTranscodeVideoRange(streams) == "" || !pr.clientDecodes(decision, "hevc") {
+	if hdrRange == "" || !pr.clientDecodes(decision, "hevc") {
 		return false
 	}
 	if !pr.gpuAllowed(pol) {

@@ -304,7 +304,6 @@ func SourceInterlaced(streams []*library.MediaStream) bool {
 	return false
 }
 
-
 // SourceSAR returns the first video stream's sample aspect ratio ("64:45" for
 // anamorphic DVD), or "" for square pixels / unprobed. Drives the builder's
 // anamorphic scale correction.

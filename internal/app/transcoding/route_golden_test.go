@@ -55,6 +55,7 @@ func routeGoldenResolver(cap *transcoding.EncodeCapability, hw bool) (*PlanResol
 	pr := goldenResolver(cap, hw, transcoding.ClassFilmNormal, 0)
 	pr.HWLowPowerEnabled = func() bool { return false }
 	pr.AV1Enabled = func() bool { return false }
+	pr.Expressibility = ffmpeg.Expressibility{} // the production port: the pick refuses what the builder cannot express
 	limiter := NewVideoSessionLimiter(0).WithCostModel(NewVideoCostModel(devBoxSamples()))
 	if cap != nil {
 		pr.RouteCosts = func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 8) }
@@ -393,8 +394,8 @@ func TestResolvedRoute_ProjectionsAgree(t *testing.T) {
 }
 
 // Every GPU route the corpus resolves is one the builder can express: the
-// resolver's mirrors of the builder's gates and the builder agree on every
-// scenario, which is what lets the builder stop falling back (ADR-0030, 6).
+// pick filtered on the port, so the route as resolved (topology, backend,
+// needs) never meets the builder's refusal at spawn (ADR-0030, 6).
 func TestResolvedRoute_EveryGPURouteIsExpressible(t *testing.T) {
 	e := ffmpeg.Expressibility{} // the production port, not a mirror
 	for _, sc := range routeGoldenScenarios() {
@@ -419,7 +420,6 @@ func TestResolvedRoute_CorpusFillsTheResolverCoverage(t *testing.T) {
 	t.Cleanup(transcoding.ExpressibilityCoverageTable.Reset)
 	for _, sc := range routeGoldenScenarios() {
 		pr, req := sc.build()
-		pr.Expressibility = ffmpeg.Expressibility{}
 		_, err := pr.Resolve(context.Background(), req)
 		require.NoError(t, err, sc.name)
 	}

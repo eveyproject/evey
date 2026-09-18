@@ -221,10 +221,13 @@ func goldenSessions() map[string]transcoding.HLSProcessOpts {
 		"hw-nvenc-av1":   goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.VideoCodec = "av1" }),
 		"hw-nvenc-multi": goldenOpts(func(o *transcoding.HLSProcessOpts) { nvenc(o); o.Profiles = goldenLadder[:3]; o.VideoDecision = "" }),
 		"hw-qsv-single":  goldenOpts(qsv),
+		// The plan places the tone-map on the CPU (HWTonemap false): QSV has no
+		// GPU tone-mapper, so the pick never hands it a GPU tone-map, and the
+		// builder no longer turns one into a bridge on its own (ADR-0030).
 		"hw-qsv-tonemap-bridge": goldenOpts(func(o *transcoding.HLSProcessOpts) {
 			qsv(o)
 			o.ToneMap = true
-			o.HWTonemap = true
+			o.HWTonemap = false
 			o.SourceVideoCodec = "hevc"
 		}),
 		"hw-qsv-deinterlace": goldenOpts(func(o *transcoding.HLSProcessOpts) {

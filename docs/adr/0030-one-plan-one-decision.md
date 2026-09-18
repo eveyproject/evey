@@ -60,7 +60,7 @@ or EXECUTES the plan.
    removed, and `LadderClassFor` survives only as "the natural route's class"
    for the adapter's wrappers and tests.
 
-4. **`AdmissionGrant`** - the admission outcome is an explicit value on the
+3. **`AdmissionGrant`** - the admission outcome is an explicit value on the
    plan `{PinKey, Granted, Ceiling, Probe}`. It carries nothing derivable from
    the route: the billed class is `Route.Class()`, the spill is
    `Route.Spill != ""` (the route was rewritten for the CPU when the grant
@@ -143,24 +143,38 @@ answer, never its input), and the hardware policy is read once per `Resolve`
 (`PlaybackRequest.Policy`, threaded through the route derivation like the
 source snapshot; only the legacy wrappers still read the toggles themselves).
 
+**Expressibility out of shadow (2026-09-18).** The exit criterion was
+coverage, not time: every `{backend, topology, needs}` cell the live resolver
+can reach on the production host (six on the QSV + VAAPI box: the QSV
+zero-copy, decoupled, passthrough and burn-in+overlay, the VAAPI GPU
+tone-map and the VAAPI zero-copy an interlaced source takes) checked at both
+sites - one recalibration plus a corpus of real titles resolved per topology -
+with zero disagreements. The corpus also found the one real bug: an mkvgo
+`field_order` of `interlaced` no decision path read (now `library.ScanType`).
+Since then `pickBackend` asks the port per candidate (topology and needs:
+the compositor for a burn-in, the upload chain and device for a decoupled
+decode, the GPU tone-map filter) and a refused backend is simply not in the
+field; the resolver's mirrors (`burnInStaysSoftware`, the upload-chain clause
+of `backendServes`) are gone. The builder asks the same port at spawn
+(`RouteRefusal`, before an argument is built) and REFUSES with
+`ErrRouteNotExpressible` - no software encode under a GPU session, no bridge
+in place of a GPU tone-map the plan named. A refusal is an invariant
+violation counted on `evey_hlsvod_route_not_expressible_total`, which must
+stay at zero; the per-cell coverage table was the exit device and goes with
+the shadow.
+
 Still to do, each gated on something outside the code, in this order:
 
-1. **Expressibility out of shadow** - once
-   `evey_hlsvod_route_not_expressible_total` has read zero in production long
-   enough: `pickBackend` consults `RouteExpressibility` to exclude a backend
-   from the field (the resolver's mirrors `burnInStaysSoftware` and the
-   decoupled gates of `backendServes` go), and `BuildFFmpegArgs` returns
-   `ErrRouteNotExpressible` instead of falling back. Nothing else changes.
-2. **Demotion by exact route** - when the calibration runner can probe one
+1. **Demotion by exact route** - when the calibration runner can probe one
    topology on one backend (today it probes an encode of a codec):
    `DemoteRoute` re-proves the failed `HWFailureReport.Route` and, on a
    confirmed failure, removes THAT proof (`HWRoute*`) from the backend rather
    than the codec. The report already carries the route.
-3. **Legacy wrappers** - `EffectiveVideoCodec`, `ResolveHW`, `HWRouteUsable`,
+2. **Legacy wrappers** - `EffectiveVideoCodec`, `ResolveHW`, `HWRouteUsable`,
    `LadderClassFor`, `ProducerFor`, `Fingerprint` and `ShapeLadder` called
    on their own, and the adapter's aliases, go once their tests are rewritten
    against `Resolve`; invariant 1 then becomes a contract guard.
-4. **Direct / mkvgo / copy vs transcode** - the zero-process paths (mkvgo
+3. **Direct / mkvgo / copy vs transcode** - the zero-process paths (mkvgo
    on-demand `od_`/`cc_`, the plan master) are dispatched before this
    resolver runs and the copy rung is a `Packager`, not a route; a single
    picture of "which engine serves which request" is a separate clarification,
