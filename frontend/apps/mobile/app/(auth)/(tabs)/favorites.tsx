@@ -418,10 +418,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 14,
   },
+  // flexShrink 0: the grid below always wants more height than the screen, and
+  // Yoga would otherwise squeeze the chip rows until they are clipped.
   chipRow: {
     paddingHorizontal: SPACING,
     marginBottom: 4,
     flexGrow: 0,
+    flexShrink: 0,
   },
   chip: {
     paddingHorizontal: 12,

@@ -333,8 +333,10 @@ export default function PhotosScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
-  libRow: { paddingHorizontal: 24, paddingTop: 16, flexGrow: 0 },
-  albumRow: { marginTop: 16, flexGrow: 0 },
+  // flexShrink 0: the photo grid below always wants more height than the
+  // screen, and Yoga would otherwise squeeze the chip rows until clipped.
+  libRow: { paddingHorizontal: 24, paddingTop: 16, flexGrow: 0, flexShrink: 0 },
+  albumRow: { marginTop: 16, flexGrow: 0, flexShrink: 0 },
   chip: { paddingHorizontal: 20, paddingVertical: 10 },
   albumChip: { width: 160, alignItems: "center", padding: 10 },
   albumChipArt: { width: 120, height: 90, justifyContent: "center", alignItems: "center", marginBottom: 6 },

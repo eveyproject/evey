@@ -646,9 +646,14 @@ export default function MusicScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>{t("media.music.title")}</Text>
 
-      {/* Library picker */}
+      {/* Library picker. flexGrow/flexShrink 0: it sits beside the tab lists in
+          the flex column, and Yoga would otherwise squeeze it until clipped. */}
       {libraries.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.sm }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.sm, flexGrow: 0, flexShrink: 0 }}
+        >
           {libraries.map((lib) => (
             <TouchableOpacity
               key={lib.id}
