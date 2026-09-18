@@ -44,7 +44,6 @@ nie. Zwei Punkte sollten Sie trotzdem kennen:
 Betroffen sind diese Pfade:
 
 ```
-/api/v1/media/*/transcode
 /api/v1/media/*/hls/*
 /api/v1/media/*/stream
 /api/v1/libraries/*/scan
@@ -212,7 +211,7 @@ Festplatte puffert: **Advanced** → *Custom Nginx Configuration* (der Reiter
 client_max_body_size 100M;
 
 # Streaming - keine Pufferung, kein Zeitlimit.
-location ~ ^/api/v1/media/.+/(transcode|hls|stream) {
+location ~ ^/api/v1/media/.+/(hls|stream) {
     proxy_pass http://evey-server:9091;
     proxy_buffering off;
     proxy_request_buffering off;

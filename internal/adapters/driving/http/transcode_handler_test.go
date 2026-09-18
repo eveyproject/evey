@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
 
@@ -34,72 +32,6 @@ func TestToPlaybackInfoDTO_PreservesWireContract(t *testing.T) {
 	}
 	if got["play_method"] != "transcode" || got["video_codec"] != "h264" {
 		t.Errorf("DTO values not mapped: %v", got)
-	}
-}
-
-func newTranscodeServe(libSvc MediaStreamsGetter, la LibraryAccessChecker) http.HandlerFunc {
-	return transcodeHandler(transcodeServe{
-		libSvc:        libSvc,
-		baseURL:       "http://localhost",
-		libraryAccess: la,
-		throttle:      apptranscoding.NewTranscodeThrottle(),
-	})
-}
-
-func TestTranscodeServe_NoAuth_401(t *testing.T) {
-	verifier := &fakeTokenVerifier{err: errTest}
-	inner := newTranscodeServe(&fakeMediaStreamsGetter{}, allowAll())
-	h := httpAuthMiddleware(verifier)(inner)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
-	req.SetPathValue("id", "m1")
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestTranscodeServe_InvalidToken_401(t *testing.T) {
-	verifier := &fakeTokenVerifier{err: errTest}
-	inner := newTranscodeServe(&fakeMediaStreamsGetter{}, allowAll())
-	h := httpAuthMiddleware(verifier)(inner)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
-	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer bad")
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestTranscodeHandler_MediaNotFound_404(t *testing.T) {
-	h := newTranscodeServe(
-		&fakeMediaStreamsGetter{itemErr: errTest},
-		allowAll(),
-	)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
-	req.SetPathValue("id", "m1")
-	req = withHTTPClaims(req, testClaims(false))
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
-
-func TestTranscodeHandler_IDOR_Forbidden(t *testing.T) {
-	h := newTranscodeServe(
-		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "restricted", File: &domainlibrary.MediaFile{Path: "/a"}}},
-		denyAll(),
-	)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
-	req.SetPathValue("id", "m1")
-	req = withHTTPClaims(req, testClaims(false))
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
 	}
 }
 

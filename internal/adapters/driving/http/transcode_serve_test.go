@@ -243,28 +243,6 @@ func TestChaptersHandler_ParentalAdmin_OK(t *testing.T) {
 	}
 }
 
-func TestTranscodeHandler_StreamToken_WrongMediaID_403(t *testing.T) {
-	h := transcodeHandler(transcodeServe{
-		libSvc:        &fakeMediaStreamsGetter{item: testMediaItem("lib1")},
-		baseURL:       "http://localhost",
-		libraryAccess: allowAll(),
-		throttle:      apptranscoding.NewTranscodeThrottle(),
-	})
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
-	req.SetPathValue("id", "m1")
-	req = withHTTPClaims(req, testClaims(false))
-	ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
-		UserID:      "u1",
-		MediaItemID: "other-media",
-	})
-	req = req.WithContext(ctx)
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403 for stream token mismatch, got %d", w.Code)
-	}
-}
-
 // ============================================================
 // hlsSegmentHandler: no active session, falls back to disk.
 // Empty cache dir -> 404 (segment not found). Exercises the

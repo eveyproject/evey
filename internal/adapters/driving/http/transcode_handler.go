@@ -3,15 +3,11 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"go.opentelemetry.io/otel/codes"
 
@@ -337,141 +333,6 @@ func (h *playbackServe) parseClientProfile(r *http.Request) domaintranscoding.Cl
 		client.SupportsHDR = true
 	}
 	return client
-}
-
-// --- transcodeHandler ---
-
-type transcodeServe struct {
-	libSvc         MediaStreamsGetter
-	baseURL        string
-	libraryAccess  LibraryAccessChecker
-	throttle       *apptranscoding.TranscodeThrottle
-	userMaxStreams UserMaxStreamsGetter
-	parental       ParentalChecker
-}
-
-func transcodeHandler(deps transcodeServe) http.HandlerFunc {
-	h := deps
-	return h.serveHTTP
-}
-
-func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
-	tctx, span := tracing.StartSpan(r.Context(), "http.transcode.Stream")
-	defer span.End()
-	r = r.WithContext(tctx)
-	mediaID := r.PathValue("id")
-	claims := HTTPClaimsFromContext(r.Context())
-	userID := claims.UserID
-
-	if st, ok := StreamTokenFromContext(r.Context()); ok {
-		if st.MediaItemID != shared.MediaItemID(mediaID) {
-			span.SetStatus(codes.Error, "stream token media mismatch")
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-	}
-	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
-	if err != nil || item.File == nil || item.File.Path == "" {
-		if err != nil {
-			span.RecordError(err)
-		}
-		span.SetStatus(codes.Error, "media item not found")
-		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-		return
-	}
-	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
-		span.SetStatus(codes.Error, "library access denied")
-		return
-	}
-	if !checkParental(r.Context(), w, claims, item, h.parental) {
-		span.SetStatus(codes.Error, "parental restricted")
-		return
-	}
-	if !checkPlayable(w, item) {
-		span.SetStatus(codes.Error, "file needs remux")
-		return
-	}
-	maxStreams := 0
-	if h.userMaxStreams != nil {
-		if ms := h.userMaxStreams.GetMaxStreams(r.Context(), userID); ms != nil {
-			maxStreams = *ms
-		}
-	}
-	if !h.throttle.Acquire(userID, maxStreams) {
-		span.SetStatus(codes.Error, "max concurrent streams reached")
-		http.Error(w, `{"message":"max concurrent streams reached"}`, http.StatusTooManyRequests)
-		return
-	}
-	defer h.throttle.Release(userID)
-
-	params := h.parseParams(r)
-	clientSupportsHDR := hdrQuerySupported(r)
-	client := parseClientCapabilities(r, clientSupportsHDR)
-	analysis := h.analyzeStreams(r.Context(), mediaID, params.remuxOnly, client, params.subtitleTrack, params.audioTrack)
-	params.audioTrack = clampAudioTrack(params.audioTrack, analysis.streams)
-
-	slog.Debug("transcode: decision", slog.String("media_id", mediaID), slog.Bool("needsVideoTranscode", analysis.needsVideoTranscode), slog.Bool("needsAudioTranscode", analysis.needsAudioTranscode), slog.Bool("remuxOnly", params.remuxOnly), slog.Bool("needsToneMap", analysis.needsToneMap))
-
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-
-	args := h.buildFFmpegArgs(item.File.Path, params, analysis)
-	slog.Debug("transcode: ffmpeg", slog.String("media_id", mediaID), slog.String("args", strings.Join(args, " ")))
-	// A viewer is waiting on this stream: default priority, production caps.
-	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Production, Site: "http.transcode", NoNice: true}, "ffmpeg", args...)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "transcode refused")
-		slog.WarnContext(r.Context(), "transcode refused", slog.String("media_id", mediaID), slog.Any("err", err))
-		http.Error(w, `{"message":"server busy, retry later"}`, http.StatusServiceUnavailable)
-		return
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "ffmpeg stdout pipe failed")
-		slog.ErrorContext(r.Context(), "ffmpeg stdout pipe", slog.Any("err", err))
-		http.Error(w, "transcode failed", http.StatusInternalServerError)
-		return
-	}
-	if err := cmd.Start(); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "ffmpeg start failed")
-		slog.ErrorContext(r.Context(), "ffmpeg start", slog.Any("err", err))
-		http.Error(w, "transcode failed", http.StatusInternalServerError)
-		return
-	}
-	// Disable write deadline - transcode streams last minutes/hours, global WriteTimeout would cut them.
-	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
-		slog.Debug("set write deadline unsupported", slog.Any("err", err))
-	}
-	w.Header().Set("Content-Type", "video/mp4")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Accept-Ranges", "none")
-	setCORSHeaders(w, r, h.baseURL)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.ErrorContext(ctx, "panic recovered in transcode ffmpeg cancel", "error", r, "stack", string(debug.Stack()))
-			}
-		}()
-		<-r.Context().Done()
-		cancel()
-	}()
-	copied, copyErr := io.Copy(w, stdout)
-	if copyErr != nil && ctx.Err() == nil {
-		slog.WarnContext(r.Context(), "transcode copy", slog.Any("err", copyErr))
-	}
-	if err := finish(cmd.Wait(), nil); err != nil && ctx.Err() == nil {
-		slog.WarnContext(r.Context(), "ffmpeg transcode", slog.String("media_id", mediaID), slog.Any("err", err))
-		// ffmpeg failed before emitting any bytes: the 200 status line hasn't
-		// been committed yet (io.Copy wrote nothing), so we can still send a 500.
-		// Otherwise the player gets a bare 200 with an empty body and never
-		// retries.
-		if copied == 0 {
-			http.Error(w, "transcode failed", http.StatusInternalServerError)
-		}
-	}
 }
 
 // ProfileAudioPrefsGetter extends ProfilePrefsGetter with the profile-level

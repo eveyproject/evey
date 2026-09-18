@@ -564,12 +564,6 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// (proxy logs, browser history). See download_token.go for the model.
 	mux.HandleFunc("POST /api/v1/download-token/{id}", auth(downloadTokenHandler(s.StreamTokenStore)))
 
-	transcodeThrottle := apptranscoding.NewTranscodeThrottle()
-	mux.HandleFunc("GET /api/v1/media/{id}/transcode", streamAuth(transcodeHandler(transcodeServe{
-		libSvc: s.LibQuerySvc, baseURL: s.BaseURL(),
-		libraryAccess: s.LibraryAccessRepo, throttle: transcodeThrottle, userMaxStreams: s.UserMaxStreams,
-		parental: parentalChk,
-	})))
 	// The index store is process-wide: the extraction path reaches it from both
 	// the route and the prewarmer.
 	subtitleIndexes = newSubtitleIndexCache(s.DataDir)
