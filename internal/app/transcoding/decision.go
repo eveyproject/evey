@@ -415,6 +415,13 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 		d.VideoDecision = "transcode"
 		d.MaxHeight = client.MaxHeight
 	}
+	// The device's H.264 decoder stops below its general ceiling: an H.264
+	// source above it is re-encoded (the ladder caps H.264 rungs at it; an
+	// HEVC output, if the client decodes it, keeps MaxHeight).
+	if s.Height != nil && client.MaxH264Height > 0 && normalizeVideoCodec(s.Codec) == "h264" && *s.Height > client.MaxH264Height {
+		addReasonOnce(d, "resolution_exceeded")
+		d.VideoDecision = "transcode"
+	}
 
 	if !pixelFormatPlayable(s.Codec, s.BitDepth, s.PixelFormat) {
 		addReasonOnce(d, "pixel_format_unsupported")

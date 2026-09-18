@@ -1,10 +1,10 @@
-import type { V1StreamInfo, V1MediaStream } from "@evey/api";
+import type { V1StreamInfo } from "@evey/api";
 
-// Twin of the web cast helpers (apps/web .../hooks/hlsPlayerUtils.ts:
-// castReceiverCapabilities / castSafeDirectPlay / planCastUrl) - keep the
-// SEMANTICS in sync when touching either side. Duplicated rather than shared
-// because mobile URLs are absolute against serverUrl and carry no wasm/gapless
-// machinery.
+// Mobile-side cast negotiation. The web sender (apps/web .../hooks/
+// hlsPlayerUtils.ts: planCastLoad) still hands the receiver the URL the
+// BROWSER negotiated; this side asks the server for the RECEIVER's verdict.
+// Duplicated rather than shared because mobile URLs are absolute against
+// serverUrl and carry no wasm/gapless machinery.
 //
 // A cast stream is decoded by the RECEIVER, not by this phone: the local
 // streamUrl is negotiated with the device MediaCaps (hevc/hdr on any modern
@@ -119,52 +119,43 @@ export function pickCastProfile(modelName: string | null | undefined): CastProfi
   return FLOOR_PROFILE;
 }
 
-type CastStreamInfo = Pick<V1StreamInfo, "playMethod" | "container" | "mediaStreams">;
+// ReceiverStreamInfo is the server's verdict for the RECEIVER: GetStreamInfo
+// called with the receiver's profile (castStreamInfoParams), not the phone's.
+// The server judges the direct play - codecs, resolution (its own H.264
+// ceiling included), bit depth, HDR, the default audio track, the container -
+// with the same rules every other client gets; this file keeps none of them.
+export type ReceiverStreamInfo = Pick<V1StreamInfo, "playMethod">;
 
-// castSafeDirectPlay reports whether the raw file behind a DIRECT_PLAY session
-// can be handed to the receiver as-is: mp4 container, a video stream the
-// profile decodes at its actual resolution (10-bit only as HEVC Main 10 -
-// 10-bit H.264 has no receiver decode), HDR only where the profile supports
-// it, and a default audio track the profile decodes.
-export function castSafeDirectPlay(info: CastStreamInfo, profile: CastProfile): boolean {
-  if (info.playMethod !== "PLAY_METHOD_DIRECT_PLAY") return false;
-  if ((info.container ?? "").toLowerCase() !== "mp4") return false;
-  const streams = info.mediaStreams ?? [];
-  const video = streams.find((s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
-  if (!video) return false;
-  const videoCodec = (video.codec ?? "").toLowerCase();
-  if (!profile.videoCodecs.includes(videoCodec)) return false;
-  const height = video.height ?? 0;
-  // H.264 has its own, generally lower, decode ceiling (see h264MaxHeight's
-  // doc comment) - a 4K H.264 source clears the codec check on the Ultra but
-  // still can't decode there.
-  const heightCeiling = videoCodec === "h264" ? profile.h264MaxHeight : profile.maxHeight;
-  if (height > heightCeiling) return false;
-  if ((video.bitDepth ?? 8) > 8 && videoCodec !== "hevc") return false;
-  const transfer = (video.colorTransfer ?? "").toLowerCase();
-  if (!profile.hdr && (transfer === "smpte2084" || transfer === "arib-std-b67")) return false;
-  // The receiver plays the container's DEFAULT audio track; secondary tracks
-  // it can't decode are irrelevant.
-  const audios = streams.filter((s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
-  const audio = audios.find((s: V1MediaStream) => s.isDefault) ?? audios[0];
-  if (audio && !profile.audioCodecs.includes((audio.codec ?? "").toLowerCase())) return false;
-  return true;
+// castStreamInfoParams declares the receiver to GetStreamInfo. Receivers list
+// no MKV support, so mp4 is the only container: an mkv source negotiates to
+// the HLS copy rung (direct_stream), never to a raw file the TV cannot demux.
+export function castStreamInfoParams(profile: CastProfile) {
+  return {
+    supportedCodecs: profile.videoCodecs,
+    supportedAudioCodecs: profile.audioCodecs,
+    supportedContainers: ["mp4"],
+    supportsHdr: profile.hdr,
+    maxHeight: profile.maxHeight,
+    maxH264Height: profile.h264MaxHeight,
+  };
 }
 
 // buildCastStreamUrl is the cast-side sibling of usePlaySession's
-// buildStreamUrl: the raw file when it is receiver-safe, otherwise the HLS
-// master re-negotiated with the receiver's profile (the server then decides
-// copy vs transcode per track). The token is the purpose=cast one the
-// session already minted - the receiver fetches segments itself, and the
-// server's cast progress derivation only tracks that token kind.
+// buildStreamUrl: the raw file when the SERVER, asked with the receiver's
+// profile, answers direct play; otherwise the HLS master carrying that same
+// profile (the server then decides copy vs transcode per track). No receiver
+// verdict in hand (the stream-info call failed) plays it safe: the master.
+// The token is the purpose=cast one the session already minted - the
+// receiver fetches segments itself, and the server's cast progress derivation
+// only tracks that token kind.
 export function buildCastStreamUrl(
   serverUrl: string,
   mediaId: string,
-  info: CastStreamInfo,
+  receiverInfo: ReceiverStreamInfo | null | undefined,
   token: string,
   profile: CastProfile,
 ): string {
-  if (castSafeDirectPlay(info, profile)) {
+  if (receiverInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/stream?token=${token}`;
   }
   const params = new URLSearchParams({ token });
@@ -172,6 +163,7 @@ export function buildCastStreamUrl(
   params.set("audioCodecs", profile.audioCodecs.join(","));
   params.set("containers", "mp4"); // receivers list no MKV support - never direct-play/remux mkv to a receiver
   params.set("maxHeight", String(profile.maxHeight));
+  params.set("maxH264Height", String(profile.h264MaxHeight));
   if (profile.hdr) params.set("hdr", "1");
   return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/hls/master.m3u8?${params.toString()}`;
 }

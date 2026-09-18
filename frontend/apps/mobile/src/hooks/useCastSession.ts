@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { VideoPlayer } from "expo-video";
 import type { V1StreamInfo } from "@evey/api";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, playbackServiceGetStreamInfo } from "@evey/api";
 import { setAudioBoost } from "../lib/audioBoost";
 import { fetchStreamToken } from "./usePlaySession";
-import { buildCastStreamUrl, pickCastProfile } from "../lib/castUrl";
+import { buildCastStreamUrl, castStreamInfoParams, pickCastProfile } from "../lib/castUrl";
 import { ensureNotificationPermission } from "../lib/notificationPermission";
 import { describeCastTracks, shouldReportTracks } from "../lib/castTrackBeacon";
 import { resumePositionAfterCast } from "../lib/castPlaybackState";
@@ -196,12 +196,14 @@ export function useCastSession({
     try {
       const castToken = await fetchStreamToken(mediaId, { cast: true });
       if (streamInfo && serverUrl) {
-        // The RECEIVER decodes the stream, not this phone: negotiating with
-        // streamInfo/the receiver's profile (instead of casting the
-        // phone-negotiated streamUrl) is what stops a copy rung the
-        // Chromecast can't decode from producing a black screen on the TV.
+        // The RECEIVER decodes the stream, not this phone: the SERVER judges
+        // the receiver's direct play with the receiver's profile (codecs,
+        // resolution and its H.264 ceiling, HDR, the default audio track),
+        // the same rules every client gets - this phone keeps no rule set of
+        // its own. A failed verdict plays it safe: the HLS master.
         const profile = pickCastProfile(modelName);
-        castUrl = buildCastStreamUrl(serverUrl, mediaId, streamInfo, castToken, profile);
+        const receiverInfo = await playbackServiceGetStreamInfo(mediaId, castStreamInfoParams(profile)).catch(() => null);
+        castUrl = buildCastStreamUrl(serverUrl, mediaId, receiverInfo, castToken, profile);
       } else {
         castUrl = withCastToken(streamUrl, castToken);
       }

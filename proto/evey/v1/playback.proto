@@ -193,6 +193,11 @@ message GetStreamInfoRequest {
   // 51 = 5.1). Same meaning as ?maxH264Level= on the HLS master. 0 (older
   // clients) leaves the decision level-blind, as before.
   int32 max_h264_level = 15;
+  // max_h264_height: the tallest H.264 picture the device decodes, when its
+  // H.264 decoder stops below max_height (a Chromecast Ultra plays 2160p HEVC
+  // but 1080p H.264). Same meaning as ?maxH264Height= on the HLS master. 0
+  // (older clients, most devices) = no separate limit.
+  int32 max_h264_height = 16;
 }
 
 message StartStreamRequest {

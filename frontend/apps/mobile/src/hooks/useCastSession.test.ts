@@ -34,8 +34,10 @@ vi.mock("../lib/notificationPermission", () => ({
 }));
 
 const eveyFetchMock = vi.fn();
+const getStreamInfoMock = vi.fn();
 vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => eveyFetchMock(...args),
+  playbackServiceGetStreamInfo: (...args: unknown[]) => getStreamInfoMock(...args),
 }));
 
 // useCastSession pulls fetchStreamToken in from usePlaySession, which at
@@ -91,6 +93,8 @@ beforeEach(() => {
   showCastDialog.mockReset();
   setAudioBoost.mockReset();
   eveyFetchMock.mockReset();
+  getStreamInfoMock.mockReset();
+  getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_TRANSCODE" });
   ensureNotificationPermission.mockClear();
 });
 
@@ -188,15 +192,18 @@ describe("useCastSession", () => {
     expect(castedUrl.searchParams.get("videoCodecs")).toBe("h264");
   });
 
-  // With streamInfo/serverUrl available, the URL is re-negotiated against the
-  // RECEIVER's profile (via buildCastStreamUrl) instead of just swapping the
-  // token into the phone-negotiated URL - a Chromecast gen 1-3 must never see
-  // the hevc the phone itself advertised.
+  // With streamInfo/serverUrl available, the SERVER is asked for the
+  // RECEIVER's verdict (GetStreamInfo with the profile derived from the
+  // connected device's model name) instead of just swapping the token into
+  // the phone-negotiated URL - a Chromecast gen 1-3 must never see the hevc
+  // the phone itself advertised, and the phone keeps no direct-play rule of
+  // its own: a server verdict of direct_stream/transcode is the HLS master.
   it("negotiates the receiver's profile from the connected device's model name", async () => {
     castState = 4; // CONNECTED
     castDeviceModelName = "Chromecast"; // gen 1-3 floor: h264 only, no hevc
     castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
     eveyFetchMock.mockResolvedValue({ token: "cast-tok-999", mediaId: "m1" });
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_DIRECT_STREAM" });
 
     const { result } = mount(fakePlayer(), "https://example.invalid/s.m3u8", {
       serverUrl: "https://example.invalid",
@@ -219,6 +226,33 @@ describe("useCastSession", () => {
     const castedUrl = new URL(call.mediaInfo.contentUrl);
     expect(castedUrl.pathname).toBe("/api/v1/media/m1/hls/master.m3u8");
     expect(castedUrl.searchParams.get("videoCodecs")).toBe("h264");
+    expect(castedUrl.searchParams.get("maxH264Height")).toBe("1080");
+    expect(castedUrl.searchParams.get("token")).toBe("cast-tok-999");
+    // The verdict was asked with the RECEIVER's profile, not the phone's caps.
+    expect(getStreamInfoMock).toHaveBeenCalledWith("m1", expect.objectContaining({
+      supportedCodecs: ["h264"], supportedContainers: ["mp4"], supportsHdr: false, maxHeight: 1080, maxH264Height: 1080,
+    }));
+  });
+
+  // The server says the receiver can play the raw file: the cast loads it.
+  it("hands the receiver the raw file when the server's receiver verdict is direct play", async () => {
+    castState = 4;
+    castDeviceModelName = "Chromecast";
+    castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
+    eveyFetchMock.mockResolvedValue({ token: "cast-tok-999", mediaId: "m1" });
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_DIRECT_PLAY" });
+
+    const { result } = mount(fakePlayer(), "https://example.invalid/s.m3u8", {
+      serverUrl: "https://example.invalid",
+      streamInfo: { playMethod: "PLAY_METHOD_DIRECT_PLAY", container: "mp4", mediaStreams: [] },
+    });
+    await act(async () => {
+      await result.current.handleCast();
+    });
+
+    const calls = castClientInstance!.loadMedia.mock.calls;
+    const castedUrl = new URL(calls[calls.length - 1][0].mediaInfo.contentUrl);
+    expect(castedUrl.pathname).toBe("/api/v1/media/m1/stream");
     expect(castedUrl.searchParams.get("token")).toBe("cast-tok-999");
   });
 });

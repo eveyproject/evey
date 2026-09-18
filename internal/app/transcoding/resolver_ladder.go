@@ -26,6 +26,9 @@ import (
 func (pr *PlanResolver) pinKeyFor(req PlaybackRequest, decision transcoding.PlaybackDecision, route ResolvedRoute) string {
 	key := fmt.Sprintf("%s|%s|%s|sh=%d|mh=%d|bw=%d|lvl=%d", req.MediaID, route.Codec, decision.VideoDecision,
 		req.ScreenHeight, req.Client.MaxHeight, pr.videoBitrateCeilingKbps(req, decision), req.Client.MaxH264Level)
+	if req.Client.MaxH264Height > 0 {
+		key += fmt.Sprintf("|h264h=%d", req.Client.MaxH264Height) // shapes an H.264 ladder: its own pin
+	}
 	if route.Spill == SpillTitleBlocked {
 		key += "|rb=1"
 	}
@@ -210,6 +213,7 @@ func (pr *PlanResolver) deliveryConstraints(pol HWPolicy, req PlaybackRequest, d
 		ScreenHeight:            req.ScreenHeight,
 		MaxHeight:               req.Client.MaxHeight,
 		MaxH264Level:            req.Client.MaxH264Level,
+		MaxH264Height:           req.Client.MaxH264Height,
 		VideoBitrateCeilingKbps: pr.videoBitrateCeilingKbps(req, decision),
 		Capability:              pr.capabilityOrFallback().EncodeCapability,
 	}

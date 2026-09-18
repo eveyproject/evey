@@ -53,6 +53,11 @@ func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscodi
 	if n := parseIntQuery(r, "maxH264Level", 0); n > 0 {
 		client.MaxH264Level = n
 	}
+	// The device's H.264 decoder ceiling when it stops below ?maxHeight (a cast
+	// receiver that plays 2160p HEVC and 1080p H.264).
+	if n := parseIntQuery(r, "maxH264Height", 0); n >= 240 && n <= 8640 {
+		client.MaxH264Height = n
+	}
 	// Height ceiling of the DECODER or of an explicit quality pick (mobile/TV
 	// menu, cast receiver profile): the decision transcodes above it and the
 	// ladder stops at it. Unlike ?screenHeight, which only trims the ladder.
