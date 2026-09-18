@@ -254,6 +254,18 @@ var (
 		Help: "Total resolved GPU routes the ffmpeg builder could not express (planner/builder disagreement).",
 	})
 
+	// HLSVODRouteDrift counts the times a live stream's route (codec, backend,
+	// topology) re-resolved to something else while its admission pin was
+	// still authoritative: the capability, a demotion or a policy toggle moved
+	// under a playing session. The player is served a 410 on its sealed URLs
+	// and refetches the master; this counter is the direct detector of how
+	// often that happens (ADR-0030: the route is not frozen on the pin, by
+	// choice - a demoted backend must not be kept alive by it).
+	HLSVODRouteDrift = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_route_drift_total",
+		Help: "Total live streams whose route re-resolved differently while their admission pin was still authoritative.",
+	})
+
 	// HLSVODCacheHits / HLSVODCacheMisses split segment requests by whether
 	// they hit the disk cache before waiting for ffmpeg. Hit-rate >> 0 is
 	// the primary KPI for the multi-session cache: low hit-rate means users
@@ -371,7 +383,7 @@ func init() {
 		WatcherProbeTotal, WatcherAlive, LibraryScanTotal,
 		TranscodeDuration,
 		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled, HLSVODSessionsCompleted, HLSVODSessionsRejected,
-		HLSVODRouteNotExpressible,
+		HLSVODRouteNotExpressible, HLSVODRouteDrift,
 		HLSVODCopyTimelineDrift, HLSVODTranscodeSeekTimelineDrift,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,

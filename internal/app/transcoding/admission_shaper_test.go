@@ -7,10 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // The measured software rungs of a real dev box: 720p costs 0.366 of the
@@ -737,4 +739,29 @@ func TestAdmissionShaper_ForcedIsStrictlyBelowTheRequestedTop(t *testing.T) {
 	assert.True(t, forced2, "a grant below the requested top is forced")
 
 	_ = limiter
+}
+
+// The pin does not freeze the route, it detects a move: while the pin is
+// authoritative a different identity is a drift - counted once, logged, then
+// adopted (a segment stream reports one move, not one per segment); a cold,
+// unheld pin just records the new stream's route.
+func TestAdmissionShaper_NoteRoute_DetectsADriftOnceThenAdopts(t *testing.T) {
+	shaper, _, clock := shaperFixture(t)
+	drifts := func() int { return int(testutil.ToFloat64(metrics.HLSVODRouteDrift)) }
+	base := drifts()
+
+	shaper.NoteRoute("ghost", "h264/nvenc/zero-copy") // no pin: nothing to note
+	shaper.CeilingFor("s1", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	shaper.NoteRoute("s1", "h264/nvenc/zero-copy")
+	shaper.NoteRoute("s1", "h264/nvenc/zero-copy")
+	assert.Equal(t, base, drifts(), "the same route again is not a drift")
+
+	shaper.NoteRoute("s1", "h264//software")
+	assert.Equal(t, base+1, drifts(), "a fresh pin whose route moved: one drift")
+	shaper.NoteRoute("s1", "h264//software")
+	assert.Equal(t, base+1, drifts(), "the moved route is adopted: no drift per segment")
+
+	*clock = clock.Add(2 * defaultPinFreshFor) // cold and unheld: a new stream
+	shaper.NoteRoute("s1", "h264/nvenc/zero-copy")
+	assert.Equal(t, base+1, drifts(), "a cold, unheld pin records the new stream's route without a drift")
 }

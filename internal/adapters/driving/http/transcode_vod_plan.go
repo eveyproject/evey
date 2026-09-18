@@ -90,6 +90,7 @@ func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
 		AdmissionBind:         h.admissionBind,
 		AdmissionFrozenLadder: h.admissionFrozenLadder,
 		AdmissionFreezeLadder: h.admissionFreezeLadder,
+		AdmissionNoteRoute:    h.admissionNoteRoute,
 		UseFMP4:               h.useFMP4,
 		AudioRenditionEnabled: h.audioRenditionEnabled,
 		// Same predicate as audioRenditionsFor's transcode branch (minus the

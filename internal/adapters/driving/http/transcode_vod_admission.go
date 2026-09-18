@@ -243,3 +243,11 @@ func freezeLadderOf(s *apptranscoding.VideoAdmissionShaper) func(string, []domai
 	}
 	return s.FreezeLadder
 }
+
+// noteRouteOf adapts the shaper's route-drift detector (nil-safe).
+func noteRouteOf(s *apptranscoding.VideoAdmissionShaper) func(string, string) {
+	if s == nil {
+		return nil
+	}
+	return s.NoteRoute
+}

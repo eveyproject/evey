@@ -177,6 +177,15 @@ else. `internal/contractguard/playback_plan_guard_test.go` pins that surface
 and refuses any production caller outside the package that names a
 sub-derivation.
 
+**The route is not frozen on the admission pin (decided 2026-09-18).** The
+pin freezes the class, the ceiling and the ladder; the fingerprint sealed in
+every URL already refuses (410, `stale_rendition`) a segment whose route
+moved since the master, and the player rebuilds. Freezing the route too would
+keep a demoted or dead backend alive for as long as the pin is held. What the
+pin does instead is DETECT the move: `VideoAdmissionShaper.NoteRoute` counts
+`evey_hlsvod_route_drift_total` once per move of a live stream's route
+identity (codec/backend/topology), logs it, and adopts the new route.
+
 Still to do, each gated on something outside the code, in this order:
 
 1. **Demotion by exact route** - when the calibration runner can probe one

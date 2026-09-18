@@ -133,6 +133,8 @@ type hlsVODServe struct {
 	// discipline-held. Both optional (nil ⇒ always re-derive, the prior behaviour).
 	admissionFrozenLadder func(key string) ([]domaintranscoding.HLSProfile, bool)
 	admissionFreezeLadder func(key string, ladder []domaintranscoding.HLSProfile)
+	// admissionNoteRoute is the pin's route-drift detector (NoteRoute). Optional.
+	admissionNoteRoute func(key, routeIdentity string)
 
 	// onDemand serves the copy rung straight from mkvgo's mp4.PlanHLS -
 	// zero-storage, stateless, byte-identical HLS + DASH - when wired (behind

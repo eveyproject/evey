@@ -51,6 +51,14 @@ type ResolvedRoute struct {
 // HW reports whether the accelerator encodes.
 func (r ResolvedRoute) HW() bool { return r.Topology.HW() }
 
+// Identity names the route for the admission pin's drift detector: the codec
+// the segments carry, the backend and the topology - what a recalibration, a
+// demotion or a policy toggle can move under a live stream. Not a cache key
+// (the fingerprint is), so the runtime options stay out.
+func (r ResolvedRoute) Identity() string {
+	return r.Codec + "/" + r.Backend.Name + "/" + r.Topology.Name()
+}
+
 // Spilled reports whether the route was rewritten for the CPU.
 func (r ResolvedRoute) Spilled() bool { return r.Spill != SpillNone }
 
