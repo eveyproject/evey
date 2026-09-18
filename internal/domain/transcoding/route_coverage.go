@@ -95,8 +95,9 @@ func (c ExpressibilityCellCounts) Covered() bool { return c.ResolverChecks > 0 &
 // ExpressibilityReport is the exit criterion of the shadow, in one read:
 // every expected cell covered by both sites and zero disagreements anywhere.
 type ExpressibilityReport struct {
-	// Expected are the cells this host can really reach (a conservative
-	// enumeration, never a cartesian product - see the planner).
+	// Expected are the cells this host can really reach: what the resolver
+	// itself resolves for a probe matrix under the live capability and policy
+	// (app ExpectedExpressibilityCells) - never a product of proofs.
 	Expected []ExpressibilityCell `json:"expected"`
 	// Missing are the expected cells at least one site has not seen.
 	Missing []ExpressibilityCell `json:"missing"`
@@ -181,11 +182,4 @@ func cellLess(a, b ExpressibilityCell) bool {
 		return a.Topology < b.Topology
 	}
 	return a.Needs < b.Needs
-}
-
-// ExpressibilityPlanner enumerates the cells a host can really reach. It is
-// the builder's knowledge (which filters exist per backend), so the ffmpeg
-// adapter implements it next to RouteExpressibility.
-type ExpressibilityPlanner interface {
-	ExpectedCells(cap EncodeCapability) []ExpressibilityCell
 }
