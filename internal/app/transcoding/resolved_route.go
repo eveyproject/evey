@@ -1,6 +1,7 @@
 package transcoding
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -52,11 +53,35 @@ type ResolvedRoute struct {
 func (r ResolvedRoute) HW() bool { return r.Topology.HW() }
 
 // Identity names the route for the admission pin's drift detector: the codec
-// the segments carry, the backend and the topology - what a recalibration, a
-// demotion or a policy toggle can move under a live stream. Not a cache key
-// (the fingerprint is), so the runtime options stay out.
+// the segments carry, the backend, the topology and - on a GPU tone-map -
+// the tone-map implementation, the one feature that draws a different
+// picture (OpenCL, Vulkan, CUDA or the fixed VPP curve; the fingerprint forks
+// its cache on it too, tm=). What a recalibration, a demotion or a policy
+// toggle can move under a live stream. The encoder options among the
+// features (rc_lookahead, low_power, ...) are runtime options: they shape the
+// arguments, not what the session IS, and stay out - as they stay out of the
+// fingerprint's identity.
 func (r ResolvedRoute) Identity() string {
-	return r.Codec + "/" + r.Backend.Name + "/" + r.Topology.Name()
+	id := r.Codec + "/" + r.Backend.Name + "/" + r.Topology.Name()
+	if r.Topology.ToneMap == transcoding.ToneMapGPU {
+		id += "/" + r.Backend.tonemapImpl()
+	}
+	return id
+}
+
+// tonemapImpl is the GPU tone-map implementation the selection carries, with
+// the builder's precedence (hwTonemapFilter): OpenCL over Vulkan on VAAPI,
+// CUDA on NVENC, else the fixed VPP curve.
+func (b BackendSelection) tonemapImpl() string {
+	switch {
+	case slices.Contains(b.Features, transcoding.FeatureTonemapOpenCL):
+		return "opencl"
+	case slices.Contains(b.Features, transcoding.FeatureTonemapVulkan):
+		return "vulkan"
+	case slices.Contains(b.Features, transcoding.FeatureTonemapCUDA):
+		return "cuda"
+	}
+	return "vpp"
 }
 
 // Spilled reports whether the route was rewritten for the CPU.

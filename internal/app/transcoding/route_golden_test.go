@@ -391,6 +391,14 @@ func TestResolvedRoute_ProjectionsAgree(t *testing.T) {
 		if plan.Route.HW() {
 			require.NotEmpty(t, plan.Route.Backend.Name, "%s: a GPU route names its backend", sc.name)
 		}
+		// The drift identity moves iff what the fingerprint forks its cache
+		// on for the route moved: on a GPU tone-map it names the tone-map
+		// implementation, exactly as the hash does (tm=).
+		if plan.Route.Topology.ToneMap == transcoding.ToneMapGPU {
+			require.True(t, strings.HasSuffix(plan.Route.Identity(), "/"+fp.tonemapImpl()), "%s: identity %q names the fingerprint's tone-map implementation %q", sc.name, plan.Route.Identity(), fp.tonemapImpl())
+		} else {
+			require.Equal(t, 2, strings.Count(plan.Route.Identity(), "/"), "%s: identity %q is codec/backend/topology", sc.name, plan.Route.Identity())
+		}
 	}
 }
 
