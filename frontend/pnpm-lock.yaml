@@ -292,6 +292,9 @@ importers:
       '@evey/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@evey/media-caps':
+        specifier: workspace:*
+        version: link:../../packages/media-caps
       '@evey/store':
         specifier: workspace:*
         version: link:../../packages/store

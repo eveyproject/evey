@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { resetOutputChannelsProbe } from "@/utils/outputChannels";
-import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel, liftForcedMuteOnNextGesture } from "./hlsPlayerUtils";
+import { castProfileFor, pickCastProfile } from "@evey/media-caps/cast";
+import { startPlayback, planCastLoad, planRendererLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel, liftForcedMuteOnNextGesture } from "./hlsPlayerUtils";
 import { forwardBufferSeconds, pickTranscodeResumeSec } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
@@ -465,33 +466,79 @@ describe("startPlayback", () => {
   });
 });
 
-describe("planCastLoad", () => {
-  it("transcode: resume rides the load request, never a baked startSec", () => {
+describe("planCastLoad - the receiver's stream is the SERVER's verdict for the receiver", () => {
+  const ORIGIN = "https://evey.example";
+  const floor = castProfileFor(null, null); // nothing known: the conservative floor
+  const observed = castProfileFor({ videoCodecs: ["h264", "hevc"], maxHeight: 2160, hdr: true, nativeDolby: false, maxAudioChannels: 2, maxH264Level: 51, h264MaxHeight: 1080 }, null);
+
+  it("direct play only when the server said so for THIS profile - the raw file with the cast token", () => {
+    const plan = planCastLoad(ORIGIN, "m1", "castTok", observed, { playMethod: "PLAY_METHOD_DIRECT_PLAY" }, 0, 30, false);
+    expect(plan.url).toBe(`${ORIGIN}/api/v1/media/m1/stream?token=castTok`);
+    expect(plan.resumeSec).toBe(30);
+  });
+
+  it("otherwise the HLS master declaring the receiver's profile, where the server decides per track", () => {
+    const plan = planCastLoad(ORIGIN, "m1", "castTok", observed, { playMethod: "PLAY_METHOD_TRANSCODE" }, 1, 742.9, true);
+    const u = new URL(plan.url);
+    expect(u.pathname).toBe("/api/v1/media/m1/hls/master.m3u8");
+    expect(u.searchParams.get("token")).toBe("castTok");
+    expect(u.searchParams.get("videoCodecs")).toBe("h264,hevc");
+    expect(u.searchParams.get("containers")).toBe("mp4");
+    expect(u.searchParams.get("maxHeight")).toBe("2160");
+    expect(u.searchParams.get("maxH264Height")).toBe("1080");
+    expect(u.searchParams.get("maxAudioChannels")).toBe("2");
+    expect(u.searchParams.get("hdr")).toBe("1");
+    expect(u.searchParams.get("audioTrack")).toBe("1");
+    expect(u.searchParams.get("gapless")).toBe("1");
     // No server handler parses startSec, and the transcode manifest is a
     // complete VOD - a baked startSec silently started the receiver at 0
     // while the UI added the offset back and believed the resume had landed.
-    const plan = planCastLoad(undefined, "tok", "m1", 0, 742.9, false);
     expect(plan.url).not.toContain("startSec=");
     expect(plan.resumeSec).toBe(742);
+    // The browser's own declaration never rides a receiver URL.
+    expect(plan.url).not.toContain("fmp4AudioPassthrough");
+    expect(plan.url).not.toContain("wasmAudio");
   });
 
-  it("transcode: cold start resumes at 0", () => {
-    const plan = planCastLoad(undefined, "tok", "m1", 1, 0, true);
-    expect(plan.url).toContain("audioTrack=1");
-    expect(plan.url).toContain("gapless=1");
+  it("no verdict (the stream-info call failed) plays it safe: the master, never the raw file", () => {
+    const plan = planCastLoad(ORIGIN, "m1", "castTok", floor, null, 0, 0, false);
+    expect(plan.url).toContain("/hls/master.m3u8?");
+    expect(plan.url).toContain("videoCodecs=h264");
+    expect(plan.url).not.toContain("hdr=1");
     expect(plan.resumeSec).toBe(0);
   });
 
+  it("the floor is what an unknown device negotiates on: h264, SDR, 1080p", () => {
+    expect(floor).toBe(pickCastProfile(null));
+    const plan = planCastLoad(ORIGIN, "m1", "castTok", floor, { playMethod: "PLAY_METHOD_DIRECT_STREAM" }, 0, 0, false);
+    const u = new URL(plan.url);
+    expect(u.searchParams.get("videoCodecs")).toBe("h264");
+    expect(u.searchParams.get("maxHeight")).toBe("1080");
+    expect(u.searchParams.get("maxH264Height")).toBe("1080");
+  });
+});
+
+// A DLNA renderer is not a Cast receiver: it keeps the pre-negotiation load
+// (the file the browser negotiated, the session token appended when absent).
+describe("planRendererLoad", () => {
   it("direct play: appends the session token when the URL has none", () => {
-    const plan = planCastLoad("/files/movie.mp4", "tok", "m1", 0, 30, false);
+    const plan = planRendererLoad("/files/movie.mp4", "tok", "m1", 0, 30, false);
     expect(plan.url).toBe("/files/movie.mp4?token=tok");
     expect(plan.resumeSec).toBe(30);
   });
 
   it("direct play: keeps a URL that already carries a token", () => {
-    const plan = planCastLoad("/files/movie.mp4?token=abc", "tok", "m1", 0, 12.4, false);
+    const plan = planRendererLoad("/files/movie.mp4?token=abc", "tok", "m1", 0, 12.4, false);
     expect(plan.url).toBe("/files/movie.mp4?token=abc");
     expect(plan.resumeSec).toBe(12);
+  });
+
+  it("transcode: the browser's master, resume on the load request", () => {
+    const plan = planRendererLoad(undefined, "tok", "m1", 1, 742.9, true);
+    expect(plan.url).toContain("audioTrack=1");
+    expect(plan.url).toContain("gapless=1");
+    expect(plan.url).not.toContain("startSec=");
+    expect(plan.resumeSec).toBe(742);
   });
 });
 

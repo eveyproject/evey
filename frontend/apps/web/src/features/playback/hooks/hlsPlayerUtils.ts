@@ -1,4 +1,5 @@
 import Hls from "hls.js";
+import { buildCastStreamUrl, type CastProfile, type ReceiverStreamInfo } from "@evey/media-caps/cast";
 import type { SubtitleStream } from "../SubtitleSelector";
 import { getBrowserCapabilities } from "@/utils/codec";
 import { getMaxOutputChannels } from "@/utils/outputChannels";
@@ -193,22 +194,53 @@ export function shouldRestartTranscodeSeek(
 }
 
 // CastLoadPlan is what a new cast session loads: the URL the receiver fetches
-// on its own (session token; the caller may swap in a long-lived cast token)
-// and the absolute position handed to the load request.
+// on its own (the long-lived cast token) and the absolute position handed to
+// the load request.
 export interface CastLoadPlan {
   url: string;
   resumeSec: number;
 }
 
-// planCastLoad builds the media a cast session hands the receiver. Direct play
-// streams the complete file; transcode streams the complete precomputed VOD
-// manifest - either way the receiver's timeline IS the absolute media timeline,
-// so resuming mid-film rides the load request's currentTime (resumeSec), the
-// same mechanism an in-session seek uses. startSec is deliberately NEVER baked
-// into the transcode URL: no server handler parses it, so a baked resume
-// silently started the receiver at 0 while the UI added the offset back and
-// believed the resume had landed.
+// castResumeSec: the receiver's timeline IS the absolute media timeline
+// (direct play streams the complete file, transcode the complete precomputed
+// VOD manifest), so resuming mid-film rides the load request's currentTime,
+// the same mechanism an in-session seek uses. Never baked into the URL: no
+// server handler parses a startSec there, and a baked resume silently
+// started the receiver at 0 while the UI added the offset back and believed
+// the resume had landed.
+export function castResumeSec(resumeAtSec: number): number {
+  return resumeAtSec > 0 ? Math.floor(resumeAtSec) : 0;
+}
+
+// planCastLoad builds the media a Cast session hands the receiver, from the
+// SERVER's verdict for THAT receiver (GetStreamInfo asked with the receiver's
+// profile - the raw file only when the server said direct play, the HLS
+// master carrying the same profile otherwise, where the server decides copy
+// vs transcode per track) - never from the browser's own negotiation: the
+// browser decodes hevc/mkv/HDR the TV may not, and handing its direct-play
+// URL to a receiver was a black screen on the TV. No verdict in hand (the
+// call failed) is the master too: the conservative shape.
 export function planCastLoad(
+  origin: string,
+  mediaId: string,
+  castToken: string,
+  profile: CastProfile,
+  verdict: ReceiverStreamInfo | null,
+  audioTrack: number,
+  resumeAtSec: number,
+  gapless: boolean,
+): CastLoadPlan {
+  return {
+    url: buildCastStreamUrl(origin, mediaId, verdict, castToken, profile, { audioTrack, gapless }),
+    resumeSec: castResumeSec(resumeAtSec),
+  };
+}
+
+// planRendererLoad is the DLNA renderer's load: a renderer plays the file the
+// BROWSER negotiated (a raw mp4 it can fetch; the transcode master when the
+// browser itself needed one) - it is not a Cast receiver and has no profile
+// to negotiate with. Unchanged from the pre-negotiation cast plan.
+export function planRendererLoad(
   directPlayUrl: string | null | undefined,
   sessionToken: string,
   mediaId: string,
@@ -216,7 +248,7 @@ export function planCastLoad(
   resumeAtSec: number,
   gapless: boolean,
 ): CastLoadPlan {
-  const resumeSec = resumeAtSec > 0 ? Math.floor(resumeAtSec) : 0;
+  const resumeSec = castResumeSec(resumeAtSec);
   if (directPlayUrl) {
     const url = directPlayUrl.includes("token=")
       ? directPlayUrl

@@ -4,7 +4,7 @@ import type { V1StreamInfo } from "@evey/api";
 import { eveyFetch, playbackServiceGetStreamInfo } from "@evey/api";
 import { setAudioBoost } from "../lib/audioBoost";
 import { fetchStreamToken } from "./usePlaySession";
-import { buildCastStreamUrl, castStreamInfoParams, pickCastProfile } from "../lib/castUrl";
+import { buildCastStreamUrl, castStreamInfoParams, pickCastProfile } from "@evey/media-caps";
 import { ensureNotificationPermission } from "../lib/notificationPermission";
 import { describeCastTracks, shouldReportTracks } from "../lib/castTrackBeacon";
 import { resumePositionAfterCast } from "../lib/castPlaybackState";
@@ -38,7 +38,7 @@ interface UseCastSessionArgs {
   fallbackDurationSec: number;
   // streamInfo/serverUrl come straight from usePlaySession - buildCastStreamUrl
   // re-negotiates the URL against the RECEIVER's decode profile instead of
-  // casting the phone-negotiated streamUrl as-is (see lib/castUrl.ts).
+  // casting the phone-negotiated streamUrl as-is (see @evey/media-caps castUrl).
   streamInfo: V1StreamInfo | null;
   serverUrl: string | null;
 }

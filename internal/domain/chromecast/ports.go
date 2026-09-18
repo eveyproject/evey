@@ -8,6 +8,13 @@ type Device struct {
 	Name string `json:"name"`
 	Addr string `json:"addr"`
 	Port int    `json:"port"`
+	// Model is the receiver's model name from its mDNS record (TXT md,
+	// "Chromecast Ultra", "Google TV Streamer"...), the one capability hint a
+	// sender gets before it talks to the device: the web sender reads the
+	// shared cast profile table with it. Empty for a device the subnet probe
+	// found (TCP 8009 answers, no record) - the sender then negotiates on the
+	// floor profile.
+	Model string `json:"model,omitempty"`
 }
 
 // MediaStatus is a provider-agnostic snapshot of the current media session.

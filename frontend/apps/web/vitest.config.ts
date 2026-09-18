@@ -10,6 +10,7 @@ export default defineConfig({
     alias: {
       "@": resolve(__dirname, "./src"),
       "@evey/api": resolve(__dirname, "../../packages/api/src/index.ts"),
+      "@evey/media-caps/cast": resolve(__dirname, "../../packages/media-caps/src/castUrl.ts"),
       "@evey/store": resolve(__dirname, "../../packages/store/src/index.ts"),
     },
   },

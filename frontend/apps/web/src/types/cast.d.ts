@@ -12,9 +12,16 @@ declare namespace cast {
     }
 
     class CastSession {
-      getCastDevice(): { friendlyName: string } | null;
+      // The Web Sender SDK exposes no model name for the connected receiver:
+      // friendlyName, deviceId and the VIDEO_OUT/AUDIO_OUT capability flags
+      // are all a sender ever learns from it.
+      getCastDevice(): { friendlyName: string; deviceId?: string; capabilities?: string[] } | null;
       loadMedia(request: chrome.cast.media.LoadRequest): Promise<void>;
       endSession(stopCasting: boolean): void;
+      // Custom message channel (urn:x-cast:*) to the receiver application.
+      sendMessage(namespace: string, message: object | string): Promise<void>;
+      addMessageListener(namespace: string, listener: (namespace: string, message: string) => void): void;
+      removeMessageListener(namespace: string, listener: (namespace: string, message: string) => void): void;
     }
 
     class RemotePlayer {
