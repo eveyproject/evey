@@ -34,7 +34,6 @@ EVEY_TRUSTED_PROXIES=172.16.0.0/12       # 仅当代理本身是容器时才需�
 涉及的路径：
 
 ```
-/api/v1/media/*/transcode
 /api/v1/media/*/hls/*
 /api/v1/media/*/stream
 /api/v1/libraries/*/scan
@@ -170,7 +169,7 @@ evey 容器必须与 NPM 处于同一网络（见上文“放在你已有的代�
 client_max_body_size 100M;
 
 # 流媒体 - 不缓冲，不超时。
-location ~ ^/api/v1/media/.+/(transcode|hls|stream) {
+location ~ ^/api/v1/media/.+/(hls|stream) {
     proxy_pass http://evey-server:9091;
     proxy_buffering off;
     proxy_request_buffering off;

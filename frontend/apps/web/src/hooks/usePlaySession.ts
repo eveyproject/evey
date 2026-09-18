@@ -110,15 +110,10 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           url = currentStreamToken
             ? `${rawStreamInfo.directPlayUrl ?? `/api/v1/media/${mediaId}/stream`}?token=${currentStreamToken}`
             : rawStreamInfo.directPlayUrl;
-        } else if (rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM") {
-          if (currentStreamToken) {
-            const p = new URLSearchParams({ token: currentStreamToken, remux: "1" });
-            appendCodecParams(p);
-            url = `/api/v1/media/${mediaId}/transcode?${p.toString()}`;
-          } else {
-            url = rawStreamInfo.transcodeUrl;
-          }
         } else {
+          // DIRECT_STREAM (container-only remux) and TRANSCODE both play the
+          // HLS master: the copy rung serves the remux as fMP4 segments, the
+          // same URL shape as a transcode. There is no progressive pipe.
           if (currentStreamToken) {
             const p = new URLSearchParams({ token: currentStreamToken });
             appendCodecParams(p);

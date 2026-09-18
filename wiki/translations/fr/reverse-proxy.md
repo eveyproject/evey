@@ -45,7 +45,6 @@ déclenche jamais. Deux points méritent tout de même d'être connus :
 Les chemins concernés :
 
 ```
-/api/v1/media/*/transcode
 /api/v1/media/*/hls/*
 /api/v1/media/*/stream
 /api/v1/libraries/*/scan
@@ -211,7 +210,7 @@ régulière) :
 client_max_body_size 100M;
 
 # Diffusion - ni mise en tampon, ni délai d'expiration.
-location ~ ^/api/v1/media/.+/(transcode|hls|stream) {
+location ~ ^/api/v1/media/.+/(hls|stream) {
     proxy_pass http://evey-server:9091;
     proxy_buffering off;
     proxy_request_buffering off;

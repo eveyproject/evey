@@ -16,7 +16,6 @@ import (
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	domainsubtitle "github.com/evey-project/evey/internal/domain/subtitle"
 	subfakes "github.com/evey-project/evey/internal/domain/subtitle/fakes"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/auth"
 )
@@ -374,46 +373,6 @@ func TestSubtitleSearch_MediaNotFound_404(t *testing.T) {
 	}
 }
 
-func TestAnalyzeStreams_SubtitleTrack(t *testing.T) {
-	h := &transcodeServe{libSvc: &fakeMediaStreamsGetter{
-		item: testMediaItem("lib1"),
-		streams: []*domainlibrary.MediaStream{
-			{StreamType: "video", Codec: "h264"},
-			{StreamType: "audio", Codec: "aac", IsDefault: true},
-			{StreamType: "subtitle", Codec: "srt"},
-			{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle"},
-		},
-	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, 1, 0)
-	if !a.burnInSubtitle {
-		t.Error("PGS subtitle should trigger burn-in")
-	}
-	if !a.needsVideoTranscode {
-		t.Error("burn-in subtitle should trigger video transcode")
-	}
-	if a.subtitleCodec != "hdmv_pgs_subtitle" {
-		t.Errorf("expected hdmv_pgs_subtitle, got %s", a.subtitleCodec)
-	}
-}
-
-func TestAnalyzeStreams_SubtitleTrack_SRT(t *testing.T) {
-	h := &transcodeServe{libSvc: &fakeMediaStreamsGetter{
-		item: testMediaItem("lib1"),
-		streams: []*domainlibrary.MediaStream{
-			{StreamType: "video", Codec: "h264"},
-			{StreamType: "audio", Codec: "aac", IsDefault: true},
-			{StreamType: "subtitle", Codec: "srt"},
-		},
-	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, 0, 0)
-	if a.burnInSubtitle {
-		t.Error("SRT should not burn-in")
-	}
-	if a.subtitleCodec != "srt" {
-		t.Errorf("expected srt, got %s", a.subtitleCodec)
-	}
-}
-
 // ============================================================
 // Subtitle delete with found item
 // ============================================================
@@ -554,41 +513,6 @@ func TestSubtitleFileHandler_QueryToken(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code == http.StatusUnauthorized || w.Code == http.StatusForbidden {
 		t.Errorf("auth should pass with query token, got %d", w.Code)
-	}
-}
-
-func TestBuildFFmpegArgs_BurnInSubtitle(t *testing.T) {
-	h := &transcodeServe{}
-	args := h.buildFFmpegArgs("/video.mkv", transcodeParams{subtitleTrack: 0}, transcodeAnalysis{
-		burnInSubtitle:      true,
-		needsVideoTranscode: true,
-		needsAudioTranscode: true,
-	})
-	hasFilterComplex := false
-	for _, a := range args {
-		if a == "-filter_complex" {
-			hasFilterComplex = true
-		}
-	}
-	if !hasFilterComplex {
-		t.Error("expected -filter_complex for burn-in subtitle")
-	}
-}
-
-func TestBuildFFmpegArgs_BurnInSubtitleWithScale(t *testing.T) {
-	h := &transcodeServe{}
-	args := h.buildFFmpegArgs("/video.mkv", transcodeParams{subtitleTrack: 0, videoScale: 480}, transcodeAnalysis{
-		burnInSubtitle:      true,
-		needsVideoTranscode: true,
-	})
-	hasScale := false
-	for _, a := range args {
-		if strings.Contains(a, "scale") {
-			hasScale = true
-		}
-	}
-	if !hasScale {
-		t.Error("expected scale in overlay filter")
 	}
 }
 

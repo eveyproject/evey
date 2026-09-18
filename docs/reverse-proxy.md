@@ -36,7 +36,6 @@ default read timeout never fires. Two things are still worth knowing:
 The paths concerned:
 
 ```
-/api/v1/media/*/transcode
 /api/v1/media/*/hls/*
 /api/v1/media/*/stream
 /api/v1/libraries/*/scan
@@ -188,7 +187,7 @@ express the regex):
 client_max_body_size 100M;
 
 # Streaming - no buffering, no timeout.
-location ~ ^/api/v1/media/.+/(transcode|hls|stream) {
+location ~ ^/api/v1/media/.+/(hls|stream) {
     proxy_pass http://evey-server:9091;
     proxy_buffering off;
     proxy_request_buffering off;

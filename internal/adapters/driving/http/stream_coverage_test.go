@@ -310,11 +310,3 @@ func (f *fakeStreamTokenValidator) ValidateAny(_ string) (*shared.StreamToken, b
 	}
 	return nil, false
 }
-
-type fakeUserMaxStreams struct {
-	max *int
-}
-
-func (f *fakeUserMaxStreams) GetMaxStreams(_ context.Context, _ string) *int {
-	return f.max
-}

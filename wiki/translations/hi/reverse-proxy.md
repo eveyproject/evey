@@ -43,7 +43,6 @@ Evey डिफ़ॉल्ट सेटिंग्स पर छोड़े �
 जो पथ इससे जुड़े हैं:
 
 ```
-/api/v1/media/*/transcode
 /api/v1/media/*/hls/*
 /api/v1/media/*/stream
 /api/v1/libraries/*/scan
@@ -201,7 +200,7 @@ evey container उसी नेटवर्क पर होना चाहि�
 client_max_body_size 100M;
 
 # स्ट्रीमिंग - न buffering, न timeout।
-location ~ ^/api/v1/media/.+/(transcode|hls|stream) {
+location ~ ^/api/v1/media/.+/(hls|stream) {
     proxy_pass http://evey-server:9091;
     proxy_buffering off;
     proxy_request_buffering off;
