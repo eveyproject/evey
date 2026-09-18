@@ -141,7 +141,7 @@ func TestBuildWasmAudioMaster_NamesThePublishedRenditionNotTheDerivedOne(t *test
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8?wasmAudio=1&audioTrack=2&videoCodecs=h264&audioCodecs=aac&containers=mp4", nil)
 	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
 
-	master, err := h.buildWasmAudioMaster(req, "m1", item, streams, false, true, 2, parsePlanAudioRenditions(prodPlanMaster))
+	master, err := h.buildWasmAudioMaster(req, "m1", item, streams, planFor(t, h, req, item, streams), false, true, 2, parsePlanAudioRenditions(prodPlanMaster))
 	require.NoError(t, err)
 	assert.Contains(t, master, `#EVEY-AUDIO-URI:"od_audio2.m3u8?audioTrack=2`, "the VFQ is the plan's second rendition")
 	assert.NotContains(t, master, "od_audio3.m3u8", "od_audio3 is the ENGLISH track - naming it is the bug")

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -307,19 +308,6 @@ type hlsVODServe struct {
 	prefsLookup *pkgcache.TTLCache[apptranscoding.TranscodingPreferences]
 }
 
-// profilePrefsFor resolves the profile's transcoding preferences through the
-// short-TTL cache. Nil-safe (hand-built test handlers keep the direct fetch);
-// an empty profile ID short-circuits to defaults without touching the cache.
-// userPrefs loads the caller's preferences, nil claims included (an
-// unauthenticated context yields the defaults rather than a panic).
-func (h *hlsVODServe) userPrefs(ctx context.Context) apptranscoding.TranscodingPreferences {
-	profileID := ""
-	if claims := HTTPClaimsFromContext(ctx); claims != nil {
-		profileID = claims.ProfileID
-	}
-	return h.profilePrefsFor(ctx, profileID)
-}
-
 // subtitlePrewarmLang is the language to extract FIRST: the caller's own
 // subtitle preference when they have one, else their audio preference, which is
 // the language whose forced track a file usually carries. Empty means "file
@@ -583,30 +571,40 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		return
 	}
 
-	// Browser wasm-audio path (?wasmAudio=1 + selected AC-3/E-AC-3 track): a
-	// VIDEO-ONLY master whose audio the client decodes itself (ac3go wasm) from an
-	// out-of-band rendition. Checked before the plan master so the AC-3 audio
-	// stays out of MSE. Falls through when not applicable.
-	if h.serveWasmAudioMaster(w, r, mediaID, item, streams, span) {
-		return
-	}
-
-	// On-demand copy rung: when the request is video+audio copy-eligible and the
-	// source packages verbatim, serve the whole presentation from mp4.PlanHLS
-	// (stateless, byte-identical, DASH included) instead of the ffmpeg pipeline.
-	// Falls through (feature off / not eligible / plan build failed) unchanged.
-	if h.tryServePlanMaster(w, r, mediaID, item, streams, span) {
-		return
-	}
-
-	// From here on the ffmpeg ladder serves this master: resolve the playback
-	// plan ONCE - decision, shaped ladder, fingerprint - and let the shed
-	// probe and the manifest input read the same resolution.
-	rp, err := h.resolvePlan(r, mediaID, item, streams)
+	// ONE resolution: decision, route, shaped ladder, fingerprint and the
+	// delivery strategy - which engine carries the video and the audio. From
+	// here the adapter EXECUTES plan.Delivery; it picks no engine of its own.
+	rp, err := h.probePlan(r, mediaID, item, streams)
 	if err != nil {
 		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
+	// fallback names why a plan's engine could not be served (a source the
+	// packager cannot build, a hybrid master that failed): a RUNTIME outcome,
+	// counted and logged; the plan stays as resolved and the ffmpeg path
+	// below serves it.
+	fallback := ""
+	switch {
+	case rp.Plan.Delivery.Audio == apptranscoding.EngineClient:
+		// Browser wasm audio: a VIDEO-ONLY master whose audio the client
+		// decodes itself (ac3go wasm) from an out-of-band rendition.
+		var served bool
+		if served, fallback = h.serveWasmAudioMaster(w, r, mediaID, item, streams, rp, span); served {
+			return
+		}
+	case rp.Plan.Delivery.Video == apptranscoding.EngineMkvgo:
+		// The packager's presentation (whole, or the hybrid master with
+		// Evey's audio renditions): stateless, byte-identical, DASH included.
+		var served bool
+		if served, fallback = h.servePackagerMaster(w, r, mediaID, item, streams, rp, span); served {
+			return
+		}
+	}
+
+	// The ffmpeg path serves this plan (its strategy, or the fallback of one
+	// the packager could not build). Serving binds this token to the plan's
+	// hash and reclaims the one it left (resolvePlan's side of probePlan).
+	h.reclaimSupersededHash(r, mediaID, rp)
 
 	// Tell a viewer the host is full BEFORE their player parses a ladder it can
 	// never fetch - the only signal a native mobile/TV player ever sees. Probed
@@ -654,7 +652,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		if rp.FP.AudioCopy {
 			p.AudioDecision = "copy"
 		}
-		h.recordServing(r, mediaID, rp, p)
+		h.recordServing(r, mediaID, rp, p, fallback)
 	}
 
 	setCORSHeaders(w, r, "")
@@ -690,8 +688,8 @@ func browserUserAgent(ua string) bool {
 // recordServing tells the (profile, media) play session what this master
 // hands the player. The profile comes from the stream token, so a cast
 // receiver's master lands on the same session as the phone that started it.
-func (h *hlsVODServe) recordServing(r *http.Request, mediaID string, rp *requestPlan, p domainplayback.ServingPath) {
-	h.shadowDelivery(r, mediaID, rp, p)
+func (h *hlsVODServe) recordServing(r *http.Request, mediaID string, rp *requestPlan, p domainplayback.ServingPath, fallback string) {
+	h.checkDelivery(r, mediaID, rp, p, fallback)
 	if h.servingRecord == nil {
 		return
 	}
@@ -702,27 +700,35 @@ func (h *hlsVODServe) recordServing(r *http.Request, mediaID string, rp *request
 	h.servingRecord(r.Context(), claims.ProfileID, mediaID, p)
 }
 
-// shadowDelivery compares the path this adapter SERVED with the delivery
-// strategy the plan DECIDED for the same request (PlaybackPlan.Delivery). A
-// disagreement is counted and logged, never acted on: the adapter's own
-// dispatch still chooses the engines until the counter has read zero on real
-// traffic, then the dispatch reads the plan and this shadow goes. rp is the
-// request's own resolution (nil when the site had none: nothing to compare).
-func (h *hlsVODServe) shadowDelivery(r *http.Request, mediaID string, rp *requestPlan, served domainplayback.ServingPath) {
+// checkDelivery holds the adapter to the plan. The path SERVED is compared
+// with the strategy the plan DECIDED (PlaybackPlan.Delivery, projected as a
+// ServingPath):
+//   - a declared fallback (the packager could not build the source, a hybrid
+//     master failed) is a RUNTIME outcome: counted per reason and logged,
+//     the plan untouched - never a new decision;
+//   - a difference with no fallback declared is an adapter that picked an
+//     engine on its own: an invariant violation, counted on a counter that
+//     must stay at zero.
+func (h *hlsVODServe) checkDelivery(r *http.Request, mediaID string, rp *requestPlan, served domainplayback.ServingPath, fallback string) {
 	if rp == nil {
 		return
 	}
 	planned := rp.Plan.Delivery.ServingPath(rp.Plan.Route, rp.FP)
-	if planned.VideoEngine == served.VideoEngine && planned.AudioEngine == served.AudioEngine && planned.VideoDecision == served.VideoDecision {
-		return
-	}
 	label := func(p domainplayback.ServingPath) string {
 		return p.VideoDecision + "/" + p.VideoEngine + "+" + p.AudioEngine
 	}
+	if fallback != "" {
+		metrics.HLSVODDeliveryFallbacks.WithLabelValues(fallback).Inc()
+		slog.WarnContext(r.Context(), "hls-vod: the plan's delivery could not be served, the ffmpeg path took it (runtime fallback, the plan stands)",
+			slog.String("media_id", mediaID), slog.String("fallback", fallback), slog.String("planned", label(planned)), slog.String("served", label(served)))
+		return
+	}
+	if planned.VideoEngine == served.VideoEngine && planned.AudioEngine == served.AudioEngine && planned.VideoDecision == served.VideoDecision {
+		return
+	}
 	metrics.HLSVODDeliveryDisagreements.WithLabelValues(label(planned), label(served)).Inc()
-	slog.WarnContext(r.Context(), "hls-vod: delivery served differs from the plan's strategy (shadow: the adapter still decides)",
-		slog.String("media_id", mediaID), slog.String("planned", label(planned)), slog.String("served", label(served)),
-		slog.Bool("planned_audio_trimmed", rp.Plan.Delivery.AudioTrimmed))
+	slog.ErrorContext(r.Context(), "hls-vod: delivery served differs from the plan's strategy with no fallback declared - the adapter re-decided (invariant)",
+		slog.String("media_id", mediaID), slog.String("planned", label(planned)), slog.String("served", label(served)))
 }
 
 // videoBackendLabel names the encoder backend of a transcode rung.

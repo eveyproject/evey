@@ -1,11 +1,9 @@
 package httpapi
 
 import (
-	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
-	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -13,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -54,44 +54,28 @@ const (
 	maxRotationKeys = 512
 )
 
-// tryServePlanMaster serves the presentation from the on-demand packager when
-// the request's VIDEO is copy-eligible and the source packages verbatim. Two
-// modes, both stateless video from mp4.PlanHLS:
+// servePackagerMaster EXECUTES a plan whose video the packager carries
+// (plan.Delivery.Video == mkvgo): the whole presentation from mp4.PlanHLS
+// when the audio is the packager's too, the HYBRID master (packager video +
+// Evey's ffmpeg AAC renditions) when the plan put the audio on ffmpeg. It
+// decides nothing: the engines are the plan's.
 //
-//   - audio also copy (every track CMAF-carriable, no loudnorm): the whole
-//     presentation is the packager's master - video + demuxed audio + subs.
-//   - audio must be re-encoded (DTS/TrueHD, loudnorm, a non-carriable track):
-//     a HYBRID master - the video variant points at the packager (od_playlist),
-//     the audio group stays Evey's ffmpeg AAC renditions. Requires the
-//     audio-rendition pipeline wired + enabled; otherwise fall through.
-//
-// Returns true when it has written the response (served or a hard error) so
-// serveMaster stops; false to fall through to the ffmpeg master (feature off,
-// video not copy-eligible, plan unbuildable, or hybrid audio unavailable - a
-// clean, logged fallback).
-func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) bool {
-	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
-		return false
+// Returns served=true once it has written the response. served=false with a
+// fallback reason is a RUNTIME outcome the plan could not know (the source
+// does not package: a codec CMAF cannot carry, a Cues-less Matroska): the
+// caller serves the ffmpeg path for the same plan and records the fallback,
+// counted and logged, never re-decided.
+func (h *hlsVODServe) servePackagerMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan, span trace.Span) (served bool, fallback string) {
+	if h.onDemand == nil {
+		return false, fallbackPackagerUnwired // the plan named an engine this handler lacks: an invariant, not a decision
 	}
-	// One resolution per master request: the video gate and the audio gate
-	// read its decision, and the plan's own delivery strategy is what the
-	// path served here is compared with (shadowDelivery).
-	rp, err := h.probePlan(r, mediaID, item, streams)
+	// The source must package verbatim. Building here also warms the plan
+	// cache the sub-resource requests hit.
+	plan, err := h.buildPlan(r, mediaID, item, streams, rp)
 	if err != nil {
-		return false
-	}
-	decision := rp.Decision
-	if !h.planHLSVideoEligible(decision, item, streams) {
-		return false
-	}
-	// The source must package verbatim (a codec CMAF can't carry, or a
-	// Matroska without a Cues seek index → ffmpeg). Building here also warms
-	// the plan cache the sub-resource requests hit.
-	plan, err := h.buildPlan(r, mediaID, item, streams)
-	if err != nil {
-		slog.WarnContext(r.Context(), "hls-vod: on-demand plan build failed, falling back to ffmpeg",
+		slog.WarnContext(r.Context(), "hls-vod: on-demand plan build failed, the ffmpeg path serves this plan",
 			slog.String("media_id", mediaID), slog.Any("err", err))
-		return false
+		return false, fallbackPackagerUnbuildable
 	}
 
 	// Receiver-fitted masters, in order of information quality: a measured
@@ -101,39 +85,41 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	// advertised rung by itself (Bouygtel4K, 2026-08-03: variant pinned
 	// through nine minutes of freeze) - the descent is ours, deterministic.
 	// Unresolvable falls through to the ordinary shapes.
+	// These re-pin the REQUEST (vd=transcode) on the receiver's behalf and
+	// serve that pinned request's own plan - a client-side pin the adapter
+	// applies for an old cast runtime, not an engine choice of its own.
 	if kbps := maxKbpsRequested(r); kbps > 0 {
 		if master, ok := h.buildCappedMaster(r, mediaID, item, streams, kbps); ok {
 			writeHLSMaster(w, r, master)
-			return true
+			return true, ""
 		}
 	}
 	if floorRequested(r) {
 		if master, ok := h.buildFloorMaster(r, mediaID, item, streams); ok {
 			writeHLSMaster(w, r, master)
-			return true
+			return true, ""
 		}
 	}
 
-	if h.audioAllCopyEligible(r.Context(), decision, streams) || h.audioTrimUnlocksCopy(r, decision, streams) {
-		// Full packager presentation (video + audio + subtitles). When only the
-		// SELECTED track is carriable, buildPlan has trimmed the presentation to
-		// it (audioTrimUnlocksCopy), so what we serve here holds exactly the
-		// tracks the packager can carry verbatim.
-		h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"})
+	if rp.Plan.Delivery.Audio == apptranscoding.EngineMkvgo {
+		// Full packager presentation (video + audio + subtitles). When the plan
+		// trimmed the audio to the SELECTED track, buildPlan packaged that one
+		// track, so what we serve holds exactly the tracks the packager carries.
+		h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"}, "")
 		h.servePlanResourceData(w, r, mediaID, plan, "master.m3u8", span)
-		return true
+		return true, ""
 	}
 
 	// Hybrid: video from the packager, audio re-encoded by Evey's rendition
-	// pipeline. Only possible when that pipeline is wired and enabled.
-	if !h.audioRenditionsFor(decision, streams) || h.audio == nil {
-		return false
+	// pipeline - the plan chose it knowing the pipeline is wired.
+	if h.audio == nil {
+		return false, fallbackHybridUnwired
 	}
-	master, err := h.buildHybridMaster(r, mediaID, item, streams)
+	master, err := h.buildHybridMaster(r, mediaID, item, streams, rp)
 	if err != nil {
-		slog.WarnContext(r.Context(), "hls-vod: hybrid on-demand master failed, falling back to ffmpeg",
+		slog.WarnContext(r.Context(), "hls-vod: hybrid on-demand master failed, the ffmpeg path serves this plan",
 			slog.String("media_id", mediaID), slog.Any("err", err))
-		return false
+		return false, fallbackHybridMasterFailed
 	}
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
@@ -144,9 +130,21 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	// from the logs (the copy fallback rung logs its own outcome just before).
 	slog.Info("hls-vod: hybrid on-demand master served",
 		slog.String("media_id", mediaID))
-	h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"})
-	return true
+	h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"}, "")
+	return true, ""
 }
+
+// Fallback reasons: why the master was NOT served the way the plan decided.
+// Runtime outcomes, observable (evey_hlsvod_delivery_fallbacks_total, a WARN)
+// and never a new decision - the plan stays as resolved, the ffmpeg path
+// serves it.
+const (
+	fallbackPackagerUnbuildable = "packager_unbuildable"
+	fallbackPackagerUnwired     = "packager_unwired"
+	fallbackHybridUnwired       = "hybrid_unwired"
+	fallbackHybridMasterFailed  = "hybrid_master_failed"
+	fallbackWasmMasterFailed    = "wasm_master_failed"
+)
 
 // planSubtitleRenditions is the packager's segmented-WebVTT renditions for
 // this file, mapped to the picker's ordinals; nil when the file cannot be
@@ -155,7 +153,7 @@ func (h *hlsVODServe) planSubtitleRenditions(r *http.Request, mediaID string, it
 	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
 		return nil
 	}
-	plan, err := h.buildPlan(r, mediaID, item, streams)
+	plan, err := h.buildPlan(r, mediaID, item, streams, h.planOf(r, mediaID, item, streams))
 	if err != nil {
 		return nil
 	}
@@ -166,7 +164,7 @@ func (h *hlsVODServe) planSubtitleRenditions(r *http.Request, mediaID string, it
 // whose playlist is the packager's (od_playlist.m3u8) tied to Evey's ffmpeg
 // AAC audio group. Reuses buildManifestInput so the audio renditions, token,
 // and query suffix match exactly what the audio handlers reconstruct.
-func (h *hlsVODServe) buildHybridMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (string, error) {
+func (h *hlsVODServe) buildHybridMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) (string, error) {
 	in, err := h.buildManifestInput(r, mediaID, item, streams)
 	if err != nil {
 		return "", err
@@ -419,14 +417,10 @@ func (h *hlsVODServe) buildCappedMaster(r *http.Request, mediaID string, item *d
 		slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
 		slog.Int64("max_kbps", maxKbps),
 		slog.String("fp", rpT.FPHash))
-	// Compared with the request's NATURAL plan (not rpT, pinned to a
-	// transcode): the receiver's measured throughput re-decided the delivery
-	// here, which the shadow counts until the cap becomes a plan input.
-	natural, naturalErr := h.probePlan(r, mediaID, item, streams)
-	if naturalErr != nil {
-		natural = nil // nothing to compare the served path with; the record still lands
-	}
-	h.recordServing(r, mediaID, natural, domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rpT.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"})
+	// Recorded against rpT, the plan this master really serves: the receiver's
+	// measured throughput pinned the request to a transcode (vd=transcode),
+	// and that pinned request's plan is what the rung and the record read.
+	h.recordServing(r, mediaID, rpT, domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rpT.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"}, "")
 	return master, true
 }
 
@@ -507,52 +501,25 @@ const wasmAudioMaxChannels = apptranscoding.WasmAudioMaxChannels
 //
 // Returns true once it has written a response; false to fall through to the
 // normal master paths (feature not applicable, or the selected track isn't AC-3).
-func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) bool {
-	if h.onDemand == nil || !wasmAudioRequested(r) || item == nil || item.File == nil || item.File.Path == "" {
-		return false
+func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan, span trace.Span) (served bool, fallback string) {
+	if h.onDemand == nil {
+		return false, fallbackPackagerUnwired
 	}
-	// Cast kill switch: declining here hands the TV the ordinary muxed master -
-	// sound from the first second, and not a line of our wasm decoder runs on
-	// the box. See the field comment for why this is off by default.
-	if wasmAudioRequested(r) && !wasmAudioEffective(r, h.castWasmAudioEnabled) {
-		slog.InfoContext(r.Context(), "hls-vod: wasm-audio disabled for cast receivers, serving the muxed master",
-			slog.String("media_id", mediaID))
-		return false
-	}
-
 	audioTrack := h.resolveAudioTrack(r, streams)
-	if !apptranscoding.WasmAudioCodecSupported(sourceAudioCodec(streams, audioTrack)) {
-		return false // nothing for the wasm decoder to do - use the normal paths
-	}
-	// Channel gate. This path hands the client the ORIGINAL Dolby track, so it
-	// can neither spare a weak box the decode nor honour a downmix the viewer
-	// asked for. Declining returns the client to the muxed-AAC master, which
-	// does both. 7.1 killed the receiver twice on a low-end operator box (prod
-	// 2026-07-30).
-	userMaxChannels := h.userPrefs(r.Context()).MaxAudioChannels
-	if ch := apptranscoding.SourceAudioChannels(streams, audioTrack); !apptranscoding.WasmAudioChannelsOK(ch, userMaxChannels) {
-		slog.InfoContext(r.Context(), "hls-vod: wasm-audio declined, serving the muxed master instead",
-			slog.String("media_id", mediaID),
-			slog.Int("audio_track", audioTrack),
-			slog.Int("channels", ch),
-			slog.Int("max_channels", wasmAudioMaxChannels),
-			slog.Int("profile_max_channels", userMaxChannels))
-		return false
-	}
-
-	rp, rpErr := h.probePlan(r, mediaID, item, streams)
-	if rpErr != nil {
-		return false
-	}
-	decision := rp.Decision
-	videoCopy := h.planHLSVideoEligible(decision, item, streams)
+	// The plan placed the audio on the client's decoder and named the video's
+	// engine; the codec and channel gates that used to live here are the
+	// resolver's (wasmAudioServes).
+	videoCopy := rp.Plan.Delivery.Video == apptranscoding.EngineMkvgo
 
 	// Prefer mkvgo's plan for the AC-3 audio rendition (no ffmpeg). Building it
 	// also warms the cache the od_audio* sub-requests hit. A plan failure routes
 	// the audio to the ffmpeg copy rendition instead - the source is still served.
-	plan, planErr := h.buildPlan(r, mediaID, item, streams)
+	plan, planErr := h.buildPlan(r, mediaID, item, streams, rp)
 	useMkvgoAudio := planErr == nil
 	useMkvgoVideo := videoCopy && planErr == nil
+	if videoCopy && planErr != nil {
+		fallback = fallbackPackagerUnbuildable // the plan's video engine could not be built: ffmpeg carries it, said so below
+	}
 
 	// What the plan PUBLISHES about its own audio renditions, so the master can
 	// name the one carrying the resolved track instead of deriving its number -
@@ -563,11 +530,11 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 		rends = planAudioRenditionsOf(r.Context(), plan)
 	}
 
-	master, err := h.buildWasmAudioMaster(r, mediaID, item, streams, useMkvgoVideo, useMkvgoAudio, audioTrack, rends)
+	master, err := h.buildWasmAudioMaster(r, mediaID, item, streams, rp, useMkvgoVideo, useMkvgoAudio, audioTrack, rends)
 	if err != nil {
-		slog.WarnContext(r.Context(), "hls-vod: wasm-audio master failed, falling back",
+		slog.WarnContext(r.Context(), "hls-vod: wasm-audio master failed, the ffmpeg path serves this plan",
 			slog.String("media_id", mediaID), slog.Any("err", err))
-		return false
+		return false, fallbackWasmMasterFailed
 	}
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
@@ -591,8 +558,8 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 			p.VideoBackend = videoBackendLabel(rp.Plan.HWAccel)
 		}
 	}
-	h.recordServing(r, mediaID, rp, p)
-	return true
+	h.recordServing(r, mediaID, rp, p, fallback)
+	return true, ""
 }
 
 // buildWasmAudioMaster renders the VIDEO-ONLY master for the wasm-audio path
@@ -601,7 +568,7 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 // ignores. useMkvgoVideo points the single video variant at the packager's copy
 // playlist; otherwise the ffmpeg video-only ladder is kept. useMkvgoAudio picks
 // the audio rendition URI (mkvgo's od_audio{k} vs the ffmpeg audio_{k} copy).
-func (h *hlsVODServe) buildWasmAudioMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, useMkvgoVideo, useMkvgoAudio bool, audioTrack int, rends []planAudioRendition) (string, error) {
+func (h *hlsVODServe) buildWasmAudioMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan, useMkvgoVideo, useMkvgoAudio bool, audioTrack int, rends []planAudioRendition) (string, error) {
 	in, err := h.buildManifestInput(r, mediaID, item, streams)
 	if err != nil {
 		return "", err
@@ -705,7 +672,9 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	name := strings.TrimPrefix(file, onDemandPrefix) // "od_seg1.m4s" → "seg1.m4s"; "manifest.mpd" unchanged
-	plan, err := h.buildPlan(r, mediaID, item, streams)
+	// The sub-resource carries the master's own query, so its plan trims the
+	// presentation exactly as the master's did: same tracks, same plan cache key.
+	plan, err := h.buildPlan(r, mediaID, item, streams, h.planOf(r, mediaID, item, streams))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "on-demand plan build")
@@ -836,7 +805,7 @@ func (h *hlsVODServe) planSubtitleRenditionsOf(r *http.Request, mediaID string, 
 // on-demand options (segment duration + URL prefix, plus AES-128 when the
 // feature is on). Cheap on a cache hit. The AES key is deterministic per media,
 // so the plan cache stays coherent across the master and its sub-requests.
-func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (apptranscoding.OnDemandPlan, error) {
+func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) (apptranscoding.OnDemandPlan, error) {
 	opts := apptranscoding.OnDemandOptions{
 		SegmentMs: onDemandSegmentMs,
 		URLPrefix: onDemandPrefix,
@@ -866,15 +835,14 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 	// re-encoded (audioTrimUnlocksCopy). The second condition is recomputed from
 	// the request here rather than passed in, so the master and every one of its
 	// sub-resource fetches build the SAME plan.
-	trimForCopy := len(streams) > 0 &&
-		h.audioTrimUnlocksCopy(r, h.decisionFor(r.Context(), item, streams, r), streams)
-	if h.onDemandTrackTrim || trimForCopy {
-		// Same resolution the ffmpeg pipeline uses for ?audioTrack=/the
-		// profile's language default (resolveAudioTrack), reused here so both
-		// backends agree on which track a request gets. The streams come from
-		// the CALLER (commonAuth fetched them for this very request) - this
-		// used to re-query Postgres per sub-resource served. Best-effort: no
-		// streams in hand serves every audio track rather than failing the plan.
+	// The plan decided whether the presentation is trimmed to the selected
+	// audio track (plan.Delivery.AudioTrimmed: the operator's trim flag, or the
+	// one track the packager can carry verbatim); the master and every
+	// sub-resource build from the same plan, so they package the same tracks.
+	// Same track resolution the ffmpeg pipeline uses (resolveAudioTrack), so
+	// both backends agree on which track a request gets. Best-effort: no
+	// streams in hand serves every audio track rather than failing the plan.
+	if rp != nil && rp.Plan.Delivery.AudioTrimmed {
 		if len(streams) > 0 {
 			idx := h.resolveAudioTrack(r, streams)
 			opts.KeepAudioTrack = &idx
@@ -955,81 +923,15 @@ func (h *hlsVODServe) serveHLSKey(w http.ResponseWriter, r *http.Request, mediaI
 	_, _ = w.Write(key)
 }
 
-// planHLSVideoEligible reports whether this request's VIDEO can be served by
-// the on-demand packager: the feature is wired on and the video was decided as
-// copy (reusing isCopyRequest - same codec/level/HDR/disk gates as today's copy
-// rung). Audio eligibility is decided separately (audioAllCopyEligible) because
-// the packager can serve video-only and let Evey re-encode the audio. The
-// decision is the caller's (computed once per request).
-func (h *hlsVODServe) planHLSVideoEligible(decision domaintranscoding.PlaybackDecision, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) bool {
-	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
-		return false
+// planOf is the request's plan for a caller that builds the packager plan
+// without holding one (a sub-resource, the subtitle renditions): the same
+// query resolves to the same strategy, so the trim agrees with the master's.
+// nil when the request cannot be resolved (the caller then packages every
+// track, as before).
+func (h *hlsVODServe) planOf(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) *requestPlan {
+	rp, err := h.probePlan(r, mediaID, item, streams)
+	if err != nil {
+		return nil
 	}
-	// Deliberately NOT isCopyRequest: that gate also demands a wired ffmpeg
-	// copyProducer and enough free cache to hold a full copy of the source. The
-	// packager is stateless - it muxes on the fly and writes nothing to the cache
-	// - so neither applies. Funnelling through it sent copy-eligible titles to a
-	// TRANSCODE whenever the cache was tight or the operator had turned the ffmpeg
-	// copy rung off: the most expensive path, on the weak boxes those guards
-	// exist to protect.
-	return videoCopyEligible(decision, streams)
-}
-
-// audioAllCopyEligible reports whether every audio track can be served verbatim
-// by the packager: the decision is copy, no loudnorm, and EVERY audio track is
-// CMAF-carriable - the packager demuxes them all into renditions, so one track
-// it can't carry would strand a client that selects it. False routes to the
-// hybrid master (packager video + Evey AAC audio renditions).
-func (h *hlsVODServe) audioAllCopyEligible(ctx context.Context, decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
-	if decision.AudioDecision != "copy" {
-		return false
-	}
-	if h.audioNormalizeGetter != nil && h.audioNormalizeGetter(ctx) {
-		return false // loudnorm requires a re-encode - hybrid path
-	}
-	for _, s := range streams {
-		if s == nil || s.StreamType != "audio" {
-			continue
-		}
-		if !apptranscoding.AudioCopyCodecAllowed(strings.ToLower(s.Codec)) {
-			return false
-		}
-	}
-	return true // no audio track is fine too: PlanHLS packages video-only
-}
-
-// audioTrimUnlocksCopy reports whether trimming the packaged presentation to
-// the SELECTED audio track is what makes it carriable verbatim: that track is
-// copy-eligible, but some OTHER track in the file is not.
-//
-// audioAllCopyEligible alone is all-or-nothing across every track, and that is
-// how a 4K remux carrying one TrueHD/Atmos track had its three AC-3 5.1 tracks
-// re-encoded to AAC - on a receiver that decodes AC-3 natively, for a track the
-// viewer was not even playing. The packager already drops what it cannot carry
-// (TestOnDemandPackagerIntegration_UnportableAudioTrackIsDropped), so the only
-// real cost of serving it anyway was that the dropped track vanished from the
-// master; KeepAudioTrack removes that objection by packaging exactly one track,
-// and every client switches language by re-requesting the master with
-// ?audioTrack= (buildStreamUrl on mobile/TV, buildTranscodeHlsUrl on web)
-// rather than by picking inside the manifest.
-//
-// The decision's own "copy" verdict already carries this client's side of the
-// question - evaluateAudio checks its declared codecs AND its channel ceiling
-// for the selected track - so a phone whose only outputs are stereo still folds
-// a 5.1 track server-side, exactly as before.
-//
-// Must be a pure function of (request, streams, decision): buildPlan calls it
-// too, and the master and its sub-resources have to agree on the same plan.
-func (h *hlsVODServe) audioTrimUnlocksCopy(r *http.Request, decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
-	if h.onDemand == nil || decision.AudioDecision != "copy" {
-		return false
-	}
-	if h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()) {
-		return false // loudnorm requires a re-encode, trimmed or not
-	}
-	if h.audioAllCopyEligible(r.Context(), decision, streams) {
-		return false // every track carries; nothing to trim for
-	}
-	sel := h.resolveAudioTrack(r, streams)
-	return apptranscoding.AudioCopyCodecAllowed(strings.ToLower(sourceAudioCodec(streams, sel)))
+	return rp
 }
