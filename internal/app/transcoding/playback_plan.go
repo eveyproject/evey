@@ -43,6 +43,9 @@ type PlaybackRequest struct {
 	SourceBytes int64
 	// SourceBitrateKbps is the video stream's bitrate (else the file's); the served ladder follows it.
 	SourceBitrateKbps int64
+	// SourceNeedsRemux: the file is stored in one-track blocks (MediaFile.NeedsRemux);
+	// the decision routes it to the segmented session where the typed shed is met.
+	SourceNeedsRemux bool
 	// Source is the snapshot of the facts above, taken once by Resolve
 	// (SnapshotOf). Callers leave it zero; a sub-derivation called on its own
 	// (the adapter's wrappers, tests) takes it on demand.

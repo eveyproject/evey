@@ -137,10 +137,12 @@ type TranscodingPreferences struct {
 	// AudioTrack; it cannot ride the supported-codec list (MSE refuses those
 	// codecs muxed), so it needs its own flag.
 	WasmAudio bool
-	// ProgressiveOutput: the session is a fragmented-MP4 pipe the browser's own
-	// demuxer reads (/transcode), not MSE segments - the fMP4 passthrough and
-	// sample-rate gates of the segmented path do not apply. Request-scoped.
-	ProgressiveOutput bool
+	// SourceNeedsRemux: the file is stored in one-track blocks (MediaFile.
+	// NeedsRemux) - no player gets through the raw file, so the decision names
+	// the reason (file_needs_remux) and routes every client to the HLS master,
+	// where the typed 503 they all know how to show is met. Request-scoped,
+	// injected by the caller from the media file, like SourceBitrateKbps.
+	SourceNeedsRemux bool
 	// SourceBitrateKbps is the file's overall bitrate (size / duration), the
 	// bitrate cap's fallback when the video stream carries none - an MKV
 	// without a BPS tag probes 0 per stream, and a 70 Mb/s remux then sailed
@@ -347,6 +349,7 @@ func MakePlaybackDecisionWithPrefs(
 	// reasons every pass above may have added to tell a direct play (raw file,
 	// no packaging) from a segmented session (fMP4, passthrough set applies).
 	applyPackagedAudioPassthrough(d, specs, client, prefs)
+	applyNeedsRemux(d, prefs)
 	resolvePlayMethod(d, client)
 	applyDefaultBitrates(d)
 
@@ -603,7 +606,7 @@ func applyAudioChannelTarget(d *transcoding.PlaybackDecision, specs []StreamSpec
 // is real there. Adding the reason also demotes direct_stream to transcode on
 // its own, because isDirectStreamEligible requires both tracks to copy.
 func applyPackagedAudioPassthrough(d *transcoding.PlaybackDecision, specs []StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
-	if d.AudioDecision != "copy" || len(d.TranscodeReasons) == 0 || prefs.ProgressiveOutput {
+	if d.AudioDecision != "copy" || len(d.TranscodeReasons) == 0 {
 		return
 	}
 	src := selectedAudioSpec(specs, prefs)
@@ -823,6 +826,18 @@ func ensureTranscodeCodecs(d *transcoding.PlaybackDecision) {
 	if d.AudioCodec == "" {
 		d.AudioCodec = transcoding.DefaultAudioCodec
 	}
+}
+
+// applyNeedsRemux keeps a file stored in one-track blocks off the raw-file
+// paths: the reason forces the segmented session (resolvePlayMethod reads a
+// non-empty reason list as "transcode"), where the HLS handler answers the
+// typed file_needs_remux shed. Both tracks keep their copy verdicts - the
+// reason is about the container's layout, not the codecs.
+func applyNeedsRemux(d *transcoding.PlaybackDecision, prefs TranscodingPreferences) {
+	if !prefs.SourceNeedsRemux {
+		return
+	}
+	d.TranscodeReasons = append(d.TranscodeReasons, "file_needs_remux")
 }
 
 func resolvePlayMethod(d *transcoding.PlaybackDecision, client transcoding.ClientProfile) {

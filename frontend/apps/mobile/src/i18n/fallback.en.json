@@ -2974,6 +2974,7 @@
   "player.streamInfo.reason.container_incompatible": "Container not playable as-is (repackaged to HLS)",
   "player.streamInfo.reason.decision_pinned": "Choice pinned for this session",
   "player.streamInfo.reason.dovi_base_layer": "Dolby Vision base layer re-encoded (HDR kept)",
+  "player.streamInfo.reason.file_needs_remux": "File stored in one-track blocks (needs a repair)",
   "player.streamInfo.reason.hdr_copy_unavailable": "Copy unavailable, HDR kept through the re-encode",
   "player.streamInfo.reason.hdr_tonemapping_needed": "HDR converted to SDR (tone-mapping)",
   "player.streamInfo.reason.level_exceeded": "H.264 level above the device's limit",

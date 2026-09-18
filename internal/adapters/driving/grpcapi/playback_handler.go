@@ -268,6 +268,10 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		// Same bitrate fallback the HLS plan applies, so the verdict here and the
 		// master agree on a cap when the video stream carries no bitrate.
 		prefs.SourceBitrateKbps = item.File.BitrateBps() / 1000
+		// A file stored in one-track blocks is refused everywhere; the decision
+		// routes it to the HLS master (never the raw file) so every client
+		// meets the typed 503 (file_needs_remux) it already knows how to show.
+		prefs.SourceNeedsRemux = item.File.NeedsRemux()
 	}
 	decision := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, containerFormat, client, maxBitrateKbps, prefs, sourcePath)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
@@ -286,12 +290,6 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	resp.AudioCodec = decision.AudioCodec
 	resp.Resolution = servedResolution(decision, streams)
 
-	// A file stored in one-track blocks is refused everywhere; routing it to the
-	// HLS master (never the raw file) lets every client meet the typed 503
-	// (file_needs_remux) it already knows how to show instead of a stall.
-	if item.File.NeedsRemux() {
-		decision.PlayMethod = "transcode"
-	}
 	switch decision.PlayMethod {
 	case "direct_play":
 		resp.PlayMethod = eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY
