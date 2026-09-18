@@ -297,3 +297,47 @@ func TestMapContainer_ColourDetermined_SDRFastPath(t *testing.T) {
 		assert.False(t, ok, codec+" no-colour and not determined must bail to ffprobe")
 	}
 }
+
+// The persisted field_order is the finer word mkvgo knows: the order when the
+// container states it, the scan-type verdict otherwise (an interlaced H.264
+// SPS yields "interlaced" and no order), nothing when neither is known - and
+// whatever is persisted, the domain reads the same verdict mkvgo does.
+func TestMapContainer_FieldOrderPersistsTheFinerScanWord(t *testing.T) {
+	video := func(scan, order string) *extmkv.Container {
+		return &extmkv.Container{Tracks: []extmkv.Track{{
+			Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920)), Height: new(uint32(1080)),
+			ScanType: scan, FieldOrder: order,
+		}}}
+	}
+	cases := []struct {
+		scan, order string
+		want        *string
+	}{
+		{"interlaced", "tt", new("tt")},
+		{"interlaced", "", new("interlaced")},
+		{"progressive", "progressive", new("progressive")},
+		{"", "", nil},
+	}
+	for _, tc := range cases {
+		res, ok := mapContainer(video(tc.scan, tc.order), true)
+		require.True(t, ok)
+		got := res.Streams[0].FieldOrder
+		if tc.want == nil {
+			assert.Nil(t, got, "%s/%s", tc.scan, tc.order)
+			continue
+		}
+		if assert.NotNil(t, got, "%s/%s", tc.scan, tc.order) {
+			assert.Equal(t, *tc.want, *got)
+			assert.Equal(t, extmkv.ScanTypeOf(*got), string(library.ScanTypeOf(*got)), "the domain agrees with mkvgo on %q", *got)
+		}
+	}
+}
+
+// The domain's vocabulary table is pinned to mkvgo's: a word the two read
+// differently would let a persisted value mean one thing to the prober and
+// another to the resolver.
+func TestScanTypeOf_AgreesWithMkvgo(t *testing.T) {
+	for _, w := range []string{"progressive", "interlaced", "tt", "bb", "tb", "bt", "", "unknown"} {
+		assert.Equal(t, extmkv.ScanTypeOf(w), string(library.ScanTypeOf(w)), "%q", w)
+	}
+}
