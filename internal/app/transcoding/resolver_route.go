@@ -12,8 +12,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/metrics"
@@ -82,16 +80,11 @@ func (pr *PlanResolver) assertExpressible(route ResolvedRoute, decision transcod
 	}
 	burnIn := decision.SubtitleDecision == "burn"
 	needs := transcoding.RouteNeeds{BurnInBitmap: burnIn, GPUOverlay: route.Overlay}
-	err := pr.Expressibility.Expressible(route.Topology, transcoding.HWAccelType(route.Backend.Name), route.Backend.Device, route.Backend.Features, needs)
-	cell := transcoding.ExpressibilityCell{Backend: route.Backend.Name, Topology: route.Topology.Name(), Needs: transcoding.RouteNeedsLabel(burnIn, route.Overlay, route.Deinterlace)}
-	transcoding.ExpressibilityCoverageTable.Record(transcoding.ExpressibilitySiteResolver, cell, err != nil)
-	labels := prometheus.Labels{"site": string(transcoding.ExpressibilitySiteResolver), "backend": cell.Backend, "topology": cell.Topology, "needs": cell.Needs}
-	metrics.HLSVODRouteExpressibilityChecks.With(labels).Inc()
-	if err != nil {
-		metrics.HLSVODRouteExpressibilityDisagreements.With(labels).Inc()
+	if err := pr.Expressibility.Expressible(route.Topology, transcoding.HWAccelType(route.Backend.Name), route.Backend.Device, route.Backend.Features, needs); err != nil {
 		metrics.HLSVODRouteNotExpressible.Inc()
 		slog.Error("plan resolver: resolved a GPU route the builder cannot express - the pick did not name this topology or need (invariant, ADR-0030)",
-			slog.String("topology", cell.Topology), slog.String("needs", cell.Needs), slog.String("accel", route.Backend.Name), slog.Any("err", err))
+			slog.String("topology", route.Topology.Name()), slog.Bool("burn_in", burnIn), slog.Bool("overlay", route.Overlay), slog.Bool("deinterlace", route.Deinterlace),
+			slog.String("accel", route.Backend.Name), slog.Any("err", err))
 	}
 }
 

@@ -3,8 +3,6 @@ package ffmpeg
 import (
 	"log/slog"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 )
@@ -48,12 +46,6 @@ func (Expressibility) Expressible(t transcoding.Topology, accel transcoding.HWAc
 	return nil
 }
 
-// noteExpressibility records one builder-site check the plan passed, on the
-// coverage table and the per-cell counter (the shadow's exit device).
-func noteExpressibility(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) {
-	recordExpressibility(transcoding.ExpressibilitySiteBuilder, builderCell(opts, burnIn, toneMap), false)
-}
-
 // refuseRoute is the builder's answer to a GPU plan it cannot express: no
 // arguments (the spawn refused the plan before asking; a probe or a test
 // that asks anyway gets nothing, never a software encode in GPU clothing),
@@ -61,37 +53,11 @@ func noteExpressibility(opts transcoding.HLSProcessOpts, burnIn bool, toneMap st
 // the plan. The pick filtered on the same port (ADR-0030), so reaching here
 // means the plan named a topology or a need the pick did not.
 func refuseRoute(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string, err error) []string {
-	cell := builderCell(opts, burnIn, toneMap)
-	recordExpressibility(transcoding.ExpressibilitySiteBuilder, cell, true)
 	metrics.HLSVODRouteNotExpressible.Inc()
 	slog.Error("hls: refused a GPU plan the builder cannot express - no software fallback (invariant, ADR-0030)",
-		slog.String("accel", string(opts.HWAccel)), slog.String("device", opts.HWDevice), slog.String("topology", cell.Topology), slog.String("needs", cell.Needs),
-		slog.Bool("tone_map", toneMap != ""), slog.Bool("hw_tonemap", opts.HWTonemap), slog.Any("features", opts.HWFeatures), slog.Any("err", err))
+		slog.String("accel", string(opts.HWAccel)), slog.String("device", opts.HWDevice),
+		slog.Bool("burn_in", burnIn), slog.Bool("overlay", opts.HWOverlay), slog.Bool("deinterlace", opts.HWDeinterlace), slog.Bool("software_decode", opts.HWSoftwareDecode),
+		slog.Bool("tone_map", toneMap != ""), slog.Bool("hw_tonemap", opts.HWTonemap), slog.Bool("hdr_passthrough", opts.HDRPassthrough),
+		slog.Any("features", opts.HWFeatures), slog.Any("err", err))
 	return nil
-}
-
-// builderCell reads the cell off the process options exactly as hwUsable
-// reads them (the topology by the CostKey precedence, the needs by the
-// burn-in / overlay / deinterlace flags).
-func builderCell(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) transcoding.ExpressibilityCell {
-	t := transcoding.EncodeRoute{
-		HWUsable: true, SoftwareDecode: opts.HWSoftwareDecode,
-		Tonemap: toneMap != "", HWTonemap: opts.HWTonemap && toneMap != "", HDRPassthrough: opts.HDRPassthrough,
-	}.Topology()
-	return transcoding.ExpressibilityCell{
-		Backend:  string(opts.HWAccel),
-		Topology: t.Name(),
-		Needs:    transcoding.RouteNeedsLabel(burnIn, opts.HWOverlay, opts.HWDeinterlace),
-	}
-}
-
-// recordExpressibility feeds the coverage table and the per-cell counters for
-// one check at the builder site (the resolver records its own site in the app).
-func recordExpressibility(site transcoding.ExpressibilitySite, cell transcoding.ExpressibilityCell, disagreed bool) {
-	transcoding.ExpressibilityCoverageTable.Record(site, cell, disagreed)
-	labels := prometheus.Labels{"site": string(site), "backend": cell.Backend, "topology": cell.Topology, "needs": cell.Needs}
-	metrics.HLSVODRouteExpressibilityChecks.With(labels).Inc()
-	if disagreed {
-		metrics.HLSVODRouteExpressibilityDisagreements.With(labels).Inc()
-	}
 }

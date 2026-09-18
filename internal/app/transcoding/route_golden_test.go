@@ -411,26 +411,3 @@ func TestResolvedRoute_EveryGPURouteIsExpressible(t *testing.T) {
 	}
 }
 
-// The golden corpus, run with the builder's port wired, fills the coverage
-// table's RESOLVER site for every GPU cell the corpus reaches, with zero
-// disagreements - the offline half of the shadow's exit criterion (the
-// calibration and the corpus run fill the builder site on the real host).
-func TestResolvedRoute_CorpusFillsTheResolverCoverage(t *testing.T) {
-	transcoding.ExpressibilityCoverageTable.Reset()
-	t.Cleanup(transcoding.ExpressibilityCoverageTable.Reset)
-	for _, sc := range routeGoldenScenarios() {
-		pr, req := sc.build()
-		_, err := pr.Resolve(context.Background(), req)
-		require.NoError(t, err, sc.name)
-	}
-	rep := transcoding.ExpressibilityCoverageTable.Report(nil)
-	require.Zero(t, rep.Disagreements, "the resolver and the builder's port disagree on a corpus route")
-	seen := map[string]bool{}
-	for _, c := range rep.Cells {
-		require.Positive(t, c.ResolverChecks, "%+v", c)
-		seen[c.Topology+"/"+c.Needs] = true
-	}
-	for _, want := range []string{"zero-copy/plain", "gpu-tonemap/plain", "bridge/plain", "decoupled/plain", "passthrough/plain", "zero-copy/burn-in+overlay", "zero-copy/deint"} {
-		require.True(t, seen[want], "the corpus never reached %s: %v", want, seen)
-	}
-}

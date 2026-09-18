@@ -215,6 +215,27 @@ func (r EncodeRoute) Topology() Topology {
 	return TopologySoftware
 }
 
+// Name is the short label of a topology for metrics and reports.
+func (t Topology) Name() string {
+	switch t {
+	case TopologySoftware:
+		return "software"
+	case TopologySoftwareHDR:
+		return "software-hdr"
+	case TopologyZeroCopy:
+		return "zero-copy"
+	case TopologyGPUToneMap:
+		return "gpu-tonemap"
+	case TopologyBridge:
+		return "bridge"
+	case TopologyDecoupled:
+		return "decoupled"
+	case TopologyHDRPassthrough:
+		return "passthrough"
+	}
+	return t.String()
+}
+
 // RouteShape is one pipeline shape admission can be asked to price: the
 // cost class of a topology and the codec the segments carry (the encoder
 // follows from codec and accelerator). It is the unit the calibration must
