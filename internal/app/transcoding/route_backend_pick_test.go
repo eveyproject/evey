@@ -1,6 +1,7 @@
 package transcoding
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -55,24 +56,24 @@ func TestBackendPerRoute_HDRVAAPI_HEVCandSDRQSV(t *testing.T) {
 
 	// SDR h264: both prove it, QSV cheaper -> QSV.
 	sdr := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"video_codec_unsupported"}}
-	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdr, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdr))
 	assert.True(t, usable)
 	assert.Equal(t, "qsv", accel, "SDR takes the cheaper QSV")
 
 	// HEVC output: QSV cheaper -> QSV.
 	hevc := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "hevc", TranscodeReasons: []string{"video_codec_unsupported"}}
-	_, accel, _, _, usable, _ = pr.EffectiveVideoCodec(hevc, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, usable, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, hevc))
 	assert.True(t, usable)
 	assert.Equal(t, "qsv", accel, "HEVC output takes the cheaper QSV")
 
 	// HDR->SDR tone-map: only VAAPI proves the GPU tone-map route -> VAAPI/OpenCL,
 	// even though QSV is the primary. This is the acceptance: HDR regains VAAPI.
 	tm := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"hdr_tonemapping_needed"}}
-	assert.True(t, pr.HWTonemapWanted(tm, "PQ"), "a proven VAAPI OpenCL tone-map is wanted")
-	_, accel, _, _, usable, _ = pr.EffectiveVideoCodec(tm, hdrStreams("hevc", "yuv420p10le", true))
+	assert.True(t, pr.hwTonemapWanted(pr.hwPolicy(), tm, "PQ"), "a proven VAAPI OpenCL tone-map is wanted")
+	_, accel, _, _, usable, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: hdrStreams("hevc", "yuv420p10le", true)}, tm))
 	assert.True(t, usable, "HDR tone-map runs on the GPU")
 	assert.Equal(t, "vaapi", accel, "HDR->SDR tone-map lands on VAAPI/OpenCL, not the QSV primary")
-	assert.True(t, pr.HWRouteUsable(tm, SourceDimsOf(hdrStreams("hevc", "yuv420p10le", true))))
+	assert.True(t, pr.planFor(context.Background(), PlaybackRequest{Streams: hdrStreams("hevc", "yuv420p10le", true)}, tm).Route.HW())
 }
 
 // SDR near-tie must be stable across recalibrations: two backends whose SDR
@@ -92,7 +93,7 @@ func TestBackendPerRoute_SDRNearTieStable(t *testing.T) {
 		RouteCosts: func() *RouteCostModel { return NewRouteCostModel(base.RouteSamples, 7) },
 	}
 	sdr := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"video_codec_unsupported"}}
-	_, accel, _, _, _, _ := pr.EffectiveVideoCodec(sdr, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, _, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdr))
 	assert.Equal(t, "qsv", accel, "within 5% the primary (QSV) holds - no flip to a marginally-faster VAAPI")
 }
 
@@ -108,14 +109,14 @@ func TestBackendPerRoute_AV1NeedsAProvenAV1Route(t *testing.T) {
 		Capability: func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		RouteCosts: func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 7) },
 	}
-	codec, _, _, _, usable, _ := pr.EffectiveVideoCodec(av1, sdrStreams("h264", "yuv420p", false))
+	codec, _, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, av1))
 	assert.Equal(t, "h264", codec, "no backend proves the AV1 route: H.264 fallback")
 	assert.True(t, usable, "the H.264 fallback still rides the GPU")
 
 	cap.Backends[0].Codecs = append(cap.Backends[0].Codecs, "av1")
 	cap.Backends[0].Routes = append(cap.Backends[0].Routes, transcoding.HWRouteAV1)
 	cap.RouteSamples = append(cap.RouteSamples, transcoding.RouteSample{Key: rk("qsv", "av1_qsv", transcoding.RouteCostSDR), Height: 1080, FPS: 120, SourceFPS: 24})
-	codec, accel, _, _, usable, _ := pr.EffectiveVideoCodec(av1, sdrStreams("h264", "yuv420p", false))
+	codec, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, av1))
 	assert.Equal(t, "av1", codec)
 	assert.Equal(t, "qsv", accel, "the backend that proves AV1 takes it")
 	assert.True(t, usable)
@@ -123,7 +124,7 @@ func TestBackendPerRoute_AV1NeedsAProvenAV1Route(t *testing.T) {
 	// Encoder present but the builder route did not prove (Codecs lists av1,
 	// Routes does not): fail-closed, back to H.264.
 	cap.Backends[0].Routes = cap.Backends[0].Routes[:len(cap.Backends[0].Routes)-1]
-	codec, _, _, _, _, _ = pr.EffectiveVideoCodec(av1, sdrStreams("h264", "yuv420p", false))
+	codec, _, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, av1))
 	assert.Equal(t, "h264", codec)
 }
 
@@ -152,24 +153,24 @@ func TestBackendPerRoute_InterlacedSourceNeedsAProvenQSVDeinterlacer(t *testing.
 	mkvgo[0].FieldOrder = new("interlaced")
 
 	for name, streams := range map[string][]*library.MediaStream{"flagged": flagged, "idet": idet, "mkvgo": mkvgo} {
-		_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdrTranscode, streams)
+		_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: streams}, sdrTranscode))
 		assert.True(t, usable, name)
 		assert.Equal(t, "vaapi", accel, "%s: QSV never proved its deinterlacer, the per-frame VAAPI takes the interlaced source", name)
-		assert.False(t, pr.HWDeinterlaceWanted(streams, accel), "%s: VAAPI deinterlaces per frame, no session-level request", name)
+		assert.False(t, pr.hwDeinterlaceWanted(SourceInterlaced(streams), accel), "%s: VAAPI deinterlaces per frame, no session-level request", name)
 	}
-	_, accel, _, _, _, _ := pr.EffectiveVideoCodec(sdrTranscode, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, _, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdrTranscode))
 	assert.Equal(t, "qsv", accel, "a progressive source keeps the cheaper QSV")
 
 	cap.Backends[0].HWDeinterlace = true
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(sdrTranscode, flagged)
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: flagged}, sdrTranscode))
 	assert.Equal(t, "vaapi", accel, "probed but the builder route did not run: still not QSV")
 
 	cap.Backends[0].Routes = append(cap.Backends[0].Routes, transcoding.HWRouteDeinterlace)
-	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdrTranscode, flagged)
+	_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: flagged}, sdrTranscode))
 	assert.True(t, usable)
 	assert.Equal(t, "qsv", accel, "probed + proven: the interlaced source takes QSV with its deinterlacer")
-	assert.True(t, pr.HWDeinterlaceWanted(flagged, accel))
-	assert.False(t, pr.HWDeinterlaceWanted(sdrStreams("h264", "yuv420p", false), accel), "a progressive source never gets the session-level deinterlacer")
+	assert.True(t, pr.hwDeinterlaceWanted(SourceInterlaced(flagged), accel))
+	assert.False(t, pr.hwDeinterlaceWanted(SourceInterlaced(sdrStreams("h264", "yuv420p", false)), accel), "a progressive source never gets the session-level deinterlacer")
 }
 
 // A Rockchip host: RKMPP is a backend like the others for the resolver -
@@ -190,31 +191,31 @@ func TestBackendPerRoute_RKMPP(t *testing.T) {
 		HWAccelEnabled: func() bool { return true }, HWTonemapEnabled: func() bool { return true }, AV1Enabled: func() bool { return true },
 		Capability: func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 	}
-	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdrTranscode, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdrTranscode))
 	assert.True(t, usable)
 	assert.Equal(t, "rkmpp", accel)
 
 	tonemap := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"hdr_tonemapping_needed"}}
-	assert.True(t, pr.HWTonemapWanted(tonemap, "PQ"))
-	assert.True(t, pr.HWTonemapWanted(tonemap, "HLG"), "OpenCL reads any range")
-	_, accel, _, _, usable, _ = pr.EffectiveVideoCodec(tonemap, hdrStreams("hevc", "yuv420p10le", true))
+	assert.True(t, pr.hwTonemapWanted(pr.hwPolicy(), tonemap, "PQ"))
+	assert.True(t, pr.hwTonemapWanted(pr.hwPolicy(), tonemap, "HLG"), "OpenCL reads any range")
+	_, accel, _, _, usable, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: hdrStreams("hevc", "yuv420p10le", true)}, tonemap))
 	assert.True(t, usable)
 	assert.Equal(t, "rkmpp", accel)
 
 	tff := "tt"
 	interlaced := sdrStreams("h264", "yuv420p", false)
 	interlaced[0].FieldOrder = &tff
-	_, _, _, _, usable, _ = pr.EffectiveVideoCodec(sdrTranscode, interlaced)
+	_, _, _, _, usable, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: interlaced}, sdrTranscode))
 	assert.False(t, usable, "no RGA deinterlacer: the interlaced source stays off the MPP chain")
 
 	// The decoupled route (software decode + hwupload) serves a codec MPP does not decode.
-	_, accel, _, _, usable, softwareDecode := pr.EffectiveVideoCodec(sdrTranscode, sdrStreams("vc1", "yuv420p", false))
+	_, accel, _, _, usable, softwareDecode := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("vc1", "yuv420p", false)}, sdrTranscode))
 	assert.True(t, usable)
 	assert.True(t, softwareDecode)
 	assert.Equal(t, "rkmpp", accel)
 
 	av1 := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "av1", TranscodeReasons: []string{"preferred_video_codec"}}
-	codec, _, _, _, usable, _ := pr.EffectiveVideoCodec(av1, sdrStreams("h264", "yuv420p", false))
+	codec, _, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, av1))
 	assert.Equal(t, "h264", codec)
 	assert.True(t, usable)
 }
@@ -278,16 +279,16 @@ func TestBackendPerRoute_UnmeasuredHEVCVariantFallsBackToMeasuredH264OnTheGPU(t 
 	d := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"video_codec_unsupported"}, ClientVideoCodecs: []string{"h264", "hevc"}}
 	vp9 := sdrStreams("vp9", "yuv420p", false)
 
-	codec, accel, _, _, usable, softwareDecode := pr.EffectiveVideoCodec(d, vp9)
+	codec, accel, _, _, usable, softwareDecode := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: vp9}, d))
 	assert.True(t, usable, "the GPU keeps the session")
 	assert.Equal(t, "qsv", accel)
 	assert.True(t, softwareDecode, "the VP9 source is software-decoded (decoupled)")
 	assert.Equal(t, "h264", codec, "HEVC decoupled has no evidence: fall back to the measured H.264 decoupled route, not to the CPU")
-	assert.True(t, pr.HWRouteUsable(d, SourceDimsOf(vp9)), "the gate agrees with the fingerprint")
+	assert.True(t, pr.planFor(context.Background(), PlaybackRequest{Streams: vp9}, d).Route.HW(), "the gate agrees with the fingerprint")
 
 	// Once the HEVC variant is measured, the upgrade goes through.
 	cap.RouteSamples = append(cap.RouteSamples, transcoding.RouteSample{Key: rk("qsv", "hevc_qsv", transcoding.RouteCostDecoupled), Height: 1080, FPS: 88, SourceFPS: 24, CPUCores: 2, SoftwareDecode: true})
-	codec, accel, _, _, usable, _ = pr.EffectiveVideoCodec(d, vp9)
+	codec, accel, _, _, usable, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: vp9}, d))
 	assert.True(t, usable)
 	assert.Equal(t, "qsv", accel)
 	assert.Equal(t, "hevc", codec, "measured: the HEVC decoupled route is taken")
@@ -320,7 +321,7 @@ func TestBackendPerRoute_CostRanksOnTheMostConstrainedPool(t *testing.T) {
 		Capability:     func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		RouteCosts:     func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 4) },
 	}
-	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdrTranscode, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdrTranscode))
 	assert.True(t, usable)
 	assert.Equal(t, "qsv", accel, "the route that is cheaper on its most constrained pool wins, not the one cheaper on the GPU alone")
 }

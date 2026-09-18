@@ -62,39 +62,41 @@ func TestProducerFor(t *testing.T) {
 	// The producer is a projection of the resolved route (ADR-0030): a host
 	// whose route resolves to the GPU spawns on the hardware producer unless
 	// the route was spilled - the selector evaluates no gate of its own.
-	hwHost := func(sel *ProducerSelector, pinned func(string) (LadderClass, bool)) *PlanResolver {
+	hwHost := func(sel *ProducerSelector, class LadderClass, hasPin bool) *PlanResolver {
 		cap := vaapiCapable()
+		pinned, frozen := livePin(class, hasPin)
 		return &PlanResolver{
-			Selector:             sel,
-			HWAccelEnabled:       func() bool { return true },
-			Capability:           func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
-			AdmissionPinnedClass: pinned,
+			Selector:              sel,
+			HWAccelEnabled:        func() bool { return true },
+			Capability:            func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
+			AdmissionPinnedClass:  pinned,
+			AdmissionFrozenLadder: frozen,
 		}
 	}
 
 	t.Run("a spilled stream spawns on the software producer despite a usable GPU", func(t *testing.T) {
 		sel, sw, hw := routeSelector(t) // the route resolves to the GPU...
 		// ...but admission pinned this stream to the CPU pool.
-		pr := hwHost(sel, func(string) (LadderClass, bool) { return LadderClassSoftware, true })
+		pr := hwHost(sel, LadderClassSoftware, true)
 
-		got := pr.ProducerFor(routeRequest("m1"), decision, false)
+		got := pr.ProducerForPlan(pr.planFor(context.Background(), routeRequest("m1"), decision))
 		assert.Same(t, sw, got, "the pin must win: the ladder was shaped for software")
 		assert.NotSame(t, hw, got)
 	})
 
 	t.Run("a stream pinned to HW follows its route", func(t *testing.T) {
 		sel, _, hw := routeSelector(t)
-		pr := hwHost(sel, func(string) (LadderClass, bool) { return LadderClassHW, true })
+		pr := hwHost(sel, LadderClassHW, true)
 
-		assert.Same(t, hw, pr.ProducerFor(routeRequest("m1"), decision, false),
+		assert.Same(t, hw, pr.ProducerForPlan(pr.planFor(context.Background(), routeRequest("m1"), decision)),
 			"an HW pin is not a spill: the route decides")
 	})
 
 	t.Run("no pin at all follows the route", func(t *testing.T) {
 		sel, sw, hw := routeSelector(t)
-		pr := hwHost(sel, func(string) (LadderClass, bool) { return LadderClassSoftware, false })
+		pr := hwHost(sel, LadderClassSoftware, false)
 
-		got := pr.ProducerFor(routeRequest("m1"), decision, false)
+		got := pr.ProducerForPlan(pr.planFor(context.Background(), routeRequest("m1"), decision))
 		assert.Same(t, hw, got, "an absent pin must not be read as a software pin")
 		assert.NotSame(t, sw, got)
 	})
@@ -103,7 +105,7 @@ func TestProducerFor(t *testing.T) {
 		sel, sw, hw := routeSelector(t)    // no gate in the selector...
 		pr := &PlanResolver{Selector: sel} // ...but no capability: the route is software
 
-		got := pr.ProducerFor(routeRequest("m1"), decision, false)
+		got := pr.ProducerForPlan(pr.planFor(context.Background(), routeRequest("m1"), decision))
 		assert.Same(t, sw, got, "the route, not the gate, picks the side")
 		assert.NotSame(t, hw, got)
 	})
@@ -111,13 +113,23 @@ func TestProducerFor(t *testing.T) {
 	t.Run("a copy request takes the copy producer, pin or not", func(t *testing.T) {
 		sel, sw, hw := routeSelector(t)
 		copyProd := newNamedProducer("copy")
+		pinned, frozen := livePin(LadderClassSoftware, true)
 		pr := &PlanResolver{
-			Selector:             sel,
-			CopyProducer:         copyProd,
-			AdmissionPinnedClass: func(string) (LadderClass, bool) { return LadderClassSoftware, true },
+			Selector:              sel,
+			CopyProducer:          copyProd,
+			AdmissionPinnedClass:  pinned,
+			AdmissionFrozenLadder: frozen,
 		}
+		// A copy decision on a copyable source (keyframes, profile and level
+		// known): the remux rung, no encode.
+		copyReq := routeRequest("m1")
+		copyReq.Streams = ladderStreams(1080)
+		copyReq.Streams[0].Keyframes = []int64{0, 6000, 12000}
+		copyReq.Streams[0].Profile = "High"
+		copyReq.Streams[0].Level = new(40)
+		copyDecision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "copy"}
 
-		got := pr.ProducerFor(routeRequest("m1"), decision, true)
+		got := pr.ProducerForPlan(pr.planFor(context.Background(), copyReq, copyDecision))
 		assert.Same(t, copyProd, got, "a copy rung never encodes, so neither pool serves it")
 		assert.NotSame(t, sw, got)
 		assert.NotSame(t, hw, got)
@@ -127,11 +139,12 @@ func TestProducerFor(t *testing.T) {
 		orch := newNamedProducer("orchestrator")
 		pr := &PlanResolver{Orchestrator: orch}
 
-		assert.Same(t, orch, pr.ProducerFor(routeRequest("m1"), decision, false))
+		assert.Same(t, orch, pr.ProducerForPlan(pr.planFor(context.Background(), routeRequest("m1"), decision)))
 	})
 
 	t.Run("nothing wired returns nil rather than a wrong producer", func(t *testing.T) {
-		assert.Nil(t, (&PlanResolver{}).ProducerFor(routeRequest("m1"), decision, false))
+		bare := &PlanResolver{}
+		assert.Nil(t, bare.ProducerForPlan(bare.planFor(context.Background(), routeRequest("m1"), decision)))
 	})
 }
 
@@ -194,15 +207,13 @@ func TestPinKey_IsStableAndDiscriminating(t *testing.T) {
 	pr := &PlanResolver{}
 	transcodeH264 := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 
-	base := pr.PinKey(routeRequest("m1"), transcodeH264)
-	assert.Equal(t, base, pr.PinKey(routeRequest("m1"), transcodeH264), "the key must be a pure function of its inputs")
+	base := pr.planFor(context.Background(), routeRequest("m1"), transcodeH264).Admission.PinKey
+	assert.Equal(t, base, pr.planFor(context.Background(), routeRequest("m1"), transcodeH264).Admission.PinKey, "the key must be a pure function of its inputs")
 
-	assert.NotEqual(t, base, pr.PinKey(routeRequest("m2"), transcodeH264), "distinct titles must never collide")
-	assert.NotEqual(t, base, pr.PinKey(routeRequest("m1"),
-		transcoding.PlaybackDecision{VideoCodec: "hevc", VideoDecision: "transcode"}),
+	assert.NotEqual(t, base, pr.planFor(context.Background(), routeRequest("m2"), transcodeH264).Admission.PinKey, "distinct titles must never collide")
+	assert.NotEqual(t, base, pr.planFor(context.Background(), routeRequest("m1"), transcoding.PlaybackDecision{VideoCodec: "hevc", VideoDecision: "transcode"}).Admission.PinKey,
 		"distinct output codecs must never collide")
-	assert.NotEqual(t, base, pr.PinKey(routeRequest("m1"),
-		transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "copy"}),
+	assert.NotEqual(t, base, pr.planFor(context.Background(), routeRequest("m1"), transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "copy"}).Admission.PinKey,
 		"copy and transcode of the same title are different streams")
 }
 
@@ -212,8 +223,8 @@ func TestPinKey_IsStableAndDiscriminating(t *testing.T) {
 func TestPinKey_FollowsTheEffectiveCodec(t *testing.T) {
 	pr := &PlanResolver{AV1Enabled: func() bool { return false }} // no HW, AV1 off
 
-	av1 := pr.PinKey(routeRequest("m1"), transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"})
-	h264 := pr.PinKey(routeRequest("m1"), transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"})
+	av1 := pr.planFor(context.Background(), routeRequest("m1"), transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"}).Admission.PinKey
+	h264 := pr.planFor(context.Background(), routeRequest("m1"), transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}).Admission.PinKey
 
 	assert.Equal(t, h264, av1, "an AV1 request served as H.264 is the same stream to admission")
 }
@@ -235,9 +246,9 @@ func TestShapeLadder_ClassLookupCachesTheResolvedDefault(t *testing.T) {
 	req := ladderRequest(2160)
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 
-	pr.ShapeLadder(context.Background(), req, decision)
-	pr.ShapeLadder(context.Background(), req, decision)
-	pr.ShapeLadder(context.Background(), req, decision)
+	_ = pr.planFor(context.Background(), req, decision).Ladder
+	_ = pr.planFor(context.Background(), req, decision).Ladder
+	_ = pr.planFor(context.Background(), req, decision).Ladder
 
 	assert.Equal(t, 1, repo.calls,
 		"an unclassified title must be cached as the DEFAULT, not re-queried on every segment")
@@ -251,8 +262,7 @@ func TestShapeLadder_NoMediaIDNeverTouchesTheComplexityRepo(t *testing.T) {
 	req := ladderRequest(2160)
 	req.MediaID = ""
 
-	pr.ShapeLadder(context.Background(), req,
-		transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"})
+	_ = pr.planFor(context.Background(), req, transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}).Ladder
 
 	assert.Zero(t, repo.calls, "no media id ⇒ no cache key ⇒ no lookup")
 }
@@ -295,9 +305,9 @@ func TestShapeLadder_UsesThePersistedComplexityClass(t *testing.T) {
 	pr := &PlanResolver{ComplexityRepo: repo, ClassLookup: newTestClassCache(t)}
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 
-	classified := pr.ShapeLadder(context.Background(), ladderRequest(2160), decision)
+	classified := pr.planFor(context.Background(), ladderRequest(2160), decision).Ladder
 
-	plain := (&PlanResolver{}).ShapeLadder(context.Background(), ladderRequest(2160), decision)
+	plain := (&PlanResolver{}).planFor(context.Background(), ladderRequest(2160), decision).Ladder
 	require.NotEmpty(t, classified)
 	assert.NotEqual(t, plain, classified,
 		"a persisted class must shape a different ladder than the LadderFilmNormal default")
@@ -316,8 +326,8 @@ func TestShapeLadder_ZeroClassLookupTTLCachesNothing(t *testing.T) {
 	req := ladderRequest(2160)
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 
-	pr.ShapeLadder(context.Background(), req, decision)
-	pr.ShapeLadder(context.Background(), req, decision)
+	_ = pr.planFor(context.Background(), req, decision).Ladder
+	_ = pr.planFor(context.Background(), req, decision).Ladder
 
 	assert.Equal(t, 2, repo.calls,
 		"a 0 TTL is NOT 'cache forever' - it writes an already-expired entry, so every call re-queries")
@@ -339,23 +349,23 @@ func TestFingerprint_SpilledAV1IsFingerprintedAsH264(t *testing.T) {
 	av1Capable := vaapiCapable()
 	av1Capable.HWCodecs = []string{"h264", "hevc", "av1"}
 
-	newResolver := func(pinned LadderClass, hasPin bool) *PlanResolver {
+	newResolver := func(class LadderClass, hasPin bool) *PlanResolver {
 		pr := hwResolver(av1Capable)
 		pr.AV1Enabled = func() bool { return true }
-		pr.AdmissionPinnedClass = func(string) (LadderClass, bool) { return pinned, hasPin }
+		pr.AdmissionPinnedClass, pr.AdmissionFrozenLadder = livePin(class, hasPin)
 		return pr
 	}
 	req := PlaybackRequest{MediaID: "m1", SourcePath: "/m.mkv", Streams: routeStreams()}
 	decision := transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"}
 
-	spilled := newResolver(LadderClassSoftware, true).Fingerprint(context.Background(), req, decision, nil)
+	spilled := newResolver(LadderClassSoftware, true).planFor(context.Background(), req, decision).Fingerprint
 	assert.Equal(t, "h264", spilled.VideoCodec,
 		"a spilled AV1 stream is encoded in software as H.264 - the cache key and the CODECS attribute must say so")
 	assert.Empty(t, spilled.HWAccel, "a spilled stream carries no hw accel in its fingerprint")
 
 	// Control: without a spill the AV1 fingerprint stays AV1, or this test
 	// would pass just as well on a resolver that always says h264.
-	notSpilled := newResolver(LadderClassHW, true).Fingerprint(context.Background(), req, decision, nil)
+	notSpilled := newResolver(LadderClassHW, true).planFor(context.Background(), req, decision).Fingerprint
 	assert.Equal(t, "av1", notSpilled.VideoCodec, "an HW pin is not a spill: AV1 stays AV1")
 }
 
@@ -370,7 +380,7 @@ func TestShapeLadder_FollowsSourceBitrate(t *testing.T) {
 	pr := &PlanResolver{Capability: func() transcoding.HostCapabilitySnapshot {
 		return transcoding.EncodeCapability{SoftwareMaxHeight: 2160}.Snapshot()
 	}}
-	profiles := pr.ShapeLadder(context.Background(), req, decision)
+	profiles := pr.planFor(context.Background(), req, decision).Ladder
 	require.NotEmpty(t, profiles)
 	top := profiles[len(profiles)-1]
 	require.Equal(t, 1080, top.Height, "LadderFilmNormal stops at 1080p")
@@ -378,11 +388,11 @@ func TestShapeLadder_FollowsSourceBitrate(t *testing.T) {
 	assert.Equal(t, transcoding.LadderFilmNormal[0].VideoBitrate, profiles[0].VideoBitrate, "the lowest rung keeps its base for a thin line")
 
 	pr.MaxVideoBitrateKbps = func() int { return 6000 }
-	capped := pr.ShapeLadder(context.Background(), req, decision)
+	capped := pr.planFor(context.Background(), req, decision).Ladder
 	assert.Equal(t, int64(6000), capped[len(capped)-1].VideoBitrate, "the server ceiling caps the raise")
 
 	req.SourceBitrateKbps = 0
-	base := (&PlanResolver{}).ShapeLadder(context.Background(), req, decision)
+	base := (&PlanResolver{}).planFor(context.Background(), req, decision).Ladder
 	assert.Less(t, base[len(base)-1].VideoBitrate, int64(70000), "no source bitrate keeps the static ladder")
 }
 
@@ -390,7 +400,7 @@ func TestShapeLadder_CapsToScreen(t *testing.T) {
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 	req := ladderRequest(2160)
 	req.ScreenHeight = 480
-	profiles := (&PlanResolver{}).ShapeLadder(context.Background(), req, decision)
+	profiles := (&PlanResolver{}).planFor(context.Background(), req, decision).Ladder
 	require.NotEmpty(t, profiles)
 	assert.Equal(t, 480, profiles[len(profiles)-1].Height, "a 480 px screen never gets a taller rung")
 }

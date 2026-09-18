@@ -60,8 +60,7 @@ func TestShapeLadder_FrozenLadderIsReadVerbatim(t *testing.T) {
 		},
 	}
 
-	got := pr.ShapeLadder(context.Background(), ladderRequest(2160),
-		transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"})
+	got := pr.planFor(context.Background(), ladderRequest(2160), transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}).Ladder
 
 	assert.Equal(t, frozen, got, "a frozen ladder must come back untouched")
 	assert.False(t, trimCalled,
@@ -116,8 +115,7 @@ func TestShapeLadder_CopyRungNeverConsultsTheFreeze(t *testing.T) {
 		},
 	}
 
-	got := pr.ShapeLadder(context.Background(), req,
-		transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "copy"})
+	got := pr.planFor(context.Background(), req, transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "copy"}).Ladder
 
 	require.Len(t, got, 1, "premise: the request really routed to the copy producer")
 	assert.False(t, consulted, "a copy rung takes no admission pin, so there is no ladder to freeze")
@@ -130,7 +128,7 @@ func TestShapeLadder_CapOverrideOnlyLowers(t *testing.T) {
 	req := ladderRequest(2160)
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 
-	base := (&PlanResolver{}).ShapeLadder(context.Background(), req, decision)
+	base := (&PlanResolver{}).planFor(context.Background(), req, decision).Ladder
 	require.NotEmpty(t, base)
 	baseTop := ladderHeights(t, base)[0]
 
@@ -138,7 +136,7 @@ func TestShapeLadder_CapOverrideOnlyLowers(t *testing.T) {
 		pr := &PlanResolver{CapOverride: func(string, int) (transcoding.CapOverride, bool) {
 			return transcoding.CapOverride{MaxHeight: 480}, true
 		}}
-		got := ladderHeights(t, pr.ShapeLadder(context.Background(), req, decision))
+		got := ladderHeights(t, pr.planFor(context.Background(), req, decision).Ladder)
 		require.NotEmpty(t, got)
 		for _, h := range got {
 			assert.LessOrEqual(t, h, 480, "every rung must sit under the starvation ceiling")
@@ -149,7 +147,7 @@ func TestShapeLadder_CapOverrideOnlyLowers(t *testing.T) {
 		pr := &PlanResolver{CapOverride: func(string, int) (transcoding.CapOverride, bool) {
 			return transcoding.CapOverride{MaxHeight: 4320}, true
 		}}
-		got := ladderHeights(t, pr.ShapeLadder(context.Background(), req, decision))
+		got := ladderHeights(t, pr.planFor(context.Background(), req, decision).Ladder)
 		require.NotEmpty(t, got)
 		assert.Equal(t, baseTop, got[0], "the override must never raise the shaped ceiling")
 	})
@@ -158,7 +156,7 @@ func TestShapeLadder_CapOverrideOnlyLowers(t *testing.T) {
 		pr := &PlanResolver{CapOverride: func(string, int) (transcoding.CapOverride, bool) {
 			return transcoding.CapOverride{}, false
 		}}
-		assert.Equal(t, baseTop, ladderHeights(t, pr.ShapeLadder(context.Background(), req, decision))[0])
+		assert.Equal(t, baseTop, ladderHeights(t, pr.planFor(context.Background(), req, decision).Ladder)[0])
 	})
 }
 
@@ -177,7 +175,7 @@ func TestShapeLadder_AV1CeilingFollowsTheEffectiveCodec(t *testing.T) {
 		pr.AV1Enabled = func() bool { return true }
 		pr.AV1MaxHeight = func() int { return 720 }
 
-		got := ladderHeights(t, pr.ShapeLadder(context.Background(), req, av1Decision))
+		got := ladderHeights(t, pr.planFor(context.Background(), req, av1Decision).Ladder)
 		require.NotEmpty(t, got)
 		for _, h := range got {
 			assert.LessOrEqual(t, h, 720, "the admin AV1 ceiling must hold on a real AV1 encode")
@@ -192,8 +190,8 @@ func TestShapeLadder_AV1CeilingFollowsTheEffectiveCodec(t *testing.T) {
 		uncapped := hwResolver(vaapiCapable())
 		uncapped.AV1Enabled = func() bool { return false }
 
-		got := ladderHeights(t, pr.ShapeLadder(context.Background(), req, av1Decision))
-		want := ladderHeights(t, uncapped.ShapeLadder(context.Background(), req, av1Decision))
+		got := ladderHeights(t, pr.planFor(context.Background(), req, av1Decision).Ladder)
+		want := ladderHeights(t, uncapped.planFor(context.Background(), req, av1Decision).Ladder)
 		assert.Equal(t, want, got,
 			"the AV1 knob must not touch a ladder that will be encoded as H.264")
 	})
@@ -215,8 +213,7 @@ func TestShapeLadder_FreezesTheCappedLadderNotTheRawOne(t *testing.T) {
 		},
 	}
 
-	returned := pr.ShapeLadder(context.Background(), ladderRequest(2160),
-		transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"})
+	returned := pr.planFor(context.Background(), ladderRequest(2160), transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}).Ladder
 
 	assert.NotEmpty(t, frozenKey, "the freeze must be keyed by the same pin the route used")
 	assert.Equal(t, returned, frozen, "what is frozen must be exactly what this request was served")
@@ -250,8 +247,8 @@ func TestShapeLadder_RequestScopedCapsDoNotLeakAcrossViewers(t *testing.T) {
 	tv := ladderRequest(2160)
 	tv.ScreenHeight = 2160
 
-	assert.Equal(t, []int{480, 720}, ladderHeights(t, pr.ShapeLadder(context.Background(), phone, decision)))
-	assert.Equal(t, []int{480, 720, 1080, 2160}, ladderHeights(t, pr.ShapeLadder(context.Background(), tv, decision)),
+	assert.Equal(t, []int{480, 720}, ladderHeights(t, pr.planFor(context.Background(), phone, decision).Ladder))
+	assert.Equal(t, []int{480, 720, 1080, 2160}, ladderHeights(t, pr.planFor(context.Background(), tv, decision).Ladder),
 		"the TV must not read the phone's frozen 720p ladder")
 
 	// Same title, one viewer raised to the 40 Mb/s source, the next capped at
@@ -260,8 +257,8 @@ func TestShapeLadder_RequestScopedCapsDoNotLeakAcrossViewers(t *testing.T) {
 	raised.SourceBitrateKbps = 40_000
 	capped := raised
 	capped.MaxBitrateKbps = 3000
-	assert.Equal(t, int64(40_000), pr.ShapeLadder(context.Background(), raised, decision)[3].VideoBitrate)
-	for _, p := range pr.ShapeLadder(context.Background(), capped, decision) {
+	assert.Equal(t, int64(40_000), pr.planFor(context.Background(), raised, decision).Ladder[3].VideoBitrate)
+	for _, p := range pr.planFor(context.Background(), capped, decision).Ladder {
 		assert.LessOrEqual(t, p.VideoBitrate, int64(3000), "a capped viewer must not read the raised frozen ladder")
 	}
 }
@@ -280,15 +277,15 @@ func TestShapeLadder_H264LevelCapsTheLadder(t *testing.T) {
 	req.Client.MaxH264Level = 41
 
 	h264 := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
-	assert.Equal(t, []int{480, 720, 1080}, ladderHeights(t, pr.ShapeLadder(context.Background(), req, h264)))
+	assert.Equal(t, []int{480, 720, 1080}, ladderHeights(t, pr.planFor(context.Background(), req, h264).Ladder))
 
 	hevc := transcoding.PlaybackDecision{VideoCodec: "hevc", VideoDecision: "transcode", TranscodeReasons: []string{"preferred_video_codec"}}
-	assert.Equal(t, []int{480, 720, 1080, 2160}, ladderHeights(t, pr.ShapeLadder(context.Background(), req, hevc)),
+	assert.Equal(t, []int{480, 720, 1080, 2160}, ladderHeights(t, pr.planFor(context.Background(), req, hevc).Ladder),
 		"an HEVC output is not bound by the H.264 level")
 
 	uncapped := ladderRequest(2160)
-	assert.Equal(t, []int{480, 720, 1080, 2160}, ladderHeights(t, pr.ShapeLadder(context.Background(), uncapped, h264)))
-	assert.NotEqual(t, pr.PinKey(req, h264), pr.PinKey(uncapped, h264), "the level is a ladder input, so it keys the pin")
+	assert.Equal(t, []int{480, 720, 1080, 2160}, ladderHeights(t, pr.planFor(context.Background(), uncapped, h264).Ladder))
+	assert.NotEqual(t, pr.planFor(context.Background(), req, h264).Admission.PinKey, pr.planFor(context.Background(), uncapped, h264).Admission.PinKey, "the level is a ladder input, so it keys the pin")
 }
 
 // A bitrate cap (profile, cellular, admin) must bound the rungs the master
@@ -304,7 +301,7 @@ func TestShapeLadder_BitrateCeilingBoundsTheRungs(t *testing.T) {
 	req := ladderRequest(2160)
 	req.MaxBitrateKbps = 3000
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
-	for _, p := range pr.ShapeLadder(context.Background(), req, decision) {
+	for _, p := range pr.planFor(context.Background(), req, decision).Ladder {
 		assert.LessOrEqual(t, p.VideoBitrate, int64(3000), "rung %s", p.Name)
 	}
 }
@@ -321,7 +318,7 @@ func TestShapeLadder_SoftwareCeilingFollowsTheEffectiveCodec(t *testing.T) {
 		Selector:   NewProducerSelector(sw, nil),
 	}
 	decision := transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode", TranscodeReasons: []string{"preferred_video_codec"}}
-	got := ladderHeights(t, pr.ShapeLadder(context.Background(), ladderRequest(1080), decision))
+	got := ladderHeights(t, pr.planFor(context.Background(), ladderRequest(1080), decision).Ladder)
 	assert.Equal(t, 1080, got[len(got)-1], "served as H.264, so the H.264 ceiling applies")
 }
 
@@ -342,11 +339,11 @@ func TestShapeLadder_HDRBridgeUsesItsOwnCeiling(t *testing.T) {
 	req.Streams[0].Codec = "hevc"
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode", TranscodeReasons: []string{"hdr_tonemapping_needed"}}
 
-	assert.Equal(t, []int{480, 720, 1080}, ladderHeights(t, pr.ShapeLadder(context.Background(), req, decision)),
+	assert.Equal(t, []int{480, 720, 1080}, ladderHeights(t, pr.planFor(context.Background(), req, decision).Ladder),
 		"the bridge ceiling (1440 > ladder's 1080 rung) bounds the HDR ladder, not the 720 software cap")
 
 	capability.HWBridgeMaxHeight = 0
-	assert.Equal(t, []int{480, 720}, ladderHeights(t, pr.ShapeLadder(context.Background(), req, decision)),
+	assert.Equal(t, []int{480, 720}, ladderHeights(t, pr.planFor(context.Background(), req, decision).Ladder),
 		"unmeasured bridge: the software HDR ceiling applies")
 }
 
@@ -358,16 +355,16 @@ func TestFingerprint_TranscodeAudioRenditionMakesVideoOnly(t *testing.T) {
 	req := ladderRequest(1080)
 	req.Streams = append(req.Streams, &library.MediaStream{StreamType: library.StreamTypeAudio, Codec: "aac"})
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode", AudioDecision: "transcode", AudioCodec: "aac"}
-	fp := pr.Fingerprint(context.Background(), req, decision, transcoding.LadderFilmNormal)
+	fp := pr.planFor(context.Background(), req, decision).Fingerprint
 	assert.Equal(t, -1, fp.AudioTrack)
 
 	muxed := &PlanResolver{AudioRenditionEnabled: true}
-	assert.Equal(t, 0, muxed.Fingerprint(context.Background(), req, decision, transcoding.LadderFilmNormal).AudioTrack,
+	assert.Equal(t, 0, muxed.planFor(context.Background(), req, decision).Fingerprint.AudioTrack,
 		"without the transcode extension the ladder stays muxed")
 
 	tru := true
 	req.Streams[0].IdetTelecine = &tru
-	assert.Equal(t, 0, pr.Fingerprint(context.Background(), req, decision, transcoding.LadderFilmNormal).AudioTrack,
+	assert.Equal(t, 0, pr.planFor(context.Background(), req, decision).Fingerprint.AudioTrack,
 		"inverse telecine changes the frame rate: the audio stays muxed")
 }
 
@@ -392,7 +389,7 @@ func TestShapeLadder_SpillKeepsTheDeliveryCaps(t *testing.T) {
 	req.MaxBitrateKbps = 3000
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 
-	got := pr.ShapeLadder(context.Background(), req, decision)
+	got := pr.planFor(context.Background(), req, decision).Ladder
 	assert.Equal(t, []int{480, 720}, swHeights, "the fallback offered to admission is the CPU ladder under the screen cap")
 	assert.Equal(t, []int{480, 720}, ladderHeights(t, got))
 	for _, p := range got {

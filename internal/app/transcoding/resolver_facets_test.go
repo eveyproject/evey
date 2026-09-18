@@ -1,10 +1,10 @@
 package transcoding
 
-// resolver_legacy_http_test.go - resolver tests that lived in the HTTP
-// adapter while it still exposed the sub-derivations (resolveHW,
-// effectiveVideoCodec, hwRouteUsable, profilesForDecision). The adapter
-// only resolves plans now; the tests moved here, on the test-only wrappers
-// of resolver_legacy_test.go, unchanged in what they pin.
+// resolver_facets_test.go - the facet tests that lived in the HTTP adapter
+// while it exposed sub-derivations (resolveHW, effectiveVideoCodec,
+// hwRouteUsable, profilesForDecision): the backend pick, the codec gate, the
+// route gate, the ladder shape. They read the facets off the plan
+// (resolver_plan_test.go) and pin what they always pinned.
 
 import (
 	"context"
@@ -221,7 +221,7 @@ func TestProfilesForDecision_HDRCap(t *testing.T) {
 				LibraryID: "lib1",
 			}
 
-			profiles := pr.ShapeLadder(context.Background(), ladderRequestFor(item, tc.streams), tc.decision)
+			profiles := pr.planFor(context.Background(), ladderRequestFor(item, tc.streams), tc.decision).Ladder
 			tc.assertFn(t, profiles)
 		})
 	}
@@ -241,7 +241,7 @@ func TestProfilesForDecision_SoftwareLadder(t *testing.T) {
 	t.Run("software_HDR_ladder_capped_to_hdr_ceiling", func(t *testing.T) {
 		t.Parallel()
 		pr := &PlanResolver{Capability: swCap}
-		profiles := pr.ShapeLadder(context.Background(), ladderRequestFor(item, build4KHDRStreams()), buildHDRDecision())
+		profiles := pr.planFor(context.Background(), ladderRequestFor(item, build4KHDRStreams()), buildHDRDecision()).Ladder
 		require.NotEmpty(t, profiles)
 		for _, p := range profiles {
 			assert.LessOrEqual(t, p.Height, 480, "every HDR rung obeys SoftwareHDRMaxHeight (the honest weak-NAS cap)")
@@ -253,7 +253,7 @@ func TestProfilesForDecision_SoftwareLadder(t *testing.T) {
 	t.Run("software_SDR_keeps_full_ladder", func(t *testing.T) {
 		t.Parallel()
 		pr := &PlanResolver{Capability: swCap}
-		profiles := pr.ShapeLadder(context.Background(), ladderRequestFor(item, build4KSDRStreams()), buildSDRDecision())
+		profiles := pr.planFor(context.Background(), ladderRequestFor(item, build4KSDRStreams()), buildSDRDecision()).Ladder
 		assert.Greater(t, len(profiles), 1, "the software path serves the full ABR ladder")
 	})
 
@@ -264,7 +264,7 @@ func TestProfilesForDecision_SoftwareLadder(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (hdrCapHWCapability()).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
-		profiles := pr.ShapeLadder(context.Background(), ladderRequestFor(item, build4KHDRStreams()), buildHDRDecision())
+		profiles := pr.planFor(context.Background(), ladderRequestFor(item, build4KHDRStreams()), buildHDRDecision()).Ladder
 		assert.Greater(t, len(profiles), 1, "HW path keeps the ladder")
 	})
 }
@@ -297,11 +297,11 @@ func TestProfilesForDecision_AV1MaxHeightCap(t *testing.T) {
 		return m
 	}
 
-	uncapped := top(mk(0).ShapeLadder(context.Background(), ladderRequestFor(item, streams), dec))
+	uncapped := top(mk(0).planFor(context.Background(), ladderRequestFor(item, streams), dec).Ladder)
 	if uncapped <= 720 {
 		t.Fatalf("control: uncapped AV1 ladder should exceed 720p (got %dp) for the cap to be meaningful", uncapped)
 	}
-	capped := top(mk(720).ShapeLadder(context.Background(), ladderRequestFor(item, streams), dec))
+	capped := top(mk(720).planFor(context.Background(), ladderRequestFor(item, streams), dec).Ladder)
 	if capped > 720 {
 		t.Errorf("av1_max_height=720 must cap the AV1 ladder to 720p, got top rung %dp", capped)
 	}
@@ -325,7 +325,7 @@ func TestResolveHW(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (nvenc).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
-		accel, device, features, usable, _ := pr.ResolveHW("h264", "", false, false)
+		accel, device, features, usable, _ := pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "", TenBit: false}, false)
 		if !usable || accel != "nvenc" || device != "" {
 			t.Errorf("got (%q,%q,%v), want (nvenc,'',true)", accel, device, usable)
 		}
@@ -339,7 +339,7 @@ func TestResolveHW(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (vaapi).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
-		accel, device, _, usable, _ := pr.ResolveHW("hevc", "", false, false)
+		accel, device, _, usable, _ := pr.resolveHW(pr.hwPolicy(), "hevc", hwSource{Codec: "", TenBit: false}, false)
 		if !usable || accel != "vaapi" || device != "/dev/dri/renderD128" {
 			t.Errorf("got (%q,%q,%v), want (vaapi,/dev/dri/renderD128,true)", accel, device, usable)
 		}
@@ -350,7 +350,7 @@ func TestResolveHW(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (vaapi).Snapshot() }, // no av1
 			HWAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable, _ := pr.ResolveHW("av1", "", false, false); usable {
+		if _, _, _, usable, _ := pr.resolveHW(pr.hwPolicy(), "av1", hwSource{Codec: "", TenBit: false}, false); usable {
 			t.Error("av1 unsupported by vaapi caps → must be software")
 		}
 	})
@@ -367,10 +367,10 @@ func TestResolveHW(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (oldIGPU).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable, _ := pr.ResolveHW("h264", "h264", false, false); !usable {
+		if _, _, _, usable, _ := pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "h264", TenBit: false}, false); !usable {
 			t.Error("h264 source is HW-decodable → must take the HW path")
 		}
-		accel, _, _, usable, softwareDecode := pr.ResolveHW("h264", "hevc", false, false)
+		accel, _, _, usable, softwareDecode := pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "hevc", TenBit: false}, false)
 		if !usable || accel != "vaapi" || !softwareDecode {
 			t.Errorf("hevc source not HW-decodable on this GPU → software decode + hwupload, GPU keeps the encode; got (%q,%v,%v)", accel, usable, softwareDecode)
 		}
@@ -381,7 +381,7 @@ func TestResolveHW(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (nvenc).Snapshot() },
 			HWAccelEnabled: func() bool { return false },
 		}
-		if _, _, _, usable, _ := pr.ResolveHW("h264", "", false, false); usable {
+		if _, _, _, usable, _ := pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "", TenBit: false}, false); usable {
 			t.Error("flag off → must be software")
 		}
 	})
@@ -390,7 +390,7 @@ func TestResolveHW(t *testing.T) {
 		pr := &PlanResolver{
 			Capability: func() transcoding.HostCapabilitySnapshot { return (nvenc).Snapshot() },
 		}
-		if _, _, _, usable, _ := pr.ResolveHW("h264", "", false, false); usable {
+		if _, _, _, usable, _ := pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "", TenBit: false}, false); usable {
 			t.Error("nil hwAccelEnabled → must be software")
 		}
 	})
@@ -400,7 +400,7 @@ func TestResolveHW(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (transcoding.SafeFallback()).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable, _ := pr.ResolveHW("h264", "", false, false); usable {
+		if _, _, _, usable, _ := pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "", TenBit: false}, false); usable {
 			t.Error("no HW backend → must be software")
 		}
 	})
@@ -420,15 +420,15 @@ func TestResolveHW(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (box).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable, _ := pr.ResolveHW("h264", "hevc", false, false); !usable {
+		if _, _, _, usable, _ := pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "hevc", TenBit: false}, false); !usable {
 			t.Error("8-bit hevc source → HW path (decode ok, no 10-bit VPP needed)")
 		}
-		if _, _, _, usable, _ := pr.ResolveHW("h264", "hevc", true, false); usable {
+		if _, _, _, usable, _ := pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "hevc", TenBit: true}, false); usable {
 			t.Error("10-bit source + !HW10BitTranscode → must software-transcode (p010 aborts the VEBOX)")
 		}
 		// ...but when this request HW-tone-maps, tonemap_vaapi folds the 10-bit p010
 		// itself, so the same 10-bit source CAN take the HW path without HW10BitTranscode.
-		if _, _, _, usable, _ := pr.ResolveHW("h264", "hevc", true, true); !usable {
+		if _, _, _, usable, _ := pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "hevc", TenBit: true}, true); !usable {
 			t.Error("10-bit source + HW tonemap → HW path (tonemap_vaapi folds p010)")
 		}
 	})
@@ -444,7 +444,7 @@ func TestResolveHW(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (box).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable, _ := pr.ResolveHW("h264", "hevc", true, false); !usable {
+		if _, _, _, usable, _ := pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "hevc", TenBit: true}, false); !usable {
 			t.Error("10-bit source + HW10BitTranscode → must take the HW path")
 		}
 	})
@@ -460,7 +460,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (transcoding.SafeFallback()).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
-		got, _, _, _, _, _ := pr.EffectiveVideoCodec(dec("av1"), nil)
+		got, _, _, _, _, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: nil}, dec("av1")))
 		if got != "h264" {
 			t.Errorf("av1 must fall back to h264 when not encodable here, got %q", got)
 		}
@@ -473,7 +473,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 			HWAccelEnabled: func() bool { return true },
 			AV1Enabled:     func() bool { return true },
 		}
-		got, _, _, _, usable, _ := pr.EffectiveVideoCodec(dec("av1"), nil)
+		got, _, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: nil}, dec("av1")))
 		if got != "av1" || !usable {
 			t.Errorf("av1 with HW av1 + admin opt-in must stay av1 (usable), got %q usable=%v", got, usable)
 		}
@@ -488,7 +488,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 			HWAccelEnabled: func() bool { return true },
 			AV1Enabled:     func() bool { return false },
 		}
-		got, _, _, _, _, _ := pr.EffectiveVideoCodec(dec("av1"), nil)
+		got, _, _, _, _, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: nil}, dec("av1")))
 		if got != "h264" {
 			t.Errorf("av1 must fall back to h264 when the admin has not enabled it, got %q", got)
 		}
@@ -503,7 +503,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (box).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
-		got, _, _, _, _, _ := pr.EffectiveVideoCodec(dec("av1"), nil)
+		got, _, _, _, _, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: nil}, dec("av1")))
 		if got != "h264" {
 			t.Errorf("av1 must fall back to h264 when the GPU can't encode it (HW-only policy), got %q", got)
 		}
@@ -514,7 +514,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 			Capability:     func() transcoding.HostCapabilitySnapshot { return (transcoding.SafeFallback()).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
-		got, _, _, _, _, _ := pr.EffectiveVideoCodec(dec("h264"), nil)
+		got, _, _, _, _, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: nil}, dec("h264")))
 		if got != "h264" {
 			t.Errorf("h264 must be unchanged, got %q", got)
 		}
@@ -540,13 +540,13 @@ func TestHWRouteUsable_MatchesEffectiveCodec_AV1Fallback(t *testing.T) {
 	decision := transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"}
 	src := SourceDims{Codec: "h264"}
 
-	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(decision, []*library.MediaStream{{
+	_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: []*library.MediaStream{{
 		StreamType: library.StreamTypeVideo, Codec: "h264",
-	}})
+	}}}, decision))
 	if !usable || accel != "nvenc" {
 		t.Fatalf("fingerprint side: effective H.264 must be HW-usable, got (%q,%v)", accel, usable)
 	}
-	if !pr.HWRouteUsable(decision, src) {
+	if !pr.routeUsable(decision, src) {
 		t.Error("route side must agree: this session runs on the GPU")
 	}
 }
@@ -586,17 +586,17 @@ func TestHWRouteUsable_HDRWithoutHWTonemap_RoutesSoftware(t *testing.T) {
 		VideoDecision:    "transcode",
 		TranscodeReasons: []string{"hdr_tonemapping_needed"},
 	}
-	if !pr.HWRouteUsable(hdr, src) {
+	if !pr.routeUsable(hdr, src) {
 		t.Error("HDR source + no GPU tone-map: the CPU tone-maps between the GPU decode and encode (the ladder is capped by the software HDR ceiling in ShapeLadder)")
 	}
 	// The bridge needs the GPU to decode: a source it cannot decode stays on the CPU.
-	if pr.HWRouteUsable(hdr, SourceDims{Codec: "mpeg2video", TenBit: true}) {
+	if pr.routeUsable(hdr, SourceDims{Codec: "mpeg2video", TenBit: true}) {
 		t.Error("HDR source the GPU cannot decode + no GPU tone-map must route SOFTWARE")
 	}
 
 	// Same host, an SDR source: nothing to tone-map, the GPU path stands.
 	sdr := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
-	if !pr.HWRouteUsable(sdr, SourceDims{Codec: "h264"}) {
+	if !pr.routeUsable(sdr, SourceDims{Codec: "h264"}) {
 		t.Error("an SDR source must still ride the GPU")
 	}
 }
@@ -645,20 +645,20 @@ func TestProfilesForDecision_FrozenLadder_ImmuneToMidStreamDrift(t *testing.T) {
 
 	// Manifest time: the override caps the ladder to 1080p. Shaped + FROZEN.
 	overrideH = 1080
-	manifestTop := topHeight(pr.ShapeLadder(ctx, ladderRequestFor(item, streams), dec))
+	manifestTop := topHeight(pr.planFor(ctx, ladderRequestFor(item, streams), dec).Ladder)
 	require.Equal(t, 1080, manifestTop, "manifest ladder capped to the current override")
 
 	// Mid-stream the override drops to 480p. A segment request for the SAME stream
 	// must still shape the 1080p ladder - it reads the frozen plan, never the
 	// drifted input.
 	overrideH = 480
-	segmentTop := topHeight(pr.ShapeLadder(ctx, ladderRequestFor(item, streams), dec))
+	segmentTop := topHeight(pr.planFor(ctx, ladderRequestFor(item, streams), dec).Ladder)
 	assert.Equal(t, manifestTop, segmentTop, "frozen ladder is read verbatim, immune to the mid-stream drift")
 
 	// Control: a DIFFERENT stream (its own fresh pin) DOES see the drifted 480p,
 	// proving the override really bites and the 1080p above was the freeze at work,
 	// not a no-op.
-	controlTop := topHeight(pr.ShapeLadder(ctx, ladderRequestFor(&library.MediaItem{ID: "mi-other"}, streams), dec))
+	controlTop := topHeight(pr.planFor(ctx, ladderRequestFor(&library.MediaItem{ID: "mi-other"}, streams), dec).Ladder)
 	assert.Less(t, controlTop, manifestTop, "a fresh stream sees the current (drifted) override - the freeze is per-stream")
 	assert.Equal(t, 480, controlTop)
 }
@@ -687,9 +687,9 @@ func TestProfilesForDecision_NoShaper_StillReDerivesEachCall(t *testing.T) {
 	ctx := context.Background()
 
 	overrideH = 1080
-	first := topHeight(pr.ShapeLadder(ctx, ladderRequestFor(item, streams), dec))
+	first := topHeight(pr.planFor(ctx, ladderRequestFor(item, streams), dec).Ladder)
 	overrideH = 480
-	second := topHeight(pr.ShapeLadder(ctx, ladderRequestFor(item, streams), dec))
+	second := topHeight(pr.planFor(ctx, ladderRequestFor(item, streams), dec).Ladder)
 	assert.Equal(t, 1080, first)
 	assert.Equal(t, 480, second, "no freeze wired => each call re-derives against the current input")
 }
@@ -715,8 +715,8 @@ func TestProfilesForDecision_HashInvariant(t *testing.T) {
 	// requests. The shaped ladders must hash identically.
 	hManifest := mkHandler()
 	hSegment := mkHandler()
-	pManifest := hManifest.ShapeLadder(context.Background(), ladderRequestFor(item, streams), decision)
-	pSegment := hSegment.ShapeLadder(context.Background(), ladderRequestFor(item, streams), decision)
+	pManifest := hManifest.planFor(context.Background(), ladderRequestFor(item, streams), decision).Ladder
+	pSegment := hSegment.planFor(context.Background(), ladderRequestFor(item, streams), decision).Ladder
 
 	assert.Equal(t, fingerprintProfiles(pManifest), fingerprintProfiles(pSegment),
 		"ShapeLadder must be deterministic across manifest- and segment-time (cache-hash invariant)")

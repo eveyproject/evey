@@ -4,10 +4,10 @@ import "testing"
 
 func TestABRGroup_SameAs(t *testing.T) {
 	cases := []struct {
-		name              string
-		aCodec, aRange    string
-		bCodec, bRange    string
-		want              bool
+		name           string
+		aCodec, aRange string
+		bCodec, bRange string
+		want           bool
 	}{
 		// The good cases the fallback rung is meant to keep: same family, same
 		// range -> the player may auto-switch (ABR drop) with no decoder swap.
