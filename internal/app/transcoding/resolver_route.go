@@ -241,7 +241,7 @@ func (pr *PlanResolver) resolveHW(pol HWPolicy, outputCodec string, src hwSource
 // 4:2:0 8/10-bit rides the zero-copy chain only once that chain ran on it
 // end-to-end for this backend.
 func backendServes(cap transcoding.EncodeCapability, bc transcoding.HWBackendCap, src hwSource, hwTonemap bool) (softwareDecode, ok bool) {
-	decodable := bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat, cap.ProbeVersion)
+	decodable := bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat)
 	softwareDecode = src.Codec != "" && !decodable
 	if softwareDecode {
 		if hwTonemap || src.Bridge || src.TenBit || !bc.Proves(transcoding.HWRouteDecoupled) {

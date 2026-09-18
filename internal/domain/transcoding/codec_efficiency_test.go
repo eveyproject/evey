@@ -67,7 +67,7 @@ func TestEncodeRoute_EncoderKey(t *testing.T) {
 func TestStaticLadderBuilder_GPUPricedByMeasuredEfficiency(t *testing.T) {
 	eff := fakeEfficiency()
 	b := StaticLadderBuilder{Efficiency: &eff}
-	cap := EncodeCapability{SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc"}, HWDecodeCodecs: []string{"h264", "hevc"}}
+	cap := EncodeCapability{SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc"}, HWDecodeCodecs: []string{"h264", "hevc", "hevc10"}}
 	in := LadderInput{
 		Source:     SourceFacts{Width: 1920, Height: 1080, Codec: "h264", FPS: 24},
 		Complexity: ComplexityVector{Class: ClassFilmNormal, Metrics: ComplexityMetrics{MotionMean: 4, FramesSampled: 200, MetricVersion: CanonicalMetricVersion}},

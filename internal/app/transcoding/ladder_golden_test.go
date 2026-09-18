@@ -160,7 +160,7 @@ func goldenResolverWith(cap *transcoding.EncodeCapability, hw bool, repo goldenC
 	return pr
 }
 
-var nvencCapability = transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160, HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc", "av1"}, HWDecodeCodecs: []string{"h264", "hevc"}, HW10BitTranscode: true, HWBridgeMaxHeight: 2160}
+var nvencCapability = transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160, HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc", "av1"}, HWDecodeCodecs: []string{"h264", "hevc", "hevc10"}, HW10BitTranscode: true, HWBridgeMaxHeight: 2160}
 
 func goldenHosts(class transcoding.ContentClass) []goldenHost {
 	soft := transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 480}
@@ -171,7 +171,7 @@ func goldenHosts(class transcoding.ContentClass) []goldenHost {
 	vaapiH264.HWCodecs = []string{"h264"}
 	vaapiH264.HWTonemap = false
 	vaapiH264.HWBridgeMaxHeight = 1080
-	nvenc := transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160, HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc", "av1"}, HWDecodeCodecs: []string{"h264", "hevc"}, HW10BitTranscode: true, HWBridgeMaxHeight: 2160}
+	nvenc := transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160, HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc", "av1"}, HWDecodeCodecs: []string{"h264", "hevc", "hevc10"}, HW10BitTranscode: true, HWBridgeMaxHeight: 2160}
 	// A row the v5 calibration wrote: decode classes and builder-proven routes
 	// are authoritative. No bridge proof (the pre-fix NVENC chain failed), no
 	// Main10 decode class: HDR tone-maps on the CPU, Main10 sources stay off

@@ -132,7 +132,8 @@ func TestCapability_RouteProofAndDecodeClasses(t *testing.T) {
 	if web.HWCanDecodeSource("vc1", false, "yuv420p") || web.HWCanDecodeSource("vp9", true, "yuv420p10le") || web.HWCanDecodeSource("av1", false, "yuv420p") {
 		t.Fatal("an unlisted class (VC-1 here, 10-bit VP9, 8-bit AV1) is not decodable - fail-closed")
 	}
-	// Rows probed before the matrix: depth rule + the conservative chroma table.
+	// Rows probed before the matrix read in the same vocabulary: a plain
+	// codec is its 4:2:0 8-bit class, an unlisted class is not decodable.
 	noMain10 := probedCap()
 	noMain10.ProbeVersion = 5
 	noMain10.HWDecodeCodecs = []string{"h264", "hevc"}
@@ -140,23 +141,29 @@ func TestCapability_RouteProofAndDecodeClasses(t *testing.T) {
 		t.Fatal("a v5 row without hevc10 does not decode Main10")
 	}
 	if noMain10.HWCanDecodeSource("hevc", false, "yuv444p") {
-		t.Fatal("a pre-matrix row keeps the conservative chroma table")
+		t.Fatal("a pre-matrix row lists no 4:4:4 class: not decodable")
 	}
+	// A pre-class row (v4) listed "hevc" for Main10 too: Normalized, applied
+	// once at load, says so in the class vocabulary; the gate knows no version.
 	old := noMain10
 	old.ProbeVersion = 4
-	if !old.HWCanDecodeSource("hevc", true, "yuv420p10le") {
-		t.Fatal("a pre-class row reads hevc as covering Main10, as it always did")
+	if old.HWCanDecodeSource("hevc", true, "yuv420p10le") {
+		t.Fatal("the gate itself reads the list as written: no version branch")
 	}
-
-	for _, ok := range []string{"", "yuv420p", "yuvj420p", "nv12", "yuv420p10le", "p010le", "YUV420P"} {
-		if !HWChromaDecodable(ok) {
-			t.Errorf("%q must be GPU-decodable chroma", ok)
-		}
+	norm := old.Normalized()
+	if !norm.HWCanDecodeSource("hevc", true, "yuv420p10le") || !norm.HWCanDecodeSource("hevc", true, "") {
+		t.Fatal("a normalized pre-class row reads hevc as covering Main10, as it always did")
 	}
-	for _, bad := range []string{"yuv422p10le", "yuv444p", "yuv420p12le", "gbrp", "gray"} {
-		if HWChromaDecodable(bad) {
-			t.Errorf("%q must not be GPU-decodable", bad)
-		}
+	if !slices.Equal(old.HWDecodeCodecs, []string{"h264", "hevc"}) {
+		t.Fatal("Normalized copies, it never edits the persisted row")
+	}
+	if got := noMain10.Normalized(); !slices.Equal(got.HWDecodeCodecs, noMain10.HWDecodeCodecs) {
+		t.Fatal("a row with the classes is normalized to itself")
+	}
+	// Bit depth alone can only name HEVC's 10-bit class: a 10-bit source of
+	// another codec and unknown format is not decodable, fail-closed.
+	if probedCap().HWCanDecodeSource("vp9", true, "") {
+		t.Fatal("a 10-bit non-HEVC source of unknown format names no class")
 	}
 }
 

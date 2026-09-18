@@ -99,7 +99,9 @@ type EncodeCapability struct {
 	HWHDR10Encode bool `json:"hw_hdr10_encode"`
 
 	// ProbeVersion is the CapabilityProbeVersion the HW probes ran under; a
-	// persisted capability below it is re-benched at boot.
+	// persisted capability below it is re-benched at boot, and served interim
+	// through Normalized until then. The calibration lifecycle is its ONLY
+	// reader: no decision path branches on it.
 	ProbeVersion int `json:"probe_version,omitempty"`
 
 	// GPUClass labels the accelerator for the admin panel: "integrated",
@@ -377,58 +379,82 @@ func (c EncodeCapability) HWCanDecode(codec string) bool {
 }
 
 // decodeClassProbeVersion is the CapabilityProbeVersion from which the decode
-// probe distinguishes HEVC Main10 (HWDecodeHEVC10) from 8-bit HEVC;
-// decodeMatrixProbeVersion the one from which it covers the chroma/depth
-// matrix (DecodeClassKey). An older row never had the classes and is read as
-// it always was, with the conservative chroma table; a re-bench at boot
-// replaces it.
-const (
-	decodeClassProbeVersion  = 5
-	decodeMatrixProbeVersion = 6
-)
+// probe distinguishes HEVC Main10 (HWDecodeHEVC10) from 8-bit HEVC. A row
+// probed before it never had the class: Normalized reads "hevc" as covering
+// Main10, as it always did, ONCE at load - the decode gate itself knows no
+// version (a re-bench at boot replaces such a row anyway).
+const decodeClassProbeVersion = 5
 
-// HWCanDecodeSource reports whether the GPU decodes a source of this codec,
-// bit depth and pixel format. A row from the probe matrix answers from
-// MEASUREMENT: the (codec, pix_fmt) class is decodable iff the probe brought a
-// frame back for it, and a format the matrix does not cover is not decodable
-// (conservative, and extensible by adding a probe, never by assuming). Rows
-// probed before the matrix fall back to the depth rule plus the conservative
-// chroma table (HWChromaDecodable).
-func (c EncodeCapability) HWCanDecodeSource(codec string, tenBit bool, pixFmt string) bool {
-	if c.HWBackend == "" {
-		return false
+// Normalized is the capability as the planner reads it: one vocabulary
+// whatever probe version wrote the row. Applied once, when the calibration
+// service publishes a capability (persisted, benched or demoted); nothing
+// downstream branches on ProbeVersion.
+//
+// A pre-class row (ProbeVersion < 5) listed "hevc" for 8-bit AND Main10
+// sources: it gains HWDecodeHEVC10 so the matrix reading answers the same.
+// The row's ProbeVersion is kept - the calibration's staleness check reads it.
+func (c EncodeCapability) Normalized() EncodeCapability {
+	if c.ProbeVersion >= decodeClassProbeVersion {
+		return c
 	}
-	if c.ProbeVersion >= decodeMatrixProbeVersion && strings.TrimSpace(pixFmt) != "" {
-		return slices.Contains(c.HWDecodeCodecs, DecodeClassKey(codec, pixFmt))
+	c.HWDecodeCodecs = withImpliedMain10(c.HWDecodeCodecs)
+	if len(c.Backends) > 0 {
+		backends := make([]HWBackendCap, len(c.Backends))
+		copy(backends, c.Backends)
+		for i := range backends {
+			backends[i].DecodeCodecs = withImpliedMain10(backends[i].DecodeCodecs)
+		}
+		c.Backends = backends
 	}
-	if c.ProbeVersion < decodeMatrixProbeVersion && !HWChromaDecodable(pixFmt) {
-		return false
-	}
-	if !tenBit {
-		return c.HWCanDecode(codec)
-	}
-	if normaliseSourceCodec(codec) != "hevc" {
-		return false
-	}
-	if c.ProbeVersion < decodeClassProbeVersion {
-		return c.HWCanDecode(codec) // pre-class row: "hevc" covered Main10
-	}
-	return slices.Contains(c.HWDecodeCodecs, HWDecodeHEVC10)
+	return c
 }
 
-// HWChromaDecodable is the CONSERVATIVE default for a capability row probed
-// before the decode matrix existed: 4:2:0 at 8 or 10 bits, the classes every
-// backend this engine drives decodes. It is a fallback, not a truth: a probed
-// row answers from its own measurement (HWCanDecodeSource), where an NVDEC
-// that takes 4:4:4 or 4:2:2 lists those classes and is routed accordingly.
-// Unknown ("", never probed) is trusted, as the codec alone was before the
-// format was recorded.
-func HWChromaDecodable(pixFmt string) bool {
-	switch strings.ToLower(strings.TrimSpace(pixFmt)) {
-	case "", "yuv420p", "yuvj420p", "nv12", "yuv420p10le", "p010le":
-		return true
+// withImpliedMain10 adds the Main10 class to a pre-class decode list that
+// names hevc (a copy: the persisted row is never edited in place).
+func withImpliedMain10(codecs []string) []string {
+	if !slices.Contains(codecs, "hevc") || slices.Contains(codecs, HWDecodeHEVC10) {
+		return codecs
 	}
-	return false
+	out := make([]string, 0, len(codecs)+1)
+	out = append(out, codecs...)
+	return append(out, HWDecodeHEVC10)
+}
+
+// decodeClassOf names the decode class a source asks of a decode list, from
+// its codec, bit depth and pixel format: the (codec, pix_fmt) matrix class
+// when the format is known, else the codec's 8-bit class, or HEVC Main10
+// for a 10-bit source of unknown format (the only 10-bit class the depth
+// flag alone can name). ok=false when no class can name the source: it is
+// not decodable, fail-closed.
+func decodeClassOf(codec string, tenBit bool, pixFmt string) (key string, ok bool) {
+	if strings.TrimSpace(pixFmt) != "" {
+		return DecodeClassKey(codec, pixFmt), true
+	}
+	c := normaliseSourceCodec(codec)
+	if !tenBit {
+		return c, true
+	}
+	if c != "hevc" {
+		return "", false
+	}
+	return HWDecodeHEVC10, true
+}
+
+// decodable reports whether codecs (a decode list in the class vocabulary)
+// names the class of this source.
+func decodable(codecs []string, codec string, tenBit bool, pixFmt string) bool {
+	key, ok := decodeClassOf(codec, tenBit, pixFmt)
+	return ok && slices.Contains(codecs, key)
+}
+
+// HWCanDecodeSource reports whether the GPU decodes a source of this codec,
+// bit depth and pixel format, from MEASUREMENT: the (codec, pix_fmt) class is
+// decodable iff the probe brought a frame back for it, and a class the list
+// does not name is not decodable (conservative, and extensible by adding a
+// probe, never by assuming). The row is read in one vocabulary whatever probe
+// version wrote it (Normalized).
+func (c EncodeCapability) HWCanDecodeSource(codec string, tenBit bool, pixFmt string) bool {
+	return c.HWBackend != "" && decodable(c.HWDecodeCodecs, codec, tenBit, pixFmt)
 }
 
 // HWRouteProven reports whether the calibration ran route end-to-end through

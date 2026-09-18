@@ -351,7 +351,7 @@ func ShapeHardwareLadderFor(base []HLSProfile, src SourceFacts, cap EncodeCapabi
 	zeroCopyDecode := src.Codec == "" || cap.HWCanDecodeSource(src.Codec, src.TenBit, src.PixelFormat)
 	ceiling := cap.MaxHeightFor(zeroCopyDecode)
 	if bc, ok := cap.BackendCap(backend); ok && backend != "" {
-		zeroCopyDecode = src.Codec == "" || bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat, cap.ProbeVersion)
+		zeroCopyDecode = src.Codec == "" || bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat)
 		ceiling = cap.MaxHeightFor(zeroCopyDecode)
 		if zeroCopyDecode && bc.MaxHeight > 0 {
 			ceiling = bc.MaxHeight

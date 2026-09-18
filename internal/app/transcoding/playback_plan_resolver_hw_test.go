@@ -25,7 +25,7 @@ func vaapiCapable() transcoding.EncodeCapability {
 		HWBackend:         "vaapi",
 		HWDevice:          "/dev/dri/renderD128",
 		HWCodecs:          []string{"h264", "hevc"},
-		HWDecodeCodecs:    []string{"h264", "hevc"},
+		HWDecodeCodecs:    []string{"h264", "hevc", "hevc10"},
 		HWFeatures:        []string{"low_power"},
 		HW10BitTranscode:  true,
 		HWTonemap:         true,

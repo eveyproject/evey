@@ -86,7 +86,7 @@ func TestAuto_HWOnly720Viable_Certified720NoFictitious1080(t *testing.T) {
 		SourceRate: 24,
 		HWBackend:  "vaapi",
 		HWCodecs:   []string{"h264"},
-		Backends:   []HWBackendCap{{Backend: "vaapi", Codecs: []string{"h264"}, DecodeCodecs: []string{"h264", "hevc"}, MaxHeight: 720}},
+		Backends:   []HWBackendCap{{Backend: "vaapi", Codecs: []string{"h264"}, DecodeCodecs: []string{"h264", "hevc", "hevc10"}, MaxHeight: 720}},
 		Samples: []BenchRungSample{
 			rung(LadderSoftware, 720, 40),
 			rung(LadderHW, 720, 45.0),
@@ -107,10 +107,10 @@ func TestAuto_MultiBackend_LadderCappedAtThePickedBackendsCeiling(t *testing.T) 
 	t.Parallel()
 	cap := EncodeCapability{
 		SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "qsv",
-		HWCodecs: []string{"h264", "hevc"}, HWDecodeCodecs: []string{"h264", "hevc"},
+		HWCodecs: []string{"h264", "hevc"}, HWDecodeCodecs: []string{"h264", "hevc", "hevc10"},
 		Backends: []HWBackendCap{
-			{Backend: "qsv", Codecs: []string{"h264", "hevc"}, DecodeCodecs: []string{"h264", "hevc"}, MaxHeight: 2160},
-			{Backend: "vaapi", Codecs: []string{"h264"}, DecodeCodecs: []string{"h264", "hevc"}, MaxHeight: 1080},
+			{Backend: "qsv", Codecs: []string{"h264", "hevc"}, DecodeCodecs: []string{"h264", "hevc", "hevc10"}, MaxHeight: 2160},
+			{Backend: "vaapi", Codecs: []string{"h264"}, DecodeCodecs: []string{"h264", "hevc", "hevc10"}, MaxHeight: 1080},
 		},
 	}
 	assert.Equal(t, 2160, cap.HWCeilingFor("qsv"))
@@ -140,7 +140,7 @@ func TestAuto_MultiBackend_DecoupledOnTheSecondaryKeepsTheCPUCeiling(t *testing.
 	cap := EncodeCapability{
 		SoftwareMaxHeight: 720, HWMaxHeight: 2160, HWBackend: "nvenc", ProbeVersion: CapabilityProbeVersion,
 		Backends: []HWBackendCap{
-			{Backend: "nvenc", DecodeCodecs: []string{"h264", "hevc", "av1"}, MaxHeight: 2160},
+			{Backend: "nvenc", DecodeCodecs: []string{"h264", "hevc", "hevc10", "av1"}, MaxHeight: 2160},
 			{Backend: "vaapi", DecodeCodecs: []string{"h264"}, MaxHeight: 1080},
 		},
 	}

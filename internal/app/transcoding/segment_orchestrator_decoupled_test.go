@@ -22,7 +22,7 @@ func TestOrchestratorProfiles_DecoupledSourceCapsAtSoftwareCeiling(t *testing.T)
 		HWMaxHeight:       2160,
 		HWBackend:         "vaapi",
 		HWCodecs:          []string{"h264"},
-		HWDecodeCodecs:    []string{"h264", "hevc"},
+		HWDecodeCodecs:    []string{"h264", "hevc", "hevc10"},
 	}
 	base := transcoding.LadderFilmNormal
 	src := SourceDims{Width: 1920, Height: 1080}
