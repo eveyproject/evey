@@ -98,8 +98,8 @@ func TestProducerFor(t *testing.T) {
 	})
 
 	t.Run("a route resolved to the CPU spawns on the software producer", func(t *testing.T) {
-		sel, sw, hw := routeSelector(t) // no gate in the selector...
-		pr := &PlanResolver{Selector: sel}    // ...but no capability: the route is software
+		sel, sw, hw := routeSelector(t)    // no gate in the selector...
+		pr := &PlanResolver{Selector: sel} // ...but no capability: the route is software
 
 		got := pr.ProducerFor(routeRequest("m1"), decision, false)
 		assert.Same(t, sw, got, "the route, not the gate, picks the side")

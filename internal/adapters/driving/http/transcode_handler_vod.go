@@ -69,8 +69,8 @@ type hlsVODServe struct {
 	// The software producer is the long-lived, input-paced, single-rendition
 	// paced single-encoder model (sane on a weak NAS with hw_accel off); the hardware
 	// producer is the multi-session burst-ahead orchestrator (a GPU
-	// parallelises rungs cheaply). The selector's For(decision, src) decides -
-	// it reuses resolveHW so the manifest, the fingerprint, and the routing
+	// parallelises rungs cheaply). The resolved plan's route picks the side
+	// (ProducerForPlan), so the manifest, the fingerprint and the routing
 	// never disagree on which path a request takes. Nil in hand-built test
 	// handlers, which then fall back to the orchestrator field below.
 	selector *apptranscoding.ProducerSelector
@@ -102,7 +102,7 @@ type hlsVODServe struct {
 	// instead of "too many streams". Optional (nil = never calibrating).
 	calibrating func() bool
 	// admissionRoute asks the admission shaper for this stream's pinned route
-	// and ladder ceiling (see profilesForDecision's third cap): a hw stream on
+	// and ladder ceiling (see ShapeLadder's third cap): a hw stream on
 	// a full GPU pool spills to the software route when the CPU pool has room.
 	// Optional: nil keeps the natural shape and viewers over budget are shed.
 	admissionRoute func(key string, req apptranscoding.RouteAdmission) apptranscoding.RouteGrant
@@ -125,7 +125,7 @@ type hlsVODServe struct {
 	// would observe supersessions and do nothing. Optional.
 	reclaimHash func(hash, reason string) int
 	// admissionFrozenLadder / admissionFreezeLadder read-verbatim the shaped ABR
-	// ladder EMITTED ONCE for a stream: profilesForDecision freezes its output on
+	// ladder EMITTED ONCE for a stream: ShapeLadder freezes its output on
 	// the admission pin and every later manifest-/segment-time call reads it back
 	// verbatim, so a mid-stream drift of the mutable shaping inputs (complexity
 	// class, capability, CMCD/av1 caps) cannot desync the manifest's ladder from
@@ -188,13 +188,13 @@ type hlsVODServe struct {
 	qoeSink appqoe.EventSink
 
 	// complexityRepo reads the per-title classification used to pick the
-	// ABR ladder. Nil-safe - profilesForDecision falls back to
+	// ABR ladder. Nil-safe - ShapeLadder falls back to
 	// LadderFilmNormal when the repo isn't wired (dev w/o postgres) or
 	// the row hasn't been classified yet.
 	complexityRepo domaintranscoding.ComplexityRepo
 
 	// capability reports the host's calibrated encode ceiling. Nil-safe:
-	// profilesForDecision falls back to the safe 720p floor when the
+	// ShapeLadder falls back to the safe 720p floor when the
 	// service isn't wired (tests). Returns a fresh snapshot per call so
 	// recalibration via the admin endpoint takes effect immediately -
 	// no need to restart the server.
@@ -1160,8 +1160,9 @@ func (h *hlsVODServe) producerForPlan(rp *requestPlan) apptranscoding.StreamProd
 }
 
 // videoCopyEligible / isCopyRequest - the copy-rung routing moved to the app
-// layer (VideoCopyEligible / PlanResolver.IsCopy); wrappers for the adapter's
-// remaining call sites and tests.
+// layer (VideoCopyEligible / PlanResolver.IsCopy), a DECISION-level fact (no
+// route behind it); wrappers for the adapter's decision-only call sites and
+// tests.
 func videoCopyEligible(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
 	return apptranscoding.VideoCopyEligible(decision, streams)
 }
@@ -1296,7 +1297,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 
 	// Build the same fingerprint the player would generate when it starts
 	// playing this next episode: capabilities forwarded via query params,
-	// per-title ladder via profilesForDecision, defaults safe.
+	// per-title ladder via ShapeLadder, defaults safe.
 	// Use the SAME builder the player path uses, so the warmed segments hash
 	// identically to what the player will request (it earlier drifted -
 	// HDRTonemap/ForceSidecarSubs hardcoded - so HDR/sidecar prewarms missed the

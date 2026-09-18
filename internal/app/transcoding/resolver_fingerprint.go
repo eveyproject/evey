@@ -21,16 +21,6 @@ func audioChannelsFor(snap SourceSnapshot, videoAudioTrack, selected int) int {
 	return snap.AudioChannels
 }
 
-// Fingerprint assembles the DecisionFingerprint - the cache-key object - from
-// the resolved (decision, profiles) pair. Must be byte-identical between the
-// manifest-time and segment-time resolutions of the same request shape, or
-// the cache lookup misses on every segment.
-func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision, profiles []transcoding.HLSProfile) DecisionFingerprint {
-	isCopy := pr.IsCopy(decision, req.Streams, req.SourceBytes)
-	route := pr.resolveRoute(req, decision, isCopy)
-	return pr.fingerprintFor(ctx, req, decision, pr.withPin(req, decision, route), profiles, pr.pinKeyFor(req, decision, route))
-}
-
 // fingerprintFor PROJECTS the resolved route and the shaped ladder onto the
 // cache-key object: it decides nothing about codec, backend or pipeline.
 func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision, route ResolvedRoute, profiles []transcoding.HLSProfile, pinKey string) DecisionFingerprint {

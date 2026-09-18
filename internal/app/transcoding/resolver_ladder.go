@@ -8,16 +8,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
-
-// PinKey identifies a stream for the admission shaper - the (request, route)
-// form for callers outside Resolve; Resolve itself uses pinKeyFor on the route
-// it just resolved.
-func (pr *PlanResolver) PinKey(req PlaybackRequest, decision transcoding.PlaybackDecision) string {
-	return pr.pinKeyFor(req, decision, pr.resolveRoute(req, decision, false))
-}
 
 // pinKeyFor identifies a stream for the admission shaper. Coarser than the
 // decision-fingerprint hash on purpose: burn-in/audio variants of the same
@@ -38,18 +30,6 @@ func (pr *PlanResolver) pinKeyFor(req PlaybackRequest, decision transcoding.Play
 		key += "|rb=1"
 	}
 	return key
-}
-
-// ShapeLadder picks the ABR ladder for a given (decision, media, streams)
-// triple. Reads the per-title complexity class persisted by the background
-// ComplexityWorker; falls back to LadderFilmNormal when the item hasn't been
-// classified yet (safe: matches pre-refactor behaviour). Caps the ladder to
-// the source resolution so we never advertise a 4K rung for a 1080p source.
-func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision) []transcoding.HLSProfile {
-	isCopy := pr.IsCopy(decision, req.Streams, req.SourceBytes)
-	route := pr.resolveRoute(req, decision, isCopy)
-	profiles, _, _ := pr.shapeLadderFor(ctx, req, decision, route, pr.pinKeyFor(req, decision, route))
-	return profiles
 }
 
 // shapeLadderFor shapes the ladder for the resolved route and runs admission
@@ -174,14 +154,6 @@ func profileHeights(profiles []transcoding.HLSProfile) []int {
 		out = append(out, p.Height)
 	}
 	return out
-}
-
-// LadderClassFor is the class of the NATURAL route (before the per-title
-// block and the admission spill) - what admission is offered first. The
-// billed class of a plan is plan.Route.Class(); this stays for the adapter's
-// wrappers and tests.
-func (pr *PlanResolver) LadderClassFor(decision transcoding.PlaybackDecision, streams []*library.MediaStream) LadderClass {
-	return pr.naturalRoute(PlaybackRequest{Streams: streams}, decision, false).Class()
 }
 
 func (pr *PlanResolver) ladderBuilder() transcoding.LadderBuilder {
