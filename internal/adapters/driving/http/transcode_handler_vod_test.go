@@ -576,7 +576,7 @@ func TestHLSVOD_Master_CopyServedWithNoTranscodeCapacity(t *testing.T) {
 	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil), nil)
 	h.copyProducer = copyProd
 	// The weakest calibration there is, and an admission that refuses every encode.
-	h.capability = func() domaintranscoding.EncodeCapability { return domaintranscoding.SafeFallback() }
+	h.capability = func() domaintranscoding.HostCapabilitySnapshot { return (domaintranscoding.SafeFallback()).Snapshot() }
 	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool {
 		t.Fatal("a copy request must never consult the encode admission")
 		return false
@@ -674,7 +674,7 @@ func TestLadderClassFor_AgreesWithFingerprint(t *testing.T) {
 			}}
 			h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
 			if tc.hwEnabled {
-				h.capability = func() domaintranscoding.EncodeCapability { return nvenc }
+				h.capability = func() domaintranscoding.HostCapabilitySnapshot { return (nvenc).Snapshot() }
 				h.hwAccelEnabled = func() bool { return true }
 			}
 
@@ -710,13 +710,13 @@ func TestHLSVOD_SpilledStream_FingerprintAndSpawnFollowTheSoftwareRoute(t *testi
 		Height:     &hgt,
 	}}
 	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
-	h.capability = func() domaintranscoding.EncodeCapability {
+	h.capability = func() domaintranscoding.HostCapabilitySnapshot {
 		return domaintranscoding.EncodeCapability{
 			HWBackend:      "nvenc",
 			HWCodecs:       []string{"h264", "hevc"},
 			HWDecodeCodecs: []string{"h264", "hevc", "hevc10"},
 			HWMaxHeight:    2160,
-		}
+		}.Snapshot()
 	}
 	h.hwAccelEnabled = func() bool { return true }
 	// A real selector with sentinel producers, gated by the handler's real
@@ -1267,12 +1267,12 @@ func TestHLSVOD_Master_CodecsFollowTheSpilledFingerprint(t *testing.T) {
 	item := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur}}
 	streams := []*domainlibrary.MediaStream{{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264", Width: &w, Height: &hgt}}
 	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
-	h.capability = func() domaintranscoding.EncodeCapability {
+	h.capability = func() domaintranscoding.HostCapabilitySnapshot {
 		return domaintranscoding.EncodeCapability{
 			HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc"}, HWDecodeCodecs: []string{"h264", "hevc", "hevc10"}, HWMaxHeight: 2160,
 			ProbeVersion: domaintranscoding.CapabilityProbeVersion,
 			HWRoutes:     []string{domaintranscoding.HWRouteSDR, domaintranscoding.HWRouteHEVC},
-		}
+		}.Snapshot()
 	}
 	h.hwAccelEnabled = func() bool { return true }
 	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool { return true }

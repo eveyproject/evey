@@ -21,7 +21,7 @@ import (
 // CalibrationService + BenchmarkRunner combo.
 type calibrationSvc interface {
 	Recalibrate(ctx context.Context) error
-	Current() domaintranscoding.EncodeCapability
+	Current() domaintranscoding.HostCapabilitySnapshot
 	// HWMode is the active HW-acceleration policy (auto/off/nvenc/vaapi/qsv) so
 	// the admin card can show what the host is configured to do, distinct from
 	// the active backend the bench actually selected.
@@ -136,14 +136,14 @@ func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 			// ceilings above may be interim until the first idle window.
 			Calibration apptranscoding.CalibrationStatus `json:"calibration"`
 		}{
-			publicEncodeCapability: publicEncodeCapability{EncodeCapability: cap},
+			publicEncodeCapability: publicEncodeCapability{EncodeCapability: cap.EncodeCapability},
 			HWMode:                 string(svc.HWMode()),
 			Calibration:            svc.Status(),
 			// WSL's d3d12 VA driver can't sustain Evey's multi-variant VAAPI/QSV
 			// encode, so the admin UI greys those backends when this is true.
 			IsWSL:       sysinfo.IsWSL(),
 			HWFallbacks: svc.RecentFallbacks(),
-			RouteCosts:  routeCostViews(cap),
+			RouteCosts:  routeCostViews(cap.EncodeCapability),
 		}
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			span.RecordError(err)
@@ -265,7 +265,7 @@ func transcodeRecalibrateHandler(svc calibrationSvc) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(publicEncodeCapability{EncodeCapability: svc.Current()}); err != nil {
+		if err := json.NewEncoder(w).Encode(publicEncodeCapability{EncodeCapability: svc.Current().EncodeCapability}); err != nil {
 			slog.WarnContext(r.Context(), "calibration: recalibrate response encode failed", slog.Any("err", err))
 		}
 	}

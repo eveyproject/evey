@@ -67,7 +67,7 @@ func TestProducerFor(t *testing.T) {
 		return &PlanResolver{
 			Selector:             sel,
 			HWAccelEnabled:       func() bool { return true },
-			Capability:           func() transcoding.EncodeCapability { return cap },
+			Capability:           func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 			AdmissionPinnedClass: pinned,
 		}
 	}
@@ -367,7 +367,9 @@ func TestShapeLadder_FollowsSourceBitrate(t *testing.T) {
 	req := ladderRequest(2160)
 	req.SourceBitrateKbps = 70000
 
-	pr := &PlanResolver{Capability: func() transcoding.EncodeCapability { return transcoding.EncodeCapability{SoftwareMaxHeight: 2160} }}
+	pr := &PlanResolver{Capability: func() transcoding.HostCapabilitySnapshot {
+		return transcoding.EncodeCapability{SoftwareMaxHeight: 2160}.Snapshot()
+	}}
 	profiles := pr.ShapeLadder(context.Background(), req, decision)
 	require.NotEmpty(t, profiles)
 	top := profiles[len(profiles)-1]

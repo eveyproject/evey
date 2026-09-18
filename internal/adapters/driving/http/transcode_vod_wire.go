@@ -158,9 +158,9 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		orchestrator:    orch,
 		qoeSink:         s.QoESink,
 		complexityRepo:  s.ComplexityRepo,
-		capability: func() domaintranscoding.EncodeCapability {
+		capability: func() domaintranscoding.HostCapabilitySnapshot {
 			if s.CalibrationSvc == nil {
-				return domaintranscoding.SafeFallback()
+				return domaintranscoding.SafeFallback().Snapshot()
 			}
 			return s.CalibrationSvc.Current()
 		},

@@ -41,7 +41,7 @@ func TestHWBackendCap_CanDecodeSource_OneVocabulary(t *testing.T) {
 	if preClass.Backends[0].CanDecodeSource("hevc", true, "yuv420p10le") {
 		t.Error("the gate reads the list as written: no version branch")
 	}
-	norm := preClass.Normalized().Backends[0]
+	norm := preClass.Snapshot().Backends[0]
 	if !norm.CanDecodeSource("hevc", true, "yuv420p10le") {
 		t.Error("a normalized pre-class row: \"hevc\" covered Main10")
 	}

@@ -163,9 +163,9 @@ func (pr *PlanResolver) gpuAllowed(pol HWPolicy) bool {
 }
 
 // capabilityOrFallback resolves the calibrated capability, nil-safe.
-func (pr *PlanResolver) capabilityOrFallback() transcoding.EncodeCapability {
+func (pr *PlanResolver) capabilityOrFallback() transcoding.HostCapabilitySnapshot {
 	if pr.Capability == nil {
-		return transcoding.SafeFallback()
+		return transcoding.SafeFallback().Snapshot()
 	}
 	return pr.Capability()
 }
@@ -240,7 +240,7 @@ func (pr *PlanResolver) resolveHW(pol HWPolicy, outputCodec string, src hwSource
 // (proven), unless a GPU tone-map folds p010 itself. A chroma layout outside
 // 4:2:0 8/10-bit rides the zero-copy chain only once that chain ran on it
 // end-to-end for this backend.
-func backendServes(cap transcoding.EncodeCapability, bc transcoding.HWBackendCap, src hwSource, hwTonemap bool) (softwareDecode, ok bool) {
+func backendServes(cap transcoding.HostCapabilitySnapshot, bc transcoding.HWBackendCap, src hwSource, hwTonemap bool) (softwareDecode, ok bool) {
 	decodable := bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat)
 	softwareDecode = src.Codec != "" && !decodable
 	if softwareDecode {

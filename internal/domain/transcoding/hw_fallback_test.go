@@ -150,14 +150,14 @@ func TestCapability_RouteProofAndDecodeClasses(t *testing.T) {
 	if old.HWCanDecodeSource("hevc", true, "yuv420p10le") {
 		t.Fatal("the gate itself reads the list as written: no version branch")
 	}
-	norm := old.Normalized()
+	norm := old.Snapshot().EncodeCapability
 	if !norm.HWCanDecodeSource("hevc", true, "yuv420p10le") || !norm.HWCanDecodeSource("hevc", true, "") {
 		t.Fatal("a normalized pre-class row reads hevc as covering Main10, as it always did")
 	}
 	if !slices.Equal(old.HWDecodeCodecs, []string{"h264", "hevc"}) {
 		t.Fatal("Normalized copies, it never edits the persisted row")
 	}
-	if got := noMain10.Normalized(); !slices.Equal(got.HWDecodeCodecs, noMain10.HWDecodeCodecs) {
+	if got := noMain10.Snapshot().EncodeCapability; !slices.Equal(got.HWDecodeCodecs, noMain10.HWDecodeCodecs) {
 		t.Fatal("a row with the classes is normalized to itself")
 	}
 	// Bit depth alone can only name HEVC's 10-bit class: a 10-bit source of

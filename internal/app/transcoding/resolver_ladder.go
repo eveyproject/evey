@@ -211,7 +211,7 @@ func (pr *PlanResolver) deliveryConstraints(pol HWPolicy, req PlaybackRequest, d
 		MaxHeight:               req.Client.MaxHeight,
 		MaxH264Level:            req.Client.MaxH264Level,
 		VideoBitrateCeilingKbps: pr.videoBitrateCeilingKbps(req, decision),
-		Capability:              pr.capabilityOrFallback(),
+		Capability:              pr.capabilityOrFallback().EncodeCapability,
 	}
 	if pr.CapOverride != nil {
 		if ov, ok := pr.CapOverride(snapshot(req).Codec, snapshot(req).Height); ok {

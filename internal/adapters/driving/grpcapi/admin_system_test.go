@@ -126,7 +126,9 @@ type fakeCalibrationSnapshot struct {
 	capability domaintranscoding.EncodeCapability
 }
 
-func (f fakeCalibrationSnapshot) Current() domaintranscoding.EncodeCapability { return f.capability }
+func (f fakeCalibrationSnapshot) Current() domaintranscoding.HostCapabilitySnapshot {
+	return f.capability.Snapshot()
+}
 
 // fakeVideoActiveReporter satisfies videoSessionActiveReporter for tests.
 type fakeVideoActiveReporter struct {

@@ -6,9 +6,9 @@ package httpapi
 // the ffmpeg pipeline when the source can't be packaged.
 
 import (
-	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 	"context"
 	"fmt"
+	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1125,7 +1125,7 @@ func TestBuildHybridMaster_FallbackRung_KeepsCopyCodec_OnHEVCCapableGPUAndClient
 	h.audioRenditionEnabled = true
 	h.copyFallbackRung = true
 	h.hwAccelEnabled = func() bool { return true }
-	h.capability = func() domaintranscoding.EncodeCapability { return qsvHEVCCapability() }
+	h.capability = func() domaintranscoding.HostCapabilitySnapshot { return (qsvHEVCCapability()).Snapshot() }
 
 	dur, err := shared.NewDurationMs(60000)
 	require.NoError(t, err)

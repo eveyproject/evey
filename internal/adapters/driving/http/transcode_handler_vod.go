@@ -200,7 +200,7 @@ type hlsVODServe struct {
 	// service isn't wired (tests). Returns a fresh snapshot per call so
 	// recalibration via the admin endpoint takes effect immediately -
 	// no need to restart the server.
-	capability func() domaintranscoding.EncodeCapability
+	capability func() domaintranscoding.HostCapabilitySnapshot
 
 	// capOverride is the CMCD-feedback adaptive override service.
 	// Returns (override, true) when an active override applies to the

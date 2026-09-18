@@ -45,7 +45,7 @@ func twoBackendResolver() *PlanResolver {
 	return &PlanResolver{
 		HWAccelEnabled:   func() bool { return true },
 		HWTonemapEnabled: func() bool { return true },
-		Capability:       func() transcoding.EncodeCapability { return cap },
+		Capability:       func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		RouteCosts:       func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 7) },
 	}
 }
@@ -88,7 +88,7 @@ func TestBackendPerRoute_SDRNearTieStable(t *testing.T) {
 	}
 	pr := &PlanResolver{
 		HWAccelEnabled: func() bool { return true }, HWTonemapEnabled: func() bool { return true },
-		Capability: func() transcoding.EncodeCapability { return base },
+		Capability: func() transcoding.HostCapabilitySnapshot { return (base).Snapshot() },
 		RouteCosts: func() *RouteCostModel { return NewRouteCostModel(base.RouteSamples, 7) },
 	}
 	sdr := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"video_codec_unsupported"}}
@@ -105,7 +105,7 @@ func TestBackendPerRoute_AV1NeedsAProvenAV1Route(t *testing.T) {
 	av1 := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "av1", TranscodeReasons: []string{"preferred_video_codec"}}
 	pr := &PlanResolver{
 		HWAccelEnabled: func() bool { return true }, AV1Enabled: func() bool { return true },
-		Capability: func() transcoding.EncodeCapability { return cap },
+		Capability: func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		RouteCosts: func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 7) },
 	}
 	codec, _, _, _, usable, _ := pr.EffectiveVideoCodec(av1, sdrStreams("h264", "yuv420p", false))
@@ -136,7 +136,7 @@ func TestBackendPerRoute_InterlacedSourceNeedsAProvenQSVDeinterlacer(t *testing.
 	cap := twoBackendCap()
 	pr := &PlanResolver{
 		HWAccelEnabled: func() bool { return true },
-		Capability:     func() transcoding.EncodeCapability { return cap },
+		Capability:     func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		RouteCosts:     func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 7) },
 	}
 	tff := "tt"
@@ -188,7 +188,7 @@ func TestBackendPerRoute_RKMPP(t *testing.T) {
 	}
 	pr := &PlanResolver{
 		HWAccelEnabled: func() bool { return true }, HWTonemapEnabled: func() bool { return true }, AV1Enabled: func() bool { return true },
-		Capability: func() transcoding.EncodeCapability { return cap },
+		Capability: func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 	}
 	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdrTranscode, sdrStreams("h264", "yuv420p", false))
 	assert.True(t, usable)
@@ -271,7 +271,7 @@ func TestBackendPerRoute_UnmeasuredHEVCVariantFallsBackToMeasuredH264OnTheGPU(t 
 	}
 	pr := &PlanResolver{
 		HWAccelEnabled: func() bool { return true },
-		Capability:     func() transcoding.EncodeCapability { return cap },
+		Capability:     func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		RouteCosts:     func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 8) },
 	}
 	// A client that decodes HEVC: the auto-upgrade wants hevc_qsv.
@@ -317,7 +317,7 @@ func TestBackendPerRoute_CostRanksOnTheMostConstrainedPool(t *testing.T) {
 	}
 	pr := &PlanResolver{
 		HWAccelEnabled: func() bool { return true },
-		Capability:     func() transcoding.EncodeCapability { return cap },
+		Capability:     func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		RouteCosts:     func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 4) },
 	}
 	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdrTranscode, sdrStreams("h264", "yuv420p", false))

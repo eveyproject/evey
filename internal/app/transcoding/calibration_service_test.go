@@ -693,7 +693,7 @@ func demotedService(t *testing.T, runner *fakeBenchmarkRunner, demotedFor time.D
 		DetectedBackends:  []string{"vaapi"},
 		HWDemotedAt:       time.Now().UTC().Add(-demotedFor),
 	}
-	svc.current.Store(&demoted)
+	svc.publish(demoted)
 	return svc
 }
 
@@ -763,7 +763,7 @@ func TestCalibration_ReprobeDemotedHW_NeverDemoted_DoesNothing(t *testing.T) {
 	runner := &fakeBenchmarkRunner{}
 	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, runner, nil)
 	healthy := domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, HWBackend: "vaapi", HWMaxHeight: 2160}
-	svc.current.Store(&healthy)
+	svc.publish(healthy)
 
 	assert.False(t, svc.ReprobeDemotedHW(context.Background()))
 	assert.EqualValues(t, 0, runner.calls.Load())
@@ -778,7 +778,7 @@ func TestCalibration_DemoteCapability_StampsWhenHWGoesOff(t *testing.T) {
 		SoftwareMaxHeight: 1080, HWBackend: "vaapi", HWMaxHeight: 2160,
 		HWCodecs: []string{"h264"}, HWDevice: "/dev/dri/renderD128",
 	}
-	svc.current.Store(&live)
+	svc.publish(live)
 
 	require.False(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWInit, "h264"), "first strike")
 	require.True(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWInit, "h264"))
@@ -794,7 +794,7 @@ func TestCalibration_DemoteCapability_FeatureTrim_NotStamped(t *testing.T) {
 		SoftwareMaxHeight: 1080, HWBackend: "vaapi", HWMaxHeight: 2160,
 		HWFeatures: []string{"temporal_aq"},
 	}
-	svc.current.Store(&live)
+	svc.publish(live)
 
 	require.True(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWUnsupportedOption, "h264"))
 
@@ -867,7 +867,7 @@ func contendedService(t *testing.T, runner *fakeBenchmarkRunner, probe func() fl
 	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil, WithHostLoadProbe(probe))
 	svc.idleProbeEvery = 0
 	cur := domaintranscoding.EncodeCapability{SoftwareMaxHeight: 720, CPUSignature: "fake-sig", BenchContended: true, BenchHostBusyPercent: 91}
-	svc.current.Store(&cur)
+	svc.publish(cur)
 	return svc
 }
 
@@ -896,7 +896,7 @@ func TestCalibration_RebenchIfContended_NotContended_NoOp(t *testing.T) {
 	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1440, CPUSignature: "fake-sig"}}
 	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, runner, nil)
 	cur := domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: "fake-sig"}
-	svc.current.Store(&cur)
+	svc.publish(cur)
 
 	assert.False(t, svc.RebenchIfContended(context.Background()))
 	assert.EqualValues(t, 0, runner.calls.Load(), "a trusted calibration is never re-benched behind the operator's back")

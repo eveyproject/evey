@@ -79,7 +79,7 @@ func newSwitchHandler(hwEnabled bool, capFn func() domaintranscoding.EncodeCapab
 	sw := &sentinelProducer{tag: "software"}
 	hw := &sentinelProducer{tag: "hardware"}
 	h := &hlsVODServe{
-		capability:     capFn,
+		capability:     func() domaintranscoding.HostCapabilitySnapshot { return capFn().Snapshot() },
 		hwAccelEnabled: func() bool { return hwEnabled },
 		// HW tonemap allowed when probed; mirrors production default.
 		hwTonemapEnabled: func() bool { return true },

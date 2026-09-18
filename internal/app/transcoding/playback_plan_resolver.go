@@ -26,7 +26,9 @@ import (
 // (720p software capability, no admission, no copy rung, no complexity class).
 type PlanResolver struct {
 	// Capability reports the host's calibrated encode ceiling; nil → SafeFallback.
-	Capability func() transcoding.EncodeCapability
+	// Capability is the host as the planner reads it: a snapshot (normalized
+	// row), never the persisted row itself.
+	Capability func() transcoding.HostCapabilitySnapshot
 	// RouteCosts is the per-route cost model (nil-safe) the backend-per-route
 	// pick reads to choose the CHEAPEST correct+proven backend for a route.
 	// nil → the pick falls back to the primary backend (single-backend behaviour).

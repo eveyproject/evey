@@ -25,8 +25,8 @@ func TestHLSVOD_Master_HonoursMaxHeight(t *testing.T) {
 	h, _ := buildVODHandler(t,
 		&testFakeStreamsGetter{item: testMediaItemWith1Minute(), streams: []*domainlibrary.MediaStream{v}},
 		allowAll(), testFakeParentalChecker{block: false})
-	h.capability = func() domaintranscoding.EncodeCapability {
-		return domaintranscoding.EncodeCapability{SoftwareMaxHeight: 2160}
+	h.capability = func() domaintranscoding.HostCapabilitySnapshot {
+		return domaintranscoding.EncodeCapability{SoftwareMaxHeight: 2160}.Snapshot()
 	}
 
 	rec := doVODRequestQ(h, "m1", "master.m3u8", "videoCodecs=h264&maxHeight=480")

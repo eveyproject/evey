@@ -35,7 +35,7 @@ func fallbackResolver(cap transcoding.EncodeCapability) *PlanResolver {
 	return &PlanResolver{
 		HWAccelEnabled:   func() bool { return true },
 		HWTonemapEnabled: func() bool { return true },
-		Capability:       func() transcoding.EncodeCapability { return cap },
+		Capability:       func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		Expressibility:   ffmpeg.Expressibility{}, // the builder's port, the one rule set the pick refuses on
 	}
 }
@@ -135,12 +135,11 @@ func TestResolver_UndecodableSourcesNeverReachTheGPU(t *testing.T) {
 	noMain10.HWDecodeCodecs = []string{"h264", "hevc"}
 	assert.False(t, fallbackResolver(noMain10).HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv420p10le", true))))
 	// The same list on a pre-class row still means "hevc covers Main10" -
-	// through Normalized, applied once when the row is published, never by a
-	// version branch in the resolver.
+	// through Snapshot, the only way a row reaches the resolver (its
+	// Capability yields a HostCapabilitySnapshot), never by a version branch.
 	legacy := noMain10
 	legacy.ProbeVersion = 4
-	assert.False(t, fallbackResolver(legacy).HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv420p10le", true))), "the raw row reads as written")
-	assert.True(t, fallbackResolver(legacy.Normalized()).HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv420p10le", true))))
+	assert.True(t, fallbackResolver(legacy).HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv420p10le", true))))
 	// And the plain 4:2:0 classes still ride the GPU.
 	assert.True(t, pr.HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv420p10le", true))))
 	assert.True(t, pr.HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("h264", "yuv420p", false))))
@@ -177,7 +176,7 @@ func TestResolver_BlockedTitleSpillsToSoftware(t *testing.T) {
 	pr := &PlanResolver{
 		HWAccelEnabled:   func() bool { return true },
 		HWTonemapEnabled: func() bool { return true },
-		Capability:       func() transcoding.EncodeCapability { return cap },
+		Capability:       func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		HWRouteBlocked:   func(id string) bool { return blocked[id] },
 		Selector:         NewProducerSelector(sw, hw),
 	}
