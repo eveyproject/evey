@@ -77,28 +77,23 @@ func TestSoftwareCeilingFor_AV1Uncalibrated_FallsBackToH264(t *testing.T) {
 	assert.Equal(t, 720, EncodeCapability{}.SoftwareCeilingFor("av1"))
 }
 
-// TestHWCanDecode_OldIGPUEncodesH264ButNotHEVC locks the exact production case:
-// a pre-Skylake Intel iGPU HW-encodes H.264 but has NO HEVC hardware
-// decoder. resolveHW relies on HWCanDecode("hevc")==false here to fall back to
-// software instead of feeding an undecodable source to -hwaccel and stalling.
-func TestHWCanDecode_OldIGPUEncodesH264ButNotHEVC(t *testing.T) {
+// TestHWCanDecodeSource_OldIGPUEncodesH264ButNotHEVC locks the exact
+// production case: a pre-Skylake Intel iGPU HW-encodes H.264 but
+// has NO HEVC hardware decoder. A codec alone names its 4:2:0 8-bit decode
+// class; the resolver relies on
+// HWCanDecodeSource("hevc", false, "") == false on such a box to keep an HEVC
+// source off -hwaccel instead of stalling on an undecodable stream.
+func TestHWCanDecodeSource_OldIGPUEncodesH264ButNotHEVC(t *testing.T) {
 	// No backend → false regardless of the decode list.
-	assert.False(t, EncodeCapability{HWDecodeCodecs: []string{"hevc", "hevc10"}}.HWCanDecode("hevc"))
+	assert.False(t, EncodeCapability{HWDecodeCodecs: []string{"hevc", "hevc10"}}.HWCanDecodeSource("hevc", false, ""))
 
 	oldIGPU := EncodeCapability{
 		HWBackend:      "vaapi",
 		HWCodecs:       []string{"h264"}, // encodes H.264
 		HWDecodeCodecs: []string{"h264"}, // but cannot decode HEVC
 	}
-	assert.False(t, oldIGPU.HWCanDecode("hevc"), "an old iGPU cannot HW-decode HEVC")
-	assert.False(t, oldIGPU.HWCanDecode("h265"), "h265 alias normalises to hevc → also false")
-	assert.True(t, oldIGPU.HWCanDecode("h264"), "H.264 HW decode is supported")
-	assert.True(t, oldIGPU.HWCanDecode("avc1"), "avc1 alias normalises to h264 → true")
-}
-
-func TestHWHasFeature(t *testing.T) {
-	c := EncodeCapability{HWFeatures: []string{"low_power", "rc_vbr"}}
-	assert.True(t, c.HWHasFeature("low_power"))
-	assert.False(t, c.HWHasFeature("bframes"))
-	assert.False(t, EncodeCapability{}.HWHasFeature("low_power"), "no features → false")
+	assert.False(t, oldIGPU.HWCanDecodeSource("hevc", false, ""), "an old iGPU cannot HW-decode HEVC")
+	assert.False(t, oldIGPU.HWCanDecodeSource("h265", false, ""), "h265 alias normalises to hevc → also false")
+	assert.True(t, oldIGPU.HWCanDecodeSource("h264", false, ""), "H.264 HW decode is supported")
+	assert.True(t, oldIGPU.HWCanDecodeSource("avc1", false, ""), "avc1 alias normalises to h264 → true")
 }

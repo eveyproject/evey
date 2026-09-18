@@ -195,6 +195,18 @@ the decode-class list; the decode gate (`HWCanDecodeSource`,
 `ProbeVersion` is read by the calibration lifecycle only. The goldens are
 byte-identical (the test fixtures name their Main10 class explicitly).
 
+**Last pass (2026-09-18), the immediately solvable debt settled:**
+`HostCapabilitySnapshot` is the planner's capability type, produced only by
+`EncodeCapability.Snapshot` (the calibration's publish), while the
+repository speaks the persisted role (`PersistedEncodeCapability`); every
+resolver test passes through the plan (`planFor` = `Resolve` past `Decide`,
+the facets read off it), so the test-only sub-derivation wrappers are gone
+with the dead `routeWithPin`; the flat readers ADR-0030 obsoleted
+(`HWCanDecode`, `HWRouteProven`, `HWHasFeature`, `HWHDRPassthroughUsable`)
+are removed; `ResolvedRoute.Identity` names the GPU tone-map implementation
+(what `tm=` forks the cache on) and no encoder option; the contract guard
+also refuses any snapshot made outside the calibration's publish.
+
 Still to do, each gated on something outside the code, in this order:
 
 1. **Demotion by exact route** - when the calibration runner can probe one

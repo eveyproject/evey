@@ -5,13 +5,14 @@
 // derived in four places and kept "in sync" by some sixty mirror comments;
 // the ADR removed the mirrors, this guard keeps them from growing back.
 //
-// Two mechanical checks:
+// Three mechanical checks:
 //   - the exported surface of *PlanResolver is exactly the plan-level entry
 //     points (Resolve, Decide, IsCopy, ProducerForPlan, QualityPolicy): a new
 //     exported sub-derivation is a red test until it is argued for here;
 //   - no production file outside internal/app/transcoding calls one of the
-//     old sub-derivations by name (they live on as test-only wrappers inside
-//     the package), whatever the receiver.
+//     old sub-derivations by name, whatever the receiver;
+//   - the planner's HostCapabilitySnapshot is made by the calibration's
+//     publish only: no other production site snapshots a capability row.
 package contractguard
 
 import (
@@ -144,6 +145,98 @@ func TestNoCallerDerivesDownstreamOfThePlaybackPlan(t *testing.T) {
 		t.Errorf("a caller derives a facet of the playback plan on its own (ADR-0030: resolve the plan, project it):\n  %s",
 			strings.Join(violations, "\n  "))
 	}
+}
+
+// snapshotMakers are the production sites allowed to turn a capability row
+// into the planner's HostCapabilitySnapshot: the calibration service's
+// publish (every store goes through it) and the two SafeFallback stand-ins
+// for a host with no calibration service at all. Anywhere else, a row
+// reaching the planner bypassed the publish - the type exists to make that
+// a red test.
+var snapshotMakers = map[string]bool{
+	"internal/app/transcoding/calibration_service.go":      true,
+	"internal/app/transcoding/resolver_route.go":           true,
+	"internal/adapters/driving/http/transcode_vod_wire.go": true,
+}
+
+func TestOnlyTheCalibrationPublishesACapabilitySnapshot(t *testing.T) {
+	t.Parallel()
+	fset := token.NewFileSet()
+	var violations []string
+	for _, root := range []string{repoRoot + "/internal", repoRoot + "/cmd"} {
+		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			rel, _ := filepath.Rel(repoRoot, path)
+			if snapshotMakers[rel] || rel == "internal/domain/transcoding/capability.go" {
+				return nil
+			}
+			f, err := parser.ParseFile(fset, path, nil, 0)
+			if err != nil {
+				return err
+			}
+			ast.Inspect(f, func(n ast.Node) bool {
+				switch x := n.(type) {
+				case *ast.CallExpr:
+					if sel, ok := x.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Snapshot" && len(x.Args) == 0 && isCapabilityExpr(sel.X) {
+						violations = append(violations, fmt.Sprintf("%s:%d calls Snapshot() on a capability row", rel, fset.Position(x.Pos()).Line))
+					}
+				case *ast.CompositeLit:
+					if typeName(x.Type) == "HostCapabilitySnapshot" {
+						violations = append(violations, fmt.Sprintf("%s:%d builds a HostCapabilitySnapshot literal", rel, fset.Position(x.Pos()).Line))
+					}
+				}
+				return true
+			})
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(violations) > 0 {
+		sort.Strings(violations)
+		t.Errorf("a capability snapshot is made outside the calibration's publish (ADR-0030: the planner reads what the calibration published):\n  %s",
+			strings.Join(violations, "\n  "))
+	}
+}
+
+// isCapabilityExpr tells a capability row's Snapshot() from the unrelated
+// Snapshot() of other types (the background-task registry): the receiver is
+// a call returning a capability (SafeFallback(), Current()) or a selector
+// naming one (cap, capability, persisted).
+func isCapabilityExpr(x ast.Expr) bool {
+	switch e := x.(type) {
+	case *ast.CallExpr:
+		if sel, ok := e.Fun.(*ast.SelectorExpr); ok {
+			return sel.Sel.Name == "SafeFallback" || sel.Sel.Name == "Current"
+		}
+		if id, ok := e.Fun.(*ast.Ident); ok {
+			return id.Name == "SafeFallback"
+		}
+	case *ast.Ident:
+		switch e.Name {
+		case "cap", "capability", "persisted", "row", "c":
+			return true
+		}
+	case *ast.SelectorExpr:
+		return isCapabilityExpr(e.Sel)
+	}
+	return false
+}
+
+func typeName(expr ast.Expr) string {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		return e.Name
+	case *ast.SelectorExpr:
+		return e.Sel.Name
+	}
+	return ""
 }
 
 func receiverTypeName(expr ast.Expr) string {

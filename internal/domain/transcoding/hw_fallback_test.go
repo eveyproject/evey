@@ -66,23 +66,25 @@ func TestPlanFeatureDemotion_NarrowsToWhatWasReconfirmed(t *testing.T) {
 }
 
 func TestCapability_RouteProofAndDecodeClasses(t *testing.T) {
+	// The route proof is read per backend (HWBackendCap.Proves), the flat
+	// HWRoutes of a pre-Backends row synthesised into its one backend.
 	cap := probedCap()
-	if !cap.HWRouteProven(HWRouteSDR) || cap.HWRouteProven(HWRouteHEVC) {
+	if b := cap.BackendCaps()[0]; !b.Proves(HWRouteSDR) || b.Proves(HWRouteHEVC) {
 		t.Fatal("a probed row is authoritative: only listed routes are proven")
 	}
 	legacy := cap
 	legacy.HWRoutes = nil
-	if !legacy.HWRouteProven(HWRoutePassthrough) {
+	if !legacy.BackendCaps()[0].Proves(HWRoutePassthrough) {
 		t.Fatal("a pre-probe row (nil routes) is trusted until re-benched")
 	}
 	empty := cap
 	empty.HWRoutes = []string{}
-	if empty.HWRouteProven(HWRouteSDR) {
+	if empty.BackendCaps()[0].Proves(HWRouteSDR) {
 		t.Fatal("an empty probed list proves nothing (fail-closed)")
 	}
 	none := cap
 	none.HWBackend = ""
-	if none.HWRouteProven(HWRouteSDR) {
+	if len(none.BackendCaps()) != 0 {
 		t.Fatal("no backend, no route")
 	}
 
