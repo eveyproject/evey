@@ -92,6 +92,8 @@ function NotificationItem({ item, onPress, onMarkRead }: { item: V1Notification;
         />
       </View>
 
+      {/* Two lines for the title: "New episode: <series> (1 episode)" never fit
+          one phone-width line, and a tester had to open each one to read it. */}
       <View style={{ flex: 1, gap: 2 }}>
         <Text
           style={{
@@ -99,12 +101,12 @@ function NotificationItem({ item, onPress, onMarkRead }: { item: V1Notification;
             fontSize: 14,
             fontWeight: isUnread ? "600" : "400",
           }}
-          numberOfLines={1}
+          numberOfLines={2}
         >
           {translateTitle(t, item)}
         </Text>
         {item.message && (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={2}>
             {item.message}
           </Text>
         )}
@@ -113,15 +115,17 @@ function NotificationItem({ item, onPress, onMarkRead }: { item: V1Notification;
         </Text>
       </View>
 
+      {/* Icon only: the "Mark as read" label took the width the title needed.
+          The single check echoes the header's double check (mark all read). */}
       {isUnread && (
         <Pressable
           onPress={(e) => { e.stopPropagation(); onMarkRead(); }}
           hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel={t("common.notifications.markRead")}
-          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6, padding: 4 }}
         >
-          <Text style={{ color: theme.colors.accent, fontSize: 12 }}>{t("common.notifications.markRead")}</Text>
+          <Ionicons name="checkmark-outline" size={20} color={theme.colors.accent} />
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.accent }} />
         </Pressable>
       )}
