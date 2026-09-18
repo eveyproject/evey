@@ -834,7 +834,6 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 		if err := routeRefusal(opts, burnIn, toneMap); err != nil {
 			return refuseRoute(opts, burnIn, toneMap, err)
 		}
-		noteExpressibility(opts, burnIn, toneMap)
 		return buildSingleTranscodeHWArgs(opts)
 	}
 
@@ -916,7 +915,6 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		if err := routeRefusal(opts, burnIn, toneMap); err != nil {
 			return refuseRoute(opts, burnIn, toneMap, err)
 		}
-		noteExpressibility(opts, burnIn, toneMap)
 		return buildMultiVariantHWArgs(opts)
 	}
 	vcodec := resolveVideoEncoder(opts.VideoCodec)

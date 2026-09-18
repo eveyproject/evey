@@ -254,20 +254,6 @@ var (
 		Help: "Total resolved GPU routes the ffmpeg builder could not express (planner/builder disagreement).",
 	})
 
-	// HLSVODRouteExpressibilityChecks / Disagreements are the per-cell view of
-	// the same shadow, labelled by the checker (resolver | builder), the
-	// backend, the pipeline topology and what the session composites. The exit
-	// criterion of the shadow reads them: every reachable cell checked at both
-	// sites, zero disagreements. Temporary, like the shadow.
-	HLSVODRouteExpressibilityChecks = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "evey_hlsvod_route_expressibility_checks_total",
-		Help: "Expressibility checks of resolved GPU routes, per checker, backend, topology and needs.",
-	}, []string{"site", "backend", "topology", "needs"})
-	HLSVODRouteExpressibilityDisagreements = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "evey_hlsvod_route_expressibility_disagreements_total",
-		Help: "Expressibility checks that refused a resolved GPU route, per checker, backend, topology and needs.",
-	}, []string{"site", "backend", "topology", "needs"})
-
 	// HLSVODCacheHits / HLSVODCacheMisses split segment requests by whether
 	// they hit the disk cache before waiting for ffmpeg. Hit-rate >> 0 is
 	// the primary KPI for the multi-session cache: low hit-rate means users
@@ -385,7 +371,7 @@ func init() {
 		WatcherProbeTotal, WatcherAlive, LibraryScanTotal,
 		TranscodeDuration,
 		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled, HLSVODSessionsCompleted, HLSVODSessionsRejected,
-		HLSVODRouteNotExpressible, HLSVODRouteExpressibilityChecks, HLSVODRouteExpressibilityDisagreements,
+		HLSVODRouteNotExpressible,
 		HLSVODCopyTimelineDrift, HLSVODTranscodeSeekTimelineDrift,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,

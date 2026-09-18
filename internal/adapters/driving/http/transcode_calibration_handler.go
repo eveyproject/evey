@@ -105,11 +105,7 @@ func routeCostViews(cap domaintranscoding.EncodeCapability) []routeCostView {
 // transcodeCalibrationGetHandler returns the current encode capability
 // (read-only). Used by the Server Config admin page to surface "last
 // calibrated 3 days ago" + the actual caps the host is enforcing.
-//
-// reachableCells (optional) enumerates the route cells the live resolver can
-// reach; when wired, the response carries the shadow's coverage report - the
-// exit criterion of ADR-0030's shadow, in one read.
-func transcodeCalibrationGetHandler(svc calibrationSvc, reachableCells func() []domaintranscoding.ExpressibilityCell) http.HandlerFunc {
+func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, span := tracing.StartSpan(r.Context(), "http.transcode.calibration.Get")
 		defer span.End()
@@ -139,11 +135,6 @@ func transcodeCalibrationGetHandler(svc calibrationSvc, reachableCells func() []
 			// Calibration is the lifecycle: a boot never benchmarks, so the
 			// ceilings above may be interim until the first idle window.
 			Calibration apptranscoding.CalibrationStatus `json:"calibration"`
-			// Expressibility is the shadow's coverage: the route cells this host
-			// can reach, which of them both checkers saw, and the disagreements.
-			// ready_to_leave_shadow is the go/no-go. Absent when the builder's
-			// port is not wired. TEMPORARY (ADR-0030, 6).
-			Expressibility *domaintranscoding.ExpressibilityReport `json:"expressibility,omitempty"`
 		}{
 			publicEncodeCapability: publicEncodeCapability{EncodeCapability: cap},
 			HWMode:                 string(svc.HWMode()),
@@ -153,10 +144,6 @@ func transcodeCalibrationGetHandler(svc calibrationSvc, reachableCells func() []
 			IsWSL:       sysinfo.IsWSL(),
 			HWFallbacks: svc.RecentFallbacks(),
 			RouteCosts:  routeCostViews(cap),
-		}
-		if reachableCells != nil {
-			rep := domaintranscoding.ExpressibilityCoverageTable.Report(reachableCells())
-			resp.Expressibility = &rep
 		}
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			span.RecordError(err)
