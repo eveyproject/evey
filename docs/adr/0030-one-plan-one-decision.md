@@ -186,6 +186,15 @@ pin does instead is DETECT the move: `VideoAdmissionShaper.NoteRoute` counts
 `evey_hlsvod_route_drift_total` once per move of a live stream's route
 identity (codec/backend/topology), logs it, and adopts the new route.
 
+**Probe generations out of the planner (2026-09-18).** A capability row is
+published in one vocabulary: `EncodeCapability.Normalized`, applied once by
+the calibration service on every store (persisted, benched, demoted),
+upgrades a pre-class row (`ProbeVersion` < 5, where "hevc" covered Main10) to
+the decode-class list; the decode gate (`HWCanDecodeSource`,
+`HWBackendCap.CanDecodeSource`) reads a list as written and knows no version.
+`ProbeVersion` is read by the calibration lifecycle only. The goldens are
+byte-identical (the test fixtures name their Main10 class explicitly).
+
 Still to do, each gated on something outside the code, in this order:
 
 1. **Demotion by exact route** - when the calibration runner can probe one

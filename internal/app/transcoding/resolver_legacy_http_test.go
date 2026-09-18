@@ -44,7 +44,7 @@ func hdrCapHWCapability() transcoding.EncodeCapability {
 		HWMaxHeight:          2160,
 		HWBackend:            "nvenc",
 		HWCodecs:             []string{"h264"},
-		HWDecodeCodecs:       []string{"hevc"},
+		HWDecodeCodecs:       []string{"hevc", "hevc10"},
 		HW10BitTranscode:     true, // allows the 10-bit source through the HW gate
 	}
 }
@@ -412,7 +412,7 @@ func TestResolveHW(t *testing.T) {
 		box := transcoding.EncodeCapability{
 			HWBackend:        "vaapi",
 			HWCodecs:         []string{"h264"},
-			HWDecodeCodecs:   []string{"h264", "hevc"},
+			HWDecodeCodecs:   []string{"h264", "hevc", "hevc10"},
 			HW10BitTranscode: false,
 			HWDevice:         "/dev/dri/renderD128",
 		}
@@ -437,7 +437,7 @@ func TestResolveHW(t *testing.T) {
 		box := transcoding.EncodeCapability{
 			HWBackend:        "nvenc",
 			HWCodecs:         []string{"h264", "hevc"},
-			HWDecodeCodecs:   []string{"h264", "hevc"},
+			HWDecodeCodecs:   []string{"h264", "hevc", "hevc10"},
 			HW10BitTranscode: true,
 		}
 		pr := &PlanResolver{
@@ -530,7 +530,7 @@ func TestHWRouteUsable_MatchesEffectiveCodec_AV1Fallback(t *testing.T) {
 	nvencH264 := transcoding.EncodeCapability{
 		HWBackend:      "nvenc",
 		HWCodecs:       []string{"h264", "hevc"}, // no AV1 encode
-		HWDecodeCodecs: []string{"h264", "hevc"},
+		HWDecodeCodecs: []string{"h264", "hevc", "hevc10"},
 	}
 	pr := &PlanResolver{
 		Capability:     func() transcoding.EncodeCapability { return nvencH264 },
@@ -569,7 +569,7 @@ func TestHWRouteUsable_HDRWithoutHWTonemap_RoutesSoftware(t *testing.T) {
 	nvencNoTonemap := transcoding.EncodeCapability{
 		HWBackend:        "nvenc",
 		HWCodecs:         []string{"h264", "hevc"},
-		HWDecodeCodecs:   []string{"h264", "hevc"},
+		HWDecodeCodecs:   []string{"h264", "hevc", "hevc10"},
 		HW10BitTranscode: true,
 		HWTonemap:        false,
 		HWMaxHeight:      2160,

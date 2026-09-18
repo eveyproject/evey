@@ -324,7 +324,7 @@ func TestShapeLadder_SoftwareCeilingFollowsTheEffectiveCodec(t *testing.T) {
 func TestShapeLadder_HDRBridgeUsesItsOwnCeiling(t *testing.T) {
 	capability := transcoding.EncodeCapability{
 		SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160,
-		HWBackend: "nvenc", HWCodecs: []string{"h264"}, HWDecodeCodecs: []string{"hevc"},
+		HWBackend: "nvenc", HWCodecs: []string{"h264"}, HWDecodeCodecs: []string{"hevc", "hevc10"},
 		HW10BitTranscode: true, HWTonemap: false, HWBridgeMaxHeight: 1440,
 	}
 	pr := &PlanResolver{

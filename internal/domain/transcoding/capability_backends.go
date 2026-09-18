@@ -88,25 +88,9 @@ func (b HWBackendCap) SupportsCodec(codec string) bool {
 	return slices.Contains(b.Codecs, codec)
 }
 
-// CanDecodeSource mirrors EncodeCapability.HWCanDecodeSource for one backend
-// (probe-matrix aware via the shared DecodeClassKey).
-func (b HWBackendCap) CanDecodeSource(codec string, tenBit bool, pixFmt string, probeVersion int) bool {
-	if probeVersion >= decodeMatrixProbeVersion && strings.TrimSpace(pixFmt) != "" {
-		return slices.Contains(b.DecodeCodecs, DecodeClassKey(codec, pixFmt))
-	}
-	if probeVersion < decodeMatrixProbeVersion && !HWChromaDecodable(pixFmt) {
-		return false
-	}
-	if !tenBit {
-		return slices.Contains(b.DecodeCodecs, normaliseSourceCodec(codec))
-	}
-	if normaliseSourceCodec(codec) != "hevc" {
-		return false
-	}
-	if probeVersion < decodeClassProbeVersion {
-		return slices.Contains(b.DecodeCodecs, "hevc")
-	}
-	return slices.Contains(b.DecodeCodecs, HWDecodeHEVC10)
+// CanDecodeSource is EncodeCapability.HWCanDecodeSource for one backend.
+func (b HWBackendCap) CanDecodeSource(codec string, tenBit bool, pixFmt string) bool {
+	return decodable(b.DecodeCodecs, codec, tenBit, pixFmt)
 }
 
 // BackendCaps returns the per-backend capabilities, synthesising a single

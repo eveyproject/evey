@@ -228,6 +228,29 @@ func TestCalibration_EnsureCalibrated_LegacyRowNoSamples_KeepsCeilings(t *testin
 	assert.Zero(t, cur.PolicyVersion, "nothing derived => PolicyVersion left unstamped")
 }
 
+// A pre-class row (ProbeVersion < 5) is served in the planner's vocabulary:
+// "hevc" covered Main10 when it was written, so the published capability
+// says hevc10 - once, here, never through a version branch downstream. The
+// row is served interim (its probes are stale, a re-bench is pending), and
+// the repository's own copy is left as persisted.
+func TestCalibration_PublishesThePersistedRowNormalized(t *testing.T) {
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, ProbeVersion: 4, CPUSignature: hostSig,
+			HWBackend: "nvenc", HWCodecs: []string{"h264"}, HWDecodeCodecs: []string{"h264", "hevc"}, HW10BitTranscode: true,
+		},
+	}
+	runner := &fakeBenchmarkRunner{}
+	svc := newIdleHostCalibrationService(repo, runner, nil)
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+
+	cur := svc.Current()
+	assert.Contains(t, cur.HWDecodeCodecs, domaintranscoding.HWDecodeHEVC10, "the published row names the Main10 class the old reading implied")
+	assert.True(t, cur.HWCanDecodeSource("hevc", true, "yuv420p10le"))
+	assert.Equal(t, []string{"h264", "hevc"}, repo.stored.HWDecodeCodecs, "the persisted row is not rewritten")
+}
+
 func TestCalibration_SoftwareCapOverrides_ForceCurrentCeilings(t *testing.T) {
 	// An operator override raises the software / HDR ceilings past what the
 	// benchmark calibrated, so Current() must reflect the override regardless of
@@ -996,7 +1019,7 @@ func TestCalibration_EnsureCalibrated_OldProbeVersion_Rebenches(t *testing.T) {
 		stored: &domaintranscoding.EncodeCapability{
 			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "vaapi", CPUSignature: hostSig,
 			ProbeVersion: domaintranscoding.CapabilityProbeVersion - 1,
-			HWRoutes:     []string{domaintranscoding.HWRouteSDR}, HWDecodeCodecs: []string{"h264", "hevc", "vc1"},
+			HWRoutes:     []string{domaintranscoding.HWRouteSDR}, HWDecodeCodecs: []string{"h264", "hevc", "hevc10", "vc1"},
 		},
 	}
 	runner3 := &fakeBenchmarkRunner{result: runner.result}

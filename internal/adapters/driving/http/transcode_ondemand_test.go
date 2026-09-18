@@ -1106,10 +1106,10 @@ func qsvHEVCCapability() domaintranscoding.EncodeCapability {
 		SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720, HWMaxHeight: 2160,
 		ProbeVersion: domaintranscoding.CapabilityProbeVersion,
 		HWBackend:    "qsv", HWDevice: "/dev/dri/renderD128", HWCodecs: []string{"h264", "hevc"},
-		HWDecodeCodecs: []string{"h264", "hevc"}, HWRoutes: routes,
+		HWDecodeCodecs: []string{"h264", "hevc", "hevc10"}, HWRoutes: routes,
 		Backends: []domaintranscoding.HWBackendCap{{
 			Backend: "qsv", Device: "/dev/dri/renderD128", Codecs: []string{"h264", "hevc"},
-			DecodeCodecs: []string{"h264", "hevc"}, Routes: routes,
+			DecodeCodecs: []string{"h264", "hevc", "hevc10"}, Routes: routes,
 		}},
 	}
 }

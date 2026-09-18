@@ -334,8 +334,7 @@ func NewCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaint
 	for _, opt := range opts {
 		opt(s)
 	}
-	fallback := domaintranscoding.SafeFallback()
-	s.current.Store(&fallback)
+	s.publish(domaintranscoding.SafeFallback())
 	return s
 }
 
@@ -404,6 +403,15 @@ func (s *CalibrationService) SetHWMode(ctx context.Context, mode domaintranscodi
 // Current returns the in-memory capability - never nil, always
 // includes at least the safe fallback. Read on every HLS-VOD request
 // so MUST be fast (atomic pointer load).
+// publish makes cap the capability every reader sees, in the planner's one
+// vocabulary (EncodeCapability.Normalized): a row persisted by an older
+// probe generation is upgraded HERE, once, and nothing downstream branches
+// on ProbeVersion. Every store of the current capability goes through it.
+func (s *CalibrationService) publish(cap domaintranscoding.EncodeCapability) {
+	n := cap.Normalized()
+	s.current.Store(&n)
+}
+
 func (s *CalibrationService) Current() domaintranscoding.EncodeCapability {
 	c := *s.current.Load()
 	// Operator overrides (env): force the software ceilings regardless of the
@@ -526,7 +534,7 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 				s.logger.Warn("calibration: persisted capability was benchmarked on a busy host - provisional, re-benching once the host is idle",
 					slog.Int("host_busy_percent", persisted.BenchHostBusyPercent))
 			}
-			s.current.Store(&persisted)
+			s.publish(persisted)
 			s.notifyCapabilityChange()
 			return nil
 		}
@@ -569,7 +577,7 @@ func (s *CalibrationService) publishInterim(cap domaintranscoding.EncodeCapabili
 		slog.Int("software_max_height", cap.SoftwareMaxHeight),
 		slog.Int("hw_max_height", cap.HWMaxHeight),
 		slog.String("hw_backend", cap.HWBackend))
-	s.current.Store(&cap)
+	s.publish(cap)
 	s.notifyCapabilityChange()
 	s.markPending(reason)
 }
@@ -722,7 +730,7 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 		// We still publish to in-memory - request handling benefits
 		// even if the DB write failed. Next boot will re-bench.
 	}
-	s.current.Store(&cap)
+	s.publish(cap)
 	s.pendingBench.Store(false)
 	s.notifyCapabilityChange()
 	return nil
@@ -971,7 +979,7 @@ func (s *CalibrationService) applyDemotion(ctx context.Context, cur domaintransc
 				slog.Any("err", err))
 		}
 	}
-	s.current.Store(&d.Capability)
+	s.publish(d.Capability)
 	s.notifyCapabilityChange()
 	s.logger.Warn("calibration: HW capability demoted after a failure the host confirmed",
 		slog.String("class", string(class)),
@@ -1039,7 +1047,7 @@ func (s *CalibrationService) ReprobeDemotedHW(ctx context.Context) bool {
 	latest := *s.current.Load()
 	if !latest.HWDemotedAt.IsZero() && latest.HWBackend == "" {
 		latest.HWDemotedAt = time.Now().UTC()
-		s.current.Store(&latest)
+		s.publish(latest)
 	}
 	s.currentMu.Unlock()
 	s.logger.Info("calibration: demoted HW backend still not usable, staying software",

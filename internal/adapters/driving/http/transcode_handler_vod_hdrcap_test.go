@@ -35,7 +35,7 @@ func hdrCapHWCapability() domaintranscoding.EncodeCapability {
 		HWMaxHeight:          2160,
 		HWBackend:            "nvenc",
 		HWCodecs:             []string{"h264"},
-		HWDecodeCodecs:       []string{"hevc"},
+		HWDecodeCodecs:       []string{"hevc", "hevc10"},
 		HW10BitTranscode:     true, // allows the 10-bit source through the HW gate
 	}
 }

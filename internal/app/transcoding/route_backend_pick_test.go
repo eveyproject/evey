@@ -255,11 +255,11 @@ func TestBackendPerRoute_UnmeasuredHEVCVariantFallsBackToMeasuredH264OnTheGPU(t 
 	cap := transcoding.EncodeCapability{
 		SoftwareMaxHeight: 1080, HWMaxHeight: 2160, ProbeVersion: transcoding.CapabilityProbeVersion,
 		HWBackend: "qsv", HWDevice: "/dev/dri/renderD128", HWCodecs: []string{"h264", "hevc"},
-		HWDecodeCodecs: []string{"h264", "hevc"},
+		HWDecodeCodecs: []string{"h264", "hevc", "hevc10"},
 		HWRoutes:       []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteDecoupled},
 		Backends: []transcoding.HWBackendCap{{
 			Backend: "qsv", Device: "/dev/dri/renderD128", Codecs: []string{"h264", "hevc"},
-			DecodeCodecs: []string{"h264", "hevc"}, // no VP9 decode: a VP9 source takes the decoupled route
+			DecodeCodecs: []string{"h264", "hevc", "hevc10"}, // no VP9 decode: a VP9 source takes the decoupled route
 			Routes:       []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteDecoupled},
 		}},
 		RouteSamples: []transcoding.RouteSample{

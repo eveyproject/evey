@@ -646,7 +646,7 @@ func TestLadderClassFor_AgreesWithFingerprint(t *testing.T) {
 	nvenc := domaintranscoding.EncodeCapability{
 		HWBackend:      "nvenc",
 		HWCodecs:       []string{"h264", "hevc"},
-		HWDecodeCodecs: []string{"h264", "hevc"},
+		HWDecodeCodecs: []string{"h264", "hevc", "hevc10"},
 	}
 	cases := []struct {
 		name      string
@@ -714,7 +714,7 @@ func TestHLSVOD_SpilledStream_FingerprintAndSpawnFollowTheSoftwareRoute(t *testi
 		return domaintranscoding.EncodeCapability{
 			HWBackend:      "nvenc",
 			HWCodecs:       []string{"h264", "hevc"},
-			HWDecodeCodecs: []string{"h264", "hevc"},
+			HWDecodeCodecs: []string{"h264", "hevc", "hevc10"},
 			HWMaxHeight:    2160,
 		}
 	}
@@ -1269,7 +1269,7 @@ func TestHLSVOD_Master_CodecsFollowTheSpilledFingerprint(t *testing.T) {
 	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
 	h.capability = func() domaintranscoding.EncodeCapability {
 		return domaintranscoding.EncodeCapability{
-			HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc"}, HWDecodeCodecs: []string{"h264", "hevc"}, HWMaxHeight: 2160,
+			HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc"}, HWDecodeCodecs: []string{"h264", "hevc", "hevc10"}, HWMaxHeight: 2160,
 			ProbeVersion: domaintranscoding.CapabilityProbeVersion,
 			HWRoutes:     []string{domaintranscoding.HWRouteSDR, domaintranscoding.HWRouteHEVC},
 		}

@@ -83,7 +83,7 @@ func TestSoftwareCeilingFor_AV1Uncalibrated_FallsBackToH264(t *testing.T) {
 // software instead of feeding an undecodable source to -hwaccel and stalling.
 func TestHWCanDecode_OldIGPUEncodesH264ButNotHEVC(t *testing.T) {
 	// No backend → false regardless of the decode list.
-	assert.False(t, EncodeCapability{HWDecodeCodecs: []string{"hevc"}}.HWCanDecode("hevc"))
+	assert.False(t, EncodeCapability{HWDecodeCodecs: []string{"hevc", "hevc10"}}.HWCanDecode("hevc"))
 
 	oldIGPU := EncodeCapability{
 		HWBackend:      "vaapi",
