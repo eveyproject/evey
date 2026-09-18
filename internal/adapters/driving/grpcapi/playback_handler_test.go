@@ -1680,4 +1680,9 @@ func TestGetStreamInfo_ChunkedFile_RoutesToHLSForTheRefusal(t *testing.T) {
 	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE, resp.PlayMethod)
 	assert.Contains(t, resp.TranscodeUrl, "hls/master.m3u8")
 	assert.Empty(t, resp.DirectPlayUrl)
+	// The DECISION carries the reason (the handler no longer rejudges the
+	// file): the client can name why, and both tracks keep their copy verdicts.
+	assert.Contains(t, resp.TranscodeReasons, "file_needs_remux")
+	assert.Equal(t, "copy", resp.VideoDecision)
+	assert.Equal(t, "copy", resp.AudioDecision)
 }

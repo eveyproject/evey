@@ -185,6 +185,7 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 	// resolution the fingerprint and the ffmpeg -map already use.
 	prefs.AudioTrack = req.AudioTrack
 	prefs.SourceBitrateKbps = req.SourceBitrateKbps
+	prefs.SourceNeedsRemux = req.SourceNeedsRemux
 	d := MakePlaybackDecisionWithPrefs(ctx, req.Streams, req.Container, req.Client, req.MaxBitrateKbps, prefs, req.SourcePath)
 	if d == nil {
 		return transcoding.PlaybackDecision{}

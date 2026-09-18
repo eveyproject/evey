@@ -177,6 +177,7 @@ streamInfo:
     subtitle_burn_in: Sous-titres incrustés dans l'image
     audio_resync_requested: Resynchronisation audio demandée
     decision_pinned: Choix figé pour cette session
+    file_needs_remux: "Fichier rangé par blocs mono-piste (réparation nécessaire)"
 jumpToChapter: "Aller au chapitre : {{chapter}}"
 cast:
   noDevices: "Aucun appareil de diffusion trouvé - ni sur le réseau du serveur, ni sur le vôtre."

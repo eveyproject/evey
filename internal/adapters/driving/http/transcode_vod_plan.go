@@ -133,6 +133,7 @@ func (h *hlsVODServe) marshalPlaybackRequest(r *http.Request, mediaID string, it
 		MaxBitrateKbps:      h.requestBitrateCapKbps(r),
 		SourceBytes:         sourceBytesOf(item),
 		SourceBitrateKbps:   sourceBitrateKbpsOf(item, streams),
+		SourceNeedsRemux:    item.File.NeedsRemux(),
 		ScreenHeight:        parseIntQuery(r, "screenHeight", 0),
 	}
 }

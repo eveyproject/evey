@@ -25,6 +25,26 @@ func TestDirectPlay_H264_AAC_MP4(t *testing.T) {
 	assert.Empty(t, d.TranscodeReasons)
 }
 
+// A file stored in one-track blocks (MediaFile.NeedsRemux) plays nowhere as
+// a raw file: the DECISION names it (file_needs_remux) and routes it to the
+// segmented session, where the HLS handler answers the typed shed. The codecs
+// are innocent: both tracks keep their copy verdicts. One decision, read by
+// every client's stream-info and by the plan - no adapter rejudges the file.
+func TestNeedsRemux_RoutesToTheSegmentedSessionKeepingCopy(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	prefs.SourceNeedsRemux = true
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+
+	assert.Equal(t, "transcode", d.PlayMethod, "never the raw file")
+	assert.Contains(t, d.TranscodeReasons, "file_needs_remux")
+	assert.Equal(t, "copy", d.VideoDecision)
+	assert.Equal(t, "copy", d.AudioDecision)
+}
+
 func TestVideoTranscode_HEVC(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "hevc", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},

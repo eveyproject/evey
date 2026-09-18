@@ -177,6 +177,7 @@ streamInfo:
     subtitle_burn_in: Subtitles burned into the picture
     audio_resync_requested: Audio resync requested
     decision_pinned: Choice pinned for this session
+    file_needs_remux: "File stored in one-track blocks (needs a repair)"
 cast:
   noDevices: "No cast device found - neither on the server's network nor on yours."
   loadFailed: "Could not start playback on the cast device."

@@ -177,6 +177,7 @@ streamInfo:
     subtitle_burn_in: Untertitel ins Bild eingebrannt
     audio_resync_requested: Audio-Resynchronisation angefordert
     decision_pinned: Auswahl für diese Sitzung fixiert
+    file_needs_remux: "Datei in Ein-Spur-Blöcken gespeichert (Reparatur nötig)"
 jumpToChapter: "Zum Kapitel springen: {{chapter}}"
 cast:
   noDevices: Keine Cast-Geräte im Netzwerk des Servers gefunden.
