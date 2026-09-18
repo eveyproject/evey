@@ -124,7 +124,14 @@ func (pr *PlanResolver) Resolve(ctx context.Context, req PlaybackRequest) (Playb
 	// derivation below reads req.Source and req.Policy.
 	req.Source = SnapshotOf(req)
 	req.Policy = pr.hwPolicy()
-	decision := pr.Decide(ctx, req)
+	return pr.resolveDecided(ctx, req, pr.Decide(ctx, req)), nil
+}
+
+// resolveDecided is Resolve past the decision: the one derivation of the
+// route and its projections for a request whose source and policy were
+// snapshotted. Tests that hold a decision enter here; production enters
+// through Resolve only.
+func (pr *PlanResolver) resolveDecided(ctx context.Context, req PlaybackRequest, decision transcoding.PlaybackDecision) PlaybackPlan {
 	isCopy := pr.IsCopy(decision, req.Streams, req.SourceBytes)
 	// The route is resolved ONCE (ADR-0030): the natural route with the
 	// per-title block applied, then admission may spill it to the CPU. The
@@ -135,6 +142,9 @@ func (pr *PlanResolver) Resolve(ctx context.Context, req PlaybackRequest) (Playb
 	if spilled {
 		route = route.spill(SpillPoolFull, decision)
 	}
+	// The plan names its pin key even when no admission is wired (a bare
+	// resolver): the key is a projection of the route, not of the shaper.
+	grant.PinKey = pinKey
 	fp := pr.fingerprintFor(ctx, req, decision, route, profiles, pinKey)
 	if pr.AdmissionNoteRoute != nil && !isCopy {
 		pr.AdmissionNoteRoute(pinKey, route.Identity())
@@ -155,7 +165,7 @@ func (pr *PlanResolver) Resolve(ctx context.Context, req PlaybackRequest) (Playb
 		Fingerprint:     fp,
 		Route:           route,
 		Admission:       grant,
-	}, nil
+	}
 }
 
 // Decide is the per-track copy/transcode decision with the request-time pins

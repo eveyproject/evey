@@ -279,7 +279,7 @@ func routeGoldenScenarios() []routeScenario {
 
 // producerKind names the producer a plan goes to, without touching it.
 func producerKind(pr *PlanResolver, req PlaybackRequest, plan PlaybackPlan) string {
-	p := pr.ProducerFor(req, plan.Decision, plan.Packager == PackagerCopyFFmpeg)
+	p := pr.ProducerForPlan(pr.planFor(context.Background(), req, plan.Decision))
 	switch p {
 	case nil:
 		return "none"
@@ -311,11 +311,15 @@ func routeGoldenRow(sc routeScenario) string {
 		}
 		heights = append(heights, h)
 	}
-	classFor := pr.LadderClassFor(d, req.Streams)
+	// for= and usable= read the NATURAL route (before the per-title block and
+	// the pool spill): beside the plan's class and hash they show what the
+	// block and admission did to the request.
+	natural := pr.naturalRouteOf(req, d)
+	classFor := natural.Class()
 	classOf := LadderClassOf(fp)
 	pinned := "none"
 	if pr.AdmissionPinnedClass != nil {
-		if cls, ok := pr.AdmissionPinnedClass(pr.PinKey(req, d)); ok {
+		if cls, ok := pr.AdmissionPinnedClass(pr.planFor(context.Background(), req, d).Admission.PinKey); ok {
 			pinned = string(cls)
 		}
 	}
@@ -324,7 +328,7 @@ func routeGoldenRow(sc routeScenario) string {
 		plan.VideoCodec, plan.HWAccel, fp.HWDevice, strings.Join(fp.HWFeatures, "+"),
 		plan.Class, classFor, classOf, pinned,
 		RouteCostKeyOf(fp).Backend, RouteCostKeyOf(fp).Encoder, RouteCostKeyOf(fp).Route,
-		pr.HWRouteUsable(d, SourceDimsOf(req.Streams)), producerKind(pr, req, plan),
+		natural.HW(), producerKind(pr, req, plan),
 		fp.HDRTonemap, fp.HWTonemap, fp.HDRPassthrough, fp.HWSoftwareDecode, fp.HWOverlay, fp.HWDeinterlace, fp.HDRTransfer,
 		fp.AudioTrack, fp.AudioCopy, fp.SubtitleBurnInTrack, fp.ForceSidecarSubs,
 		strings.Join(heights, ","), plan.FingerprintHash)

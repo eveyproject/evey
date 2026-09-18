@@ -154,8 +154,7 @@ func TestResolveHW_RefusalGates(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			accel, device, features, usable, softwareDecode := tc.resolver.ResolveHW(
-				tc.outputCodec, tc.sourceCodec, tc.sourceTenBit, tc.hwTonemap)
+			accel, device, features, usable, softwareDecode := tc.resolver.resolveHW(tc.resolver.hwPolicy(), tc.outputCodec, hwSource{Codec: tc.sourceCodec, TenBit: tc.sourceTenBit}, tc.hwTonemap)
 
 			assert.Equal(t, tc.wantUsable, usable, tc.why)
 			assert.Equal(t, tc.wantSoftwareDecode, softwareDecode, tc.why)
@@ -183,63 +182,63 @@ func TestHWTonemapWanted(t *testing.T) {
 	noProbedTonemap.HWTonemap = false
 
 	t.Run("wanted on a proven vaapi host", func(t *testing.T) {
-		assert.True(t, hwResolver(vaapiCapable()).HWTonemapWanted(needsTonemap, "PQ"))
+		assert.True(t, hwResolver(vaapiCapable()).hwTonemapWanted(hwResolver(vaapiCapable()).hwPolicy(), needsTonemap, "PQ"))
 	})
 
 	t.Run("qsv also carries a wired GPU tone-mapper", func(t *testing.T) {
 		qsv := vaapiCapable()
 		qsv.HWBackend = "qsv"
-		assert.True(t, hwResolver(qsv).HWTonemapWanted(needsTonemap, "PQ"))
+		assert.True(t, hwResolver(qsv).hwTonemapWanted(hwResolver(qsv).hwPolicy(), needsTonemap, "PQ"))
 	})
 
 	t.Run("nvenc without tonemap_cuda tone-maps in software", func(t *testing.T) {
 		// A stock ffmpeg has no CUDA tone-mapper: the probe flag alone (a pre-
 		// CUDA row) never routes NVENC to a GPU tone-map it cannot emit.
-		assert.False(t, hwResolver(nvenc).HWTonemapWanted(needsTonemap, "PQ"))
+		assert.False(t, hwResolver(nvenc).hwTonemapWanted(hwResolver(nvenc).hwPolicy(), needsTonemap, "PQ"))
 	})
 
 	t.Run("nvenc with tonemap_cuda takes PQ, HLG and Dolby Vision", func(t *testing.T) {
 		cuda := nvenc
 		cuda.HWFeatures = append(slices.Clone(nvenc.HWFeatures), transcoding.FeatureTonemapCUDA)
-		assert.True(t, hwResolver(cuda).HWTonemapWanted(needsTonemap, "PQ"))
-		assert.True(t, hwResolver(cuda).HWTonemapWanted(needsTonemap, "HLG"))
-		assert.True(t, hwResolver(cuda).HWTonemapWanted(needsTonemap, ""))
+		assert.True(t, hwResolver(cuda).hwTonemapWanted(hwResolver(cuda).hwPolicy(), needsTonemap, "PQ"))
+		assert.True(t, hwResolver(cuda).hwTonemapWanted(hwResolver(cuda).hwPolicy(), needsTonemap, "HLG"))
+		assert.True(t, hwResolver(cuda).hwTonemapWanted(hwResolver(cuda).hwPolicy(), needsTonemap, ""))
 	})
 
 	t.Run("probe never proved GPU tone-mapping", func(t *testing.T) {
-		assert.False(t, hwResolver(noProbedTonemap).HWTonemapWanted(needsTonemap, "PQ"))
+		assert.False(t, hwResolver(noProbedTonemap).hwTonemapWanted(hwResolver(noProbedTonemap).hwPolicy(), needsTonemap, "PQ"))
 	})
 
 	t.Run("admin toggle off", func(t *testing.T) {
 		pr := hwResolver(vaapiCapable())
 		pr.HWTonemapEnabled = func() bool { return false }
-		assert.False(t, pr.HWTonemapWanted(needsTonemap, "PQ"))
+		assert.False(t, pr.hwTonemapWanted(pr.hwPolicy(), needsTonemap, "PQ"))
 	})
 
 	t.Run("HLG and Dolby Vision stay on tonemapx", func(t *testing.T) {
 		// tonemap_vaapi reads PQ only; a DoVi RPU needs apply_dovi (software).
-		assert.False(t, hwResolver(vaapiCapable()).HWTonemapWanted(needsTonemap, "HLG"))
-		assert.False(t, hwResolver(vaapiCapable()).HWTonemapWanted(needsTonemap, ""))
+		assert.False(t, hwResolver(vaapiCapable()).hwTonemapWanted(hwResolver(vaapiCapable()).hwPolicy(), needsTonemap, "HLG"))
+		assert.False(t, hwResolver(vaapiCapable()).hwTonemapWanted(hwResolver(vaapiCapable()).hwPolicy(), needsTonemap, ""))
 	})
 
 	t.Run("a certified Vulkan/libplacebo tone-mapper takes HLG and Dolby Vision too", func(t *testing.T) {
 		vk := vaapiCapable()
 		vk.HWFeatures = append(slices.Clone(vk.HWFeatures), transcoding.FeatureTonemapVulkan)
-		assert.True(t, hwResolver(vk).HWTonemapWanted(needsTonemap, "PQ"))
-		assert.True(t, hwResolver(vk).HWTonemapWanted(needsTonemap, "HLG"))
-		assert.True(t, hwResolver(vk).HWTonemapWanted(needsTonemap, ""))
+		assert.True(t, hwResolver(vk).hwTonemapWanted(hwResolver(vk).hwPolicy(), needsTonemap, "PQ"))
+		assert.True(t, hwResolver(vk).hwTonemapWanted(hwResolver(vk).hwPolicy(), needsTonemap, "HLG"))
+		assert.True(t, hwResolver(vk).hwTonemapWanted(hwResolver(vk).hwPolicy(), needsTonemap, ""))
 	})
 
 	t.Run("a probed OpenCL tone-mapper takes HLG and Dolby Vision too", func(t *testing.T) {
 		ocl := vaapiCapable()
 		ocl.HWFeatures = append(ocl.HWFeatures, transcoding.FeatureTonemapOpenCL)
-		assert.True(t, hwResolver(ocl).HWTonemapWanted(needsTonemap, "HLG"))
-		assert.True(t, hwResolver(ocl).HWTonemapWanted(needsTonemap, ""))
+		assert.True(t, hwResolver(ocl).hwTonemapWanted(hwResolver(ocl).hwPolicy(), needsTonemap, "HLG"))
+		assert.True(t, hwResolver(ocl).hwTonemapWanted(hwResolver(ocl).hwPolicy(), needsTonemap, ""))
 	})
 
 	t.Run("nothing to tone-map", func(t *testing.T) {
 		// The decision does not ask for it: a capable host must not tone-map SDR.
-		assert.False(t, hwResolver(vaapiCapable()).HWTonemapWanted(transcoding.PlaybackDecision{}, "PQ"))
+		assert.False(t, hwResolver(vaapiCapable()).hwTonemapWanted(hwResolver(vaapiCapable()).hwPolicy(), transcoding.PlaybackDecision{}, "PQ"))
 	})
 }
 
@@ -249,19 +248,19 @@ func TestHWTonemapWanted(t *testing.T) {
 func TestHWRouteUsable_TelecineStaysSoftware(t *testing.T) {
 	pr := hwResolver(vaapiCapable())
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
-	assert.True(t, pr.HWRouteUsable(decision, SourceDims{Codec: "mpeg2video"}))
-	assert.False(t, pr.HWRouteUsable(decision, SourceDims{Codec: "mpeg2video", Telecine: true}), "no VAAPI inverse telecine")
+	assert.True(t, pr.routeUsable(decision, SourceDims{Codec: "mpeg2video"}))
+	assert.False(t, pr.routeUsable(decision, SourceDims{Codec: "mpeg2video", Telecine: true}), "no VAAPI inverse telecine")
 }
 
 func TestResolveHW_LowPowerIsOptIn(t *testing.T) {
 	c := vaapiCapable()
 	c.HWFeatures = []string{"low_power_h264", "bframes_h264"}
 	pr := hwResolver(c)
-	_, _, feats, usable, _ := pr.ResolveHW("h264", "h264", false, false)
+	_, _, feats, usable, _ := pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "h264", TenBit: false}, false)
 	assert.True(t, usable)
 	assert.Equal(t, []string{"bframes_h264"}, feats, "low power stays out until the admin opts in")
 	pr.HWLowPowerEnabled = func() bool { return true }
-	_, _, feats, _, _ = pr.ResolveHW("h264", "h264", false, false)
+	_, _, feats, _, _ = pr.resolveHW(pr.hwPolicy(), "h264", hwSource{Codec: "h264", TenBit: false}, false)
 	assert.Equal(t, []string{"low_power_h264", "bframes_h264"}, feats)
 }
 
@@ -276,19 +275,19 @@ func TestHWRouteUsable(t *testing.T) {
 		noGPUTonemap := vaapiCapable()
 		noGPUTonemap.HWTonemap = false
 		pr := hwResolver(noGPUTonemap)
-		assert.True(t, pr.HWRouteUsable(tonemapNeeded, src), "the GPU decodes and encodes, tonemapx runs in between")
+		assert.True(t, pr.routeUsable(tonemapNeeded, src), "the GPU decodes and encodes, tonemapx runs in between")
 
 		// ...unless the GPU cannot decode the source: then nothing is left for it.
 		cpuDecode := noGPUTonemap
 		cpuDecode.HWDecodeCodecs = []string{"h264"}
-		assert.False(t, hwResolver(cpuDecode).HWRouteUsable(tonemapNeeded, src), "a software decode keeps the whole job on the CPU")
+		assert.False(t, hwResolver(cpuDecode).routeUsable(tonemapNeeded, src), "a software decode keeps the whole job on the CPU")
 	})
 
 	t.Run("GPU tonemap keeps the encode on the GPU", func(t *testing.T) {
-		assert.True(t, hwResolver(vaapiCapable()).HWRouteUsable(tonemapNeeded, src))
+		assert.True(t, hwResolver(vaapiCapable()).routeUsable(tonemapNeeded, src))
 		hlg := src
 		hlg.HDRRange = "HLG"
-		assert.True(t, hwResolver(vaapiCapable()).HWRouteUsable(tonemapNeeded, hlg), "HLG rides the CPU bridge between GPU decode and encode, never the VPP")
+		assert.True(t, hwResolver(vaapiCapable()).routeUsable(tonemapNeeded, hlg), "HLG rides the CPU bridge between GPU decode and encode, never the VPP")
 	})
 
 	t.Run("AV1-disabled host routes on the H.264 fallback", func(t *testing.T) {
@@ -298,7 +297,7 @@ func TestHWRouteUsable(t *testing.T) {
 		pr := hwResolver(vaapiCapable()) // HWCodecs has no av1
 		pr.AV1Enabled = func() bool { return false }
 
-		assert.True(t, pr.HWRouteUsable(
+		assert.True(t, pr.routeUsable(
 			transcoding.PlaybackDecision{VideoCodec: "av1"},
 			SourceDims{Codec: "h264"}),
 			"the fallback codec is H.264 and this host HW-encodes H.264")
@@ -306,7 +305,7 @@ func TestHWRouteUsable(t *testing.T) {
 
 	t.Run("AV1-disabled host with no usable HW at all stays software", func(t *testing.T) {
 		pr := &PlanResolver{HWAccelEnabled: func() bool { return false }}
-		assert.False(t, pr.HWRouteUsable(
+		assert.False(t, pr.routeUsable(
 			transcoding.PlaybackDecision{VideoCodec: "av1"},
 			SourceDims{Codec: "h264"}))
 	})
@@ -379,11 +378,10 @@ func TestLadderClassFor_AgreesWithTheFingerprintTheSameRequestBuilds(t *testing.
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			req := ladderRequest(2160)
-			priced := tc.resolver.LadderClassFor(tc.decision, req.Streams)
+			priced := tc.resolver.planFor(context.Background(), PlaybackRequest{Streams: req.Streams}, tc.decision).Class
 			assert.Equal(t, tc.want, priced, "the class admission prices")
 
-			profiles := tc.resolver.ShapeLadder(context.Background(), req, tc.decision)
-			fp := tc.resolver.Fingerprint(context.Background(), req, tc.decision, profiles)
+			fp := tc.resolver.planFor(context.Background(), req, tc.decision).Fingerprint
 			assert.Equal(t, LadderClassOf(fp), priced,
 				"admission must price the pool the spawn will charge")
 		})

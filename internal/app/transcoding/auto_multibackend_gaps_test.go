@@ -1,6 +1,7 @@
 package transcoding
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,7 +50,7 @@ func TestAutoGap_SourceCompatibilityBeforeCost_NextBackendNotSoftware(t *testing
 	sdr := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"video_codec_unsupported"}}
 
 	// Sanity: an H.264 source still goes to the cheaper 2160p QSV.
-	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdr, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdr))
 	require.True(t, usable)
 	assert.Equal(t, "qsv", accel)
 
@@ -58,7 +59,7 @@ func TestAutoGap_SourceCompatibilityBeforeCost_NextBackendNotSoftware(t *testing
 	// produced a point for; VAAPI decodes it zero-copy with a 1080p sample.
 	// Quality is what is PROVEN: VAAPI's 1080p beats QSV's unproven decoupled
 	// route for the 2160p request. Either way the request stays on the GPU.
-	_, accel, _, _, usable, softwareDecode := pr.EffectiveVideoCodec(sdr, av1Streams("yuv420p", false))
+	_, accel, _, _, usable, softwareDecode := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: av1Streams("yuv420p", false)}, sdr))
 	require.True(t, usable, "a backend that serves the source exists: never software")
 	assert.Equal(t, "vaapi", accel, "a proven 1080p beats an unproven decoupled route")
 	assert.False(t, softwareDecode)
@@ -66,29 +67,29 @@ func TestAutoGap_SourceCompatibilityBeforeCost_NextBackendNotSoftware(t *testing
 	// quality for 2160p; at 1080p both reach and the cheaper VAAPI wins.
 	cap.RouteSamples = append(cap.RouteSamples, transcoding.RouteSample{Key: rk("qsv", "h264_qsv", transcoding.RouteCostDecoupled), Height: 1440, FPS: 100, SourceFPS: 24, CPUCores: 5})
 	pr = resolverFor(cap)
-	_, accel, _, _, usable, softwareDecode = pr.EffectiveVideoCodec(sdr, av1Streams("yuv420p", false))
+	_, accel, _, _, usable, softwareDecode = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: av1Streams("yuv420p", false)}, sdr))
 	require.True(t, usable)
 	assert.Equal(t, "qsv", accel, "QSV's decoupled route is proven to 1440p: the best proven quality for 2160p")
 	assert.True(t, softwareDecode, "QSV serves it through the decoupled route")
 	at1080 := sdr
 	at1080.MaxHeight = 1080
-	_, accel, _, _, usable, softwareDecode = pr.EffectiveVideoCodec(at1080, av1Streams("yuv420p", false))
+	_, accel, _, _, usable, softwareDecode = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: av1Streams("yuv420p", false)}, at1080))
 	require.True(t, usable)
 	assert.Equal(t, "vaapi", accel, "both reach 1080: the cheaper zero-copy VAAPI (0.21) beats the decoupled QSV (0.29)")
 	assert.False(t, softwareDecode)
-	assert.True(t, pr.HWRouteUsable(at1080, SourceDimsOf(av1Streams("yuv420p", false))))
+	assert.True(t, pr.planFor(context.Background(), PlaybackRequest{Streams: av1Streams("yuv420p", false)}, at1080).Route.HW())
 
 	// AV1 10-bit: the decoupled path is refused for a 10-bit source, so QSV is
 	// OUT of the field entirely; VAAPI (decodes AV1 10-bit, 10-bit VPP proven)
 	// takes it instead of the request dropping to the CPU.
-	_, accel, _, _, usable, softwareDecode = pr.EffectiveVideoCodec(sdr, av1Streams("yuv420p10le", true))
+	_, accel, _, _, usable, softwareDecode = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: av1Streams("yuv420p10le", true)}, sdr))
 	require.True(t, usable, "QSV cannot serve this source; VAAPI can: the next backend is tried")
 	assert.Equal(t, "vaapi", accel)
 	assert.False(t, softwareDecode)
 
 	// No backend serves the source at all: software, as before.
 	cap.Backends[1].DecodeCodecs = []string{"h264", "hevc"}
-	_, _, _, _, usable, _ = pr.EffectiveVideoCodec(sdr, av1Streams("yuv420p10le", true))
+	_, _, _, _, usable, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: av1Streams("yuv420p10le", true)}, sdr))
 	assert.False(t, usable)
 }
 
@@ -124,10 +125,10 @@ func TestAutoGap_BridgePerBackend(t *testing.T) {
 	cap.Backends[1].Routes = []string{transcoding.HWRouteSDR, transcoding.HWRouteHEVC, transcoding.HWRouteSource10Bit}
 	cap.Backends[1].BridgeMaxHeight = 0
 	pr := resolverFor(cap)
-	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(bridgeDecision, hdr)
+	_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: hdr}, bridgeDecision))
 	require.True(t, usable)
 	assert.Equal(t, "nvenc", accel, "only the primary proves the bridge")
-	assert.True(t, pr.HWRouteUsable(bridgeDecision, SourceDimsOf(hdr)))
+	assert.True(t, pr.planFor(context.Background(), PlaybackRequest{Streams: hdr}, bridgeDecision).Route.HW())
 
 	// Primary bridge KO / secondary bridge OK: the bridge goes to the
 	// secondary - not refused on the primary's missing proof, not software.
@@ -136,16 +137,16 @@ func TestAutoGap_BridgePerBackend(t *testing.T) {
 	cap.Backends[0].Routes = cap.HWRoutes
 	cap.Backends[0].BridgeMaxHeight, cap.HWBridgeMaxHeight = 0, 0
 	pr = resolverFor(cap)
-	_, accel, _, _, usable, _ = pr.EffectiveVideoCodec(bridgeDecision, hdr)
+	_, accel, _, _, usable, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: hdr}, bridgeDecision))
 	require.True(t, usable, "the secondary proves the bridge: the request stays on the GPU")
 	assert.Equal(t, "vaapi", accel)
-	assert.True(t, pr.HWRouteUsable(bridgeDecision, SourceDimsOf(hdr)))
+	assert.True(t, pr.planFor(context.Background(), PlaybackRequest{Streams: hdr}, bridgeDecision).Route.HW())
 
 	// Neither proves it: software (the historical refusal).
 	cap.Backends[1].Routes = cap.HWRoutes
-	_, _, _, _, usable, _ = pr.EffectiveVideoCodec(bridgeDecision, hdr)
+	_, _, _, _, usable, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: hdr}, bridgeDecision))
 	assert.False(t, usable)
-	assert.False(t, pr.HWRouteUsable(bridgeDecision, SourceDimsOf(hdr)))
+	assert.False(t, pr.planFor(context.Background(), PlaybackRequest{Streams: hdr}, bridgeDecision).Route.HW())
 
 	// Distinct bridge ceilings: the ladder of a bridge resolved on vaapi tops
 	// at ITS 1080p, on nvenc at 2160p; a 2160p request prefers the backend
@@ -166,11 +167,11 @@ func TestAutoGap_BridgePerBackend(t *testing.T) {
 	assert.Equal(t, 2160, top(build(transcoding.NVENC)))
 	assert.Equal(t, 1080, top(build(transcoding.VAAPI)))
 	pr = resolverFor(cap)
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(bridgeDecision, hdr)
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: hdr}, bridgeDecision))
 	assert.Equal(t, "nvenc", accel, "a 2160p bridge request goes to the backend whose bridge reaches 2160")
 	capped := bridgeDecision
 	capped.MaxHeight = 1080
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(capped, hdr)
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: hdr}, capped))
 	assert.Equal(t, "vaapi", accel, "a 1080p bridge request takes the cheaper bridge that reaches 1080")
 
 	// A secondary whose bridge ceiling was never recorded caps at the software
@@ -236,11 +237,11 @@ func TestAutoGap_FailClosedAboveTallestProvenRung(t *testing.T) {
 	cap.RouteSamples = append(cap.RouteSamples, transcoding.RouteSample{Key: rk("vaapi", "h264_vaapi", transcoding.RouteCostSDR), Height: 2160, FPS: 60, SourceFPS: 24})
 	pr := resolverFor(cap)
 	sdr := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"video_codec_unsupported"}}
-	_, accel, _, _, _, _ := pr.EffectiveVideoCodec(sdr, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, _, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdr))
 	assert.Equal(t, "vaapi", accel, "QSV has no 2160 proof (its 2160 point failed): VAAPI's proven 2160 wins the 2160 request")
 	capped := sdr
 	capped.MaxHeight = 1080
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(capped, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, capped))
 	assert.Equal(t, "qsv", accel, "at 1080 both are proven and QSV is cheaper")
 }
 
@@ -264,33 +265,33 @@ func TestAutoGap_QualityRankedOnTheRoutesProvenCeiling(t *testing.T) {
 	hevc := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "hevc", TranscodeReasons: []string{"video_codec_unsupported"}}
 	src := sdrStreams("h264", "yuv420p", false) // 2160p source
 
-	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(hevc, src)
+	_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: src}, hevc))
 	require.True(t, usable)
 	assert.Equal(t, "vaapi", accel, "2160p HEVC: VAAPI's proven 1440 beats QSV's proven 1080, whatever QSV's generic 2160 ceiling")
 
 	at1440 := hevc
 	at1440.MaxHeight = 1440
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(at1440, src)
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: src}, at1440))
 	assert.Equal(t, "vaapi", accel, "1440p HEVC: only VAAPI proved it")
 
 	at1080 := hevc
 	at1080.MaxHeight = 1080
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(at1080, src)
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: src}, at1080))
 	assert.Equal(t, "qsv", accel, "1080p HEVC: both proven, the cheaper QSV wins - unchanged downwards")
 	at720 := hevc
 	at720.MaxHeight = 720
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(at720, src)
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: src}, at720))
 	assert.Equal(t, "qsv", accel, "720p: the 1080 samples bound it, cheaper QSV")
 
 	// H.264 output: both routes proved 1080 only (twoBackendCap) - equal proven
 	// quality, QSV cheaper - the generic 2160 vs 1440 ceilings do not decide.
 	h264 := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"video_codec_unsupported"}}
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(h264, src)
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: src}, h264))
 	assert.Equal(t, "qsv", accel)
 
 	// Legacy: no route model at all - the generic ceiling ranks (QSV 2160).
 	pr.RouteCosts = nil
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(hevc, src)
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: src}, hevc))
 	assert.Equal(t, "qsv", accel, "without route evidence the generic ceiling is all there is")
 }
 
@@ -339,13 +340,13 @@ func TestAutoGap_BridgeWithNoPassingRung_FallsToSoftwareHDRCeiling(t *testing.T)
 	pr := resolverFor(cap)
 	bridge := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"hdr_tonemapping_needed"}}
 	hdr := hdrStreams("hevc", "yuv420p10le", true)
-	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(bridge, hdr)
+	_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: hdr}, bridge))
 	require.True(t, usable)
 	assert.Equal(t, "vaapi", accel)
 	// Even a 480p request prefers the backend whose bridge really passed.
 	at480 := bridge
 	at480.MaxHeight = 480
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(at480, hdr)
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: hdr}, at480))
 	assert.Equal(t, "vaapi", accel, "both reach 480: vaapi's bridge is cheaper (0.48 vs the 480p nvenc point at 1.44)")
 
 	// Alone, the primary still serves the bridge - at 480p, one session at a
@@ -353,7 +354,7 @@ func TestAutoGap_BridgeWithNoPassingRung_FallsToSoftwareHDRCeiling(t *testing.T)
 	// clamped: 1.44 > 1 => refused by admission, the shaper spills to the CPU).
 	cap.Backends = cap.Backends[:1]
 	pr = resolverFor(cap)
-	_, accel, _, _, usable, _ = pr.EffectiveVideoCodec(bridge, hdr)
+	_, accel, _, _, usable, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: hdr}, bridge))
 	require.True(t, usable)
 	assert.Equal(t, "nvenc", accel)
 	assert.Equal(t, 480, top(build(transcoding.NVENC)))

@@ -102,7 +102,7 @@ type hlsVODServe struct {
 	// instead of "too many streams". Optional (nil = never calibrating).
 	calibrating func() bool
 	// admissionRoute asks the admission shaper for this stream's pinned route
-	// and ladder ceiling (see ShapeLadder's third cap): a hw stream on
+	// and ladder ceiling (see the plan's ladder shaping, its third cap): a hw stream on
 	// a full GPU pool spills to the software route when the CPU pool has room.
 	// Optional: nil keeps the natural shape and viewers over budget are shed.
 	admissionRoute func(key string, req apptranscoding.RouteAdmission) apptranscoding.RouteGrant
@@ -125,7 +125,7 @@ type hlsVODServe struct {
 	// would observe supersessions and do nothing. Optional.
 	reclaimHash func(hash, reason string) int
 	// admissionFrozenLadder / admissionFreezeLadder read-verbatim the shaped ABR
-	// ladder EMITTED ONCE for a stream: ShapeLadder freezes its output on
+	// ladder EMITTED ONCE for a stream: the plan's ladder shaping freezes its output on
 	// the admission pin and every later manifest-/segment-time call reads it back
 	// verbatim, so a mid-stream drift of the mutable shaping inputs (complexity
 	// class, capability, CMCD/av1 caps) cannot desync the manifest's ladder from
@@ -190,13 +190,13 @@ type hlsVODServe struct {
 	qoeSink appqoe.EventSink
 
 	// complexityRepo reads the per-title classification used to pick the
-	// ABR ladder. Nil-safe - ShapeLadder falls back to
+	// ABR ladder. Nil-safe - the ladder shaping falls back to
 	// LadderFilmNormal when the repo isn't wired (dev w/o postgres) or
 	// the row hasn't been classified yet.
 	complexityRepo domaintranscoding.ComplexityRepo
 
 	// capability reports the host's calibrated encode ceiling. Nil-safe:
-	// ShapeLadder falls back to the safe 720p floor when the
+	// the ladder shaping falls back to the safe 720p floor when the
 	// service isn't wired (tests). Returns a fresh snapshot per call so
 	// recalibration via the admin endpoint takes effect immediately -
 	// no need to restart the server.
@@ -1299,7 +1299,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 
 	// Build the same fingerprint the player would generate when it starts
 	// playing this next episode: capabilities forwarded via query params,
-	// per-title ladder via ShapeLadder, defaults safe.
+	// per-title ladder via the plan, defaults safe.
 	// Use the SAME builder the player path uses, so the warmed segments hash
 	// identically to what the player will request (it earlier drifted -
 	// HDRTonemap/ForceSidecarSubs hardcoded - so HDR/sidecar prewarms missed the

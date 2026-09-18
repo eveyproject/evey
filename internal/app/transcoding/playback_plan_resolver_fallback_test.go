@@ -84,7 +84,7 @@ func TestResolver_UnprovenRoutesStaySoftware(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			full := probedNVENC()
-			assert.True(t, fallbackResolver(full).HWRouteUsable(tc.dec, SourceDimsOf(tc.stream)), "sanity: the fully proven host takes the route")
+			assert.True(t, fallbackResolver(full).planFor(context.Background(), PlaybackRequest{Streams: tc.stream}, tc.dec).Route.HW(), "sanity: the fully proven host takes the route")
 			partial := probedNVENC()
 			partial.HWRoutes = nil
 			for _, r := range full.HWRoutes {
@@ -93,9 +93,9 @@ func TestResolver_UnprovenRoutesStaySoftware(t *testing.T) {
 				}
 			}
 			pr := fallbackResolver(partial)
-			assert.False(t, pr.HWRouteUsable(tc.dec, SourceDimsOf(tc.stream)), "route %s unproven must stay software", tc.drop)
-			assert.NotEqual(t, LadderClassHW, pr.LadderClassFor(tc.dec, tc.stream), "the admission class follows the route gate")
-			_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(tc.dec, tc.stream)
+			assert.False(t, pr.planFor(context.Background(), PlaybackRequest{Streams: tc.stream}, tc.dec).Route.HW(), "route %s unproven must stay software", tc.drop)
+			assert.NotEqual(t, LadderClassHW, pr.planFor(context.Background(), PlaybackRequest{Streams: tc.stream}, tc.dec).Class, "the admission class follows the route gate")
+			_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: tc.stream}, tc.dec))
 			assert.False(t, usable, "fingerprint agrees with the route gate")
 			assert.Empty(t, accel)
 		})
@@ -103,7 +103,7 @@ func TestResolver_UnprovenRoutesStaySoftware(t *testing.T) {
 	// An unprobed row (nil HWRoutes) keeps yesterday's trust until it is re-benched.
 	legacy := probedNVENC()
 	legacy.HWRoutes = nil
-	assert.True(t, fallbackResolver(legacy).HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("h264", "yuv420p", false))))
+	assert.True(t, fallbackResolver(legacy).planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdrTranscode).Route.HW())
 }
 
 // Sources the GPU decoder does not take (10-bit H.264, 4:2:2, HEVC Main10 on a
@@ -120,29 +120,29 @@ func TestResolver_UndecodableSourcesNeverReachTheGPU(t *testing.T) {
 	}
 	// A class this host's probe DID measure rides the GPU once its zero-copy
 	// route ran end-to-end: no universal chroma rule, and no assumption either.
-	assert.False(t, pr.HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv444p", false))), "decodable but route unproven")
+	assert.False(t, pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("hevc", "yuv444p", false)}, sdrTranscode).Route.HW(), "decodable but route unproven")
 	proven := probedNVENC()
 	proven.HWRoutes = append(proven.HWRoutes, transcoding.HWRouteSourceFormat("yuv444p"))
-	assert.True(t, fallbackResolver(proven).HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv444p", false))))
+	assert.True(t, fallbackResolver(proven).planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("hevc", "yuv444p", false)}, sdrTranscode).Route.HW())
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.False(t, pr.HWRouteUsable(sdrTranscode, SourceDimsOf(tc.stream)))
-			assert.Equal(t, LadderClassSoftware, pr.LadderClassFor(sdrTranscode, tc.stream))
+			assert.False(t, pr.planFor(context.Background(), PlaybackRequest{Streams: tc.stream}, sdrTranscode).Route.HW())
+			assert.Equal(t, LadderClassSoftware, pr.planFor(context.Background(), PlaybackRequest{Streams: tc.stream}, sdrTranscode).Class)
 		})
 	}
 	// Main10 on a probed host WITHOUT the 10-bit decode class: no zero-copy.
 	noMain10 := probedNVENC()
 	noMain10.HWDecodeCodecs = []string{"h264", "hevc"}
-	assert.False(t, fallbackResolver(noMain10).HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv420p10le", true))))
+	assert.False(t, fallbackResolver(noMain10).planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("hevc", "yuv420p10le", true)}, sdrTranscode).Route.HW())
 	// The same list on a pre-class row still means "hevc covers Main10" -
 	// through Snapshot, the only way a row reaches the resolver (its
 	// Capability yields a HostCapabilitySnapshot), never by a version branch.
 	legacy := noMain10
 	legacy.ProbeVersion = 4
-	assert.True(t, fallbackResolver(legacy).HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv420p10le", true))))
+	assert.True(t, fallbackResolver(legacy).planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("hevc", "yuv420p10le", true)}, sdrTranscode).Route.HW())
 	// And the plain 4:2:0 classes still ride the GPU.
-	assert.True(t, pr.HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("hevc", "yuv420p10le", true))))
-	assert.True(t, pr.HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("h264", "yuv420p", false))))
+	assert.True(t, pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("hevc", "yuv420p10le", true)}, sdrTranscode).Route.HW())
+	assert.True(t, pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdrTranscode).Route.HW())
 }
 
 // A bitmap burn-in the GPU cannot composite takes every backend out of the
@@ -153,17 +153,17 @@ func TestResolver_BurnInWithoutOverlayIsSoftware(t *testing.T) {
 	streams := sdrStreams("h264", "yuv420p", false)
 
 	noOverlay := fallbackResolver(probedNVENC())
-	assert.False(t, noOverlay.HWRouteUsable(burn, SourceDimsOf(streams)))
-	assert.Equal(t, LadderClassSoftware, noOverlay.LadderClassFor(burn, streams))
-	_, accel, _, _, usable, _ := noOverlay.EffectiveVideoCodec(burn, streams)
+	assert.False(t, noOverlay.planFor(context.Background(), PlaybackRequest{Streams: streams}, burn).Route.HW())
+	assert.Equal(t, LadderClassSoftware, noOverlay.planFor(context.Background(), PlaybackRequest{Streams: streams}, burn).Class)
+	_, accel, _, _, usable, _ := routeOf(noOverlay.planFor(context.Background(), PlaybackRequest{Streams: streams}, burn))
 	assert.False(t, usable)
 	assert.Empty(t, accel)
 
 	withOverlay := probedNVENC()
 	withOverlay.HWOverlay = true
 	pr := fallbackResolver(withOverlay)
-	assert.True(t, pr.HWRouteUsable(burn, SourceDimsOf(streams)), "a probed GPU compositor keeps the burn-in on the GPU")
-	assert.Equal(t, LadderClassHW, pr.LadderClassFor(burn, streams))
+	assert.True(t, pr.planFor(context.Background(), PlaybackRequest{Streams: streams}, burn).Route.HW(), "a probed GPU compositor keeps the burn-in on the GPU")
+	assert.Equal(t, LadderClassHW, pr.planFor(context.Background(), PlaybackRequest{Streams: streams}, burn).Class)
 }
 
 // A title whose GPU route just failed is served like an admission spill: CPU
@@ -187,20 +187,20 @@ func TestResolver_BlockedTitleSpillsToSoftware(t *testing.T) {
 	}
 
 	// The same request on a healthy title rides the GPU.
-	fpHW := pr.Fingerprint(context.Background(), req("m-ok"), tonemap, pr.ShapeLadder(context.Background(), req("m-ok"), tonemap))
+	fpHW := pr.planFor(context.Background(), req("m-ok"), tonemap).Fingerprint
 	require.Equal(t, "nvenc", fpHW.HWAccel)
 	assert.Equal(t, LadderClassHW, LadderClassOf(fpHW))
-	assert.Same(t, hw, pr.ProducerFor(req("m-ok"), tonemap, false))
+	assert.Same(t, hw, pr.ProducerForPlan(pr.planFor(context.Background(), req("m-ok"), tonemap)))
 
 	// The blocked title: software fingerprint, software producer, new pin.
-	ladder := pr.ShapeLadder(context.Background(), req("m-hdr"), tonemap)
-	fpSW := pr.Fingerprint(context.Background(), req("m-hdr"), tonemap, ladder)
+	ladder := pr.planFor(context.Background(), req("m-hdr"), tonemap).Ladder
+	fpSW := pr.planFor(context.Background(), req("m-hdr"), tonemap).Fingerprint
 	assert.Empty(t, fpSW.HWAccel)
 	assert.True(t, fpSW.HDRTonemap, "the CPU session tone-maps")
 	assert.Equal(t, LadderClassSoftwareHDR, LadderClassOf(fpSW))
-	assert.Same(t, sw, pr.ProducerFor(req("m-hdr"), tonemap, false))
-	assert.True(t, strings.HasSuffix(pr.PinKey(req("m-hdr"), tonemap), "|rb=1"))
-	assert.False(t, strings.HasSuffix(pr.PinKey(req("m-ok"), tonemap), "|rb=1"))
+	assert.Same(t, sw, pr.ProducerForPlan(pr.planFor(context.Background(), req("m-hdr"), tonemap)))
+	assert.True(t, strings.HasSuffix(pr.planFor(context.Background(), req("m-hdr"), tonemap).Admission.PinKey, "|rb=1"))
+	assert.False(t, strings.HasSuffix(pr.planFor(context.Background(), req("m-ok"), tonemap).Admission.PinKey, "|rb=1"))
 	for _, p := range ladder {
 		assert.LessOrEqual(t, p.Height, cap.SoftwareHDRMaxHeight, "the CPU ladder is capped at the CPU HDR ceiling, not the GPU's")
 		assert.LessOrEqual(t, p.Height, 1080, "delivery caps survive the spill")
@@ -209,6 +209,6 @@ func TestResolver_BlockedTitleSpillsToSoftware(t *testing.T) {
 
 	// Unblocked again: back on the GPU, same hash as before.
 	blocked["m-hdr"] = false
-	fpBack := pr.Fingerprint(context.Background(), req("m-hdr"), tonemap, pr.ShapeLadder(context.Background(), req("m-hdr"), tonemap))
+	fpBack := pr.planFor(context.Background(), req("m-hdr"), tonemap).Fingerprint
 	assert.Equal(t, "nvenc", fpBack.HWAccel)
 }

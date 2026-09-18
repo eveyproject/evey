@@ -88,23 +88,6 @@ func (pr *PlanResolver) assertExpressible(route ResolvedRoute, decision transcod
 	}
 }
 
-// routeWithPin is the resolved route as the LIVE pin has it: a caller that
-// reaches a sub-derivation without Resolve (the adapter's wrappers, tests)
-// still sees the admission spill of a stream already pinned to the CPU.
-func (pr *PlanResolver) routeWithPin(req PlaybackRequest, decision transcoding.PlaybackDecision, isCopy bool) ResolvedRoute {
-	return pr.withPin(req, decision, pr.resolveRoute(req, decision, isCopy))
-}
-
-// withPin applies the LIVE pin's spill to a resolved route.
-func (pr *PlanResolver) withPin(req PlaybackRequest, decision transcoding.PlaybackDecision, route ResolvedRoute) ResolvedRoute {
-	if route.HW() && pr.AdmissionPinnedClass != nil {
-		if cls, ok := pr.AdmissionPinnedClass(pr.pinKeyFor(req, decision, route)); ok && cls != LadderClassHW {
-			route = route.spill(SpillPoolFull, decision)
-		}
-	}
-	return route
-}
-
 // HWPolicy is the operator's hardware policy as ONE value: what the toggles
 // say, read through one accessor instead of at eleven sites (ADR-0030, 8).
 // A nil toggle keeps its historical default.

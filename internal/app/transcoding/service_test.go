@@ -3,10 +3,11 @@ package transcoding_test
 import (
 	"context"
 	"fmt"
-	"github.com/evey-project/evey/internal/pkg/metrics"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"testing"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	apptranscode "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/domain/shared"

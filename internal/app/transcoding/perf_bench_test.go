@@ -23,7 +23,7 @@ func BenchmarkShapeLadder(b *testing.B) {
 	req.SourceBitrateKbps = 70000
 	decision := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 	for b.Loop() {
-		pr.ShapeLadder(context.Background(), req, decision)
+		_ = pr.planFor(context.Background(), req, decision).Ladder
 	}
 }
 

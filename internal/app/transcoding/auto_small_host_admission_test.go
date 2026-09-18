@@ -1,6 +1,7 @@
 package transcoding
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,34 +166,34 @@ func TestAuto_MultiBackend_PickedByMeasuredCost(t *testing.T) {
 	// A 2160p source, no client cap: the session wants 2160 -> only QSV reaches
 	// it; VAAPI's cheaper SDR price never enters the comparison.
 	sdr := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"video_codec_unsupported"}}
-	_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdr, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, usable, _ := routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdr))
 	assert.True(t, usable)
 	assert.Equal(t, "qsv", accel, "a 2160p request goes to the backend certified for 2160, not the cheaper 720p-only one")
-	assert.True(t, pr.HWRouteUsable(sdr, SourceDimsOf(sdrStreams("h264", "yuv420p", false))))
+	assert.True(t, pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdr).Route.HW())
 
 	// The same title on a client capped at 720p: both reach the rung, the
 	// measured-cheaper VAAPI wins.
 	sdr720 := sdr
 	sdr720.MaxHeight = 720
-	_, accel, _, _, usable, _ = pr.EffectiveVideoCodec(sdr720, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, usable, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdr720))
 	assert.True(t, usable)
 	assert.Equal(t, "vaapi", accel, "a 720p request takes the cheaper backend that reaches 720p")
 
 	// A 1080p request: VAAPI (720) cannot reach it, QSV takes it.
 	sdr1080 := sdr
 	sdr1080.MaxHeight = 1080
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(sdr1080, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdr1080))
 	assert.Equal(t, "qsv", accel)
 
 	hevc := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "hevc", TranscodeReasons: []string{"video_codec_unsupported"}, MaxHeight: 720}
-	_, accel, _, _, _, _ = pr.EffectiveVideoCodec(hevc, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, _, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, hevc))
 	assert.Equal(t, "qsv", accel, "HEVC at 720p stays on the backend measured cheaper for it")
 
 	// No backend reaches the wanted rung (a 4K request on a 1080p QSV + 720p
 	// VAAPI box): the tallest ceilings stay in the field, the request is capped
 	// there - never demoted to software for want of a 2160p accelerator.
 	cap.Backends[0].MaxHeight = 1080
-	_, accel, _, _, usable, _ = pr.EffectiveVideoCodec(sdr, sdrStreams("h264", "yuv420p", false))
+	_, accel, _, _, usable, _ = routeOf(pr.planFor(context.Background(), PlaybackRequest{Streams: sdrStreams("h264", "yuv420p", false)}, sdr))
 	assert.True(t, usable)
 	assert.Equal(t, "qsv", accel)
 
