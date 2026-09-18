@@ -104,6 +104,13 @@ type PlanResolver struct {
 	// AudioRenditionEnabled mirrors the audio-rendition feature flag.
 	UseFMP4               bool
 	AudioRenditionEnabled bool
+	// The delivery engines the host wires (resolveDelivery): the mkvgo
+	// on-demand packager (transcoding.hls_ondemand), whether it trims the
+	// presentation to the selected audio track (hls_ondemand_track_trim), and
+	// the audio-rendition pipeline the hybrid master pairs it with.
+	OnDemandPackager       bool
+	OnDemandTrackTrim      bool
+	AudioRenditionPipeline bool
 	// TranscodeAudioRendition extends the audio rendition to transcoded ladders
 	// (the http adapter sets it when it can compensate the encoder's delay).
 	TranscodeAudioRendition bool
@@ -149,17 +156,13 @@ func (pr *PlanResolver) resolveDecided(ctx context.Context, req PlaybackRequest,
 	if pr.AdmissionNoteRoute != nil && !isCopy {
 		pr.AdmissionNoteRoute(pinKey, route.Identity())
 	}
-	packager := PackagerTranscodeFFmpeg
-	if isCopy {
-		packager = PackagerCopyFFmpeg
-	}
 	return PlaybackPlan{
 		Decision:        decision,
 		Class:           route.Class(),
 		Ladder:          profiles,
 		VideoCodec:      route.Codec,
 		HWAccel:         route.Backend.Name,
-		Packager:        packager,
+		Delivery:        pr.resolveDelivery(ctx, req, decision, route),
 		FingerprintHash: fp.Hash(),
 		WasmAudio:       req.WasmAudio,
 		Fingerprint:     fp,

@@ -266,6 +266,17 @@ var (
 		Help: "Total live streams whose route re-resolved differently while their admission pin was still authoritative.",
 	})
 
+	// HLSVODDeliveryDisagreements counts the masters the HTTP adapter served
+	// on a delivery path (which engine carried the video, the audio) other
+	// than the one the plan DECIDED (PlaybackPlan.Delivery). Shadow of the
+	// hand-over of that choice to the plan: it must read zero before the
+	// adapter stops choosing engines itself; afterwards every hit is an
+	// adapter that re-decided, a bug.
+	HLSVODDeliveryDisagreements = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "evey_hlsvod_delivery_disagreements_total",
+		Help: "Masters served on a delivery path other than the plan's (planned vs served engines).",
+	}, []string{"planned", "served"})
+
 	// HLSVODCacheHits / HLSVODCacheMisses split segment requests by whether
 	// they hit the disk cache before waiting for ffmpeg. Hit-rate >> 0 is
 	// the primary KPI for the multi-session cache: low hit-rate means users
@@ -383,7 +394,7 @@ func init() {
 		WatcherProbeTotal, WatcherAlive, LibraryScanTotal,
 		TranscodeDuration,
 		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled, HLSVODSessionsCompleted, HLSVODSessionsRejected,
-		HLSVODRouteNotExpressible, HLSVODRouteDrift,
+		HLSVODRouteNotExpressible, HLSVODRouteDrift, HLSVODDeliveryDisagreements,
 		HLSVODCopyTimelineDrift, HLSVODTranscodeSeekTimelineDrift,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,

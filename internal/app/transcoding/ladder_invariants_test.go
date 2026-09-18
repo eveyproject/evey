@@ -67,7 +67,7 @@ func assertLadderInvariants(t *testing.T, name string, pr *PlanResolver, req Pla
 	ladder := plan.Ladder
 	require.NotEmpty(t, ladder, "%s: a plan always advertises at least one rung", name)
 
-	isCopy := plan.Packager == PackagerCopyFFmpeg
+	isCopy := plan.Route.Copy
 	if isCopy {
 		require.Len(t, ladder, 1, "%s: a copy is one rung", name)
 		assert.True(t, ladder[0].Copy, "%s: the copy rung is flagged", name)

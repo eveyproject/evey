@@ -44,7 +44,8 @@ func TestPlanResolver_ZeroValue_ResolvesCoherentTranscodePlan(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, plan.Fingerprint.Hash(), plan.FingerprintHash)
-	assert.Equal(t, PackagerTranscodeFFmpeg, plan.Packager, "no copy producer wired → transcode")
+	assert.False(t, plan.Route.Copy, "no copy producer wired → transcode")
+	assert.Equal(t, DeliveryStrategy{Video: EngineFFmpeg, Audio: EngineFFmpeg}, plan.Delivery, "no packager wired → ffmpeg carries both tracks")
 	assert.True(t, plan.NeedsVideoEncode())
 	require.NotEmpty(t, plan.Ladder)
 	for _, p := range plan.Ladder {
