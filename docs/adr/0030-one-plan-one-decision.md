@@ -163,6 +163,18 @@ violation counted on `evey_hlsvod_route_not_expressible_total`, which must
 stay at zero; the per-cell coverage table was the exit device and goes with
 the shadow.
 
+**Boundary locked (2026-09-18).** The producer is a projection of the
+resolved plan only (`ProducerSelector` lost its gate predicate, the master
+playlist no longer re-derives the codec); the resolver's sub-derivation
+entry points (`EffectiveVideoCodec`, `ResolveHW`, `HWRouteUsable`,
+`LadderClassFor`, `ShapeLadder`, `PinKey`, `ProducerFor`, `Fingerprint`, the
+`*Wanted` gates) and the adapter's aliases moved to test-only files, and the
+adapter's resolver tests moved to the app package; `*PlanResolver` exports
+`Resolve`, `Decide`, `IsCopy`, `ProducerForPlan`, `QualityPolicy` and nothing
+else. `internal/contractguard/playback_plan_guard_test.go` pins that surface
+and refuses any production caller outside the package that names a
+sub-derivation.
+
 Still to do, each gated on something outside the code, in this order:
 
 1. **Demotion by exact route** - when the calibration runner can probe one
@@ -170,11 +182,7 @@ Still to do, each gated on something outside the code, in this order:
    `DemoteRoute` re-proves the failed `HWFailureReport.Route` and, on a
    confirmed failure, removes THAT proof (`HWRoute*`) from the backend rather
    than the codec. The report already carries the route.
-2. **Legacy wrappers** - `EffectiveVideoCodec`, `ResolveHW`, `HWRouteUsable`,
-   `LadderClassFor`, `ProducerFor`, `Fingerprint` and `ShapeLadder` called
-   on their own, and the adapter's aliases, go once their tests are rewritten
-   against `Resolve`; invariant 1 then becomes a contract guard.
-3. **Direct / mkvgo / copy vs transcode** - the zero-process paths (mkvgo
+2. **Direct / mkvgo / copy vs transcode** - the zero-process paths (mkvgo
    on-demand `od_`/`cc_`, the plan master) are dispatched before this
    resolver runs and the copy rung is a `Packager`, not a route; a single
    picture of "which engine serves which request" is a separate clarification,
