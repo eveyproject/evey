@@ -497,6 +497,9 @@ type SourceSnapshot struct {
 	// BitrateKbps is the request's SourceBitrateKbps (the file's when the
 	// stream's is unknown); 0 = unknown.
 	BitrateKbps int64
+	// PeakKbps is what a copy pushes down the line (the file bitrate, every
+	// track): the figure a client's measured line is judged against.
+	PeakKbps int64
 	// AudioCodec / AudioChannels are the selected audio track's (request
 	// AudioTrack, audio-relative); "" / 0 when absent or unprobed.
 	AudioCodec    string
@@ -518,6 +521,7 @@ func SnapshotOf(req PlaybackRequest) SourceSnapshot {
 		SAR:            SourceSAR(s),
 		FPS:            SourceFrameRate(s),
 		BitrateKbps:    req.SourceBitrateKbps,
+		PeakKbps:       req.SourcePeakKbps,
 		AudioCodec:     SourceAudioCodec(s, req.AudioTrack),
 		AudioChannels:  SourceAudioChannels(s, req.AudioTrack),
 		SubtitleCodec:  SourceSubtitleCodec(s, req.SubtitleBurnInTrack),

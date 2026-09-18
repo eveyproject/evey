@@ -36,7 +36,7 @@ type PlaybackRequest struct {
 	// player never switches codec family between the two variants. Honoured
 	// only when the client decodes it; never upgraded to HEVC by the resolver.
 	PinnedVideoCodec string
-	WasmAudio           bool   // the ?wasmAudio=1 client opt-in for browser AC-3 decode
+	WasmAudio        bool // the ?wasmAudio=1 client opt-in for browser AC-3 decode
 
 	// SourceBytes is the on-disk size of the source file (0 = unknown), read
 	// by the copy-rung disk guard - fail-open on 0.
@@ -56,6 +56,33 @@ type PlaybackRequest struct {
 	// ScreenHeight is the viewer's physical screen height (?screenHeight); rungs
 	// above the one covering it are dropped. 0 = unknown.
 	ScreenHeight int
+
+	// LineKbps is the client's own throughput measurement (?maxKbps=, the cast
+	// receiver's bitrate test, its network stack included) and ABRFloor its
+	// starvation rescue (?abr=floor). Constraints on a COPY plan: a copy the
+	// line cannot carry, or a rescue, fits the plan to ONE transcoded rung
+	// (PlaybackPlan.Fit) - see resolveLineConstrained. Inert on a request
+	// whose video decision is already pinned (vd=): the master judged them.
+	LineKbps int64
+	ABRFloor bool
+	// SourcePeakKbps is what a copy pushes down the line: the file's bitrate
+	// (video and audio), the figure LineKbps is measured against. 0 = unknown.
+	SourcePeakKbps int64
+	// fitReason names, on the fitted pass of resolveLineConstrained, why the
+	// video decision is pinned to a transcode; Decide stamps it instead of
+	// decision_pinned. Never set by a caller.
+	fitReason string
+}
+
+// LineFit narrows the master to ONE rung of the ladder: the client's line
+// could not carry the copy (LineKbps) or its starvation rescue asked for the
+// floor (ABRFloor). The ladder and the fingerprint stay the full transcode
+// ones - the child URLs index the ladder and a viewer of the same title
+// shares its sessions and cache - only the master's presentation narrows.
+// Zero = the whole ladder.
+type LineFit struct {
+	Single bool
+	Rung   int
 }
 
 // PlaybackPlan is the immutable, fully-resolved answer to "how do we serve this
@@ -92,6 +119,9 @@ type PlaybackPlan struct {
 	Route ResolvedRoute
 	// Admission is what the shaper answered for this stream (pin, granted, ceiling).
 	Admission AdmissionGrant
+	// Fit is the single rung the master advertises when the client's line
+	// fitted the plan (LineFit); zero = every rung of Ladder.
+	Fit LineFit
 }
 
 // NeedsVideoEncode reports whether serving this plan spends encode CPU/GPU (a real

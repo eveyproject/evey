@@ -314,8 +314,11 @@ intérprete de órdenes en la máquina. Las horas son UTC. Cada baliza es una l�
    mismo título.
 5. **¿Era el flujo demasiado grande para el aparato?** Busque
    `advertises a fallback rung` (la tasa de bits de pico del maestro de copia) y
-   `capped master served`: una sesión que empezó con un maestro de copia de más
-   de 20 Mbps y a los pocos segundos cayó a un peldaño de 1080p limitado es el
+   `plan fitted to the client's line` (la medida `maxKbps` del receptor o su
+   rescate `abr=floor`, ahora entradas del plan - el maestro transcodificado
+   que sigue lleva el motivo `client_line_exceeded` o `abr_floor_requested`):
+   una sesión que empezó con un maestro de copia de más
+   de 20 Mbps y a los pocos segundos cayó a un peldaño de 1080p ajustado es el
    rescate de suelo haciendo su trabajo; un nuevo LOAD que arranca otra vez con
    el maestro de copia es justo el patrón que mata a un Chromecast HD.
 6. **¿Hay inanición en el servidor?** Busque `on-demand resource refused`: una

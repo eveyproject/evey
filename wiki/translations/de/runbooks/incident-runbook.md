@@ -317,8 +317,11 @@ Maschine brauchen Sie dafür nicht. Zeiten sind UTC. Jedes Signal ist eine Zeile
    mehr neu.
 5. **War der Stream zu groß für das Gerät?** Suchen Sie nach
    `advertises a fallback rung` (die Spitzenbitrate des copy-Masters) und nach
-   `capped master served`: Eine Sitzung, die auf einem copy-Master mit über
-   20 Mbit/s begann und nach ein paar Sekunden auf eine gedeckelte 1080p-Stufe
+   `plan fitted to the client's line` (die `maxKbps`-Messung des Receivers
+   oder seine `abr=floor`-Rettung, jetzt Eingaben des Plans - der folgende
+   Transcode-Master trägt den Grund `client_line_exceeded` oder
+   `abr_floor_requested`): Eine Sitzung, die auf einem copy-Master mit über
+   20 Mbit/s begann und nach ein paar Sekunden auf eine angepasste 1080p-Stufe
    fiel, ist die Rettung nach unten bei der Arbeit; ein erneutes LOAD, das
    wieder auf dem copy-Master beginnt, ist das Muster, das einen Chromecast HD
    umbringt.

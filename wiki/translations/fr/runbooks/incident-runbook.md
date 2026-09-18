@@ -319,8 +319,11 @@ n'est nécessaire. Les heures sont en UTC. Chaque balise est une ligne
    réémise pour le même titre.
 5. **Le flux était-il trop gros pour l'appareil ?** Cherchez
    `advertises a fallback rung` (le débit crête du master de copie) et
-   `capped master served` : une session qui démarre sur un master de copie à
-   plus de 20 Mbit/s et retombe sur un palier 1080p plafonné après quelques
+   `plan fitted to the client's line` (la mesure `maxKbps` du récepteur ou
+   son secours `abr=floor`, désormais des entrées du plan - le master
+   transcodé qui suit porte le motif `client_line_exceeded` ou
+   `abr_floor_requested`) : une session qui démarre sur un master de copie à
+   plus de 20 Mbit/s et retombe sur un palier 1080p ajusté après quelques
    secondes, c'est le sauvetage par le plancher qui fait son travail ; un
    re-LOAD qui repart sur le master de copie, c'est le motif qui tue un
    Chromecast HD.

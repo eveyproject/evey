@@ -50,6 +50,11 @@ var planSubDerivations = []string{
 	// audio) were the HTTP adapter's own until they moved into the plan
 	// (PlaybackPlan.Delivery); an adapter naming one again is re-deciding.
 	"planHLSVideoEligible", "audioAllCopyEligible", "audioTrimUnlocksCopy", "tryServePlanMaster",
+	// The cast receiver's line (?maxKbps) and floor (?abr=floor) are plan
+	// inputs (PlaybackRequest.LineKbps / ABRFloor -> PlaybackPlan.Fit); the
+	// adapter used to re-pin the request to a transcode and serve that second
+	// plan under these names.
+	"buildCappedMaster", "buildFloorMaster",
 }
 
 func TestPlanResolverExportsOnlyPlanLevelEntryPoints(t *testing.T) {

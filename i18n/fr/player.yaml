@@ -177,6 +177,8 @@ streamInfo:
     subtitle_burn_in: Sous-titres incrustés dans l'image
     audio_resync_requested: Resynchronisation audio demandée
     decision_pinned: Choix figé pour cette session
+    client_line_exceeded: Le débit mesuré par le client ne peut pas porter la copie
+    abr_floor_requested: Palier de survie demandé par le lecteur
     file_needs_remux: "Fichier rangé par blocs mono-piste (réparation nécessaire)"
 jumpToChapter: "Aller au chapitre : {{chapter}}"
 cast:

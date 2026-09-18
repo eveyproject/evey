@@ -177,6 +177,8 @@ streamInfo:
     subtitle_burn_in: उपशीर्षक चित्र में स्थायी रूप से जोड़े गए
     audio_resync_requested: ऑडियो पुनः-सिंक का अनुरोध किया गया
     decision_pinned: इस सत्र के लिए चुनाव स्थिर किया गया
+    client_line_exceeded: क्लाइंट द्वारा मापी गई लाइन कॉपी नहीं ले सकती
+    abr_floor_requested: प्लेयर द्वारा अनुरोधित न्यूनतम स्तर
     file_needs_remux: "फ़ाइल एक-ट्रैक ब्लॉकों में संग्रहीत है (मरम्मत आवश्यक)"
 jumpToChapter: "अध्याय पर जाएं: {{chapter}}"
 cast:
