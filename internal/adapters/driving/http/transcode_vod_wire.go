@@ -347,7 +347,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// hardware path is usable end-to-end for this content. hwUsableForContent
 	// reuses the handler's resolveHW + hwTonemapWanted so the routing matches
 	// exactly what tags the fingerprint (HW vs SW segments share the cache).
-	h.selector = apptranscoding.NewProducerSelector(software, orch, h.hwRouteUsable).WithPlaybackActivity(s.PlaybackActivity)
+	h.selector = apptranscoding.NewProducerSelector(software, orch).WithPlaybackActivity(s.PlaybackActivity)
 	subtitleReadPacer = newMediaReadPacer(func() bool { return h.selector.ActivePlaybackCount() > 0 }, subtitleReadRateWhilePlaying)
 
 	// Fan the superseded-hash reclaim across BOTH encoding producers: a stream

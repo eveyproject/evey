@@ -85,15 +85,12 @@ type ManifestProvider interface {
 
 var _ ManifestProvider = (*SoftwareProducer)(nil)
 
-// ProducerSelector routes each request to the software or hardware producer:
-// hardware only when the flag is on AND resolveHW says the GPU takes this
-// content end-to-end (hwUsableForContent), so the fingerprint and the routing
-// never disagree.
+// ProducerSelector holds the software and hardware producers; the resolved
+// plan's route says which one serves a request (PlanResolver.ProducerForPlan
+// -> forRoute). No gate is evaluated here (ADR-0030).
 type ProducerSelector struct {
 	software StreamProducer
 	hardware StreamProducer
-
-	hwUsableForContent func(decision transcoding.PlaybackDecision, src SourceDims) bool
 
 	// playback counts reads served WITHOUT an ffmpeg session (mkvgo, direct
 	// play), which both producers are blind to; every anti-starvation guard
@@ -107,26 +104,10 @@ func (s *ProducerSelector) WithPlaybackActivity(a *PlaybackActivity) *ProducerSe
 	return s
 }
 
-// NewProducerSelector wires the two producers and the usability predicate.
-// Either producer may be nil only in degenerate test setups.
-func NewProducerSelector(
-	software, hardware StreamProducer,
-	hwUsableForContent func(decision transcoding.PlaybackDecision, src SourceDims) bool,
-) *ProducerSelector {
-	return &ProducerSelector{
-		software:           software,
-		hardware:           hardware,
-		hwUsableForContent: hwUsableForContent,
-	}
-}
-
-// For returns the producer that should serve this request; software unless
-// hwUsableForContent confirms the GPU path end-to-end.
-func (s *ProducerSelector) For(decision transcoding.PlaybackDecision, src SourceDims) StreamProducer {
-	if s.hardware != nil && s.hwUsableForContent != nil && s.hwUsableForContent(decision, src) {
-		return s.hardware
-	}
-	return s.software
+// NewProducerSelector wires the two producers. Either producer may be nil
+// only in degenerate test setups.
+func NewProducerSelector(software, hardware StreamProducer) *ProducerSelector {
+	return &ProducerSelector{software: software, hardware: hardware}
 }
 
 // forRoute returns the producer of the resolved route's side: the hardware

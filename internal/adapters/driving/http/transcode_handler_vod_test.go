@@ -724,7 +724,7 @@ func TestHLSVOD_SpilledStream_FingerprintAndSpawnFollowTheSoftwareRoute(t *testi
 	// resolveHW (same wiring as production): this stream routes hw naturally.
 	swProd := &sentinelProducer{tag: "software"}
 	hwProd := &sentinelProducer{tag: "hardware"}
-	h.selector = apptranscoding.NewProducerSelector(swProd, hwProd, h.hwRouteUsable)
+	h.selector = apptranscoding.NewProducerSelector(swProd, hwProd)
 
 	// The shaper says: GPU full, spilled to software, capped at 1080.
 	h.admissionRoute = func(_ string, req apptranscoding.RouteAdmission) apptranscoding.RouteGrant {
@@ -1275,7 +1275,7 @@ func TestHLSVOD_Master_CodecsFollowTheSpilledFingerprint(t *testing.T) {
 	}
 	h.hwAccelEnabled = func() bool { return true }
 	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool { return true }
-	h.selector = apptranscoding.NewProducerSelector(&sentinelProducer{tag: "software"}, &sentinelProducer{tag: "hardware"}, h.hwRouteUsable)
+	h.selector = apptranscoding.NewProducerSelector(&sentinelProducer{tag: "software"}, &sentinelProducer{tag: "hardware"})
 
 	master := func() string {
 		// vd=transcode: a copy-blocked title keeps a "copy" decision under a

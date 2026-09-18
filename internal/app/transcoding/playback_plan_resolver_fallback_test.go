@@ -176,7 +176,7 @@ func TestResolver_BlockedTitleSpillsToSoftware(t *testing.T) {
 		HWTonemapEnabled: func() bool { return true },
 		Capability:       func() transcoding.EncodeCapability { return cap },
 		HWRouteBlocked:   func(id string) bool { return blocked[id] },
-		Selector:         NewProducerSelector(sw, hw, func(transcoding.PlaybackDecision, SourceDims) bool { return true }),
+		Selector:         NewProducerSelector(sw, hw),
 	}
 	tonemap := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", TranscodeReasons: []string{"hdr_tonemapping_needed"}}
 	streams := hdrStreams("hevc", "yuv420p10le", true)

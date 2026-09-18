@@ -9,6 +9,7 @@ package httpapi
 
 import (
 	"context"
+	"slices"
 	"errors"
 	"net/http"
 	"testing"
@@ -64,10 +65,7 @@ func TestHLSVOD_Variant_TranscodeManifestProducer_FallsThrough(t *testing.T) {
 	)
 	// Route the request through a producer that implements ManifestProvider (its
 	// Manifest errors). copyProducer stays nil → isCopyRequest is always false.
-	h.selector = apptranscoding.NewProducerSelector(
-		&sentinelManifestProducer{}, &sentinelProducer{tag: "hw"},
-		func(_ domaintranscoding.PlaybackDecision, _ apptranscoding.SourceDims) bool { return false },
-	)
+	h.selector = apptranscoding.NewProducerSelector(&sentinelManifestProducer{}, &sentinelProducer{tag: "hw"})
 	w := doVODRequest(h, "m1", "stream_0.m3u8")
 	require.Equal(t, http.StatusOK, w.Code, "transcode variant must serve the precalculated manifest, not 500")
 	assert.Contains(t, w.Body.String(), "#EXTM3U")
@@ -86,17 +84,37 @@ func newSwitchHandler(hwEnabled bool, capFn func() domaintranscoding.EncodeCapab
 		// HW tonemap allowed when probed; mirrors production default.
 		hwTonemapEnabled: func() bool { return true },
 	}
-	h.selector = apptranscoding.NewProducerSelector(sw, hw,
-		func(decision domaintranscoding.PlaybackDecision, src apptranscoding.SourceDims) bool {
-			_, _, _, usable, _ := h.resolveHW(decision.VideoCodec, src.Codec, src.TenBit, h.hwTonemapWanted(decision, src.HDRRange))
-			return usable
-		},
-	)
+	h.selector = apptranscoding.NewProducerSelector(sw, hw)
 	return h, sw, hw
 }
 
 // vaapiPreSkylakeCap returns a VAAPI capability that encodes H.264 but CANNOT
 // decode HEVC - a pre-Skylake Intel iGPU (the prod NAS).
+// switchHDR10Streams is build4KHDRStreams with the HDR10 signalling the
+// decision reads (PQ transfer, BT.2020): a real tone-map decision, not a
+// hand-written one.
+func switchHDR10Streams() []*domainlibrary.MediaStream {
+	streams := build4KHDRStreams()
+	streams[0].ColorTransfer = new("smpte2084")
+	streams[0].ColorSpace = new("bt2020nc")
+	streams[0].PixelFormat = new("yuv420p10le")
+	return streams
+}
+
+// switchRequest is an SDR H.264-only web client asking for a video
+// TRANSCODE of streams (vd=transcode, as the corpus does: a copyable H.264
+// source would otherwise remux and reach no producer).
+func switchRequest(streams []*domainlibrary.MediaStream) apptranscoding.PlaybackRequest {
+	return apptranscoding.PlaybackRequest{
+		MediaID: "m-switch", SourcePath: "/m-switch.mkv", Container: "matroska", Streams: streams,
+		Client:              domaintranscoding.ClientProfile{VideoCodecs: []string{"h264"}, AudioCodecs: []string{"aac"}, Containers: []string{"mp4"}, MaxAudioChannels: 2},
+		Prefs:               apptranscoding.DefaultTranscodingPreferences(),
+		AudioTrack:          0,
+		SubtitleBurnInTrack: -1,
+		PinnedVideoDecision: "transcode",
+	}
+}
+
 func vaapiPreSkylakeCap() domaintranscoding.EncodeCapability {
 	return domaintranscoding.EncodeCapability{
 		SoftwareMaxHeight: 1080,
@@ -116,7 +134,7 @@ func TestProducerSwitch_Matrix(t *testing.T) {
 		hwEnabled bool
 		capFn     func() domaintranscoding.EncodeCapability
 		streams   []*domainlibrary.MediaStream
-		decision  domaintranscoding.PlaybackDecision
+		hdr       bool
 		wantTag   string
 	}{
 		{
@@ -125,8 +143,8 @@ func TestProducerSwitch_Matrix(t *testing.T) {
 			name:      "hw_off_4K_HEVC10_HDR_to_software",
 			hwEnabled: false,
 			capFn:     hdrCapHWCapability, // capable HW present, but flag off
-			streams:   build4KHDRStreams(),
-			decision:  buildHDRDecision(),
+			streams:   switchHDR10Streams(),
+			hdr:       true,
 			wantTag:   "software",
 		},
 		{
@@ -135,7 +153,7 @@ func TestProducerSwitch_Matrix(t *testing.T) {
 			hwEnabled: false,
 			capFn:     hdrCapHWCapability,
 			streams:   build1080pH264Streams(),
-			decision:  buildSDRDecision(),
+			hdr:       false,
 			wantTag:   "software",
 		},
 		{
@@ -144,7 +162,7 @@ func TestProducerSwitch_Matrix(t *testing.T) {
 			hwEnabled: true,
 			capFn:     hdrCapTestCapability, // software-only capability
 			streams:   build1080pH264Streams(),
-			decision:  buildSDRDecision(),
+			hdr:       false,
 			wantTag:   "software",
 		},
 		{
@@ -152,8 +170,8 @@ func TestProducerSwitch_Matrix(t *testing.T) {
 			name:      "hw_auto_NVENC_full_to_hardware",
 			hwEnabled: true,
 			capFn:     hdrCapHWCapability, // nvenc h264, decodes hevc, HW10BitTranscode
-			streams:   build4KHDRStreams(),
-			decision:  buildHDRDecision(),
+			streams:   switchHDR10Streams(),
+			hdr:       true,
 			wantTag:   "hardware",
 		},
 		{
@@ -161,22 +179,30 @@ func TestProducerSwitch_Matrix(t *testing.T) {
 			name:      "hw_auto_VAAPI_preSkylake_HEVC_to_software",
 			hwEnabled: true,
 			capFn:     vaapiPreSkylakeCap,
-			streams:   build4KHDRStreams(), // HEVC source the iGPU can't decode
-			decision:  buildSDRDecision(),
+			streams:   switchHDR10Streams(), // HEVC source the iGPU can't decode
+			hdr:       true,
 			wantTag:   "software",
 		},
 	}
 
+	// The producer is a projection of the RESOLVED plan (ADR-0030): the
+	// request is resolved end to end (its decision, its route) and
+	// ProducerForPlan reads the route's side; nothing re-derives a gate.
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			h, sw, hw := newSwitchHandler(tc.hwEnabled, tc.capFn)
-			got := h.selector.For(tc.decision, sourceDimsOf(tc.streams))
+			pr := h.planResolver()
+			plan, err := pr.Resolve(context.Background(), switchRequest(tc.streams))
+			require.NoError(t, err)
+			require.Equal(t, "transcode", plan.Decision.VideoDecision)
+			assert.Equal(t, tc.hdr, apptranscoding.SourceTranscodeVideoRange(tc.streams) != "" && slices.Contains(plan.Decision.TranscodeReasons, "hdr_tonemapping_needed"), "the resolved decision tone-maps iff the source is HDR for this SDR client")
+			got := pr.ProducerForPlan(plan)
 			want := sw
 			if tc.wantTag == "hardware" {
 				want = hw
 			}
-			assert.Same(t, want, got, "selector routed to the wrong producer (want %s)", tc.wantTag)
+			assert.Same(t, want, got, "the plan routed to the wrong producer (want %s)", tc.wantTag)
 		})
 	}
 }

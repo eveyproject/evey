@@ -524,7 +524,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// - they all read that one method, so wiring it anywhere else would have
 	// fixed some and left the others blind.
 	playbackActivity := apptranscoding.NewPlaybackActivity(apptranscoding.PlaybackActivityTTL)
-	hlsVODRemover := apptranscoding.NewProducerSelector(hlsVODSoftware, hlsVODOrch, nil).
+	hlsVODRemover := apptranscoding.NewProducerSelector(hlsVODSoftware, hlsVODOrch).
 		WithPlaybackActivity(playbackActivity)
 
 	// LRU sweep on the on-disk segment cache. Cleanup token dropped: the

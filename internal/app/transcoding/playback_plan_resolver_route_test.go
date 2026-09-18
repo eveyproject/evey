@@ -34,11 +34,10 @@ func newNamedProducer(name string) *namedProducer {
 	return &namedProducer{name: name}
 }
 
-func routeSelector(t *testing.T, hwUsable bool) (*ProducerSelector, *namedProducer, *namedProducer) {
+func routeSelector(t *testing.T) (*ProducerSelector, *namedProducer, *namedProducer) {
 	t.Helper()
 	sw, hw := newNamedProducer("software"), newNamedProducer("hardware")
-	sel := NewProducerSelector(sw, hw, func(transcoding.PlaybackDecision, SourceDims) bool { return hwUsable })
-	return sel, sw, hw
+	return NewProducerSelector(sw, hw), sw, hw
 }
 
 func routeRequest(mediaID string) PlaybackRequest {
@@ -72,7 +71,7 @@ func TestProducerFor(t *testing.T) {
 	}
 
 	t.Run("a spilled stream spawns on the software producer despite a usable GPU", func(t *testing.T) {
-		sel, sw, hw := routeSelector(t, true) // the route resolves to the GPU...
+		sel, sw, hw := routeSelector(t) // the route resolves to the GPU...
 		// ...but admission pinned this stream to the CPU pool.
 		pr := hwHost(sel, func(string) (LadderClass, bool) { return LadderClassSoftware, true })
 
@@ -82,7 +81,7 @@ func TestProducerFor(t *testing.T) {
 	})
 
 	t.Run("a stream pinned to HW follows its route", func(t *testing.T) {
-		sel, _, hw := routeSelector(t, true)
+		sel, _, hw := routeSelector(t)
 		pr := hwHost(sel, func(string) (LadderClass, bool) { return LadderClassHW, true })
 
 		assert.Same(t, hw, pr.ProducerFor(routeRequest("m1"), decision, false),
@@ -90,7 +89,7 @@ func TestProducerFor(t *testing.T) {
 	})
 
 	t.Run("no pin at all follows the route", func(t *testing.T) {
-		sel, sw, hw := routeSelector(t, true)
+		sel, sw, hw := routeSelector(t)
 		pr := hwHost(sel, func(string) (LadderClass, bool) { return LadderClassSoftware, false })
 
 		got := pr.ProducerFor(routeRequest("m1"), decision, false)
@@ -98,8 +97,8 @@ func TestProducerFor(t *testing.T) {
 		assert.NotSame(t, sw, got)
 	})
 
-	t.Run("a route resolved to the CPU spawns on the software producer whatever the selector's gate says", func(t *testing.T) {
-		sel, sw, hw := routeSelector(t, true) // the legacy gate stub says GPU...
+	t.Run("a route resolved to the CPU spawns on the software producer", func(t *testing.T) {
+		sel, sw, hw := routeSelector(t) // no gate in the selector...
 		pr := &PlanResolver{Selector: sel}    // ...but no capability: the route is software
 
 		got := pr.ProducerFor(routeRequest("m1"), decision, false)
@@ -108,7 +107,7 @@ func TestProducerFor(t *testing.T) {
 	})
 
 	t.Run("a copy request takes the copy producer, pin or not", func(t *testing.T) {
-		sel, sw, hw := routeSelector(t, true)
+		sel, sw, hw := routeSelector(t)
 		copyProd := newNamedProducer("copy")
 		pr := &PlanResolver{
 			Selector:             sel,
