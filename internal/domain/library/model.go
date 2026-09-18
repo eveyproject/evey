@@ -366,9 +366,10 @@ type MediaStream struct {
 	// compatible base layer (1=HDR10, 2=SDR, 4=HLG) may be served as its base.
 	DoViProfile  *int
 	DoViBLCompat *int
-	// FieldOrder is ffprobe's field_order (progressive/tt/bb/tb/bt), nil when
-	// unreported. A tt/bb/tb/bt value means frames are decoder-flagged
-	// interlaced and the flag-gated bwdif already deinterlaces them.
+	// FieldOrder is the prober's raw field_order word - ffprobe's
+	// progressive/tt/bb/tb/bt or mkvgo's progressive/interlaced - nil when
+	// unreported. Persisted through NormalizeFieldOrder and read ONLY through
+	// ScanType(); no decision path matches the word itself.
 	FieldOrder *string
 	// IdetInterlaced is the idet CONTENT-detection verdict for sources whose
 	// flags are absent or lie (repacked DVD rips), nil = never analyzed.

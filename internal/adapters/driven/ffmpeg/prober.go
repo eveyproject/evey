@@ -215,10 +215,7 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 			ct := s.ColorTransfer
 			ms.ColorTransfer = &ct
 		}
-		if s.FieldOrder != "" {
-			fo := s.FieldOrder
-			ms.FieldOrder = &fo
-		}
+		ms.FieldOrder = library.NormalizeFieldOrder(s.FieldOrder)
 		// "0:1" is ffprobe's "unset" sentinel, not a real sample aspect ratio.
 		if s.SampleAspectRatio != "" && s.SampleAspectRatio != "0:1" {
 			sar := s.SampleAspectRatio

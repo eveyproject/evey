@@ -114,10 +114,10 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			if sar := t.SampleAspectRatio(); sar != "" && sar != "1:1" {
 				ms.SampleAspectRatio = &sar
 			}
-			if t.FieldOrder != "" {
-				fo := t.FieldOrder
-				ms.FieldOrder = &fo
-			}
+			// mkvgo's field_order is a verdict (progressive/interlaced), not an
+			// order; the domain reads both vocabularies. Should mkvgo ever split
+			// a scan type out of it, map that one here and keep this word raw.
+			ms.FieldOrder = library.NormalizeFieldOrder(t.FieldOrder)
 			if t.FrameRate != nil && *t.FrameRate > 0 {
 				fr := *t.FrameRate
 				ms.Framerate = &fr

@@ -334,7 +334,7 @@ func (w *LevelBackfillWorker) idetPhase(ctx context.Context, mediaItemID, path s
 	if video == nil || !idetSuspectCodecs[strings.ToLower(video.Codec)] {
 		return 0
 	}
-	if fo := video.FieldOrder; fo != nil && FieldOrderInterlaced(*fo) {
+	if video.ScanType() == library.ScanInterlaced {
 		// Prober-flagged interlaced: deint=interlaced already covers it, and
 		// running deint=all on top would be redundant. Persist FALSE so the
 		// candidate query converges without paying the decode.

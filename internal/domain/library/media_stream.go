@@ -1,6 +1,9 @@
 package library
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Strict enum for MediaStream.StreamType. The underlying StreamType type and
 // the legacy short-form constants (Video, Audio, Subtitle) live in model.go
@@ -95,4 +98,57 @@ func HasRealVideoStream(streams []*MediaStream) bool {
 		}
 	}
 	return false
+}
+
+// ScanType is the interlacing verdict every decision path reads (the
+// deinterlacer gate, the idet backfill). The persisted MediaStream.FieldOrder
+// is the prober's raw word and is never matched anywhere else: ffprobe names
+// the field order, mkvgo the verdict, and both vocabularies are historical
+// data this reader keeps understanding.
+type ScanType string
+
+const (
+	ScanUnknown     ScanType = ""
+	ScanProgressive ScanType = "progressive"
+	ScanInterlaced  ScanType = "interlaced"
+)
+
+// fieldOrderScanTypes is the ONE vocabulary table: ffprobe's field_order
+// (progressive, tt, bb, tb, bt) and mkvgo's verdict (progressive, interlaced -
+// Matroska FlagInterlaced or the H.264 frame_mbs_only_flag). A word outside
+// it (ffprobe's "unknown", a future prober's token) is ScanUnknown, never
+// progressive: a session-level deinterlacer must not run blind, and a
+// progressive film must not lose its cheaper backend on a guess.
+var fieldOrderScanTypes = map[string]ScanType{
+	"progressive": ScanProgressive,
+	"interlaced":  ScanInterlaced,
+	"tt":          ScanInterlaced,
+	"bb":          ScanInterlaced,
+	"tb":          ScanInterlaced,
+	"bt":          ScanInterlaced,
+}
+
+// ScanTypeOf reads a raw field_order in either prober's vocabulary.
+func ScanTypeOf(fieldOrder string) ScanType {
+	return fieldOrderScanTypes[strings.ToLower(strings.TrimSpace(fieldOrder))]
+}
+
+// NormalizeFieldOrder is what a prober persists: the trimmed, lower-cased word
+// when it belongs to a known vocabulary, nil otherwise. The word itself is
+// kept (a "tt" stays finer than "interlaced") so historical rows and new ones
+// stay comparable; only ScanTypeOf interprets it.
+func NormalizeFieldOrder(raw string) *string {
+	fo := strings.ToLower(strings.TrimSpace(raw))
+	if ScanTypeOf(fo) == ScanUnknown {
+		return nil
+	}
+	return &fo
+}
+
+// ScanType is the stream's interlacing verdict from its persisted field order.
+func (s *MediaStream) ScanType() ScanType {
+	if s == nil || s.FieldOrder == nil {
+		return ScanUnknown
+	}
+	return ScanTypeOf(*s.FieldOrder)
 }
