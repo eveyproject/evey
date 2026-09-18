@@ -137,7 +137,7 @@ func assertLadderInvariants(t *testing.T, name string, pr *PlanResolver, req Pla
 			ceiling = cap.MaxHeightFor(true)
 		}
 	case route.HWUsable:
-		ceiling = cap.MaxHeightFor(src.Codec == "" || cap.HWCanDecode(src.Codec))
+		ceiling = cap.MaxHeightFor(src.Codec == "" || cap.HWCanDecodeSource(src.Codec, src.TenBit, src.PixelFormat))
 	default:
 		ceiling = cap.SoftwareCeilingFor(route.Codec)
 		if route.Tonemap && cap.SoftwareHDRMaxHeight > 0 && cap.SoftwareHDRMaxHeight < ceiling {

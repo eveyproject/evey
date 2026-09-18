@@ -369,15 +369,6 @@ func (c EncodeCapability) HWSupports(codec string) bool {
 	return slices.Contains(c.HWCodecs, codec)
 }
 
-// HWCanDecode reports whether the calibrated HW backend can DECODE the given
-// 8-bit source codec (encode capability does not imply it).
-func (c EncodeCapability) HWCanDecode(codec string) bool {
-	if c.HWBackend == "" {
-		return false
-	}
-	return slices.Contains(c.HWDecodeCodecs, normaliseSourceCodec(codec))
-}
-
 // decodeClassProbeVersion is the CapabilityProbeVersion from which the decode
 // probe distinguishes HEVC Main10 (HWDecodeHEVC10) from 8-bit HEVC. A row
 // probed before it never had the class: Snapshot reads "hevc" as covering
@@ -475,25 +466,6 @@ func (c EncodeCapability) HWCanDecodeSource(codec string, tenBit bool, pixFmt st
 	return c.HWBackend != "" && decodable(c.HWDecodeCodecs, codec, tenBit, pixFmt)
 }
 
-// HWRouteProven reports whether the calibration ran route end-to-end through
-// the production builder on this host. A nil HWRoutes (pre-probe row) is
-// trusted; a probed row is authoritative, fail-closed.
-func (c EncodeCapability) HWRouteProven(route string) bool {
-	if c.HWBackend == "" {
-		return false
-	}
-	if c.HWRoutes == nil {
-		return true
-	}
-	return slices.Contains(c.HWRoutes, route)
-}
-
-// HWHasFeature reports whether the calibration probe confirmed the named
-// encoder tuning option is accepted on this host.
-func (c EncodeCapability) HWHasFeature(feature string) bool {
-	return slices.Contains(c.HWFeatures, feature)
-}
-
 // LowPowerFeature names the probed Intel low-power (VDEnc) encoder feature of a codec.
 func LowPowerFeature(codec string) string {
 	codec = strings.ToLower(strings.TrimSpace(codec))
@@ -501,10 +473,6 @@ func LowPowerFeature(codec string) string {
 		codec = "h264"
 	}
 	return "low_power_" + codec
-}
-
-func (c EncodeCapability) HWHDRPassthroughUsable() bool {
-	return c.HWBackend != "" && c.HWHDR10Encode && c.HWSupports("hevc")
 }
 
 // CapabilityRepo persists the calibration row across restarts
