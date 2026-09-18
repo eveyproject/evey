@@ -299,13 +299,21 @@ func SourceInterlaced(streams []*library.MediaStream) bool {
 		if s.IdetInterlaced != nil && *s.IdetInterlaced {
 			return true
 		}
-		if s.FieldOrder != nil {
-			switch strings.ToLower(strings.TrimSpace(*s.FieldOrder)) {
-			case "tt", "bb", "tb", "bt":
-				return true
-			}
+		if s.FieldOrder != nil && FieldOrderInterlaced(*s.FieldOrder) {
+			return true
 		}
 		return false
+	}
+	return false
+}
+
+// FieldOrderInterlaced reads a persisted field_order in either prober's
+// vocabulary: ffprobe names the field order (tt/bb/tb/bt), mkvgo names the
+// verdict ("interlaced" from FlagInterlaced or the H.264 frame_mbs_only_flag).
+func FieldOrderInterlaced(fo string) bool {
+	switch strings.ToLower(strings.TrimSpace(fo)) {
+	case "tt", "bb", "tb", "bt", "interlaced":
+		return true
 	}
 	return false
 }

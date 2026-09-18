@@ -146,8 +146,12 @@ func TestBackendPerRoute_InterlacedSourceNeedsAProvenQSVDeinterlacer(t *testing.
 	idet := sdrStreams("h264", "yuv420p", false)
 	yes := true
 	idet[0].IdetInterlaced = &yes
+	// mkvgo persists the verdict, not the field order: "interlaced" is the
+	// same fact as ffprobe's "tt" (a 1080i sample was served combed otherwise).
+	mkvgo := sdrStreams("h264", "yuv420p", false)
+	mkvgo[0].FieldOrder = new("interlaced")
 
-	for name, streams := range map[string][]*library.MediaStream{"flagged": flagged, "idet": idet} {
+	for name, streams := range map[string][]*library.MediaStream{"flagged": flagged, "idet": idet, "mkvgo": mkvgo} {
 		_, accel, _, _, usable, _ := pr.EffectiveVideoCodec(sdrTranscode, streams)
 		assert.True(t, usable, name)
 		assert.Equal(t, "vaapi", accel, "%s: QSV never proved its deinterlacer, the per-frame VAAPI takes the interlaced source", name)
