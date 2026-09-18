@@ -38,7 +38,10 @@ import {
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
 import { eveyFetch, createPlayerEventReporter } from "@evey/api";
-import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCastTapPath, pickPinnedLevel, pickPlayOnFallback, pickTranscodeAudioSwitchPath, planCastLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
+import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCastTapPath, pickPinnedLevel, pickPlayOnFallback, pickTranscodeAudioSwitchPath, planCastLoad, planRendererLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
+import { castProfileFor, castStreamInfoParams } from "@evey/media-caps/cast";
+import { playbackServiceGetStreamInfo } from "@evey/api";
+import type { CastTarget } from "@/hooks/useCasting";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback, type ShedReason } from "./hooks/useTranscodePlayback";
 import { useWasmAudioPlayback } from "./wasmaudio/useWasmAudioPlayback";
@@ -425,18 +428,18 @@ export function HLSPlayer({
     return () => { stale = true; };
   }, [remotePlayback.supported, onCastTokenRequest, mediaId]);
 
-  // Builds a URL the receiver can fetch on its own (absolute, cast token).
-  // Shared by the desktop Cast SDK and the Chrome-Android Remote Playback
-  // path, so both hand the device the exact same media. Resume rides the
-  // LoadRequest's currentTime (castResumeSec) on BOTH paths: direct play and
-  // transcode each hand the receiver a complete absolute timeline (the file /
-  // the precomputed VOD manifest), and baking startSec into the transcode URL
-  // never worked - no server handler parses it (see planCastLoad).
-  const buildCastUrl = useCallback(async (): Promise<{ url: string; castResumeSec: number }> => {
-    const plan = planCastLoad(
-      streamInfo.directPlayUrl, streamTokenRef.current, mediaId, currentTrackIndex, positionRef.current, gapless,
-    );
-    let url = plan.url;
+  // Builds the media a cast session hands the device, once startCast knows
+  // WHICH device (its observed caps on the SDK path, its model on the
+  // server path, a DLNA renderer): the profile is the receiver's, the server
+  // is asked for ITS verdict (GetStreamInfo), and the URL follows that
+  // verdict - the browser's own negotiation (streamInfo.directPlayUrl, its
+  // codec caps) never reaches a Cast receiver. Nothing known about the
+  // device (no caps answer, no model) negotiates on the conservative floor.
+  // Resume rides the LoadRequest's currentTime (castResumeSec) on every
+  // path: direct play and transcode each hand the receiver a complete
+  // absolute timeline, and baking startSec into the URL never worked - no
+  // server handler parses it (see planCastLoad).
+  const resolveCastUrl = useCallback(async (target: CastTarget): Promise<{ url: string; castResumeSec: number }> => {
     // Swap in a long-lived cast token: the receiver buffers minutes ahead then
     // goes quiet, and the 5-minute sliding token would expire mid-film. The
     // local player dodges this via xhrSetup; the receiver can't. Prefetched
@@ -452,12 +455,20 @@ export function HLSPlayer({
         reportCastEvent({ type: "cast_token_failed", details: String((err as Error)?.name ?? "unknown"), fatal: true });
       }
     }
-    if (castTok) {
-      const u = new URL(url, window.location.origin);
-      u.searchParams.set("token", castTok);
-      url = `${u.pathname}?${u.searchParams.toString()}`;
+    const token = castTok ?? streamTokenRef.current;
+    const audioTrack = audioTrackOverrideRef.current ?? currentTrackIndex;
+    if (target.kind === "dlna") {
+      const plan = planRendererLoad(streamInfo.directPlayUrl, token, mediaId, audioTrack, positionRef.current, gapless);
+      return { url: plan.url, castResumeSec: plan.resumeSec };
     }
-    return { url, castResumeSec: plan.resumeSec };
+    const profile = castProfileFor(target.kind === "sdk" ? target.caps : null, target.kind === "server" ? target.model : null);
+    // The server's verdict for the receiver; a failed call plays it safe
+    // (the master) inside planCastLoad.
+    const verdict = await playbackServiceGetStreamInfo(mediaId, castStreamInfoParams(profile)).catch(() => null);
+    const origin = localStorage.getItem("cast_base_url") || window.location.origin;
+    const plan = planCastLoad(origin, mediaId, token, profile, verdict, audioTrack, positionRef.current, gapless);
+    if (import.meta.env.DEV) console.log("[Cast] url:", plan.url, "target:", target.kind, "verdict:", verdict?.playMethod ?? "none");
+    return { url: plan.url, castResumeSec: plan.resumeSec };
   }, [streamInfo.directPlayUrl, mediaId, currentTrackIndex, onCastTokenRequest, gapless, reportCastEvent]);
 
   // Chrome Android: neither browser cast path is reliable here - the Cast SDK
@@ -472,8 +483,7 @@ export function HLSPlayer({
   const handleMobileCast = useCallback(async () => {
     const el = castVideoRef.current;
     if (!el) return;
-    const { url, castResumeSec } = await buildCastUrl();
-    const server = await startCast(url, title, castResumeSec, { skipSdk: true });
+    const server = await startCast(resolveCastUrl, title, { skipSdk: true });
     if (server === "connected" || server === "load-failed" || server === "dismissed") return;
     // NAT-proof fallback for users who don't live on the server's LAN: their
     // own Evey clients (TV app, another tab) hold a WebSocket to the server
@@ -521,16 +531,14 @@ export function HLSPlayer({
     // (Chrome refuses both cast APIs there), so say what DOES work instead of
     // a dead-end "no devices" - the 2026-07-24 lesson twice over.
     toast.error(t(server === "no-devices" ? "player.cast.mobileWebHint" : "player.cast.connectFailed"));
-  }, [remotePlayback, startCast, buildCastUrl, title, t, mediaId]);
+  }, [remotePlayback, startCast, resolveCastUrl, title, t, mediaId]);
 
   const handleCastToggle = useCallback(async () => {
     if (castConnected) {
       stopCast();
       return;
     }
-    const { url, castResumeSec } = await buildCastUrl();
-    if (import.meta.env.DEV) console.log("[Cast] SDK cast url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
-    const outcome = await startCast(url, title, castResumeSec);
+    const outcome = await startCast(resolveCastUrl, title);
     if (outcome === "no-devices") {
       toast.error(t("player.cast.noDevices"));
       return;
@@ -542,7 +550,7 @@ export function HLSPlayer({
     // platform routing above already picks the path that works here; if it
     // failed, say so honestly instead of opening a door that cannot open.
     toast.error(t("player.cast.connectFailed"));
-  }, [castConnected, stopCast, startCast, buildCastUrl, streamInfo.directPlayUrl, title, t]);
+  }, [castConnected, stopCast, startCast, resolveCastUrl, title, t]);
 
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -622,7 +630,7 @@ export function HLSPlayer({
   // Give the hidden cast <video> a flingable source URL so Remote Playback can
   // compute device availability (an MSE element never can). A base URL with the
   // session token is enough to advertise the source; the click path rebuilds it
-  // with the long-lived cast token + current position via buildCastUrl.
+  // with the long-lived cast token + current position via resolveCastUrl.
   const castAvailabilitySrc = useMemo(() => {
     const sessionTok = streamTokenRef.current;
     if (!sessionTok) return undefined;

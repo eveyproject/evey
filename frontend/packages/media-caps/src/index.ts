@@ -4,6 +4,8 @@ export { formatAudioProbe, MAX_DETAIL_LEN } from "./audioProbe";
 export { declarableAudioCodecs, sinkAcceptsCodec } from "./audioDeclaration";
 export type { AudioProbe } from "./audioProbe";
 export { reportAudioProbeOnce, resetAudioProbeLatch } from "./reportProbe";
+export { buildCastStreamUrl, castProfileFor, castStreamInfoParams, FLOOR_PROFILE, h264HeightFromLevel, pickCastProfile, profileFromReceiverCaps } from "./castUrl";
+export type { CastProfile, CastUrlExtras, ObservedReceiverCaps, ReceiverStreamInfo } from "./castUrl";
 export type { ProbePoster, ReportOutcome } from "./reportProbe";
 
 interface EveyMediaCapsNative {

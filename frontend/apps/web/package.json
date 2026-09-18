@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@evey/api": "workspace:*",
+    "@evey/media-caps": "workspace:*",
     "@evey/store": "workspace:*",
     "@evey/theme": "workspace:*",
     "@tanstack/react-query": "5.102.6",

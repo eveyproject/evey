@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteWithToken, appendMaxKbps, bufferedStats, planBackBufferTrim, planFloorRescue, bitrateTestUrl, buildPlayerEventUrl, createBeaconUrlResolver, createDecoderDistressWatch, createStarvationWatch, createStartGate, createStartWatch, describePlayerError, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bufferedStats, capsReport, isCapsRequest, planBackBufferTrim, planFloorRescue, bitrateTestUrl, buildPlayerEventUrl, createBeaconUrlResolver, createDecoderDistressWatch, createStarvationWatch, createStartGate, createStartWatch, describePlayerError, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // Fake canDisplayType: allows what `yes` lists (substring match on the
 // codec string), refuses the rest. 4K resolution is only granted if
@@ -37,6 +37,43 @@ describe("probeReceiverCaps - the receiver probes ITSELF (no more per-model tabl
     // A first-generation Chromecast: High 4.0 and 4.1, nothing above.
     expect(probeReceiverCaps(fakeCDT(["avc1.640028", "avc1.640029"]), false).maxH264Level).toBe(41);
     expect(probeReceiverCaps(fakeCDT(["avc1.640028"]), false).maxH264Level).toBe(40);
+  });
+
+  it("measures the H.264 resolution ceiling directly: 4K only when the device answers 4K for H.264", () => {
+    // An L5.1 string accepted at 1080p but 4K refused (the Ultra's shape:
+    // 4K via HEVC, H.264 plateaus at 1080p) - the level would have said 2160.
+    const ultraLike: CanDisplayType = (_mime, codec, width) => {
+      if (!codec) return true;
+      if (codec.startsWith("avc1") && width && width > 1920) return false;
+      return codec.startsWith("avc1") || codec.startsWith("hev1");
+    };
+    const ultra = probeReceiverCaps(ultraLike, true);
+    expect(ultra.maxH264Level).toBe(51);
+    expect(ultra.maxHeight).toBe(2160);
+    expect(ultra.h264MaxHeight).toBe(1080);
+    expect(probeReceiverCaps(fakeCDT(["avc1", "hev1"]), true).h264MaxHeight).toBe(2160);
+    // Nothing above 720p answered for H.264: the floor.
+    const small: CanDisplayType = (_mime, codec, width) => !codec || (codec.startsWith("avc1") && (!width || width <= 1280));
+    expect(probeReceiverCaps(small, false).h264MaxHeight).toBe(720);
+  });
+});
+
+// The sender asks, the receiver answers with what it OBSERVED; the user agent
+// rides along for diagnosis only.
+describe("caps channel", () => {
+  it("recognises a caps request and nothing else", () => {
+    expect(isCapsRequest({ type: "caps" })).toBe(true);
+    expect(isCapsRequest({ type: "load" })).toBe(false);
+    expect(isCapsRequest(null)).toBe(false);
+    expect(isCapsRequest("caps")).toBe(false);
+  });
+
+  it("reports the probed caps verbatim with the user agent as diagnostic", () => {
+    const caps = probeReceiverCaps(fakeCDT(["avc1", "hev1", "vp09"]), true, 6);
+    const report = capsReport(caps, "Mozilla/5.0 CrKey/1.56");
+    expect(report).toEqual({ type: "caps", caps, userAgent: "Mozilla/5.0 CrKey/1.56" });
+    expect(report.caps).not.toBe(caps); // a copy: the report never aliases the probe
+    expect(report.caps.h264MaxHeight).toBe(2160);
   });
 });
 
@@ -109,6 +146,7 @@ describe("rewriteCastMasterUrl - negotiation happens on the REAL caps", () => {
     expect(u.searchParams.get("videoCodecs")).toBe("h264,hevc,vp9");
     expect(u.searchParams.get("maxHeight")).toBe("2160");
     expect(u.searchParams.get("maxH264Level")).toBe("51");
+    expect(u.searchParams.get("maxH264Height")).toBe("2160");
     expect(u.searchParams.get("hdr")).toBe("1");
     expect(u.searchParams.get("containers")).toBe("mp4");
     expect(u.searchParams.get("token")).toBe("tok"); // the cast token survives

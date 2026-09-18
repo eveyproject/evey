@@ -405,16 +405,24 @@ func (mdnsDiscoverer) Discover(ctx context.Context) ([]domaincast.Device, error)
 
 	var devices []domaincast.Device
 	for entry := range entryChan {
-		devices = append(devices, domaincast.Device{
-			UUID: entry.GetUUID(),
-			Name: entry.GetName(),
-			Addr: entry.GetAddr(),
-			Port: entry.GetPort(),
-		})
+		devices = append(devices, deviceFromEntry(entry))
 	}
 	devices = dedupeDevices(devices)
 	slog.InfoContext(ctx, "chromecast: discovery complete", slog.Int("count", len(devices)))
 	return devices, nil
+}
+
+// deviceFromEntry projects an mDNS cast entry onto the domain device. The
+// model rides along (CastEntry.Device is the TXT md record) so the sender
+// can negotiate the stream for that receiver family.
+func deviceFromEntry(entry dns.CastEntry) domaincast.Device {
+	return domaincast.Device{
+		UUID:  entry.GetUUID(),
+		Name:  entry.GetName(),
+		Addr:  entry.GetAddr(),
+		Port:  entry.GetPort(),
+		Model: entry.Device,
+	}
 }
 
 // tcpSubnetProber finds Chromecasts without multicast: every cast device

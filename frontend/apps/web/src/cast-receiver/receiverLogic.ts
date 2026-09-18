@@ -27,6 +27,11 @@ export interface ReceiverCaps {
   // Highest H.264 level_idc the receiver accepts (a 1st/2nd generation
   // Chromecast stops at 4.1 or 4.2; a 5.1 stream there is a black screen).
   maxH264Level: number;
+  // The tallest H.264 frame the device ANSWERS for (canDisplayType at
+  // 3840x2160, then 1920x1080): a measured ceiling, not one inferred from the
+  // level - an Ultra takes an L5.1 codec string and still plateaus at 1080p
+  // in H.264. This is what the sender asks the server with (maxH264Height).
+  h264MaxHeight: number;
 }
 
 // AAC-LC, the codec the server transcodes to. Stereo and 5.1 differ only by
@@ -124,7 +129,41 @@ export function probeReceiverCaps(
 
   const maxH264Level = PROBE_H264_LEVELS.find(([, codec]) => canDisplayType("video/mp4", codec))?.[0] ?? 40;
 
-  return { videoCodecs, maxHeight, hdr, nativeDolby, maxAudioChannels, maxH264Level };
+  // The direct H.264 resolution answer, on the L5.1 string at 4K (the only
+  // level that carries 4K) and the High-4.0 string at 1080p; 720p is the
+  // floor every receiver plays.
+  const h264MaxHeight = canDisplayType("video/mp4", PROBE_H264_LEVELS[0][1], 3840, 2160) ? 2160
+    : canDisplayType(PROBE_H264[0], PROBE_H264[1], 1920, 1080) ? 1080
+      : 720;
+
+  return { videoCodecs, maxHeight, hdr, nativeDolby, maxAudioChannels, maxH264Level, h264MaxHeight };
+}
+
+// CAPS_NAMESPACE is the custom message channel a sender uses to ask this
+// receiver what it observed about itself BEFORE loading media, so the sender
+// negotiates the stream with the server on the receiver's real capabilities
+// (the Web Sender SDK exposes no model name, and a model table is a guess).
+export const CAPS_NAMESPACE = "urn:x-cast:org.eveyproject.caps";
+
+export interface CapsRequest {
+  type: "caps";
+}
+
+// CapsReport is the answer: the observed capabilities are the ONLY decision
+// input the sender may use; userAgent is diagnostic (telemetry, the beacon),
+// never a second authority.
+export interface CapsReport {
+  type: "caps";
+  caps: ReceiverCaps;
+  userAgent: string;
+}
+
+export function isCapsRequest(data: unknown): data is CapsRequest {
+  return typeof data === "object" && data !== null && (data as { type?: unknown }).type === "caps";
+}
+
+export function capsReport(caps: ReceiverCaps, userAgent: string): CapsReport {
+  return { type: "caps", caps: { ...caps }, userAgent };
 }
 
 export interface RewrittenLoad {
@@ -162,6 +201,7 @@ export function rewriteCastMasterUrl(
   u.searchParams.set("containers", "mp4");
   u.searchParams.set("maxHeight", String(caps.maxHeight));
   u.searchParams.set("maxH264Level", String(caps.maxH264Level));
+  u.searchParams.set("maxH264Height", String(caps.h264MaxHeight));
   if (caps.hdr) u.searchParams.set("hdr", "1");
   else u.searchParams.delete("hdr");
 

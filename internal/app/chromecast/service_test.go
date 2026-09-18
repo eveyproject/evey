@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vishen/go-chromecast/dns"
+
 	domaincast "github.com/evey-project/evey/internal/domain/chromecast"
 	castfakes "github.com/evey-project/evey/internal/domain/chromecast/fakes"
 )
@@ -495,5 +497,22 @@ func TestTCPSubnetProber_FindsOpenCastPorts(t *testing.T) {
 		if d.Port != 8009 || d.Name == "" {
 			t.Fatalf("bad device: %+v", d)
 		}
+	}
+}
+
+// The mDNS model record (TXT md) is the one capability hint a sender has for
+// a device the backend found: it rides the device so the web sender can read
+// the shared cast profile table with it. A subnet-probed device has none.
+func TestDeviceFromEntry_CarriesTheModel(t *testing.T) {
+	entry := dns.CastEntry{AddrV4: net.IPv4(192, 168, 1, 20), Port: 8009, UUID: "u1", Device: "Chromecast Ultra", DeviceName: "Salon"}
+	got := deviceFromEntry(entry)
+	if got.Model != "Chromecast Ultra" {
+		t.Fatalf("Model = %q, want the md record", got.Model)
+	}
+	if got.UUID != "u1" || got.Addr != "192.168.1.20" || got.Port != 8009 {
+		t.Fatalf("identity not kept: %+v", got)
+	}
+	if deviceFromEntry(dns.CastEntry{}).Model != "" {
+		t.Fatal("no record, no model")
 	}
 }

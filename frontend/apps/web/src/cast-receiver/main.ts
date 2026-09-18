@@ -10,7 +10,7 @@
 //      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
-import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, bufferedStats, createBeaconUrlResolver, createDecoderDistressWatch, createStartGate, createStartWatch, createStarvationWatch, describePlayerError, planBackBufferTrim, planFloorRescue, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
+import { CAPS_NAMESPACE, absoluteWithToken, appendMaxKbps, bitrateTestUrl, bufferedStats, capsReport, createBeaconUrlResolver, createDecoderDistressWatch, createStartGate, createStartWatch, createStarvationWatch, describePlayerError, isCapsRequest, planBackBufferTrim, planFloorRescue, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
 import { createAliveHeartbeat, createFrameDropTracker, formatFrameQuality, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 import { buildCastNextUrl, buildNextMasterUrl, parseCastNextResponse, shouldFetchNext, upNextLabel, type CastNextInfo } from "./castNext";
 import { buildSegmentsUrl, introSkippedLabel, parseSegments, planIntroSkip, type SkippableSegment } from "./introSkip";
@@ -1106,6 +1106,28 @@ playerManager.addEventListener(cast.framework.events.EventType.SEEKED, () => {
 });
 playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, () => {
   hidePauseHud();
+});
+
+// Observed capabilities on demand: a sender asks on CAPS_NAMESPACE before it
+// loads media and negotiates the stream with the server on THESE answers
+// (the same probes the LOAD interceptor applies, Dolby held off the same
+// way), so a copy the TV cannot decode is never handed to it. The LOAD
+// rewrite above stays as defense in depth for a sender that never asked.
+// Registered before start(): CAF only honours namespaces declared by then.
+context.addCustomMessageListener(CAPS_NAMESPACE, (event: any) => {
+  if (!isCapsRequest(event?.data)) return;
+  const deviceCaps = context.getDeviceCapabilities() ?? {};
+  const systemHdr = deviceCaps[cast.framework.system.DeviceCapabilities.IS_HDR_SUPPORTED] === true;
+  const probed = probeReceiverCaps(
+    (mime, codec, w, h) => context.canDisplayType(mime, codec, w, h),
+    systemHdr,
+    stereoForced ? 2 : probedAudioChannels,
+  );
+  try {
+    context.sendCustomMessage(CAPS_NAMESPACE, event.senderId, capsReport({ ...probed, nativeDolby: false }, navigator.userAgent));
+  } catch (err) {
+    reportEvent("cast_receiver_caps_reply_failed", describePlayerError(err));
+  }
 });
 
 context.start(receiverOptions);

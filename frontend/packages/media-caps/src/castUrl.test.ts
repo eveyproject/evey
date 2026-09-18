@@ -1,11 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildCastStreamUrl, castStreamInfoParams, pickCastProfile } from "./castUrl";
+import { buildCastStreamUrl, castProfileFor, castStreamInfoParams, FLOOR_PROFILE, h264HeightFromLevel, pickCastProfile, profileFromReceiverCaps } from "./castUrl";
 
-// Twin of the web suite (apps/web .../hlsPlayerUtils.test.ts, cast section):
-// a cast URL is decoded by the RECEIVER, so it must never carry the phone's
-// MediaCaps (hevc/hdr on a modern phone -> copy rung a gen 1-3 Chromecast
-// cannot decode) nor its containers (mkv direct-plays on ExoPlayer, not on a
-// receiver).
+// Shared by the mobile and web senders: a cast URL is decoded by the
+// RECEIVER, so it must never carry the sender's MediaCaps (hevc/hdr on a
+// modern phone or desktop -> copy rung a gen 1-3 Chromecast cannot decode)
+// nor its containers (mkv direct-plays on ExoPlayer, not on a receiver).
 
 const SRV = "http://192.168.1.10:9091";
 
@@ -135,5 +134,89 @@ describe("pickCastProfile - evidence-driven entries from the prod beacon", () =>
     expect(p.videoCodecs).toContain("hevc");
     expect(p.hdr).toBe(true);
     expect(p.h264MaxHeight).toBe(1080);
+  });
+});
+
+// Observed beats assumed: when the receiver reports what it probed (our
+// custom receiver, CAF canDisplayType), the profile is those answers - no
+// model table, no guess. The H.264 ceiling is the DIRECT probe when the
+// receiver made one; the level is only a conservative fallback for a receiver
+// built before that probe existed, and it is documented as such.
+describe("profileFromReceiverCaps", () => {
+  const observed = {
+    videoCodecs: ["h264", "hevc", "vp9"], maxHeight: 2160, hdr: true, nativeDolby: false,
+    maxAudioChannels: 2, maxH264Level: 42, h264MaxHeight: 1080,
+  };
+
+  it("takes the observed codecs, ceilings and HDR as they were answered", () => {
+    expect(profileFromReceiverCaps(observed)).toEqual({
+      videoCodecs: ["h264", "hevc", "vp9"],
+      audioCodecs: ["aac", "mp3", "opus", "flac"],
+      hdr: true, maxHeight: 2160, h264MaxHeight: 1080, maxAudioChannels: 2,
+    });
+  });
+
+  it("the direct h264MaxHeight probe wins over the level, even when they disagree", () => {
+    // A level-5.1 decoder string accepted but 4K H.264 refused at 3840x2160:
+    // the resolution probe is the measured answer.
+    expect(profileFromReceiverCaps({ ...observed, maxH264Level: 51, h264MaxHeight: 1080 }).h264MaxHeight).toBe(1080);
+  });
+
+  it("without the direct probe, the level is a conservative bound (documented fallback)", () => {
+    expect(profileFromReceiverCaps({ ...observed, h264MaxHeight: undefined, maxH264Level: 51 }).h264MaxHeight).toBe(2160);
+    expect(profileFromReceiverCaps({ ...observed, h264MaxHeight: undefined, maxH264Level: 42 }).h264MaxHeight).toBe(1080);
+    expect(profileFromReceiverCaps({ ...observed, h264MaxHeight: undefined, maxH264Level: 31 }).h264MaxHeight).toBe(720);
+    expect(h264HeightFromLevel(50)).toBe(2160);
+    expect(h264HeightFromLevel(40)).toBe(1080);
+    expect(h264HeightFromLevel(0)).toBe(720);
+  });
+
+  it("adds Dolby only when the device itself vouches for passthrough", () => {
+    expect(profileFromReceiverCaps({ ...observed, nativeDolby: true }).audioCodecs).toEqual(["aac", "mp3", "opus", "flac", "eac3", "ac3"]);
+  });
+
+  it("an empty codec answer still declares the h264 floor", () => {
+    expect(profileFromReceiverCaps({ ...observed, videoCodecs: [] }).videoCodecs).toEqual(["h264"]);
+  });
+
+  it("the observed channel ceiling rides the master; the model table declares none", () => {
+    const url = buildCastStreamUrl(SRV, "m1", null, "tok", profileFromReceiverCaps(observed));
+    expect(url).toContain("maxAudioChannels=2");
+    expect(url).toContain("maxH264Height=1080");
+    expect(buildCastStreamUrl(SRV, "m1", null, "tok", pickCastProfile("Chromecast Ultra"))).not.toContain("maxAudioChannels");
+  });
+});
+
+// The sender's request-time choices ride the master as inputs the server
+// bakes (the viewer's audio track, the gapless opt-in) - never a decision.
+describe("buildCastStreamUrl extras", () => {
+  it("bakes the audio track and the gapless opt-in on the master only", () => {
+    const p = pickCastProfile("Chromecast");
+    const master = buildCastStreamUrl(SRV, "m1", null, "tok", p, { audioTrack: 1, gapless: true });
+    expect(master).toContain("audioTrack=1");
+    expect(master).toContain("gapless=1");
+    const direct = buildCastStreamUrl(SRV, "m1", { playMethod: "PLAY_METHOD_DIRECT_PLAY" }, "tok", p, { audioTrack: 1, gapless: true });
+    expect(direct).toBe(`${SRV}/api/v1/media/m1/stream?token=tok`);
+    expect(buildCastStreamUrl(SRV, "m1", null, "tok", p)).not.toContain("audioTrack=");
+  });
+});
+
+// Observed caps beat the model table; the table beats nothing; nothing is
+// the floor - the same answer for a timeout, a Default Media Receiver or a
+// device a subnet probe found without a name.
+describe("castProfileFor", () => {
+  const observed = {
+    videoCodecs: ["h264", "hevc"], maxHeight: 2160, hdr: false, nativeDolby: false,
+    maxAudioChannels: 2, maxH264Level: 42, h264MaxHeight: 1080,
+  };
+  it("observed caps win over a model name", () => {
+    expect(castProfileFor(observed, "Google TV Streamer")).toEqual(profileFromReceiverCaps(observed));
+  });
+  it("a model name alone reads the table", () => {
+    expect(castProfileFor(null, "Chromecast Ultra")).toEqual(pickCastProfile("Chromecast Ultra"));
+  });
+  it("nothing known is the floor", () => {
+    expect(castProfileFor(null, null)).toBe(FLOOR_PROFILE);
+    expect(castProfileFor(undefined, "")).toBe(FLOOR_PROFILE);
   });
 });

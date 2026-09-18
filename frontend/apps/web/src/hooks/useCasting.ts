@@ -3,6 +3,7 @@
 // Chromecast for browsers without the SDK), and DLNA renderer fallback.
 import { useState, useCallback, useEffect, useRef } from "react";
 import { eveyFetch } from "@evey/api";
+import type { ObservedReceiverCaps } from "@evey/media-caps/cast";
 import { toast } from "@evey/store";
 import i18n from "@/i18n";
 
@@ -54,6 +55,81 @@ export async function loadChromecastMedia(session: cast.framework.CastSession, a
   await session.loadMedia(loadRequest);
 }
 
+// CastTarget is what the sender learned about the device it is about to hand
+// a stream to, so the caller can negotiate that stream with the server for
+// THAT device (the Web Sender SDK exposes no model name: the receiver's own
+// observed caps are the only capability signal on the SDK path).
+//   sdk: our receiver app answered the caps channel (caps) or did not (null:
+//        an older receiver build, the Default Media Receiver, a timeout);
+//   server: the backend found the device; model is its mDNS record when the
+//        discovery had one (empty for a subnet-probed device);
+//   dlna: a DLNA renderer, which plays raw files and is not a Cast receiver.
+export type CastTarget =
+  | { kind: "sdk"; caps: ObservedReceiverCaps | null; userAgent: string | null }
+  | { kind: "server"; model: string | null }
+  | { kind: "dlna" };
+
+// CastUrlResolver builds the media for the target once it is known - AFTER
+// the session (SDK) or the discovery (server) told us what it is, never
+// before the tap from the browser's own negotiation.
+export type CastUrlResolver = (target: CastTarget) => Promise<{ url: string; castResumeSec: number }>;
+
+// CAPS_NAMESPACE and the request/answer shape are the receiver's contract
+// (apps/web cast-receiver/receiverLogic.ts: CAPS_NAMESPACE, capsReport).
+export const CAPS_NAMESPACE = "urn:x-cast:org.eveyproject.caps";
+export const CAPS_TIMEOUT_MS = 1500;
+
+// askReceiverCaps asks the connected receiver what it observed about itself
+// and waits at most timeoutMs. null = no usable answer (a receiver that does
+// not speak the channel, a malformed reply, the timeout): the caller falls
+// back to the floor profile. The listener is always removed. Exported for
+// tests.
+export function askReceiverCaps(
+  session: Pick<cast.framework.CastSession, "sendMessage" | "addMessageListener" | "removeMessageListener">,
+  timeoutMs = CAPS_TIMEOUT_MS,
+): Promise<{ caps: ObservedReceiverCaps; userAgent: string | null } | null> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (value: { caps: ObservedReceiverCaps; userAgent: string | null } | null) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { session.removeMessageListener(CAPS_NAMESPACE, onMessage); } catch { /* session gone */ }
+      resolve(value);
+    };
+    const onMessage = (_ns: string, message: string) => {
+      try {
+        const data = JSON.parse(message) as { type?: string; caps?: Partial<ObservedReceiverCaps>; userAgent?: string };
+        const c = data?.type === "caps" ? data.caps : undefined;
+        if (!c || !Array.isArray(c.videoCodecs) || typeof c.maxHeight !== "number") {
+          return; // not the answer we asked for: keep waiting
+        }
+        const videoCodecs: unknown[] = c.videoCodecs;
+        const maxHeight: number = c.maxHeight;
+        finish({
+          caps: {
+            videoCodecs: videoCodecs.filter((v): v is string => typeof v === "string"),
+            maxHeight,
+            hdr: c.hdr === true,
+            nativeDolby: c.nativeDolby === true,
+            maxAudioChannels: typeof c.maxAudioChannels === "number" && c.maxAudioChannels > 0 ? c.maxAudioChannels : 2,
+            maxH264Level: typeof c.maxH264Level === "number" ? c.maxH264Level : 40,
+            h264MaxHeight: typeof c.h264MaxHeight === "number" ? c.h264MaxHeight : undefined,
+          },
+          userAgent: typeof data.userAgent === "string" ? data.userAgent : null,
+        });
+      } catch { /* malformed: keep waiting for a well-formed one */ }
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    try {
+      session.addMessageListener(CAPS_NAMESPACE, onMessage);
+      session.sendMessage(CAPS_NAMESPACE, { type: "caps" }).catch(() => finish(null));
+    } catch {
+      finish(null);
+    }
+  });
+}
+
 interface DLNARenderer {
   id: string;
   name: string;
@@ -66,6 +142,9 @@ interface CastDevice {
   name: string;
   addr: string;
   port: number;
+  // The mDNS model record when the discovery had one; empty for a device the
+  // subnet probe found (TCP 8009 answers, no TXT record).
+  model?: string;
 }
 
 interface CastState {
@@ -326,8 +405,15 @@ export function useCasting(report?: CastReporter) {
   // complete a session with it (measured in prod 2026-07-22: sdk=true then
   // session error, while the same phone in desktop-site mode connects fine).
   // The mobile tap path passes skipSdk to go straight to the server-side cast.
-  const startCast = useCallback(async (streamUrl: string, title?: string, startAtSec = 0, opts?: { skipSdk?: boolean }): Promise<CastAttempt> => {
-    log(TAG, "startCast - url:", streamUrl, "title:", title, "startAtSec:", startAtSec);
+  //
+  // resolveUrl is called once the TARGET is known (the SDK session is up and
+  // has answered - or not - the caps channel; the backend named the device),
+  // so the stream is negotiated with the server for the receiver, never
+  // handed over from the browser's own negotiation. On the SDK path this
+  // runs after requestSession, which is the only step that needs the tap's
+  // user activation; loadMedia needs none, so the awaits in between are safe.
+  const startCast = useCallback(async (resolveUrl: CastUrlResolver, title?: string, opts?: { skipSdk?: boolean }): Promise<CastAttempt> => {
+    log(TAG, "startCast - title:", title);
     // Same diagnostic payload as the fling path: whether the tap's activation
     // was still alive tells a browser refusal apart from a user cancelling.
     const activation = typeof navigator !== "undefined" && "userActivation" in navigator
@@ -339,10 +425,7 @@ export function useCasting(report?: CastReporter) {
     });
 
     const origin = localStorage.getItem("cast_base_url") || window.location.origin;
-    const absoluteUrl = streamUrl.startsWith("http")
-      ? streamUrl
-      : `${origin}${streamUrl}`;
-    log(TAG, "Absolute URL:", absoluteUrl);
+    const absolute = (streamUrl: string) => (streamUrl.startsWith("http") ? streamUrl : `${origin}${streamUrl}`);
 
     if (chromecastReady.current && !opts?.skipSdk) {
       try {
@@ -362,6 +445,21 @@ export function useCasting(report?: CastReporter) {
 
         const device = session.getCastDevice();
         log(TAG, "Connected to:", device?.friendlyName);
+
+        // What the receiver observed about itself, or nothing (an older
+        // receiver build, the Default Media Receiver, a timeout) - the
+        // resolver then negotiates on the floor profile. The user agent is
+        // telemetry: it corrects the capability tables on evidence, it never
+        // drives the negotiation.
+        const answer = await askReceiverCaps(session);
+        reportRef.current?.({
+          type: "cast_receiver_caps",
+          details: answer
+            ? `answered=1 codecs=${answer.caps.videoCodecs.join("/")} maxHeight=${answer.caps.maxHeight} h264=${answer.caps.h264MaxHeight ?? "level" + answer.caps.maxH264Level} hdr=${answer.caps.hdr ? 1 : 0} ch=${answer.caps.maxAudioChannels} ua=${answer.userAgent ?? "-"}`
+            : "answered=0",
+        });
+        const { url, castResumeSec: startAtSec } = await resolveUrl({ kind: "sdk", caps: answer?.caps ?? null, userAgent: answer?.userAgent ?? null });
+        const absoluteUrl = absolute(url);
 
         log(TAG, "Loading media...", { url: absoluteUrl });
         try {
@@ -434,6 +532,13 @@ export function useCasting(report?: CastReporter) {
 
       if (castDevices.length > 0) {
         const device = castDevices[0];
+        // The backend launches our receiver app on the device (its LOAD
+        // rewrite then re-negotiates the master on its real caps) and falls
+        // back to the Default Media Receiver, which rewrites nothing: the
+        // URL handed here is negotiated for the device's model when the
+        // discovery had one, the floor otherwise.
+        const { url } = await resolveUrl({ kind: "server", model: device.model || null });
+        const absoluteUrl = absolute(url);
         const isHls = absoluteUrl.includes("m3u8");
         await eveyFetch({
           url: "/api/v1/cast/play",
@@ -467,6 +572,10 @@ export function useCasting(report?: CastReporter) {
         return "no-devices";
       }
       const renderer = renderers[0];
+      // A DLNA renderer is not a Cast receiver: it plays the raw file the
+      // browser negotiated, as before.
+      const { url } = await resolveUrl({ kind: "dlna" });
+      const absoluteUrl = absolute(url);
       await eveyFetch({
         url: "/api/v1/dlna/play",
         method: "POST",
