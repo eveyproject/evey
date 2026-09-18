@@ -31,30 +31,21 @@ func (f *fakeProducer) ActiveSessionCount() int                      { return f.
 func (f *fakeProducer) RemoveSession(mediaItemID string)             { f.removed = append(f.removed, mediaItemID) }
 func (f *fakeProducer) Close()                                       { f.closed = true }
 
-func TestProducerSelector_For_RoutesByPredicate(t *testing.T) {
+// The selector evaluates no gate: the resolved route's side picks the
+// producer (ProducerForPlan), and a route on the GPU with no hardware
+// producer wired falls to software rather than to nil.
+func TestProducerSelector_ForRoute_FollowsTheRoute(t *testing.T) {
 	sw := &fakeProducer{name: "sw"}
 	hw := &fakeProducer{name: "hw"}
-
-	hwUsable := true
-	sel := NewProducerSelector(sw, hw, func(transcoding.PlaybackDecision, SourceDims) bool { return hwUsable })
-
-	if got := sel.For(transcoding.PlaybackDecision{}, SourceDims{}); got != StreamProducer(hw) {
-		t.Fatalf("predicate true must route to hardware, got %v", got)
+	sel := NewProducerSelector(sw, hw)
+	if got := sel.forRoute(true); got != StreamProducer(hw) {
+		t.Fatalf("a GPU route serves on the hardware producer, got %v", got)
 	}
-	hwUsable = false
-	if got := sel.For(transcoding.PlaybackDecision{}, SourceDims{}); got != StreamProducer(sw) {
-		t.Fatalf("predicate false must route to software, got %v", got)
+	if got := sel.forRoute(false); got != StreamProducer(sw) {
+		t.Fatalf("a CPU route serves on the software producer, got %v", got)
 	}
-}
-
-// A nil predicate (the fan-out remover instance) must default to software for
-// For() and never panic - routing is unused on that instance.
-func TestProducerSelector_For_NilPredicate_DefaultsSoftware(t *testing.T) {
-	sw := &fakeProducer{name: "sw"}
-	hw := &fakeProducer{name: "hw"}
-	sel := NewProducerSelector(sw, hw, nil)
-	if got := sel.For(transcoding.PlaybackDecision{}, SourceDims{}); got != StreamProducer(sw) {
-		t.Fatalf("nil predicate must default to software, got %v", got)
+	if got := NewProducerSelector(sw, nil).forRoute(true); got != StreamProducer(sw) {
+		t.Fatalf("no hardware producer wired: software, got %v", got)
 	}
 }
 
@@ -64,7 +55,7 @@ func TestProducerSelector_For_NilPredicate_DefaultsSoftware(t *testing.T) {
 func TestProducerSelector_RemoveSession_FansOutToBoth(t *testing.T) {
 	sw := &fakeProducer{name: "sw"}
 	hw := &fakeProducer{name: "hw"}
-	sel := NewProducerSelector(sw, hw, nil)
+	sel := NewProducerSelector(sw, hw)
 
 	sel.RemoveSession("mi-1")
 
@@ -79,7 +70,7 @@ func TestProducerSelector_RemoveSession_FansOutToBoth(t *testing.T) {
 func TestProducerSelector_ActiveSessionCount_SumsBoth(t *testing.T) {
 	sw := &fakeProducer{name: "sw", active: 3}
 	hw := &fakeProducer{name: "hw", active: 2}
-	sel := NewProducerSelector(sw, hw, nil)
+	sel := NewProducerSelector(sw, hw)
 	if got := sel.ActiveSessionCount(); got != 5 {
 		t.Fatalf("ActiveSessionCount must sum both producers, got %d", got)
 	}
@@ -92,7 +83,7 @@ func TestProducerSelector_ActiveSessionCount_SumsBoth(t *testing.T) {
 func TestProducerSelector_ActivePlaybackCount_CountsNonFFmpegPlayback(t *testing.T) {
 	sw := &fakeProducer{name: "sw", active: 0}
 	hw := &fakeProducer{name: "hw", active: 0}
-	sel := NewProducerSelector(sw, hw, nil)
+	sel := NewProducerSelector(sw, hw)
 
 	act := NewPlaybackActivity(time.Minute)
 	sel.WithPlaybackActivity(act)
@@ -106,7 +97,7 @@ func TestProducerSelector_ActivePlaybackCount_CountsNonFFmpegPlayback(t *testing
 func TestProducerSelector_ActivePlaybackCount_SumsWithProducers(t *testing.T) {
 	sw := &fakeProducer{name: "sw", active: 3}
 	hw := &fakeProducer{name: "hw", active: 2}
-	sel := NewProducerSelector(sw, hw, nil)
+	sel := NewProducerSelector(sw, hw)
 
 	act := NewPlaybackActivity(time.Minute)
 	sel.WithPlaybackActivity(act)
@@ -125,7 +116,7 @@ func TestProducerSelector_ActivePlaybackCount_SumsWithProducers(t *testing.T) {
 func TestProducerSelector_ActiveSessionCount_ExcludesNonFFmpegPlayback(t *testing.T) {
 	sw := &fakeProducer{name: "sw", active: 2}
 	hw := &fakeProducer{name: "hw", active: 0}
-	sel := NewProducerSelector(sw, hw, nil)
+	sel := NewProducerSelector(sw, hw)
 
 	act := NewPlaybackActivity(time.Minute)
 	sel.WithPlaybackActivity(act)
@@ -143,7 +134,7 @@ func TestProducerSelector_ActiveSessionCount_ExcludesNonFFmpegPlayback(t *testin
 // Unwired tracker: the wider count must degrade to the ffmpeg count, never
 // panic - that is the "feature not wired" contract the test handlers rely on.
 func TestProducerSelector_ActivePlaybackCount_NilTrackerEqualsSessions(t *testing.T) {
-	sel := NewProducerSelector(&fakeProducer{active: 3}, &fakeProducer{active: 1}, nil)
+	sel := NewProducerSelector(&fakeProducer{active: 3}, &fakeProducer{active: 1})
 	if got := sel.ActivePlaybackCount(); got != 4 {
 		t.Fatalf("nil tracker must degrade to the ffmpeg count, got %d", got)
 	}
@@ -152,7 +143,7 @@ func TestProducerSelector_ActivePlaybackCount_NilTrackerEqualsSessions(t *testin
 func TestProducerSelector_Close_ClosesBoth(t *testing.T) {
 	sw := &fakeProducer{name: "sw"}
 	hw := &fakeProducer{name: "hw"}
-	NewProducerSelector(sw, hw, nil).Close()
+	NewProducerSelector(sw, hw).Close()
 	if !sw.closed || !hw.closed {
 		t.Fatalf("Close must close both producers (sw=%v hw=%v)", sw.closed, hw.closed)
 	}

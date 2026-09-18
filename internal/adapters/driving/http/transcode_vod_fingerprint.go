@@ -136,14 +136,12 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 	}
 
 	// Advertise the codec the segments will ACTUALLY carry: the RESOLVED
-	// fingerprint's, which is what the spawn hands the encoder. Re-deriving it
-	// (EffectiveVideoCodec) misses what Fingerprint() adds on top - an
-	// admission spill or a per-title GPU block turns the GPU HEVC into a
-	// software H.264 - so the master could read hvc1 over avc1 bytes.
+	// plan's (plan.Route.Codec, what the spawn hands the encoder), never a
+	// re-derivation - a spill or a per-title GPU block turns the GPU HEVC
+	// into a software H.264, and the master would read hvc1 over avc1 bytes.
+	// Empty on a plan with no video encode (the copy rung advertises the
+	// source's own codec through the copy manifest).
 	chosenVideoCodec := rp.FP.VideoCodec
-	if chosenVideoCodec == "" {
-		chosenVideoCodec, _, _, _, _, _ = h.effectiveVideoCodec(decision, streams)
-	}
 
 	return apptranscoding.ManifestInput{
 		MediaID:             mediaID,

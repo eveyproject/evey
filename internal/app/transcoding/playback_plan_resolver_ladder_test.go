@@ -312,7 +312,7 @@ func TestShapeLadder_SoftwareCeilingFollowsTheEffectiveCodec(t *testing.T) {
 			return transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareAV1MaxHeight: 480}
 		},
 		AV1Enabled: func() bool { return false },
-		Selector:   NewProducerSelector(sw, nil, nil),
+		Selector:   NewProducerSelector(sw, nil),
 	}
 	decision := transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode", TranscodeReasons: []string{"preferred_video_codec"}}
 	got := ladderHeights(t, pr.ShapeLadder(context.Background(), ladderRequest(1080), decision))
@@ -380,7 +380,7 @@ func TestShapeLadder_SpillKeepsTheDeliveryCaps(t *testing.T) {
 			return RouteGrant{OK: true, Class: LadderClassSoftware, Forced: true, Ceiling: 720}
 		},
 	}
-	pr.Selector = NewProducerSelector(&SoftwareProducer{}, &SegmentOrchestrator{}, pr.HWRouteUsable)
+	pr.Selector = NewProducerSelector(&SoftwareProducer{}, &SegmentOrchestrator{})
 	req := ladderRequest(2160)
 	req.ScreenHeight = 720
 	req.MaxBitrateKbps = 3000
