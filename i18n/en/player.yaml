@@ -177,6 +177,8 @@ streamInfo:
     subtitle_burn_in: Subtitles burned into the picture
     audio_resync_requested: Audio resync requested
     decision_pinned: Choice pinned for this session
+    client_line_exceeded: The line the client measured cannot carry the copy
+    abr_floor_requested: Survival rung asked for by the player
     file_needs_remux: "File stored in one-track blocks (needs a repair)"
 cast:
   noDevices: "No cast device found - neither on the server's network nor on yours."

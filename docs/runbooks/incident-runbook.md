@@ -300,9 +300,12 @@ grep for the media id, not the token.
    to see re-issues; the sender no longer re-loads the receiver on a re-issued
    URL for the same title.
 5. **Was the stream too big for the device?** Search `advertises a fallback
-   rung` (the copy master's peak bitrate) and `capped master served`: a
-   session that started on a 20+ Mbps copy master and fell to a capped
-   1080p rung after a few seconds is the floor rescue doing its job; a
+   rung` (the copy master's peak bitrate) and `plan fitted to the client's
+   line` (the receiver's `maxKbps` measure or its `abr=floor` rescue, now a
+   plan input - the transcode master that follows carries the reason
+   `client_line_exceeded` or `abr_floor_requested`): a session that started
+   on a 20+ Mbps copy master and fell to a fitted 1080p rung after a few
+   seconds is the floor rescue doing its job; a
    re-LOAD that starts again on the copy master is the pattern that kills a
    Chromecast HD.
 6. **Server-side starvation?** Search `on-demand resource refused`: a burst

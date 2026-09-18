@@ -177,6 +177,8 @@ streamInfo:
     subtitle_burn_in: Untertitel ins Bild eingebrannt
     audio_resync_requested: Audio-Resynchronisation angefordert
     decision_pinned: Auswahl für diese Sitzung fixiert
+    client_line_exceeded: Die vom Client gemessene Leitung trägt die Kopie nicht
+    abr_floor_requested: Vom Player angeforderte Notfallstufe
     file_needs_remux: "Datei in Ein-Spur-Blöcken gespeichert (Reparatur nötig)"
 jumpToChapter: "Zum Kapitel springen: {{chapter}}"
 cast:

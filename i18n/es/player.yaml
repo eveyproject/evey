@@ -177,6 +177,8 @@ streamInfo:
     subtitle_burn_in: Subtítulos incrustados en la imagen
     audio_resync_requested: Resincronización de audio solicitada
     decision_pinned: Elección fijada para esta sesión
+    client_line_exceeded: La línea medida por el cliente no puede llevar la copia
+    abr_floor_requested: Escalón de supervivencia pedido por el reproductor
     file_needs_remux: "Archivo almacenado en bloques de una sola pista (necesita reparación)"
 jumpToChapter: "Ir al capítulo: {{chapter}}"
 cast:

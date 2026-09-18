@@ -703,41 +703,76 @@ func TestBuildHybridMaster_FallbackRung_SkippedForCast(t *testing.T) {
 		"a cast master stays single-variant: the rung CAF never takes must not poison its MPL")
 }
 
-// The invariant that matters: the fallback URI the master emitted must be
-// SERVEABLE - the variant request re-derives its plan from the baked query
-// alone and the recomputed fingerprint must equal the sealed fp, or
-// refuseStaleFP answers 410 and the rung is dead on arrival (the exact
-// coherence failure the seal exists to catch).
-// ?abr=floor is the survival mode the cast receiver's starvation rescue asks
-// for: the announced rung exists but CAF never dives onto it by itself
-// (measured on the Bouygtel4K, 2026-08-03, variant pinned through 9 minutes
-// of freeze), so the receiver reloads with this param and the server hands it
-// a MONO-VARIANT master holding only the lowest transcoded rung.
-func TestFloorMaster_ServesOnlyTheLowestRung(t *testing.T) {
+// lineItem is a copyable 1080p source whose copy pushes bitrateBps down the
+// line (the plan's SourcePeakKbps).
+func lineItem(t *testing.T, bitrateBps int64) *domainlibrary.MediaItem {
+	t.Helper()
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	return &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: bitrateBps,
+	}}
+}
+
+// lineReq is onDemandReq with the receiver's line constraints set.
+func lineReq(maxKbps string, floor bool) *http.Request {
+	req := onDemandReq()
+	q := req.URL.Query()
+	if maxKbps != "" {
+		q.Set("maxKbps", maxKbps)
+	}
+	if floor {
+		q.Set("abr", "floor")
+	}
+	req.URL.RawQuery = q.Encode()
+	return req
+}
+
+// lineHandler is the copy handler with a manifest generator: the ffmpeg
+// master path renders the fitted plan.
+func lineHandler(t *testing.T) *hlsVODServe {
+	t.Helper()
 	h := newCopyTestHandler(t)
 	h.manifestGen = apptranscoding.NewManifestGenerator()
 	h.audioRenditionEnabled = true
 	h.copyFallbackRung = true
+	return h
+}
 
-	dur, err := shared.NewDurationMs(60000)
+// masterOf renders the ffmpeg master the handler serves for a resolved plan.
+func masterOf(t *testing.T, h *hlsVODServe, req *http.Request, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) string {
+	t.Helper()
+	in, err := h.buildManifestInputWith(req, "m1", item, streams, rp)
 	require.NoError(t, err)
-	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
-		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000,
-	}}
+	master, err := h.manifestGen.Master(in)
+	require.NoError(t, err)
+	return master
+}
+
+// ?abr=floor is the survival mode the cast receiver's starvation rescue asks
+// for: the announced rung exists but CAF never dives onto it by itself
+// (measured on the Bouygtel4K, 2026-08-03, variant pinned through 9 minutes
+// of freeze), so the receiver reloads with this param and the PLAN fits
+// itself to the lowest transcoded rung; the master the adapter renders is
+// MONO-VARIANT and the variant URI carries the rung's LADDER index.
+func TestLineFit_FloorServesOnlyTheLowestRung(t *testing.T) {
+	h := lineHandler(t)
+	item := lineItem(t, 4_000_000)
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts"
+	req := lineReq("", true)
 
-	req := onDemandReq()
-	q := req.URL.Query()
-	q.Set("abr", "floor")
-	req.URL.RawQuery = q.Encode()
+	rp := planFor(t, h, req, item, streams)
+	require.False(t, rp.IsCopy, "floor must resolve to a transcode on a fat copy-eligible source")
+	assert.Equal(t, apptranscoding.LineFit{Single: true, Rung: 0}, rp.Plan.Fit)
+	assert.Contains(t, rp.Decision.TranscodeReasons, "abr_floor_requested")
 
-	master, ok := h.buildFloorMaster(req, "m1", item, streams)
-	require.True(t, ok, "floor must resolve on a fat copy-eligible source")
+	master := masterOf(t, h, req, item, streams, rp)
 	assert.Equal(t, 1, strings.Count(master, "#EXT-X-STREAM-INF"), "floor is mono-variant by definition")
 	assert.NotContains(t, master, "od_playlist.m3u8", "the copy variant must NOT be offered in survival mode")
 	assert.Contains(t, master, "stream_0.m3u8")
 	assert.Contains(t, master, "vd=transcode", "the rung pins its plan")
+	assert.Contains(t, master, "abr=floor", "the constraint is a plan input: baked like the pins")
 	assert.Contains(t, master, "fp=", "the rung seals its fingerprint")
 }
 
@@ -746,134 +781,89 @@ func TestFloorMaster_ServesOnlyTheLowestRung(t *testing.T) {
 // retomber". C'est vrai du MASTER (copyFallbackVariant renvoie nil pour tout
 // recepteur cast, cf. TestBuildHybridMaster_FallbackRung_SkippedForCast) mais
 // FAUX du serveur : la sortie de secours ?abr=floor existe et repond a un
-// jeton cast comme a n'importe quel autre. Ce qui manquait n'etait pas la
-// porte, c'etait quelqu'un pour frapper - la veille de famine du recepteur ne
-// voit ni un tampon plein ni une position qui avance a 1,000x (mesure prod :
-// 19:33:38 pos=332,653 -> 19:34:08 pos=340,021, buf=30/20 constant, et ZERO
-// occurrence de "floor" dans les logs de la soiree).
-func TestFloorMaster_StaysAvailableToACastReceiver(t *testing.T) {
-	h := newCopyTestHandler(t)
-	h.manifestGen = apptranscoding.NewManifestGenerator()
-	h.audioRenditionEnabled = true
-	h.copyFallbackRung = true
-
-	dur, err := shared.NewDurationMs(60000)
-	require.NoError(t, err)
-	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
-		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 6_870_000,
-	}}
+// jeton cast comme a n'importe quel autre.
+func TestLineFit_FloorStaysAvailableToACastReceiver(t *testing.T) {
+	h := lineHandler(t)
+	item := lineItem(t, 6_870_000)
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts"
-
-	req := onDemandReq()
-	q := req.URL.Query()
-	q.Set("abr", "floor")
-	req.URL.RawQuery = q.Encode()
+	req := lineReq("", true)
 	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey,
 		&shared.StreamToken{UserID: "u1", ProfileID: "p1", MediaItemID: "m1", Scope: shared.ScopeStream, Cast: true}))
 
-	master, ok := h.buildFloorMaster(req, "m1", item, streams)
-	require.True(t, ok, "un recepteur cast doit obtenir le barreau de survie quand il le demande")
-	assert.Equal(t, 1, strings.Count(master, "#EXT-X-STREAM-INF"), "floor is mono-variant by definition")
+	rp := planFor(t, h, req, item, streams)
+	require.True(t, rp.Plan.Fit.Single, "un recepteur cast doit obtenir le barreau de survie quand il le demande")
+	master := masterOf(t, h, req, item, streams, rp)
+	assert.Equal(t, 1, strings.Count(master, "#EXT-X-STREAM-INF"))
 	assert.NotContains(t, master, "od_playlist.m3u8", "le barreau copie ne doit pas etre offert en mode survie")
 	assert.Contains(t, master, "vd=transcode")
 }
 
-// The variant URI must carry its baked query exactly ONCE. buildCappedMaster
-// pre-suffixed VideoPlaylistURI and the manifest generator suffixed it again:
-// prod (2026-08-05) emitted "...videoCodecs=h264?ad=transcode&..." - a second
-// "?" mid-query - and every segment URI of the child playlist inherited the
-// garbage "videoCodecs=h264%3Fad%3Dtranscode". It happened to still serve
-// because the fp seal replays the sealed plan and the polluted param is
-// ignored today; the first param that DOES enter the fp derivation turns this
-// into a silent 410 on the whole rescue path.
-func TestCappedMaster_VariantURICarriesItsQueryOnce(t *testing.T) {
-	h := newCopyTestHandler(t)
-	h.manifestGen = apptranscoding.NewManifestGenerator()
-	h.audioRenditionEnabled = true
-	h.copyFallbackRung = true
-
-	dur, err := shared.NewDurationMs(60000)
-	require.NoError(t, err)
-	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
-		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000,
-	}}
+// The variant URI must carry its baked query exactly ONCE (prod 2026-08-05:
+// a pre-suffixed URI doubled it, "...?ad=transcode&...?vd=..." inherited by
+// every segment URI of the rescue path). And it must be SERVEABLE: the child
+// request re-derives its plan from the baked query alone and the recomputed
+// fingerprint must equal the sealed one, or refuseStaleFP answers 410 and the
+// rung is dead on arrival.
+func TestLineFit_VariantURICarriesItsQueryOnceAndResolvesTheSealedPlan(t *testing.T) {
+	h := lineHandler(t)
+	item := lineItem(t, 4_000_000)
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts"
+	req := lineReq("", true)
 
-	req := onDemandReq()
-	q := req.URL.Query()
-	q.Set("abr", "floor")
-	req.URL.RawQuery = q.Encode()
-
-	master, ok := h.buildFloorMaster(req, "m1", item, streams)
-	require.True(t, ok)
+	rp := planFor(t, h, req, item, streams)
+	require.True(t, rp.Plan.Fit.Single)
+	master := masterOf(t, h, req, item, streams, rp)
+	var variant string
 	for line := range strings.SplitSeq(master, "\n") {
-		if !strings.HasPrefix(line, "stream_0.m3u8") {
-			continue
+		if strings.HasPrefix(line, "stream_0.m3u8") {
+			variant = line
 		}
-		assert.Equal(t, 1, strings.Count(line, "?"), "one URI, one query: %s", line)
-		assert.Equal(t, 1, strings.Count(line, "vd=transcode"), "the baked suffix must not double: %s", line)
 	}
+	require.NotEmpty(t, variant)
+	assert.Equal(t, 1, strings.Count(variant, "?"), "one URI, one query: %s", variant)
+	assert.Equal(t, 1, strings.Count(variant, "vd=transcode"), "the baked suffix must not double: %s", variant)
+
+	child := onDemandReq()
+	child.URL.RawQuery = variant[strings.Index(variant, "?")+1:]
+	crp := planFor(t, h, child, item, streams)
+	assert.Equal(t, rp.FPHash, crp.FPHash, "the child resolves the plan the master sealed")
+	assert.False(t, crp.Plan.Fit.Single, "a child indexes the full ladder; the master's verdict rides its pin")
 }
 
 // ?maxKbps=<measured> is the receiver's own bitrate measurement (its network
 // stack included - old cast runtimes cap well under the wire speed, proven on
-// the Bouygtel4K 2026-08-03). Copy-first stays the rule: the cap only bites
-// when the measure cannot carry the copy, and then the server picks the
-// HIGHEST rung that fits - mono-variant, so the receiver's own ABR (the
-// atrophied muscle) is never needed.
-func TestCappedMaster_CopyFirstWhenTheMeasureCarriesIt(t *testing.T) {
-	h := newCopyTestHandler(t)
-	h.manifestGen = apptranscoding.NewManifestGenerator()
-	h.audioRenditionEnabled = true
-	h.copyFallbackRung = true
-
-	dur, err := shared.NewDurationMs(60000)
-	require.NoError(t, err)
-	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
-		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000,
-	}}
+// the Bouygtel4K 2026-08-03). Copy-first stays the rule: the line only bites
+// when it cannot carry the copy.
+func TestLineFit_CopyFirstWhenTheLineCarriesIt(t *testing.T) {
+	h := lineHandler(t)
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts"
-
-	req := onDemandReq()
-	q := req.URL.Query()
-	q.Set("maxKbps", "12000")
-	req.URL.RawQuery = q.Encode()
-
-	_, ok := h.buildCappedMaster(req, "m1", item, streams, 12000)
-	assert.False(t, ok, "a measure that carries the copy with margin must fall through to the ordinary master")
+	rp := planFor(t, h, lineReq("12000", false), lineItem(t, 4_000_000), streams)
+	assert.True(t, rp.IsCopy, "a measure that carries the copy with margin leaves the copy plan alone")
+	assert.False(t, rp.Plan.Fit.Single)
 }
 
-func TestCappedMaster_PicksTheHighestFittingRung(t *testing.T) {
-	h := newCopyTestHandler(t)
-	h.manifestGen = apptranscoding.NewManifestGenerator()
-	h.audioRenditionEnabled = true
-	h.copyFallbackRung = true
-
-	dur, err := shared.NewDurationMs(60000)
-	require.NoError(t, err)
-	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
-		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 7_400_000,
-	}}
+// When the line cannot carry the copy the plan fits itself to the HIGHEST
+// rung that fits - mono-variant, so the receiver's own ABR (the atrophied
+// muscle) is never needed - and the variant URI carries that rung's LADDER
+// index: the plan's ladder is the natural transcode one, shared with any
+// other transcode viewer of the title.
+func TestLineFit_PicksTheHighestFittingRung(t *testing.T) {
+	h := lineHandler(t)
+	item := lineItem(t, 7_400_000)
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts"
-
 	const maxKbps = 6000
-	req := onDemandReq()
-	q := req.URL.Query()
-	q.Set("maxKbps", "6000")
-	req.URL.RawQuery = q.Encode()
 
-	// Expected rung: the same rule the implementation must apply, computed
-	// from the same natural transcode plan - no hardcoded ladder.
-	rT := req.Clone(req.Context())
+	// Expected rung: the same rule, computed from the same natural transcode
+	// plan - no hardcoded ladder.
+	rT := onDemandReq()
 	qq := rT.URL.Query()
 	qq.Set("vd", "transcode")
 	rT.URL.RawQuery = qq.Encode()
-	rpT, err := h.resolvePlan(rT, "m1", item, streams)
-	require.NoError(t, err)
+	rpT := planFor(t, h, rT, item, streams)
 	require.NotEmpty(t, rpT.Profiles)
 	want := 0
 	for i, p := range rpT.Profiles {
@@ -882,11 +872,18 @@ func TestCappedMaster_PicksTheHighestFittingRung(t *testing.T) {
 		}
 	}
 
-	master, ok := h.buildCappedMaster(req, "m1", item, streams, maxKbps)
-	require.True(t, ok, "a 7.4 Mbps copy cannot ride a 6 Mbps measure - the cap must serve a rung")
-	assert.Equal(t, 1, strings.Count(master, "#EXT-X-STREAM-INF"), "capped master is mono-variant")
+	req := lineReq("6000", false)
+	rp := planFor(t, h, req, item, streams)
+	require.False(t, rp.IsCopy, "a 7.4 Mbps copy cannot ride a 6 Mbps measure - the plan must fit a rung")
+	assert.Equal(t, apptranscoding.LineFit{Single: true, Rung: want}, rp.Plan.Fit)
+	assert.Equal(t, rpT.FPHash, rp.FPHash, "the fitted plan IS the natural transcode plan: same sessions, same cache")
+	assert.Contains(t, rp.Decision.TranscodeReasons, "client_line_exceeded")
+
+	master := masterOf(t, h, req, item, streams, rp)
+	assert.Equal(t, 1, strings.Count(master, "#EXT-X-STREAM-INF"), "fitted master is mono-variant")
 	assert.Contains(t, master, fmt.Sprintf("stream_%d.m3u8", want),
 		"the variant URI must carry the LADDER index of the chosen rung, or the fp seal serves the wrong profile")
+	assert.Contains(t, master, "maxKbps=6000")
 	assert.NotContains(t, master, "od_playlist.m3u8")
 }
 
@@ -915,29 +912,15 @@ func TestServeBitrateTest_StreamsTheRequestedSize(t *testing.T) {
 	assert.Equal(t, bitrateTestDefaultBytes, w.Body.Len())
 }
 
-// A lean source has no rung meaningfully below the copy: floor falls back to
-// the ordinary master shapes rather than serving a pointless sidegrade.
-func TestFloorMaster_RefusedOnLeanSource(t *testing.T) {
-	h := newCopyTestHandler(t)
-	h.manifestGen = apptranscoding.NewManifestGenerator()
-	h.audioRenditionEnabled = true
-	h.copyFallbackRung = true
-
-	dur, err := shared.NewDurationMs(60000)
-	require.NoError(t, err)
-	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
-		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 1_500_000,
-	}}
+// A lean source has no rung meaningfully below the copy: the floor leaves the
+// copy plan alone rather than fitting a pointless sidegrade.
+func TestLineFit_FloorRefusedOnLeanSource(t *testing.T) {
+	h := lineHandler(t)
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts"
-
-	req := onDemandReq()
-	q := req.URL.Query()
-	q.Set("abr", "floor")
-	req.URL.RawQuery = q.Encode()
-
-	_, ok := h.buildFloorMaster(req, "m1", item, streams)
-	assert.False(t, ok)
+	rp := planFor(t, h, lineReq("", true), lineItem(t, 1_500_000), streams)
+	assert.True(t, rp.IsCopy)
+	assert.False(t, rp.Plan.Fit.Single)
 }
 
 func TestBuildHybridMaster_FallbackRung_URIResolvesCoherently(t *testing.T) {
@@ -1260,6 +1243,45 @@ func TestServeMaster_PackagerUnbuildable_ExplicitFallbackKeepsThePlan(t *testing
 	again, err := h.probePlan(req, "m1", item, streams)
 	require.NoError(t, err)
 	assert.Equal(t, rp.Plan.Delivery, again.Plan.Delivery, "the plan is not rewritten by the runtime outcome")
+}
+
+// End to end: a floor request on a packager-served title is served by the
+// ffmpeg path because the PLAN says so (Delivery ffmpeg, Fit on the lowest
+// rung) - the adapter re-pinned nothing, recorded what it served, and the
+// disagreement counter (an invariant) did not move.
+func TestServeMaster_LineFit_TheFFmpegPathServesTheFittedPlan(t *testing.T) {
+	item := onDemandItem()
+	item.ID = "m1"
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item.File.Duration = dur
+	item.File.Bitrate = 6_870_000
+	streams := copyEligibleAV()
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	var recorded domainplayback.ServingPath
+	h.servingRecord = func(_ context.Context, _, _ string, p domainplayback.ServingPath) { recorded = p }
+
+	natural, err := h.probePlan(onDemandReq(), "m1", item, streams)
+	require.NoError(t, err)
+	require.Equal(t, apptranscoding.EngineMkvgo, natural.Plan.Delivery.Video, "precondition: without the floor the packager serves this title")
+
+	disagreements := func() int {
+		return int(testutil.ToFloat64(metrics.HLSVODDeliveryDisagreements.WithLabelValues("copy/mkvgo+mkvgo", "transcode/ffmpeg+ffmpeg")))
+	}
+	before := disagreements()
+	w := doVODRequestQ(h, "m1", "master.m3u8", "videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4&abr=floor")
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	body := w.Body.String()
+	assert.Equal(t, "ffmpeg", w.Header().Get("X-Evey-Served-By"))
+	assert.NotContains(t, body, "od_", "the fitted plan is ffmpeg's, not the packager's")
+	assert.Equal(t, 1, strings.Count(body, "#EXT-X-STREAM-INF"), "mono-variant")
+	assert.Contains(t, body, "stream_0.m3u8")
+	assert.Contains(t, body, "abr=floor")
+	assert.Equal(t, "transcode", recorded.VideoDecision)
+	assert.Equal(t, "ffmpeg", recorded.VideoEngine)
+	assert.Equal(t, before, disagreements(), "the plan named ffmpeg and ffmpeg served: no disagreement")
 }
 
 // An adapter serving an engine the plan did not name, with no fallback

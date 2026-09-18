@@ -10,6 +10,7 @@ package transcoding
 // tests) degrades exactly like the partially-wired handler did.
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"slices"
@@ -131,6 +132,9 @@ func (pr *PlanResolver) Resolve(ctx context.Context, req PlaybackRequest) (Playb
 	// derivation below reads req.Source and req.Policy.
 	req.Source = SnapshotOf(req)
 	req.Policy = pr.hwPolicy()
+	if req.LineKbps > 0 || req.ABRFloor {
+		return pr.resolveLineConstrained(ctx, req), nil
+	}
 	return pr.resolveDecided(ctx, req, pr.Decide(ctx, req)), nil
 }
 
@@ -221,7 +225,9 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 	case "transcode":
 		if d.VideoDecision == "copy" {
 			d.VideoDecision = "transcode"
-			d.TranscodeReasons = append(d.TranscodeReasons, "decision_pinned")
+			// The line fit names its own reason (the copy did not fit the
+			// client's line, or its rescue asked for the floor).
+			d.TranscodeReasons = append(d.TranscodeReasons, cmp.Or(req.fitReason, "decision_pinned"))
 			if d.VideoCodec == "" {
 				d.VideoCodec = "h264"
 			}

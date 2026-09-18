@@ -6,6 +6,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -97,6 +98,14 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 
 	decision := rp.Decision
 	profiles := rp.Profiles
+	// The plan fitted to the client's line advertises ONE rung of its ladder;
+	// the variant keeps its LADDER index (the child request re-derives the
+	// full ladder, any other name would serve the wrong profile).
+	videoPlaylistURI := ""
+	if fit := rp.Plan.Fit; fit.Single && fit.Rung >= 0 && fit.Rung < len(profiles) {
+		profiles = profiles[fit.Rung : fit.Rung+1]
+		videoPlaylistURI = fmt.Sprintf("stream_%d.m3u8", fit.Rung)
+	}
 
 	audioTrack := rp.AudioTrack
 	subBurnIn := parseIntQuery(r, "subtitleTrack", -1)
@@ -219,6 +228,10 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		PinnedVideoDecision: pinnedVideoDecision(r, decision),
 		PinnedAudioDecision: pinnedAudioDecision(r, decision),
 		PinnedVideoCodec:    r.URL.Query().Get("vc"),
+		// The client's line constraints are plan inputs: baked like the pins.
+		LineKbps:         maxKbpsRequested(r),
+		ABRFloor:         floorRequested(r),
+		VideoPlaylistURI: videoPlaylistURI,
 		// Seal this moment's decision hash into every URI the manifest emits.
 		// stream_N is a ladder INDEX; if the ladder reshapes mid-play the same
 		// URL silently maps to another rendition (the 2026-07-15 rainbow). A

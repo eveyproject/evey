@@ -177,6 +177,8 @@ streamInfo:
     subtitle_burn_in: 字幕已烧录进画面
     audio_resync_requested: 已请求音频重新同步
     decision_pinned: 本次会话已固定该选择
+    client_line_exceeded: 客户端测得的线路无法承载直拷
+    abr_floor_requested: 播放器请求的保底档位
     file_needs_remux: "文件按单轨道分块存储（需要修复）"
 jumpToChapter: "跳转到章节：{{chapter}}"
 cast:

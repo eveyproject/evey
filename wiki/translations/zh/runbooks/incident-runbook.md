@@ -236,7 +236,7 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 2. **它为什么停了？** 搜索 `cast_receiver_finished`：`reason=INTERRUPTED` 表示有新的 LOAD 顶掉了正在运行的那个（往前几秒找 `StartStream`），`reason=ERROR` 则带着播放器的错误。最后一条 `alive` 之后完全没有 `finished`，说明接收端进程消失了，最常见的是 Chromecast HD 在 20+ Mbps 的 copy master 上因内存被杀。
 3. **手机看到了什么？** 搜索 `cast_sender_stall`：当 Cast SDK 仍然报告 PLAYING 但位置 20 s 没有推进时，发送端会发 `state=playing frozen=<n>s pos=<p>`；接收端报告 idle 原因时则发 `state=idle reason=<r>`。这些行以 WARN 级别记录，所以 Logs 页面的警告过滤器能把它们筛出来。这是同一分钟里发送端的视角，把它的 `pos` 和接收端最后的 `pos_sec` 对比一下。
 4. **会话是不是连锁失效了？** 搜索 `refresh rejected`：一个“not found”的 refresh token 会让应用登出再登录（用保存的凭据），从而重新签发流。这一行现在带着令牌的 `jti`、`issued` 和 `age`，据此可以分辨是过期的旧副本还是伪造的。搜 `StartStream` 可以看到重新签发；对于同一个标题，发送端不会再因为 URL 被重新签发而重新加载接收端。
-5. **码流对这台设备是不是太大了？** 搜索 `advertises a fallback rung`（copy master 的峰值码率）和 `capped master served`：一个从 20+ Mbps 的 copy master 起播、几秒后掉到受限 1080p 档位的会话，说明兜底救援起作用了；而重新 LOAD 后又从 copy master 起播，才是能弄死 Chromecast HD 的模式。
+5. **码流对这台设备是不是太大了？** 搜索 `advertises a fallback rung`（copy master 的峰值码率）和 `plan fitted to the client's line`（接收端的 `maxKbps` 测量或其 `abr=floor` 救援，现在是 plan 的输入 - 随后的转码 master 带有原因 `client_line_exceeded` 或 `abr_floor_requested`）：一个从 20+ Mbps 的 copy master 起播、几秒后掉到受限 1080p 档位的会话，说明兜底救援起作用了；而重新 LOAD 后又从 copy master 起播，才是能弄死 Chromecast HD 的模式。
 6. **服务端资源不足？** 搜索 `on-demand resource refused`：连续分片上成片出现的 `context canceled` 拒绝是拖动造成的（每个请求都被下一个取消），不是服务器的问题；真正有问题的是耗时很长的 `served` 行。
 
 如果第 1 至 3 步显示接收端还活着而发送端沉默，问题就在手机的 Cast 会话里（SDK，或到电视的网络）；如果先停的是接收端的信标，那要查的就是电视（内存、编解码器、码流的码率）。

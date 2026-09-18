@@ -78,29 +78,6 @@ func (h *hlsVODServe) servePackagerMaster(w http.ResponseWriter, r *http.Request
 		return false, fallbackPackagerUnbuildable
 	}
 
-	// Receiver-fitted masters, in order of information quality: a measured
-	// throughput (?maxKbps=, copy-first - only bites when the measure cannot
-	// carry the copy) then the survival floor (?abr=floor, the starvation
-	// rescue). Both exist because the CAF player never dives onto an
-	// advertised rung by itself (Bouygtel4K, 2026-08-03: variant pinned
-	// through nine minutes of freeze) - the descent is ours, deterministic.
-	// Unresolvable falls through to the ordinary shapes.
-	// These re-pin the REQUEST (vd=transcode) on the receiver's behalf and
-	// serve that pinned request's own plan - a client-side pin the adapter
-	// applies for an old cast runtime, not an engine choice of its own.
-	if kbps := maxKbpsRequested(r); kbps > 0 {
-		if master, ok := h.buildCappedMaster(r, mediaID, item, streams, kbps); ok {
-			writeHLSMaster(w, r, master)
-			return true, ""
-		}
-	}
-	if floorRequested(r) {
-		if master, ok := h.buildFloorMaster(r, mediaID, item, streams); ok {
-			writeHLSMaster(w, r, master)
-			return true, ""
-		}
-	}
-
 	if rp.Plan.Delivery.Audio == apptranscoding.EngineMkvgo {
 		// Full packager presentation (video + audio + subtitles). When the plan
 		// trimmed the audio to the SELECTED track, buildPlan packaged that one
@@ -300,21 +277,14 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 	}
 }
 
-func writeHLSMaster(w http.ResponseWriter, r *http.Request, master string) {
-	setCORSHeaders(w, r, "")
-	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
-	w.Header().Set("Cache-Control", "no-cache")
-	_, _ = w.Write([]byte(master))
-}
-
 // floorRequested reports the survival mode our cast receiver's starvation
-// rescue asks for (?abr=floor).
+// rescue asks for (?abr=floor) - a plan input (PlaybackRequest.ABRFloor).
 func floorRequested(r *http.Request) bool {
 	return r != nil && r.URL.Query().Get("abr") == "floor"
 }
 
 // maxKbpsRequested is the receiver's own throughput measurement (its network
-// stack included), 0 when absent or garbage.
+// stack included), 0 when absent or garbage - a plan input (PlaybackRequest.LineKbps).
 func maxKbpsRequested(r *http.Request) int64 {
 	n, err := strconv.ParseInt(r.URL.Query().Get("maxKbps"), 10, 64)
 	if err != nil || n <= 0 {
@@ -336,92 +306,6 @@ func copyPeakKbpsOf(item *domainlibrary.MediaItem) int64 {
 		kbps = 5000
 	}
 	return kbps
-}
-
-// buildFloorMaster is buildCappedMaster's survival shape: the lowest rung,
-// asked for by the receiver's starvation rescue (?abr=floor).
-func (h *hlsVODServe) buildFloorMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (string, bool) {
-	return h.buildCappedMaster(r, mediaID, item, streams, 0)
-}
-
-// buildCappedMaster renders a MONO-VARIANT master fitted to the receiver's
-// measured throughput (?maxKbps=), or to the lowest rung when maxKbps is 0
-// (?abr=floor). Copy stays first-class: with a measure that carries the copy
-// peak with margin (1.2x - the starvation watchdog is the net behind an
-// optimistic call), this returns false and the ordinary master shapes serve.
-// Mono-variant on purpose: the receiver's own ABR is never relied upon - the
-// muscle proven atrophied on old cast runtimes (Bouygtel4K, 2026-08-03).
-//
-// The rung rides this same request's natural vd=transcode plan with its own
-// fp seal, and the variant URI carries the rung's LADDER index (stream_<i>) -
-// the variant request re-derives the ladder, so any other name would serve
-// the wrong profile. "session started hash=<fp>" attribution keeps working.
-func (h *hlsVODServe) buildCappedMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, maxKbps int64) (string, bool) {
-	copyPeak := copyPeakKbpsOf(item)
-	if maxKbps > 0 && copyPeak*12 <= maxKbps*10 {
-		return "", false // copy-first: the measure carries the copy
-	}
-	rT := r.Clone(r.Context())
-	q := rT.URL.Query()
-	q.Set("vd", "transcode")
-	rT.URL.RawQuery = q.Encode()
-	// probePlan: this master is abandoned on four paths below (unresolvable,
-	// floor refused, no real drop, manifest build failure). The player's first
-	// segment request against the rung binds the hash for real.
-	rpT, err := h.probePlan(rT, mediaID, item, streams)
-	if err != nil || rpT.IsCopy || len(rpT.Profiles) == 0 {
-		slog.WarnContext(r.Context(), "hls-vod: capped master unresolvable, serving the ordinary master",
-			slog.String("media_id", mediaID), slog.Any("err", err))
-		return "", false
-	}
-	idx := 0
-	if maxKbps > 0 {
-		for i, p := range rpT.Profiles {
-			if (p.VideoBitrate+p.AudioBitrate)*12 <= maxKbps*10 {
-				idx = i
-			}
-		}
-	}
-	rung := rpT.Profiles[idx]
-	if maxKbps == 0 {
-		if (rung.VideoBitrate+rung.AudioBitrate)*2 > copyPeak+128 {
-			slog.InfoContext(r.Context(), "hls-vod: floor refused, source already lean",
-				slog.String("media_id", mediaID),
-				slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
-				slog.Int64("copy_peak_kbps", copyPeak+128))
-			return "", false
-		}
-	} else if rung.VideoBitrate+rung.AudioBitrate >= copyPeak {
-		return "", false // no real drop over the copy: pointless sidegrade
-	}
-	inT, err := h.buildManifestInputWith(rT, mediaID, item, streams, rpT)
-	if err != nil {
-		slog.WarnContext(r.Context(), "hls-vod: capped master unresolvable, serving the ordinary master",
-			slog.String("media_id", mediaID), slog.Any("err", err))
-		return "", false
-	}
-	inT.Profiles = inT.Profiles[idx : idx+1]
-	// Bare name only: the manifest generator appends the baked query suffix
-	// itself. Pre-suffixing here doubled it (prod 2026-08-05: a second "?"
-	// mid-query, inherited by every segment URI of the rescue path).
-	inT.VideoPlaylistURI = fmt.Sprintf("stream_%d.m3u8", idx)
-	master, err := h.manifestGen.Master(inT)
-	if err != nil {
-		slog.WarnContext(r.Context(), "hls-vod: capped master build failed, serving the ordinary master",
-			slog.String("media_id", mediaID), slog.Any("err", err))
-		return "", false
-	}
-	slog.InfoContext(r.Context(), "hls-vod: capped master served",
-		slog.String("media_id", mediaID),
-		slog.String("rung", rung.Name),
-		slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
-		slog.Int64("max_kbps", maxKbps),
-		slog.String("fp", rpT.FPHash))
-	// Recorded against rpT, the plan this master really serves: the receiver's
-	// measured throughput pinned the request to a transcode (vd=transcode),
-	// and that pinned request's plan is what the rung and the record read.
-	h.recordServing(r, mediaID, rpT, domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rpT.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"}, "")
-	return master, true
 }
 
 const (

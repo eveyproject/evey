@@ -197,6 +197,12 @@ type ManifestInput struct {
 	// EVENT playlist. Empty = legacy request, nothing stamped.
 	PinnedVideoDecision string
 
+	// LineKbps (?maxKbps) and ABRFloor (?abr=floor) are the client's line
+	// constraints (PlaybackRequest): plan inputs, so they ride every baked URL
+	// like the pins - a child that lost them would resolve another plan.
+	LineKbps int64
+	ABRFloor bool
+
 	// PinnedAudioDecision ("copy"|"transcode") - same contract as
 	// PinnedVideoDecision, for the AUDIO side: an admin toggle (loudnorm) or
 	// background enrichment can flip audio copy-eligibility between two polls
@@ -971,6 +977,12 @@ func querySuffix(in ManifestInput) string {
 	}
 	if in.PinnedAudioDecision != "" {
 		q.Set("ad", in.PinnedAudioDecision)
+	}
+	if in.LineKbps > 0 {
+		q.Set("maxKbps", fmt.Sprintf("%d", in.LineKbps))
+	}
+	if in.ABRFloor {
+		q.Set("abr", "floor")
 	}
 	if in.PinnedVideoCodec != "" {
 		q.Set("vc", in.PinnedVideoCodec)
