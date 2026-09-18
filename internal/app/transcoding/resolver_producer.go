@@ -3,18 +3,6 @@ package transcoding
 // resolver_producer.go - the producer a plan spawns on, a projection of
 // plan.Route.
 
-import (
-	"github.com/evey-project/evey/internal/domain/transcoding"
-)
-
-// ProducerFor picks the producer for an already-resolved decision, so the
-// producer chosen for a segment matches the one the ladder was shaped for
-// (and thus the cache hash). Falls back to the orchestrator when no selector
-// is wired (hand-built test handlers); returns nil only when neither is set.
-func (pr *PlanResolver) ProducerFor(req PlaybackRequest, decision transcoding.PlaybackDecision, isCopy bool) StreamProducer {
-	return pr.producerForRoute(pr.routeWithPin(req, decision, isCopy))
-}
-
 // ProducerForPlan picks the producer a resolved plan spawns on: the copy
 // producer for the remux rung, else the producer of the route's side - a
 // PROJECTION of plan.Route, which already carries the spill and the block.

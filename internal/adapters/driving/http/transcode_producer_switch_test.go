@@ -9,9 +9,9 @@ package httpapi
 
 import (
 	"context"
-	"slices"
 	"errors"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -228,68 +228,6 @@ func TestProducerSwitch_SoftwareLadderCappedToHDR(t *testing.T) {
 			"every software HDR rung obeys the honest SoftwareHDRMaxHeight ceiling")
 	}
 	assert.Equal(t, 480, profiles[len(profiles)-1].Height, "the HDR top rung is the ceiling")
-}
-
-// TestProfilesForDecision_HashInvariant locks the cache-hash invariant: the
-// ladder profilesForDecision returns at manifest-time MUST be byte-identical to
-// the one it returns at segment-time, so the DecisionFingerprint.Hash() agrees.
-// Any drift = a permanent cache miss (every segment re-encoded). We assert the
-// derived ProfileFingerprint slice hashes identically across two calls with the
-// same inputs.
-func TestProfilesForDecision_HashInvariant(t *testing.T) {
-	t.Parallel()
-
-	mkHandler := func() *hlsVODServe {
-		h, _, _ := newSwitchHandler(false, hdrCapTestCapability) // software path, single-rendition
-		h.complexityRepo = nil
-		return h
-	}
-	item := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}
-	streams := build4KHDRStreams()
-	decision := buildHDRDecision()
-
-	// Two independent handlers (separate selector instances) with the SAME
-	// inputs: simulate manifest-time and segment-time on different goroutines /
-	// requests. The shaped ladders must hash identically.
-	hManifest := mkHandler()
-	hSegment := mkHandler()
-	pManifest := hManifest.profilesForDecision(context.Background(), item, streams, decision)
-	pSegment := hSegment.profilesForDecision(context.Background(), item, streams, decision)
-
-	assert.Equal(t, fingerprintProfiles(pManifest), fingerprintProfiles(pSegment),
-		"profilesForDecision must be deterministic across manifest- and segment-time (cache-hash invariant)")
-	assert.Equal(t, hashOfProfiles(t, pManifest), hashOfProfiles(t, pSegment),
-		"the DecisionFingerprint hash derived from the ladder must match across the two calls")
-}
-
-// fingerprintProfiles mirrors buildFingerprint's HLSProfile→ProfileFingerprint
-// projection so the test compares exactly what enters the hash.
-func fingerprintProfiles(ps []domaintranscoding.HLSProfile) []apptranscoding.ProfileFingerprint {
-	out := make([]apptranscoding.ProfileFingerprint, len(ps))
-	for i, p := range ps {
-		out[i] = apptranscoding.ProfileFingerprint{
-			Name:         p.Name,
-			Width:        p.Width,
-			Height:       p.Height,
-			VideoBitrate: p.VideoBitrate,
-			AudioBitrate: p.AudioBitrate,
-		}
-	}
-	return out
-}
-
-// hashOfProfiles computes the DecisionFingerprint hash for a fixed media with
-// the given ladder, isolating the ladder's contribution to the hash.
-func hashOfProfiles(t *testing.T, ps []domaintranscoding.HLSProfile) string {
-	t.Helper()
-	fp := apptranscoding.DecisionFingerprint{
-		MediaID:    "m1",
-		SourcePath: "/m.mkv",
-		VideoCodec: "h264",
-		AudioCodec: "aac",
-		Profiles:   fingerprintProfiles(ps),
-	}
-	return fp.Hash()
 }
 
 // build1080pH264Streams is a 1080p H.264 8-bit SDR source.

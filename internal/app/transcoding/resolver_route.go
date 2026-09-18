@@ -192,17 +192,6 @@ type hwSource struct {
 	Needs transcoding.RouteNeeds
 }
 
-// ResolveHW decides the hardware encode backend for a chosen output codec.
-// Returns ("", "", false) - the software path - unless the flag is on, the
-// host calibrated a HW backend, and that backend can encode this codec. The
-// boolean is both the ladder's hwAccelUsable (taller HW ceiling) and the
-// signal that tags the fingerprint so the orchestrator runs the GPU pipeline.
-// A legacy entry point: no burn-in need and no passthrough are declared, so
-// the builder's port judges the plain topology only.
-func (pr *PlanResolver) ResolveHW(outputCodec, sourceCodec string, sourceTenBit, hwTonemap bool) (accel, device string, features []string, usable, softwareDecode bool) {
-	return pr.resolveHW(pr.hwPolicy(), outputCodec, hwSource{Codec: sourceCodec, TenBit: sourceTenBit}, hwTonemap)
-}
-
 // wantedRung is the tallest rung a session for this source and client would
 // ask for: the source height capped by the client's ceiling. 0 = unknown (no
 // rung filter on the backend pick).
@@ -517,19 +506,6 @@ func effectiveHWFeatures(pol HWPolicy, features []string) []string {
 	return out
 }
 
-// EffectiveVideoCodec applies the capability gate to the decision's chosen
-// output codec and returns the codec the segments will ACTUALLY carry together
-// with the HW resolution for that codec. AV1 software (libsvtav1) is several
-// times heavier than H.264 and the weak-NAS target can't sustain it, so when AV1
-// is requested but the host has no HW AV1 encoder AND no admin opt-in, fall
-// back to H.264 rather than starve. Shared by the fingerprint (the cache key)
-// and the manifest builder (the advertised CODECS) so the master playlist can
-// never advertise a codec the segments don't carry. Re-resolves HW for the
-// fallback codec (H.264 may be HW-encodable where AV1 was not).
-func (pr *PlanResolver) EffectiveVideoCodec(decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {
-	return pr.effectiveVideoCodec(pr.hwPolicy(), decision, streams)
-}
-
 func (pr *PlanResolver) effectiveVideoCodec(pol HWPolicy, decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {
 	dims := SourceDimsOf(streams)
 	hwTonemap := pr.hwTonemapWanted(pol, decision, dims.HDRRange)
@@ -578,39 +554,6 @@ func (pr *PlanResolver) hwRouteRefused(src SourceDims, bridge, softwareDecode bo
 	return false
 }
 
-// HWRouteUsable is the selector's routing gate: does the HARDWARE producer
-// take this request? It must answer exactly like EffectiveVideoCodec tags the
-// fingerprint - the route decides which physical resource the session burns
-// (GPU vs CPU pools), so a gate/fingerprint disagreement makes admission price
-// one pool while the spawn consumes the other. In particular it replays the
-// AV1 fallback: an AV1-preferring client on an AV1-disabled (or AV1-incapable)
-// host is ENCODED as H.264, so the route must be resolved for H.264 too.
-func (pr *PlanResolver) HWRouteUsable(decision transcoding.PlaybackDecision, src SourceDims) bool {
-	pol := pr.hwPolicy()
-	hwTonemap := pr.hwTonemapWanted(pol, decision, src.HDRRange)
-	// No GPU tone-mapper: the CPU tone-maps between the GPU decode and encode
-	// (hwTonemapBridge). That needs the GPU to decode the source; a software
-	// decode keeps the whole job on the CPU. Same answer as EffectiveVideoCodec.
-	bridge := !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
-	needs := pr.routeNeeds(pol, decision)
-	resolve := func(c string) bool {
-		hs := hwSource{Codec: src.Codec, TenBit: src.TenBit && !bridge, PixelFormat: src.PixelFormat, Interlaced: src.Interlaced,
-			WantHeight: wantedRung(decision, src.Height), Bridge: bridge, Needs: needs,
-			Passthrough: c == "hevc" && pr.passthroughWanted(pol, decision, src.HDRRange)}
-		_, _, _, usable, softwareDecode := pr.resolveHW(pol, c, hs, hwTonemap)
-		return usable && !pr.hwRouteRefused(src, bridge, softwareDecode)
-	}
-	codec := pr.outputCodecFor(pol, decision, nil)
-	usable := resolve(codec)
-	if strings.EqualFold(codec, "av1") && (!pol.AV1 || !usable) {
-		usable = resolve("h264")
-	}
-	if codec == "hevc" && decision.VideoCodec != "hevc" && !usable {
-		usable = resolve("h264")
-	}
-	return usable
-}
-
 // outputCodecFor upgrades the decision's H.264 to HEVC when the client decodes it
 // and the GPU encodes it; an explicit preference is never overridden. streams may be nil.
 func (pr *PlanResolver) outputCodecFor(pol HWPolicy, decision transcoding.PlaybackDecision, streams []*library.MediaStream) string {
@@ -648,12 +591,6 @@ func (pr *PlanResolver) clientDecodes(decision transcoding.PlaybackDecision, cod
 	return false
 }
 
-// HDRPassthroughWanted: an HDR source transcoded for an HDR client that decodes
-// HEVC, on a GPU probed for Main10 encoding - keep the HDR instead of tone-mapping.
-func (pr *PlanResolver) HDRPassthroughWanted(decision transcoding.PlaybackDecision, streams []*library.MediaStream) bool {
-	return pr.hdrPassthroughWanted(pr.hwPolicy(), decision, streams)
-}
-
 func (pr *PlanResolver) hdrPassthroughWanted(pol HWPolicy, decision transcoding.PlaybackDecision, streams []*library.MediaStream) bool {
 	return pr.passthroughWanted(pol, decision, SourceTranscodeVideoRange(streams))
 }
@@ -679,15 +616,6 @@ func (pr *PlanResolver) passthroughWanted(pol HWPolicy, decision transcoding.Pla
 	return true
 }
 
-// HWTonemapWanted reports whether this request should tone-map HDR->SDR on the
-// GPU: the decision needs tone-mapping, the toggle is on, the host probed
-// HWTonemap, and the backend has a wired HW tone-map filter (VAAPI OpenCL/VPP,
-// NVENC tonemap_cuda; QSV's vpp is ineligible). When false the software
-// tonemap path runs, byte-identical to a host with no GPU tone-mapping.
-func (pr *PlanResolver) HWTonemapWanted(decision transcoding.PlaybackDecision, hdrRange string) bool {
-	return pr.hwTonemapWanted(pr.hwPolicy(), decision, hdrRange)
-}
-
 func (pr *PlanResolver) hwTonemapWanted(pol HWPolicy, decision transcoding.PlaybackDecision, hdrRange string) bool {
 	if !pol.Tonemap || !pr.gpuAllowed(pol) {
 		return false
@@ -701,34 +629,12 @@ func (pr *PlanResolver) hwTonemapWanted(pol HWPolicy, decision transcoding.Playb
 	return slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
 }
 
-// HWDeinterlaceWanted reports whether the resolved GPU session should run the
-// backend's SESSION-level deinterlacer: the source is known interlaced (flag or
-// idet) and the backend is one whose deinterlacer is session-level and proven
-// (QSV). Per-frame backends answer false - their filter is always emitted.
-func (pr *PlanResolver) HWDeinterlaceWanted(streams []*library.MediaStream, accel string) bool {
-	return pr.hwDeinterlaceWanted(SourceInterlaced(streams), accel)
-}
-
 func (pr *PlanResolver) hwDeinterlaceWanted(interlaced bool, accel string) bool {
 	if accel != string(transcoding.QSV) || pr.Capability == nil || !interlaced {
 		return false
 	}
 	bc, ok := pr.Capability().BackendCap(accel)
 	return ok && bc.DeinterlacesOnGPU()
-}
-
-// HWOverlayWanted reports whether this request should burn its bitmap subtitle
-// in ON THE GPU: the decision actually burns one, HW accel is on, and the host
-// probed a working overlay compositor for its backend.
-//
-// It exists because a burn-in used to disqualify the hardware path outright, so
-// one flagged-default forced subtitle sent an entire 4K HDR session - decode,
-// tone-map and four encodes - to the CPU on a host whose GPU did all three
-// (prod, 2026-09-09). Every backend is eligible here: unlike the tone-map, the
-// compositor is wired for vaapi, qsv AND cuda, and the calibration probe is what
-// says whether this host's driver honours it.
-func (pr *PlanResolver) HWOverlayWanted(decision transcoding.PlaybackDecision) bool {
-	return pr.hwOverlayWanted(pr.hwPolicy(), decision)
 }
 
 func (pr *PlanResolver) hwOverlayWanted(pol HWPolicy, decision transcoding.PlaybackDecision) bool {

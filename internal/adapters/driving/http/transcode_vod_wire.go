@@ -343,10 +343,9 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		}
 	}
 
-	// The selector routes each request: software unless resolveHW confirms the
-	// hardware path is usable end-to-end for this content. hwUsableForContent
-	// reuses the handler's resolveHW + hwTonemapWanted so the routing matches
-	// exactly what tags the fingerprint (HW vs SW segments share the cache).
+	// The selector holds both producers; the resolved plan's route picks the
+	// side (PlanResolver.ProducerForPlan), so the routing IS what tags the
+	// fingerprint (HW vs SW segments share the cache).
 	h.selector = apptranscoding.NewProducerSelector(software, orch).WithPlaybackActivity(s.PlaybackActivity)
 	subtitleReadPacer = newMediaReadPacer(func() bool { return h.selector.ActivePlaybackCount() > 0 }, subtitleReadRateWhilePlaying)
 

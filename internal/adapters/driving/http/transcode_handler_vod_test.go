@@ -681,12 +681,11 @@ func TestLadderClassFor_AgreesWithFingerprint(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0_000.ts"+tc.query, nil)
 			req = withHTTPClaims(req, testClaims(false))
 
-			decision := h.makeDecision(req.Context(), streams, containerOf(item), sourcePathOf(item), req)
-			fp, err := h.buildFingerprint(req, "m1", item, streams)
+			rp, err := h.probePlan(req, "m1", item, streams)
 			require.NoError(t, err)
 
-			assert.Equal(t, apptranscoding.LadderClassOf(fp), h.ladderClassFor(decision, streams),
-				"admission must price the pool the spawn will charge")
+			assert.Equal(t, apptranscoding.LadderClassOf(rp.FP), rp.Plan.Class,
+				"admission must price the pool the spawn will charge: the plan's class and its fingerprint's agree")
 		})
 	}
 }
@@ -756,9 +755,11 @@ func TestHLSVOD_SpilledStream_FingerprintAndSpawnFollowTheSoftwareRoute(t *testi
 	require.NoError(t, err)
 	assert.Equal(t, fp.Hash(), fp2.Hash())
 
-	// The natural route would have been hardware - prove the gate agrees...
-	assert.True(t, h.hwRouteUsable(domaintranscoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}, apptranscoding.SourceDims{Codec: "h264"}),
-		"precondition: without the spill, this stream rides the GPU")
+	// The natural route was hardware (the admission stub above asserted
+	// req.Natural == LadderClassHW) and the plan records the spill as such...
+	rp, err := h.probePlan(req, "m1", item, streams)
+	require.NoError(t, err)
+	assert.Equal(t, apptranscoding.SpillPoolFull, rp.Plan.Route.Spill, "precondition: without the spill, this stream rides the GPU")
 
 	// ...and that the spawn nevertheless goes to the software producer.
 	prod := h.producerForRequest(req.Context(), req, streams, item)

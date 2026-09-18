@@ -410,4 +410,3 @@ func TestResolvedRoute_EveryGPURouteIsExpressible(t *testing.T) {
 		require.NoError(t, e.Expressible(r.Topology, transcoding.HWAccelType(r.Backend.Name), r.Backend.Device, r.Backend.Features, needs), "%s: %s on %s", sc.name, r.Topology, r.Backend.Name)
 	}
 }
-
