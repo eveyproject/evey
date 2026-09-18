@@ -288,6 +288,27 @@ func TestShapeLadder_H264LevelCapsTheLadder(t *testing.T) {
 	assert.NotEqual(t, pr.planFor(context.Background(), req, h264).Admission.PinKey, pr.planFor(context.Background(), uncapped, h264).Admission.PinKey, "the level is a ladder input, so it keys the pin")
 }
 
+// The device's H.264 ceiling bounds an H.264 OUTPUT ladder only: the HEVC
+// ladder keeps MaxHeight, and the cap keys the admission pin like the level.
+func TestShapeLadder_H264HeightCapsTheH264Ladder(t *testing.T) {
+	pr := &PlanResolver{
+		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
+		Capability: func() transcoding.HostCapabilitySnapshot {
+			return transcoding.EncodeCapability{SoftwareMaxHeight: 2160}.Snapshot()
+		},
+	}
+	req := ladderRequest(2160)
+	req.Client.MaxHeight, req.Client.MaxH264Height = 2160, 1080
+
+	h264 := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
+	assert.Equal(t, []int{480, 720, 1080}, ladderHeights(t, pr.planFor(context.Background(), req, h264).Ladder))
+	hevc := transcoding.PlaybackDecision{VideoCodec: "hevc", VideoDecision: "transcode", TranscodeReasons: []string{"preferred_video_codec"}}
+	assert.Equal(t, []int{480, 720, 1080, 2160}, ladderHeights(t, pr.planFor(context.Background(), req, hevc).Ladder), "an HEVC output reads MaxHeight alone")
+
+	uncapped := ladderRequest(2160)
+	assert.NotEqual(t, pr.planFor(context.Background(), req, h264).Admission.PinKey, pr.planFor(context.Background(), uncapped, h264).Admission.PinKey, "the H.264 ceiling shapes the ladder, so it keys the pin")
+}
+
 // A bitrate cap (profile, cellular, admin) must bound the rungs the master
 // offers, not only the raise: a 3 Mb/s viewer was still offered the 7 Mb/s rung.
 func TestShapeLadder_BitrateCeilingBoundsTheRungs(t *testing.T) {

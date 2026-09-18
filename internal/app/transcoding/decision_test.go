@@ -805,6 +805,32 @@ func TestPixelFormat_10BitH264_Transcodes(t *testing.T) {
 
 // A first-generation Chromecast decodes H.264 up to level 4.1: a level 5.1
 // 4K H.264 file must transcode for it even though the codec matches.
+// A device whose H.264 decoder stops below its general ceiling (a Chromecast
+// Ultra: 2160p HEVC, 1080p H.264) declares MaxH264Height: a taller H.264
+// source is re-encoded, HEVC and a fitting H.264 are not. The server judges
+// this - the cast sender no longer keeps a rule set of its own.
+func TestMaxH264Height_ClientCapForcesTranscodeOfH264Only(t *testing.T) {
+	h264 := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	ultra := transcoding.DefaultWebProfile
+	ultra.VideoCodecs = []string{"h264", "hevc"}
+	ultra.MaxHeight, ultra.MaxH264Height = 2160, 1080
+	d := apptranscode.MakePlaybackDecision(t.Context(), h264, "mp4", ultra, 0)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "resolution_exceeded")
+
+	h264[0].Height = new(1080)
+	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), h264, "mp4", ultra, 0).PlayMethod, "1080p H.264 fits the H.264 decoder")
+
+	hevc := []*library.MediaStream{
+		{StreamType: "video", Codec: "hevc", Profile: "Main", Width: new(3840), Height: new(2160), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), hevc, "mp4", ultra, 0).PlayMethod, "2160p HEVC reads MaxHeight, not the H.264 ceiling")
+}
+
 func TestLevel_ClientCapForcesTranscode(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), Level: new(51), IsDefault: true},

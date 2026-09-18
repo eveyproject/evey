@@ -12,6 +12,12 @@ type ClientProfile struct {
 	// MaxH264Level is the highest H.264 level_idc the device decodes (41 = 4.1,
 	// a first-generation Chromecast). 0 = no limit.
 	MaxH264Level int
+	// MaxH264Height is the tallest H.264 picture the device decodes, when its
+	// H.264 decoder stops below MaxHeight (a Chromecast Ultra plays 2160p HEVC
+	// and 1080p H.264). An H.264 source above it transcodes, and an H.264
+	// OUTPUT ladder stops at it; other codecs read MaxHeight alone. 0 = no
+	// separate limit.
+	MaxH264Height int
 	// FMP4AudioPassthrough lists the audio codecs this client accepts as a RAW
 	// passthrough inside our fMP4 segments, on top of the always-wired set
 	// (AAC/AC-3/E-AC-3). Deliberately NOT derived from AudioCodecs: "I decode

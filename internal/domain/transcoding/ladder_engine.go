@@ -128,6 +128,9 @@ type DeliveryConstraints struct {
 	ScreenHeight int
 	MaxHeight    int
 	MaxH264Level int
+	// MaxH264Height bounds an H.264 OUTPUT ladder where the device's H.264
+	// decoder stops below MaxHeight (ClientProfile.MaxH264Height).
+	MaxH264Height int
 	// VideoBitrateCeilingKbps is the tightest of the request, profile,
 	// decision and server ceilings; 0 = follow the source.
 	VideoBitrateCeilingKbps int64
@@ -292,6 +295,7 @@ func (b StaticLadderBuilder) Build(in LadderInput) []HLSProfile {
 	laddered = CapLadderToHeight(laddered, in.Delivery.MaxHeight)
 	if strings.EqualFold(route.Codec, "h264") {
 		laddered = CapLadderToH264Level(laddered, in.Delivery.MaxH264Level)
+		laddered = CapLadderToHeight(laddered, in.Delivery.MaxH264Height)
 	}
 	if strings.EqualFold(route.Codec, "av1") {
 		laddered = CapLadderToHeight(laddered, in.Delivery.AV1MaxHeight)
