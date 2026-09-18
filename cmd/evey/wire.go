@@ -549,7 +549,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	// Scan-time serving-plan precomputation (Phase 2, mkvgo ops.Ingest),
 	// gated by library.ingest_serving_plan (off | plan | plan+repair).
-	libCmdSvc.WithIngestPlanning(r.ServerCfg, infra.mkvAdapter, r.ServingPlan, infra.mkvAdapter)
+	libCmdSvc.WithIngestPlanning(r.ServerCfg, infra.mkvAdapter, infra.mkvAdapter)
 	libCmdSvc.WithIngestActivePlayback(hlsVODRemover.ActivePlaybackCount)
 	// Trickplay generation throttles while any stream is live - feed it the
 	// fan-out selector so SOFTWARE streams also hold it off, not just HW ones (a

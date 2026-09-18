@@ -77,11 +77,10 @@ type ScanService struct {
 	pruner       *OrphanPruner
 
 	// Ingest-plan precompute (mkvgo ops.Ingest, v0.17.0) for freshly-scanned
-	// files. All optional; nil ingestPlanner/servingPlans disables the
+	// files. All optional; a nil ingestPlanner disables the
 	// feature outright regardless of what ingestCfg says. See ingest_plan.go.
 	ingestCfg            shared.ServerConfigRepository
 	ingestPlanner        library.IngestPlanner
-	servingPlans         library.ServingPlanRepository
 	reindexer            mkv.Reindexer
 	ingestActivePlayback func() int
 	keyframeWarmer       func(ctx context.Context, mediaItemID, path string) bool
@@ -143,10 +142,9 @@ func (s *ScanService) WithPhotoScanner(sc TypedDirectoryScanner) {
 // mode's in-place seek-index repair (mkv.Reindexer, ModeAuto - same port
 // app/maintenance/seek_index.go uses). A nil planner or store leaves the
 // feature off even when the config says otherwise. Chainable.
-func (s *ScanService) WithIngestPlanning(cfgRepo shared.ServerConfigRepository, planner library.IngestPlanner, store library.ServingPlanRepository, reindexer mkv.Reindexer) *ScanService {
+func (s *ScanService) WithIngestPlanning(cfgRepo shared.ServerConfigRepository, planner library.IngestPlanner, reindexer mkv.Reindexer) *ScanService {
 	s.ingestCfg = cfgRepo
 	s.ingestPlanner = planner
-	s.servingPlans = store
 	s.reindexer = reindexer
 	return s
 }

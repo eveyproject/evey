@@ -2,7 +2,6 @@ package mkvgo
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/gravity-zero/mkvgo/mkv/ops"
@@ -13,7 +12,7 @@ import (
 
 // defaultIngestTarget matches ops.IngestOptions' own default ("mse-generic"
 // when Target is empty) - passed explicitly so a future default change
-// upstream in mkvgo can't silently change what Evey stores without a code
+// upstream in mkvgo can't silently change what Evey judges without a code
 // review surfacing it here.
 const defaultIngestTarget = "mse-generic"
 
@@ -41,16 +40,10 @@ func (a *Adapter) Plan(ctx context.Context, path, target string) (*library.Servi
 		return nil, fmt.Errorf("mkvgo ingest: %w", err)
 	}
 
-	raw, err := json.Marshal(report)
-	if err != nil {
-		return nil, fmt.Errorf("mkvgo ingest: marshal plan: %w", err)
-	}
-
 	return &library.ServingPlan{
 		Target:       report.Target,
 		Strategy:     library.ServingStrategy(report.Strategy),
 		NeedsReindex: report.NeedsReindex,
-		PlanJSON:     raw,
 	}, nil
 }
 
