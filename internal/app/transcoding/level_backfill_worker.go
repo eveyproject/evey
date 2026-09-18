@@ -334,20 +334,17 @@ func (w *LevelBackfillWorker) idetPhase(ctx context.Context, mediaItemID, path s
 	if video == nil || !idetSuspectCodecs[strings.ToLower(video.Codec)] {
 		return 0
 	}
-	if fo := video.FieldOrder; fo != nil {
-		switch strings.ToLower(*fo) {
-		case "tt", "bb", "tb", "bt":
-			// Decoder-flagged interlaced: deint=interlaced already covers it, and
-			// running deint=all on top would be redundant. Persist FALSE so the
-			// candidate query converges without paying the decode.
-			n, err := w.store.SetIdetInterlaced(ctx, shared.MediaItemID(mediaItemID), false)
-			if err != nil {
-				w.logger.Warn("idet backfill: persist flagged verdict failed",
-					slog.String("media_id", mediaItemID), slog.Any("err", err))
-				return 0
-			}
-			return n
+	if fo := video.FieldOrder; fo != nil && FieldOrderInterlaced(*fo) {
+		// Prober-flagged interlaced: deint=interlaced already covers it, and
+		// running deint=all on top would be redundant. Persist FALSE so the
+		// candidate query converges without paying the decode.
+		n, err := w.store.SetIdetInterlaced(ctx, shared.MediaItemID(mediaItemID), false)
+		if err != nil {
+			w.logger.Warn("idet backfill: persist flagged verdict failed",
+				slog.String("media_id", mediaItemID), slog.Any("err", err))
+			return 0
 		}
+		return n
 	}
 	var interlaced, telecine bool
 	if sd, ok := w.prober.(IdetSummaryDetector); ok {

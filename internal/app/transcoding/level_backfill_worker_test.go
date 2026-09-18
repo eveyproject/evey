@@ -311,21 +311,21 @@ func TestLevelBackfill_IdetPersistsProgressiveVerdict(t *testing.T) {
 // A flag-tagged interlaced source skips the decode: deint=interlaced already
 // handles it, so the verdict short-circuits to FALSE (no idet probe).
 func TestLevelBackfill_IdetSkipsFlaggedInterlaced(t *testing.T) {
-	tt := "tt"
-	store := &fakeLevelStore{queue: [][]string{{"m1"}}, setReturn: 0, idetReturn: 1}
-	probedInterlaced := false
-	prober := &fakeInterlaceProber{
-		fakeLevelProber: &fakeLevelProber{result: legacyProbe("mpeg2video", &tt)},
-		interlaced:      true, // would be returned IF the probe ran
-		idetErr:         nil,
-	}
-	w := newLevelWorker(store, oneItemReader("m1", "/media/m1.mpg"), prober)
+	// Both prober vocabularies: ffprobe's field order and mkvgo's verdict.
+	for _, flag := range []string{"tt", "interlaced"} {
+		store := &fakeLevelStore{queue: [][]string{{"m1"}}, setReturn: 0, idetReturn: 1}
+		prober := &fakeInterlaceProber{
+			fakeLevelProber: &fakeLevelProber{result: legacyProbe("mpeg2video", &flag)},
+			interlaced:      true, // would be returned IF the probe ran
+			idetErr:         nil,
+		}
+		w := newLevelWorker(store, oneItemReader("m1", "/media/m1.mpg"), prober)
 
-	w.backfillOne(context.Background(), "m1")
-	got := store.idetTargets()
-	require.Len(t, got, 1)
-	assert.False(t, got[0].interlaced, "a decoder-flagged source persists FALSE without an idet decode")
-	_ = probedInterlaced
+		w.backfillOne(context.Background(), "m1")
+		got := store.idetTargets()
+		require.Len(t, got, 1, flag)
+		assert.False(t, got[0].interlaced, "%s: a prober-flagged source persists FALSE without an idet decode", flag)
+	}
 }
 
 // A modern codec is never an idet candidate (no decode, no idet write).
