@@ -1,7 +1,8 @@
 // PlaybackPlan boundary guard (ADR-0030, "one plan, one decision"): the
-// codec, the backend, the route, the ladder, the class, the fingerprint and
-// the producer of a request are resolved ONCE, by PlanResolver.Resolve, and
-// every consumer projects the plan. Before the ADR the same facts were
+// codec, the backend, the route, the ladder, the class, the fingerprint, the
+// producer and the delivery strategy (which engine carries each track) of a
+// request are resolved ONCE, by PlanResolver.Resolve, and every consumer
+// projects the plan. Before the ADR the same facts were
 // derived in four places and kept "in sync" by some sixty mirror comments;
 // the ADR removed the mirrors, this guard keeps them from growing back.
 //
@@ -45,6 +46,10 @@ var planResolverSurface = map[string]bool{
 var planSubDerivations = []string{
 	"EffectiveVideoCodec", "ResolveHW", "HWRouteUsable", "LadderClassFor", "ShapeLadder",
 	"PinKey", "ProducerFor", "HWTonemapWanted", "HWDeinterlaceWanted", "HDRPassthroughWanted", "HWOverlayWanted",
+	// The delivery strategy's gates (which engine carries the video and the
+	// audio) were the HTTP adapter's own until they moved into the plan
+	// (PlaybackPlan.Delivery); an adapter naming one again is re-deciding.
+	"planHLSVideoEligible", "audioAllCopyEligible", "audioTrimUnlocksCopy", "tryServePlanMaster",
 }
 
 func TestPlanResolverExportsOnlyPlanLevelEntryPoints(t *testing.T) {

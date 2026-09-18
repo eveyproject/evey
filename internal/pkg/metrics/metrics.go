@@ -268,14 +268,22 @@ var (
 
 	// HLSVODDeliveryDisagreements counts the masters the HTTP adapter served
 	// on a delivery path (which engine carried the video, the audio) other
-	// than the one the plan DECIDED (PlaybackPlan.Delivery). Shadow of the
-	// hand-over of that choice to the plan: it must read zero before the
-	// adapter stops choosing engines itself; afterwards every hit is an
-	// adapter that re-decided, a bug.
+	// than the one the plan DECIDED (PlaybackPlan.Delivery) with NO fallback
+	// declared: an adapter that re-decided an engine - an invariant
+	// violation, the counter must stay at zero.
 	HLSVODDeliveryDisagreements = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "evey_hlsvod_delivery_disagreements_total",
-		Help: "Masters served on a delivery path other than the plan's (planned vs served engines).",
+		Help: "Masters served on a delivery path other than the plan's with no fallback declared (planned vs served engines).",
 	}, []string{"planned", "served"})
+
+	// HLSVODDeliveryFallbacks counts the masters whose plan named an engine
+	// the runtime could not serve (the packager could not build the source, a
+	// hybrid master failed) and that the ffmpeg path served instead: a runtime
+	// outcome, observable per reason, never a new decision - the plan stands.
+	HLSVODDeliveryFallbacks = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "evey_hlsvod_delivery_fallbacks_total",
+		Help: "Masters served by the ffmpeg path because the plan's engine could not be served, by reason.",
+	}, []string{"reason"})
 
 	// HLSVODCacheHits / HLSVODCacheMisses split segment requests by whether
 	// they hit the disk cache before waiting for ffmpeg. Hit-rate >> 0 is
@@ -394,7 +402,7 @@ func init() {
 		WatcherProbeTotal, WatcherAlive, LibraryScanTotal,
 		TranscodeDuration,
 		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled, HLSVODSessionsCompleted, HLSVODSessionsRejected,
-		HLSVODRouteNotExpressible, HLSVODRouteDrift, HLSVODDeliveryDisagreements,
+		HLSVODRouteNotExpressible, HLSVODRouteDrift, HLSVODDeliveryDisagreements, HLSVODDeliveryFallbacks,
 		HLSVODCopyTimelineDrift, HLSVODTranscodeSeekTimelineDrift,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,

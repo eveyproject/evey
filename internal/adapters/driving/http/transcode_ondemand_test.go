@@ -8,13 +8,16 @@ package httpapi
 import (
 	"context"
 	"fmt"
-	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	domainplayback "github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -94,52 +97,39 @@ func onDemandReq() *http.Request {
 
 // --- eligibility ---
 
-// decisionFor mirrors tryServePlanMaster: one decision per request, handed to
-// both eligibility gates.
-func decisionFor(h *hlsVODServe, r *http.Request, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) domaintranscoding.PlaybackDecision {
-	return h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
+// planFor is the request's plan as serveMaster resolves it: the strategy the
+// packager master EXECUTES (it decides nothing itself).
+func planFor(t *testing.T, h *hlsVODServe, r *http.Request, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) *requestPlan {
+	t.Helper()
+	rp, err := h.probePlan(r, "m1", item, streams)
+	require.NoError(t, err)
+	return rp
 }
 
-func TestPlanHLSVideoEligible(t *testing.T) {
+// The delivery strategy is the PLAN's (resolveDelivery): the handler reads it
+// off its own resolution, with its wiring (packager, audio pipeline) as facts.
+func TestHandlerPlan_DeliveryStrategy(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	h.audioRenditionEnabled = true
+	h.audio = &audioServe{}
 
-	d := decisionFor(h, onDemandReq(), onDemandItem(), copyEligibleAV())
-	assert.True(t, h.planHLSVideoEligible(d, onDemandItem(), copyEligibleAV()),
-		"h264 copy video → video-eligible")
+	d := planFor(t, h, onDemandReq(), onDemandItem(), copyEligibleAV()).Plan.Delivery
+	assert.Equal(t, apptranscoding.DeliveryStrategy{Video: apptranscoding.EngineMkvgo, Audio: apptranscoding.EngineMkvgo}, d, "h264 copy + aac: the packager's presentation")
 
-	// Feature not wired → never eligible (falls through to ffmpeg).
-	h2 := newCopyTestHandler(t)
-	d2 := decisionFor(h2, onDemandReq(), onDemandItem(), copyEligibleAV())
-	assert.False(t, h2.planHLSVideoEligible(d2, onDemandItem(), copyEligibleAV()),
-		"onDemand nil → not eligible")
-}
+	dts := copyEligibleAV()
+	dts[1].Codec = "dts"
+	d = planFor(t, h, onDemandReq(), onDemandItem(), dts).Plan.Delivery
+	assert.Equal(t, apptranscoding.DeliveryStrategy{Video: apptranscoding.EngineMkvgo, Audio: apptranscoding.EngineFFmpeg}, d, "a non-carriable track (dts): the hybrid master")
 
-func TestAudioAllCopyEligible(t *testing.T) {
-	h := newCopyTestHandler(t)
-	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	noKF := copyEligibleAV()
+	noKF[0].Keyframes = nil
+	d = planFor(t, h, onDemandReq(), onDemandItem(), noKF).Plan.Delivery
+	assert.Equal(t, apptranscoding.EngineFFmpeg, d.Video, "no keyframe index: not a copy, ffmpeg")
 
-	d := decisionFor(h, onDemandReq(), onDemandItem(), copyEligibleAV())
-	assert.True(t, h.audioAllCopyEligible(context.Background(), d, copyEligibleAV()),
-		"aac audio, copy decision → all-copy eligible (full packager path)")
-
-	// A non-carriable track (dts) → not all-copy → hybrid path instead.
-	streams := copyEligibleAV()
-	streams[1].Codec = "dts"
-	dDts := decisionFor(h, onDemandReq(), onDemandItem(), streams)
-	assert.False(t, h.audioAllCopyEligible(context.Background(), dDts, streams),
-		"a non-carriable audio track (dts) → hybrid (Evey re-encodes), not full copy")
-}
-
-func TestPlanHLSVideoEligible_NoKeyframes(t *testing.T) {
-	h := newCopyTestHandler(t)
-	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
-
-	streams := copyEligibleAV()
-	streams[0].Keyframes = nil // not keyframe-backfilled → isCopyRequest is false
-	d := decisionFor(h, onDemandReq(), onDemandItem(), streams)
-	assert.False(t, h.planHLSVideoEligible(d, onDemandItem(), streams),
-		"no keyframe index → not copy → not video-eligible")
+	unwired := newCopyTestHandler(t)
+	d = planFor(t, unwired, onDemandReq(), onDemandItem(), copyEligibleAV()).Plan.Delivery
+	assert.Equal(t, apptranscoding.EngineFFmpeg, d.Video, "no packager wired: ffmpeg")
 }
 
 // --- serve ---
@@ -152,7 +142,7 @@ func TestTryServePlanMaster_ServesPlan(t *testing.T) {
 	h.onDemand = pkg
 
 	w := httptest.NewRecorder()
-	served := h.tryServePlanMaster(w, onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), noopSpan())
+	served, _ := h.servePackagerMaster(w, onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), planFor(t, h, onDemandReq(), onDemandItem(), copyEligibleAV()), noopSpan())
 	assert.True(t, served, "eligible + plan built → served from the packager")
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "od_playlist.m3u8")
@@ -173,7 +163,7 @@ func TestTryServePlanMaster_RecordsTheServedPath(t *testing.T) {
 		gotProfile, gotMedia, gotPath = profileID, mediaID, p
 	}
 
-	served := h.tryServePlanMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), noopSpan())
+	served, _ := h.servePackagerMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), planFor(t, h, onDemandReq(), onDemandItem(), copyEligibleAV()), noopSpan())
 
 	assert.True(t, served)
 	assert.Equal(t, "p1", gotProfile)
@@ -195,7 +185,7 @@ func TestServePlanResource_MarksPlaybackActive(t *testing.T) {
 
 	assert.Equal(t, 0, act.ActiveSessionCount(), "nothing served yet")
 
-	served := h.tryServePlanMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), noopSpan())
+	served, _ := h.servePackagerMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), planFor(t, h, onDemandReq(), onDemandItem(), copyEligibleAV()), noopSpan())
 
 	assert.True(t, served)
 	assert.Equal(t, 1, act.ActiveSessionCount(), "an mkvgo-served playback must register as active")
@@ -210,7 +200,7 @@ func TestServePlanResource_NoActivityOnFallthrough(t *testing.T) {
 	act := apptranscoding.NewPlaybackActivity(time.Minute)
 	h.playbackActivity = act
 
-	served := h.tryServePlanMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), noopSpan())
+	served, _ := h.servePackagerMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), planFor(t, h, onDemandReq(), onDemandItem(), copyEligibleAV()), noopSpan())
 
 	assert.False(t, served)
 	assert.Equal(t, 0, act.ActiveSessionCount(), "a plan that never served must not count as playback")
@@ -221,7 +211,7 @@ func TestTryServePlanMaster_FallsBackOnBuildError(t *testing.T) {
 	h.onDemand = &fakeOnDemandPackager{err: fmt.Errorf("no Cues index")}
 
 	w := httptest.NewRecorder()
-	served := h.tryServePlanMaster(w, onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), noopSpan())
+	served, _ := h.servePackagerMaster(w, onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), planFor(t, h, onDemandReq(), onDemandItem(), copyEligibleAV()), noopSpan())
 	assert.False(t, served, "a plan-build error falls through to the ffmpeg master (no response written)")
 	assert.Equal(t, http.StatusOK, w.Code, "nothing written yet")
 	assert.Empty(t, w.Body.String())
@@ -240,7 +230,7 @@ func TestBuildHybridMaster(t *testing.T) {
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts" // audio must be re-encoded → hybrid master
 
-	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams, planFor(t, h, onDemandReq(), item, streams))
 	require.NoError(t, err)
 	assert.Contains(t, master, "od_playlist.m3u8", "video variant points at the packager")
 	assert.Contains(t, master, "#EXT-X-MEDIA:TYPE=AUDIO", "Evey audio rendition group present")
@@ -273,13 +263,13 @@ func TestBuildWasmAudioMaster_AudioRenditionURI(t *testing.T) {
 
 	// Trim OFF: audioTrack=1 (2nd audio track) → the 2nd rendition, od_audio2.
 	h.onDemandTrackTrim = false
-	off, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1, nil)
+	off, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, planFor(t, h, mkReq(), item, streams), true, true, 1, nil)
 	require.NoError(t, err)
 	assert.Contains(t, off, `#EVEY-AUDIO-URI:"od_audio2.m3u8?audioTrack=1`, "untrimmed: k-th track is audio{k+1} and ?audioTrack rides along")
 
 	// Trim ON: the plan keeps one track, renumbered to audio1, whatever the ordinal.
 	h.onDemandTrackTrim = true
-	on, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1, nil)
+	on, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, planFor(t, h, mkReq(), item, streams), true, true, 1, nil)
 	require.NoError(t, err)
 	assert.Contains(t, on, `#EVEY-AUDIO-URI:"od_audio1.m3u8?audioTrack=1`, "trimmed: the kept track is renumbered to audio1")
 	assert.NotContains(t, on, "od_audio2.m3u8", "a trimmed plan has no audio2 to reference")
@@ -309,7 +299,7 @@ func TestBuildWasmAudioMaster_AacRelayURI(t *testing.T) {
 	}
 
 	h.audioRenditionEnabled = true
-	master, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1, nil)
+	master, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, planFor(t, h, mkReq(), item, streams), true, true, 1, nil)
 	require.NoError(t, err)
 	assert.Contains(t, master, `#EVEY-AUDIO-AAC-URI:"audio_1.m3u8?`, "relay tag names the AAC rendition of the SAME track")
 	aacLine := ""
@@ -323,7 +313,7 @@ func TestBuildWasmAudioMaster_AacRelayURI(t *testing.T) {
 
 	// Feature off: the AAC handlers 404, so the tag must not be advertised.
 	h.audioRenditionEnabled = false
-	master, err = h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1, nil)
+	master, err = h.buildWasmAudioMaster(mkReq(), "m1", item, streams, planFor(t, h, mkReq(), item, streams), true, true, 1, nil)
 	require.NoError(t, err)
 	assert.NotContains(t, master, "#EVEY-AUDIO-AAC-URI")
 }
@@ -425,7 +415,7 @@ func TestBuildPlan_RotationPassesKeys(t *testing.T) {
 
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h := &hlsVODServe{onDemand: pkg, onDemandEncrypt: true, hlsAESSecret: []byte("0123456789abcdef0123456789abcdef"), hlsKeyRotateSegments: 10}
-	_, err = h.buildPlan(onDemandReq(), "mi-1", item, copyEligibleAV())
+	_, err = h.buildPlan(onDemandReq(), "mi-1", item, copyEligibleAV(), h.planOf(onDemandReq(), "mi-1", item, copyEligibleAV()))
 	require.NoError(t, err)
 
 	assert.Empty(t, pkg.lastOpts.AESKey, "rotation supersedes the single key")
@@ -440,7 +430,7 @@ func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h := &hlsVODServe{onDemand: pkg, onDemandEncrypt: true, hlsAESSecret: []byte("0123456789abcdef0123456789abcdef")}
 
-	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV())
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV(), h.planOf(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV()))
 	require.NoError(t, err)
 	assert.Len(t, pkg.lastOpts.AESKey, 16, "AES key threaded into the plan options")
 	assert.Equal(t, "key", pkg.lastOpts.AESKeyURI)
@@ -448,7 +438,7 @@ func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
 	// Encryption off → no key in the options.
 	pkg2 := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h2 := &hlsVODServe{onDemand: pkg2}
-	_, err = h2.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV())
+	_, err = h2.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV(), h2.planOf(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV()))
 	require.NoError(t, err)
 	assert.Empty(t, pkg2.lastOpts.AESKey, "no AES key when encryption is off")
 }
@@ -458,7 +448,7 @@ func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
 func TestBuildPlan_TrackTrimOff_NoRestriction(t *testing.T) {
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h := &hlsVODServe{onDemand: pkg, libSvc: &testFakeStreamsGetter{streams: copyEligibleAV()}}
-	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV())
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV(), h.planOf(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV()))
 	require.NoError(t, err)
 	assert.Nil(t, pkg.lastOpts.KeepAudioTrack, "flag off: today's untrimmed behaviour")
 }
@@ -467,7 +457,7 @@ func TestBuildPlan_TrackTrimOn_ResolvesAudioTrack(t *testing.T) {
 	streams := copyEligibleAV() // one audio track (ordinal 0)
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: true, libSvc: &testFakeStreamsGetter{streams: streams}}
-	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV())
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV(), h.planOf(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV()))
 	require.NoError(t, err)
 	require.NotNil(t, pkg.lastOpts.KeepAudioTrack)
 	assert.Equal(t, 0, *pkg.lastOpts.KeepAudioTrack)
@@ -485,7 +475,7 @@ func TestBuildPlan_TrackTrimOn_HonoursExplicitAudioTrackQuery(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8?audioTrack=1", nil)
 	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
 
-	_, err := h.buildPlan(req, "mi-1", onDemandItem(), streams)
+	_, err := h.buildPlan(req, "mi-1", onDemandItem(), streams, h.planOf(req, "mi-1", onDemandItem(), streams))
 	require.NoError(t, err)
 	require.NotNil(t, pkg.lastOpts.KeepAudioTrack)
 	assert.Equal(t, 1, *pkg.lastOpts.KeepAudioTrack, "explicit ?audioTrack= wins over the profile default, same as the ffmpeg pipeline")
@@ -496,7 +486,7 @@ func TestBuildPlan_TrackTrimOn_NoStreamsServesUntrimmed(t *testing.T) {
 	// unprobed media) must serve every track, never refuse the plan.
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: true}
-	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), nil)
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), nil, h.planOf(onDemandReq(), "mi-1", onDemandItem(), nil))
 	require.NoError(t, err, "missing streams must not refuse the plan")
 	assert.Nil(t, pkg.lastOpts.KeepAudioTrack, "best-effort: falls back to every track")
 }
@@ -555,25 +545,17 @@ func TestRebakeDASHManifestURIs_CastToken(t *testing.T) {
 	}
 }
 
-// The mkvgo packager rung must NOT inherit the ffmpeg copy rung's preconditions.
-// planHLSVideoEligible funnelled through isCopyRequest, which additionally
-// requires (a) a wired copyProducer and (b) enough free cache to hold a full
-// copy of the source. mkvgo is STATELESS - it packages on the fly and writes
-// ZERO bytes to the cache (verified: serving a 12 MB od_ segment left the cache
-// dir at 0 entries). So a small cache, or an operator disabling the ffmpeg copy
-// rung, silently pushed copy-eligible titles all the way to a TRANSCODE - the
-// most expensive path - on exactly the weak-NAS boxes those guards exist to
-// protect.
-func TestPlanHLSVideoEligible_IndependentOfFFmpegCopyRung(t *testing.T) {
+// The mkvgo packager rung must NOT inherit the ffmpeg copy rung's preconditions
+// (a wired copyProducer, cache room for a full copy): mkvgo is STATELESS. The
+// plan's strategy reads the packager's own gate (VideoCopyEligible), so a
+// disabled ffmpeg copy rung leaves the video on the packager.
+func TestHandlerPlan_PackagerIndependentOfFFmpegCopyRung(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
-	// Operator disabled the ffmpeg copy/remux rung (transcoding.remux_copy=off).
-	// mkvgo needs nothing from it.
-	h.copyProducer = nil
+	h.copyProducer = nil // operator disabled the ffmpeg copy/remux rung
 
-	d := decisionFor(h, onDemandReq(), onDemandItem(), copyEligibleAV())
-	assert.True(t, h.planHLSVideoEligible(d, onDemandItem(), copyEligibleAV()),
-		"mkvgo packages without ffmpeg: a disabled copy rung must not disable it")
+	d := planFor(t, h, onDemandReq(), onDemandItem(), copyEligibleAV()).Plan.Delivery
+	assert.Equal(t, apptranscoding.EngineMkvgo, d.Video, "mkvgo packages without ffmpeg: a disabled copy rung must not disable it")
 }
 
 // countingStreamsGetter fails the test intent if the plan builder re-fetches
@@ -597,7 +579,7 @@ func TestBuildPlan_TrackTrimOn_ReusesAuthStreams_NoRefetch(t *testing.T) {
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	counter := &countingStreamsGetter{}
 	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: true, libSvc: counter}
-	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), streams)
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), streams, h.planOf(onDemandReq(), "mi-1", onDemandItem(), streams))
 	require.NoError(t, err)
 	require.NotNil(t, pkg.lastOpts.KeepAudioTrack)
 	assert.Equal(t, 0, *pkg.lastOpts.KeepAudioTrack)
@@ -624,7 +606,7 @@ func TestBuildHybridMaster_FallbackRung(t *testing.T) {
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts" // audio must be re-encoded → hybrid master
 
-	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams, planFor(t, h, onDemandReq(), item, streams))
 	require.NoError(t, err)
 
 	assert.Contains(t, master, "od_playlist.m3u8", "the copy variant is still served by the packager")
@@ -661,7 +643,7 @@ func TestBuildHybridMaster_FallbackRung_SkippedOnLeanSource(t *testing.T) {
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts"
 
-	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams, planFor(t, h, onDemandReq(), item, streams))
 	require.NoError(t, err)
 	assert.Contains(t, master, "od_playlist.m3u8")
 	assert.NotContains(t, master, "stream_0.m3u8",
@@ -684,7 +666,7 @@ func TestBuildHybridMaster_FallbackRung_FlagOff(t *testing.T) {
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts"
 
-	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams, planFor(t, h, onDemandReq(), item, streams))
 	require.NoError(t, err)
 	assert.NotContains(t, master, "stream_0.m3u8")
 }
@@ -714,7 +696,7 @@ func TestBuildHybridMaster_FallbackRung_SkippedForCast(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey,
 		&shared.StreamToken{UserID: "u1", ProfileID: "p1", MediaItemID: "m1", Scope: shared.ScopeStream, Cast: true}))
 
-	master, err := h.buildHybridMaster(req, "m1", item, streams)
+	master, err := h.buildHybridMaster(req, "m1", item, streams, planFor(t, h, req, item, streams))
 	require.NoError(t, err)
 	assert.Contains(t, master, "od_playlist.m3u8", "the copy variant still serves")
 	assert.NotContains(t, master, "stream_0.m3u8",
@@ -972,7 +954,7 @@ func TestBuildHybridMaster_FallbackRung_URIResolvesCoherently(t *testing.T) {
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts"
 
-	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams, planFor(t, h, onDemandReq(), item, streams))
 	require.NoError(t, err)
 	var fbURI string
 	for line := range strings.SplitSeq(master, "\n") {
@@ -1029,54 +1011,50 @@ func ac3ReceiverReq() *http.Request {
 		&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
 }
 
-func TestAudioTrimUnlocksCopy_OneUncarriableTrackNoLongerPoisonsTheRest(t *testing.T) {
+// One uncarriable track (TrueHD) no longer poisons the rest: the plan trims
+// the presentation to the selected AC-3 track and keeps it on the packager.
+func TestHandlerPlan_TrimUnlocksThePackagerAudio(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
-	streams := multiTrackTrueHDPlusAC3()
+	h.audioRenditionEnabled = true
+	h.audio = &audioServe{}
 
-	d := decisionFor(h, ac3ReceiverReq(), onDemandItem(), streams)
-	require.Equal(t, "copy", d.AudioDecision, "an AC-3 5.1 track on an AC-3/6-channel receiver is a copy")
-	require.False(t, h.audioAllCopyEligible(context.Background(), d, streams),
-		"the TrueHD track is not CMAF-carriable, so the all-or-nothing gate refuses")
-
-	assert.True(t, h.audioTrimUnlocksCopy(ac3ReceiverReq(), d, streams),
+	rp := planFor(t, h, ac3ReceiverReq(), onDemandItem(), multiTrackTrueHDPlusAC3())
+	require.Equal(t, "copy", rp.Decision.AudioDecision, "an AC-3 5.1 track on an AC-3/6-channel receiver is a copy")
+	assert.Equal(t, apptranscoding.DeliveryStrategy{Video: apptranscoding.EngineMkvgo, Audio: apptranscoding.EngineMkvgo, AudioTrimmed: true}, rp.Plan.Delivery,
 		"trimming to the selected AC-3 track makes the presentation carriable verbatim")
 }
 
-// The trim must not paper over a track that genuinely cannot be copied: asking
-// for the TrueHD track itself still goes to Evey's encoder.
-func TestAudioTrimUnlocksCopy_SelectedTrackItselfUncarriable(t *testing.T) {
+func TestHandlerPlan_SelectedTrackItselfUncarriableIsHybrid(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
-	streams := multiTrackTrueHDPlusAC3()
+	h.audioRenditionEnabled = true
+	h.audio = &audioServe{}
 
 	req := httptest.NewRequest(http.MethodGet,
 		"/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264&audioCodecs=aac,ac3,truehd&containers=mp4&maxAudioChannels=8&audioTrack=0", nil)
 	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
 		&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
 
-	d := decisionFor(h, req, onDemandItem(), streams)
-	assert.False(t, h.audioTrimUnlocksCopy(req, d, streams),
-		"TrueHD is the selected track and CMAF cannot carry it - no trim rescues that")
+	d := planFor(t, h, req, onDemandItem(), multiTrackTrueHDPlusAC3()).Plan.Delivery
+	assert.Equal(t, apptranscoding.DeliveryStrategy{Video: apptranscoding.EngineMkvgo, Audio: apptranscoding.EngineFFmpeg}, d,
+		"TrueHD is the selected track and CMAF cannot carry it - no trim rescues that: the hybrid master")
 }
 
-// A phone whose only outputs are stereo still folds a 5.1 track server-side:
-// the decision is already "transcode" on the channel ceiling, and the trim must
-// not resurrect a copy the client cannot use.
-func TestAudioTrimUnlocksCopy_StereoOnlyClientStillFolds(t *testing.T) {
+func TestHandlerPlan_StereoOnlyClientStillFolds(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
-	streams := multiTrackTrueHDPlusAC3()
+	h.audioRenditionEnabled = true
+	h.audio = &audioServe{}
 
 	req := httptest.NewRequest(http.MethodGet,
 		"/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264&audioCodecs=aac,ac3&containers=mp4&maxAudioChannels=2&audioTrack=2", nil)
 	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
 		&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
 
-	d := decisionFor(h, req, onDemandItem(), streams)
-	require.NotEqual(t, "copy", d.AudioDecision, "5.1 into a 2-channel output has to be folded")
-	assert.False(t, h.audioTrimUnlocksCopy(req, d, streams),
-		"a folded track is re-encoded, trimmed or not")
+	rp := planFor(t, h, req, onDemandItem(), multiTrackTrueHDPlusAC3())
+	require.NotEqual(t, "copy", rp.Decision.AudioDecision, "5.1 into a 2-channel output has to be folded")
+	assert.Equal(t, apptranscoding.EngineFFmpeg, rp.Plan.Delivery.Audio, "a folded track is re-encoded, trimmed or not")
 }
 
 // End to end through the serve path: the master comes from the packager (not
@@ -1089,7 +1067,7 @@ func TestTryServePlanMaster_TrimsToTheCarriableTrack(t *testing.T) {
 	h.onDemand = pkg
 
 	w := httptest.NewRecorder()
-	served := h.tryServePlanMaster(w, ac3ReceiverReq(), "m1", onDemandItem(), multiTrackTrueHDPlusAC3(), noopSpan())
+	served, _ := h.servePackagerMaster(w, ac3ReceiverReq(), "m1", onDemandItem(), multiTrackTrueHDPlusAC3(), planFor(t, h, ac3ReceiverReq(), onDemandItem(), multiTrackTrueHDPlusAC3()), noopSpan())
 
 	assert.True(t, served, "the AC-3 track is carriable once the presentation is trimmed to it")
 	assert.Contains(t, w.Body.String(), "od_playlist.m3u8", "served by the packager, no ffmpeg audio encoder")
@@ -1135,7 +1113,7 @@ func TestBuildHybridMaster_FallbackRung_KeepsCopyCodec_OnHEVCCapableGPUAndClient
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts"
 
-	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams, planFor(t, h, onDemandReq(), item, streams))
 	require.NoError(t, err)
 	var fbInf, fbURI string
 	lines := strings.Split(master, "\n")
@@ -1206,7 +1184,7 @@ func TestBuildHybridMaster_FallbackRung_HEVCSource_SameGroupAdvertised(t *testin
 	require.NoError(t, err)
 	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 12_000_000}}
 
-	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, hevcSDRAV())
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, hevcSDRAV(), planFor(t, h, onDemandReq(), item, hevcSDRAV()))
 	require.NoError(t, err)
 	assert.Contains(t, master, "od_playlist.m3u8")
 	assert.Contains(t, master, "stream_0.m3u8",
@@ -1235,9 +1213,73 @@ func TestBuildHybridMaster_FallbackRung_SkippedOnIncompatibleGroup(t *testing.T)
 		"/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4&hdr=1", nil)
 	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
 
-	master, err := h.buildHybridMaster(req, "m1", item, hevcHDRAV())
+	master, err := h.buildHybridMaster(req, "m1", item, hevcHDRAV(), planFor(t, h, req, item, hevcHDRAV()))
 	require.NoError(t, err)
 	assert.Contains(t, master, "od_playlist.m3u8", "the HDR copy variant is still served")
 	assert.NotContains(t, master, "stream_0.m3u8",
 		"HDR copy + SDR fallback are different ABR groups → fallback omitted (no auto codec/range swap)")
+}
+
+// The plan decided the packager; the source does not package (no Cues index).
+// serveMaster serves the ffmpeg path for the SAME plan and says so: the plan
+// is not rewritten, the fallback is counted by reason, and it is not a
+// disagreement (the adapter re-decided nothing - the runtime could not obey).
+func TestServeMaster_PackagerUnbuildable_ExplicitFallbackKeepsThePlan(t *testing.T) {
+	item := onDemandItem()
+	item.ID = "m1"
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item.File.Duration = dur
+	streams := copyEligibleAV()
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
+	h.onDemand = &fakeOnDemandPackager{err: fmt.Errorf("no Cues index")}
+	var recorded domainplayback.ServingPath
+	h.servingRecord = func(_ context.Context, _, _ string, p domainplayback.ServingPath) { recorded = p }
+
+	// The plan the handler resolves for this request names the packager.
+	req := onDemandReq()
+	rp, err := h.probePlan(req, "m1", item, streams)
+	require.NoError(t, err)
+	require.Equal(t, apptranscoding.EngineMkvgo, rp.Plan.Delivery.Video, "precondition: the plan's video engine is the packager")
+
+	fallbacks := func() int {
+		return int(testutil.ToFloat64(metrics.HLSVODDeliveryFallbacks.WithLabelValues(fallbackPackagerUnbuildable)))
+	}
+	disagreements := func() int {
+		return int(testutil.ToFloat64(metrics.HLSVODDeliveryDisagreements.WithLabelValues("copy/mkvgo+mkvgo", "transcode/ffmpeg+ffmpeg")))
+	}
+	before, beforeDis := fallbacks(), disagreements()
+
+	w := doVODRequestQ(h, "m1", "master.m3u8", "videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.NotContains(t, w.Body.String(), "od_", "the ffmpeg path served the master")
+	assert.Equal(t, before+1, fallbacks(), "the fallback is counted by reason")
+	assert.Equal(t, beforeDis, disagreements(), "a declared fallback is not a disagreement")
+	assert.Equal(t, "ffmpeg", recorded.VideoEngine, "the admin sees what was really served")
+	again, err := h.probePlan(req, "m1", item, streams)
+	require.NoError(t, err)
+	assert.Equal(t, rp.Plan.Delivery, again.Plan.Delivery, "the plan is not rewritten by the runtime outcome")
+}
+
+// An adapter serving an engine the plan did not name, with no fallback
+// declared, is an invariant violation: counted on the disagreement counter.
+func TestCheckDelivery_UndeclaredDifferenceIsADisagreement(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	rp := planFor(t, h, onDemandReq(), onDemandItem(), copyEligibleAV())
+	require.Equal(t, apptranscoding.EngineMkvgo, rp.Plan.Delivery.Video)
+
+	served := domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "ffmpeg", AudioDecision: "copy", AudioEngine: "ffmpeg"}
+	counter := metrics.HLSVODDeliveryDisagreements.WithLabelValues("copy/mkvgo+mkvgo", "copy/ffmpeg+ffmpeg")
+	before := int(testutil.ToFloat64(counter))
+	h.checkDelivery(onDemandReq(), "m1", rp, served, "")
+	assert.Equal(t, before+1, int(testutil.ToFloat64(counter)))
+
+	// The same difference with a declared fallback is a runtime outcome, not a disagreement.
+	h.checkDelivery(onDemandReq(), "m1", rp, served, fallbackPackagerUnbuildable)
+	assert.Equal(t, before+1, int(testutil.ToFloat64(counter)))
+	// And a served path equal to the plan's is neither.
+	h.checkDelivery(onDemandReq(), "m1", rp, rp.Plan.Delivery.ServingPath(rp.Plan.Route, rp.FP), "")
+	assert.Equal(t, before+1, int(testutil.ToFloat64(counter)))
 }

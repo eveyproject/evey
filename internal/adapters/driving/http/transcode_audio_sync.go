@@ -73,7 +73,7 @@ func (h *hlsVODServe) planBuildsForSource(r *http.Request, mediaID string, item 
 			return v
 		}
 	}
-	_, err := h.buildPlan(r, mediaID, item, streams)
+	_, err := h.buildPlan(r, mediaID, item, streams, h.planOf(r, mediaID, item, streams))
 	if err == nil {
 		if ok {
 			planBuildMemo.Set(key, true, planBuildMemoTTL)

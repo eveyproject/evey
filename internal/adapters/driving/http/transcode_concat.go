@@ -76,8 +76,14 @@ func (h *hlsVODServe) episodeConcatEligible(r *http.Request, item *domainlibrary
 	if h.parental != nil && h.parental.BlockedByParental(r.Context(), claims.ProfileID, item) {
 		return false
 	}
-	decision := h.decisionFor(r.Context(), item, streams, r)
-	return h.planHLSVideoEligible(decision, item, streams) && h.audioAllCopyEligible(r.Context(), decision, streams)
+	// Every episode of the chain must be the packager's whole presentation
+	// (video and every audio track carried verbatim): a projection of its plan.
+	rp, err := h.probePlan(r, itemID(item), item, streams)
+	if err != nil {
+		return false
+	}
+	d := rp.Plan.Delivery
+	return d.Video == apptranscoding.EngineMkvgo && d.Audio == apptranscoding.EngineMkvgo && !d.AudioTrimmed
 }
 
 // resolveEpisodeChain walks NextEpisodeOf from start, keeping only episodes
