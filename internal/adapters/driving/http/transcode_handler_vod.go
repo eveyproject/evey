@@ -546,6 +546,17 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		h.startHints.remember(mediaID, seg, time.Now())
 	}
 
+	// ONE resolution: decision, route, shaped ladder, fingerprint and the
+	// delivery strategy - which engine carries the video and the audio. From
+	// here the adapter EXECUTES plan.Delivery; it picks no engine of its own,
+	// and every step below (prewarm gate, subtitle renditions, master) reads
+	// this plan rather than resolving its own.
+	rp, err := h.probePlan(r, mediaID, item, streams)
+	if err != nil {
+		h.writeManifestErr(r.Context(), w, span, err, mediaID)
+		return
+	}
+
 	// Playback is starting: begin filling the subtitle cache. Deliberately
 	// here, on the master playlist, because that is the earliest moment the
 	// server knows a specific film is about to be watched - and it is a request
@@ -557,7 +568,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// read fills - a full read next to its own playback. The native apps and
 	// the cast receiver still fetch /subtitle, so they keep the head start.
 	if h.subtitlePrewarm != nil && item != nil && item.File != nil {
-		packagerServes := browserUserAgent(r.UserAgent()) && len(h.planSubtitleRenditions(r, mediaID, item, streams)) > 0
+		packagerServes := browserUserAgent(r.UserAgent()) && len(h.planSubtitleRenditions(r, mediaID, item, streams, rp)) > 0
 		if !packagerServes {
 			h.subtitlePrewarm.Enqueue(mediaID, item.File.Path, streams, h.subtitlePrewarmLang(r.Context()))
 		}
@@ -568,15 +579,6 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// short / incompatible episode) to the normal single-episode paths below,
 	// unchanged.
 	if h.serveConcatMaster(w, r, mediaID, item, streams, span) {
-		return
-	}
-
-	// ONE resolution: decision, route, shaped ladder, fingerprint and the
-	// delivery strategy - which engine carries the video and the audio. From
-	// here the adapter EXECUTES plan.Delivery; it picks no engine of its own.
-	rp, err := h.probePlan(r, mediaID, item, streams)
-	if err != nil {
-		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
 	// fallback names why a plan's engine could not be served (a source the
@@ -621,7 +623,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	}
 	// Even under an encoder the text subtitles come from the packager: the
 	// transcode timeline is the source's, so the windowed cues line up.
-	in.SubtitleRenditions = h.planSubtitleRenditions(r, mediaID, item, streams)
+	in.SubtitleRenditions = h.planSubtitleRenditions(r, mediaID, item, streams, rp)
 	if !rp.IsCopy {
 		// One line and one counter per transcode master: what a copy would have
 		// needed (the reason list) is the backlog of the free path.

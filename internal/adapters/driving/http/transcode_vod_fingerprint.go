@@ -15,22 +15,12 @@ import (
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
 
-// resolveAudioTrack returns the audio-index to use for the given request and
-// stream list. When the client supplies an explicit ?audioTrack= query param,
-// that value is honoured as-is (the user or player has already chosen). When
-// absent, the server resolves the best match using the profile's language
-// preferences (AudioLanguages → Locale → server language → IsDefault → 0).
-func (h *hlsVODServe) resolveAudioTrack(r *http.Request, streams []*domainlibrary.MediaStream) int {
-	if t, ok := explicitAudioTrack(r, streams); ok {
-		return t
-	}
-	claims := HTTPClaimsFromContext(r.Context())
-	prefs := h.profilePrefsFor(r.Context(), claims.ProfileID)
-	return h.audioTrackFromPrefs(streams, prefs)
-}
-
-// resolveAudioTrackWith is resolveAudioTrack with the profile prefs already
-// loaded - the plan resolution loads them once and threads them here.
+// resolveAudioTrackWith returns the audio-index to use for the given request
+// and stream list, with the profile prefs already loaded (the plan resolution
+// loads them once and threads them here). An explicit ?audioTrack= is honoured
+// as-is (the user or player has already chosen); otherwise the best match by
+// the profile's language preferences (AudioLanguages → Locale → server
+// language → IsDefault → 0).
 func (h *hlsVODServe) resolveAudioTrackWith(r *http.Request, streams []*domainlibrary.MediaStream, prefs apptranscoding.TranscodingPreferences) int {
 	if t, ok := explicitAudioTrack(r, streams); ok {
 		return t
@@ -69,24 +59,11 @@ func (h *hlsVODServe) audioTrackFromPrefs(streams []*domainlibrary.MediaStream, 
 	return resolveDefaultAudioTrack(streams, langs)
 }
 
-// buildManifestInput resolves the media + decision + token into the
-// ManifestInput the generator consumes. Threads the same query string-parsed
-// fields into both the manifest's URLs and the DecisionFingerprint, so segment
-// requests can be hashed back to the same cache bucket.
-func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (apptranscoding.ManifestInput, error) {
-	if item == nil || item.File == nil {
-		return apptranscoding.ManifestInput{}, errors.New("buildManifestInput: nil item")
-	}
-	rp, err := h.resolvePlan(r, mediaID, item, streams)
-	if err != nil {
-		return apptranscoding.ManifestInput{}, err
-	}
-	return h.buildManifestInputWith(r, mediaID, item, streams, rp)
-}
-
-// buildManifestInputWith is buildManifestInput reading an already-resolved
-// plan: the decision, ladder, audio track and sealed fingerprint hash all
-// come from the SAME resolution the caller's other steps consumed.
+// buildManifestInputWith turns an already-resolved plan + the request's
+// token into the ManifestInput the generator consumes: the decision, ladder,
+// audio track and sealed fingerprint hash all come from the SAME resolution
+// the caller's other steps consumed, and the query-parsed fields it threads
+// into the manifest's URLs are the ones the segment requests hash back from.
 func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) (apptranscoding.ManifestInput, error) {
 	if item == nil || item.File == nil {
 		return apptranscoding.ManifestInput{}, errors.New("buildManifestInput: nil item")

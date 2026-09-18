@@ -125,12 +125,13 @@ const (
 
 // planSubtitleRenditions is the packager's segmented-WebVTT renditions for
 // this file, mapped to the picker's ordinals; nil when the file cannot be
-// planned (the extraction route still serves the tracks).
-func (h *hlsVODServe) planSubtitleRenditions(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) []apptranscoding.SubtitleRendition {
+// planned (the extraction route still serves the tracks). rp is the caller's
+// resolved plan: a master resolves once and hands it down.
+func (h *hlsVODServe) planSubtitleRenditions(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) []apptranscoding.SubtitleRendition {
 	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
 		return nil
 	}
-	plan, err := h.buildPlan(r, mediaID, item, streams, h.planOf(r, mediaID, item, streams))
+	plan, err := h.buildPlan(r, mediaID, item, streams, rp)
 	if err != nil {
 		return nil
 	}
@@ -139,10 +140,13 @@ func (h *hlsVODServe) planSubtitleRenditions(r *http.Request, mediaID string, it
 
 // buildHybridMaster renders the hybrid master: a single video-COPY variant
 // whose playlist is the packager's (od_playlist.m3u8) tied to Evey's ffmpeg
-// AAC audio group. Reuses buildManifestInput so the audio renditions, token,
-// and query suffix match exactly what the audio handlers reconstruct.
+// AAC audio group. Reuses buildManifestInputWith so the audio renditions,
+// token, and query suffix match exactly what the audio handlers reconstruct,
+// off the plan the master already resolved; serving binds this token to that
+// plan's hash (resolvePlan's side of probePlan).
 func (h *hlsVODServe) buildHybridMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) (string, error) {
-	in, err := h.buildManifestInput(r, mediaID, item, streams)
+	h.reclaimSupersededHash(r, mediaID, rp)
+	in, err := h.buildManifestInputWith(r, mediaID, item, streams, rp)
 	if err != nil {
 		return "", err
 	}
@@ -159,7 +163,7 @@ func (h *hlsVODServe) buildHybridMaster(r *http.Request, mediaID string, item *d
 		Copy:         true,
 	}}
 	in.VideoPlaylistURI = onDemandPrefix + "playlist.m3u8"
-	in.SubtitleRenditions = h.planSubtitleRenditions(r, mediaID, item, streams)
+	in.SubtitleRenditions = h.planSubtitleRenditions(r, mediaID, item, streams, rp)
 	if fb := h.copyFallbackVariant(r, mediaID, item, streams, videoKbps+domaintranscoding.AudioRenditionBaseKbps); fb != nil {
 		in.FallbackVariants = []apptranscoding.FallbackVariant{*fb}
 	}
@@ -389,7 +393,7 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 	if h.onDemand == nil {
 		return false, fallbackPackagerUnwired
 	}
-	audioTrack := h.resolveAudioTrack(r, streams)
+	audioTrack := rp.AudioTrack // the plan's track, resolved once with it
 	// The plan placed the audio on the client's decoder and named the video's
 	// engine; the codec and channel gates that used to live here are the
 	// resolver's (wasmAudioServes).
@@ -453,7 +457,8 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 // playlist; otherwise the ffmpeg video-only ladder is kept. useMkvgoAudio picks
 // the audio rendition URI (mkvgo's od_audio{k} vs the ffmpeg audio_{k} copy).
 func (h *hlsVODServe) buildWasmAudioMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan, useMkvgoVideo, useMkvgoAudio bool, audioTrack int, rends []planAudioRendition) (string, error) {
-	in, err := h.buildManifestInput(r, mediaID, item, streams)
+	h.reclaimSupersededHash(r, mediaID, rp) // serving binds this token to the plan's hash
+	in, err := h.buildManifestInputWith(r, mediaID, item, streams, rp)
 	if err != nil {
 		return "", err
 	}
@@ -541,7 +546,7 @@ func (h *hlsVODServe) buildWasmAudioMaster(r *http.Request, mediaID string, item
 		aacIn.WasmAudio = false
 		in.ExternalAudioAACURI = fmt.Sprintf("audio_%d.m3u8%s", audioTrack, apptranscoding.QuerySuffixFor(aacIn))
 	}
-	in.SubtitleRenditions = h.planSubtitleRenditions(r, mediaID, item, streams)
+	in.SubtitleRenditions = h.planSubtitleRenditions(r, mediaID, item, streams, rp)
 	return h.manifestGen.Master(in)
 }
 
@@ -723,12 +728,13 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 	// audio track (plan.Delivery.AudioTrimmed: the operator's trim flag, or the
 	// one track the packager can carry verbatim); the master and every
 	// sub-resource build from the same plan, so they package the same tracks.
-	// Same track resolution the ffmpeg pipeline uses (resolveAudioTrack), so
-	// both backends agree on which track a request gets. Best-effort: no
-	// streams in hand serves every audio track rather than failing the plan.
+	// The plan's own track (resolved once with it, the same the ffmpeg
+	// pipeline maps), so both backends agree on which track a request gets.
+	// Best-effort: no streams in hand serves every audio track rather than
+	// failing the plan.
 	if rp != nil && rp.Plan.Delivery.AudioTrimmed {
 		if len(streams) > 0 {
-			idx := h.resolveAudioTrack(r, streams)
+			idx := rp.AudioTrack
 			opts.KeepAudioTrack = &idx
 		} else {
 			slog.WarnContext(r.Context(), "hls vod: on-demand track trim: no streams in hand, serving every track",
