@@ -125,18 +125,9 @@ func colorSpaceEquiv(ff, mk, codec string) bool {
 	return ff == mk || (mk == "" && codec == "h264")
 }
 
-// fieldOrderNorm collapses ffprobe's interlaced orders (tt/bb/tb/bt) and mkvgo's
-// "interlaced" to one value: the comparison checks "is it interlaced" (the only
-// decision-relevant bit), not the exact field order.
-func fieldOrderNorm(s string) string {
-	switch s {
-	case "tt", "bb", "tb", "bt", "interlaced":
-		return "interlaced"
-	case "progressive":
-		return "progressive"
-	}
-	return ""
-}
+// fieldOrderNorm collapses both vocabularies to the decision-relevant bit
+// through the domain reader: "is it interlaced", not the exact field order.
+func fieldOrderNorm(s string) string { return string(library.ScanTypeOf(s)) }
 
 // sampleRateEquiv accepts an exact match or the implicit-SBR 2× case (mkvgo reads
 // the coded core rate head-only; ffprobe decodes the SBR-doubled output).

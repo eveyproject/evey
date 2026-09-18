@@ -286,11 +286,11 @@ func SourceDeinterlaceAll(streams []*library.MediaStream) bool {
 	return false
 }
 
-// SourceInterlaced: the source is KNOWN interlaced - the container flags it
-// (field_order tt/bb/tb/bt) or the idet content detection saw combing. The
-// verdict that lets a session-level GPU deinterlacer (QSV) run: unlike bwdif /
-// yadif_cuda / deinterlace_vaapi=auto it has no per-frame flag gate, so it
-// must never be applied blind to a progressive film.
+// SourceInterlaced: the source is KNOWN interlaced - the prober's verdict
+// (library.ScanType, either vocabulary) or the idet content detection saw
+// combing. The verdict that lets a session-level GPU deinterlacer (QSV) run:
+// unlike bwdif / yadif_cuda / deinterlace_vaapi=auto it has no per-frame flag
+// gate, so it must never be applied blind to a progressive film.
 func SourceInterlaced(streams []*library.MediaStream) bool {
 	for _, s := range streams {
 		if s == nil || s.StreamType != "video" {
@@ -299,24 +299,11 @@ func SourceInterlaced(streams []*library.MediaStream) bool {
 		if s.IdetInterlaced != nil && *s.IdetInterlaced {
 			return true
 		}
-		if s.FieldOrder != nil && FieldOrderInterlaced(*s.FieldOrder) {
-			return true
-		}
-		return false
+		return s.ScanType() == library.ScanInterlaced
 	}
 	return false
 }
 
-// FieldOrderInterlaced reads a persisted field_order in either prober's
-// vocabulary: ffprobe names the field order (tt/bb/tb/bt), mkvgo names the
-// verdict ("interlaced" from FlagInterlaced or the H.264 frame_mbs_only_flag).
-func FieldOrderInterlaced(fo string) bool {
-	switch strings.ToLower(strings.TrimSpace(fo)) {
-	case "tt", "bb", "tb", "bt", "interlaced":
-		return true
-	}
-	return false
-}
 
 // SourceSAR returns the first video stream's sample aspect ratio ("64:45" for
 // anamorphic DVD), or "" for square pixels / unprobed. Drives the builder's

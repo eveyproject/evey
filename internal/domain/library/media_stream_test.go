@@ -2,9 +2,11 @@ package library_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStreamType_StringRoundTrip(t *testing.T) {
@@ -129,4 +131,29 @@ func TestIsCoverArtStream(t *testing.T) {
 	if library.IsCoverArtStream(audio, true) || library.IsCoverArtStream(nil, true) {
 		t.Fatal("only video streams can be cover art")
 	}
+}
+
+// One vocabulary table for both probers: ffprobe's field order and mkvgo's
+// verdict read as the same fact, anything else stays unknown (never a guess).
+func TestScanTypeOf_ReadsBothProberVocabularies(t *testing.T) {
+	t.Parallel()
+	cases := map[string]library.ScanType{
+		"tt": library.ScanInterlaced, "bb": library.ScanInterlaced, "tb": library.ScanInterlaced, "bt": library.ScanInterlaced,
+		"interlaced": library.ScanInterlaced, " Interlaced ": library.ScanInterlaced,
+		"progressive": library.ScanProgressive, "PROGRESSIVE": library.ScanProgressive,
+		"": library.ScanUnknown, "unknown": library.ScanUnknown, "mbaff": library.ScanUnknown,
+	}
+	for raw, want := range cases {
+		assert.Equal(t, want, library.ScanTypeOf(raw), "%q", raw)
+		got := library.NormalizeFieldOrder(raw)
+		if want == library.ScanUnknown {
+			assert.Nil(t, got, "%q is not persisted", raw)
+		} else if assert.NotNil(t, got, raw) {
+			assert.Equal(t, strings.ToLower(strings.TrimSpace(raw)), *got, "the word is kept, only normalised")
+		}
+	}
+	var nilStream *library.MediaStream
+	assert.Equal(t, library.ScanUnknown, nilStream.ScanType())
+	assert.Equal(t, library.ScanUnknown, (&library.MediaStream{}).ScanType())
+	assert.Equal(t, library.ScanInterlaced, (&library.MediaStream{FieldOrder: new("tt")}).ScanType())
 }
