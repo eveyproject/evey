@@ -1,6 +1,8 @@
 # ADR-0030: One plan, one decision
 
-- Status: Accepted
+- Status: Accepted - implemented and closed 2026-09-18 (the expressibility
+  shadow left, the boundary guarded, the alert counter at zero in production
+  after a deployment exercising every GPU topology of the host)
 - Date: 2026-09-17
 
 ## Context
