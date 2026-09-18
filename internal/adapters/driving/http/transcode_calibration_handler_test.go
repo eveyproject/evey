@@ -165,15 +165,9 @@ func TestRouteCostViews_PricesLikeAdmission(t *testing.T) {
 	assert.Greater(t, views[1].CPUCost, views[0].CPUCost, "four cores at half the speed cost more of the CPU pool")
 }
 
-// fakeExpressibility answers "expressible" to everything and expects one cell:
-// the GET must carry the coverage report with that cell missing until both
-// checkers record it.
-type fakeExpressibility struct{}
-
-func (fakeExpressibility) Expressible(domaintranscoding.Topology, domaintranscoding.HWAccelType, string, []string, domaintranscoding.RouteNeeds) error {
-	return nil
-}
-func (fakeExpressibility) ExpectedCells(domaintranscoding.EncodeCapability) []domaintranscoding.ExpressibilityCell {
+// oneReachableCell expects one cell: the GET must carry the coverage report
+// with that cell missing until both checkers record it.
+func oneReachableCell() []domaintranscoding.ExpressibilityCell {
 	return []domaintranscoding.ExpressibilityCell{{Backend: "nvenc", Topology: "zero-copy", Needs: "plain"}}
 }
 
@@ -184,7 +178,7 @@ func TestTranscodeCalibrationGet_CarriesTheExpressibilityCoverage(t *testing.T) 
 	get := func() map[string]any {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/transcode/calibration", nil)
 		w := httptest.NewRecorder()
-		transcodeCalibrationGetHandler(svc, fakeExpressibility{})(w, req)
+		transcodeCalibrationGetHandler(svc, oneReachableCell)(w, req)
 		require.Equal(t, http.StatusOK, w.Code)
 		var got map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
@@ -203,7 +197,7 @@ func TestTranscodeCalibrationGet_CarriesTheExpressibilityCoverage(t *testing.T) 
 	assert.Empty(t, rep["missing"])
 	assert.Equal(t, true, rep["ready_to_leave_shadow"])
 
-	// Without a planner wired the field is simply absent.
+	// Without the closure wired the field is simply absent.
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/transcode/calibration", nil)
 	w := httptest.NewRecorder()
 	transcodeCalibrationGetHandler(svc, nil)(w, req)

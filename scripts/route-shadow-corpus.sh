@@ -18,6 +18,7 @@
 # Usage:
 #   scripts/route-shadow-corpus.sh --url http://staging:9091 --user admin --pass ... \
 #       --titles titles.env [--recalibrate] [--sleep 6]
+#   scripts/route-shadow-corpus.sh --url ... --user ... --pass ... --report-only
 #
 # titles.env names one media id per ROLE (a role you have no title for is
 # skipped, and its cells will simply stay missing until you add one):
@@ -34,7 +35,7 @@
 # the recalibration you asked for. Run it against a staging host.
 set -uo pipefail
 
-URL="" USER="" PASS="" TITLES="" RECAL=0 SLEEP=6
+URL="" USER="" PASS="" TITLES="" RECAL=0 SLEEP=6 REPORT_ONLY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --url) URL="$2"; shift 2 ;;
@@ -43,32 +44,64 @@ while [ $# -gt 0 ]; do
     --titles) TITLES="$2"; shift 2 ;;
     --recalibrate) RECAL=1; shift ;;
     --sleep) SLEEP="$2"; shift 2 ;;
+    --report-only) REPORT_ONLY=1; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-[ -n "$URL" ] && [ -n "$USER" ] && [ -n "$PASS" ] && [ -n "$TITLES" ] || { echo "usage: --url --user --pass --titles titles.env [--recalibrate] [--sleep N]" >&2; exit 2; }
+[ -n "$URL" ] && [ -n "$USER" ] && [ -n "$PASS" ] && { [ -n "$TITLES" ] || [ "$REPORT_ONLY" = 1 ]; } || { echo "usage: --url --user --pass --titles titles.env [--recalibrate] [--sleep N] | --report-only" >&2; exit 2; }
 command -v curl >/dev/null && command -v python3 >/dev/null || { echo "curl and python3 are required" >&2; exit 2; }
 # shellcheck disable=SC1090
-. "$TITLES"
+[ -n "$TITLES" ] && . "$TITLES"
 
 TOKEN=$(curl -sS -X POST "$URL/api/v1/auth/login" -H 'Content-Type: application/json' \
   -d "{\"username\":\"$USER\",\"password\":\"$PASS\"}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("accessToken",""))')
 [ -n "$TOKEN" ] || { echo "login failed" >&2; exit 2; }
 auth=(-H "Authorization: Bearer $TOKEN")
 
+report() {
+  echo "→ report"
+  curl -sS "${auth[@]}" "$URL/api/v1/admin/transcode/calibration" | python3 -c '
+import json, sys
+rep = json.load(sys.stdin).get("expressibility")
+if rep is None:
+    print("  no expressibility report: the builder port is not wired on this host"); sys.exit(2)
+print("  expected cells: %d  disagreements: %d" % (len(rep["expected"]), rep["disagreements"]))
+for c in rep["cells"]:
+    flag = "  DISAGREE" if c["resolver_disagreements"] or c["builder_disagreements"] else ""
+    print("  %-6s %-12s %-16s resolver=%3d builder=%3d%s" % (c["backend"], c["topology"], c["needs"], c["resolver_checks"], c["builder_checks"], flag))
+if rep["missing"]:
+    print("  missing (never seen by both sites):")
+    for c in rep["missing"]:
+        print("    %s/%s/%s" % (c["backend"], c["topology"], c["needs"]))
+print("  ready_to_leave_shadow:", rep["ready_to_leave_shadow"])
+sys.exit(0 if rep["ready_to_leave_shadow"] else 1)
+'
+}
+if [ "$REPORT_ONLY" = 1 ]; then
+  report
+  exit $?
+fi
+
 if [ "$RECAL" = 1 ]; then
   echo "→ recalibration (fills the builder site for every proven backend x topology)"
   curl -sS -o /dev/null -w "  recalibrate: HTTP %{http_code}\n" -X POST "${auth[@]}" "$URL/api/v1/admin/transcode/calibration/recalibrate"
 fi
 
-# master <media id> <label> <query>: resolve a plan (and pre-warm segment 0).
+# master <media id> <label> <query>: resolve a plan (the resolver site), then
+# fetch the first variant playlist the master names - THAT is what pre-warms
+# segment 0 and reaches the builder site on real bytes.
 master() {
   local id="$1" label="$2" query="$3"
   [ -n "$id" ] || { echo "  skip $label (no title)"; return; }
-  local code
-  code=$(curl -sS -o /dev/null -w '%{http_code}' "${auth[@]}" "$URL/api/v1/media/$id/hls/master.m3u8?$query")
-  echo "  $label: HTTP $code"
-  sleep "$SLEEP" # let the pre-warm reach the builder before the next plan
+  local body code variant vcode=-
+  body=$(curl -sS -w '\n%{http_code}' "${auth[@]}" "$URL/api/v1/media/$id/hls/master.m3u8?$query")
+  code=${body##*$'\n'}
+  variant=$(printf '%s\n' "$body" | grep -m1 -E '^stream_[0-9]+\.m3u8' || true)
+  if [ -n "$variant" ]; then
+    vcode=$(curl -sS -o /dev/null -w '%{http_code}' "${auth[@]}" "$URL/api/v1/media/$id/hls/$variant")
+  fi
+  echo "  $label: master HTTP $code, variant ${variant%%\?*} HTTP $vcode"
+  sleep "$SLEEP" # let the pre-warm spawn before the next plan
 }
 
 # Client profiles. vd=transcode pins a video TRANSCODE (a copyable H.264 title
@@ -88,20 +121,4 @@ master "${GPU_UNDECODABLE:-}" "decoupled"                     "$web_hevc"
 master "${PGS_BURNIN:-}"      "burn-in (+overlay if probed)"  "$web_h264&subtitleTrack=0"
 master "${INTERLACED:-}"      "deint (QSV)"                   "$web_h264"
 
-echo "→ report"
-curl -sS "${auth[@]}" "$URL/api/v1/admin/transcode/calibration" | python3 -c '
-import json, sys
-rep = json.load(sys.stdin).get("expressibility")
-if rep is None:
-    print("  no expressibility report: the builder port is not wired on this host"); sys.exit(2)
-print(f"  expected cells: {len(rep[\"expected\"])}  disagreements: {rep[\"disagreements\"]}")
-for c in rep["cells"]:
-    print(f"  {c[\"backend\"]:6} {c[\"topology\"]:12} {c[\"needs\"]:16} resolver={c[\"resolver_checks\"]:>3} builder={c[\"builder_checks\"]:>3}"
-          + ("  DISAGREE" if c["resolver_disagreements"] or c["builder_disagreements"] else ""))
-if rep["missing"]:
-    print("  missing (never seen by both sites):")
-    for c in rep["missing"]:
-        print(f"    {c[\"backend\"]}/{c[\"topology\"]}/{c[\"needs\"]}")
-print("  ready_to_leave_shadow:", rep["ready_to_leave_shadow"])
-sys.exit(0 if rep["ready_to_leave_shadow"] else 1)
-'
+report

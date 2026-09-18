@@ -286,6 +286,9 @@ type HTTPServer struct {
 	// RouteExpressibility is the ffmpeg builder's own answer to "can you emit
 	// this route", consulted by the plan resolver (ADR-0030). Optional.
 	RouteExpressibility domaintranscoding.RouteExpressibility
+	// reachableRouteCells is bound by the VOD wiring for the shadow's coverage
+	// report (temporary, ADR-0030 6).
+	reachableRouteCells func() []domaintranscoding.ExpressibilityCell
 
 	// DLNA
 	DLNASvc *appdlna.Service
@@ -597,7 +600,14 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// the container). Both gated admin + AdminHeavyRL - the recalibrate
 	// can hammer CPU for ~30 s, can't be spammed.
 	if s.CalibrationSvc != nil {
-		mux.HandleFunc("GET /api/v1/admin/transcode/calibration", admin(transcodeCalibrationGetHandler(s.CalibrationSvc, s.RouteExpressibility)))
+		// reachableCells is bound below, once the VOD handler (and its plan
+		// resolver) exists; the closure is only called at request time.
+		mux.HandleFunc("GET /api/v1/admin/transcode/calibration", admin(transcodeCalibrationGetHandler(s.CalibrationSvc, func() []domaintranscoding.ExpressibilityCell {
+			if s.reachableRouteCells == nil {
+				return nil
+			}
+			return s.reachableRouteCells()
+		})))
 		mux.HandleFunc("POST /api/v1/admin/transcode/calibration/recalibrate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, transcodeRecalibrateHandler(s.CalibrationSvc))))
 	}
 	if s.CapOverrideSvc != nil {
@@ -622,6 +632,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// after ~9 min of continuous playback (cf features/hls_vod_playlist_refacto).
 	if s.HLSTranscoder != nil && s.HLSVODOrch != nil {
 		if vodHandler := newHLSVODServe(s, s.LibQuerySvc, hlsAccessCache, parentalChk); vodHandler != nil {
+			// The shadow's coverage report asks the live resolver which route
+			// cells this host can reach (ADR-0030, 6 - temporary).
+			if s.RouteExpressibility != nil {
+				s.reachableRouteCells = func() []domaintranscoding.ExpressibilityCell {
+					return apptranscoding.ExpectedExpressibilityCells(vodHandler.planResolver())
+				}
+			}
 			// Audio rendition handler - same auth/parental/cache/manifest
 			// dependencies as the video pipeline, plus the AudioOrch nil-safe
 			// wrap. Routed via vodHandler.serveHTTP (it dispatches the

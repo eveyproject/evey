@@ -106,10 +106,10 @@ func routeCostViews(cap domaintranscoding.EncodeCapability) []routeCostView {
 // (read-only). Used by the Server Config admin page to surface "last
 // calibrated 3 days ago" + the actual caps the host is enforcing.
 //
-// expressibility is the builder's port (optional): when it also plans the
-// reachable cells (ExpressibilityPlanner), the response carries the shadow's
-// coverage report - the exit criterion of ADR-0030's shadow, in one read.
-func transcodeCalibrationGetHandler(svc calibrationSvc, expressibility domaintranscoding.RouteExpressibility) http.HandlerFunc {
+// reachableCells (optional) enumerates the route cells the live resolver can
+// reach; when wired, the response carries the shadow's coverage report - the
+// exit criterion of ADR-0030's shadow, in one read.
+func transcodeCalibrationGetHandler(svc calibrationSvc, reachableCells func() []domaintranscoding.ExpressibilityCell) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, span := tracing.StartSpan(r.Context(), "http.transcode.calibration.Get")
 		defer span.End()
@@ -154,8 +154,8 @@ func transcodeCalibrationGetHandler(svc calibrationSvc, expressibility domaintra
 			HWFallbacks: svc.RecentFallbacks(),
 			RouteCosts:  routeCostViews(cap),
 		}
-		if planner, ok := expressibility.(domaintranscoding.ExpressibilityPlanner); ok {
-			rep := domaintranscoding.ExpressibilityCoverageTable.Report(planner.ExpectedCells(cap))
+		if reachableCells != nil {
+			rep := domaintranscoding.ExpressibilityCoverageTable.Report(reachableCells())
 			resp.Expressibility = &rep
 		}
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
