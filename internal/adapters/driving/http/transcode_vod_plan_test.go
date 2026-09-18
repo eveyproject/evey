@@ -76,6 +76,60 @@ func TestServeMaster_LoadsProfilePrefsOnce(t *testing.T) {
 		"one master request must load the profile prefs exactly once")
 }
 
+// A master resolves its plan ONCE whatever path serves it - the prewarm
+// gate, the subtitle renditions and the master itself read that resolution.
+// The audio-encoder probe counts the resolutions: the resolver reads it
+// exactly once per plan (the fingerprint), nowhere else. Before this the
+// ffmpeg master re-resolved through planSubtitleRenditions, the hybrid and
+// wasm masters through buildManifestInput (two "plan fitted" lines per
+// master in prod, 2026-09-18).
+func TestServeMaster_ResolvesThePlanOnce_EveryPath(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	for _, tc := range []struct {
+		name  string
+		query string
+		serve string
+	}{
+		{"packager master", "videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4", "mkvgo"},
+		{"hybrid master", "videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4&audioTrack=1", "hybrid"},
+		{"ffmpeg master", "videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4&vd=transcode", "ffmpeg"},
+		{"wasm master", "videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4&wasmAudio=1&audioTrack=2", "wasm"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			item := onDemandItem()
+			item.ID, item.LibraryID = "m1", "lib1"
+			item.File.Duration = dur
+			item.File.Bitrate = 4_000_000
+			streams := copyEligibleAV()
+			ch := 6
+			// aac (0), dts (1: the hybrid's re-encode), ac3 (2: the wasm decoder's)
+			streams = append(streams,
+				&domainlibrary.MediaStream{StreamType: domainlibrary.StreamTypeAudio, Codec: "dts", Channels: &ch},
+				&domainlibrary.MediaStream{StreamType: domainlibrary.StreamTypeAudio, Codec: "ac3", Channels: &ch})
+			h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
+			h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{resources: map[string][]byte{"master.m3u8": []byte("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nod_playlist.m3u8\n")}}}
+			h.audioRenditionEnabled = true
+			h.audio = &audioServe{}
+			var resolutions atomic.Int32
+			h.audioEncoderIDGetter = func() string { resolutions.Add(1); return "aac" }
+
+			w := doVODRequestQ(h, "m1", "master.m3u8", tc.query)
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			body := w.Body.String()
+			switch tc.serve {
+			case "hybrid":
+				require.Contains(t, body, "od_playlist.m3u8", "premise: the hybrid master served")
+				require.Contains(t, body, "audio_", "premise: the hybrid master served")
+			case "wasm":
+				require.Contains(t, body, "EVEY-AUDIO-URI", "premise: the wasm master served")
+			default:
+				require.Equal(t, tc.serve, w.Header().Get("X-Evey-Served-By"), "premise: the expected path served")
+			}
+			assert.Equal(t, int32(1), resolutions.Load(), "one master request must resolve its plan exactly once")
+		})
+	}
+}
+
 // Across a playback burst the prefs are cached too: N segment requests from
 // the same profile inside the TTL window fetch the profile prefs ONCE, not
 // once per request - the last per-segment Postgres round-trip gone.
