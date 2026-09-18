@@ -415,7 +415,9 @@ const styles = StyleSheet.create({
   emptyDesc: { fontSize: 13, marginTop: 4, textAlign: "center" },
   tabRow: { flexDirection: "row", paddingHorizontal: 16, marginTop: 12, gap: 16 },
   tabBtn: { paddingBottom: 8 },
-  chipRow: { paddingHorizontal: 16, marginTop: 12, flexGrow: 0 },
+  // flexShrink 0: the results list below can outgrow the screen, and Yoga
+  // would otherwise squeeze the chip row until it is clipped.
+  chipRow: { paddingHorizontal: 16, marginTop: 12, flexGrow: 0, flexShrink: 0 },
   chip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginRight: 8 },
   searchInput: { marginHorizontal: 16, marginTop: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14 },
   hint: { textAlign: "center", fontSize: 13, marginTop: 24, paddingHorizontal: 16 },
