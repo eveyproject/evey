@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
@@ -35,6 +36,7 @@ func fallbackResolver(cap transcoding.EncodeCapability) *PlanResolver {
 		HWAccelEnabled:   func() bool { return true },
 		HWTonemapEnabled: func() bool { return true },
 		Capability:       func() transcoding.EncodeCapability { return cap },
+		Expressibility:   ffmpeg.Expressibility{}, // the builder's port, the one rule set the pick refuses on
 	}
 }
 
@@ -141,8 +143,9 @@ func TestResolver_UndecodableSourcesNeverReachTheGPU(t *testing.T) {
 	assert.True(t, pr.HWRouteUsable(sdrTranscode, SourceDimsOf(sdrStreams("h264", "yuv420p", false))))
 }
 
-// A bitmap burn-in the GPU cannot composite is built as a software encode by
-// the ffmpeg builder: route, class and fingerprint must say software too.
+// A bitmap burn-in the GPU cannot composite takes every backend out of the
+// field (the builder's port refuses it): route, class and fingerprint say
+// software, and the builder is never handed a plan it would have to swap.
 func TestResolver_BurnInWithoutOverlayIsSoftware(t *testing.T) {
 	burn := transcoding.PlaybackDecision{VideoDecision: "transcode", VideoCodec: "h264", SubtitleDecision: "burn", TranscodeReasons: []string{"subtitle_burn_in"}}
 	streams := sdrStreams("h264", "yuv420p", false)

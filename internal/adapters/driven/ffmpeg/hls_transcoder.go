@@ -102,6 +102,13 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 			opts.ProgressLogPath = ""
 		}
 	}
+	// A GPU plan the builder cannot express is refused here, before a single
+	// argument is built: no software encode ever runs under a GPU-billed
+	// session (ADR-0030). The pick filtered on the same port, so this is an
+	// invariant violation - counted, logged, and surfaced as the spawn error.
+	if err := RouteRefusal(opts); err != nil {
+		return nil, err
+	}
 	args := BuildFFmpegArgs(opts)
 	slog.Info("hls: ffmpeg start",
 		slog.String("media_path", opts.FilePath),
@@ -823,11 +830,13 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 		dstWidth = p.Width
 	}
 	toneMap := resolveToneMap(opts, dstWidth)
-	if hwUsable(opts, burnIn, toneMap) {
-		noteExpressibility(opts, burnIn, toneMap, true)
+	if gpuPlan(opts) {
+		if err := routeRefusal(opts, burnIn, toneMap); err != nil {
+			return refuseRoute(opts, burnIn, toneMap, err)
+		}
+		noteExpressibility(opts, burnIn, toneMap)
 		return buildSingleTranscodeHWArgs(opts)
 	}
-	noteExpressibility(opts, burnIn, toneMap, false)
 
 	var args []string
 	if opts.StartSec > 0 {
@@ -903,11 +912,13 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		}
 	}
 	toneMap := resolveToneMap(opts, dstWidth)
-	if hwUsable(opts, burnIn, toneMap) {
-		noteExpressibility(opts, burnIn, toneMap, true)
+	if gpuPlan(opts) {
+		if err := routeRefusal(opts, burnIn, toneMap); err != nil {
+			return refuseRoute(opts, burnIn, toneMap, err)
+		}
+		noteExpressibility(opts, burnIn, toneMap)
 		return buildMultiVariantHWArgs(opts)
 	}
-	noteExpressibility(opts, burnIn, toneMap, false)
 	vcodec := resolveVideoEncoder(opts.VideoCodec)
 
 	var args []string

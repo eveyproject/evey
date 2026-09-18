@@ -41,9 +41,10 @@ type PlanResolver struct {
 	// Off (nil) keeps the probed low_power_* features out of the encode.
 	HWLowPowerEnabled func() bool
 	// Expressibility is the ffmpeg builder's own knowledge of the routes it
-	// can emit (ADR-0030). Consulted on every resolved GPU route; in this
-	// stage a disagreement is logged and counted (shadow), the resolver's own
-	// mirrors of the builder's rules still decide. nil = not consulted.
+	// can emit (ADR-0030). The backend pick consults it per candidate: a
+	// backend whose pipeline the builder cannot express for the topology and
+	// the needs is not in the field. The resolver keeps no mirror of its
+	// rules. nil = nothing refused (a resolver built without the port).
 	Expressibility transcoding.RouteExpressibility
 	// MaxVideoBitrateKbps caps the served video bitrate (transcoding.max_video_bitrate_kbps, 0 = source).
 	MaxVideoBitrateKbps func() int

@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -283,20 +284,45 @@ func TestBuildFFmpegArgs_HWGate_SoftwareWhenNone(t *testing.T) {
 	}
 }
 
-// Without a PROBED GPU compositor a burn-in still takes the software path - the
-// pre-capability behaviour, and the safe answer on a driver whose overlay VPP
-// does not configure.
-func TestBuildFFmpegArgs_HWGate_BurnInFallsBackToSoftware(t *testing.T) {
+// Without a PROBED GPU compositor a burn-in is not a GPU plan the builder
+// expresses: the pick never resolves one (the port refuses every backend),
+// and a plan that asks anyway is REFUSED - no arguments, the typed error
+// from the spawn's pre-flight - never a libx264 encode under a GPU session
+// (ADR-0030, out of shadow).
+func TestBuildFFmpegArgs_HWGate_BurnInIsRefusedNotSwapped(t *testing.T) {
 	opts := sampleHWOpts(transcoding.NVENC, "", 3)
 	opts.SubtitleTrackIndex = 0
 	opts.SubtitleCodec = "pgssub" // bitmap subtitle → burn-in
 	opts.HWOverlay = false        // host never certified a GPU compositor
-	args := BuildFFmpegArgs(opts)
-	if argsContain(args, "-hwaccel") {
-		t.Error("burn-in must fall back to software (no -hwaccel)")
+	var nx transcoding.ErrRouteNotExpressible
+	if err := RouteRefusal(opts); !errors.As(err, &nx) || nx.Why == "" {
+		t.Fatalf("the spawn pre-flight must refuse with ErrRouteNotExpressible, got %v", err)
 	}
-	if !argsContain(args, "libx264") {
-		t.Error("burn-in fallback must use libx264")
+	if args := BuildFFmpegArgs(opts); len(args) != 0 {
+		t.Errorf("a refused GPU plan builds nothing, got %q", args)
+	}
+	opts.HWOverlay = true
+	if err := RouteRefusal(opts); err != nil {
+		t.Errorf("with the probed compositor the plan is expressible: %v", err)
+	}
+}
+
+// A GPU tone-map the backend has no filter for (QSV's vpp is ineligible) is
+// refused, not quietly turned into a CPU bridge: the placement is the plan's.
+func TestBuildFFmpegArgs_HWTonemap_NoFilterIsRefusedNotBridged(t *testing.T) {
+	opts := sampleHWOpts(transcoding.QSV, "/dev/dri/renderD128", 1)
+	opts.ToneMap = true
+	opts.HWTonemap = true
+	var nx transcoding.ErrRouteNotExpressible
+	if err := RouteRefusal(opts); !errors.As(err, &nx) {
+		t.Fatalf("want ErrRouteNotExpressible, got %v", err)
+	}
+	if args := BuildFFmpegArgs(opts); len(args) != 0 {
+		t.Errorf("a refused GPU plan builds nothing, got %q", args)
+	}
+	opts.HWTonemap = false // the plan places the bridge itself
+	if joined := strings.Join(BuildFFmpegArgs(opts), " "); !strings.Contains(joined, "hwdownload,format=p010le,") || !strings.Contains(joined, "h264_qsv") {
+		t.Errorf("the planned bridge builds on the GPU: %q", joined)
 	}
 }
 
@@ -425,10 +451,14 @@ func TestBuildFFmpegArgs_HWTonemap_OffBridgesTheCPUTonemap(t *testing.T) {
 	if strings.Contains(joined, "libx264") || strings.Contains(joined, "tonemap_vaapi") {
 		t.Errorf("the bridge must neither fall to libx264 nor use the GPU tone-mapper: %q", joined)
 	}
-	// A software-decoded source cannot be bridged: the whole job stays on the CPU.
+	// A software-decoded source cannot be bridged (no legal topology): the
+	// plan is refused, never rebuilt as a CPU encode under the GPU session.
 	opts.HWSoftwareDecode = true
-	if joined := strings.Join(BuildFFmpegArgs(opts), " "); !strings.Contains(joined, "libx264") {
-		t.Errorf("decoupled + tone-map must stay software: %q", joined)
+	if err := RouteRefusal(opts); err == nil {
+		t.Error("decoupled + tone-map must be refused")
+	}
+	if args := BuildFFmpegArgs(opts); len(args) != 0 {
+		t.Errorf("a refused GPU plan builds nothing, got %q", args)
 	}
 }
 
@@ -674,4 +704,11 @@ func TestBuildSingleTranscodeHWArgs_BurnIn_ScalesAfterTheBlend(t *testing.T) {
 	if i < 0 || j < 0 || i > j {
 		t.Errorf("expected overlay_vaapi BEFORE scale_vaapi, got %q", fc)
 	}
+}
+
+// hwUsable is the builders' gate as the tests have always read it: a GPU plan
+// the builder expresses. Since ADR-0030 left the shadow the gate is the
+// port itself (routeRefusal), and a refusal is a refusal, not a fallback.
+func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool {
+	return gpuPlan(opts) && routeRefusal(opts, burnIn, toneMap) == nil
 }
