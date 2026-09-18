@@ -47,7 +47,7 @@ func TestHLSVOD_StaleRenditionURLIsRefusedNotSilentlyRemapped(t *testing.T) {
 	// load or a recalibration landing mid-play would.
 	capability := domaintranscoding.SafeFallback()
 	capability.SoftwareMaxHeight = 720
-	h.capability = func() domaintranscoding.EncodeCapability { return capability }
+	h.capability = func() domaintranscoding.HostCapabilitySnapshot { return (capability).Snapshot() }
 
 	// The master seals its decision hash into the URIs it emits.
 	w := doVODRequest(h, "m1", "master.m3u8")

@@ -36,7 +36,7 @@ func hwResolver(cap transcoding.EncodeCapability) *PlanResolver {
 	return &PlanResolver{
 		HWAccelEnabled:   func() bool { return true },
 		HWTonemapEnabled: func() bool { return true },
-		Capability:       func() transcoding.EncodeCapability { return cap },
+		Capability:       func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		Expressibility:   ffmpeg.Expressibility{}, // the builder's port, the one rule set the pick refuses on
 	}
 }
@@ -70,7 +70,7 @@ func TestResolveHW_RefusalGates(t *testing.T) {
 		{
 			name: "operator toggle off", resolver: &PlanResolver{
 				HWAccelEnabled: func() bool { return false },
-				Capability:     func() transcoding.EncodeCapability { return vaapiCapable() },
+				Capability:     func() transcoding.HostCapabilitySnapshot { return (vaapiCapable()).Snapshot() },
 			},
 			outputCodec: "h264", sourceCodec: "h264",
 			why: "the admin switch must win over any calibration",

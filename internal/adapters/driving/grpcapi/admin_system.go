@@ -33,7 +33,7 @@ import (
 // (EncodeCapability.BenchSamples), without depending on the whole
 // CalibrationService type. Satisfied by *apptranscoding.CalibrationService.
 type calibrationSnapshotProvider interface {
-	Current() domaintranscoding.EncodeCapability
+	Current() domaintranscoding.HostCapabilitySnapshot
 	// IsBenchmarking gates the load test: a calibration bench and a load test
 	// running together would measure each other's contention, not the host.
 	IsBenchmarking() bool

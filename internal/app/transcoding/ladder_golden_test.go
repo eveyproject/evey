@@ -154,7 +154,7 @@ func goldenResolverWith(cap *transcoding.EncodeCapability, hw bool, repo goldenC
 	}
 	if cap != nil {
 		c := *cap
-		pr.Capability = func() transcoding.EncodeCapability { return c }
+		pr.Capability = func() transcoding.HostCapabilitySnapshot { return (c).Snapshot() }
 	}
 	pr.Selector = NewProducerSelector(&SoftwareProducer{}, &SegmentOrchestrator{})
 	return pr

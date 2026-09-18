@@ -24,7 +24,9 @@ type fakeCalibrationSvc struct {
 	hwMode    domaintranscoding.HWMode
 }
 
-func (f *fakeCalibrationSvc) Current() domaintranscoding.EncodeCapability { return f.current }
+func (f *fakeCalibrationSvc) Current() domaintranscoding.HostCapabilitySnapshot {
+	return f.current.Snapshot()
+}
 func (f *fakeCalibrationSvc) HWMode() domaintranscoding.HWMode {
 	if f.hwMode == "" {
 		return domaintranscoding.HWModeAuto

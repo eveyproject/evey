@@ -93,7 +93,7 @@ type CalibrationService struct {
 	// SetSoftwareAV1MaxOverride while Current() reads it lock-free on every request.
 	swAV1MaxOverride atomic.Int64
 
-	current       atomic.Pointer[domaintranscoding.EncodeCapability]
+	current       atomic.Pointer[domaintranscoding.HostCapabilitySnapshot]
 	benchInFlight sync.Mutex
 
 	// benchmarking is true for the duration of a benchmark run. Background work
@@ -408,11 +408,13 @@ func (s *CalibrationService) SetHWMode(ctx context.Context, mode domaintranscodi
 // probe generation is upgraded HERE, once, and nothing downstream branches
 // on ProbeVersion. Every store of the current capability goes through it.
 func (s *CalibrationService) publish(cap domaintranscoding.EncodeCapability) {
-	n := cap.Normalized()
-	s.current.Store(&n)
+	snap := cap.Snapshot()
+	s.current.Store(&snap)
 }
 
-func (s *CalibrationService) Current() domaintranscoding.EncodeCapability {
+// Current is the host capability as the planner (and every runtime reader)
+// sees it: the published snapshot with the operator's ceiling overrides.
+func (s *CalibrationService) Current() domaintranscoding.HostCapabilitySnapshot {
 	c := *s.current.Load()
 	// Operator overrides (env): force the software ceilings regardless of the
 	// benchmark. 0 = no override. SoftwareHDRMaxHeight only ever LOWERS the HDR
@@ -871,7 +873,7 @@ func (s *CalibrationService) DemoteRoute(ctx context.Context, report HWFailureRe
 	s.demoteMu.Lock()
 	defer s.demoteMu.Unlock()
 
-	cur := *s.current.Load()
+	cur := s.current.Load().EncodeCapability
 	if cur.HWBackend == "" {
 		return false // already software - nothing left to demote
 	}
@@ -1012,7 +1014,7 @@ const HWDemotionTTL = 30 * time.Minute
 // dead fails the probe and stays demoted, with the clock reset so the next
 // attempt is another TTL away rather than every tick.
 func (s *CalibrationService) ReprobeDemotedHW(ctx context.Context) bool {
-	cur := *s.current.Load()
+	cur := s.current.Load().EncodeCapability
 	if cur.HWDemotedAt.IsZero() || cur.HWBackend != "" {
 		return false // never demoted, or already running on hardware again
 	}
@@ -1044,7 +1046,7 @@ func (s *CalibrationService) ReprobeDemotedHW(ctx context.Context) bool {
 	}
 	// Still dead: reset the clock, one probe per TTL rather than one per tick.
 	s.currentMu.Lock()
-	latest := *s.current.Load()
+	latest := s.current.Load().EncodeCapability
 	if !latest.HWDemotedAt.IsZero() && latest.HWBackend == "" {
 		latest.HWDemotedAt = time.Now().UTC()
 		s.publish(latest)

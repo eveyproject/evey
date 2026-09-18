@@ -234,7 +234,9 @@ func TestShapeLadder_RequestScopedCapsDoNotLeakAcrossViewers(t *testing.T) {
 	pr := &PlanResolver{
 		// The film_high_motion table reaches 2160p; the CPU ceiling must let it through.
 		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
-		Capability:     func() transcoding.EncodeCapability { return transcoding.EncodeCapability{SoftwareMaxHeight: 2160} },
+		Capability: func() transcoding.HostCapabilitySnapshot {
+			return transcoding.EncodeCapability{SoftwareMaxHeight: 2160}.Snapshot()
+		},
 		AdmissionFrozenLadder: func(key string) ([]transcoding.HLSProfile, bool) {
 			l, ok := frozen[key]
 			return l, ok
@@ -270,7 +272,9 @@ func TestShapeLadder_H264LevelCapsTheLadder(t *testing.T) {
 	pr := &PlanResolver{
 		// The film_high_motion table reaches 2160p; the CPU ceiling must let it through.
 		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
-		Capability:     func() transcoding.EncodeCapability { return transcoding.EncodeCapability{SoftwareMaxHeight: 2160} },
+		Capability: func() transcoding.HostCapabilitySnapshot {
+			return transcoding.EncodeCapability{SoftwareMaxHeight: 2160}.Snapshot()
+		},
 	}
 	req := ladderRequest(2160)
 	req.Client.MaxH264Level = 41
@@ -293,7 +297,9 @@ func TestShapeLadder_BitrateCeilingBoundsTheRungs(t *testing.T) {
 	pr := &PlanResolver{
 		// The film_high_motion table reaches 2160p; the CPU ceiling must let it through.
 		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
-		Capability:     func() transcoding.EncodeCapability { return transcoding.EncodeCapability{SoftwareMaxHeight: 2160} },
+		Capability: func() transcoding.HostCapabilitySnapshot {
+			return transcoding.EncodeCapability{SoftwareMaxHeight: 2160}.Snapshot()
+		},
 	}
 	req := ladderRequest(2160)
 	req.MaxBitrateKbps = 3000
@@ -308,8 +314,8 @@ func TestShapeLadder_BitrateCeilingBoundsTheRungs(t *testing.T) {
 func TestShapeLadder_SoftwareCeilingFollowsTheEffectiveCodec(t *testing.T) {
 	sw := &SoftwareProducer{opts: SoftwareProducerOptions{}}
 	pr := &PlanResolver{
-		Capability: func() transcoding.EncodeCapability {
-			return transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareAV1MaxHeight: 480}
+		Capability: func() transcoding.HostCapabilitySnapshot {
+			return transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareAV1MaxHeight: 480}.Snapshot()
 		},
 		AV1Enabled: func() bool { return false },
 		Selector:   NewProducerSelector(sw, nil),
@@ -328,7 +334,7 @@ func TestShapeLadder_HDRBridgeUsesItsOwnCeiling(t *testing.T) {
 		HW10BitTranscode: true, HWTonemap: false, HWBridgeMaxHeight: 1440,
 	}
 	pr := &PlanResolver{
-		Capability:     func() transcoding.EncodeCapability { return capability },
+		Capability:     func() transcoding.HostCapabilitySnapshot { return (capability).Snapshot() },
 		HWAccelEnabled: func() bool { return true },
 		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
 	}
@@ -372,7 +378,7 @@ func TestShapeLadder_SpillKeepsTheDeliveryCaps(t *testing.T) {
 	var swHeights []int
 	pr := &PlanResolver{
 		HWAccelEnabled: func() bool { return true },
-		Capability:     func() transcoding.EncodeCapability { return vaapiCapable() },
+		Capability:     func() transcoding.HostCapabilitySnapshot { return (vaapiCapable()).Snapshot() },
 		ComplexityRepo: goldenComplexity{class: transcoding.ClassFilmHighMotion},
 		AdmissionRoute: func(_ string, req RouteAdmission) RouteGrant {
 			require.Equal(t, LadderClassHW, req.Natural)

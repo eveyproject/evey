@@ -29,7 +29,7 @@ func mixedDecodeCap() transcoding.EncodeCapability {
 func resolverFor(cap transcoding.EncodeCapability) *PlanResolver {
 	return &PlanResolver{
 		HWAccelEnabled: func() bool { return true }, HWTonemapEnabled: func() bool { return true },
-		Capability: func() transcoding.EncodeCapability { return cap },
+		Capability: func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		RouteCosts: func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 7) },
 	}
 }

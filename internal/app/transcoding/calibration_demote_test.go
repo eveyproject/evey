@@ -79,7 +79,7 @@ func TestDemoteCapability_HostReconfirmed_NoChange(t *testing.T) {
 		assert.Equal(t, before, svc.Current(), "class %s: capability untouched", class)
 		assert.Positive(t, runner.proofCalls.Load(), "class %s: the proof must have been asked", class)
 		stored, _, _ := repo.Get(context.Background())
-		assert.Equal(t, before, stored, "class %s: the persisted row is the bench, untouched", class)
+		assert.Equal(t, before.EncodeCapability, stored, "class %s: the persisted row is the bench, untouched", class)
 		events := svc.RecentFallbacks()
 		require.Len(t, events, 1, "class %s", class)
 		assert.Equal(t, "media_route", events[0].Verdict)

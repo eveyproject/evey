@@ -129,7 +129,7 @@ func TestProfilesForDecision_HDRCap(t *testing.T) {
 			name: "software_HDR_capped_to_SoftwareHDRMaxHeight",
 			setup: func(pr *PlanResolver) {
 				cap := hdrCapTestCapability()
-				pr.Capability = func() transcoding.EncodeCapability { return cap }
+				pr.Capability = func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() }
 				// hwAccelEnabled is nil → resolveHW returns usable=false immediately
 			},
 			streams:  build4KHDRStreams(),
@@ -153,7 +153,7 @@ func TestProfilesForDecision_HDRCap(t *testing.T) {
 			name: "software_SDR_not_capped_to_HDR_ceiling",
 			setup: func(pr *PlanResolver) {
 				cap := hdrCapTestCapability()
-				pr.Capability = func() transcoding.EncodeCapability { return cap }
+				pr.Capability = func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() }
 			},
 			streams:  build4KSDRStreams(),
 			decision: buildSDRDecision(),
@@ -181,7 +181,7 @@ func TestProfilesForDecision_HDRCap(t *testing.T) {
 			name: "hw_HDR_without_GPU_tonemap_capped_by_SoftwareHDRMaxHeight",
 			setup: func(pr *PlanResolver) {
 				cap := hdrCapHWCapability()
-				pr.Capability = func() transcoding.EncodeCapability { return cap }
+				pr.Capability = func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() }
 				pr.HWAccelEnabled = func() bool { return true }
 				// hwTonemapEnabled is nil (nil → allowed) but hwTonemapWanted will
 				// return false because HWBackend="nvenc" (not vaapi/qsv). That's
@@ -234,7 +234,7 @@ func TestProfilesForDecision_HDRCap(t *testing.T) {
 func TestProfilesForDecision_SoftwareLadder(t *testing.T) {
 	t.Parallel()
 	item := &library.MediaItem{ID: "m1", LibraryID: "lib1"}
-	swCap := func() transcoding.EncodeCapability { return hdrCapTestCapability() } // software, 1080p SDR / 480p HDR
+	swCap := func() transcoding.HostCapabilitySnapshot { return (hdrCapTestCapability()).Snapshot() } // software, 1080p SDR / 480p HDR
 
 	// Software HDR → the ladder capped at the HDR ceiling (SoftwareHDRMaxHeight=480):
 	// every rung obeys the cap, NOT a single rung the box can't keep up with.
@@ -261,7 +261,7 @@ func TestProfilesForDecision_SoftwareLadder(t *testing.T) {
 	t.Run("hw_keeps_ladder", func(t *testing.T) {
 		t.Parallel()
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return hdrCapHWCapability() },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (hdrCapHWCapability()).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
 		profiles := pr.ShapeLadder(context.Background(), ladderRequestFor(item, build4KHDRStreams()), buildHDRDecision())
@@ -281,7 +281,7 @@ func TestProfilesForDecision_AV1MaxHeightCap(t *testing.T) {
 
 	mk := func(maxH int) *PlanResolver {
 		return &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return box },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (box).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 			AV1Enabled:     func() bool { return true },
 			AV1MaxHeight:   func() int { return maxH },
@@ -322,7 +322,7 @@ func TestResolveHW(t *testing.T) {
 
 	t.Run("flag on, backend supports codec → HW", func(t *testing.T) {
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return nvenc },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (nvenc).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
 		accel, device, features, usable, _ := pr.ResolveHW("h264", "", false, false)
@@ -336,7 +336,7 @@ func TestResolveHW(t *testing.T) {
 
 	t.Run("vaapi forwards device path", func(t *testing.T) {
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return vaapi },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (vaapi).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
 		accel, device, _, usable, _ := pr.ResolveHW("hevc", "", false, false)
@@ -347,7 +347,7 @@ func TestResolveHW(t *testing.T) {
 
 	t.Run("unsupported codec → software", func(t *testing.T) {
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return vaapi }, // no av1
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (vaapi).Snapshot() }, // no av1
 			HWAccelEnabled: func() bool { return true },
 		}
 		if _, _, _, usable, _ := pr.ResolveHW("av1", "", false, false); usable {
@@ -364,7 +364,7 @@ func TestResolveHW(t *testing.T) {
 			HWDevice:       "/dev/dri/renderD128",
 		}
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return oldIGPU },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (oldIGPU).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
 		if _, _, _, usable, _ := pr.ResolveHW("h264", "h264", false, false); !usable {
@@ -378,7 +378,7 @@ func TestResolveHW(t *testing.T) {
 
 	t.Run("flag off → software", func(t *testing.T) {
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return nvenc },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (nvenc).Snapshot() },
 			HWAccelEnabled: func() bool { return false },
 		}
 		if _, _, _, usable, _ := pr.ResolveHW("h264", "", false, false); usable {
@@ -388,7 +388,7 @@ func TestResolveHW(t *testing.T) {
 
 	t.Run("nil flag func → software", func(t *testing.T) {
 		pr := &PlanResolver{
-			Capability: func() transcoding.EncodeCapability { return nvenc },
+			Capability: func() transcoding.HostCapabilitySnapshot { return (nvenc).Snapshot() },
 		}
 		if _, _, _, usable, _ := pr.ResolveHW("h264", "", false, false); usable {
 			t.Error("nil hwAccelEnabled → must be software")
@@ -397,7 +397,7 @@ func TestResolveHW(t *testing.T) {
 
 	t.Run("no calibrated backend → software", func(t *testing.T) {
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return transcoding.SafeFallback() },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (transcoding.SafeFallback()).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
 		if _, _, _, usable, _ := pr.ResolveHW("h264", "", false, false); usable {
@@ -417,7 +417,7 @@ func TestResolveHW(t *testing.T) {
 			HWDevice:         "/dev/dri/renderD128",
 		}
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return box },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (box).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
 		if _, _, _, usable, _ := pr.ResolveHW("h264", "hevc", false, false); !usable {
@@ -441,7 +441,7 @@ func TestResolveHW(t *testing.T) {
 			HW10BitTranscode: true,
 		}
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return box },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (box).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
 		if _, _, _, usable, _ := pr.ResolveHW("h264", "hevc", true, false); !usable {
@@ -457,7 +457,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 
 	t.Run("av1 + no HW + no AV1 sw ceiling falls back to h264", func(t *testing.T) {
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return transcoding.SafeFallback() },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (transcoding.SafeFallback()).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
 		got, _, _, _, _, _ := pr.EffectiveVideoCodec(dec("av1"), nil)
@@ -469,7 +469,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 	t.Run("av1 + HW av1 + enabled stays av1", func(t *testing.T) {
 		box := transcoding.EncodeCapability{HWBackend: "nvenc", HWCodecs: []string{"av1"}, HWMaxHeight: 2160}
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return box },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (box).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 			AV1Enabled:     func() bool { return true },
 		}
@@ -484,7 +484,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 		// turned AV1 on (default) must keep streams on H.264.
 		box := transcoding.EncodeCapability{HWBackend: "nvenc", HWCodecs: []string{"av1"}, HWMaxHeight: 2160}
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return box },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (box).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 			AV1Enabled:     func() bool { return false },
 		}
@@ -500,7 +500,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 		// software-AV1 ceiling must NOT keep a live session on software AV1.
 		box := transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareAV1MaxHeight: 720}
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return box },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (box).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
 		got, _, _, _, _, _ := pr.EffectiveVideoCodec(dec("av1"), nil)
@@ -511,7 +511,7 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 
 	t.Run("h264 is unaffected", func(t *testing.T) {
 		pr := &PlanResolver{
-			Capability:     func() transcoding.EncodeCapability { return transcoding.SafeFallback() },
+			Capability:     func() transcoding.HostCapabilitySnapshot { return (transcoding.SafeFallback()).Snapshot() },
 			HWAccelEnabled: func() bool { return true },
 		}
 		got, _, _, _, _, _ := pr.EffectiveVideoCodec(dec("h264"), nil)
@@ -533,7 +533,7 @@ func TestHWRouteUsable_MatchesEffectiveCodec_AV1Fallback(t *testing.T) {
 		HWDecodeCodecs: []string{"h264", "hevc", "hevc10"},
 	}
 	pr := &PlanResolver{
-		Capability:     func() transcoding.EncodeCapability { return nvencH264 },
+		Capability:     func() transcoding.HostCapabilitySnapshot { return (nvencH264).Snapshot() },
 		HWAccelEnabled: func() bool { return true },
 		AV1Enabled:     func() bool { return false },
 	}
@@ -575,7 +575,7 @@ func TestHWRouteUsable_HDRWithoutHWTonemap_RoutesSoftware(t *testing.T) {
 		HWMaxHeight:      2160,
 	}
 	pr := &PlanResolver{
-		Capability:     func() transcoding.EncodeCapability { return nvencNoTonemap },
+		Capability:     func() transcoding.HostCapabilitySnapshot { return (nvencNoTonemap).Snapshot() },
 		HWAccelEnabled: func() bool { return true },
 		AV1Enabled:     func() bool { return false },
 	}
@@ -627,8 +627,8 @@ func TestProfilesForDecision_FrozenLadder_ImmuneToMidStreamDrift(t *testing.T) {
 
 	var overrideH int // the mutable mid-stream input the test flips
 	pr := &PlanResolver{
-		Capability: func() transcoding.EncodeCapability {
-			return transcoding.EncodeCapability{SoftwareMaxHeight: 2160}
+		Capability: func() transcoding.HostCapabilitySnapshot {
+			return transcoding.EncodeCapability{SoftwareMaxHeight: 2160}.Snapshot()
 		},
 		AdmissionRoute:        shaper.GrantRoute,
 		AdmissionPinnedClass:  shaper.PinnedClass,
@@ -674,8 +674,8 @@ func TestProfilesForDecision_NoShaper_StillReDerivesEachCall(t *testing.T) {
 
 	var overrideH int
 	pr := &PlanResolver{
-		Capability: func() transcoding.EncodeCapability {
-			return transcoding.EncodeCapability{SoftwareMaxHeight: 2160}
+		Capability: func() transcoding.HostCapabilitySnapshot {
+			return transcoding.EncodeCapability{SoftwareMaxHeight: 2160}.Snapshot()
 		},
 		CapOverride: func(string, int) (transcoding.CapOverride, bool) {
 			if overrideH > 0 {
@@ -704,7 +704,7 @@ func TestProfilesForDecision_HashInvariant(t *testing.T) {
 	t.Parallel()
 
 	mkHandler := func() *PlanResolver {
-		return &PlanResolver{Capability: hdrCapTestCapability, HWAccelEnabled: func() bool { return false }} // software path, single-rendition
+		return &PlanResolver{Capability: func() transcoding.HostCapabilitySnapshot { return hdrCapTestCapability().Snapshot() }, HWAccelEnabled: func() bool { return false }} // software path, single-rendition
 	}
 	item := &library.MediaItem{ID: "m1", LibraryID: "lib1"}
 	streams := build4KHDRStreams()

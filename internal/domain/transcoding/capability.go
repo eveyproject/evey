@@ -100,7 +100,7 @@ type EncodeCapability struct {
 
 	// ProbeVersion is the CapabilityProbeVersion the HW probes ran under; a
 	// persisted capability below it is re-benched at boot, and served interim
-	// through Normalized until then. The calibration lifecycle is its ONLY
+	// through Snapshot until then. The calibration lifecycle is its ONLY
 	// reader: no decision path branches on it.
 	ProbeVersion int `json:"probe_version,omitempty"`
 
@@ -380,20 +380,38 @@ func (c EncodeCapability) HWCanDecode(codec string) bool {
 
 // decodeClassProbeVersion is the CapabilityProbeVersion from which the decode
 // probe distinguishes HEVC Main10 (HWDecodeHEVC10) from 8-bit HEVC. A row
-// probed before it never had the class: Normalized reads "hevc" as covering
-// Main10, as it always did, ONCE at load - the decode gate itself knows no
+// probed before it never had the class: Snapshot reads "hevc" as covering
+// Main10, as it always did, ONCE at publish - the decode gate itself knows no
 // version (a re-bench at boot replaces such a row anyway).
 const decodeClassProbeVersion = 5
 
-// Normalized is the capability as the planner reads it: one vocabulary
-// whatever probe version wrote the row. Applied once, when the calibration
-// service publishes a capability (persisted, benched or demoted); nothing
+// PersistedEncodeCapability is EncodeCapability in its persistence role: the
+// row the CapabilityRepo stores and loads, written by whatever probe
+// generation benched the host (ProbeVersion) and carrying the calibration's
+// lifecycle (signature, timestamps, policy version). The planner never reads
+// one: it reads a HostCapabilitySnapshot.
+type PersistedEncodeCapability = EncodeCapability
+
+// HostCapabilitySnapshot is the capability as the planner reads it: one
+// vocabulary whatever probe version wrote the row, produced ONLY by
+// EncodeCapability.Snapshot (the type is the proof that the row went through
+// it). The calibration service publishes one on every store - persisted,
+// benched or demoted - and PlanResolver.Capability yields one. Nothing
 // downstream branches on ProbeVersion.
-//
-// A pre-class row (ProbeVersion < 5) listed "hevc" for 8-bit AND Main10
-// sources: it gains HWDecodeHEVC10 so the matrix reading answers the same.
-// The row's ProbeVersion is kept - the calibration's staleness check reads it.
-func (c EncodeCapability) Normalized() EncodeCapability {
+type HostCapabilitySnapshot struct {
+	EncodeCapability
+}
+
+// Snapshot is the row as the planner reads it (normalized).
+func (c EncodeCapability) Snapshot() HostCapabilitySnapshot {
+	return HostCapabilitySnapshot{EncodeCapability: c.normalized()}
+}
+
+// normalized upgrades a row to the planner's vocabulary. A pre-class row
+// (ProbeVersion < 5) listed "hevc" for 8-bit AND Main10 sources: it gains
+// HWDecodeHEVC10 so the matrix reading answers the same. The row's
+// ProbeVersion is kept - the calibration's staleness check reads it.
+func (c EncodeCapability) normalized() EncodeCapability {
 	if c.ProbeVersion >= decodeClassProbeVersion {
 		return c
 	}
@@ -452,7 +470,7 @@ func decodable(codecs []string, codec string, tenBit bool, pixFmt string) bool {
 // decodable iff the probe brought a frame back for it, and a class the list
 // does not name is not decodable (conservative, and extensible by adding a
 // probe, never by assuming). The row is read in one vocabulary whatever probe
-// version wrote it (Normalized).
+// version wrote it (Snapshot).
 func (c EncodeCapability) HWCanDecodeSource(codec string, tenBit bool, pixFmt string) bool {
 	return c.HWBackend != "" && decodable(c.HWDecodeCodecs, codec, tenBit, pixFmt)
 }
@@ -489,10 +507,12 @@ func (c EncodeCapability) HWHDRPassthroughUsable() bool {
 	return c.HWBackend != "" && c.HWHDR10Encode && c.HWSupports("hevc")
 }
 
-// CapabilityRepo persists EncodeCapability across restarts (server_settings, one JSON value).
+// CapabilityRepo persists the calibration row across restarts
+// (server_settings, one JSON value). It speaks the persisted role only: a
+// row it returns is read by the planner through Snapshot, never as is.
 type CapabilityRepo interface {
-	Get(ctx context.Context) (EncodeCapability, bool, error)
-	Set(ctx context.Context, cap EncodeCapability) error
+	Get(ctx context.Context) (PersistedEncodeCapability, bool, error)
+	Set(ctx context.Context, cap PersistedEncodeCapability) error
 }
 
 // BenchmarkRunner measures the host's realtime encode ceilings on a bundled

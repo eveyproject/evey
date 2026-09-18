@@ -159,7 +159,7 @@ func TestAuto_MultiBackend_PickedByMeasuredCost(t *testing.T) {
 	}
 	pr := &PlanResolver{
 		HWAccelEnabled: func() bool { return true }, HWTonemapEnabled: func() bool { return true },
-		Capability: func() transcoding.EncodeCapability { return cap },
+		Capability: func() transcoding.HostCapabilitySnapshot { return (cap).Snapshot() },
 		RouteCosts: func() *RouteCostModel { return NewRouteCostModel(cap.RouteSamples, 7) },
 	}
 	// A 2160p source, no client cap: the session wants 2160 -> only QSV reaches
