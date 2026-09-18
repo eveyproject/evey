@@ -58,21 +58,6 @@ type PlaybackRequest struct {
 	ScreenHeight int
 }
 
-// PackagerKind names which engine produces the media bytes for a plan - the
-// cost axis as a queryable property of the plan.
-type PackagerKind string
-
-const (
-	// PackagerCopyMkvgo serves the copy rung straight from the container with the
-	// mkvgo on-demand packager: no ffmpeg process, no video encode. Free.
-	PackagerCopyMkvgo PackagerKind = "mkvgo-copy"
-	// PackagerCopyFFmpeg remuxes via the ffmpeg copy producer (-c:v copy): a
-	// process, but no video re-encode. Used when the mkvgo plan cannot build.
-	PackagerCopyFFmpeg PackagerKind = "ffmpeg-copy"
-	// PackagerTranscodeFFmpeg re-encodes the video with ffmpeg. Costly.
-	PackagerTranscodeFFmpeg PackagerKind = "ffmpeg-transcode"
-)
-
 // PlaybackPlan is the immutable, fully-resolved answer to "how do we serve this
 // stream". Emitted once and read verbatim; a capacity/config change only
 // affects plans emitted after it.
@@ -88,8 +73,10 @@ type PlaybackPlan struct {
 	// h264 when unsupported); HWAccel is the resolved hardware route ("" = software).
 	VideoCodec string
 	HWAccel    string
-	// Packager is which engine writes the bytes - see PackagerKind.
-	Packager PackagerKind
+	// Delivery is which engine carries each track (mkvgo packager, ffmpeg,
+	// the client's decoder) - see DeliveryStrategy. Decided here; the adapter
+	// executes it and never picks an engine on its own.
+	Delivery DeliveryStrategy
 	// FingerprintHash is the DecisionFingerprint.Hash() addressing the cache and
 	// the ffmpeg session for this plan.
 	FingerprintHash string
@@ -110,13 +97,14 @@ type PlaybackPlan struct {
 // NeedsVideoEncode reports whether serving this plan spends encode CPU/GPU (a real
 // ffmpeg transcode) rather than a copy. The admission limiter only bills these.
 func (p PlaybackPlan) NeedsVideoEncode() bool {
-	return p.Packager == PackagerTranscodeFFmpeg
+	return !p.Route.Copy
 }
 
 // UsesFFmpeg reports whether serving this plan spawns any ffmpeg process at all
-// (transcode, or the ffmpeg copy remux) - i.e. it is NOT the zero-process mkvgo path.
+// (a transcode, the ffmpeg copy remux, or the hybrid master's audio renditions)
+// - i.e. it is NOT the zero-process mkvgo presentation.
 func (p PlaybackPlan) UsesFFmpeg() bool {
-	return p.Packager != PackagerCopyMkvgo
+	return p.Delivery.Video == EngineFFmpeg || p.Delivery.Audio == EngineFFmpeg
 }
 
 // PlaybackPlanResolver turns a marshalled PlaybackRequest into an immutable

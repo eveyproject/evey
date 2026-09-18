@@ -654,7 +654,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		if rp.FP.AudioCopy {
 			p.AudioDecision = "copy"
 		}
-		h.recordServing(r, mediaID, p)
+		h.recordServing(r, mediaID, rp, p)
 	}
 
 	setCORSHeaders(w, r, "")
@@ -690,7 +690,8 @@ func browserUserAgent(ua string) bool {
 // recordServing tells the (profile, media) play session what this master
 // hands the player. The profile comes from the stream token, so a cast
 // receiver's master lands on the same session as the phone that started it.
-func (h *hlsVODServe) recordServing(r *http.Request, mediaID string, p domainplayback.ServingPath) {
+func (h *hlsVODServe) recordServing(r *http.Request, mediaID string, rp *requestPlan, p domainplayback.ServingPath) {
+	h.shadowDelivery(r, mediaID, rp, p)
 	if h.servingRecord == nil {
 		return
 	}
@@ -699,6 +700,29 @@ func (h *hlsVODServe) recordServing(r *http.Request, mediaID string, p domainpla
 		return
 	}
 	h.servingRecord(r.Context(), claims.ProfileID, mediaID, p)
+}
+
+// shadowDelivery compares the path this adapter SERVED with the delivery
+// strategy the plan DECIDED for the same request (PlaybackPlan.Delivery). A
+// disagreement is counted and logged, never acted on: the adapter's own
+// dispatch still chooses the engines until the counter has read zero on real
+// traffic, then the dispatch reads the plan and this shadow goes. rp is the
+// request's own resolution (nil when the site had none: nothing to compare).
+func (h *hlsVODServe) shadowDelivery(r *http.Request, mediaID string, rp *requestPlan, served domainplayback.ServingPath) {
+	if rp == nil {
+		return
+	}
+	planned := rp.Plan.Delivery.ServingPath(rp.Plan.Route, rp.FP)
+	if planned.VideoEngine == served.VideoEngine && planned.AudioEngine == served.AudioEngine && planned.VideoDecision == served.VideoDecision {
+		return
+	}
+	label := func(p domainplayback.ServingPath) string {
+		return p.VideoDecision + "/" + p.VideoEngine + "+" + p.AudioEngine
+	}
+	metrics.HLSVODDeliveryDisagreements.WithLabelValues(label(planned), label(served)).Inc()
+	slog.WarnContext(r.Context(), "hls-vod: delivery served differs from the plan's strategy (shadow: the adapter still decides)",
+		slog.String("media_id", mediaID), slog.String("planned", label(planned)), slog.String("served", label(served)),
+		slog.Bool("planned_audio_trimmed", rp.Plan.Delivery.AudioTrimmed))
 }
 
 // videoBackendLabel names the encoder backend of a transcode rung.

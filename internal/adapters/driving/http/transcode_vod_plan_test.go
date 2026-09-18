@@ -128,8 +128,8 @@ func TestResolvePlan_PopulatesPlaybackPlan(t *testing.T) {
 	assert.Equal(t, rp.FP.HWAccel, rp.Plan.HWAccel)
 	assert.Equal(t, apptranscoding.LadderClassOf(rp.FP), rp.Plan.Class)
 	assert.False(t, rp.IsCopy)
-	assert.Equal(t, apptranscoding.PackagerTranscodeFFmpeg, rp.Plan.Packager,
-		"a transcode resolution bills the ffmpeg transcode packager")
+	assert.Equal(t, apptranscoding.EngineFFmpeg, rp.Plan.Delivery.Video,
+		"a transcode resolution is carried by ffmpeg")
 	assert.True(t, rp.Plan.NeedsVideoEncode(), "a transcode plan spends encode")
 }
 
@@ -156,7 +156,7 @@ func TestResolvePlan_CopyRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, rp.IsCopy)
-	assert.Equal(t, apptranscoding.PackagerCopyFFmpeg, rp.Plan.Packager)
+	assert.Equal(t, apptranscoding.EngineFFmpeg, rp.Plan.Delivery.Video, "no packager wired on this handler: the ffmpeg copy rung")
 	assert.False(t, rp.Plan.NeedsVideoEncode(), "a copy plan never spends encode")
 	assert.True(t, rp.Plan.UsesFFmpeg(), "the ffmpeg copy rung still spawns a process")
 }

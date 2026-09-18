@@ -73,9 +73,14 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
 		return false
 	}
-	// One decision per master request: both the video gate and the audio gate
-	// read it, and makeDecision re-derives client caps + content class each call.
-	decision := h.decisionFor(r.Context(), item, streams, r)
+	// One resolution per master request: the video gate and the audio gate
+	// read its decision, and the plan's own delivery strategy is what the
+	// path served here is compared with (shadowDelivery).
+	rp, err := h.probePlan(r, mediaID, item, streams)
+	if err != nil {
+		return false
+	}
+	decision := rp.Decision
 	if !h.planHLSVideoEligible(decision, item, streams) {
 		return false
 	}
@@ -114,7 +119,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 		// SELECTED track is carriable, buildPlan has trimmed the presentation to
 		// it (audioTrimUnlocksCopy), so what we serve here holds exactly the
 		// tracks the packager can carry verbatim.
-		h.recordServing(r, mediaID, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"})
+		h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"})
 		h.servePlanResourceData(w, r, mediaID, plan, "master.m3u8", span)
 		return true
 	}
@@ -139,7 +144,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	// from the logs (the copy fallback rung logs its own outcome just before).
 	slog.Info("hls-vod: hybrid on-demand master served",
 		slog.String("media_id", mediaID))
-	h.recordServing(r, mediaID, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"})
+	h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"})
 	return true
 }
 
@@ -414,7 +419,14 @@ func (h *hlsVODServe) buildCappedMaster(r *http.Request, mediaID string, item *d
 		slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
 		slog.Int64("max_kbps", maxKbps),
 		slog.String("fp", rpT.FPHash))
-	h.recordServing(r, mediaID, domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rpT.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"})
+	// Compared with the request's NATURAL plan (not rpT, pinned to a
+	// transcode): the receiver's measured throughput re-decided the delivery
+	// here, which the shadow counts until the cap becomes a plan input.
+	natural, naturalErr := h.probePlan(r, mediaID, item, streams)
+	if naturalErr != nil {
+		natural = nil // nothing to compare the served path with; the record still lands
+	}
+	h.recordServing(r, mediaID, natural, domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rpT.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"})
 	return master, true
 }
 
@@ -528,7 +540,11 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 		return false
 	}
 
-	decision := h.decisionFor(r.Context(), item, streams, r)
+	rp, rpErr := h.probePlan(r, mediaID, item, streams)
+	if rpErr != nil {
+		return false
+	}
+	decision := rp.Decision
 	videoCopy := h.planHLSVideoEligible(decision, item, streams)
 
 	// Prefer mkvgo's plan for the AC-3 audio rendition (no ffmpeg). Building it
@@ -572,12 +588,10 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 		p.VideoEngine = "ffmpeg"
 		if !videoCopy {
 			p.VideoDecision = "transcode"
-			if rp, err := h.probePlan(r, mediaID, item, streams); err == nil {
-				p.VideoBackend = videoBackendLabel(rp.Plan.HWAccel)
-			}
+			p.VideoBackend = videoBackendLabel(rp.Plan.HWAccel)
 		}
 	}
-	h.recordServing(r, mediaID, p)
+	h.recordServing(r, mediaID, rp, p)
 	return true
 }
 

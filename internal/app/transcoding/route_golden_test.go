@@ -386,7 +386,15 @@ func TestResolvedRoute_ProjectionsAgree(t *testing.T) {
 		require.Equal(t, plan.Route.Codec, plan.VideoCodec, "%s: plan codec", sc.name)
 		require.Equal(t, plan.Route.Backend.Name, plan.HWAccel, "%s: plan accel", sc.name)
 		require.True(t, plan.Route.Topology.Legal(), "%s: topology %s", sc.name, plan.Route.Topology)
-		require.Equal(t, plan.Route.Copy, plan.Packager == PackagerCopyFFmpeg, "%s: copy", sc.name)
+		// The delivery strategy is a projection too: the packager carries a
+		// video only when the route is the copy rung, and audio on the
+		// packager implies video on the packager.
+		if plan.Delivery.Video == EngineMkvgo {
+			require.True(t, plan.Route.Copy, "%s: the packager carries a copy only", sc.name)
+		}
+		if plan.Delivery.Audio == EngineMkvgo {
+			require.Equal(t, EngineMkvgo, plan.Delivery.Video, "%s: packager audio rides packager video", sc.name)
+		}
 		// A spilled route is a software route with its reason; an unspilled
 		// HW route has a backend.
 		if plan.Route.Spilled() {
