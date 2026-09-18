@@ -114,10 +114,14 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			if sar := t.SampleAspectRatio(); sar != "" && sar != "1:1" {
 				ms.SampleAspectRatio = &sar
 			}
-			// mkvgo's field_order is a verdict (progressive/interlaced), not an
-			// order; the domain reads both vocabularies. Should mkvgo ever split
-			// a scan type out of it, map that one here and keep this word raw.
+			// mkvgo >= v0.31 splits the verdict (ScanType: progressive /
+			// interlaced) from the order (FieldOrder: tt/bb/tb/bt, known far
+			// less often). Persist the finer word when the order is known, the
+			// verdict otherwise; the domain reads both through ScanType().
 			ms.FieldOrder = library.NormalizeFieldOrder(t.FieldOrder)
+			if ms.FieldOrder == nil {
+				ms.FieldOrder = library.NormalizeFieldOrder(t.ScanType)
+			}
 			if t.FrameRate != nil && *t.FrameRate > 0 {
 				fr := *t.FrameRate
 				ms.Framerate = &fr

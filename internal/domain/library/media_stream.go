@@ -118,7 +118,9 @@ const (
 // Matroska FlagInterlaced or the H.264 frame_mbs_only_flag). A word outside
 // it (ffprobe's "unknown", a future prober's token) is ScanUnknown, never
 // progressive: a session-level deinterlacer must not run blind, and a
-// progressive film must not lose its cheaper backend on a guess.
+// progressive film must not lose its cheaper backend on a guess. The table
+// is pinned to mkvgo's own mkv.ScanTypeOf by the prober adapter's parity
+// test (the domain imports no third party).
 var fieldOrderScanTypes = map[string]ScanType{
 	"progressive": ScanProgressive,
 	"interlaced":  ScanInterlaced,
