@@ -44,12 +44,14 @@ export function WatcherChips({ value, onChange }: { value: Watcher; onChange: (w
   // One profile on one account: there is nothing to filter between.
   if (chips.length <= 2) return null;
 
+  // flexShrink 0: the list below always wants more height than the screen, and
+  // Yoga would otherwise squeeze this row until the chips are clipped.
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 6 }}
-      style={{ flexGrow: 0, backgroundColor: theme.colors.surface }}
+      style={{ flexGrow: 0, flexShrink: 0, backgroundColor: theme.colors.surface }}
     >
       {chips.map((c) => {
         const active = sameWatcher(c.watcher, value);
