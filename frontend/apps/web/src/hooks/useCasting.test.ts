@@ -111,32 +111,58 @@ describe("askReceiverCaps", () => {
     expect(listeners.size, "listener removed once answered").toBe(0);
   });
 
-  it("times out to null when the receiver never answers (older build, DMR)", async () => {
+  it("times out to null when the receiver never answers (older build, DMR), re-asking meanwhile", async () => {
     vi.useFakeTimers();
     try {
       const { session, listeners } = fakeChannel(() => null);
-      const p = askReceiverCaps(session, 1500);
-      await vi.advanceTimersByTimeAsync(1500);
+      const p = askReceiverCaps(session, 5000, 500);
+      await vi.advanceTimersByTimeAsync(5000);
       expect(await p).toBeNull();
       expect(listeners.size).toBe(0);
+      // one ask at once, then one per retry tick inside the budget
+      expect(session.sendMessage.mock.calls.length).toBeGreaterThanOrEqual(9);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("ignores a malformed answer and keeps waiting; a send failure resolves null", async () => {
+  it("a receiver still launching answers a LATER ask, or broadcasts on its own: either is caught", async () => {
     vi.useFakeTimers();
     try {
-      const { session } = fakeChannel(() => JSON.stringify({ type: "caps", caps: { maxHeight: "big" } }));
-      const p = askReceiverCaps(session, 500);
-      await vi.advanceTimersByTimeAsync(500);
-      expect(await p).toBeNull();
+      let asks = 0;
+      const { session } = fakeChannel(() => (++asks >= 3 ? JSON.stringify({ type: "caps", caps: observed }) : null));
+      const p = askReceiverCaps(session, 5000, 500);
+      await vi.advanceTimersByTimeAsync(1200);
+      expect((await p)?.caps).toEqual(observed);
+      expect(asks).toBe(3);
+
+      const late = fakeChannel(() => null);
+      const p2 = askReceiverCaps(late.session, 5000, 500);
+      await vi.advanceTimersByTimeAsync(2000);
+      // the READY broadcast, unprompted
+      for (const l of late.listeners) l(CAPS_NAMESPACE, JSON.stringify({ type: "caps", caps: observed, userAgent: "CrKey" }));
+      expect((await p2)?.userAgent).toBe("CrKey");
+      expect(late.listeners.size).toBe(0);
     } finally {
       vi.useRealTimers();
     }
-    const failing = fakeChannel();
-    failing.session.sendMessage = vi.fn(async () => { throw new Error("channel closed"); });
-    expect(await askReceiverCaps(failing.session, 1000)).toBeNull();
+  });
+
+  it("ignores a malformed answer and keeps waiting; a send that keeps failing ends at the budget", async () => {
+    vi.useFakeTimers();
+    try {
+      const { session } = fakeChannel(() => JSON.stringify({ type: "caps", caps: { maxHeight: "big" } }));
+      const p = askReceiverCaps(session, 500, 100);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(await p).toBeNull();
+      const failing = fakeChannel();
+      failing.session.sendMessage = vi.fn(async () => { throw new Error("channel closed"); });
+      const p3 = askReceiverCaps(failing.session, 300, 100);
+      await vi.advanceTimersByTimeAsync(300);
+      expect(await p3).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("fills the optional fields a receiver may omit with the conservative values", async () => {
@@ -215,7 +241,7 @@ describe("startCast resolves the URL for the connected target", () => {
       let outcome = "";
       await act(async () => {
         const p = result.current.startCast(resolver, "Film");
-        await vi.advanceTimersByTimeAsync(1600);
+        await vi.advanceTimersByTimeAsync(5100);
         outcome = await p;
       });
       expect(outcome).toBe("connected");

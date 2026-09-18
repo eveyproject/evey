@@ -1108,14 +1108,19 @@ playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, (
   hidePauseHud();
 });
 
-// Observed capabilities on demand: a sender asks on CAPS_NAMESPACE before it
-// loads media and negotiates the stream with the server on THESE answers
-// (the same probes the LOAD interceptor applies, Dolby held off the same
-// way), so a copy the TV cannot decode is never handed to it. The LOAD
-// rewrite above stays as defense in depth for a sender that never asked.
-// Registered before start(): CAF only honours namespaces declared by then.
-context.addCustomMessageListener(CAPS_NAMESPACE, (event: any) => {
-  if (!isCapsRequest(event?.data)) return;
+// Observed capabilities for the sender, so it negotiates the stream with the
+// server on THESE answers (the same probes the LOAD interceptor applies,
+// Dolby held off the same way) and a copy the TV cannot decode is never
+// handed to it. Two deliveries, because a sender asks the moment its session
+// is up - which on a cold launch is BEFORE this page has run (prod
+// 2026-09-18: the ask timed out 300 ms before the receiver's first request):
+//   1. a broadcast to every sender as soon as the platform says READY;
+//   2. an answer to each explicit request (a sender that connected later, or
+//      that retries).
+// The LOAD rewrite above stays as defense in depth for a sender that never
+// heard either. Registered before start(): CAF only honours namespaces
+// declared by then.
+function observedCapsReport() {
   const deviceCaps = context.getDeviceCapabilities() ?? {};
   const systemHdr = deviceCaps[cast.framework.system.DeviceCapabilities.IS_HDR_SUPPORTED] === true;
   const probed = probeReceiverCaps(
@@ -1123,11 +1128,19 @@ context.addCustomMessageListener(CAPS_NAMESPACE, (event: any) => {
     systemHdr,
     stereoForced ? 2 : probedAudioChannels,
   );
+  return capsReport({ ...probed, nativeDolby: false }, navigator.userAgent);
+}
+function sendCaps(senderId: string | undefined): void {
   try {
-    context.sendCustomMessage(CAPS_NAMESPACE, event.senderId, capsReport({ ...probed, nativeDolby: false }, navigator.userAgent));
+    context.sendCustomMessage(CAPS_NAMESPACE, senderId, observedCapsReport());
   } catch (err) {
     reportEvent("cast_receiver_caps_reply_failed", describePlayerError(err));
   }
+}
+context.addCustomMessageListener(CAPS_NAMESPACE, (event: any) => {
+  if (!isCapsRequest(event?.data)) return;
+  sendCaps(event.senderId);
 });
+context.addEventListener(cast.framework.system.EventType.READY, () => sendCaps(undefined));
 
 context.start(receiverOptions);

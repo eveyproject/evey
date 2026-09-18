@@ -77,16 +77,23 @@ export type CastUrlResolver = (target: CastTarget) => Promise<{ url: string; cas
 // CAPS_NAMESPACE and the request/answer shape are the receiver's contract
 // (apps/web cast-receiver/receiverLogic.ts: CAPS_NAMESPACE, capsReport).
 export const CAPS_NAMESPACE = "urn:x-cast:org.eveyproject.caps";
-export const CAPS_TIMEOUT_MS = 1500;
+// A cold launch of the receiver app takes a few seconds between "session up"
+// and "page running" (prod 2026-09-18: a 1.5 s budget expired 300 ms before
+// the receiver's first request), so the ask is repeated every CAPS_RETRY_MS
+// inside a CAPS_TIMEOUT_MS budget - and the receiver broadcasts its caps on
+// READY, which the listener below catches whenever it lands.
+export const CAPS_TIMEOUT_MS = 5000;
+export const CAPS_RETRY_MS = 500;
 
 // askReceiverCaps asks the connected receiver what it observed about itself
-// and waits at most timeoutMs. null = no usable answer (a receiver that does
-// not speak the channel, a malformed reply, the timeout): the caller falls
-// back to the floor profile. The listener is always removed. Exported for
-// tests.
+// and waits at most timeoutMs, re-asking every retryMs. null = no usable
+// answer (a receiver that does not speak the channel, a malformed reply, the
+// timeout): the caller falls back to the floor profile. The listener is
+// always removed. Exported for tests.
 export function askReceiverCaps(
   session: Pick<cast.framework.CastSession, "sendMessage" | "addMessageListener" | "removeMessageListener">,
   timeoutMs = CAPS_TIMEOUT_MS,
+  retryMs = CAPS_RETRY_MS,
 ): Promise<{ caps: ObservedReceiverCaps; userAgent: string | null } | null> {
   return new Promise((resolve) => {
     let done = false;
@@ -94,6 +101,7 @@ export function askReceiverCaps(
       if (done) return;
       done = true;
       clearTimeout(timer);
+      clearInterval(retry);
       try { session.removeMessageListener(CAPS_NAMESPACE, onMessage); } catch { /* session gone */ }
       resolve(value);
     };
@@ -121,9 +129,13 @@ export function askReceiverCaps(
       } catch { /* malformed: keep waiting for a well-formed one */ }
     };
     const timer = setTimeout(() => finish(null), timeoutMs);
+    // A send that fails once (the app still launching) is retried like any
+    // other silence; only the budget ends the wait.
+    const ask = () => { session.sendMessage(CAPS_NAMESPACE, { type: "caps" }).catch(() => {}); };
+    const retry = setInterval(() => { if (!done) ask(); }, retryMs);
     try {
       session.addMessageListener(CAPS_NAMESPACE, onMessage);
-      session.sendMessage(CAPS_NAMESPACE, { type: "caps" }).catch(() => finish(null));
+      ask();
     } catch {
       finish(null);
     }
