@@ -67,6 +67,7 @@ func routeGoldenResolver(cap *transcoding.EncodeCapability, hw bool) (*PlanResol
 	pr.AdmissionBind = shaper.Bind
 	pr.AdmissionFrozenLadder = shaper.FrozenLadder
 	pr.AdmissionFreezeLadder = shaper.FreezeLadder
+	pr.AdmissionNoteRoute = shaper.NoteRoute
 	return pr, limiter
 }
 

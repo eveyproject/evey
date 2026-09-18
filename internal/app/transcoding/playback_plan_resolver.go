@@ -80,6 +80,10 @@ type PlanResolver struct {
 	AdmissionBind         func(key, fingerprintHash string)
 	AdmissionFrozenLadder func(key string) ([]transcoding.HLSProfile, bool)
 	AdmissionFreezeLadder func(key string, ladder []transcoding.HLSProfile)
+	// AdmissionNoteRoute hands the pin the identity of the route this Resolve
+	// settled on (VideoAdmissionShaper.NoteRoute): a live pin whose route
+	// moves is counted and logged, never re-frozen. Optional.
+	AdmissionNoteRoute func(key, routeIdentity string)
 
 	// HWRouteBlocked reports whether this title's GPU route failed recently
 	// (HWRouteBlocklist): the title is then shaped, fingerprinted and produced
@@ -130,6 +134,9 @@ func (pr *PlanResolver) Resolve(ctx context.Context, req PlaybackRequest) (Playb
 		route = route.spill(SpillPoolFull, decision)
 	}
 	fp := pr.fingerprintFor(ctx, req, decision, route, profiles, pinKey)
+	if pr.AdmissionNoteRoute != nil && !isCopy {
+		pr.AdmissionNoteRoute(pinKey, route.Identity())
+	}
 	packager := PackagerTranscodeFFmpeg
 	if isCopy {
 		packager = PackagerCopyFFmpeg

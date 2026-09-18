@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // StreamPlan is the IMMUTABLE admission decision for one stream: the ladder class
@@ -87,7 +88,13 @@ type streamPin struct {
 	// capability, CMCD/av1 caps) that could drift mid-stream and break the
 	// cache-hash invariant. Superseded together with the plan when the pin goes
 	// cold and unheld.
-	ladder   []transcoding.HLSProfile
+	ladder []transcoding.HLSProfile
+	// route is the identity (codec/backend/topology) of the route the stream
+	// first resolved to under this pin (NoteRoute). The pin does NOT freeze it
+	// - a backend demoted mid-stream must not be kept alive by a pin - it only
+	// detects that it moved: counted, logged, then adopted, so a drift is
+	// reported once per move, not once per segment.
+	route    string
 	lastSeen time.Time
 	// boundHashes are the decision-fingerprint hashes built under this pin
 	// (several can share one: audio tracks x subtitle burn-ins x offsets of
@@ -341,6 +348,32 @@ func (s *VideoAdmissionShaper) FrozenLadder(key string) ([]transcoding.HLSProfil
 	out := make([]transcoding.HLSProfile, len(pin.ladder))
 	copy(out, pin.ladder)
 	return out, true
+}
+
+// NoteRoute records the route identity a Resolve settled on for key's stream.
+// While the pin is authoritative (fresh or held) a different identity than
+// the one recorded is a ROUTE DRIFT under a live player - the capability, a
+// demotion or a policy toggle moved between its master and its segments; the
+// sealed fingerprint in its URLs answers 410 and the player refetches. The
+// drift is counted and logged once, and the new identity adopted. A pin that
+// went cold and unheld simply records the new route: that is a new stream.
+func (s *VideoAdmissionShaper) NoteRoute(key, identity string) {
+	if s == nil || identity == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pin, ok := s.pins[key]
+	if !ok {
+		return
+	}
+	authoritative := s.now().Sub(pin.lastSeen) < s.pinFreshFor || s.anyBoundHeld(pin)
+	if pin.route != "" && pin.route != identity && authoritative {
+		metrics.HLSVODRouteDrift.Inc()
+		slog.Warn("video admission: route moved under a live stream (the pin keeps its class and ceiling, the player refetches its master)",
+			slog.String("stream", key), slog.String("was", pin.route), slog.String("now", identity))
+	}
+	pin.route = identity
 }
 
 // Bind records the decision-fingerprint hash a caller built under key's pin,

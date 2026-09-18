@@ -5,12 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // The admission SPILL: a hardware-natural stream whose GPU pool is full, on a
@@ -389,4 +391,44 @@ func TestShapeLadder_CapsToScreen(t *testing.T) {
 	profiles := (&PlanResolver{}).ShapeLadder(context.Background(), req, decision)
 	require.NotEmpty(t, profiles)
 	assert.Equal(t, 480, profiles[len(profiles)-1].Height, "a 480 px screen never gets a taller rung")
+}
+
+// The route is NOT frozen on the admission pin (ADR-0030, by choice: a
+// backend demoted mid-stream must not be kept alive by a pin). What the pin
+// gives is a detector: the same stream re-resolving to another route while
+// its pin is authoritative counts one drift and logs it, and the plan keeps
+// the pin's class and ceiling exactly as before.
+func TestResolve_RouteMovingUnderALivePinIsCountedNotFrozen(t *testing.T) {
+	capability := vaapiCapable()
+	pr, _ := routeGoldenResolver(&capability, true)
+	hwOn := true
+	pr.HWAccelEnabled = func() bool { return hwOn }
+	var web goldenClient
+	for _, c := range goldenClients() {
+		if c.name == "web-h264" {
+			web = c
+		}
+	}
+	req := routeGoldenRequest(routeGoldenSources()["1080p-h264-8m"], web)
+	req.PinnedVideoDecision = "transcode"
+	drifts := func() int { return int(testutil.ToFloat64(metrics.HLSVODRouteDrift)) }
+	base := drifts()
+
+	master, err := pr.Resolve(context.Background(), req)
+	require.NoError(t, err)
+	require.True(t, master.Route.HW(), "the master resolves on the GPU")
+	again, err := pr.Resolve(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, master.FingerprintHash, again.FingerprintHash)
+	assert.Equal(t, base, drifts(), "the same route again is no drift")
+
+	hwOn = false // the operator turns the GPU off under the live stream
+	segment, err := pr.Resolve(context.Background(), req)
+	require.NoError(t, err)
+	assert.False(t, segment.Route.HW(), "the route follows the host: it is not frozen on the pin")
+	assert.NotEqual(t, master.FingerprintHash, segment.FingerprintHash, "the sealed URLs of the master now answer 410 and the player refetches")
+	assert.Equal(t, base+1, drifts(), "one drift counted")
+	_, err = pr.Resolve(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, base+1, drifts(), "the moved route is adopted: not one drift per segment")
 }
