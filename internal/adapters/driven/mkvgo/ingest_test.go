@@ -9,7 +9,6 @@ package mkvgo_test
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,24 +60,6 @@ func TestPlanIntegration_DirectPlaySource(t *testing.T) {
 	}
 	if plan.Strategy == "" {
 		t.Errorf("Strategy must not be empty")
-	}
-	if len(plan.PlanJSON) == 0 {
-		t.Fatalf("PlanJSON must not be empty")
-	}
-	// PlanJSON must be the raw mkvgo report, not a re-derived subset - decode
-	// it and cross-check against the domain fields the adapter also returned.
-	var decoded struct {
-		Strategy string `json:"strategy"`
-		Target   string `json:"target"`
-	}
-	if err := json.Unmarshal(plan.PlanJSON, &decoded); err != nil {
-		t.Fatalf("PlanJSON did not decode as JSON: %v", err)
-	}
-	if decoded.Strategy != string(plan.Strategy) {
-		t.Errorf("PlanJSON strategy %q != returned Strategy %q", decoded.Strategy, plan.Strategy)
-	}
-	if decoded.Target != plan.Target {
-		t.Errorf("PlanJSON target %q != returned Target %q", decoded.Target, plan.Target)
 	}
 	if plan.Strategy == library.ServingStrategyRemuxHLS && !plan.NeedsReindex {
 		// ffmpeg's matroska muxer writes Cues by default, so this source

@@ -124,11 +124,11 @@ func (s *CommandService) WithSubtitleScanner(sc library.ExternalSubtitleScanner)
 	}
 }
 
-// WithIngestPlanning arms the scan-time serving-plan precomputation (mkvgo
+// WithIngestPlanning arms the scan-time serving verdict (mkvgo
 // ops.Ingest) on the underlying scan service; gated by the
 // library.ingest_serving_plan server_config setting.
-func (s *CommandService) WithIngestPlanning(cfg shared.ServerConfigRepository, planner library.IngestPlanner, store library.ServingPlanRepository, reindexer mkv.Reindexer) {
-	s.scan.WithIngestPlanning(cfg, planner, store, reindexer)
+func (s *CommandService) WithIngestPlanning(cfg shared.ServerConfigRepository, planner library.IngestPlanner, reindexer mkv.Reindexer) {
+	s.scan.WithIngestPlanning(cfg, planner, reindexer)
 }
 
 // WithIngestActivePlayback lets the ingest pacer stretch its inter-file pause
@@ -138,7 +138,7 @@ func (s *CommandService) WithIngestActivePlayback(count func() int) {
 }
 
 // WithIngestKeyframeWarmer arms the scan-time keyframe warm-up consuming the
-// freshly stored serving plan (first-play fast path).
+// freshly computed serving verdict (first-play fast path).
 func (s *CommandService) WithIngestKeyframeWarmer(warm func(ctx context.Context, mediaItemID, path string) bool) {
 	s.scan.WithKeyframeWarmer(warm)
 }

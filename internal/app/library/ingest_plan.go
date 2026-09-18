@@ -25,13 +25,12 @@ const (
 	// value (a typo'd admin edit degrades to off, never to an unintended
 	// mode).
 	IngestServingPlanOff = "off"
-	// IngestServingPlanPlan: compute the serving plan and store it,
-	// read-only - Ingest never writes to the media file in this mode.
+	// IngestServingPlanPlan: compute the verdict (logged; drives the
+	// keyframe warm-up), read-only - Ingest never writes to the media file.
 	IngestServingPlanPlan = "plan"
 	// IngestServingPlanPlanRepair: in addition to IngestServingPlanPlan,
 	// repair a missing seek index in place (mkv.Reindexer, ModeAuto) when the
-	// computed plan flags NeedsReindex, then recompute and store the
-	// post-repair plan. Mirrors app/maintenance/seek_index.go's own
+	// computed verdict flags NeedsReindex, then recompute it. Mirrors app/maintenance/seek_index.go's own
 	// repair-then-refresh pattern, but triggered inline at scan time for a
 	// brand-new file instead of an admin-initiated library sweep.
 	IngestServingPlanPlanRepair = "plan+repair"
@@ -81,11 +80,12 @@ func (s *ScanService) ingestPause() time.Duration {
 // throttles the same per-file loop the rest of createMediaFile already pays
 // for (probe, chapters, search index) - no separate background sweep needed.
 //
-// Every failure (Ingest, repair, or the store write) is logged at WARN and
-// swallowed: a serving plan is an optimization for a future consumer, never
-// a reason to fail the scan that just added the item.
+// Every failure (Ingest, repair) is logged at WARN and swallowed: the verdict
+// is a scan-time optimisation (repair, keyframe warm-up), never a reason to
+// fail the scan that just added the item. Nothing is persisted: the playback
+// decision never reads it.
 func (s *ScanService) applyIngestPlan(ctx context.Context, mediaItemID shared.MediaItemID, path string) {
-	if s.ingestPlanner == nil || s.servingPlans == nil || path == "" {
+	if s.ingestPlanner == nil || path == "" {
 		return
 	}
 	mode := s.loadIngestServingPlanMode(ctx)
@@ -110,21 +110,17 @@ func (s *ScanService) applyIngestPlan(ctx context.Context, mediaItemID shared.Me
 
 	if mode == IngestServingPlanPlanRepair && plan.NeedsReindex && s.reindexer != nil {
 		if _, repairErr := s.reindexer.ReindexInPlace(ctx, path, mkv.ReindexOptions{Mode: mkv.ModeAuto, KeepBackup: true}); repairErr != nil {
-			slog.WarnContext(ctx, "ingest plan: repair reindex failed, storing the pre-repair plan",
+			slog.WarnContext(ctx, "ingest plan: repair reindex failed, keeping the pre-repair verdict",
 				slog.String("media_item.id", string(mediaItemID)), slog.String("path", path), slog.Any("err", repairErr))
 		} else if replanned, replanErr := s.ingestPlanner.Plan(ctx, path, ""); replanErr != nil {
-			slog.WarnContext(ctx, "ingest plan: re-plan after repair failed, storing the pre-repair plan",
+			slog.WarnContext(ctx, "ingest plan: re-plan after repair failed, keeping the pre-repair verdict",
 				slog.String("media_item.id", string(mediaItemID)), slog.String("path", path), slog.Any("err", replanErr))
 		} else {
 			plan = replanned
 		}
 	}
-
-	plan.MediaItemID = mediaItemID
-	if err := s.servingPlans.Upsert(ctx, plan); err != nil {
-		slog.WarnContext(ctx, "ingest plan: store failed",
-			slog.String("media_item.id", string(mediaItemID)), slog.Any("err", err))
-	}
+	slog.DebugContext(ctx, "ingest plan: verdict",
+		slog.String("media_item.id", string(mediaItemID)), slog.String("strategy", string(plan.Strategy)), slog.Bool("needs_reindex", plan.NeedsReindex))
 
 	// Consume the plan right away for the first-play fast path: a strategy
 	// that serves without a transcode (direct-play, remux-hls) needs the

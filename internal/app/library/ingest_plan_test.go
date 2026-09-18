@@ -9,11 +9,10 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/mkv"
-	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 )
 
-// --- local fakes: IngestPlanner / ServingPlanRepository / mkv.Reindexer ---
+// --- local fakes: IngestPlanner / mkv.Reindexer ---
 
 type fakeIngestPlanner struct {
 	mu       sync.Mutex
@@ -35,45 +34,8 @@ func (f *fakeIngestPlanner) Plan(_ context.Context, path, _ string) (*library.Se
 	if idx >= len(f.plans) {
 		idx = len(f.plans) - 1
 	}
-	p := *f.plans[idx] // copy: applyIngestPlan mutates MediaItemID on the returned pointer
+	p := *f.plans[idx]
 	return &p, nil
-}
-
-type fakeServingPlanStore struct {
-	mu    sync.Mutex
-	plans map[shared.MediaItemID]*library.ServingPlan
-	err   error
-}
-
-func newFakeServingPlanStore() *fakeServingPlanStore {
-	return &fakeServingPlanStore{plans: map[shared.MediaItemID]*library.ServingPlan{}}
-}
-
-func (f *fakeServingPlanStore) Upsert(_ context.Context, plan *library.ServingPlan) error {
-	if f.err != nil {
-		return f.err
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.plans[plan.MediaItemID] = plan
-	return nil
-}
-
-func (f *fakeServingPlanStore) GetByMediaItemID(_ context.Context, id shared.MediaItemID) (*library.ServingPlan, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	p, ok := f.plans[id]
-	if !ok {
-		return nil, shared.ErrNotFound
-	}
-	return p, nil
-}
-
-func (f *fakeServingPlanStore) DeleteByMediaItemID(_ context.Context, id shared.MediaItemID) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	delete(f.plans, id)
-	return nil
 }
 
 // ingestFakeReindexer is a minimal mkv.Reindexer stub: only ReindexInPlace's
@@ -123,8 +85,18 @@ func newIngestTestScanService() (*ScanService, *libfakes.FakeMediaItemCommandRep
 func mkPlan(target string, strategy library.ServingStrategy, needsReindex bool) *library.ServingPlan {
 	return &library.ServingPlan{
 		Target: target, Strategy: strategy, NeedsReindex: needsReindex,
-		PlanJSON: []byte(`{}`),
 	}
+}
+
+// spyWarmer records the one keyframe warm-up applyIngestPlan may issue - the
+// verdict's only observable consumer besides the reindexer.
+type spyWarmer struct{ id, path string }
+
+func (w *spyWarmer) install(svc *ScanService) {
+	svc.WithKeyframeWarmer(func(_ context.Context, id, path string) bool {
+		w.id, w.path = id, path
+		return true
+	})
 }
 
 // --- loadIngestServingPlanMode ---
@@ -192,56 +164,50 @@ func TestIngestPause_DefaultVsActivePlayback(t *testing.T) {
 func TestApplyIngestPlan_ModeOff_NoIngestCall(t *testing.T) {
 	svc, _, _, _ := newIngestTestScanService()
 	planner := &fakeIngestPlanner{plans: []*library.ServingPlan{mkPlan("mse-generic", library.ServingStrategyDirectPlay, false)}}
-	store := newFakeServingPlanStore()
 	cfg := sharedfakes.NewFakeServerConfigRepository() // no key set -> off
-	svc.WithIngestPlanning(cfg, planner, store, nil)
+	svc.WithIngestPlanning(cfg, planner, nil)
 
 	svc.applyIngestPlan(context.Background(), "mi-1", "/movies/a.mkv")
 
 	if planner.calls != 0 {
 		t.Errorf("planner.calls = %d, want 0 when mode is off", planner.calls)
 	}
-	if _, err := store.GetByMediaItemID(context.Background(), "mi-1"); err == nil {
-		t.Errorf("no plan should have been stored")
-	}
 }
 
 func TestApplyIngestPlan_PlannerNil_NoOp(t *testing.T) {
 	svc, _, _, _ := newIngestTestScanService()
-	store := newFakeServingPlanStore()
 	cfg := sharedfakes.NewFakeServerConfigRepository()
 	cfg.Set(context.Background(), IngestServingPlanConfigKey, IngestServingPlanPlan)
-	svc.WithIngestPlanning(cfg, nil, store, nil) // no planner wired
+	svc.WithIngestPlanning(cfg, nil, nil) // no planner wired
+	w := &spyWarmer{}
+	w.install(svc)
 
-	svc.applyIngestPlan(context.Background(), "mi-1", "/movies/a.mkv")
+	svc.applyIngestPlan(context.Background(), "mi-1", "/movies/a.mkv") // must not panic
 
-	if _, err := store.GetByMediaItemID(context.Background(), "mi-1"); err == nil {
-		t.Errorf("no plan should have been stored with a nil planner")
+	if w.id != "" {
+		t.Errorf("no verdict, no warm-up: warmer called for %q", w.id)
 	}
 }
 
-func TestApplyIngestPlan_ModePlan_ComputesAndStores(t *testing.T) {
+func TestApplyIngestPlan_ModePlan_ComputesAndWarms(t *testing.T) {
 	svc, _, _, _ := newIngestTestScanService()
 	planner := &fakeIngestPlanner{plans: []*library.ServingPlan{mkPlan("mse-generic", library.ServingStrategyRemuxHLS, true)}}
-	store := newFakeServingPlanStore()
 	cfg := sharedfakes.NewFakeServerConfigRepository()
 	cfg.Set(context.Background(), IngestServingPlanConfigKey, IngestServingPlanPlan)
-	svc.WithIngestPlanning(cfg, planner, store, nil)
+	svc.WithIngestPlanning(cfg, planner, nil)
+	w := &spyWarmer{}
+	w.install(svc)
 
 	svc.applyIngestPlan(context.Background(), "mi-1", "/movies/a.mkv")
 
 	if planner.calls != 1 {
 		t.Fatalf("planner.calls = %d, want 1", planner.calls)
 	}
-	got, err := store.GetByMediaItemID(context.Background(), "mi-1")
-	if err != nil {
-		t.Fatalf("GetByMediaItemID: %v", err)
+	if planner.lastPath != "/movies/a.mkv" {
+		t.Errorf("planner path = %q, want /movies/a.mkv", planner.lastPath)
 	}
-	if got.Strategy != library.ServingStrategyRemuxHLS {
-		t.Errorf("Strategy = %q, want remux-hls", got.Strategy)
-	}
-	if got.MediaItemID != "mi-1" {
-		t.Errorf("MediaItemID = %q, want mi-1", got.MediaItemID)
+	if w.id != "mi-1" || w.path != "/movies/a.mkv" {
+		t.Errorf("a remux-hls verdict warms the keyframes of the item (got %q %q)", w.id, w.path)
 	}
 }
 
@@ -250,11 +216,10 @@ func TestApplyIngestPlan_ModePlan_ComputesAndStores(t *testing.T) {
 func TestApplyIngestPlan_ModePlan_NeverRepairs(t *testing.T) {
 	svc, _, _, _ := newIngestTestScanService()
 	planner := &fakeIngestPlanner{plans: []*library.ServingPlan{mkPlan("mse-generic", library.ServingStrategyRemuxHLS, true)}}
-	store := newFakeServingPlanStore()
 	reindexer := &ingestFakeReindexer{}
 	cfg := sharedfakes.NewFakeServerConfigRepository()
 	cfg.Set(context.Background(), IngestServingPlanConfigKey, IngestServingPlanPlan)
-	svc.WithIngestPlanning(cfg, planner, store, reindexer)
+	svc.WithIngestPlanning(cfg, planner, reindexer)
 
 	svc.applyIngestPlan(context.Background(), "mi-1", "/movies/a.mkv")
 
@@ -269,11 +234,10 @@ func TestApplyIngestPlan_ModePlanRepair_NeedsReindex_RepairsAndReplans(t *testin
 		mkPlan("mse-generic", library.ServingStrategyRemuxHLS, true),  // pre-repair
 		mkPlan("mse-generic", library.ServingStrategyRemuxHLS, false), // post-repair
 	}}
-	store := newFakeServingPlanStore()
 	reindexer := &ingestFakeReindexer{}
 	cfg := sharedfakes.NewFakeServerConfigRepository()
 	cfg.Set(context.Background(), IngestServingPlanConfigKey, IngestServingPlanPlanRepair)
-	svc.WithIngestPlanning(cfg, planner, store, reindexer)
+	svc.WithIngestPlanning(cfg, planner, reindexer)
 
 	svc.applyIngestPlan(context.Background(), "mi-1", "/movies/a.mkv")
 
@@ -286,45 +250,29 @@ func TestApplyIngestPlan_ModePlanRepair_NeedsReindex_RepairsAndReplans(t *testin
 	if planner.calls != 2 {
 		t.Fatalf("planner.calls = %d, want 2 (pre + post repair)", planner.calls)
 	}
-	got, err := store.GetByMediaItemID(context.Background(), "mi-1")
-	if err != nil {
-		t.Fatalf("GetByMediaItemID: %v", err)
-	}
-	if got.NeedsReindex {
-		t.Errorf("stored plan must be the POST-repair plan (NeedsReindex=false)")
-	}
 }
 
-func TestApplyIngestPlan_ModePlanRepair_NoReindexerWired_StoresPreRepairPlan(t *testing.T) {
+func TestApplyIngestPlan_ModePlanRepair_NoReindexerWired_NoRepair(t *testing.T) {
 	svc, _, _, _ := newIngestTestScanService()
 	planner := &fakeIngestPlanner{plans: []*library.ServingPlan{mkPlan("mse-generic", library.ServingStrategyRemuxHLS, true)}}
-	store := newFakeServingPlanStore()
 	cfg := sharedfakes.NewFakeServerConfigRepository()
 	cfg.Set(context.Background(), IngestServingPlanConfigKey, IngestServingPlanPlanRepair)
-	svc.WithIngestPlanning(cfg, planner, store, nil) // no reindexer wired
+	svc.WithIngestPlanning(cfg, planner, nil) // no reindexer wired
 
 	svc.applyIngestPlan(context.Background(), "mi-1", "/movies/a.mkv")
 
 	if planner.calls != 1 {
 		t.Errorf("planner.calls = %d, want 1 (no repair attempted without a reindexer)", planner.calls)
 	}
-	got, err := store.GetByMediaItemID(context.Background(), "mi-1")
-	if err != nil {
-		t.Fatalf("GetByMediaItemID: %v", err)
-	}
-	if !got.NeedsReindex {
-		t.Errorf("stored plan should still be the (unrepaired) computed plan")
-	}
 }
 
-func TestApplyIngestPlan_ModePlanRepair_RepairFails_StoresPreRepairPlan(t *testing.T) {
+func TestApplyIngestPlan_ModePlanRepair_RepairFails_NoReplan(t *testing.T) {
 	svc, _, _, _ := newIngestTestScanService()
 	planner := &fakeIngestPlanner{plans: []*library.ServingPlan{mkPlan("mse-generic", library.ServingStrategyRemuxHLS, true)}}
-	store := newFakeServingPlanStore()
 	reindexer := &ingestFakeReindexer{err: assertError("disk full")}
 	cfg := sharedfakes.NewFakeServerConfigRepository()
 	cfg.Set(context.Background(), IngestServingPlanConfigKey, IngestServingPlanPlanRepair)
-	svc.WithIngestPlanning(cfg, planner, store, reindexer)
+	svc.WithIngestPlanning(cfg, planner, reindexer)
 
 	svc.applyIngestPlan(context.Background(), "mi-1", "/movies/a.mkv")
 
@@ -334,27 +282,21 @@ func TestApplyIngestPlan_ModePlanRepair_RepairFails_StoresPreRepairPlan(t *testi
 	if planner.calls != 1 {
 		t.Errorf("planner.calls = %d, want 1 (no re-plan after a failed repair)", planner.calls)
 	}
-	got, err := store.GetByMediaItemID(context.Background(), "mi-1")
-	if err != nil {
-		t.Fatalf("GetByMediaItemID: %v", err)
-	}
-	if !got.NeedsReindex {
-		t.Errorf("stored plan must be the pre-repair plan when the repair itself failed")
-	}
 }
 
-func TestApplyIngestPlan_PlannerError_NoStore(t *testing.T) {
+func TestApplyIngestPlan_PlannerError_NoWarmUp(t *testing.T) {
 	svc, _, _, _ := newIngestTestScanService()
 	planner := &fakeIngestPlanner{err: assertError("mkvgo: parse panic")}
-	store := newFakeServingPlanStore()
 	cfg := sharedfakes.NewFakeServerConfigRepository()
 	cfg.Set(context.Background(), IngestServingPlanConfigKey, IngestServingPlanPlan)
-	svc.WithIngestPlanning(cfg, planner, store, nil)
+	svc.WithIngestPlanning(cfg, planner, nil)
+	w := &spyWarmer{}
+	w.install(svc)
 
 	svc.applyIngestPlan(context.Background(), "mi-1", "/movies/a.mkv")
 
-	if _, err := store.GetByMediaItemID(context.Background(), "mi-1"); err == nil {
-		t.Errorf("no plan should be stored when Plan itself errors")
+	if w.id != "" {
+		t.Errorf("Plan errored: nothing to consume, warmer called for %q", w.id)
 	}
 }
 
@@ -363,10 +305,9 @@ func TestApplyIngestPlan_PlannerError_NoStore(t *testing.T) {
 func TestScanLibrary_NewFile_ComputesIngestPlan(t *testing.T) {
 	svc, mediaRepo, scanner, libQueryRepo := newIngestTestScanService()
 	planner := &fakeIngestPlanner{plans: []*library.ServingPlan{mkPlan("mse-generic", library.ServingStrategyDirectPlay, false)}}
-	store := newFakeServingPlanStore()
 	cfg := sharedfakes.NewFakeServerConfigRepository()
 	cfg.Set(context.Background(), IngestServingPlanConfigKey, IngestServingPlanPlan)
-	svc.WithIngestPlanning(cfg, planner, store, nil)
+	svc.WithIngestPlanning(cfg, planner, nil)
 
 	libQueryRepo.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}})
 	scanner.Results["/movies"] = []library.ScannedFile{
@@ -387,8 +328,8 @@ func TestScanLibrary_NewFile_ComputesIngestPlan(t *testing.T) {
 	if planner.calls != 1 {
 		t.Errorf("planner.calls = %d, want 1 for the one new file", planner.calls)
 	}
-	if _, err := store.GetByMediaItemID(context.Background(), items[0].ID); err != nil {
-		t.Errorf("plan not stored for the new item: %v", err)
+	if planner.lastPath != "/movies/new.mkv" {
+		t.Errorf("planner path = %q, want the new file", planner.lastPath)
 	}
 }
 
@@ -397,10 +338,9 @@ func TestScanLibrary_NewFile_ComputesIngestPlan(t *testing.T) {
 func TestScanLibrary_UnchangedFile_NoIngestPlanCall(t *testing.T) {
 	svc, _, scanner, libQueryRepo := newIngestTestScanService()
 	planner := &fakeIngestPlanner{plans: []*library.ServingPlan{mkPlan("mse-generic", library.ServingStrategyDirectPlay, false)}}
-	store := newFakeServingPlanStore()
 	cfg := sharedfakes.NewFakeServerConfigRepository()
 	cfg.Set(context.Background(), IngestServingPlanConfigKey, IngestServingPlanPlan)
-	svc.WithIngestPlanning(cfg, planner, store, nil)
+	svc.WithIngestPlanning(cfg, planner, nil)
 
 	libQueryRepo.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}})
 	now := time.Now().Truncate(time.Second)
@@ -445,12 +385,11 @@ func TestApplyIngestPlan_WarmsKeyframesForNonTranscodeStrategies(t *testing.T) {
 	} {
 		svc, _, _, _ := newIngestTestScanService()
 		planner := &fakeIngestPlanner{plans: []*library.ServingPlan{mkPlan("mse-generic", tc.strategy, false)}}
-		store := newFakeServingPlanStore()
 		cfg := sharedfakes.NewFakeServerConfigRepository()
 		if err := cfg.Set(ctx, IngestServingPlanConfigKey, IngestServingPlanPlan); err != nil {
 			t.Fatal(err)
 		}
-		svc.WithIngestPlanning(cfg, planner, store, nil)
+		svc.WithIngestPlanning(cfg, planner, nil)
 
 		var warmedID, warmedPath string
 		svc.WithKeyframeWarmer(func(_ context.Context, id, path string) bool {
@@ -474,16 +413,15 @@ func TestApplyIngestPlan_NilWarmerIsSafe(t *testing.T) {
 	ctx := context.Background()
 	svc, _, _, _ := newIngestTestScanService()
 	planner := &fakeIngestPlanner{plans: []*library.ServingPlan{mkPlan("mse-generic", library.ServingStrategyDirectPlay, false)}}
-	store := newFakeServingPlanStore()
 	cfg := sharedfakes.NewFakeServerConfigRepository()
 	if err := cfg.Set(ctx, IngestServingPlanConfigKey, IngestServingPlanPlan); err != nil {
 		t.Fatal(err)
 	}
-	svc.WithIngestPlanning(cfg, planner, store, nil)
+	svc.WithIngestPlanning(cfg, planner, nil)
 
 	svc.applyIngestPlan(ctx, "mi-1", "/movies/a.mkv") // must not panic
 
-	if _, err := store.GetByMediaItemID(ctx, "mi-1"); err != nil {
-		t.Errorf("plan should still be stored without a warmer: %v", err)
+	if planner.calls != 1 {
+		t.Errorf("planner.calls = %d, want 1 without a warmer", planner.calls)
 	}
 }
