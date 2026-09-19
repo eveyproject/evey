@@ -37,7 +37,10 @@ def git(*args: str) -> str:
 
 
 def repo_root() -> Path:
-    return Path(git("rev-parse", "--show-toplevel").strip())
+    """The MAIN worktree, so a receipt written from a linked worktree still files
+    itself under the project rather than under a throwaway checkout."""
+    common = git("rev-parse", "--path-format=absolute", "--git-common-dir").strip()
+    return Path(common).parent
 
 
 def receipts_dir(root: Path) -> Path:
