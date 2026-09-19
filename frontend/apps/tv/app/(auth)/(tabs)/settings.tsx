@@ -323,6 +323,24 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
+      {/* Home layout: the same panel the home screen opens, reachable from
+          where a viewer looks for settings (2026-09-19 - the owner believed
+          the TV could not reorganise its home at all). */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("common.nav.home")}</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        <Pressable
+          style={rowStyle("customize-home")}
+          onPress={() => router.push("/(auth)/(tabs)?customize=1")}
+          onFocus={() => setFocusedItem("customize-home")}
+          onBlur={() => setFocusedItem(null)}
+          accessible={true}
+          accessibilityLabel={t("common.feeds.customize")}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("common.feeds.customize")}</Text>
+        </Pressable>
+      </View>
+
       {/* Language */}
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("common.language")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>

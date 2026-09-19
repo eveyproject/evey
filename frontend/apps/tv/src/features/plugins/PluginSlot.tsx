@@ -97,8 +97,10 @@ interface PluginSlotProps {
 /**
  * TV parity with web/mobile's PluginSlot. Each matching plugin gets its own
  * WebView running the plugin's frontend bundle in isolation. The WebView is
- * display-only on TV (`focusable={false}`) - plugins render content, they
- * never trap the D-pad.
+ * display-only on TV - plugins render content, they never trap the D-pad.
+ * That is enforced natively (plugins/withWidgetFocusGuard.js): `focusable`
+ * only exists on React Native's plain View, so the prop below does nothing to
+ * the Android WebView, which is focusable by default.
  */
 export function PluginSlot({ name, context, pluginId, excludeRegistered }: PluginSlotProps) {
   const isAuthenticated = useAuthStore((s) => !!s.accessToken);
@@ -475,8 +477,9 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         scrollEnabled={false}
         showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
-        // Display-only on TV: the D-pad must never focus into the WebView
-        // (it has no remote-control affordance of its own).
+        // Display-only: it has no remote-control affordance of its own. Kept
+        // for intent and for the day the prop is honoured; what actually keeps
+        // the D-pad out is the native guard (see the doc comment above).
         focusable={false}
         androidLayerType="hardware"
         mixedContentMode="always"
