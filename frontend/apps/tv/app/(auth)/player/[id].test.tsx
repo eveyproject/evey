@@ -6,6 +6,7 @@ import React from "react";
 // useTVEventHandler captures the screen's own callback so tests can simulate a
 // remote keypress directly, the same way playerListeners lets a test simulate
 // a native player event.
+let capturedBackHandler: (() => boolean) | null = null;
 let capturedTVHandler: ((evt: { eventType: string }) => void) | null = null;
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
@@ -16,6 +17,14 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (s: any) => s, absoluteFillObject: {} },
   useWindowDimensions: () => ({ width: 1920, height: 1080 }),
   useTVEventHandler: (cb: (evt: { eventType: string }) => void) => { capturedTVHandler = cb; },
+  // BACK is claimed by the screen so a submenu closes instead of the player
+  // exiting; the captured handler lets a test press it.
+  BackHandler: {
+    addEventListener: (_evt: string, cb: () => boolean) => {
+      capturedBackHandler = cb;
+      return { remove: () => { capturedBackHandler = null; } };
+    },
+  },
 }));
 
 // --- expo-video mock ---------------------------------------------------------
@@ -602,20 +611,38 @@ describe("manual previous/next episode (TV)", () => {
 // Accelerated seek (item 1): longLeft/longRight move by a larger step than a
 // plain left/right, computed by playerSeek.ts's seekDeltaForKey.
 describe("remote seek (TV)", () => {
-  it("seeks by the plain skip amount on left/right", () => {
+  // Presses accumulate and ONE seek commits them: four taps of +30s is a
+  // single two-minute jump, not four restarts of the stream (owner,
+  // 2026-09-19 - "I want to seek by more than 30 seconds").
+  it("adds up the presses and commits one seek when they stop", () => {
+    vi.useFakeTimers();
     render(<PlayerScreen />);
     act(() => { capturedTVHandler?.({ eventType: "right" }); });
-    expect(playerMock.seekBy).toHaveBeenCalledWith(30);
-    act(() => { capturedTVHandler?.({ eventType: "left" }); });
-    expect(playerMock.seekBy).toHaveBeenCalledWith(-30);
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    // Nothing has moved yet: the viewer is still pressing.
+    expect(playerMock.currentTime).toBe(0);
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(90);
+    vi.useRealTimers();
   });
 
-  it("seeks by an accelerated step on a held longLeft/longRight", () => {
+  it("seeks backward the same way, and never past the start", () => {
+    vi.useFakeTimers();
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "left" }); });
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it("uses the accelerated step for a held longLeft/longRight", () => {
+    vi.useFakeTimers();
     render(<PlayerScreen />);
     act(() => { capturedTVHandler?.({ eventType: "longRight" }); });
-    expect(playerMock.seekBy).toHaveBeenCalledWith(120); // 30s * 4x multiplier
-    act(() => { capturedTVHandler?.({ eventType: "longLeft" }); });
-    expect(playerMock.seekBy).toHaveBeenCalledWith(-120);
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(120); // 30s * 4x multiplier
+    vi.useRealTimers();
   });
 
   // The trickplay thumbnail (TrickplaySeekPreview) is the only feedback the
@@ -705,58 +732,90 @@ describe("action bar discoverability (TV)", () => {
     ];
   };
 
-  it("tells the viewer how to reach the options before they press anything", () => {
+  // The options are an icon on the timeline now, not a text hint floating in
+  // the middle of the screen (owner, 2026-09-19).
+  it("shows the settings control with the timeline", () => {
     render(<PlayerScreen />);
-    // The hint is the whole fix for "I have no idea how to control this".
-    expect(screen.getByText("More", { exact: false })).toBeTruthy();
+    expect(screen.getByLabelText("More")).toBeTruthy();
   });
 
   // A pointer has no "down key". The emulator is driven with a mouse and some
-  // remotes ship a touchpad, so the hint answers a click too.
-  it("opens the bar on a click of the hint, without any key press", () => {
+  // remotes ship a touchpad, so the icon answers a click too.
+  it("opens the options on a click of that control, without any key press", () => {
     withTwoAudioTracks();
     render(<PlayerScreen />);
     fireEvent.click(screen.getByLabelText("More"));
-    expect(screen.getByLabelText("player.settings.audio")).toBeTruthy();
+    expect(trackMenuProps.current.visible).toBe(true);
   });
 
-  it("opens the bar on the down key and offers audio and more", () => {
+  // Audio and subtitles moved INTO that menu when the control bar that used to
+  // carry them was replaced by the settings icon.
+  it("offers audio and subtitles inside the options menu", () => {
     withTwoAudioTracks();
     render(<PlayerScreen />);
+    fireEvent.click(screen.getByLabelText("More"));
+    expect(trackMenuProps.current.hasAudioOptions).toBe(true);
+    act(() => { (trackMenuProps.current.onOpenAudio as () => void)(); });
+    expect(trackMenuProps.current.visible).toBe(false); // the menu steps aside for the picker
+  });
+
+  it("offers the transport controls the remote can land on", () => {
+    render(<PlayerScreen />);
     act(() => { capturedTVHandler?.({ eventType: "down" }); });
-    expect(screen.getByLabelText("player.settings.audio")).toBeTruthy();
-    expect(screen.getByLabelText("More")).toBeTruthy();
+    expect(screen.getByLabelText(/player\.controls\.(play|pause)/)).toBeTruthy();
+    expect(screen.getByLabelText("Rewind")).toBeTruthy();
+    expect(screen.getByLabelText("Forward")).toBeTruthy();
+  });
+
+  // BACK used to close the submenu AND pop the player: the viewer landed back
+  // on the media page while the film was still supposed to be playing.
+  it("closes an open submenu on BACK instead of leaving the player", () => {
+    withTwoAudioTracks();
+    render(<PlayerScreen />);
+    fireEvent.click(screen.getByLabelText("More"));
+    expect(trackMenuProps.current.visible).toBe(true);
+    let consumed = false;
+    act(() => { consumed = capturedBackHandler?.() ?? false; });
+    expect(consumed).toBe(true);
+    expect(backMock).not.toHaveBeenCalled();
   });
 
   // The whole point of the redesign: changing the audio track is one press
   // away and labelled, instead of a long press nothing announced.
-  it("opens the audio picker straight from the bar", () => {
+  it("stands the remote down while the options are open", () => {
+    vi.useFakeTimers();
     withTwoAudioTracks();
     render(<PlayerScreen />);
-    act(() => { capturedTVHandler?.({ eventType: "down" }); });
-    // The picker mock renders nothing, so the proof it opened is that the
-    // remote handler stands down for it (anyOverlayOpen) - a plain right no
-    // longer seeks.
-    fireEvent.click(screen.getByLabelText("player.settings.audio"));
-    playerMock.seekBy.mockClear();
+    // The menu mock renders nothing, so the proof it owns the D-pad is that a
+    // plain right no longer seeks.
+    fireEvent.click(screen.getByLabelText("More"));
+    const before = playerMock.currentTime;
     act(() => { capturedTVHandler?.({ eventType: "right" }); });
-    expect(playerMock.seekBy).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(before);
+    vi.useRealTimers();
   });
 
   // While the bar has focus its buttons own left/right; seeking there would
   // move the film behind the viewer's back as they walk the row.
-  it("stops seeking while the bar holds focus, and resumes after leaving it", () => {
+  it("stops seeking while the controls hold focus, and resumes after leaving them", () => {
+    vi.useFakeTimers();
     render(<PlayerScreen />);
 
     act(() => { capturedTVHandler?.({ eventType: "down" }); });
-    playerMock.seekBy.mockClear();
+    const before = playerMock.currentTime;
     act(() => { capturedTVHandler?.({ eventType: "right" }); });
-    expect(playerMock.seekBy).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(before);
 
-    // Up leaves the bar, and the film is seekable again.
+    // Up leaves the row, and the film is seekable again.
     act(() => { capturedTVHandler?.({ eventType: "up" }); });
     act(() => { capturedTVHandler?.({ eventType: "right" }); });
-    expect(playerMock.seekBy).toHaveBeenCalledWith(30);
+    act(() => { vi.advanceTimersByTime(700); });
+    // Absolute, not relative: the target comes from the screen's own playhead
+    // (0 in this fixture), not from whatever the shared mock last held.
+    expect(playerMock.currentTime).toBe(30);
+    vi.useRealTimers();
   });
 
   // Speed used to fire on a bare up press - the easiest key to hit by accident
@@ -784,17 +843,24 @@ describe("next-episode card does not steal the D-pad early (TV)", () => {
   });
 
   it("still seeks while the 30s card is showing but the countdown hasn't started", () => {
+    vi.useFakeTimers();
     nextEpisodeStateMock.mockReturnValue(cardState({ ended: false }));
     render(<PlayerScreen />);
     act(() => { capturedTVHandler?.({ eventType: "right" }); });
-    expect(playerMock.seekBy).toHaveBeenCalledWith(30);
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(30);
+    vi.useRealTimers();
   });
 
   it("blocks the D-pad once the real end-of-episode countdown is running", () => {
+    vi.useFakeTimers();
     nextEpisodeStateMock.mockReturnValue(cardState({ ended: true }));
     render(<PlayerScreen />);
+    const before = playerMock.currentTime;
     act(() => { capturedTVHandler?.({ eventType: "right" }); });
-    expect(playerMock.seekBy).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(before);
+    vi.useRealTimers();
   });
 
   it("cancels the card on back/menu instead of exiting the player while it is visible", () => {

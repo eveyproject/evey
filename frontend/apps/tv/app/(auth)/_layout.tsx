@@ -3,6 +3,7 @@ import { ActivityIndicator, View } from "react-native";
 import { Redirect, Stack, router, usePathname } from "expo-router";
 import { useAuthStore } from "@evey/store";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
+import { useCastConnectReceiver } from "../../src/hooks/useCastConnectReceiver";
 import { usePresenceHeartbeat } from "../../src/hooks/usePresenceHeartbeat";
 import { TVMusicPlayer } from "../../src/components/TVMusicPlayer";
 import { HomeShortcutButton, HOME_SHORTCUT_INSET } from "../../src/components/HomeShortcutButton";
@@ -33,6 +34,10 @@ export default function AuthLayout() {
   // authenticated (the hook bails if accessToken/serverUrl are absent),
   // so calling it before the redirect-on-no-auth guard is safe.
   useDeviceRegistration();
+  // Cast Connect: this television answers casts itself, with its own player.
+  // Same placement rationale as the registration above - the hook no-ops
+  // until there is a session to mirror, so it is safe before the guards.
+  useCastConnectReceiver();
   // Foreground presence beats for the admin "online" panel - enabled only
   // once fully authenticated (hooks can't sit after the guards below).
   usePresenceHeartbeat(!!accessToken && !isTokenExpired(accessToken) && !!profileId);
