@@ -17,6 +17,9 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (s: any) => s, absoluteFillObject: {} },
   useWindowDimensions: () => ({ width: 1920, height: 1080 }),
   useTVEventHandler: (cb: (evt: { eventType: string }) => void) => { capturedTVHandler = cb; },
+  // The screen resolves native tags to wire the controls' neighbours; jsdom
+  // has none, and null is exactly what the screen already tolerates.
+  findNodeHandle: () => null,
   // BACK is claimed by the screen so a submenu closes instead of the player
   // exiting; the captured handler lets a test press it.
   BackHandler: {
@@ -808,8 +811,10 @@ describe("action bar discoverability (TV)", () => {
     act(() => { vi.advanceTimersByTime(700); });
     expect(playerMock.currentTime).toBe(before);
 
-    // Up leaves the row, and the film is seekable again.
-    act(() => { capturedTVHandler?.({ eventType: "up" }); });
+    // BACK leaves the row, and the film is seekable again. UP stays inside it:
+    // walking from the settings icon back to the play button must not fold
+    // the overlay away.
+    act(() => { capturedTVHandler?.({ eventType: "back" }); });
     act(() => { capturedTVHandler?.({ eventType: "right" }); });
     act(() => { vi.advanceTimersByTime(700); });
     // Absolute, not relative: the target comes from the screen's own playhead
@@ -1024,7 +1029,7 @@ describe("sticky action bar (TV)", () => {
       act(() => { capturedTVHandler?.({ eventType: "down" }); }); // opens the bar
       expect(screen.getByLabelText("player.controls.play")).toBeTruthy();
 
-      act(() => { capturedTVHandler?.({ eventType: "up" }); }); // leaves the bar
+      act(() => { capturedTVHandler?.({ eventType: "back" }); }); // leaves the row
       act(() => { vi.advanceTimersByTime(4000); });
 
       expect(screen.queryByLabelText("player.controls.play")).toBeNull();
