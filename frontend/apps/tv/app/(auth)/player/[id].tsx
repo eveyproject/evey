@@ -8,7 +8,7 @@ import {
   isBurnInSubtitle,
   pickDefaultSubtitle,
 } from "@evey/api";
-import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler, BackHandler } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
@@ -38,7 +38,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview } from "../../../src/hooks/playerSeek";
 import { playerExit } from "../../../src/hooks/playerExit";
 import { playerTitle } from "../../../src/lib/playerTitle";
-import { FocusableCard } from "../../../src/components/FocusableCard";
+import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { QualityPicker } from "../../../src/components/QualityPicker";
 import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
 import { SubtitlePicker, type SubtitleStream } from "../../../src/components/SubtitlePicker";
@@ -63,11 +63,66 @@ const CONTROLS_TIMEOUT = 4000;
 // reads as "the app is struggling" when nothing is wrong.
 const BUFFERING_OVERLAY_DELAY_MS = 1200;
 
+
+// A player control the remote can land on. The overlay used to show three
+// silent circles: nothing said which one was selected, so the viewer pressed
+// OK and hoped. `focusable` is false while the surface owns the D-pad, which
+// keeps left/right seeking instead of walking this row.
+// How long the player waits after the last seek press before it actually
+// jumps. Long enough to chain presses into one move, short enough that a
+// single press still feels immediate.
+const SEEK_COMMIT_DELAY_MS = 600;
+
+function PlayerControlButton({
+  label,
+  onPress,
+  accessibilityLabel,
+  focusable,
+  hasTVPreferredFocus,
+  primary,
+  small,
+}: {
+  label: string;
+  onPress: () => void;
+  accessibilityLabel: string;
+  focusable: boolean;
+  hasTVPreferredFocus?: boolean;
+  primary?: boolean;
+  small?: boolean;
+}) {
+  const [focused, setFocused] = useState(false);
+  const size = small ? 56 : primary ? 104 : 84;
+  return (
+    <Pressable
+      focusable={focusable}
+      hasTVPreferredFocus={hasTVPreferredFocus}
+      onPress={onPress}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      style={[
+        styles.controlButton,
+        { width: size, height: size, borderRadius: size / 2 },
+        focused && styles.controlButtonFocused,
+      ]}
+    >
+      <Text style={[styles.controlLabel, { fontSize: small ? 26 : primary ? 40 : 22 }, focused && styles.controlLabelFocused]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export default function PlayerScreen() {
   // `restart=1` means the viewer chose "from the beginning" on the media page.
   // Without it the player always resumes, which is the right default - this is
   // the only way to say otherwise.
-  const { id, roomId, restart, audio, subtitle } = useLocalSearchParams<{ id: string; roomId?: string; restart?: string; audio?: string; subtitle?: string }>();
+  // `start` (seconds) comes from a Cast Connect LOAD: the sender already knew
+  // where the viewer was, and that position wins over this profile's watch
+  // progress on this television.
+  const { id, roomId, restart, audio, subtitle, start } = useLocalSearchParams<{ id: string; roomId?: string; restart?: string; audio?: string; subtitle?: string; start?: string }>();
   // Tracks picked on the media page (absolute stream indices, "off" = no
   // subtitle): they seed the selection below and count as a manual pick.
   const trackPick = parseTrackPick({ audio, subtitle });
@@ -350,10 +405,15 @@ export default function PlayerScreen() {
 
   const resumePositionSec = useMemo(() => {
     if (restart === "1") return 0;
+    // A cast hands over a position the viewer was actually at, a second ago,
+    // on another device. It outranks the progress row this television would
+    // otherwise read (which may be stale, or belong to an older viewing).
+    const cast = Number(start);
+    if (Number.isFinite(cast) && cast > 0) return cast;
     if (!progress?.positionMs || progress.played) return 0;
     const ms = Number(progress.positionMs);
     return ms > 0 ? ms / 1000 : 0;
-  }, [progress, restart]);
+  }, [progress, restart, start]);
 
   const player = useVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
@@ -567,17 +627,29 @@ export default function PlayerScreen() {
   const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
   const skipBwd = playbackSettings?.skipBackwardSeconds ?? 30;
 
-  const seekBy = useCallback(
-    (seconds: number) => {
-      if (!player) return;
-      // Native relative seek on the 0-based VOD timeline, transcode included.
-      // This used to tear down and restart the session on transcode, which
-      // replayed from 0 while the UI added an offset on top - every skip
-      // reported roughly twice the real position and inflated the duration.
-      player.seekBy(seconds);
+  // A seek the viewer can build up. One press used to be one jump: reaching
+  // five minutes ahead meant ten separate seeks, ten restarts of the stream,
+  // and a timeline that lurched. Presses now accumulate into a preview the bar
+  // and the clock show live, and ONE seek commits it once the pressing stops.
+  const pendingSeekDelta = seekPreviewSec === null ? 0 : Math.round(seekPreviewSec - currentTime);
+  const seekCommitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (seekCommitRef.current) clearTimeout(seekCommitRef.current); }, []);
+
+  // Shared by the on-screen buttons and the remote's left/right: move the
+  // preview now, commit the real seek when the viewer stops pressing.
+  const bumpSeek = useCallback(
+    (delta: number) => {
+      const base = seekPreviewSec ?? currentTime;
+      const target = clampSeekTarget(base, delta, duration);
+      setSeekPreviewSec(target);
+      if (seekCommitRef.current) clearTimeout(seekCommitRef.current);
+      seekCommitRef.current = setTimeout(() => {
+        seekCommitRef.current = null;
+        withPlayer((p) => { p.currentTime = target; });
+      }, SEEK_COMMIT_DELAY_MS);
       resetHideTimer();
     },
-    [player, resetHideTimer],
+    [seekPreviewSec, currentTime, duration, withPlayer, resetHideTimer],
   );
 
   // Remote-driven seek: left/right (plain skip) and longLeft/longRight
@@ -588,12 +660,9 @@ export default function PlayerScreen() {
     (type: string) => {
       const delta = seekDeltaForKey(type, skipBwd, skipFwd);
       if (delta === 0) return;
-      const base = seekPreviewSec ?? currentTime;
-      const target = clampSeekTarget(base, delta, duration);
-      setSeekPreviewSec(target);
-      seekBy(delta);
+      bumpSeek(delta);
     },
-    [skipBwd, skipFwd, seekPreviewSec, currentTime, duration, seekBy],
+    [skipBwd, skipFwd, bumpSeek],
   );
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
@@ -697,6 +766,23 @@ export default function PlayerScreen() {
     },
     [stopSession],
   );
+
+  // Cast Connect: project THIS player's state onto the MediaSession, and let
+  // the television's remote and every connected sender act on it. The player
+  // above stays the source of truth - the bridge only reports it, and routes
+  // commands back into the same handlers a keypress uses.
+  useCastConnectBridge({
+    // Same title the top bar shows: the show's name leads for an episode.
+    title: playerTitle(media, series?.title ?? (season ? itemLabel(season, t) : undefined)),
+    currentTime,
+    duration,
+    isPlaying,
+    speed: playbackSpeed,
+    onPlay: () => withPlayer((p) => p.play()),
+    onPause: () => withPlayer((p) => p.pause()),
+    onStop: handleBack,
+    onSeekTo: (sec) => withPlayer((p) => { p.currentTime = Math.max(0, duration > 0 ? Math.min(sec, duration) : sec); }),
+  });
 
   // The next-episode auto-advance (and its "play now" button) jump straight
   // into another player instance, bypassing the media detail screen where
@@ -809,6 +895,17 @@ export default function PlayerScreen() {
   // right through it (item B4). Only the real end-of-episode countdown
   // (nextEp.ended) claims the same exclusive ownership as the other overlays
   // below, the instant before the auto-advance actually fires.
+  const closeAllOverlays = useCallback(() => {
+    setShowQualityPicker(false);
+    setShowTrackMenu(false);
+    setShowAudioPicker(false);
+    setShowSubtitlePicker(false);
+    setShowChaptersPicker(false);
+    setShowSleepTimerPicker(false);
+    setShowVolumePicker(false);
+    setShowStreamInfoPanel(false);
+  }, []);
+
   const anyOverlayOpen =
     showQualityPicker || showTrackMenu || showAudioPicker || showSubtitlePicker ||
     showChaptersPicker || showSleepTimerPicker || showVolumePicker || showStreamInfoPanel ||
@@ -902,6 +999,27 @@ export default function PlayerScreen() {
     }
   };
   useTVEventHandler(useCallback((evt: { eventType: string } | undefined) => remoteHandlerRef.current?.(evt), []));
+
+  // BACK belongs to whatever is on top. A submenu is an RN Modal, so Android
+  // hands it onRequestClose - and then delivers the SAME press to the screen
+  // behind, which popped the player and dumped the viewer back on the media
+  // page (owner, 2026-09-19). Claiming it here consumes it: the top layer
+  // closes and the film keeps playing.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (anyOverlayOpen) {
+        closeAllOverlays();
+        return true;
+      }
+      if (barFocused) {
+        setBarFocused(false);
+        resetHideTimer();
+        return true;
+      }
+      return false; // nothing open: the player's own exit contract runs
+    });
+    return () => sub.remove();
+  }, [anyOverlayOpen, barFocused, closeAllOverlays, resetHideTimer]);
 
   // Imperative focus reclaim: whenever no overlay/bar should own the D-pad,
   // force native focus back onto the surface - if no native view is focused
@@ -1120,6 +1238,19 @@ export default function PlayerScreen() {
       <TrackOptionsMenu
         visible={showTrackMenu}
         onClose={() => setShowTrackMenu(false)}
+        // Audio and subtitles live in here now: the control bar that used to
+        // carry their own buttons is gone, replaced by the settings icon on
+        // the timeline (owner, 2026-09-19).
+        hasAudioOptions={audioStreams.length > 1}
+        onOpenAudio={() => {
+          setShowTrackMenu(false);
+          setShowAudioPicker(true);
+        }}
+        hasSubtitleOptions={subtitleStreams.length > 0}
+        onOpenSubtitles={() => {
+          setShowTrackMenu(false);
+          setShowSubtitlePicker(true);
+        }}
         onOpenQuality={() => {
           setShowTrackMenu(false);
           setShowQualityPicker(true);
@@ -1281,20 +1412,34 @@ export default function PlayerScreen() {
             </View>
           </View>
 
-          {/* Centre: state and seek amounts only. Deliberately not buttons -
-              OK already toggles play/pause and left/right already seek, so a
-              focusable target here would only add a stop on the way down to
-              the action bar. */}
+          {/* Centre: the three controls a remote reaches for, as real buttons.
+              They used to be mute indicators - nothing said which one the
+              D-pad was on, and the only way to the options was a hint at the
+              bottom of the screen (owner, 2026-09-19). Focus lands here on the
+              first DOWN press and lights the button it is on; a wake from a
+              seek leaves the focus on the surface, so left/right keep scrubbing
+              without a detour through the row. */}
           <View style={styles.centerControls}>
-            <View style={styles.seekHint}>
-              <Text style={styles.seekHintText}>-{skipBwd}s</Text>
-            </View>
-            <View style={styles.playIndicator}>
-              <Text style={styles.playIcon}>{isPlaying ? "||" : "\u25B6"}</Text>
-            </View>
-            <View style={styles.seekHint}>
-              <Text style={styles.seekHintText}>+{skipFwd}s</Text>
-            </View>
+            <PlayerControlButton
+              label={`-${skipBwd}s`}
+              focusable={barFocused}
+              onPress={() => bumpSeek(-skipBwd)}
+              accessibilityLabel={t("player.controls.rewind", "Rewind")}
+            />
+            <PlayerControlButton
+              label={isPlaying ? "\u2016" : "\u25B6"}
+              primary
+              focusable={barFocused}
+              hasTVPreferredFocus={barFocused}
+              onPress={togglePlayPause}
+              accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")}
+            />
+            <PlayerControlButton
+              label={`+${skipFwd}s`}
+              focusable={barFocused}
+              onPress={() => bumpSeek(skipFwd)}
+              accessibilityLabel={t("player.controls.forward", "Forward")}
+            />
           </View>
 
           {/* Trickplay thumbnail: the D-pad seek gesture has no live video
@@ -1307,69 +1452,17 @@ export default function PlayerScreen() {
             <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={seekPreviewSec} />
           </View>
 
-          {/* Action bar: the only way to reach the options, and it says so.
-              Focus enters it with the down key and leaves with up or back;
-              while it holds focus the global remote handler stands down (see
-              barFocused) so left/right walk the row instead of seeking. */}
-          <View style={styles.actionBar} pointerEvents="box-none">
-            {!barFocused ? (
-              // focusable={false} on purpose: this must stay OUT of the D-pad
-              // focus engine (down is what opens the bar, and a focus stop
-              // here would swallow it), while still answering a click. That
-              // click is the only way in for a pointer - an emulator driven
-              // with a mouse, or a TV remote with a touchpad.
-              <Pressable
-                focusable={false}
-                onPress={() => setBarFocused(true)}
-                accessibilityLabel={t("player.controls.more", "More")}
-                accessibilityRole="button"
-              >
-                <Text style={styles.actionHint}>{"\u25BC"} {t("player.controls.more", "More")}</Text>
-              </Pressable>
-            ) : (
-              <>
-                <FocusableCard
-                  hasTVPreferredFocus
-                  onPress={togglePlayPause}
-                  accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")}
-                  style={styles.actionBtn}
-                >
-                  <Text style={styles.actionLabel}>
-                    {isPlaying ? t("player.controls.pause") : t("player.controls.play")}
-                  </Text>
-                </FocusableCard>
-                {audioStreams.length > 1 && (
-                  <FocusableCard
-                    onPress={() => setShowAudioPicker(true)}
-                    accessibilityLabel={t("player.settings.audio")}
-                    style={styles.actionBtn}
-                  >
-                    <Text style={styles.actionLabel}>{t("player.settings.audio")}</Text>
-                  </FocusableCard>
-                )}
-                {subtitleStreams.length > 0 && (
-                  <FocusableCard
-                    onPress={() => setShowSubtitlePicker(true)}
-                    accessibilityLabel={t("player.settings.subtitles")}
-                    style={styles.actionBtn}
-                  >
-                    <Text style={styles.actionLabel}>{t("player.settings.subtitles")}</Text>
-                  </FocusableCard>
-                )}
-                <FocusableCard
-                  onPress={() => setShowTrackMenu(true)}
-                  accessibilityLabel={t("player.controls.more", "More")}
-                  style={styles.actionBtn}
-                >
-                  <Text style={styles.actionLabel}>{t("player.controls.more", "More")}</Text>
-                </FocusableCard>
-              </>
-            )}
-          </View>
-
           {/* Bottom bar */}
           <View style={styles.bottomBar}>
             <Text style={styles.timeText}>{formatTime(displayTime)}</Text>
+            {/* How far the pending jump goes. Pressing the seek button four
+                times is one jump of four steps, and this is what says so
+                before it commits. */}
+            {pendingSeekDelta !== 0 && (
+              <Text style={styles.seekDeltaText}>
+                {pendingSeekDelta > 0 ? "+" : "-"}{formatTime(Math.abs(pendingSeekDelta))}
+              </Text>
+            )}
             <View
               style={styles.seekBarTrack}
               accessibilityRole="progressbar"
@@ -1391,6 +1484,16 @@ export default function PlayerScreen() {
                 })}
             </View>
             <Text style={styles.timeText}>{formatTime(duration)}</Text>
+            {/* The settings, where the owner asked for them: bottom right, on
+                the timeline's own line. The options used to hide behind a
+                text hint in the middle of the screen. */}
+            <PlayerControlButton
+              label={"\u2699"}
+              small
+              focusable={barFocused}
+              onPress={() => setShowTrackMenu(true)}
+              accessibilityLabel={t("player.controls.more", "More")}
+            />
           </View>
         </View>
       )}
@@ -1415,30 +1518,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "space-between",
-  },
-  actionBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-    paddingHorizontal: 40,
-    marginBottom: 12,
-    minHeight: 56,
-  },
-  actionHint: {
-    color: "rgba(255,255,255,0.75)",
-    fontSize: 18,
-  },
-  actionBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
-  actionLabel: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "600",
   },
   topBar: {
     paddingTop: 24,
@@ -1470,37 +1549,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
+  // Bigger and closer together than the old silent circles, and sitting in
+  // the middle of the screen rather than floating above the action bar.
+  controlButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 3,
+    borderColor: "transparent",
+  },
+  // The selected control is unmistakable from the sofa: filled, outlined, dark
+  // glyph. A focus ring alone was invisible on a bright frame.
+  controlButtonFocused: {
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderColor: "#fff",
+  },
+  controlLabel: { color: "#fff", fontWeight: "700" },
+  controlLabelFocused: { color: "#111" },
+  seekDeltaText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+    marginLeft: 8,
+  },
   centerControls: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: 80,
-  },
-  seekHint: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  seekHintText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  playIndicator: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  playIcon: {
-    color: "#fff",
-    fontSize: 28,
-    fontWeight: "bold",
+    gap: 48,
   },
   episodeHint: {
     width: 48,

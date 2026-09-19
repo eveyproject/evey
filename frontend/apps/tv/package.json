@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@evey/api": "workspace:*",
+    "@evey/cast-tv": "workspace:*",
     "@evey/media-caps": "workspace:*",
     "@evey/store": "workspace:*",
     "@evey/theme": "workspace:*",
