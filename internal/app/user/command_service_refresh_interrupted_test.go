@@ -97,8 +97,8 @@ func TestRefreshToken_ReplayAfterTheSuccessorWasUsed_StillRefused(t *testing.T) 
 		t.Fatalf("first refresh failed: %v", err)
 	}
 	// The real client carries on normally, consuming its successor.
-	if _, _, err := d.svc.RefreshToken(ctx, legitimate, "", ""); err != nil {
-		t.Fatalf("the legitimate client must keep working: %v", err)
+	if _, _, useErr := d.svc.RefreshToken(ctx, legitimate, "", ""); useErr != nil {
+		t.Fatalf("the legitimate client must keep working: %v", useErr)
 	}
 
 	rt, err := d.refreshTkns.GetByID(ctx, "rt1")
