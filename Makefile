@@ -1,6 +1,7 @@
 .PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell bench lint sec-scan clean \
 	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
-	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch pre-push hooks \
+	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch ci-hygiene pre-push hooks \
+	gate gate-status verify-commit \
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go \
@@ -352,8 +353,19 @@ perf:
 	@echo "→ web bundle budget"
 	@sh scripts/bundle-budget.sh frontend/apps/web/dist || echo "   (build the web app first: docker exec evey-web pnpm --filter web build)"
 
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-proto-breaking ci-clean-checkout repo-itest-gate transcode-itest-gate tv-audit
-	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + proto compat + clean checkout + repo suite + transcode contract + audit TV)."
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-proto-breaking ci-clean-checkout repo-itest-gate transcode-itest-gate tv-audit
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + hygiene + proto compat + clean checkout + repo suite + transcode contract + audit TV)."
+
+# ci-hygiene: the house rules a regex can decide - plain dashes, no AI attribution
+# trailer, no conflict marker, no "... existing code ..." elision, no .claude/ in
+# the repo. Ratcheted on the outgoing commits only (origin/<branch>..HEAD), like
+# the gosec and lint steps, so history it did not introduce is not re-judged.
+# Host-side, stdlib only, ~100ms. The selftest runs first: a guard whose rules
+# stopped firing would otherwise report a clean tree forever.
+ci-hygiene:
+	@echo "→ hygiene guard (dashes, attribution, conflict markers, elisions)"
+	@python3 scripts/hygiene-guard.py --selftest
+	@python3 scripts/hygiene-guard.py
 
 # ci-clean-checkout: a committed file pointing at an uncommitted one is invisible
 # to every other check here (the frontend steps run in evey-web, where the
