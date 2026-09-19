@@ -1,8 +1,8 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { displayTitle } from "@evey/api";
 import { View, Text, ScrollView, FlatList, StyleSheet } from "react-native";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,7 +23,6 @@ import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
-import { heroTitle } from "../../../src/lib/heroTitle";
 import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
 import { musicAlbumHref } from "../../../src/lib/musicRoutes";
 import { progressPercent } from "../../../src/lib/progressPercent";
@@ -32,8 +31,6 @@ import { ScreenState } from "../../../src/components/ScreenState";
 import { FeedCustomizePanel } from "../../../src/components/FeedCustomizePanel";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
-import { useParentalGate } from "../../../src/hooks/useParentalGate";
-import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { CARD_WIDTH_FEATURED, POSTER_RATIO, GRID_GAP } from "../../../src/lib/tvLayout";
 import { HOME_LIBRARY_ROW_PAGE_SIZE } from "../../../src/lib/homeLibraryRows";
 import { useCollections } from "../../../src/api/collections";
@@ -44,12 +41,8 @@ const CARD_WIDTH = CARD_WIDTH_FEATURED;
 const CARD_HEIGHT = CARD_WIDTH * POSTER_RATIO;
 const CARD_TOTAL_WIDTH = CARD_WIDTH + GRID_GAP; // card + separator
 
-const HERO_COUNT = 5;
-const HERO_INTERVAL = 8000;
-const HERO_HEIGHT = 480;
-// Same reasoning as the media page: the TV renders at 1080p, so the hero
+// Same reasoning as the media page: the TV renders at 1080p, so a backdrop
 // backdrop is requested at screen width instead of the full original.
-const HERO_BACKDROP_WIDTH = 1920;
 
 const tvRowGetItemLayout = (_: unknown, index: number) => ({
   length: CARD_TOTAL_WIDTH,
@@ -91,16 +84,12 @@ function RowFailure({ onRetry }: { onRetry?: () => void }) {
 }
 
 // The home screen must hand the TV remote's initial focus to exactly one
-// element. The hero's Play button is the deliberate default (it's the
-// screen's primary call to action); when there's no hero to show (no
-// recently-added items), focus falls back to the first row that actually
-// has items, in on-screen order, so the remote is never left with nowhere
-// to go.
-export function selectHomeFocusTarget(
-  heroVisible: boolean,
-  rowHasItems: boolean[],
-): "hero" | number | null {
-  if (heroVisible) return "hero";
+// element: the first row that actually has items, in on-screen order, so the
+// remote is never left with nowhere to go. It used to be the hero's Play
+// button; the hero is gone (owner's call 2026-09-19 - five recently-added
+// titles sat above the plugin sections, outside the customisation the rest
+// of the home obeys), so the focus opens on real content.
+export function selectHomeFocusTarget(rowHasItems: boolean[]): number | null {
   const idx = rowHasItems.findIndex(Boolean);
   return idx === -1 ? null : idx;
 }
@@ -241,192 +230,6 @@ function MediaRow({
   );
 }
 
-// HeroBanner spotlights the most recently added titles at the top of the home
-// screen - the 10-foot equivalent of the web/mobile hero, which we deliberately
-// keep TV-only. Backdrop artwork sits behind the text/action content, faded
-// into the background color so the title stays legible.
-function HeroBanner({
-  items,
-  serverUrl,
-  authHeaders,
-  focusPlay,
-}: {
-  items: V1MediaItem[];
-  serverUrl: string;
-  authHeaders?: { Authorization: string };
-  focusPlay?: boolean;
-}) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-  const heroItems = items.slice(0, HERO_COUNT);
-  const [activeIndex, setActiveIndex] = useState(0);
-  // Auto-rotation pauses while a hero control holds the remote: otherwise the
-  // carousel could swap the title out from under a focused Play button, and
-  // the viewer would launch a title they were no longer looking at. Counter,
-  // not a boolean: moving focus from Play to Info fires blur-then-focus, and a
-  // boolean would briefly flip the pause off mid-hand-off.
-  const [focusCount, setFocusCount] = useState(0);
-  const onHeroFocus = useCallback(() => setFocusCount((n) => n + 1), []);
-  const onHeroBlur = useCallback(() => setFocusCount((n) => Math.max(0, n - 1)), []);
-  const paused = focusCount > 0;
-
-  useEffect(() => {
-    if (heroItems.length <= 1 || paused) return;
-    const id = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % heroItems.length);
-    }, HERO_INTERVAL);
-    return () => clearInterval(id);
-  }, [heroItems.length, paused]);
-
-  // EVERY hook above the empty early return below: the home mounts with zero
-  // items (queries still loading), the hero returns null, and the render
-  // where titles arrive would otherwise run five hooks more - "Rendered more
-  // hooks than during the previous render", the whole home dead behind the
-  // error boundary. Exact class fixed the same day on mobile's music tab;
-  // react/rules-of-hooks now gates it in lint.
-  const active = heroItems[activeIndex] ?? heroItems[0];
-  const id = active?.id ?? "";
-
-  // The hero's Play button jumps straight into the player, bypassing the
-  // media detail screen where the parental PIN gate normally lives - so it
-  // needs its own gate, keyed on whichever title is currently on screen.
-  const { needsPin, profileId: gateProfileId } = useParentalGate(active?.officialRating);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
-
-  // A series has no file to stream - the player would 404 on it. The episode
-  // to resume lives behind the detail screen's own resolution, so that is
-  // where the hero sends the viewer, and the button says so.
-  const playable = active?.type !== "MEDIA_ITEM_TYPE_SERIES" && active?.type !== "MEDIA_ITEM_TYPE_SEASON";
-
-  const handlePlay = useCallback(() => {
-    if (!id) return;
-    if (!playable) {
-      router.push(`/media/${id}`);
-      return;
-    }
-    if (needsPin()) {
-      setPendingPlayId(id);
-      setShowPinModal(true);
-      return;
-    }
-    router.push(`/player/${id}`);
-  }, [id, needsPin, playable]);
-
-  const handlePinVerified = useCallback(() => {
-    setShowPinModal(false);
-    if (pendingPlayId) {
-      router.push(`/player/${pendingPlayId}`);
-      setPendingPlayId(null);
-    }
-  }, [pendingPlayId]);
-
-  if (heroItems.length === 0) return null;
-
-  const genres = (active?.genres ?? []).slice(0, 3);
-  const metaLine = [active?.year ? String(active.year) : "", genres.join(" · ")]
-    .filter(Boolean)
-    .join("   ·   ");
-  const backdropBlurhash = (active?.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_BACKDROP")?.blurhash;
-
-  return (
-    <View style={[styles.heroContainer, { height: HERO_HEIGHT, backgroundColor: theme.colors.surface }]}>
-      {id ? (
-        <Image
-          key={id}
-          source={{ uri: artworkUrl(serverUrl, id, "backdrop", HERO_BACKDROP_WIDTH), headers: authHeaders }}
-          style={StyleSheet.absoluteFillObject}
-          contentFit="cover"
-          transition={400}
-          placeholder={backdropBlurhash ? { blurhash: backdropBlurhash } : undefined}
-          placeholderContentFit="cover"
-        />
-      ) : null}
-      {/* Gradient-ish fade (stacked opacity layers) so the title/overview stay
-          legible over any backdrop. */}
-      <View style={[StyleSheet.absoluteFillObject, { flexDirection: "column", justifyContent: "flex-end" }]}>
-        <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.15 }} />
-        <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.4 }} />
-        <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.75 }} />
-        <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.95 }} />
-      </View>
-      <View style={styles.heroContent}>
-        <Text style={[styles.heroTitle, { color: theme.colors.text }]} numberOfLines={2}>
-          {active ? heroTitle(active, items, t) : null}
-        </Text>
-        {(active?.communityRating ?? 0) > 0 || metaLine ? (
-          <View style={styles.heroMetaRow}>
-            {active?.communityRating != null && active.communityRating > 0 && (
-              <View style={styles.heroRatingChip}>
-                <Ionicons name="star" size={18} color={theme.colors.warning} />
-                <Text style={[styles.heroRatingText, { color: theme.colors.text }]}>
-                  {active.communityRating.toFixed(1)}
-                </Text>
-              </View>
-            )}
-            {metaLine ? (
-              <Text style={[styles.heroMeta, { color: theme.colors.textMuted }]}>{metaLine}</Text>
-            ) : null}
-          </View>
-        ) : null}
-        {active?.overview ? (
-          <Text style={[styles.heroOverview, { color: theme.colors.textMuted }]} numberOfLines={3}>
-            {active.overview}
-          </Text>
-        ) : null}
-        <View style={styles.heroButtons}>
-          <FocusableCard
-            onPress={handlePlay}
-            hasTVPreferredFocus={focusPlay}
-            onFocus={onHeroFocus}
-            onBlur={onHeroBlur}
-            style={[styles.heroPlayBtn, { backgroundColor: theme.colors.accent }]}
-            // A series is not played, it is browsed: the primary action names
-            // the episode list. Reusing "More info" here put two identical
-            // buttons side by side, since that is what the secondary already
-            // says.
-            accessibilityLabel={playable ? t("media.detail.play") : t("media.detail.episodes")}
-          >
-            <Text style={[styles.heroBtnLabel, { color: theme.colors.onAccent }]}>
-              {playable ? t("media.detail.play") : t("media.detail.episodes")}
-            </Text>
-          </FocusableCard>
-          <FocusableCard
-            onPress={() => id && router.push(`/media/${id}`)}
-            onFocus={onHeroFocus}
-            onBlur={onHeroBlur}
-            style={[styles.heroInfoBtn, { backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface }]}
-            accessibilityLabel={t("media.home.moreInfo")}
-          >
-            <Text style={[styles.heroBtnLabel, { color: theme.colors.text }]}>{t("media.home.moreInfo")}</Text>
-          </FocusableCard>
-        </View>
-        {heroItems.length > 1 && (
-          <View style={styles.heroDots}>
-            {heroItems.map((it, i) => (
-              <View
-                key={it.id ?? i}
-                style={[
-                  styles.heroDot,
-                  { backgroundColor: i === activeIndex ? theme.colors.accent : theme.colors.border },
-                ]}
-              />
-            ))}
-          </View>
-        )}
-      </View>
-      {gateProfileId ? (
-        <ParentalPINModal
-          visible={showPinModal}
-          onClose={() => { setShowPinModal(false); setPendingPlayId(null); }}
-          onVerified={handlePinVerified}
-          profileId={gateProfileId}
-        />
-      ) : null}
-    </View>
-  );
-}
-
 // A generic horizontal row of square-art cards (collections, music albums,
 // photo albums). Deliberately separate from MediaRow: those destinations are
 // not /media/<id>, and a card that lands the viewer on a screen built for
@@ -535,7 +338,14 @@ export default function HomeScreen() {
     () => buildHomeSections(feedConfigData?.configs ?? [], libraries.data?.libraries ?? []),
     [feedConfigData, libraries.data],
   );
-  const [customizeOpen, setCustomizeOpen] = useState(false);
+  // ?customize=1 - the Settings entry opens the home with its panel already
+  // up, so "reorganise my home" is reachable from where a viewer looks for
+  // settings, not only from the home itself.
+  const { customize: customizeParam } = useLocalSearchParams<{ customize?: string }>();
+  const [customizeOpen, setCustomizeOpen] = useState(customizeParam === "1");
+  useEffect(() => {
+    if (customizeParam === "1") setCustomizeOpen(true);
+  }, [customizeParam]);
 
   // Display names for the customize panel. Without them a library row reads as
   // a raw UUID and a plugin row as `plg-…`, which is unusable at three metres.
@@ -577,7 +387,7 @@ export default function HomeScreen() {
   const recommended = useFeedServiceRecommended({ limit: resolveMaxItems(maxItemsByType.recommended, 20) });
   const popular = useMostPopular(resolveMaxItems(maxItemsByType.most_popular, 20));
   const collections = useCollections();
-  // Feeds the hero only - the "recently added" shelf itself is the per-library
+  // The "recently added" shelf is the per-library
   // rows' job, which is why no client renders it as its own section.
   const recentlyAdded = useLibraryServiceListMediaItems({
     sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
@@ -613,8 +423,8 @@ export default function HomeScreen() {
   // those are several extra queries, and gating the whole screen on the
   // slowest one turns the home into a long blank spinner. The transverse rows
   // paint as soon as they are ready and library rows fill in behind them.
-  // Focus is safe either way: the hero wins it whenever anything was recently
-  // added, so a row arriving late cannot steal it.
+  // Focus is safe either way: it is claimed by the first row that HAS items
+  // at render time, so a row arriving late cannot steal it.
   const isLoading = resume.isLoading || nextUp.isLoading || recentlyAdded.isLoading;
   // Only when ALL THREE failed. One transverse row erroring still leaves a
   // usable home, and blanking it would be a worse answer than a short page.
@@ -692,10 +502,7 @@ export default function HomeScreen() {
         return 0;
     }
   });
-  const focusTarget = selectHomeFocusTarget(
-    recentlyAddedItems.length > 0,
-    sectionCounts.map((n) => n > 0),
-  );
+  const focusTarget = selectHomeFocusTarget(sectionCounts.map((n) => n > 0));
 
   // "Nothing loaded, nothing errored, nothing has an item" used to render as
   // a near-blank screen with just the Customize row - indistinguishable from
@@ -877,16 +684,23 @@ export default function HomeScreen() {
   let renderCursor = 0;
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingVertical: 32 }}>
-      {/* No unread banner here any more: the count lives on the sidebar bell,
-          which is visible from every screen. On the home it pushed the hero
-          down and took the first focus, so the television opened on a notice
-          instead of on something to watch. */}
-      <HeroBanner
-        items={recentlyAddedItems}
-        serverUrl={serverUrl}
-        authHeaders={authHeaders}
-        focusPlay={focusTarget === "hero"}
-      />
+      {/* Customise first, not last. It used to sit at the very bottom, under
+          every row: the owner could not find it from the sofa and believed
+          the home simply could not be reorganised (2026-09-19). It never
+          claims the focus - the first content row does - so opening the home
+          still lands on something to watch. */}
+      <FocusableCard
+        onPress={() => setCustomizeOpen(true)}
+        accessibilityLabel={t("common.feeds.customize")}
+        style={styles.customizeRow}
+        focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
+      >
+        <Ionicons name="options-outline" size={22} color={theme.colors.textMuted} />
+        <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>
+          {t("media.home.customize", "Customize")}
+        </Text>
+      </FocusableCard>
+
       {/* Plugin sections the feed config does not place yet render first, the
           same as mobile: a home.section plugin is a hero widget, and pushing
           it under every row made the user reorder it by hand. The ones it DOES
@@ -917,24 +731,6 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      {/* Last item on the home, deliberately.
-          Mobile puts this in the header, but the top of a television home is
-          the hero, and anything placed there competes with it for the initial
-          focus - a screen that opens on "Customize" instead of on a film is a
-          worse home. At the bottom it is found by scrolling, which is what a
-          viewer does anyway. */}
-      <FocusableCard
-        onPress={() => setCustomizeOpen(true)}
-        accessibilityLabel={t("common.feeds.customize")}
-        style={styles.customizeRow}
-        focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
-      >
-        <Ionicons name="options-outline" size={22} color={theme.colors.textMuted} />
-        <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>
-          {t("media.home.customize", "Customize")}
-        </Text>
-      </FocusableCard>
-
       <FeedCustomizePanel
         visible={customizeOpen}
         onClose={() => setCustomizeOpen(false)}
@@ -952,7 +748,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    alignSelf: "flex-start",
+    // Right-aligned, above the first plugin widget (owner, 2026-09-19): a
+    // settings affordance belongs at the edge, not in front of the content.
+    alignSelf: "flex-end",
     marginHorizontal: 24,
     marginTop: 24,
     paddingVertical: 12,
@@ -1047,74 +845,5 @@ const styles = StyleSheet.create({
   cardYear: {
     fontSize: 14,
     marginTop: 2,
-  },
-  heroContainer: {
-    width: "100%",
-    justifyContent: "flex-end",
-    overflow: "hidden",
-    marginBottom: 32,
-  },
-  heroContent: {
-    paddingHorizontal: 48,
-    paddingBottom: 48,
-    maxWidth: 1100,
-  },
-  heroTitle: {
-    fontSize: 48,
-    fontWeight: "800",
-  },
-  heroMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    marginTop: 12,
-  },
-  heroRatingChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  heroRatingText: {
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  heroMeta: {
-    fontSize: 20,
-  },
-  heroOverview: {
-    fontSize: 20,
-    lineHeight: 28,
-    marginTop: 12,
-  },
-  heroButtons: {
-    flexDirection: "row",
-    gap: 16,
-    marginTop: 24,
-  },
-  heroPlayBtn: {
-    paddingVertical: 14,
-    paddingHorizontal: 36,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroInfoBtn: {
-    paddingVertical: 14,
-    paddingHorizontal: 36,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroBtnLabel: {
-    fontSize: 22,
-    fontWeight: "700",
-  },
-  heroDots: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 24,
-  },
-  heroDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
   },
 });

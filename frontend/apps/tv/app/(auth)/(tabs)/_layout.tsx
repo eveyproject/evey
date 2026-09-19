@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import React, { useState, useCallback, useEffect } from "react";
+import { View, Text, Pressable, StyleSheet, DeviceEventEmitter } from "react-native";
 import { Slot, useRouter, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { useNotificationServiceGetUnreadCount } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { EveyWordmark, EveyMark } from "../../../src/components/EveyLogo";
+import { TopHeader } from "../../../src/components/TopHeader";
 
 interface NavItem {
   labelKey: string;
@@ -13,13 +13,12 @@ interface NavItem {
   path: string;
 }
 
+// Navigation only. Search, notifications and the profile moved to the header
+// (TopHeader, owner's call 2026-09-19): they are actions, they belong where
+// the eye looks for them, and two focus stops for one destination is one too
+// many on a remote.
 const NAV_ITEMS: NavItem[] = [
   { labelKey: "common.nav.home", icon: "home", path: "/(auth)/(tabs)" },
-  { labelKey: "common.nav.search", icon: "search", path: "/(auth)/(tabs)/search" },
-  // Between search and libraries, not down with settings: on a television the
-  // bell is checked far more often than it is on the web, where it lives in a
-  // top bar that is always on screen.
-  { labelKey: "common.notifications.title", icon: "notifications", path: "/(auth)/notifications" },
   { labelKey: "common.nav.libraries", icon: "library", path: "/(auth)/(tabs)/library" },
   { labelKey: "common.nav.music", icon: "musical-notes", path: "/(auth)/(tabs)/music" },
   { labelKey: "common.nav.favorites", icon: "heart", path: "/(auth)/(tabs)/favorites" },
@@ -33,11 +32,6 @@ export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
-  // A failed count must never blank the navigation - the bar is how you leave
-  // any screen. No badge is the honest degradation: the bell still works, it
-  // just stops claiming there is something new.
-  const { data: unread, isError: unreadFailed } = useNotificationServiceGetUnreadCount();
-  const unreadCount = unreadFailed ? 0 : (unread?.count ?? 0);
   const [focusedIndex, setFocusedIndex] = useState(-1);
 
   const isActive = useCallback(
@@ -53,6 +47,16 @@ export default function TabsLayout() {
     setFocusedIndex(index);
     setExpanded(true);
   }, []);
+
+  // The remote's SEARCH button, forwarded by MainActivity (see
+  // plugins/withSearchKey.js). Many televisions swallow it for the system
+  // assistant and it never arrives; where it does, it opens the search.
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("eveyRemoteSearch", () => {
+      router.push("/(auth)/(tabs)/search" as never);
+    });
+    return () => sub.remove();
+  }, [router]);
 
   const handleNavBlur = useCallback(() => {
     setFocusedIndex(-1);
@@ -101,23 +105,11 @@ export default function TabsLayout() {
                   active && { borderLeftColor: theme.colors.accent, borderLeftWidth: 3 },
                 ]}
               >
-                <View>
-                  <Ionicons
-                    name={item.icon}
-                    size={28}
-                    color={active || focused ? theme.colors.accent : theme.colors.textMuted}
-                  />
-                  {/* Unread count on the bell. Capped at 99+: past that the
-                      number stops being information and starts being a wide
-                      badge that overlaps the label. */}
-                  {item.icon === "notifications" && unreadCount > 0 ? (
-                    <View style={[styles.badge, { backgroundColor: theme.colors.accent, borderColor: theme.colors.bg }]}>
-                      <Text style={[styles.badgeText, { color: theme.colors.onAccent }]} numberOfLines={1}>
-                        {unreadCount > 99 ? "99+" : unreadCount}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
+                <Ionicons
+                  name={item.icon}
+                  size={28}
+                  color={active || focused ? theme.colors.accent : theme.colors.textMuted}
+                />
                 {expanded && (
                   <Text
                     style={[
@@ -135,6 +127,11 @@ export default function TabsLayout() {
       </View>
 
       <View style={styles.content}>
+        <TopHeader
+          onSearch={() => router.push("/(auth)/(tabs)/search" as never)}
+          onNotifications={() => router.push("/(auth)/notifications" as never)}
+          onProfile={() => router.push("/profile-select" as never)}
+        />
         <Slot />
       </View>
     </View>
@@ -143,19 +140,6 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   brand: { height: 56, justifyContent: "center", alignItems: "center", marginBottom: 20 },
-  badge: {
-    position: "absolute",
-    top: -6,
-    right: -10,
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  badgeText: { fontSize: 12, fontWeight: "700" },
   root: {
     flex: 1,
     flexDirection: "row",

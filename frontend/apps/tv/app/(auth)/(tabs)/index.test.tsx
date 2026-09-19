@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, screen, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, fireEvent, screen } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------
@@ -55,7 +55,9 @@ vi.mock("expo-image", () => ({
 const pushMock = vi.fn();
 vi.mock("expo-router", () => ({
   router: { push: (...args: unknown[]) => pushMock(...args) },
+  useLocalSearchParams: () => routeParams.current,
 }));
+const routeParams = vi.hoisted(() => ({ current: {} as Record<string, string> }));
 
 // --- react-i18next mock --------------------------------------------------------
 // The per-library row title interpolates {{name}}; render it as "<key>:<name>"
@@ -215,89 +217,34 @@ beforeEach(() => {
   collectionsMock.mockReturnValue({ data: { collections: [] }, isLoading: false });
 });
 
+// The hero is gone (2026-09-19): the home opens on the first row that has
+// something in it, which is also the first thing the eye lands on.
 describe("selectHomeFocusTarget (initial TV remote focus)", () => {
-  it("picks the hero Play button whenever the hero is visible, even if rows also have items", () => {
-    expect(selectHomeFocusTarget(true, [true, true, true])).toBe("hero");
-  });
-
-  it("falls back to the first non-empty row, in on-screen order, when there is no hero", () => {
-    expect(selectHomeFocusTarget(false, [false, true, true])).toBe(1);
-    expect(selectHomeFocusTarget(false, [true, false, false])).toBe(0);
+  it("takes the first non-empty row, in on-screen order", () => {
+    expect(selectHomeFocusTarget([false, true, true])).toBe(1);
+    expect(selectHomeFocusTarget([true, false, false])).toBe(0);
   });
 
   it("returns null when nothing is visible so no element claims initial focus", () => {
-    expect(selectHomeFocusTarget(false, [false, false, false])).toBeNull();
+    expect(selectHomeFocusTarget([false, false, false])).toBeNull();
   });
 });
 
-describe("HomeScreen hero play button (TV parental gate)", () => {
-  it("plays directly when the gate does not require a PIN", () => {
+// Settings opens the home with the panel already up (?customize=1), so
+// "reorganise my home" is reachable from where a viewer looks for settings.
+describe("HomeScreen customize entry", () => {
+  it("opens the customize panel when the route asks for it", () => {
+    routeParams.current = { customize: "1" };
     render(<HomeScreen />);
-    fireEvent.click(screen.getByLabelText("media.detail.play"));
-    expect(pushMock).toHaveBeenCalledWith("/player/mi-hero-1");
-    expect(screen.queryByTestId("pin-modal")).toBeNull();
+    expect(screen.getByText("media.home.customizeFeed")).toBeTruthy();
+    routeParams.current = {};
   });
 
-  it("shows the PIN modal instead of navigating when the gate requires a PIN", () => {
-    needsPinMock.mockReturnValue(true);
+  it("stays closed otherwise, and the customize row opens it", () => {
     render(<HomeScreen />);
-    fireEvent.click(screen.getByLabelText("media.detail.play"));
-    expect(pushMock).not.toHaveBeenCalledWith("/player/mi-hero-1");
-    expect(screen.getByTestId("pin-modal")).toBeTruthy();
-  });
-
-  it("navigates to the player only after the PIN is verified", () => {
-    needsPinMock.mockReturnValue(true);
-    render(<HomeScreen />);
-    fireEvent.click(screen.getByLabelText("media.detail.play"));
-    expect(pushMock).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByLabelText("verify-pin"));
-    expect(pushMock).toHaveBeenCalledWith("/player/mi-hero-1");
-  });
-
-  it("does not navigate if the PIN modal is cancelled", () => {
-    needsPinMock.mockReturnValue(true);
-    render(<HomeScreen />);
-    fireEvent.click(screen.getByLabelText("media.detail.play"));
-    fireEvent.click(screen.getByLabelText("cancel-pin"));
-    expect(pushMock).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("pin-modal")).toBeNull();
-  });
-});
-
-describe("HomeScreen hero carousel auto-rotation", () => {
-  const HERO_A = { id: "hero-a", title: "Alpha Film", year: 2021, type: "MEDIA_ITEM_TYPE_MOVIE" };
-  const HERO_B = { id: "hero-b", title: "Bravo Film", year: 2022, type: "MEDIA_ITEM_TYPE_MOVIE" };
-
-  beforeEach(() => {
-    // recentlyAdded feeds the hero; give it two titles so rotation is visible.
-    listMediaItemsMock.mockReturnValue({ data: { items: [HERO_A, HERO_B] }, isLoading: false });
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("advances to the next title after the interval elapses", () => {
-    render(<HomeScreen />);
-    expect(screen.getByText("Alpha Film")).toBeTruthy();
-    act(() => { vi.advanceTimersByTime(8000); });
-    expect(screen.getByText("Bravo Film")).toBeTruthy();
-  });
-
-  it("pauses rotation while a hero control holds focus, so Play acts on the title on screen", () => {
-    render(<HomeScreen />);
-    expect(screen.getByText("Alpha Film")).toBeTruthy();
-    // Remote lands on the Play button: the carousel must freeze.
-    fireEvent.focus(screen.getByLabelText("media.detail.play"));
-    act(() => { vi.advanceTimersByTime(24000); });
-    expect(screen.getByText("Alpha Film")).toBeTruthy();
-    expect(screen.queryByText("Bravo Film")).toBeNull();
-    // Focus leaves the hero: rotation resumes.
-    fireEvent.blur(screen.getByLabelText("media.detail.play"));
-    act(() => { vi.advanceTimersByTime(8000); });
-    expect(screen.getByText("Bravo Film")).toBeTruthy();
+    expect(screen.queryByText("media.home.customizeFeed")).toBeNull();
+    fireEvent.click(screen.getByLabelText("common.feeds.customize"));
+    expect(screen.getByText("media.home.customizeFeed")).toBeTruthy();
   });
 });
 
