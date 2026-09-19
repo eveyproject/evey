@@ -115,6 +115,9 @@ scripts/*
 !scripts/tv/README.md
 !scripts/bundle-budget.sh
 !scripts/clean-checkout-guard.py
+!scripts/hygiene-guard.py
+!scripts/gate-receipt.py
+!scripts/verify-commit.sh
 # The shadow-exit corpus of ADR-0030 (temporary, goes with the shadow).
 # ...mais jamais le compte de dev.
 scripts/tv/.env

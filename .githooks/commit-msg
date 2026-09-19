@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# commit-msg hook - refuses a message carrying an AI attribution trailer (or any
+# other rule scripts/hygiene-guard.py can decide on a single line).
+#
+# This is the one rule that cost a history rewrite and a force push once it had
+# shipped, and it is the one an assistant is pushed to re-add by its own default
+# instructions. A gate at the git level ends the argument: the message is either
+# clean or the commit does not happen.
+#
+# Activation (run once, per clone):
+#     make hooks
+#
+# Bypass (never needed for this rule, kept for symmetry with pre-push):
+#     git commit --no-verify
+
+set -e
+
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "commit-msg: python3 not found - cannot check the message, refusing to skip silently." >&2
+    exit 1
+fi
+
+exec python3 "$(git rev-parse --show-toplevel)/scripts/hygiene-guard.py" --commit-msg "$1"
