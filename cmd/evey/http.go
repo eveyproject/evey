@@ -25,6 +25,9 @@ import (
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
+// quickConnectPollPerMinute bounds the Quick Connect status poll per client
+// IP: a TV polls every 3 s (20/min), three of them behind one NAT still fit.
+const quickConnectPollPerMinute = 60
 
 func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, startTime time.Time, logDir string, ctx context.Context, qcHub *quickconnecthub.Hub) (http.Handler, error) {
 	mux := http.NewServeMux()
@@ -43,6 +46,14 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	adminWriteRL := ratelimit.New(30)
 	passwordResetRL := ratelimit.New(5)
 	oidcLoginRL := ratelimit.New(10)
+	// Quick Connect POLLING (the television asking every 3 s whether the phone
+	// has approved its code) is not a login attempt: the code it carries is
+	// the long unguessable one the TV was handed, and the answer is "pending"
+	// until a logged-in user approves. It used to share LoginRL, whose prod
+	// default (10/min) refused every other poll of one TV (2026-09-19). Sized
+	// from the poll cadence, the same on every environment, no knob: a few
+	// televisions behind one NAT fit, a flood does not.
+	quickConnectPollRL := ratelimit.New(quickConnectPollPerMinute)
 	// Snapshot/frame extraction spawns one ffmpeg per request: burst covers an
 	// admin thumbnail grid, the 1/s refill caps sustained spawn abuse.
 	snapshotRL := ratelimit.NewWithBurst(30, 60.0)
@@ -82,6 +93,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		adminWriteRL.Stop()
 		passwordResetRL.Stop()
 		oidcLoginRL.Stop()
+		quickConnectPollRL.Stop()
 		snapshotRL.Stop()
 		subtitleRL.Stop()
 		syncPreviewRL.Stop()
@@ -307,6 +319,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		AdminWriteRL:       adminWriteRL,
 		PasswordResetRL:    passwordResetRL,
 		OIDCLoginRL:        oidcLoginRL,
+		QuickConnectPollRL: quickConnectPollRL,
 
 		Translator:           deps.translator,
 		AudioNormalizeGetter: audioNormalizeGetter,

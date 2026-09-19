@@ -21,9 +21,15 @@ vi.mock("react-native", () => ({
     React.createElement("button", { onClick: onPress, disabled, role: accessibilityRole, "aria-label": accessibilityLabel, "data-focus": String(!!hasTVPreferredFocus) }, children),
   Alert: { alert: (...a: string[]) => { alerts.calls.push(a); } },
   StyleSheet: { create: (s: any) => s },
+  ScrollView: ({ children }: any) => React.createElement("div", null, children),
+  BackHandler: { addEventListener: (_e: string, h: () => boolean) => { back.handler = h; return { remove: () => { back.handler = null; } }; } },
 }));
+const back = vi.hoisted(() => ({ handler: null as (() => boolean) | null }));
+const server = vi.hoisted(() => ({ cleared: 0, cacheCleared: 0 }));
+vi.mock("../src/lib/server-config", () => ({ clearServerUrl: async () => { server.cleared += 1; } }));
+vi.mock("../src/lib/query-client", () => ({ queryClient: { clear: () => { server.cacheCleared += 1; } } }));
 const router = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
-vi.mock("expo-router", () => ({ router }));
+vi.mock("expo-router", () => ({ router, useFocusEffect: (cb: () => void | (() => void)) => React.useEffect(cb, [cb]) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 const api = vi.hoisted(() => ({ opts: null as any, mutate: vi.fn(), isPending: false }));
 vi.mock("@evey/api", () => ({
@@ -50,6 +56,36 @@ beforeEach(() => {
   alerts.calls.length = 0;
   order.calls.length = 0;
   api.isPending = false;
+  server.cleared = 0;
+  server.cacheCleared = 0;
+  back.handler = null;
+});
+
+// Once a server is chosen this screen is the root: the remote's BACK key
+// used to leave the app for the Android home, and a viewer who picked the
+// wrong server from the LAN scan (a dev box, 2026-09-19) had no way back.
+describe("tv login screen - back to the server screen", () => {
+  it("offers a change-server action that forgets the URL, drops the cache and goes to the server screen", async () => {
+    render(React.createElement(Login));
+    fireEvent.click(screen.getByRole("button", { name: "mobile.settings.changeServer" }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(server.cleared).toBe(1);
+    expect(server.cacheCleared).toBe(1);
+    expect(router.replace).toHaveBeenCalledWith("/server-connect");
+  });
+
+  it("the remote's BACK key does the same instead of leaving the app", async () => {
+    const { unmount } = render(React.createElement(Login));
+    expect(back.handler).not.toBeNull();
+    expect(back.handler!()).toBe(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(server.cleared).toBe(1);
+    expect(router.replace).toHaveBeenCalledWith("/server-connect");
+    unmount();
+    expect(back.handler, "listener removed with the screen").toBeNull();
+  });
 });
 
 describe("tv login screen", () => {
