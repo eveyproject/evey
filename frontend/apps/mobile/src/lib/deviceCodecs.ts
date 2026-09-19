@@ -1,5 +1,5 @@
 import { NativeModules, Platform } from "react-native";
-import { declarableAudioCodecs, getAudioProbe, getMaxH264Level } from "@evey/media-caps";
+import { declarableAudioCodecs, displaySupportsHdr, getAudioProbe, getDisplayHdrTypes, getMaxH264Level } from "@evey/media-caps";
 
 interface MediaCapsNative {
   getSupportedAudioCodecs(): Promise<string[]>;
@@ -107,9 +107,22 @@ async function probe(): Promise<void> {
   } catch {
     /* keep the baseline */
   }
+  // The shared Expo probe first, the legacy old-bridge module as a fallback:
+  // the rule for what a display list means (HDR10 family yes, Dolby Vision
+  // alone no) now lives ONCE, in @evey/media-caps, and the TV reads the very
+  // same one. It used to be this inline expression, which also silently missed
+  // hdr10plus-only panels.
   try {
-    const hdr = await native.getHdrTypes();
-    hdrSupported = Array.isArray(hdr) && (hdr.includes("hdr10") || hdr.includes("hlg"));
+    const shared = await getDisplayHdrTypes();
+    if (shared) {
+      hdrSupported = displaySupportsHdr(shared);
+      return;
+    }
+  } catch {
+    /* fall through to the legacy module */
+  }
+  try {
+    hdrSupported = displaySupportsHdr(await native.getHdrTypes());
   } catch {
     /* stay SDR */
   }

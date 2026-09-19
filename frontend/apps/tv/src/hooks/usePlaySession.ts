@@ -10,6 +10,7 @@ import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { getServerUrl } from "../lib/server-config";
 import { getDeviceAudioCodecs, getDeviceMaxH264Level, getFmp4AudioPassthrough } from "../lib/deviceCodecs";
 import { probeMaxOutputChannels } from "../lib/outputChannels";
+import { probeDisplayHdr } from "../lib/displayHdr";
 import { logger } from "../lib/log";
 import { Platform } from "react-native";
 
@@ -111,7 +112,7 @@ async function fetchStreamToken(mediaId: string): Promise<string> {
   return res.token;
 }
 
-function appendCodecParams(params: URLSearchParams, maxAudioChannels?: number): void {
+function appendCodecParams(params: URLSearchParams, maxAudioChannels?: number, supportsHdr?: boolean): void {
   params.set("videoCodecs", VIDEO_CODECS.join(","));
   params.set("audioCodecs", getDeviceAudioCodecs().join(","));
   params.set("containers", CONTAINERS.join(","));
@@ -129,6 +130,12 @@ function appendCodecParams(params: URLSearchParams, maxAudioChannels?: number): 
   // transcodes instead of direct-playing a stream the box cannot open.
   const level = getDeviceMaxH264Level();
   if (level) params.set("maxH264Level", String(level));
+  // HDR capability of the PANEL, not of the decoder - see lib/displayHdr.
+  // Without it the server saw an SDR client on every title and tone-mapped
+  // every HDR source: measured 2026-09-19, a 2160p HDR10 HEVC that direct-plays
+  // with hdr=1 was going out re-encoded at 1080p for want of this one param.
+  // Omitted when false so an SDR panel's URL stays byte-identical to before.
+  if (supportsHdr) params.set("hdr", "1");
 }
 
 // The 0-based position of an absolute media-stream index among streams of one
@@ -168,6 +175,7 @@ export function buildStreamUrl(
   startSec = 0,
   maxHeight?: number,
   screenHeight?: number,
+  supportsHdr?: boolean,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${mediaId}/stream?token=${token}`;
@@ -178,7 +186,7 @@ export function buildStreamUrl(
   // /transcode?remux=1 is a piped ffmpeg stdout with `Accept-Ranges: none`, so
   // the native player marks it unseekable and resume / timeline / skip all die.
   const params = new URLSearchParams({ token });
-  appendCodecParams(params, maxAudioChannels);
+  appendCodecParams(params, maxAudioChannels, supportsHdr);
   if (audioTrack != null && audioTrack >= 0) params.set("audioTrack", String(audioTrack));
   if (subtitleTrack != null && subtitleTrack >= 0) params.set("subtitleTrack", String(subtitleTrack));
   // Server publishes a complete VOD manifest from t=0 (no live-edge snap), so
@@ -233,7 +241,19 @@ export function usePlaySession(mediaId: string, initial?: PlaySessionInitial): P
         const screen = Dimensions.get("screen");
         const screenH = Math.round(screen.height * (screen.scale ?? 1));
 
-        const [info, wp, maxAudioChannels] = await Promise.all([
+        // The two device probes run BEFORE the negotiation call, not beside it:
+        // GetStreamInfo has to describe the same client the master URL will
+        // declare, so the HDR answer must be in hand when it goes out. Both are
+        // local native calls, the wait is not a network one.
+        const [maxAudioChannels, supportsHdr] = await Promise.all([
+          // Re-probed at every negotiation, not memoised at startup: the output
+          // device changes mid-session (headphones, dock, amplifier).
+          probeMaxOutputChannels(),
+          // Same contract for the panel: HDMI re-plugged, AVR powered on.
+          probeDisplayHdr(),
+        ]);
+
+        const [info, wp] = await Promise.all([
           playbackServiceGetStreamInfo(mediaId, {
             supportedCodecs: VIDEO_CODECS,
             supportedAudioCodecs: getDeviceAudioCodecs(),
@@ -241,6 +261,7 @@ export function usePlaySession(mediaId: string, initial?: PlaySessionInitial): P
             // Same declaration the HLS master URL carries, so the stream-info
             // panel describes the bytes the segments will actually hold.
             fmp4AudioPassthrough: getFmp4AudioPassthrough(),
+            supportsHdr,
             // Screen size is not a decode capability (the panel downscales for
             // free): declaring it here flagged resolution_exceeded on every 4K
             // title while the master, which never saw it, served the copy. Only
@@ -255,9 +276,6 @@ export function usePlaySession(mediaId: string, initial?: PlaySessionInitial): P
             url: `/api/v1/playback/${mediaId}/progress`,
             method: "GET",
           }).catch(() => null),
-          // Re-probed at every negotiation, not memoised at startup: the output
-          // device changes mid-session (headphones, dock, amplifier).
-          probeMaxOutputChannels(),
         ]);
 
         if (wp) setProgress(wp);
@@ -271,7 +289,7 @@ export function usePlaySession(mediaId: string, initial?: PlaySessionInitial): P
         const subtitleTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex);
         const resumeSec = wp?.positionMs && !wp.played ? Number(wp.positionMs) / 1000 : 0;
         const url = buildStreamUrl(serverUrl, mediaId, info, token, maxAudioChannels, audioTrack, subtitleTrack, resumeSec,
-          maxHeight && maxHeight > 0 ? maxHeight : undefined, Math.min(screenH, Math.round(screen.width * (screen.scale ?? 1))));
+          maxHeight && maxHeight > 0 ? maxHeight : undefined, Math.min(screenH, Math.round(screen.width * (screen.scale ?? 1))), supportsHdr);
 
         // Direct play streams the original file with no orchestrator involved,
         // so it cannot be shed - only probe the transcode/HLS paths.

@@ -2,6 +2,8 @@ import type { AudioProbe } from "./audioProbe";
 
 export { formatAudioProbe, MAX_DETAIL_LEN } from "./audioProbe";
 export { declarableAudioCodecs, sinkAcceptsCodec } from "./audioDeclaration";
+export { displaySupportsHdr } from "./displayHdr";
+export type { DisplayHdrType } from "./displayHdr";
 export type { AudioProbe } from "./audioProbe";
 export { reportAudioProbeOnce, resetAudioProbeLatch } from "./reportProbe";
 export { buildCastStreamUrl, castProfileFor, castStreamInfoParams, FLOOR_PROFILE, h264HeightFromLevel, pickCastProfile, profileFromReceiverCaps } from "./castUrl";
@@ -12,6 +14,7 @@ export type { ProbePoster, ReportOutcome } from "./reportProbe";
 
 interface EveyMediaCapsNative {
   getAudioProbe(): Promise<AudioProbe>;
+  getHdrTypes?(): Promise<string[]>;
   getPublicDownloadsDir?(): string | null;
   deleteFile?(path: string): boolean;
   moveFile?(from: string, to: string): boolean;
@@ -84,6 +87,28 @@ export async function getAudioProbe(): Promise<AudioProbe | null> {
     const native = requireOptionalNativeModule<EveyMediaCapsNative>("EveyMediaCaps");
     if (!native) return null;
     return await native.getAudioProbe();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * HDR formats the DISPLAY currently attached renders ("hdr10", "hlg",
+ * "hdr10plus", "dovi"), empty for an SDR panel, null when the native module
+ * isn't in this build. Same lazy-import contract as getAudioProbe: never throws.
+ *
+ * Probe it at every stream negotiation rather than once at startup - the
+ * display changes under a running app (HDMI re-plugged, AVR powered on, mode
+ * switch), exactly like the audio output does. A playback already running keeps
+ * what it negotiated; a new screen takes effect at the next natural boundary.
+ */
+export async function getDisplayHdrTypes(): Promise<string[] | null> {
+  try {
+    const { requireOptionalNativeModule } = await import("expo-modules-core");
+    const native = requireOptionalNativeModule<EveyMediaCapsNative>("EveyMediaCaps");
+    if (!native?.getHdrTypes) return null;
+    const types = await native.getHdrTypes();
+    return Array.isArray(types) ? types : null;
   } catch {
     return null;
   }

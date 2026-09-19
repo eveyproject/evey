@@ -8,20 +8,31 @@ const rn = vi.hoisted(() => ({
 const caps = vi.hoisted(() => ({
   getMaxH264Level: vi.fn<() => Promise<number | null>>(),
   getAudioProbe: vi.fn<() => Promise<unknown>>(),
+  // The shared display probe. Null is "not in this build", which is what sends
+  // the module to the legacy old-bridge fallback below.
+  getDisplayHdrTypes: vi.fn<() => Promise<string[] | null>>(),
 }));
 
 vi.mock("react-native", () => ({ Platform: rn.Platform, NativeModules: rn.NativeModules }));
 vi.mock("@evey/media-caps", async () => {
   const real = await vi.importActual<typeof import("@evey/media-caps")>("@evey/media-caps");
-  return { ...real, getMaxH264Level: caps.getMaxH264Level, getAudioProbe: caps.getAudioProbe };
+  // displaySupportsHdr stays REAL: the rule for what a display list means is
+  // shared with the TV, and a hand-rolled copy here would let the two drift.
+  return {
+    ...real,
+    getMaxH264Level: caps.getMaxH264Level,
+    getAudioProbe: caps.getAudioProbe,
+    getDisplayHdrTypes: caps.getDisplayHdrTypes,
+  };
 });
 
 async function load() {
   vi.resetModules();
   const mod = await import("./deviceCodecs");
-  // Let the fire-and-forget probe settle.
-  await new Promise((r) => setTimeout(r, 0));
-  await new Promise((r) => setTimeout(r, 0));
+  // Let the fire-and-forget probe settle. Several turns: the probe awaits the
+  // codec list, the sink probe, the shared display probe and - when that one
+  // answers null - the legacy module behind it.
+  for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 0));
   return mod;
 }
 
@@ -30,6 +41,7 @@ beforeEach(() => {
   delete rn.NativeModules.MediaCaps;
   caps.getMaxH264Level.mockReset().mockResolvedValue(41);
   caps.getAudioProbe.mockReset().mockResolvedValue(null);
+  caps.getDisplayHdrTypes.mockReset().mockResolvedValue(null);
 });
 
 describe("deviceCodecs", () => {
@@ -50,6 +62,28 @@ describe("deviceCodecs", () => {
     const m = await load();
     expect(m.getDeviceAudioCodecs()).toEqual(["aac", "opus", "eac3"]);
     expect(m.getDeviceHdrSupport()).toBe(true);
+  });
+
+  // The shared probe is the one the TV reads too; the legacy old-bridge module
+  // is only the fallback for builds that predate it. It also wins outright, so
+  // the two never have to agree.
+  it("prefers the shared display probe over the legacy module", async () => {
+    rn.NativeModules.MediaCaps = {
+      getSupportedAudioCodecs: async () => ["aac"],
+      getHdrTypes: async () => ["hdr10"],
+    };
+    caps.getDisplayHdrTypes.mockResolvedValue([]);
+    expect((await load()).getDeviceHdrSupport()).toBe(false);
+
+    caps.getDisplayHdrTypes.mockResolvedValue(["hdr10plus"]);
+    expect((await load()).getDeviceHdrSupport()).toBe(true);
+  });
+
+  // Dolby Vision alone is not an HDR10 declaration: the server carries one bool
+  // and reads it as HDR10-capable, and tone-maps DoVi sources regardless.
+  it("stays SDR for a Dolby-Vision-only panel", async () => {
+    caps.getDisplayHdrTypes.mockResolvedValue(["dovi"]);
+    expect((await load()).getDeviceHdrSupport()).toBe(false);
   });
 
   it("a native module that throws leaves the floor and SDR in place; a level probe failure stays level-blind", async () => {
