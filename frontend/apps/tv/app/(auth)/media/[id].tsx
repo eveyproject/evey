@@ -36,8 +36,13 @@ import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { SagaSection } from "../../../src/components/SagaSection";
 import { trailerUrl, sortTrailers } from "../../../src/lib/trailerUrl";
+import { personTypeLabelKey } from "../../../src/lib/personRole";
 
-const HERO_HEIGHT = 420;
+// Sized so the action row lands ON the screen. At 420 the backdrop pushed
+// "Reprendre" to y=1027 of a 1080 panel: the viewer arrived on a media page
+// whose focused primary button was cut in half, before overscan even had its
+// say (measured on the living-room box, 2026-09-19).
+const HERO_HEIGHT = 300;
 // Android TV renders at 1080p whatever the panel: a hero backdrop wider than
 // the screen is decoded then downscaled for nothing (audit perf 2026-08-25).
 const HERO_BACKDROP_WIDTH = 1920;
@@ -434,7 +439,7 @@ export default function MediaDetailScreen() {
       </View>
 
       {/* Poster + title row, overlapping the backdrop */}
-      <View style={{ paddingHorizontal: 48, marginTop: -POSTER_HEIGHT * 0.4, flexDirection: "row", gap: 32 }}>
+      <View style={{ paddingHorizontal: 48, marginTop: -POSTER_HEIGHT * 0.5, flexDirection: "row", gap: 32 }}>
         {serverUrl && id ? (
           <Image
             source={{ uri: artworkUrl(serverUrl, id, "poster", POSTER_WIDTH * 2), headers: authHeaders }}
@@ -895,9 +900,15 @@ export default function MediaDetailScreen() {
                 <Text style={{ color: theme.colors.text, fontSize: 16, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
                   {person.name}
                 </Text>
-                {person.role ? (
+                {/* The crew's job, translated from its enum - `role` here is
+                    the raw database role_type ("director"), unlike the cast
+                    where it is the character name. */}
+                {personTypeLabelKey(person.type) || person.role ? (
                   <Text style={{ color: theme.colors.textMuted, fontSize: 14, textAlign: "center" }} numberOfLines={1}>
-                    {person.role}
+                    {(() => {
+                      const key = personTypeLabelKey(person.type);
+                      return key ? t(key) : person.role;
+                    })()}
                   </Text>
                 ) : null}
               </FocusableCard>

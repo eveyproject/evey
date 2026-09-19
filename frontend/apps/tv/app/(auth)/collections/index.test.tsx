@@ -80,6 +80,11 @@ vi.mock("../../../src/api/collections", () => ({
   useCollections: () => collectionsMock(),
 }));
 
+// The screen now renders the collection artwork; both of these reach for
+// native modules this suite has no business booting.
+vi.mock("expo-image", () => ({ Image: (p: any) => React.createElement("img", { "data-testid": "poster", ...p }) }));
+vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({ useAuthHeaders: () => ({ Authorization: "Bearer t" }) }));
+
 import CollectionsScreen, { collectionSubtitle } from "./index";
 
 const COLLECTIONS = [

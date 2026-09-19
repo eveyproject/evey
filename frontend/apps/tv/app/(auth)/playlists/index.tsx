@@ -3,8 +3,10 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaylistList, type Playlist } from "../../../src/api/playlists";
+import { isSmartPlaylist } from "../../../src/lib/playlistType";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { ScreenState } from "../../../src/components/ScreenState";
+import { DEEP_SCREEN_GUTTER } from "../../../src/lib/tvLayout";
 
 export default function PlaylistsScreen() {
   const theme = useTheme();
@@ -66,6 +68,7 @@ function PlaylistCard({
   isFirst?: boolean;
   onPress: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <FocusableCard
       onPress={onPress}
@@ -85,7 +88,12 @@ function PlaylistCard({
             {playlist.description}
           </Text>
         ) : null}
-        <Text style={[styles.meta, { color: theme.colors.textMuted }]}>{playlist.type}</Text>
+        {/* Only a smart playlist is worth a word (it fills itself). The raw
+            enum used to be printed here: "PLAYLIST_TYPE_MANUAL", on screen,
+            in every language. */}
+        {isSmartPlaylist(playlist.type) ? (
+          <Text style={[styles.meta, { color: theme.colors.textMuted }]}>{t("media.collections.smart")}</Text>
+        ) : null}
       </View>
       <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>{"\u203A"}</Text>
     </FocusableCard>
@@ -95,7 +103,7 @@ function PlaylistCard({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
+  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
   card: { flexDirection: "row", alignItems: "center", padding: 20 },
   iconBox: { width: 56, height: 56, justifyContent: "center", alignItems: "center", marginRight: 16 },
   name: { fontSize: 22, fontWeight: "600" },

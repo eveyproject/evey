@@ -70,13 +70,16 @@ function ArtistCard({
   libraryId: string;
 }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const uri = coverArtUri(serverUrl, artist.coverArtUrl, ART_SIZE * 2);
   return (
     <FocusableCard
       onPress={() => artist.id && router.push(musicArtistHref(artist.id, libraryId))}
       hasTVPreferredFocus={isFirst}
       style={styles.card}
-      accessibilityLabel={artist.name}
+      // An artist row whose name is empty announced NOTHING to a screen
+      // reader; the card already falls back to "-" on screen.
+      accessibilityLabel={artist.name || t("media.person.unknown", "Unknown")}
     >
       <View style={[styles.artistArt, { backgroundColor: theme.colors.surface, borderRadius: ART_SIZE / 2 }]}>
         {uri ? (

@@ -5,6 +5,13 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
 
+// What a screen under this button must keep clear at its bottom edge: the
+// button (56) plus its margin (24) plus a little air. It floats over the
+// content, and without the inset it sat ON it - a covered title in the
+// history, a covered poster on a media page, a covered genre in the stats
+// (seen on the living-room box, 2026-09-19).
+export const HOME_SHORTCUT_INSET = 88;
+
 interface HomeShortcutButtonProps {
   onPress: () => void;
 }

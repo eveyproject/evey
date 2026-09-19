@@ -16,6 +16,7 @@ import { toast } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { ScreenState } from "../../src/components/ScreenState";
 import { FocusableCard } from "../../src/components/FocusableCard";
+import { DEEP_SCREEN_GUTTER } from "../../src/lib/tvLayout";
 
 // Wording lives in @evey/api: the three apps had three copies of this, each
 // with its own TITLE_KEYS map, and none of them could render the counts in the
@@ -133,7 +134,7 @@ export default function NotificationsScreen() {
         <FlatList
           data={notifications}
           keyExtractor={tvNotifKeyExtractor}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 64 }}
+          contentContainerStyle={{ paddingHorizontal: DEEP_SCREEN_GUTTER, paddingBottom: 64 }}
           ItemSeparatorComponent={TVNotifSeparator}
           renderItem={renderNotifItem}
           initialNumToRender={8}
@@ -215,7 +216,7 @@ function NotificationItem({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
   header: { fontSize: 36, fontWeight: "700" },
   markAllBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 },
   row: { flexDirection: "row", alignItems: "center", padding: 20, gap: 16 },

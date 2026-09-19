@@ -1,10 +1,13 @@
 import { View, Text, FlatList, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useCollections, type Collection } from "../../../src/api/collections";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { ScreenState } from "../../../src/components/ScreenState";
+import { DEEP_SCREEN_GUTTER } from "../../../src/lib/tvLayout";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 
 const NUM_COLUMNS = 5;
 
@@ -92,6 +95,7 @@ function CollectionCard({
   onPress: () => void;
 }) {
   const { t } = useTranslation();
+  const authHeaders = useAuthHeaders();
   const initial = col.name[0]?.toUpperCase() ?? "?";
   const subtitle = collectionSubtitle(col.kind, col.itemCount, t);
 
@@ -102,8 +106,22 @@ function CollectionCard({
       style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
       accessibilityLabel={col.name}
     >
-      <View style={[styles.placeholder, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 36, fontWeight: "700" }}>{initial}</Text>
+      <View style={[styles.placeholder, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm, overflow: "hidden" }]}>
+        {/* The artwork the API has always carried and this screen ignored: a
+            wall of grey letters where the posters were (2026-09-19). The
+            initial stays as the fallback for a collection without one. */}
+        {col.posterUrl ? (
+          <Image
+            cachePolicy="memory-disk"
+            source={{ uri: col.posterUrl, headers: authHeaders }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={200}
+            recyclingKey={col.id}
+          />
+        ) : (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 36, fontWeight: "700" }}>{initial}</Text>
+        )}
         {subtitle.badge && (
           <View style={[styles.badge, { backgroundColor: theme.colors.surface }]}>
             <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "700" }}>{subtitle.badge}</Text>
@@ -125,7 +143,7 @@ function CollectionCard({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
+  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
   card: { flex: 1, margin: 8, padding: 12, alignItems: "center" },
   placeholder: { width: 160, height: 240, justifyContent: "center", alignItems: "center", position: "relative" },
   badge: { position: "absolute", top: 8, left: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },

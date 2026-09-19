@@ -17,6 +17,13 @@ export const CARD_WIDTH_GRID = 200;
 // Poster height = width * POSTER_RATIO across every poster card.
 export const POSTER_RATIO = 1.5;
 
+// Horizontal breathing room for a screen that renders WITHOUT the sidebar
+// (notifications, history, playlists, collections, genres, stats...). The tab
+// screens get the 115 dp rail plus their own 24; these had 24 alone, which on
+// an overscanning television puts the first characters of every row against
+// the bezel (the owner had already hit this on the Quick Connect screen).
+export const DEEP_SCREEN_GUTTER = 48;
+
 // Standard gap between cards/rows in grids and horizontal lists.
 export const GRID_GAP = 16;
 

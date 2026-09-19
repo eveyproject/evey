@@ -61,11 +61,14 @@ describe("tv favourites screen", () => {
     expect(push).toHaveBeenCalledWith("/media/m2");
   });
 
-  it("says when there is nothing yet", () => {
+  // The empty state used to be a sentence and nothing else: the remote had
+  // nowhere to go from here and the viewer had to guess the rail.
+  it("says when there is nothing yet, and offers the way to the libraries", () => {
     favs.data = [];
     render(<FavoritesScreen />);
     expect(screen.getByText("media.favorites.empty")).toBeTruthy();
-    expect(screen.queryByRole("button")).toBeNull();
+    fireEvent.click(screen.getByLabelText("media.library.libraries"));
+    expect(push).toHaveBeenCalledWith("/(auth)/(tabs)/library");
   });
 
   it("routes loading and failure through the screen state with a retry", () => {
