@@ -194,12 +194,17 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 80,
+    // A television overscans: the last row must not sit on the very edge of
+    // the panel, and the content is centred with room to scroll when the
+    // soft keyboard takes the bottom half.
+    paddingHorizontal: 80,
+    paddingTop: 48,
+    paddingBottom: 72,
   },
   title: {
     fontSize: 42,
     fontWeight: "bold",
-    marginBottom: 40,
+    marginBottom: 32,
   },
   input: {
     width: 500,
@@ -222,7 +227,7 @@ const styles = StyleSheet.create({
   divider: {
     width: 400,
     height: 1,
-    marginVertical: 32,
+    marginVertical: 24,
   },
   qcButton: {
     width: 500,
@@ -239,7 +244,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   serverButton: {
-    marginTop: 24,
+    marginTop: 16,
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderWidth: 3,
