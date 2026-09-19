@@ -5,7 +5,7 @@ import { useAuthStore } from "@evey/store";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
 import { usePresenceHeartbeat } from "../../src/hooks/usePresenceHeartbeat";
 import { TVMusicPlayer } from "../../src/components/TVMusicPlayer";
-import { HomeShortcutButton } from "../../src/components/HomeShortcutButton";
+import { HomeShortcutButton, HOME_SHORTCUT_INSET } from "../../src/components/HomeShortcutButton";
 import { isDeepScreenPath, HOME_PATH } from "../../src/lib/homeShortcut";
 import { ErrorBoundary } from "../../src/components/ErrorBoundary";
 import { refreshAccessTokenIfNeeded } from "../../src/lib/auth-refresh";
@@ -65,16 +65,26 @@ export default function AuthLayout() {
   }
   if (!profileId) return <Redirect href="/profile-select" />;
 
+  const deepScreen = isDeepScreenPath(pathname);
+  // The slideshow is the one deep screen that must stay edge to edge: a band
+  // of background under a full-bleed photo would be a frame nobody asked for.
+  const fullBleed = pathname.startsWith("/photos/slideshow");
+
   return (
     <View style={{ flex: 1 }}>
       {/* A boundary HERE, not only at the root: one at the root turns any
           render error into a blank application, taking the music player and
           the way home with it. Contained at this level, a broken screen shows
           its own recovery card while the shell around it keeps working. */}
-      <ErrorBoundary>
-        <Stack screenOptions={{ headerShown: false }} />
-      </ErrorBoundary>
-      {isDeepScreenPath(pathname) && (
+      {/* The background belongs HERE too: the inset band below a deep screen
+          is this view's own padding, and without it Android painted it white
+          under the page (seen on the box, 2026-09-19). */}
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg, paddingBottom: deepScreen && !fullBleed ? HOME_SHORTCUT_INSET : 0 }}>
+        <ErrorBoundary>
+          <Stack screenOptions={{ headerShown: false }} />
+        </ErrorBoundary>
+      </View>
+      {deepScreen && (
         <HomeShortcutButton onPress={() => router.replace(HOME_PATH as never)} />
       )}
       <TVMusicPlayer />

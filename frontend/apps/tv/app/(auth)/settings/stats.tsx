@@ -7,6 +7,7 @@ import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { ScreenState } from "../../../src/components/ScreenState";
+import { DEEP_SCREEN_GUTTER } from "../../../src/lib/tvLayout";
 
 // "My statistics", the TV counterpart of web's /profile/stats and mobile's
 // settings/stats. Same endpoint, same numbers, same i18n keys.
@@ -182,7 +183,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 24,
     paddingVertical: 18,
-    paddingHorizontal: 24,
+    paddingHorizontal: DEEP_SCREEN_GUTTER,
     borderRadius: 10,
     marginBottom: 12,
   },

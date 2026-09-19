@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -7,6 +8,7 @@ import type { V1Library } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { mergeGenres, genreTranslationKey, genreHref } from "../../../src/lib/genres";
+import { DEEP_SCREEN_GUTTER } from "../../../src/lib/tvLayout";
 
 const NUM_COLUMNS = 3;
 
@@ -20,6 +22,38 @@ function isBrowsable(lib: V1Library): boolean {
 
 function genreKeyExtractor(genre: string) {
   return genre;
+}
+
+// Every tile used to be filled with the accent colour, and the focus ring is
+// drawn in that same colour: on the television the whole grid was red and
+// nothing said where the remote was (2026-09-19). Focus now CHANGES the tile
+// rather than outlining it - the one you are on is the only filled one.
+function GenreTile({ label, isFirst, onPress }: { label: string; isFirst: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  const [focused, setFocused] = useState(false);
+  return (
+    <FocusableCard
+      onPress={onPress}
+      hasTVPreferredFocus={isFirst}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={[
+        styles.tile,
+        {
+          backgroundColor: focused ? theme.colors.accent : theme.colors.surface,
+          borderRadius: theme.radii.md,
+        },
+      ]}
+      accessibilityLabel={label}
+    >
+      <Text
+        style={[styles.tileText, { color: focused ? theme.colors.onAccent : theme.colors.text }]}
+        numberOfLines={2}
+      >
+        {label}
+      </Text>
+    </FocusableCard>
+  );
 }
 
 export default function GenresScreen() {
@@ -96,16 +130,11 @@ export default function GenresScreen() {
         contentContainerStyle={{ padding: 24 }}
         columnWrapperStyle={genres.length > 0 ? { gap: 16, marginBottom: 16 } : undefined}
         renderItem={({ item: genre, index }) => (
-          <FocusableCard
+          <GenreTile
+            label={t(genreTranslationKey(genre), genre)}
+            isFirst={index === 0}
             onPress={() => router.push(genreHref(genre))}
-            hasTVPreferredFocus={index === 0}
-            style={[styles.tile, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}
-            accessibilityLabel={t(genreTranslationKey(genre), genre)}
-          >
-            <Text style={[styles.tileText, { color: theme.colors.onAccent }]} numberOfLines={2}>
-              {t(genreTranslationKey(genre), genre)}
-            </Text>
-          </FocusableCard>
+          />
         )}
         ListEmptyComponent={
           <View style={styles.center}>
@@ -132,7 +161,7 @@ export default function GenresScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
+  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
   tile: { flex: 1, paddingVertical: 32, paddingHorizontal: 24, alignItems: "center", justifyContent: "center", minHeight: 120 },
   tileText: { fontSize: 24, fontWeight: "700", textAlign: "center" },
   emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },

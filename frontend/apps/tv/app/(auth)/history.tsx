@@ -16,6 +16,7 @@ import { useTheme } from "../../src/providers/ThemeProvider";
 import { progressPercent } from "../../src/lib/progressPercent";
 import { ScreenState } from "../../src/components/ScreenState";
 import { FocusableCard } from "../../src/components/FocusableCard";
+import { DEEP_SCREEN_GUTTER } from "../../src/lib/tvLayout";
 
 function formatDate(iso: string | undefined): string {
   if (!iso) return "";
@@ -113,7 +114,7 @@ export default function HistoryScreen() {
         <FlatList
           data={items}
           keyExtractor={tvHistoryKeyExtractor}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 64 }}
+          contentContainerStyle={{ paddingHorizontal: DEEP_SCREEN_GUTTER, paddingBottom: 64 }}
           ItemSeparatorComponent={TVHistorySeparator}
           renderItem={renderHistoryItem}
           initialNumToRender={8}
@@ -165,7 +166,9 @@ function HistoryItem({
         </Text>
         {item.durationMs && (
           <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>
-            {formatDurationMs(item.positionMs)} / {formatDurationMs(item.durationMs)}
+            {/* formatDurationMs answers "" at zero, which printed a title as
+                "  / 1h 27min" - a hole where the position should be. */}
+            {formatDurationMs(item.positionMs) || "0min"} / {formatDurationMs(item.durationMs)}
           </Text>
         )}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
@@ -196,7 +199,7 @@ function HistoryItem({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
+  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
   rowWrap: { flexDirection: "row", alignItems: "stretch", gap: 12 },
   row: { flex: 1, flexDirection: "row", alignItems: "center", padding: 20 },
   removeAction: { justifyContent: "center", paddingHorizontal: 24 },

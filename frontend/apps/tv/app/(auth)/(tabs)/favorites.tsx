@@ -74,7 +74,17 @@ export default function FavoritesScreen() {
         removeClippedSubviews={true}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.favorites.empty")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("media.favorites.empty")}</Text>
+            {/* A sentence and nothing else is a dead end: the viewer has to
+                guess that the way out is the rail. Same affordance the empty
+                collections and playlists screens already offer. */}
+            <FocusableCard
+              onPress={() => router.push("/(auth)/(tabs)/library")}
+              style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+              accessibilityLabel={t("media.library.libraries")}
+            >
+              <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
+            </FocusableCard>
           </View>
         }
       />
@@ -86,6 +96,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32 },
+  emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },
   gridItem: { width: CARD_WIDTH, alignItems: "center" },
   poster: {
     width: CARD_WIDTH,
