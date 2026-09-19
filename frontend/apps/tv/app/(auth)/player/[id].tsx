@@ -49,6 +49,13 @@ import { VolumePicker } from "../../../src/components/VolumePicker";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
 import { SkipIntroButton } from "../../../src/components/SkipIntroButton";
 import { SubtitleOverlay } from "../../../src/components/SubtitleOverlay";
+import { SubtitleStylePicker } from "../../../src/components/SubtitleStylePicker";
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  getSubtitleStylePref,
+  saveSubtitleStylePref,
+  type SubtitleStyle,
+} from "../../../src/lib/subtitleStyle";
 import { NextEpisodeOverlay } from "../../../src/components/NextEpisodeOverlay";
 import { TrickplaySeekPreview } from "../../../src/components/TrickplaySeekPreview";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
@@ -57,6 +64,9 @@ import { useSyncplay } from "../../../src/hooks/useSyncplay";
 import { SyncplaySessionBadge } from "../../../src/components/SyncplaySessionBadge";
 
 const CONTROLS_TIMEOUT = 4000;
+// Longer while the controls hold the remote: the viewer is aiming at a button,
+// not glancing at the time.
+const CONTROLS_FOCUSED_TIMEOUT = 8000;
 // A native "loading" status fires on every micro-stall (segment boundary, ABR
 // switch), same as the raw `waiting` event web debounces - see
 // HLSPlayer.tsx's setIsBufferingDebounced. Flashing a spinner over those
@@ -258,6 +268,8 @@ export default function PlayerScreen() {
 
   const [showQualityPicker, setShowQualityPicker] = useState(false);
   const [showTrackMenu, setShowTrackMenu] = useState(false);
+  const [showSubtitleStyle, setShowSubtitleStyle] = useState(false);
+  const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
   const [showSubtitlePicker, setShowSubtitlePicker] = useState(false);
   const [showChaptersPicker, setShowChaptersPicker] = useState(false);
@@ -605,27 +617,41 @@ export default function PlayerScreen() {
     }
   }, [currentTime, duration, serverProgress?.played, profileId, mediaId, markAsWatchedMut]);
 
-  // The action bar is a menu the viewer walks with the remote: hiding it from
-  // under them mid-navigation (left/right do not reset this timer) made the
-  // player feel unusable. While it holds focus the controls simply stay.
+  // Controls go away when the room goes quiet - ALWAYS. They used to stay put
+  // for as long as the row held the focus, which since BACK became the only
+  // way out meant they never left at all: a mask and three buttons parked over
+  // the film (owner, 2026-09-19). Every key press restarts this timer, so
+  // walking the row keeps them up; a viewer who puts the remote down gets the
+  // picture back. The row simply gets longer than a passing wake.
   const barFocusedRef = useRef(false);
   barFocusedRef.current = barFocused;
-  const resetHideTimer = useCallback(() => {
+
+  // armHideTimer restarts the countdown; `wake` says whether the controls
+  // should also be SHOWN. The two are separate on purpose: the hide itself
+  // hands the D-pad back to the surface (barFocused goes false), and a version
+  // that always showed turned that into a loop - the controls blinked off and
+  // straight back on, which is why they never left the picture.
+  const armHideTimer = useCallback((wake: boolean) => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    setShowControls(true);
-    if (barFocusedRef.current) return;
-    hideTimerRef.current = setTimeout(() => setShowControls(false), CONTROLS_TIMEOUT);
+    if (wake) setShowControls(true);
+    const delay = barFocusedRef.current ? CONTROLS_FOCUSED_TIMEOUT : CONTROLS_TIMEOUT;
+    hideTimerRef.current = setTimeout(() => {
+      setShowControls(false);
+      setBarFocused(false);
+    }, delay);
   }, []);
 
-  // Entering the bar cancels a pending hide; leaving it re-arms one.
+  // Controls go away when the room goes quiet - ALWAYS. Every key press
+  // restarts the countdown, so walking the row keeps them up; a viewer who
+  // puts the remote down gets the picture back. The row simply gets longer
+  // than a passing wake.
+  const resetHideTimer = useCallback(() => armHideTimer(true), [armHideTimer]);
+
+  // Entering the row shows them and gives them the long delay; leaving only
+  // restarts the short one - without re-showing what just went away.
   useEffect(() => {
-    if (barFocused) {
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      setShowControls(true);
-    } else {
-      resetHideTimer();
-    }
-  }, [barFocused, resetHideTimer]);
+    armHideTimer(barFocused);
+  }, [barFocused, armHideTimer]);
 
   useEffect(() => {
     resetHideTimer();
@@ -922,20 +948,32 @@ export default function PlayerScreen() {
   // right through it (item B4). Only the real end-of-episode countdown
   // (nextEp.ended) claims the same exclusive ownership as the other overlays
   // below, the instant before the auto-advance actually fires.
-  const closeAllOverlays = useCallback(() => {
+  // Every panel the settings menu opens. They are its children: BACK out of
+  // one returns to the menu, never to the film (owner, 2026-09-19).
+  const anySubPanelOpen =
+    showQualityPicker || showAudioPicker || showSubtitlePicker || showSubtitleStyle ||
+    showChaptersPicker || showSleepTimerPicker || showVolumePicker || showStreamInfoPanel;
+
+  const closeSubPanels = useCallback(() => {
     setShowQualityPicker(false);
-    setShowTrackMenu(false);
     setShowAudioPicker(false);
     setShowSubtitlePicker(false);
     setShowChaptersPicker(false);
     setShowSleepTimerPicker(false);
     setShowVolumePicker(false);
     setShowStreamInfoPanel(false);
+    setShowSubtitleStyle(false);
   }, []);
+
+  const closeAllOverlays = useCallback(() => {
+    closeSubPanels();
+    setShowTrackMenu(false);
+  }, [closeSubPanels]);
 
   const anyOverlayOpen =
     showQualityPicker || showTrackMenu || showAudioPicker || showSubtitlePicker ||
     showChaptersPicker || showSleepTimerPicker || showVolumePicker || showStreamInfoPanel ||
+    showSubtitleStyle ||
     nextEp.ended;
 
   // D-pad remote handler. The callback param is annotated explicitly: the
@@ -1006,7 +1044,10 @@ export default function PlayerScreen() {
       if (type === "menu" || type === "back") {
         setBarFocused(false);
         resetHideTimer();
+        return;
       }
+      // Any other key: the viewer is driving the row, keep it alive.
+      resetHideTimer();
       return;
     }
 
@@ -1060,6 +1101,19 @@ export default function PlayerScreen() {
     return () => clearTimeout(t);
   }, [barFocused]);
 
+  useEffect(() => {
+    let alive = true;
+    void getSubtitleStylePref().then((v) => {
+      if (alive && v) setSubtitleStyle(v);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const handleSubtitleStyleChange = useCallback((next: SubtitleStyle) => {
+    setSubtitleStyle(next);
+    void saveSubtitleStylePref(next);
+  }, []);
+
   // BACK belongs to whatever is on top. A submenu is an RN Modal, so Android
   // hands it onRequestClose - and then delivers the SAME press to the screen
   // behind, which popped the player and dumped the viewer back on the media
@@ -1067,6 +1121,14 @@ export default function PlayerScreen() {
   // closes and the film keeps playing.
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      // One step back up the menu, not out of it: a panel returns to the
+      // settings menu that opened it, and only the menu itself returns to the
+      // film.
+      if (anySubPanelOpen) {
+        closeSubPanels();
+        setShowTrackMenu(true);
+        return true;
+      }
       if (anyOverlayOpen) {
         closeAllOverlays();
         return true;
@@ -1079,7 +1141,7 @@ export default function PlayerScreen() {
       return false; // nothing open: the player's own exit contract runs
     });
     return () => sub.remove();
-  }, [anyOverlayOpen, barFocused, closeAllOverlays, resetHideTimer]);
+  }, [anySubPanelOpen, anyOverlayOpen, barFocused, closeSubPanels, closeAllOverlays, resetHideTimer]);
 
   // Imperative focus reclaim: whenever no overlay/bar should own the D-pad,
   // force native focus back onto the surface - if no native view is focused
@@ -1311,6 +1373,10 @@ export default function PlayerScreen() {
           setShowTrackMenu(false);
           setShowSubtitlePicker(true);
         }}
+        onOpenSubtitleStyle={() => {
+          setShowTrackMenu(false);
+          setShowSubtitleStyle(true);
+        }}
         onOpenQuality={() => {
           setShowTrackMenu(false);
           setShowQualityPicker(true);
@@ -1363,6 +1429,13 @@ export default function PlayerScreen() {
         currentIndex={selectedSubtitleIndex}
         onSelect={handleSubtitleSelect}
         onClose={() => setShowSubtitlePicker(false)}
+      />
+
+      <SubtitleStylePicker
+        visible={showSubtitleStyle}
+        style={subtitleStyle}
+        onChange={handleSubtitleStyleChange}
+        onClose={() => setShowSubtitleStyle(false)}
       />
 
       <ChaptersPicker
@@ -1448,7 +1521,7 @@ export default function PlayerScreen() {
       {showControls && (
         <View style={styles.overlay} pointerEvents="box-none">
           {/* Top bar */}
-          <View style={styles.topBar}>
+          <View style={[styles.topBar, styles.scrimTop]}>
             <Text style={styles.mediaTitle} numberOfLines={1}>
               {playerTitle(media, series?.title ?? (season ? itemLabel(season, t) : undefined))}
             </Text>
@@ -1524,7 +1597,7 @@ export default function PlayerScreen() {
           </View>
 
           {/* Bottom bar */}
-          <View style={styles.bottomBar}>
+          <View style={[styles.bottomBar, styles.scrimBottom]}>
             <Text style={styles.timeText}>{formatTime(displayTime)}</Text>
             {/* How far the pending jump goes. Pressing the seek button four
                 times is one jump of four steps, and this is what says so
@@ -1590,11 +1663,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.15)",
   },
+  // No veil over the middle of the frame. A flat 40% black across the whole
+  // picture is what made the controls feel like a mask sitting on the film
+  // (owner, 2026-09-19); the title and the timeline carry their own darker
+  // bands instead, and the image between them stays the image.
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "space-between",
   },
+  scrimTop: { backgroundColor: "rgba(0,0,0,0.55)" },
+  scrimBottom: { backgroundColor: "rgba(0,0,0,0.55)" },
   topBar: {
     paddingTop: 24,
     paddingHorizontal: 40,

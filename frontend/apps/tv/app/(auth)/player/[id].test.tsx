@@ -772,7 +772,7 @@ describe("action bar discoverability (TV)", () => {
 
   // BACK used to close the submenu AND pop the player: the viewer landed back
   // on the media page while the film was still supposed to be playing.
-  it("closes an open submenu on BACK instead of leaving the player", () => {
+  it("closes the settings menu on BACK instead of leaving the player", () => {
     withTwoAudioTracks();
     render(<PlayerScreen />);
     fireEvent.click(screen.getByLabelText("More"));
@@ -780,6 +780,24 @@ describe("action bar discoverability (TV)", () => {
     let consumed = false;
     act(() => { consumed = capturedBackHandler?.() ?? false; });
     expect(consumed).toBe(true);
+    expect(trackMenuProps.current.visible).toBe(false);
+    expect(backMock).not.toHaveBeenCalled();
+  });
+
+  // One step at a time: a panel opened FROM the settings menu returns to that
+  // menu, and only the menu returns to the film (owner, 2026-09-19).
+  it("walks back up one menu level at a time", () => {
+    withTwoAudioTracks();
+    render(<PlayerScreen />);
+    fireEvent.click(screen.getByLabelText("More"));
+    act(() => { (trackMenuProps.current.onOpenAudio as () => void)(); });
+    expect(trackMenuProps.current.visible).toBe(false);
+
+    act(() => { capturedBackHandler?.(); });
+    expect(trackMenuProps.current.visible).toBe(true); // back to the settings menu
+
+    act(() => { capturedBackHandler?.(); });
+    expect(trackMenuProps.current.visible).toBe(false); // and only then out
     expect(backMock).not.toHaveBeenCalled();
   });
 
@@ -1007,16 +1025,21 @@ describe("focus-holding player surface (TV)", () => {
 // The action bar used to keep hiding on the fixed 4s timer even while the
 // viewer was still walking it with the remote - it vanished mid-navigation.
 describe("sticky action bar (TV)", () => {
-  it("keeps the action bar visible well past the hide timeout while it holds focus", () => {
+  // The row gets a longer grace than a passing wake - but it is a grace, not
+  // a lease: a remote put down ends up giving the picture back (owner,
+  // 2026-09-19, "the controls never leave the screen").
+  it("holds the controls longer while the row has focus, then hides them anyway", () => {
     vi.useFakeTimers();
     try {
       render(<PlayerScreen />);
-      act(() => { capturedTVHandler?.({ eventType: "down" }); }); // opens the bar
+      act(() => { capturedTVHandler?.({ eventType: "down" }); }); // opens the row
       expect(screen.getByLabelText("player.controls.play")).toBeTruthy();
 
-      act(() => { vi.advanceTimersByTime(4000 * 3); });
-
+      act(() => { vi.advanceTimersByTime(5000) }); // past the plain 4s timeout
       expect(screen.getByLabelText("player.controls.play")).toBeTruthy();
+
+      act(() => { vi.advanceTimersByTime(4000) }); // past the focused one
+      expect(screen.queryByLabelText("player.controls.play")).toBeNull();
     } finally {
       vi.useRealTimers();
     }

@@ -14,6 +14,10 @@ interface TrackOptionsMenuProps {
   hasSubtitleOptions?: boolean;
   onOpenAudio?: () => void;
   onOpenSubtitles?: () => void;
+  // Subtitle appearance (colour, size, background, position). Offered
+  // whenever the caller can show subtitles at all - the choice is the
+  // viewer's, not the track's.
+  onOpenSubtitleStyle?: () => void;
   hasChapters?: boolean;
   onOpenChapters?: () => void;
   // Title of the chapter the playhead is in. Shown - and spoken - on the
@@ -61,6 +65,7 @@ export function TrackOptionsMenu({
   hasSubtitleOptions,
   onOpenAudio,
   onOpenSubtitles,
+  onOpenSubtitleStyle,
   onOpenQuality,
   qualityLabel,
   onCycleSpeed,
@@ -84,6 +89,13 @@ export function TrackOptionsMenu({
   if (hasAudioOptions && onOpenAudio) items.push({ key: "audio", label: t("player.settings.audio"), onPress: onOpenAudio });
   if (hasSubtitleOptions && onOpenSubtitles) {
     items.push({ key: "subtitles", label: t("player.settings.subtitles"), onPress: onOpenSubtitles });
+  }
+  if (onOpenSubtitleStyle) {
+    items.push({
+      key: "subtitle-style",
+      label: t("player.settings.subtitleStyle", "Subtitle appearance"),
+      onPress: onOpenSubtitleStyle,
+    });
   }
   if (onOpenQuality) {
     items.push({ key: "quality", label: t("player.settings.quality"), value: qualityLabel, onPress: onOpenQuality });
