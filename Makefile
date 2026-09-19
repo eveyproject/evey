@@ -367,6 +367,18 @@ ci-hygiene:
 	@python3 scripts/hygiene-guard.py --selftest
 	@python3 scripts/hygiene-guard.py
 
+# gate / gate-status: "the gate is green" stops being something you remember and
+# becomes something you can re-check. `make gate` runs the real pre-push and
+# records the command, its exit code, the HEAD and a fingerprint of the working
+# tree; `make gate-status` re-derives the last two and exits non-zero the moment
+# either moved. Receipts live under ~/.claude/projects/<slug>/gate/, never in
+# the repo.
+gate:
+	@python3 scripts/gate-receipt.py --label pre-push run -- $(MAKE) --no-print-directory pre-push
+
+gate-status:
+	@python3 scripts/gate-receipt.py --label pre-push status
+
 # ci-clean-checkout: a committed file pointing at an uncommitted one is invisible
 # to every other check here (the frontend steps run in evey-web, where the
 # untracked package is already on disk). Twice on 2026-09-19 it passed the full
