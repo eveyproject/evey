@@ -8,6 +8,7 @@ vi.mock("react-native", () => ({
   Pressable: ({ children, onPress, accessibilityLabel }: any) =>
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel }, children),
   StyleSheet: { create: (s: any) => s, absoluteFillObject: {} },
+  useWindowDimensions: () => ({ width: 1920, height: 1080 }),
 }));
 
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
