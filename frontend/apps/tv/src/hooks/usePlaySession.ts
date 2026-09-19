@@ -11,6 +11,7 @@ import { getServerUrl } from "../lib/server-config";
 import { getDeviceAudioCodecs, getDeviceMaxH264Level, getFmp4AudioPassthrough } from "../lib/deviceCodecs";
 import { probeMaxOutputChannels } from "../lib/outputChannels";
 import { logger } from "../lib/log";
+import { Platform } from "react-native";
 
 const log = logger("play");
 
@@ -18,7 +19,14 @@ const DEVICE_ID = "evey-tv";
 const DEVICE_NAME = "Evey TV";
 
 const VIDEO_CODECS = ["h264", "hevc", "vp9"];
-const CONTAINERS = ["mp4", "hls"];
+// Android TV runs the same ExoPlayer as the phone app, which demuxes
+// Matroska/WebM natively - so a compatible-codec .mkv (the bulk of a
+// self-hosted library) DIRECT-PLAYS instead of being transcoded for nothing.
+// Declaring mp4 alone is what put every title through ffmpeg on the living
+// room box: measured 2026-09-19, a 1.1 Mbps H.264 + AAC stereo film was
+// transcoded, video and audio, with the audio drifting off the picture.
+// Apple TV keeps the narrow list: AVPlayer reads neither container.
+const CONTAINERS = Platform.OS === "android" ? ["mp4", "mkv", "webm", "hls"] : ["mp4", "hls"];
 
 interface StreamTokenResponse {
   token: string;
