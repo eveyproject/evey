@@ -323,7 +323,25 @@ func (h *hlsVODServe) decideWith(ctx context.Context, streams []*domainlibrary.M
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := h.profilePrefsFor(ctx, claims.ProfileID)
 	selected := h.resolveAudioTrackWith(r, streams, prefs)
+	// The ad= pin is minted ONCE, from the verdict of the track the request
+	// selected, and then rides every child URL. A judgement about ANOTHER
+	// track - the master advertises every rendition, each copied or re-encoded
+	// on its own merits - is a different question, and the pin has no answer
+	// to it. Two things went wrong while it was applied anyway (prod,
+	// 2026-09-19, a 4K remux: one TrueHD track beside three AC-3 ones):
+	//
+	//   - ad=copy made the resolver log "pinned audio copy decision no longer
+	//     serveable, session flips to transcoded audio mid-play" on every poll
+	//     of the TrueHD rendition. Nothing was flipping; the noise buried the
+	//     one case where a pin really does break.
+	//   - ad=transcode is worse, because that pin is FORCED: select the TrueHD
+	//     track and every AC-3 rendition beside it gets re-encoded to AAC, for
+	//     no reason other than the verdict of a track nobody is listening to.
+	pinnedAudioDec := r.URL.Query().Get("ad")
 	if audioTrack != nil {
+		if *audioTrack != selected {
+			pinnedAudioDec = ""
+		}
 		selected = *audioTrack
 	}
 	req := apptranscoding.PlaybackRequest{
@@ -336,7 +354,7 @@ func (h *hlsVODServe) decideWith(ctx context.Context, streams []*domainlibrary.M
 		SubtitleBurnInTrack: parseIntQuery(r, "subtitleTrack", -1),
 		AudioOffsetMs:       audioOffsetMsQuery(r),
 		PinnedVideoDecision: r.URL.Query().Get("vd"),
-		PinnedAudioDecision: r.URL.Query().Get("ad"),
+		PinnedAudioDecision: pinnedAudioDec,
 		PinnedVideoCodec:    r.URL.Query().Get("vc"),
 		WasmAudio:           wasmAudioEffective(r, h.castWasmAudioEnabled),
 		// The same caps the plan applies: the mkvgo copy path decides off this
