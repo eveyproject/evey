@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./cast": "./src/castUrl.ts",
-    "./caps": "./src/castCaps.ts"
+    "./caps": "./src/castCaps.ts",
+    "./launch": "./src/castLaunch.ts"
   }
 }

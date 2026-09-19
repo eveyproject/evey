@@ -1,0 +1,26 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.evey'
+version = '0.1.0'
+
+android {
+  namespace "com.evey.casttv"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+dependencies {
+  // Cast Connect's receiver half: CastReceiverContext, MediaManager and the
+  // LaunchRequestChecker. Distinct from play-services-cast-framework, which
+  // is the SENDER library the phone uses.
+  implementation 'com.google.android.gms:play-services-cast-tv:21.1.1'
+  implementation 'com.google.android.gms:play-services-cast:22.1.0'
+  // MediaSessionCompat: the projection of the player's state that both the
+  // television's remote and every connected sender read.
+  implementation 'androidx.media:media:1.7.0'
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@evey/cast-tv",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cast Connect receiver for the Evey Android TV app: the cast opens the app itself, its remote drives its own player, and every sender stays in sync through one MediaSession.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@evey/media-caps": "workspace:*"
+  }
+}
