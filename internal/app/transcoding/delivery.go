@@ -71,6 +71,14 @@ func (d DeliveryStrategy) ServingPath(route ResolvedRoute, fp DecisionFingerprin
 	case EngineMkvgo:
 		p.AudioDecision = "copy"
 	default:
+		// The MUXED gate only. An ffmpeg audio RENDITION also copies a
+		// carriable track, on a ladder of any height, but whether it does
+		// depends on the request's own client declaration - which this
+		// projection does not carry. checkDelivery compares engines and the
+		// VIDEO decision, never this field, so the gap is inert here; the
+		// session is told the truth by audioServedAsCopy on the serving side.
+		// Do not "simplify" the two into this one without bringing the client
+		// profile along, or the report goes back to calling a copy a transcode.
 		p.AudioDecision = "transcode"
 		if fp.AudioCopy {
 			p.AudioDecision = "copy"

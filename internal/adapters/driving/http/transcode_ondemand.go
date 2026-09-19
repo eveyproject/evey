@@ -107,7 +107,15 @@ func (h *hlsVODServe) servePackagerMaster(w http.ResponseWriter, r *http.Request
 	// from the logs (the copy fallback rung logs its own outcome just before).
 	slog.Info("hls-vod: hybrid on-demand master served",
 		slog.String("media_id", mediaID))
-	h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"}, "")
+	// The hybrid's audio rides Evey's rendition pipeline, which COPIES a
+	// carriable track instead of re-encoding it - so "hybrid" does not mean
+	// "audio transcoded", and saying so unconditionally is the same lie the
+	// ffmpeg master told (see audioServedAsCopy).
+	ap := domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"}
+	if h.audioServedAsCopy(r, item, streams, rp.FP.AudioCopy, true, rp.AudioTrack) {
+		ap.AudioDecision = "copy"
+	}
+	h.recordServing(r, mediaID, rp, ap, "")
 	return true, ""
 }
 

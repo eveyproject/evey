@@ -651,7 +651,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		if rp.IsCopy {
 			p.VideoDecision, p.VideoBackend = "copy", ""
 		}
-		if rp.FP.AudioCopy {
+		if h.audioServedAsCopy(r, item, streams, rp.FP.AudioCopy, len(in.AudioRenditions) > 0, in.AudioTrack) {
 			p.AudioDecision = "copy"
 		}
 		h.recordServing(r, mediaID, rp, p, fallback)
@@ -685,6 +685,44 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 func browserUserAgent(ua string) bool {
 	return strings.Contains(ua, "Mozilla/") && !strings.Contains(ua, "CrKey") &&
 		!strings.Contains(ua, "EveyMobile") && !strings.Contains(ua, "EveyTV")
+}
+
+// audioServedAsCopy reports whether the audio this master just advertised
+// reaches the player UNTOUCHED. Two ways it can, and only one of them was
+// being reported:
+//
+//   - MUXED variants: rp.FP.AudioCopy, i.e. AudioCopyEligible - which requires
+//     a SINGLE rung, because each muxed variant carries its own audio and one
+//     hash must yield one byte stream;
+//   - its own #EXT-X-MEDIA rendition: one audio playlist shared by every rung,
+//     so the rung count is irrelevant and the rendition path has copied
+//     natively since it shipped (audioRenditionCopyCodec).
+//
+// Reading only the first made the admin panel and the stream sheet say
+// "Audio transcodé ffmpeg" over a ladder whose ffmpeg was running `-c:a copy`.
+// Measured on prod (2026-09-19, a 4K remux on the living-room TV): three
+// AC-3 renditions spawned with `-map 0:a:N -c:a copy` under a 3-rung
+// tone-mapping ladder, reported as transcoded audio throughout. Nothing was
+// wrong with the decision - the observability was lying about it, which is the
+// kind of false signal that gets a working path "fixed".
+//
+// Re-asks audioRenditionCopyCodec rather than inferring from the advertised
+// codec name: it is the same call the master built its CODECS attribute from,
+// so the report agrees with the bytes by construction and not by inference (a
+// copied AAC track reads as AAC either way, and a name comparison would call
+// it transcoded).
+//
+// muxedCopy is rp.FP.AudioCopy; renditionAudio says this master advertised an
+// #EXT-X-MEDIA audio group, and audioTrack is the track it defaults to - the
+// one the viewer hears, and the only one whose verdict belongs on the session.
+func (h *hlsVODServe) audioServedAsCopy(r *http.Request, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, muxedCopy, renditionAudio bool, audioTrack int) bool {
+	if muxedCopy {
+		return true
+	}
+	if !renditionAudio {
+		return false
+	}
+	return h.audioRenditionCopyCodec(r, item, streams, audioTrack) != ""
 }
 
 // recordServing tells the (profile, media) play session what this master
