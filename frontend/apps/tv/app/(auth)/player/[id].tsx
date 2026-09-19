@@ -8,7 +8,7 @@ import {
   isBurnInSubtitle,
   pickDefaultSubtitle,
 } from "@evey/api";
-import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler, BackHandler } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler, BackHandler, findNodeHandle } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
@@ -78,15 +78,31 @@ function PlayerControlButton({
   onPress,
   accessibilityLabel,
   focusable,
-  hasTVPreferredFocus,
+  buttonRef,
   primary,
   small,
+  nextFocusLeft,
+  nextFocusRight,
+  nextFocusDown,
+  nextFocusUp,
 }: {
   label: string;
   onPress: () => void;
   accessibilityLabel: string;
   focusable: boolean;
-  hasTVPreferredFocus?: boolean;
+  // Explicit neighbours. Left to itself, Android's geometric search sent the
+  // remote from the play button to the syncplay badge at the top of the
+  // screen (measured on the box, 2026-09-19); these four keep the row and the
+  // settings icon talking to each other.
+  nextFocusLeft?: number;
+  nextFocusRight?: number;
+  nextFocusDown?: number;
+  nextFocusUp?: number;
+  // Handed the node so the screen can give it the focus when the row appears:
+  // hasTVPreferredFocus is read at MOUNT, and these buttons are mounted long
+  // before they become focusable (measured on the box, 2026-09-19 - the row
+  // showed up with nothing lit).
+  buttonRef?: React.RefObject<View | null>;
   primary?: boolean;
   small?: boolean;
 }) {
@@ -94,8 +110,12 @@ function PlayerControlButton({
   const size = small ? 56 : primary ? 104 : 84;
   return (
     <Pressable
+      ref={buttonRef as never}
       focusable={focusable}
-      hasTVPreferredFocus={hasTVPreferredFocus}
+      nextFocusLeft={nextFocusLeft}
+      nextFocusRight={nextFocusRight}
+      nextFocusDown={nextFocusDown}
+      nextFocusUp={nextFocusUp}
       onPress={onPress}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
@@ -228,6 +248,13 @@ export default function PlayerScreen() {
   // which left the whole player deaf (remote AND pointer) on real hardware.
   const [surfaceFocused, setSurfaceFocused] = useState(false);
   const surfaceRef = useRef<View>(null);
+  const playButtonRef = useRef<View>(null);
+  const rewindButtonRef = useRef<View>(null);
+  const forwardButtonRef = useRef<View>(null);
+  const settingsButtonRef = useRef<View>(null);
+  // Native tags of the four controls, resolved once they are on screen: the
+  // nextFocus* props take a tag, not a ref.
+  const [focusTags, setFocusTags] = useState<{ rewind?: number; play?: number; forward?: number; settings?: number }>({});
 
   const [showQualityPicker, setShowQualityPicker] = useState(false);
   const [showTrackMenu, setShowTrackMenu] = useState(false);
@@ -971,7 +998,12 @@ export default function PlayerScreen() {
     // right walk the row, OK activates. Interpreting the same keys here would
     // seek behind the viewer's back while they are picking an audio track.
     if (barFocused) {
-      if (type === "up" || type === "menu" || type === "back") {
+      // BACK leaves the row - and only BACK. "up" used to leave it too, which
+      // meant walking from the settings icon back up to the play button
+      // folded the whole overlay away mid-gesture (measured on the box,
+      // 2026-09-19): the row stopped being focusable under the viewer's
+      // thumb. Inside the row the native focus engine owns every direction.
+      if (type === "menu" || type === "back") {
         setBarFocused(false);
         resetHideTimer();
       }
@@ -999,6 +1031,34 @@ export default function PlayerScreen() {
     }
   };
   useTVEventHandler(useCallback((evt: { eventType: string } | undefined) => remoteHandlerRef.current?.(evt), []));
+
+  useEffect(() => {
+    if (!showControls) return;
+    const t = setTimeout(() => {
+      const next = {
+        rewind: findNodeHandle(rewindButtonRef.current) ?? undefined,
+        play: findNodeHandle(playButtonRef.current) ?? undefined,
+        forward: findNodeHandle(forwardButtonRef.current) ?? undefined,
+        settings: findNodeHandle(settingsButtonRef.current) ?? undefined,
+      };
+      setFocusTags((prev) =>
+        prev.rewind === next.rewind && prev.play === next.play &&
+        prev.forward === next.forward && prev.settings === next.settings ? prev : next,
+      );
+    }, 60);
+    return () => clearTimeout(t);
+  }, [showControls]);
+
+  // The row is mounted all along and only becomes focusable when it opens, so
+  // nothing moves the D-pad onto it by itself.
+  useEffect(() => {
+    if (!barFocused) return;
+    const t = setTimeout(
+      () => (playButtonRef.current as unknown as { requestTVFocus?: () => void })?.requestTVFocus?.(),
+      50,
+    );
+    return () => clearTimeout(t);
+  }, [barFocused]);
 
   // BACK belongs to whatever is on top. A submenu is an RN Modal, so Android
   // hands it onRequestClose - and then delivers the SAME press to the screen
@@ -1423,6 +1483,10 @@ export default function PlayerScreen() {
             <PlayerControlButton
               label={`-${skipBwd}s`}
               focusable={barFocused}
+              buttonRef={rewindButtonRef}
+              nextFocusLeft={focusTags.rewind}
+              nextFocusRight={focusTags.play}
+              nextFocusDown={focusTags.settings}
               onPress={() => bumpSeek(-skipBwd)}
               accessibilityLabel={t("player.controls.rewind", "Rewind")}
             />
@@ -1430,13 +1494,20 @@ export default function PlayerScreen() {
               label={isPlaying ? "\u2016" : "\u25B6"}
               primary
               focusable={barFocused}
-              hasTVPreferredFocus={barFocused}
+              buttonRef={playButtonRef}
+              nextFocusLeft={focusTags.rewind}
+              nextFocusRight={focusTags.forward}
+              nextFocusDown={focusTags.settings}
               onPress={togglePlayPause}
               accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")}
             />
             <PlayerControlButton
               label={`+${skipFwd}s`}
               focusable={barFocused}
+              buttonRef={forwardButtonRef}
+              nextFocusLeft={focusTags.play}
+              nextFocusRight={focusTags.forward}
+              nextFocusDown={focusTags.settings}
               onPress={() => bumpSeek(skipFwd)}
               accessibilityLabel={t("player.controls.forward", "Forward")}
             />
@@ -1491,6 +1562,11 @@ export default function PlayerScreen() {
               label={"\u2699"}
               small
               focusable={barFocused}
+              buttonRef={settingsButtonRef}
+              nextFocusUp={focusTags.play}
+              nextFocusLeft={focusTags.settings}
+              nextFocusRight={focusTags.settings}
+              nextFocusDown={focusTags.settings}
               onPress={() => setShowTrackMenu(true)}
               accessibilityLabel={t("player.controls.more", "More")}
             />
