@@ -34,6 +34,25 @@ import expo.modules.kotlin.modules.ModuleDefinition
  */
 class EveyMediaCapsModule : Module() {
 
+  private val UI_PREFS = "evey_ui"
+  private val UI_SCALE_KEY = "scale"
+
+  private fun uiPrefs() =
+    appContext.reactContext?.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE)
+
+  private fun restartApp() {
+    val context = appContext.reactContext ?: return
+    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+    launch.addFlags(
+      android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+        android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or
+        android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP,
+    )
+    appContext.currentActivity?.finishAffinity()
+    context.startActivity(launch)
+    Runtime.getRuntime().exit(0)
+  }
+
   override fun definition() = ModuleDefinition {
     Name("EveyMediaCaps")
 
@@ -80,6 +99,26 @@ class EveyMediaCapsModule : Module() {
     // Highest H.264 level_idc (41 = 4.1, 51 = 5.1) a HARDWARE decoder on this
     // device takes; software decoders only count when no hardware one exists.
     // 0 = unknown, the caller then declares nothing (level-blind, as before).
+    // UI scale (TV): the percentage the app's density is scaled by at process
+    // start (MainApplication.applyUiScale, see the tv app's withUiScale
+    // plugin). Stored here, read there: the two halves share the preference
+    // file and key. null = never set (the platform applies its own default).
+    Function("getUiScalePercent") {
+      val prefs = uiPrefs() ?: return@Function null
+      if (prefs.contains(UI_SCALE_KEY)) prefs.getInt(UI_SCALE_KEY, 100) else null
+    }
+
+    // Persists the scale and restarts the app: React Native reads the density
+    // once per process, so a new value only shows after a cold start. The
+    // relaunch intent is handed to the system before the process exits; the
+    // activity manager brings the app back on it.
+    Function("setUiScalePercent") { percent: Int ->
+      val prefs = uiPrefs() ?: return@Function false
+      prefs.edit().putInt(UI_SCALE_KEY, percent.coerceIn(50, 150)).commit()
+      restartApp()
+      true
+    }
+
     Function("getMaxH264Level") {
       try { maxH264Level() } catch (e: Exception) { 0 }
     }

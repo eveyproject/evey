@@ -16,6 +16,8 @@ import { forceRefresh } from "../../../src/lib/auth-refresh";
 import { clearUnlocked } from "../../../src/hooks/useParentalGate";
 import { supportedLanguages } from "../../../src/i18n";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
+import { getUiScalePercent, setUiScalePercent } from "@evey/media-caps";
+import { DEFAULT_UI_SCALE, UI_SCALE_OPTIONS, effectiveUiScale } from "../../../src/lib/uiScale";
 
 // labelKey/fallback pairs mirror mobile's ThemeSelector.tsx builtInI18nKeys
 // mapping - same three built-in themes this TV settings screen exposes.
@@ -56,6 +58,22 @@ export default function SettingsScreen() {
 
   const [focusedItem, setFocusedItem] = useState<string | null>(null);
   const currentLang = i18n.language;
+
+  // The interface scale is a property of THIS television (its screen, its
+  // viewing distance), stored natively and applied at process start; picking
+  // another value restarts the app - the native side says so, nothing to
+  // undo here. Read once on mount; null (never set) shows the default.
+  const [uiScale, setUiScale] = useState<number>(DEFAULT_UI_SCALE);
+  useEffect(() => {
+    let stale = false;
+    getUiScalePercent().then((v) => { if (!stale) setUiScale(effectiveUiScale(v)); });
+    return () => { stale = true; };
+  }, []);
+  const handleUiScaleChange = useCallback((value: number) => {
+    if (value === uiScale) return;
+    setUiScale(value);
+    void setUiScalePercent(value);
+  }, [uiScale]);
 
   // The theme belongs to the profile, not to this television: pick it on the
   // phone and the TV should follow. Persisted through the preferences map,
@@ -350,6 +368,31 @@ export default function SettingsScreen() {
             )}
           </Pressable>
         ))}
+      </View>
+
+      {/* Interface size: a percentage of the stock 10-foot layout. */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("mobile.settings.uiScale", "Interface size")}</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        {UI_SCALE_OPTIONS.map((pct) => (
+          <Pressable
+            key={pct}
+            style={rowStyle(`ui-scale-${pct}`)}
+            onPress={() => handleUiScaleChange(pct)}
+            onFocus={() => setFocusedItem(`ui-scale-${pct}`)}
+            onBlur={() => setFocusedItem(null)}
+            accessible={true}
+            accessibilityLabel={t("mobile.settings.uiScaleOptionA11y", "Interface size {{percent}} %", { percent: pct })}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.label, { color: theme.colors.text }]}>{`${pct} %`}</Text>
+            {uiScale === pct && (
+              <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{"✓"}</Text>
+            )}
+          </Pressable>
+        ))}
+        <Text style={[styles.value, { color: theme.colors.textMuted, paddingHorizontal: 20, paddingBottom: 12 }]}>
+          {t("mobile.settings.uiScaleHint", "The app restarts to apply a new size.")}
+        </Text>
       </View>
 
       {/* Plugins that ship their own per-profile settings. They used to be

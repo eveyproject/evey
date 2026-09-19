@@ -30,6 +30,9 @@ settings:
   appVersion: ऐप संस्करण
   serverVersion: सर्वर संस्करण
   switchProfile: "प्रोफ़ाइल बदलें"
+  uiScale: "इंटरफ़ेस का आकार"
+  uiScaleOptionA11y: "इंटरफ़ेस का आकार {{percent}} %"
+  uiScaleHint: "नया आकार लागू करने के लिए ऐप पुनः प्रारंभ होता है।"
   biometricLogin: "बायोमेट्रिक लॉगिन"
   themeLightBlue: हल्का नीला
 auth:

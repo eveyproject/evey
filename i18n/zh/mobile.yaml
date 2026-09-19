@@ -30,6 +30,9 @@ settings:
   appVersion: 应用版本
   serverVersion: 服务器版本
   switchProfile: "切换配置文件"
+  uiScale: "界面大小"
+  uiScaleOptionA11y: "界面大小 {{percent}} %"
+  uiScaleHint: "应用会重新启动以应用新的大小。"
   biometricLogin: "生物识别登录"
   themeLightBlue: 浅蓝
 auth:

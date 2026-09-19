@@ -30,6 +30,9 @@ settings:
   appVersion: Version de la app
   serverVersion: Version del servidor
   switchProfile: "Cambiar perfil"
+  uiScale: "Tamaño de la interfaz"
+  uiScaleOptionA11y: "Tamaño de la interfaz {{percent}} %"
+  uiScaleHint: "La aplicación se reinicia para aplicar un nuevo tamaño."
   biometricLogin: "Inicio de sesión biométrico"
   themeLightBlue: Azul claro
 auth:
