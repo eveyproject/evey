@@ -379,6 +379,15 @@ gate:
 gate-status:
 	@python3 scripts/gate-receipt.py --label pre-push status
 
+# verify-commit: what a fresh clone of REF sees, checked in a detached worktree
+# outside the repo (see scripts/verify-commit.sh for the coverage and its limits).
+# Records its own receipt, so "I verified that commit" is re-checkable too.
+verify-commit:
+	@test -n "$(REF)" || { echo "usage: make verify-commit REF=<sha|HEAD> [FRONTEND=1] [UNIT=0] [KEEP=1]"; exit 2; }
+	@env GO_CI_IMAGE="$(GO_CI_IMAGE)" GO_UNIT_PKGS="$(GO_UNIT_PKGS)" REF="$(REF)" \
+	     FRONTEND="$(FRONTEND)" UNIT="$(UNIT)" KEEP="$(KEEP)" \
+	  sh scripts/verify-commit.sh
+
 # ci-clean-checkout: a committed file pointing at an uncommitted one is invisible
 # to every other check here (the frontend steps run in evey-web, where the
 # untracked package is already on disk). Twice on 2026-09-19 it passed the full
