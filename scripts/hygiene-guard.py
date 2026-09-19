@@ -17,17 +17,23 @@ guesses trains people to ignore it.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from fnmatch import fnmatch
+from pathlib import Path
 
 REPO_CLAUDE_DIR = ".claude/"
 
 # Escape hatch for the line that means the character, not the style slip: a
 # character class stripping dashes, a doc quoting one. Explicit and greppable.
 ALLOW_MARKER = "hygiene-guard:allow"
+
+# This file necessarily contains every pattern it hunts - the rules themselves
+# and the selftest fixtures. The selftest is what proves those rules still fire.
+SELF = "scripts/hygiene-guard.py"
 
 
 @dataclass(frozen=True)
@@ -102,9 +108,14 @@ def base_rev() -> str:
     and merge-base with origin/master reaches back 1000+ commits of history this
     gate has no business re-judging.
     """
+    if base := os.environ.get("HYGIENE_BASE", "").strip():
+        return git("rev-parse", "--verify", f"{base}^{{commit}}").strip()
+    # A detached worktree has no branch name: "origin/HEAD" would resolve to the
+    # default branch and drag the whole divergence back in. The caller that
+    # created the worktree knows the real base and passes HYGIENE_BASE.
     branch = git("rev-parse", "--abbrev-ref", "HEAD").strip()
     candidates = (
-        ["merge-base", f"origin/{branch}", "HEAD"],
+        ["merge-base", f"origin/{branch}", "HEAD"] if branch != "HEAD" else ["rev-parse", "HEAD~1"],
         ["merge-base", "@{u}", "HEAD"],
         ["merge-base", "origin/master", "HEAD"],
         ["rev-parse", "HEAD~1"],
@@ -119,7 +130,7 @@ def base_rev() -> str:
 
 def scan_line(path: str, lineno: int | str, text: str, *, commit_msg: bool = False) -> list[Finding]:
     out: list[Finding] = []
-    if ALLOW_MARKER in text:
+    if ALLOW_MARKER in text or path.endswith(SELF):
         return out
     for rule in RULES:
         if commit_msg and not rule.on_commit_msg:
@@ -159,18 +170,24 @@ def scan_commit_messages(base: str, head: str) -> list[Finding]:
 
 
 def scan_tracked_paths(head: str) -> list[Finding]:
-    """Rules about the shape of the tree, not the content of a line."""
-    tracked = git("ls-tree", "-r", "--name-only", head).splitlines()
-    return [
-        Finding(
-            "repo-claude-dir",
-            path,
-            "",
-            "a .claude/ directory has no business in the repo - it belongs under ~/.claude/projects/",
-        )
-        for path in tracked
+    """Rules about the shape of the tree, not the content of a line.
+
+    On disk as well as in HEAD: .claude/ is gitignored here, so it can never be
+    tracked - and the harness itself recreates it when a permission is granted
+    (seen 2026-09-20). A rule that only watched the index would never fire.
+    """
+    message = "a .claude/ directory has no business in the repo - it belongs under ~/.claude/projects/"
+    findings = [
+        Finding("repo-claude-dir", path, "", message)
+        for path in git("ls-tree", "-r", "--name-only", head).splitlines()
         if path.startswith(REPO_CLAUDE_DIR)
     ]
+    root = Path(git("rev-parse", "--show-toplevel").strip())
+    if (root / ".claude").exists():
+        findings.append(
+            Finding("repo-claude-dir", ".claude/ (untracked, on disk)", "", f"{message}\n      -> rm -rf .claude")
+        )
+    return findings
 
 
 def scan_files(paths: list[str]) -> list[Finding]:

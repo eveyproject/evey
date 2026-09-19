@@ -357,7 +357,7 @@ pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend c
 	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + hygiene + proto compat + clean checkout + repo suite + transcode contract + audit TV)."
 
 # ci-hygiene: the house rules a regex can decide - plain dashes, no AI attribution
-# trailer, no conflict marker, no "... existing code ..." elision, no .claude/ in
+# trailer, no conflict marker, no elision placeholder, no .claude/ in
 # the repo. Ratcheted on the outgoing commits only (origin/<branch>..HEAD), like
 # the gosec and lint steps, so history it did not introduce is not re-judged.
 # Host-side, stdlib only, ~100ms. The selftest runs first: a guard whose rules
@@ -386,7 +386,7 @@ verify-commit:
 	@test -n "$(REF)" || { echo "usage: make verify-commit REF=<sha|HEAD> [FRONTEND=1] [UNIT=0] [KEEP=1]"; exit 2; }
 	@env GO_CI_IMAGE="$(GO_CI_IMAGE)" GO_UNIT_PKGS="$(GO_UNIT_PKGS)" REF="$(REF)" \
 	     FRONTEND="$(FRONTEND)" UNIT="$(UNIT)" KEEP="$(KEEP)" \
-	  sh scripts/verify-commit.sh
+	  bash scripts/verify-commit.sh
 
 # ci-clean-checkout: a committed file pointing at an uncommitted one is invisible
 # to every other check here (the frontend steps run in evey-web, where the

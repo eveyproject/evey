@@ -112,12 +112,20 @@ git -C "$ROOT" worktree remove --force "$WT" >/dev/null 2>&1 || true
 mkdir -p "$(dirname "$WT")"
 git -C "$ROOT" worktree add --detach "$WT" "$SHA" >/dev/null
 
+# The worktree is detached, so the guard cannot work out what is already
+# published on the branch. This tree can: compute the ratchet base here.
+BRANCH="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)"
+HYGIENE_BASE="$(git -C "$ROOT" merge-base "origin/$BRANCH" "$SHA" 2>/dev/null \
+    || git -C "$ROOT" merge-base origin/master "$SHA" 2>/dev/null \
+    || git -C "$ROOT" rev-parse "$SHA~1")"
+
 cd "$WT"
 # Not `exec`: the EXIT trap above is what removes the worktree.
 set +e
 python3 scripts/gate-receipt.py --label "verify-$SHORT" run -- \
-    env VERIFY_INNER=1 GO_CI_IMAGE="$GO_CI_IMAGE" NODE_CI_IMAGE="$NODE_CI_IMAGE" \
+    env VERIFY_INNER=1 HYGIENE_BASE="$HYGIENE_BASE" \
+        GO_CI_IMAGE="$GO_CI_IMAGE" NODE_CI_IMAGE="$NODE_CI_IMAGE" \
         GO_UNIT_PKGS="$GO_UNIT_PKGS" UNIT="$UNIT" FRONTEND="$FRONTEND" \
-    sh "$SELF"
+    bash "$SELF"
 status=$?
 exit "$status"
