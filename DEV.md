@@ -82,6 +82,25 @@ i18n/                  Backend translation files (YAML, 6 languages)
 | `make frontend-typecheck` | TypeScript check (all frontend apps) |
 | `make plugin-sdk` | Generate plugin SDK stubs (Python, Node, PHP, Ruby, Java, Swift, Dart) |
 
+## The gate
+
+`make pre-push` is the gate - the mirror of the CI jobs that gate the docker build. The git
+hooks run it for you after a one-time `make hooks` (which also installs a `commit-msg` hook
+refusing an AI attribution trailer).
+
+| Command | Description |
+|---------|-------------|
+| `make gate` | Run `make pre-push` and record a receipt: command, exit code, HEAD, working-tree fingerprint |
+| `make gate-status` | Re-check that receipt against the repo now; exits non-zero once HEAD or the tree has moved |
+| `make ci-hygiene` | The regex-decidable house rules (plain dashes, no attribution trailer, no conflict marker, no elision placeholder, no `.claude/`), ratcheted on the outgoing commits |
+| `make verify-commit REF=<sha>` | Check a commit from a clean detached worktree outside the repo: guards, `buf generate`, vet, build, unit `-race`. `FRONTEND=1` adds a frozen-lockfile install; `UNIT=0` skips the suite |
+
+Receipts live under `~/.claude/projects/<slug>/gate/`, never in the repo. "The gate is green"
+means `make gate-status` exits 0 right now - not that it passed earlier.
+
+A line that legitimately needs a character the hygiene guard rejects carries the marker
+`hygiene-guard:allow`.
+
 ## Testing
 
 ### Backend
