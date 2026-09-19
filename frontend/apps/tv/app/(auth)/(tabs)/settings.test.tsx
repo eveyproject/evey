@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen, waitFor } from "@testing-library/react";
+import { render, fireEvent, screen, waitFor, act } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------
@@ -108,6 +108,13 @@ vi.mock("../../../src/lib/auth-refresh", () => ({
   forceRefresh: () => forceRefreshMock(),
 }));
 
+const getUiScaleMock = vi.fn();
+const setUiScaleMock = vi.fn();
+vi.mock("@evey/media-caps", () => ({
+  getUiScalePercent: () => getUiScaleMock(),
+  setUiScalePercent: (p: number) => setUiScaleMock(p),
+}));
+
 vi.mock("../../../src/lib/refresh-token", () => ({
   clearRefreshToken: (...a: unknown[]) => clearRefreshTokenMock(...a),
 }));
@@ -145,6 +152,10 @@ vi.mock("@evey/api", () => ({
 import SettingsScreen from "./settings";
 
 beforeEach(() => {
+  getUiScaleMock.mockReset();
+  getUiScaleMock.mockResolvedValue(null);
+  setUiScaleMock.mockReset();
+  setUiScaleMock.mockResolvedValue(true);
   vi.clearAllMocks();
   pluginEntries.current = [];
   authStoreState = { logout: logoutMock, setTokens: vi.fn(), profileId: "prof-2", accessToken: "current-access-token", isAdmin: false };
@@ -166,6 +177,32 @@ beforeEach(() => {
   userServiceLogoutMock.mockResolvedValue({});
   signOutDeviceMock.mockResolvedValue(undefined);
   eveyFetchMock.mockResolvedValue({});
+});
+
+// The interface size is this television's: picked here, stored natively,
+// applied at the next process start (the native side restarts the app).
+describe("SettingsScreen (TV) interface size", () => {
+  it("offers the sizes with the default checked when nothing was ever stored", async () => {
+    getUiScaleMock.mockResolvedValue(null);
+    render(<SettingsScreen />);
+    expect(screen.getAllByText(/^\d+ %$/).map((e) => e.textContent)).toEqual(["70 %", "80 %", "90 %", "100 %"]);
+    await act(async () => {});
+    const row80 = screen.getByText("80 %").parentElement!;
+    expect(row80.textContent).toContain("✓");
+  });
+
+  it("shows the stored size and persists a new one through the native module", async () => {
+    getUiScaleMock.mockResolvedValue(90);
+    render(<SettingsScreen />);
+    await act(async () => {});
+    expect(screen.getByText("90 %").parentElement!.textContent).toContain("✓");
+    fireEvent.click(screen.getByText("70 %"));
+    expect(setUiScaleMock).toHaveBeenCalledWith(70);
+    // Re-picking the current value is a no-op: no pointless restart.
+    setUiScaleMock.mockClear();
+    fireEvent.click(screen.getByText("70 %"));
+    expect(setUiScaleMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("SettingsScreen (TV) playback entry", () => {

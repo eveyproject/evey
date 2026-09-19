@@ -30,6 +30,9 @@ settings:
   appVersion: App version
   serverVersion: Server version
   switchProfile: Switch Profile
+  uiScale: "Interface size"
+  uiScaleOptionA11y: "Interface size {{percent}} %"
+  uiScaleHint: "The app restarts to apply a new size."
   biometricLogin: Biometric login
   themeLightBlue: Light Blue
 auth:

@@ -16,6 +16,40 @@ interface EveyMediaCapsNative {
   deleteFile?(path: string): boolean;
   moveFile?(from: string, to: string): boolean;
   getMaxH264Level?(): number;
+  getUiScalePercent?(): number | null;
+  setUiScalePercent?(percent: number): boolean;
+}
+
+/**
+ * The UI scale the app's density is scaled by at process start (the TV app's
+ * MainApplication reads the same preference), or null when never set - the
+ * platform default then applies. Same lazy-import contract: never throws.
+ */
+export async function getUiScalePercent(): Promise<number | null> {
+  try {
+    const { requireOptionalNativeModule } = await import("expo-modules-core");
+    const native = requireOptionalNativeModule<EveyMediaCapsNative>("EveyMediaCaps");
+    const v = native?.getUiScalePercent?.();
+    return typeof v === "number" && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persists a UI scale and restarts the app to apply it (React Native reads
+ * the density once per process). Resolves false when the module is absent -
+ * the caller keeps its current look. Does not resolve at all on success: the
+ * process exits.
+ */
+export async function setUiScalePercent(percent: number): Promise<boolean> {
+  try {
+    const { requireOptionalNativeModule } = await import("expo-modules-core");
+    const native = requireOptionalNativeModule<EveyMediaCapsNative>("EveyMediaCaps");
+    return native?.setUiScalePercent?.(Math.round(percent)) === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

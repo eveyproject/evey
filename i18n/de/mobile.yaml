@@ -30,6 +30,9 @@ settings:
   appVersion: App-Version
   serverVersion: Serverversion
   switchProfile: Profil wechseln
+  uiScale: "Größe der Oberfläche"
+  uiScaleOptionA11y: "Größe der Oberfläche {{percent}} %"
+  uiScaleHint: "Die App startet neu, um eine neue Größe anzuwenden."
   biometricLogin: "Biometrische Anmeldung"
   themeLightBlue: Hellblau
 auth:
