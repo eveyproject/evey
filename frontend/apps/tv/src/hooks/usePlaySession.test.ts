@@ -19,10 +19,21 @@ vi.mock("../lib/server-config", () => ({
 const getAudioProbeMock = vi.fn();
 // The hardware H.264 ceiling this fake box answers at module load.
 const getMaxH264LevelMock = vi.fn(async () => 42);
-vi.mock("@evey/media-caps", () => ({
-  getAudioProbe: () => getAudioProbeMock(),
-  getMaxH264Level: () => getMaxH264LevelMock(),
-}));
+// HDR formats this fake panel renders. Null = the module isn't in the build,
+// which is the shape a box without the probe answers with.
+const getDisplayHdrTypesMock = vi.fn<() => Promise<string[] | null>>(async () => null);
+vi.mock("@evey/media-caps", async () => {
+  // The declaration RULE is not mocked: it is the thing under test on the TV
+  // side too, and a hand-rolled copy here would let the two drift.
+  const real = await vi.importActual<typeof import("@evey/media-caps")>("@evey/media-caps");
+  return {
+    getAudioProbe: () => getAudioProbeMock(),
+    getMaxH264Level: () => getMaxH264LevelMock(),
+    getDisplayHdrTypes: () => getDisplayHdrTypesMock(),
+    displaySupportsHdr: real.displaySupportsHdr,
+    declarableAudioCodecs: real.declarableAudioCodecs,
+  };
+});
 
 // Minimal shape of the native audio probe; only the two fields the channel
 // ceiling is derived from vary between cases.
@@ -98,6 +109,30 @@ describe("maxAudioChannels reaches the stream URL", () => {
   it("omits the param when the box cannot answer, keeping the server default", async () => {
     getAudioProbeMock.mockResolvedValue(null);
     expect(new URL(await negotiatedUrl()).searchParams.has("maxAudioChannels")).toBe(false);
+  });
+
+  // The HDR twin of the channel ceiling: a RESTITUTION capability, probed at
+  // every negotiation and carried on the same URL. GetStreamInfo must see the
+  // same answer as the master, or the stream panel describes a playback the
+  // server never serves - which is exactly the divergence that made
+  // /playback-info lie about the channel ceiling.
+  it("declares hdr=1 for an HDR panel, on the master URL and to GetStreamInfo", async () => {
+    getAudioProbeMock.mockResolvedValue(null);
+    getDisplayHdrTypesMock.mockResolvedValue(["hdr10", "hlg"]);
+    expect(new URL(await negotiatedUrl()).searchParams.get("hdr")).toBe("1");
+    expect(getStreamInfoMock).toHaveBeenLastCalledWith("m1", expect.objectContaining({ supportsHdr: true }));
+  });
+
+  // His living room: a Android TV box on a old SDR panel, supportedHdrTypes=[] on every
+  // mode. The tone-map must stay, and the URL must not grow a param.
+  it("stays SDR for an SDR panel and for a box that cannot answer", async () => {
+    getAudioProbeMock.mockResolvedValue(null);
+    getDisplayHdrTypesMock.mockResolvedValue([]);
+    expect(new URL(await negotiatedUrl()).searchParams.has("hdr")).toBe(false);
+    expect(getStreamInfoMock).toHaveBeenLastCalledWith("m1", expect.objectContaining({ supportsHdr: false }));
+
+    getDisplayHdrTypesMock.mockResolvedValue(null);
+    expect(new URL(await negotiatedUrl()).searchParams.has("hdr")).toBe(false);
   });
 });
 
@@ -205,6 +240,20 @@ describe("buildStreamUrl", () => {
     expect(buildStreamUrl("http://srv", "m1", info, "tok", 2)).toContain("maxAudioChannels=2");
     expect(buildStreamUrl("http://srv", "m1", info, "tok", 6)).toContain("maxAudioChannels=6");
     expect(buildStreamUrl("http://srv", "m1", info, "tok")).not.toContain("maxAudioChannels");
+  });
+
+  // The TV declared no HDR capability at all, so the server saw an SDR client
+  // on every title: measured 2026-09-19, a 2160p HDR10 HEVC that direct-plays
+  // with hdr=1 was going out re-encoded for want of this one param. Absent
+  // rather than hdr=0 when the panel is SDR, so an SDR box's URL - and the
+  // cache key behind it - stays byte-identical to before.
+  it("declares hdr=1 only when the panel renders HDR", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
+    const args = ["http://srv", "m1", info, "tok", undefined, undefined, undefined, 0, undefined, undefined] as const;
+    expect(buildStreamUrl(...args, true)).toContain("hdr=1");
+    expect(buildStreamUrl(...args, false)).not.toContain("hdr");
+    expect(buildStreamUrl(...args, undefined)).not.toContain("hdr");
   });
 
   it("never emits startSec - the server ignores it and it doubled the reported position", async () => {

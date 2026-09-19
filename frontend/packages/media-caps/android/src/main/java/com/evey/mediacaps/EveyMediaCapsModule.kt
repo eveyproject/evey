@@ -122,6 +122,48 @@ class EveyMediaCapsModule : Module() {
     Function("getMaxH264Level") {
       try { maxH264Level() } catch (e: Exception) { 0 }
     }
+
+    // HDR formats the DISPLAY currently attached can render, as evey names.
+    // Empty = SDR panel, and the server keeps its tone-mapping.
+    //
+    // Same shape as the audio half of this module, and for the same reason:
+    // this is a RESTITUTION capability, not a decode capability. A box whose
+    // HEVC decoder eats Main10 all day long still needs the tonemap when the
+    // panel behind the HDMI cable is SDR - measured on a Android TV box driving a 2013
+    // old SDR panel (supportedHdrTypes=[] on every mode).
+    //
+    // Read per call, never memoised: the display changes under a running app
+    // (HDMI re-plugged, AVR powered on, mode switch), exactly like the audio
+    // output does - see probeMaxOutputChannels' contract on the JS side.
+    AsyncFunction("getHdrTypes") {
+      val context: Context = appContext.reactContext
+        ?: throw IllegalStateException("no react context")
+      hdrTypes(context)
+    }
+  }
+
+  /**
+   * Display.HdrCapabilities -> evey names. Throws nothing: an unreadable
+   * display reports an empty list, which the JS side treats as "no evidence"
+   * and the server treats as SDR. Fail-safe by construction - a PQ source
+   * encoded without tone-mapping renders washed out, so guessing HDR is the
+   * expensive mistake and guessing SDR only costs an encode we already do.
+   */
+  private fun hdrTypes(context: Context): List<String> {
+    val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? android.hardware.display.DisplayManager
+      ?: return emptyList()
+    val display = dm.getDisplay(android.view.Display.DEFAULT_DISPLAY) ?: return emptyList()
+    @Suppress("DEPRECATION")
+    val supported = display.hdrCapabilities?.supportedHdrTypes ?: return emptyList()
+    return supported.mapNotNull {
+      when (it) {
+        android.view.Display.HdrCapabilities.HDR_TYPE_HDR10 -> "hdr10"
+        android.view.Display.HdrCapabilities.HDR_TYPE_HLG -> "hlg"
+        android.view.Display.HdrCapabilities.HDR_TYPE_HDR10_PLUS -> "hdr10plus"
+        android.view.Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION -> "dovi"
+        else -> null
+      }
+    }
   }
 
   private val avcLevelIdc = mapOf(
