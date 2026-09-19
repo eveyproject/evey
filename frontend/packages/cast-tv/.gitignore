@@ -1,0 +1,4 @@
+# Gradle output for the Android library. The app projects ignore their own
+# android/build the same way; this package builds via Expo autolinking, so it
+# grows one too as soon as the TV app is compiled.
+android/build/

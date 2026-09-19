@@ -192,6 +192,9 @@ importers:
       '@evey/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@evey/cast-tv':
+        specifier: workspace:*
+        version: link:../../packages/cast-tv
       '@evey/media-caps':
         specifier: workspace:*
         version: link:../../packages/media-caps
@@ -408,6 +411,12 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+
+  packages/cast-tv:
+    dependencies:
+      '@evey/media-caps':
+        specifier: workspace:*
+        version: link:../media-caps
 
   packages/media-caps: {}
 
