@@ -76,9 +76,12 @@ type ProfileRepository interface {
 type RefreshTokenRepository interface {
 	Create(ctx context.Context, t *RefreshToken) error
 	GetByTokenHash(ctx context.Context, hash string) (*RefreshToken, error)
+	GetByID(ctx context.Context, id string) (*RefreshToken, error)
 	// MarkUsedIfNotUsed atomically marks the token used only if it was unused.
 	// Returns true if the token was claimed, false if it was already used.
 	MarkUsedIfNotUsed(ctx context.Context, id string) (bool, error)
+	// SetSuccessor records which row a rotated token was exchanged for.
+	SetSuccessor(ctx context.Context, id, successorID string) error
 	DeleteByID(ctx context.Context, id string) error
 	DeleteByUserID(ctx context.Context, userID shared.UserID) error
 	DeleteExpired(ctx context.Context) error

@@ -62,6 +62,44 @@ func (r *FakeRefreshTokenRepository) GetByTokenHash(_ context.Context, hash stri
 	return nil, ErrNotFound
 }
 
+// Replace overwrites a stored row. Test-only hook: it is how a test ages a
+// rotation stamp to stand hours in the past without sleeping.
+func (r *FakeRefreshTokenRepository) Replace(t *user.RefreshToken) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cloned := *t
+	r.items[t.ID] = &cloned
+}
+
+func (r *FakeRefreshTokenRepository) GetByID(_ context.Context, id string) (*user.RefreshToken, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	t, ok := r.items[id]
+	if !ok {
+		return nil, shared.ErrNotFound
+	}
+	cloned := *t
+	return &cloned, nil
+}
+
+func (r *FakeRefreshTokenRepository) SetSuccessor(_ context.Context, id, successorID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	t, ok := r.items[id]
+	if !ok {
+		return shared.ErrNotFound
+	}
+	sid := successorID
+	t.SuccessorID = &sid
+	return nil
+}
+
 func (r *FakeRefreshTokenRepository) MarkUsedIfNotUsed(_ context.Context, id string) (bool, error) {
 	if r.Err != nil {
 		return false, r.Err

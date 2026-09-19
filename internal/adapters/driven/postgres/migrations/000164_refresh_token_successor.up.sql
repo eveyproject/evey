@@ -1,0 +1,12 @@
+-- The breadcrumb that tells an interrupted rotation apart from a replay.
+--
+-- A refresh rotates single-use tokens: the server consumes the old one and
+-- answers with a new one. When that answer never reaches the client - the app
+-- killed mid-rotation, a television crashing at boot - the client keeps
+-- presenting a token the server already consumed and its session is refused
+-- for good, which on a TV means a login screen with no keyboard.
+--
+-- Recording which row a token was rotated INTO lets that case be recognised:
+-- the successor is still unused, so nobody ever received it. A real replay
+-- finds its successor already used and is still refused.
+ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS successor_id TEXT;

@@ -198,6 +198,50 @@ func TestRefreshTokenRepo_DeleteExpired(t *testing.T) {
 	assert.Equal(t, "rt5-val", got.ID)
 }
 
+// The breadcrumb survives the sweep. A rotated row is normally swept ten
+// minutes later, but one carrying a successor is the only proof a client
+// whose rotation answer was lost is not a replay - and that client may not
+// come back for days.
+func TestRefreshTokenRepo_SuccessorSurvivesTheSweepAndRoundTrips(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedUser(t, db, "rt-user-succ")
+	repo := postgres.NewRefreshTokenRepository(db)
+	ctx := context.Background()
+
+	old := newRefreshToken("rt-succ-old", "rt-user-succ", "hash_rotated")
+	require.NoError(t, repo.Create(ctx, old))
+	next := newRefreshToken("rt-succ-new", "rt-user-succ", "hash_successor")
+	require.NoError(t, repo.Create(ctx, next))
+
+	claimed, err := repo.MarkUsedIfNotUsed(ctx, old.ID)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.NoError(t, repo.SetSuccessor(ctx, old.ID, next.ID))
+
+	// Age the rotation well past the ten-minute sweep window.
+	_, err = db.ExecContext(ctx, `UPDATE refresh_tokens SET used_at = NOW() - INTERVAL '3 hours' WHERE id = $1`, old.ID)
+	require.NoError(t, err)
+	require.NoError(t, repo.DeleteExpired(ctx))
+
+	got, err := repo.GetByID(ctx, old.ID)
+	require.NoError(t, err, "a rotated row carrying a successor must outlive the sweep")
+	require.NotNil(t, got.SuccessorID)
+	assert.Equal(t, next.ID, *got.SuccessorID)
+
+	// One without a successor is still swept, as before.
+	bare := newRefreshToken("rt-succ-bare", "rt-user-succ", "hash_bare")
+	require.NoError(t, repo.Create(ctx, bare))
+	_, err = repo.MarkUsedIfNotUsed(ctx, bare.ID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE refresh_tokens SET used_at = NOW() - INTERVAL '3 hours' WHERE id = $1`, bare.ID)
+	require.NoError(t, err)
+	require.NoError(t, repo.DeleteExpired(ctx))
+	_, err = repo.GetByID(ctx, bare.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "a rotated row with no successor is still swept")
+}
+
 func TestRefreshTokenRepo_NilClientIP(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

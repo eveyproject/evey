@@ -170,9 +170,16 @@ type RefreshToken struct {
 	// grace window: a just-rotated token presented again within the grace is a
 	// multi-tab race loser and gets a sibling session; past it, a replay. nil
 	// on unused rows and on legacy rows claimed before the column existed.
-	UsedAt    *time.Time
-	ExpiresAt time.Time
-	CreatedAt time.Time
+	UsedAt *time.Time
+	// SuccessorID is the row this token was rotated INTO. It is the breadcrumb
+	// that tells an interrupted rotation apart from a replay: a client that
+	// never received its new token comes back with this one, and the successor
+	// is still unused. A thief replaying a token whose successor HAS been used
+	// finds no such alibi. nil on unused rows and on rows rotated before the
+	// column existed.
+	SuccessorID *string
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
 }
 
 type APIKeyModel struct {

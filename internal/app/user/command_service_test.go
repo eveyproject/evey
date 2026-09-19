@@ -1399,6 +1399,12 @@ func (r *failOnSecondCreateRT) Create(ctx context.Context, t *user.RefreshToken)
 func (r *failOnSecondCreateRT) GetByTokenHash(ctx context.Context, hash string) (*user.RefreshToken, error) {
 	return r.inner.GetByTokenHash(ctx, hash)
 }
+func (r *failOnSecondCreateRT) GetByID(ctx context.Context, id string) (*user.RefreshToken, error) {
+	return r.inner.GetByID(ctx, id)
+}
+func (r *failOnSecondCreateRT) SetSuccessor(ctx context.Context, id, successorID string) error {
+	return r.inner.SetSuccessor(ctx, id, successorID)
+}
 func (r *failOnSecondCreateRT) MarkUsedIfNotUsed(ctx context.Context, id string) (bool, error) {
 	return r.inner.MarkUsedIfNotUsed(ctx, id)
 }

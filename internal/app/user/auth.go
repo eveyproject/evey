@@ -126,7 +126,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		return "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err = s.generateAndStoreRefreshToken(ctx, string(u.ID), defaultProfileID, ttlOverride...)
+	refreshToken, _, err = s.generateAndStoreRefreshToken(ctx, string(u.ID), defaultProfileID, ttlOverride...)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.Login: %w", err)
 	}
@@ -206,7 +206,7 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 		return "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err = s.generateAndStoreRefreshToken(ctx, string(u.ID), defaultProfileID, ttlOverride...)
+	refreshToken, _, err = s.generateAndStoreRefreshToken(ctx, string(u.ID), defaultProfileID, ttlOverride...)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.GenerateTokensForUser: %w", err)
 	}
@@ -397,9 +397,21 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 			}
 		}
 		var genErr error
-		newRefresh, genErr = s.generateAndStoreRefreshToken(ctx, string(u.ID), activeProfileID, ttlOverride...)
+		var newID string
+		newRefresh, newID, genErr = s.generateAndStoreRefreshToken(ctx, string(u.ID), activeProfileID, ttlOverride...)
 		if genErr != nil {
 			return fmt.Errorf("CommandService.RefreshToken: %w", genErr)
+		}
+		// Leave the breadcrumb: which row this one was rotated into. It is what
+		// lets a client whose answer was lost come back and be believed (see
+		// validateRefreshToken). Best-effort - failing the whole refresh over a
+		// bookkeeping write would log the viewer out for certain, to protect
+		// them from a case where they only MIGHT be.
+		if !graced {
+			if setErr := s.refreshTkns.SetSuccessor(ctx, rt.ID, newID); setErr != nil {
+				slog.WarnContext(ctx, "refresh: recording the rotation successor failed",
+					slog.String("tokenID", rt.ID), slog.Any("err", setErr))
+			}
 		}
 		return nil
 	}
@@ -471,6 +483,22 @@ func (s *CommandService) validateRefreshToken(ctx context.Context, token string)
 				slog.String("tokenID", rt.ID))
 			return rt, true, nil
 		}
+		// Past the grace, one case is still not a replay: the rotation answer
+		// never reached the client. The app was killed between our commit and
+		// its own write (an install, a crash at boot - a television is killed
+		// far more often than a browser), so it still holds this token and the
+		// successor we issued has never been used by anyone. Measured on the
+		// living-room box 2026-09-19: that client is logged out for good, with
+		// no keyboard to answer the login screen it lands on.
+		//
+		// A thief replaying a consumed token has no such alibi: the legitimate
+		// client did receive the successor and did use it.
+		if s.rotationWasInterrupted(ctx, rt) {
+			slog.InfoContext(ctx, "refresh: rotation answer was lost, reissuing (successor never used)",
+				slog.String("userID", string(rt.UserID)),
+				slog.String("tokenID", rt.ID))
+			return rt, true, nil
+		}
 		slog.InfoContext(ctx, "refresh rejected: token rotated outside the grace window (replay or long-stale client)",
 			slog.String("userID", string(rt.UserID)),
 			slog.String("tokenID", rt.ID))
@@ -478,6 +506,33 @@ func (s *CommandService) validateRefreshToken(ctx context.Context, token string)
 	}
 
 	return rt, false, nil
+}
+
+// rotationWasInterrupted reports whether the successor issued for this
+// consumed token was never used - the signature of an answer lost in flight
+// rather than of a replay. The orphan successor is burned on the way out: the
+// caller issues a sibling session instead, and whoever might have intercepted
+// that lost token on the wire cannot spend it afterwards.
+func (s *CommandService) rotationWasInterrupted(ctx context.Context, rt *user.RefreshToken) bool {
+	if rt.SuccessorID == nil {
+		return false
+	}
+	successor, err := s.refreshTkns.GetByID(ctx, *rt.SuccessorID)
+	if err != nil || successor == nil {
+		// Swept, or never stored: nothing proves anything, stay closed.
+		return false
+	}
+	if successor.Used || successor.IsExpired() {
+		return false
+	}
+	if delErr := s.refreshTkns.DeleteByID(ctx, successor.ID); delErr != nil {
+		// Could not neutralise the orphan - refuse rather than leave two live
+		// tokens for one session.
+		slog.WarnContext(ctx, "refresh: could not burn the orphaned successor, refusing",
+			slog.String("tokenID", rt.ID), slog.String("successorID", successor.ID), slog.Any("err", delErr))
+		return false
+	}
+	return true
 }
 
 // markRefreshTokenUsed consumes the (already validated) refresh token. Split
@@ -603,7 +658,7 @@ func (s *CommandService) Logout(ctx context.Context, userID, refreshToken string
 
 const maxRefreshTokenRetries = 3
 
-func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userID, profileID string, ttlOverride ...time.Duration) (string, error) {
+func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userID, profileID string, ttlOverride ...time.Duration) (string, string, error) {
 	ttl := s.refreshTokenTTL
 	if len(ttlOverride) > 0 && ttlOverride[0] > 0 {
 		ttl = ttlOverride[0]
@@ -616,7 +671,7 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 	for range maxRefreshTokenRetries {
 		token, err := s.tokens.GenerateRefreshToken()
 		if err != nil {
-			return "", fmt.Errorf("generate refresh token: %w", err)
+			return "", "", fmt.Errorf("generate refresh token: %w", err)
 		}
 
 		h := sha256.Sum256([]byte(token))
@@ -630,13 +685,13 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 		}
 		err = s.refreshTkns.Create(ctx, rt)
 		if err == nil {
-			return token, nil
+			return token, rt.ID, nil
 		}
 		if !errors.Is(err, shared.ErrConflict) {
-			return "", fmt.Errorf("store refresh token: %w", err)
+			return "", "", fmt.Errorf("store refresh token: %w", err)
 		}
 	}
-	return "", errors.New("store refresh token: duplicate hash after retries")
+	return "", "", errors.New("store refresh token: duplicate hash after retries")
 }
 
 // normalizePassword is applied wherever a password is hashed AND at login:
