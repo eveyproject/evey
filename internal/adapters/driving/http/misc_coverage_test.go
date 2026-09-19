@@ -246,22 +246,27 @@ func TestExtractBlockedIssues_NoBrackets(t *testing.T) {
 // ============================================================
 
 // ============================================================
-// parseClientProfile tests
+// /playback-info client profile: the SHARED reading
 // ============================================================
+//
+// These drove playbackServe.parseClientProfile, the endpoint's own parser.
+// It is gone: /playback-info now reads parseClientCapabilities like the master
+// and the segment requests do, so the endpoint that DESCRIBES a playback and
+// the one that SERVES it can no longer disagree. The params the old parser
+// owned (?maxWidth, ?maxBitrate) moved into the shared reading, so the cases
+// below still hold.
 
-func TestParseClientProfile_Default(t *testing.T) {
-	h := &playbackServe{}
+func TestPlaybackInfoClientProfile_Default(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	p := h.parseClientProfile(req)
+	p := parseClientCapabilities(req, hdrQuerySupported(req))
 	if p.MaxWidth == 0 || p.MaxHeight == 0 {
 		t.Error("expected non-zero default dimensions")
 	}
 }
 
-func TestParseClientProfile_AllParams(t *testing.T) {
-	h := &playbackServe{}
+func TestPlaybackInfoClientProfile_AllParams(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test?maxWidth=1280&maxHeight=720&maxBitrate=5000000&videoCodecs=h264,hevc&audioCodecs=aac,opus&containers=mp4,mkv&hdr=true", nil)
-	p := h.parseClientProfile(req)
+	p := parseClientCapabilities(req, hdrQuerySupported(req))
 	if p.MaxWidth != 1280 {
 		t.Errorf("expected 1280, got %d", p.MaxWidth)
 	}
@@ -290,21 +295,42 @@ func TestParseClientProfile_AllParams(t *testing.T) {
 // SDR here - a remux/playback-info decision then forced a tonemap for clients
 // that decode HDR natively, contradicting the GetStreamInfo decision that had
 // picked direct-stream for them.
-func TestParseClientProfile_HDRNumericForm(t *testing.T) {
-	h := &playbackServe{}
+func TestPlaybackInfoClientProfile_HDRNumericForm(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test?hdr=1", nil)
-	if p := h.parseClientProfile(req); !p.SupportsHDR {
+	if p := parseClientCapabilities(req, hdrQuerySupported(req)); !p.SupportsHDR {
 		t.Error("hdr=1 (the form web/mobile actually send) must set SupportsHDR")
 	}
 }
 
-func TestParseClientProfile_InvalidValues(t *testing.T) {
-	h := &playbackServe{}
+func TestPlaybackInfoClientProfile_InvalidValues(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test?maxWidth=abc&maxHeight=-1&maxBitrate=bad", nil)
-	p := h.parseClientProfile(req)
+	p := parseClientCapabilities(req, hdrQuerySupported(req))
 	assert.NotZero(t, p.MaxWidth, "invalid should keep default, which is non-zero")
 	if p.SupportsHDR {
 		t.Error("expected SupportsHDR=false without hdr=true")
+	}
+}
+
+// The reason the two readings had to become one: the endpoint's own parser
+// ignored the declarations the master acts on, so /playback-info could describe
+// a decision the master would never serve. Measured on prod (2026-09-19):
+// ?maxAudioChannels=2 changed nothing there while the master capped at 2.
+func TestPlaybackInfoClientProfile_ReadsTheMastersDeclarations(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/test?maxAudioChannels=2&fmp4AudioPassthrough=mp3&maxH264Level=41&maxH264Height=1080", nil)
+	p := parseClientCapabilities(req, hdrQuerySupported(req))
+	assert.Equal(t, 2, p.MaxAudioChannels, "the channel ceiling the master caps on")
+	assert.Equal(t, []string{"mp3"}, p.FMP4AudioPassthrough, "the fMP4 passthrough opt-in")
+	assert.Equal(t, 41, p.MaxH264Level)
+	assert.Equal(t, 1080, p.MaxH264Height)
+}
+
+// hdr=true is the older spelling; the master path read only hdr=1, so a caller
+// using it was silently demoted to SDR on the very requests that build the
+// segments. One reading, one spelling set.
+func TestParseClientCapabilities_HDRBooleanFormOnTheMasterPath(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/test?hdr=true", nil)
+	if p := parseClientCapabilities(req, hdrQuerySupported(req)); !p.SupportsHDR {
+		t.Error("hdr=true must set SupportsHDR on every path, not just /playback-info")
 	}
 }
 
