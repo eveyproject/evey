@@ -4,7 +4,7 @@ import type { V1StreamInfo } from "@evey/api";
 import { eveyFetch, playbackServiceGetStreamInfo } from "@evey/api";
 import { setAudioBoost } from "../lib/audioBoost";
 import { fetchStreamToken } from "./usePlaySession";
-import { buildCastStreamUrl, castStreamInfoParams, pickCastProfile } from "@evey/media-caps";
+import { askReceiverCaps, buildCastStreamUrl, castProfileFor, castStreamInfoParams, type CapsAnswer } from "@evey/media-caps";
 import { ensureNotificationPermission } from "../lib/notificationPermission";
 import { describeCastTracks, shouldReportTracks } from "../lib/castTrackBeacon";
 import { resumePositionAfterCast } from "../lib/castPlaybackState";
@@ -12,7 +12,7 @@ import { observeCastStall, initialCastStallTracker } from "../lib/castStallBeaco
 import {
   CastContext, useCastStateHook, useRemoteMediaClientHook,
   useMediaStatusHook, useCastDeviceHook, CastStateEnum,
-  getConnectedDeviceModelName,
+  getConnectedDeviceModelName, openCapsChannel, type CapsChannel,
 } from "./useChromecast";
 
 // Swaps the URL's token param for a cast-purpose one, preserving every other
@@ -22,6 +22,23 @@ function withCastToken(url: string, castToken: string): string {
   const u = new URL(url);
   u.searchParams.set("token", castToken);
   return u.toString();
+}
+
+// askConnectedReceiverCaps runs the caps handshake on a channel opened on the
+// session connected right now and closed right after - a late answer from a
+// session the caller has moved on from lands on a destroyed channel. Never
+// throws: no channel, no answer, is the model/floor path, not a broken cast.
+async function askConnectedReceiverCaps(): Promise<CapsAnswer | null> {
+  let channel: CapsChannel | null = null;
+  try {
+    channel = await openCapsChannel();
+    if (!channel) return null;
+    return await askReceiverCaps(channel.transport);
+  } catch {
+    return null;
+  } finally {
+    await channel?.close();
+  }
 }
 
 interface UseCastSessionArgs {
@@ -157,9 +174,16 @@ export function useCastSession({
   // castLoadMedia because a re-load reads them.
   const castLoadedForMedia = useRef<string | null>(null);
   const lastCastPositionRef = useRef<number | null>(null);
+  // Generation of the load in flight: bumped by every load and by a
+  // disconnect, so the awaits below (token, receiver caps, verdict) can tell
+  // that the session they started on is gone and drop their result instead
+  // of loading a stale negotiation onto whatever is connected now.
+  const castLoadGenRef = useRef(0);
 
   const castLoadMedia = useCallback(async (client: any) => {
     if (!streamUrl || !title) return;
+    const gen = ++castLoadGenRef.current;
+    const stale = () => castLoadGenRef.current !== gen;
     // Re-loading the SAME title (re-cast from the button, a re-negotiated URL)
     // resumes where the television is, not where the muted local player was
     // parked - which is the position the cast started from, i.e. zero for a
@@ -195,14 +219,33 @@ export function useCastSession({
     // server-derived progress - better than a broken cast.
     try {
       const castToken = await fetchStreamToken(mediaId, { cast: true });
+      if (stale()) return;
       if (streamInfo && serverUrl) {
         // The RECEIVER decodes the stream, not this phone: the SERVER judges
-        // the receiver's direct play with the receiver's profile (codecs,
-        // resolution and its H.264 ceiling, HDR, the default audio track),
-        // the same rules every client gets - this phone keeps no rule set of
-        // its own. A failed verdict plays it safe: the HLS master.
-        const profile = pickCastProfile(modelName);
+        // the receiver's direct play with the receiver's profile, the same
+        // rules every client gets - this phone keeps no rule set of its own.
+        // The profile is what the receiver OBSERVED about itself when it
+        // answers the caps channel (the display behind it included: a 4K box
+        // on a 1080p screen answers 1080p, which no model name can know),
+        // the model table otherwise, the floor when nothing is known. Asked
+        // BEFORE the verdict: a table entry richer than the real screen would
+        // let the server hand the receiver a raw HEVC/4K file it cannot show.
+        const answer = await askConnectedReceiverCaps();
+        if (stale()) return;
+        eveyFetch({
+          url: `/api/v1/media/${encodeURIComponent(mediaId)}/player-event`,
+          method: "POST",
+          data: {
+            type: "cast_receiver_caps",
+            details: answer
+              ? `answered=1 codecs=${answer.caps.videoCodecs.join("/")} maxHeight=${answer.caps.maxHeight} h264=${answer.caps.h264MaxHeight ?? "level" + answer.caps.maxH264Level} hdr=${answer.caps.hdr ? 1 : 0} ch=${answer.caps.maxAudioChannels} ua=${answer.userAgent ?? "-"}`
+              : "answered=0",
+            fatal: false, code: 0, variant: 0, segment: 0, posSec: 0,
+          },
+        }).catch(() => { /* telemetry must never break a cast */ });
+        const profile = castProfileFor(answer?.caps ?? null, modelName);
         const receiverInfo = await playbackServiceGetStreamInfo(mediaId, castStreamInfoParams(profile)).catch(() => null);
+        if (stale()) return;
         castUrl = buildCastStreamUrl(serverUrl, mediaId, receiverInfo, castToken, profile);
       } else {
         castUrl = withCastToken(streamUrl, castToken);
@@ -210,6 +253,7 @@ export function useCastSession({
     } catch (err) {
       console.warn("[Cast] cast token mint failed, casting with native token:", err);
     }
+    if (stale()) return;
     // Never the full URL in a release build: a cast token is minted for 12
     // hours and rides in the query string, so this line put a ready-to-use
     // stream link into Logcat on every cast - readable by adb, by an OEM
@@ -291,6 +335,9 @@ export function useCastSession({
   useEffect(() => {
     if (castConnected) return;
     castLoadedForMedia.current = null;
+    // A load negotiating for the session that just ended must not land on
+    // the next one: its caps, its verdict, its URL were that session's.
+    castLoadGenRef.current += 1;
     unmuteLocalPlayer();
     const resumeAt = resumePositionAfterCast(lastCastPositionRef.current);
     lastCastPositionRef.current = null;

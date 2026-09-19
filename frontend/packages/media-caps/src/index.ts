@@ -6,6 +6,8 @@ export type { AudioProbe } from "./audioProbe";
 export { reportAudioProbeOnce, resetAudioProbeLatch } from "./reportProbe";
 export { buildCastStreamUrl, castProfileFor, castStreamInfoParams, FLOOR_PROFILE, h264HeightFromLevel, pickCastProfile, profileFromReceiverCaps } from "./castUrl";
 export type { CastProfile, CastUrlExtras, ObservedReceiverCaps, ReceiverStreamInfo } from "./castUrl";
+export { askReceiverCaps, CAPS_NAMESPACE, CAPS_REQUEST, CAPS_RETRY_MS, CAPS_TIMEOUT_MS, parseCapsReport } from "./castCaps";
+export type { AskReceiverCapsOptions, CapsAnswer, CapsTransport } from "./castCaps";
 export type { ProbePoster, ReportOutcome } from "./reportProbe";
 
 interface EveyMediaCapsNative {
