@@ -11,6 +11,12 @@ import {
   type PGSTrack,
   type SubtitleCue,
 } from "@evey/api";
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  subtitleBgRgba,
+  subtitleCueFontSizePx,
+  type SubtitleStyle,
+} from "../lib/subtitleStyle";
 
 
 /**
@@ -32,6 +38,8 @@ interface Props {
   /** Subtitle-relative ordinal to render, or null for none. */
   subtitleIndex: number | null;
   currentTimeSec: number;
+  /** Appearance the viewer chose (colour, size, background, position). */
+  style?: SubtitleStyle;
 }
 
 // Cached per (media, track): re-selecting a track already loaded, or an
@@ -39,7 +47,7 @@ interface Props {
 const textCache = new Map<string, SubtitleCue[]>();
 const pgsCache = new Map<string, { track: PGSTrack; uris: string[] }>();
 
-function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec }: Props) {
+function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: Props) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [cues, setCues] = useState<SubtitleCue[]>([]);
   const [pgs, setPgs] = useState<{ track: PGSTrack; uris: string[] } | null>(null);
@@ -118,9 +126,31 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec }: Props) 
 
   const active = findActiveCueIndex(cues, currentTimeSec);
   if (active === -1) return null;
+  const cueStyle = style ?? DEFAULT_SUBTITLE_STYLE;
+  const fontSize = subtitleCueFontSizePx(screenHeight, cueStyle.fontSize);
   return (
-    <View pointerEvents="none" style={styles.textContainer}>
-      <Text style={styles.text}>{cues[active].text}</Text>
+    <View
+      pointerEvents="none"
+      style={[
+        styles.textContainer,
+        cueStyle.position === "top" ? { top: "10%", bottom: undefined } : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.text,
+          {
+            color: cueStyle.color,
+            backgroundColor: subtitleBgRgba(cueStyle.bgColor, cueStyle.bgOpacity),
+            ...(fontSize > 0 ? { fontSize } : null),
+            ...(cueStyle.shadow
+              ? { textShadowColor: "rgba(0,0,0,0.9)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 }
+              : null),
+          },
+        ]}
+      >
+        {cues[active].text}
+      </Text>
     </View>
   );
 }
