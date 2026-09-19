@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -92,8 +92,14 @@ export default function QuickConnectScreen() {
   const displayCode = code ? code.slice(-6).toUpperCase() : null;
   const qrValue = code && serverUrl ? `${serverUrl}/quickconnect?code=${code}` : null;
 
+  // A ScrollView with room for the overscan: centred in a plain View the
+  // title was clipped at the top of the panel and the Back button at the
+  // bottom (photographed on the owner's television, 2026-09-19).
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.colors.bg }}
+      contentContainerStyle={styles.container}
+    >
       <Text style={[styles.title, { color: theme.colors.text }]}>
         {t("auth.settings.quickConnect.title")}
       </Text>
@@ -104,7 +110,7 @@ export default function QuickConnectScreen() {
 
       <View style={[styles.codeBox, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
         {qrValue ? (
-          <View style={{ backgroundColor: "#fff", padding: 16, borderRadius: 8, marginBottom: 24 }}>
+          <View style={{ backgroundColor: "#fff", padding: 16, borderRadius: 8, marginBottom: 16 }}>
             <QRCode value={qrValue} size={200} />
           </View>
         ) : initiate.isError ? (
@@ -155,30 +161,32 @@ export default function QuickConnectScreen() {
           {t("common.back")}
         </Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 80,
+    paddingHorizontal: 80,
+    paddingTop: 48,
+    paddingBottom: 72,
   },
   title: {
     fontSize: 42,
     fontWeight: "bold",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   instruction: {
     fontSize: 20,
     textAlign: "center",
     maxWidth: 500,
-    marginBottom: 48,
+    marginBottom: 24,
   },
   codeBox: {
-    padding: 48,
+    padding: 32,
     alignItems: "center",
     minWidth: 360,
   },
@@ -190,10 +198,10 @@ const styles = StyleSheet.create({
   },
   expires: {
     fontSize: 18,
-    marginTop: 24,
+    marginTop: 16,
   },
   backButton: {
-    marginTop: 48,
+    marginTop: 24,
     paddingVertical: 12,
     paddingHorizontal: 32,
     borderWidth: 3,

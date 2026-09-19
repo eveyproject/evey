@@ -8,6 +8,7 @@ import { setServerUrl, getServerUrl, healthName } from "../src/lib/server-config
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { scanLocalNetwork, type DiscoveredServer } from "../src/lib/network-scan";
+import { onResultPicked, onScanStarted, rowClaimsFocus, scanFocusIdle } from "../src/lib/scanFocus";
 import { interpolateFallback } from "../src/i18n/interpolateFallback";
 import { useTheme } from "../src/providers/ThemeProvider";
 
@@ -23,6 +24,9 @@ export default function ServerConnect() {
   const [scanFocused, setScanFocused] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [discovered, setDiscovered] = useState<DiscoveredServer[]>([]);
+  // Focus handoffs the D-pad needs (rules + tests in lib/scanFocus).
+  const [scanFocus, setScanFocus] = useState(scanFocusIdle);
+  const urlInputRef = useRef<TextInput>(null);
 
   // Rename modal state
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -61,6 +65,7 @@ export default function ServerConnect() {
     const controller = new AbortController();
     scanAbortRef.current = controller;
     setScanning(true);
+    setScanFocus(onScanStarted());
     setDiscovered([]);
     const found = new Set<string>();
     await scanLocalNetwork((server) => {
@@ -195,6 +200,7 @@ export default function ServerConnect() {
       </Text>
 
       <TextInput
+        ref={urlInputRef}
         placeholder="https://your-server.com"
         placeholderTextColor={theme.colors.textMuted}
         value={url}
@@ -272,11 +278,18 @@ export default function ServerConnect() {
               { count: discovered.length },
             )}
           </Text>
-          {discovered.map((sv) => (
+          {discovered.map((sv, index) => (
             <DiscoveredRow
               key={sv.url}
               server={sv}
-              onSelect={() => setUrl(sv.url)}
+              claimFocus={rowClaimsFocus(scanFocus, index)}
+              onSelect={() => {
+                setUrl(sv.url);
+                setScanFocus(onResultPicked());
+                // The address is in the field now; the viewer still has to
+                // press Connect, so put the cursor where the change happened.
+                urlInputRef.current?.focus();
+              }}
               theme={theme}
               t={t}
             />
@@ -363,11 +376,14 @@ export default function ServerConnect() {
 function DiscoveredRow({
   server,
   onSelect,
+  claimFocus,
   theme,
   t,
 }: {
   server: DiscoveredServer;
   onSelect: () => void;
+  // The first row of a fresh scan takes the remote's focus as it appears.
+  claimFocus?: boolean;
   theme: ReturnType<typeof useTheme>;
   t: ReturnType<typeof useTranslation>["t"];
 }) {
@@ -377,6 +393,7 @@ function DiscoveredRow({
   return (
     <Pressable
       onPress={onSelect}
+      hasTVPreferredFocus={claimFocus}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       accessible={true}
