@@ -330,6 +330,11 @@ type HTTPServer struct {
 	AdminWriteRL    *ratelimit.Limiter
 	PasswordResetRL *ratelimit.Limiter
 	OIDCLoginRL     *ratelimit.Limiter
+	// QuickConnectPollRL caps the Quick Connect status poll (the television
+	// asking every few seconds whether its code was approved) - a read, not a
+	// login attempt, so it never rides LoginRL's per-minute login budget.
+	// nil = pass-through.
+	QuickConnectPollRL *ratelimit.Limiter
 	// SnapshotRL caps the frame-extraction route - each request spawns an
 	// ffmpeg, so it must not ride the generous global limiter.
 	SnapshotRL *ratelimit.Limiter
@@ -699,15 +704,19 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("POST /api/v1/auth/reset-password", ratelimit.MiddlewareFunc(s.PasswordResetRL, func(w http.ResponseWriter, r *http.Request) {
 			gwMux.ServeHTTP(w, r)
 		}))
-		mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
+		// The status poll carries the long code the TV was handed (not the
+		// short one a user types), and answers "pending" until an authenticated
+		// user approves: a read at the poll cadence, on its own limiter. It
+		// shared LoginRL until 2026-09-19, whose 10/min prod default refused
+		// every other poll of a single television.
+		mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}", ratelimit.MiddlewareFunc(s.QuickConnectPollRL, func(w http.ResponseWriter, r *http.Request) {
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
 		}))
 		if s.QuickConnectHub != nil {
-			// Same limiter as the polling QC route: the SSE stream is an auth
-			// path (it mints tokens) and each open connection holds a goroutine
-			// + hub subscription for up to ~2min - unlimited opens were a cheap
-			// resource-pinning + passive brute-force vector.
-			mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}/events", ratelimit.MiddlewareFunc(s.LoginRL, quickConnectSSEHandler(s.QuickConnectHub, &qcCheckerAdapter{query: s.UserQuerySvc, auth: s.UserAuthSvc, cfg: s.Cfg})))
+			// Same limiter as the polling QC route: each open SSE connection
+			// holds a goroutine + hub subscription for up to ~2min - unlimited
+			// opens were a cheap resource-pinning + passive brute-force vector.
+			mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}/events", ratelimit.MiddlewareFunc(s.QuickConnectPollRL, quickConnectSSEHandler(s.QuickConnectHub, &qcCheckerAdapter{query: s.UserQuerySvc, auth: s.UserAuthSvc, cfg: s.Cfg})))
 		}
 		mux.HandleFunc("POST /api/v1/auth/refresh", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
 			r = injectRefreshTokenFromCookie(r)

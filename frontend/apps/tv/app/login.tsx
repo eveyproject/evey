@@ -1,11 +1,13 @@
-import { useState } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet } from "react-native";
-import { router } from "expo-router";
+import { useCallback, useState } from "react";
+import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, BackHandler, ScrollView, StyleSheet } from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceLogin } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { setRefreshToken } from "../src/lib/refresh-token";
+import { clearServerUrl } from "../src/lib/server-config";
+import { queryClient } from "../src/lib/query-client";
 
 export default function Login() {
   const theme = useTheme();
@@ -16,7 +18,28 @@ export default function Login() {
   const [passFocused, setPassFocused] = useState(false);
   const [loginBtnFocused, setLoginBtnFocused] = useState(false);
   const [qcBtnFocused, setQcBtnFocused] = useState(false);
+  const [serverBtnFocused, setServerBtnFocused] = useState(false);
   const setTokens = useAuthStore((s) => s.setTokens);
+
+  // Back to the server screen: this is the root once a server is chosen, so
+  // the remote's BACK key otherwise leaves the app for the Android home - a
+  // viewer who picked the wrong server (the LAN scan lists every Evey it
+  // finds, a dev box included) had no way back. The stored URL is cleared
+  // so the scan runs again instead of auto-connecting to the same server.
+  const changeServer = useCallback(async () => {
+    queryClient.clear();
+    await clearServerUrl();
+    router.replace("/server-connect");
+  }, []);
+  // Only while THIS screen is focused: Quick Connect is pushed on top of it,
+  // and BACK there must pop back here, not jump to the server screen.
+  useFocusEffect(useCallback(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      void changeServer();
+      return true;
+    });
+    return () => sub.remove();
+  }, [changeServer]));
 
   const { mutate: login, isPending } = useUserServiceLogin({
     mutation: {
@@ -43,8 +66,15 @@ export default function Login() {
     login({ data: { username: username.trim(), password } });
   }
 
+  // A ScrollView, not a centred View: with the soft keyboard up the window
+  // shrinks to the top half of the screen and the sign-in and Quick Connect
+  // buttons were simply out of reach (prod, 2026-09-19).
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.colors.bg }}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={[styles.title, { color: theme.colors.text }]}>
         {t("auth.login.signIn")}
       </Text>
@@ -141,13 +171,27 @@ export default function Login() {
           {t("auth.login.recommendedForTV")}
         </Text>
       </Pressable>
-    </View>
+
+      <Pressable
+        onPress={() => { void changeServer(); }}
+        onFocus={() => setServerBtnFocused(true)}
+        onBlur={() => setServerBtnFocused(false)}
+        accessible={true}
+        accessibilityLabel={t("mobile.settings.changeServer")}
+        accessibilityRole="button"
+        style={[styles.serverButton, { borderColor: serverBtnFocused ? theme.colors.accent : "transparent", borderRadius: theme.radii.md }]}
+      >
+        <Text style={[styles.serverText, { color: serverBtnFocused ? theme.colors.text : theme.colors.textMuted }]}>
+          {t("mobile.settings.changeServer")}
+        </Text>
+      </Pressable>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 80,
@@ -193,5 +237,14 @@ const styles = StyleSheet.create({
   qcHint: {
     fontSize: 16,
     marginTop: 4,
+  },
+  serverButton: {
+    marginTop: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderWidth: 3,
+  },
+  serverText: {
+    fontSize: 20,
   },
 });
