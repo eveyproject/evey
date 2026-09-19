@@ -37,6 +37,7 @@
       ],
       "./plugins/withSearchKey",
       "./plugins/withCastConnect",
+      "./plugins/withNoAdId",
       "./plugins/withWidgetFocusGuard",
       "expo-router",
       "expo-video",
