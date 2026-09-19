@@ -352,8 +352,16 @@ perf:
 	@echo "→ web bundle budget"
 	@sh scripts/bundle-budget.sh frontend/apps/web/dist || echo "   (build the web app first: docker exec evey-web pnpm --filter web build)"
 
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-proto-breaking repo-itest-gate transcode-itest-gate tv-audit
-	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + proto compat + repo suite + transcode contract + audit TV)."
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-proto-breaking ci-clean-checkout repo-itest-gate transcode-itest-gate tv-audit
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + proto compat + clean checkout + repo suite + transcode contract + audit TV)."
+
+# ci-clean-checkout: a committed file pointing at an uncommitted one is invisible
+# to every other check here (the frontend steps run in evey-web, where the
+# untracked package is already on disk). Twice on 2026-09-19 it passed the full
+# gate and killed `docker build`. Host-side: it reads HEAD, not the working tree.
+ci-clean-checkout:
+	@echo "→ clean-checkout guard (HEAD declares nothing HEAD does not contain)"
+	@python3 scripts/clean-checkout-guard.py
 
 # ci-proto-breaking: `buf breaking` against the published tip.
 #
