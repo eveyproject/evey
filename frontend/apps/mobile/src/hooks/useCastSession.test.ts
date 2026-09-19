@@ -9,6 +9,36 @@ let castDeviceFriendlyName: string | null = null;
 let sessionDeviceModelName: string | null = null;
 let castMediaStatus: { streamPosition?: number; playerState?: number; idleReason?: string | number | null } | null = null;
 
+// The caps channel the connected receiver may answer on. A test scripts it:
+// null = no channel (no session, not our receiver); a fake channel records
+// sends, closes, and lets the test push answers (prompted or not).
+type FakeCapsChannel = {
+  sends: number; closed: boolean; unsubscribed: number;
+  push(raw: unknown): void;
+  channel: { transport: { send: (r: unknown) => Promise<void>; subscribe: (h: (raw: unknown) => void) => () => void }; close: () => Promise<void> };
+};
+function fakeCapsChannel(answerFor?: (sendIndex: number) => unknown): FakeCapsChannel {
+  let handler: ((raw: unknown) => void) | null = null;
+  const f: FakeCapsChannel = {
+    sends: 0, closed: false, unsubscribed: 0,
+    push(raw) { if (!f.closed) handler?.(raw); },
+    channel: {
+      transport: {
+        send: async () => {
+          f.sends += 1;
+          const a = answerFor?.(f.sends);
+          if (a !== undefined) queueMicrotask(() => { if (!f.closed) handler?.(a); });
+        },
+        subscribe: (h) => { handler = h; return () => { f.unsubscribed += 1; handler = null; }; },
+      },
+      close: async () => { f.closed = true; handler = null; },
+    },
+  };
+  return f;
+}
+let capsChannels: Array<FakeCapsChannel | null> = [];
+let openedChannels = 0;
+
 vi.mock("./useChromecast", () => ({
   CastContext: { showCastDialog: () => showCastDialog() },
   CastStateEnum: { CONNECTED: 4 },
@@ -20,6 +50,11 @@ vi.mock("./useChromecast", () => ({
       ? { modelName: castDeviceModelName, friendlyName: castDeviceFriendlyName }
       : null,
   getConnectedDeviceModelName: async () => sessionDeviceModelName,
+  openCapsChannel: async () => {
+    const next = capsChannels[openedChannels] ?? null;
+    openedChannels += 1;
+    return next ? next.channel : null;
+  },
 }));
 
 const setAudioBoost = vi.fn();
@@ -96,6 +131,9 @@ beforeEach(() => {
   getStreamInfoMock.mockReset();
   getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_TRANSCODE" });
   ensureNotificationPermission.mockClear();
+  capsChannels = [];
+  openedChannels = 0;
+  vi.useRealTimers();
 });
 
 describe("useCastSession", () => {
@@ -329,6 +367,171 @@ describe("useCastSession", () => {
   
 });
 
+
+// The receiver's OBSERVED capabilities (its caps channel) drive the
+// negotiation: they see the display behind the box, which no model name can
+// (a 4K box on a 1080p screen - prod 2026-09-19). observed > model > floor,
+// and the profile is settled BEFORE the server is asked for its verdict, so a
+// table entry richer than the real screen never buys a raw HEVC/4K file.
+describe("useCastSession - receiver caps handshake", () => {
+  const observed = { videoCodecs: ["h264", "vp9"], maxHeight: 1080, hdr: false, nativeDolby: false, maxAudioChannels: 2, maxH264Level: 42, h264MaxHeight: 1080 };
+  const report = (caps = observed) => ({ type: "caps", caps, userAgent: "CrKey/1.56" });
+  const richModel = "Google TV Streamer"; // table: h264/hevc/vp9/av1, 4K, HDR
+  const hevcDirectPlaySource = {
+    playMethod: "PLAY_METHOD_DIRECT_PLAY",
+    container: "mp4",
+    mediaStreams: [
+      { type: "MEDIA_STREAM_TYPE_VIDEO", codec: "hevc", bitDepth: 10, height: 2160 },
+      { type: "MEDIA_STREAM_TYPE_AUDIO", codec: "aac", isDefault: true },
+    ],
+  };
+  function connected() {
+    castState = 4;
+    castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
+    eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
+  }
+  const mountRich = () => mount(fakePlayer(), "https://example.invalid/s.m3u8", { serverUrl: "https://example.invalid", streamInfo: hevcDirectPlaySource });
+  const lastCastedUrl = () => { const calls = castClientInstance!.loadMedia.mock.calls; return new URL(calls[calls.length - 1][0].mediaInfo.contentUrl); };
+  const capsBeacon = () => eveyFetchMock.mock.calls.map((c) => c[0] as { url: string; data?: { type?: string; details?: string } }).find((c) => c.data?.type === "cast_receiver_caps")?.data?.details;
+
+  it("an immediate answer: observed wins over a richer model, and the server is asked with it BEFORE the verdict", async () => {
+    connected();
+    sessionDeviceModelName = richModel;
+    const ch = fakeCapsChannel(() => report());
+    capsChannels = [ch];
+    // The server, asked with the RICH table profile, would say direct play
+    // (a raw 4K HEVC file). Asked with the observed one it must not.
+    getStreamInfoMock.mockImplementation(async (_id: string, params: { supportedCodecs: string[] }) =>
+      ({ playMethod: params.supportedCodecs.includes("hevc") ? "PLAY_METHOD_DIRECT_PLAY" : "PLAY_METHOD_TRANSCODE" }));
+
+    const { result } = mountRich();
+    await act(async () => { await result.current.handleCast(); });
+
+    expect(getStreamInfoMock).toHaveBeenCalledWith("m1", expect.objectContaining({
+      supportedCodecs: ["h264", "vp9"], supportsHdr: false, maxHeight: 1080, maxH264Height: 1080,
+    }));
+    const url = lastCastedUrl();
+    expect(url.pathname, "no raw file for a screen that cannot show it").toBe("/api/v1/media/m1/hls/master.m3u8");
+    expect(url.searchParams.get("videoCodecs")).toBe("h264,vp9");
+    expect(url.searchParams.get("maxAudioChannels")).toBe("2");
+    expect(url.searchParams.has("hdr")).toBe(false);
+    expect(capsBeacon()).toContain("answered=1 codecs=h264/vp9 maxHeight=1080");
+    expect(ch.closed, "channel closed after the ask").toBe(true);
+    expect(ch.unsubscribed).toBe(1);
+  });
+
+  it("a late answer (the app still launching) is taken on a later ask", async () => {
+    vi.useFakeTimers();
+    connected();
+    sessionDeviceModelName = richModel;
+    const ch = fakeCapsChannel((n) => (n >= 3 ? report() : undefined));
+    capsChannels = [ch];
+    const { result } = mountRich();
+    const timersBefore = vi.getTimerCount(); // the hook's own stall tracker interval
+    await act(async () => {
+      const p = result.current.handleCast();
+      await vi.advanceTimersByTimeAsync(1500);
+      await p;
+    });
+    expect(ch.sends).toBe(3);
+    expect(lastCastedUrl().searchParams.get("videoCodecs")).toBe("h264,vp9");
+    expect(ch.closed).toBe(true);
+    expect(vi.getTimerCount(), "no handshake timer left behind").toBe(timersBefore);
+  });
+
+  it("the receiver's unprompted READY broadcast is accepted", async () => {
+    vi.useFakeTimers();
+    connected();
+    sessionDeviceModelName = richModel;
+    const ch = fakeCapsChannel();
+    capsChannels = [ch];
+    const { result } = mountRich();
+    await act(async () => {
+      const p = result.current.handleCast();
+      await vi.advanceTimersByTimeAsync(800);
+      ch.push(JSON.stringify(report()));
+      await vi.advanceTimersByTimeAsync(50);
+      await p;
+    });
+    expect(lastCastedUrl().searchParams.get("videoCodecs")).toBe("h264,vp9");
+    expect(ch.closed).toBe(true);
+  });
+
+  it("no answer within the budget: the model table, then the verdict", async () => {
+    vi.useFakeTimers();
+    connected();
+    sessionDeviceModelName = "Chromecast Ultra"; // table: hevc 4K HDR, h264 held at 1080
+    const ch = fakeCapsChannel();
+    capsChannels = [ch];
+    const { result } = mountRich();
+    const timersBefore = vi.getTimerCount();
+    await act(async () => {
+      const p = result.current.handleCast();
+      await vi.advanceTimersByTimeAsync(5100);
+      await p;
+    });
+    expect(ch.sends).toBeGreaterThanOrEqual(10);
+    expect(getStreamInfoMock).toHaveBeenCalledWith("m1", expect.objectContaining({ supportedCodecs: ["h264", "hevc", "vp9"], maxH264Height: 1080, maxHeight: 2160 }));
+    expect(capsBeacon()).toBe("answered=0");
+    expect(ch.closed).toBe(true);
+    expect(vi.getTimerCount()).toBe(timersBefore);
+  });
+
+  it("no answer and no model: the floor", async () => {
+    vi.useFakeTimers();
+    connected();
+    sessionDeviceModelName = null;
+    castDeviceModelName = null;
+    capsChannels = [null]; // not even a channel (a Default Media Receiver)
+    const { result } = mountRich();
+    await act(async () => { await result.current.handleCast(); });
+    expect(getStreamInfoMock).toHaveBeenCalledWith("m1", expect.objectContaining({ supportedCodecs: ["h264"], supportsHdr: false, maxHeight: 1080, maxH264Height: 1080 }));
+    expect(lastCastedUrl().searchParams.get("videoCodecs")).toBe("h264");
+  });
+
+  it("a session change mid-handshake drops that load; the old session's late answer is ignored", async () => {
+    vi.useFakeTimers();
+    connected();
+    sessionDeviceModelName = richModel;
+    const first = fakeCapsChannel();
+    const second = fakeCapsChannel(() => report({ ...observed, videoCodecs: ["h264"] }));
+    capsChannels = [first, second];
+    const { result, rerender } = mountRich();
+    let firstLoad: Promise<void> | undefined;
+    await act(async () => {
+      firstLoad = result.current.handleCast();
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    // The receiver goes away, then a new one connects: the auto-load runs
+    // the handshake again on the NEW session's channel.
+    await act(async () => { castState = 0; rerender(); });
+    await act(async () => { castState = 4; rerender(); await vi.advanceTimersByTimeAsync(100); });
+    // The old session finally answers - on a channel already closed, and for
+    // a generation that is gone: nothing may come of it.
+    await act(async () => {
+      first.push(report({ ...observed, videoCodecs: ["h264", "hevc", "vp9"], maxHeight: 2160, hdr: true }));
+      await vi.advanceTimersByTimeAsync(5100);
+      await firstLoad;
+    });
+    expect(first.closed).toBe(true);
+    expect(second.closed).toBe(true);
+    const loads = castClientInstance!.loadMedia.mock.calls;
+    expect(loads, "one load: the new session's; the stale one was dropped").toHaveLength(1);
+    expect(new URL(loads[0][0].mediaInfo.contentUrl).searchParams.get("videoCodecs")).toBe("h264");
+    expect(getStreamInfoMock.mock.calls.every(([, p]: [string, { supportedCodecs: string[] }]) => !p.supportedCodecs.includes("hevc"))).toBe(true);
+  });
+
+  it("observed caps that contradict the model table win, HDR and Dolby included", async () => {
+    connected();
+    sessionDeviceModelName = "Chromecast Ultra"; // table: no Dolby, HDR, hevc
+    capsChannels = [fakeCapsChannel(() => report({ ...observed, videoCodecs: ["h264", "hevc"], hdr: true, nativeDolby: true, maxHeight: 2160, h264MaxHeight: 2160 }))];
+    const { result } = mountRich();
+    await act(async () => { await result.current.handleCast(); });
+    expect(getStreamInfoMock).toHaveBeenCalledWith("m1", expect.objectContaining({
+      supportedCodecs: ["h264", "hevc"], supportedAudioCodecs: ["aac", "mp3", "opus", "flac", "eac3", "ac3"], supportsHdr: true, maxHeight: 2160, maxH264Height: 2160,
+    }));
+  });
+});
 
 // Live, 2026-08-31, 54 minutes into a film: a token refresh was refused,
 // the app logged out, the saved credentials logged it back in, StartStream

@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { eveyFetch } from "@evey/api";
 import type { ObservedReceiverCaps } from "@evey/media-caps/cast";
+import { askReceiverCaps as sharedAskReceiverCaps, CAPS_NAMESPACE, CAPS_RETRY_MS, CAPS_TIMEOUT_MS, type CapsAnswer, type CapsTransport } from "@evey/media-caps/caps";
 import { toast } from "@evey/store";
 import i18n from "@/i18n";
 
@@ -74,72 +75,29 @@ export type CastTarget =
 // before the tap from the browser's own negotiation.
 export type CastUrlResolver = (target: CastTarget) => Promise<{ url: string; castResumeSec: number }>;
 
-// CAPS_NAMESPACE and the request/answer shape are the receiver's contract
-// (apps/web cast-receiver/receiverLogic.ts: CAPS_NAMESPACE, capsReport).
-export const CAPS_NAMESPACE = "urn:x-cast:org.eveyproject.caps";
-// A cold launch of the receiver app takes a few seconds between "session up"
-// and "page running" (prod 2026-09-18: a 1.5 s budget expired 300 ms before
-// the receiver's first request), so the ask is repeated every CAPS_RETRY_MS
-// inside a CAPS_TIMEOUT_MS budget - and the receiver broadcasts its caps on
-// READY, which the listener below catches whenever it lands.
-export const CAPS_TIMEOUT_MS = 5000;
-export const CAPS_RETRY_MS = 500;
+// The caps handshake is the shared one (@evey/media-caps castCaps): this is
+// only the Web Sender SDK's transport for it - the session's message
+// listener (namespace, JSON string) and sendMessage on CAPS_NAMESPACE.
+export { CAPS_NAMESPACE, CAPS_RETRY_MS, CAPS_TIMEOUT_MS } from "@evey/media-caps/caps";
 
 // askReceiverCaps asks the connected receiver what it observed about itself
-// and waits at most timeoutMs, re-asking every retryMs. null = no usable
-// answer (a receiver that does not speak the channel, a malformed reply, the
-// timeout): the caller falls back to the floor profile. The listener is
-// always removed. Exported for tests.
+// and waits at most timeoutMs, re-asking every retryMs (see the shared
+// askReceiverCaps for the rules). null = no usable answer: the caller falls
+// back to the floor profile. Exported for tests.
 export function askReceiverCaps(
   session: Pick<cast.framework.CastSession, "sendMessage" | "addMessageListener" | "removeMessageListener">,
   timeoutMs = CAPS_TIMEOUT_MS,
   retryMs = CAPS_RETRY_MS,
-): Promise<{ caps: ObservedReceiverCaps; userAgent: string | null } | null> {
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = (value: { caps: ObservedReceiverCaps; userAgent: string | null } | null) => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      clearInterval(retry);
-      try { session.removeMessageListener(CAPS_NAMESPACE, onMessage); } catch { /* session gone */ }
-      resolve(value);
-    };
-    const onMessage = (_ns: string, message: string) => {
-      try {
-        const data = JSON.parse(message) as { type?: string; caps?: Partial<ObservedReceiverCaps>; userAgent?: string };
-        const c = data?.type === "caps" ? data.caps : undefined;
-        if (!c || !Array.isArray(c.videoCodecs) || typeof c.maxHeight !== "number") {
-          return; // not the answer we asked for: keep waiting
-        }
-        const videoCodecs: unknown[] = c.videoCodecs;
-        const maxHeight: number = c.maxHeight;
-        finish({
-          caps: {
-            videoCodecs: videoCodecs.filter((v): v is string => typeof v === "string"),
-            maxHeight,
-            hdr: c.hdr === true,
-            nativeDolby: c.nativeDolby === true,
-            maxAudioChannels: typeof c.maxAudioChannels === "number" && c.maxAudioChannels > 0 ? c.maxAudioChannels : 2,
-            maxH264Level: typeof c.maxH264Level === "number" ? c.maxH264Level : 40,
-            h264MaxHeight: typeof c.h264MaxHeight === "number" ? c.h264MaxHeight : undefined,
-          },
-          userAgent: typeof data.userAgent === "string" ? data.userAgent : null,
-        });
-      } catch { /* malformed: keep waiting for a well-formed one */ }
-    };
-    const timer = setTimeout(() => finish(null), timeoutMs);
-    // A send that fails once (the app still launching) is retried like any
-    // other silence; only the budget ends the wait.
-    const ask = () => { session.sendMessage(CAPS_NAMESPACE, { type: "caps" }).catch(() => {}); };
-    const retry = setInterval(() => { if (!done) ask(); }, retryMs);
-    try {
-      session.addMessageListener(CAPS_NAMESPACE, onMessage);
-      ask();
-    } catch {
-      finish(null);
-    }
-  });
+): Promise<CapsAnswer | null> {
+  const transport: CapsTransport = {
+    send: (request) => session.sendMessage(CAPS_NAMESPACE, request),
+    subscribe: (onMessage) => {
+      const listener = (_ns: string, message: string) => onMessage(message);
+      session.addMessageListener(CAPS_NAMESPACE, listener);
+      return () => session.removeMessageListener(CAPS_NAMESPACE, listener);
+    },
+  };
+  return sharedAskReceiverCaps(transport, { timeoutMs, retryMs });
 }
 
 interface DLNARenderer {
