@@ -132,7 +132,7 @@ func (h *hlsVODServe) audioRenditionCopyCodec(r *http.Request, item *domainlibra
 		return ""
 	}
 	codec := sourceAudioCodec(streams, trackIdx)
-	client := parseClientCapabilities(r, r.URL.Query().Get("hdr") == "1")
+	client := parseClientCapabilities(r, hdrQuerySupported(r))
 	if codec == "" || !apptranscoding.AudioCopyCodecAllowedFor(codec, client) {
 		return ""
 	}

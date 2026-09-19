@@ -1,10 +1,19 @@
 package httpapi
 
-// client_capabilities.go - the client's capabilities as the HLS requests
-// declare them (?videoCodecs, ?audioCodecs, ?containers, ?hdr, ?maxHeight,
-// ...): ONE reading shared by the master's decision, the URIs the manifests
-// bake and the audio rendition's fingerprint, so a segment request re-derives
-// the SAME decision the master was built from.
+// client_capabilities.go - the client's capabilities as the requests declare
+// them (?videoCodecs, ?audioCodecs, ?containers, ?hdr, ?maxHeight, ...): ONE
+// reading shared by the master's decision, the URIs the manifests bake, the
+// audio rendition's fingerprint AND /playback-info, so a segment request
+// re-derives the SAME decision the master was built from - and so the endpoint
+// that DESCRIBES a playback describes the one that will be served.
+//
+// /playback-info used to carry its own parser (playbackServe.parseClientProfile),
+// which read ?maxWidth and ?maxBitrate that this one ignored, and ignored
+// ?maxAudioChannels, ?fmp4AudioPassthrough and ?maxH264Height that this one
+// reads. Measured 2026-09-19: ?maxAudioChannels=2 on /playback-info had no
+// effect at all, so the endpoint could report a decision the master would never
+// serve. The two readings are now one; ?maxWidth and ?maxBitrate moved in here
+// rather than being dropped, so every param the endpoint documented still works.
 
 import (
 	"net/http"
@@ -63,6 +72,19 @@ func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscodi
 	// ladder stops at it. Unlike ?screenHeight, which only trims the ladder.
 	if n := parseIntQuery(r, "maxHeight", 0); n >= 240 && n <= 8640 {
 		client.MaxHeight = n
+	}
+	// Width twin of ?maxHeight, same clamp shape on the width range. No shipped
+	// client sends either this or ?maxBitrate - they came from /playback-info's
+	// own parser and stay readable so that endpoint keeps its contract.
+	if n := parseIntQuery(r, "maxWidth", 0); n >= 240 && n <= 15360 {
+		client.MaxWidth = n
+	}
+	// Line ceiling the caller imposes on itself (kbps). The decision folds it
+	// with the profile's own cap in resolveMaxBitrate.
+	if v := r.URL.Query().Get("maxBitrate"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			client.MaxBitrate = n
+		}
 	}
 	if hdrSupported {
 		client.SupportsHDR = true

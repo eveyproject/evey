@@ -124,7 +124,7 @@ func (h *hlsVODServe) marshalPlaybackRequest(r *http.Request, mediaID string, it
 		SourcePath:          sourcePathOf(item),
 		Container:           containerOf(item),
 		Streams:             streams,
-		Client:              parseClientCapabilities(r, r.URL.Query().Get("hdr") == "1"),
+		Client:              parseClientCapabilities(r, hdrQuerySupported(r)),
 		Prefs:               prefs,
 		AudioTrack:          audioTrack,
 		SubtitleBurnInTrack: parseIntQuery(r, "subtitleTrack", -1),

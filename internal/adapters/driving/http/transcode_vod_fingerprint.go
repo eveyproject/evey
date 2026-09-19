@@ -330,7 +330,7 @@ func (h *hlsVODServe) decideWith(ctx context.Context, streams []*domainlibrary.M
 		SourcePath:          sourcePath,
 		Container:           container,
 		Streams:             streams,
-		Client:              parseClientCapabilities(r, r.URL.Query().Get("hdr") == "1"),
+		Client:              parseClientCapabilities(r, hdrQuerySupported(r)),
 		Prefs:               prefs,
 		AudioTrack:          selected,
 		SubtitleBurnInTrack: parseIntQuery(r, "subtitleTrack", -1),

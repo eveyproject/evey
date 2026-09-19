@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -230,7 +228,7 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := h.parseClientProfile(r)
+	client := parseClientCapabilities(r, hdrQuerySupported(r))
 
 	var userMaxBitrate int
 	if client.MaxBitrate > 0 {
@@ -302,38 +300,6 @@ func toPlaybackInfoDTO(d *domaintranscoding.PlaybackDecision) playbackInfoDTO {
 		MaxHeight:        d.MaxHeight,
 		MaxAudioChannels: d.MaxAudioChannels,
 	}
-}
-
-func (h *playbackServe) parseClientProfile(r *http.Request) domaintranscoding.ClientProfile {
-	client := domaintranscoding.DefaultWebProfile
-	if v := r.URL.Query().Get("maxWidth"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			client.MaxWidth = n
-		}
-	}
-	if v := r.URL.Query().Get("maxHeight"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			client.MaxHeight = n
-		}
-	}
-	if v := r.URL.Query().Get("maxBitrate"); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
-			client.MaxBitrate = n
-		}
-	}
-	if v := r.URL.Query().Get("videoCodecs"); v != "" {
-		client.VideoCodecs = strings.Split(v, ",")
-	}
-	if v := r.URL.Query().Get("audioCodecs"); v != "" {
-		client.AudioCodecs = strings.Split(v, ",")
-	}
-	if v := r.URL.Query().Get("containers"); v != "" {
-		client.Containers = strings.Split(v, ",")
-	}
-	if hdrQuerySupported(r) {
-		client.SupportsHDR = true
-	}
-	return client
 }
 
 // ProfileAudioPrefsGetter extends ProfilePrefsGetter with the profile-level
