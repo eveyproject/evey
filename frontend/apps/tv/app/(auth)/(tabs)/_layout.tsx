@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { EveyWordmark, EveyMark } from "../../../src/components/EveyLogo";
 import { TopHeader } from "../../../src/components/TopHeader";
+import { SearchOverlay } from "../../../src/components/SearchOverlay";
 
 interface NavItem {
   labelKey: string;
@@ -33,6 +34,10 @@ export default function TabsLayout() {
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  // The search lives here, above every tab screen: it is a dropdown of the
+  // header, so it opens over whatever the viewer was looking at instead of
+  // taking them to another page.
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const isActive = useCallback(
     (path: string) => {
@@ -52,11 +57,9 @@ export default function TabsLayout() {
   // plugins/withSearchKey.js). Many televisions swallow it for the system
   // assistant and it never arrives; where it does, it opens the search.
   useEffect(() => {
-    const sub = DeviceEventEmitter.addListener("eveyRemoteSearch", () => {
-      router.push("/(auth)/(tabs)/search" as never);
-    });
+    const sub = DeviceEventEmitter.addListener("eveyRemoteSearch", () => setSearchOpen(true));
     return () => sub.remove();
-  }, [router]);
+  }, []);
 
   const handleNavBlur = useCallback(() => {
     setFocusedIndex(-1);
@@ -128,12 +131,14 @@ export default function TabsLayout() {
 
       <View style={styles.content}>
         <TopHeader
-          onSearch={() => router.push("/(auth)/(tabs)/search" as never)}
+          onSearch={() => setSearchOpen(true)}
           onNotifications={() => router.push("/(auth)/notifications" as never)}
           onProfile={() => router.push("/profile-select" as never)}
         />
         <Slot />
       </View>
+
+      <SearchOverlay visible={searchOpen} onClose={() => setSearchOpen(false)} />
     </View>
   );
 }

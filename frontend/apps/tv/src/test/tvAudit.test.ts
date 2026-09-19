@@ -82,7 +82,6 @@ describe("audit TV · focus initial déterministe", () => {
   // mutually exclusive early-returns (disabled state / empty state / content).
   const ALLOW = new Set<string>([
     "app/(auth)/(tabs)/requests.tsx", // état désactivé + onglets + lignes de liste
-    "app/(auth)/(tabs)/search.tsx",
     "app/(auth)/(tabs)/library.tsx",
     "app/(auth)/(tabs)/music.tsx",
     "app/(auth)/settings/playback.tsx",
