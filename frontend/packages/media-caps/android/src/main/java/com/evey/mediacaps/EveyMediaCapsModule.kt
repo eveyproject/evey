@@ -143,11 +143,9 @@ class EveyMediaCapsModule : Module() {
   }
 
   /**
-   * Display.HdrCapabilities -> evey names. Throws nothing: an unreadable
-   * display reports an empty list, which the JS side treats as "no evidence"
-   * and the server treats as SDR. Fail-safe by construction - a PQ source
-   * encoded without tone-mapping renders washed out, so guessing HDR is the
-   * expensive mistake and guessing SDR only costs an encode we already do.
+   * Display.HdrCapabilities -> evey names. An unreadable display reports an
+   * empty list, which the server reads as SDR: guessing HDR is the expensive
+   * mistake (a PQ source encoded without tone-mapping renders washed out).
    */
   private fun hdrTypes(context: Context): List<String> {
     val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? android.hardware.display.DisplayManager
@@ -155,7 +153,8 @@ class EveyMediaCapsModule : Module() {
     val display = dm.getDisplay(android.view.Display.DEFAULT_DISPLAY) ?: return emptyList()
     @Suppress("DEPRECATION")
     val supported = display.hdrCapabilities?.supportedHdrTypes ?: return emptyList()
-    return supported.mapNotNull {
+    // toList(): supportedHdrTypes is an IntArray, which has no mapNotNull.
+    return supported.toList().mapNotNull {
       when (it) {
         android.view.Display.HdrCapabilities.HDR_TYPE_HDR10 -> "hdr10"
         android.view.Display.HdrCapabilities.HDR_TYPE_HLG -> "hlg"
