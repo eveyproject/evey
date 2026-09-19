@@ -9,6 +9,7 @@ vi.mock("react-native", () => ({
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "spinner", ...p }),
   StyleSheet: { create: (s: any) => s },
+  ScrollView: ({ children }: any) => React.createElement("div", null, children),
 }));
 
 vi.mock("../src/providers/ThemeProvider", () => ({

@@ -20,6 +20,7 @@ vi.mock("react-native", () => ({
     ),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "spinner", ...p }),
   StyleSheet: { create: (s: any) => s },
+  ScrollView: ({ children }: any) => React.createElement("div", null, children),
 }));
 
 vi.mock("react-native-qrcode-svg", () => ({
