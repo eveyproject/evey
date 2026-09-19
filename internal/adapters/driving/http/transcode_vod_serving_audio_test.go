@@ -81,6 +81,35 @@ func TestHLSVOD_ServingPath_AResyncOffsetIsNotACopy(t *testing.T) {
 	assert.Equal(t, "transcode", got.AudioDecision)
 }
 
+// The ad= pin is minted from the SELECTED track and rides every child URL,
+// including the playlists of renditions it says nothing about. Applied there
+// it did real damage: pick the TrueHD track nobody can carry in fMP4, and the
+// AC-3 tracks beside it were re-encoded to AAC on the strength of a verdict
+// about a track the viewer is not listening to.
+func TestHLSVOD_AudioPin_DoesNotJudgeAnotherTrack(t *testing.T) {
+	w, hgt := 1920, 1080
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "hevc", Width: &w, Height: &hgt, Profile: "Main"},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "truehd", Channels: new(8), IsDefault: true, Language: "eng"},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "ac3", Channels: new(6), Language: "fre"},
+	}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: testMediaItemWith1Minute(), streams: streams}, allowAll(), testFakeParentalChecker{block: false})
+	h.audioRenditionEnabled = true
+	h.frameRateProbe = func(context.Context, string) float64 { return 24 }
+	h.encoderReorderProbe = func(context.Context, string, string, string, []string) (int, bool) { return 2, true }
+	item := testMediaItemWith1Minute()
+
+	// The selected track is the TrueHD one: fMP4 cannot carry it, so the
+	// session's own verdict is transcode and the master stamps ad=transcode.
+	caps := "videoCodecs=h264&audioCodecs=aac,ac3,eac3,truehd&maxAudioChannels=8&audioTrack=0"
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/audio_1.m3u8?"+caps+"&ad=transcode", nil)
+	req = withHTTPClaims(req, testClaims(false))
+
+	assert.Empty(t, h.audioRenditionCopyCodec(req, item, streams, 0), "TrueHD is never carried in fMP4")
+	assert.Equal(t, "ac3", h.audioRenditionCopyCodec(req, item, streams, 1),
+		"the AC-3 rendition is carriable on its own merits - the other track's pin must not re-encode it")
+}
+
 // Unit view of the same rule, including the muxed short-circuit and the
 // no-rendition case - the two branches the master requests above cannot reach
 // on their own.
