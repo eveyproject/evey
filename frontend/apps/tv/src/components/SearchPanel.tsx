@@ -157,6 +157,15 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
   const [query, setQuery] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
   const [searchKind, setSearchKind] = useState<"media" | "music">("media");
+  // The results box is measured, not flexed. Inside the header's Modal the
+  // flex chain under this point never resolved on the box (2026-09-19): the
+  // list came out 2 px tall with its rows correctly built behind it, so the
+  // dropdown looked empty. One definite height, taken from the slot the layout
+  // actually gave us, and everything below it resolves in both hosts.
+  const [resultsHeight, setResultsHeight] = useState(0);
+  // flex:1 would win over any height added next to it, so the three nested
+  // boxes take one or the other, never both.
+  const resultsBox = resultsHeight > 0 ? { height: resultsHeight } : { flex: 1 };
   // Trim then gate at > 1 char, like web and mobile: a single character fired
   // a request per keystroke here for results nobody can use.
   const debouncedQuery = useDebounce(query.trim(), 300);
@@ -328,10 +337,14 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
       {/* Results panel: floating card anchored below the input/tabs, mirroring
           the web dropdown - a raised surface distinct from the screen
           background rather than a flat, full-page list. */}
-      <View style={styles.resultsAnchor}>
+      <View
+        style={styles.resultsAnchor}
+        onLayout={(e) => setResultsHeight(e.nativeEvent.layout.height)}
+      >
         <View
           style={[
             styles.resultsPanel,
+            resultsBox,
             {
               backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface,
               borderRadius: theme.radii.lg ?? theme.radii.md,
@@ -339,7 +352,13 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
             },
           ]}
         >
-          <View style={[styles.resultsPanelInner, { borderRadius: theme.radii.lg ?? theme.radii.md }]}>
+          <View
+            style={[
+              styles.resultsPanelInner,
+              resultsBox,
+              { borderRadius: theme.radii.lg ?? theme.radii.md },
+            ]}
+          >
             {resultsView === "error" ? (
               <View style={styles.center}>
                 <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
@@ -366,7 +385,7 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
                 data={musicItems}
                 keyExtractor={tvTrackKeyExtractor}
                 renderItem={renderMusicItem}
-                style={styles.resultsList}
+                style={[styles.resultsList, resultsBox]}
                 contentContainerStyle={{ padding: 24 }}
                 ItemSeparatorComponent={TVSearchSeparator}
                 initialNumToRender={6}
@@ -383,7 +402,7 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
                 data={items}
                 keyExtractor={tvSearchKeyExtractor}
                 renderItem={renderItem}
-                style={styles.resultsList}
+                style={[styles.resultsList, resultsBox]}
                 contentContainerStyle={{ padding: 24 }}
                 ItemSeparatorComponent={TVSearchSeparator}
                 initialNumToRender={6}
@@ -438,19 +457,15 @@ const styles = StyleSheet.create({
   // Elevation/shadow lives on this outer view (no overflow clipping here) so
   // the rounded corners of resultsPanelInner don't cut the shadow off.
   resultsPanel: {
-    flex: 1,
     elevation: 8,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
   },
   resultsPanelInner: {
-    flex: 1,
     overflow: "hidden",
   },
-  resultsList: {
-    flex: 1,
-  },
+  resultsList: {},
   row: {
     flexDirection: "row",
     alignItems: "center",
