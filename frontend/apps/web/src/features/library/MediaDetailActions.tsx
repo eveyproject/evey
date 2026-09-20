@@ -19,6 +19,7 @@ import { useStreamToken } from "@/hooks/useStreamToken";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { DownloadButton } from "../playback/DownloadButton";
+import { CastMediaButton } from "../playback/CastMediaButton";
 import { ShareLinkButton } from "./ShareLinkButton";
 import { FavoriteButton } from "./FavoriteButton";
 import { RatingButtons } from "./RatingButtons";
@@ -217,6 +218,29 @@ export function MediaDetailActions({
               </Button>
             )}
           </div>
+        )}
+        {/* Send it straight to the television, without opening the player
+            here first. Playable items only - a series/season has no stream of
+            its own to hand over. The parental PIN is asked BEFORE the stream
+            leaves: a gate that only guards the local player would be no gate
+            at all (the film would simply play on the TV instead). */}
+        {item.id && !isSeries && !isSeason && hasMediaFile(item) && (
+          <CastMediaButton
+            mediaId={item.id}
+            title={item.title}
+            resumeMs={hasProgress ? Number(resumeMs) : 0}
+            audioTrack={trackPick.audio}
+            // Unlocking is all the dialog does here: the Cast picker needs
+            // the user activation of a real tap, and the PIN round-trip has
+            // spent the one that opened the dialog. The profile stays
+            // unlocked, so the next press of this button goes straight
+            // through - a silent refusal from Chrome would be worse.
+            gate={() => {
+              if (!needsPin()) return false;
+              setPinDialogOpen(true);
+              return true;
+            }}
+          />
         )}
         {/* Not offered for a series/season: the server's MarkAsWatched writes a
             single progress row on the id it is given and nothing cascades it to
