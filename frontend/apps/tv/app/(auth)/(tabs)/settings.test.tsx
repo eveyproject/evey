@@ -4,6 +4,8 @@ import React from "react";
 
 // --- React Native mock -----------------------------------------------------
 vi.mock("react-native", () => ({
+  // The change-server confirmation renders inside a Modal.
+  Modal: ({ children, visible }: any) => (visible ? children : null),
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
@@ -287,6 +289,37 @@ describe("SettingsScreen (TV) profile menu parity", () => {
 // Regression for the fix landed the night of 2026-08-02/03: entering Settings
 // used to hand initial D-pad focus to Sign out, one reflex OK press away from
 // a session a keyboard-less television has no comfortable way to restore.
+// Changing server signs the television out, and the row is the first thing
+// under the thumb in Settings (owner, 2026-09-20): it asks first, with Cancel
+// holding the focus, and only the explicit confirmation tears the session down.
+describe("SettingsScreen (TV) change server asks first", () => {
+  it("does nothing but open the confirmation, with Cancel preselected", () => {
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("mobile.settings.changeServer"));
+    expect(logoutMock).not.toHaveBeenCalled();
+    expect(replaceMock).not.toHaveBeenCalledWith("/server-connect");
+    const cancel = screen.getByLabelText("common.cancel");
+    expect(cancel.getAttribute("data-tv-preferred-focus")).toBe("true");
+  });
+
+  it("cancel closes it and keeps the session", () => {
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("mobile.settings.changeServer"));
+    fireEvent.click(screen.getByLabelText("common.cancel"));
+    expect(screen.queryByLabelText("common.cancel")).toBeNull();
+    expect(logoutMock).not.toHaveBeenCalled();
+  });
+
+  it("confirming signs out and goes to the server page", async () => {
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("mobile.settings.changeServer"));
+    const confirm = screen.getAllByLabelText("mobile.settings.changeServer").at(-1)!;
+    fireEvent.click(confirm);
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/server-connect"));
+    expect(logoutMock).toHaveBeenCalled();
+  });
+});
+
 describe("SettingsScreen (TV) initial focus", () => {
   it("claims initial TV focus on 'change server', not on sign out", () => {
     render(<SettingsScreen />);

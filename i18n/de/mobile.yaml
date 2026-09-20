@@ -24,6 +24,7 @@ settings:
   themeOptionA11y: "Design {{name}}"
   server: Server
   changeServer: Server wechseln
+  changeServerConfirm: "Beim Serverwechsel wird dieses Fernsehgerät abgemeldet. Fortfahren?"
   signOut: Abmelden
   signOutConfirm: Sind Sie sicher?
   about: Über
