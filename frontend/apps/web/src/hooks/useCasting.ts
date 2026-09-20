@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { eveyFetch } from "@evey/api";
 import type { ObservedReceiverCaps } from "@evey/media-caps/cast";
 import { askReceiverCaps as sharedAskReceiverCaps, CAPS_NAMESPACE, CAPS_RETRY_MS, CAPS_TIMEOUT_MS, type CapsAnswer, type CapsTransport } from "@evey/media-caps/caps";
+import { buildCastCustomData, buildLaunchCredentials, CAST_CREDENTIALS_TYPE } from "@evey/media-caps/launch";
 import { toast } from "@evey/store";
 import i18n from "@/i18n";
 
@@ -30,7 +31,16 @@ const error: typeof console.error = DEV ? console.error.bind(console) : () => {}
 // the complete precomputed VOD manifest, so either timeline is absolute and
 // the load request's currentTime is the only thing that ever resumes it
 // (baking startSec into the URL never worked - no server handler parses it).
-export async function loadChromecastMedia(session: cast.framework.CastSession, absoluteUrl: string, title?: string, startAtSec = 0): Promise<void> {
+export async function loadChromecastMedia(
+  session: cast.framework.CastSession,
+  absoluteUrl: string,
+  title?: string,
+  startAtSec = 0,
+  // What an Evey TV app needs to play this through its OWN player: a media
+  // id, not a URL. Absent on the Web Receiver path, which reads the URL
+  // above and ignores this entirely - one LoadRequest, two receivers.
+  eveyMedia?: { mediaId: string; audioTrack?: number; subtitleTrack?: number | "off" },
+): Promise<void> {
   const chrome = window.chrome;
   const isHls = absoluteUrl.includes("m3u8");
   const contentType = isHls ? "application/x-mpegurl" : "video/mp4";
@@ -48,6 +58,15 @@ export async function loadChromecastMedia(session: cast.framework.CastSession, a
   }
   mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
   mediaInfo.metadata.title = title ?? "";
+  if (eveyMedia) {
+    mediaInfo.customData = buildCastCustomData({
+      mediaId: eveyMedia.mediaId,
+      positionSec: startAtSec,
+      audioTrack: eveyMedia.audioTrack,
+      subtitleTrack: eveyMedia.subtitleTrack,
+      serverOrigin: window.location.origin,
+    });
+  }
   const loadRequest = new chrome.cast.media.LoadRequest(mediaInfo);
   // Always autoplay: casting while the LOCAL player is paused must still
   // start playback on the TV - the handoff pauses the local element anyway.
@@ -180,6 +199,14 @@ function ensureCastSdk() {
       cast.framework.CastContext.getInstance().setOptions({
         receiverApplicationId: CAST_APP_ID,
         autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+        // Cast Connect: on an Android TV that has the Evey TV app, launch THE
+        // APP instead of the Web Receiver - its remote then drives the real
+        // player. Anywhere else (a bare Chromecast, an Android TV without the
+        // app, a TV app that refuses the launch) the platform falls back to
+        // the Web Receiver on its own, so this flag costs those devices
+        // nothing. setLaunchCredentialsData below is what the app's
+        // LaunchRequestChecker reads to make that decision.
+        androidReceiverCompatible: true,
       });
       log(TAG, "CastContext initialized - appId:", CAST_APP_ID);
     } catch (err) {
@@ -382,7 +409,15 @@ export function useCasting(report?: CastReporter) {
   // handed over from the browser's own negotiation. On the SDK path this
   // runs after requestSession, which is the only step that needs the tap's
   // user activation; loadMedia needs none, so the awaits in between are safe.
-  const startCast = useCallback(async (resolveUrl: CastUrlResolver, title?: string, opts?: { skipSdk?: boolean }): Promise<CastAttempt> => {
+  const startCast = useCallback(async (
+    resolveUrl: CastUrlResolver,
+    title?: string,
+    // userId/profileId ride the LAUNCH credentials (Cast Connect); eveyMedia
+    // rides the LOAD so an Evey TV app can play the item itself. Both are
+    // optional: without them the cast behaves exactly as it did before, on
+    // the Web Receiver.
+    opts?: { skipSdk?: boolean; userId?: string; profileId?: string; eveyMedia?: { mediaId: string; audioTrack?: number; subtitleTrack?: number | "off" } },
+  ): Promise<CastAttempt> => {
     log(TAG, "startCast - title:", title);
     // Same diagnostic payload as the fling path: whether the tap's activation
     // was still alive tells a browser refusal apart from a user cancelling.
@@ -401,6 +436,26 @@ export function useCasting(report?: CastReporter) {
       try {
         const cast = window.cast;
         const ctx = cast.framework.CastContext.getInstance();
+
+        // Who is casting, and from which Evey. Set BEFORE requestSession:
+        // these credentials ride the LAUNCH, and the Evey TV app's
+        // LaunchRequestChecker reads them to decide whether to take the cast
+        // at all. A television signed into another instance (or another
+        // account) refuses, and the platform falls back to the Web Receiver -
+        // which is the right outcome, not a failure.
+        try {
+          ctx.setLaunchCredentialsData(
+            new chrome.cast.CredentialsData(
+              buildLaunchCredentials({ serverOrigin: window.location.origin, userId: opts?.userId, profileId: opts?.profileId }),
+              CAST_CREDENTIALS_TYPE,
+            ),
+          );
+        } catch (err) {
+          // An older Cast SDK without CredentialsData: the TV app then sees
+          // no credentials and declines, so the Web Receiver takes it. No
+          // reason to fail the cast over it.
+          warn(TAG, "launch credentials unavailable:", err);
+        }
 
         let session = ctx.getCurrentSession();
         if (!session) {
@@ -433,7 +488,7 @@ export function useCasting(report?: CastReporter) {
 
         log(TAG, "Loading media...", { url: absoluteUrl });
         try {
-          await loadChromecastMedia(session, absoluteUrl, title, startAtSec);
+          await loadChromecastMedia(session, absoluteUrl, title, startAtSec, opts?.eveyMedia);
         } catch (loadErr) {
           // A session exists (the user picked a device) but the receiver
           // couldn't load the stream. Falling through to server-side LAN

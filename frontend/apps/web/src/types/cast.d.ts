@@ -5,7 +5,17 @@ declare namespace cast {
   namespace framework {
     class CastContext {
       static getInstance(): CastContext;
-      setOptions(options: { receiverApplicationId: string; autoJoinPolicy: unknown }): void;
+      setOptions(options: {
+        receiverApplicationId: string;
+        autoJoinPolicy: unknown;
+        /** Cast Connect: launch the Android TV app when it is installed and
+         *  accepts the launch, the Web Receiver otherwise. */
+        androidReceiverCompatible?: boolean;
+      }): void;
+      /** Cast Connect: identity handed to the Android TV app's
+       *  LaunchRequestChecker, BEFORE any media. Must be set before
+       *  requestSession(). */
+      setLaunchCredentialsData(credentialsData: chrome.cast.CredentialsData): void;
       addEventListener(type: string, listener: (event: { castState?: string; sessionState?: string }) => void): void;
       requestSession(): Promise<void>;
       getCurrentSession(): CastSession | null;
@@ -65,6 +75,11 @@ declare namespace cast {
 declare namespace chrome.cast {
   const AutoJoinPolicy: { ORIGIN_SCOPED: string };
 
+  /** Cast Connect launch credentials (setLaunchCredentialsData). */
+  class CredentialsData {
+    constructor(credentials: string, credentialsType?: string);
+  }
+
   namespace media {
     class MediaInfo {
       constructor(contentId: string, contentType: string);
@@ -72,6 +87,10 @@ declare namespace chrome.cast {
       hlsSegmentFormat: string;
       hlsVideoSegmentFormat: string;
       metadata: GenericMediaMetadata;
+      /** Free-form payload the receiver reads. Evey puts the media id and
+       *  resume point here so an Android TV app can play it with its own
+       *  player (see @evey/media-caps castLaunch). */
+      customData?: unknown;
     }
 
     class GenericMediaMetadata {

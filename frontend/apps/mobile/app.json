@@ -63,6 +63,7 @@
           "receiverApplicationId": "D36A449B"
         }
       ],
+      "./plugins/withCastConnectSender",
       "@kesha-antonov/react-native-background-downloader"
     ]
   }
