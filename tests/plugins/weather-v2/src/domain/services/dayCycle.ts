@@ -54,8 +54,9 @@ function arcPosition(progress: number): { x: number; y: number } {
   const p = clamp01(progress);
   return {
     x: 0.08 + 0.84 * p,
-    // horizon-ish at 0.85, apex at 0.22
-    y: 0.85 - 0.63 * Math.sin(Math.PI * p),
+    // horizon-ish at 0.85, apex at 0.33: the sun disc is 0.29 of the height
+    // (shaders.ts SR), so a higher apex clips it at noon - it did, at 0.22.
+    y: 0.85 - 0.52 * Math.sin(Math.PI * p),
   };
 }
 
