@@ -66,8 +66,12 @@ export default function TabsLayout() {
     setExpanded(false);
   }, []);
 
+  // No background of its own: the (auth) layout already paints the theme
+  // under every screen, and each extra opaque layer is a full 1080p fill the
+  // television's GPU pays on every frame (overdraw was 4x+ everywhere,
+  // measured on the box, 2026-09-20).
   return (
-    <View style={[styles.root, { backgroundColor: theme.colors.bg }]}>
+    <View style={styles.root}>
       <View
         style={[
           styles.sidebar,
