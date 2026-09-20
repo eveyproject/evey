@@ -81,12 +81,15 @@ export default function AuthLayout() {
           render error into a blank application, taking the music player and
           the way home with it. Contained at this level, a broken screen shows
           its own recovery card while the shell around it keeps working. */}
-      {/* The background belongs HERE too: the inset band below a deep screen
-          is this view's own padding, and without it Android painted it white
-          under the page (seen on the box, 2026-09-19). */}
-      <View style={{ flex: 1, backgroundColor: theme.colors.bg, paddingBottom: deepScreen && !fullBleed ? HOME_SHORTCUT_INSET : 0 }}>
+      {/* The theme is painted by the navigation card itself (contentStyle),
+          not by a wrapper under it: each opaque full-screen layer is a 1080p
+          fill the television's GPU pays on every frame, and the home was
+          stacking four of them (overdraw measured on the box, 2026-09-20).
+          The wrapper only paints the inset band below a deep screen, which is
+          its own padding and would otherwise show white (box, 2026-09-19). */}
+      <View style={{ flex: 1, backgroundColor: deepScreen && !fullBleed ? theme.colors.bg : undefined, paddingBottom: deepScreen && !fullBleed ? HOME_SHORTCUT_INSET : 0 }}>
         <ErrorBoundary>
-          <Stack screenOptions={{ headerShown: false }} />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.bg } }} />
         </ErrorBoundary>
       </View>
       {deepScreen && (

@@ -129,18 +129,19 @@ function MediaCard({
     >
       <View style={[styles.poster, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm }]}>
         {posterUri ? (
-          <View style={{ width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: theme.radii.sm, overflow: "hidden" }}>
-            <Image
-              cachePolicy="memory-disk"
-              source={{ uri: posterUri, headers: authHeaders }}
-              style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
-              contentFit="cover"
-              transition={200}
-              recyclingKey={item.id}
-              placeholder={blurhash ? { blurhash } : undefined}
-              placeholderContentFit="cover"
-            />
-          </View>
+          // The corners are the image's own, not a clipping wrapper's: a
+          // rounded overflow-hidden View clips through a path, which the
+          // television's GPU pays for on every visible card, every frame.
+          <Image
+            cachePolicy="memory-disk"
+            source={{ uri: posterUri, headers: authHeaders }}
+            style={{ width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: theme.radii.sm }}
+            contentFit="cover"
+            transition={200}
+            recyclingKey={item.id}
+            placeholder={blurhash ? { blurhash } : undefined}
+            placeholderContentFit="cover"
+          />
         ) : (
           <View style={[styles.posterPlaceholder, { backgroundColor: theme.colors.surface }]}>
             <Text style={{ color: theme.colors.textMuted }}>?</Text>

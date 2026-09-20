@@ -6,7 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
 import { setZustandStorage } from "@evey/store";
 import { queryClient } from "../src/lib/query-client";
-import { ThemeProvider } from "../src/providers/ThemeProvider";
+import { ThemeProvider, useTheme } from "../src/providers/ThemeProvider";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { ToastContainer } from "../src/components/ToastContainer";
 import { initFetcher } from "../src/lib/fetcher-setup";
@@ -28,6 +28,13 @@ setZustandStorage({
 });
 
 const bootLog = logger("boot");
+
+// The root card carries the theme so no wrapper has to paint it again under
+// every screen (see the (auth) layout for the overdraw measurement).
+function RootStack() {
+  const theme = useTheme();
+  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.bg } }} />;
+}
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
@@ -87,7 +94,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <ErrorBoundary>
-            <Stack screenOptions={{ headerShown: false }} />
+            <RootStack />
           </ErrorBoundary>
           <ToastContainer />
         </ThemeProvider>
