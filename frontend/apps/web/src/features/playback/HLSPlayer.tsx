@@ -40,6 +40,7 @@ import {
 import { eveyFetch, createPlayerEventReporter } from "@evey/api";
 import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCastTapPath, pickPinnedLevel, pickPlayOnFallback, pickTranscodeAudioSwitchPath, planCastLoad, planRendererLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { castProfileFor, castStreamInfoParams } from "@evey/media-caps/cast";
+import { userIdFromAccessToken } from "@evey/media-caps/launch";
 import { playbackServiceGetStreamInfo } from "@evey/api";
 import type { CastTarget } from "@/hooks/useCasting";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
@@ -185,6 +186,10 @@ export function HLSPlayer({
   // Fetch the active profile to read audio/subtitle language preferences.
   const { data: currentUser } = useUserServiceGetCurrentUser();
   const activeProfileId = useAuthStore((s) => s.profileId);
+  // Identity carried by a Cast Connect launch, so a television signed in
+  // elsewhere refuses the cast instead of opening the wrong thing.
+  const castProfileId = activeProfileId;
+  const castUserId = userIdFromAccessToken(useAuthStore((s) => s.accessToken));
   const { data: profilesResp } = useUserServiceListProfiles(
     currentUser?.id ?? "",
     { query: { enabled: !!currentUser?.id } },
@@ -538,7 +543,17 @@ export function HLSPlayer({
       stopCast();
       return;
     }
-    const outcome = await startCast(resolveCastUrl, title);
+    // Same handover as the media page's Cast button: an Evey TV app gets the
+    // media id and the current position, and plays it with its own player.
+    const outcome = await startCast(resolveCastUrl, title, {
+      userId: castUserId,
+      profileId: castProfileId ?? undefined,
+      eveyMedia: {
+        mediaId,
+        audioTrack: audioTrackOverrideRef.current ?? currentTrackIndex,
+        subtitleTrack: currentSubtitle ?? "off",
+      },
+    });
     if (outcome === "no-devices") {
       toast.error(t("player.cast.noDevices"));
       return;
@@ -1037,10 +1052,15 @@ export function HLSPlayer({
 
   // Live cast state for the keyboard shortcuts, refreshed render-time (same
   // pattern as lastCastPosRef): while casting, space/k must toggle the TV.
-  const castKeyboardRef = useRef<{ connected: boolean; isPaused: boolean; playPause: () => void } | null>(null);
+  // A fling (Remote Playback) has no transport to offer, so it registers with
+  // playPause undefined: space then does NOTHING, which is the point - it
+  // used to fall through and wake the local element behind the TV's back.
+  const castKeyboardRef = useRef<{ connected: boolean; isPaused: boolean; playPause?: () => void } | null>(null);
   castKeyboardRef.current = castConnected
     ? { connected: true, isPaused: castPlayback.isPaused, playPause: castPlayPause }
-    : null;
+    : remoteConnected
+      ? { connected: true, isPaused: false }
+      : null;
 
   usePlayerKeyboard({
     videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef,
@@ -1068,6 +1088,13 @@ export function HLSPlayer({
   const { seekFlash, brightness, setBrightnessValue, swipeIndicator, handleTouchStart, handleTouchMove, handleTouchEnd, cleanupTimers } = useTouchGestures({
     videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef, onToggleFullscreen: toggleFullscreen, onSingleTap: handleSingleTap,
   });
+
+  // One answer to "the picture is on another device": a Cast session (SDK or
+  // server-brokered) or a Remote Playback fling. Every path that could start
+  // the LOCAL element consults it - the re-pause guard further down is the
+  // backstop, not the mechanism. A play() that has to be undone is a blip of
+  // sound and picture, and a viewer reports that as a bug, rightly.
+  const remotePlaybackActive = castConnected || remoteConnected;
 
   // Last known ABSOLUTE cast position. The receiver plays a complete timeline
   // (file / VOD manifest), so its currentTime IS the media position - no
@@ -1504,6 +1531,7 @@ export function HLSPlayer({
           playPause: castPlayPause,
           stop: stopCast,
         } : undefined}
+        remoteActive={remotePlaybackActive}
       />
       <AutoMarkWatched
         mediaId={mediaId}
@@ -1564,6 +1592,7 @@ export function HLSPlayer({
         streamToken={streamToken}
         brightness={brightness}
         availableQualities={hlsLevels}
+        remotePlaybackActive={remotePlaybackActive}
       >
         <PlayerControls
           streamInfo={streamInfo}

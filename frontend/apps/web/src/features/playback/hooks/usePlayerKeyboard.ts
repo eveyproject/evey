@@ -21,7 +21,10 @@ interface UsePlayerKeyboardArgs {
   // space/k toggle drives the TV, never the local video: the handoff paused
   // the local element, and waking it plays BOTH streams at once with no way
   // to pause the local one (its controls are cast-bound).
-  castRef: React.MutableRefObject<{ connected: boolean; isPaused: boolean; playPause: () => void } | null>;
+  // playPause is absent for a transport that exposes none (the Remote
+  // Playback fling): the shortcut then does nothing rather than reaching the
+  // local element.
+  castRef: React.MutableRefObject<{ connected: boolean; isPaused: boolean; playPause?: () => void } | null>;
   onCloseRef: React.MutableRefObject<(() => void) | undefined>;
   // Reveals the auto-hidden control bars on a player keystroke. A hidden bar
   // now leaves layout (visibility, not just opacity), so a control clicked
@@ -106,8 +109,10 @@ export function usePlayerKeyboard({
           e.preventDefault();
           const cast = castRef.current;
           if (cast?.connected) {
-            cast.playPause();
-            showActionFlashRef.current(cast.isPaused ? "play" : "pause");
+            if (cast.playPause) {
+              cast.playPause();
+              showActionFlashRef.current(cast.isPaused ? "play" : "pause");
+            }
             break;
           }
           if (video.paused) {
