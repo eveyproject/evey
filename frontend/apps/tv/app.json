@@ -2,7 +2,7 @@
   "expo": {
     "name": "Evey TV",
     "slug": "evey-tv",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "scheme": "evey",
     "icon": "./assets/icon.png",
     "splash": {
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.evey.tv",
-      "versionCode": 22,
+      "versionCode": 23,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
@@ -38,6 +38,7 @@
       "./plugins/withSearchKey",
       "./plugins/withCastConnect",
       "./plugins/withNoAdId",
+      "./plugins/withTvHardwareFeatures",
       "./plugins/withWidgetFocusGuard",
       "expo-router",
       "expo-video",
