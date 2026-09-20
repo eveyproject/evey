@@ -450,6 +450,16 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
       return;
     }
     if (type === "resize" && typeof msg.height === "number" && msg.height > 0) {
+      // Over the ceiling, CROPPING the widget cuts its text mid-glyph (the
+      // weather scene lost half its location line, 2026-09-20). Scale the
+      // guest document down instead: `zoom` is a layout property, so the
+      // widget re-reports a height that fits and nothing is clipped.
+      if (msg.height > maxWidgetHeight) {
+        const ratio = Math.max(0.45, maxWidgetHeight / msg.height);
+        webviewRef.current?.injectJavaScript(
+          `document.documentElement.style.zoom=${ratio};true;`,
+        );
+      }
       setHeight(Math.max(60, Math.min(maxWidgetHeight, msg.height)));
       return;
     }
