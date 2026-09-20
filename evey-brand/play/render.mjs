@@ -16,6 +16,7 @@ const font = readFileSync(resolve(repo, 'frontend/apps/web/public/fonts/inter-la
 const TARGETS = [
   { svg: 'play-icon-512.svg', png: 'play-icon-512.png', w: 512, h: 512 },
   { svg: 'play-feature-graphic.svg', png: 'play-feature-graphic-1024x500.png', w: 1024, h: 500 },
+  { svg: 'play-tv-banner.svg', png: 'play-tv-banner-1280x720.png', w: 1280, h: 720 },
 ];
 
 const browser = await chromium.launch();
