@@ -403,6 +403,12 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         config: pluginConfig,
         locale: i18n.language,
         theme: isLightTheme ? "light" : "dark",
+        // Which surface the widget landed on. A plugin sizes itself from its
+        // own viewport, and a television row is as wide as a desktop page while
+        // having a fraction of the vertical room - width alone cannot tell them
+        // apart. Absent on web and mobile, so their plugins keep their current
+        // behaviour untouched.
+        surface: "tv",
       });
       webviewRef.current?.injectJavaScript(
         `window.postMessage(${initPayload}, "*"); true;`,
