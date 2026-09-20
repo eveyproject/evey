@@ -96,6 +96,14 @@ interface StreamInfoPanelProps {
   // wasmAudioActive: the audio is decoded client-side (ac3go WebAssembly), not
   // transcoded server-side, so the audio section shows a "décodé client" badge.
   wasmAudioActive?: boolean;
+  // wasmAudioLeg: which leg of the bi-source relay is actually feeding the
+  // speakers - "aac" while the decoder boots, "wasm" once it carries,
+  // "aac-latched" when it starved and the server's AAC rendition finishes the
+  // film. Undefined when the host does not know (mobile, cast, no engine).
+  // Both the negotiated decision and the client flag say the audio is decoded
+  // here; only this says whether it still IS. Prod, 2026-09-20: a latch at 4:25
+  // left the panel announcing "décodé client" for the rest of the film.
+  wasmAudioLeg?: string | null;
   // audioTrackIndex: the SUBTITLE-relative... no: the AUDIO-relative ordinal of
   // the track the viewer selected (first audio track 0). Without it this panel
   // reported `mediaStreams.find(type === AUDIO)` - the file's FIRST audio track,
@@ -109,8 +117,13 @@ interface StreamInfoPanelProps {
 // StreamInfoPanel surfaces the playback decision the backend already returns
 // (play method, codecs, transcode reasons) - visibility the mobile app has but the
 // web player lacked. Mirrors the SettingsPanel popover chrome.
-export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive, audioTrackIndex }: StreamInfoPanelProps) {
+export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive, wasmAudioLeg, audioTrackIndex }: StreamInfoPanelProps) {
   const { t } = useTranslation();
+  // On the relay's native leg the sound comes from Evey's AAC rendition - a
+  // server transcode, whatever the master was negotiated for.
+  const onNativeLeg = wasmAudioLeg === "aac" || wasmAudioLeg === "aac-latched";
+  const wasmDecoding = (wasmAudioActive ?? false) && !onNativeLeg;
+  const audioDecision = onNativeLeg ? "transcode" : wasmDecoding ? "wasm" : streamInfo?.audioDecision;
 
   function toggle(e: React.MouseEvent) {
     e.stopPropagation();
@@ -125,8 +138,8 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive, a
   const decisions = {
     playMethod: streamInfo?.playMethod,
     videoDecision: streamInfo?.videoDecision,
-    audioDecision: streamInfo?.audioDecision,
-    wasmAudio: wasmAudioActive,
+    audioDecision,
+    wasmAudio: wasmDecoding,
   };
   const methodKey = playMethodI18nKey(effectivePlayMethod(decisions));
 
@@ -189,7 +202,7 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive, a
 
           {audioStream && (
             <>
-              <Section title={t("player.streamInfo.audio")} decision={wasmAudioActive ? "wasm" : streamInfo.audioDecision} />
+              <Section title={t("player.streamInfo.audio")} decision={audioDecision} />
               <InfoRow label={t("player.streamInfo.codec")} value={(audioStream.codec ?? "-").toUpperCase()} />
               {audioStream.channels && (
                 <InfoRow label={t("player.streamInfo.channels")} value={formatChannelLayout(audioStream.channels)} />
@@ -214,7 +227,9 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive, a
           )}
 
           {(() => {
-            const reasons = visibleTranscodeReasons(streamInfo.transcodeReasons, wasmAudioActive);
+            // On the native leg the audio codec really IS re-encoded, so the
+            // reason the wasm path used to hide comes back.
+            const reasons = visibleTranscodeReasons(streamInfo.transcodeReasons, wasmDecoding);
             return reasons.length > 0 ? (
             <>
               <Section title={t(reasonsHeadingI18nKey(decisions))} />

@@ -43,6 +43,7 @@ function mount(master: string, onStreamTokenRefresh = vi.fn(async () => "fresh-t
   const onStreamTokenRefreshRef = { current: onStreamTokenRefresh };
   const reportEvent = vi.fn();
   const onFallback = vi.fn();
+  const onLegChange = vi.fn();
   const hook = renderHook(
     (props: { audioOffsetMs: number }) =>
       useWasmAudioPlayback({
@@ -54,11 +55,12 @@ function mount(master: string, onStreamTokenRefresh = vi.fn(async () => "fresh-t
         active: true,
         onFallback,
         reportEvent,
+        onLegChange,
         audioOffsetMs: props.audioOffsetMs,
       }),
     { initialProps: { audioOffsetMs } },
   );
-  return { reportEvent, onFallback, streamTokenRef, onStreamTokenRefresh, rerender: hook.rerender };
+  return { reportEvent, onFallback, onLegChange, streamTokenRef, onStreamTokenRefresh, rerender: hook.rerender };
 }
 
 describe("useWasmAudioPlayback telemetry", () => {
@@ -87,6 +89,20 @@ describe("useWasmAudioPlayback telemetry", () => {
       "wasm_audio_gate:cuts=8",
     ]);
     expect(reportEvent.mock.calls[0][0]).toMatchObject({ posSec: 12.3, fatal: false });
+  });
+
+  // The host's flag only says which master was negotiated; a latch never
+  // touched it, so the stream panel announced "décodé client" over the AAC
+  // transcode for the rest of the film (prod, 2026-09-20).
+  it("tells the host which leg is playing, latch included", async () => {
+    const { onLegChange } = mount(MASTER_WASM);
+    await waitFor(() => expect(captured).not.toBeNull());
+
+    captured!.onModeChange!("aac");
+    captured!.onModeChange!("wasm");
+    captured!.onModeChange!("aac-latched");
+
+    expect(onLegChange.mock.calls.map((c) => c[0])).toEqual(["aac", "wasm", "aac-latched"]);
   });
 
   it("reports a fatal engine error as fatal AND still falls back", async () => {

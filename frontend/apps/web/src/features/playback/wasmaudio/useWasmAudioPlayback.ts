@@ -40,6 +40,12 @@ interface UseWasmAudioPlaybackArgs {
   // first two since 2026-07-30; the web player had NONE, so a beta tester's
   // "no sound" on 2026-09-02 could only be inferred from hls.js stall lines.
   reportEvent?: PlayerEventReporter;
+  // onLegChange names the relay leg the viewer is HEARING: "aac" while the wasm
+  // decoder boots, "wasm" once it carries the film, "aac-latched" when it gave
+  // up and the server's AAC transcode finishes the film. The host's own flag
+  // only says which master was asked for, so without this the stream panel kept
+  // announcing "décodé client" over a latched session (prod, 2026-09-20).
+  onLegChange?: (leg: string) => void;
   // audioOffsetMs is the viewer's menu correction (positive = audio later),
   // applied live to the engine's schedule - never by reloading the video leg.
   audioOffsetMs?: number;
@@ -66,6 +72,7 @@ export function useWasmAudioPlayback({
   active,
   onFallback,
   reportEvent = noopReporter,
+  onLegChange,
   audioOffsetMs = 0,
 }: UseWasmAudioPlaybackArgs): void {
   const engineRef = useRef<WasmAudioEngine | null>(null);
@@ -78,6 +85,8 @@ export function useWasmAudioPlayback({
   onFallbackRef.current = onFallback;
   const reportRef = useRef(reportEvent);
   reportRef.current = reportEvent;
+  const legRef = useRef(onLegChange);
+  legRef.current = onLegChange;
 
   // (Re)build the engine when the media, the selected audio track, or the active
   // gate changes.
@@ -150,7 +159,10 @@ export function useWasmAudioPlayback({
           },
           aacPlaylistUrl: aacUri ? new URL(aacUri, base).toString() : undefined,
           userOffsetSec: audioOffsetRef.current / 1000,
-          onModeChange: (mode) => report("wasm_audio_mode", mode),
+          onModeChange: (mode) => {
+            legRef.current?.(mode);
+            report("wasm_audio_mode", mode);
+          },
           onDiagnostic: (detail) => report("wasm_audio_guard", detail),
           onStallGate: (cuts) => {
             if (stallGateReportDue(cuts)) report("wasm_audio_gate", `cuts=${cuts}`);

@@ -23,13 +23,14 @@ const WASM_SESSION = {
   ],
 };
 
-function renderPanel(streamInfo: object, wasmAudioActive: boolean) {
+function renderPanel(streamInfo: object, wasmAudioActive: boolean, wasmAudioLeg?: string | null) {
   return render(
     <StreamInfoPanel
       streamInfo={streamInfo as never}
       open
       onToggle={vi.fn()}
       wasmAudioActive={wasmAudioActive}
+      wasmAudioLeg={wasmAudioLeg}
     />,
   );
 }
@@ -64,6 +65,25 @@ describe("StreamInfoPanel - play method honesty", () => {
     expect(screen.getByText("Transcode")).toBeInTheDocument();
     expect(screen.getByText("Transcode reasons")).toBeInTheDocument();
     expect(screen.getByText("Audio codec this player cannot decode")).toBeInTheDocument();
+  });
+
+  // Prod, 2026-09-20: the wasm leg starved 4:25 into the film and the relay
+  // latched the AAC rendition for good. Both the negotiated decision and the
+  // client flag still said "decoded here", so the panel announced "décodé
+  // client" over a server transcode until the viewer closed the player.
+  it("names the transcode once the relay has latched the AAC leg", () => {
+    renderPanel({ ...WASM_SESSION, audioDecision: "wasm" }, true, "aac-latched");
+
+    expect(screen.getByText("Transcode")).toBeInTheDocument();
+    expect(screen.queryByText("Remux")).toBeNull();
+    expect(screen.getByText("Audio codec this player cannot decode")).toBeInTheDocument();
+  });
+
+  it("keeps saying décodé client while the wasm leg carries the film", () => {
+    renderPanel({ ...WASM_SESSION, audioDecision: "wasm" }, true, "wasm");
+
+    expect(screen.getByText("Remux")).toBeInTheDocument();
+    expect(screen.queryByText("Transcode")).toBeNull();
   });
 
   it("labels the container row as the SOURCE container, which the remux replaces", () => {

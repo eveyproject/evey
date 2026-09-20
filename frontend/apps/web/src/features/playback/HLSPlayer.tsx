@@ -723,6 +723,13 @@ export function HLSPlayer({
   // run (wasm load / decode / no server audio URI), which re-negotiates the
   // stream against the normal muxed/AAC master. Reset per media.
   const [wasmAudioDisabled, setWasmAudioDisabled] = useState(false);
+  // The relay leg the viewer is HEARING, as the engine reports it: "aac" while
+  // the wasm decoder boots, "wasm" once it carries, "aac-latched" when it gave
+  // up mid-film and the server's AAC transcode took over. Null until the engine
+  // speaks. Distinct from wasmAudioActive below, which is only the topology we
+  // ASKED the server for - a latch never touched it, so the stream panel went on
+  // announcing "décodé client" over a transcode (prod, 2026-09-20).
+  const [wasmAudioLeg, setWasmAudioLeg] = useState<string | null>(null);
   // wasm-to-wasm audio switch: only the audio engine follows this; the video
   // keeps playing (a full restart cost seconds of silence, prod 2026-09-10).
   const [wasmTrackIndex, setWasmTrackIndex] = useState<number | null>(null);
@@ -732,6 +739,7 @@ export function HLSPlayer({
     setAppliedAudioOffsetMs(0);
     setShedReason(null);
     setWasmAudioDisabled(false);
+    setWasmAudioLeg(null);
     audioTrackOverrideRef.current = null;
     setWasmTrackIndex(null);
     setRenderCapHeight(0);
@@ -896,6 +904,7 @@ export function HLSPlayer({
     active: wasmAudioActive,
     onFallback: () => setWasmAudioDisabled(true),
     reportEvent: reportWasmAudioEvent,
+    onLegChange: setWasmAudioLeg,
     audioOffsetMs,
   });
 
@@ -1559,6 +1568,7 @@ export function HLSPlayer({
         <PlayerControls
           streamInfo={streamInfo}
           wasmAudioActive={wasmAudioActive}
+          wasmAudioLeg={wasmAudioLeg}
           audioTrackIndex={audioTrackOverrideRef.current ?? currentTrackIndex}
           onClose={onClose}
           onAudioChange={handleAudioChange}
