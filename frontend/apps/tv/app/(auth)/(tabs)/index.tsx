@@ -509,10 +509,16 @@ export default function HomeScreen() {
   // Customize row and the top of the widget off the screen, clipped mid-glyph
   // (owner, 2026-09-20). Snap back to the top once that settles: focus stays
   // where it is, and the page opens on its first pixel like any TV home.
+  // Android scrolls on requestChildFocus, and the row claims focus some frames
+  // after mount - a single snap races it and loses. Same remedy the plugin
+  // bridge uses for its own late measurements: nudge a few times across the
+  // window where the focus settles, then stop.
   const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
-    const id = setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: false }), 0);
-    return () => clearTimeout(id);
+    const ids = [0, 150, 400].map((d) =>
+      setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: false }), d),
+    );
+    return () => ids.forEach(clearTimeout);
   }, [focusTarget]);
 
   // "Nothing loaded, nothing errored, nothing has an item" used to render as
