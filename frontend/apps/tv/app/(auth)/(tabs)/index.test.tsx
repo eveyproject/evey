@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen } from "@testing-library/react";
+import { render, fireEvent, screen, act } from "@testing-library/react";
 import React from "react";
+import { DeviceEventEmitter } from "react-native";
 
 // --- React Native mock -----------------------------------------------------
 vi.mock("react-native", () => ({
@@ -9,6 +10,23 @@ vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
+  // The header's Customize button reaches the home through this emitter.
+  DeviceEventEmitter: {
+    addListener: (name: string, cb: () => void) => {
+      (globalThis as any).__eveyListeners = { ...((globalThis as any).__eveyListeners ?? {}), [name]: cb };
+      return { remove: () => {} };
+    },
+    emit: (name: string) => (globalThis as any).__eveyListeners?.[name]?.(),
+  },
+  // The home fades in once revealed; the test only needs the wrapper to render.
+  Animated: {
+    View: ({ children, style, ...p }: any) => React.createElement("div", p, children),
+    Value: class { constructor(public v: number) {} },
+    timing: () => ({ start: () => {} }),
+    sequence: () => ({ start: () => {} }),
+    loop: () => ({ start: () => {}, stop: () => {} }),
+  },
+  useWindowDimensions: () => ({ width: 1200, height: 675, scale: 1.6, fontScale: 1 }),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "spinner", ...p }),
   // hasTVPreferredFocus is surfaced as a data-* attribute: React silently
   // drops boolean values passed through an unrecognized DOM prop, so passing
@@ -240,10 +258,10 @@ describe("HomeScreen customize entry", () => {
     routeParams.current = {};
   });
 
-  it("stays closed otherwise, and the customize row opens it", () => {
+  it("stays closed otherwise, and the header's Customize button opens it", () => {
     render(<HomeScreen />);
     expect(screen.queryByText("media.home.customizeFeed")).toBeNull();
-    fireEvent.click(screen.getByLabelText("common.feeds.customize"));
+    act(() => { DeviceEventEmitter.emit("eveyHomeCustomize"); });
     expect(screen.getByText("media.home.customizeFeed")).toBeTruthy();
   });
 });

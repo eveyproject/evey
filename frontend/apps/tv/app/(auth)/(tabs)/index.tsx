@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { displayTitle } from "@evey/api";
-import { View, Text, ScrollView, FlatList, StyleSheet, type NativeSyntheticEvent, type NativeScrollEvent } from "react-native";
+import { View, Text, ScrollView, FlatList, StyleSheet, Animated, DeviceEventEmitter, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -31,12 +31,17 @@ import { ScreenState } from "../../../src/components/ScreenState";
 import { FeedCustomizePanel } from "../../../src/components/FeedCustomizePanel";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
-import { CARD_WIDTH_FEATURED, POSTER_RATIO, GRID_GAP } from "../../../src/lib/tvLayout";
+import { CARD_WIDTH_FEATURED, POSTER_RATIO, GRID_GAP, homeWidgetBudget } from "../../../src/lib/tvLayout";
 import { HOME_LIBRARY_ROW_PAGE_SIZE } from "../../../src/lib/homeLibraryRows";
 import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
 import { buildHomeSections, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
 
+// How long the home waits for its slower rows before showing what it has.
+const HOME_REVEAL_CAP_MS = 2500;
+// Side gutter of a row: the first poster's focus ring and scale need room at
+// the left edge, not a card flush with the title (owner, 2026-09-20).
+const HOME_ROW_GUTTER = 32;
 const CARD_WIDTH = CARD_WIDTH_FEATURED;
 const CARD_HEIGHT = CARD_WIDTH * POSTER_RATIO;
 const CARD_TOTAL_WIDTH = CARD_WIDTH + GRID_GAP; // card + separator
@@ -227,7 +232,7 @@ function MediaRow({
           />
         )}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 24 }}
+        contentContainerStyle={{ paddingHorizontal: HOME_ROW_GUTTER }}
         ItemSeparatorComponent={RowSeparator}
         getItemLayout={tvRowGetItemLayout}
         initialNumToRender={5}
@@ -287,7 +292,7 @@ function TileRow({
   return (
     <View style={styles.rowContainer}>
       <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 24, gap: GRID_GAP }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: HOME_ROW_GUTTER, gap: GRID_GAP }}>
         {tiles.map((tile, i) => (
           <FocusableCard
             key={tile.key}
@@ -357,6 +362,12 @@ export default function HomeScreen() {
   useEffect(() => {
     if (customizeParam === "1") setCustomizeOpen(true);
   }, [customizeParam]);
+  // The header's Customize button (tabs layout) reaches the panel this way:
+  // the header is drawn by the shell, above this screen.
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("eveyHomeCustomize", () => setCustomizeOpen(true));
+    return () => sub.remove();
+  }, []);
 
   // Display names for the customize panel. Without them a library row reads as
   // a raw UUID and a plugin row as `plg-…`, which is unusable at three metres.
@@ -437,6 +448,16 @@ export default function HomeScreen() {
   // Focus is safe either way: it is claimed by the first row that HAS items
   // at render time, so a row arriving late cannot steal it.
   const isLoading = resume.isLoading || nextUp.isLoading || recentlyAdded.isLoading;
+  // The page is REVEALED once, not assembled in front of the viewer: rows
+  // that landed one after another, each with its own jank on a television
+  // GPU, read as a slow home (owner, 2026-09-20). The spinner stays until the
+  // library rows have answered too - or until a short cap, so a slow NAS
+  // still gets a page - and the whole home then fades in together.
+  const [revealCapPassed, setRevealCapPassed] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setRevealCapPassed(true), HOME_REVEAL_CAP_MS);
+    return () => clearTimeout(t);
+  }, []);
   // Only when ALL THREE failed. One transverse row erroring still leaves a
   // usable home, and blanking it would be a worse answer than a short page.
   const isError = resume.isError && nextUp.isError && recentlyAdded.isError;
@@ -531,26 +552,32 @@ export default function HomeScreen() {
     );
     return () => ids.forEach(clearTimeout);
   }, [focusTarget]);
-  // The first row is the top of the page. On a television every scroll is
-  // focus-driven, so this can be HELD rather than requested: while the focus
-  // sits on the first row (or above it), any scroll away from the top is
-  // undone in the same frame - Android pinning the focused card into view
-  // when the plugin slot above it mounts at its full height, or when the
-  // focus comes back up from the second row, which left the widget half
-  // under the header with its temperature cut mid-glyph (owner, 2026-09-20).
-  // A one-shot snap at focus time lost the first of those races.
+  // The first row is the top of the page: while the focus sits on it (or on
+  // Customize), the page shows its first pixel, whatever Android did to bring
+  // the focused card into view or however the plugin slot above it grew. The
+  // snap is driven by FOCUS and by content growth, never by the scroll event
+  // itself: undoing scrolls as they happened raced the focus leaving the row,
+  // and a DOWN press landed on a second row the page had just hidden again
+  // (owner, 2026-09-20).
   const onFirstRow = useRef(true);
+  const snapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snapTop = useCallback(() => {
     onFirstRow.current = true;
     scrollRef.current?.scrollTo({ y: 0, animated: false });
+    // Android scrolls the focused child into view on the layout pass that
+    // follows the focus; one more snap after it, unless the focus moved on.
+    if (snapTimer.current) clearTimeout(snapTimer.current);
+    snapTimer.current = setTimeout(() => {
+      snapTimer.current = null;
+      if (onFirstRow.current) scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }, 150);
   }, []);
+  useEffect(() => () => { if (snapTimer.current) clearTimeout(snapTimer.current); }, []);
   const leaveTop = useCallback(() => {
     onFirstRow.current = false;
   }, []);
-  const holdTop = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (onFirstRow.current && e.nativeEvent.contentOffset.y > 0) {
-      scrollRef.current?.scrollTo({ y: 0, animated: false });
-    }
+  const holdTopOnGrowth = useCallback(() => {
+    if (onFirstRow.current) scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, []);
 
   // "Nothing loaded, nothing errored, nothing has an item" used to render as
@@ -725,10 +752,18 @@ export default function HomeScreen() {
   // A home that fetched nothing used to render its empty rows, which reads as
   // "your library is empty" rather than "the server did not answer". The side
   // nav is drawn by the layout, so this keeps every tab reachable.
-  if (isLoading || isError) {
+  const libraryRowsLoading = libraryRowQueries.some((q) => (q as { isLoading?: boolean }).isLoading);
+  const revealed = !isLoading && (revealCapPassed || (!transverseRowsPending && !libraryRowsLoading));
+  const revealOpacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!revealed) return;
+    Animated.timing(revealOpacity, { toValue: 1, duration: 280, useNativeDriver: true }).start();
+  }, [revealed, revealOpacity]);
+  if (!revealed && !isError) return <HomeSkeleton />;
+  if (isError) {
     return (
       <ScreenState
-        loading={isLoading}
+        loading={false}
         error={isError}
         onRetry={() => {
           void resume.refetch();
@@ -741,31 +776,13 @@ export default function HomeScreen() {
 
   let renderCursor = 0;
   return (
+    <Animated.View style={{ flex: 1, opacity: revealOpacity }}>
     <ScrollView
       ref={scrollRef}
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
-      contentContainerStyle={{ paddingVertical: 16 }}
-      onScroll={holdTop}
-      scrollEventThrottle={16}
+      contentContainerStyle={{ paddingTop: 4, paddingBottom: 16 }}
+      onContentSizeChange={holdTopOnGrowth}
     >
-      {/* Customise first, not last. It used to sit at the very bottom, under
-          every row: the owner could not find it from the sofa and believed
-          the home simply could not be reorganised (2026-09-19). It never
-          claims the focus - the first content row does - so opening the home
-          still lands on something to watch. */}
-      <FocusableCard
-        onPress={() => setCustomizeOpen(true)}
-        onFocus={snapTop}
-        accessibilityLabel={t("common.feeds.customize")}
-        style={styles.customizeRow}
-        focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
-      >
-        <Ionicons name="options-outline" size={22} color={theme.colors.textMuted} />
-        <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>
-          {t("media.home.customize", "Customize")}
-        </Text>
-      </FocusableCard>
-
       {/* Plugin sections the feed config does not place yet render first, the
           same as mobile: a home.section plugin is a hero widget, and pushing
           it under every row made the user reorder it by hand. The ones it DOES
@@ -805,30 +822,55 @@ export default function HomeScreen() {
         pluginNames={pluginNames}
       />
     </ScrollView>
+    </Animated.View>
+  );
+}
+
+// What the home is about to be, pulsing, while its rows answer: a widget
+// block, a row title, a row of posters, at the sizes the real ones will
+// have, so the fade-in lands the content where the eye already is. A
+// spinner in the middle of a dark screen read as "nothing is happening"
+// (owner, 2026-09-20).
+function HomeSkeleton() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const { height: windowHeight } = useWindowDimensions();
+  const pulse = useRef(new Animated.Value(0.45)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.9, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.45, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  const block = { backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm };
+  return (
+    <Animated.View style={{ flex: 1, paddingTop: 4, opacity: pulse }} accessibilityLabel={t("common.loading", "Loading")}>
+      <View style={[block, { height: homeWidgetBudget(windowHeight), marginHorizontal: 24, borderRadius: theme.radii.md }]} />
+      <View style={[block, { height: 26, width: 280, marginLeft: HOME_ROW_GUTTER, marginTop: 28, marginBottom: 14 }]} />
+      <View style={{ flexDirection: "row", paddingLeft: HOME_ROW_GUTTER, gap: GRID_GAP, overflow: "hidden" }}>
+        {Array.from({ length: 8 }, (_, i) => (
+          <View key={i}>
+            <View style={[block, { width: CARD_WIDTH, height: CARD_HEIGHT }]} />
+            <View style={[block, { height: 16, width: CARD_WIDTH * 0.8, marginTop: 10 }]} />
+          </View>
+        ))}
+      </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  customizeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    // Right-aligned, above the first plugin widget (owner, 2026-09-19): a
-    // settings affordance belongs at the edge, not in front of the content.
-    alignSelf: "flex-end",
-    marginHorizontal: 24,
-    marginTop: 8,
-    paddingVertical: 9,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
   rowContainer: {
     marginBottom: 32,
   },
   rowTitle: {
     fontSize: 24,
     fontWeight: "700",
-    paddingHorizontal: 24,
+    paddingHorizontal: HOME_ROW_GUTTER,
     marginBottom: 10,
   },
   rowFailure: {
