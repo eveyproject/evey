@@ -7,6 +7,10 @@ export interface HostInit {
   units: Units;
   locale: string;
   theme: string; // host theme mode ("dark" / "light"); drives settings-panel colors
+  // Which surface the widget landed on ("tv" today, absent on web/mobile). A
+  // television row is as wide as a desktop page with a fraction of the vertical
+  // room, so width alone cannot tell them apart - see requestHeight.
+  surface?: string;
 }
 
 export interface HostBridge {

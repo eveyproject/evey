@@ -69,3 +69,15 @@ see the comments in build-zip.sh for the exact analyzer rules involved).
 Verified against the real analyzer: safe=true, no critical finding, only the
 expected informational warning about outbound fetch() (covered by the
 `network` permission + `external_fetch` whitelist).
+
+## Version history
+
+Moved out of the manifest description in 2.15.1: that field is what someone
+reads when deciding whether to install the plugin, not a changelog.
+
+- **2.15.0** - on a television the widget asks for a banner instead of a card, because a TV row is as wide as a desktop page while the panel has a fraction of the vertical room and the card height hid the library below the fold.
+- **2.14.0** - live SDO frames are re-cropped to the bundled skin's tight geometry (limb at 0.93) so the shader's disc mask lines up and the edge stops looking nibbled.
+- **2.13.0** - dark SDO frames are now rejected server-side (jpeg-js decode) before being persisted; the frontend pixel gate is blinded by Firefox resistFingerprinting.
+- **2.12.0** - dark SDO frames (eclipse/calibration) are rejected on decoded brightness, so the sun never renders black.
+- **2.11.0** - the sun-image fetch now goes through the host Fetch broker (no direct plugin network access).
+- **2.10.0** - disambiguated city picker (region + country, stores coordinates) so homonyms like Brest FR/BY resolve correctly.

@@ -1,7 +1,7 @@
 name: weather-v2
 kind: plugin
-version: 2.14.0
-description: Animated weather widget v2 - dependency-free WebGL scene, responsive, DDD architecture. 2.14.0 - live SDO frames are re-cropped to the bundled skin's tight geometry (limb at 0.93) so the shader's disc mask lines up and the edge stops looking nibbled. 2.13.0 - dark SDO frames are now rejected server-side (jpeg-js decode) before being persisted; the frontend pixel gate is blinded by Firefox resistFingerprinting. 2.12.0 - dark SDO frames (eclipse/calibration) are rejected on decoded brightness, so the sun never renders black. 2.11.0 - the sun-image fetch now goes through the host Fetch broker (no direct plugin network access). 2.10.0 - disambiguated city picker (region + country, stores coordinates) so homonyms like Brest FR/BY resolve correctly.
+version: 2.15.1
+description: "The weather where you live, on your home screen, behind a sky that matches it - sun, clouds, rain, snow, and the moon in its real phase tonight. Pick your city and your units in the settings."
 author: evey-examples
 language: nodejs
 entrypoint: node main.js
