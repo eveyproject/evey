@@ -1053,11 +1053,17 @@ export default function PlayerScreen() {
     setShowTrackMenu(false);
   }, [closeSubPanels]);
 
+  // The end-of-episode countdown owns the D-pad only while its card is ON
+  // SCREEN. `ended` alone is not enough: on the last episode of a season
+  // there is no next episode, the card renders nothing, and gating on
+  // `ended` left every key - BACK included - swallowed by an overlay nobody
+  // could see. The owner's television froze on the credits (2026-09-20).
+  const endedOverlayOpen = nextEp.ended && nextEp.visible;
   const anyOverlayOpen =
     showQualityPicker || showTrackMenu || showAudioPicker || showSubtitlePicker ||
     showChaptersPicker || showSleepTimerPicker || showVolumePicker || showStreamInfoPanel ||
     showSubtitleStyle ||
-    nextEp.ended;
+    endedOverlayOpen;
 
   // D-pad remote handler. The callback param is annotated explicitly: the
   // react-native-tvos alias resolves per-app, and the hoisted classic RN
@@ -1113,6 +1119,13 @@ export default function PlayerScreen() {
     // player, since the viewer is a keypress from losing their place otherwise.
     if (nextEp.visible && (type === "menu" || type === "back")) {
       nextEp.cancel();
+      return;
+    }
+    // The episode is over and there is nothing to offer next: BACK, MENU or OK
+    // leave the player right away instead of first waking controls over a
+    // frozen last frame.
+    if (nextEp.ended && !nextEp.visible && (type === "menu" || type === "back" || type === "select")) {
+      handleBack();
       return;
     }
     // While the action bar holds focus its own buttons own the D-pad: left and
@@ -1218,6 +1231,10 @@ export default function PlayerScreen() {
         setShowTrackMenu(true);
         return true;
       }
+      if (endedOverlayOpen) {
+        nextEp.cancel(); // closeAllOverlays cannot dismiss this one
+        return true;
+      }
       if (anyOverlayOpen) {
         closeAllOverlays();
         return true;
@@ -1230,7 +1247,7 @@ export default function PlayerScreen() {
       return false; // nothing open: the player's own exit contract runs
     });
     return () => sub.remove();
-  }, [anySubPanelOpen, anyOverlayOpen, barFocused, closeSubPanels, closeAllOverlays, resetHideTimer]);
+  }, [anySubPanelOpen, anyOverlayOpen, endedOverlayOpen, nextEp.cancel, barFocused, closeSubPanels, closeAllOverlays, resetHideTimer]);
 
   // Imperative focus reclaim: whenever no overlay/bar should own the D-pad,
   // force native focus back onto the surface - if no native view is focused

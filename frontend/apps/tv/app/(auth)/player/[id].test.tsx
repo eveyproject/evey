@@ -926,6 +926,37 @@ describe("next-episode card does not steal the D-pad early (TV)", () => {
     expect(backMock).not.toHaveBeenCalled();
     expect(replaceMock).not.toHaveBeenCalled();
   });
+
+  // The last episode of a season: the video ended, there is no next episode,
+  // so the card renders nothing - and nothing may own the D-pad. The owner's
+  // television froze on the credits with every key swallowed (2026-09-20).
+  it("leaves the player on back when the episode ended and there is nothing to play next", () => {
+    nextEpisodeStateMock.mockReturnValue({
+      visible: false, ended: true, countdown: 0, nextEpisode: null, previousEpisode: null,
+      playNow: vi.fn(), playPrevious: vi.fn(), cancel: vi.fn(),
+    });
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "back" }); });
+    expect(stopSessionMock).toHaveBeenCalled();
+    expect(backMock).toHaveBeenCalled();
+  });
+
+  it("keeps seeking alive after the end when no card is on screen", () => {
+    vi.useFakeTimers();
+    playerMock.currentTime = 0;
+    nextEpisodeStateMock.mockReturnValue({
+      visible: false, ended: true, countdown: 0, nextEpisode: null, previousEpisode: null,
+      playNow: vi.fn(), playPrevious: vi.fn(), cancel: vi.fn(),
+    });
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "left" }); });
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(0); // clamped at the start, but the key was HEARD: no throw, no swallow
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(30);
+    vi.useRealTimers();
+  });
 });
 
 // M2: an unclamped segment end past (or too close to) the true duration
