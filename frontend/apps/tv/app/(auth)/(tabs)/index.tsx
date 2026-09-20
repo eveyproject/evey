@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { displayTitle } from "@evey/api";
-import { View, Text, ScrollView, FlatList, StyleSheet } from "react-native";
+import { View, Text, ScrollView, FlatList, StyleSheet, type NativeSyntheticEvent, type NativeScrollEvent } from "react-native";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -530,11 +530,26 @@ export default function HomeScreen() {
     );
     return () => ids.forEach(clearTimeout);
   }, [focusTarget]);
-  // Same snap when the focus comes BACK to the first row: Android only brings
-  // the row into view, leaving the widget half under the header, its
-  // temperature cut mid-glyph (owner, 2026-09-20). The first row is the top.
+  // The first row is the top of the page. On a television every scroll is
+  // focus-driven, so this can be HELD rather than requested: while the focus
+  // sits on the first row (or above it), any scroll away from the top is
+  // undone in the same frame - Android pinning the focused card into view
+  // when the plugin slot above it mounts at its full height, or when the
+  // focus comes back up from the second row, which left the widget half
+  // under the header with its temperature cut mid-glyph (owner, 2026-09-20).
+  // A one-shot snap at focus time lost the first of those races.
+  const onFirstRow = useRef(true);
   const snapTop = useCallback(() => {
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    onFirstRow.current = true;
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
+  const leaveTop = useCallback(() => {
+    onFirstRow.current = false;
+  }, []);
+  const holdTop = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (onFirstRow.current && e.nativeEvent.contentOffset.y > 0) {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }
   }, []);
 
   // "Nothing loaded, nothing errored, nothing has an item" used to render as
@@ -557,7 +572,7 @@ export default function HomeScreen() {
 
   function renderSection(section: HomeSection, index: number, libraryIndex: number) {
     const focusFirst = focusTarget === index;
-    const onCardFocus = focusFirst ? snapTop : undefined;
+    const onCardFocus = focusFirst ? snapTop : leaveTop;
     if (section.kind === "plugin") {
       return <PluginSlot key={section.key} name="home.section" pluginId={section.pluginId} />;
     }
@@ -729,6 +744,8 @@ export default function HomeScreen() {
       ref={scrollRef}
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
       contentContainerStyle={{ paddingVertical: 16 }}
+      onScroll={holdTop}
+      scrollEventThrottle={16}
     >
       {/* Customise first, not last. It used to sit at the very bottom, under
           every row: the owner could not find it from the sofa and believed
@@ -737,6 +754,7 @@ export default function HomeScreen() {
           still lands on something to watch. */}
       <FocusableCard
         onPress={() => setCustomizeOpen(true)}
+        onFocus={snapTop}
         accessibilityLabel={t("common.feeds.customize")}
         style={styles.customizeRow}
         focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
