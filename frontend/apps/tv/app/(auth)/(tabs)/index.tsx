@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { displayTitle } from "@evey/api";
 import { View, Text, ScrollView, FlatList, StyleSheet } from "react-native";
 import { Image } from "expo-image";
@@ -100,12 +100,14 @@ function MediaCard({
   authHeaders,
   isFirst,
   watchPercent,
+  onFocus,
 }: {
   item: V1MediaItem;
   serverUrl: string;
   authHeaders?: { Authorization: string };
   isFirst?: boolean;
   watchPercent?: number;
+  onFocus?: () => void;
 }) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -121,6 +123,7 @@ function MediaCard({
     <FocusableCard
       onPress={() => router.push(`/media/${item.id}`)}
       hasTVPreferredFocus={isFirst}
+      onFocus={onFocus}
       accessibilityLabel={displayTitle(item, t)}
       style={styles.card}
     >
@@ -176,6 +179,7 @@ function MediaRow({
   authHeaders,
   watchPercents,
   focusFirst,
+  onCardFocus,
   isError,
   onRetry,
 }: {
@@ -185,6 +189,8 @@ function MediaRow({
   authHeaders?: { Authorization: string };
   watchPercents?: Record<string, number>;
   focusFirst?: boolean;
+  /** Fired when any card of this row takes the focus. */
+  onCardFocus?: () => void;
   /** The fetch behind this row failed - render the failure block instead of
    * silently disappearing (a failed shelf used to look identical to an
    * empty one). */
@@ -215,6 +221,7 @@ function MediaRow({
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             isFirst={index === 0 && !!focusFirst}
+            onFocus={onCardFocus}
             watchPercent={item.id ? watchPercents?.[item.id] : undefined}
           />
         )}
@@ -239,6 +246,7 @@ function TileRow({
   title,
   tiles,
   focusFirst,
+  onCardFocus,
   aspectRatio = "square",
   isError,
   onRetry,
@@ -256,6 +264,7 @@ function TileRow({
     a11yLabel?: string;
   }[];
   focusFirst?: boolean;
+  onCardFocus?: () => void;
   /** "poster" crops to a 2:3 sheet (collections), "square" keeps the tile
    * square (music/photo art, which is actually square). A collection poster
    * forced into a square used to get cropped down to its middle third. */
@@ -283,6 +292,7 @@ function TileRow({
             key={tile.key}
             onPress={tile.onPress}
             hasTVPreferredFocus={i === 0 && !!focusFirst}
+            onFocus={onCardFocus}
             style={styles.card}
             accessibilityLabel={tile.a11yLabel ?? tile.label}
           >
@@ -520,6 +530,12 @@ export default function HomeScreen() {
     );
     return () => ids.forEach(clearTimeout);
   }, [focusTarget]);
+  // Same snap when the focus comes BACK to the first row: Android only brings
+  // the row into view, leaving the widget half under the header, its
+  // temperature cut mid-glyph (owner, 2026-09-20). The first row is the top.
+  const snapTop = useCallback(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, []);
 
   // "Nothing loaded, nothing errored, nothing has an item" used to render as
   // a near-blank screen with just the Customize row - indistinguishable from
@@ -541,6 +557,7 @@ export default function HomeScreen() {
 
   function renderSection(section: HomeSection, index: number, libraryIndex: number) {
     const focusFirst = focusTarget === index;
+    const onCardFocus = focusFirst ? snapTop : undefined;
     if (section.kind === "plugin") {
       return <PluginSlot key={section.key} name="home.section" pluginId={section.pluginId} />;
     }
@@ -555,6 +572,7 @@ export default function HomeScreen() {
             key={section.key}
             title={section.name}
             focusFirst={focusFirst}
+            onCardFocus={onCardFocus}
             tiles={albums.map((a) => ({
               key: String(a.id ?? a.title ?? ""),
               label: String(a.title ?? ""),
@@ -575,6 +593,7 @@ export default function HomeScreen() {
             key={section.key}
             title={section.name}
             focusFirst={focusFirst}
+            onCardFocus={onCardFocus}
             tiles={albums.map((a) => ({
               key: String(a.name ?? ""),
               label: String(a.name ?? "").split("/").pop() ?? "",
@@ -596,6 +615,7 @@ export default function HomeScreen() {
           serverUrl={serverUrl}
           authHeaders={authHeaders}
           focusFirst={focusFirst}
+          onCardFocus={onCardFocus}
         />
       );
     }
@@ -612,6 +632,7 @@ export default function HomeScreen() {
             authHeaders={authHeaders}
             watchPercents={watchPercents}
             focusFirst={focusFirst}
+            onCardFocus={onCardFocus}
             isError={resume.isError}
             onRetry={() => void resume.refetch()}
           />
@@ -625,6 +646,7 @@ export default function HomeScreen() {
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
+            onCardFocus={onCardFocus}
             isError={nextUp.isError}
             onRetry={() => void nextUp.refetch()}
           />
@@ -638,6 +660,7 @@ export default function HomeScreen() {
             key={section.key}
             title={t("media.home.collections")}
             focusFirst={focusFirst}
+            onCardFocus={onCardFocus}
             aspectRatio="poster"
             isError={collections.isError}
             onRetry={() => void collections.refetch()}
@@ -659,6 +682,7 @@ export default function HomeScreen() {
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
+            onCardFocus={onCardFocus}
             isError={recommended.isError}
             onRetry={() => void recommended.refetch()}
           />
@@ -672,6 +696,7 @@ export default function HomeScreen() {
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
+            onCardFocus={onCardFocus}
             isError={popular.isError}
             onRetry={() => void popular.refetch()}
           />
