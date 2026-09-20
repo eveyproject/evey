@@ -1,6 +1,6 @@
 name: weather-v2
 kind: plugin
-version: 2.16.1
+version: 2.17.1
 description: "The weather where you live, on your home screen, behind a sky that matches it - sun, clouds, rain, snow, and the moon in its real phase tonight. Pick your city and your units in the settings."
 author: evey-examples
 language: nodejs
