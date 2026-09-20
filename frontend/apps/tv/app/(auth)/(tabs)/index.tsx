@@ -703,7 +703,7 @@ export default function HomeScreen() {
     <ScrollView
       ref={scrollRef}
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
-      contentContainerStyle={{ paddingVertical: 32 }}
+      contentContainerStyle={{ paddingVertical: 16 }}
     >
       {/* Customise first, not last. It used to sit at the very bottom, under
           every row: the owner could not find it from the sofa and believed
@@ -773,7 +773,7 @@ const styles = StyleSheet.create({
     // settings affordance belongs at the edge, not in front of the content.
     alignSelf: "flex-end",
     marginHorizontal: 24,
-    marginTop: 24,
+    marginTop: 8,
     paddingVertical: 9,
     paddingHorizontal: 20,
     borderRadius: 8,

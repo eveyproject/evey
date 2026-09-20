@@ -8,7 +8,7 @@ import React from "react";
 vi.mock("react-native", () => ({
   View: ({ children, onLayout, ...p }: any) => {
     React.useEffect(() => {
-      onLayout?.({ nativeEvent: { layout: { height: 100 } } });
+      onLayout?.({ nativeEvent: { layout: { height: 100, y: 0 } } });
     }, []);
     return React.createElement("div", p, children);
   },
@@ -164,8 +164,9 @@ describe("PluginSlot (TV)", () => {
     const container = () => screen.getByTestId("plugin-webview").parentElement;
 
     dispatchToWebView({ type: "resize", height: 600 });
-    // 675 dp panel - 102 chrome - 400 first row = 173 dp, not the 600 asked for.
-    await waitFor(() => expect(container()?.style.height).toBe("173px"));
+    // The mock View reports y=0, so the ceiling is the whole panel minus the
+    // row that must stay under it: 675 - 400 = 275 dp, not the 600 asked for.
+    await waitFor(() => expect(container()?.style.height).toBe("275px"));
 
     // A modest request is honoured untouched - the cap is a ceiling, not a size.
     dispatchToWebView({ type: "resize", height: 140 });
