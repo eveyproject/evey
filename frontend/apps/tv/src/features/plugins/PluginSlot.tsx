@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, ActivityIndicator, Text, StyleSheet, InteractionManager } from "react-native";
+import { View, ActivityIndicator, Text, StyleSheet, InteractionManager, useWindowDimensions } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -185,6 +185,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   const [bundleCode, setBundleCode] = useState<string | null>(null);
   const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
   const [height, setHeight] = useState(120);
+  const { height: windowHeight } = useWindowDimensions();
   const [error, setError] = useState(false);
   // Two-stage gate before we mount the WebView and download a bundle:
   //   1. `interactionsDone` - wait for any in-flight RN animation/transition
@@ -403,12 +404,14 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         config: pluginConfig,
         locale: i18n.language,
         theme: isLightTheme ? "light" : "dark",
-        // Which surface the widget landed on. A plugin sizes itself from its
-        // own viewport, and a television row is as wide as a desktop page while
-        // having a fraction of the vertical room - width alone cannot tell them
-        // apart. Absent on web and mobile, so their plugins keep their current
-        // behaviour untouched.
+        // Which surface the widget landed on, and how tall the panel is. A
+        // plugin sizes itself from its own viewport, but inside the WebView
+        // that IS the slot it was granted - circular. A television row is also
+        // as wide as a desktop page while having a fraction of the vertical
+        // room, so width alone cannot tell them apart. Both absent on web and
+        // mobile, whose plugins keep their current behaviour untouched.
         surface: "tv",
+        viewportHeight: Math.round(windowHeight),
       });
       webviewRef.current?.injectJavaScript(
         `window.postMessage(${initPayload}, "*"); true;`,
@@ -449,7 +452,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         .catch((err: Error) => reply({ type: "rpc-result", id, ok: false, error: err.message }));
       return;
     }
-  }, [context, pluginConfig, i18n.language, isLightTheme, pluginRpcCall]);
+  }, [context, pluginConfig, i18n.language, isLightTheme, pluginRpcCall, windowHeight]);
 
   if (!accessToken) return null;
 

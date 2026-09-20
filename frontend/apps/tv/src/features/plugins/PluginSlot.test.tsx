@@ -15,6 +15,9 @@ vi.mock("react-native", () => ({
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "loading", ...p }),
   StyleSheet: { create: (s: any) => s },
+  // 1080p panel at the TV's density: the host reports it so a plugin can size
+  // itself as a fraction of the screen instead of guessing.
+  useWindowDimensions: () => ({ width: 1200, height: 675 }),
   InteractionManager: {
     runAfterInteractions: (cb: () => void) => {
       cb();

@@ -1,6 +1,6 @@
 {
   "name": "evey-plugin-weather-v2",
-  "version": "2.15.1",
+  "version": "2.16.0",
   "private": true,
   "scripts": {
     "build": "esbuild src/index.ts --bundle --format=iife --target=es2019 --minify --outfile=dist/index.js --loader:.jpg=dataurl && esbuild src/settings/index.ts --bundle --format=iife --target=es2019 --minify --outfile=dist/settings.js && cp src/assets/sun_aia171.jpg dist/sun-live-aia171.jpg",
