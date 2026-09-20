@@ -92,9 +92,12 @@ export default function QuickConnectScreen() {
   const displayCode = code ? code.slice(-6).toUpperCase() : null;
   const qrValue = code && serverUrl ? `${serverUrl}/quickconnect?code=${code}` : null;
 
-  // A ScrollView with room for the overscan: centred in a plain View the
-  // title was clipped at the top of the panel and the Back button at the
-  // bottom (photographed on the owner's television, 2026-09-19).
+  // Everything has to FIT the panel: the only focusable element is the Back
+  // button at the bottom, so on a television the ScrollView scrolls to it and
+  // whatever does not fit is lost at the top - the title was cut in half on
+  // the owner's set at 80% density, where the panel is 675dp and this page
+  // added up to about 720 (2026-09-20). Budgeted below for ~560dp; the
+  // ScrollView only remains for panels smaller than that.
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
@@ -110,8 +113,8 @@ export default function QuickConnectScreen() {
 
       <View style={[styles.codeBox, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
         {qrValue ? (
-          <View style={{ backgroundColor: "#fff", padding: 16, borderRadius: 8, marginBottom: 16 }}>
-            <QRCode value={qrValue} size={200} />
+          <View style={{ backgroundColor: "#fff", padding: 12, borderRadius: 8, marginBottom: 12 }}>
+            <QRCode value={qrValue} size={170} />
           </View>
         ) : initiate.isError ? (
           // The code request runs on mount: when it fails there is no gesture to
@@ -171,37 +174,37 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 80,
-    paddingTop: 48,
-    paddingBottom: 72,
+    paddingTop: 24,
+    paddingBottom: 32,
   },
   title: {
-    fontSize: 42,
+    fontSize: 38,
     fontWeight: "bold",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   instruction: {
     fontSize: 18,
     textAlign: "center",
     maxWidth: 500,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   codeBox: {
-    padding: 32,
+    padding: 24,
     alignItems: "center",
     minWidth: 360,
   },
   code: {
-    fontSize: 64,
+    fontSize: 52,
     fontWeight: "bold",
     fontFamily: "monospace",
-    letterSpacing: 16,
+    letterSpacing: 14,
   },
   expires: {
     fontSize: 17,
-    marginTop: 16,
+    marginTop: 12,
   },
   backButton: {
-    marginTop: 24,
+    marginTop: 16,
     paddingVertical: 9,
     paddingHorizontal: 32,
     borderWidth: 3,
