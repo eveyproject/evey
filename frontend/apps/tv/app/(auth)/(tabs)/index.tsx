@@ -785,7 +785,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     paddingHorizontal: 24,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   rowFailure: {
     paddingHorizontal: 24,
@@ -861,7 +861,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 15,
     fontWeight: "600",
-    marginTop: 8,
+    marginTop: 4,
   },
   cardYear: {
     fontSize: 13,
