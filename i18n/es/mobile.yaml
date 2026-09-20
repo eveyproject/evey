@@ -24,6 +24,7 @@ settings:
   themeOptionA11y: "Tema {{name}}"
   server: Servidor
   changeServer: Cambiar servidor
+  changeServerConfirm: "Cambiar de servidor cierra la sesión en este televisor. ¿Continuar?"
   signOut: Cerrar sesion
   signOutConfirm: Estas seguro?
   about: Acerca de

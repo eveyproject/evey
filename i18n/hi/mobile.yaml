@@ -24,6 +24,7 @@ settings:
   themeOptionA11y: "{{name}} थीम"
   server: सर्वर
   changeServer: सर्वर बदलें
+  changeServerConfirm: "सर्वर बदलने से इस टीवी से साइन आउट हो जाएगा। जारी रखें?"
   signOut: साइन आउट
   signOutConfirm: क्या आप सुनिश्चित हैं?
   about: जानकारी

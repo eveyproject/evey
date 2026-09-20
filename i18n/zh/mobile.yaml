@@ -24,6 +24,7 @@ settings:
   themeOptionA11y: "{{name}} 主题"
   server: 服务器
   changeServer: 更换服务器
+  changeServerConfirm: "更换服务器会让这台电视退出登录。继续吗？"
   signOut: 退出登录
   signOutConfirm: 确定要退出吗？
   about: 关于

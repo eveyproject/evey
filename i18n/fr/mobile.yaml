@@ -24,6 +24,7 @@ settings:
   themeOptionA11y: "Thème {{name}}"
   server: Serveur
   changeServer: Changer de serveur
+  changeServerConfirm: "Changer de serveur déconnecte cette télévision. Continuer ?"
   signOut: Déconnexion
   signOutConfirm: Êtes-vous sûr ?
   about: À propos

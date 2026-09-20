@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, Modal } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -116,7 +116,15 @@ export default function SettingsScreen() {
     }
   }
 
+  // Changing server signs the television out, and the row sits at the very
+  // top of Settings, one OK away from a session there is no comfortable way
+  // to restore from a sofa (owner, 2026-09-20). So it asks first, and the
+  // answer under the thumb is No.
+  const [confirmServerChange, setConfirmServerChange] = useState(false);
+  const [confirmFocus, setConfirmFocus] = useState<"no" | "yes" | null>(null);
+
   async function handleChangeServer() {
+    setConfirmServerChange(false);
     // Same local teardown as sign-out: the cache holds the previous account's
     // rows and the refresh token would cold-start it back. queryClient.clear()
     // also fires via the active-server subscription, but clearing here keeps
@@ -165,6 +173,7 @@ export default function SettingsScreen() {
   );
 
   return (
+    <>
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.bg }]} contentContainerStyle={{ padding: 32 }}>
       <Text style={[styles.header, { color: theme.colors.text }]}>{t("common.settings")}</Text>
 
@@ -180,7 +189,7 @@ export default function SettingsScreen() {
         </View>
         <Pressable
           style={rowStyle("change-server")}
-          onPress={handleChangeServer}
+          onPress={() => setConfirmServerChange(true)}
           // Claim the first focus explicitly. Left to Android, entering
           // Settings landed on "Log out", one reflex press away from a session
           // a television has no comfortable way to restore (device, 08-03).
@@ -457,10 +466,53 @@ export default function SettingsScreen() {
 
       <View style={{ height: 64 }} />
     </ScrollView>
+      <Modal visible={confirmServerChange} transparent animationType="fade" onRequestClose={() => setConfirmServerChange(false)}>
+        <View style={styles.confirmBackdrop}>
+          <View style={[styles.confirmBox, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+            <Text style={[styles.confirmTitle, { color: theme.colors.text }]}>{t("mobile.settings.changeServer")}</Text>
+            <Text style={[styles.confirmBody, { color: theme.colors.textMuted }]}>
+              {t("mobile.settings.changeServerConfirm", "Changing server signs you out of this television. Continue?")}
+            </Text>
+            <View style={styles.confirmActions}>
+              <Pressable
+                onPress={() => setConfirmServerChange(false)}
+                hasTVPreferredFocus={confirmServerChange}
+                onFocus={() => setConfirmFocus("no")}
+                onBlur={() => setConfirmFocus(null)}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel={t("common.cancel")}
+                style={[styles.confirmBtn, { borderColor: confirmFocus === "no" ? theme.colors.accent : theme.colors.border }]}
+              >
+                <Text style={[styles.confirmBtnText, { color: theme.colors.text }]}>{t("common.cancel")}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void handleChangeServer()}
+                onFocus={() => setConfirmFocus("yes")}
+                onBlur={() => setConfirmFocus(null)}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel={t("mobile.settings.changeServer")}
+                style={[styles.confirmBtn, { backgroundColor: theme.colors.accent, borderColor: confirmFocus === "yes" ? "#fff" : theme.colors.accent }]}
+              >
+                <Text style={[styles.confirmBtnText, { color: theme.colors.onAccent, fontWeight: "700" }]}>{t("mobile.settings.changeServer")}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  confirmBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
+  confirmBox: { width: 560, padding: 32, gap: 16 },
+  confirmTitle: { fontSize: 26, fontWeight: "700" },
+  confirmBody: { fontSize: 18, lineHeight: 26 },
+  confirmActions: { flexDirection: "row", justifyContent: "flex-end", gap: 12, marginTop: 8 },
+  confirmBtn: { paddingVertical: 10, paddingHorizontal: 24, borderWidth: 3, borderRadius: 8 },
+  confirmBtnText: { fontSize: 18 },
   profileHeader: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 11, paddingHorizontal: 20 },
   avatar: { width: 64, height: 64, borderRadius: 32, justifyContent: "center", alignItems: "center" },
   avatarImage: { width: 64, height: 64 },

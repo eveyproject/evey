@@ -24,6 +24,7 @@ settings:
   themeAmoled: AMOLED
   themeOptionA11y: "{{name}} theme"
   changeServer: Change server
+  changeServerConfirm: "Changing server signs you out of this television. Continue?"
   signOut: Sign out
   signOutConfirm: Are you sure?
   about: About
