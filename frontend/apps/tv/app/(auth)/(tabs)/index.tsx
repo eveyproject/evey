@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { displayTitle } from "@evey/api";
 import { View, Text, ScrollView, FlatList, StyleSheet } from "react-native";
 import { Image } from "expo-image";
@@ -504,6 +504,17 @@ export default function HomeScreen() {
   });
   const focusTarget = selectHomeFocusTarget(sectionCounts.map((n) => n > 0));
 
+  // The first row claims the focus at mount so the D-pad has somewhere to go,
+  // and Android scrolls a newly focused child into view - which pushed the
+  // Customize row and the top of the widget off the screen, clipped mid-glyph
+  // (owner, 2026-09-20). Snap back to the top once that settles: focus stays
+  // where it is, and the page opens on its first pixel like any TV home.
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    const id = setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: false }), 0);
+    return () => clearTimeout(id);
+  }, [focusTarget]);
+
   // "Nothing loaded, nothing errored, nothing has an item" used to render as
   // a near-blank screen with just the Customize row - indistinguishable from
   // a broken page. Any row still loading or erroring is excluded: those cases
@@ -683,7 +694,11 @@ export default function HomeScreen() {
 
   let renderCursor = 0;
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingVertical: 32 }}>
+    <ScrollView
+      ref={scrollRef}
+      style={{ flex: 1, backgroundColor: theme.colors.bg }}
+      contentContainerStyle={{ paddingVertical: 32 }}
+    >
       {/* Customise first, not last. It used to sit at the very bottom, under
           every row: the owner could not find it from the sofa and believed
           the home simply could not be reorganised (2026-09-19). It never
@@ -696,7 +711,7 @@ export default function HomeScreen() {
         focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
       >
         <Ionicons name="options-outline" size={22} color={theme.colors.textMuted} />
-        <Text style={{ color: theme.colors.textMuted, fontSize: 17, lineHeight: 24 }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>
           {t("media.home.customize", "Customize")}
         </Text>
       </FocusableCard>
@@ -753,9 +768,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
     marginHorizontal: 24,
     marginTop: 24,
-    // 9 put the ascenders against the card's rounded border, which Android
-    // applies as a clip: the top of the label was cut off (2026-09-20).
-    paddingVertical: 12,
+    paddingVertical: 9,
     paddingHorizontal: 20,
     borderRadius: 8,
   },
