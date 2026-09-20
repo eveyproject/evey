@@ -456,3 +456,44 @@ func TestPlaySessionRepo_SetSessionAudioDecision_ActiveOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, ok)
 }
+
+// SetSessionServing writes the audio codec label ONLY when the caller supplies
+// one: a master render knows the engines but not the output codec, and an
+// unconditional write would blank the label the session started with.
+func TestPlaySessionRepo_SetSessionServing_KeepsTheCodecLabelUnlessGiven(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("psu10")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("psp10", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("pslib10")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	item := newTestMediaItem("psmi10", lib.ID)
+	require.NoError(t, postgres.NewMediaItemRepository(db).Create(ctx, item))
+	repo := postgres.NewPlaySessionRepository(db)
+
+	live := newTestPlaySession("ps10-live", string(p.ID), string(item.ID))
+	live.AudioCodec = "eac3"
+	require.NoError(t, repo.Create(ctx, live))
+
+	ok, err := repo.SetSessionServing(ctx, live.ID, playback.ServingPath{
+		VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "wasm", AudioEngine: "client",
+	})
+	require.NoError(t, err)
+	assert.True(t, ok)
+	got, err := repo.GetByID(ctx, live.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "eac3", got.AudioCodec, "no codec supplied: the label stands")
+
+	ok, err = repo.SetSessionServing(ctx, live.ID, playback.ServingPath{
+		VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg", AudioCodec: "eac3→aac",
+	})
+	require.NoError(t, err)
+	assert.True(t, ok)
+	got, err = repo.GetByID(ctx, live.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "eac3→aac", got.AudioCodec)
+	assert.Equal(t, "transcode", got.AudioDecision)
+}

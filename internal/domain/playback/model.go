@@ -76,6 +76,11 @@ type ServingPath struct {
 	VideoBackend  string // transcode only: "software" | "qsv" | "vaapi" | "nvenc"
 	AudioDecision string // "copy" | "transcode" | "wasm"
 	AudioEngine   string // "mkvgo" | "ffmpeg" | "client"
+	// AudioCodec, when set, rewrites the session's audio codec label so it keeps
+	// naming what is SERVED: "eac3" while the track is carried untouched,
+	// "eac3→aac" once it is re-encoded. Empty leaves the label alone - only a
+	// caller that knows the output codec changed sets it.
+	AudioCodec string
 }
 
 func (s *PlaySession) Validate() error {

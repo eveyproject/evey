@@ -221,6 +221,9 @@ func (r *FakePlaySessionRepository) SetSessionServing(_ context.Context, session
 		return false, nil
 	}
 	s.VideoDecision, s.AudioDecision, s.Serving = p.VideoDecision, p.AudioDecision, p
+	if p.AudioCodec != "" { // same contract as the SQL: empty leaves the label alone
+		s.AudioCodec = p.AudioCodec
+	}
 	return true, nil
 }
 

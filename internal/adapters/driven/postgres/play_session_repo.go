@@ -98,9 +98,13 @@ func (r *PlaySessionRepository) SetSessionServing(ctx context.Context, sessionID
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE play_sessions SET video_decision = $2, audio_decision = $3, video_engine = $4, video_backend = $5, audio_engine = $6
+		// audio_codec is only rewritten when the caller supplies one: every other
+		// serving record knows the engines but not the output codec, and an
+		// unconditional write would blank the label the session started with.
+		`UPDATE play_sessions SET video_decision = $2, audio_decision = $3, video_engine = $4, video_backend = $5, audio_engine = $6,
+		        audio_codec = COALESCE(NULLIF($7, ''), audio_codec)
 		 WHERE id = $1 AND ended_at IS NULL`,
-		sessionID, p.VideoDecision, p.AudioDecision, p.VideoEngine, p.VideoBackend, p.AudioEngine)
+		sessionID, p.VideoDecision, p.AudioDecision, p.VideoEngine, p.VideoBackend, p.AudioEngine, p.AudioCodec)
 	if err != nil {
 		span.RecordError(err)
 		return false, fmt.Errorf("PlaySessionRepo.SetSessionServing: %w", err)

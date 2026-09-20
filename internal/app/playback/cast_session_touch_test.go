@@ -143,6 +143,55 @@ func TestSetCastAudioPath_MapsModesOntoTheSession(t *testing.T) {
 	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-OTHER", "wasm"))
 }
 
+// Prod, 2026-09-20: the beacon flipped the DECISION to transcode and left the
+// codec label written at start-up, so the dashboard read "transcodé (eac3)" -
+// a transcode whose output codec is its input. The label has to follow the leg.
+func TestSetCastAudioPath_CodecLabelFollowsTheLeg(t *testing.T) {
+	t.Parallel()
+	svc, sessions := newTouchSvc(t)
+	sess := activeSession("s-1", "prof-1", "media-1", "")
+	sess.AudioCodec = "eac3" // what the client reported while the track was carried untouched
+	require.NoError(t, sessions.Create(context.Background(), sess))
+
+	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", "aac-latched"))
+	got, err := sessions.GetByID(context.Background(), "s-1")
+	require.NoError(t, err)
+	assert.Equal(t, "eac3→aac", got.AudioCodec, "the AAC leg re-encodes: say what comes out")
+
+	// Back on the untouched track: the source IS what is served.
+	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", "wasm"))
+	got, err = sessions.GetByID(context.Background(), "s-1")
+	require.NoError(t, err)
+	assert.Equal(t, "eac3", got.AudioCodec)
+
+	// A second latch must not stack arrows.
+	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", "aac"))
+	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", "aac-latched"))
+	got, err = sessions.GetByID(context.Background(), "s-1")
+	require.NoError(t, err)
+	assert.Equal(t, "eac3→aac", got.AudioCodec)
+}
+
+// A label that says nothing useful must not be invented: an AAC source fed to
+// the AAC leg is not "aac→aac", and a session whose codec was never reported
+// (an older client) must not gain one from a beacon.
+func TestSetCastAudioPath_LeavesAnUninformativeLabelAlone(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, codec string }{{"aac source", "aac"}, {"no label", ""}} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, sessions := newTouchSvc(t)
+			sess := activeSession("s-1", "prof-1", "media-1", "")
+			sess.AudioCodec = tc.codec
+			require.NoError(t, sessions.Create(context.Background(), sess))
+
+			require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", "aac-latched"))
+			got, err := sessions.GetByID(context.Background(), "s-1")
+			require.NoError(t, err)
+			assert.Equal(t, tc.codec, got.AudioCodec)
+		})
+	}
+}
+
 // Resurrection: prod 2026-07-29 - the phone re-cast from an already-mounted
 // player (no new StartStream) after its previous session had been reaped; the
 // TV played for real while "now playing" stayed empty and nothing was
