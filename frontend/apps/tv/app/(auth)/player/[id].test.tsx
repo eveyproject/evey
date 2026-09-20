@@ -7,7 +7,7 @@ import React from "react";
 // remote keypress directly, the same way playerListeners lets a test simulate
 // a native player event.
 let capturedBackHandler: (() => boolean) | null = null;
-let capturedTVHandler: ((evt: { eventType: string }) => void) | null = null;
+let capturedTVHandler: ((evt: { eventType: string; eventKeyAction?: number }) => void) | null = null;
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
@@ -16,7 +16,7 @@ vi.mock("react-native", () => ({
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "spinner", ...p }),
   StyleSheet: { create: (s: any) => s, absoluteFillObject: {} },
   useWindowDimensions: () => ({ width: 1920, height: 1080 }),
-  useTVEventHandler: (cb: (evt: { eventType: string }) => void) => { capturedTVHandler = cb; },
+  useTVEventHandler: (cb: (evt: { eventType: string; eventKeyAction?: number }) => void) => { capturedTVHandler = cb; },
   // The screen resolves native tags to wire the controls' neighbours; jsdom
   // has none, and null is exactly what the screen already tolerates.
   findNodeHandle: () => null,
@@ -645,6 +645,37 @@ describe("remote seek (TV)", () => {
     act(() => { capturedTVHandler?.({ eventType: "longRight" }); });
     act(() => { vi.advanceTimersByTime(700); });
     expect(playerMock.currentTime).toBe(120); // 30s * 4x multiplier
+    vi.useRealTimers();
+  });
+
+  // Android (react-native-tvos) delivers a tap as ONE "right" event with key
+  // action 1, and a held key as "longRight" with action 0 then action 1 on
+  // release (measured on the box, 2026-09-20). A tap is one skip; a hold
+  // scrubs for as long as it lasts and commits once.
+  it("treats a key release as one skip, and a stray key down as nothing", () => {
+    vi.useFakeTimers();
+    playerMock.currentTime = 0;
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "right", eventKeyAction: 0 }); });
+    act(() => { vi.advanceTimersByTime(120); });
+    act(() => { capturedTVHandler?.({ eventType: "right", eventKeyAction: 1 }); });
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(30);
+    vi.useRealTimers();
+  });
+
+  it("scrubs between the long-press events and commits once on release", () => {
+    vi.useFakeTimers();
+    playerMock.currentTime = 0;
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "longRight", eventKeyAction: 0 }); });
+    act(() => { vi.advanceTimersByTime(1500); });
+    act(() => { capturedTVHandler?.({ eventType: "longRight", eventKeyAction: 1 }); });
+    expect(playerMock.currentTime).toBe(0); // nothing seeks until the presses settle
+    act(() => { vi.advanceTimersByTime(700); });
+    // 1.5s at a minute per second: about 90s, ONE seek - not two x4 jumps.
+    expect(playerMock.currentTime).toBeGreaterThan(80);
+    expect(playerMock.currentTime).toBeLessThan(100);
     vi.useRealTimers();
   });
 
