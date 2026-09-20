@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/playback"
@@ -694,9 +695,34 @@ func (s *CommandService) SetCastAudioPath(ctx context.Context, profileID, mediaI
 	}
 	p := sess.Serving
 	p.VideoDecision, p.AudioDecision, p.AudioEngine = sess.VideoDecision, decision, engine
+	p.AudioCodec = relayAudioCodecLabel(sess.AudioCodec, decision)
 	_, err = s.sessions.SetSessionServing(ctx, sess.ID, p)
 	return err
 }
+
+// relayAudioCodecLabel keeps the session's audio codec label pointed at what
+// the viewer is actually fed when the relay changes leg. The label is written
+// once at start-up from the client's own decision ("eac3" while the track is
+// carried untouched), and SetCastAudioPath used to flip the DECISION without
+// touching it: prod, 2026-09-20, a starved wasm leg left the dashboard reading
+// "transcodé (eac3)" - a transcode whose output codec is its input.
+//
+// The relay's native leg is always Evey's AAC rendition, so the target is known
+// here and nowhere else; returning "" means "leave the label alone".
+func relayAudioCodecLabel(current, decision string) string {
+	source, _, _ := strings.Cut(current, "→")
+	if source == "" || source == relayNativeAudioCodec {
+		return ""
+	}
+	if decision == "transcode" {
+		return source + "→" + relayNativeAudioCodec
+	}
+	return source // back on the untouched track: the source IS what is served
+}
+
+// relayNativeAudioCodec is the codec of the relay's native leg (Evey's audio
+// rendition re-encodes to AAC).
+const relayNativeAudioCodec = "aac"
 
 // SetSessionServing records what the master playlist just handed the
 // (profile, media) session: which packager/encoder serves each track. Called
