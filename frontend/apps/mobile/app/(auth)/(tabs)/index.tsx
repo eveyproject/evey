@@ -642,8 +642,13 @@ export default function HomeScreen() {
         }
         if (feedType.startsWith("plugin:")) {
           const pluginId = feedType.replace("plugin:", "");
+          // A row whose plugin is gone (every past install of a widget leaves
+          // its plugin:<id> behind in the profile's feed config) must not keep
+          // its wrapper: five such rows put 80 dp of nothing above the first
+          // widget. The slot itself renders null, so the margins were the gap.
+          if (pluginsData && !pluginNames[pluginId]) return null;
           return (
-            <View key={feedType} style={{ marginVertical: theme.spacing.sm, marginHorizontal: theme.spacing.md }}>
+            <View key={feedType} testID="home-plugin-section" style={{ marginVertical: theme.spacing.sm, marginHorizontal: theme.spacing.md }}>
               <PluginSlot name="home.section" pluginId={pluginId} />
             </View>
           );

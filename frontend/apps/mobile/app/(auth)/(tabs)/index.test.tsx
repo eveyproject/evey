@@ -9,7 +9,7 @@ import React from "react";
 
 // --- React Native mock -------------------------------------------------------------
 vi.mock("react-native", () => ({
-  View: ({ children, ...p }: any) => React.createElement("div", p, children),
+  View: ({ children, testID, ...p }: any) => React.createElement("div", { "data-testid": testID, ...p }, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
   RefreshControl: () => null,
@@ -101,10 +101,15 @@ vi.mock("@tanstack/react-query", () => ({
     if (opts.queryKey[0] === "photos") {
       return { data: [], isLoading: false, isError: photoAlbumsError, refetch: photoAlbumsRefetch };
     }
-    // installed-plugins list and anything else: settled, empty, harmless.
+    if (opts.queryKey[0] === "/api/v1/plugins") {
+      return { data: installedPlugins, isLoading: false, isError: false, refetch: vi.fn() };
+    }
+    // anything else: settled, empty, harmless.
     return { data: {}, isLoading: false, isError: false, refetch: vi.fn() };
   },
 }));
+// The installed-plugins list: `undefined` = still loading, `{}` = none.
+let installedPlugins: { plugins?: { id: string; name: string; frontend: { slot: string }[] }[] } | undefined = {};
 
 // --- @evey/api ----------------------------------------------------------------------------
 const emptySettled = { data: { items: [] }, isLoading: false, isError: false, refetch: vi.fn() };
@@ -195,6 +200,32 @@ describe("HomeScreen - music/photo library rows, loading vs failure vs empty", (
 
     fireEvent.click(screen.getByLabelText("common.retry"));
     expect(photoAlbumsRefetch).toHaveBeenCalledOnce();
+  });
+});
+
+// Every past install of a home widget leaves a plugin:<id> row behind in the
+// profile's feed config. Each stale row rendered an empty slot inside a View
+// with 8 dp of margin top and bottom: five of them put 80 dp of nothing
+// between Customize and the first real widget on the user's phone.
+describe("HomeScreen - stale plugin rows take no room", () => {
+  const weather = { id: "plg-live", name: "weather", frontend: [{ slot: "home.section" }] };
+
+  it("renders no wrapper for a plugin row whose plugin is no longer installed", () => {
+    installedPlugins = { plugins: [weather] };
+    feedConfigsOverride = [
+      { feedType: "plugin:plg-gone-1", enabled: true, displayOrder: 0 },
+      { feedType: "plugin:plg-gone-2", enabled: true, displayOrder: 0 },
+      { feedType: "plugin:plg-live", enabled: true, displayOrder: 0 },
+    ];
+    render(<HomeScreen />);
+    expect(screen.getAllByTestId("home-plugin-section")).toHaveLength(1);
+  });
+
+  it("keeps the row while the plugin list is still loading, so a slow list never hides a widget", () => {
+    installedPlugins = undefined;
+    feedConfigsOverride = [{ feedType: "plugin:plg-live", enabled: true, displayOrder: 0 }];
+    render(<HomeScreen />);
+    expect(screen.getAllByTestId("home-plugin-section")).toHaveLength(1);
   });
 });
 
