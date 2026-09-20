@@ -49,12 +49,13 @@
         pointer-events: none;
       }
       /* Overlay de debug : les erreurs de lecture s'affichent SUR la TV au
-         lieu de mourir en silence comme sur le Default Media Receiver. */
+         lieu de mourir en silence comme sur le Default Media Receiver.
+         En HAUT : le bas de l'écran appartient désormais au HUD. */
       #dbg {
         display: none;
         position: absolute;
         left: 2vmin;
-        bottom: 2vmin;
+        top: 2vmin;
         max-width: 90vw;
         padding: 1vmin 2vmin;
         background: rgba(0, 0, 0, 0.75);
@@ -99,36 +100,96 @@
         font-size: 2.1vmin;
         color: #9ca3af;
       }
-      /* HUD de pause : quoi est en pause, où on en est, ce qui reste. */
-      #hud {
-        display: none;
+      /* HUD de lecture : la barre du bas que les autres lecteurs Evey ont
+         (web, mobile, app TV). Le lecteur CAF n'en montre aucune ici - un
+         Chromecast n'a pas d'entrée, donc ce HUD est en LECTURE SEULE : il
+         reflète ce que la télécommande du sender vient de demander, puis
+         s'efface (voir main.ts). Marges à 6vmin pour l'overscan des TV. */
+      #osd {
         position: absolute;
-        left: 4vmin;
-        top: 4vmin;
-        max-width: 70vw;
-        padding: 2.2vmin 3vmin;
-        background: rgba(11, 15, 25, 0.85);
-        border-radius: 1vmin;
+        left: 6vmin;
+        right: 6vmin;
+        bottom: 6vmin;
+        padding: 2.4vmin 3vmin 2.8vmin;
+        background: linear-gradient(to top, rgba(6, 8, 15, 0.94), rgba(6, 8, 15, 0.72));
+        border-radius: 1.4vmin;
         color: #fff;
         font-family: system-ui, -apple-system, sans-serif;
         z-index: 11;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(2vmin);
+        transition: opacity 260ms ease, transform 260ms ease, visibility 260ms;
       }
-      #hud .title {
+      #osd.show {
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+      }
+      #osd .head {
+        display: flex;
+        align-items: center;
+        gap: 2.4vmin;
+      }
+      /* Glyphe d'état, dessiné en CSS (aucune police d'icônes sur une TV) :
+         triangle en lecture, deux barres en pause. */
+      #osd .glyph {
+        flex: none;
+        width: 0;
+        height: 0;
+        border-style: solid;
+        border-width: 1.7vmin 0 1.7vmin 2.9vmin;
+        border-color: transparent transparent transparent #fff;
+      }
+      #osd.is-paused .glyph {
+        width: 2.9vmin;
+        height: 3.4vmin;
+        border: none;
+        background: linear-gradient(to right, #fff 0 34%, transparent 34% 66%, #fff 66% 100%);
+      }
+      #osd .texts {
+        min-width: 0;
+        flex: 1;
+      }
+      #osd .title {
         font-size: 3.4vmin;
         font-weight: 600;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
-      #hud .clock {
-        margin-top: 0.8vmin;
-        font-size: 2.4vmin;
+      #osd .status {
+        margin-top: 0.4vmin;
+        font-size: 2.1vmin;
+        letter-spacing: 0.2vmin;
+        text-transform: uppercase;
+        color: #a5a8f8;
+      }
+      #osd .status:empty {
+        display: none;
+      }
+      #osd .track {
+        margin-top: 2.2vmin;
+        height: 0.8vmin;
+        border-radius: 0.4vmin;
+        background: rgba(255, 255, 255, 0.22);
+        overflow: hidden;
+      }
+      #osd .fill {
+        height: 100%;
+        width: 0;
+        background: #7c7ff2;
+        transition: width 480ms linear;
+      }
+      #osd .times {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 1.2vmin;
+        font-size: 2.2vmin;
         color: #c3c6ff;
         font-variant-numeric: tabular-nums;
       }
-      #hud .remaining {
-        margin-top: 0.4vmin;
-        font-size: 2.1vmin;
+      #osd .remaining {
         color: #9ca3af;
       }
       /* Carte de fin : la grâce d'extinction ne laisse plus un écran noir. */
@@ -167,10 +228,19 @@
       <div class="title"></div>
       <div class="count"></div>
     </div>
-    <div id="hud">
-      <div class="title"></div>
-      <div class="clock"></div>
-      <div class="remaining"></div>
+    <div id="osd">
+      <div class="head">
+        <div class="glyph"></div>
+        <div class="texts">
+          <div class="title"></div>
+          <div class="status"></div>
+        </div>
+      </div>
+      <div class="track"><div class="fill"></div></div>
+      <div class="times">
+        <span class="clock"></span>
+        <span class="remaining"></span>
+      </div>
     </div>
     <div id="endcard">
       <div class="heading"></div>
