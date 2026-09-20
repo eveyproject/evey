@@ -67,4 +67,16 @@ describe("isStarved", () => {
   it("honours a caller-supplied threshold", () => {
     expect(isStarved({ ...playing, sinceLastDecodeMs: 3_000, thresholdMs: 2_000 })).toBe(true);
   });
+
+  // Prod, 2026-09-20: a viewer seeked back into audio the engine had already
+  // decoded, the pump had nothing left to fetch for 32 s, and a leg playing 4
+  // scheduled segments at 0 ms drift was declared starved and latched to AAC
+  // for the rest of the film.
+  it("never fires on a leg that owes nothing", () => {
+    expect(isStarved({ ...playing, sinceLastDecodeMs: 60_000, pending: false })).toBe(false);
+  });
+
+  it("still fires when the leg owes a segment it has not produced", () => {
+    expect(isStarved({ ...playing, sinceLastDecodeMs: DEFAULT_STARVATION_MS + 1, pending: true })).toBe(true);
+  });
 });
