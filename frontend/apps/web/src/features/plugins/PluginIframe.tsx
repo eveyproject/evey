@@ -405,9 +405,10 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context }: Pl
           }
           break;
         case "resize":
-          if (typeof data.height === "number" && data.height > 0) {
-            // Clamp to [50, 800] to prevent visual DoS via unbounded resize.
-            setHeight(Math.max(50, Math.min(800, data.height)));
+          if (typeof data.height === "number" && data.height >= 0) {
+            // Clamp to [50, 800] to prevent visual DoS via unbounded resize;
+            // 0 collapses the slot (a plugin with nothing to show).
+            setHeight(data.height === 0 ? 0 : Math.max(50, Math.min(800, data.height)));
           }
           break;
         case "rpc": {

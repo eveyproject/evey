@@ -161,6 +161,39 @@ describe("PluginSlot init payload", () => {
   });
 });
 
+// The librarian's home.hero answers a clean shelf with resize(0). Dropping
+// that message left the slot at its 120 dp opening height: a blank strip
+// between Customize and the first row of the mobile home.
+describe("PluginSlot resize", () => {
+  // The View mock is a div, so the host's numeric height lands in the DOM as "120px".
+  function slotHeight(): number {
+    const webview = document.querySelector('[data-testid="plugin-webview"]');
+    return parseFloat((webview?.parentElement as HTMLElement | null)?.style.height ?? "NaN");
+  }
+
+  it("collapses the slot to nothing on resize(0)", async () => {
+    await mountPluginWebView();
+    expect(slotHeight()).toBe(120);
+    dispatchToWebView({ type: "resize", height: 0 });
+    await waitFor(() => expect(slotHeight()).toBe(0));
+  });
+
+  it("clamps a positive resize to the 60-800 range", async () => {
+    await mountPluginWebView();
+    dispatchToWebView({ type: "resize", height: 5 });
+    await waitFor(() => expect(slotHeight()).toBe(60));
+    dispatchToWebView({ type: "resize", height: 99999 });
+    await waitFor(() => expect(slotHeight()).toBe(800));
+  });
+
+  it("ignores a negative or non-numeric height", async () => {
+    await mountPluginWebView();
+    dispatchToWebView({ type: "resize", height: -1 });
+    dispatchToWebView({ type: "resize", height: "0" });
+    expect(slotHeight()).toBe(120);
+  });
+});
+
 describe("PluginSlot assets.read bridge", () => {
   it("fetches the plugin's own asset with the plugin token and returns a data URL", async () => {
     eveyFetchRawMock.mockImplementation(async (req: { url: string }) => {

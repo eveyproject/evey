@@ -296,6 +296,18 @@ describe("PluginIframe handleMessage", () => {
     });
   });
 
+  // A plugin with nothing to show (the librarian on a clean shelf) says
+  // resize(0); the slot must vanish rather than keep its opening height.
+  it("collapses the slot on resize(0), and ignores a negative height", async () => {
+    const iframe = await mountIframe();
+    dispatchPluginMessage(iframe, { type: "resize", height: 0 });
+    await waitFor(() => {
+      expect(iframe.style.height).toBe("0px");
+    });
+    dispatchPluginMessage(iframe, { type: "resize", height: -1 });
+    expect(iframe.style.height).toBe("0px");
+  });
+
   it("truncates toast messages to 200 chars", async () => {
     const iframe = await mountIframe();
     const long = "x".repeat(500);

@@ -135,10 +135,11 @@ evey.toast("error", "API key missing.");
 
 ### `evey.resize(height)`
 
-Requests that the host resize the iframe slot to `height` pixels. Clamped to 50-800.
+Requests that the host resize the iframe slot to `height` pixels. Clamped to 50-800. `0` collapses the slot: a plugin with nothing to show takes no room on the page.
 
 ```js
 evey.resize(300);
+evey.resize(0); // nothing to say: the slot disappears
 ```
 
 ### `evey.onInit(callback)`
