@@ -1,5 +1,5 @@
 ---
-source_sha: d2712fabb86ecc74f86cc3178d83c494b9ebae2cc1fe140ab00ffb94984d297e
+source_sha: 29131cc868c2f0ed69e387e6774c9b511cfb19294dad329df8dbfc3d2c2c75c7
 ---
 
 # Référence de l'API des extensions
@@ -137,13 +137,29 @@ Enregistre une fonction de rappel déclenchée dès que l'hôte envoie à l'exte
 
 ```js
 evey.onInit(function(data) {
-  // data.context  - plugin config values (from config_schema)
-  // data.locale   - active locale string, e.g. "en-US"
-  // data.theme    - active theme id
+  // data.context         - valeurs de configuration (config_schema)
+  // data.locale          - locale active, ex. "fr-FR"
+  // data.theme           - identifiant du thème actif
+  // data.surface         - "web", "mobile" ou "tv" : où le widget a atterri
+  // data.suggestedHeight - home.section uniquement : la hauteur (px) que l'hôte recommande là
+  // data.viewportHeight  - tv uniquement : hauteur du panneau en dp
 });
 ```
 
 L'hôte attend jusqu'à 5 secondes que l'extension signale `ready` (le script de pont s'en charge tout seul). Passé ce délai, l'iframe est démontée et une erreur est remontée.
+
+#### Hauteur
+
+Un widget `home.section` s'ouvre à `data.suggestedHeight` sans rien faire : l'hôte sait sur quelle surface il vous a posé - une page de bureau, un téléphone, un panneau de télévision - et recommande la hauteur qu'un widget d'accueil a à cet endroit, si bien que tous les widgets d'un accueil ont la même taille. N'appelez `evey.resize()` que si vous savez mieux ; l'hôte ne redimensionne ni ne met à l'échelle votre contenu dans votre dos.
+
+#### Sur une télévision
+
+L'application télévision fait tourner votre widget dans une WebView, et quelques évidences du navigateur n'y tiennent plus :
+
+- **Ne vous dimensionnez pas d'après votre propre viewport.** Dans la WebView, `window.innerHeight` est la hauteur que l'hôte vient de vous accorder - c'est circulaire. Si vous vous redimensionnez, partez de `data.viewportHeight` (le panneau) ou de `data.suggestedHeight`, jamais de `innerHeight`.
+- **Pas de focus, pas de pointeur.** Le widget ne reçoit jamais le focus de la télécommande, et il n'y a pas de survol. Tout ce qui est interactif appartient aux surfaces web et mobile.
+- **Éloignez le texte des bords.** Les télévisions rognent l'image (overscan) : laissez environ 5 % de la largeur et de la hauteur libres de chaque côté.
+- **Testez le WebGL sur une vraie box, en zoomant.** Un shader tourne sur le GPU et le pilote de la box, pas sur ceux de votre poste. Un hachage de grille qui multipliait son entrée par quelques centaines avant `fract()` rendait des polygones plats à la place des nuages sur un GPU Mali alors qu'il était impeccable dans un navigateur ; gardez les coordonnées de bruit bornées (`mod()`) et hachez des valeurs bornées. `tests/plugins/weather-v2` est le widget de référence pour tout ce qui précède.
 
 ## Emplacements d'insertion
 

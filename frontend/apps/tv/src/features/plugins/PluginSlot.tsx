@@ -78,6 +78,16 @@ export function usePluginSlotEntries(slot: string): SlotEntry[] {
   return entries;
 }
 
+// The height the host recommends for a slot on a television. A plugin that
+// never calls evey.resize() opens at it, so every home widget lands the same
+// size without knowing where it runs; a plugin with an opinion still resizes.
+// A share of the panel, not a pixel count: a 720p projector and a 4K set get
+// the same proportion (42% is the web banner carried over to a 675dp panel).
+export function suggestedSlotHeight(slot: string, panelHeight: number): number | undefined {
+  if (slot !== "home.section") return undefined;
+  return Math.round(panelHeight * 0.42);
+}
+
 interface PluginSlotProps {
   /** Slot name declared in the plugin manifest (e.g. "home.section"). */
   name: string;
@@ -143,6 +153,7 @@ export function PluginSlot({ name, context, pluginId, excludeRegistered }: Plugi
     <>
       {matches.map((m) => (
         <PluginWebView
+          slot={name}
           key={m.pluginId}
           pluginId={m.pluginId}
           entryPath={m.entryPath}
@@ -168,6 +179,7 @@ function PluginSlotError() {
 
 interface PluginWebViewProps {
   pluginId: string;
+  slot: string;
   entryPath: string;
   externalFetch: string[];
   context?: Record<string, unknown>;
@@ -176,7 +188,7 @@ interface PluginWebViewProps {
 const TOAST_MAX = 3;
 const TOAST_WINDOW_MS = 1000;
 
-function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWebViewProps) {
+function PluginWebView({ pluginId, slot, entryPath, externalFetch, context }: PluginWebViewProps) {
   const { t, i18n } = useTranslation();
   const theme = useTheme();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -184,8 +196,9 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   const webviewRef = useRef<WebView>(null);
   const [bundleCode, setBundleCode] = useState<string | null>(null);
   const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
-  const [height, setHeight] = useState(120);
   const { height: windowHeight } = useWindowDimensions();
+  const suggestedHeight = suggestedSlotHeight(slot, windowHeight);
+  const [height, setHeight] = useState(suggestedHeight ?? 120);
   const [error, setError] = useState(false);
   // Two-stage gate before we mount the WebView and download a bundle:
   //   1. `interactionsDone` - wait for any in-flight RN animation/transition
@@ -404,14 +417,13 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         config: pluginConfig,
         locale: i18n.language,
         theme: isLightTheme ? "light" : "dark",
-        // Which surface the widget landed on, and how tall the panel is. A
-        // plugin sizes itself from its own viewport, but inside the WebView
-        // that IS the slot it was granted - circular. A television row is also
-        // as wide as a desktop page while having a fraction of the vertical
-        // room, so width alone cannot tell them apart. Both absent on web and
-        // mobile, whose plugins keep their current behaviour untouched.
+        // Where the widget landed and how tall it should be there. Inside the
+        // WebView innerHeight IS the slot it was just granted - circular - so
+        // the host reports the panel and recommends a height; a plugin that
+        // never resizes simply opens at it.
         surface: "tv",
         viewportHeight: Math.round(windowHeight),
+        suggestedHeight,
       });
       webviewRef.current?.injectJavaScript(
         `window.postMessage(${initPayload}, "*"); true;`,

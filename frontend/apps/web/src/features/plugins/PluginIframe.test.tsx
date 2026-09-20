@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
-import { PluginIframe, isAllowedNavPath } from "./PluginIframe";
+import { PluginIframe, suggestedSlotHeight, isAllowedNavPath } from "./PluginIframe";
 
 const { navigateMock, toastMocks } = vi.hoisted(() => ({
   navigateMock: vi.fn(),
@@ -212,7 +212,7 @@ describe("PluginIframe", () => {
 // way to satisfy the strict source/origin checks the host applies.
 
 async function mountIframe(externalFetch?: string[]) {
-  render(<PluginIframe pluginId="plg-test1" src="index.js" externalFetch={externalFetch} />);
+  render(<PluginIframe pluginId="plg-test1" slot="home.section" src="index.js" externalFetch={externalFetch} />);
   const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
   // jsdom assigns iframe.contentWindow lazily; nudge it.
   if (!iframe.contentWindow) {
@@ -274,6 +274,18 @@ describe("PluginIframe handleMessage", () => {
     await waitFor(() => {
       expect(iframe.style.height).toBe("800px");
     });
+  });
+
+  it("opens a home section at the height the host recommends, before any resize", async () => {
+    const iframe = await mountIframe();
+    expect(iframe.style.height).toBe(`${suggestedSlotHeight("home.section", window.innerWidth)}px`);
+  });
+
+  it("recommends a banner height for home.section only, by viewport width", () => {
+    expect(suggestedSlotHeight("home.section", 360)).toBe(216);
+    expect(suggestedSlotHeight("home.section", 600)).toBe(248);
+    expect(suggestedSlotHeight("home.section", 1280)).toBe(280);
+    expect(suggestedSlotHeight("settings.user.appearance", 1280)).toBeUndefined();
   });
 
   it("clamps a tiny resize request to 50px", async () => {

@@ -7,6 +7,9 @@ import { BRIDGE_SCRIPT } from "./front-bridge";
 
 interface PluginIframeProps {
   pluginId: string;
+  // Slot name from the manifest ("home.section"): decides the height the host
+  // recommends in the init payload.
+  slot: string;
   // src is the entry path RELATIVE to the plugin's web_root (e.g. "index.js"
   // when the manifest declared web_root: "dist" and frontend.src: "dist/index.js").
   // PluginSlot strips the prefix; PluginIframe just appends to the assets base.
@@ -155,9 +158,18 @@ function buildSrcdoc(pluginId: string, bundleCode: string, externalFetch: string
 </html>`;
 }
 
-export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIframeProps) {
+// The height the host recommends for a slot on this surface. A plugin that
+// never calls evey.resize() opens at it, so every home widget lands the same
+// size without knowing where it runs; a plugin with an opinion still resizes.
+export function suggestedSlotHeight(slot: string, viewportWidth: number): number | undefined {
+  if (slot !== "home.section") return undefined;
+  return viewportWidth < 420 ? 216 : viewportWidth < 700 ? 248 : 280;
+}
+
+export function PluginIframe({ pluginId, slot, src, externalFetch, context }: PluginIframeProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [height, setHeight] = useState(100);
+  const [suggestedHeight] = useState(() => suggestedSlotHeight(slot, window.innerWidth));
+  const [height, setHeight] = useState(suggestedHeight ?? 100);
   const [error, setError] = useState(false);
   const [bundleCode, setBundleCode] = useState<string | null>(null);
   const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
@@ -364,6 +376,8 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
               config: pluginConfig,
               locale: i18n.language,
               theme: detectThemeMode(),
+              surface: "web",
+              ...(suggestedHeight !== undefined ? { suggestedHeight } : {}),
             },
             "*",
           );

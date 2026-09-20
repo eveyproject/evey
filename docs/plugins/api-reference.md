@@ -147,13 +147,29 @@ Registers a callback that fires once the host sends the plugin its initializatio
 
 ```js
 evey.onInit(function(data) {
-  // data.context  - plugin config values (from config_schema)
-  // data.locale   - active locale string, e.g. "en-US"
-  // data.theme    - active theme id
+  // data.context         - plugin config values (from config_schema)
+  // data.locale          - active locale string, e.g. "en-US"
+  // data.theme           - active theme id
+  // data.surface         - "web", "mobile" or "tv": where the widget landed
+  // data.suggestedHeight - home.section only: the height (px) the host recommends there
+  // data.viewportHeight  - tv only: the panel height in dp
 });
 ```
 
 The host waits up to 5 seconds for the plugin to signal `ready` (done automatically by the bridge script). If the timeout is reached, the iframe is unmounted and an error is reported.
+
+#### Height
+
+A `home.section` widget opens at `data.suggestedHeight` without doing anything: the host knows the surface it put you on - a desktop page, a phone, a television panel - and recommends the height a home widget has there, so every widget on a home lands the same size. Call `evey.resize()` only when you know better; the host never resizes or scales your content behind your back.
+
+#### On a television
+
+The television app runs your widget in a WebView, and a few things that are true in a browser stop being true there:
+
+- **Do not size from your own viewport.** Inside the WebView, `window.innerHeight` is the slot the host just granted you - circular. If you resize yourself, size from `data.viewportHeight` (the panel) or `data.suggestedHeight`, never from `innerHeight`.
+- **No focus, no pointer.** The widget never receives the D-pad focus, and there is no hover. Anything interactive belongs on the web and mobile surfaces.
+- **Keep text away from the edges.** Televisions overscan: leave about 5% of the width and height free on every side.
+- **Test WebGL on a real box, zoomed in.** A shader runs on the box's GPU and its driver, not on your desktop's. A lattice hash that multiplied its input by a few hundred before `fract()` rendered flat polygons instead of clouds on a Mali GPU while it looked fine in a browser; keep noise coordinates bounded (`mod()`) and hash bounded values. `tests/plugins/weather-v2` is the reference widget for all of the above.
 
 ## Slots
 

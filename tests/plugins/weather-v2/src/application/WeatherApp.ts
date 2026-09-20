@@ -22,17 +22,6 @@ import { auroraIntensity } from "../domain/services/aurora";
 import { translate } from "../i18n/labels";
 import { createOverlay, type OverlayHandle } from "../ui/overlay";
 
-// Share of the PANEL the banner takes on a television, not a fixed number of
-// pixels: a 1080p set, a 4K set and a 720p projector all deserve the same
-// proportion. 42% is the web banner (280px on a desktop page) carried over
-// to a 675dp panel: the widget stands taller than a poster, the row below it
-// is partly visible and the page scrolls, exactly like the web home.
-// The widget cannot read the panel itself - inside the WebView innerHeight IS
-// the slot it was granted, which is circular - so the host reports it.
-const TV_HEIGHT_RATIO = 0.42;
-const TV_MIN_HEIGHT = 200;
-const TV_MAX_HEIGHT = 480;
-
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
 const CYCLE_TICK_MS = 5 * 1000;
 const RETRY_DELAYS_MS = [5_000, 15_000, 60_000];
@@ -159,16 +148,13 @@ export class WeatherApp {
     }
   }
 
-  // Height negotiation with the host: shorter widget on narrow screens, and a
-  // BANNER on a television. A TV row is as wide as a desktop page but the panel
-  // has a fraction of the vertical room: 280 there is a third of the screen and
-  // pushed the user's library below the fold (2026-09-20). Width cannot tell
-  // the two apart, so the host names the surface in its init payload.
+  // Height negotiation with the host: it knows the surface it put us on and
+  // says how tall a home widget is there. The width rule only serves a host
+  // too old to say, or standalone dev.
   private requestHeight(): void {
-    if (this.init?.surface === "tv") {
-      const panel = this.init.viewportHeight ?? 675;
-      const h = Math.round(panel * TV_HEIGHT_RATIO);
-      this.deps.bridge.resize(Math.min(TV_MAX_HEIGHT, Math.max(TV_MIN_HEIGHT, h)));
+    const suggested = this.init?.suggestedHeight;
+    if (typeof suggested === "number" && suggested > 0) {
+      this.deps.bridge.resize(suggested);
       return;
     }
     const w = window.innerWidth || document.documentElement.clientWidth || 800;

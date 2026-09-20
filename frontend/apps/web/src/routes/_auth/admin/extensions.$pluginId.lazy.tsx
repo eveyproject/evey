@@ -32,6 +32,7 @@ function PluginExtensionPage() {
           <div className="mt-4">
             <PluginIframe
               pluginId={entry.pluginId}
+              slot="admin.nav"
               src={entry.entryPath}
               externalFetch={entry.externalFetch}
             />

@@ -128,6 +128,7 @@ export function PluginSlot({ name, context, pluginId, excludeRegistered }: Plugi
         <PluginErrorBoundary key={m.pluginId} pluginId={m.pluginId}>
           <PluginIframe
             pluginId={m.pluginId}
+            slot={name}
             src={m.entryPath}
             externalFetch={m.externalFetch}
             context={context}
