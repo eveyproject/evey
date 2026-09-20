@@ -185,15 +185,14 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   const [bundleCode, setBundleCode] = useState<string | null>(null);
   const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
   const [height, setHeight] = useState(120);
-  // A widget asks for the height its own layout wants, which is sized for a
-  // phone card. On a television that same number eats the screen before the
-  // first row: the weather scene asked for half the viewport, pushing the
-  // library below the fold (owner, 2026-09-20). Cap it against the panel so
-  // content is always visible under a widget, whatever the plugin requests.
-  // A canvas widget re-renders smaller (the bridge nudges a resize event); a
-  // DOM one is clipped, which is the lesser evil on a 10-foot screen.
+  // A widget asks for the height its own layout wants, sized for a phone card;
+  // on a television that number ate the screen before the first row (owner,
+  // 2026-09-20). The ceiling is what is left once a FULL poster row fits under
+  // it - header, row title and label included - which is the criterion a TV
+  // home is judged on, not a taste-based percentage. A canvas widget re-renders
+  // smaller (the bridge nudges a resize); a DOM one is clipped, the lesser evil.
   const { height: windowHeight } = useWindowDimensions();
-  const maxWidgetHeight = Math.round(windowHeight * 0.38);
+  const maxWidgetHeight = Math.round(windowHeight * 0.29);
   const [error, setError] = useState(false);
   // Two-stage gate before we mount the WebView and download a bundle:
   //   1. `interactionsDone` - wait for any in-flight RN animation/transition
