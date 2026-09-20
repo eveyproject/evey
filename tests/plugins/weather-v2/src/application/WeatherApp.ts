@@ -24,13 +24,14 @@ import { createOverlay, type OverlayHandle } from "../ui/overlay";
 
 // Share of the PANEL the banner takes on a television, not a fixed number of
 // pixels: a 1080p set, a 4K set and a 720p projector all deserve the same
-// proportion. 28% is what the home leaves once its own chrome and one full
-// poster row are accounted for, measured on a 1080p panel (2026-09-20).
+// proportion. 42% is the web banner (280px on a desktop page) carried over
+// to a 675dp panel: the widget stands taller than a poster, the row below it
+// is partly visible and the page scrolls, exactly like the web home.
 // The widget cannot read the panel itself - inside the WebView innerHeight IS
 // the slot it was granted, which is circular - so the host reports it.
-const TV_HEIGHT_RATIO = 0.24;
-const TV_MIN_HEIGHT = 120;
-const TV_MAX_HEIGHT = 320;
+const TV_HEIGHT_RATIO = 0.42;
+const TV_MIN_HEIGHT = 200;
+const TV_MAX_HEIGHT = 480;
 
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
 const CYCLE_TICK_MS = 5 * 1000;

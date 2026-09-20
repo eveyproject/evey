@@ -60,21 +60,28 @@ uniform float uStarLife;   // 0..1, 0 when no star is currently streaking
 
 varying vec2 vUv;
 
-// Sin-free hash: stable on mediump mobile GPUs.
+// Dave Hoskins's "hash without sine" (MIT). It SHRINKS its input before the
+// first fract(); the previous hash multiplied the lattice coordinate by 345
+// first, and past a few hundred cells a Mali-G310 (Android WebView, highp)
+// returned flat polygons instead of noise - measured on the box, 2026-09-20.
 float hash21(vec2 p) {
-  p = fract(p * vec2(123.34, 345.45));
-  p += dot(p, p + 34.345);
-  return fract(p.x * p.y);
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
 }
 
 float vnoise(vec2 p) {
   vec2 i = floor(p);
   vec2 f = fract(p);
   f = f * f * (3.0 - 2.0 * f);
-  float a = hash21(i);
-  float b = hash21(i + vec2(1.0, 0.0));
-  float c = hash21(i + vec2(0.0, 1.0));
-  float d = hash21(i + vec2(1.0, 1.0));
+  // Each corner goes through mod() before the hash: written as "i + 1.0" a
+  // Mali compiler folded the add into the hash's first multiply and a corner
+  // shared by two cells hashed to two values, tearing the field along cell
+  // edges. mod() also bounds the magnitude, so the field tiles every 256 cells.
+  float a = hash21(mod(i, 256.0));
+  float b = hash21(mod(i + vec2(1.0, 0.0), 256.0));
+  float c = hash21(mod(i + vec2(0.0, 1.0), 256.0));
+  float d = hash21(mod(i + vec2(1.0, 1.0), 256.0));
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
@@ -158,13 +165,6 @@ float snowLayer(vec2 uv, float aspect, float t, float scale, float fall, float s
 
 void main() {
   float aspect = uRes.x / max(uRes.y, 1.0);
-  // Noise coordinates only. hash21 squares its input (p += dot(p, p + k)), so
-  // past a certain magnitude fract() keeps too few mantissa bits and the field
-  // breaks into flat tiles. A television banner runs at aspect ~9 and showed
-  // exactly that (2026-09-20); a card is under 3, so this clamp never fires on
-  // a phone or a browser. The celestial discs keep the TRUE aspect below or
-  // they turn into ellipses.
-  float noiseAspect = min(aspect, 4.5);
   vec2 uv = vUv; // y up
 
   vec4 acc = vec4(0.0);
@@ -229,9 +229,9 @@ void main() {
   float cloudsA = 0.0;
   if (uCover > 0.004) {
     vec3 cF; float aF;
-    cloudLayer(uv, noiseAspect, 2.2, 1.0, 7.3, lightDir, cF, aF);
+    cloudLayer(uv, aspect, 2.2, 1.0, 7.3, lightDir, cF, aF);
     vec3 cN; float aN;
-    cloudLayer(uv, noiseAspect, 3.6, 1.8, 41.7, lightDir, cN, aN);
+    cloudLayer(uv, aspect, 3.6, 1.8, 41.7, lightDir, cN, aN);
     aN *= 0.85;
     acc = ovr(acc, cF, aF);
     acc = ovr(acc, cN, aN);
@@ -262,16 +262,16 @@ void main() {
   // 6. Precipitation.
   if (uRain > 0.004) {
     float slant = uWind * 0.25;
-    float r = rainLayer(uv, noiseAspect, uTime, vec2(26.0, 3.2), 9.0, slant, 3.1)
-            + rainLayer(uv, noiseAspect, uTime, vec2(42.0, 4.6), 13.0, slant * 1.2, 17.9) * 0.8
-            + rainLayer(uv, noiseAspect, uTime, vec2(64.0, 6.5), 18.0, slant * 1.4, 29.3) * 0.55;
+    float r = rainLayer(uv, aspect, uTime, vec2(26.0, 3.2), 9.0, slant, 3.1)
+            + rainLayer(uv, aspect, uTime, vec2(42.0, 4.6), 13.0, slant * 1.2, 17.9) * 0.8
+            + rainLayer(uv, aspect, uTime, vec2(64.0, 6.5), 18.0, slant * 1.4, 29.3) * 0.55;
     vec3 rainCol = vec3(0.62, 0.78, 1.00);
     acc = ovr(acc, rainCol, clamp(r, 0.0, 1.0) * (0.20 + 0.22 * uRain));
   }
   if (uSnow > 0.004) {
-    float s = snowLayer(uv, noiseAspect, uTime, 9.0, 0.7, 1.7)
-            + snowLayer(uv, noiseAspect, uTime, 14.0, 1.0, 12.9) * 0.8
-            + snowLayer(uv, noiseAspect, uTime, 22.0, 1.5, 31.1) * 0.6;
+    float s = snowLayer(uv, aspect, uTime, 9.0, 0.7, 1.7)
+            + snowLayer(uv, aspect, uTime, 14.0, 1.0, 12.9) * 0.8
+            + snowLayer(uv, aspect, uTime, 22.0, 1.5, 31.1) * 0.6;
     acc = ovr(acc, vec3(0.91, 0.94, 1.00), clamp(s, 0.0, 1.0) * (0.5 + 0.4 * uSnow));
   }
 
