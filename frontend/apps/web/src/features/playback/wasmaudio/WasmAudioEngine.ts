@@ -98,6 +98,25 @@ function isAuthStatus(err: unknown): boolean {
   return err instanceof SegmentHttpError && (err.status === 401 || err.status === 403);
 }
 
+// mayResumeAudioContext answers "is now a moment where this suspended context
+// may be woken?" - the pure seam behind resumeCtx.
+//
+// `armed` is the one-shot retry latch (an autoplay-refused resume() disarms it
+// so the 100ms tick can't spam the console until a gesture re-arms it).
+//
+// videoPaused is the half that was missing until 2026-09-19. A pause suspends
+// the context and KEEPS its scheduled sources, which is what makes the resume
+// seamless; waking it while the picture is still frozen plays those sources
+// until the next tick suspends it again. The engine's gesture unlock listens
+// on the window for its whole life, so every click anywhere in the page did
+// exactly that: a tenth of a second of sound per click while paused ("le son
+// se lance quelques millièmes de seconde à chaque clic" - browsing the
+// settings panel on a paused film). Only a running picture may bring the
+// audio back.
+export function mayResumeAudioContext(o: { state: AudioContextState | string; armed: boolean; videoPaused: boolean }): boolean {
+  return o.state === "suspended" && o.armed && !o.videoPaused;
+}
+
 // fillAudioBuffer copies a decoded PCM segment into a Web Audio buffer whose
 // channel layout is already the mix's output order. Exported as a pure seam
 // so the mapping (planar/interleaved, and the 7.1 fold) can be unit-tested
@@ -798,7 +817,8 @@ export class WasmAudioEngine {
   // (the click that opened the player), the one attempt succeeds immediately.
   private resumeCtx(): void {
     const ctx = this.ctx;
-    if (!ctx || ctx.state !== "suspended" || !this.ctxRetry) return;
+    if (!ctx) return;
+    if (!mayResumeAudioContext({ state: ctx.state, armed: this.ctxRetry, videoPaused: this.video.paused })) return;
     this.ctxRetry = false;
     ctx
       .resume()

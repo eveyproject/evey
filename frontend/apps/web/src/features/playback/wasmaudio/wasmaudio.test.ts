@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { extractAudioURI, injectToken } from "./useWasmAudioPlayback";
 import { outputMix, FOLD_GAIN } from "./channelMix";
 import { isWasmDecodableAudioCodec } from "@/utils/codec";
-import { fillAudioBuffer, type PcmDecoded } from "./WasmAudioEngine";
+import { fillAudioBuffer, mayResumeAudioContext, type PcmDecoded } from "./WasmAudioEngine";
 
 describe("extractAudioURI", () => {
   it("pulls the quoted rendition URI out of the master", () => {
@@ -226,5 +226,26 @@ describe("fillAudioBuffer", () => {
     expect(target.copyToChannelCalls.map((c) => c.channel)).not.toContain(5);
     // The four unity-tap outputs (L,R,C,LFE) still took the native-copy path.
     expect(target.copyToChannelCalls).toHaveLength(4);
+  });
+});
+
+// Regression, 2026-09-19: browsing the settings panel on a PAUSED film played
+// a tenth of a second of sound at every click. The engine's gesture unlock
+// listens on the window for its whole life and re-armed + resumed the context
+// on each pointerdown; the context suspended by the pause still held its
+// scheduled sources, so they became audible until the next 100ms tick
+// suspended it again.
+describe("mayResumeAudioContext", () => {
+  it("refuses while the picture is paused, however the wake was triggered", () => {
+    expect(mayResumeAudioContext({ state: "suspended", armed: true, videoPaused: true })).toBe(false);
+  });
+
+  it("allows the wake once the picture runs again", () => {
+    expect(mayResumeAudioContext({ state: "suspended", armed: true, videoPaused: false })).toBe(true);
+  });
+
+  it("stays disarmed after a refused resume, and ignores a running context", () => {
+    expect(mayResumeAudioContext({ state: "suspended", armed: false, videoPaused: false })).toBe(false);
+    expect(mayResumeAudioContext({ state: "running", armed: true, videoPaused: false })).toBe(false);
   });
 });
