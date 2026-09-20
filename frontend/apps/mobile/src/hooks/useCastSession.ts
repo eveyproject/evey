@@ -5,6 +5,7 @@ import { eveyFetch, playbackServiceGetStreamInfo } from "@evey/api";
 import { setAudioBoost } from "../lib/audioBoost";
 import { fetchStreamToken } from "./usePlaySession";
 import { askReceiverCaps, buildCastStreamUrl, castProfileFor, castStreamInfoParams, type CapsAnswer } from "@evey/media-caps";
+import { buildCastCustomData } from "@evey/media-caps/launch";
 import { ensureNotificationPermission } from "../lib/notificationPermission";
 import { describeCastTracks, shouldReportTracks } from "../lib/castTrackBeacon";
 import { resumePositionAfterCast } from "../lib/castPlaybackState";
@@ -283,6 +284,14 @@ export function useCastSession({
           // assumes MPEG2-TS and loads forever with no picture - the exact
           // web fix validated on this TV on 2026-07-22 (b9bc22c98), ported.
           ...(isHls ? { hlsSegmentFormat: "FMP4", hlsVideoSegmentFormat: "FMP4" } : {}),
+          // Cast Connect: what an Evey TV app needs to play this with its OWN
+          // player - a media id and a position, never a URL. The Web Receiver
+          // ignores it and reads contentId above, so one load feeds both.
+          customData: buildCastCustomData({
+            mediaId,
+            positionSec: startTime,
+            serverOrigin: serverUrl ?? "",
+          }),
         },
         startTime,
       });

@@ -42,7 +42,11 @@
     </intent>
   </queries>
   <application android:name=".MainApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="true" android:theme="@style/AppTheme" android:supportsRtl="true" android:enableOnBackInvokedCallback="false" android:fullBackupContent="@xml/secure_store_backup_rules" android:dataExtractionRules="@xml/secure_store_data_extraction_rules" android:usesCleartextTraffic="true">
-    <meta-data android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME" android:value="com.reactnative.googlecast.GoogleCastOptionsProvider"/>
+    <!-- Notre OptionsProvider (Cast Connect) : celui du paquet, plus
+         setAndroidReceiverCompatible(true), voir cast/EveyCastOptionsProvider.kt.
+         Ce manifeste est tenu a la main (pas de prebuild), la ligne est donc
+         ecrite ici en plus du plugin withCastConnectSender. -->
+    <meta-data android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME" android:value="com.evey.app.cast.EveyCastOptionsProvider"/>
     <!-- Custom Evey Web Receiver (Cast Console D36A449B, https://cast.eveyproject.org):
          probes its capabilities on the TV and decodes AC-3 in wasm. While the app
          console is Unpublished, only registered test devices load it - publish
