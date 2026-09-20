@@ -14,7 +14,7 @@ import { CAPS_NAMESPACE, absoluteWithToken, appendMaxKbps, bitrateTestUrl, buffe
 import { createAliveHeartbeat, createFrameDropTracker, formatFrameQuality, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 import { buildCastNextUrl, buildNextMasterUrl, parseCastNextResponse, shouldFetchNext, upNextLabel, type CastNextInfo } from "./castNext";
 import { buildSegmentsUrl, introSkippedLabel, parseSegments, planIntroSkip, type SkippableSegment } from "./introSkip";
-import { endCardModel, pauseHudModel } from "./hud";
+import { endCardModel, osdModel } from "./hud";
 import { buildSetupStatusUrl, parseServerName } from "./serverBrand";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
@@ -590,8 +590,8 @@ function startIntroWatch(): void {
   }, 1_000);
 }
 
-// --- Pause HUD + end card (models in hud.ts) ------------------------------
-const hudEl = document.getElementById("hud");
+// --- Playback HUD + end card (models in hud.ts) ---------------------------
+const osdEl = document.getElementById("osd");
 const endcardEl = document.getElementById("endcard");
 
 function deviceLang(): string {
@@ -614,23 +614,69 @@ function setCardText(root: HTMLElement | null, values: Record<string, string>): 
   }
 }
 
-function showPauseHud(): void {
-  if (!hudEl) return;
+// The HUD is visible for this long after a state change, then fades - a bar
+// pinned over a film is worse than no bar. A pause holds it up instead: a
+// paused television that shows nothing is the hole this started from.
+const OSD_VISIBLE_MS = 5_000;
+// Refresh cadence while visible. The clock advances a second at a time and the
+// fill's CSS transition covers the gap, so twice a second is plenty.
+const OSD_TICK_MS = 500;
+let osdTicker: ReturnType<typeof setInterval> | null = null;
+let osdHideTimer: ReturnType<typeof setTimeout> | null = null;
+
+function isPausedNow(): boolean {
+  try {
+    return String(playerManager.getPlayerState() ?? "") === "PAUSED";
+  } catch {
+    return false;
+  }
+}
+
+// pausedHint: what the event that woke the HUD knows, because the player's
+// own state can still read PLAYING at the instant its PAUSE event fires -
+// half a second of a play glyph on a paused film reads as a bug. The ticker
+// then keeps it honest from the player itself.
+function paintOsd(pausedHint?: boolean): void {
+  if (!osdEl) return;
   let pos = 0;
   let dur = 0;
   try {
     pos = playerManager.getCurrentTimeSec() || 0;
     dur = playerManager.getDurationSec() || 0;
   } catch {
-    return;
+    return; // player torn down: leave the last frame of the HUD alone
   }
-  const hud = pauseHudModel(currentTitle(), pos, dur, deviceLang());
-  setCardText(hudEl, { title: hud.title, clock: hud.clock, remaining: hud.remaining });
-  hudEl.style.display = "block";
+  const hud = osdModel(currentTitle(), pos, dur, deviceLang(), pausedHint ?? isPausedNow());
+  setCardText(osdEl, { title: hud.title, status: hud.status, clock: hud.clock, remaining: hud.remaining });
+  const fill = osdEl.querySelector<HTMLElement>(".fill");
+  if (fill) fill.style.width = `${(hud.progress * 100).toFixed(2)}%`;
+  osdEl.classList.toggle("is-paused", hud.paused);
 }
 
-function hidePauseHud(): void {
-  if (hudEl) hudEl.style.display = "none";
+// sticky: hold the HUD up until something else takes it down (a pause). Any
+// other trigger shows it for OSD_VISIBLE_MS and lets it fade.
+function showOsd(sticky: boolean, pausedHint?: boolean): void {
+  if (!osdEl) return;
+  paintOsd(pausedHint);
+  osdEl.classList.add("show");
+  if (!osdTicker) osdTicker = setInterval(() => paintOsd(), OSD_TICK_MS);
+  if (osdHideTimer) {
+    clearTimeout(osdHideTimer);
+    osdHideTimer = null;
+  }
+  if (!sticky) osdHideTimer = setTimeout(hideOsd, OSD_VISIBLE_MS);
+}
+
+function hideOsd(): void {
+  if (osdHideTimer) {
+    clearTimeout(osdHideTimer);
+    osdHideTimer = null;
+  }
+  if (osdTicker) {
+    clearInterval(osdTicker);
+    osdTicker = null;
+  }
+  if (osdEl) osdEl.classList.remove("show");
 }
 
 function showEndCard(): void {
@@ -890,7 +936,7 @@ function interceptLoad(request: any): any {
     stopBufferTrim();
     resetNextEpisode(); // the new media gets its own next-episode lookup
     resetIntroSkip();
-    hidePauseHud();
+    hideOsd();
     hideEndCard();
     showDebug("");
     const media = request.media;
@@ -1089,23 +1135,29 @@ playerManager.setMessageInterceptor(
   },
 );
 
-// Pause HUD: what is paused, where it stands, what remains. The stock
-// player's control bar fades and leaves a dark frame; this stays up for the
-// whole pause. Refreshed on seek (the paused frame can move under a
-// scrub from the phone), gone the instant playback resumes or ends.
+// Playback HUD: what plays, where it stands, what remains - the bar the web,
+// mobile and TV players all have and the cast receiver had nothing of. A
+// television has no input, so it cannot be summoned: it appears on the state
+// changes a sender commands and fades on its own.
+//   PLAYER_LOAD_COMPLETE - a cast that just started says what it is playing;
+//   PAUSE                - held up for the whole pause (a paused TV showing
+//                          nothing is what this started from);
+//   PLAY                 - brief confirmation, then out of the way;
+//   SEEKED               - a scrub from the phone lands somewhere: show where.
+playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
+  showOsd(false);
+});
 playerManager.addEventListener(cast.framework.events.EventType.PAUSE, () => {
-  showPauseHud();
+  showOsd(true, true);
 });
 playerManager.addEventListener(cast.framework.events.EventType.PLAY, () => {
-  hidePauseHud();
+  showOsd(false, false);
 });
 playerManager.addEventListener(cast.framework.events.EventType.SEEKED, () => {
-  try {
-    if (String(playerManager.getPlayerState() ?? "") === "PAUSED") showPauseHud();
-  } catch { /* torn down */ }
+  showOsd(isPausedNow());
 });
 playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, () => {
-  hidePauseHud();
+  hideOsd();
 });
 
 // Observed capabilities for the sender, so it negotiates the stream with the

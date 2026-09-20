@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { endCardModel, formatClock, pauseHudModel } from "./hud";
+import { endCardModel, formatClock, osdModel } from "./hud";
 
 describe("formatClock", () => {
   it("renders m:ss under an hour and h:mm:ss above", () => {
@@ -15,19 +15,35 @@ describe("formatClock", () => {
   });
 });
 
-describe("pauseHudModel", () => {
-  it("renders elapsed/total and the remaining line", () => {
-    expect(pauseHudModel("Some Episode", 600, 2400, "fr-FR")).toEqual({
+describe("osdModel", () => {
+  it("renders elapsed/total, the remaining line and the fill", () => {
+    expect(osdModel("Some Episode", 600, 2400, "fr-FR", false)).toEqual({
       title: "Some Episode",
       clock: "10:00 / 40:00",
       remaining: "30:00 restantes",
+      progress: 0.25,
+      status: "",
+      paused: false,
     });
-    expect(pauseHudModel("Some Episode", 600, 2400, "en-US").remaining).toBe("30:00 left");
+    expect(osdModel("Some Episode", 600, 2400, "en-US", false).remaining).toBe("30:00 left");
+  });
+
+  it("names the paused state, and only that state", () => {
+    expect(osdModel("Some Episode", 600, 2400, "fr", true).status).toBe("En pause");
+    expect(osdModel("Some Episode", 600, 2400, "en", true).status).toBe("Paused");
+    expect(osdModel("Some Episode", 600, 2400, "en", false).status).toBe("");
   });
 
   it("degrades without a duration instead of showing garbage", () => {
-    const hud = pauseHudModel("Some Movie", 600, 0, "en");
+    const hud = osdModel("Some Movie", 600, 0, "en", false);
     expect(hud.clock).toBe("10:00");
+    expect(hud.remaining).toBe("");
+    expect(hud.progress).toBe(0);
+  });
+
+  it("clamps a position past the duration (a seek to the very end)", () => {
+    const hud = osdModel("Some Movie", 2500, 2400, "fr", false);
+    expect(hud.progress).toBe(1);
     expect(hud.remaining).toBe("");
   });
 });
