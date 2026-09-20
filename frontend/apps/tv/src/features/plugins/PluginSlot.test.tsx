@@ -164,9 +164,9 @@ describe("PluginSlot (TV)", () => {
     const container = () => screen.getByTestId("plugin-webview").parentElement;
 
     dispatchToWebView({ type: "resize", height: 600 });
-    // 675 dp panel - 184 chrome - 400 for the row that must stay visible under
-    // it = 91 dp, not the 600 the plugin asked for.
-    await waitFor(() => expect(container()?.style.height).toBe("91px"));
+    // 675 dp panel - 184 chrome - 340 for the row that must stay visible under
+    // it = 151 dp, not the 600 the plugin asked for.
+    await waitFor(() => expect(container()?.style.height).toBe("151px"));
 
     // A modest request is honoured untouched - the cap is a ceiling, not a size.
     dispatchToWebView({ type: "resize", height: 80 });

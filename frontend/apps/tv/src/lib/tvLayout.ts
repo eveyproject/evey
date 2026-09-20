@@ -8,11 +8,14 @@
 export const TV_SCREEN_WIDTH = 1920;
 
 // Card width used by hero/featured rows and detail posters (home rows,
-// media detail poster, music artist detail albums).
-export const CARD_WIDTH_FEATURED = 220;
+// media detail poster, music artist detail albums). 220 left no room for a
+// widget above the first row on a 1080p panel once the header was counted
+// (owner arbitrated 2026-09-20: posters give, the search field does not).
+export const CARD_WIDTH_FEATURED = 180;
 
 // Card width used by dense grid screens (favorites, library, music home rows).
-export const CARD_WIDTH_GRID = 200;
+// Kept below the featured width, same ratio as before.
+export const CARD_WIDTH_GRID = 165;
 
 // Poster height = width * POSTER_RATIO across every poster card.
 export const POSTER_RATIO = 1.5;
