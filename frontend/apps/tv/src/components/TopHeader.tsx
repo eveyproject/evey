@@ -81,6 +81,8 @@ export function TopHeader({ onSearch, onNotifications, onProfile, onCustomize }:
       </Pressable>
 
       <View style={[styles.side, styles.sideRight]}>
+      {/* Customize stays at the right edge with the other controls (owner,
+          2026-09-20); on the home the field gives up the width it needs. */}
       {onCustomize && (
         <Pressable
           onPress={onCustomize}
@@ -149,7 +151,12 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
   },
-  side: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  // Each side is at least as wide as its content and at least as wide as the
+  // icon side, so the field is centred wherever the sides are even and a
+  // side that carries more (the home's Customize) takes its room from the
+  // FIELD instead of overflowing onto it (owner, 2026-09-20). Same when the
+  // row is narrow - rail unfolded, a denser panel: the field shrinks.
+  side: { flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: 120, flexDirection: "row", alignItems: "center", gap: 10 },
   sideRight: { justifyContent: "flex-end" },
   // Wide and tall on purpose (owner, 2026-09-19): it is the header's primary
   // control, it has to read as a field from three metres, and it is the
@@ -158,13 +165,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 11,
-    minWidth: 760,
+    width: 760,
+    flexShrink: 1,
+    minWidth: 0,
     paddingVertical: 11,
     paddingHorizontal: 22,
   },
   searchText: { fontSize: 20 },
   iconButton: { padding: 8 },
-  customizeButton: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 12, marginRight: 6, flexShrink: 0 },
+  customizeButton: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 12 },
   customizeText: { fontSize: 17 },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   avatarImage: { width: "100%", height: "100%" },
