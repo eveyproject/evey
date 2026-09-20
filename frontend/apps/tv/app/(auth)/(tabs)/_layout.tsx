@@ -135,6 +135,7 @@ export default function TabsLayout() {
 
       <View style={styles.content}>
         <TopHeader
+          onCustomize={pathname === "/" || pathname === "" ? () => DeviceEventEmitter.emit("eveyHomeCustomize") : undefined}
           onSearch={() => setSearchOpen(true)}
           onNotifications={() => router.push("/(auth)/notifications" as never)}
           onProfile={() => router.push("/profile-select" as never)}

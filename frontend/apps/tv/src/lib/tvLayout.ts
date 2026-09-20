@@ -59,3 +59,19 @@ export const CONTROL = {
 // Height reserved below a CARD_WIDTH_GRID poster for its title/year label
 // block, used when computing FlatList getItemLayout row heights.
 export const LABEL_BLOCK_HEIGHT = 40;
+
+// The home's vertical budget on a television, in dp, so a home widget can be
+// given exactly the height that leaves the first poster row whole underneath
+// it - the owner wants both the widget large and that row fully visible,
+// whichever row it is (2026-09-20). Chrome = header + the list's top padding;
+// a row = the gap and title above it, a featured poster with its focus
+// border, its label block - measured on a 1080p capture, not summed from
+// style sheets, which is how the first version came out 24dp short.
+export const HOME_CHROME_HEIGHT = 78;
+// The label part counts the focused card, which is scaled by 5% and hangs
+// lower than its neighbours.
+export const HOME_ROW_FOOTPRINT = 62 + 6 + CARD_WIDTH_FEATURED * POSTER_RATIO + 84;
+export function homeWidgetBudget(panelHeight: number): number {
+  const room = panelHeight - HOME_CHROME_HEIGHT - HOME_ROW_FOOTPRINT;
+  return Math.round(Math.min(320, Math.max(160, room)));
+}
