@@ -696,7 +696,7 @@ export default function HomeScreen() {
         focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
       >
         <Ionicons name="options-outline" size={22} color={theme.colors.textMuted} />
-        <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 17, lineHeight: 24 }}>
           {t("media.home.customize", "Customize")}
         </Text>
       </FocusableCard>
@@ -753,7 +753,9 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
     marginHorizontal: 24,
     marginTop: 24,
-    paddingVertical: 9,
+    // 9 put the ascenders against the card's rounded border, which Android
+    // applies as a clip: the top of the label was cut off (2026-09-20).
+    paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
   },
