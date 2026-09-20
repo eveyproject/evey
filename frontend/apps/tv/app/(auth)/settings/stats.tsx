@@ -79,7 +79,7 @@ export default function StatsScreen() {
           style={[styles.backBtn, { backgroundColor: theme.colors.surface }]}
           accessibilityLabel={t("common.back", "Back")}
         >
-          <Text style={{ color: theme.colors.text, fontSize: 20 }}>{t("common.back", "Back")}</Text>
+          <Text style={{ color: theme.colors.text, fontSize: 18 }}>{t("common.back", "Back")}</Text>
         </FocusableCard>
       </View>
     );
@@ -143,8 +143,8 @@ export default function StatsScreen() {
               style={[styles.playedRow, { backgroundColor: theme.colors.surface }]}
               accessibilityLabel={`${m.title ?? ""}, ${m.playCount ?? 0} ${t("common.userStats.playsLabel")}`}
             >
-              <Text style={{ color: theme.colors.text, fontSize: 20, flex: 1 }} numberOfLines={1}>{m.title}</Text>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>
+              <Text style={{ color: theme.colors.text, fontSize: 18, flex: 1 }} numberOfLines={1}>{m.title}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>
                 {m.playCount ?? 0} {t("common.userStats.playsLabel")}
               </Text>
             </FocusableCard>
@@ -156,11 +156,11 @@ export default function StatsScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", gap: 24 },
-  empty: { fontSize: 24 },
-  backBtn: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 8 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", gap: 16 },
+  empty: { fontSize: 21 },
+  backBtn: { paddingVertical: 10, paddingHorizontal: 36, borderRadius: 8 },
   title: { fontSize: 40, fontWeight: "700", marginBottom: 32 },
-  statGrid: { flexDirection: "row", gap: 24 },
+  statGrid: { flexDirection: "row", gap: 16 },
   statCard: {
     flex: 1,
     alignItems: "center",
@@ -170,19 +170,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 8,
   },
-  statValue: { fontSize: 34, fontWeight: "700" },
-  statLabel: { fontSize: 16, textTransform: "uppercase", letterSpacing: 1 },
-  sectionTitle: { fontSize: 28, fontWeight: "600", marginBottom: 20 },
-  genreRow: { flexDirection: "row", alignItems: "center", gap: 20, marginBottom: 14 },
-  genreName: { fontSize: 20, width: 260 },
+  statValue: { fontSize: 28, fontWeight: "700" },
+  statLabel: { fontSize: 15, textTransform: "uppercase", letterSpacing: 1 },
+  sectionTitle: { fontSize: 24, fontWeight: "600", marginBottom: 20 },
+  genreRow: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 14 },
+  genreName: { fontSize: 18, width: 260 },
   genreTrack: { flex: 1, height: 18, borderRadius: 9, overflow: "hidden" },
   genreFill: { height: "100%", borderRadius: 9 },
-  genreTime: { fontSize: 18, width: 110, textAlign: "right" },
+  genreTime: { fontSize: 17, width: 110, textAlign: "right" },
   playedRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 24,
-    paddingVertical: 18,
+    gap: 16,
+    paddingVertical: 12,
     paddingHorizontal: DEEP_SCREEN_GUTTER,
     borderRadius: 10,
     marginBottom: 12,

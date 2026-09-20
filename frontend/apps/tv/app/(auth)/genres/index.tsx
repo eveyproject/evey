@@ -97,7 +97,7 @@ export default function GenresScreen() {
   if (librariesError || genresError) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("common.loadError")}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 16 }}>{t("common.loadError")}</Text>
         <FocusableCard
           onPress={() => {
             void refetch();
@@ -106,7 +106,7 @@ export default function GenresScreen() {
           hasTVPreferredFocus
           accessibilityLabel={t("common.retry")}
         >
-          <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 18 }}>{t("common.retry")}</Text>
         </FocusableCard>
       </View>
     );
@@ -128,7 +128,7 @@ export default function GenresScreen() {
         keyExtractor={genreKeyExtractor}
         numColumns={NUM_COLUMNS}
         contentContainerStyle={{ padding: 24 }}
-        columnWrapperStyle={genres.length > 0 ? { gap: 16, marginBottom: 16 } : undefined}
+        columnWrapperStyle={genres.length > 0 ? { gap: 12, marginBottom: 16 } : undefined}
         renderItem={({ item: genre, index }) => (
           <GenreTile
             label={t(genreTranslationKey(genre), genre)}
@@ -138,7 +138,7 @@ export default function GenresScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("common.noGenres")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 16 }}>{t("common.noGenres")}</Text>
             {/* Focusable target for the empty state - without it the remote has
                 nowhere to go and gets stuck on this screen (no other control
                 is rendered when the list is empty). Mirrors history.tsx and
@@ -149,7 +149,7 @@ export default function GenresScreen() {
               style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
               accessibilityLabel={t("media.library.libraries")}
             >
-              <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
+              <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
             </FocusableCard>
           </View>
         }
@@ -161,8 +161,8 @@ export default function GenresScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
+  header: { fontSize: 30, fontWeight: "700", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
   tile: { flex: 1, paddingVertical: 32, paddingHorizontal: 24, alignItems: "center", justifyContent: "center", minHeight: 120 },
-  tileText: { fontSize: 24, fontWeight: "700", textAlign: "center" },
-  emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },
+  tileText: { fontSize: 21, fontWeight: "700", textAlign: "center" },
+  emptyAction: { paddingHorizontal: 24, paddingVertical: 10 },
 });

@@ -121,9 +121,9 @@ export default function QuickConnectScreen() {
             onPress={doInitiate}
             testID="quick-connect-retry"
             accessibilityLabel={t("common.retry")}
-            style={{ marginBottom: 24, paddingVertical: 12, paddingHorizontal: 28, backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }}
+            style={{ marginBottom: 24, paddingVertical: 9, paddingHorizontal: 28, backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }}
           >
-            <Text style={{ color: theme.colors.text, fontSize: 22, fontWeight: "600" }}>{t("common.retry")}</Text>
+            <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "600" }}>{t("common.retry")}</Text>
           </Pressable>
         ) : (
           <ActivityIndicator color={theme.colors.accent} size="large" style={{ marginBottom: 24 }} />
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   instruction: {
-    fontSize: 20,
+    fontSize: 18,
     textAlign: "center",
     maxWidth: 500,
     marginBottom: 24,
@@ -197,17 +197,17 @@ const styles = StyleSheet.create({
     letterSpacing: 16,
   },
   expires: {
-    fontSize: 18,
+    fontSize: 17,
     marginTop: 16,
   },
   backButton: {
     marginTop: 24,
-    paddingVertical: 12,
+    paddingVertical: 9,
     paddingHorizontal: 32,
     borderWidth: 3,
     borderRadius: 8,
   },
   backText: {
-    fontSize: 22,
+    fontSize: 20,
   },
 });

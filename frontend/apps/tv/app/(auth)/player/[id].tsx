@@ -1216,10 +1216,10 @@ export default function PlayerScreen() {
     return (
       <View style={[styles.container, { backgroundColor: "#000" }]}>
         <Ionicons name="time-outline" size={48} color="rgba(255,255,255,0.7)" />
-        <Text style={{ color: "#fff", fontSize: 24, fontWeight: "600", marginTop: 20, textAlign: "center", paddingHorizontal: 60 }}>
+        <Text style={{ color: "#fff", fontSize: 21, fontWeight: "600", marginTop: 20, textAlign: "center", paddingHorizontal: 60 }}>
           {t(`player.shed.${shedReason === "file_not_ready" ? "fileNotReady" : shedReason === "calibrating" ? "calibrating" : shedReason === "file_needs_remux" ? "fileNeedsRemux" : "tooManyStreams"}.title`)}
         </Text>
-        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 18, marginTop: 12, textAlign: "center", paddingHorizontal: 80 }}>
+        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 17, marginTop: 12, textAlign: "center", paddingHorizontal: 80 }}>
           {t(`player.shed.${shedReason === "file_not_ready" ? "fileNotReady" : shedReason === "calibrating" ? "calibrating" : shedReason === "file_needs_remux" ? "fileNeedsRemux" : "tooManyStreams"}.body`)}
         </Text>
         <Pressable
@@ -1231,10 +1231,10 @@ export default function PlayerScreen() {
           style={{ marginTop: 28 }}
           hasTVPreferredFocus
         >
-          <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{t("player.retry")}</Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{t("player.retry")}</Text>
         </Pressable>
         <Pressable onPress={handleBack} style={{ marginTop: 20 }}>
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 18 }}>{t("player.goBack", "Go back")}</Text>
+          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 17 }}>{t("player.goBack", "Go back")}</Text>
         </Pressable>
       </View>
     );
@@ -1246,17 +1246,17 @@ export default function PlayerScreen() {
     return (
       <View style={[styles.container, { backgroundColor: "#000" }]}>
         <Ionicons name="log-in-outline" size={48} color="rgba(255,255,255,0.7)" />
-        <Text style={{ color: "#fff", fontSize: 24, fontWeight: "600", marginTop: 20, textAlign: "center", paddingHorizontal: 60 }}>
+        <Text style={{ color: "#fff", fontSize: 21, fontWeight: "600", marginTop: 20, textAlign: "center", paddingHorizontal: 60 }}>
           {t("player.sessionExpired.title", "Your session has expired")}
         </Text>
-        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 18, marginTop: 12, textAlign: "center", paddingHorizontal: 80 }}>
+        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 17, marginTop: 12, textAlign: "center", paddingHorizontal: 80 }}>
           {t("player.sessionExpired.body", "Sign in again to keep watching.")}
         </Text>
         <Pressable onPress={() => router.replace("/login")} style={{ marginTop: 28 }} hasTVPreferredFocus>
-          <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{t("auth.login.signIn")}</Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{t("auth.login.signIn")}</Text>
         </Pressable>
         <Pressable onPress={handleBack} style={{ marginTop: 20 }}>
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 18 }}>{t("player.goBack", "Go back")}</Text>
+          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 17 }}>{t("player.goBack", "Go back")}</Text>
         </Pressable>
       </View>
     );
@@ -1265,7 +1265,7 @@ export default function PlayerScreen() {
   if (isError || nativeError) {
     return (
       <View style={[styles.container, { backgroundColor: "#000" }]}>
-        <Text style={{ color: "#fff", fontSize: 24 }}>
+        <Text style={{ color: "#fff", fontSize: 21 }}>
           {t("player.failedToLoadStream", "Failed to load stream")}
         </Text>
         <Pressable
@@ -1280,10 +1280,10 @@ export default function PlayerScreen() {
           style={{ marginTop: 24 }}
           hasTVPreferredFocus
         >
-          <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{t("player.retry")}</Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{t("player.retry")}</Text>
         </Pressable>
         <Pressable onPress={handleBack} style={{ marginTop: 20 }}>
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 18 }}>{t("player.goBack", "Go back")}</Text>
+          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 17 }}>{t("player.goBack", "Go back")}</Text>
         </Pressable>
       </View>
     );
@@ -1682,7 +1682,7 @@ const styles = StyleSheet.create({
   },
   mediaTitle: {
     color: "#fff",
-    fontSize: 24,
+    fontSize: 21,
     fontWeight: "600",
     flex: 1,
   },
@@ -1700,7 +1700,7 @@ const styles = StyleSheet.create({
   },
   speedText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
   },
   // Bigger and closer together than the old silent circles, and sitting in
@@ -1722,7 +1722,7 @@ const styles = StyleSheet.create({
   controlLabelFocused: { color: "#111" },
   seekDeltaText: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
     marginLeft: 8,
@@ -1743,7 +1743,7 @@ const styles = StyleSheet.create({
   },
   episodeHintText: {
     color: "rgba(255,255,255,0.85)",
-    fontSize: 20,
+    fontSize: 18,
   },
   trickplayWrap: {
     alignItems: "center",
@@ -1758,7 +1758,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 17,
     fontVariant: ["tabular-nums"],
     minWidth: 70,
     textAlign: "center",

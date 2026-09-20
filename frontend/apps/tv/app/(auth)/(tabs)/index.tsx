@@ -696,7 +696,7 @@ export default function HomeScreen() {
         focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
       >
         <Ionicons name="options-outline" size={22} color={theme.colors.textMuted} />
-        <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>
           {t("media.home.customize", "Customize")}
         </Text>
       </FocusableCard>
@@ -747,13 +747,13 @@ const styles = StyleSheet.create({
   customizeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     // Right-aligned, above the first plugin widget (owner, 2026-09-19): a
     // settings affordance belongs at the edge, not in front of the content.
     alignSelf: "flex-end",
     marginHorizontal: 24,
     marginTop: 24,
-    paddingVertical: 12,
+    paddingVertical: 9,
     paddingHorizontal: 20,
     borderRadius: 8,
   },
@@ -761,7 +761,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   rowTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "700",
     paddingHorizontal: 24,
     marginBottom: 16,
@@ -769,10 +769,10 @@ const styles = StyleSheet.create({
   rowFailure: {
     paddingHorizontal: 24,
     alignItems: "flex-start",
-    gap: 12,
+    gap: 10,
   },
   rowFailureMessage: {
-    fontSize: 18,
+    fontSize: 17,
   },
   rowRetryBtn: {
     paddingVertical: 10,
@@ -785,12 +785,12 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   emptyStateCard: {
-    paddingVertical: 24,
+    paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 12,
   },
   emptyStateTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "600",
   },
   card: {
@@ -838,12 +838,12 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     marginTop: 8,
   },
   cardYear: {
-    fontSize: 14,
+    fontSize: 13,
     marginTop: 2,
   },
 });

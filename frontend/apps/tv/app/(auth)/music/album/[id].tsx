@@ -119,12 +119,12 @@ export default function AlbumDetailScreen() {
                   >
                     {item.title || "-"}
                   </Text>
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 14 }} numberOfLines={1}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 13 }} numberOfLines={1}>
                     {item.artist || "-"}
                   </Text>
                 </View>
                 {item.duration ? (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>
                     {formatTime(item.duration)}
                   </Text>
                 ) : null}
@@ -133,7 +133,7 @@ export default function AlbumDetailScreen() {
           }}
           ListEmptyComponent={
             <View style={styles.center}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.music.noTracks")}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("media.music.noTracks")}</Text>
             </View>
           }
         />
@@ -147,9 +147,9 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
   albumHeader: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
   albumArt: { width: ALBUM_ART_SIZE, height: ALBUM_ART_SIZE, justifyContent: "center", alignItems: "center", overflow: "hidden" },
-  albumTitle: { fontSize: 28, fontWeight: "700" },
-  albumArtist: { fontSize: 18, marginTop: 6 },
-  trackRow: { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 16 },
-  trackIndex: { width: 32, fontSize: 16, textAlign: "center" },
-  trackTitle: { fontSize: 18, fontWeight: "600" },
+  albumTitle: { fontSize: 24, fontWeight: "700" },
+  albumArtist: { fontSize: 17, marginTop: 6 },
+  trackRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 16 },
+  trackIndex: { width: 32, fontSize: 15, textAlign: "center" },
+  trackTitle: { fontSize: 17, fontWeight: "600" },
 });

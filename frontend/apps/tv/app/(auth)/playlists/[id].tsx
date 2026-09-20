@@ -25,7 +25,7 @@ export default function PlaylistDetailScreen() {
   if (!playlist) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.playlists.notFound")}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("media.playlists.notFound")}</Text>
       </View>
     );
   }
@@ -53,7 +53,7 @@ export default function PlaylistDetailScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noItems")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("common.noItems")}</Text>
           </View>
         }
         ListFooterComponent={
@@ -98,16 +98,16 @@ function PlaylistItemRow({
         <Text style={[styles.itemTitle, { color: theme.colors.text }]} numberOfLines={1}>
           {item.title ?? item.media_item_id}
         </Text>
-        <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
           {typeLabel ? (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>{typeLabel}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>{typeLabel}</Text>
           ) : null}
           {item.year ? (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>{item.year}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>{item.year}</Text>
           ) : null}
         </View>
       </View>
-      <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>{"\u203A"}</Text>
+      <Text style={{ color: theme.colors.textMuted, fontSize: 21 }}>{"\u203A"}</Text>
     </FocusableCard>
   );
 }
@@ -115,16 +115,16 @@ function PlaylistItemRow({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 8 },
-  description: { fontSize: 18, paddingHorizontal: 24, paddingBottom: 16 },
+  header: { fontSize: 30, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 8 },
+  description: { fontSize: 17, paddingHorizontal: 24, paddingBottom: 16 },
   row: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 11,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  order: { width: 48, fontSize: 20, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  itemTitle: { fontSize: 20, fontWeight: "500" },
-  footer: { fontSize: 16, textAlign: "center", paddingVertical: 24 },
+  order: { width: 48, fontSize: 18, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  itemTitle: { fontSize: 18, fontWeight: "500" },
+  footer: { fontSize: 15, textAlign: "center", paddingVertical: 16 },
 });

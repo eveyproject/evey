@@ -133,7 +133,7 @@ function ScopeTab({ label, active, onPress }: { label: string; active: boolean; 
         backgroundColor: active ? theme.colors.accent : theme.colors.surface,
       }}
     >
-      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 18, fontWeight: "600" }}>{label}</Text>
+      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 17, fontWeight: "600" }}>{label}</Text>
     </Pressable>
   );
 }
@@ -272,7 +272,7 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
               recyclingKey={item.id}
             />
           ) : (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
           )}
         </View>
         <View style={styles.info}>
@@ -361,9 +361,9 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
           >
             {resultsView === "error" ? (
               <View style={styles.center}>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 12 }}>{t("common.loadError")}</Text>
                 <FocusableCard onPress={() => activeRefetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
-                  <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
+                  <Text style={{ color: theme.colors.accent, fontSize: 18 }}>{t("common.retry")}</Text>
                 </FocusableCard>
               </View>
             ) : resultsView === "loading" ? (
@@ -372,13 +372,13 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
               </View>
             ) : resultsView === "prompt" ? (
               <View style={styles.center}>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>
                   {t("media.search.searchLibrary")}
                 </Text>
               </View>
             ) : resultsView === "musicEmpty" ? (
               <View style={styles.center}>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.search.noResults")}</Text>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("media.search.noResults")}</Text>
               </View>
             ) : resultsView === "musicResults" ? (
               <FlatList
@@ -395,7 +395,7 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
               />
             ) : resultsView === "mediaEmpty" ? (
               <View style={styles.center}>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.search.noResults")}</Text>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("media.search.noResults")}</Text>
               </View>
             ) : (
               <FlatList
@@ -431,8 +431,8 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    fontSize: 22,
+    paddingVertical: 11,
+    fontSize: 20,
     borderWidth: 3,
   },
   // Generous focus target on purpose - a TV remote is used at sofa distance,
@@ -486,8 +486,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   info: { flex: 1 },
-  title: { fontSize: 22, fontWeight: "600" },
-  meta: { fontSize: 16, marginTop: 4 },
+  title: { fontSize: 20, fontWeight: "600" },
+  meta: { fontSize: 15, marginTop: 4 },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -495,11 +495,11 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 4,
   },
-  metaText: { fontSize: 16 },
+  metaText: { fontSize: 15 },
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
   },
-  badgeText: { fontSize: 14, fontWeight: "600" },
+  badgeText: { fontSize: 13, fontWeight: "600" },
 });

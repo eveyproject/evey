@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   },
   dots: {
     flexDirection: "row",
-    gap: 16,
+    gap: 12,
     marginBottom: 8,
   },
   dot: {
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {
     marginTop: 20,
-    paddingVertical: 12,
+    paddingVertical: 9,
     paddingHorizontal: 32,
     alignItems: "center",
   },

@@ -33,7 +33,7 @@ export default function PluginUserSettingsScreen() {
           style={[styles.backBtn, { backgroundColor: theme.colors.surface }]}
           accessibilityLabel={t("common.back", "Back")}
         >
-          <Text style={{ color: theme.colors.text, fontSize: 20 }}>{t("common.back", "Back")}</Text>
+          <Text style={{ color: theme.colors.text, fontSize: 18 }}>{t("common.back", "Back")}</Text>
         </FocusableCard>
       </View>
     );
@@ -53,8 +53,8 @@ export default function PluginUserSettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  title: { fontSize: 36, fontWeight: "700", marginBottom: 24 },
+  title: { fontSize: 30, fontWeight: "700", marginBottom: 24 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 48 },
-  empty: { fontSize: 20, textAlign: "center", marginBottom: 24 },
-  backBtn: { paddingVertical: 12, paddingHorizontal: 24 },
+  empty: { fontSize: 18, textAlign: "center", marginBottom: 24 },
+  backBtn: { paddingVertical: 9, paddingHorizontal: 24 },
 });

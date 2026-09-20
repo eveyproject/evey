@@ -76,7 +76,7 @@ export default function ArtistDetailScreen() {
           keyExtractor={albumKeyExtractor}
           numColumns={NUM_COLUMNS}
           contentContainerStyle={{ padding: 24 }}
-          columnWrapperStyle={{ gap: 16, marginBottom: 16 }}
+          columnWrapperStyle={{ gap: 12, marginBottom: 16 }}
           getItemLayout={albumGetItemLayout}
           renderItem={({ item, index }) => {
             const uri = coverArtUri(serverUrl, item.coverArtUrl, ART_SIZE * 2);
@@ -112,7 +112,7 @@ export default function ArtistDetailScreen() {
           }}
           ListEmptyComponent={
             <View style={styles.center}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.music.noAlbums")}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("media.music.noAlbums")}</Text>
             </View>
           }
         />
@@ -125,6 +125,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
   art: { width: ART_SIZE, height: ART_SIZE, justifyContent: "center", alignItems: "center", overflow: "hidden" },
-  title: { fontSize: 16, fontWeight: "600", marginTop: 8 },
-  subtitle: { fontSize: 14, marginTop: 2 },
+  title: { fontSize: 15, fontWeight: "600", marginTop: 8 },
+  subtitle: { fontSize: 13, marginTop: 2 },
 });

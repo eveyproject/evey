@@ -335,7 +335,7 @@ export default function PlaybackSettingsScreen() {
       >
         <Text style={[styles.label, { color: theme.colors.text }]}>{label}</Text>
         {selected && (
-          <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{"✓"}</Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{"✓"}</Text>
         )}
       </Pressable>
     );
@@ -553,7 +553,7 @@ export default function PlaybackSettingsScreen() {
       </View>
 
       {updateProfile.isPending && (
-        <View style={{ paddingVertical: 24, alignItems: "center" }}>
+        <View style={{ paddingVertical: 16, alignItems: "center" }}>
           <ActivityIndicator color={theme.colors.accent} size="large" />
         </View>
       )}
@@ -565,21 +565,21 @@ export default function PlaybackSettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { fontSize: 36, fontWeight: "700", marginBottom: 24 },
+  header: { fontSize: 30, fontWeight: "700", marginBottom: 24 },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     textTransform: "uppercase",
     marginTop: 24,
     marginBottom: 8,
   },
   toggleLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     marginTop: 24,
     marginBottom: 4,
   },
-  hint: { fontSize: 14, marginBottom: 8 },
+  hint: { fontSize: 13, marginBottom: 8 },
   section: {
     borderRadius: 12,
     overflow: "hidden",
@@ -589,10 +589,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 16,
+    paddingVertical: 11,
     paddingHorizontal: 20,
   },
   label: {
-    fontSize: 20,
+    fontSize: 18,
   },
 });

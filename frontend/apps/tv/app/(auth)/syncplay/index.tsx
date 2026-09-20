@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   },
   dots: {
     flexDirection: "row",
-    gap: 16,
+    gap: 12,
     marginBottom: 8,
   },
   dot: {
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     marginTop: 32,
-    paddingVertical: 12,
+    paddingVertical: 9,
     paddingHorizontal: 32,
   },
   backText: {

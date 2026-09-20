@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   },
   text: {
     color: "#fff",
-    fontSize: 32,
+    fontSize: 27,
     textAlign: "center",
     backgroundColor: "rgba(0,0,0,0.6)",
     paddingHorizontal: 12,

@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   },
   closeRow: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 12,
+    paddingVertical: 9,
     alignItems: "center",
     borderRadius: 8,
   },

@@ -53,7 +53,7 @@ export default function LibraryScreen() {
   if (isError) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 16 }}>
           {t("common.loadError")}
         </Text>
         <FocusableCard
@@ -122,13 +122,13 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32 },
+  header: { fontSize: 30, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32 },
   card: {
     padding: 24,
   },
-  name: { fontSize: 24, fontWeight: "600" },
-  type: { fontSize: 18, marginTop: 4 },
-  linkRow: { flexDirection: "row", gap: 16, paddingHorizontal: 24, paddingTop: 16 },
-  linkCard: { paddingVertical: 16, paddingHorizontal: 32 },
-  linkText: { fontSize: 22, fontWeight: "600" },
+  name: { fontSize: 21, fontWeight: "600" },
+  type: { fontSize: 17, marginTop: 4 },
+  linkRow: { flexDirection: "row", gap: 12, paddingHorizontal: 24, paddingTop: 16 },
+  linkCard: { paddingVertical: 11, paddingHorizontal: 32 },
+  linkText: { fontSize: 20, fontWeight: "600" },
 });

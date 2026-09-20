@@ -82,9 +82,9 @@ export function TrackPickRow({ streams, pick, onChange }: Props) {
 }
 
 const styles = StyleSheet.create({
-  block: { marginTop: 24, gap: 12 },
-  row: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12 },
-  title: { fontSize: 20, fontWeight: "600", marginRight: 8 },
+  block: { marginTop: 24, gap: 10 },
+  row: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10 },
+  title: { fontSize: 18, fontWeight: "600", marginRight: 8 },
   pill: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, borderWidth: 3 },
-  label: { fontSize: 18, fontWeight: "600" },
+  label: { fontSize: 17, fontWeight: "600" },
 });

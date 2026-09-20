@@ -38,13 +38,13 @@ export default function FavoritesScreen() {
         accessibilityLabel={item.title ?? t("common.untitled", "Untitled")}
       >
         <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface }]}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
         </View>
         <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
           {item.title ?? t("common.untitled", "Untitled")}
         </Text>
         {item.year != null && (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 14, textAlign: "center" }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center" }}>
             {item.year}
           </Text>
         )}
@@ -66,7 +66,7 @@ export default function FavoritesScreen() {
         renderItem={renderItem}
         numColumns={NUM_COLUMNS}
         contentContainerStyle={{ padding: 24 }}
-        columnWrapperStyle={{ gap: 16, marginBottom: 16 }}
+        columnWrapperStyle={{ gap: 12, marginBottom: 16 }}
         getItemLayout={tvFavGetItemLayout}
         initialNumToRender={10}
         maxToRenderPerBatch={15}
@@ -74,7 +74,7 @@ export default function FavoritesScreen() {
         removeClippedSubviews={true}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("media.favorites.empty")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 16 }}>{t("media.favorites.empty")}</Text>
             {/* A sentence and nothing else is a dead end: the viewer has to
                 guess that the way out is the rail. Same affordance the empty
                 collections and playlists screens already offer. */}
@@ -83,7 +83,7 @@ export default function FavoritesScreen() {
               style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
               accessibilityLabel={t("media.library.libraries")}
             >
-              <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
+              <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
             </FocusableCard>
           </View>
         }
@@ -95,8 +95,8 @@ export default function FavoritesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32 },
-  emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },
+  header: { fontSize: 30, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32 },
+  emptyAction: { paddingHorizontal: 24, paddingVertical: 10 },
   gridItem: { width: CARD_WIDTH, alignItems: "center" },
   poster: {
     width: CARD_WIDTH,
@@ -104,5 +104,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  title: { fontSize: 16, fontWeight: "500", marginTop: 8, textAlign: "center" },
+  title: { fontSize: 15, fontWeight: "500", marginTop: 8, textAlign: "center" },
 });
