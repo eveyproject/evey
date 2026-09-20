@@ -13,14 +13,14 @@ vi.mock("react-native", () => ({
   // The header's Customize button reaches the home through this emitter.
   DeviceEventEmitter: {
     addListener: (name: string, cb: () => void) => {
-      (globalThis as any).__eveyListeners = { ...((globalThis as any).__eveyListeners ?? {}), [name]: cb };
+      (globalThis as any).__eveyListeners = { ...(globalThis as any).__eveyListeners, [name]: cb };
       return { remove: () => {} };
     },
     emit: (name: string) => (globalThis as any).__eveyListeners?.[name]?.(),
   },
   // The home fades in once revealed; the test only needs the wrapper to render.
   Animated: {
-    View: ({ children, style, ...p }: any) => React.createElement("div", p, children),
+    View: ({ children, style: _style, ...p }: any) => React.createElement("div", p, children),
     Value: class { constructor(public v: number) {} },
     timing: () => ({ start: () => {} }),
     sequence: () => ({ start: () => {} }),
