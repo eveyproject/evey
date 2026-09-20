@@ -1,26 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, ActivityIndicator, Text, StyleSheet, InteractionManager, useWindowDimensions } from "react-native";
+import { View, ActivityIndicator, Text, StyleSheet, InteractionManager } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch, eveyFetchRaw, adminPluginServiceIssuePluginToken } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
-import { CARD_WIDTH_FEATURED, POSTER_RATIO, LABEL_BLOCK_HEIGHT } from "../../lib/tvLayout";
 import { useServerUrl } from "../../hooks/useServerUrl";
 import { PLUGIN_BRIDGE_SCRIPT } from "./pluginBridge";
 import { FONT_SIZE } from "@evey/theme";
 import { logger } from "../../lib/log";
-
-// What must stay visible UNDER a widget: a full poster row, its title and its
-// label. The ceiling is whatever is left between where the widget actually
-// starts and that row - measured, not guessed, so it follows both the poster
-// size and whatever chrome the host screen happens to put above.
-const HOME_CHROME_HEIGHT = 184;
-// 24sp of type plus its 16dp bottom margin - the estimate of 30 was short by a
-// line, which is what clipped the year under each poster.
-const ROW_TITLE_HEIGHT = 45;
-const FIRST_ROW_HEIGHT = CARD_WIDTH_FEATURED * POSTER_RATIO + LABEL_BLOCK_HEIGHT + ROW_TITLE_HEIGHT;
 
 const log = logger("plugin");
 
@@ -196,18 +185,6 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   const [bundleCode, setBundleCode] = useState<string | null>(null);
   const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
   const [height, setHeight] = useState(120);
-  // A widget asks for the height its own layout wants, sized for a phone card;
-  // on a television that number ate the screen before the first row (owner,
-  // 2026-09-20). The ceiling is what is left once a FULL poster row fits under
-  // it - header, row title and label included - which is the criterion a TV
-  // home is judged on, not a taste-based percentage. A canvas widget re-renders
-  // smaller (the bridge nudges a resize); a DOM one is clipped, the lesser evil.
-  const { height: windowHeight } = useWindowDimensions();
-  // Chrome above the first widget on the home screen, measured on a 1080p
-  // panel: search field, Customize row and the paddings between them. Read from
-  // onLayout first, but that fires before the siblings are positioned and
-  // reports 0, so the measured value is the floor of the two.
-  const maxWidgetHeight = Math.max(90, Math.round(windowHeight - HOME_CHROME_HEIGHT - FIRST_ROW_HEIGHT));
   const [error, setError] = useState(false);
   // Two-stage gate before we mount the WebView and download a bundle:
   //   1. `interactionsDone` - wait for any in-flight RN animation/transition
@@ -452,17 +429,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
       return;
     }
     if (type === "resize" && typeof msg.height === "number" && msg.height > 0) {
-      // Over the ceiling, CROPPING the widget cuts its text mid-glyph (the
-      // weather scene lost half its location line, 2026-09-20). Scale the
-      // guest document down instead: `zoom` is a layout property, so the
-      // widget re-reports a height that fits and nothing is clipped.
-      if (msg.height > maxWidgetHeight) {
-        const ratio = Math.max(0.45, maxWidgetHeight / msg.height);
-        webviewRef.current?.injectJavaScript(
-          `document.documentElement.style.zoom=${ratio};true;`,
-        );
-      }
-      setHeight(Math.max(60, Math.min(maxWidgetHeight, msg.height)));
+      setHeight(Math.max(60, Math.min(800, msg.height)));
       return;
     }
     if (type === "rpc") {
@@ -476,7 +443,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         .catch((err: Error) => reply({ type: "rpc-result", id, ok: false, error: err.message }));
       return;
     }
-  }, [context, pluginConfig, i18n.language, isLightTheme, pluginRpcCall, maxWidgetHeight]);
+  }, [context, pluginConfig, i18n.language, isLightTheme, pluginRpcCall]);
 
   if (!accessToken) return null;
 

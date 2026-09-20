@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, waitFor, act, screen } from "@testing-library/react";
+import { render, waitFor, act } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------------------
@@ -8,16 +8,13 @@ import React from "react";
 vi.mock("react-native", () => ({
   View: ({ children, onLayout, ...p }: any) => {
     React.useEffect(() => {
-      onLayout?.({ nativeEvent: { layout: { height: 100, y: 0 } } });
+      onLayout?.({ nativeEvent: { layout: { height: 100 } } });
     }, []);
     return React.createElement("div", p, children);
   },
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "loading", ...p }),
   StyleSheet: { create: (s: any) => s },
-  // 1080p panel: the widget cap is a fraction of this, so a plugin asking for
-  // a phone-sized height cannot push the first row below the fold.
-  useWindowDimensions: () => ({ width: 1200, height: 675 }),
   InteractionManager: {
     runAfterInteractions: (cb: () => void) => {
       cb();
@@ -153,24 +150,6 @@ describe("PluginSlot (TV)", () => {
       const msg = lastInjectedMessage() as { type?: string };
       expect(msg?.type).toBe("init");
     });
-  });
-
-  // A widget sizes itself for a phone card. On the living-room box the weather
-  // scene asked for half the panel, pushing the library below the fold
-  // (owner, 2026-09-20): the host caps the request against the screen so there
-  // is always content visible under a widget, whatever a plugin asks for.
-  it("caps a widget that asks for more height than the panel can spare", async () => {
-    await mountPluginWebView();
-    const container = () => screen.getByTestId("plugin-webview").parentElement;
-
-    dispatchToWebView({ type: "resize", height: 600 });
-    // 675 dp panel - 184 chrome - 355 for the row that must stay visible under
-    // it = 136 dp, not the 600 the plugin asked for.
-    await waitFor(() => expect(container()?.style.height).toBe("136px"));
-
-    // A modest request is honoured untouched - the cap is a ceiling, not a size.
-    dispatchToWebView({ type: "resize", height: 80 });
-    await waitFor(() => expect(container()?.style.height).toBe("80px"));
   });
 });
 
