@@ -146,6 +146,15 @@ function PlayerControlsInner({
   // The device plays a complete timeline (file / VOD manifest), so its
   // currentTime IS the absolute position the seek bar / time display expect.
   const isCasting = castConnected && castPlayback?.isMediaLoaded;
+  // The picture is on ANOTHER device: a Cast session (SDK or server-brokered)
+  // or a Remote Playback fling. Nothing in this file may start the local
+  // element while it holds - not even for the instant it takes the structural
+  // guard in HLSPlayer to re-pause it, because that instant is audible and
+  // visible (reported 2026-09-19). Deliberately wider than `isCasting`: a
+  // session whose media has not loaded yet owns the playback all the same,
+  // and that window is exactly when a tap used to fall through to the local
+  // video.
+  const remoteActive = !!castConnected || !!remoteConnected;
   const playing = isCasting ? !castPlayback.isPaused : localPlaying;
   const effectiveDuration = localDuration;
   const muted = isCasting ? (castPlayback.isMuted ?? false) : localMuted;
@@ -218,6 +227,13 @@ function PlayerControlsInner({
 
   const scheduleHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
+    // While the film plays on another device the bars STAY. Hiding chrome over
+    // a moving picture is the point of the auto-hide; here the picture is a
+    // frozen local frame and the bar is the only thing saying a TV is playing
+    // and the only way to drive it - fading it after 3s of stillness left the
+    // viewer in front of a dead screenshot ("je ne vois pas la barre de
+    // contrôle", 2026-09-19).
+    if (remoteActive) return;
     hideTimer.current = setTimeout(function tick() {
       if (keyboardFocusWithin()) {
         // Re-arm instead of hiding under the keyboard; re-check every 3s so
@@ -227,7 +243,18 @@ function PlayerControlsInner({
       }
       setVisible(false);
     }, 3000);
-  }, [keyboardFocusWithin]);
+  }, [keyboardFocusWithin, remoteActive]);
+
+  // Entering (or leaving) a remote session re-evaluates the bars: pinned while
+  // the device holds the picture, back to the 3s fade once it hands it back.
+  useEffect(() => {
+    if (remoteActive) {
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      setVisible(true);
+    } else {
+      scheduleHide();
+    }
+  }, [remoteActive, scheduleHide]);
 
   useEffect(() => {
     if (controlsToggleRef) controlsToggleRef.current = () => {
@@ -290,8 +317,10 @@ function PlayerControlsInner({
   }, []);
 
   function togglePlay() {
-    if (castConnected && onCastPlayPause) {
-      onCastPlayPause();
+    if (remoteActive) {
+      // Drive the device that holds the picture, or do nothing at all (a
+      // fling exposes no transport here). Never the local element.
+      if (onCastPlayPause) onCastPlayPause();
       return;
     }
     const video = videoRef.current;
@@ -415,9 +444,12 @@ function PlayerControlsInner({
     } else {
       clickTimer.current = setTimeout(() => {
         clickTimer.current = null;
-        if (isCasting && onCastPlayPause) {
-          onCastPlayPause();
-          onActionFlash?.(playing ? "pause" : "play");
+        if (remoteActive) {
+          // Same rule as togglePlay: the surface tap follows the picture.
+          if (onCastPlayPause) {
+            onCastPlayPause();
+            onActionFlash?.(playing ? "pause" : "play");
+          }
         } else {
           const video = videoRef.current;
           if (video) {

@@ -148,6 +148,9 @@ export interface PlayerProviderProps {
 
   /** Navigate to an episode (for Media Session prev/next). Optional. */
   onPlayEpisode?: (episodeId: string) => void;
+  /** The film is playing on another device (Cast / Remote Playback fling):
+   *  the OS transport must not reach this element. */
+  remotePlaybackActive?: boolean;
   children: React.ReactNode;
 }
 
@@ -183,6 +186,7 @@ export function PlayerProvider({
   onAudioOffsetChange,
   audioOffsetAvailable,
   onPlayEpisode,
+  remotePlaybackActive = false,
   children,
 }: PlayerProviderProps) {
   const [playing, setPlaying] = useState(false);
@@ -321,6 +325,7 @@ export function PlayerProvider({
     episodes,
     currentEpisodeId,
     onPlayEpisode,
+    remoteActive: remotePlaybackActive,
   });
 
   const value = useMemo<PlayerState>(() => ({

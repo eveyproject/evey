@@ -24,6 +24,9 @@ export interface MediaSessionParams {
   currentEpisodeId?: string;
   /** Navigate to an episode - reuses the player's existing episode switch. */
   onPlayEpisode?: (episodeId: string) => void;
+  /** The film is playing on ANOTHER device (Cast session or Remote Playback
+   *  fling). The OS transport then controls nothing here - see below. */
+  remoteActive?: boolean;
 }
 
 const hasMediaSession = () =>
@@ -51,6 +54,7 @@ export function useMediaSession({
   episodes,
   currentEpisodeId,
   onPlayEpisode,
+  remoteActive = false,
 }: MediaSessionParams) {
   // Resolve neighbours as primitives so the handler effect only re-binds when
   // the actual prev/next changes, not on every episodes-array re-identity.
@@ -99,6 +103,25 @@ export function useMediaSession({
         // Unsupported action on this browser - ignore.
       }
     };
+    const actions: MediaSessionAction[] = [
+      "play",
+      "pause",
+      "seekbackward",
+      "seekforward",
+      "seekto",
+      "previoustrack",
+      "nexttrack",
+    ];
+
+    // The picture is on another device: this element is not what is playing,
+    // so the OS transport must reach none of it. A media key used to call
+    // startPlayback() here behind the cast's back, and HLSPlayer's structural
+    // guard re-paused it a moment later - an audible, visible blip. Claiming
+    // no handler is the honest state, and it is also what stops the blip.
+    if (remoteActive) {
+      actions.forEach((a) => set(a, null));
+      return;
+    }
 
     set("play", () => {
       const v = video();
@@ -136,20 +159,12 @@ export function useMediaSession({
       nextEpisodeId && onPlayEpisode ? () => onPlayEpisode(nextEpisodeId) : null,
     );
 
-    const actions: MediaSessionAction[] = [
-      "play",
-      "pause",
-      "seekbackward",
-      "seekforward",
-      "seekto",
-      "previoustrack",
-      "nexttrack",
-    ];
     return () => {
       actions.forEach((a) => set(a, null));
     };
   }, [
     videoRef,
+    remoteActive,
     transcodeOffset,
     skipForwardSeconds,
     skipBackwardSeconds,

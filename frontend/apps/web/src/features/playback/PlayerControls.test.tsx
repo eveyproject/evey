@@ -211,3 +211,59 @@ describe("PlayerControls auto-hide vs keyboard focus", () => {
     }
   });
 });
+
+// A remote session owns the picture: nothing here may touch the local element.
+// Before this, a tap fell through to video.play() and HLSPlayer's structural
+// guard re-paused it a moment later - a blip of sound and picture at every
+// click (2026-09-19). The fling case is the sharp one: it carries no cast
+// transport at all, so "route it to the device" is not an option either.
+describe("PlayerControls while another device holds the picture", () => {
+  function videoRefWith(video: HTMLVideoElement) {
+    return { current: video };
+  }
+
+  function renderCasting(props: Record<string, unknown>) {
+    const video = document.createElement("video");
+    Object.defineProperty(video, "paused", { value: true, writable: true });
+    Object.defineProperty(video, "duration", { value: 120, writable: true });
+    const play = vi.fn().mockResolvedValue(undefined);
+    video.play = play;
+    render(
+      <PlayerProvider
+        videoRef={videoRefWith(video)}
+        audioStreams={[]}
+        subtitleStreams={[]}
+        currentAudioIndex={0}
+        currentQuality={0}
+        currentSubtitleTrackIndex={null}
+      >
+        <PlayerControls {...defaultCallbacks} {...props} />
+      </PlayerProvider>,
+    );
+    return { play };
+  }
+
+  it("sends the play button to the cast device, never to the local video", () => {
+    const onCastPlayPause = vi.fn();
+    // A session whose media has not loaded yet: the window where the old
+    // `isCasting` guard (connected AND media loaded) let the tap through.
+    const { play } = renderCasting({ castConnected: true, onCastPlayPause, castPlayback: undefined });
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(onCastPlayPause).toHaveBeenCalledTimes(1);
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it("does nothing at all on a fling, which exposes no transport", () => {
+    const { play } = renderCasting({ remoteConnected: true });
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it("keeps the bars up instead of fading them over a frozen frame", () => {
+    vi.useFakeTimers();
+    renderCasting({ castConnected: true, onCastPlayPause: vi.fn() });
+    act(() => { vi.advanceTimersByTime(10_000); });
+    expect(screen.getByRole("button", { name: "Play" })).toBeVisible();
+    vi.useRealTimers();
+  });
+});

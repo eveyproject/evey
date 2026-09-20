@@ -40,6 +40,10 @@ interface ProgressReporterProps {
   onRemoteMessage?: (message: string) => void;
   /** Present and active while a cast session plays this media. */
   cast?: CastProgressSource;
+  /** The picture is on another device, whether or not `cast` carries a live
+   *  state feed (a Remote Playback fling carries none). An admin "play" must
+   *  not wake the local element in that state. */
+  remoteActive?: boolean;
 }
 
 // 0.85 = trigger at ~85 % of duration. Sweet spot per Lumen / Netflix
@@ -48,7 +52,7 @@ interface ProgressReporterProps {
 // transcode budget on abandoned plays.
 const PREWARM_PROGRESS_THRESHOLD = 0.85;
 
-export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, mediaId, mediaType, onRemoteStop, onRemoteMessage, cast }: ProgressReporterProps) {
+export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, mediaId, mediaType, onRemoteStop, onRemoteMessage, cast, remoteActive = false }: ProgressReporterProps) {
   const pendingRef = useRef(false);
   const errorCountRef = useRef(0);
   // One prewarm per media item per mount - fires exactly when the
@@ -63,6 +67,8 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
   // state (the effect below deliberately doesn't re-run on every cast tick).
   const castRef = useRef(cast);
   castRef.current = cast;
+  const remoteActiveRef = useRef(remoteActive);
+  remoteActiveRef.current = remoteActive;
 
   useEffect(() => {
     const id = setInterval(async () => {
@@ -133,7 +139,10 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
           } else if (res.remoteCommand === "play") {
             if (casting) {
               if (cast.isPaused) cast.playPause();
-            } else {
+            } else if (!remoteActiveRef.current) {
+              // Only when nothing else holds the picture: a fling reports no
+              // state (casting === false) yet owns the playback, and waking
+              // the local element there plays the film twice.
               video.play().catch((err) => console.warn("video.play failed", err));
             }
           } else if (res.remoteCommand === "stop") {
