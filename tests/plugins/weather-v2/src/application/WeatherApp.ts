@@ -28,7 +28,7 @@ import { createOverlay, type OverlayHandle } from "../ui/overlay";
 // poster row are accounted for, measured on a 1080p panel (2026-09-20).
 // The widget cannot read the panel itself - inside the WebView innerHeight IS
 // the slot it was granted, which is circular - so the host reports it.
-const TV_HEIGHT_RATIO = 0.28;
+const TV_HEIGHT_RATIO = 0.24;
 const TV_MIN_HEIGHT = 120;
 const TV_MAX_HEIGHT = 320;
 
