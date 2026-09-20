@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, ActivityIndicator, Text, StyleSheet, InteractionManager } from "react-native";
+import { View, ActivityIndicator, Text, StyleSheet, InteractionManager, useWindowDimensions } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 // From "/legacy": the root's file helpers throw at runtime in
 // expo-file-system 55. See downloads.ts.
@@ -216,6 +216,7 @@ export function PluginSlot({ name, context, pluginId }: PluginSlotProps) {
     <>
       {matches.map((m) => (
         <PluginWebView
+          slot={name}
           key={m.pluginId}
           pluginId={m.pluginId}
           entryPath={m.entryPath}
@@ -239,8 +240,17 @@ function PluginSlotListError() {
   );
 }
 
+// The height the host recommends for a slot on this surface. A plugin that
+// never calls evey.resize() opens at it, so every home widget lands the same
+// size without knowing where it runs; a plugin with an opinion still resizes.
+export function suggestedSlotHeight(slot: string, viewportWidth: number): number | undefined {
+  if (slot !== "home.section") return undefined;
+  return viewportWidth < 420 ? 216 : viewportWidth < 700 ? 248 : 280;
+}
+
 interface PluginWebViewProps {
   pluginId: string;
+  slot: string;
   entryPath: string;
   externalFetch: string[];
   context?: Record<string, unknown>;
@@ -249,7 +259,7 @@ interface PluginWebViewProps {
 const TOAST_MAX = 3;
 const TOAST_WINDOW_MS = 1000;
 
-function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWebViewProps) {
+function PluginWebView({ pluginId, slot, entryPath, externalFetch, context }: PluginWebViewProps) {
   const { t, i18n } = useTranslation();
   const theme = useTheme();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -257,7 +267,9 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   const webviewRef = useRef<WebView>(null);
   const [bundleCode, setBundleCode] = useState<string | null>(null);
   const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
-  const [height, setHeight] = useState(120);
+  const { width: windowWidth } = useWindowDimensions();
+  const suggestedHeight = suggestedSlotHeight(slot, windowWidth);
+  const [height, setHeight] = useState(suggestedHeight ?? 120);
   const [error, setError] = useState(false);
   // Three-stage gate before we mount the WebView and download a bundle that
   // can run into 1+ MB on plugins that ship a 3D engine:
@@ -499,6 +511,8 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         config: pluginConfig,
         locale: i18n.language,
         theme: isLightTheme ? "light" : "dark",
+        surface: "mobile",
+        suggestedHeight,
       });
       // Forward to the WebView's window via injectJavaScript so the bridge
       // listener picks it up. Wrap in postMessage so the same handler that

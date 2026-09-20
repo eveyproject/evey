@@ -97,7 +97,7 @@ vi.mock("@evey/api", () => ({
 }));
 
 // -------------------------------------------------------------------------------------------
-import { PluginSlot, usePluginSlotEntries } from "./PluginSlot";
+import { PluginSlot, usePluginSlotEntries, suggestedSlotHeight } from "./PluginSlot";
 import { renderHook } from "@testing-library/react";
 
 function dispatchToWebView(payload: unknown) {
@@ -153,6 +153,24 @@ describe("PluginSlot (TV)", () => {
       const msg = lastInjectedMessage() as { type?: string };
       expect(msg?.type).toBe("init");
     });
+  });
+
+  it("names the surface and recommends a banner height for a home section", async () => {
+    await mountPluginWebView();
+    dispatchToWebView({ type: "ready" });
+
+    await waitFor(() => {
+      const msg = lastInjectedMessage() as { surface?: string; viewportHeight?: number; suggestedHeight?: number };
+      expect(msg?.surface).toBe("tv");
+      expect(msg?.suggestedHeight).toBeGreaterThan(0);
+      expect(msg?.suggestedHeight).toBe(Math.round((msg?.viewportHeight ?? 0) * 0.42));
+    });
+  });
+
+  it("recommends a share of the panel for home.section only", () => {
+    expect(suggestedSlotHeight("home.section", 675)).toBe(284);
+    expect(suggestedSlotHeight("home.section", 540)).toBe(227);
+    expect(suggestedSlotHeight("settings.user.appearance", 675)).toBeUndefined();
   });
 });
 

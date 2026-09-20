@@ -7,12 +7,9 @@ export interface HostInit {
   units: Units;
   locale: string;
   theme: string; // host theme mode ("dark" / "light"); drives settings-panel colors
-  // Which surface the widget landed on ("tv" today, absent on web/mobile). A
-  // television row is as wide as a desktop page with a fraction of the vertical
-  // room, so width alone cannot tell them apart - see requestHeight.
-  surface?: string;
-  // Panel height in CSS px, reported by the host (the WebView cannot see it).
-  viewportHeight?: number;
+  // The height the host recommends for this slot on the surface it put us on
+  // (CSS px). Absent on a host too old to say.
+  suggestedHeight?: number;
 }
 
 export interface HostBridge {

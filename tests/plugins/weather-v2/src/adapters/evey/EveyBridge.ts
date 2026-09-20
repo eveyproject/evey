@@ -10,8 +10,7 @@ interface EveyGlobal {
     config?: { city?: string; units?: Units };
     locale?: string;
     theme?: string;
-    surface?: string;
-    viewportHeight?: number;
+    suggestedHeight?: number;
   }) => void): void;
   resize(height: number): void;
   navigate(path: string): void;
@@ -31,16 +30,15 @@ declare global {
 
 export class EveyBridge implements HostBridge {
   onReady(cb: (init: HostInit) => void): void {
-    const normalize = (config?: { city?: string; units?: Units }, locale?: string, theme?: string, surface?: string, viewportHeight?: number): HostInit => ({
+    const normalize = (config?: { city?: string; units?: Units }, locale?: string, theme?: string, suggestedHeight?: number): HostInit => ({
       city: config?.city ?? "Paris",
       units: config?.units === "fahrenheit" ? "fahrenheit" : "celsius",
       locale: locale ?? "en",
       theme: theme ?? "dark",
-      surface,
-      viewportHeight,
+      suggestedHeight,
     });
     if (typeof window !== "undefined" && window.evey) {
-      window.evey.onInit((data) => cb(normalize(data?.config, data?.locale, data?.theme, data?.surface, data?.viewportHeight)));
+      window.evey.onInit((data) => cb(normalize(data?.config, data?.locale, data?.theme, data?.suggestedHeight)));
     } else {
       // Standalone dev: no host bridge.
       cb(normalize(undefined, navigator?.language, undefined));

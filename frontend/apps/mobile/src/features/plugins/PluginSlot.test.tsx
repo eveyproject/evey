@@ -15,6 +15,7 @@ vi.mock("react-native", () => ({
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "loading", ...p }),
   StyleSheet: { create: (s: any) => s },
+  useWindowDimensions: () => ({ width: 390, height: 844, scale: 3, fontScale: 1 }),
   InteractionManager: {
     runAfterInteractions: (cb: () => void) => {
       cb();
@@ -98,7 +99,7 @@ vi.mock("@evey/api", () => ({
 }));
 
 // -------------------------------------------------------------------------------------------
-import { PluginSlot, isAllowedNavPath } from "./PluginSlot";
+import { PluginSlot, isAllowedNavPath, suggestedSlotHeight } from "./PluginSlot";
 
 function dispatchToWebView(payload: unknown) {
   act(() => {
@@ -138,6 +139,27 @@ async function mountPluginWebView() {
   render(<PluginSlot name="test.slot" pluginId="plg-test1" />);
   await waitFor(() => expect(capturedOnMessage).toBeTruthy());
 }
+
+describe("PluginSlot init payload", () => {
+  it("names the surface, and stays silent on the height of a slot it has no opinion about", async () => {
+    await mountPluginWebView(); // "test.slot", not a home section
+    dispatchToWebView({ type: "ready" });
+
+    await waitFor(() => {
+      const msg = lastInjectedMessage() as { type?: string; surface?: string };
+      expect(msg?.type).toBe("init");
+      expect(msg?.surface).toBe("mobile");
+      expect("suggestedHeight" in (msg ?? {})).toBe(false);
+    });
+  });
+
+  it("recommends a banner height for home.section only, by viewport width", () => {
+    expect(suggestedSlotHeight("home.section", 360)).toBe(216);
+    expect(suggestedSlotHeight("home.section", 600)).toBe(248);
+    expect(suggestedSlotHeight("home.section", 1024)).toBe(280);
+    expect(suggestedSlotHeight("settings.user.appearance", 360)).toBeUndefined();
+  });
+});
 
 describe("PluginSlot assets.read bridge", () => {
   it("fetches the plugin's own asset with the plugin token and returns a data URL", async () => {
