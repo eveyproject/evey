@@ -158,6 +158,13 @@ float snowLayer(vec2 uv, float aspect, float t, float scale, float fall, float s
 
 void main() {
   float aspect = uRes.x / max(uRes.y, 1.0);
+  // Noise coordinates only. hash21 squares its input (p += dot(p, p + k)), so
+  // past a certain magnitude fract() keeps too few mantissa bits and the field
+  // breaks into flat tiles. A television banner runs at aspect ~9 and showed
+  // exactly that (2026-09-20); a card is under 3, so this clamp never fires on
+  // a phone or a browser. The celestial discs keep the TRUE aspect below or
+  // they turn into ellipses.
+  float noiseAspect = min(aspect, 4.5);
   vec2 uv = vUv; // y up
 
   vec4 acc = vec4(0.0);
@@ -222,9 +229,9 @@ void main() {
   float cloudsA = 0.0;
   if (uCover > 0.004) {
     vec3 cF; float aF;
-    cloudLayer(uv, aspect, 2.2, 1.0, 7.3, lightDir, cF, aF);
+    cloudLayer(uv, noiseAspect, 2.2, 1.0, 7.3, lightDir, cF, aF);
     vec3 cN; float aN;
-    cloudLayer(uv, aspect, 3.6, 1.8, 41.7, lightDir, cN, aN);
+    cloudLayer(uv, noiseAspect, 3.6, 1.8, 41.7, lightDir, cN, aN);
     aN *= 0.85;
     acc = ovr(acc, cF, aF);
     acc = ovr(acc, cN, aN);
@@ -255,16 +262,16 @@ void main() {
   // 6. Precipitation.
   if (uRain > 0.004) {
     float slant = uWind * 0.25;
-    float r = rainLayer(uv, aspect, uTime, vec2(26.0, 3.2), 9.0, slant, 3.1)
-            + rainLayer(uv, aspect, uTime, vec2(42.0, 4.6), 13.0, slant * 1.2, 17.9) * 0.8
-            + rainLayer(uv, aspect, uTime, vec2(64.0, 6.5), 18.0, slant * 1.4, 29.3) * 0.55;
+    float r = rainLayer(uv, noiseAspect, uTime, vec2(26.0, 3.2), 9.0, slant, 3.1)
+            + rainLayer(uv, noiseAspect, uTime, vec2(42.0, 4.6), 13.0, slant * 1.2, 17.9) * 0.8
+            + rainLayer(uv, noiseAspect, uTime, vec2(64.0, 6.5), 18.0, slant * 1.4, 29.3) * 0.55;
     vec3 rainCol = vec3(0.62, 0.78, 1.00);
     acc = ovr(acc, rainCol, clamp(r, 0.0, 1.0) * (0.20 + 0.22 * uRain));
   }
   if (uSnow > 0.004) {
-    float s = snowLayer(uv, aspect, uTime, 9.0, 0.7, 1.7)
-            + snowLayer(uv, aspect, uTime, 14.0, 1.0, 12.9) * 0.8
-            + snowLayer(uv, aspect, uTime, 22.0, 1.5, 31.1) * 0.6;
+    float s = snowLayer(uv, noiseAspect, uTime, 9.0, 0.7, 1.7)
+            + snowLayer(uv, noiseAspect, uTime, 14.0, 1.0, 12.9) * 0.8
+            + snowLayer(uv, noiseAspect, uTime, 22.0, 1.5, 31.1) * 0.6;
     acc = ovr(acc, vec3(0.91, 0.94, 1.00), clamp(s, 0.0, 1.0) * (0.5 + 0.4 * uSnow));
   }
 

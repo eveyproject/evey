@@ -11,6 +11,8 @@ export interface HostInit {
   // television row is as wide as a desktop page with a fraction of the vertical
   // room, so width alone cannot tell them apart - see requestHeight.
   surface?: string;
+  // Panel height in CSS px, reported by the host (the WebView cannot see it).
+  viewportHeight?: number;
 }
 
 export interface HostBridge {
