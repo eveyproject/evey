@@ -164,13 +164,13 @@ const styles = StyleSheet.create({
   navButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 9,
     paddingHorizontal: 20,
     borderLeftWidth: 3,
     borderLeftColor: "transparent",
   },
   navLabel: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "600",
     marginLeft: 16,
   },

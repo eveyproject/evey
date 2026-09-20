@@ -64,7 +64,7 @@ function LibraryChip({ library, active, onPress }: { library: V1Library; active:
       accessibilityLabel={library.name ?? ""}
       style={[styles.chip, { backgroundColor: active ? theme.colors.accent : theme.colors.surface, borderRadius: theme.radii.sm }]}
     >
-      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 16, fontWeight: "600" }}>{library.name}</Text>
+      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 15, fontWeight: "600" }}>{library.name}</Text>
     </FocusableCard>
   );
 }
@@ -80,7 +80,7 @@ function AllPhotosChip({ active, onPress, label }: { active: boolean; onPress: (
       <View style={[styles.albumChipArt, { backgroundColor: active ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
         <Ionicons name="images-outline" size={28} color={active ? theme.colors.onAccent : theme.colors.textMuted} />
       </View>
-      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 15, fontWeight: "600" }} numberOfLines={1}>
+      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
         {label}
       </Text>
     </FocusableCard>
@@ -115,7 +115,7 @@ function AlbumChip({
           <Ionicons name="images-outline" size={28} color={theme.colors.textMuted} />
         )}
       </View>
-      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 15, fontWeight: "600" }} numberOfLines={1}>
+      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
         {album.name}
       </Text>
       <Text style={{ color: active ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 12 }}>{album.photoCount ?? 0}</Text>
@@ -233,14 +233,14 @@ export default function PhotosScreen() {
   if (!libraries || libraries.length === 0) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("media.photos.noPhotoLibraries")}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 16 }}>{t("media.photos.noPhotoLibraries")}</Text>
         <FocusableCard
           onPress={() => router.push("/(auth)/(tabs)/library")}
           hasTVPreferredFocus
           style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
           accessibilityLabel={t("media.library.libraries")}
         >
-          <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
         </FocusableCard>
       </View>
     );
@@ -254,15 +254,15 @@ export default function PhotosScreen() {
 
       {isError ? (
         <View style={styles.center}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 12 }}>{t("common.loadError")}</Text>
           <FocusableCard onPress={() => refetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
-            <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 18 }}>{t("common.retry")}</Text>
           </FocusableCard>
         </View>
       ) : (
         <>
           {libraries.length > 1 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.libRow} contentContainerStyle={{ gap: 16 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.libRow} contentContainerStyle={{ gap: 12 }}>
               {libraries.map((lib) => (
                 <LibraryChip key={lib.id} library={lib} active={lib.id === activeLibraryID} onPress={() => setSelectedLibraryID(lib.id)} />
               ))}
@@ -272,7 +272,7 @@ export default function PhotosScreen() {
           {albumsLoading ? (
             <ActivityIndicator color={theme.colors.accent} style={{ marginTop: 16, marginLeft: 24 }} />
           ) : (albums ?? []).length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.albumRow} contentContainerStyle={{ gap: 16, paddingHorizontal: 24 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.albumRow} contentContainerStyle={{ gap: 12, paddingHorizontal: 24 }}>
               <AllPhotosChip active={!selectedAlbum} onPress={() => setSelectedAlbum(undefined)} label={t("media.photos.allPhotos")} />
               {(albums ?? []).map((a) => (
                 <AlbumChip
@@ -309,7 +309,7 @@ export default function PhotosScreen() {
               ListFooterComponent={isFetching && !isFirstPage ? <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 24 }} /> : null}
               ListEmptyComponent={
                 <View style={styles.center}>
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 16 }}>
                     {t("media.photos.noPhotos")}
                   </Text>
                   <FocusableCard
@@ -318,7 +318,7 @@ export default function PhotosScreen() {
                     style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
                     accessibilityLabel={t("media.library.libraries")}
                   >
-                    <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
+                    <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
                   </FocusableCard>
                 </View>
               }
@@ -342,5 +342,5 @@ const styles = StyleSheet.create({
   albumChipArt: { width: 120, height: 90, justifyContent: "center", alignItems: "center", marginBottom: 6 },
   tile: { width: TILE_SIZE, alignItems: "center" },
   tileArt: { width: TILE_SIZE, height: TILE_SIZE },
-  emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },
+  emptyAction: { paddingHorizontal: 24, paddingVertical: 10 },
 });

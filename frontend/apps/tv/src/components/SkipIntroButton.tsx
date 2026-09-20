@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     bottom: 140,
     right: 40,
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
   },
   // Clears the NextEpisodeOverlay card (bottom: 60, ~150px tall) instead of
   // sitting under it during the last 30s of an episode.
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 28,
-    paddingVertical: 14,
+    paddingVertical: 10,
   },
   text: {
     fontSize: FONT_SIZE.lg,

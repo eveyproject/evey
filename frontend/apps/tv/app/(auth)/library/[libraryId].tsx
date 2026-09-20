@@ -180,7 +180,7 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
       accessibilityLabel={label}
       accessibilityState={{ selected: active }}
     >
-      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 18, fontWeight: "600" }}>{label}</Text>
+      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 17, fontWeight: "600" }}>{label}</Text>
     </FocusableCard>
   );
 }
@@ -386,7 +386,7 @@ export default function LibraryDetailScreen() {
                 placeholderContentFit="cover"
               />
             ) : (
-              <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
             )}
 
             {rating > 0 && (
@@ -461,12 +461,12 @@ export default function LibraryDetailScreen() {
       />
       {activeIsError ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 12 }}>{t("common.loadError")}</Text>
           {/* A plain Pressable has no hasTVPreferredFocus, so nothing on this
               error state claims initial remote focus - stranding the D-pad.
               FocusableCard matches every other retry action in this app. */}
           <FocusableCard onPress={() => activeRefetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
-            <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 18 }}>{t("common.retry")}</Text>
           </FocusableCard>
         </View>
       ) : (
@@ -494,7 +494,7 @@ export default function LibraryDetailScreen() {
           />
 
           <View style={styles.toolbar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 10 }}>
               <Chip label={t("media.search.allGenres") || "All"} active={!genre} onPress={() => setGenre("")} />
               {genres.map((g) => (
                 <Chip key={g} label={g} active={genre === g} onPress={() => setGenre(genre === g ? "" : g)} />
@@ -507,7 +507,7 @@ export default function LibraryDetailScreen() {
                 accessibilityLabel={t("common.playAll")}
               >
                 <Ionicons name="play" size={24} color={theme.colors.text} />
-                <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>{t("common.playAll")}</Text>
+                <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "600" }}>{t("common.playAll")}</Text>
               </FocusableCard>
             )}
             <FocusableCard
@@ -520,12 +520,12 @@ export default function LibraryDetailScreen() {
               ) : (
                 <Ionicons name="shuffle" size={24} color={theme.colors.text} />
               )}
-              <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>{t("common.shufflePlay")}</Text>
+              <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "600" }}>{t("common.shufflePlay")}</Text>
             </FocusableCard>
           </View>
 
           <View style={styles.toolbar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 10 }}>
               {SORT_KEYS.map((s) => (
                 <Chip key={s.value} label={t(s.labelKey)} active={sortField === s.value} onPress={() => setSortField(s.value)} />
               ))}
@@ -541,7 +541,7 @@ export default function LibraryDetailScreen() {
 
           {isShowLibrary && (
             <View style={styles.toolbar}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 10 }}>
                 <Chip label={t("media.search.allGenres") || "All"} active={!typeFilter} onPress={() => setTypeFilter("")} />
                 {TYPE_KEYS.map((tk) => (
                   <Chip key={tk.value} label={t(tk.labelKey)} active={typeFilter === tk.value} onPress={() => setTypeFilter(typeFilter === tk.value ? "" : tk.value)} />
@@ -561,7 +561,7 @@ export default function LibraryDetailScreen() {
               renderItem={renderItem}
               numColumns={NUM_COLUMNS}
               contentContainerStyle={{ padding: 24 }}
-              columnWrapperStyle={{ gap: 16, marginBottom: 16 }}
+              columnWrapperStyle={{ gap: 12, marginBottom: 16 }}
               onEndReached={handleEndReached}
               onEndReachedThreshold={0.5}
               getItemLayout={searchActive ? undefined : tvLibGetItemLayout}
@@ -576,7 +576,7 @@ export default function LibraryDetailScreen() {
               }
               ListEmptyComponent={
                 <View style={styles.center}>
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>
                     {hasActiveFilters ? t("media.library.noItemsFiltered") : t("common.noItems")}
                   </Text>
                 </View>
@@ -596,8 +596,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     marginTop: 16,
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    fontSize: 18,
+    paddingVertical: 9,
+    fontSize: 17,
     borderWidth: 3,
   },
   toolbar: {
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 24,
     paddingTop: 16,
-    gap: 16,
+    gap: 12,
   },
   chip: {
     paddingHorizontal: 20,
@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  title: { fontSize: 16, fontWeight: "500", marginTop: 8, textAlign: "center" },
+  title: { fontSize: 15, fontWeight: "500", marginTop: 8, textAlign: "center" },
   techBadge: {
     position: "absolute",
     flexDirection: "row",

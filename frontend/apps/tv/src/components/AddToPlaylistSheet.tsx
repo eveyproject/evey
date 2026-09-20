@@ -114,13 +114,13 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
+    paddingVertical: 11,
     paddingHorizontal: 12,
-    gap: 16,
+    gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   icon: { fontSize: FONT_SIZE.xl, width: 32, textAlign: "center" },
   playlistName: { flex: 1, fontSize: FONT_SIZE.xl, fontWeight: "500" },
-  closeBtn: { marginTop: 20, paddingVertical: 16, alignItems: "center", borderRadius: 8 },
+  closeBtn: { marginTop: 20, paddingVertical: 11, alignItems: "center", borderRadius: 8 },
   closeBtnText: { fontSize: FONT_SIZE.xl, fontWeight: "600" },
 });

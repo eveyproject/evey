@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     right: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 32,
-    paddingVertical: 16,
+    paddingVertical: 11,
   },
   progressTrack: { height: 3, borderRadius: 2, overflow: "hidden", marginBottom: 10 },
   progressFill: { height: 3, borderRadius: 2 },

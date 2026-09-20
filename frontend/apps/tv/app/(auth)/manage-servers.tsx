@@ -291,7 +291,7 @@ const msStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     borderRadius: theme.radii.md,
   },
   backBtnText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
   },
   title: {
@@ -302,7 +302,7 @@ const msStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
   },
   empty: {
     color: theme.colors.textMuted,
-    fontSize: 22,
+    fontSize: 20,
     textAlign: "center",
     marginTop: 40,
   },
@@ -330,11 +330,11 @@ const msStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     borderColor: theme.colors.accent,
   },
   serverLabel: {
-    fontSize: 24,
+    fontSize: 21,
     fontWeight: "600",
   },
   serverSub: {
-    fontSize: 18,
+    fontSize: 17,
     marginTop: 4,
   },
   badge: {
@@ -342,7 +342,7 @@ const msStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  badgeText: { color: theme.colors.onAccent, fontSize: 13, fontWeight: "700" },
+  badgeText: { color: theme.colors.onAccent, fontSize: 12, fontWeight: "700" },
   actions: {
     flexDirection: "row",
     alignItems: "center",
@@ -350,13 +350,13 @@ const msStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     gap: 10,
   },
   actionBtn: {
-    paddingVertical: 12,
+    paddingVertical: 9,
     paddingHorizontal: 20,
     borderRadius: theme.radii.sm,
     borderWidth: 3,
   },
   actionBtnText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "600",
   },
   // Rename modal
@@ -371,26 +371,26 @@ const msStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     width: 700,
     borderRadius: theme.radii.md,
     padding: 48,
-    gap: 24,
+    gap: 16,
   },
   modalTitle: {
-    fontSize: 32,
+    fontSize: 27,
     fontWeight: "700",
   },
   renameInput: {
     borderWidth: 2,
     borderRadius: theme.radii.md,
     padding: 18,
-    fontSize: 24,
+    fontSize: 21,
   },
   modalActions: {
     flexDirection: "row",
-    gap: 16,
+    gap: 12,
     justifyContent: "flex-end",
     marginTop: 8,
   },
   modalBtn: {
-    paddingVertical: 14,
+    paddingVertical: 10,
     paddingHorizontal: 32,
     borderRadius: theme.radii.md,
     borderWidth: 3,
@@ -400,6 +400,6 @@ const msStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     backgroundColor: theme.colors.accent,
   },
   modalBtnText: {
-    fontSize: 22,
+    fontSize: 20,
   },
 });

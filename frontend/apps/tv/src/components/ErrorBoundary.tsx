@@ -124,8 +124,8 @@ const styles = StyleSheet.create({
   icon: { fontSize: 64, fontWeight: "bold", marginBottom: 16 },
   title: { fontSize: FONT_SIZE["4xl"], fontWeight: "700", marginTop: 16 },
   message: { fontSize: FONT_SIZE.xl, textAlign: "center", marginTop: 12, maxWidth: 500 },
-  actions: { flexDirection: "row", gap: 16, marginTop: 32 },
+  actions: { flexDirection: "row", gap: 12, marginTop: 32 },
   context: { fontSize: FONT_SIZE.sm, textAlign: "left", marginTop: 32, maxWidth: 900 },
-  actionBtn: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 8 },
+  actionBtn: { paddingVertical: 10, paddingHorizontal: 36, borderRadius: 8 },
   retryText: { fontWeight: "600", fontSize: FONT_SIZE.xl },
 });

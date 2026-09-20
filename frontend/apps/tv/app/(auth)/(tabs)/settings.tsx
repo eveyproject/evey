@@ -191,7 +191,7 @@ export default function SettingsScreen() {
           accessibilityLabel={t("mobile.settings.changeServer")}
           accessibilityRole="button"
         >
-          <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("mobile.settings.changeServer")}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>{t("mobile.settings.changeServer")}</Text>
         </Pressable>
       </View>
 
@@ -214,7 +214,7 @@ export default function SettingsScreen() {
                 accessible={false}
               />
             ) : (
-              <Text style={{ color: theme.colors.onAccent, fontSize: 30, fontWeight: "700" }}>
+              <Text style={{ color: theme.colors.onAccent, fontSize: 26, fontWeight: "700" }}>
                 {(activeProfile?.name ?? user?.username ?? "?").slice(0, 1).toUpperCase()}
               </Text>
             )}
@@ -246,7 +246,7 @@ export default function SettingsScreen() {
           accessibilityLabel={t("mobile.settings.signOut")}
           accessibilityRole="button"
         >
-          <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("mobile.settings.signOut")}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>{t("mobile.settings.signOut")}</Text>
         </Pressable>
       </View>
 
@@ -357,7 +357,7 @@ export default function SettingsScreen() {
           >
             <Text style={[styles.label, { color: theme.colors.text }]}>{lang.label}</Text>
             {currentLang === lang.code && (
-              <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{"✓"}</Text>
+              <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{"✓"}</Text>
             )}
           </Pressable>
         ))}
@@ -382,7 +382,7 @@ export default function SettingsScreen() {
           >
             <Text style={[styles.label, { color: theme.colors.text }]}>{t(opt.labelKey, opt.fallback)}</Text>
             {currentTheme === opt.value && (
-              <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{"✓"}</Text>
+              <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{"✓"}</Text>
             )}
           </Pressable>
         ))}
@@ -404,7 +404,7 @@ export default function SettingsScreen() {
           >
             <Text style={[styles.label, { color: theme.colors.text }]}>{`${pct} %`}</Text>
             {uiScale === pct && (
-              <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{"✓"}</Text>
+              <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{"✓"}</Text>
             )}
           </Pressable>
         ))}
@@ -461,14 +461,14 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  profileHeader: { flexDirection: "row", alignItems: "center", gap: 20, paddingVertical: 16, paddingHorizontal: 20 },
+  profileHeader: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 11, paddingHorizontal: 20 },
   avatar: { width: 64, height: 64, borderRadius: 32, justifyContent: "center", alignItems: "center" },
   avatarImage: { width: 64, height: 64 },
-  profileName: { fontSize: 26, fontWeight: "700" },
+  profileName: { fontSize: 22, fontWeight: "700" },
   container: { flex: 1 },
-  header: { fontSize: 36, fontWeight: "700", marginBottom: 24 },
+  header: { fontSize: 30, fontWeight: "700", marginBottom: 24 },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     textTransform: "uppercase",
     marginTop: 24,
@@ -483,21 +483,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 16,
+    paddingVertical: 11,
     paddingHorizontal: 20,
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 16,
+    paddingVertical: 11,
     paddingHorizontal: 20,
   },
   label: {
-    fontSize: 20,
+    fontSize: 18,
   },
   value: {
-    fontSize: 18,
+    fontSize: 17,
     flexShrink: 1,
     marginLeft: 16,
   },

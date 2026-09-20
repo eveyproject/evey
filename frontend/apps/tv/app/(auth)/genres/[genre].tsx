@@ -82,7 +82,7 @@ export default function GenreDetailScreen() {
                 placeholderContentFit="cover"
               />
             ) : (
-              <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
             )}
             {rating > 0 && (
               <View
@@ -106,9 +106,9 @@ export default function GenreDetailScreen() {
   if (isError) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 12 }}>{t("common.loadError")}</Text>
         <FocusableCard onPress={() => refetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
-          <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 18 }}>{t("common.retry")}</Text>
         </FocusableCard>
       </View>
     );
@@ -128,7 +128,7 @@ export default function GenreDetailScreen() {
           renderItem={renderItem}
           numColumns={NUM_COLUMNS}
           contentContainerStyle={{ padding: 24 }}
-          columnWrapperStyle={items.length > 0 ? { gap: 16, marginBottom: 16 } : undefined}
+          columnWrapperStyle={items.length > 0 ? { gap: 12, marginBottom: 16 } : undefined}
           getItemLayout={genreGetItemLayout}
           initialNumToRender={10}
           maxToRenderPerBatch={15}
@@ -136,7 +136,7 @@ export default function GenreDetailScreen() {
           removeClippedSubviews={true}
           ListEmptyComponent={
             <View style={styles.center}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("media.library.noItemsFiltered")}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 16 }}>{t("media.library.noItemsFiltered")}</Text>
               {/* Focusable target for the empty state - without it the remote
                   has nowhere to go and gets stuck on this screen. */}
               <FocusableCard
@@ -145,7 +145,7 @@ export default function GenreDetailScreen() {
                 style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
                 accessibilityLabel={t("common.nav.genres")}
               >
-                <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("common.nav.genres")}</Text>
+                <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>{t("common.nav.genres")}</Text>
               </FocusableCard>
             </View>
           }
@@ -158,7 +158,7 @@ export default function GenreDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
+  header: { fontSize: 30, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
   gridItem: { width: CARD_WIDTH, alignItems: "center" },
   poster: {
     width: CARD_WIDTH,
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  title: { fontSize: 16, fontWeight: "500", marginTop: 8, textAlign: "center" },
+  title: { fontSize: 15, fontWeight: "500", marginTop: 8, textAlign: "center" },
   ratingBadge: {
     position: "absolute",
     bottom: 6,
@@ -178,5 +178,5 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   ratingText: { fontSize: 11, fontWeight: "700" },
-  emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },
+  emptyAction: { paddingHorizontal: 24, paddingVertical: 10 },
 });

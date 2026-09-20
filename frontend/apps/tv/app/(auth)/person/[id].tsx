@@ -112,7 +112,7 @@ export default function PersonDetailScreen() {
         <View style={{ flex: 1, marginLeft: 32 }}>
           <Text style={[styles.name, { color: theme.colors.text }]}>{name}</Text>
           {person?.birthday ? (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 18, marginTop: 8 }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 17, marginTop: 8 }}>
               {new Date(person.birthday).toLocaleDateString(undefined, {
                 year: "numeric",
                 month: "long",
@@ -124,7 +124,7 @@ export default function PersonDetailScreen() {
             </Text>
           ) : null}
           {person?.placeOfBirth ? (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: 4 }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 4 }}>
               {person.placeOfBirth}
             </Text>
           ) : null}
@@ -139,12 +139,12 @@ export default function PersonDetailScreen() {
           accessibilityLabel={bioExpanded ? t("common.showLess") : t("common.readMore")}
         >
           <Text
-            style={{ color: theme.colors.text, fontSize: 18, lineHeight: 28 }}
+            style={{ color: theme.colors.text, fontSize: 17, lineHeight: 28 }}
             numberOfLines={bioExpanded ? undefined : 4}
           >
             {person.biography}
           </Text>
-          <Text style={{ color: theme.colors.accent, fontSize: 16, marginTop: 8 }}>
+          <Text style={{ color: theme.colors.accent, fontSize: 15, marginTop: 8 }}>
             {bioExpanded ? t("common.showLess") : t("common.readMore")}
           </Text>
         </FocusableCard>
@@ -192,13 +192,13 @@ export default function PersonDetailScreen() {
                   />
                 )}
                 <Text
-                  style={{ color: theme.colors.text, fontSize: 16, marginTop: 6, width: POSTER_WIDTH }}
+                  style={{ color: theme.colors.text, fontSize: 15, marginTop: 6, width: POSTER_WIDTH }}
                   numberOfLines={1}
                 >
                   {item.title}
                 </Text>
                 {item.year ? (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 14, width: POSTER_WIDTH }}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 13, width: POSTER_WIDTH }}>
                     {item.year}
                   </Text>
                 ) : null}
@@ -210,7 +210,7 @@ export default function PersonDetailScreen() {
                 style={{ width: POSTER_WIDTH, marginBottom: POSTER_GAP, justifyContent: "center", alignItems: "center", minHeight: 120 }}
                 accessibilityLabel={t("media.detail.showMoreEpisodes", "Show more")}
               >
-                <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>
+                <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>
                   {t("media.detail.showMoreEpisodes", "Show more")}
                 </Text>
               </FocusableCard>
@@ -220,7 +220,7 @@ export default function PersonDetailScreen() {
       ) : null}
 
       {items.length === 0 ? (
-        <Text style={{ color: theme.colors.textMuted, textAlign: "center", paddingVertical: 40, fontSize: 20 }}>
+        <Text style={{ color: theme.colors.textMuted, textAlign: "center", paddingVertical: 40, fontSize: 18 }}>
           {t("media.person.noFilmography")}
         </Text>
       ) : null}
@@ -233,8 +233,8 @@ export default function PersonDetailScreen() {
 const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "center" },
   avatar: { width: 140, height: 140, borderRadius: 70, justifyContent: "center", alignItems: "center" },
-  name: { fontSize: 36, fontWeight: "bold" },
-  sectionTitle: { fontSize: 28, fontWeight: "600", marginTop: 32, marginBottom: 16 },
+  name: { fontSize: 30, fontWeight: "bold" },
+  sectionTitle: { fontSize: 24, fontWeight: "600", marginTop: 32, marginBottom: 16 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: POSTER_GAP },
   poster: { justifyContent: "center", alignItems: "center" },
 });

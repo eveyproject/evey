@@ -30,11 +30,11 @@ export function SagaSection({ mediaItemId }: { mediaItemId: string }) {
         ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
         renderItem={({ item: c }) => (
           <FocusableCard onPress={() => router.push(`/collections/${c.id}`)} style={styles.card} accessibilityLabel={c.name}>
-            <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }} numberOfLines={1}>
+            <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "600" }} numberOfLines={1}>
               {c.name}
             </Text>
             {(c.itemCount ?? 0) > 0 ? (
-              <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 4 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 14, marginTop: 4 }}>
                 {t("media.person.titleCount", { count: c.itemCount })}
               </Text>
             ) : null}
@@ -46,6 +46,6 @@ export function SagaSection({ mediaItemId }: { mediaItemId: string }) {
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 28, fontWeight: "600", marginBottom: 12 },
-  card: { paddingVertical: 16, paddingHorizontal: 24 },
+  sectionTitle: { fontSize: 24, fontWeight: "600", marginBottom: 12 },
+  card: { paddingVertical: 11, paddingHorizontal: 24 },
 });

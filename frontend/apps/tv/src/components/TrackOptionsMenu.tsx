@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   row: {
-    paddingVertical: 12,
+    paddingVertical: 9,
     paddingHorizontal: 16,
     borderRadius: 8,
   },
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 24,
+    gap: 16,
   },
   label: {
     fontSize: FONT_SIZE.base,

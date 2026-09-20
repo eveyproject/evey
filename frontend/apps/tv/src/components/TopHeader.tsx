@@ -124,12 +124,12 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 8,
   },
-  side: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
+  side: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   sideRight: { justifyContent: "flex-end" },
   // Wide and tall on purpose (owner, 2026-09-19): it is the header's primary
   // control, it has to read as a field from three metres, and it is the
@@ -137,16 +137,16 @@ const styles = StyleSheet.create({
   searchField: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 11,
     minWidth: 760,
-    paddingVertical: 16,
+    paddingVertical: 11,
     paddingHorizontal: 22,
   },
-  searchText: { fontSize: 22 },
+  searchText: { fontSize: 20 },
   iconButton: { padding: 8 },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   avatarImage: { width: "100%", height: "100%" },
-  avatarInitial: { fontSize: 18, fontWeight: "700" },
+  avatarInitial: { fontSize: 17, fontWeight: "700" },
   badge: {
     position: "absolute",
     top: -6,

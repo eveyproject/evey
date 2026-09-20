@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   },
   input: {
     width: 500,
-    fontSize: 22,
+    fontSize: 20,
     padding: 18,
     borderWidth: 3,
     marginBottom: 20,
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontWeight: "700",
-    fontSize: 22,
+    fontSize: 20,
   },
   divider: {
     width: 400,
@@ -237,19 +237,19 @@ const styles = StyleSheet.create({
   },
   qcText: {
     fontWeight: "700",
-    fontSize: 24,
+    fontSize: 21,
   },
   qcHint: {
-    fontSize: 16,
+    fontSize: 15,
     marginTop: 4,
   },
   serverButton: {
     marginTop: 16,
-    paddingVertical: 12,
+    paddingVertical: 9,
     paddingHorizontal: 24,
     borderWidth: 3,
   },
   serverText: {
-    fontSize: 20,
+    fontSize: 18,
   },
 });

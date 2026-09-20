@@ -52,7 +52,7 @@ export default function CollectionDetailScreen() {
                 transition={200}
               />
             ) : (
-              <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>{t("common.noPoster")}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("common.noPoster")}</Text>
             )}
           </View>
           <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
@@ -96,7 +96,7 @@ export default function CollectionDetailScreen() {
         }}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noItems")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("common.noItems")}</Text>
           </View>
         }
       />
@@ -107,10 +107,10 @@ export default function CollectionDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
-  overview: { fontSize: 18, paddingHorizontal: 24, marginTop: -8, marginBottom: 16 },
+  header: { fontSize: 30, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
+  overview: { fontSize: 17, paddingHorizontal: 24, marginTop: -8, marginBottom: 16 },
   card: { flex: 1, margin: 8, padding: 12, alignItems: "center" },
   poster: { width: 160, height: 240, justifyContent: "center", alignItems: "center" },
-  title: { fontSize: 16, fontWeight: "600", marginTop: 8, textAlign: "center" },
-  year: { fontSize: 14, marginTop: 2 },
+  title: { fontSize: 15, fontWeight: "600", marginTop: 8, textAlign: "center" },
+  year: { fontSize: 13, marginTop: 2 },
 });

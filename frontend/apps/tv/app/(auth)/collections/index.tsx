@@ -64,7 +64,7 @@ export default function CollectionsScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("common.noCollections")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 16 }}>{t("common.noCollections")}</Text>
             {/* Focusable target for the empty state - without it the remote has
                 nowhere to go and gets stuck on this screen (no other control
                 is rendered when the list is empty). */}
@@ -74,7 +74,7 @@ export default function CollectionsScreen() {
               style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
               accessibilityLabel={t("media.library.libraries")}
             >
-              <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
+              <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
             </FocusableCard>
           </View>
         }
@@ -120,7 +120,7 @@ function CollectionCard({
             recyclingKey={col.id}
           />
         ) : (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 36, fontWeight: "700" }}>{initial}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 30, fontWeight: "700" }}>{initial}</Text>
         )}
         {subtitle.badge && (
           <View style={[styles.badge, { backgroundColor: theme.colors.surface }]}>
@@ -132,7 +132,7 @@ function CollectionCard({
         {col.name}
       </Text>
       {subtitle.count && (
-        <Text style={{ color: theme.colors.textMuted, fontSize: 14 }} numberOfLines={1}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 13 }} numberOfLines={1}>
           {subtitle.count}
         </Text>
       )}
@@ -143,10 +143,10 @@ function CollectionCard({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
+  header: { fontSize: 30, fontWeight: "700", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
   card: { flex: 1, margin: 8, padding: 12, alignItems: "center" },
   placeholder: { width: 160, height: 240, justifyContent: "center", alignItems: "center", position: "relative" },
   badge: { position: "absolute", top: 8, left: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  name: { fontSize: 18, fontWeight: "600", marginTop: 8, textAlign: "center" },
-  emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },
+  name: { fontSize: 17, fontWeight: "600", marginTop: 8, textAlign: "center" },
+  emptyAction: { paddingHorizontal: 24, paddingVertical: 10 },
 });

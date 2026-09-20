@@ -87,10 +87,10 @@ export function ScreenState({ loading, error, onRetry, message }: ScreenStatePro
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", gap: 16, padding: 48 },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12, padding: 48 },
   title: { fontSize: FONT_SIZE.xl, fontWeight: "600", textAlign: "center" },
   hint: { fontSize: FONT_SIZE.base, textAlign: "center", maxWidth: 900 },
-  actions: { flexDirection: "row", gap: 16, marginTop: 16 },
-  button: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 8 },
+  actions: { flexDirection: "row", gap: 12, marginTop: 16 },
+  button: { paddingVertical: 10, paddingHorizontal: 36, borderRadius: 8 },
   buttonLabel: { fontSize: FONT_SIZE.lg, fontWeight: "600" },
 });

@@ -226,7 +226,7 @@ function LibraryChip({
         { backgroundColor: active ? theme.colors.accent : theme.colors.surface, borderRadius: theme.radii.sm },
       ]}
     >
-      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 16, fontWeight: "600" }}>
+      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 15, fontWeight: "600" }}>
         {library.name}
       </Text>
     </FocusableCard>
@@ -262,15 +262,15 @@ function Section({
         <ActivityIndicator color={theme.colors.accent} style={{ marginLeft: 24 }} />
       ) : error ? (
         <View style={styles.rowError}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>{t("common.loadError")}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>{t("common.loadError")}</Text>
           {onRetry ? (
             <FocusableCard onPress={onRetry} accessibilityLabel={t("common.retry")} style={styles.rowRetry}>
-              <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{t("common.retry")}</Text>
+              <Text style={{ color: theme.colors.accent, fontSize: 15, fontWeight: "600" }}>{t("common.retry")}</Text>
             </FocusableCard>
           ) : null}
         </View>
       ) : empty ? (
-        <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginLeft: 24 }}>{emptyLabel}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginLeft: 24 }}>{emptyLabel}</Text>
       ) : (
         children
       )}
@@ -347,7 +347,7 @@ export default function MusicScreen() {
   if (!libraries || libraries.length === 0) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.music.noLibraries")}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("media.music.noLibraries")}</Text>
       </View>
     );
   }
@@ -459,16 +459,16 @@ export default function MusicScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, marginBottom: 16 },
+  header: { fontSize: 30, fontWeight: "700", paddingHorizontal: 24, marginBottom: 16 },
   rowContainer: { marginBottom: 32 },
-  rowTitle: { fontSize: 24, fontWeight: "700", paddingHorizontal: 24, marginBottom: 16 },
-  rowError: { flexDirection: "row", alignItems: "center", gap: 16, marginLeft: 24 },
+  rowTitle: { fontSize: 21, fontWeight: "700", paddingHorizontal: 24, marginBottom: 16 },
+  rowError: { flexDirection: "row", alignItems: "center", gap: 12, marginLeft: 24 },
   rowRetry: { paddingHorizontal: 16, paddingVertical: 6 },
   card: { width: CARD_WIDTH },
   albumArt: { width: ART_SIZE, height: ART_SIZE, justifyContent: "center", alignItems: "center", overflow: "hidden" },
   artistArt: { width: ART_SIZE, height: ART_SIZE, justifyContent: "center", alignItems: "center", overflow: "hidden" },
-  cardTitle: { fontSize: 16, fontWeight: "600", marginTop: 8 },
-  cardSubtitle: { fontSize: 14, marginTop: 2 },
-  libRow: { flexDirection: "row", gap: 16, paddingHorizontal: 24, marginBottom: 24 },
+  cardTitle: { fontSize: 15, fontWeight: "600", marginTop: 8 },
+  cardSubtitle: { fontSize: 13, marginTop: 2 },
+  libRow: { flexDirection: "row", gap: 12, paddingHorizontal: 24, marginBottom: 24 },
   chip: { paddingVertical: 10, paddingHorizontal: 20 },
 });

@@ -121,14 +121,14 @@ export default function NotificationsScreen() {
             style={[styles.markAllBtn, { backgroundColor: theme.colors.surface }]}
             accessibilityLabel={t("common.notifications.markAllRead")}
           >
-            <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("common.notifications.markAllRead")}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>{t("common.notifications.markAllRead")}</Text>
           </FocusableCard>
         )}
       </View>
 
       {notifications.length === 0 ? (
         <View style={styles.center}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noNotifications")}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("common.noNotifications")}</Text>
         </View>
       ) : (
         <FlatList
@@ -182,7 +182,7 @@ function NotificationItem({
           { backgroundColor: isUnread ? theme.colors.accent + "20" : theme.colors.surfaceRaised },
         ]}
       >
-        <Text style={{ color: isUnread ? theme.colors.accent : theme.colors.textMuted, fontSize: 20 }}>
+        <Text style={{ color: isUnread ? theme.colors.accent : theme.colors.textMuted, fontSize: 18 }}>
           {"\u25CF"}
         </Text>
       </View>
@@ -190,7 +190,7 @@ function NotificationItem({
         <Text
           style={{
             color: theme.colors.text,
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: isUnread ? "600" : "400",
           }}
           numberOfLines={1}
@@ -198,11 +198,11 @@ function NotificationItem({
           {translateTitle(t, item)}
         </Text>
         {item.message && (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 16 }} numberOfLines={1}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 15 }} numberOfLines={1}>
             {item.message}
           </Text>
         )}
-        <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>
           {relativeTime(t, item.createdAt)}
         </Text>
       </View>
@@ -217,9 +217,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
-  header: { fontSize: 36, fontWeight: "700" },
-  markAllBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 },
-  row: { flexDirection: "row", alignItems: "center", padding: 20, gap: 16 },
+  header: { fontSize: 30, fontWeight: "700" },
+  markAllBtn: { paddingHorizontal: 20, paddingVertical: 9, borderRadius: 8 },
+  row: { flexDirection: "row", alignItems: "center", padding: 20, gap: 12 },
   iconCircle: { width: 48, height: 48, borderRadius: 24, justifyContent: "center", alignItems: "center" },
   unreadDot: { width: 12, height: 12, borderRadius: 6 },
 });

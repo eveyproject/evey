@@ -246,9 +246,9 @@ export default function PhotoSlideshowScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   center: { justifyContent: "center", alignItems: "center" },
-  message: { color: "#fff", fontSize: 22, marginBottom: 16, textAlign: "center", paddingHorizontal: 60 },
-  actionButton: { paddingHorizontal: 24, paddingVertical: 14, marginTop: 12 },
-  actionText: { color: "#fff", fontSize: 18, fontWeight: "600" },
+  message: { color: "#fff", fontSize: 20, marginBottom: 16, textAlign: "center", paddingHorizontal: 60 },
+  actionButton: { paddingHorizontal: 24, paddingVertical: 10, marginTop: 12 },
+  actionText: { color: "#fff", fontSize: 17, fontWeight: "600" },
   footer: {
     position: "absolute",
     bottom: 32,
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
   },
-  title: { color: "#fff", fontSize: 20, fontWeight: "500", marginBottom: 4 },
-  counter: { color: "rgba(255,255,255,0.7)", fontSize: 16 },
-  paused: { color: "rgba(255,255,255,0.9)", fontSize: 16, fontWeight: "600", marginTop: 6 },
+  title: { color: "#fff", fontSize: 18, fontWeight: "500", marginBottom: 4 },
+  counter: { color: "rgba(255,255,255,0.7)", fontSize: 15 },
+  paused: { color: "rgba(255,255,255,0.9)", fontSize: 15, fontWeight: "600", marginTop: 6 },
 });

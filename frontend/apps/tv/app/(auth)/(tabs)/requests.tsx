@@ -96,7 +96,7 @@ function TabButton({
         focused && { backgroundColor: theme.colors.accent + "22" },
       ]}
     >
-      <Text style={{ color: active ? theme.colors.accent : theme.colors.textMuted, fontSize: 22, fontWeight: "600" }}>
+      <Text style={{ color: active ? theme.colors.accent : theme.colors.textMuted, fontSize: 20, fontWeight: "600" }}>
         {label}
       </Text>
     </Pressable>
@@ -132,7 +132,7 @@ function ScopeChip({
       ]}
     >
       <Ionicons name={icon} size={18} color={active ? theme.colors.onAccent : theme.colors.text} />
-      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 18, marginLeft: 8 }}>
+      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 17, marginLeft: 8 }}>
         {label}
       </Text>
     </Pressable>
@@ -224,7 +224,7 @@ export default function RequestsScreen() {
           {item.posterUrl ? (
             <Image cachePolicy="memory-disk" source={{ uri: item.posterUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
           ) : (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
           )}
           {inLibrary && (
             <View style={[styles.inLibraryBadge, { backgroundColor: theme.colors.overlay }]}>
@@ -233,7 +233,7 @@ export default function RequestsScreen() {
           )}
         </View>
         <View style={{ flex: 1, marginLeft: 20 }}>
-          <Text style={{ color: theme.colors.text, fontSize: 22, fontWeight: "600" }} numberOfLines={2}>
+          <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "600" }} numberOfLines={2}>
             {item.title}{item.year != null && item.year > 0 ? ` (${item.year})` : ""}
           </Text>
           {scope === "video" && (
@@ -243,13 +243,13 @@ export default function RequestsScreen() {
                 size={14}
                 color={theme.colors.textMuted}
               />
-              <Text style={{ color: theme.colors.textMuted, fontSize: 14, marginLeft: 6 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginLeft: 6 }}>
                 {t(item.requestType === "tv" ? "requests.typeSeries" : "requests.typeMovie")}
               </Text>
             </View>
           )}
           {inLibrary && (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: 4 }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 4 }}>
               {t("requests.inLibrary")}
             </Text>
           )}
@@ -261,7 +261,7 @@ export default function RequestsScreen() {
             accessibilityLabel={`${t("requests.watchNow")} ${item.title ?? ""}`}
             style={[styles.actionBtn, { backgroundColor: theme.colors.surfaceRaised }]}
           >
-            <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>
+            <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "600" }}>
               {t("requests.watchNow")}
             </Text>
           </FocusableCard>
@@ -276,7 +276,7 @@ export default function RequestsScreen() {
               { backgroundColor: already ? theme.colors.surfaceRaised : theme.colors.accent },
             ]}
           >
-            <Text style={{ color: already ? theme.colors.textMuted : theme.colors.onAccent, fontSize: 18, fontWeight: "600" }}>
+            <Text style={{ color: already ? theme.colors.textMuted : theme.colors.onAccent, fontSize: 17, fontWeight: "600" }}>
               {already ? t("requests.requested") : t("requests.request")}
             </Text>
           </FocusableCard>
@@ -295,18 +295,18 @@ export default function RequestsScreen() {
         {item.posterUrl ? (
           <Image cachePolicy="memory-disk" source={{ uri: item.posterUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
         ) : (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
         )}
       </View>
       <View style={{ flex: 1, marginLeft: 20 }}>
-        <Text style={{ color: theme.colors.text, fontSize: 22, fontWeight: "600" }} numberOfLines={2}>
+        <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "600" }} numberOfLines={2}>
           {item.title}{item.year != null && item.year > 0 ? ` (${item.year})` : ""}
         </Text>
-        <Text style={{ color: statusColor(theme, item.status), fontSize: 18, marginTop: 4, fontWeight: "600" }}>
+        <Text style={{ color: statusColor(theme, item.status), fontSize: 17, marginTop: 4, fontWeight: "600" }}>
           {t(`requests.status${capitalize(item.status)}`)}
         </Text>
         {item.adminNote ? (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: 4 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 4 }}>
             {t("requests.adminNote", { note: item.adminNote })}
           </Text>
         ) : null}
@@ -336,7 +336,7 @@ export default function RequestsScreen() {
           accessibilityLabel={t("media.library.libraries")}
           style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
         >
-          <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
         </FocusableCard>
       </View>
     );
@@ -444,13 +444,13 @@ export default function RequestsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 48 },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32 },
-  emptyTitle: { fontSize: 24, fontWeight: "600", marginTop: 16, textAlign: "center" },
-  emptyDesc: { fontSize: 18, marginTop: 8, textAlign: "center" },
-  emptyAction: { marginTop: 24, paddingVertical: 14, paddingHorizontal: 28 },
-  tabRow: { flexDirection: "row", paddingHorizontal: 24, marginTop: 16, gap: 24 },
+  header: { fontSize: 30, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32 },
+  emptyTitle: { fontSize: 21, fontWeight: "600", marginTop: 16, textAlign: "center" },
+  emptyDesc: { fontSize: 17, marginTop: 8, textAlign: "center" },
+  emptyAction: { marginTop: 24, paddingVertical: 10, paddingHorizontal: 28 },
+  tabRow: { flexDirection: "row", paddingHorizontal: 24, marginTop: 16, gap: 16 },
   tabBtn: { paddingBottom: 10, paddingHorizontal: 4, borderBottomWidth: 3 },
-  chipRow: { flexDirection: "row", paddingHorizontal: 24, marginTop: 16, gap: 12 },
+  chipRow: { flexDirection: "row", paddingHorizontal: 24, marginTop: 16, gap: 10 },
   chip: {
     flexDirection: "row",
     alignItems: "center",
@@ -464,11 +464,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     marginTop: 16,
     paddingHorizontal: 20,
-    paddingVertical: 14,
-    fontSize: 22,
+    paddingVertical: 10,
+    fontSize: 20,
   },
-  hint: { textAlign: "center", fontSize: 20 },
-  resultRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
+  hint: { textAlign: "center", fontSize: 18 },
+  resultRow: { flexDirection: "row", alignItems: "center", paddingVertical: 9 },
   thumb: { width: 80, height: 120, justifyContent: "center", alignItems: "center" },
   inLibraryBadge: {
     position: "absolute",
@@ -481,5 +481,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   typeBadge: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, marginTop: 6 },
-  actionBtn: { paddingHorizontal: 20, paddingVertical: 14, borderRadius: 8 },
+  actionBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
 });

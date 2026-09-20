@@ -43,7 +43,7 @@ export function SubtitleStylePicker({ visible, style, onChange, onClose }: Subti
       focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
     >
       <Text style={[styles.rowLabel, { color: theme.colors.text }]}>{label}</Text>
-      <Text style={{ color: selected ? theme.colors.accent : theme.colors.textMuted, fontSize: 20 }}>
+      <Text style={{ color: selected ? theme.colors.accent : theme.colors.textMuted, fontSize: 18 }}>
         {selected ? `✓ ${value}` : value}
       </Text>
     </FocusableCard>
@@ -64,7 +64,7 @@ export function SubtitleStylePicker({ visible, style, onChange, onClose }: Subti
               style={{
                 color: style.color,
                 backgroundColor: style.bgOpacity === 0 ? "transparent" : style.bgColor,
-                fontSize: 28 * (style.fontSize / 100),
+                fontSize: 24 * (style.fontSize / 100),
                 paddingHorizontal: 12,
                 paddingVertical: 6,
                 borderRadius: 6,
@@ -112,7 +112,7 @@ export function SubtitleStylePicker({ visible, style, onChange, onClose }: Subti
           </ScrollView>
 
           <Pressable onPress={onClose} accessibilityLabel={t("common.close", "Close")} style={styles.close}>
-            <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{t("common.close", "Close")}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("common.close", "Close")}</Text>
           </Pressable>
         </View>
       </View>
@@ -122,12 +122,12 @@ export function SubtitleStylePicker({ visible, style, onChange, onClose }: Subti
 
 const styles = StyleSheet.create({
   scrim: { flex: 1, justifyContent: "center", alignItems: "center" },
-  panel: { width: 760, maxHeight: "86%", paddingVertical: 24, paddingHorizontal: 28 },
-  title: { fontSize: 30, fontWeight: "700", textAlign: "center", marginBottom: 16 },
+  panel: { width: 760, maxHeight: "86%", paddingVertical: 16, paddingHorizontal: 28 },
+  title: { fontSize: 26, fontWeight: "700", textAlign: "center", marginBottom: 16 },
   previewBox: { alignItems: "center", marginBottom: 16 },
   list: { maxHeight: 560 },
-  section: { fontSize: 16, fontWeight: "700", letterSpacing: 1, marginTop: 16, marginBottom: 4 },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 14, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  rowLabel: { fontSize: 20 },
-  close: { alignSelf: "center", paddingVertical: 14, paddingHorizontal: 32 },
+  section: { fontSize: 15, fontWeight: "700", letterSpacing: 1, marginTop: 16, marginBottom: 4 },
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  rowLabel: { fontSize: 18 },
+  close: { alignSelf: "center", paddingVertical: 10, paddingHorizontal: 32 },
 });

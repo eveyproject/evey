@@ -78,7 +78,7 @@ function isNotFoundError(error: unknown): boolean {
 function StarRating({ rating, color }: { rating: number; color: string }) {
   const full = Math.round(rating / 2);
   return (
-    <Text style={{ color, fontSize: 20 }} accessible={false}>
+    <Text style={{ color, fontSize: 18 }} accessible={false}>
       {"★".repeat(full)}{"☆".repeat(Math.max(0, 5 - full))}
     </Text>
   );
@@ -154,7 +154,7 @@ function PosterShelf({
               contentFit="cover"
               transition={200}
             />
-            <Text style={{ color: theme.colors.text, fontSize: 16, marginTop: 8 }} numberOfLines={1}>
+            <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 8 }} numberOfLines={1}>
               {item.title}
             </Text>
           </FocusableCard>
@@ -385,7 +385,7 @@ export default function MediaDetailScreen() {
     // that can only fail again.
     if (!isLoading && isNotFoundError(error)) {
       return (
-        <View style={[styles.center, { backgroundColor: theme.colors.bg, gap: 16, padding: 48 }]}>
+        <View style={[styles.center, { backgroundColor: theme.colors.bg, gap: 12, padding: 48 }]}>
           <Text style={[styles.notFoundTitle, { color: theme.colors.text }]}>
             {t("media.detail.notFound")}
           </Text>
@@ -486,7 +486,7 @@ export default function MediaDetailScreen() {
               })}
             >
               <StarRating rating={media.communityRating} color={theme.colors.accent} />
-              <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>{media.communityRating.toFixed(1)}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>{media.communityRating.toFixed(1)}</Text>
             </View>
           ) : null}
         </View>
@@ -725,7 +725,7 @@ export default function MediaDetailScreen() {
             <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0 }]}>
               {t("media.detail.seasons")}
             </Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
               {t("media.detail.seasonCount", { count: seasons.length })}
             </Text>
           </View>
@@ -752,7 +752,7 @@ export default function MediaDetailScreen() {
                   contentFit="cover"
                   transition={200}
                 />
-                <Text style={{ color: theme.colors.text, fontSize: 18, marginTop: 8 }} numberOfLines={1}>
+                <Text style={{ color: theme.colors.text, fontSize: 17, marginTop: 8 }} numberOfLines={1}>
                   {seasonLabel(season, t)}
                 </Text>
               </FocusableCard>
@@ -771,7 +771,7 @@ export default function MediaDetailScreen() {
             <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0 }]}>
               {t("media.detail.episodes")}
             </Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
               {t("media.detail.episodeCount", { count: episodes.length })}
             </Text>
           </View>
@@ -794,16 +794,16 @@ export default function MediaDetailScreen() {
                 transition={200}
               />
               <View style={{ flex: 1, marginLeft: 20 }}>
-                <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "600" }} numberOfLines={1}>
+                <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }} numberOfLines={1}>
                   {ep.indexNumber != null ? `${ep.indexNumber}. ` : ""}{ep.title}
                 </Text>
                 {ep.durationMs ? (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: 2 }}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 2 }}>
                     {formatDurationMs(ep.durationMs)}
                   </Text>
                 ) : null}
                 {ep.overview ? (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: 6 }} numberOfLines={2}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 6 }} numberOfLines={2}>
                     {ep.overview}
                   </Text>
                 ) : null}
@@ -816,7 +816,7 @@ export default function MediaDetailScreen() {
               style={[styles.episodeRow, { borderBottomColor: theme.colors.border, justifyContent: "center" }]}
               accessibilityLabel={t("media.detail.showMoreEpisodes", "Show more")}
             >
-              <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>
+              <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>
                 {t("media.detail.showMoreEpisodes", "Show more")}
               </Text>
             </FocusableCard>
@@ -852,14 +852,14 @@ export default function MediaDetailScreen() {
                   />
                 ) : (
                   <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
-                    <Text style={{ color: theme.colors.textMuted, fontSize: 28 }}>?</Text>
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>?</Text>
                   </View>
                 )}
-                <Text style={{ color: theme.colors.text, fontSize: 16, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
+                <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
                   {person.name}
                 </Text>
                 {person.role ? (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 14, textAlign: "center" }} numberOfLines={1}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center" }} numberOfLines={1}>
                     {person.role}
                   </Text>
                 ) : null}
@@ -894,17 +894,17 @@ export default function MediaDetailScreen() {
                   <Image source={{ uri: person.thumbUrl }} style={styles.castAvatar} contentFit="cover" transition={200} />
                 ) : (
                   <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
-                    <Text style={{ color: theme.colors.textMuted, fontSize: 28 }}>?</Text>
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>?</Text>
                   </View>
                 )}
-                <Text style={{ color: theme.colors.text, fontSize: 16, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
+                <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
                   {person.name}
                 </Text>
                 {/* The crew's job, translated from its enum - `role` here is
                     the raw database role_type ("director"), unlike the cast
                     where it is the character name. */}
                 {personTypeLabelKey(person.type) || person.role ? (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 14, textAlign: "center" }} numberOfLines={1}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center" }} numberOfLines={1}>
                     {(() => {
                       const key = personTypeLabelKey(person.type);
                       return key ? t(key) : person.role;
@@ -953,19 +953,19 @@ export default function MediaDetailScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  notFoundTitle: { fontSize: 28, fontWeight: "600", textAlign: "center" },
-  notFoundButton: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 8 },
-  notFoundButtonLabel: { fontSize: 20, fontWeight: "600" },
-  eyebrow: { fontSize: 20, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1 },
+  notFoundTitle: { fontSize: 24, fontWeight: "600", textAlign: "center" },
+  notFoundButton: { paddingVertical: 10, paddingHorizontal: 36, borderRadius: 8 },
+  notFoundButtonLabel: { fontSize: 18, fontWeight: "600" },
+  eyebrow: { fontSize: 18, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1 },
   title: { fontSize: 42, fontWeight: "bold" },
-  tagline: { fontSize: 22, fontStyle: "italic", marginTop: 6 },
-  meta: { fontSize: 20, marginTop: 8 },
-  genres: { fontSize: 18, marginTop: 4 },
-  studios: { fontSize: 18, marginTop: 4 },
-  actions: { flexDirection: "row", gap: 16, marginTop: 24 },
+  tagline: { fontSize: 20, fontStyle: "italic", marginTop: 6 },
+  meta: { fontSize: 18, marginTop: 8 },
+  genres: { fontSize: 17, marginTop: 4 },
+  studios: { fontSize: 17, marginTop: 4 },
+  actions: { flexDirection: "row", gap: 12, marginTop: 24 },
   playGroup: { flexDirection: "row", alignItems: "stretch" },
   playButton: {
-    paddingVertical: 16,
+    paddingVertical: 11,
     paddingHorizontal: 48,
     borderRadius: 8,
     borderWidth: 3,
@@ -981,27 +981,27 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderLeftWidth: 2,
   },
-  playText: { fontWeight: "700", fontSize: 22 },
+  playText: { fontWeight: "700", fontSize: 20 },
   actionBtn: {
-    paddingVertical: 16,
+    paddingVertical: 11,
     paddingHorizontal: 32,
     borderRadius: 8,
     borderWidth: 3,
   },
-  actionText: { fontWeight: "600", fontSize: 20 },
-  overview: { fontSize: 20, lineHeight: 30, marginTop: 24, maxWidth: 800 },
+  actionText: { fontWeight: "600", fontSize: 18 },
+  overview: { fontSize: 18, lineHeight: 30, marginTop: 24, maxWidth: 800 },
   seasonRow: { marginTop: 32 },
   seasonPill: {
     paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingVertical: 9,
     marginRight: 12,
     borderRadius: 8,
     borderWidth: 3,
   },
-  sectionTitle: { fontSize: 28, fontWeight: "600", marginBottom: 12 },
-  sectionHeaderRow: { flexDirection: "row", alignItems: "baseline", gap: 16, marginBottom: 12 },
+  sectionTitle: { fontSize: 24, fontWeight: "600", marginBottom: 12 },
+  sectionHeaderRow: { flexDirection: "row", alignItems: "baseline", gap: 12, marginBottom: 12 },
   episodeRow: {
-    paddingVertical: 16,
+    paddingVertical: 11,
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },

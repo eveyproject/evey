@@ -24,8 +24,34 @@ export const POSTER_RATIO = 1.5;
 // the bezel (the owner had already hit this on the Quick Connect screen).
 export const DEEP_SCREEN_GUTTER = 48;
 
-// Standard gap between cards/rows in grids and horizontal lists.
-export const GRID_GAP = 16;
+// Standard gap between cards/rows in grids and horizontal lists. Measured
+// against the platform TV library on the owner's box (2026-09-20): it spaces
+// browse items by 8dp at density 2.0; our screens render at 1.6, so 10dp lands
+// on the same pixel gap. The previous 16 was 60% wider than any TV launcher.
+export const GRID_GAP = 10;
+
+// Type scale. TV text is read from a couch, so these are NOT web sizes: they
+// mirror the platform TV library's own scale (card 14sp, row header 16-20sp,
+// details body 14sp, details title 34sp), converted for our 1.6 density.
+export const FONT = {
+  caption: 13,
+  label: 15,
+  body: 17,
+  subtitle: 20,
+  title: 24,
+  heading: 30,
+  display: 42,
+} as const;
+
+// Chrome scale: what a focusable element reserves around its label. The
+// platform library gives a one-line action 36dp of height and 24dp of side
+// padding; ours were 56dp tall, which is what made every screen feel oversized.
+export const CONTROL = {
+  paddingVertical: 10,
+  paddingHorizontal: 28,
+  radius: 8,
+  gap: 12,
+} as const;
 
 // Height reserved below a CARD_WIDTH_GRID poster for its title/year label
 // block, used when computing FlatList getItemLayout row heights.

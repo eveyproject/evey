@@ -256,11 +256,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   profileName: {
-    fontSize: 22,
+    fontSize: 20,
     textAlign: "center",
   },
   kidsBadge: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   activeMarker: {
-    fontSize: 15,
+    fontSize: 14,
     marginTop: 4,
   },
 });

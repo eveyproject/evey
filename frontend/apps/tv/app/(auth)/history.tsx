@@ -97,7 +97,7 @@ export default function HistoryScreen() {
 
       {items.length === 0 ? (
         <View style={styles.center}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("auth.watchHistory.noHistory")}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 20, marginBottom: 16 }}>{t("auth.watchHistory.noHistory")}</Text>
           {/* Focusable target for the empty state - without it the remote has
               nowhere to go and gets stuck on this screen (no other control
               is rendered when the list is empty). */}
@@ -107,7 +107,7 @@ export default function HistoryScreen() {
             style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
             accessibilityLabel={t("media.library.libraries")}
           >
-            <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 17, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
           </FocusableCard>
         </View>
       ) : (
@@ -157,15 +157,15 @@ function HistoryItem({
       accessibilityLabel={label}
     >
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "500" }} numberOfLines={1}>
+        <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "500" }} numberOfLines={1}>
           {label}
           {item.playCount && item.playCount > 1 ? ` (x${item.playCount})` : ""}
         </Text>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
           {formatDate(item.lastPlayedAt)}
         </Text>
         {item.durationMs && (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
             {/* formatDurationMs answers "" at zero, which printed a title as
                 "  / 1h 27min" - a hole where the position should be. */}
             {formatDurationMs(item.positionMs) || "0min"} / {formatDurationMs(item.durationMs)}
@@ -175,7 +175,7 @@ function HistoryItem({
           <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
             <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: theme.colors.accent }]} />
           </View>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>{Math.round(pct)}%</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{Math.round(pct)}%</Text>
         </View>
       </View>
     </FocusableCard>
@@ -188,7 +188,7 @@ function HistoryItem({
       accessibilityLabel={t("auth.watchHistory.removeFromHistory", "Remove from history")}
       style={[styles.removeAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
     >
-      <Text style={{ color: isPending ? theme.colors.textMuted : theme.colors.danger, fontSize: 18, fontWeight: "600" }}>
+      <Text style={{ color: isPending ? theme.colors.textMuted : theme.colors.danger, fontSize: 17, fontWeight: "600" }}>
         {t("common.remove", "Remove")}
       </Text>
     </FocusableCard>
@@ -199,11 +199,11 @@ function HistoryItem({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { fontSize: 36, fontWeight: "700", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
-  rowWrap: { flexDirection: "row", alignItems: "stretch", gap: 12 },
+  header: { fontSize: 30, fontWeight: "700", paddingHorizontal: DEEP_SCREEN_GUTTER, paddingTop: 32, paddingBottom: 16 },
+  rowWrap: { flexDirection: "row", alignItems: "stretch", gap: 10 },
   row: { flex: 1, flexDirection: "row", alignItems: "center", padding: 20 },
   removeAction: { justifyContent: "center", paddingHorizontal: 24 },
   progressBar: { width: 120, height: 6, borderRadius: 3, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3 },
-  emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },
+  emptyAction: { paddingHorizontal: 24, paddingVertical: 10 },
 });

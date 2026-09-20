@@ -83,11 +83,11 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
   },
   button: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 9,
     alignItems: "center",
     justifyContent: "center",
   },

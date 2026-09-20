@@ -536,17 +536,17 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     letterSpacing: -1,
   },
   unreachable: {
-    fontSize: 22,
+    fontSize: 20,
     lineHeight: 30,
     textAlign: "center",
     borderWidth: 1,
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 11,
     paddingHorizontal: 24,
     marginBottom: 24,
   },
   heading: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "bold",
     color: theme.colors.text,
     marginBottom: 40,
@@ -577,11 +577,11 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     borderColor: theme.colors.accent,
   },
   serverLabel: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "600",
   },
   serverSub: {
-    fontSize: 16,
+    fontSize: 15,
     marginTop: 4,
   },
   badge: {
@@ -590,7 +590,7 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     paddingVertical: 4,
     marginLeft: 12,
   },
-  badgeText: { color: theme.colors.onAccent, fontSize: 13, fontWeight: "700" },
+  badgeText: { color: theme.colors.onAccent, fontSize: 12, fontWeight: "700" },
   actions: {
     flexDirection: "row",
     alignItems: "center",
@@ -604,12 +604,12 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     borderWidth: 2,
   },
   actionBtnText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "600",
   },
   sectionLabel: {
     width: 700,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     textTransform: "uppercase",
     color: theme.colors.textMuted,
@@ -617,7 +617,7 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
   },
   input: {
     width: 700,
-    fontSize: 24,
+    fontSize: 21,
     padding: 20,
     borderWidth: 3,
     marginBottom: 20,
@@ -636,7 +636,7 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
   connectBtnText: {
     color: theme.colors.onAccent,
     fontWeight: "700",
-    fontSize: 24,
+    fontSize: 21,
   },
   scanBtn: {
     width: 700,
@@ -645,12 +645,12 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     borderWidth: 3,
     borderRadius: theme.radii.md,
   },
   scanBtnText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
   },
   discoveredSection: {
@@ -667,11 +667,11 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
   },
   discoveredUrl: {
     flex: 1,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
   },
   discoveredVersion: {
-    fontSize: 16,
+    fontSize: 15,
     marginLeft: 12,
   },
   manageBtn: {
@@ -683,7 +683,7 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     borderRadius: theme.radii.md,
   },
   manageBtnText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
   },
   // Rename modal
@@ -698,26 +698,26 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     width: 600,
     borderRadius: theme.radii.md,
     padding: 40,
-    gap: 20,
+    gap: 14,
   },
   modalTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "700",
   },
   renameInput: {
     borderWidth: 2,
     borderRadius: theme.radii.md,
     padding: 16,
-    fontSize: 22,
+    fontSize: 20,
   },
   modalActions: {
     flexDirection: "row",
-    gap: 16,
+    gap: 12,
     justifyContent: "flex-end",
     marginTop: 8,
   },
   modalBtn: {
-    paddingVertical: 14,
+    paddingVertical: 10,
     paddingHorizontal: 28,
     borderRadius: theme.radii.md,
     borderWidth: 3,
@@ -727,6 +727,6 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     backgroundColor: theme.colors.accent,
   },
   modalBtnText: {
-    fontSize: 20,
+    fontSize: 18,
   },
 });

@@ -93,10 +93,10 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 9,
     paddingHorizontal: 16,
     borderRadius: 8,
-    gap: 12,
+    gap: 10,
   },
   timestamp: {
     fontSize: FONT_SIZE.sm,
