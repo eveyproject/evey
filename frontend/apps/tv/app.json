@@ -2,7 +2,7 @@
   "expo": {
     "name": "Evey TV",
     "slug": "evey-tv",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "scheme": "evey",
     "icon": "./assets/icon.png",
     "splash": {
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.evey.tv",
-      "versionCode": 21,
+      "versionCode": 22,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
@@ -45,6 +45,7 @@
         "@react-native-tvos/config-tv",
         {
           "isTV": true,
+          "androidTVRequired": true,
           "androidTVBanner": "./assets/tv_banner.png"
         }
       ]
