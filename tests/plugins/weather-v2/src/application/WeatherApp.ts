@@ -22,6 +22,9 @@ import { auroraIntensity } from "../domain/services/aurora";
 import { translate } from "../i18n/labels";
 import { createOverlay, type OverlayHandle } from "../ui/overlay";
 
+// Leaves room for a full poster row under the widget on a 1080p panel.
+const TV_BANNER_HEIGHT = 130;
+
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
 const CYCLE_TICK_MS = 5 * 1000;
 const RETRY_DELAYS_MS = [5_000, 15_000, 60_000];
@@ -148,8 +151,16 @@ export class WeatherApp {
     }
   }
 
-  // Height negotiation with the host: shorter widget on narrow screens.
+  // Height negotiation with the host: shorter widget on narrow screens, and a
+  // BANNER on a television. A TV row is as wide as a desktop page but the panel
+  // has a fraction of the vertical room: 280 there is a third of the screen and
+  // pushed the user's library below the fold (2026-09-20). Width cannot tell
+  // the two apart, so the host names the surface in its init payload.
   private requestHeight(): void {
+    if (this.init?.surface === "tv") {
+      this.deps.bridge.resize(TV_BANNER_HEIGHT);
+      return;
+    }
     const w = window.innerWidth || document.documentElement.clientWidth || 800;
     const h = w < 420 ? 216 : w < 700 ? 248 : 280;
     this.deps.bridge.resize(h);
