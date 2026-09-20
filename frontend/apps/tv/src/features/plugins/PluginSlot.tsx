@@ -12,11 +12,10 @@ import { PLUGIN_BRIDGE_SCRIPT } from "./pluginBridge";
 import { FONT_SIZE } from "@evey/theme";
 import { logger } from "../../lib/log";
 
-// What sits above the first widget on the home screen (search field + the
-// Customize row) and what must remain visible under it (a full poster row with
-// its title and label). The ceiling is the remainder, so it follows the poster
-// size instead of being a fraction someone picked by eye.
-const HOME_CHROME_HEIGHT = 102;
+// What must stay visible UNDER a widget: a full poster row, its title and its
+// label. The ceiling is whatever is left between where the widget actually
+// starts and that row - measured, not guessed, so it follows both the poster
+// size and whatever chrome the host screen happens to put above.
 const ROW_TITLE_HEIGHT = 30;
 const FIRST_ROW_HEIGHT = CARD_WIDTH_FEATURED * POSTER_RATIO + LABEL_BLOCK_HEIGHT + ROW_TITLE_HEIGHT;
 
@@ -201,7 +200,11 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   // home is judged on, not a taste-based percentage. A canvas widget re-renders
   // smaller (the bridge nudges a resize); a DOM one is clipped, the lesser evil.
   const { height: windowHeight } = useWindowDimensions();
-  const maxWidgetHeight = Math.max(120, Math.round(windowHeight - HOME_CHROME_HEIGHT - FIRST_ROW_HEIGHT));
+  // Where this slot sits in the page, from its own layout: everything above it
+  // (search field, Customize row, paddings) is already accounted for without
+  // naming any of it.
+  const [slotTop, setSlotTop] = useState(0);
+  const maxWidgetHeight = Math.max(90, Math.round(windowHeight - slotTop - FIRST_ROW_HEIGHT));
   const [error, setError] = useState(false);
   // Two-stage gate before we mount the WebView and download a bundle:
   //   1. `interactionsDone` - wait for any in-flight RN animation/transition
@@ -312,7 +315,8 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
     return () => handle.cancel();
   }, []);
 
-  const handleLayout = useCallback((e: { nativeEvent: { layout: { height: number } } }) => {
+  const handleLayout = useCallback((e: { nativeEvent: { layout: { height: number; y: number } } }) => {
+    setSlotTop(e.nativeEvent.layout.y);
     if (e.nativeEvent.layout.height > 0) setInViewport(true);
   }, []);
 
