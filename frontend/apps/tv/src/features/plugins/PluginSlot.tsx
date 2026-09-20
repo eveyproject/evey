@@ -17,7 +17,9 @@ import { logger } from "../../lib/log";
 // starts and that row - measured, not guessed, so it follows both the poster
 // size and whatever chrome the host screen happens to put above.
 const HOME_CHROME_HEIGHT = 184;
-const ROW_TITLE_HEIGHT = 30;
+// 24sp of type plus its 16dp bottom margin - the estimate of 30 was short by a
+// line, which is what clipped the year under each poster.
+const ROW_TITLE_HEIGHT = 45;
 const FIRST_ROW_HEIGHT = CARD_WIDTH_FEATURED * POSTER_RATIO + LABEL_BLOCK_HEIGHT + ROW_TITLE_HEIGHT;
 
 const log = logger("plugin");
