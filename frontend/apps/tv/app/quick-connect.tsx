@@ -74,6 +74,12 @@ export default function QuickConnectScreen() {
         if (resp.authorized && resp.auth?.accessToken) {
           if (resp.auth.refreshToken) await setRefreshToken(resp.auth.refreshToken);
           setTokens(resp.auth.accessToken);
+          // This page was PUSHED over /login. Replacing only itself left the
+          // login form underneath the home, and the first BACK on the home
+          // brought it back - which reads as "the TV logged me out"
+          // (measured on the box, 2026-09-20). Pop back to it first, then
+          // replace it, so the home is the bottom of the stack.
+          if (router.canDismiss()) router.dismissAll();
           router.replace("/(auth)/(tabs)");
         }
       } catch {

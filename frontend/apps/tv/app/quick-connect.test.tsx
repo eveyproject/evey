@@ -40,8 +40,9 @@ vi.mock("react-native-qrcode-svg", () => ({
 }));
 
 const replace = vi.fn();
+const dismissAll = vi.fn();
 vi.mock("expo-router", () => ({
-  router: { replace: (...a: unknown[]) => replace(...a), back: vi.fn() },
+  router: { replace: (...a: unknown[]) => replace(...a), back: vi.fn(), canDismiss: () => true, dismissAll: (...a: unknown[]) => dismissAll(...a) },
 }));
 
 const setTokens = vi.fn();
@@ -91,6 +92,8 @@ describe("QuickConnectScreen", () => {
       expect(checkQuickConnect).toHaveBeenCalledWith("abcdef123456");
       expect(setTokens).toHaveBeenCalledWith("tok-123");
       expect(replace).toHaveBeenCalledWith("/(auth)/(tabs)");
+    // The login page it was pushed over must go too, or BACK on the home shows it again.
+    expect(dismissAll).toHaveBeenCalled();
     });
   });
 
