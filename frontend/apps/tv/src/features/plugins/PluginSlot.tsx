@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, ActivityIndicator, Text, StyleSheet, InteractionManager } from "react-native";
+import { View, ActivityIndicator, Text, StyleSheet, InteractionManager, useWindowDimensions } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -185,6 +185,15 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   const [bundleCode, setBundleCode] = useState<string | null>(null);
   const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
   const [height, setHeight] = useState(120);
+  // A widget asks for the height its own layout wants, which is sized for a
+  // phone card. On a television that same number eats the screen before the
+  // first row: the weather scene asked for half the viewport, pushing the
+  // library below the fold (owner, 2026-09-20). Cap it against the panel so
+  // content is always visible under a widget, whatever the plugin requests.
+  // A canvas widget re-renders smaller (the bridge nudges a resize event); a
+  // DOM one is clipped, which is the lesser evil on a 10-foot screen.
+  const { height: windowHeight } = useWindowDimensions();
+  const maxWidgetHeight = Math.round(windowHeight * 0.38);
   const [error, setError] = useState(false);
   // Two-stage gate before we mount the WebView and download a bundle:
   //   1. `interactionsDone` - wait for any in-flight RN animation/transition
@@ -429,7 +438,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
       return;
     }
     if (type === "resize" && typeof msg.height === "number" && msg.height > 0) {
-      setHeight(Math.max(60, Math.min(800, msg.height)));
+      setHeight(Math.max(60, Math.min(maxWidgetHeight, msg.height)));
       return;
     }
     if (type === "rpc") {
@@ -443,7 +452,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         .catch((err: Error) => reply({ type: "rpc-result", id, ok: false, error: err.message }));
       return;
     }
-  }, [context, pluginConfig, i18n.language, isLightTheme, pluginRpcCall]);
+  }, [context, pluginConfig, i18n.language, isLightTheme, pluginRpcCall, maxWidgetHeight]);
 
   if (!accessToken) return null;
 
