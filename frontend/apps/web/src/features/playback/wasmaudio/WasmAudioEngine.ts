@@ -32,6 +32,12 @@ const WORKER_URL = "/wasm/ac3Worker.js";
 // decoder is far faster than real time, and a deep buffer rides out a stalled
 // segment fetch without an audible gap.
 const BUFFER_AHEAD_SEC = 20;
+// How far past the look-ahead window a decoded segment may sit before it is
+// dropped. The cache only ever evicted BEHIND the playhead, so seeking backward
+// stranded everything decoded ahead: 35 segments on prod (2026-09-20), and a
+// decoded 6 s 5.1 segment is ~7 MB of PCM. Generous enough that a small step
+// back still lands in the cache; a real jump pays one re-decode.
+const EVICT_AHEAD_MARGIN_SEC = 30;
 // Re-anchor when the audio clock and the video clock disagree by more than this.
 // Well above the natural ~0.1 ms/s drift (measured negligible) so only a seek or
 // a stall recovery trips it - a re-anchor is a brief audio reset, not for free.
@@ -542,6 +548,23 @@ export class WasmAudioEngine {
     this.opts.onModeChange?.(this.mode());
   }
 
+  // wasmDeliveryPending: is there a wasm segment in the look-ahead window the
+  // leg has neither decoded nor scheduled? That, and not the age of the last
+  // decode, is what "the leg is not delivering" means - the starvation guard
+  // reads it so a window the cache already covers cannot be mistaken for a dead
+  // decoder (see isStarved). Decoded-and-cached counts as delivered: the bytes
+  // exist, scheduling them is the anchor's business, not the decoder's.
+  private wasmDeliveryPending(ct: number): boolean {
+    for (let idx = this.segmentIndexAt(ct); idx < this.segments.length; idx++) {
+      const seg = this.segments[idx];
+      if (seg.start > ct + BUFFER_AHEAD_SEC) break;
+      if (seg.native) continue; // the AAC leg's, never evidence about this one
+      if (seg.start + seg.dur <= ct - 0.05) continue; // wholly past
+      if (!this.decodedCache.has(idx) && !this.scheduledIdx.has(idx)) return true;
+    }
+    return false;
+  }
+
   // ac3IndexAt is segmentIndexAt against the AC-3 timeline, which is not
   // this.segments until the hand-over has happened.
   private ac3IndexAt(mediaTime: number): number {
@@ -958,6 +981,7 @@ export class WasmAudioEngine {
       switched: this.switched,
       playing: advancing,
       sinceLastDecodeMs: Date.now() - this.lastWasmDecodeAt,
+      pending: this.wasmDeliveryPending(ct),
     })) {
       this.revertToNativeLeg("starvation: no wasm audio decoded while the picture ran");
     }
@@ -1024,10 +1048,14 @@ export class WasmAudioEngine {
     try {
       while (!this.destroyed) {
         const ct = this.video.currentTime;
-        // Evict played-out segments (memory bound).
+        // Evict what the playhead can no longer reach cheaply: played out, or
+        // left far ahead by a backward seek (memory bound, both directions).
         for (const idx of this.decodedCache.keys()) {
           const s = this.segments[idx];
-          if (s && s.start + s.dur < ct - 4) this.decodedCache.delete(idx);
+          if (!s) continue;
+          if (s.start + s.dur < ct - 4 || s.start > ct + BUFFER_AHEAD_SEC + EVICT_AHEAD_MARGIN_SEC) {
+            this.decodedCache.delete(idx);
+          }
         }
         // Paused: fetch nothing new once a first segment has ever scheduled -
         // a long pause (stream token TTL, viewer stepping away) must not keep

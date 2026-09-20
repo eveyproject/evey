@@ -87,6 +87,14 @@ export interface StarvationState {
   playing: boolean;
   /** Milliseconds since the last SUCCESSFUL wasm segment decode. */
   sinceLastDecodeMs: number;
+  /**
+   * Does the wasm leg still OWE audio - a segment inside the look-ahead window
+   * it has neither decoded nor scheduled? A leg that owes nothing cannot be
+   * starving, however long ago its last decode was: that is the normal state
+   * after a backward seek into a stretch the cache already holds.
+   * Undefined keeps the old, blind behaviour.
+   */
+  pending?: boolean;
   thresholdMs?: number;
 }
 
@@ -95,9 +103,17 @@ export interface StarvationState {
  * continues - the silent-picture failure. Deliberately blind to WHY (slow
  * decode, stalled fetch, wedged worker): the answer is the same, hand the film
  * back to the AAC leg.
+ *
+ * It is NOT blind to "nothing was asked of it". Counting the seconds since the
+ * last decode alone made a healthy leg look dead: on 2026-09-20 a viewer seeked
+ * back into audio the engine had already decoded (the cache holds everything
+ * ahead of the playhead, 35 segments that day), the pump found the whole window
+ * covered, no decode completed for 32 s, and the film was handed to the AAC
+ * transcode while the wasm leg was playing 4 scheduled segments at 0 ms drift.
  */
 export function isStarved(state: StarvationState): boolean {
   if (!state.switched || !state.playing) return false;
+  if (state.pending === false) return false;
   const threshold = state.thresholdMs ?? DEFAULT_STARVATION_MS;
   return Number.isFinite(state.sinceLastDecodeMs) && state.sinceLastDecodeMs > threshold;
 }
