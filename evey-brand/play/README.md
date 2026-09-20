@@ -4,6 +4,7 @@
 |---|---|---|
 | `play-icon-512.png` | Icône de l'application | 512x512, PNG, < 1 Mo |
 | `play-feature-graphic-1024x500.png` | Image de présentation | 1024x500, PNG, < 15 Mo |
+| `play-tv-banner-1280x720.png` | Bannière TV (fiche Android TV) | 1280x720, PNG, < 15 Mo |
 
 Les `.svg` sont la source, les `.png` en sont le rendu. Après modification d'un SVG :
 

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <!-- Google Play TV banner: 1280x720. Same wordmark and palette as the feature
+       graphic, laid out for 16:9; the Store crops nothing but overlays badges at
+       the corners, so everything stays in the centre. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#141418"/>
+      <stop offset="0.5" stop-color="#0A0A0C"/>
+      <stop offset="1" stop-color="#050506"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="46%" r="42%">
+      <stop offset="0" stop-color="#DC2626" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#DC2626" stop-opacity="0"/>
+    </radialGradient>
+    <mask id="cut">
+      <rect width="1280" height="720" fill="white"/>
+      <rect x="290.1" y="311.5" width="699.9" height="17.0" fill="black"/>
+    </mask>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <rect width="1280" height="720" fill="url(#glow)"/>
+  <g mask="url(#cut)">
+    <g transform="translate(290.1, 246.9) scale(0.2126)">
+      <path d="M74 688H669V523H295V428H615V270H295V165H676V0H74Z" fill="#FFFFFF" transform="translate(0, 688) scale(1, -1)"/>
+      <path d="M261 0 17 688H253L391 228H395L534 688H760L517 0Z" fill="#DC2626" transform="translate(822, 688) scale(1, -1)"/>
+      <path d="M74 688H669V523H295V428H615V270H295V165H676V0H74Z" fill="#FFFFFF" transform="translate(1700, 688) scale(1, -1)"/>
+      <path d="M501 0H280V267L7 688H261L393 459H397L529 688H770L501 267Z" fill="#FFFFFF" transform="translate(2522, 688) scale(1, -1)"/>
+    </g>
+  </g>
+  <text x="640" y="471" text-anchor="middle" font-family="Inter, 'Ubuntu Sans', sans-serif"
+        font-size="26" font-weight="500" letter-spacing="6.6" fill="#FFFFFF" fill-opacity="0.68">SELF-HOSTED MEDIA SERVER</text>
+</svg>
