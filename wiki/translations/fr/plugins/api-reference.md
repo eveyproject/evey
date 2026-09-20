@@ -1,5 +1,5 @@
 ---
-source_sha: 29131cc868c2f0ed69e387e6774c9b511cfb19294dad329df8dbfc3d2c2c75c7
+source_sha: 9a924b08827ea52fbbdec1a2dca7d22e3d8f6f32d236aefcc93e97b85a4652c8
 ---
 
 # Référence de l'API des extensions
@@ -125,10 +125,11 @@ evey.toast("error", "API key missing.");
 
 ### `evey.resize(height)`
 
-Demande à l'hôte de redimensionner l'emplacement de l'iframe à `height` pixels. La valeur est bornée entre 50 et 800.
+Demande à l'hôte de redimensionner l'emplacement de l'iframe à `height` pixels. La valeur est bornée entre 50 et 800. `0` replie l'emplacement : une extension qui n'a rien à montrer ne prend aucune place sur la page.
 
 ```js
 evey.resize(300);
+evey.resize(0); // rien à dire : l'emplacement disparaît
 ```
 
 ### `evey.onInit(callback)`

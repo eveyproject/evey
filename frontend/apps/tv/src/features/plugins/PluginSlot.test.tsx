@@ -174,6 +174,23 @@ describe("PluginSlot (TV)", () => {
     expect(homeWidgetBudget(540)).toBe(160); // a 540dp panel bottoms out at the floor
     expect(suggestedSlotHeight("settings.user.appearance", 675)).toBeUndefined();
   });
+
+  // A plugin with nothing to show (the librarian on a clean shelf) says
+  // resize(0); the slot must vanish rather than keep its opening height.
+  it("collapses the slot on resize(0) and clamps positive heights to 60-800", async () => {
+    await mountPluginWebView();
+    // The View mock is a div, so the host's numeric height lands in the DOM as "60px".
+    const slotHeight = () => {
+      const webview = document.querySelector('[data-testid="plugin-webview"]');
+      return parseFloat((webview?.parentElement as HTMLElement | null)?.style.height ?? "NaN");
+    };
+    dispatchToWebView({ type: "resize", height: 0 });
+    await waitFor(() => expect(slotHeight()).toBe(0));
+    dispatchToWebView({ type: "resize", height: 5 });
+    await waitFor(() => expect(slotHeight()).toBe(60));
+    dispatchToWebView({ type: "resize", height: -1 });
+    expect(slotHeight()).toBe(60);
+  });
 });
 
 describe("PluginSlot media.poster bridge (TV)", () => {

@@ -450,8 +450,10 @@ function PluginWebView({ pluginId, slot, entryPath, externalFetch, context }: Pl
       else toast.info(message);
       return;
     }
-    if (type === "resize" && typeof msg.height === "number" && msg.height > 0) {
-      setHeight(Math.max(60, Math.min(800, msg.height)));
+    // 0 collapses the slot: a plugin with nothing to show must not leave its
+    // opening height as a blank strip.
+    if (type === "resize" && typeof msg.height === "number" && msg.height >= 0) {
+      setHeight(msg.height === 0 ? 0 : Math.max(60, Math.min(800, msg.height)));
       return;
     }
     if (type === "rpc") {
@@ -488,7 +490,7 @@ function PluginWebView({ pluginId, slot, entryPath, externalFetch, context }: Pl
   }
 
   return (
-    <View style={{ height, width: "100%" }} onLayout={handleLayout} focusable={false}>
+    <View style={{ height, width: "100%", overflow: "hidden" }} onLayout={handleLayout} focusable={false}>
       <WebView
         ref={webviewRef}
         originWhitelist={["*"]}
