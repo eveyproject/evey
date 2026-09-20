@@ -23,9 +23,13 @@ export interface TopHeaderProps {
   onSearch: () => void;
   onNotifications: () => void;
   onProfile: () => void;
+  // Present on the home only: the home's own "Customize" lives in the header
+  // line rather than in a row of its own, which gave the widget below it the
+  // room the first poster row needed to stay whole (owner, 2026-09-20).
+  onCustomize?: () => void;
 }
 
-export function TopHeader({ onSearch, onNotifications, onProfile }: TopHeaderProps) {
+export function TopHeader({ onSearch, onNotifications, onProfile, onCustomize }: TopHeaderProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [focused, setFocused] = useState<string | null>(null);
@@ -77,6 +81,22 @@ export function TopHeader({ onSearch, onNotifications, onProfile }: TopHeaderPro
       </Pressable>
 
       <View style={[styles.side, styles.sideRight]}>
+      {onCustomize && (
+        <Pressable
+          onPress={onCustomize}
+          onFocus={() => setFocused("customize")}
+          onBlur={() => setFocused(null)}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={t("common.feeds.customize")}
+          style={[styles.customizeButton, ring("customize")]}
+        >
+          <Ionicons name="options-outline" size={22} color={focused === "customize" ? theme.colors.accent : theme.colors.textMuted} />
+          <Text style={[styles.customizeText, { color: focused === "customize" ? theme.colors.text : theme.colors.textMuted }]} numberOfLines={1}>
+            {t("media.home.customize", "Customize")}
+          </Text>
+        </Pressable>
+      )}
       <Pressable
         onPress={onNotifications}
         onFocus={() => setFocused("bell")}
@@ -144,6 +164,8 @@ const styles = StyleSheet.create({
   },
   searchText: { fontSize: 20 },
   iconButton: { padding: 8 },
+  customizeButton: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 12, marginRight: 6, flexShrink: 0 },
+  customizeText: { fontSize: 17 },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   avatarImage: { width: "100%", height: "100%" },
   avatarInitial: { fontSize: 17, fontWeight: "700" },

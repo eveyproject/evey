@@ -98,6 +98,7 @@ vi.mock("@evey/api", () => ({
 
 // -------------------------------------------------------------------------------------------
 import { PluginSlot, usePluginSlotEntries, suggestedSlotHeight } from "./PluginSlot";
+import { homeWidgetBudget } from "../../lib/tvLayout";
 import { renderHook } from "@testing-library/react";
 
 function dispatchToWebView(payload: unknown) {
@@ -163,13 +164,14 @@ describe("PluginSlot (TV)", () => {
       const msg = lastInjectedMessage() as { surface?: string; viewportHeight?: number; suggestedHeight?: number };
       expect(msg?.surface).toBe("tv");
       expect(msg?.suggestedHeight).toBeGreaterThan(0);
-      expect(msg?.suggestedHeight).toBe(Math.round((msg?.viewportHeight ?? 0) * 0.42));
+      expect(msg?.suggestedHeight).toBe(homeWidgetBudget(msg?.viewportHeight ?? 0));
     });
   });
 
-  it("recommends a share of the panel for home.section only", () => {
-    expect(suggestedSlotHeight("home.section", 675)).toBe(284);
-    expect(suggestedSlotHeight("home.section", 540)).toBe(227);
+  it("recommends what the home has left under one whole poster row, for home.section only", () => {
+    expect(suggestedSlotHeight("home.section", 675)).toBe(homeWidgetBudget(675));
+    expect(homeWidgetBudget(675)).toBeGreaterThanOrEqual(170); // a 1080p panel keeps a real banner
+    expect(homeWidgetBudget(540)).toBe(160); // a 540dp panel bottoms out at the floor
     expect(suggestedSlotHeight("settings.user.appearance", 675)).toBeUndefined();
   });
 });

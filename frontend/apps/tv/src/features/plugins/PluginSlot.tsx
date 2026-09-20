@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch, eveyFetchRaw, adminPluginServiceIssuePluginToken } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
+import { homeWidgetBudget } from "../../lib/tvLayout";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useServerUrl } from "../../hooks/useServerUrl";
 import { PLUGIN_BRIDGE_SCRIPT } from "./pluginBridge";
@@ -81,11 +82,11 @@ export function usePluginSlotEntries(slot: string): SlotEntry[] {
 // The height the host recommends for a slot on a television. A plugin that
 // never calls evey.resize() opens at it, so every home widget lands the same
 // size without knowing where it runs; a plugin with an opinion still resizes.
-// A share of the panel, not a pixel count: a 720p projector and a 4K set get
-// the same proportion (42% is the web banner carried over to a 675dp panel).
+// Not a share of the panel: what the home has left once its chrome and one
+// whole poster row are accounted for (see tvLayout.homeWidgetBudget).
 export function suggestedSlotHeight(slot: string, panelHeight: number): number | undefined {
   if (slot !== "home.section") return undefined;
-  return Math.round(panelHeight * 0.42);
+  return homeWidgetBudget(panelHeight);
 }
 
 interface PluginSlotProps {
