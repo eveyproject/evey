@@ -1,0 +1,16 @@
+{
+  "id": "com.evey.tv",
+  "version": "0.1.0",
+  "vendor": "Evey",
+  "type": "web",
+  "main": "index.html",
+  "title": "Evey",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "bgColor": "#0c1220",
+  "iconColor": "#0c1220",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true,
+  "supportTouchMode": "none",
+  "requiredPermissions": ["time.query", "activity.operation"]
+}

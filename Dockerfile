@@ -51,6 +51,7 @@ COPY frontend/package.json frontend/pnpm-lock.yaml frontend/.npmrc frontend/pnpm
 COPY frontend/apps/web/package.json apps/web/package.json
 COPY frontend/apps/mobile/package.json apps/mobile/package.json
 COPY frontend/apps/tv/package.json apps/tv/package.json
+COPY frontend/apps/tv-web/package.json apps/tv-web/package.json
 COPY frontend/packages/api/package.json packages/api/package.json
 COPY frontend/packages/client/package.json packages/client/package.json
 COPY frontend/packages/store/package.json packages/store/package.json
@@ -65,7 +66,8 @@ COPY --from=wasmbuild /tmp/out/ac3go.wasm /tmp/out/wasm_exec.js apps/web/public/
 RUN cd packages/api \
     && npx orval --config orval.config.ts \
     && cd ../.. \
-    && pnpm --filter web build
+    && pnpm --filter web build \
+    && pnpm --filter tv-web build
 
 # ── Stage 4: Build backend ──
 # Inherits gomod's $BUILDPLATFORM pin: the Go toolchain runs NATIVE and
@@ -421,6 +423,10 @@ COPY --from=builder /src/sdk /app/sdk
 COPY --from=builder /src/gen/evey/v1 /app/gen/evey/v1
 COPY --from=builder /src/docker/seccomp-evey.json /etc/evey/seccomp.json
 COPY --from=frontend /app/apps/web/dist /srv
+# The television client, the same build a webOS/Tizen package wraps: reachable
+# from any TV browser at <server>/tv, installable as a PWA where the browser
+# allows it.
+COPY --from=frontend /app/apps/tv-web/dist /srv/tv
 
 # Admin shell polish shown on `docker exec -it evey-server bash`: tab-completion
 # for the `evey` maintenance CLI and the `mkvgo` media tool, plus a one-time

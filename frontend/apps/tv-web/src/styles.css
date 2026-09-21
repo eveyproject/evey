@@ -1,0 +1,298 @@
+/* Ten-foot interface: sizes in vw so a 1080p and a 4K panel read the same
+ * from the sofa; the palette comes from @evey/theme at boot (main.tsx sets
+ * the same CSS variables the web app uses). No hover: the remote has none. */
+:root {
+  --tv-gutter: 4vw;
+  --tv-card-w: 11vw;
+  --tv-radius: 0.6vw;
+  --font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--bg, #0c1220);
+  color: var(--text, #f1f5f9);
+  font-family: var(--font-family);
+  font-size: 1.6vw;
+  line-height: 1.4;
+}
+
+button, input {
+  font: inherit;
+  color: inherit;
+}
+
+.screen {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 3vw var(--tv-gutter);
+  box-sizing: border-box;
+  scroll-behavior: smooth;
+}
+
+.screen-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1.5vw;
+}
+
+.title {
+  font-size: 2.8vw;
+  font-weight: 700;
+  margin: 0 0 0.5vw;
+}
+
+.subtitle {
+  font-size: 1.5vw;
+  color: var(--text-muted, #90a4bd);
+  margin: 0;
+  max-width: 60vw;
+}
+
+.muted {
+  color: var(--text-muted, #90a4bd);
+}
+
+/* Focus is the cursor of a television: one ring, thick, on every focusable. */
+.focusable {
+  outline: 0.25vw solid transparent;
+  outline-offset: 0.2vw;
+  border-radius: var(--tv-radius);
+  transition: outline-color 120ms, transform 120ms;
+}
+
+.focusable.focused {
+  outline-color: var(--accent, #f36464);
+  transform: scale(1.04);
+  z-index: 1;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6vw;
+  padding: 0.9vw 2.2vw;
+  border: none;
+  border-radius: var(--tv-radius);
+  background: var(--surface-raised, #1e293b);
+  color: var(--text, #f1f5f9);
+  font-size: 1.5vw;
+  cursor: default;
+}
+
+.btn.primary {
+  background: var(--accent, #f36464);
+  color: #fff;
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--accent, #f36464);
+}
+
+.field {
+  width: 40vw;
+  padding: 0.9vw 1.2vw;
+  border: 0.15vw solid var(--border, #1e293b);
+  border-radius: var(--tv-radius);
+  background: var(--surface, #151d2e);
+  font-size: 1.6vw;
+  box-sizing: border-box;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1vw;
+  align-items: center;
+}
+
+.row-title {
+  font-size: 1.7vw;
+  font-weight: 600;
+  margin: 1.6vw 0 0.6vw;
+}
+
+.row {
+  display: flex;
+  gap: 1vw;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 0.6vw 0.4vw 1vw;
+  scrollbar-width: none;
+}
+
+.row::-webkit-scrollbar {
+  display: none;
+}
+
+.card {
+  flex: 0 0 var(--tv-card-w);
+  width: var(--tv-card-w);
+  background: var(--surface, #151d2e);
+  border-radius: var(--tv-radius);
+  overflow: hidden;
+}
+
+.card.wide {
+  flex-basis: calc(var(--tv-card-w) * 1.78);
+  width: calc(var(--tv-card-w) * 1.78);
+}
+
+.card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  background: var(--surface-raised, #1e293b);
+}
+
+.card.wide img {
+  aspect-ratio: 16 / 9;
+}
+
+.card .label {
+  padding: 0.5vw 0.7vw;
+  font-size: 1.15vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--tv-card-w));
+  gap: 1.2vw;
+  justify-content: start;
+  padding: 0.6vw 0.4vw;
+}
+
+.hero {
+  display: flex;
+  gap: 3vw;
+  align-items: flex-start;
+}
+
+.hero img {
+  width: 18vw;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: var(--tv-radius);
+  background: var(--surface-raised, #1e293b);
+}
+
+.hero .overview {
+  font-size: 1.35vw;
+  color: var(--text-secondary, #94a3b8);
+  max-width: 55vw;
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.actions {
+  display: flex;
+  gap: 1vw;
+  margin: 1.5vw 0;
+}
+
+.code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 4.5vw;
+  letter-spacing: 1vw;
+  font-weight: 700;
+}
+
+.qr {
+  background: #fff;
+  padding: 1vw;
+  border-radius: var(--tv-radius);
+  display: inline-block;
+}
+
+.error {
+  color: var(--danger, #f87171);
+}
+
+.player {
+  position: fixed;
+  inset: 0;
+  background: #000;
+}
+
+.player video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.osd {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2vw var(--tv-gutter) 2.5vw;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  transition: opacity 200ms;
+}
+
+.osd.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.osd .bar {
+  height: 0.5vw;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 0.25vw;
+  overflow: hidden;
+  margin: 1vw 0;
+}
+
+.osd .bar > div {
+  height: 100%;
+  background: var(--accent, #f36464);
+}
+
+.osd .times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.3vw;
+}
+
+.toast {
+  position: fixed;
+  right: var(--tv-gutter);
+  bottom: 3vw;
+  padding: 1vw 1.6vw;
+  background: var(--surface-raised, #1e293b);
+  border-left: 0.4vw solid var(--accent, #f36464);
+  border-radius: var(--tv-radius);
+  font-size: 1.4vw;
+  max-width: 40vw;
+}
+
+.spinner {
+  width: 3vw;
+  height: 3vw;
+  border: 0.35vw solid var(--surface-raised, #1e293b);
+  border-top-color: var(--accent, #f36464);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

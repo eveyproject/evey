@@ -1,0 +1,39 @@
+{
+  "name": "tv-web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Evey for the television's browser: served under /tv, installable as a PWA, packaged as is for webOS and Tizen",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "package:webos": "sh scripts/package-webos.sh"
+  },
+  "dependencies": {
+    "@evey/api": "workspace:*",
+    "@evey/client": "workspace:*",
+    "@evey/store": "workspace:*",
+    "@evey/theme": "workspace:*",
+    "@noriginmedia/norigin-spatial-navigation": "3.3.0",
+    "@tanstack/react-query": "5.102.6",
+    "hls.js": "1.6.16",
+    "i18next": "26.4.0",
+    "i18next-http-backend": "4.0.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-i18next": "17.0.6",
+    "react-qr-code": "2.0.21"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.2.0",
+    "jsdom": "28.1.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.3",
+    "vitest": "4.0.18"
+  }
+}
