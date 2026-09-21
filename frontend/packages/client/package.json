@@ -22,6 +22,8 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./native": "./src/native.ts"
+    "./native": "./src/native.ts",
+    "./native/PluginWebView": "./src/native/PluginWebView.tsx",
+    "./native/*": "./src/native/*.ts"
   }
 }

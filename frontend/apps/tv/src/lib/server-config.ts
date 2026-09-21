@@ -1,38 +1,20 @@
-import * as SecureStore from "expo-secure-store";
+// Shared implementation lives in @evey/client (packages/client/src/native/server-config.ts).
+// This module keeps the path the screens and their tests import, and the
+// shape this app's screens read: {ok, name} rather than the phone's
+// {probe, health}.
+import { probeServerHealth as probeShared } from "@evey/client/native/server-config";
 
-const SERVER_URL_KEY = "evey-server-url";
+export { getServerUrl, setServerUrl, clearServerUrl, pingServer, resolveServerUrl, probeServer } from "@evey/client/native/server-config";
+export type { ServerProbe } from "@evey/client/native/server-config";
 
-export async function getServerUrl(): Promise<string | null> {
-  return SecureStore.getItemAsync(SERVER_URL_KEY);
-}
-
-export async function setServerUrl(url: string): Promise<void> {
-  const normalized = url.replace(/\/+$/, "");
-  await SecureStore.setItemAsync(SERVER_URL_KEY, normalized);
-}
-
-export async function clearServerUrl(): Promise<void> {
-  await SecureStore.deleteItemAsync(SERVER_URL_KEY);
-}
-
-export async function pingServer(url: string): Promise<boolean> {
-  return (await probeServerHealth(url)).ok;
-}
-
-// probeServerHealth is pingServer plus the name the server advertises on
-// /healthz (admin "Server name"), so the caller that just reached it can keep
-// the saved-server row current. A non-JSON 200 still counts as reachable.
+/**
+ * pingServer plus the name the server advertises on /healthz (admin "Server
+ * name"), so the caller that just reached it can keep the saved-server row
+ * current. Only an Evey answer counts as reachable - see serverIdentity.
+ */
 export async function probeServerHealth(url: string): Promise<{ ok: boolean; name?: string }> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(`${url}/healthz`, { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!res.ok) return { ok: false };
-    return { ok: true, name: await healthName(res) };
-  } catch {
-    return { ok: false };
-  }
+  const { probe, health } = await probeShared(url);
+  return probe === "ok" ? { ok: true, name: health?.name } : { ok: false };
 }
 
 // healthName pulls a non-blank string `name` out of a /healthz body.

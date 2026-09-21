@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
-vi.mock("../lib/server-config", () => ({
+vi.mock("./server-config", () => ({
   getServerUrl: vi.fn(),
 }));
 
-import { getServerUrl } from "../lib/server-config";
+import { getServerUrl } from "./server-config";
 import { useServerUrl, useServerUrlNullable } from "./useServerUrl";
 
 const getServerUrlMock = getServerUrl as ReturnType<typeof vi.fn>;

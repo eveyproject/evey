@@ -1,15 +1,3 @@
-import * as SecureStore from "expo-secure-store";
-
-const KEY = "evey-refresh-token";
-
-export async function getRefreshToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(KEY);
-}
-
-export async function setRefreshToken(token: string): Promise<void> {
-  await SecureStore.setItemAsync(KEY, token);
-}
-
-export async function clearRefreshToken(): Promise<void> {
-  await SecureStore.deleteItemAsync(KEY);
-}
+// Shared implementation lives in @evey/client (packages/client/src/native/refresh-token.ts).
+// This module keeps the path the screens and their tests import.
+export { getRefreshToken, setRefreshToken, clearRefreshToken } from "@evey/client/native/refresh-token";

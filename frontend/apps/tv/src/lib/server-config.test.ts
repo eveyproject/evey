@@ -41,9 +41,18 @@ describe("server-config", () => {
   });
 
   describe("pingServer", () => {
-    it("returns true on ok response", async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+    it("returns true when an Evey server answers", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: "ok", version: "1" }) });
       expect(await pingServer("http://srv")).toBe(true);
+    });
+
+    // A bare 200 is not a server: a captive portal, an ISP's DNS-hijack page
+    // or a router's admin page answers 200 to everything, and "connecting" to
+    // one cost a beta tester an afternoon (2026-07-29, phone). The television
+    // now applies the same rule through the shared probe.
+    it("returns false on a 200 that is not Evey", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => { throw new Error("html"); } });
+      expect(await pingServer("http://srv")).toBe(false);
     });
 
     it("returns false on non-ok response", async () => {
@@ -63,9 +72,9 @@ describe("server-config", () => {
       expect(await probeServerHealth("http://srv")).toEqual({ ok: true, name: "Salon" });
     });
 
-    it("a reachable server without a name (older build, non-JSON body) is still ok", async () => {
+    it("an Evey server without a name (older build) is ok, a non-Evey 200 is not", async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => { throw new Error("html"); } });
-      expect(await probeServerHealth("http://srv")).toEqual({ ok: true, name: undefined });
+      expect(await probeServerHealth("http://srv")).toEqual({ ok: false });
       globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ status: "ok", version: "1", name: "  " }) });
       expect(await probeServerHealth("http://srv")).toEqual({ ok: true, name: undefined });
     });
