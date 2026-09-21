@@ -12,7 +12,7 @@ const mockCaps = vi.hoisted(() => ({
   hdr: false,
 }));
 
-vi.mock("@/utils/codec", () => ({
+vi.mock("@evey/client/web/codec", () => ({
   canPlayHevc: () => false,
   getBrowserCapabilities: () => mockCaps,
 }));

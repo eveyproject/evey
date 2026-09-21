@@ -28,6 +28,9 @@ DST = os.path.join(ROOT, "frontend", "apps", "web", "src", "test", "en-translati
 # read "media.search.placeholder" on the home screen (emulator, 2026-09-05).
 # Generated from the same source as the web fixture so the two cannot drift.
 MOBILE_DST = os.path.join(ROOT, "frontend", "apps", "mobile", "src", "i18n", "fallback.en.json")
+# The browser TV client boots before it knows a server (and a packaged copy
+# runs from the TV's storage), so it embeds the same English floor.
+TVWEB_DST = os.path.join(ROOT, "frontend", "apps", "tv-web", "src", "i18n", "fallback.en.json")
 
 
 def flatten(prefix, mapping, out):
@@ -47,7 +50,8 @@ def main():
             data = yaml.load(fh, Loader=yaml.BaseLoader) or {}
         flatten(stem, data, out)
     ordered = dict(sorted(out.items()))
-    for dst in (DST, MOBILE_DST):
+    for dst in (DST, MOBILE_DST, TVWEB_DST):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
         with open(dst, "w", encoding="utf-8") as fh:
             json.dump(ordered, fh, ensure_ascii=False, indent=2)
             fh.write("\n")

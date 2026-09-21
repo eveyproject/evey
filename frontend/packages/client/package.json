@@ -11,7 +11,8 @@
     "@evey/store": "workspace:*",
     "@tanstack/react-query": "5.102.6",
     "i18next": "26.4.0",
-    "react": "19.2.0"
+    "react": "19.2.0",
+    "hls.js": "1.6.16"
   },
   "devDependencies": {
     "@testing-library/react": "16.3.2",
@@ -24,6 +25,8 @@
     ".": "./src/index.ts",
     "./native": "./src/native.ts",
     "./native/PluginWebView": "./src/native/PluginWebView.tsx",
-    "./native/*": "./src/native/*.ts"
+    "./native/*": "./src/native/*.ts",
+    "./web": "./src/web.ts",
+    "./web/*": "./src/web/*.ts"
   }
 }
