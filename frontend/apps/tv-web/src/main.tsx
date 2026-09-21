@@ -1,0 +1,123 @@
+import { StrictMode, useEffect, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useAuthStore, useToastStore, shouldRetryQuery } from "@evey/store";
+import { themeVars } from "@evey/theme";
+import { mutationErrorNet } from "@evey/client";
+import { initTvNavigation, useTvKeys } from "./tv/focus";
+import { useRoute, replace, goBack, type Route } from "./app/router";
+import { bootSession, authRefresh, activeServerUrl } from "./lib/session";
+import i18n from "./i18n";
+import { ServerConnectScreen } from "./screens/ServerConnect";
+import { LoginScreen } from "./screens/Login";
+import { QuickConnectScreen } from "./screens/QuickConnect";
+import { ProfileSelectScreen } from "./screens/ProfileSelect";
+import { HomeScreen } from "./screens/Home";
+import { LibraryScreen } from "./screens/Library";
+import { MediaDetailScreen } from "./screens/MediaDetail";
+import { PlayerScreen } from "./screens/Player";
+import { SettingsScreen } from "./screens/Settings";
+import "./styles.css";
+
+// The palette the web app reads from a generated stylesheet is set here as
+// the same CSS variables, from the same source of truth.
+for (const [name, value] of Object.entries(themeVars["default"])) {
+  document.documentElement.style.setProperty(name, value);
+}
+
+initTvNavigation();
+
+const queryClient = new QueryClient({
+  mutationCache: mutationErrorNet(),
+  defaultOptions: {
+    queries: { staleTime: 5 * 60 * 1000, retry: shouldRetryQuery },
+  },
+});
+
+const PUBLIC_ROUTES = new Set<Route["name"]>(["server", "login", "quickconnect"]);
+
+function Toasts() {
+  const toasts = useToastStore((s) => s.toasts);
+  const last = toasts[toasts.length - 1];
+  if (!last) return null;
+  return <div className="toast">{last.message}</div>;
+}
+
+function App() {
+  const route = useRoute();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const profileId = useAuthStore((s) => s.profileId);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const { hasServer } = await bootSession(() => {
+        if (!useAuthStore.getState().accessToken) return;
+        useAuthStore.getState().logout();
+        replace({ name: "login" });
+      });
+      if (hasServer) {
+        // A refresh token from the last visit restores the session without a
+        // password; "unavailable" (offline) keeps whatever the store held.
+        await authRefresh.ensureAccessToken();
+      }
+      setReady(true);
+    })();
+  }, []);
+
+  // The global back: a screen that handles back itself (the player) stops
+  // the event before it reaches here.
+  useTvKeys((key) => {
+    if (key !== "back") return;
+    if (route.name === "home" || route.name === "server" || route.name === "login") return;
+    goBack();
+  });
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!activeServerUrl()) {
+      if (route.name !== "server") replace({ name: "server" });
+      return;
+    }
+    if (!accessToken && !PUBLIC_ROUTES.has(route.name)) replace({ name: "login" });
+    if (accessToken && (route.name === "login" || route.name === "quickconnect" || route.name === "server")) {
+      replace(profileId ? { name: "home" } : { name: "profiles" });
+    }
+  }, [ready, route.name, accessToken, profileId]);
+
+  useEffect(() => {
+    document.documentElement.lang = i18n.language;
+  }, []);
+
+  if (!ready) return null;
+
+  switch (route.name) {
+    case "server":
+      return <ServerConnectScreen />;
+    case "login":
+      return <LoginScreen />;
+    case "quickconnect":
+      return <QuickConnectScreen />;
+    case "profiles":
+      return <ProfileSelectScreen />;
+    case "library":
+      return <LibraryScreen libraryId={route.libraryId} />;
+    case "media":
+      return <MediaDetailScreen mediaId={route.mediaId} />;
+    case "player":
+      return <PlayerScreen mediaId={route.mediaId} restart={!!route.restart} />;
+    case "settings":
+      return <SettingsScreen />;
+    default:
+      return <HomeScreen />;
+  }
+}
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <App />
+      <Toasts />
+    </QueryClientProvider>
+  </StrictMode>,
+);
