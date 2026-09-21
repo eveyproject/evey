@@ -6,6 +6,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, Image, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { useTranslation } from "react-i18next";
 import { getFreshAccessToken } from "@evey/api";
 import { useMusicQueueStore } from "../stores/musicQueue";
@@ -13,6 +14,11 @@ import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 import { coverArtUri } from "../lib/artwork";
+
+// Music has no video surface to hold the screen the way expo-video does, so
+// without this the box sees an idle user, starts its screensaver and then
+// sleeps, and the HDMI output (and the sound with it) goes away mid-album.
+const KEEP_AWAKE_TAG = "tv-music";
 
 function FocusCtrl({
   name,
@@ -102,6 +108,15 @@ function TVMusicPlayerImpl() {
       else player.pause();
     } catch { /* released */ }
   }, [isPlayingState, player, trackId]);
+
+  // Follows the bytes actually flowing (paused or finished releases the
+  // screen), not the store's intention.
+  const audible = !!status.playing;
+  useEffect(() => {
+    if (!audible) return;
+    activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => { /* module absent */ });
+    return () => { deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => { /* module absent */ }); };
+  }, [audible]);
 
   const lastDidFinishRef = useRef(false);
   useEffect(() => {

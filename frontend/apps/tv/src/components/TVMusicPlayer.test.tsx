@@ -34,6 +34,8 @@ vi.mock("expo-audio", async () => {
   const { useSyncExternalStore } = await import("react");
   return { useAudioPlayer: () => audio.player, useAudioPlayerStatus: () => useSyncExternalStore(audio.subscribe, audio.get) };
 });
+const keepAwake = vi.hoisted(() => ({ activate: vi.fn(async () => {}), deactivate: vi.fn(async () => {}) }));
+vi.mock("expo-keep-awake", () => ({ activateKeepAwakeAsync: keepAwake.activate, deactivateKeepAwake: keepAwake.deactivate }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 // The store holds whatever the last API call left ("stale"); the player must
 // ask the fetcher for a token that is valid NOW.
@@ -122,5 +124,26 @@ describe("TVMusicPlayer", () => {
     expect(useMusicQueueStore.getState().queue).toEqual([]);
     rerender(<TVMusicPlayer />);
     expect(screen.queryByText("Two")).toBeNull();
+  });
+
+  // The box treats music as an idle user: the screen is held only while the
+  // player reports sound flowing, and released when it pauses or finishes.
+  it("holds the screen awake while sound flows and releases it when it stops", () => {
+    act(() => useMusicQueueStore.setState({ queue: tracks, currentIndex: 0, isPlaying: true }));
+    render(<TVMusicPlayer />);
+    expect(keepAwake.activate).not.toHaveBeenCalled();
+
+    act(() => audio.set({ currentTime: 30, duration: 120, playing: true }));
+    expect(keepAwake.activate).toHaveBeenCalledTimes(1);
+    expect(keepAwake.deactivate).not.toHaveBeenCalled();
+
+    act(() => audio.set({ currentTime: 31, duration: 120, playing: true }));
+    expect(keepAwake.activate).toHaveBeenCalledTimes(1);
+
+    act(() => audio.set({ currentTime: 31, duration: 120, playing: false }));
+    expect(keepAwake.deactivate).toHaveBeenCalledTimes(1);
+
+    act(() => audio.set({ currentTime: 120, duration: 120, playing: false, didJustFinish: true }));
+    expect(keepAwake.activate).toHaveBeenCalledTimes(1);
   });
 });

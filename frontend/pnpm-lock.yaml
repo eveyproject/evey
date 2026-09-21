@@ -228,6 +228,9 @@ importers:
       expo-image:
         specifier: 55.0.10
         version: 55.0.10(expo@55.0.23)(react-native-tvos@0.83.10-0)(react@19.2.0)
+      expo-keep-awake:
+        specifier: 55.0.8
+        version: 55.0.8(expo@55.0.23)(react@19.2.0)
       expo-localization:
         specifier: 55.0.13
         version: 55.0.13(expo@55.0.23)(react@19.2.0)
