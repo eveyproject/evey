@@ -13,6 +13,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/feed/fakes"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
@@ -92,6 +93,23 @@ func TestCommandService_LibraryDeleted_NoErrorNoWarn(t *testing.T) {
 	require.NoError(t, bus.Publish(context.Background(), library.LibraryDeleted{LibraryID: "lib-ok"}))
 
 	assert.NotContains(t, buf.String(), "auto-delete library feed config")
+}
+
+func TestCommandService_PluginUninstalled_ErrorLogged(t *testing.T) {
+	buf, restore := captureSlog(t)
+	defer restore()
+
+	cmdRepo := fakes.NewFakeConfigCommandRepo()
+	cmdRepo.Err = errors.New("delete boom")
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appfeed.NewCommandService(cmdRepo, queryRepo)
+	appfeed.CommandWithEventBus(bus)(svc)
+
+	_ = bus.Publish(context.Background(), plugin.PluginUninstalled{PluginID: "plg-x"})
+
+	assert.Contains(t, buf.String(), "auto-delete plugin feed config")
+	assert.Contains(t, buf.String(), "delete boom")
 }
 
 // L58: if err := s.bus.Publish(...); err != nil { slog.Warn("publish feed event", ...) }

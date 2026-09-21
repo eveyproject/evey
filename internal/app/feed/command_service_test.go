@@ -8,6 +8,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/feed/fakes"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/plugin"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -176,6 +177,35 @@ func TestCommandService_WithEventBus_LibraryDeleted(t *testing.T) {
 	}))
 
 	assert.Empty(t, cmdRepo.AdminConfigs)
+}
+
+// Every reinstall of a widget used to leave its old plugin:<id> row in each
+// profile's home config: nothing listened to the uninstall. The homes then
+// rendered those ghosts (80 dp of nothing above the weather widget on mobile).
+func TestCommandService_WithEventBus_PluginUninstalled(t *testing.T) {
+	cmdRepo := fakes.NewFakeConfigCommandRepo()
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appfeed.NewCommandService(cmdRepo, queryRepo)
+	appfeed.CommandWithEventBus(bus)(svc)
+
+	gone := feed.PluginType("plg-gone")
+	alive := feed.PluginType("plg-alive")
+	cmdRepo.AdminConfigs[gone] = &feed.AdminConfig{FeedType: gone, Enabled: true}
+	cmdRepo.ProfileConfigs["prf-1"] = map[feed.Type]*feed.ProfileConfig{
+		gone:  {ProfileID: "prf-1", FeedType: gone},
+		alive: {ProfileID: "prf-1", FeedType: alive},
+	}
+	cmdRepo.ProfileConfigs["prf-2"] = map[feed.Type]*feed.ProfileConfig{
+		gone: {ProfileID: "prf-2", FeedType: gone},
+	}
+
+	require.NoError(t, bus.Publish(context.Background(), plugin.PluginUninstalled{PluginID: "plg-gone"}))
+
+	assert.Empty(t, cmdRepo.AdminConfigs)
+	assert.NotContains(t, cmdRepo.ProfileConfigs["prf-1"], gone, "the row is gone from every profile")
+	assert.Contains(t, cmdRepo.ProfileConfigs["prf-1"], alive, "another plugin's row is untouched")
+	assert.NotContains(t, cmdRepo.ProfileConfigs, "prf-2", "a disabled ghost goes too")
 }
 
 func TestCommandService_WithEventBus_WrongEventTypeIgnored(t *testing.T) {
