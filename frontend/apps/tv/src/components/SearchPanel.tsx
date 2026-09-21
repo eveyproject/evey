@@ -155,6 +155,11 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
   const [query, setQuery] = useState("");
+  // While the field has the remote, the results must NOT claim it: the first
+  // row's preferred focus fired on every keystroke (a new query mounts a new
+  // first row), the focus left the field, the on-screen keyboard closed, and
+  // the viewer typed one letter at a time (owner, 2026-09-22). The rows stay
+  // focusable - "down" from the field reaches them through the focus engine.
   const [inputFocused, setInputFocused] = useState(false);
   const [searchKind, setSearchKind] = useState<"media" | "music">("media");
   // The results box is measured, not flexed. Inside the header's Modal the
@@ -217,7 +222,7 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
           }], 0);
         }}
         style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
-        hasTVPreferredFocus={index === 0}
+        hasTVPreferredFocus={index === 0 && !inputFocused}
         accessibilityLabel={item.title}
       >
         <View style={[styles.musicThumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface, overflow: "hidden" }]}>
@@ -245,7 +250,7 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
         <Ionicons name="play" size={24} color={theme.colors.accent} />
       </FocusableCard>
     );
-  }, [theme, setQueue, serverUrl, authHeaders, onNavigate]);
+  }, [theme, setQueue, serverUrl, authHeaders, onNavigate, inputFocused]);
 
   const renderItem = useCallback(({ item, index }: { item: V1MediaItem; index: number }) => {
     const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", 160) : undefined;
@@ -258,7 +263,7 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
           router.push(`/media/${item.id}`);
         }}
         style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
-        hasTVPreferredFocus={index === 0}
+        hasTVPreferredFocus={index === 0 && !inputFocused}
         accessibilityLabel={displayTitle(item, t)}
       >
         <View style={[styles.thumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface, overflow: "hidden" }]}>
@@ -297,7 +302,7 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
         </View>
       </FocusableCard>
     );
-  }, [theme, router, typeLabel, t, serverUrl, authHeaders, onNavigate]);
+  }, [theme, router, typeLabel, t, serverUrl, authHeaders, onNavigate, inputFocused]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>

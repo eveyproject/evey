@@ -49,6 +49,12 @@ interface TrickplaySeekPreviewProps {
   // user isn't actively holding a seek key (see the player screen's
   // seekPreviewSec / playerSeek.ts).
   previewTimeSec: number | null;
+  // The controls are on screen: a seek is likely next. Fetch the manifest
+  // and the first sprite sheet now, so the FIRST seek shows a picture too -
+  // fetched on the seek itself, the manifest and a sheet of a few hundred
+  // kilobytes landed after the seek had committed, and the viewer saw
+  // nothing until the second try.
+  warm?: boolean;
 }
 
 // A thumbnail shown above the seek bar while the user holds left/right on the
@@ -56,7 +62,7 @@ interface TrickplaySeekPreviewProps {
 // video preview available during a D-pad seek. Purely a comfort layer: no
 // manifest, no generated sprites, or a failed request all resolve to
 // rendering nothing, exactly like the seek behaves today without it.
-export function TrickplaySeekPreview({ mediaId, previewTimeSec }: TrickplaySeekPreviewProps) {
+export function TrickplaySeekPreview({ mediaId, previewTimeSec, warm = false }: TrickplaySeekPreviewProps) {
   const theme = useTheme();
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
@@ -73,8 +79,9 @@ export function TrickplaySeekPreview({ mediaId, previewTimeSec }: TrickplaySeekP
   // starts seeking (previewTimeSec goes non-null). A weak NAS shouldn't pay
   // for a trickplay manifest on every playback session, only the ones where
   // someone reaches for the D-pad.
+  const wanted = warm || previewTimeSec !== null;
   useEffect(() => {
-    if (previewTimeSec === null || !mediaId || fetchedIds.has(mediaId)) return;
+    if (!wanted || !mediaId || fetchedIds.has(mediaId)) return;
     fetchedIds.add(mediaId);
     let cancelled = false;
     (async () => {
@@ -104,7 +111,15 @@ export function TrickplaySeekPreview({ mediaId, previewTimeSec }: TrickplaySeekP
     return () => {
       cancelled = true;
     };
-  }, [mediaId, previewTimeSec]);
+  }, [mediaId, wanted]);
+
+  // The first sheet, warmed into expo-image's cache while the controls show,
+  // so the first tile drawn does not wait on a download.
+  useEffect(() => {
+    if (!warm || !serverUrl || cues.length === 0) return;
+    const first = cues[0];
+    void Image.prefetch?.(`${serverUrl}${first.url}`, { headers: authHeaders })?.catch(() => {});
+  }, [warm, serverUrl, cues, authHeaders]);
 
   if (previewTimeSec === null || cues.length === 0 || !serverUrl) return null;
 

@@ -40,7 +40,12 @@ export const useMusicQueueStore = create<MusicQueueState>()((set, get) => ({
     const { queue, currentIndex } = get();
     if (currentIndex < queue.length - 1) {
       set({ currentIndex: currentIndex + 1, isPlaying: true });
+      return;
     }
+    // The last track finished: nothing plays any more and the bar must say
+    // so. Left "playing", it showed a pause button over silence and its
+    // play/pause toggle then had to be pressed twice.
+    set({ isPlaying: false });
   },
 
   previous: () => {

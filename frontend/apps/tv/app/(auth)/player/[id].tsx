@@ -35,7 +35,8 @@ import { useChapters, findCurrentChapterIndex } from "../../../src/hooks/useChap
 import { pickPreferredStreamIndex } from "../../../src/lib/langMatch";
 import { resumeNudger } from "../../../src/lib/resumeNudge";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
-import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview } from "../../../src/hooks/playerSeek";
+import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview, holdScrubRate, tapSeekStep } from "../../../src/hooks/playerSeek";
+import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
@@ -89,12 +90,8 @@ const SEEK_COMMIT_DELAY_MS = 600;
 const KEY_ACTION_DOWN = 0;
 const KEY_ACTION_UP = 1;
 // Between those two events the preview scrubs, every tick, at a rate that
-// climbs with the hold: a minute per second first, three after two seconds,
-// eight after five - a feature film crosses in about ten seconds.
+// climbs with the hold (holdScrubRate in playerSeek.ts).
 const HOLD_SCRUB_TICK_MS = 100;
-function holdScrubRate(heldMs: number): number {
-  return heldMs < 2000 ? 60 : heldMs < 5000 ? 180 : 480;
-}
 
 function PlayerControlButton({
   label,
@@ -204,6 +201,12 @@ export default function PlayerScreen() {
   useEffect(() => {
     if (notPlayable) router.replace(`/media/${mediaId}`);
   }, [notPlayable, mediaId]);
+  // A film starts, the album stops. The music player is mounted for the whole
+  // signed-in app and kept playing under the video - two soundtracks at once,
+  // and its bar drawn over the picture - until the viewer closed it by hand.
+  useEffect(() => {
+    useMusicQueueStore.getState().clear();
+  }, [mediaId]);
   const { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress } =
     usePlaySession(mediaId, trackPick.audio === undefined ? undefined : { audioStreamIndex: trackPick.audio });
   const profileId = useAuthStore((s) => s.profileId) ?? "";
@@ -719,10 +722,14 @@ export default function PlayerScreen() {
     seekPreviewRef.current = sec;
     setSeekPreviewSec(sec);
   }, []);
+  // How many taps the pending seek is made of: the step grows with it (see
+  // tapSeekStep) and the count resets once the seek commits.
+  const tapCountRef = useRef(0);
   const scheduleCommit = useCallback(() => {
     if (seekCommitRef.current) clearTimeout(seekCommitRef.current);
     seekCommitRef.current = setTimeout(() => {
       seekCommitRef.current = null;
+      tapCountRef.current = 0;
       const target = seekPreviewRef.current;
       if (target === null) return;
       withPlayer((p) => { p.currentTime = target; });
@@ -730,11 +737,14 @@ export default function PlayerScreen() {
   }, [withPlayer]);
 
   // Shared by the on-screen buttons and the remote's left/right: move the
-  // preview now, commit the real seek when the viewer stops pressing.
+  // preview now, commit the real seek when the viewer stops pressing. Each
+  // further tap in the same gesture takes a bigger step.
   const bumpSeek = useCallback(
     (delta: number) => {
       const base = seekPreviewRef.current ?? currentTimeRef.current;
-      setPreview(clampSeekTarget(base, delta, durationRef.current));
+      tapCountRef.current += 1;
+      const step = Math.sign(delta) * tapSeekStep(tapCountRef.current, Math.abs(delta));
+      setPreview(clampSeekTarget(base, step, durationRef.current));
       scheduleCommit();
       resetHideTimer();
     },
@@ -748,6 +758,11 @@ export default function PlayerScreen() {
   // a clock, a tick every 100ms moves the preview at a rate that grows with
   // the hold, and the release commits ONE seek.
   const holdRef = useRef<{ dir: 1 | -1; startedAt: number; lastAt: number; moved: boolean; timer: ReturnType<typeof setInterval> } | null>(null);
+  // Which seek key is currently down, for the sets that never send a
+  // longLeft/longRight and instead repeat the plain key while it is held: a
+  // second "down" for the same direction before its "up" is that repeat, and
+  // starts the same scrub a long-press event would.
+  const seekKeyDownRef = useRef<1 | -1 | null>(null);
   const stopHold = useCallback(() => {
     if (holdRef.current) clearInterval(holdRef.current.timer);
     holdRef.current = null;
@@ -1155,8 +1170,14 @@ export default function PlayerScreen() {
       const action = Number((evt as { eventKeyAction?: number | string }).eventKeyAction);
       const skip = dir > 0 ? skipFwd : skipBwd;
       if (Number.isNaN(action)) seekByKey(type); // no key action (Apple TV): one event per press
-      else if (action === KEY_ACTION_DOWN) { if (long) beginHold(dir); }
-      else if (action === KEY_ACTION_UP) { if (long || holdRef.current) endHold(dir, skip); else bumpSeek(dir * skip); }
+      else if (action === KEY_ACTION_DOWN) {
+        if (long || seekKeyDownRef.current === dir) beginHold(dir);
+        else seekKeyDownRef.current = dir;
+      } else if (action === KEY_ACTION_UP) {
+        seekKeyDownRef.current = null;
+        if (long || holdRef.current) endHold(dir, skip);
+        else bumpSeek(dir * skip);
+      }
     } else if (type === "down") {
       // The one way into the options, and the bar says so on screen. Every
       // other binding this screen used to carry (long-OK for the menu, up for
@@ -1699,7 +1720,7 @@ export default function PlayerScreen() {
               there's no manifest yet, no generated sprites, or a failed
               fetch - the seek behaves exactly as it does today. */}
           <View style={styles.trickplayWrap} pointerEvents="none">
-            <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={seekPreviewSec} />
+            <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={seekPreviewSec} warm={showControls} />
           </View>
 
           {/* Bottom bar */}
