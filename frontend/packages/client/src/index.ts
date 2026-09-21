@@ -29,6 +29,7 @@ export * from "./lib/mutationErrorMessage";
 export * from "./lib/mutationErrorNet";
 export * from "./lib/certifications";
 export * from "./lib/resumeNudge";
+export * from "./lib/seekGesture";
 export * from "./lib/network-scan";
 export * from "./lib/pluginBridge";
 export * from "./lib/serverIdentity";
