@@ -13,8 +13,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
-import { eveyFetch, formatTime } from "@evey/api";
-import { useAuthStore, toast } from "@evey/store";
+import { eveyFetch, formatTime, getFreshAccessToken } from "@evey/api";
+import { toast } from "@evey/store";
 import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
@@ -41,7 +41,6 @@ function MusicMiniPlayerImpl() {
   const theme = useTheme();
   const { t } = useTranslation();
   const serverUrl = useServerUrl();
-  const accessToken = useAuthStore((s) => s.accessToken);
 
   const queue = useMusicQueueStore((s) => s.queue);
   const currentIndex = useMusicQueueStore((s) => s.currentIndex);
@@ -55,12 +54,28 @@ function MusicMiniPlayerImpl() {
   const clear = useMusicQueueStore((s) => s.clear);
 
   const track = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+  const trackId = track?.id ?? null;
 
   // Build the streaming URI for the active track. Token is appended as a
   // query param because the audio fetch path doesn't carry our Authorization
-  // header through to ffmpeg/the streamer.
-  const streamUri = (track && serverUrl && accessToken)
-    ? `${serverUrl}/api/v1/music/tracks/${track.id}/stream?token=${encodeURIComponent(accessToken)}`
+  // header through to ffmpeg/the streamer. It is fetched fresh and pinned at
+  // track change: the store's token is what the last API call left, and an
+  // album is long enough for it to expire between two tracks with the phone
+  // in a pocket - the next stream would 401 and the music stop. Pinned, not
+  // subscribed, so a refresh mid-track never restarts the song.
+  const [pinned, setPinned] = useState<{ trackId: string; token: string } | null>(null);
+  useEffect(() => {
+    if (!trackId) return;
+    let live = true;
+    getFreshAccessToken().then((token) => {
+      if (live && token) setPinned({ trackId, token });
+    }).catch(() => { /* signed out: the 401 path signs the app out */ });
+    return () => { live = false; };
+  }, [trackId]);
+  const accessToken = pinned && pinned.trackId === trackId ? pinned.token : null;
+
+  const streamUri = (trackId && serverUrl && accessToken)
+    ? `${serverUrl}/api/v1/music/tracks/${trackId}/stream?token=${encodeURIComponent(accessToken)}`
     : null;
 
   // Single AudioPlayer for the entire queue lifetime. We swap its source via
@@ -256,8 +271,8 @@ function MusicMiniPlayerImpl() {
   const displayedProgress = scrubPct ?? progress;
   // 40dp slot at the device's density - a display-sized WebP, not the full
   // cover embedded in the file (the server resizes and caches it).
-  const artUri = serverUrl
-    ? coverArtUri(serverUrl, `/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken ?? "")}`, 40)
+  const artUri = (serverUrl && accessToken)
+    ? coverArtUri(serverUrl, `/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken)}`, 40)
     : undefined;
 
   const pctFromX = (x: number) => {

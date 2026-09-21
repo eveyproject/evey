@@ -112,6 +112,17 @@ export async function _ensureFreshToken(url?: string): Promise<string | undefine
   }
 }
 
+/**
+ * The access token for a URL the platform loads on its own (an <audio> src,
+ * an expo-audio source, an <img> for cover art), where no fetcher runs before
+ * the request and a token that expired while the previous track played would
+ * only be found out as a 401 from the media stack. Same single-flight refresh
+ * as an API call; undefined when signed out.
+ */
+export function getFreshAccessToken(): Promise<string | undefined> {
+  return _ensureFreshToken();
+}
+
 function resolveURL(url: string): string {
   return baseURL ? `${baseURL}${url}` : url;
 }
