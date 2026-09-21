@@ -9,6 +9,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -34,6 +35,18 @@ func CommandWithEventBus(bus shared.EventBus) CommandServiceOption {
 			}
 			if err := s.DeleteLibraryFeedConfig(ctx, e.LibraryID); err != nil {
 				slog.WarnContext(ctx, "auto-delete library feed config", slog.String("library", string(e.LibraryID)), slog.Any("err", err))
+			}
+		})
+		// A plugin's home rows die with the plugin, as a library's do: nothing
+		// listened here before, so every reinstall of a widget left its old
+		// plugin:<id> row in each profile, and the homes rendered the ghosts.
+		bus.Subscribe(plugin.PluginUninstalled{}.EventName(), func(ctx context.Context, ev shared.Event) {
+			e, ok := ev.(plugin.PluginUninstalled)
+			if !ok {
+				return
+			}
+			if err := s.DeletePluginFeedConfig(ctx, e.PluginID); err != nil {
+				slog.WarnContext(ctx, "auto-delete plugin feed config", slog.String("plugin", e.PluginID), slog.Any("err", err))
 			}
 		})
 	}
@@ -167,6 +180,19 @@ func (s *CommandService) DeleteLibraryFeedConfig(ctx context.Context, libraryID 
 	ft := feed.LibraryType(string(libraryID))
 	if err := s.commands.DeleteAdminConfigByType(ctx, ft); err != nil {
 		return fmt.Errorf("CommandService.DeleteLibraryFeedConfig: %w", err)
+	}
+	s.publish(ctx, feed.FeedConfigRemoved{FeedType: ft, OccurredAt: time.Now()})
+	return nil
+}
+
+// DeletePluginFeedConfig removes the plugin:<id> row from the admin config and
+// from every profile's config once the plugin is gone.
+func (s *CommandService) DeletePluginFeedConfig(ctx context.Context, pluginID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.DeletePluginFeedConfig")
+	defer span.End()
+	ft := feed.PluginType(pluginID)
+	if err := s.commands.DeleteAdminConfigByType(ctx, ft); err != nil {
+		return fmt.Errorf("CommandService.DeletePluginFeedConfig: %w", err)
 	}
 	s.publish(ctx, feed.FeedConfigRemoved{FeedType: ft, OccurredAt: time.Now()})
 	return nil
