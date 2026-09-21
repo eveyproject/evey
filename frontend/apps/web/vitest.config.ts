@@ -7,14 +7,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   plugins: [],
   resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src"),
-      "@evey/api": resolve(__dirname, "../../packages/api/src/index.ts"),
-      "@evey/client": resolve(__dirname, "../../packages/client/src/index.ts"),
-      "@evey/media-caps/cast": resolve(__dirname, "../../packages/media-caps/src/castUrl.ts"),
-      "@evey/media-caps/caps": resolve(__dirname, "../../packages/media-caps/src/castCaps.ts"),
-      "@evey/store": resolve(__dirname, "../../packages/store/src/index.ts"),
-    },
+    alias: [
+      // Deep entries first: an alias matches by prefix, in order.
+      { find: /^@evey\/client\/web\/(.+)$/, replacement: resolve(__dirname, "../../packages/client/src/web/$1") },
+      { find: "@", replacement: resolve(__dirname, "./src") },
+      { find: "@evey/api", replacement: resolve(__dirname, "../../packages/api/src/index.ts") },
+      { find: "@evey/client", replacement: resolve(__dirname, "../../packages/client/src/index.ts") },
+      { find: "@evey/media-caps/cast", replacement: resolve(__dirname, "../../packages/media-caps/src/castUrl.ts") },
+      { find: "@evey/media-caps/caps", replacement: resolve(__dirname, "../../packages/media-caps/src/castCaps.ts") },
+      { find: "@evey/store", replacement: resolve(__dirname, "../../packages/store/src/index.ts") },
+    ],
   },
   test: {
     globals: true,

@@ -441,6 +441,9 @@ importers:
       '@tanstack/react-query':
         specifier: 5.102.6
         version: 5.102.6(react@19.2.0)
+      hls.js:
+        specifier: 1.6.16
+        version: 1.6.16
       i18next:
         specifier: 26.4.0
         version: 26.4.0(typescript@5.9.3)
