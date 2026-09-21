@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import React from "react";
 
 vi.mock("react-native", () => ({
@@ -14,7 +14,7 @@ vi.mock("@expo/vector-icons", () => ({ Ionicons: ({ name }: any) => React.create
 // The status is a tiny external store so a change re-renders the memoised
 // player the way expo-audio's own hook would.
 const audio = vi.hoisted(() => {
-  type Status = { currentTime?: number; duration?: number; didJustFinish?: boolean };
+  type Status = { currentTime?: number; duration?: number; didJustFinish?: boolean; playing?: boolean };
   const listeners = new Set<() => void>();
   let status: Status = { currentTime: 30, duration: 120, didJustFinish: false };
   return {
@@ -35,7 +35,11 @@ vi.mock("expo-audio", async () => {
   return { useAudioPlayer: () => audio.player, useAudioPlayerStatus: () => useSyncExternalStore(audio.subscribe, audio.get) };
 });
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
-vi.mock("@evey/store", () => ({ useAuthStore: (sel: (s: { accessToken: string }) => unknown) => sel({ accessToken: "tok" }) }));
+// The store holds whatever the last API call left ("stale"); the player must
+// ask the fetcher for a token that is valid NOW.
+const freshToken = vi.hoisted(() => ({ fn: vi.fn(async () => "tok") }));
+vi.mock("@evey/api", () => ({ getFreshAccessToken: freshToken.fn }));
+vi.mock("@evey/store", () => ({ useAuthStore: Object.assign((sel: (s: { accessToken: string }) => unknown) => sel({ accessToken: "stale" }), { getState: () => ({ accessToken: "stale" }) }) }));
 vi.mock("../providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { surfaceRaised: "#222", surface: "#111", border: "#333", accent: "#f00", text: "#fff", textMuted: "#888", onAccent: "#000" } }),
 }));
@@ -67,10 +71,10 @@ describe("TVMusicPlayer", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("loads the active track's stream with the token, follows play/pause, and shows the progress", () => {
+  it("loads the active track's stream with a fresh token, follows play/pause, and shows the progress", async () => {
     act(() => useMusicQueueStore.setState({ queue: tracks, currentIndex: 0, isPlaying: true }));
     const { rerender } = render(<TVMusicPlayer />);
-    expect(audio.player.replace).toHaveBeenCalledWith("http://evey.local/api/v1/music/tracks/t1/stream?token=tok");
+    await waitFor(() => expect(audio.player.replace).toHaveBeenCalledWith("http://evey.local/api/v1/music/tracks/t1/stream?token=tok"));
     expect(audio.player.play).toHaveBeenCalled();
     expect(screen.getByText("One")).toBeTruthy();
     expect(screen.getByText("Band · LP")).toBeTruthy();
@@ -87,12 +91,26 @@ describe("TVMusicPlayer", () => {
     fireEvent.click(screen.getByLabelText("common.next"));
     rerender(<TVMusicPlayer />);
     expect(screen.getByText("Two")).toBeTruthy();
-    expect(audio.player.replace).toHaveBeenLastCalledWith("http://evey.local/api/v1/music/tracks/t2/stream?token=tok");
+    await waitFor(() => expect(audio.player.replace).toHaveBeenLastCalledWith("http://evey.local/api/v1/music/tracks/t2/stream?token=tok"));
+    expect(freshToken.fn).toHaveBeenCalledTimes(2);
   });
 
-  it("advances once when a track finishes, and close pauses and empties the queue", () => {
+  // An album outlives a 15-minute access token: the token pinned when a track
+  // starts is the fresh one the fetcher hands back, never the store's leftover,
+  // and the cover art carries the same one.
+  it("pins the token the fetcher refreshed at track change, not the store's stale one", async () => {
+    freshToken.fn.mockResolvedValueOnce("renewed");
+    act(() => useMusicQueueStore.setState({ queue: tracks, currentIndex: 1, isPlaying: true }));
+    render(<TVMusicPlayer />);
+    await waitFor(() => expect(audio.player.replace).toHaveBeenCalledWith("http://evey.local/api/v1/music/tracks/t2/stream?token=renewed"));
+    expect(document.querySelector("img")?.getAttribute("src")).toContain("/api/v1/music/tracks/t2/art?token=renewed");
+    expect(document.querySelector("img")?.getAttribute("src")).not.toContain("stale");
+  });
+
+  it("advances once when a track finishes, and close pauses and empties the queue", async () => {
     act(() => useMusicQueueStore.setState({ queue: tracks, currentIndex: 0, isPlaying: true }));
     const { rerender } = render(<TVMusicPlayer />);
+    await waitFor(() => expect(audio.player.replace).toHaveBeenCalled());
     act(() => audio.set({ currentTime: 100, duration: 100, didJustFinish: true }));
     expect(useMusicQueueStore.getState().currentIndex).toBe(1);
     // The flag staying true across renders must not skip a second track.

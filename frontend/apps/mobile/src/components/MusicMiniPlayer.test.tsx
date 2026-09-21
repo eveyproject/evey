@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 
 // The mini-player showed a bare progress bar with no numeric elapsed/duration
@@ -85,9 +85,11 @@ vi.mock("../stores/musicQueue", () => ({
 
 // --- @evey/api ----------------------------------------------------------------------------
 // formatTime is real (pure, no network) - only eveyFetch is stubbed.
+const freshToken = vi.hoisted(() => ({ fn: vi.fn(async () => "renewed") }));
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn().mockResolvedValue({}),
+  getFreshAccessToken: freshToken.fn,
 }));
 
 import { MusicMiniPlayer } from "./MusicMiniPlayer";
@@ -125,5 +127,17 @@ describe("MusicMiniPlayer - elapsed/duration readout", () => {
 
     expect(screen.getByText("0:00")).toBeTruthy();
     expect(screen.getByText("-")).toBeTruthy();
+  });
+});
+
+// An album outlives a 15-minute access token: the stream and the cover art
+// carry the token the fetcher refreshed at track change, never the store's
+// leftover ("tok-1" above).
+describe("MusicMiniPlayer - stream credential", () => {
+  it("pins a fresh token per track instead of the store's stale one", async () => {
+    render(<MusicMiniPlayer />);
+    await waitFor(() => expect(audioPlayer.replace).toHaveBeenCalledWith("http://test-server/api/v1/music/tracks/trk-1/stream?token=renewed"));
+    expect(document.querySelector("img")?.getAttribute("src")).toContain("/art?token=renewed");
+    expect(freshToken.fn).toHaveBeenCalledTimes(1);
   });
 });

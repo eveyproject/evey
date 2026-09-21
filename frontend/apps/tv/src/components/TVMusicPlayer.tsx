@@ -7,7 +7,7 @@ import { View, Text, Pressable, Image, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@evey/store";
+import { getFreshAccessToken } from "@evey/api";
 import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
@@ -53,7 +53,6 @@ function TVMusicPlayerImpl() {
   const theme = useTheme();
   const { t } = useTranslation();
   const serverUrl = useServerUrl();
-  const accessToken = useAuthStore((s) => s.accessToken);
 
   const queue = useMusicQueueStore((s) => s.queue);
   const currentIndex = useMusicQueueStore((s) => s.currentIndex);
@@ -64,34 +63,45 @@ function TVMusicPlayerImpl() {
   const clear = useMusicQueueStore((s) => s.clear);
 
   const track = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+  const trackId = track?.id ?? null;
 
-  const streamUri = (track && serverUrl && accessToken)
-    ? `${serverUrl}/api/v1/music/tracks/${track.id}/stream?token=${encodeURIComponent(accessToken)}`
-    : null;
-
-  const player = useAudioPlayer(streamUri ?? undefined, { updateInterval: 500 });
+  // One player for the queue's lifetime; every track goes through replace().
+  const player = useAudioPlayer(undefined, { updateInterval: 500 });
   const status = useAudioPlayerStatus(player);
-  const loadedUriRef = useRef<string | null>(null);
+
+  // The stream token is fetched fresh at every track change. The store's
+  // token is what the last API call left behind, and an album is long enough
+  // for it to expire between two tracks with nobody touching the remote: the
+  // next track's stream then 401s and the music stops (prod logs, 21-09,
+  // `auth rejected invalid_token` on /music/tracks/{id}/stream by bursts of
+  // six ExoPlayer retries). The player is fed from the promise, imperatively:
+  // measured on the emulator, a render queued from that promise while the
+  // app is in the background only commits on resume, and the next track
+  // stayed silent until then. The pinned copy only feeds the cover art. A
+  // refresh mid-track never touches the source, so the song never restarts.
+  const [pinned, setPinned] = useState<{ trackId: string; token: string } | null>(null);
+  useEffect(() => {
+    if (!trackId || !serverUrl) return;
+    let live = true;
+    getFreshAccessToken().then((token) => {
+      if (!live || !token) return;
+      setPinned({ trackId, token });
+      try {
+        player.replace(`${serverUrl}/api/v1/music/tracks/${trackId}/stream?token=${encodeURIComponent(token)}`);
+        if (useMusicQueueStore.getState().isPlaying) player.play();
+      } catch { /* released */ }
+    }).catch(() => { /* signed out: the 401 path signs the app out */ });
+    return () => { live = false; };
+  }, [trackId, serverUrl, player]);
+  const token = pinned && pinned.trackId === trackId ? pinned.token : null;
 
   useEffect(() => {
-    if (!streamUri) return;
-    if (loadedUriRef.current === streamUri) return;
-    loadedUriRef.current = streamUri;
-    try {
-      player.replace(streamUri);
-      if (isPlayingState) player.play();
-    } catch {
-      // Player not ready yet - the next render will retry.
-    }
-  }, [streamUri, player, isPlayingState]);
-
-  useEffect(() => {
-    if (!streamUri) return;
+    if (!trackId) return;
     try {
       if (isPlayingState) player.play();
       else player.pause();
     } catch { /* released */ }
-  }, [isPlayingState, player, streamUri]);
+  }, [isPlayingState, player, trackId]);
 
   const lastDidFinishRef = useRef(false);
   useEffect(() => {
@@ -106,7 +116,6 @@ function TVMusicPlayerImpl() {
 
   const onClose = useCallback(() => {
     try { player.pause(); } catch { /* released */ }
-    loadedUriRef.current = null;
     clear();
   }, [clear, player]);
 
@@ -117,8 +126,8 @@ function TVMusicPlayerImpl() {
   const progress = duration > 0 ? position / duration : 0;
   // 56px slot, 2x: a display-sized WebP, not the full cover embedded in the
   // file (the server resizes and caches it).
-  const artUri = (serverUrl && accessToken)
-    ? coverArtUri(serverUrl, `/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken)}`, 112)
+  const artUri = (serverUrl && token)
+    ? coverArtUri(serverUrl, `/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(token)}`, 112)
     : undefined;
 
   return (
