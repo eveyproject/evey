@@ -26,9 +26,11 @@ export const DEFAULT_MAX_REALTIME_RATIO = 0.7;
  * AAC leg renders it perfectly well. */
 export const DEFAULT_MAX_CHANNELS = 6;
 
-/** No decoded wasm segment for this long, while the picture is running, means
- * the leg is starving rather than merely slow. Generous on purpose: segments
- * are a few seconds and a single slow fetch must not trigger a fallback. */
+/** A segment the wasm leg OWES (inside the look-ahead window, neither decoded
+ * nor scheduled) has been owed for this long, while the picture is running:
+ * the leg is starving rather than merely slow. Generous on purpose: a single
+ * slow fetch must not trigger a fallback. Measured from the moment the debt
+ * appeared, never from the last decode - see owedSince. */
 export const DEFAULT_STARVATION_MS = 12_000;
 
 export interface HandoverProbe {
@@ -85,16 +87,12 @@ export interface StarvationState {
   switched: boolean;
   /** Is the picture actually running? A paused player decodes nothing, legitimately. */
   playing: boolean;
-  /** Milliseconds since the last SUCCESSFUL wasm segment decode. */
-  sinceLastDecodeMs: number;
   /**
-   * Does the wasm leg still OWE audio - a segment inside the look-ahead window
-   * it has neither decoded nor scheduled? A leg that owes nothing cannot be
-   * starving, however long ago its last decode was: that is the normal state
-   * after a backward seek into a stretch the cache already holds.
-   * Undefined keeps the old, blind behaviour.
+   * Milliseconds the wasm leg has continuously OWED audio: a segment inside
+   * the look-ahead window it has neither decoded nor scheduled, with no wasm
+   * decode landing since the debt appeared. 0 when it owes nothing.
    */
-  pending?: boolean;
+  owedForMs: number;
   thresholdMs?: number;
 }
 
@@ -105,15 +103,33 @@ export interface StarvationState {
  * back to the AAC leg.
  *
  * It is NOT blind to "nothing was asked of it". Counting the seconds since the
- * last decode alone made a healthy leg look dead: on 2026-09-20 a viewer seeked
- * back into audio the engine had already decoded (the cache holds everything
- * ahead of the playhead, 35 segments that day), the pump found the whole window
- * covered, no decode completed for 32 s, and the film was handed to the AAC
- * transcode while the wasm leg was playing 4 scheduled segments at 0 ms drift.
+ * last decode alone made a healthy leg look dead twice:
+ * - 2026-09-20: a viewer seeked back into audio the engine had already decoded,
+ *   the pump found the whole window covered, no decode completed for 32 s, and
+ *   a leg playing 4 scheduled segments at 0 ms drift was latched to AAC.
+ * - 2026-09-21: an AC-3 film cut by mkvgo into 10-16 s segments. A segment only
+ *   becomes owed the instant it enters the 20 s window, i.e. one segment
+ *   duration after the previous decode - so every segment longer than 12 s
+ *   "starved" the leg on arrival (three latches that day, each predicted to
+ *   0.1 s from the playlist alone). The clock now starts when the debt does.
  */
 export function isStarved(state: StarvationState): boolean {
   if (!state.switched || !state.playing) return false;
-  if (state.pending === false) return false;
   const threshold = state.thresholdMs ?? DEFAULT_STARVATION_MS;
-  return Number.isFinite(state.sinceLastDecodeMs) && state.sinceLastDecodeMs > threshold;
+  return Number.isFinite(state.owedForMs) && state.owedForMs > threshold;
+}
+
+/**
+ * owedSince advances the debt clock isStarved reads: the wall time at which
+ * the wasm leg started owing a segment, or null while it owes nothing.
+ * - no pending segment, or a picture that is not running: no debt (a frozen
+ *   picture asks for no audio, so its seconds are never charged);
+ * - a debt that just appeared starts the clock now;
+ * - a debt already running keeps its start.
+ * The engine resets it to null on every successful wasm decode, so the clock
+ * measures "owed with nothing delivered since", not "owed at all".
+ */
+export function owedSince(prev: number | null, pending: boolean, playing: boolean, now: number): number | null {
+  if (!pending || !playing) return null;
+  return prev ?? now;
 }

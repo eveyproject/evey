@@ -18,7 +18,8 @@
 // stereo outputs) correctly; other channel counts pass straight through.
 
 import { AVLatencyEstimator } from "./avLatencyEstimator";
-import { shouldHandover, isStarved, type HandoverVerdict } from "./relayGuard";
+import { shouldHandover, isStarved, owedSince, type HandoverVerdict } from "./relayGuard";
+import { AUDIO_STUCK_MS, audioClockFrozen, healBackoffMs, stuckFor, type ClockSample } from "./audioHealth";
 import { AAC_SAMPLES_PER_FRAME, adtsFromFrames, extractAacFrames, parseAacConfig, type AacConfig } from "./fmp4Adts";
 import { outputMix } from "./channelMix";
 import { planRelayHandover, type Segment } from "./relayHandover";
@@ -265,9 +266,18 @@ export class WasmAudioEngine {
   // after the hand-over this.segments is a merged array, so the starvation
   // rescue would have nothing to hand the film back to.
   private nativeSegments: Segment[] = [];
-  // lastWasmDecodeAt timestamps the last SUCCESSFUL wasm decode; 0 until the
-  // hand-over. The starvation watchdog reads it on every tick.
-  private lastWasmDecodeAt = 0;
+  // owedSince: wall time at which the wasm leg started owing a segment with
+  // nothing delivered since (null = owes nothing). The starvation watchdog
+  // reads it on every tick; a successful wasm decode resets it. See owedSince
+  // in relayGuard for why it is a debt clock and not a "last decode" clock.
+  private owedSince: number | null = null;
+  // Audio-output health (audioHealth.ts): when the context was first seen
+  // suspended while the picture advanced, the last moment its clock moved,
+  // how many heals were attempted and when the next one may run.
+  private suspendedSince: number | null = null;
+  private ctxClock: ClockSample | null = null;
+  private heals = 0;
+  private nextHealAt = 0;
   // wasmMemMB is the decoder's linear memory as reported by the worker. The
   // receiver's mem= beacon only sees the JS heap, which WebAssembly.Memory
   // never appears in - so a memory death used to be indistinguishable from a
@@ -622,9 +632,6 @@ export class WasmAudioEngine {
     if (!plan) return; // film ends before the boundary: the AAC leg finishes it
     this.adoptTimeline(plan.segments, plan.keepPrefix);
     this.switched = true;
-    // Start the starvation clock HERE: without a baseline the watchdog would
-    // read "no wasm decode since 1970" and fall back on its first tick.
-    this.lastWasmDecodeAt = Date.now();
     this.opts.onModeChange?.(this.mode());
   }
 
@@ -992,28 +999,28 @@ export class WasmAudioEngine {
     const advancing = !this.video.paused && ct > this.lastCt + 1e-3;
     this.lastCt = ct;
 
-    // Starvation rescue: the picture is running but the wasm leg has delivered
-    // nothing for a long while. On a box that cannot sustain the decode this is
-    // the difference between a film that finishes in AAC and a silent picture
-    // the receiver dies on (prod, 2026-07-30). Checked before the pause/stall
-    // returns below: a stalled picture is not "playing" and must not trip it.
+    // Starvation rescue: the picture is running but the wasm leg has owed a
+    // segment for a long while with nothing delivered. On a box that cannot
+    // sustain the decode this is the difference between a film that finishes
+    // in AAC and a silent picture the receiver dies on (prod, 2026-07-30).
+    // Checked before the pause/stall returns below; owedSince charges nothing
+    // to a paused or buffering picture (the 2026-09-03 "stays in buffering"
+    // sessions latched the film to AAC on their first frame for that reason).
+    const now = Date.now();
+    this.owedSince = this.switched ? owedSince(this.owedSince, this.wasmDeliveryPending(ct), advancing, now) : null;
     if (isStarved({
       switched: this.switched,
       playing: advancing,
-      sinceLastDecodeMs: Date.now() - this.lastWasmDecodeAt,
-      pending: this.wasmDeliveryPending(ct),
+      owedForMs: this.owedSince == null ? 0 : now - this.owedSince,
     })) {
       this.revertToNativeLeg("starvation: no wasm audio decoded while the picture ran");
     }
 
     if (this.video.paused || !advancing) {
-      // The starvation clock measures the wasm leg against a RUNNING picture.
-      // A paused or buffering picture asks for no audio, so the seconds it
-      // spends frozen must not be charged to the decoder: on the 2026-09-03
-      // "stays in buffering" sessions the first frame after a long stall
-      // read "no wasm audio decoded while the picture ran" and latched the
-      // film to AAC before the leg was ever given a chance.
-      if (this.switched) this.lastWasmDecodeAt = Date.now();
+      // A picture that is not running makes no claim on the output: a
+      // suspended context or a frozen clock is the expected state here.
+      this.suspendedSince = null;
+      this.ctxClock = null;
     }
     if (this.video.paused) {
       // Pause: freeze the audio clock seamlessly and KEEP the anchor + scheduled
@@ -1038,7 +1045,36 @@ export class WasmAudioEngine {
     }
 
     this.resumeCtx();
-    if (this.ctx.state === "suspended") return; // not unlocked yet - wait for a gesture
+    if (this.ctx.state === "suspended") {
+      // Not unlocked yet - wait for a gesture. Unless the picture has been
+      // running against a suspended context for a while: then the one
+      // resume() resumeCtx allowed itself never landed, and waiting for a
+      // gesture is exactly the silent picture (2026-09-21). Re-arm and try
+      // again, with a growing backoff.
+      this.suspendedSince ??= now;
+      if (stuckFor(this.suspendedSince, now) > AUDIO_STUCK_MS && now >= this.nextHealAt) {
+        this.heal("audio context stuck suspended while the picture ran; retrying resume", now);
+        this.ctxRetry = true;
+        this.resumeCtx();
+      }
+      return;
+    }
+    this.suspendedSince = null;
+    // A running context whose clock stopped is an output device that died
+    // under it: everything scheduled from here on waits for a time that never
+    // comes. Cycling the context re-opens the device (a seek does the same by
+    // accident, which is how the 2026-09-21 viewer got the sound back).
+    const clock = audioClockFrozen(this.ctxClock, now, this.ctx.currentTime);
+    this.ctxClock = clock.sample;
+    if (clock.frozen && now >= this.nextHealAt) {
+      this.heal("audio clock frozen while the picture ran; cycling the context", now);
+      const ctx = this.ctx;
+      this.clearScheduled();
+      this.anchored = false;
+      this.ctxClock = null;
+      void ctx.suspend().then(() => ctx.resume()).catch(() => { /* the next tick judges the result */ });
+      return;
+    }
     if (!this.anchored) {
       this.reanchor(ct);
     } else {
@@ -1108,9 +1144,9 @@ export class WasmAudioEngine {
           this.decodedCache.set(target, d);
           this.decodeFailStreak = 0;
           this.retryTracker.clear(target);
-          // Only wasm decodes feed the starvation watchdog: the native leg
+          // Only wasm decodes settle the starvation debt: the native leg
           // delivering is precisely NOT evidence that the wasm leg is alive.
-          if (!seg.native) this.lastWasmDecodeAt = Date.now();
+          if (!seg.native) this.owedSince = null;
           if (!this.firstAudioFired) {
             // The pump decodes from the live playhead, so the FIRST cached
             // segment is the one the start needs.
@@ -1265,6 +1301,7 @@ export class WasmAudioEngine {
     segments: number;
     decoded: number;
     mode: string;
+    heals: number;
   } {
     const audioMediaTime = this.anchored
       ? this.anchorMedia + ((this.ctx?.currentTime ?? 0) - this.anchorCtx) * this.anchorRate
@@ -1284,7 +1321,18 @@ export class WasmAudioEngine {
       segments: this.segments.length,
       decoded: this.decodedCache.size,
       mode: this.mode(),
+      heals: this.heals,
     };
+  }
+
+  // heal records one audio-output intervention (audioHealth.ts) and reports
+  // it: the beacon is what makes the next silent picture diagnosable, the
+  // backoff is what keeps a heal that does not take from firing at tick rate.
+  private heal(reason: string, now: number): void {
+    this.heals++;
+    this.nextHealAt = now + healBackoffMs(this.heals - 1);
+    console.warn("[WasmAudioEngine] heal:", reason);
+    this.opts.onDiagnostic?.(`${reason} (heal #${this.heals})`);
   }
 
   // --- teardown -----------------------------------------------------------

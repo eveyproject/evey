@@ -18,6 +18,9 @@ export interface EngineStats {
   leadMeasured?: boolean;
   userOffsetMs?: number;
   outputLatencyMs?: number;
+  // Audio-output heals attempted this session (audioHealth.ts); omitted from
+  // the line while zero, so a healthy session's snapshot reads as before.
+  heals?: number;
 }
 
 // Engine stats are registered per <video> element by the wasm audio hook, so
@@ -93,6 +96,7 @@ export function playbackSnapshot(video: HTMLVideoElement, engine?: EngineStats |
     if (engine.leadMs != null && Number.isFinite(engine.leadMs)) parts.push(`lead=${Math.round(engine.leadMs)}ms${engine.leadMeasured ? "" : "*"}`);
     if (engine.userOffsetMs) parts.push(`off=${Math.round(engine.userOffsetMs)}ms`);
     if (engine.outputLatencyMs != null && Number.isFinite(engine.outputLatencyMs)) parts.push(`out=${Math.round(engine.outputLatencyMs)}ms`);
+    if (engine.heals) parts.push(`heal=${engine.heals}`);
   }
   const render = renderStatsByVideo.get(video);
   if (render) {
