@@ -10,7 +10,8 @@ import { Spinner } from "../components/ui";
 import { goBack, replace } from "../app/router";
 
 const OSD_HIDE_MS = 4000;
-const TV_DEVICE = { deviceId: "tv-browser", deviceName: "TV Browser", clientName: "Evey TV" };
+// No wasm audio engine here: the server transcodes AC-3/E-AC-3 to AAC.
+const TV_DEVICE = { deviceId: "tv-browser", deviceName: "TV Browser", clientName: "Evey TV", wasmAudio: false };
 
 // The television player, driven by the remote alone: OK shows or hides the
 // bar and pauses, left/right seek, back leaves. hls.js on MSE, with the
@@ -96,8 +97,14 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
       backBufferLength: 30,
     });
     hlsRef.current = hls;
-    hls.on(Hls.Events.MANIFEST_PARSED, seekToStart);
+    hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
+      console.info("[player] manifest parsed", data.levels.map((l) => `${l.width}x${l.height}@${l.bitrate}`).join(" "), "audio tracks", data.audioTracks.length);
+      seekToStart();
+    });
     hls.on(Hls.Events.ERROR, (_e, data) => {
+      // Every error, fatal or not, in the console: a television has no
+      // devtools and this is what a bug report can carry.
+      console.warn("[player] hls", data.type, data.details, data.fatal ? "fatal" : "", data.response?.code ?? "", data.reason ?? "");
       if (!data.fatal) return;
       if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
       else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();

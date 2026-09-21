@@ -8,6 +8,14 @@ export function setLocaleProvider(fn: () => string) { getLocale = fn; }
 
 let baseURL = "";
 export function setBaseURL(url: string) { baseURL = url; }
+// Whether requests carry the browser's cookies. The web app does (its refresh
+// token is an HttpOnly cookie, its writes carry a CSRF cookie). A client on
+// another origin holding a Bearer must NOT: the server refuses credentials to
+// a foreign origin on purpose, and a browser then blocks the whole request
+// when the mode says "include".
+let credentialsMode: RequestCredentials = "include";
+export function setCredentialsMode(mode: RequestCredentials) { credentialsMode = mode; }
+export function getCredentialsMode(): RequestCredentials { return credentialsMode; }
 export function getBaseURL(): string { return baseURL; }
 
 let extraHeaders: Record<string, string> = {};
@@ -146,7 +154,7 @@ async function attemptRefresh(): Promise<string> {
       if (csrfToken) refreshHeaders["X-CSRF-Token"] = csrfToken;
       const res = await fetch(resolveURL("/api/v1/auth/refresh"), {
         method: "POST",
-        credentials: "include",
+        credentials: credentialsMode,
         headers: refreshHeaders,
         body: JSON.stringify({}),
       });
@@ -279,7 +287,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
     }
     return fetch(resolveURL(request.url), {
       method: request.method,
-      credentials: "include" as const,
+      credentials: credentialsMode,
       headers: h,
       body: request.body,
       signal: request.signal,
@@ -301,7 +309,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
   const doFetch = (authToken: string | undefined) =>
     fetch(fullURL, {
       method: request.method,
-      credentials: "include" as const,
+      credentials: credentialsMode,
       headers: authToken ? { ...headers, Authorization: `Bearer ${authToken}` } : headers,
       body: request.body,
       signal: request.signal,
@@ -390,7 +398,7 @@ async function eveyFetchWithSignal<T>(request: FetcherRequest, signal: AbortSign
   const doFetch = (authToken: string | undefined) =>
     fetch(url, {
       method: request.method,
-      credentials: "include" as const,
+      credentials: credentialsMode,
       headers: authToken ? { ...headers, Authorization: `Bearer ${authToken}` } : headers,
       body: request.data !== undefined ? JSON.stringify(request.data) : undefined,
       signal,

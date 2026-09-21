@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerListStore } from "@evey/store";
 import { FocusRoot } from "../tv/focus";
@@ -8,7 +8,10 @@ import { replace } from "../app/router";
 
 export function ServerConnectScreen() {
   const { t } = useTranslation();
-  const servers = useServerListStore((s) => Object.values(s.servers));
+  // Select the record itself: a selector returning a fresh array every call
+  // makes zustand re-render without end.
+  const serverMap = useServerListStore((s) => s.servers);
+  const servers = useMemo(() => Object.values(serverMap), [serverMap]);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

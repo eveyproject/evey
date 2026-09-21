@@ -6,6 +6,7 @@ import { useAuthStore } from "@evey/store";
 import { FocusRoot } from "../tv/focus";
 import { Button, Spinner } from "../components/ui";
 import { replace } from "../app/router";
+import { refreshTokenStore } from "../lib/session";
 
 // A profile is a server-side grant, not a client flag: switching means a
 // refresh with the profile id, so the token the player sends carries it.
@@ -25,7 +26,13 @@ export function ProfileSelectScreen() {
     setBusy(p.id);
     setError(null);
     try {
-      const resp = await userServiceRefreshToken({ profileId: p.id });
+      // No cookie rides along (see setCredentialsMode): the refresh token goes
+      // in the body, and the rotated one that comes back replaces it - the
+      // server single-uses them, so keeping the old one would end the
+      // session at the next refresh.
+      const refreshToken = (await refreshTokenStore.getRefreshToken()) ?? undefined;
+      const resp = await userServiceRefreshToken({ profileId: p.id, refreshToken });
+      if (resp.refreshToken) await refreshTokenStore.setRefreshToken(resp.refreshToken);
       if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       useAuthStore.getState().setProfile(p.id);
       await qc.invalidateQueries();
