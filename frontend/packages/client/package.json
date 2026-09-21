@@ -1,0 +1,27 @@
+{
+  "name": "@evey/client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Platform-free hooks and logic shared by the web, mobile and TV clients",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@evey/api": "workspace:*",
+    "@evey/media-caps": "workspace:*",
+    "@evey/store": "workspace:*",
+    "@tanstack/react-query": "5.102.6",
+    "i18next": "26.4.0",
+    "react": "19.2.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.14",
+    "jsdom": "28.1.0",
+    "typescript": "5.9.3",
+    "vitest": "4.0.18"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./native": "./src/native.ts"
+  }
+}

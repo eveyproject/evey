@@ -2,75 +2,57 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// Static guard: the three client-side parental rating tables must stay identical.
+// Static guard: the client-side parental rating table lives ONCE.
 //
-// web, mobile and TV each carry their own copy of the country -> minimum-age
-// table and of the two functions that read it (minAgeFor, isAgeExceeded), in
-// their own useParentalGate.ts. The copies are byte-identical today. Nothing
-// keeps them that way.
+// web, mobile and TV used to each carry their own copy of the country ->
+// minimum-age table and of the two functions that read it (minAgeFor,
+// isAgeExceeded). This project's parental regressions have all had the same
+// shape: a rule applied on one path and forgotten on its twin (the admin
+// bypass fixed in library_handler.go and missed in playback_handler.go for
+// two months; DEFAULT_TYPE_FILTER copied to mobile and TV without
+// DEDICATED_ROUTES). The three copies were extracted into @evey/client
+// (packages/client/src/hooks/useParentalGate.ts) on 2026-09-21; the app
+// modules are re-exports of it.
 //
-// This project's parental regressions have all had the same shape: a rule
-// applied on one path and forgotten on its twin. It happened with the admin
-// bypass (fixed in library_handler.go, missed in playback_handler.go for two
-// months) and with the shared library rules (mobile and TV copied
-// DEFAULT_TYPE_FILTER but not DEDICATED_ROUTES). A table edited on web alone
-// would mean the same title asks for a PIN on one client and not on another -
-// and, because the server is authoritative and already fails closed, the
-// visible symptom would be a PIN prompt on all-ages content rather than an
-// exposure, which is exactly the kind of thing that gets lived with instead of
-// reported.
-//
-// The guard deliberately compares TEXT rather than behaviour, and does not ask
-// for the tables to be extracted into this package. Extraction is the better
-// end state, but it edits three parental files; this test costs nothing and
-// fails the moment they diverge. Whoever changes one is told to change all
-// three - or to do the extraction properly.
+// This guard fails the moment a copy of the table grows back in an app: a
+// table edited on one client alone would mean the same title asks for a PIN
+// on one client and not on another - and, because the server is
+// authoritative and already fails closed, the visible symptom would be a PIN
+// prompt on all-ages content rather than an exposure, which is exactly the
+// kind of thing that gets lived with instead of reported.
 
-const APPS = join(__dirname, "..", "..", "..", "apps");
-const GATE = (app: string) => join(APPS, app, "src", "hooks", "useParentalGate.ts");
+const FRONTEND = join(__dirname, "..", "..", "..");
+const APP_GATE = (app: string) => join(FRONTEND, "apps", app, "src", "hooks", "useParentalGate.ts");
+const SHARED_GATE = join(FRONTEND, "packages", "client", "src", "hooks", "useParentalGate.ts");
 
-/** Text of a top-level block, from its opening line to a closing brace in column 0. */
-function block(source: string, startPattern: RegExp): string {
-  const lines = source.split("\n");
-  const start = lines.findIndex((l) => startPattern.test(l));
-  if (start < 0) return "";
-  for (let i = start; i < lines.length; i++) {
-    if (i > start && /^[};]/.test(lines[i])) {
-      // `export ` is incidental: web keeps these module-private, mobile and TV
-      // export them. Only the rule itself has to match.
-      return lines.slice(start, i + 1).join("\n").replace(/^export /gm, "");
-    }
-  }
-  return "";
-}
-
-const REGIONS: Record<string, RegExp> = {
-  "the country -> minimum-age table": /^(export )?const BY_COUNTRY/,
-  "minAgeFor()": /^(export )?function minAgeFor/,
-  "isAgeExceeded()": /^(export )?function isAgeExceeded/,
+const RULES: Record<string, RegExp> = {
+  "the country -> minimum-age table": /^(export )?const BY_COUNTRY/m,
+  "minAgeFor()": /^(export )?function minAgeFor/m,
+  "isAgeExceeded()": /^(export )?function isAgeExceeded/m,
 };
 
-describe("the client parental rating tables stay in sync across apps", () => {
-  const sources = {
-    web: readFileSync(GATE("web"), "utf8"),
-    mobile: readFileSync(GATE("mobile"), "utf8"),
-    tv: readFileSync(GATE("tv"), "utf8"),
-  };
+describe("the client parental rating table lives once, in @evey/client", () => {
+  const shared = readFileSync(SHARED_GATE, "utf8");
 
-  for (const [label, pattern] of Object.entries(REGIONS)) {
-    it(`${label} is the same on web, mobile and TV`, () => {
-      const web = block(sources.web, pattern);
-      // A rename or refactor that makes the block unfindable must fail here
-      // rather than pass by comparing two empty strings.
-      expect(web, `${label} not found in web's useParentalGate.ts`).not.toBe("");
+  for (const [label, pattern] of Object.entries(RULES)) {
+    it(`${label} is defined in the shared module`, () => {
+      // A rename or refactor that makes the rule unfindable must fail here
+      // rather than pass by finding it nowhere.
+      expect(shared, `${label} not found in packages/client useParentalGate.ts`).toMatch(pattern);
+    });
+  }
 
-      for (const app of ["mobile", "tv"] as const) {
+  for (const app of ["web", "mobile", "tv"] as const) {
+    it(`${app} re-exports the shared gate and carries no copy of the rules`, () => {
+      const source = readFileSync(APP_GATE(app), "utf8");
+      expect(source).toMatch(/from "@evey\/client"/);
+      for (const [label, pattern] of Object.entries(RULES)) {
         expect(
-          block(sources[app], pattern),
-          `${label} differs between web and ${app}. A parental rule changed on one client only ` +
-            `is how this project has shipped every one of its parental regressions: change all ` +
-            `three, or move the rule into @evey/api and import it everywhere.`,
-        ).toBe(web);
+          source,
+          `${label} has a local copy in ${app}. A parental rule changed on one client only is how ` +
+            `this project has shipped every one of its parental regressions: edit the shared module ` +
+            `in packages/client and import it everywhere.`,
+        ).not.toMatch(pattern);
       }
     });
   }

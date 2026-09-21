@@ -1,27 +1,10 @@
-import { useMemo } from "react";
-import { useAuthStore } from "@evey/store";
+// Shared implementation lives in @evey/client (packages/client/src/hooks/useAuthenticatedImage.ts).
+import { useAuthenticatedImage as useSharedAuthenticatedImage } from "@evey/client";
 
-interface AuthenticatedImageSource {
-  uri: string;
-  headers: { Authorization: string };
+// The phone passes the token in the query too: expo-image on Android does not
+// always forward the Authorization header across a redirect.
+export function useAuthenticatedImage(uri: string | undefined) {
+  return useSharedAuthenticatedImage(uri, true);
 }
-
-export function useAuthenticatedImage(uri: string | undefined): AuthenticatedImageSource | undefined {
-  const token = useAuthStore((s) => s.accessToken);
-
-  // Pass token as query param - expo-image on Android doesn't always forward
-  // Authorization headers on redirects
-  return useMemo(() => {
-    if (!uri || !token) return undefined;
-    const sep = uri.includes("?") ? "&" : "?";
-    return { uri: `${uri}${sep}token=${token}`, headers: { Authorization: `Bearer ${token}` } };
-  }, [uri, token]);
-}
-
-export function useAuthHeaders(): { Authorization: string } | undefined {
-  const token = useAuthStore((s) => s.accessToken);
-  return useMemo(() => {
-    if (!token) return undefined;
-    return { Authorization: `Bearer ${token}` };
-  }, [token]);
-}
+export { useAuthHeaders } from "@evey/client";
+export type { AuthenticatedImageSource } from "@evey/client";

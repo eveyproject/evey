@@ -15,6 +15,8 @@
 // Android and to the Xcode console on tvOS, so the same lines show up on both
 // platforms with no native module and nothing to keep in sync.
 
+import { setClientLogger } from "@evey/client";
+
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 // The tail kept in memory so a crash screen can show what led to it. Bounded:
@@ -94,3 +96,7 @@ export function bootMarker(): void {
   const sha = process.env.EXPO_PUBLIC_BUILD_SHA ?? "unknown";
   logger("boot").info(`boot sha=${sha} at=${new Date().toISOString()}`);
 }
+
+// The shared hooks (@evey/client) log through this logger too, so their lines
+// carry the same prefix and land in the same filtered stream.
+setClientLogger(logger);

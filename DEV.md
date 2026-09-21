@@ -46,6 +46,7 @@ frontend/
   apps/mobile/         Expo 55 + React Native (Android)
   apps/tv/             Expo 55 + React Native TVOS (Android TV)
   packages/api/        Generated API client (orval)
+  packages/client/     Hooks and logic shared by web, mobile and TV (platform-free)
   packages/theme/      Shared CSS variables
   packages/store/      Shared Zustand stores
 proto/evey/v1/         Protobuf definitions

@@ -125,6 +125,14 @@ vi.mock("@evey/api", () => ({
   useFeedServiceResetProfileFeedConfig: () => ({ mutateAsync: resetMutateAsync }),
   useLibraryServiceListLibraries: () => ({ data: { libraries: feedLibraries } }),
   useLibraryServiceListMediaItems: () => ({ data: { items: [] }, isLoading: false }),
+  // The shared useMostPopular (@evey/client) reads the generated hook and maps
+  // its items through `select`; the popular state above feeds it here.
+  useActivityServiceGetPopularMedia: (_params: unknown, opts?: { query?: { select?: (d: unknown) => unknown } }) => ({
+    data: popularLoading || popularError ? undefined : (opts?.query?.select ? opts.query.select({ items: popularItems }) : popularItems),
+    isLoading: popularLoading,
+    isError: popularError,
+    refetch: popularRefetch,
+  }),
   eveyFetch: vi.fn().mockResolvedValue({}),
 }));
 
