@@ -91,7 +91,19 @@ function App() {
 
   if (!ready) return null;
 
-  switch (route.name) {
+  // The screen is decided here, synchronously, and the hash follows in the
+  // effect above: rendering the route first and redirecting after let the
+  // home mount for one frame with no server chosen and fire its queries at
+  // nowhere.
+  const effective: Route = !activeServerUrl()
+    ? { name: "server" }
+    : !accessToken && !PUBLIC_ROUTES.has(route.name)
+      ? { name: "login" }
+      : accessToken && PUBLIC_ROUTES.has(route.name)
+        ? { name: profileId ? "home" : "profiles" }
+        : route;
+
+  switch (effective.name) {
     case "server":
       return <ServerConnectScreen />;
     case "login":
@@ -101,11 +113,11 @@ function App() {
     case "profiles":
       return <ProfileSelectScreen />;
     case "library":
-      return <LibraryScreen libraryId={route.libraryId} />;
+      return <LibraryScreen libraryId={effective.libraryId} />;
     case "media":
-      return <MediaDetailScreen mediaId={route.mediaId} />;
+      return <MediaDetailScreen mediaId={effective.mediaId} />;
     case "player":
-      return <PlayerScreen mediaId={route.mediaId} restart={!!route.restart} />;
+      return <PlayerScreen mediaId={effective.mediaId} restart={!!effective.restart} />;
     case "settings":
       return <SettingsScreen />;
     default:

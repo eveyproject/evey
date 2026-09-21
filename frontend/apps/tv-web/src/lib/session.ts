@@ -1,4 +1,4 @@
-import { setBaseURL } from "@evey/api";
+import { setBaseURL, setCredentialsMode } from "@evey/api";
 import { useAuthStore, useServerListStore, normalizeServerUrl } from "@evey/store";
 import { createAuthRefresh, initFetcher, parseEveyHealth, type EveyHealth } from "@evey/client";
 import { reloadCatalogue } from "../i18n";
@@ -104,6 +104,10 @@ export async function signOut(): Promise<void> {
 /** Wires the API fetcher once, at boot, and answers whether a server is known. */
 export async function bootSession(onUnauthorized: () => void): Promise<{ hasServer: boolean }> {
   const url = activeServerUrl();
+  // Bearer only, never cookies: this client may run from another origin (a
+  // packaged app, the /tv page opened on a different host) and the server
+  // grants a foreign origin no credentials.
+  setCredentialsMode("omit");
   await initFetcher({
     resolveServerUrl: async () => url,
     onUnauthorized,

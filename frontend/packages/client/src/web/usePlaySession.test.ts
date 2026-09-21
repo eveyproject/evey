@@ -8,6 +8,7 @@ const fetchStreamTokenFn = vi.fn(() => Promise.resolve("stream-tok-abc"));
 vi.mock("@evey/api", () => ({
   // The web app: same origin, so the stop beacon goes to a relative path.
   getBaseURL: () => "",
+  getCredentialsMode: () => "include",
   usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
   usePlaybackServiceGetStreamInfo: () => ({
     data: { directPlayUrl: "/original-url", videoCodec: "h264" },

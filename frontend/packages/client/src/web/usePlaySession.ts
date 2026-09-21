@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getBaseURL,
+  getCredentialsMode,
   usePlaybackServiceGetWatchProgress,
   usePlaybackServiceGetStreamInfo,
   playbackServiceStartStream,
@@ -31,7 +32,7 @@ function postStopStream(sessionId: string) {
   if (csrfMatch) headers["X-CSRF-Token"] = csrfMatch[1];
   void fetch(`${getBaseURL()}/api/v1/playback/stop`, {
     method: "POST",
-    credentials: "include",
+    credentials: getCredentialsMode(),
     headers,
     body: JSON.stringify({ sessionId }),
     keepalive: true,
@@ -56,6 +57,13 @@ export interface PlaySessionDevice {
   deviceId: string;
   deviceName: string;
   clientName: string;
+  /**
+   * Whether this player runs the ac3go wasm engine for AC-3/E-AC-3. The web
+   * app does and says so when the browser cannot decode them natively; a
+   * client without the engine must declare false, or the server serves an
+   * out-of-band audio rendition nothing will decode.
+   */
+  wasmAudio?: boolean;
 }
 
 const WEB_DEVICE: PlaySessionDevice = { deviceId: "web-browser", deviceName: "Web Browser", clientName: "Evey Web" };
@@ -107,13 +115,13 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
     supportsHdr: caps.hdr,
     // Deliberately not in supportedAudioCodecs - see canWasmDecodeAC3. Without
     // it the server calls the audio "transcode" and serves it untouched.
-    wasmAudio: canWasmDecodeAC3(),
+    wasmAudio: device.wasmAudio ?? canWasmDecodeAC3(),
     // Same declaration appendCodecParams puts on the HLS master URL, so the
     // stream-info panel describes the bytes the segments will actually carry.
     // Sending one and not the other is how the panel came to claim a copy the
     // packager was re-encoding (2026-09-06).
     fmp4AudioPassthrough: getFmp4AudioPassthrough(),
-  }), [caps]);
+  }), [caps, device.wasmAudio]);
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {
     query: { retry: false },
