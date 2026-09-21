@@ -1,112 +1,29 @@
-import { useParentalServiceGetParentalSettings, useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+// Shared implementation lives in @evey/client (packages/client/src/hooks/useParentalGate.ts).
+// This module keeps the path the screens and their tests import.
+import { configureParentalUnlock } from "@evey/client";
 
-// Minimal per-country rating → min-age table. Mirrors the backend
-// internal/pkg/ratings byCountry map for the handful of systems TMDB returns
-// most often for movies/series.
-const BY_COUNTRY: Record<string, Record<string, number>> = {
-  FR: { TP: 0, U: 0, "-10": 10, "10": 10, "-12": 12, "12": 12, "-16": 16, "16": 16, "-18": 18, "18": 18, X: 18 },
-  US: { G: 0, "TV-Y": 0, "TV-G": 0, "TV-Y7": 7, PG: 10, "TV-PG": 10, "PG-13": 13, "TV-14": 14, R: 17, "TV-MA": 17, "NC-17": 17 },
-  GB: { U: 0, UC: 0, PG: 8, "12": 12, "12A": 12, "15": 15, "18": 18, R18: 18 },
-  DE: { "0": 0, "6": 6, "12": 12, "16": 16, "18": 18 },
-  ES: { APTA: 0, TP: 0, "7": 7, "12": 12, "13": 13, "16": 16, "18": 18 },
-  AU: { G: 0, PG: 8, M: 15, "MA 15+": 15, "MA15+": 15, "R 18+": 18, "R18+": 18 },
-  BR: { L: 0, LIVRE: 0, "10": 10, "12": 12, "14": 14, "16": 16, "18": 18 },
-  NL: { AL: 0, "6": 6, "9": 9, "12": 12, "14": 14, "16": 16, "18": 18 },
-  RU: { "0+": 0, "6+": 6, "12+": 12, "14+": 14, "16+": 16, "18+": 18 },
-  IT: { T: 0, "6+": 6, "12": 12, "14": 14, "18": 18 },
-  JP: { G: 0, PG12: 12, "R15+": 15, "R18+": 18 },
-  IN: { U: 0, "U/A": 12, "U/A 7+": 7, "U/A 13+": 13, "U/A 16+": 16, A: 18 },
-};
-
-function minAgeFor(country: string, rating: string): number {
-  if (!country || !rating) return -1;
-  const c = country.toUpperCase();
-  const r = rating.trim().toUpperCase();
-  if (BY_COUNTRY[c]?.[r] !== undefined) return BY_COUNTRY[c][r];
-  if (c !== "US" && BY_COUNTRY.US[r] !== undefined) return BY_COUNTRY.US[r];
-  return -1;
-}
-
-// The SERVER is authoritative and already fails closed: it computes the
-// worst-case minimum age across every country's certification and refuses the
-// item (404, list-filtered) when that age exceeds the profile's cap or cannot
-// be resolved. Anything this client can see has therefore been vetted for the
-// active profile.
-//
-// So this gate must never be STRICTER than the server: it holds a 12-country
-// table where the server holds 26, and it only sees officialRating (often
-// empty on titles that carry per-country certifications). Failing closed here
-// would demand a parental PIN for legitimate, all-ages content - verified on a
-// real title rated TP in France whose officialRating is empty. Unresolvable
-// rating -> defer to the server, which already decided.
-function isAgeExceeded(country: string, rating: string | undefined, maxAge: number): boolean {
-  if (!rating || maxAge < 0) return false;
-  const age = minAgeFor(country, rating);
-  if (age < 0) return false;
-  return age > maxAge;
-}
-
+// The web keeps the unlocked profiles for the browser session: a reload must
+// not ask for the PIN again, closing the tab must.
 const SESSION_KEY = "evey:parental_unlocked";
+configureParentalUnlock({
+  store: {
+    load: () => {
+      try {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+        return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+      } catch {
+        return new Set();
+      }
+    },
+    save: (ids) => {
+      try {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify([...ids]));
+      } catch {
+        // Storage refused (private mode, quota): the gate simply asks again.
+      }
+    },
+  },
+});
 
-function getUnlockedProfiles(): Set<string> {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    if (!raw) return new Set();
-    return new Set(JSON.parse(raw) as string[]);
-  } catch {
-    return new Set();
-  }
-}
-
-function markProfileUnlocked(profileId: string) {
-  const set = getUnlockedProfiles();
-  set.add(profileId);
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify([...set]));
-}
-
-export function isProfileUnlocked(profileId: string): boolean {
-  return getUnlockedProfiles().has(profileId);
-}
-
-export function markUnlocked(profileId: string) {
-  markProfileUnlocked(profileId);
-}
-
-function useParentalSettings(profileId: string | null) {
-  return useParentalServiceGetParentalSettings(profileId ?? "", {
-    query: { enabled: !!profileId, staleTime: 60_000 },
-  });
-}
-
-export function useParentalGate(
-  officialRating: string | undefined,
-  certificationsByCountry?: Record<string, string>,
-) {
-  const profileId = useAuthStore((s) => s.profileId);
-  const { data: parental, isLoading: settingsLoading } = useParentalSettings(profileId);
-  const { data: user } = useUserServiceGetCurrentUser();
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
-  const profile = profilesResp?.profiles?.find((p) => p.id === profileId);
-
-  function needsPin(): boolean {
-    if (!profileId || !parental) return false;
-    if (!parental.enabled) return false;
-    if (!parental.hasPin) return false;
-    if (isProfileUnlocked(profileId)) return false;
-    const maxAge = parental.maxAge ?? -1;
-    if (maxAge < 0) return false;
-    const region = (profile?.region ?? "").toUpperCase();
-    const rating = (region && certificationsByCountry?.[region]) || officialRating || "";
-    return isAgeExceeded(region || "US", rating, maxAge);
-  }
-
-  // settingsLoading: the caller must NOT trust needsPin() yet - the settings
-  // are still in flight, and answering "false" during that window let the
-  // player mount and start a transcode session before the PIN dialog showed.
-  // isLoading (pending AND fetching) is deliberately used over isPending: a
-  // disabled query (no profile) stays pending forever but never fetches, and
-  // the gate must not hang on it. A failed fetch also ends loading and falls
-  // open - this gate is UI comfort, the server re-verifies every request.
-  return { needsPin, profileId, settingsLoading: !!profileId && settingsLoading };
-}
+export { isAgeExceeded, configureParentalUnlock, isProfileUnlocked, markUnlocked, clearUnlocked, pinRequiredFor, useParentalGate } from "@evey/client";
+export type { ParentalUnlockStore, ParentalUnlockOptions, ParentalSettings } from "@evey/client";

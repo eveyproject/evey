@@ -67,6 +67,7 @@ vi.mock("@evey/api", () => ({
   useFeedServiceResetProfileFeedConfig: () => ({ mutateAsync: vi.fn().mockResolvedValue({}) }),
   useLibraryServiceListLibraries: () => ({ data: { libraries: [] } }),
   useLibraryServiceListMediaItems: () => ({ data: { items: [] }, isLoading: false }),
+  useActivityServiceGetPopularMedia: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
   eveyFetch: vi.fn().mockResolvedValue({}),
 }));
 

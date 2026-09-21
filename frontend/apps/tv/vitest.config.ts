@@ -12,6 +12,8 @@ export default defineConfig({
       // these apps' tests, so a screen test could only ever run against
       // hand-written stubs of code that ships.
       "@evey/api": resolve(__dirname, "../../packages/api/src/index.ts"),
+      "@evey/client/native": resolve(__dirname, "../../packages/client/src/native.ts"),
+      "@evey/client": resolve(__dirname, "../../packages/client/src/index.ts"),
       "@evey/store": resolve(__dirname, "../../packages/store/src/index.ts"),
       "@evey/theme": resolve(__dirname, "../../packages/theme/src/index.ts"),
       "react-native": resolve(__dirname, "./src/test/__mocks__/react-native.ts"),

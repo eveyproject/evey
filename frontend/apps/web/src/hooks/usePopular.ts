@@ -1,26 +1,4 @@
-import { useActivityServiceGetPopularMedia } from "@evey/api";
-
-export interface PopularItem {
-  mediaItemId: string;
-  title: string;
-  type?: string;
-  playCount: number;
-}
-
-export function useMostPopular(limit = 20) {
-  return useActivityServiceGetPopularMedia(
-    { limit },
-    {
-      query: {
-        select: (d) =>
-          (d.items ?? []).map<PopularItem>((it) => ({
-            mediaItemId: it.mediaItemId ?? "",
-            title: it.title ?? "",
-            type: it.type,
-            playCount: it.playCount ?? 0,
-          })),
-        staleTime: 5 * 60_000,
-      },
-    },
-  );
-}
+// Shared implementation lives in @evey/client (packages/client/src/hooks/usePopular.ts).
+// This module keeps the path the screens and their tests import.
+export { useMostPopular } from "@evey/client";
+export type { PopularItem } from "@evey/client";

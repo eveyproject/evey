@@ -52,6 +52,7 @@ COPY frontend/apps/web/package.json apps/web/package.json
 COPY frontend/apps/mobile/package.json apps/mobile/package.json
 COPY frontend/apps/tv/package.json apps/tv/package.json
 COPY frontend/packages/api/package.json packages/api/package.json
+COPY frontend/packages/client/package.json packages/client/package.json
 COPY frontend/packages/store/package.json packages/store/package.json
 COPY frontend/packages/theme/package.json packages/theme/package.json
 COPY frontend/patches/ patches/

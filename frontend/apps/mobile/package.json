@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@evey/api": "workspace:*",
+    "@evey/client": "workspace:*",
     "@evey/media-caps": "workspace:*",
     "@evey/offline-audio": "workspace:*",
     "@evey/store": "workspace:*",

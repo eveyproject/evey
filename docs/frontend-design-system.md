@@ -81,6 +81,30 @@ reintroduces jank that is very hard to bisect later:
 | Mutations | optimistic updates come with rollback + `onError` toast |
 | Watched-state invalidation | `lib/invalidateWatchedState.ts` - add new watched-sensitive feeds there, nowhere else |
 | Tokens in URLs | never the account JWT. Media streaming/download uses media-scoped stream tokens (mint via `useStreamToken` / `mintToken` on DownloadButton); admin streams send the Bearer via fetch-streamed SSE |
+| Logic shared by two or more clients | `@evey/client` (`packages/client`) - see below |
+
+## Shared client logic - `@evey/client`
+
+A hook or a piece of logic that two clients need lives ONCE, in
+`packages/client`, never as a copy per app. The package imports nothing from
+react-native, expo or the DOM: what depends on the platform is passed in (a
+logger through `setClientLogger`, the parental unlock policy through
+`configureParentalUnlock`, a flag such as the phone's token-in-query image
+mode) and the app wires it at startup. What does NOT belong there: screens,
+UI components (React Native and the DOM share no primitives) and the three
+players, which are deliberately separate implementations.
+
+Each app keeps a one-line module at the old path (`apps/*/src/hooks/useX.ts`
+re-exporting from `@evey/client`), so screens and their tests import what
+they always did and a `vi.mock` of that path keeps working. New code imports
+`@evey/client` directly. The tests of a shared module live next to it in the
+package, once; a platform variant (the TV's unlock TTL, the phone's query
+token) gets its own `*.<variant>.test.ts` there, not a copy in the app.
+
+Adding a workspace package: `pnpm-workspace.yaml` picks it up, but the root
+`vitest.config.ts` project list, each app's vitest aliases and the
+`Dockerfile` (one `COPY .../package.json` line per package before
+`pnpm install --frozen-lockfile`) are explicit - all three need the new name.
 
 ## i18n
 

@@ -38,6 +38,9 @@ importers:
       '@evey/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@evey/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@evey/media-caps':
         specifier: workspace:*
         version: link:../../packages/media-caps
@@ -195,6 +198,9 @@ importers:
       '@evey/cast-tv':
         specifier: workspace:*
         version: link:../../packages/cast-tv
+      '@evey/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@evey/media-caps':
         specifier: workspace:*
         version: link:../../packages/media-caps
@@ -295,6 +301,9 @@ importers:
       '@evey/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@evey/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@evey/media-caps':
         specifier: workspace:*
         version: link:../../packages/media-caps
@@ -417,6 +426,43 @@ importers:
       '@evey/media-caps':
         specifier: workspace:*
         version: link:../media-caps
+
+  packages/client:
+    dependencies:
+      '@evey/api':
+        specifier: workspace:*
+        version: link:../api
+      '@evey/media-caps':
+        specifier: workspace:*
+        version: link:../media-caps
+      '@evey/store':
+        specifier: workspace:*
+        version: link:../store
+      '@tanstack/react-query':
+        specifier: 5.102.6
+        version: 5.102.6(react@19.2.0)
+      i18next:
+        specifier: 26.4.0
+        version: 26.4.0(typescript@5.9.3)
+      react:
+        specifier: 19.2.0
+        version: 19.2.0
+    devDependencies:
+      '@testing-library/react':
+        specifier: 16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@types/react':
+        specifier: 19.2.14
+        version: 19.2.14
+      jsdom:
+        specifier: 28.1.0
+        version: 28.1.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 4.0.18
+        version: 4.0.18(@types/node@25.3.5)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/media-caps: {}
 
@@ -9613,7 +9659,9 @@ snapshots:
       metro-runtime: 0.83.7
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
     optional: true
 
   '@react-native/normalize-colors@0.83.10': {}
