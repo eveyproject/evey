@@ -12,15 +12,18 @@ vi.mock("react-native", () => ({
 // effect for the same reason, with a fixed sheet size, so the component's
 // second render (once sheetSizeCache is populated) is the one assertions run
 // against.
-vi.mock("expo-image", () => ({
-  Image: (props: any) => {
+const prefetchMock = vi.fn((_url: string, _opts?: unknown) => Promise.resolve(true));
+vi.mock("expo-image", () => {
+  const Image = (props: any) => {
     React.useEffect(() => {
       props.onLoad?.({ source: { url: props.source?.uri, width: 480, height: 90 } });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     return React.createElement("img", { alt: "", src: props.source?.uri, style: props.style });
-  },
-}));
+  };
+  Image.prefetch = (url: string, opts?: unknown) => prefetchMock(url, opts);
+  return { Image };
+});
 
 const eveyFetchRawMock = vi.fn();
 vi.mock("@evey/api", () => ({
@@ -67,6 +70,7 @@ function mockManifestError() {
 
 beforeEach(() => {
   eveyFetchRawMock.mockReset();
+  prefetchMock.mockClear();
   useServerUrlMock.mockReturnValue("http://srv.test");
 });
 
@@ -183,5 +187,21 @@ describe("TrickplaySeekPreview, an abandoned fetch", () => {
     const { container } = render(<TrickplaySeekPreview mediaId="mi-abandoned" previewTimeSec={5} />);
     await waitFor(() => expect(eveyFetchRawMock).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(container.querySelector("img")).not.toBeNull());
+  });
+});
+
+// The first seek used to show nothing: the manifest and the first sheet were
+// only fetched once the seek started, and landed after it had committed.
+// With the controls on screen the picture is ready before the viewer presses.
+describe("warm-up while the controls show", () => {
+  it("fetches the manifest and prefetches the first sheet before any seek, still drawing nothing", async () => {
+    mockManifestOk(REALISTIC_VTT);
+    const { container } = render(<TrickplaySeekPreview mediaId="warm-1" previewTimeSec={null} warm />);
+    await waitFor(() => expect(eveyFetchRawMock).toHaveBeenCalledWith({ url: "/api/v1/media/warm-1/trickplay", method: "GET" }));
+    await waitFor(() => expect(prefetchMock).toHaveBeenCalledWith(
+      "http://srv.test/api/v1/media/{id}/trickplay/trickplay_001.webp?token=abc",
+      { headers: { Authorization: "Bearer TOKEN" } },
+    ));
+    expect(container.querySelector("img")).toBeNull();
   });
 });

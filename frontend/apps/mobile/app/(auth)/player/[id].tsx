@@ -15,6 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { setAudioBoost, releaseAudioBoost } from "../../../src/lib/audioBoost";
+import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { resumeNudger } from "../../../src/lib/resumeNudge";
 import { resolveVolume } from "../../../src/lib/volumePolicy";
 import {
@@ -268,6 +269,11 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
   const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
     usePlaySession(sessionMediaId, trackPick.audio === undefined ? undefined : { audioStreamIndex: trackPick.audio });
+  // A film starts, the album stops - the mini player is mounted for the whole
+  // signed-in app and kept playing under the video otherwise.
+  useEffect(() => {
+    useMusicQueueStore.getState().clear();
+  }, [sessionMediaId]);
 
 
   const { data: chapters = [] } = useChapters(mediaId);

@@ -43,9 +43,11 @@ describe("musicQueue store", () => {
     useMusicQueueStore.getState().next();
     expect(useMusicQueueStore.getState().currentIndex).toBe(2);
 
-    // Already on the last track - next() is a no-op, it never wraps around.
+    // Already on the last track - next() never wraps around: the album is
+    // over, and the bar must not keep showing a pause button over silence.
     useMusicQueueStore.getState().next();
     expect(useMusicQueueStore.getState().currentIndex).toBe(2);
+    expect(useMusicQueueStore.getState().isPlaying).toBe(false);
   });
 
   it("moves to the previous track and stops at the start", () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, screen, act } from "@testing-library/react";
 import React from "react";
+import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 
 // --- React Native mock -----------------------------------------------------
 // useTVEventHandler captures the screen's own callback so tests can simulate a
@@ -626,7 +627,43 @@ describe("remote seek (TV)", () => {
     // Nothing has moved yet: the viewer is still pressing.
     expect(playerMock.currentTime).toBe(0);
     act(() => { vi.advanceTimersByTime(700); });
-    expect(playerMock.currentTime).toBe(90);
+    // 30 + 30 + 60: the third tap of one gesture takes a bigger step (see
+    // tapSeekStep) so a long way ahead does not take twenty taps.
+    expect(playerMock.currentTime).toBe(120);
+    vi.useRealTimers();
+  });
+
+  it("starts a new gesture at the plain step once a seek has committed", () => {
+    vi.useFakeTimers();
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(120);
+    playerMock.currentTime = 120;
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(150);
+    vi.useRealTimers();
+  });
+
+  // Some sets never send longRight and repeat the plain key while it is
+  // held: a second "down" for the same direction before any "up" is that
+  // repeat, and scrubs like a long press would instead of being ignored.
+  it("scrubs on a repeated plain key too, and commits once on release", () => {
+    vi.useFakeTimers();
+    playerMock.currentTime = 0;
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "right", eventKeyAction: 0 }); });
+    act(() => { vi.advanceTimersByTime(400); });
+    act(() => { capturedTVHandler?.({ eventType: "right", eventKeyAction: 0 }); });
+    act(() => { vi.advanceTimersByTime(1500); });
+    act(() => { capturedTVHandler?.({ eventType: "right", eventKeyAction: 1 }); });
+    expect(playerMock.currentTime).toBe(0);
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBeGreaterThan(80);
+    expect(playerMock.currentTime).toBeLessThan(400);
     vi.useRealTimers();
   });
 
@@ -673,9 +710,10 @@ describe("remote seek (TV)", () => {
     act(() => { capturedTVHandler?.({ eventType: "longRight", eventKeyAction: 1 }); });
     expect(playerMock.currentTime).toBe(0); // nothing seeks until the presses settle
     act(() => { vi.advanceTimersByTime(700); });
-    // 1.5s at a minute per second: about 90s, ONE seek - not two x4 jumps.
-    expect(playerMock.currentTime).toBeGreaterThan(80);
-    expect(playerMock.currentTime).toBeLessThan(100);
+    // 1s at a minute per second then 0.5s at four: about 180s, ONE seek -
+    // not two x4 jumps (holdScrubRate).
+    expect(playerMock.currentTime).toBeGreaterThan(160);
+    expect(playerMock.currentTime).toBeLessThan(200);
     vi.useRealTimers();
   });
 
@@ -686,10 +724,30 @@ describe("remote seek (TV)", () => {
   // pre-seek playhead.
   it("passes the live seek-preview position through to the trickplay thumbnail", () => {
     render(<PlayerScreen />);
-    expect(lastTrickplayPreviewProps).toEqual({ mediaId: "ep-1", previewTimeSec: null });
+    expect(lastTrickplayPreviewProps).toMatchObject({ mediaId: "ep-1", previewTimeSec: null });
 
     act(() => { capturedTVHandler?.({ eventType: "right" }); });
-    expect(lastTrickplayPreviewProps).toEqual({ mediaId: "ep-1", previewTimeSec: 30 });
+    expect(lastTrickplayPreviewProps).toMatchObject({ mediaId: "ep-1", previewTimeSec: 30 });
+  });
+
+  // The thumbnail is warmed while the controls are on screen, so the first
+  // seek shows a picture instead of waiting for the manifest and a sheet.
+  it("asks the trickplay thumbnail to warm up while the controls show", () => {
+    render(<PlayerScreen />);
+    expect(lastTrickplayPreviewProps).toMatchObject({ warm: true });
+  });
+});
+
+// A film starts, the album stops: the music player is mounted for the whole
+// signed-in app and kept playing under the video until the viewer closed it
+// by hand (owner, 2026-09-22).
+describe("music and video (TV)", () => {
+  it("clears the music queue when the player opens", () => {
+    useMusicQueueStore.getState().setQueue([{ id: "t1", title: "T", artist: "A", album: "B", duration: 100 }], 0);
+    expect(useMusicQueueStore.getState().isPlaying).toBe(true);
+    render(<PlayerScreen />);
+    expect(useMusicQueueStore.getState().queue).toEqual([]);
+    expect(useMusicQueueStore.getState().isPlaying).toBe(false);
   });
 });
 

@@ -48,3 +48,27 @@ export function clampSeekTarget(currentSec: number, deltaSec: number, durationSe
 export function shouldReleaseSeekPreview(actualSec: number, previewSec: number, toleranceSec = 2): boolean {
   return Math.abs(actualSec - previewSec) <= toleranceSec;
 }
+
+// Repeated taps in one gesture grow: the first two are the plain skip, the
+// next two double it, the next two double it again, up to eight times the
+// skip. A viewer who wants ten minutes ahead used to need twenty taps of
+// thirty seconds and read the bar as "stuck at thirty seconds" (owner,
+// 2026-09-22); now eight taps cover it, and the first ones stay fine-grained
+// so a tap or two still lands where a plain skip would.
+export const TAP_SEEK_MAX_MULTIPLIER = 8;
+
+export function tapSeekStep(pressCount: number, skipSec: number): number {
+  const n = Math.max(1, Math.floor(pressCount));
+  const multiplier = Math.min(TAP_SEEK_MAX_MULTIPLIER, 2 ** Math.floor((n - 1) / 2));
+  return skipSec * multiplier;
+}
+
+// The rate a HELD key scrubs at, in seconds of media per second of holding.
+// It climbs with the hold - a minute per second at first so a short hold
+// stays precise, then four minutes, then ten - so a two-hour film crosses in
+// about fifteen seconds while a ten-second hold still lands within a scene.
+export function holdScrubRate(heldMs: number): number {
+  if (heldMs < 1000) return 60;
+  if (heldMs < 3000) return 240;
+  return 600;
+}
