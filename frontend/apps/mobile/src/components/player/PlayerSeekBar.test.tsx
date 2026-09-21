@@ -5,7 +5,7 @@ import React from "react";
 // The View mock forwards the responder handlers as DOM-callable props so the
 // test can drive a drag with synthetic native events.
 vi.mock("react-native", () => ({
-  View: ({ children, accessibilityLabel, accessibilityValue, onAccessibilityAction, onLayout, onResponderGrant, onResponderMove, onResponderRelease, onResponderTerminate, style }: any) =>
+  View: ({ children, accessibilityLabel, accessibilityValue, onAccessibilityAction, onLayout, onResponderGrant, onResponderMove, onResponderRelease, onResponderTerminate, onResponderTerminationRequest, style, ref }: any) =>
     React.createElement(
       "div",
       {
@@ -15,7 +15,11 @@ vi.mock("react-native", () => ({
         "data-left": Array.isArray(style) ? style.map((s: any) => s?.left).find((l: unknown) => l !== undefined) : style?.left,
         ref: (el: any) => {
           if (!el) return;
-          el.__rn = { onAccessibilityAction, onLayout, onResponderGrant, onResponderMove, onResponderRelease, onResponderTerminate };
+          // The bar sits 40 window units in from the left, so a pageX that is
+          // relative to the screen must be shifted before it becomes a fraction.
+          el.measureInWindow = (cb: (x: number, y: number, w: number) => void) => cb(40, 0, 200);
+          el.__rn = { onAccessibilityAction, onLayout, onResponderGrant, onResponderMove, onResponderRelease, onResponderTerminate, onResponderTerminationRequest };
+          if (typeof ref === "function") ref(el); else if (ref) ref.current = el;
         },
       },
       children,
@@ -41,31 +45,51 @@ function mount(over: Partial<React.ComponentProps<typeof PlayerSeekBar>> = {}) {
 
 beforeEach(() => vi.clearAllMocks());
 
-// A drag previews the fraction under the finger against the MEASURED bar
-// width and commits the last moved fraction (never the release coordinate,
-// unreliable on Android); a responder taken away ends the scrub without a
-// commit; TalkBack steps 10 s per action and reads a position, not a number.
+// A drag previews the fraction under the finger from its WINDOW coordinate
+// against the bar's measured origin and width - never locationX, which on
+// Android is relative to whichever child the finger landed on (the thumb the
+// previous seek left behind reads 0-14 and moves with the preview) - and
+// commits where the finger lifts off (or the last preview when the release
+// carries no coordinate); a responder
+// taken away ends the scrub without a commit; TalkBack steps 10 s per action
+// and reads a position, not a number.
 describe("PlayerSeekBar", () => {
   it("previews during the drag, commits the last moved fraction, and clears the scrub", () => {
     const { bar, onPreview, onCommit, onScrubbingChange } = mount();
     expect(onScrubbingChange).toHaveBeenLastCalledWith(false);
-    act(() => bar.__rn.onResponderGrant({ nativeEvent: { locationX: 50 } }));
+    // Finger on the thumb: locationX says 3 (relative to the 14 dp thumb),
+    // pageX says where it really is - a quarter of the way in.
+    act(() => bar.__rn.onResponderGrant({ nativeEvent: { locationX: 3, pageX: 90 } }));
     expect(onPreview).toHaveBeenLastCalledWith(0.25);
     expect(onScrubbingChange).toHaveBeenLastCalledWith(true);
     expect(screen.getByTestId("trickplay")).toBeTruthy();
-    act(() => bar.__rn.onResponderMove({ nativeEvent: { locationX: 150 } }));
+    act(() => bar.__rn.onResponderMove({ nativeEvent: { locationX: 5, pageX: 190 } }));
     expect(onPreview).toHaveBeenLastCalledWith(0.75);
-    act(() => bar.__rn.onResponderMove({ nativeEvent: { locationX: 900 } }));
+    act(() => bar.__rn.onResponderMove({ nativeEvent: { locationX: 900, pageX: 940 } }));
     expect(onPreview).toHaveBeenLastCalledWith(1);
-    act(() => bar.__rn.onResponderRelease({ nativeEvent: { locationX: 2 } }));
-    expect(onCommit).toHaveBeenCalledWith(1);
+    // Lift-off wins over the last move the JS thread processed: the finger
+    // came back to the middle before letting go.
+    act(() => bar.__rn.onResponderRelease({ nativeEvent: { locationX: 2, pageX: 140 } }));
+    expect(onCommit).toHaveBeenCalledWith(0.5);
+    act(() => bar.__rn.onResponderGrant({ nativeEvent: { locationX: 3, pageX: 190 } }));
+    act(() => bar.__rn.onResponderRelease({ nativeEvent: {} }));
+    expect(onCommit).toHaveBeenLastCalledWith(0.75);
     expect(onScrubbingChange).toHaveBeenLastCalledWith(false);
     expect(screen.queryByTestId("trickplay")).toBeNull();
   });
 
+  it("refuses to hand the gesture to another view (the stage's relative scrub) but yields to the OS", () => {
+    const { bar, onCommit, onScrubbingChange } = mount();
+    act(() => bar.__rn.onResponderGrant({ nativeEvent: { locationX: 100, pageX: 140 } }));
+    expect(bar.__rn.onResponderTerminationRequest({})).toBe(false);
+    act(() => bar.__rn.onResponderTerminate({}));
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(onScrubbingChange).toHaveBeenLastCalledWith(false);
+  });
+
   it("an interrupted drag ends the scrub without committing", () => {
     const { bar, onCommit, onScrubbingChange } = mount();
-    act(() => bar.__rn.onResponderGrant({ nativeEvent: { locationX: 100 } }));
+    act(() => bar.__rn.onResponderGrant({ nativeEvent: { locationX: 100, pageX: 140 } }));
     act(() => bar.__rn.onResponderTerminate());
     expect(onCommit).not.toHaveBeenCalled();
     expect(onScrubbingChange).toHaveBeenLastCalledWith(false);
