@@ -28,6 +28,13 @@ export * from "./lib/certifications";
 export * from "./lib/resumeNudge";
 export * from "./lib/network-scan";
 export * from "./lib/pluginBridge";
+export * from "./lib/serverIdentity";
+export * from "./lib/artwork";
+
+export * from "./plugins/slotEntries";
+export * from "./plugins/hostProtocol";
+export * from "./plugins/pluginRpc";
+export * from "./plugins/bridgeScript";
 
 export * from "./api/collections";
 export * from "./api/playlists";

@@ -1,22 +1,3 @@
-import { useEffect, useState } from "react";
-import { getServerUrl } from "../lib/server-config";
-
-export function useServerUrl(): string {
-  const [url, setUrl] = useState("");
-
-  useEffect(() => {
-    getServerUrl().then((u) => setUrl(u ?? ""));
-  }, []);
-
-  return url;
-}
-
-export function useServerUrlNullable(): string | null | undefined {
-  const [url, setUrl] = useState<string | null | undefined>(undefined);
-
-  useEffect(() => {
-    getServerUrl().then(setUrl);
-  }, []);
-
-  return url;
-}
+// Shared implementation lives in @evey/client (packages/client/src/native/useServerUrl.ts).
+// This module keeps the path the screens and their tests import.
+export { useServerUrl, useServerUrlNullable } from "@evey/client/native/useServerUrl";

@@ -2,8 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast, useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
-import { eveyFetch, eveyFetchRaw, adminPluginServiceIssuePluginToken } from "@evey/api";
+import { eveyFetch, eveyFetchRaw } from "@evey/api";
+import {
+  buildConnectSrc,
+  buildInitPayload,
+  clampSlotHeight,
+  createPluginRpc,
+  createToastLimiter,
+  inlineScriptSafe,
+  isAllowedNavPath,
+  isValidPluginId,
+  parseHostMessage,
+} from "@evey/client";
 import { BRIDGE_SCRIPT } from "./front-bridge";
+
+// The protocol rules live in @evey/client; re-exported so the tests and the
+// callers that grew up here keep their import.
+export { isAllowedNavPath };
 
 interface PluginIframeProps {
   pluginId: string;
@@ -16,28 +31,6 @@ interface PluginIframeProps {
   src: string;
   externalFetch?: string[];
   context?: Record<string, unknown>;
-}
-
-// Plugin frontends may request client-side navigation via postMessage. Only
-// non-sensitive paths are allowed: an attacker plugin must not be able to push
-// the user to /admin/*, /auth/*, /setup/*, or /profile/security/* (overlay +
-// nav = phishing vector). Protocol-relative URLs ("//evil.com"), absolute URLs,
-// and javascript:/data: schemes are rejected so the iframe cannot pivot the
-// top window away from the app origin.
-const ALLOWED_NAV_PREFIXES = [
-  "/home",
-  "/library",
-  "/media",
-  "/player",
-  "/settings",
-  "/search",
-];
-
-export function isAllowedNavPath(path: string): boolean {
-  if (!path.startsWith("/")) return false;
-  if (path.startsWith("//")) return false;
-  if (path.length > 2048) return false;
-  return ALLOWED_NAV_PREFIXES.some((p) => path === p || path.startsWith(p + "/") || path.startsWith(p + "?"));
 }
 
 function getThemeVars(): string {
@@ -76,17 +69,6 @@ function detectThemeMode(): "dark" | "light" {
   return luminance > 128 ? "light" : "dark";
 }
 
-// pluginIdShape gates what we accept at the HTML boundary. The server
-// issues `plg-<24 hex>` slugs (`id.New("plg-")`); we re-assert here so a
-// malformed pluginId (typo, manipulated state, future bug) can never
-// terminate the `<base href>` attribute or inject markup. The pattern is
-// deliberately permissive within `plg-…` (lowercase + digits + `_`/`-`,
-// bounded length) so tests and human-readable dev slugs keep working while
-// every HTML-special character (`"`, `<`, `>`, space, `/`, ...) is refused.
-// An invalid id short-circuits to an empty string and the iframe renders
-// nothing.
-const pluginIdShape = /^plg-[a-zA-Z0-9_-]{1,64}$/;
-
 // buildSrcdoc renders the iframe's HTML. The plugin bundle is INLINED into
 // a <script> tag rather than fetched via <script src=…?token=…> to keep the
 // scoped plugin token out of any URL (Referer / browser history / server-log
@@ -99,7 +81,9 @@ const pluginIdShape = /^plg-[a-zA-Z0-9_-]{1,64}$/;
 // `connect-src` is fed from the plugin's external_fetch allow-list so the
 // front module can only reach hosts the admin has approved.
 function buildSrcdoc(pluginId: string, bundleCode: string, externalFetch: string[]): string {
-  if (!pluginIdShape.test(pluginId)) {
+  // An invalid id short-circuits to an empty string and the iframe renders
+  // nothing (see isValidPluginId for the shape and why).
+  if (!isValidPluginId(pluginId)) {
     return "";
   }
   const themeVars = getThemeVars();
@@ -116,25 +100,14 @@ function buildSrcdoc(pluginId: string, bundleCode: string, externalFetch: string
   // allowed via explicit origin. Use window.location.origin so the CSP
   // matches the parent host the iframe is embedded in.
   const hostOrigin = typeof window !== "undefined" ? window.location.origin : "";
-  // CSP origins must be absolute (scheme + host). The manifest declares
-  // bare hostnames in external_fetch (api.open-meteo.com); prefix https://
-  // so the browser doesn't resolve them against the iframe's about:srcdoc
-  // base, which would yield invalid `about://hostname` directives.
-  const connectSrc = externalFetch.length > 0
-    ? externalFetch.map((h) => (/^https?:\/\//i.test(h) ? h : `https://${h}`)).join(" ")
-    : "'none'";
   const csp = [
     "default-src 'none'",
     `script-src ${hostOrigin} 'unsafe-inline'`,
     `style-src ${hostOrigin} 'unsafe-inline'`,
-    `connect-src ${connectSrc}`,
+    `connect-src ${buildConnectSrc(externalFetch)}`,
     `img-src ${hostOrigin} data: blob:`,
     `font-src ${hostOrigin} data:`,
   ].join("; ");
-  // Defuse any literal `</script>` in the bundle text so the HTML parser
-  // doesn't terminate the inline script early. The replacement is HTML-only
-  // (the JS tokenizer treats `<\/script>` as the same string).
-  const inlineSafe = bundleCode.replace(/<\/script/gi, "<\\/script");
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -153,7 +126,7 @@ function buildSrcdoc(pluginId: string, bundleCode: string, externalFetch: string
   <script>${BRIDGE_SCRIPT}<\/script>
 </head>
 <body>
-  <script>${inlineSafe}<\/script>
+  <script>${inlineScriptSafe(bundleCode)}<\/script>
 </body>
 </html>`;
 }
@@ -165,6 +138,27 @@ export function suggestedSlotHeight(slot: string, viewportWidth: number): number
   if (slot !== "home.section") return undefined;
   return viewportWidth < 420 ? 216 : viewportWidth < 700 ? 248 : 280;
 }
+
+// Downscale a poster to a thumbnail in the parent (unsandboxed, same-origin
+// as the fetched artwork -> no canvas taint) so the postMessage payload stays
+// small: a full poster is ~1.3 MB, a wall of them would freeze the UI.
+async function posterThumbnail(blob: Blob): Promise<string> {
+  const bmp = await createImageBitmap(blob);
+  const targetW = 320;
+  const scale = Math.min(1, targetW / bmp.width);
+  const cw = Math.max(1, Math.round(bmp.width * scale));
+  const ch = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) { bmp.close?.(); throw new Error("poster resize failed"); }
+  ctx.drawImage(bmp, 0, 0, cw, ch);
+  bmp.close?.();
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
+const MIN_SLOT_HEIGHT = 50;
 
 export function PluginIframe({ pluginId, slot, src, externalFetch, context }: PluginIframeProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -236,118 +230,18 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context }: Pl
     };
   }, [pluginId, src, accessToken]);
 
-  // Sliding-window rate limit for toasts: a plugin can emit at most TOAST_MAX
-  // toasts per TOAST_WINDOW_MS. Drop silently past the cap - a noisy plugin
-  // must not be able to fill the screen or thrash the toast store.
-  const TOAST_MAX = 3;
-  const TOAST_WINDOW_MS = 1000;
-  const toastTimestamps = useRef<number[]>([]);
-
-  // Scoped plugin token used to proxy the iframe's prefs/public RPCs. Held by
-  // the parent (never exposed to the iframe JS); the server enforces the
-  // plugin's granted scopes on it (deny-by-default). Lazily issued + re-issued
-  // on expiry.
-  const pluginTokenRef = useRef<string | null>(null);
-  const ensurePluginToken = useCallback(async (): Promise<string | null> => {
-    if (pluginTokenRef.current) return pluginTokenRef.current;
-    try {
-      const r = await adminPluginServiceIssuePluginToken(pluginId, {});
-      pluginTokenRef.current = r.token ?? null;
-    } catch {
-      pluginTokenRef.current = null;
-    }
-    return pluginTokenRef.current;
-  }, [pluginId]);
-
-  // Maps a bridge method to its endpoint, called with the plugin token so the
-  // server gates it by the granted scope. Only this allowlist is reachable.
-  const callPluginEndpoint = useCallback((method: string, args: Record<string, unknown>, token: string): Promise<Response> => {
-    const enc = encodeURIComponent;
-    switch (method) {
-      case "prefs.get":
-        return eveyFetchRaw({ url: `/api/v1/plugin-prefs/${enc(String(args.key ?? ""))}`, method: "GET", authToken: token });
-      case "prefs.set":
-        return eveyFetchRaw({ url: `/api/v1/plugin-prefs/${enc(String(args.key ?? ""))}`, method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value: String(args.value ?? "") }), authToken: token });
-      case "prefs.delete":
-        return eveyFetchRaw({ url: `/api/v1/plugin-prefs/${enc(String(args.key ?? ""))}`, method: "DELETE", authToken: token });
-      case "prefs.list":
-        return eveyFetchRaw({ url: `/api/v1/plugin-prefs`, method: "GET", authToken: token });
-      case "media.get":
-        return eveyFetchRaw({ url: `/api/v1/public/media/${enc(String(args.id ?? ""))}`, method: "GET", authToken: token });
-      case "media.list":
-        return eveyFetchRaw({ url: `/api/v1/public/media${args.libraryId ? `?libraryId=${enc(String(args.libraryId))}` : ""}`, method: "GET", authToken: token });
-      case "media.poster":
-        // The user's own session (no plugin token): the artwork handler applies
-        // this user's library ACL + parental filter, so a plugin can only reach
-        // posters the user can already see (same exposure as media.list).
-        return eveyFetchRaw({ url: `/api/v1/media/${enc(String(args.id ?? ""))}/artwork/poster`, method: "GET" });
-      case "assets.read": {
-        // Reads one of the plugin's OWN web_root assets. Strict path guard
-        // (the server also rejects traversal, this is defense in depth). The
-        // cache-buster predates the server's no-cache+ETag policy; kept as
-        // belt-and-braces for intermediaries that ignore revalidation.
-        const p = String(args.path ?? "");
-        if (!p || p.length > 256 || p.includes("..") || p.startsWith("/") || p.includes("\\") || !/^[a-zA-Z0-9._/-]+$/.test(p)) {
-          return Promise.reject(new Error("invalid asset path"));
-        }
-        const encPath = p.split("/").map(enc).join("/");
-        return eveyFetchRaw({ url: `/api/v1/plugins/${enc(pluginId)}/assets/${encPath}?_=${Date.now()}`, method: "GET", authToken: token });
-      }
-      default:
-        return Promise.reject(new Error(`method not permitted: ${method}`));
-    }
-  }, [pluginId]);
-
-  const pluginRpcCall = useCallback(async (method: string, args: Record<string, unknown>): Promise<unknown> => {
-    let token = await ensurePluginToken();
-    if (!token) throw new Error("plugin token unavailable");
-    let res = await callPluginEndpoint(method, args, token);
-    if (res.status === 401) {
-      pluginTokenRef.current = null; // expired - re-issue once
-      token = await ensurePluginToken();
-      if (token) res = await callPluginEndpoint(method, args, token);
-    }
-    if (!res.ok) {
-      let msg = `${res.status}`;
-      try {
-        const b = (await res.clone().json()) as { message?: string };
-        if (b.message) msg = b.message;
-      } catch { /* ignore */ }
-      throw new Error(msg);
-    }
-    // assets.read returns binary; hand it back as a data: URL so the iframe can
-    // use it directly (data URLs are same-origin, safe for WebGL textures).
-    if (method === "assets.read") {
-      const blob = await res.blob();
-      return await new Promise<string>((resolve, reject) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(String(fr.result));
-        fr.onerror = () => reject(new Error("asset read failed"));
-        fr.readAsDataURL(blob);
-      });
-    }
-    if (method === "media.poster") {
-      // Downscale to a thumbnail in the parent (unsandboxed, same-origin as the
-      // fetched artwork -> no canvas taint) so the postMessage payload stays
-      // small: a full poster is ~1.3 MB, a wall of them would freeze the UI.
-      const blob = await res.blob();
-      const bmp = await createImageBitmap(blob);
-      const targetW = 320;
-      const scale = Math.min(1, targetW / bmp.width);
-      const cw = Math.max(1, Math.round(bmp.width * scale));
-      const ch = Math.max(1, Math.round(bmp.height * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = cw;
-      canvas.height = ch;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { bmp.close?.(); throw new Error("poster resize failed"); }
-      ctx.drawImage(bmp, 0, 0, cw, ch);
-      bmp.close?.();
-      return canvas.toDataURL("image/jpeg", 0.82);
-    }
-    const text = await res.text();
-    return text ? JSON.parse(text) : {};
-  }, [ensurePluginToken, callPluginEndpoint]);
+  // The toast cap and the RPC endpoint (scoped token, endpoint allowlist)
+  // are the shared host rules; only the transport is this surface's.
+  const limitedToast = useMemo(() => createToastLimiter(toast), []);
+  const rpc = useMemo(
+    () =>
+      createPluginRpc(pluginId, {
+        request: (req) =>
+          eveyFetchRaw({ url: req.path, method: req.method, headers: req.headers, body: req.body, authToken: req.authToken }),
+        posterToDataUrl: posterThumbnail,
+      }),
+    [pluginId],
+  );
 
   // context is an inline object at every call site (context={{ mediaId }}), so
   // depending on it re-identifies handleMessage on every parent render and the
@@ -364,58 +258,37 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context }: Pl
       if (!iframe || e.source !== iframe.contentWindow) return;
       if (e.origin !== "null" && e.origin !== window.location.origin) return;
 
-      const data = e.data as Record<string, unknown>;
-      if (!data || typeof data.type !== "string") return;
+      const msg = parseHostMessage(e.data);
+      if (!msg) return;
 
-      switch (data.type) {
+      switch (msg.type) {
         case "ready":
           iframe.contentWindow?.postMessage(
-            {
-              type: "init",
-              context: contextRef.current ?? {},
+            buildInitPayload({
+              context: contextRef.current,
               config: pluginConfig,
               locale: i18n.language,
               theme: detectThemeMode(),
               surface: "web",
-              ...(suggestedHeight !== undefined ? { suggestedHeight } : {}),
-            },
+              suggestedHeight,
+            }),
             "*",
           );
           break;
         case "navigate":
-          if (typeof data.path === "string" && isAllowedNavPath(data.path)) {
-            navigate({ to: data.path });
+          if (isAllowedNavPath(msg.path)) {
+            navigate({ to: msg.path });
           }
           break;
         case "toast":
-          if (typeof data.message === "string") {
-            const now = Date.now();
-            const recent = toastTimestamps.current.filter((t) => now - t < TOAST_WINDOW_MS);
-            if (recent.length >= TOAST_MAX) {
-              toastTimestamps.current = recent;
-              break; // drop silently - over the rate cap
-            }
-            recent.push(now);
-            toastTimestamps.current = recent;
-            const msg = data.message.slice(0, 200);
-            const level = data.level as "success" | "error" | "info";
-            if (level === "success") toast.success(msg);
-            else if (level === "error") toast.error(msg);
-            else toast.info(msg);
-          }
+          limitedToast(msg.level, msg.message);
           break;
         case "resize":
-          if (typeof data.height === "number" && data.height >= 0) {
-            // Clamp to [50, 800] to prevent visual DoS via unbounded resize;
-            // 0 collapses the slot (a plugin with nothing to show).
-            setHeight(data.height === 0 ? 0 : Math.max(50, Math.min(800, data.height)));
-          }
+          setHeight(clampSlotHeight(msg.height, MIN_SLOT_HEIGHT));
           break;
         case "rpc": {
-          const id = data.id;
-          const method = typeof data.method === "string" ? data.method : "";
-          const args = (data.args as Record<string, unknown>) ?? {};
-          pluginRpcCall(method, args)
+          const id = msg.id;
+          rpc.call(msg.method, msg.args)
             .then((result) =>
               iframe.contentWindow?.postMessage({ type: "rpc-result", id, ok: true, data: result }, "*"),
             )
@@ -426,7 +299,7 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context }: Pl
         }
       }
     },
-    [pluginConfig, i18n.language, navigate, pluginRpcCall],
+    [pluginConfig, i18n.language, navigate, rpc, limitedToast, suggestedHeight],
   );
 
   useEffect(() => {
