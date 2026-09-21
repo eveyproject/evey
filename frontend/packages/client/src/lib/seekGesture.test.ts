@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview, SEEK_ACCELERATION_MULTIPLIER, tapSeekStep, holdScrubRate, TAP_SEEK_MAX_MULTIPLIER } from "./playerSeek";
+import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview, SEEK_ACCELERATION_MULTIPLIER, tapSeekStep, holdScrubRate, TAP_SEEK_MAX_MULTIPLIER } from "./seekGesture";
 
 describe("seekDeltaForKey", () => {
   it("moves backward by the plain skip amount on left", () => {

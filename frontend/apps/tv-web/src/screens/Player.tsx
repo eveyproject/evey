@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import Hls from "hls.js";
 import { formatTime, getBaseURL, useLibraryServiceGetMediaItem } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings } from "@evey/client";
+import { useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, clampSeekTarget, holdScrubRate, tapSeekStep, SEEK_COMMIT_DELAY_MS, HOLD_SCRUB_TICK_MS } from "@evey/client";
 import { usePlaySession, prefersNativeHLS } from "@evey/client/web";
 import { useTvKeys } from "../tv/focus";
 import { Spinner } from "../components/ui";
@@ -147,13 +147,75 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
     };
   }, [showOsd]);
 
-  const seekBy = useCallback((sec: number) => {
+  // The seek gesture, with the same rules as the Android TV player (see
+  // seekGesture in @evey/client): taps add up into ONE seek that commits once
+  // the pressing stops, each further tap taking a bigger step; a held key
+  // (the browser repeats it) scrubs a preview at a rate that climbs with the
+  // hold and commits on release. The bar and the clock show the preview.
+  const [preview, setPreview] = useState<number | null>(null);
+  const previewRef = useRef<number | null>(null);
+  const timeRef = useRef(0);
+  const durationRef = useRef(0);
+  timeRef.current = time;
+  durationRef.current = duration;
+  const tapCountRef = useRef(0);
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdRef = useRef<{ dir: 1 | -1; startedAt: number; lastAt: number; timer: ReturnType<typeof setInterval> } | null>(null);
+
+  const setPreviewSec = useCallback((sec: number) => {
+    previewRef.current = sec;
+    setPreview(sec);
+  }, []);
+  const commitSeek = useCallback(() => {
+    const target = previewRef.current;
+    previewRef.current = null;
+    setPreview(null);
+    tapCountRef.current = 0;
     const video = videoRef.current;
-    if (!video) return;
-    const max = Number.isFinite(video.duration) ? video.duration : Infinity;
-    video.currentTime = Math.max(0, Math.min(max, video.currentTime + sec));
+    if (video && target !== null) video.currentTime = target;
+  }, []);
+  const scheduleCommit = useCallback(() => {
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+    commitTimer.current = setTimeout(() => {
+      commitTimer.current = null;
+      commitSeek();
+    }, SEEK_COMMIT_DELAY_MS);
+  }, [commitSeek]);
+  const seekBy = useCallback((sec: number) => {
+    const base = previewRef.current ?? timeRef.current;
+    tapCountRef.current += 1;
+    const step = Math.sign(sec) * tapSeekStep(tapCountRef.current, Math.abs(sec));
+    setPreviewSec(clampSeekTarget(base, step, durationRef.current));
+    scheduleCommit();
     showOsd();
-  }, [showOsd]);
+  }, [setPreviewSec, scheduleCommit, showOsd]);
+  const beginHold = useCallback((dir: 1 | -1) => {
+    if (holdRef.current) return;
+    if (commitTimer.current) { clearTimeout(commitTimer.current); commitTimer.current = null; }
+    const now = Date.now();
+    const timer = setInterval(() => {
+      const hold = holdRef.current;
+      if (!hold) return;
+      const t = Date.now();
+      const dt = (t - hold.lastAt) / 1000;
+      hold.lastAt = t;
+      const base = previewRef.current ?? timeRef.current;
+      setPreviewSec(clampSeekTarget(base, hold.dir * holdScrubRate(t - hold.startedAt) * dt, durationRef.current));
+      showOsd();
+    }, HOLD_SCRUB_TICK_MS);
+    holdRef.current = { dir, startedAt: now, lastAt: now, timer };
+  }, [setPreviewSec, showOsd]);
+  const endHold = useCallback(() => {
+    const hold = holdRef.current;
+    if (!hold) return;
+    clearInterval(hold.timer);
+    holdRef.current = null;
+    scheduleCommit();
+  }, [scheduleCommit]);
+  useEffect(() => () => {
+    if (holdRef.current) clearInterval(holdRef.current.timer);
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+  }, []);
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
@@ -179,24 +241,41 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
   // The remote: the five-way keys are the player's here, not the focus
   // engine's, so the handler listens itself.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const forward = skip?.skipForwardSeconds ?? 30;
-      const backward = skip?.skipBackwardSeconds ?? 30;
-      switch (e.key) {
-        case "ArrowRight": e.preventDefault(); seekBy(forward); return;
-        case "ArrowLeft": e.preventDefault(); seekBy(-backward); return;
-        case "Enter": e.preventDefault(); if (nextEp.visible && !nextEp.ended) nextEp.playNow(); else togglePlay(); return;
-        case "ArrowUp": case "ArrowDown": e.preventDefault(); showOsd(); return;
+    const forward = skip?.skipForwardSeconds ?? 30;
+    const backward = skip?.skipBackwardSeconds ?? 30;
+    const dirOf = (e: KeyboardEvent): 1 | -1 | 0 =>
+      e.key === "ArrowRight" || e.keyCode === 39 ? 1 : e.key === "ArrowLeft" || e.keyCode === 37 ? -1 : 0;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const dir = dirOf(e);
+      if (dir !== 0) {
+        e.preventDefault();
+        // The browser repeats a held key: the first repeat starts the scrub,
+        // the release ends it. A plain press is one tap.
+        if (e.repeat) beginHold(dir);
+        else if (!holdRef.current) seekBy(dir * (dir > 0 ? forward : backward));
+        return;
       }
-      switch (e.keyCode) {
-        case 39: e.preventDefault(); seekBy(forward); return;
-        case 37: e.preventDefault(); seekBy(-backward); return;
-        case 13: e.preventDefault(); togglePlay(); return;
+      if (e.key === "Enter" || e.keyCode === 13) {
+        e.preventDefault();
+        if (nextEp.visible && !nextEp.ended) nextEp.playNow();
+        else togglePlay();
+        return;
+      }
+      if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.keyCode === 38 || e.keyCode === 40) {
+        e.preventDefault();
+        showOsd();
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [seekBy, togglePlay, showOsd, skip, nextEp]);
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (dirOf(e) !== 0) endHold();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [seekBy, beginHold, endHold, togglePlay, showOsd, skip, nextEp]);
 
   useTvKeys(useCallback((key, e) => {
     e.stopImmediatePropagation();
@@ -210,7 +289,8 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
     }
   }, [togglePlay, seekBy, showOsd, skip]));
 
-  const pct = duration > 0 ? Math.min(100, (time / duration) * 100) : 0;
+  const shown = preview ?? time;
+  const pct = duration > 0 ? Math.min(100, (shown / duration) * 100) : 0;
 
   return (
     <div className="player">
@@ -226,7 +306,7 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
         <div className="title" style={{ fontSize: "2vw" }}>{media?.seriesTitle ? `${media.seriesTitle} · ` : ""}{media?.title}</div>
         <div className="bar"><div style={{ width: `${pct}%` }} /></div>
         <div className="times">
-          <span>{paused ? "❚❚ " : "▶ "}{formatTime(time)}</span>
+          <span>{paused ? "❚❚ " : "▶ "}{formatTime(shown)}{preview !== null ? ` (${preview >= time ? "+" : "-"}${formatTime(Math.abs(preview - time))})` : ""}</span>
           <span>{nextEp.visible ? `${t("player.nextEpisode", "Next episode")}${nextEp.ended ? ` · ${nextEp.countdown}` : ""}` : formatTime(duration)}</span>
         </div>
       </div>
