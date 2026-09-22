@@ -18,15 +18,15 @@ const authState = { profileId: "prf-1", accessToken: "t" };
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign((sel: any) => sel(authState), { getState: () => authState }),
 }));
-vi.mock("@tanstack/react-query", async (orig) => ({
-  ...(await orig<typeof import("@tanstack/react-query")>()),
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useQueries: () => [],
   useQuery: () => ({ data: undefined }),
   useInfiniteQuery: () => infiniteQuery(),
 }));
-vi.mock("@evey/api", async (orig) => ({
-  ...(await orig<typeof import("@evey/api")>()),
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceListLibraries: () => ({ data: { libraries: [] }, isLoading: false }),
   useLibraryServiceSearchMedia: () => ({ data: { items: [] }, isLoading: false }),
   useLibraryServiceListMediaItems: () => ({ data: { items: [] }, isLoading: false }),
@@ -39,8 +39,8 @@ vi.mock("@evey/api", async (orig) => ({
   getNotificationServiceListNotificationsQueryKey: () => ["notifications"],
   getNotificationServiceGetUnreadCountQueryKey: () => ["unread"],
 }));
-vi.mock("@evey/client", async (orig) => ({
-  ...(await orig<typeof import("@evey/client")>()),
+vi.mock("@evey/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/client")>()),
   useCollections: () => ({ data: { collections: [] }, isLoading: false }),
   useCollection: () => ({ data: undefined, isLoading: false }),
   useFavoritesList: () => ({ data: [], isLoading: false }),

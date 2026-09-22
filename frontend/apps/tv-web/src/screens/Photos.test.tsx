@@ -16,8 +16,8 @@ const authState = { accessToken: "tok" };
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign((sel: any) => sel(authState), { getState: () => authState }),
 }));
-vi.mock("@evey/api", async (orig) => ({
-  ...(await orig<typeof import("@evey/api")>()),
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   getBaseURL: () => "http://server",
   useLibraryServiceListLibraries: () => libraries(),
   usePhotoServiceListPhotoAlbums: () => albums(),

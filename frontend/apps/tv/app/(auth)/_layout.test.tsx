@@ -31,7 +31,8 @@ vi.mock("expo-router", () => ({
 // redirecting to /login before the shortcut ever gets to render.
 const FAKE_TOKEN = "h.eyJleHAiOjk5OTk5OTk5OTl9.s";
 const logoutMock = vi.fn();
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", async (orig) => ({
+  ...(await orig<typeof import("@evey/store")>()),
   useAuthStore: (sel: any) => sel({ accessToken: FAKE_TOKEN, profileId: "p1", logout: logoutMock }),
 }));
 
