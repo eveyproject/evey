@@ -60,7 +60,7 @@ func TestFrequencyMapHamming(t *testing.T) {
 	const base uint64 = 0x0F0F0F0F0F0F0F0F
 	eps := [][]uint64{
 		{base, 0x1111},
-		{base ^ 0b111}, // 3 bits away
+		{base ^ 0b111},  // 3 bits away
 		{base ^ 0xFF00}, // 8 bits away
 		{0x2222},        // unrelated
 	}

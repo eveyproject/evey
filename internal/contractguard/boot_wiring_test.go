@@ -102,7 +102,7 @@ var bootWirings = []struct {
 		receiver:   "hlsVODSoftware",
 		setter:     "WithVideoSessionLimiter",
 		declaredIn: filepath.Join("internal", "app", "transcoding", "software_producer.go"),
-		why: "same cap on the software path",
+		why:        "same cap on the software path",
 	},
 	{
 		name:       "playlist media checker",
@@ -126,7 +126,7 @@ var bootWirings = []struct {
 		receiver:   "playlistSvc",
 		setter:     "WithMusicTrackChecker",
 		declaredIn: filepath.Join("internal", "app", "playlist", "command_service.go"),
-		why: "the music branch of AddItem stops verifying that the track exists at all",
+		why:        "the music branch of AddItem stops verifying that the track exists at all",
 	},
 	{
 		name:       "persisted log level",

@@ -150,4 +150,3 @@ func TestServePhoto_JPEGRevalidatesFromStat(t *testing.T) {
 		t.Fatalf("revalidation of an unchanged file: got %d, want 304", got)
 	}
 }
-

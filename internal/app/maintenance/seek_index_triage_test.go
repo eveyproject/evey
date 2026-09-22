@@ -139,7 +139,9 @@ func (f fakeInterleaveProber) ProbeInterleaveBackstepSec(_ context.Context, p st
 
 type fakeMuxerProber struct{ apps map[string]string }
 
-func (f fakeMuxerProber) ProbeMuxingApp(_ context.Context, p string) (string, error) { return f.apps[p], nil }
+func (f fakeMuxerProber) ProbeMuxingApp(_ context.Context, p string) (string, error) {
+	return f.apps[p], nil
+}
 
 type fakeAudioPictureProber struct {
 	lags map[string][]appmaintenance.AudioPictureLag

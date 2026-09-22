@@ -25,6 +25,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
+
 // quickConnectPollPerMinute bounds the Quick Connect status poll per client
 // IP: a TV polls every 3 s (20/min), three of them behind one NAT still fit.
 const quickConnectPollPerMinute = 60

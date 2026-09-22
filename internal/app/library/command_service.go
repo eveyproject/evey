@@ -36,10 +36,10 @@ type CommandService struct {
 	// vouches for - only those may be demoted to the backstop cadence. See
 	// WithWatchHealth for why the polarity is alive-set, not unwatched-set.
 	aliveWatchedLibs func() map[string]bool
-	watchedScanMu   sync.Mutex
-	lastWatchedScan map[string]time.Time
-	trickplay       *TrickplayService
-	metadata        *MetadataExtractionService
+	watchedScanMu    sync.Mutex
+	lastWatchedScan  map[string]time.Time
+	trickplay        *TrickplayService
+	metadata         *MetadataExtractionService
 
 	// search reindex is a WRITE (rebuilds the search index), so it lives on the
 	// command side. mediaQuery reads the rows to index; both are nil unless

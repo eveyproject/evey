@@ -93,7 +93,6 @@ func levelForType(cfg *notification.Settings, t notification.Type) notification.
 	return cfg.LevelForType(t)
 }
 
-
 // extractSeriesName recovers the series title from a stored notification title.
 // Stored titles follow patterns:
 //   - "new_episode:SeriesTitle - Episode Title"

@@ -236,11 +236,11 @@ func TestRemoteAccessPut_PersistsToStore(t *testing.T) {
 // accepted every address the validator exists to reject.
 func TestRemoteAccessPut_ExternalURL_RejectsUnsafeTargets(t *testing.T) {
 	for _, target := range []string{
-		"http://example.com",          // plain http
-		"https://localhost",           // loopback by name
-		"https://127.0.0.1",           // loopback by address
-		"https://192.168.1.10",        // RFC1918
-		"https://169.254.169.254",     // link-local / cloud metadata
+		"http://example.com",      // plain http
+		"https://localhost",       // loopback by name
+		"https://127.0.0.1",       // loopback by address
+		"https://192.168.1.10",    // RFC1918
+		"https://169.254.169.254", // link-local / cloud metadata
 		"https://metadata.google.internal",
 	} {
 		t.Run(target, func(t *testing.T) {

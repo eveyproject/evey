@@ -375,7 +375,7 @@ func TestTouchCastSession_SubSecondJitterIsNotProgress(t *testing.T) {
 	sess.Position = &pos
 	require.NoError(t, sessions.Create(context.Background(), sess))
 
-	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 1_156_157+40, AllowCreate: false})
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 1_156_157 + 40, AllowCreate: false})
 	require.NoError(t, err)
 	assert.False(t, touched, "40ms over a 30s beat is noise, not a moving picture")
 }

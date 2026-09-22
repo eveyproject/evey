@@ -1652,15 +1652,15 @@ func TestEpisodeNotificationCreatedAfter24hWindow(t *testing.T) {
 	oldCreatedAt := time.Now().Add(-25 * time.Hour)
 	expires := time.Now().AddDate(0, 0, 30)
 	_ = repo.Create(ctx, &notifdom.Notification{
-		ID:             "old-ep",
-		ProfileID:      "p1",
-		Type:           notifdom.TypeNewEpisode,
-		Title:          "new_episode:Some Series - S02E05",
-		SeriesKey: notifdom.SeriesKey(seriesKey),
-		EpisodeCount:   1,
-		Level:          notifdom.LevelAll,
-		CreatedAt:      oldCreatedAt,
-		ExpiresAt:      &expires,
+		ID:           "old-ep",
+		ProfileID:    "p1",
+		Type:         notifdom.TypeNewEpisode,
+		Title:        "new_episode:Some Series - S02E05",
+		SeriesKey:    notifdom.SeriesKey(seriesKey),
+		EpisodeCount: 1,
+		Level:        notifdom.LevelAll,
+		CreatedAt:    oldCreatedAt,
+		ExpiresAt:    &expires,
 	})
 
 	// Now a new episode arrives - the old notif is outside the 24h window.

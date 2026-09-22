@@ -19,7 +19,7 @@ type recordingController struct {
 func (c *recordingController) SetResourceLimits(memBytes int64, pidsMax int) {
 	c.memBytes, c.pidsMax = memBytes, pidsMax
 }
-func (c *recordingController) SetCPUNice(nice int)        { c.nice = nice }
+func (c *recordingController) SetCPUNice(nice int)         { c.nice = nice }
 func (c *recordingController) SetDiskQuota(maxBytes int64) { c.diskBytes = maxBytes }
 func (c *recordingController) SetSandboxMode(mode string)  { c.sandbox = mode }
 
