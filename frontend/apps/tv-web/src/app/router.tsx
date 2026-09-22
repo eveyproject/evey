@@ -13,7 +13,10 @@ export type Route =
   | { name: "media"; mediaId: string }
   | { name: "player"; mediaId: string; restart?: boolean }
   | { name: "settings" }
-  | { name: "search"; query?: string };
+  | { name: "search"; query?: string }
+  | { name: "music"; libraryId?: string }
+  | { name: "album"; albumId: string; libraryId?: string }
+  | { name: "artist"; artistId: string; libraryId?: string };
 
 export function routeToHash(route: Route): string {
   switch (route.name) {
@@ -21,6 +24,12 @@ export function routeToHash(route: Route): string {
       return `#/library/${encodeURIComponent(route.libraryId)}`;
     case "search":
       return `#/search${route.query ? `?q=${encodeURIComponent(route.query)}` : ""}`;
+    case "music":
+      return `#/music${route.libraryId ? `?lib=${encodeURIComponent(route.libraryId)}` : ""}`;
+    case "album":
+      return `#/album/${encodeURIComponent(route.albumId)}${route.libraryId ? `?lib=${encodeURIComponent(route.libraryId)}` : ""}`;
+    case "artist":
+      return `#/artist/${encodeURIComponent(route.artistId)}${route.libraryId ? `?lib=${encodeURIComponent(route.libraryId)}` : ""}`;
     case "media":
       return `#/media/${encodeURIComponent(route.mediaId)}`;
     case "player":
@@ -47,6 +56,12 @@ export function parseHash(hash: string): Route {
       return { name: "settings" };
     case "search":
       return { name: "search", query: params.get("q") ?? undefined };
+    case "music":
+      return { name: "music", libraryId: params.get("lib") ?? undefined };
+    case "album":
+      return parts[1] ? { name: "album", albumId: parts[1], libraryId: params.get("lib") ?? undefined } : { name: "music" };
+    case "artist":
+      return parts[1] ? { name: "artist", artistId: parts[1], libraryId: params.get("lib") ?? undefined } : { name: "music" };
     case "library":
       return parts[1] ? { name: "library", libraryId: parts[1] } : { name: "home" };
     case "media":

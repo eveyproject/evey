@@ -458,3 +458,81 @@ button, input {
   border-radius: 1vw;
   text-align: center;
 }
+
+/* --- music ---------------------------------------------------------------- */
+.music-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 var(--tv-gutter) 1vw;
+  background: var(--surface-raised, #1e293b);
+  border-top: 0.1vw solid var(--border, #1e293b);
+  z-index: 20;
+}
+.music-progress {
+  height: 0.3vw;
+  margin: 0 0 0.8vw;
+  background: var(--border, #1e293b);
+}
+.music-progress > div {
+  height: 100%;
+  background: var(--accent, #f36464);
+}
+.music-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5vw;
+}
+.music-art {
+  width: 4vw;
+  height: 4vw;
+  border-radius: 0.4vw;
+  background: var(--surface, #111827);
+  object-fit: cover;
+  flex: none;
+}
+.music-meta {
+  flex: 1;
+  min-width: 0;
+}
+.music-title {
+  font-size: 1.5vw;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.music-row .actions {
+  margin: 0;
+}
+.track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4vw;
+  padding-bottom: 8vw;
+}
+.track-list .btn {
+  display: flex;
+  gap: 2vw;
+  justify-content: flex-start;
+  text-align: left;
+}
+.track-list .track-no {
+  width: 2.5vw;
+  color: var(--text-muted, #64748b);
+}
+.track-list .track-title {
+  flex: 1;
+}
+.hero-placeholder {
+  width: 14vw;
+  height: 14vw;
+  border-radius: 0.8vw;
+  background: var(--surface, #111827);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 5vw;
+  color: var(--text-muted, #64748b);
+}

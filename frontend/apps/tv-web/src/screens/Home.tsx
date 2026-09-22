@@ -64,6 +64,7 @@ export function HomeScreen() {
   const resumeItems = (resume.data?.items ?? []).filter(isPlayable);
   const nextItems = (nextUp.data?.items ?? []).filter(isPlayable);
   const libs = (libraries.data?.libraries ?? []).filter((l) => l.type === "LIBRARY_TYPE_MOVIES" || l.type === "LIBRARY_TYPE_SHOWS");
+  const hasMusic = (libraries.data?.libraries ?? []).some((l) => l.type === "LIBRARY_TYPE_MUSIC");
   const nothingYet = resumeItems.length === 0 && nextItems.length === 0;
 
   return (
@@ -74,6 +75,7 @@ export function HomeScreen() {
           {libs.map((l) => (
             <Button key={l.id} onPress={() => l.id && navigate({ name: "library", libraryId: l.id })}>{l.name}</Button>
           ))}
+          {hasMusic ? <Button onPress={() => navigate({ name: "music" })}>{t("common.nav.music", "Music")}</Button> : null}
           <Button onPress={() => navigate({ name: "search" })}>{t("common.nav.search", "Search")}</Button>
           <Button onPress={() => navigate({ name: "settings" })}>{t("common.nav.settings", "Settings")}</Button>
         </div>

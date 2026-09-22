@@ -17,6 +17,8 @@ import { MediaDetailScreen } from "./screens/MediaDetail";
 import { PlayerScreen } from "./screens/Player";
 import { SettingsScreen } from "./screens/Settings";
 import { SearchScreen } from "./screens/Search";
+import { MusicScreen, AlbumScreen } from "./screens/Music";
+import { MusicBar } from "./music/MusicBar";
 import { applyThemeVars, useAppliedTheme } from "./lib/theme";
 import "./styles.css";
 
@@ -114,6 +116,7 @@ function App() {
     <>
       {accessToken && profileId ? <ThemeFollower /> : null}
       {screen}
+      {accessToken && profileId && effective.name !== "player" ? <MusicBar /> : null}
     </>
   );
 }
@@ -138,6 +141,12 @@ function renderScreen(effective: Route) {
       return <SettingsScreen />;
     case "search":
       return <SearchScreen initialQuery={effective.query} />;
+    case "music":
+      return <MusicScreen libraryId={effective.libraryId} />;
+    case "album":
+      return <AlbumScreen albumId={effective.albumId} libraryId={effective.libraryId} />;
+    case "artist":
+      return <AlbumScreen artistId={effective.artistId} libraryId={effective.libraryId} />;
     default:
       return <HomeScreen />;
   }

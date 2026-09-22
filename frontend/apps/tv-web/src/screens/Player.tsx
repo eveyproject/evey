@@ -23,6 +23,7 @@ import { goBack, replace } from "../app/router";
 import { SubtitleOverlay } from "../player/SubtitleOverlay";
 import { TrickplayTile } from "../player/TrickplayTile";
 import { SettingsPanel, chapterLabel, type PanelSection } from "../player/SettingsPanel";
+import { useMusicQueueStore } from "../music/queue";
 
 const OSD_HIDE_MS = 4000;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -70,6 +71,9 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
   // Where the picture was when a restart tore the stream down: the new
   // stream resumes there, not at the film's start.
   const resumeAtRef = useRef<number | null>(null);
+
+  // A film silences the album, as on the phone and the Android TV.
+  useEffect(() => { useMusicQueueStore.getState().clear(); }, [mediaId]);
 
   const showOsd = useCallback(() => {
     setOsd(true);
