@@ -99,12 +99,15 @@ interface CardProps {
   onPress: () => void;
   focusKey?: string;
   autoFocus?: boolean;
+  /** The remote landed on this card: a paged grid fetches its next page from here. */
+  onFocus?: () => void;
 }
 
-export function Card({ title, imageUrl, wide, onPress, focusKey, autoFocus }: CardProps) {
+export function Card({ title, imageUrl, wide, onPress, focusKey, autoFocus, onFocus }: CardProps) {
   const { ref, focused, focusSelf } = useFocusable({ focusKey, onEnterPress: onPress, onFocus: (layout) => {
     // Keep the focused card in view: the row scrolls, the screen scrolls.
     layout.node.scrollIntoView({ block: "nearest", inline: "nearest" });
+    onFocus?.();
   } });
   useEffect(() => {
     if (autoFocus) focusSelf();
