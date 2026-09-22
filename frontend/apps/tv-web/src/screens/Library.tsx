@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -20,7 +20,7 @@ import {
 } from "@evey/api";
 import { useDebounce, useWatchProgressMaps } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
-import { Button, Card, Spinner, TextField } from "../components/ui";
+import { Button, Card, Spinner, TextField, useCardHandlers } from "../components/ui";
 import { navigate, replace } from "../app/router";
 import { posterSrc } from "../lib/media";
 
@@ -30,6 +30,32 @@ export const PAGE_SIZE = 30;
 // Cards from the end at which the next page is requested: two rows of a
 // grid that fits about six posters across at 1080p.
 export const PREFETCH_FROM_END = 12;
+
+// How many cards stay in the document at once. Everything fetched stays in
+// memory; only this many are rendered around where the viewer is.
+//
+// Measured in the LG simulator: a walk of twenty presses costs about one
+// style recalculation per press on a three card library and nine on a three
+// hundred card one, because the page grows with every page fetched - a real
+// library of a few thousand titles would put tens of thousands of nodes in
+// front of a television that has neither the memory nor the processor for
+// them. Six pages is deep enough that the window slides rarely.
+export const RENDER_WINDOW = 180;
+
+/**
+ * The slice of the list to render, in whole rows, keeping the card the
+ * viewer is on comfortably inside it.
+ */
+export function renderWindow(total: number, focusedIndex: number, columns: number, size = RENDER_WINDOW): { start: number; end: number } {
+  if (total <= size) return { start: 0, end: total };
+  const cols = Math.max(1, columns);
+  const half = Math.floor(size / 2);
+  let start = focusedIndex - half;
+  start = Math.max(0, Math.min(start, total - size));
+  // Whole rows only, so the grid never shifts sideways under the focus.
+  start -= start % cols;
+  return { start, end: Math.min(total, start + size) };
+}
 const TV_WEB_DEDICATED_ROUTES = ["/music"];
 
 const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [
@@ -139,9 +165,38 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
   const isError = searchActive ? searchQuery.isError : pages.isError;
   const total = pages.data?.pages[0]?.pagination?.totalItems;
 
-  const onCardFocus = (index: number) => {
-    if (searchActive) return;
-    if (shouldFetchNextPage(index, items.length, !!pages.hasNextPage, pages.isFetchingNextPage)) void pages.fetchNextPage();
+  // Stable per card: a fresh arrow function every render would rebuild every
+  // card in the grid each time a page lands.
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  // The grid's own geometry, read from the stylesheet once per render rather
+  // than from every card's box.
+  const [columns, setColumns] = useState(6);
+  const [rowHeight, setRowHeight] = useState(0);
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length;
+    const card = grid.firstElementChild as HTMLElement | null;
+    if (cols > 0) setColumns(cols);
+    if (card) setRowHeight(card.offsetHeight + parseFloat(getComputedStyle(grid).rowGap || "0"));
+  }, [items.length]);
+  const window = useMemo(() => renderWindow(items.length, focusedIndex, columns), [items.length, focusedIndex, columns]);
+  const openMedia = useCardHandlers((mediaId: string) => navigate({ name: "media", mediaId }));
+  const cardFocused = useCardHandlers((index: number) => {
+    setFocusedIndex(index);
+    if (searchActiveRef.current) return;
+    const p = pagesRef.current;
+    if (shouldFetchNextPage(index, p.loaded, p.hasNext, p.fetching)) void p.fetchNext();
+  });
+  const searchActiveRef = useRef(searchActive);
+  searchActiveRef.current = searchActive;
+  const pagesRef = useRef({ loaded: 0, hasNext: false, fetching: false, fetchNext: () => {} });
+  pagesRef.current = {
+    loaded: items.length,
+    hasNext: !!pages.hasNextPage,
+    fetching: pages.isFetchingNextPage,
+    fetchNext: () => { void pages.fetchNextPage(); },
   };
 
   // A shows library opens on its series and a movies library on its films:
@@ -198,20 +253,24 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
       {!isLoading && !isError && items.length === 0 ? (
         <p className="muted">{narrowedByViewer ? t("media.library.noItemsFiltered", "Try adjusting your filters or search term.") : t("media.library.noItemsEmptyUser", "No content here yet.")}</p>
       ) : null}
-      <FocusRoot>
-        <div className="grid">
-          {items.map((item, i) => (
+      <FocusRoot grid>
+        {/* The rows above and below the window are kept as height, so the
+            page is as long as the library and the scroll never jumps. */}
+        {window.start > 0 ? <div style={{ height: `${(window.start / columns) * rowHeight}px` }} /> : null}
+        <div className="grid" ref={gridRef}>
+          {items.slice(window.start, window.end).map((item, i) => (
             <Card
               key={item.id}
               title={itemTitle(item)}
               imageUrl={posterSrc(item.id, "poster", 400)}
               watched={watchedMap.get(item.id) === true}
               percent={percentMap.get(item.id)}
-              onFocus={() => onCardFocus(i)}
-              onPress={() => navigate({ name: "media", mediaId: item.id })}
+              onFocus={cardFocused(item.id, window.start + i)}
+              onPress={openMedia(item.id, item.id)}
             />
           ))}
         </div>
+        {items.length > window.end ? <div style={{ height: `${((items.length - window.end) / columns) * rowHeight}px` }} /> : null}
         {pages.isFetchingNextPage ? <Spinner /> : null}
       </FocusRoot>
     </div>
