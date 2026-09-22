@@ -60,7 +60,7 @@ const tracks = [
 beforeEach(() => {
   vi.clearAllMocks();
   audio.set({ currentTime: 30, duration: 120, didJustFinish: false });
-  useMusicQueueStore.setState({ queue: [], currentIndex: -1, isPlaying: false });
+  useMusicQueueStore.setState({ queue: [], currentIndex: -1, isPlaying: false, shuffle: false });
 });
 
 // The global TV player follows the queue store: nothing without a track,
@@ -157,5 +157,23 @@ describe("TVMusicPlayer", () => {
 
     act(() => audio.set({ currentTime: 120, duration: 120, playing: false, didJustFinish: true }));
     expect(keepAwake.activate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The bar carries the shuffle toggle the phone and the browser already had
+// (owner, 2026-09-22): pressing it flips the queue's mode, and the button
+// reads as on.
+describe("TVMusicPlayer shuffle", () => {
+  it("toggles the queue's shuffle mode from the bar", async () => {
+    act(() => useMusicQueueStore.setState({ queue: tracks, currentIndex: 0, isPlaying: true }));
+    const { rerender } = render(<TVMusicPlayer />);
+    await waitFor(() => expect(audio.player.replace).toHaveBeenCalled());
+    const btn = screen.getByLabelText("media.music.shuffle");
+    expect(btn.getAttribute("aria-selected") ?? btn.getAttribute("data-selected")).not.toBe("true");
+    fireEvent.click(btn);
+    rerender(<TVMusicPlayer />);
+    expect(useMusicQueueStore.getState().shuffle).toBe(true);
+    fireEvent.click(screen.getByLabelText("media.music.shuffle"));
+    expect(useMusicQueueStore.getState().shuffle).toBe(false);
   });
 });

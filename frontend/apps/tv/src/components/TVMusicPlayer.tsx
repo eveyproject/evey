@@ -32,12 +32,15 @@ function FocusCtrl({
   onPress,
   label,
   hasTVPreferredFocus,
+  active,
 }: {
   name: keyof typeof Ionicons.glyphMap;
   size: number;
   onPress: () => void;
   label: string;
   hasTVPreferredFocus?: boolean;
+  // A toggle that is on (shuffle): drawn in the accent when not focused.
+  active?: boolean;
 }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
@@ -49,6 +52,7 @@ function FocusCtrl({
       hasTVPreferredFocus={hasTVPreferredFocus}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={active === undefined ? undefined : { selected: active }}
       style={{
         padding: 10,
         marginHorizontal: 6,
@@ -56,7 +60,7 @@ function FocusCtrl({
         backgroundColor: focused ? theme.colors.accent : "transparent",
       }}
     >
-      <Ionicons name={name} size={size} color={focused ? theme.colors.onAccent : theme.colors.text} />
+      <Ionicons name={name} size={size} color={focused ? theme.colors.onAccent : active ? theme.colors.accent : theme.colors.text} />
     </Pressable>
   );
 }
@@ -70,6 +74,8 @@ function TVMusicPlayerImpl() {
   const currentIndex = useMusicQueueStore((s) => s.currentIndex);
   const isPlayingState = useMusicQueueStore((s) => s.isPlaying);
   const togglePlay = useMusicQueueStore((s) => s.togglePlay);
+  const shuffle = useMusicQueueStore((s) => s.shuffle);
+  const toggleShuffle = useMusicQueueStore((s) => s.toggleShuffle);
   const next = useMusicQueueStore((s) => s.next);
   const previous = useMusicQueueStore((s) => s.previous);
   const clear = useMusicQueueStore((s) => s.clear);
@@ -174,6 +180,8 @@ function TVMusicPlayerImpl() {
             {[track.artist, track.album].filter(Boolean).join(" · ") || "-"}
           </Text>
         </View>
+        {/* Shuffle, the mode the phone and the browser already had. */}
+        <FocusCtrl name="shuffle" size={ICON_SIZE.xl} onPress={toggleShuffle} label={t("media.music.shuffle", "Shuffle")} active={shuffle} />
         <FocusCtrl name="play-skip-back" size={ICON_SIZE.xl} onPress={previous} label={t("common.previous")} />
         <FocusCtrl name={isPlayingState ? "pause" : "play"} size={ICON_SIZE["2xl"]} onPress={togglePlay} label={isPlayingState ? t("common.pause") : t("common.play")} hasTVPreferredFocus />
         <FocusCtrl name="play-skip-forward" size={ICON_SIZE.xl} onPress={next} label={t("common.next")} />
