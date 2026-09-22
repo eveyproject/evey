@@ -98,3 +98,36 @@ describe("musicQueue store", () => {
     expect(state.isPlaying).toBe(false);
   });
 });
+
+// Shuffle, the same rule as the phone and the browser: next and previous pick
+// any other track of the album, never the one playing, and an album of one
+// track has nowhere to go. The toggle is what a viewer expects to find on the
+// bar (owner, 2026-09-22: the mode was on every other client but the TV).
+describe("shuffle", () => {
+  it("picks another track on next and previous, and stays put alone", () => {
+    const tracks = [
+      { id: "a", title: "A", artist: "", album: "", duration: 1 },
+      { id: "b", title: "B", artist: "", album: "", duration: 1 },
+      { id: "c", title: "C", artist: "", album: "", duration: 1 },
+    ];
+    useMusicQueueStore.setState({ queue: tracks, currentIndex: 2, isPlaying: true, shuffle: false });
+    useMusicQueueStore.getState().toggleShuffle();
+    expect(useMusicQueueStore.getState().shuffle).toBe(true);
+    for (let i = 0; i < 20; i++) {
+      const before = useMusicQueueStore.getState().currentIndex;
+      useMusicQueueStore.getState().next();
+      const after = useMusicQueueStore.getState().currentIndex;
+      expect(after).not.toBe(before);
+      expect(useMusicQueueStore.getState().isPlaying).toBe(true);
+    }
+    const before = useMusicQueueStore.getState().currentIndex;
+    useMusicQueueStore.getState().previous();
+    expect(useMusicQueueStore.getState().currentIndex).not.toBe(before);
+
+    useMusicQueueStore.setState({ queue: [tracks[0]], currentIndex: 0 });
+    useMusicQueueStore.getState().next();
+    expect(useMusicQueueStore.getState().currentIndex).toBe(0);
+    useMusicQueueStore.getState().toggleShuffle();
+    expect(useMusicQueueStore.getState().shuffle).toBe(false);
+  });
+});

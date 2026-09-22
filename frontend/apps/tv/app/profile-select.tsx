@@ -2,6 +2,18 @@ import { useEffect, useState, useCallback } from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+
+// Back into the app, to the instance that is already there. "Switch
+// profile" pushes this screen over the running (auth) layout, and replacing
+// it with "/(auth)/(tabs)" mounted a SECOND (auth) layout under the root
+// stack: two music bars, two audio players, every track change applied
+// twice and a finished track skipped or restarted (measured on the
+// emulator, 2026-09-22: two ExpoAudio sessions in one process). dismissTo
+// pops back to the existing one, and only replaces when there is none
+// (cold start, first sign-in).
+function leaveToApp(): void {
+  router.dismissTo("/(auth)/(tabs)");
+}
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, userServiceRefreshToken } from "@evey/api";
@@ -65,7 +77,7 @@ export default function ProfileSelect() {
         ?? profiles.find((p) => p.isDefault)
         ?? profiles[0];
       if (target?.id) setProfile(target.id);
-      router.replace("/(auth)/(tabs)");
+      leaveToApp();
     }
   }, [isLoading, profiles, hasKidsProfile, activeProfileId, setProfile]);
 
@@ -99,7 +111,7 @@ export default function ProfileSelect() {
     setBusy(target.id);
     const res = await switchProfile(target);
     setBusy(null);
-    if (res === "ok") router.replace("/(auth)/(tabs)");
+    if (res === "ok") leaveToApp();
     else if (res === "pin") setPinTarget(target);
     else toast.error(t("auth.profile.switchFailed", "Could not switch profile"));
   }
@@ -111,7 +123,7 @@ export default function ProfileSelect() {
     setBusy(target.id);
     const res = await switchProfile(target, pinToken);
     setBusy(null);
-    if (res === "ok") router.replace("/(auth)/(tabs)");
+    if (res === "ok") leaveToApp();
     else toast.error(t("auth.profile.switchFailed", "Could not switch profile"));
   }
 

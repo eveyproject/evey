@@ -2,6 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet, Alert } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+
+// Back into the app, to the instance that is already there. "Switch
+// profile" pushes this screen over the running (auth) layout, and replacing
+// it with "/(auth)/(tabs)" mounted a SECOND (auth) layout under the root
+// stack: two music mini-players, two audio players, every track change
+// applied twice (measured on the TV emulator, 2026-09-22, same navigation
+// here). dismissTo pops back to the existing one, and only replaces when
+// there is none (cold start, first sign-in).
+function leaveToApp(): void {
+  router.dismissTo("/(auth)/(tabs)");
+}
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import * as SecureStore from "expo-secure-store";
@@ -145,13 +156,13 @@ export default function ProfileSelect() {
       try {
         await SecureStore.setItemAsync(LAST_PROFILE_KEY, p.id);
       } catch { /* ignore */ }
-      router.replace("/(auth)/(tabs)");
+      leaveToApp();
       return;
     }
     setBusy(p.id);
     const res = await switchProfile(p);
     setBusy(null);
-    if (res === "ok") router.replace("/(auth)/(tabs)");
+    if (res === "ok") leaveToApp();
     else if (res === "pin") setPinTarget(p);
   }, [busy, currentIsKids, switchProfile]);
 
@@ -162,7 +173,7 @@ export default function ProfileSelect() {
     if (!liveSettled || autoRedirectedRef.current) return;
     if (profiles.length === 0) {
       autoRedirectedRef.current = true;
-      router.replace("/(auth)/(tabs)");
+      leaveToApp();
       return;
     }
     // No kids profile, or only one profile: nothing anyone could pick wrong,
@@ -182,7 +193,7 @@ export default function ProfileSelect() {
         } else if (target?.id) {
           setProfile(target.id);
         }
-        router.replace("/(auth)/(tabs)");
+        leaveToApp();
       })();
     }
   }, [liveSettled, hasKidsProfile, profiles, activeProfileId, switchProfile, setProfile]);
@@ -268,7 +279,7 @@ export default function ProfileSelect() {
             setBusy(target.id ?? null);
             const res = await switchProfile(target, pinToken);
             setBusy(null);
-            if (res === "ok") router.replace("/(auth)/(tabs)");
+            if (res === "ok") leaveToApp();
           }}
         />
       )}

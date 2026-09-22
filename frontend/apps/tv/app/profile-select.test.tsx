@@ -10,8 +10,11 @@ vi.mock("react-native", () => ({
 }));
 
 const replaceMock = vi.fn();
+// Leaving the screen pops back to the (auth) layout already on the stack
+// (dismissTo), never a fresh copy of it beside the old one.
+const dismissToMock = vi.fn();
 vi.mock("expo-router", () => ({
-  router: { replace: (...args: unknown[]) => replaceMock(...args) },
+  router: { replace: (...args: unknown[]) => replaceMock(...args), dismissTo: (...args: unknown[]) => dismissToMock(...args) },
 }));
 
 vi.mock("react-i18next", () => ({
@@ -133,7 +136,7 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
 
     await waitFor(() => expect(refreshTokenMock).toHaveBeenCalledWith({ profileId: "prof-adult", pinToken: undefined }));
     expect(setTokensMock).toHaveBeenCalledWith("new-access-token");
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/(auth)/(tabs)"));
+    await waitFor(() => expect(dismissToMock).toHaveBeenCalledWith("/(auth)/(tabs)"));
   });
 
   it("never applies the switch locally when the server rejects with 403 - it opens the PIN gate instead", async () => {
@@ -152,7 +155,7 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
     await waitFor(() => expect(screen.getByLabelText("confirm-pin")).toBeTruthy());
     // Critically: no local profile switch happened while the PIN is pending.
     expect(setTokensMock).not.toHaveBeenCalled();
-    expect(replaceMock).not.toHaveBeenCalledWith("/(auth)/(tabs)");
+    expect(dismissToMock).not.toHaveBeenCalledWith("/(auth)/(tabs)");
   });
 
   it("retries RefreshToken with the pinToken once the PIN is verified, then navigates", async () => {
@@ -177,7 +180,7 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
       expect(refreshTokenMock).toHaveBeenNthCalledWith(2, { profileId: "prof-adult", pinToken: "proof-token" }),
     );
     expect(setTokensMock).toHaveBeenCalledWith("new-access-token");
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/(auth)/(tabs)"));
+    await waitFor(() => expect(dismissToMock).toHaveBeenCalledWith("/(auth)/(tabs)"));
   });
 
   it("passes the current (source) profile as fallback so the kids profile's own PIN can authorise the switch", async () => {
