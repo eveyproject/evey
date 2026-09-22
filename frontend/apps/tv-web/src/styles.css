@@ -620,3 +620,45 @@ button, input {
   padding: 0.5vw 1.4vw;
   font-size: 1.2vw;
 }
+
+/* Statistics: the figures, then the genres as bars. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18vw, 1fr));
+  gap: 1vw;
+  margin: 1vw 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3vw;
+  background: var(--surface-raised, #1e293b);
+  border-radius: var(--tv-radius);
+  padding: 1vw 1.4vw;
+  font-size: 1.6vw;
+}
+
+.genre-row {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  margin: 0.4vw 0;
+  font-size: 1.2vw;
+}
+
+.genre-name { width: 14vw; }
+
+.genre-track {
+  flex: 1;
+  height: 0.9vw;
+  border-radius: 0.45vw;
+  background: var(--surface-raised, #1e293b);
+  overflow: hidden;
+}
+
+.genre-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent, #f36464);
+}

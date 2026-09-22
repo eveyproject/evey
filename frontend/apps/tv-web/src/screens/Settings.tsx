@@ -6,7 +6,7 @@ import { themes, THEME_NAMES } from "@evey/theme";
 import { pluginThemeKey, useActiveProfile, usePluginThemes } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
 import { Button } from "../components/ui";
-import { replace } from "../app/router";
+import { navigate, replace } from "../app/router";
 import { signOut } from "../lib/session";
 import i18n, { supportedLanguages, saveLocale } from "../i18n";
 
@@ -64,8 +64,17 @@ export function SettingsScreen() {
           </Button>
         ))}
       </div>
+      <h2 className="row-title">{t("common.nav.settings", "Settings")}</h2>
+      <div className="actions" style={{ flexWrap: "wrap", justifyContent: "center" }}>
+        <Button autoFocus onPress={() => navigate({ name: "playback" })}>{t("auth.settings.tabs.playback")}</Button>
+        <Button onPress={() => navigate({ name: "stats" })}>{t("common.userStats.title")}</Button>
+        <Button onPress={() => navigate({ name: "history" })}>{t("common.watchHistory.title")}</Button>
+        <Button onPress={() => navigate({ name: "notifications" })}>{t("common.notifications.title")}</Button>
+        <Button onPress={() => navigate({ name: "home" })}>{t("media.home.customize")}</Button>
+        <Button onPress={() => navigate({ name: "servers" })}>{t("mobile.servers.manageTitle")}</Button>
+      </div>
       <div className="actions">
-        <Button autoFocus onPress={() => replace({ name: "profiles" })}>{t("common.nav.switchProfile", "Switch profile")}</Button>
+        <Button onPress={() => replace({ name: "profiles" })}>{t("common.nav.switchProfile", "Switch profile")}</Button>
         <Button onPress={() => { void signOut().then(() => replace({ name: "login" })); }}>{t("common.nav.signOut", "Sign out")}</Button>
         <Button variant="ghost" onPress={() => { void signOut().then(() => replace({ name: "server" })); }}>{t("mobile.settings.changeServer", "Change server")}</Button>
       </div>
