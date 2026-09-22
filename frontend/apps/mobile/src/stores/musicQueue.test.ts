@@ -67,10 +67,13 @@ describe("useMusicQueueStore", () => {
       expect(useMusicQueueStore.getState().isPlaying).toBe(true);
     });
 
-    it("does nothing at last track", () => {
+    it("stays on the last track and marks the player stopped", () => {
       useMusicQueueStore.getState().setQueue([t1, t2, t3], 2);
       useMusicQueueStore.getState().next();
       expect(useMusicQueueStore.getState().currentIndex).toBe(2);
+      // The album is over: a pause button over silence would need two
+      // presses to play again.
+      expect(useMusicQueueStore.getState().isPlaying).toBe(false);
     });
 
     it("does nothing on empty queue", () => {

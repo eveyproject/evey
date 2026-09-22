@@ -14,6 +14,9 @@ export const HOME_SHORTCUT_INSET = 88;
 
 interface HomeShortcutButtonProps {
   onPress: () => void;
+  // Extra distance from the bottom edge, for the music bar that floats there
+  // while an album plays: the button rides above it instead of under it.
+  bottomOffset?: number;
 }
 
 // Floating, always-focusable way back to Home from a deep screen (media/
@@ -24,12 +27,12 @@ interface HomeShortcutButtonProps {
 //
 // No hasTVPreferredFocus here - the screen underneath owns its own initial
 // focus target, this button must never steal it.
-export function HomeShortcutButton({ onPress }: HomeShortcutButtonProps) {
+export function HomeShortcutButton({ onPress, bottomOffset = 0 }: HomeShortcutButtonProps) {
   const theme = useTheme();
   const { t } = useTranslation();
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <View style={[styles.container, bottomOffset > 0 && { bottom: 24 + bottomOffset }]} pointerEvents="box-none">
       <FocusableCard
         onPress={onPress}
         accessibilityLabel={t("common.nav.home")}

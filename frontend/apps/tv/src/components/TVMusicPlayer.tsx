@@ -20,6 +20,12 @@ import { coverArtUri } from "../lib/artwork";
 // sleeps, and the HDMI output (and the sound with it) goes away mid-album.
 const KEEP_AWAKE_TAG = "tv-music";
 
+// The bar's height (padding 11, progress 3 + 10, row 56, padding 11, hairline),
+// what the screen above it and the home shortcut keep clear while it shows.
+// It floats over everything at the bottom edge: without the inset the home
+// button sat on the cover art and an album's last rows hid under it.
+export const TV_MUSIC_BAR_HEIGHT = 92;
+
 function FocusCtrl({
   name,
   size,
@@ -102,10 +108,14 @@ function TVMusicPlayerImpl() {
   const token = pinned && pinned.trackId === trackId ? pinned.token : null;
 
   useEffect(() => {
-    if (!trackId) return;
     try {
-      if (isPlayingState) player.play();
-      else player.pause();
+      // No track means the queue was cleared - by the close button, or by a
+      // film opening (the video player clears the queue). The player keeps
+      // its last source, so this is the pause that actually silences it:
+      // left to the store alone, the bar vanished and the album played on
+      // under the film.
+      if (!trackId || !isPlayingState) player.pause();
+      else player.play();
     } catch { /* released */ }
   }, [isPlayingState, player, trackId]);
 
