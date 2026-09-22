@@ -552,7 +552,7 @@ func TestQuickConnect_LifetimeFollowsThePairing(t *testing.T) {
 	if rt == nil {
 		t.Fatal("no refresh token was stored")
 	}
-	if life := rt.ExpiresAt.Sub(time.Now()); life < 179*24*time.Hour {
+	if life := time.Until(rt.ExpiresAt); life < 179*24*time.Hour {
 		t.Errorf("the pairing asked for a long session, got %v", life.Truncate(time.Hour))
 	}
 }
@@ -577,7 +577,7 @@ func TestQuickConnect_ShortSessionWhenNobodyAskedForMore(t *testing.T) {
 	if rt == nil {
 		t.Fatal("no refresh token was stored")
 	}
-	if life := rt.ExpiresAt.Sub(time.Now()); life > 8*24*time.Hour {
+	if life := time.Until(rt.ExpiresAt); life > 8*24*time.Hour {
 		t.Errorf("nobody asked for a long session, got %v", life.Truncate(time.Hour))
 	}
 }
