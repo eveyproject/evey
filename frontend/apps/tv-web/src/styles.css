@@ -568,3 +568,55 @@ button, input {
   margin: 0;
   margin-right: auto;
 }
+
+/* A modal the remote can walk: the sheet owns the focus while it is up. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-sheet {
+  background: var(--surface, #151d2e);
+  border-radius: var(--tv-radius);
+  padding: 2vw 2.5vw;
+  min-width: 46vw;
+  max-width: 70vw;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.feed-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5vw;
+  margin: 1vw 0;
+}
+
+.feed-row {
+  display: flex;
+  gap: 0.6vw;
+  align-items: center;
+}
+
+.feed-row .btn:first-child {
+  flex: 1;
+  justify-content: flex-start;
+}
+
+/* The navigation every screen carries, above the content. */
+.navbar {
+  display: flex;
+  gap: 0.6vw;
+  padding: 0.8vw 2vw 0;
+  align-items: center;
+}
+
+.navbar .btn {
+  padding: 0.5vw 1.4vw;
+  font-size: 1.2vw;
+}
