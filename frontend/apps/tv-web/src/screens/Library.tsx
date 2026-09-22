@@ -144,6 +144,11 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
     if (shouldFetchNextPage(index, items.length, !!pages.hasNextPage, pages.isFetchingNextPage)) void pages.fetchNextPage();
   };
 
+  // A shows library opens on its series and a movies library on its films:
+  // that default is the app's doing, not the viewer's, so an empty grid under
+  // it must not read as "adjust your filters".
+  const narrowedByViewer = !!genre || searchActive || typeFilter !== defaultTypeFilterFor(library?.type);
+
   const toggleType = (v: LibraryServiceListMediaItemsType) => setTypeFilter(typeFilter === v ? "" : v);
   const toggleGenre = (g: string) => setGenre(genre === g ? "" : g);
 
@@ -191,7 +196,7 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
         </div>
       ) : null}
       {!isLoading && !isError && items.length === 0 ? (
-        <p className="muted">{genre || typeFilter || searchActive ? t("media.library.noItemsFiltered", "Try adjusting your filters or search term.") : t("media.library.noItemsEmptyUser", "No content here yet.")}</p>
+        <p className="muted">{narrowedByViewer ? t("media.library.noItemsFiltered", "Try adjusting your filters or search term.") : t("media.library.noItemsEmptyUser", "No content here yet.")}</p>
       ) : null}
       <FocusRoot>
         <div className="grid">

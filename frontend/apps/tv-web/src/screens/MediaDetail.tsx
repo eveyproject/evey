@@ -131,6 +131,8 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
   });
   const positionMs = Number(progress?.positionMs ?? 0);
   const durationMs = Number(item?.durationMs ?? progress?.durationMs ?? 0);
+  // Only the title itself can be resumed: a series page plays its first
+  // episode, which has a position of its own.
   const canResume = isPlayable(item) && positionMs > 0 && (durationMs === 0 || positionMs < durationMs - 15_000);
 
   // A series and a season own no file: playing their own id can only fail, so
@@ -195,7 +197,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
           {item.studios && item.studios.length > 0 ? <p className="muted" style={{ margin: "0 0 0.4vw" }}>{t("media.detail.studio")}{item.studios.join(", ")}</p> : null}
           {item.communityRating ? <p className="muted" style={{ margin: "0 0 1vw" }}>{stars(item.communityRating)} {item.communityRating.toFixed(1)}/10</p> : null}
           {item.overview ? <p className="overview">{item.overview}</p> : null}
-          {isPlayable(item) ? (
+          {playTarget ? (
             <FocusRoot>
               <div className="actions">
                 {canResume ? (
