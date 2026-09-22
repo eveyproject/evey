@@ -92,6 +92,11 @@ const KEY_ACTION_UP = 1;
 // Between those two events the preview scrubs, every tick, at a rate that
 // climbs with the hold (holdScrubRate in playerSeek.ts).
 const HOLD_SCRUB_TICK_MS = 100;
+// Bottom panel geometry, shared with the trickplay anchor math.
+const PANEL_PADDING_H = 40;
+const PANEL_GAP = 16;
+const TIME_LABEL_WIDTH = 70;
+const TRICKPLAY_HALF_WIDTH = 160;
 
 function PlayerControlButton({
   label,
@@ -278,6 +283,7 @@ export default function PlayerScreen() {
   const rewindButtonRef = useRef<View>(null);
   const forwardButtonRef = useRef<View>(null);
   const settingsButtonRef = useRef<View>(null);
+  const speedButtonRef = useRef<View>(null);
   const timelineRef = useRef<View>(null);
   // The timeline is a control of its own in the row: while it holds the
   // focus, left/right move the playhead instead of walking the buttons, and
@@ -286,7 +292,7 @@ export default function PlayerScreen() {
   const [timelineFocused, setTimelineFocused] = useState(false);
   // Native tags of the five controls, resolved once they are on screen: the
   // nextFocus* props take a tag, not a ref.
-  const [focusTags, setFocusTags] = useState<{ rewind?: number; play?: number; forward?: number; settings?: number; timeline?: number }>({});
+  const [focusTags, setFocusTags] = useState<{ rewind?: number; play?: number; forward?: number; settings?: number; speed?: number; timeline?: number }>({});
 
   const [showQualityPicker, setShowQualityPicker] = useState(false);
   const [showTrackMenu, setShowTrackMenu] = useState(false);
@@ -1236,12 +1242,13 @@ export default function PlayerScreen() {
         play: findNodeHandle(playButtonRef.current) ?? undefined,
         forward: findNodeHandle(forwardButtonRef.current) ?? undefined,
         settings: findNodeHandle(settingsButtonRef.current) ?? undefined,
+        speed: findNodeHandle(speedButtonRef.current) ?? undefined,
         timeline: findNodeHandle(timelineRef.current) ?? undefined,
       };
       setFocusTags((prev) =>
         prev.rewind === next.rewind && prev.play === next.play &&
         prev.forward === next.forward && prev.settings === next.settings &&
-        prev.timeline === next.timeline ? prev : next,
+        prev.speed === next.speed && prev.timeline === next.timeline ? prev : next,
       );
     }, 60);
     return () => clearTimeout(t);
@@ -1465,6 +1472,16 @@ export default function PlayerScreen() {
   // display until the real playhead catches up - see playerSeek.ts.
   const displayTime = seekPreviewSec ?? currentTime;
   const seekProgress = duration > 0 ? displayTime / duration : 0;
+  // The thumbnail rides above the timeline at the playhead, kept inside the
+  // panel's width so a seek near either edge never pushes it off screen.
+  const trickplayLaneWidth = Math.max(0, screenWidth - 2 * PANEL_PADDING_H - 2 * TIME_LABEL_WIDTH - 2 * PANEL_GAP);
+  const trickplayLeft = PANEL_PADDING_H + TIME_LABEL_WIDTH + PANEL_GAP
+    + Math.max(TRICKPLAY_HALF_WIDTH, Math.min(trickplayLaneWidth - TRICKPLAY_HALF_WIDTH, seekProgress * trickplayLaneWidth));
+  // The wall clock at the end of the film at this speed, rounded to the
+  // minute: the question a viewer asks at eleven at night.
+  const endsAtLabel = duration > 0
+    ? new Date(Date.now() + ((duration - displayTime) * 1000) / (playbackSpeed || 1)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : null;
 
   return (
     <View style={[styles.container, { backgroundColor: "#000" }]}>
@@ -1684,7 +1701,8 @@ export default function PlayerScreen() {
 
       {showControls && (
         <View style={styles.overlay} pointerEvents="box-none">
-          {/* Top bar */}
+          {/* Top bar: what is playing, and the badges that are state rather
+              than controls. */}
           <View style={[styles.topBar, styles.scrimTop]}>
             <Text style={styles.mediaTitle} numberOfLines={1}>
               {playerTitle(media, series?.title ?? (season ? itemLabel(season, t) : undefined))}
@@ -1703,134 +1721,158 @@ export default function PlayerScreen() {
                   <Text style={styles.speedText}>{selectedQuality}p</Text>
                 </View>
               )}
-              <View style={styles.speedBadge}>
-                <Text style={styles.speedText}>{playbackSpeed}x</Text>
-              </View>
             </View>
           </View>
 
-          {/* Centre: the three controls a remote reaches for, as real buttons.
-              They used to be mute indicators - nothing said which one the
-              D-pad was on, and the only way to the options was a hint at the
-              bottom of the screen (owner, 2026-09-19). Focus lands here on the
-              first DOWN press and lights the button it is on; a wake from a
-              seek leaves the focus on the surface, so left/right keep scrubbing
-              without a detour through the row. */}
-          <View style={styles.centerControls}>
-            <PlayerControlButton
-              label={`-${skipBwd}s`}
-              focusable={barFocused}
-              buttonRef={rewindButtonRef}
-              nextFocusLeft={focusTags.rewind}
-              nextFocusRight={focusTags.play}
-              nextFocusDown={focusTags.timeline ?? focusTags.settings}
-              onPress={() => bumpSeek(-skipBwd)}
-              accessibilityLabel={t("player.controls.rewind", "Rewind")}
-            />
-            <PlayerControlButton
-              label={isPlaying ? "\u2016" : "\u25B6"}
-              primary
-              focusable={barFocused}
-              buttonRef={playButtonRef}
-              nextFocusLeft={focusTags.rewind}
-              nextFocusRight={focusTags.forward}
-              nextFocusDown={focusTags.timeline ?? focusTags.settings}
-              onPress={togglePlayPause}
-              accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")}
-            />
-            <PlayerControlButton
-              label={`+${skipFwd}s`}
-              focusable={barFocused}
-              buttonRef={forwardButtonRef}
-              nextFocusLeft={focusTags.play}
-              nextFocusRight={focusTags.forward}
-              nextFocusDown={focusTags.timeline ?? focusTags.settings}
-              onPress={() => bumpSeek(skipFwd)}
-              accessibilityLabel={t("player.controls.forward", "Forward")}
-            />
-          </View>
-
-          {/* Trickplay thumbnail: the D-pad seek gesture has no live video
-              preview to look at while it's happening (unlike a mouse
-              scrubber), so this is the only way to find a scene at three
-              metres without landing blind. Renders nothing on its own when
-              there's no manifest yet, no generated sprites, or a failed
-              fetch - the seek behaves exactly as it does today. */}
-          <View style={styles.trickplayWrap} pointerEvents="none">
-            <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={seekPreviewSec} warm={showControls} />
-          </View>
-
-          {/* Bottom bar */}
-          <View style={[styles.bottomBar, styles.scrimBottom]}>
-            <Text style={styles.timeText}>{formatTime(displayTime)}</Text>
-            {/* How far the pending jump goes. Pressing the seek button four
-                times is one jump of four steps, and this is what says so
-                before it commits. */}
-            {pendingSeekDelta !== 0 && (
-              <Text style={styles.seekDeltaText}>
-                {pendingSeekDelta > 0 ? "+" : "-"}{formatTime(Math.abs(pendingSeekDelta))}
-              </Text>
-            )}
-            {/* The timeline is a control: reached with DOWN from the play
-                button, it keeps the native focus on itself (left and right
-                point back at it) so those keys move the playhead, OK lands
-                the pending jump, DOWN goes on to the settings. Focused, it
-                thickens and shows a knob at the playhead - a thin bar alone
-                never said it was the one lit. */}
-            <Pressable
-              ref={timelineRef as never}
-              focusable={barFocused}
-              nextFocusLeft={focusTags.timeline}
-              nextFocusRight={focusTags.timeline}
-              nextFocusUp={focusTags.play}
-              nextFocusDown={focusTags.settings}
-              onFocus={() => { setTimelineFocused(true); resetHideTimer(); }}
-              onBlur={() => setTimelineFocused(false)}
-              onPress={() => { if (!commitSeekNow()) togglePlayPause(); }}
-              accessible={true}
-              accessibilityRole="adjustable"
-              accessibilityLabel={t("player.a11y.progress", "Playback progress")}
-              accessibilityValue={{
-                min: 0,
-                max: Math.max(0, Math.round(duration)),
-                now: Math.max(0, Math.round(displayTime)),
-                text: `${formatTime(displayTime)} / ${formatTime(duration)}`,
-              }}
-              style={styles.timelineHit}
-            >
-              <View style={[styles.seekBarTrack, timelineFocused && styles.seekBarTrackFocused]}>
-                <View style={[styles.seekBarFill, timelineFocused && { backgroundColor: theme.colors.accent }, { flex: seekProgress }]} />
-                <View style={{ flex: 1 - seekProgress }} />
-                {duration > 0 &&
-                  chapters.map((ch, i) => {
-                    const pct = (ch.startTimeMs / 1000 / duration) * 100;
-                    if (pct <= 0 || pct >= 100) return null;
-                    return <View key={i} style={[styles.chapterNotch, { left: `${pct}%` }]} />;
-                  })}
+          {/* One panel at the bottom holds everything the remote can do:
+              a row of buttons, the timeline under it, and the clock. The
+              three seek controls used to float in the middle of the picture
+              while the options hid bottom right - two places to look, and
+              a mask over the film (owner, 2026-09-22: "something obvious,
+              something clean"). Focus lands on the play button on the first
+              DOWN press, walks the row left and right, and drops onto the
+              timeline with another DOWN. */}
+          <View style={[styles.bottomPanel, styles.scrimBottom]}>
+            {/* Trickplay thumbnail, above the panel at the playhead: the
+                D-pad seek has no live picture to look at, so the tile sits
+                where the cursor is, not in the middle of the screen. Renders
+                nothing on its own without a manifest or sprites. */}
+            {seekPreviewSec !== null && (
+              <View style={styles.trickplayLane} pointerEvents="none">
+                <View style={[styles.trickplayAnchor, { left: trickplayLeft }]}>
+                  <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={seekPreviewSec} warm={showControls} />
+                </View>
               </View>
-              {timelineFocused && (
-                <View
-                  pointerEvents="none"
-                  style={[styles.seekKnob, { left: `${Math.max(0, Math.min(100, seekProgress * 100))}%`, borderColor: theme.colors.accent }]}
+            )}
+            {seekPreviewSec === null && (
+              <View style={styles.trickplayWarm} pointerEvents="none">
+                <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={null} warm={showControls} />
+              </View>
+            )}
+
+            <View style={styles.controlsRow}>
+              <View style={styles.controlsGroup}>
+                <PlayerControlButton
+                  label={`-${skipBwd}s`}
+                  focusable={barFocused}
+                  buttonRef={rewindButtonRef}
+                  nextFocusLeft={focusTags.rewind}
+                  nextFocusRight={focusTags.play}
+                  nextFocusUp={focusTags.rewind}
+                  nextFocusDown={focusTags.timeline ?? focusTags.rewind}
+                  onPress={() => bumpSeek(-skipBwd)}
+                  accessibilityLabel={t("player.controls.rewind", "Rewind")}
                 />
+                <PlayerControlButton
+                  label={isPlaying ? "\u2016" : "\u25B6"}
+                  primary
+                  focusable={barFocused}
+                  buttonRef={playButtonRef}
+                  nextFocusLeft={focusTags.rewind}
+                  nextFocusRight={focusTags.forward}
+                  nextFocusUp={focusTags.play}
+                  nextFocusDown={focusTags.timeline ?? focusTags.play}
+                  onPress={togglePlayPause}
+                  accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")}
+                />
+                <PlayerControlButton
+                  label={`+${skipFwd}s`}
+                  focusable={barFocused}
+                  buttonRef={forwardButtonRef}
+                  nextFocusLeft={focusTags.play}
+                  nextFocusRight={focusTags.speed ?? focusTags.settings}
+                  nextFocusUp={focusTags.forward}
+                  nextFocusDown={focusTags.timeline ?? focusTags.forward}
+                  onPress={() => bumpSeek(skipFwd)}
+                  accessibilityLabel={t("player.controls.forward", "Forward")}
+                />
+              </View>
+              <View style={styles.controlsGroup}>
+                {endsAtLabel !== null && (
+                  <Text style={styles.endsAtText}>{String(t("player.controls.endsAt", `Ends at ${endsAtLabel}`, { time: endsAtLabel }))}</Text>
+                )}
+                <PlayerControlButton
+                  label={`${playbackSpeed}x`}
+                  small
+                  focusable={barFocused}
+                  buttonRef={speedButtonRef}
+                  nextFocusLeft={focusTags.forward}
+                  nextFocusRight={focusTags.settings}
+                  nextFocusUp={focusTags.speed}
+                  nextFocusDown={focusTags.timeline ?? focusTags.speed}
+                  onPress={cycleSpeed}
+                  accessibilityLabel={t("player.settings.speed", "Speed")}
+                />
+                <PlayerControlButton
+                  label={"\u2699"}
+                  small
+                  focusable={barFocused}
+                  buttonRef={settingsButtonRef}
+                  nextFocusLeft={focusTags.speed ?? focusTags.forward}
+                  nextFocusRight={focusTags.settings}
+                  nextFocusUp={focusTags.settings}
+                  nextFocusDown={focusTags.timeline ?? focusTags.settings}
+                  onPress={() => setShowTrackMenu(true)}
+                  accessibilityLabel={t("player.controls.more", "More")}
+                />
+              </View>
+            </View>
+
+            {/* The timeline is a control: reached with DOWN from any button,
+                it keeps the native focus on itself (left and right point back
+                at it) so those keys move the playhead, and OK lands the
+                pending jump. Focused, it thickens and shows a knob at the
+                playhead - a thin bar alone never said it was the one lit. */}
+            <View style={styles.timelineRow}>
+              <Text style={styles.timeText}>{formatTime(displayTime)}</Text>
+              {/* How far the pending jump goes. Pressing the seek button four
+                  times is one jump of four steps, and this is what says so
+                  before it commits. */}
+              {pendingSeekDelta !== 0 && (
+                <Text style={styles.seekDeltaText}>
+                  {pendingSeekDelta > 0 ? "+" : "-"}{formatTime(Math.abs(pendingSeekDelta))}
+                </Text>
               )}
-            </Pressable>
-            <Text style={styles.timeText}>{formatTime(duration)}</Text>
-            {/* The settings, where the owner asked for them: bottom right, on
-                the timeline's own line. The options used to hide behind a
-                text hint in the middle of the screen. */}
-            <PlayerControlButton
-              label={"\u2699"}
-              small
-              focusable={barFocused}
-              buttonRef={settingsButtonRef}
-              nextFocusUp={focusTags.timeline ?? focusTags.play}
-              nextFocusLeft={focusTags.timeline ?? focusTags.settings}
-              nextFocusRight={focusTags.settings}
-              nextFocusDown={focusTags.settings}
-              onPress={() => setShowTrackMenu(true)}
-              accessibilityLabel={t("player.controls.more", "More")}
-            />
+              <Pressable
+                ref={timelineRef as never}
+                focusable={barFocused}
+                nextFocusLeft={focusTags.timeline}
+                nextFocusRight={focusTags.timeline}
+                nextFocusUp={focusTags.play}
+                nextFocusDown={focusTags.timeline}
+                onFocus={() => { setTimelineFocused(true); resetHideTimer(); }}
+                onBlur={() => setTimelineFocused(false)}
+                onPress={() => { if (!commitSeekNow()) togglePlayPause(); }}
+                accessible={true}
+                accessibilityRole="adjustable"
+                accessibilityLabel={t("player.a11y.progress", "Playback progress")}
+                accessibilityValue={{
+                  min: 0,
+                  max: Math.max(0, Math.round(duration)),
+                  now: Math.max(0, Math.round(displayTime)),
+                  text: `${formatTime(displayTime)} / ${formatTime(duration)}`,
+                }}
+                style={styles.timelineHit}
+              >
+                <View style={[styles.seekBarTrack, timelineFocused && styles.seekBarTrackFocused]}>
+                  <View style={[styles.seekBarFill, timelineFocused && { backgroundColor: theme.colors.accent }, { flex: seekProgress }]} />
+                  <View style={{ flex: 1 - seekProgress }} />
+                  {duration > 0 &&
+                    chapters.map((ch, i) => {
+                      const pct = (ch.startTimeMs / 1000 / duration) * 100;
+                      if (pct <= 0 || pct >= 100) return null;
+                      return <View key={i} style={[styles.chapterNotch, { left: `${pct}%` }]} />;
+                    })}
+                </View>
+                {timelineFocused && (
+                  <View
+                    pointerEvents="none"
+                    style={[styles.seekKnob, { left: `${Math.max(0, Math.min(100, seekProgress * 100))}%`, borderColor: theme.colors.accent }]}
+                  />
+                )}
+              </Pressable>
+              <Text style={styles.timeText}>{formatTime(duration)}</Text>
+            </View>
           </View>
         </View>
       )}
@@ -1915,11 +1957,27 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
     marginLeft: 8,
   },
-  centerControls: {
+  bottomPanel: {
+    paddingTop: 16,
+    paddingBottom: 28,
+    paddingHorizontal: PANEL_PADDING_H,
+    gap: 12,
+  },
+  controlsRow: {
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
-    gap: 48,
+    justifyContent: "space-between",
+  },
+  controlsGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 20,
+  },
+  endsAtText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 17,
+    fontVariant: ["tabular-nums"],
+    marginRight: 8,
   },
   episodeHint: {
     width: 48,
@@ -1933,22 +1991,38 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.85)",
     fontSize: 18,
   },
-  trickplayWrap: {
-    alignItems: "center",
-    marginBottom: 12,
+  // A lane the tile floats in, sitting on top of the panel; the anchor is
+  // positioned by the playhead and centred on it.
+  trickplayLane: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: -(180 + 16),
+    height: 180,
   },
-  bottomBar: {
+  trickplayAnchor: {
+    position: "absolute",
+    top: 0,
+    marginLeft: -TRICKPLAY_HALF_WIDTH,
+  },
+  // Off screen while nothing is previewed: keeps the manifest and the first
+  // sheet warm without drawing anything.
+  trickplayWarm: {
+    position: "absolute",
+    width: 0,
+    height: 0,
+    overflow: "hidden",
+  },
+  timelineRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingBottom: 32,
-    paddingHorizontal: 40,
-    gap: 16,
+    gap: PANEL_GAP,
   },
   timeText: {
     color: "#fff",
     fontSize: 17,
     fontVariant: ["tabular-nums"],
-    minWidth: 70,
+    minWidth: TIME_LABEL_WIDTH,
     textAlign: "center",
   },
   seekBarTrack: {

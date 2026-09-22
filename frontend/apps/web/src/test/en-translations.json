@@ -2847,6 +2847,7 @@
   "player.controls.cast": "Cast",
   "player.controls.castingTo": "Casting to",
   "player.controls.chapters": "Chapters",
+  "player.controls.endsAt": "Ends at {{time}}",
   "player.controls.episodes": "Episodes",
   "player.controls.exitFullscreen": "Exit fullscreen",
   "player.controls.exitPip": "Exit Picture-in-Picture",

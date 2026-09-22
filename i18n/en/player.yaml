@@ -2,6 +2,7 @@ controls:
   more: More controls
   play: Play
   pause: Pause
+  endsAt: "Ends at {{time}}"
   mute: Mute
   unmute: Unmute
   fullscreen: Fullscreen
