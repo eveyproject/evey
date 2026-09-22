@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatTime, getBaseURL, getFreshAccessToken } from "@evey/api";
 import { coverArtUri } from "@evey/client";
+import { useScreenWakeLock } from "@evey/client/web";
 import { useMusicQueueStore } from "./queue";
 import { FocusRoot } from "../tv/focus";
 import { Button } from "../components/ui";
@@ -25,6 +26,12 @@ export function MusicBar() {
   const track = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
   const trackId = track?.id ?? null;
   const audioRef = useRef<HTMLAudioElement>(null);
+  // Music has no picture to hold the screen: without this the television
+  // starts its screensaver, sleeps, and the sound goes with it mid-album.
+  // Follows what is actually coming out, not the intention: a paused bar
+  // releases the screen.
+  const [audible, setAudible] = useState(false);
+  useScreenWakeLock(audible);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [art, setArt] = useState<string | undefined>(undefined);
@@ -74,7 +81,12 @@ export function MusicBar() {
 
   return (
     <>
-      <audio ref={audioRef} />
+      <audio
+        ref={audioRef}
+        onPlaying={() => setAudible(true)}
+        onPause={() => setAudible(false)}
+        onEnded={() => setAudible(false)}
+      />
       {track ? (
         <FocusRoot focusKey="music-bar" className="music-bar">
           <div className="music-progress"><div style={{ width: `${duration > 0 ? (time / duration) * 100 : 0}%` }} /></div>

@@ -26,6 +26,7 @@ import {
   getSubtitleStylePref,
   prefersNativeHLS,
   saveSubtitleStylePref,
+  useScreenWakeLock,
   useTvPlaySession,
   type ShedReason,
   type SubtitleStyle,
@@ -188,17 +189,9 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
     if (duration > 0 && time >= duration - 1) videoRef.current?.pause();
   }, [sleep.state, time, duration]);
 
-  // A television screen sleeps on an idle remote, and the sound goes with it.
-  // The video element covers itself on most browsers; webOS does not, so the
-  // lock is taken explicitly and released when playback stops.
-  useEffect(() => {
-    if (paused) return;
-    let lock: { release: () => Promise<void> } | null = null;
-    let live = true;
-    const wakeLock = (navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
-    wakeLock?.request("screen").then((l) => { if (live) lock = l; else void l.release(); }).catch(() => { /* not granted */ });
-    return () => { live = false; void lock?.release().catch(() => { /* already gone */ }); };
-  }, [paused]);
+  // A television sleeps on an idle remote and takes the sound with it: the
+  // lock lives in @evey/client, shared with the music bar.
+  useScreenWakeLock(!paused);
 
   useEffect(() => {
     const video = videoRef.current;
