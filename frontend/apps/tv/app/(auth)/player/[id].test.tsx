@@ -930,6 +930,43 @@ describe("action bar discoverability (TV)", () => {
     vi.useRealTimers();
   });
 
+  // The timeline is a control of its own in the row (owner, 2026-09-22): DOWN
+  // from the play button reaches it, and while it holds the focus left/right
+  // move the playhead instead of walking the buttons, OK lands the jump at
+  // once, and leaving it hands the row back to the buttons.
+  it("seeks from the timeline while it holds the focus, and OK lands the jump at once", () => {
+    vi.useFakeTimers();
+    playerMock.currentTime = 0;
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "down" }); });
+    const timeline = screen.getByLabelText("Playback progress");
+    act(() => { fireEvent.focus(timeline); });
+
+    act(() => { capturedTVHandler?.({ eventType: "right", eventKeyAction: 1 }); });
+    act(() => { capturedTVHandler?.({ eventType: "right", eventKeyAction: 1 }); });
+    expect(screen.getByText("+1:00")).toBeTruthy(); // two taps, one pending jump
+    expect(playerMock.currentTime).toBe(0);
+    fireEvent.click(timeline); // OK: no waiting for the presses to settle
+    expect(playerMock.currentTime).toBe(60);
+
+    // Off the timeline, the row's buttons own left/right again.
+    act(() => { fireEvent.blur(timeline); });
+    act(() => { capturedTVHandler?.({ eventType: "right", eventKeyAction: 1 }); });
+    act(() => { vi.advanceTimersByTime(700); });
+    expect(playerMock.currentTime).toBe(60);
+    vi.useRealTimers();
+  });
+
+  it("toggles play/pause on OK over the timeline when nothing is pending", () => {
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "down" }); });
+    const timeline = screen.getByLabelText("Playback progress");
+    act(() => { fireEvent.focus(timeline); });
+    const before = pauseMock.mock.calls.length + playMock.mock.calls.length;
+    fireEvent.click(timeline);
+    expect(pauseMock.mock.calls.length + playMock.mock.calls.length).toBe(before + 1);
+  });
+
   // Speed used to fire on a bare up press - the easiest key to hit by accident
   // on a remote, and the hardest effect to understand once it happened.
   it("no longer changes speed on a bare up press", () => {
