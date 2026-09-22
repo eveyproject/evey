@@ -2,6 +2,7 @@ controls:
   more: Weitere Steuerelemente
   play: Abspielen
   pause: Pause
+  endsAt: "Endet um {{time}}"
   mute: Stummschalten
   unmute: Ton aktivieren
   fullscreen: Vollbild

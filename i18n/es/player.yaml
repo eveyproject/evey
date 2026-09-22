@@ -2,6 +2,7 @@ controls:
   more: Más controles
   play: Reproducir
   pause: Pausar
+  endsAt: "Termina a las {{time}}"
   mute: Silenciar
   unmute: Activar sonido
   fullscreen: Pantalla completa

@@ -2,6 +2,7 @@ controls:
   more: Plus de contrôles
   play: Lecture
   pause: Pause
+  endsAt: "Fin à {{time}}"
   mute: Couper le son
   unmute: Réactiver le son
   fullscreen: Plein écran

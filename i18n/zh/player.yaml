@@ -2,6 +2,7 @@ controls:
   more: "更多控制"
   play: "播放"
   pause: "暂停"
+  endsAt: "{{time}} 结束"
   mute: "静音"
   unmute: "取消静音"
   fullscreen: "全屏"
