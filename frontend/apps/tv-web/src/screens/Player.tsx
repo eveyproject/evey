@@ -16,9 +16,12 @@ import {
 import { useAuthStore } from "@evey/store";
 import {
   useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, useChapters, useActiveProfile,
+  useSleepTimer,
   clampSeekTarget, holdScrubRate, tapSeekStep, SEEK_COMMIT_DELAY_MS, HOLD_SCRUB_TICK_MS,
 } from "@evey/client";
 import { useTvPlaySession, prefersNativeHLS, type ShedReason } from "@evey/client/web";
+import { SkipSegmentButton } from "../player/SkipSegmentButton";
+import { StreamInfoPanel } from "../player/StreamInfoPanel";
 import { useTvKeys } from "../tv/focus";
 import { Spinner, Button } from "../components/ui";
 import { FocusRoot } from "../tv/focus";
@@ -71,6 +74,7 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
   const { data: segments } = useMediaSegments(mediaId);
   const { data: chapters } = useChapters(mediaId);
   const [osd, setOsd] = useState(true);
+  const [streamInfoOpen, setStreamInfoOpen] = useState(false);
   const [panel, setPanel] = useState(false);
   const [paused, setPaused] = useState(false);
   const [time, setTime] = useState(0);
@@ -148,12 +152,35 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
     },
   );
 
+  // The profile's own choice, as on the television: autoplay_next_episode.
+  const autoAdvance = profile?.preferences?.["autoplay_next_episode"] !== "false";
   const nextEp = useNextEpisode({
     media,
     currentTime: time,
     duration,
+    autoAdvance,
     onNavigate: (id) => replace({ name: "player", mediaId: id }),
   });
+
+  // The sleep timer the television has: a number of minutes, or the end of
+  // this episode. Both stop the picture where it is.
+  const sleep = useSleepTimer({ onMinutesFire: () => videoRef.current?.pause() });
+  useEffect(() => {
+    if (sleep.state?.kind !== "endOfEpisode") return;
+    if (duration > 0 && time >= duration - 1) videoRef.current?.pause();
+  }, [sleep.state, time, duration]);
+
+  // A television screen sleeps on an idle remote, and the sound goes with it.
+  // The video element covers itself on most browsers; webOS does not, so the
+  // lock is taken explicitly and released when playback stops.
+  useEffect(() => {
+    if (paused) return;
+    let lock: { release: () => Promise<void> } | null = null;
+    let live = true;
+    const wakeLock = (navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
+    wakeLock?.request("screen").then((l) => { if (live) lock = l; else void l.release(); }).catch(() => { /* not granted */ });
+    return () => { live = false; void lock?.release().catch(() => { /* already gone */ }); };
+  }, [paused]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -391,6 +418,7 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
   const audioLabel = (s: V1MediaStream, fallback: string) => formatAudioTrackLabel(s, fallback);
   const subtitleLabel = (s: V1MediaStream, fallback: string) =>
     `${trackDisplayName(s, fallback)}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`;
+  const sleepChoices = [15, 30, 45, 60, 90];
   const sections: PanelSection[] = useMemo(() => {
     const out: PanelSection[] = [];
     if (audioStreams.length > 1) {
@@ -465,8 +493,38 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
         onPick: (k) => seekTo(chapters[Number(k)].startTimeMs / 1000),
       });
     }
+    out.push({
+      key: "sleep",
+      label: t("player.settings.sleepTimer"),
+      value: sleep.state?.kind === "minutes" && sleep.state.minutesLeft != null
+        ? t("player.sleepTimer.minutes", { count: sleep.state.minutesLeft, defaultValue: `${sleep.state.minutesLeft} min` })
+        : sleep.state?.kind === "endOfEpisode"
+          ? t("player.sleepTimer.endOfEpisode")
+          : t("player.sleepTimer.cancel"),
+      choices: [
+        { key: "off", label: t("player.sleepTimer.cancel"), selected: !sleep.state },
+        ...sleepChoices.map((m) => ({
+          key: String(m),
+          label: t("player.sleepTimer.minutes", { count: m, defaultValue: `${m} min` }),
+          selected: sleep.state?.kind === "minutes" && sleep.state.minutesLeft != null && sleep.state.minutesLeft <= m && sleep.state.minutesLeft > m - 1,
+        })),
+        { key: "episode", label: t("player.sleepTimer.endOfEpisode"), selected: sleep.state?.kind === "endOfEpisode" },
+      ],
+      onPick: (k) => {
+        if (k === "off") sleep.cancel();
+        else if (k === "episode") sleep.setEndOfEpisode();
+        else sleep.setMinutes(Number(k));
+      },
+    });
+    out.push({
+      key: "streamInfo",
+      label: t("player.streamInfo.title"),
+      value: "",
+      choices: [{ key: "open", label: t("player.streamInfo.title"), selected: false }],
+      onPick: () => { setPanel(false); setStreamInfoOpen(true); },
+    });
     return out;
-  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, time, t, restartKeepingPlace, seekTo]);
+  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, time, t, restartKeepingPlace, seekTo, sleep, sleepChoices]);
 
   // --- render ---------------------------------------------------------------
   const shown = preview ?? time;
@@ -534,7 +592,31 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
           <span>{nextEp.visible ? `${t("player.controls.nextEpisode", "Next episode")}${nextEp.ended ? ` · ${nextEp.countdown}` : ""}` : formatTime(duration)}</span>
         </div>
       </div>
+      {!panel && !streamInfoOpen ? (
+        <SkipSegmentButton
+          mediaId={mediaId}
+          currentTime={time}
+          onSkip={(sec) => seekTo(sec)}
+          onNextEpisode={nextEp.nextEpisode ? nextEp.playNow : undefined}
+        />
+      ) : null}
+      {nextEp.visible && nextEp.nextEpisode ? (
+        <FocusRoot className="next-episode">
+          <div className="next-title">{t("player.controls.nextEpisode", "Next episode")}</div>
+          <div className="muted">{nextEp.nextEpisode.title}</div>
+          <div className="actions">
+            <Button variant="primary" onPress={nextEp.playNow}>
+              {t("common.play", "Play")}{nextEp.ended && autoAdvance ? ` · ${nextEp.countdown}` : ""}
+            </Button>
+            {nextEp.previousEpisode ? <Button onPress={nextEp.playPrevious}>{t("player.controls.previousEpisode", "Previous episode")}</Button> : null}
+            <Button onPress={nextEp.cancel}>{t("common.cancel", "Cancel")}</Button>
+          </div>
+        </FocusRoot>
+      ) : null}
       {panel ? <SettingsPanel sections={sections} onClose={() => { setPanel(false); showOsd(); }} /> : null}
+      {streamInfoOpen ? (
+        <StreamInfoPanel streamInfo={streamInfo} audioStreamIndex={selectedAudio} onClose={() => { setStreamInfoOpen(false); showOsd(); }} />
+      ) : null}
     </div>
   );
 }

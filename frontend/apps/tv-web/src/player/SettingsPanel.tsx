@@ -12,7 +12,7 @@ export interface PanelChoice {
 }
 
 export interface PanelSection {
-  key: "audio" | "subtitles" | "quality" | "speed" | "chapters";
+  key: "audio" | "subtitles" | "quality" | "speed" | "chapters" | "sleep" | "streamInfo";
   label: string;
   value: string;
   choices: PanelChoice[];

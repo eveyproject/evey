@@ -6,45 +6,18 @@ import { useTheme } from "../providers/ThemeProvider";
 import { useMediaSegments } from "../hooks/useMediaSegments";
 import { FONT_SIZE } from "@evey/theme";
 
-// Segment types the button can skip, with their i18n label. The label is
-// chosen from whichever segment the playhead is currently inside, so the
-// same button reads "Skip Intro" / "Skip Recap" / "Skip Credits". Mirrors the
-// mobile SkipIntroOverlay.
-const SKIPPABLE = ["intro", "recap", "end_credits", "preview"] as const;
-type SkippableType = (typeof SKIPPABLE)[number];
+// The rules live in @evey/client (skipSegments.ts): which segments are worth
+// a button, what to call them, and which one wins when two overlap.
+import {
+  CREDITS_COUNTDOWN_SEC,
+  SKIPPABLE_SEGMENTS as SKIPPABLE,
+  SKIP_LABEL_KEY as LABEL_KEY,
+  activeSkippable as active,
+  skippableCandidates,
+  type ResolvedSegment,
+} from "@evey/client";
 
-const LABEL_KEY: Record<SkippableType, string> = {
-  intro: "player.skipIntro",
-  recap: "player.skipRecap",
-  end_credits: "player.skipCredits",
-  preview: "player.skipPreview",
-};
-
-const MIN_SKIPPABLE_SEC = 5;
-// With auto-play on, the next episode starts this long after the credits
-// begin unless the viewer asks to watch them. Measured on the playhead, not
-// the clock: a pause freezes it, and it can never outlive the segment.
-export const CREDITS_COUNTDOWN_SEC = 15;
-
-interface ResolvedSegment {
-  type: SkippableType;
-  startSec: number;
-  endSec: number;
-}
-
-function active(candidates: ResolvedSegment[], currentTime: number): ResolvedSegment | null {
-  // A recap and an intro can overlap (both can claim the same seconds near a
-  // cold open). The server's own array order used to decide the winner - here
-  // it is the earliest-starting segment, so a recap listed first no longer
-  // shadows an intro that actually started sooner.
-  const sorted = [...candidates].sort((a, b) => a.startSec - b.startSec);
-  for (const c of sorted) {
-    if (c.endSec <= c.startSec) continue;
-    if (c.endSec - c.startSec < MIN_SKIPPABLE_SEC) continue;
-    if (currentTime >= c.startSec && currentTime < c.endSec) return c;
-  }
-  return null;
-}
+export { CREDITS_COUNTDOWN_SEC };
 
 interface SkipIntroButtonProps {
   mediaId?: string;
@@ -104,9 +77,7 @@ export function SkipIntroButton({
   const segments = data?.segments;
   const autoSkip = data?.introAutoSkip === true;
 
-  const candidates: ResolvedSegment[] = (segments ?? [])
-    .filter((s) => (SKIPPABLE as readonly string[]).includes(s.type))
-    .map((s) => ({ type: s.type as SkippableType, startSec: s.startMs / 1000, endSec: s.endMs / 1000 }));
+  const candidates: ResolvedSegment[] = skippableCandidates(segments);
   const resolved = active(candidates, currentTime);
 
   // Auto-skip (admin toggle): jump the intro instead of waiting for OK. Intro

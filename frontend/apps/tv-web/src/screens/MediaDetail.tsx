@@ -257,7 +257,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
       <People people={crew} title={t("media.detail.crew", "Crew")} />
       {similar.length > 0 ? (
         <FocusRoot>
-          <h2 className="row-title">{t("media.detail.similar")}</h2>
+          <h2 className="row-title">{t("media.detail.similarTitles")}</h2>
           <div className="row">
             {similar.map((sim) => (
               <Card key={sim.mediaItemId} title={sim.title ?? ""} imageUrl={posterSrc(sim.mediaItemId)} onPress={() => navigate({ name: "media", mediaId: sim.mediaItemId! })} />

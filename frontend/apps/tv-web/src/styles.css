@@ -662,3 +662,40 @@ button, input {
   height: 100%;
   background: var(--accent, #f36464);
 }
+
+/* The skip button and the next-episode card, above the bar. */
+.skip-segment {
+  position: absolute;
+  right: 4vw;
+  bottom: 18vh;
+  display: flex;
+  gap: 0.8vw;
+  z-index: 20;
+}
+
+.next-episode {
+  position: absolute;
+  right: 4vw;
+  bottom: 24vh;
+  background: var(--surface, #151d2e);
+  border-radius: var(--tv-radius);
+  padding: 1.2vw 1.6vw;
+  max-width: 34vw;
+  z-index: 20;
+}
+
+.next-episode .next-title {
+  font-size: 1.4vw;
+  font-weight: 600;
+  margin-bottom: 0.3vw;
+}
+
+.next-episode .actions { margin: 0.8vw 0 0; }
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 2vw;
+  font-size: 1.2vw;
+  padding: 0.3vw 0;
+}
