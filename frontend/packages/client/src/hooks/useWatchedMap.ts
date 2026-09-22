@@ -1,4 +1,6 @@
 import { useCallback, useMemo } from "react";
+import { progressPercent } from "../lib/progressPercent";
+import type { V1WatchProgress } from "@evey/api";
 import { usePlaybackServiceGetWatchHistory, WATCH_HISTORY_OVERLAY_LIMIT } from "@evey/api";
 import type { V1GetWatchHistoryResponse } from "@evey/api";
 
@@ -35,4 +37,30 @@ export function useWatchedMap() {
     }
     return map;
   }, [data]);
+}
+
+/**
+ * The watched flag and the progress percent, keyed by media id, from one
+ * watch-history response. What a grid needs to badge its cards.
+ */
+export function buildWatchProgressMaps(items: readonly V1WatchProgress[]): {
+  watchedMap: Map<string, boolean>;
+  percentMap: Map<string, number>;
+} {
+  const watchedMap = new Map<string, boolean>();
+  const percentMap = new Map<string, number>();
+  for (const w of items) {
+    if (w.mediaItemId && w.played) watchedMap.set(w.mediaItemId, true);
+    if (w.mediaItemId && w.percentComplete != null) percentMap.set(w.mediaItemId, progressPercent(w.percentComplete));
+  }
+  return { watchedMap, percentMap };
+}
+
+/** The maps above, fetched: one request the whole screen shares. */
+export function useWatchProgressMaps() {
+  const { data } = usePlaybackServiceGetWatchHistory(
+    { limit: WATCH_HISTORY_OVERLAY_LIMIT },
+    { query: { staleTime: 30_000 } },
+  );
+  return useMemo(() => buildWatchProgressMaps(data?.items ?? []), [data]);
 }

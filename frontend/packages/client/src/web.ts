@@ -12,3 +12,5 @@ export * from "./web/hlsCodecParams";
 export * from "./web/usePlaySession";
 export * from "./web/useTvPlaySession";
 export * from "./web/PluginIframe";
+export * from "./web/useDeviceRegistration";
+export * from "./web/usePresenceHeartbeat";

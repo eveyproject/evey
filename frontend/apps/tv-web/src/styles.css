@@ -731,3 +731,50 @@ button, input {
 /* A plugin's home module: it sizes itself through the host protocol. */
 .plugin-row { margin: 0.8vw 0; }
 .plugin-row iframe { width: 100%; border: 0; }
+
+/* A card says what the viewer already did with it. */
+.card { position: relative; }
+
+.watched-badge {
+  position: absolute;
+  top: 0.4vw;
+  right: 0.4vw;
+  background: var(--accent, #f36464);
+  color: #fff;
+  border-radius: 50%;
+  width: 1.8vw;
+  height: 1.8vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1vw;
+}
+
+.card-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2.6vw;
+  height: 0.35vw;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.card-progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent, #f36464);
+}
+
+/* Toasts stack above everything, newest at the bottom. */
+.toast-stack {
+  position: fixed;
+  right: 2vw;
+  bottom: 2vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5vw;
+  z-index: 60;
+}
+
+.toast.error { border-left: 0.3vw solid var(--error, #ef4444); }
+.toast.success { border-left: 0.3vw solid var(--success, #22c55e); }

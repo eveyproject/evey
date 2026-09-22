@@ -111,9 +111,13 @@ interface CardProps {
   autoFocus?: boolean;
   /** The remote landed on this card: a paged grid fetches its next page from here. */
   onFocus?: () => void;
+  /** Already seen: the tick the other clients draw in the corner. */
+  watched?: boolean;
+  /** How far in, 0 to 100: the bar along the bottom of the picture. */
+  percent?: number;
 }
 
-export function Card({ title, imageUrl, wide, onPress, focusKey, autoFocus, onFocus }: CardProps) {
+export function Card({ title, imageUrl, wide, onPress, focusKey, autoFocus, onFocus, watched, percent }: CardProps) {
   const { ref, focused, focusSelf } = useFocusable({ focusKey, onEnterPress: onPress, onFocus: (layout) => {
     // Keep the focused card in view: the row scrolls, the screen scrolls.
     layout.node.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -125,6 +129,10 @@ export function Card({ title, imageUrl, wide, onPress, focusKey, autoFocus, onFo
   return (
     <div ref={ref} className={`card focusable ${wide ? "wide" : ""} ${focused ? "focused" : ""}`} onClick={onPress}>
       {imageUrl ? <img src={imageUrl} alt="" loading="lazy" /> : <div style={{ aspectRatio: wide ? "16 / 9" : "2 / 3", background: "var(--surface-raised)" }} />}
+      {watched ? <span className="watched-badge" aria-hidden="true">✓</span> : null}
+      {percent != null && percent > 0 && percent < 100 ? (
+        <span className="card-progress"><i style={{ width: `${Math.min(100, percent)}%` }} /></span>
+      ) : null}
       <div className="label">{title}</div>
     </div>
   );

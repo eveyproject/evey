@@ -18,7 +18,7 @@ import {
   type LibraryServiceSearchMediaType,
   type V1MediaItem,
 } from "@evey/api";
-import { useDebounce } from "@evey/client";
+import { useDebounce, useWatchProgressMaps } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
 import { Button, Card, Spinner, TextField } from "../components/ui";
 import { navigate, replace } from "../app/router";
@@ -92,6 +92,7 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
   const searchActive = query.length > 0;
 
   const { data: genresData } = useLibraryServiceListGenres(libraryId, { query: { enabled: !!libraryId } });
+  const { watchedMap, percentMap } = useWatchProgressMaps();
   const genres = genresData?.genres ?? [];
 
   const base = useMemo(() => ({
@@ -199,6 +200,8 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
               key={item.id}
               title={itemTitle(item)}
               imageUrl={posterSrc(item.id, "poster", 400)}
+              watched={watchedMap.get(item.id) === true}
+              percent={percentMap.get(item.id)}
               onFocus={() => onCardFocus(i)}
               onPress={() => navigate({ name: "media", mediaId: item.id })}
             />
