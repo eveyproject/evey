@@ -9,6 +9,7 @@
     "@evey/api": "workspace:*",
     "@evey/media-caps": "workspace:*",
     "@evey/store": "workspace:*",
+    "@evey/theme": "workspace:*",
     "@tanstack/react-query": "5.102.6",
     "i18next": "26.4.0",
     "react": "19.2.0",

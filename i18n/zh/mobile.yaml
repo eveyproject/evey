@@ -36,6 +36,7 @@ settings:
   uiScaleHint: "应用会重新启动以应用新的大小。"
   biometricLogin: "生物识别登录"
   themeLightBlue: 浅蓝
+  themeDarkRed: "深红"
 auth:
   biometricPrompt: "解锁 Evey"
   unlockBiometric: "使用生物识别解锁"

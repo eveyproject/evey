@@ -5,6 +5,9 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore, themePreferences } from "@evey/store";
+import { themes as builtInThemes } from "@evey/theme";
+import { pluginThemeKey } from "@evey/client";
+import { usePluginThemes } from "../../../src/hooks/usePluginThemes";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
@@ -21,10 +24,16 @@ import { DEFAULT_UI_SCALE, UI_SCALE_OPTIONS, effectiveUiScale } from "../../../s
 
 // labelKey/fallback pairs mirror mobile's ThemeSelector.tsx builtInI18nKeys
 // mapping - same three built-in themes this TV settings screen exposes.
+// Every theme the phone and the browser offer, in the same order, each with
+// its accent as a swatch. The television used to list three of the five and
+// none of the plugins' - a profile on Dark Red or on a plugin theme had no
+// row to land on here.
 const THEME_OPTIONS = [
   { labelKey: "mobile.settings.themeDark", fallback: "Dark", value: "default" },
-  { labelKey: "mobile.settings.themeLight", fallback: "Light", value: "light-default" },
   { labelKey: "mobile.settings.themeAmoled", fallback: "AMOLED", value: "amoled" },
+  { labelKey: "mobile.settings.themeDarkRed", fallback: "Dark Red", value: "dark-red" },
+  { labelKey: "mobile.settings.themeLight", fallback: "Light", value: "light-default" },
+  { labelKey: "mobile.settings.themeLightBlue", fallback: "Light Blue", value: "light-blue" },
 ] as const;
 
 export default function SettingsScreen() {
@@ -79,16 +88,18 @@ export default function SettingsScreen() {
   // phone and the TV should follow. Persisted through the preferences map,
   // MERGED because the server replaces it wholesale (see themePreferences).
   const handleThemeChange = useCallback(
-    (value: string) => {
-      setTheme(value);
+    (value: string, pluginId?: string) => {
+      setTheme(value, pluginId);
       if (!activeProfile?.id) return;
       updateProfile.mutate({
         id: activeProfile.id,
-        data: { preferences: themePreferences(activeProfile.preferences, value) },
+        data: { preferences: themePreferences(activeProfile.preferences, value, pluginId) },
       });
     },
     [setTheme, updateProfile, activeProfile],
   );
+  // The themes the installed plugins ship, listed after the built-ins.
+  const { data: pluginThemes } = usePluginThemes();
 
   // And the other direction: adopt whatever the profile carries.
   useEffect(() => {
@@ -389,12 +400,38 @@ export default function SettingsScreen() {
             accessibilityLabel={t("mobile.settings.themeOptionA11y", "{{name}} theme", { name: t(opt.labelKey, opt.fallback) })}
             accessibilityRole="button"
           >
-            <Text style={[styles.label, { color: theme.colors.text }]}>{t(opt.labelKey, opt.fallback)}</Text>
+            <View style={styles.themeLabelRow}>
+              <View style={[styles.themeSwatch, { backgroundColor: builtInThemes[opt.value].colors.accent, borderColor: theme.colors.border }]} />
+              <Text style={[styles.label, { color: theme.colors.text }]}>{t(opt.labelKey, opt.fallback)}</Text>
+            </View>
             {currentTheme === opt.value && (
               <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{"✓"}</Text>
             )}
           </Pressable>
         ))}
+        {(pluginThemes ?? []).map((pt) => {
+          const key = pluginThemeKey(pt.name);
+          return (
+            <Pressable
+              key={key}
+              style={rowStyle(`theme-${key}`)}
+              onPress={() => handleThemeChange(key, pt.id)}
+              onFocus={() => setFocusedItem(`theme-${key}`)}
+              onBlur={() => setFocusedItem(null)}
+              accessible={true}
+              accessibilityLabel={t("mobile.settings.themeOptionA11y", "{{name}} theme", { name: pt.name })}
+              accessibilityRole="button"
+            >
+              <View style={styles.themeLabelRow}>
+                <View style={[styles.themeSwatch, { backgroundColor: pt.tokens?.["--accent"] ?? theme.colors.accent, borderColor: theme.colors.border }]} />
+                <Text style={[styles.label, { color: theme.colors.text }]}>{pt.name}</Text>
+              </View>
+              {currentTheme === key && (
+                <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{"✓"}</Text>
+              )}
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Interface size: a percentage of the stock 10-foot layout. */}
@@ -547,6 +584,17 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 18,
+  },
+  themeLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  themeSwatch: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
   },
   value: {
     fontSize: 17,

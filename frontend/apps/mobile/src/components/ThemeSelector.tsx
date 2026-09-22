@@ -1,18 +1,11 @@
 import { memo, useCallback, useEffect } from "react";
 import { ScrollView, View, Pressable, Text, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
-import { eveyFetch, useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
 import { useThemeStore, useAuthStore, themePreferences } from "@evey/store";
 import { themes, FONT_SIZE } from "@evey/theme";
+import { pluginThemeKey, usePluginThemes } from "@evey/client";
 import { useTheme } from "../providers/ThemeProvider";
-
-const PLUGIN_PREFIX = "plugin:";
-
-interface PluginThemeInfo {
-  id: string;
-  name: string;
-}
 
 const builtInLabels: Record<string, string> = {
   default: "Dark",
@@ -73,17 +66,7 @@ function ThemeSelectorImpl() {
     [setTheme, updateProfile, activeProfile],
   );
 
-  const { data: pluginThemes } = useQuery<PluginThemeInfo[]>({
-    queryKey: ["plugin-themes"],
-    queryFn: async () => {
-      const data = await eveyFetch<{ themes: PluginThemeInfo[] }>({
-        url: "/api/v1/plugins/themes",
-        method: "GET",
-      });
-      return data.themes ?? [];
-    },
-    staleTime: 60_000,
-  });
+  const { data: pluginThemes } = usePluginThemes();
 
   const pills: Pill[] = (Object.keys(themes) as Array<keyof typeof themes>).map(
     (name) => ({
@@ -94,7 +77,7 @@ function ThemeSelectorImpl() {
   );
   for (const pt of pluginThemes ?? []) {
     pills.push({
-      key: PLUGIN_PREFIX + pt.name,
+      key: pluginThemeKey(pt.name),
       label: pt.name,
       swatch: tk.colors.accent,
       pluginId: pt.id,
