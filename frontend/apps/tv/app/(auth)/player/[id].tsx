@@ -314,6 +314,9 @@ export default function PlayerScreen() {
     typeof trackPick.subtitle === "number" ? trackPick.subtitle : null,
   );
   const [currentTime, setCurrentTime] = useState(0);
+  const committedTimeRef = useRef(0);
+  // Whether anything on screen follows the clock right now.
+  const needsFineTimeRef = useRef(true);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -404,6 +407,11 @@ export default function PlayerScreen() {
     () => clientSubtitleTrack(selectedSubtitleIndex, subtitleStreams),
     [selectedSubtitleIndex, subtitleStreams],
   );
+
+  // Kept in a ref rather than a dependency: it is read inside the native
+  // listener, which must stay subscribed across renders.
+  needsFineTimeRef.current =
+    showControls || !isPlaying || seekPreviewSec !== null || clientSubtitleIndex !== null;
 
   // Set initial selected audio index: profile preference first, then the
   // manifest's isDefault stream, then the first stream. Once the user has
@@ -550,8 +558,18 @@ export default function PlayerScreen() {
   useEffect(() => {
     if (!player) return;
     const timeSub = player.addListener("timeUpdate", (ev) => {
-      setCurrentTime(ev.currentTime);
       currentTimeRef.current = ev.currentTime;
+      // Twice a second, this screen re-rendered whole - controls, overlays and
+      // all - for a number nothing on screen was showing. It is committed to
+      // state finely only while something follows it (the controls, a subtitle
+      // this client draws, a seek preview, a pause), and once a second
+      // otherwise: the progress reporter and every guard read the ref above,
+      // which is always current. Same rule as the browser television.
+      const followsTime = needsFineTimeRef.current;
+      if (followsTime || Math.abs(ev.currentTime - committedTimeRef.current) >= 1) {
+        committedTimeRef.current = ev.currentTime;
+        setCurrentTime(ev.currentTime);
+      }
       // A tick can land between the release and the unsubscribe.
       withPlayer((p) => {
         setDuration(p.duration);

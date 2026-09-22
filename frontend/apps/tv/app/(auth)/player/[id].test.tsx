@@ -243,6 +243,7 @@ let lastOverlayProps: { subtitleIndex: number | null } | null = null;
 vi.mock("../../../src/components/SubtitleOverlay", () => ({
   SubtitleOverlay: (p: { subtitleIndex: number | null }) => {
     lastOverlayProps = p;
+    overlayRenders++;
     return null;
   },
 }));
@@ -263,6 +264,8 @@ vi.mock("../../../src/components/StreamInfoPanel", () => ({ StreamInfoPanel: () 
 // Captures the screen's onSkip wiring so the skip-clamp (M2) test below can
 // drive it directly, without needing the (segment-gated) button UI itself.
 let lastSkipIntroProps: { onSkip: (toSec: number) => void } | null = null;
+// Counts how often the screen re-renders: every child is re-rendered with it.
+let overlayRenders = 0;
 vi.mock("../../../src/components/SkipIntroButton", () => ({
   SkipIntroButton: (p: { onSkip: (toSec: number) => void }) => {
     lastSkipIntroProps = p;
@@ -338,6 +341,7 @@ beforeEach(() => {
   lastOverlayProps = null;
   lastTrickplayPreviewProps = null;
   lastSkipIntroProps = null;
+  overlayRenders = 0;
   capturedOnNavigate = null;
   needsPinMock.mockImplementation(() => false);
   localSearchParamsMock.mockReturnValue({ id: "ep-1" });
@@ -1057,6 +1061,36 @@ describe("next-episode card does not steal the D-pad early (TV)", () => {
 // M2: an unclamped segment end past (or too close to) the true duration
 // jumped straight into a black frame or the credits scroll.
 describe("skip-intro clamp (TV)", () => {
+  // Twice a second, this screen used to re-render whole for a number nothing
+  // was showing. The clock reaches state finely only while something follows
+  // it; a weak television pays the rest of the film nothing.
+  it("stops re-rendering on every clock tick once the controls are away", () => {
+    vi.useFakeTimers();
+    render(<PlayerScreen />);
+    playerMock.duration = 1200;
+    playerMock.playing = true;
+    act(() => { playerListeners.get("statusChange")?.({ status: "readyToPlay" }); });
+    act(() => { playerListeners.get("timeUpdate")?.({ currentTime: 1 }); });
+    // Controls up: every tick is followed.
+    const withControls = (() => {
+      overlayRenders = 0;
+      for (let i = 0; i < 6; i++) act(() => { playerListeners.get("timeUpdate")?.({ currentTime: 10 + i * 0.5 }); });
+      return overlayRenders;
+    })();
+    expect(withControls).toBeGreaterThanOrEqual(6);
+
+    // Controls hidden: only the ticks that cross a second commit.
+    // The controls fold themselves after their own timeout (4s).
+    act(() => { vi.advanceTimersByTime(4100); });
+    const hidden = (() => {
+      overlayRenders = 0;
+      for (let i = 0; i < 6; i++) act(() => { playerListeners.get("timeUpdate")?.({ currentTime: 100 + i * 0.25 }); });
+      return overlayRenders;
+    })();
+    expect(hidden).toBeLessThan(withControls);
+    vi.useRealTimers();
+  });
+
   it("clamps the skip target to duration - 5s once duration is known", () => {
     render(<PlayerScreen />);
     playerMock.duration = 100;
