@@ -74,16 +74,16 @@ export function HomeScreen() {
           {libs.map((l) => (
             <Button key={l.id} onPress={() => l.id && navigate({ name: "library", libraryId: l.id })}>{l.name}</Button>
           ))}
-          <Button onPress={() => navigate({ name: "settings" })}>{t("settings.title", "Settings")}</Button>
+          <Button onPress={() => navigate({ name: "settings" })}>{t("common.nav.settings", "Settings")}</Button>
         </div>
       </FocusRoot>
-      <Row title={t("home.continueWatching", "Continue watching")} items={resumeItems} wide focusFirst />
-      <Row title={t("home.nextUp", "Next up")} items={nextItems} wide focusFirst={resumeItems.length === 0} />
+      <Row title={t("media.home.continueWatching", "Continue watching")} items={resumeItems} wide focusFirst />
+      <Row title={t("common.feeds.labels.next_up", "Next up")} items={nextItems} wide focusFirst={resumeItems.length === 0} />
       {libs.map((l) => (
         <LibraryRow key={l.id} library={l} />
       ))}
       {nothingYet && libs.length === 0 && !libraries.isLoading ? (
-        <p className="subtitle">{t("home.empty", "Nothing to show yet.")}</p>
+        <p className="subtitle">{t("media.home.emptyLibrary", "Nothing to show yet.")}</p>
       ) : null}
     </FocusRoot>
   );

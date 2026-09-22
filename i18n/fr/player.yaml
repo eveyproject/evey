@@ -201,3 +201,6 @@ sessionExpired:
   body: Reconnecte-toi pour continuer à regarder.
 a11y:
   progress: "Progression de la lecture"
+# The television client: the hint on its bar for the one key into the options.
+osd:
+  downHint: "▼ Réglages"

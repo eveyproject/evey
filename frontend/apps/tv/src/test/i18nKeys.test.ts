@@ -44,7 +44,10 @@ const REPO_ROOT = repoRoot();
 // This runs on the host through `make tv-audit` and `make pre-push`.
 const CAN_RUN = REPO_ROOT !== null;
 const CATALOGUE_DIR = join(REPO_ROOT ?? "", "i18n", "en");
-const APPS = ["tv", "web", "mobile"] as const;
+// tv-web joined on 2026-09-22: its scaffold had invented twenty keys nobody
+// checked (player.error, home.nextUp, profile.select.title...) that rendered
+// their English default on every other language.
+const APPS = ["tv", "web", "mobile", "tv-web"] as const;
 const APP_ROOT = join(REPO_ROOT ?? "", "frontend", "apps", "tv");
 
 // i18next picks x_one/x_other/... when the caller passes a count, so a key
@@ -80,7 +83,7 @@ function sourceFiles(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
-describe("every translation key the three apps ask for exists in the catalogue", () => {
+describe("every translation key the four apps ask for exists in the catalogue", () => {
   it.skipIf(!CAN_RUN).each(APPS)("%s renders no key that would silently fall back to English", (app) => {
     const catalogue = loadCatalogue();
     const resolves = (key: string) =>

@@ -14,7 +14,7 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
 
   return (
     <FocusRoot autoFocus className="screen">
-      <h1 className="title">{t("library.title", "Library")}</h1>
+      <h1 className="title">{t("common.nav.libraries", "Library")}</h1>
       {isLoading ? <Spinner /> : null}
       {isError ? <p className="error">{t("common.error", "Something went wrong.")}</p> : null}
       <div className="grid">

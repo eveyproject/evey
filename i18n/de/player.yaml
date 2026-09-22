@@ -201,3 +201,6 @@ sessionExpired:
   body: Melde dich erneut an, um weiterzuschauen.
 a11y:
   progress: "Wiedergabefortschritt"
+# The television client: the hint on its bar for the one key into the options.
+osd:
+  downHint: "▼ Einstellungen"

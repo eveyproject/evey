@@ -39,3 +39,23 @@ export function normalizeLangCode(code: string | undefined): string {
   if (!primary) return "";
   return ISO_639_2_TO_1[primary] ?? (primary.length > 2 ? primary.slice(0, 2) : primary);
 }
+
+/**
+ * The first stream whose language matches one of the profile's preferred
+ * codes (a CSV of ISO 639-1 codes, in order of preference), or null. The
+ * same rule picks the audio track on every player; a plain slice of the
+ * container's 639-2 code is not a match (see normalizeLangCode).
+ */
+export function pickPreferredStreamIndex(
+  streams: { index: number; language?: string }[],
+  preferredLangs: string[],
+): number | null {
+  for (const lang of preferredLangs) {
+    if (!lang) continue;
+    const want = normalizeLangCode(lang);
+    if (!want) continue;
+    const match = streams.find((s) => normalizeLangCode(s.language) === want);
+    if (match) return match.index;
+  }
+  return null;
+}

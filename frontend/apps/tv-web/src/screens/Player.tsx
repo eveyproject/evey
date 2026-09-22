@@ -1,37 +1,75 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Hls from "hls.js";
-import { formatTime, getBaseURL, useLibraryServiceGetMediaItem } from "@evey/api";
+import {
+  formatTime,
+  useLibraryServiceGetMediaItem,
+  pickPreferredStreamIndex,
+  pickDefaultSubtitle,
+  isBurnInSubtitle,
+  burnInSubtitleIndex as pickBurnInSubtitle,
+  clientSubtitleTrack,
+} from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, clampSeekTarget, holdScrubRate, tapSeekStep, SEEK_COMMIT_DELAY_MS, HOLD_SCRUB_TICK_MS } from "@evey/client";
-import { usePlaySession, prefersNativeHLS } from "@evey/client/web";
+import {
+  useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, useChapters, useActiveProfile,
+  clampSeekTarget, holdScrubRate, tapSeekStep, SEEK_COMMIT_DELAY_MS, HOLD_SCRUB_TICK_MS,
+} from "@evey/client";
+import { useTvPlaySession, prefersNativeHLS, type ShedReason } from "@evey/client/web";
 import { useTvKeys } from "../tv/focus";
-import { Spinner } from "../components/ui";
+import { Spinner, Button } from "../components/ui";
+import { FocusRoot } from "../tv/focus";
 import { goBack, replace } from "../app/router";
+import { SubtitleOverlay } from "../player/SubtitleOverlay";
+import { TrickplayTile } from "../player/TrickplayTile";
+import { SettingsPanel, chapterLabel, type PanelSection } from "../player/SettingsPanel";
 
 const OSD_HIDE_MS = 4000;
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const QUALITIES = [0, 2160, 1080, 720, 480];
 // No wasm audio engine here: the server transcodes AC-3/E-AC-3 to AAC.
 const TV_DEVICE = { deviceId: "tv-browser", deviceName: "TV Browser", clientName: "Evey TV", wasmAudio: false };
 
-// The television player, driven by the remote alone: OK shows or hides the
-// bar and pauses, left/right seek, back leaves. hls.js on MSE, with the
-// server's HLS master negotiated by the shared play session; a set whose
-// engine plays HLS natively (rare on a TV) gets the <video> element.
+const SHED_KEYS: Record<Exclude<ShedReason, null>, { title: string; body: string }> = {
+  too_many_streams: { title: "player.shed.tooManyStreams.title", body: "player.shed.tooManyStreams.body" },
+  file_not_ready: { title: "player.shed.fileNotReady.title", body: "player.shed.fileNotReady.body" },
+  calibrating: { title: "player.shed.calibrating.title", body: "player.shed.calibrating.body" },
+  file_needs_remux: { title: "player.shed.fileNeedsRemux.title", body: "player.shed.fileNeedsRemux.body" },
+};
+
+function csv(v: string | undefined): string[] {
+  return (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+// The television player, driven by the remote alone: OK shows the bar and
+// pauses, left/right seek (taps add up, a hold scrubs with a picture),
+// down opens the settings (audio, subtitles, quality, speed, chapters),
+// back leaves. hls.js on MSE with the master the shared session negotiated;
+// a track or quality change restarts the session, as on the Android app.
 export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: boolean }) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
-  const { streamInfo, sessionId, streamToken, isLoading, isError, progress } = usePlaySession(mediaId, TV_DEVICE);
+  const { profile } = useActiveProfile();
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, progress, restartWithTracks } =
+    useTvPlaySession(mediaId, TV_DEVICE);
   const { data: skip } = usePlaybackSettings();
   const { data: segments } = useMediaSegments(mediaId);
+  const { data: chapters } = useChapters(mediaId);
   const [osd, setOsd] = useState(true);
+  const [panel, setPanel] = useState(false);
   const [paused, setPaused] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const [quality, setQuality] = useState(0);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekedToStart = useRef(false);
+  // Where the picture was when a restart tore the stream down: the new
+  // stream resumes there, not at the film's start.
+  const resumeAtRef = useRef<number | null>(null);
 
   const showOsd = useCallback(() => {
     setOsd(true);
@@ -39,8 +77,48 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
     hideTimer.current = setTimeout(() => setOsd(false), OSD_HIDE_MS);
   }, []);
 
-  // Progress to the server every few seconds, and the admin's remote
-  // pause/play/stop commands back - the same reporter the phone runs.
+  // --- tracks ---------------------------------------------------------------
+  const audioStreams = useMemo(
+    () => (streamInfo?.mediaStreams ?? []).filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO")
+      .map((s) => ({ index: s.index ?? 0, language: s.language, title: s.title, codec: s.codec, channels: s.channels, isDefault: s.isDefault })),
+    [streamInfo],
+  );
+  const subtitleStreams = useMemo(
+    () => (streamInfo?.mediaStreams ?? []).filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
+      .map((s, i) => ({ index: s.index ?? 0, trackIndex: i, language: s.language, title: s.title, codec: s.codec, isDefault: s.isDefault, isForced: s.isForced, burnIn: isBurnInSubtitle(s.codec) })),
+    [streamInfo],
+  );
+  const [selectedAudio, setSelectedAudio] = useState<number | null>(null);
+  const [selectedSubtitle, setSelectedSubtitle] = useState<number | null>(null);
+  const userPickedAudio = useRef(false);
+  const userPickedSubtitle = useRef(false);
+  const profileAudioLangs = useMemo(() => csv(profile?.preferences?.["audio_languages"]), [profile]);
+  const profileSubLangs = useMemo(() => csv(profile?.preferences?.["subtitle_languages"]), [profile]);
+
+  // Profile preference first, then the file's default, then the first track.
+  useEffect(() => {
+    if (userPickedAudio.current || audioStreams.length === 0) return;
+    const preferred = pickPreferredStreamIndex(audioStreams, profileAudioLangs);
+    setSelectedAudio(preferred ?? audioStreams.find((s) => s.isDefault)?.index ?? audioStreams[0].index);
+  }, [audioStreams, profileAudioLangs]);
+  // The subtitle auto-pick never restarts the stream by itself: a text or
+  // PGS track is drawn here, and a default bitmap track the viewer did not
+  // ask for must not turn a copy into a burn-in transcode.
+  useEffect(() => {
+    if (userPickedSubtitle.current || subtitleStreams.length === 0) return;
+    setSelectedSubtitle(pickDefaultSubtitle(subtitleStreams, profileSubLangs));
+  }, [subtitleStreams, profileSubLangs]);
+
+  const burnIn = useMemo(() => pickBurnInSubtitle(selectedSubtitle, subtitleStreams), [selectedSubtitle, subtitleStreams]);
+  const clientSubtitle = useMemo(() => clientSubtitleTrack(selectedSubtitle, subtitleStreams), [selectedSubtitle, subtitleStreams]);
+
+  const restartKeepingPlace = useCallback((audio: number | null, sub: number | undefined, q: number) => {
+    resumeAtRef.current = videoRef.current?.currentTime ?? null;
+    seekedToStart.current = false;
+    restartWithTracks(audio ?? undefined, sub, q || undefined);
+  }, [restartWithTracks]);
+
+  // --- stream ---------------------------------------------------------------
   useProgressReporter(
     sessionId,
     () => (videoRef.current?.currentTime ?? 0) * 1000,
@@ -61,23 +139,22 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
     onNavigate: (id) => replace({ name: "player", mediaId: id }),
   });
 
-  // Load the negotiated stream once the session answered.
   useEffect(() => {
     const video = videoRef.current;
-    const url = streamInfo?.directPlayUrl;
-    if (!video || !url || !streamToken) return;
-    const absolute = /^https?:\/\//i.test(url) ? url : `${getBaseURL()}${url}`;
+    if (!video || !streamUrl) return;
     setFailed(false);
-    const startAt = restart ? 0 : Number(progress?.positionMs ?? 0) / 1000;
+    const startAt = resumeAtRef.current ?? (restart ? 0 : Number(progress?.positionMs ?? 0) / 1000);
+    resumeAtRef.current = null;
     const seekToStart = () => {
       if (seekedToStart.current) return;
       seekedToStart.current = true;
       if (startAt > 0) video.currentTime = startAt;
+      video.playbackRate = speed;
       void video.play().catch(() => setPaused(true));
     };
 
     if (streamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY" || prefersNativeHLS() || !Hls.isSupported()) {
-      video.src = absolute;
+      video.src = streamUrl;
       video.addEventListener("loadedmetadata", seekToStart, { once: true });
       return () => {
         video.removeEventListener("loadedmetadata", seekToStart);
@@ -106,17 +183,21 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
       // devtools and this is what a bug report can carry.
       console.warn("[player] hls", data.type, data.details, data.fatal ? "fatal" : "", data.response?.code ?? "", data.reason ?? "");
       if (!data.fatal) return;
+      // A 410 is the server saying the master expired (a sealed fingerprint):
+      // negotiate again where we are rather than hammering the dead url.
+      if (data.response?.code === 410) { restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality); return; }
       if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
       else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
       else setFailed(true);
     });
-    hls.loadSource(absolute);
+    hls.loadSource(streamUrl);
     hls.attachMedia(video);
     return () => {
       hls.destroy();
       hlsRef.current = null;
     };
-  }, [streamInfo?.directPlayUrl, streamInfo?.playMethod, streamToken, restart, progress?.positionMs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the stream loads once per url; tracks/quality restart through the session
+  }, [streamUrl, streamInfo?.playMethod, restart]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -142,16 +223,10 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
 
   useEffect(() => {
     showOsd();
-    return () => {
-      if (hideTimer.current) clearTimeout(hideTimer.current);
-    };
+    return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
   }, [showOsd]);
 
-  // The seek gesture, with the same rules as the Android TV player (see
-  // seekGesture in @evey/client): taps add up into ONE seek that commits once
-  // the pressing stops, each further tap taking a bigger step; a held key
-  // (the browser repeats it) scrubs a preview at a rate that climbs with the
-  // hold and commits on release. The bar and the clock show the preview.
+  // --- seek gesture (same rules as the Android TV player) -------------------
   const [preview, setPreview] = useState<number | null>(null);
   const previewRef = useRef<number | null>(null);
   const timeRef = useRef(0);
@@ -162,10 +237,7 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdRef = useRef<{ dir: 1 | -1; startedAt: number; lastAt: number; timer: ReturnType<typeof setInterval> } | null>(null);
 
-  const setPreviewSec = useCallback((sec: number) => {
-    previewRef.current = sec;
-    setPreview(sec);
-  }, []);
+  const setPreviewSec = useCallback((sec: number) => { previewRef.current = sec; setPreview(sec); }, []);
   const commitSeek = useCallback(() => {
     const target = previewRef.current;
     previewRef.current = null;
@@ -176,10 +248,7 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
   }, []);
   const scheduleCommit = useCallback(() => {
     if (commitTimer.current) clearTimeout(commitTimer.current);
-    commitTimer.current = setTimeout(() => {
-      commitTimer.current = null;
-      commitSeek();
-    }, SEEK_COMMIT_DELAY_MS);
+    commitTimer.current = setTimeout(() => { commitTimer.current = null; commitSeek(); }, SEEK_COMMIT_DELAY_MS);
   }, [commitSeek]);
   const seekBy = useCallback((sec: number) => {
     const base = previewRef.current ?? timeRef.current;
@@ -189,6 +258,11 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
     scheduleCommit();
     showOsd();
   }, [setPreviewSec, scheduleCommit, showOsd]);
+  const seekTo = useCallback((sec: number) => {
+    const video = videoRef.current;
+    if (video) video.currentTime = clampSeekTarget(0, sec, durationRef.current);
+    showOsd();
+  }, [showOsd]);
   const beginHold = useCallback((dir: 1 | -1) => {
     if (holdRef.current) return;
     if (commitTimer.current) { clearTimeout(commitTimer.current); commitTimer.current = null; }
@@ -238,9 +312,9 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
     }
   }, [time, segments]);
 
-  // The remote: the five-way keys are the player's here, not the focus
-  // engine's, so the handler listens itself.
+  // --- remote ---------------------------------------------------------------
   useEffect(() => {
+    if (panel || shedReason) return;
     const forward = skip?.skipForwardSeconds ?? 30;
     const backward = skip?.skipBackwardSeconds ?? 30;
     const dirOf = (e: KeyboardEvent): 1 | -1 | 0 =>
@@ -261,23 +335,29 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
         else togglePlay();
         return;
       }
-      if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.keyCode === 38 || e.keyCode === 40) {
+      if (e.key === "ArrowDown" || e.keyCode === 40) {
+        e.preventDefault();
+        // The one way into the options, and the bar says so on screen.
+        if (osd) setPanel(true);
+        else showOsd();
+        return;
+      }
+      if (e.key === "ArrowUp" || e.keyCode === 38) {
         e.preventDefault();
         showOsd();
       }
     };
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (dirOf(e) !== 0) endHold();
-    };
+    const onKeyUp = (e: KeyboardEvent) => { if (dirOf(e) !== 0) endHold(); };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [seekBy, beginHold, endHold, togglePlay, showOsd, skip, nextEp]);
+  }, [seekBy, beginHold, endHold, togglePlay, showOsd, skip, nextEp, osd, panel, shedReason]);
 
   useTvKeys(useCallback((key, e) => {
+    if (panel) return;
     e.stopImmediatePropagation();
     switch (key) {
       case "back": case "stop": goBack(); return;
@@ -287,29 +367,157 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
       case "forward": seekBy(skip?.skipForwardSeconds ?? 30); return;
       case "rewind": seekBy(-(skip?.skipBackwardSeconds ?? 30)); return;
     }
-  }, [togglePlay, seekBy, showOsd, skip]));
+  }, [togglePlay, seekBy, showOsd, skip, panel]));
 
+  // --- settings panel --------------------------------------------------------
+  const trackLabel = (s: { language?: string; title?: string; codec?: string; channels?: number }, fallback: string) => {
+    const parts = [s.language?.toUpperCase(), s.title, s.codec?.toUpperCase(), s.channels ? `${s.channels}ch` : undefined].filter(Boolean);
+    return parts.length ? parts.join(" · ") : fallback;
+  };
+  const sections: PanelSection[] = useMemo(() => {
+    const out: PanelSection[] = [];
+    if (audioStreams.length > 1) {
+      const current = audioStreams.find((s) => s.index === selectedAudio);
+      out.push({
+        key: "audio",
+        label: t("player.settings.audio", "Audio"),
+        value: current ? trackLabel(current, "") : "",
+        choices: audioStreams.map((s, i) => ({ key: String(s.index), label: trackLabel(s, `#${i + 1}`), selected: s.index === selectedAudio })),
+        onPick: (k) => {
+          const idx = Number(k);
+          if (idx === selectedAudio) return;
+          userPickedAudio.current = true;
+          setSelectedAudio(idx);
+          restartKeepingPlace(idx, burnIn ?? undefined, quality);
+        },
+      });
+    }
+    if (subtitleStreams.length > 0) {
+      const current = subtitleStreams.find((s) => s.index === selectedSubtitle);
+      out.push({
+        key: "subtitles",
+        label: t("player.settings.subtitles", "Subtitles"),
+        value: current ? trackLabel(current, "") : t("player.settings.off", "Off"),
+        choices: [
+          { key: "off", label: t("player.settings.off", "Off"), selected: selectedSubtitle === null },
+          ...subtitleStreams.map((s, i) => ({ key: String(s.index), label: `${trackLabel(s, `#${i + 1}`)}${s.isForced ? " (forced)" : ""}`, selected: s.index === selectedSubtitle })),
+        ],
+        onPick: (k) => {
+          const next = k === "off" ? null : Number(k);
+          if (next === selectedSubtitle) return;
+          userPickedSubtitle.current = true;
+          const prev = subtitleStreams.find((s) => s.index === selectedSubtitle);
+          const target = subtitleStreams.find((s) => s.index === next);
+          setSelectedSubtitle(next);
+          // Text and PGS are drawn here: switching them touches nothing. A
+          // burn-in is the server's, going to or from one restarts the stream.
+          if (prev?.burnIn || target?.burnIn) restartKeepingPlace(selectedAudio, target?.burnIn ? target.index : undefined, quality);
+        },
+      });
+    }
+    out.push({
+      key: "quality",
+      label: t("player.settings.quality", "Quality"),
+      value: quality ? `${quality}p` : t("player.settings.auto", "Auto"),
+      choices: QUALITIES.map((q) => ({ key: String(q), label: q ? `${q}p` : t("player.settings.auto", "Auto"), selected: q === quality })),
+      onPick: (k) => {
+        const q = Number(k);
+        if (q === quality) return;
+        setQuality(q);
+        restartKeepingPlace(selectedAudio, burnIn ?? undefined, q);
+      },
+    });
+    out.push({
+      key: "speed",
+      label: t("player.settings.speed", "Speed"),
+      value: `${speed}x`,
+      choices: SPEEDS.map((s) => ({ key: String(s), label: `${s}x`, selected: s === speed })),
+      onPick: (k) => {
+        const s = Number(k);
+        setSpeed(s);
+        if (videoRef.current) videoRef.current.playbackRate = s;
+      },
+    });
+    if (chapters && chapters.length > 0) {
+      const currentIdx = chapters.findIndex((c, i) => time * 1000 >= c.startTimeMs && (i === chapters.length - 1 || time * 1000 < chapters[i + 1].startTimeMs));
+      out.push({
+        key: "chapters",
+        label: t("player.controls.chapters", "Chapters"),
+        value: currentIdx >= 0 ? chapters[currentIdx].title : "",
+        choices: chapters.map((c, i) => ({ key: String(i), label: chapterLabel(c.title, c.startTimeMs), selected: i === currentIdx })),
+        onPick: (k) => seekTo(chapters[Number(k)].startTimeMs / 1000),
+      });
+    }
+    return out;
+  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, time, t, restartKeepingPlace, seekTo]);
+
+  // --- render ---------------------------------------------------------------
   const shown = preview ?? time;
   const pct = duration > 0 ? Math.min(100, (shown / duration) * 100) : 0;
+  const barVisible = osd || paused || panel;
+  const endsAt = duration > 0 ? new Date(Date.now() + ((duration - shown) * 1000) / (speed || 1)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
+
+  if (shedReason) {
+    const keys = SHED_KEYS[shedReason];
+    return (
+      <div className="player">
+        <FocusRoot autoFocus className="screen screen-center">
+          <h1 className="title">{t(keys.title)}</h1>
+          <p className="subtitle">{t(keys.body)}</p>
+          <div className="actions">
+            <Button variant="primary" autoFocus onPress={() => restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality)}>{t("player.retry", "Retry")}</Button>
+            <Button onPress={goBack}>{t("common.back", "Back")}</Button>
+          </div>
+        </FocusRoot>
+      </div>
+    );
+  }
 
   return (
     <div className="player">
       <video ref={videoRef} playsInline autoPlay />
-      {(isLoading && !streamInfo) ? <div className="screen screen-center" style={{ position: "absolute", inset: 0 }}><Spinner /></div> : null}
+      <SubtitleOverlay mediaId={mediaId} subtitleIndex={clientSubtitle} currentTimeSec={time} />
+      {(isLoading && !streamUrl) ? <div className="screen screen-center" style={{ position: "absolute", inset: 0 }}><Spinner /></div> : null}
       {(isError || failed) ? (
-        <div className="screen screen-center" style={{ position: "absolute", inset: 0 }}>
-          <p className="error">{t("player.error", "This title could not be played.")}</p>
-          <p className="muted">{t("common.back", "Back")}</p>
-        </div>
+        <FocusRoot autoFocus className="screen screen-center" >
+          <p className="error">{t("player.playbackFailed", "This title could not be played.")}</p>
+          <div className="actions">
+            <Button variant="primary" autoFocus onPress={() => { setFailed(false); restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality); }}>{t("player.retry", "Retry")}</Button>
+            <Button onPress={goBack}>{t("common.back", "Back")}</Button>
+          </div>
+        </FocusRoot>
       ) : null}
-      <div className={`osd ${osd || paused ? "" : "hidden"}`}>
-        <div className="title" style={{ fontSize: "2vw" }}>{media?.seriesTitle ? `${media.seriesTitle} · ` : ""}{media?.title}</div>
-        <div className="bar"><div style={{ width: `${pct}%` }} /></div>
+      {chapters && chapters.length > 0 && barVisible ? (
+        <div className="osd-chapter">{chapters.find((c, i) => shown * 1000 >= c.startTimeMs && (i === chapters.length - 1 || shown * 1000 < chapters[i + 1].startTimeMs))?.title ?? ""}</div>
+      ) : null}
+      <div className={`osd ${barVisible ? "" : "hidden"}`}>
+        <div className="osd-top">
+          <div className="title" style={{ fontSize: "2vw" }}>{media?.seriesTitle ? `${media.seriesTitle} · ` : ""}{media?.title}</div>
+          <div className="osd-meta">
+            {streamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY" ? t("player.quality.original", "Original") : quality ? `${quality}p` : t("player.quality.auto", "Auto")}
+            {speed !== 1 ? ` · ${speed}x` : ""}
+            {endsAt ? ` · ${t("player.controls.endsAt", { time: endsAt, defaultValue: `Ends at ${endsAt}` })}` : ""}
+          </div>
+        </div>
+        <div className="bar-wrap">
+          <div className="trickplay-anchor" style={{ left: `${pct}%` }}>
+            <TrickplayTile mediaId={mediaId} previewTimeSec={preview} warm={barVisible} />
+          </div>
+          <div className="bar">
+            <div style={{ width: `${pct}%` }} />
+            {duration > 0 && (chapters ?? []).map((c, i) => {
+              const p = (c.startTimeMs / 1000 / duration) * 100;
+              return p > 0 && p < 100 ? <i key={i} className="notch" style={{ left: `${p}%` }} /> : null;
+            })}
+          </div>
+        </div>
         <div className="times">
           <span>{paused ? "❚❚ " : "▶ "}{formatTime(shown)}{preview !== null ? ` (${preview >= time ? "+" : "-"}${formatTime(Math.abs(preview - time))})` : ""}</span>
-          <span>{nextEp.visible ? `${t("player.nextEpisode", "Next episode")}${nextEp.ended ? ` · ${nextEp.countdown}` : ""}` : formatTime(duration)}</span>
+          <span className="muted">{t("player.osd.downHint", "▼ Settings")}</span>
+          <span>{nextEp.visible ? `${t("player.controls.nextEpisode", "Next episode")}${nextEp.ended ? ` · ${nextEp.countdown}` : ""}` : formatTime(duration)}</span>
         </div>
       </div>
+      {panel ? <SettingsPanel sections={sections} onClose={() => { setPanel(false); showOsd(); }} /> : null}
     </div>
   );
 }
