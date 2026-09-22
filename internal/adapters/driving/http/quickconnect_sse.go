@@ -37,8 +37,12 @@ func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code stri
 	if qc.Status != domainuser.Authorized || qc.UserID == nil {
 		return "", "", false, nil
 	}
+	// What the device asked for when it STARTED the pairing decides the
+	// lifetime: an EventSource carries no headers, so this stream could never
+	// say it on its own and every browser pairing fell back to a one-week
+	// session. The header still counts where a caller can set it.
 	var ttlOverride []time.Duration
-	if persistent {
+	if persistent || qc.Persistent {
 		ttlOverride = []time.Duration{a.cfg.JWT.RefreshTokenLongTTL}
 	}
 	access, refresh, err := a.auth.GenerateTokensForUser(ctx, string(*qc.UserID), ttlOverride...)

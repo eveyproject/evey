@@ -154,6 +154,13 @@ func WithUserAgent(ctx context.Context, ua string) context.Context {
 	return context.WithValue(ctx, userAgentKey{}, ua)
 }
 
+// WithPersistentSession stamps the flag the way the interceptor does, so a
+// handler can be exercised without one - same test/handler symmetry as
+// WithClientIP and WithUserAgent above.
+func WithPersistentSession(ctx context.Context) context.Context {
+	return context.WithValue(ctx, persistentSessionKey{}, true)
+}
+
 func PersistentSessionFromCtx(ctx context.Context) bool {
 	v, _ := ctx.Value(persistentSessionKey{}).(bool)
 	return v

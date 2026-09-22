@@ -172,3 +172,17 @@ func (r *FakeRefreshTokenRepository) Count() int {
 	defer r.mu.RUnlock()
 	return len(r.items)
 }
+
+// Newest is the most recently created token, for a test that asks what
+// lifetime a flow just granted.
+func (r *FakeRefreshTokenRepository) Newest() *user.RefreshToken {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var newest *user.RefreshToken
+	for _, t := range r.items {
+		if newest == nil || t.CreatedAt.After(newest.CreatedAt) {
+			newest = t
+		}
+	}
+	return newest
+}

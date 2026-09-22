@@ -624,35 +624,43 @@ func (s *CommandService) lookupProfileLocale(ctx context.Context, profileID stri
 }
 
 // Logout ends ONE device's session when it presents its refresh token: that
-// row alone is deleted and the other devices keep playing. Without a token
-// (older clients) it falls back to the account-wide revoke below - signing out
-// of a phone used to log the TV and the browser out too.
+// row alone is deleted and the other devices keep playing.
+//
+// A logout that names NO session ends none. It used to fall back to an
+// account-wide revoke, which signed the television and the browser out
+// because a phone had been signed out - and a client reaches that fallback
+// without meaning to, whenever its stored token cannot be read. The browser
+// never does (the HTTP layer injects its cookie into the body), so the
+// fallback only ever punished the honest case. A device that wants its own
+// session ended presents the token that names it; anything else is cleared
+// locally and the row expires on its own.
 func (s *CommandService) Logout(ctx context.Context, userID, refreshToken string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.Logout")
 	defer span.End()
-	if refreshToken != "" {
-		h := sha256.Sum256([]byte(refreshToken))
-		rt, err := s.refreshTkns.GetByTokenHash(ctx, hex.EncodeToString(h[:]))
-		if err == nil && string(rt.UserID) == userID {
-			if err := s.refreshTkns.DeleteByID(ctx, rt.ID); err != nil {
-				return fmt.Errorf("CommandService.Logout: %w", err)
-			}
-			return nil
-		}
+	if refreshToken == "" {
+		slog.InfoContext(ctx, "logout without a refresh token: no session named, none ended",
+			slog.String("userID", userID))
+		return nil
 	}
-	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
-		return fmt.Errorf("CommandService.Logout: %w", err)
+	h := sha256.Sum256([]byte(refreshToken))
+	rt, err := s.refreshTkns.GetByTokenHash(ctx, hex.EncodeToString(h[:]))
+	if err != nil || string(rt.UserID) != userID {
+		// A token this account does not own, or one already gone: nothing to
+		// end, and certainly not everything else.
+		slog.InfoContext(ctx, "logout: the presented token names no session of this account",
+			slog.String("userID", userID))
+		return nil
 	}
-	// Cut outstanding stream/cast tokens (up to 12h TTL) on the same path used
-	// by DisableUser/ChangePassword: tokenRevoker is the compositeTokenRevoker
-	// wired in wire.go, which bumps the JWT epoch AND calls
-	// media.StreamTokenStore.RevokeByUser. Without this a logged-out user's
-	// opaque stream token keeps serving media bytes until it expires on its own.
-	if s.tokenRevoker != nil {
-		if err := s.tokenRevoker.Revoke(ctx, userID); err != nil {
-			slog.WarnContext(ctx, "revoke access/stream tokens on logout", slog.Any("err", err))
-		}
+	if delErr := s.refreshTkns.DeleteByID(ctx, rt.ID); delErr != nil {
+		return fmt.Errorf("CommandService.Logout: %w", delErr)
 	}
+	// Deliberately NO account-wide revoke here. The only revoker available
+	// (compositeTokenRevoker) works per USER: it bumps the JWT epoch and cuts
+	// every stream token of the account, which would stop the film playing on
+	// the television because a phone was signed out. The signed-out device's
+	// own access token dies with its clock (minutes) and its stream tokens
+	// with theirs; ending the account's other sessions is what DisableUser and
+	// ChangePassword are for.
 	return nil
 }
 
