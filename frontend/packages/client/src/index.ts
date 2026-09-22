@@ -52,6 +52,7 @@ export * from "./lib/personRole";
 export * from "./lib/mediaTypeLabel";
 export * from "./lib/playlistType";
 export * from "./lib/playerTitle";
+export * from "./lib/skipSegments";
 
 export * from "./plugins/slotEntries";
 export * from "./plugins/hostProtocol";
