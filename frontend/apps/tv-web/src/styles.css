@@ -415,3 +415,11 @@ button, input {
 .subs-pgs img {
   position: absolute;
 }
+
+.search-head {
+  margin-bottom: 2vw;
+}
+.search-head .field {
+  width: 100%;
+  font-size: 2vw;
+}
