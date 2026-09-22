@@ -13,12 +13,12 @@ vi.mock("../tv/focus", () => ({
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 vi.mock("../app/router", () => ({ navigate: (...a: unknown[]) => navigateMock(...a) }));
 vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@tanstack/react-query", async (orig) => ({
-  ...(await orig<typeof import("@tanstack/react-query")>()),
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
-vi.mock("@evey/api", async (orig) => ({
-  ...(await orig<typeof import("@evey/api")>()),
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useMediaRequestServiceGetRequestPolicy: () => policy(),
   useMediaRequestServiceListMyRequests: () => mine(),
   useMediaRequestServiceSearchTitles: (params: any, opts: any) => {

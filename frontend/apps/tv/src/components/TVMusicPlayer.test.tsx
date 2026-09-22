@@ -41,7 +41,10 @@ vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }
 // ask the fetcher for a token that is valid NOW.
 const freshToken = vi.hoisted(() => ({ fn: vi.fn(async () => "tok") }));
 vi.mock("@evey/api", () => ({ getFreshAccessToken: freshToken.fn }));
-vi.mock("@evey/store", () => ({ useAuthStore: Object.assign((sel: (s: { accessToken: string }) => unknown) => sel({ accessToken: "stale" }), { getState: () => ({ accessToken: "stale" }) }) }));
+vi.mock("@evey/store", async (orig) => ({
+  ...(await orig<typeof import("@evey/store")>()),
+  useAuthStore: Object.assign((sel: (s: { accessToken: string }) => unknown) => sel({ accessToken: "stale" }), { getState: () => ({ accessToken: "stale" }) }),
+}));
 vi.mock("../providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { surfaceRaised: "#222", surface: "#111", border: "#333", accent: "#f00", text: "#fff", textMuted: "#888", onAccent: "#000" } }),
 }));

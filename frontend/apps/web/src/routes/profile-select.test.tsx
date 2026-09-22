@@ -124,7 +124,10 @@ describe("ProfileSelect", () => {
     await userEvent.type(input, "1234");
     await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
     await waitFor(() => {
-      expect(mockVerifyPin).toHaveBeenCalledWith("p1", { pin: "1234" });
+      // The profile being LEFT is asked first: verify-pin against a profile
+      // that carries no PIN answers "valid" to any digits and mints a proof
+      // the switch then refuses (@evey/client's verifyParentalPin).
+      expect(mockVerifyPin).toHaveBeenNthCalledWith(1, "p2", { pin: "1234" });
       expect(mockRefreshToken).toHaveBeenCalledWith({ profileId: "p1" });
     });
   });

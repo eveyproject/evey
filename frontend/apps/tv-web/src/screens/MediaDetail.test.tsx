@@ -19,8 +19,8 @@ const authState = { profileId: "prf-1", accessToken: "t" };
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign((sel: any) => sel(authState), { getState: () => authState }),
 }));
-vi.mock("@evey/api", async (orig) => ({
-  ...(await orig<typeof import("@evey/api")>()),
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetMediaItem: (...a: unknown[]) => getMediaItem(...a),
   useLibraryServiceListMediaItems: (...a: unknown[]) => listMediaItems(...a),
   usePlaybackServiceGetWatchProgress: () => ({ data: { positionMs: "0" } }),
@@ -31,16 +31,16 @@ vi.mock("@evey/api", async (orig) => ({
   ratingServicePutThumbRating: vi.fn(),
   getRatingServiceGetMyThumbRatingQueryKey: () => ["rating"],
 }));
-vi.mock("@evey/client", async (orig) => ({
-  ...(await orig<typeof import("@evey/client")>()),
+vi.mock("@evey/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/client")>()),
   useIsFavorite: () => ({ data: false }),
   useToggleFavorite: () => ({ mutate: toggleFavorite }),
   useIsWatched: () => false,
   usePlaylistList: () => ({ data: [] }),
   useAddToPlaylist: () => ({ mutate: vi.fn() }),
 }));
-vi.mock("@tanstack/react-query", async (orig) => ({
-  ...(await orig<typeof import("@tanstack/react-query")>()),
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useMutation: () => ({ mutate: vi.fn() }),
 }));

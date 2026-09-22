@@ -18,14 +18,14 @@ const authState = { accessToken: "t" };
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign((sel: any) => sel(authState), { getState: () => authState }),
 }));
-vi.mock("@evey/api", async (orig) => ({
-  ...(await orig<typeof import("@evey/api")>()),
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceListLibraries: () => libraries(),
   useLibraryServiceSearchMedia: (...a: unknown[]) => searchMedia(...a),
   useMusicServiceSearchMusic: (...a: unknown[]) => searchMusic(...a),
 }));
-vi.mock("@evey/client", async (orig) => ({
-  ...(await orig<typeof import("@evey/client")>()),
+vi.mock("@evey/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/client")>()),
   useDebounce: (v: string) => v,
 }));
 vi.mock("../music/queue", () => ({

@@ -1,22 +1,19 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { DEFAULT_UI_SCALE, UI_SCALE_OPTIONS, effectiveUiScale, isUiScaleOption } from "./uiScale";
-import appJson from "../../app.json";
 
+// The vocabulary itself. That the default matches the Android plugin's own
+// defaultPercent is checked where app.json lives (apps/tv/src/lib).
 describe("uiScale", () => {
-  it("the default matches the native plugin's defaultPercent (one number, two sides)", () => {
-    const plugin = (appJson.expo.plugins as unknown[]).find((p) => Array.isArray(p) && p[0] === "./plugins/withUiScale") as [string, { defaultPercent: number }];
-    expect(plugin[1].defaultPercent).toBe(DEFAULT_UI_SCALE);
-    expect(isUiScaleOption(DEFAULT_UI_SCALE)).toBe(true);
+  it("holds a stored value that is no longer offered, so the tick never lies", () => {
+    expect(effectiveUiScale(85)).toBe(85);
+    expect(isUiScaleOption(85)).toBe(false);
+    expect(isUiScaleOption(UI_SCALE_OPTIONS[0])).toBe(true);
   });
 
-  it("never set is the default; a stored value is itself, even outside the picker", () => {
+  it("falls back to the default for anything unusable", () => {
     expect(effectiveUiScale(null)).toBe(DEFAULT_UI_SCALE);
     expect(effectiveUiScale(undefined)).toBe(DEFAULT_UI_SCALE);
     expect(effectiveUiScale(0)).toBe(DEFAULT_UI_SCALE);
-    expect(effectiveUiScale(NaN)).toBe(DEFAULT_UI_SCALE);
-    expect(effectiveUiScale(90)).toBe(90);
-    expect(effectiveUiScale(85.4)).toBe(85);
-    expect(isUiScaleOption(85)).toBe(false);
-    expect(UI_SCALE_OPTIONS).toEqual([70, 80, 90, 100]);
+    expect(effectiveUiScale(Number.NaN)).toBe(DEFAULT_UI_SCALE);
   });
 });

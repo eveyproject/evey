@@ -19,8 +19,8 @@ vi.mock("../tv/focus", () => ({
 // The key, never the fallback: a test asserting on English prose would pass
 // on a row whose label key is wrong.
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
-vi.mock("@tanstack/react-query", async (orig) => ({
-  ...(await orig<typeof import("@tanstack/react-query")>()),
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQuery: () => ({ data: { plugins: [{ id: "plg-weather", name: "weather", frontend: [{ slot: "home.section" }] }] } }),
   useQueries: ({ queries }: { queries: unknown[] }) => queries.map(() => listMediaItems()),
 }));
@@ -40,8 +40,8 @@ const authState = { profileId: "prf-1", accessToken: "t" };
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign((sel: any) => sel(authState), { getState: () => authState }),
 }));
-vi.mock("@evey/client", async (orig) => ({
-  ...(await orig<typeof import("@evey/client")>()),
+vi.mock("@evey/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/client")>()),
   useCollections: () => collections(),
   useMostPopular: () => popular(),
   useWatchProgressMaps: () => ({ watchedMap: new Map([["res-1", true]]), percentMap: new Map([["res-1", 42]]) }),

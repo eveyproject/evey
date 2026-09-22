@@ -21,19 +21,19 @@ const authState = { profileId: "prf-1", accessToken: "t" };
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign((sel: any) => sel(authState), { getState: () => authState }),
 }));
-vi.mock("@tanstack/react-query", async (orig) => ({
-  ...(await orig<typeof import("@tanstack/react-query")>()),
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useInfiniteQuery: (opts: any) => infinite(opts),
 }));
-vi.mock("@evey/api", async (orig) => ({
-  ...(await orig<typeof import("@evey/api")>()),
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetLibrary: () => library(),
   useLibraryServiceListGenres: () => genres(),
   useLibraryServiceSearchMedia: (...a: unknown[]) => searchMedia(...a),
   libraryServiceListMediaItems: vi.fn(),
 }));
-vi.mock("@evey/client", async (orig) => ({
-  ...(await orig<typeof import("@evey/client")>()),
+vi.mock("@evey/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/client")>()),
   useDebounce: (v: string) => v,
   useWatchProgressMaps: () => ({ watchedMap: new Map(), percentMap: new Map() }),
 }));
