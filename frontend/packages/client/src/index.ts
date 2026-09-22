@@ -53,6 +53,10 @@ export * from "./lib/mediaTypeLabel";
 export * from "./lib/playlistType";
 export * from "./lib/playerTitle";
 export * from "./lib/skipSegments";
+export * from "./lib/photoGrid";
+export * from "./lib/photoRoutes";
+export * from "./lib/photoSlideshow";
+export * from "./lib/musicRoutes";
 
 export * from "./plugins/slotEntries";
 export * from "./plugins/hostProtocol";

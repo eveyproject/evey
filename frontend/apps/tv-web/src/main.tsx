@@ -32,6 +32,7 @@ import {
   PlaylistsScreen,
 } from "./screens/Browse";
 import { PlaybackSettingsScreen, ServersScreen, StatsScreen } from "./screens/SettingsScreens";
+import { PhotosScreen, SlideshowScreen } from "./screens/Photos";
 import { NavBar } from "./components/NavBar";
 import { MusicBar } from "./music/MusicBar";
 import { applyThemeVars, useAppliedTheme } from "./lib/theme";
@@ -130,13 +131,13 @@ function App() {
   const signedIn = !!accessToken && !!profileId;
   // The player owns the whole surface; every other signed-in screen carries
   // the navigation, the way the television keeps its sidebar.
-  const withNav = signedIn && effective.name !== "player" && effective.name !== "profiles";
+  const withNav = signedIn && effective.name !== "player" && effective.name !== "slideshow" && effective.name !== "profiles";
   return (
     <>
       {signedIn ? <ThemeFollower /> : null}
       {withNav ? <NavBar current={effective.name} /> : null}
       {screen}
-      {signedIn && effective.name !== "player" ? <MusicBar /> : null}
+      {signedIn && effective.name !== "player" && effective.name !== "slideshow" ? <MusicBar /> : null}
     </>
   );
 }
@@ -195,6 +196,10 @@ function renderScreen(effective: Route) {
       return <StatsScreen />;
     case "servers":
       return <ServersScreen />;
+    case "photos":
+      return <PhotosScreen libraryId={effective.libraryId} albumId={effective.albumId} />;
+    case "slideshow":
+      return <SlideshowScreen libraryId={effective.libraryId} albumId={effective.albumId} index={effective.index} />;
     default:
       return <HomeScreen />;
   }
