@@ -11,7 +11,7 @@ export type Route =
   | { name: "home" }
   | { name: "library"; libraryId: string }
   | { name: "media"; mediaId: string }
-  | { name: "player"; mediaId: string; restart?: boolean; audio?: number; subtitle?: number | "off" }
+  | { name: "player"; mediaId: string; restart?: boolean; audio?: number; subtitle?: number | "off"; roomId?: string }
   | { name: "settings" }
   | { name: "search"; query?: string }
   | { name: "music"; libraryId?: string }
@@ -75,6 +75,7 @@ export function routeToHash(route: Route): string {
       if (route.restart) q.set("restart", "1");
       if (route.audio !== undefined) q.set("audio", String(route.audio));
       if (route.subtitle !== undefined) q.set("subtitle", String(route.subtitle));
+      if (route.roomId) q.set("roomId", route.roomId);
       const s = q.toString();
       return `#/player/${encodeURIComponent(route.mediaId)}${s ? `?${s}` : ""}`;
     }
@@ -118,6 +119,7 @@ export function parseHash(hash: string): Route {
         restart: params.get("restart") === "1",
         ...(params.get("audio") ? { audio: Number(params.get("audio")) } : {}),
         ...(params.get("subtitle") ? { subtitle: params.get("subtitle") === "off" ? "off" as const : Number(params.get("subtitle")) } : {}),
+        ...(params.get("roomId") ? { roomId: params.get("roomId")! } : {}),
       };
     case "libraries":
       return { name: "libraries" };

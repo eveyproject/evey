@@ -25,6 +25,7 @@ export function NavBar({ current }: { current: Route["name"] }) {
       {item("libraries", t("media.library.libraries"), () => navigate({ name: "libraries" }))}
       {hasMusic ? item("music", t("common.nav.music"), () => navigate({ name: "music" })) : null}
       {item("favorites", t("media.favorites.title"), () => navigate({ name: "favorites" }))}
+      {item("requests", t("common.nav.requests"), () => navigate({ name: "requests" }))}
       {item("search", t("common.nav.search"), () => navigate({ name: "search" }))}
       {item("notifications", `${t("common.notifications.title")}${count > 0 ? ` (${count})` : ""}`, () => navigate({ name: "notifications" }))}
       {item("settings", t("common.nav.settings"), () => navigate({ name: "settings" }))}

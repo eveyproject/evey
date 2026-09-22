@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, userServiceRefreshToken, type V1Profile } from "@evey/api";
+import { getBaseURL, useUserServiceGetCurrentUser, useUserServiceListProfiles, userServiceRefreshToken, type V1Profile } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { FocusRoot } from "../tv/focus";
 import { Button, Spinner } from "../components/ui";
@@ -23,6 +23,13 @@ export function ProfileSelectScreen() {
   const [pinTarget, setPinTarget] = useState<V1Profile | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
   const profiles = data?.profiles ?? [];
+  const activeProfileId = useAuthStore((s) => s.profileId);
+  // The avatar is loaded by the browser itself, so the token rides the query.
+  const avatarSrc = (profileId: string) => {
+    const token = useAuthStore.getState().accessToken;
+    const base = `${getBaseURL()}/api/v1/profiles/${profileId}/avatar`;
+    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+  };
 
   async function choose(p: V1Profile, pinToken?: string) {
     if (!p.id || busy) return;
@@ -60,10 +67,17 @@ export function ProfileSelectScreen() {
     <FocusRoot autoFocus className="screen screen-center">
       <h1 className="title">{t("auth.profile.select.title", "Who is watching?")}</h1>
       {isLoading ? <Spinner /> : null}
-      <div className="actions" style={{ flexWrap: "wrap", justifyContent: "center" }}>
+      <div className="actions profile-grid">
         {profiles.map((p, i) => (
-          <Button key={p.id} autoFocus={i === 0} variant={p.isDefault ? "primary" : "default"} onPress={() => void choose(p)} disabled={!!busy}>
-            {p.name}
+          <Button key={p.id} autoFocus={i === 0} variant={p.id === activeProfileId ? "primary" : "default"} onPress={() => void choose(p)} disabled={!!busy}>
+            <span className="profile-avatar" aria-hidden="true">
+              {p.avatarPath && p.id ? <img src={avatarSrc(p.id)} alt="" /> : (p.name ?? "?").slice(0, 1).toUpperCase()}
+            </span>
+            <span className="profile-name">{p.name}</span>
+            <span className="muted">
+              {p.isKids ? t("auth.profile.select.kidsBadge") : ""}
+              {p.id === activeProfileId ? ` ${t("auth.profile.select.active")}` : ""}
+            </span>
           </Button>
         ))}
       </div>

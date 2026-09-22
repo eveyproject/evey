@@ -778,3 +778,39 @@ button, input {
 
 .toast.error { border-left: 0.3vw solid var(--error, #ef4444); }
 .toast.success { border-left: 0.3vw solid var(--success, #22c55e); }
+
+/* The on-screen alphabet a remote types a room code on. */
+.letter-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 0.5vw;
+  max-width: 60vw;
+  margin: 1vw auto;
+}
+
+.letter-grid .btn { padding: 0.7vw 0; font-size: 1.6vw; }
+
+/* Who is watching: a face, a name, and what the profile is. */
+.profile-grid { flex-wrap: wrap; justify-content: center; }
+
+.profile-grid .btn {
+  flex-direction: column;
+  gap: 0.4vw;
+  min-width: 12vw;
+  padding: 1.2vw;
+}
+
+.profile-avatar {
+  width: 6vw;
+  height: 6vw;
+  border-radius: 50%;
+  background: var(--surface-raised, #1e293b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.6vw;
+  overflow: hidden;
+}
+
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-name { font-size: 1.5vw; }
