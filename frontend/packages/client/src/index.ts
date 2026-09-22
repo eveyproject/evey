@@ -46,6 +46,12 @@ export * from "./lib/genres";
 export * from "./lib/librarySelection";
 export * from "./lib/progressPercent";
 export * from "./lib/playbackPrefs";
+export * from "./lib/playTarget";
+export * from "./lib/trailerUrl";
+export * from "./lib/personRole";
+export * from "./lib/mediaTypeLabel";
+export * from "./lib/playlistType";
+export * from "./lib/playerTitle";
 
 export * from "./plugins/slotEntries";
 export * from "./plugins/hostProtocol";

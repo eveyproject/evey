@@ -156,7 +156,7 @@ function renderScreen(effective: Route) {
     case "media":
       return <MediaDetailScreen mediaId={effective.mediaId} />;
     case "player":
-      return <PlayerScreen mediaId={effective.mediaId} restart={!!effective.restart} />;
+      return <PlayerScreen mediaId={effective.mediaId} restart={!!effective.restart} audio={effective.audio} subtitle={effective.subtitle} />;
     case "settings":
       return <SettingsScreen />;
     case "search":

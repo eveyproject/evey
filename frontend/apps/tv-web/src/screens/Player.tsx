@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Hls from "hls.js";
 import {
+  formatAudioTrackLabel,
   formatTime,
+  trackDisplayName,
   useLibraryServiceGetMediaItem,
   pickPreferredStreamIndex,
   pickDefaultSubtitle,
   isBurnInSubtitle,
   burnInSubtitleIndex as pickBurnInSubtitle,
   clientSubtitleTrack,
+  type V1MediaStream,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import {
@@ -47,14 +50,23 @@ function csv(v: string | undefined): string[] {
 // down opens the settings (audio, subtitles, quality, speed, chapters),
 // back leaves. hls.js on MSE with the master the shared session negotiated;
 // a track or quality change restarts the session, as on the Android app.
-export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: boolean }) {
+export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
+  mediaId: string;
+  restart: boolean;
+  /** The tracks the title page chose before playing, as on the television. */
+  audio?: number;
+  subtitle?: number | "off";
+}) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
   const { profile } = useActiveProfile();
   const { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, progress, restartWithTracks } =
-    useTvPlaySession(mediaId, TV_DEVICE);
+    useTvPlaySession(mediaId, TV_DEVICE, {
+      ...(audio !== undefined ? { audioStreamIndex: audio } : {}),
+      ...(typeof subtitle === "number" ? { subtitleStreamIndex: subtitle } : {}),
+    });
   const { data: skip } = usePlaybackSettings();
   const { data: segments } = useMediaSegments(mediaId);
   const { data: chapters } = useChapters(mediaId);
@@ -92,10 +104,10 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
       .map((s, i) => ({ index: s.index ?? 0, trackIndex: i, language: s.language, title: s.title, codec: s.codec, isDefault: s.isDefault, isForced: s.isForced, burnIn: isBurnInSubtitle(s.codec) })),
     [streamInfo],
   );
-  const [selectedAudio, setSelectedAudio] = useState<number | null>(null);
-  const [selectedSubtitle, setSelectedSubtitle] = useState<number | null>(null);
-  const userPickedAudio = useRef(false);
-  const userPickedSubtitle = useRef(false);
+  const [selectedAudio, setSelectedAudio] = useState<number | null>(audio ?? null);
+  const [selectedSubtitle, setSelectedSubtitle] = useState<number | null>(subtitle === "off" ? null : subtitle ?? null);
+  const userPickedAudio = useRef(audio !== undefined);
+  const userPickedSubtitle = useRef(subtitle !== undefined);
   const profileAudioLangs = useMemo(() => csv(profile?.preferences?.["audio_languages"]), [profile]);
   const profileSubLangs = useMemo(() => csv(profile?.preferences?.["subtitle_languages"]), [profile]);
 
@@ -374,10 +386,11 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
   }, [togglePlay, seekBy, showOsd, skip, panel]));
 
   // --- settings panel --------------------------------------------------------
-  const trackLabel = (s: { language?: string; title?: string; codec?: string; channels?: number }, fallback: string) => {
-    const parts = [s.language?.toUpperCase(), s.title, s.codec?.toUpperCase(), s.channels ? `${s.channels}ch` : undefined].filter(Boolean);
-    return parts.length ? parts.join(" · ") : fallback;
-  };
+  // The labels the phone, the browser and the Android television print, from
+  // the shared helpers: one track must not read differently per client.
+  const audioLabel = (s: V1MediaStream, fallback: string) => formatAudioTrackLabel(s, fallback);
+  const subtitleLabel = (s: V1MediaStream, fallback: string) =>
+    `${trackDisplayName(s, fallback)}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`;
   const sections: PanelSection[] = useMemo(() => {
     const out: PanelSection[] = [];
     if (audioStreams.length > 1) {
@@ -385,8 +398,8 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
       out.push({
         key: "audio",
         label: t("player.settings.audio", "Audio"),
-        value: current ? trackLabel(current, "") : "",
-        choices: audioStreams.map((s, i) => ({ key: String(s.index), label: trackLabel(s, `#${i + 1}`), selected: s.index === selectedAudio })),
+        value: current ? audioLabel(current, "") : "",
+        choices: audioStreams.map((s, i) => ({ key: String(s.index), label: audioLabel(s, t("media.track", { number: s.index ?? i + 1 })), selected: s.index === selectedAudio })),
         onPick: (k) => {
           const idx = Number(k);
           if (idx === selectedAudio) return;
@@ -401,10 +414,10 @@ export function PlayerScreen({ mediaId, restart }: { mediaId: string; restart: b
       out.push({
         key: "subtitles",
         label: t("player.settings.subtitles", "Subtitles"),
-        value: current ? trackLabel(current, "") : t("player.settings.off", "Off"),
+        value: current ? subtitleLabel(current, "") : t("player.settings.off", "Off"),
         choices: [
           { key: "off", label: t("player.settings.off", "Off"), selected: selectedSubtitle === null },
-          ...subtitleStreams.map((s, i) => ({ key: String(s.index), label: `${trackLabel(s, `#${i + 1}`)}${s.isForced ? " (forced)" : ""}`, selected: s.index === selectedSubtitle })),
+          ...subtitleStreams.map((s, i) => ({ key: String(s.index), label: subtitleLabel(s, t("media.track", { number: s.index ?? i + 1 })), selected: s.index === selectedSubtitle })),
         ],
         onPick: (k) => {
           const next = k === "off" ? null : Number(k);
