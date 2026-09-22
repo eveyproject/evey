@@ -14,3 +14,4 @@ export * from "./web/useTvPlaySession";
 export * from "./web/PluginIframe";
 export * from "./web/useDeviceRegistration";
 export * from "./web/usePresenceHeartbeat";
+export * from "./web/subtitleStyle";

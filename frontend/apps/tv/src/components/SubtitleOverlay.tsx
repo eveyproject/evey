@@ -1,16 +1,10 @@
-import { memo, useEffect, useState } from "react";
+import { memo } from "react";
 import { View, Text, StyleSheet, Image, useWindowDimensions } from "react-native";
 import {
-  eveyFetchRaw,
   findActivePGSCue,
-  isPGSBlob,
-  parsePGSBlob,
-  pgsCueDataURI,
   findActiveCueIndex,
-  parseVttCues,
-  type PGSTrack,
-  type SubtitleCue,
 } from "@evey/api";
+import { useSubtitleTrack } from "@evey/client";
 import {
   DEFAULT_SUBTITLE_STYLE,
   subtitleBgRgba,
@@ -42,66 +36,11 @@ interface Props {
   style?: SubtitleStyle;
 }
 
-// Cached per (media, track): re-selecting a track already loaded, or an
-// autoplay remount onto the next episode, must not re-fetch megabytes.
-const textCache = new Map<string, SubtitleCue[]>();
-const pgsCache = new Map<string, { track: PGSTrack; uris: string[] }>();
-
 function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: Props) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const [cues, setCues] = useState<SubtitleCue[]>([]);
-  const [pgs, setPgs] = useState<{ track: PGSTrack; uris: string[] } | null>(null);
-
-  useEffect(() => {
-    if (!mediaId || subtitleIndex === null) {
-      setCues([]);
-      setPgs(null);
-      return;
-    }
-    const key = `${mediaId}:${subtitleIndex}`;
-    const cachedPgs = pgsCache.get(key);
-    if (cachedPgs) {
-      setPgs(cachedPgs);
-      setCues([]);
-      return;
-    }
-    const cachedText = textCache.get(key);
-    if (cachedText) {
-      setCues(cachedText);
-      setPgs(null);
-      return;
-    }
-    setCues([]);
-    setPgs(null);
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await eveyFetchRaw({
-          url: `/api/v1/media/${encodeURIComponent(mediaId)}/subtitle/${subtitleIndex}`,
-          method: "GET",
-        });
-        // Read as bytes: decoding the image blob as UTF-8 would corrupt it
-        // before anything could tell the two kinds apart.
-        const buf = new Uint8Array(await res.arrayBuffer());
-        if (cancelled) return;
-        if (isPGSBlob(buf)) {
-          const track = parsePGSBlob(buf);
-          const entry = { track, uris: track.cues.map(pgsCueDataURI) };
-          pgsCache.set(key, entry);
-          setPgs(entry);
-          return;
-        }
-        const parsed = parseVttCues(new TextDecoder().decode(buf));
-        textCache.set(key, parsed);
-        setCues(parsed);
-      } catch {
-        // A subtitle that fails to load must never take playback with it.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [mediaId, subtitleIndex]);
+  // The fetch and the text/bitmap sniff live in @evey/client, shared with the
+  // browser television; only the painting below is this platform's.
+  const { cues, pgs } = useSubtitleTrack(mediaId, subtitleIndex);
 
   if (pgs) {
     const { track, uris } = pgs;

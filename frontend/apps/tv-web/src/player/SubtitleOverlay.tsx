@@ -1,15 +1,12 @@
-import { memo, useEffect, useState } from "react";
+import { memo } from "react";
+import { findActiveCueIndex, findActivePGSCue } from "@evey/api";
 import {
-  eveyFetchRaw,
-  findActiveCueIndex,
-  findActivePGSCue,
-  isPGSBlob,
-  parsePGSBlob,
-  parseVttCues,
-  pgsCueDataURI,
-  type PGSTrack,
-  type SubtitleCue,
-} from "@evey/api";
+  DEFAULT_SUBTITLE_STYLE,
+  subtitleBgRgba,
+  subtitleCueFontSizePx,
+  useSubtitleTrack,
+  type SubtitleStyle,
+} from "@evey/client";
 
 interface Props {
   mediaId: string;
@@ -18,51 +15,14 @@ interface Props {
   // bitmap the player cannot draw is burnt in server side instead.
   subtitleIndex: number | null;
   currentTimeSec: number;
+  /** The appearance the viewer chose, as on the Android television. */
+  style?: SubtitleStyle;
 }
 
-// One fetch per (media, track) per app run, like the Android TV overlay.
-const textCache = new Map<string, SubtitleCue[]>();
-const pgsCache = new Map<string, { track: PGSTrack; uris: string[] }>();
-
-function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec }: Props) {
-  const [cues, setCues] = useState<SubtitleCue[]>([]);
-  const [pgs, setPgs] = useState<{ track: PGSTrack; uris: string[] } | null>(null);
-
-  useEffect(() => {
-    if (subtitleIndex === null) {
-      setCues([]);
-      setPgs(null);
-      return;
-    }
-    const key = `${mediaId}:${subtitleIndex}`;
-    const cachedPgs = pgsCache.get(key);
-    if (cachedPgs) { setPgs(cachedPgs); setCues([]); return; }
-    const cachedText = textCache.get(key);
-    if (cachedText) { setCues(cachedText); setPgs(null); return; }
-    setCues([]);
-    setPgs(null);
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await eveyFetchRaw({ url: `/api/v1/media/${encodeURIComponent(mediaId)}/subtitle/${subtitleIndex}`, method: "GET" });
-        const buf = new Uint8Array(await res.arrayBuffer());
-        if (cancelled) return;
-        if (isPGSBlob(buf)) {
-          const track = parsePGSBlob(buf);
-          const entry = { track, uris: track.cues.map(pgsCueDataURI) };
-          pgsCache.set(key, entry);
-          setPgs(entry);
-          return;
-        }
-        const parsed = parseVttCues(new TextDecoder().decode(buf));
-        textCache.set(key, parsed);
-        setCues(parsed);
-      } catch {
-        // No subtitles rather than a broken player.
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [mediaId, subtitleIndex]);
+function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: Props) {
+  // The fetch and the text/bitmap sniff live in @evey/client, shared with the
+  // Android television; only the painting below is the DOM's.
+  const { cues, pgs } = useSubtitleTrack(mediaId, subtitleIndex);
 
   if (pgs) {
     const { track, uris } = pgs;
@@ -89,8 +49,18 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec }: Props) 
 
   const active = findActiveCueIndex(cues, currentTimeSec);
   if (active === -1) return null;
+  const chosen = style ?? DEFAULT_SUBTITLE_STYLE;
   return (
-    <div className="subs-text">
+    <div
+      className="subs-text"
+      style={{
+        color: chosen.color,
+        fontSize: `${subtitleCueFontSizePx(window.innerHeight, chosen.fontSize)}px`,
+        background: subtitleBgRgba(chosen.bgColor, chosen.bgOpacity),
+        textShadow: chosen.shadow ? "0 0.15vw 0.4vw #000" : undefined,
+        ...(chosen.position === "top" ? { top: "8%", bottom: "auto" } : {}),
+      }}
+    >
       {cues[active].text.split("\n").map((line, i) => <span key={i}>{line}</span>)}
     </div>
   );

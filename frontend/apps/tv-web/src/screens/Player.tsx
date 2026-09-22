@@ -19,7 +19,17 @@ import {
   useSleepTimer,
   clampSeekTarget, holdScrubRate, tapSeekStep, SEEK_COMMIT_DELAY_MS, HOLD_SCRUB_TICK_MS,
 } from "@evey/client";
-import { useTvPlaySession, prefersNativeHLS, type ShedReason } from "@evey/client/web";
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  SUBTITLE_BG_COLORS,
+  SUBTITLE_TEXT_COLORS,
+  getSubtitleStylePref,
+  prefersNativeHLS,
+  saveSubtitleStylePref,
+  useTvPlaySession,
+  type ShedReason,
+  type SubtitleStyle,
+} from "@evey/client/web";
 import { SkipSegmentButton } from "../player/SkipSegmentButton";
 import { StreamInfoPanel } from "../player/StreamInfoPanel";
 import { useTvKeys } from "../tv/focus";
@@ -75,6 +85,13 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
   const { data: chapters } = useChapters(mediaId);
   const [osd, setOsd] = useState(true);
   const [streamInfoOpen, setStreamInfoOpen] = useState(false);
+  // The subtitle appearance the viewer chose, kept in this browser as the
+  // phone and the Android television keep theirs.
+  const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(() => getSubtitleStylePref() ?? DEFAULT_SUBTITLE_STYLE);
+  const applySubtitleStyle = useCallback((next: SubtitleStyle) => {
+    setSubtitleStyle(next);
+    saveSubtitleStylePref(next);
+  }, []);
   const [panel, setPanel] = useState(false);
   const [paused, setPaused] = useState(false);
   const [time, setTime] = useState(0);
@@ -493,6 +510,31 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
         onPick: (k) => seekTo(chapters[Number(k)].startTimeMs / 1000),
       });
     }
+    if (clientSubtitle !== null) {
+      out.push({
+        key: "subtitleStyle",
+        label: t("player.settings.subtitleStyle"),
+        value: `${subtitleStyle.fontSize}%`,
+        choices: [
+          ...[75, 100, 125, 150, 200].map((size) => ({ key: `size:${size}`, label: `${size}%`, selected: subtitleStyle.fontSize === size })),
+          ...SUBTITLE_TEXT_COLORS.map((c) => ({ key: `color:${c.value}`, label: t(c.labelKey), selected: subtitleStyle.color === c.value })),
+          ...SUBTITLE_BG_COLORS.map((c) => ({
+            key: `bg:${c.value}:${c.opacity ?? 75}`,
+            label: t(c.labelKey),
+            selected: subtitleStyle.bgColor === c.value && subtitleStyle.bgOpacity === (c.opacity ?? 75),
+          })),
+          { key: "position:bottom", label: t("player.subtitleStyle.bottom"), selected: subtitleStyle.position === "bottom" },
+          { key: "position:top", label: t("player.subtitleStyle.top"), selected: subtitleStyle.position === "top" },
+        ],
+        onPick: (k) => {
+          const [kind, value, extra] = k.split(":");
+          if (kind === "size") applySubtitleStyle({ ...subtitleStyle, fontSize: Number(value) });
+          else if (kind === "color") applySubtitleStyle({ ...subtitleStyle, color: value });
+          else if (kind === "bg") applySubtitleStyle({ ...subtitleStyle, bgColor: value, bgOpacity: Number(extra) });
+          else if (kind === "position") applySubtitleStyle({ ...subtitleStyle, position: value === "top" ? "top" : "bottom" });
+        },
+      });
+    }
     out.push({
       key: "sleep",
       label: t("player.settings.sleepTimer"),
@@ -524,7 +566,7 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
       onPick: () => { setPanel(false); setStreamInfoOpen(true); },
     });
     return out;
-  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, time, t, restartKeepingPlace, seekTo, sleep, sleepChoices]);
+  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, time, t, restartKeepingPlace, seekTo, sleep, sleepChoices, clientSubtitle, subtitleStyle, applySubtitleStyle]);
 
   // --- render ---------------------------------------------------------------
   const shown = preview ?? time;
@@ -551,7 +593,7 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
   return (
     <div className="player">
       <video ref={videoRef} playsInline autoPlay />
-      <SubtitleOverlay mediaId={mediaId} subtitleIndex={clientSubtitle} currentTimeSec={time} />
+      <SubtitleOverlay mediaId={mediaId} subtitleIndex={clientSubtitle} currentTimeSec={time} style={subtitleStyle} />
       {(isLoading && !streamUrl) ? <div className="screen screen-center" style={{ position: "absolute", inset: 0 }}><Spinner /></div> : null}
       {(isError || failed) ? (
         <FocusRoot autoFocus className="screen screen-center" >
