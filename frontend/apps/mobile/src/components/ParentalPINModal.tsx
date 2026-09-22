@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Modal, StyleSheet, AccessibilityInfo } from "react-native";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
+import { verifyParentalPin } from "@evey/client";
 import { markUnlocked } from "../hooks/useParentalGate";
 import { FONT_SIZE } from "@evey/theme";
 
@@ -40,12 +40,11 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
     setLoading(true);
     setError(null);
     try {
-      const result = await eveyFetch<{ valid: boolean }>({
-        url: `/api/v1/profiles/${profileId}/parental/verify-pin`,
-        method: "POST",
-        data: { pin },
-      });
-      if (result.valid) {
+      // The check lives in @evey/client. A request that failed (network, 5xx,
+      // timeout) is NOT a wrong PIN: the browser has always told them apart,
+      // this modal used to blame the viewer for a dead network.
+      const pinToken = await verifyParentalPin({ targetProfileId: profileId, pin });
+      if (pinToken !== null) {
         markUnlocked(profileId);
         onVerified();
       } else {
@@ -54,7 +53,7 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
         inputRef.current?.focus();
       }
     } catch {
-      setError(t("common.parental.pinIncorrect", "Incorrect PIN"));
+      setError(t("common.error", "Something went wrong."));
       setPin("");
       inputRef.current?.focus();
     } finally {

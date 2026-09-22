@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import { verifyParentalPin } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
 import { Button, TextField } from "../components/ui";
 
@@ -9,13 +9,8 @@ const PIN_LENGTH = 4;
 interface Props {
   profileId: string;
   profileName: string;
-  // The profile being left. The server lets a restricted profile be left
-  // on the PIN of the profile being left or on the target's own. The PIN
-  // is checked against the leaving profile FIRST: it is the one known to
-  // hold a PIN, whereas verify-pin on a PIN-less target says "valid" for
-  // any digits and mints a proof the switch then refuses (dev server,
-  // 2026-09-22: 9999 accepted by the target, the modal closed, the switch
-  // failed silently). The target is tried second, for a target with a PIN.
+  // The profile being left; @evey/client's verifyParentalPin says why it is
+  // asked before the target.
   fallbackProfileId?: string;
   // The short-lived server proof verify-pin mints; the caller hands it to
   // the profile switch, which the server otherwise refuses with a 403.
@@ -35,23 +30,17 @@ export function PinPrompt({ profileId, profileName, fallbackProfileId, onVerifie
   const [error, setError] = useState<string | null>(initialError ?? null);
   const [busy, setBusy] = useState(false);
 
-  const verifyAgainst = async (id: string): Promise<{ valid: boolean; pinToken?: string } | null> => {
-    try {
-      return await eveyFetch<{ valid: boolean; pinToken?: string }>({ url: `/api/v1/profiles/${id}/parental/verify-pin`, method: "POST", data: { pin } });
-    } catch {
-      return null;
-    }
-  };
-
   async function submit() {
     if (pin.length < PIN_LENGTH || busy) return;
     setBusy(true);
     setError(null);
     try {
-      let res = fallbackProfileId && fallbackProfileId !== profileId ? await verifyAgainst(fallbackProfileId) : null;
-      if (!res?.valid) res = await verifyAgainst(profileId);
-      if (res?.valid) onVerified(res.pinToken);
+      // The order and the network rule live in @evey/client.
+      const pinToken = await verifyParentalPin({ targetProfileId: profileId, leavingProfileId: fallbackProfileId, pin });
+      if (pinToken !== null) onVerified(pinToken || undefined);
       else setError(t("common.parental.pinIncorrect", "Incorrect PIN"));
+    } catch {
+      setError(t("common.loadError", "Failed to load"));
     } finally {
       setBusy(false);
       setPin("");

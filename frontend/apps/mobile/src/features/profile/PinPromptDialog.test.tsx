@@ -67,14 +67,16 @@ describe("PinPromptDialog", () => {
     expect(verifyMock).toHaveBeenCalledWith("p-kid", { pin: "1234" });
   });
 
-  it("falls through to the gated source profile when the target has no PIN", async () => {
-    verifyMock.mockRejectedValueOnce(Object.assign(new Error("no pin"), { httpStatus: 400 }));
+  // The profile being LEFT is asked first: verify-pin against a profile that
+  // carries no PIN answers "valid" to any digits and mints a proof the switch
+  // then refuses (@evey/client's verifyParentalPin).
+  it("asks the profile being left before the target", async () => {
     verifyMock.mockResolvedValueOnce({ valid: true, pinToken: "proof-parent" });
     const onVerified = vi.fn();
     render(<PinPromptDialog target={target} fallback={parent} onCancel={vi.fn()} onVerified={onVerified} />);
     typeAndConfirm("1234");
     await waitFor(() => expect(onVerified).toHaveBeenCalledWith(target, "proof-parent"));
-    expect(verifyMock).toHaveBeenNthCalledWith(2, "p-parent", { pin: "1234" });
+    expect(verifyMock).toHaveBeenNthCalledWith(1, "p-parent", { pin: "1234" });
   });
 
   it("says Incorrect PIN when both refuse, and clears the entry", async () => {

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { nextQueueIndex, previousQueueIndex, type MusicSource } from "./musicQueue";
 
 export interface MusicTrack {
   ID: string;
@@ -16,14 +17,9 @@ export interface MusicTrack {
   CoverArtURL: string;
 }
 
-// MusicSource records where the current playback was launched from, so the
-// mini-player can link back to it. `id` is the value needed to navigate:
-// the album title (album), the playlist id (playlist), or the artist name.
-export interface MusicSource {
-  type: "album" | "playlist" | "artist";
-  id: string;
-  label: string;
-}
+// Where the playback was launched from, so the mini player can link back to
+// it. One declaration for every client, next to the queue.
+export type { MusicSource } from "./musicQueue";
 
 const SHUFFLE_KEY = "evey-music-shuffle";
 
@@ -82,34 +78,28 @@ export const useMusicPlayerStore = create<MusicPlayerState>()((set, get) => ({
   pauseExternal: () => set({ externallyPaused: true }),
   resumeExternal: () => set({ externallyPaused: false }),
 
+  // next / prev answer to the SAME rules as the two televisions and the
+  // phone (@evey/store's musicQueue): shuffle never repeats the track that is
+  // playing, the head holds on previous, and the end of the queue stops
+  // rather than looping. This store simply keeps a track rather than an index.
   next: () => {
     const { queue, playing, shuffle } = get();
     if (!playing || queue.length === 0) return;
-    if (shuffle) {
-      const others = queue.filter((t) => t.ID !== playing.ID);
-      if (!others.length) return;
-      const rand = others[Math.floor(Math.random() * others.length)];
-      set({ playing: rand, externallyPaused: false });
-      return;
-    }
     const idx = queue.findIndex((t) => t.ID === playing.ID);
-    if (idx >= 0 && idx < queue.length - 1) {
-      set({ playing: queue[idx + 1], externallyPaused: false });
-    }
+    if (idx < 0) return;
+    const target = nextQueueIndex(queue.length, idx, shuffle);
+    if (target === "stop" || target === idx) return;
+    set({ playing: queue[target], externallyPaused: false });
   },
 
   prev: () => {
     const { queue, playing, shuffle } = get();
     if (!playing || queue.length === 0) return;
-    if (shuffle) {
-      const others = queue.filter((t) => t.ID !== playing.ID);
-      if (!others.length) return;
-      const rand = others[Math.floor(Math.random() * others.length)];
-      set({ playing: rand, externallyPaused: false });
-      return;
-    }
     const idx = queue.findIndex((t) => t.ID === playing.ID);
-    if (idx > 0) set({ playing: queue[idx - 1], externallyPaused: false });
+    if (idx < 0) return;
+    const target = previousQueueIndex(queue.length, idx, shuffle);
+    if (target === idx) return;
+    set({ playing: queue[target], externallyPaused: false });
   },
 
   close: () => set({ playing: null, queue: [], externallyPaused: false, source: null }),

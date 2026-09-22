@@ -31,9 +31,9 @@ export function ParentalPINDialog({ open, onClose, onVerified, profileId }: Pare
     setLoading(true);
     setError(null);
     try {
-      const { parentalServiceVerifyPin } = await import("@evey/api");
-      const result = await parentalServiceVerifyPin(profileId, { pin });
-      if (result.valid) {
+      const { verifyParentalPin } = await import("@evey/client");
+      const pinToken = await verifyParentalPin({ targetProfileId: profileId, pin });
+      if (pinToken !== null) {
         onVerified();
       } else {
         setError(t("common.parental.pinIncorrect"));
