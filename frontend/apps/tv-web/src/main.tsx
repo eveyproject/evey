@@ -18,6 +18,20 @@ import { PlayerScreen } from "./screens/Player";
 import { SettingsScreen } from "./screens/Settings";
 import { SearchScreen } from "./screens/Search";
 import { MusicScreen, AlbumScreen } from "./screens/Music";
+import {
+  CollectionScreen,
+  CollectionsScreen,
+  FavoritesScreen,
+  GenreScreen,
+  GenresScreen,
+  HistoryScreen,
+  LibrariesScreen,
+  NotificationsScreen,
+  PersonScreen,
+  PlaylistScreen,
+  PlaylistsScreen,
+} from "./screens/Browse";
+import { NavBar } from "./components/NavBar";
 import { MusicBar } from "./music/MusicBar";
 import { applyThemeVars, useAppliedTheme } from "./lib/theme";
 import "./styles.css";
@@ -112,11 +126,16 @@ function App() {
         : route;
 
   const screen = renderScreen(effective);
+  const signedIn = !!accessToken && !!profileId;
+  // The player owns the whole surface; every other signed-in screen carries
+  // the navigation, the way the television keeps its sidebar.
+  const withNav = signedIn && effective.name !== "player" && effective.name !== "profiles";
   return (
     <>
-      {accessToken && profileId ? <ThemeFollower /> : null}
+      {signedIn ? <ThemeFollower /> : null}
+      {withNav ? <NavBar current={effective.name} /> : null}
       {screen}
-      {accessToken && profileId && effective.name !== "player" ? <MusicBar /> : null}
+      {signedIn && effective.name !== "player" ? <MusicBar /> : null}
     </>
   );
 }
@@ -147,6 +166,28 @@ function renderScreen(effective: Route) {
       return <AlbumScreen albumId={effective.albumId} libraryId={effective.libraryId} />;
     case "artist":
       return <AlbumScreen artistId={effective.artistId} libraryId={effective.libraryId} />;
+    case "libraries":
+      return <LibrariesScreen />;
+    case "collections":
+      return <CollectionsScreen />;
+    case "collection":
+      return <CollectionScreen collectionId={effective.collectionId} />;
+    case "playlists":
+      return <PlaylistsScreen />;
+    case "playlist":
+      return <PlaylistScreen playlistId={effective.playlistId} />;
+    case "genres":
+      return <GenresScreen />;
+    case "genre":
+      return <GenreScreen genre={effective.genre} />;
+    case "favorites":
+      return <FavoritesScreen />;
+    case "history":
+      return <HistoryScreen />;
+    case "notifications":
+      return <NotificationsScreen />;
+    case "person":
+      return <PersonScreen personId={effective.personId} />;
     default:
       return <HomeScreen />;
   }

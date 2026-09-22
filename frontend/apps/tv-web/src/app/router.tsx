@@ -16,7 +16,26 @@ export type Route =
   | { name: "search"; query?: string }
   | { name: "music"; libraryId?: string }
   | { name: "album"; albumId: string; libraryId?: string }
-  | { name: "artist"; artistId: string; libraryId?: string };
+  | { name: "artist"; artistId: string; libraryId?: string }
+  | { name: "libraries" }
+  | { name: "collections" }
+  | { name: "collection"; collectionId: string }
+  | { name: "playlists" }
+  | { name: "playlist"; playlistId: string }
+  | { name: "genres" }
+  | { name: "genre"; genre: string }
+  | { name: "favorites" }
+  | { name: "history" }
+  | { name: "notifications" }
+  | { name: "person"; personId: string }
+  | { name: "photos"; libraryId?: string; albumId?: string }
+  | { name: "slideshow"; libraryId?: string; albumId?: string; index?: number }
+  | { name: "requests" }
+  | { name: "syncplay" }
+  | { name: "servers" }
+  | { name: "stats" }
+  | { name: "playback" }
+  | { name: "plugin-settings"; pluginId: string };
 
 export function routeToHash(route: Route): string {
   switch (route.name) {
@@ -32,6 +51,25 @@ export function routeToHash(route: Route): string {
       return `#/artist/${encodeURIComponent(route.artistId)}${route.libraryId ? `?lib=${encodeURIComponent(route.libraryId)}` : ""}`;
     case "media":
       return `#/media/${encodeURIComponent(route.mediaId)}`;
+    case "collection":
+      return `#/collection/${encodeURIComponent(route.collectionId)}`;
+    case "playlist":
+      return `#/playlist/${encodeURIComponent(route.playlistId)}`;
+    case "genre":
+      return `#/genre/${encodeURIComponent(route.genre)}`;
+    case "person":
+      return `#/person/${encodeURIComponent(route.personId)}`;
+    case "plugin-settings":
+      return `#/plugin-settings/${encodeURIComponent(route.pluginId)}`;
+    case "photos":
+    case "slideshow": {
+      const q = new URLSearchParams();
+      if (route.libraryId) q.set("lib", route.libraryId);
+      if (route.albumId) q.set("album", route.albumId);
+      if (route.name === "slideshow" && route.index != null) q.set("i", String(route.index));
+      const s = q.toString();
+      return `#/${route.name}${s ? `?${s}` : ""}`;
+    }
     case "player":
       return `#/player/${encodeURIComponent(route.mediaId)}${route.restart ? "?restart=1" : ""}`;
     default:
@@ -68,6 +106,44 @@ export function parseHash(hash: string): Route {
       return parts[1] ? { name: "media", mediaId: parts[1] } : { name: "home" };
     case "player":
       return parts[1] ? { name: "player", mediaId: parts[1], restart: params.get("restart") === "1" } : { name: "home" };
+    case "libraries":
+      return { name: "libraries" };
+    case "collections":
+      return { name: "collections" };
+    case "collection":
+      return parts[1] ? { name: "collection", collectionId: parts[1] } : { name: "collections" };
+    case "playlists":
+      return { name: "playlists" };
+    case "playlist":
+      return parts[1] ? { name: "playlist", playlistId: parts[1] } : { name: "playlists" };
+    case "genres":
+      return { name: "genres" };
+    case "genre":
+      return parts[1] ? { name: "genre", genre: parts[1] } : { name: "genres" };
+    case "favorites":
+      return { name: "favorites" };
+    case "history":
+      return { name: "history" };
+    case "notifications":
+      return { name: "notifications" };
+    case "person":
+      return parts[1] ? { name: "person", personId: parts[1] } : { name: "home" };
+    case "photos":
+      return { name: "photos", libraryId: params.get("lib") ?? undefined, albumId: params.get("album") ?? undefined };
+    case "slideshow":
+      return { name: "slideshow", libraryId: params.get("lib") ?? undefined, albumId: params.get("album") ?? undefined, index: params.get("i") ? Number(params.get("i")) : undefined };
+    case "requests":
+      return { name: "requests" };
+    case "syncplay":
+      return { name: "syncplay" };
+    case "servers":
+      return { name: "servers" };
+    case "stats":
+      return { name: "stats" };
+    case "playback":
+      return { name: "playback" };
+    case "plugin-settings":
+      return parts[1] ? { name: "plugin-settings", pluginId: parts[1] } : { name: "settings" };
     default:
       return { name: "home" };
   }

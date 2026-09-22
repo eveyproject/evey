@@ -37,6 +37,14 @@ export * from "./lib/serverIdentity";
 export * from "./lib/artwork";
 export * from "./lib/pluginTheme";
 export * from "./lib/trickplayCues";
+export * from "./lib/homeLibraryRows";
+export * from "./lib/homeSections";
+export * from "./lib/feedCustomize";
+export * from "./lib/heroTitle";
+export * from "./lib/homeShortcut";
+export * from "./lib/genres";
+export * from "./lib/librarySelection";
+export * from "./lib/progressPercent";
 
 export * from "./plugins/slotEntries";
 export * from "./plugins/hostProtocol";

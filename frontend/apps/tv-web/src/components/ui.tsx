@@ -9,11 +9,21 @@ interface ButtonProps {
   focusKey?: string;
   autoFocus?: boolean;
   disabled?: boolean;
+  /** The remote landed here: a paged list fetches its next page from this. */
+  onFocus?: () => void;
 }
 
 /** A remote-driven button: focus is its hover, "select" its click. */
-export function Button({ children, onPress, variant = "default", focusKey, autoFocus, disabled }: ButtonProps) {
-  const { ref, focused, focusSelf } = useFocusable({ focusKey, onEnterPress: () => { if (!disabled) onPress(); }, focusable: !disabled });
+export function Button({ children, onPress, variant = "default", focusKey, autoFocus, disabled, onFocus }: ButtonProps) {
+  const { ref, focused, focusSelf } = useFocusable({
+    focusKey,
+    onEnterPress: () => { if (!disabled) onPress(); },
+    focusable: !disabled,
+    onFocus: (layout) => {
+      layout.node.scrollIntoView({ block: "nearest", inline: "nearest" });
+      onFocus?.();
+    },
+  });
   useEffect(() => {
     if (autoFocus) focusSelf();
   }, [autoFocus, focusSelf]);
