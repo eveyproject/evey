@@ -110,6 +110,30 @@ describe("tv login screen", () => {
     expect(api.mutate).toHaveBeenCalledWith({ data: { username: "bob", password: "pw" } });
   });
 
+  // Production, 2026-09-22: every attempt of one account arrived TWICE within
+  // the same second (two request ids), because the password field's submit
+  // and the Sign in button both fire on the same OK press. The server locks
+  // an account after five failures in fifteen minutes, so a viewer typing on
+  // a remote-control keyboard was locked out after barely two tries.
+  it("sends one request per press, even when the field and the button both fire", () => {
+    render(<Login />);
+    fireEvent.change(screen.getByLabelText("auth.login.username"), { target: { value: "bob" } });
+    fireEvent.change(screen.getByLabelText("auth.login.password"), { target: { value: "pw" } });
+    fireEvent.keyDown(screen.getByLabelText("auth.login.password"), { key: "Enter" });
+    fireEvent.click(signIn());
+    expect(api.mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the viewer try again once the server has answered", () => {
+    render(<Login />);
+    fireEvent.change(screen.getByLabelText("auth.login.username"), { target: { value: "bob" } });
+    fireEvent.change(screen.getByLabelText("auth.login.password"), { target: { value: "pw" } });
+    fireEvent.keyDown(screen.getByLabelText("auth.login.password"), { key: "Enter" });
+    api.opts.onSettled?.();
+    fireEvent.click(signIn());
+    expect(api.mutate).toHaveBeenCalledTimes(2);
+  });
+
   it("stores the refresh token before the access token, then goes to the profile picker; a refusal is named", async () => {
     render(<Login />);
     await api.opts.onSuccess({ accessToken: "acc", refreshToken: "ref" });

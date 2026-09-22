@@ -90,6 +90,16 @@ func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshToken
 			span.SetStatus(otelcodes.Error, "pin required")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.pin_required")
 		}
+		// A refused refresh is what sends a viewer back to a login screen, and
+		// the refusal itself can never name them: a refresh token carries no
+		// subject, and a token the store does not know has no row to read one
+		// from. The device does say who it is. Without this, "my television
+		// asks for my password again" is unanswerable from the logs - which is
+		// exactly what happened on 2026-09-22.
+		slog.WarnContext(ctx, "refresh refused",
+			slog.String("device", interceptors.UserAgentFromCtx(ctx)),
+			slog.String("clientIP", interceptors.ClientIPFromCtx(ctx)),
+			slog.Bool("profileSwitch", req.ProfileId != ""))
 		span.SetStatus(otelcodes.Error, "invalid credentials")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}
