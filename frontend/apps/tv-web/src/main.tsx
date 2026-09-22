@@ -31,6 +31,7 @@ import {
   PlaylistScreen,
   PlaylistsScreen,
 } from "./screens/Browse";
+import { PlaybackSettingsScreen, ServersScreen, StatsScreen } from "./screens/SettingsScreens";
 import { NavBar } from "./components/NavBar";
 import { MusicBar } from "./music/MusicBar";
 import { applyThemeVars, useAppliedTheme } from "./lib/theme";
@@ -188,6 +189,12 @@ function renderScreen(effective: Route) {
       return <NotificationsScreen />;
     case "person":
       return <PersonScreen personId={effective.personId} />;
+    case "playback":
+      return <PlaybackSettingsScreen />;
+    case "stats":
+      return <StatsScreen />;
+    case "servers":
+      return <ServersScreen />;
     default:
       return <HomeScreen />;
   }

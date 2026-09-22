@@ -45,6 +45,7 @@ export * from "./lib/homeShortcut";
 export * from "./lib/genres";
 export * from "./lib/librarySelection";
 export * from "./lib/progressPercent";
+export * from "./lib/playbackPrefs";
 
 export * from "./plugins/slotEntries";
 export * from "./plugins/hostProtocol";
