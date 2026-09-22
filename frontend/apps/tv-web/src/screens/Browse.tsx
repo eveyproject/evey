@@ -62,6 +62,7 @@ export function LibrariesScreen() {
         <Button onPress={() => navigate({ name: "genres" })}>{t("common.nav.genres")}</Button>
         <Button onPress={() => navigate({ name: "favorites" })}>{t("media.favorites.title")}</Button>
         <Button onPress={() => navigate({ name: "history" })}>{t("common.watchHistory.title")}</Button>
+        <Button onPress={() => navigate({ name: "photos" })}>{t("media.photos.title")}</Button>
       </FocusRoot>
       <FocusRoot>
         <div className="grid">
