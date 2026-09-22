@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import Hls from "hls.js";
 import {
   formatAudioTrackLabel,
   formatTime,
@@ -33,6 +32,7 @@ import {
 } from "@evey/client/web";
 import { SkipSegmentButton } from "../player/SkipSegmentButton";
 import { StreamInfoPanel } from "../player/StreamInfoPanel";
+import type Hls from "hls.js";
 import { useTvKeys } from "../tv/focus";
 import { Spinner, Button } from "../components/ui";
 import { FocusRoot } from "../tv/focus";
@@ -97,6 +97,10 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
   const [panel, setPanel] = useState(false);
   const [paused, setPaused] = useState(false);
   const [time, setTime] = useState(0);
+  const committedTimeRef = useRef(0);
+  // Whether anything on screen follows the clock right now: the bar, a
+  // subtitle being drawn, the seek preview, or a pause.
+  const needsFineTimeRef = useRef(true);
   const [duration, setDuration] = useState(0);
   const [failed, setFailed] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -207,7 +211,11 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
       void video.play().catch(() => setPaused(true));
     };
 
-    if (streamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY" || prefersNativeHLS() || !Hls.isSupported()) {
+    // hls.js is half a megabyte of JavaScript a television has to parse. It
+    // is only ever needed once a stream is actually being attached, so it is
+    // fetched here rather than with the application: the home, the library
+    // and every other screen never pay for it.
+    if (streamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY" || prefersNativeHLS()) {
       video.src = streamUrl;
       video.addEventListener("loadedmetadata", seekToStart, { once: true });
       return () => {
@@ -217,37 +225,50 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
       };
     }
 
-    const hls = new Hls({
-      // The sliding stream token is re-read on every segment request so a
-      // long film never outlives the token the manifest was opened with.
-      xhrSetup: (xhr) => {
-        const tok = useAuthStore.getState().accessToken;
-        if (tok) xhr.setRequestHeader("Authorization", `Bearer ${tok}`);
-      },
-      maxBufferLength: 30,
-      backBufferLength: 30,
-    });
-    hlsRef.current = hls;
-    hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
-      console.info("[player] manifest parsed", data.levels.map((l) => `${l.width}x${l.height}@${l.bitrate}`).join(" "), "audio tracks", data.audioTracks.length);
-      seekToStart();
-    });
-    hls.on(Hls.Events.ERROR, (_e, data) => {
-      // Every error, fatal or not, in the console: a television has no
-      // devtools and this is what a bug report can carry.
-      console.warn("[player] hls", data.type, data.details, data.fatal ? "fatal" : "", data.response?.code ?? "", data.reason ?? "");
-      if (!data.fatal) return;
-      // A 410 is the server saying the master expired (a sealed fingerprint):
-      // negotiate again where we are rather than hammering the dead url.
-      if (data.response?.code === 410) { restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality); return; }
-      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
-      else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-      else setFailed(true);
-    });
-    hls.loadSource(streamUrl);
-    hls.attachMedia(video);
+    let torn = false;
+    void (async () => {
+      const { default: Hls } = await import("hls.js");
+      if (torn || !videoRef.current) return;
+      if (!Hls.isSupported()) {
+        video.src = streamUrl;
+        video.addEventListener("loadedmetadata", seekToStart, { once: true });
+        return;
+      }
+      const hls = new Hls({
+        // The sliding stream token is re-read on every segment request so a
+        // long film never outlives the token the manifest was opened with.
+        xhrSetup: (xhr) => {
+          const tok = useAuthStore.getState().accessToken;
+          if (tok) xhr.setRequestHeader("Authorization", `Bearer ${tok}`);
+        },
+        maxBufferLength: 30,
+        backBufferLength: 30,
+      });
+      hlsRef.current = hls;
+      hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
+        console.info("[player] manifest parsed", data.levels.map((l) => `${l.width}x${l.height}@${l.bitrate}`).join(" "), "audio tracks", data.audioTracks.length);
+        seekToStart();
+      });
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        // Every error, fatal or not, in the console: a television has no
+        // devtools and this is what a bug report can carry.
+        console.warn("[player] hls", data.type, data.details, data.fatal ? "fatal" : "", data.response?.code ?? "", data.reason ?? "");
+        if (!data.fatal) return;
+        // A 410 is the server saying the master expired (a sealed
+        // fingerprint): negotiate again where we are rather than hammering
+        // the dead url.
+        if (data.response?.code === 410) { restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality); return; }
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+        else setFailed(true);
+      });
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+    })();
     return () => {
-      hls.destroy();
+      torn = true;
+      video.removeEventListener("loadedmetadata", seekToStart);
+      hlsRef.current?.destroy();
       hlsRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the stream loads once per url; tracks/quality restart through the session
@@ -256,7 +277,19 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    const onTime = () => setTime(video.currentTime);
+    // The clock ticks four or five times a second. While the bar is hidden
+    // and nothing is being drawn over the picture, nobody is reading it: a
+    // whole re-render of the player for each tick is work a weak television
+    // pays for every second of a film. Committed finely only when something
+    // on screen follows the time, once a second otherwise.
+    const onTime = () => {
+      const t = video.currentTime;
+      const followsTime = needsFineTimeRef.current;
+      if (followsTime || Math.abs(t - committedTimeRef.current) >= 1) {
+        committedTimeRef.current = t;
+        setTime(t);
+      }
+    };
     const onDur = () => setDuration(Number.isFinite(video.duration) ? video.duration : 0);
     const onPlay = () => setPaused(false);
     const onPause = () => setPaused(true);
@@ -495,7 +528,11 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
       },
     });
     if (chapters && chapters.length > 0) {
-      const currentIdx = chapters.findIndex((c, i) => time * 1000 >= c.startTimeMs && (i === chapters.length - 1 || time * 1000 < chapters[i + 1].startTimeMs));
+      // The current chapter is only read while the panel is open, and this
+      // whole list used to be rebuilt on every clock tick for it.
+      const currentIdx = panel
+        ? chapters.findIndex((c, i) => time * 1000 >= c.startTimeMs && (i === chapters.length - 1 || time * 1000 < chapters[i + 1].startTimeMs))
+        : -1;
       out.push({
         key: "chapters",
         label: t("player.controls.chapters", "Chapters"),
@@ -571,13 +608,18 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
       onPick: () => { setPanel(false); setStreamInfoOpen(true); },
     });
     return out;
-  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, time, t, restartKeepingPlace, seekTo, sleep, sleepChoices, clientSubtitle, subtitleStyle, applySubtitleStyle, volume]);
+  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, panel, time, t, restartKeepingPlace, seekTo, sleep, sleepChoices, clientSubtitle, subtitleStyle, applySubtitleStyle, volume]);
 
   // --- render ---------------------------------------------------------------
   const shown = preview ?? time;
+  needsFineTimeRef.current = osd || paused || panel || preview !== null || clientSubtitle !== null;
   const pct = duration > 0 ? Math.min(100, (shown / duration) * 100) : 0;
   const barVisible = osd || paused || panel;
-  const endsAt = duration > 0 ? new Date(Date.now() + ((duration - shown) * 1000) / (speed || 1)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
+  // Only while the bar is up: formatting a local time is not free, and it is
+  // written nowhere else.
+  const endsAt = barVisible && duration > 0
+    ? new Date(Date.now() + ((duration - shown) * 1000) / (speed || 1)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : null;
 
   if (shedReason) {
     const keys = SHED_KEYS[shedReason];

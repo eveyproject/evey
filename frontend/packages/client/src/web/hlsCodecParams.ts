@@ -1,4 +1,3 @@
-import Hls from "hls.js";
 import { getBrowserCapabilities } from "./codec";
 import { getMaxOutputChannels } from "./outputChannels";
 
@@ -27,6 +26,27 @@ export function computeNativeHLSPreference(
   return safari || ios || !mseSupported;
 }
 
+/**
+ * Whether this browser could play HLS through hls.js (Media Source
+ * Extensions), which is the one question `Hls.isSupported()` answers: a
+ * MediaSource implementation, and a baseline H.264 + AAC fMP4 it can take.
+ *
+ * Asked HERE rather than by importing hls.js, because that import dragged
+ * half a megabyte of JavaScript into the first page of every client - a
+ * television parses it before it can show a home it may never play from. The
+ * player still loads the real library, at the moment it attaches a stream.
+ */
+export function mseHlsSupported(): boolean {
+  const mediaSource = (globalThis as { MediaSource?: { isTypeSupported?: (t: string) => boolean } }).MediaSource
+    ?? (globalThis as { ManagedMediaSource?: { isTypeSupported?: (t: string) => boolean } }).ManagedMediaSource;
+  if (!mediaSource?.isTypeSupported) return false;
+  try {
+    return mediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E,mp4a.40.2"');
+  } catch {
+    return false;
+  }
+}
+
 // prefersNativeHLS reports whether this browser should play HLS through the
 // <video> element's native engine instead of hls.js/MSE. Memoised: it reads a
 // static capability (canPlayType) + UA.
@@ -41,7 +61,7 @@ export function prefersNativeHLS(): boolean {
     navigator.userAgent,
     navigator.platform,
     navigator.maxTouchPoints,
-    Hls.isSupported(),
+    mseHlsSupported(),
   );
   return _prefersNativeHLS;
 }
