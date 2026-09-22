@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
-const { announceMock, eveyFetchMock } = vi.hoisted(() => ({
+const { announceMock, verifyPinMock } = vi.hoisted(() => ({
   announceMock: vi.fn(),
-  eveyFetchMock: vi.fn(),
+  verifyPinMock: vi.fn(),
 }));
 
 vi.mock("react-native", () => ({
@@ -26,7 +26,7 @@ vi.mock("react-native", () => ({
   AccessibilityInfo: { announceForAccessibility: announceMock },
 }));
 
-vi.mock("@evey/api", () => ({ eveyFetch: (...a: unknown[]) => eveyFetchMock(...a) }));
+vi.mock("@evey/client", () => ({ verifyParentalPin: (...a: unknown[]) => verifyPinMock(...a) }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key) }),
 }));
@@ -44,11 +44,11 @@ import { ParentalPINModal } from "./ParentalPINModal";
 describe("ParentalPINModal accessibility", () => {
   beforeEach(() => {
     announceMock.mockClear();
-    eveyFetchMock.mockReset();
+    verifyPinMock.mockReset();
   });
 
   it("announces an incorrect PIN to the screen reader", async () => {
-    eveyFetchMock.mockResolvedValue({ valid: false });
+    verifyPinMock.mockResolvedValue(null);
     render(<ParentalPINModal visible onClose={() => {}} onVerified={() => {}} profileId="p1" />);
 
     fireEvent.change(screen.getByLabelText("Parental PIN"), { target: { value: "1234" } });
@@ -58,7 +58,7 @@ describe("ParentalPINModal accessibility", () => {
   });
 
   it("does not announce anything on a correct PIN", async () => {
-    eveyFetchMock.mockResolvedValue({ valid: true });
+    verifyPinMock.mockResolvedValue("");
     const onVerified = vi.fn();
     render(<ParentalPINModal visible onClose={() => {}} onVerified={onVerified} profileId="p1" />);
 
@@ -73,15 +73,17 @@ describe("ParentalPINModal accessibility", () => {
   // only thing standing between "the server did not answer" and "come in". A
   // regression that called onVerified() from that catch - opening restricted
   // content whenever the network hiccups - passed every test until this one.
-  it("stays closed when the verify request fails outright", async () => {
-    eveyFetchMock.mockRejectedValue(new Error("network down"));
+  // A dead network is not a wrong PIN: the browser has always said so, this
+  // modal used to announce "Incorrect PIN" for it.
+  it("says the request failed when the server did not answer", async () => {
+    verifyPinMock.mockImplementation(() => Promise.reject(new Error("network down")));
     const onVerified = vi.fn();
     render(<ParentalPINModal visible onClose={() => {}} onVerified={onVerified} profileId="p1" />);
 
     fireEvent.change(screen.getByLabelText("Parental PIN"), { target: { value: "1234" } });
     fireEvent.click(screen.getByText("Verify"));
 
-    await waitFor(() => expect(announceMock).toHaveBeenCalledWith("Incorrect PIN"));
+    await waitFor(() => expect(announceMock).toHaveBeenCalledWith("Something went wrong."));
     expect(onVerified).not.toHaveBeenCalled();
     // And the field is cleared, so the failed attempt cannot be re-submitted
     // by a stray second tap.

@@ -32,12 +32,12 @@ vi.mock("../hooks/useParentalGate", () => ({
   markUnlocked: (...args: unknown[]) => markUnlockedMock(...args),
 }));
 
-const eveyFetchMock = vi.fn();
+const verifyPinMock = vi.fn();
 vi.mock("@evey/api", () => ({
-  eveyFetch: (...args: unknown[]) => eveyFetchMock(...args),
+  parentalServiceVerifyPin: (...args: unknown[]) => verifyPinMock(...args),
 }));
 
-import { ParentalPINModal, shouldTryFallback } from "./ParentalPINModal";
+import { ParentalPINModal } from "./ParentalPINModal";
 
 function enterPin(getByLabelText: (l: string) => HTMLElement, digits: string) {
   for (const d of digits) {
@@ -45,46 +45,31 @@ function enterPin(getByLabelText: (l: string) => HTMLElement, digits: string) {
   }
 }
 
-describe("shouldTryFallback", () => {
-  it("is false when no fallback profile is configured", () => {
-    expect(shouldTryFallback("prof-target", undefined)).toBe(false);
-  });
-  it("is false when the fallback IS the profile that was just tried", () => {
-    expect(shouldTryFallback("prof-target", "prof-target")).toBe(false);
-  });
-  it("is true when a distinct fallback profile is configured", () => {
-    expect(shouldTryFallback("prof-target", "prof-source")).toBe(true);
-  });
-});
-
 describe("ParentalPINModal - server pin proof threading", () => {
   beforeEach(() => {
-    eveyFetchMock.mockReset();
+    verifyPinMock.mockReset();
     markUnlockedMock.mockReset();
     announceForAccessibilityMock.mockReset();
   });
 
   it("forwards the server pinToken to onVerified on a direct match", async () => {
-    eveyFetchMock.mockResolvedValueOnce({ valid: true, pinToken: "proof-abc" });
+    verifyPinMock.mockResolvedValueOnce({ valid: true, pinToken: "proof-abc" });
     const onVerified = vi.fn();
     const { getByLabelText } = render(
       <ParentalPINModal visible onClose={vi.fn()} onVerified={onVerified} profileId="prof-target" />,
     );
     enterPin(getByLabelText, "1234");
     await waitFor(() => expect(onVerified).toHaveBeenCalledWith("proof-abc"));
-    expect(eveyFetchMock).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/profiles/prof-target/parental/verify-pin" }),
-    );
+    expect(verifyPinMock).toHaveBeenCalledWith("prof-target", { pin: "1234" });
     expect(markUnlockedMock).toHaveBeenCalledWith("prof-target");
   });
 
-  it("falls through to the fallback profile's PIN when the target carries none", async () => {
-    // Target (e.g. an adult profile) has no PIN configured server-side and
-    // rejects; the currently active kids profile is tried next since it is
-    // the one that actually holds the PIN.
-    eveyFetchMock
-      .mockResolvedValueOnce({ valid: false })
-      .mockResolvedValueOnce({ valid: true, pinToken: "proof-from-fallback" });
+  it("asks the profile being left first, then the target", async () => {
+    // The profile being left is the one the server refused to leave, so it is
+    // the one known to hold a PIN: a PIN-less target answers "valid" to any
+    // digits and mints a proof the switch then refuses (@evey/client's
+    // verifyParentalPin).
+    verifyPinMock.mockResolvedValueOnce({ valid: true, pinToken: "proof-from-fallback" });
     const onVerified = vi.fn();
     const { getByLabelText } = render(
       <ParentalPINModal
@@ -97,18 +82,11 @@ describe("ParentalPINModal - server pin proof threading", () => {
     );
     enterPin(getByLabelText, "1234");
     await waitFor(() => expect(onVerified).toHaveBeenCalledWith("proof-from-fallback"));
-    expect(eveyFetchMock).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ url: "/api/v1/profiles/prof-target/parental/verify-pin" }),
-    );
-    expect(eveyFetchMock).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ url: "/api/v1/profiles/prof-source/parental/verify-pin" }),
-    );
+    expect(verifyPinMock).toHaveBeenNthCalledWith(1, "prof-source", { pin: "1234" });
   });
 
   it("never calls onVerified when both the target and the fallback reject", async () => {
-    eveyFetchMock.mockResolvedValueOnce({ valid: false }).mockResolvedValueOnce({ valid: false });
+    verifyPinMock.mockResolvedValue({ valid: false });
     const onVerified = vi.fn();
     const { getByLabelText, findByText } = render(
       <ParentalPINModal
@@ -127,13 +105,13 @@ describe("ParentalPINModal - server pin proof threading", () => {
 
 describe("ParentalPINModal - non-visual feedback", () => {
   beforeEach(() => {
-    eveyFetchMock.mockReset();
+    verifyPinMock.mockReset();
     markUnlockedMock.mockReset();
     announceForAccessibilityMock.mockReset();
   });
 
   it("announces digit progress, never the digit itself", async () => {
-    eveyFetchMock.mockResolvedValueOnce({ valid: true, pinToken: "proof-abc" });
+    verifyPinMock.mockResolvedValueOnce({ valid: true, pinToken: "proof-abc" });
     const { getByLabelText } = render(
       <ParentalPINModal visible onClose={vi.fn()} onVerified={vi.fn()} profileId="prof-target" />,
     );
@@ -151,7 +129,7 @@ describe("ParentalPINModal - non-visual feedback", () => {
   });
 
   it("announces an incorrect PIN", async () => {
-    eveyFetchMock.mockResolvedValueOnce({ valid: false });
+    verifyPinMock.mockResolvedValue({ valid: false });
     const { getByLabelText, findByText } = render(
       <ParentalPINModal visible onClose={vi.fn()} onVerified={vi.fn()} profileId="prof-target" />,
     );

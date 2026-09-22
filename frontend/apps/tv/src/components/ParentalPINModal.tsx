@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { View, Text, Modal, ActivityIndicator, StyleSheet, AccessibilityInfo } from "react-native";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
+import { verifyParentalPin } from "@evey/client";
 import { markUnlocked } from "../hooks/useParentalGate";
 import { FocusableCard } from "./FocusableCard";
 import { FONT_SIZE } from "@evey/theme";
@@ -21,11 +21,6 @@ interface ParentalPINModalProps {
   // The client cannot know which profile actually holds the PIN, so the
   // same digits are tried against both - mirrors web/mobile PinPromptDialog.
   fallbackProfileId?: string;
-}
-
-interface VerifyPinResponse {
-  valid: boolean;
-  pinToken?: string;
 }
 
 // Exported for unit testing: a failed check against the primary profile is
@@ -75,34 +70,28 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId, fall
     if (error) AccessibilityInfo.announceForAccessibility(error);
   }, [error]);
 
-  async function verifyAgainst(targetProfileId: string, candidate: string): Promise<VerifyPinResponse | null> {
-    try {
-      return await eveyFetch<VerifyPinResponse>({
-        url: `/api/v1/profiles/${targetProfileId}/parental/verify-pin`,
-        method: "POST",
-        data: { pin: candidate },
-      });
-    } catch {
-      return null;
-    }
-  }
-
   async function handleSubmit(candidate: string) {
     if (candidate.length < PIN_LENGTH || loading) return;
     setLoading(true);
     setError(null);
     try {
-      let result = await verifyAgainst(profileId, candidate);
-      if (!result?.valid && shouldTryFallback(profileId, fallbackProfileId)) {
-        result = await verifyAgainst(fallbackProfileId as string, candidate);
-      }
-      if (result?.valid) {
+      // The order and the network rule live in @evey/client: the profile
+      // being left is asked first, and a dead network is not a wrong PIN.
+      const pinToken = await verifyParentalPin({
+        targetProfileId: profileId,
+        leavingProfileId: fallbackProfileId,
+        pin: candidate,
+      });
+      if (pinToken !== null) {
         markUnlocked(profileId);
-        onVerified(result.pinToken);
+        onVerified(pinToken || undefined);
       } else {
         setError(t("common.parental.pinIncorrect", "Incorrect PIN"));
         setPin("");
       }
+    } catch {
+      setError(t("common.loadError", "Failed to load"));
+      setPin("");
     } finally {
       setLoading(false);
     }

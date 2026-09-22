@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { parentalServiceVerifyPin, apiErrorMessage } from "@evey/api";
+import { apiErrorMessage } from "@evey/api";
+import { verifyParentalPin } from "@evey/client";
 import type { V1Profile } from "@evey/api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -22,25 +23,6 @@ interface Props {
   onVerified: (target: V1Profile, pinToken?: string) => void | Promise<void>;
 }
 
-// tryVerify returns the pinToken ("" when the server marked valid without
-// minting one - legacy contract), null when this profile rejected the PIN or
-// carries none (fall through to the fallback profile), and RETHROWS a real
-// network failure (no httpStatus) so the dialog surfaces it instead of a
-// misleading "Incorrect PIN".
-async function tryVerify(profileId: string | undefined, pin: string): Promise<string | null> {
-  if (!profileId) return null;
-  try {
-    const resp = await parentalServiceVerifyPin(profileId, { pin });
-    if (!resp.valid) return null;
-    return resp.pinToken ?? "";
-  } catch (err) {
-    if ((err as { httpStatus?: number }).httpStatus !== undefined) {
-      return null; // server said no (no PIN on this profile, bad request) - fall through
-    }
-    throw err;
-  }
-}
-
 export function PinPromptDialog({ target, fallback, onCancel, onVerified }: Props) {
   const { t } = useTranslation();
   const [pin, setPin] = useState("");
@@ -56,10 +38,10 @@ export function PinPromptDialog({ target, fallback, onCancel, onVerified }: Prop
     }
     setSubmitting(true);
     try {
-      let pinToken = await tryVerify(target.id, pin);
-      if (pinToken === null && fallback?.id && fallback.id !== target.id) {
-        pinToken = await tryVerify(fallback.id, pin);
-      }
+      // The order and the network rule live in @evey/client: the profile
+      // being LEFT is asked first, because verify-pin against a profile that
+      // carries no PIN answers "valid" to any digits.
+      const pinToken = await verifyParentalPin({ targetProfileId: target.id, leavingProfileId: fallback?.id, pin });
       if (pinToken === null) {
         setError(t("auth.profile.select.pinWrong", "Incorrect PIN"));
         return;
