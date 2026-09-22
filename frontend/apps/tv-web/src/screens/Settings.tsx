@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useUserServiceUpdateProfile } from "@evey/api";
 import { useServerListStore, useThemeStore, themePreferences } from "@evey/store";
 import { themes, THEME_NAMES } from "@evey/theme";
-import { pluginThemeKey, useActiveProfile, usePluginThemes } from "@evey/client";
+import { pluginThemeKey, resolveSlotEntries, useActiveProfile, usePluginList, usePluginThemes } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
 import { Button } from "../components/ui";
 import { navigate, replace } from "../app/router";
@@ -28,6 +28,11 @@ export function SettingsScreen() {
   const { profile } = useActiveProfile();
   const updateProfile = useUserServiceUpdateProfile();
   const { data: pluginThemes } = usePluginThemes();
+  // The plugins that ship their own settings module get a row, as on the
+  // television.
+  const { data: pluginList } = usePluginList();
+  const settingsPlugins = resolveSlotEntries(pluginList?.plugins, "settings.user.appearance")
+    .map((m) => ({ id: m.pluginId, name: (pluginList?.plugins ?? []).find((p) => p.id === m.pluginId)?.name ?? m.pluginId }));
 
   // MERGED because the server replaces the whole preferences map (see
   // themePreferences): sending the theme alone would wipe the languages.
@@ -72,6 +77,9 @@ export function SettingsScreen() {
         <Button onPress={() => navigate({ name: "notifications" })}>{t("common.notifications.title")}</Button>
         <Button onPress={() => navigate({ name: "home" })}>{t("media.home.customize")}</Button>
         <Button onPress={() => navigate({ name: "servers" })}>{t("mobile.servers.manageTitle")}</Button>
+        {settingsPlugins.map((p) => (
+          <Button key={p.id} onPress={() => navigate({ name: "plugin-settings", pluginId: p.id! })}>{p.name}</Button>
+        ))}
       </div>
       <div className="actions">
         <Button onPress={() => replace({ name: "profiles" })}>{t("common.nav.switchProfile", "Switch profile")}</Button>
