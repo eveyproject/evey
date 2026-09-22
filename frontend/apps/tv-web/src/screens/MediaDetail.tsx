@@ -18,6 +18,7 @@ import { FocusRoot } from "../tv/focus";
 import { Button, Card, Spinner } from "../components/ui";
 import { navigate } from "../app/router";
 import { posterSrc, isPlayable, isSeries, isSeason } from "../lib/media";
+import { PluginSlot } from "../plugins/PluginSlot";
 
 // The community rating as five stars, the 0-10 scale every client renders.
 function stars(rating: number): string {
@@ -265,6 +266,9 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
           </div>
         </FocusRoot>
       ) : null}
+      <div className="plugin-row">
+        <PluginSlot name="media.detail.sidebar" context={{ mediaId, mediaType: item.type }} />
+      </div>
       {playlistOpen ? <AddToPlaylist mediaId={mediaId} mediaType={item.type} onClose={() => setPlaylistOpen(false)} /> : null}
     </FocusRoot>
   );

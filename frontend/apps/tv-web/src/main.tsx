@@ -33,6 +33,7 @@ import {
 } from "./screens/Browse";
 import { PlaybackSettingsScreen, ServersScreen, StatsScreen } from "./screens/SettingsScreens";
 import { PhotosScreen, SlideshowScreen } from "./screens/Photos";
+import { PluginSettingsScreen } from "./screens/PluginSettings";
 import { NavBar } from "./components/NavBar";
 import { MusicBar } from "./music/MusicBar";
 import { applyThemeVars, useAppliedTheme } from "./lib/theme";
@@ -198,6 +199,8 @@ function renderScreen(effective: Route) {
       return <ServersScreen />;
     case "photos":
       return <PhotosScreen libraryId={effective.libraryId} albumId={effective.albumId} />;
+    case "plugin-settings":
+      return <PluginSettingsScreen pluginId={effective.pluginId} />;
     case "slideshow":
       return <SlideshowScreen libraryId={effective.libraryId} albumId={effective.albumId} index={effective.index} />;
     default:

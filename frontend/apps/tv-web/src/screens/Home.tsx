@@ -26,6 +26,7 @@ import { Button, Card, Spinner } from "../components/ui";
 import { navigate } from "../app/router";
 import { posterSrc, isPlayable } from "../lib/media";
 import { FeedCustomizePanel } from "../components/FeedCustomizePanel";
+import { PluginSlot } from "../plugins/PluginSlot";
 
 // The labels the other clients use for the transverse rows.
 const FEED_LABELS: Record<string, string> = {
@@ -145,6 +146,13 @@ export function HomeScreen() {
     return map;
   }, [pluginsData]);
 
+  // The plugins the feed config already places are rendered at their row; the
+  // rest appear once, above, so a fresh install is visible immediately.
+  const registeredPlugins = useMemo(
+    () => new Set(sections.filter((s) => s.kind === "plugin").map((s) => (s as Extract<HomeSection, { kind: "plugin" }>).pluginId)),
+    [sections],
+  );
+
   const itemsFor = (section: HomeSection): V1MediaItem[] => {
     if (section.kind !== "feed") return [];
     switch (section.feedType) {
@@ -203,7 +211,13 @@ export function HomeScreen() {
       const items = (data?.items ?? []).filter((it) => it.id);
       return <Row key={section.key} title={section.name} items={items} focusFirst={claimFocus(items.length > 0)} />;
     }
-    if (section.kind === "plugin") return null;
+    if (section.kind === "plugin") {
+      return (
+        <div className="plugin-row" key={section.key}>
+          <PluginSlot name="home.section" pluginId={section.pluginId} />
+        </div>
+      );
+    }
     if (section.feedType === "collections") {
       const list = (collections.data?.collections ?? []).filter((c) => c.id);
       if (list.length === 0) return null;
@@ -250,6 +264,9 @@ export function HomeScreen() {
         </div>
       </FocusRoot>
       {isLoading ? <Spinner /> : null}
+      <div className="plugin-row">
+        <PluginSlot name="home.section" excludeRegistered={registeredPlugins} />
+      </div>
       {rows}
       {nothing ? <p className="subtitle">{t("media.home.emptyLibrary", "Nothing to show yet.")}</p> : null}
       {customizeOpen ? (

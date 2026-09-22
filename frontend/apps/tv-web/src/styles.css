@@ -727,3 +727,7 @@ button, input {
   font-size: 1.4vw;
   text-shadow: 0 0.1vw 0.4vw #000;
 }
+
+/* A plugin's home module: it sizes itself through the host protocol. */
+.plugin-row { margin: 0.8vw 0; }
+.plugin-row iframe { width: 100%; border: 0; }
