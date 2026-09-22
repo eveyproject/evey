@@ -28,6 +28,11 @@ func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.Initia
 		Secret:    secureToken("qc-secret-", 16),
 		Status:    user.Pending,
 		ExpiresAt: time.Now().Add(2 * time.Minute),
+		// Said HERE, by the device being paired, because the call that
+		// collects the tokens cannot always say it: a browser collects over an
+		// event stream and an EventSource carries no headers, so those
+		// pairings used to fall back to a one-week session.
+		Persistent: interceptors.PersistentSessionFromCtx(ctx),
 	}
 	if err := h.access.InitiateQuickConnect(ctx, qc); err != nil {
 		slog.ErrorContext(ctx, "initiate quick connect", slog.Any("err", err))
@@ -78,7 +83,7 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 	authorized := qc.Status == user.Authorized
 	resp := &eveyv1.CheckQuickConnectResponse{Authorized: authorized}
 	if authorized && qc.UserID != nil {
-		access, refresh, err := h.auth.GenerateTokensForUser(ctx, string(*qc.UserID), h.refreshTTLOverride(ctx)...)
+		access, refresh, err := h.auth.GenerateTokensForUser(ctx, string(*qc.UserID), h.quickConnectTTL(ctx, qc)...)
 		if err != nil {
 			slog.ErrorContext(ctx, "generate tokens for quick connect", slog.Any("err", err))
 			span.RecordError(err)
@@ -91,4 +96,14 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 		}
 	}
 	return resp, nil
+}
+
+// quickConnectTTL: the lifetime this pairing earns. What the device asked for
+// when it started the pairing decides it; the header on the collecting call
+// still counts, for a client that says it there and nowhere else.
+func (h *userHandler) quickConnectTTL(ctx context.Context, qc *user.QuickConnectRequest) []time.Duration {
+	if qc != nil && qc.Persistent {
+		return []time.Duration{h.cfg.JWT.RefreshTokenLongTTL}
+	}
+	return h.refreshTTLOverride(ctx)
 }

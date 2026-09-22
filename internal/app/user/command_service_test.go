@@ -1079,23 +1079,30 @@ func TestRefreshToken_FallbackFirstProfile(t *testing.T) {
 
 // --- Logout ---
 
-func TestLogout_Happy(t *testing.T) {
+// A logout that names no session ends none. It used to end EVERY session of
+// the account, which is how signing out of a phone signed out the television
+// (production complaint, 2026-09-22) - and a client reaches this case without
+// meaning to, whenever its stored token cannot be read.
+func TestLogout_WithoutToken_EndsNothing(t *testing.T) {
 	d := newAuthTestDeps()
+	rev := &recordingRevoker{}
+	CommandWithTokenRevoker(rev)(d.svc)
 	ctx := context.Background()
-	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{ID: "rt1", UserID: "u1", TokenHash: "h1", ExpiresAt: time.Now().Add(time.Hour)})
-
-	err := d.svc.Logout(ctx, "u1", "")
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_, alices, err := d.svc.Login(ctx, "alice", "pw")
 	if err != nil {
 		t.Fatal(err)
 	}
-}
 
-func TestLogout_RepoError(t *testing.T) {
-	d := newAuthTestDeps()
-	d.refreshTkns.Err = errors.New("fail")
-	err := d.svc.Logout(context.Background(), "u1", "")
-	if err == nil {
-		t.Fatal("expected error")
+	if err := d.svc.Logout(ctx, "u1", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := d.svc.RefreshToken(ctx, alices, "", ""); err != nil {
+		t.Errorf("the other devices of this account must keep their sessions: %v", err)
+	}
+	if len(rev.revoked) != 0 {
+		t.Errorf("nothing was named, so nothing may be revoked, got %v", rev.revoked)
 	}
 }
 
@@ -1104,19 +1111,30 @@ func TestLogout_RepoError(t *testing.T) {
 // ChangePassword), not just their refresh token. Without this, a logged-out
 // user's opaque stream token (up to 12h TTL) keeps serving media bytes long
 // after the session ended.
-func TestLogout_RevokesStreamTokens(t *testing.T) {
+// No logout revokes the ACCOUNT's tokens any more, whichever path it takes:
+// the only revoker available works per user, so using it would stop the film
+// playing on the television because a phone was signed out. Cutting an
+// account's stream tokens is what DisableUser and ChangePassword do.
+func TestLogout_NeverRevokesTheWholeAccount(t *testing.T) {
 	d := newAuthTestDeps()
 	rev := &recordingRevoker{}
 	CommandWithTokenRevoker(rev)(d.svc)
 	ctx := context.Background()
-	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{ID: "rt1", UserID: "u1", TokenHash: "h1", ExpiresAt: time.Now().Add(time.Hour)})
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_, alices, err := d.svc.Login(ctx, "alice", "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
 
+	if err := d.svc.Logout(ctx, "u1", alices); err != nil {
+		t.Fatal(err)
+	}
 	if err := d.svc.Logout(ctx, "u1", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	if len(rev.revoked) != 1 || rev.revoked[0] != "u1" {
-		t.Errorf("want one revoke for u1, got %v", rev.revoked)
+	if len(rev.revoked) != 0 {
+		t.Errorf("no logout may revoke the account, got %v", rev.revoked)
 	}
 }
 
@@ -1153,7 +1171,9 @@ func TestLogout_WithToken_EndsThatDeviceOnly(t *testing.T) {
 
 // A token that is not this user's (or unknown) is ignored and the logout
 // falls back to the account-wide revoke rather than trusting the caller.
-func TestLogout_ForeignToken_FallsBackToAccountWide(t *testing.T) {
+// A token this account does not own names no session of it: the presenter's
+// own sessions stay, and the owner's too.
+func TestLogout_ForeignToken_EndsNothing(t *testing.T) {
 	d := newAuthTestDeps()
 	rev := &recordingRevoker{}
 	CommandWithTokenRevoker(rev)(d.svc)
@@ -1171,8 +1191,8 @@ func TestLogout_ForeignToken_FallsBackToAccountWide(t *testing.T) {
 	if _, _, err := d.svc.RefreshToken(ctx, bobs, "", ""); err != nil {
 		t.Errorf("bob's session must survive alice's logout: %v", err)
 	}
-	if len(rev.revoked) != 1 || rev.revoked[0] != "u1" {
-		t.Errorf("want the account-wide revoke for u1, got %v", rev.revoked)
+	if len(rev.revoked) != 0 {
+		t.Errorf("no session of alice's was named, so nothing may be revoked, got %v", rev.revoked)
 	}
 }
 

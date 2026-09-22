@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ type testUserEnv struct {
 	access      *appuser.AccessService
 	query       *appuser.QueryService
 	events      *sharedfakes.FakeEventBus
+	refreshRepo *userfakes.FakeRefreshTokenRepository
 	tokenGen    *userfakes.FakeTokenGenerator
 	hasher      *userfakes.FakePasswordHasher
 }
@@ -84,6 +86,7 @@ func setupUserHandler() *testUserEnv {
 		events:      events,
 		tokenGen:    tokenGen,
 		hasher:      hasher,
+		refreshRepo: refreshRepo,
 	}
 }
 
@@ -514,7 +517,70 @@ func TestListAPIKeys_Success(t *testing.T) {
 	}
 }
 
+// A call that carries the persistent-session header, as the fetcher of every
+// native client does.
+func persistentCtx() context.Context {
+	return interceptors.WithPersistentSession(context.Background())
+}
+
 // --- QuickConnect tests ---
+
+// A pairing carries the kind of session the DEVICE asked for, so a client
+// that cannot say it when it COLLECTS the tokens still gets what it asked
+// for: a browser collects over an event stream, and an EventSource sets no
+// headers - every pairing made that way used to fall back to a one-week
+// session and ask for a password again a week later.
+func TestQuickConnect_LifetimeFollowsThePairing(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "tester", IsAdmin: false}, "pass")
+
+	// The television says so when it STARTS the pairing.
+	initResp, err := env.handler.InitiateQuickConnect(persistentCtx(), &eveyv1.InitiateQuickConnectRequest{})
+	if err != nil {
+		t.Fatalf("InitiateQuickConnect: %v", err)
+	}
+	if _, err := env.handler.AuthorizeQuickConnect(userCtx("usr-1", "prf-1"), &eveyv1.AuthorizeQuickConnectRequest{Code: initResp.Code}); err != nil {
+		t.Fatalf("AuthorizeQuickConnect: %v", err)
+	}
+
+	// Collected WITHOUT the header, as an event stream would.
+	if _, err := env.handler.CheckQuickConnect(context.Background(), &eveyv1.CheckQuickConnectRequest{Code: initResp.Code}); err != nil {
+		t.Fatalf("CheckQuickConnect: %v", err)
+	}
+
+	rt := env.refreshRepo.Newest()
+	if rt == nil {
+		t.Fatal("no refresh token was stored")
+	}
+	if life := rt.ExpiresAt.Sub(time.Now()); life < 179*24*time.Hour {
+		t.Errorf("the pairing asked for a long session, got %v", life.Truncate(time.Hour))
+	}
+}
+
+// A pairing that asked for nothing keeps the short session.
+func TestQuickConnect_ShortSessionWhenNobodyAskedForMore(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "tester", IsAdmin: false}, "pass")
+
+	initResp, err := env.handler.InitiateQuickConnect(context.Background(), &eveyv1.InitiateQuickConnectRequest{})
+	if err != nil {
+		t.Fatalf("InitiateQuickConnect: %v", err)
+	}
+	if _, err := env.handler.AuthorizeQuickConnect(userCtx("usr-1", "prf-1"), &eveyv1.AuthorizeQuickConnectRequest{Code: initResp.Code}); err != nil {
+		t.Fatalf("AuthorizeQuickConnect: %v", err)
+	}
+	if _, err := env.handler.CheckQuickConnect(context.Background(), &eveyv1.CheckQuickConnectRequest{Code: initResp.Code}); err != nil {
+		t.Fatalf("CheckQuickConnect: %v", err)
+	}
+
+	rt := env.refreshRepo.Newest()
+	if rt == nil {
+		t.Fatal("no refresh token was stored")
+	}
+	if life := rt.ExpiresAt.Sub(time.Now()); life > 8*24*time.Hour {
+		t.Errorf("nobody asked for a long session, got %v", life.Truncate(time.Hour))
+	}
+}
 
 func TestQuickConnect_Flow(t *testing.T) {
 	env := setupUserHandler()

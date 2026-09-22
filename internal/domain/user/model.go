@@ -215,6 +215,12 @@ type QuickConnectRequest struct {
 	Status     QuickConnectStatus
 	ExpiresAt  time.Time
 	CreatedAt  time.Time
+	// Persistent records that the device being paired asked for a long-lived
+	// session, at the moment it started the pairing. It is read when the
+	// tokens are minted, because the call that collects them cannot always
+	// say it: a browser collects over an event stream, and an EventSource
+	// carries no headers.
+	Persistent bool
 }
 
 type Role struct {
