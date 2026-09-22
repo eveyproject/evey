@@ -74,6 +74,7 @@ export function HomeScreen() {
           {libs.map((l) => (
             <Button key={l.id} onPress={() => l.id && navigate({ name: "library", libraryId: l.id })}>{l.name}</Button>
           ))}
+          <Button onPress={() => navigate({ name: "search" })}>{t("common.nav.search", "Search")}</Button>
           <Button onPress={() => navigate({ name: "settings" })}>{t("common.nav.settings", "Settings")}</Button>
         </div>
       </FocusRoot>

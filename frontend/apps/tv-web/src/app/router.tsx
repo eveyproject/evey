@@ -12,12 +12,15 @@ export type Route =
   | { name: "library"; libraryId: string }
   | { name: "media"; mediaId: string }
   | { name: "player"; mediaId: string; restart?: boolean }
-  | { name: "settings" };
+  | { name: "settings" }
+  | { name: "search"; query?: string };
 
 export function routeToHash(route: Route): string {
   switch (route.name) {
     case "library":
       return `#/library/${encodeURIComponent(route.libraryId)}`;
+    case "search":
+      return `#/search${route.query ? `?q=${encodeURIComponent(route.query)}` : ""}`;
     case "media":
       return `#/media/${encodeURIComponent(route.mediaId)}`;
     case "player":
@@ -42,6 +45,8 @@ export function parseHash(hash: string): Route {
       return { name: "profiles" };
     case "settings":
       return { name: "settings" };
+    case "search":
+      return { name: "search", query: params.get("q") ?? undefined };
     case "library":
       return parts[1] ? { name: "library", libraryId: parts[1] } : { name: "home" };
     case "media":

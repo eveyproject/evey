@@ -17,6 +17,7 @@ import { LibraryScreen } from "./screens/Library";
 import { MediaDetailScreen } from "./screens/MediaDetail";
 import { PlayerScreen } from "./screens/Player";
 import { SettingsScreen } from "./screens/Settings";
+import { SearchScreen } from "./screens/Search";
 import "./styles.css";
 
 // The palette the web app reads from a generated stylesheet is set here as
@@ -120,6 +121,8 @@ function App() {
       return <PlayerScreen mediaId={effective.mediaId} restart={!!effective.restart} />;
     case "settings":
       return <SettingsScreen />;
+    case "search":
+      return <SearchScreen initialQuery={effective.query} />;
     default:
       return <HomeScreen />;
   }
