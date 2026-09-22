@@ -2,16 +2,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { GlobalAudioPlayer } from "./GlobalAudioPlayer";
 import { useAuthStore, useMusicPlayerStore } from "@evey/store";
-import { eveyFetchRaw } from "@evey/api";
+import { eveyFetchRaw, getFreshAccessToken } from "@evey/api";
 
 const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mockNavigate }));
 vi.mock("@evey/api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@evey/api")>()), eveyFetchRaw: vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))) }));
+  ...(await importOriginal<typeof import("@evey/api")>()),
+  eveyFetchRaw: vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))),
+  // The real one refreshes over the network; the tests pin what it hands back.
+  getFreshAccessToken: vi.fn(() => Promise.resolve(useAuthStore.getState().accessToken ?? undefined)),
+}));
 
 // We're testing that the <audio src> attribute does not rebuild when
 // the Zustand accessToken rotates - the bug that aborted music playback
-// every 15 minutes (fix: useMemo keyed on playing.ID, reads via getState).
+// every 15 minutes - and that the token it carries is minted fresh at every
+// track change, so an album outlives a 15-minute token (the 21-09 report:
+// the stream 401s on the next track).
 
 function makeJwt(expSeconds: number) {
   const header = btoa(JSON.stringify({ alg: "none", typ: "JWT" }));
@@ -121,6 +127,21 @@ describe("GlobalAudioPlayer", () => {
     // in-flight audio stream and attempt to reload from byte 0.
     const after = audio?.getAttribute("src");
     expect(after).toBe(before);
+  });
+
+  it("mints the token freshly for each track rather than reading the store", async () => {
+    // A token already expired in the store: the fetcher refreshes it, and the
+    // src must carry the refreshed one, not the stale one.
+    const stale = makeJwt(1);
+    const fresh = makeJwt(9999999999);
+    useAuthStore.setState({ accessToken: stale });
+    vi.mocked(getFreshAccessToken).mockResolvedValueOnce(fresh);
+    useMusicPlayerStore.setState({ playing: makeTrack("track-1", "Test"), queue: [], shuffle: false, externallyPaused: false });
+
+    await renderPlayer();
+    const src = document.querySelector("audio")?.getAttribute("src") ?? "";
+    expect(src).toContain(encodeURIComponent(fresh));
+    expect(src).not.toContain(encodeURIComponent(stale));
   });
 
   it("rebuilds src when the track changes (keyed by playing.ID)", async () => {
