@@ -11,7 +11,7 @@ export type Route =
   | { name: "home" }
   | { name: "library"; libraryId: string }
   | { name: "media"; mediaId: string }
-  | { name: "player"; mediaId: string; restart?: boolean }
+  | { name: "player"; mediaId: string; restart?: boolean; audio?: number; subtitle?: number | "off" }
   | { name: "settings" }
   | { name: "search"; query?: string }
   | { name: "music"; libraryId?: string }
@@ -70,8 +70,14 @@ export function routeToHash(route: Route): string {
       const s = q.toString();
       return `#/${route.name}${s ? `?${s}` : ""}`;
     }
-    case "player":
-      return `#/player/${encodeURIComponent(route.mediaId)}${route.restart ? "?restart=1" : ""}`;
+    case "player": {
+      const q = new URLSearchParams();
+      if (route.restart) q.set("restart", "1");
+      if (route.audio !== undefined) q.set("audio", String(route.audio));
+      if (route.subtitle !== undefined) q.set("subtitle", String(route.subtitle));
+      const s = q.toString();
+      return `#/player/${encodeURIComponent(route.mediaId)}${s ? `?${s}` : ""}`;
+    }
     default:
       return `#/${route.name}`;
   }
@@ -105,7 +111,14 @@ export function parseHash(hash: string): Route {
     case "media":
       return parts[1] ? { name: "media", mediaId: parts[1] } : { name: "home" };
     case "player":
-      return parts[1] ? { name: "player", mediaId: parts[1], restart: params.get("restart") === "1" } : { name: "home" };
+      if (!parts[1]) return { name: "home" };
+      return {
+        name: "player",
+        mediaId: parts[1],
+        restart: params.get("restart") === "1",
+        ...(params.get("audio") ? { audio: Number(params.get("audio")) } : {}),
+        ...(params.get("subtitle") ? { subtitle: params.get("subtitle") === "off" ? "off" as const : Number(params.get("subtitle")) } : {}),
+      };
     case "libraries":
       return { name: "libraries" };
     case "collections":

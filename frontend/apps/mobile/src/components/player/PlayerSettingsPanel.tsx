@@ -11,7 +11,7 @@ import {
   SUBTITLE_TEXT_COLORS,
   type SubtitleStyle,
 } from "../../lib/subtitleStyle";
-import { formatAudioTrackLabel, qualityRungsFromHeights } from "@evey/api";
+import { formatAudioTrackLabel, qualityRungsFromHeights, trackDisplayName } from "@evey/api";
 
 export interface AudioStream {
   index: number;
@@ -474,7 +474,7 @@ export function PlayerSettingsPanel({
               onPress={() => select(() => onSubtitleChange(null))}
             />
             {subtitleStreams.map((s) => {
-              const label = s.title ?? s.language ?? t("media.track", { number: s.index });
+              const label = trackDisplayName(s, t("media.track", { number: s.index }));
               return (
                 <OptionRow
                   key={s.index}

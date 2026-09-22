@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { formatAudioTrackLabel, type TrackPick, type V1MediaStream } from "@evey/api";
+import { formatAudioTrackLabel, type TrackPick, type V1MediaStream, trackDisplayName } from "@evey/api";
 import { Select } from "@/components/ui/Select";
 
 interface MediaDetailTracksProps {
@@ -12,7 +12,7 @@ const AUTO = "auto";
 const OFF = "off";
 
 export function subtitleTrackLabel(s: V1MediaStream, fallback: string, forced: string): string {
-  const name = s.title ?? s.language ?? fallback;
+  const name = trackDisplayName(s, fallback);
   return s.isForced ? `${name} - ${forced}` : name;
 }
 

@@ -26,6 +26,22 @@ export function formatChannelLayout(channels: number | undefined): string {
 }
 
 /**
+ * What to call one track in a menu: its title, else its language, else the
+ * caller's localised fallback.
+ *
+ * An absent title arrives as an EMPTY STRING from the server, not as
+ * undefined, so `??` kept it and the entry rendered blank - measured on a
+ * file whose two subtitle tracks carry only a language (2026-09-22, browser
+ * television). Every client labelled tracks this way.
+ */
+export function trackDisplayName(
+  s: { title?: string; language?: string },
+  fallback: string,
+): string {
+  return s.title?.trim() || s.language?.trim() || fallback;
+}
+
+/**
  * Label for one entry of the audio track menu.
  *
  * `fallback` is what to show when the stream carries neither a title nor a
@@ -36,7 +52,7 @@ export function formatAudioTrackLabel(
   s: { title?: string; language?: string; channels?: number },
   fallback: string,
 ): string {
-  const name = s.title ?? s.language ?? fallback;
+  const name = trackDisplayName(s, fallback);
   const layout = formatChannelLayout(s.channels);
   return layout ? `${name} - ${layout}` : name;
 }

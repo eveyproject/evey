@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatAudioTrackLabel, formatChannelLayout } from "./audioChannelLayout";
+import { formatAudioTrackLabel, formatChannelLayout, trackDisplayName } from "./audioChannelLayout";
 
 describe("formatChannelLayout", () => {
   // The drift this replaces: web's track menu said "2.0", web's own stream
@@ -46,5 +46,19 @@ describe("formatAudioTrackLabel", () => {
   it("leaves the name alone when the channel count is unknown", () => {
     expect(formatAudioTrackLabel({ title: "VF" }, "Audio")).toBe("VF");
     expect(formatAudioTrackLabel({ title: "VF", channels: 0 }, "Audio")).toBe("VF");
+  });
+});
+
+// The server sends an absent title as an empty string, so the old `??` chain
+// rendered a blank entry in every track menu.
+describe("trackDisplayName", () => {
+  it("falls through an empty title to the language, then to the fallback", () => {
+    expect(trackDisplayName({ title: "", language: "fra" }, "Track 4")).toBe("fra");
+    expect(trackDisplayName({ title: "  ", language: "" }, "Track 4")).toBe("Track 4");
+    expect(trackDisplayName({ title: "Commentary", language: "eng" }, "Track 4")).toBe("Commentary");
+  });
+
+  it("keeps an audio label readable when only the language is known", () => {
+    expect(formatAudioTrackLabel({ title: "", language: "eng", channels: 2 }, "Track 1")).toBe("eng - 2.0");
   });
 });

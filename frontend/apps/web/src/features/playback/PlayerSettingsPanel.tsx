@@ -6,7 +6,7 @@ import type { SubtitleStream } from "./SubtitleSelector";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { SleepTimerState } from "@/hooks/useSleepTimer";
 import { SPEED_OPTIONS } from "./constants";
-import { qualityRungsFromHeights } from "@evey/api";
+import { qualityRungsFromHeights, trackDisplayName } from "@evey/api";
 
 // Mirrors the mobile/TV sleep timer presets (apps/mobile/src/components/SleepTimerPicker.tsx,
 // apps/tv/src/components/SleepTimerPicker.tsx).
@@ -539,7 +539,7 @@ export function SettingsPanel({
                 {currentSubtitleTrackIndex === null && <CheckIcon />}
               </button>
               {subtitleStreams.map((s) => {
-                const label = s.title ?? s.language ?? t("media.track", { number: s.index });
+                const label = trackDisplayName(s, t("media.track", { number: s.index }));
                 return (
                   <button
                     key={s.index}

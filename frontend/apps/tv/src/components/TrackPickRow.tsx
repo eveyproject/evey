@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
-import { formatAudioTrackLabel, type TrackPick, type V1MediaStream } from "@evey/api";
+import { formatAudioTrackLabel, type TrackPick, type V1MediaStream, trackDisplayName } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 
 interface Props {
@@ -37,7 +37,7 @@ export function TrackPickRow({ streams, pick, onChange }: Props) {
     { key: "off", label: t("media.streams.none"), selected: pick.subtitle === "off", onPress: () => onChange({ ...pick, subtitle: "off" }) },
     ...subtitles.map((s) => ({
       key: String(s.index),
-      label: `${s.title ?? s.language ?? t("media.track", { number: s.index })}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`,
+      label: `${trackDisplayName(s, t("media.track", { number: s.index }))}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`,
       selected: pick.subtitle === s.index,
       onPress: () => onChange({ ...pick, subtitle: s.index }),
     })),
