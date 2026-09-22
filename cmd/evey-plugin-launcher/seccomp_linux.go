@@ -154,7 +154,7 @@ func appendDenyForkRules(f []unix.SockFilter) []unix.SockFilter {
 	}
 	return append(f,
 		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 5, K: uint32(unix.SYS_CLONE)}, // not clone → ALLOW
-		unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg0},                                // A = clone flags (low 32)
+		unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg0},                               // A = clone flags (low 32)
 		unix.SockFilter{Code: bpfALU | bpfAND | bpfK, K: uint32(unix.CLONE_THREAD)},
 		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: 0}, // CLONE_THREAD clear → EPERM
 		unix.SockFilter{Code: bpfJMP | bpfJA, K: 1},                       // thread → ALLOW

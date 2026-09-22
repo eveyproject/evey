@@ -2,8 +2,8 @@ package pluginrunner
 
 import (
 	"os"
-	"strings"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 

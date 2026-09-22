@@ -33,8 +33,8 @@ func TestIsPubliclyReachableURL(t *testing.T) {
 		"http://100.64.0.1", // CGNAT: carrier-side, not publishable
 		"http://169.254.10.1",
 		"http://nas.local:9091",
-		"http://evey:9091",     // bare container/host name
-		"http://evey-server",   // compose service name
+		"http://evey:9091",   // bare container/host name
+		"http://evey-server", // compose service name
 		"not-a-url-at-all",
 		"ftp://evey.example.com", // not an HTTP endpoint
 		"http://203.0.113.9",     // RFC 5737 documentation range: never a real deployment

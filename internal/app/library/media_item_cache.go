@@ -32,8 +32,8 @@ type CachedMediaItemQueryRepo struct {
 
 func NewCachedMediaItemQueryRepo(inner library.MediaItemQueryRepo, ttl time.Duration) *CachedMediaItemQueryRepo {
 	c := &CachedMediaItemQueryRepo{
-		inner: inner,
-		ttl:   ttl,
+		inner:  inner,
+		ttl:    ttl,
 		items:  make(map[shared.MediaItemID]cacheEntry),
 		genres: make(map[shared.LibraryID]genreCacheEntry),
 		done:   make(chan struct{}),

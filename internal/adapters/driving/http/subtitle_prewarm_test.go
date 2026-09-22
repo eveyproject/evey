@@ -211,4 +211,3 @@ func TestPrewarmer_ASinglePanicDoesNotStopTheWorker(t *testing.T) {
 		}
 	}
 }
-

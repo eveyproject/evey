@@ -177,7 +177,7 @@ type repoDeps struct {
 	introMetaCache    grpcapi.IntroCacheInvalidator
 	// repairJournal records every media rewrite. Its absence is why the
 	// 2026-07-13 batch could not be explained seven weeks later.
-	repairJournal     appmaintenance.RepairJournal
+	repairJournal appmaintenance.RepairJournal
 }
 
 // appDeps holds all application-level services and adapters needed by HTTP/gRPC layers.

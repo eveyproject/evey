@@ -495,4 +495,3 @@ func TestPluginAsset_RevalidationDoesNotRereadTheFile(t *testing.T) {
 	}
 	assert.Equal(t, http.StatusNotModified, get(etag).Code, "unchanged file must revalidate from its stat")
 }
-

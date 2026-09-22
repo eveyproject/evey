@@ -358,8 +358,6 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 // authoritative sources included.
 const minServeIntroMs = 5_000
 
-
-
 func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetTrickplayManifest")
 	defer span.End()

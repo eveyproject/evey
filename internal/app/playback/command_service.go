@@ -788,7 +788,6 @@ func (s *CommandService) ConsumeCastCommand(ctx context.Context, profileID, medi
 	return s.orphanCastCommands.take(profileID), nil
 }
 
-
 // SetCastReceiverCommand parks a command for the next cast beacon of this
 // profile, whether or not it still has a play session.
 //

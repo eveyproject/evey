@@ -8,15 +8,15 @@ import (
 )
 
 type FakeMusicScanner struct {
-	Files    []music.ScannedAudioFile
-	WalkErr  error
+	Files   []music.ScannedAudioFile
+	WalkErr error
 	// ExistingPaths overrides Exists when non-nil; otherwise a path exists
 	// when the walk would report it (present in Files) or has data.
 	ExistingPaths map[string]bool
-	FileData map[string][]byte
-	OpenErr  error
-	Hashes   map[string]string
-	HashErr  error
+	FileData      map[string][]byte
+	OpenErr       error
+	Hashes        map[string]string
+	HashErr       error
 }
 
 func NewFakeMusicScanner() *FakeMusicScanner {

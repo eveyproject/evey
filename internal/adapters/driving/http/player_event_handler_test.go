@@ -347,7 +347,9 @@ func TestPlayerEvent_CastEndBeaconsEndTheSession(t *testing.T) {
 			tr := &fakeCastPresence{}
 			var touches []sessionTouch
 			var ended []sessionTouch
-			touch := func(_ context.Context, b CastBeacon) { touches = append(touches, sessionTouch{b.ProfileID, b.MediaItemID, b.PositionMs}) }
+			touch := func(_ context.Context, b CastBeacon) {
+				touches = append(touches, sessionTouch{b.ProfileID, b.MediaItemID, b.PositionMs})
+			}
 			end := func(_ context.Context, p, m string) { ended = append(ended, sessionTouch{p, m, 0}) }
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event",
@@ -426,7 +428,9 @@ func TestPlayerEvent_OnlyTheLoadBeaconMayCreateASession(t *testing.T) {
 func TestPlayerEvent_CastPresenceIgnoresNonCastCallers(t *testing.T) {
 	tr := &fakeCastPresence{}
 	var touches []sessionTouch
-	touch := func(_ context.Context, b CastBeacon) { touches = append(touches, sessionTouch{b.ProfileID, b.MediaItemID, b.PositionMs}) }
+	touch := func(_ context.Context, b CastBeacon) {
+		touches = append(touches, sessionTouch{b.ProfileID, b.MediaItemID, b.PositionMs})
+	}
 	postCastBeaconWithPresence(t, tr, touch, "cast_receiver_alive", `{"type":"cast_receiver_alive","posSec":10}`, false)
 	if len(tr.entries) != 0 || len(touches) != 0 {
 		t.Fatalf("JWT caller must not create cast presence (presence=%d touches=%d)", len(tr.entries), len(touches))

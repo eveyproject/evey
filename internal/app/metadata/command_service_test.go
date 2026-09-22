@@ -2,10 +2,10 @@ package metadata_test
 
 import (
 	"context"
-	"fmt"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"

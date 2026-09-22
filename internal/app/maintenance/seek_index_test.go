@@ -31,7 +31,7 @@ type fakeReindexer struct {
 	// of a source whose cluster stream the strict rewrite refuses to parse and
 	// only the tolerant one gets past.
 	failStrictWith map[string]error
-	skip      map[string]bool // when true, ReindexInPlace reports Skipped (already indexed)
+	skip           map[string]bool // when true, ReindexInPlace reports Skipped (already indexed)
 	// restoreFail makes putting the original back fail - the case where the
 	// damaged file stays on disk and the journal must not claim otherwise.
 	restoreFail error

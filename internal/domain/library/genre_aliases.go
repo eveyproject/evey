@@ -45,7 +45,7 @@ var genreAliases = map[string]genreKey{
 	"fantastique": "fantasy", "fantasy": "fantasy", "histoire": "history", "history": "history",
 	"horreur": "horror", "horror": "horror", "musique": "music", "music": "music",
 	"mystère": "mystery", "mystere": "mystery", "mystery": "mystery",
-	"romance": "romance",
+	"romance":         "romance",
 	"science-fiction": "scifi", "science fiction": "scifi", "sci-fi": "scifi", "sciencefiction": "scifi",
 	"téléfilm": "tvmovie", "telefilm": "tvmovie", "tv movie": "tvmovie",
 	"thriller": "thriller", "guerre": "war", "war": "war", "western": "western",

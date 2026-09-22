@@ -35,6 +35,7 @@ func (f *recordingLinker) LinkMediaItem(_ context.Context, collectionID, mediaIt
 	f.links = append(f.links, collectionID+"|"+mediaItemID)
 	return nil
 }
+
 // Mirrors the postgres query: rows strictly after the cursor, in id order,
 // capped by limit. Serving pages is the whole point - a standalone film is
 // never removed from the work list, so a sweep that cannot advance past its

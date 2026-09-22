@@ -297,4 +297,3 @@ func TestGetSecurityDashboard_LastStartedViaEventBus(t *testing.T) {
 		t.Errorf("plugin-b never started, got %v", byID["plugin-b"].LastStartedAt)
 	}
 }
-

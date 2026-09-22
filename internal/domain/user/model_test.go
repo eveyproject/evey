@@ -943,7 +943,7 @@ func TestInviteLinkValidate_Boundaries(t *testing.T) {
 	})
 
 	for _, tt := range []struct {
-		name  string
+		name   string
 		mutate func(*user.InviteLink)
 	}{
 		{"missing id", func(l *user.InviteLink) { l.ID = "" }},

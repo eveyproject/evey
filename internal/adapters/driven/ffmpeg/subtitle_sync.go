@@ -35,7 +35,7 @@ const (
 	subSyncMinProm      = 1.3  // best peak over the runner-up (> 1 s away)
 	subSyncAgreeSec     = 0.15 // windows agree within this
 	subSyncMaxTracks    = 3
-	subSyncSpeechDB     = 6.0  // a bin this far over its local background is speech
+	subSyncSpeechDB     = 6.0 // a bin this far over its local background is speech
 	subSyncFeatClampDB  = 12.0
 	subSyncMedianHalf   = 150 // +-3 s at 20 ms
 	subSyncUsableCues   = 20  // a subtitle track below this anchors nothing

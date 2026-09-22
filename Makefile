@@ -243,6 +243,8 @@ ci-fast: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec
 	@echo "   Tests -race PAS exécutés (utilise 'make ci-local' avant un push important)."
 
 ci-fast-vet:
+	@echo "→ gofmt (every hand-written Go file formatted)"
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'u=$$(gofmt -l cmd internal pkg 2>/dev/null); if [ -n "$$u" ]; then echo "unformatted Go files (run gofmt -w):"; echo "$$u"; exit 1; fi'
 	@echo "→ go vet (excl. /gen/)"
 	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go vet $$(go list ./... | grep -v /gen/)'
 
