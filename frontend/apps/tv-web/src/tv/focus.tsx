@@ -28,7 +28,7 @@ export { useFocusable, FocusContext, setFocus };
  * spatial library; back (Escape, the TV's back button) and the media keys
  * are the app's, and a text field keeps its own keys except back.
  */
-export function useTvKeys(handler: (key: "back" | "play" | "pause" | "playPause" | "rewind" | "forward" | "stop", e: KeyboardEvent) => void): void {
+export function useTvKeys(handler: (key: "back" | "play" | "pause" | "playPause" | "rewind" | "forward" | "stop" | "search", e: KeyboardEvent) => void): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const key = tvKeyOf(e);

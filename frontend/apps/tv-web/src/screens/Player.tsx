@@ -85,6 +85,7 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
   const { data: chapters } = useChapters(mediaId);
   const [osd, setOsd] = useState(true);
   const [streamInfoOpen, setStreamInfoOpen] = useState(false);
+  const [volume, setVolume] = useState(1);
   // The subtitle appearance the viewer chose, kept in this browser as the
   // phone and the Android television keep theirs.
   const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(() => getSubtitleStylePref() ?? DEFAULT_SUBTITLE_STYLE);
@@ -536,6 +537,17 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
       });
     }
     out.push({
+      key: "volume",
+      label: t("player.controls.volume"),
+      value: `${Math.round(volume * 100)}%`,
+      choices: [0, 25, 50, 75, 100].map((v) => ({ key: String(v), label: `${v}%`, selected: Math.round(volume * 100) === v })),
+      onPick: (k) => {
+        const next = Number(k) / 100;
+        setVolume(next);
+        if (videoRef.current) videoRef.current.volume = next;
+      },
+    });
+    out.push({
       key: "sleep",
       label: t("player.settings.sleepTimer"),
       value: sleep.state?.kind === "minutes" && sleep.state.minutesLeft != null
@@ -566,7 +578,7 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
       onPick: () => { setPanel(false); setStreamInfoOpen(true); },
     });
     return out;
-  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, time, t, restartKeepingPlace, seekTo, sleep, sleepChoices, clientSubtitle, subtitleStyle, applySubtitleStyle]);
+  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, time, t, restartKeepingPlace, seekTo, sleep, sleepChoices, clientSubtitle, subtitleStyle, applySubtitleStyle, volume]);
 
   // --- render ---------------------------------------------------------------
   const shown = preview ?? time;

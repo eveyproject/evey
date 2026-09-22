@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 
 // The screen is under test, not the libraries around it: the queries answer
 // from the fixtures below and every box is focusable.
@@ -98,6 +98,20 @@ describe("the home follows the server's row plan", () => {
     expect(document.querySelector(".watched-badge")).toBeTruthy();
     const bar = document.querySelector(".card-progress i") as HTMLElement;
     expect(bar.style.width).toBe("42%");
+  });
+
+  // One row failing must not blank the home, and must not pose as "nothing
+  // here": it says so and offers to ask again.
+  it("a row whose query failed says so and offers a retry", () => {
+    const refetch = vi.fn();
+    feedConfig.mockReturnValue({ data: { configs: [{ feedType: "most_popular", enabled: true, displayOrder: 0 }, { feedType: "resume_playback", enabled: true, displayOrder: 1 }] } });
+    popular.mockReturnValue({ data: [], isError: true, refetch });
+    render(<HomeScreen />);
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+    fireEvent.click(screen.getByText("common.retry"));
+    expect(refetch).toHaveBeenCalled();
+    // The other row is untouched.
+    expect(screen.getByText("Resume me")).toBeTruthy();
   });
 
   it("says nothing is here only once every row came back empty", () => {

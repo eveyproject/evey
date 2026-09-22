@@ -52,8 +52,29 @@ function openItem(item: V1MediaItem) {
   navigate({ name: "media", mediaId: item.id });
 }
 
-function Row({ title, items, wide, focusFirst }: { title: string; items: V1MediaItem[]; wide?: boolean; focusFirst?: boolean }) {
+function Row({ title, items, wide, focusFirst, onRetry }: {
+  title: string;
+  items: V1MediaItem[];
+  wide?: boolean;
+  focusFirst?: boolean;
+  /** Present when this row's own query failed: the viewer can ask again. */
+  onRetry?: () => void;
+}) {
+  const { t } = useTranslation();
   const { watchedMap, percentMap } = useWatchProgressMaps();
+  // One row that failed must not blank the home, and must not pose as empty:
+  // it says so and offers to try again, the way the television does.
+  if (onRetry) {
+    return (
+      <FocusRoot>
+        <h2 className="row-title">{title}</h2>
+        <div className="actions">
+          <span className="muted">{t("common.loadError")}</span>
+          <Button onPress={onRetry}>{t("common.retry")}</Button>
+        </div>
+      </FocusRoot>
+    );
+  }
   if (items.length === 0) return null;
   return (
     <FocusRoot>
@@ -157,6 +178,24 @@ export function HomeScreen() {
     [sections],
   );
 
+  // The retry for a row whose own query failed, or undefined when it is fine.
+  const queryFor = (section: HomeSection): (() => void) | undefined => {
+    if (section.kind !== "feed") return undefined;
+    const q = section.feedType === "resume_playback" || section.feedType === "continue_watching"
+      ? resume
+      : section.feedType === "next_episode"
+        ? nextUp
+        : section.feedType === "recommended"
+          ? recommended
+          : section.feedType === "most_popular"
+            ? popular
+            : section.feedType === "collections"
+              ? collections
+              : null;
+    if (!q || !("isError" in q) || !q.isError) return undefined;
+    return () => { void (q as { refetch?: () => unknown }).refetch?.(); };
+  };
+
   const itemsFor = (section: HomeSection): V1MediaItem[] => {
     if (section.kind !== "feed") return [];
     switch (section.feedType) {
@@ -235,6 +274,17 @@ export function HomeScreen() {
             ))}
           </div>
         </FocusRoot>
+      );
+    }
+    const failed = queryFor(section);
+    if (failed) {
+      return (
+        <Row
+          key={section.key}
+          title={t(FEED_LABELS[section.feedType] ?? section.feedType, section.feedType)}
+          items={[]}
+          onRetry={failed}
+        />
       );
     }
     const items = itemsFor(section);

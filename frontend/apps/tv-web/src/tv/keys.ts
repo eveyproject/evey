@@ -2,7 +2,7 @@
 // directions, select and back. Everything the app does must be reachable
 // with those six; the media keys are accelerators for the sets that send
 // them (a browser often keeps them for itself).
-export type TvKey = "left" | "right" | "up" | "down" | "select" | "back" | "play" | "pause" | "playPause" | "rewind" | "forward" | "stop";
+export type TvKey = "left" | "right" | "up" | "down" | "select" | "back" | "play" | "pause" | "playPause" | "rewind" | "forward" | "stop" | "search";
 
 // keyCode is what the older engines (webOS 6 = Chromium 79) report reliably
 // for the remote; `key` covers the modern ones and a keyboard on a desktop.
@@ -21,6 +21,8 @@ const BY_CODE: Record<number, TvKey> = {
   413: "stop",
   412: "rewind",
   417: "forward",
+  // The remote's own search button, where the set has one.
+  10225: "search",
   // Samsung Tizen
   10009: "back",
   10252: "playPause",
@@ -44,6 +46,8 @@ const BY_KEY: Record<string, TvKey> = {
   MediaFastForward: "forward",
   MediaStop: "stop",
   " ": "playPause",
+  BrowserSearch: "search",
+  Search: "search",
 };
 
 export function tvKeyOf(e: Pick<KeyboardEvent, "key" | "keyCode">): TvKey | null {

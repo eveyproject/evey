@@ -58,6 +58,7 @@ export * from "./hooks/useSubtitleTrack";
 export * from "./hooks/useTrickplayCues";
 export * from "./lib/subtitleStyle";
 export * from "./lib/searchResultsView";
+export * from "./lib/uiScale";
 export * from "./lib/deviceRegistrationCore";
 export * from "./lib/photoGrid";
 export * from "./lib/photoRoutes";
