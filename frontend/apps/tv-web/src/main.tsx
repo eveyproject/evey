@@ -39,12 +39,15 @@ import { SyncplayScreen } from "./screens/Syncplay";
 import { NavBar } from "./components/NavBar";
 import { MusicBar } from "./music/MusicBar";
 import { applyThemeVars, useAppliedTheme } from "./lib/theme";
+import { applyUiScale, storedUiScale } from "./lib/uiScale";
 import { useDeviceRegistration, usePresenceHeartbeat } from "@evey/client/web";
 import "./styles.css";
 
 // The default palette before anything loads; the profile's own theme
 // follows from useAppliedTheme once the session is up.
 applyThemeVars("default");
+// The interface size this television was set to, before the first paint.
+applyUiScale(storedUiScale());
 
 initTvNavigation();
 
@@ -137,6 +140,12 @@ function App() {
   // The global back: a screen that handles back itself (the player) stops
   // the event before it reaches here.
   useTvKeys((key) => {
+    // The remote's search button opens the search from wherever the viewer
+    // is, as the Android television's does.
+    if (key === "search") {
+      if (accessToken && profileId) navigate({ name: "search" });
+      return;
+    }
     if (key !== "back") return;
     if (route.name === "home" || route.name === "server" || route.name === "login") return;
     goBack();

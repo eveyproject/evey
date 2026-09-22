@@ -1,9 +1,10 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useUserServiceUpdateProfile } from "@evey/api";
 import { useServerListStore, useThemeStore, themePreferences } from "@evey/store";
 import { themes, THEME_NAMES } from "@evey/theme";
-import { pluginThemeKey, resolveSlotEntries, useActiveProfile, usePluginList, usePluginThemes } from "@evey/client";
+import { UI_SCALE_OPTIONS, pluginThemeKey, resolveSlotEntries, useActiveProfile, usePluginList, usePluginThemes } from "@evey/client";
+import { applyUiScale, storedUiScale } from "../lib/uiScale";
 import { FocusRoot } from "../tv/focus";
 import { Button } from "../components/ui";
 import { navigate, replace } from "../app/router";
@@ -28,6 +29,7 @@ export function SettingsScreen() {
   const { profile } = useActiveProfile();
   const updateProfile = useUserServiceUpdateProfile();
   const { data: pluginThemes } = usePluginThemes();
+  const [scale, setScale] = useState(() => storedUiScale());
   // The plugins that ship their own settings module get a row, as on the
   // television.
   const { data: pluginList } = usePluginList();
@@ -52,6 +54,12 @@ export function SettingsScreen() {
           <Button key={lng} variant={i18n.language === lng ? "primary" : "default"} onPress={() => { saveLocale(lng); void i18n.changeLanguage(lng); }}>
             {lng.toUpperCase()}
           </Button>
+        ))}
+      </div>
+      <h2 className="row-title">{t("mobile.settings.uiScale")}</h2>
+      <div className="actions">
+        {UI_SCALE_OPTIONS.map((pct) => (
+          <Button key={pct} variant={scale === pct ? "primary" : "default"} onPress={() => { setScale(pct); applyUiScale(pct); }}>{pct}%</Button>
         ))}
       </div>
       <h2 className="row-title">{t("auth.settings.tabs.appearance", "Appearance")}</h2>
