@@ -423,3 +423,11 @@ button, input {
   width: 100%;
   font-size: 2vw;
 }
+
+.people {
+  margin-top: 2vw;
+}
+.people .muted {
+  font-size: 1.3vw;
+  line-height: 1.6;
+}
