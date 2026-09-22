@@ -1,11 +1,12 @@
-import { memo, useEffect, useState } from "react";
-import { eveyFetchRaw, getBaseURL } from "@evey/api";
-import { parseTrickplayVTT, cueForTime, type TrickplayCue } from "@evey/client";
+import { memo, useEffect } from "react";
+import { getBaseURL } from "@evey/api";
+import { cueForTime, useTrickplayCues } from "@evey/client";
 
 // The picture at the seek target while the remote scrubs: the sprite sheet
 // the server generated, cropped to the tile with background-position, the
-// way the web player does it. Nothing to draw resolves to nothing.
-const cueCache = new Map<string, TrickplayCue[]>();
+// way the browser player does it. Nothing to draw resolves to nothing. The
+// manifest and its bounded cache live in @evey/client, shared with the
+// Android television.
 
 interface Props {
   mediaId: string;
@@ -16,22 +17,7 @@ interface Props {
 }
 
 function TrickplayTileImpl({ mediaId, previewTimeSec, warm }: Props) {
-  const [cues, setCues] = useState<TrickplayCue[]>(() => cueCache.get(mediaId) ?? []);
-  const wanted = warm || previewTimeSec !== null;
-  useEffect(() => {
-    if (!wanted || cueCache.has(mediaId)) { setCues(cueCache.get(mediaId) ?? []); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" });
-        const parsed = parseTrickplayVTT(await res.text());
-        if (cancelled) return;
-        cueCache.set(mediaId, parsed);
-        setCues(parsed);
-      } catch { /* no sprites yet */ }
-    })();
-    return () => { cancelled = true; };
-  }, [mediaId, wanted]);
+  const cues = useTrickplayCues(mediaId, warm || previewTimeSec !== null);
 
   // Warm the first sheet into the browser cache too.
   useEffect(() => {
