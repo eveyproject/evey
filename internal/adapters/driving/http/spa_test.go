@@ -199,3 +199,52 @@ func TestSPAHandler_MissingAssetIs404NotIndexHTML(t *testing.T) {
 		t.Fatalf("missing asset must 404, got %d (the SPA fallback disguises a stale chunk as HTML)", rec.Code)
 	}
 }
+
+// The browser TV client is a second SPA under /tv: its deep paths must open
+// ITS index, and its hashed assets must get the same policy and the same
+// staleness 404 as the web app's.
+func setupTVDir(t *testing.T) string {
+	t.Helper()
+	dir := setupSPADir(t)
+	tv := filepath.Join(dir, "tv")
+	if err := os.MkdirAll(filepath.Join(tv, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tv, "index.html"), []byte("<html>TV-INDEX</html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tv, "assets", "tv.js"), []byte("console.log('tv')"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestSPAHandler_SubdirectoryClient(t *testing.T) {
+	dir := setupTVDir(t)
+	h := spaHandler(dir)
+
+	cases := []struct {
+		path      string
+		status    int
+		body      string
+		cacheCtrl string
+	}{
+		{path: "/tv/anything", status: http.StatusOK, body: "TV-INDEX", cacheCtrl: "no-cache"},
+		{path: "/tv/assets/tv.js", status: http.StatusOK, body: "console.log('tv')", cacheCtrl: "public, max-age=31536000, immutable"},
+		{path: "/tv/assets/gone.js", status: http.StatusNotFound},
+		{path: "/foo/bar", status: http.StatusOK, body: "SPA-INDEX", cacheCtrl: "no-cache"},
+	}
+	for _, c := range cases {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, c.path, nil))
+		if w.Code != c.status {
+			t.Fatalf("%s: expected %d, got %d", c.path, c.status, w.Code)
+		}
+		if c.body != "" && !strings.Contains(w.Body.String(), c.body) {
+			t.Errorf("%s: expected %q, got %q", c.path, c.body, w.Body.String())
+		}
+		if c.cacheCtrl != "" && w.Header().Get("Cache-Control") != c.cacheCtrl {
+			t.Errorf("%s: expected Cache-Control %q, got %q", c.path, c.cacheCtrl, w.Header().Get("Cache-Control"))
+		}
+	}
+}
