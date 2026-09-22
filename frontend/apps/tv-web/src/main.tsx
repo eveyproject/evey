@@ -2,7 +2,6 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore, useToastStore, shouldRetryQuery } from "@evey/store";
-import { themeVars } from "@evey/theme";
 import { mutationErrorNet } from "@evey/client";
 import { initTvNavigation, useTvKeys } from "./tv/focus";
 import { useRoute, replace, goBack, type Route } from "./app/router";
@@ -18,13 +17,12 @@ import { MediaDetailScreen } from "./screens/MediaDetail";
 import { PlayerScreen } from "./screens/Player";
 import { SettingsScreen } from "./screens/Settings";
 import { SearchScreen } from "./screens/Search";
+import { applyThemeVars, useAppliedTheme } from "./lib/theme";
 import "./styles.css";
 
-// The palette the web app reads from a generated stylesheet is set here as
-// the same CSS variables, from the same source of truth.
-for (const [name, value] of Object.entries(themeVars["default"])) {
-  document.documentElement.style.setProperty(name, value);
-}
+// The default palette before anything loads; the profile's own theme
+// follows from useAppliedTheme once the session is up.
+applyThemeVars("default");
 
 initTvNavigation();
 
@@ -42,6 +40,13 @@ function Toasts() {
   const last = toasts[toasts.length - 1];
   if (!last) return null;
   return <div className="toast">{last.message}</div>;
+}
+
+// Paints the profile's theme; mounted only once signed in so its queries
+// never fire before a server is chosen.
+function ThemeFollower() {
+  useAppliedTheme();
+  return null;
 }
 
 function App() {
@@ -104,6 +109,16 @@ function App() {
         ? { name: profileId ? "home" : "profiles" }
         : route;
 
+  const screen = renderScreen(effective);
+  return (
+    <>
+      {accessToken && profileId ? <ThemeFollower /> : null}
+      {screen}
+    </>
+  );
+}
+
+function renderScreen(effective: Route) {
   switch (effective.name) {
     case "server":
       return <ServerConnectScreen />;
