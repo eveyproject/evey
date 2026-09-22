@@ -1,23 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
-import { eveyFetchRaw, formatTime } from "@evey/api";
+import { eveyFetchRaw, formatTime, getFreshAccessToken } from "@evey/api";
 import { toast, useAuthStore, useMusicPlayerStore, type MusicTrack, type MusicSource } from "@evey/store";
 import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, VolumeX, Shuffle, ListMusic } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { randomUUID } from "@/lib/randomId";
 
-function MiniTrackArt({ trackID, coverArtURL }: { trackID: string; coverArtURL?: string }) {
+function MiniTrackArt({ trackID, coverArtURL, token }: { trackID: string; coverArtURL?: string; token?: string }) {
   const [error, setError] = useState(false);
-  // Pin token at trackID-change time: subscribing to accessToken would
-  // re-fetch the cover art on every 15-min token refresh.
+  // The token the stream was minted with, so the art never outlives it either.
   const src = useMemo(() => {
-    const tok = useAuthStore.getState().accessToken;
-    const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
+    const tp = token ? `?token=${encodeURIComponent(token)}` : "";
     // 48px slot, 2x for high-density screens: a display-sized WebP, not the
     // full cover embedded in the file.
     return `/api/v1/music/tracks/${trackID}/art${tp}${tp ? "&" : "?"}w=96`;
-  }, [trackID]);
+  }, [trackID, token]);
   const size = 48;
   if (error || !coverArtURL) {
     return (
@@ -180,14 +178,30 @@ export function GlobalAudioPlayer() {
           void navigate({ to: "/music", search: { tab: "tracks", album: source.id } });
         }
       };
-  // Pin token at track-change time: subscribing to accessToken would rebuild
-  // src on every refresh cycle, which aborts the in-flight audio stream.
+  // The token is minted FRESH at every track change, then pinned for that
+  // track's lifetime. The store's token is what the last API call left behind,
+  // and an album is long enough for it to expire between two tracks with
+  // nobody touching the page: the next track's stream then 401s and the music
+  // stops (prod logs, 21-09, `auth rejected invalid_token` on
+  // /music/tracks/{id}/stream). Pinned, because subscribing to accessToken
+  // would rebuild src on every refresh cycle and abort the in-flight stream.
+  // Same rule as the television and the phone.
+  const trackId = playing?.ID;
+  const [pinned, setPinned] = useState<{ trackId: string; token?: string } | null>(null);
+  useEffect(() => {
+    if (!trackId) { setPinned(null); return; }
+    let live = true;
+    getFreshAccessToken()
+      .then((token) => { if (live) setPinned({ trackId, token }); })
+      .catch(() => { if (live) setPinned({ trackId, token: useAuthStore.getState().accessToken ?? undefined }); });
+    return () => { live = false; };
+  }, [trackId]);
+  const token = pinned && pinned.trackId === trackId ? pinned.token : undefined;
   const src = useMemo(() => {
-    if (!playing) return undefined;
-    const tok = useAuthStore.getState().accessToken;
-    const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
-    return `/api/v1/music/tracks/${playing.ID}/stream${tp}`;
-  }, [playing?.ID]);
+    if (!trackId || !pinned || pinned.trackId !== trackId) return undefined;
+    const tp = token ? `?token=${encodeURIComponent(token)}` : "";
+    return `/api/v1/music/tracks/${trackId}/stream${tp}`;
+  }, [trackId, pinned, token]);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -217,7 +231,9 @@ export function GlobalAudioPlayer() {
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !playing) return;
+    // `src` gates this effect: the token arrives a microtask after the track
+    // changes, and play() on a source-less element only throws.
+    if (!audio || !playing || !src) return;
     // The <audio> element is keyed by track id, so on a track change it has
     // remounted with currentTime=0 / duration=NaN. Reset the mirrored state
     // immediately so the seek bar doesn't briefly show the previous track's
@@ -243,7 +259,7 @@ export function GlobalAudioPlayer() {
         if (e instanceof DOMException && e.name !== "AbortError") console.warn("Autoplay blocked:", e.message);
       }
     })();
-  }, [playing?.ID]);
+  }, [playing?.ID, src]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
@@ -382,7 +398,7 @@ export function GlobalAudioPlayer() {
         }}
       />
       <div className="flex items-center gap-3 min-w-0 w-[120px] sm:w-[200px]">
-        <MiniTrackArt trackID={playing.ID} coverArtURL={playing.CoverArtURL} />
+        <MiniTrackArt trackID={playing.ID} coverArtURL={playing.CoverArtURL} token={token} />
         {goToSource ? (
           <button
             type="button"
