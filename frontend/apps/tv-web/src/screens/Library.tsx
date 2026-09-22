@@ -30,7 +30,7 @@ export const PAGE_SIZE = 30;
 // Cards from the end at which the next page is requested: two rows of a
 // grid that fits about six posters across at 1080p.
 export const PREFETCH_FROM_END = 12;
-const DEDICATED_ROUTES = ["/music"];
+const TV_WEB_DEDICATED_ROUTES = ["/music"];
 
 const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [
   { labelKey: "media.library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
@@ -72,7 +72,7 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
 
   // A music library has its own screens; the generic grid over it is empty
   // (its tracks are not media items), so the route is swapped in place.
-  const dedicated = dedicatedRouteFor(library?.type, DEDICATED_ROUTES);
+  const dedicated = dedicatedRouteFor(library?.type, TV_WEB_DEDICATED_ROUTES);
   useEffect(() => {
     if (dedicated === "/music") replace({ name: "music", libraryId });
   }, [dedicated, libraryId]);
