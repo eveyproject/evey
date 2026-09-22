@@ -7,21 +7,15 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (s: any) => s },
 }));
 
-// expo-image's Image reports its natural size via onLoad asynchronously (the
-// native decode happens off the render pass) - this mock fires it from an
-// effect for the same reason, with a fixed sheet size, so the component's
-// second render (once sheetSizeCache is populated) is the one assertions run
-// against.
-const prefetchMock = vi.fn((_url: string, _opts?: unknown) => Promise.resolve(true));
+// The sheet is decoded through expo-image's loadAsync, which reports the
+// image's size (logical units times `scale` = pixels); the mock resolves a
+// fixed 480x90 sheet whose ref the tile then renders as its source.
+const loadAsyncMock = vi.fn((source: { uri: string; headers?: unknown }) =>
+  Promise.resolve({ uri: source.uri, width: 480, height: 90, scale: 1, release: vi.fn() }),
+);
 vi.mock("expo-image", () => {
-  const Image = (props: any) => {
-    React.useEffect(() => {
-      props.onLoad?.({ source: { url: props.source?.uri, width: 480, height: 90 } });
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-    return React.createElement("img", { alt: "", src: props.source?.uri, style: props.style });
-  };
-  Image.prefetch = (url: string, opts?: unknown) => prefetchMock(url, opts);
+  const Image = (props: any) => React.createElement("img", { alt: "", src: props.source?.uri, style: props.style });
+  Image.loadAsync = (source: { uri: string; headers?: unknown }) => loadAsyncMock(source);
   return { Image };
 });
 
@@ -70,7 +64,7 @@ function mockManifestError() {
 
 beforeEach(() => {
   eveyFetchRawMock.mockReset();
-  prefetchMock.mockClear();
+  loadAsyncMock.mockClear();
   useServerUrlMock.mockReturnValue("http://srv.test");
 });
 
@@ -108,8 +102,8 @@ describe("TrickplaySeekPreview", () => {
     });
 
     const img = container.querySelector("img") as HTMLImageElement;
-    // The 15s mark falls in the second cue (x=160,y=0,w=160,h=90); the probe
-    // mock always reports an 480x90 sheet.
+    // The 15s mark falls in the second cue (x=160,y=0,w=160,h=90); the
+    // loadAsync mock always reports a 480x90 sheet.
     expect(img.style.left).toBe("-160px");
     expect(img.style.top).toBe("0px");
     expect(img.style.width).toBe("480px");
@@ -194,14 +188,17 @@ describe("TrickplaySeekPreview, an abandoned fetch", () => {
 // only fetched once the seek started, and landed after it had committed.
 // With the controls on screen the picture is ready before the viewer presses.
 describe("warm-up while the controls show", () => {
-  it("fetches the manifest and prefetches the first sheet before any seek, still drawing nothing", async () => {
+  it("fetches the manifest and decodes the first sheet before any seek, still drawing nothing", async () => {
     mockManifestOk(REALISTIC_VTT);
+    // Decoded sheets are cached by url for the app's lifetime, so this test
+    // names its own server to be sure the decode is the warm-up's.
+    useServerUrlMock.mockReturnValue("http://warm.test");
     const { container } = render(<TrickplaySeekPreview mediaId="warm-1" previewTimeSec={null} warm />);
     await waitFor(() => expect(eveyFetchRawMock).toHaveBeenCalledWith({ url: "/api/v1/media/warm-1/trickplay", method: "GET" }));
-    await waitFor(() => expect(prefetchMock).toHaveBeenCalledWith(
-      "http://srv.test/api/v1/media/{id}/trickplay/trickplay_001.webp?token=abc",
-      { headers: { Authorization: "Bearer TOKEN" } },
-    ));
+    await waitFor(() => expect(loadAsyncMock).toHaveBeenCalledWith({
+      uri: "http://warm.test/api/v1/media/{id}/trickplay/trickplay_001.webp?token=abc",
+      headers: { Authorization: "Bearer TOKEN" },
+    }));
     expect(container.querySelector("img")).toBeNull();
   });
 });
