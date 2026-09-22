@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, BackHandler, ScrollView, StyleSheet } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -41,8 +41,10 @@ export default function Login() {
     return () => sub.remove();
   }, [changeServer]));
 
+  const inFlight = useRef(false);
   const { mutate: login, isPending } = useUserServiceLogin({
     mutation: {
+      onSettled: () => { inFlight.current = false; },
       onSuccess: async (data) => {
         if (data.accessToken) {
           // Without the refresh token the session dies with the access token
@@ -61,8 +63,19 @@ export default function Login() {
     },
   });
 
+  // One press, ONE request. The password field's own submit and the Sign in
+  // button both land here, and on a television the same OK press reaches
+  // both: measured in production 2026-09-22, every attempt of this account
+  // arrived twice within the same second (two request ids). The server locks
+  // an account after five failures in fifteen minutes, so a doubled attempt
+  // burns the allowance twice as fast - the viewer was answered "too many
+  // login attempts" after barely two tries on a remote-control keyboard.
+  // A ref, not isPending: that flag is set a render later, which is too late
+  // for two calls in the same tick.
   function handleLogin() {
     if (!username.trim() || !password) return;
+    if (inFlight.current || isPending) return;
+    inFlight.current = true;
     login({ data: { username: username.trim(), password } });
   }
 
