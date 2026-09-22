@@ -77,6 +77,7 @@ export function SettingsScreen() {
         <Button onPress={() => navigate({ name: "notifications" })}>{t("common.notifications.title")}</Button>
         <Button onPress={() => navigate({ name: "home" })}>{t("media.home.customize")}</Button>
         <Button onPress={() => navigate({ name: "servers" })}>{t("mobile.servers.manageTitle")}</Button>
+        <Button onPress={() => navigate({ name: "syncplay" })}>{t("common.nav.joinRoom")}</Button>
         {settingsPlugins.map((p) => (
           <Button key={p.id} onPress={() => navigate({ name: "plugin-settings", pluginId: p.id! })}>{p.name}</Button>
         ))}

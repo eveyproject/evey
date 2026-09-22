@@ -34,6 +34,8 @@ import {
 import { PlaybackSettingsScreen, ServersScreen, StatsScreen } from "./screens/SettingsScreens";
 import { PhotosScreen, SlideshowScreen } from "./screens/Photos";
 import { PluginSettingsScreen } from "./screens/PluginSettings";
+import { RequestsScreen } from "./screens/Requests";
+import { SyncplayScreen } from "./screens/Syncplay";
 import { NavBar } from "./components/NavBar";
 import { MusicBar } from "./music/MusicBar";
 import { applyThemeVars, useAppliedTheme } from "./lib/theme";
@@ -240,6 +242,10 @@ function renderScreen(effective: Route) {
       return <StatsScreen />;
     case "servers":
       return <ServersScreen />;
+    case "requests":
+      return <RequestsScreen />;
+    case "syncplay":
+      return <SyncplayScreen />;
     case "photos":
       return <PhotosScreen libraryId={effective.libraryId} albumId={effective.albumId} />;
     case "plugin-settings":
