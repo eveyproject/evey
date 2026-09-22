@@ -69,14 +69,24 @@ func TestPluginBridgeParityWebMobile(t *testing.T) {
 		}
 	}
 
+	// The bridge RPC table lives ONCE, in @evey/client (pluginRpc.ts), and
+	// every host (web iframe, mobile and TV WebViews) runs that same table
+	// since 2026-09-22 - parity by construction. The guard now checks the
+	// shared table is still there and that no host grew a private one.
 	rpcRe := regexp.MustCompile(`case "([a-z]+\.[a-z]+)":`)
-	webRPC := extract(read("frontend/apps/web/src/features/plugins/PluginIframe.tsx"), rpcRe)
-	mobRPC := extract(read("frontend/apps/mobile/src/features/plugins/PluginSlot.tsx"), rpcRe)
-	if len(webRPC) < 4 || len(mobRPC) < 4 {
-		t.Fatalf("bridge RPC extraction lost the files (web=%d mobile=%d) - refusing to pass vacuously", len(webRPC), len(mobRPC))
+	sharedRPC := extract(read("frontend/packages/client/src/plugins/pluginRpc.ts"), rpcRe)
+	if len(sharedRPC) < 4 {
+		t.Fatalf("bridge RPC extraction lost the shared table (%d) - refusing to pass vacuously", len(sharedRPC))
 	}
-	diff("bridge RPC", webRPC, mobRPC, "web PluginIframe", "mobile PluginSlot")
-	diff("bridge RPC", mobRPC, webRPC, "mobile PluginSlot", "web PluginIframe")
+	for _, host := range []string{
+		"frontend/apps/web/src/features/plugins/PluginIframe.tsx",
+		"frontend/apps/mobile/src/features/plugins/PluginSlot.tsx",
+		"frontend/apps/tv/src/features/plugins/PluginSlot.tsx",
+	} {
+		if private := extract(read(host), rpcRe); len(private) > 0 {
+			t.Errorf("%s handles bridge RPCs itself (%d cases) - they belong in @evey/client pluginRpc.ts so every host stays in step", host, len(private))
+		}
+	}
 
 	typeRe := regexp.MustCompile(`"(rpc|rpc-result|ready|init|navigate|toast|resize)"`)
 	webTypes := extract(read("frontend/apps/web/src/features/plugins/front-bridge.ts"), typeRe)

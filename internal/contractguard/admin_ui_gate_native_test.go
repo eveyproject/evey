@@ -33,6 +33,11 @@ var nativeGatedByCaller = map[string]string{
 	"mobile/src/api/collections.ts": "hook wrappers, no UI of their own; the screens calling them are gated",
 	"mobile/src/api/playlists.ts":   "playlist RPCs are RoleUser, not admin",
 	"tv/app/(auth)/admin/":          "same layout redirect as mobile, if the TV ever grows an admin area",
+	// The shared package (2026-09-22): the same hook wrappers the phone and
+	// the television used to carry each, now one copy with no UI of its own.
+	"packages/client/src/api/collections.ts":        "hook wrappers, no UI of their own; the screens calling them are gated",
+	"packages/client/src/api/playlists.ts":          "playlist RPCs are RoleUser, not admin",
+	"packages/client/src/hooks/useAdminSegments.ts": "hook used only by the admin media screen, behind the layout redirect",
 }
 
 var (
@@ -159,7 +164,10 @@ func TestEveryNativeSurfaceReachingAnAdminRPCIsClassified(t *testing.T) {
 		t.Fatalf("found %d admin-writing hooks, want at least 3 - the indirection scan has drifted", len(hooks))
 	}
 
-	root := filepath.Join(repoRoot, "frontend/apps") + "/"
+	// Paths are keyed under frontend/: "mobile/...", "tv/..." for the apps,
+	// "packages/client/..." for the shared package.
+	appsRoot := filepath.Join(repoRoot, "frontend/apps") + "/"
+	frontRoot := filepath.Join(repoRoot, "frontend") + "/"
 	var ungated []string
 	for _, f := range files {
 		b, err := os.ReadFile(f)
@@ -170,7 +178,10 @@ func TestEveryNativeSurfaceReachingAnAdminRPCIsClassified(t *testing.T) {
 		if strings.Contains(src, "isAdmin") {
 			continue
 		}
-		rel := strings.TrimPrefix(f, root)
+		rel := strings.TrimPrefix(f, appsRoot)
+		if rel == f {
+			rel = strings.TrimPrefix(f, frontRoot)
+		}
 		if nativeClassified(rel) {
 			continue
 		}
