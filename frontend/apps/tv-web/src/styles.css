@@ -536,3 +536,35 @@ button, input {
   font-size: 5vw;
   color: var(--text-muted, #64748b);
 }
+
+/* Library facets: rows of chips the remote walks, wrapping as the genres need. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6vw;
+  margin: 0.6vw 0;
+  align-items: center;
+}
+
+.chips .btn {
+  padding: 0.5vw 1.3vw;
+  font-size: 1.2vw;
+}
+
+.chips-count {
+  margin-left: auto;
+  font-size: 1.2vw;
+}
+
+/* A screen's head: the title on the left, its controls on the right. */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 2vw;
+  margin-bottom: 0.8vw;
+}
+
+.header .title {
+  margin: 0;
+  margin-right: auto;
+}
