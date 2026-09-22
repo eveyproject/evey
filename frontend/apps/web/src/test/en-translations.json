@@ -2891,6 +2891,7 @@
   "player.nextEpisodeOverlay.playNow": "Play Now",
   "player.nextEpisodeOverlay.upNext": "Up Next",
   "player.nowPlaying": "Now playing",
+  "player.osd.downHint": "▼ Settings",
   "player.playOn.button": "Play on another device",
   "player.playOn.empty": "No connected devices. Open the Evey app on your TV / phone to make it available here.",
   "player.playOn.failed": "Failed to send - the device may have disconnected",

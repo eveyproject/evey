@@ -35,7 +35,7 @@ export function ServerConnectScreen() {
   return (
     <FocusRoot autoFocus className="screen screen-center">
       <h1 className="title">Evey TV</h1>
-      <p className="subtitle">{t("mobile.serverConnect.subtitle", "Enter the address of your Evey server.")}</p>
+      <p className="subtitle">{t("mobile.serverConnect.hint", "Enter the address of your Evey server.")}</p>
       <div className="stack">
         <TextField value={url} onChange={setUrl} placeholder="https://evey.example.com" type="url" autoFocus onSubmit={() => void connect(url)} />
         <Button variant="primary" onPress={() => void connect(url)} disabled={busy}>
@@ -46,7 +46,7 @@ export function ServerConnectScreen() {
       </div>
       {servers.length > 0 ? (
         <div className="stack" style={{ marginTop: "2vw" }}>
-          <p className="muted">{t("mobile.serverConnect.savedServers", "Saved servers")}</p>
+          <p className="muted">{t("mobile.servers.title", "Saved servers")}</p>
           {servers.map((s) => (
             <Button key={s.id} onPress={() => void connect(s.url)}>
               {s.label || s.serverName || s.url}

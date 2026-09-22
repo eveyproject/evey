@@ -12,7 +12,7 @@ export function SettingsScreen() {
 
   return (
     <FocusRoot autoFocus className="screen screen-center">
-      <h1 className="title">{t("settings.title", "Settings")}</h1>
+      <h1 className="title">{t("common.nav.settings", "Settings")}</h1>
       <p className="subtitle">{server?.label || server?.serverName || server?.url}</p>
       <div className="actions">
         {supportedLanguages.map((lng) => (
@@ -22,9 +22,9 @@ export function SettingsScreen() {
         ))}
       </div>
       <div className="actions">
-        <Button autoFocus onPress={() => replace({ name: "profiles" })}>{t("profile.switch", "Switch profile")}</Button>
-        <Button onPress={() => { void signOut().then(() => replace({ name: "login" })); }}>{t("auth.signOut", "Sign out")}</Button>
-        <Button variant="ghost" onPress={() => { void signOut().then(() => replace({ name: "server" })); }}>{t("mobile.serverConnect.changeServer", "Change server")}</Button>
+        <Button autoFocus onPress={() => replace({ name: "profiles" })}>{t("common.nav.switchProfile", "Switch profile")}</Button>
+        <Button onPress={() => { void signOut().then(() => replace({ name: "login" })); }}>{t("common.nav.signOut", "Sign out")}</Button>
+        <Button variant="ghost" onPress={() => { void signOut().then(() => replace({ name: "server" })); }}>{t("mobile.settings.changeServer", "Change server")}</Button>
       </div>
     </FocusRoot>
   );

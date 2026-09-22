@@ -201,3 +201,6 @@ sessionExpired:
   body: 重新登录以继续观看。
 a11y:
   progress: "播放进度"
+# The television client: the hint on its bar for the one key into the options.
+osd:
+  downHint: "▼ 设置"

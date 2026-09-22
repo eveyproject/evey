@@ -36,6 +36,7 @@ export * from "./lib/pluginBridge";
 export * from "./lib/serverIdentity";
 export * from "./lib/artwork";
 export * from "./lib/pluginTheme";
+export * from "./lib/trickplayCues";
 
 export * from "./plugins/slotEntries";
 export * from "./plugins/hostProtocol";

@@ -201,3 +201,6 @@ sessionExpired:
   body: देखना जारी रखने के लिए फिर से साइन इन करें।
 a11y:
   progress: "प्लेबैक प्रगति"
+# The television client: the hint on its bar for the one key into the options.
+osd:
+  downHint: "▼ सेटिंग्स"

@@ -10,3 +10,4 @@ export * from "./web/codec";
 export * from "./web/outputChannels";
 export * from "./web/hlsCodecParams";
 export * from "./web/usePlaySession";
+export * from "./web/useTvPlaySession";

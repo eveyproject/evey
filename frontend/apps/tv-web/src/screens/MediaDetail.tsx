@@ -58,19 +58,19 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
               <div className="actions">
                 {canResume ? (
                   <Button variant="primary" autoFocus onPress={() => navigate({ name: "player", mediaId })}>
-                    {t("player.resume", "Resume")} · {formatDurationMs(positionMs)}
+                    {t("media.detail.resume", "Resume")} · {formatDurationMs(positionMs)}
                   </Button>
                 ) : null}
                 <Button variant={canResume ? "default" : "primary"} autoFocus={!canResume} onPress={() => navigate({ name: "player", mediaId, restart: canResume })}>
-                  {canResume ? t("player.startOver", "Start over") : t("common.play", "Play")}
+                  {canResume ? t("media.playFromStart", "Play from the beginning") : t("common.play", "Play")}
                 </Button>
               </div>
             </FocusRoot>
           ) : null}
         </div>
       </div>
-      {isSeries(item) ? <Children parentId={mediaId} type="MEDIA_ITEM_TYPE_SEASON" title={t("media.seasons", "Seasons")} /> : null}
-      {isSeason(item) ? <Children parentId={mediaId} type="MEDIA_ITEM_TYPE_EPISODE" title={t("media.episodes", "Episodes")} /> : null}
+      {isSeries(item) ? <Children parentId={mediaId} type="MEDIA_ITEM_TYPE_SEASON" title={t("media.detail.seasons", "Seasons")} /> : null}
+      {isSeason(item) ? <Children parentId={mediaId} type="MEDIA_ITEM_TYPE_EPISODE" title={t("media.detail.episodes", "Episodes")} /> : null}
     </FocusRoot>
   );
 }

@@ -46,7 +46,7 @@ export function ProfileSelectScreen() {
 
   return (
     <FocusRoot autoFocus className="screen screen-center">
-      <h1 className="title">{t("profile.select.title", "Who is watching?")}</h1>
+      <h1 className="title">{t("auth.profile.select.title", "Who is watching?")}</h1>
       {isLoading ? <Spinner /> : null}
       <div className="actions" style={{ flexWrap: "wrap", justifyContent: "center" }}>
         {profiles.map((p, i) => (

@@ -25,7 +25,7 @@ export function LoginScreen() {
         setTokens(data.accessToken);
         replace({ name: "profiles" });
       },
-      onError: () => setError(t("auth.login.error", "Sign-in failed. Check your username and password.")),
+      onError: () => setError(t("auth.login.loginFailed", "Sign-in failed. Check your username and password.")),
     },
   });
 
@@ -37,7 +37,7 @@ export function LoginScreen() {
 
   return (
     <FocusRoot autoFocus className="screen screen-center">
-      <h1 className="title">{t("auth.login.title", "Sign in")}</h1>
+      <h1 className="title">{t("auth.login.signIn", "Sign in")}</h1>
       <p className="subtitle">{server?.label || server?.serverName || server?.url}</p>
       <div className="stack">
         <TextField value={username} onChange={setUsername} placeholder={t("auth.login.username", "Username")} autoFocus onSubmit={submit} />
@@ -52,7 +52,7 @@ export function LoginScreen() {
           {t("auth.settings.quickConnect.title", "Quick Connect")}
         </Button>
         <Button variant="ghost" onPress={() => replace({ name: "server" })}>
-          {t("mobile.serverConnect.changeServer", "Change server")}
+          {t("mobile.settings.changeServer", "Change server")}
         </Button>
       </div>
     </FocusRoot>
