@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
-import { Image } from "expo-image";
+import { Image, type ImageRef } from "expo-image";
 import { eveyFetchRaw } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
@@ -12,11 +12,25 @@ import { parseTrickplayVTT, cueForTime, type TrickplayCue } from "../lib/trickpl
 // (a fresh instance is created whenever the player screen remounts).
 const cueCache = new Map<string, TrickplayCue[]>();
 const fetchedIds = new Set<string>();
-// Native pixel size of each sprite sheet, keyed by its (token-bearing) cue
-// url. React Native has no CSS background-size:auto - cropping a tile means
-// rendering the WHOLE sheet at its own native size and shifting it, so that
-// size has to be learned from the image itself (see the render below).
-const sheetSizeCache = new Map<string, { width: number; height: number }>();
+
+// One decoded sprite sheet per (token-bearing) cue url, loaded once through
+// expo-image's loadAsync and handed to every tile as its source. React
+// Native has no CSS background-size:auto - cropping a tile means rendering
+// the WHOLE sheet at its own pixel size and shifting it, so that size has to
+// come from the decoded image. It used to come from the onLoad of an
+// invisible 1x1 probe <Image>, and on Android expo-image decodes to the
+// view's size: the probe reported a sheet a few pixels wide, the tile was
+// drawn at that size shifted out of its frame, and the viewer never saw a
+// picture (measured on the emulator, 2026-09-22). loadAsync decodes at the
+// original size and reports it.
+interface Sheet {
+  ref: ImageRef;
+  // Pixel size of the sheet, the unit the manifest's #xywh tiles are in.
+  width: number;
+  height: number;
+}
+const sheetCache = new Map<string, Sheet>();
+const sheetLoading = new Map<string, Promise<Sheet | null>>();
 
 // A TV app is left running for weeks, and every distinct title seeked into adds
 // a parsed cue list that is never removed. Each entry is small, but "small
@@ -37,10 +51,41 @@ function rememberCues(mediaId: string, parsed: TrickplayCue[]): void {
     cueCache.delete(oldest);
     fetchedIds.delete(oldest); // else the evicted title can never re-fetch
   }
-  // The sheet-size cache is keyed by cue URL, not media id, so it cannot be
-  // swept by media id. Clear it wholesale when it grows past a few titles'
-  // worth of sheets: re-learning a size costs one image load.
-  if (sheetSizeCache.size > TRICKPLAY_CACHE_MAX * 8) sheetSizeCache.clear();
+  // The sheet cache is keyed by cue URL, not media id, so it cannot be swept
+  // by media id. A decoded sheet is a bitmap of a few megabytes: release them
+  // wholesale once past a few titles' worth, re-decoding one costs one load.
+  if (sheetCache.size > TRICKPLAY_CACHE_MAX * 4) {
+    for (const sheet of sheetCache.values()) sheet.ref.release();
+    sheetCache.clear();
+  }
+}
+
+// loadSheet decodes a sprite sheet once and remembers it. A failure (network,
+// sprites still generating, a token that expired) resolves to null and is
+// forgotten, so the next seek tries again.
+function loadSheet(url: string, headers: Record<string, string> | undefined): Promise<Sheet | null> {
+  const cached = sheetCache.get(url);
+  if (cached) return Promise.resolve(cached);
+  const inFlight = sheetLoading.get(url);
+  if (inFlight) return inFlight;
+  const p = (async () => {
+    try {
+      const ref = await Image.loadAsync({ uri: url, headers });
+      // `width`/`height` are logical, `scale` turns them into pixels: 1 on
+      // Android, the asset scale on Apple TV.
+      const scale = ref.scale > 0 ? ref.scale : 1;
+      const sheet: Sheet = { ref, width: Math.round(ref.width * scale), height: Math.round(ref.height * scale) };
+      if (sheet.width <= 0 || sheet.height <= 0) return null;
+      sheetCache.set(url, sheet);
+      return sheet;
+    } catch {
+      return null;
+    } finally {
+      sheetLoading.delete(url);
+    }
+  })();
+  sheetLoading.set(url, p);
+  return p;
 }
 
 interface TrickplaySeekPreviewProps {
@@ -50,10 +95,10 @@ interface TrickplaySeekPreviewProps {
   // seekPreviewSec / playerSeek.ts).
   previewTimeSec: number | null;
   // The controls are on screen: a seek is likely next. Fetch the manifest
-  // and the first sprite sheet now, so the FIRST seek shows a picture too -
-  // fetched on the seek itself, the manifest and a sheet of a few hundred
-  // kilobytes landed after the seek had committed, and the viewer saw
-  // nothing until the second try.
+  // and decode the first sprite sheet now, so the FIRST seek shows a picture
+  // too - fetched on the seek itself, the manifest and a sheet of a few
+  // hundred kilobytes landed after the seek had committed, and the viewer
+  // saw nothing until the second try.
   warm?: boolean;
 }
 
@@ -67,18 +112,18 @@ export function TrickplaySeekPreview({ mediaId, previewTimeSec, warm = false }: 
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
   const [cues, setCues] = useState<TrickplayCue[]>(() => cueCache.get(mediaId) ?? []);
-  // Bumped whenever a sheet's native size resolves, purely to trigger the
-  // re-render that lets the crop below read the now-populated sheetSizeCache.
-  const [, setSizeVersion] = useState(0);
+  // Bumped whenever a sheet finishes decoding, purely to trigger the
+  // re-render that lets the crop below read the now-populated sheetCache.
+  const [, setSheetVersion] = useState(0);
 
   useEffect(() => {
     setCues(cueCache.get(mediaId) ?? []);
   }, [mediaId]);
 
   // Lazy on purpose: nothing is fetched at rest, only once the user actually
-  // starts seeking (previewTimeSec goes non-null). A weak NAS shouldn't pay
-  // for a trickplay manifest on every playback session, only the ones where
-  // someone reaches for the D-pad.
+  // starts seeking (previewTimeSec goes non-null) or the controls come up. A
+  // weak NAS shouldn't pay for a trickplay manifest on every playback
+  // session, only the ones where someone reaches for the remote.
   const wanted = warm || previewTimeSec !== null;
   useEffect(() => {
     if (!wanted || !mediaId || fetchedIds.has(mediaId)) return;
@@ -113,41 +158,28 @@ export function TrickplaySeekPreview({ mediaId, previewTimeSec, warm = false }: 
     };
   }, [mediaId, wanted]);
 
-  // The first sheet, warmed into expo-image's cache while the controls show,
-  // so the first tile drawn does not wait on a download.
+  const cue = previewTimeSec === null ? null : cueForTime(cues, previewTimeSec);
+  // The sheet to have decoded: the previewed tile's, else the first one while
+  // the controls show, so the first tile drawn does not wait on a download.
+  const wantedSheetUrl = cue ? cue.url : warm && cues.length > 0 ? cues[0].url : null;
+  const wantedSheetFull = wantedSheetUrl && serverUrl ? `${serverUrl}${wantedSheetUrl}` : null;
   useEffect(() => {
-    if (!warm || !serverUrl || cues.length === 0) return;
-    const first = cues[0];
-    void Image.prefetch?.(`${serverUrl}${first.url}`, { headers: authHeaders })?.catch(() => {});
-  }, [warm, serverUrl, cues, authHeaders]);
+    if (!wantedSheetFull || sheetCache.has(wantedSheetFull)) return;
+    let cancelled = false;
+    void loadSheet(wantedSheetFull, authHeaders).then((sheet) => {
+      if (!cancelled && sheet) setSheetVersion((n) => n + 1);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [wantedSheetFull, authHeaders]);
 
-  if (previewTimeSec === null || cues.length === 0 || !serverUrl) return null;
+  if (!cue || !serverUrl) return null;
 
-  const cue = cueForTime(cues, previewTimeSec);
-  if (!cue) return null;
-
-  const fullUrl = `${serverUrl}${cue.url}`;
-  const sheetSize = sheetSizeCache.get(cue.url);
-
-  if (!sheetSize) {
-    // The sheet's native size isn't known yet: render an invisible probe to
-    // measure it via onLoad rather than draw a guessed (wrong) crop. Once
-    // cached, every other tile from the same sheet renders correctly on its
-    // very first frame.
-    return (
-      <Image
-        source={{ uri: fullUrl, headers: authHeaders }}
-        style={styles.probe}
-        onLoad={(e) => {
-          const { width, height } = e.source;
-          if (width > 0 && height > 0) {
-            sheetSizeCache.set(cue.url, { width, height });
-            setSizeVersion((n) => n + 1);
-          }
-        }}
-      />
-    );
-  }
+  const sheet = sheetCache.get(`${serverUrl}${cue.url}`);
+  // Still decoding: nothing rather than a guessed (wrong) crop. The re-render
+  // once it lands draws the tile on its first frame.
+  if (!sheet) return null;
 
   return (
     <View
@@ -163,19 +195,19 @@ export function TrickplaySeekPreview({ mediaId, previewTimeSec, warm = false }: 
       ]}
     >
       <Image
-        // The tile url already carries its own media-scoped ?token= (see the
-        // server's trickplay spriteCredential) - used verbatim, stripping the
-        // query would 401 the image just like on web.
-        source={{ uri: fullUrl, headers: authHeaders }}
+        // The decoded sheet, drawn at its pixel size and shifted so the
+        // frame's clip shows the tile: one image pixel per layout unit, the
+        // same unit the manifest's #xywh is in.
+        source={sheet.ref}
         style={{
           position: "absolute",
           left: -cue.x,
           top: -cue.y,
-          width: sheetSize.width,
-          height: sheetSize.height,
+          width: sheet.width,
+          height: sheet.height,
         }}
         contentFit="fill"
-        cachePolicy="memory-disk"
+        allowDownscaling={false}
       />
     </View>
   );
@@ -185,11 +217,5 @@ const styles = StyleSheet.create({
   frame: {
     overflow: "hidden",
     borderWidth: 1,
-  },
-  probe: {
-    position: "absolute",
-    width: 1,
-    height: 1,
-    opacity: 0,
   },
 });
