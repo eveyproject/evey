@@ -21,6 +21,7 @@ export * from "./hooks/useNextEpisode";
 export * from "./hooks/useAuthenticatedImage";
 export * from "./hooks/useProgressReporter";
 export * from "./hooks/useStreamToken";
+export * from "./hooks/usePluginThemes";
 
 export * from "./lib/authRefreshCore";
 export * from "./lib/fetcherSetup";
@@ -34,6 +35,7 @@ export * from "./lib/network-scan";
 export * from "./lib/pluginBridge";
 export * from "./lib/serverIdentity";
 export * from "./lib/artwork";
+export * from "./lib/pluginTheme";
 
 export * from "./plugins/slotEntries";
 export * from "./plugins/hostProtocol";

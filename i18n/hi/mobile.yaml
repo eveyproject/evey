@@ -36,6 +36,7 @@ settings:
   uiScaleHint: "नया आकार लागू करने के लिए ऐप पुनः प्रारंभ होता है।"
   biometricLogin: "बायोमेट्रिक लॉगिन"
   themeLightBlue: हल्का नीला
+  themeDarkRed: "गहरा लाल"
 auth:
   biometricPrompt: "Evey अनलॉक करें"
   unlockBiometric: "बायोमेट्रिक से अनलॉक करें"

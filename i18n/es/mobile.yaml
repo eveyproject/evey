@@ -36,6 +36,7 @@ settings:
   uiScaleHint: "La aplicación se reinicia para aplicar un nuevo tamaño."
   biometricLogin: "Inicio de sesión biométrico"
   themeLightBlue: Azul claro
+  themeDarkRed: Rojo oscuro
 auth:
   biometricPrompt: "Desbloquear Evey"
   unlockBiometric: "Desbloquear con biometría"

@@ -68,6 +68,12 @@ vi.mock("@evey/store", () => ({
 }));
 
 // --- hooks mocks ---------------------------------------------------------------
+// The themes the plugins ship: empty unless a test fills the list.
+const pluginThemesRef = { current: [] as Array<{ id: string; name: string; tokens?: Record<string, string> }> };
+vi.mock("../../../src/hooks/usePluginThemes", () => ({
+  usePluginThemes: () => ({ data: pluginThemesRef.current }),
+}));
+
 vi.mock("../../../src/hooks/useServerUrl", () => ({
   useServerUrlNullable: () => "http://srv.test",
 }));
@@ -435,5 +441,24 @@ describe("SettingsScreen (TV) server version is admin-only", () => {
     render(<SettingsScreen />);
     expect(systemInfoMock).toHaveBeenCalledWith({ query: { enabled: true } });
     expect(screen.getByText("1.0.0")).toBeTruthy();
+  });
+});
+
+// The television used to list three of the five built-in themes and none of
+// the plugins': a profile on Dark Red or on a plugin theme had no row to
+// land on here, and picking a plugin theme must store the plugin's id with
+// it, or the phone and the browser cannot resolve the choice.
+describe("SettingsScreen (TV) themes", () => {
+  it("lists the five built-in themes and the plugins' themes, and saves the plugin's id with its choice", () => {
+    pluginThemesRef.current = [{ id: "ocean", name: "Ocean", tokens: { "--accent": "#0af" } }];
+    render(<SettingsScreen />);
+    for (const name of ["Dark", "AMOLED", "Dark Red", "Light", "Light Blue", "Ocean"]) {
+      expect(screen.getByText(name)).toBeTruthy();
+    }
+    fireEvent.click(screen.getByText("Ocean"));
+    expect(setThemeMock).toHaveBeenCalledWith("plugin:Ocean", "ocean");
+    fireEvent.click(screen.getByText("Dark Red"));
+    expect(setThemeMock).toHaveBeenCalledWith("dark-red", undefined);
+    pluginThemesRef.current = [];
   });
 });

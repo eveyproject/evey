@@ -36,6 +36,7 @@ settings:
   uiScaleHint: "The app restarts to apply a new size."
   biometricLogin: Biometric login
   themeLightBlue: Light Blue
+  themeDarkRed: Dark Red
 auth:
   biometricPrompt: Unlock Evey
   unlockBiometric: Unlock with biometrics

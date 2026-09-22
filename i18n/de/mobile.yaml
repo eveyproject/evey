@@ -36,6 +36,7 @@ settings:
   uiScaleHint: "Die App startet neu, um eine neue Größe anzuwenden."
   biometricLogin: "Biometrische Anmeldung"
   themeLightBlue: Hellblau
+  themeDarkRed: Dunkelrot
 auth:
   biometricPrompt: "Evey entsperren"
   unlockBiometric: "Mit Biometrie entsperren"

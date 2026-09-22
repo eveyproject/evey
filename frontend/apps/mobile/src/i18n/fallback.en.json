@@ -2799,6 +2799,7 @@
   "mobile.settings.switchProfile": "Switch Profile",
   "mobile.settings.themeAmoled": "AMOLED",
   "mobile.settings.themeDark": "Dark",
+  "mobile.settings.themeDarkRed": "Dark Red",
   "mobile.settings.themeLight": "Light",
   "mobile.settings.themeLightBlue": "Light Blue",
   "mobile.settings.themeOptionA11y": "{{name}} theme",

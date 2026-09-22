@@ -508,6 +508,9 @@ importers:
       '@evey/store':
         specifier: workspace:*
         version: link:../store
+      '@evey/theme':
+        specifier: workspace:*
+        version: link:../theme
       '@tanstack/react-query':
         specifier: 5.102.6
         version: 5.102.6(react@19.2.0)

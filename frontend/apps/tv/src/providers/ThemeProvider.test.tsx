@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { themes, type ThemeName } from "@evey/theme";
 import { useThemeStore } from "@evey/store";
 import { ThemeProvider, useTheme } from "./ThemeProvider";
@@ -14,8 +15,15 @@ import { ThemeProvider, useTheme } from "./ThemeProvider";
 // consumption path: store -> ThemeProvider -> useTheme().
 const HEX = /^#[0-9a-fA-F]{3,8}$/;
 
+// A query client because the provider can ask for the plugins' themes; a
+// built-in choice never does, so nothing is fetched here.
+const queryClient = new QueryClient();
 function wrapper({ children }: { children: ReactNode }) {
-  return <ThemeProvider>{children}</ThemeProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>{children}</ThemeProvider>
+    </QueryClientProvider>
+  );
 }
 
 describe("TV ThemeProvider - exposes the on-fill tokens for every shipped theme", () => {
