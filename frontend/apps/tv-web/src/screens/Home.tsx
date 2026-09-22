@@ -213,7 +213,8 @@ export function HomeScreen() {
         );
       }
       const items = (data?.items ?? []).filter((it) => it.id);
-      return <Row key={section.key} title={section.name} items={items} focusFirst={claimFocus(items.length > 0)} />;
+      if (items.length === 0) return null;
+      return <Row key={section.key} title={section.name} items={items} focusFirst={claimFocus(true)} />;
     }
     if (section.kind === "plugin") {
       return (
@@ -237,6 +238,10 @@ export function HomeScreen() {
       );
     }
     const items = itemsFor(section);
+    // A row with nothing in it returns NOTHING, so "the home is empty" can be
+    // read off this list. Returning a Row that draws nothing left the page
+    // unable to ever say it had no content.
+    if (items.length === 0) return null;
     const wide = section.feedType === "resume_playback" || section.feedType === "continue_watching" || section.feedType === "next_episode";
     return (
       <Row
@@ -244,7 +249,7 @@ export function HomeScreen() {
         title={t(FEED_LABELS[section.feedType] ?? section.feedType, section.feedType)}
         items={items}
         wide={wide}
-        focusFirst={claimFocus(items.length > 0)}
+        focusFirst={claimFocus(true)}
       />
     );
   });

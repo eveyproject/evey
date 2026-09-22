@@ -12,6 +12,7 @@ import {
   PHOTO_GRID_THUMB_WIDTH,
   SLIDESHOW_AUTOPLAY_INTERVAL_MS,
   buildPhotoListParams,
+  nextAutoplayIndexPaged,
   nextSlideshowIndex,
   photoServeUrl,
   prevSlideshowIndex,
@@ -130,11 +131,16 @@ export function SlideshowScreen({ libraryId, albumId, index = 0 }: { libraryId?:
     if (next && next !== cursor && at >= total - 5) setCursor(next);
   }, [at, total, data, cursor]);
 
+  // Autoplay loops where a key press holds: a slideshow left running at a
+  // gathering keeps cycling rather than freezing on the last frame. While a
+  // page is still coming it holds on the last loaded photo instead of
+  // sending the viewer back to the first.
+  const hasMore = !!data?.nextCursor;
   useEffect(() => {
     if (!playing || total === 0) return;
-    const id = setInterval(() => setAt((i) => nextSlideshowIndex(i, total)), SLIDESHOW_AUTOPLAY_INTERVAL_MS);
+    const id = setInterval(() => setAt((i) => nextAutoplayIndexPaged(i, total, hasMore)), SLIDESHOW_AUTOPLAY_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [playing, total]);
+  }, [playing, total, hasMore]);
 
   useTvKeys((key, e) => {
     if (key === "back") { e.preventDefault(); goBack(); }

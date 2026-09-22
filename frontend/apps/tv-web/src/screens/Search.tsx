@@ -9,7 +9,7 @@ import {
   type V1Track,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { coverArtUri, useDebounce } from "@evey/client";
+import { coverArtUri, selectSearchResultsView, useDebounce } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
 import { Button, Card, TextField, Spinner } from "../components/ui";
 import { navigate, replace } from "../app/router";
@@ -61,7 +61,15 @@ export function SearchScreen({ initialQuery }: { initialQuery?: string }) {
   const items = (media.data?.items ?? []).filter((it) => it.id);
   const tracks: V1Track[] = (music.data?.tracks ?? []).filter((tr) => tr.id);
   const active = effectiveScope === "media" ? media : music;
-  const count = effectiveScope === "media" ? items.length : tracks.length;
+  // The same decision the Android television makes, from @evey/client.
+  const view = selectSearchResultsView({
+    searchKind: effectiveScope,
+    isError: active.isError,
+    activeLoading: active.isLoading,
+    hasQuery: enabled,
+    musicItemsCount: tracks.length,
+    mediaItemsCount: items.length,
+  });
 
   useEffect(() => {
     if (debounced !== (initialQuery ?? "")) replace({ name: "search", query: debounced || undefined });
@@ -78,15 +86,15 @@ export function SearchScreen({ initialQuery }: { initialQuery?: string }) {
           </div>
         ) : null}
       </FocusRoot>
-      {!enabled ? (
+      {view === "prompt" ? (
         <p className="muted">{t("media.search.placeholder", "Search movies, series…")}</p>
-      ) : active.isLoading ? (
+      ) : view === "loading" ? (
         <Spinner />
-      ) : active.isError ? (
+      ) : view === "error" ? (
         <p className="error">{t("media.search.searchFailed", "Search failed")}</p>
-      ) : count === 0 ? (
+      ) : view === "mediaEmpty" || view === "musicEmpty" ? (
         <p className="muted">{t("media.search.noResultsFor", { query: debounced, defaultValue: `No results for "${debounced}"` })}</p>
-      ) : effectiveScope === "media" ? (
+      ) : view === "mediaResults" ? (
         <FocusRoot>
           <div className="grid">
             {items.map((item) => (
