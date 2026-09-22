@@ -1,10 +1,10 @@
-import { StrictMode, useEffect, useState } from "react";
+import { Component, StrictMode, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore, useToastStore, shouldRetryQuery } from "@evey/store";
 import { mutationErrorNet } from "@evey/client";
 import { initTvNavigation, useTvKeys } from "./tv/focus";
-import { useRoute, replace, goBack, type Route } from "./app/router";
+import { useRoute, navigate, replace, goBack, type Route } from "./app/router";
 import { bootSession, authRefresh, activeServerUrl } from "./lib/session";
 import i18n from "./i18n";
 import { ServerConnectScreen } from "./screens/ServerConnect";
@@ -37,6 +37,7 @@ import { PluginSettingsScreen } from "./screens/PluginSettings";
 import { NavBar } from "./components/NavBar";
 import { MusicBar } from "./music/MusicBar";
 import { applyThemeVars, useAppliedTheme } from "./lib/theme";
+import { useDeviceRegistration, usePresenceHeartbeat } from "@evey/client/web";
 import "./styles.css";
 
 // The default palette before anything loads; the profile's own theme
@@ -54,17 +55,58 @@ const queryClient = new QueryClient({
 
 const PUBLIC_ROUTES = new Set<Route["name"]>(["server", "login", "quickconnect"]);
 
+// Every toast, newest last, the way the other clients stack them: one line
+// each, and the store's own dismissal removes them.
 function Toasts() {
   const toasts = useToastStore((s) => s.toasts);
-  const last = toasts[toasts.length - 1];
-  if (!last) return null;
-  return <div className="toast">{last.message}</div>;
+  if (toasts.length === 0) return null;
+  return (
+    <div className="toast-stack">
+      {toasts.map((toast) => (
+        <div key={toast.id} className={`toast ${toast.type ?? "info"}`} role="status">{toast.message}</div>
+      ))}
+    </div>
+  );
+}
+
+// A screen that throws must not take the whole television with it: the remote
+// keeps a way back to the home.
+class ScreenErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div className="screen screen-center">
+        <p className="error">{i18n.t("common.error")}</p>
+        <button type="button" className="btn primary focusable" onClick={() => { this.setState({ failed: false }); replace({ name: "home" }); }}>
+          {i18n.t("common.nav.home")}
+        </button>
+      </div>
+    );
+  }
 }
 
 // Paints the profile's theme; mounted only once signed in so its queries
 // never fire before a server is chosen.
 function ThemeFollower() {
   useAppliedTheme();
+  return null;
+}
+
+// What the television announces about itself while someone is signed in: the
+// presence beat for the admin's Online panel, and the Play On registration so
+// a phone can send a title to this screen. The socket stays open: a
+// television does not go to the background the way a phone does.
+function DeviceServices() {
+  usePresenceHeartbeat();
+  useDeviceRegistration({
+    deviceType: "tv",
+    deviceName: () => "Evey TV (browser)",
+    serverUrl: activeServerUrl(),
+    pauseInBackground: false,
+    onLoadAndPlay: (mediaId) => navigate({ name: "player", mediaId }),
+  });
   return null;
 }
 
@@ -136,8 +178,9 @@ function App() {
   return (
     <>
       {signedIn ? <ThemeFollower /> : null}
+      {signedIn ? <DeviceServices /> : null}
       {withNav ? <NavBar current={effective.name} /> : null}
-      {screen}
+      <ScreenErrorBoundary key={effective.name}>{screen}</ScreenErrorBoundary>
       {signedIn && effective.name !== "player" && effective.name !== "slideshow" ? <MusicBar /> : null}
     </>
   );

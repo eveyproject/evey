@@ -20,7 +20,6 @@ import {
 import type {
   V1MediaItem,
   V1MediaStream,
-  V1WatchProgress,
   LibraryServiceListMediaItemsType,
   LibraryServiceListMediaItemsSortField,
   LibraryServiceListMediaItemsSortOrder,
@@ -29,9 +28,9 @@ import type {
   LibraryServiceSearchMediaSortOrder,
 } from "@evey/api";
 import { toast } from "@evey/store";
+import { buildWatchProgressMaps } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
-import { progressPercent } from "../../../src/lib/progressPercent";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
@@ -150,19 +149,6 @@ export function resolutionLabel(stream?: V1MediaStream): string | null {
   if (h >= 1080) return "1080p";
   if (h >= 720) return "720p";
   return `${h}p`;
-}
-
-export function buildWatchProgressMaps(items: V1WatchProgress[]): {
-  watchedMap: Map<string, boolean>;
-  percentMap: Map<string, number>;
-} {
-  const watchedMap = new Map<string, boolean>();
-  const percentMap = new Map<string, number>();
-  for (const w of items) {
-    if (w.mediaItemId && w.played) watchedMap.set(w.mediaItemId, true);
-    if (w.mediaItemId && w.percentComplete != null) percentMap.set(w.mediaItemId, progressPercent(w.percentComplete));
-  }
-  return { watchedMap, percentMap };
 }
 
 // D-pad genre/sort/type filter: a row of focusable chips (same pattern as the

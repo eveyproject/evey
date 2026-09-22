@@ -18,6 +18,7 @@ import {
   buildHomeSections,
   resolveMaxItems,
   useCollections,
+  useWatchProgressMaps,
   useMostPopular,
   type HomeSection,
 } from "@evey/client";
@@ -52,6 +53,7 @@ function openItem(item: V1MediaItem) {
 }
 
 function Row({ title, items, wide, focusFirst }: { title: string; items: V1MediaItem[]; wide?: boolean; focusFirst?: boolean }) {
+  const { watchedMap, percentMap } = useWatchProgressMaps();
   if (items.length === 0) return null;
   return (
     <FocusRoot>
@@ -63,6 +65,8 @@ function Row({ title, items, wide, focusFirst }: { title: string; items: V1Media
             title={itemTitle(item)}
             imageUrl={posterSrc(item.id, wide ? "backdrop" : "poster", wide ? 640 : 400)}
             wide={wide}
+            watched={!!item.id && watchedMap.get(item.id) === true}
+            percent={item.id ? percentMap.get(item.id) : undefined}
             autoFocus={focusFirst && i === 0}
             onPress={() => openItem(item)}
           />

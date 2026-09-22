@@ -1,3 +1,4 @@
+import { buildWatchProgressMaps } from "@evey/client";
 import { describe, it, expect } from "vitest";
 import React from "react";
 import { vi } from "vitest";
@@ -43,7 +44,6 @@ import {
   videoStream,
   isHdrStream,
   resolutionLabel,
-  buildWatchProgressMaps,
 } from "./[libraryId]";
 
 describe("buildMediaListParams", () => {
