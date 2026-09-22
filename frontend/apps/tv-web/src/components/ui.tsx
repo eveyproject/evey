@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { useFocusable } from "../tv/focus";
 import { tvKeyOf } from "../tv/keys";
 
@@ -117,7 +117,7 @@ interface CardProps {
   percent?: number;
 }
 
-export function Card({ title, imageUrl, wide, onPress, focusKey, autoFocus, onFocus, watched, percent }: CardProps) {
+function CardImpl({ title, imageUrl, wide, onPress, focusKey, autoFocus, onFocus, watched, percent }: CardProps) {
   const { ref, focused, focusSelf } = useFocusable({ focusKey, onEnterPress: onPress, onFocus: (layout) => {
     // Keep the focused card in view: the row scrolls, the screen scrolls.
     layout.node.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -138,6 +138,32 @@ export function Card({ title, imageUrl, wide, onPress, focusKey, autoFocus, onFo
   );
 }
 
+/**
+ * A card only re-renders when its OWN props change. A library grid appends a
+ * page of thirty every time the remote reaches the last rows, and without
+ * this every card already on screen was rebuilt with it - measured at nine
+ * style recalculations per key press on a three hundred title library.
+ * Callers must keep their handlers stable for this to hold (useCardHandlers).
+ */
+export const Card = memo(CardImpl);
+
 export function Spinner() {
   return <div className="spinner" role="progressbar" />;
+}
+
+/**
+ * One stable callback per item id, kept for the life of the screen: a new
+ * arrow function per render would defeat the memo above.
+ */
+export function useCardHandlers<A extends unknown[]>(fn: (...args: A) => void): (key: string, ...args: A) => () => void {
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+  const cache = useRef(new Map<string, () => void>());
+  return useCallback((key: string, ...args: A) => {
+    const existing = cache.current.get(key);
+    if (existing) return existing;
+    const handler = () => fnRef.current(...args);
+    cache.current.set(key, handler);
+    return handler;
+  }, []);
 }

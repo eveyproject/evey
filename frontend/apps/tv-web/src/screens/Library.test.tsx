@@ -38,7 +38,7 @@ vi.mock("@evey/client", async (importOriginal) => ({
   useWatchProgressMaps: () => ({ watchedMap: new Map(), percentMap: new Map() }),
 }));
 
-import { LibraryScreen, shouldFetchNextPage, PREFETCH_FROM_END, PAGE_SIZE } from "./Library";
+import { LibraryScreen, shouldFetchNextPage, renderWindow, PREFETCH_FROM_END, PAGE_SIZE, RENDER_WINDOW } from "./Library";
 
 beforeEach(() => {
   library.mockReturnValue({ data: { id: "lib-1", name: "Films", type: "LIBRARY_TYPE_MOVIES" } });
@@ -95,5 +95,29 @@ describe("the library screen", () => {
     expect(screen.getByText("media.library.noItemsEmptyUser")).toBeTruthy();
     fireEvent.click(screen.getByText("Action"));
     expect(screen.getByText("media.library.noItemsFiltered")).toBeTruthy();
+  });
+});
+
+// A library of a few thousand titles must not put a few thousand cards in
+// front of a television. Everything fetched stays in memory; the window is
+// what the document holds.
+describe("renderWindow", () => {
+  it("renders everything while the list is small", () => {
+    expect(renderWindow(40, 0, 6)).toEqual({ start: 0, end: 40 });
+  });
+
+  it("keeps the focused card inside, on a row boundary", () => {
+    const w = renderWindow(3000, 600, 6);
+    expect(w.end - w.start).toBe(RENDER_WINDOW);
+    expect(w.start % 6).toBe(0);
+    expect(600).toBeGreaterThanOrEqual(w.start);
+    expect(600).toBeLessThan(w.end);
+  });
+
+  it("holds at both ends rather than sliding past them", () => {
+    expect(renderWindow(3000, 0, 6).start).toBe(0);
+    const last = renderWindow(3000, 2999, 6);
+    expect(last.end).toBe(3000);
+    expect(last.end - last.start).toBe(RENDER_WINDOW);
   });
 });
