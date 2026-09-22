@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { useFocusable } from "../tv/focus";
+import { tvKeyOf } from "../tv/keys";
 
 interface ButtonProps {
   children: ReactNode;
@@ -68,10 +69,23 @@ export function TextField({ value, onChange, placeholder, type = "text", focusKe
       spellCheck={false}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") {
+        const key = tvKeyOf(e);
+        if (key === "select") {
+          // Enter from the on-screen keyboard: leave the field and submit.
+          // Stopped here, or the spatial library would see the same Enter
+          // on the field it still marks focused and hand the keys straight
+          // back to it - the keyboard reopened on every Done (LG simulator,
+          // 2026-09-22).
           e.preventDefault();
+          e.stopPropagation();
           (e.target as HTMLInputElement).blur();
           onSubmit?.();
+        } else if (key === "back" && e.key !== "Backspace") {
+          // Back leaves the field, and only the field: the screen's own
+          // back handling must not fire and walk out of the form.
+          e.preventDefault();
+          e.stopPropagation();
+          (e.target as HTMLInputElement).blur();
         }
       }}
     />
