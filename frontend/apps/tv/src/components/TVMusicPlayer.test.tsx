@@ -126,6 +126,18 @@ describe("TVMusicPlayer", () => {
     expect(screen.queryByText("Two")).toBeNull();
   });
 
+  // A film opening clears the queue without touching the bar's close
+  // button. The player still holds the album's last source: the pause has
+  // to follow the queue emptying, or the album plays on under the film.
+  it("silences the player when the queue is cleared from outside the bar", async () => {
+    act(() => useMusicQueueStore.setState({ queue: tracks, currentIndex: 0, isPlaying: true }));
+    render(<TVMusicPlayer />);
+    await waitFor(() => expect(audio.player.replace).toHaveBeenCalled());
+    expect(audio.player.pause).not.toHaveBeenCalled();
+    act(() => useMusicQueueStore.getState().clear());
+    expect(audio.player.pause).toHaveBeenCalled();
+  });
+
   // The box treats music as an idle user: the screen is held only while the
   // player reports sound flowing, and released when it pauses or finishes.
   it("holds the screen awake while sound flows and releases it when it stops", () => {

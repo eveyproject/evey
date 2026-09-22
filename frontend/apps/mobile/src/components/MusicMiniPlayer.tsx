@@ -106,14 +106,18 @@ function MusicMiniPlayerImpl() {
     }
   }, [streamUri, player, isPlayingState]);
 
-  // Mirror queue store play/pause onto the player.
+  // Mirror queue store play/pause onto the player. No track means the queue
+  // was cleared - by the close button, or by the video player opening - and
+  // the player still holds its last source: this pause is what silences it.
   useEffect(() => {
-    if (!streamUri) return;
     try {
-      if (isPlayingState) player.play();
-      else player.pause();
+      if (!trackId || !isPlayingState) player.pause();
+      else if (streamUri) player.play();
     } catch { /* released */ }
-  }, [isPlayingState, player, streamUri]);
+    // The same track played again later must start over, not resume the
+    // paused source the player still holds.
+    if (!trackId) loadedUriRef.current = null;
+  }, [isPlayingState, player, streamUri, trackId]);
 
   // Auto-advance when the current track ends.
   const lastDidFinishRef = useRef(false);

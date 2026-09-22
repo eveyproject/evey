@@ -141,3 +141,19 @@ describe("MusicMiniPlayer - stream credential", () => {
     expect(freshToken.fn).toHaveBeenCalledTimes(1);
   });
 });
+
+// The video player clears the queue when it opens; the mini-player's close
+// button is not involved, so the pause has to follow the queue emptying or
+// the song plays on under the film. The store mock here is not a
+// subscription and the player is memoised, so the emptied queue is shown to
+// a fresh mount rather than through a re-render.
+describe("MusicMiniPlayer - queue cleared from outside", () => {
+  it("pauses the player it holds when there is no track to play", async () => {
+    const { rerender } = render(<MusicMiniPlayer key="playing" />);
+    await waitFor(() => expect(audioPlayer.replace).toHaveBeenCalled());
+    expect(audioPlayer.pause).not.toHaveBeenCalled();
+    queueState = { ...queueState, queue: [], currentIndex: -1, isPlaying: false };
+    rerender(<MusicMiniPlayer key="cleared" />);
+    expect(audioPlayer.pause).toHaveBeenCalled();
+  });
+});
