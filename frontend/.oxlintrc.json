@@ -11,7 +11,7 @@
   "overrides": [
     {
       "files": [
-        "apps/web/src/features/plugins/PluginIframe.tsx",
+        "packages/client/src/web/PluginIframe.tsx",
         "apps/web/src/features/themes/ThemeLoader.tsx",
         "apps/mobile/src/features/plugins/PluginSlot.tsx",
         "apps/tv/src/features/plugins/PluginSlot.tsx"
