@@ -34,7 +34,7 @@ import (
 var clientTypeAllowlist = map[string]string{}
 
 var (
-	rpcRe       = regexp.MustCompile(`rpc\s+\w+\s*\(\s*[\w.]+\s*\)\s*returns\s*\(\s*([\w.]+)\s*\)`)
+	rpcRe = regexp.MustCompile(`rpc\s+\w+\s*\(\s*[\w.]+\s*\)\s*returns\s*\(\s*([\w.]+)\s*\)`)
 	// Every verb, not just get: the guard used to stop at GET while the mobile
 	// and TV apps hand eveyFetch a declared response type on 18 non-GET calls
 	// too (3 POST, 6 PUT, 9 DELETE), all of them trusted just as blindly.
@@ -148,7 +148,10 @@ func tsInterfaceFields(src, name string) ([]string, bool) {
 func handwrittenClientFiles(t *testing.T) []string {
 	t.Helper()
 	var out []string
-	for _, app := range []string{"frontend/apps/mobile", "frontend/apps/tv"} {
+	// The native hooks live in @evey/client since 2026-09-22 (the phone and
+	// the television run one copy); the shared package is part of the corpus
+	// or the admin-write scan finds nothing and fails vacuously.
+	for _, app := range []string{"frontend/apps/mobile", "frontend/apps/tv", "frontend/packages/client"} {
 		root := filepath.Join(repoRoot, app)
 		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
