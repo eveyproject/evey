@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { memo, useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { displayTitle } from "@evey/api";
 import { View, Text, ScrollView, FlatList, StyleSheet, Animated, DeviceEventEmitter, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
@@ -99,7 +99,7 @@ export function selectHomeFocusTarget(rowHasItems: boolean[]): number | null {
   return idx === -1 ? null : idx;
 }
 
-function MediaCard({
+function MediaCardImpl({
   item,
   serverUrl,
   authHeaders,
@@ -178,6 +178,14 @@ function MediaCard({
   );
 }
 
+/**
+ * A card only re-renders when its own props change. The home rebuilds its
+ * rows whenever any of its half-dozen queries answers, and without this every
+ * visible card was rebuilt with them - on the screen the owner already found
+ * GPU-bound (2026-09-20).
+ */
+const MediaCard = memo(MediaCardImpl);
+
 function MediaRow({
   title,
   items,
@@ -204,6 +212,21 @@ function MediaRow({
   onRetry?: () => void;
 }) {
   const theme = useTheme();
+  // Stable, so the list does not rebuild every visible card whenever this
+  // screen re-renders - which it does on each of its half-dozen queries.
+  const renderCard = useCallback(
+    ({ item, index }: { item: V1MediaItem; index: number }) => (
+      <MediaCard
+        item={item}
+        serverUrl={serverUrl}
+        authHeaders={authHeaders}
+        isFirst={index === 0 && !!focusFirst}
+        onFocus={onCardFocus}
+        watchPercent={item.id ? watchPercents?.[item.id] : undefined}
+      />
+    ),
+    [serverUrl, authHeaders, focusFirst, onCardFocus, watchPercents],
+  );
   if (isError) {
     return (
       <View style={styles.rowContainer}>
@@ -221,16 +244,7 @@ function MediaRow({
         horizontal
         data={items}
         keyExtractor={tvRowKeyExtractor}
-        renderItem={({ item, index }) => (
-          <MediaCard
-            item={item}
-            serverUrl={serverUrl}
-            authHeaders={authHeaders}
-            isFirst={index === 0 && !!focusFirst}
-            onFocus={onCardFocus}
-            watchPercent={item.id ? watchPercents?.[item.id] : undefined}
-          />
-        )}
+        renderItem={renderCard}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: HOME_ROW_GUTTER }}
         ItemSeparatorComponent={RowSeparator}
@@ -238,6 +252,9 @@ function MediaRow({
         initialNumToRender={5}
         maxToRenderPerBatch={8}
         windowSize={5}
+        // Off-screen cards of a row release their native views: a home of
+        // eight rows holds a hundred and sixty otherwise.
+        removeClippedSubviews
       />
     </View>
   );
