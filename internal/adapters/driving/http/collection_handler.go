@@ -34,7 +34,7 @@ type collectionHandler struct {
 	baseURL    string
 }
 
-func registerCollectionRoutes(mux *http.ServeMux, collSvc *appcollection.Service, libSvc MediaArchiveSource, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, parental ParentalChecker, baseURL string, rl *ratelimit.Limiter) {
+func registerCollectionRoutes(mux *http.ServeMux, collSvc *appcollection.QueryService, libSvc MediaArchiveSource, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, parental ParentalChecker, baseURL string, rl *ratelimit.Limiter) {
 
 	h := &collectionHandler{collSvc: collSvc, libSvc: libSvc, libChecker: libChecker, parental: parental, baseURL: baseURL}
 	// A collection ZIP can fan out to many large files, so it's a heavier

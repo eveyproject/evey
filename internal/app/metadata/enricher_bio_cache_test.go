@@ -38,7 +38,7 @@ func newBioCacheEnricher(primary domain.MetadataProvider, now time.Time) (*Enric
 	mpRepo := libfakes.NewFakeMediaPersonRepository()
 	miRepo := libfakes.NewFakeMediaItemStore()
 	searchIdx := libfakes.NewFakeSearchIndex()
-	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, miRepo, searchIdx, primary, nil, nil,
+	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, miRepo, searchIdx, primary, nil, nil, nil,
 		EnricherWithClock(func() time.Time { return now }))
 	return e, personRepo, miRepo
 }

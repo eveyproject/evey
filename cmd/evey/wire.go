@@ -241,7 +241,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	slog.Info("transcoding: max concurrent jobs", slog.Int("max", transcodingSvc.MaxConcurrent()))
 
 	mkvSvc := appmkv.NewService(infra.mkvAdapter, infra.mkvAdapter)
-	collectionSvc := appcollection.NewService(r.Collection, r.Collection, postgres.NewCollectionSmartQuerier(db), r.MediaItem)
+	collectionCmdSvc := appcollection.NewCommandService(r.Collection, r.Collection, r.MediaItem)
+	collectionQuerySvc := appcollection.NewQueryService(r.Collection, postgres.NewCollectionSmartQuerier(db))
 
 	// Wrap each provider with retry + TTL cache. Retry covers transient
 	// network/5xx failures; cache memoizes repeat search/get-by-id for
@@ -263,7 +264,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		r.Artwork, r.Person, r.MediaPerson, r.MediaItemQuery, r.MediaItem, infra.searchAdapter,
 		tmdbWrapped,
 		[]metadata.MetadataProvider{omdbWrapped, tvmazeWrapped, imdbWrapped},
-		collectionSvc,
+		collectionCmdSvc,
+		collectionQuerySvc,
 		appmetadata.EnricherWithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales()),
 		appmetadata.EnricherWithPersonFetcher(infra.personFetcher),
 		appmetadata.EnricherWithOverrides(r.MetadataOverride),
@@ -1046,14 +1048,15 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			shareSvc:         shareSvc,
 		},
 		content: contentDeps{
-			metadataCmdSvc:   metadataCmdSvc,
-			metadataQuerySvc: metadataQuerySvc,
-			enricher:         enricher,
-			collectionSvc:    collectionSvc,
-			favoriteSvc:      favoriteSvc,
-			mediaRequestSvc:  mediaRequestSvc,
-			playlistSvc:      playlistSvc,
-			playlistGenSvc:   playlistGenSvc,
+			metadataCmdSvc:     metadataCmdSvc,
+			metadataQuerySvc:   metadataQuerySvc,
+			enricher:           enricher,
+			collectionCmdSvc:   collectionCmdSvc,
+			collectionQuerySvc: collectionQuerySvc,
+			favoriteSvc:        favoriteSvc,
+			mediaRequestSvc:    mediaRequestSvc,
+			playlistSvc:        playlistSvc,
+			playlistGenSvc:     playlistGenSvc,
 		},
 		engagement: engagementDeps{
 			activityCmdSvc:             activityCmdSvc,

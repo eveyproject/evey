@@ -206,7 +206,7 @@ type HTTPServer struct {
 	ActivityCmdSvc *appactivity.CommandService
 
 	// Collections / Playlists / Favorites
-	CollectionSvc  *appcollection.Service
+	CollectionSvc  *appcollection.QueryService
 	PlaylistSvc    *appplaylist.Service
 	PlaylistGenSvc *appplaylist.GeneratorService
 

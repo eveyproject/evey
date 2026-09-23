@@ -28,7 +28,7 @@ func TestCollectionGetCollectionItems_ParentalFilter(t *testing.T) {
 	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
-	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+	cmdSvc, querySvc := appcollection.NewCommandService(cmdRepo, queryRepo, mediaRepo), appcollection.NewQueryService(queryRepo, smartQ)
 
 	maxAge := 6
 	kid := &user.Profile{
@@ -42,7 +42,7 @@ func TestCollectionGetCollectionItems_ParentalFilter(t *testing.T) {
 		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(),
 		userfakes.NewFakeQuickConnectRepository())
 
-	h := &collectionHandler{svc: svc, userQuery: uq}
+	h := &collectionHandler{cmd: cmdSvc, query: querySvc, userQuery: uq}
 
 	seedCollection(cmdRepo, "col-p", "Mixed")
 	mediaRepo.Create(ctx, &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "Adult A", Type: "movie"})
@@ -70,7 +70,7 @@ func TestCollectionGetCollection_ParentalFilterOnItems(t *testing.T) {
 	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
-	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+	cmdSvc, querySvc := appcollection.NewCommandService(cmdRepo, queryRepo, mediaRepo), appcollection.NewQueryService(queryRepo, smartQ)
 
 	maxAge := 6
 	kid := &user.Profile{
@@ -86,7 +86,7 @@ func TestCollectionGetCollection_ParentalFilterOnItems(t *testing.T) {
 
 	// Without a permissive access repo a non-admin is denied outright and the
 	// parental path is never reached.
-	h := &collectionHandler{svc: svc, userQuery: uq, userAccess: newPermissiveTestUserAccess()}
+	h := &collectionHandler{cmd: cmdSvc, query: querySvc, userQuery: uq, userAccess: newPermissiveTestUserAccess()}
 
 	// A MIXED collection is the case that matters: with only blocked titles the
 	// collection-level guard hides the whole thing and the per-item filter is

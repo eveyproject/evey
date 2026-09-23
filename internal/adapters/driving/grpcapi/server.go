@@ -75,7 +75,8 @@ type GRPCServerDeps struct {
 	FeedCmd         *appfeed.CommandService
 	FeedQuery       *appfeed.QueryService
 	Webhook         *appwebhook.Service
-	Collection      *appcollection.Service
+	CollectionCmd   *appcollection.CommandService
+	CollectionQuery *appcollection.QueryService
 	Playlist        *appplaylist.Service
 	Favorite        *appfavorite.Service
 	MediaRequest    *appmediarequest.Service
@@ -273,7 +274,7 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})
 	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: d.Webhook})
-	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: d.Collection, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
+	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{cmd: d.CollectionCmd, query: d.CollectionQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: d.Playlist, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: d.Favorite, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery})
 	eveyv1.RegisterMediaRequestServiceServer(s.server, &mediaRequestHandler{svc: d.MediaRequest, translator: d.Translator})

@@ -29,6 +29,11 @@ const bioRecheckTTL = 30 * 24 * time.Hour
 type CollectionLinker interface {
 	Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*domainlib.Collection, error)
 	LinkMediaItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error
+}
+
+// UnlinkedMovieLister pages the films no collection holds yet - the read side
+// of RelinkCollections, whose writes go through CollectionLinker.
+type UnlinkedMovieLister interface {
 	ListMoviesWithoutCollection(ctx context.Context, afterID string, limit int) ([]domainlib.UnlinkedMovie, error)
 }
 
@@ -55,6 +60,7 @@ type Enricher struct {
 	search              domainlib.SearchIndex
 	chain               *ProviderChain
 	collections         CollectionLinker
+	unlinkedMovies      UnlinkedMovieLister
 	apiLimiter          *rate.Limiter
 	mediaTranslations   domainlib.MediaItemTranslationRepository
 	personTranslations  domainlib.PersonTranslationRepository
@@ -136,20 +142,22 @@ func NewEnricher(
 	primary domainmetadata.MetadataProvider,
 	supplementary []domainmetadata.MetadataProvider,
 	collections CollectionLinker,
+	unlinkedMovies UnlinkedMovieLister,
 	opts ...EnricherOption,
 ) *Enricher {
 	e := &Enricher{
-		artworkCmd:   artwork,
-		artworkQuery: artwork,
-		persons:      persons,
-		mediaPersons: mediaPersons,
-		mediaItems:   mediaItems,
-		itemUpdater:  itemUpdater,
-		search:       search,
-		chain:        NewProviderChain(primary, supplementary...),
-		collections:  collections,
-		apiLimiter:   rate.NewLimiter(rate.Every(250*time.Millisecond), 1),
-		now:          time.Now,
+		artworkCmd:     artwork,
+		artworkQuery:   artwork,
+		persons:        persons,
+		mediaPersons:   mediaPersons,
+		mediaItems:     mediaItems,
+		itemUpdater:    itemUpdater,
+		search:         search,
+		chain:          NewProviderChain(primary, supplementary...),
+		collections:    collections,
+		unlinkedMovies: unlinkedMovies,
+		apiLimiter:     rate.NewLimiter(rate.Every(250*time.Millisecond), 1),
+		now:            time.Now,
 	}
 	for _, opt := range opts {
 		opt(e)

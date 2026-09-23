@@ -85,7 +85,7 @@ func newTestEnricherMulti(primary domain.MetadataProvider, supps []domain.Metada
 	mpRepo := libfakes.NewFakeMediaPersonRepository()
 	miRepo := libfakes.NewFakeMediaItemStore()
 	searchIdx := libfakes.NewFakeSearchIndex()
-	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, miRepo, searchIdx, primary, supps, nil)
+	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, miRepo, searchIdx, primary, supps, nil, nil)
 	return e, miRepo
 }
 
