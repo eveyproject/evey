@@ -251,3 +251,8 @@ options: 选项
 addNamedRule: "添加 {{name}} 规则"
 copy: "复制"
 watched: "已观看"
+clientChoice:
+  title: 电视界面
+  body: 本页面为电视和遥控器设计。在电脑上，网页版更为舒适。
+  openWeb: 打开网页版
+  stay: 留在这里

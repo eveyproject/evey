@@ -40,34 +40,27 @@ import { NavBar } from "./components/NavBar";
 import { MusicBar } from "./music/MusicBar";
 import { applyThemeVars, useAppliedTheme } from "./lib/theme";
 import { applyUiScale, storedUiScale } from "./lib/uiScale";
-import { STAY_ON_TV_KEY, asksToStay, readStayOnTv, shouldLeaveTvClient } from "./lib/wrongClient";
+import { readChoice, shouldAskWhichClient, shouldGoToWebClient } from "./lib/clientChoice";
+import { ClientChoice } from "./components/ClientChoice";
 import { useDeviceRegistration, usePresenceHeartbeat } from "@evey/client/web";
 import "./styles.css";
 
-// The default palette before anything loads; the profile's own theme
-// follows from useAppliedTheme once the session is up.
-// This page is the television client. A desktop browser that lands on it is
-// simply looking at the wrong application, and the web one is next door: it
-// is handed over before anything else loads. "?tv=1" keeps a viewer here and
-// is remembered, a development machine is never redirected, and the packaged
-// application (which runs from a file, with no web application beside it) is
-// left alone.
-if (asksToStay(window.location.search)) {
-  try { localStorage.setItem(STAY_ON_TV_KEY, "1"); } catch { /* private window */ }
-}
-if (shouldLeaveTvClient({
+// A viewer who already answered "the web one" is sent there with no word;
+// the question itself is asked on screen by <ClientChoice/>. There is no
+// device test behind this - see lib/clientChoice.
+if (shouldGoToWebClient({
   protocol: window.location.protocol,
   hostname: window.location.hostname,
-  userAgent: navigator.userAgent,
+  pathname: window.location.pathname,
   search: window.location.search,
-  forced: readStayOnTv(),
+  stored: readChoice(),
 })) {
-  // The marker says where the viewer came from, so the web application can
-  // offer a way back to the television client for a set this test did not
-  // recognise. Nothing reads it yet.
+  // Says where the viewer came from, so the web client can offer a way back.
   window.location.replace("/?from=tv");
 }
 
+// The default palette before anything loads; the profile's own theme
+// follows from useAppliedTheme once the session is up.
 applyThemeVars("default");
 // The interface size this television was set to, before the first paint.
 applyUiScale(storedUiScale());
@@ -140,6 +133,15 @@ function DeviceServices() {
 
 function App() {
   const route = useRoute();
+  // Asked before anything else is drawn: the question owns the screen until
+  // it is answered (see ClientChoice).
+  const [askClient, setAskClient] = useState(() => shouldAskWhichClient({
+    protocol: window.location.protocol,
+    hostname: window.location.hostname,
+    pathname: window.location.pathname,
+    search: window.location.search,
+    stored: readChoice(),
+  }));
   const accessToken = useAuthStore((s) => s.accessToken);
   const profileId = useAuthStore((s) => s.profileId);
   const [ready, setReady] = useState(false);
@@ -189,6 +191,8 @@ function App() {
   useEffect(() => {
     document.documentElement.lang = i18n.language;
   }, []);
+
+  if (askClient) return <ClientChoice onAnswered={() => setAskClient(false)} />;
 
   if (!ready) return null;
 

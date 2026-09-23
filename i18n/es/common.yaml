@@ -251,3 +251,8 @@ options: Opciones
 addNamedRule: "Agregar regla {{name}}"
 copy: "Copiar"
 watched: "Visto"
+clientChoice:
+  title: Interfaz de televisión
+  body: Esta página está hecha para un televisor y su mando a distancia. En un ordenador, la versión web es más cómoda.
+  openWeb: Abrir la versión web
+  stay: Quedarse aquí

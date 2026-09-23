@@ -251,3 +251,8 @@ options: Optionen
 addNamedRule: "Regel {{name}} hinzufügen"
 copy: "Kopieren"
 watched: "Gesehen"
+clientChoice:
+  title: Fernsehoberfläche
+  body: Diese Seite ist für einen Fernseher und seine Fernbedienung gemacht. Am Computer ist die Web-Version die bequemere.
+  openWeb: Web-Version öffnen
+  stay: Hier bleiben
