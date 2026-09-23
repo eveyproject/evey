@@ -17,7 +17,6 @@ import (
 	appcollection "github.com/evey-project/evey/internal/app/collection"
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	appdlna "github.com/evey-project/evey/internal/app/dlna"
-	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	appmedia "github.com/evey-project/evey/internal/app/media"
@@ -26,15 +25,12 @@ import (
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	appqoe "github.com/evey-project/evey/internal/app/qoe"
-	apprating "github.com/evey-project/evey/internal/app/rating"
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	"github.com/evey-project/evey/internal/config"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/notification"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	domainshared "github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
@@ -207,22 +203,16 @@ type HTTPServer struct {
 	MetadataQuerySvc *appmetadata.QueryService
 
 	// Activity
-	ActivityQuerySvc *appactivity.QueryService
-	ActivityCmdSvc   *appactivity.CommandService
+	ActivityCmdSvc *appactivity.CommandService
 
 	// Collections / Playlists / Favorites
 	CollectionSvc  *appcollection.Service
 	PlaylistSvc    *appplaylist.Service
 	PlaylistGenSvc *appplaylist.GeneratorService
-	FavoriteSvc    *appfavorite.Service
 
 	// Music
 	MusicSvc        *appmusic.Service
 	MusicNowPlaying *appmusic.NowPlayingRegistry // "En cours de lecture" heartbeat registry
-
-	// Rating
-	UserRatingRepo domainlibrary.UserRatingRepository
-	StarRatingSvc  *apprating.Service
 
 	// Photo
 	PhotoSvc        *appphoto.Service
@@ -247,10 +237,6 @@ type HTTPServer struct {
 	// since there is no RPC for it. Nil-safe: unset skips registration, so a
 	// server built without this wired keeps working, just without the route.
 	WebhookSvc *appwebhook.Service
-
-	// Push
-	PushSubRepo    notification.PushSubscriptionRepository
-	VAPIDPublicKey string
 
 	// Image conversion (optional)
 	ImageConverter ImageConverter
