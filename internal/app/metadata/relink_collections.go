@@ -53,7 +53,7 @@ func (e *Enricher) RelinkCollections(ctx context.Context, limit int) (RelinkRepo
 	defer span.End()
 
 	var rep RelinkReport
-	if e.collections == nil || e.chain == nil {
+	if e.collections == nil || e.unlinkedMovies == nil || e.chain == nil {
 		return rep, nil
 	}
 	provider := e.chain.Primary()
@@ -68,7 +68,7 @@ func (e *Enricher) RelinkCollections(ctx context.Context, limit int) (RelinkRepo
 		if limit > 0 && limit-rep.Scanned < page {
 			page = limit - rep.Scanned
 		}
-		todo, err := e.collections.ListMoviesWithoutCollection(ctx, cursor, page)
+		todo, err := e.unlinkedMovies.ListMoviesWithoutCollection(ctx, cursor, page)
 		if err != nil {
 			span.RecordError(err)
 			return rep, fmt.Errorf("RelinkCollections: list candidates: %w", err)

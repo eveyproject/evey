@@ -26,8 +26,8 @@ func newTestCollectionHandler() (*collectionHandler, *libraryfakes.FakeCollectio
 	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
-	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
-	return &collectionHandler{svc: svc, userAccess: newPermissiveTestUserAccess()}, cmdRepo
+	cmdSvc, querySvc := appcollection.NewCommandService(cmdRepo, queryRepo, mediaRepo), appcollection.NewQueryService(queryRepo, smartQ)
+	return &collectionHandler{cmd: cmdSvc, query: querySvc, userAccess: newPermissiveTestUserAccess()}, cmdRepo
 }
 
 var tmdbCounter int
@@ -181,8 +181,8 @@ func TestCollectionGetCollection_UserAccessUnwired_DeniesNonAdmin(t *testing.T) 
 	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
-	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
-	h := &collectionHandler{svc: svc} // userAccess intentionally left nil
+	cmdSvc, querySvc := appcollection.NewCommandService(cmdRepo, queryRepo, mediaRepo), appcollection.NewQueryService(queryRepo, smartQ)
+	h := &collectionHandler{cmd: cmdSvc, query: querySvc} // userAccess intentionally left nil
 
 	seedCollection(cmdRepo, "col-1", "Some Collection")
 	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "A", Type: "movie"})
@@ -217,7 +217,7 @@ func newTestCollectionHandlerWithAccess() (*collectionHandler, *libraryfakes.Fak
 	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
-	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+	cmdSvc, querySvc := appcollection.NewCommandService(cmdRepo, queryRepo, mediaRepo), appcollection.NewQueryService(queryRepo, smartQ)
 	libAccessRepo := userfakes.NewFakeLibraryAccessRepository()
 	userAccess := appuser.NewAccessService(
 		userfakes.NewFakeUserRepository(),
@@ -228,7 +228,7 @@ func newTestCollectionHandlerWithAccess() (*collectionHandler, *libraryfakes.Fak
 		sharedfakes.NewFakeEventBus(),
 		appuser.WithLibraryAccess(libAccessRepo),
 	)
-	return &collectionHandler{svc: svc, userAccess: userAccess}, cmdRepo, mediaRepo, libAccessRepo
+	return &collectionHandler{cmd: cmdSvc, query: querySvc, userAccess: userAccess}, cmdRepo, mediaRepo, libAccessRepo
 }
 
 func nonAdminCtx(userID string) context.Context {
@@ -741,8 +741,8 @@ func newTestCollectionHandlerBatch() (*collectionHandler, *libraryfakes.FakeColl
 	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
-	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
-	return &collectionHandler{svc: svc, userAccess: newPermissiveTestUserAccess()}, cmdRepo, mediaRepo, queryRepo
+	cmdSvc, querySvc := appcollection.NewCommandService(cmdRepo, queryRepo, mediaRepo), appcollection.NewQueryService(queryRepo, smartQ)
+	return &collectionHandler{cmd: cmdSvc, query: querySvc, userAccess: newPermissiveTestUserAccess()}, cmdRepo, mediaRepo, queryRepo
 }
 
 // TestCollectionListCollections_BatchCalledOnce verifies that ListCollections
@@ -784,7 +784,7 @@ func TestCollectionListCollections_LibraryAccess_BatchCalledOnce(t *testing.T) {
 	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
-	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+	cmdSvc, querySvc := appcollection.NewCommandService(cmdRepo, queryRepo, mediaRepo), appcollection.NewQueryService(queryRepo, smartQ)
 	libAccessRepo := userfakes.NewFakeLibraryAccessRepository()
 	userAccess := appuser.NewAccessService(
 		userfakes.NewFakeUserRepository(),
@@ -795,7 +795,7 @@ func TestCollectionListCollections_LibraryAccess_BatchCalledOnce(t *testing.T) {
 		sharedfakes.NewFakeEventBus(),
 		appuser.WithLibraryAccess(libAccessRepo),
 	)
-	h := &collectionHandler{svc: svc, userAccess: userAccess}
+	h := &collectionHandler{cmd: cmdSvc, query: querySvc, userAccess: userAccess}
 
 	// col-allowed: item in lib-2 (user has access)
 	// col-denied:  item in lib-1 (user has no access)
@@ -828,7 +828,7 @@ func TestCollectionListCollections_ParentalFilter_Batch(t *testing.T) {
 	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
-	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+	cmdSvc, querySvc := appcollection.NewCommandService(cmdRepo, queryRepo, mediaRepo), appcollection.NewQueryService(queryRepo, smartQ)
 
 	// Kid profile blocking items tagged "violence".
 	maxAge := 7
@@ -854,7 +854,7 @@ func TestCollectionListCollections_ParentalFilter_Batch(t *testing.T) {
 		userfakes.NewFakeInviteLinkRepository(),
 		userfakes.NewFakeQuickConnectRepository(),
 	)
-	h := &collectionHandler{svc: svc, userQuery: userQuery, userAccess: newPermissiveTestUserAccess()}
+	h := &collectionHandler{cmd: cmdSvc, query: querySvc, userQuery: userQuery, userAccess: newPermissiveTestUserAccess()}
 
 	// col-clean:  item rated "G" (US, age 0) and no blocked tags → should appear
 	// col-blocked: item rated "G" but tagged "violence" (blocked tag) → should be hidden
@@ -911,7 +911,7 @@ func TestCollectionRemoveCollectionItem_OK(t *testing.T) {
 	if _, err := h.RemoveCollectionItem(adminCtx(), &eveyv1.RemoveCollectionItemRequest{Id: "col-1", MediaItemId: "m1"}); err != nil {
 		t.Fatalf("RemoveCollectionItem: %v", err)
 	}
-	items, _, err := h.svc.GetItems(context.Background(), "col-1", 100, 0)
+	items, _, err := h.query.GetItems(context.Background(), "col-1", 100, 0)
 	if err != nil {
 		t.Fatalf("GetItems: %v", err)
 	}
@@ -955,7 +955,7 @@ func TestCollectionRemoveCollectionItem_IDOR_DeniesForeignCollection(t *testing.
 	if status.Code(err) != codes.NotFound {
 		t.Fatalf("want NotFound, got %v", err)
 	}
-	items, _, _ := h.svc.GetItems(context.Background(), "col-lib1", 100, 0)
+	items, _, _ := h.query.GetItems(context.Background(), "col-lib1", 100, 0)
 	if len(items) != 1 {
 		t.Errorf("a denied removal must not touch the collection, got %d items", len(items))
 	}
@@ -1138,8 +1138,8 @@ func TestCollectionListForMediaItem_FailedMemberReadFailsTheCall(t *testing.T) {
 	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
-	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
-	h := &collectionHandler{svc: svc}
+	cmdSvc, querySvc := appcollection.NewCommandService(cmdRepo, queryRepo, mediaRepo), appcollection.NewQueryService(queryRepo, smartQ)
+	h := &collectionHandler{cmd: cmdSvc, query: querySvc}
 
 	seedCollection(cmdRepo, "col-saga", "Some Saga")
 	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Some Movie", Type: "movie"})
@@ -1162,8 +1162,8 @@ func TestCollectionListForMediaItem_BatchesMemberReads(t *testing.T) {
 	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
-	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
-	h := &collectionHandler{svc: svc}
+	cmdSvc, querySvc := appcollection.NewCommandService(cmdRepo, queryRepo, mediaRepo), appcollection.NewQueryService(queryRepo, smartQ)
+	h := &collectionHandler{cmd: cmdSvc, query: querySvc}
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Some Movie", Type: "movie"})
 	for _, id := range []string{"col-a", "col-b", "col-c"} {

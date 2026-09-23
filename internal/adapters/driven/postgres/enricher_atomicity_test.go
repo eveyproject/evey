@@ -58,7 +58,7 @@ func TestEnrichItem_RollsBackAllStepsOnFailure(t *testing.T) {
 
 	enricher := appmetadata.NewEnricher(
 		artRepo, personRepo, mpRepo, postgres.NewMediaItemQueryRepoAdapter(db), itemRepo, nil,
-		nil, nil, nil,
+		nil, nil, nil, nil,
 		appmetadata.EnricherWithUnitOfWork(postgres.NewTxUnit(db)),
 	)
 
@@ -104,7 +104,7 @@ func TestEnrichItem_CommitsAllSteps(t *testing.T) {
 
 	enricher := appmetadata.NewEnricher(
 		artRepo, personRepo, mpRepo, postgres.NewMediaItemQueryRepoAdapter(db), itemRepo, nil,
-		nil, nil, nil,
+		nil, nil, nil, nil,
 		appmetadata.EnricherWithUnitOfWork(postgres.NewTxUnit(db)),
 	)
 

@@ -110,7 +110,7 @@ func newTransEnricher(primary domain.MetadataProvider) (*Enricher, *libfakes.Fak
 	mpRepo := libfakes.NewFakeMediaPersonRepository()
 	miRepo := libfakes.NewFakeMediaItemStore()
 	searchIdx := libfakes.NewFakeSearchIndex()
-	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, miRepo, searchIdx, primary, nil, nil)
+	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, miRepo, searchIdx, primary, nil, nil, nil)
 	return e, miRepo, personRepo
 }
 

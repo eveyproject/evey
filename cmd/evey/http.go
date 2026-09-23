@@ -193,7 +193,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		ActivityCmdSvc: deps.engagement.activityCmdSvc,
 
-		CollectionSvc:  deps.content.collectionSvc,
+		CollectionSvc:  deps.content.collectionQuerySvc,
 		PlaylistSvc:    deps.content.playlistSvc,
 		PlaylistGenSvc: deps.content.playlistGenSvc,
 

@@ -22,7 +22,8 @@ import (
 
 type collectionHandler struct {
 	eveyv1.UnimplementedCollectionServiceServer
-	svc        *appcollection.Service
+	cmd        *appcollection.CommandService
+	query      *appcollection.QueryService
 	userAccess *appuser.AccessService
 	libQuery   *applibrary.QueryService
 	userQuery  *appuser.QueryService
@@ -54,7 +55,7 @@ const defaultMinCollectionItems = 2
 func (h *collectionHandler) ListCollections(ctx context.Context, req *eveyv1.ListCollectionsRequest) (*eveyv1.ListCollectionsResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.collection.ListCollections")
 	defer span.End()
-	cols, err := h.svc.List(ctx)
+	cols, err := h.query.List(ctx)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -72,7 +73,7 @@ func (h *collectionHandler) ListCollections(ctx context.Context, req *eveyv1.Lis
 	for i, c := range cols {
 		colIDs[i] = c.ID
 	}
-	allItems, batchErr := h.svc.GetItemsForCollections(ctx, colIDs)
+	allItems, batchErr := h.query.GetItemsForCollections(ctx, colIDs)
 	if batchErr != nil {
 		span.RecordError(batchErr)
 		span.SetStatus(otelcodes.Error, batchErr.Error())
@@ -135,7 +136,7 @@ func filterItemsByAccess(items []*library.MediaItem, allowedLibIDs []string) ([]
 func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCollectionRequest) (*eveyv1.GetCollectionResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.collection.GetCollection")
 	defer span.End()
-	col, err := h.svc.GetByID(ctx, req.Id)
+	col, err := h.query.GetByID(ctx, req.Id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "collection not found")
@@ -147,7 +148,7 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 		span.SetStatus(otelcodes.Error, filterErr.Error())
 		return nil, internalError(ctx, "check access", filterErr)
 	}
-	items, _, itemsErr := h.svc.GetItems(ctx, col.ID, library.MaxCollectionItems, 0)
+	items, _, itemsErr := h.query.GetItems(ctx, col.ID, library.MaxCollectionItems, 0)
 	if itemsErr != nil {
 		span.RecordError(itemsErr)
 		span.SetStatus(otelcodes.Error, itemsErr.Error())
@@ -215,7 +216,7 @@ func (h *collectionHandler) DeleteCollection(ctx context.Context, req *eveyv1.De
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
-	if err := h.svc.Delete(ctx, req.Id); err != nil {
+	if err := h.cmd.Delete(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "delete collection", err)
@@ -236,9 +237,9 @@ func (h *collectionHandler) CreateCollection(ctx context.Context, req *eveyv1.Cr
 		err     error
 	)
 	if req.GetSmart() {
-		created, err = h.svc.CreateSmart(ctx, req.GetName(), rules, req.GetSortBy())
+		created, err = h.cmd.CreateSmart(ctx, req.GetName(), rules, req.GetSortBy())
 	} else {
-		created, err = h.svc.Create(ctx, req.GetName(), req.GetOverview(), rules, req.GetSortBy())
+		created, err = h.cmd.Create(ctx, req.GetName(), req.GetOverview(), rules, req.GetSortBy())
 	}
 	if err != nil {
 		span.RecordError(err)
@@ -269,7 +270,7 @@ func (h *collectionHandler) UpdateCollection(ctx context.Context, req *eveyv1.Up
 	}
 	rules := protoRulesToDomain(req.GetRules())
 	if req.GetSmart() {
-		col, err := h.svc.UpdateSmart(ctx, req.GetId(), req.GetName(), rules, req.GetSortBy())
+		col, err := h.cmd.UpdateSmart(ctx, req.GetId(), req.GetName(), rules, req.GetSortBy())
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
@@ -277,12 +278,12 @@ func (h *collectionHandler) UpdateCollection(ctx context.Context, req *eveyv1.Up
 		}
 		return &eveyv1.UpdateCollectionResponse{Collection: collectionToProto(col)}, nil
 	}
-	if err := h.svc.Update(ctx, req.GetId(), req.GetName(), req.Overview, rules, req.GetSortBy()); err != nil {
+	if err := h.cmd.Update(ctx, req.GetId(), req.GetName(), req.Overview, rules, req.GetSortBy()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "update collection", err)
 	}
-	col, err := h.svc.GetByID(ctx, req.GetId())
+	col, err := h.query.GetByID(ctx, req.GetId())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -313,7 +314,7 @@ func (h *collectionHandler) AddCollectionItem(ctx context.Context, req *eveyv1.A
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
-	if err := h.svc.LinkMediaItem(ctx, req.GetId(), req.GetMediaItemId(), int(req.GetSortOrder())); err != nil {
+	if err := h.cmd.LinkMediaItem(ctx, req.GetId(), req.GetMediaItemId(), int(req.GetSortOrder())); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		// Naming something that does not exist is the caller's mistake, not the
@@ -337,7 +338,7 @@ func (h *collectionHandler) ListCollectionsForMediaItem(ctx context.Context, req
 		span.SetStatus(otelcodes.Error, "media_item_id is required")
 		return nil, status.Errorf(codes.InvalidArgument, "media_item_id is required")
 	}
-	cols, err := h.svc.GetForMediaItem(ctx, req.GetMediaItemId())
+	cols, err := h.query.GetForMediaItem(ctx, req.GetMediaItemId())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -356,7 +357,7 @@ func (h *collectionHandler) ListCollectionsForMediaItem(ctx context.Context, req
 	for i, c := range cols {
 		colIDs[i] = c.ID
 	}
-	allItems, batchErr := h.svc.GetItemsForCollections(ctx, colIDs)
+	allItems, batchErr := h.query.GetItemsForCollections(ctx, colIDs)
 	if batchErr != nil {
 		// User decision 2026-08-25: an infrastructure failure fails the CALL.
 		// Returning a shorter list made a transient DB timeout render exactly
@@ -401,7 +402,7 @@ func (h *collectionHandler) RemoveCollectionItem(ctx context.Context, req *eveyv
 		span.SetStatus(otelcodes.Error, "collection access denied")
 		return nil, err
 	}
-	if err := h.svc.UnlinkMediaItem(ctx, req.GetId(), req.GetMediaItemId()); err != nil {
+	if err := h.cmd.UnlinkMediaItem(ctx, req.GetId(), req.GetMediaItemId()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "remove collection item", err)
@@ -442,7 +443,7 @@ func (h *collectionHandler) ReorderCollectionItems(ctx context.Context, req *eve
 		span.SetStatus(otelcodes.Error, "media_item_ids contains non-members")
 		return nil, status.Errorf(codes.InvalidArgument, "media_item_ids contains items that are not in this collection: %s", strings.Join(foreign, ", "))
 	}
-	if err := h.svc.ReorderItems(ctx, req.GetId(), req.GetMediaItemIds()); err != nil {
+	if err := h.cmd.ReorderItems(ctx, req.GetId(), req.GetMediaItemIds()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		// Same contract as the pre-check above: an id the collection does not
@@ -460,7 +461,7 @@ func (h *collectionHandler) ReorderCollectionItems(ctx context.Context, req *eve
 // not actually hold, in request order and deduplicated. Empty means every id
 // is a member.
 func (h *collectionHandler) foreignCollectionItems(ctx context.Context, collectionID string, ids []string) ([]string, error) {
-	items, _, err := h.svc.GetItems(ctx, collectionID, library.MaxCollectionItems, 0)
+	items, _, err := h.query.GetItems(ctx, collectionID, library.MaxCollectionItems, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +512,7 @@ func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.
 		limit = 50
 	}
 	offset := max(int(req.Offset), 0)
-	items, total, err := h.svc.GetItems(ctx, req.Id, limit, offset)
+	items, total, err := h.query.GetItems(ctx, req.Id, limit, offset)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -623,10 +624,10 @@ func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectio
 		// Admin or no access service wired (tests) - defer to RBAC.
 		return nil
 	}
-	if _, getErr := h.svc.GetByID(ctx, collectionID); getErr != nil {
+	if _, getErr := h.query.GetByID(ctx, collectionID); getErr != nil {
 		return status.Errorf(codes.NotFound, "collection not found")
 	}
-	items, _, itemsErr := h.svc.GetItems(ctx, collectionID, library.MaxCollectionItems, 0)
+	items, _, itemsErr := h.query.GetItems(ctx, collectionID, library.MaxCollectionItems, 0)
 	if itemsErr != nil {
 		slog.WarnContext(ctx, "collection access check: get items", slog.String("collection_id", collectionID), slog.Any("err", itemsErr))
 		return internalError(ctx, "get collection items", itemsErr)

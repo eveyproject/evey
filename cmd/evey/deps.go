@@ -115,14 +115,15 @@ type mediaDeps struct {
 
 // contentDeps groups content-organisation services (metadata, collections, ratings).
 type contentDeps struct {
-	metadataCmdSvc   *appmetadata.CommandService
-	metadataQuerySvc *appmetadata.QueryService
-	enricher         *appmetadata.Enricher
-	collectionSvc    *appcollection.Service
-	favoriteSvc      *appfavorite.Service
-	mediaRequestSvc  *appmediarequest.Service
-	playlistSvc      *appplaylist.Service
-	playlistGenSvc   *appplaylist.GeneratorService
+	metadataCmdSvc     *appmetadata.CommandService
+	metadataQuerySvc   *appmetadata.QueryService
+	enricher           *appmetadata.Enricher
+	collectionCmdSvc   *appcollection.CommandService
+	collectionQuerySvc *appcollection.QueryService
+	favoriteSvc        *appfavorite.Service
+	mediaRequestSvc    *appmediarequest.Service
+	playlistSvc        *appplaylist.Service
+	playlistGenSvc     *appplaylist.GeneratorService
 }
 
 // engagementDeps groups activity, notifications, feeds, webhooks and plugins.

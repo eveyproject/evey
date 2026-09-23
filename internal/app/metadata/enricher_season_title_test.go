@@ -38,7 +38,7 @@ func TestAutoEnrichSeason_NeverWritesProviderTitle(t *testing.T) {
 	miRepo := libfakes.NewFakeMediaItemStore()
 	e := NewEnricher(artRepo, libfakes.NewFakePersonRepository(), libfakes.NewFakeMediaPersonRepository(),
 		miRepo,
-		miRepo, libfakes.NewFakeSearchIndex(), provider, nil, nil)
+		miRepo, libfakes.NewFakeSearchIndex(), provider, nil, nil, nil)
 
 	ctx := context.Background()
 	require.NoError(t, miRepo.Create(ctx, &domainlib.MediaItem{
@@ -84,7 +84,7 @@ func TestAutoEnrichSeason_UnknownSeasonKeepsTitle(t *testing.T) {
 
 	miRepo := libfakes.NewFakeMediaItemStore()
 	e := NewEnricher(metafakes.NewFakeArtworkRepository(), libfakes.NewFakePersonRepository(),
-		libfakes.NewFakeMediaPersonRepository(), miRepo, miRepo, libfakes.NewFakeSearchIndex(), provider, nil, nil)
+		libfakes.NewFakeMediaPersonRepository(), miRepo, miRepo, libfakes.NewFakeSearchIndex(), provider, nil, nil, nil)
 
 	ctx := context.Background()
 	require.NoError(t, miRepo.Create(ctx, &domainlib.MediaItem{
