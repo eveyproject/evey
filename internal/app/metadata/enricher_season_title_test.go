@@ -35,8 +35,9 @@ func TestAutoEnrichSeason_NeverWritesProviderTitle(t *testing.T) {
 	}
 
 	artRepo := metafakes.NewFakeArtworkRepository()
-	miRepo := libfakes.NewFakeMediaItemRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
 	e := NewEnricher(artRepo, libfakes.NewFakePersonRepository(), libfakes.NewFakeMediaPersonRepository(),
+		miRepo,
 		miRepo, libfakes.NewFakeSearchIndex(), provider, nil, nil)
 
 	ctx := context.Background()
@@ -81,9 +82,9 @@ func TestAutoEnrichSeason_UnknownSeasonKeepsTitle(t *testing.T) {
 	provider := metafakes.NewFakeMetadataProvider("tmdb")
 	provider.SeasonDetails["500:1"] = &domain.MetadataResult{Title: "Gigantor", Overview: "First season"}
 
-	miRepo := libfakes.NewFakeMediaItemRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
 	e := NewEnricher(metafakes.NewFakeArtworkRepository(), libfakes.NewFakePersonRepository(),
-		libfakes.NewFakeMediaPersonRepository(), miRepo, libfakes.NewFakeSearchIndex(), provider, nil, nil)
+		libfakes.NewFakeMediaPersonRepository(), miRepo, miRepo, libfakes.NewFakeSearchIndex(), provider, nil, nil)
 
 	ctx := context.Background()
 	require.NoError(t, miRepo.Create(ctx, &domainlib.MediaItem{

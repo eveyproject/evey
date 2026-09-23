@@ -53,15 +53,15 @@ var _ grpc.ServerStreamingServer[eveyv1.RefreshMetadataProgress] = (*refreshStre
 // media-item repo so the handler can resolve the item's provider IDs and run a
 // re-enrich (the production path). Returns the handler, the seeded provider,
 // and the repo for test setup.
-func newRefreshMetadataHandler() (*metadataHandler, *metafakes.FakeMetadataProvider, *libfakes.FakeMediaItemRepository) {
+func newRefreshMetadataHandler() (*metadataHandler, *metafakes.FakeMetadataProvider, *libfakes.FakeMediaItemStore) {
 	provider := metafakes.NewFakeMetadataProvider("tmdb")
 	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
 	artworkRepo := metafakes.NewFakeArtworkRepository()
 	events := sharedfakes.NewFakeEventBus()
 	providers := []domainmetadata.MetadataProvider{provider}
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	cmd := appmetadata.NewCommandService(overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(), events, providers,
-		appmetadata.WithEnricher(orphanBulkEnricher{}, mediaRepo),
+		appmetadata.WithEnricher(orphanBulkEnricher{}, mediaRepo, mediaRepo),
 	)
 	query := appmetadata.NewQueryService(overrideRepo, artworkRepo, providers)
 	return &metadataHandler{cmd: cmd, query: query, userAccess: newPermissiveTestUserAccess()}, provider, mediaRepo
@@ -140,9 +140,9 @@ func TestRefreshMetadata_NoProvider_NoTMDBID_FailedPrecondition(t *testing.T) {
 	artworkRepo := metafakes.NewFakeArtworkRepository()
 	events := sharedfakes.NewFakeEventBus()
 	providers := []domainmetadata.MetadataProvider{provider}
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	cmd := appmetadata.NewCommandService(overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(), events, providers,
-		appmetadata.WithEnricher(orphanBulkEnricher{}, mediaRepo),
+		appmetadata.WithEnricher(orphanBulkEnricher{}, mediaRepo, mediaRepo),
 	)
 	query := appmetadata.NewQueryService(overrideRepo, artworkRepo, providers)
 	h := &metadataHandler{cmd: cmd, query: query, userAccess: newPermissiveTestUserAccess()}

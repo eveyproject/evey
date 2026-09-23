@@ -656,8 +656,10 @@ func (r *fakeSegmentRepo) IntroDetectionExhaustedBatch(_ context.Context, mediaI
 }
 
 // fakeMediaItemRepo returns the configured item for GetByID calls and optionally
-// a list of siblings for List calls.
+// a list of siblings for List calls. Intro detection reads nothing else, so the
+// rest of the query port is left to the embedded nil interface.
 type fakeMediaItemRepo struct {
+	domainlibrary.MediaItemQueryRepo
 	item     *domainlibrary.MediaItem
 	siblings []*domainlibrary.MediaItem
 }
@@ -677,7 +679,6 @@ func (r *fakeMediaItemRepo) GetByID(_ context.Context, id shared.MediaItemID) (*
 	}
 	return nil, shared.ErrNotFound
 }
-func (r *fakeMediaItemRepo) Create(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
 func (r *fakeMediaItemRepo) List(_ context.Context, f domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
 	// Honour Offset/Limit so paginating callers (detectSeason) terminate and
 	// page correctly - a fake that ignored them would loop forever once the
@@ -716,23 +717,6 @@ func (r *fakeMediaItemRepo) List(_ context.Context, f domainlibrary.ListMediaIte
 		items = items[:f.Limit]
 	}
 	return items, nil
-}
-func (r *fakeMediaItemRepo) Update(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
-func (r *fakeMediaItemRepo) Delete(_ context.Context, _ shared.MediaItemID) error       { return nil }
-func (r *fakeMediaItemRepo) GetByFilePath(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
-	return nil, nil
-}
-func (r *fakeMediaItemRepo) GetByFileFingerprint(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
-	return nil, nil
-}
-func (r *fakeMediaItemRepo) GetByLibraryTypeTitle(_ context.Context, _ shared.LibraryID, _, _, _ string) (*domainlibrary.MediaItem, error) {
-	return nil, nil
-}
-func (r *fakeMediaItemRepo) Count(_ context.Context, _ domainlibrary.ListMediaItemsFilter) (int, error) {
-	return 0, nil
-}
-func (r *fakeMediaItemRepo) SeriesAggregate(_ context.Context, _ shared.MediaItemID) (domainlibrary.SeriesAggregate, error) {
-	return domainlibrary.SeriesAggregate{}, nil
 }
 
 // fakeTrickplayRepo returns ErrNotFound for any lookup so the pHash pass is skipped.

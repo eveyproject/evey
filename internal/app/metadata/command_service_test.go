@@ -100,9 +100,9 @@ func TestRefreshAllTranslations_NoEnricher(t *testing.T) {
 
 func TestRefreshAllTranslations_ListError(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	mediaRepo.ErrList = errors.New("db down")
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 
 	err := cmdSvc.RefreshAllTranslations(context.Background(), nil)
 	require.Error(t, err)
@@ -111,9 +111,9 @@ func TestRefreshAllTranslations_ListError(t *testing.T) {
 
 func TestRefreshAllTranslations_SkipsItemsWithoutTMDB(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &fakeTranslationsEnricher{}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "m1", Type: library.MovieItem, Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "42"}}}))
@@ -145,9 +145,9 @@ func TestRefreshAllTranslations_SkipsItemsWithoutTMDB(t *testing.T) {
 // which is what lets this test fail against the old code.
 func TestRefreshAllTranslations_PagesPastTheFirstFiveHundred(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &fakeTranslationsEnricher{}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	const catalogue = 640 // past the 500-row page, well within a real library
@@ -180,9 +180,9 @@ func TestRefreshAllTranslations_PagesPastTheFirstFiveHundred(t *testing.T) {
 
 func TestRefreshAllTranslations_TVMediaType(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &fakeTranslationsEnricher{}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "s1", Type: library.Series, Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "100"}}}))
@@ -208,8 +208,8 @@ func TestGetMediaItem_NotConfigured(t *testing.T) {
 
 func TestGetMediaItem_Success(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Some Movie"}))
@@ -221,8 +221,8 @@ func TestGetMediaItem_Success(t *testing.T) {
 
 func TestGetMediaItem_NotFound(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 
 	_, err := cmdSvc.GetMediaItem(context.Background(), "missing")
 	require.Error(t, err)
@@ -239,8 +239,8 @@ func TestResetItemMetadata_NoRepo(t *testing.T) {
 
 func TestResetItemMetadata_ItemNotFound(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 
 	err := cmdSvc.ResetItemMetadata(context.Background(), "missing")
 	require.Error(t, err)
@@ -257,9 +257,9 @@ func TestResetItemMetadata_MovieClearsFields(t *testing.T) {
 		sharedfakes.NewFakeEventBus(),
 		nil,
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	personRepo := libfakes.NewFakeMediaPersonRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 	appmetadata.WithMediaPersons(personRepo)(cmdSvc)
 
 	ctx := context.Background()
@@ -313,8 +313,8 @@ func TestResetItemMetadata_Series_TitleFromChildren(t *testing.T) {
 		sharedfakes.NewFakeEventBus(),
 		nil,
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	// Series: no FilePath
@@ -348,8 +348,8 @@ func TestResetItemMetadata_SeriesCascadesToChildren(t *testing.T) {
 		sharedfakes.NewFakeEventBus(),
 		nil,
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
@@ -445,7 +445,7 @@ func (f *fakeOrphanBulkEnricher) AutoEnrichAll(_ context.Context, items []*libra
 // stall detector sees progress and exits on an empty remainder.
 type fakeMatchingBulkEnricher struct {
 	mu        sync.Mutex
-	repo      *libfakes.FakeMediaItemRepository
+	repo      *libfakes.FakeMediaItemStore
 	itemsSeen []string
 	doneCh    chan struct{}
 	closeOnce sync.Once
@@ -482,12 +482,12 @@ func TestMatchOrphansInLibrary_NoEnricher(t *testing.T) {
 
 func TestMatchOrphansInLibrary_SelectsOnlyOrphansInLibrary(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	// Enricher that "matches" each orphan by writing back ProviderIDs.
 	// This is what makes the drainer's stall detector see progress and
 	// eventually exit on an empty remainder.
 	enricher := &fakeMatchingBulkEnricher{repo: mediaRepo, doneCh: make(chan struct{})}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	// orphan in target library
@@ -528,9 +528,9 @@ func TestMatchOrphansInLibrary_SelectsOnlyOrphansInLibrary(t *testing.T) {
 
 func TestMatchOrphansInLibrary_DrainCancelledByShutdown(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &fakeOrphanBulkEnricher{finishedCh: make(chan struct{})}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	// Service ctx already cancelled: the detached drain must see it and stop
 	// before any enrich work, AND WaitWorkers must await it (it is now
@@ -563,11 +563,11 @@ func TestMatchOrphansInLibrary_DrainCancelledByShutdown(t *testing.T) {
 
 func TestMatchOrphansInLibrary_StopsOnStall(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	// Enricher that does NOT write back ProviderIDs - orphan count stays
 	// constant → drainer must detect the stall and exit.
 	enricher := &fakeOrphanBulkEnricher{finishedCh: make(chan struct{})}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
@@ -598,9 +598,9 @@ func TestMatchOrphansInLibrary_StopsOnStall(t *testing.T) {
 
 func TestMatchOrphansInLibrary_NoOrphansShortCircuits(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &fakeOrphanBulkEnricher{}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
@@ -618,10 +618,10 @@ func TestMatchOrphansInLibrary_NoOrphansShortCircuits(t *testing.T) {
 
 func TestMatchOrphansInLibrary_DetachesFromCallerContext(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	release := make(chan struct{})
 	enricher := &fakeOrphanBulkEnricher{releaseCh: release, finishedCh: make(chan struct{})}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	require.NoError(t, mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID: "m1", LibraryID: "lib-1", Type: library.MovieItem, Title: "Orphan",
@@ -651,7 +651,7 @@ func TestMatchOrphansInLibrary_DetachesFromCallerContext(t *testing.T) {
 // path. Only the force half is exercised (ResearchMetadata always prefers
 // it); AutoEnrichItem is a no-op stub required to satisfy the interface.
 type fakeForceEnricher struct {
-	mediaRepo     *libfakes.FakeMediaItemRepository
+	mediaRepo     *libfakes.FakeMediaItemStore
 	newTitle      string
 	overview      string
 	tmdbID        string
@@ -688,8 +688,8 @@ func TestResearchMetadata_NoRepo(t *testing.T) {
 
 func TestResearchMetadata_ItemNotFound(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 
 	_, err := cmdSvc.ResearchMetadata(context.Background(), "missing")
 	require.Error(t, err)
@@ -705,9 +705,9 @@ func TestResearchMetadata_ResetsAndReEnrichesFromScanTitle(t *testing.T) {
 		sharedfakes.NewFakeEventBus(),
 		nil,
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &fakeForceEnricher{mediaRepo: mediaRepo, newTitle: "Some Series", overview: "Wall Street drama", tmdbID: "1419"}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	year := 2018
@@ -762,9 +762,9 @@ func TestResearchMetadata_NoEnricherStillResetsState(t *testing.T) {
 		sharedfakes.NewFakeEventBus(),
 		nil,
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	// Enricher that doesn't satisfy ForceSingleItemEnricher / SingleItemEnricher
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	year := 2010
@@ -802,9 +802,9 @@ func TestResearchMetadata_NoEnricherStillResetsState(t *testing.T) {
 
 func TestStartEnrichmentWorker_WaitWorkersCompletesAfterCancel(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &fakeTranslationsEnricher{}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cmdSvc.StartEnrichmentWorker(ctx)
@@ -826,9 +826,9 @@ func TestStartEnrichmentWorker_WaitWorkersCompletesAfterCancel(t *testing.T) {
 
 func TestSetOverride_TitleOnOrphan_PropagatesAndTriggersEnrich(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &fakeTranslationsEnricher{}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
@@ -855,9 +855,9 @@ func TestSetOverride_TitleOnOrphan_PropagatesAndTriggersEnrich(t *testing.T) {
 
 func TestSetOverride_TitleOnMatched_DoesNotPropagate(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &fakeTranslationsEnricher{}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
@@ -883,9 +883,9 @@ func TestSetOverride_TitleOnMatched_DoesNotPropagate(t *testing.T) {
 
 func TestSetOverride_NonTitleField_NoPropagation(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &fakeTranslationsEnricher{}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
@@ -903,9 +903,9 @@ func TestSetOverride_NonTitleField_NoPropagation(t *testing.T) {
 
 func TestSetOverride_TitleAlreadyAligned_NoEnrich(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &fakeTranslationsEnricher{}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
@@ -1226,8 +1226,8 @@ func TestResetItemMetadata_ReportsFailureInsteadOfClaimingSuccess(t *testing.T) 
 		overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(),
 		sharedfakes.NewFakeEventBus(), nil,
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	item := &library.MediaItem{
@@ -1256,8 +1256,8 @@ func TestResetItemMetadata_DropsOverridesBeforeClearingFields(t *testing.T) {
 		overrideRepo, metafakes.NewFakeArtworkRepository(), metafakes.NewFakeArtworkDownloader(),
 		sharedfakes.NewFakeEventBus(), nil,
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	item := &library.MediaItem{

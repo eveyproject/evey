@@ -100,7 +100,7 @@ func (s *CommandService) propagateTitleOverrideForOrphan(ctx context.Context, ov
 		item.OriginalTitle = val
 	}
 	item.UpdatedAt = time.Now()
-	if err := s.mediaItems.Update(ctx, item); err != nil {
+	if err := s.itemUpdater.Update(ctx, item); err != nil {
 		slog.WarnContext(ctx, "propagate title override to media_items failed",
 			slog.String("media_item.id", string(item.ID)),
 			slog.Any("err", err))
@@ -320,7 +320,7 @@ func (s *CommandService) clearFieldsAndUpdate(ctx context.Context, item *library
 	item.Trailers = nil
 	item.UpdatedAt = time.Now()
 
-	if err := s.mediaItems.Update(ctx, item); err != nil {
+	if err := s.itemUpdater.Update(ctx, item); err != nil {
 		return fmt.Errorf("update item: %w", err)
 	}
 	return nil

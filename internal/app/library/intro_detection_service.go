@@ -46,7 +46,7 @@ type Chromaprinter interface {
 type IntroDetectionService struct {
 	segmentRepo       domainlibrary.MediaSegmentRepository
 	trickplayRepo     domainlibrary.TrickplayRepository
-	mediaItems        domainlibrary.MediaItemRepository
+	mediaItems        domainlibrary.MediaItemQueryRepo
 	configRepo        shared.ServerConfigRepository
 	fpCache           domainlibrary.IntroFingerprintCacheRepository
 	audioFPCache      domainlibrary.IntroAudioFingerprintCacheRepository
@@ -261,7 +261,7 @@ const defaultMaxParallelDetections = 2
 func NewIntroDetectionService(
 	segmentRepo domainlibrary.MediaSegmentRepository,
 	trickplayRepo domainlibrary.TrickplayRepository,
-	mediaItems domainlibrary.MediaItemRepository,
+	mediaItems domainlibrary.MediaItemQueryRepo,
 	configRepo shared.ServerConfigRepository,
 	detector IntroDetector,
 	cacheDir string,

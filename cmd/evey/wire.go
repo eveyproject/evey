@@ -261,7 +261,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	metaProviders := []metadata.MetadataProvider{tmdbWrapped, omdbWrapped, tvmazeWrapped, imdbWrapped}
 	metadataQuerySvc := appmetadata.NewQueryService(r.MetadataOverride, r.Artwork, metaProviders)
 	enricher := appmetadata.NewEnricher(
-		r.Artwork, r.Person, r.MediaPerson, r.MediaItem, infra.searchAdapter,
+		r.Artwork, r.Person, r.MediaPerson, r.MediaItemQuery, r.MediaItem, infra.searchAdapter,
 		tmdbWrapped,
 		[]metadata.MetadataProvider{omdbWrapped, tvmazeWrapped, imdbWrapped},
 		collectionSvc,
@@ -275,7 +275,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appmetadata.EnricherWithUnitOfWork(postgres.NewTxUnit(db)),
 	)
 	metadataCmdSvc := appmetadata.NewCommandService(r.MetadataOverride, r.Artwork, infra.artworkDL, bus, metaProviders,
-		appmetadata.WithEnricher(enricher, r.MediaItem),
+		appmetadata.WithEnricher(enricher, r.MediaItemQuery, r.MediaItem),
 		appmetadata.WithMediaPersons(r.MediaPerson),
 		appmetadata.WithShutdownCtx(ctx),
 		appmetadata.WithServerConfig(r.ServerCfg),
@@ -884,7 +884,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	introDetectionSvc := applibrary.NewIntroDetectionService(
 		r.MediaSegment,
 		r.Trickplay,
-		r.MediaItem,
+		r.MediaItemQuery,
 		r.ServerCfg,
 		infra.introDetector,
 		cfg.Transcoding.TrickplayCacheDir,

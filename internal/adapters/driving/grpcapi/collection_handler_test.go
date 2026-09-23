@@ -23,7 +23,7 @@ import (
 
 func newTestCollectionHandler() (*collectionHandler, *libraryfakes.FakeCollectionCommandRepo) {
 	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
-	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
@@ -178,7 +178,7 @@ func TestCollectionGetCollection_NotFound(t *testing.T) {
 // userAccess==nil fail-open guard did.
 func TestCollectionGetCollection_UserAccessUnwired_DeniesNonAdmin(t *testing.T) {
 	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
-	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
@@ -212,9 +212,9 @@ func TestCollectionDeleteCollection_Success(t *testing.T) {
 	}
 }
 
-func newTestCollectionHandlerWithAccess() (*collectionHandler, *libraryfakes.FakeCollectionCommandRepo, *libraryfakes.FakeMediaItemRepository, *userfakes.FakeLibraryAccessRepository) {
+func newTestCollectionHandlerWithAccess() (*collectionHandler, *libraryfakes.FakeCollectionCommandRepo, *libraryfakes.FakeMediaItemStore, *userfakes.FakeLibraryAccessRepository) {
 	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
-	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
@@ -736,9 +736,9 @@ func TestCollectionGetCollectionItems_Empty(t *testing.T) {
 
 // newTestCollectionHandlerBatch constructs a handler and returns the underlying
 // FakeCollectionQueryRepo so tests can inspect GetItemsByCollectionIDsCallCount.
-func newTestCollectionHandlerBatch() (*collectionHandler, *libraryfakes.FakeCollectionCommandRepo, *libraryfakes.FakeMediaItemRepository, *libraryfakes.FakeCollectionQueryRepo) {
+func newTestCollectionHandlerBatch() (*collectionHandler, *libraryfakes.FakeCollectionCommandRepo, *libraryfakes.FakeMediaItemStore, *libraryfakes.FakeCollectionQueryRepo) {
 	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
-	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
@@ -781,7 +781,7 @@ func TestCollectionListCollections_BatchCalledOnce(t *testing.T) {
 // that the batch is issued only once even for a restricted caller.
 func TestCollectionListCollections_LibraryAccess_BatchCalledOnce(t *testing.T) {
 	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
-	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
@@ -825,7 +825,7 @@ func TestCollectionListCollections_LibraryAccess_BatchCalledOnce(t *testing.T) {
 // This proves the parental semantics are preserved under the batched path.
 func TestCollectionListCollections_ParentalFilter_Batch(t *testing.T) {
 	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
-	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
@@ -1135,7 +1135,7 @@ func TestCollectionListForMediaItem_Validation(t *testing.T) {
 // never as a silently shorter list.
 func TestCollectionListForMediaItem_FailedMemberReadFailsTheCall(t *testing.T) {
 	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
-	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
@@ -1159,7 +1159,7 @@ func TestCollectionListForMediaItem_FailedMemberReadFailsTheCall(t *testing.T) {
 // collection - an N+1 on a media detail page).
 func TestCollectionListForMediaItem_BatchesMemberReads(t *testing.T) {
 	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
-	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)

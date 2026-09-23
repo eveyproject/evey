@@ -75,11 +75,11 @@ func (f *fakeCollectionLinker) LinkMediaItem(_ context.Context, _, _ string, _ i
 	return f.linkErr
 }
 
-func newTestEnricher(primary *fakeProvider, supplementary []*fakeProvider, collections CollectionLinker) (*Enricher, *metafakes.FakeArtworkRepository, *libfakes.FakePersonRepository, *libfakes.FakeMediaPersonRepository, *libfakes.FakeMediaItemRepository, *libfakes.FakeSearchIndex) {
+func newTestEnricher(primary *fakeProvider, supplementary []*fakeProvider, collections CollectionLinker) (*Enricher, *metafakes.FakeArtworkRepository, *libfakes.FakePersonRepository, *libfakes.FakeMediaPersonRepository, *libfakes.FakeMediaItemStore, *libfakes.FakeSearchIndex) {
 	artRepo := metafakes.NewFakeArtworkRepository()
 	personRepo := libfakes.NewFakePersonRepository()
 	mpRepo := libfakes.NewFakeMediaPersonRepository()
-	miRepo := libfakes.NewFakeMediaItemRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
 	searchIdx := libfakes.NewFakeSearchIndex()
 
 	var supps []domain.MetadataProvider
@@ -87,7 +87,7 @@ func newTestEnricher(primary *fakeProvider, supplementary []*fakeProvider, colle
 		supps = append(supps, s)
 	}
 
-	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, searchIdx, primary, supps, collections)
+	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, miRepo, searchIdx, primary, supps, collections)
 	return e, artRepo, personRepo, mpRepo, miRepo, searchIdx
 }
 
@@ -424,11 +424,12 @@ func TestEnrichItem_PersonLinkBatchError_Propagates(t *testing.T) {
 	// It must now surface as an error (mirroring the artwork/item-update siblings).
 	primary := &fakeProvider{name: "tmdb"}
 	mp := &createBatchFailMP{FakeMediaPersonRepository: libfakes.NewFakeMediaPersonRepository()}
-	miRepo := libfakes.NewFakeMediaItemRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
 	e := NewEnricher(
 		metafakes.NewFakeArtworkRepository(),
 		libfakes.NewFakePersonRepository(),
 		mp,
+		miRepo,
 		miRepo,
 		libfakes.NewFakeSearchIndex(),
 		primary, nil, nil,
@@ -534,10 +535,10 @@ func TestIndexSearch_NilSearch(t *testing.T) {
 	artRepo := metafakes.NewFakeArtworkRepository()
 	personRepo := libfakes.NewFakePersonRepository()
 	mpRepo := libfakes.NewFakeMediaPersonRepository()
-	miRepo := libfakes.NewFakeMediaItemRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
 	primary := &fakeProvider{name: "tmdb"}
 
-	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, nil, primary, nil, nil)
+	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, miRepo, nil, primary, nil, nil)
 	// should not panic
 	e.indexSearch(context.Background(), &domainlib.MediaItem{ID: "x"}, nil)
 }
@@ -1466,7 +1467,7 @@ func (u *orderingUOW) Do(ctx context.Context, fn func(ctx context.Context) error
 func TestEnrichItem_ArtworkHookFiresAfterCommit(t *testing.T) {
 	primary := &fakeProvider{name: "tmdb"}
 	artRepo := metafakes.NewFakeArtworkRepository()
-	miRepo := libfakes.NewFakeMediaItemRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
 	uow := &orderingUOW{}
 	hookCalls := 0
 	hookDuringTx := false
@@ -1474,6 +1475,7 @@ func TestEnrichItem_ArtworkHookFiresAfterCommit(t *testing.T) {
 		artRepo,
 		libfakes.NewFakePersonRepository(),
 		libfakes.NewFakeMediaPersonRepository(),
+		miRepo,
 		miRepo,
 		libfakes.NewFakeSearchIndex(),
 		primary, nil, nil,
@@ -1504,12 +1506,13 @@ func TestEnrichItem_ArtworkHookFiresAfterCommit(t *testing.T) {
 // download running for artwork rows that (with a uow) get rolled back.
 func TestEnrichItem_ArtworkHookNotFiredOnFailure(t *testing.T) {
 	primary := &fakeProvider{name: "tmdb"}
-	miRepo := libfakes.NewFakeMediaItemRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
 	hookCalls := 0
 	e := NewEnricher(
 		metafakes.NewFakeArtworkRepository(),
 		libfakes.NewFakePersonRepository(),
 		&createBatchFailMP{FakeMediaPersonRepository: libfakes.NewFakeMediaPersonRepository()},
+		miRepo,
 		miRepo,
 		libfakes.NewFakeSearchIndex(),
 		primary, nil, nil,

@@ -79,13 +79,13 @@ func captureLog() (*slog.Logger, *bytes.Buffer) {
 }
 
 // newTestEnricherMulti builds an Enricher with arbitrary []MetadataProvider supps.
-func newTestEnricherMulti(primary domain.MetadataProvider, supps []domain.MetadataProvider) (*Enricher, *libfakes.FakeMediaItemRepository) {
+func newTestEnricherMulti(primary domain.MetadataProvider, supps []domain.MetadataProvider) (*Enricher, *libfakes.FakeMediaItemStore) {
 	artRepo := metafakes.NewFakeArtworkRepository()
 	personRepo := libfakes.NewFakePersonRepository()
 	mpRepo := libfakes.NewFakeMediaPersonRepository()
-	miRepo := libfakes.NewFakeMediaItemRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
 	searchIdx := libfakes.NewFakeSearchIndex()
-	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, searchIdx, primary, supps, nil)
+	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, miRepo, searchIdx, primary, supps, nil)
 	return e, miRepo
 }
 

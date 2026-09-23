@@ -17,7 +17,7 @@ import (
 
 // seriesFixture builds a series with `seasons` seasons of `episodesPer`
 // episodes each, wired into mediaRepo, and returns the series ID.
-func seriesFixture(t *testing.T, ctx context.Context, mediaRepo *libfakes.FakeMediaItemRepository, seasons, episodesPer int) string {
+func seriesFixture(t *testing.T, ctx context.Context, mediaRepo *libfakes.FakeMediaItemStore, seasons, episodesPer int) string {
 	t.Helper()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: shared.MediaItemID("s1"), Type: library.Series, Title: "Old Series"}))
 	epNum := 0
@@ -53,8 +53,8 @@ func TestResetItemMetadata_BatchesDeletesPerLevel(t *testing.T) {
 		overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(),
 		sharedfakes.NewFakeEventBus(), nil,
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 	appmetadata.WithMediaPersons(personRepo)(cmdSvc)
 
 	ctx := context.Background()
@@ -106,8 +106,8 @@ func TestResetChildren_DeletesOrderedOverridesArtworkPersons(t *testing.T) {
 		overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(),
 		sharedfakes.NewFakeEventBus(), nil,
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 	appmetadata.WithMediaPersons(personRepo)(cmdSvc)
 
 	ctx := context.Background()
@@ -132,8 +132,8 @@ func TestResetChildren_BatchDeleteFailureAborts(t *testing.T) {
 		overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(),
 		sharedfakes.NewFakeEventBus(), nil,
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 	seriesID := seriesFixture(t, ctx, mediaRepo, 1, 2)

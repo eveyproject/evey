@@ -126,3 +126,81 @@ func TestQueryServicesDoNotWrite(t *testing.T) {
 			strings.Join(violations, "\n  "))
 	}
 }
+
+// TestMediaItemRepositoryStaysGone: library.MediaItemRepository was a
+// handwritten ten-method union of the two halves that kept four callers on a
+// god-interface five months after the split (ADR-0009, amendment 2026-09-23).
+// It must not come back, nor be referenced - reads take MediaItemQueryRepo,
+// writes MediaItemCommandRepo or a consumer's own narrow port. The postgres
+// type of the same name is a concrete adapter, not this port.
+func TestMediaItemRepositoryStaysGone(t *testing.T) {
+	t.Parallel()
+	const libImport = "github.com/evey-project/evey/internal/domain/library"
+	fset := token.NewFileSet()
+	var violations []string
+	scanned := 0
+	for _, root := range []string{repoRoot + "/internal", repoRoot + "/cmd"} {
+		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") {
+				return nil
+			}
+			f, err := parser.ParseFile(fset, path, nil, 0)
+			if err != nil {
+				return err
+			}
+			scanned++
+			rel, _ := filepath.Rel(repoRoot, path)
+			if f.Name.Name == "library" && strings.HasPrefix(filepath.ToSlash(rel), "internal/domain/library/") {
+				for _, decl := range f.Decls {
+					gd, ok := decl.(*ast.GenDecl)
+					if !ok {
+						continue
+					}
+					for _, spec := range gd.Specs {
+						if ts, ok := spec.(*ast.TypeSpec); ok && ts.Name.Name == "MediaItemRepository" {
+							violations = append(violations, fmt.Sprintf("%s:%d declares MediaItemRepository", rel, fset.Position(ts.Pos()).Line))
+						}
+					}
+				}
+			}
+			alias := ""
+			for _, imp := range f.Imports {
+				if strings.Trim(imp.Path.Value, `"`) != libImport {
+					continue
+				}
+				alias = "library"
+				if imp.Name != nil {
+					alias = imp.Name.Name
+				}
+			}
+			if alias == "" {
+				return nil
+			}
+			ast.Inspect(f, func(n ast.Node) bool {
+				sel, ok := n.(*ast.SelectorExpr)
+				if !ok || sel.Sel.Name != "MediaItemRepository" {
+					return true
+				}
+				if x, ok := sel.X.(*ast.Ident); ok && x.Name == alias {
+					violations = append(violations, fmt.Sprintf("%s:%d uses %s.MediaItemRepository", rel, fset.Position(sel.Pos()).Line, alias))
+				}
+				return true
+			})
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if scanned < 500 {
+		t.Fatalf("scanned %d Go files under internal/ and cmd/ - has the layout moved?", scanned)
+	}
+	sort.Strings(violations)
+	if len(violations) > 0 {
+		t.Errorf("library.MediaItemRepository was retired (ADR-0009) - use MediaItemQueryRepo / MediaItemCommandRepo:\n  %s",
+			strings.Join(violations, "\n  "))
+	}
+}

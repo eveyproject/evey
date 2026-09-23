@@ -25,7 +25,7 @@ import (
 func TestCollectionGetCollectionItems_ParentalFilter(t *testing.T) {
 	ctx := context.Background()
 	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
-	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
@@ -67,7 +67,7 @@ func TestCollectionGetCollectionItems_ParentalFilter(t *testing.T) {
 func TestCollectionGetCollection_ParentalFilterOnItems(t *testing.T) {
 	ctx := context.Background()
 	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
-	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	mediaRepo := libraryfakes.NewFakeMediaItemStore()
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)

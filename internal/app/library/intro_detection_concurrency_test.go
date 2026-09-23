@@ -19,6 +19,7 @@ import (
 // letting the test observe how many DetectIntro calls hold a semaphore
 // slot at once.
 type blockingMediaItemRepo struct {
+	domainlibrary.MediaItemQueryRepo
 	release     chan struct{}
 	inflight    atomic.Int32
 	maxInflight atomic.Int32
@@ -43,30 +44,8 @@ func (r *blockingMediaItemRepo) GetByID(ctx context.Context, _ shared.MediaItemI
 	}
 	return nil, context.Canceled // short-circuit DetectIntro after the blocking gate
 }
-func (r *blockingMediaItemRepo) Create(_ context.Context, _ *domainlibrary.MediaItem) error {
-	return nil
-}
 func (r *blockingMediaItemRepo) List(_ context.Context, _ domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
 	return nil, nil
-}
-func (r *blockingMediaItemRepo) Update(_ context.Context, _ *domainlibrary.MediaItem) error {
-	return nil
-}
-func (r *blockingMediaItemRepo) Delete(_ context.Context, _ shared.MediaItemID) error { return nil }
-func (r *blockingMediaItemRepo) GetByFilePath(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
-	return nil, nil
-}
-func (r *blockingMediaItemRepo) GetByFileFingerprint(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
-	return nil, nil
-}
-func (r *blockingMediaItemRepo) GetByLibraryTypeTitle(_ context.Context, _ shared.LibraryID, _, _, _ string) (*domainlibrary.MediaItem, error) {
-	return nil, nil
-}
-func (r *blockingMediaItemRepo) Count(_ context.Context, _ domainlibrary.ListMediaItemsFilter) (int, error) {
-	return 0, nil
-}
-func (r *blockingMediaItemRepo) SeriesAggregate(_ context.Context, _ shared.MediaItemID) (domainlibrary.SeriesAggregate, error) {
-	return domainlibrary.SeriesAggregate{}, nil
 }
 
 func TestDetectIntro_ConcurrencyCap(t *testing.T) {
