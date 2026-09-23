@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { rememberFocusBeforeLeaving } from "../tv/focus";
 
 // A hash router, on purpose: the same build runs under /tv on the server
 // and from file:// inside a packaged app, and neither has server-side
@@ -165,6 +166,8 @@ export function parseHash(hash: string): Route {
 }
 
 export function navigate(route: Route): void {
+  // Going back to this screen lands where the viewer left it.
+  rememberFocusBeforeLeaving(window.location.hash);
   window.location.hash = routeToHash(route);
 }
 

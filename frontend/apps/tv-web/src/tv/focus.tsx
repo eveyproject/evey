@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { init, setKeyMap, useFocusable, FocusContext, setFocus, getCurrentFocusKey } from "@noriginmedia/norigin-spatial-navigation";
 import { tvKeyOf, targetIsEditable } from "./keys";
 
@@ -43,6 +43,56 @@ export function useTvKeys(handler: (key: "back" | "play" | "pause" | "playPause"
   }, [handler]);
 }
 
+// Where the focus stood on each screen the viewer left, by hash: going back
+// lands on the card that was left, as the Android television does. Only a
+// key a screen gave on purpose is kept - the library's generated keys
+// ("sn:...") change at every mount and would point at nothing.
+const leftFocus = new Map<string, string>();
+
+/** Called by the router just before it leaves the current screen. */
+export function rememberFocusBeforeLeaving(hash: string): void {
+  const key = getCurrentFocusKey();
+  if (key && !key.startsWith("sn:")) leftFocus.set(hash, key);
+  else leftFocus.delete(hash);
+}
+
+/**
+ * What a screen's focusables need to agree on who takes the focus on arrival:
+ * the key to restore when coming back, and whether a child already claimed it.
+ * The screen's own scope used to focus itself AFTER its children, and the
+ * library then picked the child closest to the top-left corner - the header,
+ * the track row - over the card or the Play button the screen had focused.
+ */
+interface ScreenFocus {
+  restoreKey: string | null;
+  claimed: { current: boolean };
+  restored: { current: boolean };
+}
+const ScreenFocusContext = createContext<ScreenFocus | null>(null);
+
+/**
+ * The focus a focusable takes when it mounts: the one the viewer left, when
+ * coming back to this screen, else the one the screen asked for (autoFocus).
+ */
+export function useArrivalFocus(focusKey: string | undefined, autoFocus: boolean | undefined, focusSelf: () => void): void {
+  const screen = useContext(ScreenFocusContext);
+  useEffect(() => {
+    if (screen?.restoreKey && focusKey === screen.restoreKey) {
+      screen.restored.current = true;
+      screen.claimed.current = true;
+      focusSelf();
+      return;
+    }
+    if (!autoFocus || screen?.restoreKey) return;
+    if (screen) screen.claimed.current = true;
+    focusSelf();
+  }, [autoFocus, focusKey, focusSelf, screen]);
+}
+
+// How long a screen waits for the card it should restore (its row may still
+// be loading) before settling for its default focus.
+const RESTORE_WAIT_MS = 400;
+
 interface FocusRootProps {
   focusKey?: string;
   /** Focus the first child as soon as the screen mounts. */
@@ -60,11 +110,17 @@ interface FocusRootProps {
    * escalate to the parent, which is how the remote still leaves the grid.
    */
   grid?: boolean;
+  /**
+   * The child scope to land on when this scope takes the focus. Without it
+   * the library picks the child closest to the top-left corner, which on a
+   * title page is the track row under the poster, not the Play button.
+   */
+  preferredChildFocusKey?: string;
   children: ReactNode;
 }
 
 /** A focus scope: what the remote can reach on this screen, or in this row. */
-export function FocusRoot({ focusKey, autoFocus, className, grid, children }: FocusRootProps) {
+export function FocusRoot({ focusKey, autoFocus, className, grid, preferredChildFocusKey, children }: FocusRootProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gridResolver = useCallback((direction: string, currentKey: string, siblings: { focusKey: string }[]) => {
     const index = siblings.findIndex((s) => s.focusKey === currentKey);
@@ -88,12 +144,26 @@ export function FocusRoot({ focusKey, autoFocus, className, grid, children }: Fo
     focusKey,
     trackChildren: true,
     saveLastFocusedChild: true,
+    preferredChildFocusKey,
     ...(grid ? { measureChildrenLayout: false, nextFocusResolver: gridResolver } : {}),
   });
+  // A screen scope (autoFocus) owns the arrival: it restores the focus the
+  // viewer left here, or leaves it to the child that claimed it, and only
+  // focuses itself when nobody did.
+  const screen = useMemo<ScreenFocus | null>(
+    () => (autoFocus ? { restoreKey: leftFocus.get(window.location.hash) ?? null, claimed: { current: false }, restored: { current: false } } : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- decided once, at mount
+    [],
+  );
   useEffect(() => {
-    if (autoFocus) focusSelf();
-  }, [autoFocus, focusSelf]);
-  return (
+    if (!autoFocus || !screen) return;
+    if (screen.restoreKey) {
+      const timer = setTimeout(() => { if (!screen.restored.current) focusSelf(); }, RESTORE_WAIT_MS);
+      return () => clearTimeout(timer);
+    }
+    if (!screen.claimed.current) focusSelf();
+  }, [autoFocus, focusSelf, screen]);
+  const body = (
     <FocusContext.Provider value={key}>
       <div
         ref={(node: HTMLDivElement | null) => {
@@ -106,6 +176,7 @@ export function FocusRoot({ focusKey, autoFocus, className, grid, children }: Fo
       </div>
     </FocusContext.Provider>
   );
+  return screen ? <ScreenFocusContext.Provider value={screen}>{body}</ScreenFocusContext.Provider> : body;
 }
 
 /**
