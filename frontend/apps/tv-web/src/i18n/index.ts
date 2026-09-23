@@ -74,9 +74,15 @@ if (!i18n.isInitialized) {
     });
 }
 
-/** Once the server is known, pull its catalogue for the active language. */
+/**
+ * Once the server is known, pull its catalogue for the active language. A
+ * reload emits no languageChanged, the only event the screens redraw on, so
+ * the screen on show (sign-in, the client question) kept the English floor
+ * until the next navigation: the language is re-applied once it has arrived.
+ */
 export function reloadCatalogue(): void {
-  if (getBaseURL()) void i18n.reloadResources();
+  if (!getBaseURL()) return;
+  void i18n.reloadResources().then(() => i18n.changeLanguage(i18n.language));
 }
 
 export default i18n;
