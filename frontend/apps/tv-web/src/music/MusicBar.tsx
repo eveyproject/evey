@@ -6,6 +6,7 @@ import { useScreenWakeLock } from "@evey/client/web";
 import { useMusicQueueStore } from "./queue";
 import { FocusRoot } from "../tv/focus";
 import { Button } from "../components/ui";
+import { NextIcon, PreviousIcon } from "../components/icons";
 
 // The bar at the bottom while an album plays, on every screen: what plays,
 // its progress, previous / play-pause / next / shuffle / close. One <audio>
@@ -98,9 +99,9 @@ export function MusicBar() {
             </div>
             <div className="actions">
               <Button variant={shuffle ? "primary" : "ghost"} onPress={toggleShuffle}>⇄ {t("media.music.shuffle", "Shuffle")}</Button>
-              <Button variant="ghost" onPress={previous}>⏮</Button>
+              <Button variant="ghost" label={t("mobile.music.previousTrack")} onPress={previous}><PreviousIcon /></Button>
               <Button variant="primary" onPress={togglePlay}>{isPlaying ? "❚❚" : "▶"}</Button>
-              <Button variant="ghost" onPress={next}>⏭</Button>
+              <Button variant="ghost" label={t("mobile.music.nextTrack")} onPress={next}><NextIcon /></Button>
               <Button variant="ghost" onPress={clear}>✕</Button>
             </div>
           </div>

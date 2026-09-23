@@ -11,10 +11,12 @@ interface ButtonProps {
   disabled?: boolean;
   /** The remote landed here: a paged list fetches its next page from this. */
   onFocus?: () => void;
+  /** What the button says when its face is an icon: read by a screen reader. */
+  label?: string;
 }
 
 /** A remote-driven button: focus is its hover, "select" its click. */
-export function Button({ children, onPress, variant = "default", focusKey, autoFocus, disabled, onFocus }: ButtonProps) {
+export function Button({ children, onPress, variant = "default", focusKey, autoFocus, disabled, onFocus, label }: ButtonProps) {
   const { ref, focused, focusSelf } = useFocusable({
     focusKey,
     onEnterPress: () => { if (!disabled) onPress(); },
@@ -31,6 +33,7 @@ export function Button({ children, onPress, variant = "default", focusKey, autoF
       type="button"
       className={`btn focusable ${variant} ${focused ? "focused" : ""}`}
       onClick={onPress}
+      aria-label={label}
       disabled={disabled}
       style={disabled ? { opacity: 0.5 } : undefined}
     >

@@ -19,6 +19,7 @@ import { Button, Card, Spinner } from "../components/ui";
 import { navigate } from "../app/router";
 import { posterSrc, isPlayable, isSeries, isSeason } from "../lib/media";
 import { PluginSlot } from "../plugins/PluginSlot";
+import { ThumbDownIcon, ThumbUpIcon } from "../components/icons";
 
 // The community rating as five stars, the 0-10 scale every client renders.
 function stars(rating: number): string {
@@ -218,8 +219,8 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
                   {watched ? t("media.detail.markUnwatched", "Mark Unwatched") : t("media.detail.markWatched", "Mark Watched")}
                 </Button>
                 <Button onPress={() => setPlaylistOpen(true)}>{t("media.playlist.addTitle")}</Button>
-                <Button variant={myRating === 1 ? "primary" : "default"} onPress={() => setThumb.mutate(myRating === 1 ? 0 : 1)}>👍</Button>
-                <Button variant={myRating === -1 ? "primary" : "default"} onPress={() => setThumb.mutate(myRating === -1 ? 0 : -1)}>👎</Button>
+                <Button variant={myRating === 1 ? "primary" : "default"} label={t("media.rating.like")} onPress={() => setThumb.mutate(myRating === 1 ? 0 : 1)}><ThumbUpIcon /></Button>
+                <Button variant={myRating === -1 ? "primary" : "default"} label={t("media.rating.dislike")} onPress={() => setThumb.mutate(myRating === -1 ? 0 : -1)}><ThumbDownIcon /></Button>
                 {trailerHref ? <Button onPress={() => window.open(trailerHref, "_blank", "noopener")}>{t("media.detail.trailer")}</Button> : null}
               </div>
             </FocusRoot>
