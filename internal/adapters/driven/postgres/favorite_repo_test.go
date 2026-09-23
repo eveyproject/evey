@@ -7,7 +7,7 @@ import (
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
-	"github.com/evey-project/evey/internal/domain/favorite"
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ func TestFavoriteRepo_Add(t *testing.T) {
 	mi := newTestMediaItem("favmi1", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, mi))
 
-	fav := &favorite.Favorite{
+	fav := &library.Favorite{
 		ID:          "fav1",
 		ProfileID:   p.ID,
 		MediaItemID: mi.ID,
@@ -45,7 +45,7 @@ func TestFavoriteRepo_Add(t *testing.T) {
 	assert.True(t, isFav)
 
 	// duplicate add should not error (ON CONFLICT DO NOTHING)
-	fav2 := &favorite.Favorite{
+	fav2 := &library.Favorite{
 		ID:          "fav1dup",
 		ProfileID:   p.ID,
 		MediaItemID: mi.ID,
@@ -74,7 +74,7 @@ func TestFavoriteRepo_Remove(t *testing.T) {
 	mi := newTestMediaItem("favmi2", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, mi))
 
-	fav := &favorite.Favorite{
+	fav := &library.Favorite{
 		ID: "fav2", ProfileID: p.ID, MediaItemID: mi.ID,
 		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
@@ -115,9 +115,9 @@ func TestFavoriteRepo_List(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, mi3))
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
-	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav3a", ProfileID: p.ID, MediaItemID: mi1.ID, CreatedAt: now}))
-	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav3b", ProfileID: p.ID, MediaItemID: mi2.ID, CreatedAt: now}))
-	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav3c", ProfileID: p.ID, MediaItemID: mi3.ID, CreatedAt: now}))
+	require.NoError(t, favRepo.Add(ctx, &library.Favorite{ID: "fav3a", ProfileID: p.ID, MediaItemID: mi1.ID, CreatedAt: now}))
+	require.NoError(t, favRepo.Add(ctx, &library.Favorite{ID: "fav3b", ProfileID: p.ID, MediaItemID: mi2.ID, CreatedAt: now}))
+	require.NoError(t, favRepo.Add(ctx, &library.Favorite{ID: "fav3c", ProfileID: p.ID, MediaItemID: mi3.ID, CreatedAt: now}))
 
 	list, err := favRepo.List(ctx, string(p.ID), 10, 0)
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestFavoriteRepo_IsFavorite(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, mi2))
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
-	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav4", ProfileID: p.ID, MediaItemID: mi1.ID, CreatedAt: now}))
+	require.NoError(t, favRepo.Add(ctx, &library.Favorite{ID: "fav4", ProfileID: p.ID, MediaItemID: mi1.ID, CreatedAt: now}))
 
 	isFav, err := favRepo.IsFavorite(ctx, string(p.ID), string(mi1.ID))
 	require.NoError(t, err)
@@ -194,9 +194,9 @@ func TestFavoriteRepo_IsFavoriteMany(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, mi3))
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
-	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav5a", ProfileID: p.ID, MediaItemID: mi1.ID, CreatedAt: now}))
+	require.NoError(t, favRepo.Add(ctx, &library.Favorite{ID: "fav5a", ProfileID: p.ID, MediaItemID: mi1.ID, CreatedAt: now}))
 	// Another profile's favorite on mi3 must never leak into p's answer.
-	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav5c", ProfileID: other.ID, MediaItemID: mi3.ID, CreatedAt: now}))
+	require.NoError(t, favRepo.Add(ctx, &library.Favorite{ID: "fav5c", ProfileID: other.ID, MediaItemID: mi3.ID, CreatedAt: now}))
 
 	got, err := favRepo.IsFavoriteMany(ctx, string(p.ID), []string{string(mi1.ID), string(mi2.ID), string(mi3.ID)})
 	require.NoError(t, err)

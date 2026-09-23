@@ -28,7 +28,6 @@ import (
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	apppresence "github.com/evey-project/evey/internal/app/presence"
 	appqoe "github.com/evey-project/evey/internal/app/qoe"
-	apprating "github.com/evey-project/evey/internal/app/rating"
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
@@ -122,7 +121,6 @@ type contentDeps struct {
 	collectionSvc    *appcollection.Service
 	favoriteSvc      *appfavorite.Service
 	mediaRequestSvc  *appmediarequest.Service
-	starRatingSvc    *apprating.Service
 	playlistSvc      *appplaylist.Service
 	playlistGenSvc   *appplaylist.GeneratorService
 }

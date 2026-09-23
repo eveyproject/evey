@@ -29,12 +29,12 @@ import (
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	apppresence "github.com/evey-project/evey/internal/app/presence"
-	apprating "github.com/evey-project/evey/internal/app/rating"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	"github.com/evey-project/evey/internal/config"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
@@ -65,6 +65,7 @@ type GRPCServerDeps struct {
 	PluginResourceDefaults appplugin.ResourceDefaults
 	// PluginData backs the iframe-facing plugin preference RPCs.
 	PluginData      plugin.PluginDataRepository
+	UserRatings     domainlibrary.UserRatingRepository
 	MetadataCmd     *appmetadata.CommandService
 	MetadataQuery   *appmetadata.QueryService
 	ActivityCmd     *appactivity.CommandService
@@ -107,7 +108,6 @@ type GRPCServerDeps struct {
 	VAPIDPubKey     string
 	PushRegisterRL  *ratelimit.Limiter
 	SyncplayHub     *appsyncplay.Hub // optional
-	StarRating      *apprating.Service
 	QuickConnectHub *quickconnecthub.Hub
 	IntroCache      IntroCacheInvalidator // optional
 	IntroBackfill   IntroBackfiller       // optional
@@ -310,7 +310,7 @@ func (s *GRPCServer) RegisterServices() {
 	if d.PushEnabled {
 		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{notifCmd: d.NotifCmd, notifQuery: d.NotifQuery, vapidPubKey: d.VAPIDPubKey})
 	}
-	eveyv1.RegisterRatingServiceServer(s.server, &ratingHandler{starSvc: d.StarRating, libQuery: d.LibQuery, userAccess: d.UserAccess})
+	eveyv1.RegisterRatingServiceServer(s.server, &ratingHandler{thumbs: d.UserRatings, libQuery: d.LibQuery, userAccess: d.UserAccess})
 	if d.IntroCache != nil || d.IntroBackfill != nil {
 		eveyv1.RegisterAdminIntroServiceServer(s.server, &adminIntroHandler{
 			cache:    d.IntroCache,

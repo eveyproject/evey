@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
-	"github.com/evey-project/evey/internal/domain/favorite"
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -21,7 +21,7 @@ func NewFavoriteRepository(db *sql.DB) *FavoriteRepository {
 	return &FavoriteRepository{db: db}
 }
 
-func (r *FavoriteRepository) Add(ctx context.Context, fav *favorite.Favorite) error {
+func (r *FavoriteRepository) Add(ctx context.Context, fav *library.Favorite) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.favorite.Add")
 	defer span.End()
 	span.SetAttributes(attribute.String("profile.id", string(fav.ProfileID)), attribute.String("media_item.id", string(fav.MediaItemID)))
@@ -59,7 +59,7 @@ func (r *FavoriteRepository) Remove(ctx context.Context, profileID, mediaItemID 
 	return nil
 }
 
-func (r *FavoriteRepository) List(ctx context.Context, profileID string, limit, offset int) ([]*favorite.Favorite, error) {
+func (r *FavoriteRepository) List(ctx context.Context, profileID string, limit, offset int) ([]*library.Favorite, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.favorite.List")
 	defer span.End()
 	span.SetAttributes(attribute.String("profile.id", profileID))
@@ -77,9 +77,9 @@ func (r *FavoriteRepository) List(ctx context.Context, profileID string, limit, 
 		return nil, fmt.Errorf("FavoriteRepo.List: %w", err)
 	}
 	defer rows.Close()
-	var result []*favorite.Favorite
+	var result []*library.Favorite
 	for rows.Next() {
-		f := &favorite.Favorite{}
+		f := &library.Favorite{}
 		if err := rows.Scan(&f.ID, &f.ProfileID, &f.MediaItemID, &f.CreatedAt); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -154,4 +154,4 @@ func (r *FavoriteRepository) IsFavoriteMany(ctx context.Context, profileID strin
 	return result, nil
 }
 
-var _ favorite.Repository = (*FavoriteRepository)(nil)
+var _ library.FavoriteRepository = (*FavoriteRepository)(nil)

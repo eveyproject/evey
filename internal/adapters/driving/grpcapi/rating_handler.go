@@ -9,7 +9,6 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/evey-project/evey/internal/app/library"
-	apprating "github.com/evey-project/evey/internal/app/rating"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -21,7 +20,9 @@ import (
 
 type ratingHandler struct {
 	eveyv1.UnimplementedRatingServiceServer
-	starSvc    *apprating.Service
+	// thumbs is the port itself: a thumb is stored as given and read back as
+	// stored, with no rule between the two for an app service to own.
+	thumbs     domainlibrary.UserRatingRepository
 	libQuery   *applibrary.QueryService
 	userAccess *appuser.AccessService
 }
@@ -75,7 +76,7 @@ func (h *ratingHandler) PutThumbRating(ctx context.Context, req *eveyv1.PutThumb
 		MediaItemID: shared.MediaItemID(req.MediaItemId),
 		Value:       int(req.Value),
 	}
-	if upsertErr := h.starSvc.UpsertThumb(ctx, r); upsertErr != nil {
+	if upsertErr := h.thumbs.Upsert(ctx, r); upsertErr != nil {
 		span.RecordError(upsertErr)
 		span.SetStatus(otelcodes.Error, upsertErr.Error())
 		slog.ErrorContext(ctx, "upsert thumb rating", slog.Any("err", upsertErr))
@@ -99,7 +100,7 @@ func (h *ratingHandler) GetMyThumbRating(ctx context.Context, req *eveyv1.GetMyT
 		return nil, fmt.Errorf("ratingHandler.GetMyThumbRating: %w", accessErr)
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
-	thumbRating, getErr := h.starSvc.GetThumb(ctx, claims.ProfileID, req.MediaItemId)
+	thumbRating, getErr := h.thumbs.Get(ctx, claims.ProfileID, req.MediaItemId)
 	if getErr != nil && !errors.Is(getErr, shared.ErrNotFound) {
 		// Value: 0 is a neutral thumb, which is a STATEMENT about what the
 		// viewer chose. On a failed read the server does not know what they

@@ -26,7 +26,7 @@ import (
 // (ListByProfile/ListAll both return nil, nil) - it can't exercise the
 // handler's ownership scoping. These local fakes are real in-memory state
 // machines (not mocks with expectations), matching the package's style
-// (see favfakes.FakeRepository used throughout favorite_handler_test.go).
+// (see libfakes.FakeFavoriteRepository used throughout favorite_handler_test.go).
 
 type fakeMediaRequestRepo struct {
 	byID map[string]*mediarequest.Request

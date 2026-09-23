@@ -96,7 +96,7 @@ func TestBuildServices_Boot(t *testing.T) {
 		{"content.collectionSvc", deps.content.collectionSvc == nil},
 		{"content.favoriteSvc", deps.content.favoriteSvc == nil},
 		{"content.mediaRequestSvc", deps.content.mediaRequestSvc == nil},
-		{"content.starRatingSvc", deps.content.starRatingSvc == nil},
+		{"repos.userRatingRepo", deps.repos.userRatingRepo == nil},
 		{"content.playlistSvc", deps.content.playlistSvc == nil},
 		{"content.playlistGenSvc", deps.content.playlistGenSvc == nil},
 		{"engagement.notifCmdSvc", deps.engagement.notifCmdSvc == nil},
