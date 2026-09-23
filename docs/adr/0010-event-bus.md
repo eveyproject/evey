@@ -35,3 +35,18 @@ emits it.
 - Not everything that could be an event is one. Search indexing is a direct port
   call from the scan service, because the index must be consistent with the row
   that was just written rather than eventually consistent with it.
+
+## Amendment (2026-09-23): every published event is a webhook contract
+
+The webhook service subscribes to `*` and serialises the event struct as the
+payload, so an event with no in-process subscriber is still delivered to any
+webhook configured for `*` or for its name. "No consumer" is therefore never
+enough to delete an event: removing or renaming one, or changing its fields, is
+an observable change for webhook receivers.
+
+An audit on this date found all 46 declared events published. Three are
+redundant on the music side and were kept deliberately, for that reason:
+`music.track.scanned` and `music.track.added` are published together, as are
+`music.track.deleted` and `music.track.removed`, and `music.album.created` is
+published for every scanned track that has an album, not when an album first
+appears. Collapsing them is a breaking change to schedule as such, not a cleanup.
