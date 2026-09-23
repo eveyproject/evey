@@ -644,7 +644,7 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
       <SubtitleOverlay mediaId={mediaId} subtitleIndex={clientSubtitle} currentTimeSec={time} style={subtitleStyle} />
       {(isLoading && !streamUrl) ? <div className="screen screen-center" style={{ position: "absolute", inset: 0 }}><Spinner /></div> : null}
       {(isError || failed) ? (
-        <FocusRoot autoFocus className="screen screen-center" >
+        <FocusRoot autoFocus className="screen screen-center player-overlay">
           <p className="error">{t("player.playbackFailed", "This title could not be played.")}</p>
           <div className="actions">
             <Button variant="primary" autoFocus onPress={() => { setFailed(false); restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality); }}>{t("player.retry", "Retry")}</Button>
