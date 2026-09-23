@@ -25,7 +25,14 @@ func spaHandler(dir string) http.Handler {
 		// Try to serve the file directly using the cleaned path
 		cleaned := filepath.Clean(r.URL.Path)
 		fullPath := filepath.Join(dir, cleaned)
-		if _, err := os.Stat(fullPath); err == nil {
+		if info, err := os.Stat(fullPath); err == nil {
+			// Clean drops the trailing slash of a directory (/tv/ -> /tv), and
+			// FileServer answers a slashless directory with a RELATIVE redirect
+			// to "tv/" - from /tv/ that lands on /tv/tv/. Keep the slash the
+			// request had so the directory's index.html is served in place.
+			if info.IsDir() && strings.HasSuffix(r.URL.Path, "/") && !strings.HasSuffix(cleaned, "/") {
+				cleaned += "/"
+			}
 			setStaticCachePolicy(w, cleaned)
 			r.URL.Path = cleaned
 			fileServer.ServeHTTP(w, r)

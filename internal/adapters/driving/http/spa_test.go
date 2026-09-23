@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -245,6 +246,42 @@ func TestSPAHandler_SubdirectoryClient(t *testing.T) {
 		}
 		if c.cacheCtrl != "" && w.Header().Get("Cache-Control") != c.cacheCtrl {
 			t.Errorf("%s: expected Cache-Control %q, got %q", c.path, c.cacheCtrl, w.Header().Get("Cache-Control"))
+		}
+	}
+}
+
+// The two ways a viewer types the browser TV's address. /tv/ came back as a
+// relative redirect to "tv/", so a browser landed on /tv/tv/: the TV index
+// loaded, its router matched nothing under /tv/tv and the page stayed an empty
+// dark screen. Following redirects the way a browser does, both must end on
+// /tv/ with the TV index.
+func TestSPAHandler_SubdirectoryClientEntryPoints(t *testing.T) {
+	dir := setupTVDir(t)
+	h := spaHandler(dir)
+
+	for _, start := range []string{"/tv", "/tv/"} {
+		u, _ := url.Parse("https://evey.test" + start)
+		var w *httptest.ResponseRecorder
+		for hop := 0; ; hop++ {
+			if hop > 3 {
+				t.Fatalf("%s: more than 3 redirects, last at %s", start, u.Path)
+			}
+			w = httptest.NewRecorder()
+			h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, u.String(), nil))
+			if w.Code < 300 || w.Code >= 400 {
+				break
+			}
+			loc, err := url.Parse(w.Header().Get("Location"))
+			if err != nil {
+				t.Fatalf("%s: bad Location %q", start, w.Header().Get("Location"))
+			}
+			u = u.ResolveReference(loc)
+		}
+		if u.Path != "/tv/" {
+			t.Errorf("%s: a browser ends on %s, want /tv/", start, u.Path)
+		}
+		if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "TV-INDEX") {
+			t.Errorf("%s: expected 200 with the TV index, got %d %q", start, w.Code, w.Body.String())
 		}
 	}
 }
