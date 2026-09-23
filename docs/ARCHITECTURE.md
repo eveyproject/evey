@@ -16,12 +16,12 @@ Dependency rule: `adapters -> app -> domain`. Domain never imports app or adapte
 
 ## Bounded contexts
 
-Thirty-one context packages live under `internal/domain/` and `internal/app/`: 20 exist in both layers, 2 are domain-only (`ratings`, `shared`), 9 are app-only. Collaboration happens partly via domain events published through a shared bus; the app layer also reads a neighbouring context's domain package directly (see [Relations](#relations)).
+Thirty context packages live under `internal/domain/` and `internal/app/`: 19 exist in both layers, 2 are domain-only (`ratings`, `shared`), 9 are app-only. Collaboration happens partly via domain events published through a shared bus; the app layer also reads a neighbouring context's domain package directly (see [Relations](#relations)).
 
 | Context | Responsibility |
 | --- | --- |
 | `user` | accounts, auth, sessions, preferences |
-| `library` | libraries, folders, scan jobs, media index, people, collections, trickplay, intro/credits detection |
+| `library` | libraries, folders, scan jobs, media index, people, collections, a profile's favorites and thumbs (thumbs have no app service: the rating RPC stores and reads `UserRatingRepository` as is), trickplay, intro/credits detection |
 | `media` (app only) | share links and stream tokens |
 | `mediarequest` | user-submitted media requests |
 | `metadata` | TMDB / OMDb enrichment, artwork |
@@ -31,10 +31,9 @@ Thirty-one context packages live under `internal/domain/` and `internal/app/`: 2
 | `mkv` | MKV container ops (via `mkvgo`) |
 | `music` | audio-specific playback + tagging |
 | `photo` | photo libraries |
-| `favorite` | per-user favorites |
+| `favorite` (app only) | per-profile favorites; the model and `FavoriteRepository` live in `domain/library` |
 | `playlist` | user playlists, smart playlists |
 | `collection` (app only) | admin-curated collections; its ports live in `domain/library` |
-| `rating` (app only) | thumb up / thumb down, stored as `library.UserRating` |
 | `ratings` (domain only) | maps country classifications (CSA, FSK, MPAA, BBFC, ACB) onto one minimum-age axis |
 | `feed` | activity feed / discover |
 | `activity` | user activity timeline |
@@ -217,7 +216,7 @@ flowchart LR
         a_music[music]
         a_photo[photo]
         a_user[user]
-        a_misc[favorite, playlist, collection,<br/>rating, feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest]
+        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest]
     end
 
     subgraph domain[Domain core - internal/domain]
@@ -307,7 +306,7 @@ flowchart LR
     end
 
     subgraph domainScan[domain/library]
-        repo[(MediaItemRepository port<br/>+ command/query split)]
+        repo[(MediaItemCommandRepo + MediaItemQueryRepo ports)]
         bus[(EventBus port)]
     end
 

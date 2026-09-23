@@ -66,3 +66,32 @@ The union interface embeds both so it drifts automatically when either CQRS half
 ## Amendment (2026-05-23)
 
 For `library`, migration is **complete**: the transitional `LibraryRepository` union interface has been removed from `ports.go` (the postgres adapter and `FakeLibraryRepository` satisfy `LibraryCommandRepo` + `LibraryQueryRepo` directly). The "Applied scope" notes above describe the mid-migration state; the union no longer exists. `MediaItemRepository` is still a god-interface (its split remains in the backlog) - that part stands.
+
+## Amendment (2026-09-23)
+
+`MediaItemRepository` is gone. It was never an embed of the two halves but a
+handwritten ten-method interface, so it did not drift *with* them, it drifted
+*from* them, and four callers were still on it:
+
+- `IntroDetectionService` and the playlist media checker only read, and take
+  `MediaItemQueryRepo` (wired to the query adapter, which delegates those calls
+  to the same repository, transaction included).
+- The metadata `Enricher` and `CommandService` read an item and write it back.
+  They take `MediaItemQueryRepo` for the reads and `metadata.MediaItemUpdater`,
+  a one-method port (`Update`) declared by the consumer, for the write - the
+  same split `artworkCmd` / `artworkQuery` already applied in that package.
+
+The same pass removed the `app/collection` facade: callers take the
+`CommandService` and `QueryService` they need, and the enricher's collection
+dependency is split the same way (`CollectionLinker` for `Upsert` /
+`LinkMediaItem`, `UnlinkedMovieLister` for the relink sweep's read).
+
+The postgres type now asserts `MediaItemCommandRepo`; the query adapter already
+asserted `MediaItemQueryRepo`. `FakeMediaItemRepository` stays as the
+single-store fake for read-then-write tests; it models `GetByID`, `List`,
+`Count` and `Update`, and panics on the query methods it does not model.
+
+`TestMediaItemRepositoryStaysGone` (contractguard) fails if the interface is
+declared again or referenced under any import alias. Unions that are pure
+embeds of both halves (`metadata.ArtworkRepository`, `notification.Repository`,
+`photo.Repository`) are deliberate and untouched.
