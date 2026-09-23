@@ -251,3 +251,8 @@ options: Options
 addNamedRule: "Add {{name}} rule"
 copy: "Copy"
 watched: "Watched"
+clientChoice:
+  title: Television interface
+  body: This page is made for a television and its remote control. On a computer, the web version is the comfortable one.
+  openWeb: Open the web version
+  stay: Stay here

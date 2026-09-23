@@ -251,3 +251,8 @@ options: Options
 addNamedRule: "Ajouter une règle {{name}}"
 copy: "Copier"
 watched: "Vu"
+clientChoice:
+  title: Interface télévision
+  body: Cette page est faite pour une télévision et sa télécommande. Sur un ordinateur, la version web est plus confortable.
+  openWeb: Ouvrir la version web
+  stay: Rester ici
