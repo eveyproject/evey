@@ -247,6 +247,12 @@ ci-fast-vet:
 	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'u=$$(gofmt -l cmd internal pkg 2>/dev/null); if [ -n "$$u" ]; then echo "unformatted Go files (run gofmt -w):"; echo "$$u"; exit 1; fi'
 	@echo "→ go vet (excl. /gen/)"
 	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go vet $$(go list ./... | grep -v /gen/)'
+	@echo "→ go vet under the build constraints the pass above never compiles (boottest, tidblive, linux/arm64 launcher)"
+	@# Targeted, not a matrix: the two custom tags gate real tests (boot smoke,
+	@# live intro provider) that no step here builds, so a refactor broke them
+	@# silently; arm64 is a shipped image and its seccomp table lives in its own
+	@# file. !linux is not a shipped target and stays out.
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go vet -tags boottest ./cmd/evey/ && go vet -tags tidblive ./internal/adapters/driven/introproviders/ && GOARCH=arm64 go vet ./cmd/evey-plugin-launcher/'
 
 ci-fast-vuln:
 	@echo "→ govulncheck (./cmd/... ./internal/...)"
