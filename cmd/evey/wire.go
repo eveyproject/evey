@@ -33,7 +33,6 @@ import (
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	apppresence "github.com/evey-project/evey/internal/app/presence"
 	appqoe "github.com/evey-project/evey/internal/app/qoe"
-	apprating "github.com/evey-project/evey/internal/app/rating"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
@@ -336,7 +335,6 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		WithLibraryLookup(postgres.NewLibraryLookupRepository(db))
 	photoScanner := filesystem.NewPhotoScanner()
 	photoSvc := appphoto.NewService(r.Photo, bus, r.Library, photoScanner)
-	starRatingSvc := apprating.NewService(r.UserRating)
 	musicSvc, musicNowPlaying := buildMusicServices(ctx, cfg, infra)
 	libCmdSvc.WithMusicScanner(musicSvc)
 	libCmdSvc.WithPhotoScanner(photoSvc)
@@ -1054,7 +1052,6 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			collectionSvc:    collectionSvc,
 			favoriteSvc:      favoriteSvc,
 			mediaRequestSvc:  mediaRequestSvc,
-			starRatingSvc:    starRatingSvc,
 			playlistSvc:      playlistSvc,
 			playlistGenSvc:   playlistGenSvc,
 		},

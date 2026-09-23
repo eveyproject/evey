@@ -8,7 +8,6 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/evey-project/evey/internal/app/library"
-	apprating "github.com/evey-project/evey/internal/app/rating"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
@@ -38,7 +37,6 @@ func newRatingFixture() *ratingFixture {
 	libraryAccess := userfakes.NewFakeLibraryAccessRepository()
 
 	libQuery := applibrary.NewQueryService(libQueryRepo, mediaItems, nil, searchIdx)
-	starSvc := apprating.NewService(thumbRepo)
 	userAccess := appuser.NewAccessService(
 		userfakes.NewFakeUserRepository(),
 		userfakes.NewFakeAPIKeyRepository(),
@@ -50,7 +48,7 @@ func newRatingFixture() *ratingFixture {
 	)
 
 	h := &ratingHandler{
-		starSvc:    starSvc,
+		thumbs:     thumbRepo,
 		libQuery:   libQuery,
 		userAccess: userAccess,
 	}

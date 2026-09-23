@@ -1,4 +1,4 @@
-package favorite
+package library
 
 import (
 	"errors"

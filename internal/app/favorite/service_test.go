@@ -6,13 +6,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/favorite/fakes"
+	"github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func newTestService() *Service {
-	return NewService(fakes.NewFakeRepository())
+	return NewService(fakes.NewFakeFavoriteRepository())
 }
 
 func TestToggle_AddAndRemove(t *testing.T) {
@@ -74,7 +74,7 @@ func TestIsFavorite_NotFound(t *testing.T) {
 
 func TestToggle_RepoError_OnIsFavorite(t *testing.T) {
 	t.Parallel()
-	repo := fakes.NewFakeRepository()
+	repo := fakes.NewFakeFavoriteRepository()
 	svc := NewService(repo)
 
 	repo.Err = errors.New("db error")

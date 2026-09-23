@@ -10,8 +10,6 @@ import (
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/favorite"
-	favfakes "github.com/evey-project/evey/internal/domain/favorite/fakes"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -29,8 +27,8 @@ import (
 // used across this file's tests. requireMediaAccess now needs both to resolve
 // - unlike the old userAccess==nil fail-open guard, it must look the item up
 // to run HasLibraryAccess, so a nil libQuery would panic instead of no-op.
-func newTestFavoriteHandler() (*favoriteHandler, *favfakes.FakeRepository) {
-	repo := favfakes.NewFakeRepository()
+func newTestFavoriteHandler() (*favoriteHandler, *libfakes.FakeFavoriteRepository) {
+	repo := libfakes.NewFakeFavoriteRepository()
 	svc := appfavorite.NewService(repo)
 	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
 	for _, id := range []string{"m1", "m2", "nonexistent"} {
@@ -88,7 +86,7 @@ func TestFavoriteHandler_AddFavorite_Idempotent(t *testing.T) {
 // non-admin caller, not silently allow the write like the old
 // userAccess==nil fail-open guard did.
 func TestFavoriteHandler_AddFavorite_UserAccessUnwired_Denies(t *testing.T) {
-	repo := favfakes.NewFakeRepository()
+	repo := libfakes.NewFakeFavoriteRepository()
 	svc := appfavorite.NewService(repo)
 	h := &favoriteHandler{svc: svc} // userAccess intentionally left nil
 	ctx := ctxWithClaims("user-1", "profile-1", false)
@@ -122,7 +120,7 @@ func TestFavoriteHandler_ListFavorites_AccessErrorFailsClosed(t *testing.T) {
 	// A DB error while reading library access must fail CLOSED (return the
 	// error), never fall through to "unrestricted" - else a non-admin would
 	// see the metadata of favorites in libraries they can't access.
-	repo := favfakes.NewFakeRepository()
+	repo := libfakes.NewFakeFavoriteRepository()
 	svc := appfavorite.NewService(repo)
 	libAccess := userfakes.NewFakeLibraryAccessRepository()
 	libAccess.Err = errors.New("db down")
@@ -138,7 +136,7 @@ func TestFavoriteHandler_ListFavorites_AccessErrorFailsClosed(t *testing.T) {
 	h := &favoriteHandler{svc: svc, userAccess: userAccess}
 
 	ctx := ctxWithClaims("user-1", "profile-1", false)
-	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f1", ProfileID: "profile-1", MediaItemID: "m1"}))
+	require.NoError(t, repo.Add(ctx, &library.Favorite{ID: "f1", ProfileID: "profile-1", MediaItemID: "m1"}))
 
 	_, err := h.ListFavorites(ctx, &eveyv1.ListFavoritesRequest{})
 	if status.Code(err) != codes.Internal {
@@ -164,7 +162,7 @@ func TestFavoriteHandler_ListFavorites_WithItems(t *testing.T) {
 // kid-safe favorites must now resolve their title - the handler used to be
 // constructed without libQuery, so titles never appeared at all.
 func TestFavoriteHandler_ListFavorites_ParentalFiltersAdult(t *testing.T) {
-	repo := favfakes.NewFakeRepository()
+	repo := libfakes.NewFakeFavoriteRepository()
 	svc := appfavorite.NewService(repo)
 	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
 	libQuerySvc := applibrary.NewQueryService(
@@ -182,8 +180,8 @@ func TestFavoriteHandler_ListFavorites_ParentalFiltersAdult(t *testing.T) {
 	require.NoError(t, profileRepo.Create(ctx, &user.Profile{
 		ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
 		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}}))
-	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-r", ProfileID: "profile-2", MediaItemID: "mi-r"}))
-	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-pg", ProfileID: "profile-2", MediaItemID: "mi-pg"}))
+	require.NoError(t, repo.Add(ctx, &library.Favorite{ID: "f-r", ProfileID: "profile-2", MediaItemID: "mi-r"}))
+	require.NoError(t, repo.Add(ctx, &library.Favorite{ID: "f-pg", ProfileID: "profile-2", MediaItemID: "mi-pg"}))
 	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-r", Title: "Adult", Type: "movie",
 		Classification: &library.MediaClassification{OfficialRating: "R"}}) // age 17 → blocked
 	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-pg", Title: "Family", Type: "movie",
@@ -308,23 +306,23 @@ func TestFavoriteHandler_IsFavorite_IDORAnotherProfile(t *testing.T) {
 // passed to List. Used to verify that the handler clamps hostile input before
 // it reaches the repository layer.
 type capturingFavRepo struct {
-	*favfakes.FakeRepository
+	*libfakes.FakeFavoriteRepository
 	lastLimit  int
 	lastOffset int
 }
 
-func (c *capturingFavRepo) List(ctx context.Context, profileID string, limit, offset int) ([]*favorite.Favorite, error) {
+func (c *capturingFavRepo) List(ctx context.Context, profileID string, limit, offset int) ([]*library.Favorite, error) {
 	c.lastLimit = limit
 	c.lastOffset = offset
-	return c.FakeRepository.List(ctx, profileID, limit, offset)
+	return c.FakeFavoriteRepository.List(ctx, profileID, limit, offset)
 }
 
 // TestFavoriteHandler_ListFavorites_NegativeOffsetClamped proves that
 // req.Offset=-1 never reaches the repo as -1: the repo fake would panic on
 // out[-1:], so a passing test means the handler clamped it to 0.
 func TestFavoriteHandler_ListFavorites_NegativeOffsetClamped(t *testing.T) {
-	inner := favfakes.NewFakeRepository()
-	cap := &capturingFavRepo{FakeRepository: inner}
+	inner := libfakes.NewFakeFavoriteRepository()
+	cap := &capturingFavRepo{FakeFavoriteRepository: inner}
 	svc := appfavorite.NewService(cap)
 	h := &favoriteHandler{svc: svc}
 	ctx := ctxWithClaims("user-1", "profile-1", false)
@@ -337,8 +335,8 @@ func TestFavoriteHandler_ListFavorites_NegativeOffsetClamped(t *testing.T) {
 // TestFavoriteHandler_ListFavorites_HugeLimitClamped proves that a limit far
 // above maxPageSize is replaced with a sane default, not forwarded verbatim.
 func TestFavoriteHandler_ListFavorites_HugeLimitClamped(t *testing.T) {
-	inner := favfakes.NewFakeRepository()
-	cap := &capturingFavRepo{FakeRepository: inner}
+	inner := libfakes.NewFakeFavoriteRepository()
+	cap := &capturingFavRepo{FakeFavoriteRepository: inner}
 	svc := appfavorite.NewService(cap)
 	h := &favoriteHandler{svc: svc}
 	ctx := ctxWithClaims("user-1", "profile-1", false)
@@ -351,7 +349,7 @@ func TestFavoriteHandler_ListFavorites_HugeLimitClamped(t *testing.T) {
 // countingFavRepo counts repository round trips so a test can prove the batch
 // RPC does ONE lookup for N ids instead of N.
 type countingFavRepo struct {
-	*favfakes.FakeRepository
+	*libfakes.FakeFavoriteRepository
 	manyCalls   int
 	singleCalls int
 	lastIDs     []string
@@ -359,13 +357,13 @@ type countingFavRepo struct {
 
 func (c *countingFavRepo) IsFavorite(ctx context.Context, profileID, mediaItemID string) (bool, error) {
 	c.singleCalls++
-	return c.FakeRepository.IsFavorite(ctx, profileID, mediaItemID)
+	return c.FakeFavoriteRepository.IsFavorite(ctx, profileID, mediaItemID)
 }
 
 func (c *countingFavRepo) IsFavoriteMany(ctx context.Context, profileID string, ids []string) (map[string]bool, error) {
 	c.manyCalls++
 	c.lastIDs = ids
-	return c.FakeRepository.IsFavoriteMany(ctx, profileID, ids)
+	return c.FakeFavoriteRepository.IsFavoriteMany(ctx, profileID, ids)
 }
 
 // newBatchTestHandler wires an EXPLICIT library grant list. A user with zero
@@ -373,7 +371,7 @@ func (c *countingFavRepo) IsFavoriteMany(ctx context.Context, profileID string, 
 // leak test below pass without any guard at all.
 func newBatchTestHandler(t *testing.T) (*favoriteHandler, *countingFavRepo) {
 	t.Helper()
-	repo := &countingFavRepo{FakeRepository: favfakes.NewFakeRepository()}
+	repo := &countingFavRepo{FakeFavoriteRepository: libfakes.NewFakeFavoriteRepository()}
 	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
 	for _, id := range []string{"m1", "m2", "m3"} {
 		mediaQueryRepo.Seed(&library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})
@@ -444,7 +442,7 @@ func TestFavoriteHandler_BatchIsFavorite_OverLimitRefused(t *testing.T) {
 func TestFavoriteHandler_BatchIsFavorite_HidesMediaOutsideLibraryAccess(t *testing.T) {
 	h, repo := newBatchTestHandler(t)
 	ctx := ctxWithClaims("user-1", "profile-1", false)
-	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-secret", ProfileID: "profile-1", MediaItemID: "m-secret"}))
+	require.NoError(t, repo.Add(ctx, &library.Favorite{ID: "f-secret", ProfileID: "profile-1", MediaItemID: "m-secret"}))
 	_, err := h.AddFavorite(ctx, &eveyv1.AddFavoriteRequest{MediaItemId: "m1"})
 	require.NoError(t, err)
 
@@ -492,7 +490,7 @@ func TestFavoriteHandler_BatchIsFavorite_AccessErrorFailsClosed(t *testing.T) {
 // A wiring regression (userAccess left nil) must deny a non-admin, never
 // fall through to an unguarded lookup.
 func TestFavoriteHandler_BatchIsFavorite_UserAccessUnwiredDenies(t *testing.T) {
-	h := &favoriteHandler{svc: appfavorite.NewService(favfakes.NewFakeRepository())}
+	h := &favoriteHandler{svc: appfavorite.NewService(libfakes.NewFakeFavoriteRepository())}
 	ctx := ctxWithClaims("user-1", "profile-1", false)
 
 	_, err := h.BatchIsFavorite(ctx, &eveyv1.BatchIsFavoriteRequest{MediaItemIds: []string{"m1"}})
@@ -502,7 +500,7 @@ func TestFavoriteHandler_BatchIsFavorite_UserAccessUnwiredDenies(t *testing.T) {
 
 // A kids profile must not learn that an adult title is favorited.
 func TestFavoriteHandler_BatchIsFavorite_ParentalBlockedHidden(t *testing.T) {
-	repo := favfakes.NewFakeRepository()
+	repo := libfakes.NewFakeFavoriteRepository()
 	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
 	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-r", Title: "Adult", Type: "movie",
 		Classification: &library.MediaClassification{OfficialRating: "R"}})
@@ -524,8 +522,8 @@ func TestFavoriteHandler_BatchIsFavorite_ParentalBlockedHidden(t *testing.T) {
 	require.NoError(t, profileRepo.Create(ctx, &user.Profile{
 		ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
 		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}}))
-	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-r", ProfileID: "profile-2", MediaItemID: "mi-r"}))
-	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-pg", ProfileID: "profile-2", MediaItemID: "mi-pg"}))
+	require.NoError(t, repo.Add(ctx, &library.Favorite{ID: "f-r", ProfileID: "profile-2", MediaItemID: "mi-r"}))
+	require.NoError(t, repo.Add(ctx, &library.Favorite{ID: "f-pg", ProfileID: "profile-2", MediaItemID: "mi-pg"}))
 
 	resp, err := h.BatchIsFavorite(ctxWithClaims("user-2", "profile-2", false),
 		&eveyv1.BatchIsFavoriteRequest{MediaItemIds: []string{"mi-r", "mi-pg"}})
@@ -558,7 +556,7 @@ func TestFavoriteHandler_BatchIsFavorite_IDORAnotherProfile(t *testing.T) {
 // neighbouring access read already fails closed for exactly this reason; this
 // one is the same decision, one lookup earlier.
 func TestFavoriteHandler_ListFavorites_HydrationErrorFailsClosed(t *testing.T) {
-	repo := favfakes.NewFakeRepository()
+	repo := libfakes.NewFakeFavoriteRepository()
 	svc := appfavorite.NewService(repo)
 	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
 	libQuerySvc := applibrary.NewQueryService(
@@ -576,7 +574,7 @@ func TestFavoriteHandler_ListFavorites_HydrationErrorFailsClosed(t *testing.T) {
 	require.NoError(t, profileRepo.Create(ctx, &user.Profile{
 		ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
 		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}}))
-	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-r", ProfileID: "profile-2", MediaItemID: "mi-r"}))
+	require.NoError(t, repo.Add(ctx, &library.Favorite{ID: "f-r", ProfileID: "profile-2", MediaItemID: "mi-r"}))
 	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-r", Title: "Adult", Type: "movie",
 		Classification: &library.MediaClassification{OfficialRating: "R"}})
 	mediaQueryRepo.Err = errors.New("db down")
