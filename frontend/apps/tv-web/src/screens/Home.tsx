@@ -312,7 +312,6 @@ export function HomeScreen() {
 
   const nothing = !isLoading && rows.every((r) => r === null);
   const libs = (libraries.data?.libraries ?? []).filter((l) => l.type === "LIBRARY_TYPE_MOVIES" || l.type === "LIBRARY_TYPE_SHOWS");
-  const hasMusic = (libraries.data?.libraries ?? []).some((l) => l.type === "LIBRARY_TYPE_MUSIC");
 
   return (
     <FocusRoot autoFocus className="screen">
@@ -322,10 +321,10 @@ export function HomeScreen() {
           {libs.map((l) => (
             <Button key={l.id} onPress={() => l.id && navigate({ name: "library", libraryId: l.id })}>{l.name}</Button>
           ))}
-          {hasMusic ? <Button onPress={() => navigate({ name: "music" })}>{t("common.nav.music", "Music")}</Button> : null}
-          <Button onPress={() => navigate({ name: "search" })}>{t("common.nav.search", "Search")}</Button>
+          {/* Music, Search and Settings live in the navigation bar above: the
+              Android television's header carries them because it has no such
+              bar, and copying them here showed each one twice. */}
           <Button onPress={() => setCustomizeOpen(true)}>{t("media.home.customize", "Customise")}</Button>
-          <Button onPress={() => navigate({ name: "settings" })}>{t("common.nav.settings", "Settings")}</Button>
         </div>
       </FocusRoot>
       {isLoading ? <Spinner /> : null}

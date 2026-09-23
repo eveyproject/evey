@@ -85,6 +85,17 @@ describe("the home follows the server's row plan", () => {
     expect(titles).not.toContain("media.home.recommendedForYou");
   });
 
+  // Measured in prod on 2026-09-23: the header copied from the Android
+  // television repeated Music, Search and Settings under the navigation bar
+  // that already carries them.
+  it("keeps Music, Search and Settings to the navigation bar", () => {
+    render(<HomeScreen />);
+    for (const key of ["common.nav.music", "common.nav.search", "common.nav.settings"]) {
+      expect(screen.queryByText(key)).toBeNull();
+    }
+    expect(screen.getByText("media.home.customize")).toBeTruthy();
+  });
+
   it("places a plugin row where the config puts it, and a fresh install above", () => {
     feedConfig.mockReturnValue({
       data: { configs: [{ feedType: "plugin:plg-weather", enabled: true, displayOrder: 0 }] },
