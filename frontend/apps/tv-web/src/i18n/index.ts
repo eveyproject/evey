@@ -3,6 +3,7 @@ import { initReactI18next } from "react-i18next";
 import HttpBackend from "i18next-http-backend";
 import { getBaseURL } from "@evey/api";
 import fallbackEn from "./fallback.en.json";
+import boot from "./boot.json";
 
 // The catalogue comes from the server (the same /api/v1/i18n the web app
 // reads), but this client boots before it knows a server, and a packaged
@@ -43,7 +44,14 @@ if (!i18n.isInitialized) {
     .init({
       lng: initialLocale(),
       partialBundledLanguages: true,
-      resources: { en: { translation: fallbackEn } },
+      // English in full, and for every language the few screens shown before
+      // a server is known (generated with the English floor).
+      resources: Object.fromEntries(
+        Object.entries(boot as Record<string, Record<string, string>>).map(([lng, strings]) => [
+          lng,
+          { translation: lng === "en" ? fallbackEn : strings },
+        ]),
+      ),
       backend: {
         // Resolved at request time: the server is chosen after boot.
         loadPath: () => `${getBaseURL()}/api/v1/i18n/{{lng}}`,
