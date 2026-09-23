@@ -20,6 +20,19 @@
 
 set -e
 
+# The gate runs on the working tree, the push sends commits. With a tracked file
+# modified or staged, what was tested is not what leaves: a commit red on its own
+# passed here once because the fix sat uncommitted beside it. Untracked files are
+# allowed (scratch output, local notes); ci-clean-checkout covers HEAD pointing
+# at one of them.
+dirty=$(git status --porcelain --untracked-files=no)
+if [ -n "$dirty" ]; then
+    echo "pre-push: tracked files differ from HEAD - the gate would test something other than what is pushed:" >&2
+    echo "$dirty" | sed 's/^/           /' >&2
+    echo "         commit them, or move them out of the way, then push again." >&2
+    exit 1
+fi
+
 if ! command -v docker >/dev/null 2>&1; then
     echo "pre-push: docker not found on PATH - start the dev stack first or bypass with --no-verify." >&2
     exit 1
