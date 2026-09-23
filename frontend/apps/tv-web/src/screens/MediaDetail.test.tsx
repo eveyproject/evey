@@ -100,6 +100,15 @@ describe("the title page", () => {
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ name: "player", mediaId: "m-1", audio: 2, subtitle: 3 }));
   });
 
+  // Measured in prod on 2026-09-23: the thumbs were emoji and painted as two
+  // empty boxes on a browser without a colour-emoji font.
+  it("draws the thumbs, and names them, without an emoji font", () => {
+    const { container } = render(<MediaDetailScreen mediaId="m-1" />);
+    expect(container.textContent).not.toMatch(/[\u{1F44D}\u{1F44E}]/u);
+    expect(screen.getByLabelText("media.rating.like").querySelector("svg")).toBeTruthy();
+    expect(screen.getByLabelText("media.rating.dislike").querySelector("svg")).toBeTruthy();
+  });
+
   it("marks watched against the profile in front of the viewer", () => {
     render(<MediaDetailScreen mediaId="m-1" />);
     fireEvent.click(screen.getByText("media.detail.markWatched"));
