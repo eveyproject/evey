@@ -4,6 +4,7 @@ import { render, fireEvent } from "@testing-library/react";
 // The spatial library is not under test: a field is "focused" as far as it
 // is concerned, and Enter/Back are what the browser delivers to the input.
 vi.mock("../tv/focus", () => ({
+  useArrivalFocus: () => {},
   useFocusable: () => ({ ref: { current: null }, focused: true, focusSelf: () => {} }),
 }));
 

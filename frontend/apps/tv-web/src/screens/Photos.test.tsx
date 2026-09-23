@@ -6,6 +6,7 @@ const { libraries, albums, photos, navigateMock, goBackMock } = vi.hoisted(() =>
 }));
 
 vi.mock("../tv/focus", () => ({
+  useArrivalFocus: () => {},
   FocusRoot: ({ children, className }: any) => <div className={className}>{children}</div>,
   useFocusable: () => ({ ref: { current: null }, focused: false, focusSelf: () => {} }),
   useTvKeys: () => {},

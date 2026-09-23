@@ -8,6 +8,7 @@ const library = vi.fn();
 const fetchNextPage = vi.fn();
 
 vi.mock("../tv/focus", () => ({
+  useArrivalFocus: () => {},
   FocusRoot: ({ children, className }: any) => <div className={className}>{children}</div>,
   useFocusable: ({ onFocus }: any = {}) => ({
     ref: { current: null },

@@ -261,6 +261,7 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
           {items.slice(window.start, window.end).map((item, i) => (
             <Card
               key={item.id}
+              focusKey={`library1:${item.id}`}
               title={itemTitle(item)}
               imageUrl={posterSrc(item.id, "poster", 400)}
               watched={watchedMap.get(item.id) === true}

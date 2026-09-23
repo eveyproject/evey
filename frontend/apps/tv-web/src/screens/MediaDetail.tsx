@@ -102,6 +102,9 @@ function AddToPlaylist({ mediaId, mediaType, onClose }: { mediaId: string; media
   );
 }
 
+// The scope the page lands on: Resume (or Play) is its leftmost button.
+const ACTIONS_KEY = "media-detail-actions";
+
 export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -187,7 +190,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
   const busy = markWatched.isPending || markUnwatched.isPending;
 
   return (
-    <FocusRoot autoFocus className="screen">
+    <FocusRoot autoFocus className="screen" preferredChildFocusKey={ACTIONS_KEY}>
       <div className="hero">
         <img src={posterSrc(item.id, "poster", 600)} alt="" />
         <div>
@@ -198,7 +201,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
           {item.communityRating ? <p className="muted" style={{ margin: "0 0 1vw" }}>{stars(item.communityRating)} {item.communityRating.toFixed(1)}/10</p> : null}
           {item.overview ? <p className="overview">{item.overview}</p> : null}
           {playTarget ? (
-            <FocusRoot>
+            <FocusRoot focusKey={ACTIONS_KEY}>
               <div className="actions">
                 {canResume ? (
                   <Button variant="primary" autoFocus onPress={() => openPlayer(false)}>
@@ -221,7 +224,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
               </div>
             </FocusRoot>
           ) : (
-            <FocusRoot>
+            <FocusRoot focusKey={ACTIONS_KEY}>
               <div className="actions">
                 <Button autoFocus onPress={() => toggleFavorite.mutate()}>
                   {isFav ? "★ " : "☆ "}{isFav ? t("media.detail.favorited", "Favorited") : t("media.detail.favorite", "Favorite")}

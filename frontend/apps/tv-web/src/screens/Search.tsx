@@ -98,7 +98,7 @@ export function SearchScreen({ initialQuery }: { initialQuery?: string }) {
         <FocusRoot>
           <div className="grid">
             {items.map((item) => (
-              <Card key={item.id} title={itemTitle(item)} imageUrl={posterSrc(item.id, "poster", 400)} onPress={() => navigate({ name: "media", mediaId: item.id! })} />
+              <Card key={item.id} focusKey={`search1:${item.id}`} title={itemTitle(item)} imageUrl={posterSrc(item.id, "poster", 400)} onPress={() => navigate({ name: "media", mediaId: item.id! })} />
             ))}
           </div>
         </FocusRoot>
@@ -108,6 +108,7 @@ export function SearchScreen({ initialQuery }: { initialQuery?: string }) {
             {tracks.map((tr) => (
               <Card
                 key={tr.id}
+                focusKey={`search2:${tr.id}`}
                 title={`${tr.title ?? ""}${tr.artist ? ` · ${tr.artist}` : ""}`}
                 imageUrl={trackArt(tr.coverArtUrl)}
                 onPress={() => setQueue([trackToQueueTrack(tr)], 0)}

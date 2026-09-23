@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useRef, type ReactNode } from "react";
-import { useFocusable } from "../tv/focus";
+import { memo, useCallback, useRef, type ReactNode } from "react";
+import { useArrivalFocus, useFocusable } from "../tv/focus";
 import { tvKeyOf } from "../tv/keys";
 
 interface ButtonProps {
@@ -24,9 +24,7 @@ export function Button({ children, onPress, variant = "default", focusKey, autoF
       onFocus?.();
     },
   });
-  useEffect(() => {
-    if (autoFocus) focusSelf();
-  }, [autoFocus, focusSelf]);
+  useArrivalFocus(focusKey, autoFocus, focusSelf);
   return (
     <button
       ref={ref}
@@ -64,9 +62,7 @@ export function TextField({ value, onChange, placeholder, type = "text", focusKe
       else onSubmit?.();
     },
   });
-  useEffect(() => {
-    if (autoFocus) focusSelf();
-  }, [autoFocus, focusSelf]);
+  useArrivalFocus(focusKey, autoFocus, focusSelf);
   return (
     <input
       ref={ref}
@@ -123,9 +119,7 @@ function CardImpl({ title, imageUrl, wide, onPress, focusKey, autoFocus, onFocus
     layout.node.scrollIntoView({ block: "nearest", inline: "nearest" });
     onFocus?.();
   } });
-  useEffect(() => {
-    if (autoFocus) focusSelf();
-  }, [autoFocus, focusSelf]);
+  useArrivalFocus(focusKey, autoFocus, focusSelf);
   return (
     <div ref={ref} className={`card focusable ${wide ? "wide" : ""} ${focused ? "focused" : ""}`} onClick={onPress}>
       {imageUrl ? <img src={imageUrl} alt="" loading="lazy" /> : <div style={{ aspectRatio: wide ? "16 / 9" : "2 / 3", background: "var(--surface-raised)" }} />}

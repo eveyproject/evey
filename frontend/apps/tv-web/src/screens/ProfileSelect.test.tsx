@@ -11,6 +11,7 @@ const { refreshToken, listProfiles, replaceMock, setTokens, setProfile, setRefre
 }));
 
 vi.mock("../tv/focus", () => ({
+  useArrivalFocus: () => {},
   FocusRoot: ({ children, className }: any) => <div className={className}>{children}</div>,
   useFocusable: () => ({ ref: { current: null }, focused: false, focusSelf: () => {} }),
 }));

@@ -52,7 +52,9 @@ function openItem(item: V1MediaItem) {
   navigate({ name: "media", mediaId: item.id });
 }
 
-function Row({ title, items, wide, focusFirst, onRetry }: {
+function Row({ rowKey, title, items, wide, focusFirst, onRetry }: {
+  /** Stable per row: a card's focus key is built from it, so back can land on it. */
+  rowKey: string;
   title: string;
   items: V1MediaItem[];
   wide?: boolean;
@@ -88,6 +90,7 @@ function Row({ title, items, wide, focusFirst, onRetry }: {
             wide={wide}
             watched={!!item.id && watchedMap.get(item.id) === true}
             percent={item.id ? percentMap.get(item.id) : undefined}
+            focusKey={`home:${rowKey}:${item.id}`}
             autoFocus={focusFirst && i === 0}
             onPress={() => openItem(item)}
           />
@@ -243,6 +246,7 @@ export function HomeScreen() {
                 <Card
                   key={a.id}
                   title={`${a.title ?? ""}${a.artist ? ` · ${a.artist}` : ""}`}
+                  focusKey={`home:${section.key}:${a.id}`}
                   autoFocus={i === 0 && claimFocus(true)}
                   onPress={() => navigate({ name: "album", albumId: a.id!, libraryId: section.libraryId })}
                 />
@@ -253,7 +257,7 @@ export function HomeScreen() {
       }
       const items = (data?.items ?? []).filter((it) => it.id);
       if (items.length === 0) return null;
-      return <Row key={section.key} title={section.name} items={items} focusFirst={claimFocus(true)} />;
+      return <Row key={section.key} rowKey={section.key} title={section.name} items={items} focusFirst={claimFocus(true)} />;
     }
     if (section.kind === "plugin") {
       return (
@@ -270,7 +274,7 @@ export function HomeScreen() {
           <h2 className="row-title">{t(FEED_LABELS.collections, "Collections")}</h2>
           <div className="row">
             {list.map((c, i) => (
-              <Card key={c.id} title={c.name} imageUrl={c.posterUrl} autoFocus={i === 0 && claimFocus(true)} onPress={() => navigate({ name: "collection", collectionId: c.id })} />
+              <Card key={c.id} focusKey={`home:${section.key}:${c.id}`} title={c.name} imageUrl={c.posterUrl} autoFocus={i === 0 && claimFocus(true)} onPress={() => navigate({ name: "collection", collectionId: c.id })} />
             ))}
           </div>
         </FocusRoot>
@@ -281,6 +285,7 @@ export function HomeScreen() {
       return (
         <Row
           key={section.key}
+          rowKey={section.key}
           title={t(FEED_LABELS[section.feedType] ?? section.feedType, section.feedType)}
           items={[]}
           onRetry={failed}
@@ -296,6 +301,7 @@ export function HomeScreen() {
     return (
       <Row
         key={section.key}
+        rowKey={section.key}
         title={t(FEED_LABELS[section.feedType] ?? section.feedType, section.feedType)}
         items={items}
         wide={wide}

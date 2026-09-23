@@ -16,6 +16,7 @@ export function renderScreen(ui: ReactElement) {
 /** The spatial navigation library is not under test: every box is focusable. */
 export function mockFocus() {
   vi.mock("../tv/focus", () => ({
+  useArrivalFocus: () => {},
     FocusRoot: ({ children, className }: { children?: unknown; className?: string }) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (<div className={className}>{children as any}</div>),

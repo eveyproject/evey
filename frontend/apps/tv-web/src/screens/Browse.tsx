@@ -69,6 +69,7 @@ export function LibrariesScreen() {
           {libs.map((l) => (
             <Card
               key={l.id}
+              focusKey={`browse1:${l.id}`}
               title={l.name ?? ""}
               onPress={() => (l.type === "LIBRARY_TYPE_MUSIC"
                 ? navigate({ name: "music", libraryId: l.id })
@@ -94,7 +95,7 @@ export function CollectionsScreen() {
       <FocusRoot autoFocus>
         <div className="grid">
           {list.map((c, i) => (
-            <Card key={c.id} title={`${c.name}${c.itemCount ? ` (${c.itemCount})` : ""}`} imageUrl={c.posterUrl} autoFocus={i === 0} onPress={() => navigate({ name: "collection", collectionId: c.id })} />
+            <Card key={c.id} focusKey={`browse2:${c.id}`} title={`${c.name}${c.itemCount ? ` (${c.itemCount})` : ""}`} imageUrl={c.posterUrl} autoFocus={i === 0} onPress={() => navigate({ name: "collection", collectionId: c.id })} />
           ))}
         </div>
       </FocusRoot>
@@ -115,6 +116,7 @@ export function CollectionScreen({ collectionId }: { collectionId: string }) {
           {items.map((it, i) => (
             <Card
               key={it.id}
+              focusKey={`browse3:${it.id}`}
               title={it.title ?? ""}
               imageUrl={posterSrc(it.id)}
               autoFocus={i === 0}
@@ -161,7 +163,7 @@ export function PlaylistScreen({ playlistId }: { playlistId: string }) {
       <FocusRoot autoFocus>
         <div className="grid">
           {items.map((it, i) => (
-            <Card key={it.media_item_id} title={it.title ?? ""} imageUrl={posterSrc(it.media_item_id)} autoFocus={i === 0} onPress={() => navigate({ name: "media", mediaId: it.media_item_id })} />
+            <Card key={it.media_item_id} focusKey={`browse4:${it.media_item_id}`} title={it.title ?? ""} imageUrl={posterSrc(it.media_item_id)} autoFocus={i === 0} onPress={() => navigate({ name: "media", mediaId: it.media_item_id })} />
           ))}
         </div>
       </FocusRoot>
@@ -186,7 +188,7 @@ export function GenresScreen() {
       <FocusRoot autoFocus>
         <div className="grid">
           {genres.map((g, i) => (
-            <Card key={g} title={t(genreTranslationKey(g), g)} autoFocus={i === 0} onPress={() => navigate({ name: "genre", genre: g })} />
+            <Card key={g} focusKey={`browse5:${g}`} title={t(genreTranslationKey(g), g)} autoFocus={i === 0} onPress={() => navigate({ name: "genre", genre: g })} />
           ))}
         </div>
       </FocusRoot>
@@ -204,7 +206,7 @@ export function GenreScreen({ genre }: { genre: string }) {
       <FocusRoot autoFocus>
         <div className="grid">
           {items.map((it, i) => (
-            <Card key={it.id} title={it.title ?? ""} imageUrl={posterSrc(it.id)} autoFocus={i === 0} onPress={() => navigate({ name: "media", mediaId: it.id! })} />
+            <Card key={it.id} focusKey={`browse6:${it.id}`} title={it.title ?? ""} imageUrl={posterSrc(it.id)} autoFocus={i === 0} onPress={() => navigate({ name: "media", mediaId: it.id! })} />
           ))}
         </div>
       </FocusRoot>
@@ -223,7 +225,7 @@ export function FavoritesScreen() {
       <FocusRoot autoFocus>
         <div className="grid">
           {items.map((it, i) => (
-            <Card key={it.mediaItemId} title={it.title ?? ""} imageUrl={posterSrc(it.mediaItemId)} autoFocus={i === 0} onPress={() => navigate({ name: "media", mediaId: it.mediaItemId })} />
+            <Card key={it.mediaItemId} focusKey={`browse7:${it.mediaItemId}`} title={it.title ?? ""} imageUrl={posterSrc(it.mediaItemId)} autoFocus={i === 0} onPress={() => navigate({ name: "media", mediaId: it.mediaItemId })} />
           ))}
         </div>
       </FocusRoot>
@@ -335,6 +337,7 @@ export function PersonScreen({ personId }: { personId: string }) {
           {items.slice(0, shown).map((it, i) => (
             <Card
               key={it.id}
+              focusKey={`browse8:${it.id}`}
               title={it.title ?? ""}
               imageUrl={posterSrc(it.id)}
               autoFocus={i === 0}
