@@ -1007,3 +1007,43 @@ func TestReportProgressAfterStop_DoesNotResurrectSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, got.EndedAt, "ended_at must stay set")
 }
+
+// A player that never gets its picture going still ticks, at position 0, and
+// the freshest write wins: a failed start (codec refused, network gone) erased
+// the resume point. Measured in prod on 2026-09-23 - a start that stayed at
+// readyState 0 sent five ticks at 0 and an 8-minute resume point became 0.
+// Until a session has reported a positive position, a 0 is not a position.
+func TestReportProgressBySession_ZeroBeforeAnyPositionKeepsTheResumePoint(t *testing.T) {
+	t.Parallel()
+	cmd, pr, sr, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s0", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s0", 480_000, false, ""))
+	require.NoError(t, cmd.StopStream(ctx, "s0"))
+
+	// A new session that never starts: ticks at 0.
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	for range 3 {
+		require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 0, false, ""))
+	}
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(480_000), wp.Position.Milliseconds(), "a start that never played must not erase the resume point")
+	stored, err := sr.GetByID(ctx, "s1")
+	require.NoError(t, err)
+	assert.False(t, stored.IsPaused, "the session tick itself is still recorded")
+
+	// Starting over is still a choice: the first real position replaces it.
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 3_000, false, ""))
+	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(3_000), wp.Position.Milliseconds())
+
+	// Once the session has played, a seek back to the very start is kept.
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 0, false, ""))
+	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), wp.Position.Milliseconds())
+}

@@ -327,6 +327,12 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// Negative positions from a misbehaving client get logged and dropped;
 	// IsPaused still gets recorded so pause UI doesn't desync. shared.Duration
 	// rejects negatives by construction.
+	// A session that has never reported a positive position has not played
+	// yet: a player stuck before its first frame (codec refused, network gone)
+	// ticks at 0, and the freshest write wins, so that 0 erased the resume
+	// point. Measured in prod on 2026-09-23. The tick still updates the
+	// session below; only the watch-progress write waits for a real position.
+	neverPlayed := session.Position == nil || session.Position.Milliseconds() <= 0
 	pos, dErr := shared.NewDurationMs(positionMs)
 	safePositionMs := positionMs
 	if dErr != nil {
@@ -355,7 +361,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// Watching should not surface a trailer at 0:15. Session position was
 	// already updated above so the live UI still gets its tick; we just
 	// don't materialise a watch_progress row until completion.
-	if decision.skipPersist {
+	if decision.skipPersist || (neverPlayed && safePositionMs <= 0) {
 		return nil
 	}
 	// First-time completion seeds play_count=1. On INSERT (no prior row)
