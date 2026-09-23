@@ -41,6 +41,7 @@ import { SubtitleOverlay } from "../player/SubtitleOverlay";
 import { TrickplayTile } from "../player/TrickplayTile";
 import { SettingsPanel, chapterLabel, type PanelSection } from "../player/SettingsPanel";
 import { useMusicQueueStore } from "../music/queue";
+import { decideHlsFatal } from "../lib/hlsRecovery";
 
 const OSD_HIDE_MS = 4000;
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -245,6 +246,8 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
         backBufferLength: 30,
       });
       hlsRef.current = hls;
+      // Recovery is bounded per stream (see decideHlsFatal).
+      const attempts = { reload: 0, recoverMedia: 0 };
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
         console.info("[player] manifest parsed", data.levels.map((l) => `${l.width}x${l.height}@${l.bitrate}`).join(" "), "audio tracks", data.audioTracks.length);
         seekToStart();
@@ -254,12 +257,10 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
         // devtools and this is what a bug report can carry.
         console.warn("[player] hls", data.type, data.details, data.fatal ? "fatal" : "", data.response?.code ?? "", data.reason ?? "");
         if (!data.fatal) return;
-        // A 410 is the server saying the master expired (a sealed
-        // fingerprint): negotiate again where we are rather than hammering
-        // the dead url.
-        if (data.response?.code === 410) { restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality); return; }
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
-        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+        const action = decideHlsFatal({ type: data.type, details: data.details, responseCode: data.response?.code }, attempts);
+        if (action === "renegotiate") restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality);
+        else if (action === "reload") { attempts.reload++; hls.startLoad(); }
+        else if (action === "recoverMedia") { attempts.recoverMedia++; hls.recoverMediaError(); }
         else setFailed(true);
       });
       hls.loadSource(streamUrl);
