@@ -98,13 +98,12 @@ type GRPCServerDeps struct {
 	ServerCtx       context.Context
 	Translator      *eveyi18n.Translator
 	SMTPConfigured  bool
-	ServerCfgSvc    *appconfig.Service            // optional: nil = service not registered
-	ShareSvc        *appmedia.ShareService        // optional
-	BioEnricher     appmetadata.PeopleBioEnricher // optional
-	Music           *appmusic.Service             // optional
-	MusicNowPlaying *appmusic.NowPlayingRegistry  // optional; "En cours de lecture" music sessions
-	Photo           *appphoto.Service             // optional
-	PushEnabled     bool                          // optional
+	ServerCfgSvc    *appconfig.Service           // optional: nil = service not registered
+	ShareSvc        *appmedia.ShareService       // optional
+	Music           *appmusic.Service            // optional
+	MusicNowPlaying *appmusic.NowPlayingRegistry // optional; "En cours de lecture" music sessions
+	Photo           *appphoto.Service            // optional
+	PushEnabled     bool                         // optional
 	VAPIDPubKey     string
 	PushRegisterRL  *ratelimit.Limiter
 	SyncplayHub     *appsyncplay.Hub // optional

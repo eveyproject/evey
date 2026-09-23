@@ -191,19 +191,14 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		SeekIndexSvc:     deps.seekIndexSvc,
 		MetadataQuerySvc: deps.content.metadataQuerySvc,
 
-		ActivityQuerySvc: deps.engagement.activityQuerySvc,
-		ActivityCmdSvc:   deps.engagement.activityCmdSvc,
+		ActivityCmdSvc: deps.engagement.activityCmdSvc,
 
 		CollectionSvc:  deps.content.collectionSvc,
 		PlaylistSvc:    deps.content.playlistSvc,
 		PlaylistGenSvc: deps.content.playlistGenSvc,
-		FavoriteSvc:    deps.content.favoriteSvc,
 
 		MusicSvc:        deps.media.musicSvc,
 		MusicNowPlaying: deps.media.musicNowPlaying,
-
-		UserRatingRepo: deps.repos.userRatingRepo,
-		StarRatingSvc:  deps.content.starRatingSvc,
 
 		PhotoSvc:        deps.media.photoSvc,
 		PhotoTranscoder: deps.media.photoTranscoder,
@@ -216,9 +211,6 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		BackupSvc:  deps.backupSvc,
 		WebhookSvc: deps.engagement.webhookSvc,
-
-		PushSubRepo:    deps.repos.pushSubRepo,
-		VAPIDPublicKey: resolveVAPIDPublicKey(deps.repos.serverCfgRepo, cfg),
 
 		ImageConverter:    deps.imageConverter,
 		ArtworkRepo:       deps.repos.artworkRepo,

@@ -2,7 +2,6 @@ package metadata
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"sync/atomic"
 
@@ -10,11 +9,6 @@ import (
 	"github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
-
-// PeopleBioEnricher enriches bios for people missing biography data.
-type PeopleBioEnricher interface {
-	EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (int, error)
-}
 
 type CommandServiceOption func(*CommandService)
 

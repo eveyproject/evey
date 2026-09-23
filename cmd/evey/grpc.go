@@ -204,7 +204,6 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		SMTPConfigured:         cfg.SMTP.Host != "",
 		ServerCfgSvc:           deps.serverCfgSvc,
 		ShareSvc:               deps.media.shareSvc,
-		BioEnricher:            deps.content.enricher,
 		Music:                  deps.media.musicSvc,
 		MusicNowPlaying:        deps.media.musicNowPlaying,
 		Photo:                  deps.media.photoSvc,
