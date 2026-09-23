@@ -31,6 +31,13 @@ MOBILE_DST = os.path.join(ROOT, "frontend", "apps", "mobile", "src", "i18n", "fa
 # The browser TV client boots before it knows a server (and a packaged copy
 # runs from the TV's storage), so it embeds the same English floor.
 TVWEB_DST = os.path.join(ROOT, "frontend", "apps", "tv-web", "src", "i18n", "fallback.en.json")
+# What the browser TV shows before it knows a server - the server screen and
+# the client question - in EVERY language: a packaged copy (webOS, file://)
+# has no server to ask for a catalogue, and stayed in English there. Each
+# language is English overlaid with its own file, as the server serves it.
+# Keep BOOT_PREFIXES in step with internal/pkg/i18n TestTVBootCatalogueMatchesYAML.
+TVWEB_BOOT_DST = os.path.join(ROOT, "frontend", "apps", "tv-web", "src", "i18n", "boot.json")
+BOOT_PREFIXES = ("mobile.serverConnect.", "mobile.servers.title", "common.clientChoice.")
 
 
 def flatten(prefix, mapping, out):
@@ -42,13 +49,32 @@ def flatten(prefix, mapping, out):
             flatten(full, value, out)
 
 
-def main():
+def load_locale(locale):
     out = {}
-    for path in sorted(glob.glob(os.path.join(SRC, "*.yaml"))):
+    for path in sorted(glob.glob(os.path.join(ROOT, "i18n", locale, "*.yaml"))):
         stem = os.path.basename(path)[:-5]
         with open(path, encoding="utf-8") as fh:
             data = yaml.load(fh, Loader=yaml.BaseLoader) or {}
         flatten(stem, data, out)
+    return out
+
+
+def write_boot(english):
+    boot = {}
+    for locale in sorted(os.listdir(os.path.join(ROOT, "i18n"))):
+        if not os.path.isdir(os.path.join(ROOT, "i18n", locale)):
+            continue
+        merged = dict(english)
+        merged.update(load_locale(locale))
+        boot[locale] = {k: v for k, v in sorted(merged.items()) if k.startswith(BOOT_PREFIXES)}
+    with open(TVWEB_BOOT_DST, "w", encoding="utf-8") as fh:
+        json.dump(boot, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    print(f"{len(boot)} locales x {len(boot.get('en', {}))} keys -> {os.path.relpath(TVWEB_BOOT_DST, ROOT)}")
+
+
+def main():
+    out = load_locale("en")
     ordered = dict(sorted(out.items()))
     for dst in (DST, MOBILE_DST, TVWEB_DST):
         os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -56,6 +82,7 @@ def main():
             json.dump(ordered, fh, ensure_ascii=False, indent=2)
             fh.write("\n")
         print(f"{len(out)} keys -> {os.path.relpath(dst, ROOT)}")
+    write_boot(out)
     return 0
 
 
