@@ -32,8 +32,8 @@ func (orphanBulkEnricher) AutoEnrichAll(_ context.Context, _ []*library.MediaIte
 
 // newOrphansHandler wires a metadataCmd with a bulk enricher and returns it
 // together with the underlying media-item repo for test setup.
-func newOrphansHandler() (*adminMediaHandler, *libfakes.FakeMediaItemRepository) {
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+func newOrphansHandler() (*adminMediaHandler, *libfakes.FakeMediaItemStore) {
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
 	artworkRepo := metafakes.NewFakeArtworkRepository()
 	events := sharedfakes.NewFakeEventBus()
@@ -43,7 +43,7 @@ func newOrphansHandler() (*adminMediaHandler, *libfakes.FakeMediaItemRepository)
 		overrideRepo, artworkRepo,
 		metafakes.NewFakeArtworkDownloader(),
 		events, providers,
-		appmetadata.WithEnricher(orphanBulkEnricher{}, mediaRepo),
+		appmetadata.WithEnricher(orphanBulkEnricher{}, mediaRepo, mediaRepo),
 	)
 	h := &adminMediaHandler{metadataCmd: cmd}
 	return h, mediaRepo

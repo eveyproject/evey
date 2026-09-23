@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newSvc() (*appcol.Service, *libfakes.FakeCollectionRepository, *libfakes.FakeMediaItemRepository) {
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+func newSvc() (*appcol.Service, *libfakes.FakeCollectionRepository, *libfakes.FakeMediaItemStore) {
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
@@ -312,7 +312,7 @@ func TestGetItems_Limit501_CappedTo500(t *testing.T) {
 
 func TestGetItems_SmartCollection_DefaultSortBy(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	ctx := context.Background()
@@ -333,7 +333,7 @@ func TestGetItems_SmartCollection_DefaultSortBy(t *testing.T) {
 
 func TestGetItems_SmartCollection_CustomSortBy(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	ctx := context.Background()
@@ -354,7 +354,7 @@ func TestGetItems_SmartCollection_CustomSortBy(t *testing.T) {
 
 func TestGetItems_SmartCollection_PaginatesAndCountsAll(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	ctx := context.Background()
@@ -383,7 +383,7 @@ func TestGetItems_SmartCollection_PaginatesAndCountsAll(t *testing.T) {
 
 func TestGetItems_SmartCollection_OffsetEqualsTotal_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	ctx := context.Background()
@@ -408,7 +408,7 @@ func TestGetItems_SmartCollection_OffsetEqualsTotal_ReturnsEmpty(t *testing.T) {
 
 func TestGetItems_SmartCollection_OffsetLessThanTotal(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	ctx := context.Background()
@@ -434,7 +434,7 @@ func TestGetItems_SmartCollection_OffsetLessThanTotal(t *testing.T) {
 
 func TestGetItems_SmartCollection_LimitTruncatesResults(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	ctx := context.Background()
@@ -554,7 +554,7 @@ func TestUpdateSmart_NoRules(t *testing.T) {
 
 func TestGetItems_SmartCollection_LimitEqualLen_NoTruncation(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	ctx := context.Background()
@@ -593,7 +593,7 @@ func TestCreate(t *testing.T) {
 
 func TestCreate_RepoError(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	cmdRepo := colRepo.CommandRepo()
@@ -669,7 +669,7 @@ func TestUpdate_NotFound(t *testing.T) {
 
 func TestUpsert_RepoError(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	cmdRepo := colRepo.CommandRepo()
@@ -682,7 +682,7 @@ func TestUpsert_RepoError(t *testing.T) {
 
 func TestCreateSmart_RepoError(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	cmdRepo := colRepo.CommandRepo()
@@ -704,7 +704,7 @@ func TestUpdateSmart_RepoError(t *testing.T) {
 	require.NoError(t, err)
 
 	// inject error after creation
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	cmdRepo := colRepo.CommandRepo()
@@ -733,7 +733,7 @@ func TestUpdateSmart_DefaultSortBy(t *testing.T) {
 
 func TestGetItems_SmartCollection_QueryError(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	smartQ.Err = fmt.Errorf("query failed")
@@ -784,7 +784,7 @@ func TestCollection_KillMutant_ZeroLimitClampedTo50_NonSmart(t *testing.T) {
 
 func TestGetItems_SmartCollection_RulesEvaluated(t *testing.T) {
 	t.Parallel()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 

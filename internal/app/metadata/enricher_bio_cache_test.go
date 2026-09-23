@@ -32,13 +32,13 @@ func (s *bioCacheProviderStub) GetPersonDetails(_ context.Context, _ string) (*d
 
 // newBioCacheEnricher builds an Enricher wired with the given provider and a
 // fixed clock, on top of fakes, for the personNeedsBio / fetchPersonBio tests.
-func newBioCacheEnricher(primary domain.MetadataProvider, now time.Time) (*Enricher, *libfakes.FakePersonRepository, *libfakes.FakeMediaItemRepository) {
+func newBioCacheEnricher(primary domain.MetadataProvider, now time.Time) (*Enricher, *libfakes.FakePersonRepository, *libfakes.FakeMediaItemStore) {
 	artRepo := metafakes.NewFakeArtworkRepository()
 	personRepo := libfakes.NewFakePersonRepository()
 	mpRepo := libfakes.NewFakeMediaPersonRepository()
-	miRepo := libfakes.NewFakeMediaItemRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
 	searchIdx := libfakes.NewFakeSearchIndex()
-	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, searchIdx, primary, nil, nil,
+	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, miRepo, searchIdx, primary, nil, nil,
 		EnricherWithClock(func() time.Time { return now }))
 	return e, personRepo, miRepo
 }

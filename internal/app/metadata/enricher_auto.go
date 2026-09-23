@@ -245,7 +245,7 @@ func (e *Enricher) supplementItem(ctx context.Context, item *domainlib.MediaItem
 
 	if changed {
 		item.UpdatedAt = time.Now()
-		if err := e.mediaItems.Update(ctx, item); err != nil && log != nil {
+		if err := e.itemUpdater.Update(ctx, item); err != nil && log != nil {
 			log.Warn("supplement update failed", slog.String("title", item.Title), slog.Any("err", err))
 		}
 	}

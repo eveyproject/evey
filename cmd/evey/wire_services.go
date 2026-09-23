@@ -134,7 +134,7 @@ func buildPlaylistServices(infra *infraDeps) (*appplaylist.Service, *appplaylist
 	// AddItem resolves the media item (for its library) and gates it on the
 	// acting profile's library access, so a profile cannot add - and then read
 	// the metadata of - media from a library it has no access to.
-	playlistSvc.WithMediaChecker(mediaItemCheckerAdapter{repo: r.MediaItem})
+	playlistSvc.WithMediaChecker(mediaItemCheckerAdapter{repo: r.MediaItemQuery})
 	playlistSvc.WithLibraryAccessChecker(playlistLibraryAccessAdapter{profiles: r.Profile, access: r.LibraryAccess})
 	playlistGenSvc := appplaylist.NewGeneratorService(r.MusicTrack, r.MusicPlay, r.Playlist, r.PlaylistItem)
 	return playlistSvc, playlistGenSvc

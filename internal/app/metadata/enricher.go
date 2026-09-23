@@ -32,6 +32,12 @@ type CollectionLinker interface {
 	ListMoviesWithoutCollection(ctx context.Context, afterID string, limit int) ([]domainlib.UnlinkedMovie, error)
 }
 
+// MediaItemUpdater is the one write metadata makes to a media item: saving the
+// enriched row. Reads go through domainlib.MediaItemQueryRepo (ADR-0009).
+type MediaItemUpdater interface {
+	Update(ctx context.Context, item *domainlib.MediaItem) error
+}
+
 // ArtworkPostSaveHook is called for each artwork record immediately after it is
 // persisted during scan enrichment. Used to trigger auto-download when enabled.
 type ArtworkPostSaveHook func(ctx context.Context, rec *domainmetadata.ArtworkRecord)
@@ -44,7 +50,8 @@ type Enricher struct {
 	artworkQuery        domainmetadata.ArtworkQueryRepo
 	persons             domainlib.PersonRepository
 	mediaPersons        domainlib.MediaPersonRepository
-	mediaItems          domainlib.MediaItemRepository
+	mediaItems          domainlib.MediaItemQueryRepo
+	itemUpdater         MediaItemUpdater
 	search              domainlib.SearchIndex
 	chain               *ProviderChain
 	collections         CollectionLinker
@@ -123,7 +130,8 @@ func NewEnricher(
 	artwork domainmetadata.ArtworkRepository,
 	persons domainlib.PersonRepository,
 	mediaPersons domainlib.MediaPersonRepository,
-	mediaItems domainlib.MediaItemRepository,
+	mediaItems domainlib.MediaItemQueryRepo,
+	itemUpdater MediaItemUpdater,
 	search domainlib.SearchIndex,
 	primary domainmetadata.MetadataProvider,
 	supplementary []domainmetadata.MetadataProvider,
@@ -136,6 +144,7 @@ func NewEnricher(
 		persons:      persons,
 		mediaPersons: mediaPersons,
 		mediaItems:   mediaItems,
+		itemUpdater:  itemUpdater,
 		search:       search,
 		chain:        NewProviderChain(primary, supplementary...),
 		collections:  collections,
@@ -167,7 +176,7 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 	var artworkRecords []*domainmetadata.ArtworkRecord
 	var bioPending []*domainlib.Person
 	apply := func(ctx context.Context) error {
-		if err := e.mediaItems.Update(ctx, item); err != nil {
+		if err := e.itemUpdater.Update(ctx, item); err != nil {
 			return fmt.Errorf("update media item: %w", err)
 		}
 		records, err := e.replaceArtwork(ctx, string(item.ID), result.Artwork)

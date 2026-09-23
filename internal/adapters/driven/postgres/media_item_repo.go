@@ -477,4 +477,4 @@ func (r *MediaItemRepository) BackfillEmptySortTitles(ctx context.Context) (int,
 	return totalUpdated, nil
 }
 
-var _ library.MediaItemRepository = (*MediaItemRepository)(nil)
+var _ library.MediaItemCommandRepo = (*MediaItemRepository)(nil)

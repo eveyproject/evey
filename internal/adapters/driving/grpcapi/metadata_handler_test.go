@@ -206,10 +206,10 @@ func TestMetadataResearchMetadata_DropsOverridesAndResets(t *testing.T) {
 	artworkRepo := metafakes.NewFakeArtworkRepository()
 	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
 	events := sharedfakes.NewFakeEventBus()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	providers := []metadata.MetadataProvider{provider}
 	cmd := appmetadata.NewCommandService(overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(), events, providers)
-	appmetadata.WithEnricher(&noopEnricher{}, mediaRepo)(cmd)
+	appmetadata.WithEnricher(&noopEnricher{}, mediaRepo, mediaRepo)(cmd)
 	query := appmetadata.NewQueryService(overrideRepo, artworkRepo, providers)
 	h := &metadataHandler{cmd: cmd, query: query, userAccess: newPermissiveTestUserAccess()}
 

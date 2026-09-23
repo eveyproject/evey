@@ -57,7 +57,7 @@ func TestEnrichItem_RollsBackAllStepsOnFailure(t *testing.T) {
 	require.NoError(t, artRepo.Create(ctx, oldArt))
 
 	enricher := appmetadata.NewEnricher(
-		artRepo, personRepo, mpRepo, itemRepo, nil,
+		artRepo, personRepo, mpRepo, postgres.NewMediaItemQueryRepoAdapter(db), itemRepo, nil,
 		nil, nil, nil,
 		appmetadata.EnricherWithUnitOfWork(postgres.NewTxUnit(db)),
 	)
@@ -103,7 +103,7 @@ func TestEnrichItem_CommitsAllSteps(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	enricher := appmetadata.NewEnricher(
-		artRepo, personRepo, mpRepo, itemRepo, nil,
+		artRepo, personRepo, mpRepo, postgres.NewMediaItemQueryRepoAdapter(db), itemRepo, nil,
 		nil, nil, nil,
 		appmetadata.EnricherWithUnitOfWork(postgres.NewTxUnit(db)),
 	)

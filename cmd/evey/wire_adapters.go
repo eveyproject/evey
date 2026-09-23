@@ -50,11 +50,11 @@ func (a musicTrackCheckerAdapter) Exists(ctx context.Context, id string) (bool, 
 	return t != nil, nil
 }
 
-// mediaItemCheckerAdapter adapts the library MediaItemRepository (typed id) to
+// mediaItemCheckerAdapter adapts the library MediaItemQueryRepo (typed id) to
 // playlist.MediaItemExistsChecker (string id). It returns the item so AddItem
 // can read its LibraryID for the library-access gate.
 type mediaItemCheckerAdapter struct {
-	repo library.MediaItemRepository
+	repo library.MediaItemQueryRepo
 }
 
 func (a mediaItemCheckerAdapter) GetByID(ctx context.Context, id string) (*library.MediaItem, error) {

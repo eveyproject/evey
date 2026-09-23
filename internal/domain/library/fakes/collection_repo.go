@@ -12,7 +12,7 @@ type FakeCollectionRepository struct {
 	query *FakeCollectionQueryRepo
 }
 
-func NewFakeCollectionRepository(mediaItems *FakeMediaItemRepository) *FakeCollectionRepository {
+func NewFakeCollectionRepository(mediaItems *FakeMediaItemStore) *FakeCollectionRepository {
 	cmd := NewFakeCollectionCommandRepo()
 	qry := NewFakeCollectionQueryRepo(cmd, mediaItems)
 	return &FakeCollectionRepository{cmd: cmd, query: qry}

@@ -17,6 +17,8 @@ type FakeMediaItemQueryRepo struct {
 	items map[string]*library.MediaItem
 	cast  map[string][]library.CastMember
 	Err   error
+	// ErrList fails List alone, leaving GetByID and Count answering.
+	ErrList error
 }
 
 func NewFakeMediaItemQueryRepo() *FakeMediaItemQueryRepo {
@@ -130,6 +132,9 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 	if r.Err != nil {
 		return nil, r.Err
 	}
+	if r.ErrList != nil {
+		return nil, r.ErrList
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.Err != nil {
@@ -209,8 +214,18 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 			return nil, nil
 		}
 	}
-	if filter.Limit > 0 && filter.Limit < len(result) {
-		result = result[:filter.Limit]
+	// Postgres does NOT return everything when the caller leaves Limit at zero:
+	// it clamps to DefaultListLimit. A fake that hands back the whole set makes
+	// an unpaginated sweep look correct in every unit test and truncated in
+	// production - which is what happened to RefreshAllTranslations. The number
+	// is duplicated rather than imported (domain layer, postgres is an adapter).
+	const defaultListLimit = 500 // mirrors postgres.DefaultListLimit
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = defaultListLimit
+	}
+	if limit < len(result) {
+		result = result[:limit]
 	}
 	return result, nil
 }
@@ -266,6 +281,15 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 		if filter.MinRating != 0 {
 			cr := classificationCommunityRating(item)
 			if cr == nil || *cr < filter.MinRating {
+				continue
+			}
+		}
+		if filter.MissingProviderIDs != nil {
+			hasPIDs := item.Catalog != nil && len(item.Catalog.ProviderIDs) > 0
+			if *filter.MissingProviderIDs && hasPIDs {
+				continue
+			}
+			if !*filter.MissingProviderIDs && !hasPIDs {
 				continue
 			}
 		}

@@ -12,10 +12,11 @@ import (
 
 type CommandServiceOption func(*CommandService)
 
-func WithEnricher(enricher ItemEnricher, mediaItems library.MediaItemRepository) CommandServiceOption {
+func WithEnricher(enricher ItemEnricher, mediaItems library.MediaItemQueryRepo, itemUpdater MediaItemUpdater) CommandServiceOption {
 	return func(s *CommandService) {
 		s.enricher = enricher
 		s.mediaItems = mediaItems
+		s.itemUpdater = itemUpdater
 	}
 }
 
@@ -33,7 +34,8 @@ type CommandService struct {
 	downloader   metadata.ArtworkDownloader
 	events       shared.EventBus
 	providers    []metadata.MetadataProvider
-	mediaItems   library.MediaItemRepository
+	mediaItems   library.MediaItemQueryRepo
+	itemUpdater  MediaItemUpdater
 	mediaPersons library.MediaPersonRepository
 	enricher     ItemEnricher
 	serverConfig shared.ServerConfigRepository

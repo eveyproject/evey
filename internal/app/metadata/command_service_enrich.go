@@ -155,7 +155,7 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 	item.Tagline = ""
 	item.UpdatedAt = time.Now()
 
-	if err = s.mediaItems.Update(ctx, item); err != nil {
+	if err = s.itemUpdater.Update(ctx, item); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("update media item: %w", err)

@@ -104,13 +104,13 @@ func (s *personDetailProviderStub) GetPersonDetails(_ context.Context, _ string)
 	return s.details, s.detailsErr
 }
 
-func newTransEnricher(primary domain.MetadataProvider) (*Enricher, *libfakes.FakeMediaItemRepository, *libfakes.FakePersonRepository) {
+func newTransEnricher(primary domain.MetadataProvider) (*Enricher, *libfakes.FakeMediaItemStore, *libfakes.FakePersonRepository) {
 	artRepo := metafakes.NewFakeArtworkRepository()
 	personRepo := libfakes.NewFakePersonRepository()
 	mpRepo := libfakes.NewFakeMediaPersonRepository()
-	miRepo := libfakes.NewFakeMediaItemRepository()
+	miRepo := libfakes.NewFakeMediaItemStore()
 	searchIdx := libfakes.NewFakeSearchIndex()
-	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, searchIdx, primary, nil, nil)
+	e := NewEnricher(artRepo, personRepo, mpRepo, miRepo, miRepo, searchIdx, primary, nil, nil)
 	return e, miRepo, personRepo
 }
 

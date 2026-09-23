@@ -12,7 +12,7 @@ type FakeCollectionQueryRepo struct {
 	mu          sync.RWMutex
 	collections map[string]*library.Collection
 	items       map[string][]collectionItem
-	mediaItems  *FakeMediaItemRepository
+	mediaItems  *FakeMediaItemStore
 	Err         error
 	// GetItemsErr fails ONLY GetItems, so a test can make the per-collection
 	// member read fail while the collection listing itself succeeds - the
@@ -27,7 +27,7 @@ type FakeCollectionQueryRepo struct {
 	GetItemsByCollectionIDsErr error
 }
 
-func NewFakeCollectionQueryRepo(cmdRepo *FakeCollectionCommandRepo, mediaItems *FakeMediaItemRepository) *FakeCollectionQueryRepo {
+func NewFakeCollectionQueryRepo(cmdRepo *FakeCollectionCommandRepo, mediaItems *FakeMediaItemStore) *FakeCollectionQueryRepo {
 	return &FakeCollectionQueryRepo{
 		collections: cmdRepo.collections,
 		items:       cmdRepo.items,

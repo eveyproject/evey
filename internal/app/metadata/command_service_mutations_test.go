@@ -41,22 +41,22 @@ func captureSlogBuffer(t *testing.T) (func() string, func()) {
 		}
 }
 
-// countingMediaRepo wraps FakeMediaItemRepository and counts List invocations.
+// countingMediaRepo wraps FakeMediaItemStore and counts List invocations.
 // Kills BOUNDARY/NEGATION mutations on `if len(items) < pageSize { break }`:
 // original makes 1 List call with small dataset; mutated makes 2 (second
 // returns empty, terminated by `len(items) == 0` guard).
 type countingMediaRepo struct {
-	*libfakes.FakeMediaItemRepository
+	*libfakes.FakeMediaItemStore
 	listCalls atomic.Int32
 }
 
 func (r *countingMediaRepo) List(ctx context.Context, f library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
 	r.listCalls.Add(1)
-	return r.FakeMediaItemRepository.List(ctx, f)
+	return r.FakeMediaItemStore.List(ctx, f)
 }
 
 func newCountingRepo() *countingMediaRepo {
-	return &countingMediaRepo{FakeMediaItemRepository: libfakes.NewFakeMediaItemRepository()}
+	return &countingMediaRepo{FakeMediaItemStore: libfakes.NewFakeMediaItemStore()}
 }
 
 // --- slog assertions on publish-error paths (kills NEGATION at L80, L138, L166, L205, L224, L370) ---
@@ -96,8 +96,8 @@ func TestRefreshItemMetadata_EventPublishError_LogsWarn(t *testing.T) {
 		metafakes.NewFakeArtworkDownloader(),
 		bus, []metadata.MetadataProvider{provider},
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeItemEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeItemEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 
@@ -120,8 +120,8 @@ func TestRefreshItemMetadataByIMDB_EventPublishError_LogsWarn(t *testing.T) {
 		metafakes.NewFakeArtworkDownloader(),
 		bus, []metadata.MetadataProvider{provider},
 	)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	appmetadata.WithEnricher(&fakeItemEnricher{}, mediaRepo)(cmdSvc)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeItemEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 
@@ -194,7 +194,7 @@ func TestAutoRefreshAllItems_ListCallCount(t *testing.T) {
 	)
 	repo := newCountingRepo()
 	enricher := &fakeBulkEnricher{}
-	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, repo, repo)(cmdSvc)
 	ctx := context.Background()
 
 	require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
@@ -213,7 +213,7 @@ func TestReEnrichWithoutOverrides_ListCallCount(t *testing.T) {
 	cmdSvc := appmetadata.NewCommandService(overrideRepo, metafakes.NewFakeArtworkRepository(), metafakes.NewFakeArtworkDownloader(), bus, nil)
 	repo := newCountingRepo()
 	enricher := &fakeBulkEnricher{}
-	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, repo, repo)(cmdSvc)
 	ctx := context.Background()
 
 	require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
@@ -234,7 +234,7 @@ func TestStartEnrichmentWorker_BulkListCallCount(t *testing.T) {
 	)
 	repo := newCountingRepo()
 	enricher := &fakeBulkSingleEnricher{}
-	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, repo, repo)(cmdSvc)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
@@ -286,7 +286,7 @@ func TestAutoRefreshAllItems_ExactPageSize_TwoListCalls(t *testing.T) {
 	)
 	repo := newCountingRepo()
 	enricher := &fakeBulkEnricher{}
-	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, repo, repo)(cmdSvc)
 
 	seedNItems(t, repo, testPageSize)
 	require.NoError(t, cmdSvc.AutoRefreshAllItems(context.Background(), ""))
@@ -301,7 +301,7 @@ func TestReEnrichWithoutOverrides_ExactPageSize_TwoListCalls(t *testing.T) {
 	cmdSvc := appmetadata.NewCommandService(overrideRepo, metafakes.NewFakeArtworkRepository(), metafakes.NewFakeArtworkDownloader(), bus, nil)
 	repo := newCountingRepo()
 	enricher := &fakeBulkEnricher{}
-	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, repo, repo)(cmdSvc)
 
 	seedNItems(t, repo, testPageSize)
 	cmdSvc.ReEnrichWithoutOverrides(context.Background(), enricher)
@@ -318,7 +318,7 @@ func TestStartEnrichmentWorker_BulkExactPageSize_TwoListCalls(t *testing.T) {
 	)
 	repo := newCountingRepo()
 	enricher := &fakeBulkSingleEnricher{}
-	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, repo, repo)(cmdSvc)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	seedNItems(t, repo, testPageSize)
@@ -373,9 +373,9 @@ func TestReEnrichWithoutOverrides_AllOverridden_DoesNotCallEnricher(t *testing.T
 	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
 	bus := sharedfakes.NewFakeEventBus()
 	cmdSvc := appmetadata.NewCommandService(overrideRepo, metafakes.NewFakeArtworkRepository(), metafakes.NewFakeArtworkDownloader(), bus, nil)
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo := libfakes.NewFakeMediaItemStore()
 	enricher := &recordingBulkEnricher{}
-	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
@@ -426,7 +426,7 @@ func TestAutoRefreshAllItems_ResumesFromPersistedCursor(t *testing.T) {
 	)
 	repo := newCountingRepo()
 	enricher := &fakeBulkEnricher{}
-	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, repo, repo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
 
@@ -458,7 +458,7 @@ func TestAutoRefreshAllItems_IgnoresCursorOfOtherScope(t *testing.T) {
 	)
 	repo := newCountingRepo()
 	enricher := &fakeBulkEnricher{}
-	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
+	appmetadata.WithEnricher(enricher, repo, repo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
 	require.NoError(t, cfg.Set(ctx, "metadata.refresh_all.cursor.lib-other", `{"library_id":"lib-other","offset":500}`))
