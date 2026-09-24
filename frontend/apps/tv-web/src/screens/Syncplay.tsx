@@ -1,61 +1,86 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, isValidRoomCode, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH } from "@evey/api";
 import { FocusRoot } from "../tv/focus";
-import { Button, Spinner } from "../components/ui";
-import { navigate } from "../app/router";
-
-const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".split("");
+import { Pressable, Spinner } from "../components/ui";
+import { Icon } from "../components/icons";
+import { goBack, replace } from "../app/router";
 
 interface JoinResponse { roomId: string; mediaId: string }
 
+const KEYS_PER_ROW = 6;
+const KEYPAD_ROWS: (string | null)[][] = (() => {
+  const keys: string[] = [...ROOM_CODE_ALPHABET, "del"];
+  const rows: (string | null)[][] = [];
+  for (let i = 0; i < keys.length; i += KEYS_PER_ROW) {
+    const row: (string | null)[] = keys.slice(i, i + KEYS_PER_ROW);
+    while (row.length < KEYS_PER_ROW) row.push(null);
+    rows.push(row);
+  }
+  return rows;
+})();
+
 /**
- * Joining a watch-together room by its code, typed on an on-screen grid: a
- * remote has no keyboard, and the code is what the host reads out. The player
- * takes the room from there.
+ * Joining a watch-together room by the code the host reads out, on the
+ * Android television's keypad (the room alphabet only). The player opens the
+ * live connection once it mounts with the room.
  */
 export function SyncplayScreen() {
   const { t } = useTranslation();
   const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const join = async (candidate: string) => {
-    setBusy(true);
-    setError(false);
+    if (!isValidRoomCode(candidate) || joining) return;
+    setJoining(true);
+    setError(null);
     try {
       const { roomId, mediaId } = await eveyFetch<JoinResponse>({ url: "/api/v1/syncplay/join", method: "POST", data: { code: candidate } });
-      navigate({ name: "player", mediaId, roomId });
+      replace({ name: "player", mediaId, roomId });
     } catch {
-      setError(true);
+      setError(t("media.syncplay.joinError", "Could not join - check the code."));
       setCode("");
-    } finally {
-      setBusy(false);
+      setJoining(false);
     }
   };
 
-  const type = (ch: string) => {
-    const next = (code + ch).slice(0, 6);
+  const press = (key: string) => {
+    if (joining) return;
+    if (error) setError(null);
+    if (key === "del") { setCode((c) => c.slice(0, -1)); return; }
+    if (code.length >= ROOM_CODE_LENGTH) return;
+    const next = code + key;
     setCode(next);
-    if (next.length === 6) void join(next);
+    if (next.length === ROOM_CODE_LENGTH) void join(next);
   };
 
   return (
-    <div className="screen screen-center">
-      <h1 className="title">{t("media.syncplay.joinByCode")}</h1>
-      <p className="code">{code.padEnd(6, "·")}</p>
-      {error ? <p className="error">{t("media.syncplay.joinError")}</p> : null}
-      {busy ? <Spinner /> : null}
-      <FocusRoot autoFocus className="letter-grid">
-        {LETTERS.map((ch, i) => (
-          <Button key={ch} autoFocus={i === 0} onPress={() => type(ch)}>{ch}</Button>
+    <FocusRoot autoFocus className="auth-page syncplay-page">
+      <h1 className="syncplay-title">{t("media.syncplay.join", "Join a room")}</h1>
+      <p className="syncplay-desc">{t("media.syncplay.joinByCode", "Join with code")}</p>
+      <div className="pin-dots">
+        {Array.from({ length: ROOM_CODE_LENGTH }, (_, i) => (
+          <span key={i} className={`pin-dot ${i < code.length ? "filled" : ""} ${error ? "error" : ""}`} />
         ))}
-      </FocusRoot>
-      <FocusRoot className="actions">
-        <Button onPress={() => setCode((c) => c.slice(0, -1))}>{t("common.delete")}</Button>
-        <Button variant="primary" disabled={code.length === 0} onPress={() => void join(code)}>{t("media.syncplay.join")}</Button>
-        <Button onPress={() => navigate({ name: "home" })}>{t("common.back")}</Button>
-      </FocusRoot>
-    </div>
+      </div>
+      <div className="pin-status">{joining ? <Spinner /> : error ? <span className="pin-error">{error}</span> : null}</div>
+      <div className="keypad">
+        {KEYPAD_ROWS.map((row, ri) => (
+          <div key={ri} className="keypad-row">
+            {row.map((key, ki) =>
+              key === null ? (
+                <span key={ki} className="key" />
+              ) : (
+                <Pressable key={ki} className="tv-card key surface" autoFocus={ri === 0 && ki === 0} label={key === "del" ? t("common.delete", "Delete") : key} onPress={() => press(key)}>
+                  {key === "del" ? <Icon name="backspace-outline" size={24} /> : key}
+                </Pressable>
+              ),
+            )}
+          </div>
+        ))}
+      </div>
+      <Pressable className="auth-link accent syncplay-back" onPress={goBack}>{t("common.back", "Back")}</Pressable>
+    </FocusRoot>
   );
 }

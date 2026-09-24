@@ -16,12 +16,12 @@ vi.mock("../tv/focus", () => ({
   useFocusable: () => ({ ref: { current: null }, focused: false, focusSelf: () => {} }),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, f?: unknown) => (typeof f === "string" ? f : k) }) }));
-vi.mock("../app/router", () => ({ replace: (...a: unknown[]) => replaceMock(...a) }));
+vi.mock("../app/router", () => ({ replace: (...a: unknown[]) => replaceMock(...a), goBack: vi.fn() }));
 vi.mock("../lib/session", () => ({
   refreshTokenStore: { getRefreshToken: () => Promise.resolve("refresh-1"), setRefreshToken },
 }));
-vi.mock("../components/PinPrompt", () => ({
-  PinPrompt: ({ onVerified, initialError }: any) => (
+vi.mock("../components/ParentalPINModal", () => ({
+  ParentalPINModal: ({ onVerified, initialError }: any) => (
     <div>
       <span data-testid="pin-error">{initialError ?? ""}</span>
       <button type="button" onClick={() => onVerified("proof")}>enter-pin</button>
@@ -87,6 +87,23 @@ describe("who is watching", () => {
     await waitFor(() => expect(screen.getByText("enter-pin")).toBeTruthy());
     fireEvent.click(screen.getByText("enter-pin"));
     await waitFor(() => expect(screen.getByTestId("pin-error").textContent).toBe("Incorrect PIN"));
+  });
+
+  // The Android television's rule: right after sign-in, a household with no
+  // kids profile has nothing to protect and walks straight through.
+  it("walks through after sign-in when no profile is a kids one", async () => {
+    refreshToken.mockResolvedValue({ accessToken: "a", refreshToken: "r" });
+    listProfiles.mockReturnValue({ data: { profiles: [PROFILES[0], { id: "prf-2", name: "Other" }] }, isLoading: false });
+    render(<ProfileSelectScreen />);
+    await waitFor(() => expect(refreshToken).toHaveBeenCalledWith(expect.objectContaining({ profileId: "prf-adult" })));
+    expect(screen.queryByText("Other")).toBeNull();
+  });
+
+  it("always shows the picker when the viewer asked to switch", () => {
+    listProfiles.mockReturnValue({ data: { profiles: [PROFILES[0], { id: "prf-2", name: "Other" }] }, isLoading: false });
+    render(<ProfileSelectScreen pick />);
+    expect(screen.getByText("Other")).toBeTruthy();
+    expect(refreshToken).not.toHaveBeenCalled();
   });
 
   it("says something went wrong for anything that is not a refusal", async () => {

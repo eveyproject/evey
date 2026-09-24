@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { act, render, screen, fireEvent } from "@testing-library/react";
 
 // The screen is under test, not the libraries around it: the queries answer
 // from the fixtures below and every box is focusable.
@@ -11,6 +11,7 @@ const recommended = vi.fn();
 const listMediaItems = vi.fn();
 const collections = vi.fn();
 const popular = vi.fn();
+const recentlyAdded = vi.fn();
 
 vi.mock("../tv/focus", () => ({
   useArrivalFocus: () => {},
@@ -34,6 +35,9 @@ vi.mock("@evey/api", () => ({
   useLibraryServiceListLibraries: () => libraries(),
   usePlaybackServiceGetNextUp: () => nextUp(),
   usePlaybackServiceGetResumeItems: () => resume(),
+  useLibraryServiceListMediaItems: () => recentlyAdded(),
+  getPhotoServiceListPhotoAlbumsQueryOptions: (p: unknown) => ({ queryKey: ["photos", p] }),
+  displayTitle: (item: { title?: string }) => item.title ?? "",
   getLibraryServiceListMediaItemsQueryOptions: (p: unknown) => ({ queryKey: ["media", p] }),
   getMusicServiceGetAlbumsQueryOptions: (p: unknown) => ({ queryKey: ["albums", p] }),
 }));
@@ -45,7 +49,6 @@ vi.mock("@evey/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/client")>()),
   useCollections: () => collections(),
   useMostPopular: () => popular(),
-  useWatchProgressMaps: () => ({ watchedMap: new Map([["res-1", true]]), percentMap: new Map([["res-1", 42]]) }),
 }));
 vi.mock("../plugins/PluginSlot", () => ({
   PluginSlot: ({ pluginId }: { pluginId?: string }) => <div data-testid={`plugin-${pluginId ?? "unplaced"}`} />,
@@ -53,18 +56,23 @@ vi.mock("../plugins/PluginSlot", () => ({
 vi.mock("../components/FeedCustomizePanel", () => ({ FeedCustomizePanel: () => <div data-testid="customize" /> }));
 
 import { HomeScreen } from "./Home";
+import { HOME_CUSTOMIZE_EVENT } from "../components/StackHeader";
 
 const LIBRARIES = { libraries: [{ id: "lib-films", name: "Films", type: "LIBRARY_TYPE_MOVIES" }] };
 
 beforeEach(() => {
   feedConfig.mockReturnValue({ data: { configs: [] } });
   libraries.mockReturnValue({ data: LIBRARIES, isLoading: false });
-  resume.mockReturnValue({ data: { items: [{ id: "res-1", title: "Resume me", type: "MEDIA_ITEM_TYPE_MOVIE" }] }, isLoading: false });
+  resume.mockReturnValue({
+    data: { items: [{ id: "res-1", title: "Resume me", type: "MEDIA_ITEM_TYPE_MOVIE" }], progress: [{ mediaItemId: "res-1", percentComplete: 42 }] },
+    isLoading: false,
+  });
   nextUp.mockReturnValue({ data: { items: [] }, isLoading: false });
   recommended.mockReturnValue({ data: { items: [{ mediaItemId: "rec-1", title: "Recommended one" }] } });
   listMediaItems.mockReturnValue({ data: { items: [{ id: "lib-item", title: "From the library" }] } });
   collections.mockReturnValue({ data: { collections: [{ id: "col-1", name: "Saga" }] } });
   popular.mockReturnValue({ data: [{ mediaItemId: "pop-1", title: "Popular one" }] });
+  recentlyAdded.mockReturnValue({ data: { items: [{ id: "recent-1" }] }, isLoading: false });
 });
 
 describe("the home follows the server's row plan", () => {
@@ -80,20 +88,25 @@ describe("the home follows the server's row plan", () => {
     });
     render(<HomeScreen />);
     const titles = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(titles.slice(0, 2)).toEqual(["media.home.mostPopular", "common.feeds.labels.resume_playback"]);
+    expect(titles.slice(0, 2)).toEqual(["media.home.mostPopular", "media.home.continueWatching"]);
     // Disabled in the config: the row must not appear at all.
     expect(titles).not.toContain("media.home.recommendedForYou");
   });
 
-  // Measured in prod on 2026-09-23: the header copied from the Android
-  // television repeated Music, Search and Settings under the navigation bar
-  // that already carries them.
-  it("keeps Music, Search and Settings to the navigation bar", () => {
+  // As on the Android television, the home has no header of its own: search,
+  // notifications, the profile and Customize live in the shell's header.
+  it("draws no header row of its own", () => {
     render(<HomeScreen />);
-    for (const key of ["common.nav.music", "common.nav.search", "common.nav.settings"]) {
+    for (const key of ["common.nav.music", "common.nav.search", "common.nav.settings", "media.home.customize"]) {
       expect(screen.queryByText(key)).toBeNull();
     }
-    expect(screen.getByText("media.home.customize")).toBeTruthy();
+  });
+
+  it("opens Customize when the header asks for it", () => {
+    render(<HomeScreen />);
+    expect(screen.queryByTestId("customize")).toBeNull();
+    act(() => { window.dispatchEvent(new Event(HOME_CUSTOMIZE_EVENT)); });
+    expect(screen.getByTestId("customize")).toBeTruthy();
   });
 
   it("places a plugin row where the config puts it, and a fresh install above", () => {
@@ -105,9 +118,8 @@ describe("the home follows the server's row plan", () => {
     expect(screen.getByTestId("plugin-unplaced")).toBeTruthy();
   });
 
-  it("carries the watched tick and the progress bar onto the cards", () => {
+  it("carries the resume progress onto the card", () => {
     render(<HomeScreen />);
-    expect(document.querySelector(".watched-badge")).toBeTruthy();
     const bar = document.querySelector(".card-progress i") as HTMLElement;
     expect(bar.style.width).toBe("42%");
   });
@@ -132,6 +144,7 @@ describe("the home follows the server's row plan", () => {
     recommended.mockReturnValue({ data: { items: [] } });
     collections.mockReturnValue({ data: { collections: [] } });
     popular.mockReturnValue({ data: [] });
+    recentlyAdded.mockReturnValue({ data: { items: [] }, isLoading: false });
     render(<HomeScreen />);
     expect(screen.getByText("media.home.emptyLibrary")).toBeTruthy();
   });

@@ -17,10 +17,11 @@ vi.mock("../tv/focus", () => ({
   }),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
-vi.mock("../app/router", () => ({ navigate: vi.fn(), replace: vi.fn() }));
+vi.mock("../app/router", () => ({ navigate: vi.fn(), replace: vi.fn(), goBack: vi.fn() }));
 const authState = { profileId: "prf-1", accessToken: "t" };
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign((sel: any) => sel(authState), { getState: () => authState }),
+  toast: { info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
@@ -69,18 +70,25 @@ describe("the library screen", () => {
   it("opens a shows library on its series, not on a mix of seasons and episodes", () => {
     library.mockReturnValue({ data: { id: "lib-2", name: "Séries", type: "LIBRARY_TYPE_SHOWS" } });
     render(<LibraryScreen libraryId="lib-2" />);
-    const active = Array.from(document.querySelectorAll(".chips .btn.primary")).map((b) => b.textContent);
+    const active = Array.from(document.querySelectorAll(".chip.active")).map((b) => b.textContent);
     expect(active).toContain("media.library.series");
   });
 
-  it("counts what the server says it holds", () => {
+  // The Android television's toolbar: shuffle everywhere, play-all only on an
+  // episodes selection (the player chains nothing else).
+  it("offers shuffle everywhere and play-all on episodes only", () => {
     render(<LibraryScreen libraryId="lib-1" />);
-    expect(screen.getByText("media.library.resultCount")).toBeTruthy();
+    expect(screen.getByText("common.shufflePlay")).toBeTruthy();
+    expect(screen.queryByText("common.playAll")).toBeNull();
+    library.mockReturnValue({ data: { id: "lib-2", name: "Séries", type: "LIBRARY_TYPE_SHOWS" } });
+    render(<LibraryScreen libraryId="lib-2" />);
+    fireEvent.click(screen.getByText("media.library.episodes"));
+    expect(screen.getByText("common.playAll")).toBeTruthy();
   });
 
   it("turns the grid into one ranked page while something is typed", () => {
     render(<LibraryScreen libraryId="lib-1" />);
-    fireEvent.change(screen.getByPlaceholderText("media.search.searchLibrary"), { target: { value: "alpha" } });
+    fireEvent.change(screen.getByPlaceholderText("media.library.filterByName"), { target: { value: "alpha" } });
     expect(searchMedia).toHaveBeenLastCalledWith(
       expect.objectContaining({ libraryId: "lib-1", query: "alpha" }),
       expect.objectContaining({ query: expect.objectContaining({ enabled: true }) }),
@@ -93,7 +101,7 @@ describe("the library screen", () => {
       isLoading: false, isError: false, hasNextPage: false, isFetchingNextPage: false, fetchNextPage, refetch: vi.fn(),
     });
     render(<LibraryScreen libraryId="lib-1" />);
-    expect(screen.getByText("media.library.noItemsEmptyUser")).toBeTruthy();
+    expect(screen.getByText("common.noItems")).toBeTruthy();
     fireEvent.click(screen.getByText("Action"));
     expect(screen.getByText("media.library.noItemsFiltered")).toBeTruthy();
   });

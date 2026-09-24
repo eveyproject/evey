@@ -1,22 +1,28 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useUserServiceLogin } from "@evey/api";
-import { useAuthStore, useServerListStore } from "@evey/store";
-import { FocusRoot } from "../tv/focus";
-import { Button, TextField } from "../components/ui";
+import { useAuthStore } from "@evey/store";
+import { FocusRoot, useBackHandler } from "../tv/focus";
+import { Pressable, Spinner, TextField } from "../components/ui";
 import { refreshTokenStore } from "../lib/session";
 import { navigate, replace } from "../app/router";
 
+/** Sign in as the Android television lays it out; the remote lands on Quick Connect. */
 export function LoginScreen() {
   const { t } = useTranslation();
-  const server = useServerListStore((s) => s.getActiveServer());
   const setTokens = useAuthStore((s) => s.setTokens);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const changeServer = useCallback(() => replace({ name: "server" }), []);
+  useBackHandler(changeServer);
 
+  // One request per press: the field's Enter and the button both submit, and
+  // isPending lags a render - the server locks an account after five failures.
+  const inFlight = useRef(false);
   const login = useUserServiceLogin({
     mutation: {
+      onSettled: () => { inFlight.current = false; },
       onSuccess: async (data) => {
         if (!data.accessToken) return;
         // The refresh token comes in the body (X-Persistent-Session): this
@@ -25,36 +31,34 @@ export function LoginScreen() {
         setTokens(data.accessToken);
         replace({ name: "profiles" });
       },
-      onError: () => setError(t("auth.login.loginFailed", "Sign-in failed. Check your username and password.")),
+      onError: (err) => setError(err instanceof Error && err.message ? err.message : t("auth.login.invalidCredentials")),
     },
   });
 
   function submit() {
-    if (!username.trim() || !password || login.isPending) return;
+    if (!username.trim() || !password || inFlight.current || login.isPending) return;
+    inFlight.current = true;
     setError(null);
     login.mutate({ data: { username: username.trim(), password } });
   }
 
   return (
-    <FocusRoot autoFocus className="screen screen-center">
-      <h1 className="title">{t("auth.login.signIn", "Sign in")}</h1>
-      <p className="subtitle">{server?.label || server?.serverName || server?.url}</p>
-      <div className="stack">
-        <TextField value={username} onChange={setUsername} placeholder={t("auth.login.username", "Username")} autoFocus onSubmit={submit} />
-        <TextField value={password} onChange={setPassword} placeholder={t("auth.login.password", "Password")} type="password" onSubmit={submit} />
-        <Button variant="primary" onPress={submit} disabled={login.isPending}>
-          {t("auth.login.signIn", "Sign in")}
-        </Button>
-        {error ? <p className="error">{error}</p> : null}
-      </div>
-      <div className="actions">
-        <Button onPress={() => navigate({ name: "quickconnect" })}>
-          {t("auth.settings.quickConnect.title", "Quick Connect")}
-        </Button>
-        <Button variant="ghost" onPress={() => replace({ name: "server" })}>
-          {t("mobile.settings.changeServer", "Change server")}
-        </Button>
-      </div>
+    <FocusRoot autoFocus className="auth-page">
+      <h1 className="auth-title">{t("auth.login.signIn")}</h1>
+      <div className="auth-field"><TextField value={username} onChange={setUsername} placeholder={t("auth.login.username")} /></div>
+      <div className="auth-field"><TextField value={password} onChange={setPassword} placeholder={t("auth.login.password")} type="password" onSubmit={submit} /></div>
+      <Pressable className="auth-primary" label={t("auth.login.signIn")} onPress={submit}>
+        {login.isPending ? <Spinner /> : t("auth.login.signIn")}
+      </Pressable>
+      {error ? <p className="auth-error"><span className="auth-error-title">{t("auth.login.loginFailed")}</span> {error}</p> : null}
+      <div className="auth-divider" />
+      <Pressable className="auth-qc" autoFocus label={t("auth.settings.quickConnect.title")} onPress={() => navigate({ name: "quickconnect" })}>
+        <span className="auth-qc-title">{t("auth.settings.quickConnect.title")}</span>
+        <span className="auth-qc-hint">{t("auth.login.recommendedForTV")}</span>
+      </Pressable>
+      <Pressable className="auth-link" label={t("mobile.settings.changeServer")} onPress={changeServer}>
+        {t("mobile.settings.changeServer")}
+      </Pressable>
     </FocusRoot>
   );
 }

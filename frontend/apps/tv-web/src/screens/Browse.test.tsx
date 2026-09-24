@@ -14,10 +14,11 @@ vi.mock("../tv/focus", () => ({
   useFocusable: () => ({ ref: { current: null }, focused: false, focusSelf: () => {} }),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
-vi.mock("../app/router", () => ({ navigate: (...a: unknown[]) => navigateMock(...a) }));
+vi.mock("../app/router", () => ({ navigate: (...a: unknown[]) => navigateMock(...a), goBack: vi.fn() }));
 const authState = { profileId: "prf-1", accessToken: "t" };
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign((sel: any) => sel(authState), { getState: () => authState }),
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
@@ -31,7 +32,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useLibraryServiceListLibraries: () => ({ data: { libraries: [] }, isLoading: false }),
   useLibraryServiceSearchMedia: () => ({ data: { items: [] }, isLoading: false }),
   useLibraryServiceListMediaItems: () => ({ data: { items: [] }, isLoading: false }),
-  usePlaybackServiceMarkAsUnwatched: () => ({ mutateAsync: markUnwatched }),
+  usePlaybackServiceMarkAsUnwatched: () => ({ mutate: markUnwatched, isPending: false }),
   useNotificationServiceListNotifications: () => notifications(),
   useNotificationServiceMarkRead: () => ({ mutate: markRead }),
   useNotificationServiceMarkAllRead: () => ({ mutate: markAllRead }),
@@ -70,10 +71,11 @@ beforeEach(() => {
 });
 
 describe("the watch history", () => {
-  it("names the title and offers to unwatch it", async () => {
+  // A remote has no swipe: Remove is its own stop beside the row.
+  it("names the title and offers to remove it", async () => {
     render(<HistoryScreen />);
     expect(screen.getByText("Watched film")).toBeTruthy();
-    fireEvent.click(screen.getByText("media.library.markUnwatched"));
+    fireEvent.click(screen.getByText("common.remove"));
     expect(markUnwatched).toHaveBeenCalledWith({ mediaItemId: "m-1" });
   });
 
@@ -88,7 +90,7 @@ describe("the notifications", () => {
   it("marks one read and opens what it is about", () => {
     render(<NotificationsScreen />);
     // The row, not the heading or the mark-all button.
-    fireEvent.click(document.querySelectorAll(".track-list .btn")[0]);
+    fireEvent.click(document.querySelectorAll(".notif-row")[0]);
     expect(markRead).toHaveBeenCalledWith({ id: "n-1" });
     expect(navigateMock).toHaveBeenCalledWith({ name: "media", mediaId: "m-9" });
   });

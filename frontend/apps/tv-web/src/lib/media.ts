@@ -27,3 +27,25 @@ export function isSeason(item: { type?: string } | undefined): boolean {
 export function isPlayable(item: { type?: string } | undefined): boolean {
   return !isSeries(item) && !isSeason(item);
 }
+
+/** A server path the browser loads itself (an <img>): the token rides the query. */
+export function authedSrc(path: string): string {
+  const token = useAuthStore.getState().accessToken;
+  const url = `${getBaseURL()}${path}`;
+  return token ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}` : url;
+}
+
+export function avatarSrc(profileId: string): string {
+  return authedSrc(`/api/v1/profiles/${profileId}/avatar`);
+}
+
+/** An image url the server handed over (absolute or server-relative), loadable by an <img>. */
+export function serverImageSrc(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  return /^https?:/.test(url) ? authedAbsolute(url) : authedSrc(url);
+}
+
+function authedAbsolute(url: string): string {
+  const token = useAuthStore.getState().accessToken;
+  return token ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}` : url;
+}

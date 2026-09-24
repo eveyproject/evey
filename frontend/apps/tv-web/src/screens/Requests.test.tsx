@@ -12,7 +12,7 @@ vi.mock("../tv/focus", () => ({
   useFocusable: () => ({ ref: { current: null }, focused: false, focusSelf: () => {} }),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
-vi.mock("../app/router", () => ({ navigate: (...a: unknown[]) => navigateMock(...a) }));
+vi.mock("../app/router", () => ({ navigate: (...a: unknown[]) => navigateMock(...a), goBack: vi.fn() }));
 vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
@@ -35,10 +35,11 @@ import { RequestsScreen } from "./Requests";
 
 const idle = { data: undefined, isFetching: false };
 
-// The button in the search row, not the tab of the same name.
-function submitSearch() {
-  const buttons = Array.from(document.querySelectorAll(".chips .btn"));
-  fireEvent.click(buttons[buttons.length - 1]);
+// The field's Enter searches, as the Android television's does.
+function search(text: string) {
+  const field = screen.getByPlaceholderText("requests.searchPlaceholder");
+  fireEvent.change(field, { target: { value: text } });
+  fireEvent.keyDown(field, { key: "Enter", keyCode: 13 });
 }
 
 beforeEach(() => {
@@ -56,24 +57,25 @@ describe("media requests", () => {
     policy.mockReturnValue({ data: { canRequest: false }, isLoading: false });
     render(<RequestsScreen />);
     expect(screen.getByText("requests.disabledTitle")).toBeTruthy();
+    fireEvent.click(screen.getByText("media.library.libraries"));
+    expect(navigateMock).toHaveBeenCalledWith({ name: "libraries" });
     expect(screen.queryByText("requests.searchPrompt")).toBeNull();
   });
 
   it("interleaves films and series so neither owns the top of the list", () => {
     render(<RequestsScreen />);
-    fireEvent.change(screen.getByPlaceholderText("requests.searchPlaceholder"), { target: { value: "one" } });
-    submitSearch();
-    const labels = Array.from(document.querySelectorAll(".card .label")).map((c) => c.textContent);
-    expect(labels).toEqual(["Film one", "Series one"]);
+    search("one");
+    const titles = Array.from(document.querySelectorAll(".req-title")).map((c) => c.textContent);
+    expect(titles).toEqual(["Film one", "Series one"]);
   });
 
   it("marks what is already in the library and opens it instead of asking again", () => {
     movies.mockReturnValue({ data: { results: [{ provider: "tmdb", providerId: "1", title: "Owned", inLibrary: true, mediaItemId: "m-9" }] }, isFetching: false });
     series.mockReturnValue({ data: { results: [] }, isFetching: false });
     render(<RequestsScreen />);
-    fireEvent.change(screen.getByPlaceholderText("requests.searchPlaceholder"), { target: { value: "owned" } });
-    submitSearch();
-    fireEvent.click(screen.getByText("Owned · requests.inLibrary"));
+    search("owned");
+    expect(screen.getByText("requests.inLibrary")).toBeTruthy();
+    fireEvent.click(screen.getByText("requests.watchNow"));
     expect(navigateMock).toHaveBeenCalledWith({ name: "media", mediaId: "m-9" });
     expect(createMutate).not.toHaveBeenCalled();
   });
@@ -82,18 +84,16 @@ describe("media requests", () => {
     mine.mockReturnValue({ data: { items: [{ mediaType: "movie", provider: "tmdb", providerId: "1", title: "Film one" }] }, isLoading: false });
     series.mockReturnValue({ data: { results: [] }, isFetching: false });
     render(<RequestsScreen />);
-    fireEvent.change(screen.getByPlaceholderText("requests.searchPlaceholder"), { target: { value: "one" } });
-    submitSearch();
-    fireEvent.click(screen.getByText("Film one · requests.requested"));
+    search("one");
+    fireEvent.click(screen.getByText("requests.requested"));
     expect(createMutate).not.toHaveBeenCalled();
   });
 
   it("sends what the provider gave, so the server can fetch the right title", () => {
     series.mockReturnValue({ data: { results: [] }, isFetching: false });
     render(<RequestsScreen />);
-    fireEvent.change(screen.getByPlaceholderText("requests.searchPlaceholder"), { target: { value: "one" } });
-    submitSearch();
-    fireEvent.click(screen.getByText("Film one"));
+    search("one");
+    fireEvent.click(screen.getByText("requests.request"));
     expect(createMutate).toHaveBeenCalledWith({ data: expect.objectContaining({ mediaType: "movie", provider: "tmdb", providerId: "1", title: "Film one" }) });
   });
 });

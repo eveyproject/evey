@@ -4,7 +4,7 @@ import QRCode from "react-qr-code";
 import { useUserServiceInitiateQuickConnect, userServiceCheckQuickConnect } from "@evey/api";
 import { useAuthStore, useServerListStore } from "@evey/store";
 import { FocusRoot } from "../tv/focus";
-import { Button, Spinner } from "../components/ui";
+import { Pressable, Spinner } from "../components/ui";
 import { refreshTokenStore } from "../lib/session";
 import { goBack, replace } from "../app/router";
 
@@ -85,21 +85,23 @@ export function QuickConnectScreen() {
   const qrValue = code && serverUrl ? `${serverUrl}/quickconnect?code=${code}` : null;
 
   return (
-    <FocusRoot autoFocus className="screen screen-center">
-      <h1 className="title">{t("auth.settings.quickConnect.title", "Quick Connect")}</h1>
-      <p className="subtitle">{t("auth.settings.quickConnect.scanInstruction", "Scan the code or enter it on a device where you are signed in.")}</p>
-      {qrValue ? (
-        <div className="qr">
-          <QRCode value={qrValue} size={220} />
-        </div>
-      ) : initiate.isError ? (
-        <Button onPress={doInitiate}>{t("common.retry", "Retry")}</Button>
-      ) : (
-        <Spinner />
-      )}
-      {displayCode ? <div className="code">{displayCode}</div> : null}
-      {code ? <p className="muted">{t("auth.settings.quickConnect.expiresIn", "Expires in {{seconds}} s", { seconds: secondsLeft })}</p> : null}
-      <Button autoFocus onPress={goBack}>{t("common.back", "Back")}</Button>
+    <FocusRoot autoFocus className="auth-page qc-page">
+      <h1 className="qc-title">{t("auth.settings.quickConnect.title")}</h1>
+      <p className="qc-instruction">{t("auth.settings.quickConnect.scanInstruction")}</p>
+      <div className="qc-box">
+        {qrValue ? (
+          <div className="qc-qr"><QRCode value={qrValue} size={170} style={{ width: "17rem", height: "17rem" }} /></div>
+        ) : initiate.isError ? (
+          <Pressable className="tv-card qc-retry" onPress={doInitiate}>{t("common.retry")}</Pressable>
+        ) : (
+          <div className="qc-wait"><Spinner /></div>
+        )}
+        {displayCode ? <div className="qc-code">{displayCode}</div> : null}
+      </div>
+      {code ? <p className="qc-expires">{t("auth.settings.quickConnect.expiresIn", { seconds: secondsLeft })}</p> : null}
+      <Pressable className="auth-link accent" autoFocus label={t("auth.forgotPassword.backToLogin")} onPress={goBack}>
+        {t("common.back")}
+      </Pressable>
     </FocusRoot>
   );
 }

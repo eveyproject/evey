@@ -7,7 +7,7 @@ import {
   activeSkippable,
   skippableCandidates,
 } from "@evey/client";
-import { Button } from "../components/ui";
+import { Pressable } from "../components/ui";
 import { FocusRoot } from "../tv/focus";
 
 /**
@@ -16,9 +16,11 @@ import { FocusRoot } from "../tv/focus";
  * intro only - one jump per segment, so seeking back into it is the viewer
  * choosing to watch it.
  */
-export function SkipSegmentButton({ mediaId, currentTime, onSkip, onNextEpisode }: {
+export function SkipSegmentButton({ mediaId, currentTime, onSkip, onNextEpisode, raised }: {
   mediaId: string;
   currentTime: number;
+  /** The next-episode card is up: the buttons ride above it. */
+  raised?: boolean;
   onSkip: (toSec: number) => void;
   onNextEpisode?: () => void;
 }) {
@@ -40,11 +42,12 @@ export function SkipSegmentButton({ mediaId, currentTime, onSkip, onNextEpisode 
   }, [autoTarget]);
 
   if (!resolved || autoTarget) return null;
+  // Takes the remote on arrival, as on the Android television: OK skips.
   return (
-    <FocusRoot className="skip-segment">
-      <Button variant="primary" onPress={() => onSkip(resolved.endSec)}>{t(SKIP_LABEL_KEY[resolved.type])}</Button>
+    <FocusRoot className={`skip-segment ${raised ? "raised" : ""}`}>
+      <Pressable className="skip-btn" focusKey="skip:skip" autoFocus onPress={() => onSkip(resolved.endSec)}>{t(SKIP_LABEL_KEY[resolved.type])}</Pressable>
       {resolved.type === "end_credits" && onNextEpisode ? (
-        <Button onPress={onNextEpisode}>{t("player.controls.nextEpisode", "Next episode")}</Button>
+        <Pressable className="skip-btn" focusKey="skip:next" onPress={onNextEpisode}>{t("player.nextEpisodeOverlay.nextEpisode")}</Pressable>
       ) : null}
     </FocusRoot>
   );

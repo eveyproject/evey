@@ -5,6 +5,7 @@ import {
   formatTime,
   trackDisplayName,
   useLibraryServiceGetMediaItem,
+  useUserServiceUpdateProfile,
   pickPreferredStreamIndex,
   pickDefaultSubtitle,
   isBurnInSubtitle,
@@ -12,10 +13,13 @@ import {
   clientSubtitleTrack,
   type V1MediaStream,
 } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
 import {
   useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, useChapters, useActiveProfile,
   useSleepTimer,
+  useSyncplay,
+  useParentalGate,
+  playerTitle,
   clampSeekTarget, holdScrubRate, tapSeekStep, SEEK_COMMIT_DELAY_MS, HOLD_SCRUB_TICK_MS,
 } from "@evey/client";
 import {
@@ -33,17 +37,23 @@ import {
 import { SkipSegmentButton } from "../player/SkipSegmentButton";
 import { StreamInfoPanel } from "../player/StreamInfoPanel";
 import type Hls from "hls.js";
-import { useTvKeys } from "../tv/focus";
-import { Spinner, Button } from "../components/ui";
-import { FocusRoot } from "../tv/focus";
+import { useTvKeys, FocusRoot } from "../tv/focus";
+import { Spinner, Button, Pressable } from "../components/ui";
+import { Icon } from "../components/icons";
 import { goBack, replace } from "../app/router";
 import { SubtitleOverlay } from "../player/SubtitleOverlay";
 import { TrickplayTile } from "../player/TrickplayTile";
 import { SettingsPanel, chapterLabel, type PanelSection } from "../player/SettingsPanel";
 import { useMusicQueueStore } from "../music/queue";
 import { decideHlsFatal } from "../lib/hlsRecovery";
+import { activeServerUrl } from "../lib/session";
+import { ParentalPINModal } from "../components/ParentalPINModal";
 
 const OSD_HIDE_MS = 4000;
+// With the remote on a control the viewer is choosing: the bar waits longer.
+const OSD_FOCUSED_HIDE_MS = 8000;
+const BAR_BUTTONS = ["rewind", "play", "forward", "speed", "settings"] as const;
+type BarFocus = (typeof BAR_BUTTONS)[number] | "timeline";
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const QUALITIES = [0, 2160, 1080, 720, 480];
 // No wasm audio engine here: the server transcodes AC-3/E-AC-3 to AAC.
@@ -65,9 +75,11 @@ function csv(v: string | undefined): string[] {
 // down opens the settings (audio, subtitles, quality, speed, chapters),
 // back leaves. hls.js on MSE with the master the shared session negotiated;
 // a track or quality change restarts the session, as on the Android app.
-export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
+function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   mediaId: string;
   restart: boolean;
+  /** A watch-together room joined from the code screen. */
+  roomId?: string;
   /** The tracks the title page chose before playing, as on the television. */
   audio?: number;
   subtitle?: number | "off";
@@ -85,7 +97,9 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
   const { data: skip } = usePlaybackSettings();
   const { data: segments } = useMediaSegments(mediaId);
   const { data: chapters } = useChapters(mediaId);
-  const [osd, setOsd] = useState(true);
+  const [osd, setOsdState] = useState(true);
+  const osdRef = useRef(true);
+  const setOsd = useCallback((v: boolean) => { osdRef.current = v; setOsdState(v); }, []);
   const [streamInfoOpen, setStreamInfoOpen] = useState(false);
   const [volume, setVolume] = useState(1);
   // The subtitle appearance the viewer chose, kept in this browser as the
@@ -96,6 +110,8 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
     saveSubtitleStylePref(next);
   }, []);
   const [panel, setPanel] = useState(false);
+  const [barFocus, setBarFocusState] = useState<BarFocus | null>(null);
+  const barFocusRef = useRef<BarFocus | null>(null);
   const [paused, setPaused] = useState(false);
   const [time, setTime] = useState(0);
   const committedTimeRef = useRef(0);
@@ -118,7 +134,15 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
   const showOsd = useCallback(() => {
     setOsd(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setOsd(false), OSD_HIDE_MS);
+    hideTimer.current = setTimeout(() => {
+      setOsd(false);
+      barFocusRef.current = null;
+      setBarFocusState(null);
+    }, barFocusRef.current ? OSD_FOCUSED_HIDE_MS : OSD_HIDE_MS);
+  }, []);
+  const setBarFocus = useCallback((next: BarFocus | null) => {
+    barFocusRef.current = next;
+    setBarFocusState(next);
   }, []);
 
   // --- tracks ---------------------------------------------------------------
@@ -176,8 +200,19 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
     },
   );
 
-  // The profile's own choice, as on the television: autoplay_next_episode.
-  const autoAdvance = profile?.preferences?.["autoplay_next_episode"] !== "false";
+  // The profile's own choice, as on the television, toggled from the menu.
+  const [autoplayOverride, setAutoplayOverride] = useState<boolean | null>(null);
+  const autoAdvance = autoplayOverride ?? autoplayNextEpisode(profile?.preferences);
+  const updateProfile = useUserServiceUpdateProfile();
+  const toggleAutoplay = useCallback(() => {
+    if (!profile?.id) return;
+    const next = !autoAdvance;
+    setAutoplayOverride(next);
+    updateProfile.mutate(
+      { id: profile.id, data: { preferences: autoplayNextPreferences(profile.preferences, next) } },
+      { onError: () => setAutoplayOverride(!next) },
+    );
+  }, [profile, autoAdvance, updateProfile]);
   const nextEp = useNextEpisode({
     media,
     currentTime: time,
@@ -379,13 +414,41 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
     if (commitTimer.current) clearTimeout(commitTimer.current);
   }, []);
 
+  // Watch together: the room drives play, pause and seek; this player's own
+  // play and pause are offered to the room (the server keeps host authority).
+  const syncplay = useSyncplay({
+    serverUrl: activeServerUrl() ?? "",
+    getLocalPositionMs: () => (videoRef.current?.currentTime ?? 0) * 1000,
+    onPlay: (ms, shouldSeek) => {
+      const v = videoRef.current;
+      if (!v) return;
+      if (shouldSeek) v.currentTime = ms / 1000;
+      void v.play();
+    },
+    onPause: (ms, shouldSeek) => {
+      const v = videoRef.current;
+      if (!v) return;
+      if (shouldSeek) v.currentTime = ms / 1000;
+      v.pause();
+    },
+    onSeek: (ms) => { if (videoRef.current) videoRef.current.currentTime = ms / 1000; },
+  });
+  useEffect(() => {
+    if (roomId && !syncplay.state.roomId) syncplay.connect(roomId);
+  }, [roomId, syncplay]);
+
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) void video.play();
-    else video.pause();
+    if (video.paused) {
+      void video.play();
+      if (syncplay.state.connected) syncplay.sendPlay(video.currentTime * 1000);
+    } else {
+      video.pause();
+      if (syncplay.state.connected) syncplay.sendPause(video.currentTime * 1000);
+    }
     showOsd();
-  }, [showOsd]);
+  }, [showOsd, syncplay]);
 
   // The intro, when the server knows where it is and the admin asked for it
   // to be skipped: jump once past it.
@@ -401,48 +464,80 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
   }, [time, segments]);
 
   // --- remote ---------------------------------------------------------------
+  // The Android television's model: at rest OK plays/pauses, left/right seek,
+  // DOWN enters the bar, BACK shows the bar then leaves. In the bar left/right
+  // walk the buttons, DOWN reaches the timeline (left/right seek), BACK exits it.
+  const pressBar = useRef<(key: BarFocus) => void>(() => {});
+  const cycleSpeedRef = useRef<() => void>(() => {});
   useEffect(() => {
-    if (panel || shedReason) return;
+    if (panel || shedReason || streamInfoOpen) return;
     const forward = skip?.skipForwardSeconds ?? 30;
     const backward = skip?.skipBackwardSeconds ?? 30;
     const dirOf = (e: KeyboardEvent): 1 | -1 | 0 =>
       e.key === "ArrowRight" || e.keyCode === 39 ? 1 : e.key === "ArrowLeft" || e.keyCode === 37 ? -1 : 0;
+    const isEnter = (e: KeyboardEvent) => e.key === "Enter" || e.keyCode === 13;
+    const isDown = (e: KeyboardEvent) => e.key === "ArrowDown" || e.keyCode === 40;
+    const isUp = (e: KeyboardEvent) => e.key === "ArrowUp" || e.keyCode === 38;
+    const isBack = (e: KeyboardEvent) => e.key === "Escape" || e.key === "GoBack" || e.key === "BrowserBack" || e.keyCode === 27 || e.keyCode === 461 || e.keyCode === 10009 || e.keyCode === 8;
+    const seekKey = (e: KeyboardEvent, dir: 1 | -1) => {
+      // The browser repeats a held key: the first repeat starts the scrub,
+      // the release ends it. A plain press is one tap.
+      if (e.repeat) beginHold(dir);
+      else if (!holdRef.current) seekBy(dir * (dir > 0 ? forward : backward));
+    };
     const onKeyDown = (e: KeyboardEvent) => {
+      const overlayFocused = !!document.querySelector(".skip-btn.focused, .nextep-btn.focused");
       const dir = dirOf(e);
-      if (dir !== 0) {
-        e.preventDefault();
-        // The browser repeats a held key: the first repeat starts the scrub,
-        // the release ends it. A plain press is one tap.
-        if (e.repeat) beginHold(dir);
-        else if (!holdRef.current) seekBy(dir * (dir > 0 ? forward : backward));
-        return;
-      }
-      if (e.key === "Enter" || e.keyCode === 13) {
-        e.preventDefault();
-        if (nextEp.visible && !nextEp.ended) nextEp.playNow();
-        else togglePlay();
-        return;
-      }
-      if (e.key === "ArrowDown" || e.keyCode === 40) {
-        e.preventDefault();
-        // The one way into the options, and the bar says so on screen.
-        if (osd) setPanel(true);
-        else showOsd();
-        return;
-      }
-      if (e.key === "ArrowUp" || e.keyCode === 38) {
-        e.preventDefault();
+      const bar = barFocusRef.current;
+      const handled = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+
+      if (nextEp.visible && isBack(e)) { handled(); nextEp.cancel(); return; }
+      if (overlayFocused && !bar && (isEnter(e) || isUp(e) || isDown(e))) return;
+
+      if (bar) {
+        handled();
+        if (isBack(e)) { setBarFocus(null); showOsd(); return; }
+        if (bar === "timeline") {
+          if (dir !== 0) { seekKey(e, dir); return; }
+          if (isUp(e)) { setBarFocus("play"); showOsd(); return; }
+          if (isEnter(e)) {
+            if (previewRef.current !== null) { if (commitTimer.current) clearTimeout(commitTimer.current); commitSeek(); }
+            else togglePlay();
+          }
+          showOsd();
+          return;
+        }
+        const i = BAR_BUTTONS.indexOf(bar);
+        if (dir !== 0) setBarFocus(BAR_BUTTONS[Math.min(BAR_BUTTONS.length - 1, Math.max(0, i + dir))]);
+        else if (isDown(e)) setBarFocus("timeline");
+        else if (isEnter(e)) pressBar.current(bar);
         showOsd();
+        return;
+      }
+
+      if (dir !== 0) { handled(); seekKey(e, dir); return; }
+      if (isEnter(e)) { handled(); togglePlay(); return; }
+      if (isDown(e)) {
+        handled();
+        if (osdRef.current) setBarFocus("play");
+        showOsd();
+        return;
+      }
+      if (isUp(e)) { handled(); showOsd(); return; }
+      if (isBack(e)) {
+        handled();
+        if (osdRef.current) goBack();
+        else showOsd();
       }
     };
     const onKeyUp = (e: KeyboardEvent) => { if (dirOf(e) !== 0) endHold(); };
-    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("keyup", onKeyUp);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [seekBy, beginHold, endHold, togglePlay, showOsd, skip, nextEp, osd, panel, shedReason]);
+  }, [seekBy, beginHold, endHold, commitSeek, togglePlay, showOsd, setBarFocus, skip, nextEp, panel, shedReason, streamInfoOpen]);
 
   useTvKeys(useCallback((key, e) => {
     if (panel) return;
@@ -505,43 +600,6 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
         },
       });
     }
-    out.push({
-      key: "quality",
-      label: t("player.settings.quality", "Quality"),
-      value: quality ? `${quality}p` : t("player.settings.auto", "Auto"),
-      choices: QUALITIES.map((q) => ({ key: String(q), label: q ? `${q}p` : t("player.settings.auto", "Auto"), selected: q === quality })),
-      onPick: (k) => {
-        const q = Number(k);
-        if (q === quality) return;
-        setQuality(q);
-        restartKeepingPlace(selectedAudio, burnIn ?? undefined, q);
-      },
-    });
-    out.push({
-      key: "speed",
-      label: t("player.settings.speed", "Speed"),
-      value: `${speed}x`,
-      choices: SPEEDS.map((s) => ({ key: String(s), label: `${s}x`, selected: s === speed })),
-      onPick: (k) => {
-        const s = Number(k);
-        setSpeed(s);
-        if (videoRef.current) videoRef.current.playbackRate = s;
-      },
-    });
-    if (chapters && chapters.length > 0) {
-      // The current chapter is only read while the panel is open, and this
-      // whole list used to be rebuilt on every clock tick for it.
-      const currentIdx = panel
-        ? chapters.findIndex((c, i) => time * 1000 >= c.startTimeMs && (i === chapters.length - 1 || time * 1000 < chapters[i + 1].startTimeMs))
-        : -1;
-      out.push({
-        key: "chapters",
-        label: t("player.controls.chapters", "Chapters"),
-        value: currentIdx >= 0 ? chapters[currentIdx].title : "",
-        choices: chapters.map((c, i) => ({ key: String(i), label: chapterLabel(c.title, c.startTimeMs), selected: i === currentIdx })),
-        onPick: (k) => seekTo(chapters[Number(k)].startTimeMs / 1000),
-      });
-    }
     if (clientSubtitle !== null) {
       out.push({
         key: "subtitleStyle",
@@ -568,6 +626,56 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
       });
     }
     out.push({
+      key: "quality",
+      label: t("player.settings.quality", "Quality"),
+      value: quality ? `${quality}p` : t("player.settings.auto", "Auto"),
+      choices: QUALITIES.map((q) => ({ key: String(q), label: q ? `${q}p` : t("player.settings.auto", "Auto"), selected: q === quality })),
+      onPick: (k) => {
+        const q = Number(k);
+        if (q === quality) return;
+        setQuality(q);
+        restartKeepingPlace(selectedAudio, burnIn ?? undefined, q);
+      },
+    });
+    out.push({
+      key: "speed",
+      label: t("player.settings.speed", "Speed"),
+      value: `${speed}x`,
+      choices: [],
+      onPick: () => {},
+      action: () => cycleSpeedRef.current(),
+    });
+    if (nextEp.previousEpisode) {
+      out.push({ key: "previous", label: t("player.controls.previousEpisode"), value: "", choices: [], onPick: () => {}, action: nextEp.playPrevious });
+    }
+    if (nextEp.nextEpisode) {
+      out.push({ key: "next", label: t("player.controls.nextEpisode"), value: "", choices: [], onPick: () => {}, action: nextEp.playNow });
+    }
+    if (media?.type === "MEDIA_ITEM_TYPE_EPISODE") {
+      out.push({
+        key: "autoplay",
+        label: t("player.settings.autoplayNext"),
+        value: autoAdvance ? t("common.enabled") : t("common.disabled"),
+        choices: [],
+        onPick: () => {},
+        action: toggleAutoplay,
+      });
+    }
+    if (chapters && chapters.length > 0) {
+      // The current chapter is only read while the panel is open, and this
+      // whole list used to be rebuilt on every clock tick for it.
+      const currentIdx = panel
+        ? chapters.findIndex((c, i) => time * 1000 >= c.startTimeMs && (i === chapters.length - 1 || time * 1000 < chapters[i + 1].startTimeMs))
+        : -1;
+      out.push({
+        key: "chapters",
+        label: t("player.controls.chapters", "Chapters"),
+        value: currentIdx >= 0 ? chapters[currentIdx].title : "",
+        choices: chapters.map((c, i) => ({ key: String(i), label: chapterLabel(c.title, c.startTimeMs), selected: i === currentIdx })),
+        onPick: (k) => seekTo(chapters[Number(k)].startTimeMs / 1000),
+      });
+    }
+    out.push({
       key: "volume",
       label: t("player.controls.volume"),
       value: `${Math.round(volume * 100)}%`,
@@ -585,7 +693,7 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
         ? t("player.sleepTimer.minutes", { count: sleep.state.minutesLeft, defaultValue: `${sleep.state.minutesLeft} min` })
         : sleep.state?.kind === "endOfEpisode"
           ? t("player.sleepTimer.endOfEpisode")
-          : t("player.sleepTimer.cancel"),
+          : "",
       choices: [
         { key: "off", label: t("player.sleepTimer.cancel"), selected: !sleep.state },
         ...sleepChoices.map((m) => ({
@@ -601,26 +709,48 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
         else sleep.setMinutes(Number(k));
       },
     });
-    out.push({
-      key: "streamInfo",
-      label: t("player.streamInfo.title"),
-      value: "",
-      choices: [{ key: "open", label: t("player.streamInfo.title"), selected: false }],
-      onPick: () => { setPanel(false); setStreamInfoOpen(true); },
-    });
+    if (streamInfo) {
+      out.push({
+        key: "streamInfo",
+        label: t("player.streamInfo.title"),
+        value: "",
+        choices: [],
+        onPick: () => {},
+        action: () => { setPanel(false); setStreamInfoOpen(true); },
+      });
+    }
     return out;
-  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, panel, time, t, restartKeepingPlace, seekTo, sleep, sleepChoices, clientSubtitle, subtitleStyle, applySubtitleStyle, volume]);
+  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, panel, time, t, restartKeepingPlace, seekTo, sleep, sleepChoices, clientSubtitle, subtitleStyle, applySubtitleStyle, volume, nextEp, media?.type, autoAdvance, toggleAutoplay, streamInfo]);
+
+  // --- bar -------------------------------------------------------------------
+  const cycleSpeed = useCallback(() => {
+    const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    setSpeed(next);
+    if (videoRef.current) videoRef.current.playbackRate = next;
+    showOsd();
+  }, [speed, showOsd]);
+  cycleSpeedRef.current = cycleSpeed;
+  const skipBack = skip?.skipBackwardSeconds ?? 30;
+  const skipFwd = skip?.skipForwardSeconds ?? 30;
+  pressBar.current = (key: BarFocus) => {
+    if (key === "rewind") seekBy(-skipBack);
+    else if (key === "forward") seekBy(skipFwd);
+    else if (key === "play") togglePlay();
+    else if (key === "speed") cycleSpeed();
+    else if (key === "settings") { setBarFocus(null); setPanel(true); }
+  };
 
   // --- render ---------------------------------------------------------------
   const shown = preview ?? time;
   needsFineTimeRef.current = osd || paused || panel || preview !== null || clientSubtitle !== null;
   const pct = duration > 0 ? Math.min(100, (shown / duration) * 100) : 0;
-  const barVisible = osd || paused || panel;
+  const barVisible = osd || paused || panel || barFocus !== null;
   // Only while the bar is up: formatting a local time is not free, and it is
   // written nowhere else.
   const endsAt = barVisible && duration > 0
     ? new Date(Date.now() + ((duration - shown) * 1000) / (speed || 1)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : null;
+  const pendingDelta = preview !== null ? preview - time : 0;
 
   if (shedReason) {
     const keys = SHED_KEYS[shedReason];
@@ -638,11 +768,23 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
     );
   }
 
+  const control = (key: BarFocus, label: string, content: React.ReactNode, size: "small" | "normal" | "primary" = "normal") => (
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-label={label}
+      className={`ctl ${size} ${barFocus === key ? "focused" : ""}`}
+      onClick={() => { setBarFocus(key); pressBar.current(key); }}
+    >
+      {content}
+    </button>
+  );
+
   return (
-    <div className="player">
+    <div className="player" onClick={(e) => { if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === "VIDEO") { if (!osdRef.current) showOsd(); else togglePlay(); } }}>
       <video ref={videoRef} playsInline autoPlay />
       <SubtitleOverlay mediaId={mediaId} subtitleIndex={clientSubtitle} currentTimeSec={time} style={subtitleStyle} />
-      {(isLoading && !streamUrl) ? <div className="screen screen-center" style={{ position: "absolute", inset: 0 }}><Spinner /></div> : null}
+      {(isLoading && !streamUrl) ? <div className="player-buffering"><Spinner /></div> : null}
       {(isError || failed) ? (
         <FocusRoot autoFocus className="screen screen-center player-overlay">
           <p className="error">{t("player.playbackFailed", "This title could not be played.")}</p>
@@ -652,54 +794,80 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
           </div>
         </FocusRoot>
       ) : null}
-      {chapters && chapters.length > 0 && barVisible ? (
-        <div className="osd-chapter">{chapters.find((c, i) => shown * 1000 >= c.startTimeMs && (i === chapters.length - 1 || shown * 1000 < chapters[i + 1].startTimeMs))?.title ?? ""}</div>
+      {barVisible ? (
+        <div className="osd-layer">
+          <div className="osd-topbar">
+            <span className="osd-title">{media ? playerTitle(media, media.seriesTitle) : ""}</span>
+            <span className="osd-badges">
+              {roomId ? (
+                <span className={`osd-room ${syncplay.state.connected ? "on" : ""}`}>
+                  {syncplay.state.connected ? t("media.syncplay.connected", "Connected") : t("media.syncplay.join", "Join a room")}
+                </span>
+              ) : null}
+              {quality > 0 ? <span className="osd-badge">{quality}p</span> : null}
+            </span>
+          </div>
+          <div className="osd-panel">
+            <div className="osd-trickplay" style={{ left: `calc(4rem + 7rem + 1.6rem + (100% - 8rem - 14rem - 3.2rem) * ${pct / 100})` }}>
+              <TrickplayTile mediaId={mediaId} previewTimeSec={preview} warm={barVisible} />
+            </div>
+            <div className="osd-controls">
+              <div className="osd-group">
+                {control("rewind", t("player.controls.rewind", "Rewind"), `-${skipBack}s`)}
+                {control("play", paused ? t("player.controls.play") : t("player.controls.pause"), <Icon name={paused ? "play" : "pause"} size={40} />, "primary")}
+                {control("forward", t("player.controls.forward", "Forward"), `+${skipFwd}s`)}
+              </div>
+              <div className="osd-group">
+                {endsAt ? <span className="osd-ends">{t("player.controls.endsAt", { time: endsAt, defaultValue: `Ends at ${endsAt}` })}</span> : null}
+                {control("speed", t("player.settings.speed", "Speed"), `${speed}x`, "small")}
+                {control("settings", t("player.controls.more", "More"), <Icon name="settings" size={26} />, "small")}
+              </div>
+            </div>
+            <div className="osd-timeline">
+              <span className="osd-time">{formatTime(shown)}</span>
+              {pendingDelta !== 0 ? <span className="osd-delta">{pendingDelta > 0 ? "+" : "-"}{formatTime(Math.abs(pendingDelta))}</span> : null}
+              <div className={`osd-track-hit ${barFocus === "timeline" ? "focused" : ""}`}>
+                <div className="osd-track">
+                  <div className="osd-fill" style={{ width: `${pct}%` }} />
+                  {duration > 0 && (chapters ?? []).map((c, i) => {
+                    const p = (c.startTimeMs / 1000 / duration) * 100;
+                    return p > 0 && p < 100 ? <i key={i} className="osd-notch" style={{ left: `${p}%` }} /> : null;
+                  })}
+                </div>
+                {barFocus === "timeline" ? <span className="osd-knob" style={{ left: `${pct}%` }} /> : null}
+              </div>
+              <span className="osd-time">{formatTime(duration)}</span>
+            </div>
+          </div>
+        </div>
       ) : null}
-      <div className={`osd ${barVisible ? "" : "hidden"}`}>
-        <div className="osd-top">
-          <div className="title" style={{ fontSize: "2vw" }}>{media?.seriesTitle ? `${media.seriesTitle} · ` : ""}{media?.title}</div>
-          <div className="osd-meta">
-            {streamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY" ? t("player.quality.original", "Original") : quality ? `${quality}p` : t("player.quality.auto", "Auto")}
-            {speed !== 1 ? ` · ${speed}x` : ""}
-            {endsAt ? ` · ${t("player.controls.endsAt", { time: endsAt, defaultValue: `Ends at ${endsAt}` })}` : ""}
-          </div>
-        </div>
-        <div className="bar-wrap">
-          <div className="trickplay-anchor" style={{ left: `${pct}%` }}>
-            <TrickplayTile mediaId={mediaId} previewTimeSec={preview} warm={barVisible} />
-          </div>
-          <div className="bar">
-            <div style={{ width: `${pct}%` }} />
-            {duration > 0 && (chapters ?? []).map((c, i) => {
-              const p = (c.startTimeMs / 1000 / duration) * 100;
-              return p > 0 && p < 100 ? <i key={i} className="notch" style={{ left: `${p}%` }} /> : null;
-            })}
-          </div>
-        </div>
-        <div className="times">
-          <span>{paused ? "❚❚ " : "▶ "}{formatTime(shown)}{preview !== null ? ` (${preview >= time ? "+" : "-"}${formatTime(Math.abs(preview - time))})` : ""}</span>
-          <span className="muted">{t("player.osd.downHint", "▼ Settings")}</span>
-          <span>{nextEp.visible ? `${t("player.controls.nextEpisode", "Next episode")}${nextEp.ended ? ` · ${nextEp.countdown}` : ""}` : formatTime(duration)}</span>
-        </div>
-      </div>
       {!panel && !streamInfoOpen ? (
         <SkipSegmentButton
           mediaId={mediaId}
           currentTime={time}
+          raised={nextEp.visible}
           onSkip={(sec) => seekTo(sec)}
           onNextEpisode={nextEp.nextEpisode ? nextEp.playNow : undefined}
         />
       ) : null}
       {nextEp.visible && nextEp.nextEpisode ? (
-        <FocusRoot className="next-episode">
-          <div className="next-title">{t("player.controls.nextEpisode", "Next episode")}</div>
-          <div className="muted">{nextEp.nextEpisode.title}</div>
-          <div className="actions">
-            <Button variant="primary" onPress={nextEp.playNow}>
-              {t("common.play", "Play")}{nextEp.ended && autoAdvance ? ` · ${nextEp.countdown}` : ""}
-            </Button>
-            {nextEp.previousEpisode ? <Button onPress={nextEp.playPrevious}>{t("player.controls.previousEpisode", "Previous episode")}</Button> : null}
-            <Button onPress={nextEp.cancel}>{t("common.cancel", "Cancel")}</Button>
+        <FocusRoot className="nextep-card">
+          <div className="nextep-heading">
+            {nextEp.ended
+              ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(nextEp.countdown, 0) })
+              : t("player.nextEpisodeOverlay.upNext", "Up next")}
+          </div>
+          <div className="nextep-title">
+            {[
+              nextEp.nextEpisode.indexNumber != null
+                ? t("player.nextEpisodeOverlay.episode", { number: nextEp.nextEpisode.indexNumber })
+                : t("player.nextEpisodeOverlay.nextEpisode", "Next episode"),
+              nextEp.nextEpisode.title,
+            ].filter(Boolean).join(" - ")}
+          </div>
+          <div className="nextep-actions">
+            <Pressable className="tv-card nextep-btn primary" focusKey="nextep:play" autoFocus onPress={nextEp.playNow}>{t("player.nextEpisodeOverlay.playNow", "Play now")}</Pressable>
+            <Pressable className="tv-card nextep-btn" focusKey="nextep:cancel" onPress={nextEp.cancel}>{t("common.cancel", "Cancel")}</Pressable>
           </div>
         </FocusRoot>
       ) : null}
@@ -709,4 +877,24 @@ export function PlayerScreen({ mediaId, restart, audio, subtitle }: {
       ) : null}
     </div>
   );
+}
+
+
+type PlayerProps = Parameters<typeof PlayerView>[0];
+
+/** The player behind the parental gate: a title reached without its page (Play On,
+ * next episode, a link) still asks for the PIN before any stream opens. */
+export function PlayerScreen(props: PlayerProps) {
+  const { data: media, isLoading } = useLibraryServiceGetMediaItem(props.mediaId);
+  const { needsPin, profileId, settingsLoading } = useParentalGate(media?.officialRating);
+  const [verified, setVerified] = useState<string | null>(null);
+  if (isLoading || settingsLoading) return <div className="player"><div className="player-buffering"><Spinner /></div></div>;
+  if (verified !== props.mediaId && profileId && needsPin()) {
+    return (
+      <div className="player">
+        <ParentalPINModal profileId={profileId} onClose={goBack} onVerified={() => setVerified(props.mediaId)} />
+      </div>
+    );
+  }
+  return <PlayerView key={props.mediaId} {...props} />;
 }

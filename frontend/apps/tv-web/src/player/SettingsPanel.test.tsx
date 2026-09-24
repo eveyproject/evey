@@ -50,4 +50,17 @@ describe("SettingsPanel", () => {
     expect(seen).toEqual([]);
     window.removeEventListener("keydown", spy);
   });
+
+  // The "More" sheet runs an action entry at once (next episode, autoplay,
+  // stream info) instead of opening a list, then closes.
+  it("runs an action entry and closes", () => {
+    const action = vi.fn();
+    const onClose = vi.fn();
+    render(<SettingsPanel sections={[...sections(), { key: "next", label: "Next", value: "", choices: [], onPick: vi.fn(), action }]} onClose={onClose} />);
+    key("ArrowDown", 40);
+    key("ArrowDown", 40);
+    key("Enter", 13);
+    expect(action).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
 });

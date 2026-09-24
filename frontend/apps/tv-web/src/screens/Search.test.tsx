@@ -57,22 +57,32 @@ describe("search", () => {
     expect(searchMusic).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ query: expect.objectContaining({ enabled: true }) }));
   });
 
-  it("hides the music scope when the server has no music library", () => {
+  it("offers both scopes, as the Android television does", () => {
     libraries.mockReturnValue({ data: { libraries: [] } });
     render(<SearchScreen initialQuery="blade" />);
-    expect(screen.queryByText("media.search.sectionMusic")).toBeNull();
+    expect(screen.getByText("media.search.sectionMedia")).toBeTruthy();
+    expect(screen.getByText("media.search.sectionMusic")).toBeTruthy();
   });
 
-  it("a failed search says so rather than posing as no results", () => {
-    searchMedia.mockReturnValue({ data: undefined, isLoading: false, isError: true });
+  it("a failed search says so and offers to try again, rather than posing as no results", () => {
+    const refetch = vi.fn();
+    searchMedia.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch });
     render(<SearchScreen initialQuery="blade" />);
-    expect(screen.getByText("media.search.searchFailed")).toBeTruthy();
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+    fireEvent.click(screen.getByText("common.retry"));
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it("opens a title from its row", () => {
+    render(<SearchScreen initialQuery="film" />);
+    fireEvent.click(screen.getByLabelText("A film"));
+    expect(navigateMock).toHaveBeenCalledWith({ name: "media", mediaId: "m-1" });
   });
 
   it("playing a track from the results starts the queue on it", () => {
     render(<SearchScreen initialQuery="song" />);
     fireEvent.click(screen.getByText("media.search.sectionMusic"));
-    fireEvent.click(screen.getByText("A song · Someone"));
+    fireEvent.click(screen.getByLabelText("A song"));
     expect(setQueue).toHaveBeenCalledWith([expect.objectContaining({ id: "t-1" })], 0);
   });
 });

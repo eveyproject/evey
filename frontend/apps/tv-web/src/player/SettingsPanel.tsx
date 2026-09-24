@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatTime } from "@evey/api";
+import { Icon } from "../components/icons";
 
-// One menu the remote walks with up/down, OK opens a list or picks an entry,
-// back closes the list then the menu. Kept outside the spatial library: the
-// player owns the whole screen and a linear list is what a remote reads best.
+// The Android television's "More" sheet: up/down walk it, OK opens a picker or
+// runs an action, back climbs one level. Outside the spatial library: a linear
+// list is what a remote reads best over a full-screen player.
 export interface PanelChoice {
   key: string;
   label: string;
@@ -12,11 +13,13 @@ export interface PanelChoice {
 }
 
 export interface PanelSection {
-  key: "audio" | "subtitles" | "quality" | "speed" | "chapters" | "sleep" | "streamInfo" | "subtitleStyle" | "volume";
+  key: "audio" | "subtitles" | "quality" | "speed" | "chapters" | "sleep" | "streamInfo" | "subtitleStyle" | "volume" | "previous" | "next" | "autoplay";
   label: string;
   value: string;
   choices: PanelChoice[];
   onPick: (key: string) => void;
+  /** An entry that acts at once instead of opening a picker. */
+  action?: () => void;
 }
 
 interface Props {
@@ -43,6 +46,11 @@ export function SettingsPanel({ sections, onClose }: Props) {
     setRow(Math.max(0, sections.findIndex((s) => s.key === open)));
     setOpen(null);
   };
+
+  // A long list (chapters, subtitle style) keeps the row the remote is on in view.
+  useEffect(() => {
+    document.querySelector(".player-sheet-row.focused")?.scrollIntoView?.({ block: "nearest" });
+  }, [row, open]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -74,7 +82,10 @@ export function SettingsPanel({ sections, onClose }: Props) {
           }
         } else {
           const target = sections[row];
-          if (target) openList(target);
+          if (target?.action) {
+            target.action();
+            onClose();
+          } else if (target) openList(target);
         }
       } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" || code === 37 || code === 39) {
         // The panel owns the remote while open: a stray left/right must not
@@ -88,21 +99,25 @@ export function SettingsPanel({ sections, onClose }: Props) {
   }, [section, sections, row, count, onClose]);
 
   return (
-    <div className="panel" role="menu" aria-label={t("player.controls.settings", "Settings")}>
-      <div className="panel-title">{section ? section.label : t("player.controls.settings", "Settings")}</div>
-      {section
-        ? section.choices.map((c, i) => (
-            <div key={c.key} className={`panel-row ${i === row ? "focused" : ""} ${c.selected ? "selected" : ""}`} role="menuitemradio" aria-checked={!!c.selected}>
-              <span>{c.label}</span>
-              {c.selected ? <span className="check">✓</span> : null}
-            </div>
-          ))
-        : sections.map((s, i) => (
-            <div key={s.key} className={`panel-row ${i === row ? "focused" : ""}`} role="menuitem">
-              <span>{s.label}</span>
-              <span className="muted">{s.value}</span>
-            </div>
-          ))}
+    <div className="modal-backdrop player-sheet-backdrop">
+      <div className={`player-sheet ${section ? "picker" : ""}`} role="menu" aria-label={section ? section.label : t("player.controls.more", "More")}>
+        <div className="player-sheet-title">{section ? section.label : t("player.controls.more", "More")}</div>
+        <div className="player-sheet-list">
+          {section
+            ? section.choices.map((c, i) => (
+                <div key={c.key} className={`player-sheet-row tv-card ${i === row ? "focused" : ""} ${c.selected ? "selected" : ""}`} role="menuitemradio" aria-checked={!!c.selected}>
+                  <span className="player-sheet-label">{c.label}</span>
+                  {c.selected ? <span className="player-sheet-check"><Icon name="checkmark" size={20} /></span> : null}
+                </div>
+              ))
+            : sections.map((s, i) => (
+                <div key={s.key} className={`player-sheet-row tv-card ${i === row ? "focused" : ""}`} role="menuitem">
+                  <span className="player-sheet-label">{s.label}</span>
+                  {s.value ? <span className="player-sheet-value">{s.value}</span> : null}
+                </div>
+              ))}
+        </div>
+      </div>
     </div>
   );
 }

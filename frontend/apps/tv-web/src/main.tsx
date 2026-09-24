@@ -1,7 +1,7 @@
 import { Component, StrictMode, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useAuthStore, useToastStore, shouldRetryQuery } from "@evey/store";
+import { useAuthStore, shouldRetryQuery } from "@evey/store";
 import { mutationErrorNet } from "@evey/client";
 import { initTvNavigation, useTvKeys } from "./tv/focus";
 import { useRoute, navigate, replace, goBack, type Route } from "./app/router";
@@ -17,7 +17,7 @@ import { MediaDetailScreen } from "./screens/MediaDetail";
 import { PlayerScreen } from "./screens/Player";
 import { SettingsScreen } from "./screens/Settings";
 import { SearchScreen } from "./screens/Search";
-import { MusicScreen, AlbumScreen } from "./screens/Music";
+import { MusicScreen, AlbumScreen, ArtistScreen } from "./screens/Music";
 import {
   CollectionScreen,
   CollectionsScreen,
@@ -36,8 +36,10 @@ import { PhotosScreen, SlideshowScreen } from "./screens/Photos";
 import { PluginSettingsScreen } from "./screens/PluginSettings";
 import { RequestsScreen } from "./screens/Requests";
 import { SyncplayScreen } from "./screens/Syncplay";
-import { NavBar } from "./components/NavBar";
+import { TabShell, HomeShortcut, TAB_ROUTES } from "./components/Shell";
 import { MusicBar } from "./music/MusicBar";
+import { Toasts } from "./components/Toasts";
+import { useMusicQueueStore } from "./music/queue";
 import { applyThemeVars, useAppliedTheme } from "./lib/theme";
 import { applyUiScale, storedUiScale } from "./lib/uiScale";
 import { readChoice, shouldAskWhichClient, shouldGoToWebClient } from "./lib/clientChoice";
@@ -75,20 +77,6 @@ const queryClient = new QueryClient({
 });
 
 const PUBLIC_ROUTES = new Set<Route["name"]>(["server", "login", "quickconnect"]);
-
-// Every toast, newest last, the way the other clients stack them: one line
-// each, and the store's own dismissal removes them.
-function Toasts() {
-  const toasts = useToastStore((s) => s.toasts);
-  if (toasts.length === 0) return null;
-  return (
-    <div className="toast-stack">
-      {toasts.map((toast) => (
-        <div key={toast.id} className={`toast ${toast.type ?? "info"}`} role="status">{toast.message}</div>
-      ))}
-    </div>
-  );
-}
 
 // A screen that throws must not take the whole television with it: the remote
 // keeps a way back to the home.
@@ -144,6 +132,10 @@ function App() {
   }));
   const accessToken = useAuthStore((s) => s.accessToken);
   const profileId = useAuthStore((s) => s.profileId);
+  // While an album plays its bar floats over the bottom edge: screens keep
+  // that band clear and the home button rides above it.
+  const musicOn = useMusicQueueStore((s) => s.currentIndex >= 0 && s.currentIndex < s.queue.length);
+  useEffect(() => { document.body.classList.toggle("music-on", musicOn); }, [musicOn]);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -210,15 +202,17 @@ function App() {
 
   const screen = renderScreen(effective);
   const signedIn = !!accessToken && !!profileId;
-  // The player owns the whole surface; every other signed-in screen carries
-  // the navigation, the way the television keeps its sidebar.
-  const withNav = signedIn && effective.name !== "player" && effective.name !== "slideshow" && effective.name !== "profiles";
+  // The Android television's layout: the tab screens sit in the rail and the
+  // header; a deep screen is full width with a way home in its corner.
+  const tab = signedIn && TAB_ROUTES.has(effective.name);
+  const deep = signedIn && !tab && effective.name !== "player" && effective.name !== "slideshow" && effective.name !== "profiles";
+  const guarded = <ScreenErrorBoundary key={effective.name}>{screen}</ScreenErrorBoundary>;
   return (
     <>
       {signedIn ? <ThemeFollower /> : null}
       {signedIn ? <DeviceServices /> : null}
-      {withNav ? <NavBar current={effective.name} /> : null}
-      <ScreenErrorBoundary key={effective.name}>{screen}</ScreenErrorBoundary>
+      {tab ? <TabShell current={effective.name}>{guarded}</TabShell> : deep ? <div className="deep-screen">{guarded}</div> : guarded}
+      {deep ? <HomeShortcut raised={musicOn} /> : null}
       {signedIn && effective.name !== "player" && effective.name !== "slideshow" ? <MusicBar /> : null}
     </>
   );
@@ -233,13 +227,13 @@ function renderScreen(effective: Route) {
     case "quickconnect":
       return <QuickConnectScreen />;
     case "profiles":
-      return <ProfileSelectScreen />;
+      return <ProfileSelectScreen pick={!!effective.pick} />;
     case "library":
       return <LibraryScreen libraryId={effective.libraryId} />;
     case "media":
       return <MediaDetailScreen mediaId={effective.mediaId} />;
     case "player":
-      return <PlayerScreen mediaId={effective.mediaId} restart={!!effective.restart} audio={effective.audio} subtitle={effective.subtitle} />;
+      return <PlayerScreen mediaId={effective.mediaId} restart={!!effective.restart} audio={effective.audio} subtitle={effective.subtitle} roomId={effective.roomId} />;
     case "settings":
       return <SettingsScreen />;
     case "search":
@@ -249,7 +243,7 @@ function renderScreen(effective: Route) {
     case "album":
       return <AlbumScreen albumId={effective.albumId} libraryId={effective.libraryId} />;
     case "artist":
-      return <AlbumScreen artistId={effective.artistId} libraryId={effective.libraryId} />;
+      return <ArtistScreen artistId={effective.artistId} libraryId={effective.libraryId} />;
     case "libraries":
       return <LibrariesScreen />;
     case "collections":
@@ -289,7 +283,7 @@ function renderScreen(effective: Route) {
     case "slideshow":
       return <SlideshowScreen libraryId={effective.libraryId} albumId={effective.albumId} index={effective.index} />;
     default:
-      return <HomeScreen />;
+      return <HomeScreen customize={effective.name === "home" && !!effective.customize} />;
   }
 }
 

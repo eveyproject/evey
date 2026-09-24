@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { formatTime, getBaseURL, getFreshAccessToken } from "@evey/api";
+import { getBaseURL, getFreshAccessToken } from "@evey/api";
 import { coverArtUri } from "@evey/client";
 import { useScreenWakeLock } from "@evey/client/web";
 import { useMusicQueueStore } from "./queue";
 import { FocusRoot } from "../tv/focus";
-import { Button } from "../components/ui";
-import { NextIcon, PreviousIcon } from "../components/icons";
+import { Pressable } from "../components/ui";
+import { Icon } from "../components/icons";
 
-// The bar at the bottom while an album plays, on every screen: what plays,
-// its progress, previous / play-pause / next / shuffle / close. One <audio>
+// The Android television's bar at the bottom while an album plays, on every
+// screen: what plays, its progress, shuffle / previous / play-pause / next / close. One <audio>
 // for the queue's lifetime; the stream token is minted fresh at every
 // track change - an album outlives a 15-minute token with nobody touching
 // the remote, and the next track would 401 otherwise (prod, 2026-09-21).
@@ -90,20 +90,18 @@ export function MusicBar() {
       />
       {track ? (
         <FocusRoot focusKey="music-bar" className="music-bar">
-          <div className="music-progress"><div style={{ width: `${duration > 0 ? (time / duration) * 100 : 0}%` }} /></div>
+          <div className="music-progress"><div style={{ width: `${duration > 0 ? Math.min(100, (time / duration) * 100) : 0}%` }} /></div>
           <div className="music-row">
-            {art ? <img className="music-art" src={art} alt="" /> : <div className="music-art" />}
+            <span className="music-cover">{art ? <img src={art} alt="" /> : <Icon name="musical-notes" size={24} />}</span>
             <div className="music-meta">
               <div className="music-title">{track.title || "-"}</div>
-              <div className="muted">{[track.artist, track.album].filter(Boolean).join(" · ") || "-"} · {formatTime(time)} / {formatTime(duration || track.duration)}</div>
+              <div className="music-sub">{[track.artist, track.album].filter(Boolean).join(" · ") || "-"}</div>
             </div>
-            <div className="actions">
-              <Button variant={shuffle ? "primary" : "ghost"} onPress={toggleShuffle}>⇄ {t("media.music.shuffle", "Shuffle")}</Button>
-              <Button variant="ghost" label={t("mobile.music.previousTrack")} onPress={previous}><PreviousIcon /></Button>
-              <Button variant="primary" onPress={togglePlay}>{isPlaying ? "❚❚" : "▶"}</Button>
-              <Button variant="ghost" label={t("mobile.music.nextTrack")} onPress={next}><NextIcon /></Button>
-              <Button variant="ghost" onPress={clear}>✕</Button>
-            </div>
+            <Pressable className={`music-ctl ${shuffle ? "on" : ""}`} label={t("media.music.shuffle", "Shuffle")} onPress={toggleShuffle}><Icon name="shuffle" size={24} /></Pressable>
+            <Pressable className="music-ctl" label={t("common.previous")} onPress={previous}><Icon name="play-skip-back" size={24} /></Pressable>
+            <Pressable className="music-ctl" autoFocus label={isPlaying ? t("common.pause") : t("common.play")} onPress={togglePlay}><Icon name={isPlaying ? "pause" : "play"} size={32} /></Pressable>
+            <Pressable className="music-ctl" label={t("common.next")} onPress={next}><Icon name="play-skip-forward" size={24} /></Pressable>
+            <Pressable className="music-ctl" label={t("common.close")} onPress={clear}><Icon name="close" size={24} /></Pressable>
           </div>
         </FocusRoot>
       ) : null}

@@ -43,6 +43,22 @@ export function useTvKeys(handler: (key: "back" | "play" | "pause" | "playPause"
   }, [handler]);
 }
 
+/** Back taken by an overlay while it is up, before the screen's own handler. */
+export function useBackHandler(handler: (() => void) | null): void {
+  useEffect(() => {
+    if (!handler) return;
+    const onKey = (e: KeyboardEvent) => {
+      // A field being typed in takes BACK first: it only leaves the field.
+      if (tvKeyOf(e) !== "back" || targetIsEditable(e.target)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      handler();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [handler]);
+}
+
 // Where the focus stood on each screen the viewer left, by hash: going back
 // lands on the card that was left, as the Android television does. Only a
 // key a screen gave on purpose is kept - the library's generated keys
@@ -116,11 +132,13 @@ interface FocusRootProps {
    * title page is the track row under the poster, not the Play button.
    */
   preferredChildFocusKey?: string;
+  /** A modal: the remote cannot walk out of it. */
+  boundary?: boolean;
   children: ReactNode;
 }
 
 /** A focus scope: what the remote can reach on this screen, or in this row. */
-export function FocusRoot({ focusKey, autoFocus, className, grid, preferredChildFocusKey, children }: FocusRootProps) {
+export function FocusRoot({ focusKey, autoFocus, className, grid, preferredChildFocusKey, boundary, children }: FocusRootProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gridResolver = useCallback((direction: string, currentKey: string, siblings: { focusKey: string }[]) => {
     const index = siblings.findIndex((s) => s.focusKey === currentKey);
@@ -145,6 +163,7 @@ export function FocusRoot({ focusKey, autoFocus, className, grid, preferredChild
     trackChildren: true,
     saveLastFocusedChild: true,
     preferredChildFocusKey,
+    isFocusBoundary: !!boundary,
     ...(grid ? { measureChildrenLayout: false, nextFocusResolver: gridResolver } : {}),
   });
   // A screen scope (autoFocus) owns the arrival: it restores the focus the
