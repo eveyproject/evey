@@ -2,6 +2,7 @@ package media_test
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -242,4 +243,16 @@ func TestStreamTokenStore_SlidingExpiryIsPersistedSparingly(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 	_, ok := restart().Validate(tok, "")
 	assert.True(t, ok)
+}
+
+// Made-up tokens all differ, so the miss cache alone cannot stop a flood:
+// the database lookups are capped for the whole store.
+func TestStreamTokenStore_LookupsOfUnknownTokensAreCapped(t *testing.T) {
+	c := &clock{t: time.Unix(1_800_000_000, 0)}
+	repo := newFakeTokenRepo()
+	s, _ := stores(t, repo, c)
+	for i := range 1000 {
+		s.Validate(fmt.Sprintf("made-up-%d", i), "")
+	}
+	assert.LessOrEqual(t, repo.loads, 260, "burst plus what the rate refills during the loop")
 }
