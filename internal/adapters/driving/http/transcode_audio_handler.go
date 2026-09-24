@@ -142,6 +142,13 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		// wasm-audio passthrough: bake wasmAudio=1 into the segment/init URIs so
 		// their fingerprint matches this playlist's copy init (see field doc).
 		WasmAudio: h.wasmAudio(r),
+		// The plan's pins too: the init and segments re-decide the video to
+		// shift onto its timeline, and without vd= a transcoded rung's audio was
+		// decided copy there and served unshifted (measured 2026-09-24: the
+		// playlist asked 1 frame, the segments came out at 0).
+		PinnedVideoDecision: r.URL.Query().Get("vd"),
+		PinnedAudioDecision: r.URL.Query().Get("ad"),
+		PinnedVideoCodec:    r.URL.Query().Get("vc"),
 	}
 
 	out, err := h.manifestGen.AudioPlaylist(in, trackIdx)
