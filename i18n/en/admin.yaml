@@ -642,6 +642,7 @@ activity:
     keyframe_backfill: "Keyframe backfill"
     level_backfill: "Level backfill"
     trickplay_generation: "Trickplay generation"
+    library_scan: "New media analysis"
     collection_relink: "Collection relink"
     compat_download: "Compatible download"
     reduced_download: "Reduced download"
@@ -730,8 +731,7 @@ serverConfig:
   trickplayTitle: Trickplay Thumbnails
   trickplayDesc: Auto-generate timeline preview thumbnails for movies and episodes.
   trickplayEnabled: Enable trickplay thumbnails
-  trickplayAdaptiveCpu: "Adaptive CPU"
-  trickplayAdaptiveCpuDesc: "Gentle mode (~25% CPU). Disable for faster generation (~50% CPU)."
+  trickplayCpuHint: "The generation's CPU share is set under Background CPU."
   memoryProfileTitle: "Memory Profile"
   memoryProfileSubtitle: "Controls how aggressively idle plugin processes are suspended to save RAM."
   memoryProfileLabel: "Memory profile"
@@ -741,6 +741,31 @@ serverConfig:
   memoryProfileDesc: "Low suspends idle plugin processes to save RAM (resumed on demand); Auto picks Low on machines under 3 GB."
   mkvgoTitle: "mkvgo"
   mkvgoSubtitle: "Media inspection and repair via the mkvgo library."
+  cpuBudget:
+    title: "Background CPU"
+    subtitle: "How much of the processor the background tasks may take together: scans, thumbnails, intro detection, classification."
+    globalLabel: "Global share"
+    global25: "25 % - gentle (default)"
+    global50: "50 % - boost"
+    globalDesc: "Every background task draws from this share of the CPU capacity. 25 % keeps the box responsive; 50 % is a boost for when nobody is using it. Playback always comes first: a task pauses while someone is watching."
+    tasksTitle: "Heavy tasks"
+    tasksDesc: "A heavy task may get a share of its own, which replaces the global one for that task. Shares never stack: everything running in the background stays under the highest share set here."
+    followGlobal: "Follow the global share ({{percent}} %)"
+    share: "{{percent}} %"
+    applyHint: "Applies to the next item, no restart needed."
+    tasks:
+      library_scan:
+        label: "New media analysis"
+        desc: "Probing, chapters and serving plan of the files a library scan finds."
+      trickplay_generation:
+        label: "Trickplay thumbnails"
+        desc: "Decoder threads of the timeline thumbnails' generation."
+      intro_detection:
+        label: "Intro detection"
+        desc: "Episodes and movies analysed at once for intro, recap and credits."
+      complexity_classifier:
+        label: "Complexity classification"
+        desc: "Sample encodes that grade each title for the transcoding ladder."
   backgroundJobs:
     title: "Background jobs"
     subtitle: "Operator flags for the transcoding background workers - pause behavior, backfill passes, and their pacing."
@@ -819,8 +844,6 @@ serverConfig:
   introProvidersTitle: Intro Skip Providers
   introProvidersDesc: "Sources: TheIntroDB (theintrodb.org) primary, IntroDB (introdb.app) fallback."
   introProvidersInfo: "Two distinct community databases for intro / recap / credits timestamps. Skips the local CPU-heavy detection on items they cover. Primary - TheIntroDB (theintrodb.org): movies + TV, free API key required. Fallback - IntroDB (introdb.app): TV episodes only, no key required."
-  introDetectionUseAllCores: Use every available CPU core for intro detection
-  introDetectionUseAllCoresDesc: Applies from the next detection run, no restart needed. When off, detection sticks to the gentle CPU budget shared with trickplay.
   introProvidersEnabled: Enable external intro skip providers
   introProvidersRestart: Server restart required after enabling/disabling.
   introProvidersTidbStatus: "TheIntroDB: "
@@ -1569,6 +1592,7 @@ backgroundTasks:
   resumeFailed: "Failed to resume the task."
   impact: "{{processes}} proc · {{memory}} · {{cpu}}% CPU"
   cpuTotal: "{{seconds}} s CPU since start"
+  cpuSlots: "{{held}}/{{slots}} cores"
   sinceNow: "just started"
   sinceMinutes_one: "for {{count}} min"
   sinceMinutes_other: "for {{count}} min"

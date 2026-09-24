@@ -35,6 +35,7 @@ function TaskRow({ task }: { task: BackgroundTaskView }) {
         <span className="truncate text-xs text-[var(--text-muted)]">
           {running && task.detail ? task.detail : t("admin.activity.bgProcessed", { n: task.processed })}
           {task.cpuSecondsTotal > 0 && ` · ${t("admin.backgroundTasks.cpuTotal", { seconds: Math.round(task.cpuSecondsTotal) })}`}
+          {(task.cpuSlots ?? 0) > 0 && ` · ${t("admin.backgroundTasks.cpuSlots", { held: task.cpuSlotsHeld ?? 0, slots: task.cpuSlots })}`}
         </span>
       </div>
       {hasCost && (

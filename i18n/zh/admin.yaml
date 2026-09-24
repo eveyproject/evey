@@ -642,6 +642,7 @@ activity:
     keyframe_backfill: "关键帧索引"
     level_backfill: "级别回填"
     trickplay_generation: "预览图生成"
+    library_scan: "新媒体分析"
     collection_relink: "合集重新关联"
     compat_download: "兼容下载"
     reduced_download: "精简下载"
@@ -698,6 +699,31 @@ audit:
 serverConfig:
   entriesTitle: "配置条目"
   appliedOnRestart: "重启后生效"
+  cpuBudget:
+    title: "后台任务 CPU"
+    subtitle: "后台任务合计可占用多少处理器：扫描、预览图、片头检测、分类。"
+    globalLabel: "全局份额"
+    global25: "25 % - 温和（默认）"
+    global50: "50 % - 加速"
+    globalDesc: "每个后台任务都从这份 CPU 容量中取用。25 % 保持机器响应迅速；50 % 用于无人使用时加速。播放永远优先：有人观看时任务会暂停。"
+    tasksTitle: "重型任务"
+    tasksDesc: "重型任务可以获得自己的份额，对该任务取代全局份额。份额从不叠加：后台运行的一切都不会超过此处设置的最高份额。"
+    followGlobal: "跟随全局份额（{{percent}} %）"
+    share: "{{percent}} %"
+    applyHint: "从下一项起生效，无需重启。"
+    tasks:
+      library_scan:
+        label: "新媒体分析"
+        desc: "扫描发现的文件的探测、章节与服务方案。"
+      trickplay_generation:
+        label: "预览图缩略图"
+        desc: "时间线缩略图生成的解码线程。"
+      intro_detection:
+        label: "片头检测"
+        desc: "同时分析片头、回顾与片尾的剧集和电影数量。"
+      complexity_classifier:
+        label: "复杂度分类"
+        desc: "为转码阶梯给每个标题评级的采样编码。"
   backgroundJobs:
     title: "后台任务"
     subtitle: "转码后台工作进程的运维设置--播放时的暂停行为、补齐任务及其节奏。"
@@ -752,8 +778,7 @@ serverConfig:
   trickplayTitle: "Trickplay 缩略图"
   trickplayDesc: "为电影和剧集自动生成时间轴预览缩略图。"
   trickplayEnabled: "启用 Trickplay 缩略图"
-  trickplayAdaptiveCpu: "自适应 CPU"
-  trickplayAdaptiveCpuDesc: "轻量模式 (~25% CPU)。禁用后使用更快的生成速度 (~50% CPU)。"
+  trickplayCpuHint: "生成的 CPU 份额在“后台任务 CPU”中设置。"
   memoryProfileTitle: "内存配置"
   memoryProfileSubtitle: "控制空闲插件进程被暂停的积极程度，以节省内存。"
   memoryProfileLabel: "内存配置"
@@ -819,8 +844,6 @@ serverConfig:
     keepCurrent: "留空以保留当前密钥"
   introProvidersTitle: "片头跳过提供商"
   introProvidersDesc: "查询社区数据库（TheIntroDB 为主，IntroDB 为备选）以获取片头/回顾/片尾时间戳。对已覆盖的项目跳过本地 CPU 密集型检测。"
-  introDetectionUseAllCores: "片头检测使用所有可用 CPU 核心"
-  introDetectionUseAllCoresDesc: "下次检测起生效，无需重启。关闭时检测保持与预览图共享的温和 CPU 预算。"
   introProvidersEnabled: "启用外部片头跳过提供商"
   introProvidersRestart: "启用/禁用后需要重启服务器。"
   introProvidersTidbStatus: "TheIntroDB: "
@@ -1569,6 +1592,7 @@ backgroundTasks:
   resumeFailed: "恢复任务失败。"
   impact: "{{processes}} 个进程 · {{memory}} · {{cpu}}% CPU"
   cpuTotal: "启动以来 {{seconds}} s CPU"
+  cpuSlots: "{{held}}/{{slots}} 核"
   sinceNow: "刚刚开始"
   sinceMinutes_one: "已运行 {{count}} 分钟"
   sinceMinutes_other: "已运行 {{count}} 分钟"

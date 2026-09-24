@@ -642,6 +642,7 @@ activity:
     keyframe_backfill: "Indexación de keyframes"
     level_backfill: "Relleno de niveles"
     trickplay_generation: "Generación de trickplay"
+    library_scan: "Análisis de medios nuevos"
     collection_relink: "Revinculación de colecciones"
     compat_download: "Descarga compatible"
     reduced_download: "Descarga reducida"
@@ -698,6 +699,31 @@ audit:
 serverConfig:
   entriesTitle: "Entradas de configuración"
   appliedOnRestart: "se aplica al reiniciar"
+  cpuBudget:
+    title: "CPU de tareas en segundo plano"
+    subtitle: "Cuánto procesador pueden ocupar juntas las tareas en segundo plano: escaneos, miniaturas, detección de intros, clasificación."
+    globalLabel: "Cuota global"
+    global25: "25 % - suave (predeterminado)"
+    global50: "50 % - impulso"
+    globalDesc: "Toda tarea en segundo plano toma de esta cuota de la capacidad de CPU. 25 % mantiene la máquina ágil; 50 % es un impulso para cuando nadie la usa. La reproducción siempre va primero: una tarea se pausa mientras alguien mira."
+    tasksTitle: "Tareas pesadas"
+    tasksDesc: "Una tarea pesada puede recibir su propia cuota, que sustituye a la global para ella. Las cuotas nunca se suman: todo lo que corre en segundo plano queda bajo la cuota más alta fijada aquí."
+    followGlobal: "Seguir la cuota global ({{percent}} %)"
+    share: "{{percent}} %"
+    applyHint: "Se aplica desde el siguiente elemento, sin reiniciar."
+    tasks:
+      library_scan:
+        label: "Análisis de medios nuevos"
+        desc: "Sondeo, capítulos y plan de servicio de los archivos que encuentra un escaneo."
+      trickplay_generation:
+        label: "Miniaturas trickplay"
+        desc: "Hilos de decodificación de la generación de miniaturas de la línea de tiempo."
+      intro_detection:
+        label: "Detección de intros"
+        desc: "Episodios y películas analizados a la vez para intro, resumen y créditos."
+      complexity_classifier:
+        label: "Clasificación de complejidad"
+        desc: "Codificaciones de muestra que puntúan cada título para la escalera de transcodificación."
   backgroundJobs:
     title: "Tareas en segundo plano"
     subtitle: "Ajustes de operador para los procesos en segundo plano de la transcodificación: comportamiento de pausa, pasadas de relleno y su ritmo."
@@ -752,8 +778,7 @@ serverConfig:
   trickplayTitle: "Miniaturas Trickplay"
   trickplayDesc: "Generar automáticamente miniaturas de previsualización para películas y episodios."
   trickplayEnabled: "Activar miniaturas trickplay"
-  trickplayAdaptiveCpu: "CPU adaptativo"
-  trickplayAdaptiveCpuDesc: "Modo suave (~25% CPU). Desactivar para generación más rápida (~50% CPU)."
+  trickplayCpuHint: "La cuota de CPU de la generación se fija en «CPU de tareas en segundo plano»."
   memoryProfileTitle: "Perfil de memoria"
   memoryProfileSubtitle: "Controla cuán agresivamente se suspenden los procesos de plugins inactivos para ahorrar RAM."
   memoryProfileLabel: "Perfil de memoria"
@@ -819,8 +844,6 @@ serverConfig:
     keepCurrent: "Dejar vacío para conservar la clave actual"
   introProvidersTitle: "Proveedores de salto de intro"
   introProvidersDesc: "Consulta bases de datos comunitarias (TheIntroDB primaria, IntroDB alternativa) para marcas de tiempo de intro/recap/créditos. Evita la detección local intensiva en CPU para los elementos que cubren."
-  introDetectionUseAllCores: "Usar todos los núcleos de CPU disponibles para la detección de intros"
-  introDetectionUseAllCoresDesc: "Se aplica desde la próxima detección, sin reiniciar. Desactivado, la detección mantiene el presupuesto de CPU moderado compartido con el trickplay."
   introProvidersEnabled: "Activar proveedores externos de salto de intro"
   introProvidersRestart: "Se requiere reiniciar el servidor tras activar/desactivar."
   introProvidersTidbStatus: "TheIntroDB: "
@@ -1569,6 +1592,7 @@ backgroundTasks:
   resumeFailed: "No se pudo reanudar la tarea."
   impact: "{{processes}} proc · {{memory}} · {{cpu}} % CPU"
   cpuTotal: "{{seconds}} s de CPU desde el inicio"
+  cpuSlots: "{{held}}/{{slots}} núcleos"
   sinceNow: "acaba de empezar"
   sinceMinutes_one: "desde hace {{count}} min"
   sinceMinutes_other: "desde hace {{count}} min"

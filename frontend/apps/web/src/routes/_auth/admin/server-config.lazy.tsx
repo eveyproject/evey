@@ -12,6 +12,7 @@ import { LocaleSettingsCard } from "@/features/admin/serverConfig/LocaleSettings
 import { MemoryProfileCard } from "@/features/admin/serverConfig/MemoryProfileCard";
 import { MkvgoCard } from "@/features/admin/serverConfig/MkvgoCard";
 import { BackgroundJobsCard } from "@/features/admin/serverConfig/BackgroundJobsCard";
+import { CpuBudgetCard } from "@/features/admin/serverConfig/CpuBudgetCard";
 import { ApiKeysCard } from "@/features/admin/serverConfig/ApiKeysCard";
 import { SmtpSettingsCard } from "@/features/admin/serverConfig/SmtpSettingsCard";
 import { ArtworkSettingsCard } from "@/features/admin/serverConfig/ArtworkSettingsCard";
@@ -58,6 +59,13 @@ function ServerConfigPage() {
         subtitle={t("admin.serverConfig.mkvgoSubtitle")}
       >
         <MkvgoCard entries={entries} />
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title={t("admin.serverConfig.cpuBudget.title")}
+        subtitle={t("admin.serverConfig.cpuBudget.subtitle")}
+      >
+        <CpuBudgetCard entries={entries} />
       </CollapsibleCard>
 
       <CollapsibleCard

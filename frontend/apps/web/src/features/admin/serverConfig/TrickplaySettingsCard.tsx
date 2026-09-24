@@ -4,14 +4,13 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { useSetConfigEntry, type ConfigEntry } from "./hooks";
 
 const TRICKPLAY_KEY = "trickplay.enabled";
-const TRICKPLAY_CPU_KEY = "trickplay.adaptive_cpu";
 
+// The generation's CPU share is set in the CPU budget card (background.cpu_percent.*).
 export function TrickplaySettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   const { t } = useTranslation();
   const setEntry = useSetConfigEntry();
 
   const enabled = entries?.find((e) => e.key === TRICKPLAY_KEY)?.value !== "false";
-  const adaptiveCpu = entries?.find((e) => e.key === TRICKPLAY_CPU_KEY)?.value !== "false";
 
   return (
     <div className="flex flex-col gap-3">
@@ -23,16 +22,8 @@ export function TrickplaySettingsCard({ entries }: { entries: ConfigEntry[] | un
             disabled={setEntry.isPending}
           />
         </div>
-        <div className="flex items-center gap-3">
-          <Checkbox
-            label={t("admin.serverConfig.trickplayAdaptiveCpu")}
-            checked={adaptiveCpu}
-            onChange={(v) => setEntry.mutate({ key: TRICKPLAY_CPU_KEY, value: v ? "true" : "false" })}
-            disabled={setEntry.isPending || !enabled}
-          />
-        </div>
         <p className="text-xs text-[var(--text-muted)]">
-          {t("admin.serverConfig.trickplayAdaptiveCpuDesc")}
+          {t("admin.serverConfig.trickplayCpuHint")}
         </p>
         {setEntry.isPending && <Spinner size="sm" />}
     </div>

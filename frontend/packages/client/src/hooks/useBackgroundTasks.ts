@@ -24,6 +24,10 @@ export interface BackgroundTaskView {
   cpuPercent: number;
   cpuSecondsTotal: number;
   forks: number;
+  // The cores the task may hold under the admin's CPU budget (0: no budget)
+  // and what it holds right now.
+  cpuSlots?: number;
+  cpuSlotsHeld?: number;
 }
 
 export const BACKGROUND_TASKS_QUERY_KEY = ["/api/v1/admin/background-tasks"];
