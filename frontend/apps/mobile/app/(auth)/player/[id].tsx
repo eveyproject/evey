@@ -70,6 +70,7 @@ import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack, pickPreferredStreamIndex } from "../../../src/lib/audioTrackMatch";
 import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
 import { backPressAction, playerExit } from "../../../src/lib/playerExit";
+import { resolveStartPositionMs } from "@evey/client";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -706,9 +707,8 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     if (preferLocalProgress(offlineProgress, progress?.updatedAt) && offlineProgress) {
       return offlineProgress.positionMs / 1000;
     }
-    if (!progress?.positionMs || progress.played) return 0;
-    const ms = Number(progress.positionMs);
-    return ms > 0 ? ms / 1000 : 0;
+    // Played, or within the last seconds: start over (the rule of every client).
+    return resolveStartPositionMs(false, progress) / 1000;
   }, [progress, restart, offlineProgress]);
 
   const player = useVideoPlayer(videoSource, (p) => {
