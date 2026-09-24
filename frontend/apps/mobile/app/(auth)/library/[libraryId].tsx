@@ -36,7 +36,6 @@ import {
 } from "@evey/api";
 import type {
   V1MediaItem,
-  V1MediaStream,
   LibraryServiceListMediaItemsType,
   LibraryServiceListMediaItemsSortField,
   LibraryServiceListMediaItemsSortOrder,
@@ -64,8 +63,8 @@ import {
   computeNextFilterOffset,
   buildBulkMediaIds,
   selectableMediaIds,
-  getResolutionLabel,
 } from "../../../src/components/library/libraryFilterUtils";
+import { videoStream, isHdrStream, resolutionLabel } from "@evey/client";
 
 const NUM_COLUMNS = 3;
 const SPACING = 8;
@@ -91,7 +90,6 @@ const PAGE_SIZE = 30;
 // The dedicated screens this app implements, handed to dedicatedRouteFor so a
 // library type is never redirected to a route that does not exist here.
 const MOBILE_DEDICATED_ROUTES = ["/photos", "/music"];
-
 
 function libraryKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
@@ -120,29 +118,6 @@ function formatType(type?: string): string {
   if (type === "MEDIA_ITEM_TYPE_MOVIE") return "Movie";
   if (type === "MEDIA_ITEM_TYPE_SERIES") return "Series";
   return "";
-}
-
-// Mirrors web's streamLabels.ts (frontend/apps/web/src/features/library/streamLabels.ts)
-// - kept local since the mobile app has no package shared with web for this.
-function videoStream(streams?: V1MediaStream[]): V1MediaStream | undefined {
-  return streams?.find((s) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
-}
-
-function isHdrStream(stream?: V1MediaStream): boolean {
-  if (!stream) return false;
-  const transfer = stream.colorTransfer?.trim().toLowerCase();
-  if (transfer === "smpte2084" || transfer === "arib-std-b67") return true;
-  const cs = stream.colorSpace?.trim().toLowerCase() ?? "";
-  return cs.startsWith("bt2020") && (stream.bitDepth ?? 0) >= 10;
-}
-
-// Delegates to the filter's own vocabulary so a badge is always something the
-// panel can actually offer. This function used to have its own ladder, with a
-// "1440p" band the filter did not know and a `${h}p` tail nothing could match.
-function resolutionLabel(stream?: V1MediaStream): string | null {
-  const h = stream?.height ?? 0;
-  if (h <= 0) return null;
-  return getResolutionLabel(h);
 }
 
 export default function LibraryDetailScreen() {
