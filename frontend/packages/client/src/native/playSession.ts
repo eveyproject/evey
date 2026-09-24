@@ -387,9 +387,11 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
   );
 
   useEffect(() => {
+    // Mounted again: a rehearsal unmount (StrictMode) ran stopSession while
+    // the first negotiation was in flight, which then dropped its answer.
+    stoppedRef.current = false;
     if (!mediaId || startedRef.current) return;
     startedRef.current = true;
-    stoppedRef.current = false;
     startStream(initialRef.current?.audioStreamIndex, initialRef.current?.subtitleStreamIndex);
   }, [mediaId, startStream]);
 
