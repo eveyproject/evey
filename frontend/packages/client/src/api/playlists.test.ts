@@ -17,9 +17,15 @@ function createWrapper() {
 beforeEach(() => { eveyFetchMock.mockReset(); });
 
 describe("usePlaylistList", () => {
-  it("fetches /api/v1/playlists and returns playlists array", async () => {
-    const playlists = [{ id: "p1", name: "Favorites" }];
-    eveyFetchMock.mockResolvedValue({ playlists });
+  // The server's own shape (enum type, camelCase), measured against the dev
+  // server: the screens filter on "manual", so the list must translate it.
+  it("fetches /api/v1/playlists and speaks the screens' type", async () => {
+    eveyFetchMock.mockResolvedValue({
+      playlists: [
+        { id: "p1", name: "Favorites", type: "PLAYLIST_TYPE_MANUAL", sortBy: "sort_order", sortOrder: "asc", createdAt: "c", updatedAt: "u" },
+        { id: "p2", name: "Rules", type: "PLAYLIST_TYPE_SMART" },
+      ],
+    });
 
     const { result } = renderHook(() => usePlaylistList(), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -28,7 +34,8 @@ describe("usePlaylistList", () => {
       url: "/api/v1/playlists",
       method: "GET",
     });
-    expect(result.current.data).toEqual(playlists);
+    expect(result.current.data?.map((p) => [p.id, p.type])).toEqual([["p1", "manual"], ["p2", "smart"]]);
+    expect(result.current.data?.[0]).toMatchObject({ name: "Favorites", sort_by: "sort_order", sort_order: "asc", created_at: "c" });
   });
 
   it("returns empty array when playlists is undefined", async () => {
@@ -134,5 +141,19 @@ describe("useUpdatePlaylist", () => {
       method: "PATCH",
       data: { name: "Renamed" },
     });
+  });
+});
+
+describe("useCreatePlaylist", () => {
+  // Measured on the dev server: type "manual" is refused (HTTP 400, invalid
+  // enum), and the created playlist comes back flat, not under "playlist".
+  it("sends the API's enum and returns the new id", async () => {
+    const { useCreatePlaylist } = await import("./playlists");
+    eveyFetchMock.mockResolvedValue({ id: "pl-9", name: "Soirée", type: "PLAYLIST_TYPE_MANUAL" });
+    const { result } = renderHook(() => useCreatePlaylist(), { wrapper: createWrapper() });
+    let created: { id: string } | undefined;
+    await act(async () => { created = await result.current.mutateAsync({ name: "Soirée", type: "manual" }); });
+    expect(eveyFetchMock).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/v1/playlists", method: "POST", data: { name: "Soirée", type: "PLAYLIST_TYPE_MANUAL" } }));
+    expect(created).toEqual({ id: "pl-9" });
   });
 });

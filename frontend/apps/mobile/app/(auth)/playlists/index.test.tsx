@@ -57,7 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   alerts.last = null;
   api.list = { data: lists, isLoading: false, isError: false, refetch: vi.fn() };
-  api.create.mockResolvedValue({ playlist: { id: "pl-new" } });
+  api.create.mockResolvedValue({ id: "pl-new" });
   api.del.mockResolvedValue({});
 });
 
