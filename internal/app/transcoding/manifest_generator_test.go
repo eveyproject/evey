@@ -809,10 +809,10 @@ func TestMaster_FallbackVariant_AppendedVerbatim(t *testing.T) {
 }
 
 // A fallback rung whose plan serves audio as renditions carries video-only
-// segments: it plays this master's audio group (declared, so every player
-// takes the same audio, and an ABR drop switches no track), and without a
-// group it would be silent, so it is not advertised at all.
-func TestMaster_FallbackVariant_VideoOnlyPlaysTheAudioGroup(t *testing.T) {
+// segments and plays its OWN plan's renditions, shifted onto its own video:
+// the copy's group sits on the copy's timeline, 76 ms off a transcoded rung's
+// (measured 2026-09-24). Same names, so the player keeps the viewer's track.
+func TestMaster_FallbackVariant_VideoOnlyPlaysItsOwnAudioGroup(t *testing.T) {
 	g := NewManifestGenerator()
 	in := baseInput([]transcoding.HLSProfile{
 		{Name: "od-copy", Width: 1920, Height: 1080, VideoBitrate: 5000, AudioBitrate: 128, Copy: true},
@@ -821,11 +821,12 @@ func TestMaster_FallbackVariant_VideoOnlyPlaysTheAudioGroup(t *testing.T) {
 	in.VideoPlaylistURI = "od_playlist.m3u8"
 	in.AudioRenditions = []AudioRendition{{SourceTrackIdx: 0, Name: "VF", Codec: "aac"}}
 	in.FallbackVariants = []FallbackVariant{{
-		Profile:    transcoding.HLSProfile{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1500, AudioBitrate: 128},
-		URI:        "stream_0.m3u8?fp=other&vd=transcode",
-		VideoCodec: "h264",
-		AudioCodec: "aac",
-		VideoOnly:  true,
+		Profile:         transcoding.HLSProfile{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1500, AudioBitrate: 128},
+		URI:             "stream_0.m3u8?fp=other&vd=transcode",
+		VideoCodec:      "h264",
+		AudioCodec:      "aac",
+		AudioRenditions: []AudioRendition{{SourceTrackIdx: 0, Name: "VF", Codec: "aac"}},
+		AudioSuffix:     "?fp=other&vd=transcode",
 	}}
 
 	out, err := g.Master(in)
@@ -838,13 +839,11 @@ func TestMaster_FallbackVariant_VideoOnlyPlaysTheAudioGroup(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, fbLine)
-	assert.Contains(t, fbLine, `AUDIO="aud"`)
+	assert.Contains(t, fbLine, `AUDIO="aud-fb0"`)
 	assert.Contains(t, fbLine, `CODECS="avc1.640028,mp4a.40.2"`)
-
-	in.AudioRenditions = nil
-	out, err = g.Master(in)
-	require.NoError(t, err)
-	assert.NotContains(t, out, "stream_0.m3u8", "a video-only rung with no audio group would play silent")
+	assert.Contains(t, out, `GROUP-ID="aud-fb0",NAME="VF",DEFAULT=YES,AUTOSELECT=YES,URI="audio_0.m3u8?fp=other&vd=transcode"`,
+		"the rung's group points at its own plan's rendition")
+	assert.Contains(t, out, `GROUP-ID="aud",NAME="VF"`, "the copy keeps its own group")
 }
 
 // No fallback variants (the default) must keep the master bit-for-bit what it
