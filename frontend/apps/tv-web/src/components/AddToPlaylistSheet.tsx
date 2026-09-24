@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { useAddToPlaylist, usePlaylistList } from "@evey/client";
 import { FocusRoot, useBackHandler } from "../tv/focus";
 import { Pressable, Spinner } from "./ui";
@@ -18,8 +19,12 @@ export function AddToPlaylistSheet({ mediaItemId, mediaType, onClose }: { mediaI
     addTo.mutate(
       { playlistId, mediaItemId, mediaType },
       {
-        // No onError: the shared mutation already says it.
-        onSuccess: () => setAdded((prev) => new Set(prev).add(playlistId)),
+        // The shared mutation says nothing: the sheet words the outcome.
+        onSuccess: () => {
+          setAdded((prev) => new Set(prev).add(playlistId));
+          toast.success(t("media.playlist.addSuccess"));
+        },
+        onError: () => toast.error(t("media.playlist.addError")),
       },
     );
   };

@@ -72,12 +72,12 @@ describe("playlist detail screen (mobile)", () => {
     expect(api.reorder).toHaveBeenCalledWith({
       playlistId: "pl-1",
       items: [{ mediaItemId: "m2", sortOrder: 0 }, { mediaItemId: "m1", sortOrder: 1 }, { mediaItemId: "m3", sortOrder: 2 }],
-    });
+    }, expect.objectContaining({ onError: expect.any(Function) }));
 
     fireEvent.click(screen.getAllByRole("button", { name: "media.playlist.removeItem" })[2]);
     expect(api.remove).not.toHaveBeenCalled();
     alerts.last.buttons.find((b: any) => b.style === "destructive").onPress();
-    expect(api.remove).toHaveBeenCalledWith({ playlistId: "pl-1", mediaItemId: "m3" });
+    expect(api.remove).toHaveBeenCalledWith({ playlistId: "pl-1", mediaItemId: "m3" }, expect.objectContaining({ onError: expect.any(Function) }));
 
     fireEvent.click(screen.getByRole("button", { name: "Two" }));
     expect(router.push).toHaveBeenCalledWith("/media/m2");
@@ -105,7 +105,7 @@ describe("playlist detail screen (mobile)", () => {
     expect(screen.queryByRole("button", { name: "media.playlist.removeItem" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "media.playlist.editRules" }));
     fireEvent.click(screen.getByText("save-rules"));
-    expect(api.update).toHaveBeenCalledWith({ id: "pl-1", rules: [{ field: "genre", operator: "eq", value: "Drama" }] });
+    expect(api.update).toHaveBeenCalledWith({ id: "pl-1", rules: [{ field: "genre", operator: "eq", value: "Drama" }] }, expect.objectContaining({ onError: expect.any(Function) }));
   });
 
   it("keeps failure, absence and loading apart", () => {

@@ -94,14 +94,18 @@ describe("AddToPlaylistSheet keeps the remote alive", () => {
 // (AddToPlaylistSheet.tsx:103); the TV row had no such guard, so a second OK
 // press before the mutation settled could fire it twice.
 describe("AddToPlaylistSheet guards an in-flight add", () => {
-  // The shared mutation already toasts a failed add; the sheet adding its own
-  // onError showed the same failure twice.
-  it("leaves the failure message to the shared mutation", () => {
+  // The shared mutation says nothing (one layer for every client since
+  // 2026-09-24): the sheet words success and failure, once each.
+  it("says the outcome of an add itself, once", async () => {
+    const { toast } = await import("@evey/store");
     playlistsMock.mockReturnValue({ data: [{ id: "pl-1", name: "Soirée", type: "manual" }], isLoading: false });
     render(<AddToPlaylistSheet visible mediaItemId="mi-1" onClose={() => {}} />);
     fireEvent.click(screen.getByLabelText("Soirée"));
     expect(addMock).toHaveBeenCalledTimes(1);
-    expect(addMock.mock.calls[0][1]?.onError).toBeUndefined();
+    addMock.mock.calls[0][1].onError();
+    expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1);
+    addMock.mock.calls[0][1].onSuccess();
+    expect(vi.mocked(toast.success)).toHaveBeenCalledTimes(1);
   });
 
   it("disables the row while a previous add is still pending", () => {

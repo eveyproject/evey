@@ -13,19 +13,21 @@ vi.mock("../tv/focus", () => ({
   useFocusable: () => ({ ref: { current: null }, focused: false, focusSelf: () => {} }),
   useArrivalFocus: () => {},
 }));
+const toastError = vi.fn();
+vi.mock("@evey/store", () => ({ toast: { error: (...a: unknown[]) => toastError(...a), success: vi.fn() } }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
 import { AddToPlaylistSheet } from "./AddToPlaylistSheet";
 
-beforeEach(() => mutate.mockClear());
+beforeEach(() => { mutate.mockClear(); toastError.mockClear(); });
 
-// The shared mutation already toasts a failed add; the sheet adding its own
-// onError showed the same failure twice.
+// The shared mutation says nothing: the sheet words success and failure.
 describe("AddToPlaylistSheet (tv-web)", () => {
-  it("adds the title and leaves the failure message to the shared mutation", () => {
+  it("adds the title and words the outcome itself", () => {
     render(<AddToPlaylistSheet mediaItemId="mi-1" mediaType="movie" onClose={() => {}} />);
     fireEvent.click(screen.getByText("Soirée"));
     expect(mutate).toHaveBeenCalledWith({ playlistId: "pl-1", mediaItemId: "mi-1", mediaType: "movie" }, expect.any(Object));
-    expect(mutate.mock.calls[0][1].onError).toBeUndefined();
+    mutate.mock.calls[0][1].onError();
+    expect(toastError).toHaveBeenCalledTimes(1);
   });
 });

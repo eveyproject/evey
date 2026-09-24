@@ -195,7 +195,7 @@ describe("MusicPlaylistsTab", () => {
     render(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} />);
     fireEvent.click(screen.getByText("Road Trip"));
     fireEvent.click(screen.getByLabelText("common.delete"));
-    expect(removeMutateMock).toHaveBeenCalledWith({ playlistId: "p1", mediaItemId: "t1" });
+    expect(removeMutateMock).toHaveBeenCalledWith({ playlistId: "p1", mediaItemId: "t1" }, expect.objectContaining({ onError: expect.any(Function) }));
   });
 
   it("opens directly into the requested playlist via initialSelectedId", () => {
@@ -229,7 +229,7 @@ describe("MusicPlaylistsTab", () => {
     );
     render(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} />);
     fireEvent.click(screen.getByTestId("icon-trash-outline").parentElement!);
-    await waitFor(() => expect(deleteMutateMock).toHaveBeenCalledWith("p1"));
+    await waitFor(() => expect(deleteMutateMock).toHaveBeenCalledWith("p1", expect.objectContaining({ onError: expect.any(Function) })));
   });
 
   // Web parity: the server-side taste-weighted generator (POST

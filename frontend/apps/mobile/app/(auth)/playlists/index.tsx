@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { Stack, useRouter } from "expo-router";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { LoadFailed } from "../../../src/components/LoadFailed";
@@ -128,6 +129,7 @@ export default function PlaylistsScreen() {
         description: newDesc.trim() || undefined,
         type: newType,
       });
+      toast.success(t("media.playlist.createSuccess"));
       setModalVisible(false);
       resetForm();
       if (res?.id) {
@@ -150,6 +152,7 @@ export default function PlaylistsScreen() {
           onPress: async () => {
             try {
               await deleteMutation.mutateAsync(playlist.id);
+              toast.success(t("media.playlist.playlistDeleted"));
             } catch {
               Alert.alert(t("common.error"), t("media.playlist.deleteError"));
             }
