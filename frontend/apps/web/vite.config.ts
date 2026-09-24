@@ -66,6 +66,9 @@ export default defineConfig({
       "/api": {
         target: process.env.VITE_API_TARGET ?? "http://localhost:9091",
         changeOrigin: true,
+        // The SyncPlay room and the Play On device sockets live under /api:
+        // without it the dev server never forwarded the upgrade.
+        ws: true,
       },
     },
   },
