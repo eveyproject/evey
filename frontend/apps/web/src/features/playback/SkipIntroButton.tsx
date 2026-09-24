@@ -3,6 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { mKVServiceListChapters } from "@evey/api";
 import { toast } from "@evey/store";
+import {
+  CREDITS_COUNTDOWN_SEC,
+  SKIPPABLE_SEGMENTS,
+  SKIP_LABEL_KEY,
+  activeSkippable,
+  skippableCandidates,
+  skippableFromChapters,
+  type ResolvedSegment,
+} from "@evey/client";
 import { useMediaSegments } from "@/hooks/useMediaSegments";
 
 // Segment types the button can skip, with their i18n label. The label is
@@ -12,36 +21,9 @@ import { useMediaSegments } from "@/hooks/useMediaSegments";
 // "preview" (next-episode preview reel) is admin-gated server-side: it is
 // only present in the API response when the admin enables it, so listing it
 // here is safe - no button appears unless the server actually returns one.
-const SKIPPABLE = ["intro", "recap", "end_credits", "preview"] as const;
-type SkippableType = (typeof SKIPPABLE)[number];
-
-const LABEL_KEY: Record<SkippableType, string> = {
-  intro: "player.skipIntro",
-  recap: "player.skipRecap",
-  end_credits: "player.skipCredits",
-  preview: "player.skipPreview",
-};
-
-// MKV chapter title → segment type. Mirrors the server-side mapping in
-// intro_detection_service.go so the client-only fallback (used when the
-// server hasn't run detection yet) recognises the same chapters.
-const CHAPTER_PATTERNS: { type: SkippableType; re: RegExp }[] = [
-  { type: "intro", re: /^(intro|introduction|opening|op$|op\s)/i },
-  { type: "recap", re: /(recap|previously)/i },
-  { type: "end_credits", re: /(credit|ending|outro|^ed$|^ed\s)/i },
-];
-
-const MIN_SKIPPABLE_SEC = 5;
 // With auto-play on, the next episode starts this long after the credits
-// begin unless the viewer asks to watch them. Measured on the playhead, not
-// the clock: a pause freezes it, and it can never outlive the segment.
-export const CREDITS_COUNTDOWN_SEC = 15;
-
-interface ResolvedSegment {
-  type: SkippableType;
-  startSec: number;
-  endSec: number;
-}
+// begin unless the viewer asks to watch them (@evey/client skipSegments).
+export { CREDITS_COUNTDOWN_SEC } from "@evey/client";
 
 interface SkipIntroButtonProps {
   mediaId?: string; // segments API (priority)
@@ -60,31 +42,13 @@ interface SkipIntroButtonProps {
   autoAdvance?: boolean;
 }
 
-// active picks the skippable segment the playhead currently sits inside,
-// long enough to be worth a button. Returns null when none match - this is
-// what gates the button's visibility frame-to-frame. Picking by playhead
-// (rather than "first segment") is what lets intro + recap + credits all
-// work from one button without the end-credits case being shadowed by an
-// earlier intro segment.
-function active(
-  candidates: ResolvedSegment[],
-  currentTime: number,
-): ResolvedSegment | null {
-  for (const c of candidates) {
-    if (c.endSec <= c.startSec) continue;
-    if (c.endSec - c.startSec < MIN_SKIPPABLE_SEC) continue;
-    if (currentTime >= c.startSec && currentTime < c.endSec) return c;
-  }
-  return null;
-}
-
 const BUTTON_CLASS =
   "px-5 py-2.5 text-sm font-semibold text-white rounded-md transition-all duration-200 hover:scale-105 bg-[var(--overlay-btn-bg)] border border-[var(--overlay-dot-inactive)] backdrop-blur-[8px]";
 
 export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip, onNextEpisode, hidden, autoAdvance = false }: SkipIntroButtonProps) {
   const { t } = useTranslation();
 
-  const { data: segmentsData } = useMediaSegments(mediaId, [...SKIPPABLE]);
+  const { data: segmentsData } = useMediaSegments(mediaId, [...SKIPPABLE_SEGMENTS]);
   const segments = segmentsData?.segments;
   const autoSkip = segmentsData?.introAutoSkip === true;
 
@@ -100,25 +64,9 @@ export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip, onNext
   let resolved: ResolvedSegment | null = null;
 
   if (segments && segments.length > 0) {
-    const apiCandidates: ResolvedSegment[] = segments
-      .filter((s) => (SKIPPABLE as readonly string[]).includes(s.type))
-      .map((s) => ({ type: s.type as SkippableType, startSec: s.startMs / 1000, endSec: s.endMs / 1000 }));
-    resolved = active(apiCandidates, currentTime);
+    resolved = activeSkippable(skippableCandidates(segments), currentTime);
   } else if (chaptersData?.chapters) {
-    const chapterCandidates: ResolvedSegment[] = [];
-    for (const ch of chaptersData.chapters) {
-      const title = ch.title?.trim();
-      if (!title) continue;
-      const match = CHAPTER_PATTERNS.find((p) => p.re.test(title));
-      if (match) {
-        chapterCandidates.push({
-          type: match.type,
-          startSec: Number(ch.startMs ?? 0) / 1000,
-          endSec: Number(ch.endMs ?? 0) / 1000,
-        });
-      }
-    }
-    resolved = active(chapterCandidates, currentTime);
+    resolved = activeSkippable(skippableFromChapters(chaptersData.chapters), currentTime);
   }
 
   // Auto-skip (admin toggle): jump the intro instead of waiting for the
@@ -170,7 +118,7 @@ export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip, onNext
 
   if (!resolved || hidden) return null;
 
-  const labelKey = LABEL_KEY[resolved.type];
+  const labelKey = SKIP_LABEL_KEY[resolved.type];
 
   return (
     <div className="absolute bottom-28 right-4 z-float flex gap-2 animate-fade-in">

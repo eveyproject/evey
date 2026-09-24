@@ -25,3 +25,18 @@ describe("activeSkippable", () => {
     ])).toEqual([{ type: "intro", startSec: 1, endSec: 20 }]);
   });
 });
+
+describe("skippableFromChapters", () => {
+  it("recognises the chapters the server's detection would name, and ignores the others", async () => {
+    const { skippableFromChapters } = await import("./skipSegments");
+    const out = skippableFromChapters([
+      { title: "Opening", startMs: "0", endMs: "90000" },
+      { title: "Chapter 2", startMs: "90000", endMs: "600000" },
+      { title: "Previously on", startMs: "600000", endMs: "640000" },
+      { title: "Ending", startMs: "2500000", endMs: "2590000" },
+      { title: "  ", startMs: "1", endMs: "2" },
+    ]);
+    expect(out.map((c) => c.type)).toEqual(["intro", "recap", "end_credits"]);
+    expect(out[0]).toEqual({ type: "intro", startSec: 0, endSec: 90 });
+  });
+});
