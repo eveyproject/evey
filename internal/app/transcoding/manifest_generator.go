@@ -260,8 +260,58 @@ type FallbackVariant struct {
 	// auto-switch variant (see ABRGroup / copyFallbackVariant's gate).
 	VideoRange string
 	AudioCodec string
-	// VideoOnly: the rung's segments carry no audio.
-	VideoOnly bool
+	// AudioRenditions, when set, are the rung's plan's audio renditions: its
+	// segments are video-only and it plays these, under AudioSuffix (that
+	// plan's own baked query, pins included).
+	AudioRenditions []AudioRendition
+	AudioSuffix     string
+}
+
+func fallbackAudioGroup(i int) string { return fmt.Sprintf("aud-fb%d", i) }
+
+// renditionCodecsAttr lists every distinct codec a rendition group carries, in
+// rendition order: a copied AC-3 next to a re-encoded AAC is "ac-3,mp4a.40.2".
+func renditionCodecsAttr(rs []AudioRendition) string {
+	var attrs []string
+	for _, r := range rs {
+		a := audioCodecAttr(strings.ToLower(r.Codec))
+		if !slices.Contains(attrs, a) {
+			attrs = append(attrs, a)
+		}
+	}
+	return strings.Join(attrs, ",")
+}
+
+// writeAudioGroup emits one #EXT-X-MEDIA per rendition of group, the
+// requested track (0-based among audio streams) marked DEFAULT - the first
+// when it is out of range, so a default always exists.
+func writeAudioGroup(b *strings.Builder, group string, rs []AudioRendition, requestedTrack int, suffix string) {
+	defaultRenditionIdx := 0
+	for j, r := range rs {
+		if r.SourceTrackIdx == requestedTrack {
+			defaultRenditionIdx = j
+			break
+		}
+	}
+	for i, r := range rs {
+		def := "NO"
+		if i == defaultRenditionIdx {
+			def = "YES"
+		}
+		name := r.Name
+		if name == "" {
+			name = fmt.Sprintf("Track %d", r.SourceTrackIdx+1)
+		}
+		name = hlsAttrSafe(name)
+		lang := ""
+		if r.LanguageCode != "" {
+			lang = fmt.Sprintf(`,LANGUAGE=%q`, hlsAttrSafe(r.LanguageCode))
+		}
+		fmt.Fprintf(b,
+			"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=%q,NAME=%q,DEFAULT=%s,AUTOSELECT=YES%s,URI=\"audio_%d.m3u8%s\"\n",
+			group, name, def, lang, r.SourceTrackIdx, suffix,
+		)
+	}
 }
 
 // AudioRendition describes a single source audio track exposed as an
@@ -378,16 +428,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	// and refuses it. Muxed path (no renditions) keeps the decision codec.
 	audioAttrs := audioCodecAttr(strings.ToLower(in.ChosenAudioCodec))
 	if len(in.AudioRenditions) > 0 {
-		// Every distinct codec the rendition group carries, in rendition
-		// order: a copied AC-3 next to a re-encoded AAC is "ac-3,mp4a.40.2".
-		var attrs []string
-		for _, r := range in.AudioRenditions {
-			a := audioCodecAttr(strings.ToLower(r.Codec))
-			if !slices.Contains(attrs, a) {
-				attrs = append(attrs, a)
-			}
-		}
-		audioAttrs = strings.Join(attrs, ",")
+		audioAttrs = renditionCodecsAttr(in.AudioRenditions)
 	}
 	// Video-only master (wasm-audio path): the CODECS attribute must list the
 	// video codec ALONE - advertising any audio codec makes Safari/hls.js
@@ -421,32 +462,16 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		// the first rendition when the request is out of range so a default
 		// always exists. AUTOSELECT=YES on every rendition so a client can
 		// still switch tracks itself.
-		defaultRenditionIdx := 0
-		for j, r := range in.AudioRenditions {
-			if r.SourceTrackIdx == in.AudioTrack {
-				defaultRenditionIdx = j
-				break
-			}
-		}
-		for i, r := range in.AudioRenditions {
-			def := "NO"
-			autoSel := "YES"
-			if i == defaultRenditionIdx {
-				def = "YES"
-			}
-			name := r.Name
-			if name == "" {
-				name = fmt.Sprintf("Track %d", r.SourceTrackIdx+1)
-			}
-			name = hlsAttrSafe(name)
-			lang := ""
-			if r.LanguageCode != "" {
-				lang = fmt.Sprintf(`,LANGUAGE=%q`, hlsAttrSafe(r.LanguageCode))
-			}
-			fmt.Fprintf(&b,
-				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=%q,NAME=%q,DEFAULT=%s,AUTOSELECT=%s%s,URI=\"audio_%d.m3u8%s\"\n",
-				audioGroup, name, def, autoSel, lang, r.SourceTrackIdx, suffix,
-			)
+		writeAudioGroup(&b, audioGroup, in.AudioRenditions, in.AudioTrack, suffix)
+	}
+	// A video-only fallback rung plays its OWN plan's renditions: each one is
+	// shifted onto its plan's video, and a transcoded rung presents later than
+	// the copy (measured 2026-09-24: 125 ms with NVENC), so the copy's group
+	// would run 76 ms early under it. Same names and languages, so the player
+	// keeps the viewer's track across the ABR switch.
+	for i, v := range in.FallbackVariants {
+		if len(v.AudioRenditions) > 0 && !in.ExternalAudio {
+			writeAudioGroup(&b, fallbackAudioGroup(i), v.AudioRenditions, in.AudioTrack, v.AudioSuffix)
 		}
 	}
 
@@ -534,16 +559,15 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	// Fallback rungs ride last so players that start on the first listed
 	// variant keep starting on the main one. The URI is another plan's,
 	// emitted verbatim with its own baked suffix. A muxed rung names its own
-	// audio codec; a video-only one plays this master's audio group (no track
-	// switch on the ABR drop), and without a group it would be silent, so it is
-	// not advertised.
-	for _, v := range in.FallbackVariants {
+	// audio codec; a video-only one names its own audio group (above).
+	for i, v := range in.FallbackVariants {
 		codecs, audioAttr := codecsAttr(v.VideoCodec, v.AudioCodec), ""
-		if v.VideoOnly {
-			if audioGroup == "" {
+		if len(v.AudioRenditions) > 0 {
+			if in.ExternalAudio {
 				continue
 			}
-			codecs, audioAttr = videoCodecAttr(strings.ToLower(v.VideoCodec))+","+audioAttrs, fmt.Sprintf(",AUDIO=%q", audioGroup)
+			codecs = videoCodecAttr(strings.ToLower(v.VideoCodec)) + "," + renditionCodecsAttr(v.AudioRenditions)
+			audioAttr = fmt.Sprintf(",AUDIO=%q", fallbackAudioGroup(i))
 		}
 		bps := (v.Profile.VideoBitrate + v.Profile.AudioBitrate) * 1000
 		fmt.Fprintf(&b,
