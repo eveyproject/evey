@@ -225,6 +225,9 @@ importers:
       expo-audio:
         specifier: ^55.0.14
         version: 55.0.14(expo-asset@55.0.17(expo@55.0.23)(react-native-tvos@0.83.10-0)(react@19.2.0)(typescript@5.9.3))(expo@55.0.23)(react-native-tvos@0.83.10-0)(react@19.2.0)
+      expo-file-system:
+        specifier: 55.0.19
+        version: 55.0.19(expo@55.0.23)(react-native-tvos@0.83.10-0)
       expo-image:
         specifier: 55.0.10
         version: 55.0.10(expo@55.0.23)(react-native-tvos@0.83.10-0)(react@19.2.0)

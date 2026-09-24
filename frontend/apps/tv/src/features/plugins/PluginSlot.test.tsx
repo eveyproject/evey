@@ -46,6 +46,15 @@ vi.mock("react-native-webview", () => ({
 }));
 
 // --- expo-router ------------------------------------------------------------------------
+// Bundle disk cache, shared with the phone: a miss unless a test primes it.
+vi.mock("expo-file-system/legacy", () => ({
+  cacheDirectory: "file:///cache/",
+  getInfoAsync: vi.fn().mockResolvedValue({ exists: false }),
+  readAsStringAsync: vi.fn().mockResolvedValue(""),
+  makeDirectoryAsync: vi.fn().mockResolvedValue(undefined),
+  writeAsStringAsync: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("expo-router", () => ({
   router: { push: vi.fn() },
 }));
@@ -314,5 +323,35 @@ describe("usePluginSlotEntries (TV)", () => {
   it("returns an empty list when no plugin mounts the slot", () => {
     const { result } = renderHook(() => usePluginSlotEntries("settings.user.appearance"));
     expect(result.current).toEqual([]);
+  });
+});
+
+// The television downloaded every plugin bundle at each cold start (1.3 MB for
+// the weather) where the phone kept it on disk; both use one cache now.
+describe("PluginSlot bundle cache (TV)", () => {
+  it("revalidates a bundle kept on disk with If-None-Match and stores the update", async () => {
+    const cachePath = "file:///cache/evey-plugins/plg-test1_index.js";
+    const FS = await import("expo-file-system/legacy");
+    vi.mocked(FS.getInfoAsync).mockResolvedValue({ exists: true } as never);
+    vi.mocked(FS.readAsStringAsync).mockImplementation(async (p: string) =>
+      p === cachePath + ".etag" ? '"bundle-v0"' : "console.log('stale');",
+    );
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ etag: '"bundle-v1"' }),
+      text: async () => PLUGIN_BUNDLE,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mountPluginWebView();
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/plugins/plg-test1/assets/index.js"),
+        expect.objectContaining({ headers: expect.objectContaining({ "If-None-Match": '"bundle-v0"' }) }),
+      );
+      expect(vi.mocked(FS.writeAsStringAsync)).toHaveBeenCalledWith(cachePath, PLUGIN_BUNDLE);
+    });
   });
 });

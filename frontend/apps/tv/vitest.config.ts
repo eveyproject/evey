@@ -19,6 +19,7 @@ export default defineConfig({
       { find: "@evey/store", replacement: resolve(__dirname, "../../packages/store/src/index.ts") },
       { find: "@evey/theme", replacement: resolve(__dirname, "../../packages/theme/src/index.ts") },
       { find: "react-native", replacement: resolve(__dirname, "./src/test/__mocks__/react-native.ts") },
+      { find: "expo-file-system/legacy", replacement: resolve(__dirname, "./src/test/__mocks__/expo-file-system-legacy.ts") },
       { find: "expo-secure-store", replacement: resolve(__dirname, "./src/test/__mocks__/expo-secure-store.ts") },
       // The shared plugin host (@evey/client/native/PluginWebView) imports the
       // WebView from the package, where a per-test vi.mock does not reach.
