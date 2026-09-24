@@ -2,8 +2,10 @@ package syncplay
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 	"time"
@@ -88,6 +90,30 @@ type SyncCommand struct {
 	Playing    bool   `json:"playing,omitempty"`
 	TrackIndex int    `json:"trackIndex,omitempty"`
 	MediaID    string `json:"mediaId,omitempty"`
+}
+
+// UnmarshalJSON accepts a fractional position. Players report their clock as
+// currentTime * 1000, a float, and decoding one into the int64 failed: the
+// websocket loop skipped the message, so a play, pause or seek from such a
+// player never reached the room (dev, 2026-09-24: 67833.333). Rounded here,
+// because clients already installed keep sending it.
+func (c *SyncCommand) UnmarshalJSON(b []byte) error {
+	type plain SyncCommand
+	aux := struct {
+		*plain
+		PositionMs json.Number `json:"positionMs,omitempty"`
+	}{plain: (*plain)(c)}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	if aux.PositionMs != "" {
+		f, err := aux.PositionMs.Float64()
+		if err != nil {
+			return fmt.Errorf("positionMs: %w", err)
+		}
+		c.PositionMs = int64(math.Round(f))
+	}
+	return nil
 }
 
 // MaskUsername returns first rune + "***" to avoid leaking login usernames.
