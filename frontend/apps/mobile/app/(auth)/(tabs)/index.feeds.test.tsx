@@ -8,6 +8,11 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 // each tap changed, from the handler (never from inside an updater, which
 // StrictMode runs twice).
 
+// The collections row reads the shared layer (generated API); this screen's
+// tests are about the other rows, so it is doubled at the app's own path.
+vi.mock("../../../src/api/collections", () => ({
+  useCollections: () => ({ data: { collections: [] }, isLoading: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),

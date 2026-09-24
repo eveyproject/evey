@@ -12,6 +12,7 @@ import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { useAuthStore } from "@evey/store";
 import { Skeleton } from "../../../../src/components/Skeleton";
 import { SmartRulesEditor, COLLECTION_FIELDS, type SmartRule } from "../../../../src/components/SmartRulesEditor";
@@ -123,7 +124,13 @@ export default function SmartFilterScreen() {
           onSave={(newRules) => {
             updateMut.mutate(
               { id: filterId ?? "", name: col.name ?? "", rules: newRules.map((r) => ({ field: r.field, operator: r.operator, value: r.value })) },
-              { onSuccess: () => void refetch() },
+              {
+                onSuccess: () => {
+                  toast.success(t("media.collections.updated"));
+                  void refetch();
+                },
+                onError: () => toast.error(t("media.collections.updateFailed")),
+              },
             );
           }}
           availableFields={COLLECTION_FIELDS}

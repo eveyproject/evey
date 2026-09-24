@@ -41,7 +41,7 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k: string, o?: string | { count?: number }) => (typeof o === "string" ? o : o ? `${k}:${o.count}` : k) }),
 }));
 const auth = vi.hoisted(() => ({ isAdmin: false }));
-vi.mock("@evey/store", () => ({ useAuthStore: (sel: (s: typeof auth) => unknown) => sel(auth) }));
+vi.mock("@evey/store", () => ({ useAuthStore: (sel: (s: typeof auth) => unknown) => sel(auth), toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("../../../../src/components/Skeleton", () => ({ Skeleton: () => React.createElement("div", { "data-testid": "skeleton" }) }));
 vi.mock("../../../../src/components/SmartRulesEditor", () => ({
   COLLECTION_FIELDS: ["genre", "year"],

@@ -148,7 +148,7 @@ describe("CollectionsScreen long-press delete", () => {
 
     fireEvent.doubleClick(screen.getByText("Bond Saga").closest("button")!);
 
-    expect(deleteMutateMock).toHaveBeenCalledWith("col-1");
+    expect(deleteMutateMock).toHaveBeenCalledWith("col-1", expect.objectContaining({ onError: expect.any(Function) }));
   });
 
   it("does not delete on long-press for a non-admin, but keeps normal tap navigation", () => {

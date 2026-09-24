@@ -17,6 +17,7 @@ import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { useAuthStore } from "@evey/store";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { LoadFailed } from "../../../src/components/LoadFailed";
@@ -172,8 +173,9 @@ function CreateCollectionModal({
         overview: isSmart ? undefined : description.trim() || undefined,
         rules: isSmart ? rules.filter((r) => r.value.trim()).map((r) => ({ field: r.field, operator: r.operator, value: r.value })) : undefined,
       });
+      toast.success(t("media.collections.created"));
       handleClose();
-      if (res?.id) router.push(isSmart ? `/collections/smart/${res.id}` : `/collections/${res.id}`);
+      if (res.id) router.push(isSmart ? `/collections/smart/${res.id}` : `/collections/${res.id}`);
     } catch {
       Alert.alert(t("common.error", "Error"), t("common.tryAgain", "Please try again."));
     }
@@ -290,7 +292,11 @@ export default function CollectionsScreen() {
         {
           text: t("common.delete", "Delete"),
           style: "destructive",
-          onPress: () => deleteMut.mutate(col.id),
+          onPress: () =>
+            deleteMut.mutate(col.id, {
+              onSuccess: () => toast.success(t("media.collections.deleted")),
+              onError: () => toast.error(t("media.collections.deleteFailed")),
+            }),
         },
       ],
     );
