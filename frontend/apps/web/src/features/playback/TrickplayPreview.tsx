@@ -1,58 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { eveyFetchRaw } from "@evey/api";
-
-interface TrickplayCue {
-  startTime: number;
-  endTime: number;
-  url: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-function parseVTT(text: string): TrickplayCue[] {
-  const cues: TrickplayCue[] = [];
-  const blocks = text.split("\n\n");
-  for (const block of blocks) {
-    const lines = block.trim().split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      const match = lines[i].match(
-        /(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})/
-      );
-      if (!match) continue;
-
-      const startTime =
-        parseInt(match[1]) * 3600 +
-        parseInt(match[2]) * 60 +
-        parseInt(match[3]) +
-        parseInt(match[4]) / 1000;
-      const endTime =
-        parseInt(match[5]) * 3600 +
-        parseInt(match[6]) * 60 +
-        parseInt(match[7]) +
-        parseInt(match[8]) / 1000;
-
-      const urlLine = lines[i + 1]?.trim();
-      if (!urlLine) continue;
-
-      const xywh = urlLine.match(/#xywh=(\d+),(\d+),(\d+),(\d+)/);
-      if (!xywh) continue;
-
-      const url = urlLine.split("#")[0];
-      cues.push({
-        startTime,
-        endTime,
-        url,
-        x: parseInt(xywh[1]),
-        y: parseInt(xywh[2]),
-        w: parseInt(xywh[3]),
-        h: parseInt(xywh[4]),
-      });
-    }
-  }
-  return cues;
-}
+// Parse and cue lookup are @evey/client's, shared with both televisions.
+import { cueForTime, parseTrickplayVTT, type TrickplayCue } from "@evey/client";
 
 const TRICKPLAY_TYPES = new Set(["MEDIA_ITEM_TYPE_MOVIE", "MEDIA_ITEM_TYPE_EPISODE"]);
 // Module-level cache: one fetch per mediaId per page load
@@ -94,7 +43,7 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
         const res = await eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" });
         const text = await res.text();
         if (cancelled) return;
-        const parsed = parseVTT(text);
+        const parsed = parseTrickplayVTT(text);
         cueCache.set(mediaId, parsed);
         setCues(parsed);
         setLoaded(parsed.length > 0);
@@ -120,7 +69,7 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
 
   if (!hasTrickplay || !loaded || hoverTime === null) return null;
 
-  const cue = cues.find((c) => hoverTime >= c.startTime && hoverTime < c.endTime);
+  const cue = cueForTime(cues, hoverTime);
   if (!cue) return null;
 
   const imgSrc = imageCache.current.get(cue.url)?.src ?? cue.url;
