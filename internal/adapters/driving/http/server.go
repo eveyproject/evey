@@ -363,12 +363,6 @@ type HTTPServer struct {
 	// arg builder receives.
 	AudioEncoderIDGetter func() string
 
-	// VideoCompositionDelayProbe reports how late a source's video is presented
-	// once packaged as MP4 (has_b_frames/fps). The audio-rendition path shifts
-	// its output by this when the video is packaged by the ffmpeg copy fallback
-	// rather than mkvgo, or the audio runs audibly early. Injected because this
-	// package must not depend on the ffmpeg adapter. nil = no compensation.
-	VideoCompositionDelayProbe func(ctx context.Context, path string) float64
 	// VideoFrameRateProbe and EncoderReorderProbe give a TRANSCODED rung's
 	// composition delay (encoder reorder frames / source fps) for the same
 	// shift. nil = transcoded ladders keep their audio muxed.

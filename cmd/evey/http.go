@@ -317,12 +317,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		Translator:           deps.translator,
 		AudioNormalizeGetter: audioNormalizeGetter,
 		AudioEncoderIDGetter: ffmpeg.AACEncoder,
-		// Audio renditions ride the video's timeline. mkvgo presents at 0, the
-		// ffmpeg copy fallback presents late by has_b_frames/fps - the HTTP layer
-		// asks this probe how much to shift by. Best-effort: it returns 0 on any
-		// failure, which is the uncompensated behaviour.
-		VideoCompositionDelayProbe: ffmpeg.BundledVideoCompositionDelaySec,
-		VideoFrameRateProbe:        ffmpeg.BundledVideoFrameRate,
+		VideoFrameRateProbe:  ffmpeg.BundledVideoFrameRate,
 		EncoderReorderProbe: func(ctx context.Context, codec, accel, device string, features []string) (int, bool) {
 			return ffmpeg.BundledEncoderReorderFrames(ctx, ffmpeg.EncoderSpec{Codec: codec, Accel: domaintranscoding.HWAccelType(accel), Device: device, Features: features})
 		},
