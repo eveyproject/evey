@@ -245,7 +245,7 @@ docker volume inspect evey_evey-cache   # compose-mangled name may vary
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- Lower `EVEY_TRANSCODING_CACHE_MAX_GB` (default `50`) if the host volume is smaller than that.
+- Lower the transcode cache budget (Admin > Server settings, default `10` GB) if the host volume is tight; whatever the budget, the sweeper keeps 2 GiB free on the cache volume.
 
 ## 7. Plugin crashed
 

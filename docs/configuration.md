@@ -272,6 +272,18 @@ the budget for them. The former `trickplay.adaptive_cpu` (`false` = 50 %) and
 `intro_detection.use_all_cores` (`true` = 80 % for intro detection) keys are
 still honoured until the new ones are set.
 
+**Transcode cache budget** (Admin > Server settings, `transcoding.cache_max_gb`,
+default `10`, applied at restart) bounds the whole transcode cache on disk:
+playback segments, fast-start remuxes and compat downloads together, under one
+number. It is an absolute size on purpose: the cache lives on the `evey-cache`
+volume next to whatever else the operator runs there, and what the rest of the
+volume is for is their call. One sweeper enforces it, least recently used first,
+sparing only what a viewer is reading. Whatever the budget, it also keeps 2 GiB
+free on the cache volume, and retires a download nobody fetched for 7 days.
+A copy (remux) session never stores the whole film: it keeps a window of
+segments around the viewer and re-seeks for anything outside it. The zero-storage
+mkvgo path, which serves most MKV and MP4 sources, never touches the cache at all.
+
 ### Plugins (sandbox & limits)
 ```env
 EVEY_PLUGINS_SANDBOX_MODE=auto         # auto|landlock|bubblewrap|strict|basic - auto picks the strongest your host supports

@@ -872,9 +872,12 @@ func Load() (*Config, error) {
 			RefreshTokenLongTTL: envDuration("EVEY_JWT_REFRESH_LONG_TTL", 180*24*time.Hour),
 		},
 		Transcoding: TranscodingConfig{
-			MaxConcurrent:         envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
-			MaxSessions:           envInt("EVEY_TRANSCODING_MAX_SESSIONS", 0),
-			CacheMaxGB:            envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
+			MaxConcurrent: envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
+			MaxSessions:   envInt("EVEY_TRANSCODING_MAX_SESSIONS", 0),
+			// 10 GB, an absolute number on purpose: the cache lives on the
+			// docker volume next to whatever else the operator runs, and what
+			// the volume is for is their call, not a share the server takes.
+			CacheMaxGB:            envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 10),
 			CacheDir:              envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
 			HWAccelEnabled:        envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
 			HWBackend:             strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
