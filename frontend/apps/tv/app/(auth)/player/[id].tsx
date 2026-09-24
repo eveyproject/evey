@@ -1779,7 +1779,7 @@ export default function PlayerScreen() {
                   nextFocusUp={focusTags.rewind}
                   nextFocusDown={focusTags.timeline ?? focusTags.rewind}
                   onPress={() => bumpSeek(-skipBwd)}
-                  accessibilityLabel={t("player.controls.rewind", "Rewind")}
+                  accessibilityLabel={t("player.controls.rewind", { seconds: skipBwd })}
                 />
                 <PlayerControlButton
                   label={isPlaying ? "\u2016" : "\u25B6"}
@@ -1802,7 +1802,7 @@ export default function PlayerScreen() {
                   nextFocusUp={focusTags.forward}
                   nextFocusDown={focusTags.timeline ?? focusTags.forward}
                   onPress={() => bumpSeek(skipFwd)}
-                  accessibilityLabel={t("player.controls.forward", "Forward")}
+                  accessibilityLabel={t("player.controls.forward", { seconds: skipFwd })}
                 />
               </View>
               <View style={styles.controlsGroup}>
