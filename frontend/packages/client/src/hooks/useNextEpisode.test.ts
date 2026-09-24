@@ -199,3 +199,33 @@ describe("useNextEpisode", () => {
     expect(result.current.visible).toBe(false);
   });
 });
+
+// What the web's own overlay already guarded, and the shared hook (the phone,
+// both televisions) did not.
+describe("useNextEpisode - the web's guards", () => {
+  it("clears the end state when the viewer seeks back from the end", () => {
+    const onNavigate = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ t }: { t: number }) => useNextEpisode({ media: ep1, currentTime: t, duration: 100, onNavigate, autoAdvance: false }),
+      { wrapper: createWrapper(), initialProps: { t: 100 } },
+    );
+    expect(result.current.ended).toBe(true);
+    rerender({ t: 20 });
+    expect(result.current.ended).toBe(false);
+    expect(result.current.visible).toBe(false);
+  });
+
+  it("moves to the next episode once, even when the caller hands a new callback afterwards", () => {
+    const first = vi.fn();
+    const { rerender } = renderHook(
+      ({ cb }: { cb: (id: string) => void }) => useNextEpisode({ media: ep1, currentTime: 100, duration: 100, onNavigate: cb }),
+      { wrapper: createWrapper(), initialProps: { cb: first } },
+    );
+    act(() => { vi.advanceTimersByTime(6000); });
+    expect(first).toHaveBeenCalledTimes(1);
+    const second = vi.fn();
+    rerender({ cb: second });
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(second).not.toHaveBeenCalled();
+  });
+});

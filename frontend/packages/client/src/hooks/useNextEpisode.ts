@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback } from "react";
 import {
   useLibraryServiceListMediaItems,
   type V1MediaItem,
 } from "@evey/api";
 
-const CREDITS_THRESHOLD_SEC = 30;
-export const COUNTDOWN_SEC = 5;
+import { useUpNextCountdown } from "./useUpNextCountdown";
+
 
 interface UseNextEpisodeArgs {
   media: V1MediaItem | undefined;
@@ -27,11 +27,6 @@ export function useNextEpisode({
   onNavigate,
   autoAdvance = true,
 }: UseNextEpisodeArgs) {
-  const [countdown, setCountdown] = useState(COUNTDOWN_SEC);
-  const [cancelled, setCancelled] = useState(false);
-  const [ended, setEnded] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const isEpisode = media?.type === "MEDIA_ITEM_TYPE_EPISODE";
   const parentId = media?.parentId;
 
@@ -66,51 +61,13 @@ export function useNextEpisode({
     return siblings[idx - 1];
   })();
 
-  const isInCredits =
-    duration > 0 && currentTime > 0 && duration - currentTime <= CREDITS_THRESHOLD_SEC;
-  const videoEnded = duration > 0 && currentTime >= duration - 0.5;
-
-  useEffect(() => {
-    if (videoEnded && !ended) setEnded(true);
-  }, [videoEnded, ended]);
-
-  const visible = !!nextEpisode && !cancelled && (isInCredits || ended);
-
-  useEffect(() => {
-    if (!ended || cancelled || !nextEpisode || !autoAdvance) return;
-    setCountdown(COUNTDOWN_SEC);
-    intervalRef.current = setInterval(() => {
-      setCountdown((prev) => prev - 1);
-    }, 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [ended, cancelled, nextEpisode, autoAdvance]);
-
-  useEffect(() => {
-    if (!autoAdvance) return;
-    if (countdown <= 0 && nextEpisode && !cancelled) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (!nextEpisode?.id) return;
-      onNavigate(nextEpisode.id);
-    }
-  }, [countdown, nextEpisode, cancelled, onNavigate, autoAdvance]);
-
-  // Reset on episode change
-  useEffect(() => {
-    setCancelled(false);
-    setEnded(false);
-  }, [media?.id]);
-
-  const playNow = useCallback(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (nextEpisode?.id) onNavigate(nextEpisode.id);
-  }, [nextEpisode, onNavigate]);
-
-  const cancel = useCallback(() => {
-    setCancelled(true);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-  }, []);
+  const { visible, ended, countdown, playNow, cancel } = useUpNextCountdown({
+    nextEpisodeId: nextEpisode?.id,
+    currentTime,
+    duration,
+    onPlay: onNavigate,
+    autoAdvance,
+  });
 
   const playPrevious = useCallback(() => {
     if (previousEpisode?.id) onNavigate(previousEpisode.id);
