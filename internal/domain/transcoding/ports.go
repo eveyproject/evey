@@ -85,12 +85,16 @@ type AudioProcess interface {
 // AudioProcessOpts configures one audio-only HLS rendition encode; T in the
 // filenames is SourceTrackIdx.
 type AudioProcessOpts struct {
-	FilePath         string // source media absolute path
-	OutputDir        string // destination for audio_T_NNN.m4s + audio_T_init.mp4
-	SourceTrackIdx   int    // 0-indexed audio stream in source
-	AudioCodec       string // "aac", "ac3", "eac3", "opus" → resolveAudioEncoder
-	AudioBitrate     int    // kbps; 0 = encoder default
-	MaxAudioChannels int    // for resolveAudioChannels; 0 = passthrough (→ "2")
+	FilePath       string // source media absolute path
+	OutputDir      string // destination for audio_T_NNN.m4s + audio_T_init.mp4
+	SourceTrackIdx int    // 0-indexed audio stream in source
+	AudioCodec     string // "aac", "ac3", "eac3", "opus" → resolveAudioEncoder
+	// SourceAudioCodec is the codec of the source track a copy carries
+	// ("aac", "ac3" ...): an AAC track out of an MPEG-TS is ADTS-framed and
+	// must be re-framed for fMP4 (-bsf:a aac_adtstoasc). Unused on a re-encode.
+	SourceAudioCodec string
+	AudioBitrate     int // kbps; 0 = encoder default
+	MaxAudioChannels int // for resolveAudioChannels; 0 = passthrough (→ "2")
 	// SourceAudioChannels gates the stereo fold guard (AudioFoldFilter); 0 = unknown, guard on.
 	SourceAudioChannels int
 	StartSec            float64 // for mid-stream rafale; 0 for cold start

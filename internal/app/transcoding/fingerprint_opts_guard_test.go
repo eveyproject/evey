@@ -222,6 +222,7 @@ var (
 		// rather than in the exempt map.
 		"VideoCompositionDelay": "AudioProcessOpts.VideoCompositionDelay",
 		"Grid":                  "AudioProcessOpts.Grid (-hls_time on the video's cadence)",
+		"SourceAudioCodec":      "AudioProcessOpts.SourceAudioCodec (-bsf:a aac_adtstoasc on a copied ADTS track)",
 	}
 	audioFingerprintNonEncoderFields = map[string]string{
 		"MediaID": "cache addressing only - two items sharing a source path must not share segments",

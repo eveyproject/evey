@@ -436,6 +436,7 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		OutputDir:           outputDir,
 		SourceTrackIdx:      fp.SourceTrackIdx,
 		AudioCodec:          fp.AudioCodec,
+		SourceAudioCodec:    fp.SourceAudioCodec,
 		AudioEncoder:        fp.AudioEncoder,
 		AudioBitrate:        int(fp.AudioBitrate),
 		MaxAudioChannels:    fp.MaxAudioChannels,
