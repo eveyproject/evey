@@ -202,14 +202,14 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 
 This keeps the server fully unprivileged - a server RCE can't `setuid(0)` because
 the server holds no caps; only the tiny, no-input launcher does (and it refuses
-any target UID below 1000). It's **best-effort**: if the launcher can't drop
-(capability missing, or `no_new_privs` set) it logs a warning and runs the plugin
-at the server's UID rather than failing - so this never breaks plugin startup.
+any target UID below 1000). If the launcher can't drop (capability missing, or
+`no_new_privs` set), a plugin in `basic` mode is **refused** - the UID is its only
+secret wall there; under Landlock it logs a warning and runs at the server's UID.
 
 > **Incompatible with `no_new_privs`.** If you launch the server with
 > `no-new-privileges` (or systemd `NoNewPrivileges=yes`), the file capability is
-> ignored on exec and uid separation silently degrades to same-UID (with a
-> warning). Pick one.
+> ignored on exec: plugins are refused in `basic` mode, and under Landlock uid
+> separation degrades to same-UID (with a warning). Pick one.
 
 If the server runs **as root** instead (not recommended), it drops plugins to
 1001 directly and the launcher capability isn't needed.

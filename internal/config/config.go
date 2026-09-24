@@ -112,9 +112,9 @@ type PluginsConfig struct {
 	//                      skipped under landlock/bubblewrap where it's redundant.
 	//   "on"             - always attempt it.
 	//   "off"            - never.
-	// Best-effort: where the launcher can't setuid (no cap_setuid file capability,
-	// or no-new-privileges) the plugin runs same-uid with a loud warning instead
-	// of failing closed. EVEY_PLUGINS_UID_SEPARATION
+	// Where the launcher can't setuid (no cap_setuid file capability, or
+	// no-new-privileges) a basic-mode plugin is refused; under landlock it runs
+	// same-uid with a loud warning. EVEY_PLUGINS_UID_SEPARATION
 	UIDSeparation string
 
 	// CosignPolicy controls whether plugin ZIPs must carry a cosign signature.

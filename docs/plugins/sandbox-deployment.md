@@ -69,9 +69,10 @@ out of reach, so uid separation there is just a redundant extra layer.
 | `off` | **Never.** | A specific plugin misbehaves when run under it (rare). |
 
 **The gotcha:** uid separation is **incompatible with the `no-new-privileges`
-Docker hardening option** - pick one. If your setup can't grant it, Evey doesn't
-break: it logs a warning and runs the plugin normally (you just don't get the
-extra wall). The official image already ships everything needed; you only set
+Docker hardening option** - pick one. If your setup can't grant it on an old
+machine (`basic`), Evey **refuses to start the plugin** rather than run it next to
+your secrets; on a modern machine it logs a warning and runs the plugin normally
+(you just don't get the extra wall). The official image already ships everything needed; you only set
 this variable.
 
 **Small cost of `on`:** the plugin runs as a separate account, so a plugin that

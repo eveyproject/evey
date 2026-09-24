@@ -66,7 +66,7 @@ A plugin process can be dropped to UID 1001 (`evey-plugin`), distinct from the s
 - `on` - always (an extra independent layer on top of Landlock/bubblewrap).
 - `off` - never.
 
-**The drop is performed by the launcher, not the server.** The server stays non-root with no capabilities; `evey-plugin-launcher` carries `cap_setuid` (a file capability, `setcap cap_setuid+ep` in the `Dockerfile`) and `setgid`/`setuid`s itself to the shared group + UID 1001 right before exec. It refuses any target UID below 1000, and is **best-effort**: if it can't drop (no capability, or `no_new_privs` set) it warns and runs the plugin at the server's UID rather than failing the spawn - so enabling it can never break plugin startup. A root server drops plugins directly via `SysProcAttr` and needs no capability. Plain-language guide: [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md).
+**The drop is performed by the launcher, not the server.** The server stays non-root with no capabilities; `evey-plugin-launcher` carries `cap_setuid` (a file capability, `setcap cap_setuid+ep` in the `Dockerfile`) and `setgid`/`setuid`s itself to the shared group + UID 1001 right before exec. It refuses any target UID below 1000. If it can't drop (no capability, `no_new_privs` set, or the launcher binary itself missing), the outcome depends on the mode: in `basic`, where the UID is the only secret wall, the plugin is **refused** (fail-closed); under `landlock`, where the filesystem is already walled off, it warns and runs the plugin at the server's UID. A root server drops plugins directly via `SysProcAttr` and needs no capability. Plain-language guide: [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md).
 
 What this buys, **even on a kernel without Landlock** (when active):
 
@@ -218,7 +218,7 @@ sandbox_mode: auto   # default - resolves landlock → bubblewrap → basic for 
 # sandbox_mode: strict      # bubblewrap + LD_PRELOAD seccomp lib
 ```
 
-`EVEY_PLUGINS_UID_SEPARATION` (`auto` | `on` | `off`, default `auto`) is a separate knob that controls whether plugins run under a distinct UID (see [§3](#3-uid-separation-dac)): `auto` enables it only when the mode resolves to `basic`, `on` forces it everywhere (extra independent layer), `off` disables it. Best-effort and launcher-driven; incompatible with `no_new_privs`. Per-scenario walkthrough: [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md).
+`EVEY_PLUGINS_UID_SEPARATION` (`auto` | `on` | `off`, default `auto`) is a separate knob that controls whether plugins run under a distinct UID (see [§3](#3-uid-separation-dac)): `auto` enables it only when the mode resolves to `basic`, `on` forces it everywhere (extra independent layer), `off` disables it. Launcher-driven, fail-closed in `basic` (best-effort only under `landlock`); incompatible with `no_new_privs`. Per-scenario walkthrough: [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md).
 
 Mapping per mode (all values reflect host capability - e.g. Landlock requires kernel ≥ 5.13 with Landlock in the active LSM list):
 
