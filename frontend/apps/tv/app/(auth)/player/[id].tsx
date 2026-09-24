@@ -38,6 +38,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview, holdScrubRate, tapSeekStep } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
+import { resolveStartPositionMs } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { QualityPicker } from "../../../src/components/QualityPicker";
@@ -491,9 +492,8 @@ export default function PlayerScreen() {
     // otherwise read (which may be stale, or belong to an older viewing).
     const cast = Number(start);
     if (Number.isFinite(cast) && cast > 0) return cast;
-    if (!progress?.positionMs || progress.played) return 0;
-    const ms = Number(progress.positionMs);
-    return ms > 0 ? ms / 1000 : 0;
+    // Played, or within the last seconds: start over (the rule of every client).
+    return resolveStartPositionMs(false, progress) / 1000;
   }, [progress, restart, start]);
 
   const player = useVideoPlayer(videoSource, (p) => {

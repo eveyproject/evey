@@ -116,8 +116,20 @@ const fakePlayer = {
   play: () => undefined,
   pause: () => undefined,
 };
+// The resume tests hand the screen a progress row and run the player's setup
+// once, as the real hook does when it creates the player.
+const resumeHarness = {
+  progress: null as { positionMs?: string; durationMs?: string; played?: boolean } | null,
+  runSetup: false,
+};
 vi.mock("expo-video", () => ({
-  useVideoPlayer: () => fakePlayer,
+  useVideoPlayer: (_source: unknown, setup?: (p: typeof fakePlayer) => void) => {
+    if (resumeHarness.runSetup) {
+      resumeHarness.runSetup = false;
+      setup?.(fakePlayer);
+    }
+    return fakePlayer;
+  },
   VideoView: () => null,
   isPictureInPictureSupported: () => false,
 }));
@@ -173,7 +185,7 @@ vi.mock("../hooks/usePlaySession", () => ({
     shedReason: null,
     stopSession: vi.fn(),
     restartWithTracks: vi.fn(),
-    progress: null,
+    progress: resumeHarness.progress,
   }),
 }));
 vi.mock("../hooks/useAudioCapsBeacon", () => ({ useAudioCapsBeacon: () => undefined }));
@@ -370,5 +382,32 @@ describe("player fullscreen layout", () => {
       (d) => d.style.width === PORTRAIT.width && d.style.height === PORTRAIT.height,
     );
     expect(pixelSized).toHaveLength(0);
+  });
+});
+
+// Where playback begins: the rule of every client (resolveStartPositionMs).
+describe("player resume position", () => {
+  beforeEach(() => {
+    dimsStore.set(PORTRAIT);
+    insetsStore.set(PORTRAIT_INSETS);
+    fakePlayer.currentTime = 0;
+    resumeHarness.runSetup = true;
+  });
+  afterEach(() => {
+    cleanup();
+    resumeHarness.progress = null;
+    resumeHarness.runSetup = false;
+  });
+
+  it("starts over a title stopped in its last seconds", async () => {
+    resumeHarness.progress = { positionMs: "3590000", durationMs: "3600000" };
+    await act(async () => { render(React.createElement(PlayerScreen)); });
+    expect(fakePlayer.currentTime).toBe(0);
+  });
+
+  it("resumes a title stopped mid-way", async () => {
+    resumeHarness.progress = { positionMs: "600000", durationMs: "3600000" };
+    await act(async () => { render(React.createElement(PlayerScreen)); });
+    expect(fakePlayer.currentTime).toBe(600);
   });
 });

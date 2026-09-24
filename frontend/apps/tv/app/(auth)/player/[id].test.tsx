@@ -158,6 +158,7 @@ const sessionState = {
   streamUrl: "http://srv.test/stream.m3u8",
   isAuthError: false,
   mediaStreams: [] as { type: string; index: number; language?: string; isDefault?: boolean; codec?: string }[],
+  progress: null as { positionMs?: string; durationMs?: string; played?: boolean } | null,
 };
 const restartWithTracksMock = vi.fn(() => {
   sessionState.streamUrl = "http://srv.test/stream.m3u8?restarted=1";
@@ -172,7 +173,7 @@ vi.mock("../../../src/hooks/usePlaySession", () => ({
     isAuthError: sessionState.isAuthError,
     stopSession: stopSessionMock,
     restartWithTracks: restartWithTracksMock,
-    progress: null,
+    progress: sessionState.progress,
   }),
 }));
 
@@ -327,6 +328,7 @@ beforeEach(() => {
   playerListeners.clear();
   playerMock.playing = false;
   lastSourceUri = null;
+  sessionState.progress = null;
   capturedTVHandler = null;
   canGoBackMock.mockReturnValue(true);
   sessionState.streamUrl = "http://srv.test/stream.m3u8";
@@ -1356,5 +1358,25 @@ describe("le sous-titre ne fuit plus dans le flux (TV)", () => {
     restartWithTracksMock.mockClear();
     act(() => { lastSubtitlePickerProps?.onSelect(null); });
     expect(restartWithTracksMock).toHaveBeenCalledWith(0, undefined, undefined);
+  });
+});
+
+// Where playback begins: the rule of every client (resolveStartPositionMs).
+describe("resume position (TV)", () => {
+  // Another suite turns currentTime into a getter; a plain field again.
+  beforeEach(() => {
+    Object.defineProperty(playerMock, "currentTime", { value: 0, writable: true, configurable: true });
+  });
+
+  it("starts over a title stopped in its last seconds", () => {
+    sessionState.progress = { positionMs: "89000", durationMs: "90006" };
+    render(<PlayerScreen />);
+    expect(playerMock.currentTime).toBe(0);
+  });
+
+  it("resumes a title stopped mid-way", () => {
+    sessionState.progress = { positionMs: "60000", durationMs: "90006" };
+    render(<PlayerScreen />);
+    expect(playerMock.currentTime).toBe(60);
   });
 });

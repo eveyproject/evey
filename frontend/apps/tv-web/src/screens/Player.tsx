@@ -22,6 +22,7 @@ import {
   playerTitle,
   clampSeekTarget, holdScrubRate, tapSeekStep, SEEK_COMMIT_DELAY_MS, HOLD_SCRUB_TICK_MS,
   SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive,
+  resolveStartPositionMs,
 } from "@evey/client";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -238,7 +239,8 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
     const video = videoRef.current;
     if (!video || !streamUrl) return;
     setFailed(false);
-    const startAt = resumeAtRef.current ?? (restart ? 0 : Number(progress?.positionMs ?? 0) / 1000);
+    // A played title, or one stopped in its last seconds, starts over.
+    const startAt = resumeAtRef.current ?? resolveStartPositionMs(!!restart, progress) / 1000;
     resumeAtRef.current = null;
     const seekToStart = () => {
       if (seekedToStart.current) return;
