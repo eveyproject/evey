@@ -237,8 +237,8 @@ describe("buildStreamUrl", () => {
   it("carries the probed channel ceiling, and nothing when there is none", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
-    expect(buildStreamUrl("http://srv", "m1", info, "tok", 2)).toContain("maxAudioChannels=2");
-    expect(buildStreamUrl("http://srv", "m1", info, "tok", 6)).toContain("maxAudioChannels=6");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", { maxAudioChannels: 2 })).toContain("maxAudioChannels=2");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", { maxAudioChannels: 6 })).toContain("maxAudioChannels=6");
     expect(buildStreamUrl("http://srv", "m1", info, "tok")).not.toContain("maxAudioChannels");
   });
 
@@ -250,16 +250,17 @@ describe("buildStreamUrl", () => {
   it("declares hdr=1 only when the panel renders HDR", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
-    const args = ["http://srv", "m1", info, "tok", undefined, undefined, undefined, 0, undefined, undefined] as const;
-    expect(buildStreamUrl(...args, true)).toContain("hdr=1");
-    expect(buildStreamUrl(...args, false)).not.toContain("hdr");
-    expect(buildStreamUrl(...args, undefined)).not.toContain("hdr");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", { supportsHdr: true })).toContain("hdr=1");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", { supportsHdr: false })).not.toContain("hdr");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", {})).not.toContain("hdr");
   });
 
-  it("never emits startSec - the server ignores it and it doubled the reported position", async () => {
+  // startSec is a pre-warm hint the server reads (transcode_start_hint.go).
+  it("sends the resume position as a whole-second hint, and nothing from the start", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
-    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
-    expect(url).not.toContain("startSec");
+    const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", { startSec: 42.7 })).toContain("startSec=42");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok")).not.toContain("startSec");
   });
 
   // The quality menu used to reach GetStreamInfo alone: the verdict changed,
@@ -267,10 +268,10 @@ describe("buildStreamUrl", () => {
   it("carries the picked quality as maxHeight and the panel as screenHeight", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
-    const url = buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, undefined, 0, 720, 1080);
+    const url = buildStreamUrl("http://srv", "m1", info, "tok", { maxHeight: 720, screenHeight: 1080 });
     expect(url).toContain("maxHeight=720");
     expect(url).toContain("screenHeight=1080");
-    const auto = buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, undefined, 0, undefined, 1080);
+    const auto = buildStreamUrl("http://srv", "m1", info, "tok", { screenHeight: 1080 });
     expect(auto).not.toContain("maxHeight");
     expect(auto).toContain("screenHeight=1080");
   });
@@ -282,7 +283,7 @@ describe("buildStreamUrl", () => {
   it("names the chosen audio and subtitle tracks", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
-    const url = buildStreamUrl("http://srv", "m1", info, "tok", 2, 1, 0);
+    const url = buildStreamUrl("http://srv", "m1", info, "tok", { maxAudioChannels: 2, audioTrack: 1, subtitleTrack: 0 });
     expect(url).toContain("audioTrack=1");
     expect(url).toContain("subtitleTrack=0");
   });
@@ -290,13 +291,13 @@ describe("buildStreamUrl", () => {
   it("differs between two track choices - an identical URL never reloads", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
-    expect(buildStreamUrl("http://srv", "m1", info, "tok", 2, 0))
-      .not.toBe(buildStreamUrl("http://srv", "m1", info, "tok", 2, 1));
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", { maxAudioChannels: 2, audioTrack: 0 }))
+      .not.toBe(buildStreamUrl("http://srv", "m1", info, "tok", { maxAudioChannels: 2, audioTrack: 1 }));
   });
 
   it("omits the params when no track was chosen, leaving the server's own default", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
-    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 2);
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", { maxAudioChannels: 2 });
     expect(url).not.toContain("audioTrack");
     expect(url).not.toContain("subtitleTrack");
   });
@@ -305,7 +306,7 @@ describe("buildStreamUrl", () => {
   // put anywhere. Pinned so nobody "fixes" this by appending them there too.
   it("leaves the direct-play URL alone", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
-    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_DIRECT_PLAY" }, "tok", 2, 1, 0);
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_DIRECT_PLAY" }, "tok", { maxAudioChannels: 2, audioTrack: 1, subtitleTrack: 0 });
     expect(url).not.toContain("audioTrack");
     expect(url).toContain("/stream?token=tok");
   });
@@ -450,5 +451,78 @@ describe("usePlaySession stream token", () => {
       (c: unknown[]) => String((c[0] as { url?: string })?.url ?? "").includes("stream-token"),
     );
     expect(tokenCalls.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// Fixes the phone had and the television's copy lacked, until both players
+// shared one play session (2026-09-24).
+describe("usePlaySession: what the phone's copy already guarded", () => {
+  const realFetch = global.fetch;
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({ status: 200, headers: { get: () => null }, json: async () => ({}) });
+    stopStreamMock.mockResolvedValue(undefined);
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("percent-encodes a deep-link traversal id so the stream URL cannot pivot to another API path", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "../admin/api-keys", { playMethod: "PLAY_METHOD_DIRECT_PLAY" }, "tok");
+    expect(url).toBe("http://srv/api/v1/media/..%2Fadmin%2Fapi-keys/stream?token=tok");
+  });
+
+  it("probes the HLS master with an abortable request (status wanted, never a body)", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_DIRECT_STREAM" });
+    eveyFetchMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/hls/master.m3u8?"),
+      expect.objectContaining({ signal: expect.anything() }),
+    );
+  });
+
+  it("keeps the LAST requested track when an earlier negotiation answers after it", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    const streams = [
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 1 },
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 2 },
+    ];
+    let resolveSlow: (v: unknown) => void = () => {};
+    getStreamInfoMock
+      .mockResolvedValueOnce({ playMethod: "PLAY_METHOD_TRANSCODE", mediaStreams: streams })
+      .mockImplementationOnce(() => new Promise((res) => { resolveSlow = res; }))
+      .mockResolvedValueOnce({ playMethod: "PLAY_METHOD_TRANSCODE", mediaStreams: streams });
+    eveyFetchMock.mockResolvedValue({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockImplementation(async () => ({ id: `sess-${startStreamMock.mock.calls.length}` }));
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    result.current.restartWithTracks(1);
+    result.current.restartWithTracks(2);
+    await waitFor(() => expect(result.current.streamUrl).toContain("audioTrack=1"));
+
+    resolveSlow({ playMethod: "PLAY_METHOD_TRANSCODE", mediaStreams: streams });
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(result.current.streamUrl).toContain("audioTrack=1");
+    expect(result.current.streamUrl).not.toContain("audioTrack=0");
   });
 });
