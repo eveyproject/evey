@@ -53,6 +53,9 @@ vi.mock("../../src/components/TVMusicPlayer", () => ({ TVMusicPlayer: () => null
 // The layout now renews a stale token before deciding where to send the
 // viewer; auth-refresh pulls in expo-secure-store, which has no native side
 // under vitest.
+const initI18nMock = vi.fn(async (_url: string) => undefined);
+vi.mock("../../src/i18n", () => ({ initI18n: (url: string) => initI18nMock(url) }));
+vi.mock("../../src/lib/server-config", () => ({ resolveServerUrl: async () => "http://srv:9091" }));
 vi.mock("../../src/lib/auth-refresh", () => ({ refreshAccessTokenIfNeeded: () => Promise.resolve(true) }));
 vi.mock("../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { bg: "#000", accent: "#88f" } }),
@@ -101,5 +104,16 @@ describe("AuthLayout home shortcut", () => {
     fireEvent.click(screen.getByLabelText("common.nav.home"));
     expect(replaceMock).toHaveBeenCalled();
     expect(replaceMock).not.toHaveBeenCalledWith(undefined);
+  });
+});
+
+// A boot whose one catalogue fetch failed (the NAS asleep) kept the
+// pre-connect strings all session: the signed-in shell retries, as the
+// phone's does.
+describe("AuthLayout translation catalogue", () => {
+  it("gives the catalogue a second chance against the active server", async () => {
+    pathnameMock = "/media/123";
+    render(<AuthLayout />);
+    await vi.waitFor(() => expect(initI18nMock).toHaveBeenCalledWith("http://srv:9091"));
   });
 });
