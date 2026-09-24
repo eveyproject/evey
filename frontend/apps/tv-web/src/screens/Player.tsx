@@ -844,6 +844,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       {!panel && !streamInfoOpen ? (
         <SkipSegmentButton
           mediaId={mediaId}
+          filePath={media?.filePath}
           currentTime={time}
           raised={nextEp.visible}
           onSkip={(sec) => seekTo(sec)}

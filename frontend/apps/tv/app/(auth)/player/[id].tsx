@@ -1672,6 +1672,7 @@ export default function PlayerScreen() {
 
       <SkipIntroButton
         mediaId={mediaId}
+        filePath={media?.filePath}
         currentTime={currentTime}
         onSkip={handleSkipIntro}
         onVisibleChange={setSkipVisible}

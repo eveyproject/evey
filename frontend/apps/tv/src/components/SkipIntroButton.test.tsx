@@ -31,6 +31,14 @@ vi.mock("../hooks/useMediaSegments", () => ({
   useMediaSegments: (...args: unknown[]) => useMediaSegmentsMock(...args),
 }));
 
+// The MKV-chapter fallback (shared hook): what the file's chapters name, set
+// per test; nothing by default.
+const chapterSkippablesMock = vi.fn((_filePath?: string, _needed?: boolean) => [] as { type: string; startSec: number; endSec: number }[]);
+vi.mock("@evey/client", async (orig) => ({
+  ...(await orig<typeof import("@evey/client")>()),
+  useChapterSkippables: (filePath?: string, needed?: boolean) => chapterSkippablesMock(filePath, needed),
+}));
+
 const toastInfoMock = vi.fn();
 vi.mock("@evey/store", () => ({
   toast: { info: (...args: unknown[]) => toastInfoMock(...args) },
@@ -75,6 +83,18 @@ describe("SkipIntroButton", () => {
 
     fireEvent.click(getByText("player.skipIntro"));
     expect(onSkip).toHaveBeenCalledWith(30);
+  });
+
+  // The television had no chapter fallback: a file whose own chapters name its
+  // opening got no button while the server had not detected segments yet.
+  it("offers to skip the opening a file's chapters name while the server has no segment", () => {
+    useMediaSegmentsMock.mockReturnValue({ data: { introAutoSkip: false, segments: [] } });
+    chapterSkippablesMock.mockReturnValueOnce([{ type: "intro", startSec: 0, endSec: 90 }]);
+    const onSkip = vi.fn();
+    const { getByText } = render(<SkipIntroButton mediaId="mi-1" filePath="/media/ep1.mkv" currentTime={12} onSkip={onSkip} />);
+    expect(chapterSkippablesMock).toHaveBeenCalledWith("/media/ep1.mkv", true);
+    fireEvent.click(getByText("player.skipIntro"));
+    expect(onSkip).toHaveBeenCalledWith(90);
   });
 
   // B5: the player screen must know whether the button ITSELF holds TV focus

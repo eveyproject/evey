@@ -15,12 +15,15 @@ import {
   activeSkippable as active,
   skippableCandidates,
   type ResolvedSegment,
+  useChapterSkippables,
 } from "@evey/client";
 
 export { CREDITS_COUNTDOWN_SEC };
 
 interface SkipIntroButtonProps {
   mediaId?: string;
+  /** MKV chapters fallback while the server has no segment for this title. */
+  filePath?: string;
   currentTime: number;
   onSkip: (toSec: number) => void;
   // Reports whether the button is currently showing, so the player screen can
@@ -47,6 +50,7 @@ interface SkipIntroButtonProps {
 
 export function SkipIntroButton({
   mediaId,
+  filePath,
   currentTime,
   onSkip,
   onVisibleChange,
@@ -77,7 +81,10 @@ export function SkipIntroButton({
   const segments = data?.segments;
   const autoSkip = data?.introAutoSkip === true;
 
-  const candidates: ResolvedSegment[] = skippableCandidates(segments);
+  // The server's segments first; the file's own chapters while it has none.
+  const hasSegments = !!segments && segments.length > 0;
+  const chapterCandidates = useChapterSkippables(filePath, !hasSegments);
+  const candidates: ResolvedSegment[] = hasSegments ? skippableCandidates(segments) : chapterCandidates;
   const resolved = active(candidates, currentTime);
 
   // Auto-skip (admin toggle): jump the intro instead of waiting for OK. Intro
