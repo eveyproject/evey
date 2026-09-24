@@ -1,10 +1,15 @@
 package media
 
 import (
-	"github.com/evey-project/evey/internal/pkg/bgloop"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/bgloop"
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/google/uuid"
@@ -28,6 +33,18 @@ const (
 	// cast/playback session is never cut mid-stream, while still bounding the
 	// worst case to about a day.
 	maxAbsoluteStreamTokenTTL = 24 * time.Hour
+
+	// persistTimeout bounds every database call made for a token: a slow
+	// database must not hold a segment request.
+	persistTimeout = 2 * time.Second
+	// persistSlideStep: the sliding expiry is written back at most this often
+	// per token (Validate runs on every segment).
+	persistSlideStep = time.Minute
+	// missCacheTTL / missCacheMax: a token unknown to the database is not
+	// looked up again for a while, so a burst of made-up tokens cannot turn
+	// every media request into a query.
+	missCacheTTL = time.Minute
+	missCacheMax = 10000
 )
 
 type StreamTokenStore struct {
@@ -48,6 +65,128 @@ type StreamTokenStore struct {
 	// concurrent reads from the Validate hot path and the cleanupLoop
 	// goroutine are race-free without a mutex.
 	now func() time.Time
+
+	// repo, when set (WithPersistence), keeps tokens across a restart. Set
+	// once at wiring, before any request.
+	repo         shared.StreamTokenRepository
+	persistedExp sync.Map // token -> time.Time: the expiry last written to repo
+	misses       sync.Map // token hash -> time.Time: unknown to repo until then
+	missCount    atomic.Int64
+	extendCh     chan tokenExtension
+}
+
+type tokenExtension struct {
+	hash      string
+	expiresAt time.Time
+}
+
+// hashToken is the key a token is stored under: never the token itself.
+func hashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+// WithPersistence makes tokens survive a server restart: each one is written
+// to repo when minted, looked up there when an unknown token is presented, and
+// removed there when revoked. Call once, before the store serves requests.
+func (s *StreamTokenStore) WithPersistence(repo shared.StreamTokenRepository) *StreamTokenStore {
+	s.repo = repo
+	s.extendCh = make(chan tokenExtension, 256)
+	go s.extendLoop()
+	return s
+}
+
+func (s *StreamTokenStore) persistCtx() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), persistTimeout)
+}
+
+func (s *StreamTokenStore) save(st *shared.StreamToken, issued time.Time) {
+	if s.repo == nil {
+		return
+	}
+	ctx, cancel := s.persistCtx()
+	defer cancel()
+	if err := s.repo.SaveStreamToken(ctx, hashToken(st.Token), *st, issued); err != nil {
+		// The token still works until the next restart.
+		slog.Warn("stream token: could not be persisted", slog.Any("err", err))
+		return
+	}
+	s.persistedExp.Store(st.Token, st.ExpiresAt)
+}
+
+// loadPersisted brings back a token minted before a restart.
+func (s *StreamTokenStore) loadPersisted(token string) (*shared.StreamToken, bool) {
+	if s.repo == nil || token == "" {
+		return nil, false
+	}
+	hash := hashToken(token)
+	now := s.now()
+	if until, ok := s.misses.Load(hash); ok && now.Before(until.(time.Time)) {
+		return nil, false
+	}
+	ctx, cancel := s.persistCtx()
+	defer cancel()
+	st, issued, found, err := s.repo.LoadStreamToken(ctx, hash)
+	if err != nil {
+		slog.Warn("stream token: lookup failed", slog.Any("err", err))
+		return nil, false
+	}
+	if !found || now.After(st.ExpiresAt) || now.After(issued.Add(maxAbsoluteStreamTokenTTL)) {
+		if s.missCount.Add(1) > missCacheMax {
+			s.misses.Clear()
+			s.missCount.Store(0)
+		}
+		s.misses.Store(hash, now.Add(missCacheTTL))
+		return nil, false
+	}
+	st.Token = token
+	s.issuedAt.Store(token, issued)
+	s.persistedExp.Store(token, st.ExpiresAt)
+	s.tokens.Store(token, &st)
+	return &st, true
+}
+
+func (s *StreamTokenStore) extendLoop() {
+	for {
+		select {
+		case <-s.done:
+			return
+		case ext := <-s.extendCh:
+			ctx, cancel := s.persistCtx()
+			if err := s.repo.ExtendStreamToken(ctx, ext.hash, ext.expiresAt); err != nil {
+				slog.Debug("stream token: expiry not persisted", slog.Any("err", err))
+			}
+			cancel()
+		}
+	}
+}
+
+// persistSlide writes a slid expiry back, at most once per persistSlideStep.
+func (s *StreamTokenStore) persistSlide(token string, expiresAt time.Time) {
+	if s.repo == nil {
+		return
+	}
+	if last, ok := s.persistedExp.Load(token); ok && expiresAt.Sub(last.(time.Time)) < persistSlideStep {
+		return
+	}
+	s.persistedExp.Store(token, expiresAt)
+	select {
+	case s.extendCh <- tokenExtension{hash: hashToken(token), expiresAt: expiresAt}:
+	default: // Busy: the next slide writes it.
+	}
+}
+
+// forgetDurably removes tokens from the repo: a revocation that only touched
+// memory would come back to life at the next restart.
+func (s *StreamTokenStore) forgetDurably(del func(ctx context.Context) error) {
+	if s.repo == nil {
+		return
+	}
+	ctx, cancel := s.persistCtx()
+	defer cancel()
+	if err := del(ctx); err != nil {
+		slog.Error("stream token: revocation not persisted, the token survives a restart", slog.Any("err", err))
+	}
 }
 
 func NewStreamTokenStore(ttl time.Duration) *StreamTokenStore {
@@ -98,7 +237,20 @@ func (s *StreamTokenStore) CreateWithTTL(userID shared.UserID, profileID shared.
 		ExpiresAt:   s.now().Add(ttl),
 		TTL:         ttl,
 	})
+	s.persistNew(token)
 	return token
+}
+
+// persistNew writes a freshly minted token to the repo.
+func (s *StreamTokenStore) persistNew(token string) {
+	if s.repo == nil {
+		return
+	}
+	v, ok := s.tokens.Load(token)
+	issued, ok2 := s.issuedAt.Load(token)
+	if ok && ok2 {
+		s.save(v.(*shared.StreamToken), issued.(time.Time))
+	}
 }
 
 // CreateCast mints the long-TTL token handed to a cast receiver, marked so the
@@ -119,6 +271,7 @@ func (s *StreamTokenStore) CreateCast(userID shared.UserID, profileID shared.Pro
 		ExpiresAt:   s.now().Add(ttl),
 		TTL:         ttl,
 	})
+	s.persistNew(token)
 	return token
 }
 
@@ -140,19 +293,25 @@ func (s *StreamTokenStore) CreateGuestToken(mediaItemID, roomID string, ttl time
 		ExpiresAt:   s.now().Add(ttl),
 		TTL:         ttl,
 	})
+	s.persistNew(token)
 	return token
 }
 
 // Validate checks the token, verifies it matches the mediaItemID, and renews the TTL.
 // If mediaItemID is empty, any media is accepted (used by middleware).
 func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamToken, bool) {
-	v, ok := s.tokens.Load(token)
-	if !ok {
+	var st *shared.StreamToken
+	if v, ok := s.tokens.Load(token); ok {
+		st = v.(*shared.StreamToken)
+	} else if loaded, ok := s.loadPersisted(token); ok {
+		// Minted before a restart: the player that holds it keeps playing.
+		st = loaded
+	} else {
 		return nil, false
 	}
-	st := v.(*shared.StreamToken)
 	if s.now().After(st.ExpiresAt) {
 		s.tokens.Delete(token)
+		s.persistedExp.Delete(token)
 		return nil, false
 	}
 	if mediaItemID != "" && st.MediaItemID != shared.MediaItemID(mediaItemID) {
@@ -185,6 +344,7 @@ func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamTo
 	}
 	renewed.ExpiresAt = slidExpiry
 	s.tokens.Store(token, &renewed)
+	s.persistSlide(token, slidExpiry)
 	return &renewed, true
 }
 
@@ -196,6 +356,8 @@ func (s *StreamTokenStore) ValidateAny(token string) (*shared.StreamToken, bool)
 func (s *StreamTokenStore) Revoke(token string) {
 	s.tokens.Delete(token)
 	s.issuedAt.Delete(token)
+	s.persistedExp.Delete(token)
+	s.forgetDurably(func(ctx context.Context) error { return s.repo.DeleteStreamToken(ctx, hashToken(token)) })
 }
 
 // RevokeByUser deletes every stream token minted for userID and returns how
@@ -225,10 +387,13 @@ func (s *StreamTokenStore) RevokeByUser(userID string) int {
 		if ok && string(st.UserID) == userID {
 			s.tokens.Delete(key)
 			s.issuedAt.Delete(key)
+			s.persistedExp.Delete(key)
 			revoked++
 		}
 		return true
 	})
+	// Also the tokens not loaded since the last restart.
+	s.forgetDurably(func(ctx context.Context) error { return s.repo.DeleteStreamTokensByUser(ctx, shared.UserID(userID)) })
 	return revoked
 }
 
@@ -245,10 +410,12 @@ func (s *StreamTokenStore) RevokeByRoom(roomID string) int {
 		if ok && st.RoomID == roomID {
 			s.tokens.Delete(key)
 			s.issuedAt.Delete(key)
+			s.persistedExp.Delete(key)
 			revoked++
 		}
 		return true
 	})
+	s.forgetDurably(func(ctx context.Context) error { return s.repo.DeleteStreamTokensByRoom(ctx, roomID) })
 	return revoked
 }
 
@@ -282,10 +449,24 @@ func (s *StreamTokenStore) purgeExpired(now time.Time) {
 		if now.After(st.ExpiresAt) {
 			s.tokens.Delete(key)
 			s.issuedAt.Delete(key)
-			slog.Debug("stream token expired", slog.String("token", key.(string)))
+			s.persistedExp.Delete(key)
 		}
 		return true
 	})
+	s.misses.Range(func(key, value any) bool {
+		if now.After(value.(time.Time)) {
+			s.misses.Delete(key)
+			s.missCount.Add(-1)
+		}
+		return true
+	})
+	if s.repo != nil {
+		ctx, cancel := s.persistCtx()
+		defer cancel()
+		if err := s.repo.DeleteExpiredStreamTokens(ctx, now); err != nil {
+			slog.Debug("stream token: expired rows not purged", slog.Any("err", err))
+		}
+	}
 }
 
 // PurgeExpiredForTest exposes purgeExpired to tests (external package) so the
