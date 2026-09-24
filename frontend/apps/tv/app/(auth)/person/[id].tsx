@@ -167,7 +167,7 @@ export default function PersonDetailScreen() {
               >
                 {serverUrl && item.id ? (
                   <Image
-                    source={{ uri: artworkUrl(serverUrl, item.id, "poster", Math.round(POSTER_WIDTH * 2)), headers: authHeaders }}
+                    source={{ uri: artworkUrl(serverUrl, item.id, "poster", Math.round(POSTER_WIDTH * 2), item), headers: authHeaders }}
                     style={{
                       width: POSTER_WIDTH,
                       height: POSTER_HEIGHT,

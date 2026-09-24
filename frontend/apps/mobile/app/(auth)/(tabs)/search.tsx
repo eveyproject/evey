@@ -238,7 +238,7 @@ export default function SearchScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: V1MediaItem }) => {
-      const poster = serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 200) : undefined;
+      const poster = serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 200, item) : undefined;
       return (
         <TouchableOpacity
           style={[

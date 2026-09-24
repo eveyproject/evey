@@ -231,7 +231,7 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
   }, [theme, setQueue, serverUrl, authHeaders, onNavigate, inputFocused]);
 
   const renderItem = useCallback(({ item, index }: { item: V1MediaItem; index: number }) => {
-    const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", 160) : undefined;
+    const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", 160, item) : undefined;
     const genres = (item.genres ?? []).filter(Boolean).slice(0, 2);
     const label = typeLabel(item.type);
     return (

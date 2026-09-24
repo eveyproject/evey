@@ -111,7 +111,7 @@ const libraryGetItemLayout = (_: unknown, index: number) => ({
 });
 
 function getPoster(item: V1MediaItem, serverUrl: string | undefined): string | undefined {
-  return serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 300) : undefined;
+  return serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 300, item) : undefined;
 }
 
 function formatType(type?: string): string {

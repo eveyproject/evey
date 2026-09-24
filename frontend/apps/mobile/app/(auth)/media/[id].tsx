@@ -187,7 +187,7 @@ const EpisodeRow = memo(function EpisodeRow({
   // "backdrop", not "poster": an episode's still lives under the backdrop type
   // (same as the web episode rows). Asking for a poster gave an empty 16:9 box
   // on most episodes, since episodes rarely carry one.
-  const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "backdrop", 240) : undefined;
+  const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "backdrop", 240, item) : undefined;
   // No per-row fetch here: the parent derives every row's progress from ONE
   // GetWatchHistory call (audit 25-08 H3 - a season open used to fire one
   // GetWatchProgress per visible row, a 20-request burst on a weak NAS).
@@ -1036,7 +1036,7 @@ export default function MediaDetailScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingLeft: insets.left, paddingRight: insets.right, paddingBottom: insets.bottom }}>
       {/* Hero backdrop */}
       <MediaHeroBackdrop
-        uri={serverUrl && id ? artworkUrl(serverUrl, id, "backdrop", backdropWidth) : undefined}
+        uri={serverUrl && id ? artworkUrl(serverUrl, id, "backdrop", backdropWidth, media) : undefined}
         headers={authHeaders}
         height={heroHeight}
         onBack={() => router.back()}
@@ -1052,7 +1052,7 @@ export default function MediaDetailScreen() {
         <View style={{ flexDirection: "row", gap: theme.spacing.md }}>
           {serverUrl && id ? (
             <Image
-              source={{ uri: artworkUrl(serverUrl, id, "poster", posterWidth), headers: authHeaders }}
+              source={{ uri: artworkUrl(serverUrl, id, "poster", posterWidth, media), headers: authHeaders }}
               style={{
                 width: POSTER_WIDTH,
                 height: POSTER_HEIGHT,

@@ -320,7 +320,7 @@ export default function LibraryDetailScreen() {
 
   const renderItem = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => {
-      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2) : undefined;
+      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2, item) : undefined;
       const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
       const vStream = videoStream(item.streams);
       const resLabel = resolutionLabel(vStream);
