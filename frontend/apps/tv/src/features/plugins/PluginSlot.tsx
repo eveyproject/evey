@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, useWindowDimensions } from "react-native";
 import { useTranslation } from "react-i18next";
 import { resolveSlotEntries, usePluginList, usePluginSlotEntries, type SlotEntry } from "@evey/client";
 import { PluginWebView } from "@evey/client/native/PluginWebView";
+import { diskBundleCache } from "@evey/client/native/pluginBundleCache";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useServerUrl } from "../../hooks/useServerUrl";
 import { homeWidgetBudget } from "../../lib/tvLayout";
@@ -78,6 +79,7 @@ function PluginSlotEntry({ slot, entry, context }: { slot: string; entry: SlotEn
       suggestedHeight={suggestedSlotHeight(slot, windowHeight)}
       viewportHeight={Math.round(windowHeight)}
       focusable={false}
+      bundleCache={diskBundleCache}
     />
   );
 }
