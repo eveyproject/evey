@@ -411,11 +411,16 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		// the concatenated master references. 404 when the feature is off / the
 		// chain no longer resolves.
 		h.serveConcatResource(w, r, mediaID, file, item, span)
-	case file == "manifest.mpd" || strings.HasPrefix(file, onDemandPrefix):
-		// On-demand copy rung (mp4.PlanHLS): the DASH manifest entry point and
-		// every prefixed sub-resource (od_playlist.m3u8, od_seg00001.m4s,
-		// od_audio1.m3u8, od_init.mp4, od_sub1.vtt …) the plan's manifests
-		// reference. 404 when the feature is off / the source can't be packaged.
+	case file == "manifest.mpd":
+		// The DASH entry point: the packager's manifest when the plan's video
+		// engine is mkvgo, the plan-declared one over the ffmpeg fragments
+		// otherwise (see serveManifestMPD).
+		h.serveManifestMPD(w, r, mediaID, item, streams, span)
+	case strings.HasPrefix(file, onDemandPrefix):
+		// On-demand copy rung (mp4.PlanHLS): every prefixed sub-resource
+		// (od_playlist.m3u8, od_seg00001.m4s, od_audio1.m3u8, od_init.mp4,
+		// od_sub1.vtt …) the plan's manifests reference. 404 when the feature
+		// is off / the source can't be packaged.
 		h.serveOnDemandResource(w, r, mediaID, file, item, streams, span)
 	case vodVariantNameRE.MatchString(file):
 		h.serveVariant(w, r, mediaID, file, item, streams, span)
@@ -974,8 +979,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// needs no pre-bound here.
 	if !isInit && item.File != nil {
 		if durMs := item.File.Duration.Milliseconds(); durMs > 0 && !rp.IsCopy {
-			const segMs = int64(apptranscoding.ManifestSegmentSeconds * 1000)
-			maxSeg := int((durMs + segMs - 1) / segMs) // ceil = exact transcode segment count
+			maxSeg := rp.FP.Grid.SegmentCount(durMs) // exact transcode segment count
 			if segmentIdx >= maxSeg {
 				span.SetStatus(codes.Error, "segment index past media end")
 				http.Error(w, `{"message":"segment index out of range"}`, http.StatusNotFound)
@@ -993,7 +997,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		if item.File != nil {
 			durMs = item.File.Duration.Milliseconds()
 		}
-		observeCastFetch(r, h.castProgress, transcodeSegEndMs(segmentIdx, apptranscoding.ManifestSegmentSeconds, durMs))
+		observeCastFetch(r, h.castProgress, transcodeSegEndMs(segmentIdx, rp.FP.Grid.SegmentSeconds(), durMs))
 	}
 
 	// CMCD ingest (CTA-5004). Parsed and shipped to the QoE sink before we
@@ -1175,7 +1179,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// segment then ships at VideoBitrate + audio + overhead.
 	if !isInit && h.probeSignals != nil && variantIdx >= 0 && variantIdx < len(fp.Profiles) {
 		if p := fp.Profiles[variantIdx]; p.CostModelled && !p.Copy && p.VideoBitrate > 0 {
-			segKbps := float64(fi.Size()) * 8 / float64(apptranscoding.ManifestSegmentSeconds) / 1000
+			segKbps := float64(fi.Size()) * 8 / fp.Grid.SegmentSeconds() / 1000
 			ceiling := float64(p.VideoBitrate+p.AudioBitrate) * ceilingHitContainerMargin
 			if segKbps >= ceiling {
 				h.probeSignals.RecordCeilingHit(mediaID)
@@ -1405,4 +1409,64 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = fmt.Fprintf(w, `{"next_media_item_id":%q}`+"\n", string(nextItem.ID))
+}
+
+// serveManifestMPD serves manifest.mpd for the plan this request resolves.
+// A presentation the packager carries (Delivery.Video == mkvgo) gets the
+// packager's own manifest, as before. Any other - a transcode ladder, the
+// ffmpeg copy fallback - gets the manifest declared from the plan over the
+// very fragments the HLS playlists address (ManifestGenerator.MPD): same
+// auth suffix, same fragments, nothing produced or read for it. A
+// presentation whose timeline cannot be declared exactly (legacy clock grid)
+// answers 404: HLS stays the default everywhere, DASH is offered on top of
+// it when it can be honest.
+func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
+	rp, err := h.probePlan(r, mediaID, item, streams)
+	if err != nil {
+		h.writeManifestErr(r.Context(), w, span, err, mediaID)
+		return
+	}
+	if rp.Plan.Delivery.Video == apptranscoding.EngineMkvgo {
+		h.serveOnDemandResource(w, r, mediaID, "manifest.mpd", item, streams, span)
+		return
+	}
+	in, err := h.buildManifestInputWith(r, mediaID, item, streams, rp)
+	if err != nil {
+		h.writeManifestErr(r.Context(), w, span, err, mediaID)
+		return
+	}
+	if planner, ok := h.copyProducer.(interface {
+		CopyPlan(context.Context, string) ([]apptranscoding.CopySegment, error)
+	}); ok && rp.IsCopy {
+		segs, perr := planner.CopyPlan(r.Context(), mediaID)
+		if perr != nil {
+			slog.WarnContext(r.Context(), "hls-vod: dash manifest: copy plan unavailable",
+				slog.String("media_id", mediaID), slog.Any("err", perr))
+		}
+		in.CopySegments = segs
+	}
+	mpd, err := h.manifestGen.MPD(in)
+	if errors.Is(err, apptranscoding.ErrDASHUnavailable) {
+		span.SetStatus(codes.Error, "dash unavailable")
+		slog.InfoContext(r.Context(), "hls-vod: dash manifest not offered, no exact timeline for this presentation",
+			slog.String("media_id", mediaID), slog.String("grid", rp.FP.Grid.String()))
+		http.Error(w, `{"message":"dash is not available for this presentation"}`, http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		h.writeManifestErr(r.Context(), w, span, err, mediaID)
+		return
+	}
+	// Serving binds this token to the plan's hash and reclaims the one it
+	// left, exactly as the HLS master does.
+	h.reclaimSupersededHash(r, mediaID, rp)
+	setCORSHeaders(w, r, "")
+	w.Header().Set("Content-Type", "application/dash+xml")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write([]byte(mpd))
+	slog.InfoContext(r.Context(), "hls-vod: dash manifest served",
+		slog.String("media_id", mediaID),
+		slog.Int("profiles", len(in.Profiles)),
+		slog.Bool("copy", rp.IsCopy),
+		slog.String("grid", rp.FP.Grid.String()))
 }
