@@ -25,6 +25,9 @@ import {
   SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive,
   resolveStartPositionMs,
   shedI18nKey,
+  playingFromHlsLevel,
+  servedVariant,
+  type PlayingVariant,
 } from "@evey/client";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -83,6 +86,8 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const [playingVariant, setPlayingVariant] = useState<PlayingVariant | null>(null);
+  const [ladderBitrates, setLadderBitrates] = useState<number[]>([]);
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
   const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   const { profile } = useActiveProfile();
@@ -263,6 +268,13 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       if (fatal) setFailed(true);
     };
     const nativeError = onVideoError(true);
+    // The variant decoded right now, for the stream info panel: hls.js names
+    // it, the element's own HLS only shows its size.
+    setPlayingVariant(null);
+    setLadderBitrates([]);
+    const onResize = () => {
+      if (video.videoHeight > 0) setPlayingVariant({ width: video.videoWidth, height: video.videoHeight });
+    };
 
     // hls.js is half a megabyte of JavaScript a television has to parse. It
     // is only ever needed once a stream is actually being attached, so it is
@@ -272,9 +284,11 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       video.src = streamUrl;
       video.addEventListener("loadedmetadata", seekToStart, { once: true });
       video.addEventListener("error", nativeError);
+      video.addEventListener("resize", onResize);
       return () => {
         video.removeEventListener("loadedmetadata", seekToStart);
         video.removeEventListener("error", nativeError);
+        video.removeEventListener("resize", onResize);
         video.removeAttribute("src");
         video.load();
       };
@@ -290,6 +304,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
         video.src = streamUrl;
         video.addEventListener("loadedmetadata", seekToStart, { once: true });
         video.addEventListener("error", elementError);
+        video.addEventListener("resize", onResize);
         return;
       }
       elementError = onVideoError(false);
@@ -309,8 +324,10 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       const attempts = { reload: 0, recoverMedia: 0 };
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
         console.info("[player] manifest parsed", data.levels.map((l) => `${l.width}x${l.height}@${l.bitrate}`).join(" "), "audio tracks", data.audioTracks.length);
+        setLadderBitrates(data.levels.map((l) => l.bitrate));
         seekToStart();
       });
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => setPlayingVariant(playingFromHlsLevel(hls.levels[data.level])));
       hls.on(Hls.Events.ERROR, (_e, data) => {
         // Every error, fatal or not, in the console: a television has no
         // devtools and this is what a bug report can carry.
@@ -343,6 +360,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       torn = true;
       video.removeEventListener("loadedmetadata", seekToStart);
       video.removeEventListener("error", elementError);
+      video.removeEventListener("resize", onResize);
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
@@ -911,7 +929,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       ) : null}
       {panel ? <SettingsPanel sections={sections} onClose={() => { setPanel(false); showOsd(); }} /> : null}
       {streamInfoOpen ? (
-        <StreamInfoPanel streamInfo={streamInfo} audioStreamIndex={selectedAudio} onClose={() => { setStreamInfoOpen(false); showOsd(); }} />
+        <StreamInfoPanel streamInfo={streamInfo} served={servedVariant(streamInfo, playingVariant, ladderBitrates)} audioStreamIndex={selectedAudio} onClose={() => { setStreamInfoOpen(false); showOsd(); }} />
       ) : null}
     </div>
   );

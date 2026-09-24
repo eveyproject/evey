@@ -8,6 +8,7 @@ import {
   type V1MediaStream,
   type V1StreamInfo,
 } from "@evey/api";
+import type { ServedVariant } from "./servedVariant";
 
 // What the stream-info panel shows, decided once for the four players. Each
 // kept its own list until 2026-09-24 and they had drifted: the television and
@@ -50,6 +51,9 @@ export interface StreamInfoOptions {
   // Which leg of the browser's bi-source relay feeds the speakers: on "aac" or
   // "aac-latched" the sound is the server's AAC rendition, a transcode.
   wasmAudioLeg?: string | null;
+  // The variant playing right now (servedVariant): the video section and the
+  // method follow it through every quality change, auto included.
+  served?: ServedVariant | null;
 }
 
 export function formatBitrate(bitrate?: string | number): string {
@@ -88,9 +92,11 @@ export function buildStreamInfoModel(streamInfo: V1StreamInfo | null | undefined
   const onNativeLeg = opts.wasmAudioLeg === "aac" || opts.wasmAudioLeg === "aac-latched";
   const wasmDecoding = (opts.wasmAudioActive ?? false) && !onNativeLeg;
   const audioDecision = onNativeLeg ? "transcode" : wasmDecoding ? "wasm" : streamInfo.audioDecision;
+  const served = opts.served ?? null;
+  const videoDecision = served && !served.copy ? "transcode" : streamInfo.videoDecision;
   const decisions = {
     playMethod: streamInfo.playMethod,
-    videoDecision: streamInfo.videoDecision,
+    videoDecision,
     audioDecision,
     wasmAudio: wasmDecoding,
   };
@@ -112,14 +118,29 @@ export function buildStreamInfoModel(streamInfo: V1StreamInfo | null | undefined
     ].filter((r): r is StreamInfoRow => r !== null),
   });
 
-  if (video) {
+  if (video && served && !served.copy) {
+    // A transcoded rung: its own shape, not the source's (whose profile and
+    // pixel format it no longer has).
+    sections.push({
+      kind: "video",
+      titleKey: "player.streamInfo.video",
+      title: "Video",
+      decision: videoDecision,
+      rows: [
+        row("player.streamInfo.codec", "Codec", (served.codec ?? video.codec ?? "-").toUpperCase()),
+        row("player.streamInfo.resolution", "Resolution", served.width && served.height ? `${served.width}×${served.height}` : served.height ? `${served.height}p` : null),
+        row("player.streamInfo.bitrate", "Bitrate", formatBitrate(served.bitrate)),
+        row("player.streamInfo.framerate", "Frame Rate", formatFrameRate(served.frameRate ?? video.frameRate)),
+      ].filter((r): r is StreamInfoRow => r !== null),
+    });
+  } else if (video) {
     const explicit = video.bitrate ? formatBitrate(video.bitrate) : "-";
     const derived = explicit === "-" ? deriveVideoBitrate(streamInfo.bitrate, audio?.bitrate) : null;
     sections.push({
       kind: "video",
       titleKey: "player.streamInfo.video",
       title: "Video",
-      decision: streamInfo.videoDecision,
+      decision: videoDecision,
       rows: [
         row("player.streamInfo.codec", "Codec", (video.codec ?? "-").toUpperCase()),
         row("player.streamInfo.resolution", "Resolution", video.width && video.height ? `${video.width}×${video.height}` : null),

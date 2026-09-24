@@ -38,7 +38,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview, holdScrubRate, tapSeekStep } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
-import { resolveStartPositionMs, shedI18nKey } from "@evey/client";
+import { resolveStartPositionMs, servedVariant, shedI18nKey, usePlayingVideoTrack } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { QualityPicker } from "../../../src/components/QualityPicker";
@@ -560,6 +560,9 @@ export default function PlayerScreen() {
   useEffect(() => () => {
     if (bufferingTimerRef.current !== null) clearTimeout(bufferingTimerRef.current);
   }, []);
+
+  // The variant ExoPlayer decodes now, for the stream info panel.
+  const playingTrack = usePlayingVideoTrack(player);
 
   useEffect(() => {
     if (!player) return;
@@ -1674,6 +1677,7 @@ export default function PlayerScreen() {
         onClose={() => setShowStreamInfoPanel(false)}
         streamInfo={streamInfo ?? null}
         audioStreamIndex={selectedAudioIndex}
+        served={servedVariant(streamInfo, playingTrack.playing, playingTrack.ladderBitrates)}
       />
 
       <SkipIntroButton

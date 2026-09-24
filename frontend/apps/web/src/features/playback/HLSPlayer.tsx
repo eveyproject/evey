@@ -56,7 +56,7 @@ import { useOverlayTime } from "./hooks/useOverlayTime";
 import { useCasting } from "@/hooks/useCasting";
 import { useRemotePlayback } from "@/hooks/useRemotePlayback";
 // Admin message on screen: the same 12 s as the other players and the cast receiver.
-import { ADMIN_MESSAGE_MS, shedI18nKey } from "@evey/client";
+import { ADMIN_MESSAGE_MS, servedVariant, shedI18nKey } from "@evey/client";
 
 
 export type { AudioStream, SubtitleStream };
@@ -772,7 +772,7 @@ export function HLSPlayer({
     canWasmDecodeAC3() &&
     isWasmDecodableAudioCodec(selectedAudioCodec);
 
-  const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, manifestAudioTracks, handoffToTranscode } = useTranscodePlayback({
+  const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, playingVariant, ladderBitrates, manifestAudioTracks, handoffToTranscode } = useTranscodePlayback({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef, audioTrackOverrideRef,
     pinnedQualityRef, onFragStatsRef, onBufferStallRef,
@@ -1231,6 +1231,7 @@ export function HLSPlayer({
   // level switch (panel then shows a bare "Auto").
   // Label the rung by its nearest standard tier, not the raw encoded height: a
   // 2.40:1 master's "1080p" rung is 1920×798, and "798p" reads as a bug.
+  const served = useMemo(() => servedVariant(streamInfo, playingVariant, ladderBitrates), [streamInfo, playingVariant, ladderBitrates]);
   const autoQualityLabel = autoQuality && autoLevelHeight ? `${nominalQualityTier(autoLevelHeight)}p` : undefined;
 
   const nextEpisode = (() => {
@@ -1590,6 +1591,7 @@ export function HLSPlayer({
           streamInfo={streamInfo}
           wasmAudioActive={wasmAudioActive}
           wasmAudioLeg={wasmAudioLeg}
+          servedVariant={served}
           audioTrackIndex={audioTrackOverrideRef.current ?? currentTrackIndex}
           onClose={onClose}
           onAudioChange={handleAudioChange}

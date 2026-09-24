@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { V1StreamInfo } from "@evey/api";
-import { buildStreamInfoModel, decisionBadgeKey } from "@evey/client";
+import { buildStreamInfoModel, decisionBadgeKey, type ServedVariant } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
 import { Button } from "../components/ui";
 
@@ -9,13 +9,15 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 /** What is actually being served: the method, the codecs, and why it is transcoding. */
-export function StreamInfoPanel({ streamInfo, audioStreamIndex, onClose }: {
+export function StreamInfoPanel({ streamInfo, served, audioStreamIndex, onClose }: {
   streamInfo: V1StreamInfo | null;
+  // The variant playing right now: the panel follows every quality change.
+  served?: ServedVariant | null;
   audioStreamIndex: number | null;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const model = buildStreamInfoModel(streamInfo, { audio: { absolute: audioStreamIndex } });
+  const model = buildStreamInfoModel(streamInfo, { audio: { absolute: audioStreamIndex }, served });
   return (
     <div className="modal-backdrop">
       <FocusRoot autoFocus className="modal-sheet">

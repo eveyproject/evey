@@ -3,7 +3,7 @@ import Hls from "hls.js";
 import { createPlayerEventReporter } from "@evey/api";
 import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, pickTranscodeResumeSec, prefersNativeHLS, startPlayback, forwardBufferSeconds, MAX_FORWARD_BUFFER_SEC } from "./hlsPlayerUtils";
 import { playbackSnapshot } from "../playbackSnapshot";
-import { isShedCode, type ShedReason } from "@evey/client";
+import { isShedCode, playingFromHlsLevel, type PlayingVariant, type ShedReason } from "@evey/client";
 
 
 export type { ShedReason };
@@ -159,6 +159,10 @@ export function useTranscodePlayback({
   // Height (px) of the rung hls.js is actually playing right now. Surfaced so the
   // settings panel can show "Auto (1080p)" instead of a redundant bare "Auto".
   const [autoLevelHeight, setAutoLevelHeight] = useState(0);
+  // The variant decoded right now and every variant's BANDWIDTH: the stream
+  // info panel describes that rung, not the plan negotiated at start.
+  const [playingVariant, setPlayingVariant] = useState<PlayingVariant | null>(null);
+  const [ladderBitrates, setLadderBitrates] = useState<number[]>([]);
 
   useEffect(() => {
     if (!transcodeMode) return;
@@ -216,6 +220,8 @@ export function useTranscodePlayback({
       forceTranscodeRef.current,
     );
 
+    setPlayingVariant(null);
+    setLadderBitrates([]);
     if (prefersNativeHLS()) {
       video.src = hlsUrl;
       // Native-HLS path (Safari macOS laptops + iOS). Preferred wherever the
@@ -240,6 +246,10 @@ export function useTranscodePlayback({
         }
       }
       function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
+      // The element switches variants on its own and only says so by its size.
+      function onResize() {
+        if (video!.videoHeight > 0) setPlayingVariant({ width: video!.videoWidth, height: video!.videoHeight });
+      }
       function handleEnded() { onEnded?.(); }
       // Native HLS has no hls.js to observe: the element-level MediaError is
       // the ONLY error signal this path will ever get. Same beacon.
@@ -256,12 +266,14 @@ export function useTranscodePlayback({
       }
       video.addEventListener("loadedmetadata", onLoadedMetadata);
       video.addEventListener("timeupdate", onTimeUpdate);
+      video.addEventListener("resize", onResize);
       video.addEventListener("ended", handleEnded);
       video.addEventListener("error", onNativeError);
       return () => {
         wasPausedRef.current = video.paused;
         video.removeEventListener("loadedmetadata", onLoadedMetadata);
         video.removeEventListener("timeupdate", onTimeUpdate);
+        video.removeEventListener("resize", onResize);
         video.removeEventListener("ended", handleEnded);
         video.removeEventListener("error", onNativeError);
         video.src = "";
@@ -337,6 +349,7 @@ export function useTranscodePlayback({
       fitBufferToLevel(data.level);
       const h = hls.levels?.[data.level]?.height;
       if (h) setAutoLevelHeight(h);
+      setPlayingVariant(playingFromHlsLevel(hls.levels?.[data.level]));
     });
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -357,6 +370,7 @@ export function useTranscodePlayback({
       }
       if (pinned >= 0) fitBufferToLevel(pinned);
       setHlsLevels(hls.levels.map((l) => l.height));
+      setLadderBitrates(hls.levels.map((l) => l.bitrate));
       // A master with no audio group has no audioTracks at all, and neither
       // does a stripped-down player in a test: absent is a legitimate answer.
       setManifestAudioTracks(
@@ -595,5 +609,5 @@ export function useTranscodePlayback({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setShedReason/setIsBuffering/setTranscodeStartTime are stable setState
   }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs, gapless, wasmAudio, handoffGen]);
 
-  return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, manifestAudioTracks, handoffToTranscode };
+  return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, playingVariant, ladderBitrates, manifestAudioTracks, handoffToTranscode };
 }
