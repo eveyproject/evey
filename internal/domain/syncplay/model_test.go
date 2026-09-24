@@ -204,3 +204,14 @@ func TestSyncCommand_AcceptsAFractionalPosition(t *testing.T) {
 		t.Fatalf("whole position: %+v %v", whole, err)
 	}
 }
+
+// A position no title can have is refused, not converted: a float beyond int64
+// has no defined conversion, and the value would be broadcast to the room.
+func TestSyncCommand_RefusesAPositionOutOfRange(t *testing.T) {
+	for _, raw := range []string{`{"type":"seek","positionMs":1e300}`, `{"type":"seek","positionMs":-5}`} {
+		var c syncplay.SyncCommand
+		if err := json.Unmarshal([]byte(raw), &c); err == nil {
+			t.Fatalf("%s decoded to %+v, want an error", raw, c)
+		}
+	}
+}

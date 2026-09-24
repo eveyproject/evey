@@ -92,6 +92,9 @@ type SyncCommand struct {
 	MediaID    string `json:"mediaId,omitempty"`
 }
 
+// maxPositionMs bounds a position a player may report (~31 years).
+const maxPositionMs = 1e12
+
 // UnmarshalJSON accepts a fractional position. Players report their clock as
 // currentTime * 1000, a float, and decoding one into the int64 failed: the
 // websocket loop skipped the message, so a play, pause or seek from such a
@@ -110,6 +113,11 @@ func (c *SyncCommand) UnmarshalJSON(b []byte) error {
 		f, err := aux.PositionMs.Float64()
 		if err != nil {
 			return fmt.Errorf("positionMs: %w", err)
+		}
+		// Converting a float beyond int64 is undefined: a member could put an
+		// arbitrary position in front of the whole room. No title lasts 30 years.
+		if math.IsNaN(f) || f < 0 || f > maxPositionMs {
+			return fmt.Errorf("positionMs out of range: %v", f)
 		}
 		c.PositionMs = int64(math.Round(f))
 	}
