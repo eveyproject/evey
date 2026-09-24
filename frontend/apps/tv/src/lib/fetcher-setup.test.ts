@@ -22,9 +22,12 @@ const routerReplace = vi.hoisted(() => vi.fn());
 vi.mock("expo-router", () => ({ router: { replace: routerReplace } }));
 
 const serverUrl = vi.hoisted(() => ({ value: null as string | null }));
-vi.mock("./server-config", () => ({ getServerUrl: () => Promise.resolve(serverUrl.value) }));
+vi.mock("./server-config", () => ({
+  getServerUrl: () => Promise.resolve(serverUrl.value),
+  resolveServerUrl: (active: string | null | undefined) => Promise.resolve(active ?? serverUrl.value),
+}));
 
-import { useAuthStore, useLocaleStore } from "@evey/store";
+import { useAuthStore, useLocaleStore, useServerListStore } from "@evey/store";
 import { forceRefresh } from "./auth-refresh";
 import { initFetcher } from "./fetcher-setup";
 
@@ -33,6 +36,7 @@ beforeEach(() => {
   serverUrl.value = null;
   useAuthStore.setState({ accessToken: null });
   useLocaleStore.setState({ locale: "fr-FR" });
+  useServerListStore.setState({ servers: {}, activeServerId: null });
 });
 
 describe("initFetcher (tv) - unauthorized handler", () => {
@@ -87,6 +91,18 @@ describe("initFetcher (tv) - base URL, headers, refresh", () => {
     serverUrl.value = "http://tv.test";
     await initFetcher();
     expect(api.setBaseURL).toHaveBeenCalledWith("http://tv.test");
+  });
+
+  // The boot reads the active server first; the API must follow the same
+  // answer, not the legacy key alone.
+  it("points the API at the active server over the legacy key", async () => {
+    serverUrl.value = "http://legacy.test";
+    useServerListStore.setState({
+      servers: { a: { id: "a", url: "http://active.test", label: "", addedAt: 0, lastUsedAt: 0 } },
+      activeServerId: "a",
+    } as never);
+    await initFetcher();
+    expect(api.setBaseURL).toHaveBeenCalledWith("http://active.test");
   });
 
   it("identifies the TV app in the User-Agent and keeps the session persistent", async () => {
