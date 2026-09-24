@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"strings"
 
@@ -356,6 +357,12 @@ func (h *compatServe) handleServe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"error"}`, http.StatusInternalServerError)
 		return
 	}
+	// The cache budget judges this file by its mtime: a fetch keeps it warm,
+	// so a phone that comes back for the same film finds it instead of paying
+	// a second production. Best effort - a failed touch only ages the file.
+	now := time.Now()
+	//nolint:errcheck // best-effort touch; a failure only ages the file in the budget's LRU
+	_ = os.Chtimes(outPath, now, now)
 
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 	name := mediaID + ".mkv"

@@ -1,42 +1,52 @@
 package transcoding
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"github.com/evey-project/evey/internal/pkg/bgloop"
 	"io/fs"
-	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
-
-	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
-// EvictionPolicy configures the LRU sweeper that bounds the on-disk cache.
+// EvictionPolicy configures the CacheBudget sweeper that bounds the on-disk
+// transcode cache: segment hashes, fast-start remuxes and compat downloads
+// together.
 type EvictionPolicy struct {
-	// MaxBytes is the soft cap on total segment cache size on disk. When the
-	// sweeper observes the cache above this threshold it deletes the
-	// oldest-atime hashes until it falls below MaxBytes - MarginBytes. 0
-	// disables eviction (Phase 1 default).
+	// MaxBytes is the soft cap on the whole transcode cache on disk, the
+	// admin's "transcode cache budget". Above it the sweeper deletes the least
+	// recently used entries until the total falls under MaxBytes - MarginBytes.
+	// 0 disables the cap; the age and free-space passes still run.
 	MaxBytes int64
 
 	// MarginBytes is the headroom below MaxBytes after an eviction pass - gives
-	// the next encoder rafale room to land segments before the next sweep
-	// hits MaxBytes again. Default = MaxBytes / 10.
+	// the next encoder room to land segments before the next sweep hits
+	// MaxBytes again. Default = MaxBytes / 10.
 	MarginBytes int64
 
-	// SweepInterval is how often the sweeper wakes up to enforce the cap.
+	// MinFreeBytes is the floor of free space on the cache filesystem. Under
+	// it the sweeper evicts whatever the cap says: on a small box the cache
+	// shares the system disk with everything else, and a full disk breaks
+	// playback for everyone. Default 2 GiB; 0 disables the pass.
+	MinFreeBytes int64
+
+	// FreeBytes reports the free space of the cache filesystem. nil: the
+	// segment cache's own statfs.
+	FreeBytes func() (int64, error)
+
+	// DownloadTTL is how long a download file (compat, remux) survives after
+	// its last access, whatever the cap. Default 7 days; 0 disables the pass.
+	DownloadTTL time.Duration
+
+	// ProtectWindow shields a segment hash accessed within it from the cap
+	// pass: a viewer just pulled from it. It replaces the old "N most recent
+	// hashes" rule, which kept a finished film's segments above the cap for as
+	// long as nothing newer came along. Default 10 min.
+	ProtectWindow time.Duration
+
+	// SweepInterval is how often the sweeper wakes up to enforce the policy.
 	// Default 30 s. Lower interval = tighter bound + more disk reads.
 	SweepInterval time.Duration
-
-	// ProtectRecent protects the N most-recent-atime decision hashes from
-	// eviction during a sweep - guarantees an actively-watched session
-	// (with hits in the last sweep window) is never evicted out from under
-	// the player. Default 4.
-	ProtectRecent int
 
 	// ActivePlayback reports how many media are being read right now, across
 	// every serving path (see ProducerSelector.ActivePlaybackCount). When it is
@@ -45,19 +55,29 @@ type EvictionPolicy struct {
 	// Backing off rather than pausing outright is deliberate: eviction is the
 	// only thing holding the cache under its cap, and a session WRITES segments
 	// as it plays, so a sweeper that stopped for a whole film could let the disk
-	// fill. Optional; nil keeps the old fixed cadence.
+	// fill. Optional; nil keeps the fixed cadence.
 	ActivePlayback func() int
 
 	// PlaybackSweepInterval is the cadence used while playback is active.
 	// Default 5 min, against 30 s idle.
 	//
 	// What this avoids is the sweep's FULL WALK of the cache root - one lstat
-	// per file, tens of thousands of them at the 50 GB default cap - which runs
-	// on every tick whatever the fill level, because the total is only known
-	// once the walk is done. On a weak NAS whose cache shares a spindle with the
-	// media, that is the same disk the viewer is reading from.
+	// per file - which runs on every tick whatever the fill level, because the
+	// total is only known once the walk is done. On a weak NAS whose cache
+	// shares a spindle with the media, that is the same disk the viewer is
+	// reading from.
 	PlaybackSweepInterval time.Duration
 }
+
+// DefaultMinFreeBytes is the free-space floor when the policy sets none.
+const DefaultMinFreeBytes = 2 << 30
+
+// DefaultDownloadTTL is how long a download file is kept after its last use.
+const DefaultDownloadTTL = 7 * 24 * time.Hour
+
+// DefaultProtectWindow is how recently a hash must have been accessed to be
+// spared by the cap pass.
+const DefaultProtectWindow = 10 * time.Minute
 
 // shouldSweep decides whether this tick pays for a full cache walk.
 //
@@ -69,10 +89,10 @@ type EvictionPolicy struct {
 // The first tick always sweeps (lastSweep zero): a server that boots already
 // over its cap must not stay unbounded just because someone is watching.
 func (p EvictionPolicy) shouldSweep(now, lastSweep time.Time) bool {
-	if p.ActivePlayback == nil || p.ActivePlayback() == 0 {
+	if lastSweep.IsZero() {
 		return true
 	}
-	if lastSweep.IsZero() {
+	if p.ActivePlayback == nil || p.ActivePlayback() <= 0 {
 		return true
 	}
 	return now.Sub(lastSweep) >= p.PlaybackSweepInterval
@@ -83,134 +103,26 @@ func (p EvictionPolicy) withDefaults() EvictionPolicy {
 	if out.MaxBytes > 0 && out.MarginBytes <= 0 {
 		out.MarginBytes = out.MaxBytes / 10
 	}
+	if out.MinFreeBytes < 0 {
+		out.MinFreeBytes = 0
+	} else if out.MinFreeBytes == 0 {
+		out.MinFreeBytes = DefaultMinFreeBytes
+	}
+	if out.DownloadTTL < 0 {
+		out.DownloadTTL = 0
+	} else if out.DownloadTTL == 0 {
+		out.DownloadTTL = DefaultDownloadTTL
+	}
+	if out.ProtectWindow <= 0 {
+		out.ProtectWindow = DefaultProtectWindow
+	}
 	if out.SweepInterval <= 0 {
 		out.SweepInterval = 30 * time.Second
-	}
-	if out.ProtectRecent <= 0 {
-		out.ProtectRecent = 4
 	}
 	if out.PlaybackSweepInterval <= 0 {
 		out.PlaybackSweepInterval = 5 * time.Minute
 	}
 	return out
-}
-
-// StartEviction launches the LRU sweeper in the background. Call once on
-// startup, after NewSegmentCache. The returned stop function cancels the
-// sweeper goroutine; safe to defer.
-//
-// The sweeper deletes whole hash directories at a time rather than picking
-// individual segments - partial directories would force the orchestrator to
-// re-spawn ffmpeg for missing inner segments, defeating the cache. Whole-hash
-// eviction also lets us bump atime on access cheaply (atime of the directory
-// rather than every file).
-func (c *SegmentCache) StartEviction(policy EvictionPolicy, logger *slog.Logger) (stop func()) {
-	policy = policy.withDefaults()
-	if policy.MaxBytes <= 0 {
-		// Disabled - return a no-op stop.
-		return func() {}
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go c.evictionLoop(ctx, policy, logger, done)
-	return func() {
-		cancel()
-		<-done
-	}
-}
-
-func (c *SegmentCache) evictionLoop(ctx context.Context, p EvictionPolicy, logger *slog.Logger, done chan struct{}) {
-	defer close(done)
-	if logger == nil {
-		logger = slog.Default()
-	}
-	logger = logger.With("component", "segment_cache_evict")
-	ticker := time.NewTicker(p.SweepInterval)
-	defer ticker.Stop()
-	var lastSweep time.Time
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case now := <-ticker.C:
-			if !p.shouldSweep(now, lastSweep) {
-				continue
-			}
-			lastSweep = now
-			bgloop.Tick("transcoding.segmentCacheEvict", func() { c.sweepOnce(p, logger) })
-		}
-	}
-}
-
-// sweepOnce computes total disk usage under the cache root, and if above
-// MaxBytes, deletes whole hash directories in least-recently-used order until
-// usage drops below MaxBytes - MarginBytes. The N most-recent hashes are
-// protected so an actively-played session is never evicted.
-func (c *SegmentCache) sweepOnce(p EvictionPolicy, logger *slog.Logger) {
-	hashes, err := c.listHashUsage()
-	if err != nil {
-		logger.Warn("sweepOnce: list hashes failed", slog.Any("err", err))
-		return
-	}
-	var total int64
-	for _, h := range hashes {
-		total += h.Bytes
-	}
-	// Publish the footprint on EVERY sweep, not just the ones that evict:
-	// setting it only past the two early returns below left the gauge stuck at 0
-	// since boot (or frozen on the last over-cap reading) during normal
-	// operation, which is exactly when an operator wants to read it.
-	metrics.HLSVODCacheBytes.Set(float64(total))
-	if len(hashes) == 0 {
-		return
-	}
-	if total <= p.MaxBytes {
-		return
-	}
-
-	// Sort by atime ascending (oldest first). The newest p.ProtectRecent are
-	// shielded - they're likely the actively-streaming sessions.
-	sort.Slice(hashes, func(i, j int) bool {
-		return hashes[i].LastAccess.Before(hashes[j].LastAccess)
-	})
-	protected := min(p.ProtectRecent, len(hashes))
-	candidates := hashes[:len(hashes)-protected]
-
-	target := max(p.MaxBytes-p.MarginBytes, 0)
-
-	var evicted int
-	var freed int64
-	for _, h := range candidates {
-		if total <= target {
-			break
-		}
-		ok, err := c.cleanupHashIfIdle(h.Hash)
-		if err != nil {
-			logger.Warn("sweepOnce: cleanup failed",
-				slog.String("hash", h.Hash),
-				slog.Any("err", err))
-			continue
-		}
-		if !ok {
-			// A live session is streaming this hash - skip it. The cache may
-			// briefly exceed MaxBytes until the session ends; on a small NAS
-			// cache that's the right tradeoff vs. stalling a player to 503.
-			continue
-		}
-		total -= h.Bytes
-		freed += h.Bytes
-		evicted++
-	}
-
-	metrics.HLSVODCacheBytes.Set(float64(total))
-	if evicted > 0 {
-		metrics.HLSVODCacheEvictedBytes.Add(float64(freed))
-		logger.Info("sweepOnce: evicted",
-			slog.Int("hashes", evicted),
-			slog.Int64("freed_bytes", freed),
-			slog.Int64("total_after_bytes", total),
-			slog.Int("protected", protected))
-	}
 }
 
 // HashUsage is a single decision-hash bucket's disk footprint + last-access

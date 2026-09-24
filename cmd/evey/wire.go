@@ -377,21 +377,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// P3 ceiling-hit signal store: the serve path feeds it, the probe worker
 	// drains it. In-memory, transient, always on.
 	probeSignals := apptranscoding.NewProbeSignalStore(0)
-	// Bound the sibling fast-start MP4 remux cache (<CacheDir>/remux) on its own
-	// budget. Source-fingerprint keying orphans the old file on every re-scan, so
-	// without this it grows without bound. Same lifetime/stop semantics as above.
-	_ = apptranscoding.NewRemuxCacheJanitor(filepath.Join(cfg.Transcoding.CacheDir, "remux")).
-		StartEviction(apptranscoding.EvictionPolicy{
-			MaxBytes: apptranscoding.DefaultRemuxCacheBytes,
-		}, slog.Default())
-	// Same janitor, third directory: the compat-download variants
-	// (<CacheDir>/compat). These are whole films (audio re-encoded, video
-	// copied), so the budget is an order of magnitude above the remux one -
-	// still LRU-by-production, still fingerprint-keyed orphan reclaim.
-	_ = apptranscoding.NewRemuxCacheJanitor(filepath.Join(cfg.Transcoding.CacheDir, "compat")).
-		StartEviction(apptranscoding.EvictionPolicy{
-			MaxBytes: apptranscoding.DefaultCompatCacheBytes,
-		}, slog.Default())
+	// The fast-start MP4 remuxes (<CacheDir>/remux) and the compat downloads
+	// (<CacheDir>/compat) count in the SAME budget as the segments: the sweeper
+	// is started below, once the playback counter it backs off on exists.
+	// Source-fingerprint keying orphans the old file on every re-scan, so
+	// without the sweep both grow without bound.
+	remuxJanitor := apptranscoding.NewRemuxCacheJanitor(filepath.Join(cfg.Transcoding.CacheDir, "remux"))
+	compatJanitor := apptranscoding.NewRemuxCacheJanitor(filepath.Join(cfg.Transcoding.CacheDir, "compat"))
 	// Inline SourceResolver: the orchestrator hands a DecisionFingerprint
 	// back, we look up the media item via the library query service. Streams
 	// are filled in later (Phase 3 follow-up) - Phase 1+2 only need the path.
@@ -543,16 +535,19 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	hlsVODRemover := apptranscoding.NewProducerSelector(hlsVODSoftware, hlsVODOrch).
 		WithPlaybackActivity(playbackActivity)
 
-	// LRU sweep on the on-disk segment cache. Cleanup token dropped: the
-	// orchestrator runs for the process lifetime, so the cache sweeper is
-	// stopped implicitly when the binary exits.
+	// The one sweep of the transcode cache: segments, remuxes and compat
+	// downloads under the admin's budget (10 GB by default, an absolute
+	// number - the operator decides what the rest of the volume is for), a
+	// 2 GiB free-space floor whatever the budget, and a week's life for a
+	// download nobody fetches. Cleanup token dropped: the sweeper runs for
+	// the process lifetime.
 	//
 	// Started HERE, after the selector exists, rather than next to the cache
-	// construction: the sweep walks the whole cache root (one lstat per file,
-	// tens of thousands at the default 50 GB cap) on EVERY tick whatever the
-	// fill level, so it must be able to back off while someone is watching. On a
-	// weak NAS the cache shares a spindle with the media being read.
-	_ = hlsVODCache.StartEviction(apptranscoding.EvictionPolicy{
+	// construction: the sweep walks the whole cache root (one lstat per file)
+	// on EVERY tick whatever the fill level, so it must be able to back off
+	// while someone is watching. On a weak NAS the cache shares a spindle with
+	// the media being read.
+	_ = apptranscoding.NewCacheBudget(hlsVODCache, remuxJanitor, compatJanitor).Start(apptranscoding.EvictionPolicy{
 		MaxBytes:       int64(cfg.Transcoding.CacheMaxGB) * 1024 * 1024 * 1024,
 		ActivePlayback: hlsVODRemover.ActivePlaybackCount,
 	}, slog.Default())

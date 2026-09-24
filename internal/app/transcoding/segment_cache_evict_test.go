@@ -13,11 +13,28 @@ import (
 )
 
 func TestEvictionPolicy_withDefaults(t *testing.T) {
-	p := EvictionPolicy{MaxBytes: 100, MarginBytes: 0, SweepInterval: 0, ProtectRecent: 0}.withDefaults()
+	p := EvictionPolicy{MaxBytes: 100}.withDefaults()
 	assert.EqualValues(t, 100, p.MaxBytes)
 	assert.EqualValues(t, 10, p.MarginBytes)
 	assert.Equal(t, 30*time.Second, p.SweepInterval)
-	assert.Equal(t, 4, p.ProtectRecent)
+	assert.EqualValues(t, DefaultMinFreeBytes, p.MinFreeBytes)
+	assert.Equal(t, DefaultDownloadTTL, p.DownloadTTL)
+	assert.Equal(t, DefaultProtectWindow, p.ProtectWindow)
+
+	// A negative value disables a pass, zero takes the default.
+	off := EvictionPolicy{MinFreeBytes: -1, DownloadTTL: -1}.withDefaults()
+	assert.EqualValues(t, 0, off.MinFreeBytes)
+	assert.EqualValues(t, 0, off.DownloadTTL)
+}
+
+// capOnly is a policy with the free-space and age passes off, so a test of
+// the cap sees the cap alone.
+func capOnly(maxBytes, margin int64) EvictionPolicy {
+	return EvictionPolicy{MaxBytes: maxBytes, MarginBytes: margin, MinFreeBytes: -1, DownloadTTL: -1, ProtectWindow: time.Nanosecond}
+}
+
+func sweepNow(c *SegmentCache, p EvictionPolicy) {
+	NewCacheBudget(c).sweepOnce(p.withDefaults(), quietLogger(), time.Now())
 }
 
 func TestSweepOnce_BelowMaxBytes_NoEviction(t *testing.T) {
@@ -25,7 +42,7 @@ func TestSweepOnce_BelowMaxBytes_NoEviction(t *testing.T) {
 	writeSegments(t, c, "a", 3, 50)
 	writeSegments(t, c, "b", 3, 50)
 
-	c.sweepOnce(EvictionPolicy{MaxBytes: 10_000, MarginBytes: 1_000, ProtectRecent: 0}, quietLogger())
+	sweepNow(c, capOnly(10_000, 1_000))
 
 	assert.DirExists(t, filepath.Join(c.baseDir, "a"))
 	assert.DirExists(t, filepath.Join(c.baseDir, "b"))
@@ -37,25 +54,34 @@ func TestSweepOnce_AboveMax_EvictsOldest(t *testing.T) {
 	writeSegments(t, c, "old", 4, 100)
 	backdateHash(t, c, "old", -1*time.Hour)
 	writeSegments(t, c, "new", 4, 100)
+	backdateHash(t, c, "new", -20*time.Minute)
 
-	c.sweepOnce(EvictionPolicy{MaxBytes: 500, MarginBytes: 50, ProtectRecent: 0}, quietLogger())
+	sweepNow(c, capOnly(500, 50))
 
 	assert.NoDirExists(t, filepath.Join(c.baseDir, "old"))
 	assert.DirExists(t, filepath.Join(c.baseDir, "new"))
 }
 
-func TestSweepOnce_ProtectRecent(t *testing.T) {
-	// Two hashes both over the cap. With ProtectRecent=1 the newest must
-	// survive even if its eviction would have brought us under MaxBytes.
+// A hash accessed within the protect window is a viewer's: it is spared by the
+// cap pass whatever its rank. A hash idle for longer is not - the old "four
+// most recent hashes" rule kept a finished film above the cap until four newer
+// ones came along.
+func TestSweepOnce_ProtectWindowSparesJustAccessedHashesOnly(t *testing.T) {
 	c, _ := newTestCache(t)
 	writeSegments(t, c, "old", 5, 100)
 	backdateHash(t, c, "old", -1*time.Hour)
-	writeSegments(t, c, "newer", 5, 100)
+	writeSegments(t, c, "newer", 5, 100) // written just now: inside the window
 
-	c.sweepOnce(EvictionPolicy{MaxBytes: 200, MarginBytes: 0, ProtectRecent: 1}, quietLogger())
-
+	p := capOnly(200, 0)
+	p.ProtectWindow = 10 * time.Minute
+	sweepNow(c, p)
 	assert.NoDirExists(t, filepath.Join(c.baseDir, "old"))
-	assert.DirExists(t, filepath.Join(c.baseDir, "newer"), "newest hash must be protected")
+	assert.DirExists(t, filepath.Join(c.baseDir, "newer"), "a just-accessed hash must be protected")
+
+	// The same hash an hour later, nobody watching: it is the victim.
+	backdateHash(t, c, "newer", -1*time.Hour)
+	sweepNow(c, p)
+	assert.NoDirExists(t, filepath.Join(c.baseDir, "newer"), "the window closes; recency alone protects nothing")
 }
 
 func TestSweepOnce_SkipsInFlightHash(t *testing.T) {
@@ -71,7 +97,7 @@ func TestSweepOnce_SkipsInFlightHash(t *testing.T) {
 	release := c.RegisterSession("inflight")
 	defer release()
 
-	c.sweepOnce(EvictionPolicy{MaxBytes: 200, MarginBytes: 0, ProtectRecent: 0}, quietLogger())
+	sweepNow(c, capOnly(200, 0))
 
 	assert.DirExists(t, filepath.Join(c.baseDir, "inflight"), "an in-flight hash must not be evicted")
 	assert.NoDirExists(t, filepath.Join(c.baseDir, "idle"), "the idle hash must be evicted to reclaim space")
@@ -86,8 +112,9 @@ func TestSweepOnce_StopsAtTarget(t *testing.T) {
 	writeSegments(t, c, "h2", 3, 100)
 	backdateHash(t, c, "h2", -1*time.Hour)
 	writeSegments(t, c, "h3", 3, 100)
+	backdateHash(t, c, "h3", -30*time.Minute)
 
-	c.sweepOnce(EvictionPolicy{MaxBytes: 700, MarginBytes: 50, ProtectRecent: 0}, quietLogger())
+	sweepNow(c, capOnly(700, 50))
 
 	assert.NoDirExists(t, filepath.Join(c.baseDir, "h1"), "oldest must go")
 	assert.DirExists(t, filepath.Join(c.baseDir, "h2"))
@@ -110,26 +137,16 @@ func TestTotalBytes_Sum(t *testing.T) {
 	assert.EqualValues(t, 1300, n)
 }
 
-func TestStartEviction_NoopWhenDisabled(t *testing.T) {
-	c, _ := newTestCache(t)
-	// MaxBytes 0 ⇒ disabled, returns a no-op stop. Most importantly, it
-	// must NOT spawn a goroutine that survives across tests.
-	stop := c.StartEviction(EvictionPolicy{}, quietLogger())
-	stop()
-}
-
-func TestStartEviction_RunsAndStops(t *testing.T) {
+func TestStart_RunsAndStops(t *testing.T) {
 	c, _ := newTestCache(t)
 	writeSegments(t, c, "old", 5, 100)
 	backdateHash(t, c, "old", -1*time.Hour)
 	writeSegments(t, c, "new", 5, 100)
 
-	stop := c.StartEviction(EvictionPolicy{
-		MaxBytes:      300,
-		MarginBytes:   50,
-		SweepInterval: 30 * time.Millisecond,
-		ProtectRecent: 1,
-	}, quietLogger())
+	p := capOnly(300, 50)
+	p.SweepInterval = 30 * time.Millisecond
+	p.ProtectWindow = 10 * time.Minute
+	stop := NewCacheBudget(c).Start(p, quietLogger())
 	defer stop()
 
 	require.Eventually(t, func() bool {
@@ -137,8 +154,21 @@ func TestStartEviction_RunsAndStops(t *testing.T) {
 		return os.IsNotExist(err)
 	}, 2*time.Second, 30*time.Millisecond)
 
-	// new must survive
+	// new must survive: written just now, inside the protect window
 	assert.DirExists(t, filepath.Join(c.baseDir, "new"))
+}
+
+// A zero cap disables the cap pass - it never means "a budget of zero". Read
+// as a budget, the first tick would empty the cache.
+func TestStart_ZeroCapDisablesTheCapPass(t *testing.T) {
+	c, _ := newTestCache(t)
+	writeSegments(t, c, "a", 5, 100)
+	backdateHash(t, c, "a", -1*time.Hour)
+	stop := NewCacheBudget(c).Start(EvictionPolicy{MinFreeBytes: -1, DownloadTTL: -1, SweepInterval: 5 * time.Millisecond}, quietLogger())
+	time.Sleep(60 * time.Millisecond)
+	assert.DirExists(t, filepath.Join(c.baseDir, "a"))
+	stop()
+	require.NotPanics(t, stop, "stop must be safe to call again")
 }
 
 func TestSweepOnce_TouchKeepsActivelyReadHashWarm(t *testing.T) {
@@ -152,11 +182,13 @@ func TestSweepOnce_TouchKeepsActivelyReadHashWarm(t *testing.T) {
 	writeSegments(t, c, "watched", 3, 100)
 	backdateHash(t, c, "watched", -1*time.Hour)
 	writeSegments(t, c, "fresh", 3, 100)
-	backdateHash(t, c, "fresh", -10*time.Minute)
+	backdateHash(t, c, "fresh", -20*time.Minute)
 
 	c.Touch("watched") // a player just pulled a segment from this hash
 
-	c.sweepOnce(EvictionPolicy{MaxBytes: 400, MarginBytes: 0, ProtectRecent: 0}, quietLogger())
+	p := capOnly(400, 0)
+	p.ProtectWindow = 10 * time.Minute
+	sweepNow(c, p)
 
 	assert.DirExists(t, filepath.Join(c.baseDir, "watched"), "actively-read hash must stay warm via Touch")
 	assert.NoDirExists(t, filepath.Join(c.baseDir, "fresh"), "un-read hash is the LRU victim")
@@ -229,43 +261,17 @@ func backdateHash(t *testing.T, c *SegmentCache, hash string, offset time.Durati
 // worker in contention with the viewer for the same spindle, which is the
 // starvation class this server keeps hitting on weak NAS hardware.
 func TestEvictionPolicy_ShouldSweep(t *testing.T) {
-	base := time.Unix(1000, 0)
-	playing := func(n int) func() int { return func() int { return n } }
-
-	cases := []struct {
-		name      string
-		active    func() int
-		lastSweep time.Time
-		now       time.Time
-		want      bool
-	}{
-		{"idle keeps the tight cadence", playing(0), base, base.Add(30 * time.Second), true},
-		{"unwired gate keeps the old behaviour", nil, base, base.Add(30 * time.Second), true},
-		{"playing, inside the backoff window", playing(1), base, base.Add(30 * time.Second), false},
-		{"playing, past the backoff window", playing(1), base, base.Add(6 * time.Minute), true},
-		{"playing, first ever tick still sweeps", playing(1), time.Time{}, base, true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			p := EvictionPolicy{
-				MaxBytes:       1,
-				ActivePlayback: tc.active,
-			}.withDefaults()
-			if got := p.shouldSweep(tc.now, tc.lastSweep); got != tc.want {
-				t.Fatalf("shouldSweep = %v, want %v", got, tc.want)
-			}
-		})
-	}
+	active := 0
+	p := EvictionPolicy{ActivePlayback: func() int { return active }, PlaybackSweepInterval: 5 * time.Minute}.withDefaults()
+	now := time.Now()
+	assert.True(t, p.shouldSweep(now, time.Time{}), "the first tick always sweeps")
+	assert.True(t, p.shouldSweep(now, now.Add(-30*time.Second)), "idle host: every tick")
+	active = 1
+	assert.False(t, p.shouldSweep(now, now.Add(-30*time.Second)), "playback: back off")
+	assert.True(t, p.shouldSweep(now, now.Add(-6*time.Minute)), "playback: still sweeps at the slow cadence")
+	assert.True(t, EvictionPolicy{}.withDefaults().shouldSweep(now, now.Add(-time.Second)), "no counter wired: fixed cadence")
 }
 
-// The backoff is a playback concession, not a general slowdown of the disk-cap
-// safety valve: a boot already over cap must be corrected even mid-viewing.
 func TestEvictionPolicy_PlaybackBackoffDefaultsToFiveMinutes(t *testing.T) {
-	p := EvictionPolicy{MaxBytes: 1}.withDefaults()
-	if p.PlaybackSweepInterval != 5*time.Minute {
-		t.Fatalf("default playback sweep interval = %v, want 5m", p.PlaybackSweepInterval)
-	}
-	if p.SweepInterval != 30*time.Second {
-		t.Fatalf("idle cadence must stay 30s, got %v", p.SweepInterval)
-	}
+	assert.Equal(t, 5*time.Minute, EvictionPolicy{}.withDefaults().PlaybackSweepInterval)
 }
