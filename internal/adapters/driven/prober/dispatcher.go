@@ -12,6 +12,7 @@ import (
 
 	mkvadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -25,6 +26,9 @@ type metaReader interface {
 	IsEBML(path string) bool
 	IsMP4(path string) bool
 	ReadMeta(ctx context.Context, path string) (*extmkv.Container, error)
+	// TrackEndMs measures where an EBML file's content ends, for a file whose
+	// header declares no duration (see mkvadapter.TrackEndMs).
+	TrackEndMs(ctx context.Context, path string) (int64, error)
 }
 
 // Dispatcher implements library.StreamProber. For a container mkvgo can read
@@ -91,10 +95,26 @@ func (d *Dispatcher) ProbeStreams(ctx context.Context, filePath string) (res *li
 		span.AddEvent("meta-readmeta-error: ffprobe fallback")
 		return d.fallback.ProbeStreams(ctx, filePath)
 	}
-	res, ok := mapContainer(c, d.meta.IsEBML(filePath))
+	ebml := d.meta.IsEBML(filePath)
+	res, ok := mapContainer(c, ebml)
 	if !ok {
 		span.AddEvent("meta-unmappable: ffprobe fallback")
 		return d.fallback.ProbeStreams(ctx, filePath)
+	}
+	if ebml && res.Duration.IsZero() {
+		// A Matroska written as a live stream declares no Duration; ffprobe
+		// reads none either, and a file without a duration is refused at
+		// playback ("duration missing"). Measure it from the tracks' ends
+		// instead - a bounded, header-only read of the tail.
+		if endMs, err := d.meta.TrackEndMs(ctx, filePath); err != nil {
+			slog.Warn("prober: duration not declared and the tracks' ends could not be read",
+				slog.String("file", filePath), slog.Any("err", err))
+		} else if dur, derr := shared.NewDurationMs(endMs); derr == nil && !dur.IsZero() {
+			res.Duration = dur
+			span.AddEvent("meta-duration-measured")
+			slog.Info("prober: duration not declared, measured from the tracks' ends",
+				slog.String("file", filePath), slog.Int64("duration_ms", endMs))
+		}
 	}
 	span.AddEvent("meta-fastpath")
 	return res, nil
@@ -106,6 +126,9 @@ type realMetaReader struct{}
 
 func (realMetaReader) IsEBML(path string) bool { return mkvadapter.IsEBMLContainer(path) }
 func (realMetaReader) IsMP4(path string) bool  { return mkvadapter.IsMP4Container(path) }
+func (realMetaReader) TrackEndMs(ctx context.Context, path string) (int64, error) {
+	return mkvadapter.TrackEndMs(ctx, path)
+}
 
 func (realMetaReader) ReadMeta(ctx context.Context, path string) (*extmkv.Container, error) {
 	if mkvadapter.IsMP4Container(path) {

@@ -28,6 +28,15 @@ type fakeMeta struct {
 	c      *extmkv.Container
 	err    error
 	reads  int
+	// trackEndMs answers TrackEndMs (with trackEndErr); trackEndCalls counts.
+	trackEndMs    int64
+	trackEndErr   error
+	trackEndCalls int
+}
+
+func (m *fakeMeta) TrackEndMs(context.Context, string) (int64, error) {
+	m.trackEndCalls++
+	return m.trackEndMs, m.trackEndErr
 }
 
 func (m *fakeMeta) IsEBML(string) bool { return m.isEBML }
@@ -190,4 +199,48 @@ func TestGateMP4Drops(t *testing.T) {
 	// An OpenMeta error passes through regardless of drops.
 	_, err := gateMP4Drops(nil, nil, errors.New("parse failed"))
 	require.Error(t, err)
+}
+
+// A Matroska that declares no Duration (written as a live stream) gets it
+// measured from the tracks' ends; a declared one is never re-measured, and a
+// tail that cannot be read leaves the duration unknown without leaving the
+// fast path.
+func TestDispatcher_MeasuresTheDurationAFileDoesNotDeclare(t *testing.T) {
+	undeclared := mappable()
+	m := &fakeMeta{isEBML: true, c: undeclared, trackEndMs: 1_200_042}
+	d := New(&fakeFallback{}, nil, nil)
+	d.meta = m
+	res, err := d.ProbeStreams(context.Background(), "/live.mkv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.Duration.Milliseconds(); got != 1_200_042 {
+		t.Fatalf("duration must come from the tracks' ends, got %d", got)
+	}
+	if m.trackEndCalls != 1 {
+		t.Fatalf("one measure, got %d", m.trackEndCalls)
+	}
+
+	declared := mappable()
+	declared.DurationMs = 5_000
+	m = &fakeMeta{isEBML: true, c: declared, trackEndMs: 1_200_042}
+	d.meta = m
+	res, _ = d.ProbeStreams(context.Background(), "/normal.mkv")
+	if res.Duration.Milliseconds() != 5_000 || m.trackEndCalls != 0 {
+		t.Fatalf("a declared duration is kept and never re-measured: %d calls=%d", res.Duration.Milliseconds(), m.trackEndCalls)
+	}
+
+	m = &fakeMeta{isEBML: true, c: mappable(), trackEndErr: context.DeadlineExceeded}
+	d.meta = m
+	res, err = d.ProbeStreams(context.Background(), "/unreadable.mkv")
+	if err != nil || !res.Duration.IsZero() || res.Streams[0].Codec == "FFPROBE_SENTINEL" {
+		t.Fatalf("an unreadable tail keeps the fast path with an unknown duration: err=%v dur=%d", err, res.Duration.Milliseconds())
+	}
+
+	mp4 := &fakeMeta{isMP4: true, c: mappable(), trackEndMs: 99}
+	d.meta = mp4
+	res, _ = d.ProbeStreams(context.Background(), "/a.mp4")
+	if mp4.trackEndCalls != 0 || !res.Duration.IsZero() {
+		t.Fatalf("the tail walk is Matroska-only: calls=%d", mp4.trackEndCalls)
+	}
 }
