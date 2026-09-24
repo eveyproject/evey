@@ -141,7 +141,8 @@ describe("useProgressReporter", () => {
     renderHook(() => useProgressReporter("s1", () => 0));
 
     await act(async () => { vi.advanceTimersByTime(3_000); });
-    expect(toastInfoMock).toHaveBeenCalledWith("Hello world");
+    // Held as long as the web's banner and the cast receiver (12 s).
+    expect(toastInfoMock).toHaveBeenCalledWith("Hello world", { duration: 12_000 });
   });
 
   // While casting, the report must name the cast device: the server withholds

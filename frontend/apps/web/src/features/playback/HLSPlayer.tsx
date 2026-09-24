@@ -55,6 +55,8 @@ import { useTouchGestures } from "./hooks/useTouchGestures";
 import { useOverlayTime } from "./hooks/useOverlayTime";
 import { useCasting } from "@/hooks/useCasting";
 import { useRemotePlayback } from "@/hooks/useRemotePlayback";
+// Admin message on screen: the same 12 s as the other players and the cast receiver.
+import { ADMIN_MESSAGE_MS } from "@evey/client";
 
 
 export type { AudioStream, SubtitleStream };
@@ -65,8 +67,6 @@ export type { AudioStream, SubtitleStream };
 // genuine stalls (cold transcode start on a weak host, network loss) exceed it
 // and still get user feedback.
 const BUFFERING_SPINNER_DELAY_MS = 1500;
-// Admin message on screen, same as the cast receiver.
-const ADMIN_MESSAGE_MS = 12_000;
 
 interface HLSPlayerProps {
   streamInfo: V1StreamInfo;

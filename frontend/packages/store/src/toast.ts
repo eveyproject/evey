@@ -36,6 +36,8 @@ export const useToastStore = create<ToastState>()((set) => ({
 
 interface ToastOptions {
   onPress?: () => void;
+  /** How long it stays, in ms (each display defaults to about 3 s). */
+  duration?: number;
 }
 
 export const toast = {
