@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { COUNTDOWN_SEC, useUpNextCountdown } from "@evey/client";
 
 interface NextEpisodeOverlayProps {
   nextEpisode: { id: string; title?: string; indexNumber?: number } | null;
@@ -20,8 +21,6 @@ interface NextEpisodeOverlayProps {
   onVisibleChange?: (visible: boolean) => void;
 }
 
-const CREDITS_THRESHOLD_SEC = 30;
-const COUNTDOWN_SEC = 5;
 
 export function NextEpisodeOverlay({
   nextEpisode,
@@ -34,80 +33,28 @@ export function NextEpisodeOverlay({
   onVisibleChange,
 }: NextEpisodeOverlayProps) {
   const { t } = useTranslation();
-  const [countdown, setCountdown] = useState(COUNTDOWN_SEC);
-  const [cancelled, setCancelled] = useState(false);
-  const [ended, setEnded] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const isInCredits =
-    duration > 0 && currentTime > 0 && duration - currentTime <= CREDITS_THRESHOLD_SEC;
-  const videoEnded = duration > 0 && currentTime >= duration - 0.5;
-
-  // Sync the `ended` flag with videoEnded so a backward seek after the
-  // video reached the end (or auto-advance was cancelled and then the
-  // user scrubbed back) clears the countdown UI - otherwise it would
-  // pop up again mid-episode despite the playhead being far from the end.
-  useEffect(() => {
-    setEnded(videoEnded);
-  }, [videoEnded]);
-
-  const visible = !!nextEpisode && !cancelled && !suppressAutoAdvance && (isInCredits || ended);
+  // The card's life (credits, end, countdown, a single move on) is
+  // @evey/client's, shared with the phone and the televisions.
+  const { visible, counting, countdown, playNow, cancel } = useUpNextCountdown({
+    nextEpisodeId: nextEpisode?.id,
+    currentTime,
+    duration,
+    onPlay: onPlayNow,
+    autoAdvance,
+    suppress: suppressAutoAdvance,
+  });
   useEffect(() => {
     onVisibleChange?.(visible);
   }, [visible, onVisibleChange]);
   useEffect(() => () => onVisibleChange?.(false), [onVisibleChange]);
 
-  // Counting down is the auto-advance itself: without it the card is a plain
-  // "up next" prompt that waits for the viewer.
-  const counting = ended && autoAdvance;
-
-  useEffect(() => {
-    if (!counting || cancelled || !nextEpisode || suppressAutoAdvance) return;
-    setCountdown(COUNTDOWN_SEC);
-    intervalRef.current = setInterval(() => {
-      setCountdown((prev) => prev - 1);
-    }, 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [counting, cancelled, nextEpisode, suppressAutoAdvance]);
-
-  // Fire the advance exactly once per next-episode cycle. onPlayNow's identity
-  // is not guaranteed stable by every caller, so without this guard any
-  // re-render after countdown hit 0 would re-run the effect and navigate twice.
-  const firedRef = useRef(false);
-  useEffect(() => {
-    firedRef.current = false;
-  }, [nextEpisode?.id]);
-
-  const handlePlayNow = useCallback(() => {
-    if (firedRef.current) return;
-    firedRef.current = true;
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (nextEpisode) onPlayNow(nextEpisode.id);
-  }, [nextEpisode, onPlayNow]);
-
-  useEffect(() => {
-    if (countdown <= 0 && counting && nextEpisode && !cancelled && !firedRef.current && !suppressAutoAdvance) {
-      firedRef.current = true;
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      onPlayNow(nextEpisode.id);
-    }
-  }, [countdown, counting, nextEpisode, cancelled, onPlayNow, suppressAutoAdvance]);
-
+  const handlePlayNow = playNow;
   const handleCancel = useCallback(() => {
-    setCancelled(true);
-    if (intervalRef.current) clearInterval(intervalRef.current);
+    cancel();
     onCancel();
-  }, [onCancel]);
+  }, [cancel, onCancel]);
 
-  // Reset cancelled state when episode changes
-  useEffect(() => {
-    setCancelled(false);
-    setEnded(false);
-  }, [nextEpisode?.id]);
-
-  if (!visible) return null;
+  if (!visible || !nextEpisode) return null;
 
   const label = nextEpisode.indexNumber != null
     ? t("player.nextEpisodeOverlay.episode", { number: nextEpisode.indexNumber })

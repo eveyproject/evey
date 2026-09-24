@@ -21,6 +21,7 @@ export * from "./hooks/useParentalGate";
 export * from "./hooks/useWatchedMap";
 export * from "./hooks/useActiveProfile";
 export * from "./hooks/useNextEpisode";
+export * from "./hooks/useUpNextCountdown";
 export * from "./hooks/useAuthenticatedImage";
 export * from "./hooks/useProgressReporter";
 export * from "./hooks/useStreamToken";
