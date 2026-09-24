@@ -182,12 +182,8 @@ func needsAudioFMP4Rebase(o transcoding.AudioProcessOpts) bool {
 // pipeline for stream_0.m3u8). Cleanup is the caller's responsibility (same
 // contract as HLSTranscoder.Start: the caller removes OutputDir at teardown).
 func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.AudioProcessOpts) (transcoding.HLSProcessHandle, error) {
-	// The composition delay is the MUXER's, not the source's:
-	//   - mkvgo (>= the elst fix): presents its first frame at 0  -> NO shift needed
-	//   - ffmpeg -c:v copy in fMP4: presents at has_b_frames/fps  -> shift needed
-	// This layer never probes: the caller decides (http videoCompositionDelaySec)
-	// and passes opts.VideoCompositionDelay - 0 when mkvgo packages the video,
-	// the source's has_b_frames/fps when the ffmpeg copy fallback does.
+	// opts.VideoCompositionDelay is 0 from the HTTP layer: every video presents
+	// at its source time (see renditionTimelineShiftSec there).
 	// Seeked sessions write into a private subdir; the rebase pump shifts each
 	// fragment's tfdt/sidx by the session's absolute start and atomically renames
 	// into the cache dir - the rename is the publish point SegmentCache.IsReady
