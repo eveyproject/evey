@@ -281,13 +281,12 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 		slog.Int64("copy_peak_kbps", copyPeakKbps),
 		slog.String("fp", rpT.FPHash))
 	return &apptranscoding.FallbackVariant{
-		Profile:         rung,
-		URI:             "stream_0.m3u8" + apptranscoding.QuerySuffixFor(inT),
-		VideoCodec:      inT.ChosenVideoCodec,
-		VideoRange:      inT.TranscodeVideoRange,
-		AudioCodec:      inT.ChosenAudioCodec,
-		AudioRenditions: fallbackRenditions(inT),
-		AudioSuffix:     apptranscoding.QuerySuffixFor(inT),
+		Profile:    rung,
+		URI:        "stream_0.m3u8" + apptranscoding.QuerySuffixFor(inT),
+		VideoCodec: inT.ChosenVideoCodec,
+		VideoRange: inT.TranscodeVideoRange,
+		AudioCodec: inT.ChosenAudioCodec,
+		VideoOnly:  len(inT.AudioRenditions) > 0 && !inT.ExternalAudio,
 	}
 }
 
@@ -834,13 +833,4 @@ func (h *hlsVODServe) planOf(r *http.Request, mediaID string, item *domainlibrar
 		return nil
 	}
 	return rp
-}
-
-// fallbackRenditions are the audio renditions the fallback rung's own plan
-// serves, nil when its segments mux their audio.
-func fallbackRenditions(in apptranscoding.ManifestInput) []apptranscoding.AudioRendition {
-	if in.ExternalAudio {
-		return nil
-	}
-	return in.AudioRenditions
 }
