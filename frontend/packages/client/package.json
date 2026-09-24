@@ -26,6 +26,7 @@
     ".": "./src/index.ts",
     "./native": "./src/native.ts",
     "./native/PluginWebView": "./src/native/PluginWebView.tsx",
+    "./native/ThemeProvider": "./src/native/ThemeProvider.tsx",
     "./native/*": "./src/native/*.ts",
     "./web": "./src/web.ts",
     "./web/*": "./src/web/*.ts"
