@@ -253,6 +253,25 @@ restart:
 Each also has an environment equivalent (`EVEY_KEYFRAME_BACKFILL`,
 `EVEY_LEVEL_BACKFILL_BATCH`, ...), but the panel row wins.
 
+**Background CPU budget** (Admin > Server configuration > Background CPU) bounds
+the processor every background task may take together, live (no restart):
+
+| Key | Value |
+| --- | --- |
+| `background.cpu_percent` | share of the CPU capacity every background task draws from: `25` (default, gentle) or `50` (boost) |
+| `background.cpu_percent.<task>` | a heavy task's own share, `1`..`80`, replacing the global one for that task: `library_scan`, `trickplay_generation`, `intro_detection`, `complexity_classifier` |
+
+Shares never stack: the sum of everything running in the background stays under
+the highest share set. A share is turned into whole cores (25 % of 8 cores = 2),
+one at least. Every background ffmpeg reserves its threads in that budget before
+it starts; the library scan and the intro detection size their parallelism on
+it; the trickplay generation its decoder threads. Playback still pauses every
+background analysis (`transcoding.pause_bg_on_playback`). `EVEY_LIBRARY_SCAN_WORKERS`
+and `EVEY_INTRO_DETECTION_MAX_PARALLEL` size those two pools by hand and bypass
+the budget for them. The former `trickplay.adaptive_cpu` (`false` = 50 %) and
+`intro_detection.use_all_cores` (`true` = 80 % for intro detection) keys are
+still honoured until the new ones are set.
+
 ### Plugins (sandbox & limits)
 ```env
 EVEY_PLUGINS_SANDBOX_MODE=auto         # auto|landlock|bubblewrap|strict|basic - auto picks the strongest your host supports

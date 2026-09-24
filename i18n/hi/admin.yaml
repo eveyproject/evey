@@ -642,6 +642,7 @@ activity:
     keyframe_backfill: "कीफ़्रेम इंडेक्सिंग"
     level_backfill: "लेवल बैकफ़िल"
     trickplay_generation: "ट्रिकप्ले निर्माण"
+    library_scan: "नए मीडिया का विश्लेषण"
     collection_relink: "संग्रह पुनः जोड़ना"
     compat_download: "संगत डाउनलोड"
     reduced_download: "घटा हुआ डाउनलोड"
@@ -698,6 +699,31 @@ audit:
 serverConfig:
   entriesTitle: "कॉन्फ़िगरेशन प्रविष्टियाँ"
   appliedOnRestart: "रीस्टार्ट पर लागू"
+  cpuBudget:
+    title: "पृष्ठभूमि कार्यों का CPU"
+    subtitle: "पृष्ठभूमि कार्य मिलकर प्रोसेसर का कितना हिस्सा ले सकते हैं: स्कैन, थंबनेल, इंट्रो पहचान, वर्गीकरण।"
+    globalLabel: "वैश्विक हिस्सा"
+    global25: "25 % - हल्का (डिफ़ॉल्ट)"
+    global50: "50 % - बूस्ट"
+    globalDesc: "हर पृष्ठभूमि कार्य CPU क्षमता के इस हिस्से से लेता है। 25 % मशीन को प्रतिक्रियाशील रखता है; 50 % बूस्ट है जब कोई उसका उपयोग नहीं कर रहा हो। प्लेबैक हमेशा पहले: कोई देख रहा हो तो कार्य रुक जाता है।"
+    tasksTitle: "भारी कार्य"
+    tasksDesc: "किसी भारी कार्य को अपना हिस्सा मिल सकता है, जो उसके लिए वैश्विक हिस्से की जगह लेता है। हिस्से कभी जुड़ते नहीं: पृष्ठभूमि में चल रहा सब कुछ यहाँ तय सबसे ऊँचे हिस्से के नीचे रहता है।"
+    followGlobal: "वैश्विक हिस्से का पालन करें ({{percent}} %)"
+    share: "{{percent}} %"
+    applyHint: "अगले आइटम से लागू, पुनरारंभ की आवश्यकता नहीं।"
+    tasks:
+      library_scan:
+        label: "नए मीडिया का विश्लेषण"
+        desc: "स्कैन में मिली फ़ाइलों की जाँच, अध्याय और सर्विंग योजना।"
+      trickplay_generation:
+        label: "ट्रिकप्ले थंबनेल"
+        desc: "टाइमलाइन थंबनेल निर्माण के डिकोडर थ्रेड।"
+      intro_detection:
+        label: "इंट्रो पहचान"
+        desc: "इंट्रो, रीकैप और क्रेडिट के लिए एक साथ विश्लेषित एपिसोड और फ़िल्में।"
+      complexity_classifier:
+        label: "जटिलता वर्गीकरण"
+        desc: "नमूना एन्कोड जो ट्रांसकोडिंग सीढ़ी के लिए हर शीर्षक को आँकते हैं।"
   backgroundJobs:
     title: "पृष्ठभूमि कार्य"
     subtitle: "ट्रांसकोडिंग के पृष्ठभूमि वर्कर्स के लिए ऑपरेटर सेटिंग्स - पॉज़ व्यवहार, बैकफ़िल पास और उनकी गति।"
@@ -752,8 +778,7 @@ serverConfig:
   trickplayTitle: "Trickplay थंबनेल"
   trickplayDesc: "फिल्मों और एपिसोड के लिए स्वचालित रूप से टाइमलाइन प्रीव्यू थंबनेल बनाएं।"
   trickplayEnabled: "Trickplay थंबनेल सक्षम करें"
-  trickplayAdaptiveCpu: "अनुकूली CPU"
-  trickplayAdaptiveCpuDesc: "हल्का मोड (~25% CPU)। तेज़ जनरेशन (~50% CPU) के लिए अक्षम करें।"
+  trickplayCpuHint: "निर्माण का CPU हिस्सा «पृष्ठभूमि कार्यों का CPU» में सेट होता है।"
   memoryProfileTitle: "मेमोरी प्रोफ़ाइल"
   memoryProfileSubtitle: "RAM बचाने के लिए निष्क्रिय प्लगइन प्रक्रियाओं को कितनी सख्ती से निलंबित किया जाए, यह नियंत्रित करता है।"
   memoryProfileLabel: "मेमोरी प्रोफ़ाइल"
@@ -819,8 +844,6 @@ serverConfig:
     keepCurrent: "मौजूदा कुंजी बनाए रखने के लिए खाली छोड़ें"
   introProvidersTitle: "इंट्रो स्किप प्रदाता"
   introProvidersDesc: "इंट्रो/रिकैप/क्रेडिट टाइमस्टैम्प के लिए समुदाय डेटाबेस (TheIntroDB प्राथमिक, IntroDB फ़ॉलबैक) क्वेरी करें। कवर किए गए आइटम पर स्थानीय CPU-भारी पहचान छोड़ता है।"
-  introDetectionUseAllCores: "इंट्रो पहचान के लिए सभी उपलब्ध CPU कोर उपयोग करें"
-  introDetectionUseAllCoresDesc: "अगली पहचान से लागू होता है, पुनरारंभ की आवश्यकता नहीं। बंद होने पर पहचान trickplay के साथ साझा किए गए हल्के CPU बजट पर रहती है।"
   introProvidersEnabled: "बाहरी इंट्रो स्किप प्रदाता सक्षम करें"
   introProvidersRestart: "सक्षम/अक्षम करने के बाद सर्वर पुनरारंभ आवश्यक है।"
   introProvidersTidbStatus: "TheIntroDB: "
@@ -1569,6 +1592,7 @@ backgroundTasks:
   resumeFailed: "कार्य फिर शुरू नहीं हो सका।"
   impact: "{{processes}} प्रक्रिया · {{memory}} · {{cpu}}% CPU"
   cpuTotal: "शुरू से {{seconds}} s CPU"
+  cpuSlots: "{{held}}/{{slots}} कोर"
   sinceNow: "अभी शुरू हुआ"
   sinceMinutes_one: "{{count}} मिनट से"
   sinceMinutes_other: "{{count}} मिनट से"

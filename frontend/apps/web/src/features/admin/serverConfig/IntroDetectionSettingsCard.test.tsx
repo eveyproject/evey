@@ -21,12 +21,10 @@ const box = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
 describe("IntroDetectionSettingsCard", () => {
   it("writes each toggle to its own key and hides the provider block when off", () => {
     render(<IntroDetectionSettingsCard entries={[]} />);
-    expect(box("admin.serverConfig.introDetectionUseAllCores").checked).toBe(false);
+    expect(screen.queryByLabelText("admin.serverConfig.introDetectionUseAllCores")).toBeNull();
     expect(box("admin.serverConfig.introProvidersEnabled").checked).toBe(false);
     expect(screen.queryByText("admin.serverConfig.introProvidersTidbStatus")).toBeNull();
 
-    fireEvent.click(box("admin.serverConfig.introDetectionUseAllCores"));
-    expect(setEntry.mutate).toHaveBeenLastCalledWith({ key: "intro_detection.use_all_cores", value: "true" });
     fireEvent.click(box("admin.serverConfig.introProvidersEnabled"));
     expect(setEntry.mutate).toHaveBeenLastCalledWith({ key: "intro_providers.enabled", value: "true" });
   });
@@ -61,6 +59,6 @@ describe("IntroDetectionSettingsCard", () => {
     render(<IntroDetectionSettingsCard entries={[{ key: "intro_providers.enabled", value: "true" }, { key: "api.tidb_key", value: "k" }]} />);
     expect(screen.getByTestId("spinner")).toBeInTheDocument();
     for (const cb of screen.getAllByRole("checkbox") as HTMLInputElement[]) expect(cb.disabled).toBe(true);
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
   });
 });

@@ -14,6 +14,7 @@ import { MemoryProfileCard } from "../../../src/components/admin/server-config/M
 import { MkvgoCard } from "../../../src/components/admin/server-config/MkvgoCard";
 import { SmtpSettingsCard } from "../../../src/components/admin/server-config/SmtpSettingsCard";
 import { BackgroundJobsCard } from "../../../src/components/admin/server-config/BackgroundJobsCard";
+import { CpuBudgetCard } from "../../../src/components/admin/server-config/CpuBudgetCard";
 import { ParserTokensCard } from "../../../src/components/admin/server-config/ParserTokensCard";
 import { ConfigEntriesCard } from "../../../src/components/admin/server-config/ConfigEntriesCard";
 import type { ConfigEntry } from "../../../src/components/admin/server-config/types";
@@ -213,9 +214,7 @@ export default function AdminServerConfigScreen() {
   const introEnabled = getEntryValue("intro_providers.enabled") === "true";
   const tidbKey = getEntryValue("api.tidb_key");
   const tidbSubmitEnabled = getEntryValue("intro_providers.tidb_submit_enabled") === "true";
-  const introUseAllCores = getEntryValue("intro_detection.use_all_cores") === "true";
   const trickplayEnabled = getEntryValue("trickplay.enabled") !== "false";
-  const trickplayAdaptiveCpu = getEntryValue("trickplay.adaptive_cpu") !== "false";
   // Artwork auto-download: default-true, only "false" disables (matches the
   // server's resolveAutoDownloadDefault). Mirror web ArtworkSettingsCard.
   const artworkAutoDownload = getEntryValue("artwork.auto_download") !== "false";
@@ -405,21 +404,6 @@ export default function AdminServerConfigScreen() {
 
             <View style={staticStyles.switchRow}>
               <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
-                {t("admin.serverConfig.introDetectionUseAllCores", "Utiliser tous les cœurs CPU")}
-              </Text>
-              <Switch
-                value={introUseAllCores}
-                onValueChange={(v) => saveConfigEntry.mutate({ key: "intro_detection.use_all_cores", value: v ? "true" : "false" })}
-                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
-                disabled={saveConfigEntry.isPending}
-              />
-            </View>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }}>
-              {t("admin.serverConfig.introDetectionUseAllCoresDesc", "Détection plus rapide, mais sature le CPU pendant les scans.")}
-            </Text>
-
-            <View style={[staticStyles.switchRow, { marginTop: 12 }]}>
-              <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
                 {t("admin.intro.enabled", "Enable community intro/recap providers")}
               </Text>
               <Switch
@@ -482,20 +466,8 @@ export default function AdminServerConfigScreen() {
               />
             </View>
 
-            <View style={staticStyles.switchRow}>
-              <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
-                {t("admin.serverConfig.trickplayAdaptiveCpu", "Adapter la charge CPU dynamiquement")}
-              </Text>
-              <Switch
-                value={trickplayAdaptiveCpu}
-                onValueChange={(v) => saveConfigEntry.mutate({ key: "trickplay.adaptive_cpu", value: v ? "true" : "false" })}
-                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
-                disabled={saveConfigEntry.isPending || !trickplayEnabled}
-              />
-            </View>
-
             <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 8 }}>
-              {t("admin.serverConfig.trickplayAdaptiveCpuDesc", "Réduit automatiquement la cadence de génération quand le CPU est chargé.")}
+              {t("admin.serverConfig.trickplayCpuHint", "The generation's CPU share is set under Background CPU.")}
             </Text>
           </>
 
@@ -558,6 +530,18 @@ export default function AdminServerConfigScreen() {
               entries={configEntries}
               saveEntry={saveConfigEntry.mutate}
               saving={saveConfigEntry.isPending}
+            />
+          </>
+
+          {/* Background CPU budget section */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.cpuBudget.title", "Background CPU")}</Text>
+            <CpuBudgetCard
+              entries={configEntries}
+              saveEntry={saveConfigEntry.mutate}
+              deleteEntry={(key) => deleteConfigEntry.mutate(key)}
+              saving={saveConfigEntry.isPending || deleteConfigEntry.isPending}
             />
           </>
 

@@ -642,6 +642,7 @@ activity:
     keyframe_backfill: "Keyframe-Indexierung"
     level_backfill: "Level-Nachtrag"
     trickplay_generation: "Trickplay-Erzeugung"
+    library_scan: "Analyse neuer Medien"
     collection_relink: "Sammlungen neu verknüpfen"
     compat_download: "Kompatibler Download"
     reduced_download: "Reduzierter Download"
@@ -698,6 +699,31 @@ audit:
 serverConfig:
   entriesTitle: "Konfigurationseinträge"
   appliedOnRestart: "wird beim Neustart angewendet"
+  cpuBudget:
+    title: "CPU für Hintergrundaufgaben"
+    subtitle: "Wie viel Prozessor die Hintergrundaufgaben zusammen belegen dürfen: Scans, Vorschaubilder, Intro-Erkennung, Klassifizierung."
+    globalLabel: "Globaler Anteil"
+    global25: "25 % - schonend (Standard)"
+    global50: "50 % - Boost"
+    globalDesc: "Jede Hintergrundaufgabe schöpft aus diesem Anteil der CPU-Kapazität. 25 % hält die Maschine reaktionsschnell; 50 % ist ein Boost, wenn niemand sie nutzt. Wiedergabe hat immer Vorrang: eine Aufgabe pausiert, solange jemand schaut."
+    tasksTitle: "Schwere Aufgaben"
+    tasksDesc: "Eine schwere Aufgabe kann einen eigenen Anteil erhalten, der für sie den globalen ersetzt. Anteile addieren sich nie: alles im Hintergrund bleibt unter dem höchsten hier gesetzten Anteil."
+    followGlobal: "Globalem Anteil folgen ({{percent}} %)"
+    share: "{{percent}} %"
+    applyHint: "Gilt ab dem nächsten Element, kein Neustart nötig."
+    tasks:
+      library_scan:
+        label: "Analyse neuer Medien"
+        desc: "Sondierung, Kapitel und Ausspielplan der Dateien, die ein Scan findet."
+      trickplay_generation:
+        label: "Trickplay-Vorschaubilder"
+        desc: "Decoder-Threads der Erzeugung der Zeitleisten-Vorschaubilder."
+      intro_detection:
+        label: "Intro-Erkennung"
+        desc: "Gleichzeitig analysierte Episoden und Filme für Intro, Rückblick und Abspann."
+      complexity_classifier:
+        label: "Komplexitätsklassifizierung"
+        desc: "Probe-Encodes, die jeden Titel für die Transcoding-Leiter einstufen."
   backgroundJobs:
     title: "Hintergrundaufgaben"
     subtitle: "Betreiber-Einstellungen für die Hintergrund-Worker der Transkodierung - Pausenverhalten, Nachtrag-Durchläufe und deren Rhythmus."
@@ -752,8 +778,7 @@ serverConfig:
   trickplayTitle: Trickplay-Vorschaubilder
   trickplayDesc: Automatisch Zeitleisten-Vorschaubilder für Filme und Episoden generieren.
   trickplayEnabled: Trickplay-Vorschaubilder aktivieren
-  trickplayAdaptiveCpu: "Adaptive CPU"
-  trickplayAdaptiveCpuDesc: "Schonender Modus (~25% CPU). Deaktivieren für schnellere Generierung (~50% CPU)."
+  trickplayCpuHint: "Der CPU-Anteil der Erzeugung wird unter „CPU für Hintergrundaufgaben“ gesetzt."
   memoryProfileTitle: "Speicherprofil"
   memoryProfileSubtitle: "Steuert, wie aggressiv inaktive Plugin-Prozesse ausgesetzt werden, um RAM zu sparen."
   memoryProfileLabel: "Speicherprofil"
@@ -811,8 +836,6 @@ serverConfig:
     keepCurrent: Leer lassen, um den aktuellen Schlüssel zu behalten
   introProvidersTitle: Intro-Skip-Anbieter
   introProvidersDesc: Gemeinschaftsdatenbanken (TheIntroDB primär, IntroDB Fallback) für Intro-/Recap-/Abspann-Zeitstempel abfragen. Überspringt die lokale CPU-intensive Erkennung für abgedeckte Elemente.
-  introDetectionUseAllCores: Alle verfügbaren CPU-Kerne für die Intro-Erkennung nutzen
-  introDetectionUseAllCoresDesc: Gilt ab dem nächsten Erkennungslauf, kein Neustart nötig. Deaktiviert bleibt die Erkennung auf dem schonenden CPU-Budget des Trickplay.
   introProvidersEnabled: Externe Intro-Skip-Anbieter aktivieren
   introProvidersRestart: Serverneustart nach Aktivieren/Deaktivieren erforderlich.
   introProvidersTidbStatus: "TheIntroDB: "
@@ -1569,6 +1592,7 @@ backgroundTasks:
   resumeFailed: "Aufgabe konnte nicht fortgesetzt werden."
   impact: "{{processes}} Proz. · {{memory}} · {{cpu}} % CPU"
   cpuTotal: "{{seconds}} s CPU seit dem Start"
+  cpuSlots: "{{held}}/{{slots}} Kerne"
   sinceNow: "gerade gestartet"
   sinceMinutes_one: "seit {{count}} Min."
   sinceMinutes_other: "seit {{count}} Min."

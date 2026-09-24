@@ -18,6 +18,7 @@ export * from "./hooks/useFavorite";
 export * from "./hooks/usePlayOnDevices";
 export * from "./hooks/useBackgroundTasks";
 export * from "./hooks/useBackgroundJobsForm";
+export * from "./hooks/useCpuBudgetForm";
 export * from "./hooks/useParentalGate";
 export * from "./hooks/useWatchedMap";
 export * from "./hooks/useActiveProfile";

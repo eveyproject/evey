@@ -17,36 +17,29 @@ beforeEach(() => {
 
 const box = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
 
-// Both trickplay flags default to ON (only an explicit "false" turns one
-// off); the adaptive-CPU flag is meaningless while trickplay itself is off,
-// so it is frozen then; each toggle writes its own key.
+// The flag defaults to ON (only an explicit "false" turns it off) and writes
+// its own key; the CPU share lives in the CPU budget card.
 describe("TrickplaySettingsCard", () => {
-  it("defaults both on and writes each key", () => {
+  it("defaults on and writes the key", () => {
     render(<TrickplaySettingsCard entries={undefined} />);
     expect(box("admin.serverConfig.trickplayEnabled").checked).toBe(true);
-    const cpu = box("admin.serverConfig.trickplayAdaptiveCpu");
-    expect(cpu.checked).toBe(true);
-    expect(cpu.disabled).toBe(false);
-    fireEvent.click(cpu);
-    expect(setEntry.mutate).toHaveBeenLastCalledWith({ key: "trickplay.adaptive_cpu", value: "false" });
+    expect(screen.queryByLabelText("admin.serverConfig.trickplayAdaptiveCpu")).toBeNull();
     fireEvent.click(box("admin.serverConfig.trickplayEnabled"));
     expect(setEntry.mutate).toHaveBeenLastCalledWith({ key: "trickplay.enabled", value: "false" });
   });
 
-  it("freezes adaptive CPU while trickplay is off, and everything in flight", () => {
+  it("reads an explicit off and turns it back on", () => {
     render(<TrickplaySettingsCard entries={[{ key: "trickplay.enabled", value: "false" }]} />);
     expect(box("admin.serverConfig.trickplayEnabled").checked).toBe(false);
-    expect(box("admin.serverConfig.trickplayAdaptiveCpu").disabled).toBe(true);
     fireEvent.click(box("admin.serverConfig.trickplayEnabled"));
     expect(setEntry.mutate).toHaveBeenLastCalledWith({ key: "trickplay.enabled", value: "true" });
   });
 
-  it("shows the spinner and disables both toggles during a write", () => {
+  it("shows the spinner and disables the toggle during a write", () => {
     setEntry.isPending = true;
     render(<TrickplaySettingsCard entries={[]} />);
     expect(screen.getByTestId("spinner")).toBeInTheDocument();
     expect(box("admin.serverConfig.trickplayEnabled").disabled).toBe(true);
-    expect(box("admin.serverConfig.trickplayAdaptiveCpu").disabled).toBe(true);
   });
 });
 
