@@ -601,15 +601,16 @@ func hlsTimeFor(opts transcoding.HLSProcessOpts) string {
 	return hlsSegmentSeconds
 }
 
-// presentAtSourceTimeArgs keeps the fMP4 frames at their source time. By
+// presentAtSourceTimeArgs keeps a video-only fMP4 at its source time. By
 // default the muxer moves a B-frame stream late by its reorder delay so no DTS
 // is negative, and writes the move as an empty edit that neither MSE nor
 // ExoPlayer applies: a transcoded rung then played 125 ms late (NVENC) against
-// any audio rendition, measured in Chrome with hls.js. Disabled, the delay
-// becomes a single-entry edit list, which Chrome, media3 and ffmpeg all apply.
+// its separate audio rendition, measured in Chrome with hls.js. Disabled, the
+// delay becomes a single-entry edit list, which Chrome, media3 and ffmpeg all
+// apply. A muxed output keeps the default: its audio moves with its video.
 var presentAtSourceTimeArgs = []string{"-avoid_negative_ts", "disabled"}
 
-func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, hlsTime string, startNumber, variantIdx int) []string {
+func appendHLSOutputArgs(args []string, outputDir string, useFMP4, videoOnly bool, hlsTime string, startNumber, variantIdx int) []string {
 	args = append(args,
 		"-f", "hls",
 		"-hls_time", hlsTime,
@@ -619,7 +620,9 @@ func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, hlsTime 
 		"-start_number", fmt.Sprintf("%d", startNumber),
 	)
 	if useFMP4 {
-		args = append(args, presentAtSourceTimeArgs...)
+		if videoOnly {
+			args = append(args, presentAtSourceTimeArgs...)
+		}
 		args = append(args,
 			"-hls_segment_type", "fmp4",
 			"-hls_fmp4_init_filename", fmt.Sprintf("stream_%d_init.mp4", variantIdx),
@@ -766,7 +769,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		}
 	}
 
-	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams), hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
+	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams), !hasAudio(opts), hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
 }
 
 // copyVideoTagArgs returns the sample-entry tag override for a video-copy of
@@ -901,7 +904,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, hlsForceKeyframesArgs...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 
-	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
+	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, !hasAudio(opts), hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
 }
 
 func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
@@ -1031,7 +1034,9 @@ func appendHLSMultiVariantTail(args []string, opts transcoding.HLSProcessOpts, n
 		"-start_number", fmt.Sprintf("%d", startNumberFor(opts)),
 	)
 	if opts.UseFMP4 {
-		args = append(args, presentAtSourceTimeArgs...)
+		if !hasAudio(opts) {
+			args = append(args, presentAtSourceTimeArgs...)
+		}
 		args = append(args,
 			"-hls_segment_type", "fmp4",
 			"-hls_fmp4_init_filename", "stream_%v_init.mp4",
