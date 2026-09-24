@@ -40,12 +40,13 @@ const (
 // session. Returns false - the caller falls through to the normal
 // per-episode master - when concat isn't requested/wired, encryption is on
 // (v1 has no encrypted concat), fewer than two episodes qualify, or the plan
-// build fails (an incompatible episode mkvgo's own probe caught).
-func (h *hlsVODServe) serveConcatMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) bool {
+// build fails (an incompatible episode mkvgo's own probe caught). rp is the
+// plan the master already resolved for item: the first link is not resolved twice.
+func (h *hlsVODServe) serveConcatMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, rp *requestPlan, span trace.Span) bool {
 	if h.onDemandConcat == nil || h.onDemandEncrypt || !r.URL.Query().Has("gapless") {
 		return false
 	}
-	if !h.episodeConcatEligible(r, item, streams) {
+	if !h.episodeConcatEligible(r, item, rp) {
 		return false
 	}
 
@@ -64,12 +65,12 @@ func (h *hlsVODServe) serveConcatMaster(w http.ResponseWriter, r *http.Request, 
 	return true
 }
 
-// episodeConcatEligible reports whether one already-fetched episode qualifies
-// as a concat chain link: video+audio copy-eligible (concat v1 has no
+// episodeConcatEligible reports whether one episode, given its resolved plan,
+// qualifies as a concat chain link: video+audio copy-eligible (concat v1 has no
 // hybrid/ffmpeg-audio mode, so both must be copy, unlike the standalone
 // on-demand path) and not parental-blocked for the requesting profile.
-func (h *hlsVODServe) episodeConcatEligible(r *http.Request, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) bool {
-	if item == nil || item.File == nil || item.File.Path == "" {
+func (h *hlsVODServe) episodeConcatEligible(r *http.Request, item *domainlibrary.MediaItem, rp *requestPlan) bool {
+	if item == nil || item.File == nil || item.File.Path == "" || rp == nil {
 		return false
 	}
 	claims := HTTPClaimsFromContext(r.Context())
@@ -78,10 +79,6 @@ func (h *hlsVODServe) episodeConcatEligible(r *http.Request, item *domainlibrary
 	}
 	// Every episode of the chain must be the packager's whole presentation
 	// (video and every audio track carried verbatim): a projection of its plan.
-	rp, err := h.probePlan(r, itemID(item), item, streams)
-	if err != nil {
-		return false
-	}
 	d := rp.Plan.Delivery
 	return d.Video == apptranscoding.EngineMkvgo && d.Audio == apptranscoding.EngineMkvgo && !d.AudioTrimmed
 }
@@ -102,7 +99,11 @@ func (h *hlsVODServe) resolveEpisodeChain(r *http.Request, start *domainlibrary.
 			break
 		}
 		nStreams, err := h.libSvc.GetMediaStreams(r.Context(), string(next.ID))
-		if err != nil || !h.episodeConcatEligible(r, next, nStreams) {
+		if err != nil {
+			break
+		}
+		nPlan, err := h.probePlan(r, itemID(next), next, nStreams)
+		if err != nil || !h.episodeConcatEligible(r, next, nPlan) {
 			break
 		}
 		chain = append(chain, next)

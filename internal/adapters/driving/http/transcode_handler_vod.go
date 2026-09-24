@@ -578,7 +578,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// (?gapless=1). Falls through (feature off / not requested / chain too
 	// short / incompatible episode) to the normal single-episode paths below,
 	// unchanged.
-	if h.serveConcatMaster(w, r, mediaID, item, streams, span) {
+	if h.serveConcatMaster(w, r, mediaID, item, rp, span) {
 		return
 	}
 	// fallback names why a plan's engine could not be served (a source the
