@@ -7,6 +7,7 @@ import {
   eveyFetch,
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
+import { firstStartMs } from "../lib/resumePosition";
 import { getDeviceAudioCodecs, getDeviceMaxH264Level, getFmp4AudioPassthrough } from "./deviceCodecs";
 
 // The play session of the two native players (phone and television). They
@@ -238,10 +239,15 @@ export interface PlaySessionResult {
 export interface PlaySessionInitial {
   audioStreamIndex?: number;
   subtitleStreamIndex?: number;
+  /** The viewer asked to start over: the first stream starts at 0 whatever the progress. */
+  restart?: boolean;
+  /** An explicit first position (a cast hand-over), over the saved progress. */
+  startSec?: number;
 }
 
 export function usePlaySession(mediaId: string, device: PlaySessionDevice, initial?: PlaySessionInitial): PlaySessionResult {
   const initialRef = useRef(initial);
+  const firstStartRef = useRef(true);
   const deviceRef = useRef(device);
   deviceRef.current = device;
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
@@ -324,7 +330,10 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         setStreamToken(token);
         // The picker hands absolute stream indices; the manifest counts per
         // type, so a language switch produces a DIFFERENT url that reloads.
-        const resumeSec = wp?.positionMs && !wp.played ? Number(wp.positionMs) / 1000 : 0;
+        // Where the player will start, by the players' own rule: the encoder is
+        // pre-warmed there and the session declares it.
+        const startMs = firstStartMs(firstStartRef, initialRef.current, wp);
+        const resumeSec = startMs / 1000;
         const url = buildStreamUrl(serverUrl, mediaId, info, token, {
           audioTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex),
           subtitleTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex),
@@ -348,7 +357,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         // play session for it would leave a stray session behind.
         if (superseded()) return;
 
-        const startPosMs = wp?.positionMs && !wp.played ? wp.positionMs : "0";
+        const startPosMs = String(startMs);
         const session = await playbackServiceStartStream({
           mediaItemId: mediaId,
           playMethod: info.playMethod ?? "PLAY_METHOD_TRANSCODE",

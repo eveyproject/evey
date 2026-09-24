@@ -65,6 +65,22 @@ describe("useTvPlaySession", () => {
     expect(result.current.streamInfo).not.toBeNull();
   });
 
+  // The encoder is pre-warmed where the player will start (resolveStartPositionMs
+  // and the restart hint), not at a saved position the player skips.
+  it.each([
+    ["a title stopped in its last seconds", { positionMs: "89000", durationMs: "90000" }, undefined, null, "0"],
+    ["a viewer starting over", { positionMs: "42000", durationMs: "90000" }, { restart: true }, null, "0"],
+    ["a title stopped mid-way", { positionMs: "42000", durationMs: "90000" }, undefined, "42", "42000"],
+  ])("pre-warms and declares the player's start: %s", async (_label, wp, initial, startSec, startMs) => {
+    eveyFetch.mockImplementation(({ url }: { url: string }) =>
+      url.includes("stream-token") ? Promise.resolve({ token: "tok-1" }) : Promise.resolve(wp),
+    );
+    const { result } = renderHook(() => useTvPlaySession("m1", DEVICE, initial));
+    await waitFor(() => expect(result.current.streamUrl).not.toBeNull());
+    expect(new URL(result.current.streamUrl!).searchParams.get("startSec")).toBe(startSec);
+    expect(startStream).toHaveBeenCalledWith(expect.objectContaining({ startPositionMs: startMs }));
+  });
+
   // The viewer picks the French audio and a 480p ceiling: the running session
   // stops, a fresh token is minted, and the new master carries the type-relative
   // audio ordinal (the second audio track is audioTrack=1) and the ceiling.

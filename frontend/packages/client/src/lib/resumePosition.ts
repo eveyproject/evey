@@ -22,3 +22,17 @@ export function resolveStartPositionMs(
     progress?.played === true || (durationMs > 0 && positionMs >= durationMs - RESUME_END_EPSILON_MS);
   return finished ? 0 : positionMs;
 }
+
+// firstStartMs: the position the first stream of a session starts at (the
+// restart and cast hints apply once), then the saved progress by the rule of
+// every player (resolveStartPositionMs).
+export function firstStartMs(
+  firstRef: { current: boolean },
+  initial: { restart?: boolean; startSec?: number } | undefined,
+  wp: { positionMs?: string; durationMs?: string; played?: boolean } | null | undefined,
+): number {
+  const first = firstRef.current;
+  firstRef.current = false;
+  if (first && initial?.startSec && initial.startSec > 0) return Math.round(initial.startSec * 1000);
+  return resolveStartPositionMs(first && !!initial?.restart, wp);
+}

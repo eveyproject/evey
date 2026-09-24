@@ -180,6 +180,31 @@ describe("usePlaySession resume", () => {
     );
   });
 
+  // The session starts where the player will (resolveStartPositionMs and
+  // the one-time hints), so the encoder is pre-warmed at the right place.
+  it.each([
+    ["a title stopped in its last seconds", { positionMs: "89000", durationMs: "90000", played: false }, undefined, "0"],
+    ["a viewer starting over", { positionMs: "42000", durationMs: "90000", played: false }, { restart: true }, "0"],
+    ["a cast hand-over", { positionMs: "42000", durationMs: "90000", played: false }, { startSec: 61 }, "61000"],
+  ])("starts the session where the player starts: %s", async (_label, wp, initial, expected) => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_DIRECT_PLAY" });
+    eveyFetchMock
+      .mockResolvedValueOnce(wp)
+      .mockResolvedValueOnce({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+
+    const { result } = renderHook(() => usePlaySession("m1", initial));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(startStreamMock).toHaveBeenCalledWith(
+      expect.objectContaining({ startPositionMs: expected }),
+    );
+  });
+
   it("falls back to position 0 when the progress fetch fails", async () => {
     const { renderHook, waitFor } = await import("@testing-library/react");
     const { usePlaySession } = await import("./usePlaySession");
