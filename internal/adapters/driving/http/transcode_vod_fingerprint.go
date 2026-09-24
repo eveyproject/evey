@@ -302,12 +302,6 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 	return h.decide(ctx, streams, container, sourcePath, apptranscoding.SourceVideoBitrateKbps(streams), r)
 }
 
-// decisionFor is makeDecision for a resolved item: the container, path and
-// bitrate (video stream, else the file) all come from it.
-func (h *hlsVODServe) decisionFor(ctx context.Context, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, r *http.Request) domaintranscoding.PlaybackDecision {
-	return h.decide(ctx, streams, containerOf(item), sourcePathOf(item), sourceBitrateKbpsOf(item, streams), r)
-}
-
 // decisionForTrack is decisionFor judged on the audioTrack-th audio track
 // instead of the one the request selected: the master advertises EVERY
 // rendition, and each one is copied or re-encoded on its own merits.

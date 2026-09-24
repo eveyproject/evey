@@ -1226,14 +1226,9 @@ func (h *hlsVODServe) producerForPlan(rp *requestPlan) apptranscoding.StreamProd
 	return h.planResolver().ProducerForPlan(rp.Plan)
 }
 
-// videoCopyEligible / isCopyRequest - the copy-rung routing moved to the app
-// layer (VideoCopyEligible / PlanResolver.IsCopy), a DECISION-level fact (no
-// route behind it); wrappers for the adapter's decision-only call sites and
-// tests.
-func videoCopyEligible(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
-	return apptranscoding.VideoCopyEligible(decision, streams)
-}
-
+// isCopyRequest - the copy-rung routing moved to the app layer
+// (PlanResolver.IsCopy), a DECISION-level fact (no route behind it); a wrapper
+// for the adapter's decision-only call sites and tests.
 func (h *hlsVODServe) isCopyRequest(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream, sourceBytes int64) bool {
 	return h.planResolver().IsCopy(decision, streams, sourceBytes)
 }
