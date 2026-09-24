@@ -7,6 +7,11 @@ const log = clientLogger("progress");
 
 const INTERVAL_MS = 3_000;
 
+// How long an admin's message stays on screen during playback: the web's
+// in-player banner and the cast receiver hold it 12 s. The other players
+// showed it as a plain 3 s toast, gone before a viewer on a sofa had read it.
+export const ADMIN_MESSAGE_MS = 12_000;
+
 interface ProgressReporterCallbacks {
   onRemotePause?: () => void;
   onRemotePlay?: () => void;
@@ -138,7 +143,7 @@ export function useProgressReporter(
             cbRef.current?.onRemotePause?.();
             cbRef.current?.onRemoteStop?.();
           } else if (res.remoteCommand.startsWith("message:")) {
-            toast.info(res.remoteCommand.slice(8));
+            toast.info(res.remoteCommand.slice(8), { duration: ADMIN_MESSAGE_MS });
           }
         }
       } catch {
