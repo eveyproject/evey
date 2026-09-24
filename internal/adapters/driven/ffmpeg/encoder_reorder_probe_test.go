@@ -55,3 +55,27 @@ func TestEncoderReorderFramesIntegration(t *testing.T) {
 		t.Fatal("cached answer must match")
 	}
 }
+
+// The delay is read off the first packet's presentation offset. has_b_frames
+// was read before, and NVENC (-bf 3 -b_ref_mode middle) reports 1 there while
+// presenting its first frame 3 frames late - the audio then ran 83 ms early.
+func TestPresentationDelayFrames(t *testing.T) {
+	cases := []struct {
+		name string
+		json string
+		want int
+	}{
+		{"nvenc bf3 middle, measured", `{"packets":[{"pts_time":"0.125000","dts_time":"0.000000"}]}`, 3},
+		{"libx264 veryfast", `{"packets":[{"pts_time":"0.083333","dts_time":"0.000000"}]}`, 2},
+		{"no b-frames", `{"packets":[{"pts_time":"0.000000","dts_time":"0.000000"}]}`, 0},
+	}
+	for _, c := range cases {
+		got, err := presentationDelayFrames([]byte(c.json))
+		if err != nil || got != c.want {
+			t.Errorf("%s: got %d (%v), want %d", c.name, got, err, c.want)
+		}
+	}
+	if _, err := presentationDelayFrames([]byte(`{"packets":[]}`)); err == nil {
+		t.Error("an output with no packet must fail the probe")
+	}
+}
