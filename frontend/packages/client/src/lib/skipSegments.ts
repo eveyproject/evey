@@ -45,3 +45,24 @@ export function skippableCandidates(segments: readonly { type?: string; startMs?
     .filter((s) => (SKIPPABLE_SEGMENTS as readonly string[]).includes(s.type ?? ""))
     .map((s) => ({ type: s.type as SkippableType, startSec: (s.startMs ?? 0) / 1000, endSec: (s.endMs ?? 0) / 1000 }));
 }
+
+// MKV chapter title to segment type. Mirrors the server-side mapping in
+// intro_detection_service.go, so the client fallback (used while the server
+// has not run detection yet) recognises the same chapters.
+const CHAPTER_PATTERNS: { type: SkippableType; re: RegExp }[] = [
+  { type: "intro", re: /^(intro|introduction|opening|op$|op\s)/i },
+  { type: "recap", re: /(recap|previously)/i },
+  { type: "end_credits", re: /(credit|ending|outro|^ed$|^ed\s)/i },
+];
+
+/** The file's own chapters that name a skippable part, put in seconds. */
+export function skippableFromChapters(chapters: readonly { title?: string; startMs?: string | number; endMs?: string | number }[] | undefined): ResolvedSegment[] {
+  const out: ResolvedSegment[] = [];
+  for (const ch of chapters ?? []) {
+    const title = ch.title?.trim();
+    if (!title) continue;
+    const match = CHAPTER_PATTERNS.find((p) => p.re.test(title));
+    if (match) out.push({ type: match.type, startSec: Number(ch.startMs ?? 0) / 1000, endSec: Number(ch.endMs ?? 0) / 1000 });
+  }
+  return out;
+}
