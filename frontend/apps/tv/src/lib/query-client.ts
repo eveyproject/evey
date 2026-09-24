@@ -1,6 +1,9 @@
 import { QueryClient } from "@tanstack/react-query";
+import { AppState } from "react-native";
 import { shouldRetryQuery, useServerListStore } from "@evey/store";
+import { setupReachability } from "@evey/client";
 import { mutationErrorNet } from "./mutationErrorNet";
+import { pingServer, resolveServerUrl } from "./server-config";
 
 export const queryClient = new QueryClient({
   mutationCache: mutationErrorNet(),
@@ -10,6 +13,24 @@ export const queryClient = new QueryClient({
       // Shared with web and mobile: see @evey/store/queryRetry.
       retry: shouldRetryQuery,
     },
+  },
+});
+
+// React Native emits no browser `online` event: without this the television
+// never learnt it had lost the network, and a wifi drop or a wake from standby
+// left its screens on failed queries (see setupReachability). The phone reads
+// the OS network state instead (expo-network, which this app does not ship).
+setupReachability({
+  queryClient,
+  probe: async () => {
+    const url = await resolveServerUrl(useServerListStore.getState().getActiveServer()?.url);
+    return url ? pingServer(url) : true;
+  },
+  onForeground: (listener) => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") listener();
+    });
+    return () => sub.remove();
   },
 });
 

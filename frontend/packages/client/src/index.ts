@@ -72,6 +72,7 @@ export * from "./lib/reorder";
 export * from "./lib/mediaFile";
 export * from "./lib/collectionSubtitle";
 export * from "./lib/loadTest";
+export * from "./lib/reachability";
 export * from "./lib/repairLabels";
 export * from "./lib/skipSegments";
 export * from "./lib/parentalPin";
