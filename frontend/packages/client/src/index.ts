@@ -14,6 +14,7 @@ export * from "./hooks/usePlaybackSettings";
 export * from "./hooks/useChapters";
 export * from "./hooks/usePopular";
 export * from "./hooks/useFavorite";
+export * from "./hooks/usePlayOnDevices";
 export * from "./hooks/useParentalGate";
 export * from "./hooks/useWatchedMap";
 export * from "./hooks/useActiveProfile";
