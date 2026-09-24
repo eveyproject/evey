@@ -90,6 +90,13 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
     try {
       const res = await fetch(`${base}/api/v1/auth/refresh`, {
         method: "POST",
+        // The refresh token travels in the body: no cookie is needed, and one
+        // must not ride along. Served by the Evey server itself (/tv), the page
+        // holds the server's _csrf cookie, and a POST carrying it without the
+        // matching header is refused 403 - which this flow reads as a dead
+        // session: every access-token expiry (15 min) signed the viewer out
+        // (production logs 2026-09-24, reproduced on a same-origin page).
+        credentials: "omit",
         headers: { "Content-Type": "application/json", "X-Persistent-Session": "true" },
         body: JSON.stringify({ refreshToken: stored }),
         signal: controller.signal,

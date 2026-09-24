@@ -94,6 +94,9 @@ export async function signOut(): Promise<void> {
   if (access && base) {
     void fetch(`${base}/api/v1/auth/logout`, {
       method: "POST",
+      // No cookie: under /tv the server's _csrf cookie would get this POST
+      // refused (see authRefreshCore); the session is named in the body.
+      credentials: "omit",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${access}` },
       body: JSON.stringify(stored ? { refreshToken: stored } : {}),
     }).catch(() => {});
