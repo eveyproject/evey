@@ -3,7 +3,7 @@ import { formatTime } from "@evey/api";
 import { useTranslation } from "react-i18next";
 import { BottomSheet } from "./BottomSheet";
 import { useTheme } from "../providers/ThemeProvider";
-import type { Chapter } from "../hooks/useChapters";
+import { findCurrentChapterIndex, type Chapter } from "../hooks/useChapters";
 import { FONT_SIZE } from "@evey/theme";
 
 interface ChaptersPickerProps {
@@ -24,13 +24,13 @@ export function ChaptersPicker({
   const { t } = useTranslation();
   const theme = useTheme();
 
+  const currentIndex = findCurrentChapterIndex(chapters, currentTimeMs);
+
   return (
     <BottomSheet visible={visible} onClose={onClose} title={t("player.controls.chapters")}>
       {chapters.map((ch, i) => {
         const startSec = ch.startTimeMs / 1000;
-        const isActive =
-          currentTimeMs >= ch.startTimeMs &&
-          (i === chapters.length - 1 || currentTimeMs < chapters[i + 1].startTimeMs);
+        const isActive = i === currentIndex;
         return (
           <Pressable
             key={i}

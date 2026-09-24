@@ -19,6 +19,14 @@ interface UseSleepTimerArgs {
  *     event and reads `state.kind === "endOfEpisode"` to decide whether to
  *     stop after the current item.
  */
+// The presets every player offers, and which one reads as chosen: the one the
+// countdown still falls within. Four copies until 2026-09-24.
+export const SLEEP_TIMER_PRESETS_MIN = [15, 30, 45, 60, 90] as const;
+
+export function isSleepPresetActive(state: SleepTimerState | null | undefined, minutes: number): boolean {
+  return state?.kind === "minutes" && state.minutesLeft != null && state.minutesLeft <= minutes && state.minutesLeft > minutes - 1;
+}
+
 export function useSleepTimer({ onMinutesFire }: UseSleepTimerArgs) {
   const [state, setState] = useState<SleepTimerState | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

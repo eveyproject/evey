@@ -21,6 +21,7 @@ import {
   useParentalGate,
   playerTitle,
   clampSeekTarget, holdScrubRate, tapSeekStep, SEEK_COMMIT_DELAY_MS, HOLD_SCRUB_TICK_MS,
+  SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive,
 } from "@evey/client";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -558,7 +559,6 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const audioLabel = (s: V1MediaStream, fallback: string) => formatAudioTrackLabel(s, fallback);
   const subtitleLabel = (s: V1MediaStream, fallback: string) =>
     `${trackDisplayName(s, fallback)}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`;
-  const sleepChoices = [15, 30, 45, 60, 90];
   const sections: PanelSection[] = useMemo(() => {
     const out: PanelSection[] = [];
     if (audioStreams.length > 1) {
@@ -696,10 +696,10 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
           : "",
       choices: [
         { key: "off", label: t("player.sleepTimer.cancel"), selected: !sleep.state },
-        ...sleepChoices.map((m) => ({
+        ...SLEEP_TIMER_PRESETS_MIN.map((m) => ({
           key: String(m),
           label: t("player.sleepTimer.minutes", { count: m, defaultValue: `${m} min` }),
-          selected: sleep.state?.kind === "minutes" && sleep.state.minutesLeft != null && sleep.state.minutesLeft <= m && sleep.state.minutesLeft > m - 1,
+          selected: isSleepPresetActive(sleep.state, m),
         })),
         { key: "episode", label: t("player.sleepTimer.endOfEpisode"), selected: sleep.state?.kind === "endOfEpisode" },
       ],
@@ -720,7 +720,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       });
     }
     return out;
-  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, panel, time, t, restartKeepingPlace, seekTo, sleep, sleepChoices, clientSubtitle, subtitleStyle, applySubtitleStyle, volume, nextEp, media?.type, autoAdvance, toggleAutoplay, streamInfo]);
+  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, panel, time, t, restartKeepingPlace, seekTo, sleep, clientSubtitle, subtitleStyle, applySubtitleStyle, volume, nextEp, media?.type, autoAdvance, toggleAutoplay, streamInfo]);
 
   // --- bar -------------------------------------------------------------------
   const cycleSpeed = useCallback(() => {

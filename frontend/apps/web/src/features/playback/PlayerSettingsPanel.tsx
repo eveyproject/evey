@@ -7,10 +7,10 @@ import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { SleepTimerState } from "@/hooks/useSleepTimer";
 import { SPEED_OPTIONS } from "./constants";
 import { qualityRungsFromHeights, trackDisplayName } from "@evey/api";
+import { SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive } from "@evey/client";
 
 // Mirrors the mobile/TV sleep timer presets (apps/mobile/src/components/SleepTimerPicker.tsx,
 // apps/tv/src/components/SleepTimerPicker.tsx).
-const SLEEP_TIMER_PRESETS_MIN = [15, 30, 45, 60, 90] as const;
 
 function useQualityOptions() {
   const { t } = useTranslation();
@@ -609,10 +609,7 @@ export function SettingsPanel({
             <>
               <SubMenuHeader label={t("player.settings.sleepTimer")} onBack={() => setMenu("main")} />
               {SLEEP_TIMER_PRESETS_MIN.map((m) => {
-                const active = sleepTimerState?.kind === "minutes"
-                  && sleepTimerState.minutesLeft !== null
-                  && sleepTimerState.minutesLeft <= m
-                  && sleepTimerState.minutesLeft > m - 1;
+                const active = isSleepPresetActive(sleepTimerState, m);
                 return (
                   <button
                     key={m}

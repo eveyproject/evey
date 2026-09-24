@@ -68,3 +68,15 @@ describe("useSleepTimer", () => {
     expect(fire).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("isSleepPresetActive", () => {
+  it("reads as chosen the preset the countdown still falls within", async () => {
+    const { isSleepPresetActive } = await import("./useSleepTimer");
+    const at = (minutesLeft: number) => ({ kind: "minutes" as const, minutesLeft, endsAt: 0 });
+    expect(isSleepPresetActive(at(29.5) as never, 30)).toBe(true);
+    expect(isSleepPresetActive(at(29.5) as never, 45)).toBe(false);
+    expect(isSleepPresetActive(at(30) as never, 30)).toBe(true);
+    expect(isSleepPresetActive(null, 30)).toBe(false);
+    expect(isSleepPresetActive({ kind: "endOfEpisode" } as never, 30)).toBe(false);
+  });
+});
