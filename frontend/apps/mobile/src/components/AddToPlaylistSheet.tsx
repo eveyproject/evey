@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 import { usePlaylistList, useAddToPlaylist, useCreatePlaylist } from "../api/playlists";
 import { LoadFailed } from "./LoadFailed";
@@ -40,7 +41,11 @@ export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }:
     addTo.mutate(
       { playlistId, mediaItemId, mediaType },
       {
-        onSuccess: () => setAddedIds((prev) => new Set(prev).add(playlistId)),
+        onSuccess: () => {
+          setAddedIds((prev) => new Set(prev).add(playlistId));
+          toast.success(t("media.playlist.addSuccess"));
+        },
+        onError: () => toast.error(t("media.playlist.addError")),
       },
     );
   }
@@ -48,17 +53,20 @@ export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }:
   async function handleCreateAndAdd() {
     const name = newName.trim();
     if (!name) return;
+    let created = false;
     try {
       const res = await createPl.mutateAsync({ name, type: "manual" });
-      const newId = res?.id;
-      if (newId) {
-        await addTo.mutateAsync({ playlistId: newId, mediaItemId, mediaType });
-        setAddedIds((prev) => new Set(prev).add(newId));
+      created = true;
+      toast.success(t("media.playlist.createSuccess"));
+      if (res.id) {
+        await addTo.mutateAsync({ playlistId: res.id, mediaItemId, mediaType });
+        setAddedIds((prev) => new Set(prev).add(res.id));
+        toast.success(t("media.playlist.addSuccess"));
       }
       setCreating(false);
       setNewName("");
     } catch {
-      // toasts are handled by hooks
+      toast.error(t(created ? "media.playlist.addError" : "media.playlist.createError"));
     }
   }
 

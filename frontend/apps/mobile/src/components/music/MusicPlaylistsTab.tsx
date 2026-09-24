@@ -109,7 +109,13 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, lib
   const handleRemove = useCallback(
     (trackID: string) => {
       if (!selectedId) return;
-      removeItem.mutate({ playlistId: selectedId, mediaItemId: trackID });
+      removeItem.mutate(
+        { playlistId: selectedId, mediaItemId: trackID },
+        {
+          onSuccess: () => toast.success(t("media.playlist.removedFromPlaylist")),
+          onError: () => toast.error(t("media.playlist.failedRemove")),
+        },
+      );
     },
     [selectedId, removeItem],
   );
@@ -122,7 +128,10 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, lib
           text: t("common.delete"),
           style: "destructive",
           onPress: () => {
-            deletePlaylist.mutate(playlist.id);
+            deletePlaylist.mutate(playlist.id, {
+              onSuccess: () => toast.success(t("media.playlist.playlistDeleted")),
+              onError: () => toast.error(t("media.playlist.deleteFailed")),
+            });
             setSelectedId((cur) => (cur === playlist.id ? null : cur));
           },
         },

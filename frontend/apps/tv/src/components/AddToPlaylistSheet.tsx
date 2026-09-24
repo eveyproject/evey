@@ -8,6 +8,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 import { usePlaylistList, useAddToPlaylist } from "../api/playlists";
 import { FocusableCard } from "./FocusableCard";
@@ -33,13 +34,16 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
       addTo.mutate(
         { playlistId, mediaItemId },
         {
-          onSuccess: () => setAddedIds((prev) => new Set(prev).add(playlistId)),
-          // No onError: the shared mutation already says it, a second toast
-          // repeated the same failure.
+          // The shared mutation says nothing: the sheet words the outcome.
+          onSuccess: () => {
+            setAddedIds((prev) => new Set(prev).add(playlistId));
+            toast.success(t("media.playlist.addSuccess"));
+          },
+          onError: () => toast.error(t("media.playlist.addError")),
         },
       );
     },
-    [addTo, mediaItemId],
+    [addTo, mediaItemId, t],
   );
 
   return (

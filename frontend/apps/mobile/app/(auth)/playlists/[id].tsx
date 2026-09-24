@@ -12,6 +12,7 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { usePlaylistDetail, useDeletePlaylist, useRemoveFromPlaylist, useReorderPlaylistItems, useUpdatePlaylist, type PlaylistItem } from "../../../src/api/playlists";
@@ -119,6 +120,7 @@ export default function PlaylistDetailScreen() {
           onPress: async () => {
             try {
               await deleteMutation.mutateAsync(id ?? "");
+              toast.success(t("media.playlist.playlistDeleted"));
               router.back();
             } catch {
               Alert.alert(t("common.error"), t("media.playlist.deleteError"));
@@ -136,16 +138,21 @@ export default function PlaylistDetailScreen() {
     if (toIdx < 0 || toIdx >= items.length) return;
     [items[fromIdx], items[toIdx]] = [items[toIdx], items[fromIdx]];
     const reordered = items.map((it, i) => ({ mediaItemId: it.media_item_id, sortOrder: i }));
-    // mutate, not mutateAsync: the hook's own onError already reports the
-    // failure, and an awaited rejection nobody catches is an unhandled promise.
-    reorderMutation.mutate({ playlistId: id, items: reordered });
-  }, [playlist, id, reorderMutation]);
+    // mutate, not mutateAsync: an awaited rejection nobody catches is an
+    // unhandled promise; the failure is reported here.
+    reorderMutation.mutate({ playlistId: id, items: reordered }, {
+      onError: () => toast.error(t("media.playlist.reorderFailed")),
+    });
+  }, [playlist, id, reorderMutation, t]);
 
   const handleRemove = useCallback((mediaItemId: string) => {
     if (!id) return;
     Alert.alert(t("common.remove") || "Remove", t("media.playlist.confirmRemoveItem") || "Remove from playlist?", [
       { text: t("common.cancel"), style: "cancel" },
-      { text: t("common.remove") || "Remove", style: "destructive", onPress: () => removeMutation.mutate({ playlistId: id, mediaItemId }) },
+      { text: t("common.remove") || "Remove", style: "destructive", onPress: () => removeMutation.mutate({ playlistId: id, mediaItemId }, {
+        onSuccess: () => toast.success(t("media.playlist.removedFromPlaylist")),
+        onError: () => toast.error(t("media.playlist.failedRemove")),
+      }) },
     ]);
   }, [id, removeMutation, t]);
 
@@ -280,9 +287,11 @@ export default function PlaylistDetailScreen() {
           onSave={(newRules) => {
             if (!id) return;
             // The sheet closes right after this call regardless (SmartRulesEditor
-            // does not await onSave), so the failure has to speak for itself:
-            // useUpdatePlaylist's own onError toast does that.
-            updatePlaylist.mutate({ id, rules: newRules });
+            // does not await onSave), so the outcome has to speak for itself.
+            updatePlaylist.mutate({ id, rules: newRules }, {
+              onSuccess: () => toast.success(t("media.playlist.updated")),
+              onError: () => toast.error(t("media.playlist.updateFailed")),
+            });
           }}
         />
       )}
