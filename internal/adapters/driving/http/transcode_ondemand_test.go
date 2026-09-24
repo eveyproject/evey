@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1312,4 +1313,51 @@ func TestCheckDelivery_UndeclaredDifferenceIsADisagreement(t *testing.T) {
 	// And a served path equal to the plan's is neither.
 	h.checkDelivery(onDemandReq(), "m1", rp, rp.Plan.Delivery.ServingPath(rp.Plan.Route, rp.FP), "")
 	assert.Equal(t, before+1, int(testutil.ToFloat64(counter)))
+}
+
+// The fallback rung's audio rate on its URL is the one the encoder is handed:
+// the rung quotes a stereo base, and ffmpeg gets it scaled to the channels
+// the client takes (ServedAudioBitrateKbps on the fingerprint's
+// MaxAudioChannels). A 5.1 client must not read the stereo figure.
+func TestBuildHybridMaster_FallbackRung_ServedAudioRateIsTheEncodedOne(t *testing.T) {
+	servedKbps := func(t *testing.T, maxAudioChannels string) (kbps int64, maxCh int) {
+		t.Helper()
+		h := newCopyTestHandler(t)
+		h.manifestGen = apptranscoding.NewManifestGenerator()
+		h.audioRenditionEnabled = true
+		h.copyFallbackRung = true
+		dur, err := shared.NewDurationMs(60000)
+		require.NoError(t, err)
+		item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000}}
+		streams := copyEligibleAV()
+		six := 6
+		streams[1].Codec, streams[1].Channels = "dts", &six
+		req := onDemandReq()
+		q := req.URL.Query()
+		q.Set("maxAudioChannels", maxAudioChannels)
+		req.URL.RawQuery = q.Encode()
+
+		master, err := h.buildHybridMaster(req, "m1", item, streams, planFor(t, h, req, item, streams))
+		require.NoError(t, err)
+		for line := range strings.SplitSeq(master, "\n") {
+			if !strings.HasPrefix(line, "stream_0.m3u8") {
+				continue
+			}
+			u, err := url.Parse(line)
+			require.NoError(t, err)
+			require.Equal(t, "transcode", u.Query().Get("servedAudio"))
+			kbps, err = strconv.ParseInt(u.Query().Get("servedAudioKbps"), 10, 64)
+			require.NoError(t, err)
+			maxCh, _ = strconv.Atoi(u.Query().Get("maxAudioChannels"))
+			return kbps, maxCh
+		}
+		t.Fatal("premise: the fallback rung is advertised")
+		return 0, 0
+	}
+
+	stereo, _ := servedKbps(t, "2")
+	surround, ch := servedKbps(t, "6")
+	require.Equal(t, 6, ch, "premise: the rung encodes for 6 channels")
+	assert.Equal(t, domaintranscoding.ServedAudioBitrateKbps(stereo, 6), surround, "the 5.1 rung quotes the scaled rate ffmpeg is handed")
+	assert.Greater(t, surround, stereo, "not the stereo base")
 }
