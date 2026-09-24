@@ -52,6 +52,7 @@ export * from "./lib/personRole";
 export * from "./lib/mediaTypeLabel";
 export * from "./lib/tvLayout";
 export * from "./lib/streamBadges";
+export * from "./lib/streamInfoModel";
 export * from "./lib/syncplayReconcile";
 export * from "./lib/profilePicker";
 export * from "./hooks/useSyncplay";

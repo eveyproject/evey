@@ -83,4 +83,23 @@ describe("StreamInfoPanel", () => {
     expect(screen.getByText("5.1")).toBeTruthy();
     expect(screen.getAllByText("Copié")).toHaveLength(2);
   });
+
+  // The television's own copy stopped at codec, channels and language, where
+  // the phone and the web already showed these; one model feeds all four now.
+  it("shows what the phone showed: estimated video bitrate, profile, pixel format, served audio bitrate, sample rate", () => {
+    const probe = {
+      ...session,
+      audioBitrate: "640000",
+      mediaStreams: [
+        { type: "MEDIA_STREAM_TYPE_VIDEO", codec: "hevc", width: 3840, height: 2160, profile: "Main 10", pixelFormat: "yuv420p10le" },
+        { index: 1, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "eac3", channels: 6, language: "fre", sampleRate: 48000 },
+      ],
+    };
+    render(<StreamInfoPanel visible onClose={() => {}} streamInfo={probe} audioStreamIndex={1} />);
+    expect(screen.getByText("≈ 12.5 Mbps")).toBeTruthy();
+    expect(screen.getByText("Main 10")).toBeTruthy();
+    expect(screen.getByText("yuv420p10le")).toBeTruthy();
+    expect(screen.getByText("640 Kbps")).toBeTruthy();
+    expect(screen.getByText("48000 Hz")).toBeTruthy();
+  });
 });
