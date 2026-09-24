@@ -10,6 +10,16 @@ export interface PlayingVariant {
   // Advertised BANDWIDTH of the variant, bps.
   bitrate?: number | null;
   frameRate?: number | null;
+  // The variant's URL as the master lists it.
+  url?: string | null;
+}
+
+// The audio muxed in the variant, when the master names it on the variant URL
+// (the copy plan's fallback rung: its audio is its own plan's, not the copy's).
+export interface ServedAudio {
+  decision: string;
+  codec?: string;
+  bitrate?: number;
 }
 
 export interface ServedVariant {
@@ -20,6 +30,23 @@ export interface ServedVariant {
   frameRate?: number;
   // Output codec of a transcoded rung.
   codec?: string;
+  audio?: ServedAudio;
+}
+
+// Reads the servedAudio* parameters the server puts on a fallback rung's URL.
+export function servedAudioFromUrl(url: string | null | undefined): ServedAudio | undefined {
+  if (!url) return undefined;
+  const q = url.indexOf("?");
+  if (q < 0) return undefined;
+  const params = new URLSearchParams(url.slice(q + 1));
+  const decision = params.get("servedAudio");
+  if (!decision) return undefined;
+  const kbps = Number(params.get("servedAudioKbps"));
+  return {
+    decision,
+    codec: params.get("servedAudioCodec") || undefined,
+    bitrate: Number.isFinite(kbps) && kbps > 0 ? kbps * 1000 : undefined,
+  };
 }
 
 function sourceVideo(info: V1StreamInfo): V1MediaStream | undefined {
@@ -52,15 +79,16 @@ export function servedVariant(info: V1StreamInfo | null | undefined, playing: Pl
     bitrate,
     frameRate: playing.frameRate && playing.frameRate > 0 ? playing.frameRate : undefined,
     codec: codec || undefined,
+    audio: servedAudioFromUrl(playing.url),
   };
 }
 
 // Engines, structurally: no hls.js or expo-video import here.
-export function playingFromHlsLevel(level: { width?: number; height?: number; bitrate?: number; frameRate?: number } | undefined): PlayingVariant | null {
-  return level ? { width: level.width, height: level.height, bitrate: level.bitrate, frameRate: level.frameRate } : null;
+export function playingFromHlsLevel(level: { width?: number; height?: number; bitrate?: number; frameRate?: number; uri?: string } | undefined): PlayingVariant | null {
+  return level ? { width: level.width, height: level.height, bitrate: level.bitrate, frameRate: level.frameRate, url: level.uri } : null;
 }
 
-export function playingFromVideoTrack(track: { size?: { width: number; height: number } | null; peakBitrate?: number | null; averageBitrate?: number | null; bitrate?: number | null; frameRate?: number | null } | null | undefined): PlayingVariant | null {
+export function playingFromVideoTrack(track: { size?: { width: number; height: number } | null; peakBitrate?: number | null; averageBitrate?: number | null; bitrate?: number | null; frameRate?: number | null; url?: string | null } | null | undefined): PlayingVariant | null {
   if (!track?.size) return null;
-  return { width: track.size.width, height: track.size.height, bitrate: track.peakBitrate ?? track.bitrate ?? track.averageBitrate, frameRate: track.frameRate };
+  return { width: track.size.width, height: track.size.height, bitrate: track.peakBitrate ?? track.bitrate ?? track.averageBitrate, frameRate: track.frameRate, url: track.url };
 }

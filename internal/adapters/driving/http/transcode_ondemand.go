@@ -195,6 +195,25 @@ func (h *hlsVODServe) buildHybridMaster(r *http.Request, mediaID string, item *d
 // Best-effort by design: this only ever ADDS a rung to a master that is
 // already serveable, so any resolution failure downgrades to today's
 // single-variant master, never to an error.
+// withServedAudio describes the audio muxed in the fallback rung, which is not
+// the copy rung's: the players read it off the variant URL they are on (hls.js
+// and ExoPlayer both expose it) to tell the viewer what they hear. The server
+// reads none of these parameters.
+func withServedAudio(uri, decision, codec string, kbps int64) string {
+	q := url.Values{}
+	q.Set("servedAudio", decision)
+	if codec != "" {
+		q.Set("servedAudioCodec", codec)
+	}
+	if decision == "transcode" && kbps > 0 {
+		q.Set("servedAudioKbps", strconv.FormatInt(kbps, 10))
+	}
+	if strings.Contains(uri, "?") {
+		return uri + "&" + q.Encode()
+	}
+	return uri + "?" + q.Encode()
+}
+
 func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, copyPeakKbps int64) *apptranscoding.FallbackVariant {
 	if !h.copyFallbackRung {
 		return nil
@@ -282,7 +301,7 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 		slog.String("fp", rpT.FPHash))
 	return &apptranscoding.FallbackVariant{
 		Profile:    rung,
-		URI:        "stream_0.m3u8" + apptranscoding.QuerySuffixFor(inT),
+		URI:        withServedAudio("stream_0.m3u8"+apptranscoding.QuerySuffixFor(inT), rpT.Decision.AudioDecision, inT.ChosenAudioCodec, rung.AudioBitrate),
 		VideoCodec: inT.ChosenVideoCodec,
 		VideoRange: inT.TranscodeVideoRange,
 		AudioCodec: inT.ChosenAudioCodec,

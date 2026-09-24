@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { V1StreamInfo } from "@evey/api";
-import { playingFromHlsLevel, playingFromVideoTrack, servedVariant } from "./servedVariant";
+import { playingFromHlsLevel, playingFromVideoTrack, servedAudioFromUrl, servedVariant } from "./servedVariant";
 import { buildStreamInfoModel } from "./streamInfoModel";
 
 const COPY_PLAN = {
@@ -51,8 +51,8 @@ describe("servedVariant", () => {
   });
 
   it("reads hls.js levels and expo-video tracks alike", () => {
-    expect(playingFromHlsLevel({ width: 1280, height: 720, bitrate: 3_000_000, frameRate: 25 })).toEqual({ width: 1280, height: 720, bitrate: 3_000_000, frameRate: 25 });
-    expect(playingFromVideoTrack({ size: { width: 1280, height: 720 }, peakBitrate: 3_000_000, averageBitrate: 2_550_000, frameRate: 25 })).toEqual({ width: 1280, height: 720, bitrate: 3_000_000, frameRate: 25 });
+    expect(playingFromHlsLevel({ width: 1280, height: 720, bitrate: 3_000_000, frameRate: 25, uri: "u" })).toEqual({ width: 1280, height: 720, bitrate: 3_000_000, frameRate: 25, url: "u" });
+    expect(playingFromVideoTrack({ size: { width: 1280, height: 720 }, peakBitrate: 3_000_000, averageBitrate: 2_550_000, frameRate: 25, url: "u" })).toEqual({ width: 1280, height: 720, bitrate: 3_000_000, frameRate: 25, url: "u" });
     expect(playingFromVideoTrack(null)).toBeNull();
   });
 });
@@ -74,5 +74,40 @@ describe("buildStreamInfoModel follows the playing variant", () => {
     const top = buildStreamInfoModel(COPY_PLAN, { served: servedVariant(COPY_PLAN, { width: 1920, height: 1080, bitrate: 8_000_000 }, LADDER) });
     expect(video(top).decision).toBe("copy");
     expect(video(top).rows["player.streamInfo.profile"]).toBe("High");
+  });
+});
+
+// The copy master's fallback rung muxes its own audio; the server names it on
+// the rung's URL (withServedAudio, transcode_ondemand.go).
+const FALLBACK_URL = "https://evey.lan/api/v1/media/m1/hls/stream_0.m3u8?token=t&vd=transcode&fp=abc&servedAudio=transcode&servedAudioCodec=aac&servedAudioKbps=128";
+
+describe("the fallback rung's own audio", () => {
+  it("is read off the variant URL", () => {
+    expect(servedAudioFromUrl(FALLBACK_URL)).toEqual({ decision: "transcode", codec: "aac", bitrate: 128_000 });
+    expect(servedAudioFromUrl("https://evey.lan/api/v1/media/m1/hls/od_playlist.m3u8?token=t")).toBeUndefined();
+    expect(servedAudioFromUrl(null)).toBeUndefined();
+  });
+
+  it("replaces the copy rung's audio in the panel while it plays, and gives it back after", () => {
+    const plan = { ...COPY_PLAN, audioDecision: "copy", mediaStreams: [
+      ...(COPY_PLAN.mediaStreams ?? []),
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 1, codec: "eac3", channels: 6, language: "fre", sampleRate: 48000 },
+    ] } as unknown as V1StreamInfo;
+    const audio = (m: ReturnType<typeof buildStreamInfoModel>) => {
+      const s = m?.sections.find((x) => x.kind === "audio");
+      return { decision: s?.decision, rows: Object.fromEntries((s?.rows ?? []).map((r) => [r.labelKey, r.value])) };
+    };
+
+    const onFallback = buildStreamInfoModel(plan, { audio: { absolute: 1 }, served: servedVariant(plan, { width: 1920, height: 1080, bitrate: 3_000_000, url: FALLBACK_URL }, LADDER) });
+    expect(audio(onFallback).decision).toBe("transcode");
+    expect(audio(onFallback).rows["player.streamInfo.codec"]).toBe("AAC");
+    expect(audio(onFallback).rows["player.streamInfo.bitrate"]).toBe("128 Kbps");
+    expect(audio(onFallback).rows["player.streamInfo.channels"]).toBeUndefined();
+    expect(audio(onFallback).rows["player.streamInfo.language"]).toBe("fre");
+
+    const onCopy = buildStreamInfoModel(plan, { audio: { absolute: 1 }, served: servedVariant(plan, { width: 1920, height: 1080, bitrate: 8_000_000, url: "od_playlist.m3u8?token=t" }, LADDER) });
+    expect(audio(onCopy).decision).toBe("copy");
+    expect(audio(onCopy).rows["player.streamInfo.codec"]).toBe("EAC3");
+    expect(audio(onCopy).rows["player.streamInfo.channels"]).toBeDefined();
   });
 });

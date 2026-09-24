@@ -91,14 +91,16 @@ export function buildStreamInfoModel(streamInfo: V1StreamInfo | null | undefined
   if (!streamInfo) return null;
   const onNativeLeg = opts.wasmAudioLeg === "aac" || opts.wasmAudioLeg === "aac-latched";
   const wasmDecoding = (opts.wasmAudioActive ?? false) && !onNativeLeg;
-  const audioDecision = onNativeLeg ? "transcode" : wasmDecoding ? "wasm" : streamInfo.audioDecision;
   const served = opts.served ?? null;
+  // On a rung that muxes its own audio (the fallback), that audio is what plays.
+  const servedAudio = served?.audio;
+  const audioDecision = servedAudio ? servedAudio.decision : onNativeLeg ? "transcode" : wasmDecoding ? "wasm" : streamInfo.audioDecision;
   const videoDecision = served && !served.copy ? "transcode" : streamInfo.videoDecision;
   const decisions = {
     playMethod: streamInfo.playMethod,
     videoDecision,
     audioDecision,
-    wasmAudio: wasmDecoding,
+    wasmAudio: wasmDecoding && !servedAudio,
   };
 
   const video = streamInfo.mediaStreams?.find((s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
@@ -157,17 +159,20 @@ export function buildStreamInfoModel(streamInfo: V1StreamInfo | null | undefined
     // so a re-encoded track sat at "-" though the server picked the figure.
     // "0" is the server's "no figure", like an absent one.
     const audioBitrate = Number(streamInfo.audioBitrate) > 0 ? streamInfo.audioBitrate : audio.bitrate;
+    // A rung's own re-encode: its codec and rate; the source's layout and
+    // sample rate may no longer hold.
+    const reencoded = servedAudio?.decision === "transcode";
     sections.push({
       kind: "audio",
       titleKey: "player.streamInfo.audio",
       title: "Audio",
       decision: audioDecision,
       rows: [
-        row("player.streamInfo.codec", "Codec", (audio.codec ?? "-").toUpperCase()),
-        row("player.streamInfo.channels", "Channels", audio.channels ? formatChannelLayout(audio.channels) : null),
+        row("player.streamInfo.codec", "Codec", ((reencoded ? servedAudio?.codec : undefined) ?? audio.codec ?? "-").toUpperCase()),
+        reencoded ? null : row("player.streamInfo.channels", "Channels", audio.channels ? formatChannelLayout(audio.channels) : null),
         row("player.streamInfo.language", "Language", audio.language),
-        row("player.streamInfo.bitrate", "Bitrate", formatBitrate(audioBitrate)),
-        row("player.streamInfo.sampleRate", "Sample Rate", audio.sampleRate ? `${audio.sampleRate} Hz` : null),
+        row("player.streamInfo.bitrate", "Bitrate", formatBitrate(reencoded ? servedAudio?.bitrate : audioBitrate)),
+        reencoded ? null : row("player.streamInfo.sampleRate", "Sample Rate", audio.sampleRate ? `${audio.sampleRate} Hz` : null),
       ].filter((r): r is StreamInfoRow => r !== null),
     });
   }
@@ -177,7 +182,7 @@ export function buildStreamInfoModel(streamInfo: V1StreamInfo | null | undefined
     reasonsHeadingKey: reasonsHeadingI18nKey(decisions),
     // On the native leg the audio really IS re-encoded, so the reason the wasm
     // path hides comes back.
-    reasons: visibleTranscodeReasons(streamInfo.transcodeReasons, wasmDecoding),
+    reasons: visibleTranscodeReasons(streamInfo.transcodeReasons, wasmDecoding && !servedAudio),
   };
 }
 
