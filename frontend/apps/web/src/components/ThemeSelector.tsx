@@ -1,14 +1,11 @@
 import { useCallback, useEffect } from "react";
 import { useThemeStore, themePreferences } from "@evey/store";
 import { themes, type ThemeName } from "@evey/theme";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import {
-  eveyFetch,
-  useUserServiceUpdateProfile,
-} from "@evey/api";
+import { useUserServiceUpdateProfile } from "@evey/api";
 import { pluginThemeName } from "./theme-utils";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
+import { usePluginThemes } from "@evey/client";
 
 const builtInLabels: Record<ThemeName, string> = {
   default: "Dark",
@@ -18,24 +15,8 @@ const builtInLabels: Record<ThemeName, string> = {
   "light-blue": "Light Blue",
 };
 
-interface PluginThemeInfo {
-  id: string;
-  name: string;
-}
-
-function usePluginThemes() {
-  return useQuery<PluginThemeInfo[]>({
-    queryKey: ["plugin-themes"],
-    queryFn: async () => {
-      const data = await eveyFetch<{ themes: PluginThemeInfo[] }>({
-        url: "/api/v1/plugins/themes",
-        method: "GET",
-      });
-      return data.themes ?? [];
-    },
-    staleTime: 60_000,
-  });
-}
+// The plugin themes come from @evey/client's usePluginThemes (the same query
+// the phone and the televisions read).
 
 export function ThemeSelector() {
   const { t } = useTranslation();

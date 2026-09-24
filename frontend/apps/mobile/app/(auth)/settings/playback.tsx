@@ -12,6 +12,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useActiveProfile } from "../../../src/hooks/useActiveProfile";
+import { AUDIO_CHANNELS_OPTIONS, AUDIO_CODEC_OPTIONS, BITRATE_OPTIONS, SUBTITLE_BURN_OPTIONS, VIDEO_CODEC_OPTIONS } from "@evey/client";
 
 // Values are ISO 639-1 (2-letter) to match the audio_languages/subtitle_languages
 // convention written by web (frontend/apps/web/src/features/user/LanguageSettings.tsx)
@@ -53,52 +54,16 @@ function legacyLangToIso1(code: string | undefined): string | undefined {
   return LEGACY_LANG_MAP[code] ?? code;
 }
 
-const BITRATE_OPTIONS = [
-  { value: "0", label: "Unlimited" },
-  { value: "2000", label: "2 Mbps" },
-  { value: "4000", label: "4 Mbps" },
-  { value: "8000", label: "8 Mbps" },
-  { value: "10000", label: "10 Mbps" },
-  { value: "15000", label: "15 Mbps" },
-  { value: "20000", label: "20 Mbps" },
-  { value: "40000", label: "40 Mbps" },
-];
-
+// The phone alone caps the cellular bitrate; the other lists are shared with
+// the televisions and the web (@evey/client playbackPrefs). The phone's own
+// copies printed "Unlimited" in English whatever the language.
 const CELLULAR_BITRATE_OPTIONS = [
-  { value: "0", label: "Unlimited" },
-  { value: "500", label: "0.5 Mbps" },
-  { value: "1000", label: "1 Mbps" },
-  { value: "2000", label: "2 Mbps" },
-  { value: "4000", label: "4 Mbps" },
-  { value: "8000", label: "8 Mbps" },
-];
-
-const VIDEO_CODEC_OPTIONS = [
-  { value: "auto", labelKey: "auth.settings.playback.codecAuto", fallback: "Auto" },
-  { value: "h264", labelKey: "", fallback: "H.264" },
-  { value: "hevc", labelKey: "", fallback: "HEVC (H.265)" },
-  { value: "av1", labelKey: "", fallback: "AV1" },
-];
-
-const AUDIO_CODEC_OPTIONS = [
-  { value: "auto", labelKey: "auth.settings.playback.codecAuto", fallback: "Auto" },
-  { value: "aac", labelKey: "", fallback: "AAC" },
-  { value: "ac3", labelKey: "", fallback: "AC3" },
-  { value: "eac3", labelKey: "", fallback: "E-AC3" },
-  { value: "opus", labelKey: "", fallback: "Opus" },
-];
-
-const AUDIO_CHANNELS_OPTIONS = [
-  { value: "auto", labelKey: "auth.settings.playback.codecAuto", fallback: "Auto" },
-  { value: "2", labelKey: "auth.settings.playback.channelsStereo", fallback: "Stereo (2.0)" },
-  { value: "6", labelKey: "auth.settings.playback.channels51", fallback: "Surround (5.1)" },
-  { value: "8", labelKey: "auth.settings.playback.channels71", fallback: "Surround (7.1)" },
-];
-
-const SUBTITLE_BURN_OPTIONS = [
-  { value: "auto", labelKey: "auth.settings.playback.subtitleBurnAuto", fallback: "Auto" },
-  { value: "always", labelKey: "auth.settings.playback.subtitleBurnAlways", fallback: "Always burn in" },
-  { value: "never", labelKey: "auth.settings.playback.subtitleBurnNever", fallback: "Never burn in" },
+  { value: "0", labelKey: "auth.settings.playback.bitrateUnlimited", fallback: "Unlimited" },
+  { value: "500", labelKey: "", fallback: "0.5 Mbps" },
+  { value: "1000", labelKey: "", fallback: "1 Mbps" },
+  { value: "2000", labelKey: "", fallback: "2 Mbps" },
+  { value: "4000", labelKey: "", fallback: "4 Mbps" },
+  { value: "8000", labelKey: "", fallback: "8 Mbps" },
 ];
 
 type PrefMap = Record<string, string>;
@@ -349,7 +314,7 @@ export default function PlaybackSettingsScreen() {
             accessibilityRole="radio"
             accessibilityState={{ selected: bitrate === opt.value, disabled: !editedProfile || updatePreference.isPending }}
           >
-            <Text style={s.label}>{opt.label}</Text>
+            <Text style={s.label}>{labelOf(opt)}</Text>
             {bitrate === opt.value && <Text style={s.check}>{"\u2713"}</Text>}
           </Pressable>
         ))}
@@ -377,7 +342,7 @@ export default function PlaybackSettingsScreen() {
             accessibilityRole="radio"
             accessibilityState={{ selected: cellularBitrate === opt.value, disabled: !editedProfile || updatePreference.isPending }}
           >
-            <Text style={s.label}>{opt.label}</Text>
+            <Text style={s.label}>{labelOf(opt)}</Text>
             {cellularBitrate === opt.value && <Text style={s.check}>{"\u2713"}</Text>}
           </Pressable>
         ))}

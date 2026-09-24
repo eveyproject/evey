@@ -7,7 +7,7 @@ import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { SleepTimerState } from "@/hooks/useSleepTimer";
 import { SPEED_OPTIONS } from "./constants";
 import { qualityRungsFromHeights, trackDisplayName } from "@evey/api";
-import { SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive } from "@evey/client";
+import { SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive, SUBTITLE_BG_COLORS } from "@evey/client";
 
 // Mirrors the mobile/TV sleep timer presets (apps/mobile/src/components/SleepTimerPicker.tsx,
 // apps/tv/src/components/SleepTimerPicker.tsx).
@@ -31,12 +31,6 @@ const SUBTITLE_COLORS = [
   { labelKey: "player.colors.orange", value: "#fb923c" },
 ];
 
-const SUBTITLE_BG_COLORS = [
-  { labelKey: "player.bgColors.black", value: "#000000" },
-  { labelKey: "player.bgColors.darkGrey", value: "#1a1a1a" },
-  { labelKey: "player.bgColors.navy", value: "#1e3a5f" },
-  { labelKey: "player.bgColors.none", value: "#000000", opacity: 0 },
-];
 
 const SUBTITLE_FONTS = [
   { labelKey: "player.fonts.default", value: "" },

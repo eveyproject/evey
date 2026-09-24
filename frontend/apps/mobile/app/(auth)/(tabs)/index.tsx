@@ -30,9 +30,6 @@ interface FeedConfig {
 // Normalizes a configured row size to a usable positive int, falling back to
 // the historical default (20) when unset/invalid. Mirrors web's home.lazy.tsx
 // (`cfg.maxItems && cfg.maxItems > 0 ? cfg.maxItems : undefined`).
-function resolveMaxItems(maxItems: number | undefined, fallback: number): number {
-  return maxItems && maxItems > 0 ? maxItems : fallback;
-}
 import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
@@ -43,6 +40,7 @@ import { useMostPopular } from "../../../src/hooks/usePopular";
 import { CollectionRow } from "../../../src/components/CollectionRow";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { FEED_TYPES, resolveMaxItems } from "@evey/client";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -222,13 +220,6 @@ function MediaLibraryRow({ libraryId, name, libraryType, maxItems, onItemPress }
 // never rendered it as a dedicated shelf. Dropping it from FEED_TYPES also
 // makes the customize modal treat any already-persisted "recently_added"
 // row as an orphan and prune it automatically.
-const FEED_TYPES = [
-  "resume_playback",
-  "next_episode",
-  "collections",
-  "recommended",
-  "most_popular",
-] as const;
 
 const FEED_LABELS: Record<string, string> = {
   resume_playback: "common.feeds.labels.resume_playback",
