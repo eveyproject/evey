@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAdminMediaServiceListMediaRepairs, baseName } from "@evey/api";
-import type { V1MediaRepairEntry } from "@evey/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { repairOpLabel, repairEvidenceLine } from "@evey/client";
 
 // What the repairs touched, across the whole library.
 //
@@ -39,22 +39,6 @@ const JOB_KEYS: Record<JobFilter, string> = {
   scan: "admin.seekIndex.jobScan",
 };
 
-function opLabel(op: string | undefined, t: (k: string) => string): string {
-  switch (op) {
-    case "reindex":
-      return t("admin.repairHistory.opReindex");
-    case "resync_damaged":
-      return t("admin.repairHistory.opResync");
-    case "container_fix":
-      return t("admin.repairHistory.opContainerFix");
-    case "audio_retime":
-      return t("admin.repairHistory.opAudioRetime");
-    case "rollback":
-      return t("admin.repairHistory.opRollback");
-    default:
-      return op ?? "";
-  }
-}
 
 function outcomeVariant(outcome: string | undefined): "success" | "warning" | "error" | "default" {
   switch (outcome) {
@@ -69,20 +53,6 @@ function outcomeVariant(outcome: string | undefined): "success" | "warning" | "e
   }
 }
 
-function evidenceLine(e: V1MediaRepairEntry, t: (k: string, o?: Record<string, unknown>) => string): string {
-  switch (e.evidenceMethod) {
-    case "track-coherence":
-      return t("admin.repairHistory.evidenceMeasured", {
-        lag: (e.evidenceLagSec ?? 0).toFixed(3),
-        confidence: (e.evidenceConfidence ?? 0).toFixed(2),
-      });
-    case "operator":
-    case "operator-undo":
-      return t("admin.repairJournal.evidenceOperator");
-    default:
-      return t("admin.repairHistory.evidenceDeclared");
-  }
-}
 
 export function RepairJournalPanel() {
   const { t } = useTranslation();
@@ -171,11 +141,11 @@ export function RepairJournalPanel() {
                     <span className="font-mono text-[var(--text)]" title={e.path}>
                       {baseName(e.path ?? "")}
                     </span>
-                    <Badge variant="info">{opLabel(e.op, t)}</Badge>
+                    <Badge variant="info">{repairOpLabel(e.op, t)}</Badge>
                     <Badge variant={outcomeVariant(e.outcome)}>{t(`admin.repairHistory.outcome.${e.outcome}`)}</Badge>
                     {e.job && <span>{t(JOB_KEYS[(e.job as JobFilter) in JOB_KEYS ? (e.job as JobFilter) : ""])}</span>}
                   </div>
-                  <div>{evidenceLine(e, t)}</div>
+                  <div>{repairEvidenceLine(e, t)}</div>
                   {e.error && <div className="text-[var(--error)]">{e.error}</div>}
                 </li>
               ))}

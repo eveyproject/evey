@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next";
 import {
   useAdminMediaServiceGetMediaRepairHistory,
   useAdminMediaServiceUndoMediaRepair,
-  type V1MediaRepairEntry,
 } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
+import { repairOpLabel, repairEvidenceLine, repairShiftSummary } from "@evey/client";
 
 // What was done to this file's bytes, and the way back (mirror web
 // RepairHistoryPanel). Evey keeps no copy of a repaired file: each entry
@@ -14,16 +14,6 @@ import { useTheme } from "../../../providers/ThemeProvider";
 // action - acting on a measurement and acting on the file's own claim are not
 // the same thing.
 
-function opLabel(op: string | undefined, t: (k: string) => string): string {
-  switch (op) {
-    case "reindex": return t("admin.repairHistory.opReindex");
-    case "resync_damaged": return t("admin.repairHistory.opResync");
-    case "container_fix": return t("admin.repairHistory.opContainerFix");
-    case "audio_retime": return t("admin.repairHistory.opAudioRetime");
-    case "rollback": return t("admin.repairHistory.opRollback");
-    default: return op ?? "";
-  }
-}
 
 function outcomeColor(outcome: string | undefined, theme: ReturnType<typeof useTheme>): string {
   switch (outcome) {
@@ -34,13 +24,6 @@ function outcomeColor(outcome: string | undefined, theme: ReturnType<typeof useT
   }
 }
 
-function shiftSummary(entry: V1MediaRepairEntry): string {
-  const shift = entry.shiftSec ?? {};
-  return Object.entries(shift).map(([track, raw]) => {
-    const sec = Number(raw);
-    return `${track}: ${sec > 0 ? "+" : ""}${sec.toFixed(3)}s`;
-  }).join(", ");
-}
 
 export function RepairHistoryModal({ mediaId, title, onClose }: { mediaId: string; title: string; onClose: () => void }) {
   const theme = useTheme();
@@ -73,15 +56,13 @@ export function RepairHistoryModal({ mediaId, title, onClose }: { mediaId: strin
               <View key={i} style={[s.entry, { borderTopColor: theme.colors.border }]}>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
                   <Text style={{ color: theme.colors.text, fontSize: 12 }}>{new Date(Number(e.atMs ?? 0)).toLocaleString()}</Text>
-                  <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "600" }}>{opLabel(e.op, t)}</Text>
+                  <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "600" }}>{repairOpLabel(e.op, t)}</Text>
                   <Text style={{ color: outcomeColor(e.outcome, theme), fontSize: 11, fontWeight: "600" }}>{t(`admin.repairHistory.outcome.${e.outcome}`)}</Text>
                   {e.reversible ? <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{t("admin.repairHistory.reversible", "reversible")}</Text> : null}
                 </View>
-                {shiftSummary(e) ? <Text style={s.hint}>{t("admin.repairHistory.shift", { shift: shiftSummary(e) })}</Text> : null}
+                {repairShiftSummary(e) ? <Text style={s.hint}>{t("admin.repairHistory.shift", { shift: repairShiftSummary(e) })}</Text> : null}
                 <Text style={s.hint}>
-                  {e.evidenceMethod === "track-coherence"
-                    ? t("admin.repairHistory.evidenceMeasured", { lag: (e.evidenceLagSec ?? 0).toFixed(3), confidence: (e.evidenceConfidence ?? 0).toFixed(2) })
-                    : t("admin.repairHistory.evidenceDeclared")}
+                  {repairEvidenceLine(e, t)}
                 </Text>
                 {e.error ? <Text style={{ color: theme.colors.error, fontSize: 11 }}>{e.error}</Text> : null}
               </View>

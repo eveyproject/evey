@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
-import { useAdminMediaServiceListMediaRepairs, baseName, type V1MediaRepairEntry } from "@evey/api";
+import { useAdminMediaServiceListMediaRepairs, baseName } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
+import { repairOpLabel, repairEvidenceLine } from "@evey/client";
 
 // RepairJournalPanel mirrors the web features/admin/seekIndex/RepairJournalPanel:
 // what repairs touched across the whole library - a window, a batch kind, and
@@ -31,16 +32,6 @@ const JOB_KEYS: Record<JobFilter, string> = {
   scan: "admin.seekIndex.jobScan",
 };
 
-function opLabel(op: string | undefined, t: (k: string) => string): string {
-  switch (op) {
-    case "reindex": return t("admin.repairHistory.opReindex");
-    case "resync_damaged": return t("admin.repairHistory.opResync");
-    case "container_fix": return t("admin.repairHistory.opContainerFix");
-    case "audio_retime": return t("admin.repairHistory.opAudioRetime");
-    case "rollback": return t("admin.repairHistory.opRollback");
-    default: return op ?? "";
-  }
-}
 
 function outcomeColor(outcome: string | undefined, theme: ReturnType<typeof useTheme>): string {
   switch (outcome) {
@@ -51,17 +42,6 @@ function outcomeColor(outcome: string | undefined, theme: ReturnType<typeof useT
   }
 }
 
-function evidenceLine(e: V1MediaRepairEntry, t: (k: string, o?: Record<string, unknown>) => string): string {
-  switch (e.evidenceMethod) {
-    case "track-coherence":
-      return t("admin.repairHistory.evidenceMeasured", { lag: (e.evidenceLagSec ?? 0).toFixed(3), confidence: (e.evidenceConfidence ?? 0).toFixed(2) });
-    case "operator":
-    case "operator-undo":
-      return t("admin.repairJournal.evidenceOperator");
-    default:
-      return t("admin.repairHistory.evidenceDeclared");
-  }
-}
 
 function Chip({ theme, label, active, onPress }: { theme: ReturnType<typeof useTheme>; label: string; active: boolean; onPress: () => void }) {
   return (
@@ -128,11 +108,11 @@ export function RepairJournalPanel() {
                     <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600" }} numberOfLines={1}>{baseName(e.path ?? "")}</Text>
                   </View>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 2 }}>
-                    <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "600" }}>{opLabel(e.op, t)}</Text>
+                    <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "600" }}>{repairOpLabel(e.op, t)}</Text>
                     <Text style={{ color: outcomeColor(e.outcome, theme), fontSize: 11, fontWeight: "600" }}>{t(`admin.repairHistory.outcome.${e.outcome}`)}</Text>
                     {e.job ? <Text style={s.hint}>{t(JOB_KEYS[(e.job as JobFilter) in JOB_KEYS ? (e.job as JobFilter) : ""])}</Text> : null}
                   </View>
-                  <Text style={s.hint}>{evidenceLine(e, t)}</Text>
+                  <Text style={s.hint}>{repairEvidenceLine(e, t)}</Text>
                   {e.error ? <Text style={{ color: theme.colors.error, fontSize: 11 }}>{e.error}</Text> : null}
                 </View>
               ))}

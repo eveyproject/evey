@@ -63,6 +63,7 @@ export * from "./hooks/useSyncPlaySocket";
 export * from "./lib/playlistType";
 export * from "./lib/playerTitle";
 export * from "./lib/playerExit";
+export * from "./lib/repairLabels";
 export * from "./lib/skipSegments";
 export * from "./lib/parentalPin";
 export * from "./hooks/useSubtitleTrack";
