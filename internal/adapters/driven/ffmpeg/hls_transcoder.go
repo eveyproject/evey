@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -497,6 +498,31 @@ const svtAV1Preset = "10"
 // expr form is fps-independent. Negligible bitrate cost at a 3s cadence.
 var hlsForceKeyframesArgs = []string{"-force_key_frames", "expr:gte(t,n_forced*" + hlsSegmentSeconds + ")"}
 
+// forceKeyframesArgsFor is hlsForceKeyframesArgs on the session's grid: a
+// keyframe every FramesPerSegment frames on a frame-exact grid (so every rung
+// cuts the very same frames and a segment is exact in ticks), the 3 s clock
+// otherwise. A frame-count expression also sidesteps the float rounding of
+// `t` around the boundary, which gave 71 or 73 frames now and then. GOP and
+// scene-cut keyframes are pinned to the same cadence so the muxer never
+// meets a keyframe it could close a segment on off the grid.
+func forceKeyframesArgsFor(opts transcoding.HLSProcessOpts) []string {
+	g := opts.Grid
+	if !g.Exact() {
+		return hlsForceKeyframesArgs
+	}
+	k := strconv.Itoa(g.FramesPerSegment)
+	return []string{"-force_key_frames", g.ForceKeyframesExpr(), "-g", k, "-keyint_min", k, "-sc_threshold", "0"}
+}
+
+// videoTimescaleArgs pins the video track timescale to the grid's, so the
+// tick a segment is declared in is the tick the fragments are written in.
+func videoTimescaleArgs(opts transcoding.HLSProcessOpts) []string {
+	if !opts.Grid.Exact() || opts.VideoDecision == "copy" {
+		return nil
+	}
+	return []string{"-video_track_timescale", strconv.Itoa(opts.Grid.Timescale)}
+}
+
 // appendInputModifiers is the hook for pre-`-i` flags. It emits `-readrate N`
 // (input pacing: read the source at N× real-time) ONLY when readRate > 0.
 //
@@ -598,7 +624,7 @@ func hlsTimeFor(opts transcoding.HLSProcessOpts) string {
 	if opts.VideoDecision == "copy" {
 		return "0"
 	}
-	return hlsSegmentSeconds
+	return opts.Grid.HLSTime()
 }
 
 // presentAtSourceTimeArgs keeps a video-only fMP4 at its source time. By
@@ -807,11 +833,9 @@ func startNumberFor(opts transcoding.HLSProcessOpts) int {
 	if opts.StartSec <= 0 {
 		return 0
 	}
-	segSec, err := strconv.ParseFloat(hlsSegmentSeconds, 64)
-	if err != nil || segSec <= 0 {
-		segSec = 3.0
-	}
-	return int(opts.StartSec / segSec)
+	// StartSec sits on the grid by construction (SegmentStartSeconds), so
+	// the nearest index is the index; a truncation would read 38.9999 as 38.
+	return int(math.Round(opts.StartSec / opts.Grid.SegmentSeconds()))
 }
 
 // cpuBudgetThreadsArgs bounds a SOFTWARE encoder's thread count to what this
@@ -901,8 +925,9 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, softwareRateControlArgs(qualityTargetFor(opts, len(opts.Profiles)-1, p, false), "")...)
 	args = append(args, svtAV1PresetArgs(enc)...)
 	args = append(args, "-pix_fmt", "yuv420p")
-	args = append(args, hlsForceKeyframesArgs...)
+	args = append(args, forceKeyframesArgsFor(opts)...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
+	args = append(args, videoTimescaleArgs(opts)...)
 
 	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, !hasAudio(opts), hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
 }
@@ -1002,7 +1027,8 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	// Force aligned keyframes at the segment cadence across every variant - both
 	// to fix slow/irregular first-segment startup and to keep ABR-switchable
 	// segment boundaries identical between renditions.
-	args = append(args, hlsForceKeyframesArgs...)
+	args = append(args, forceKeyframesArgsFor(opts)...)
+	args = append(args, videoTimescaleArgs(opts)...)
 
 	// -var_stream_map + HLS muxer tail (container choice, master playlist,
 	// segment naming). Shared with the hardware multi-variant builder so both
@@ -1027,7 +1053,7 @@ func appendHLSMultiVariantTail(args []string, opts transcoding.HLSProcessOpts, n
 	args = append(args,
 		"-master_pl_name", "master.m3u8",
 		"-f", "hls",
-		"-hls_time", hlsSegmentSeconds,
+		"-hls_time", opts.Grid.HLSTime(),
 		"-hls_list_size", "0",
 		"-hls_playlist_type", "event",
 		"-hls_flags", "temp_file",

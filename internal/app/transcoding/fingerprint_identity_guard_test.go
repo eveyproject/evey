@@ -31,6 +31,7 @@ var (
 		"SourceAudioChannels": "dmx= (the fold policy the channel count selects)",
 		"ForceSidecarSubs":    "sidecar=",
 		"UseFMP4":             "fmp4=",
+		"Grid":                "grid= (a frame-exact grid only: the legacy clock hashes as nothing)",
 		"HWAccel":             "hwenc= (an encode session only: two encoders, two inits)",
 		"AudioCopy":           "acopy= and the absence of dmx=",
 		"AudioOffsetMs":       "aoffset= (non-zero only)",
@@ -100,6 +101,9 @@ func mutate(t *testing.T, fp DecisionFingerprint, field string) DecisionFingerpr
 		return fp
 	case "QualityTargets":
 		fp.QualityTargets = []transcoding.QualityTarget{{Mode: transcoding.RateControlConstantQuality}}
+		return fp
+	case "Grid":
+		fp.Grid = transcoding.GridForFrameRate(23.976)
 		return fp
 	}
 	v := reflect.ValueOf(&fp).Elem().FieldByName(field)

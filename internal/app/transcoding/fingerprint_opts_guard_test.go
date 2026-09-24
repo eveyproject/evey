@@ -49,6 +49,7 @@ var (
 		"SourceAudioChannels": "opts.SourceAudioChannels (gates the fold guard)",
 		"ForceSidecarSubs":    "opts.ForceSidecarSubs",
 		"UseFMP4":             "opts.UseFMP4",
+		"Grid":                "opts.Grid (the keyframe cadence, -hls_time and the video track timescale)",
 		"AudioOffsetMs":       "opts.AudioUserOffsetSec (ms -> s)",
 		"HWAccel":             "opts.HWAccel",
 		"HWDevice":            "opts.HWDevice",
@@ -220,6 +221,7 @@ var (
 		// -output_ts_offset) and it changes the emitted bytes, so it belongs here
 		// rather than in the exempt map.
 		"VideoCompositionDelay": "AudioProcessOpts.VideoCompositionDelay",
+		"Grid":                  "AudioProcessOpts.Grid (-hls_time on the video's cadence)",
 	}
 	audioFingerprintNonEncoderFields = map[string]string{
 		"MediaID": "cache addressing only - two items sharing a source path must not share segments",

@@ -895,7 +895,8 @@ func (o *SegmentOrchestrator) spawnSession(
 		HDRPassthrough:     fp.HDRPassthrough,
 		HDRTransfer:        fp.HDRTransfer,
 		AudioNormalize:     fp.AudioNormalize,
-		StartSec:           float64(startSegIdx) * o.opts.SegmentSeconds,
+		StartSec:           fp.Grid.SegmentStartSeconds(startSegIdx),
+		Grid:               fp.Grid,
 		// StartNumber is what tells the transcoder this rafale is a SEEK whose
 		// fMP4 fragments come out 0-based and must be rebased to the absolute
 		// timeline before they reach the shared cache. It was never set here:
