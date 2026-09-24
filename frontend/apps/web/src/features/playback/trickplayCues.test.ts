@@ -53,6 +53,19 @@ describe("trickplay cues", () => {
     expect(result.current).toEqual([]);
   });
 
+  // Sprites still generating answer an error once: the next time the viewer
+  // seeks, the manifest must be asked for again. The web's own copy cached
+  // the empty answer for good, the preview stayed off until a reload.
+  it("asks again after a transient failure", async () => {
+    eveyFetchRaw.mockRejectedValueOnce(new Error("503"));
+    const first = renderHook(() => useTrickplayCues("m-retry", "MEDIA_ITEM_TYPE_MOVIE"));
+    await waitFor(() => expect(eveyFetchRaw).toHaveBeenCalledTimes(1));
+    first.unmount();
+    const second = renderHook(() => useTrickplayCues("m-retry", "MEDIA_ITEM_TYPE_MOVIE"));
+    await waitFor(() => expect(eveyFetchRaw).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(second.result.current).toHaveLength(3));
+  });
+
   it("tileForTime picks the cue covering the position, start inclusive, end exclusive", () => {
     const cues: TrickplayCue[] = [
       { startTime: 0, endTime: 10, url: "a", x: 0, y: 0, w: 1, h: 1 },
