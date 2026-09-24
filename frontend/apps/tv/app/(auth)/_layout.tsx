@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Redirect, Stack, router, usePathname } from "expo-router";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, useServerListStore } from "@evey/store";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
 import { useCastConnectReceiver } from "../../src/hooks/useCastConnectReceiver";
 import { usePresenceHeartbeat } from "../../src/hooks/usePresenceHeartbeat";
@@ -11,6 +11,8 @@ import { HomeShortcutButton, HOME_SHORTCUT_INSET } from "../../src/components/Ho
 import { isDeepScreenPath, HOME_PATH } from "../../src/lib/homeShortcut";
 import { ErrorBoundary } from "../../src/components/ErrorBoundary";
 import { refreshAccessTokenIfNeeded } from "../../src/lib/auth-refresh";
+import { resolveServerUrl } from "../../src/lib/server-config";
+import { initI18n } from "../../src/i18n";
 import { useTheme } from "../../src/providers/ThemeProvider";
 
 function isTokenExpired(token: string): boolean {
@@ -40,6 +42,15 @@ export default function AuthLayout() {
   // Same placement rationale as the registration above - the hook no-ops
   // until there is a session to mirror, so it is safe before the guards.
   useCastConnectReceiver();
+  // Second chance for the translation catalogue, as on the phone: a boot whose
+  // single fetch failed (the NAS was asleep) otherwise kept the pre-connect
+  // strings for the whole session. initI18n no-ops once the catalogue arrived.
+  useEffect(() => {
+    void (async () => {
+      const url = await resolveServerUrl(useServerListStore.getState().getActiveServer()?.url);
+      if (url) await initI18n(url);
+    })();
+  }, []);
   // Foreground presence beats for the admin "online" panel - enabled only
   // once fully authenticated (hooks can't sit after the guards below).
   usePresenceHeartbeat(!!accessToken && !isTokenExpired(accessToken) && !!profileId);
