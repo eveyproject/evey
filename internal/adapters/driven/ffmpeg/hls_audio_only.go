@@ -116,7 +116,21 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	// Filters need a re-encode: a passthrough rendition is served verbatim
 	// whatever the normalize knob says, and silence has nothing to fold or measure.
 	if !isCopy && !silence {
-		args = append(args, audioFilterOption("-af", opts.SourceAudioChannels, opts.MaxAudioChannels, opts.AudioNormalize)...)
+		af := audioFilterOption("-af", opts.SourceAudioChannels, opts.MaxAudioChannels, opts.AudioNormalize)
+		// Past the encoder's priming the output is on the video's timeline only
+		// when the shift can hold it: below that, the muxer pushes the whole
+		// track late by what did not fit, so that much of the input is dropped,
+		// to the sample (an input -ss snaps to the codec frame: measured 6 ms of
+		// the 43 moved).
+		if over := primingOverflowSec(opts); over > 0 {
+			trim := fmt.Sprintf("asetpts=PTS-STARTPTS,atrim=start=%.6f,asetpts=PTS-STARTPTS", over)
+			if len(af) == 2 {
+				af[1] = trim + "," + af[1]
+			} else {
+				af = []string{"-af", trim}
+			}
+		}
+		args = append(args, af...)
 	}
 
 	// HLS muxer - event-mode, fMP4 container, temp_file for atomic renames.
@@ -404,3 +418,32 @@ func (h *audioHandle) Resume() error {
 
 // compile-time assertion: HLSTranscoder satisfies AudioProcess.
 var _ transcoding.AudioProcess = (*HLSTranscoder)(nil)
+
+// aacPrimingSec is the priming an AAC encoder puts before the first real
+// sample, at the rendition's 48 kHz: the output starts that much early and,
+// with no room before 0, the muxer moves the whole track late by it. Measured
+// 2026-09-24 through BuildFFmpegAudioOnlyArgs: 22 ms native, 43 ms libfdk_aac,
+// whatever the source rate; content-measured on a copy rung, 42.6 ms late.
+func aacPrimingSec(encoder string) float64 {
+	switch encoder {
+	case PreferredAACEncoder:
+		return 2048.0 / 48000
+	case NativeAACEncoder:
+		return 1024.0 / 48000
+	}
+	return 0
+}
+
+// primingOverflowSec is the part of the priming the video-timeline shift
+// cannot absorb, which the filter graph drops from the input instead. 0 for a passthrough, silence
+// or a shift already past the priming.
+func primingOverflowSec(opts transcoding.AudioProcessOpts) float64 {
+	if opts.SilenceDurationSec > 0 {
+		return 0
+	}
+	over := aacPrimingSec(resolveAudioEncoder(opts.AudioCodec, opts.AudioEncoder)) - opts.VideoCompositionDelay
+	if over <= 0 {
+		return 0
+	}
+	return over
+}

@@ -354,6 +354,11 @@ func (a AudioFingerprint) hashWithDownmixPolicy(downmixPolicy string) string {
 	// Milliseconds, not the raw float: the probe is quantised to the frame
 	// anyway, and a %f of a float64 would fork the cache on rounding noise.
 	fmt.Fprintf(&b, "vcd=%d\n", int64(a.VideoCompositionDelay*1000+0.5))
+	if a.AudioCodec != "copy" {
+		// Encodes now skip the input past the encoder priming (see
+		// primingOverflowSec): their bytes moved, segments cut before must not be served.
+		b.WriteString("prime=trim\n")
+	}
 	if downmixPolicy != "" {
 		fmt.Fprintf(&b, "dmx=%s\n", downmixPolicy)
 	}
