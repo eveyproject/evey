@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, type ReactNode } from "react";
+import { useCallback, useRef, type ReactNode } from "react";
 import { useArrivalFocus, useFocusable } from "../tv/focus";
 import { tvKeyOf } from "../tv/keys";
 
@@ -39,6 +39,36 @@ export function Button({ children, onPress, variant = "default", focusKey, autoF
     >
       {children}
     </button>
+  );
+}
+
+interface PressableProps {
+  children: ReactNode;
+  onPress: () => void;
+  className?: string;
+  focusKey?: string;
+  autoFocus?: boolean;
+  label?: string;
+  onFocus?: () => void;
+  onBlur?: () => void;
+}
+
+/** A focusable box with its own look: what the Android television's Pressable is. */
+export function Pressable({ children, onPress, className = "", focusKey, autoFocus, label, onFocus, onBlur }: PressableProps) {
+  const { ref, focused, focusSelf } = useFocusable({
+    focusKey,
+    onEnterPress: onPress,
+    onFocus: (layout) => {
+      layout.node.scrollIntoView({ block: "nearest", inline: "nearest" });
+      onFocus?.();
+    },
+    onBlur: () => onBlur?.(),
+  });
+  useArrivalFocus(focusKey, autoFocus, focusSelf);
+  return (
+    <div ref={ref} role="button" aria-label={label} className={`${className} ${focused ? "focused" : ""}`} onClick={onPress}>
+      {children}
+    </div>
   );
 }
 
@@ -101,49 +131,6 @@ export function TextField({ value, onChange, placeholder, type = "text", focusKe
   );
 }
 
-interface CardProps {
-  title: string;
-  imageUrl?: string;
-  wide?: boolean;
-  onPress: () => void;
-  focusKey?: string;
-  autoFocus?: boolean;
-  /** The remote landed on this card: a paged grid fetches its next page from here. */
-  onFocus?: () => void;
-  /** Already seen: the tick the other clients draw in the corner. */
-  watched?: boolean;
-  /** How far in, 0 to 100: the bar along the bottom of the picture. */
-  percent?: number;
-}
-
-function CardImpl({ title, imageUrl, wide, onPress, focusKey, autoFocus, onFocus, watched, percent }: CardProps) {
-  const { ref, focused, focusSelf } = useFocusable({ focusKey, onEnterPress: onPress, onFocus: (layout) => {
-    // Keep the focused card in view: the row scrolls, the screen scrolls.
-    layout.node.scrollIntoView({ block: "nearest", inline: "nearest" });
-    onFocus?.();
-  } });
-  useArrivalFocus(focusKey, autoFocus, focusSelf);
-  return (
-    <div ref={ref} className={`card focusable ${wide ? "wide" : ""} ${focused ? "focused" : ""}`} onClick={onPress}>
-      {imageUrl ? <img src={imageUrl} alt="" loading="lazy" /> : <div style={{ aspectRatio: wide ? "16 / 9" : "2 / 3", background: "var(--surface-raised)" }} />}
-      {watched ? <span className="watched-badge" aria-hidden="true">✓</span> : null}
-      {percent != null && percent > 0 && percent < 100 ? (
-        <span className="card-progress"><i style={{ width: `${Math.min(100, percent)}%` }} /></span>
-      ) : null}
-      <div className="label">{title}</div>
-    </div>
-  );
-}
-
-/**
- * A card only re-renders when its OWN props change. A library grid appends a
- * page of thirty every time the remote reaches the last rows, and without
- * this every card already on screen was rebuilt with it - measured at nine
- * style recalculations per key press on a three hundred title library.
- * Callers must keep their handlers stable for this to hold (useCardHandlers).
- */
-export const Card = memo(CardImpl);
-
 export function Spinner() {
   return <div className="spinner" role="progressbar" />;
 }
@@ -163,4 +150,13 @@ export function useCardHandlers<A extends unknown[]>(fn: (...args: A) => void): 
     cache.current.set(key, handler);
     return handler;
   }, []);
+}
+
+/** A filter chip: the Android television's FocusableCard with a label. */
+export function Chip({ label, active, onPress, focusKey }: { label: string; active: boolean; onPress: () => void; focusKey?: string }) {
+  return (
+    <Pressable className={`tv-card chip ${active ? "active" : ""}`} onPress={onPress} focusKey={focusKey} label={label}>
+      {label}
+    </Pressable>
+  );
 }

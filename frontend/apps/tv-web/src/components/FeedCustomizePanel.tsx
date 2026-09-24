@@ -6,8 +6,9 @@ import {
   useFeedServiceUpdateProfileFeedConfig,
 } from "@evey/api";
 import { buildFeedRows, moveRow, toggleRow, type FeedConfigEntry, type FeedRow } from "@evey/client";
-import { FocusRoot } from "../tv/focus";
-import { Button } from "./ui";
+import { FocusRoot, useBackHandler } from "../tv/focus";
+import { Pressable } from "./ui";
+import { Icon } from "./icons";
 
 const FEED_LABELS: Record<string, string> = {
   resume_playback: "common.feeds.labels.resume_playback",
@@ -41,6 +42,7 @@ export function FeedCustomizePanel({ configs, profileId, libraryNames, pluginNam
   // A remote has no "are you sure" dialog worth building: the first OK asks,
   // the second, on the now relabelled button, commits.
   const [confirmingReset, setConfirmingReset] = useState(false);
+  useBackHandler(onClose);
 
   useEffect(() => {
     setRows(buildFeedRows(configs, libraryNames, pluginNames));
@@ -93,24 +95,32 @@ export function FeedCustomizePanel({ configs, profileId, libraryNames, pluginNam
 
   return (
     <div className="modal-backdrop">
-      <FocusRoot autoFocus className="modal-sheet">
-        <h2 className="row-title">{t("media.home.customizeFeed", "Customize Feed")}</h2>
-        <p className="muted">{t("media.home.customizeHintTv", "Press OK on a row to show or hide it")}</p>
-        {error ? <p className="error">{t("media.home.customizeSaveFailed", "Failed to save some changes")}</p> : null}
-        <div className="feed-rows">
+      <FocusRoot autoFocus boundary className="feed-sheet">
+        <h2 className="feed-title">{t("media.home.customizeFeed", "Customize Feed")}</h2>
+        <p className="feed-hint">{t("media.home.customizeHintTv", "Press OK on a row to show or hide it")}</p>
+        {error ? <p className="auth-error">{t("media.home.customizeSaveFailed", "Failed to save some changes")}</p> : null}
+        <div className="feed-list">
           {rows.map((row, i) => (
-            <div className="feed-row" key={row.feedType}>
-              <Button autoFocus={i === 0} variant={row.enabled ? "primary" : "default"} onPress={() => apply(toggleRow(rows, i))}>
-                {row.enabled ? "◉" : "○"} {label(row.feedType)}
-              </Button>
-              <Button disabled={i === 0} onPress={() => apply(moveRow(rows, i, -1))}>↑</Button>
-              <Button disabled={i === rows.length - 1} onPress={() => apply(moveRow(rows, i, 1))}>↓</Button>
+            <div className="feed-line" key={row.feedType}>
+              <Pressable className="tv-card feed-main" autoFocus={i === 0} label={label(row.feedType)} onPress={() => apply(toggleRow(rows, i))}>
+                <span className={row.enabled ? "accent" : "muted"}><Icon name={row.enabled ? "eye-outline" : "eye-off-outline"} size={24} /></span>
+                <span className={`feed-label ${row.enabled ? "" : "off"}`}>{label(row.feedType)}</span>
+              </Pressable>
+              <Pressable className={`tv-card feed-arrow ${i === 0 ? "off" : ""}`} label={t("common.feeds.moveUp", "Move section up")} onPress={() => { if (i > 0) apply(moveRow(rows, i, -1)); }}>
+                <Icon name="chevron-up" size={22} />
+              </Pressable>
+              <Pressable className={`tv-card feed-arrow ${i === rows.length - 1 ? "off" : ""}`} label={t("common.feeds.moveDown", "Move section down")} onPress={() => { if (i < rows.length - 1) apply(moveRow(rows, i, 1)); }}>
+                <Icon name="chevron-down" size={22} />
+              </Pressable>
             </div>
           ))}
         </div>
-        <div className="actions">
-          <Button onPress={handleReset}>{t(confirmingReset ? "common.feeds.resetConfirm" : "common.feeds.resetDefaults")}</Button>
-          <Button variant="primary" onPress={onClose}>{t("common.close", "Close")}</Button>
+        <div className="feed-footer">
+          <Pressable className="tv-card feed-reset" onPress={() => void handleReset()}>
+            <Icon name="refresh-outline" size={20} />
+            <span>{t(confirmingReset ? "common.feeds.resetConfirm" : "common.feeds.resetDefaults")}</span>
+          </Pressable>
+          <Pressable className="tv-card feed-close" autoFocus={rows.length === 0} onPress={onClose}>{t("common.close", "Close")}</Pressable>
         </div>
       </FocusRoot>
     </div>

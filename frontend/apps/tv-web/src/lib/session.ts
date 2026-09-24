@@ -119,5 +119,8 @@ export async function bootSession(onUnauthorized: () => void): Promise<{ hasServ
     onUnauthorized,
     forceRefresh: authRefresh.forceRefresh,
   });
+  // A server remembered from the last visit: its catalogue, or every screen
+  // stays on the embedded English.
+  if (url) reloadCatalogue();
   return { hasServer: !!url };
 }

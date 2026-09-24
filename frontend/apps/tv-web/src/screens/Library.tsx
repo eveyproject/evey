@@ -16,11 +16,26 @@ import {
   type LibraryServiceSearchMediaSortField,
   type LibraryServiceSearchMediaSortOrder,
   type LibraryServiceSearchMediaType,
+  itemLabel,
   type V1MediaItem,
 } from "@evey/api";
-import { useDebounce, useWatchProgressMaps } from "@evey/client";
+import { toast } from "@evey/store";
+import {
+  CARD_WIDTH_GRID,
+  buildPlayAllQueue,
+  canPlayAllForSelection,
+  isHdrStream,
+  pickRandomItem,
+  resolutionLabel,
+  useDebounce,
+  useWatchProgressMaps,
+  videoStream,
+} from "@evey/client";
 import { FocusRoot } from "../tv/focus";
-import { Button, Card, Spinner, TextField, useCardHandlers } from "../components/ui";
+import { Chip, Pressable, Spinner, TextField, useCardHandlers } from "../components/ui";
+import { GridCard } from "../components/cards";
+import { Icon } from "../components/icons";
+import { StackHeader } from "../components/StackHeader";
 import { navigate, replace } from "../app/router";
 import { posterSrc } from "../lib/media";
 
@@ -56,7 +71,7 @@ export function renderWindow(total: number, focusedIndex: number, columns: numbe
   start -= start % cols;
   return { start, end: Math.min(total, start + size) };
 }
-const TV_WEB_DEDICATED_ROUTES = ["/music"];
+const TV_WEB_DEDICATED_ROUTES = ["/music", "/photos"];
 
 const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [
   { labelKey: "media.library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
@@ -70,11 +85,6 @@ const TYPE_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsTy
   { labelKey: "media.library.seasons", value: "MEDIA_ITEM_TYPE_SEASON" },
   { labelKey: "media.library.episodes", value: "MEDIA_ITEM_TYPE_EPISODE" },
 ];
-
-function itemTitle(item: V1MediaItem): string {
-  if (item.type === "MEDIA_ITEM_TYPE_EPISODE" && item.seriesTitle) return `${item.seriesTitle} - ${item.title ?? ""}`;
-  return item.title ?? "";
-}
 
 /**
  * Whether the card the remote just landed on is close enough to the end of
@@ -101,6 +111,7 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
   const dedicated = dedicatedRouteFor(library?.type, TV_WEB_DEDICATED_ROUTES);
   useEffect(() => {
     if (dedicated === "/music") replace({ name: "music", libraryId });
+    if (dedicated === "/photos") replace({ name: "photos", libraryId });
   }, [dedicated, libraryId]);
 
   const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
@@ -163,7 +174,6 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
 
   const isLoading = searchActive ? searchQuery.isLoading : pages.isLoading || !typeSeeded;
   const isError = searchActive ? searchQuery.isError : pages.isError;
-  const total = pages.data?.pages[0]?.pagination?.totalItems;
 
   // Stable per card: a fresh arrow function every render would rebuild every
   // card in the grid each time a page lands.
@@ -199,81 +209,134 @@ export function LibraryScreen({ libraryId }: { libraryId: string }) {
     fetchNext: () => { void pages.fetchNextPage(); },
   };
 
-  // A shows library opens on its series and a movies library on its films:
-  // that default is the app's doing, not the viewer's, so an empty grid under
-  // it must not read as "adjust your filters".
   const narrowedByViewer = !!genre || searchActive || typeFilter !== defaultTypeFilterFor(library?.type);
-
   const toggleType = (v: LibraryServiceListMediaItemsType) => setTypeFilter(typeFilter === v ? "" : v);
   const toggleGenre = (g: string) => setGenre(genre === g ? "" : g);
 
+  // Shuffle: among what is on screen when a search narrows it, else a random
+  // page of one over the whole library (the facets still apply server side).
+  const [shuffling, setShuffling] = useState(false);
+  const shufflingRef = useRef(false);
+  const shuffle = async () => {
+    if (shufflingRef.current) return;
+    shufflingRef.current = true;
+    setShuffling(true);
+    try {
+      if (searchActive) {
+        const pick = pickRandomItem(items);
+        if (pick?.id) navigate({ name: "player", mediaId: pick.id });
+        else toast.info(t("common.shuffleEmpty"));
+        return;
+      }
+      const probeBase = { libraryId, ...(typeFilter ? { type: typeFilter } : {}), ...(genre ? { genre } : {}) };
+      const probe = await libraryServiceListMediaItems({ ...probeBase, "pagination.page": 1, "pagination.pageSize": 1 });
+      const count = probe.pagination?.totalItems ?? 0;
+      if (count === 0) { toast.info(t("common.shuffleEmpty")); return; }
+      const page = Math.floor(Math.random() * count) + 1;
+      const res = page === 1 ? probe : await libraryServiceListMediaItems({ ...probeBase, "pagination.page": page, "pagination.pageSize": 1 });
+      const pick = res.items?.[0];
+      if (pick?.id) navigate({ name: "player", mediaId: pick.id });
+      else toast.error(t("common.shuffleFailed"));
+    } catch {
+      toast.error(t("common.shuffleFailed"));
+    } finally {
+      shufflingRef.current = false;
+      setShuffling(false);
+    }
+  };
+  const canPlayAll = canPlayAllForSelection(isShows, typeFilter);
+  const playAll = () => {
+    const first = buildPlayAllQueue(items)[0];
+    if (first) navigate({ name: "player", mediaId: first });
+    else toast.info(t("common.playAllEmpty"));
+  };
+
   return (
-    <div className="screen">
-      <FocusRoot autoFocus className="header">
-        <h1 className="title">{library?.name ?? t("common.nav.libraries", "Library")}</h1>
-        <div className="actions" style={{ margin: 0 }}>
-          <TextField value={search} onChange={setSearch} placeholder={t("media.search.searchLibrary", "Search your media library")} />
-        </div>
-      </FocusRoot>
-
-      {isShows ? (
-        <FocusRoot className="chips">
-          {TYPE_KEYS.map((tk) => (
-            <Button key={tk.value} variant={typeFilter === tk.value ? "primary" : "default"} onPress={() => toggleType(tk.value)}>{t(tk.labelKey)}</Button>
-          ))}
-        </FocusRoot>
-      ) : null}
-
-      {genres.length > 0 ? (
-        <FocusRoot className="chips">
-          <Button variant={!genre ? "primary" : "default"} onPress={() => setGenre("")}>{t("media.search.allGenres", "All genres")}</Button>
-          {genres.map((g) => (
-            <Button key={g} variant={genre === g ? "primary" : "default"} onPress={() => toggleGenre(g)}>{g}</Button>
-          ))}
-        </FocusRoot>
-      ) : null}
-
-      <FocusRoot className="chips">
-        {SORT_KEYS.map((s) => (
-          <Button key={s.value} variant={sortField === s.value ? "primary" : "default"} onPress={() => setSortField(s.value)}>{t(s.labelKey)}</Button>
-        ))}
-        <Button onPress={() => setSortOrder(sortOrder === "SORT_ORDER_ASC" ? "SORT_ORDER_DESC" : "SORT_ORDER_ASC")}>
-          {sortOrder === "SORT_ORDER_ASC" ? `↑ ${t("media.library.ascending", "Ascending")}` : `↓ ${t("media.library.descending", "Descending")}`}
-        </Button>
-        {total != null && !searchActive ? <span className="muted chips-count">{t("media.library.resultCount", { count: total, defaultValue: `${total} results` })}</span> : null}
-      </FocusRoot>
-
-      {isLoading ? <Spinner /> : null}
+    <div className="deep-page">
+      <StackHeader title={library?.name ?? t("media.library.title")} />
       {isError ? (
-        <div className="actions">
-          <p className="error">{t("common.loadError", "Failed to load")}</p>
-          <Button onPress={() => (searchActive ? searchQuery.refetch() : pages.refetch())}>{t("common.retry", "Retry")}</Button>
-        </div>
-      ) : null}
-      {!isLoading && !isError && items.length === 0 ? (
-        <p className="muted">{narrowedByViewer ? t("media.library.noItemsFiltered", "Try adjusting your filters or search term.") : t("media.library.noItemsEmptyUser", "No content here yet.")}</p>
-      ) : null}
-      <FocusRoot grid>
-        {/* The rows above and below the window are kept as height, so the
-            page is as long as the library and the scroll never jumps. */}
-        {window.start > 0 ? <div style={{ height: `${(window.start / columns) * rowHeight}px` }} /> : null}
-        <div className="grid" ref={gridRef}>
-          {items.slice(window.start, window.end).map((item, i) => (
-            <Card
-              key={item.id}
-              focusKey={`library1:${item.id}`}
-              title={itemTitle(item)}
-              imageUrl={posterSrc(item.id, "poster", 400)}
-              watched={watchedMap.get(item.id) === true}
-              percent={percentMap.get(item.id)}
-              onFocus={cardFocused(item.id, window.start + i)}
-              onPress={openMedia(item.id, item.id)}
-            />
-          ))}
-        </div>
-        {items.length > window.end ? <div style={{ height: `${((items.length - window.end) / columns) * rowHeight}px` }} /> : null}
-        {pages.isFetchingNextPage ? <Spinner /> : null}
-      </FocusRoot>
+        <FocusRoot autoFocus className="center-fill">
+          <p className="muted big">{t("common.loadError")}</p>
+          <Pressable className="tv-card link-btn" autoFocus onPress={() => (searchActive ? searchQuery.refetch() : pages.refetch())}>{t("common.retry")}</Pressable>
+        </FocusRoot>
+      ) : (
+        <FocusRoot autoFocus className="library-body">
+          <FocusRoot className="library-search">
+            <TextField value={search} onChange={setSearch} placeholder={t("media.library.filterByName")} />
+          </FocusRoot>
+          <FocusRoot className="toolbar">
+            <div className="toolbar-chips">
+              <Chip label={t("media.search.allGenres") || "All"} active={!genre} onPress={() => setGenre("")} />
+              {genres.map((g) => <Chip key={g} label={g} active={genre === g} onPress={() => toggleGenre(g)} />)}
+            </div>
+            {canPlayAll ? (
+              <Pressable className="tv-card tool-btn" onPress={playAll} label={t("common.playAll")}>
+                <Icon name="play" size={24} /><span>{t("common.playAll")}</span>
+              </Pressable>
+            ) : null}
+            <Pressable className="tv-card tool-btn" onPress={() => void shuffle()} label={t("common.shufflePlay")}>
+              {shuffling ? <Spinner /> : <Icon name="shuffle" size={24} />}<span>{t("common.shufflePlay")}</span>
+            </Pressable>
+          </FocusRoot>
+          <FocusRoot className="toolbar">
+            <div className="toolbar-chips">
+              {SORT_KEYS.map((sk) => <Chip key={sk.value} label={t(sk.labelKey)} active={sortField === sk.value} onPress={() => setSortField(sk.value)} />)}
+            </div>
+            <Pressable
+              className="tv-card tool-btn"
+              onPress={() => setSortOrder(sortOrder === "SORT_ORDER_ASC" ? "SORT_ORDER_DESC" : "SORT_ORDER_ASC")}
+              label={sortOrder === "SORT_ORDER_ASC" ? t("common.sortAscending") : t("common.sortDescending")}
+            >
+              <Icon name={sortOrder === "SORT_ORDER_ASC" ? "arrow-up" : "arrow-down"} size={22} />
+            </Pressable>
+          </FocusRoot>
+          {isShows ? (
+            <FocusRoot className="toolbar">
+              <div className="toolbar-chips">
+                <Chip label={t("media.search.allGenres") || "All"} active={!typeFilter} onPress={() => setTypeFilter("")} />
+                {TYPE_KEYS.map((tk) => <Chip key={tk.value} label={t(tk.labelKey)} active={typeFilter === tk.value} onPress={() => toggleType(tk.value)} />)}
+              </div>
+            </FocusRoot>
+          ) : null}
+
+          {isLoading && items.length === 0 ? (
+            <div className="center-fill pad-top"><Spinner /></div>
+          ) : !isLoading && items.length === 0 ? (
+            <div className="center-fill pad-top">
+              <p className="muted big">{narrowedByViewer ? t("media.library.noItemsFiltered") : t("common.noItems")}</p>
+            </div>
+          ) : (
+            <FocusRoot grid className="library-grid-wrap">
+              {/* The rows above and below the window are kept as height, so the
+                  page is as long as the library and the scroll never jumps. */}
+              {window.start > 0 ? <div style={{ height: `${(window.start / columns) * rowHeight}px` }} /> : null}
+              <div className="grid library-grid" ref={gridRef}>
+                {items.slice(window.start, window.end).map((item, i) => {
+                  const v = videoStream(item.streams);
+                  return (
+                    <GridCard
+                      key={item.id}
+                      focusKey={`library1:${item.id}`}
+                      title={itemLabel(item, t)}
+                      imageUrl={posterSrc(item.id, "poster", CARD_WIDTH_GRID * 2)}
+                      rating={item.communityRating}
+                      resolution={resolutionLabel(v)}
+                      hdr={isHdrStream(v)}
+                      watched={watchedMap.get(item.id) === true}
+                      percent={percentMap.get(item.id)}
+                      autoFocus={window.start + i === 0}
+                      onFocus={cardFocused(item.id, window.start + i)}
+                      onPress={openMedia(item.id, item.id)}
+                    />
+                  );
+                })}
+              </div>
+              {items.length > window.end ? <div style={{ height: `${((items.length - window.end) / columns) * rowHeight}px` }} /> : null}
+              {pages.isFetchingNextPage ? <Spinner /> : null}
+            </FocusRoot>
+          )}
+        </FocusRoot>
+      )}
     </div>
   );
 }

@@ -1,281 +1,450 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  formatDurationMs, getRatingServiceGetMyThumbRatingQueryKey, ratingServicePutThumbRating,
-  useFeedServiceSimilarItems, useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems,
-  usePlaybackServiceGetWatchProgress, usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched,
-  useRatingServiceGetMyThumbRating, trackPickQuery, formatAudioTrackLabel,
+  formatAudioTrackLabel,
+  formatDurationMs,
+  formatTimeMs,
+  getRatingServiceGetMyThumbRatingQueryKey,
+  itemLabel,
+  ratingServicePutThumbRating,
+  seasonLabel,
   trackDisplayName,
-  type LibraryServiceListMediaItemsType, type TrackPick, type V1MediaItem, type V1MediaPerson,
+  trackPickQuery,
+  useFeedServiceSimilarItems,
+  useLibraryServiceGetMediaItem,
+  useLibraryServiceListMediaItems,
+  usePlaybackServiceGetWatchProgress,
+  usePlaybackServiceMarkAsUnwatched,
+  usePlaybackServiceMarkAsWatched,
+  useRatingServiceGetMyThumbRating,
+  type TrackPick,
+  type V1MediaItem,
+  type V1MediaPerson,
+  type V1MediaStream,
 } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 import {
-  resolvePlayTarget, sortByIndexNumber, sortTrailers, trailerUrl,
-  useAddToPlaylist, useIsFavorite, useIsWatched, usePlaylistList, useToggleFavorite,
+  CARD_WIDTH_FEATURED,
+  CARD_WIDTH_GRID,
+  POSTER_RATIO,
+  personTypeLabelKey,
+  resolvePlayTarget,
+  sortByIndexNumber,
+  sortTrailers,
+  trailerUrl,
+  useIsFavorite,
+  useMediaItemCollections,
+  useParentalGate,
+  useToggleFavorite,
 } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
-import { Button, Card, Spinner } from "../components/ui";
-import { navigate } from "../app/router";
-import { posterSrc, isPlayable, isSeries, isSeason } from "../lib/media";
+import { Pressable } from "../components/ui";
+import { Icon } from "../components/icons";
+import { ScreenState } from "../components/ScreenState";
+import { AddToPlaylistSheet } from "../components/AddToPlaylistSheet";
+import { ParentalPINModal } from "../components/ParentalPINModal";
+import { navigate, replace } from "../app/router";
+import { posterSrc } from "../lib/media";
 import { PluginSlot } from "../plugins/PluginSlot";
-import { ThumbDownIcon, ThumbUpIcon } from "../components/icons";
 
-// The community rating as five stars, the 0-10 scale every client renders.
+// Sized so the action row lands on the screen (Android, measured on the box).
+const HERO_HEIGHT = 300;
+const EPISODE_THUMB_WIDTH = 240;
+// The fetch stays whole (500) so counts and next-episode math see every
+// sibling; only the render pages.
+const EPISODE_PAGE_SIZE = 20;
+// The scope the page lands on: Resume (or Play) is its leftmost button.
+const ACTIONS_KEY = "media-detail-actions";
+
+function isNotFound(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { httpStatus?: number }).httpStatus === 404;
+}
+
 function stars(rating: number): string {
   const full = Math.round(rating / 2);
   return "★".repeat(full) + "☆".repeat(Math.max(0, 5 - full));
 }
 
-function Children({ parentId, type, title }: { parentId: string; type: LibraryServiceListMediaItemsType; title: string }) {
-  const { data } = useLibraryServiceListMediaItems({ parentId, type, "pagination.pageSize": 500 });
-  const items = (data?.items ?? [])
-    .filter((it): it is V1MediaItem & { id: string } => !!it.id)
-    .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
-  if (items.length === 0) return null;
+function Section({ title, count, children }: { title: string; count?: string; children: React.ReactNode }) {
   return (
-    <FocusRoot>
-      <h2 className="row-title">{title}</h2>
-      <div className="row">
-        {items.map((item) => (
-          <Card
-            key={item.id}
-            title={item.indexNumber ? `${item.indexNumber}. ${item.title ?? ""}` : item.title ?? ""}
-            imageUrl={posterSrc(item.id, type === "MEDIA_ITEM_TYPE_EPISODE" ? "backdrop" : "poster", type === "MEDIA_ITEM_TYPE_EPISODE" ? 640 : 400)}
-            wide={type === "MEDIA_ITEM_TYPE_EPISODE"}
-            onPress={() => navigate({ name: "media", mediaId: item.id })}
-          />
-        ))}
+    <FocusRoot className="detail-section">
+      <div className="section-head">
+        <h2 className="section-title">{title}</h2>
+        {count ? <span className="section-count">{count}</span> : null}
       </div>
+      {children}
     </FocusRoot>
   );
 }
 
-// The people under the picture, each one a card that opens their page, the
-// way the television and the phone have them.
-function People({ people, title }: { people: V1MediaPerson[]; title: string }) {
+function PeopleShelf({ title, people, crew }: { title: string; people: V1MediaPerson[]; crew?: boolean }) {
+  const { t } = useTranslation();
   if (people.length === 0) return null;
   return (
-    <FocusRoot>
-      <h2 className="row-title">{title}</h2>
-      <div className="row">
-        {people.slice(0, 24).map((p, i) => (
-          <Card
-            key={p.id ?? `${p.name}-${i}`}
-            title={p.role ? `${p.name} (${p.role})` : p.name ?? ""}
-            imageUrl={p.thumbUrl || undefined}
-            onPress={() => { if (p.id) navigate({ name: "person", personId: p.id }); }}
-          />
-        ))}
+    <Section title={title}>
+      <div className="shelf people">
+        {people.map((p, i) => {
+          const roleKey = crew ? personTypeLabelKey(p.type) : null;
+          const role = roleKey ? t(roleKey) : p.role;
+          return (
+            <Pressable
+              key={`${p.id ?? p.name ?? i}-${p.type ?? ""}`}
+              className="tv-card person-card"
+              label={p.name}
+              onPress={() => { if (p.id) navigate({ name: "person", personId: p.id }); }}
+            >
+              <span className="person-avatar">{p.thumbUrl ? <img src={p.thumbUrl} alt="" loading="lazy" /> : "?"}</span>
+              <span className="person-name">{p.name}</span>
+              {role ? <span className="person-role">{role}</span> : null}
+            </Pressable>
+          );
+        })}
       </div>
-    </FocusRoot>
+    </Section>
   );
 }
 
-/** The playlists this title can join, as a panel the remote walks. */
-function AddToPlaylist({ mediaId, mediaType, onClose }: { mediaId: string; mediaType?: string; onClose: () => void }) {
-  const { t } = useTranslation();
-  const { data: playlists } = usePlaylistList();
-  const add = useAddToPlaylist();
-  const [done, setDone] = useState<string | null>(null);
+function PosterShelf({ title, items }: { title: string; items: { id: string; title?: string }[] }) {
+  if (items.length === 0) return null;
+  const w = CARD_WIDTH_GRID / 10;
   return (
-    <div className="modal-backdrop">
-      <FocusRoot autoFocus className="modal-sheet">
-        <h2 className="row-title">{t("media.playlist.addTitle")}</h2>
-        <div className="track-list">
-          {(playlists ?? []).map((pl, i) => (
-            <Button
-              key={pl.id}
-              autoFocus={i === 0}
-              variant={done === pl.id ? "primary" : "default"}
-              onPress={() => { add.mutate({ playlistId: pl.id, mediaItemId: mediaId, mediaType }); setDone(pl.id); }}
-            >
-              {pl.name}{done === pl.id ? ` · ${t("media.playlist.addSuccess")}` : ""}
-            </Button>
+    <Section title={title}>
+      <div className="shelf">
+        {items.map((it) => (
+          <Pressable key={it.id} className="tv-card shelf-card" label={it.title} onPress={() => navigate({ name: "media", mediaId: it.id })}>
+            <span className="poster" style={{ width: `${w}rem`, height: `${w * POSTER_RATIO}rem` }}>
+              <img src={posterSrc(it.id, "poster", CARD_WIDTH_GRID * 2)} alt="" loading="lazy" />
+            </span>
+            <span className="shelf-label" style={{ width: `${w}rem` }}>{it.title}</span>
+          </Pressable>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+// "More like this": the recommendation feed, else a same-genre listing, so
+// the page never ends on an empty shelf.
+function SimilarShelf({ item }: { item: V1MediaItem }) {
+  const { t } = useTranslation();
+  const { data: similar } = useFeedServiceSimilarItems(item.id ?? "");
+  const hasSimilar = (similar?.items?.length ?? 0) > 0;
+  const firstGenre = item.genres?.[0];
+  const { data: byGenre } = useLibraryServiceListMediaItems(
+    { genre: firstGenre, type: item.type as never },
+    { query: { enabled: !hasSimilar && !!firstGenre } } as never,
+  );
+  const cards = useMemo(() => {
+    const fromFeed = (similar?.items ?? []).filter((s) => !!s.mediaItemId).map((s) => ({ id: s.mediaItemId as string, title: s.title }));
+    if (fromFeed.length > 0) return fromFeed;
+    return (byGenre?.items ?? []).filter((m) => m.id && m.id !== item.id).map((m) => ({ id: m.id as string, title: m.title }));
+  }, [similar, byGenre, item.id]);
+  return <PosterShelf title={t("media.detail.similarTitles")} items={cards} />;
+}
+
+function SagaSection({ mediaItemId }: { mediaItemId: string }) {
+  const { t } = useTranslation();
+  const { data } = useMediaItemCollections(mediaItemId);
+  const collections = data?.collections ?? [];
+  if (collections.length === 0) return null;
+  return (
+    <Section title={t("media.collections.partOf")}>
+      <div className="shelf">
+        {collections.map((c) => (
+          <Pressable key={c.id} className="tv-card saga-card" label={c.name} onPress={() => navigate({ name: "collection", collectionId: c.id })}>
+            <span className="saga-name">{c.name}</span>
+            {(c.itemCount ?? 0) > 0 ? <span className="saga-count">{t("media.person.titleCount", { count: c.itemCount })}</span> : null}
+          </Pressable>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+// Audio and subtitle chosen before playback; "Auto" is the player's own choice.
+function TrackPickRow({ streams, pick, onChange }: { streams: V1MediaStream[]; pick: TrackPick; onChange: (p: TrackPick) => void }) {
+  const { t } = useTranslation();
+  const audio = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO" && s.index !== undefined);
+  const subtitles = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE" && s.index !== undefined);
+  if (audio.length < 2 && subtitles.length === 0) return null;
+  const pill = (key: string, label: string, selected: boolean, onPress: () => void) => (
+    <Pressable key={key} className={`tv-card pill ${selected ? "active" : ""}`} label={label} onPress={onPress}>{label}</Pressable>
+  );
+  return (
+    <div className="track-pick">
+      {audio.length > 1 ? (
+        <FocusRoot className="track-pick-row">
+          <span className="track-pick-title">{t("media.streams.audio")}</span>
+          {pill("a:auto", t("media.streams.auto"), pick.audio === undefined, () => onChange({ ...pick, audio: undefined }))}
+          {audio.map((s) => pill(`a:${s.index}`, formatAudioTrackLabel(s, t("media.track", { number: s.index })), pick.audio === s.index, () => onChange({ ...pick, audio: s.index })))}
+        </FocusRoot>
+      ) : null}
+      {subtitles.length > 0 ? (
+        <FocusRoot className="track-pick-row">
+          <span className="track-pick-title">{t("media.streams.subtitles")}</span>
+          {pill("s:auto", t("media.streams.auto"), pick.subtitle === undefined, () => onChange({ ...pick, subtitle: undefined }))}
+          {pill("s:off", t("media.streams.none"), pick.subtitle === "off", () => onChange({ ...pick, subtitle: "off" }))}
+          {subtitles.map((s) => pill(
+            `s:${s.index}`,
+            `${trackDisplayName(s, t("media.track", { number: s.index }))}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`,
+            pick.subtitle === s.index,
+            () => onChange({ ...pick, subtitle: s.index }),
           ))}
-          {(playlists ?? []).length === 0 ? <p className="muted">{t("common.noPlaylists")}</p> : null}
-        </div>
-        <div className="actions">
-          <Button variant="primary" onPress={onClose}>{t("common.close")}</Button>
-        </div>
-      </FocusRoot>
+        </FocusRoot>
+      ) : null}
     </div>
   );
 }
 
-// The scope the page lands on: Resume (or Play) is its leftmost button.
-const ACTIONS_KEY = "media-detail-actions";
-
 export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const profileId = useAuthStore((s) => s.profileId) ?? undefined;
-  const { data: item, isLoading, isError } = useLibraryServiceGetMediaItem(mediaId);
-  const { data: fav } = useIsFavorite(mediaId);
+  const profileId = useAuthStore((s) => s.profileId);
+  const { data: media, isLoading, error, refetch } = useLibraryServiceGetMediaItem(mediaId);
+  const { data: watchProgress } = usePlaybackServiceGetWatchProgress(mediaId);
+  const { data: isFavorite } = useIsFavorite(mediaId);
   const toggleFavorite = useToggleFavorite(mediaId);
-  const watched = useIsWatched(mediaId);
+  const [playlistOpen, setPlaylistOpen] = useState(false);
+  const [visibleEpisodes, setVisibleEpisodes] = useState(EPISODE_PAGE_SIZE);
+  useEffect(() => { setVisibleEpisodes(EPISODE_PAGE_SIZE); }, [mediaId]);
+  const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
+  const watched = watchedOverride ?? (watchProgress?.played === true);
+  const { needsPin, profileId: gateProfileId } = useParentalGate(media?.officialRating);
+  const [pendingPlay, setPendingPlay] = useState<{ id: string; restart: boolean } | null>(null);
+  const [trackPick, setTrackPick] = useState<TrackPick>({});
+
   const invalidateWatched = () => {
+    void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${mediaId}/progress`] });
     void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
     void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
   };
-  const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: invalidateWatched } });
-  const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: invalidateWatched } });
-  const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {
-    query: { enabled: isPlayable(item), retry: false },
+  const markWatched = usePlaybackServiceMarkAsWatched({
+    mutation: {
+      onSuccess: () => { setWatchedOverride(true); invalidateWatched(); },
+      onError: () => toast.error(t("media.detail.markWatchedFailed", "Could not mark as watched")),
+    },
   });
-  const [playlistOpen, setPlaylistOpen] = useState(false);
-  const [trackPick, setTrackPick] = useState<TrackPick>({});
-  const { data: similarData } = useFeedServiceSimilarItems(mediaId);
-  const { data: myRating } = useRatingServiceGetMyThumbRating(mediaId, {
+  const markUnwatched = usePlaybackServiceMarkAsUnwatched({
+    mutation: {
+      onSuccess: () => { setWatchedOverride(false); invalidateWatched(); },
+      onError: () => toast.error(t("media.detail.markUnwatchedFailed", "Could not mark as unwatched")),
+    },
+  });
+
+  // like = 1, dislike = -1, cleared = 0, written optimistically: on a remote
+  // the round trip is the only feedback.
+  const { data: myRating, isError: ratingUnknown } = useRatingServiceGetMyThumbRating(mediaId, {
     query: { enabled: !!mediaId, select: (d) => d.value ?? 0, staleTime: 60_000 },
   });
   const setThumb = useMutation({
     mutationFn: (value: number) => ratingServicePutThumbRating(mediaId, { value }),
+    onMutate: async (value: number) => {
+      const key = getRatingServiceGetMyThumbRatingQueryKey(mediaId);
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<{ value?: number }>(key);
+      qc.setQueryData(key, { value });
+      return { prev };
+    },
+    onError: (_e: Error, _v: number, ctx?: { prev?: { value?: number } }) => {
+      if (ctx?.prev !== undefined) qc.setQueryData(getRatingServiceGetMyThumbRatingQueryKey(mediaId), ctx.prev);
+    },
     onSettled: () => { void qc.invalidateQueries({ queryKey: getRatingServiceGetMyThumbRatingQueryKey(mediaId) }); },
   });
-  const positionMs = Number(progress?.positionMs ?? 0);
-  const durationMs = Number(item?.durationMs ?? progress?.durationMs ?? 0);
-  // Only the title itself can be resumed: a series page plays its first
-  // episode, which has a position of its own.
-  const canResume = isPlayable(item) && positionMs > 0 && (durationMs === 0 || positionMs < durationMs - 15_000);
+  const thumbsBusy = setThumb.isPending || ratingUnknown;
 
-  // A series and a season own no file: playing their own id can only fail, so
-  // the button starts on the first episode, the way every other client does.
+  const isSeries = media?.type === "MEDIA_ITEM_TYPE_SERIES";
+  const isSeason = media?.type === "MEDIA_ITEM_TYPE_SEASON";
   const { data: childrenData } = useLibraryServiceListMediaItems(
     { parentId: mediaId, "pagination.pageSize": 500 },
-    { query: { enabled: isSeries(item) || isSeason(item) } },
+    { query: { enabled: !!mediaId && (isSeries || isSeason) } },
   );
+  const children = childrenData?.items ?? [];
+  const seasons = useMemo(() => (isSeries ? sortByIndexNumber(children) : []), [isSeries, children]);
+  const firstSeasonId = seasons[0]?.id ?? "";
   const { data: firstSeasonEpisodes } = useLibraryServiceListMediaItems(
-    { parentId: sortByIndexNumber(childrenData?.items ?? [])[0]?.id ?? "", "pagination.pageSize": 500 },
-    { query: { enabled: isSeries(item) && !!(childrenData?.items ?? []).length } },
+    { parentId: firstSeasonId, "pagination.pageSize": 500 },
+    { query: { enabled: isSeries && !!firstSeasonId } },
   );
   const episodes = useMemo(
-    () => sortByIndexNumber(isSeason(item) ? (childrenData?.items ?? []) : (firstSeasonEpisodes?.items ?? [])),
-    [item, childrenData, firstSeasonEpisodes],
+    () => sortByIndexNumber(isSeason ? children : (firstSeasonEpisodes?.items ?? [])),
+    [isSeason, children, firstSeasonEpisodes?.items],
   );
-  const playTarget = resolvePlayTarget({
-    id: mediaId,
-    isSeries: isSeries(item),
-    isSeason: isSeason(item),
-    episodeIds: episodes.map((e) => e.id),
-  });
-  // The track pick belongs to THIS page's streams: an episode started from a
-  // series page keeps the player's own resolution.
-  const openPlayer = (restart: boolean) => {
-    if (!playTarget) return;
-    const pick = playTarget === mediaId ? trackPick : undefined;
-    const q = trackPickQuery(pick);
-    const params = new URLSearchParams(q);
+  const playTarget = resolvePlayTarget({ id: mediaId, isSeries, isSeason, episodeIds: episodes.map((e) => e.id) });
+
+  // `restart` and the track pick survive the PIN detour. The pick belongs to
+  // THIS page's streams: an episode started from a series keeps the player's.
+  const openPlayer = (target: string, restart: boolean) => {
+    const params = new URLSearchParams(trackPickQuery(target === media?.id ? trackPick : undefined));
     navigate({
       name: "player",
-      mediaId: playTarget,
+      mediaId: target,
       restart,
       ...(params.get("audio") ? { audio: Number(params.get("audio")) } : {}),
       ...(params.get("subtitle") ? { subtitle: params.get("subtitle") === "off" ? "off" as const : Number(params.get("subtitle")) } : {}),
     });
   };
+  const play = (restart: boolean) => {
+    if (!playTarget) return;
+    if (needsPin()) {
+      setPendingPlay({ id: playTarget, restart });
+      return;
+    }
+    openPlayer(playTarget, restart);
+  };
 
-  if (isLoading) return <div className="screen screen-center"><Spinner /></div>;
-  if (isError || !item) return <div className="screen screen-center"><p className="error">{t("common.error", "Something went wrong.")}</p></div>;
+  if (isLoading || !media) {
+    if (!isLoading && isNotFound(error)) {
+      return (
+        <FocusRoot autoFocus className="screen-state">
+          <p className="state-title big">{t("media.detail.notFound")}</p>
+          <Pressable className="tv-card state-btn primary" autoFocus onPress={() => replace({ name: "home" })}>
+            {t("common.errorBoundary.goHome", "Go Home")}
+          </Pressable>
+        </FocusRoot>
+      );
+    }
+    return <ScreenState loading={isLoading} error={!isLoading} onRetry={() => void refetch()} />;
+  }
 
-  const meta = [item.year, formatDurationMs(item.durationMs), item.officialRating, ...(item.genres ?? []).slice(0, 3)].filter(Boolean).join("  ·  ");
-  const trailers = sortTrailers(item.trailers ?? []);
-  const trailerHref = trailers.map(trailerUrl).find(Boolean) ?? null;
-  const similar = (similarData?.items ?? []).filter((s) => s.mediaItemId);
-  const audioStreams = (item.streams ?? []).filter((st) => st.type === "MEDIA_STREAM_TYPE_AUDIO");
-  const subtitleStreams = (item.streams ?? []).filter((st) => st.type === "MEDIA_STREAM_TYPE_SUBTITLE");
-  const people = item.people ?? [];
+  const meta = [media.year, formatDurationMs(media.durationMs), media.officialRating].filter(Boolean).join("  •  ");
+  const resumeMs = Number(watchProgress?.positionMs ?? 0);
+  const hasProgress = resumeMs > 0 && !watchProgress?.played;
+  const people = media.people ?? [];
   const actors = people.filter((p) => p.type === "PERSON_TYPE_ACTOR" || p.type === "PERSON_TYPE_GUEST_STAR");
-  const crew = people.filter((p) => p.type !== "PERSON_TYPE_ACTOR" && p.type !== "PERSON_TYPE_GUEST_STAR");
-  const isFav = !!fav;
-  const busy = markWatched.isPending || markUnwatched.isPending;
+  const crew = people.filter((p) => p.type === "PERSON_TYPE_DIRECTOR" || p.type === "PERSON_TYPE_WRITER" || p.type === "PERSON_TYPE_PRODUCER");
+  const trailer = sortTrailers(media.trailers ?? []).map(trailerUrl).find(Boolean) ?? null;
+  const posterW = CARD_WIDTH_FEATURED / 10;
+  const posterH = posterW * POSTER_RATIO;
+  const seasonW = CARD_WIDTH_GRID / 10;
+
+  const action = (key: string, label: string, onPress: () => void, active = false, disabled = false) => (
+    <Pressable key={key} className={`tv-card action-btn ${active ? "on" : ""} ${disabled ? "dim" : ""}`} label={label} onPress={() => { if (!disabled) onPress(); }}>
+      {label}
+    </Pressable>
+  );
 
   return (
-    <FocusRoot autoFocus className="screen" preferredChildFocusKey={ACTIONS_KEY}>
-      <div className="hero">
-        <img src={posterSrc(item.id, "poster", 600)} alt="" />
-        <div>
-          {item.seriesTitle ? <p className="muted" style={{ margin: 0 }}>{item.seriesTitle}{item.seasonTitle ? ` · ${item.seasonTitle}` : ""}</p> : null}
-          <h1 className="title">{item.title}</h1>
-          {meta ? <p className="muted" style={{ margin: "0 0 0.4vw" }}>{meta}</p> : null}
-          {item.studios && item.studios.length > 0 ? <p className="muted" style={{ margin: "0 0 0.4vw" }}>{t("media.detail.studio")}{item.studios.join(", ")}</p> : null}
-          {item.communityRating ? <p className="muted" style={{ margin: "0 0 1vw" }}>{stars(item.communityRating)} {item.communityRating.toFixed(1)}/10</p> : null}
-          {item.overview ? <p className="overview">{item.overview}</p> : null}
-          {playTarget ? (
-            <FocusRoot focusKey={ACTIONS_KEY}>
-              <div className="actions">
-                {canResume ? (
-                  <Button variant="primary" autoFocus onPress={() => openPlayer(false)}>
-                    {t("media.detail.resume", "Resume")} · {formatDurationMs(positionMs)}
-                  </Button>
-                ) : null}
-                <Button variant={canResume ? "default" : "primary"} autoFocus={!canResume} onPress={() => openPlayer(canResume)}>
-                  {canResume ? t("media.playFromStart", "Play from the beginning") : t("common.play", "Play")}
-                </Button>
-                <Button onPress={() => toggleFavorite.mutate()}>
-                  {isFav ? "★ " : "☆ "}{isFav ? t("media.detail.favorited", "Favorited") : t("media.detail.favorite", "Favorite")}
-                </Button>
-                <Button disabled={busy} onPress={() => (watched ? markUnwatched : markWatched).mutate({ mediaItemId: mediaId, params: { profileId } })}>
-                  {watched ? t("media.detail.markUnwatched", "Mark Unwatched") : t("media.detail.markWatched", "Mark Watched")}
-                </Button>
-                <Button onPress={() => setPlaylistOpen(true)}>{t("media.playlist.addTitle")}</Button>
-                <Button variant={myRating === 1 ? "primary" : "default"} label={t("media.rating.like")} onPress={() => setThumb.mutate(myRating === 1 ? 0 : 1)}><ThumbUpIcon /></Button>
-                <Button variant={myRating === -1 ? "primary" : "default"} label={t("media.rating.dislike")} onPress={() => setThumb.mutate(myRating === -1 ? 0 : -1)}><ThumbDownIcon /></Button>
-                {trailerHref ? <Button onPress={() => window.open(trailerHref, "_blank", "noopener")}>{t("media.detail.trailer")}</Button> : null}
-              </div>
-            </FocusRoot>
-          ) : (
-            <FocusRoot focusKey={ACTIONS_KEY}>
-              <div className="actions">
-                <Button autoFocus onPress={() => toggleFavorite.mutate()}>
-                  {isFav ? "★ " : "☆ "}{isFav ? t("media.detail.favorited", "Favorited") : t("media.detail.favorite", "Favorite")}
-                </Button>
-              </div>
-            </FocusRoot>
-          )}
+    <FocusRoot autoFocus className="detail-page" preferredChildFocusKey={ACTIONS_KEY}>
+      <div className="detail-hero" style={{ height: `${HERO_HEIGHT / 10}rem` }}>
+        <img src={posterSrc(media.id, "backdrop", 1920)} alt="" />
+        <div className="detail-fade"><i /><i /><i /><i /></div>
+      </div>
+      <div className="detail-head" style={{ marginTop: `${-posterH / 2}rem` }}>
+        <img className="detail-poster" src={posterSrc(media.id, "poster", CARD_WIDTH_FEATURED * 2)} alt="" style={{ width: `${posterW}rem`, height: `${posterH}rem` }} />
+        <div className="detail-titles">
+          {!isSeries && !isSeason && media.seriesTitle ? <p className="detail-eyebrow">{media.seriesTitle}</p> : null}
+          <h1 className="detail-title">{itemLabel(media, t)}</h1>
+          {media.tagline ? <p className="detail-tagline">{media.tagline}</p> : null}
+          {meta ? <p className="detail-meta">{meta}</p> : null}
+          {media.genres && media.genres.length > 0 ? <p className="detail-line">{media.genres.join(", ")}</p> : null}
+          {media.studios && media.studios.length > 0 ? <p className="detail-line">{t("media.detail.studio")}{media.studios.join(", ")}</p> : null}
+          {media.communityRating != null && media.communityRating > 0 ? (
+            <p className="detail-rating" aria-label={t("media.detail.communityRatingA11y", { rating: media.communityRating.toFixed(1) })}>
+              <span className="accent">{stars(media.communityRating)}</span>
+              <span className="muted">{media.communityRating.toFixed(1)}</span>
+            </p>
+          ) : null}
         </div>
       </div>
-      {audioStreams.length > 1 || subtitleStreams.length > 0 ? (
-        <FocusRoot>
-          <h2 className="row-title">{t("media.streams.audio")}</h2>
-          <div className="chips">
-            <Button variant={trackPick.audio === undefined ? "primary" : "default"} onPress={() => setTrackPick((p) => ({ ...p, audio: undefined }))}>{t("media.streams.auto")}</Button>
-            {audioStreams.map((st) => (
-              <Button key={st.index} variant={trackPick.audio === st.index ? "primary" : "default"} onPress={() => setTrackPick((p) => ({ ...p, audio: st.index }))}>
-                {formatAudioTrackLabel(st, t("media.track", { number: st.index }))}
-              </Button>
-            ))}
+
+      <div className="detail-body">
+        <FocusRoot focusKey={ACTIONS_KEY} className="detail-actions">
+          <div className="play-group">
+            <Pressable
+              className={`tv-card play-btn ${hasProgress ? "left" : ""}`}
+              autoFocus
+              label={hasProgress ? `${t("media.resume", "Resume")} ${formatTimeMs(resumeMs)}` : t("player.controls.play")}
+              onPress={() => play(false)}
+            >
+              {hasProgress ? `${t("media.resume", "Resume")} ${formatTimeMs(resumeMs)}` : t("player.controls.play")}
+            </Pressable>
+            {hasProgress ? (
+              <Pressable className="tv-card play-restart" label={t("media.playFromStart", "Play from the beginning")} onPress={() => play(true)}>
+                <Icon name="refresh" size={26} />
+              </Pressable>
+            ) : null}
           </div>
-          <h2 className="row-title">{t("media.streams.subtitles")}</h2>
-          <div className="chips">
-            <Button variant={trackPick.subtitle === undefined ? "primary" : "default"} onPress={() => setTrackPick((p) => ({ ...p, subtitle: undefined }))}>{t("media.streams.auto")}</Button>
-            <Button variant={trackPick.subtitle === "off" ? "primary" : "default"} onPress={() => setTrackPick((p) => ({ ...p, subtitle: "off" }))}>{t("media.streams.none")}</Button>
-            {subtitleStreams.map((st) => (
-              <Button key={st.index} variant={trackPick.subtitle === st.index ? "primary" : "default"} onPress={() => setTrackPick((p) => ({ ...p, subtitle: st.index }))}>
-                {`${trackDisplayName(st, t("media.track", { number: st.index }))}${st.isForced ? ` - ${t("media.streams.forced")}` : ""}`}
-              </Button>
-            ))}
-          </div>
+          {action("fav", isFavorite ? t("media.detail.favorited") : t("media.detail.favorite"), () => toggleFavorite.mutate(), !!isFavorite, toggleFavorite.isPending)}
+          {action(
+            "watched",
+            watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched"),
+            () => {
+              if (!profileId) return;
+              (watched ? markUnwatched : markWatched).mutate({ mediaItemId: mediaId, params: { profileId } });
+            },
+            watched,
+            markWatched.isPending || markUnwatched.isPending,
+          )}
+          {action("playlist", t("media.detail.addToPlaylist"), () => setPlaylistOpen(true))}
+          {action("like", t("media.rating.like", "Like"), () => setThumb.mutate(myRating === 1 ? 0 : 1), myRating === 1, thumbsBusy)}
+          {action("dislike", t("media.rating.dislike", "Dislike"), () => setThumb.mutate(myRating === -1 ? 0 : -1), myRating === -1, thumbsBusy)}
+          {trailer ? action("trailer", t("media.detail.trailer"), () => { window.open(trailer, "_blank", "noopener"); }) : null}
         </FocusRoot>
-      ) : null}
-      {isSeries(item) ? <Children parentId={mediaId} type="MEDIA_ITEM_TYPE_SEASON" title={t("media.detail.seasons", "Seasons")} /> : null}
-      {isSeason(item) ? <Children parentId={mediaId} type="MEDIA_ITEM_TYPE_EPISODE" title={t("media.detail.episodes", "Episodes")} /> : null}
-      <People people={actors} title={t("media.detail.cast", "Cast")} />
-      <People people={crew} title={t("media.detail.crew", "Crew")} />
-      {similar.length > 0 ? (
-        <FocusRoot>
-          <h2 className="row-title">{t("media.detail.similarTitles")}</h2>
-          <div className="row">
-            {similar.map((sim) => (
-              <Card key={sim.mediaItemId} title={sim.title ?? ""} imageUrl={posterSrc(sim.mediaItemId)} onPress={() => navigate({ name: "media", mediaId: sim.mediaItemId! })} />
-            ))}
-          </div>
-        </FocusRoot>
-      ) : null}
-      <div className="plugin-row">
-        <PluginSlot name="media.detail.sidebar" context={{ mediaId, mediaType: item.type }} />
+
+        {media.streams && media.id === playTarget ? <TrackPickRow streams={media.streams} pick={trackPick} onChange={setTrackPick} /> : null}
+
+        {media.overview ? <p className="detail-overview">{media.overview}</p> : null}
+
+        {isSeries && seasons.length > 0 ? (
+          <Section title={t("media.detail.seasons")} count={t("media.detail.seasonCount", { count: seasons.length })}>
+            <div className="shelf">
+              {seasons.map((s) => (
+                <Pressable key={s.id} className="tv-card shelf-card" label={seasonLabel(s, t)} onPress={() => s.id && navigate({ name: "media", mediaId: s.id })}>
+                  <span className="poster" style={{ width: `${seasonW}rem`, height: `${seasonW * POSTER_RATIO}rem` }}>
+                    <img src={posterSrc(s.id, "poster", CARD_WIDTH_GRID * 2)} alt="" loading="lazy" />
+                  </span>
+                  <span className="shelf-label big" style={{ width: `${seasonW}rem` }}>{seasonLabel(s, t)}</span>
+                </Pressable>
+              ))}
+            </div>
+          </Section>
+        ) : null}
+
+        {isSeason && episodes.length > 0 ? (
+          <Section title={t("media.detail.episodes")} count={t("media.detail.episodeCount", { count: episodes.length })}>
+            <div className="episode-list">
+              {episodes.slice(0, visibleEpisodes).map((ep) => (
+                <Pressable
+                  key={ep.id}
+                  className="tv-card episode-row"
+                  label={ep.indexNumber != null ? `${ep.indexNumber}. ${ep.title}` : ep.title}
+                  onPress={() => ep.id && navigate({ name: "media", mediaId: ep.id })}
+                >
+                  <span className="episode-thumb" style={{ width: `${EPISODE_THUMB_WIDTH / 10}rem`, height: `${(EPISODE_THUMB_WIDTH * 9) / 160}rem` }}>
+                    <img src={posterSrc(ep.id, "backdrop", EPISODE_THUMB_WIDTH * 2)} alt="" loading="lazy" />
+                  </span>
+                  <span className="episode-text">
+                    <span className="episode-title">{ep.indexNumber != null ? `${ep.indexNumber}. ` : ""}{ep.title}</span>
+                    {ep.durationMs ? <span className="episode-meta">{formatDurationMs(ep.durationMs)}</span> : null}
+                    {ep.overview ? <span className="episode-overview">{ep.overview}</span> : null}
+                  </span>
+                </Pressable>
+              ))}
+              {episodes.length > visibleEpisodes ? (
+                <Pressable className="tv-card episode-row more" onPress={() => setVisibleEpisodes((c) => c + EPISODE_PAGE_SIZE)}>
+                  {t("media.detail.showMoreEpisodes", "Show more")}
+                </Pressable>
+              ) : null}
+            </div>
+          </Section>
+        ) : null}
+
+        <PeopleShelf title={t("media.detail.cast")} people={actors} />
+        <PeopleShelf title={t("media.detail.crew")} people={crew} crew />
+        {media.id ? <SagaSection mediaItemId={media.id} /> : null}
+        {!isSeason ? <SimilarShelf item={media} /> : null}
+        <PluginSlot name="media.detail.sidebar" context={{ mediaId: media.id }} />
       </div>
-      {playlistOpen ? <AddToPlaylist mediaId={mediaId} mediaType={item.type} onClose={() => setPlaylistOpen(false)} /> : null}
+
+      {playlistOpen ? <AddToPlaylistSheet mediaItemId={mediaId} mediaType={media.type} onClose={() => setPlaylistOpen(false)} /> : null}
+      {pendingPlay && gateProfileId ? (
+        <ParentalPINModal
+          profileId={gateProfileId}
+          onClose={() => setPendingPlay(null)}
+          onVerified={() => { const p = pendingPlay; setPendingPlay(null); openPlayer(p.id, p.restart); }}
+        />
+      ) : null}
     </FocusRoot>
   );
 }

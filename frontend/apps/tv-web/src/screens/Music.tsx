@@ -1,132 +1,249 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  formatTime,
   getBaseURL,
   useLibraryServiceListLibraries,
   useMusicServiceGetAlbums,
   useMusicServiceGetArtists,
   useMusicServiceListTracks,
-  type V1MusicAlbum,
   type V1Track,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { coverArtUri } from "@evey/client";
+import { CARD_WIDTH_GRID, coverArtUri } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
-import { Button, Card, Spinner } from "../components/ui";
+import { Pressable, Spinner } from "../components/ui";
+import { Icon } from "../components/icons";
+import { ScreenState } from "../components/ScreenState";
+import { StackHeader } from "../components/StackHeader";
 import { navigate } from "../app/router";
 import { useMusicQueueStore, trackToQueueTrack } from "../music/queue";
 
 const TRACKS_LIMIT = 100;
+const ART = CARD_WIDTH_GRID / 10;
+const ALBUM_ART = 16;
 
 function art(url: string | undefined, width: number): string | undefined {
-  const token = useAuthStore.getState().accessToken;
   if (!url) return undefined;
+  const token = useAuthStore.getState().accessToken;
   const withToken = token ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}` : url;
   return coverArtUri(getBaseURL(), withToken, width);
 }
 
-// The music library: artists, albums and tracks of the chosen library as
-// rows, the way the Android TV lays it out. An album opens its page; a
-// track starts the whole row as the queue from that track.
+function useCurrentTrackId(): string | undefined {
+  const currentIndex = useMusicQueueStore((s) => s.currentIndex);
+  const queue = useMusicQueueStore((s) => s.queue);
+  return currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex].id : undefined;
+}
+
+function ArtCard({ title, subtitle, uri, round, playing, initial, autoFocus, onPress }: {
+  title: string;
+  subtitle: string;
+  uri?: string;
+  round?: boolean;
+  playing?: boolean;
+  initial?: string;
+  autoFocus?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable className="tv-card music-card" autoFocus={autoFocus} label={title} onPress={onPress}>
+      <span className={`music-art ${round ? "round" : ""} ${playing ? "playing" : ""}`} style={{ width: `${ART}rem`, height: `${ART}rem` }}>
+        {uri ? <img src={uri} alt="" loading="lazy" /> : initial ? <span className="music-initial">{initial}</span> : <Icon name="musical-notes" size={40} />}
+      </span>
+      <span className={`music-card-title ${playing ? "accent" : ""}`}>{title || "-"}</span>
+      <span className="music-card-sub">{subtitle || "-"}</span>
+    </Pressable>
+  );
+}
+
+function Section({ title, loading, error, onRetry, empty, emptyLabel, children }: {
+  title: string;
+  loading: boolean;
+  error: boolean;
+  onRetry: () => void;
+  empty: boolean;
+  emptyLabel: string;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation();
+  return (
+    <FocusRoot className="music-section">
+      <h2 className="music-row-title">{title}</h2>
+      {loading ? (
+        <div className="music-row-note"><Spinner /></div>
+      ) : error ? (
+        <div className="music-row-note">
+          <span className="muted">{t("common.loadError")}</span>
+          <Pressable className="tv-card music-retry" onPress={onRetry}>{t("common.retry")}</Pressable>
+        </div>
+      ) : empty ? (
+        <p className="music-row-note muted">{emptyLabel}</p>
+      ) : (
+        <div className="music-row">{children}</div>
+      )}
+    </FocusRoot>
+  );
+}
+
+// The Music tab: artists, albums and tracks of the chosen library as rows. The
+// first row that has something takes the remote.
 export function MusicScreen({ libraryId }: { libraryId?: string }) {
   const { t } = useTranslation();
-  const { data: libs, isLoading: libsLoading } = useLibraryServiceListLibraries();
-  const musicLibs = (libs?.libraries ?? []).filter((l) => l.type === "LIBRARY_TYPE_MUSIC" && l.id);
+  const libs = useLibraryServiceListLibraries({
+    query: { select: (d) => (d.libraries ?? []).filter((l) => l.type === "LIBRARY_TYPE_MUSIC"), staleTime: 60_000 },
+  });
   const [chosen, setChosen] = useState<string | undefined>(libraryId);
-  const activeId = chosen ?? musicLibs[0]?.id;
+  const activeId = chosen ?? libs.data?.[0]?.id;
+  const lib = activeId ?? "";
   const setQueue = useMusicQueueStore((s) => s.setQueue);
+  const currentTrackId = useCurrentTrackId();
 
-  const { data: artists } = useMusicServiceGetArtists({ libraryId: activeId }, { query: { enabled: !!activeId, select: (d) => d.artists ?? [] } });
-  const { data: albums } = useMusicServiceGetAlbums({ libraryId: activeId }, { query: { enabled: !!activeId, select: (d) => d.albums ?? [] } });
-  const { data: tracks } = useMusicServiceListTracks({ libraryId: activeId, limit: TRACKS_LIMIT }, { query: { enabled: !!activeId, select: (d) => d.tracks ?? [] } });
+  const artists = useMusicServiceGetArtists({ libraryId: activeId }, { query: { enabled: !!activeId, select: (d) => d.artists ?? [] } });
+  const albums = useMusicServiceGetAlbums({ libraryId: activeId }, { query: { enabled: !!activeId, select: (d) => d.albums ?? [] } });
+  const tracks = useMusicServiceListTracks({ libraryId: activeId, limit: TRACKS_LIMIT }, { query: { enabled: !!activeId, select: (d) => d.tracks ?? [] } });
 
-  if (libsLoading) return <div className="screen screen-center"><Spinner /></div>;
-  if (musicLibs.length === 0) return <div className="screen screen-center"><p className="muted">{t("media.music.noMusicLibraries", "No music libraries")}</p></div>;
+  if (libs.isLoading || libs.isError) return <ScreenState loading={libs.isLoading} error={libs.isError} onRetry={() => void libs.refetch()} />;
+  const musicLibs = libs.data ?? [];
+  if (musicLibs.length === 0) return <div className="center-fill"><p className="muted big">{t("media.music.noLibraries")}</p></div>;
 
-  const playTracks = (list: V1Track[], index: number) => setQueue(list.map(trackToQueueTrack), index);
+  const artistList = artists.data ?? [];
+  const albumList = albums.data ?? [];
+  const trackList = tracks.data ?? [];
+  const focusSection = [artistList.length, albumList.length, trackList.length].findIndex((n) => n > 0);
 
   return (
-    <div className="screen">
-      <FocusRoot autoFocus className="header">
-        <h1 className="title">{t("common.nav.music", "Music")}</h1>
-        <div className="actions">
-          {musicLibs.map((l, i) => (
-            <Button key={l.id} autoFocus={i === 0} variant={l.id === activeId ? "primary" : "default"} onPress={() => setChosen(l.id)}>{l.name}</Button>
+    <FocusRoot autoFocus className="tab-page music-page">
+      <h1 className="tab-title music-title">{t("media.music.title")}</h1>
+      {musicLibs.length > 1 ? (
+        <FocusRoot className="music-libs">
+          {musicLibs.map((l) => (
+            <Pressable key={l.id} className={`tv-card music-lib ${l.id === activeId ? "active" : ""}`} label={l.name} onPress={() => setChosen(l.id)}>{l.name}</Pressable>
           ))}
-        </div>
-      </FocusRoot>
-      {artists && artists.length > 0 ? (
-        <FocusRoot>
-          <h2 className="row-title">{t("media.music.artists", "Artists")}</h2>
-          <div className="row">
-            {artists.map((a) => (
-              <Card key={a.id} title={a.name ?? ""} imageUrl={art(a.coverArtUrl, 400)} onPress={() => a.id && navigate({ name: "artist", artistId: a.id, libraryId: activeId })} />
-            ))}
-          </div>
         </FocusRoot>
       ) : null}
-      {albums && albums.length > 0 ? (
-        <FocusRoot>
-          <h2 className="row-title">{t("media.music.albums", "Albums")}</h2>
-          <div className="row">
-            {albums.map((a: V1MusicAlbum) => (
-              <Card key={a.id} title={`${a.title ?? ""}${a.artist ? ` · ${a.artist}` : ""}`} imageUrl={art(a.coverArtUrl, 400)} onPress={() => a.id && navigate({ name: "album", albumId: a.id, libraryId: activeId })} />
-            ))}
+      <Section title={t("media.music.artists")} loading={artists.isLoading} error={artists.isError} onRetry={() => void artists.refetch()} empty={artistList.length === 0} emptyLabel={t("media.music.noArtists")}>
+        {artistList.map((a, i) => (
+          <ArtCard
+            key={a.id}
+            round
+            title={a.name ?? ""}
+            subtitle={`${a.albumCount ?? 0} · ${a.trackCount ?? 0}`}
+            uri={art(a.coverArtUrl, CARD_WIDTH_GRID * 2)}
+            initial={a.name?.[0]?.toUpperCase() ?? "?"}
+            autoFocus={i === 0 && focusSection === 0}
+            onPress={() => a.id && navigate({ name: "artist", artistId: a.id, libraryId: lib })}
+          />
+        ))}
+      </Section>
+      <Section title={t("media.music.albums")} loading={albums.isLoading} error={albums.isError} onRetry={() => void albums.refetch()} empty={albumList.length === 0} emptyLabel={t("media.music.noAlbums")}>
+        {albumList.map((a, i) => (
+          <ArtCard
+            key={a.id}
+            title={a.title ?? ""}
+            subtitle={a.artist ?? ""}
+            uri={art(a.coverArtUrl, CARD_WIDTH_GRID * 2)}
+            autoFocus={i === 0 && focusSection === 1}
+            onPress={() => a.id && navigate({ name: "album", albumId: a.id, libraryId: lib })}
+          />
+        ))}
+      </Section>
+      <Section title={t("media.music.tracks")} loading={tracks.isLoading} error={tracks.isError} onRetry={() => void tracks.refetch()} empty={trackList.length === 0} emptyLabel={t("media.music.noTracks")}>
+        {trackList.map((tr, i) => (
+          <ArtCard
+            key={tr.id}
+            title={tr.title ?? ""}
+            subtitle={tr.artist ?? ""}
+            uri={art(tr.coverArtUrl, CARD_WIDTH_GRID * 2)}
+            playing={!!tr.id && tr.id === currentTrackId}
+            autoFocus={i === 0 && focusSection === 2}
+            onPress={() => setQueue(trackList.map(trackToQueueTrack), i)}
+          />
+        ))}
+      </Section>
+    </FocusRoot>
+  );
+}
+
+/** An album: its art and names, then the tracks; OK starts the album there. */
+export function AlbumScreen({ albumId, libraryId }: { albumId: string; libraryId?: string }) {
+  const { t } = useTranslation();
+  const setQueue = useMusicQueueStore((s) => s.setQueue);
+  const currentTrackId = useCurrentTrackId();
+  const { data, isLoading, isError, refetch } = useMusicServiceListTracks(
+    { libraryId, albumId },
+    { query: { enabled: !!libraryId && !!albumId, select: (d) => d.tracks ?? [] } },
+  );
+  const items: V1Track[] = data ?? [];
+  const title = items[0]?.album || albumId;
+  const cover = art(items[0]?.coverArtUrl, ALBUM_ART * 20);
+  return (
+    <div className="deep-page">
+      <StackHeader title={title} />
+      {isLoading || isError ? (
+        <ScreenState loading={isLoading} error={isError} onRetry={() => void refetch()} />
+      ) : (
+        <FocusRoot autoFocus className="library-body album-body">
+          <div className="album-head">
+            <span className="music-art" style={{ width: `${ALBUM_ART}rem`, height: `${ALBUM_ART}rem` }}>
+              {cover ? <img src={cover} alt="" /> : <Icon name="musical-notes" size={48} />}
+            </span>
+            <div className="album-names">
+              <h1 className="album-title">{title}</h1>
+              <p className="album-artist">{items[0]?.artist ?? ""}</p>
+            </div>
           </div>
+          {items.length === 0 ? <div className="center-fill pad-top"><p className="muted big">{t("media.music.noTracks")}</p></div> : null}
+          {items.map((tr, i) => {
+            const playing = !!tr.id && tr.id === currentTrackId;
+            return (
+              <Pressable key={tr.id} className="tv-card album-track" autoFocus={i === 0} label={tr.title} onPress={() => setQueue(items.map(trackToQueueTrack), i)}>
+                <span className="album-track-no">{tr.trackNumber || i + 1}</span>
+                <span className="album-track-text">
+                  <span className={`album-track-title ${playing ? "accent" : ""}`}>{tr.title || "-"}</span>
+                  <span className="album-track-artist">{tr.artist || "-"}</span>
+                </span>
+                {tr.duration ? <span className="album-track-time">{formatTime(tr.duration)}</span> : null}
+              </Pressable>
+            );
+          })}
         </FocusRoot>
-      ) : null}
-      {tracks && tracks.length > 0 ? (
-        <FocusRoot>
-          <h2 className="row-title">{t("media.music.tracks", "Tracks")}</h2>
-          <div className="row">
-            {tracks.map((tr, i) => (
-              <Card key={tr.id} title={`${tr.title ?? ""}${tr.artist ? ` · ${tr.artist}` : ""}`} imageUrl={art(tr.coverArtUrl, 400)} onPress={() => playTracks(tracks, i)} />
-            ))}
-          </div>
-        </FocusRoot>
-      ) : null}
+      )}
     </div>
   );
 }
 
-// An album, or an artist's albums: the tracks in order, OK on one starts
-// the album from there.
-export function AlbumScreen({ albumId, artistId, libraryId }: { albumId?: string; artistId?: string; libraryId?: string }) {
+/** An artist: their albums as a grid (the artist id is the display name). */
+export function ArtistScreen({ artistId, libraryId }: { artistId: string; libraryId?: string }) {
   const { t } = useTranslation();
-  const setQueue = useMusicQueueStore((s) => s.setQueue);
-  const currentIndex = useMusicQueueStore((s) => s.currentIndex);
-  const queue = useMusicQueueStore((s) => s.queue);
-  const currentId = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex].id : undefined;
-  const { data: tracks, isLoading } = useMusicServiceListTracks(
-    { libraryId, albumId, limit: 500 },
-    { query: { enabled: !!libraryId, select: (d) => (d.tracks ?? []).filter((tr) => !artistId || tr.artist === artistId || tr.albumArtist === artistId) } },
+  const { data, isLoading, isError, refetch } = useMusicServiceGetAlbums(
+    { libraryId },
+    { query: { enabled: !!libraryId, select: (d) => (d.albums ?? []).filter((a) => a.artist === artistId) } },
   );
-  if (isLoading) return <div className="screen screen-center"><Spinner /></div>;
-  const list = (tracks ?? []).slice().sort((a, b) => (a.diskNumber ?? 0) - (b.diskNumber ?? 0) || (a.trackNumber ?? 0) - (b.trackNumber ?? 0));
-  const first = list[0];
-  const title = albumId ? first?.album ?? albumId : artistId ?? "";
-  const subtitle = albumId ? first?.artist ?? "" : "";
+  const items = data ?? [];
   return (
-    <div className="screen">
-      <div className="hero">
-        {first?.coverArtUrl ? <img src={art(first.coverArtUrl, 600)} alt="" /> : <div className="hero-placeholder">♪</div>}
-        <div>
-          <h1 className="title">{title}</h1>
-          {subtitle ? <p className="muted">{subtitle}</p> : null}
-          <p className="muted">{t("media.music.trackCount", { count: list.length, defaultValue: `${list.length} tracks` })}</p>
-        </div>
-      </div>
-      <FocusRoot autoFocus>
-        <div className="track-list">
-          {list.map((tr, i) => (
-            <Button key={tr.id} autoFocus={i === 0} variant={tr.id === currentId ? "primary" : "default"} onPress={() => setQueue(list.map(trackToQueueTrack), i)}>
-              <span className="track-no">{tr.trackNumber ?? i + 1}</span>
-              <span className="track-title">{tr.title}</span>
-              <span className="muted">{tr.duration ? `${Math.floor(tr.duration / 60)}:${String(Math.floor(tr.duration % 60)).padStart(2, "0")}` : ""}</span>
-            </Button>
-          ))}
-        </div>
-      </FocusRoot>
+    <div className="deep-page">
+      <StackHeader title={artistId} />
+      {isLoading || isError ? (
+        <ScreenState loading={isLoading} error={isError} onRetry={() => void refetch()} />
+      ) : items.length === 0 ? (
+        <div className="center-fill pad-top"><p className="muted big">{t("media.music.noAlbums")}</p></div>
+      ) : (
+        <FocusRoot autoFocus grid className="library-body library-grid-wrap">
+          <div className="grid library-grid">
+            {items.map((a, i) => (
+              <ArtCard
+                key={a.id}
+                title={a.title ?? ""}
+                subtitle={a.year ? String(a.year) : ""}
+                uri={art(a.coverArtUrl, CARD_WIDTH_GRID * 2)}
+                autoFocus={i === 0}
+                onPress={() => a.id && navigate({ name: "album", albumId: a.id, libraryId })}
+              />
+            ))}
+          </div>
+        </FocusRoot>
+      )}
     </div>
   );
 }

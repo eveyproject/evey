@@ -8,8 +8,8 @@ export type Route =
   | { name: "server" }
   | { name: "login" }
   | { name: "quickconnect" }
-  | { name: "profiles" }
-  | { name: "home" }
+  | { name: "profiles"; pick?: boolean }
+  | { name: "home"; customize?: boolean }
   | { name: "library"; libraryId: string }
   | { name: "media"; mediaId: string }
   | { name: "player"; mediaId: string; restart?: boolean; audio?: number; subtitle?: number | "off"; roomId?: string }
@@ -80,6 +80,10 @@ export function routeToHash(route: Route): string {
       const s = q.toString();
       return `#/player/${encodeURIComponent(route.mediaId)}${s ? `?${s}` : ""}`;
     }
+    case "home":
+      return route.customize ? "#/home?customize=1" : "#/home";
+    case "profiles":
+      return route.pick ? "#/profiles?pick=1" : "#/profiles";
     default:
       return `#/${route.name}`;
   }
@@ -97,7 +101,7 @@ export function parseHash(hash: string): Route {
     case "quickconnect":
       return { name: "quickconnect" };
     case "profiles":
-      return { name: "profiles" };
+      return params.get("pick") === "1" ? { name: "profiles", pick: true } : { name: "profiles" };
     case "settings":
       return { name: "settings" };
     case "search":
@@ -160,6 +164,8 @@ export function parseHash(hash: string): Route {
       return { name: "playback" };
     case "plugin-settings":
       return parts[1] ? { name: "plugin-settings", pluginId: parts[1] } : { name: "settings" };
+    case "home":
+      return params.get("customize") === "1" ? { name: "home", customize: true } : { name: "home" };
     default:
       return { name: "home" };
   }

@@ -1,8 +1,9 @@
 import { Component, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { resolveSlotEntries, usePluginList } from "@evey/client";
+import { homeWidgetBudget, resolveSlotEntries, usePluginList } from "@evey/client";
 import { PluginIframe } from "@evey/client/web";
 import { navigate, parseHash } from "../app/router";
+import { dpPx } from "../lib/uiScale";
 
 class PluginErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
@@ -11,8 +12,8 @@ class PluginErrorBoundary extends Component<{ children: ReactNode }, { hasError:
 }
 
 /**
- * A plugin's module on this screen, in the same iframe host the browser app
- * uses. A plugin asking to navigate goes through the hash router here.
+ * A plugin's module on this screen, in the browser app's iframe host. A plugin
+ * asking to navigate goes through the hash router here.
  */
 export function PluginSlot({ name, context, pluginId, excludeRegistered }: {
   name: string;
@@ -28,6 +29,11 @@ export function PluginSlot({ name, context, pluginId, excludeRegistered }: {
   if (isError) return <p className="muted">{t("admin.plugin.frontLoadError")}</p>;
   if (matches.length === 0) return null;
 
+  // Laid out as on the Android television: the TV surface, one plugin pixel
+  // per dp, and the home widget given the room that keeps the first row whole.
+  const scale = dpPx();
+  const suggestedHeight = name === "home.section" ? homeWidgetBudget(window.innerHeight / scale) : undefined;
+
   return (
     <>
       {matches.map((m) => (
@@ -39,6 +45,9 @@ export function PluginSlot({ name, context, pluginId, excludeRegistered }: {
             externalFetch={m.externalFetch}
             context={context}
             onNavigate={(path) => navigate(parseHash(`#${path}`))}
+            surface="tv"
+            suggestedHeight={suggestedHeight}
+            pixelScale={scale}
           />
         </PluginErrorBoundary>
       ))}

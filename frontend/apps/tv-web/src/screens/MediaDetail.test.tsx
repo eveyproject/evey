@@ -8,13 +8,19 @@ const markWatched = vi.fn();
 const markUnwatched = vi.fn();
 const toggleFavorite = vi.fn();
 
+const needsPin = vi.fn(() => false);
+
 vi.mock("../tv/focus", () => ({
   useArrivalFocus: () => {},
+  useBackHandler: () => {},
   FocusRoot: ({ children, className }: any) => <div className={className}>{children}</div>,
   useFocusable: () => ({ ref: { current: null }, focused: false, focusSelf: () => {} }),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
-vi.mock("../app/router", () => ({ navigate: (...a: unknown[]) => navigateMock(...a) }));
+vi.mock("../app/router", () => ({ navigate: (...a: unknown[]) => navigateMock(...a), replace: vi.fn(), goBack: vi.fn() }));
+vi.mock("../components/ParentalPINModal", () => ({
+  ParentalPINModal: ({ onVerified }: any) => <button type="button" onClick={() => onVerified()}>pin-modal</button>,
+}));
 vi.mock("../plugins/PluginSlot", () => ({ PluginSlot: () => null }));
 const authState = { profileId: "prf-1", accessToken: "t" };
 vi.mock("@evey/store", () => ({
@@ -39,6 +45,8 @@ vi.mock("@evey/client", async (importOriginal) => ({
   useIsWatched: () => false,
   usePlaylistList: () => ({ data: [] }),
   useAddToPlaylist: () => ({ mutate: vi.fn() }),
+  useMediaItemCollections: () => ({ data: { collections: [] } }),
+  useParentalGate: () => ({ needsPin, profileId: "prf-1", settingsLoading: false }),
 }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
@@ -55,12 +63,13 @@ beforeEach(() => {
   navigateMock.mockReset();
   getMediaItem.mockReturnValue({ data: MOVIE, isLoading: false, isError: false });
   listMediaItems.mockReturnValue({ data: { items: [] } });
+  needsPin.mockReturnValue(false);
 });
 
 describe("the title page", () => {
   it("plays the title itself for a film", () => {
     render(<MediaDetailScreen mediaId="m-1" />);
-    fireEvent.click(screen.getByText("common.play"));
+    fireEvent.click(screen.getByText("player.controls.play"));
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ name: "player", mediaId: "m-1" }));
   });
 
@@ -76,7 +85,7 @@ describe("the title page", () => {
       ] } };
     });
     render(<MediaDetailScreen mediaId="s-1" />);
-    fireEvent.click(screen.getByText("common.play"));
+    fireEvent.click(screen.getByText("player.controls.play"));
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ name: "player", mediaId: "ep-1" }));
   });
 
@@ -96,17 +105,26 @@ describe("the title page", () => {
     render(<MediaDetailScreen mediaId="m-1" />);
     fireEvent.click(screen.getByText("fra - 2.0"));
     fireEvent.click(screen.getByText("fra"));
-    fireEvent.click(screen.getByText("common.play"));
+    fireEvent.click(screen.getByText("player.controls.play"));
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ name: "player", mediaId: "m-1", audio: 2, subtitle: 3 }));
   });
 
-  // Measured in prod on 2026-09-23: the thumbs were emoji and painted as two
-  // empty boxes on a browser without a colour-emoji font.
-  it("draws the thumbs, and names them, without an emoji font", () => {
+  // The thumbs were emoji, two empty boxes on a browser without a colour-emoji
+  // font (prod, 2026-09-23); the Android television names them in words.
+  it("names the thumbs in words, with no emoji", () => {
     const { container } = render(<MediaDetailScreen mediaId="m-1" />);
     expect(container.textContent).not.toMatch(/[\u{1F44D}\u{1F44E}]/u);
-    expect(screen.getByLabelText("media.rating.like").querySelector("svg")).toBeTruthy();
-    expect(screen.getByLabelText("media.rating.dislike").querySelector("svg")).toBeTruthy();
+    expect(screen.getByText("media.rating.like")).toBeTruthy();
+    expect(screen.getByText("media.rating.dislike")).toBeTruthy();
+  });
+
+  it("asks for the parental PIN before a restricted title plays", () => {
+    needsPin.mockReturnValue(true);
+    render(<MediaDetailScreen mediaId="m-1" />);
+    fireEvent.click(screen.getByText("player.controls.play"));
+    expect(navigateMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("pin-modal"));
+    expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ name: "player", mediaId: "m-1" }));
   });
 
   it("marks watched against the profile in front of the viewer", () => {

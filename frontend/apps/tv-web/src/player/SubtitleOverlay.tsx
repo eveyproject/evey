@@ -57,7 +57,7 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: 
         color: chosen.color,
         fontSize: `${subtitleCueFontSizePx(window.innerHeight, chosen.fontSize)}px`,
         background: subtitleBgRgba(chosen.bgColor, chosen.bgOpacity),
-        textShadow: chosen.shadow ? "0 0.15vw 0.4vw #000" : undefined,
+        textShadow: chosen.shadow ? "0 0.144rem 0.384rem #000" : undefined,
         ...(chosen.position === "top" ? { top: "8%", bottom: "auto" } : {}),
       }}
     >
