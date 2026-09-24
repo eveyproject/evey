@@ -286,11 +286,15 @@ func ProfileFingerprintOf(p transcoding.HLSProfile) ProfileFingerprint {
 type AudioFingerprint struct {
 	// Grid is the video's segmentation the rendition cuts on (see
 	// DecisionFingerprint.Grid); hashed when exact.
-	Grid           transcoding.SegmentGrid
-	MediaID        string
-	SourcePath     string
-	SourceTrackIdx int
-	AudioCodec     string
+	Grid transcoding.SegmentGrid
+	// SourceAudioCodec is the source track's codec when the rendition copies
+	// it (AudioCodec "copy"): what the builder needs to re-frame ADTS AAC out
+	// of an MPEG-TS. Not hashed - the media and the track already name it.
+	SourceAudioCodec string
+	MediaID          string
+	SourcePath       string
+	SourceTrackIdx   int
+	AudioCodec       string
 	// AudioEncoder is the concrete ffmpeg AAC implementation these bytes were
 	// made with - see HLSProcessOpts.AudioEncoder. Hashed only when it is not
 	// the native encoder, so existing caches stay valid where nothing changed.

@@ -309,8 +309,32 @@ func audioOutputArgsSingle(opts transcoding.HLSProcessOpts, bitrateKbps int64) [
 		a = append(a, audioFilterArgs("-filter:a:0", opts)...)
 	} else {
 		a = append(a, "-c:a", "copy")
+		a = append(a, adtsReframeArgs(opts.AudioCodec, opts.FilePath)...)
 	}
 	return a
+}
+
+// adtsReframeArgs re-frames an AAC track copied out of an MPEG-TS: there it
+// is ADTS-framed, and the fMP4 muxer refuses ADTS frames outright (measured
+// on ffmpeg 7.1: "Terminating thread with return code -1 (Operation not
+// permitted)" on the first segment, the rendition died at every request).
+// The filter is a no-op on raw AAC and errors on any other codec, so it is
+// scoped to both facts. codec is the SOURCE track's ("aac"); a re-encode
+// never reaches here.
+func adtsReframeArgs(codec, path string) []string {
+	if !strings.EqualFold(codec, "aac") || !isMPEGTSPath(path) {
+		return nil
+	}
+	return []string{"-bsf:a", "aac_adtstoasc"}
+}
+
+// isMPEGTSPath recognises an MPEG transport stream by its extension.
+func isMPEGTSPath(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".ts", ".m2ts", ".mts":
+		return true
+	}
+	return false
 }
 
 // audioVariantArgs returns the per-variant audio map + transcode args for the
@@ -792,6 +816,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 			args = append(args, audioFilterArgs("-af", opts)...)
 		} else {
 			args = append(args, "-c:a", "copy")
+			args = append(args, adtsReframeArgs(opts.AudioCodec, opts.FilePath)...)
 		}
 	}
 

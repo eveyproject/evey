@@ -77,6 +77,9 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 
 	encoder := resolveAudioEncoder(opts.AudioCodec, opts.AudioEncoder)
 	args = append(args, "-c:a", encoder)
+	if encoder == "copy" {
+		args = append(args, adtsReframeArgs(opts.SourceAudioCodec, opts.FilePath)...)
+	}
 
 	// Passthrough (wasm-audio path): the coded AC-3/E-AC-3 samples are muxed into
 	// fMP4 VERBATIM for a client that decodes them itself (ac3go wasm). ffmpeg

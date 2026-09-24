@@ -352,6 +352,7 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 			SourcePath:            item.File.Path,
 			SourceTrackIdx:        trackIdx,
 			AudioCodec:            "copy",
+			SourceAudioCodec:      strings.ToLower(copyCodec),
 			VideoCompositionDelay: videoCompositionDelay,
 			SourceDurationSec:     durationSec,
 		}
@@ -359,11 +360,12 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 	if h.wasmAudio(r) {
 		if c := strings.ToLower(h.sourceAudioCodecForTrack(r.Context(), mediaID, trackIdx)); c == "ac3" || c == "eac3" {
 			return apptranscoding.AudioFingerprint{
-				Grid:           grid,
-				MediaID:        mediaID,
-				SourcePath:     item.File.Path,
-				SourceTrackIdx: trackIdx,
-				AudioCodec:     "copy",
+				Grid:             grid,
+				MediaID:          mediaID,
+				SourcePath:       item.File.Path,
+				SourceTrackIdx:   trackIdx,
+				AudioCodec:       "copy",
+				SourceAudioCodec: c,
 				// The shift is the video MUXER's, not the codec's: a passthrough
 				// rendition rides the same timeline as an AAC one.
 				VideoCompositionDelay: videoCompositionDelay,
