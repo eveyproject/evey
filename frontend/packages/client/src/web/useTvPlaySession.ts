@@ -11,6 +11,7 @@ import { firstStartMs } from "../lib/resumePosition";
 import { getBrowserCapabilities } from "./codec";
 import { appendCodecParams } from "./hlsCodecParams";
 import type { PlaySessionDevice } from "./usePlaySession";
+import { isShedCode, type ShedReason } from "../lib/shed";
 
 // The television-browser play session: the same shape as the Android TV
 // one (apps/tv/src/hooks/usePlaySession.ts) so the player screen can be
@@ -19,7 +20,7 @@ import type { PlaySessionDevice } from "./usePlaySession";
 // picks, and the transcoder's "not now" answers surfaced as a reason rather
 // than a dead player.
 
-export type ShedReason = "too_many_streams" | "file_not_ready" | "calibrating" | "file_needs_remux" | null;
+export type { ShedReason };
 
 export interface TvPlaySessionResult {
   streamUrl: string | null;
@@ -41,12 +42,11 @@ async function detectShed(url: string, token: string | null): Promise<ShedReason
   try {
     const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
     if (res.status !== 503) return null;
-    const known = new Set(["too_many_streams", "file_not_ready", "calibrating", "file_needs_remux"]);
     const header = res.headers.get("X-Evey-Error");
-    if (header && known.has(header)) return header as ShedReason;
+    if (isShedCode(header)) return header;
     try {
       const body = (await res.json()) as { code?: string };
-      if (body.code && known.has(body.code)) return body.code as ShedReason;
+      if (isShedCode(body.code)) return body.code;
     } catch { /* no body */ }
     return "too_many_streams";
   } catch {

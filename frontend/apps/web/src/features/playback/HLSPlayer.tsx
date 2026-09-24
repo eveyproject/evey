@@ -56,7 +56,7 @@ import { useOverlayTime } from "./hooks/useOverlayTime";
 import { useCasting } from "@/hooks/useCasting";
 import { useRemotePlayback } from "@/hooks/useRemotePlayback";
 // Admin message on screen: the same 12 s as the other players and the cast receiver.
-import { ADMIN_MESSAGE_MS } from "@evey/client";
+import { ADMIN_MESSAGE_MS, shedI18nKey } from "@evey/client";
 
 
 export type { AudioStream, SubtitleStream };
@@ -108,14 +108,6 @@ interface HLSPlayerProps {
   showWatchTogether?: boolean;
 }
 
-
-// shedI18nKey maps a server shed code to its player copy: nothing is broken,
-// the server just isn't ready to serve THIS request yet (busy, indexing, or
-// benchmarking itself for a couple of minutes).
-function shedI18nKey(reason: "too_many_streams" | "file_not_ready" | "calibrating" | "file_needs_remux", part: "title" | "body"): string {
-  const group = reason === "file_not_ready" ? "fileNotReady" : reason === "calibrating" ? "calibrating" : reason === "file_needs_remux" ? "fileNeedsRemux" : "tooManyStreams";
-  return `player.shed.${group}.${part}`;
-}
 
 export function HLSPlayer({
   streamInfo,

@@ -24,6 +24,7 @@ import {
   clampSeekTarget, holdScrubRate, tapSeekStep, SEEK_COMMIT_DELAY_MS, HOLD_SCRUB_TICK_MS,
   SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive,
   resolveStartPositionMs,
+  shedI18nKey,
 } from "@evey/client";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -34,7 +35,6 @@ import {
   saveSubtitleStylePref,
   useScreenWakeLock,
   useTvPlaySession,
-  type ShedReason,
   type SubtitleStyle,
 } from "@evey/client/web";
 import { SkipSegmentButton } from "../player/SkipSegmentButton";
@@ -61,13 +61,6 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const QUALITIES = [0, 2160, 1080, 720, 480];
 // No wasm audio engine here: the server transcodes AC-3/E-AC-3 to AAC.
 const TV_DEVICE = { deviceId: "tv-browser", deviceName: "TV Browser", clientName: "Evey TV", wasmAudio: false };
-
-const SHED_KEYS: Record<Exclude<ShedReason, null>, { title: string; body: string }> = {
-  too_many_streams: { title: "player.shed.tooManyStreams.title", body: "player.shed.tooManyStreams.body" },
-  file_not_ready: { title: "player.shed.fileNotReady.title", body: "player.shed.fileNotReady.body" },
-  calibrating: { title: "player.shed.calibrating.title", body: "player.shed.calibrating.body" },
-  file_needs_remux: { title: "player.shed.fileNeedsRemux.title", body: "player.shed.fileNeedsRemux.body" },
-};
 
 function csv(v: string | undefined): string[] {
   return (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -798,12 +791,11 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const pendingDelta = preview !== null ? preview - time : 0;
 
   if (shedReason) {
-    const keys = SHED_KEYS[shedReason];
     return (
       <div className="player">
         <FocusRoot autoFocus className="screen screen-center">
-          <h1 className="title">{t(keys.title)}</h1>
-          <p className="subtitle">{t(keys.body)}</p>
+          <h1 className="title">{t(shedI18nKey(shedReason, "title"))}</h1>
+          <p className="subtitle">{t(shedI18nKey(shedReason, "body"))}</p>
           <div className="actions">
             <Button variant="primary" autoFocus onPress={() => restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality)}>{t("player.retry", "Retry")}</Button>
             <Button onPress={goBack}>{t("common.back", "Back")}</Button>
