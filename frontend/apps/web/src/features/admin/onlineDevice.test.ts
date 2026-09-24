@@ -31,6 +31,7 @@ describe("deviceLabel", () => {
 
   it("labels the TV app with its device model", () => {
     expect(deviceLabel("EveyTV (Android TV 12; MiTV-AESP0)")).toBe("Evey TV · MiTV-AESP0");
+    expect(deviceLabel("EveyTV/0.1.7 (Android TV 12; MiTV-AESP0)")).toBe("Evey TV · MiTV-AESP0");
   });
 
   it("keeps the browser + OS label for web clients", () => {

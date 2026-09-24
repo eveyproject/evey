@@ -93,7 +93,8 @@ describe("initFetcher (tv) - base URL, headers, refresh", () => {
     await initFetcher();
     const headers = api.setExtraHeaders.mock.calls[0]?.[0] as Record<string, string>;
     expect(headers["X-Persistent-Session"]).toBe("true");
-    expect(headers["User-Agent"]).toMatch(/^EveyTV /);
+    // The build rides in the product token, like the phone's.
+    expect(headers["User-Agent"]).toMatch(/^EveyTV\/\d+\.\d+\.\d+ \(Android TV/);
   });
 
   it("wires forceRefresh itself so concurrent refreshes coalesce", async () => {
