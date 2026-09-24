@@ -219,8 +219,10 @@ func TestAudioDownmixHeadroomIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	sixArgs := BuildFFmpegAudioOnlyArgs(renditionOpts(sixDir, 6))
-	for _, a := range sixArgs {
-		if a == "-rematrix_maxval" || a == "-af" {
+	sixTrim := primingTrimFilter(primingOverflowSec(renditionOpts(sixDir, 6)))
+	for i, a := range sixArgs {
+		// The encoder-priming trim drops input, it does not touch the sound.
+		if a == "-rematrix_maxval" || (a == "-af" && sixArgs[i+1] != sixTrim) {
 			t.Fatalf("5.1 rendition must add neither a resampler option nor a filter: %v", sixArgs)
 		}
 	}
