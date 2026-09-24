@@ -100,7 +100,11 @@ func (r *fakeRoomRepo) RemoveMember(_ context.Context, roomID, userID string) er
 	return nil
 }
 
-func (r *fakeRoomRepo) RemoveMemberAndDeleteIfEmpty(_ context.Context, roomID, userID string) (bool, string, error) {
+func (r *fakeRoomRepo) RemoveMemberAndDeleteIfEmpty(ctx context.Context, roomID, userID string) (bool, string, error) {
+	// Like the postgres transaction, a cancelled context does nothing.
+	if err := ctx.Err(); err != nil {
+		return false, "", err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	room, ok := r.rooms[roomID]
@@ -1072,6 +1076,33 @@ func TestHub_ConnectMember_GetFailure_RollsBack(t *testing.T) {
 }
 
 // --- DisconnectMember tests ---
+
+// The websocket's request context is already cancelled when its disconnect
+// runs: the cleanup must still remove the member and elect a new host.
+func TestHub_DisconnectMember_OutlivesTheClosedConnection(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	room, _ := h.CreateRoom(context.Background(), "host-1", "media-1", "Room")
+	_, _ = h.ConnectMember(context.Background(), room.ID, "host-1", "Host", fakes.NewFakeMessageSender())
+	_, _ = h.ConnectMember(context.Background(), room.ID, "user-2", "Alice", fakes.NewFakeMessageSender())
+
+	closed, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := h.DisconnectMember(closed, room.ID, "host-1"); err != nil {
+		t.Fatalf("DisconnectMember on a closed connection: %v", err)
+	}
+
+	fetched, err := h.GetRoom(context.Background(), room.ID)
+	if err != nil || fetched == nil {
+		t.Fatalf("room should still exist while user-2 remains: %v", err)
+	}
+	if fetched.IsMember("host-1") && string(fetched.HostID) == "host-1" {
+		t.Error("the departed host is still the host")
+	}
+	if string(fetched.HostID) != "user-2" {
+		t.Errorf("host = %q, want user-2 elected", fetched.HostID)
+	}
+}
 
 func TestHub_DisconnectMember_Success(t *testing.T) {
 	t.Parallel()

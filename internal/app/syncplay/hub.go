@@ -343,6 +343,12 @@ func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string
 // performs it atomically under the repo lock so a concurrent disconnect cannot
 // elect a member who has already departed.
 func (h *Hub) DisconnectMember(ctx context.Context, roomID, userID string) error {
+	// The disconnect is what cancels the websocket's request context, so the
+	// cleanup must outlive it: with it, the member was never removed, an empty
+	// room never deleted and no host elected ("context canceled", dev log
+	// 2026-09-24).
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
 	ctx, span := tracing.StartSpan(ctx, "app.syncplay.DisconnectMember")
 	defer span.End()
 
