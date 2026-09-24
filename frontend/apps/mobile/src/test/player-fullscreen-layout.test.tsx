@@ -222,9 +222,10 @@ vi.mock("../components/player/PlayerSeekBar", () => ({ PlayerSeekBar: () => null
 vi.mock("../components/player/SubtitleOverlay", () => ({ SubtitleOverlay: () => null }));
 vi.mock("../components/player/PlayerSettingsPanel", () => ({ PlayerSettingsPanel: () => null }));
 vi.mock("../features/plugins/PluginSlot", () => ({ PluginSlot: () => null }));
-vi.mock("../lib/audioBoost", () => ({ setAudioBoost: vi.fn(), releaseAudioBoost: vi.fn(() => Promise.resolve()) }));
+vi.mock("../lib/audioBoost", () => ({ setAudioBoost: vi.fn(), releaseAudioBoost: vi.fn(() => Promise.resolve()), hasAudioBoost: () => true }));
 vi.mock("../lib/deviceVolume", () => ({
   hasDeviceVolumeControl: () => false,
+  noteObservedDeviceVolume: vi.fn(),
   readDeviceVolumeFraction: vi.fn(() => Promise.resolve(null)),
   readDeviceVolumeSteps: vi.fn(async () => 15),
   setDeviceVolumeFraction: vi.fn(),

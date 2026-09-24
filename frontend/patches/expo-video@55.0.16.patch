@@ -1,9 +1,9 @@
 diff --git a/android/src/main/java/expo/modules/video/EveyAudioPreamp.kt b/android/src/main/java/expo/modules/video/EveyAudioPreamp.kt
 new file mode 100644
-index 0000000..3d5a812
+index 0000000..605c846
 --- /dev/null
 +++ b/android/src/main/java/expo/modules/video/EveyAudioPreamp.kt
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,168 @@
 +package expo.modules.video
 +
 +import androidx.media3.common.C
@@ -12,66 +12,164 @@ index 0000000..3d5a812
 +import androidx.media3.common.util.UnstableApi
 +import java.nio.ByteBuffer
 +import java.nio.ByteOrder
++import kotlin.math.abs
++import kotlin.math.exp
++import kotlin.math.max
++import kotlin.math.min
++import kotlin.math.roundToInt
 +
 +/**
-+ * Evey patch - VLC-style multiplicative preamp INSIDE the player's own audio
-+ * chain. The app's >100% volume used to ride a LoudnessEnhancer on the output
-+ * mix: a compressor under the hood (variable-geometry loudness on dynamic
-+ * content) and unreliable on devices with poor global-session effect support.
-+ * libVLC applies its 100-200% as a plain sample gain in its own pipeline; this
-+ * processor is the media3 equivalent - multiply, saturate, nothing else.
-+ *
-+ * Wired into DefaultAudioSink through VideoPlayer's renderers factory (see the
-+ * companion patch there). The gain is set by the app's AudioBoostModule.
++ * Evey patch - the app's >100% volume, applied INSIDE the player's own audio
++ * chain (DefaultAudioSink, see the VideoPlayer patch). The gain glides to its
++ * target instead of stepping, and a look-ahead peak limiter keeps the result
++ * under full scale instead of clipping it. At 100% the output is the input,
++ * sample for sample, 4 ms later.
 + */
 +@UnstableApi
 +object EveyAudioPreamp {
-+  /** Linear gain, 1.0 (off) .. 2.0 (+6 dB). Read on the audio thread. */
++  /** Linear gain, 1.0 (off) .. 2.0 (+6 dB). Set by AudioBoostModule, read on the audio thread. */
 +  @Volatile var gain: Float = 1f
 +
++  fun createProcessor(): AudioProcessor = LimitedGainProcessor()
++
++  private const val LOOKAHEAD_S = 0.004
++  private const val GAIN_GLIDE_S = 0.03
++  private const val RELEASE_S = 0.15
++  private const val CEILING = 32767f
++
 +  /**
-+   * True while the live stream runs through the processor (16-bit PCM). A
-+   * passthrough or float stream bypasses it; the module then knows the gain
-+   * has no effect and can fall back (or report "not boosting").
++   * Gain, then a look-ahead limiter: r[n] is the gain frame n needs to stay
++   * under the ceiling, h[n] the minimum of r over the last L frames, s[n] the
++   * mean of h over the last L frames. Every h in that mean covers the frame
++   * leaving the L-1 frame delay line, so s never lets it past the ceiling,
++   * and the attack is a ramp rather than a step. The release is a glide.
 +   */
-+  @Volatile var engaged: Boolean = false
++  private class LimitedGainProcessor : BaseAudioProcessor() {
++    private var channels = 0
++    private var lookahead = 1
++    private var glideCoef = 0f
++    private var releaseCoef = 0f
 +
-+  fun createProcessor(): AudioProcessor = GainAudioProcessor()
++    private var delay = FloatArray(0) // L frames of gained samples, interleaved
++    private var delayPos = 0
++    private var hRing = FloatArray(0)
++    private var hPos = 0
++    private var hSum = 0.0
++    private var minVal = FloatArray(0) // monotonic deque for the running minimum
++    private var minIdx = LongArray(0)
++    private var minHead = 0
++    private var minCount = 0
++    private var frameNo = 0L
++    private var smoothedGain = 1f
++    private var envelope = 1f
 +
-+  private class GainAudioProcessor : BaseAudioProcessor() {
-+    override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-+      if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
-+        engaged = false
-+        return AudioProcessor.AudioFormat.NOT_SET
-+      }
-+      engaged = true
-+      return inputAudioFormat
++    override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat =
++      if (inputAudioFormat.encoding == C.ENCODING_PCM_16BIT) inputAudioFormat else AudioProcessor.AudioFormat.NOT_SET
++
++    // A new format only takes effect at flush(): the old one may still be
++    // draining until then.
++    private fun allocate(format: AudioProcessor.AudioFormat) {
++      channels = format.channelCount
++      val rate = format.sampleRate.toDouble()
++      lookahead = max(1, (rate * LOOKAHEAD_S).roundToInt())
++      glideCoef = (1.0 - exp(-1.0 / (rate * GAIN_GLIDE_S))).toFloat()
++      releaseCoef = (1.0 - exp(-1.0 / (rate * RELEASE_S))).toFloat()
++      delay = FloatArray((lookahead - 1) * channels)
++      hRing = FloatArray(lookahead)
++      minVal = FloatArray(lookahead)
++      minIdx = LongArray(lookahead)
 +    }
 +
 +    override fun queueInput(inputBuffer: ByteBuffer) {
 +      val remaining = inputBuffer.remaining()
 +      if (remaining == 0) return
++      val src = inputBuffer.order(ByteOrder.nativeOrder())
 +      val out = replaceOutputBuffer(remaining)
-+      val g = gain
-+      if (g <= 1.001f) {
-+        out.put(inputBuffer)
-+      } else {
-+        // Q8 fixed point; hard saturation - the same clip VLC's preamp has,
-+        // and unlike the LoudnessEnhancer there is no hidden compressor.
-+        val gq = (g * 256f).toInt()
-+        val src = inputBuffer.duplicate().order(ByteOrder.nativeOrder())
-+        while (src.remaining() >= 2) {
-+          val v = ((src.short.toInt() * gq) shr 8).coerceIn(-32768, 32767)
-+          out.putShort(v.toShort())
++      val frames = remaining / (2 * channels)
++      val target = gain
++      val frame = FloatArray(channels)
++      for (f in 0 until frames) {
++        smoothedGain += (target - smoothedGain) * glideCoef
++        var peak = 0f
++        for (c in 0 until channels) {
++          val v = src.short * smoothedGain
++          frame[c] = v
++          peak = max(peak, abs(v))
 +        }
-+        inputBuffer.position(inputBuffer.limit())
++        val s = limiterGain(if (peak > CEILING) CEILING / peak else 1f)
++        envelope = if (s < envelope) s else envelope + (s - envelope) * releaseCoef
++        writeDelayed(frame, out)
 +      }
 +      out.flip()
 +    }
 +
-+    override fun onReset() {
-+      engaged = false
++    // Pushes r[n], returns s[n].
++    private fun limiterGain(r: Float): Float {
++      val n = frameNo++
++      if (minCount > 0 && minIdx[minHead] <= n - lookahead) {
++        minHead = (minHead + 1) % lookahead
++        minCount--
++      }
++      while (minCount > 0 && minVal[(minHead + minCount - 1) % lookahead] >= r) minCount--
++      val tail = (minHead + minCount) % lookahead
++      minVal[tail] = r
++      minIdx[tail] = n
++      minCount++
++      val h = minVal[minHead]
++      hSum += h - hRing[hPos]
++      hRing[hPos] = h
++      hPos = (hPos + 1) % lookahead
++      return (hSum / lookahead).toFloat()
 +    }
++
++    // Emits the frame that has waited L-1 frames, at the current envelope.
++    private fun writeDelayed(frame: FloatArray, out: ByteBuffer) {
++      if (delay.isEmpty()) {
++        for (c in 0 until channels) out.putShort(toPcm(frame[c] * envelope))
++        return
++      }
++      for (c in 0 until channels) {
++        val i = delayPos + c
++        out.putShort(toPcm(delay[i] * envelope))
++        delay[i] = frame[c]
++      }
++      delayPos = (delayPos + channels) % delay.size
++    }
++
++    override fun onQueueEndOfStream() {
++      // The last L-1 frames are still in the delay line.
++      if (delay.isEmpty()) return
++      val out = replaceOutputBuffer(delay.size * 2)
++      for (k in delay.indices) out.putShort(toPcm(delay[(delayPos + k) % delay.size] * envelope))
++      out.flip()
++      clearState()
++    }
++
++    override fun onFlush() {
++      if (inputAudioFormat.encoding == C.ENCODING_PCM_16BIT) allocate(inputAudioFormat)
++      clearState()
++    }
++
++    override fun onReset() {
++      clearState()
++      delay = FloatArray(0)
++      channels = 0
++    }
++
++    private fun clearState() {
++      delay.fill(0f)
++      delayPos = 0
++      hRing.fill(1f)
++      hPos = 0
++      hSum = lookahead.toDouble()
++      minHead = 0
++      minCount = 0
++      frameNo = 0L
++      smoothedGain = gain
++      envelope = 1f
++    }
++
++    private fun toPcm(v: Float): Short = min(CEILING, max(-32768f, v)).roundToInt().toShort()
 +  }
 +}
 diff --git a/android/src/main/java/expo/modules/video/player/VideoPlayer.kt b/android/src/main/java/expo/modules/video/player/VideoPlayer.kt

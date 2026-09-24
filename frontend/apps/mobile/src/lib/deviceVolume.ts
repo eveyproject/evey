@@ -24,6 +24,8 @@ export function hasDeviceVolumeControl(): boolean {
 // Coalescing here keeps the bridge quiet without the UI having to know.
 const FRACTION_STEP = 1 / 32;
 
+// The last fraction handed to the device (in flight or landed), or the level
+// last READ from it: the hardware keys move it behind the bar's back.
 let lastRequested: number | null = null;
 let inFlight: Promise<number | null> | null = null;
 let pending: number | null = null;
@@ -80,7 +82,6 @@ async function drain(): Promise<number | null> {
     pending = null;
     try {
       applied = await native!.setDeviceVolume(next);
-      lastRequested = next;
     } catch {
       // Refused (a Do-Not-Disturb policy can forbid it) or unsupported. Forget
       // the last value so a later attempt is not skipped as a no-op.
@@ -110,8 +111,14 @@ export async function setDeviceVolumeFraction(fraction: number): Promise<number 
   if (!isEndpoint && lastRequested !== null && Math.abs(next - lastRequested) < FRACTION_STEP) {
     return null;
   }
+  lastRequested = next;
   pending = next;
   if (inFlight) return inFlight;
   inFlight = drain();
   return inFlight;
+}
+
+/** Record a level read from the device, so asking for the old one is not skipped. */
+export function noteObservedDeviceVolume(fraction: number): void {
+  lastRequested = fraction;
 }

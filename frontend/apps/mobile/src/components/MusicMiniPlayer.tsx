@@ -21,6 +21,7 @@ import { useServerUrl } from "../hooks/useServerUrl";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 import { shouldRecordScrobble } from "../lib/musicScrobble";
 import { coverArtUri } from "../lib/coverArtUri";
+import { useBarGesture } from "../hooks/useBarGesture";
 
 // One nowplaying "session" per mini-player mount (not one per track), so the
 // admin "En cours de lecture" panel shows a single updating tile instead of a
@@ -90,9 +91,12 @@ function MusicMiniPlayerImpl() {
   // Tap/drag-to-seek state: measured bar width, the fraction tracked during
   // the responder gesture, and the value shown while actively scrubbing
   // (falls back to the real playback progress once released).
-  const seekBarWidthRef = useRef(0);
   const seekPctRef = useRef(0);
   const [scrubPct, setScrubPct] = useState<number | null>(null);
+  const seekBar = useBarGesture((pct) => {
+    seekPctRef.current = pct;
+    setScrubPct(pct);
+  });
 
   useEffect(() => {
     if (!streamUri) return;
@@ -279,12 +283,6 @@ function MusicMiniPlayerImpl() {
     ? coverArtUri(serverUrl, `/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken)}`, 40)
     : undefined;
 
-  const pctFromX = (x: number) => {
-    const w = seekBarWidthRef.current;
-    if (w <= 0) return 0;
-    return Math.max(0, Math.min(1, x / w));
-  };
-
   const commitSeek = (pct: number) => {
     if (duration <= 0) return;
     try { void player.seekTo(pct * duration); } catch { /* released */ }
@@ -309,23 +307,12 @@ function MusicMiniPlayerImpl() {
           accessibilityRole="adjustable"
           accessibilityLabel={t("media.music.seekPosition")}
           accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
-          onLayout={(e) => { seekBarWidthRef.current = e.nativeEvent.layout.width; }}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
-          onResponderGrant={(e: GestureResponderEvent) => {
-            const pct = pctFromX(e.nativeEvent.locationX);
-            seekPctRef.current = pct;
-            setScrubPct(pct);
-          }}
-          onResponderMove={(e: GestureResponderEvent) => {
-            const pct = pctFromX(e.nativeEvent.locationX);
-            seekPctRef.current = pct;
-            setScrubPct(pct);
-          }}
-          onResponderRelease={() => {
-            commitSeek(seekPctRef.current);
+          {...seekBar.barProps}
+          onResponderRelease={(e: GestureResponderEvent) => {
+            commitSeek(seekBar.fractionAt(e) ?? seekPctRef.current);
             setScrubPct(null);
           }}
+          onResponderTerminate={() => setScrubPct(null)}
         >
           <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
             <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(100, displayedProgress * 100))}%`, backgroundColor: theme.colors.accent }]} />

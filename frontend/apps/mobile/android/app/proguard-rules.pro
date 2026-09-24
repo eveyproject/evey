@@ -13,16 +13,6 @@
 
 # Add any project specific keep options here:
 
-# AudioBoostModule reads expo-video's private player registry reflectively to
-# attach the LoudnessEnhancer to OUR player's audio session instead of the
-# global mix (see AudioBoostModule.resolvePlayerSessionId). R8 must not rename
-# the field, or every release build silently falls back to the global mix.
--keepclassmembers class expo.modules.video.managers.VideoManager { <fields>; }
--keep class expo.modules.video.player.VideoPlayer { *; }
-# ...and the reflective hop into media3: getAudioSessionId must keep its name.
--keepclassmembers class * { int getAudioSessionId(); }
-
-
 # react-native-background-downloader persists its task tables with Gson, by field name.
 -keep class com.eko.RNBGDTaskConfig { *; }
 -keep class com.eko.RNBGDUploadTaskConfig { *; }

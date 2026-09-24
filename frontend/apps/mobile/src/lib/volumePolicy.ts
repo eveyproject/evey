@@ -76,3 +76,14 @@ export function resolveVolume(level: number, opts: VolumePolicyOptions): VolumeT
   const deviceFraction = index / steps;
   return { deviceFraction, playerVolume: v / deviceFraction, boostGain };
 }
+
+/**
+ * The player element's volume against the level the device is ON (read back or
+ * last written), not the one on its way: while a step change is in flight the
+ * product can only dip under the level, never overshoot it.
+ */
+export function playerTrim(level: number, deviceNow: number | null, opts: VolumePolicyOptions): number {
+  const targets = resolveVolume(level, opts);
+  if (targets.deviceFraction === null || !(level > 0 && level < 1) || !deviceNow) return targets.playerVolume;
+  return Math.min(1, level / deviceNow);
+}

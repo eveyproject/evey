@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState } from "react";
+import { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, Switch, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 import { formatOffsetMs, stepOffsetMs } from "./audioSync";
+import { useBarGesture } from "../../hooks/useBarGesture";
 import {
   DEFAULT_SUBTITLE_STYLE,
   SUBTITLE_BG_COLORS,
@@ -173,7 +174,7 @@ function useQualityOptions(availableQualities: readonly number[]) {
 
 // Minimalist horizontal bar for brightness (same touch mechanics as
 // PlayerVolumeControl, full width of the panel).
-function HSlider({ value, min, max, onChange, accessibilityLabel, announceScale = 1 }: {
+export function HSlider({ value, min, max, onChange, accessibilityLabel, announceScale = 1 }: {
   value: number;
   min: number;
   max: number;
@@ -186,21 +187,12 @@ function HSlider({ value, min, max, onChange, accessibilityLabel, announceScale 
   announceScale?: number;
 }) {
   const theme = useTheme();
-  const widthRef = useRef(0);
-  const valueFromX = useCallback((x: number) => {
-    const w = widthRef.current;
-    if (w <= 0) return min;
-    return Math.max(min, Math.min(max, min + (x / w) * (max - min)));
-  }, [min, max]);
+  const { barProps } = useBarGesture((f) => onChange(min + f * (max - min)));
   const fillPct = ((value - min) / (max - min)) * 100;
   return (
     <View
+      {...barProps}
       style={sliderStyles.touch}
-      onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
-      onStartShouldSetResponder={() => true}
-      onMoveShouldSetResponder={() => true}
-      onResponderGrant={(e) => onChange(valueFromX(e.nativeEvent.locationX))}
-      onResponderMove={(e) => onChange(valueFromX(e.nativeEvent.locationX))}
       accessible={true}
       accessibilityRole="adjustable"
       accessibilityLabel={accessibilityLabel}

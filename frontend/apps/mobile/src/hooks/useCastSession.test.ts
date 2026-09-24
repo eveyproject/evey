@@ -100,13 +100,13 @@ function mount(
   player: ReturnType<typeof fakePlayer>,
   streamUrl = "https://example.invalid/s.m3u8",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  opts: { streamInfo?: any; serverUrl?: string | null } = {},
+  opts: { streamInfo?: any; serverUrl?: string | null; restoreLocalVolume?: () => void } = {},
 ) {
   return renderHook(() =>
     useCastSession({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       player: player as any,
-      volume: 1,
+      restoreLocalVolume: opts.restoreLocalVolume ?? (() => {}),
       streamUrl,
       mediaId: "m1",
       title: "A Film",
@@ -156,6 +156,20 @@ describe("useCastSession", () => {
   it("exposes an empty cast device name when not connected", () => {
     const { result } = mount(fakePlayer());
     expect(result.current.castDeviceName).toBe("");
+  });
+
+  // The unmute ran on every volume change, not only when a cast ended: it
+  // depended on the level, and it wrote the raw level over the player's trim,
+  // so under 100% the phone played the square of what the bar showed.
+  it("restores the local volume only when a cast ends", async () => {
+    const restoreLocalVolume = vi.fn();
+    const { rerender } = mount(fakePlayer(), undefined, { restoreLocalVolume });
+    rerender();
+    expect(restoreLocalVolume).not.toHaveBeenCalled();
+    await act(async () => { castState = 4; rerender(); });
+    await act(async () => { castState = 0; rerender(); });
+    rerender();
+    expect(restoreLocalVolume).toHaveBeenCalledTimes(1);
   });
 
   // Tapping cast used to pause the local player and set volume to 0 BEFORE
@@ -544,7 +558,7 @@ it("does not re-load the receiver when the stream URL is re-minted for the same 
   const player = fakePlayer();
   const args = (streamUrl: string) => ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    player: player as any, volume: 1, streamUrl, mediaId: "m1", title: "A Film", currentTime: 0,
+    player: player as any, restoreLocalVolume: () => {}, streamUrl, mediaId: "m1", title: "A Film", currentTime: 0,
     fallbackDurationSec: 120, streamInfo: null, serverUrl: null,
   });
   const { rerender } = renderHook((p: ReturnType<typeof args>) => useCastSession(p), {
@@ -566,7 +580,7 @@ it("re-loads when the MEDIA changes, and resumes a re-cast of the same title whe
   const player = fakePlayer();
   const args = (mediaId: string) => ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    player: player as any, volume: 1, streamUrl: `https://example.invalid/api/v1/media/${mediaId}/hls/master.m3u8?token=t`,
+    player: player as any, restoreLocalVolume: () => {}, streamUrl: `https://example.invalid/api/v1/media/${mediaId}/hls/master.m3u8?token=t`,
     mediaId, title: "A Film", currentTime: 0, fallbackDurationSec: 120, streamInfo: null, serverUrl: null,
   });
   const { result, rerender } = renderHook((p: ReturnType<typeof args>) => useCastSession(p), { initialProps: args("m1") });

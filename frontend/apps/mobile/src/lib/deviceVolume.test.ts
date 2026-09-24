@@ -64,6 +64,23 @@ describe("setDeviceVolumeFraction", () => {
     expect(applied).toBeCloseTo(8 / 15, 3);
   });
 
+  it("ends on the value asked last even when it equals the one applied before", async () => {
+    await mod.setDeviceVolumeFraction(0.6);
+    setDeviceVolume.mockImplementation(async (f: number) => { await new Promise((r) => setTimeout(r, 1)); return f; });
+    await Promise.all([0.667, 0.733, 0.6].map((v) => mod.setDeviceVolumeFraction(v)));
+    expect(setDeviceVolume.mock.calls.at(-1)?.[0]).toBeCloseTo(0.6, 3);
+  });
+
+  // The hardware keys move the device behind the bar's back: once the level
+  // has been read, asking for the old value again is a real change.
+  it("is not skipped after the hardware keys moved the device", async () => {
+    await mod.setDeviceVolumeFraction(0.6);
+    mod.noteObservedDeviceVolume(7 / 15);
+    setDeviceVolume.mockClear();
+    await mod.setDeviceVolumeFraction(0.6);
+    expect(setDeviceVolume).toHaveBeenCalledWith(0.6);
+  });
+
   it("survives a refusal (Do-Not-Disturb) without wedging", async () => {
     setDeviceVolume.mockRejectedValueOnce(new Error("forbidden"));
     await expect(mod.setDeviceVolumeFraction(0.3)).resolves.toBeNull();

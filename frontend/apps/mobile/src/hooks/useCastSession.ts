@@ -44,7 +44,8 @@ async function askConnectedReceiverCaps(): Promise<CapsAnswer | null> {
 
 interface UseCastSessionArgs {
   player: VideoPlayer;
-  volume: number;
+  /** Puts the local player back on the bar's level (trim, device, boost) once a cast ends. */
+  restoreLocalVolume: () => void;
   streamUrl: string | null;
   mediaId: string;
   title: string | undefined;
@@ -63,7 +64,7 @@ interface UseCastSessionArgs {
 
 export function useCastSession({
   player,
-  volume,
+  restoreLocalVolume,
   streamUrl,
   mediaId,
   title,
@@ -160,14 +161,14 @@ export function useCastSession({
     void setAudioBoost(1); // drop the amplification while muted for casting
   }, [player]);
 
+  // Read through a ref: depending on the level re-ran the disconnect effect on
+  // every volume change, which wrote the raw level over the player's trim.
+  const restoreRef = useRef(restoreLocalVolume);
+  restoreRef.current = restoreLocalVolume;
   const unmuteLocalPlayer = useCallback(() => {
     if (!player) return;
-    // volume is the 0-2 level: restore the native part and re-arm the boost.
-    try {
-      player.volume = Math.min(1, volume);
-      void setAudioBoost(volume > 1 ? volume : 1);
-    } catch (err) { console.warn("released", err); }
-  }, [player, volume]);
+    try { restoreRef.current(); } catch (err) { console.warn("released", err); }
+  }, [player]);
 
   // Which MEDIA the receiver was last loaded with, and where the receiver got
   // to while casting (by the time the session is gone, so is its media status,
@@ -341,8 +342,11 @@ export function useCastSession({
   // television actually got to - it was parked at the position the cast started
   // from, so without this, stopping a cast rewound the viewer by the whole
   // length of what they had just watched.
+  const wasConnectedRef = useRef(false);
   useEffect(() => {
-    if (castConnected) return;
+    const wasConnected = wasConnectedRef.current;
+    wasConnectedRef.current = castConnected;
+    if (castConnected || !wasConnected) return;
     castLoadedForMedia.current = null;
     // A load negotiating for the session that just ended must not land on
     // the next one: its caps, its verdict, its URL were that session's.
