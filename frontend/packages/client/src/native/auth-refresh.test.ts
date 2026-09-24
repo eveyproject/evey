@@ -54,6 +54,19 @@ describe("refreshAccessTokenIfNeeded - what ends a session and what does not", (
     expect(await getRefreshToken()).toBe("rt-new");
   });
 
+  // Under /tv the page holds the server's _csrf cookie; a refresh POST carrying
+  // it without the header is refused 403 and read as a dead session - every
+  // access-token expiry signed the viewer out (production, 2026-09-24).
+  it("sends the refresh without cookies", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-old");
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({ ok: true, json: async () => ({ accessToken: "fresh" }) }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await refreshAccessTokenIfNeeded();
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ credentials: "omit" });
+  });
+
   // The old code treated ANY !res.ok as a refusal: a proxy 502 during a token
   // expiry logged the user out AND burned their still-valid refresh token.
   it("keeps the session on a 5xx: a server hiccup is not a refusal", async () => {
