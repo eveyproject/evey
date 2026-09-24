@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -35,8 +37,11 @@ var encoderReorderCache sync.Map
 
 const encoderReorderProbeTimeout = 20 * time.Second
 
+// encoderReorderProbeFPS is the synthetic source's rate (testsrc2 rate= below).
+const encoderReorderProbeFPS = 24
+
 // BundledEncoderReorderFrames reports how many frames this encoder configuration
-// delays presentation by (has_b_frames of its own output). A separate audio
+// delays presentation by (its first frame's pts over its dts). A separate audio
 // rendition must be shifted by that many frames or it runs early (libx264
 // veryfast: 2 frames, 83 ms at 24 fps). ok=false when the probe failed.
 func BundledEncoderReorderFrames(ctx context.Context, spec EncoderSpec) (int, bool) {
@@ -68,7 +73,7 @@ func encoderReorderProbeArgs(spec EncoderSpec, outPath string) []string {
 		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
 		vf = "format=nv12,hwupload_cuda"
 	}
-	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=256x144:rate=24:duration=1")
+	args = append(args, "-f", "lavfi", "-i", fmt.Sprintf("testsrc2=size=256x144:rate=%d:duration=1", encoderReorderProbeFPS))
 	if vf != "" {
 		args = append(args, "-vf", vf)
 	}
@@ -100,18 +105,34 @@ func probeEncoderReorderFrames(ctx context.Context, ffmpegPath, ffprobePath stri
 	if runErr := procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "encoder_reorder.encode"}, ffmpegPath, encoderReorderProbeArgs(spec, out)...); runErr != nil {
 		return 0, fmt.Errorf("encoder reorder probe encode: %w", runErr)
 	}
+	// The delay is how late the first frame is PRESENTED (its pts over its
+	// dts), not has_b_frames: that is the decoder's reorder depth, and NVENC
+	// with -bf 3 -b_ref_mode middle reports 1 while presenting 3 frames late
+	// (measured 2026-09-24: first packet pts 0.125, dts 0 at 24 fps).
 	raw, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "encoder_reorder.probe"}, ffprobePath,
-		"-v", "quiet", "-select_streams", "v:0", "-print_format", "json", "-show_entries", "stream=has_b_frames", out)
+		"-v", "quiet", "-select_streams", "v:0", "-read_intervals", "%+#1", "-print_format", "json", "-show_entries", "packet=pts_time,dts_time", out)
 	if err != nil {
 		return 0, fmt.Errorf("encoder reorder probe read: %w", err)
 	}
+	return presentationDelayFrames(raw)
+}
+
+// presentationDelayFrames reads the first packet of the probe encode (the
+// ffprobe JSON) as a frame count at the probe's 24 fps.
+func presentationDelayFrames(raw []byte) (int, error) {
 	var parsed struct {
-		Streams []struct {
-			HasBFrames int `json:"has_b_frames"`
-		} `json:"streams"`
+		Packets []struct {
+			PTS string `json:"pts_time"`
+			DTS string `json:"dts_time"`
+		} `json:"packets"`
 	}
-	if err := json.Unmarshal(raw, &parsed); err != nil || len(parsed.Streams) == 0 {
-		return 0, fmt.Errorf("encoder reorder probe: no video stream in output")
+	if err := json.Unmarshal(raw, &parsed); err != nil || len(parsed.Packets) == 0 {
+		return 0, fmt.Errorf("encoder reorder probe: no video packet in output")
 	}
-	return parsed.Streams[0].HasBFrames, nil
+	pts, perr := strconv.ParseFloat(parsed.Packets[0].PTS, 64)
+	dts, derr := strconv.ParseFloat(parsed.Packets[0].DTS, 64)
+	if perr != nil || derr != nil {
+		return 0, fmt.Errorf("encoder reorder probe: unreadable first packet timestamps")
+	}
+	return int(math.Round((pts - dts) * encoderReorderProbeFPS)), nil
 }
