@@ -207,16 +207,16 @@ func TestBackendCaps_SynthesisAndSelectors(t *testing.T) {
 		},
 	}
 	// Tone-map: only VAAPI proves it and carries the probe + OpenCL.
-	if b, ok := cap.TonemapBackend("PQ"); !ok || b.Backend != "vaapi" {
+	if b, ok := cap.TonemapBackend("PQ", "h264"); !ok || b.Backend != "vaapi" {
 		t.Fatalf("tone-map backend = %v/%v, want vaapi", b.Backend, ok)
 	}
-	if b, ok := cap.TonemapBackend("HLG"); !ok || b.Backend != "vaapi" {
+	if b, ok := cap.TonemapBackend("HLG", "h264"); !ok || b.Backend != "vaapi" {
 		t.Fatalf("OpenCL handles HLG too: %v/%v", b.Backend, ok)
 	}
 	// QSV alone (no OpenCL, vpp ineligible => never proves the route): no GPU tonemap.
 	qsvOnly := EncodeCapability{ProbeVersion: CapabilityProbeVersion, HWBackend: "qsv",
 		Backends: []HWBackendCap{{Backend: "qsv", HWTonemap: true, Routes: []string{HWRouteSDR}}}}
-	if _, ok := qsvOnly.TonemapBackend("PQ"); ok {
+	if _, ok := qsvOnly.TonemapBackend("PQ", "h264"); ok {
 		t.Fatal("QSV without a proven tone-map route must not be a tone-map backend")
 	}
 	// Passthrough: QSV qualifies (hevc + hdr10 + 10bit + proves passthrough).
@@ -248,10 +248,10 @@ func TestTonemapBackend_NativeVPPHandlesPQOnly(t *testing.T) {
 	cap := EncodeCapability{ProbeVersion: CapabilityProbeVersion, HWBackend: "vaapi",
 		Backends: []HWBackendCap{{Backend: "vaapi", Codecs: []string{"h264"}, HWTonemap: true,
 			Routes: []string{HWRouteSDR, HWRouteTonemap}}}} // native VPP, NO FeatureTonemapOpenCL
-	if b, ok := cap.TonemapBackend("PQ"); !ok || b.Backend != "vaapi" {
+	if b, ok := cap.TonemapBackend("PQ", "h264"); !ok || b.Backend != "vaapi" {
 		t.Fatalf("fixed VPP must tone-map PQ: %v/%v", b.Backend, ok)
 	}
-	if _, ok := cap.TonemapBackend("HLG"); ok {
+	if _, ok := cap.TonemapBackend("HLG", "h264"); ok {
 		t.Fatal("fixed VPP must NOT claim non-PQ ranges (needs OpenCL)")
 	}
 }
@@ -286,5 +286,30 @@ func TestHWMode_RKMPP(t *testing.T) {
 	rk := HWBackendCap{Backend: "rkmpp", HWDeinterlace: true, Routes: []string{HWRouteDeinterlace}}
 	if rk.DeinterlacesOnGPU() {
 		t.Fatal("RGA has no deinterlacer: never session-level on RKMPP, whatever a row claims")
+	}
+}
+
+// A route+codec combination that failed its runtime re-proof is off the GPU
+// for that codec only: tone-map selection still finds the backend for H.264.
+func TestTonemapBackend_SkipsAFailedCombination(t *testing.T) {
+	cap := EncodeCapability{HWBackend: "vaapi", Backends: []HWBackendCap{{
+		Backend: "vaapi", Codecs: []string{"h264", "hevc"}, HWTonemap: true,
+		Features: []string{FeatureTonemapOpenCL}, Routes: []string{HWRouteSDR, HWRouteTonemap},
+	}}}
+	d := PlanRouteDemotion(cap, "vaapi", HWRouteTonemap, "HEVC")
+	if !d.Changed {
+		t.Fatal("a new failed combination must change the capability")
+	}
+	if len(cap.Backends[0].FailedRoutes) != 0 {
+		t.Fatal("the published capability must not be mutated in place")
+	}
+	if _, ok := d.Capability.TonemapBackend("PQ", "hevc"); ok {
+		t.Error("the failed HEVC tone-map must not be offered")
+	}
+	if _, ok := d.Capability.TonemapBackend("PQ", ""); !ok {
+		t.Error("H.264 keeps the GPU tone-map")
+	}
+	if again := PlanRouteDemotion(d.Capability, "vaapi", HWRouteTonemap, "hevc"); again.Changed {
+		t.Error("recording the same combination twice changes nothing")
 	}
 }

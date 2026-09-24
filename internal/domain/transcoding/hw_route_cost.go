@@ -36,6 +36,25 @@ type RouteCostKey struct {
 	Route   RouteCostClass `json:"route"`
 }
 
+// ProofRoute names the route proof (HWRoutes) a GPU session of this shape rests
+// on beyond its encoder, "" when the encode proof covers it (zero-copy SDR, CPU).
+func (k RouteCostKey) ProofRoute() string {
+	if k.Backend == "" {
+		return ""
+	}
+	switch k.Route {
+	case RouteCostTonemap:
+		return HWRouteTonemap
+	case RouteCostBridge:
+		return HWRouteBridge
+	case RouteCostPassthrough:
+		return HWRoutePassthrough
+	case RouteCostDecoupled:
+		return HWRouteDecoupled
+	}
+	return ""
+}
+
 // RouteSample is one warm, stable, single-session measurement of a route at
 // one rung. The session is the one the orchestrator spawns (BuildFFmpegArgs,
 // single-variant, production args), measured after a warm-up and taken as the

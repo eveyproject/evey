@@ -236,6 +236,43 @@ func (r *BenchmarkRunner) probeHWRoutes(ctx context.Context, backend, device str
 	return proven
 }
 
+// HWRouteUsable re-proves one route on backend for the output codec that
+// failed, at runtime, when a session of that shape failed while the plain
+// encode still passes. A route the builder cannot express here is not usable.
+func (r *BenchmarkRunner) HWRouteUsable(ctx context.Context, backend, device, route, codec string, features []string) bool {
+	accel := transcoding.HWAccelType(backend)
+	if device == "" {
+		device = hwDevicePath(backend)
+	}
+	for _, p := range routeProbesFor(accel, []string{"h264", "hevc", "av1"}, features, true, true, true, true, nil) {
+		if p.route != route {
+			continue
+		}
+		mire, ok := r.ensureRouteMire(ctx, p.mire)
+		if !ok {
+			return false
+		}
+		opts := routeReproofOpts(accel, device, features, mire, p, codec)
+		ok, tail := r.runRouteProbe(ctx, opts)
+		if !ok {
+			r.logger.Warn("benchmark: HW route failed its runtime re-proof",
+				slog.String("backend", backend), slog.String("route", route), slog.String("codec", opts.VideoCodec), slog.String("stderr_tail", tail))
+		}
+		return ok
+	}
+	return false
+}
+
+// routeReproofOpts is the calibration's session for p, encoding the codec
+// that failed ("" keeps the probe's own).
+func routeReproofOpts(accel transcoding.HWAccelType, device string, features []string, mirePath string, p routeProbe, codec string) transcoding.HLSProcessOpts {
+	o := routeProbeOpts(accel, device, features, mirePath, "", p)
+	if c := transcoding.CanonicalVideoCodec(codec); c != "" {
+		o.VideoCodec = c
+	}
+	return o
+}
+
 // runRouteProbe runs one builder-produced session into a scratch directory
 // and reports whether it wrote its init and a media segment. The tail of
 // ffmpeg's stderr is returned for the log on failure.
