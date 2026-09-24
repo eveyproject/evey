@@ -75,3 +75,19 @@ describe("coverArtUri", () => {
     expect(coverArtUri("http://srv", "/art", 0)).toBe("http://srv/art");
   });
 });
+
+// Artwork is served immutable for a year (measured on the dev server): a
+// replaced poster reaches a client only through a new URL.
+describe("artworkUrl versioning", () => {
+  it("adds the item's change time as ?v= before the width", () => {
+    const item = { updatedAt: "2026-09-24T10:00:00Z" };
+    expect(artworkUrl("http://srv", "m1", "poster", 400, item)).toBe(
+      `http://srv/api/v1/media/m1/artwork/poster?v=${Date.parse(item.updatedAt)}&w=400`,
+    );
+  });
+
+  it("stays unversioned when the item's change time is unknown", () => {
+    expect(artworkUrl("http://srv", "m1", "poster", 400, {})).toBe("http://srv/api/v1/media/m1/artwork/poster?w=400");
+    expect(artworkUrl("http://srv", "m1", "backdrop")).toBe("http://srv/api/v1/media/m1/artwork/backdrop");
+  });
+});

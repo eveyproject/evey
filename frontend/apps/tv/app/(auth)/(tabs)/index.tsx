@@ -116,7 +116,7 @@ function MediaCardImpl({
 }) {
   const { t } = useTranslation();
   const theme = useTheme();
-  const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2) : undefined;
+  const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2, item) : undefined;
   const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
   // The recommended/popular projections carry no `year` (see recommendedItems
   // below), which left MediaCard's subtitle line blank on every card in those

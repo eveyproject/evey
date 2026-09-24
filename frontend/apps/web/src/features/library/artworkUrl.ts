@@ -12,20 +12,11 @@
  * cached BARE url is simply never requested again once the app asks for `?v=…`.
  */
 
-type ArtworkVersioned = { updatedAt?: string; createdAt?: string };
+// The version key is @evey/client's, shared with the phone and the
+// televisions (their artwork URLs carry it too since 2026-09-24).
+import { artworkVersion, type ArtworkVersioned } from "@evey/client";
 
-/**
- * artworkVersion derives a compact cache-busting token from when the item last
- * changed (updatedAt bumps on a metadata/artwork edit; createdAt as a fallback).
- * Empty when unknown - the URL then stays unversioned for that item rather than
- * inventing a value that would defeat caching on every render.
- */
-export function artworkVersion(item: ArtworkVersioned | undefined): string {
-  const raw = item?.updatedAt ?? item?.createdAt;
-  if (!raw) return "";
-  const t = Date.parse(raw);
-  return Number.isNaN(t) ? "" : String(t);
-}
+export { artworkVersion };
 
 /**
  * artworkUrl builds `/api/v1/media/<id>/artwork/<kind>` with a `?v=` content

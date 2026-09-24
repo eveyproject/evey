@@ -2,14 +2,37 @@
 // memory for row/grid thumbnails where 200-400px posters are plenty. Omit for
 // a full-size hero/backdrop. The id is encoded: a path segment it is, a
 // literal it is not.
+//
+// The server serves artwork `immutable` for a year (measured: public,
+// max-age=31536000, immutable), so an unversioned URL froze a replaced poster
+// in the client's cache for that long. Passing the item adds `?v=<updatedAt>`:
+// each version is its own immutable resource, and a change reaches every
+// client at once - the web's own copy did this, the shared one did not.
 export function artworkUrl(
   serverUrl: string,
   mediaId: string,
   type: "poster" | "backdrop" = "poster",
   width?: number,
+  item?: ArtworkVersioned,
 ) {
   const base = `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/artwork/${type}`;
-  return width && width > 0 ? `${base}?w=${width}` : base;
+  const params: string[] = [];
+  const v = artworkVersion(item);
+  if (v) params.push(`v=${v}`);
+  if (width && width > 0) params.push(`w=${width}`);
+  return params.length > 0 ? `${base}?${params.join("&")}` : base;
+}
+
+export type ArtworkVersioned = { updatedAt?: string; createdAt?: string };
+
+// A compact cache key from when the item last changed (updatedAt bumps on a
+// metadata or artwork edit; createdAt as a fallback). Empty when unknown: the
+// URL then stays unversioned rather than defeating caching on every render.
+export function artworkVersion(item: ArtworkVersioned | undefined): string {
+  const raw = item?.updatedAt ?? item?.createdAt;
+  if (!raw) return "";
+  const t = Date.parse(raw);
+  return Number.isNaN(t) ? "" : String(t);
 }
 
 // Music cover art comes from the API as a server path (`/api/v1/music/...`)

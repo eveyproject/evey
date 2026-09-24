@@ -5,6 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem, V1Artwork } from "@evey/api";
 import { displayTitle } from "@evey/api";
+import { artworkUrl } from "@evey/client";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { useAuthenticatedImage } from "../hooks/useAuthenticatedImage";
@@ -51,7 +52,9 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
   const cardHeight = cardWidth * POSTER_RATIO;
   const serverUrl = useServerUrl();
 
-  const imageUri = serverUrl ? `${serverUrl}/api/v1/media/${item.id}/artwork/poster?w=400` : undefined;
+  // Versioned by the item's updatedAt: artwork is served immutable for a year,
+  // so a replaced poster must change its URL to reach the phone's image cache.
+  const imageUri = serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 400, item) : undefined;
   const imageSource = useAuthenticatedImage(imageUri);
 
   // Primary blurhash drives the expo-image placeholder; the explicit prop

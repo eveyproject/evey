@@ -421,7 +421,7 @@ export default function MediaDetailScreen() {
       <View style={{ width: "100%", height: HERO_HEIGHT }}>
         {serverUrl && id ? (
           <Image
-            source={{ uri: artworkUrl(serverUrl, id, "backdrop", HERO_BACKDROP_WIDTH), headers: authHeaders }}
+            source={{ uri: artworkUrl(serverUrl, id, "backdrop", HERO_BACKDROP_WIDTH, media), headers: authHeaders }}
             style={StyleSheet.absoluteFillObject}
             contentFit="cover"
             transition={300}
@@ -442,7 +442,7 @@ export default function MediaDetailScreen() {
       <View style={{ paddingHorizontal: 48, marginTop: -POSTER_HEIGHT * 0.5, flexDirection: "row", gap: 32 }}>
         {serverUrl && id ? (
           <Image
-            source={{ uri: artworkUrl(serverUrl, id, "poster", POSTER_WIDTH * 2), headers: authHeaders }}
+            source={{ uri: artworkUrl(serverUrl, id, "poster", POSTER_WIDTH * 2, media), headers: authHeaders }}
             style={{
               width: POSTER_WIDTH,
               height: POSTER_HEIGHT,
@@ -742,7 +742,7 @@ export default function MediaDetailScreen() {
                 accessibilityLabel={seasonLabel(season, t)}
               >
                 <Image
-                  source={{ uri: artworkUrl(serverUrl, season.id ?? "", "poster", CARD_WIDTH_GRID * 2), headers: authHeaders }}
+                  source={{ uri: artworkUrl(serverUrl, season.id ?? "", "poster", CARD_WIDTH_GRID * 2, season), headers: authHeaders }}
                   style={{
                     width: CARD_WIDTH_GRID,
                     height: CARD_WIDTH_GRID * POSTER_RATIO,
@@ -783,7 +783,7 @@ export default function MediaDetailScreen() {
               accessibilityLabel={ep.indexNumber != null ? `${ep.indexNumber}. ${ep.title}` : ep.title}
             >
               <Image
-                source={{ uri: artworkUrl(serverUrl, ep.id ?? "", "backdrop", EPISODE_THUMB_WIDTH * 2), headers: authHeaders }}
+                source={{ uri: artworkUrl(serverUrl, ep.id ?? "", "backdrop", EPISODE_THUMB_WIDTH * 2, ep), headers: authHeaders }}
                 style={{
                   width: EPISODE_THUMB_WIDTH,
                   height: EPISODE_THUMB_WIDTH * (9 / 16),
