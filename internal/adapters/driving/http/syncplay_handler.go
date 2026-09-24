@@ -346,6 +346,9 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 			}
 			var cmd domainsyncplay.SyncCommand
 			if umErr := json.Unmarshal([]byte(raw), &cmd); umErr != nil {
+				// Skipped, but said: a silently dropped command looks like a
+				// room that does not follow its host.
+				slog.WarnContext(r.Context(), "syncplay ws: unreadable command", slog.String("room", wsRoomID), slog.Any("err", umErr))
 				continue
 			}
 			if _, cmdErr := s.hub.HandleCommand(wsCtx, wsRoomID, userID, username, cmd); cmdErr != nil {

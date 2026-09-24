@@ -1,6 +1,7 @@
 package syncplay_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -185,5 +186,21 @@ func TestRoom_IsMember(t *testing.T) {
 		if got := r.IsMember(tt.userID); got != tt.want {
 			t.Errorf("IsMember(%q) = %v, want %v", tt.userID, got, tt.want)
 		}
+	}
+}
+
+// A player reports currentTime * 1000, a float: decoding it must not drop the
+// command (the websocket loop skipped a message it could not decode).
+func TestSyncCommand_AcceptsAFractionalPosition(t *testing.T) {
+	var c syncplay.SyncCommand
+	if err := json.Unmarshal([]byte(`{"type":"pause","positionMs":67833.6}`), &c); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if c.Type != "pause" || c.PositionMs != 67834 {
+		t.Fatalf("got %+v, want pause at 67834", c)
+	}
+	var whole syncplay.SyncCommand
+	if err := json.Unmarshal([]byte(`{"type":"seek","positionMs":1200,"trackIndex":2}`), &whole); err != nil || whole.PositionMs != 1200 || whole.TrackIndex != 2 {
+		t.Fatalf("whole position: %+v %v", whole, err)
 	}
 }

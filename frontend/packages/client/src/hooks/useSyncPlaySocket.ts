@@ -241,8 +241,11 @@ export function useSyncPlaySocket(opts: SyncPlaySocketOptions): SyncPlaySocket {
   const send = useCallback((msg: SyncMessage) => {
     const ws = wsRef.current;
     if (!ws) return;
-    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
-    else if (ws.readyState === WebSocket.CONNECTING) outboxRef.current.push(JSON.stringify(msg));
+    // Whole milliseconds: players report currentTime * 1000, and the server
+    // skipped a fractional position until 2026-09-24.
+    const frame = JSON.stringify(msg.positionMs === undefined ? msg : { ...msg, positionMs: Math.round(msg.positionMs) });
+    if (ws.readyState === WebSocket.OPEN) ws.send(frame);
+    else if (ws.readyState === WebSocket.CONNECTING) outboxRef.current.push(frame);
   }, []);
 
   useEffect(() => {

@@ -412,3 +412,16 @@ describe("useSyncPlay - what the web already handled", () => {
     auth.token = "test-token";
   });
 });
+
+describe("useSyncPlay - the position it sends", () => {
+  // The phone sends player.currentTime * 1000: a float the server's int64
+  // could not decode, so the room never followed the host's pause.
+  it("sends whole milliseconds", async () => {
+    mockFetch.mockResolvedValueOnce({ id: "room-1", code: "C1" });
+    const { result } = renderHook(() => useSyncPlay());
+    await act(async () => { await result.current.createRoom("mi-1"); });
+    act(() => { ws().simulateOpen(); });
+    act(() => { result.current.sendPause(67833.333); });
+    expect(ws().send).toHaveBeenLastCalledWith(JSON.stringify({ type: "pause", positionMs: 67833 }));
+  });
+});
