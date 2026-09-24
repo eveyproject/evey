@@ -173,7 +173,10 @@ func buildBackupServices(cfg *config.Config, infra *infraDeps, rootLog *slog.Log
 func buildSyncPlayServices(db *sql.DB) (*appsyncplay.Hub, *appsyncplay.DeviceRegistry, *appmedia.StreamTokenStore, *appmedia.ShareService) {
 	// The store is built first because the hub needs it: a guest token has no
 	// user, so the room dying is the ONLY event that can revoke it.
-	streamTokenStore := appmedia.NewStreamTokenStore(appmedia.DefaultStreamTokenTTL)
+	// Persisted (hashed) so a restart does not cut every native playback in
+	// progress: those players hold one token for the whole title.
+	streamTokenStore := appmedia.NewStreamTokenStore(appmedia.DefaultStreamTokenTTL).
+		WithPersistence(postgres.NewStreamTokenRepo(db))
 	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db),
 		appsyncplay.WithGuestTokenRevoker(streamTokenStore))
 	deviceRegistry := appsyncplay.NewDeviceRegistry()
