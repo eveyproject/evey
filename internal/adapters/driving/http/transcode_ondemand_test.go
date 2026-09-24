@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -624,6 +625,13 @@ func TestBuildHybridMaster_FallbackRung(t *testing.T) {
 	assert.Contains(t, fbURI, "vd=transcode", "the rung pins ITS plan's video decision")
 	assert.Contains(t, fbURI, "fp=", "the rung seals ITS plan's fingerprint")
 	assert.NotContains(t, fbURI, "vd=copy")
+	// The audio muxed in the rung (dts re-encoded) is named on its URL for the
+	// players' stream info panel.
+	u, err := url.Parse(fbURI)
+	require.NoError(t, err)
+	assert.Equal(t, "transcode", u.Query().Get("servedAudio"))
+	assert.Equal(t, "aac", u.Query().Get("servedAudioCodec"))
+	assert.NotEmpty(t, u.Query().Get("servedAudioKbps"))
 }
 
 // The rung must buy a real drop: on a source already lean enough that the
