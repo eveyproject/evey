@@ -182,8 +182,8 @@ describe("CollectionDetailScreen item removal", () => {
     const confirmButton = buttons.find((b: any) => b.style === "destructive");
     await confirmButton.onPress();
 
-    expect(removeItemMutateAsyncMock).toHaveBeenCalledWith({ id: COLLECTION_ID, mediaItemId: "mi-2" });
-    expect(removeItemMutateAsyncMock).not.toHaveBeenCalledWith({ id: COLLECTION_ID, mediaItemId: "mi-1" });
+    expect(removeItemMutateAsyncMock).toHaveBeenCalledWith("mi-2");
+    expect(removeItemMutateAsyncMock).not.toHaveBeenCalledWith("mi-1");
     await waitFor(() => expect(refetchMock).toHaveBeenCalled());
   });
 
@@ -226,7 +226,7 @@ describe("CollectionDetailScreen reorder", () => {
     expect(reorderMutateMock).toHaveBeenCalledWith({
       mediaItemIds: ["mi-2", "mi-1", "mi-3"],
       name: "Bond Saga",
-    });
+    }, expect.objectContaining({ onError: expect.any(Function) }));
   });
 
   it("sends the full new order (moving the 2nd item down)", () => {
@@ -237,7 +237,7 @@ describe("CollectionDetailScreen reorder", () => {
     expect(reorderMutateMock).toHaveBeenCalledWith({
       mediaItemIds: ["mi-1", "mi-3", "mi-2"],
       name: "Bond Saga",
-    });
+    }, expect.objectContaining({ onError: expect.any(Function) }));
   });
 
   it("disables moving the first item up and the last item down", () => {

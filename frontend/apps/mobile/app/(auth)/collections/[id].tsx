@@ -18,6 +18,7 @@ import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { useAuthStore } from "@evey/store";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -92,6 +93,7 @@ function EditCollectionModal({
         name: name.trim(),
         ...(next === initialDescription.trim() ? {} : { overview: next }),
       });
+      toast.success(t("media.collections.updated"));
       onClose();
     } catch {
       Alert.alert(t("common.error", "Error"), t("common.tryAgain", "Please try again."));
@@ -163,7 +165,7 @@ export default function CollectionDetailScreen() {
 
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useCollection(id ?? "");
   const deleteMut = useDeleteCollection();
-  const removeItemMut = useRemoveCollectionItem();
+  const removeItemMut = useRemoveCollectionItem(id ?? "");
   const reorderMut = useReorderCollectionItems(id ?? "");
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const col = data?.collection;
@@ -183,6 +185,7 @@ export default function CollectionDetailScreen() {
           onPress: async () => {
             try {
               await deleteMut.mutateAsync(id ?? "");
+              toast.success(t("media.collections.deleted"));
               router.back();
             } catch {
               Alert.alert(t("common.error", "Error"), t("common.tryAgain", "Please try again."));
@@ -205,10 +208,11 @@ export default function CollectionDetailScreen() {
             style: "destructive",
             onPress: async () => {
               try {
-                await removeItemMut.mutateAsync({ id: id ?? "", mediaItemId: item.id });
+                await removeItemMut.mutateAsync(item.id);
+                toast.success(t("media.collections.itemRemoved"));
                 refetch();
               } catch {
-                // toast already surfaced by the mutation hook
+                toast.error(t("common.error"));
               }
             },
           },
@@ -260,10 +264,10 @@ export default function CollectionDetailScreen() {
             <View style={[styles.reorderBtns, { backgroundColor: theme.colors.surface }]}>
               <Pressable
                 onPress={() =>
-                  reorderMut.mutate({
-                    mediaItemIds: moveItem(items.map((i) => i.id), item.id, "up"),
-                    name: col?.name ?? "",
-                  })
+                  reorderMut.mutate(
+                    { mediaItemIds: moveItem(items.map((i) => i.id), item.id, "up"), name: col?.name ?? "" },
+                    { onError: () => toast.error(t("common.error")) },
+                  )
                 }
                 hitSlop={8}
                 disabled={reorderMut.isPending || items[0]?.id === item.id}
@@ -276,10 +280,10 @@ export default function CollectionDetailScreen() {
               </Pressable>
               <Pressable
                 onPress={() =>
-                  reorderMut.mutate({
-                    mediaItemIds: moveItem(items.map((i) => i.id), item.id, "down"),
-                    name: col?.name ?? "",
-                  })
+                  reorderMut.mutate(
+                    { mediaItemIds: moveItem(items.map((i) => i.id), item.id, "down"), name: col?.name ?? "" },
+                    { onError: () => toast.error(t("common.error")) },
+                  )
                 }
                 hitSlop={8}
                 disabled={reorderMut.isPending || items[items.length - 1]?.id === item.id}

@@ -1,7 +1,33 @@
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
-import { toast } from "@evey/store";
-import i18n from "i18next";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useCollectionServiceListCollections,
+  useCollectionServiceGetCollection,
+  useCollectionServiceGetCollectionItems,
+  useCollectionServiceListCollectionsForMediaItem,
+  collectionServiceCreateCollection,
+  collectionServiceUpdateCollection,
+  collectionServiceDeleteCollection,
+  collectionServiceAddCollectionItem,
+  collectionServiceRemoveCollectionItem,
+  collectionServiceReorderCollectionItems,
+  collectionServiceGetCollectionItems,
+  getCollectionServiceListCollectionsQueryKey,
+  getCollectionServiceGetCollectionQueryKey,
+  getCollectionServiceGetCollectionItemsQueryKey,
+  getCollectionServiceListCollectionsForMediaItemQueryKey,
+} from "@evey/api";
+import type { V1CollectionProto } from "@evey/api";
+
+// The collections of every client. The web kept its own layer beside this one
+// until 2026-09-24 (generated API, no toast) while the phone and the
+// televisions used hand-written calls with the messages inside. One layer now,
+// and it says nothing: the screen that calls it words its own message.
+
+export interface CollectionRule {
+  field: string;
+  operator: string;
+  value: string;
+}
 
 export interface Collection {
   id: string;
@@ -10,14 +36,14 @@ export interface Collection {
   overview?: string;
   posterUrl?: string;
   backdropUrl?: string;
-  rules?: { field: string; operator: string; value: string }[];
+  rules?: CollectionRule[];
   sortBy?: string;
+  createdAt: string;
+  updatedAt: string;
   /** Members THIS viewer can see - already access- and parental-filtered. */
   itemCount?: number;
   /** "saga" (TMDB-sourced), "smart" (rule-driven) or "manual". */
   kind?: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface CollectionItem {
@@ -30,26 +56,39 @@ export interface CollectionItem {
   genres?: string[];
 }
 
-interface ListCollectionsResponse {
-  collections: Collection[];
+function mapCollection(c: V1CollectionProto): Collection {
+  return {
+    id: c.id ?? "",
+    tmdbId: c.tmdbId,
+    name: c.name ?? "",
+    overview: c.overview,
+    posterUrl: c.posterUrl,
+    backdropUrl: c.backdropUrl,
+    rules: c.rules?.map((r) => ({ field: r.field ?? "", operator: r.operator ?? "", value: r.value ?? "" })),
+    sortBy: c.sortBy,
+    itemCount: c.itemCount,
+    kind: c.kind,
+    createdAt: c.createdAt ?? "",
+    updatedAt: c.updatedAt ?? "",
+  };
 }
 
-interface GetCollectionResponse {
-  collection: Collection;
-  items: CollectionItem[];
-  total: number;
+function mapItem(i: { id?: string; title?: string; type?: string; year?: number; overview?: string; communityRating?: number; genres?: string[] }): CollectionItem {
+  return {
+    id: i.id ?? "",
+    title: i.title ?? "",
+    type: i.type ?? "",
+    year: i.year,
+    overview: i.overview,
+    communityRating: i.communityRating,
+    genres: i.genres,
+  };
 }
+
+const selectList = (d: { collections?: V1CollectionProto[] }) => ({ collections: (d.collections ?? []).map(mapCollection) });
 
 export function useCollections() {
-  return useQuery<ListCollectionsResponse>({
-    queryKey: ["collections"],
-    queryFn: () =>
-      eveyFetch<ListCollectionsResponse>({
-        url: "/api/v1/collections",
-        method: "GET",
-      }),
-    staleTime: 5 * 60_000,
-  });
+  return useCollectionServiceListCollections(undefined, { query: { select: selectList, staleTime: 5 * 60_000 } });
 }
 
 /**
@@ -59,51 +98,7 @@ export function useCollections() {
  * trying to add the second one to it.
  */
 export function useAllCollections() {
-  return useQuery<ListCollectionsResponse>({
-    queryKey: ["collections", "all"],
-    queryFn: () =>
-      eveyFetch<ListCollectionsResponse>({
-        url: "/api/v1/collections?minItems=1",
-        method: "GET",
-      }),
-    staleTime: 5 * 60_000,
-  });
-}
-
-const COLLECTION_PAGE_SIZE = 50;
-
-/**
- * A collection and its members, page by page. It has to page: the endpoint
- * answers 50 members at a time, and asking for one page showed 50 titles of a
- * larger collection with nothing saying the rest existed.
- */
-export function useCollection(id: string, pageSize = COLLECTION_PAGE_SIZE) {
-  const query = useInfiniteQuery<GetCollectionResponse>({
-    queryKey: ["collection", id, pageSize],
-    initialPageParam: 0,
-    queryFn: ({ pageParam }) =>
-      eveyFetch<GetCollectionResponse>({
-        url: `/api/v1/collections/${id}?limit=${pageSize}&offset=${pageParam as number}`,
-        method: "GET",
-      }),
-    getNextPageParam: (_last, pages) => {
-      const loaded = pages.reduce((n, p) => n + (p.items?.length ?? 0), 0);
-      return loaded < (pages[0]?.total ?? 0) ? loaded : undefined;
-    },
-    enabled: !!id,
-    staleTime: 5 * 60_000,
-  });
-  const pages = query.data?.pages ?? [];
-  return {
-    ...query,
-    data: pages.length
-      ? {
-          collection: pages[0].collection,
-          items: pages.flatMap((p) => p.items ?? []),
-          total: pages[0].total ?? 0,
-        }
-      : undefined,
-  };
+  return useCollectionServiceListCollections({ minItems: 1 }, { query: { select: selectList, staleTime: 5 * 60_000 } });
 }
 
 /**
@@ -111,97 +106,201 @@ export function useCollection(id: string, pageSize = COLLECTION_PAGE_SIZE) {
  * server. An empty list is the common case - a title belonging to nothing.
  */
 export function useMediaItemCollections(mediaItemId: string) {
-  return useQuery<ListCollectionsResponse>({
-    queryKey: ["media-item-collections", mediaItemId],
-    queryFn: () =>
-      eveyFetch<ListCollectionsResponse>({
-        url: `/api/v1/media/${mediaItemId}/collections`,
-        method: "GET",
-      }),
-    enabled: !!mediaItemId,
-    staleTime: 5 * 60_000,
+  return useCollectionServiceListCollectionsForMediaItem(mediaItemId, {
+    query: {
+      queryKey: getCollectionServiceListCollectionsForMediaItemQueryKey(mediaItemId),
+      select: selectList,
+      enabled: !!mediaItemId,
+      staleTime: 5 * 60_000,
+    },
   });
 }
 
-export function useCreateCollection() {
-  const qc = useQueryClient();
-  return useMutation({
-    // The server field is overview, not description: what was sent under the
-    // old name was dropped on the floor, so a description typed at creation
-    // never survived the save.
-    mutationFn: (input: { name: string; overview?: string; rules?: { field: string; operator: string; value: string }[] }) =>
-      eveyFetch<{ id: string }>({ url: "/api/v1/collections", method: "POST", data: input }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["collections"] });
-      toast.success(i18n.t("media.collections.created"));
+function useCollectionHead(id: string) {
+  return useCollectionServiceGetCollection(id, undefined, {
+    query: {
+      enabled: !!id,
+      staleTime: 5 * 60_000,
+      select: (d) => (d.collection ? mapCollection(d.collection) : undefined),
     },
-    onError: () => toast.error(i18n.t("media.collections.createFailed")),
-  });
-}
-
-export function useUpdateCollection() {
-  const qc = useQueryClient();
-  return useMutation({
-    // overview is optional on the wire: leaving it out keeps what is stored,
-    // which is how a rename spares the synopsis a TMDB saga came with.
-    mutationFn: ({ id, ...body }: { id: string; name: string; overview?: string; rules?: { field: string; operator: string; value: string }[] }) =>
-      eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "PUT", data: body }),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["collections"] });
-      qc.invalidateQueries({ queryKey: ["collection", vars.id] });
-      toast.success(i18n.t("media.collections.updated"));
-    },
-    onError: () => toast.error(i18n.t("media.collections.updateFailed")),
-  });
-}
-
-export function useDeleteCollection() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) =>
-      eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "DELETE" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["collections"] });
-      toast.success(i18n.t("media.collections.deleted"));
-    },
-    onError: () => toast.error(i18n.t("media.collections.deleteFailed")),
-  });
-}
-
-/** Admin-only (RBAC RoleAdmin server-side); does not delete the title itself. */
-export function useRemoveCollectionItem() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, mediaItemId }: { id: string; mediaItemId: string }) =>
-      eveyFetch<void>({ url: `/api/v1/collections/${id}/items/${mediaItemId}`, method: "DELETE" }),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["collections"] });
-      qc.invalidateQueries({ queryKey: ["collection", vars.id] });
-      toast.success(i18n.t("media.collections.itemRemoved"));
-    },
-    onError: () => toast.error(i18n.t("common.error")),
   });
 }
 
 /**
- * Writes the hand-set order of a collection's members. Admin-only, mirrors
- * apps/web's useReorderCollectionItems (features/collection/api.ts).
+ * One page of a collection's members, for a numbered pager (the web).
+ */
+export function useCollectionPage(id: string, limit = 50, offset = 0) {
+  const head = useCollectionHead(id);
+  const items = useCollectionServiceGetCollectionItems(id, { limit, offset }, {
+    query: {
+      enabled: !!id,
+      staleTime: 5 * 60_000,
+      select: (d) => ({ items: (d.items ?? []).map(mapItem), total: d.total ?? 0 }),
+    },
+  });
+  return {
+    data: head.data ? { collection: head.data, items: items.data?.items ?? [], total: items.data?.total ?? 0 } : undefined,
+    isLoading: head.isLoading || items.isLoading,
+    isError: head.isError || items.isError,
+    error: head.error ?? items.error,
+    // Both halves, so a retry after a failure fetches whichever one failed.
+    refetch: () => { void head.refetch(); void items.refetch(); },
+  };
+}
+
+const COLLECTION_PAGE_SIZE = 50;
+
+/**
+ * A collection and its members as one growing list, for a scroller (the
+ * phone, the televisions). It has to page: the endpoint answers 50 members at
+ * a time, and asking for one page showed 50 titles of a larger collection with
+ * nothing saying the rest existed.
+ */
+export function useCollection(id: string, pageSize = COLLECTION_PAGE_SIZE) {
+  const head = useCollectionHead(id);
+  const items = useInfiniteQuery({
+    // Under the items key, so a mutation invalidating the collection's items
+    // refreshes this list too.
+    queryKey: [...getCollectionServiceGetCollectionItemsQueryKey(id), "all", pageSize],
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) => collectionServiceGetCollectionItems(id, { limit: pageSize, offset: pageParam }, signal),
+    getNextPageParam: (_last, pages) => {
+      const loaded = pages.reduce((n, p) => n + (p.items?.length ?? 0), 0);
+      return loaded < (pages[0]?.total ?? 0) ? loaded : undefined;
+    },
+    enabled: !!id,
+    staleTime: 5 * 60_000,
+  });
+  const pages = items.data?.pages ?? [];
+  return {
+    data: head.data && pages.length
+      ? { collection: head.data, items: pages.flatMap((p) => (p.items ?? []).map(mapItem)), total: pages[0]?.total ?? 0 }
+      : undefined,
+    isLoading: head.isLoading || items.isLoading,
+    isError: head.isError || items.isError,
+    error: head.error ?? items.error,
+    refetch: () => { void head.refetch(); void items.refetch(); },
+    fetchNextPage: items.fetchNextPage,
+    hasNextPage: items.hasNextPage,
+    isFetchingNextPage: items.isFetchingNextPage,
+  };
+}
+
+function useInvalidate() {
+  const qc = useQueryClient();
+  return {
+    list: () => qc.invalidateQueries({ queryKey: getCollectionServiceListCollectionsQueryKey() }),
+    head: (id: string) => qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionQueryKey(id) }),
+    items: (id: string) => qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionItemsQueryKey(id) }),
+  };
+}
+
+interface CreateCollectionInput {
+  name: string;
+  overview?: string;
+  rules?: CollectionRule[];
+  sortBy?: string;
+  smart?: boolean;
+}
+
+interface UpdateCollectionInput {
+  id: string;
+  name: string;
+  /** Absent keeps the existing synopsis server-side; only send it when the
+   * user actually touched the description field. */
+  overview?: string;
+  rules?: CollectionRule[];
+  sortBy?: string;
+  smart?: boolean;
+}
+
+export function useCreateCollection() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    // The server field is overview, not description. The answer wraps the new
+    // collection ({ collection: {...} }): the phone read a flat id and never
+    // opened the collection it had just created.
+    mutationFn: async (input: CreateCollectionInput): Promise<{ id: string }> => {
+      const created = await collectionServiceCreateCollection({
+        name: input.name,
+        overview: input.overview,
+        rules: input.rules?.map((r) => ({ field: r.field, operator: r.operator, value: r.value })),
+        sortBy: input.sortBy,
+        smart: input.smart ?? (input.rules != null && input.rules.length > 0),
+      });
+      return { id: created.collection?.id ?? "" };
+    },
+    onSuccess: () => invalidate.list(),
+  });
+}
+
+export function useUpdateCollection() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, name, overview, rules, sortBy, smart }: UpdateCollectionInput) =>
+      collectionServiceUpdateCollection(id, {
+        name,
+        overview,
+        rules: rules?.map((r) => ({ field: r.field, operator: r.operator, value: r.value })),
+        sortBy,
+        smart: smart ?? (rules != null && rules.length > 0),
+      }),
+    onSuccess: (_d, vars) => {
+      invalidate.list();
+      invalidate.head(vars.id);
+      // A smart collection's rules decide which items match, so editing them
+      // changes the items list - refresh it too, not just the metadata.
+      invalidate.items(vars.id);
+    },
+  });
+}
+
+export function useDeleteCollection() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => collectionServiceDeleteCollection(id),
+    onSuccess: () => invalidate.list(),
+  });
+}
+
+export function addCollectionItem(collectionId: string, mediaItemId: string) {
+  return collectionServiceAddCollectionItem(collectionId, { mediaItemId, sortOrder: 0 });
+}
+
+/**
+ * Removes one title from a collection (admin-only server-side; the title
+ * itself stays). Adding shipped without this for a long time, so a wrong
+ * member was permanent and curation was write-only.
+ */
+export function useRemoveCollectionItem(collectionId: string) {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (mediaItemId: string) => collectionServiceRemoveCollectionItem(collectionId, mediaItemId),
+    onSuccess: () => {
+      invalidate.items(collectionId);
+      invalidate.head(collectionId);
+      invalidate.list();
+    },
+  });
+}
+
+/**
+ * Writes the hand-set order of a collection's members.
  *
  * The order only takes effect once the collection reads by it, so this also
- * switches sortBy to "manual" in a second call - a viewer who moves a title
- * means that place, not "store it and keep showing release order".
+ * switches sortBy to "manual" - a viewer who moves a title into place means
+ * that place, not "store it and keep showing release order".
  */
-export function useReorderCollectionItems(id: string) {
-  const qc = useQueryClient();
+export function useReorderCollectionItems(collectionId: string) {
+  const invalidate = useInvalidate();
   return useMutation({
     mutationFn: async ({ mediaItemIds, name }: { mediaItemIds: string[]; name: string }) => {
-      await eveyFetch<void>({ url: `/api/v1/collections/${id}/items/order`, method: "PUT", data: { mediaItemIds } });
-      await eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "PUT", data: { name, sortBy: "manual" } });
+      await collectionServiceReorderCollectionItems(collectionId, { mediaItemIds });
+      await collectionServiceUpdateCollection(collectionId, { name, sortBy: "manual" });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["collections"] });
-      qc.invalidateQueries({ queryKey: ["collection", id] });
+      invalidate.items(collectionId);
+      invalidate.head(collectionId);
     },
-    onError: () => toast.error(i18n.t("common.error")),
   });
 }

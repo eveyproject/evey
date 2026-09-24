@@ -8,6 +8,11 @@ import React from "react";
 // of hiding a failed section behind silence.
 
 // --- React Native mock -------------------------------------------------------------
+// The collections row reads the shared layer (generated API); this screen's
+// tests are about the other rows, so it is doubled at the app's own path.
+vi.mock("../../../src/api/collections", () => ({
+  useCollections: () => ({ data: { collections: [] }, isLoading: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock("react-native", () => ({
   View: ({ children, testID, ...p }: any) => React.createElement("div", { "data-testid": testID, ...p }, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
