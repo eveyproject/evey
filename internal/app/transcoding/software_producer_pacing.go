@@ -56,16 +56,25 @@ func (p *SoftwareProducer) NotifyClientHint(mediaItemID string, variantIdx, buff
 		}
 	}
 	if starved && covering != nil {
-		p.resumeIfPaused(covering)
+		p.resume(covering, true)
 	}
 }
 
 // resumeIfPaused SIGCONTs the encoder if the idle-pause loop had suspended it.
-// Idempotent on a running process; only fires on the paused→active edge.
-func (p *SoftwareProducer) resumeIfPaused(s *swSession) {
+// Idempotent on a running process; only fires on the paused→active edge. A
+// session the copy window suspended (leadPaused) stays suspended: the viewer
+// pulling segments is the normal state while the lead is full.
+func (p *SoftwareProducer) resumeIfPaused(s *swSession) { p.resume(s, false) }
+
+// resume is resumeIfPaused, lifting the copy window's pause too when force is
+// set (a starved client wants bytes, whatever the window says).
+func (p *SoftwareProducer) resume(s *swSession, force bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.paused || s.handle == nil {
+		return
+	}
+	if s.leadPaused && !force {
 		return
 	}
 	// Resume the process while still holding s.mu so a concurrent sweepPause /
@@ -78,6 +87,7 @@ func (p *SoftwareProducer) resumeIfPaused(s *swSession) {
 		return
 	}
 	s.paused = false
+	s.leadPaused = false
 	s.pausedSince = time.Time{}
 }
 

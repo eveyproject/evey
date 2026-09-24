@@ -204,6 +204,19 @@ type SoftwareProducerOptions struct {
 	// only half ever checked: comfortably above the 0-1 segment gap of continuous
 	// playback, so steady viewing never spuriously spawns a second encoder.
 	SeekReachWindowSegs int
+
+	// CopyLeadSegs is how many segments a COPY session may produce beyond the
+	// last one served before it is suspended (see software_producer_window.go).
+	// The remux runs at 8x, so without a lead cap a whole film lands on disk
+	// in minutes; with it the disk holds a window around the viewer. Default
+	// 30 (about five minutes of content at the usual keyframe cadence), far
+	// beyond any player's buffer. Transcode sessions ignore it.
+	CopyLeadSegs int
+
+	// CopyKeepBehindSegs is how many segments behind the viewer a COPY session
+	// keeps on disk; older ones are deleted. A seek further back is served by
+	// a fresh remux at the keyframe. Default 12 (about two minutes).
+	CopyKeepBehindSegs int
 }
 
 // clientSegmentPatience is how long a player actually waits on ONE segment
@@ -292,6 +305,12 @@ func (o SoftwareProducerOptions) withDefaults() SoftwareProducerOptions {
 	if out.ResumeCushionSegs <= 0 {
 		out.ResumeCushionSegs = 8
 	}
+	if out.CopyLeadSegs <= 0 {
+		out.CopyLeadSegs = 30
+	}
+	if out.CopyKeepBehindSegs <= 0 {
+		out.CopyKeepBehindSegs = 12
+	}
 	// KillPausedAfter has no fallback - 0 means disabled, and stays disabled.
 	return out
 }
@@ -326,6 +345,17 @@ type swSession struct {
 	// by mu; initialised to startSeg.
 	frontier   int
 	lastAccess time.Time
+	// floorSeg is the lowest segment this session still has on disk: startSeg
+	// until the copy window trims behind the viewer, then the cut. A request
+	// below it is not covered by this session (the file is gone and the
+	// encoder will not write it again), so the producer spawns a fresh one.
+	// Guarded by mu.
+	floorSeg int
+	// leadPaused marks a SIGSTOP by the copy window (the encoder ran far
+	// enough ahead of the viewer), as opposed to the idle pause: a segment
+	// request does not lift it, only the window sweep or a starvation hint.
+	// Guarded by mu.
+	leadPaused bool
 	// spawnedAt is when this encoder started. Together with "frontier still at
 	// startSeg" it defines a NEWBORN - a session that has not yet delivered its
 	// first segment and is therefore exactly what an active Wait depends on.
@@ -639,7 +669,8 @@ func (p *SoftwareProducer) findCoveringSessionLocked(hash string, variantIdx, se
 		// the live replacement.
 		dead := s.cancelCtx == nil
 		sameVariant := s.variantIdx == variantIdx
-		start := s.startSeg
+		// The floor, not the start: below it the copy window deleted the files.
+		start := max(s.startSeg, s.floorSeg)
 		s.mu.Unlock()
 		if dead {
 			continue
@@ -864,6 +895,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		videoSlotAcquired: videoSlotAcquired,
 		startSeg:          startSeg,
 		frontier:          startSeg,
+		floorSeg:          startSeg,
 		lastAccess:        time.Now(),
 		spawnedAt:         time.Now(),
 		useFMP4:           fp.UseFMP4,
