@@ -8,6 +8,7 @@ import {
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { firstStartMs } from "../lib/resumePosition";
+import { isShedCode, type ShedReason } from "../lib/shed";
 import { getDeviceAudioCodecs, getDeviceMaxH264Level, getFmp4AudioPassthrough } from "./deviceCodecs";
 
 // The play session of the two native players (phone and television). They
@@ -31,22 +32,7 @@ interface StreamTokenResponse {
   mediaId: string;
 }
 
-// Mirrors the server's shed contract (HTTP 503 on a refused playback start):
-// - too_many_streams: the box can't prepare one more stream because of OTHER
-//   concurrent playbacks.
-// - file_not_ready: unrelated to load - this specific file's seek index is
-//   still being built and will serve fine once that finishes.
-// - calibrating: the server is benchmarking its own encode capacity (~2 min,
-//   only ever on an idle host); playback works again once it is done.
-// - file_needs_remux: the FILE is stored in one-track blocks and no player
-//   gets past the first; an admin re-muxes it from the media-health page.
-// Never surface the server's `message` field (English, technical) to users -
-// the screen picks its own non-technical copy from this code.
-export type ShedReason = "too_many_streams" | "file_not_ready" | "calibrating" | "file_needs_remux" | null;
-
-function isShedCode(code: string | null | undefined): code is Exclude<ShedReason, null> {
-  return code === "too_many_streams" || code === "file_not_ready" || code === "calibrating" || code === "file_needs_remux";
-}
+export type { ShedReason };
 
 // expo-video's PlayerError is just `{ message: string }` - ExoPlayer/AVPlayer
 // give no structured HTTP status or response body, so the shed code cannot be

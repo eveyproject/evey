@@ -31,6 +31,7 @@ export * from "./hooks/usePluginThemes";
 export * from "./lib/authRefreshCore";
 export * from "./lib/fetcherSetup";
 export * from "./lib/errorClassification";
+export * from "./lib/shed";
 export * from "./lib/mutationErrorMessage";
 export * from "./lib/mutationErrorNet";
 export * from "./lib/certifications";

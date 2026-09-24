@@ -38,7 +38,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview, holdScrubRate, tapSeekStep } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
-import { resolveStartPositionMs } from "@evey/client";
+import { resolveStartPositionMs, shedI18nKey } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { QualityPicker } from "../../../src/components/QualityPicker";
@@ -1412,10 +1412,10 @@ export default function PlayerScreen() {
       <View style={[styles.container, { backgroundColor: "#000" }]}>
         <Ionicons name="time-outline" size={48} color="rgba(255,255,255,0.7)" />
         <Text style={{ color: "#fff", fontSize: 21, fontWeight: "600", marginTop: 20, textAlign: "center", paddingHorizontal: 60 }}>
-          {t(`player.shed.${shedReason === "file_not_ready" ? "fileNotReady" : shedReason === "calibrating" ? "calibrating" : shedReason === "file_needs_remux" ? "fileNeedsRemux" : "tooManyStreams"}.title`)}
+          {t(shedI18nKey(shedReason, "title"))}
         </Text>
         <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 17, marginTop: 12, textAlign: "center", paddingHorizontal: 80 }}>
-          {t(`player.shed.${shedReason === "file_not_ready" ? "fileNotReady" : shedReason === "calibrating" ? "calibrating" : shedReason === "file_needs_remux" ? "fileNeedsRemux" : "tooManyStreams"}.body`)}
+          {t(shedI18nKey(shedReason, "body"))}
         </Text>
         <Pressable
           onPress={() => {

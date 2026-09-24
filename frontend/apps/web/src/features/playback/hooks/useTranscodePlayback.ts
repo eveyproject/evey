@@ -3,20 +3,10 @@ import Hls from "hls.js";
 import { createPlayerEventReporter } from "@evey/api";
 import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, pickTranscodeResumeSec, prefersNativeHLS, startPlayback, forwardBufferSeconds, MAX_FORWARD_BUFFER_SEC } from "./hlsPlayerUtils";
 import { playbackSnapshot } from "../playbackSnapshot";
+import { isShedCode, type ShedReason } from "@evey/client";
 
 
-// Mirrors the server's shed contract (HTTP 503 on a refused playback start):
-// - too_many_streams: the box can't prepare one more stream because of OTHER
-//   concurrent playbacks.
-// - file_not_ready: unrelated to load - this specific file's seek index is
-//   still being built and will serve fine once that finishes.
-// - calibrating: the server is benchmarking its own encode capacity (~2 min,
-//   only ever on an idle host); playback works again once it is done.
-// - file_needs_remux: the FILE is stored in one-track blocks and no player
-//   gets past the first; an admin re-muxes it from the media-health page.
-// Never surface the server's `message` field (English, technical) to users -
-// the client picks its own non-technical copy from this code.
-export type ShedReason = "too_many_streams" | "file_not_ready" | "calibrating" | "file_needs_remux" | null;
+export type { ShedReason };
 
 interface ShedErrorData {
   response?: { code?: number; text?: string };
@@ -42,13 +32,13 @@ function extractShedReason(data: ShedErrorData): ShedReason {
   // body - so a real file_not_ready shed on a segment is still recognised.
   const xhr = data.networkDetails as { getResponseHeader?: (name: string) => string | null } | undefined;
   const header = xhr?.getResponseHeader?.("X-Evey-Error");
-  if (header === "too_many_streams" || header === "file_not_ready" || header === "calibrating" || header === "file_needs_remux") return header;
+  if (isShedCode(header)) return header;
 
   const raw = data.response?.text || (data.networkDetails as { responseText?: string } | undefined)?.responseText;
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as { code?: string };
-      if (parsed.code === "too_many_streams" || parsed.code === "file_not_ready" || parsed.code === "calibrating" || parsed.code === "file_needs_remux") return parsed.code;
+      if (isShedCode(parsed.code)) return parsed.code;
     } catch {
       // Not our JSON shape (e.g. a proxy's plain-text 503 page) - no explicit
       // shed signal.
