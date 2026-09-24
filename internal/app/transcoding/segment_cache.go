@@ -82,7 +82,12 @@ type DecisionFingerprint struct {
 	// made with - see HLSProcessOpts.AudioEncoder. Hashed only when it is not
 	// the native encoder (nonNativeAudioEncoder), so a box that never had
 	// libfdk keeps every segment it already cached.
-	AudioEncoder        string
+	AudioEncoder string
+	// Grid is the frame-exact segmentation of the presentation (see
+	// transcoding.SegmentGrid). A Hash() dimension when exact: segments cut on
+	// the frame grid are not the segments cut on the 3 s clock. The legacy
+	// grid hashes as nothing, so every existing cache entry keeps its name.
+	Grid                transcoding.SegmentGrid
 	MediaID             string
 	SourcePath          string // absolute path; same media at a different path = different cache
 	VideoCodec          string // domain codec: "h264", "hevc", "av1"
@@ -279,6 +284,9 @@ func ProfileFingerprintOf(p transcoding.HLSProfile) ProfileFingerprint {
 // pipeline's existing knobs so audio settings stay consistent across
 // the two pipelines.
 type AudioFingerprint struct {
+	// Grid is the video's segmentation the rendition cuts on (see
+	// DecisionFingerprint.Grid); hashed when exact.
+	Grid           transcoding.SegmentGrid
 	MediaID        string
 	SourcePath     string
 	SourceTrackIdx int
@@ -343,6 +351,11 @@ func (a AudioFingerprint) hashWithDownmixPolicy(downmixPolicy string) string {
 	b.WriteString("audio:\n")
 	fmt.Fprintf(&b, "media=%s\n", a.MediaID)
 	fmt.Fprintf(&b, "src=%s\n", a.SourcePath)
+	if g := a.Grid.String(); g != "" {
+		// Conditional: a rendition cut on the frame grid is not one cut on the
+		// 3 s clock; the legacy grid hashes as before.
+		fmt.Fprintf(&b, "grid=%s\n", g)
+	}
 	fmt.Fprintf(&b, "atrack=%d\n", a.SourceTrackIdx)
 	fmt.Fprintf(&b, "acodec=%s\n", a.AudioCodec)
 	if aenc := nonNativeAudioEncoder(a.AudioEncoder); aenc != "" {
@@ -463,6 +476,10 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 	if f.AudioCopy {
 		// Conditional on purpose: see the AudioCopy field comment.
 		b.WriteString("acopy=true\n")
+	}
+	if g := f.Grid.String(); g != "" {
+		// Conditional: the legacy clock grid hashes as before.
+		fmt.Fprintf(&b, "grid=%s\n", g)
 	}
 	if f.AudioOffsetMs != 0 {
 		// Conditional: only a resynced session forks its cache.

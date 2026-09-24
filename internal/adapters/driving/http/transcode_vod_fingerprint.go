@@ -132,6 +132,7 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 	return apptranscoding.ManifestInput{
 		MediaID:             mediaID,
 		DurationSec:         float64(item.File.Duration.Milliseconds()) / 1000.0,
+		Grid:                rp.FP.Grid,
 		Profiles:            profiles,
 		StreamToken:         token,
 		AudioTrack:          audioTrack,

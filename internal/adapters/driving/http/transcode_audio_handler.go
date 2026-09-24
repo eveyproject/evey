@@ -338,12 +338,16 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 	// Transport, not encode input (never hashed): lets the orchestrator bound
 	// the silence tail it synthesizes when the track ends before this duration.
 	durationSec := float64(item.File.Duration.Milliseconds()) / 1000.0
+	// The rendition is cut on the video's grid, whichever pipeline serves the
+	// video: audio segment N must cover video segment N.
+	grid := h.sourceGrid(r.Context(), mediaID)
 
 	// Native passthrough (copyCodec, decided by the VOD handler for this
 	// client and track) and the wasm passthrough share one fingerprint shape:
 	// the same verbatim samples, whoever decodes them.
 	if copyCodec != "" {
 		return apptranscoding.AudioFingerprint{
+			Grid:                  grid,
 			MediaID:               mediaID,
 			SourcePath:            item.File.Path,
 			SourceTrackIdx:        trackIdx,
@@ -355,6 +359,7 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 	if h.wasmAudio(r) {
 		if c := strings.ToLower(h.sourceAudioCodecForTrack(r.Context(), mediaID, trackIdx)); c == "ac3" || c == "eac3" {
 			return apptranscoding.AudioFingerprint{
+				Grid:           grid,
 				MediaID:        mediaID,
 				SourcePath:     item.File.Path,
 				SourceTrackIdx: trackIdx,
@@ -371,6 +376,7 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 	}
 	sourceChannels := h.sourceAudioChannels(r.Context(), mediaID, trackIdx)
 	return apptranscoding.AudioFingerprint{
+		Grid:           grid,
 		MediaID:        mediaID,
 		SourcePath:     item.File.Path,
 		SourceTrackIdx: trackIdx,
@@ -438,6 +444,19 @@ const maxRenditionChannels = 6
 // - ffmpeg's stereo default, the previous behaviour - when the streams can't be
 // read or the source never reported a channel count, so an unknown layout is
 // never guessed.
+// sourceGrid is the segmentation grid of the media's video (SourceGrid),
+// the legacy clock when the streams cannot be read.
+func (h *audioServe) sourceGrid(ctx context.Context, mediaID string) domaintranscoding.SegmentGrid {
+	if h.libSvc == nil {
+		return domaintranscoding.SegmentGrid{}
+	}
+	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
+	if err != nil {
+		return domaintranscoding.SegmentGrid{}
+	}
+	return apptranscoding.SourceGrid(streams)
+}
+
 func (h *audioServe) sourceAudioChannels(ctx context.Context, mediaID string, trackIdx int) int {
 	if h.libSvc == nil {
 		return 0

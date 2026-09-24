@@ -520,6 +520,16 @@ func (p *SoftwareProducer) copyReadRate() float64 {
 	return p.opts.ReadRate
 }
 
+// CopyPlan is the copy rung's keyframe plan for mediaID: the segment spans
+// the copy session cuts on (see Manifest), for a caller declaring the same
+// timeline elsewhere (the DASH manifest). Nil in transcode mode.
+func (p *SoftwareProducer) CopyPlan(ctx context.Context, mediaID string) ([]CopySegment, error) {
+	if p.copyPlanner == nil {
+		return nil, nil
+	}
+	return p.copyPlanner.Plan(ctx, mediaID)
+}
+
 // Manifest serves the copy rendition's keyframe-aligned VOD media playlist
 // (variable #EXTINF from the keyframe plan). Implements ManifestProvider.
 //
@@ -703,7 +713,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// COUNT, so only StartSec (the -ss offset) differs for variable-length copy
 	// segments: segment N seeks to its keyframe start, not N×SegmentSeconds.
 	videoDecision := "transcode"
-	startSec := float64(startSeg) * p.opts.SegmentSeconds
+	startSec := fp.Grid.SegmentStartSeconds(startSeg)
 	seekTargetSec := 0.0
 	var copyPlanOracle func(int) (int64, bool)
 	if p.copyPlanner != nil {
@@ -776,12 +786,12 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// check. Copy sessions already have their plan oracle above.
 	timelineDriftKind := "copy"
 	if videoDecision == "transcode" && startSeg > 0 {
-		segLenMs := int64(math.Round(p.opts.SegmentSeconds * 1000))
+		grid := fp.Grid
 		copyPlanOracle = func(idx int) (int64, bool) {
 			if idx < 0 {
 				return 0, false
 			}
-			return int64(idx) * segLenMs, true
+			return int64(math.Round(grid.SegmentStartSeconds(idx) * 1000)), true
 		}
 		timelineDriftKind = "transcode_seek"
 	}
@@ -835,6 +845,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// for cold transcode.
 		ExpectedSegmentStartMs: copyPlanOracle,
 		TimelineDriftKind:      timelineDriftKind,
+		Grid:                   fp.Grid,
 		// Input pacing: the defining software-flow knob. Keeps the single
 		// sequential encoder near wall-clock so it never races ahead of the
 		// viewer (no abort-and-probe client → no need to burst).

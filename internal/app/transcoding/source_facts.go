@@ -392,6 +392,23 @@ func SourceVideoBitrateKbps(streams []*library.MediaStream) int64 {
 	return 0
 }
 
+// SourceGrid is the segmentation grid the presentation is cut on: frame-exact
+// for a constant, canonical frame rate, the legacy 3 s clock for a variable
+// or unknown one (a frame count only means a length when frames are evenly
+// spaced).
+func SourceGrid(streams []*library.MediaStream) transcoding.SegmentGrid {
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		if s.FrameRateMode == "vfr" {
+			return transcoding.SegmentGrid{}
+		}
+		break
+	}
+	return transcoding.GridForFrameRate(SourceFrameRate(streams))
+}
+
 // SourceFrameRate is the probed frame rate of the first video stream (0 = unknown).
 func SourceFrameRate(streams []*library.MediaStream) float64 {
 	for _, s := range streams {

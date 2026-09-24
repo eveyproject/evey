@@ -26,9 +26,19 @@ type ManifestInput struct {
 	MediaID string
 
 	// DurationSec is the total media duration. The manifest is sliced into
-	// ceil(Duration / ManifestSegmentSeconds) segments. Must be > 0 - callers
-	// fall back on a "growing event" manifest path when duration is unknown.
+	// Grid.SegmentCount segments. Must be > 0 - callers fall back on a
+	// "growing event" manifest path when duration is unknown.
 	DurationSec float64
+
+	// Grid is the segmentation the presentation is cut on (the fingerprint's):
+	// segment count, every EXTINF and the DASH timeline come from it. The
+	// zero value is the legacy 3 s clock.
+	Grid transcoding.SegmentGrid
+
+	// CopySegments is the keyframe plan of a copy rung (variable spans), the
+	// DASH timeline of a presentation the ffmpeg copy fallback serves. Only
+	// read by MPD; the copy rung's HLS playlist comes from the producer.
+	CopySegments []CopySegment
 
 	// Profiles is the ordered list of ABR variants. profileIdx 0 ↔ Profiles[0],
 	// and so on. Each gets its own sub-playlist URL (stream_{idx}.m3u8).
@@ -313,13 +323,22 @@ func (in *ManifestInput) Validate() error {
 }
 
 // SegmentCount is the number of segments the manifest will list, given the
-// duration and the fixed segment length. The last segment is shorter than
-// ManifestSegmentSeconds whenever the duration isn't an exact multiple.
+// duration and the grid. The last segment is shorter whenever the duration
+// isn't an exact multiple.
 func (in *ManifestInput) SegmentCount() int {
-	if in.DurationSec <= 0 {
-		return 0
-	}
-	return int(math.Ceil(in.DurationSec / ManifestSegmentSeconds))
+	return in.Grid.SegmentCount(in.DurationMs())
+}
+
+// DurationMs is DurationSec as the millisecond figure the grid arithmetic
+// takes.
+func (in *ManifestInput) DurationMs() int64 {
+	return int64(math.Round(in.DurationSec * 1000))
+}
+
+// targetDuration is the EXT-X-TARGETDURATION: the longest EXTINF rounded up
+// (3.003 s segments need 4).
+func (in *ManifestInput) targetDuration() int {
+	return int(math.Ceil(in.Grid.SegmentSeconds()))
 }
 
 // ManifestGenerator renders HLS master + variant playlists from a decision
@@ -584,9 +603,9 @@ func (g *ManifestGenerator) Variant(in ManifestInput, profileIdx int) (string, e
 	b.WriteString("#EXT-X-VERSION:6\n")
 	b.WriteString("#EXT-X-PLAYLIST-TYPE:VOD\n")
 	// TARGETDURATION is the largest #EXTINF rounded up. Since every segment is
-	// at most ManifestSegmentSeconds, ceiling that is the safe upper bound and
+	// at most one grid segment, ceiling that is the safe upper bound and
 	// matches what ffmpeg would emit naturally.
-	fmt.Fprintf(&b, "#EXT-X-TARGETDURATION:%d\n", int(math.Ceil(ManifestSegmentSeconds)))
+	fmt.Fprintf(&b, "#EXT-X-TARGETDURATION:%d\n", in.targetDuration())
 	b.WriteString("#EXT-X-MEDIA-SEQUENCE:0\n")
 
 	// Resume offset is portable across every conformant HLS player: Safari
@@ -612,18 +631,11 @@ func (g *ManifestGenerator) Variant(in ManifestInput, profileIdx int) (string, e
 		ext = "m4s"
 	}
 
+	durMs := in.DurationMs()
 	for i := range segCount {
-		segDur := ManifestSegmentSeconds
-		if i == segCount-1 {
-			// Last segment runs from i*segDur to end-of-media. Floats: clamp
-			// nonnegative and round to 3 decimals to match ffmpeg's #EXTINF
-			// formatting (avoids "3.000000" vs "3.0" diff churn in tests).
-			leftover := in.DurationSec - float64(i)*ManifestSegmentSeconds
-			if leftover > 0 && leftover < ManifestSegmentSeconds {
-				segDur = math.Round(leftover*1000) / 1000
-			}
-		}
-		fmt.Fprintf(&b, "#EXTINF:%.3f,\n", segDur)
+		// Every segment is one grid segment, the last one the leftover: the
+		// exact frames on a frame grid, a float leftover on the legacy clock.
+		fmt.Fprintf(&b, "#EXTINF:%.3f,\n", in.Grid.SegmentDurationSeconds(i, durMs))
 		fmt.Fprintf(&b, "stream_%d_%03d.%s%s\n", profileIdx, i, ext, suffix)
 	}
 
@@ -670,7 +682,7 @@ func (g *ManifestGenerator) AudioPlaylist(in ManifestInput, trackIdx int) (strin
 	b.WriteString("#EXTM3U\n")
 	b.WriteString("#EXT-X-VERSION:6\n")
 	b.WriteString("#EXT-X-PLAYLIST-TYPE:VOD\n")
-	fmt.Fprintf(&b, "#EXT-X-TARGETDURATION:%d\n", int(math.Ceil(ManifestSegmentSeconds)))
+	fmt.Fprintf(&b, "#EXT-X-TARGETDURATION:%d\n", in.targetDuration())
 	b.WriteString("#EXT-X-MEDIA-SEQUENCE:0\n")
 
 	if in.ResumeOffsetSec > 0 {
@@ -683,15 +695,12 @@ func (g *ManifestGenerator) AudioPlaylist(in ManifestInput, trackIdx int) (strin
 
 	fmt.Fprintf(&b, "#EXT-X-MAP:URI=\"audio_%d_init.mp4%s\"\n", trackIdx, suffix)
 
+	durMs := in.DurationMs()
 	for i := range segCount {
-		segDur := ManifestSegmentSeconds
-		if i == segCount-1 {
-			leftover := in.DurationSec - float64(i)*ManifestSegmentSeconds
-			if leftover > 0 && leftover < ManifestSegmentSeconds {
-				segDur = math.Round(leftover*1000) / 1000
-			}
-		}
-		fmt.Fprintf(&b, "#EXTINF:%.3f,\n", segDur)
+		// The rendition is cut on the video's grid: the same cadence, declared
+		// the same way (the muxer closes an audio segment on the first frame
+		// past each boundary, so this is the declared, not the measured, span).
+		fmt.Fprintf(&b, "#EXTINF:%.3f,\n", in.Grid.SegmentDurationSeconds(i, durMs))
 		fmt.Fprintf(&b, "audio_%d_%03d.m4s%s\n", trackIdx, i, suffix)
 	}
 

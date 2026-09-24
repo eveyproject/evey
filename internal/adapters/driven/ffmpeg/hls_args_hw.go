@@ -755,8 +755,9 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 	args = append(args, hevcTagArgs(opts.VideoCodec, -1)...)
 	args = append(args, hwRateControlArgs(opts.HWAccel, qualityTargetFor(opts, len(opts.Profiles)-1, p, true), -1)...)
-	args = append(args, hlsForceKeyframesArgs...)
+	args = append(args, forceKeyframesArgsFor(opts)...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
+	args = append(args, videoTimescaleArgs(opts)...)
 
 	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, !hasAudio(opts), hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
 }
@@ -816,7 +817,8 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, hwRateControlArgs(opts.HWAccel, qualityTargetFor(opts, i, p, true), i)...)
 		args = append(args, audioVariantArgs(opts, i, p.AudioBitrate)...)
 	}
-	args = append(args, hlsForceKeyframesArgs...)
+	args = append(args, forceKeyframesArgsFor(opts)...)
+	args = append(args, videoTimescaleArgs(opts)...)
 
 	return appendHLSMultiVariantTail(args, opts, n)
 }

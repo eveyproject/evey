@@ -377,7 +377,7 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 		if time.Since(mark.at) >= audioStreamEndTTL {
 			delete(o.streamEnd, audioHash)
 		} else if segIdx >= mark.seg {
-			silenceDur := fp.SourceDurationSec - float64(segIdx)*ManifestSegmentSeconds
+			silenceDur := fp.SourceDurationSec - fp.Grid.SegmentStartSeconds(segIdx)
 			if fp.AudioCodec == "copy" || silenceDur <= 0 {
 				return fmt.Errorf("audio session: seg %d >= proven stream end %d: %w",
 					segIdx, mark.seg, ErrAudioPastEndOfStream)
@@ -443,8 +443,9 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		// Seek: ffmpeg both decodes from here (-ss) and numbers its output from
 		// here (-start_number), so segment N on disk is always source second
 		// N*ManifestSegmentSeconds - the invariant the playlist addresses.
-		StartSec:       float64(segIdx) * ManifestSegmentSeconds,
+		StartSec:       fp.Grid.SegmentStartSeconds(segIdx),
 		StartNumber:    segIdx,
+		Grid:           fp.Grid,
 		AudioNormalize: fp.AudioNormalize,
 		// Bound the CPU-bound AC-3/E-AC-3→AAC re-encode so it doesn't burst a full
 		// core per client on start/seek. See audioRenditionReadRate.

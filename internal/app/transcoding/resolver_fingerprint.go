@@ -88,6 +88,8 @@ func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest,
 		// The decode workload admission prices (excluded from Hash, as the codec).
 		SourceVideoHeight: snap.Height,
 		SourceFPS:         snap.FPS,
+		// The segmentation the whole presentation is cut on (hashed when exact).
+		Grid: SourceGrid(req.Streams),
 		// Legacy-codec corrections (B3): idet content verdict + anamorphic SAR,
 		// both hashed conditionally so progressive/square titles keep their
 		// cache. No-ops on modern progressive sources.

@@ -95,7 +95,10 @@ type AudioProcessOpts struct {
 	SourceAudioChannels int
 	StartSec            float64 // for mid-stream rafale; 0 for cold start
 	StartNumber         int     // ffmpeg -start_number; floor(StartSec/3) for rafale
-	AudioNormalize      bool    // insert loudnorm filter
+	// Grid is the video's segmentation: the rendition cuts on the same
+	// cadence so audio segment N covers video segment N.
+	Grid           SegmentGrid
+	AudioNormalize bool // insert loudnorm filter
 	// AudioEncoder is the concrete AAC implementation the rendition was
 	// fingerprinted with ("aac" / "libfdk_aac"); empty = native. One value for
 	// the bytes and the hash, like HLSProcessOpts.AudioEncoder.
@@ -196,6 +199,10 @@ type HLSProcessOpts struct {
 	ExpectedSegmentStartMs func(segIdx int) (int64, bool)
 	// TimelineDriftKind selects the drift metric: "copy" (default) or "transcode_seek".
 	TimelineDriftKind string
+	// Grid is the segmentation the encoder must cut on: the keyframe cadence,
+	// -hls_time and the video track timescale all come from it, so what the
+	// manifests declare is what the fragments hold. Zero = legacy 3 s clock.
+	Grid SegmentGrid
 	// ReadRate paces the input (`-readrate N`) so a long-lived software encoder
 	// stays near wall-clock. 0 = no pacing (the HW orchestrator self-throttles).
 	ReadRate float64
