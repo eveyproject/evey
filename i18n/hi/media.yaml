@@ -433,7 +433,7 @@ syncplay:
   watchTogetherRoom: साथ में देखें कमरा
   watchingWith: "{{names}} के साथ देख रहे हैं"
   watchingWithMore: "{{names}} +{{count}} और के साथ देख रहे हैं"
-  title: साथ में सुनें
+  title: "साथ में देखें"
   create: कमरा बनाएं
   createRoom: बनाएं
   tabAlbums: एल्बम

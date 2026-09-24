@@ -433,7 +433,7 @@ syncplay:
   watchTogetherRoom: 一起看房间
   watchingWith: "正在与 {{names}} 一起观看"
   watchingWithMore: "正在与 {{names}} +{{count}} 人一起观看"
-  title: 一起听
+  title: "一起看"
   create: 创建房间
   createRoom: 创建
   tabAlbums: 专辑
