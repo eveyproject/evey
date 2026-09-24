@@ -127,8 +127,13 @@ func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, require
 	// Drop to the dedicated plugin uid (distinct from the server) when uid
 	// separation is on and the server is non-root; the launcher carries
 	// cap_setuid for this. dropUID==0 leaves the plugin at the server's uid.
+	// Best-effort only on top of an enforced Landlock: in basic mode the uid is
+	// the secret wall, so a failed drop refuses the plugin instead.
 	if dropUID > 0 {
-		args = append(args, "-uid", strconv.Itoa(dropUID), "-gid", strconv.Itoa(dropGID), "-uid-besteffort")
+		args = append(args, "-uid", strconv.Itoa(dropUID), "-gid", strconv.Itoa(dropGID))
+		if requireLandlock {
+			args = append(args, "-uid-besteffort")
+		}
 	}
 
 	if requireLandlock {

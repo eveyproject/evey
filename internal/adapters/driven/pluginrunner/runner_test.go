@@ -584,3 +584,40 @@ func TestSetupSocketDir_UIDSeparationParentTraversable(t *testing.T) {
 			"parent must grant nothing to group/other when uid separation is off")
 	})
 }
+
+// In basic mode the uid drop is the secret wall, and only the launcher performs
+// it: an ordinary plugin must not fall back to LD_PRELOAD at the server's uid
+// when the launcher is missing and uid separation applies.
+func TestApplyBasicSandbox_UIDSeparationRequiresLauncher(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("a root server drops the uid itself (SysProcAttr), not via the launcher")
+	}
+	bin := buildTestBinary(t)
+	dir := filepath.Dir(bin)
+	lib := filepath.Join(t.TempDir(), "libevey-sandbox.so")
+	require.NoError(t, os.WriteFile(lib, nil, 0o644))
+	t.Setenv("EVEY_PLUGIN_LAUNCHER", filepath.Join(t.TempDir(), "missing-launcher"))
+	p := &plugin.Plugin{ID: "plg-basic", Name: bin, InstallDir: dir}
+
+	run := func(r *Runner) (*exec.Cmd, error) {
+		r.sandboxLibOverride = lib
+		cmd := exec.Command(bin)
+		return cmd, r.applyBasicSandbox(context.Background(), p, cmd)
+	}
+
+	t.Run("uid separation on, launcher absent → refused", func(t *testing.T) {
+		_, err := run(NewRunner(dir).WithUIDSeparation(uidSepOn))
+		require.ErrorIs(t, err, ErrSandboxUnavailable)
+	})
+
+	t.Run("uid separation off → LD_PRELOAD fallback kept", func(t *testing.T) {
+		cmd, err := run(NewRunner(dir).WithUIDSeparation(uidSepOff))
+		require.NoError(t, err)
+		assert.Contains(t, cmd.Env, "LD_PRELOAD="+lib)
+	})
+
+	t.Run("dev override → allowed", func(t *testing.T) {
+		_, err := run(NewRunner(dir).WithUIDSeparation(uidSepAuto).WithAllowMissingSandbox(true))
+		require.NoError(t, err)
+	})
+}

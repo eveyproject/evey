@@ -157,10 +157,20 @@ func TestBuildLauncherArgv_UIDSeparation(t *testing.T) {
 		sep := slices.Index(args, "--")
 		require.GreaterOrEqual(t, sep, 0)
 		assert.Less(t, uidIdx, sep, "-uid must precede the -- separator (it is a launcher flag)")
-		assert.Contains(t, args, "-uid-besteffort", "uid drop is best-effort (warn+continue, not fail-closed)")
 		// the original command stays at the tail, untouched
 		assert.Equal(t, "/usr/bin/node", args[len(args)-2])
 		assert.Equal(t, "/data/plugins/weather/main.js", args[len(args)-1])
+	})
+
+	t.Run("basic mode fails closed when the drop fails", func(t *testing.T) {
+		args := buildLauncherArgv("/bin/true", p, cmd, false, 1001, 1000)
+		assert.NotContains(t, args, "-uid-besteffort",
+			"without enforced Landlock the uid is the secret wall: never fall back to the server uid")
+	})
+
+	t.Run("landlock mode keeps the drop best-effort", func(t *testing.T) {
+		args := buildLauncherArgv("/bin/true", p, cmd, true, 1001, 1000)
+		assert.Contains(t, args, "-uid-besteffort", "Landlock already walls off the secrets")
 	})
 }
 
