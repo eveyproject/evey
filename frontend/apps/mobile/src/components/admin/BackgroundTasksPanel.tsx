@@ -1,78 +1,18 @@
-import { useEffect, useState } from "react";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { eveyFetch, formatBytes, apiErrorMessage } from "@evey/api";
-import { toast } from "@evey/store";
+import { formatBytes } from "@evey/api";
+import { useBackgroundTaskControl, useBackgroundTasks, type BackgroundTaskView } from "@evey/client";
 import { useTheme } from "../../providers/ThemeProvider";
 
-// BackgroundTasksPanel mirrors the web features/admin/BackgroundTasksPanel.tsx:
-// the one place an admin sees what Evey is doing on its own (backfills,
-// detections, sweeps), what it costs right now, and where the stop button is.
-
-export interface BackgroundTaskView {
-  name: string;
-  state: "running" | "idle";
-  detail?: string;
-  processed: number;
-  lastActiveAt?: string;
-  startedAt?: string;
-  controllable: boolean;
-  paused: boolean;
-  processes: number;
-  rssBytes: number;
-  cpuPercent: number;
-  cpuSecondsTotal: number;
-  forks: number;
-}
-
-export const BACKGROUND_TASKS_QUERY_KEY = ["/api/v1/admin/background-tasks"];
-const REFRESH_INTERVAL = 5_000;
-
-// Running first (they cost something now), then admin-stopped (need a
-// decision), then the idle rest.
-function rank(t: BackgroundTaskView): number {
-  if (t.state === "running") return 0;
-  if (t.paused) return 1;
-  return 2;
-}
-
-function sinceLabel(t: (k: string, o?: Record<string, unknown>) => string, startedAt?: string): string | null {
-  if (!startedAt) return null;
-  const mins = Math.round((Date.now() - new Date(startedAt).getTime()) / 60_000);
-  if (!Number.isFinite(mins) || mins < 1) return t("admin.backgroundTasks.sinceNow");
-  if (mins < 60) return t("admin.backgroundTasks.sinceMinutes", { count: mins });
-  return t("admin.backgroundTasks.sinceHours", { count: Math.round(mins / 60) });
-}
+// BackgroundTasksPanel draws what the web's does, from the same @evey/client
+// hooks: what Evey is doing on its own (backfills, detections, sweeps), what it
+// costs right now, and where the stop button is.
+export { BACKGROUND_TASKS_QUERY_KEY, type BackgroundTaskView } from "@evey/client";
 
 function TaskRow({ task, theme }: { task: BackgroundTaskView; theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
-  // Confirm-to-act: one tap arms, a second within a few seconds stops (a stop
-  // kills the ffmpeg in flight - not something a stray tap should do).
-  const [armed, setArmed] = useState(false);
-  useEffect(() => {
-    if (!armed) return;
-    const id = setTimeout(() => setArmed(false), 4000);
-    return () => clearTimeout(id);
-  }, [armed]);
-
-  const label = t(`admin.activity.bgTask.${task.name}`, task.name);
-  const control = useMutation({
-    mutationFn: (action: "stop" | "resume") =>
-      eveyFetch<void>({ url: `/api/v1/admin/background-tasks/${encodeURIComponent(task.name)}/${action}`, method: "POST" }),
-    onSuccess: (_data, action) => {
-      qc.invalidateQueries({ queryKey: BACKGROUND_TASKS_QUERY_KEY });
-      toast.success(t(action === "stop" ? "admin.backgroundTasks.stopped" : "admin.backgroundTasks.resumed", { name: label }));
-    },
-    onError: (err: Error, action) =>
-      toast.error(apiErrorMessage(err, t, t(action === "stop" ? "admin.backgroundTasks.stopFailed" : "admin.backgroundTasks.resumeFailed"))),
-  });
-
-  const running = task.state === "running";
-  const since = running ? sinceLabel(t, task.startedAt) : null;
-  const hasCost = running && task.processes > 0;
+  const { label, running, since, hasCost, armed, pending, resume, pressStop } = useBackgroundTaskControl(task, t);
   const dotColor = running ? theme.colors.success : task.paused ? theme.colors.warning : theme.colors.border;
 
   return (
@@ -102,8 +42,8 @@ function TaskRow({ task, theme }: { task: BackgroundTaskView; theme: ReturnType<
       </View>
       {task.controllable ? (
         task.paused ? (
-          <Pressable onPress={() => control.mutate("resume")} disabled={control.isPending} style={[styles.ctrlBtn, { borderColor: theme.colors.border }]}>
-            {control.isPending ? (
+          <Pressable onPress={resume} disabled={pending} style={[styles.ctrlBtn, { borderColor: theme.colors.border }]}>
+            {pending ? (
               <ActivityIndicator size="small" color={theme.colors.text} />
             ) : (
               <>
@@ -114,11 +54,11 @@ function TaskRow({ task, theme }: { task: BackgroundTaskView; theme: ReturnType<
           </Pressable>
         ) : (
           <Pressable
-            onPress={() => { if (!armed) { setArmed(true); return; } setArmed(false); control.mutate("stop"); }}
-            disabled={control.isPending}
+            onPress={pressStop}
+            disabled={pending}
             style={[styles.ctrlBtn, { borderColor: armed ? theme.colors.danger : theme.colors.border, backgroundColor: armed ? `${theme.colors.danger}20` : "transparent" }]}
           >
-            {control.isPending ? (
+            {pending ? (
               <ActivityIndicator size="small" color={theme.colors.danger} />
             ) : (
               <>
@@ -137,14 +77,7 @@ function TaskRow({ task, theme }: { task: BackgroundTaskView; theme: ReturnType<
 
 export function BackgroundTasksPanel({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
-  const { data, isError } = useQuery<BackgroundTaskView[]>({
-    queryKey: BACKGROUND_TASKS_QUERY_KEY,
-    queryFn: () => eveyFetch<BackgroundTaskView[]>({ url: "/api/v1/admin/background-tasks", method: "GET" }),
-    refetchInterval: REFRESH_INTERVAL,
-    refetchIntervalInBackground: false,
-  });
-  const tasks = [...(data ?? [])].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
-  const runningCount = tasks.filter((x) => x.state === "running").length;
+  const { tasks, runningCount, isError, loaded } = useBackgroundTasks();
 
   return (
     <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
@@ -157,7 +90,7 @@ export function BackgroundTasksPanel({ theme }: { theme: ReturnType<typeof useTh
           {runningCount > 0 ? t("admin.backgroundTasks.runningCount", { count: runningCount }) : t("admin.backgroundTasks.allIdle")}
         </Text>
       </View>
-      {isError && !data ? (
+      {isError && !loaded ? (
         <Text style={styles.empty}>{t("admin.backgroundTasks.unavailable")}</Text>
       ) : tasks.length === 0 ? (
         <Text style={styles.empty}>{t("admin.backgroundTasks.empty")}</Text>

@@ -1,79 +1,18 @@
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, Pause, Play, Square } from "lucide-react";
-import { eveyFetch, formatBytes, apiErrorMessage } from "@evey/api";
-import { toast } from "@evey/store";
+import { formatBytes } from "@evey/api";
+import { useBackgroundTaskControl, useBackgroundTasks, type BackgroundTaskView } from "@evey/client";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ICON } from "@/constants/iconSizes";
 
-// BackgroundTaskView mirrors backgroundTaskView in the Go HTTP handler: the
-// registry entry plus the live cost of the processes forked for the task.
-export interface BackgroundTaskView {
-  name: string;
-  state: "running" | "idle";
-  detail?: string;
-  processed: number;
-  lastActiveAt?: string;
-  startedAt?: string;
-  controllable: boolean;
-  paused: boolean;
-  processes: number;
-  rssBytes: number;
-  cpuPercent: number;
-  cpuSecondsTotal: number;
-  forks: number;
-}
-
-export const BACKGROUND_TASKS_QUERY_KEY = ["/api/v1/admin/background-tasks"];
-const REFRESH_INTERVAL = 5_000;
-
-// Running first (they are what costs something now), then the ones an admin
-// stopped (they need a decision), then the idle rest.
-function rank(t: BackgroundTaskView): number {
-  if (t.state === "running") return 0;
-  if (t.paused) return 1;
-  return 2;
-}
-
-function sinceLabel(t: (k: string, o?: Record<string, unknown>) => string, startedAt?: string): string | null {
-  if (!startedAt) return null;
-  const mins = Math.round((Date.now() - new Date(startedAt).getTime()) / 60_000);
-  if (!Number.isFinite(mins) || mins < 1) return t("admin.backgroundTasks.sinceNow");
-  if (mins < 60) return t("admin.backgroundTasks.sinceMinutes", { count: mins });
-  return t("admin.backgroundTasks.sinceHours", { count: Math.round(mins / 60) });
-}
+// The list, its order and the controls are @evey/client's (useBackgroundTasks).
+export { BACKGROUND_TASKS_QUERY_KEY, type BackgroundTaskView } from "@evey/client";
 
 function TaskRow({ task }: { task: BackgroundTaskView }) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  // Confirm-to-act, like the dashboard's Restart: one click arms, a second
-  // within a few seconds stops. A stop kills the ffmpeg in flight, which is
-  // not something a stray click should do.
-  const [armed, setArmed] = useState(false);
-  useEffect(() => {
-    if (!armed) return;
-    const id = setTimeout(() => setArmed(false), 4000);
-    return () => clearTimeout(id);
-  }, [armed]);
-
-  const control = useMutation({
-    mutationFn: (action: "stop" | "resume") =>
-      eveyFetch<void>({ url: `/api/v1/admin/background-tasks/${encodeURIComponent(task.name)}/${action}`, method: "POST" }),
-    onSuccess: (_data, action) => {
-      queryClient.invalidateQueries({ queryKey: BACKGROUND_TASKS_QUERY_KEY });
-      toast.success(t(action === "stop" ? "admin.backgroundTasks.stopped" : "admin.backgroundTasks.resumed", { name: label }));
-    },
-    onError: (err: Error, action) =>
-      toast.error(apiErrorMessage(err, t, t(action === "stop" ? "admin.backgroundTasks.stopFailed" : "admin.backgroundTasks.resumeFailed"))),
-  });
-
-  const label = t(`admin.activity.bgTask.${task.name}`, task.name);
-  const running = task.state === "running";
-  const since = running ? sinceLabel(t, task.startedAt) : null;
-  const hasCost = running && task.processes > 0;
+  const { label, running, since, hasCost, armed, pending, resume, pressStop } = useBackgroundTaskControl(task, t);
 
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--border)] py-2 text-sm last:border-b-0">
@@ -111,8 +50,8 @@ function TaskRow({ task }: { task: BackgroundTaskView }) {
         task.paused ? (
           <Button
             variant="secondary"
-            loading={control.isPending}
-            onClick={() => control.mutate("resume")}
+            loading={pending}
+            onClick={resume}
           >
             <Play size={ICON.xs} aria-hidden="true" />
             {t("admin.backgroundTasks.resume")}
@@ -120,15 +59,8 @@ function TaskRow({ task }: { task: BackgroundTaskView }) {
         ) : (
           <Button
             variant={armed ? "danger" : "secondary"}
-            loading={control.isPending}
-            onClick={() => {
-              if (!armed) {
-                setArmed(true);
-                return;
-              }
-              setArmed(false);
-              control.mutate("stop");
-            }}
+            loading={pending}
+            onClick={pressStop}
           >
             <Square size={ICON.xs} aria-hidden="true" />
             {armed ? t("admin.backgroundTasks.confirmStop") : t("admin.backgroundTasks.stop")}
@@ -144,14 +76,7 @@ function TaskRow({ task }: { task: BackgroundTaskView }) {
 // the stop button is. Shared by the dashboard and the health page.
 export function BackgroundTasksPanel() {
   const { t } = useTranslation();
-  const { data, isError } = useQuery<BackgroundTaskView[]>({
-    queryKey: BACKGROUND_TASKS_QUERY_KEY,
-    queryFn: () => eveyFetch<BackgroundTaskView[]>({ url: "/api/v1/admin/background-tasks", method: "GET" }),
-    refetchInterval: REFRESH_INTERVAL,
-    refetchIntervalInBackground: false,
-  });
-  const tasks = [...(data ?? [])].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
-  const runningCount = tasks.filter((x) => x.state === "running").length;
+  const { tasks, runningCount, isError, loaded } = useBackgroundTasks();
 
   return (
     <Card className="flex flex-col" data-testid="background-tasks-panel">
@@ -171,7 +96,7 @@ export function BackgroundTasksPanel() {
           )}
         </span>
       </div>
-      {isError && !data ? (
+      {isError && !loaded ? (
         <p className="py-4 text-center text-sm text-[var(--text-muted)]">{t("admin.backgroundTasks.unavailable")}</p>
       ) : tasks.length === 0 ? (
         <p className="py-4 text-center text-sm text-[var(--text-muted)]">{t("admin.backgroundTasks.empty")}</p>
