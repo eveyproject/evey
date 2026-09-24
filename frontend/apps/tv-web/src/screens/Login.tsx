@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useUserServiceLogin } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { FocusRoot, useBackHandler } from "../tv/focus";
-import { Pressable, Spinner, TextField } from "../components/ui";
+import { Chip, Pressable, Spinner, TextField } from "../components/ui";
+import { clearSavedCredentials, getSavedCredentials, saveCredentials } from "../lib/savedCredentials";
 import { refreshTokenStore } from "../lib/session";
 import { navigate, replace } from "../app/router";
 
@@ -11,8 +12,11 @@ import { navigate, replace } from "../app/router";
 export function LoginScreen() {
   const { t } = useTranslation();
   const setTokens = useAuthStore((s) => s.setTokens);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  // Filled from "remember me" when the viewer opted in, as on the phone.
+  const [saved] = useState(getSavedCredentials);
+  const [username, setUsername] = useState(saved?.username ?? "");
+  const [password, setPassword] = useState(saved?.password ?? "");
+  const [remember, setRemember] = useState(!!saved);
   const [error, setError] = useState<string | null>(null);
   const changeServer = useCallback(() => replace({ name: "server" }), []);
   useBackHandler(changeServer);
@@ -28,6 +32,8 @@ export function LoginScreen() {
         // The refresh token comes in the body (X-Persistent-Session): this
         // client keeps it itself, so the next boot needs no password.
         if (data.refreshToken) await refreshTokenStore.setRefreshToken(data.refreshToken);
+        if (remember) saveCredentials(username.trim(), password);
+        else clearSavedCredentials();
         setTokens(data.accessToken);
         replace({ name: "profiles" });
       },
@@ -45,8 +51,9 @@ export function LoginScreen() {
   return (
     <FocusRoot autoFocus className="auth-page">
       <h1 className="auth-title">{t("auth.login.signIn")}</h1>
-      <div className="auth-field"><TextField value={username} onChange={setUsername} placeholder={t("auth.login.username")} /></div>
-      <div className="auth-field"><TextField value={password} onChange={setPassword} placeholder={t("auth.login.password")} type="password" onSubmit={submit} /></div>
+      <div className="auth-field"><TextField value={username} onChange={setUsername} placeholder={t("auth.login.username")} autoComplete="username" /></div>
+      <div className="auth-field"><TextField value={password} onChange={setPassword} placeholder={t("auth.login.password")} type="password" onSubmit={submit} autoComplete="current-password" /></div>
+      <div className="auth-field"><Chip label={t("mobile.auth.rememberMe", "Remember me")} active={remember} onPress={() => setRemember((r) => !r)} /></div>
       <Pressable className="auth-primary" label={t("auth.login.signIn")} onPress={submit}>
         {login.isPending ? <Spinner /> : t("auth.login.signIn")}
       </Pressable>
