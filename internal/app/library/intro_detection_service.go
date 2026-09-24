@@ -15,6 +15,7 @@ import (
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/bgtasks"
+	"github.com/evey-project/evey/internal/pkg/cpubudget"
 	"github.com/evey-project/evey/internal/pkg/procfork"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -63,15 +64,14 @@ type IntroDetectionService struct {
 	// extraction across all siblings) so unbounded parallelism - what the
 	// /api/v1/admin/media/{id}/detect-segments endpoint allowed before - pegs
 	// the box and triggers context deadline exceeded on individual queries.
-	// Guarded by limiterMu: limiterForRun swaps the channel when the admin
-	// use-all-cores toggle changes the desired capacity, without a restart.
+	// Guarded by limiterMu: limiterForRun swaps the channel when the admin's
+	// CPU share for this task changes the desired capacity, without a restart.
 	concurrencyLimiter chan struct{}
 	limiterMu          sync.Mutex
-	// maxParallelBase is the wire-time cap (trickplay CPU budget or env
-	// override); maxParallelAllCores is the full CPU budget the admin toggle
-	// escalates to (0 = toggle inert).
-	maxParallelBase     int
-	maxParallelAllCores int
+	// maxParallelBase is the wire-time cap (env override, or the default);
+	// budget, when wired, replaces it with the task's live CPU share.
+	maxParallelBase int
+	budget          *cpubudget.Budget
 
 	// activePlayback, when set, reports live playback sessions. The worker defers
 	// heavy detection (pHash + trickplay decode) while anyone is watching so it
@@ -134,13 +134,6 @@ func (s *IntroDetectionService) releaseBackfill(libraryID string) {
 	delete(s.backfillInFlight, libraryID)
 	s.backfillMu.Unlock()
 }
-
-// IntroDetectionUseAllCoresKey is the server_config toggle that lets the admin
-// run intro detection on the full CPU budget instead of the gentle trickplay
-// share. Read at every run start, so flipping it needs no restart: it applies
-// to the next episode/movie entering detection (a running sweep keeps the
-// worker count it started with).
-const IntroDetectionUseAllCoresKey = "intro_detection.use_all_cores"
 
 // currentPHashAlgoVersion identifies the hash function used to populate the
 // cache. Bump it whenever ExtractTileHashes' output distribution changes
@@ -291,18 +284,23 @@ func (s *IntroDetectionService) WithMaxParallelDetections(n int) *IntroDetection
 	return s
 }
 
-// WithAllCoresParallelDetections sets the cap the use-all-cores admin toggle
-// escalates to (wire passes the full sysinfo.CPUBudget). 0 leaves the toggle
-// inert.
-func (s *IntroDetectionService) WithAllCoresParallelDetections(n int) *IntroDetectionService {
-	s.maxParallelAllCores = n
+// WithCPUBudget sizes the detections in flight on the task's CPU share, read
+// at every run start so an admin change applies to the next episode/movie
+// entering detection (a running sweep keeps the worker count it started
+// with). The ffmpeg each detection forks reserves its thread in the same
+// budget, which is what keeps this task from stacking on the others.
+func (s *IntroDetectionService) WithCPUBudget(b *cpubudget.Budget) *IntroDetectionService {
+	s.budget = b
+	if b != nil && s.concurrencyLimiter == nil {
+		s.concurrencyLimiter = make(chan struct{}, b.Slots(introDetectionTask))
+	}
 	return s
 }
 
 // limiterForRun returns the semaphore for one detection run, first resizing it
-// when the admin use-all-cores toggle changed the desired capacity. Callers
-// must release into the returned channel (not the field): in-flight holders of
-// a swapped-out channel drain into it harmlessly.
+// when the admin's CPU share changed the desired capacity. Callers must
+// release into the returned channel (not the field): in-flight holders of a
+// swapped-out channel drain into it harmlessly.
 func (s *IntroDetectionService) limiterForRun(ctx context.Context) chan struct{} {
 	s.limiterMu.Lock()
 	defer s.limiterMu.Unlock()
@@ -310,8 +308,8 @@ func (s *IntroDetectionService) limiterForRun(ctx context.Context) chan struct{}
 		return nil
 	}
 	want := s.maxParallelBase
-	if s.useAllCores(ctx) && s.maxParallelAllCores > want {
-		want = s.maxParallelAllCores
+	if s.budget != nil {
+		want = s.budget.Slots(introDetectionTask)
 	}
 	if want <= 0 {
 		want = cap(s.concurrencyLimiter)
@@ -323,14 +321,6 @@ func (s *IntroDetectionService) limiterForRun(ctx context.Context) chan struct{}
 		s.concurrencyLimiter = make(chan struct{}, want)
 	}
 	return s.concurrencyLimiter
-}
-
-func (s *IntroDetectionService) useAllCores(ctx context.Context) bool {
-	if s.configRepo == nil {
-		return false
-	}
-	entry, err := s.configRepo.Get(ctx, IntroDetectionUseAllCoresKey)
-	return err == nil && entry != nil && entry.Value == "true"
 }
 
 // WithActivePlayback wires the live playback-session counter. While any session

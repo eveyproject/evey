@@ -110,28 +110,6 @@ func TestTrickplayGenerator_Generate_CreatesOutputDir(t *testing.T) {
 	assert.True(t, info.IsDir())
 }
 
-func TestTrickplayWorkers_Adaptive(t *testing.T) {
-	t.Parallel()
-	n := TrickplayWorkers(true)
-	assert.GreaterOrEqual(t, n, 1, "minimum 1 worker")
-	assert.LessOrEqual(t, n, 4, "maximum 4 workers")
-}
-
-func TestTrickplayWorkers_NonAdaptive(t *testing.T) {
-	t.Parallel()
-	n := TrickplayWorkers(false)
-	assert.GreaterOrEqual(t, n, 1, "minimum 1 worker")
-	assert.LessOrEqual(t, n, 4, "maximum 4 workers")
-}
-
-func TestTrickplayWorkers_AdaptiveVsNonAdaptive(t *testing.T) {
-	t.Parallel()
-	adaptive := TrickplayWorkers(true)
-	nonAdaptive := TrickplayWorkers(false)
-	// non-adaptive uses 50% cores vs adaptive 25%, so non-adaptive >= adaptive
-	assert.GreaterOrEqual(t, nonAdaptive, adaptive, "non-adaptive should use at least as many workers as adaptive")
-}
-
 // Trickplay thumbnails of an HDR / Dolby Vision source must be tone-mapped.
 // The filter graph was select,scale,showinfo,tile - no colour handling at all -
 // so a PQ (or DoVi P5, whose base layer is PQ-ish) source was sampled as if it

@@ -2,7 +2,9 @@
 // under one policy: a decode thread count sized on CPU and RAM, a hard memory
 // cap, admission against the free memory, and one log line per exit. Four
 // ffmpeg processes OOM-killed the host on 2026-09-01 (7 GiB RSS each, thread
-// count = nproc, no cap anywhere); this is the structural answer.
+// count = nproc, no cap anywhere); this is the structural answer. Scan forks
+// additionally reserve their threads in the admin's background CPU budget
+// (SetCPUBudget) before they start.
 package procfork
 
 import "fmt"

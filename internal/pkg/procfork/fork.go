@@ -8,10 +8,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/evey-project/evey/internal/pkg/bgtasks"
+	"github.com/evey-project/evey/internal/pkg/cpubudget"
 	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
 
@@ -57,7 +59,20 @@ var (
 	})
 
 	defaultAdmission = newAdmission(sysinfo.MemAvailableBytes, sysinfo.MemoryBudgetBytes)
+
+	// cpuBudgetRef is the background CPU budget every Scan fork draws its
+	// threads from; nil (tests, early boot) gates nothing.
+	cpuBudgetRef atomic.Pointer[cpubudget.Budget]
 )
+
+// SetCPUBudget installs the budget Scan-class forks reserve their threads
+// in before starting: a scan fork is background work by definition, and the
+// budget is where the admin's CPU share is enforced. Interactive and
+// Production forks have a viewer waiting and are not gated.
+func SetCPUBudget(b *cpubudget.Budget) { cpuBudgetRef.Store(b) }
+
+// CPUBudget returns the installed budget, nil when none.
+func CPUBudget() *cpubudget.Budget { return cpuBudgetRef.Load() }
 
 func lookPath(bin string) string {
 	p, err := exec.LookPath(bin)
@@ -71,6 +86,10 @@ func lookPath(bin string) string {
 // while a Scan waits for memory and returns ErrMemoryPressure when admission
 // is refused. The returned Finish must be called after Wait.
 func Command(ctx context.Context, o Options, bin string, args ...string) (*exec.Cmd, Finish, error) {
+	return command(ctx, cpuBudgetRef.Load(), o, bin, args...)
+}
+
+func command(ctx context.Context, budget *cpubudget.Budget, o Options, bin string, args ...string) (*exec.Cmd, Finish, error) {
 	if o.Class == 0 {
 		o.Class = Probe
 	}
@@ -78,15 +97,31 @@ func Command(ctx context.Context, o Options, bin string, args ...string) (*exec.
 	if !o.NoMemCap {
 		rssCap = RSSCap(o.Class, memBudget())
 	}
-	release, err := defaultAdmission.admit(ctx, o.Class, o.Site, RSSCap(o.Class, memBudget()))
-	if err != nil {
-		return nil, nil, err
-	}
 
 	threads := 0
 	if o.Class != Probe && !o.UnboundedThreads && !hasInputThreads(args) {
 		threads = Threads(o.Class, o.Source, cpuBudget(), rssCap)
 		args = append([]string{"-threads", strconv.Itoa(threads)}, args...)
+	}
+
+	// The CPU slots first: a scan may queue here for as long as the box is
+	// busy, and a memory reservation must not sit idle meanwhile.
+	releaseCPU := func() {}
+	if o.Class == Scan && budget != nil {
+		n := threads
+		if t, ok := inputThreads(args); ok {
+			n = t
+		}
+		heldCtx, rel, err := budget.Acquire(ctx, bgtasks.TaskFromContext(ctx), n)
+		if err != nil {
+			return nil, nil, err
+		}
+		ctx, releaseCPU = heldCtx, rel
+	}
+	release, err := defaultAdmission.admit(ctx, o.Class, o.Site, RSSCap(o.Class, memBudget()))
+	if err != nil {
+		releaseCPU()
+		return nil, nil, err
 	}
 
 	argv := prefix(o, rssCap)
@@ -101,6 +136,7 @@ func Command(ctx context.Context, o Options, bin string, args ...string) (*exec.
 	finish := func(runErr error, stderr []byte) error {
 		once.Do(func() {
 			release()
+			releaseCPU()
 			track.remove(cmd, cpuSeconds(cmd))
 			result = logExit(ctx, o, cmd, runErr, stderr, rssCap, threads, time.Since(started))
 		})
@@ -145,15 +181,28 @@ func prefix(o Options, rssCap int64) []string {
 // hasInputThreads reports a -threads set by the caller on the input side
 // (before the first -i), which is the decoder's and must win.
 func hasInputThreads(args []string) bool {
-	for _, a := range args {
+	_, ok := inputThreads(args)
+	return ok
+}
+
+// inputThreads returns the decoder-side -threads the caller set, when there
+// is one: the cores the process will actually take, so what the CPU budget
+// charges. A value it cannot read (or "-threads 0", ffmpeg's auto) counts as
+// set but sizes as one slot.
+func inputThreads(args []string) (int, bool) {
+	for i, a := range args {
 		if a == "-i" {
-			return false
+			return 0, false
 		}
 		if a == "-threads" || strings.HasPrefix(a, "-threads:") {
-			return true
+			n := 0
+			if i+1 < len(args) {
+				n, _ = strconv.Atoi(args[i+1])
+			}
+			return max(n, 1), true
 		}
 	}
-	return false
+	return 0, false
 }
 
 func logExit(ctx context.Context, o Options, cmd *exec.Cmd, runErr error, stderr []byte, rssCap int64, threads int, wall time.Duration) error {

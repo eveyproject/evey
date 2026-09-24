@@ -28,15 +28,30 @@ type backgroundTaskView struct {
 	// the server started; Forks counts them.
 	CPUSecondsTotal float64 `json:"cpuSecondsTotal"`
 	Forks           int64   `json:"forks"`
+	// CPUSlots is the cores the task may hold at once under the admin's
+	// budget (0 when no budget is installed); CPUSlotsHeld what it holds now.
+	CPUSlots     int `json:"cpuSlots"`
+	CPUSlotsHeld int `json:"cpuSlotsHeld"`
 }
 
 func backgroundTaskViews() []backgroundTaskView {
 	tasks := bgtasks.Snapshot()
 	children := procfork.Children()
 	totals := procfork.Totals()
+	budget := procfork.CPUBudget()
+	held := map[string]int{}
+	if budget != nil {
+		for _, u := range budget.Snapshot().Tasks {
+			held[u.Task] = u.Held
+		}
+	}
 	views := make([]backgroundTaskView, 0, len(tasks))
 	for _, t := range tasks {
 		v := backgroundTaskView{Task: t}
+		if budget != nil {
+			v.CPUSlots = budget.Slots(t.Name)
+			v.CPUSlotsHeld = held[t.Name]
+		}
 		for _, c := range children {
 			if c.Task != t.Name {
 				continue

@@ -19,6 +19,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/ratings"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/pkg/cpubudget"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -682,20 +683,27 @@ func TestGenerateAllMissingTrickplays_DisabledByConfig(t *testing.T) {
 	assert.Equal(t, 0, n)
 }
 
-func TestGenerateTrickplay_AdaptiveCPUDisabled(t *testing.T) {
+// The decoder threads of one generation are the task's CPU share: one
+// without a budget, the share (read live) with one.
+func TestGenerateTrickplay_DecoderThreadsFollowTheCPUBudget(t *testing.T) {
 	t.Parallel()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
 	configRepo := sharedfakes.NewFakeServerConfigRepository()
-	configRepo.Set(context.Background(), "trickplay.adaptive_cpu", "false")
 	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: t.TempDir(), configRepo: configRepo})
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID: "m1", File: &library.MediaFile{Path: "/movies/test.mkv"},
 	})
+	require.NoError(t, svc.GenerateTrickplay(context.Background(), "m1"))
+	assert.Equal(t, 1, trickplayGen.LastMaxWorkers, "no budget: one thread")
 
-	err := svc.GenerateTrickplay(context.Background(), "m1")
-	require.NoError(t, err)
+	budget := cpubudget.New(8)
+	budget.SetPolicy(cpubudget.Policy{TaskPercent: map[string]int{"trickplay_generation": 80}})
+	applib.WithCPUBudget(budget)(svc)
+	require.NoError(t, trickplayRepo.Delete(context.Background(), shared.MediaItemID("m1")))
+	require.NoError(t, svc.GenerateTrickplay(context.Background(), "m1"))
+	assert.Equal(t, 6, trickplayGen.LastMaxWorkers, "80 % of 8 cores")
 }
 
 func TestQueryService_GetMediaItemsByIDs(t *testing.T) {

@@ -9,6 +9,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
+	"github.com/evey-project/evey/internal/pkg/cpubudget"
 )
 
 func TestHasInputThreads(t *testing.T) {
@@ -159,4 +163,62 @@ func TestFinish_ProbeFailureIsNotAWarning(t *testing.T) {
 			t.Errorf("class %v: want a %s failure line, got %q", tc.class, tc.want, line)
 		}
 	}
+}
+
+func TestInputThreads(t *testing.T) {
+	t.Parallel()
+	if n, ok := inputThreads([]string{"-threads", "6", "-i", "f"}); !ok || n != 6 {
+		t.Fatalf("caller's decoder threads must be read: %d %v", n, ok)
+	}
+	if n, ok := inputThreads([]string{"-threads:v", "3", "-i", "f"}); !ok || n != 3 {
+		t.Fatalf("stream-qualified -threads must be read: %d %v", n, ok)
+	}
+	if n, ok := inputThreads([]string{"-threads", "0", "-i", "f"}); !ok || n != 1 {
+		t.Fatalf("ffmpeg's auto (0) sizes as one slot: %d %v", n, ok)
+	}
+	if _, ok := inputThreads([]string{"-i", "f", "-threads", "4"}); ok {
+		t.Fatal("encoder-side -threads is not the decoder's")
+	}
+}
+
+func TestCommand_ScanForkWaitsForTheCPUBudget(t *testing.T) {
+	t.Parallel()
+	budget := cpubudget.New(1) // one slot for every background task together
+	ctx := bgtasks.WithTask(context.Background(), "trickplay_generation")
+	cmd, finish, err := command(ctx, budget, Options{Class: Scan, Site: "t"}, "ffmpeg", "-threads", "4", "-i", "f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap := budget.Snapshot(); snap.Held != 1 || snap.Tasks[0].Task != "trickplay_generation" {
+		t.Fatalf("the fork must hold its (clamped) slot for its task: %+v", snap)
+	}
+	// A second scan fork cannot start while the slot is held.
+	short, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	if _, _, waitErr := command(short, budget, Options{Class: Scan, Site: "t"}, "ffmpeg", "-i", "g"); !errors.Is(waitErr, context.DeadlineExceeded) {
+		t.Fatalf("second scan must wait on the budget, got %v", waitErr)
+	}
+	// A probe is never gated, whatever the budget holds.
+	_, pfin, err := command(short, budget, Options{Class: Probe, Site: "t"}, "ffprobe", "g")
+	if err != nil {
+		t.Fatalf("probe must not be gated: %v", err)
+	}
+	pfin(nil, nil)
+	_ = cmd
+	finish(nil, nil)
+	if snap := budget.Snapshot(); snap.Held != 0 {
+		t.Fatalf("finish must give the slot back: %+v", snap)
+	}
+	// Under a context that already holds a slot (a worker gating a whole
+	// item), the fork does not queue for a second one.
+	heldCtx, release, err := budget.Acquire(context.Background(), "library_scan", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	_, hfin, err := command(heldCtx, budget, Options{Class: Scan, Site: "t"}, "ffmpeg", "-i", "h")
+	if err != nil {
+		t.Fatalf("a fork under a held context must start at once: %v", err)
+	}
+	hfin(nil, nil)
 }

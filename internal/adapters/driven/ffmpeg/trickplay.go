@@ -15,7 +15,6 @@ import (
 	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/cpuutil"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -26,13 +25,6 @@ var keyframeInputFormat = map[string]string{
 	".h264": "h264",
 	".hevc": "hevc",
 	".ivf":  "ivf",
-}
-
-// TrickplayWorkers returns the ffmpeg internal thread count for a single
-// trickplay generation. Delegates to cpuutil.TrickplayWorkers - the single
-// cgroup-budget-aware sizing rule, shared with the trickplay worker pool.
-func TrickplayWorkers(adaptiveCPU bool) int {
-	return cpuutil.TrickplayWorkers(adaptiveCPU)
 }
 
 type TrickplayGenerator struct {
@@ -112,10 +104,9 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		tileHeight = 10
 	}
 
-	threads := maxWorkers
-	if threads <= 0 {
-		threads = TrickplayWorkers(true)
-	}
+	// The caller sizes the decode on the task's CPU share (cpubudget); the
+	// fork below reserves that many slots. Unsized decodes on one thread.
+	threads := max(maxWorkers, 1)
 
 	outputPattern := filepath.Join(outputDir, "trickplay_%03d.webp")
 	// -skip_frame nokey instructs the decoder to drop non-keyframe packets

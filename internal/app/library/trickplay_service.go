@@ -14,7 +14,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/bgtasks"
-	"github.com/evey-project/evey/internal/pkg/cpuutil"
+	"github.com/evey-project/evey/internal/pkg/cpubudget"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"github.com/google/uuid"
 )
@@ -55,6 +55,9 @@ type TrickplayService struct {
 	configRepo        shared.ServerConfigRepository
 	activeStreams     ActiveStreamChecker
 	shutdownCtx       context.Context
+	// budget sizes the decoder threads of one generation on the admin's CPU
+	// share for this task (see cpubudget); nil decodes on one thread.
+	budget *cpubudget.Budget
 
 	// genMu guards inProgress, the set of media item IDs currently being
 	// generated. Two concurrent generations for the same item write the same
@@ -125,24 +128,28 @@ func (s *TrickplayService) WithShutdownCtx(ctx context.Context) {
 	s.shutdownCtx = ctx
 }
 
+// WithCPUBudget wires the background CPU budget the generation's threads are
+// sized on. The forked ffmpeg reserves those threads in the same budget
+// (procfork), so the share is both the size and the gate.
+func (s *TrickplayService) WithCPUBudget(b *cpubudget.Budget) {
+	s.budget = b
+}
+
+// decoderThreads is the thread count one generation decodes with: the task's
+// CPU share in cores, read at each generation so an admin change applies to
+// the next item.
+func (s *TrickplayService) decoderThreads() int {
+	if s.budget == nil {
+		return 1
+	}
+	return s.budget.Slots(trickplayTask)
+}
+
 func (s *TrickplayService) isTrickplayEnabled(ctx context.Context) bool {
 	if s.configRepo == nil {
 		return true
 	}
 	entry, err := s.configRepo.Get(ctx, "trickplay.enabled")
-	if err != nil {
-		return true
-	}
-	return entry.Value != "false"
-}
-
-// isAdaptiveCPU reads `trickplay.adaptive_cpu` from config. Default: true (gentle 25%).
-// When false, uses 50% of cores for faster generation.
-func (s *TrickplayService) isAdaptiveCPU(ctx context.Context) bool {
-	if s.configRepo == nil {
-		return true
-	}
-	entry, err := s.configRepo.Get(ctx, "trickplay.adaptive_cpu")
 	if err != nil {
 		return true
 	}
@@ -186,9 +193,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 
 	outputDir := fmt.Sprintf("%s/%s", s.trickplayCacheDir, mediaItemID)
 
-	adaptive := s.isAdaptiveCPU(ctx)
-	workers := cpuutil.TrickplayWorkers(adaptive)
-	result, err := s.trickplayGen.Generate(ctx, item.File.Path, outputDir, interval, width, tileWidth, tileHeight, workers, item.File.Duration.Milliseconds())
+	result, err := s.trickplayGen.Generate(ctx, item.File.Path, outputDir, interval, width, tileWidth, tileHeight, s.decoderThreads(), item.File.Duration.Milliseconds())
 	if err != nil {
 		s.recordGenerationFailure(ctx, mediaItemID, item.File, err)
 		return fmt.Errorf("generate trickplay: %w", err)
@@ -432,6 +437,10 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 			if _, err := s.GetTrickplayManifest(tctx, string(e.MediaItemID)); err == nil {
 				return
 			}
+			// Under the task's context like the sweep: the dashboard sees the
+			// item, and the fork is charged to (and gated by) this task's share.
+			tctx, done := bgtasks.BeginCtx(tctx, trickplayTask, string(e.MediaItemID))
+			defer done()
 			if err := s.GenerateTrickplay(tctx, string(e.MediaItemID)); err != nil {
 				slog.WarnContext(tctx, "trickplay generation failed", slog.String("media_id", string(e.MediaItemID)), slog.Any("err", err))
 			}
