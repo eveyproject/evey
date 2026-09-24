@@ -57,6 +57,7 @@ export * from "./lib/streamInfoModel";
 export * from "./lib/syncplayReconcile";
 export * from "./lib/profilePicker";
 export * from "./hooks/useSyncplay";
+export * from "./hooks/useSyncPlaySocket";
 export * from "./lib/playlistType";
 export * from "./lib/playerTitle";
 export * from "./lib/skipSegments";

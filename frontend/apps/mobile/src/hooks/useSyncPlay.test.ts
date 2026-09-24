@@ -69,9 +69,10 @@ class MockWebSocket {
 // Module mocks
 // ---------------------------------------------------------------------------
 
+const auth = vi.hoisted(() => ({ token: "test-token" }));
 vi.mock("@evey/store", () => ({
   useAuthStore: {
-    getState: () => ({ accessToken: "test-token" }),
+    getState: () => ({ accessToken: auth.token }),
   },
 }));
 
@@ -130,7 +131,7 @@ describe("useSyncPlay - message dispatch", () => {
     act(() => { ws().simulateOpen(); });
     act(() => { ws().simulateMessage({ type: "play", positionMs: 5000 }); });
 
-    expect(onPlay).toHaveBeenCalledWith(5000);
+    expect(onPlay).toHaveBeenCalledWith(5000, true);
   });
 
   it("calls onPause callback for 'pause' message", async () => {
@@ -143,7 +144,7 @@ describe("useSyncPlay - message dispatch", () => {
     act(() => { ws().simulateOpen(); });
     act(() => { ws().simulateMessage({ type: "pause", positionMs: 3000 }); });
 
-    expect(onPause).toHaveBeenCalledWith(3000);
+    expect(onPause).toHaveBeenCalledWith(3000, true);
   });
 
   it("calls onSeek callback for 'seek' message", async () => {
@@ -358,5 +359,56 @@ describe("useSyncPlay - reconnect", () => {
     // fire any pending timers: a stale room-1 reconnect would replace lastWS
     act(() => { vi.advanceTimersByTime(60_000); });
     expect(ws().url).toContain("room-2");
+  });
+});
+
+// What the phone's own socket lacked until it shared the web's
+// (@evey/client useSyncPlaySocket, 2026-09-24).
+describe("useSyncPlay - what the web already handled", () => {
+  it("backs off and gives up after five reconnects instead of retrying every second forever", async () => {
+    vi.useFakeTimers();
+    let sockets = 0;
+    const Counting = class extends MockWebSocket {
+      constructor(url: string, protocols?: string | string[]) {
+        super(url, protocols);
+        sockets += 1;
+      }
+    };
+    (globalThis as unknown as Record<string, unknown>).WebSocket = Counting;
+    mockFetch.mockResolvedValueOnce({ id: "room-1", code: "C1" });
+    const { result } = renderHook(() => useSyncPlay());
+    await act(async () => { await result.current.createRoom("mi-1"); });
+
+    // The server is down: every socket closes without ever opening.
+    for (let i = 0; i < 10; i++) {
+      act(() => { ws().simulateClose(); });
+      act(() => { vi.advanceTimersByTime(60_000); });
+    }
+    expect(sockets).toBe(1 + 5);
+  });
+
+  it("jumps to the sender's position and plays on an 'everyone sync to me' resync", async () => {
+    const onSeek = vi.fn();
+    const onPlay = vi.fn();
+    mockFetch.mockResolvedValueOnce({ id: "room-1", code: "C1" });
+    const { result } = renderHook(() => useSyncPlay({ onSeek, onPlay }));
+    await act(async () => { await result.current.createRoom("mi-1"); });
+    act(() => { ws().simulateOpen(); });
+    act(() => { ws().simulateMessage({ type: "resync", positionMs: 42_000 }); });
+    expect(onSeek).toHaveBeenCalledWith(42_000);
+    expect(onPlay).toHaveBeenCalledWith(42_000, true);
+  });
+
+  it("hands the host controls to the member the server promotes", async () => {
+    // A JWT whose subject is usr-me.
+    auth.token = `h.${btoa(JSON.stringify({ sub: "usr-me" }))}.s`;
+    mockFetch.mockResolvedValueOnce({ roomId: "room-1", mediaId: "mi-1" }).mockResolvedValueOnce({});
+    const { result } = renderHook(() => useSyncPlay());
+    await act(async () => { await result.current.joinByCode("ABC123"); });
+    act(() => { ws().simulateOpen(); });
+    expect(result.current.state.isHost).toBe(false);
+    act(() => { ws().simulateMessage({ type: "host_changed", userId: "usr-me" }); });
+    expect(result.current.state.isHost).toBe(true);
+    auth.token = "test-token";
   });
 });

@@ -270,7 +270,7 @@ describe("useSyncPlay", () => {
       act(() => ws.simulateOpen());
       act(() => ws.simulateMessage({ type: "play", positionMs: 7000 }));
 
-      expect(onPlay).toHaveBeenCalledWith(7000);
+      expect(onPlay).toHaveBeenCalledWith(7000, true);
     });
 
     it("calls onPause callback on pause message", async () => {
@@ -285,7 +285,7 @@ describe("useSyncPlay", () => {
       act(() => ws.simulateOpen());
       act(() => ws.simulateMessage({ type: "pause", positionMs: 9000 }));
 
-      expect(onPause).toHaveBeenCalledWith(9000);
+      expect(onPause).toHaveBeenCalledWith(9000, true);
     });
 
     it("calls onSeek callback on seek message", async () => {
@@ -315,7 +315,7 @@ describe("useSyncPlay", () => {
       act(() => ws.simulateOpen());
       act(() => ws.simulateMessage({ type: "play" }));
 
-      expect(onPlay).toHaveBeenCalledWith(0);
+      expect(onPlay).toHaveBeenCalledWith(0, true);
     });
 
     it("handles member_joined - adds member and calls callback", async () => {
@@ -367,10 +367,13 @@ describe("useSyncPlay", () => {
       expect(result.current[0].members).toEqual([{ userId: "u3", username: "Charlie" }]);
     });
 
-    it("calls onSeek on state message with positionMs", async () => {
-      const onSeek = vi.fn();
+    // A late joiner lands on the room's position and takes its play state: it
+    // used to be seeked only, so a paused room's newcomer kept playing alone.
+    it("lands a late joiner on the room's position, paused or playing like the room", async () => {
+      const onPlay = vi.fn();
+      const onPause = vi.fn();
       eveyFetchFn.mockResolvedValueOnce({ id: "room-1", code: "C" });
-      const { result } = await loadHook({ onSeek });
+      const { result } = await loadHook({ onPlay, onPause });
 
       await act(async () => {
         await result.current[1].createRoom("media-1");
@@ -378,8 +381,9 @@ describe("useSyncPlay", () => {
       const ws = latestWs();
       act(() => ws.simulateOpen());
       act(() => ws.simulateMessage({ type: "state", positionMs: 45000 }));
-
-      expect(onSeek).toHaveBeenCalledWith(45000);
+      expect(onPause).toHaveBeenCalledWith(45000, true);
+      act(() => ws.simulateMessage({ type: "state", positionMs: 46000, playing: true }));
+      expect(onPlay).toHaveBeenCalledWith(46000, true);
     });
 
     it("ignores malformed JSON messages", async () => {
