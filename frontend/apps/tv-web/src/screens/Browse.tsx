@@ -23,6 +23,7 @@ import {
 } from "@evey/api";
 import {
   CARD_WIDTH_GRID,
+  collectionSubtitle,
   mergeGenres,
   progressPercent,
   genreTranslationKey,
@@ -103,16 +104,19 @@ export function CollectionsScreen() {
       ) : (
         <FocusRoot autoFocus grid className="box-grid-wrap">
           <div className="grid box-grid">
-            {list.map((c, i) => (
-              <Pressable key={c.id} focusKey={`collections:${c.id}`} className="tv-card box-card" autoFocus={i === 0} label={c.name} onPress={() => navigate({ name: "collection", collectionId: c.id })}>
-                <span className="box-poster">
-                  {c.posterUrl ? <img src={serverImageSrc(c.posterUrl)} alt="" loading="lazy" /> : <span className="box-initial">{c.name[0]?.toUpperCase() ?? "?"}</span>}
-                  {c.kind === "saga" ? <span className="box-badge">{t("media.collections.saga")}</span> : null}
-                </span>
-                <span className="box-name">{c.name}</span>
-                {c.itemCount ? <span className="box-sub">{t("media.person.titleCount", { count: c.itemCount })}</span> : null}
-              </Pressable>
-            ))}
+            {list.map((c, i) => {
+              const sub = collectionSubtitle(c.kind, c.itemCount, t);
+              return (
+                <Pressable key={c.id} focusKey={`collections:${c.id}`} className="tv-card box-card" autoFocus={i === 0} label={c.name} onPress={() => navigate({ name: "collection", collectionId: c.id })}>
+                  <span className="box-poster">
+                    {c.posterUrl ? <img src={serverImageSrc(c.posterUrl)} alt="" loading="lazy" /> : <span className="box-initial">{c.name[0]?.toUpperCase() ?? "?"}</span>}
+                    {sub.badge ? <span className="box-badge">{sub.badge}</span> : null}
+                  </span>
+                  <span className="box-name">{c.name}</span>
+                  {sub.count ? <span className="box-sub">{sub.count}</span> : null}
+                </Pressable>
+              );
+            })}
           </div>
         </FocusRoot>
       )}

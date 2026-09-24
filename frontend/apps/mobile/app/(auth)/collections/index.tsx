@@ -29,6 +29,7 @@ import {
   useDeleteCollection,
   type Collection,
 } from "../../../src/api/collections";
+import { collectionSubtitle, type CollectionSubtitleParts } from "@evey/client";
 
 const NUM_COLUMNS = 2;
 const SPACING = 12;
@@ -37,25 +38,8 @@ const ITEM_WIDTH =
   (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
 
-// The shared `Collection` type predates itemCount/kind; the REST response
-// already carries them (eveyFetch passes the JSON through untouched), this
-// just widens what the component is allowed to read off it.
-
-export interface CollectionSubtitleParts {
-  badge?: string;
-  count?: string;
-}
-
-export function collectionSubtitle(
-  kind: string | undefined,
-  itemCount: number | undefined,
-  t: (key: string, options?: Record<string, unknown>) => string,
-): CollectionSubtitleParts {
-  const parts: CollectionSubtitleParts = {};
-  if (kind === "saga") parts.badge = t("media.collections.saga");
-  if (itemCount !== undefined && itemCount > 0) parts.count = t("media.person.titleCount", { count: itemCount });
-  return parts;
-}
+// Shared by the four clients: packages/client/src/lib/collectionSubtitle.ts.
+export { collectionSubtitle, type CollectionSubtitleParts };
 
 function CollectionCard({
   col,

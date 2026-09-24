@@ -7,7 +7,7 @@ import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { SleepTimerState } from "@/hooks/useSleepTimer";
 import { SPEED_OPTIONS } from "./constants";
 import { qualityRungsFromHeights, trackDisplayName } from "@evey/api";
-import { SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive, SUBTITLE_BG_COLORS } from "@evey/client";
+import { SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive, SUBTITLE_BG_COLORS, srtToVtt, assToVtt } from "@evey/client";
 
 // Mirrors the mobile/TV sleep timer presets (apps/mobile/src/components/SleepTimerPicker.tsx,
 // apps/tv/src/components/SleepTimerPicker.tsx).
@@ -40,63 +40,8 @@ const SUBTITLE_FONTS = [
   { labelKey: "player.fonts.comicSans", value: "'Comic Sans MS', cursive" },
 ];
 
-export function srtToVtt(srt: string): string {
-  const vtt = srt
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    // SRT timestamps use comma for ms, VTT uses period
-    .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2");
-  return `WEBVTT\n\n${vtt.trim()}\n`;
-}
-
-// ASS/SSA timestamp is H:MM:SS.cc (centiseconds); VTT wants HH:MM:SS.mmm.
-function assTimeToVtt(t: string): string | null {
-  const m = t.trim().match(/^(\d+):(\d{2}):(\d{2})\.(\d{2})$/);
-  if (!m) return null;
-  const [, h, mm, ss, cc] = m;
-  return `${h.padStart(2, "0")}:${mm}:${ss}.${cc}0`;
-}
-
-// Minimal ASS/SSA → WebVTT converter. Earlier code ran ASS through srtToVtt,
-// which only swaps comma/period in timestamps - ASS uses a completely different
-// "Dialogue:" line format, so the browser parsed zero cues and the subtitle
-// silently never appeared. We parse the [Events] Format header to locate the
-// Start/End/Text columns, then emit one VTT cue per Dialogue line, stripping
-// ASS override tags ({\...}) and converting \N hard breaks.
-export function assToVtt(ass: string): string {
-  const lines = ass.replace(/\r/g, "").split("\n");
-  let startIdx = 1, endIdx = 2, textIdx = 9;
-  for (const line of lines) {
-    if (/^\s*Format\s*:/i.test(line) && /\bText\b/i.test(line)) {
-      const cols = line.replace(/^\s*Format\s*:/i, "").split(",").map((c) => c.trim().toLowerCase());
-      const si = cols.indexOf("start");
-      const ei = cols.indexOf("end");
-      const ti = cols.indexOf("text");
-      if (si >= 0) startIdx = si;
-      if (ei >= 0) endIdx = ei;
-      if (ti >= 0) textIdx = ti;
-      break;
-    }
-  }
-  const cues: string[] = [];
-  for (const line of lines) {
-    if (!/^\s*Dialogue\s*:/i.test(line)) continue;
-    // Text is the last field and may itself contain commas, so don't over-split.
-    const parts = line.replace(/^\s*Dialogue\s*:/i, "").split(",");
-    if (parts.length <= textIdx) continue;
-    const start = assTimeToVtt(parts[startIdx]);
-    const end = assTimeToVtt(parts[endIdx]);
-    if (!start || !end) continue;
-    const text = parts.slice(textIdx).join(",")
-      .replace(/\{[^}]*\}/g, "") // drawing/override tags
-      .replace(/\\N/gi, "\n")     // hard line break
-      .replace(/\\h/gi, " ")      // hard space
-      .trim();
-    if (!text) continue;
-    cues.push(`${start} --> ${end}\n${text}`);
-  }
-  return `WEBVTT\n\n${cues.join("\n\n")}\n`;
-}
+// Shared with the phone: packages/client/src/lib/subtitleParse.ts.
+export { srtToVtt, assToVtt };
 
 async function loadSubtitleFile(file: File): Promise<string> {
   const text = await file.text();

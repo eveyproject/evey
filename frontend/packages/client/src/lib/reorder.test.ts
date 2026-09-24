@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { moveItem } from "./collectionReorder";
+import { moveItem } from "./reorder";
 
 describe("moveItem", () => {
   const ids = ["a", "b", "c"];

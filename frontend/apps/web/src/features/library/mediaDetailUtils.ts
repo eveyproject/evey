@@ -11,16 +11,5 @@ export function formatSeriesRuntime(totalMs?: string, episodeCount?: number): st
   return `${m}min`;
 }
 
-// hasMediaFile reports whether an item is a real, downloadable single media file
-// (a movie or episode) rather than a container (series/season). It must NOT gate
-// on item.filePath: the absolute server path is redacted for non-admins by design
-// (mediaItemToProto's includeFilePath, pentest 2026-05-26), so a filePath check
-// would hide the download button - and even suppress the stream-token fetch - for
-// every non-admin viewer. fileSize IS emitted to every viewer, so it's the signal
-// available to all. Guard on a REAL numeric size: proto EmitUnpopulated sends a
-// container's zero as the STRING "0", which is truthy in JS, so `!!item.fileSize`
-// would wrongly treat a series/season as a file. filePath stays as a belt-and-
-// suspenders OR so admins keep the button even in any edge case where size is 0.
-export function hasMediaFile(item: { fileSize?: string; filePath?: string }): boolean {
-  return Number(item.fileSize ?? 0) > 0 || !!item.filePath;
-}
+// Shared with the phone: packages/client/src/lib/mediaFile.ts.
+export { hasMediaFile } from "@evey/client";

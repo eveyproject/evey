@@ -13,26 +13,14 @@ import { SmartCollectionDialog } from "@/features/collection/SmartCollectionDial
 import type { SmartCollection } from "@/features/collection/SmartCollectionDialog";
 import { CollectionDialog } from "@/features/collection/CollectionDialog";
 import type { EditableCollection } from "@/features/collection/CollectionDialog";
+import { collectionSubtitle, type CollectionSubtitleParts } from "@evey/client";
 
 export const Route = createLazyFileRoute("/_auth/collections/")({
   component: CollectionsPage,
 });
 
-export interface CollectionSubtitleParts {
-  badge?: string;
-  count?: string;
-}
-
-export function collectionSubtitle(
-  kind: string | undefined,
-  itemCount: number | undefined,
-  t: (key: string, options?: Record<string, unknown>) => string,
-): CollectionSubtitleParts {
-  const parts: CollectionSubtitleParts = {};
-  if (kind === "saga") parts.badge = t("media.collections.saga");
-  if (itemCount !== undefined && itemCount > 0) parts.count = t("media.person.titleCount", { count: itemCount });
-  return parts;
-}
+// Shared by the four clients: packages/client/src/lib/collectionSubtitle.ts.
+export { collectionSubtitle, type CollectionSubtitleParts };
 
 function CollectionCardSkeleton() {
   return (
