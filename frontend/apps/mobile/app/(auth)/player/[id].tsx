@@ -70,7 +70,7 @@ import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack, pickPreferredStreamIndex } from "../../../src/lib/audioTrackMatch";
 import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
 import { backPressAction, playerExit } from "../../../src/lib/playerExit";
-import { resolveStartPositionMs } from "@evey/client";
+import { resolveStartPositionMs, servedVariant, usePlayingVideoTrack } from "@evey/client";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -748,6 +748,9 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioOffsetMs, appliedAudioOffsetMs, audioOffsetAvailable]);
+
+  // The variant ExoPlayer/AVPlayer decodes now, for the stream info panel.
+  const playingTrack = usePlayingVideoTrack(player);
 
   useEffect(() => {
     if (!player) return;
@@ -1839,6 +1842,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
         onClose={() => setActiveSheet(null)}
         streamInfo={streamInfo}
         audioStreamIndex={selectedAudioIndex}
+        served={servedVariant(streamInfo, playingTrack.playing, playingTrack.ladderBitrates)}
       />
       )}
 

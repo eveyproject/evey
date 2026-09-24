@@ -11,6 +11,7 @@ import { EpisodesPanel } from "./PlayerEpisodesPanel";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerEpisodesPanel";
 import { SettingsPanel } from "./PlayerSettingsPanel";
 import { StreamInfoPanel } from "./StreamInfoPanel";
+import type { ServedVariant } from "@evey/client";
 import { usePlayerContext, usePlayerTimeRef } from "./PlayerContext";
 import { LiveProgressBar, LiveTimeLabel, LiveChaptersPanel, useActiveChapterIndex } from "./PlayerLiveControls";
 import { useDocumentPiP } from "./hooks/useDocumentPiP";
@@ -70,6 +71,8 @@ interface PlayerControlsProps {
    *  "aac" (decoder booting), "wasm", "aac-latched". Passed to the info panel,
    *  which must not announce a client decode over the AAC transcode. */
   wasmAudioLeg?: string | null;
+  /** The variant playing right now, so the info panel follows every quality change. */
+  servedVariant?: ServedVariant | null;
   /** AUDIO-relative ordinal of the selected track, so the info panel reports IT. */
   audioTrackIndex?: number | null;
   /** True while the HLS pipeline is stalled waiting for segments. */
@@ -117,6 +120,7 @@ function PlayerControlsInner({
   streamInfo,
   wasmAudioActive,
   wasmAudioLeg,
+  servedVariant,
   audioTrackIndex,
   isBuffering,
   isPlaying,
@@ -762,6 +766,7 @@ function PlayerControlsInner({
               streamInfo={streamInfo}
               wasmAudioActive={wasmAudioActive}
               wasmAudioLeg={wasmAudioLeg}
+              served={servedVariant}
               audioTrackIndex={audioTrackIndex}
               open={openPanel === "streaminfo"}
               onToggle={() => setOpenPanel(openPanel === "streaminfo" ? null : "streaminfo")}

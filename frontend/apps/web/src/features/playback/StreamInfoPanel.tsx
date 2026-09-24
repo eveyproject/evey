@@ -1,7 +1,7 @@
 import { Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { V1StreamInfo } from "@evey/api";
-import { buildStreamInfoModel, decisionBadgeKey } from "@evey/client";
+import { buildStreamInfoModel, decisionBadgeKey, type ServedVariant } from "@evey/client";
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -71,17 +71,20 @@ interface StreamInfoPanelProps {
   // the French AC-3, and contradicted the "decoded client" badge, which is
   // computed from the real selection.
   audioTrackIndex?: number | null;
+  // The variant playing right now (auto or picked quality); null before one is known.
+  served?: ServedVariant | null;
 }
 
 // StreamInfoPanel surfaces the playback decision the backend already returns
 // (play method, codecs, transcode reasons) - visibility the mobile app has but the
 // web player lacked. Mirrors the SettingsPanel popover chrome.
-export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive, wasmAudioLeg, audioTrackIndex }: StreamInfoPanelProps) {
+export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive, wasmAudioLeg, audioTrackIndex, served }: StreamInfoPanelProps) {
   const { t } = useTranslation();
   const model = buildStreamInfoModel(streamInfo, {
     audio: { relative: audioTrackIndex },
     wasmAudioActive,
     wasmAudioLeg,
+    served,
   });
 
   function toggle(e: React.MouseEvent) {

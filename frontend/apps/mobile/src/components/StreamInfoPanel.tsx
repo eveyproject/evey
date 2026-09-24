@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { BottomSheet } from "./BottomSheet";
 import type { V1StreamInfo } from "@evey/api";
-import { buildStreamInfoModel, decisionBadgeKey } from "@evey/client";
+import { buildStreamInfoModel, decisionBadgeKey, type ServedVariant } from "@evey/client";
 import { FONT_SIZE } from "@evey/theme";
 
 interface StreamInfoPanelProps {
@@ -12,6 +12,8 @@ interface StreamInfoPanelProps {
   streamInfo: V1StreamInfo | null;
   /** ABSOLUTE index of the selected audio stream, so the panel describes IT. */
   audioStreamIndex?: number | null;
+  /** The variant playing right now: the panel follows every quality change. */
+  served?: ServedVariant | null;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -57,10 +59,10 @@ function SectionHeader({ title, decision }: { title: string; decision?: string }
   );
 }
 
-export function StreamInfoPanel({ visible, onClose, streamInfo, audioStreamIndex }: StreamInfoPanelProps) {
+export function StreamInfoPanel({ visible, onClose, streamInfo, audioStreamIndex, served }: StreamInfoPanelProps) {
   const { t } = useTranslation();
   const theme = useTheme();
-  const model = buildStreamInfoModel(streamInfo, { audio: { absolute: audioStreamIndex } });
+  const model = buildStreamInfoModel(streamInfo, { audio: { absolute: audioStreamIndex }, served });
   if (!model) return null;
 
   return (
