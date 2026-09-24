@@ -11,6 +11,7 @@ import {
   isBurnInSubtitle,
   burnInSubtitleIndex as pickBurnInSubtitle,
   clientSubtitleTrack,
+  createPlayerEventReporter,
   type V1MediaStream,
 } from "@evey/api";
 import { useAuthStore, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
@@ -90,6 +91,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
+  const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   const { profile } = useActiveProfile();
   const { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, progress, restartWithTracks } =
     useTvPlaySession(mediaId, TV_DEVICE, {
@@ -250,6 +252,23 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       void video.play().catch(() => setPaused(true));
     };
 
+    // The element's own MediaError. Beaconed like every other client's: a
+    // television has no console anyone reads. Without hls.js nothing else
+    // watches the stream, so it is also the end of playback.
+    const onVideoError = (fatal: boolean) => () => {
+      const err = video.error;
+      if (!err) return;
+      reportPlayerEvent({
+        type: "video_element_error",
+        details: err.message || "",
+        fatal: true,
+        code: err.code,
+        posSec: video.currentTime || 0,
+      });
+      if (fatal) setFailed(true);
+    };
+    const nativeError = onVideoError(true);
+
     // hls.js is half a megabyte of JavaScript a television has to parse. It
     // is only ever needed once a stream is actually being attached, so it is
     // fetched here rather than with the application: the home, the library
@@ -257,22 +276,29 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
     if (streamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY" || prefersNativeHLS()) {
       video.src = streamUrl;
       video.addEventListener("loadedmetadata", seekToStart, { once: true });
+      video.addEventListener("error", nativeError);
       return () => {
         video.removeEventListener("loadedmetadata", seekToStart);
+        video.removeEventListener("error", nativeError);
         video.removeAttribute("src");
         video.load();
       };
     }
 
     let torn = false;
+    // With hls.js the element error is a symptom it may recover from.
+    let elementError = nativeError;
     void (async () => {
       const { default: Hls } = await import("hls.js");
       if (torn || !videoRef.current) return;
       if (!Hls.isSupported()) {
         video.src = streamUrl;
         video.addEventListener("loadedmetadata", seekToStart, { once: true });
+        video.addEventListener("error", elementError);
         return;
       }
+      elementError = onVideoError(false);
+      video.addEventListener("error", elementError);
       const hls = new Hls({
         // The sliding stream token is re-read on every segment request so a
         // long film never outlives the token the manifest was opened with.
@@ -294,6 +320,20 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
         // Every error, fatal or not, in the console: a television has no
         // devtools and this is what a bug report can carry.
         console.warn("[player] hls", data.type, data.details, data.fatal ? "fatal" : "", data.response?.code ?? "", data.reason ?? "");
+        // The same beacon as the web player: every media error (the first
+        // symptom of a garbled stream) and every fatal one.
+        if (data.fatal || data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          const sn = data.frag?.sn;
+          reportPlayerEvent({
+            type: data.fatal ? "hls_fatal" : "hls_media_error",
+            details: data.details,
+            fatal: data.fatal,
+            code: data.response?.code ?? 0,
+            variant: data.frag?.level ?? 0,
+            segment: typeof sn === "number" ? sn : 0,
+            posSec: video.currentTime || 0,
+          });
+        }
         if (!data.fatal) return;
         const action = decideHlsFatal({ type: data.type, details: data.details, responseCode: data.response?.code }, attempts);
         if (action === "renegotiate") restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality);
@@ -307,6 +347,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
     return () => {
       torn = true;
       video.removeEventListener("loadedmetadata", seekToStart);
+      video.removeEventListener("error", elementError);
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
