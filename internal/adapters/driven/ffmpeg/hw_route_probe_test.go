@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -221,5 +222,41 @@ func TestTonemapRoute_OpenCLIndependentOfNativeVPP(t *testing.T) {
 	tonemap, features = resolveTonemapCaps("vaapi", nil, true, false, false)
 	if argv := tonemapRouteArgv(t, transcoding.VAAPI, features, tonemap); !strings.Contains(argv, "tonemap_vaapi=format=nv12") {
 		t.Fatalf("native-only route must emit the fixed-function VPP filter:\n%s", argv)
+	}
+}
+
+// A route the builder cannot express on this backend is not usable: the
+// runtime re-proof fails closed without running anything.
+func TestHWRouteUsable_UnknownRouteFailsClosed(t *testing.T) {
+	r := &BenchmarkRunner{}
+	assert := func(route string) {
+		if r.HWRouteUsable(context.Background(), "nvenc", "", route, "h264", nil) {
+			t.Errorf("route %q must not be usable", route)
+		}
+	}
+	assert("no-such-route")
+	assert(transcoding.HWRouteDeinterlace) // QSV-only
+}
+
+// The runtime re-proof encodes the codec that failed: a tone-map route that
+// failed on HEVC is re-run on HEVC, not on the calibration's H.264.
+func TestRouteReproofOpts_EncodesTheFailedCodec(t *testing.T) {
+	var tonemap routeProbe
+	for _, p := range routeProbesFor(transcoding.VAAPI, []string{"h264", "hevc"}, []string{transcoding.FeatureTonemapOpenCL}, true, true, true, false, nil) {
+		if p.route == transcoding.HWRouteTonemap {
+			tonemap = p
+		}
+	}
+	if tonemap.route == "" {
+		t.Fatal("fixture: VAAPI with OpenCL must list the tonemap route")
+	}
+	if got := routeReproofOpts(transcoding.VAAPI, "", nil, "/m", tonemap, "HEVC").VideoCodec; got != "hevc" {
+		t.Errorf("VideoCodec = %q, want hevc", got)
+	}
+	if got := routeReproofOpts(transcoding.VAAPI, "", nil, "/m", tonemap, "").VideoCodec; got != "h264" {
+		t.Errorf("no codec keeps the probe's own: got %q", got)
+	}
+	if o := routeReproofOpts(transcoding.VAAPI, "", nil, "/m", tonemap, "hevc"); !o.ToneMap || !o.HWTonemap {
+		t.Error("the topology stays the tone-map route")
 	}
 }

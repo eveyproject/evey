@@ -63,8 +63,9 @@ type CalibrationService struct {
 	logger *slog.Logger
 	// hwDevice is the operator's device pin (WithHWDevice), "" = none.
 	hwDevice string
-	// hwInitStrikeAt is the first missed HW init of the current window (under demoteMu).
-	hwInitStrikeAt time.Time
+	// hwInitStrikeAt is, per backend, the first missed HW init of the current
+	// window (under demoteMu): a miss on one GPU is no strike against another.
+	hwInitStrikeAt map[string]time.Time
 	// hwProofOK remembers when a host proof last passed, per proof key (under
 	// demoteMu); cleared by any demotion.
 	hwProofOK map[string]time.Time
@@ -857,9 +858,13 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 	return s.DemoteRoute(ctx, HWFailureReport{Class: class, Codec: codec})
 }
 
-// DemoteRoute is DemoteCapability with the exact route that failed: the
-// verdict rules are unchanged (keyed on class and codec), the route reaches
-// the fallback record the admin panel shows.
+// DemoteRoute is DemoteCapability with the exact route that failed. Every
+// proof runs on the backend that failed (report.Route.Backend; the primary when
+// the report names none), and a demotion only touches that backend. When its
+// encoder re-proves fine but the failed topology has its own route proof
+// (tone-map, bridge, passthrough, decoupled), that route is re-run for the
+// failed codec, and a failure takes that combination alone off the backend
+// instead of calling the media at fault.
 func (s *CalibrationService) DemoteRoute(ctx context.Context, report HWFailureReport) bool {
 	class, codec := report.Class, report.Codec
 	if class == domaintranscoding.FailureRouteIncompatible {
@@ -877,23 +882,27 @@ func (s *CalibrationService) DemoteRoute(ctx context.Context, report HWFailureRe
 	if cur.HWBackend == "" {
 		return false // already software - nothing left to demote
 	}
+	bc, ok := cur.BackendCap(report.Route.Backend)
+	if !ok {
+		bc, _ = cur.BackendCap(cur.HWBackend)
+	}
 
 	switch class {
 	case domaintranscoding.FailureHWUnsupportedOption:
 		// Narrow the tuning to what the host re-proves feature by feature,
 		// instead of wiping it all on the word of one session.
-		proof := hwProofKey(cur.HWBackend, codec, "features")
+		proof := hwProofKey(bc.Backend, codec, "features")
 		if s.hostProvenRecentlyLocked(proof) {
 			s.recordFallback(report, fallbackVerdictMediaRoute)
 			return false
 		}
-		kept := s.runner.ConfirmHWFeatures(ctx, cur.HWBackend, cur.HWDevice, codec, cur.HWFeatures)
-		d := domaintranscoding.PlanFeatureDemotion(cur, kept)
+		kept := s.runner.ConfirmHWFeatures(ctx, bc.Backend, bc.Device, codec, bc.Features)
+		d := domaintranscoding.PlanBackendFeatureDemotion(cur, bc.Backend, kept)
 		if !d.Changed {
 			s.markHostProvenLocked(proof)
 			s.recordFallback(report, fallbackVerdictMediaRoute)
 			s.logger.Warn("calibration: HW tuning re-confirmed by a media-independent probe, the failure was the media's; host keeps its features",
-				slog.String("codec", codec), slog.Any("features", cur.HWFeatures))
+				slog.String("codec", codec), slog.String("backend", bc.Backend), slog.Any("features", bc.Features))
 			return false
 		}
 		return s.applyDemotion(ctx, cur, d, report)
@@ -905,16 +914,19 @@ func (s *CalibrationService) DemoteRoute(ctx context.Context, report HWFailureRe
 
 	// Init / encoder missing / corrupt output: the backend has to fail a real
 	// encode of a synthetic clip before it is believed dead.
-	proof := hwProofKey(cur.HWBackend, codec, "encode")
-	if s.hostProvenRecentlyLocked(proof) {
-		s.recordFallback(report, fallbackVerdictMediaRoute)
-		return false
-	}
-	if s.runner.HWEncodeUsable(ctx, cur.HWBackend, cur.HWDevice, codec, nil) {
+	proof := hwProofKey(bc.Backend, codec, "encode")
+	encodes := s.hostProvenRecentlyLocked(proof)
+	if !encodes && s.runner.HWEncodeUsable(ctx, bc.Backend, bc.Device, codec, nil) {
+		encodes = true
 		s.markHostProvenLocked(proof)
+		s.logger.Warn("calibration: HW backend re-confirmed by a media-independent probe; host keeps its GPU",
+			slog.String("class", string(class)), slog.String("codec", codec), slog.String("backend", bc.Backend))
+	}
+	if encodes {
+		if route := report.Route.ProofRoute(); route != "" {
+			return s.reproveRouteLocked(ctx, cur, bc, route, report)
+		}
 		s.recordFallback(report, fallbackVerdictMediaRoute)
-		s.logger.Warn("calibration: HW backend re-confirmed by a media-independent probe, the failure was the media's; host keeps its GPU",
-			slog.String("class", string(class)), slog.String("codec", codec), slog.String("backend", cur.HWBackend))
 		return false
 	}
 
@@ -922,20 +934,49 @@ func (s *CalibrationService) DemoteRoute(ctx context.Context, report HWFailureRe
 	// a 4K seek during boot load). Two within the window prove the GPU.
 	if class == domaintranscoding.FailureHWInit {
 		now := time.Now()
-		if now.Sub(s.hwInitStrikeAt) > hwInitStrikeWindow {
-			s.hwInitStrikeAt = now
+		if now.Sub(s.hwInitStrikeAt[bc.Backend]) > hwInitStrikeWindow {
+			if s.hwInitStrikeAt == nil {
+				s.hwInitStrikeAt = make(map[string]time.Time)
+			}
+			s.hwInitStrikeAt[bc.Backend] = now
 			s.recordFallback(report, fallbackVerdictStrike)
 			s.logger.Warn("calibration: HW init missed once and the probe failed too, keeping the GPU until a second miss",
-				slog.String("codec", codec), slog.Duration("window", hwInitStrikeWindow))
+				slog.String("codec", codec), slog.String("backend", bc.Backend), slog.Duration("window", hwInitStrikeWindow))
 			return false
 		}
-		s.hwInitStrikeAt = time.Time{}
+		delete(s.hwInitStrikeAt, bc.Backend)
 	}
 
-	d := domaintranscoding.PlanDemotion(cur, class, codec)
+	d := domaintranscoding.PlanBackendDemotion(cur, bc.Backend, class, codec)
 	if !d.Changed {
 		return false // already demoted - debounces concurrent failures
 	}
+	return s.applyDemotion(ctx, cur, d, report)
+}
+
+// reproveRouteLocked re-runs the failed topology's route proof on a backend
+// whose encoder just proved fine, for the codec that failed. A pass keeps the
+// route (the media's fault); a failure takes that route+codec combination off
+// that backend and asks for a re-bench at the next idle window.
+func (s *CalibrationService) reproveRouteLocked(ctx context.Context, cur domaintranscoding.EncodeCapability, bc domaintranscoding.HWBackendCap, route string, report HWFailureReport) bool {
+	proof := hwProofKey(bc.Backend, report.Codec, "route:"+route)
+	if s.hostProvenRecentlyLocked(proof) {
+		s.recordFallback(report, fallbackVerdictMediaRoute)
+		return false
+	}
+	if s.runner.HWRouteUsable(ctx, bc.Backend, bc.Device, route, report.Codec, bc.Features) {
+		s.markHostProvenLocked(proof)
+		s.recordFallback(report, fallbackVerdictMediaRoute)
+		s.logger.Warn("calibration: failed HW route re-proven by its calibration session, the failure was the media's",
+			slog.String("backend", bc.Backend), slog.String("route", route), slog.String("codec", report.Codec))
+		return false
+	}
+	d := domaintranscoding.PlanRouteDemotion(cur, bc.Backend, route, report.Codec)
+	if !d.Changed {
+		s.recordFallback(report, fallbackVerdictMediaRoute)
+		return false
+	}
+	s.markPending("hw route " + domaintranscoding.HWRouteCombo(route, report.Codec) + " failed its re-proof on " + bc.Backend)
 	return s.applyDemotion(ctx, cur, d, report)
 }
 

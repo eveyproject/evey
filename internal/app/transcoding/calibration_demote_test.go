@@ -253,3 +253,115 @@ func TestDemoteRoute_RecordsTheExactRouteOnTheFallbackEvent(t *testing.T) {
 	assert.Equal(t, "hevc", events[0].Codec)
 	assert.Equal(t, fallbackVerdictMediaRoute, events[0].Verdict)
 }
+
+// A two-GPU host: the route blamed and re-proven is the one that failed, on the
+// backend that ran it - never the primary's encoder standing in for it.
+func seedTwoBackendService(t *testing.T, runner *fakeBenchmarkRunner) *CalibrationService {
+	t.Helper()
+	routes := []string{domaintranscoding.HWRouteSDR, domaintranscoding.HWRouteHEVC, domaintranscoding.HWRouteTonemap}
+	runner.result = domaintranscoding.EncodeCapability{
+		SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "qsv",
+		HWCodecs: []string{"h264", "hevc"}, HWFeatures: []string{"lookahead"}, HWRoutes: routes, CPUSignature: "sig",
+		Backends: []domaintranscoding.HWBackendCap{
+			{Backend: "qsv", Codecs: []string{"h264", "hevc"}, Features: []string{"lookahead"}, Routes: routes, MaxHeight: 2160},
+			{Backend: "vaapi", Device: "/dev/dri/renderD128", Codecs: []string{"h264", "hevc"}, Routes: routes, MaxHeight: 2160},
+		},
+	}
+	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, runner, nil)
+	require.NoError(t, svc.Recalibrate(context.Background()))
+	return svc
+}
+
+func vaapiTonemapFailure(class domaintranscoding.FailureClass) HWFailureReport {
+	return HWFailureReport{Class: class, Codec: "h264",
+		Route: domaintranscoding.RouteCostKey{Backend: "vaapi", Encoder: "h264_vaapi", Route: domaintranscoding.RouteCostTonemap}}
+}
+
+func TestDemoteRoute_ProvesOnTheBackendThatFailed(t *testing.T) {
+	runner := &fakeBenchmarkRunner{}
+	svc := seedTwoBackendService(t, runner)
+	assert.False(t, svc.DemoteRoute(context.Background(), vaapiTonemapFailure(domaintranscoding.FailureHWCorruptOutput)))
+	assert.Equal(t, []string{"vaapi"}, runner.proofBackends, "the encode proof runs on the failed backend, not the primary")
+	assert.Equal(t, []string{"vaapi/tonemap/h264"}, runner.routeCalls, "and the failed topology is re-run for the failed codec")
+}
+
+func TestDemoteRoute_WithdrawsOnlyTheFailedCombination(t *testing.T) {
+	runner := &fakeBenchmarkRunner{deadRoutes: []string{"tonemap/hevc"}}
+	svc := seedTwoBackendService(t, runner)
+	report := vaapiTonemapFailure(domaintranscoding.FailureHWCorruptOutput)
+	report.Codec, report.Route.Encoder = "hevc", "hevc_vaapi"
+	require.True(t, svc.DemoteRoute(context.Background(), report))
+	assert.Equal(t, []string{"vaapi/tonemap/hevc"}, runner.routeCalls, "the proof re-runs the failed combination, not H.264")
+
+	cur := svc.Current()
+	vaapi, ok := cur.BackendCap("vaapi")
+	require.True(t, ok, "the backend stays certified")
+	assert.False(t, vaapi.ProvesFor(domaintranscoding.HWRouteTonemap, "hevc"), "the failed combination leaves the GPU")
+	assert.True(t, vaapi.ProvesFor(domaintranscoding.HWRouteTonemap, "h264"), "the topology keeps the other codecs")
+	assert.True(t, vaapi.ProvesFor(domaintranscoding.HWRouteSDR, "hevc"), "every other route stays")
+	assert.True(t, vaapi.SupportsCodec("hevc"), "the encoder proved fine: the codec stays")
+	qsv, _ := cur.BackendCap("qsv")
+	assert.True(t, qsv.ProvesFor(domaintranscoding.HWRouteTonemap, "hevc"), "the primary is not touched")
+	assert.True(t, svc.NeedsBench(), "a re-bench at the next idle window re-proves the route")
+}
+
+// An H.264 failure re-proven fine on H.264 is the media's, even if the HEVC
+// combination would fail: the probe answers for the combination that failed.
+func TestDemoteRoute_OtherCombinationsFailureIsNotBlamed(t *testing.T) {
+	runner := &fakeBenchmarkRunner{deadRoutes: []string{"tonemap/hevc"}}
+	svc := seedTwoBackendService(t, runner)
+	before := svc.Current()
+	assert.False(t, svc.DemoteRoute(context.Background(), vaapiTonemapFailure(domaintranscoding.FailureHWCorruptOutput)))
+	assert.Equal(t, before, svc.Current())
+}
+
+func TestDemoteRoute_SecondaryEncodeFailureLeavesThePrimary(t *testing.T) {
+	runner := &fakeBenchmarkRunner{encodeUnusable: true}
+	svc := seedTwoBackendService(t, runner)
+	require.True(t, svc.DemoteRoute(context.Background(), vaapiTonemapFailure(domaintranscoding.FailureHWEncoderMissing)))
+
+	cur := svc.Current()
+	vaapi, _ := cur.BackendCap("vaapi")
+	assert.False(t, vaapi.SupportsCodec("h264"), "the failed backend loses the codec")
+	qsv, _ := cur.BackendCap("qsv")
+	assert.True(t, qsv.SupportsCodec("h264"), "the primary keeps it")
+	assert.Equal(t, []string{"h264", "hevc"}, cur.HWCodecs)
+}
+
+// A demotion has to reach Backends: the resolver reads the per-backend entries,
+// so a codec or feature removed from the scalar fields alone kept routing.
+func TestDemoteCapability_ReachesTheBackendEntryTheResolverReads(t *testing.T) {
+	runner := &fakeBenchmarkRunner{encodeUnusable: true}
+	svc := seedTwoBackendService(t, runner)
+	require.True(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWEncoderMissing, "hevc"))
+	qsv, _ := svc.Current().BackendCap("qsv")
+	assert.False(t, qsv.SupportsCodec("hevc"))
+
+	runner.encodeUnusable, runner.refusedFeatures = false, []string{"lookahead"}
+	require.True(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWUnsupportedOption, "h264"))
+	qsv, _ = svc.Current().BackendCap("qsv")
+	assert.Empty(t, qsv.Features)
+}
+
+// The two-miss rule counts per GPU: one init miss on each of two backends is
+// not two strikes against either.
+func TestDemoteRoute_InitStrikesAreCountedPerBackend(t *testing.T) {
+	runner := &fakeBenchmarkRunner{encodeUnusable: true}
+	svc := seedTwoBackendService(t, runner)
+	ctx := context.Background()
+	qsvInit := HWFailureReport{Class: domaintranscoding.FailureHWInit, Codec: "h264",
+		Route: domaintranscoding.RouteCostKey{Backend: "qsv", Route: domaintranscoding.RouteCostSDR}}
+	vaapiInit := HWFailureReport{Class: domaintranscoding.FailureHWInit, Codec: "h264",
+		Route: domaintranscoding.RouteCostKey{Backend: "vaapi", Route: domaintranscoding.RouteCostSDR}}
+
+	assert.False(t, svc.DemoteRoute(ctx, qsvInit), "first qsv miss is a strike")
+	assert.False(t, svc.DemoteRoute(ctx, vaapiInit), "first vaapi miss is its own first strike")
+	_, ok := svc.Current().BackendCap("vaapi")
+	assert.True(t, ok)
+
+	assert.True(t, svc.DemoteRoute(ctx, vaapiInit), "the second vaapi miss proves vaapi")
+	cur := svc.Current()
+	_, ok = cur.BackendCap("vaapi")
+	assert.False(t, ok, "the failed secondary is dropped")
+	assert.Equal(t, "qsv", cur.HWBackend, "the primary keeps its GPU")
+}

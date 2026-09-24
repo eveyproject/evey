@@ -1,6 +1,9 @@
 package transcoding
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // FailureClass categorises WHY a hardware transcode process failed, so the
 // orchestrator can react proportionally: how far to downgrade the encode, and
@@ -208,6 +211,104 @@ func PlanFeatureDemotion(cap EncodeCapability, kept []string) Demotion {
 	d := cap
 	d.HWFeatures = kept
 	return Demotion{RetryTier: TierHWMinimal, Capability: d, Persist: true, Changed: !sameFeatureSet(cap.HWFeatures, kept)}
+}
+
+// PlanBackendDemotion is PlanDemotion aimed at the backend whose own proof
+// failed, applied to its Backends entry too - the entry the resolver reads. The
+// primary keeps PlanDemotion's host rules; a secondary loses the codec (or
+// itself, on an init failure) and never touches the primary.
+func PlanBackendDemotion(cap EncodeCapability, backend string, class FailureClass, codec string) Demotion {
+	if isPrimaryBackend(cap, backend) {
+		d := PlanDemotion(cap, class, codec)
+		if d.Capability.HWBackend != "" {
+			d.Capability, _ = withBackendEntry(d.Capability, d.Capability.HWBackend, func(b *HWBackendCap) {
+				kept := withoutCodec(b.Codecs, codec, class)
+				d.Changed = d.Changed || len(kept) != len(b.Codecs)
+				b.Codecs = kept
+				if class == FailureHWUnsupportedOption {
+					d.Changed = d.Changed || len(b.Features) > 0
+					b.Features = nil
+				}
+			})
+		}
+		return d
+	}
+	switch class {
+	case FailureHWInit:
+		_, ok := cap.BackendCap(backend)
+		return Demotion{RetryTier: TierSoftware, Capability: cap.WithoutBackend(backend), Persist: true, Changed: ok}
+	case FailureHWEncoderMissing, FailureHWCorruptOutput:
+		changed := false
+		d, _ := withBackendEntry(cap, backend, func(b *HWBackendCap) {
+			kept := withoutCodec(b.Codecs, codec, class)
+			changed = len(kept) != len(b.Codecs)
+			b.Codecs = kept
+		})
+		if b, ok := d.BackendCap(backend); ok && len(b.Codecs) == 0 {
+			d = d.WithoutBackend(backend)
+		}
+		return Demotion{RetryTier: TierSoftware, Capability: d, Persist: true, Changed: changed}
+	}
+	return PlanDemotion(cap, class, codec)
+}
+
+// PlanBackendFeatureDemotion is PlanFeatureDemotion for the named backend.
+func PlanBackendFeatureDemotion(cap EncodeCapability, backend string, kept []string) Demotion {
+	d := Demotion{RetryTier: TierHWMinimal, Capability: cap, Persist: true}
+	if isPrimaryBackend(cap, backend) {
+		d = PlanFeatureDemotion(cap, kept)
+		backend = cap.HWBackend
+	}
+	d.Capability, _ = withBackendEntry(d.Capability, backend, func(b *HWBackendCap) {
+		d.Changed = d.Changed || !sameFeatureSet(b.Features, kept)
+		b.Features = kept
+	})
+	return d
+}
+
+// PlanRouteDemotion records that one route+codec combination failed its
+// runtime re-proof on the backend: that combination leaves the GPU, the same
+// topology keeps serving the other codecs and the backend keeps every other
+// route. A backend absent from Backends has nothing to record it on.
+func PlanRouteDemotion(cap EncodeCapability, backend, route, codec string) Demotion {
+	d := Demotion{RetryTier: TierSoftware, Capability: cap, Persist: true}
+	combo := HWRouteCombo(route, codec)
+	d.Capability, _ = withBackendEntry(cap, backend, func(b *HWBackendCap) {
+		if !slices.Contains(b.FailedRoutes, combo) {
+			b.FailedRoutes = append(slices.Clone(b.FailedRoutes), combo)
+			d.Changed = true
+		}
+	})
+	return d
+}
+
+func isPrimaryBackend(cap EncodeCapability, backend string) bool {
+	return backend == "" || strings.EqualFold(backend, cap.HWBackend)
+}
+
+// withBackendEntry returns cap with Backends cloned and edit applied to the
+// named entry; false when the row has no such entry.
+func withBackendEntry(cap EncodeCapability, backend string, edit func(*HWBackendCap)) (EncodeCapability, bool) {
+	i := slices.IndexFunc(cap.Backends, func(b HWBackendCap) bool { return strings.EqualFold(b.Backend, backend) })
+	if i < 0 {
+		return cap, false
+	}
+	cap.Backends = slices.Clone(cap.Backends)
+	edit(&cap.Backends[i])
+	return cap, true
+}
+
+// withoutCodec is removeHWCodec's rule on one backend's list: only the classes
+// that condemn a codec remove it.
+func withoutCodec(codecs []string, codec string, class FailureClass) []string {
+	if class != FailureHWEncoderMissing && class != FailureHWCorruptOutput {
+		return codecs
+	}
+	codec = strings.ToLower(strings.TrimSpace(codec))
+	if codec == "" {
+		codec = "h264"
+	}
+	return slices.DeleteFunc(slices.Clone(codecs), func(x string) bool { return strings.EqualFold(strings.TrimSpace(x), codec) })
 }
 
 func sameFeatureSet(a, b []string) bool {

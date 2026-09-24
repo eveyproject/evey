@@ -25,12 +25,16 @@ type HWDeviceInfo struct {
 // needs to BUILD and gate a route on that specific backend. One per certified
 // backend in EncodeCapability.Backends.
 type HWBackendCap struct {
-	Backend       string   `json:"backend"`
-	Device        string   `json:"device,omitempty"`
-	Codecs        []string `json:"codecs,omitempty"`
-	DecodeCodecs  []string `json:"decode_codecs,omitempty"`
-	Features      []string `json:"features,omitempty"`
-	Routes        []string `json:"routes,omitempty"`
+	Backend      string   `json:"backend"`
+	Device       string   `json:"device,omitempty"`
+	Codecs       []string `json:"codecs,omitempty"`
+	DecodeCodecs []string `json:"decode_codecs,omitempty"`
+	Features     []string `json:"features,omitempty"`
+	Routes       []string `json:"routes,omitempty"`
+	// FailedRoutes are route+codec combinations (HWRouteCombo) that failed a
+	// runtime re-proof: that topology no longer takes that output codec here,
+	// the other codecs keep it. A calibration writes a fresh row without them.
+	FailedRoutes  []string `json:"failed_routes,omitempty"`
 	HW10Bit       bool     `json:"hw_10bit"`
 	HWTonemap     bool     `json:"hw_tonemap"`
 	HWOverlay     bool     `json:"hw_overlay"`
@@ -77,6 +81,21 @@ func (b HWBackendCap) Proves(route string) bool {
 		return true
 	}
 	return slices.Contains(b.Routes, route)
+}
+
+// ProvesFor is Proves for one output codec: the route is proven and that
+// combination has not failed its runtime re-proof.
+func (b HWBackendCap) ProvesFor(route, codec string) bool {
+	return b.Proves(route) && !slices.Contains(b.FailedRoutes, HWRouteCombo(route, codec))
+}
+
+// HWRouteCombo names one route+output codec combination ("" codec = h264).
+func HWRouteCombo(route, codec string) string {
+	c := CanonicalVideoCodec(codec)
+	if c == "" {
+		c = "h264"
+	}
+	return route + "/" + c
 }
 
 // SupportsCodec reports whether this backend encodes the domain codec.
@@ -208,13 +227,15 @@ func (c EncodeCapability) AnyBackendSupports(codec string) bool {
 // Vulkan/libplacebo (VAAPI) and CUDA (NVENC) handle any range - HLG and a
 // Dolby Vision RPU included - the fixed VAAPI VPP only PQ. Empty ok=false when none - HDR then
 // tone-maps in software. QSV's vpp is ineligible so it never proves the route.
-func (c EncodeCapability) TonemapBackend(hdrRange string) (HWBackendCap, bool) {
+// codec is the output codec ("" = h264): a combination that failed its
+// runtime re-proof does not count.
+func (c EncodeCapability) TonemapBackend(hdrRange, codec string) (HWBackendCap, bool) {
 	for _, b := range c.BackendCaps() {
 		// b.HWTonemap is the GPU tone-map probe; Proves gates the builder route
 		// (QSV's vpp is ineligible so its route is never proven, even though its
 		// probe may init). Both required so a pre-Backends row (nil Routes,
 		// trusted) still respects the probe flag.
-		if !b.HWTonemap || !b.Proves(HWRouteTonemap) || !slices.Contains([]string{"vaapi", "qsv", "nvenc", "rkmpp"}, b.Backend) {
+		if !b.HWTonemap || !b.ProvesFor(HWRouteTonemap, codec) || !slices.Contains([]string{"vaapi", "qsv", "nvenc", "rkmpp"}, b.Backend) {
 			continue
 		}
 		// NVENC's only GPU tone-mapper is tonemap_cuda: no feature, no route
@@ -242,7 +263,7 @@ func (b HWBackendCap) TonemapsAnyRange() bool {
 // proves the route, encodes HEVC, HDR10 + 10-bit VPP. Empty ok=false when none.
 func (c EncodeCapability) PassthroughBackend() (HWBackendCap, bool) {
 	for _, b := range c.BackendCaps() {
-		if b.Proves(HWRoutePassthrough) && b.SupportsCodec("hevc") && b.HWHDR10Encode && b.HW10Bit {
+		if b.ProvesFor(HWRoutePassthrough, "hevc") && b.SupportsCodec("hevc") && b.HWHDR10Encode && b.HW10Bit {
 			return b, true
 		}
 	}

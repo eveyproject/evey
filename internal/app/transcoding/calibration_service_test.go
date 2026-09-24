@@ -68,6 +68,11 @@ type fakeBenchmarkRunner struct {
 	refusedFeatures []string
 	// proofCalls counts HWEncodeUsable calls (the demotion path must probe).
 	proofCalls atomic.Int64
+	// deadRoutes are the route+codec combinations (HWRouteCombo) HWRouteUsable
+	// fails; proofBackends and routeCalls record what each proof ran on.
+	deadRoutes    []string
+	proofBackends []string
+	routeCalls    []string
 	// lastPref captures the preference the most recent Run was called with, so
 	// tests can assert the mode projected to the expected backend pin / disable.
 	lastPref atomic.Pointer[domaintranscoding.HWPreference]
@@ -90,8 +95,15 @@ func (r *fakeBenchmarkRunner) HWBackendUsable(_ context.Context, backend, _ stri
 	return !r.hwUnusable && !slices.Contains(r.deadBackends, backend)
 }
 
-func (r *fakeBenchmarkRunner) HWEncodeUsable(_ context.Context, _, _, _ string, features []string) bool {
+func (r *fakeBenchmarkRunner) HWRouteUsable(_ context.Context, backend, _, route, codec string, _ []string) bool {
+	combo := domaintranscoding.HWRouteCombo(route, codec)
+	r.routeCalls = append(r.routeCalls, backend+"/"+combo)
+	return !slices.Contains(r.deadRoutes, combo)
+}
+
+func (r *fakeBenchmarkRunner) HWEncodeUsable(_ context.Context, backend, _, _ string, features []string) bool {
 	r.proofCalls.Add(1)
+	r.proofBackends = append(r.proofBackends, backend)
 	if r.encodeUnusable {
 		return false
 	}

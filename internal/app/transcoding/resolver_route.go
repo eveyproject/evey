@@ -223,15 +223,15 @@ func (pr *PlanResolver) resolveHW(pol HWPolicy, outputCodec string, src hwSource
 // (proven), unless a GPU tone-map folds p010 itself. A chroma layout outside
 // 4:2:0 8/10-bit rides the zero-copy chain only once that chain ran on it
 // end-to-end for this backend.
-func backendServes(cap transcoding.HostCapabilitySnapshot, bc transcoding.HWBackendCap, src hwSource, hwTonemap bool) (softwareDecode, ok bool) {
+func backendServes(cap transcoding.HostCapabilitySnapshot, bc transcoding.HWBackendCap, src hwSource, hwTonemap bool, outputCodec string) (softwareDecode, ok bool) {
 	decodable := bc.CanDecodeSource(src.Codec, src.TenBit, src.PixelFormat)
 	softwareDecode = src.Codec != "" && !decodable
 	if softwareDecode {
-		if hwTonemap || src.Bridge || src.TenBit || !bc.Proves(transcoding.HWRouteDecoupled) {
+		if hwTonemap || src.Bridge || src.TenBit || !bc.ProvesFor(transcoding.HWRouteDecoupled, outputCodec) {
 			return false, false
 		}
 	}
-	if src.Bridge && !bc.Proves(transcoding.HWRouteBridge) {
+	if src.Bridge && !bc.ProvesFor(transcoding.HWRouteBridge, outputCodec) {
 		return false, false
 	}
 	if src.TenBit && !hwTonemap && (!bc.HW10Bit || !bc.Proves(transcoding.HWRouteSource10Bit)) {
@@ -292,7 +292,7 @@ func (pr *PlanResolver) pickBackend(pol HWPolicy, outputCodec string, src hwSour
 		if src.Interlaced && !b.DeinterlacesOnGPU() {
 			return false
 		}
-		if hwTonemap && !b.Proves(transcoding.HWRouteTonemap) {
+		if hwTonemap && !b.ProvesFor(transcoding.HWRouteTonemap, outputCodec) {
 			return false
 		}
 		return true
@@ -359,7 +359,7 @@ func (pr *PlanResolver) pickBackend(pol HWPolicy, outputCodec string, src hwSour
 		if !qualifies(b) {
 			continue
 		}
-		sd, ok := backendServes(cap, b, src, hwTonemap)
+		sd, ok := backendServes(cap, b, src, hwTonemap, outputCodec)
 		if !ok {
 			continue
 		}
@@ -606,7 +606,7 @@ func (pr *PlanResolver) hwTonemapWanted(pol HWPolicy, decision transcoding.Playb
 	// A backend that tone-maps this range on the GPU (VAAPI OpenCL / NVENC CUDA
 	// for any range, PQ-only for the fixed VPP; QSV vpp is ineligible). Picked PER ROUTE, so a
 	// QSV-primary host still routes HDR->SDR to VAAPI's OpenCL.
-	if _, ok := pr.Capability().TonemapBackend(hdrRange); !ok {
+	if _, ok := pr.Capability().TonemapBackend(hdrRange, decision.VideoCodec); !ok {
 		return false
 	}
 	return slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")

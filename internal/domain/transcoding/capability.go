@@ -503,4 +503,8 @@ type BenchmarkRunner interface {
 	// the subset the backend still accepts, so an "unsupported option" verdict
 	// narrows the host to what it proved rather than wiping everything.
 	ConfirmHWFeatures(ctx context.Context, backend, device, codec string, features []string) []string
+	// HWRouteUsable re-runs one route proof (an HWRoutes name) on backend for
+	// the output codec that failed, the same builder session the calibration
+	// ran. Fail-closed.
+	HWRouteUsable(ctx context.Context, backend, device, route, codec string, features []string) bool
 }

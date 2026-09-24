@@ -209,11 +209,14 @@ also refuses any snapshot made outside the calibration's publish.
 
 Still to do, each gated on something outside the code, in this order:
 
-1. **Demotion by exact route** - when the calibration runner can probe one
-   topology on one backend (today it probes an encode of a codec):
-   `DemoteRoute` re-proves the failed `HWFailureReport.Route` and, on a
-   confirmed failure, removes THAT proof (`HWRoute*`) from the backend rather
-   than the codec. The report already carries the route.
+1. ~~**Demotion by exact route**~~ - done (2026-09-24): every proof runs on
+   the backend named by `HWFailureReport.Route`, a demotion edits that
+   backend's `Backends` entry (the one the resolver reads), and when the
+   encoder re-proves fine `DemoteRoute` re-runs the failed topology's route
+   probe for the failed output codec (`HWRouteUsable`) and, on a failure,
+   records THAT route+codec combination in the backend's `FailedRoutes` (the
+   topology keeps serving the other codecs) and queues a re-bench for the next
+   idle window.
 2. **Direct / mkvgo / copy vs transcode** - the zero-process paths (mkvgo
    on-demand `od_`/`cc_`, the plan master) are dispatched before this
    resolver runs and the copy rung is a `Packager`, not a route; a single
