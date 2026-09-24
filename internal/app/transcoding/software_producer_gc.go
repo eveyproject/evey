@@ -26,6 +26,7 @@ func (p *SoftwareProducer) gcLoop() {
 			bgloop.Tick("software.killPaused", p.sweepKillPaused)
 		case <-pauseTicker.C:
 			bgloop.Tick("software.pause", p.sweepPause)
+			bgloop.Tick("software.copyWindow", p.sweepCopyWindow)
 		}
 	}
 }

@@ -29,6 +29,8 @@ func TestSoftwareProducerOptions_WithDefaults_FillsEveryZeroField(t *testing.T) 
 	// exactly what let the old value drift out of agreement with the pacing.
 	assert.Equal(t, derivedSeekReachWindow(got.ReadRate, got.SegmentSeconds), got.SeekReachWindowSegs)
 	assert.Equal(t, 8, got.ResumeCushionSegs)
+	assert.Equal(t, 30, got.CopyLeadSegs)
+	assert.Equal(t, 12, got.CopyKeepBehindSegs)
 }
 
 // KillPausedAfter is the documented exception: 0 means "disabled" and must STAY
@@ -90,6 +92,8 @@ func TestSoftwareProducerOptions_WithDefaults_KeepsCallerValues(t *testing.T) {
 		SeekReachWindowSegs:          4,
 		ResumeCushionSegs:            2,
 		KillPausedAfter:              time.Minute,
+		CopyLeadSegs:                 7,
+		CopyKeepBehindSegs:           3,
 	}
 
 	assert.Equal(t, in, in.withDefaults(), "a fully specified options struct must come back unchanged")
