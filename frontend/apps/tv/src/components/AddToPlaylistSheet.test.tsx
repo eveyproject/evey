@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 
 vi.mock("react-native", () => ({
@@ -94,6 +94,16 @@ describe("AddToPlaylistSheet keeps the remote alive", () => {
 // (AddToPlaylistSheet.tsx:103); the TV row had no such guard, so a second OK
 // press before the mutation settled could fire it twice.
 describe("AddToPlaylistSheet guards an in-flight add", () => {
+  // The shared mutation already toasts a failed add; the sheet adding its own
+  // onError showed the same failure twice.
+  it("leaves the failure message to the shared mutation", () => {
+    playlistsMock.mockReturnValue({ data: [{ id: "pl-1", name: "Soirée", type: "manual" }], isLoading: false });
+    render(<AddToPlaylistSheet visible mediaItemId="mi-1" onClose={() => {}} />);
+    fireEvent.click(screen.getByLabelText("Soirée"));
+    expect(addMock).toHaveBeenCalledTimes(1);
+    expect(addMock.mock.calls[0][1]?.onError).toBeUndefined();
+  });
+
   it("disables the row while a previous add is still pending", () => {
     playlistsMock.mockReturnValue({
       data: [{ id: "pl-1", name: "Soirée", type: "manual" }],

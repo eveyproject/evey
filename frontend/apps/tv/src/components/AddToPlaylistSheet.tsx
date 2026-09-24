@@ -8,7 +8,6 @@ import {
   StyleSheet,
 } from "react-native";
 import { useTranslation } from "react-i18next";
-import { toast } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 import { usePlaylistList, useAddToPlaylist } from "../api/playlists";
 import { FocusableCard } from "./FocusableCard";
@@ -35,11 +34,12 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
         { playlistId, mediaItemId },
         {
           onSuccess: () => setAddedIds((prev) => new Set(prev).add(playlistId)),
-          onError: () => toast.error(t("media.playlist.addError")),
+          // No onError: the shared mutation already says it, a second toast
+          // repeated the same failure.
         },
       );
     },
-    [addTo, mediaItemId, t],
+    [addTo, mediaItemId],
   );
 
   return (
