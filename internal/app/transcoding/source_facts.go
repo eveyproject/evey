@@ -110,18 +110,37 @@ func SourceCopyBlocker(streams []*library.MediaStream) string {
 		if len(s.Keyframes) == 0 {
 			return "no_keyframes"
 		}
-		return CopyBlocker(CopySource{
-			Codec:         s.Codec,
-			Profile:       s.Profile,
-			Level:         s.Level,
-			TenBit:        StreamIsTenBit(s),
-			ColorTransfer: s.ColorTransfer,
-			DoViProfile:   s.DoViProfile,
-			DoViBLCompat:  s.DoViBLCompat,
-			FrameRateMode: s.FrameRateMode,
-		})
+		return CopyBlocker(copySourceOf(s))
 	}
 	return "no_video"
+}
+
+// SourceIndexOnlyBlocksCopy reports whether the keyframe index is the ONLY
+// thing keeping the source video off the copy rung: it has none yet, and
+// every other gate (codec, profile, level, bit depth, HDR/DoVi, frame-rate
+// mode) passes. Building the index is then worth the read; for a source
+// blocked for another reason it would change nothing.
+func SourceIndexOnlyBlocksCopy(streams []*library.MediaStream) bool {
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		return len(s.Keyframes) == 0 && CopyBlocker(copySourceOf(s)) == ""
+	}
+	return false
+}
+
+func copySourceOf(s *library.MediaStream) CopySource {
+	return CopySource{
+		Codec:         s.Codec,
+		Profile:       s.Profile,
+		Level:         s.Level,
+		TenBit:        StreamIsTenBit(s),
+		ColorTransfer: s.ColorTransfer,
+		DoViProfile:   s.DoViProfile,
+		DoViBLCompat:  s.DoViBLCompat,
+		FrameRateMode: s.FrameRateMode,
+	}
 }
 
 // TranscodeCause labels why a session encodes video instead of copying it: the

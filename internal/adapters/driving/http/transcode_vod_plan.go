@@ -174,6 +174,7 @@ func (h *hlsVODServe) probePlan(r *http.Request, mediaID string, item *domainlib
 	}
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := h.profilePrefsFor(r.Context(), claims.ProfileID)
+	streams = h.warmKeyframesInline(r, mediaID, item, streams)
 	audioTrack := h.resolveAudioTrackWith(r, streams, prefs)
 	req := h.marshalPlaybackRequest(r, mediaID, item, streams, prefs, audioTrack)
 	plan, err := h.planResolver().Resolve(r.Context(), req)
@@ -190,6 +191,31 @@ func (h *hlsVODServe) probePlan(r *http.Request, mediaID string, item *domainlib
 		IsCopy:     plan.Route.Copy,
 		Request:    req,
 	}, nil
+}
+
+// warmKeyframesInline builds the keyframe index at the first play of a file
+// that has none yet, when that index is all that stands between the source
+// and the copy rung. The scan does not build it (only the ingest plan does,
+// off by default) and the paced backfill yields to playback, so a freshly
+// added, copy-eligible file used to be TRANSCODED for its whole first viewing
+// - measured 2026-09-24 on dev: first master at 23:38 as transcode, index
+// landed at 23:46, once the session had idled out. The warmer is bounded
+// (KeyframeOnDemand.TryIndex: a Cues read answers in milliseconds, a cue-less
+// walk detaches past its budget) and stands down while someone is watching,
+// so this never stalls a player. On success the streams are re-read so this
+// very plan resolves as copy.
+func (h *hlsVODServe) warmKeyframesInline(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) []*domainlibrary.MediaStream {
+	if h.keyframeWarmer == nil || !apptranscoding.SourceIndexOnlyBlocksCopy(streams) {
+		return streams
+	}
+	if !h.keyframeWarmer(r.Context(), mediaID, sourcePathOf(item)) {
+		return streams
+	}
+	fresh, err := h.libSvc.GetMediaStreams(r.Context(), mediaID)
+	if err != nil || len(fresh) == 0 {
+		return streams
+	}
+	return fresh
 }
 
 // reclaimSupersededHash hands back the video-encode slot of the hash THIS
