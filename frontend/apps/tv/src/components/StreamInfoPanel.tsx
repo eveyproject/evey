@@ -2,24 +2,9 @@ import { Text, Modal, Pressable, View, ScrollView, StyleSheet } from "react-nati
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
-import {
-  formatChannelLayout,
-  effectivePlayMethod,
-  playMethodI18nKey,
-  reasonsHeadingI18nKey,
-  visibleTranscodeReasons,
-  type V1StreamInfo,
-  type V1MediaStream,
-  pickAudioStream,
-} from "@evey/api";
+import type { V1StreamInfo } from "@evey/api";
+import { buildStreamInfoModel, decisionBadgeKey } from "@evey/client";
 import { FONT_SIZE } from "@evey/theme";
-
-// Same shape as the mobile panel: 23.976, 24, 25, 30 - never the raw float.
-function formatFrameRate(fps?: number): string | null {
-  if (!fps || !Number.isFinite(fps) || fps <= 0) return null;
-  const rounded = Math.round(fps * 1000) / 1000;
-  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(3)} fps`;
-}
 
 interface StreamInfoPanelProps {
   visible: boolean;
@@ -27,15 +12,6 @@ interface StreamInfoPanelProps {
   streamInfo: V1StreamInfo | null;
   /** ABSOLUTE index of the selected audio stream, so the panel describes IT. */
   audioStreamIndex?: number | null;
-}
-
-function formatBitrate(bitrate?: string): string {
-  if (!bitrate) return "-";
-  const bps = Number(bitrate);
-  if (!Number.isFinite(bps) || bps <= 0) return "-";
-  if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`;
-  if (bps >= 1_000) return `${Math.round(bps / 1_000)} Kbps`;
-  return `${bps} bps`;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -62,11 +38,8 @@ function DecisionBadge({ decision }: { decision?: string }) {
   // WCAG AA regression this badge already caused once before.
   const bg = isWasm ? theme.colors.accent : isCopy ? theme.colors.success : theme.colors.warning;
   const onBg = isWasm ? theme.colors.onAccent : isCopy ? theme.colors.onSuccess : theme.colors.onWarning;
-  const label = isWasm
-    ? t("player.streamInfo.decisionWasm", "Décodé client")
-    : isCopy
-      ? t("player.streamInfo.decisionCopy", "Copié")
-      : t("player.streamInfo.decisionTranscode", "Transcodé");
+  const badge = decisionBadgeKey(decision);
+  const label = t(badge.key, badge.defaultValue);
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
       <Text style={[styles.badgeText, { color: onBg }]}>{label}</Text>
@@ -88,16 +61,7 @@ export function StreamInfoPanel({ visible, onClose, streamInfo, audioStreamIndex
   const { t } = useTranslation();
   const theme = useTheme();
 
-  const videoStream = streamInfo?.mediaStreams?.find((s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
-  const audioStream = pickAudioStream(streamInfo?.mediaStreams, { absolute: audioStreamIndex });
-
-  const decisions = {
-    playMethod: streamInfo?.playMethod,
-    videoDecision: streamInfo?.videoDecision,
-    audioDecision: streamInfo?.audioDecision,
-  };
-  const methodKey = playMethodI18nKey(effectivePlayMethod(decisions));
-  const reasons = visibleTranscodeReasons(streamInfo?.transcodeReasons);
+  const model = buildStreamInfoModel(streamInfo, { audio: { absolute: audioStreamIndex } });
 
   // A hidden RN Modal keeps its children mounted, so this picker re-rendered
   // on every ~2/s currentTime tick of the player while closed. Render nothing
@@ -115,51 +79,25 @@ export function StreamInfoPanel({ visible, onClose, streamInfo, audioStreamIndex
           <Text style={[styles.title, { color: theme.colors.text }]}>
             {t("player.streamInfo.title", "Stream Info")}
           </Text>
-          {streamInfo ? (
+          {model ? (
             <ScrollView style={styles.body}>
-              <SectionHeader title={t("player.streamInfo.playback", "Playback")} />
-              {methodKey ? <InfoRow label={t("player.streamInfo.method", "Method")} value={t(methodKey)} /> : null}
-              {/* Source, not served: anything but direct play repackages to fMP4. */}
-              {streamInfo.container && (
-                <InfoRow label={t("player.streamInfo.containerSource", "Source container")} value={streamInfo.container.toUpperCase()} />
-              )}
-              {streamInfo.bitrate && (
-                <InfoRow label={t("player.streamInfo.totalBitrate", "Total Bitrate")} value={formatBitrate(streamInfo.bitrate)} />
-              )}
+              {model.sections.map((section) => (
+                <View key={section.kind}>
+                  <SectionHeader title={t(section.titleKey, section.title)} decision={section.decision} />
+                  {section.rows.map((row) => (
+                    <InfoRow
+                      key={row.labelKey}
+                      label={t(row.labelKey, row.label)}
+                      value={row.valueKey ? t(row.valueKey) : (row.value ?? "")}
+                    />
+                  ))}
+                </View>
+              ))}
 
-              {videoStream && (
+              {model.reasons.length > 0 && (
                 <>
-                  <SectionHeader title={t("player.streamInfo.video", "Video")} decision={streamInfo.videoDecision} />
-                  <InfoRow label={t("player.streamInfo.codec", "Codec")} value={(videoStream.codec ?? "-").toUpperCase()} />
-                  {videoStream.width && videoStream.height && (
-                    <InfoRow label={t("player.streamInfo.resolution", "Resolution")} value={`${videoStream.width}×${videoStream.height}`} />
-                  )}
-                  {videoStream.bitrate && (
-                    <InfoRow label={t("player.streamInfo.bitrate", "Bitrate")} value={formatBitrate(videoStream.bitrate)} />
-                  )}
-                  {formatFrameRate(videoStream.frameRate) && (
-                    <InfoRow label={t("player.streamInfo.framerate", "Frame Rate")} value={formatFrameRate(videoStream.frameRate)!} />
-                  )}
-                </>
-              )}
-
-              {audioStream && (
-                <>
-                  <SectionHeader title={t("player.streamInfo.audio", "Audio")} decision={streamInfo.audioDecision} />
-                  <InfoRow label={t("player.streamInfo.codec", "Codec")} value={(audioStream.codec ?? "-").toUpperCase()} />
-                  {audioStream.channels && (
-                    <InfoRow label={t("player.streamInfo.channels", "Channels")} value={formatChannelLayout(audioStream.channels)} />
-                  )}
-                  {audioStream.language && (
-                    <InfoRow label={t("player.streamInfo.language", "Language")} value={audioStream.language} />
-                  )}
-                </>
-              )}
-
-              {reasons.length > 0 && (
-                <>
-                  <SectionHeader title={t(reasonsHeadingI18nKey(decisions))} />
-                  {reasons.map((reason) => (
+                  <SectionHeader title={t(model.reasonsHeadingKey)} />
+                  {model.reasons.map((reason) => (
                     <View key={reason} style={styles.reasonRow}>
                       <Text style={[styles.reasonBullet, { color: theme.colors.warning }]}>{"•"}</Text>
                       <Text style={[styles.reasons, { color: theme.colors.textMuted }]}>
