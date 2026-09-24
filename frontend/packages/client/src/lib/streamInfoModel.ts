@@ -77,8 +77,10 @@ function deriveVideoBitrate(total?: string, audio?: string): string | null {
   return formatBitrate(Number.isFinite(a) && a > 0 && a < t ? t - a : t);
 }
 
+// A row with nothing to say is dropped: a bare "-" (a "0" bitrate the server
+// sends for an unknown figure) reads as a broken panel.
 function row(labelKey: string, label: string, value: string | null | undefined): StreamInfoRow | null {
-  return value ? { labelKey, label, value } : null;
+  return value && value !== "-" ? { labelKey, label, value } : null;
 }
 
 export function buildStreamInfoModel(streamInfo: V1StreamInfo | null | undefined, opts: StreamInfoOptions = {}): StreamInfoModel | null {
@@ -106,7 +108,7 @@ export function buildStreamInfoModel(streamInfo: V1StreamInfo | null | undefined
       methodKey ? { labelKey: "player.streamInfo.method", label: "Method", valueKey: methodKey } : null,
       // Source, not served: anything but direct play repackages to fMP4.
       row("player.streamInfo.containerSource", "Source container", streamInfo.container?.toUpperCase()),
-      row("player.streamInfo.totalBitrate", "Total Bitrate", streamInfo.bitrate ? formatBitrate(streamInfo.bitrate) : null),
+      row("player.streamInfo.totalBitrate", "Total Bitrate", formatBitrate(streamInfo.bitrate)),
     ].filter((r): r is StreamInfoRow => r !== null),
   });
 
@@ -132,7 +134,8 @@ export function buildStreamInfoModel(streamInfo: V1StreamInfo | null | undefined
   if (audio) {
     // The SERVED rate, not the source's: a Matroska track rarely declares one,
     // so a re-encoded track sat at "-" though the server picked the figure.
-    const audioBitrate = streamInfo.audioBitrate ?? audio.bitrate;
+    // "0" is the server's "no figure", like an absent one.
+    const audioBitrate = Number(streamInfo.audioBitrate) > 0 ? streamInfo.audioBitrate : audio.bitrate;
     sections.push({
       kind: "audio",
       titleKey: "player.streamInfo.audio",
@@ -142,7 +145,7 @@ export function buildStreamInfoModel(streamInfo: V1StreamInfo | null | undefined
         row("player.streamInfo.codec", "Codec", (audio.codec ?? "-").toUpperCase()),
         row("player.streamInfo.channels", "Channels", audio.channels ? formatChannelLayout(audio.channels) : null),
         row("player.streamInfo.language", "Language", audio.language),
-        row("player.streamInfo.bitrate", "Bitrate", audioBitrate ? formatBitrate(audioBitrate) : null),
+        row("player.streamInfo.bitrate", "Bitrate", formatBitrate(audioBitrate)),
         row("player.streamInfo.sampleRate", "Sample Rate", audio.sampleRate ? `${audio.sampleRate} Hz` : null),
       ].filter((r): r is StreamInfoRow => r !== null),
     });

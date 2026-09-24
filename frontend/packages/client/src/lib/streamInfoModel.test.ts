@@ -46,6 +46,15 @@ describe("buildStreamInfoModel", () => {
     expect(latched?.sections.find((s) => s.kind === "audio")?.decision).toBe("transcode");
   });
 
+  // Seen in the web player on 2026-09-24: the server sends audioBitrate "0"
+  // for a figure it does not know, and the row read a bare "-".
+  it("drops a row whose figure is unknown instead of showing a bare dash", () => {
+    const model = buildStreamInfoModel({ ...SESSION, audioBitrate: "0", mediaStreams: [SESSION.mediaStreams![2]!] } as V1StreamInfo, { audio: { absolute: 2 } });
+    expect(rows(model, "audio")["player.streamInfo.bitrate"]).toBe("448 Kbps");
+    const none = buildStreamInfoModel({ ...SESSION, audioBitrate: "0", mediaStreams: [{ ...SESSION.mediaStreams![2]!, bitrate: undefined }] } as V1StreamInfo, { audio: { absolute: 2 } });
+    expect(rows(none, "audio")["player.streamInfo.bitrate"]).toBeUndefined();
+  });
+
   it("has nothing to show without a session", () => {
     expect(buildStreamInfoModel(null)).toBeNull();
   });
