@@ -80,13 +80,15 @@ interface TextFieldProps {
   focusKey?: string;
   autoFocus?: boolean;
   onSubmit?: () => void;
+  /** Lets the browser's password manager recognise the field (username, current-password). */
+  autoComplete?: string;
 }
 
 /**
  * A text field the remote can reach. Focusing it (select) hands the keys to
  * the browser's own on-screen keyboard; Enter submits, back leaves it.
  */
-export function TextField({ value, onChange, placeholder, type = "text", focusKey, autoFocus, onSubmit }: TextFieldProps) {
+export function TextField({ value, onChange, placeholder, type = "text", focusKey, autoFocus, onSubmit, autoComplete }: TextFieldProps) {
   const { ref, focused, focusSelf } = useFocusable({
     focusKey,
     onEnterPress: () => {
@@ -103,6 +105,7 @@ export function TextField({ value, onChange, placeholder, type = "text", focusKe
       type={type}
       value={value}
       placeholder={placeholder}
+      autoComplete={autoComplete}
       autoCapitalize="none"
       autoCorrect="off"
       spellCheck={false}
