@@ -1410,11 +1410,12 @@ func TestBuildFFmpegAudioOnlyArgs_OffsetsByVideoCompositionDelay(t *testing.T) {
 	}
 }
 
-// fMP4 video keeps its frames at source time: the default negative-DTS
+// A video-only fMP4 keeps its frames at source time: the default negative-DTS
 // avoidance wrote the encoder's reorder delay as an empty edit that neither
 // MSE nor ExoPlayer applies, so a transcoded rung played 125 ms late (NVENC)
-// against its audio in Chrome with hls.js. TS carries no edit list.
-func TestBuildFFmpegArgs_FMP4PresentsAtSourceTime(t *testing.T) {
+// against its separate audio rendition in Chrome with hls.js. A muxed output
+// keeps the default (its audio moves with its video); TS has no edit list.
+func TestBuildFFmpegArgs_VideoOnlyFMP4PresentsAtSourceTime(t *testing.T) {
 	hasFlag := func(args []string) bool {
 		for i := 0; i+1 < len(args); i++ {
 			if args[i] == "-avoid_negative_ts" && args[i+1] == "disabled" {
@@ -1423,21 +1424,25 @@ func TestBuildFFmpegArgs_FMP4PresentsAtSourceTime(t *testing.T) {
 		}
 		return false
 	}
-	base := transcoding.HLSProcessOpts{
-		OutputDir: "/o", FilePath: "/f.mkv", VideoDecision: "transcode", AudioDecision: "transcode",
-		Profiles: transcoding.DefaultHLSProfiles[:1], UseFMP4: true,
+	videoOnly := transcoding.HLSProcessOpts{
+		OutputDir: "/o", FilePath: "/f.mkv", VideoDecision: "transcode",
+		Profiles: transcoding.DefaultHLSProfiles[:1], UseFMP4: true, AudioTrackIndex: -1,
 	}
-	assert.True(t, hasFlag(ffmpeg.BuildFFmpegArgs(base)), "single-variant fMP4")
+	assert.True(t, hasFlag(ffmpeg.BuildFFmpegArgs(videoOnly)), "single-variant video-only fMP4")
 
-	multi := base
+	multi := videoOnly
 	multi.Profiles = transcoding.DefaultHLSProfiles
-	assert.True(t, hasFlag(ffmpeg.BuildFFmpegArgs(multi)), "multi-variant fMP4")
+	assert.True(t, hasFlag(ffmpeg.BuildFFmpegArgs(multi)), "multi-variant video-only fMP4")
 
-	hw := base
+	hw := videoOnly
 	hw.HWAccel = transcoding.VAAPI
-	assert.True(t, hasFlag(ffmpeg.BuildFFmpegArgs(hw)), "hardware fMP4")
+	assert.True(t, hasFlag(ffmpeg.BuildFFmpegArgs(hw)), "hardware video-only fMP4")
 
-	ts := base
+	muxed := videoOnly
+	muxed.AudioDecision, muxed.AudioTrackIndex = "transcode", 0
+	assert.False(t, hasFlag(ffmpeg.BuildFFmpegArgs(muxed)), "a muxed output moves its audio with its video")
+
+	ts := videoOnly
 	ts.UseFMP4 = false
 	assert.False(t, hasFlag(ffmpeg.BuildFFmpegArgs(ts)), "MPEG-TS has no edit list to write")
 }
