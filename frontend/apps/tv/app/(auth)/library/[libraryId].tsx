@@ -19,7 +19,6 @@ import {
 } from "@evey/api";
 import type {
   V1MediaItem,
-  V1MediaStream,
   LibraryServiceListMediaItemsType,
   LibraryServiceListMediaItemsSortField,
   LibraryServiceListMediaItemsSortOrder,
@@ -28,7 +27,7 @@ import type {
   LibraryServiceSearchMediaSortOrder,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import { buildWatchProgressMaps } from "@evey/client";
+import { buildWatchProgressMaps, videoStream, isHdrStream, resolutionLabel } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { artworkUrl } from "../../../src/lib/artwork";
@@ -127,29 +126,7 @@ export function buildLibrarySearchParams(input: BuildLibrarySearchParamsInput) {
   };
 }
 
-// Mirrors web's streamLabels.ts / mobile's local copy - kept local since
-// there is no package shared across the three frontend apps for this.
-export function videoStream(streams?: V1MediaStream[]): V1MediaStream | undefined {
-  return streams?.find((s) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
-}
-
-export function isHdrStream(stream?: V1MediaStream): boolean {
-  if (!stream) return false;
-  const transfer = stream.colorTransfer?.trim().toLowerCase();
-  if (transfer === "smpte2084" || transfer === "arib-std-b67") return true;
-  const cs = stream.colorSpace?.trim().toLowerCase() ?? "";
-  return cs.startsWith("bt2020") && (stream.bitDepth ?? 0) >= 10;
-}
-
-export function resolutionLabel(stream?: V1MediaStream): string | null {
-  const h = stream?.height ?? 0;
-  if (h <= 0) return null;
-  if (h >= 2160) return "4K";
-  if (h >= 1440) return "1440p";
-  if (h >= 1080) return "1080p";
-  if (h >= 720) return "720p";
-  return `${h}p`;
-}
+export { videoStream, isHdrStream, resolutionLabel };
 
 // D-pad genre/sort/type filter: a row of focusable chips (same pattern as the
 // search screen's ScopeTab) rather than a dropdown, which has no natural TV/

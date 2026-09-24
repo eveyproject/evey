@@ -138,7 +138,7 @@ export default function TabsLayout() {
           onCustomize={pathname === "/" || pathname === "" ? () => DeviceEventEmitter.emit("eveyHomeCustomize") : undefined}
           onSearch={() => setSearchOpen(true)}
           onNotifications={() => router.push("/(auth)/notifications" as never)}
-          onProfile={() => router.push("/profile-select" as never)}
+          onProfile={() => router.push("/profile-select?pick=1" as never)}
         />
         <Slot />
       </View>

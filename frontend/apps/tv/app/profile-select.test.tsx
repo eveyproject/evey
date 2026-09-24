@@ -13,8 +13,10 @@ const replaceMock = vi.fn();
 // Leaving the screen pops back to the (auth) layout already on the stack
 // (dismissTo), never a fresh copy of it beside the old one.
 const dismissToMock = vi.fn();
+const searchParams: { pick?: string } = {};
 vi.mock("expo-router", () => ({
   router: { replace: (...args: unknown[]) => replaceMock(...args), dismissTo: (...args: unknown[]) => dismissToMock(...args) },
+  useLocalSearchParams: () => searchParams,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -103,6 +105,7 @@ beforeEach(() => {
     accessToken: "current-access-token",
   };
   currentUserMock.mockReturnValue({ data: { id: "user-1" } });
+  delete searchParams.pick;
 });
 
 describe("classifySwitchFailure (pure decision)", () => {
@@ -279,3 +282,22 @@ describe("ProfileSelect surfaces kids and active markers", () => {
   });
 });
 
+// Two adult profiles and no kids one: the walk-through left the header's
+// avatar and Settings' "switch profile" unable to switch at all.
+describe("ProfileSelect when the viewer asks to switch", () => {
+  const ADULTS = { data: { profiles: [{ id: "prof-a", name: "Alice" }, { id: "prof-b", name: "Bob" }] }, isLoading: false, isError: false };
+
+  it("walks through on its own when nobody asked", async () => {
+    listProfilesMock.mockReturnValue(ADULTS);
+    render(<ProfileSelect />);
+    await waitFor(() => expect(dismissToMock).toHaveBeenCalledWith("/(auth)/(tabs)"));
+  });
+
+  it("shows the picker when asked, even with no kids profile", () => {
+    searchParams.pick = "1";
+    listProfilesMock.mockReturnValue(ADULTS);
+    render(<ProfileSelect />);
+    expect(screen.getByText("Bob")).toBeTruthy();
+    expect(dismissToMock).not.toHaveBeenCalled();
+  });
+});

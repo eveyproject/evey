@@ -288,7 +288,7 @@ describe("SettingsScreen (TV) profile menu parity", () => {
   it("still lets the viewer switch profile and sign out", () => {
     render(<SettingsScreen />);
     fireEvent.click(screen.getByLabelText("mobile.settings.switchProfile"));
-    expect(pushMock).toHaveBeenCalledWith("/profile-select");
+    expect(pushMock).toHaveBeenCalledWith("/profile-select?pick=1");
   });
 });
 
