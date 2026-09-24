@@ -120,12 +120,26 @@ func callReachesAdminRoute(body string, routes map[string]string) (string, bool)
 	return rpc, ok
 }
 
+// adminSymbolCall reports the first generated admin client function (orval's
+// name for an admin-only RPC, as the web guard derives it) called in src.
+// The shared layer reaches the API through those since 2026-09-24, not only
+// through eveyFetch literals.
+func adminSymbolCall(src string, symbols []string) (string, bool) {
+	for _, sym := range symbols {
+		if strings.Contains(src, sym+"(") {
+			return sym, true
+		}
+	}
+	return "", false
+}
+
 // nativeAdminHooks finds the exported hooks whose own body writes to an
 // admin-only route. Screens call those, not eveyFetch: without following this
 // one hop the guard would only ever look at the wrapper files themselves, which
 // are all classified, and prove nothing.
 func nativeAdminHooks(t *testing.T, files []string, routes map[string]string) map[string]string {
 	t.Helper()
+	symbols := adminClientSymbols(t)
 	exportRe := regexp.MustCompile(`export (?:function|const) (use\w+)`)
 	out := map[string]string{}
 	for _, f := range files {
@@ -143,10 +157,14 @@ func nativeAdminHooks(t *testing.T, files []string, routes map[string]string) ma
 			if i+1 < len(locs) {
 				end = locs[i+1][0]
 			}
-			for _, call := range nativeCallRe.FindAllStringSubmatch(src[loc[0]:end], -1) {
+			body := src[loc[0]:end]
+			for _, call := range nativeCallRe.FindAllStringSubmatch(body, -1) {
 				if rpc, ok := callReachesAdminRoute(call[1], routes); ok {
 					out[src[loc[2]:loc[3]]] = rpc
 				}
+			}
+			if sym, ok := adminSymbolCall(body, symbols); ok {
+				out[src[loc[2]:loc[3]]] = sym
 			}
 		}
 	}
@@ -190,6 +208,9 @@ func TestEveryNativeSurfaceReachingAnAdminRPCIsClassified(t *testing.T) {
 				ungated = append(ungated, rel+" -> "+rpc)
 			}
 		}
+		if sym, ok := adminSymbolCall(src, adminClientSymbols(t)); ok {
+			ungated = append(ungated, rel+" -> "+sym)
+		}
 		for hook, rpc := range hooks {
 			if strings.Contains(src, hook+"(") {
 				ungated = append(ungated, rel+" -> "+hook+" -> "+rpc)
@@ -227,5 +248,14 @@ func TestNativeAdminGateGuardFiresOnAnUngatedFixture(t *testing.T) {
 	}
 	if hits != 1 {
 		t.Fatalf("the fixture call was matched %d times, want exactly 1", hits)
+	}
+}
+
+// The generated-symbol form must be seen firing too: the shared layer calls
+// orval's functions, not eveyFetch literals.
+func TestNativeAdminGateGuardFiresOnAGeneratedCall(t *testing.T) {
+	src := "export function useX() { return useMutation({ mutationFn: (id: string) => collectionServiceDeleteCollection(id) }); }"
+	if _, ok := adminSymbolCall(src, adminClientSymbols(t)); !ok {
+		t.Fatal("a call to collectionServiceDeleteCollection was not recognised as an admin write")
 	}
 }

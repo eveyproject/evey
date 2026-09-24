@@ -115,7 +115,9 @@ func wrapperHooks(t *testing.T, files, adminSymbols []string) []string {
 	exportRe := regexp.MustCompile(`export (?:function|const) (use\w+)`)
 	var out []string
 	for _, f := range files {
-		if !strings.Contains(f, "/api.ts") {
+		// The app's own api.ts files, and the shared layer the web re-exports
+		// its playlists and collections from since 2026-09-24.
+		if !strings.Contains(f, "/api.ts") && !strings.Contains(f, "/packages/client/src/api/") {
 			continue
 		}
 		b, err := os.ReadFile(f)
@@ -141,6 +143,22 @@ func wrapperHooks(t *testing.T, files, adminSymbols []string) []string {
 		}
 	}
 	sort.Strings(out)
+	return out
+}
+
+// sharedAPIFiles lists the shared layer's API modules (@evey/client).
+func sharedAPIFiles(t *testing.T) []string {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(repoRoot, "frontend/packages/client/src/api/*.ts"))
+	if err != nil {
+		t.Fatalf("glob shared api: %v", err)
+	}
+	var out []string
+	for _, m := range matches {
+		if !strings.HasSuffix(m, ".test.ts") {
+			out = append(out, m)
+		}
+	}
 	return out
 }
 
@@ -171,7 +189,13 @@ func TestEveryWebSurfaceReachingAnAdminRPCIsClassified(t *testing.T) {
 	if len(files) < 100 {
 		t.Fatalf("walked %d web sources, want at least 100 - the walk has drifted", len(files))
 	}
-	reach := append(append([]string{}, symbols...), wrapperHooks(t, files, symbols)...)
+	hooks := wrapperHooks(t, append(append([]string{}, files...), sharedAPIFiles(t)...), symbols)
+	// Pinned: the web re-exports this hook from @evey/client, and a scan that
+	// only read the web's own files lost it without failing.
+	if !containsAny(strings.Join(hooks, " "), []string{"useDeleteCollection"}) {
+		t.Fatalf("the wrapper scan no longer finds useDeleteCollection (found %v) - it has drifted", hooks)
+	}
+	reach := append(append([]string{}, symbols...), hooks...)
 
 	root := filepath.Join(repoRoot, "frontend/apps/web/src") + "/"
 	var ungated []string
