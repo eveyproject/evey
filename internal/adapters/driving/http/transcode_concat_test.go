@@ -86,18 +86,26 @@ func (p *fakeConcatPlan) Resource(_ context.Context, name string) ([]byte, strin
 func (p *fakeConcatPlan) Resources() []string { return []string{"master.m3u8"} }
 func (p *fakeConcatPlan) NumParts() int       { return 2 }
 
+// masterPlan is the plan serveMaster resolves for e1 and hands to serveConcatMaster.
+func masterPlan(t *testing.T, h *hlsVODServe, e1 *domainlibrary.MediaItem) *requestPlan {
+	t.Helper()
+	rp, err := h.probePlan(concatReq("?gapless=1"), "e1", e1, copyEligibleAV())
+	require.NoError(t, err)
+	return rp
+}
+
 // --- serveConcatMaster: fall-through cases ---
 
 func TestServeConcatMaster_FeatureOff(t *testing.T) {
 	h := &hlsVODServe{} // onDemandConcat nil
-	ok := h.serveConcatMaster(httptest.NewRecorder(), concatReq("?gapless=1"), "e1", episode("e1", "s1"), copyEligibleAV(), noopSpan())
+	ok := h.serveConcatMaster(httptest.NewRecorder(), concatReq("?gapless=1"), "e1", episode("e1", "s1"), nil, noopSpan())
 	assert.False(t, ok)
 }
 
 func TestServeConcatMaster_NotRequested(t *testing.T) {
 	pkg := &fakeConcatPackager{}
 	h := &hlsVODServe{onDemandConcat: pkg}
-	ok := h.serveConcatMaster(httptest.NewRecorder(), concatReq(""), "e1", episode("e1", "s1"), copyEligibleAV(), noopSpan())
+	ok := h.serveConcatMaster(httptest.NewRecorder(), concatReq(""), "e1", episode("e1", "s1"), nil, noopSpan())
 	assert.False(t, ok, "no ?gapless= param: must not even try")
 	assert.Zero(t, pkg.calls)
 }
@@ -105,7 +113,7 @@ func TestServeConcatMaster_NotRequested(t *testing.T) {
 func TestServeConcatMaster_EncryptionOnRefuses(t *testing.T) {
 	pkg := &fakeConcatPackager{}
 	h := &hlsVODServe{onDemandConcat: pkg, onDemandEncrypt: true}
-	ok := h.serveConcatMaster(httptest.NewRecorder(), concatReq("?gapless=1"), "e1", episode("e1", "s1"), copyEligibleAV(), noopSpan())
+	ok := h.serveConcatMaster(httptest.NewRecorder(), concatReq("?gapless=1"), "e1", episode("e1", "s1"), nil, noopSpan())
 	assert.False(t, ok, "concat v1 has no encrypted variant")
 	assert.Zero(t, pkg.calls)
 }
@@ -122,7 +130,7 @@ func TestServeConcatMaster_NoNextEpisodeFallsThrough(t *testing.T) {
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h.onDemandConcat = pkg
 	h.libSvc = fake
-	ok := h.serveConcatMaster(httptest.NewRecorder(), concatReq("?gapless=1"), "e1", e1, copyEligibleAV(), noopSpan())
+	ok := h.serveConcatMaster(httptest.NewRecorder(), concatReq("?gapless=1"), "e1", e1, masterPlan(t, h, e1), noopSpan())
 	assert.False(t, ok, "a chain of 1 (no next episode) is not a concat session")
 	assert.Zero(t, pkg.calls)
 }
@@ -201,12 +209,37 @@ func TestServeConcatMaster_BuildsChainAndServes(t *testing.T) {
 	h.libSvc = fake
 
 	w := httptest.NewRecorder()
-	ok := h.serveConcatMaster(w, concatReq("?gapless=1"), "e1", e1, copyEligibleAV(), noopSpan())
+	ok := h.serveConcatMaster(w, concatReq("?gapless=1"), "e1", e1, masterPlan(t, h, e1), noopSpan())
 	require.True(t, ok)
 	assert.Equal(t, []string{"/media/e1.mkv", "/media/e2.mkv"}, pkg.lastSrcs)
 	assert.Equal(t, concatPrefix, pkg.lastPrefix)
 	assert.Contains(t, w.Body.String(), "#EXTM3U")
 	assert.Equal(t, "mkvgo-concat", w.Header().Get("X-Evey-Served-By"))
+}
+
+// The first link is judged on the plan the master already resolved, not on a
+// second resolution of the same episode: a master plan that is not the
+// packager's whole presentation keeps the episode out of the chain even though
+// its streams alone would resolve to copy.
+func TestServeConcatMaster_JudgesFirstEpisodeOnMasterPlan(t *testing.T) {
+	e1, e2 := episode("e1", "s1"), episode("e2", "s1")
+	fake := &chainStreamsGetter{
+		items:       map[string]*domainlibrary.MediaItem{"e1": e1, "e2": e2},
+		streamsByID: map[string][]*domainlibrary.MediaStream{"e1": copyEligibleAV(), "e2": copyEligibleAV()},
+		nextByID:    map[string]*domainlibrary.MediaItem{"e1": e2},
+	}
+	pkg := &fakeConcatPackager{plan: &fakeConcatPlan{resources: map[string][]byte{"master.m3u8": []byte("#EXTM3U\n")}}}
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	h.onDemandConcat = pkg
+	h.libSvc = fake
+
+	rp := masterPlan(t, h, e1)
+	require.Equal(t, apptranscoding.EngineMkvgo, rp.Plan.Delivery.Video, "fixture: e1's own streams resolve to copy")
+	rp.Plan.Delivery.Video = apptranscoding.EngineFFmpeg
+	ok := h.serveConcatMaster(httptest.NewRecorder(), concatReq("?gapless=1"), "e1", e1, rp, noopSpan())
+	assert.False(t, ok, "the master's plan decides, not a re-resolution")
+	assert.Zero(t, pkg.calls)
 }
 
 func TestServeConcatMaster_PlanBuildFailsFallsThrough(t *testing.T) {
@@ -221,7 +254,7 @@ func TestServeConcatMaster_PlanBuildFailsFallsThrough(t *testing.T) {
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h.onDemandConcat = pkg
 	h.libSvc = fake
-	ok := h.serveConcatMaster(httptest.NewRecorder(), concatReq("?gapless=1"), "e1", e1, copyEligibleAV(), noopSpan())
+	ok := h.serveConcatMaster(httptest.NewRecorder(), concatReq("?gapless=1"), "e1", e1, masterPlan(t, h, e1), noopSpan())
 	assert.False(t, ok, "a mkvgo-level incompatibility (e.g. audio order) falls back cleanly")
 }
 
