@@ -336,6 +336,7 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 		// make the server buffer and decode oversized payloads at will. The
 		// read deadline bounds idle time, not size.
 		ws.MaxPayloadBytes = syncPlayMaxFrameBytes
+		unreadable := 0
 		for {
 			if rdErr := ws.SetReadDeadline(time.Now().Add(readDeadline)); rdErr != nil {
 				break
@@ -347,8 +348,13 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 			var cmd domainsyncplay.SyncCommand
 			if umErr := json.Unmarshal([]byte(raw), &cmd); umErr != nil {
 				// Skipped, but said: a silently dropped command looks like a
-				// room that does not follow its host.
-				slog.WarnContext(r.Context(), "syncplay ws: unreadable command", slog.String("room", wsRoomID), slog.Any("err", umErr))
+				// room that does not follow its host. Once per connection: any
+				// member, a guest included, could otherwise write a log line
+				// per frame.
+				unreadable++
+				if unreadable == 1 {
+					slog.WarnContext(r.Context(), "syncplay ws: unreadable command (further ones on this connection not logged)", slog.String("room", wsRoomID), slog.Any("err", umErr))
+				}
 				continue
 			}
 			if _, cmdErr := s.hub.HandleCommand(wsCtx, wsRoomID, userID, username, cmd); cmdErr != nil {
