@@ -3,9 +3,9 @@ import {
   useAdminMediaServiceGetMediaRepairHistory,
   useAdminMediaServiceUndoMediaRepair,
 } from "@evey/api";
-import type { V1MediaRepairEntry } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { repairOpLabel, repairEvidenceLine, repairShiftSummary } from "@evey/client";
 
 // What was done to this file's bytes, and the way back.
 //
@@ -20,22 +20,6 @@ import { Badge } from "@/components/ui/Badge";
 // says a measured lag and a confidence acted on proof. That distinction is the
 // whole difference between a repair and the incident.
 
-function opLabel(op: string | undefined, t: (k: string) => string): string {
-  switch (op) {
-    case "reindex":
-      return t("admin.repairHistory.opReindex");
-    case "resync_damaged":
-      return t("admin.repairHistory.opResync");
-    case "container_fix":
-      return t("admin.repairHistory.opContainerFix");
-    case "audio_retime":
-      return t("admin.repairHistory.opAudioRetime");
-    case "rollback":
-      return t("admin.repairHistory.opRollback");
-    default:
-      return op ?? "";
-  }
-}
 
 function outcomeVariant(outcome: string | undefined): "success" | "warning" | "error" | "default" {
   switch (outcome) {
@@ -54,14 +38,6 @@ function outcomeVariant(outcome: string | undefined): "success" | "warning" | "e
 
 // A shift is the one number that matters to a viewer: it says how far the sound
 // moved, and its opposite is the undo.
-function shiftSummary(entry: V1MediaRepairEntry): string {
-  const shift = entry.shiftSec ?? {};
-  const parts = Object.entries(shift).map(([track, raw]) => {
-    const sec = Number(raw);
-    return `${track}: ${sec > 0 ? "+" : ""}${sec.toFixed(3)}s`;
-  });
-  return parts.join(", ");
-}
 
 export function RepairHistoryPanel({ mediaId, title, onClose }: { mediaId: string; title: string; onClose: () => void }) {
   const { t } = useTranslation();
@@ -97,22 +73,17 @@ export function RepairHistoryPanel({ mediaId, title, onClose }: { mediaId: strin
             <li key={i} className="text-xs text-[var(--text-muted)]" data-testid="repair-history-entry">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[var(--text)]">{new Date(Number(e.atMs ?? 0)).toLocaleString()}</span>
-                <Badge variant="info">{opLabel(e.op, t)}</Badge>
+                <Badge variant="info">{repairOpLabel(e.op, t)}</Badge>
                 <Badge variant={outcomeVariant(e.outcome)}>{t(`admin.repairHistory.outcome.${e.outcome}`)}</Badge>
                 {e.reversible && <Badge variant="default">{t("admin.repairHistory.reversible")}</Badge>}
               </div>
-              {shiftSummary(e) && (
-                <div data-testid="repair-history-shift">{t("admin.repairHistory.shift", { shift: shiftSummary(e) })}</div>
+              {repairShiftSummary(e) && (
+                <div data-testid="repair-history-shift">{t("admin.repairHistory.shift", { shift: repairShiftSummary(e) })}</div>
               )}
               {/* The evidence, said plainly: acting on a measurement and acting
                   on the file's own claim are not the same thing. */}
               <div>
-                {e.evidenceMethod === "track-coherence"
-                  ? t("admin.repairHistory.evidenceMeasured", {
-                      lag: (e.evidenceLagSec ?? 0).toFixed(3),
-                      confidence: (e.evidenceConfidence ?? 0).toFixed(2),
-                    })
-                  : t("admin.repairHistory.evidenceDeclared")}
+                {repairEvidenceLine(e, t)}
               </div>
               {e.error && <div className="text-[var(--error)]">{e.error}</div>}
             </li>

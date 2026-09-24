@@ -64,6 +64,15 @@ describe("RepairHistoryPanel", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  // An operator's repair read as the file's own claim here, while the journal
+  // already named it; both now read the same label.
+  it("names an operator's repair as the operator's call", () => {
+    api.history.data = { entries: [{ atMs: "1758000000000", op: "rollback", outcome: "applied", evidenceMethod: "operator-undo" }] };
+    render(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={vi.fn()} />);
+    expect(screen.getByText("admin.repairJournal.evidenceOperator")).toBeInTheDocument();
+    expect(screen.queryByText("admin.repairHistory.evidenceDeclared")).toBeNull();
+  });
+
   it("says when nothing can be undone, and when there is no history at all", () => {
     api.history.data = { entries: [{ atMs: "1", op: "rollback", outcome: "rolled_back", reversible: false }] };
     render(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={vi.fn()} />);
