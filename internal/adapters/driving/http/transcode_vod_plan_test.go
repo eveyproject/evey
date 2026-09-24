@@ -285,3 +285,52 @@ func TestUserBitrateLimitFor_CachedPerUser(t *testing.T) {
 	h.userBitrateLimitFor(ctx, "u1")
 	assert.Equal(t, 2, bare.calls)
 }
+
+// The first play of a file that has no keyframe index yet builds it inline
+// when the index is the only thing keeping the source off the copy rung, and
+// the plan then resolves as copy; a warmer that stands down (someone is
+// watching, the walk exceeded its budget) leaves the plan a transcode; a file
+// blocked for another reason is never walked.
+func TestProbePlan_IndexesKeyframesInlineAtFirstPlay(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/fresh.mkv", Duration: dur}}
+	unindexed := func() []*domainlibrary.MediaStream {
+		s := copyEligibleStreams()
+		s[0].Keyframes = nil
+		return s
+	}
+	req := func() *http.Request {
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4", nil)
+		return withHTTPClaims(r, testClaims(false))
+	}
+
+	getter := &testFakeStreamsGetter{item: item, streams: unindexed()}
+	h, _ := buildVODHandler(t, getter, allowAll(), testFakeParentalChecker{})
+	calls := 0
+	h.keyframeWarmer = func(_ context.Context, mediaID, path string) bool {
+		calls++
+		assert.Equal(t, "m1", mediaID)
+		assert.Equal(t, "/fresh.mkv", path)
+		getter.streams = copyEligibleStreams() // the index landed
+		return true
+	}
+	rp, err := h.probePlan(req(), "m1", item, unindexed())
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, "copy", rp.Decision.VideoDecision, "the plan resolves on the freshly indexed streams")
+	assert.Empty(t, apptranscoding.SourceCopyBlocker(rp.Request.Streams))
+
+	h.keyframeWarmer = func(_ context.Context, _, _ string) bool { calls++; return false }
+	getter.streams = unindexed()
+	rp, err = h.probePlan(req(), "m1", item, unindexed())
+	require.NoError(t, err)
+	assert.Equal(t, 2, calls)
+	assert.Equal(t, "no_keyframes", apptranscoding.SourceCopyBlocker(rp.Request.Streams),
+		"the warmer stood down: the plan resolves on the unindexed streams and this viewing transcodes")
+
+	blocked := unindexed()
+	blocked[0].Codec = "vp9"
+	_, err = h.probePlan(req(), "m1", item, blocked)
+	require.NoError(t, err)
+	assert.Equal(t, 2, calls, "a source blocked for another reason is not walked")
+}
