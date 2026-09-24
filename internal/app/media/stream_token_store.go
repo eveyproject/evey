@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/evey-project/evey/internal/pkg/bgloop"
 
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -45,6 +47,12 @@ const (
 	// every media request into a query.
 	missCacheTTL = time.Minute
 	missCacheMax = 10000
+	// lookupRate / lookupBurst cap the database lookups of unknown tokens for
+	// the whole store: made-up tokens are free to send and each distinct one
+	// escapes the miss cache. Above it a token is treated as unknown (not
+	// cached), and a real player gets through on its next segment.
+	lookupRate  = 50
+	lookupBurst = 200
 )
 
 type StreamTokenStore struct {
@@ -73,6 +81,7 @@ type StreamTokenStore struct {
 	misses       sync.Map // token hash -> time.Time: unknown to repo until then
 	missCount    atomic.Int64
 	extendCh     chan tokenExtension
+	lookups      *rate.Limiter
 }
 
 type tokenExtension struct {
@@ -92,6 +101,7 @@ func hashToken(token string) string {
 func (s *StreamTokenStore) WithPersistence(repo shared.StreamTokenRepository) *StreamTokenStore {
 	s.repo = repo
 	s.extendCh = make(chan tokenExtension, 256)
+	s.lookups = rate.NewLimiter(lookupRate, lookupBurst)
 	go s.extendLoop()
 	return s
 }
@@ -122,6 +132,9 @@ func (s *StreamTokenStore) loadPersisted(token string) (*shared.StreamToken, boo
 	hash := hashToken(token)
 	now := s.now()
 	if until, ok := s.misses.Load(hash); ok && now.Before(until.(time.Time)) {
+		return nil, false
+	}
+	if !s.lookups.Allow() {
 		return nil, false
 	}
 	ctx, cancel := s.persistCtx()
