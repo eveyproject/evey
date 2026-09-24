@@ -601,6 +601,14 @@ func hlsTimeFor(opts transcoding.HLSProcessOpts) string {
 	return hlsSegmentSeconds
 }
 
+// presentAtSourceTimeArgs keeps the fMP4 frames at their source time. By
+// default the muxer moves a B-frame stream late by its reorder delay so no DTS
+// is negative, and writes the move as an empty edit that neither MSE nor
+// ExoPlayer applies: a transcoded rung then played 125 ms late (NVENC) against
+// any audio rendition, measured in Chrome with hls.js. Disabled, the delay
+// becomes a single-entry edit list, which Chrome, media3 and ffmpeg all apply.
+var presentAtSourceTimeArgs = []string{"-avoid_negative_ts", "disabled"}
+
 func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, hlsTime string, startNumber, variantIdx int) []string {
 	args = append(args,
 		"-f", "hls",
@@ -611,6 +619,7 @@ func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, hlsTime 
 		"-start_number", fmt.Sprintf("%d", startNumber),
 	)
 	if useFMP4 {
+		args = append(args, presentAtSourceTimeArgs...)
 		args = append(args,
 			"-hls_segment_type", "fmp4",
 			"-hls_fmp4_init_filename", fmt.Sprintf("stream_%d_init.mp4", variantIdx),
@@ -1022,6 +1031,7 @@ func appendHLSMultiVariantTail(args []string, opts transcoding.HLSProcessOpts, n
 		"-start_number", fmt.Sprintf("%d", startNumberFor(opts)),
 	)
 	if opts.UseFMP4 {
+		args = append(args, presentAtSourceTimeArgs...)
 		args = append(args,
 			"-hls_segment_type", "fmp4",
 			"-hls_fmp4_init_filename", "stream_%v_init.mp4",

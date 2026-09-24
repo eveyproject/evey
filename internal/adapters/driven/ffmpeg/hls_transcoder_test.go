@@ -1409,3 +1409,35 @@ func TestBuildFFmpegAudioOnlyArgs_OffsetsByVideoCompositionDelay(t *testing.T) {
 		t.Error("a source with no composition delay must not be shifted")
 	}
 }
+
+// fMP4 video keeps its frames at source time: the default negative-DTS
+// avoidance wrote the encoder's reorder delay as an empty edit that neither
+// MSE nor ExoPlayer applies, so a transcoded rung played 125 ms late (NVENC)
+// against its audio in Chrome with hls.js. TS carries no edit list.
+func TestBuildFFmpegArgs_FMP4PresentsAtSourceTime(t *testing.T) {
+	hasFlag := func(args []string) bool {
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "-avoid_negative_ts" && args[i+1] == "disabled" {
+				return true
+			}
+		}
+		return false
+	}
+	base := transcoding.HLSProcessOpts{
+		OutputDir: "/o", FilePath: "/f.mkv", VideoDecision: "transcode", AudioDecision: "transcode",
+		Profiles: transcoding.DefaultHLSProfiles[:1], UseFMP4: true,
+	}
+	assert.True(t, hasFlag(ffmpeg.BuildFFmpegArgs(base)), "single-variant fMP4")
+
+	multi := base
+	multi.Profiles = transcoding.DefaultHLSProfiles
+	assert.True(t, hasFlag(ffmpeg.BuildFFmpegArgs(multi)), "multi-variant fMP4")
+
+	hw := base
+	hw.HWAccel = transcoding.VAAPI
+	assert.True(t, hasFlag(ffmpeg.BuildFFmpegArgs(hw)), "hardware fMP4")
+
+	ts := base
+	ts.UseFMP4 = false
+	assert.False(t, hasFlag(ffmpeg.BuildFFmpegArgs(ts)), "MPEG-TS has no edit list to write")
+}

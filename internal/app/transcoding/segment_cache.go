@@ -444,6 +444,11 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 	fmt.Fprintf(&b, "ach=%d\n", f.MaxAudioChannels)
 	fmt.Fprintf(&b, "sidecar=%t\n", f.ForceSidecarSubs)
 	fmt.Fprintf(&b, "fmp4=%t\n", f.UseFMP4)
+	if f.UseFMP4 {
+		// fMP4 now keeps frames at source time (presentAtSourceTimeArgs): the
+		// init's edit list changed, segments cut before must not be served.
+		b.WriteString("srctime=1\n")
+	}
 	if f.HWAccel != "" && !f.allProfilesCopy() {
 		// The ENCODE backend is part of the cache IDENTITY. With a backend chosen
 		// PER ROUTE (VAAPI OpenCL for HDR, QSV for HEVC/SDR on one host) a
