@@ -72,7 +72,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, 7*24*time.Hour, cfg.JWT.RefreshTokenTTL)
 
 	assert.Equal(t, 2, cfg.Transcoding.MaxConcurrent)
-	assert.Equal(t, 50, cfg.Transcoding.CacheMaxGB)
+	assert.Equal(t, 10, cfg.Transcoding.CacheMaxGB)
 	assert.Equal(t, "/data/transcode", cfg.Transcoding.CacheDir)
 	assert.False(t, cfg.Transcoding.HWAccelEnabled)
 	assert.False(t, cfg.Transcoding.HWPerVariant)

@@ -303,9 +303,9 @@ func registerServerSettingsRoutes(
 		// Consumed at boot (the eviction sweep snapshots its budget), so a
 		// change takes effect on the next restart - same contract as the
 		// library watcher settings above.
-		{jsonKey: "transcodeCacheMaxGB", cfgKey: cfgKeyTranscodeCacheGB, defaultVal: 50,
+		{jsonKey: "transcodeCacheMaxGB", cfgKey: cfgKeyTranscodeCacheGB, defaultVal: 10,
 			getter:          func() any { return cfg.Transcoding.CacheMaxGB },
-			reset:           func() { cfg.Transcoding.CacheMaxGB = 50 },
+			reset:           func() { cfg.Transcoding.CacheMaxGB = 10 },
 			requiresRestart: true},
 		// The five formerly env-only transcoding knobs. Every one is snapshotted
 		// by wire.go at boot (the orchestrator's opts, the HLS session cap, the
