@@ -57,3 +57,19 @@ export async function initFetcher(options: FetcherSetupOptions) {
   // for the user.
   setRefreshHandler(options.forceRefresh);
 }
+
+/**
+ * The televisions' answer to the fetcher giving a request up: leave for the
+ * login screen only once the session is really gone - a refused refresh
+ * clears the tokens. A 401 scoped to one call while a live token is held (the
+ * refresh just succeeded) is that call's problem: the browser television
+ * signed a viewer out in the middle of a film for it (reproduced 2026-09-24:
+ * one endpoint answering 401, the refresh answering 200 twice, the login
+ * screen three seconds later with the refresh token still valid).
+ */
+export function leaveOnlyWhenSessionGone(goToLogin: () => void): () => void {
+  return () => {
+    if (useAuthStore.getState().accessToken) return;
+    goToLogin();
+  };
+}
