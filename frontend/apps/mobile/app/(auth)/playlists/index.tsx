@@ -130,8 +130,8 @@ export default function PlaylistsScreen() {
       });
       setModalVisible(false);
       resetForm();
-      if (res?.playlist?.id) {
-        router.push(`/playlists/${res.playlist.id}`);
+      if (res?.id) {
+        router.push(`/playlists/${res.id}`);
       }
     } catch {
       Alert.alert(t("common.error"), t("media.playlist.createError"));

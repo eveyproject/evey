@@ -45,15 +45,43 @@ interface PlaylistItemsResponse {
   items?: { mediaItemId?: string; sortOrder?: number; addedAt?: string; title?: string; type?: string; year?: number }[];
 }
 
+// The API speaks its enum ("PLAYLIST_TYPE_MANUAL"); the screens speak
+// "manual" | "smart". Nothing translated before 2026-09-24: every
+// `type === "manual"` filter kept nothing, so the phone's and both
+// televisions' add-to-playlist sheets said there was no playlist at all
+// (measured in the browser television with two manual playlists on the
+// server), and creating one with type "manual" was refused (HTTP 400).
+function localType(type?: string): "manual" | "smart" {
+  return type === "smart" || type === "PLAYLIST_TYPE_SMART" ? "smart" : "manual";
+}
+
+function protoType(type: string): string {
+  return localType(type) === "smart" ? "PLAYLIST_TYPE_SMART" : "PLAYLIST_TYPE_MANUAL";
+}
+
+interface PlaylistListResponse {
+  playlists?: (Partial<PlaylistDetailResponse> & { id: string })[];
+}
+
 export function usePlaylistList() {
   return useQuery({
     queryKey: ["playlists"],
     queryFn: async () => {
-      const r = await eveyFetch<{ playlists: Playlist[] }>({
+      const r = await eveyFetch<PlaylistListResponse>({
         url: "/api/v1/playlists",
         method: "GET",
       });
-      return r.playlists ?? [];
+      return (r.playlists ?? []).map<Playlist>((p) => ({
+        id: p.id,
+        name: p.name ?? "",
+        description: p.description ?? "",
+        type: localType(p.type),
+        rules: p.rules,
+        sort_by: p.sortBy ?? "",
+        sort_order: p.sortOrder ?? "",
+        created_at: p.createdAt ?? "",
+        updated_at: p.updatedAt ?? "",
+      }));
     },
     staleTime: 5 * 60_000,
   });
@@ -79,7 +107,7 @@ export function usePlaylistDetail(id: string) {
         id: pl.id,
         name: pl.name,
         description: pl.description,
-        type: pl.type as "manual" | "smart",
+        type: localType(pl.type),
         rules: pl.rules,
         sort_by: pl.sortBy,
         sort_order: pl.sortOrder,
@@ -121,12 +149,17 @@ export function useAddToPlaylist() {
 export function useCreatePlaylist() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; description?: string; type: string }) =>
-      eveyFetch<{ playlist: { id: string } }>({
+    // The API answers with the playlist itself, flat: reading res.playlist.id
+    // (as the phone did) always found nothing, so "create and add" never
+    // added and the new playlist never opened.
+    mutationFn: async (data: { name: string; description?: string; type: string }): Promise<{ id: string }> => {
+      const created = await eveyFetch<{ id: string }>({
         url: "/api/v1/playlists",
         method: "POST",
-        data,
-      }),
+        data: { ...data, type: protoType(data.type) },
+      });
+      return { id: created.id };
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["playlists"] });
       toast.success(i18n.t("media.playlist.createSuccess"));

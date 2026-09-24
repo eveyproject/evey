@@ -50,7 +50,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }:
     if (!name) return;
     try {
       const res = await createPl.mutateAsync({ name, type: "manual" });
-      const newId = res?.playlist?.id;
+      const newId = res?.id;
       if (newId) {
         await addTo.mutateAsync({ playlistId: newId, mediaItemId, mediaType });
         setAddedIds((prev) => new Set(prev).add(newId));
