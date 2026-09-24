@@ -106,9 +106,19 @@ segments. (The MPEG-TS branch in `hls_transcoder.go` is dead - `needsFMP4Segment
 always returns true.) Over the *same* segments:
 
 - **HLS** (`master.m3u8` → `stream_N.m3u8` → `EXT-X-MAP` init + `.m4s`) - both engines.
-- **DASH** (`manifest.mpd`) - **mkvgo copy path only** (`OnDemandPlan.HasDASH`),
-  byte-identical, zero storage; not on the ffmpeg transcode path, and disabled when
-  AES-128 encryption is on.
+- **DASH** (`manifest.mpd`) - on the mkvgo copy path the packager's own manifest
+  (`OnDemandPlan.HasDASH`, byte-identical, zero storage, disabled under AES-128);
+  on the ffmpeg path a manifest **declared from the plan** over the same fragments
+  the HLS playlists address (`ManifestGenerator.MPD`), written before any fragment
+  exists. What makes it honest is the **segment grid** (`domain/transcoding.SegmentGrid`):
+  every transcoded rung is cut on the same whole number of frames (72 at 23.976 fps,
+  75 at 25, 90 at 29.97), so a segment is exact in the video track's ticks and
+  identical across the switch set; the copy fallback declares its keyframe plan. A
+  source whose frame rate is unknown or variable stays on the legacy 3 s clock, keeps
+  HLS, and answers 404 on `manifest.mpd`. No client is switched to DASH: HLS stays the
+  default everywhere. mkvgo's `DASHFromCMAF` over the produced fragments is the
+  parity oracle (`internal/pkg/cmafparity`, `TestDASHGridIntegration` at 23.976/25/29.97
+  fps: cold, seek, two-rung switch set, separate audio within one AAC frame).
 
 Per-session URLs are re-baked (`transcode_vod_manifest_rebake.go`) to carry the
 stream token, for HLS and DASH alike, including cookie-less Chromecast.
