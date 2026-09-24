@@ -2741,7 +2741,7 @@
   "media.syncplay.tabAlbums": "Albums",
   "media.syncplay.tabPlaylists": "Playlists",
   "media.syncplay.tabTracks": "Tracks",
-  "media.syncplay.title": "Listen Together",
+  "media.syncplay.title": "Watch Together",
   "media.syncplay.watchTogetherRoom": "Watch Together room",
   "media.syncplay.watchingWith": "Watching with: {{names}}",
   "media.syncplay.watchingWithMore": "Watching with: {{names}} +{{count}} more",

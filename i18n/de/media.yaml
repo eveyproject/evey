@@ -433,7 +433,7 @@ syncplay:
   watchTogetherRoom: Zusammen-schauen-Raum
   watchingWith: "Schauen mit: {{names}}"
   watchingWithMore: "Schauen mit: {{names}} +{{count}} weitere"
-  title: Gemeinsam hören
+  title: "Zusammen schauen"
   create: Raum erstellen
   createRoom: Erstellen
   tabAlbums: Alben
