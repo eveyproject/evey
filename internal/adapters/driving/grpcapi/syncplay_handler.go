@@ -124,10 +124,11 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("syncplayHandler.CreateRoom: %w", err)
 	}
-	hostID := claims.ProfileID
-	if hostID == "" {
-		hostID = claims.UserID
-	}
+	// The host is the ACCOUNT, like every member: the room websocket admits
+	// room.IsMember(claims.UserID) and the hub gives host authority to the
+	// same id. Hosting as the profile refused the creator their own room
+	// whenever a profile was active (migration 000167).
+	hostID := claims.UserID
 
 	// Playlist-bound room (music queue)
 	if req.PlaylistId != "" {

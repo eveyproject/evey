@@ -138,7 +138,25 @@ func TestCreateRoom_Success(t *testing.T) {
 	assert.NotEmpty(t, resp.Code)
 	assert.Equal(t, "My Room", resp.Name)
 	assert.Equal(t, "media-1", resp.MediaId)
-	assert.Equal(t, "p-1", resp.HostId)
+	assert.Equal(t, "u-1", resp.HostId)
+}
+
+// The creator, signed in on a profile, must be admitted to their own room's
+// websocket (room.IsMember(claims.UserID)) and hold its host authority (the hub
+// compares the sender's user id): hosting as the profile failed both.
+func TestCreateRoom_CreatorOnAProfileHostsTheRoom(t *testing.T) {
+	t.Parallel()
+	env := newSyncplayTestEnv()
+	env.seedMedia("media-1", "lib-1")
+	env.grantAccess("u-1", "lib-1")
+
+	resp, err := env.handler.CreateRoom(ctxWithClaims("u-1", "p-1", false), &eveyv1.CreateSyncPlayRoomRequest{MediaId: "media-1"})
+	require.NoError(t, err)
+
+	room, err := env.handler.hub.GetRoom(context.Background(), resp.Id)
+	require.NoError(t, err)
+	assert.True(t, room.IsMember("u-1"), "the websocket admits the creator's user id")
+	assert.True(t, room.IsHost("u-1"), "the hub's host authority is the creator's user id")
 }
 
 func TestCreateRoom_DefaultName(t *testing.T) {

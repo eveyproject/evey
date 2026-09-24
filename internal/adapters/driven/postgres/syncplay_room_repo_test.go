@@ -16,15 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func seedSyncplayDeps(t *testing.T, db *sql.DB, profileID, userID, libraryID, mediaID string) {
+// hostUserID is an ACCOUNT: a room's host, like its members, is a user id
+// (fk_syncplay_rooms_host_id references users since migration 000167).
+func seedSyncplayDeps(t *testing.T, db *sql.DB, hostUserID, profileID, libraryID, mediaID string) {
 	t.Helper()
 	ctx := context.Background()
 	userRepo := postgres.NewUserRepository(db)
 	profileRepo := postgres.NewProfileRepository(db)
 	libRepo := postgres.NewLibraryRepository(db)
 	itemRepo := postgres.NewMediaItemRepository(db)
-	require.NoError(t, userRepo.Create(ctx, newTestUser(userID)))
-	require.NoError(t, profileRepo.Create(ctx, newTestProfile(profileID, shared.UserID(userID))))
+	require.NoError(t, userRepo.Create(ctx, newTestUser(hostUserID)))
+	require.NoError(t, profileRepo.Create(ctx, newTestProfile(profileID, shared.UserID(hostUserID))))
 	require.NoError(t, libRepo.Create(ctx, newTestLibrary(libraryID)))
 	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(mediaID, shared.LibraryID(libraryID))))
 }
@@ -360,12 +362,11 @@ func TestSyncPlayRoomRepo_RemoveMemberAndDeleteIfEmpty_HostElection(t *testing.T
 	defer cleanup()
 
 	seedSyncplayDeps(t, db, "he-host", "he-u1", "he-lib", "he-media")
-	// Seed two additional profiles to be regular members (no library/media needed).
+	// Seed two additional accounts to be regular members (no library/media
+	// needed): an elected host is written to host_id, which names an account.
 	ctx := context.Background()
-	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, newTestUser("he-u2")))
-	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, newTestProfile("he-m2", shared.UserID("he-u2"))))
-	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, newTestUser("he-u3")))
-	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, newTestProfile("he-m3", shared.UserID("he-u3"))))
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, newTestUser("he-m2")))
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, newTestUser("he-m3")))
 
 	repo := postgres.NewSyncPlayRoomRepo(db)
 	now := time.Now().UTC().Truncate(time.Millisecond)
@@ -455,8 +456,7 @@ func TestSyncPlayRoomRepo_Create_AudioMediaNotInMediaItems(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, newTestUser("sp-audio-user")))
-	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, newTestProfile("sp-audio-host", shared.UserID("sp-audio-user"))))
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, newTestUser("sp-audio-host")))
 
 	repo := postgres.NewSyncPlayRoomRepo(db)
 	room := &syncplay.Room{
