@@ -69,6 +69,7 @@ import { MetadataEditSheet } from "../../../src/components/media/MetadataEditShe
 import { PlayOnSheet } from "../../../src/components/media/PlayOnSheet";
 import { SagaSection } from "../../../src/components/media/SagaSection";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
+import { resolutionLabel } from "@evey/client";
 
 const POSTER_WIDTH = 100;
 const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
@@ -410,19 +411,6 @@ function formatSeriesRuntime(totalMs?: string, episodeCount?: number): string {
   return `${m}min`;
 }
 
-// At-a-glance tech labels a viewer actually reads before pressing play
-// (web parity: MediaTechSummary). Codec/container names stay in the disclosure
-// below - they mean nothing to most people. Kept coarse like the web helper:
-// a DoVi title reads as HDR10 (the dovi fields aren't in the stream proto).
-function resolutionLabel(height?: number): string | null {
-  const h = height ?? 0;
-  if (h <= 0) return null;
-  if (h >= 2160) return "4K";
-  if (h >= 1440) return "1440p";
-  if (h >= 1080) return "1080p";
-  if (h >= 720) return "720p";
-  return `${h}p`;
-}
 function hdrLabel(s?: V1MediaStream): string | null {
   if (!s) return null;
   switch (s.colorTransfer?.trim().toLowerCase()) {
@@ -447,7 +435,7 @@ function FileInfoSection({ item }: { item: V1MediaItem }) {
   const audioStreams = item.streams?.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO") ?? [];
   const primaryAudio = audioStreams.find((s) => s.isDefault) ?? audioStreams[0];
   const techBadges = [
-    resolutionLabel(videoStream?.height),
+    resolutionLabel(videoStream),
     hdrLabel(videoStream),
     formatChannelLayout(primaryAudio?.channels) || null,
     Number(item.fileSize ?? 0) > 0 ? formatBytes(item.fileSize) : null,
