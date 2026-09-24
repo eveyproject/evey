@@ -68,7 +68,7 @@ vi.mock("expo-video", () => ({
 
 // --- react-i18next mock ----------------------------------------------------------
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
+  useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key) }),
 }));
 
 // --- @expo/vector-icons mock ---------------------------------------------------
@@ -859,8 +859,9 @@ describe("action bar discoverability (TV)", () => {
     render(<PlayerScreen />);
     act(() => { capturedTVHandler?.({ eventType: "down" }); });
     expect(screen.getByLabelText(/player\.controls\.(play|pause)/)).toBeTruthy();
-    expect(screen.getByLabelText("Rewind")).toBeTruthy();
-    expect(screen.getByLabelText("Forward")).toBeTruthy();
+    // Named with their seconds (an options object, so the key here).
+    expect(screen.getByLabelText("player.controls.rewind")).toBeTruthy();
+    expect(screen.getByLabelText("player.controls.forward")).toBeTruthy();
   });
 
   // BACK used to close the submenu AND pop the player: the viewer landed back
