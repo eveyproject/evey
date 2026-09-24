@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet, Alert } from "react-native";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+import { walksThroughProfilePicker } from "@evey/client";
 
 // Back into the app, to the instance that is already there. "Switch
 // profile" pushes this screen over the running (auth) layout, and replacing
@@ -74,6 +75,10 @@ export default function ProfileSelect() {
   const liveSettled = !userLoading && !profilesLoading;
   const loading = !liveSettled && rows.length === 0;
   const hasKidsProfile = rows.some((p) => p.isKids === true);
+  // Settings asks to switch (?pick=1): the picker then always shows, where it
+  // used to walk through between two adult profiles.
+  const { pick } = useLocalSearchParams<{ pick?: string }>();
+  const asked = pick === "1";
   const defaultProfile = profiles.find((p) => p.isDefault) ?? profiles[0];
 
   const currentProfile = profiles.find((p) => p.id === activeProfileId);
@@ -177,8 +182,8 @@ export default function ProfileSelect() {
       return;
     }
     // No kids profile, or only one profile: nothing anyone could pick wrong,
-    // so the screen has no reason to exist. Straight through.
-    if (!hasKidsProfile || profiles.length === 1) {
+    // so the screen has no reason to exist, unless the viewer asked for it.
+    if (walksThroughProfilePicker({ asked, profileCount: profiles.length, hasKidsProfile })) {
       autoRedirectedRef.current = true;
       void (async () => {
         let lastId: string | null = null;
@@ -196,9 +201,9 @@ export default function ProfileSelect() {
         leaveToApp();
       })();
     }
-  }, [liveSettled, hasKidsProfile, profiles, activeProfileId, switchProfile, setProfile]);
+  }, [liveSettled, hasKidsProfile, profiles, activeProfileId, switchProfile, setProfile, asked]);
 
-  if (loading || (liveSettled && !hasKidsProfile)) {
+  if (loading || (liveSettled && !hasKidsProfile && !asked)) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
         <ActivityIndicator color={theme.colors.accent} size="large" />

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 
 // Back into the app, to the instance that is already there. "Switch
 // profile" pushes this screen over the running (auth) layout, and replacing
@@ -19,6 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, userServiceRefreshToken } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { useAuthStore, toast, saveProfileCache } from "@evey/store";
+import { walksThroughProfilePicker } from "@evey/client";
 import { ScreenState } from "../src/components/ScreenState";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
@@ -66,20 +67,21 @@ export default function ProfileSelect() {
   const [busy, setBusy] = useState<string | null>(null);
   const [pinTarget, setPinTarget] = useState<V1Profile | null>(null);
 
-  // The picker exists to stop somebody picking wrong. A single profile, or a
-  // household with no kids profile, has nothing to protect - so it is pure
-  // friction there and we walk straight through. Same rule as the phone.
+  // The header's avatar and Settings ask to switch (?pick=1): the picker then
+  // always shows, where it used to walk through between two adult profiles.
+  const { pick } = useLocalSearchParams<{ pick?: string }>();
+  const asked = pick === "1";
   const hasKidsProfile = profiles.some((p) => p.isKids === true);
   useEffect(() => {
-    if (isLoading || profiles.length === 0) return;
-    if (profiles.length === 1 || !hasKidsProfile) {
+    if (isLoading) return;
+    if (walksThroughProfilePicker({ asked, profileCount: profiles.length, hasKidsProfile })) {
       const target = profiles.find((p) => p.id === activeProfileId)
         ?? profiles.find((p) => p.isDefault)
         ?? profiles[0];
       if (target?.id) setProfile(target.id);
       leaveToApp();
     }
-  }, [isLoading, profiles, hasKidsProfile, activeProfileId, setProfile]);
+  }, [isLoading, profiles, hasKidsProfile, activeProfileId, setProfile, asked]);
 
   // Feeds the cache the cold-start decision is taken from, on the one screen
   // of this app that always has the list in hand.
@@ -137,7 +139,7 @@ export default function ProfileSelect() {
   }
 
   // One profile is a transient: the effect above has already redirected.
-  if (isLoading || profiles.length === 1) {
+  if (isLoading || (profiles.length === 1 && !asked)) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
         <ActivityIndicator color={theme.colors.accent} size="large" />

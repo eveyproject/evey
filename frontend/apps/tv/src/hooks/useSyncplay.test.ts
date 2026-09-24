@@ -63,12 +63,16 @@ class MockWebSocket {
   }
 }
 
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/store")>()),
   useAuthStore: { getState: () => ({ accessToken: "test-token" }) },
 }));
 
 const eveyFetchMock = vi.fn();
-vi.mock("@evey/api", () => ({ eveyFetch: (...args: unknown[]) => eveyFetchMock(...args) }));
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
+  eveyFetch: (...args: unknown[]) => eveyFetchMock(...args),
+}));
 
 vi.mock("./useServerUrl", () => ({ useServerUrl: () => "http://localhost:8080" }));
 

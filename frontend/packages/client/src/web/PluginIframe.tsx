@@ -36,6 +36,12 @@ interface PluginIframeProps {
    * hash router's.
    */
   onNavigate: (path: string) => void;
+  /** What the plugin is told it runs on; a television lays itself out bigger. */
+  surface?: "web" | "tv";
+  /** The slot height this host recommends, in the plugin's own pixels. */
+  suggestedHeight?: number;
+  /** Host pixels per plugin pixel: one per dp, as the Android television's WebView. */
+  pixelScale?: number;
 }
 
 function getThemeVars(): string {
@@ -165,9 +171,9 @@ async function posterThumbnail(blob: Blob): Promise<string> {
 
 const MIN_SLOT_HEIGHT = 50;
 
-export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNavigate }: PluginIframeProps) {
+export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNavigate, surface = "web", suggestedHeight: hostSuggested, pixelScale = 1 }: PluginIframeProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [suggestedHeight] = useState(() => suggestedSlotHeight(slot, window.innerWidth));
+  const [suggestedHeight] = useState(() => hostSuggested ?? suggestedSlotHeight(slot, window.innerWidth));
   const [height, setHeight] = useState(suggestedHeight ?? 100);
   const [error, setError] = useState(false);
   const [bundleCode, setBundleCode] = useState<string | null>(null);
@@ -273,7 +279,7 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
               config: pluginConfig,
               locale: i18n.language,
               theme: detectThemeMode(),
-              surface: "web",
+              surface,
               suggestedHeight,
             }),
             "*",
@@ -303,7 +309,7 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
         }
       }
     },
-    [pluginConfig, i18n.language, onNavigate, rpc, limitedToast, suggestedHeight],
+    [pluginConfig, i18n.language, onNavigate, rpc, limitedToast, suggestedHeight, surface],
   );
 
   useEffect(() => {
@@ -328,7 +334,7 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
 
   if (!srcdoc) return null;
 
-  return (
+  const frame = (
     <iframe
       ref={iframeRef}
       sandbox="allow-scripts"
@@ -336,14 +342,17 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
       onError={() => setError(true)}
       style={{
         border: "none",
-        width: "100%",
+        width: pixelScale === 1 ? "100%" : `${100 / pixelScale}%`,
         height: `${height}px`,
         overflow: "hidden",
         display: "block",
         background: "transparent",
         colorScheme: "normal",
+        ...(pixelScale === 1 ? {} : { transform: `scale(${pixelScale})`, transformOrigin: "0 0" }),
       }}
       title={`${t("admin.plugin.sandboxedFront")} - ${pluginId}`}
     />
   );
+  if (pixelScale === 1) return frame;
+  return <div style={{ height: `${height * pixelScale}px`, overflow: "hidden" }}>{frame}</div>;
 }

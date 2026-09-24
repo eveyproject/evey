@@ -248,7 +248,7 @@ export default function SettingsScreen() {
         </View>
         <Pressable
           style={rowStyle("switch-profile")}
-          onPress={() => router.push("/profile-select")}
+          onPress={() => router.push("/profile-select?pick=1" as never)}
           onFocus={() => setFocusedItem("switch-profile")}
           onBlur={() => setFocusedItem(null)}
           accessible={true}
