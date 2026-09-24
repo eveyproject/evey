@@ -813,9 +813,9 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
             </div>
             <div className="osd-controls">
               <div className="osd-group">
-                {control("rewind", t("player.controls.rewind", "Rewind"), `-${skipBack}s`)}
+                {control("rewind", t("player.controls.rewind", { seconds: skipBack }), `-${skipBack}s`)}
                 {control("play", paused ? t("player.controls.play") : t("player.controls.pause"), <Icon name={paused ? "play" : "pause"} size={40} />, "primary")}
-                {control("forward", t("player.controls.forward", "Forward"), `+${skipFwd}s`)}
+                {control("forward", t("player.controls.forward", { seconds: skipFwd }), `+${skipFwd}s`)}
               </div>
               <div className="osd-group">
                 {endsAt ? <span className="osd-ends">{t("player.controls.endsAt", { time: endsAt, defaultValue: `Ends at ${endsAt}` })}</span> : null}
