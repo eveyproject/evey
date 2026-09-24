@@ -1,90 +1,21 @@
-import { useEffect, useState } from "react";
-import { eveyFetchRaw } from "@evey/api";
+// The cue fetch, cache and parse are @evey/client's (useTrickplayCues), shared
+// with both televisions and the phone. The web's own copy cached an empty list
+// for good after a transient failure (sprites still generating), so the preview
+// stayed off until a reload, and its cache grew without bound. This module
+// keeps the web's signature: a media type instead of a "wanted" flag, and a
+// lookup in milliseconds.
+import { cueForTime, useTrickplayCues as useSharedTrickplayCues, type TrickplayCue } from "@evey/client";
 
-// Shared trickplay-cue access: the sprite-sheet WebVTT (one cue per interval,
-// each carrying a `#xywh=` tile rect) that the player scrubber and the admin
-// thumbnails both crop from. Sprites are film frames, so the routes are
-// authenticated: the server embeds a media-scoped ?token= in each sprite URL it
-// emits, which is what lets a plain <img> (no Authorization header) load a tile.
-// Use the cue url verbatim - stripping its query would 401 the image.
-export interface TrickplayCue {
-  startTime: number;
-  endTime: number;
-  url: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+export type { TrickplayCue };
 
-function parseVTT(text: string): TrickplayCue[] {
-  const cues: TrickplayCue[] = [];
-  const blocks = text.split("\n\n");
-  for (const block of blocks) {
-    const lines = block.trim().split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      const match = lines[i].match(
-        /(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})/,
-      );
-      if (!match) continue;
-      const startTime =
-        parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3]) + parseInt(match[4]) / 1000;
-      const endTime =
-        parseInt(match[5]) * 3600 + parseInt(match[6]) * 60 + parseInt(match[7]) + parseInt(match[8]) / 1000;
-      const urlLine = lines[i + 1]?.trim();
-      if (!urlLine) continue;
-      const xywh = urlLine.match(/#xywh=(\d+),(\d+),(\d+),(\d+)/);
-      if (!xywh) continue;
-      cues.push({
-        startTime,
-        endTime,
-        url: urlLine.split("#")[0],
-        x: parseInt(xywh[1]),
-        y: parseInt(xywh[2]),
-        w: parseInt(xywh[3]),
-        h: parseInt(xywh[4]),
-      });
-    }
-  }
-  return cues;
-}
-
+// Only films and episodes carry trickplay sprites.
 const TRICKPLAY_TYPES = new Set(["MEDIA_ITEM_TYPE_MOVIE", "MEDIA_ITEM_TYPE_EPISODE"]);
-// Module-level cache: one VTT fetch per mediaId per page load, shared by every
-// admin thumbnail for the same media.
-const fetchedIds = new Set<string>();
-const cueCache = new Map<string, TrickplayCue[]>();
 
-// useTrickplayCues returns the trickplay cues for a media, or [] when there is no
-// trickplay (yet) - the caller then falls back to the on-demand /snapshot frame.
 export function useTrickplayCues(mediaId: string | undefined, mediaType?: string): TrickplayCue[] {
-  const [cues, setCues] = useState<TrickplayCue[]>(() => (mediaId ? cueCache.get(mediaId) ?? [] : []));
-  const hasTrickplay = !mediaType || TRICKPLAY_TYPES.has(mediaType);
-
-  useEffect(() => {
-    setCues(mediaId ? cueCache.get(mediaId) ?? [] : []);
-  }, [mediaId]);
-
-  useEffect(() => {
-    if (!mediaId || !hasTrickplay || fetchedIds.has(mediaId)) return;
-    fetchedIds.add(mediaId);
-    (async () => {
-      try {
-        const res = await eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" });
-        const parsed = parseVTT(await res.text());
-        cueCache.set(mediaId, parsed);
-        setCues(parsed);
-      } catch {
-        cueCache.set(mediaId, []);
-      }
-    })();
-  }, [mediaId, hasTrickplay]);
-
-  return cues;
+  return useSharedTrickplayCues(mediaId, !mediaType || TRICKPLAY_TYPES.has(mediaType));
 }
 
-// tileForTime finds the cue covering positionMs, or null.
+// The cue covering positionMs, or null.
 export function tileForTime(cues: TrickplayCue[], positionMs: number): TrickplayCue | null {
-  const t = positionMs / 1000;
-  return cues.find((c) => t >= c.startTime && t < c.endTime) ?? null;
+  return cueForTime(cues, positionMs / 1000);
 }
