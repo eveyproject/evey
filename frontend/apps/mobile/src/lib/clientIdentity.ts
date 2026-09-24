@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import { clientUserAgent } from "@evey/client";
 
 // Every API request used to reach the server as "okhttp/4.12.0" - unreadable
 // in the admin logs (the player-event handler logs the raw User-Agent as
@@ -24,13 +25,10 @@ import Constants from "expo-constants";
 // mauvaise conclusion sur le build installe. Toute lecture d'un champ de
 // Constants doit etre verifiee contre le paquet, jamais supposee.
 export function eveyClientUserAgent(): string {
-  const appVersion = Constants.expoConfig?.version;
-  const version = appVersion ? `/${appVersion}` : "";
+  const version = Constants.expoConfig?.version;
   if (Platform.OS === "android") {
     const c = (Platform as unknown as { constants?: { Release?: string; Model?: string } }).constants;
-    const release = c?.Release ? ` ${c.Release}` : "";
-    const model = c?.Model ? `; ${c.Model}` : "";
-    return `EveyMobile${version} (Android${release}${model})`;
+    return clientUserAgent({ product: "EveyMobile", version, os: "Android", release: c?.Release, model: c?.Model });
   }
-  return `EveyMobile${version} (iOS ${Platform.Version})`;
+  return clientUserAgent({ product: "EveyMobile", version, os: "iOS", release: Platform.Version });
 }

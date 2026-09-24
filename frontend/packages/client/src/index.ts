@@ -66,6 +66,7 @@ export * from "./lib/playlistType";
 export * from "./lib/playerTitle";
 export * from "./lib/playerExit";
 export * from "./lib/resumePosition";
+export * from "./lib/clientUserAgent";
 export * from "./lib/repairLabels";
 export * from "./lib/skipSegments";
 export * from "./lib/parentalPin";
