@@ -10,14 +10,17 @@ type FakeTrickplayGenerator struct {
 	Results       map[string]*library.TrickplayResult
 	Err           error
 	LastOutputDir string
+	// LastMaxWorkers is the decoder thread count the service asked for.
+	LastMaxWorkers int
 }
 
 func NewFakeTrickplayGenerator() *FakeTrickplayGenerator {
 	return &FakeTrickplayGenerator{Results: make(map[string]*library.TrickplayResult)}
 }
 
-func (g *FakeTrickplayGenerator) Generate(_ context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight, _ int, _ int64) (*library.TrickplayResult, error) {
+func (g *FakeTrickplayGenerator) Generate(_ context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int, _ int64) (*library.TrickplayResult, error) {
 	g.LastOutputDir = outputDir
+	g.LastMaxWorkers = maxWorkers
 	if g.Err != nil {
 		return nil, g.Err
 	}

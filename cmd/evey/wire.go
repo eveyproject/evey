@@ -42,11 +42,12 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/coalesce"
-	"github.com/evey-project/evey/internal/pkg/cpuutil"
+	"github.com/evey-project/evey/internal/pkg/cpubudget"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/netmeter"
+	"github.com/evey-project/evey/internal/pkg/procfork"
 	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
 
@@ -70,6 +71,20 @@ import (
 func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra *infraDeps, rootLog *slog.Logger) (*appDeps, error) {
 	r := infra.repos
 	bus := infra.bus
+
+	// The background CPU budget: one share (25 % by default, 50 % on the
+	// admin's say-so) every background task draws from, and a share of its
+	// own for the heavy tasks the admin singles out. Live: a change under
+	// Server settings applies to the next item. Every Scan-class fork
+	// reserves its threads in it (procfork), the scan and the intro
+	// detection size their fan-out on it, the trickplay its decoder threads.
+	cpuBudget := cpubudget.New(sysinfo.CPUCapacity())
+	appconfig.ApplyCPUBudget(ctx, r.ServerCfg, bus, cpuBudget)
+	procfork.SetCPUBudget(cpuBudget)
+	slog.Info("cpu budget: background tasks bounded",
+		slog.Float64("capacity_cores", cpuBudget.Capacity()),
+		slog.Int("global_percent", cpuBudget.Policy().GlobalPercent),
+		slog.Int("ceiling_cores", cpuBudget.Ceiling()))
 
 	// Push the admin-configured parser token extensions into the filesystem
 	// package before any scan can fire. ApplyParserConfig is a no-op when
@@ -120,6 +135,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		r.Trickplay, infra.trickplayGen, cfg.Transcoding.TrickplayCacheDir, r.ServerCfg,
 		applibrary.WithShutdownCtx(ctx),
 		applibrary.WithSearchReindex(r.MediaItemQuery, r.MediaItemTranslation, r.MediaPerson),
+		applibrary.WithCPUBudget(cpuBudget),
 	)
 	libCmdSvc.WithSubtitleScanner(infra.subScanner)
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)
@@ -903,6 +919,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		slog.Info("intro detection: chromaprint unavailable, falling back to banded Pearson", slog.Any("err", err))
 	}
 	if v := os.Getenv("EVEY_INTRO_DETECTION_MAX_PARALLEL"); v != "" {
+		// The operator sizing the fan-out by hand wins over the budget (the
+		// forks it makes are still reserved in it).
 		if n, err := strconv.Atoi(v); err == nil {
 			introDetectionSvc.WithMaxParallelDetections(n)
 			slog.Info("intro detection: max parallel overridden by env", slog.Int("max", n))
@@ -910,26 +928,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			slog.Warn("EVEY_INTRO_DETECTION_MAX_PARALLEL not a number, keeping default", slog.String("value", v))
 		}
 	} else {
-		// Cale la concurrence intro detection sur le budget CPU trickplay :
-		// même origine de coût (ffmpeg + analyses GPU-less par épisode), le
-		// même réglage `trickplay.adaptive_cpu` doit gouverner les deux. Un
-		// défaut hardcodé à 2 ne tient pas compte d'une box 16-core ni d'une
-		// box 4-core : on aligne sur cpuutil.TrickplayWorkers (1-4 selon
-		// runtime.NumCPU et le mode adaptive).
-		adaptive := true
-		if r.ServerCfg != nil {
-			if entry, err := r.ServerCfg.Get(ctx, "trickplay.adaptive_cpu"); err == nil && entry.Value == "false" {
-				adaptive = false
-			}
-		}
-		n := cpuutil.TrickplayWorkers(adaptive)
-		introDetectionSvc.WithMaxParallelDetections(n)
-		slog.Info("intro detection: max parallel calé sur trickplay budget",
-			slog.Int("max", n), slog.Bool("adaptive_cpu", adaptive))
+		// The fan-out is this task's CPU share, read at every run: the admin's
+		// per-task setting under Server settings, else the global share.
+		introDetectionSvc.WithCPUBudget(cpuBudget)
+		slog.Info("intro detection: max parallel drawn from the cpu budget",
+			slog.Int("max", cpuBudget.Slots("intro_detection")))
 	}
-	// Full CPU budget the admin `intro_detection.use_all_cores` toggle
-	// escalates to, live (read per run, no restart).
-	introDetectionSvc.WithAllCoresParallelDetections(sysinfo.CPUBudget())
 
 	// External intro/recap/credits providers (TIDB primary, IntroDB fallback)
 	// run ahead of MKV chapter pass when enabled. Off by default - opt-in

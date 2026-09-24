@@ -12,6 +12,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/cpubudget"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -22,6 +23,20 @@ func WithShutdownCtx(ctx context.Context) CommandServiceOption {
 	return func(s *CommandService) {
 		if s.trickplay != nil {
 			s.trickplay.WithShutdownCtx(ctx)
+		}
+	}
+}
+
+// WithCPUBudget hands the background CPU budget to the two workers here that
+// size themselves on it: the scan's per-file fan-out and the trickplay
+// decoder threads.
+func WithCPUBudget(b *cpubudget.Budget) CommandServiceOption {
+	return func(s *CommandService) {
+		if s.scan != nil {
+			s.scan.WithCPUBudget(b)
+		}
+		if s.trickplay != nil {
+			s.trickplay.WithCPUBudget(b)
 		}
 	}
 }

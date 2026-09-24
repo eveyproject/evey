@@ -287,34 +287,8 @@ func TestTrickplayService_KillMutant_StartBackgroundGenNilGenShortCircuits(t *te
 }
 
 // trickplay_service.go:89 `err != nil` and :92 `entry.Value != "false"` - isAdaptiveCPU.
-// With configRepo present and no entry → Get returns err → returns default true.
-// With entry.Value = "false" → returns false. With other value → true.
-// GenerateTrickplay uses this; we observe via LastOutputDir being set regardless, so we
-// call GenerateAllMissingTrickplays which only uses isTrickplayEnabled. Better: call
-// GenerateTrickplay directly and verify workers via fake gen.
-func TestTrickplayService_KillMutant_AdaptiveCPUConfigFalseDisablesAdaptive(t *testing.T) {
-	cfg := sharedfakes.NewFakeServerConfigRepository()
-	require.NoError(t, cfg.Set(context.Background(), "trickplay.adaptive_cpu", "false"))
-	repo := libfakes.NewFakeTrickplayRepository()
-	gen := libfakes.NewFakeTrickplayGenerator()
-	media := libfakes.NewFakeMediaItemCommandRepo()
-	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m1", File: &library.MediaFile{Path: "/x.mkv"},
-	}))
-	bus := sharedfakes.NewFakeEventBus()
-	svc := applib.NewTrickplayService(repo, gen, "/tmp/tp", media, bus, cfg)
-
-	err := svc.GenerateTrickplay(context.Background(), "m1")
-	require.NoError(t, err)
-	// With "false" config, isAdaptiveCPU returns false. This path is exercised; primary
-	// assertion is no panic + manifest created.
-	m, err := repo.GetByMediaItemID(context.Background(), shared.MediaItemID("m1"))
-	require.NoError(t, err)
-	assert.Equal(t, shared.MediaItemID("m1"), m.MediaItemID)
-}
-
-func TestTrickplayService_KillMutant_AdaptiveCPUConfigDefaultTrue(t *testing.T) {
-	// No entry → Get returns err → default true. Covers `err != nil` return true branch.
+func TestTrickplayService_KillMutant_NoBudgetDecodesOnOneThread(t *testing.T) {
+	// No budget wired: the generator is asked for one decoder thread.
 	cfg := sharedfakes.NewFakeServerConfigRepository()
 	repo := libfakes.NewFakeTrickplayRepository()
 	gen := libfakes.NewFakeTrickplayGenerator()
@@ -327,6 +301,7 @@ func TestTrickplayService_KillMutant_AdaptiveCPUConfigDefaultTrue(t *testing.T) 
 
 	err := svc.GenerateTrickplay(context.Background(), "m2")
 	require.NoError(t, err)
+	assert.Equal(t, 1, gen.LastMaxWorkers)
 	m, err := repo.GetByMediaItemID(context.Background(), shared.MediaItemID("m2"))
 	require.NoError(t, err)
 	assert.Equal(t, shared.MediaItemID("m2"), m.MediaItemID)

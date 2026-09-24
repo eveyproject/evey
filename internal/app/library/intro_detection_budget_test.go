@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evey-project/evey/internal/pkg/cpubudget"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -137,19 +138,10 @@ func (r *mapConfigRepo) Get(ctx context.Context, key string) (*shared.ServerConf
 	return &shared.ServerConfigEntry{Key: key, Value: v}, nil
 }
 
-func (r *mapConfigRepo) set(key, value string) {
-	r.mu.Lock()
-	if r.values == nil {
-		r.values = map[string]string{}
-	}
-	r.values[key] = value
-	r.mu.Unlock()
-}
-
-// The admin use-all-cores toggle must resize the limiter live - read at run
-// start, escalating to the full CPU budget when on, shrinking back to the
-// gentle base when off, all without a restart.
-func TestLimiterForRun_UseAllCoresTogglesTheCapLive(t *testing.T) {
+// The admin's CPU share for this task must resize the limiter live - read at
+// run start, growing to the task's own share when one is set, shrinking back
+// to the global one when it is removed, all without a restart.
+func TestLimiterForRun_CPUShareResizesTheCapLive(t *testing.T) {
 	t.Parallel()
 	cfg := &mapConfigRepo{}
 	svc := NewIntroDetectionService(
@@ -159,24 +151,29 @@ func TestLimiterForRun_UseAllCoresTogglesTheCapLive(t *testing.T) {
 		cfg,
 		&fakeDetector{},
 		"/tmp/trickplay",
-	).WithMaxParallelDetections(1).WithAllCoresParallelDetections(6)
+	).WithMaxParallelDetections(1)
 
-	require.Equal(t, 1, cap(svc.limiterForRun(context.Background())), "toggle absent: base cap")
+	require.Equal(t, 1, cap(svc.limiterForRun(context.Background())), "no budget: base cap")
 
-	cfg.set(IntroDetectionUseAllCoresKey, "true")
-	assert.Equal(t, 6, cap(svc.limiterForRun(context.Background())), "toggle on: full CPU budget")
+	budget := cpubudget.New(8)
+	svc.WithCPUBudget(budget)
+	assert.Equal(t, 2, cap(svc.limiterForRun(context.Background())), "budget wired: the global 25 % share of 8 cores")
 
-	cfg.set(IntroDetectionUseAllCoresKey, "false")
-	assert.Equal(t, 1, cap(svc.limiterForRun(context.Background())), "toggle off: back to base")
+	budget.SetPolicy(cpubudget.Policy{TaskPercent: map[string]int{"intro_detection": 80}})
+	assert.Equal(t, 6, cap(svc.limiterForRun(context.Background())), "own share: 80 % of 8 cores, live")
+
+	budget.SetPolicy(cpubudget.Policy{})
+	assert.Equal(t, 2, cap(svc.limiterForRun(context.Background())), "share removed: back to the global one")
 }
 
-// With the toggle on, concurrent detections must actually fan out past the
-// base cap - the resized semaphore, not just its capacity, is what admits them.
-func TestDetectIntro_UseAllCoresAdmitsMoreConcurrentRuns(t *testing.T) {
+// With a share of its own, concurrent detections must actually fan out past
+// the base cap - the resized semaphore, not just its capacity, admits them.
+func TestDetectIntro_TaskShareAdmitsMoreConcurrentRuns(t *testing.T) {
 	t.Parallel()
 	cfg := &mapConfigRepo{}
-	cfg.set(IntroDetectionUseAllCoresKey, "true")
 	repo := &blockingMediaItemRepo{release: make(chan struct{})}
+	budget := cpubudget.New(4)
+	budget.SetPolicy(cpubudget.Policy{TaskPercent: map[string]int{"intro_detection": 80}}) // 3 of 4 cores
 	svc := NewIntroDetectionService(
 		&fakeSegmentRepo{},
 		&fakeTrickplayRepo{},
@@ -184,7 +181,7 @@ func TestDetectIntro_UseAllCoresAdmitsMoreConcurrentRuns(t *testing.T) {
 		cfg,
 		&fakeDetector{},
 		"/tmp/trickplay",
-	).WithMaxParallelDetections(1).WithAllCoresParallelDetections(3)
+	).WithMaxParallelDetections(1).WithCPUBudget(budget)
 
 	var wg sync.WaitGroup
 	for range 5 {
@@ -194,7 +191,7 @@ func TestDetectIntro_UseAllCoresAdmitsMoreConcurrentRuns(t *testing.T) {
 	}
 	assert.Eventually(t, func() bool {
 		return repo.maxInflight.Load() >= 3
-	}, 2*time.Second, 5*time.Millisecond, "toggle on must admit the full budget (3), not the base (1)")
+	}, 2*time.Second, 5*time.Millisecond, "the task share must admit 3 detections, not the base (1)")
 	peak := repo.maxInflight.Load()
 	close(repo.release)
 	wg.Wait()

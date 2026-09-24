@@ -15,6 +15,8 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
+	"github.com/evey-project/evey/internal/pkg/cpubudget"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/scanindex"
 	"github.com/evey-project/evey/internal/pkg/sysinfo"
@@ -85,6 +87,10 @@ type ScanService struct {
 	ingestActivePlayback func() int
 	keyframeWarmer       func(ctx context.Context, mediaItemID, path string) bool
 	interleave           InterleaveProber // optional; see WithInterleaveProber
+	// budget bounds the per-file fan-out of processNewItems: each file holds
+	// one slot of the library_scan share for as long as it is analysed. nil
+	// (tests) falls back to scanWorkerCount.
+	budget *cpubudget.Budget
 
 	scanMu   sync.Mutex
 	scanning map[string]bool
@@ -163,6 +169,15 @@ func (s *ScanService) WithIngestActivePlayback(count func() int) *ScanService {
 // warm its keyframe index (the copy rung's prerequisite) instead of leaving
 // it to the debounced backfill or the first request's inline walk. The
 // warmer is expected to be cheap-bounded (KeyframeOnDemand.TryIndex).
+// WithCPUBudget wires the background CPU budget the scan draws its per-file
+// workers from. Registers the scan in the task registry so the dashboard
+// shows what it is analysing.
+func (s *ScanService) WithCPUBudget(b *cpubudget.Budget) *ScanService {
+	s.budget = b
+	bgtasks.Register(libraryScanTask)
+	return s
+}
+
 func (s *ScanService) WithKeyframeWarmer(warm func(ctx context.Context, mediaItemID, path string) bool) *ScanService {
 	s.keyframeWarmer = warm
 	return s
@@ -510,7 +525,8 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 		s.flushIndex(ctx)
 	}()
 	var addedAtomic, updatedAtomic atomic.Int64
-	sem := make(chan struct{}, scanWorkerCount())
+	budget, workers := s.scanWorkers()
+	sem := make(chan struct{}, workers)
 	var wg sync.WaitGroup
 	for _, w := range toProcess {
 		wg.Add(1)
@@ -518,6 +534,20 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 		go func(w scanWork) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			fileCtx := ctx
+			if budget != nil {
+				// One slot per file for the whole analysis (probe, chapters,
+				// ingest plan): the share is enforced here, live, whatever the
+				// pool size was when the pass started.
+				itemCtx, done := bgtasks.BeginCtx(ctx, libraryScanTask, w.file.Path)
+				defer done()
+				heldCtx, release, err := budget.Acquire(itemCtx, libraryScanTask, 1)
+				if err != nil {
+					return
+				}
+				defer release()
+				fileCtx = heldCtx
+			}
 			defer func() {
 				if r := recover(); r != nil {
 					// Without the path this says a worker died, not WHICH file
@@ -531,7 +561,7 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 						slog.String("stack", string(debug.Stack())))
 				}
 			}()
-			workerCtx, cancel := context.WithTimeout(ctx, workerTimeout)
+			workerCtx, cancel := context.WithTimeout(fileCtx, workerTimeout)
 			defer cancel()
 			a, u, e := s.upsertMediaFile(workerCtx, libraryID, w.parentID, w.file, w.showTitle)
 			if e != nil {
@@ -989,14 +1019,39 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 	return result.Duration, result.Container, containerStreams > 0
 }
 
-// scanWorkerCount returns the scan goroutine pool size.
-// Override via EVEY_LIBRARY_SCAN_WORKERS (int > 0). Defaults to sysinfo.CPUBudget(),
-// the cgroup CPU quota when one is set, else runtime.NumCPU().
-func scanWorkerCount() int {
+// libraryScanTask is the scan's name in the task registry and the CPU budget.
+const libraryScanTask = "library_scan"
+
+// scanWorkers is the per-file fan-out of one pass and the budget it draws
+// on. EVEY_LIBRARY_SCAN_WORKERS is the operator sizing the pool by hand and
+// wins outright (no budget); otherwise the pool is the task's CPU share and
+// every file holds a slot of it. Without a budget (tests), scanWorkerCount.
+func (s *ScanService) scanWorkers() (*cpubudget.Budget, int) {
+	if n, ok := scanWorkersFromEnv(); ok {
+		return nil, n
+	}
+	if s.budget == nil {
+		return nil, scanWorkerCount()
+	}
+	return s.budget, s.budget.Slots(libraryScanTask)
+}
+
+func scanWorkersFromEnv() (int, bool) {
 	if v := os.Getenv("EVEY_LIBRARY_SCAN_WORKERS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			return n
+			return n, true
 		}
+	}
+	return 0, false
+}
+
+// scanWorkerCount is the pool size with no budget wired: the env override,
+// else sysinfo.CPUBudget() (the cgroup CPU quota when one is set, else
+// runtime.NumCPU()) - the pre-budget behaviour, kept for the tests and the
+// tools that build a scan service without the composition root.
+func scanWorkerCount() int {
+	if n, ok := scanWorkersFromEnv(); ok {
+		return n
 	}
 	return sysinfo.CPUBudget()
 }
