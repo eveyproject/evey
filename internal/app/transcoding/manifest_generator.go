@@ -248,8 +248,8 @@ type ManifestInput struct {
 // FallbackVariant is one FallbackVariants entry: the rung's advertised shape
 // and its complete, already-suffixed playlist URI. VideoCodec/AudioCodec are
 // the codecs that variant's segments actually carry (its plan's effective
-// codecs, not this master's) - a transcoded rung is muxed audio+video, so both
-// ride its CODECS attribute and no rendition group is referenced.
+// codecs, not this master's). A muxed rung carries both in CODECS; a VideoOnly
+// one (its plan serves audio as renditions) plays this master's audio group.
 type FallbackVariant struct {
 	Profile    transcoding.HLSProfile
 	URI        string
@@ -260,6 +260,8 @@ type FallbackVariant struct {
 	// auto-switch variant (see ABRGroup / copyFallbackVariant's gate).
 	VideoRange string
 	AudioCodec string
+	// VideoOnly: the rung's segments carry no audio.
+	VideoOnly bool
 }
 
 // AudioRendition describes a single source audio track exposed as an
@@ -530,16 +532,24 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	}
 
 	// Fallback rungs ride last so players that start on the first listed
-	// variant keep starting on the main one. Muxed audio+video: no AUDIO
-	// attribute (audio renditions only exist for copied video - the rendition
-	// offset is the SOURCE's composition delay, wrong under an encoder), and
-	// the URI is another plan's, emitted verbatim with its own baked suffix.
+	// variant keep starting on the main one. The URI is another plan's,
+	// emitted verbatim with its own baked suffix. A muxed rung names its own
+	// audio codec; a video-only one plays this master's audio group (no track
+	// switch on the ABR drop), and without a group it would be silent, so it is
+	// not advertised.
 	for _, v := range in.FallbackVariants {
+		codecs, audioAttr := codecsAttr(v.VideoCodec, v.AudioCodec), ""
+		if v.VideoOnly {
+			if audioGroup == "" {
+				continue
+			}
+			codecs, audioAttr = videoCodecAttr(strings.ToLower(v.VideoCodec))+","+audioAttrs, fmt.Sprintf(",AUDIO=%q", audioGroup)
+		}
 		bps := (v.Profile.VideoBitrate + v.Profile.AudioBitrate) * 1000
 		fmt.Fprintf(&b,
-			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=%q%s\n",
+			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=%q%s%s\n",
 			bps, bps*85/100, v.Profile.Width, v.Profile.Height,
-			codecsAttr(v.VideoCodec, v.AudioCodec), subsAttr,
+			codecs, audioAttr, subsAttr,
 		)
 		b.WriteString(v.URI + "\n")
 	}
