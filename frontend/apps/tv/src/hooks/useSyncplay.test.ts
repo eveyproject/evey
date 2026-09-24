@@ -216,9 +216,37 @@ describe("useSyncplay - leaveRoom", () => {
     eveyFetchMock.mockResolvedValueOnce(undefined);
     await act(async () => { await result.current.leaveRoom(); });
 
-    expect(result.current.state).toEqual({ roomId: null, connected: false, isHost: false, members: [] });
+    expect(result.current.state).toEqual({ roomId: null, roomCode: null, connected: false, isHost: false, members: [], queue: [], trackIndex: 0 });
     expect(eveyFetchMock).toHaveBeenCalledWith(
       expect.objectContaining({ url: "/api/v1/syncplay/rooms/room-8/leave", method: "DELETE" }),
     );
+  });
+});
+
+// What the television's copy lacked until it shared the web's socket
+// (@evey/client useSyncPlaySocket, 2026-09-24).
+describe("useSyncplay - what the web already handled", () => {
+  it("keeps a play pressed while the socket opens and sends it once open", () => {
+    const { result } = renderHook(() => useSyncplay({ getLocalPositionMs: () => 0 }));
+    act(() => { result.current.connect("room-9"); });
+    act(() => { result.current.sendPlay(1234); });
+    expect(ws().send).not.toHaveBeenCalled();
+    act(() => { ws().simulateOpen(); });
+    expect(ws().send).toHaveBeenCalledWith(JSON.stringify({ type: "play", positionMs: 1234 }));
+  });
+
+  it("backs off and gives up after five reconnects instead of retrying every second forever", () => {
+    vi.useFakeTimers();
+    const sockets = new Set<unknown>();
+    const { result } = renderHook(() => useSyncplay({ getLocalPositionMs: () => 0 }));
+    act(() => { result.current.connect("room-9"); });
+    for (let i = 0; i < 10; i++) {
+      sockets.add(ws());
+      act(() => { ws().simulateClose(); });
+      act(() => { vi.advanceTimersByTime(60_000); });
+    }
+    sockets.add(ws());
+    vi.useRealTimers();
+    expect(sockets.size).toBe(1 + 5);
   });
 });
