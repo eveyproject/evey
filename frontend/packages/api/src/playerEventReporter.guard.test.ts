@@ -56,3 +56,27 @@ describe("a fatal native playback error is beaconed, not swallowed", () => {
     expect(src).not.toMatch(/function createPlayerEventReporter/);
   });
 });
+
+// The browser television had no beacon at all until 2026-09-24, and on its
+// native path (direct play, the set's own HLS) an element error left a black
+// screen instead of the error screen.
+const TV_WEB_PLAYER = join(__dirname, "..", "..", "..", "apps", "tv-web", "src", "screens", "Player.tsx");
+
+describe("the browser television beacons its playback errors", () => {
+  const src = readFileSync(TV_WEB_PLAYER, "utf8");
+
+  it("reads the tv-web player screen", () => {
+    expect(src.length).toBeGreaterThan(10_000);
+  });
+
+  it("reports hls.js and element errors through the shared reporter", () => {
+    expect(src).toContain("createPlayerEventReporter(mediaId)");
+    expect(src).not.toMatch(/function createPlayerEventReporter/);
+    expect(src).toContain('"hls_fatal"');
+    expect(src).toContain('"video_element_error"');
+  });
+
+  it("listens for the element error on the native paths", () => {
+    expect(src.match(/addEventListener\("error", (nativeError|elementError)\)/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+  });
+});
