@@ -66,7 +66,9 @@ func runThrashSim(t *testing.T, name string, ticks int, policy EvictionPolicy, s
 	if err != nil {
 		t.Fatalf("NewSegmentCache: %v", err)
 	}
+	policy.MinFreeBytes, policy.DownloadTTL = -1, -1 // the simulation is about the cap alone
 	pol := policy.withDefaults()
+	budget := NewCacheBudget(c)
 
 	everMuxed := make(map[int]bool) // sessionID -> has been muxed at least once
 	onDisk := make(map[int]bool)    // sessionID -> dir currently materialised
@@ -136,7 +138,7 @@ func runThrashSim(t *testing.T, name string, ticks int, policy EvictionPolicy, s
 			}
 		}
 		// 2) Real eviction pass.
-		c.sweepOnce(pol, quietSimLogger())
+		budget.sweepOnce(pol, quietSimLogger(), time.Now())
 		// 3) Reconcile onDisk with what the sweep left behind.
 		for _, s := range sessions {
 			if !onDisk[s.id] {

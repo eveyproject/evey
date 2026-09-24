@@ -18,10 +18,12 @@ func TestTouch_ConcurrentWithSweep(t *testing.T) {
 	}
 	// Aggressive sweeper: 8×200B = 1600B over a 500B cap with a 1ms interval, so
 	// CleanupHash runs constantly against the Touch/LastAccess traffic.
-	stop := c.StartEviction(EvictionPolicy{
+	stop := NewCacheBudget(c).Start(EvictionPolicy{
 		MaxBytes:      500,
 		SweepInterval: time.Millisecond,
-		ProtectRecent: 2,
+		MinFreeBytes:  -1,
+		DownloadTTL:   -1,
+		ProtectWindow: time.Nanosecond,
 	}, quietLogger())
 	defer stop()
 

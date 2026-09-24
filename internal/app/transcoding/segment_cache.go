@@ -798,7 +798,7 @@ func (c *SegmentCache) CleanupHash(decisionHash string) error {
 // deletes the hash directory only when no live session is serving it
 // (pendingRefs == 0). The refs check and the in-memory teardown happen under the
 // same lock, so a session streaming an older-cached title (low atime, outside
-// ProtectRecent) is not evicted out from under it - the sweeper used to protect
+// ProtectWindow) is not evicted out from under it - the sweeper used to protect
 // by recency only, so a slow client on an old hash could be cut to a
 // stall/503/re-encode. Returns whether the hash was evicted. A session that
 // registers in the tiny window after the lock is released just re-encodes the
