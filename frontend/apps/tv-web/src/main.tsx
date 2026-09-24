@@ -2,7 +2,7 @@ import { Component, StrictMode, useEffect, useState, type ReactNode } from "reac
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore, shouldRetryQuery } from "@evey/store";
-import { mutationErrorNet } from "@evey/client";
+import { leaveOnlyWhenSessionGone, mutationErrorNet } from "@evey/client";
 import { initTvNavigation, useTvKeys } from "./tv/focus";
 import { useRoute, navigate, replace, goBack, type Route } from "./app/router";
 import { bootSession, authRefresh, activeServerUrl } from "./lib/session";
@@ -140,11 +140,10 @@ function App() {
 
   useEffect(() => {
     void (async () => {
-      const { hasServer } = await bootSession(() => {
-        if (!useAuthStore.getState().accessToken) return;
-        useAuthStore.getState().logout();
-        replace({ name: "login" });
-      });
+      // Same rule as the Android television: a refused refresh has already
+      // cleared the session; a 401 on one call with a live token is not a
+      // reason to sign the viewer out of a film.
+      const { hasServer } = await bootSession(leaveOnlyWhenSessionGone(() => replace({ name: "login" })));
       if (hasServer) {
         // A refresh token from the last visit restores the session without a
         // password; "unavailable" (offline) keeps whatever the store held.

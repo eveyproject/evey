@@ -2,7 +2,8 @@
 // This module keeps the path the app and its tests import, and the
 // television's policy for a dead session.
 import { initFetcher as initSharedFetcher } from "@evey/client/native/fetcher-setup";
-import { useAuthStore, useServerListStore } from "@evey/store";
+import { leaveOnlyWhenSessionGone } from "@evey/client";
+import { useServerListStore } from "@evey/store";
 import { router } from "expo-router";
 import { resolveServerUrl } from "./server-config";
 import { eveyClientUserAgent } from "./clientIdentity";
@@ -17,9 +18,6 @@ export async function initFetcher() {
     // Only route to login when the session is actually gone (doRefresh clears
     // the tokens on refusal); a 401 scoped to one call while a token is still
     // held must not eject a viewer who has no keyboard to log back in with.
-    onUnauthorized: () => {
-      if (useAuthStore.getState().accessToken) return;
-      router.replace("/login");
-    },
+    onUnauthorized: leaveOnlyWhenSessionGone(() => router.replace("/login")),
   });
 }
