@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,7 +56,6 @@ func TestDASHGridIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
 
-	const durationMs = int64(12_000)
 	for _, tc := range []struct {
 		rate string
 		fps  float64
@@ -67,14 +67,23 @@ func TestDASHGridIntegration(t *testing.T) {
 			if !grid.Exact() {
 				t.Fatalf("no exact grid for %v", tc.fps)
 			}
+			dir := t.TempDir()
+			src := genGridSource(t, ctx, dir, tc.rate)
+			// The declaration is made from the probed container duration, as the
+			// plan's is. The lavfi source's audio outlasts its last frame by a few
+			// milliseconds, and ffmpeg then pads the picture to the container's
+			// end by AT MOST one frame (it did at 25 and 29.97 fps here, not at
+			// 23.976): a one-frame fragment past the declared count, which neither
+			// manifest lists and no player fetches (the presentation ends at the
+			// declared duration). Every fragment up to the count must be exact;
+			// that single trailing one is tolerated, see tailOnly.
+			durationMs := probeDurationMs(t, ctx, src)
 			declared := cmafparity.Declared{
 				Timescale: int64(grid.Timescale),
 				Start:     grid.SegmentStartTicks,
 				Dur:       func(n int) int64 { return grid.SegmentDurationTicks(n, durationMs) },
 				Count:     grid.SegmentCount(durationMs),
 			}
-			dir := t.TempDir()
-			src := genGridSource(t, ctx, dir, tc.rate)
 			base := func() transcoding.HLSProcessOpts {
 				return transcoding.HLSProcessOpts{
 					FilePath:           src,
@@ -103,14 +112,8 @@ func TestDASHGridIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("cold parity: %v", err)
 			}
-			// A trailing fragment past the declared count holds the audio that
-			// outlasts the picture (the test source's AAC runs to 12.000 s, the
-			// video to its last frame): unlisted by both manifests, never fetched.
-			if want := grid.SegmentCount(durationMs); len(res.Indices)-len(res.Extra) != want {
-				t.Fatalf("cold session cut %d segments, the plan declares %d (%v, extra %v)", len(res.Indices), want, res.Indices, res.Extra)
-			}
-			if len(res.Extra) > 1 {
-				t.Fatalf("more than one trailing fragment: %v", res.Extra)
+			if want := grid.SegmentCount(durationMs); len(res.Indices)-len(res.Extra) != want || !tailOnly(res.Extra, want) {
+				t.Fatalf("cold session cut %d segments, the plan declares %d (%v, past the count %v)", len(res.Indices), want, res.Indices, res.Extra)
 			}
 			if res.FileTimescale != int64(grid.Timescale) {
 				t.Fatalf("fragments written at timescale %d, the grid declares %d", res.FileTimescale, grid.Timescale)
@@ -206,8 +209,10 @@ func TestDASHGridIntegration(t *testing.T) {
 			if audioErr != nil {
 				t.Fatalf("audio parity: %v", audioErr)
 			}
-			if len(ares.Indices)-len(ares.Extra) != grid.SegmentCount(durationMs) {
-				t.Fatalf("audio rendition cut %d segments for %d video segments (%v)", len(ares.Indices), grid.SegmentCount(durationMs), ares.Indices)
+			// The rendition cuts the audio that outlasts the picture into one
+			// more, tiny fragment (9 ms here) past the count: unlisted, unfetched.
+			if want := grid.SegmentCount(durationMs); len(ares.Indices)-len(ares.Extra) != want || !tailOnly(ares.Extra, want) {
+				t.Fatalf("audio rendition cut %d segments for %d video segments (%v, past the count %v)", len(ares.Indices), want, ares.Indices, ares.Extra)
 			}
 			if !ares.OK() {
 				t.Fatalf("audio rendition further than one AAC frame from its boundary: %v", ares.Mismatches)
@@ -230,4 +235,25 @@ func awaitSegmentFile(t *testing.T, ctx context.Context, path string, timeout ti
 		}
 	}
 	t.Fatalf("%s did not appear within %s", path, timeout)
+}
+
+// probeDurationMs is the container's declared duration, what the plan
+// declares its segments from.
+func probeDurationMs(t *testing.T, ctx context.Context, path string) int64 {
+	t.Helper()
+	out, err := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path).Output()
+	if err != nil {
+		t.Fatalf("ffprobe duration: %v", err)
+	}
+	var sec float64
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(out)), "%g", &sec); err != nil {
+		t.Fatalf("ffprobe duration parse %q: %v", out, err)
+	}
+	return int64(sec*1000 + 0.5)
+}
+
+// tailOnly reports whether extra holds nothing, or exactly the one fragment
+// right past the declared count.
+func tailOnly(extra []int, count int) bool {
+	return len(extra) == 0 || (len(extra) == 1 && extra[0] == count)
 }
