@@ -38,3 +38,10 @@ describe("mergeGenres", () => {
     expect(mergeGenres([])).toEqual([]);
   });
 });
+
+describe("mergeGenres - one entry per genre whatever its case", () => {
+  // The phone's own copy listed "Science-Fiction" and "science-fiction" twice.
+  it("keeps the first spelling of a genre met in another case", () => {
+    expect(mergeGenres([["Science-Fiction"], ["science-fiction", "Drame"]])).toEqual(["Drame", "Science-Fiction"]);
+  });
+});
