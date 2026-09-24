@@ -15,6 +15,7 @@ package httpapi
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -231,4 +232,31 @@ func TestDispatchAudioSegment_SegIdx_ForwardedCorrectly(t *testing.T) {
 
 	require.Len(t, ensurer.calls, 1, "EnsureAudioSegment must have been called once")
 	assert.Equal(t, 7, ensurer.calls[0], "segment index 7 must reach the ensurer")
+}
+
+// The rendition's init and segments must be asked under the same plan as the
+// playlist: they re-decide the video to put the audio on its timeline, and a
+// transcoded rung's rendition without vd= was decided copy there - served at 0
+// while its video presents a few frames late.
+func TestDispatchAudioPlaylist_CarriesThePlanPins(t *testing.T) {
+	item, streams := testMediaItemWithAudioStreams()
+	libSvc := &testFakeStreamsGetter{item: item, streams: streams}
+	h := buildVODHandlerWithAudio(t, libSvc, allowAll(), testFakeParentalChecker{}, &fakeAudioEnsurer{})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/audio_0.m3u8?vd=transcode&vc=h264&ad=transcode", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("file", "audio_0.m3u8")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.serveHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), "audio_0_init.mp4")
+	for line := range strings.SplitSeq(w.Body.String(), "\n") {
+		if !strings.Contains(line, "audio_0_") {
+			continue
+		}
+		for _, pin := range []string{"vd=transcode", "vc=h264", "ad=transcode"} {
+			assert.Contains(t, line, pin, "child URI must carry the plan's pin")
+		}
+	}
 }
