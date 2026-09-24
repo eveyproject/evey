@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next";
 import { BottomSheet } from "./BottomSheet";
 import { useTheme } from "../providers/ThemeProvider";
 import type { SleepTimerState } from "../hooks/useSleepTimer";
+import { SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive } from "@evey/client";
 import { FONT_SIZE } from "@evey/theme";
 
-const PRESETS_MIN = [15, 30, 45, 60, 90] as const;
 
 interface SleepTimerPickerProps {
   visible: boolean;
@@ -45,10 +45,10 @@ export function SleepTimerPicker({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title={t("player.settings.sleepTimer", "Sleep timer")}>
-      {PRESETS_MIN.map((m) =>
+      {SLEEP_TIMER_PRESETS_MIN.map((m) =>
         renderRow(
           t("player.sleepTimer.minutes", { count: m, defaultValue: "{{count}} min" }),
-          state?.kind === "minutes" && state.minutesLeft !== null && state.minutesLeft <= m && state.minutesLeft > m - 1,
+          isSleepPresetActive(state, m),
           () => onPickMinutes(m),
         ),
       )}

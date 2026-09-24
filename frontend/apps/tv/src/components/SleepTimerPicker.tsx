@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
 import type { SleepTimerState } from "../hooks/useSleepTimer";
+import { SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive } from "@evey/client";
 import { FONT_SIZE } from "@evey/theme";
 
-const PRESETS_MIN = [15, 30, 45, 60, 90] as const;
 
 interface SleepTimerPickerProps {
   visible: boolean;
@@ -27,12 +27,12 @@ export function SleepTimerPicker({
   const { t } = useTranslation();
   const theme = useTheme();
 
-  const activeMinutesIndex = PRESETS_MIN.findIndex(
-    (m) => state?.kind === "minutes" && state.minutesLeft !== null && state.minutesLeft <= m && state.minutesLeft > m - 1,
+  const activeMinutesIndex = SLEEP_TIMER_PRESETS_MIN.findIndex(
+    (m) => isSleepPresetActive(state, m),
   );
   const activeEndOfEpisode = state?.kind === "endOfEpisode";
   // First render: focus the active preset if there is one, otherwise the first row.
-  const preferredIndex = activeMinutesIndex >= 0 ? activeMinutesIndex : activeEndOfEpisode ? PRESETS_MIN.length : 0;
+  const preferredIndex = activeMinutesIndex >= 0 ? activeMinutesIndex : activeEndOfEpisode ? SLEEP_TIMER_PRESETS_MIN.length : 0;
 
   function row(index: number, label: string, active: boolean, onPress: () => void) {
     return (
@@ -66,7 +66,7 @@ export function SleepTimerPicker({
             {t("player.settings.sleepTimer", "Sleep timer")}
           </Text>
           <View style={styles.list}>
-            {PRESETS_MIN.map((m, i) =>
+            {SLEEP_TIMER_PRESETS_MIN.map((m, i) =>
               row(
                 i,
                 t("player.sleepTimer.minutes", { count: m, defaultValue: "{{count}} min" }),
@@ -75,13 +75,13 @@ export function SleepTimerPicker({
               ),
             )}
             {row(
-              PRESETS_MIN.length,
+              SLEEP_TIMER_PRESETS_MIN.length,
               t("player.sleepTimer.endOfEpisode", "End of episode"),
               !!activeEndOfEpisode,
               onPickEndOfEpisode,
             )}
             {state !== null &&
-              row(PRESETS_MIN.length + 1, t("player.sleepTimer.cancel", "Cancel timer"), false, onCancel)}
+              row(SLEEP_TIMER_PRESETS_MIN.length + 1, t("player.sleepTimer.cancel", "Cancel timer"), false, onCancel)}
           </View>
         </Pressable>
       </Pressable>
