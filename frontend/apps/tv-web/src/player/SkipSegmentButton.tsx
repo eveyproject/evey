@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useMediaSegments } from "@evey/client";
+import {
+  useMediaSegments,
+  useChapterSkippables,
+} from "@evey/client";
 import {
   SKIPPABLE_SEGMENTS,
   SKIP_LABEL_KEY,
@@ -16,8 +19,10 @@ import { FocusRoot } from "../tv/focus";
  * intro only - one jump per segment, so seeking back into it is the viewer
  * choosing to watch it.
  */
-export function SkipSegmentButton({ mediaId, currentTime, onSkip, onNextEpisode, raised }: {
+export function SkipSegmentButton({ mediaId, filePath, currentTime, onSkip, onNextEpisode, raised }: {
   mediaId: string;
+  /** MKV chapters fallback while the server has no segment for this title. */
+  filePath?: string;
   currentTime: number;
   /** The next-episode card is up: the buttons ride above it. */
   raised?: boolean;
@@ -26,7 +31,10 @@ export function SkipSegmentButton({ mediaId, currentTime, onSkip, onNextEpisode,
 }) {
   const { t } = useTranslation();
   const { data } = useMediaSegments(mediaId, [...SKIPPABLE_SEGMENTS]);
-  const resolved = activeSkippable(skippableCandidates(data?.segments), currentTime);
+  // The server's segments first; the file's own chapters while it has none.
+  const hasSegments = (data?.segments?.length ?? 0) > 0;
+  const chapterCandidates = useChapterSkippables(filePath, !hasSegments);
+  const resolved = activeSkippable(hasSegments ? skippableCandidates(data?.segments) : chapterCandidates, currentTime);
   const autoSkip = data?.introAutoSkip === true;
 
   const autoSkipped = useRef<Set<number>>(new Set());

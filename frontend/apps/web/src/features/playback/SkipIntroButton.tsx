@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { mKVServiceListChapters } from "@evey/api";
 import { toast } from "@evey/store";
 import {
   CREDITS_COUNTDOWN_SEC,
@@ -9,7 +7,7 @@ import {
   SKIP_LABEL_KEY,
   activeSkippable,
   skippableCandidates,
-  skippableFromChapters,
+  useChapterSkippables,
   type ResolvedSegment,
 } from "@evey/client";
 import { useMediaSegments } from "@/hooks/useMediaSegments";
@@ -52,22 +50,10 @@ export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip, onNext
   const segments = segmentsData?.segments;
   const autoSkip = segmentsData?.introAutoSkip === true;
 
-  const { data: chaptersData } = useQuery({
-    queryKey: ["/api/v1/mkv/chapters", filePath],
-    queryFn: ({ signal }) => mKVServiceListChapters({ path: filePath }, signal),
-    // only fetch MKV chapters when no API segments are available
-    enabled: !!filePath && (!segments || segments.length === 0),
-    staleTime: Infinity,
-  });
-
-  // API segments take priority over MKV chapters.
-  let resolved: ResolvedSegment | null = null;
-
-  if (segments && segments.length > 0) {
-    resolved = activeSkippable(skippableCandidates(segments), currentTime);
-  } else if (chaptersData?.chapters) {
-    resolved = activeSkippable(skippableFromChapters(chaptersData.chapters), currentTime);
-  }
+  // API segments take priority over the file's own MKV chapters.
+  const hasSegments = !!segments && segments.length > 0;
+  const chapterCandidates = useChapterSkippables(filePath, !hasSegments);
+  const resolved: ResolvedSegment | null = activeSkippable(hasSegments ? skippableCandidates(segments) : chapterCandidates, currentTime);
 
   // Auto-skip (admin toggle): jump the intro instead of waiting for the
   // click. Intro type only - a recap or the credits stay a manual choice.
