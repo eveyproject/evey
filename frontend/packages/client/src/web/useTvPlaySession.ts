@@ -188,9 +188,12 @@ export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, ini
   }, [mediaId, device.deviceId, device.deviceName, device.clientName, device.wasmAudio]);
 
   useEffect(() => {
+    // Mounted again: StrictMode's rehearsal unmount (dev) ran stopSession
+    // while the first negotiation was still in flight, and its answer was then
+    // dropped - a black player on the dev server, measured 2026-09-24.
+    stoppedRef.current = false;
     if (!mediaId || startedRef.current) return;
     startedRef.current = true;
-    stoppedRef.current = false;
     void startStream(initialRef.current?.audioStreamIndex, initialRef.current?.subtitleStreamIndex);
   }, [mediaId, startStream]);
 

@@ -55,6 +55,16 @@ describe("useTvPlaySession", () => {
     expect(startStream).toHaveBeenCalledWith(expect.objectContaining({ deviceId: "tv-browser", playMethod: "PLAY_METHOD_TRANSCODE" }));
   });
 
+  // Seen on the dev server, 2026-09-24: under StrictMode the effects run,
+  // clean up and run again; the cleanup marked the session stopped and the
+  // second run never restarted it, so the answer was dropped and the player
+  // stayed black with no stream.
+  it("keeps its negotiation through StrictMode's mount, unmount and remount", async () => {
+    const { result } = renderHook(() => useTvPlaySession("m1", DEVICE), { reactStrictMode: true });
+    await waitFor(() => expect(result.current.streamUrl).not.toBeNull());
+    expect(result.current.streamInfo).not.toBeNull();
+  });
+
   // The viewer picks the French audio and a 480p ceiling: the running session
   // stops, a fresh token is minted, and the new master carries the type-relative
   // audio ordinal (the second audio track is audioTrack=1) and the ceiling.

@@ -552,3 +552,18 @@ describe("usePlaySession: expired session on the phone", () => {
     expect(result.current.isAuthError).toBe(true);
   });
 });
+
+// The same hook under a rehearsal mount, unmount and remount (StrictMode):
+// the first negotiation's answer must not be dropped (the browser television's
+// twin left a black player on the dev server, 2026-09-24).
+describe("usePlaySession: remounted while negotiating", () => {
+  it("keeps the stream through StrictMode's mount, unmount and remount", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_DIRECT_PLAY" });
+    eveyFetchMock.mockResolvedValueOnce(null).mockResolvedValueOnce({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+    const { result } = renderHook(() => usePlaySession("m1"), { reactStrictMode: true });
+    await waitFor(() => expect(result.current.streamUrl).not.toBeNull());
+  });
+});
