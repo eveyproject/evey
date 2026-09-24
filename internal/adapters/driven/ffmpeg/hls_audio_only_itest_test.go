@@ -33,7 +33,7 @@ func TestAudioRenditionLandsOnTheVideoTimelineIntegration(t *testing.T) {
 			t.Fatalf("%s: %v %s", encoder, err, b)
 		}
 		all, _ := os.ReadFile(filepath.Join(dir, "audio_0_init.mp4"))
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			seg, _ := os.ReadFile(filepath.Join(dir, "audio_0_00"+strconv.Itoa(i)+".m4s"))
 			all = append(all, seg...)
 		}
