@@ -121,11 +121,11 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 		// when the shift can hold it: below that, the muxer pushes the whole
 		// track late by what did not fit, so that much of the input is dropped,
 		// to the sample (an input -ss snaps to the codec frame: measured 6 ms of
-		// the 43 moved).
+		// the 43 moved). After the fold, which keeps the head of the chain.
 		if over := primingOverflowSec(opts); over > 0 {
-			trim := fmt.Sprintf("asetpts=PTS-STARTPTS,atrim=start=%.6f,asetpts=PTS-STARTPTS", over)
+			trim := primingTrimFilter(over)
 			if len(af) == 2 {
-				af[1] = trim + "," + af[1]
+				af[1] += "," + trim
 			} else {
 				af = []string{"-af", trim}
 			}
@@ -446,4 +446,10 @@ func primingOverflowSec(opts transcoding.AudioProcessOpts) float64 {
 		return 0
 	}
 	return over
+}
+
+// primingTrimFilter drops the first sec of a decoded audio stream, whatever its
+// timestamps start at.
+func primingTrimFilter(sec float64) string {
+	return fmt.Sprintf("asetpts=PTS-STARTPTS,atrim=start=%.6f,asetpts=PTS-STARTPTS", sec)
 }

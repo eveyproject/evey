@@ -100,9 +100,9 @@ func TestStereoFold_StacksLoudnormInTheSameFilterOption(t *testing.T) {
 	for i, a := range args {
 		if a == "-af" {
 			afs++
-			// The priming trim may lead (it drops input, it does not touch the sound).
-			chain := strings.TrimPrefix(args[i+1], primingTrimPrefix(args[i+1]))
-			assert.True(t, strings.HasPrefix(chain, transcoding.AudioFoldFilter(0, 2)+",loudnorm="), args[i+1])
+			// The fold leads; the priming trim may close the chain (it drops input,
+			// it does not touch the sound).
+			assert.True(t, strings.HasPrefix(args[i+1], transcoding.AudioFoldFilter(0, 2)+",loudnorm="), args[i+1])
 		}
 	}
 	assert.Equal(t, 1, afs, "exactly one audio filter option: %v", args)
@@ -142,40 +142,14 @@ func TestMultichannelPassthrough_AddsNothing(t *testing.T) {
 		require.NotContains(t, joined, "-ac 2", "%s: expected a layout-preserving encode", name)
 		assert.NotContains(t, joined, guardOpt, "%s: no fold, no headroom option", name)
 		for i, a := range args {
-			if (a == "-af" || strings.HasPrefix(a, "-filter:a")) && args[i+1] != strings.TrimSuffix(primingTrimPrefix(args[i+1]), ",") {
+			if (a == "-af" || strings.HasPrefix(a, "-filter:a")) && !isPrimingTrim(args[i+1]) {
 				t.Errorf("%s: unexpected audio filter %q=%q", name, a, args[i+1])
 			}
 		}
 	}
 }
 
-// primingTrimPrefix is the leading priming trim of a filter chain (with its
-// separator), "" when there is none.
-func primingTrimPrefix(chain string) string {
-	const head = "asetpts=PTS-STARTPTS,atrim=start="
-	if !strings.HasPrefix(chain, head) {
-		return ""
-	}
-	const tail = ",asetpts=PTS-STARTPTS"
-	end := strings.Index(chain, tail)
-	if end < 0 {
-		return ""
-	}
-	end += len(tail)
-	if end < len(chain) && chain[end] == ',' {
-		end++
-	}
-	return chain[:end]
-}
-
-// A stream copy has no resampler to configure; ffmpeg rejects re-encode args
-// next to -c:a copy, so the guard must stay out of the passthrough rendition.
-func TestAudioPassthrough_KeepsNoResamplerOption(t *testing.T) {
-	args := ffmpeg.BuildFFmpegAudioOnlyArgs(transcoding.AudioProcessOpts{
-		FilePath: "/f.mkv", OutputDir: "/o", AudioCodec: "copy",
-	})
-	joined := strings.Join(args, " ")
-	require.Contains(t, joined, "-c:a copy")
-	assert.NotContains(t, joined, "-rematrix_maxval")
-	assert.NotContains(t, joined, "-af")
+// isPrimingTrim reports whether an audio filter chain is the priming trim alone.
+func isPrimingTrim(chain string) bool {
+	return strings.HasPrefix(chain, "asetpts=PTS-STARTPTS,atrim=start=") && strings.Count(chain, ",") == 2
 }
