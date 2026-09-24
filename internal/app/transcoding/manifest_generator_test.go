@@ -808,6 +808,45 @@ func TestMaster_FallbackVariant_AppendedVerbatim(t *testing.T) {
 	assert.NotContains(t, fbLine, "AUDIO=", "a muxed fallback rung references no rendition group")
 }
 
+// A fallback rung whose plan serves audio as renditions carries video-only
+// segments: it plays this master's audio group (declared, so every player
+// takes the same audio, and an ABR drop switches no track), and without a
+// group it would be silent, so it is not advertised at all.
+func TestMaster_FallbackVariant_VideoOnlyPlaysTheAudioGroup(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput([]transcoding.HLSProfile{
+		{Name: "od-copy", Width: 1920, Height: 1080, VideoBitrate: 5000, AudioBitrate: 128, Copy: true},
+	}, 60.0)
+	in.StreamToken = "tok"
+	in.VideoPlaylistURI = "od_playlist.m3u8"
+	in.AudioRenditions = []AudioRendition{{SourceTrackIdx: 0, Name: "VF", Codec: "aac"}}
+	in.FallbackVariants = []FallbackVariant{{
+		Profile:    transcoding.HLSProfile{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1500, AudioBitrate: 128},
+		URI:        "stream_0.m3u8?fp=other&vd=transcode",
+		VideoCodec: "h264",
+		AudioCodec: "aac",
+		VideoOnly:  true,
+	}}
+
+	out, err := g.Master(in)
+	require.NoError(t, err)
+	lines := strings.Split(out, "\n")
+	var fbLine string
+	for i, l := range lines {
+		if i+1 < len(lines) && strings.HasPrefix(lines[i+1], "stream_0.m3u8") {
+			fbLine = l
+		}
+	}
+	require.NotEmpty(t, fbLine)
+	assert.Contains(t, fbLine, `AUDIO="aud"`)
+	assert.Contains(t, fbLine, `CODECS="avc1.640028,mp4a.40.2"`)
+
+	in.AudioRenditions = nil
+	out, err = g.Master(in)
+	require.NoError(t, err)
+	assert.NotContains(t, out, "stream_0.m3u8", "a video-only rung with no audio group would play silent")
+}
+
 // No fallback variants (the default) must keep the master bit-for-bit what it
 // was - the field is purely additive.
 func TestMaster_NoFallbackVariants_Unchanged(t *testing.T) {

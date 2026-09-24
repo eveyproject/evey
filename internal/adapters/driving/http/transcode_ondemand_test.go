@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -626,13 +624,45 @@ func TestBuildHybridMaster_FallbackRung(t *testing.T) {
 	assert.Contains(t, fbURI, "vd=transcode", "the rung pins ITS plan's video decision")
 	assert.Contains(t, fbURI, "fp=", "the rung seals ITS plan's fingerprint")
 	assert.NotContains(t, fbURI, "vd=copy")
-	// The audio muxed in the rung (dts re-encoded) is named on its URL for the
-	// players' stream info panel.
-	u, err := url.Parse(fbURI)
+	assert.NotContains(t, fallbackInf(master), "AUDIO=", "its plan muxes its audio here: no group")
+}
+
+func fallbackInf(master string) string {
+	lines := strings.Split(master, "\n")
+	for i, line := range lines {
+		if i > 0 && strings.HasPrefix(line, "stream_0.m3u8") {
+			return lines[i-1]
+		}
+	}
+	return ""
+}
+
+// With the delay probes wired (production), the rung's own plan serves its
+// audio as renditions and its segments are video-only (measured on the dev
+// server 2026-09-24: the rung's init holds one h264 track). The rung must then
+// name this master's audio group, or a player on it has no sound (ExoPlayer)
+// or plays a group the master never tied to it (hls.js).
+func TestBuildHybridMaster_FallbackRung_VideoOnlyPlaysTheAudioGroup(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+	h.frameRateProbe = func(context.Context, string) float64 { return 24 }
+	h.encoderReorderProbe = func(context.Context, string, string, string, []string) (int, bool) { return 2, true }
+
+	dur, err := shared.NewDurationMs(60000)
 	require.NoError(t, err)
-	assert.Equal(t, "transcode", u.Query().Get("servedAudio"))
-	assert.Equal(t, "aac", u.Query().Get("servedAudioCodec"))
-	assert.NotEmpty(t, u.Query().Get("servedAudioKbps"))
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams, planFor(t, h, onDemandReq(), item, streams))
+	require.NoError(t, err)
+	inf := fallbackInf(master)
+	require.NotEmpty(t, inf, "premise: the fallback rung is advertised")
+	assert.Contains(t, inf, `AUDIO="aud"`)
+	assert.Contains(t, inf, `CODECS="avc1.`)
+	assert.Contains(t, inf, `,mp4a.40.2"`, "the group's codec, as on the copy rung")
 }
 
 // The rung must buy a real drop: on a source already lean enough that the
@@ -1313,51 +1343,4 @@ func TestCheckDelivery_UndeclaredDifferenceIsADisagreement(t *testing.T) {
 	// And a served path equal to the plan's is neither.
 	h.checkDelivery(onDemandReq(), "m1", rp, rp.Plan.Delivery.ServingPath(rp.Plan.Route, rp.FP), "")
 	assert.Equal(t, before+1, int(testutil.ToFloat64(counter)))
-}
-
-// The fallback rung's audio rate on its URL is the one the encoder is handed:
-// the rung quotes a stereo base, and ffmpeg gets it scaled to the channels
-// the client takes (ServedAudioBitrateKbps on the fingerprint's
-// MaxAudioChannels). A 5.1 client must not read the stereo figure.
-func TestBuildHybridMaster_FallbackRung_ServedAudioRateIsTheEncodedOne(t *testing.T) {
-	servedKbps := func(t *testing.T, maxAudioChannels string) (kbps int64, maxCh int) {
-		t.Helper()
-		h := newCopyTestHandler(t)
-		h.manifestGen = apptranscoding.NewManifestGenerator()
-		h.audioRenditionEnabled = true
-		h.copyFallbackRung = true
-		dur, err := shared.NewDurationMs(60000)
-		require.NoError(t, err)
-		item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000}}
-		streams := copyEligibleAV()
-		six := 6
-		streams[1].Codec, streams[1].Channels = "dts", &six
-		req := onDemandReq()
-		q := req.URL.Query()
-		q.Set("maxAudioChannels", maxAudioChannels)
-		req.URL.RawQuery = q.Encode()
-
-		master, err := h.buildHybridMaster(req, "m1", item, streams, planFor(t, h, req, item, streams))
-		require.NoError(t, err)
-		for line := range strings.SplitSeq(master, "\n") {
-			if !strings.HasPrefix(line, "stream_0.m3u8") {
-				continue
-			}
-			u, err := url.Parse(line)
-			require.NoError(t, err)
-			require.Equal(t, "transcode", u.Query().Get("servedAudio"))
-			kbps, err = strconv.ParseInt(u.Query().Get("servedAudioKbps"), 10, 64)
-			require.NoError(t, err)
-			maxCh, _ = strconv.Atoi(u.Query().Get("maxAudioChannels"))
-			return kbps, maxCh
-		}
-		t.Fatal("premise: the fallback rung is advertised")
-		return 0, 0
-	}
-
-	stereo, _ := servedKbps(t, "2")
-	surround, ch := servedKbps(t, "6")
-	require.Equal(t, 6, ch, "premise: the rung encodes for 6 channels")
-	assert.Equal(t, domaintranscoding.ServedAudioBitrateKbps(stereo, 6), surround, "the 5.1 rung quotes the scaled rate ffmpeg is handed")
-	assert.Greater(t, surround, stereo, "not the stereo base")
 }
