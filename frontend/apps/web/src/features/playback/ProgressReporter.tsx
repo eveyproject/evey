@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { playbackServiceReportProgress, eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
+import { PREWARM_PROGRESS_THRESHOLD } from "@evey/client";
 
 /**
  * Live cast (Chromecast) playback state, relayed by the sender page. While
@@ -50,7 +51,6 @@ interface ProgressReporterProps {
 // prefetching literature: enough head-time for ffmpeg to land a few
 // segments before the autoplay handoff, late enough that we don't waste
 // transcode budget on abandoned plays.
-const PREWARM_PROGRESS_THRESHOLD = 0.85;
 
 export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, mediaId, mediaType, onRemoteStop, onRemoteMessage, cast, remoteActive = false }: ProgressReporterProps) {
   const pendingRef = useRef(false);

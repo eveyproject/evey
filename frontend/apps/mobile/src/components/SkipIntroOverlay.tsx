@@ -7,6 +7,16 @@ import { toast } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 import { useMediaSegments } from "../hooks/useMediaSegments";
 import { FONT_SIZE } from "@evey/theme";
+import {
+  CREDITS_COUNTDOWN_SEC,
+  SKIPPABLE_SEGMENTS,
+  SKIP_LABEL_KEY,
+  activeSkippable,
+  skippableCandidates,
+  skippableFromChapters,
+  type ResolvedSegment,
+  type SkippableType,
+} from "@evey/client";
 
 // Segment types the overlay can skip, with their i18n label. The label is
 // chosen from whichever segment the playhead is currently inside, so the
@@ -14,35 +24,9 @@ import { FONT_SIZE } from "@evey/theme";
 // "preview" (next-episode preview reel) is admin-gated server-side: it is
 // only present in the API response when the admin enables it, so listing it
 // here is safe - no button appears unless the server actually returns one.
-const SKIPPABLE = ["intro", "recap", "end_credits", "preview"] as const;
-type SkippableType = (typeof SKIPPABLE)[number];
-
-const LABEL_KEY: Record<SkippableType, string> = {
-  intro: "player.skipIntro",
-  recap: "player.skipRecap",
-  end_credits: "player.skipCredits",
-  preview: "player.skipPreview",
-};
-
-// MKV chapter title → segment type. Mirrors the server-side mapping in
-// intro_detection_service.go for the client-only fallback (no detection yet).
-const CHAPTER_PATTERNS: { type: SkippableType; re: RegExp }[] = [
-  { type: "intro", re: /^(intro|introduction|opening|op$|op\s)/i },
-  { type: "recap", re: /(recap|previously)/i },
-  { type: "end_credits", re: /(credit|ending|outro|^ed$|^ed\s)/i },
-];
-
-const MIN_SKIPPABLE_SEC = 5;
-// With auto-play on, the next episode starts this long after the credits
-// begin unless the viewer asks to watch them. Measured on the playhead, not
-// the clock: a pause freezes it, and it can never outlive the segment.
-export const CREDITS_COUNTDOWN_SEC = 15;
-
-interface ResolvedSegment {
-  type: SkippableType;
-  startSec: number;
-  endSec: number;
-}
+// Types, labels, minimum length, the active-segment rule and the MKV-chapter
+// fallback are @evey/client's (skipSegments), shared with the other players.
+export { CREDITS_COUNTDOWN_SEC } from "@evey/client";
 
 interface SkipIntroOverlayProps {
   mediaId?: string; // segments API (priority)
@@ -64,15 +48,6 @@ interface SkipIntroOverlayProps {
   autoAdvance?: boolean;
 }
 
-function active(candidates: ResolvedSegment[], currentTime: number): ResolvedSegment | null {
-  for (const c of candidates) {
-    if (c.endSec <= c.startSec) continue;
-    if (c.endSec - c.startSec < MIN_SKIPPABLE_SEC) continue;
-    if (currentTime >= c.startSec && currentTime < c.endSec) return c;
-  }
-  return null;
-}
-
 export function SkipIntroOverlay({
   mediaId,
   filePath,
@@ -86,7 +61,7 @@ export function SkipIntroOverlay({
   const { t } = useTranslation();
   const theme = useTheme();
 
-  const { data: segmentsData } = useMediaSegments(mediaId, [...SKIPPABLE]);
+  const { data: segmentsData } = useMediaSegments(mediaId, [...SKIPPABLE_SEGMENTS]);
   const segments = segmentsData?.segments;
   const autoSkip = segmentsData?.introAutoSkip === true;
 
@@ -102,25 +77,9 @@ export function SkipIntroOverlay({
   let resolved: ResolvedSegment | null = null;
 
   if (segments && segments.length > 0) {
-    const apiCandidates: ResolvedSegment[] = segments
-      .filter((s) => (SKIPPABLE as readonly string[]).includes(s.type))
-      .map((s) => ({ type: s.type as SkippableType, startSec: s.startMs / 1000, endSec: s.endMs / 1000 }));
-    resolved = active(apiCandidates, currentTime);
+    resolved = activeSkippable(skippableCandidates(segments), currentTime);
   } else if (chaptersData?.chapters) {
-    const chapterCandidates: ResolvedSegment[] = [];
-    for (const ch of chaptersData.chapters) {
-      const title = ch.title?.trim();
-      if (!title) continue;
-      const match = CHAPTER_PATTERNS.find((p) => p.re.test(title));
-      if (match) {
-        chapterCandidates.push({
-          type: match.type,
-          startSec: Number(ch.startMs ?? 0) / 1000,
-          endSec: Number(ch.endMs ?? 0) / 1000,
-        });
-      }
-    }
-    resolved = active(chapterCandidates, currentTime);
+    resolved = activeSkippable(skippableFromChapters(chaptersData.chapters), currentTime);
   }
 
   // Auto-skip (admin toggle): jump the intro instead of waiting for the tap.
@@ -157,7 +116,7 @@ export function SkipIntroOverlay({
     if (!announceKey || announcedRef.current === announceKey) return;
     announcedRef.current = announceKey;
     const type = announceKey.slice(0, announceKey.indexOf(":")) as SkippableType;
-    AccessibilityInfo.announceForAccessibility(t(LABEL_KEY[type]));
+    AccessibilityInfo.announceForAccessibility(t(SKIP_LABEL_KEY[type]));
   }, [announceKey, t]);
 
   // Credits countdown. Cancelled per segment (keyed on its start, like the
@@ -186,7 +145,7 @@ export function SkipIntroOverlay({
 
   if (!resolved || hidden) return null;
 
-  const labelKey = LABEL_KEY[resolved.type];
+  const labelKey = SKIP_LABEL_KEY[resolved.type];
   // Skipping the credits only lands on the end of the episode; most viewers
   // want the next one, so the credits button comes with a second one.
   const showNextEpisode = withNext;
