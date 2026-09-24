@@ -7,6 +7,7 @@ import {
   playbackServiceStopStream,
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
+import { firstStartMs } from "../lib/resumePosition";
 import { getBrowserCapabilities } from "./codec";
 import { appendCodecParams } from "./hlsCodecParams";
 import type { PlaySessionDevice } from "./usePlaySession";
@@ -93,10 +94,15 @@ export function buildTvStreamUrl(
 export interface TvPlaySessionInitial {
   audioStreamIndex?: number;
   subtitleStreamIndex?: number;
+  /** The viewer asked to start over: the first stream starts at 0 whatever the progress. */
+  restart?: boolean;
+  /** An explicit first position (a cast hand-over), over the saved progress. */
+  startSec?: number;
 }
 
 export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, initial?: TvPlaySessionInitial): TvPlaySessionResult {
   const initialRef = useRef(initial);
+  const firstStartRef = useRef(true);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [streamInfo, setStreamInfo] = useState<V1StreamInfo | null>(null);
@@ -139,7 +145,10 @@ export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, ini
         token = res.token;
         tokenRef.current = token;
       }
-      const resumeSec = wp?.positionMs && !wp.played ? Number(wp.positionMs) / 1000 : 0;
+      // Where the player will start, by the players' own rule: the encoder is
+      // pre-warmed there and the session declares it.
+      const startMs = firstStartMs(firstStartRef, initialRef.current, wp);
+      const resumeSec = startMs / 1000;
       const url = buildTvStreamUrl(mediaId, info, token, {
         audioTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex),
         subtitleTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex),
@@ -164,7 +173,7 @@ export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, ini
         deviceId: device.deviceId,
         deviceName: device.deviceName,
         clientName: device.clientName,
-        startPositionMs: wp?.positionMs && !wp.played ? wp.positionMs : "0",
+        startPositionMs: String(startMs),
         audioStreamIndex,
         subtitleStreamIndex,
         servedBitrateBps: info.bitrate ?? "0",

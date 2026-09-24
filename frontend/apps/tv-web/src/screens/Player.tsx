@@ -97,6 +97,8 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
     useTvPlaySession(mediaId, TV_DEVICE, {
       ...(audio !== undefined ? { audioStreamIndex: audio } : {}),
       ...(typeof subtitle === "number" ? { subtitleStreamIndex: subtitle } : {}),
+      // The encoder is pre-warmed where the player will start.
+      restart,
     });
   const { data: skip } = usePlaybackSettings();
   const { data: segments } = useMediaSegments(mediaId);

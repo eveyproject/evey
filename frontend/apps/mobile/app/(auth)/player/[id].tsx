@@ -270,7 +270,11 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
   const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
-    usePlaySession(sessionMediaId, trackPick.audio === undefined ? undefined : { audioStreamIndex: trackPick.audio });
+    usePlaySession(sessionMediaId, {
+      ...(trackPick.audio === undefined ? {} : { audioStreamIndex: trackPick.audio }),
+      // The encoder is pre-warmed where the player will start.
+      restart: restart === "1",
+    });
   // A film starts, the album stops - the mini player is mounted for the whole
   // signed-in app and kept playing under the video otherwise.
   useEffect(() => {

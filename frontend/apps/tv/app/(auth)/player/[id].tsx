@@ -214,7 +214,13 @@ export default function PlayerScreen() {
     useMusicQueueStore.getState().clear();
   }, [mediaId]);
   const { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress } =
-    usePlaySession(mediaId, trackPick.audio === undefined ? undefined : { audioStreamIndex: trackPick.audio });
+    usePlaySession(mediaId, {
+      ...(trackPick.audio === undefined ? {} : { audioStreamIndex: trackPick.audio }),
+      // The encoder is pre-warmed where the player will start: over, or at
+      // the cast's hand-over position.
+      restart: restart === "1",
+      ...(Number(start) > 0 ? { startSec: Number(start) } : {}),
+    });
   const profileId = useAuthStore((s) => s.profileId) ?? "";
 
   // Profile audio/subtitle language preference (audio_languages/subtitle_languages,
