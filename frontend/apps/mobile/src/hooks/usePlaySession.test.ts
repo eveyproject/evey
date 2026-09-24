@@ -154,7 +154,7 @@ describe("buildStreamUrl", () => {
   // used to build its own URL shape and this went untested.
   it("carries the picked audio and subtitle tracks on a DIRECT_STREAM manifest", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
-    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_DIRECT_STREAM" }, "tok", 1, 0);
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_DIRECT_STREAM" }, "tok", { audioTrack: 1, subtitleTrack: 0 });
     expect(url).toContain("audioTrack=1");
     expect(url).toContain("subtitleTrack=0");
   });
@@ -174,7 +174,7 @@ describe("buildStreamUrl", () => {
   // and that a different track yields a different url.
   it("carries the 0-based audioTrack/subtitleTrack in the HLS URL", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
-    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 1, 0);
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", { audioTrack: 1, subtitleTrack: 0 });
     expect(url).toContain("audioTrack=1");
     expect(url).toContain("subtitleTrack=0");
   });
@@ -182,8 +182,8 @@ describe("buildStreamUrl", () => {
   it("produces a DIFFERENT URL per audio track so the player reloads on switch", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
-    const track0 = buildStreamUrl("http://srv", "m1", info, "tok", 0);
-    const track1 = buildStreamUrl("http://srv", "m1", info, "tok", 1);
+    const track0 = buildStreamUrl("http://srv", "m1", info, "tok", { audioTrack: 0 });
+    const track1 = buildStreamUrl("http://srv", "m1", info, "tok", { audioTrack: 1 });
     expect(track0).not.toBe(track1);
     // No track selected -> no param (server keeps its default).
     expect(buildStreamUrl("http://srv", "m1", info, "tok")).not.toContain("audioTrack=");
@@ -197,17 +197,13 @@ describe("buildStreamUrl", () => {
     expect(decodeURIComponent(url)).toContain("containers=mp4,mkv,webm,hls");
   });
 
-  // startSec was dead on arrival: no HLS handler parses it. The transcode path
-  // reads only maxWidth/maxHeight/maxBitrate/videoCodecs/audioCodecs/containers/
-  // hdr/fp (transcode_handler.go:298-322) and audioTrack/subtitleTrack. The
-  // server always publishes the VOD manifest from t=0, so emitting startSec made
-  // the client believe the timeline was shifted: it set transcodeOffset=startSec
-  // and added it to every timeUpdate, over a playlist that still began at 0.
-  // Result: position displayed and reported at roughly twice the real value.
-  it("never emits startSec - the server ignores it and it doubled the reported position", async () => {
+  // startSec is a pre-warm hint the server reads (transcode_start_hint.go):
+  // the encoder opens at the resume position, the manifest still starts at 0.
+  it("sends the resume position as a whole-second hint, and nothing from the start", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
-    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 42.7);
-    expect(url).not.toContain("startSec");
+    const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", { startSec: 42.7 })).toContain("startSec=42");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok")).not.toContain("startSec");
   });
 
   it("carries the hardware H.264 level ceiling the device probed at load", async () => {
@@ -222,9 +218,9 @@ describe("buildStreamUrl", () => {
   it("carries the probed channel ceiling, and nothing when there is none", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const info = { playMethod: "PLAY_METHOD_TRANSCODE" };
-    expect(buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, 2))
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", { maxAudioChannels: 2 }))
       .toContain("maxAudioChannels=2");
-    expect(buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, 6))
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", { maxAudioChannels: 6 }))
       .toContain("maxAudioChannels=6");
     expect(buildStreamUrl("http://srv", "m1", info, "tok")).not.toContain("maxAudioChannels");
   });
@@ -234,8 +230,8 @@ describe("buildStreamUrl", () => {
   it("carries the picked quality as maxHeight, nothing on Auto", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const info = { playMethod: "PLAY_METHOD_TRANSCODE" };
-    expect(buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, undefined, 0, 720)).toContain("maxHeight=720");
-    expect(buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, undefined, 0, undefined)).not.toContain("maxHeight");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", { maxHeight: 720 })).toContain("maxHeight=720");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", {})).not.toContain("maxHeight");
   });
 
   it("falls back to HLS URL for unknown play method", async () => {
@@ -536,5 +532,23 @@ describe("usePlaySession: concurrent track switches", () => {
     expect(result.current.streamUrl).toContain("audioTrack=1");
     expect(result.current.streamUrl).not.toContain("audioTrack=0");
     expect(result.current.isError).toBe(false);
+  });
+});
+
+// The shared hook reports an expired session apart (isAuthError); the phone's
+// player has no screen for it, so it must keep showing the stream error.
+describe("usePlaySession: expired session on the phone", () => {
+  it("still raises isError when the fetcher gives up with a 401", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    getStreamInfoMock.mockRejectedValue(Object.assign(new Error("unauthorized"), { httpStatus: 401 }));
+    eveyFetchMock.mockResolvedValue(null);
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.isError).toBe(true);
+    expect(result.current.isAuthError).toBe(true);
   });
 });
