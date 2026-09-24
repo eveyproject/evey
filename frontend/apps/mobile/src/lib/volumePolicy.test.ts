@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveVolume } from "./volumePolicy";
+import { playerTrim, resolveVolume } from "./volumePolicy";
 
 // The 0-2 bar has to land somewhere real. Before this, 0-1 only scaled the
 // PLAYER's own volume, which multiplies with the device volume: on a tablet
@@ -117,3 +117,27 @@ describe("resolveVolume with the hardware step count (smooth split)", () => {
   });
 });
 
+
+// What reaches the ear is device x player. The trim is taken against the level
+// the device is ON, so the product is exactly the bar's level once the device
+// has landed, and at most one step under it while it is on its way.
+describe("playerTrim", () => {
+  const opts = { hasDeviceControl: true, deviceSteps: 15 };
+
+  it("makes device x player equal the level once the device has landed", () => {
+    const device = resolveVolume(0.5, opts).deviceFraction!;
+    expect(device * playerTrim(0.5, device, opts)).toBeCloseTo(0.5, 6);
+  });
+
+  it("never overshoots while the device is still on a lower step", () => {
+    expect(playerTrim(0.5, 7 / 15, opts)).toBe(1);
+    expect(playerTrim(0.4, 8 / 15, opts)).toBeCloseTo(0.75, 6);
+  });
+
+  it("leaves 0, the boosted zone and a platform without device control to the policy", () => {
+    expect(playerTrim(0, 0.6, opts)).toBe(0);
+    expect(playerTrim(1.5, 1, opts)).toBe(1);
+    expect(playerTrim(0.5, null, opts)).toBe(resolveVolume(0.5, opts).playerVolume);
+    expect(playerTrim(0.5, 0.6, { hasDeviceControl: false })).toBe(0.5);
+  });
+});

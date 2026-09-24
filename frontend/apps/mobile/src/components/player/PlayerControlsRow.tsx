@@ -40,6 +40,7 @@ interface PlayerControlsRowProps {
   onTogglePlayPause: () => void;
   onToggleMute: () => void;
   onVolumeChange: (value: number) => void;
+  maxVolume?: number;
   onEpisodeChange: (id: string) => void;
   onPrevChapter: () => void;
   onNextChapter: () => void;
@@ -99,6 +100,7 @@ export function PlayerControlsRow({
   onTogglePlayPause,
   onToggleMute,
   onVolumeChange,
+  maxVolume,
   onEpisodeChange,
   onPrevChapter,
   onNextChapter,
@@ -208,6 +210,7 @@ export function PlayerControlsRow({
         muted={muted}
         onToggleMute={onToggleMute}
         onVolumeChange={onVolumeChange}
+        maxLevel={maxVolume}
       />
 
       {/* A spinner says "wait" to anyone who can see it and nothing at all to

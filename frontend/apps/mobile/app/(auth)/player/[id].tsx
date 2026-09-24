@@ -14,12 +14,13 @@ import { useVideoPlayer, VideoView, isPictureInPictureSupported } from "expo-vid
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
-import { setAudioBoost, releaseAudioBoost } from "../../../src/lib/audioBoost";
+import { setAudioBoost, releaseAudioBoost, hasAudioBoost } from "../../../src/lib/audioBoost";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { resumeNudger } from "../../../src/lib/resumeNudge";
-import { resolveVolume } from "../../../src/lib/volumePolicy";
+import { playerTrim, resolveVolume } from "../../../src/lib/volumePolicy";
 import {
   hasDeviceVolumeControl,
+  noteObservedDeviceVolume,
   readDeviceVolumeFraction,
   readDeviceVolumeSteps,
   setDeviceVolumeFraction,
@@ -287,7 +288,18 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // (dedupe + per-session budget) so a stream failing in a loop cannot flood
   // the admin log.
   const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
-  useEffect(() => { return () => { mountedRef.current = false; void releaseAudioBoost(); }; }, []);
+  // A new player opens at 100%: whatever gain a previous one left is dropped.
+  // Leaving boosted, the phone's media volume goes back to where the boost
+  // found it: pinned at maximum, other apps and notifications played at full.
+  const deviceBeforeBoostRef = useRef<number | null>(null);
+  useEffect(() => {
+    void releaseAudioBoost();
+    return () => {
+      mountedRef.current = false;
+      void releaseAudioBoost();
+      if (volumeBaseRef.current > 1 && deviceBeforeBoostRef.current !== null) void setDeviceVolumeFraction(deviceBeforeBoostRef.current);
+    };
+  }, []);
 
   const [activeSheet, setActiveSheet] = useState<null | SheetName>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -548,6 +560,8 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   const [isBuffering, setIsBuffering] = useState(false);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
+  mutedRef.current = muted;
   const [brightness, setBrightness] = useState(1);
   // A fatal native failure (decoder error, 401 on a segment, broken manifest)
   // surfaces ONLY through the player's statusChange event - isError from
@@ -807,9 +821,51 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     };
   }, [player, reportPlayerEvent]);
 
+  // Hardware step count of the media stream, fetched once: the volume policy
+  // needs it synchronously on every drag event to split the level between the
+  // device (per hardware step) and the player element (the smooth remainder).
+  const deviceStepsRef = useRef<number | null>(null);
+  useEffect(() => {
+    void readDeviceVolumeSteps().then((steps) => { deviceStepsRef.current = steps; });
+  }, []);
+  // The level the device is REALLY on (written back by the bridge, or read).
+  const deviceNowRef = useRef<number | null>(null);
+  const lastVolumeTouchRef = useRef(0);
+  const maxVolume = hasAudioBoost() ? 2 : 1;
+
+  // The player element's share of the level (volumePolicy.playerTrim).
+  const applyPlayerTrim = useCallback((level: number) => {
+    if (!player) return;
+    const trim = playerTrim(level, deviceNowRef.current, {
+      hasDeviceControl: hasDeviceVolumeControl(),
+      deviceSteps: deviceStepsRef.current ?? undefined,
+    });
+    try { player.volume = trim; } catch (err) { console.warn("released", err); }
+  }, [player]);
+
+  // Where the 0-2 bar lands is decided in ONE place (volumePolicy): on Android
+  // the 0-100% half drives the DEVICE media volume, so the >100% amplification
+  // has a full-scale signal to work with. Elsewhere it stays on the player.
+  const applyLevel = useCallback((level: number) => {
+    const targets = resolveVolume(level, {
+      hasDeviceControl: hasDeviceVolumeControl(),
+      deviceSteps: deviceStepsRef.current ?? undefined,
+    });
+    applyPlayerTrim(level);
+    if (targets.deviceFraction !== null) {
+      void setDeviceVolumeFraction(targets.deviceFraction).then((applied) => {
+        if (applied === null || !mountedRef.current) return;
+        deviceNowRef.current = applied;
+        applyPlayerTrim(volumeBaseRef.current);
+      });
+    }
+    void setAudioBoost(targets.boostGain);
+  }, [applyPlayerTrim]);
+  const restoreLocalVolume = useCallback(() => applyLevel(volumeBaseRef.current), [applyLevel]);
+
   const { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, castVolume, castIsMuted, castDeviceName, handleCast } = useCastSession({
     player,
-    volume,
+    restoreLocalVolume,
     streamUrl,
     mediaId,
     title: media?.title,
@@ -882,38 +938,41 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     hasOpenPanel: activeSheet !== null || settingsOpen,
   });
 
-  // Show the level the device is REALLY at, not an assumed 100%. The bar drives
-  // the system volume now, so opening on the wrong value would make the first
-  // touch jump the sound. Re-read whenever the controls come back up: the
-  // hardware volume keys move the same setting behind our back, and a stale bar
-  // would silently undo what the user just pressed.
-  // Hardware step count of the media stream, fetched once: the volume policy
-  // needs it synchronously on every drag event to split the level between the
-  // device (per hardware step) and the player element (the smooth remainder).
-  const deviceStepsRef = useRef<number | null>(null);
+  // A new player instance (next episode, track or quality change, retry) opens
+  // at volume 1 and unmuted: it gets the bar's level and mute back.
   useEffect(() => {
-    void readDeviceVolumeSteps().then((steps) => { deviceStepsRef.current = steps; });
-  }, []);
+    if (!player || castConnected) return;
+    applyPlayerTrim(volumeBaseRef.current);
+    try { player.muted = mutedRef.current; } catch (err) { console.warn("released", err); }
+  }, [player, castConnected, applyPlayerTrim]);
 
+  // Show the level the device is REALLY at, and follow the hardware volume
+  // keys, which move the same setting behind the bar's back: re-read every
+  // second while the controls are up (they stay up while paused).
   useEffect(() => {
     if (!showControls || !hasDeviceVolumeControl()) return;
     let cancelled = false;
-    void readDeviceVolumeFraction().then((fraction) => {
-      // Two levels the device cannot describe, and must not overwrite: above
-      // 100% the bar is in the amplified zone, and at 0 the user deliberately
-      // silenced Evey while the device stayed where it was - re-reading it there
-      // would bring the sound back on its own.
+    const sync = () => void readDeviceVolumeFraction().then((fraction) => {
       if (cancelled || fraction === null) return;
-      if (volumeBaseRef.current > 1 || volumeBaseRef.current === 0) return;
+      // A drag is still settling: the device may not have caught up yet.
+      if (Date.now() - lastVolumeTouchRef.current < 1500) return;
+      const prev = deviceNowRef.current;
+      deviceNowRef.current = fraction;
+      noteObservedDeviceVolume(fraction);
+      if (prev !== null && Math.abs(prev - fraction) < 1e-3) return;
+      const base = volumeBaseRef.current;
+      // At 0 the user silenced Evey, not the phone; at or above 100% the
+      // device is meant to be at its maximum.
+      if (base === 0 || (base >= 1 && fraction >= 1)) return;
+      if (base > 1) void setAudioBoost(1);
       volumeBaseRef.current = fraction;
       setVolume(fraction);
-      // The hardware keys set an exact device step; the player element may
-      // still carry a mid-step trim from the last drag. Clear it, or the
-      // audible level would be the device level times a stale remainder.
-      if (player) player.volume = 1;
+      applyPlayerTrim(fraction);
     });
-    return () => { cancelled = true; };
-  }, [showControls, player]);
+    sync();
+    const timer = setInterval(sync, 1000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [showControls, applyPlayerTrim]);
 
   const togglePlayPause = useCallback(() => {
     if (!player) return;
@@ -1001,36 +1060,31 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   const handleVolumeChange = useCallback(
     (value: number) => {
       if (!player) return;
-      // Where the 0-2 bar lands is decided in ONE place (volumePolicy): on
-      // Android the 0-100% half drives the DEVICE media volume, so the >100%
-      // amplification has a full-scale signal to work with instead of one the
-      // device was already attenuating. Elsewhere it stays on the player element.
-      const v = Math.max(0, Math.min(2, value));
-      const targets = resolveVolume(v, {
-        hasDeviceControl: hasDeviceVolumeControl(),
-        deviceSteps: deviceStepsRef.current ?? undefined,
-      });
-      player.volume = targets.playerVolume;
-      if (targets.deviceFraction !== null) void setDeviceVolumeFraction(targets.deviceFraction);
-      void setAudioBoost(targets.boostGain);
+      const v = Math.max(0, Math.min(maxVolume, value));
+      lastVolumeTouchRef.current = Date.now();
+      if (v >= 1 && volumeBaseRef.current < 1) deviceBeforeBoostRef.current = deviceNowRef.current;
+      else if (v < 1) deviceBeforeBoostRef.current = null;
       volumeBaseRef.current = v;
+      applyLevel(v);
       setVolume(v);
       // Dragging the bar above zero means "I want sound now": same implicit
       // unmute as the web player.
-      if (v > 0 && player.muted) {
-        player.muted = false;
+      if (v > 0 && mutedRef.current) {
+        try { player.muted = false; } catch (err) { console.warn("released", err); }
         setMuted(false);
       }
     },
-    [player],
+    [player, maxVolume, applyLevel],
   );
 
+  // From the screen's state, not player.muted: a new player instance starts
+  // unmuted, and the first press muted it again while the icon said muted.
   const toggleMute = useCallback(() => {
     if (!player) return;
-    try {
-      player.muted = !player.muted;
-      setMuted(player.muted);
-    } catch (err) { console.warn("released", err); }
+    const next = !mutedRef.current;
+    try { player.muted = next; } catch (err) { console.warn("released", err); }
+    mutedRef.current = next;
+    setMuted(next);
   }, [player]);
 
   const brightnessBaseRef = useRef(1);
@@ -1086,6 +1140,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     onTogglePlayPause: togglePlayPause,
     onToggleControls: toggleControls,
     onVolumeChange: handleVolumeChange,
+    maxVolume,
     onBrightnessChange: handleBrightnessChange,
     getVolume: getGestureVolume,
     getBrightness: getGestureBrightness,
@@ -1647,6 +1702,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
                     onTogglePlayPause={togglePlayPause}
                     onToggleMute={toggleMute}
                     onVolumeChange={handleVolumeChange}
+                    maxVolume={maxVolume}
                     onEpisodeChange={handleNavigateEpisode}
                     onPrevChapter={skipToPrevChapter}
                     onNextChapter={skipToNextChapter}

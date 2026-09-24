@@ -48,6 +48,8 @@ interface UsePlayerGesturesArgs {
   onVolumeChange: (absoluteValue: number) => void;
   onBrightnessChange: (absoluteValue: number) => void;
   getVolume: () => number;
+  /** Top of the volume range: 2 with the boost, 1 where nothing amplifies. */
+  maxVolume?: number;
   getBrightness: () => number;
   skipForwardSeconds?: number;
   skipBackwardSeconds?: number;
@@ -69,6 +71,7 @@ export function usePlayerGestures({
   onVolumeChange,
   onBrightnessChange,
   getVolume,
+  maxVolume,
   getBrightness,
   skipForwardSeconds = 30,
   skipBackwardSeconds = 30,
@@ -100,13 +103,13 @@ export function usePlayerGestures({
   const cb = useRef({
     onSeekBy, onScrubCommit, getPosition, getDuration,
     onTogglePlayPause, onToggleControls, onVolumeChange,
-    onBrightnessChange, getVolume, getBrightness, skipForwardSeconds, skipBackwardSeconds,
+    onBrightnessChange, getVolume, maxVolume, getBrightness, skipForwardSeconds, skipBackwardSeconds,
     hasOpenPanel, onCloseOverlays,
   });
   cb.current = {
     onSeekBy, onScrubCommit, getPosition, getDuration,
     onTogglePlayPause, onToggleControls, onVolumeChange,
-    onBrightnessChange, getVolume, getBrightness, skipForwardSeconds, skipBackwardSeconds,
+    onBrightnessChange, getVolume, maxVolume, getBrightness, skipForwardSeconds, skipBackwardSeconds,
     hasOpenPanel, onCloseOverlays,
   };
 
@@ -198,9 +201,9 @@ export function usePlayerGestures({
           const dy = -gs.dy; // positive = swipe up
 
           if (swipeActiveRef.current === "volume") {
-            // 0-2 range: 0-1 rides the native player volume, 1-2 engages the
-            // LoudnessEnhancer boost (see handleVolumeChange in the player screen).
-            const newVol = Math.max(0, Math.min(2, swipeStartVolumeRef.current + dy * SENSITIVITY));
+            // 0-2 range: 0-1 rides the device and player volume, 1-2 engages
+            // the boost (see handleVolumeChange in the player screen).
+            const newVol = Math.max(0, Math.min(cb.current.maxVolume ?? 2, swipeStartVolumeRef.current + dy * SENSITIVITY));
             cb.current.onVolumeChange(newVol);
             setVolumeIndicator(newVol);
           } else if (swipeActiveRef.current === "brightness") {

@@ -8,7 +8,7 @@ function flat(style: unknown): Record<string, unknown> {
   return style && typeof style === "object" ? (style as Record<string, unknown>) : {};
 }
 vi.mock("react-native", () => ({
-  View: ({ children, style, accessibilityLabel, accessibilityValue, onAccessibilityAction, onLayout, onResponderGrant, onResponderMove }: any) =>
+  View: ({ children, style, accessibilityLabel, accessibilityValue, onAccessibilityAction, onLayout, onResponderGrant, onResponderMove, onResponderTerminationRequest, ref }: any) =>
     React.createElement(
       "div",
       {
@@ -18,7 +18,11 @@ vi.mock("react-native", () => ({
         "data-bg": flat(style).backgroundColor,
         "data-left": flat(style).left,
         ref: (el: any) => {
-          if (el) el.__rn = { onAccessibilityAction, onLayout, onResponderGrant, onResponderMove };
+          if (!el) return;
+          // The bar sits 100 window units in from the left.
+          el.measureInWindow = (cb: (x: number, y: number, w: number) => void) => cb(100, 0, 80);
+          el.__rn = { onAccessibilityAction, onLayout, onResponderGrant, onResponderMove, onResponderTerminationRequest };
+          if (typeof ref === "function") ref(el); else if (ref) ref.current = el;
         },
       },
       children,
@@ -35,9 +39,9 @@ vi.mock("@evey/theme", () => ({ FONT_SIZE: { xs: 10 }, ICON_SIZE: { lg: 24 } }))
 
 import { PlayerVolumeControl } from "./PlayerVolumeControl";
 
-function mount(volume: number, muted = false) {
+function mount(volume: number, muted = false, maxLevel?: number) {
   const h = { onToggleMute: vi.fn(), onVolumeChange: vi.fn() };
-  render(<PlayerVolumeControl volume={volume} muted={muted} {...h} />);
+  render(<PlayerVolumeControl volume={volume} muted={muted} maxLevel={maxLevel} {...h} />);
   const slider = (screen.queryAllByLabelText("player.controls.volume").at(-1) ?? null) as (HTMLDivElement & { __rn: Record<string, (e: unknown) => void> }) | null;
   if (slider) act(() => slider.__rn.onLayout({ nativeEvent: { layout: { width: 80 } } }));
   return { ...h, slider };
@@ -59,14 +63,35 @@ describe("PlayerVolumeControl", () => {
     expect(slider!.getAttribute("data-now")).toBe("150");
     expect(document.querySelector("[data-bg='#fa0']")?.getAttribute("data-w")).toBe("25%");
     expect(document.querySelector("[data-left='75%']")).toBeTruthy();
-    act(() => slider!.__rn.onResponderGrant({ nativeEvent: { locationX: 20 } }));
+    act(() => slider!.__rn.onResponderGrant({ nativeEvent: { locationX: 20, pageX: 120 } }));
     expect(onVolumeChange).toHaveBeenLastCalledWith(0.5);
-    act(() => slider!.__rn.onResponderMove({ nativeEvent: { locationX: 200 } }));
+    act(() => slider!.__rn.onResponderMove({ nativeEvent: { locationX: 200, pageX: 300 } }));
     expect(onVolumeChange).toHaveBeenLastCalledWith(2);
     act(() => slider!.__rn.onAccessibilityAction({ nativeEvent: { actionName: "increment" } }));
     expect(onVolumeChange).toHaveBeenLastCalledWith(1.6);
     fireEvent.click(screen.getByLabelText("player.controls.mute"));
     expect(onToggleMute).toHaveBeenCalled();
+  });
+
+  // Same two faults the seek bar had (580d67890): on Android locationX is
+  // relative to the view the finger landed on, so grabbing the 12 dp thumb at
+  // 150% read ~0.2 and dropped the sound; and the stage's pan responder took
+  // any drag past 16 dp and turned it into a seek.
+  it("reads the finger from pageX and keeps the gesture", () => {
+    const { slider, onVolumeChange } = mount(1.5);
+    act(() => slider!.__rn.onResponderGrant({ nativeEvent: { locationX: 6, pageX: 160 } }));
+    expect(onVolumeChange).toHaveBeenLastCalledWith(1.5);
+    expect(slider!.__rn.onResponderTerminationRequest({})).toBe(false);
+  });
+
+  // Where nothing can amplify, the bar is 0-100% and never paints a boost.
+  it("stops at 100% when the boost is unavailable", () => {
+    const { slider, onVolumeChange } = mount(1, false, 1);
+    expect(document.querySelector("[data-left='100%']")).toBeTruthy();
+    act(() => slider!.__rn.onResponderGrant({ nativeEvent: { pageX: 140 } }));
+    expect(onVolumeChange).toHaveBeenLastCalledWith(0.5);
+    act(() => slider!.__rn.onResponderMove({ nativeEvent: { pageX: 400 } }));
+    expect(onVolumeChange).toHaveBeenLastCalledWith(1);
   });
 
   it("muted reads as zero with an unmute action, and low levels get the low icon", () => {

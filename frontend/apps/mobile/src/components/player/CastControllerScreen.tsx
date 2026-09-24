@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { CastButtonNative } from "../../hooks/useChromecast";
 import { formatTime } from "@evey/api";
+import { useBarGesture } from "../../hooks/useBarGesture";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 interface CastControllerScreenProps {
@@ -43,25 +44,16 @@ function DragBar({
   onCommit: (pct: number) => void;
   accessibilityLabel: string;
 }) {
-  const widthRef = useRef(0);
-  const pctRef = useRef(0);
-  const pctFromX = (x: number) => {
-    const w = widthRef.current;
-    return w <= 0 ? 0 : Math.max(0, Math.min(1, x / w));
-  };
+  const pctRef = useRef(progress);
+  const { barProps, fractionAt } = useBarGesture((pct) => { pctRef.current = pct; onPreview?.(pct); });
   return (
     <View
+      {...barProps}
       style={styles.dragBar}
       accessible
       accessibilityRole="adjustable"
       accessibilityLabel={accessibilityLabel}
-      onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
-      onStartShouldSetResponder={() => true}
-      onMoveShouldSetResponder={() => true}
-      onResponderGrant={(e) => { pctRef.current = pctFromX(e.nativeEvent.locationX); onPreview?.(pctRef.current); }}
-      onResponderMove={(e) => { pctRef.current = pctFromX(e.nativeEvent.locationX); onPreview?.(pctRef.current); }}
-      onResponderRelease={() => onCommit(pctRef.current)}
-      onResponderTerminationRequest={() => true}
+      onResponderRelease={(e) => onCommit(fractionAt(e) ?? pctRef.current)}
     >
       <View style={styles.dragTrack}>
         <View style={{ flex: progress, backgroundColor: accentColor }} />

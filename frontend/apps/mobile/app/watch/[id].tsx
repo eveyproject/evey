@@ -20,6 +20,7 @@ import { useServerUrl } from "../../src/hooks/useServerUrl";
 import { buildStreamUrl } from "../../src/hooks/usePlaySession";
 import { useSyncPlay } from "../../src/hooks/useSyncPlay";
 import { SyncPlayBar } from "../../src/components/SyncPlayBar";
+import { useBarGesture } from "../../src/hooks/useBarGesture";
 import { readGuestSession, clearGuestSession } from "../../src/features/syncplay/guestSession";
 
 // GuestWatch is the PUBLIC (unauthenticated) "watch together" guest player. A
@@ -48,8 +49,11 @@ export default function GuestWatch() {
   const [showControls, setShowControls] = useState(true);
   const seekingRef = useRef(false);
   const [seekPreviewPct, setSeekPreviewPct] = useState<number | null>(null);
-  const seekBarWidthRef = useRef(0);
   const seekPctRef = useRef(0);
+  const seekBar = useBarGesture((pct) => {
+    seekPctRef.current = pct;
+    setSeekPreviewPct(pct);
+  });
 
   // A guest can't reach GetStreamInfo, so force the transcode path (always
   // works): the HLS master serves the whole timeline and the guest token
@@ -184,28 +188,16 @@ export default function GuestWatch() {
               <Text style={styles.time}>{formatTime(currentTime)}</Text>
               <View
                 style={styles.seekBar}
-                onLayout={(e) => { seekBarWidthRef.current = e.nativeEvent.layout.width; }}
-                onStartShouldSetResponder={() => true}
-                onMoveShouldSetResponder={() => true}
+                {...seekBar.barProps}
                 onResponderGrant={(e) => {
                   seekingRef.current = true;
-                  const w = seekBarWidthRef.current;
-                  const pct = w > 0 ? Math.max(0, Math.min(1, e.nativeEvent.locationX / w)) : 0;
-                  seekPctRef.current = pct;
-                  setSeekPreviewPct(pct);
+                  seekBar.barProps.onResponderGrant(e);
                 }}
-                onResponderMove={(e) => {
-                  const w = seekBarWidthRef.current;
-                  const pct = w > 0 ? Math.max(0, Math.min(1, e.nativeEvent.locationX / w)) : 0;
-                  seekPctRef.current = pct;
-                  setSeekPreviewPct(pct);
-                }}
-                onResponderRelease={() => {
-                  seekTo(seekPctRef.current);
+                onResponderRelease={(e) => {
+                  seekTo(seekBar.fractionAt(e) ?? seekPctRef.current);
                   setSeekPreviewPct(null);
                   seekingRef.current = false;
                 }}
-                onResponderTerminationRequest={() => true}
                 onResponderTerminate={() => { setSeekPreviewPct(null); seekingRef.current = false; }}
               >
                 <View style={styles.seekTrack}>

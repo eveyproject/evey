@@ -92,4 +92,27 @@ describe("setAudioBoost", () => {
     await setAudioBoost(1.9);
     expect(setBoost).toHaveBeenCalledWith(1.9);
   });
+
+  // A drag back under 100% while a boosted value is still on its way: the
+  // last event (0.95 -> off) was compared with what had LANDED (1.0) and
+  // dropped, so the queue ended on 1.1 with the bar at 95%.
+  it("ends on 'off' when the drag comes back under 100% mid-flight", async () => {
+    await setAudioBoost(1);
+    setBoost.mockImplementation(async () => { await new Promise((r) => setTimeout(r, 1)); return true; });
+    await Promise.all([1.3, 1.1, 0.95].map((v) => setAudioBoost(v)));
+    expect(setBoost.mock.calls.at(-1)?.[0]).toBe(1);
+  });
+
+  // A call still on its way when the player releases the boost must not
+  // record itself as applied afterwards: the next 1.52 was skipped as "no
+  // change" while nothing was boosting any more.
+  it("forgets a call that lands after the release", async () => {
+    setBoost.mockImplementation(async () => { await new Promise((r) => setTimeout(r, 1)); return true; });
+    const late = setAudioBoost(1.5);
+    await releaseAudioBoost();
+    await late;
+    setBoost.mockClear();
+    await setAudioBoost(1.52);
+    expect(setBoost).toHaveBeenCalledWith(1.52);
+  });
 });
