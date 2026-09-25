@@ -249,7 +249,9 @@ func ffmpegProgressLogPath(dir, hash string, variantIdx, startSeg int) string {
 	if dir == "" {
 		return ""
 	}
-	return filepath.Join(dir, fmt.Sprintf("ffmpeg-%s-v%d-s%d-%d.log", hash, variantIdx, startSeg, time.Now().UnixNano()))
+	now := time.Now()
+	maybePruneProgressLogs(dir, now)
+	return filepath.Join(dir, fmt.Sprintf("ffmpeg-%s-v%d-s%d-%d.log", hash, variantIdx, startSeg, now.UnixNano()))
 }
 
 // derivedSeekReachWindow answers the question the window exists to answer: how
