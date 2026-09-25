@@ -482,10 +482,15 @@ export function useTranscodePlayback({
       // is what makes the next one diagnosable from the admin logs.
       if (data.fatal || data.type === Hls.ErrorTypes.MEDIA_ERROR) {
         const sn = data.frag?.sn;
+        // A 401 is the stream token expiring behind a long pause: the branch
+        // below refreshes it and playback resumes (prod, every case since
+        // 2026-09-08). Reported as fatal it read as a dead playback in the
+        // server's telemetry; it is a recovery, and named as one.
+        const tokenExpired = data.type === Hls.ErrorTypes.NETWORK_ERROR && data.response?.code === 401;
         reportPlayerEvent({
-          type: data.fatal ? "hls_fatal" : "hls_media_error",
+          type: tokenExpired ? "hls_token_refresh" : data.fatal ? "hls_fatal" : "hls_media_error",
           details: data.details,
-          fatal: data.fatal,
+          fatal: data.fatal && !tokenExpired,
           code: data.response?.code ?? 0,
           variant: data.frag?.level ?? 0,
           segment: typeof sn === "number" ? sn : 0,
