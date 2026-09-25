@@ -359,3 +359,24 @@ func TestSourceCopyBlockerAndTranscodeCause(t *testing.T) {
 	assert.Equal(t, "copy_blocked:level_unknown", TranscodeCause(copyDec, []*library.MediaStream{&noLevel}))
 	assert.Equal(t, "copy_rung_unavailable", TranscodeCause(copyDec, []*library.MediaStream{h264}))
 }
+
+// A telecined source is cut on the rate its encoder receives: inverse
+// telecine keeps four frames in five, so 29.97 is cut as 23.976 (72 frames,
+// 3.003 s). Cut at the source rate, a 90-frame segment lasted 3.754 s against
+// the 3.003 s every manifest declared (measured, ffmpeg 7.1).
+func TestSourceGrid_TelecineCutsOnTheInverseTelecinedRate(t *testing.T) {
+	fps := 29.97
+	yes := true
+	plain := []*library.MediaStream{{StreamType: library.StreamTypeVideo, Framerate: &fps}}
+	telecined := []*library.MediaStream{{StreamType: library.StreamTypeVideo, Framerate: &fps, IdetTelecine: &yes}}
+
+	g := SourceGrid(plain)
+	assert.Equal(t, 90, g.FramesPerSegment)
+	assert.Equal(t, 30000, g.Timescale)
+
+	tg := SourceGrid(telecined)
+	assert.Equal(t, 24000, tg.FPSNum)
+	assert.Equal(t, 72, tg.FramesPerSegment)
+	assert.Equal(t, 24000, tg.Timescale)
+	assert.InDelta(t, g.SegmentSeconds(), tg.SegmentSeconds(), 1e-9, "the same seconds: audio cut on either stays aligned")
+}

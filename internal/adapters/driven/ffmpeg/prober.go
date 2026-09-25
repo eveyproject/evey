@@ -433,6 +433,8 @@ func (p *Prober) ProbeSeekLanding(ctx context.Context, filePath string, targetSe
 	defer span.End()
 	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "prober.seek_landing"}, seekLandingBinary,
 		"-v", "error",
+		// The target is a source timestamp, exactly as the copy session's -ss.
+		"-seek_timestamp", "1",
 		"-ss", fmt.Sprintf("%.3f", targetSec),
 		"-copyts",
 		"-i", filePath,

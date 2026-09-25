@@ -610,26 +610,26 @@ func TestDecisionFingerprintHash_TonemapImplementationForksHDR(t *testing.T) {
 	}
 }
 
-// The client level cap forks the cache ONLY when it lowers a rung's signalled
-// level: a 5.1 phone and a level-less browser must keep sharing one encode.
-func TestDecisionFingerprint_Hash_H264LevelCapOnlyWhenItLowersTheSPS(t *testing.T) {
+// The client level cap never lowers a rung's level, it removes the rungs above
+// it: its whole effect is the ladder and each rung's level, both hashed per
+// rung. Two clients served the same ladder share one encode whatever their cap.
+func TestDecisionFingerprint_Hash_RungLevelIsTheIdentity(t *testing.T) {
 	base := minimalFingerprint(t)
 	base.VideoCodec = "h264"
-	base.Profiles = []ProfileFingerprint{{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 5000, AudioBitrate: 192}}
+	base.Profiles = []ProfileFingerprint{{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 5000, AudioBitrate: 192, CodecLevel: 40}}
 
 	same := base
-	same.MaxH264Level = 51
-	assert.Equal(t, base.Hash(), same.Hash(), "5.1 on a 1080p ladder signals 4.1 either way")
+	same.Profiles = []ProfileFingerprint{base.Profiles[0]}
+	assert.Equal(t, base.Hash(), same.Hash())
 
-	lowered := base
-	lowered.MaxH264Level = 40
-	assert.NotEqual(t, base.Hash(), lowered.Hash(), "4.0 lowers the 1080p rung's SPS level")
+	other := base
+	other.Profiles = []ProfileFingerprint{base.Profiles[0]}
+	other.Profiles[0].CodecLevel = 42
+	assert.NotEqual(t, base.Hash(), other.Hash(), "another level is another SPS")
 
-	hevc := lowered
-	hevc.VideoCodec = "hevc"
-	hevcBase := base
-	hevcBase.VideoCodec = "hevc"
-	assert.Equal(t, hevcBase.Hash(), hevc.Hash(), "an HEVC output ignores the H.264 level")
+	dropped := base
+	dropped.Profiles = nil
+	assert.NotEqual(t, base.Hash(), dropped.Hash(), "a rung the cap removed is another ladder")
 }
 
 // The ENCODE backend is part of the cache identity: a session on one backend

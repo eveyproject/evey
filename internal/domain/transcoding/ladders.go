@@ -275,8 +275,9 @@ func ScaleLadderVideoBitrates(ladder []HLSProfile, num, den int64) []HLSProfile 
 	return out
 }
 
-// H264LevelIdcFor is the level_idc a rung of this height is signalled at: 4.1
-// up to 1080p, 5.1 above (4.1's macroblock budget stops at 1080p).
+// H264LevelIdcFor is a height-only level (4.1 up to 1080p, 5.1 above) for the
+// encoder probe and the ladder bench. A served rung carries its own level,
+// from its size, rate and bitrate (HLSProfile.CodecLevel, codec_string.go).
 func H264LevelIdcFor(height int) int {
 	if height > 1080 {
 		return 51

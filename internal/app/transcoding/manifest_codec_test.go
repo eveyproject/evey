@@ -47,7 +47,7 @@ func TestMaster_PerRungCopyCodec(t *testing.T) {
 	out, err := g.Master(in)
 	require.NoError(t, err)
 	assert.Contains(t, out, `CODECS="avc1.640033,mp4a.40.2"`, "copy rung advertises the source avc1.PPCCLL")
-	assert.Contains(t, out, `CODECS="avc1.640028,mp4a.40.2"`, "transcode rung keeps the codec default")
+	assert.Contains(t, out, `CODECS="avc1.640020,mp4a.40.2"`, "a transcode rung declares its encode: 720p at an unknown rate (60) is High 3.2")
 }
 
 func TestHevcCodecString(t *testing.T) {

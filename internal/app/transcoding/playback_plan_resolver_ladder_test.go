@@ -274,10 +274,23 @@ func TestShapeLadder_H264LevelCapsTheLadder(t *testing.T) {
 		},
 	}
 	req := ladderRequest(2160)
+	fps := 24.0
+	req.Streams[0].Framerate = &fps
 	req.Client.MaxH264Level = 41
 
 	h264 := transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
 	assert.Equal(t, []int{480, 720, 1080}, ladderHeights(t, pr.planFor(context.Background(), req, h264).Ladder))
+	for _, p := range pr.planFor(context.Background(), req, h264).Ladder {
+		assert.LessOrEqual(t, p.CodecLevel, 41, "every served rung fits the cap as encoded: %s", p.Name)
+	}
+
+	// The same 1080p at 60 fps needs 4.2 (489600 macroblocks/s): dropped, not
+	// relabelled 4.1.
+	fps60 := 60.0
+	req60 := ladderRequest(2160)
+	req60.Streams[0].Framerate = &fps60
+	req60.Client.MaxH264Level = 41
+	assert.Equal(t, []int{480, 720}, ladderHeights(t, pr.planFor(context.Background(), req60, h264).Ladder))
 
 	hevc := transcoding.PlaybackDecision{VideoCodec: "hevc", VideoDecision: "transcode", TranscodeReasons: []string{"preferred_video_codec"}}
 	assert.Equal(t, []int{480, 720, 1080, 2160}, ladderHeights(t, pr.planFor(context.Background(), req, hevc).Ladder),

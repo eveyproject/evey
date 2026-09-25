@@ -77,7 +77,8 @@ func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest,
 	topology := route.Topology
 	normalize := pr.AudioNormalize != nil && pr.AudioNormalize(ctx)
 	srcAudio := snap.AudioCodec
-	audioCopy := AudioCopyEligible(decision, normalize, len(fpProfiles), srcAudio, req.Client)
+	audioCopy := AudioCopyEligible(decision, normalize, len(fpProfiles), srcAudio, req.Client) &&
+		AACCopyDeclarable(srcAudio, snap.AudioProfile)
 	fp := DecisionFingerprint{
 		MediaID:    req.MediaID,
 		SourcePath: req.SourcePath,
@@ -88,6 +89,7 @@ func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest,
 		// The decode workload admission prices (excluded from Hash, as the codec).
 		SourceVideoHeight: snap.Height,
 		SourceFPS:         snap.FPS,
+		SourceDurationMs:  req.SourceDurationMs,
 		// The segmentation the whole presentation is cut on (hashed when exact).
 		Grid: SourceGrid(req.Streams),
 		// Legacy-codec corrections (B3): idet content verdict + anamorphic SAR,
@@ -110,7 +112,6 @@ func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest,
 		HDRTonemap:       topology.ToneMap != transcoding.ToneMapNone,
 		HDRPassthrough:   topology.Output == transcoding.OutputHDRPassthrough,
 		HDRTransfer:      strings.ToLower(snap.HDRRange),
-		MaxH264Level:     req.Client.MaxH264Level,
 		AudioNormalize:   normalize,
 		AudioEncoder:     pr.audioEncoderID(),
 		MaxAudioChannels: decision.MaxAudioChannels,
@@ -161,19 +162,69 @@ func (pr *PlanResolver) IsCopy(decision transcoding.PlaybackDecision, streams []
 	if pr.CopyProducer == nil || !VideoCopyEligible(decision, streams) {
 		return false
 	}
-	// Disk guard: the copy rung's segments duplicate ~the source size on disk over
-	// the session (video copied 1:1 + a smaller AAC track), and the unpaced copy
-	// produces them well ahead of the viewer. If the cache filesystem can't fit it
-	// with headroom, fall back to the segment-bounded transcode ladder rather than
-	// risk ENOSPC on a small box. Fail-OPEN when the size is unknown or
-	// statfs fails - keeps today's behaviour and the mux still fails gracefully
-	// downstream. (master- and segment-time both reach this with the same
-	// item.File.Size; a free-space flip between them is a rare, bounded 503-retry,
-	// not a cache aliasing - the copy hash never collides with a transcode hash.)
-	if sourceBytes > 0 && pr.FreeBytes != nil {
-		if free, err := pr.FreeBytes(); err == nil && free < sourceBytes+sourceBytes/10 {
+	// Disk guard: a copy session keeps a WINDOW of segments on disk around the
+	// viewer (software_producer_window.go), not the film: its working set is
+	// that window's share of the source. If the cache filesystem can't fit it
+	// with headroom, fall back to the transcode ladder rather than risk ENOSPC
+	// on a small box. Sized on the source it would have refused a 70 GB film on
+	// a box with 50 GB free and sent it to the transcode, which keeps every
+	// segment of the session - the heavier of the two. Fail-OPEN when the size
+	// is unknown or statfs fails. (master- and segment-time both reach this
+	// with the same inputs; a free-space flip between them is a rare, bounded
+	// 503-retry, not a cache aliasing - the copy hash never collides with a
+	// transcode hash.)
+	if need := copyWorkingSetBytes(sourceBytes, streams, pr.copyWindowSegs()); need > 0 && pr.FreeBytes != nil {
+		if free, err := pr.FreeBytes(); err == nil && free < need+need/10 {
 			return false
 		}
 	}
 	return true
+}
+
+// copyWindowSegs is how many segments a copy session holds at most, from the
+// copy producer's own window; 0 (the whole source) when it has none.
+func (pr *PlanResolver) copyWindowSegs() int {
+	if w, ok := pr.CopyProducer.(interface{ CopyWindowSegs() int }); ok {
+		return w.CopyWindowSegs()
+	}
+	return 0
+}
+
+// copyWorkingSetBytes is the disk a windowed copy session needs: the bytes
+// of its window, one segment per keyframe. A segment's bytes follow its
+// length in time, not its rank, so the window is sized on the LONGEST run of
+// windowSegs consecutive keyframe spans (a stretch of long, static GOPs puts
+// far more of the film in the same number of segments than the mean says),
+// at twice the source's mean rate for the bitrate peaks, never more than the
+// source. The whole source when the window or the keyframe index is unknown;
+// 0 when the size is.
+func copyWorkingSetBytes(sourceBytes int64, streams []*library.MediaStream, windowSegs int) int64 {
+	if sourceBytes <= 0 {
+		return 0
+	}
+	var kf []int64
+	for _, s := range streams {
+		if s != nil && s.StreamType == library.StreamTypeVideo {
+			kf = s.Keyframes
+			break
+		}
+	}
+	if windowSegs <= 0 || len(kf) <= windowSegs {
+		return sourceBytes
+	}
+	// The film's span, the last segment counted at the mean gap.
+	total := kf[len(kf)-1] - kf[0]
+	total += total / int64(len(kf)-1)
+	var longest int64
+	for i := 0; i+windowSegs < len(kf); i++ {
+		longest = max(longest, kf[i+windowSegs]-kf[i])
+	}
+	// The window reaching the end holds the last segment too.
+	longest = max(longest, kf[0]+total-kf[len(kf)-windowSegs])
+	if total <= 0 {
+		return sourceBytes
+	}
+	const peakFactor = 2
+	need := float64(sourceBytes) * float64(longest) / float64(total) * peakFactor
+	return min(sourceBytes, int64(need))
 }

@@ -66,19 +66,9 @@ func (r Result) OK() bool { return len(r.Mismatches) == 0 }
 // no float); a positive tolerance allows that much slack either way - what a
 // separate audio rendition needs, since the muxer cuts it on the first AAC
 // frame past each boundary. audio says the representation carries no video.
+// A separate audio rendition is read alone (mkvgo 0.33: an audio-only
+// presentation).
 func Verify(ctx context.Context, dir, prefix string, audio bool, d Declared, toleranceSec float64) (Result, error) {
-	return verify(ctx, dir, prefix, audio, nil, d, toleranceSec)
-}
-
-// VerifyAudio is Verify for a separate audio rendition. mkvgo describes a
-// presentation only around a video representation, so the rendition is read
-// beside one (any rung of the same presentation); only the audio timeline is
-// compared.
-func VerifyAudio(ctx context.Context, dir, prefix string, video mp4.CMAFRepresentation, d Declared, toleranceSec float64) (Result, error) {
-	return verify(ctx, dir, prefix, true, &video, d, toleranceSec)
-}
-
-func verify(ctx context.Context, dir, prefix string, audio bool, companion *mp4.CMAFRepresentation, d Declared, toleranceSec float64) (Result, error) {
 	var res Result
 	if d.Timescale <= 0 || d.Start == nil || d.Dur == nil {
 		return res, fmt.Errorf("cmafparity: incomplete declaration")
@@ -116,10 +106,6 @@ func verify(ctx context.Context, dir, prefix string, audio bool, companion *mp4.
 	var p mp4.CMAFPresentation
 	contentType := "video"
 	if audio {
-		if companion == nil {
-			return res, fmt.Errorf("cmafparity: an audio rendition is read beside a video representation (VerifyAudio)")
-		}
-		p.Video = []mp4.CMAFRepresentation{*companion}
 		p.Audio = []mp4.CMAFRepresentation{rep}
 		contentType = "audio"
 	} else {

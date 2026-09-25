@@ -315,7 +315,7 @@ func (b StaticLadderBuilder) Build(in LadderInput) []HLSProfile {
 }
 
 // CopyRung is the single remux rung: the source resolution, video copied.
-// The "-kf4" suffix is the cache GENERATION of the copy plan contract; bump
+// The "-kf5" suffix is the cache GENERATION of the copy plan contract; bump
 // it whenever produced segment content or labelling changes for the same
 // inputs (see the software producer's copy mode for the history).
 func CopyRung(width, height int) []HLSProfile {
@@ -323,7 +323,7 @@ func CopyRung(width, height int) []HLSProfile {
 		width, height = 1920, 1080 // deterministic fingerprint for an unprobed source
 	}
 	return []HLSProfile{{
-		Name:         fmt.Sprintf("%dp-copy-kf4", height),
+		Name:         fmt.Sprintf("%dp-copy-kf5", height),
 		Width:        width,
 		Height:       height,
 		VideoBitrate: CopyRungPlaceholderKbps,

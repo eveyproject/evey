@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -393,6 +394,14 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// A file stored in one-track blocks is served by the packager alone (mkvgo
+	// 0.33 reads it track by track, ~2x the file instead of 46x); ffmpeg
+	// force-flushes its audio minutes late. Everything but the entry points
+	// and the packager's own resources stays refused.
+	if item.File.NeedsRemux() && !blockOrderedServable(file) && !checkPlayable(w, item) {
+		span.SetStatus(codes.Error, "file needs remux")
+		return
+	}
 
 	switch {
 	case file == "master.m3u8":
@@ -516,10 +525,6 @@ func (h *hlsVODServe) commonAuth(w http.ResponseWriter, r *http.Request, mediaID
 		span.SetStatus(codes.Error, "parental restricted")
 		return nil, nil, false
 	}
-	if !checkPlayable(w, item) {
-		span.SetStatus(codes.Error, "file needs remux")
-		return nil, nil, false
-	}
 	if !cached {
 		var err error
 		streams, err = h.libSvc.GetMediaStreams(r.Context(), mediaID)
@@ -586,6 +591,10 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// counted and logged; the plan stays as resolved and the ffmpeg path
 	// below serves it.
 	fallback := ""
+	if !packagerCarriesWhole(item, rp) && !checkPlayable(w, item) {
+		span.SetStatus(codes.Error, "file needs remux")
+		return
+	}
 	switch {
 	case rp.Plan.Delivery.Audio == apptranscoding.EngineClient:
 		// Browser wasm audio: a VIDEO-ONLY master whose audio the client
@@ -601,6 +610,11 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		if served, fallback = h.servePackagerMaster(w, r, mediaID, item, streams, rp, span); served {
 			return
 		}
+	}
+	if !checkPlayable(w, item) {
+		// Block-ordered, and the packager could not serve it after all.
+		span.SetStatus(codes.Error, "file needs remux")
+		return
 	}
 
 	// The ffmpeg path serves this plan (its strategy, or the fallback of one
@@ -1426,8 +1440,41 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
+	fallback := ""
 	if rp.Plan.Delivery.Video == apptranscoding.EngineMkvgo {
-		h.serveOnDemandResource(w, r, mediaID, "manifest.mpd", item, streams, span)
+		// The packager's own manifest, from the plan this one resolution
+		// decided (built once, served as is: no second resolution). One it
+		// cannot build (an MPEG-TS: mkvgo reads no transport stream) is served
+		// by the ffmpeg path for the same plan, as its HLS master is.
+		fallback = fallbackPackagerUnwired
+		if h.onDemand != nil {
+			plan, perr := h.buildPlan(r, mediaID, item, streams, rp)
+			if perr == nil {
+				if rp.Plan.Delivery.Audio == apptranscoding.EngineFFmpeg && h.audio != nil {
+					// Hybrid: the packager's video beside Evey's renditions.
+					h.serveHybridMPD(w, r, mediaID, item, streams, rp, plan, span)
+					return
+				}
+				if rp.Plan.Delivery.Audio != apptranscoding.EngineMkvgo {
+					// The client's own decoder (wasm): no rendition to declare.
+					// HLS serves it.
+					slog.InfoContext(r.Context(), "hls-vod: dash manifest not offered, the plan's audio is not the packager's",
+						slog.String("media_id", mediaID), slog.String("audio_engine", string(rp.Plan.Delivery.Audio)))
+					http.Error(w, `{"message":"dash is not available for this presentation"}`, http.StatusNotFound)
+					return
+				}
+				h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"}, "")
+				h.servePlanResourceData(w, r, mediaID, plan, "manifest.mpd", span)
+				return
+			}
+			slog.WarnContext(r.Context(), "hls-vod: dash manifest: on-demand plan build failed, the ffmpeg path serves this plan",
+				slog.String("media_id", mediaID), slog.Any("err", perr))
+			fallback = fallbackPackagerUnbuildable
+		}
+	}
+	if !checkPlayable(w, item) {
+		// Block-ordered: only the packager's own manifest is served.
+		span.SetStatus(codes.Error, "file needs remux")
 		return
 	}
 	in, err := h.buildManifestInputWith(r, mediaID, item, streams, rp)
@@ -1444,6 +1491,12 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 				slog.String("media_id", mediaID), slog.Any("err", perr))
 		}
 		in.CopySegments = segs
+		// The copy rung's bits are the source's (its fingerprint carries a
+		// placeholder), as the HLS copy master advertises them.
+		if len(in.Profiles) == 1 {
+			in.Profiles = slices.Clone(in.Profiles) // the plan's own ladder stays untouched
+			in.Profiles[0].VideoBitrate = copyPeakKbpsOf(item)
+		}
 	}
 	mpd, err := h.manifestGen.MPD(in)
 	if errors.Is(err, apptranscoding.ErrDASHUnavailable) {
@@ -1458,9 +1511,30 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 		return
 	}
 	// Serving binds this token to the plan's hash and reclaims the one it
-	// left, exactly as the HLS master does.
+	// left, and says what it served, exactly as the HLS master does.
 	h.reclaimSupersededHash(r, mediaID, rp)
+	{
+		p := domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rp.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"}
+		if rp.IsCopy {
+			p.VideoDecision, p.VideoBackend = "copy", ""
+		}
+		if h.audioServedAsCopy(r, item, streams, rp.FP.AudioCopy, len(in.AudioRenditions) > 0, in.AudioTrack) {
+			p.AudioDecision = "copy"
+		}
+		h.recordServing(r, mediaID, rp, p, fallback)
+	}
+	if !rp.IsCopy {
+		cause := apptranscoding.TranscodeCause(rp.Decision, streams)
+		metrics.HLSVODTranscodeSessions.WithLabelValues(cause).Inc()
+		slog.InfoContext(r.Context(), "hls-vod: transcode dash manifest served",
+			slog.String("media_id", mediaID),
+			slog.String("cause", cause),
+			slog.String("reasons", strings.Join(rp.Decision.TranscodeReasons, ",")),
+			slog.String("video_codec", rp.Plan.VideoCodec),
+			slog.String("hw_accel", rp.Plan.HWAccel))
+	}
 	setCORSHeaders(w, r, "")
+	w.Header().Set("X-Evey-Served-By", "ffmpeg")
 	w.Header().Set("Content-Type", "application/dash+xml")
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write([]byte(mpd))
@@ -1469,4 +1543,20 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 		slog.Int("profiles", len(in.Profiles)),
 		slog.Bool("copy", rp.IsCopy),
 		slog.String("grid", rp.FP.Grid.String()))
+}
+
+// blockOrderedServable names what a block-ordered file may be asked for: the
+// entry points (which refuse any plan the packager does not carry whole) and
+// the packager's own resources.
+func blockOrderedServable(file string) bool {
+	return file == "master.m3u8" || file == "manifest.mpd" || file == "key" || file == "bitrate-test" ||
+		strings.HasPrefix(file, onDemandPrefix)
+}
+
+// packagerCarriesWhole: a file that needs no re-mux, or a plan whose video
+// and audio are both the packager's - the one reader a block-ordered file
+// plays through.
+func packagerCarriesWhole(item *domainlibrary.MediaItem, rp *requestPlan) bool {
+	return !item.File.NeedsRemux() ||
+		(rp.Plan.Delivery.Video == apptranscoding.EngineMkvgo && rp.Plan.Delivery.Audio == apptranscoding.EngineMkvgo)
 }

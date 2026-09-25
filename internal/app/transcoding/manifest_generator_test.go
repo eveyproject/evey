@@ -161,7 +161,7 @@ func TestManifestGenerator_Master_Codecs(t *testing.T) {
 	require.NoError(t, err)
 
 	// CODECS value must be quoted in the attribute line
-	assert.Contains(t, out, `CODECS="avc1.640028,mp4a.40.2"`)
+	assert.Contains(t, out, `CODECS="avc1.64001f,mp4a.40.2"`)
 }
 
 func TestManifestGenerator_Master_AudioRendition_CodecAndSanitize(t *testing.T) {
@@ -206,7 +206,7 @@ func TestManifestGenerator_Master_ExternalAudio_VideoOnly(t *testing.T) {
 	assert.NotContains(t, out, "AUDIO=", "video-only variant must not reference an audio group")
 	// CODECS lists the video codec ALONE - no mp4a/ac-3/ec-3 audio codec that the
 	// video-only segments don't carry (Safari would refuse the master otherwise).
-	assert.Contains(t, out, `CODECS="avc1.640028"`)
+	assert.Contains(t, out, `CODECS="avc1.64001f"`)
 	assert.NotContains(t, out, "mp4a", "video-only CODECS must not advertise an audio codec")
 	assert.NotContains(t, out, "ac-3")
 	assert.NotContains(t, out, "ec-3")
@@ -804,7 +804,7 @@ func TestMaster_FallbackVariant_AppendedVerbatim(t *testing.T) {
 	require.NotEmpty(t, fbLine, "the fallback URI must be preceded by its own EXT-X-STREAM-INF")
 	assert.Contains(t, fbLine, "BANDWIDTH=1628000")
 	assert.Contains(t, fbLine, "RESOLUTION=854x480")
-	assert.Contains(t, fbLine, `CODECS="avc1.640028,mp4a.40.2"`)
+	assert.Contains(t, fbLine, `CODECS="avc1.64001f,mp4a.40.2"`)
 	assert.NotContains(t, fbLine, "AUDIO=", "a muxed fallback rung references no rendition group")
 }
 
@@ -839,7 +839,7 @@ func TestMaster_FallbackVariant_VideoOnlyPlaysTheAudioGroup(t *testing.T) {
 	}
 	require.NotEmpty(t, fbLine)
 	assert.Contains(t, fbLine, `AUDIO="aud"`)
-	assert.Contains(t, fbLine, `CODECS="avc1.640028,mp4a.40.2"`)
+	assert.Contains(t, fbLine, `CODECS="avc1.64001f,mp4a.40.2"`)
 
 	in.AudioRenditions = nil
 	out, err = g.Master(in)

@@ -179,9 +179,7 @@ type HLSProcessOpts struct {
 	InverseTelecine bool
 	// SourceSAR ("64:45" on an anamorphic DVD, empty/"1:1" square): the scale
 	// height derives from the DISPLAY aspect so the picture is not squashed.
-	SourceSAR string
-	// MaxH264Level caps the level libx264 signals (client decoder cap), 0 = none.
-	MaxH264Level   int
+	SourceSAR      string
 	AudioNormalize bool
 	StartSec       float64
 	// StartNumber is the absolute segment index this process starts at (ffmpeg
@@ -207,6 +205,12 @@ type HLSProcessOpts struct {
 	// -hls_time and the video track timescale all come from it, so what the
 	// manifests declare is what the fragments hold. Zero = legacy 3 s clock.
 	Grid SegmentGrid
+	// DeclaredDurationMs is the presentation's duration as the manifests
+	// declare it (the container's). On an exact grid a transcode holds its
+	// last frame up to it and stops on its last declared frame, so the last
+	// segment the manifests list is the last one produced, whatever the
+	// audio's overhang. 0 = not declared (no tail).
+	DeclaredDurationMs int64
 	// ReadRate paces the input (`-readrate N`) so a long-lived software encoder
 	// stays near wall-clock. 0 = no pacing (the HW orchestrator self-throttles).
 	ReadRate float64

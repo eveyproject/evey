@@ -96,7 +96,7 @@ func TestAudioDelayCancel_CopyVideo_TranscodedAudio(t *testing.T) {
 	seek.SeekTargetSec = 120.05
 	seekArgs := ffmpeg.BuildFFmpegArgs(seek)
 	seekJoined := strings.Join(seekArgs, " ")
-	assert.Contains(t, seekJoined, "-ss 120.050 -itsoffset -0.900 -i /f.mkv", "audio input replicates the exact seek target")
+	assert.Contains(t, seekJoined, "-ss 120.050 -seek_timestamp 1 -itsoffset -0.900 -i /f.mkv", "audio input replicates the exact seek target, in source time")
 	// Input 1 must keep ffmpeg's DEFAULT accurate seek: the decode trim is what
 	// drops the audio content sitting before the seek target once -itsoffset
 	// shifted it. -noaccurate_seek belongs to input 0 only.

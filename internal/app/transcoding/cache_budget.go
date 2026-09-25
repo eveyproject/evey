@@ -23,18 +23,20 @@ import (
 // One sweep, three passes, in this order:
 //  1. Age: a download file untouched for DownloadTTL goes, whatever the cap.
 //     It was produced for one phone and served; keeping it "warm" for a week
-//     is generous already.
+//     is generous already. A file a player holds (FileLeases) is spared in
+//     every pass.
 //  2. Floor: while the filesystem has less than MinFreeBytes free, the least
 //     recently used entry goes, whatever the cap. Only a hash a live session
-//     serves is spared.
+//     serves, or a file a player holds, is spared.
 //  3. Cap: while the total sits above MaxBytes, the least recently used entry
-//     goes until it falls under MaxBytes - MarginBytes. A hash accessed within
-//     ProtectWindow is spared here (a viewer just pulled from it), a live
+//     goes until it falls under MaxBytes - MarginBytes. An entry accessed
+//     within ProtectWindow is spared here (a viewer just pulled from it: a
+//     remux a player ranges through is reopened on every request), a live
 //     session always is.
 //
 // Least recently used is judged across every kind of entry with the same
-// clock: a file's mtime (the download handler touches it on every serve) or a
-// hash's last write or Touch.
+// clock: a file's mtime (the remux and download handlers touch it on every
+// serve) or a hash's last write or Touch.
 type CacheBudget struct {
 	segments *SegmentCache
 	files    []*RemuxCacheJanitor
@@ -92,6 +94,8 @@ type budgetEntry struct {
 	path       string
 	bytes      int64
 	lastAccess time.Time
+	// leases holds the files a player is reading (a file entry only).
+	leases *FileLeases
 }
 
 func (e budgetEntry) isFile() bool { return e.path != "" }
@@ -114,7 +118,7 @@ func (b *CacheBudget) list(logger *slog.Logger) (entries []budgetEntry, total in
 			continue
 		}
 		for _, f := range files {
-			entries = append(entries, budgetEntry{path: f.path, bytes: f.bytes, lastAccess: f.mtime})
+			entries = append(entries, budgetEntry{path: f.path, bytes: f.bytes, lastAccess: f.mtime, leases: j.leases})
 			total += f.bytes
 		}
 	}
@@ -123,11 +127,15 @@ func (b *CacheBudget) list(logger *slog.Logger) (entries []budgetEntry, total in
 }
 
 // evict removes one entry. ok is false when it must stay: a hash a live
-// session serves. A file is removed even while a download reads it - the open
-// descriptor keeps the bytes until the client is done, and the next status
-// request answers "absent", so the phone asks for a fresh production.
-func (b *CacheBudget) evict(e budgetEntry) (ok bool, err error) {
+// session serves, a file a player holds (FileLeases). An unleased file is
+// removed even while a download reads it - the open descriptor keeps the
+// bytes until the client is done, and the next status request answers
+// "absent", so the phone asks for a fresh production.
+func (b *CacheBudget) evict(e budgetEntry, now time.Time) (ok bool, err error) {
 	if e.isFile() {
+		if e.leases.Held(e.path, now) {
+			return false, nil
+		}
 		if err := os.Remove(e.path); err != nil && !os.IsNotExist(err) {
 			return false, err
 		}
@@ -147,7 +155,7 @@ func (b *CacheBudget) sweepOnce(p EvictionPolicy, logger *slog.Logger, now time.
 	var freed int64
 	var evicted int
 	remove := func(e budgetEntry, reason string) bool {
-		ok, err := b.evict(e)
+		ok, err := b.evict(e, now)
 		if err != nil {
 			logger.Warn("cache budget: evict failed", slog.String("reason", reason),
 				slog.String("hash", e.hash), slog.String("path", e.path), slog.Any("err", err))
@@ -207,7 +215,7 @@ func (b *CacheBudget) sweepOnce(p EvictionPolicy, logger *slog.Logger, now time.
 			if gone[i] {
 				continue
 			}
-			if !e.isFile() && e.lastAccess.After(protectSince) {
+			if e.lastAccess.After(protectSince) {
 				continue // a viewer pulled from it just now
 			}
 			if remove(e, "cap") {

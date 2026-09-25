@@ -1,0 +1,15 @@
+// Classic buildscript form: resolves from the local Gradle cache (--offline),
+// the machine's init script pins project repositories.
+buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath "com.android.tools.build:gradle:8.12.0" }
+}
+allprojects {
+    repositories { google(); mavenCentral() }
+    // Resolvable from the local cache (Media3's kotlin-bom asks for 1.8.0).
+    configurations.configureEach {
+        resolutionStrategy.eachDependency { d ->
+            if (d.requested.group == "org.jetbrains.kotlin" && d.requested.name.startsWith("kotlin-stdlib")) d.useVersion "2.1.20"
+        }
+    }
+}

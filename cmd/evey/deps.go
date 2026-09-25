@@ -98,6 +98,7 @@ type mediaDeps struct {
 	capsOverrideSvc  *apptranscoding.CapOverrideService
 	mkvSvc           *appmkv.Service
 	mkvAdapter       *mkvgoadapter.Adapter // also drives the /remux.mp4 fast-start MP4 repackage
+	remuxLeases      *apptranscoding.FileLeases
 	musicSvc         *appmusic.Service
 	musicNowPlaying  *appmusic.NowPlayingRegistry
 	photoSvc         *appphoto.Service

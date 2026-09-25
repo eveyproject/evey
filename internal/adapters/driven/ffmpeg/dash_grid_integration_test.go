@@ -199,13 +199,7 @@ func TestDASHGridIntegration(t *testing.T) {
 				},
 				Count: grid.SegmentCount(durationMs),
 			}
-			coldSegs, _ := filepath.Glob(filepath.Join(cold, "stream_0_[0-9]*.m4s"))
-			coldNames := make([]string, len(coldSegs))
-			for k, s := range coldSegs {
-				coldNames[k] = filepath.Base(s)
-			}
-			companion := mp4.CMAFRepresentation{Dir: cold, Init: "stream_0_init.mp4", Segments: coldNames}
-			ares, audioErr := cmafparity.VerifyAudio(ctx, audio, "audio_0", companion, adeclared, 1024.0/audioTimescale)
+			ares, audioErr := cmafparity.Verify(ctx, audio, "audio_0", true, adeclared, 1024.0/audioTimescale)
 			if audioErr != nil {
 				t.Fatalf("audio parity: %v", audioErr)
 			}
@@ -256,4 +250,56 @@ func probeDurationMs(t *testing.T, ctx context.Context, path string) int64 {
 // right past the declared count.
 func tailOnly(extra []int, count int) bool {
 	return len(extra) == 0 || (len(extra) == 1 && extra[0] == count)
+}
+
+// A copied AAC rendition keeps the source's 44.1 kHz, in the fragments and in
+// the track timescale: the rate (and the SegmentTemplate timescale) the DASH
+// manifest declares for a copy is the source's, never the re-encode's 48 kHz.
+func TestDASHCopiedAACRateIntegration(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest` - needs the bundled ffmpeg)")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not in PATH")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src.mkv")
+	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25",
+		"-f", "lavfi", "-i", "anoisesrc=color=pink:seed=11:sample_rate=44100",
+		"-t", "8", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+		"-c:a", "aac", "-ac", "2", src)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("source generation: %v\n%s", err, out)
+	}
+	out := t.TempDir()
+	args := BuildFFmpegAudioOnlyArgs(transcoding.AudioProcessOpts{
+		FilePath: src, OutputDir: out, SourceTrackIdx: 0, AudioCodec: "copy", SourceAudioCodec: "aac",
+		Grid: transcoding.GridForFrameRate(25),
+	})
+	if b, err := exec.CommandContext(ctx, "ffmpeg", append([]string{"-hide_banner", "-v", "error", "-y"}, args...)...).CombinedOutput(); err != nil {
+		t.Fatalf("copied rendition: %v\n%s", err, b)
+	}
+	joined := filepath.Join(dir, "joined.mp4")
+	init, err := os.ReadFile(filepath.Join(out, "audio_0_init.mp4"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seg, err := os.ReadFile(filepath.Join(out, "audio_0_000.m4s"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if writeErr := os.WriteFile(joined, append(init, seg...), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	probe, err := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-select_streams", "a:0",
+		"-show_entries", "stream=sample_rate,time_base", "-of", "csv=p=0", joined).Output()
+	if err != nil {
+		t.Fatalf("ffprobe: %v", err)
+	}
+	if got := strings.TrimSpace(string(probe)); got != "44100,1/44100" {
+		t.Fatalf("copied AAC fragments carry %q, want 44100 Hz on a 1/44100 timescale", got)
+	}
 }

@@ -148,10 +148,10 @@ func TestProducerFor(t *testing.T) {
 	})
 }
 
-// The copy rung's segments duplicate roughly the source size on disk, and the
-// unpaced copy produces them well ahead of the viewer. Below the source size
-// plus 10% headroom the rung must stand down to the segment-bounded transcode
-// ladder rather than risk ENOSPC on a small box.
+// The copy rung needs its working set on disk plus 10% headroom, or it stands
+// down to the transcode ladder rather than risk ENOSPC on a small box. A
+// producer without a window holds the whole source; a windowed one, the
+// window's share of it.
 func TestIsCopy_DiskGuard(t *testing.T) {
 	streams := ladderStreams(1080)
 	streams[0].Keyframes = []int64{0, 6000, 12000}
@@ -192,6 +192,47 @@ func TestIsCopy_DiskGuard(t *testing.T) {
 	t.Run("fails OPEN when the source size is unknown", func(t *testing.T) {
 		pr := newResolver(1, nil) // a byte free: only the unknown size saves it
 		assert.True(t, pr.IsCopy(decision, streams, 0))
+	})
+
+	withKeyframes := func(kf []int64) []*library.MediaStream {
+		v := *streams[0]
+		v.Keyframes = kf
+		return append([]*library.MediaStream{&v}, streams[1:]...)
+	}
+	windowed := func(free int64) *PlanResolver {
+		return &PlanResolver{
+			CopyProducer: &windowedProducer{segs: 100},
+			FreeBytes:    func() (int64, error) { return free, nil },
+		}
+	}
+
+	t.Run("a windowed copy needs its window, not the film", func(t *testing.T) {
+		// 1000 regular 6 s GOPs: a window of 100 is a tenth of the film, twice
+		// that for the bitrate peaks, plus the headroom.
+		regular := make([]int64, 1000)
+		for i := range regular {
+			regular[i] = int64(i) * 6000
+		}
+		long := withKeyframes(regular)
+		assert.True(t, windowed(sourceBytes/4).IsCopy(decision, long, sourceBytes), "a quarter free holds a fifth plus its headroom")
+		assert.False(t, windowed(sourceBytes/5).IsCopy(decision, long, sourceBytes), "a fifth alone does not")
+	})
+
+	t.Run("a window of long GOPs is sized on its time, not its rank", func(t *testing.T) {
+		// 900 one-second GOPs, then 100 of a minute (a long static stretch):
+		// the last 100 segments hold 6000 of the film's ~6900 s. Sized as a
+		// tenth of the source, it passed with an eighth free and would have
+		// filled the disk.
+		irregular := make([]int64, 0, 1000)
+		for i := range 900 {
+			irregular = append(irregular, int64(i)*1000)
+		}
+		for i := range 100 {
+			irregular = append(irregular, 900_000+int64(i)*60_000)
+		}
+		long := withKeyframes(irregular)
+		assert.False(t, windowed(sourceBytes/8).IsCopy(decision, long, sourceBytes))
+		assert.True(t, windowed(sourceBytes+sourceBytes/10).IsCopy(decision, long, sourceBytes), "never more than the source itself")
 	})
 
 	t.Run("no probe wired means no guard", func(t *testing.T) {
@@ -444,3 +485,11 @@ func TestResolve_RouteMovingUnderALivePinIsCountedNotFrozen(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, base+1, drifts(), "the moved route is adopted: not one drift per segment")
 }
+
+// windowedProducer is a copy producer that keeps segs segments on disk.
+type windowedProducer struct {
+	stubProducer
+	segs int
+}
+
+func (w *windowedProducer) CopyWindowSegs() int { return w.segs }

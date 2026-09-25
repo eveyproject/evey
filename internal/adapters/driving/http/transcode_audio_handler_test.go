@@ -14,6 +14,7 @@ import (
 	"github.com/evey-project/evey/internal/config"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 // ----------------------------------------------------------------
@@ -221,4 +222,37 @@ func TestBuildAudioFingerprint_ClientCeilingCapsTheSourceLayout(t *testing.T) {
 	if got := h.buildAudioFingerprint(high, "m1", item, 0, 0, "").MaxAudioChannels; got != 6 {
 		t.Errorf("MaxAudioChannels = %d for a ceiling above the source, want 6", got)
 	}
+}
+
+// What the master advertises for a rendition is what its fingerprint makes
+// ffmpeg write: the re-encode's 48 kHz, its channel count and scaled bits,
+// read off the SAME fingerprint the segments are produced from; a copy's
+// source rate, layout and bits - a 44.1 kHz AAC copied is never 48 kHz.
+func TestRenditionShape_MatchesWhatTheFragmentsCarry(t *testing.T) {
+	eight, six, two := 8, 6, 2
+	rate44 := 44100
+	bits := int64(159_800)
+	item, _ := testMediaItemWithAudioStreams()
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: "video", Codec: "h264"},
+		{StreamType: "audio", Codec: "truehd", Channels: &eight},                                 // 0: 7.1
+		{StreamType: "audio", Codec: "ac3", Channels: &six},                                      // 1: 5.1
+		{StreamType: "audio", Codec: "aac", Channels: &two, SampleRate: &rate44, Bitrate: &bits}, // 2: 44.1 kHz stereo AAC
+	}
+	h := buildAudioServe(t, true, &testFakeStreamsGetter{item: item, streams: streams}, nil, nil, nil)
+	for _, q := range []string{"", "?maxAudioChannels=2"} {
+		r := httptest.NewRequest(http.MethodGet, "/hls/audio_0.m3u8"+q, nil)
+		for track := range 2 {
+			fp := h.buildAudioFingerprint(r, "m1", item, track, 0, "")
+			rate, ch, kbps := renditionShape(audioStreamAt(streams, track), "", maxAudioChannelsQuery(r))
+			assert.Equal(t, 48000, rate)
+			assert.Equal(t, domaintranscoding.ResolvedAudioChannels(fp.MaxAudioChannels), ch, "track %d %q", track, q)
+			assert.Equal(t, domaintranscoding.ServedAudioBitrateKbps(fp.AudioBitrate, fp.MaxAudioChannels), kbps, "track %d %q", track, q)
+		}
+	}
+
+	rate, ch, kbps := renditionShape(audioStreamAt(streams, 2), "aac", 0)
+	assert.Equal(t, 44100, rate)
+	assert.Equal(t, 2, ch)
+	assert.Equal(t, int64(160), kbps)
 }

@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -122,6 +124,58 @@ func TestRemux_RangeRequest_PartialContent(t *testing.T) {
 
 	require.Equal(t, http.StatusPartialContent, w.Code)
 	assert.Equal(t, "2345", w.Body.String())
+}
+
+// A serve keeps the remux warm in the cache budget's LRU (its mtime), and the
+// validator is the cache name, not that moving mtime: a player resuming with
+// If-Range after the touch still gets its range, not the whole file.
+func TestRemux_ServeTouchesTheFileAndKeepsAStableValidator(t *testing.T) {
+	rmx := &fakeRemuxer{canRemux: true, payload: []byte("0123456789")}
+	h := newTestRemuxServe(t, rmx, allowAll())
+
+	first := doRemuxRequest(h, false, "")
+	require.Equal(t, http.StatusOK, first.Code)
+	etag := first.Header().Get("ETag")
+	require.NotEmpty(t, etag)
+	assert.Empty(t, first.Header().Get("Last-Modified"), "no moving date to validate against")
+
+	entries, err := os.ReadDir(h.cacheDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	path := filepath.Join(h.cacheDir, entries[0].Name())
+	old := time.Now().Add(-time.Hour)
+	require.NoError(t, os.Chtimes(path, old, old))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/remux.mp4", nil)
+	req.SetPathValue("id", "m1")
+	req.Header.Set("Range", "bytes=2-5")
+	req.Header.Set("If-Range", etag)
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.handle(w, req)
+
+	require.Equal(t, http.StatusPartialContent, w.Code)
+	assert.Equal(t, "2345", w.Body.String())
+	assert.Equal(t, etag, w.Header().Get("ETag"))
+	fi, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now(), fi.ModTime(), time.Minute, "the serve touched the file")
+}
+
+// A served remux is leased to the cache budget: held past the request for the
+// player's next range, released after the linger.
+func TestRemux_ServeLeasesTheFileToTheBudget(t *testing.T) {
+	rmx := &fakeRemuxer{canRemux: true, payload: []byte("0123456789")}
+	h := newTestRemuxServe(t, rmx, allowAll())
+	h.leases = apptranscoding.NewFileLeases()
+
+	require.Equal(t, http.StatusOK, doRemuxRequest(h, false, "").Code)
+	entries, err := os.ReadDir(h.cacheDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	path := filepath.Join(h.cacheDir, entries[0].Name())
+	assert.True(t, h.leases.Held(path, time.Now()), "held for the next range")
+	assert.False(t, h.leases.Held(path, time.Now().Add(h.leases.Linger+time.Second)), "released past the linger")
 }
 
 // Only EBML sources can be repackaged; anything else is 415, never a remux.

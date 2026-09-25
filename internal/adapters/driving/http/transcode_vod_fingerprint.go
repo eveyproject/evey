@@ -79,9 +79,11 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 	// the variant keeps its LADDER index (the child request re-derives the
 	// full ladder, any other name would serve the wrong profile).
 	videoPlaylistURI := ""
+	firstRung := 0
 	if fit := rp.Plan.Fit; fit.Single && fit.Rung >= 0 && fit.Rung < len(profiles) {
 		profiles = profiles[fit.Rung : fit.Rung+1]
 		videoPlaylistURI = fmt.Sprintf("stream_%d.m3u8", fit.Rung)
+		firstRung = fit.Rung
 	}
 
 	audioTrack := rp.AudioTrack
@@ -111,12 +113,21 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 	var audioRenditions []apptranscoding.AudioRendition
 	if h.audioRenditionsFor(decision, streams) {
 		audioRenditions = buildAudioRenditions(streams)
-		// Each rendition advertises the codec it will really carry: the source
-		// codec when it is copied, AAC when it is re-encoded.
+		// Each rendition advertises what it will really carry: the source
+		// codec, rate, layout and bits when it is copied, the AAC encode's when
+		// it is re-encoded.
+		clientMax := maxAudioChannelsQuery(r)
 		for i := range audioRenditions {
-			audioRenditions[i].Codec = "aac"
-			if c := h.audioRenditionCopyCodec(r, item, streams, audioRenditions[i].SourceTrackIdx); c != "" {
-				audioRenditions[i].Codec = c
+			ar := &audioRenditions[i]
+			copyCodec := h.audioRenditionCopyCodec(r, item, streams, ar.SourceTrackIdx)
+			ar.Codec = "aac"
+			if copyCodec != "" {
+				ar.Codec = copyCodec
+			}
+			src := audioStreamAt(streams, ar.SourceTrackIdx)
+			ar.SampleRate, ar.Channels, ar.BitrateKbps = renditionShape(src, copyCodec, clientMax)
+			if copyCodec != "" && src != nil {
+				ar.Profile = src.Profile // a re-encode is AAC-LC whatever the source was
 			}
 		}
 	}
@@ -210,6 +221,7 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		LineKbps:         maxKbpsRequested(r),
 		ABRFloor:         floorRequested(r),
 		VideoPlaylistURI: videoPlaylistURI,
+		FirstRungIndex:   firstRung,
 		// Seal this moment's decision hash into every URI the manifest emits.
 		// stream_N is a ladder INDEX; if the ladder reshapes mid-play the same
 		// URL silently maps to another rendition (the 2026-07-15 rainbow). A

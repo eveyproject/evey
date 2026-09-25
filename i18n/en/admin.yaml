@@ -1392,7 +1392,7 @@ seekIndex:
   wrongContainerBadge: "Wrong container"
   wrongContainerHint: "This .mkv is really an MP4/MOV file: there is no Matroska index to build. Repair renames it to .mp4 and updates the library."
   brokenInterleaveBadge: "Tracks stored in blocks"
-  brokenInterleaveHint: "The tracks are stored in separate blocks of minutes (video alone, then audio alone) instead of side by side - a timestamp steps back {{sec}}s between two points of the file. Every header is fine and every stream decodes, but no sequential player gets past the first block: mobile direct play stalls, the HLS packager waits minutes for its first audio segment. The Re-mux button rewrites it losslessly (the original is kept as backup); a plain stream copy elsewhere reproduces the layout."
+  brokenInterleaveHint: "The tracks are stored in separate blocks of minutes (video alone, then audio alone) instead of side by side - a timestamp steps back {{sec}}s between two points of the file. Every header is fine and every stream decodes, but no sequential player gets past the first block: direct play stalls and ffmpeg waits minutes for its first audio segment. Only the packager (streaming without conversion) serves it, reading about twice the file and a whole block at each seek. The Re-mux button rewrites it losslessly (the original is kept as backup); a plain stream copy elsewhere reproduces the layout."
   unreadableBadge: Unreadable
   unreadableHint: "The scan could not diagnose this file: missing or unreadable on disk, or a container the parser refused. Nothing can be repaired from here - check the mount or re-acquire the source. Detail: {{detail}}"
   trailingJunkBadge: "Trailing bytes"

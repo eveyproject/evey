@@ -135,6 +135,7 @@ func (h *hlsVODServe) marshalPlaybackRequest(r *http.Request, mediaID string, it
 		WasmAudio:           wasmAudioEffective(r, h.castWasmAudioEnabled),
 		MaxBitrateKbps:      h.requestBitrateCapKbps(r),
 		SourceBytes:         sourceBytesOf(item),
+		SourceDurationMs:    item.File.Duration.Milliseconds(),
 		SourceBitrateKbps:   sourceBitrateKbpsOf(item, streams),
 		SourceNeedsRemux:    item.File.NeedsRemux(),
 		SourcePeakKbps:      copyPeakKbpsOf(item),

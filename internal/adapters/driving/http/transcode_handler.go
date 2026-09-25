@@ -92,10 +92,8 @@ func chaptersHandler(libSvc ChaptersGetter, baseURL string, libraryAccess Librar
 			span.SetStatus(codes.Error, "parental restricted")
 			return
 		}
-		if !checkPlayable(w, item) {
-			span.SetStatus(codes.Error, "file needs remux")
-			return
-		}
+		// Chapters are the library's metadata: a block-ordered file plays
+		// through the packager and keeps them.
 		chapters, err := libSvc.GetChapters(r.Context(), mediaID)
 		if err != nil {
 			span.RecordError(err)

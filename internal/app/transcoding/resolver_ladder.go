@@ -120,6 +120,22 @@ func (pr *PlanResolver) shapeLadderFor(ctx context.Context, req PlaybackRequest,
 			}
 		}
 	}
+	// Every encoded rung carries the level it is encoded and declared at,
+	// from the target of the route it is served on (after a spill); a rung
+	// above the client's H.264 level is dropped, never relabelled. Before the
+	// freeze, so the frozen ladder is the one served.
+	if !isCopy {
+		served := route
+		if spilled {
+			served = route.spill(SpillPoolFull, decision)
+		}
+		encode := served.Encode()
+		laddered = transcoding.AssignCodecLevels(laddered, served.Codec, EncodeFrameRate(req.Streams),
+			func(p transcoding.HLSProfile) transcoding.QualityTarget {
+				return pr.QualityPolicy().TargetFor(p, encode)
+			},
+			req.Client.MaxH264Level)
+	}
 	// Freeze this shaped ladder on the admission pin (created by AdmissionRoute
 	// just above) so every later manifest-/segment-time call reads it verbatim.
 	// No-op when no pin was created (nothing fit ⇒ refused, or admission unwired):

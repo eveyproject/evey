@@ -106,7 +106,6 @@ func goldenSessions() map[string]transcoding.HLSProcessOpts {
 			o.SourceSAR = "64:45"
 			o.Profiles[0] = transcoding.HLSProfile{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1400, AudioBitrate: 192}
 		}),
-		"sw-single-level31":  goldenOpts(func(o *transcoding.HLSProcessOpts) { o.MaxH264Level = 31 }),
 		"sw-single-hevc":     goldenOpts(func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "hevc" }),
 		"sw-single-av1":      goldenOpts(func(o *transcoding.HLSProcessOpts) { o.VideoCodec = "av1" }),
 		"sw-single-audio-51": goldenOpts(func(o *transcoding.HLSProcessOpts) { o.MaxAudioChannels = 6; o.AudioNormalize = true }),

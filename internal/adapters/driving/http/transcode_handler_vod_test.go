@@ -1066,6 +1066,10 @@ func profilesForTest() []apptranscoding.ProfileFingerprint {
 	src := domaintranscoding.LadderFor(domaintranscoding.ClassFilmNormal)
 	capped := domaintranscoding.CapLadderToHeight(src, 720)
 	src = domaintranscoding.BoostCappedTopRung(src, capped)
+	// Levelled as the plan levels them: software route, rate unknown.
+	src = domaintranscoding.AssignCodecLevels(src, "h264", 0, func(p domaintranscoding.HLSProfile) domaintranscoding.QualityTarget {
+		return domaintranscoding.StaticQualityPolicy{}.TargetFor(p, domaintranscoding.EncodeRoute{})
+	}, 0)
 	out := make([]apptranscoding.ProfileFingerprint, len(src))
 	for i, p := range src {
 		out[i] = apptranscoding.ProfileFingerprint{
@@ -1074,6 +1078,7 @@ func profilesForTest() []apptranscoding.ProfileFingerprint {
 			Height:       p.Height,
 			VideoBitrate: p.VideoBitrate,
 			AudioBitrate: p.AudioBitrate,
+			CodecLevel:   p.CodecLevel,
 		}
 	}
 	return out

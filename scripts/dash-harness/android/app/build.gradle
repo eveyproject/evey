@@ -1,0 +1,23 @@
+apply plugin: "com.android.application"
+
+android {
+    namespace "com.evey.dashsmoke"
+    compileSdk 36
+    defaultConfig {
+        applicationId "com.evey.dashsmoke"
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName "1"
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // The player Evey's mobile and TV apps play through (expo-video: Media3).
+    implementation "androidx.media3:media3-exoplayer:1.8.0"
+    implementation "androidx.media3:media3-exoplayer-dash:1.8.0"
+}
