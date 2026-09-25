@@ -127,6 +127,31 @@ func (t *tracker) taskTotals() map[string]TaskTotals {
 	return out
 }
 
+// taskCPUSeconds is, per task tag, the CPU time of its finished forks plus
+// what its live forks have consumed so far: a counter that only grows, so
+// two readings give the task's CPU rate - short forks included, which a live
+// sample of the running children never sees.
+func (t *tracker) taskCPUSeconds() map[string]float64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := make(map[string]float64, len(t.totals))
+	for k, v := range t.totals {
+		out[k] = v.CPUSeconds
+	}
+	for cmd, f := range t.flights {
+		if cmd.Process == nil {
+			continue
+		}
+		if secs, err := sysinfo.ProcCPUSeconds(cmd.Process.Pid); err == nil {
+			out[f.task] += secs
+		}
+	}
+	return out
+}
+
+// TaskCPUSeconds reports the monotonic CPU time of every task's forks.
+func TaskCPUSeconds() map[string]float64 { return track.taskCPUSeconds() }
+
 // Children lists the forks running right now with their live cost.
 func Children() []Child { return track.children(time.Now()) }
 

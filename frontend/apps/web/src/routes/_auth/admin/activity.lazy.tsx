@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { Film, Download } from "lucide-react";
-import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
+import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
@@ -99,7 +99,13 @@ function PlayHistoryTab({ watcher }: { watcher: Watcher }) {
                 return (
                   <tr key={e.id} className="border-b border-[var(--border)]">
                     <td data-label={t("admin.activity.playHeaders.title")} className="px-4 py-3 text-[var(--text)]">
-                      {e.mediaTitle ?? "-"}
+                      {e.mediaItemId && e.mediaType !== "MEDIA_ITEM_TYPE_TRACK" ? (
+                        <Link to="/media/$mediaId" params={{ mediaId: e.mediaItemId }} className="hover:underline hover:text-[var(--accent)]">
+                          {e.mediaTitle || "-"}
+                        </Link>
+                      ) : (
+                        e.mediaTitle ?? "-"
+                      )}
                     </td>
                     <td data-label={t("admin.activity.playHeaders.who")} className="px-4 py-3">
                       <span className="text-[var(--text)]">{e.profileName || t("admin.activity.unknownProfile")}</span>

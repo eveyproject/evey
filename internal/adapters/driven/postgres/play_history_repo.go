@@ -30,7 +30,12 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	// inside that window must still list the row rather than drop it.
 	query := `
 		SELECT ps.id, ps.profile_id, ps.media_item_id,
-		       mi.title, mi.type,
+		       CASE WHEN mi.type = 'episode' THEN
+		         COALESCE(series.title, '') || ' - S' ||
+		         LPAD(COALESCE(season.index_number, 0)::text, 2, '0') || 'E' ||
+		         LPAD(COALESCE(mi.index_number, 0)::text, 2, '0')
+		       ELSE mi.title END,
+		       mi.type,
 		       COALESCE(mf.duration_ms, 0), COALESCE(ps.position_ms, 0),
 		       COALESCE(wp.completed, false),
 		       ps.device_name, ps.device_type, ps.play_method,
@@ -38,6 +43,9 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 		       COALESCE(p.name, ''), COALESCE(p.user_id, ''), COALESCE(u.username, '')
 		FROM play_sessions ps
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		-- An episode reads as its series and code, as in the audit log.
+		LEFT JOIN media_items season ON season.id = mi.parent_id AND mi.type = 'episode'
+		LEFT JOIN media_items series ON series.id = season.parent_id AND mi.type = 'episode'
 		LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 		LEFT JOIN watch_progress wp ON wp.profile_id = ps.profile_id AND wp.media_item_id = ps.media_item_id
 		LEFT JOIN profiles p ON p.id = ps.profile_id

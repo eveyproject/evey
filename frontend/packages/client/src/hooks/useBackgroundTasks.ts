@@ -28,6 +28,18 @@ export interface BackgroundTaskView {
   // and what it holds right now.
   cpuSlots?: number;
   cpuSlotsHeld?: number;
+  // The batch in progress when the worker announced it: items planned and done.
+  batchTotal?: number;
+  batchDone?: number;
+}
+
+// batchProgress is the share of the announced batch that is done, null when
+// the worker announced nothing (event-driven one-offs, idle).
+export function batchProgress(task: BackgroundTaskView): { done: number; total: number; ratio: number } | null {
+  const total = task.batchTotal ?? 0;
+  if (total <= 0) return null;
+  const done = Math.min(task.batchDone ?? 0, total);
+  return { done, total, ratio: done / total };
 }
 
 export const BACKGROUND_TASKS_QUERY_KEY = ["/api/v1/admin/background-tasks"];
@@ -95,7 +107,10 @@ export function useBackgroundTaskControl(task: BackgroundTaskView, t: TFunction)
     label,
     running,
     since: running ? backgroundTaskSince(t, task.startedAt) : null,
-    hasCost: running && task.processes > 0,
+    // Short forks finish between two polls: a task can cost CPU with no
+    // process alive at the instant of the snapshot.
+    hasCost: running && (task.processes > 0 || task.cpuPercent > 0),
+    progress: batchProgress(task),
     armed,
     pending: control.isPending,
     resume: () => control.mutate("resume"),

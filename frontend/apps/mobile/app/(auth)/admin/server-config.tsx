@@ -18,6 +18,7 @@ import { CpuBudgetCard } from "../../../src/components/admin/server-config/CpuBu
 import { ParserTokensCard } from "../../../src/components/admin/server-config/ParserTokensCard";
 import { ConfigEntriesCard } from "../../../src/components/admin/server-config/ConfigEntriesCard";
 import type { ConfigEntry } from "../../../src/components/admin/server-config/types";
+import { latestLabel, useCheckUpdateNow, useUpdateStatus } from "@evey/client";
 
 interface SettingValue<T> {
   value: T;
@@ -215,6 +216,20 @@ export default function AdminServerConfigScreen() {
   const tidbKey = getEntryValue("api.tidb_key");
   const tidbSubmitEnabled = getEntryValue("intro_providers.tidb_submit_enabled") === "true";
   const trickplayEnabled = getEntryValue("trickplay.enabled") !== "false";
+  const updateCheckEnabled = getEntryValue("update_check.enabled") !== "false";
+  const { data: updateStatus } = useUpdateStatus();
+  const checkUpdateNow = useCheckUpdateNow();
+  const updateStatusText = !updateStatus
+    ? ""
+    : updateStatus.state === "update_available"
+      ? t("admin.update.available", { latest: latestLabel(updateStatus) })
+      : updateStatus.state === "up_to_date"
+        ? t("admin.update.upToDate")
+        : updateStatus.state === "disabled"
+          ? t("admin.update.disabled")
+          : updateStatus.state === "pending"
+            ? t("admin.update.pending")
+            : t("admin.update.unknown", { reason: updateStatus.reason ?? "" });
   // Artwork auto-download: default-true, only "false" disables (matches the
   // server's resolveAutoDownloadDefault). Mirror web ArtworkSettingsCard.
   const artworkAutoDownload = getEntryValue("artwork.auto_download") !== "false";
@@ -449,26 +464,39 @@ export default function AdminServerConfigScreen() {
             </Text>
           </>
 
-          {/* Trickplay section */}
+          {/* Update check section: Evey only reads the registry, it never updates itself. */}
           <>
             <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
-            <Text style={s.sectionTitle}>{t("admin.serverConfig.trickplayTitle", "Trickplay")}</Text>
-
+            <Text style={s.sectionTitle}>{t("admin.update.title", "Updates")}</Text>
             <View style={staticStyles.switchRow}>
               <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
-                {t("admin.serverConfig.trickplayEnabled", "Générer les vignettes trickplay")}
+                {t("admin.update.enabled", "Check for updates")}
               </Text>
               <Switch
-                value={trickplayEnabled}
-                onValueChange={(v) => saveConfigEntry.mutate({ key: "trickplay.enabled", value: v ? "true" : "false" })}
+                value={updateCheckEnabled}
+                onValueChange={(v) => saveConfigEntry.mutate({ key: "update_check.enabled", value: v ? "true" : "false" })}
                 trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
                 disabled={saveConfigEntry.isPending}
               />
             </View>
-
-            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 8 }}>
-              {t("admin.serverConfig.trickplayCpuHint", "The generation's CPU share is set under Background CPU.")}
-            </Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 8 }}>{t("admin.update.noAuto")}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12 }}>
+              <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} testID="update-status-line">
+                {updateStatusText}
+              </Text>
+              <Pressable
+                onPress={() => checkUpdateNow.mutate()}
+                disabled={!updateCheckEnabled || checkUpdateNow.isPending}
+                accessibilityRole="button"
+                style={{ borderWidth: 1, borderColor: theme.colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, opacity: updateCheckEnabled ? 1 : 0.5 }}
+              >
+                {checkUpdateNow.isPending ? (
+                  <ActivityIndicator size="small" color={theme.colors.text} />
+                ) : (
+                  <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600" }}>{t("admin.update.checkNow")}</Text>
+                )}
+              </Pressable>
+            </View>
           </>
 
           {/* Language & Region section */}
@@ -536,7 +564,7 @@ export default function AdminServerConfigScreen() {
           {/* Background CPU budget section */}
           <>
             <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
-            <Text style={s.sectionTitle}>{t("admin.serverConfig.cpuBudget.title", "Background CPU")}</Text>
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.cpuBudget.title", "Processing power")}</Text>
             <CpuBudgetCard
               entries={configEntries}
               saveEntry={saveConfigEntry.mutate}
@@ -548,13 +576,30 @@ export default function AdminServerConfigScreen() {
           {/* Background jobs section */}
           <>
             <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
-            <Text style={s.sectionTitle}>{t("admin.serverConfig.backgroundJobs.title", "Background Jobs")}</Text>
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.backgroundJobs.title", "Background work")}</Text>
             <BackgroundJobsCard
               entries={configEntries}
               saveEntry={saveConfigEntry.mutate}
               deleteEntry={deleteConfigEntry.mutate}
               saving={saveConfigEntry.isPending || deleteConfigEntry.isPending}
             />
+            {/* The timeline thumbnails are background work too. */}
+            <Text style={[s.sectionTitle, { fontSize: 15, marginTop: 20 }]}>{t("admin.serverConfig.trickplayTitle", "Trickplay")}</Text>
+            <View style={staticStyles.switchRow}>
+              <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
+                {t("admin.serverConfig.trickplayEnabled", "Générer les vignettes trickplay")}
+              </Text>
+              <Switch
+                value={trickplayEnabled}
+                onValueChange={(v) => saveConfigEntry.mutate({ key: "trickplay.enabled", value: v ? "true" : "false" })}
+                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                disabled={saveConfigEntry.isPending}
+              />
+            </View>
+
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 8 }}>
+              {t("admin.serverConfig.trickplayCpuHint", "The generation's share of the processor is set under Processing power.")}
+            </Text>
           </>
 
           {/* Parser tokens section */}

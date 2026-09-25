@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { View, Text, Pressable, Dimensions } from "react-native";
+import { View, Text, Pressable } from "react-native";
+import { ROW_CARD_WIDTH } from "../lib/rowCardWidth";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
@@ -43,7 +44,7 @@ export const CARD_LINE_HEIGHT = 17;
 export const CARD_TEXT_GAP = 4;
 /** Exact height of the caption block: title + year. */
 export const CARD_CAPTION_HEIGHT = CARD_TEXT_GAP + CARD_LINE_HEIGHT * 2;
-const DEFAULT_WIDTH = Dimensions.get("window").width * 0.35;
+const DEFAULT_WIDTH = ROW_CARD_WIDTH;
 
 export const MediaCard = React.memo(function MediaCard({ item, onPress, width, watchPercent, watched, posterBlurhash: posterBlurhashProp }: MediaCardProps) {
   const { t } = useTranslation();

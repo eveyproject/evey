@@ -1,7 +1,9 @@
 package bgtasks
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,4 +48,31 @@ func TestRegistry_BeginAutoRegisters_SortedSnapshot(t *testing.T) {
 	require.Len(t, snap, 2)
 	assert.Equal(t, "alpha", snap[0].Name, "snapshot must be name-sorted")
 	assert.Equal(t, "zeta", snap[1].Name)
+}
+
+func TestQueue_TracksTheBatchUntilItDrains(t *testing.T) {
+	r := New()
+	r.Queue("scan", 3)
+	for i := range 3 {
+		_, done := r.BeginCtx(context.Background(), "scan", "f")
+		snap := r.Snapshot()[0]
+		assert.EqualValues(t, 3, snap.BatchTotal)
+		assert.EqualValues(t, i, snap.BatchDone)
+		done()
+	}
+	snap := r.Snapshot()[0]
+	assert.Zero(t, snap.BatchTotal, "a drained batch is over")
+	assert.Zero(t, snap.BatchDone)
+
+	// An item announced then dropped must not stick to the next batch.
+	r.Queue("scan", 2)
+	_, done := r.BeginCtx(context.Background(), "scan", "f")
+	done()
+	r.mu.Lock()
+	r.m["scan"].lastActive = time.Now().Add(-2 * batchStale)
+	r.mu.Unlock()
+	r.Queue("scan", 1)
+	snap = r.Snapshot()[0]
+	assert.EqualValues(t, 1, snap.BatchTotal)
+	assert.Zero(t, snap.BatchDone)
 }

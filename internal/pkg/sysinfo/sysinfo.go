@@ -24,10 +24,14 @@ var (
 )
 
 type Stats struct {
-	CPUPercent    float64
-	MemoryPercent float64
-	MemUsedBytes  int64
-	MemTotalBytes int64
+	CPUPercent float64
+	// EveyCPUPercent is the share of the same host capacity taken by this
+	// server and every process it forked, so an admin can tell Evey's load
+	// from a neighbour's (Jellyfin on the same VM, a file copy).
+	EveyCPUPercent float64
+	MemoryPercent  float64
+	MemUsedBytes   int64
+	MemTotalBytes  int64
 }
 
 type StorageStats struct {
@@ -64,7 +68,7 @@ func Collect() Stats {
 		s.MemUsedBytes = int64(m.Sys)
 	}
 
-	s.CPUPercent = sampleCPU()
+	s.CPUPercent, s.EveyCPUPercent = sampleCPU()
 
 	cachedStats = s
 	cacheExpiresAt = time.Now().Add(collectCacheTTL)
@@ -150,8 +154,30 @@ func parseKB(line string) int64 {
 	return kb * 1024
 }
 
-func sampleCPU() float64 {
-	return CPUBusyPercent(200 * time.Millisecond)
+// sampleCPU returns the host's busy share and the part of it this server's
+// process tree accounts for, over the same window.
+func sampleCPU() (host, evey float64) {
+	self := os.Getpid()
+	s1, ok := readCPUStat()
+	if !ok {
+		return 0, 0
+	}
+	t1 := treeCPUTicks(self)
+	time.Sleep(500 * time.Millisecond)
+	s2, ok := readCPUStat()
+	if !ok {
+		return 0, 0
+	}
+	t2 := treeCPUTicks(self)
+	dTotal := s2.total - s1.total
+	if dTotal == 0 {
+		return 0, 0
+	}
+	host = float64(dTotal-(s2.idle-s1.idle)) / float64(dTotal) * 100
+	if t2 > t1 {
+		evey = min(host, float64(t2-t1)/float64(dTotal)*100)
+	}
+	return host, evey
 }
 
 // CPUBusyPercent samples /proc/stat twice, window apart, and returns the share
@@ -319,12 +345,16 @@ func readCPUStat() (cpuSample, bool) {
 		if len(fields) < 5 {
 			return cpuSample{}, false
 		}
+		// user nice system idle iowait irq softirq steal [guest guest_nice]:
+		// guest time is already inside user, and a core waiting on the disk
+		// (iowait) is free to run anything - a file copy onto the library
+		// used to read as CPU load.
 		var total, idle uint64
-		for i := 1; i < len(fields); i++ {
+		for i := 1; i < len(fields) && i <= 8; i++ {
 			v, _ := strconv.ParseUint(fields[i], 10, 64)
 			total += v
-			if i == 4 { // idle is field 4
-				idle = v
+			if i == 4 || i == 5 {
+				idle += v
 			}
 		}
 		return cpuSample{idle: idle, total: total}, true

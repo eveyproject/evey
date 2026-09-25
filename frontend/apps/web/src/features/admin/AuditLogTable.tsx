@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Clock } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import type { V1AuditLogEntry } from "@evey/api";
 import { Pagination } from "@/components/ui/Pagination";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -12,6 +13,11 @@ interface AuditLogTableProps {
   onPageChange?: (page: number) => void;
   page?: number;
   pageSize?: number;
+}
+
+// The resource types whose id is a media item, the ones the row links to.
+function isMediaResource(type: string): boolean {
+  return type === "media" || type === "media_item";
 }
 
 const HIDDEN_DETAIL_KEYS = /(_id|_ids|^title|^method)$/;
@@ -85,9 +91,21 @@ export function AuditLogTable({
                     {entry.action?.replace(/_/g, " ") ?? "-"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)] hidden md:table-cell">
-                    {entry.resourceType
-                      ? `${entry.resourceType.replace(/_/g, " ")}${entry.resourceName ? `: ${entry.resourceName}` : ""}`
-                      : "-"}
+                    {entry.resourceType ? (
+                      <>
+                        {entry.resourceType.replace(/_/g, " ")}
+                        {entry.resourceName && ": "}
+                        {entry.resourceName && isMediaResource(entry.resourceType) && entry.resourceId ? (
+                          <Link to="/media/$mediaId" params={{ mediaId: entry.resourceId }} className="text-[var(--text)] hover:underline hover:text-[var(--accent)]">
+                            {entry.resourceName}
+                          </Link>
+                        ) : (
+                          entry.resourceName
+                        )}
+                      </>
+                    ) : (
+                      "-"
+                    )}
                   </td>
                   <td className="px-4 py-2 text-[var(--text-muted)] hidden lg:table-cell">
                     {formatDetails(entry.details) || "-"}

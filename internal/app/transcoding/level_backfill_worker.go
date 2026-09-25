@@ -221,6 +221,7 @@ func (w *LevelBackfillWorker) processBatch(ctx context.Context) int {
 		w.logger.Warn("level backfill: list candidates failed", slog.Any("err", err))
 		return 0
 	}
+	bgtasks.Queue(levelBackfillTask, len(ids))
 	for i, id := range ids {
 		select {
 		case <-w.stop:

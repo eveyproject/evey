@@ -26,6 +26,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { SessionCard } from "../../../src/components/admin/SessionCard";
 import { BackgroundTasksPanel } from "../../../src/components/admin/BackgroundTasksPanel";
+import { UpdateBanner } from "../../../src/components/admin/UpdateBanner";
 
 function StatCard({ label, value, icon, theme, sub, valueColor }: { label: string; value: string | number; icon: IoniconName; theme: ReturnType<typeof useTheme>; sub?: string; valueColor?: string }) {
   return (
@@ -453,6 +454,7 @@ export default function AdminDashboard() {
         })}
       </Text>
 
+      <UpdateBanner />
       <NowPlayingCard theme={theme} />
       <OnlineNowCard theme={theme} />
 
@@ -476,6 +478,7 @@ export default function AdminDashboard() {
           label={t("admin.dashboardStats.cpu")}
           value={cpu != null ? `${Math.round(cpu)}%` : "-"}
           valueColor={cpu != null ? getUsageColor(cpu, theme) : undefined}
+          sub={cpu != null ? t("admin.dashboardStats.eveyCpuSub", { percent: Math.round(dashboard?.eveyCpuPercent ?? 0) }) : undefined}
           icon="hardware-chip-outline"
           theme={theme}
         />

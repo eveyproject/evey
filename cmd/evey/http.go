@@ -9,15 +9,18 @@ import (
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"log/slog"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"strconv"
 	"time"
 
+	"github.com/evey-project/evey/internal/adapters/driven/ociregistry"
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	appcast "github.com/evey-project/evey/internal/app/chromecast"
 	appdlna "github.com/evey-project/evey/internal/app/dlna"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
+	"github.com/evey-project/evey/internal/app/updatecheck"
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
@@ -193,6 +196,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		MetadataQuerySvc: deps.content.metadataQuerySvc,
 
 		ActivityCmdSvc: deps.engagement.activityCmdSvc,
+		UpdateChecker:  startUpdateCheck(ctx, deps.repos.serverCfgRepo),
 
 		CollectionSvc:  deps.content.collectionQuerySvc,
 		PlaylistSvc:    deps.content.playlistSvc,
@@ -385,4 +389,22 @@ func resolveVAPIDPublicKey(cfgRepo shared.ServerConfigRepository, cfg *config.Co
 		return e.Value
 	}
 	return ""
+}
+
+// defaultImageRepo is the public image the documentation installs; the image
+// build stamps EVEY_IMAGE_REPO with the repository it was actually pushed to.
+const defaultImageRepo = "docker.io/gravityz/evey"
+
+// startUpdateCheck starts the periodic "newer image published?" check. It only
+// reads the registry: pulling and recreating the container stays the admin's.
+func startUpdateCheck(ctx context.Context, cfgRepo shared.ServerConfigRepository) *updatecheck.Service {
+	image := os.Getenv("EVEY_IMAGE_REPO")
+	if image == "" {
+		image = defaultImageRepo
+	}
+	b := buildID()
+	svc := updatecheck.New(ociregistry.New(), cfgRepo,
+		updatecheck.Build{Version: b.Version, Commit: b.Commit, BuildDate: b.BuildDate}, image)
+	svc.Start(ctx)
+	return svc
 }

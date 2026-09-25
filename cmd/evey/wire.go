@@ -136,6 +136,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		applibrary.WithShutdownCtx(ctx),
 		applibrary.WithSearchReindex(r.MediaItemQuery, r.MediaItemTranslation, r.MediaPerson),
 		applibrary.WithCPUBudget(cpuBudget),
+		applibrary.WithFileSettle(applibrary.DefaultFileSettle),
 	)
 	libCmdSvc.WithSubtitleScanner(infra.subScanner)
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)

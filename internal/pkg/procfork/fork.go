@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -108,15 +110,22 @@ func command(ctx context.Context, budget *cpubudget.Budget, o Options, bin strin
 	// busy, and a memory reservation must not sit idle meanwhile.
 	releaseCPU := func() {}
 	if o.Class == Scan && budget != nil {
+		task := bgtasks.TaskFromContext(ctx)
 		n := threads
 		if t, ok := inputThreads(args); ok {
-			n = t
+			// The budget charges at most the task's share: the decoder must not
+			// run wider than what was charged.
+			n = min(t, budget.Slots(task))
+			args = setInputThreads(args, n)
 		}
-		heldCtx, rel, err := budget.Acquire(ctx, bgtasks.TaskFromContext(ctx), n)
+		heldCtx, rel, err := budget.Acquire(ctx, task, n)
 		if err != nil {
 			return nil, nil, err
 		}
 		ctx, releaseCPU = heldCtx, rel
+	}
+	if o.Class == Scan {
+		args = boundFilterThreads(bin, args)
 	}
 	release, err := defaultAdmission.admit(ctx, o.Class, o.Site, RSSCap(o.Class, memBudget()))
 	if err != nil {
@@ -176,6 +185,36 @@ func prefix(o Options, rssCap int64) []string {
 		argv = append(argv, "nice", "-n", "19")
 	}
 	return argv
+}
+
+// boundFilterThreads caps an ffmpeg's filter graph at the decoder's threads.
+// -threads before -i only sizes the decoder; the filters default to one
+// thread per host core, so a one-slot complexity burst took 2.4 cores
+// (measured 2026-09-25, signalstats+scdet on 1080p; 1.3 with this cap).
+func boundFilterThreads(bin string, args []string) []string {
+	if filepath.Base(bin) != "ffmpeg" || slices.Contains(args, "-filter_threads") {
+		return args
+	}
+	n, ok := inputThreads(args)
+	if !ok {
+		n = 1
+	}
+	return append([]string{"-filter_threads", strconv.Itoa(n), "-filter_complex_threads", strconv.Itoa(n)}, args...)
+}
+
+// setInputThreads rewrites the decoder-side -threads value to n.
+func setInputThreads(args []string, n int) []string {
+	out := slices.Clone(args)
+	for i, a := range out {
+		if a == "-i" {
+			break
+		}
+		if (a == "-threads" || strings.HasPrefix(a, "-threads:")) && i+1 < len(out) {
+			out[i+1] = strconv.Itoa(n)
+			break
+		}
+	}
+	return out
 }
 
 // hasInputThreads reports a -threads set by the caller on the input side

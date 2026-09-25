@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { formatTimeMs, type V1ActiveSession } from "@evey/api";
+import { router } from "expo-router";
 import { useTheme } from "../../providers/ThemeProvider";
 import { TrickplayPreview } from "../TrickplayPreview";
 
@@ -11,6 +12,9 @@ import { TrickplayPreview } from "../TrickplayPreview";
 // admin Dashboard's "Now playing" so both show the SAME rich card as the web
 // (web: features/admin/DashboardNowPlaying.tsx). Presentational: the parent
 // owns the kill/command mutations and passes them as onKill/onCommand.
+
+// The session thumbnail's width on a phone: the title keeps the rest.
+const THUMB_MAX_WIDTH = 112;
 
 type Tr = (k: string, d?: string | Record<string, unknown>) => string;
 
@@ -109,6 +113,9 @@ export function SessionCard({ session, theme, t, onKill, onCommand }: {
     ? `S${String(session.seasonNumber).padStart(2, "0")}E${String(session.episodeNumber).padStart(2, "0")}`
     : null;
 
+  // A track has no media page of its own; everything else opens its page.
+  const mediaLink = session.mediaItemId && session.mediaType !== "track" ? `/media/${session.mediaItemId}` : null;
+
   const handleSendMessage = () => {
     if (!message.trim()) return;
     onCommand(sessionId, `message:${message.trim()}`);
@@ -129,9 +136,15 @@ export function SessionCard({ session, theme, t, onKill, onCommand }: {
       </View>
 
       <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-        <TrickplayPreview mediaId={session.mediaItemId ?? ""} currentTime={positionMs / 1000} visible />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+        <TrickplayPreview mediaId={session.mediaItemId ?? ""} currentTime={positionMs / 1000} visible maxWidth={THUMB_MAX_WIDTH} />
+        <Pressable
+          style={{ flex: 1, minWidth: 0 }}
+          disabled={!mediaLink}
+          onPress={() => { if (mediaLink) router.push(mediaLink as never); }}
+          accessibilityRole={mediaLink ? "link" : undefined}
+          testID="session-media-link"
+        >
+          <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600", textDecorationLine: mediaLink ? "underline" : "none" }} numberOfLines={1}>
             {session.mediaTitle || t("common.unknown", "Unknown")}
           </Text>
           {hasSeriesInfo && (
@@ -139,7 +152,7 @@ export function SessionCard({ session, theme, t, onKill, onCommand }: {
               {session.seriesTitle} - {seriesLabel}
             </Text>
           )}
-        </View>
+        </Pressable>
       </View>
 
       <View style={styles.badgeRow}>

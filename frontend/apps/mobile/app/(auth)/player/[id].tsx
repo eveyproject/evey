@@ -1055,15 +1055,24 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     [player, duration, knownDuration, resetHideTimer, syncPlay],
   );
 
+  // The target of the last +/- tap, while its seek is still landing: a second
+  // tap adds to it instead of to the pre-seek position the player still
+  // reports (AVPlayer does until the seek completes; timeUpdate lags 0.5 s).
+  const pendingSkipRef = useRef<{ target: number; at: number } | null>(null);
   const seekBy = useCallback(
     (seconds: number) => {
-      // Native relative seek on the 0-based HLS timeline (transcode included).
-      if (player) {
-        player.seekBy(seconds);
-      }
+      const d = knownDuration > 0 ? knownDuration : duration;
+      const pending = pendingSkipRef.current;
+      const base = pending && Date.now() - pending.at < 1500 ? pending.target : currentTimeRef.current;
+      const target = Math.max(0, d > 0 ? Math.min(base + seconds, d - 1) : base + seconds);
+      pendingSkipRef.current = { target, at: Date.now() };
+      // Same absolute seek as the seek bar: the relative native seekBy showed
+      // the old position until the next tick and skipped SyncPlay.
+      if (d > 0) seekTo(target / d);
+      else if (player) player.currentTime = target;
       resetHideTimer();
     },
-    [player, resetHideTimer],
+    [player, duration, knownDuration, seekTo, resetHideTimer],
   );
 
   const handleVolumeChange = useCallback(

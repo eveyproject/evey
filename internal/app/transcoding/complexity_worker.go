@@ -203,6 +203,7 @@ func (w *ComplexityWorker) processBatch(ctx context.Context) int {
 		w.logger.Warn("complexity: list unclassified failed", slog.Any("err", err))
 		return 0
 	}
+	bgtasks.Queue(complexityTask, len(ids))
 	for i, id := range ids {
 		select {
 		case <-w.stop:

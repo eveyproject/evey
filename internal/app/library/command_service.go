@@ -41,6 +41,20 @@ func WithCPUBudget(b *cpubudget.Budget) CommandServiceOption {
 	}
 }
 
+// WithFileSettle makes the scans wait until a file has gone window without
+// a write before analysing it (see ScanService.WithFileSettle).
+func WithFileSettle(window time.Duration) CommandServiceOption {
+	return func(s *CommandService) {
+		if s.scan != nil {
+			s.scan.WithFileSettle(window)
+		}
+	}
+}
+
+// DefaultFileSettle is how long a file must go untouched before a scan
+// believes its copy is over.
+const DefaultFileSettle = time.Minute
+
 type CommandService struct {
 	libraries  library.LibraryCommandRepo
 	mediaItems library.MediaItemCommandRepo

@@ -1,6 +1,6 @@
 import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet, Share } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +21,8 @@ import { toast } from "@evey/store";
 // Types from generated schemas - not re-exported from @evey/api index
 interface PlayEntry {
   id?: string;
+  mediaItemId?: string;
+  mediaType?: string;
   mediaTitle?: string;
   durationMs?: string;
   positionMs?: string;
@@ -38,6 +40,7 @@ interface AuditEntry {
   profileName?: string;
   action?: string;
   resourceType?: string;
+  resourceId?: string;
   resourceName?: string;
   ipAddress?: string;
   deviceName?: string;
@@ -51,6 +54,14 @@ import { WatcherChips, type Watcher } from "../../../src/features/admin/WatcherC
 import { formatBytes, formatDurationMs } from "@evey/api";
 
 type Tab = "play" | "audit" | "stats";
+
+// The media page a row opens, when it is about a media item that has one.
+function playEntryLink(e: PlayEntry): string | null {
+  return e.mediaItemId && e.mediaType !== "MEDIA_ITEM_TYPE_TRACK" ? `/media/${e.mediaItemId}` : null;
+}
+function auditEntryLink(e: AuditEntry): string | null {
+  return (e.resourceType === "media" || e.resourceType === "media_item") && e.resourceId ? `/media/${e.resourceId}` : null;
+}
 
 function timeAgo(d?: string): string {
   if (!d) return "-";
@@ -99,9 +110,15 @@ function PlayHistoryTab({ watcher }: { watcher: Watcher }) {
     const pos = parseInt(item.positionMs ?? "0");
     const dur = parseInt(item.durationMs ?? "1");
     const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
+    const link = playEntryLink(item);
 
     return (
-      <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+      <Pressable
+        disabled={!link}
+        onPress={() => { if (link) router.push(link as never); }}
+        accessibilityRole={link ? "link" : undefined}
+        style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+      >
         <View style={{ flex: 1, gap: 4 }}>
           <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
             {item.mediaTitle ?? "-"}
@@ -121,7 +138,8 @@ function PlayHistoryTab({ watcher }: { watcher: Watcher }) {
             <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{formatDurationMs(item.durationMs) || "0min"}</Text>
           </View>
         </View>
-      </View>
+        {link ? <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} /> : null}
+      </Pressable>
     );
   }, [theme, t]);
 
@@ -186,7 +204,12 @@ function AuditLogTab({ watcher }: { watcher: Watcher }) {
   const hasMore = (page + 1) * PAGE_SIZE < total;
 
   const renderItem = useCallback(({ item }: { item: AuditEntry }) => (
-    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+    <Pressable
+      disabled={!auditEntryLink(item)}
+      onPress={() => { const link = auditEntryLink(item); if (link) router.push(link as never); }}
+      accessibilityRole={auditEntryLink(item) ? "link" : undefined}
+      style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+    >
       <View style={{ flex: 1, gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <View style={[styles.badge, { backgroundColor: theme.colors.accent + "20" }]}>
@@ -211,7 +234,8 @@ function AuditLogTab({ watcher }: { watcher: Watcher }) {
           <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={2}>{item.details}</Text>
         ) : null}
       </View>
-    </View>
+      {auditEntryLink(item) ? <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} /> : null}
+    </Pressable>
   ), [theme]);
 
   const loadMore = useCallback(() => {
@@ -508,7 +532,7 @@ export default function AdminActivityScreen() {
 const styles = StyleSheet.create({
   tabBar: { flexDirection: "row", padding: 8, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth },
   tabBtn: { flex: 1, paddingVertical: 8, alignItems: "center" },
-  card: { padding: 14, gap: 4 },
+  card: { padding: 14, gap: 8, flexDirection: "row", alignItems: "center" },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   progressBar: { flex: 1, height: 4, borderRadius: 2, overflow: "hidden" },
   progressFill: { height: 4, borderRadius: 2 },

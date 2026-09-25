@@ -458,6 +458,10 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.source="https://github.com/evey-project/evey"
+# The repository this image is pushed to: the update check reads what the
+# registry publishes under the running tag there.
+ARG IMAGE_REPO=docker.io/gravityz/evey
+ENV EVEY_IMAGE_REPO=${IMAGE_REPO}
 
 EXPOSE 9091
 

@@ -39,6 +39,11 @@ type Task struct {
 	// Paused is set by Stop and cleared by Resume: the worker skips every item
 	// until an admin resumes it (or the server restarts).
 	Paused bool `json:"paused"`
+	// BatchTotal is the items announced for the batch in progress (Queue),
+	// BatchDone how many of them are finished: the dashboard's progress bar.
+	// Both 0 when the worker announced nothing.
+	BatchTotal int64 `json:"batchTotal,omitempty"`
+	BatchDone  int64 `json:"batchDone,omitempty"`
 }
 
 type entry struct {
@@ -53,7 +58,10 @@ type entry struct {
 	// the context cancel of each one, so Stop reaches all of them.
 	running int
 	nextID  uint64
-	cancels map[uint64]context.CancelFunc
+	// batchTotal/batchDone count the batch announced through Queue.
+	batchTotal int64
+	batchDone  int64
+	cancels    map[uint64]context.CancelFunc
 }
 
 // Registry tracks per-worker status. Safe for concurrent use.
@@ -135,6 +143,12 @@ func (r *Registry) BeginCtx(ctx context.Context, name, detail string) (context.C
 			e.running--
 			e.processed++
 			e.lastActive = time.Now()
+			if e.batchTotal > 0 {
+				e.batchDone = min(e.batchDone+1, e.batchTotal)
+			}
+			if e.running == 0 && e.batchDone >= e.batchTotal {
+				e.batchTotal, e.batchDone = 0, 0
+			}
 			if e.running == 0 {
 				e.state = StateIdle
 				e.detail = ""
@@ -143,6 +157,27 @@ func (r *Registry) BeginCtx(ctx context.Context, name, detail string) (context.C
 			r.mu.Unlock()
 		})
 	}
+}
+
+// batchStale is how long an idle worker keeps an unfinished batch: items
+// announced then dropped (a full queue, a cancelled pass) must not leave the
+// bar stuck under 100 % for the next batch.
+const batchStale = time.Minute
+
+// Queue announces n more items the worker will process, so the dashboard can
+// show how far the batch is. The batch ends when the worker goes idle with
+// every announced item done.
+func (r *Registry) Queue(name string, n int) {
+	if n <= 0 {
+		return
+	}
+	r.mu.Lock()
+	e := r.get(name)
+	if e.running == 0 && e.batchDone < e.batchTotal && time.Since(e.lastActive) > batchStale {
+		e.batchTotal, e.batchDone = 0, 0
+	}
+	e.batchTotal += int64(n)
+	r.mu.Unlock()
 }
 
 // Stop pauses a controllable worker and cancels its item in flight. Returns
@@ -223,6 +258,8 @@ func (r *Registry) Snapshot() []Task {
 			StartedAt:    e.startedAt,
 			Controllable: e.controllable,
 			Paused:       e.paused,
+			BatchTotal:   e.batchTotal,
+			BatchDone:    e.batchDone,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
@@ -259,9 +296,10 @@ func Begin(name, detail string) func() { return std.Begin(name, detail) }
 func BeginCtx(ctx context.Context, name, detail string) (context.Context, func()) {
 	return std.BeginCtx(ctx, name, detail)
 }
-func Stop(name string) bool   { return std.Stop(name) }
-func Resume(name string) bool { return std.Resume(name) }
-func Paused(name string) bool { return std.Paused(name) }
+func Queue(name string, n int) { std.Queue(name, n) }
+func Stop(name string) bool    { return std.Stop(name) }
+func Resume(name string) bool  { return std.Resume(name) }
+func Paused(name string) bool  { return std.Paused(name) }
 func WaitResumed(ctx context.Context, name string, stop <-chan struct{}) error {
 	return std.WaitResumed(ctx, name, stop)
 }

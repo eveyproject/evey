@@ -362,6 +362,7 @@ func (s *TrickplayService) GenerateAllMissingTrickplays(ctx context.Context, inc
 				slog.ErrorContext(bgCtx, "recovered panic in trickplay batch", slog.Any("error", r))
 			}
 		}()
+		bgtasks.Queue(trickplayTask, len(ids))
 		for i, id := range ids {
 			if bgCtx.Err() != nil {
 				return
@@ -403,7 +404,20 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 		return
 	}
 	bgtasks.RegisterControllable(trickplayTask)
-	sem := make(chan struct{}, 1)
+	// One worker drains a FIFO: episodes land in bursts, and the one-slot
+	// semaphore this replaces dropped every arrival while one was generating
+	// ("trickplay queue full, dropping", prod 2026-09-25) until the next boot.
+	queue := make(chan string, trickplayEventQueue)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case id := <-queue:
+				s.generateQueued(ctx, id)
+			}
+		}
+	}()
 	s.events.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
 		if !s.isTrickplayEnabled(ctx) {
 			return
@@ -420,32 +434,38 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 			return
 		}
 		select {
-		case sem <- struct{}{}:
+		case queue <- string(e.MediaItemID):
+			bgtasks.Queue(trickplayTask, 1)
 		default:
 			slog.WarnContext(ctx, "trickplay queue full, dropping", slog.String("media_id", string(e.MediaItemID)))
-			return
 		}
-		go func() {
-			defer func() { <-sem }()
-			defer func() {
-				if r := recover(); r != nil {
-					slog.ErrorContext(ctx, "recovered panic in trickplay worker", slog.Any("error", r))
-				}
-			}()
-			tctx, cancel := context.WithTimeout(ctx, 2*time.Hour)
-			defer cancel()
-			if _, err := s.GetTrickplayManifest(tctx, string(e.MediaItemID)); err == nil {
-				return
-			}
-			// Under the task's context like the sweep: the dashboard sees the
-			// item, and the fork is charged to (and gated by) this task's share.
-			tctx, done := bgtasks.BeginCtx(tctx, trickplayTask, string(e.MediaItemID))
-			defer done()
-			if err := s.GenerateTrickplay(tctx, string(e.MediaItemID)); err != nil {
-				slog.WarnContext(tctx, "trickplay generation failed", slog.String("media_id", string(e.MediaItemID)), slog.Any("err", err))
-			}
-		}()
 	})
+}
+
+// trickplayEventQueue bounds the items waiting behind the one in flight; a
+// whole season copied at once fits.
+const trickplayEventQueue = 1024
+
+// generateQueued is one event-driven generation, skipped when a manifest
+// already exists.
+func (s *TrickplayService) generateQueued(ctx context.Context, id string) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.ErrorContext(ctx, "recovered panic in trickplay worker", slog.Any("error", r))
+		}
+	}()
+	tctx, cancel := context.WithTimeout(ctx, 2*time.Hour)
+	defer cancel()
+	// Under the task's context like the sweep: the dashboard sees the item,
+	// and the fork is charged to (and gated by) this task's share.
+	tctx, done := bgtasks.BeginCtx(tctx, trickplayTask, id)
+	defer done()
+	if _, err := s.GetTrickplayManifest(tctx, id); err == nil {
+		return
+	}
+	if err := s.GenerateTrickplay(tctx, id); err != nil {
+		slog.WarnContext(tctx, "trickplay generation failed", slog.String("media_id", id), slog.Any("err", err))
+	}
 }
 
 func (s *TrickplayService) StartBackgroundGeneration(ctx context.Context) {

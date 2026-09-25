@@ -99,6 +99,20 @@ describe("BackgroundTasksPanel", () => {
     expect(plainRow.querySelector("button")).toBeNull();
   });
 
+  it("draws how far the announced batch is, and no bar without one", async () => {
+    mockFetch.mockImplementation(({ method }: { method: string }) =>
+      Promise.resolve(method === "GET"
+        ? [{ ...base, name: "library_scan", state: "running", batchTotal: 12, batchDone: 3 }, base]
+        : undefined),
+    );
+    renderPanel();
+    const bar = await screen.findByRole("progressbar");
+    expect(bar).toHaveAttribute("aria-valuenow", "3");
+    expect(bar).toHaveAttribute("aria-valuemax", "12");
+    expect(screen.getByTestId("task-progress-library_scan")).toHaveTextContent("3 of 12");
+    expect(screen.queryByTestId("task-progress-level_backfill")).toBeNull();
+  });
+
   it("says so when the tasks cannot be read, rather than showing an empty server", async () => {
     mockFetch.mockRejectedValue(new Error("down"));
     renderPanel();

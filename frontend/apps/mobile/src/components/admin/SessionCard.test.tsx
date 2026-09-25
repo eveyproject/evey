@@ -18,6 +18,8 @@ vi.mock("react-native", () => ({
 }));
 vi.mock("@expo/vector-icons/Ionicons", () => ({ default: ({ name }: any) => React.createElement("span", { "data-testid": `icon-${name}` }) }));
 vi.mock("../TrickplayPreview", () => ({ TrickplayPreview: () => null }));
+const pushMock = vi.fn();
+vi.mock("expo-router", () => ({ router: { push: (...a: unknown[]) => pushMock(...a) } }));
 
 import { SessionCard, formatBandwidth, playMethodLabel } from "./SessionCard";
 
@@ -47,6 +49,13 @@ describe("SessionCard helpers", () => {
 });
 
 describe("SessionCard", () => {
+  it("opens the media page from the title", () => {
+    pushMock.mockClear();
+    render(<SessionCard session={session} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
+    fireEvent.click(screen.getByText("Heat"));
+    expect(pushMock).toHaveBeenCalledWith("/media/m1");
+  });
+
   it("shows what is playing, for whom, how, and the time left", () => {
     render(<SessionCard session={session} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
     expect(screen.getByText("Heat")).toBeTruthy();

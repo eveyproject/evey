@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"sync"
+	"time"
 
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	"github.com/evey-project/evey/internal/pkg/bgtasks"
@@ -21,8 +23,9 @@ type backgroundTaskView struct {
 	Processes int `json:"processes"`
 	// RSSBytes is the summed resident memory of those forks.
 	RSSBytes int64 `json:"rssBytes"`
-	// CPUPercent is their summed CPU share on a single-core scale (200 = two
-	// cores busy), over the interval since the previous poll.
+	// CPUPercent is the task's forks' CPU on a single-core scale (200 = two
+	// cores busy) over the last sampling window, the forks that finished
+	// inside it included.
 	CPUPercent float64 `json:"cpuPercent"`
 	// CPUSecondsTotal is the CPU time every fork of this task consumed since
 	// the server started; Forks counts them.
@@ -34,8 +37,40 @@ type backgroundTaskView struct {
 	CPUSlotsHeld int `json:"cpuSlotsHeld"`
 }
 
+// taskCPURate turns the monotonic per-task CPU seconds into a rate. Several
+// admins poll at once: a reading closer than taskCPUWindow to the previous
+// one reuses the last rates instead of dividing by a sliver of time.
+var taskCPURate = struct {
+	sync.Mutex
+	at   time.Time
+	secs map[string]float64
+	pct  map[string]float64
+}{}
+
+const taskCPUWindow = 2 * time.Second
+
+func taskCPUPercents(now time.Time) map[string]float64 {
+	taskCPURate.Lock()
+	defer taskCPURate.Unlock()
+	if !taskCPURate.at.IsZero() && now.Sub(taskCPURate.at) < taskCPUWindow {
+		return taskCPURate.pct
+	}
+	cur := procfork.TaskCPUSeconds()
+	pct := make(map[string]float64, len(cur))
+	if dt := now.Sub(taskCPURate.at).Seconds(); !taskCPURate.at.IsZero() && dt > 0 {
+		for task, secs := range cur {
+			if d := secs - taskCPURate.secs[task]; d > 0 {
+				pct[task] = d / dt * 100
+			}
+		}
+	}
+	taskCPURate.at, taskCPURate.secs, taskCPURate.pct = now, cur, pct
+	return pct
+}
+
 func backgroundTaskViews() []backgroundTaskView {
 	tasks := bgtasks.Snapshot()
+	rates := taskCPUPercents(time.Now())
 	children := procfork.Children()
 	totals := procfork.Totals()
 	budget := procfork.CPUBudget()
@@ -58,8 +93,8 @@ func backgroundTaskViews() []backgroundTaskView {
 			}
 			v.Processes++
 			v.RSSBytes += c.RSSBytes
-			v.CPUPercent += c.CPUPercent
 		}
+		v.CPUPercent = rates[t.Name]
 		if tot, ok := totals[t.Name]; ok {
 			v.CPUSecondsTotal = tot.CPUSeconds
 			v.Forks = tot.Forks

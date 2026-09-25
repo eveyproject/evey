@@ -207,6 +207,8 @@ type HTTPServer struct {
 
 	// Activity
 	ActivityCmdSvc *appactivity.CommandService
+	// UpdateChecker answers "is a newer image published?"; nil mounts nothing.
+	UpdateChecker UpdateChecker
 
 	// Collections / Playlists / Favorites
 	CollectionSvc  *appcollection.QueryService
@@ -758,6 +760,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, hwModeControllerOf(s.CalibrationSvc), s.LoginRL, s.GlobalRL, s.AdminWriteRL)
 	registerBackgroundTasksRoute(mux, s.TokenGen, s.ActivityCmdSvc)
 	registerSystemMetricsRoute(mux, s.TokenGen)
+	registerUpdateStatusRoute(mux, s.TokenGen, s.UpdateChecker)
 	func() {
 		var cfgSvc *appconfig.Service
 		if s.ServerCfgRepo != nil {
