@@ -40,14 +40,16 @@ class Ac3goAudioRenderer(
 
   override fun supportsFormatInternal(format: Format): Int {
     if (format.sampleMimeType !in MIME_TYPES) return C.FORMAT_UNSUPPORTED_TYPE
-    if (getSinkFormatSupport(format) == AudioSink.SINK_FORMAT_SUPPORTED_DIRECTLY) {
-      return C.FORMAT_UNSUPPORTED_SUBTYPE
-    }
+    val bitstream = getSinkFormatSupport(format)
     val rate = if (format.sampleRate == Format.NO_VALUE) 48_000 else format.sampleRate
-    if (!sinkSupportsFormat(Util.getPcmFormat(C.ENCODING_PCM_16BIT, 2, rate))) {
-      return C.FORMAT_UNSUPPORTED_SUBTYPE
+    val pcm = sinkSupportsFormat(Util.getPcmFormat(C.ENCODING_PCM_16BIT, 2, rate))
+    val support = when {
+      bitstream == AudioSink.SINK_FORMAT_SUPPORTED_DIRECTLY -> C.FORMAT_UNSUPPORTED_SUBTYPE
+      !pcm -> C.FORMAT_UNSUPPORTED_SUBTYPE
+      else -> C.FORMAT_HANDLED
     }
-    return C.FORMAT_HANDLED
+    Log.i(TAG, "${format.sampleMimeType}: sink bitstream=$bitstream pcm=$pcm -> ${if (support == C.FORMAT_HANDLED) "ac3go" else "device"}")
+    return support
   }
 
   override fun createDecoder(format: Format, cryptoConfig: CryptoConfig?): Ac3goDecoder {
