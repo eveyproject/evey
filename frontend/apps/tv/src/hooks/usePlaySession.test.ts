@@ -32,6 +32,8 @@ vi.mock("@evey/media-caps", async () => {
     getDisplayHdrTypes: () => getDisplayHdrTypesMock(),
     displaySupportsHdr: real.displaySupportsHdr,
     declarableAudioCodecs: real.declarableAudioCodecs,
+    // The TV build has no ac3go renderer: the module is absent there.
+    getPlayerAudioDecoders: async () => [],
   };
 });
 

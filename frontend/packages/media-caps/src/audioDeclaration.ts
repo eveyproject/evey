@@ -43,13 +43,19 @@ export function sinkAcceptsCodec(probe: AudioProbe, codec: string): boolean {
  * neither sufficient (a tablet brand decode-and-stutter) nor necessary (passthrough
  * box). A null probe (module absent, probe failed) declares none of the
  * family: better one audio transcode too many than a choppy film.
+ *
+ * playerDecoders are the codecs the app's own player decodes (ac3go on the
+ * phone): declared whatever the device's decoders or its sink say.
  */
-export function declarableAudioCodecs(decoderCodecs: string[], probe: AudioProbe | null): string[] {
+export function declarableAudioCodecs(
+  decoderCodecs: string[],
+  probe: AudioProbe | null,
+  playerDecoders: string[] = [],
+): string[] {
   const family = new Set<string>(SINK_GATED_FAMILY);
   const out = decoderCodecs.filter((c) => !family.has(c));
-  if (!probe) return out;
   for (const codec of SINK_GATED_FAMILY) {
-    if (sinkAcceptsCodec(probe, codec)) out.push(codec);
+    if (playerDecoders.includes(codec) || (probe && sinkAcceptsCodec(probe, codec))) out.push(codec);
   }
   return out;
 }

@@ -14,6 +14,7 @@
     "@evey/client": "workspace:*",
     "@evey/cast-tv": "workspace:*",
     "@evey/media-caps": "workspace:*",
+    "@evey/offline-audio": "workspace:*",
     "@evey/store": "workspace:*",
     "@evey/theme": "workspace:*",
     "@evey/voice-search": "workspace:*",

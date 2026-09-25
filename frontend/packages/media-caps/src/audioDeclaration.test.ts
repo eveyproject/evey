@@ -64,4 +64,16 @@ describe("declarableAudioCodecs", () => {
   it("declares none of the family without a probe - one transcode too many beats a choppy film", () => {
     expect(declarableAudioCodecs(["aac", "ac3", "eac3", "truehd", "flac"], null)).toEqual(["aac", "flac"]);
   });
+
+  // The phone's own ac3go renderer decodes these: neither the a tablet brand's refusing
+  // sink nor a phone with no Dolby decoder at all holds them back.
+  it("declares what the player decodes itself, whatever the decoders or the sink say", () => {
+    for (const p of [TABLET, PHONE_NO_DOLBY]) {
+      const declared = declarableAudioCodecs(p.decoders, p, ["ac3", "eac3"]);
+      expect(declared).toContain("ac3");
+      expect(declared).toContain("eac3");
+      expect(declared).not.toContain("truehd");
+    }
+    expect(declarableAudioCodecs(["aac"], null, ["ac3", "eac3"])).toEqual(["aac", "ac3", "eac3"]);
+  });
 });

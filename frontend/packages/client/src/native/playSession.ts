@@ -9,7 +9,7 @@ import {
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { firstStartMs } from "../lib/resumePosition";
 import { isShedCode, type ShedReason } from "../lib/shed";
-import { getDeviceAudioCodecs, getDeviceMaxH264Level, getFmp4AudioPassthrough } from "./deviceCodecs";
+import { getDeviceAudioCodecs, getDeviceMaxH264Level, getFmp4AudioPassthrough, getPlayerAudioCodecs } from "./deviceCodecs";
 
 // The play session of the two native players (phone and television). They
 // kept a copy each until 2026-09-24, and the copies had drifted apart: the TV
@@ -181,6 +181,27 @@ export function typeRelativeIndex(
   return pos >= 0 ? pos : undefined;
 }
 
+/**
+ * Whether the server copies an audio track the player decodes itself (ac3go).
+ * The player then downmixes it from the stream's own mix levels, so the output
+ * channel ceiling must not reach the master: the server would re-encode the
+ * track to fit it. The track is the picked one, else the default-flagged one,
+ * else the first; the server can differ only by skipping a commentary track.
+ */
+export function playerDecodesCopiedAudio(
+  info: V1StreamInfo,
+  audioStreamIndex: number | undefined,
+  playerCodecs: string[],
+): boolean {
+  if (playerCodecs.length === 0 || info.audioDecision !== "copy") return false;
+  const audio = (info.mediaStreams ?? []).filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
+  const picked =
+    audioStreamIndex != null && audioStreamIndex > 0
+      ? audio.find((s) => s.index === audioStreamIndex)
+      : (audio.find((s) => s.isDefault) ?? audio[0]);
+  return picked?.codec != null && playerCodecs.includes(picked.codec);
+}
+
 // What one native app brings. The probes are passed in rather than imported so
 // each app keeps its own module paths (its tests double them there).
 export interface PlaySessionDevice {
@@ -333,7 +354,9 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         const url = buildStreamUrl(serverUrl, mediaId, info, token, {
           audioTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex),
           subtitleTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex),
-          maxAudioChannels,
+          maxAudioChannels: playerDecodesCopiedAudio(info, audioStreamIndex, getPlayerAudioCodecs())
+            ? undefined
+            : maxAudioChannels,
           startSec: resumeSec,
           maxHeight: explicitMaxHeight,
           screenHeight: dev.screenHeight?.(),

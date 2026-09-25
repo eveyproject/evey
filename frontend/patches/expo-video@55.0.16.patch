@@ -173,7 +173,7 @@ index 0000000..605c846
 +  }
 +}
 diff --git a/android/src/main/java/expo/modules/video/player/VideoPlayer.kt b/android/src/main/java/expo/modules/video/player/VideoPlayer.kt
-index ee4e976..88b4310 100644
+index ee4e976..37c71db 100644
 --- a/android/src/main/java/expo/modules/video/player/VideoPlayer.kt
 +++ b/android/src/main/java/expo/modules/video/player/VideoPlayer.kt
 @@ -18,6 +18,7 @@ import androidx.media3.common.Tracks
@@ -184,7 +184,7 @@ index ee4e976..88b4310 100644
  import androidx.media3.exoplayer.ExoPlayer
  import androidx.media3.exoplayer.analytics.AnalyticsListener
  import androidx.media3.exoplayer.hls.HlsManifest
-@@ -60,7 +61,22 @@ import kotlin.time.DurationUnit
+@@ -60,7 +61,55 @@ import kotlin.time.DurationUnit
  @UnstableApi
  class VideoPlayer(val context: Context, appContext: AppContext, source: VideoSource?, playerBuilderOptions: expo.modules.video.records.PlayerBuilderOptions? = null) : AutoCloseable, SharedObject(appContext), IntervalUpdateEmitter {
    // This improves the performance of playing DRM-protected content
@@ -203,6 +203,39 @@ index ee4e976..88b4310 100644
 +        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
 +        .setAudioProcessors(arrayOf(EveyAudioPreamp.createProcessor()))
 +        .build()
++    }
++
++    // Evey patch: the ac3go renderer (@evey/offline-audio) goes first, so it
++    // decodes AC-3/E-AC-3 ahead of MediaCodec unless the output takes the bitstream.
++    override fun buildAudioRenderers(
++      context: Context,
++      extensionRendererMode: Int,
++      mediaCodecSelector: androidx.media3.exoplayer.mediacodec.MediaCodecSelector,
++      enableDecoderFallback: Boolean,
++      audioSink: androidx.media3.exoplayer.audio.AudioSink,
++      eventHandler: android.os.Handler,
++      eventListener: androidx.media3.exoplayer.audio.AudioRendererEventListener,
++      out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>
++    ) {
++      try {
++        out.add(
++          Class.forName("com.evey.offlineaudio.Ac3goAudioRenderer")
++            .getConstructor(
++              Context::class.java,
++              android.os.Handler::class.java,
++              androidx.media3.exoplayer.audio.AudioRendererEventListener::class.java,
++              androidx.media3.exoplayer.audio.AudioSink::class.java
++            )
++            .newInstance(context, eventHandler, eventListener, audioSink) as androidx.media3.exoplayer.Renderer
++        )
++      } catch (_: ClassNotFoundException) {
++      } catch (e: Exception) {
++        android.util.Log.w("EveyVideo", "ac3go audio renderer unavailable", e)
++      }
++      super.buildAudioRenderers(
++        context, extensionRendererMode, mediaCodecSelector, enableDecoderFallback,
++        audioSink, eventHandler, eventListener, out
++      )
 +    }
 +  }
      .forceEnableMediaCodecAsynchronousQueueing()

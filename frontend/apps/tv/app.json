@@ -38,6 +38,7 @@
       "./plugins/withSearchKey",
       "./plugins/withCastConnect",
       "./plugins/withNoAdId",
+      "./plugins/withoutOfflineAudioService",
       "./plugins/withTvHardwareFeatures",
       "./plugins/withWidgetFocusGuard",
       "expo-router",
