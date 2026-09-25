@@ -135,11 +135,14 @@ func (s *TrickplayService) WithCPUBudget(b *cpubudget.Budget) {
 	s.budget = b
 }
 
-// decoderThreads is the thread count one generation decodes with: the task's
-// CPU share in cores, read at each generation so an admin change applies to
-// the next item.
+// decoderThreads is the thread count one generation decodes with: one on the
+// global share, the task's own share when the admin gave it one. Sized on the
+// whole global share, each generation held every slot of the group and a
+// season's backlog starved the scan for hours (measured on dev 26-09: scan
+// waiting, trickplay 2/2); keyframe-only decoding takes 0.57 core on one
+// thread anyway.
 func (s *TrickplayService) decoderThreads() int {
-	if s.budget == nil {
+	if s.budget == nil || !s.budget.HasOwnShare(trickplayTask) {
 		return 1
 	}
 	return s.budget.Slots(trickplayTask)

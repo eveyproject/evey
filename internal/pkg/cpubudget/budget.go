@@ -142,6 +142,15 @@ func (b *Budget) percentLocked(task string) (percent int, override bool) {
 	return b.policy.GlobalPercent, false
 }
 
+// HasOwnShare reports whether the admin gave task a share of its own, in
+// place of the global one every other task draws from.
+func (b *Budget) HasOwnShare(task string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	_, override := b.percentLocked(task)
+	return override
+}
+
 // Slots is how many cores task may hold at once: what a worker sizes its
 // parallelism (or a decoder its threads) on.
 func (b *Budget) Slots(task string) int {
