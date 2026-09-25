@@ -272,8 +272,8 @@ var variants = []string{"-full", "-nodejs"}
 
 func splitVariant(tag string) (base, variant string) {
 	for _, v := range variants {
-		if strings.HasSuffix(tag, v) {
-			return strings.TrimSuffix(tag, v), v
+		if base, ok := strings.CutSuffix(tag, v); ok {
+			return base, v
 		}
 	}
 	return tag, ""

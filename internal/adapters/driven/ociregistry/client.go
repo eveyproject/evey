@@ -154,9 +154,12 @@ func (c *Client) Tags(ctx context.Context, image string) ([]string, error) {
 		}
 		u, err := url.Parse(m[1])
 		if err != nil {
-			return out, nil
+			return nil, fmt.Errorf("registry: bad tags page link %q: %w", m[1], err)
 		}
-		prev, _ := url.Parse(next)
+		prev, err := url.Parse(next)
+		if err != nil {
+			return nil, fmt.Errorf("registry: bad tags page url %q: %w", next, err)
+		}
 		next = prev.ResolveReference(u).String()
 	}
 	return out, nil
