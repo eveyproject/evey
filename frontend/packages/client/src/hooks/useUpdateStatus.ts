@@ -54,7 +54,7 @@ export function latestLabel(st: UpdateStatus): string {
 // commit range of a newer branch build. Null without a source repository.
 export function changesUrl(st: UpdateStatus): string | null {
   const src = st.source?.replace(/\/+$/, "");
-  if (!src || !/^https:\/\//.test(src)) return null;
+  if (!src || !src.startsWith("https://")) return null;
   if (st.latestVersion && st.latestVersion !== st.currentVersion) return `${src}/releases`;
   if (st.latestCommit && st.currentCommit && st.currentCommit !== "unknown") {
     return `${src}/compare/${st.currentCommit}...${st.latestCommit}`;
