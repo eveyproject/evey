@@ -782,9 +782,10 @@ func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexSe
 	return s
 }
 
-// WithInterleaveProber wires the chunked-interleave diagnosis into scans (a
-// sixteen sampled cluster reads per file, ~11 MB). Optional and chainable;
-// without it InterleaveBackstepSec stays 0 everywhere.
+// WithInterleaveProber wires the chunked-interleave diagnosis into scans and
+// the re-interleave check (production: every cluster's timestamp, one
+// sequential read of the file - see mkvgo.ExactInterleaveProber). Optional
+// and chainable; without it InterleaveBackstepSec stays 0 everywhere.
 func (s *SeekIndexService) WithInterleaveProber(p InterleaveProber) *SeekIndexService {
 	s.interleave = p
 	return s
