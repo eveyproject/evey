@@ -65,7 +65,7 @@ func (a *admission) admit(ctx context.Context, c Class, site string, need int64)
 	deadline := a.now().Add(a.wait)
 	waited := false
 	for {
-		avail, ok, free := a.tryReserve(need, reserve)
+		avail, ok, free := a.tryReserve(need, reserve, c == Interactive)
 		if ok {
 			if waited {
 				slog.Info("procfork: memory pressure cleared, starting", slog.String("site", site))
@@ -92,7 +92,15 @@ func (a *admission) admit(ctx context.Context, c Class, site string, need int64)
 
 // tryReserve returns the raw MemAvailable, whether the reservation was taken,
 // and the free memory net of the in-flight caps.
-func (a *admission) tryReserve(need, reserve int64) (avail int64, ok bool, free int64) {
+//
+// againstHost admits on what the host really has free rather than on the sum
+// of the in-flight caps. Those caps are ceilings the encoders never reach (a
+// production ffmpeg capped at 3.9 GiB sat at 681 MiB, prod 2026-09), and the
+// paper sum refused a 1 GiB album-art resize a viewer was waiting on while
+// 12.6 GiB were free. A short interactive job cannot push the host over on
+// its own; the heavy classes keep the conservative rule. Its cap is still
+// added to the sum, so the encoders admitted after it see it.
+func (a *admission) tryReserve(need, reserve int64, againstHost bool) (avail int64, ok bool, free int64) {
 	avail, readable := a.available()
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -101,7 +109,11 @@ func (a *admission) tryReserve(need, reserve int64) (avail int64, ok bool, free 
 		return 0, true, 0
 	}
 	free = avail - a.reserved
-	if free < need+reserve {
+	headroom := free
+	if againstHost {
+		headroom = avail
+	}
+	if headroom < need+reserve {
 		return avail, false, free
 	}
 	a.reserved += need

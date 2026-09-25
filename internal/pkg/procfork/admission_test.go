@@ -107,3 +107,34 @@ func TestAdmit_ProbeBypasses(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Prod 2026-09: three encoders at their 3.9 GiB caps made the paper sum say
+// 1.4 GiB free while the host had 12.6 GiB, and a 1 GiB album-art resize a
+// viewer was waiting on was refused. An interactive job is admitted on what
+// the host really has; the heavy classes still see the paper sum.
+func TestAdmit_InteractiveIsAdmittedOnHostMemoryNotOnPaperCaps(t *testing.T) {
+	t.Parallel()
+	// 16 GiB budget: reserve 1 GiB, production cap 4 GiB, interactive cap 1 GiB.
+	// 12 GiB available holds two productions on paper (8 GiB reserved, 4 GiB
+	// "free"); a third production is refused, an interactive job is not.
+	a, _ := fakeAdmission(12*gib, 16*gib)
+	prod := RSSCap(Production, 16*gib)
+	for range 2 {
+		if _, err := a.admit(context.Background(), Production, "enc", prod); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := a.admit(context.Background(), Production, "enc", prod); !errors.Is(err, ErrMemoryPressure) {
+		t.Fatalf("a third production must still be refused on the paper sum, got %v", err)
+	}
+	release, err := a.admit(context.Background(), Interactive, "art", RSSCap(Interactive, 16*gib))
+	if err != nil {
+		t.Fatalf("an interactive job must be admitted on the host's 12 GiB, got %v", err)
+	}
+	release()
+	// The host itself short: the interactive job is refused like any other.
+	tight, _ := fakeAdmission(gib, 16*gib)
+	if _, err := tight.admit(context.Background(), Interactive, "art", RSSCap(Interactive, 16*gib)); !errors.Is(err, ErrMemoryPressure) {
+		t.Fatalf("with 1 GiB on the host the interactive job must be refused, got %v", err)
+	}
+}
