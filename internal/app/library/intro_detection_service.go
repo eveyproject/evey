@@ -936,6 +936,13 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 		}
 
 		// Pass 2: run detection on the non-exhausted candidates.
+		queued := 0
+		for _, ep := range candidates {
+			if !exhaustedByID[string(ep.ID)] {
+				queued++
+			}
+		}
+		bgtasks.Queue(introDetectionTask, queued)
 		for _, ep := range candidates {
 			if ctx.Err() != nil {
 				return

@@ -7,9 +7,10 @@ import { cleanup, render } from "@testing-library/react";
 const focusCalls: string[] = [];
 let currentKey = "";
 let generated = 0;
+let keyMap: Record<string, (number | string)[]> = {};
 vi.mock("@noriginmedia/norigin-spatial-navigation", () => ({
   init: () => {},
-  setKeyMap: () => {},
+  setKeyMap: (m: Record<string, (number | string)[]>) => { keyMap = m; },
   setFocus: () => {},
   FocusContext: createContext(""),
   getCurrentFocusKey: () => currentKey,
@@ -19,7 +20,7 @@ vi.mock("@noriginmedia/norigin-spatial-navigation", () => ({
   },
 }));
 
-import { FocusRoot, rememberFocusBeforeLeaving } from "./focus";
+import { FocusRoot, initTvNavigation, rememberFocusBeforeLeaving } from "./focus";
 import { Button } from "../components/ui";
 
 afterEach(() => {
@@ -92,5 +93,18 @@ describe("the focus on arriving at a screen", () => {
       </FocusRoot>,
     );
     expect(focusCalls).toEqual(["play"]);
+  });
+});
+
+describe("the remote's arrows", () => {
+  // The library matches keyCode || code || key: an arrow sent with keyCode 0
+  // reaches it as "ArrowUp" and must still move the focus.
+  it("are recognised by name as well as by code", () => {
+    initTvNavigation();
+    expect(keyMap.up).toEqual(expect.arrayContaining([38, "ArrowUp"]));
+    expect(keyMap.down).toEqual(expect.arrayContaining([40, "ArrowDown"]));
+    expect(keyMap.left).toEqual(expect.arrayContaining([37, "ArrowLeft"]));
+    expect(keyMap.right).toEqual(expect.arrayContaining([39, "ArrowRight"]));
+    expect(keyMap.enter).toEqual(expect.arrayContaining([13, "Enter"]));
   });
 });

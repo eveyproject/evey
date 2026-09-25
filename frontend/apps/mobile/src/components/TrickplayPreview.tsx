@@ -15,7 +15,6 @@ import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
 const cacheDir = FileSystem.cacheDirectory ?? "";
 const TRICKPLAY_CACHE_DIR = `${cacheDir}trickplay/`;
 
-const SCALE = 1;
 const memCache = new Map<string, TrickplayCue[]>();
 
 async function readCachedCues(mediaId: string): Promise<TrickplayCue[] | null> {
@@ -39,9 +38,12 @@ interface Props {
   mediaId: string;
   currentTime: number;
   visible: boolean;
+  // Widest the thumbnail may be drawn: a tile is often 320 px, wider than
+  // the room a card beside a title has on a phone.
+  maxWidth?: number;
 }
 
-export function TrickplayPreview({ mediaId, currentTime, visible }: Props) {
+export function TrickplayPreview({ mediaId, currentTime, visible, maxWidth }: Props) {
   const theme = useTheme();
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
@@ -95,8 +97,9 @@ export function TrickplayPreview({ mediaId, currentTime, visible }: Props) {
   const spriteW = Math.max(...sameSrc.map((c) => c.x + c.w));
   const spriteH = Math.max(...sameSrc.map((c) => c.y + c.h));
 
-  const thumbW = cue.w * SCALE;
-  const thumbH = cue.h * SCALE;
+  const scale = maxWidth && cue.w > maxWidth ? maxWidth / cue.w : 1;
+  const thumbW = cue.w * scale;
+  const thumbH = cue.h * scale;
   const imageUrl = serverUrl ? `${serverUrl}${cue.url}` : cue.url;
 
   return (
@@ -105,10 +108,10 @@ export function TrickplayPreview({ mediaId, currentTime, visible }: Props) {
         source={{ uri: imageUrl, headers: authHeaders }}
         style={{
           position: "absolute",
-          left: -cue.x * SCALE,
-          top: -cue.y * SCALE,
-          width: spriteW * SCALE,
-          height: spriteH * SCALE,
+          left: -cue.x * scale,
+          top: -cue.y * scale,
+          width: spriteW * scale,
+          height: spriteH * scale,
         }}
         contentFit="fill"
       />
@@ -119,6 +122,7 @@ export function TrickplayPreview({ mediaId, currentTime, visible }: Props) {
 const styles = StyleSheet.create({
   container: {
     overflow: "hidden",
+    flexShrink: 0,
     borderRadius: 4,
   },
 });

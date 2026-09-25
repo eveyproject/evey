@@ -203,15 +203,32 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
       </div>
 
       <div className="px-3 pb-3 flex flex-col gap-2">
-        <div>
-          {session.seriesTitle && (
-            <p className="text-xs font-medium text-[var(--accent)] truncate">{session.seriesTitle}</p>
-          )}
-          <p className="text-sm font-semibold truncate text-[var(--text)]">
-            {epLabel && <span className="text-[var(--text-muted)] mr-1">{epLabel}</span>}
-            {session.mediaTitle}
-          </p>
-        </div>
+        {session.mediaItemId && session.mediaType !== "track" ? (
+          <Link
+            to="/media/$mediaId"
+            params={{ mediaId: session.mediaItemId }}
+            className="block min-w-0 hover:underline"
+            data-testid="now-playing-media-link"
+          >
+            {session.seriesTitle && (
+              <p className="text-xs font-medium text-[var(--accent)] truncate">{session.seriesTitle}</p>
+            )}
+            <p className="text-sm font-semibold truncate text-[var(--text)]">
+              {epLabel && <span className="text-[var(--text-muted)] mr-1">{epLabel}</span>}
+              {session.mediaTitle}
+            </p>
+          </Link>
+        ) : (
+          <div>
+            {session.seriesTitle && (
+              <p className="text-xs font-medium text-[var(--accent)] truncate">{session.seriesTitle}</p>
+            )}
+            <p className="text-sm font-semibold truncate text-[var(--text)]">
+              {epLabel && <span className="text-[var(--text-muted)] mr-1">{epLabel}</span>}
+              {session.mediaTitle}
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <ProfileAvatar profileName={session.profileName} size={24} />

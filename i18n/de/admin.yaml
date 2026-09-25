@@ -632,7 +632,7 @@ analytics:
 
 activity:
   title: Aktivität
-  backgroundTasks: "Hintergrundaufgaben"
+  backgroundTasks: "Hintergrundarbeiten"
   bgRunning: "läuft"
   bgIdle: "inaktiv"
   bgProcessed: "{{n}} erledigt"
@@ -700,8 +700,8 @@ serverConfig:
   entriesTitle: "Konfigurationseinträge"
   appliedOnRestart: "wird beim Neustart angewendet"
   cpuBudget:
-    title: "CPU für Hintergrundaufgaben"
-    subtitle: "Wie viel Prozessor die Hintergrundaufgaben zusammen belegen dürfen: Scans, Vorschaubilder, Intro-Erkennung, Klassifizierung."
+    title: "Zugeteilte Rechenleistung"
+    subtitle: "Wie viel Prozessor die Hintergrundarbeiten zusammen belegen dürfen: Scans, Vorschaubilder, Intro-Erkennung, Klassifizierung."
     globalLabel: "Globaler Anteil"
     global25: "25 % - schonend (Standard)"
     global50: "50 % - Boost"
@@ -725,7 +725,7 @@ serverConfig:
         label: "Komplexitätsklassifizierung"
         desc: "Probe-Encodes, die jeden Titel für die Transcoding-Leiter einstufen."
   backgroundJobs:
-    title: "Hintergrundaufgaben"
+    title: "Hintergrundarbeiten"
     subtitle: "Betreiber-Einstellungen für die Hintergrund-Worker der Transkodierung - Pausenverhalten, Nachtrag-Durchläufe und deren Rhythmus."
     restartWarning: "Diese Einstellungen werden nur einmal beim Serverstart gelesen. Eine hier gespeicherte Änderung wirkt sich nicht auf den laufenden Server aus - er muss neu gestartet werden, damit der neue Wert greift."
     pauseBgOnPlaybackLabel: "Hintergrundaufgaben während der Wiedergabe anhalten"
@@ -778,7 +778,7 @@ serverConfig:
   trickplayTitle: Trickplay-Vorschaubilder
   trickplayDesc: Automatisch Zeitleisten-Vorschaubilder für Filme und Episoden generieren.
   trickplayEnabled: Trickplay-Vorschaubilder aktivieren
-  trickplayCpuHint: "Der CPU-Anteil der Erzeugung wird unter „CPU für Hintergrundaufgaben“ gesetzt."
+  trickplayCpuHint: "Der Prozessoranteil der Erzeugung wird unter „Zugeteilte Rechenleistung“ gesetzt."
   memoryProfileTitle: "Speicherprofil"
   memoryProfileSubtitle: "Steuert, wie aggressiv inaktive Plugin-Prozesse ausgesetzt werden, um RAM zu sparen."
   memoryProfileLabel: "Speicherprofil"
@@ -910,7 +910,7 @@ systemHealth:
     scan: "Scan"
     interactive: "interaktiv"
     production: "Produktion"
-  backgroundTasksSection: "Hintergrundaufgaben"
+  backgroundTasksSection: "Hintergrundarbeiten"
   videoCapacitySection: "Video-Transcodierkapazität"
   videoCapacityTitle: "Video-Transcodierkapazität"
   videoCapacityRatio: "{{active}} / {{limit}} Streams"
@@ -960,6 +960,7 @@ dashboardStats:
   transcodesSub_one: "davon {{count}} transkodiert"
   transcodesSub_other: "davon {{count}} transkodiert"
   theoreticalSub: "theoretisch {{rate}}"
+  eveyCpuSub: "davon Evey {{percent}} %"
   storage: Speicherplatz
   quickActions: Schnellaktionen
   scanAllLibraries: Alle Bibliotheken scannen
@@ -1575,7 +1576,7 @@ syncPreview:
   applyFailed: "Der Versatz konnte nicht angewendet werden."
   applyDone: "Versatz angewendet. Aus dem Verlauf der Datei rückgängig zu machen."
 backgroundTasks:
-  title: "Hintergrundaufgaben"
+  title: "Hintergrundarbeiten"
   runningCount_one: "{{count}} läuft"
   runningCount_other: "{{count}} laufen"
   allIdle: "alle im Leerlauf"
@@ -1593,8 +1594,26 @@ backgroundTasks:
   impact: "{{processes}} Proz. · {{memory}} · {{cpu}} % CPU"
   cpuTotal: "{{seconds}} s CPU seit dem Start"
   cpuSlots: "{{held}}/{{slots}} Kerne"
+  batchProgress: "{{done}} von {{total}}"
   sinceNow: "gerade gestartet"
   sinceMinutes_one: "seit {{count}} Min."
   sinceMinutes_other: "seit {{count}} Min."
   sinceHours_one: "seit {{count}} Std."
   sinceHours_other: "seit {{count}} Std."
+update:
+  title: "Updates"
+  desc: "Meldet, wenn ein neueres Evey-Image veröffentlicht wird."
+  enabled: "Nach Updates suchen"
+  noAuto: "Evey aktualisiert sich nie selbst: Es fragt alle 6 Stunden die Docker-Registry ab und sagt Ihnen Bescheid. Das Update bleibt Ihr Befehl."
+  available: "Neue Version verfügbar: {{latest}}"
+  current: "(installiert: {{current}})"
+  howTo: "Zum Aktualisieren, im Ordner Ihrer docker-compose-Datei:"
+  copy: "Befehl kopieren"
+  copied: "Kopiert"
+  changes: "Änderungen ansehen"
+  checkNow: "Jetzt prüfen"
+  upToDate: "Evey ist aktuell."
+  disabled: "Prüfung ausgeschaltet."
+  pending: "Seit dem Serverstart noch nicht geprüft."
+  unknown: "Prüfung nicht möglich: {{reason}}"
+  checkedAt: "geprüft am {{when}}"

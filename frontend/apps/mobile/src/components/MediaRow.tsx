@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo } from "react";
-import { View, Text, FlatList, StyleSheet, Dimensions, Pressable } from "react-native";
+import { View, Text, FlatList, StyleSheet, Pressable } from "react-native";
+import { ROW_CARD_WIDTH } from "../lib/rowCardWidth";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
@@ -8,7 +9,7 @@ import { useWatchedMap } from "../hooks/useWatchedMap";
 import { MediaCard } from "./MediaCard";
 import { FONT_SIZE } from "@evey/theme";
 
-const CARD_WIDTH = Dimensions.get("window").width * 0.35;
+const CARD_WIDTH = ROW_CARD_WIDTH;
 const CARD_TOTAL_WIDTH = CARD_WIDTH + 8; // card width + marginRight (theme.spacing.sm ~8)
 
 interface MediaRowProps {

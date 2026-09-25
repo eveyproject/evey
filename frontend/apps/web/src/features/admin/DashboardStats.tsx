@@ -17,6 +17,7 @@ import { QuickActions } from "./DashboardQuickActions";
 import { PlayActivityChart, PeakHours } from "./DashboardCharts";
 import { OnlineNow } from "./DashboardOnline";
 import { BackgroundTasksPanel } from "./BackgroundTasksPanel";
+import { DashboardUpdateBanner } from "./DashboardUpdateBanner";
 
 interface DashboardStatsProps {
   info: V1DashboardInfo;
@@ -50,6 +51,7 @@ export function DashboardStats({ info }: DashboardStatsProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      <DashboardUpdateBanner />
       <p className="text-sm text-[var(--text-muted)]" data-testid="dashboard-inventory">
         {t("admin.dashboardStats.inventory", {
           movies: movieCount,
@@ -79,7 +81,13 @@ export function DashboardStats({ info }: DashboardStatsProps) {
           value={formatBps(info.streamingBps)}
           sub={t("admin.dashboardStats.theoreticalSub", { rate: formatBps(info.activeSessionsBps) })}
         />
-        <StatCard icon={<CpuIcon />} label={t("admin.dashboardStats.cpu")} value={`${(info.cpuPercent ?? 0).toFixed(1)}%`} valueColor={getUsageColor(info.cpuPercent ?? 0)} />
+        <StatCard
+          icon={<CpuIcon />}
+          label={t("admin.dashboardStats.cpu")}
+          value={`${(info.cpuPercent ?? 0).toFixed(1)}%`}
+          valueColor={getUsageColor(info.cpuPercent ?? 0)}
+          sub={t("admin.dashboardStats.eveyCpuSub", { percent: Math.round(info.eveyCpuPercent ?? 0) })}
+        />
         <StatCard icon={<MemoryIcon />} label={t("admin.dashboardStats.memory")} value={`${(info.memoryPercent ?? 0).toFixed(1)}%`} valueColor={getUsageColor(info.memoryPercent ?? 0)} />
       </div>
 

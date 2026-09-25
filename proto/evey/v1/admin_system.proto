@@ -272,6 +272,9 @@ message DashboardInfo {
   // play session - what the server would push if every client pulled at
   // full speed.
   int64 active_sessions_bps = 10;
+  // The part of cpu_percent taken by Evey itself: the server and every
+  // process it forked (ffmpeg, ffprobe). The rest is the host's other work.
+  double evey_cpu_percent = 11;
 }
 
 message StorageInfo {

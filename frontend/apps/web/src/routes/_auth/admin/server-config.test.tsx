@@ -308,8 +308,8 @@ describe("ServerConfigPage", () => {
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    expect(screen.getByText(/Background jobs/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+    expect(screen.getByText("Background work")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Background work/i }));
     expect(
       await screen.findByText(/read once at server startup/i),
     ).toBeInTheDocument();
@@ -319,7 +319,7 @@ describe("ServerConfigPage", () => {
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Background work/i }));
 
     const pause = await screen.findByLabelText(/Pause background jobs during playback/i);
     const level = screen.getByLabelText(/^H\.264\/HEVC level backfill$/i);
@@ -338,7 +338,7 @@ describe("ServerConfigPage", () => {
     mockUseMutation.mockReturnValue({ mutate, isPending: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Background work/i }));
 
     const keyframe = await screen.findByLabelText(/^Keyframe index backfill$/i);
     fireEvent.click(keyframe);
@@ -353,7 +353,7 @@ describe("ServerConfigPage", () => {
     });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Background work/i }));
     const keyframe = await screen.findByLabelText(/^Keyframe index backfill$/i);
     expect(keyframe).toHaveAttribute("aria-checked", "false");
   });
@@ -367,7 +367,7 @@ describe("ServerConfigPage", () => {
     mockUseMutation.mockReturnValue({ mutate, isPending: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Background work/i }));
 
     const level = await screen.findByLabelText(/^H\.264\/HEVC level backfill$/i);
     fireEvent.click(level);
@@ -381,7 +381,7 @@ describe("ServerConfigPage", () => {
     mockUseMutation.mockReturnValue({ mutate, isPending: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Background work/i }));
 
     const batch = await screen.findByLabelText(/Keyframe backfill batch size/i);
     fireEvent.change(batch, { target: { value: "50" } });
@@ -405,7 +405,7 @@ describe("ServerConfigPage", () => {
     mockUseMutation.mockReturnValue({ mutate, isPending: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Background work/i }));
 
     const batch = await screen.findByLabelText(/Keyframe backfill batch size/i);
     fireEvent.change(batch, { target: { value: "50" } });

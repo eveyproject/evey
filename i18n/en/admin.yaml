@@ -632,7 +632,7 @@ analytics:
 
 activity:
   title: Activity
-  backgroundTasks: "Background tasks"
+  backgroundTasks: "Background work"
   bgRunning: "running"
   bgIdle: "idle"
   bgProcessed: "{{n}} done"
@@ -731,7 +731,7 @@ serverConfig:
   trickplayTitle: Trickplay Thumbnails
   trickplayDesc: Auto-generate timeline preview thumbnails for movies and episodes.
   trickplayEnabled: Enable trickplay thumbnails
-  trickplayCpuHint: "The generation's CPU share is set under Background CPU."
+  trickplayCpuHint: "The generation's share of the processor is set under Processing power."
   memoryProfileTitle: "Memory Profile"
   memoryProfileSubtitle: "Controls how aggressively idle plugin processes are suspended to save RAM."
   memoryProfileLabel: "Memory profile"
@@ -742,8 +742,8 @@ serverConfig:
   mkvgoTitle: "mkvgo"
   mkvgoSubtitle: "Media inspection and repair via the mkvgo library."
   cpuBudget:
-    title: "Background CPU"
-    subtitle: "How much of the processor the background tasks may take together: scans, thumbnails, intro detection, classification."
+    title: "Processing power"
+    subtitle: "How much of the processor the background work may take together: scans, thumbnails, intro detection, classification."
     globalLabel: "Global share"
     global25: "25 % - gentle (default)"
     global50: "50 % - boost"
@@ -767,7 +767,7 @@ serverConfig:
         label: "Complexity classification"
         desc: "Sample encodes that grade each title for the transcoding ladder."
   backgroundJobs:
-    title: "Background jobs"
+    title: "Background work"
     subtitle: "Operator flags for the transcoding background workers - pause behavior, backfill passes, and their pacing."
     restartWarning: "These flags are read once at server startup. Saving a change here has no effect on the running server - you must restart it for the new value to take effect."
     pauseBgOnPlaybackLabel: "Pause background jobs during playback"
@@ -910,7 +910,7 @@ systemHealth:
     scan: "scan"
     interactive: "interactive"
     production: "production"
-  backgroundTasksSection: "Background tasks"
+  backgroundTasksSection: "Background work"
   videoCapacitySection: Video Transcode Capacity
   videoCapacityTitle: Video Transcode Capacity
   videoCapacityRatio: "{{active}} / {{limit}} streams"
@@ -960,6 +960,7 @@ dashboardStats:
   transcodesSub_one: "{{count}} transcoded"
   transcodesSub_other: "{{count}} transcoded"
   theoreticalSub: "theoretical {{rate}}"
+  eveyCpuSub: "Evey: {{percent}}%"
   storage: Storage
   quickActions: Quick Actions
   scanAllLibraries: Scan All Libraries
@@ -1575,7 +1576,7 @@ syncPreview:
   applyFailed: "The offset could not be applied."
   applyDone: "Offset applied. Undoable from the file's history."
 backgroundTasks:
-  title: "Background tasks"
+  title: "Background work"
   runningCount_one: "{{count}} running"
   runningCount_other: "{{count}} running"
   allIdle: "all idle"
@@ -1593,8 +1594,26 @@ backgroundTasks:
   impact: "{{processes}} proc · {{memory}} · {{cpu}}% CPU"
   cpuTotal: "{{seconds}} s CPU since start"
   cpuSlots: "{{held}}/{{slots}} cores"
+  batchProgress: "{{done}} of {{total}}"
   sinceNow: "just started"
   sinceMinutes_one: "for {{count}} min"
   sinceMinutes_other: "for {{count}} min"
   sinceHours_one: "for {{count}} h"
   sinceHours_other: "for {{count}} h"
+update:
+  title: "Updates"
+  desc: "Tells you when a newer Evey image is published."
+  enabled: "Check for updates"
+  noAuto: "Evey never updates itself: it asks the Docker registry every 6 hours and lets you know. Updating stays your command."
+  available: "New version available: {{latest}}"
+  current: "(installed: {{current}})"
+  howTo: "To update, in your docker-compose folder:"
+  copy: "Copy the command"
+  copied: "Copied"
+  changes: "See what changed"
+  checkNow: "Check now"
+  upToDate: "Evey is up to date."
+  disabled: "Checking is turned off."
+  pending: "Not checked since the server started."
+  unknown: "Could not check: {{reason}}"
+  checkedAt: "checked {{when}}"

@@ -57,8 +57,8 @@ func TestCommand_ArgvShape(t *testing.T) {
 	if i < 0 {
 		t.Fatalf("binary missing from %v", argv)
 	}
-	if got := argv[i+1:]; !slices.Equal(got, []string{"-threads", "1", "-i", "f.mkv", "-f", "null", "-"}) {
-		t.Fatalf("scan must decode on one thread, got %v", got)
+	if got := argv[i+1:]; !slices.Equal(got, []string{"-filter_threads", "1", "-filter_complex_threads", "1", "-threads", "1", "-i", "f.mkv", "-f", "null", "-"}) {
+		t.Fatalf("scan must decode and filter on one thread, got %v", got)
 	}
 	pre := strings.Join(argv[:i], " ")
 	if prlimitPath() != "" && !strings.HasPrefix(pre, "prlimit --as=") {
@@ -165,6 +165,20 @@ func TestFinish_ProbeFailureIsNotAWarning(t *testing.T) {
 	}
 }
 
+func TestBoundFilterThreads(t *testing.T) {
+	t.Parallel()
+	got := boundFilterThreads("/usr/bin/ffmpeg", []string{"-threads", "3", "-i", "f"})
+	if !slices.Equal(got[:4], []string{"-filter_threads", "3", "-filter_complex_threads", "3"}) {
+		t.Fatalf("filters must follow the decoder's threads: %v", got)
+	}
+	if got := boundFilterThreads("ffprobe", []string{"-i", "f"}); len(got) != 2 {
+		t.Fatalf("ffprobe has no filter graph: %v", got)
+	}
+	if got := boundFilterThreads("ffmpeg", []string{"-filter_threads", "2", "-i", "f"}); len(got) != 4 {
+		t.Fatalf("the caller's filter threads win: %v", got)
+	}
+}
+
 func TestInputThreads(t *testing.T) {
 	t.Parallel()
 	if n, ok := inputThreads([]string{"-threads", "6", "-i", "f"}); !ok || n != 6 {
@@ -191,6 +205,9 @@ func TestCommand_ScanForkWaitsForTheCPUBudget(t *testing.T) {
 	}
 	if snap := budget.Snapshot(); snap.Held != 1 || snap.Tasks[0].Task != "trickplay_generation" {
 		t.Fatalf("the fork must hold its (clamped) slot for its task: %+v", snap)
+	}
+	if !strings.Contains(strings.Join(cmd.Args, " "), "-threads 1 -i f") {
+		t.Fatalf("the decoder must run no wider than the slot it was charged: %v", cmd.Args)
 	}
 	// A second scan fork cannot start while the slot is held.
 	short, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)

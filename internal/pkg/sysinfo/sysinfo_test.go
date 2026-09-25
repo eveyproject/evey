@@ -2,6 +2,7 @@ package sysinfo
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -141,6 +142,32 @@ func TestCollect_CachesResult(t *testing.T) {
 
 	s3 := Collect()
 	_ = s3 // just ensure no panic on refresh
+}
+
+func TestTreeCPUTicks_CountsTheForkedChildren(t *testing.T) {
+	if _, err := os.Stat("/proc/self/stat"); err != nil {
+		t.Skip("no /proc")
+	}
+	cmd := exec.Command("sh", "-c", "while :; do :; done")
+	if err := cmd.Start(); err != nil {
+		t.Skip("no sh")
+	}
+	defer func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }()
+	_, before, err := procStat(cmd.Process.Pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	_, child, _ := procStat(cmd.Process.Pid)
+	if child <= before {
+		t.Skip("the busy child was not scheduled")
+	}
+	if tree := treeCPUTicks(os.Getpid()); tree < child {
+		t.Fatalf("the tree (%d ticks) must include the busy child (%d)", tree, child)
+	}
+	if other := treeCPUTicks(cmd.Process.Pid); other != child {
+		t.Fatalf("a leaf's tree is itself: %d != %d", other, child)
+	}
 }
 
 func TestReadCPUStat(t *testing.T) {

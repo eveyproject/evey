@@ -431,6 +431,7 @@ jobs:
             RUNTIMES=${{ matrix.runtime.name }}
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.stamp.outputs.date }}
+            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
           # Scope the GHA cache per variant so a `full` build never overwrites
           # the `lean` cache and vice versa - buildx layers diverge only in the
           # apt layer but the cache key needs to reflect that to stay correct.
@@ -460,6 +461,7 @@ jobs:
             RUNTIMES=${{ matrix.runtime.name }}
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.stamp.outputs.date }}
+            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
           cache-from: type=gha,scope=docker-${{ matrix.runtime.name }}
           cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }},ignore-error=true
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true

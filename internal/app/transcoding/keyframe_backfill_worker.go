@@ -301,6 +301,7 @@ func (w *KeyframeBackfillWorker) processKeyframeBatch(ctx context.Context) int {
 		w.logger.Warn("keyframe backfill: list candidates failed", slog.Any("err", err))
 		return 0
 	}
+	bgtasks.Queue(keyframeBackfillTask, len(ids))
 	for i, id := range ids {
 		select {
 		case <-w.stop:

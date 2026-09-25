@@ -12,7 +12,7 @@ export { BACKGROUND_TASKS_QUERY_KEY, type BackgroundTaskView } from "@evey/clien
 
 function TaskRow({ task, theme }: { task: BackgroundTaskView; theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
-  const { label, running, since, hasCost, armed, pending, resume, pressStop } = useBackgroundTaskControl(task, t);
+  const { label, running, since, hasCost, progress, armed, pending, resume, pressStop } = useBackgroundTaskControl(task, t);
   const dotColor = running ? theme.colors.success : task.paused ? theme.colors.warning : theme.colors.border;
 
   return (
@@ -34,6 +34,16 @@ function TaskRow({ task, theme }: { task: BackgroundTaskView; theme: ReturnType<
           {running && task.detail ? task.detail : t("admin.activity.bgProcessed", { n: task.processed })}
           {task.cpuSecondsTotal > 0 ? ` · ${t("admin.backgroundTasks.cpuTotal", { seconds: Math.round(task.cpuSecondsTotal) })}` : ""}
         </Text>
+        {progress ? (
+          <View style={styles.progressRow} testID={`task-progress-${task.name}`}>
+            <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
+              <View style={[styles.progressFill, { backgroundColor: theme.colors.accent, width: `${Math.round(progress.ratio * 100)}%` }]} />
+            </View>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+              {t("admin.backgroundTasks.batchProgress", { done: progress.done, total: progress.total })}
+            </Text>
+          </View>
+        ) : null}
         {hasCost ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 1 }}>
             {t("admin.backgroundTasks.impact", { processes: task.processes, memory: formatBytes(task.rssBytes), cpu: Math.round(task.cpuPercent) })}
@@ -106,6 +116,9 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   dot: { width: 8, height: 8, borderRadius: 4 },
+  progressRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  progressTrack: { flex: 1, height: 5, borderRadius: 3, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 3 },
   badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   ctrlBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   empty: { color: "#888", fontSize: 13, textAlign: "center", paddingVertical: 16 },

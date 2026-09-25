@@ -20,6 +20,7 @@ import { TrickplaySettingsCard } from "@/features/admin/serverConfig/TrickplaySe
 import { IntroDetectionSettingsCard } from "@/features/admin/serverConfig/IntroDetectionSettingsCard";
 import { ParserTokensCard } from "@/features/admin/serverConfig/ParserTokensCard";
 import { ServerSettingsCard } from "@/features/admin/serverConfig/ServerSettingsCard";
+import { UpdateCheckCard } from "@/features/admin/serverConfig/UpdateCheckCard";
 
 export const Route = createLazyFileRoute("/_auth/admin/server-config")({
   component: ServerConfigPage,
@@ -38,6 +39,13 @@ function ServerConfigPage() {
         alwaysOpen
       >
         <ServerSettingsCard />
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title={t("admin.update.title")}
+        subtitle={t("admin.update.desc")}
+      >
+        <UpdateCheckCard entries={entries} />
       </CollapsibleCard>
 
       <CollapsibleCard
@@ -73,6 +81,13 @@ function ServerConfigPage() {
         subtitle={t("admin.serverConfig.backgroundJobs.subtitle")}
       >
         <BackgroundJobsCard entries={entries} />
+        {/* The timeline thumbnails are background work too: their switch
+            lives with the others instead of a card of its own. */}
+        <section className="mt-6 border-t border-[var(--border)] pt-4" data-testid="trickplay-settings">
+          <h4 className="text-sm font-semibold text-[var(--text)]">{t("admin.serverConfig.trickplayTitle")}</h4>
+          <p className="mb-3 text-xs text-[var(--text-muted)]">{t("admin.serverConfig.trickplayDesc")}</p>
+          <TrickplaySettingsCard entries={entries} />
+        </section>
       </CollapsibleCard>
 
       <CollapsibleCard
@@ -102,13 +117,6 @@ function ServerConfigPage() {
         info={t("admin.serverConfig.artworkInfo")}
       >
         <ArtworkSettingsCard entries={entries} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.trickplayTitle")}
-        subtitle={t("admin.serverConfig.trickplayDesc")}
-      >
-        <TrickplaySettingsCard entries={entries} />
       </CollapsibleCard>
 
       <CollapsibleCard

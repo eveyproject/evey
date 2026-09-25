@@ -534,6 +534,7 @@ func (d *adminSystemHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDash
 		TotalMediaItems:  int32(stats.TotalItems),
 		TotalUsers:       int32(stats.TotalUsers),
 		CpuPercent:       sys.CPUPercent,
+		EveyCpuPercent:   sys.EveyCPUPercent,
 		MemoryPercent:    sys.MemoryPercent,
 		StreamingBps:     -1,
 	}

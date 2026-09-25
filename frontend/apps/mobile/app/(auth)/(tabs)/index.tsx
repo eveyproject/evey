@@ -1,4 +1,4 @@
-import { ScrollView, View, RefreshControl, Text, Pressable, Modal, Switch, StyleSheet, Dimensions, Alert } from "react-native";
+import { ScrollView, View, RefreshControl, Text, Pressable, Modal, Switch, StyleSheet, Alert } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Skeleton } from "../../../src/components/Skeleton";
@@ -41,8 +41,8 @@ import { CollectionRow } from "../../../src/components/CollectionRow";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { FEED_TYPES, resolveMaxItems } from "@evey/client";
+import { ROW_CARD_WIDTH } from "../../../src/lib/rowCardWidth";
 
-const SCREEN_WIDTH = Dimensions.get("window").width;
 
 interface MusicAlbumLite { id?: string; title?: string; artist?: string; coverArtUrl?: string }
 interface PhotoAlbumLite { name?: string; coverPhotoId?: string; photoCount?: number }
@@ -662,7 +662,7 @@ export default function HomeScreen() {
     Object.keys(pluginNames).length > 0;
 
   if (isLoading && !refreshing) {
-    const skeletonW = SCREEN_WIDTH * 0.35;
+    const skeletonW = ROW_CARD_WIDTH;
     const skeletonH = skeletonW * 1.5;
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>

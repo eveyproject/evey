@@ -94,6 +94,11 @@ type ScanService struct {
 
 	scanMu   sync.Mutex
 	scanning map[string]bool
+	// settleWindow is how long a file must go unmodified before it is
+	// analysed (0: no wait); settleRetry holds the one rescan per library
+	// already booked for the files still being written.
+	settleWindow time.Duration
+	settleRetry  map[string]*time.Timer
 }
 
 func NewScanService(
@@ -121,7 +126,55 @@ func NewScanService(
 		events:       events,
 		pruner:       NewOrphanPruner(mediaItems, search, events),
 		scanning:     make(map[string]bool),
+		settleRetry:  make(map[string]*time.Timer),
 	}
+}
+
+// WithFileSettle makes the scan leave alone a file modified less than window
+// ago: it is still being copied. On 2026-09-25 an episode was ingested
+// mid-transfer ("invalid VINT: leading zero byte" on its truncated tail) and
+// every analysis ran on half a file.
+func (s *ScanService) WithFileSettle(window time.Duration) *ScanService {
+	s.settleWindow = window
+	return s
+}
+
+// splitSettled keeps the files whose last write is at least settleWindow
+// old. A future mtime beyond the window (a copied timestamp, clock skew) is
+// not a copy in progress.
+func (s *ScanService) splitSettled(files []library.ScannedFile, now time.Time) (settled []library.ScannedFile, unsettled int) {
+	if s.settleWindow <= 0 {
+		return files, 0
+	}
+	settled = files[:0:0]
+	for _, f := range files {
+		if age := now.Sub(f.ModTime); age < s.settleWindow && age > -s.settleWindow {
+			unsettled++
+			continue
+		}
+		settled = append(settled, f)
+	}
+	return settled, unsettled
+}
+
+// retryWhenSettled books one rescan of the library once the files skipped as
+// still being written have had time to settle: the watcher sees no event
+// after the copy's last write, so nothing else would bring them back soon.
+func (s *ScanService) retryWhenSettled(ctx context.Context, libraryID string) {
+	s.scanMu.Lock()
+	defer s.scanMu.Unlock()
+	if s.settleRetry[libraryID] != nil {
+		return
+	}
+	ctx = context.WithoutCancel(ctx)
+	s.settleRetry[libraryID] = time.AfterFunc(s.settleWindow+5*time.Second, func() {
+		s.scanMu.Lock()
+		delete(s.settleRetry, libraryID)
+		s.scanMu.Unlock()
+		if _, _, err := s.ScanLibrary(ctx, libraryID); err != nil && !errors.Is(err, ErrScanInProgress) {
+			slog.WarnContext(ctx, "scan: rescan after files settled", slog.String("library_id", libraryID), slog.Any("err", err))
+		}
+	})
 }
 
 func (s *ScanService) WithMetadataExtraction(m *MetadataExtractionService) {
@@ -427,24 +480,36 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 	ctx, span := tracing.StartSpan(ctx, "app.scan.scanDirectories")
 	defer span.End()
 	seenPaths = make(map[string]struct{})
+	unsettled := 0
+	defer func() {
+		if unsettled > 0 && err == nil {
+			slog.InfoContext(ctx, "scan: files still being written, analysed once they settle",
+				slog.String("library_id", string(lib.ID)), slog.Int("files", unsettled))
+			s.retryWhenSettled(ctx, string(lib.ID))
+		}
+	}()
 
 	for _, path := range lib.Paths {
-		files, scanErr := s.scanner.Scan(ctx, path)
+		all, scanErr := s.scanner.Scan(ctx, path)
 		if scanErr != nil {
 			return nil, nil, nil, 0, 0, fmt.Errorf("scan path %s: %w", path, scanErr)
 		}
+		// A file still being copied counts as present (the pruner must not
+		// drop the item it may be replacing) but is not analysed yet.
+		for _, f := range all {
+			seenPaths[f.Path] = struct{}{}
+		}
+		files, n := s.splitSettled(all, time.Now())
+		unsettled += n
 		// A root that returned no files (and no error) is suspect: it may be a
 		// dropped/empty NFS-SMB mount rather than a genuinely empty folder. Record
 		// it so the pruner won't delete the items that live under it (see the
 		// degraded-mount guard in OrphanPruner.Prune).
-		if len(files) == 0 {
+		if len(all) == 0 {
 			emptyRoots = append(emptyRoots, path)
 		}
 
 		if lib.Type == "tvshow" {
-			for _, f := range files {
-				seenPaths[f.Path] = struct{}{}
-			}
 			a, u, e := s.scanTVShowFiles(ctx, string(lib.ID), files)
 			if e != nil {
 				return nil, nil, nil, 0, 0, e
@@ -455,9 +520,6 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		}
 
 		work, u := s.detectChanges(ctx, files, idx)
-		for _, f := range files {
-			seenPaths[f.Path] = struct{}{}
-		}
 		toProcess = append(toProcess, work...)
 		updated += u
 	}
@@ -526,6 +588,9 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 	}()
 	var addedAtomic, updatedAtomic atomic.Int64
 	budget, workers := s.scanWorkers()
+	if budget != nil {
+		bgtasks.Queue(libraryScanTask, len(toProcess))
+	}
 	sem := make(chan struct{}, workers)
 	var wg sync.WaitGroup
 	for _, w := range toProcess {

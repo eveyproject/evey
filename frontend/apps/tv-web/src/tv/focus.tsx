@@ -12,12 +12,15 @@ export function initTvNavigation(): void {
   if (initialised) return;
   initialised = true;
   init({ debug: false, visualDebug: false, throttle: 0 });
+  // The library reads keyCode || code || key: a browser that sends the arrows
+  // with keyCode 0 (LG's own browser, Magic Remote) hands it "ArrowUp", which
+  // a numbers-only map ignored while back and play still worked.
   setKeyMap({
-    left: [37],
-    up: [38],
-    right: [39],
-    down: [40],
-    enter: [13],
+    left: [37, "ArrowLeft", "Left"],
+    up: [38, "ArrowUp", "Up"],
+    right: [39, "ArrowRight", "Right"],
+    down: [40, "ArrowDown", "Down"],
+    enter: [13, "Enter", "NumpadEnter"],
   });
 }
 

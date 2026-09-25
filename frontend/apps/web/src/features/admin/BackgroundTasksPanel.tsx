@@ -12,7 +12,7 @@ export { BACKGROUND_TASKS_QUERY_KEY, type BackgroundTaskView } from "@evey/clien
 
 function TaskRow({ task }: { task: BackgroundTaskView }) {
   const { t } = useTranslation();
-  const { label, running, since, hasCost, armed, pending, resume, pressStop } = useBackgroundTaskControl(task, t);
+  const { label, running, since, hasCost, progress, armed, pending, resume, pressStop } = useBackgroundTaskControl(task, t);
 
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--border)] py-2 text-sm last:border-b-0">
@@ -37,6 +37,23 @@ function TaskRow({ task }: { task: BackgroundTaskView }) {
           {task.cpuSecondsTotal > 0 && ` · ${t("admin.backgroundTasks.cpuTotal", { seconds: Math.round(task.cpuSecondsTotal) })}`}
           {(task.cpuSlots ?? 0) > 0 && ` · ${t("admin.backgroundTasks.cpuSlots", { held: task.cpuSlotsHeld ?? 0, slots: task.cpuSlots })}`}
         </span>
+        {progress && (
+          <span className="mt-1 flex items-center gap-2" data-testid={`task-progress-${task.name}`}>
+            <span
+              className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--border)]"
+              role="progressbar"
+              aria-label={t("admin.backgroundTasks.batchProgress", { done: progress.done, total: progress.total })}
+              aria-valuemin={0}
+              aria-valuemax={progress.total}
+              aria-valuenow={progress.done}
+            >
+              <span className="block h-full rounded-full bg-[var(--accent)] transition-[width] duration-500" style={{ width: `${Math.round(progress.ratio * 100)}%` }} />
+            </span>
+            <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">
+              {t("admin.backgroundTasks.batchProgress", { done: progress.done, total: progress.total })}
+            </span>
+          </span>
+        )}
       </div>
       {hasCost && (
         <span className="shrink-0 text-xs tabular-nums text-[var(--text)]" data-testid={`task-cost-${task.name}`}>
