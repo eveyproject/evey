@@ -165,3 +165,34 @@ func TestOnDemandPlan_WinnerSurvivesFirstCallerCancel(t *testing.T) {
 		t.Fatal("build ran under the caller's cancelable ctx - a bailing caller would abort every follower's plan")
 	}
 }
+
+// A plan in use is kept: its expiry slides with every request, so a film
+// watched past the TTL keeps the plan (and what mkvgo learned serving it).
+// An idle plan still expires.
+func TestOnDemandPlan_ExpirySlidesWithUse(t *testing.T) {
+	p := NewOnDemandPackager()
+	defer p.Close()
+	p.ttl = 80 * time.Millisecond
+	src := stampedeSrc(t)
+	var builds atomic.Int32
+	p.build = func(context.Context, string, apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
+		return &stubPlan{id: builds.Add(1)}, nil
+	}
+	opts := apptranscoding.OnDemandOptions{SegmentMs: 6000}
+	for range 6 { // 6 x 30 ms = 180 ms of use, more than twice the TTL
+		if _, err := p.Plan(context.Background(), src, opts); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+	if n := builds.Load(); n != 1 {
+		t.Fatalf("a plan in use was rebuilt: %d builds", n)
+	}
+	time.Sleep(150 * time.Millisecond)
+	if _, err := p.Plan(context.Background(), src, opts); err != nil {
+		t.Fatal(err)
+	}
+	if n := builds.Load(); n != 2 {
+		t.Fatalf("an idle plan must expire: %d builds", n)
+	}
+}

@@ -13,7 +13,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/pprof v0.0.0-20260830191439-4932ad3515ea
 	github.com/google/uuid v1.6.0
-	github.com/gravity-zero/mkvgo v0.33.0
+	github.com/gravity-zero/mkvgo v0.34.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/lib/pq v1.12.3
 	github.com/meilisearch/meilisearch-go v0.36.3
