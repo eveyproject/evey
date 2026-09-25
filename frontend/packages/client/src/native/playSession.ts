@@ -218,6 +218,10 @@ export interface PlaySessionResult {
   stopSession: () => void;
   restartWithTracks: (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => void;
   progress: V1WatchProgress | null;
+  // Where a later stream (a quality, audio or subtitle switch) was declared to
+  // start, null on the first: the player seeks there instead of re-reading the
+  // progress row by the first-start rule.
+  restartPositionMs: number | null;
 }
 
 // Tracks chosen on the media page BEFORE playback (absolute stream indices):
@@ -242,6 +246,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
   const [streamInfo, setStreamInfo] = useState<V1StreamInfo | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState<V1WatchProgress | null>(null);
+  const [restartPositionMs, setRestartPositionMs] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [isAuthError, setIsAuthError] = useState(false);
@@ -252,6 +257,10 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
   if (prevMediaIdRef.current !== mediaId) {
     prevMediaIdRef.current = mediaId;
     startedRef.current = false;
+    // A next episode on the same screen is a first stream again, with the
+    // hints of its own route.
+    firstStartRef.current = true;
+    initialRef.current = initial;
   }
   const stoppedRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
@@ -318,6 +327,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         // type, so a language switch produces a DIFFERENT url that reloads.
         // Where the player will start, by the players' own rule: the encoder is
         // pre-warmed there and the session declares it.
+        const firstStream = firstStartRef.current;
         const startMs = firstStartMs(firstStartRef, initialRef.current, wp);
         const resumeSec = startMs / 1000;
         const url = buildStreamUrl(serverUrl, mediaId, info, token, {
@@ -358,6 +368,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         if (!stoppedRef.current && !superseded()) {
           setStreamInfo(info);
           setServerUrl(serverUrl);
+          setRestartPositionMs(firstStream ? null : startMs);
           setStreamUrl(url);
           if (session.id) {
             sessionIdRef.current = session.id;
@@ -430,5 +441,5 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress };
+  return { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress, restartPositionMs };
 }

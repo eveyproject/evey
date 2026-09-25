@@ -87,6 +87,17 @@ describe("useProgressReporter", () => {
     }));
   });
 
+  it("keeps the last known position when the released player reads 0 on unmount", async () => {
+    let released = false;
+    const { unmount } = renderHook(() => useProgressReporter("s1", () => (released ? 0 : 267_000)));
+    await act(async () => { vi.advanceTimersByTime(3_000); });
+    released = true;
+    reportProgressMock.mockClear();
+
+    unmount();
+    expect(reportProgressMock).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "s1", positionMs: "267000" }));
+  });
+
   it("stops interval on unmount", () => {
     const { unmount } = renderHook(() => useProgressReporter("s1", () => 0));
     unmount();
