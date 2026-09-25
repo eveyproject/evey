@@ -2,7 +2,6 @@ package ociregistry
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -85,7 +84,7 @@ func TestDescribe_WalksChallengeIndexManifestAndConfig(t *testing.T) {
 	assert.Equal(t, "https://github.com/evey-project/evey", remote.Source)
 
 	_, err = c.Describe(context.Background(), image, "nope")
-	assert.True(t, errors.Is(err, updatecheck.ErrNotFound))
+	assert.ErrorIs(t, err, updatecheck.ErrNotFound)
 }
 
 func TestTags_FollowsPagination(t *testing.T) {
