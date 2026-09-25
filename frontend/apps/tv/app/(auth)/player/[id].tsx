@@ -27,6 +27,7 @@ import {
 import { useAuthStore, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
+import { dashUrlFor, devDashEnabled } from "../../../src/lib/devDash";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
@@ -213,7 +214,7 @@ export default function PlayerScreen() {
   useEffect(() => {
     useMusicQueueStore.getState().clear();
   }, [mediaId]);
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress } =
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress, restartPositionMs } =
     usePlaySession(mediaId, {
       ...(trackPick.audio === undefined ? {} : { audioStreamIndex: trackPick.audio }),
       // The encoder is pre-warmed where the player will start: over, or at
@@ -479,19 +480,52 @@ export default function PlayerScreen() {
   // keeps the identity stable so unmount performs the single real release.
   // (This is hygiene, not the exit-crash fix: that one was an unguarded read in
   // getPositionMs, see the comment there.)
-  const lastSourceRef = useRef<{ uri: string; contentType?: "hls" } | null>(null);
+  const lastSourceRef = useRef<{ uri: string; contentType?: "hls" | "dash" } | null>(null);
+  // Dev DASH (src/lib/devDash.ts): the same session's manifest.mpd, probed
+  // first; any refusal plays the HLS master. Failed once, the title stays on
+  // HLS until the screen changes media.
+  const [dashSource, setDashSource] = useState<{ url: string; state: "probing" | "on" | "off" } | null>(null);
+  const dashFailedRef = useRef(false);
+  useEffect(() => { dashFailedRef.current = false; }, [mediaId]);
+  useEffect(() => {
+    const url = streamUrl && devDashEnabled() && !dashFailedRef.current ? dashUrlFor(streamUrl) : null;
+    if (!url) {
+      setDashSource(null);
+      return;
+    }
+    let cancelled = false;
+    setDashSource({ url, state: "probing" });
+    fetch(url)
+      .then((res) => {
+        if (cancelled) return;
+        console.log(`[dev-dash] manifest.mpd ${res.status}: ${res.ok ? "DASH" : "HLS fallback"}`);
+        setDashSource({ url, state: res.ok ? "on" : "off" });
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        console.log(`[dev-dash] manifest.mpd unreachable (${String(err)}): HLS fallback`);
+        setDashSource({ url, state: "off" });
+      });
+    return () => { cancelled = true; };
+  }, [streamUrl]);
+  const dashActiveRef = useRef(false);
   const videoSource = useMemo(() => {
     if (!streamUrl) return lastSourceRef.current;
-    const isHls = streamUrl.includes("m3u8");
+    if (dashSource?.state === "probing") return lastSourceRef.current;
+    const isDash = dashSource?.state === "on";
+    dashActiveRef.current = isDash;
+    const isHls = !isDash && streamUrl.includes("m3u8");
     const next = {
-      uri: streamUrl,
-      ...(isHls ? { contentType: "hls" as const } : {}),
+      uri: isDash ? dashSource.url : streamUrl,
+      ...(isDash ? { contentType: "dash" as const } : isHls ? { contentType: "hls" as const } : {}),
     };
     lastSourceRef.current = next;
     return next;
-  }, [streamUrl]);
+  }, [streamUrl, dashSource]);
 
   const resumePositionSec = useMemo(() => {
+    // A quality, audio or subtitle switch continues where the viewer was.
+    if (restartPositionMs != null) return restartPositionMs / 1000;
     if (restart === "1") return 0;
     // A cast hands over a position the viewer was actually at, a second ago,
     // on another device. It outranks the progress row this television would
@@ -500,7 +534,7 @@ export default function PlayerScreen() {
     if (Number.isFinite(cast) && cast > 0) return cast;
     // Played, or within the last seconds: start over (the rule of every client).
     return resolveStartPositionMs(false, progress) / 1000;
-  }, [progress, restart, start]);
+  }, [progress, restart, start, restartPositionMs]);
 
   const player = useVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
@@ -596,6 +630,13 @@ export default function PlayerScreen() {
         setDuration(p.duration);
       });
       setIsBufferingDebounced(ev.status === "loading");
+      if (ev.status === "error" && dashActiveRef.current && !dashFailedRef.current) {
+        // Dev DASH: the HLS master takes over the same session.
+        console.log(`[dev-dash] DASH source failed (${ev.error?.message ?? ""}): HLS fallback`);
+        dashFailedRef.current = true;
+        setDashSource((d) => (d ? { ...d, state: "off" } : d));
+        return;
+      }
       if (ev.status === "error") {
         console.warn("[player] native playback error:", ev.error?.message);
         // Beacon BEFORE the state flip, same reporter as web and mobile: a
