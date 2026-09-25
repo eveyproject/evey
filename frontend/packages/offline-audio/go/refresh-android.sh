@@ -23,7 +23,7 @@ done
 : "${ANDROID_HOME:=$HOME/Applications/Android/Sdk}"
 : "${ANDROID_NDK_HOME:=$ANDROID_HOME/ndk/27.1.12297006}"
 export JAVA_HOME ANDROID_HOME ANDROID_NDK_HOME
-export GOTOOLCHAIN=go1.26.2
+export GOTOOLCHAIN=go1.27.0
 MOBILE=v0.0.0-20260730202154-c700fe717e6e   # golang.org/x/mobile, same as go.mod
 
 command -v go >/dev/null || { echo "refresh-android: go not in PATH (any >= 1.21, pins itself to $GOTOOLCHAIN)" >&2; exit 2; }
