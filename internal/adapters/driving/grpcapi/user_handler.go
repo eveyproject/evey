@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/evey-project/evey/internal/config"
@@ -62,7 +63,10 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}
 	metrics.AuthLatency.WithLabelValues("login", "success").Observe(time.Since(start).Seconds())
-	u, userErr := h.query.GetUserByUsername(ctx, req.Username)
+	// Same normalisation as the service's Login: it trimmed "Name " and let
+	// the viewer in, then this lookup ran on the raw value and found nobody
+	// (prod, 2026-09-22) - tokens issued, User missing from the response.
+	u, userErr := h.query.GetUserByUsername(ctx, strings.TrimSpace(req.Username))
 	if userErr != nil {
 		slog.WarnContext(ctx, "get user by username after login", slog.Any("err", userErr))
 	}
