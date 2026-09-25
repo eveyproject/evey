@@ -122,10 +122,15 @@ func internalError(ctx context.Context, op string, err error) error {
 		// The client disconnected mid-request, which cancels the context; the DB
 		// driver then surfaces context.Canceled or pg's 57014 "canceling statement
 		// due to user request". That is the caller giving up, not a server fault -
-		// log it at DEBUG so it doesn't pollute the ERROR stream. The return code
-		// is left unchanged (the client is already gone, so it never sees it).
+		// log it at DEBUG so it doesn't pollute the ERROR stream. The code says
+		// what happened too: Internal made the sanitizer log every navigation
+		// away from the home page as "sanitized internal error" (176 lines in
+		// 25 days of prod, none a fault) and count it as a 5xx in the metrics.
 		slog.DebugContext(ctx, op+": client canceled", slog.Any("err", err))
-		return status.Error(codes.Internal, "internal error")
+		if errors.Is(err, context.DeadlineExceeded) {
+			return status.Error(codes.DeadlineExceeded, "deadline exceeded")
+		}
+		return status.Error(codes.Canceled, "request canceled")
 	}
 	slog.ErrorContext(ctx, op, slog.Any("err", err))
 	return status.Error(codes.Internal, "internal error")
