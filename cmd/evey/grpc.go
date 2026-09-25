@@ -115,8 +115,10 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		WithAudioIntegrityProber(ffmpeg.NewAudioIntegrity("ffmpeg", "ffprobe")).
 		// Chunked interleave (minutes of video, then minutes of audio): every
 		// header healthy, no sequential player gets past the first block.
-		// Sampled cluster timestamps, ~11 MB per file.
-		WithInterleaveProber(mkvgo.New()).
+		// Every cluster's timestamp (mkvgo Analyze, one sequential read of the
+		// file, in the background) for the scan and the repair's own check: a
+		// thin block the library scan's sampling steps over is caught here.
+		WithInterleaveProber(mkvgo.ExactInterleaveProber{Adapter: mkvgo.New()}).
 		// The measure reaches the catalog so playback refuses such a file
 		// (file_needs_remux) instead of stalling on it; cleared by the repair.
 		WithInterleaveRecorder(deps.interleaveRecorder).

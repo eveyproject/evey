@@ -7,6 +7,7 @@ import (
 	"os"
 
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
+	"github.com/gravity-zero/mkvgo/mkv/ops"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -15,9 +16,8 @@ import (
 // interleaveSamples offsets per file: ~11 MB read. Sparser sampling can land
 // on a mild boundary (17 s where 32 samples read 532 s on the same file).
 // Blind to a THIN block, smaller than the step between samples (a stereo
-// track's 180 s blocks read 0, measured 2026-09-25); the exact measure (mkvgo
-// Analyze, every cluster) reads the whole file and was judged too costly for
-// the NAS.
+// track's 180 s blocks read 0, measured 2026-09-25): the health scan and the
+// repair check use ExactInterleaveProber; the library scan keeps this one.
 const interleaveSamples = 16
 
 // interleaveScanCap bounds the scan to the next Cluster from a sampled offset
@@ -58,6 +58,32 @@ func (a *Adapter) ProbeInterleaveBackstepSec(ctx context.Context, path string) (
 		return 0, fmt.Errorf("interleave probe: %w", err)
 	}
 	return float64(maxBackstepMs(stamps)) / 1000, nil
+}
+
+// ExactInterleaveProber measures the backstep over EVERY cluster in file
+// order (mkvgo Analyze, header-only): it cannot miss a thin block the
+// sampling steps over (a stereo track's 180 s block read 0 sampled, 178 s
+// exact, measured 2026-09-25). It reads the whole file once, sequentially:
+// for the background health scan and the repair check, never a request path
+// nor the library scan. A file Analyze refuses (clusters of unknown size)
+// keeps the sampled measure.
+type ExactInterleaveProber struct{ *Adapter }
+
+// ProbeInterleaveBackstepSec implements maintenance.InterleaveProber.
+func (p ExactInterleaveProber) ProbeInterleaveBackstepSec(ctx context.Context, path string) (float64, error) {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.ProbeInterleaveBackstepExact")
+	defer span.End()
+	if !IsEBMLContainer(path) {
+		return 0, nil
+	}
+	report, err := ops.Analyze(ctx, path)
+	if err != nil {
+		if ctx.Err() != nil {
+			return 0, ctx.Err()
+		}
+		return p.Adapter.ProbeInterleaveBackstepSec(ctx, path)
+	}
+	return float64(report.ClusterTimecodeBackstepMs) / 1000, nil
 }
 
 // sampleClusterTimestamps returns, in file order, the timestamp (ms) of the
