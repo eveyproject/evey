@@ -25,17 +25,30 @@ func (s *IntroDetectionService) waitForManifest(ctx context.Context, mediaID sha
 		return nil, fmt.Errorf("get trickplay manifest: %w", err)
 	}
 
-	deadline := time.Now().Add(24 * time.Hour)
-	ticker := time.NewTicker(30 * time.Second)
+	// A short wait only: the manifest is either seconds away (its generator is
+	// running) or hours away (queued behind a season). This used to wait 24 h
+	// under a 30-minute episode budget, so a missing trickplay burnt the whole
+	// budget, twice, and the episode was parked as exhausted (prod 2026-09:
+	// 10 of 10 timed-out episodes, The Gentlemen, six episodes x 3 x 30 min).
+	// Past the wait the caller gets errTrickplayPending, a transient failure
+	// the sweep does not count: the episode comes back once the manifest is
+	// there.
+	wait := s.trickplayWait
+	if wait <= 0 {
+		wait = introTrickplayWait
+	}
+	deadline := time.Now().Add(wait)
+	poll := introTrickplayPoll
+	if poll > wait {
+		poll = wait
+	}
+	ticker := time.NewTicker(poll)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return nil, errors.New("trickplay manifest not available after 24h")
-			}
 			m, e := s.trickplayRepo.GetByMediaItemID(ctx, mediaID)
 			if e == nil {
 				return m, nil
@@ -43,9 +56,24 @@ func (s *IntroDetectionService) waitForManifest(ctx context.Context, mediaID sha
 			if !errors.Is(e, shared.ErrNotFound) {
 				return nil, fmt.Errorf("get trickplay manifest: %w", e)
 			}
+			if time.Now().After(deadline) {
+				return nil, errTrickplayPending
+			}
 		}
 	}
 }
+
+// introTrickplayWait bounds waitForManifest; introTrickplayPoll is how often
+// it re-reads the repository meanwhile.
+const (
+	introTrickplayWait = 2 * time.Minute
+	introTrickplayPoll = 10 * time.Second
+)
+
+// errTrickplayPending: the pHash pass needs a trickplay manifest that is not
+// generated yet. Transient by construction (failureConsumesAttempt does not
+// list it), so the sweep retries the episode later instead of parking it.
+var errTrickplayPending = errors.New("trickplay manifest not generated yet")
 
 // concurrentFallback runs the audio silence fallback. It kept a concurrent
 // subtitle-gap sibling for a while, but that path was never implemented (the

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/rand"
 	"testing"
+	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -124,5 +125,25 @@ func TestDiscoverIntroByAudio(t *testing.T) {
 	noise := map[string][]uint32{"e1": fps["e1"], "e2": makeNoise(r, 900), "e3": makeNoise(r, 900), "e4": makeNoise(r, 900)}
 	if _, ok := newSvc(&pathChromaprinter{byPath: noise}).discoverIntroByAudio(context.Background(), eps[0]); ok {
 		t.Error("unrelated siblings must discover nothing")
+	}
+}
+
+// A manifest that is not there yet ends the wait with errTrickplayPending
+// after the bounded wait (2 min in production, not 24 h under a 30-minute
+// episode budget), and that error is transient: the sweep does not count it
+// as an attempt, so the episode comes back once the manifest exists.
+func TestWaitForManifest_PendingIsBoundedAndTransient(t *testing.T) {
+	svc := NewIntroDetectionService(&fakeSegmentRepo{}, &fakeTrickplayRepo{}, &fakeMediaItemRepo{}, &fakeConfigRepo{}, &fakeDetector{}, t.TempDir())
+	svc.trickplayWait = 20 * time.Millisecond
+	start := time.Now()
+	_, err := svc.waitForManifest(context.Background(), "m1")
+	if !errors.Is(err, errTrickplayPending) {
+		t.Fatalf("want errTrickplayPending, got %v", err)
+	}
+	if time.Since(start) > 5*time.Second {
+		t.Fatal("the wait must be bounded by trickplayWait")
+	}
+	if failureConsumesAttempt(errTrickplayPending) {
+		t.Fatal("a pending trickplay must not consume a detection attempt")
 	}
 }
