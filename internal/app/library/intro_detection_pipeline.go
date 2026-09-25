@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sort"
 	"strings"
@@ -126,6 +127,15 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	// AND a short preceding recap.
 	if needIntro() && s.isTrickplayEnabled(ctx) {
 		result, phashErr := s.pHashPass(ctx, item, cfg)
+		if errors.Is(phashErr, errTrickplayPending) {
+			// Not a failure of this file: the manifest is simply not generated
+			// yet. Nothing is stored for this round (a weak fallback answer
+			// stored now would stand until the attempts run out) and the
+			// sweep retries the episode later, uncounted.
+			slog.InfoContext(ctx, "intro_detection: trickplay manifest pending, episode deferred to a later sweep",
+				slog.String("media_id", mediaItemID))
+			return nil, errTrickplayPending
+		}
 		if phashErr != nil {
 			slog.WarnContext(ctx, "intro_detection: phash pass failed, falling back",
 				slog.String("media_id", mediaItemID),

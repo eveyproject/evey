@@ -83,6 +83,10 @@ type IntroDetectionService struct {
 	// default). Tests shrink it; production keeps the default.
 	episodeBudget time.Duration
 
+	// trickplayWait bounds the pHash pass's wait for a trickplay manifest that
+	// is not there yet (0 = introTrickplayWait). Tests shrink it.
+	trickplayWait time.Duration
+
 	// backfillInFlight tracks the library IDs with a BackfillLibrary sweep
 	// currently running, so a duplicate admin trigger is rejected instead of
 	// stacking a concurrent sweep over the same seasons.
