@@ -449,6 +449,11 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
+// Unwrap lets http.ResponseController reach the real writer through this
+// wrapper: without it SetWriteDeadline answered "feature not supported" on
+// every music, photo and archive stream (148 warnings in prod, 2026-09).
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
+
 // Hijack forwards to the underlying writer: the websocket upgrade
 // (/api/v1/devices/ws) type-asserts http.Hijacker on THIS wrapper and used to
 // panic otherwise, killing Play On device registration behind InstrumentHandler.
