@@ -38,10 +38,7 @@ func (s *IntroDetectionService) waitForManifest(ctx context.Context, mediaID sha
 		wait = introTrickplayWait
 	}
 	deadline := time.Now().Add(wait)
-	poll := introTrickplayPoll
-	if poll > wait {
-		poll = wait
-	}
+	poll := min(introTrickplayPoll, wait)
 	ticker := time.NewTicker(poll)
 	defer ticker.Stop()
 	for {
