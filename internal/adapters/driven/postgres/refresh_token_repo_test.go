@@ -240,6 +240,16 @@ func TestRefreshTokenRepo_SuccessorSurvivesTheSweepAndRoundTrips(t *testing.T) {
 	require.NoError(t, repo.DeleteExpired(ctx))
 	_, err = repo.GetByID(ctx, bare.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows, "a rotated row with no successor is still swept")
+
+	// The breadcrumb itself is not kept for ever: past the retention it goes
+	// (prod 2026-09: one row per 15-minute rotation kept for 180 days).
+	_, err = db.ExecContext(ctx, `UPDATE refresh_tokens SET used_at = NOW() - INTERVAL '31 days' WHERE id = $1`, old.ID)
+	require.NoError(t, err)
+	require.NoError(t, repo.DeleteExpired(ctx))
+	_, err = repo.GetByID(ctx, old.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "a breadcrumb older than the retention is swept")
+	_, err = repo.GetByID(ctx, next.ID)
+	require.NoError(t, err, "the live successor is untouched")
 }
 
 func TestRefreshTokenRepo_NilClientIP(t *testing.T) {

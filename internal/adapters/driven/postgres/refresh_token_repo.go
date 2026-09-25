@@ -166,6 +166,12 @@ func (r *RefreshTokenRepository) DeleteByUserID(ctx context.Context, userID shar
 	return nil
 }
 
+// successorBreadcrumbRetention is how long a rotated refresh token that has a
+// successor stays (a Postgres interval literal). A client that lost its
+// rotation answer and comes back later than this logs in again; one that
+// comes back within it is recognised. A month covers a TV left unplugged.
+const successorBreadcrumbRetention = "30 days"
+
 func (r *RefreshTokenRepository) DeleteExpired(ctx context.Context) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.refresh_token.DeleteExpired")
 	defer span.End()
@@ -178,8 +184,12 @@ func (r *RefreshTokenRepository) DeleteExpired(ctx context.Context) error {
 	// EXCEPT the ones carrying a successor: those are the breadcrumbs that let
 	// a client whose rotation answer was lost (app killed, TV crashed at boot)
 	// prove it is not a replay. It may not come back for days, so they live
-	// until the token's own expiry like any other row.
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM refresh_tokens WHERE expires_at < NOW() OR (used AND successor_id IS NULL AND used_at < NOW() - INTERVAL '10 minutes')`)
+	// for successorBreadcrumbRetention - not until the token's own expiry:
+	// every 15-minute rotation left one behind for 180 days, 130 rows a day
+	// for three viewers in prod (2026-09), linear in viewers x devices.
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM refresh_tokens WHERE expires_at < NOW()
+		OR (used AND successor_id IS NULL AND used_at < NOW() - INTERVAL '10 minutes')
+		OR (used AND successor_id IS NOT NULL AND used_at < NOW() - $1::interval)`, successorBreadcrumbRetention)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
