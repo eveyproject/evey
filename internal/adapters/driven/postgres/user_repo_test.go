@@ -385,3 +385,31 @@ func TestUserRepo_GetByEmail_TouchLastLogin(t *testing.T) {
 	assert.True(t, got.LastLogin.Equal(at))
 	assert.Equal(t, u.Username, got.Username)
 }
+
+// Login by username is case-insensitive (prod 2026-09: viewers typed their
+// own name in lowercase and were told the account did not exist), and the
+// lower(username) unique index refuses the pair that would make it ambiguous.
+func TestUserRepo_GetByUsername_CaseInsensitive_AndUniqueUnderLower(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewUserRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("u-case")
+	u.Username = "Feregoto"
+	require.NoError(t, repo.Create(ctx, u))
+
+	got, err := repo.GetByUsername(ctx, "feregoto")
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, got.ID)
+	got, err = repo.GetByUsername(ctx, "FEREGOTO")
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, got.ID)
+
+	dup := newTestUser("u-case-2")
+	dup.Username = "feregoto"
+	err = repo.Create(ctx, dup)
+	require.Error(t, err, "a second account differing only by case must be refused")
+	assert.ErrorIs(t, err, shared.ErrConflict)
+}

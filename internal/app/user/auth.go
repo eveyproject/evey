@@ -37,12 +37,22 @@ func safeTokenPrefix(token string) string {
 // never a usable credential (no account stores it).
 const dummyLoginHash = "$2a$12$CCENmDmu1fye2Bn2DUS7G.4pIkth0OyzzFCkIQvblCV9aye/etkwO"
 
+// loginAttemptKey is the lockout counter's key for a username: the lookup is
+// case-insensitive (lower(username), migration 000169), so the counter must
+// be too, or "Alice" would get five fresh tries after "alice" was locked.
+func loginAttemptKey(username string) string {
+	return strings.ToLower(strings.TrimSpace(username))
+}
+
 func (s *CommandService) Login(ctx context.Context, username, password string, ttlOverride ...time.Duration) (accessToken, refreshToken string, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.Login")
 	defer span.End()
 	username = strings.TrimSpace(username)
 	password = normalizePassword(password)
-	locked, lockErr := s.loginAttempts.IsLocked(ctx, username)
+	// The lockout counts on the same key the lookup matches on: "Alice" and
+	// "alice" are one account, so they are one attempt counter.
+	attemptKey := loginAttemptKey(username)
+	locked, lockErr := s.loginAttempts.IsLocked(ctx, attemptKey)
 	if lockErr != nil {
 		slog.WarnContext(ctx, "login attempt IsLocked", slog.String("username", username), slog.Any("err", lockErr))
 	}
@@ -57,7 +67,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		// runs ONLY for existing users, so the ~100ms (cost-12) delta leaks which
 		// usernames exist. Burn an equivalent bcrypt verify against a fixed hash.
 		_, _ = s.hasher.Verify(password, dummyLoginHash) //nolint:errcheck // constant-time burn; result intentionally discarded
-		if recErr := s.loginAttempts.Record(ctx, username, s.loginMaxFails, s.loginWindow); recErr != nil {
+		if recErr := s.loginAttempts.Record(ctx, attemptKey, s.loginMaxFails, s.loginWindow); recErr != nil {
 			slog.WarnContext(ctx, "login attempt Record", slog.String("username", username), slog.Any("err", recErr))
 		}
 		// Per-attempt log (username only, never the password) so a
@@ -76,13 +86,13 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		return "", "", ErrUserDisabled
 	}
 	if err != nil || !ok {
-		if recErr := s.loginAttempts.Record(ctx, username, s.loginMaxFails, s.loginWindow); recErr != nil {
+		if recErr := s.loginAttempts.Record(ctx, attemptKey, s.loginMaxFails, s.loginWindow); recErr != nil {
 			slog.WarnContext(ctx, "login attempt Record", slog.String("username", username), slog.Any("err", recErr))
 		}
 		slog.WarnContext(ctx, "login failed", slog.String("username", username), slog.String("reason", "bad_password"))
 		return "", "", ErrInvalidCredentials
 	}
-	if resetErr := s.loginAttempts.Reset(ctx, username); resetErr != nil {
+	if resetErr := s.loginAttempts.Reset(ctx, attemptKey); resetErr != nil {
 		slog.WarnContext(ctx, "login attempt Reset", slog.String("username", username), slog.Any("err", resetErr))
 	}
 

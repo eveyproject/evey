@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -123,7 +124,8 @@ func (r *FakeUserRepository) GetByUsername(_ context.Context, username string) (
 		return nil, r.Err
 	}
 	for _, u := range r.items {
-		if u.Username == username {
+		// Same contract as the Postgres repo: lower(username) = lower($1).
+		if strings.EqualFold(u.Username, username) {
 			return cloneUser(u), nil
 		}
 	}

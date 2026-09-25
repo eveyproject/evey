@@ -90,8 +90,11 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*u
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// Case-insensitive on purpose: a viewer types "alice" for "Alice"
+	// and expects to get in (prod, 2026-09). Uniqueness under lower() is held
+	// by idx_users_username_lower (migration 000169), so one row at most.
 	u, err := r.scanUser(txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT `+userColumns+` FROM users WHERE username = $1`, username))
+		`SELECT `+userColumns+` FROM users WHERE lower(username) = lower($1)`, username))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
