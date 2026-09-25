@@ -14,6 +14,10 @@ import (
 
 // interleaveSamples offsets per file: ~11 MB read. Sparser sampling can land
 // on a mild boundary (17 s where 32 samples read 532 s on the same file).
+// Blind to a THIN block, smaller than the step between samples (a stereo
+// track's 180 s blocks read 0, measured 2026-09-25); the exact measure (mkvgo
+// Analyze, every cluster) reads the whole file and was judged too costly for
+// the NAS.
 const interleaveSamples = 16
 
 // interleaveScanCap bounds the scan to the next Cluster from a sampled offset

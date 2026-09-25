@@ -56,6 +56,9 @@ type OnDemandPackager struct {
 	// trackList above) so the stampede tests can count builds without a
 	// real source.
 	build func(ctx context.Context, srcPath string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error)
+	// ttl is how long a plan outlives its last use (onDemandPlanTTL; a field
+	// so the sliding test need not wait half an hour).
+	ttl time.Duration
 }
 
 // NewOnDemandPackager returns a packager with an internal plan cache. Call
@@ -63,7 +66,7 @@ type OnDemandPackager struct {
 func NewOnDemandPackager() *OnDemandPackager {
 	c, stop := pkgcache.NewWithMaxSize[apptranscoding.OnDemandPlan](onDemandCleanup, onDemandPlanMaxSize)
 	p := &OnDemandPackager{
-		plans: c, stopper: stop,
+		plans: c, stopper: stop, ttl: onDemandPlanTTL,
 		audioDelays: func(ctx context.Context, path string) (map[uint64]int64, error) {
 			return extmatroska.AudioStartDelays(ctx, path)
 		},
@@ -96,6 +99,10 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 
 	key := onDemandCacheKey(srcPath, opts)
 	if pl, ok := p.plans.Get(key); ok {
+		// Sliding: a plan in use stays. mkvgo learns where each track's
+		// blocks lie as it serves (a block-ordered source reads ~2x instead of
+		// a traversal per window); a fixed expiry dropped that mid-film.
+		p.plans.Set(key, pl, p.ttl)
 		return pl, nil
 	}
 
@@ -115,7 +122,7 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 		if err != nil {
 			return nil, err
 		}
-		p.plans.Set(key, pl, onDemandPlanTTL)
+		p.plans.Set(key, pl, p.ttl)
 		return pl, nil
 	})
 	if err != nil {
