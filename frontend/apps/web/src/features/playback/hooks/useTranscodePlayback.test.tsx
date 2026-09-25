@@ -198,6 +198,9 @@ describe("useTranscodePlayback - errors", () => {
     const { refs, video, hls } = setup();
     (video as any).currentTime = 42;
     await act(async () => hls().emit("ERROR", { fatal: true, type: "networkError", details: "manifestLoadError", response: { code: 401 } }));
+    // The beacon names the recovery, never a dead playback: the token is
+    // refreshed right below and playback goes on.
+    expect(report).toHaveBeenLastCalledWith(expect.objectContaining({ type: "hls_token_refresh", fatal: false, code: 401 }));
     expect(refs.onStreamTokenRefreshRef.current).toHaveBeenCalledTimes(1);
     expect(refs.streamTokenRef.current).toBe("tok2");
     expect(utils.buildUrl).toHaveBeenLastCalledWith("m1", "tok2", 0, null, 42, 0, false, false, false);

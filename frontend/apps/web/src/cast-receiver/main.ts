@@ -1034,7 +1034,11 @@ playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, (
   stopNextWatch();
   resetIntroSkip();
   startWatch.cancel();
-  reportEvent("cast_receiver_finished", `reason=${reason}`, reason !== "END_OF_STREAM");
+  // Fatal only on ERROR: STOPPED is the viewer, INTERRUPTED is the next LOAD
+  // replacing this one (a switch, a chained episode). Both were reported
+  // fatal and made 26 ordinary stops in a month look like crashes in the
+  // server's error telemetry (prod, 2026-09).
+  reportEvent("cast_receiver_finished", `reason=${reason}`, reason === "ERROR");
   // Natural end of an episode: announce and chain the next one. Any other
   // reason (STOPPED, ERROR, INTERRUPTED) must not resurrect a playback the
   // viewer or the platform just ended.
