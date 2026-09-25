@@ -37,6 +37,17 @@ const seekLandingProbeBinary = "ffprobe"
 // any frame rate above 1 fps.
 const seekLandingWindowSec = 1.0
 
+// seekLandingReadInterval is the ffprobe -read_intervals spec: an ABSOLUTE end
+// (START%END), never a relative one (START%+N). ffprobe seeks to the keyframe
+// BEFORE the target and a relative duration counts from that keyframe, so any
+// seek landing more than N seconds past its keyframe read no packet at or
+// after the target at all (measured 2026-09-26 on a 2 s GOP: start 3.600 with
+// %+1 returned nothing, start 3.600%4.600 returned the 3.629 frame; prod fell
+// back "to the segment grid" 32 times in 11 days, mostly 2160p long-GOP files).
+func seekLandingReadInterval(startSec float64) string {
+	return fmt.Sprintf("%.3f%%%.3f", startSec, startSec+seekLandingWindowSec)
+}
+
 // seekLandingSnapToleranceUs bounds the distance between a packet's stored
 // pts and the ideal CFR grid time it is snapped to. Matroska keeps
 // millisecond timestamps, so a 24000/1001 frame (k × 41708.33 µs) is stored
@@ -53,7 +64,7 @@ func transcodeSeekLandingUs(ctx context.Context, filePath string, startSec float
 	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "hls.transcode_seek_landing"}, seekLandingProbeBinary,
 		"-v", "error",
 		"-select_streams", "v:0",
-		"-read_intervals", fmt.Sprintf("%.3f%%+%.0f", startSec, seekLandingWindowSec),
+		"-read_intervals", seekLandingReadInterval(startSec),
 		"-show_entries", "stream=r_frame_rate,avg_frame_rate:packet=pts_time",
 		"-of", "json",
 		filePath,

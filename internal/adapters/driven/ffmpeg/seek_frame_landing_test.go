@@ -88,3 +88,16 @@ func TestScaleDelta_FrameGridIsExactAtVideoTimescale(t *testing.T) {
 		t.Fatalf("scaleDelta(36.036 s @90000) = %d, want 3243240", got)
 	}
 }
+
+// The interval must end at an ABSOLUTE time. ffprobe seeks to the keyframe
+// before the target; a relative "+1" counted from that keyframe and, on a
+// 2 s GOP, a seek 1.6 s past its keyframe read no packet at or after the
+// target (measured 2026-09-26: 3.600%+1 empty, 3.600%4.600 found 3.629).
+func TestSeekLandingReadInterval_AbsoluteEnd(t *testing.T) {
+	if got := seekLandingReadInterval(3.6); got != "3.600%4.600" {
+		t.Fatalf("interval = %q, want 3.600%%4.600", got)
+	}
+	if got := seekLandingReadInterval(504); got != "504.000%505.000" {
+		t.Fatalf("interval = %q, want 504.000%%505.000", got)
+	}
+}
