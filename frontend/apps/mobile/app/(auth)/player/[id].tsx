@@ -269,7 +269,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
-  const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
+  const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, progress, restartPositionMs } =
     usePlaySession(sessionMediaId, {
       ...(trackPick.audio === undefined ? {} : { audioStreamIndex: trackPick.audio }),
       // The encoder is pre-warmed where the player will start.
@@ -703,6 +703,8 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   }, [streamUrl, streamToken, localFilePath, useLocalSource, audioOffsetAvailable, appliedAudioOffsetMs]);
 
   const resumePositionSec = useMemo(() => {
+    // A quality, audio or subtitle switch continues where the viewer was.
+    if (restartPositionMs != null) return restartPositionMs / 1000;
     if (restart === "1") return 0;
     // A locally recorded playhead beats the server's when it is FRESHER (see
     // preferLocalProgress). Everything watched offline lives only here, and
@@ -713,7 +715,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     }
     // Played, or within the last seconds: start over (the rule of every client).
     return resolveStartPositionMs(false, progress) / 1000;
-  }, [progress, restart, offlineProgress]);
+  }, [progress, restart, offlineProgress, restartPositionMs]);
 
   const player = useVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;

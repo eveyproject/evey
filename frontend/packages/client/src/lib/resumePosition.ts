@@ -34,5 +34,11 @@ export function firstStartMs(
   const first = firstRef.current;
   firstRef.current = false;
   if (first && initial?.startSec && initial.startSec > 0) return Math.round(initial.startSec * 1000);
-  return resolveStartPositionMs(first && !!initial?.restart, wp);
+  if (!first) {
+    // A later stream (quality, audio or subtitle switch) continues where the
+    // viewer is: the "played" flag of a title being watched again sent every
+    // switch back to 0 (measured on the TV, 2026-09-25). Only the end stays a trap.
+    return resolveStartPositionMs(false, wp && { ...wp, played: false });
+  }
+  return resolveStartPositionMs(!!initial?.restart, wp);
 }

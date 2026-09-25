@@ -92,6 +92,11 @@ export function useProgressReporter(
   const getCastDeviceNameRef = useRef(getCastDeviceName);
   getCastDeviceNameRef.current = getCastDeviceName;
   const prewarmedMediaIdRef = useRef<string | null>(null);
+  // The last position a tick read. The final report runs while the screen
+  // is popped, when the native player may already be released and read as 0:
+  // that 0 was the freshest write and erased the resume point (measured on the
+  // TV emulator, 2026-09-25: 267 s reported, 0 in watch_progress 3 s later).
+  const lastPositionRef = useRef(0);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -104,9 +109,11 @@ export function useProgressReporter(
       }
       pendingRef.current = true;
       try {
+        const tickPositionMs = getPositionRef.current();
+        if (tickPositionMs > 0) lastPositionRef.current = tickPositionMs;
         const res = await playbackServiceReportProgress({
           sessionId,
-          positionMs: String(Math.round(getPositionRef.current())),
+          positionMs: String(Math.round(tickPositionMs)),
           isPaused: getIsPausedRef.current?.() ?? false,
           isMuted: getIsMutedRef.current?.() ?? false,
           volumeLevel: Math.round((getVolumeRef.current?.() ?? 1) * 100),
@@ -155,7 +162,8 @@ export function useProgressReporter(
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      const positionMs = getPositionRef.current();
+      const read = getPositionRef.current();
+      const positionMs = read > 0 ? read : lastPositionRef.current;
       playbackServiceReportProgress({
         sessionId,
         positionMs: String(Math.round(positionMs)),
