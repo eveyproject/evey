@@ -382,7 +382,12 @@ func ResetMisconfigWarnForTest() {
 var logger atomic.Pointer[slog.Logger]
 
 // SetLogger overrides the refusal logger (tests). nil restores slog.Default().
-func SetLogger(l *slog.Logger) { logger.Store(l) }
+// A new sink starts with an empty sampler: its first refusal of any key is a
+// line, whatever the previous sink saw within the window.
+func SetLogger(l *slog.Logger) {
+	logger.Store(l)
+	refusalSampler.resetForTest()
+}
 
 func refusalLogger() *slog.Logger {
 	if l := logger.Load(); l != nil {
@@ -400,6 +405,17 @@ func refusalLogger() *slog.Logger {
 func logRefusal(r *http.Request, extra ...slog.Attr) {
 	res := resolveClientIPReasoned(r)
 	WarnMisroutedProxy(res)
+	// One line per (client, path) per window, the rest counted: a looping
+	// client wrote 580 884 of these in two hours (208 MB, prod 2026-09-07),
+	// and a hostile one could fill the disk. The count rides the next line.
+	suppressed, ok := refusalSampler.admit(res.IP+"\x00"+r.URL.Path, time.Now())
+	if !ok {
+		return
+	}
+	if suppressed > 0 {
+		// A fresh slice, for the aliasing reason given just below.
+		extra = append(append(make([]slog.Attr, 0, len(extra)+1), extra...), slog.Int64("suppressed_since_last", suppressed))
+	}
 	// Copy rather than append onto `extra`: appending to a caller-owned slice
 	// writes into ITS backing array whenever it has spare capacity, so a caller
 	// reusing its buffer would find these fields stamped over its own. Today
