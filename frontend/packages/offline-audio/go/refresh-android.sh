@@ -1,10 +1,23 @@
 #!/bin/sh
 # gomobile bind of this package into <out> (default ../android/build/gobind): offlineaudio.jar
-# + jni/arm64-v8a/libgojni.so. Go, gomobile and the NDK are pinned so a fresh clone rebuilds
+# + jni/<abi>/libgojni.so for each ABI of <abis> (comma list, default arm64-v8a: the app's
+# reactNativeArchitectures). Go, gomobile and the NDK are pinned so a fresh clone rebuilds
 # the same binding; the Gradle task bindGo in ../android/build.gradle runs this.
 set -eu
 cd "$(dirname "$0")"
 out=${1:-$(pwd)/../android/build/gobind}
+abis=${2:-arm64-v8a}
+targets=
+for abi in $(echo "$abis" | tr ',' ' '); do
+  case $abi in
+    armeabi-v7a) t=android/arm ;;
+    arm64-v8a) t=android/arm64 ;;
+    x86) t=android/386 ;;
+    x86_64) t=android/amd64 ;;
+    *) echo "refresh-android: unknown ABI $abi" >&2; exit 2 ;;
+  esac
+  targets=${targets:+$targets,}$t
+done
 
 : "${JAVA_HOME:=$(echo "$HOME"/Applications/toolchain/jdk-17*)}"
 : "${ANDROID_HOME:=$HOME/Applications/Android/Sdk}"
@@ -26,14 +39,13 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 # Go links through NDK clang directly; r27 defaults to 4 KiB LOAD segments, Play wants 16 KiB.
-gomobile bind -target=android/arm64 -androidapi 24 -javapkg=com.evey \
+gomobile bind -target="$targets" -androidapi 24 -javapkg=com.evey \
   -ldflags '-extldflags=-Wl,-z,max-page-size=16384' \
   -o "$tmp/offlineaudio.aar" .
 
-unzip -q -o "$tmp/offlineaudio.aar" classes.jar jni/arm64-v8a/libgojni.so -d "$tmp/unpack"
+unzip -q -o "$tmp/offlineaudio.aar" classes.jar 'jni/*' -d "$tmp/unpack"
 rm -rf "$out/jni"
-mkdir -p "$out/jni/arm64-v8a"
 cp "$tmp/unpack/classes.jar" "$out/offlineaudio.jar"
-cp "$tmp/unpack/jni/arm64-v8a/libgojni.so" "$out/jni/arm64-v8a/libgojni.so"
+cp -r "$tmp/unpack/jni" "$out/jni"
 ../../../scripts/check-16k-elf.sh "$out/jni"
-echo "refreshed: $out/offlineaudio.jar + $out/jni/arm64-v8a/libgojni.so"
+echo "refreshed: $out/offlineaudio.jar + libgojni.so for $abis"

@@ -11,6 +11,7 @@ const caps = vi.hoisted(() => ({
   // The shared display probe. Null is "not in this build", which is what sends
   // the module to the legacy old-bridge fallback below.
   getDisplayHdrTypes: vi.fn<() => Promise<string[] | null>>(),
+  getPlayerAudioDecoders: vi.fn<() => Promise<string[]>>(),
 }));
 
 vi.mock("react-native", () => ({ Platform: rn.Platform, NativeModules: rn.NativeModules }));
@@ -23,6 +24,7 @@ vi.mock("@evey/media-caps", async () => {
     getMaxH264Level: caps.getMaxH264Level,
     getAudioProbe: caps.getAudioProbe,
     getDisplayHdrTypes: caps.getDisplayHdrTypes,
+    getPlayerAudioDecoders: caps.getPlayerAudioDecoders,
   };
 });
 
@@ -42,6 +44,7 @@ beforeEach(() => {
   caps.getMaxH264Level.mockReset().mockResolvedValue(41);
   caps.getAudioProbe.mockReset().mockResolvedValue(null);
   caps.getDisplayHdrTypes.mockReset().mockResolvedValue(null);
+  caps.getPlayerAudioDecoders.mockReset().mockResolvedValue([]);
 });
 
 describe("deviceCodecs", () => {
@@ -62,6 +65,15 @@ describe("deviceCodecs", () => {
     const m = await load();
     expect(m.getDeviceAudioCodecs()).toEqual(["aac", "opus", "eac3"]);
     expect(m.getDeviceHdrSupport()).toBe(true);
+  });
+
+  // The phone build: ac3go decodes the Dolby family in the player, so a sink
+  // that refuses it (every phone speaker and headset) no longer matters.
+  it("android with the ac3go player decoder declares ac3/eac3 despite a refusing sink", async () => {
+    rn.NativeModules.MediaCaps = { getSupportedAudioCodecs: async () => ["aac", "ac3", "eac3", "opus"] };
+    caps.getAudioProbe.mockResolvedValue({ directPlayback: {}, directProfiles: [] });
+    caps.getPlayerAudioDecoders.mockResolvedValue(["ac3", "eac3"]);
+    expect((await load()).getDeviceAudioCodecs()).toEqual(["aac", "opus", "ac3", "eac3"]);
   });
 
   // The shared probe is the one the TV reads too; the legacy old-bridge module

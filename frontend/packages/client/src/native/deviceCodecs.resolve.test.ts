@@ -84,6 +84,23 @@ describe("resolveAudioCodecs", () => {
     ]);
   });
 
+  // The phone build's ac3go renderer: declared on top of whatever the probes
+  // say, including when there is no probe at all.
+  it("declares the player's own decoders whatever the sink or the decoder list says", () => {
+    const refusing = probe(["aac", "mp3", "ac3", "eac3"], { ac3: false, eac3: false });
+    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "unavailable" }, refusing, ["ac3", "eac3"])).toEqual([
+      "aac",
+      "mp3",
+      "ac3",
+      "eac3",
+    ]);
+    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "unavailable" }, null, ["ac3", "eac3"])).toEqual([
+      ...ANDROID_TV_BASELINE,
+      "ac3",
+      "eac3",
+    ]);
+  });
+
   it("never includes ac3/eac3 in the Android TV baseline itself", () => {
     expect(ANDROID_TV_BASELINE).not.toContain("ac3");
     expect(ANDROID_TV_BASELINE).not.toContain("eac3");

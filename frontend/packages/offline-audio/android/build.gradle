@@ -10,18 +10,21 @@ version = '0.1.0'
 // build/gobind by go/refresh-android.sh (pinned Go + gomobile + NDK), never checked in.
 def gobindDir = layout.buildDirectory.dir('gobind')
 def ndkVersion = rootProject.ext.has('ndkVersion') ? rootProject.ext.ndkVersion : android.ndkVersion
+// One libgojni.so per ABI the app ships: arm64 on the phone, all four on the TV.
+def goAbis = (findProperty('reactNativeArchitectures') ?: 'arm64-v8a').toString()
 
 tasks.register('bindGo', Exec) {
   description = 'gomobile bind of go/ into build/gobind (offlineaudio.jar + libgojni.so)'
   inputs.files(fileTree(dir: '../go', includes: ['*.go', 'go.mod', 'go.sum', 'refresh-android.sh'], excludes: ['*_test.go']))
   inputs.file('../../../scripts/check-16k-elf.sh')
   inputs.property('ndkVersion', ndkVersion)
+  inputs.property('abis', goAbis)
   outputs.dir(gobindDir)
   workingDir '../go'
   environment ANDROID_HOME: android.sdkDirectory.absolutePath,
               ANDROID_NDK_HOME: new File(android.sdkDirectory, "ndk/${ndkVersion}").absolutePath,
               JAVA_HOME: System.getProperty('java.home')
-  commandLine 'sh', 'refresh-android.sh', gobindDir.get().asFile.absolutePath
+  commandLine 'sh', 'refresh-android.sh', gobindDir.get().asFile.absolutePath, goAbis
 }
 preBuild.dependsOn 'bindGo'
 
@@ -37,4 +40,7 @@ android {
 
 dependencies {
   implementation files(gobindDir.map { it.file('offlineaudio.jar') }) { builtBy 'bindGo' }
+  // Ac3goAudioRenderer runs inside expo-video's player, which ships media3: keep its version.
+  compileOnly "androidx.media3:media3-exoplayer:1.8.0"
+  compileOnly "androidx.media3:media3-decoder:1.8.0"
 }

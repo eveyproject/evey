@@ -1,5 +1,5 @@
 import { NativeModules, Platform } from "react-native";
-import { declarableAudioCodecs, displaySupportsHdr, getAudioProbe, getDisplayHdrTypes, getMaxH264Level, type AudioProbe } from "@evey/media-caps";
+import { declarableAudioCodecs, displaySupportsHdr, getAudioProbe, getDisplayHdrTypes, getMaxH264Level, getPlayerAudioDecoders, type AudioProbe } from "@evey/media-caps";
 import { clientLogger } from "../log";
 
 const log = clientLogger("deviceCodecs");
@@ -42,6 +42,7 @@ const native: MediaCapsNative | undefined =
     : undefined;
 
 let current: string[] = BASELINE;
+let playerCodecs: string[] = [];
 
 /**
  * The audio codecs this device actually decodes (or passes through over
@@ -53,6 +54,15 @@ let current: string[] = BASELINE;
  */
 export function getDeviceAudioCodecs(): string[] {
   return current;
+}
+
+/**
+ * The codecs this app's own player decodes (ac3go), [] until the probe lands
+ * or when the build has no such decoder. It also downmixes them itself, from
+ * the stream's own mix levels.
+ */
+export function getPlayerAudioCodecs(): string[] {
+  return playerCodecs;
 }
 
 // Audio codecs this device accepts as a RAW passthrough inside the server's
@@ -93,16 +103,21 @@ export type AudioProbeOutcome =
  * renders choppy (measured on a tablet, 2026-08-31) must not be declared, and
  * a passthrough box without any decoder must be - ExoPlayer hands the
  * bitstream to the receiver. See declarableAudioCodecs in @evey/media-caps.
+ * playerDecoders (ac3go in the phone's player) are declared in every case.
  */
 export function resolveAudioCodecs(
   baseline: string[],
   outcome: AudioProbeOutcome,
   probe: AudioProbe | null,
+  playerDecoders: string[] = [],
 ): string[] {
   const legacy = outcome.status === "ok" && outcome.codecs.length > 0 ? outcome.codecs : null;
   const decoders = legacy ?? (probe && probe.decoders.length > 0 ? probe.decoders : null);
-  if (!decoders) return baseline;
-  return declarableAudioCodecs(decoders, probe);
+  if (!decoders) {
+    const extra = playerDecoders.filter((c) => !baseline.includes(c));
+    return extra.length > 0 ? [...baseline, ...extra] : baseline;
+  }
+  return declarableAudioCodecs(decoders, probe, playerDecoders);
 }
 
 let hdrSupported = false;
@@ -153,10 +168,12 @@ async function probe(): Promise<void> {
   }
   // Never throws, null when the Expo module isn't in this build.
   const sink = Platform.OS === "android" ? await getAudioProbe() : null;
-  current = resolveAudioCodecs(BASELINE, outcome, sink);
+  const player = Platform.OS === "android" ? await getPlayerAudioDecoders() : [];
+  playerCodecs = player;
+  current = resolveAudioCodecs(BASELINE, outcome, sink, player);
   // Single log line so a "silent audio" report can be diagnosed from device
   // logs without guessing what this device actually detected and declared.
-  log.info(`audio probe=${outcome.status} sink=${sink ? "ok" : "none"} declared=${current.join(",")}`);
+  log.info(`audio probe=${outcome.status} sink=${sink ? "ok" : "none"} player=${player.join(",") || "none"} declared=${current.join(",")}`);
 
   // The shared Expo probe first, the legacy old-bridge module as a fallback:
   // the rule for what a display list means (HDR10 family yes, Dolby Vision

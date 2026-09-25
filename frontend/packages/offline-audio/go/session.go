@@ -293,10 +293,14 @@ func (s *Session) appendPCM() {
 		s.sampleRate = h.Sync.SampleRate
 		s.srcChans = h.Channels()
 	}
-	l, r := s.dec.Samples(0), s.dec.Samples(1)
-	base := len(s.pending)
-	s.pending = append(s.pending, make([]byte, len(l)*4)...)
-	out := s.pending[base:]
+	s.pending = appendStereoS16(s.pending, s.dec.Samples(0), s.dec.Samples(1))
+}
+
+// appendStereoS16 appends the two planes to dst interleaved as s16le.
+func appendStereoS16(dst []byte, l, r []float32) []byte {
+	base := len(dst)
+	dst = append(dst, make([]byte, len(l)*4)...)
+	out := dst[base:]
 	for i := range l {
 		lv, rv := s16le(l[i]), s16le(r[i])
 		out[i*4] = byte(lv)
@@ -304,6 +308,7 @@ func (s *Session) appendPCM() {
 		out[i*4+2] = byte(rv)
 		out[i*4+3] = byte(rv >> 8)
 	}
+	return dst
 }
 
 func s16le(v float32) uint16 {

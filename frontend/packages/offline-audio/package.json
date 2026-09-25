@@ -2,7 +2,7 @@
   "name": "@evey/offline-audio",
   "version": "0.1.0",
   "private": true,
-  "description": "Post-download audio compatibility pass: AC-3/E-AC-3 to stereo AAC via embedded ac3go+mkvgo and MediaCodec",
+  "description": "Embedded ac3go: the players' AC-3/E-AC-3 decoder, and the post-download audio compatibility pass (AC-3/E-AC-3 to stereo AAC via ac3go+mkvgo and MediaCodec)",
   "main": "./src/index.ts",
   "types": "./src/index.ts"
 }

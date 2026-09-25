@@ -23,6 +23,7 @@ const getMaxH264LevelMock = vi.fn(async () => 41);
 vi.mock("@evey/media-caps", () => ({
   getAudioProbe: () => getAudioProbeMock(),
   getMaxH264Level: () => getMaxH264LevelMock(),
+  getPlayerAudioDecoders: async () => [],
 }));
 
 // Minimal shape of the native audio probe; only the two fields the channel

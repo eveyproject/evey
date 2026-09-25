@@ -39,6 +39,10 @@ class EveyOfflineAudioModule : Module() {
 
     Events("progress")
 
+    // Codecs the player decodes itself through Ac3goAudioRenderer, declared
+    // to the server whatever the device's own decoders or audio output say.
+    Function("playbackDecoders") { listOf("ac3", "eac3") }
+
     AsyncFunction("optimize") { inPath: String, outPath: String, label: String, promise: Promise ->
       if (!running.compareAndSet(false, true)) {
         promise.reject(CodedException("busy", "an optimization pass is already running", null))

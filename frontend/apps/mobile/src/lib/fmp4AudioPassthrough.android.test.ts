@@ -14,6 +14,7 @@ vi.mock("react-native", () => ({
 vi.mock("@evey/media-caps", () => ({
   getAudioProbe: vi.fn().mockResolvedValue(null),
   declarableAudioCodecs: (decoders: string[]) => decoders,
+  getPlayerAudioDecoders: async () => [],
 }));
 
 describe("getFmp4AudioPassthrough (android)", () => {

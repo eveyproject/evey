@@ -72,6 +72,21 @@ export async function getMaxH264Level(): Promise<number | null> {
 }
 
 /**
+ * Codecs the app's own player decodes (the ac3go renderer of the offline-audio
+ * module, phone builds only), [] when that module is absent. Never throws.
+ */
+export async function getPlayerAudioDecoders(): Promise<string[]> {
+  try {
+    const { requireOptionalNativeModule } = await import("expo-modules-core");
+    const native = requireOptionalNativeModule<{ playbackDecoders?(): string[] }>("EveyOfflineAudio");
+    const codecs = native?.playbackDecoders?.();
+    return Array.isArray(codecs) ? codecs : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Raw audio-output capability evidence, or null when the native module isn't in
  * this build. Never throws: a probe failure must not break playback.
  *
