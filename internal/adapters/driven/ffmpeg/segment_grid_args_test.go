@@ -88,3 +88,43 @@ func TestBuildFFmpegArgs_CarriesTheGrid(t *testing.T) {
 		t.Fatalf("audio rendition must cut on the video's cadence:\n%s", audio)
 	}
 }
+
+// With a declared duration on an exact grid every video output holds its last
+// frame up to it and stops on its last declared frame - counted from the
+// session's first segment. A copy, the legacy grid or no declared duration
+// keep the former arguments.
+func TestGridArgs_EndOfStreamTail(t *testing.T) {
+	t.Parallel()
+	grid := transcoding.GridForFrameRate(23.976)
+	base := transcoding.HLSProcessOpts{
+		VideoDecision: "transcode", AudioTrackIndex: -1, SubtitleTrackIndex: -1, UseFMP4: true, Grid: grid,
+		DeclaredDurationMs: 120_641, // 2892 frames on the grid
+		FilePath:           "/f.mkv", OutputDir: "/tmp/o",
+		Profiles: []transcoding.HLSProfile{{Name: "360p", Width: 640, Height: 360, VideoBitrate: 800, AudioBitrate: 128}},
+	}
+	cold := strings.Join(BuildFFmpegArgs(base), " ")
+	if !strings.Contains(cold, ",tpad=stop_mode=clone:stop=-1") || !strings.Contains(cold, "-frames:v 2892") {
+		t.Fatalf("cold session: %s", cold)
+	}
+	seek := base
+	seek.StartSec, seek.StartNumber = grid.SegmentStartSeconds(40), 40
+	if got := strings.Join(BuildFFmpegArgs(seek), " "); !strings.Contains(got, "-frames:v 12") {
+		t.Fatalf("a session from segment 40 has 2892 - 40x72 frames left: %s", got)
+	}
+	ladder := base
+	ladder.Profiles = append(ladder.Profiles, transcoding.HLSProfile{Name: "180p", Width: 320, Height: 180, VideoBitrate: 300, AudioBitrate: 96})
+	if got := strings.Join(BuildFFmpegArgs(ladder), " "); strings.Count(got, "tpad=") != 2 || !strings.Contains(got, "-frames:v 2892") {
+		t.Fatalf("every rung of a ladder: %s", got)
+	}
+	for name, o := range map[string]transcoding.HLSProcessOpts{
+		"legacy grid":          func() transcoding.HLSProcessOpts { o := base; o.Grid = transcoding.SegmentGrid{}; return o }(),
+		"no declared duration": func() transcoding.HLSProcessOpts { o := base; o.DeclaredDurationMs = 0; return o }(),
+	} {
+		if got := strings.Join(BuildFFmpegArgs(o), " "); strings.Contains(got, "tpad") || strings.Contains(got, "-frames:v") {
+			t.Fatalf("%s: %s", name, got)
+		}
+	}
+	if eosFrameArgs(transcoding.HLSProcessOpts{VideoDecision: "copy", Grid: grid, DeclaredDurationMs: 120_641}) != nil {
+		t.Fatal("a copy is never padded")
+	}
+}

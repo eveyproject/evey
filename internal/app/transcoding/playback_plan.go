@@ -41,6 +41,9 @@ type PlaybackRequest struct {
 	// SourceBytes is the on-disk size of the source file (0 = unknown), read
 	// by the copy-rung disk guard - fail-open on 0.
 	SourceBytes int64
+	// SourceDurationMs is the container duration the manifests declare; the
+	// fingerprint carries it to the encoder (DecisionFingerprint.SourceDurationMs).
+	SourceDurationMs int64
 	// SourceBitrateKbps is the video stream's bitrate (else the file's); the served ladder follows it.
 	SourceBitrateKbps int64
 	// SourceNeedsRemux: the file is stored in one-track blocks (MediaFile.NeedsRemux);

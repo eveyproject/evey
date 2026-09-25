@@ -1,4 +1,4 @@
-.PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell bench lint sec-scan clean \
+.PHONY: dash-harness dash-web dash-exoplayer proto-gen plugin-sdk plugin-zips build test test-image test-shell bench lint sec-scan clean \
 	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
 	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch ci-hygiene pre-push hooks \
 	gate gate-status verify-commit \
@@ -119,6 +119,28 @@ bench:
 # AND audio content correlation).
 transcode-itest:
 	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ ./internal/adapters/driven/mkvgo/ -run Integration -count=1 -v -timeout=300s'
+
+# dash-harness: plays manifest.mpd in REAL DASH players (Shaka, dash.js) in a
+# headless, muted Google Chrome (Playwright's Chromium has no H.264/AAC), against
+# a running Evey: cold start, seek, rung and audio switches, resume. Dev tool,
+# not part of the gate. MEDIA="<id>[:vd=transcode] ..." CHROME=<google-chrome>
+# EVEY_USER/EVEY_PASS for the login, EVEY_URL (default http://localhost:9091).
+dash-harness:
+	@test -n "$(MEDIA)" -a -n "$(CHROME)" || { echo "usage: make dash-harness MEDIA='<id>[:vd=transcode] ...' CHROME=/path/to/google-chrome EVEY_USER=.. EVEY_PASS=.."; exit 2; }
+	EVEY_CHROME="$(CHROME)" node scripts/dash-harness/run.mjs $(MEDIA)
+
+# dash-web: the Evey web player's own journey with the dev DASH flag
+# (localStorage evey.dev.dash=1): login, start, seek, quality and audio through
+# the settings menu, resume, end of stream; ":hls" marks a title served as HLS.
+dash-web:
+	@test -n "$(MEDIA)" -a -n "$(CHROME)" || { echo "usage: make dash-web MEDIA='<id>[:hls] ...' CHROME=/path/to/google-chrome EVEY_USER=.. EVEY_PASS=.."; exit 2; }
+	EVEY_CHROME="$(CHROME)" node scripts/dash-harness/web.mjs $(MEDIA)
+
+# dash-exoplayer: Media3/ExoPlayer smoke test on a booted emulator or device
+# (adb). GRADLE=<gradle 8.13 binary> rebuilds the app first.
+dash-exoplayer:
+	@test -n "$(MEDIA)" || { echo "usage: make dash-exoplayer MEDIA='<id>[:vd=transcode] ...' EVEY_USER=.. EVEY_PASS=.. [GRADLE=..]"; exit 2; }
+	scripts/dash-harness/android/smoke.sh $(MEDIA)
 
 test-image:
 	docker build -t evey-test -f docker/Dockerfile.test .

@@ -660,7 +660,7 @@ func benchEncoderArgs(e BenchEncoder, kbps int64) []string {
 	}
 	enc := resolveVideoEncoder(e.Codec)
 	args := []string{"-c:v", enc, "-preset", e.Preset}
-	args = append(args, softwareProfileLevelArgs(enc, -1, 1080, 0)...)
+	args = append(args, softwareProfileLevelArgs(enc, -1, transcoding.H264LevelIdcFor(1080))...)
 	args = append(args, softwareX264TuningArgs(enc, -1)...)
 	args = append(args, softwareRateControlArgs(qt, "")...)
 	args = append(args, "-pix_fmt", "yuv420p")

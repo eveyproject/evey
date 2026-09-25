@@ -67,6 +67,8 @@ func goldenVideo(codec string, w, h int, mutate func(*library.MediaStream)) *lib
 	}
 	s.ColorTransfer = new("bt709")
 	s.Keyframes = []int64{0, 3000, 6000}
+	// A probed source always has its rate; the level of a rung depends on it.
+	s.Framerate = new(23.976)
 	if mutate != nil {
 		mutate(s)
 	}
@@ -74,7 +76,11 @@ func goldenVideo(codec string, w, h int, mutate func(*library.MediaStream)) *lib
 }
 
 func goldenAudio(codec string, ch int, def bool) *library.MediaStream {
-	return &library.MediaStream{StreamType: library.StreamTypeAudio, Codec: codec, Channels: &ch, IsDefault: def}
+	s := &library.MediaStream{StreamType: library.StreamTypeAudio, Codec: codec, Channels: &ch, IsDefault: def}
+	if codec == "aac" {
+		s.Profile = "LC" // as both probers name it: an AAC of unknown profile is never copied
+	}
+	return s
 }
 
 func goldenSources() []goldenSource {

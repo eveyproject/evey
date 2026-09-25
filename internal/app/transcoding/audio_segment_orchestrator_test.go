@@ -658,14 +658,29 @@ func TestAudioOrchestrator_RepeatedDeadSpawns_TripBreaker(t *testing.T) {
 		"spawns must be bounded by the breaker, not by the client giving up")
 }
 
-// SourceDurationSec is transport for the silence bound, NOT an encode input: it
-// must never fork the cache hash (same bytes, same segments, same dir).
-func TestAudioFingerprint_SourceDurationSec_DoesNotForkHash(t *testing.T) {
+// SourceDurationSec bounds the silence tail (-t duration - segment start), so
+// the last segment's bytes follow it: a re-probe that moves the duration forks
+// the key instead of serving the former tail. Unknown (0) hashes as before.
+func TestAudioFingerprint_SourceDurationSec_ForksTheHash(t *testing.T) {
 	a := minimalAudioFp()
 	b := minimalAudioFp()
 	b.SourceDurationSec = 5991.611
-	assert.Equal(t, a.Hash(), b.Hash(),
-		"SourceDurationSec must not be part of the cache identity")
+	c := minimalAudioFp()
+	c.SourceDurationSec = 5992.611
+	assert.NotEqual(t, a.Hash(), b.Hash())
+	assert.NotEqual(t, b.Hash(), c.Hash(), "another duration, another tail")
+}
+
+// On an exact grid the video duration is an encode input too (-frames:v and
+// the frame tail): it forks the key there, and only there.
+func TestDecisionFingerprint_SourceDurationMs_ForksTheHashOnAnExactGrid(t *testing.T) {
+	fp := DecisionFingerprint{MediaID: "m", SourcePath: "/s.mkv", Grid: transcoding.GridForFrameRate(25), SourceDurationMs: 120_000}
+	other := fp
+	other.SourceDurationMs = 120_640
+	assert.NotEqual(t, fp.Hash(), other.Hash())
+	legacy, legacyOther := fp, other
+	legacy.Grid, legacyOther.Grid = transcoding.SegmentGrid{}, transcoding.SegmentGrid{}
+	assert.Equal(t, legacy.Hash(), legacyOther.Hash(), "no tail on the legacy grid: transport only")
 }
 
 // And it must ride the session the resume already spawned rather than starting a

@@ -268,6 +268,34 @@ func SourceAudioCodec(streams []*library.MediaStream, audioIdx int) string {
 	return ""
 }
 
+// SourceAudioProfile returns the profile of the audio-relative track
+// audioIdx, "" when absent or unprobed.
+func SourceAudioProfile(streams []*library.MediaStream, audioIdx int) string {
+	n := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != "audio" {
+			continue
+		}
+		if n == audioIdx {
+			return s.Profile
+		}
+		n++
+	}
+	return ""
+}
+
+// AACCopyDeclarable reports whether a copied track can be declared as what it
+// is: always, but for AAC, whose codecs value is its audio object type - an
+// AAC of unknown profile is re-encoded to AAC-LC rather than declared an AOT
+// nobody read (see AACObjectType).
+func AACCopyDeclarable(codec, profile string) bool {
+	if normalizeAudioCodec(codec) != "aac" {
+		return true
+	}
+	_, ok := AACObjectType(profile)
+	return ok
+}
+
 // SourceSubtitleCodec returns the codec of the burn-in subtitle track (the Nth
 // subtitle stream, ffmpeg's 0:s:N), lowercased, or "" when absent. The VOD
 // pipeline re-derives burn-in eligibility inside the ffmpeg builder from this
@@ -395,7 +423,12 @@ func SourceVideoBitrateKbps(streams []*library.MediaStream) int64 {
 // SourceGrid is the segmentation grid the presentation is cut on: frame-exact
 // for a constant, canonical frame rate, the legacy 3 s clock for a variable
 // or unknown one (a frame count only means a length when frames are evenly
-// spaced).
+// spaced). A telecined source is cut on the rate the encoder receives:
+// inverse telecine (decimate) drops one frame in five, so 90 source frames at
+// 29.97 are 72 encoded ones - counted at the source rate, a 90-frame segment
+// lasted 3.754 s against the 3.003 s every manifest declared (measured,
+// ffmpeg 7.1). The grid's seconds are the same either way, so the audio
+// renditions cut on it stay aligned.
 func SourceGrid(streams []*library.MediaStream) transcoding.SegmentGrid {
 	for _, s := range streams {
 		if s == nil || s.StreamType != "video" {
@@ -406,7 +439,25 @@ func SourceGrid(streams []*library.MediaStream) transcoding.SegmentGrid {
 		}
 		break
 	}
-	return transcoding.GridForFrameRate(SourceFrameRate(streams))
+	fps := SourceFrameRate(streams)
+	if SourceTelecine(streams) {
+		fps = fps * 4 / 5
+	}
+	return transcoding.GridForFrameRate(fps)
+}
+
+// EncodeFrameRate is the frame rate a transcode of the source is encoded at:
+// the grid's when exact, else the probed rate ffmpeg's CFR output keeps
+// (four fifths of it through inverse telecine); 0 when unknown.
+func EncodeFrameRate(streams []*library.MediaStream) float64 {
+	if g := SourceGrid(streams); g.Exact() {
+		return g.FPS()
+	}
+	fps := SourceFrameRate(streams)
+	if SourceTelecine(streams) {
+		fps = fps * 4 / 5
+	}
+	return fps
 }
 
 // SourceFrameRate is the probed frame rate of the first video stream (0 = unknown).
@@ -540,6 +591,8 @@ type SourceSnapshot struct {
 	// AudioTrack, audio-relative); "" / 0 when absent or unprobed.
 	AudioCodec    string
 	AudioChannels int
+	// AudioProfile is the selected track's profile ("LC", "HE-AAC"...).
+	AudioProfile string
 	// SubtitleCodec is the burn-in track's codec, "" when none is selected.
 	SubtitleCodec string
 	taken         bool
@@ -560,6 +613,7 @@ func SnapshotOf(req PlaybackRequest) SourceSnapshot {
 		PeakKbps:       req.SourcePeakKbps,
 		AudioCodec:     SourceAudioCodec(s, req.AudioTrack),
 		AudioChannels:  SourceAudioChannels(s, req.AudioTrack),
+		AudioProfile:   SourceAudioProfile(s, req.AudioTrack),
 		SubtitleCodec:  SourceSubtitleCodec(s, req.SubtitleBurnInTrack),
 		taken:          true,
 	}

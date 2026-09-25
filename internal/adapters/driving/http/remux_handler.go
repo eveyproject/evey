@@ -10,10 +10,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/singleflight"
 
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -59,6 +62,7 @@ type Remuxer interface {
 // is cached on disk and reused; concurrent first-hit requests collapse to one
 // remux via singleflight.
 type remuxServe struct {
+	leases        *apptranscoding.FileLeases
 	libSvc        MediaItemGetter
 	libraryAccess LibraryAccessChecker
 	parental      ParentalChecker
@@ -69,8 +73,9 @@ type remuxServe struct {
 	group         singleflight.Group
 }
 
-func remuxHandler(libSvc MediaItemGetter, libraryAccess LibraryAccessChecker, parental ParentalChecker, libLister LibraryLister, remuxer Remuxer, cacheRoot, baseURL string) http.HandlerFunc {
+func remuxHandler(libSvc MediaItemGetter, libraryAccess LibraryAccessChecker, parental ParentalChecker, libLister LibraryLister, remuxer Remuxer, cacheRoot, baseURL string, leases *apptranscoding.FileLeases) http.HandlerFunc {
 	h := &remuxServe{
+		leases:        leases,
 		libSvc:        libSvc,
 		libraryAccess: libraryAccess,
 		parental:      parental,
@@ -158,6 +163,11 @@ func (h *remuxServe) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Held while this range is read and a while after: the budget never
+	// evicts the file between two ranges of a playing player.
+	release := h.leases.Hold(outPath)
+	defer release()
+
 	f, err := os.Open(outPath)
 	if err != nil {
 		span.RecordError(err)
@@ -166,19 +176,23 @@ func (h *remuxServe) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = f.Close() }()
-	fi, err := f.Stat()
-	if err != nil {
-		span.RecordError(err)
-		logInternal(r.Context(), "remux: stat output", err)
-		http.Error(w, `{"message":"error"}`, http.StatusInternalServerError)
-		return
-	}
+
+	// The cache budget judges this file by its mtime: a serve keeps it warm,
+	// so a player (cast, offline audio) ranging through it is not evicted
+	// under it as the oldest entry. Best effort - a failed touch only ages it.
+	now := time.Now()
+	//nolint:errcheck // best-effort touch; a failure only ages the file in the budget's LRU
+	_ = os.Chtimes(outPath, now, now)
 
 	setCORSHeaders(w, r, h.baseURL)
 	w.Header().Set("Content-Type", "video/mp4")
+	// The validator is the cache name (source fingerprint), not the mtime the
+	// touch moves: an If-Range against a moving Last-Modified would turn every
+	// range into a full 200.
+	w.Header().Set("ETag", `"`+strings.TrimSuffix(filepath.Base(outPath), ".mp4")+`"`)
 	// ServeContent handles Range requests, conditional GETs and seeking - the
 	// fast-start (moov-first) layout lets a player start without reading to EOF.
-	http.ServeContent(w, r, mediaID+".mp4", fi.ModTime(), f)
+	http.ServeContent(w, r, mediaID+".mp4", time.Time{}, f)
 }
 
 // ensureRemuxed guarantees outPath holds a complete remuxed MP4, producing it

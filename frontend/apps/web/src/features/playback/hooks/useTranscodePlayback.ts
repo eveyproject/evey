@@ -3,6 +3,7 @@ import Hls from "hls.js";
 import { createPlayerEventReporter } from "@evey/api";
 import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, pickTranscodeResumeSec, prefersNativeHLS, startPlayback, forwardBufferSeconds, MAX_FORWARD_BUFFER_SEC } from "./hlsPlayerUtils";
 import { playbackSnapshot } from "../playbackSnapshot";
+import { dashUrlFor, devDashEnabled, retireDevDash, startDevDash } from "./devDash";
 import { isShedCode, playingFromHlsLevel, type PlayingVariant, type ShedReason } from "@evey/client";
 
 
@@ -128,6 +129,10 @@ export function useTranscodePlayback({
   // so flipping it does not itself re-render; handoffGen drives the rebuild.
   const forceTranscodeRef = useRef(false);
   const [handoffGen, setHandoffGen] = useState(0);
+  // Dev DASH (devDash.ts): set once the server offers no DASH for this title
+  // or the player failed - the next rebuild plays the HLS master. Per media.
+  const dashFailedRef = useRef(false);
+  useEffect(() => { dashFailedRef.current = false; }, [mediaId]);
   // Reset the pin when the media changes (the effect re-runs on mediaId): a new
   // title starts on its own natural decision, not the previous one's handoff.
   useEffect(() => { forceTranscodeRef.current = false; }, [mediaId]);
@@ -222,6 +227,53 @@ export function useTranscodePlayback({
 
     setPlayingVariant(null);
     setLadderBitrates([]);
+    if (devDashEnabled() && !dashFailedRef.current) {
+      // Dev flag: the same session played as DASH, HLS on any refusal.
+      let cancelled = false;
+      const fallBack = (reason: string) => {
+        if (cancelled || dashFailedRef.current) return;
+        reportPlayerEvent({ type: "dev_dash_fallback", details: reason, fatal: false, posSec: positionRef.current });
+        dashFailedRef.current = true;
+        setHandoffGen((g) => g + 1);
+      };
+      const started = startDevDash(video, dashUrlFor(hlsUrl), initialSeekSec, {
+        onQuality: (l) => { setAutoLevelHeight(l.height); setPlayingVariant(playingFromHlsLevel(l)); },
+        onError: fallBack,
+      }, () => cancelled);
+      started.then((s) => {
+        if (cancelled) return; // retired below, in the chain
+        hlsRef.current = s.shim;
+        setHlsLevels(s.levels.map((l) => l.height));
+        setLadderBitrates(s.levels.map((l) => l.bitrate));
+        setManifestAudioTracks(s.audioTracks);
+        const override = audioTrackOverrideRef?.current;
+        if (override != null && override >= 0 && override < s.audioTracks.length) s.shim.audioTrack = override;
+        const pinned = pickPinnedLevel({ levelHeights: s.levels.map((l) => l.height), desiredHeight: pinnedQualityRef?.current ?? 0 });
+        if (pinned >= 0) s.shim.currentLevel = pinned;
+        if (!wasPausedRef.current) void startPlayback(video, wasmAudio);
+      }, (err: unknown) => { if (!cancelled) fallBack(String(err)); });
+      const onTime = () => { positionRef.current = video.currentTime; };
+      const onEnd = () => { onEnded?.(); };
+      const onWaiting = () => { if (!video.paused) setIsBuffering(true); };
+      const onPlaying = () => { setIsBuffering(false); };
+      video.addEventListener("timeupdate", onTime);
+      video.addEventListener("ended", onEnd);
+      video.addEventListener("waiting", onWaiting);
+      video.addEventListener("playing", onPlaying);
+      video.addEventListener("pause", onPlaying);
+      return () => {
+        cancelled = true;
+        wasPausedRef.current = video.paused;
+        video.removeEventListener("timeupdate", onTime);
+        video.removeEventListener("ended", onEnd);
+        video.removeEventListener("waiting", onWaiting);
+        video.removeEventListener("playing", onPlaying);
+        video.removeEventListener("pause", onPlaying);
+        retireDevDash(started);
+        hlsRef.current = null;
+        setIsBuffering(false);
+      };
+    }
     if (prefersNativeHLS()) {
       video.src = hlsUrl;
       // Native-HLS path (Safari macOS laptops + iOS). Preferred wherever the

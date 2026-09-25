@@ -221,6 +221,11 @@ type HLSProfile struct {
 	// cost price to this route's encoder (0 = the reference price, or the
 	// table). Hashed like CostModelled: a recalibration is new bytes.
 	EfficiencyVersion int
+	// CodecLevel is the level the rung is encoded and declared at (see
+	// codec_string.go): computed from its picture, frame rate and rate
+	// ceiling, 0 for a copy or a codec the encoder levels itself. Other
+	// bytes at another level: fingerprinted and hashed.
+	CodecLevel int
 }
 
 // Must stay identical to LadderFilmNormal, which is the fallback ladder - the

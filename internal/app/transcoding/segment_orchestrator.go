@@ -897,6 +897,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		AudioNormalize:     fp.AudioNormalize,
 		StartSec:           fp.Grid.SegmentStartSeconds(startSegIdx),
 		Grid:               fp.Grid,
+		DeclaredDurationMs: fp.SourceDurationMs,
 		// StartNumber is what tells the transcoder this rafale is a SEEK whose
 		// fMP4 fragments come out 0-based and must be rebased to the absolute
 		// timeline before they reach the shared cache. It was never set here:
@@ -919,7 +920,6 @@ func (o *SegmentOrchestrator) spawnSession(
 		// flag is a legacy-rip trait - exactly that route's population.
 		DeinterlaceAll:  fp.DeinterlaceAll,
 		InverseTelecine: fp.Telecine,
-		MaxH264Level:    fp.MaxH264Level,
 		// fp.UseFMP4 is the container choice baked into the manifest the
 		// player will receive (.m4s vs .ts). Without forwarding it, ffmpeg
 		// always wrote .ts via the multi-variant builder while the manifest
@@ -1431,6 +1431,7 @@ func profilesToDomain(ps []ProfileFingerprint) []transcoding.HLSProfile {
 			Height:       p.Height,
 			VideoBitrate: p.VideoBitrate,
 			AudioBitrate: p.AudioBitrate,
+			CodecLevel:   p.CodecLevel,
 		}
 	}
 	return out

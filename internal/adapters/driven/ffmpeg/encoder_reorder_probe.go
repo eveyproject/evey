@@ -80,7 +80,7 @@ func encoderReorderProbeArgs(spec EncoderSpec, outPath string) []string {
 	enc := videoEncoderFor(spec.Codec, spec.Accel)
 	args = append(args, "-c:v", enc)
 	if spec.Accel == "" || spec.Accel == transcoding.None {
-		args = append(args, softwareProfileLevelArgs(enc, -1, 144, 0)...)
+		args = append(args, softwareProfileLevelArgs(enc, -1, transcoding.H264LevelIdcFor(144))...)
 		args = append(args, softwareX264TuningArgs(enc, -1)...)
 		args = append(args, svtAV1PresetArgs(enc)...)
 		args = append(args, softwareRateControlArgs(transcoding.StaticQualityPolicy{}.TargetFor(transcoding.HLSProfile{VideoBitrate: 1000}, transcoding.EncodeRoute{}), "")...)

@@ -65,7 +65,7 @@ func TestHLSVOD_AudioRendition_CopiesWhatTheClientDecodes(t *testing.T) {
 	rec := doVODRequestQ(h, "m1", "master.m3u8", tv)
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
-	assert.Contains(t, body, `CODECS="avc1.640028,ac-3,mp4a.40.2"`, "the group carries a copied AC-3 and a re-encoded DTS")
+	assert.Contains(t, body, `CODECS="avc1.64001f,ac-3,mp4a.40.2"`, "the group carries a copied AC-3 and a re-encoded DTS")
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/audio_0.m3u8?"+tv, nil)
 	req = withHTTPClaims(req, testClaims(false))
 	assert.Equal(t, "ac3", h.audioRenditionCopyCodec(req, item, streams, 0))
@@ -74,7 +74,7 @@ func TestHLSVOD_AudioRendition_CopiesWhatTheClientDecodes(t *testing.T) {
 	// A browser without AC-3: both re-encoded, one codec advertised.
 	web := "videoCodecs=h264&audioCodecs=aac,mp3&maxAudioChannels=6"
 	body = doVODRequestQ(h, "m1", "master.m3u8", web).Body.String()
-	assert.Contains(t, body, `CODECS="avc1.640028,mp4a.40.2"`)
+	assert.Contains(t, body, `CODECS="avc1.64001f,mp4a.40.2"`)
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/audio_0.m3u8?"+web, nil)
 	req = withHTTPClaims(req, testClaims(false))
 	assert.Empty(t, h.audioRenditionCopyCodec(req, item, streams, 0))

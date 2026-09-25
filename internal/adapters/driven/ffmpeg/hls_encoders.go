@@ -44,34 +44,76 @@ func svtAV1PresetArgs(encoder string) []string {
 	return []string{"-preset", "veryfast"}
 }
 
-// softwareProfileLevelArgs returns the -profile:v / -level:v args for a software
-// encoder. "high"/"4.1" are H.264 (libx264) values: libx265 rejects them outright
-// ("x265 [error]: unknown profile <high>" → the encoder fails to open and the
-// whole session dies) and libaom-av1 uses different profile/level strings, so
-// non-libx264 encoders get nothing and derive the profile from the pixel format.
-// variantIdx < 0 emits the single-output form (-profile:v); else the per-rung
-// -profile:v:N form used by the multi-variant builder. Reachable via a client
-// PreferredVideoCodec=hevc on a software path (no HW HEVC) - found by audit.
-// maxLevel (client decoder level_idc, 0 = none) lowers the signalled level
-// when the rung's natural one exceeds it.
+// h264Profile is the profile every H.264 transcode is encoded in (the
+// declared avc1.64xxxx). libx265 rejects it outright ("x265 [error]: unknown
+// profile <high>") and libaom-av1 uses other strings: H.264 only.
 const h264Profile = "high"
 
-func softwareProfileLevelArgs(encoder string, variantIdx int, height int, maxLevel int) []string {
+// softwareProfileLevelArgs is the libx264 -profile/-level pair at level idc,
+// nil for any other software encoder (libx265 rejects "high", libaom-av1
+// uses other strings). variantIdx < 0: single output, else -profile:v:N.
+// For the probes and benches; a served rung goes through codecLevelArgs.
+func softwareProfileLevelArgs(encoder string, variantIdx int, idc int) []string {
 	if encoder != "libx264" {
 		return nil
 	}
-	idc := transcoding.H264LevelIdcFor(height)
-	if maxLevel > 0 && maxLevel < idc {
-		idc = maxLevel
+	spec := ""
+	if variantIdx >= 0 {
+		spec = fmt.Sprintf(":%d", variantIdx)
 	}
-	level := transcoding.H264LevelString(idc)
-	if variantIdx < 0 {
-		return []string{"-profile:v", h264Profile, "-level:v", level}
+	return []string{"-profile:v" + spec, h264Profile, "-level:v" + spec, transcoding.H264LevelString(idc)}
+}
+
+// codecLevelArgs pins, for every encoder, the profile and the level the
+// manifests declare for this rung (HLSProfile.CodecLevel, see the domain's
+// codec_string.go): libx264 takes -profile/-level itself, and sizes its
+// reference frames to the level; a GPU H.264 encoder takes the profile and
+// has the level written into its SPS by h264_metadata (NVENC otherwise
+// chose Main at a level of its own, measured); HEVC, software or GPU, has it
+// written by hevc_metadata. The filter rewrites the parameter sets and the
+// extradata the fMP4 init is built from. A rung the plan did not level is
+// levelled here from its own rate target qt, as the plan would.
+func codecLevelArgs(opts transcoding.HLSProcessOpts, encoder string, variantIdx int, p transcoding.HLSProfile, qt transcoding.QualityTarget) []string {
+	spec := ""
+	if variantIdx >= 0 {
+		spec = fmt.Sprintf(":%d", variantIdx)
 	}
-	return []string{
-		fmt.Sprintf("-profile:v:%d", variantIdx), h264Profile,
-		fmt.Sprintf("-level:v:%d", variantIdx), level,
+	level := p.CodecLevel
+	codec := normalizeVideoCodec(opts.VideoCodec)
+	if level == 0 {
+		level = transcoding.CodecLevel(codec, p, opts.Grid.FPS(), qt)
 	}
+	switch codec {
+	case "hevc":
+		args := []string{"-bsf:v" + spec, fmt.Sprintf("hevc_metadata=level=%d", level)}
+		switch encoder {
+		case "hevc_nvenc", "hevc_vaapi", "hevc_qsv":
+			// Main tier, named: QSV defaults to High, and NVENC moved to High
+			// on its own past the Main tier's rate (measured: H120 under a
+			// declared L153) - unless it is also given the level, which it then
+			// holds in the Main tier.
+			vspec := strings.Replace(spec, ":", ":v:", 1)
+			args = append(args, "-tier"+vspec, "main")
+			if encoder == "hevc_nvenc" {
+				args = append(args, "-level"+vspec, fmt.Sprintf("%d.%d", level/30, (level%30)/3))
+			}
+		}
+		if encoder == "libx265" {
+			// x265 moved to the High tier on its own once the VBV passed the
+			// Main tier's (measured: H153 under a declared L153), and
+			// hevc_metadata cannot write the tier back: keep it on Main, at
+			// the level, which it then also holds its stream to.
+			args = append(args, "-x265-params"+strings.Replace(spec, ":", ":v:", 1),
+				fmt.Sprintf("level-idc=%d.%d:high-tier=0", level/30, (level%30)/3))
+		}
+		return args
+	case "h264":
+		if encoder == "libx264" {
+			return []string{"-profile:v" + spec, h264Profile, "-level:v" + spec, transcoding.H264LevelString(level)}
+		}
+		return []string{"-profile:v" + spec, h264Profile, "-bsf:v" + spec, fmt.Sprintf("h264_metadata=level=%d", level)}
+	}
+	return nil
 }
 
 // x264SpeedTuning is motion-search tuning on top of the veryfast preset, which

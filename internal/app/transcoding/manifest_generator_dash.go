@@ -4,15 +4,16 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
+	"regexp"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 // ErrDASHUnavailable is what MPD returns for a presentation whose timeline
-// cannot be declared exactly: a transcode on the legacy clock grid (unknown
-// or variable frame rate), or a copy rung without its keyframe plan. HLS
+// cannot be declared exactly - a transcode on the legacy clock grid (unknown
+// or variable frame rate), a copy rung without its keyframe plan - or whose
+// audio is not a separate rendition. HLS
 // still serves it; DASH is not offered.
 var ErrDASHUnavailable = errors.New("dash: no exact timeline for this presentation")
 
@@ -26,8 +27,7 @@ var ErrDASHUnavailable = errors.New("dash: no exact timeline for this presentati
 // keyframe plan, exact to the millisecond.
 //
 // Video is one AdaptationSet with a Representation per rung; a separate audio
-// rendition is one AdaptationSet each (selected, not switched); muxed audio
-// rides its rung's codecs attribute. URIs carry the same query suffix as the
+// rendition is one AdaptationSet each (selected, not switched). URIs carry the same query suffix as the
 // HLS playlists (token, decision inputs, fingerprint seal), so the segment
 // handler serves a DASH fetch exactly as an HLS one - the same fragments.
 //
@@ -50,9 +50,17 @@ func (g *ManifestGenerator) MPD(in ManifestInput) (string, error) {
 	} else if !in.Grid.Exact() {
 		return "", ErrDASHUnavailable
 	}
+	audioSeparate := len(in.AudioRenditions) > 0 && !in.ExternalAudio
+	if !audioSeparate {
+		// Audio muxed into the video fragments is not a DASH presentation the
+		// players take: dash.js drops a Representation declaring two codecs
+		// ("No streams to play", measured on dash.js 5.2), DASH-IF IOP excludes
+		// multiplexed Representations, and audio the client decodes itself
+		// (wasm) has no place in an MPD. HLS serves both.
+		return "", ErrDASHUnavailable
+	}
 	durMs := in.DurationMs()
 	suffix := xmlAttr(querySuffix(in))
-	audioSeparate := len(in.AudioRenditions) > 0 && !in.ExternalAudio
 
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
@@ -61,16 +69,6 @@ func (g *ManifestGenerator) MPD(in ManifestInput) (string, error) {
 	b.WriteString("  <Period>\n")
 
 	// --- video: the switch set ---
-	audioAttrs := audioCodecAttr(strings.ToLower(in.ChosenAudioCodec))
-	if audioSeparate {
-		var attrs []string
-		for _, r := range in.AudioRenditions {
-			if a := audioCodecAttr(strings.ToLower(r.Codec)); !slices.Contains(attrs, a) {
-				attrs = append(attrs, a)
-			}
-		}
-		audioAttrs = strings.Join(attrs, ",")
-	}
 	frameRate := ""
 	if fr := in.Grid.FrameRateString(); fr != "" {
 		frameRate = fmt.Sprintf(` frameRate="%s"`, fr)
@@ -78,22 +76,19 @@ func (g *ManifestGenerator) MPD(in ManifestInput) (string, error) {
 	fmt.Fprintf(&b, `    <AdaptationSet mimeType="video/mp4" contentType="video" segmentAlignment="true" startWithSAP="1"%s>`+"\n", frameRate)
 	tenBit := in.TranscodeVideoRange != ""
 	for i, p := range in.Profiles {
-		codecs := videoCodecAttrFor(strings.ToLower(in.ChosenVideoCodec), p.Height, tenBit)
+		codecs := videoCodecAttrFor(strings.ToLower(in.ChosenVideoCodec), p, tenBit, in.Grid.FPS())
 		if p.Copy && in.CopyVideoCodec != "" {
 			codecs = in.CopyVideoCodec
 		}
 		bps := p.VideoBitrate * 1000
-		if !audioSeparate && !in.ExternalAudio {
-			// Muxed audio rides the rung: its codec and its bits.
-			codecs += "," + audioAttrs
-			bps += p.AudioBitrate * 1000
-		}
-		fmt.Fprintf(&b, `      <Representation id="v%d" bandwidth="%d" width="%d" height="%d" codecs="%s">`+"\n", i, bps, p.Width, p.Height, xmlAttr(codecs))
+		// The fragments' ladder name: a fitted plan's one rung keeps its own.
+		rung := in.FirstRungIndex + i
+		fmt.Fprintf(&b, `      <Representation id="v%d" bandwidth="%d" width="%d" height="%d" codecs="%s">`+"\n", rung, bps, p.Width, p.Height, xmlAttr(codecs))
 		if copyRung {
-			fmt.Fprintf(&b, `        <SegmentTemplate initialization="stream_%d_init.mp4%s" media="stream_%d_$Number%%03d$.m4s%s" startNumber="0" timescale="1000">`+"\n", i, suffix, i, suffix)
+			fmt.Fprintf(&b, `        <SegmentTemplate initialization="stream_%d_init.mp4%s" media="stream_%d_$Number%%03d$.m4s%s" startNumber="0" timescale="1000">`+"\n", rung, suffix, rung, suffix)
 			writeCopyTimeline(&b, in.CopySegments)
 		} else {
-			fmt.Fprintf(&b, `        <SegmentTemplate initialization="stream_%d_init.mp4%s" media="stream_%d_$Number%%03d$.m4s%s" startNumber="0" timescale="%d">`+"\n", i, suffix, i, suffix, in.Grid.Timescale)
+			fmt.Fprintf(&b, `        <SegmentTemplate initialization="stream_%d_init.mp4%s" media="stream_%d_$Number%%03d$.m4s%s" startNumber="0" timescale="%d">`+"\n", rung, suffix, rung, suffix, in.Grid.Timescale)
 			writeGridTimeline(&b, in.Grid, durMs)
 		}
 		b.WriteString("        </SegmentTemplate>\n")
@@ -102,42 +97,96 @@ func (g *ManifestGenerator) MPD(in ManifestInput) (string, error) {
 	b.WriteString("    </AdaptationSet>\n")
 
 	// --- audio: one set per rendition ---
-	if audioSeparate {
-		audioKbps := int64(0)
-		if len(in.Profiles) > 0 {
-			audioKbps = in.Profiles[0].AudioBitrate
-		}
-		for k, r := range in.AudioRenditions {
-			lang := ""
-			if r.LanguageCode != "" {
-				lang = fmt.Sprintf(` lang="%s"`, xmlAttr(r.LanguageCode))
-			}
-			fmt.Fprintf(&b, `    <AdaptationSet mimeType="audio/mp4" contentType="audio"%s>`+"\n", lang)
-			codec := strings.ToLower(r.Codec)
-			if codec == "" {
-				codec = "aac"
-			}
-			rate := ""
-			if codec == "aac" {
-				// A re-encoded rendition is 48 kHz AAC (hls_audio_only); a copied
-				// track keeps the source's rate, which the plan does not carry.
-				rate = ` audioSamplingRate="48000"`
-			}
-			fmt.Fprintf(&b, `      <Representation id="a%d" bandwidth="%d" codecs="%s"%s>`+"\n", k, audioKbps*1000, xmlAttr(audioCodecAttr(codec)), rate)
-			// The nominal grid duration in the rendition's timescale; the
-			// muxer cuts on the first AAC frame past each boundary, so the
-			// real spans differ by up to one frame (see the doc above).
-			const audioTimescale = 48000
-			fmt.Fprintf(&b, `        <SegmentTemplate initialization="audio_%d_init.mp4%s" media="audio_%d_$Number%%03d$.m4s%s" startNumber="0" timescale="%d" duration="%d"/>`+"\n",
-				r.SourceTrackIdx, suffix, r.SourceTrackIdx, suffix, audioTimescale, int64(math.Round(in.Grid.SegmentSeconds()*audioTimescale)))
-			b.WriteString("      </Representation>\n")
-			b.WriteString("    </AdaptationSet>\n")
-		}
-	}
+	writeAudioSets(&b, in, suffix)
 
 	b.WriteString("  </Period>\n")
 	b.WriteString("</MPD>\n")
 	return b.String(), nil
+}
+
+// packagerAudioSetRE is one audio AdaptationSet of the packager's manifest.
+var packagerAudioSetRE = regexp.MustCompile(`(?s)[ \t]*<AdaptationSet[^>]*contentType="audio"[^>]*>.*?</AdaptationSet>\n?`)
+
+// HybridMPD is the DASH manifest of a hybrid presentation: the packager's
+// video (and subtitles), whose timeline only the packager knows, beside
+// Evey's separate audio renditions - the manifest counterpart of the hybrid
+// HLS master, over the same fragments with the same query suffix. The
+// packager's own audio sets describe the source's tracks, not the plan's:
+// they are dropped. packagerMPD is the packager's manifest as served (its
+// URIs already carry their suffix).
+func (g *ManifestGenerator) HybridMPD(in ManifestInput, packagerMPD string) (string, error) {
+	if err := in.Validate(); err != nil {
+		return "", err
+	}
+	if len(in.AudioRenditions) == 0 || in.ExternalAudio {
+		return "", ErrDASHUnavailable
+	}
+	cut := strings.LastIndex(packagerMPD, "</Period>")
+	if cut < 0 || strings.Count(packagerMPD, "<Period") != 1 || !strings.Contains(packagerMPD, `contentType="video"`) {
+		return "", fmt.Errorf("hybrid mpd: the packager's manifest is not one period with a video set")
+	}
+	head := strings.TrimRight(packagerAudioSetRE.ReplaceAllString(packagerMPD[:cut], ""), " \t")
+	var b strings.Builder
+	b.WriteString(head)
+	writeAudioSets(&b, in, xmlAttr(querySuffix(in)))
+	b.WriteString("  ")
+	b.WriteString(packagerMPD[cut:])
+	return b.String(), nil
+}
+
+// writeAudioSets writes one AdaptationSet per separate audio rendition, the
+// requested track as the main one: shared by the plan-declared manifest and
+// the hybrid one (the packager's video beside Evey's renditions).
+func writeAudioSets(b *strings.Builder, in ManifestInput, suffix string) {
+	audioKbps := int64(0)
+	if len(in.Profiles) > 0 {
+		audioKbps = in.Profiles[0].AudioBitrate
+	}
+	defaultAudio := defaultAudioRendition(in.AudioRenditions, in.AudioTrack)
+	for k, r := range in.AudioRenditions {
+		lang := ""
+		if r.LanguageCode != "" {
+			lang = fmt.Sprintf(` lang="%s"`, xmlAttr(r.LanguageCode))
+		}
+		fmt.Fprintf(b, `    <AdaptationSet mimeType="audio/mp4" contentType="audio"%s>`+"\n", lang)
+		if r.Name != "" {
+			fmt.Fprintf(b, "      <Label>%s</Label>\n", xmlAttr(r.Name))
+		}
+		// The requested track is the main one, as DEFAULT=YES in HLS: without
+		// it ?audioTrack= changed only the URLs and Media3 kept picking by the
+		// device locale (measured on the TV emulator, 2026-09-25).
+		role := "alternate"
+		if k == defaultAudio {
+			role = "main"
+		}
+		fmt.Fprintf(b, `      <Role schemeIdUri="urn:mpeg:dash:role:2011" value="%s"/>`+"\n", role)
+		// Rate, channels and bits are the rendition's own (the source
+		// track's on a copy: a 44.1 kHz AAC copied stays 44.1 kHz).
+		kbps := r.BitrateKbps
+		if kbps <= 0 {
+			kbps = audioKbps
+		}
+		rate := ""
+		if r.SampleRate > 0 {
+			rate = fmt.Sprintf(` audioSamplingRate="%d"`, r.SampleRate)
+		}
+		fmt.Fprintf(b, `      <Representation id="a%d" bandwidth="%d" codecs="%s"%s>`+"\n", k, kbps*1000, xmlAttr(r.codecAttr()), rate)
+		if r.Channels > 0 {
+			fmt.Fprintf(b, `        <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="%d"/>`+"\n", r.Channels)
+		}
+		// The nominal grid duration in the rendition's sample rate (its
+		// track timescale); the muxer cuts on the first AAC frame past each
+		// boundary, so the real spans differ by up to one frame (see the
+		// doc above).
+		audioTimescale := r.SampleRate
+		if audioTimescale <= 0 {
+			audioTimescale = 48000
+		}
+		fmt.Fprintf(b, `        <SegmentTemplate initialization="audio_%d_init.mp4%s" media="audio_%d_$Number%%03d$.m4s%s" startNumber="0" timescale="%d" duration="%d"/>`+"\n",
+			r.SourceTrackIdx, suffix, r.SourceTrackIdx, suffix, audioTimescale, int64(math.Round(in.Grid.SegmentSeconds()*float64(audioTimescale))))
+		b.WriteString("      </Representation>\n")
+		b.WriteString("    </AdaptationSet>\n")
+	}
 }
 
 // writeGridTimeline is the SegmentTimeline of a frame-exact grid: every

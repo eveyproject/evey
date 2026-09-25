@@ -37,5 +37,10 @@ func (h *hlsVODServe) audioRenditionCopyCodec(r *http.Request, item *domainlibra
 	if codec == "" || !apptranscoding.AudioCopyCodecAllowedFor(codec, client) {
 		return ""
 	}
+	// An AAC whose object type nobody read is re-encoded to AAC-LC rather
+	// than declared one it may not have.
+	if s := audioStreamAt(streams, trackIdx); s == nil || !apptranscoding.AACCopyDeclarable(codec, s.Profile) {
+		return ""
+	}
 	return codec
 }

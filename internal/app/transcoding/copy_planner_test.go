@@ -129,3 +129,19 @@ func TestCopyPlanner_Plan_NoDurationErrors(t *testing.T) {
 	_, err := p.Plan(context.Background(), "mi-1")
 	require.Error(t, err)
 }
+
+// A source whose first keyframe sits late (an MPEG-TS starts ~1.4 s in) is
+// planned from that keyframe, as the copy session re-zeroes its output on it:
+// segment k starts at kf_k - kf_0, which is the fragments' own timeline
+// (measured: cold fragments at 2k s for keyframes at 1.48 + 2k s). The origin
+// comes back so a seek aims in the source's time.
+func TestCopyPlanner_Plan_CountsFromTheFirstKeyframe(t *testing.T) {
+	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{1480, 3480, 5480, 7480})}
+	items := &fakeCopyItems{item: itemWithDurationMs(8021)}
+	p := NewCopyPlanner(streams, items)
+
+	segs, origin, err := p.PlanWithOrigin(context.Background(), "m1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1480), origin)
+	assert.Equal(t, []CopySegment{{0, 2000}, {2000, 4000}, {4000, 6000}, {6000, 8021}}, segs)
+}

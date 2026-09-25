@@ -125,3 +125,51 @@ func TestCacheBudget_FloorPassSkippedWhenFreeSpaceUnreadable(t *testing.T) {
 	NewCacheBudget(c).sweepOnce(p.withDefaults(), quietLogger(), time.Now())
 	assert.DirExists(t, filepath.Join(c.baseDir, "h"), "an unreadable statfs must not empty the cache")
 }
+
+// A file a player just pulled from is spared by the cap like a hash is: a
+// remux is reopened on every range request, and evicting it under a cast
+// session would make the next range pay a whole new remux.
+func TestCacheBudget_CapSparesAFileServedWithinTheWindow(t *testing.T) {
+	c, _ := newTestCache(t)
+	remux := t.TempDir()
+	base := time.Now()
+	playing := writeCacheFile(t, remux, "remux-v2-aaaa.mp4", 1000, base.Add(-time.Minute))
+	stale := writeCacheFile(t, remux, "remux-v2-bbbb.mp4", 300, base.Add(-time.Hour))
+
+	b := NewCacheBudget(c, NewRemuxCacheJanitor(remux))
+	p := capOnly(500, 50)
+	p.ProtectWindow = 10 * time.Minute
+	b.sweepOnce(p.withDefaults(), quietLogger(), base)
+
+	assert.NoFileExists(t, stale, "past the window: evicted")
+	assert.FileExists(t, playing, "served a minute ago: spared even over the cap")
+}
+
+// A remux a player holds survives every pass - past the download TTL, under
+// the free-space floor, over the cap - while its unheld neighbour goes in
+// each; released and past the linger, it is an ordinary file again.
+func TestCacheBudget_LeasedFileSurvivesEveryPass(t *testing.T) {
+	c, _ := newTestCache(t)
+	remux := t.TempDir()
+	base := time.Now()
+	leases := NewFileLeases()
+	b := NewCacheBudget(c, NewRemuxCacheJanitor(remux).WithLeases(leases))
+	old := base.Add(-30 * 24 * time.Hour) // past the TTL, oldest of all
+
+	passes := map[string]EvictionPolicy{
+		"age":   {MaxBytes: 1 << 40, MinFreeBytes: -1, DownloadTTL: 24 * time.Hour},
+		"floor": {MaxBytes: 1 << 40, DownloadTTL: -1, MinFreeBytes: 1 << 40, FreeBytes: func() (int64, error) { return 0, nil }},
+		"cap":   capOnly(100, 0),
+	}
+	for name, p := range passes {
+		playing := writeCacheFile(t, remux, "remux-v2-"+name+"-play.mp4", 1000, old)
+		other := writeCacheFile(t, remux, "remux-v2-"+name+"-other.mp4", 1000, old)
+		release := leases.Hold(playing)
+		b.sweepOnce(p.withDefaults(), quietLogger(), base)
+		assert.FileExists(t, playing, "%s pass: a held file stays", name)
+		assert.NoFileExists(t, other, "%s pass: its unheld neighbour goes", name)
+		release()
+		b.sweepOnce(p.withDefaults(), quietLogger(), base.Add(leases.Linger+time.Second))
+		assert.NoFileExists(t, playing, "%s pass: released and past the linger, it goes", name)
+	}
+}

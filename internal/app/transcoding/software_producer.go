@@ -210,7 +210,9 @@ type SoftwareProducerOptions struct {
 	// The remux runs at 8x, so without a lead cap a whole film lands on disk
 	// in minutes; with it the disk holds a window around the viewer. Default
 	// 30 (about five minutes of content at the usual keyframe cadence), far
-	// beyond any player's buffer. Transcode sessions ignore it.
+	// beyond any player's buffer. Checked on the pause tick, so the real
+	// ceiling is the lead plus one tick of production (measured 43 at 8x with
+	// the 30 s burst). Transcode sessions ignore it.
 	CopyLeadSegs int
 
 	// CopyKeepBehindSegs is how many segments behind the viewer a COPY session
@@ -237,18 +239,6 @@ const clientSegmentPatience = 6 * time.Second
 // redundant encoder just because the reader drew slightly ahead.
 const minSeekReachWindowSegs = 2
 
-// derivedSeekReachWindow answers the question the window exists to answer: how
-// many segments ahead of the frontier can a request land and STILL be served
-// before the client hangs up? A paced encoder crosses ReadRate seconds of
-// content per second of wall clock, so clientSegmentPatience buys
-// `patience * ReadRate` seconds of content, i.e. that over SegmentSeconds
-// segments. Anything further away is a forward seek: spawning a fresh `-ss`
-// encoder (which gets `-readrate_initial_burst`, so it lands its first segments
-// fast) beats making the player wait for a crawl it will abandon.
-//
-// Deliberately assumes the STEADY-STATE rate and ignores the initial burst: the
-// burst only makes a real session catch up faster than this predicts, so the
-// error is on the side of spawning, which is the side the viewer feels.
 // ffmpegProgressLogPath names one encoder's -progress file. The name carries
 // what an investigation needs to line the file up with the JSON log: which
 // decision hash, which rung, and which start position. The nanosecond suffix
@@ -262,6 +252,18 @@ func ffmpegProgressLogPath(dir, hash string, variantIdx, startSeg int) string {
 	return filepath.Join(dir, fmt.Sprintf("ffmpeg-%s-v%d-s%d-%d.log", hash, variantIdx, startSeg, time.Now().UnixNano()))
 }
 
+// derivedSeekReachWindow answers the question the window exists to answer: how
+// many segments ahead of the frontier can a request land and STILL be served
+// before the client hangs up? A paced encoder crosses ReadRate seconds of
+// content per second of wall clock, so clientSegmentPatience buys
+// `patience * ReadRate` seconds of content, i.e. that over SegmentSeconds
+// segments. Anything further away is a forward seek: spawning a fresh `-ss`
+// encoder (which gets `-readrate_initial_burst`, so it lands its first segments
+// fast) beats making the player wait for a crawl it will abandon.
+//
+// Deliberately assumes the STEADY-STATE rate and ignores the initial burst: the
+// burst only makes a real session catch up faster than this predicts, so the
+// error is on the side of spawning, which is the side the viewer feels.
 func derivedSeekReachWindow(readRate, segmentSeconds float64) int {
 	if readRate <= 0 || segmentSeconds <= 0 {
 		return minSeekReachWindowSegs
@@ -717,7 +719,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	seekTargetSec := 0.0
 	var copyPlanOracle func(int) (int64, bool)
 	if p.copyPlanner != nil {
-		segs, planErr := p.copyPlanner.Plan(ctx, fp.MediaID)
+		segs, originMs, planErr := p.copyPlanner.PlanWithOrigin(ctx, fp.MediaID)
 		if planErr != nil {
 			return fmt.Errorf("software: startSession: copy plan for %s: %w", fp.MediaID, planErr)
 		}
@@ -757,7 +759,11 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 			// by construction, so the bookkeeping below stays true. (Re-deriving
 			// -ss from the landed keyframe would land one keyframe earlier again
 			// - the ffmpeg CLI's ~130 ms DTS-heuristic seek offset.)
-			seekTargetSec = float64(segs[startSeg].StartMs)/1000.0 + transcoding.CopySeekNudgeSec
+			// In the SOURCE's time (the plan counts from its first keyframe),
+			// which -seek_timestamp makes -ss mean: without it ffmpeg adds the
+			// container's start_time and an MPEG-TS (~1.4 s) landed a keyframe
+			// or more late (measured: segment 3 asked, segment 4 produced).
+			seekTargetSec = float64(segs[startSeg].StartMs+originMs)/1000.0 + transcoding.CopySeekNudgeSec
 			if p.seekProber != nil {
 				requested := startSeg
 				landing, probeErr := p.seekProber.ProbeSeekLanding(ctx, srcPath, seekTargetSec)
@@ -766,7 +772,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 					p.logger.Warn("software: copy seek-landing probe failed, assuming exact landing",
 						slog.Float64("target", seekTargetSec), slog.Any("err", probeErr))
 				default:
-					if j := planIndexForLanding(segs, landing); j < startSeg {
+					if j := planIndexForLanding(segs, landing-float64(originMs)/1000.0); j < startSeg {
 						p.logger.Info("software: copy seek landed before the requested keyframe (sparse seek index / dts heuristic)",
 							slog.Int("requested_seg", requested),
 							slog.Int("landed_seg", j),
@@ -846,6 +852,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		ExpectedSegmentStartMs: copyPlanOracle,
 		TimelineDriftKind:      timelineDriftKind,
 		Grid:                   fp.Grid,
+		DeclaredDurationMs:     fp.SourceDurationMs,
 		// Input pacing: the defining software-flow knob. Keeps the single
 		// sequential encoder near wall-clock so it never races ahead of the
 		// viewer (no abort-and-probe client → no need to burst).
@@ -860,7 +867,6 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		DeinterlaceAll:      fp.DeinterlaceAll,
 		InverseTelecine:     fp.Telecine,
 		SourceSAR:           fp.SourceSAR,
-		MaxH264Level:        fp.MaxH264Level,
 		AudioCodec:          fp.AudioCodec,
 		MaxAudioChannels:    fp.MaxAudioChannels,
 		SourceAudioChannels: fp.SourceAudioChannels,

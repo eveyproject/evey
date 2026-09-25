@@ -66,8 +66,9 @@ type CopyPlanner struct {
 
 // cachedCopyPlan is a plan plus the identity of the file it was derived from.
 type cachedCopyPlan struct {
-	segs  []CopySegment
-	stamp string
+	segs     []CopySegment
+	originMs int64
+	stamp    string
 }
 
 // copyPlanFileStamp captures what change-detection knows about a file. It
@@ -107,23 +108,33 @@ func NewCopyPlanner(streams CopyStreamReader, items MediaItemReader) *CopyPlanne
 // Plan returns the copy segment boundaries for mediaID. Errors when the keyframe
 // index or duration is missing - the caller must then NOT serve a copy rung.
 func (c *CopyPlanner) Plan(ctx context.Context, mediaID string) ([]CopySegment, error) {
+	segs, _, err := c.PlanWithOrigin(ctx, mediaID)
+	return segs, err
+}
+
+// PlanWithOrigin is Plan plus the plan's origin: the source time (ms) of the
+// first keyframe, which the plan counts from. A copy session re-zeroes its
+// output on its first packet, so a source that starts late (an MPEG-TS at
+// ~1.4 s) produces fragments from 0: the plan is laid on that same origin,
+// and a seek aims at StartMs + origin in the source's own time.
+func (c *CopyPlanner) PlanWithOrigin(ctx context.Context, mediaID string) ([]CopySegment, int64, error) {
 	// The item is read on every call (hit included): its file stamp decides
 	// whether a cached plan is still for the file on disk.
 	item, err := c.items.GetByID(ctx, shared.MediaItemID(mediaID))
 	if err != nil {
-		return nil, fmt.Errorf("copy planner: load item %s: %w", mediaID, err)
+		return nil, 0, fmt.Errorf("copy planner: load item %s: %w", mediaID, err)
 	}
 	if item == nil || item.File == nil {
-		return nil, fmt.Errorf("copy planner: no file for media %s", mediaID)
+		return nil, 0, fmt.Errorf("copy planner: no file for media %s", mediaID)
 	}
 	stamp := copyPlanFileStamp(item.File)
 	if entry, ok := c.cache.Get(mediaID); ok && entry.stamp == stamp {
-		return entry.segs, nil
+		return entry.segs, entry.originMs, nil
 	}
 
 	streams, err := c.streams.GetByMediaItemID(ctx, shared.MediaItemID(mediaID))
 	if err != nil {
-		return nil, fmt.Errorf("copy planner: load streams for %s: %w", mediaID, err)
+		return nil, 0, fmt.Errorf("copy planner: load streams for %s: %w", mediaID, err)
 	}
 	var keyframes []int64
 	for _, s := range streams {
@@ -133,28 +144,41 @@ func (c *CopyPlanner) Plan(ctx context.Context, mediaID string) ([]CopySegment, 
 		}
 	}
 	if len(keyframes) == 0 {
-		return nil, fmt.Errorf("copy planner: no keyframe index for media %s", mediaID)
+		return nil, 0, fmt.Errorf("copy planner: no keyframe index for media %s", mediaID)
 	}
 
 	durationMs := item.File.Duration.Milliseconds()
 	if durationMs <= 0 {
-		return nil, fmt.Errorf("copy planner: no duration for media %s", mediaID)
+		return nil, 0, fmt.Errorf("copy planner: no duration for media %s", mediaID)
 	}
 
-	segs := KeyframeSegments(keyframes, durationMs)
+	originMs := max(keyframes[0], 0)
+	segs := KeyframeSegments(shiftKeyframes(keyframes, originMs), durationMs)
 	if len(segs) == 0 {
-		return nil, fmt.Errorf("copy planner: empty plan for media %s", mediaID)
+		return nil, 0, fmt.Errorf("copy planner: empty plan for media %s", mediaID)
 	}
 	if len(segs) > maxCopyPlanSegments {
-		return nil, fmt.Errorf("copy planner: %d segments exceeds the plan cap for media %s", len(segs), mediaID)
+		return nil, 0, fmt.Errorf("copy planner: %d segments exceeds the plan cap for media %s", len(segs), mediaID)
 	}
 	if durationMs/int64(len(segs)) < minCopyMeanGapMs {
-		return nil, fmt.Errorf("copy planner: keyframes too dense for a copy rung (mean gap %dms) for media %s",
+		return nil, 0, fmt.Errorf("copy planner: keyframes too dense for a copy rung (mean gap %dms) for media %s",
 			durationMs/int64(len(segs)), mediaID)
 	}
 
-	c.cache.Set(mediaID, cachedCopyPlan{segs: segs, stamp: stamp}, copyPlanCacheTTL)
-	return segs, nil
+	c.cache.Set(mediaID, cachedCopyPlan{segs: segs, originMs: originMs, stamp: stamp}, copyPlanCacheTTL)
+	return segs, originMs, nil
+}
+
+// shiftKeyframes is keyframes counted from originMs.
+func shiftKeyframes(keyframes []int64, originMs int64) []int64 {
+	if originMs == 0 {
+		return keyframes
+	}
+	out := make([]int64, len(keyframes))
+	for i, kf := range keyframes {
+		out[i] = kf - originMs
+	}
+	return out
 }
 
 // SegmentCount returns the number of copy segments in the plan, or 0 on error.

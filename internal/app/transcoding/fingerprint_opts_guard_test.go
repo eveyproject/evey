@@ -50,6 +50,7 @@ var (
 		"ForceSidecarSubs":    "opts.ForceSidecarSubs",
 		"UseFMP4":             "opts.UseFMP4",
 		"Grid":                "opts.Grid (the keyframe cadence, -hls_time and the video track timescale)",
+		"SourceDurationMs":    "opts.DeclaredDurationMs (the frame tail and -frames:v on an exact grid)",
 		"AudioOffsetMs":       "opts.AudioUserOffsetSec (ms -> s)",
 		"HWAccel":             "opts.HWAccel",
 		"HWDevice":            "opts.HWDevice",
@@ -63,7 +64,6 @@ var (
 		"DeinterlaceAll":      "opts.DeinterlaceAll",
 		"Telecine":            "opts.InverseTelecine",
 		"SourceSAR":           "opts.SourceSAR",
-		"MaxH264Level":        "opts.MaxH264Level (libx264 -level cap)",
 		"SourceVideoCodec":    "opts.SourceVideoCodec (copy path -tag:v)",
 		"QualityTargets":      "opts.QualityTargets (per-rung rate control)",
 	}

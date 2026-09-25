@@ -172,6 +172,12 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 				}
 			}
 		case library.StreamTypeAudio:
+			if codec == "aac" && ms.Profile == "" {
+				// The profile ffprobe names, read where it lives: the
+				// AudioSpecificConfig's object type - what a copied track's esds
+				// carries, so what a manifest must declare (mp4a.40.<AOT>).
+				ms.Profile = aacProfileFromASC(t.CodecPrivate)
+			}
 			if t.Channels != nil && *t.Channels > 0 {
 				ch := int(*t.Channels)
 				ms.Channels = &ch
@@ -248,4 +254,26 @@ func isHDRSuspect(colorSpace, colorTransfer *string) bool {
 		}
 	}
 	return false
+}
+
+// aacProfileNames are ffprobe's names for the AAC audio object types.
+var aacProfileNames = map[uint32]string{1: "Main", 2: "LC", 3: "SSR", 4: "LTP", 5: "HE-AAC", 23: "LD", 29: "HE-AACv2", 39: "ELD"}
+
+// aacProfileFromASC names the audio object type an AudioSpecificConfig
+// declares first (5 bits, 31 escapes to 32 + 6 more): HE-AAC and HE-AACv2
+// when SBR / PS are signalled explicitly, LC for an implicit one - the frames
+// alone carry it, and the codecs value of the copied track is the ASC's
+// type. "" when there is no config or the type is not one of ffprobe's.
+func aacProfileFromASC(asc []byte) string {
+	if len(asc) == 0 {
+		return ""
+	}
+	aot := uint32(asc[0] >> 3)
+	if aot == 31 {
+		if len(asc) < 2 {
+			return ""
+		}
+		aot = 32 + (uint32(asc[0]&0x07)<<3 | uint32(asc[1]>>5))
+	}
+	return aacProfileNames[aot]
 }

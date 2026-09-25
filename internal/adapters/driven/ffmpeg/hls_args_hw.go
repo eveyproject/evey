@@ -728,7 +728,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 	if tm := hwToneMapStage(opts); tm != "" {
 		vf = tm + "," + vf
 	}
-	vf = hwSourceFilterPrefix(opts) + vf
+	vf = hwSourceFilterPrefix(opts) + vf + eosPadFilter(opts)
 	if burnInRequested(opts) {
 		// A second input (the subtitle) means -filter_complex, not -vf. The blend
 		// runs at source resolution and the rung scaler after it, so drop the
@@ -742,20 +742,22 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 			main = "null" // a filter chain cannot be empty
 		}
 		subBranch, blend := hwBurnInBranch(opts, "[main]")
-		args = append(args, "-filter_complex", fmt.Sprintf("[0:v]%s[main];%s;%s,%s[out]",
-			main, subBranch, blend, hwRungScaleFilter(opts, p.Width)))
+		args = append(args, "-filter_complex", fmt.Sprintf("[0:v]%s[main];%s;%s,%s%s[out]",
+			main, subBranch, blend, hwRungScaleFilter(opts, p.Width), eosPadFilter(opts)))
 		args = append(args, "-map", "[out]")
 	} else {
 		args = append(args, "-map", "0:v:0", "-vf", vf)
 	}
 	args = append(args, "-c:v", videoEncoderFor(opts.VideoCodec, opts.HWAccel))
 	args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.VideoCodec, opts.HWFeatures)...)
+	args = append(args, codecLevelArgs(opts, videoEncoderFor(opts.VideoCodec, opts.HWAccel), -1, p, qualityTargetFor(opts, len(opts.Profiles)-1, p, true))...)
 	if opts.HDRPassthrough {
 		args = append(args, hwHDRPassthroughArgs(opts.HWAccel, opts.HDRTransfer, -1)...)
 	}
 	args = append(args, hevcTagArgs(opts.VideoCodec, -1)...)
 	args = append(args, hwRateControlArgs(opts.HWAccel, qualityTargetFor(opts, len(opts.Profiles)-1, p, true), -1)...)
 	args = append(args, forceKeyframesArgsFor(opts)...)
+	args = append(args, eosFrameArgs(opts)...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 	args = append(args, videoTimescaleArgs(opts)...)
 
@@ -803,13 +805,14 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 		filterParts = append(filterParts, fmt.Sprintf("%ssplit=%d%s", src, n, strings.Join(splitOutputs, "")))
 	}
 	for i, p := range opts.Profiles {
-		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s[o%d]", i, hwRungScaleFilter(opts, p.Width), i))
+		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s%s[o%d]", i, hwRungScaleFilter(opts, p.Width), eosPadFilter(opts), i))
 	}
 	args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
 
 	for i, p := range opts.Profiles {
 		args = append(args, "-map", fmt.Sprintf("[o%d]", i), fmt.Sprintf("-c:v:%d", i), vcodec)
 		args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.VideoCodec, opts.HWFeatures)...)
+		args = append(args, codecLevelArgs(opts, vcodec, i, p, qualityTargetFor(opts, i, p, true))...)
 		if opts.HDRPassthrough {
 			args = append(args, hwHDRPassthroughArgs(opts.HWAccel, opts.HDRTransfer, i)...)
 		}
@@ -818,6 +821,7 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, audioVariantArgs(opts, i, p.AudioBitrate)...)
 	}
 	args = append(args, forceKeyframesArgsFor(opts)...)
+	args = append(args, eosFrameArgs(opts)...)
 	args = append(args, videoTimescaleArgs(opts)...)
 
 	return appendHLSMultiVariantTail(args, opts, n)

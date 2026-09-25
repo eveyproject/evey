@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Evey DASH harness</title>
+<!--
+  Plays an Evey manifest.mpd with a real DASH player (Shaka or dash.js) and
+  exposes window.H for run.mjs to drive: load, seek, rung and audio switches,
+  and what MSE really holds (per SourceBuffer buffered ranges). Dev tool only:
+  the players come from the jsDelivr CDN, pinned.
+  ?player=shaka|dashjs|hlsjs (hls.js plays master.m3u8: the same scenarios on HLS)
+-->
+<style>body{margin:0;background:#000}video{width:640px}</style>
+</head>
+<body>
+<video id="v" muted playsinline></video>
+<script>
+  // Every SourceBuffer the player opens, with its type: the arbiter of what
+  // the browser placed where on the timeline.
+  window.__sbs = [];
+  const add = MediaSource.prototype.addSourceBuffer;
+  MediaSource.prototype.addSourceBuffer = function (mime) {
+    const sb = add.call(this, mime);
+    window.__sbs.push({ mime, sb });
+    return sb;
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/shaka-player@4.16.50/dist/shaka-player.compiled.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dashjs@5.2.1/dist/modern/umd/dash.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js"></script>
+<script>
+  const kind = new URLSearchParams(location.search).get('player') || 'shaka';
+  const video = document.getElementById('v');
+  video.muted = true; // never a sound on the user's machine
+  const errors = [];
+  let shakaPlayer = null;
+  let dashPlayer = null;
+  let hls = null;
+  let ended = false;
+  video.addEventListener('ended', () => { ended = true; });
+
+  function ranges(tr) {
+    const out = [];
+    for (let i = 0; i < tr.length; i++) out.push([+tr.start(i).toFixed(3), +tr.end(i).toFixed(3)]);
+    return out;
+  }
+
+  window.H = {
+    kind,
+    errors,
+    async load(url, startTime) {
+      if (kind === 'hlsjs') {
+        hls = new Hls({ startPosition: startTime || -1, maxBufferLength: 20 });
+        hls.on(Hls.Events.ERROR, (_, d) => { if (d.fatal) errors.push('hlsjs ' + d.type + ' ' + d.details); });
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        await new Promise((res) => { hls.on(Hls.Events.MANIFEST_PARSED, res); setTimeout(res, 30000); });
+      } else if (kind === 'shaka') {
+        shaka.polyfill.installAll();
+        shakaPlayer = new shaka.Player();
+        await shakaPlayer.attach(video);
+        shakaPlayer.addEventListener('error', (e) => errors.push('shaka ' + (e.detail && e.detail.code) + ' ' + JSON.stringify(e.detail && e.detail.data || []).slice(0, 300)));
+        shakaPlayer.configure({ abr: { enabled: false }, streaming: { bufferingGoal: 20 } });
+        await shakaPlayer.load(url, startTime || null);
+      } else {
+        dashPlayer = dashjs.MediaPlayer().create();
+        dashPlayer.updateSettings({ streaming: { abr: { autoSwitchBitrate: { video: false, audio: false } }, buffer: { bufferTimeAtTopQuality: 20 } } });
+        dashPlayer.on(dashjs.MediaPlayer.events.ERROR, (e) => errors.push('dashjs ' + JSON.stringify(e.error || e).slice(0, 300)));
+        dashPlayer.initialize(video, url, false, startTime || 0);
+        await new Promise((res) => {
+          dashPlayer.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, res);
+          dashPlayer.on(dashjs.MediaPlayer.events.ERROR, res);
+          setTimeout(() => { errors.push('dashjs: stream not initialized in 30 s'); res(); }, 30000);
+        });
+      }
+      await video.play().catch((e) => errors.push('play ' + e.message));
+    },
+    async seek(t) {
+      video.currentTime = t;
+      await new Promise((res) => video.addEventListener('seeked', res, { once: true }));
+    },
+    videoHeights() {
+      if (hls) return [...new Set(hls.levels.map((l) => l.height))].sort((a, b) => a - b);
+      if (shakaPlayer) return [...new Set(shakaPlayer.getVariantTracks().map((t) => t.height))].sort((a, b) => a - b);
+      return dashPlayer.getRepresentationsByType('video').map((r) => r.height).sort((a, b) => a - b);
+    },
+    selectHeight(h) {
+      if (hls) {
+        hls.currentLevel = hls.levels.findIndex((l) => l.height === h);
+        return;
+      }
+      if (shakaPlayer) {
+        const t = shakaPlayer.getVariantTracks().find((x) => x.height === h && (x.active || true));
+        shakaPlayer.selectVariantTrack(t, true);
+        return;
+      }
+      const reps = dashPlayer.getRepresentationsByType('video');
+      dashPlayer.setRepresentationForTypeById('video', reps.find((r) => r.height === h).id, true);
+    },
+    audioLangs() {
+      if (hls) return hls.audioTracks.map((t) => t.lang);
+      if (shakaPlayer) return shakaPlayer.getAudioLanguages();
+      return dashPlayer.getTracksFor('audio').map((t) => t.lang);
+    },
+    selectAudio(lang) {
+      if (hls) {
+        hls.audioTrack = hls.audioTracks.findIndex((t) => t.lang === lang);
+        return;
+      }
+      if (shakaPlayer) return shakaPlayer.selectAudioLanguage(lang);
+      const t = dashPlayer.getTracksFor('audio').find((x) => x.lang === lang);
+      dashPlayer.setCurrentTrack(t);
+    },
+    stats() {
+      const q = video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality() : {};
+      let active = null;
+      if (hls) {
+        const l = hls.levels[hls.currentLevel];
+        const a = hls.audioTracks[hls.audioTrack];
+        active = { height: l && l.height, audio: a && a.lang };
+      } else if (shakaPlayer) {
+        const v = shakaPlayer.getVariantTracks().find((t) => t.active);
+        active = v && { height: v.height, audio: v.language, audioCodec: v.audioCodecs, videoCodec: v.videoCodecs };
+      } else if (dashPlayer) {
+        const r = dashPlayer.getCurrentRepresentationForType && dashPlayer.getCurrentRepresentationForType('video');
+        const a = dashPlayer.getCurrentTrackFor('audio');
+        active = { height: r && r.height, audio: a && a.lang };
+      }
+      return {
+        t: +video.currentTime.toFixed(3),
+        duration: +(video.duration || 0).toFixed(3),
+        ended,
+        paused: video.paused,
+        readyState: video.readyState,
+        decoded: q.totalVideoFrames || 0,
+        dropped: q.droppedVideoFrames || 0,
+        active,
+        buffers: window.__sbs.filter((x) => { try { return x.sb.buffered, true; } catch (e) { return false; } })
+          .map((x) => ({ mime: x.mime, buffered: ranges(x.sb.buffered) })),
+        errors,
+      };
+    },
+  };
+  window.__ready = true;
+</script>
+</body>
+</html>

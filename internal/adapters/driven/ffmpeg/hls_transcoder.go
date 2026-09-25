@@ -538,6 +538,39 @@ func forceKeyframesArgsFor(opts transcoding.HLSProcessOpts) []string {
 	return []string{"-force_key_frames", g.ForceKeyframesExpr(), "-g", k, "-keyint_min", k, "-sc_threshold", "0"}
 }
 
+// eosPadFilter is appended to a rung's video chain on an exact grid with a
+// declared duration: it holds the last frame past the source's end, so the
+// picture lasts as long as the manifests say. The container duration counts
+// the audio that outlasts the picture; without the tail the video stopped
+// on its own last frame and the manifests listed frames - at 23.976 fps a
+// whole last segment - that no session ever produced (measured, ffmpeg 7.1).
+// eosFrameArgs stops the rung on the declared last frame. Clone mode passes
+// hardware frames through by reference, so the GPU chains take it as is.
+func eosPadFilter(opts transcoding.HLSProcessOpts) string {
+	if eosFrames(opts) <= 0 {
+		return ""
+	}
+	return ",tpad=stop_mode=clone:stop=-1"
+}
+
+// eosFrameArgs caps every video output at the declared frames left from the
+// session's first segment (see eosPadFilter).
+func eosFrameArgs(opts transcoding.HLSProcessOpts) []string {
+	n := eosFrames(opts)
+	if n <= 0 {
+		return nil
+	}
+	return []string{"-frames:v", strconv.FormatInt(n, 10)}
+}
+
+func eosFrames(opts transcoding.HLSProcessOpts) int64 {
+	g := opts.Grid
+	if !g.Exact() || opts.DeclaredDurationMs <= 0 || opts.VideoDecision == "copy" {
+		return 0
+	}
+	return g.FrameCount(opts.DeclaredDurationMs) - int64(startNumberFor(opts))*int64(g.FramesPerSegment)
+}
+
 // videoTimescaleArgs pins the video track timescale to the grid's, so the
 // tick a segment is declared in is the tick the fragments are written in.
 func videoTimescaleArgs(opts transcoding.HLSProcessOpts) []string {
@@ -744,7 +777,10 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		if target <= 0 {
 			target = opts.StartSec + transcoding.CopySeekNudgeSec
 		}
-		args = append(args, "-ss", fmt.Sprintf("%.3f", target))
+		// -seek_timestamp: the target is a SOURCE timestamp (the keyframe
+		// plan's), not an offset from the container's start_time - an MPEG-TS
+		// starts ~1.4 s in, and the added start_time landed a keyframe late.
+		args = append(args, "-seek_timestamp", "1", "-ss", fmt.Sprintf("%.3f", target))
 		args = appendInputModifiers(args, opts.ReadRate)
 		args = appendCopyPacingBurst(args, opts.ReadRate)
 		args = append(args, "-i", opts.FilePath)
@@ -753,6 +789,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		// audio content sitting before the seek target, so the session's audio
 		// starts at the target instead of hijacking the make_zero zero-point.
 		args = appendAudioDelayInput(args, opts, target, func(a []string) []string {
+			a = append(a, "-seek_timestamp", "1") // the same source-time target
 			a = appendInputModifiers(a, opts.ReadRate)
 			return appendCopyPacingBurst(a, opts.ReadRate)
 		})
@@ -916,13 +953,13 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 			// deinterlace → tonemap → overlay → scale
 			filterParts = append(filterParts,
 				fmt.Sprintf("[0:v]%s,%s[vt]", deint, toneMap),
-				fmt.Sprintf("[vt][0:s:%d]overlay,%s[out]", opts.SubtitleTrackIndex, scaleFilterFor(opts, p.Width)),
+				fmt.Sprintf("[vt][0:s:%d]overlay,%s%s[out]", opts.SubtitleTrackIndex, scaleFilterFor(opts, p.Width), eosPadFilter(opts)),
 			)
 		case burnIn:
 			// deinterlace the video before burning the subtitle overlay on it
 			filterParts = append(filterParts,
 				fmt.Sprintf("[0:v]%s[vd]", deint),
-				fmt.Sprintf("[vd][0:s:%d]overlay,%s[out]", opts.SubtitleTrackIndex, scaleFilterFor(opts, p.Width)),
+				fmt.Sprintf("[vd][0:s:%d]overlay,%s%s[out]", opts.SubtitleTrackIndex, scaleFilterFor(opts, p.Width), eosPadFilter(opts)),
 			)
 		default:
 			// tonemap already downscaled to p.Width (folded into its linearizing
@@ -930,27 +967,28 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 			// the fix that keeps a weak host real-time on 4K HDR sources. (HDR and
 			// anamorphic SD are disjoint in practice, so no SAR correction here.)
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s,%s,setsar=1[out]", deint, toneMap),
+				fmt.Sprintf("[0:v]%s,%s,setsar=1%s[out]", deint, toneMap, eosPadFilter(opts)),
 			)
 		}
 		args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
 		args = append(args, "-map", "[out]")
 	} else {
 		args = append(args, "-map", "0:v:0",
-			"-vf", fmt.Sprintf("%s,%s", deint, scaleFilterFor(opts, p.Width)),
+			"-vf", fmt.Sprintf("%s,%s%s", deint, scaleFilterFor(opts, p.Width), eosPadFilter(opts)),
 		)
 	}
 
 	enc := resolveVideoEncoder(opts.VideoCodec)
 	args = append(args, "-c:v", enc)
 	args = append(args, hevcTagArgs(opts.VideoCodec, -1)...)
-	args = append(args, cpuBudgetThreadsArgs("")...)                                       // bound to the CPU budget (cgroup quota or NumCPU); operator override wins if set
-	args = append(args, softwareProfileLevelArgs(enc, -1, p.Height, opts.MaxH264Level)...) // h264-only; x265/av1 pick their own
-	args = append(args, softwareX264TuningArgs(enc, -1)...)                                // motion-search tuning: +24% on encode-bound sources
+	args = append(args, cpuBudgetThreadsArgs("")...)                                                                 // bound to the CPU budget (cgroup quota or NumCPU); operator override wins if set
+	args = append(args, codecLevelArgs(opts, enc, -1, p, qualityTargetFor(opts, len(opts.Profiles)-1, p, false))...) // the profile/level the manifests declare
+	args = append(args, softwareX264TuningArgs(enc, -1)...)                                                          // motion-search tuning: +24% on encode-bound sources
 	args = append(args, softwareRateControlArgs(qualityTargetFor(opts, len(opts.Profiles)-1, p, false), "")...)
 	args = append(args, svtAV1PresetArgs(enc)...)
 	args = append(args, "-pix_fmt", "yuv420p")
 	args = append(args, forceKeyframesArgsFor(opts)...)
+	args = append(args, eosFrameArgs(opts)...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 	args = append(args, videoTimescaleArgs(opts)...)
 
@@ -1031,7 +1069,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 
 	for i, p := range opts.Profiles {
-		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s[o%d]", i, scaleFilterFor(opts, p.Width), i))
+		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s%s[o%d]", i, scaleFilterFor(opts, p.Width), eosPadFilter(opts), i))
 	}
 	args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
 
@@ -1042,7 +1080,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		)
 		args = append(args, cpuBudgetThreadsArgs(fmt.Sprintf(":v:%d", i))...) // bound to the CPU budget per rung; operator override wins if set
 		args = append(args, hevcTagArgs(opts.VideoCodec, i)...)
-		args = append(args, softwareProfileLevelArgs(vcodec, i, p.Height, opts.MaxH264Level)...) // h264-only; x265/av1 pick their own
+		args = append(args, codecLevelArgs(opts, vcodec, i, p, qualityTargetFor(opts, i, p, false))...) // the profile/level the manifests declare
 		args = append(args, softwareX264TuningArgs(vcodec, i)...)
 		args = append(args, softwareRateControlArgs(qualityTargetFor(opts, i, p, false), fmt.Sprintf(":v:%d", i))...)
 		args = append(args, svtAV1PresetArgs(vcodec)...)
@@ -1053,6 +1091,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	// to fix slow/irregular first-segment startup and to keep ABR-switchable
 	// segment boundaries identical between renditions.
 	args = append(args, forceKeyframesArgsFor(opts)...)
+	args = append(args, eosFrameArgs(opts)...)
 	args = append(args, videoTimescaleArgs(opts)...)
 
 	// -var_stream_map + HLS muxer tail (container choice, master playlist,

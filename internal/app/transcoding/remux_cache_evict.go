@@ -16,12 +16,19 @@ import (
 // has no sweep of its own: the budget evicts across every kind of entry with
 // one clock, and these files count in the same bytes as the segments.
 //
-// LastAccess is the file mtime. A remux freezes it at production time (written
-// once, never touched); the compat handler touches it on every serve, so a
-// download a phone keeps fetching stays warm. Source-fingerprint keying means
+// LastAccess is the file mtime, which the remux and compat handlers touch on
+// every serve: a remux a player ranges through, or a download a phone keeps
+// fetching, stays warm. Source-fingerprint keying means
 // every changed source orphans its old file here, which the budget reclaims.
 type RemuxCacheJanitor struct {
-	dir string
+	dir    string
+	leases *FileLeases
+}
+
+// WithLeases makes the budget spare every file leases holds, in every pass.
+func (j *RemuxCacheJanitor) WithLeases(leases *FileLeases) *RemuxCacheJanitor {
+	j.leases = leases
+	return j
 }
 
 // NewRemuxCacheJanitor lists dir (typically <CacheDir>/remux or /compat).

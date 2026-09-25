@@ -111,7 +111,7 @@ shed:
     body: "Le serveur mesure ce que cette machine est capable de lire, cela prend environ 2 minutes et ne se produit que lorsque rien d'autre ne tourne. Réessayez dans quelques minutes."
   fileNeedsRemux:
     title: "Cette vidéo doit être réparée"
-    body: "Ce fichier a été assemblé d'une façon qu'aucun lecteur ne peut lire jusqu'au bout (le son et l'image sont rangés dans des blocs séparés). Un administrateur peut le réparer depuis Santé des médias ; inutile de réessayer avant."
+    body: "Ce fichier a été assemblé d'une façon que cet appareil ne peut pas lire jusqu'au bout (le son et l'image sont rangés dans des blocs séparés). Un administrateur peut le réparer depuis Santé des médias ; inutile de réessayer avant."
 retry: "Réessayer"
 goBack: "Retour"
 shareDesc: "Partagez ce lien avec vos amis pour regarder ensemble :"

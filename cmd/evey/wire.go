@@ -382,7 +382,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// is started below, once the playback counter it backs off on exists.
 	// Source-fingerprint keying orphans the old file on every re-scan, so
 	// without the sweep both grow without bound.
-	remuxJanitor := apptranscoding.NewRemuxCacheJanitor(filepath.Join(cfg.Transcoding.CacheDir, "remux"))
+	// The remuxes a player is reading are leased by the /remux.mp4 handler:
+	// the budget spares them in every pass.
+	remuxLeases := apptranscoding.NewFileLeases()
+	remuxJanitor := apptranscoding.NewRemuxCacheJanitor(filepath.Join(cfg.Transcoding.CacheDir, "remux")).WithLeases(remuxLeases)
 	compatJanitor := apptranscoding.NewRemuxCacheJanitor(filepath.Join(cfg.Transcoding.CacheDir, "compat"))
 	// Inline SourceResolver: the orchestrator hands a DecisionFingerprint
 	// back, we look up the media item via the library query service. Streams
@@ -1021,6 +1024,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			transcodingSvc:   transcodingSvc,
 			hlsVODOrch:       hlsVODOrch,
 			hlsVODCache:      hlsVODCache,
+			remuxLeases:      remuxLeases,
 			probeSignals:     probeSignals,
 			hlsTranscoder:    hlsTranscoder,
 			hlsVODSoftware:   hlsVODSoftware,

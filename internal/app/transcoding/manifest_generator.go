@@ -233,6 +233,11 @@ type ManifestInput struct {
 	// stream_N.m3u8 default bit-for-bit.
 	VideoPlaylistURI string
 
+	// FirstRungIndex is the ladder index of Profiles[0]: a plan fitted to one
+	// rung advertises that rung alone, and its fragments keep their ladder name
+	// (stream_<rung>_*). 0 = Profiles is the ladder from its first rung.
+	FirstRungIndex int
+
 	// FingerprintHash seals the decision hash of the moment this manifest was
 	// built into every URI it emits (fp=…). Variant and segment URLs name a
 	// LADDER INDEX (stream_2), and the server re-derives the ladder on every
@@ -290,7 +295,19 @@ type AudioRendition struct {
 	// distinct one, so a client validating the attribute never meets an
 	// unannounced sample entry.
 	Codec string
+	// SampleRate (Hz), Channels and BitrateKbps are what the fragments carry:
+	// the source track's on a copy, the AAC encode's otherwise (48 kHz, the
+	// resolved channel count, the scaled bitrate). 0 = unknown.
+	SampleRate  int
+	Channels    int
+	BitrateKbps int64
+	// Profile is the copied source track's profile as the prober reports it
+	// ("LC", "HE-AAC", "HE-AACv2"); "" for a re-encode (AAC-LC) or unknown.
+	Profile string
 }
+
+// codecAttr is the rendition's codecs attribute (see renditionCodecAttr).
+func (r AudioRendition) codecAttr() string { return renditionCodecAttr(r.Codec, r.Profile) }
 
 // SubtitleRendition is one text subtitle track served as segmented WebVTT.
 // TrackIdx is the subtitle-relative ordinal (0-based among the source's
@@ -401,7 +418,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		// order: a copied AC-3 next to a re-encoded AAC is "ac-3,mp4a.40.2".
 		var attrs []string
 		for _, r := range in.AudioRenditions {
-			a := audioCodecAttr(strings.ToLower(r.Codec))
+			a := r.codecAttr()
 			if !slices.Contains(attrs, a) {
 				attrs = append(attrs, a)
 			}
@@ -415,7 +432,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	suffix := querySuffix(in)
 	tenBit := in.TranscodeVideoRange != ""
 	codecsForRung := func(p transcoding.HLSProfile) string {
-		v := videoCodecAttrFor(strings.ToLower(in.ChosenVideoCodec), p.Height, tenBit)
+		v := videoCodecAttrFor(strings.ToLower(in.ChosenVideoCodec), p, tenBit, in.Grid.FPS())
 		if in.ExternalAudio {
 			return v
 		}
@@ -440,13 +457,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		// the first rendition when the request is out of range so a default
 		// always exists. AUTOSELECT=YES on every rendition so a client can
 		// still switch tracks itself.
-		defaultRenditionIdx := 0
-		for j, r := range in.AudioRenditions {
-			if r.SourceTrackIdx == in.AudioTrack {
-				defaultRenditionIdx = j
-				break
-			}
-		}
+		defaultRenditionIdx := defaultAudioRendition(in.AudioRenditions, in.AudioTrack)
 		for i, r := range in.AudioRenditions {
 			def := "NO"
 			autoSel := "YES"
@@ -557,12 +568,15 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	// switch on the ABR drop), and without a group it would be silent, so it is
 	// not advertised.
 	for _, v := range in.FallbackVariants {
-		codecs, audioAttr := codecsAttr(v.VideoCodec, v.AudioCodec), ""
+		// The rung is encoded under the same contract as this master's (same
+		// client, same source grid).
+		vattr := videoCodecAttrFor(strings.ToLower(v.VideoCodec), v.Profile, v.VideoRange != "", in.Grid.FPS())
+		codecs, audioAttr := vattr+","+audioCodecAttr(strings.ToLower(v.AudioCodec)), ""
 		if v.VideoOnly {
 			if audioGroup == "" {
 				continue
 			}
-			codecs, audioAttr = videoCodecAttr(strings.ToLower(v.VideoCodec))+","+audioAttrs, fmt.Sprintf(",AUDIO=%q", audioGroup)
+			codecs, audioAttr = vattr+","+audioAttrs, fmt.Sprintf(",AUDIO=%q", audioGroup)
 		}
 		bps := (v.Profile.VideoBitrate + v.Profile.AudioBitrate) * 1000
 		fmt.Fprintf(&b,
@@ -722,60 +736,20 @@ func hlsAttrSafe(s string) string {
 	}, s)
 }
 
-// codecsAttr returns the RFC 6381 codecs string for the master playlist
-// `CODECS=` attribute, given the chosen video + audio codec from the ffmpeg
-// decision. Safari validates this string up front and refuses to fetch
-// segments when it doesn't match its decoder capability - historically we
-// hardcoded `avc1.640028,mp4a.40.2` which silently locked Safari out of
-// any HEVC / AV1 / VP9 rendition. The strings here are deliberately
-// permissive within each codec family (no profile/level enumeration per
-// rendition) - that's the right tradeoff: we don't yet probe per-rendition
-// profile, and a too-narrow string is what bricks Safari.
-//
-// Audio falls back to AAC-LC when unknown. Empty inputs ⇒ pre-refactor
-// behaviour (H.264 + AAC-LC).
-func codecsAttr(videoCodec, audioCodec string) string {
-	v := videoCodecAttr(strings.ToLower(videoCodec))
-	a := audioCodecAttr(strings.ToLower(audioCodec))
-	return v + "," + a
-}
-
-func videoCodecAttr(c string) string {
-	return videoCodecAttrFor(c, 0, false)
-}
-
-// hevcTranscodeCodecString: RFC 6381 hvc1 for a transcoded rung - Main (1.6) or Main10
-// (2.4), main tier, the level the rung's height needs (0 = the old L93).
-func hevcTranscodeCodecString(height int, main10 bool) string {
-	profile := "1.6"
-	if main10 {
-		profile = "2.4"
+// videoCodecAttrFor is the RFC 6381 codecs value of a transcoded rung: the
+// profile and the level the encoder is told to write for it (the rung's
+// CodecLevel, see the domain's codec_string.go), so the manifests declare
+// what the init segment holds. A rung the plan did not level (0) is levelled
+// here the way the encoder levels it on its own: at the software ceiling of
+// the static policy, the higher one. fps is the grid's (0 when unknown).
+func videoCodecAttrFor(c string, p transcoding.HLSProfile, main10 bool, fps float64) string {
+	level := p.CodecLevel
+	if level == 0 {
+		level = transcoding.CodecLevel(c, p, fps, transcoding.StaticQualityPolicy{}.TargetFor(p, transcoding.EncodeRoute{}))
 	}
-	level := "93"
-	switch {
-	case height >= 2160:
-		level = "153"
-	case height >= 1440:
-		level = "150"
-	case height >= 1080:
-		level = "123"
-	}
-	return "hvc1." + profile + ".L" + level + ".B0"
-}
-
-// h264TranscodeCodecString: High @ L4.0 up to 1080p (the historical string
-// every client accepts), High @ L5.1 above, matching the encoder's -level.
-func h264TranscodeCodecString(height int) string {
-	if height > 1080 {
-		return "avc1.640033"
-	}
-	return "avc1.640028"
-}
-
-func videoCodecAttrFor(c string, height int, main10 bool) string {
 	switch c {
 	case "hevc", "h265", "x265":
-		return hevcTranscodeCodecString(height, main10)
+		return transcoding.HEVCCodecString(level, main10)
 	case "av1", "av01":
 		// av01.0.04M.08 = Main profile, level 3.0, Main tier, 8-bit. The transcode
 		// output is always yuv420p (8-bit) - declaring 10-bit (.10) made MSE create
@@ -785,10 +759,8 @@ func videoCodecAttrFor(c string, height int, main10 bool) string {
 		return "av01.0.04M.08"
 	case "vp9":
 		return "vp09.00.10.08"
-	case "", "h264", "avc", "libx264":
-		return h264TranscodeCodecString(height)
 	default:
-		return h264TranscodeCodecString(height)
+		return transcoding.H264CodecString(level)
 	}
 }
 
@@ -930,6 +902,32 @@ func audioCodecAttr(c string) string {
 	}
 }
 
+// aacObjectTypes maps the AAC profile names (ffprobe's, and the mkvgo
+// prober's read of the AudioSpecificConfig) to their MPEG-4 audio object
+// type: the RFC 6381 "mp4a.40.<AOT>" of a copied track.
+var aacObjectTypes = map[string]int{
+	"main": 1, "lc": 2, "ssr": 3, "ltp": 4, "he-aac": 5, "ld": 23, "he-aacv2": 29, "eld": 39,
+}
+
+// AACObjectType is the audio object type of an AAC profile name, false when
+// the profile is unknown or absent.
+func AACObjectType(profile string) (int, bool) {
+	aot, ok := aacObjectTypes[strings.ToLower(strings.TrimSpace(profile))]
+	return aot, ok
+}
+
+// renditionCodecAttr is audioCodecAttr refined by the copied AAC track's
+// profile: an HE-AAC copy is mp4a.40.5, HE-AACv2 mp4a.40.29. A rendition
+// with no profile is a re-encode (AAC-LC, mp4a.40.2): an AAC of unknown
+// profile is never copied (AACCopyDeclarable).
+func renditionCodecAttr(codec, profile string) string {
+	codec = strings.ToLower(codec)
+	if aot, ok := AACObjectType(profile); ok && (codec == "aac" || codec == "") {
+		return fmt.Sprintf("mp4a.40.%d", aot)
+	}
+	return audioCodecAttr(codec)
+}
+
 // QuerySuffixFor exposes the baked query suffix so the HTTP layer can
 // post-process producer-owned playlists (the copy manifest emits bare URIs;
 // they must carry the same auth + decision params as the generator's own).
@@ -1015,4 +1013,17 @@ func querySuffix(in ManifestInput) string {
 		return "?" + encoded
 	}
 	return ""
+}
+
+// defaultAudioRendition is the index of the rendition the viewer asked for
+// (?audioTrack=, 0-based among the source's audio streams), the first when
+// the request names none of them: the one HLS marks DEFAULT=YES and DASH
+// Role main.
+func defaultAudioRendition(renditions []AudioRendition, audioTrack int) int {
+	for j, r := range renditions {
+		if r.SourceTrackIdx == audioTrack {
+			return j
+		}
+	}
+	return 0
 }

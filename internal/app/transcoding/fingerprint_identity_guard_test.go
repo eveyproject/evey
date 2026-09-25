@@ -32,6 +32,7 @@ var (
 		"ForceSidecarSubs":    "sidecar=",
 		"UseFMP4":             "fmp4=",
 		"Grid":                "grid= (a frame-exact grid only: the legacy clock hashes as nothing)",
+		"SourceDurationMs":    "dur= (a frame-exact grid only: the frame tail and -frames:v it sets)",
 		"HWAccel":             "hwenc= (an encode session only: two encoders, two inits)",
 		"AudioCopy":           "acopy= and the absence of dmx=",
 		"AudioOffsetMs":       "aoffset= (non-zero only)",
@@ -41,7 +42,6 @@ var (
 		"HWTonemap":           "tm= (the tone-map implementation draws a different picture)",
 		"HWFeatures":          "tm= (OpenCL / Vulkan / CUDA / VPP curves differ) - excluded otherwise",
 		"SourceSAR":           "sar= (anamorphic only)",
-		"MaxH264Level":        "h264lvl= (when a rung is capped by it)",
 		"Profiles":            "p= per rung",
 	}
 	// Encoder inputs that do not change the addressable bytes: excluded from
@@ -73,7 +73,7 @@ func identityBaseline() DecisionFingerprint {
 		HDRTonemap: true, HWTonemap: true, HWFeatures: []string{transcoding.FeatureTonemapVulkan},
 		MaxAudioChannels: 2, SourceAudioChannels: 6,
 		UseFMP4: true, HWAccel: "vaapi", HWDevice: "/dev/dri/renderD128",
-		MaxH264Level: 41, HDRTransfer: "pq", SourceVideoCodec: "hevc", SourceVideoHeight: 2160, SourceFPS: 24,
+		HDRTransfer: "pq", SourceVideoCodec: "hevc", SourceVideoHeight: 2160, SourceFPS: 24,
 		Profiles: []ProfileFingerprint{{Name: "2160p", Width: 3840, Height: 2160, VideoBitrate: 20000, AudioBitrate: 192}},
 	}
 }
@@ -105,6 +105,14 @@ func mutate(t *testing.T, fp DecisionFingerprint, field string) DecisionFingerpr
 	case "Grid":
 		fp.Grid = transcoding.GridForFrameRate(23.976)
 		return fp
+	case "SourceDurationMs":
+		fp.Grid = transcoding.GridForFrameRate(23.976) // hashed on an exact grid only
+		moved := fp
+		moved.SourceDurationMs = 120_000
+		if fp.Hash() == moved.Hash() {
+			t.Fatal("dur= must move the hash on an exact grid")
+		}
+		return moved
 	}
 	v := reflect.ValueOf(&fp).Elem().FieldByName(field)
 	switch v.Kind() {

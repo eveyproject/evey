@@ -7,6 +7,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -545,6 +546,18 @@ func TestRebakeDASHManifestURIs_CastToken(t *testing.T) {
 	}
 }
 
+// The rebaked manifest stays XML: the '&' of a multi-parameter suffix is
+// escaped in the attribute (Media3 refused the raw form as malformed), and
+// a '$' in the suffix is taken as is, not as a replacement group.
+func TestRebakeDASHManifestURIs_StaysWellFormedXML(t *testing.T) {
+	in := `<MPD><SegmentTemplate initialization="od_init.mp4" media="od_seg$Number%05d$.m4s"/></MPD>`
+	out := rebakeDASHManifestURIs(in, "?v=v0.32.0&token=T&audioCodecs=aac&x=$1")
+	assert.Contains(t, out, `initialization="od_init.mp4?v=v0.32.0&amp;token=T&amp;audioCodecs=aac&amp;x=$1"`)
+	assert.Contains(t, out, `media="od_seg$Number%05d$.m4s?v=v0.32.0&amp;token=T&amp;audioCodecs=aac&amp;x=$1"`)
+	var doc struct{}
+	require.NoError(t, xml.Unmarshal([]byte(out), &doc))
+}
+
 // The mkvgo packager rung must NOT inherit the ffmpeg copy rung's preconditions
 // (a wired copyProducer, cache room for a full copy): mkvgo is STATELESS. The
 // plan's strategy reads the packager's own gate (VideoCopyEligible), so a
@@ -924,6 +937,11 @@ func TestLineFit_PicksTheHighestFittingRung(t *testing.T) {
 		"the variant URI must carry the LADDER index of the chosen rung, or the fp seal serves the wrong profile")
 	assert.Contains(t, master, "maxKbps=6000")
 	assert.NotContains(t, master, "od_playlist.m3u8")
+	// The DASH manifest names the same rung's fragments (stream_<rung>_*).
+	in, err := h.buildManifestInputWith(req, "m1", item, streams, rp)
+	require.NoError(t, err)
+	require.Positive(t, want, "a rung above the first, or the index proves nothing")
+	assert.Equal(t, want, in.FirstRungIndex)
 }
 
 func TestServeBitrateTest_StreamsTheRequestedSize(t *testing.T) {
@@ -1343,4 +1361,47 @@ func TestCheckDelivery_UndeclaredDifferenceIsADisagreement(t *testing.T) {
 	// And a served path equal to the plan's is neither.
 	h.checkDelivery(onDemandReq(), "m1", rp, rp.Plan.Delivery.ServingPath(rp.Plan.Route, rp.FP), "")
 	assert.Equal(t, before+1, int(testutil.ToFloat64(counter)))
+}
+
+// A file stored in one-track blocks plays through the packager alone (mkvgo
+// 0.33 reads it track by track): its whole presentation is served, anything
+// ffmpeg would read - a hybrid audio, a packager that cannot build it, the
+// ffmpeg segments - keeps the typed re-mux refusal.
+func TestServeMaster_BlockOrderedFileOnlyThroughThePackager(t *testing.T) {
+	blockOrdered := func() *domainlibrary.MediaItem {
+		it := onDemandItem()
+		it.File.InterleaveBackstepMs = 540_000
+		return it
+	}
+	master := func(h *hlsVODServe, streams []*domainlibrary.MediaStream) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		h.serveMaster(w, onDemandReq(), "m1", blockOrdered(), streams, noopSpan())
+		return w
+	}
+
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{resources: map[string][]byte{"master.m3u8": []byte("#EXTM3U\nod_playlist.m3u8\n")}}}
+	h.audioRenditionEnabled = true
+	h.audio = &audioServe{}
+	w := master(h, copyEligibleAV())
+	assert.Equal(t, http.StatusOK, w.Code, "the packager's whole presentation")
+	assert.Contains(t, w.Body.String(), "od_playlist.m3u8")
+
+	dts := copyEligibleAV()
+	dts[1].Codec = "dts"
+	w = master(h, dts)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code, "hybrid: ffmpeg would read the audio")
+	assert.Equal(t, ErrCodeFileNeedsRemux, w.Header().Get("X-Evey-Error"))
+
+	broken := newCopyTestHandler(t)
+	broken.onDemand = &fakeOnDemandPackager{err: fmt.Errorf("mp4: cannot plan")}
+	w = master(broken, copyEligibleAV())
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code, "the packager fell back: ffmpeg would serve it")
+
+	for _, f := range []string{"master.m3u8", "manifest.mpd", "od_seg00001.m4s", "od_audio1.m3u8", "key"} {
+		assert.True(t, blockOrderedServable(f), f)
+	}
+	for _, f := range []string{"stream_0.m3u8", "stream_0_001.m4s", "audio_0.m3u8", "audio_0_001.m4s", "cc_playlist.m3u8"} {
+		assert.False(t, blockOrderedServable(f), f)
+	}
 }

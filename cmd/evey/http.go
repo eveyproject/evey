@@ -161,6 +161,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		LibQuerySvc:      deps.library.querySvc,
 		Scheduler:        deps.library.scheduler,
 		Remuxer:          deps.media.mkvAdapter,
+		RemuxLeases:      deps.media.remuxLeases,
 		CompatTranscoder: compatTranscoder,
 
 		ReducedTranscoder:      reducedTranscoder,

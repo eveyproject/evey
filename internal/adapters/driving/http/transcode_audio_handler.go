@@ -469,27 +469,59 @@ func (h *audioServe) sourceAudioChannels(ctx context.Context, mediaID string, tr
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return 0
 	}
+	return renditionSourceChannels(audioStreamAt(streams, trackIdx))
+}
+
+// renditionSourceChannels is the source layout a re-encoded rendition starts
+// from: 0 when unknown (never guessed), capped at 5.1 - no browser decodes
+// AAC 7.1 in MSE (Chrome tops out at 5.1). Emitting `-ac 8` for a Dolby Atmos
+// 7.1 source made the SourceBuffer refuse the stream and the title never
+// started - the opposite failure to the stereo downmix this derivation replaced.
+func renditionSourceChannels(s *domainlibrary.MediaStream) int {
+	if s == nil || s.Channels == nil || *s.Channels <= 0 {
+		return 0
+	}
+	return min(*s.Channels, maxRenditionChannels)
+}
+
+// audioStreamAt is the trackIdx-th AUDIO stream (`ffmpeg -map 0:a:N`), nil
+// when absent.
+func audioStreamAt(streams []*domainlibrary.MediaStream, trackIdx int) *domainlibrary.MediaStream {
 	audioIdx := 0
 	for _, s := range streams {
 		if s == nil || s.StreamType != domainlibrary.Audio {
 			continue
 		}
 		if audioIdx == trackIdx {
-			if s.Channels == nil || *s.Channels <= 0 {
-				return 0
-			}
-			// Cap at 5.1: no browser decodes AAC 7.1 in MSE (Chrome tops out at
-			// 5.1). Emitting `-ac 8` for a Dolby Atmos 7.1 source made the
-			// SourceBuffer refuse the stream and the title never started - the
-			// opposite failure to the stereo downmix this derivation replaced.
-			if *s.Channels > maxRenditionChannels {
-				return maxRenditionChannels
-			}
-			return *s.Channels
+			return s
 		}
 		audioIdx++
 	}
-	return 0
+	return nil
+}
+
+// renditionShape is the sample rate, channel count and bitrate a rendition's
+// fragments carry, from the inputs buildAudioFingerprint builds it from: the
+// source track's own on a copy (copyCodec != ""), the AAC encode's otherwise.
+// 0 = unknown.
+func renditionShape(s *domainlibrary.MediaStream, copyCodec string, clientMaxChannels int) (sampleRate, channels int, kbps int64) {
+	if copyCodec != "" {
+		if s == nil {
+			return 0, 0, 0
+		}
+		if s.SampleRate != nil && *s.SampleRate > 0 {
+			sampleRate = *s.SampleRate
+		}
+		if s.Channels != nil && *s.Channels > 0 {
+			channels = *s.Channels
+		}
+		if s.Bitrate != nil && *s.Bitrate > 0 {
+			kbps = (*s.Bitrate + 999) / 1000
+		}
+		return sampleRate, channels, kbps
+	}
+	channels = domaintranscoding.ResolvedAudioChannels(renditionChannels(renditionSourceChannels(s), clientMaxChannels))
+	return 48000, channels, domaintranscoding.ServedAudioBitrateKbps(domaintranscoding.AudioRenditionBaseKbps, channels)
 }
 
 // buildAudioRenditions converts the raw media streams into the

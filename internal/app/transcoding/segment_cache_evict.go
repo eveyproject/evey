@@ -38,8 +38,8 @@ type EvictionPolicy struct {
 	// its last access, whatever the cap. Default 7 days; 0 disables the pass.
 	DownloadTTL time.Duration
 
-	// ProtectWindow shields a segment hash accessed within it from the cap
-	// pass: a viewer just pulled from it. It replaces the old "N most recent
+	// ProtectWindow shields an entry (segment hash or file) accessed within it
+	// from the cap pass: a viewer just pulled from it. It replaces the old "N most recent
 	// hashes" rule, which kept a finished film's segments above the cap for as
 	// long as nothing newer came along. Default 10 min.
 	ProtectWindow time.Duration

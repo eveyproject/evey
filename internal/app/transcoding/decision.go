@@ -837,9 +837,10 @@ func ensureTranscodeCodecs(d *transcoding.PlaybackDecision) {
 
 // applyNeedsRemux keeps a file stored in one-track blocks off the raw-file
 // paths: the reason forces the segmented session (resolvePlayMethod reads a
-// non-empty reason list as "transcode"), where the HLS handler answers the
-// typed file_needs_remux shed. Both tracks keep their copy verdicts - the
-// reason is about the container's layout, not the codecs.
+// non-empty reason list as "transcode"), which only the packager serves (it
+// reads the file track by track); any other plan gets the typed
+// file_needs_remux shed. Both tracks keep their copy verdicts - the reason is
+// about the container's layout, not the codecs.
 func applyNeedsRemux(d *transcoding.PlaybackDecision, prefs TranscodingPreferences) {
 	if !prefs.SourceNeedsRemux {
 		return

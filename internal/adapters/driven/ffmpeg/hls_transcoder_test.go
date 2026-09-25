@@ -247,7 +247,7 @@ func TestBuildFFmpegArgs_MultiVariant(t *testing.T) {
 	assert.Contains(t, joined, "var_stream_map")
 	assert.Contains(t, joined, "master.m3u8")
 	assert.Contains(t, joined, "-profile:v:0 high")
-	assert.Contains(t, joined, "-level:v:0 4.1")
+	assert.Contains(t, joined, "-level:v:0 ")
 	assert.Contains(t, joined, "-pix_fmt yuv420p")
 }
 

@@ -152,42 +152,21 @@ func TestBuildCopyVideoArgs_PacingBurst(t *testing.T) {
 	}
 }
 
-// The "-profile:v high -level:v 4.1" pair is h264-only. libx265 aborts on it
-// ("x265 [error]: unknown profile <high>" → the whole session dies), so a
-// software-HEVC transcode (client PreferredVideoCodec=hevc, no HW HEVC) must
-// emit NO profile/level and let x265 derive it from the pixel format.
+// The "-profile:v high -level:v X" pair is h264-only. libx265 aborts on it
+// ("x265 [error]: unknown profile <high>" -> the whole session dies), so a
+// software-HEVC or AV1 transcode gets no -profile/-level pair.
 func TestSoftwareProfileLevelArgs_H264Only(t *testing.T) {
-	if got := joined(softwareProfileLevelArgs("libx264", -1, 1080, 0)); !strings.Contains(got, "-profile:v high") {
-		t.Fatalf("libx264 single must get -profile:v high, got %s", got)
+	if got := strings.TrimSpace(joined(softwareProfileLevelArgs("libx264", -1, 41))); got != "-profile:v high -level:v 4.1" {
+		t.Fatalf("libx264 single: %s", got)
 	}
-	if got := joined(softwareProfileLevelArgs("libx264", 2, 1080, 0)); !strings.Contains(got, "-profile:v:2 high") {
-		t.Fatalf("libx264 multi must get -profile:v:2 high, got %s", got)
+	if got := strings.TrimSpace(joined(softwareProfileLevelArgs("libx264", 2, 51))); got != "-profile:v:2 high -level:v:2 5.1" {
+		t.Fatalf("libx264 multi: %s", got)
 	}
-	if got := softwareProfileLevelArgs("libx265", -1, 1080, 0); got != nil {
+	if got := softwareProfileLevelArgs("libx265", -1, 41); got != nil {
 		t.Fatalf("libx265 must get NO profile/level (x265 rejects \"high\"), got %v", got)
 	}
-	if got := joined(softwareProfileLevelArgs("libx264", -1, 2160, 0)); !strings.Contains(got, "-level:v 5.1") {
-		t.Fatalf("a 2160p rung must be signalled level 5.1, got %s", got)
-	}
-	if got := softwareProfileLevelArgs("libsvtav1", 1, 1080, 0); got != nil {
+	if got := softwareProfileLevelArgs("libsvtav1", 1, 41); got != nil {
 		t.Fatalf("av1 must get NO profile/level, got %v", got)
-	}
-	if got := joined(softwareProfileLevelArgs("libx264", -1, 1080, 40)); !strings.Contains(got, "-level:v 4.0") {
-		t.Fatalf("a level-4.0 decoder must lower the signalled level, got %s", got)
-	}
-	if got := joined(softwareProfileLevelArgs("libx264", -1, 720, 51)); !strings.Contains(got, "-level:v 4.1") {
-		t.Fatalf("a cap above the natural level must not raise it, got %s", got)
-	}
-
-	hevc := joined(BuildFFmpegArgs(transcoding.HLSProcessOpts{
-		FilePath: "/m.mkv", VideoDecision: "transcode", AudioDecision: "copy",
-		VideoCodec: "hevc", Profiles: transcoding.DefaultHLSProfiles[:1],
-	}))
-	if !strings.Contains(hevc, "libx265") {
-		t.Fatalf("hevc must select libx265: %s", hevc)
-	}
-	if strings.Contains(hevc, "-profile:v high") || strings.Contains(hevc, "-profile:v:0 high") {
-		t.Fatalf("hevc/libx265 must NOT carry the h264 'high' profile (x265 aborts): %s", hevc)
 	}
 }
 

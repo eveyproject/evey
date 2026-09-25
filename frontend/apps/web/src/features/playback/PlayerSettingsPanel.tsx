@@ -278,6 +278,7 @@ export function SettingsPanel({
     <div className="relative">
       <button
         onClick={toggle}
+        data-testid="player-settings"
         aria-label={t("player.controls.settings")}
         aria-expanded={open}
         aria-haspopup="true"
@@ -322,6 +323,7 @@ export function SettingsPanel({
                   <div className="mx-3 my-1 border-t border-[var(--border)]" />
                   <button
                     onClick={() => setMenu("audio")}
+                    data-testid="player-settings-audio"
                     className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
                   >
                     <span>{t("player.settings.audio")}</span>

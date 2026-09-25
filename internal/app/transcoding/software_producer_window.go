@@ -18,6 +18,18 @@ import (
 	"time"
 )
 
+// CopyWindowSegs is the most segments a copy session holds on disk: the lead,
+// what one pause tick lets it overshoot (bounded by the lead again: measured
+// 43 for a lead of 30 at 8x) and the segments kept behind the viewer. The
+// copy-rung disk guard sizes its working set on it. 0 on a transcode
+// instance.
+func (p *SoftwareProducer) CopyWindowSegs() int {
+	if p.copyPlanner == nil {
+		return 0
+	}
+	return 2*p.opts.CopyLeadSegs + p.opts.CopyKeepBehindSegs
+}
+
 // sweepCopyWindow runs on the pause ticker for the copy instance only.
 func (p *SoftwareProducer) sweepCopyWindow() {
 	if p.copyPlanner == nil {

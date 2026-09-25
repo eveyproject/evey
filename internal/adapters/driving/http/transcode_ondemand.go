@@ -660,13 +660,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 		//
 		// The query token, when the request carried one: a cookie-less Chromecast
 		// has nothing else to authenticate sub-resources with.
-		suffix := "?v=" + url.QueryEscape(packagerVersion())
-		if tok := RawTokenFromContext(r.Context()); tok != "" && TokenFromQuery(r.Context()) {
-			suffix += "&token=" + url.QueryEscape(tok)
-			if rq := r.URL.RawQuery; rq != "" {
-				suffix += "&" + rq
-			}
-		}
+		suffix := planManifestSuffix(r)
 		if strings.HasSuffix(name, ".mpd") {
 			data = []byte(rebakeDASHManifestURIs(string(data), suffix))
 		} else {
@@ -833,4 +827,64 @@ func (h *hlsVODServe) planOf(r *http.Request, mediaID string, item *domainlibrar
 		return nil
 	}
 	return rp
+}
+
+// planManifestSuffix is the query the packager's bare sub-resource URIs get:
+// the packager version, always, and the request's token (with its query)
+// when it came in the URL - see servePlanResourceData.
+func planManifestSuffix(r *http.Request) string {
+	suffix := "?v=" + url.QueryEscape(packagerVersion())
+	if tok := RawTokenFromContext(r.Context()); tok != "" && TokenFromQuery(r.Context()) {
+		suffix += "&token=" + url.QueryEscape(tok)
+		if rq := r.URL.RawQuery; rq != "" {
+			suffix += "&" + rq
+		}
+	}
+	return suffix
+}
+
+// serveHybridMPD serves the DASH manifest of a hybrid plan: the packager's
+// video beside Evey's audio renditions (ManifestGenerator.HybridMPD), the
+// counterpart of buildHybridMaster over the same fragments. 404 when the
+// packager offers no manifest (an encrypted plan) or the two do not compose.
+func (h *hlsVODServe) serveHybridMPD(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan, plan apptranscoding.OnDemandPlan, span trace.Span) {
+	notOffered := func(reason string, err error) {
+		span.SetStatus(codes.Error, "hybrid dash unavailable")
+		slog.InfoContext(r.Context(), "hls-vod: hybrid dash manifest not offered",
+			slog.String("media_id", mediaID), slog.String("reason", reason), slog.Any("err", err))
+		http.Error(w, `{"message":"dash is not available for this presentation"}`, http.StatusNotFound)
+	}
+	if !plan.HasDASH() {
+		notOffered("packager offers no manifest", nil)
+		return
+	}
+	h.playbackActivity.Touch(mediaID)
+	video, _, err := plan.Resource(r.Context(), "manifest.mpd")
+	if err != nil {
+		notOffered("packager manifest", err)
+		return
+	}
+	h.reclaimSupersededHash(r, mediaID, rp)
+	in, err := h.buildManifestInputWith(r, mediaID, item, streams, rp)
+	if err != nil {
+		h.writeManifestErr(r.Context(), w, span, err, mediaID)
+		return
+	}
+	// The renditions' fallback bitrate, as the hybrid master declares it.
+	in.Profiles = []domaintranscoding.HLSProfile{{Name: "od-copy", AudioBitrate: domaintranscoding.AudioRenditionBaseKbps, Copy: true}}
+	mpd, err := h.manifestGen.HybridMPD(in, rebakeDASHManifestURIs(string(video), planManifestSuffix(r)))
+	if err != nil {
+		notOffered("compose", err)
+		return
+	}
+	setCORSHeaders(w, r, "")
+	w.Header().Set("Content-Type", "application/dash+xml")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write([]byte(mpd))
+	slog.InfoContext(r.Context(), "hls-vod: hybrid dash manifest served", slog.String("media_id", mediaID))
+	ap := domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"}
+	if h.audioServedAsCopy(r, item, streams, rp.FP.AudioCopy, true, rp.AudioTrack) {
+		ap.AudioDecision = "copy"
+	}
+	h.recordServing(r, mediaID, rp, ap, "")
 }

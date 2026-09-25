@@ -4,6 +4,7 @@ package httpapi
 // and DASH manifests to carry the per-session suffix.
 
 import (
+	"html"
 	"regexp"
 	"strings"
 )
@@ -55,10 +56,17 @@ var dashURIAttrRE = regexp.MustCompile(`(media|initialization)="([^"?]*)"`)
 
 // rebakeDASHManifestURIs appends suffix to the media/initialization template
 // URIs of a DASH manifest so a cookie-less client (Chromecast) authenticates
-// its segment/init requests via the query token.
+// its segment/init requests via the query token. The suffix lands in an XML
+// attribute: its '&' are escaped, or the manifest is malformed XML (Media3
+// refused it outright: ERROR_CODE_PARSING_MANIFEST_MALFORMED). Taken
+// verbatim, never as a replacement template ('$' in a client's query).
 func rebakeDASHManifestURIs(manifest, suffix string) string {
 	if suffix == "" {
 		return manifest
 	}
-	return dashURIAttrRE.ReplaceAllString(manifest, `${1}="${2}`+suffix+`"`)
+	esc := html.EscapeString(suffix)
+	return dashURIAttrRE.ReplaceAllStringFunc(manifest, func(m string) string {
+		sub := dashURIAttrRE.FindStringSubmatch(m)
+		return sub[1] + `="` + sub[2] + esc + `"`
+	})
 }

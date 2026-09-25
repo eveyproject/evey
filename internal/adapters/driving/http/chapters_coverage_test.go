@@ -120,6 +120,27 @@ func TestChaptersHandler_OK(t *testing.T) {
 	}
 }
 
+// A block-ordered file plays through the packager: its chapters are served.
+func TestChaptersHandler_BlockOrderedFileKeepsItsChapters(t *testing.T) {
+	item := testMediaItem("lib1")
+	item.File = &domainlibrary.MediaFile{Path: "/m/a.mkv", InterleaveBackstepMs: 366_000}
+	h := chaptersHandler(
+		&fakeChaptersGetter{chapters: []*domainlibrary.Chapter{{Title: "Ch1", StartTimeMs: 0, EndTimeMs: 60000}}},
+		"http://localhost",
+		allowAll(),
+		&fakeMediaItemGetter{item: item},
+		nil,
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
+	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "Ch1") {
+		t.Errorf("expected the chapters, got %d %s", w.Code, w.Body.String())
+	}
+}
+
 func TestChaptersHandler_ServiceError_500(t *testing.T) {
 	h := chaptersHandler(
 		&fakeChaptersGetter{err: errTest},
