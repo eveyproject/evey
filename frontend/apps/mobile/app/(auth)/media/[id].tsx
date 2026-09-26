@@ -546,7 +546,7 @@ function InfoBadge({ label }: { label: string }) {
 }
 
 export default function MediaDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, edit: editParam } = useLocalSearchParams<{ id: string; edit?: string }>();
   const { t, i18n } = useTranslation();
   const theme = useTheme();
   const serverUrl = useServerUrl();
@@ -647,6 +647,11 @@ export default function MediaDetailScreen() {
   const [playOnSheetOpen, setPlayOnSheetOpen] = useState(false);
   const [collectionSheetOpen, setCollectionSheetOpen] = useState(false);
   const [metadataSheetOpen, setMetadataSheetOpen] = useState(false);
+  // ?edit=1 (the library's long-press "Edit" on one title) opens the editor on
+  // arrival, like the web card menu's "Edit metadata".
+  useEffect(() => {
+    if (editParam === "1" && isAdmin) setMetadataSheetOpen(true);
+  }, [editParam, isAdmin]);
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
   const watched = watchedOverride ?? (watchProgress?.played === true);
 
