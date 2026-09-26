@@ -524,6 +524,49 @@ func TestUpsertMediaFile_Changed_WithOverview_NoReEmit(t *testing.T) {
 	}
 }
 
+// A file replaced on disk is a change a viewer sees (media.item.updated,
+// reason file_replaced); a mere move of the same content is scan bookkeeping
+// and must not fire it, or a rescan would flood the webhooks.
+func TestUpsertMediaFile_ReplacedFile_AnnouncesUpdateButAMoveDoesNot(t *testing.T) {
+	t.Parallel()
+	updates := func(h *cmdTestHarness) []library.MediaItemUpdated {
+		var out []library.MediaItemUpdated
+		for _, e := range h.bus.PublishedEvents() {
+			if u, ok := e.(library.MediaItemUpdated); ok {
+				out = append(out, u)
+			}
+		}
+		return out
+	}
+	seed := func(h *cmdTestHarness) {
+		lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
+		h.libQuery.Seed(lib)
+		h.libCmd.Seed(lib)
+		h.mediaItems.Create(context.Background(), &library.MediaItem{
+			ID: "item-1", LibraryID: "lib-1", Overview: "Already enriched",
+			File: &library.MediaFile{Path: "/movies/film.mkv", Size: 500, Fingerprint: "fp-old"},
+		})
+	}
+
+	replaced := newHarness()
+	seed(replaced)
+	replaced.scanner.Results["/movies"] = []library.ScannedFile{{Path: "/movies/film.mkv", Size: 1500, Fingerprint: "fp-new"}}
+	_, _, err := replaced.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	got := updates(replaced)
+	require.Len(t, got, 1)
+	assert.Equal(t, shared.MediaItemID("item-1"), got[0].MediaItemID)
+	assert.Equal(t, shared.LibraryID("lib-1"), got[0].LibraryID)
+	assert.Equal(t, library.UpdateReasonFileReplaced, got[0].Reason)
+
+	moved := newHarness()
+	seed(moved)
+	moved.scanner.Results["/movies"] = []library.ScannedFile{{Path: "/movies/renamed.mkv", Size: 500, Fingerprint: "fp-old"}}
+	_, _, err = moved.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Empty(t, updates(moved), "a moved file with the same content is not an update")
+}
+
 func TestUpsertMediaFile_NewItem_PublishesMediaItemAdded(t *testing.T) {
 	t.Parallel()
 	h := newHarness()

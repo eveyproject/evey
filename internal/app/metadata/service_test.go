@@ -69,8 +69,13 @@ func TestSetOverride(t *testing.T) {
 	assert.Len(t, overrides, 1)
 	assert.Equal(t, "title", overrides[0].FieldName)
 
-	assert.Len(t, bus.PublishedEvents(), 1)
+	// The fine-grained event, then the webhook-level media.item.updated.
+	require.Len(t, bus.PublishedEvents(), 2)
 	assert.Equal(t, "metadata.override.set", bus.PublishedEvents()[0].EventName())
+	upd, ok := bus.PublishedEvents()[1].(library.MediaItemUpdated)
+	require.True(t, ok, "expected media.item.updated, got %T", bus.PublishedEvents()[1])
+	assert.Equal(t, shared.MediaItemID("item-1"), upd.MediaItemID)
+	assert.Equal(t, library.UpdateReasonMetadataEdited, upd.Reason)
 }
 
 func TestListOverrides_Empty(t *testing.T) {
@@ -125,8 +130,11 @@ func TestResetOverrides(t *testing.T) {
 	assert.Len(t, other, 1)
 
 	eventsAfter := bus.PublishedEvents()[countBefore:]
-	assert.Len(t, eventsAfter, 1)
+	require.Len(t, eventsAfter, 2)
 	assert.Equal(t, "metadata.override.removed", eventsAfter[0].EventName())
+	upd, ok := eventsAfter[1].(library.MediaItemUpdated)
+	require.True(t, ok, "expected media.item.updated, got %T", eventsAfter[1])
+	assert.Equal(t, library.UpdateReasonMetadataReset, upd.Reason)
 }
 
 func TestSetOverride_UpdatesExisting(t *testing.T) {
@@ -409,8 +417,11 @@ func TestRefreshItemMetadata_Success(t *testing.T) {
 	require.Len(t, enricher.enrichedPairs, 1)
 	assert.Equal(t, "Some Movie", enricher.enrichedPairs[0].result.Title)
 	assert.Equal(t, shared.MediaItemID("item-1"), enricher.enrichedPairs[0].item.ID)
-	require.Len(t, bus.PublishedEvents(), 1)
+	require.Len(t, bus.PublishedEvents(), 2)
 	assert.Equal(t, "metadata.refreshed", bus.PublishedEvents()[0].EventName())
+	upd, ok := bus.PublishedEvents()[1].(library.MediaItemUpdated)
+	require.True(t, ok, "expected media.item.updated, got %T", bus.PublishedEvents()[1])
+	assert.Equal(t, library.UpdateReasonMetadataRefreshed, upd.Reason)
 }
 
 func TestRefreshItemMetadata_EnrichError(t *testing.T) {

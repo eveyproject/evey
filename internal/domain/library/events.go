@@ -60,6 +60,27 @@ type MediaItemRemoved struct {
 
 func (e MediaItemRemoved) EventName() string { return "media.item.removed" }
 
+// MediaItemUpdated is a change a viewer can see: the metadata was edited,
+// reset or refreshed, or the file was replaced on disk (Reason says which).
+// The scan's own bookkeeping (a move, a backfilled mtime, a re-probe) is not
+// one - a rescan must not flood the webhooks.
+type MediaItemUpdated struct {
+	MediaItemID shared.MediaItemID
+	LibraryID   shared.LibraryID // empty when the emitter did not load the item
+	Reason      string           // metadata_edited, metadata_reset, metadata_refreshed, file_replaced
+	OccurredAt  time.Time
+}
+
+func (e MediaItemUpdated) EventName() string { return "media.item.updated" }
+
+// Reasons carried by MediaItemUpdated.
+const (
+	UpdateReasonMetadataEdited    = "metadata_edited"
+	UpdateReasonMetadataReset     = "metadata_reset"
+	UpdateReasonMetadataRefreshed = "metadata_refreshed"
+	UpdateReasonFileReplaced      = "file_replaced"
+)
+
 // TrickplayGenerated fires after a trickplay manifest + sidecar are written.
 // Consumers (e.g. the intro detection worker) trigger downstream work that
 // depends on the trickplay sprites being present on disk. Unlike
