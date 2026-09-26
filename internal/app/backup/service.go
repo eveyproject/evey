@@ -100,9 +100,28 @@ func NewService(store backup.BackupStore, dumper backup.DatabaseDumper, version 
 	return s
 }
 
+// CreateBackup dumps, stores and announces a backup: backup.created on
+// success, backup.failed otherwise, whoever asked for it (admin or schedule).
 func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.backup.CreateBackup")
 	defer span.End()
+	m, err := s.createBackup(ctx)
+	if s.events == nil {
+		return m, err
+	}
+	var evt shared.Event
+	if err != nil {
+		evt = backup.BackupFailed{Error: err.Error(), OccurredAt: time.Now()}
+	} else {
+		evt = backup.BackupCreated{BackupID: m.ID, SizeBytes: m.Size, OccurredAt: time.Now()}
+	}
+	if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
+		slog.WarnContext(ctx, "publish backup event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
+	}
+	return m, err
+}
+
+func (s *Service) createBackup(ctx context.Context) (*backup.BackupManifest, error) {
 
 	schemaVersion, err := s.dumper.CurrentSchemaVersion(ctx)
 	if err != nil {
@@ -248,22 +267,14 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 	}()
 }
 
-// runScheduledBackupCycle performs one scheduled backup pass: create a backup,
-// publish backup.failed (for alerting) if it errors, then run retention cleanup.
+// runScheduledBackupCycle performs one scheduled backup pass: create a backup
+// (which announces itself, backup.failed included), then run retention cleanup.
 // Extracted from the ticker loop so the failure-notification path is unit-testable
 // without waiting on the hour-scale ticker.
 func (s *Service) runScheduledBackupCycle(ctx context.Context, retentionDays int) {
 	if _, err := s.CreateBackup(ctx); err != nil {
+		// CreateBackup already published backup.failed for alerting.
 		slog.WarnContext(ctx, "scheduled backup failed", slog.Any("err", err))
-		if s.events != nil {
-			evt := backup.BackupFailed{
-				Error:      err.Error(),
-				OccurredAt: time.Now(),
-			}
-			if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
-				slog.WarnContext(ctx, "publish backup.failed event", slog.Any("err", pubErr))
-			}
-		}
 	} else {
 		slog.Info("scheduled backup created")
 	}
