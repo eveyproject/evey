@@ -157,7 +157,8 @@ export default function MusicScreen() {
     [profilesRespForProfile, activeProfileId],
   );
 
-  const [tab, setTab] = useState<Tab>("tracks");
+  // Albums first, like the web: a music library is browsed by record.
+  const [tab, setTab] = useState<Tab>("albums");
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
   const [showQueue, setShowQueue] = useState(false);
   const [playlistTrackId, setPlaylistTrackId] = useState<string | null>(null);
@@ -688,7 +689,7 @@ export default function MusicScreen() {
 
       {/* Tab switcher */}
       <View style={[styles.tabBar, { marginHorizontal: theme.spacing.md, marginTop: theme.spacing.md, backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm }]}>
-        {(["tracks", "albums", "artists", "playlists"] as Tab[]).map((tabKey) => (
+        {(["albums", "tracks", "artists", "playlists"] as Tab[]).map((tabKey) => (
           <TouchableOpacity
             key={tabKey}
             activeOpacity={0.8}
@@ -707,6 +708,21 @@ export default function MusicScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Shuffle play from every tab, like the web header button */}
+      {tab !== "tracks" && (tracks ?? []).length > 0 && (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => { void handleShufflePlay(); }}
+          testID="music-shuffle-play-all-tabs"
+          accessibilityRole="button"
+          accessibilityLabel={t("media.music.playRandom")}
+          style={[styles.filterChip, { alignSelf: "flex-start", marginHorizontal: theme.spacing.md, marginTop: theme.spacing.sm, backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm }]}
+        >
+          <Ionicons name="shuffle" size={16} color={theme.colors.onAccent} />
+          <Text style={{ color: theme.colors.onAccent, fontSize: 13, fontWeight: "600" }}>{t("media.music.playRandom")}</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Track search (Meilisearch-backed) + filters + shuffle */}
       {tab === "tracks" && (
