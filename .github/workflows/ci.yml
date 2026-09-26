@@ -271,7 +271,7 @@ jobs:
         run: sh scripts/bundle-budget.sh frontend/apps/web/dist
 
   docker:
-    name: Docker - build & push (${{ matrix.runtime.name }})
+    name: Docker - build & push
     runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
     needs: [quality, correctness, frontend]
@@ -283,19 +283,6 @@ jobs:
     permissions:
       contents: read
       packages: write # required to push to ghcr.io
-    strategy:
-      fail-fast: false
-      # Three image variants are published in parallel. The `lean` variant is
-      # the default tag (no suffix) - python3 only. `-nodejs` adds node for
-      # JS plugins, `-full` adds php + ruby + lua too. The Dockerfile's
-      # RUNTIMES build-arg drives which apt packages are layered in (all three
-      # share the same full-HW Debian `runtime` stage - only plugin runtimes
-      # differ). See the Dockerfile `runtime` stage + docker/entrypoint.sh.
-      matrix:
-        runtime:
-          - { name: lean,   suffix: ''        }
-          - { name: nodejs, suffix: '-nodejs' }
-          - { name: full,   suffix: '-full'   }
     steps:
       - uses: actions/checkout@v5
 
@@ -310,13 +297,20 @@ jobs:
       # `latest` is gated on vX.Y.Z tags only so it always means "latest
       # semver release", never "last commit on master that happened to build".
       #
-      # The matrix variant suffix (`-nodejs`, `-full`) is applied to every
-      # tag via `flavor.suffix` so each variant gets a parallel set:
+      # Three image variants, ONE job: they share every layer but the plugin
+      # runtimes (the Dockerfile's RUNTIMES arg, its own layer), so the lean
+      # build does the work and the nodejs/full builds add one apt layer each
+      # from the builder's local cache. As a 3-job matrix each variant rebuilt
+      # Go, the frontend and wasm from scratch: 3 x ~10 min of runner per push
+      # (measured 2026-09-26), for one shared apt layer of difference.
+      #
+      # The variant suffix (`-nodejs`, `-full`) is applied to every tag via
+      # `flavor.suffix` so each variant gets a parallel set:
       #   beta-0.0.1, beta-0.0.1-nodejs, beta-0.0.1-full
       #   v1.2.3,     v1.2.3-nodejs,     v1.2.3-full
       #   latest,     latest-nodejs,     latest-full   (release only)
-      - name: Docker meta
-        id: meta
+      - name: Docker meta (lean)
+        id: meta-lean
         uses: docker/metadata-action@v5
         with:
           images: |
@@ -334,7 +328,49 @@ jobs:
             # never land on the operators who track `latest`.
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
           flavor: |
-            suffix=${{ matrix.runtime.suffix }},onlatest=true
+            suffix=,onlatest=true
+
+      - name: Docker meta (nodejs)
+        id: meta-nodejs
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+            ghcr.io/${{ steps.owner.outputs.name }}/evey
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-,format=short
+            # `latest` = the newest STABLE release only. A pre-release tag
+            # (v0.1.0-beta.1, v1.0.0-rc.2 - anything with a hyphen) publishes its
+            # own version tag and leaves `latest` alone, so a closed-beta cut can
+            # never land on the operators who track `latest`.
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
+          flavor: |
+            suffix=-nodejs,onlatest=true
+
+      - name: Docker meta (full)
+        id: meta-full
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+            ghcr.io/${{ steps.owner.outputs.name }}/evey
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-,format=short
+            # `latest` = the newest STABLE release only. A pre-release tag
+            # (v0.1.0-beta.1, v1.0.0-rc.2 - anything with a hyphen) publishes its
+            # own version tag and leaves `latest` alone, so a closed-beta cut can
+            # never land on the operators who track `latest`.
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
+          flavor: |
+            suffix=-full,onlatest=true
 
       # arm64 emulation for the multi-arch stable-release build (below). Cheap
       # to register on every run; only actually used when arm64 is a target.
@@ -345,33 +381,6 @@ jobs:
         id: stamp
         run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
-      # Multi-arch (amd64 + arm64) on every published build.
-      #
-      # This used to be gated on a STABLE `vX.Y.Z` tag - a tag this repository
-      # has never created. The arm64 image was therefore configured but never
-      # once built, and the guards written for it (the TARGETARCH branches in
-      # the Dockerfile) were never exercised. A trigger that never fires is not
-      # a conservative default, it is dead configuration.
-      #
-      # What made the old gate defensible was the cost: every stage ran under
-      # QEMU. Since the $BUILDPLATFORM pins on the gomod/protogen/wasm/frontend/
-      # builder stages, the four architecture-independent stages (protos, wasm,
-      # frontend bundle, Go compile) run NATIVE and are shared across both
-      # targets - `go build ./cmd/evey` alone measured 239 s emulated vs 16 s
-      # cross-compiled on the same host, same cold cache, same 4 CPUs.
-      # Only the Debian runtime stage (apt, no compilation) is still emulated,
-      # which is why building both arches on each push is now affordable.
-      #
-      # BUT: measured on the real repo, a push still costs ~33 min wall clock -
-      # three image variants times two arches, and the Debian runtime stage is
-      # emulated for every one of them. The owner builds on every push; releases
-      # are rare. So amd64 is the DEFAULT and arm64 is opt-in:
-      #   - workflow_dispatch input  -> exactly what the operator asked for
-      #   - a v*.*.* tag             -> both arches (that is what ships)
-      #   - `[arm64]` in the commit  -> both arches, for a one-off check
-      #   - anything else            -> amd64 only
-      # The arm64 path stays exercised (every release goes through it), which is
-      # what the old `[skip arm64]` gate failed to guarantee.
       - name: Resolve build platforms
         id: platforms
         env:
@@ -407,73 +416,109 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Two attempts: the failure mode seen is Docker Hub's auth endpoint
-      # resetting the runner's connection while fetching the base images' pull
-      # tokens, before the Dockerfile even starts - a retry a minute later
-      # passes. build-push-action has no retry input, so the step is doubled.
-      - name: Build and push
-        id: build
+      # Two attempts for the first build: the failure mode seen is Docker Hub's
+      # auth endpoint resetting the runner's connection while fetching the base
+      # images' pull tokens, before the Dockerfile even starts - a retry a
+      # minute later passes. build-push-action has no retry input, so the step
+      # is doubled. The nodejs/full builds run on the same builder with the
+      # base images already pulled.
+      #
+      # COMMIT/BUILD_DATE stamp the binary so /healthz and the admin API
+      # report the exact code they run - `VERSION` alone is a branch name
+      # and two images months apart both call themselves "beta-0.0.1".
+      # github.sha is always a full 40-char SHA here, so the Dockerfile's
+      # lie guard (which rejects an empty or malformed value) never fires
+      # in CI - it exists for hand-run builds outside a git checkout.
+      #
+      # One GHA cache scope for the three variants: they share every layer but
+      # the runtimes one, and mode=max exports them all.
+      #
+      # ignore-error=true: the image build+push is the deliverable; the GHA
+      # cache export is a best-effort speedup. The GitHub Actions Cache
+      # service is flaky/unavailable on this self-hosted + over-quota setup
+      # (400 "services aren't available" on export), which would otherwise
+      # red-fail the job AFTER the image already shipped. Don't let a cache
+      # hiccup mask a successful publish. (If the cache stays down, builds
+      # just run uncached - switch to type=local for persistent on-disk
+      # caching on the runner if speed becomes an issue.)
+      - name: Build and push (lean)
+        id: build-lean
         continue-on-error: true
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: ${{ steps.platforms.outputs.value }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # COMMIT/BUILD_DATE stamp the binary so /healthz and the admin API
-          # report the exact code they run - `VERSION` alone is a branch name
-          # and two images months apart both call themselves "beta-0.0.1".
-          # github.sha is always a full 40-char SHA here, so the Dockerfile's
-          # lie guard (which rejects an empty or malformed value) never fires
-          # in CI - it exists for hand-run builds outside a git checkout.
+          tags: ${{ steps.meta-lean.outputs.tags }}
+          labels: ${{ steps.meta-lean.outputs.labels }}
           build-args: |
-            VERSION=${{ steps.meta.outputs.version }}
-            RUNTIMES=${{ matrix.runtime.name }}
+            VERSION=${{ steps.meta-lean.outputs.version }}
+            RUNTIMES=lean
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.stamp.outputs.date }}
             IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
-          # Scope the GHA cache per variant so a `full` build never overwrites
-          # the `lean` cache and vice versa - buildx layers diverge only in the
-          # apt layer but the cache key needs to reflect that to stay correct.
-          #
-          # ignore-error=true: the image build+push is the deliverable; the GHA
-          # cache export is a best-effort speedup. The GitHub Actions Cache
-          # service is flaky/unavailable on this self-hosted + over-quota setup
-          # (400 "services aren't available" on export), which would otherwise
-          # red-fail the job AFTER the image already shipped. Don't let a cache
-          # hiccup mask a successful publish. (If the cache stays down, builds
-          # just run uncached - switch to type=local for persistent on-disk
-          # caching on the runner if speed becomes an issue.)
-          cache-from: type=gha,scope=docker-${{ matrix.runtime.name }}
-          cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }},ignore-error=true
+          cache-from: type=gha,scope=docker
+          cache-to: type=gha,mode=max,scope=docker,ignore-error=true
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
 
-      - name: Build and push (retry)
-        if: steps.build.outcome == 'failure'
+      - name: Build and push (lean, retry)
+        id: build-lean-retry
+        if: steps.build-lean.outcome == 'failure'
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: ${{ steps.platforms.outputs.value }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta-lean.outputs.tags }}
+          labels: ${{ steps.meta-lean.outputs.labels }}
           build-args: |
-            VERSION=${{ steps.meta.outputs.version }}
-            RUNTIMES=${{ matrix.runtime.name }}
+            VERSION=${{ steps.meta-lean.outputs.version }}
+            RUNTIMES=lean
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.stamp.outputs.date }}
             IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
-          cache-from: type=gha,scope=docker-${{ matrix.runtime.name }}
-          cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }},ignore-error=true
+          cache-from: type=gha,scope=docker
+          cache-to: type=gha,mode=max,scope=docker,ignore-error=true
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
+
+      - name: Build and push (nodejs)
+        id: build-nodejs
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ steps.platforms.outputs.value }}
+          tags: ${{ steps.meta-nodejs.outputs.tags }}
+          labels: ${{ steps.meta-nodejs.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta-nodejs.outputs.version }}
+            RUNTIMES=nodejs
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.stamp.outputs.date }}
+            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+          cache-from: type=gha,scope=docker
+          cache-to: type=gha,mode=max,scope=docker,ignore-error=true
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
+
+      - name: Build and push (full)
+        id: build-full
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ steps.platforms.outputs.value }}
+          tags: ${{ steps.meta-full.outputs.tags }}
+          labels: ${{ steps.meta-full.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta-full.outputs.version }}
+            RUNTIMES=full
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.stamp.outputs.date }}
+            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+          cache-from: type=gha,scope=docker
+          cache-to: type=gha,mode=max,scope=docker,ignore-error=true
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
 
       # Docker Hub page: short blurb + docs/dockerhub.md as the full description.
-      # Once per run (the lean variant), and best-effort: the image is the
-      # deliverable, a Hub API hiccup must not red-fail a publish that already
-      # happened. Needs DOCKERHUB_TOKEN with read/write/delete scope (a push-only
-      # token is refused by the description endpoint - the step then fails
-      # visibly here without blocking anything).
+      # Once per run, and best-effort: the image is the deliverable, the page
+      # copy is not (a failure shows visibly here without blocking anything).
       - name: Sync Docker Hub description
-        if: matrix.runtime.name == 'lean'
         continue-on-error: true
         uses: peter-evans/dockerhub-description@v4
         with:

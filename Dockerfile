@@ -203,7 +203,6 @@ RUN case "$TARGETARCH" in \
 # present, with a message naming the right variant.
 FROM debian:trixie-slim AS runtime
 
-ARG RUNTIMES=lean
 # Set automatically by buildx per target platform ("amd64" | "arm64"). Used to
 # skip the x86-only Intel GPU driver packages and the AVX2 tonemapx assertion
 # on arm64, where neither exists - the multi-arch (stable-release) build would
@@ -276,19 +275,31 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
          case "$GPU" in all|intel|intel-legacy) apt-get install -y --no-install-recommends \
            intel-media-va-driver-non-free i965-va-driver libvpl2 libmfx-gen1.2 ;; esac; \
        fi \
-    && if [ "$RUNTIMES" = "nodejs" ] || [ "$RUNTIMES" = "full" ]; then \
-         apt-get install -y --no-install-recommends nodejs \
-         && ([ -e /usr/bin/node ] || ln -sf /usr/bin/nodejs /usr/bin/node); \
-       fi \
-    && if [ "$RUNTIMES" = "full" ]; then \
-         apt-get install -y --no-install-recommends php-cli ruby lua5.4 \
-         && ([ -e /usr/bin/lua ] || ln -sf /usr/bin/lua5.4 /usr/bin/lua); \
-       fi \
     && rm -rf /var/lib/apt/lists/* \
     # No cluster may exist in the image: the data lives in the /data volume.
     && ! ls /var/lib/postgresql/17/main >/dev/null 2>&1 \
     && /usr/lib/postgresql/17/bin/postgres --version \
     && /usr/lib/postgresql/17/bin/initdb --version >/dev/null
+
+# The plugin runtimes, in a layer of their own AFTER the shared one: the three
+# variants differ here only, so the second and third builds of a CI run reuse
+# every layer above. RUNTIMES is declared here on purpose - a build arg joins
+# the cache key of every RUN that follows its declaration, so declared at the
+# top of the stage it forced the whole apt layer to rebuild per variant.
+ARG RUNTIMES=lean
+RUN case "$RUNTIMES" in \
+      lean) ;; \
+      nodejs|full) \
+        apt-get update \
+        && apt-get install -y --no-install-recommends nodejs \
+        && ([ -e /usr/bin/node ] || ln -sf /usr/bin/nodejs /usr/bin/node) \
+        && if [ "$RUNTIMES" = "full" ]; then \
+             apt-get install -y --no-install-recommends php-cli ruby lua5.4 \
+             && ([ -e /usr/bin/lua ] || ln -sf /usr/bin/lua5.4 /usr/bin/lua); \
+           fi \
+        && rm -rf /var/lib/apt/lists/* ;; \
+      *) echo "ERROR: RUNTIMES must be lean, nodejs or full, got '$RUNTIMES'" >&2; exit 1 ;; \
+    esac
 
 # Embedded Meilisearch - the glibc release binary fetched and build-time
 # smoke-tested in the meili-download stage above (NOT the official Alpine
