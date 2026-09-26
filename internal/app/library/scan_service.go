@@ -270,7 +270,23 @@ type scanWork struct {
 	showTitle string
 }
 
+// ScanReport is the outcome of one library scan. FailedPaths lists the roots
+// that could not be read (music and photo libraries keep going past one); a
+// non-empty list means the scan is partial.
+type ScanReport struct {
+	Added, Updated int
+	FailedPaths    []string
+}
+
 func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error) {
+	r, err := s.ScanLibraryReport(ctx, libraryID)
+	return r.Added, r.Updated, err
+}
+
+// ScanLibraryReport scans a library and says which roots it could not read.
+func (s *ScanService) ScanLibraryReport(ctx context.Context, libraryID string) (report ScanReport, err error) {
+	var added, updated int
+	defer func() { report.Added, report.Updated = added, updated }()
 	ctx, span := tracing.StartSpan(ctx, "app.scan.ScanLibrary")
 	defer span.End()
 	span.SetAttributes(attribute.String("library.id", libraryID))
@@ -288,7 +304,7 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 	s.scanMu.Lock()
 	if s.scanning[libraryID] {
 		s.scanMu.Unlock()
-		return 0, 0, fmt.Errorf("%w for library %s", ErrScanInProgress, libraryID)
+		return report, fmt.Errorf("%w for library %s", ErrScanInProgress, libraryID)
 	}
 	s.scanning[libraryID] = true
 	defer func() {
@@ -300,7 +316,7 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 
 	lib, err := s.libQueries.GetByID(ctx, shared.LibraryID(libraryID))
 	if err != nil {
-		return 0, 0, fmt.Errorf("get library: %w", err)
+		return report, fmt.Errorf("get library: %w", err)
 	}
 	span.SetAttributes(attribute.String("library.type", string(lib.Type)))
 
@@ -309,44 +325,44 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 	switch string(lib.Type) {
 	case "music":
 		if s.musicScanner == nil {
-			return 0, 0, fmt.Errorf("music scanner not configured")
+			return report, fmt.Errorf("music scanner not configured")
 		}
-		var total int
 		for _, p := range lib.Paths {
 			n, e := s.musicScanner.ScanDirectory(ctx, libraryID, p)
 			if e != nil {
 				slog.WarnContext(ctx, "music scan path failed", slog.String("path", p), slog.Any("err", e))
+				report.FailedPaths = append(report.FailedPaths, p)
 				continue
 			}
-			total += n
+			added += n
 		}
-		s.finalizeScan(ctx, lib, libraryID, total, 0, 0)
-		return total, 0, nil
+		s.finalizeScan(ctx, lib, libraryID, added, 0, 0, report.FailedPaths)
+		return report, nil
 	case "photo":
 		if s.photoScanner == nil {
-			return 0, 0, fmt.Errorf("photo scanner not configured")
+			return report, fmt.Errorf("photo scanner not configured")
 		}
-		var total int
 		for _, p := range lib.Paths {
 			n, e := s.photoScanner.ScanDirectory(ctx, libraryID, p)
 			if e != nil {
 				slog.WarnContext(ctx, "photo scan path failed", slog.String("path", p), slog.Any("err", e))
+				report.FailedPaths = append(report.FailedPaths, p)
 				continue
 			}
-			total += n
+			added += n
 		}
-		s.finalizeScan(ctx, lib, libraryID, total, 0, 0)
-		return total, 0, nil
+		s.finalizeScan(ctx, lib, libraryID, added, 0, 0, report.FailedPaths)
+		return report, nil
 	}
 
 	idx, err := s.loadScanIndex(ctx, libraryID)
 	if err != nil {
-		return 0, 0, fmt.Errorf("ScanService.ScanLibrary: %w", err)
+		return report, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
 
 	seenPaths, emptyRoots, toProcess, tvAdded, tvUpdated, err := s.scanDirectories(ctx, lib, idx)
 	if err != nil {
-		return 0, 0, fmt.Errorf("ScanService.ScanLibrary: %w", err)
+		return report, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
 	added += tvAdded
 	updated += tvUpdated
@@ -373,8 +389,8 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 	healedTitles := s.healOrphanTitles(ctx, libraryID)
 	updated += healedTitles
 
-	s.finalizeScan(ctx, lib, libraryID, added, updated, removed)
-	return added, updated, nil
+	s.finalizeScan(ctx, lib, libraryID, added, updated, removed, nil)
+	return report, nil
 }
 
 // healOrphanTitles re-parses media_items.title for every orphan in the
@@ -677,7 +693,7 @@ func (s *ScanService) flushIndex(ctx context.Context) {
 	}
 }
 
-func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, libraryID string, added, updated, removed int) {
+func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, libraryID string, added, updated, removed int, failedPaths []string) {
 	ctx, span := tracing.StartSpan(ctx, "app.scan.finalizeScan")
 	defer span.End()
 
@@ -692,6 +708,7 @@ func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, li
 		ItemsAdded:   added,
 		ItemsUpdated: updated,
 		ItemsRemoved: removed,
+		FailedPaths:  failedPaths,
 		OccurredAt:   now,
 	})
 }

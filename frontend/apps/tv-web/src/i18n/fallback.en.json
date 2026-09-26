@@ -379,6 +379,7 @@
   "admin.libraries.scanFrequency": "Scan frequency",
   "admin.libraries.scanLibraryNamed": "Scan {{name}}",
   "admin.libraries.scanOnStartup": "Scan on startup",
+  "admin.libraries.scanPartial": "Partial scan - these folders could not be read: {{paths}}",
   "admin.libraries.scanScheduleTitle": "Scan Schedule - {{name}}",
   "admin.libraries.scanStarted": "Scan started",
   "admin.libraries.scanning": "Scanning...",

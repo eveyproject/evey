@@ -22,6 +22,7 @@ import {
 } from "@evey/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
+import { scanFailedPaths } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { SessionCard } from "../../../src/components/admin/SessionCard";
@@ -242,6 +243,10 @@ function QuickActionsRow({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const [scanningAll, setScanningAll] = useState(false);
   const scanLibrary = useLibraryServiceScanLibrary({
     mutation: {
+      onSuccess: (data) => {
+        const failedPaths = scanFailedPaths(data);
+        if (failedPaths.length > 0) toast.warning(t("admin.libraries.scanPartial", { paths: failedPaths.join(", ") }));
+      },
       onError: () => toast.error(t("admin.dashboardStats.scanFailed")),
     },
   });

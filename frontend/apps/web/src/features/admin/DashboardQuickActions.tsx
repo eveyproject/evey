@@ -10,6 +10,7 @@ import {
   apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
+import { scanFailedPaths } from "@evey/client";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 
@@ -20,8 +21,13 @@ export function QuickActions() {
   const libraries = libData?.libraries ?? [];
   const scanLib = useLibraryServiceScanLibrary({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         queryClient.invalidateQueries({ queryKey: ["/api/v1/media"] });
+        const failedPaths = scanFailedPaths(data);
+        if (failedPaths.length > 0) {
+          toast.warning(t("admin.libraries.scanPartial", { paths: failedPaths.join(", ") }));
+          return;
+        }
         toast.success(t("admin.dashboardStats.scanStarted"));
       },
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.dashboardStats.scanFailed"))),

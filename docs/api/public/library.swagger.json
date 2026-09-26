@@ -358,6 +358,7 @@
           },
           {
             "name": "type",
+            "description": " - MEDIA_ITEM_TYPE_BOOK: Deprecated: see LIBRARY_TYPE_BOOKS.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -480,6 +481,7 @@
           },
           {
             "name": "type",
+            "description": " - MEDIA_ITEM_TYPE_BOOK: Deprecated: see LIBRARY_TYPE_BOOKS.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -609,6 +611,7 @@
           },
           {
             "name": "type",
+            "description": " - MEDIA_ITEM_TYPE_BOOK: Deprecated: see LIBRARY_TYPE_BOOKS.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -809,6 +812,7 @@
           },
           {
             "name": "type",
+            "description": " - MEDIA_ITEM_TYPE_BOOK: Deprecated: see LIBRARY_TYPE_BOOKS.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -1145,7 +1149,8 @@
         "LIBRARY_TYPE_PHOTOS",
         "LIBRARY_TYPE_BOOKS"
       ],
-      "default": "LIBRARY_TYPE_UNSPECIFIED"
+      "default": "LIBRARY_TYPE_UNSPECIFIED",
+      "description": " - LIBRARY_TYPE_BOOKS: Deprecated: the server never accepted a books library (domain rejects the\ntype) and no client offers a reader. Kept for wire compatibility only;\nremove after two server releases per ADR-0004."
     },
     "v1ListGenresResponse": {
       "type": "object",
@@ -1365,7 +1370,8 @@
         "MEDIA_ITEM_TYPE_PHOTO",
         "MEDIA_ITEM_TYPE_BOOK"
       ],
-      "default": "MEDIA_ITEM_TYPE_UNSPECIFIED"
+      "default": "MEDIA_ITEM_TYPE_UNSPECIFIED",
+      "description": " - MEDIA_ITEM_TYPE_BOOK: Deprecated: see LIBRARY_TYPE_BOOKS."
     },
     "v1MediaPerson": {
       "type": "object",
@@ -1632,6 +1638,13 @@
         },
         "error": {
           "type": "string"
+        },
+        "failedPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Library roots the scan could not read (unmounted share, permissions).\nNon-empty means the scan is PARTIAL: what was reachable is up to date,\nthese folders were skipped and nothing in them was removed."
         }
       }
     },

@@ -20,6 +20,7 @@ import {
 } from "@evey/api";
 import type { V1Library, V1LibraryType } from "@evey/api";
 import { toast } from "@evey/store";
+import { scanFailedPaths } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { DirectoryPickerModal, type ServerDir } from "../../../src/components/admin/DirectoryPickerModal";
@@ -497,7 +498,14 @@ export default function AdminLibrariesScreen() {
 
   const scanLibrary = useLibraryServiceScanLibrary({
     mutation: {
-      onSuccess: () => toast.success(t("admin.libraries.scanStarted", "Scan started")),
+      onSuccess: (data) => {
+        const failedPaths = scanFailedPaths(data);
+        if (failedPaths.length > 0) {
+          toast.warning(t("admin.libraries.scanPartial", { paths: failedPaths.join(", ") }));
+          return;
+        }
+        toast.success(t("admin.libraries.scanStarted", "Scan started"));
+      },
       onError: () => toast.error(t("admin.libraries.scanFailed", "Failed to start scan")),
     },
   });

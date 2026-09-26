@@ -422,6 +422,7 @@ libraries:
   removePathNamed: "Eliminar ruta {{index}}"
   failedDelete: "Error al eliminar la biblioteca"
   scanStarted: "Escaneo iniciado"
+  scanPartial: "Escaneo parcial: no se pudieron leer estas carpetas: {{paths}}"
   failedScan: "Error al iniciar el escaneo"
   refreshMetadata: "Volver a vincular todo con TMDB"
   refreshMetadataTooltip: "Vuelve a ejecutar la búsqueda en TMDB para cada elemento - lento, pero corrige coincidencias erróneas anteriores. Úsalo después de grandes lotes de renombrado."

@@ -422,6 +422,7 @@ libraries:
   removePathNamed: "पथ {{index}} हटाएं"
   failedDelete: "लाइब्रेरी मिटाने में विफल"
   scanStarted: "स्कैन शुरू हुआ"
+  scanPartial: "आंशिक स्कैन - ये फ़ोल्डर पढ़े नहीं जा सके: {{paths}}"
   failedScan: "स्कैन शुरू करने में विफल"
   refreshMetadata: "TMDB से सभी फिर से मिलाएँ"
   refreshMetadataTooltip: "प्रत्येक आइटम के लिए TMDB खोज फिर से चलाता है - धीमा, लेकिन पुराने गलत मिलान सुधारता है। बड़े रीनेम बैच के बाद इसका उपयोग करें।"

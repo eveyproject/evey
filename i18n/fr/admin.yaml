@@ -421,6 +421,7 @@ libraries:
   removePathNamed: "Supprimer le chemin {{index}}"
   failedDelete: "Échec de la suppression de la bibliothèque"
   scanStarted: "Scan lancé"
+  scanPartial: "Scan partiel - ces dossiers n'ont pas pu être lus : {{paths}}"
   failedScan: "Échec du lancement du scan"
   refreshMetadata: "Re-matcher tout sur TMDB"
   refreshMetadataTooltip: "Relance la recherche TMDB sur tous les items. Lent, mais corrige les mauvais matchings passés. À utiliser après un gros renommage."

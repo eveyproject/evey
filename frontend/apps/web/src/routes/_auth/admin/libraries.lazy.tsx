@@ -11,6 +11,7 @@ import {
   apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
+import { scanFailedPaths } from "@evey/client";
 import type { V1Library } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -244,11 +245,16 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
 
   const scanLib = useLibraryServiceScanLibrary({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         setScanDone(true);
         queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/media"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
+        const failedPaths = scanFailedPaths(data);
+        if (failedPaths.length > 0) {
+          toast.warning(t("admin.libraries.scanPartial", { paths: failedPaths.join(", ") }));
+          return;
+        }
         toast.success(t("admin.libraries.scanStarted"));
       },
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.libraries.failedScan"))),

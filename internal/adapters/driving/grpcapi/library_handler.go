@@ -186,7 +186,7 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 func (h *libraryHandler) ScanLibrary(req *eveyv1.ScanLibraryRequest, stream eveyv1.LibraryService_ScanLibraryServer) error {
 	ctx, span := tracing.StartSpan(stream.Context(), "grpc.library.ScanLibrary")
 	defer span.End()
-	added, updated, err := h.cmd.ScanLibrary(ctx, req.Id)
+	report, err := h.cmd.ScanLibraryReport(ctx, req.Id)
 	if err != nil {
 		span.RecordError(err)
 		if errors.Is(err, applibrary.ErrScanInProgress) {
@@ -200,8 +200,9 @@ func (h *libraryHandler) ScanLibrary(req *eveyv1.ScanLibraryRequest, stream evey
 		LibraryId:      req.Id,
 		Phase:          eveyv1.ScanPhase_SCAN_PHASE_COMPLETE,
 		Percent:        100,
-		TotalItems:     int32(added + updated),
-		ProcessedItems: int32(added + updated),
+		TotalItems:     int32(report.Added + report.Updated),
+		ProcessedItems: int32(report.Added + report.Updated),
+		FailedPaths:    report.FailedPaths,
 	}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
