@@ -212,3 +212,69 @@ func TestBuildMixRoutesSurrounds(t *testing.T) {
 		}
 	}
 }
+
+// A multichannel stream whose very first frame is damaged: the layout is not
+// known from a decode yet, but the frame still owes its duration. It comes out
+// as 5.1 silence, and the next frame decodes as a cold start would, so every
+// frame after it sits where it belongs.
+func TestFrameDecoderFirstFrameDamagedKeepsTimeline(t *testing.T) {
+	for _, fixture := range []string{"testdata/tone_48k_5p1_448k.ac3", "testdata/tones_48k_5p1_384k.eac3"} {
+		frames := ac3Frames(t, fixture)
+		var hdr ac3.Header
+		if err := ac3.ParseHeader(frames[0], &hdr); err != nil {
+			t.Fatal(err)
+		}
+		damaged := append([]byte(nil), frames[0]...)
+		for i := hdr.AudioStartBit/8 + 1; i < len(damaged); i++ {
+			damaged[i] = 0xFF
+		}
+		d, err := NewFrameDecoder(8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const n = ac3.BlocksPerFrame * ac3.SamplesPerBlock
+		first, err := d.Decode(damaged)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Channels() != 6 || len(first) != n*6*2 || !bytes.Equal(first, make([]byte, n*6*2)) {
+			t.Fatalf("%s: damaged first frame gave %d bytes over %d channels, want %d bytes of 5.1 silence", fixture, len(first), d.Channels(), n*6*2)
+		}
+		// The frame after it decodes cold, exactly like a fresh decoder's first.
+		ref := ac3.NewDecoder()
+		if err := ref.DecodeFrame(frames[1]); err != nil {
+			t.Fatal(err)
+		}
+		second, err := d.Decode(frames[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(second) != n*6*2 || d.BadFrames() != 1 {
+			t.Fatalf("%s: next frame gave %d bytes, bad=%d", fixture, len(second), d.BadFrames())
+		}
+		layout := ref.OutputLayout()
+		source := pcm.Layout{pcm.ChannelLeft, pcm.ChannelRight, pcm.ChannelCenter, pcm.ChannelLFE, pcm.ChannelLeftSurround, pcm.ChannelRightSurround}
+		for ch, name := range source {
+			plane := ref.Samples(layout.Index(name))
+			for i := 0; i < n; i += 97 {
+				want := s16le(plane[i])
+				have := uint16(second[(i*6+ch)*2]) | uint16(second[(i*6+ch)*2+1])<<8
+				if have != want {
+					t.Fatalf("%s: frame after the damage, %s sample %d = %d, want %d", fixture, name, i, have, want)
+				}
+			}
+		}
+		// The whole stream: one frame's worth of output per frame, no drift.
+		total := len(first) + len(second)
+		for _, f := range frames[2:] {
+			out, err := d.Decode(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			total += len(out)
+		}
+		if total != len(frames)*n*6*2 {
+			t.Fatalf("%s: %d bytes for %d frames, want %d", fixture, total, len(frames), len(frames)*n*6*2)
+		}
+	}
+}
