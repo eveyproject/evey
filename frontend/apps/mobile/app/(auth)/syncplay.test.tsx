@@ -24,7 +24,22 @@ const replace = vi.hoisted(() => vi.fn());
 vi.mock("expo-router", () => ({ Stack: { Screen: () => null }, useRouter: () => ({ replace }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, fallback?: string) => fallback ?? k }) }));
 const joinByCode = vi.hoisted(() => vi.fn());
-vi.mock("../../src/hooks/useSyncPlay", () => ({ useSyncPlay: () => ({ joinByCode }) }));
+const createRoomFromQueue = vi.hoisted(() => vi.fn());
+const syncState = vi.hoisted(() => ({ roomId: null as string | null }));
+vi.mock("../../src/hooks/useSyncPlay", () => ({ useSyncPlay: () => ({ joinByCode, createRoomFromQueue, leaveRoom: vi.fn(), state: syncState }) }));
+vi.mock("@evey/api", async (orig) => ({
+  ...(await orig<typeof import("@evey/api")>()),
+  useLibraryServiceListLibraries: () => ({ data: { libraries: [{ id: "lib-music", type: "LIBRARY_TYPE_MUSIC" }] } }),
+}));
+vi.mock("../../src/stores/musicQueue", () => ({ useMusicQueueStore: { setState: vi.fn() } }));
+const builder = vi.hoisted(() => ({ onCreate: null as null | ((items: { id: string; title: string; artist: string }[]) => void) }));
+vi.mock("../../src/features/syncplay/RoomBuilder", () => ({
+  RoomBuilder: (p: { onCreate: (items: { id: string; title: string; artist: string }[]) => void }) => { builder.onCreate = p.onCreate; return React.createElement("div", { "data-testid": "room-builder" }); },
+}));
+vi.mock("../../src/features/syncplay/ListenTogetherRoom", () => ({
+  ListenTogetherRoom: () => React.createElement("div", { "data-testid": "listen-room" }),
+}));
+
 vi.mock("../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { bg: "#000", surface: "#111", text: "#fff", textMuted: "#888", accent: "#f00", onAccent: "#000", border: "#333" }, radii: { md: 8 }, spacing: { sm: 8, md: 16, lg: 24, xl: 32 } }),
 }));
@@ -37,7 +52,8 @@ const join = () => screen.getByRole("button", { name: "Join" }) as HTMLButtonEle
 beforeEach(() => {
   vi.clearAllMocks();
   alerts.messages.length = 0;
-  joinByCode.mockResolvedValue({ mediaId: "m1" });
+  joinByCode.mockResolvedValue({ mediaId: "m1", mediaType: "video" });
+  syncState.roomId = null;
 });
 
 describe("syncplay join screen (mobile)", () => {
@@ -70,5 +86,24 @@ describe("syncplay join screen (mobile)", () => {
     fireEvent.click(join());
     await waitFor(() => expect(alerts.messages).toHaveLength(2));
     expect(input().disabled).toBe(false);
+  });
+
+  // A music room is listened to on this screen, not opened in the video player.
+  it("stays here and opens the listening room when the joined room is a music room", async () => {
+    joinByCode.mockImplementationOnce(async () => { syncState.roomId = "room-1"; return { mediaId: "t1", mediaType: "music" }; });
+    render(<SyncPlayScreen />);
+    fireEvent.change(input(), { target: { value: "ABC123" } });
+    fireEvent.click(join());
+    expect(await screen.findByTestId("listen-room")).toBeTruthy();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("creates a listening room from the builder's queue", async () => {
+    createRoomFromQueue.mockImplementationOnce(async () => { syncState.roomId = "room-2"; return "room-2"; });
+    render(<SyncPlayScreen />);
+    expect(screen.getByTestId("room-builder")).toBeTruthy();
+    builder.onCreate?.([{ id: "t1", title: "Some Track", artist: "Some Artist" }, { id: "t2", title: "Other Track", artist: "Some Artist" }]);
+    await waitFor(() => expect(createRoomFromQueue).toHaveBeenCalledWith(["t1", "t2"]));
+    expect(await screen.findByTestId("listen-room")).toBeTruthy();
   });
 });

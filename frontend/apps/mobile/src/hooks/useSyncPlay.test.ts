@@ -265,7 +265,26 @@ describe("useSyncPlay - state transitions", () => {
     expect(result.current.state.isHost).toBe(true);
   });
 
-  it("joinByCode sets isHost=false and returns roomId/mediaId", async () => {
+  // The phone's room builder: a music room from a queue of tracks.
+  it("createRoomFromQueue posts the queue as a music room and hosts it", async () => {
+    const { result } = renderHook(() => useSyncPlay({}));
+
+    mockFetch
+      .mockResolvedValueOnce({ id: "room-q", code: "QUEUE1" })
+      .mockResolvedValueOnce({ queue: ["t1", "t2"], trackIndex: 0 });
+    await act(async () => { await result.current.createRoomFromQueue(["t1", "t2"]); });
+
+    expect(mockFetch).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      url: "/api/v1/syncplay/rooms",
+      method: "POST",
+      data: expect.objectContaining({ queue: ["t1", "t2"], mediaType: "music" }),
+    }));
+    expect(result.current.state.isHost).toBe(true);
+    expect(result.current.state.roomCode).toBe("QUEUE1");
+    expect(result.current.state.queue).toEqual(["t1", "t2"]);
+  });
+
+  it("joinByCode sets isHost=false and returns roomId/mediaId/mediaType (video when the server names none)", async () => {
     const { result } = renderHook(() => useSyncPlay({}));
 
     mockFetch
@@ -273,12 +292,12 @@ describe("useSyncPlay - state transitions", () => {
       // second call = GET room info
       .mockResolvedValueOnce({ queue: ["mi-joined"], trackIndex: 0 });
 
-    let joinResult: { roomId: string; mediaId: string } | undefined;
+    let joinResult: { roomId: string; mediaId: string; mediaType: string } | undefined;
     await act(async () => {
       joinResult = await result.current.joinByCode("ABCDE");
     });
 
-    expect(joinResult).toEqual({ roomId: "room-j", mediaId: "mi-joined" });
+    expect(joinResult).toEqual({ roomId: "room-j", mediaId: "mi-joined", mediaType: "video" });
     expect(result.current.state.isHost).toBe(false);
     expect(result.current.state.roomId).toBe("room-j");
   });
