@@ -71,8 +71,29 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
     return data.id;
   }, [connect, setState]);
 
-  const joinByCode = useCallback(async (code: string): Promise<{ roomId: string; mediaId: string }> => {
-    const data = await eveyFetch<{ roomId: string; mediaId: string }>({
+  // A "listen together" room built from a queue of tracks (the room builder).
+  const createRoomFromQueue = useCallback(async (trackIds: string[], name?: string): Promise<string> => {
+    const data = await eveyFetch<{ id: string; code: string }>({
+      url: "/api/v1/syncplay/rooms",
+      method: "POST",
+      data: { queue: trackIds, name: name ?? "Listen Together", mediaType: "music" },
+    });
+    let queue: string[] = trackIds;
+    let trackIndex = 0;
+    try {
+      const info = await eveyFetch<GetRoomResponse>({ url: `/api/v1/syncplay/rooms/${data.id}`, method: "GET" });
+      queue = info.queue ?? trackIds;
+      trackIndex = info.trackIndex ?? 0;
+    } catch (err) {
+      console.warn("[SyncPlay] room info fetch failed, starting with the local queue:", err);
+    }
+    setState({ roomId: data.id, roomCode: data.code, members: [], connected: false, isHost: true, queue, trackIndex });
+    connect(data.id);
+    return data.id;
+  }, [connect, setState]);
+
+  const joinByCode = useCallback(async (code: string): Promise<{ roomId: string; mediaId: string; mediaType: string }> => {
+    const data = await eveyFetch<{ roomId: string; mediaId: string; mediaType?: string }>({
       url: "/api/v1/syncplay/join",
       method: "POST",
       data: { code },
@@ -91,7 +112,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
     }
     setState({ roomId: data.roomId, roomCode: null, members: [], connected: false, isHost: false, queue, trackIndex });
     connect(data.roomId);
-    return { roomId: data.roomId, mediaId: data.mediaId };
+    return { roomId: data.roomId, mediaId: data.mediaId, mediaType: data.mediaType ?? "video" };
   }, [connect, setState]);
 
   // Connect to a room the caller already resolved (a guest gets roomId from the
@@ -118,6 +139,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
     state,
     createRoom,
     createRoomFromPlaylist,
+    createRoomFromQueue,
     joinByCode,
     joinRoom,
     leaveRoom,

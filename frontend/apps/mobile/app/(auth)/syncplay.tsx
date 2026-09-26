@@ -1,24 +1,78 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, Alert, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
+import type { AudioPlayer } from "expo-audio";
+import { normalizeRoomCode, ROOM_CODE_LENGTH, useLibraryServiceListLibraries } from "@evey/api";
+import type { RoomQueueItem } from "@evey/client";
 import { useSyncPlay } from "../../src/hooks/useSyncPlay";
 import { useTheme } from "../../src/providers/ThemeProvider";
+import { useMusicQueueStore } from "../../src/stores/musicQueue";
+import { RoomBuilder } from "../../src/features/syncplay/RoomBuilder";
+import { ListenTogetherRoom } from "../../src/features/syncplay/ListenTogetherRoom";
 
-// Mobile parity with web /syncplay: join an existing Watch Together / Listen
-// Together room by its share code. Room *creation* on mobile goes through the
-// player's SyncPlayModal (you start a media first, then invite others) since
-// most mobile playback is media-first; the dedicated route is the explicit
-// "I have a code, get me in" entry point.
+// Mobile parity with web /syncplay: join a Watch Together / Listen Together
+// room by its share code, or build a "listen together" music room from albums,
+// tracks and playlists and listen in it. A video room is joined here and
+// watched in the player; a music room is listened to on this screen.
 export default function SyncPlayScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
   const [code, setCode] = useState("");
   const [joining, setJoining] = useState(false);
-  const sync = useSyncPlay();
+  const [creating, setCreating] = useState(false);
+  const [musicRoom, setMusicRoom] = useState(false);
+  const { data: libs } = useLibraryServiceListLibraries();
+  const musicLibraryId = useMemo(() => libs?.libraries?.find((l) => l.type === "LIBRARY_TYPE_MUSIC")?.id, [libs]);
+
+  // The room moves this player (a member follows the host). Applying a room
+  // command must not be mistaken for a local action: local actions are sent
+  // explicitly by the room controls, so the callbacks only move the player.
+  const playerRef = useRef<AudioPlayer | null>(null);
+  const trackMeta = useRef<Map<string, RoomQueueItem>>(new Map());
+  const sync = useSyncPlay({
+    onPlay: (ms) => {
+      const p = playerRef.current;
+      if (!p) return;
+      void p.seekTo(ms / 1000);
+      p.play();
+    },
+    onPause: (ms) => {
+      const p = playerRef.current;
+      if (!p) return;
+      p.pause();
+      void p.seekTo(ms / 1000);
+    },
+    onSeek: (ms) => { void playerRef.current?.seekTo(ms / 1000); },
+  });
+
+  // One music output at a time: the room takes over from the mini-player.
+  useEffect(() => {
+    if (musicRoom) useMusicQueueStore.setState({ isPlaying: false });
+  }, [musicRoom]);
+
+  const handleCreate = useCallback(async (items: RoomQueueItem[]) => {
+    if (items.length === 0) return;
+    setCreating(true);
+    for (const it of items) trackMeta.current.set(it.id, it);
+    try {
+      await sync.createRoomFromQueue(items.map((it) => it.id));
+      setMusicRoom(true);
+    } catch {
+      Alert.alert(t("media.syncplay.title", "Watch Together"), t("media.syncplay.createFailed", "Failed to create room"));
+    } finally {
+      setCreating(false);
+    }
+  }, [sync, t]);
+
+  const handleLeave = useCallback(async () => {
+    try { playerRef.current?.pause(); } catch { /* released */ }
+    await sync.leaveRoom();
+    setMusicRoom(false);
+    setCode("");
+  }, [sync]);
 
   async function handleJoin() {
     const trimmed = code.trim();
@@ -28,7 +82,11 @@ export default function SyncPlayScreen() {
     }
     setJoining(true);
     try {
-      const { mediaId } = await sync.joinByCode(trimmed);
+      const { mediaId, mediaType } = await sync.joinByCode(trimmed);
+      if (mediaType === "music") {
+        setMusicRoom(true);
+        return;
+      }
       if (!mediaId) {
         Alert.alert(t("media.syncplay.title", "Watch Together"), t("media.syncplay.joinFailed", "Could not join the room."));
         return;
@@ -42,6 +100,28 @@ export default function SyncPlayScreen() {
   }
 
   const s = makeStyles(theme);
+
+  if (musicRoom && sync.state.roomId) {
+    return (
+      <ScrollView style={s.container} contentContainerStyle={s.content}>
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            title: t("common.nav.syncplay", "SyncPlay"),
+            headerStyle: { backgroundColor: theme.colors.surface },
+            headerTintColor: theme.colors.text,
+          }}
+        />
+        <ListenTogetherRoom
+          state={sync.state}
+          controls={sync}
+          playerRef={playerRef}
+          trackMeta={trackMeta}
+          onLeave={() => { void handleLeave(); }}
+        />
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
@@ -93,6 +173,13 @@ export default function SyncPlayScreen() {
           )}
         </Pressable>
       </View>
+
+      {musicLibraryId && (
+        <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.lg }}>
+          <Text style={s.label}>{t("media.syncplay.create", "Create a room")}</Text>
+          <RoomBuilder libraryId={musicLibraryId} creating={creating} onCreate={(items) => { void handleCreate(items); }} />
+        </View>
+      )}
     </ScrollView>
   );
 }

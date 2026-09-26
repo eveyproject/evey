@@ -74,6 +74,18 @@ vi.mock("../hooks/useSyncPlay", () => ({
 }));
 
 // -------------------------------------------------------------------------------------
+vi.mock("@evey/api", async (orig) => ({
+  ...(await orig<typeof import("@evey/api")>()),
+  useLibraryServiceListLibraries: () => ({ data: { libraries: [{ id: "lib-music", type: "LIBRARY_TYPE_MUSIC" }] } }),
+}));
+vi.mock("../stores/musicQueue", () => ({ useMusicQueueStore: { setState: vi.fn() } }));
+const builder = vi.hoisted(() => ({ onCreate: null as null | ((items: { id: string; title: string; artist: string }[]) => void) }));
+vi.mock("../features/syncplay/RoomBuilder", () => ({
+  RoomBuilder: (p: { onCreate: (items: { id: string; title: string; artist: string }[]) => void }) => { builder.onCreate = p.onCreate; return React.createElement("div", { "data-testid": "room-builder" }); },
+}));
+vi.mock("../features/syncplay/ListenTogetherRoom", () => ({
+  ListenTogetherRoom: () => React.createElement("div", { "data-testid": "listen-room" }),
+}));
 import SyncPlayScreen from "../../app/(auth)/syncplay";
 import { Alert } from "react-native";
 
