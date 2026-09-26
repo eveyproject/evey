@@ -77,23 +77,3 @@ type SimpleTag struct {
 	Value    string
 	Language string
 }
-
-type MuxOptions struct {
-	OutputPath string
-	Tracks     []TrackInput
-	Chapters   []Chapter
-	Tags       []Tag
-}
-
-type DemuxOptions struct {
-	OutputDir string
-	TrackIDs  []uint64
-}
-
-type TrackInput struct {
-	SourcePath string
-	TrackID    uint64
-	Language   string
-	Name       string
-	IsDefault  bool
-}

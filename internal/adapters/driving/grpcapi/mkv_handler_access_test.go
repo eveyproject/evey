@@ -22,9 +22,8 @@ import (
 // /media/movie.mkv belonging to lib-1. Mirrors the production wiring in server.go.
 func newTestMKVHandlerWithAccess() (*mkvHandler, *userfakes.FakeLibraryAccessRepository) {
 	reader := mkvfakes.NewFakeContainerReader()
-	writer := mkvfakes.NewFakeContainerWriter()
 	seedContainer(reader)
-	svc := appmkv.NewService(reader, writer)
+	svc := appmkv.NewService(reader)
 
 	mediaQuery := libraryfakes.NewFakeMediaItemQueryRepo()
 	mediaQuery.Seed(&library.MediaItem{

@@ -9,13 +9,14 @@ import (
 	"github.com/evey-project/evey/internal/domain/mkv"
 	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-func newTestMKVHandler() (*mkvHandler, *mkvfakes.FakeContainerReader, *mkvfakes.FakeContainerWriter) {
+func newTestMKVHandler() (*mkvHandler, *mkvfakes.FakeContainerReader) {
 	reader := mkvfakes.NewFakeContainerReader()
-	writer := mkvfakes.NewFakeContainerWriter()
-	svc := appmkv.NewService(reader, writer)
-	return &mkvHandler{svc: svc, userAccess: newPermissiveTestUserAccess()}, reader, writer
+	svc := appmkv.NewService(reader)
+	return &mkvHandler{svc: svc, userAccess: newPermissiveTestUserAccess()}, reader
 }
 
 func seedContainer(reader *mkvfakes.FakeContainerReader) {
@@ -47,49 +48,8 @@ func seedContainer(reader *mkvfakes.FakeContainerReader) {
 	}
 }
 
-func TestMKVGetContainerInfo_Success(t *testing.T) {
-	h, reader, _ := newTestMKVHandler()
-	seedContainer(reader)
-
-	resp, err := h.GetContainerInfo(context.Background(), &eveyv1.GetContainerInfoRequest{Path: "/media/movie.mkv"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if resp.Path != "/media/movie.mkv" {
-		t.Fatalf("path: want /media/movie.mkv, got %q", resp.Path)
-	}
-	if resp.DurationMs != 7200000 {
-		t.Fatalf("duration: want 7200000, got %d", resp.DurationMs)
-	}
-}
-
-func TestMKVGetContainerInfo_NotFound(t *testing.T) {
-	h, _, _ := newTestMKVHandler()
-	_, err := h.GetContainerInfo(context.Background(), &eveyv1.GetContainerInfoRequest{Path: "/missing"})
-	if err == nil {
-		t.Fatal("want error")
-	}
-}
-
-// ExtractAttachment delegates via the service; fake writer just records the call.
-func TestMKVExtractAttachment_Success(t *testing.T) {
-	h, _, writer := newTestMKVHandler()
-	resp, err := h.ExtractAttachment(context.Background(), &eveyv1.ExtractAttachmentRequest{
-		Path: "/media/movie.mkv", AttachmentId: 1, OutputPath: "/tmp/out/cover.jpg",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if resp.OutputPath != "/tmp/out/cover.jpg" {
-		t.Fatalf("output: want /tmp/out/cover.jpg, got %q", resp.OutputPath)
-	}
-	if len(writer.ExtractAttachmentCalls) != 1 {
-		t.Fatalf("call count: want 1, got %d", len(writer.ExtractAttachmentCalls))
-	}
-}
-
 func TestMKVListChapters(t *testing.T) {
-	h, reader, _ := newTestMKVHandler()
+	h, reader := newTestMKVHandler()
 	seedContainer(reader)
 
 	resp, err := h.ListChapters(context.Background(), &eveyv1.ListChaptersRequest{Path: "/media/movie.mkv"})
@@ -107,59 +67,45 @@ func TestMKVListChapters(t *testing.T) {
 	}
 }
 
-func TestMKVListTracks(t *testing.T) {
-	h, reader, _ := newTestMKVHandler()
-	seedContainer(reader)
-
-	resp, err := h.ListTracks(context.Background(), &eveyv1.ListMkvTracksRequest{Path: "/media/movie.mkv"})
-	if err != nil {
-		t.Fatalf("ListTracks: %v", err)
-	}
-	if len(resp.Tracks) != 3 {
-		t.Fatalf("expected 3 tracks, got %d", len(resp.Tracks))
-	}
-	var hasVideo, hasAudio, hasSub bool
-	for _, tr := range resp.Tracks {
-		switch tr.Type {
-		case eveyv1.TrackType_TRACK_TYPE_VIDEO:
-			hasVideo = true
-			if tr.Width != 1920 || tr.Height != 1080 {
-				t.Errorf("expected 1920x1080, got %dx%d", tr.Width, tr.Height)
-			}
-		case eveyv1.TrackType_TRACK_TYPE_AUDIO:
-			hasAudio = true
-		case eveyv1.TrackType_TRACK_TYPE_SUBTITLE:
-			hasSub = true
-		}
-	}
-	if !hasVideo || !hasAudio || !hasSub {
-		t.Errorf("missing tracks: video=%v audio=%v sub=%v", hasVideo, hasAudio, hasSub)
-	}
-}
-
 func TestMKVListChaptersNotFound(t *testing.T) {
-	h, _, _ := newTestMKVHandler()
+	h, _ := newTestMKVHandler()
 	_, err := h.ListChapters(context.Background(), &eveyv1.ListChaptersRequest{Path: "/nonexistent.mkv"})
 	if err == nil {
 		t.Error("expected error for nonexistent file")
 	}
 }
 
-func TestMKVListAttachments(t *testing.T) {
-	h, reader, _ := newTestMKVHandler()
-	seedContainer(reader)
-
-	resp, err := h.ListAttachments(context.Background(), &eveyv1.ListAttachmentsRequest{Path: "/media/movie.mkv"})
-	if err != nil {
-		t.Fatalf("ListAttachments: %v", err)
+// The MKV toolbox RPCs had no client and took free disk paths (mux, demux,
+// add/remove track, extract): they answer Unimplemented, even to an admin.
+func TestMKVToolboxRPCsAreNotExposed(t *testing.T) {
+	h, _ := newTestMKVHandler()
+	ctx := context.Background()
+	calls := map[string]func() error{
+		"GetContainerInfo": func() error {
+			_, err := h.GetContainerInfo(ctx, &eveyv1.GetContainerInfoRequest{Path: "/media/movie.mkv"})
+			return err
+		},
+		"ListTracks": func() error {
+			_, err := h.ListTracks(ctx, &eveyv1.ListMkvTracksRequest{Path: "/media/movie.mkv"})
+			return err
+		},
+		"ListAttachments": func() error {
+			_, err := h.ListAttachments(ctx, &eveyv1.ListAttachmentsRequest{Path: "/media/movie.mkv"})
+			return err
+		},
+		"ExtractAttachment": func() error {
+			_, err := h.ExtractAttachment(ctx, &eveyv1.ExtractAttachmentRequest{Path: "/media/movie.mkv"})
+			return err
+		},
+		"AddTrack":       func() error { _, err := h.AddTrack(ctx, &eveyv1.AddTrackRequest{}); return err },
+		"RemoveTrack":    func() error { _, err := h.RemoveTrack(ctx, &eveyv1.RemoveTrackRequest{}); return err },
+		"ExtractTrack":   func() error { return h.ExtractTrack(&eveyv1.ExtractTrackRequest{}, nil) },
+		"MuxContainer":   func() error { return h.MuxContainer(&eveyv1.MuxContainerRequest{}, nil) },
+		"DemuxContainer": func() error { return h.DemuxContainer(&eveyv1.DemuxContainerRequest{}, nil) },
 	}
-	if len(resp.Attachments) != 1 {
-		t.Fatalf("expected 1 attachment, got %d", len(resp.Attachments))
-	}
-	if resp.Attachments[0].Name != "cover.jpg" {
-		t.Errorf("expected name 'cover.jpg', got %q", resp.Attachments[0].Name)
-	}
-	if resp.Attachments[0].MimeType != "image/jpeg" {
-		t.Errorf("expected mime 'image/jpeg', got %q", resp.Attachments[0].MimeType)
+	for name, call := range calls {
+		if got := status.Code(call()); got != codes.Unimplemented {
+			t.Errorf("%s: code = %v, want Unimplemented", name, got)
+		}
 	}
 }

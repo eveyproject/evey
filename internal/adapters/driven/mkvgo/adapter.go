@@ -138,65 +138,6 @@ func (a *Adapter) ReadTags(ctx context.Context, path string) ([]mkv.Tag, error) 
 	return c.Tags, nil
 }
 
-// --- ContainerWriter ---
-
-func (a *Adapter) Mux(ctx context.Context, opts mkv.MuxOptions) error {
-	ctx, span := tracing.StartSpan(ctx, "mkvgo.Mux")
-	defer span.End()
-
-	extOpts := extmkv.MuxOptions{
-		OutputPath: opts.OutputPath,
-	}
-	for _, t := range opts.Tracks {
-		extOpts.Tracks = append(extOpts.Tracks, toExtTrackInput(t))
-	}
-	return ops.Mux(ctx, extOpts)
-}
-
-func (a *Adapter) Demux(ctx context.Context, path string, opts mkv.DemuxOptions) error {
-	ctx, span := tracing.StartSpan(ctx, "mkvgo.Demux")
-	defer span.End()
-
-	extOpts := extmkv.DemuxOptions{
-		SourcePath: path,
-		OutputDir:  opts.OutputDir,
-		TrackIDs:   opts.TrackIDs,
-	}
-	return ops.Demux(ctx, extOpts)
-}
-
-func (a *Adapter) AddTrack(ctx context.Context, containerPath string, input mkv.TrackInput) error {
-	ctx, span := tracing.StartSpan(ctx, "mkvgo.AddTrack")
-	defer span.End()
-
-	tmpOut := containerPath + ".tmp.mkv"
-	if err := ops.AddTrack(ctx, containerPath, tmpOut, toExtTrackInput(input)); err != nil {
-		return fmt.Errorf("mkvgo add track: %w", err)
-	}
-	return os.Rename(tmpOut, containerPath)
-}
-
-func (a *Adapter) RemoveTrack(ctx context.Context, containerPath string, trackID uint64) error {
-	ctx, span := tracing.StartSpan(ctx, "mkvgo.RemoveTrack")
-	defer span.End()
-
-	tmpOut := containerPath + ".tmp.mkv"
-	if err := ops.RemoveTrack(ctx, containerPath, tmpOut, []uint64{trackID}); err != nil {
-		return fmt.Errorf("mkvgo remove track: %w", err)
-	}
-	return os.Rename(tmpOut, containerPath)
-}
-
-func (a *Adapter) ExtractAttachment(ctx context.Context, containerPath string, attachmentID uint64, destPath string) error {
-	ctx, span := tracing.StartSpan(ctx, "mkvgo.ExtractAttachment")
-	defer span.End()
-
-	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
-		return err
-	}
-	return ops.ExtractAttachment(ctx, containerPath, attachmentID, destPath)
-}
-
 // --- MP4 remux ---
 
 // CanRemux reports whether path is a source mkvgo can repackage into MP4 - an
@@ -344,14 +285,4 @@ func fromExtTag(tag extmkv.Tag) mkv.Tag {
 		})
 	}
 	return out
-}
-
-func toExtTrackInput(t mkv.TrackInput) extmkv.TrackInput {
-	return extmkv.TrackInput{
-		SourcePath: t.SourcePath,
-		TrackID:    t.TrackID,
-		Language:   t.Language,
-		Name:       t.Name,
-		IsDefault:  t.IsDefault,
-	}
 }
