@@ -3,6 +3,8 @@ package procfork
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -136,5 +138,86 @@ func TestAdmit_InteractiveIsAdmittedOnHostMemoryNotOnPaperCaps(t *testing.T) {
 	tight, _ := fakeAdmission(gib, 16*gib)
 	if _, err := tight.admit(context.Background(), Interactive, "art", RSSCap(Interactive, 16*gib)); !errors.Is(err, ErrMemoryPressure) {
 		t.Fatalf("with 1 GiB on the host the interactive job must be refused, got %v", err)
+	}
+}
+
+// MemAvailable lags the allocations of the jobs just started, so a burst of
+// interactive jobs read against the same figure must see each other: with
+// 4 GiB free, a 1 GiB reserve and 1 GiB caps, three fit and the fourth waits
+// for a release - whatever the encoders hold on paper.
+func TestAdmit_InteractiveBurstSubtractsInteractiveReservations(t *testing.T) {
+	t.Parallel()
+	a, _ := fakeAdmission(4*gib, 16*gib)
+	art := RSSCap(Interactive, 16*gib)
+	var releases []func()
+	for i := range 3 {
+		release, err := a.admit(context.Background(), Interactive, "art", art)
+		if err != nil {
+			t.Fatalf("interactive job %d refused: %v", i, err)
+		}
+		releases = append(releases, release)
+	}
+	if _, err := a.admit(context.Background(), Interactive, "art", art); !errors.Is(err, ErrMemoryPressure) {
+		t.Fatalf("a 4th interactive job on the same 4 GiB must be refused, got %v", err)
+	}
+	releases[0]()
+	releases[0]() // idempotent: a double release must not free twice
+	if _, err := a.admit(context.Background(), Interactive, "art", art); err != nil {
+		t.Fatalf("a released slot must admit the next interactive job, got %v", err)
+	}
+	if _, err := a.admit(context.Background(), Interactive, "art", art); !errors.Is(err, ErrMemoryPressure) {
+		t.Fatalf("one release frees one slot, not two, got %v", err)
+	}
+}
+
+// The subtraction is the interactive jobs only: two productions booking 8 GiB
+// on paper out of 12 still leave the interactive class the host's 12 GiB,
+// eleven 1 GiB jobs above the 1 GiB reserve.
+func TestAdmit_InteractiveIgnoresEncoderCapsButNotItsOwn(t *testing.T) {
+	t.Parallel()
+	a, _ := fakeAdmission(12*gib, 16*gib)
+	for range 2 {
+		if _, err := a.admit(context.Background(), Production, "enc", RSSCap(Production, 16*gib)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	art := RSSCap(Interactive, 16*gib)
+	for i := range 11 {
+		if _, err := a.admit(context.Background(), Interactive, "art", art); err != nil {
+			t.Fatalf("interactive job %d refused with the encoders on paper: %v", i, err)
+		}
+	}
+	if _, err := a.admit(context.Background(), Interactive, "art", art); !errors.Is(err, ErrMemoryPressure) {
+		t.Fatalf("the 12th interactive job must be refused, got %v", err)
+	}
+}
+
+// Concurrent admissions race on the same MemAvailable reading: exactly as
+// many get in as fit, under -race.
+func TestAdmit_ConcurrentInteractiveBurstAdmitsOnlyWhatFits(t *testing.T) {
+	t.Parallel()
+	a, _ := fakeAdmission(4*gib, 16*gib)
+	art := RSSCap(Interactive, 16*gib)
+	const burst = 16
+	var wg sync.WaitGroup
+	var admitted atomic.Int32
+	start := make(chan struct{})
+	for range burst {
+		wg.Go(func() {
+			<-start
+			if _, err := a.admit(context.Background(), Interactive, "art", art); err == nil {
+				admitted.Add(1)
+			}
+		})
+	}
+	close(start)
+	wg.Wait()
+	if got := admitted.Load(); got != 3 {
+		t.Fatalf("%d of %d concurrent interactive jobs admitted on 4 GiB, want 3", got, burst)
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.interactiveReserved != 3*art || a.reserved != 3*art {
+		t.Fatalf("booked interactive=%d total=%d, want %d each", a.interactiveReserved, a.reserved, 3*art)
 	}
 }

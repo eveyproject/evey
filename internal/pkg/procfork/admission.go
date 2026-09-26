@@ -30,6 +30,9 @@ type admission struct {
 
 	mu       sync.Mutex
 	reserved int64
+	// interactiveReserved is the part of reserved held by Interactive jobs,
+	// the one reservation an interactive admission does subtract.
+	interactiveReserved int64
 }
 
 func newAdmission(available, budget func() (int64, bool)) *admission {
@@ -70,7 +73,7 @@ func (a *admission) admit(ctx context.Context, c Class, site string, need int64)
 			if waited {
 				slog.Info("procfork: memory pressure cleared, starting", slog.String("site", site))
 			}
-			return a.releaseFn(need), nil
+			return a.releaseFn(need, c == Interactive), nil
 		}
 		if c != Scan || a.now().After(deadline) {
 			slog.Warn("procfork: refused for memory pressure",
@@ -99,33 +102,43 @@ func (a *admission) admit(ctx context.Context, c Class, site string, need int64)
 // paper sum refused a 1 GiB album-art resize a viewer was waiting on while
 // 12.6 GiB were free. A short interactive job cannot push the host over on
 // its own; the heavy classes keep the conservative rule. Its cap is still
-// added to the sum, so the encoders admitted after it see it.
-func (a *admission) tryReserve(need, reserve int64, againstHost bool) (avail int64, ok bool, free int64) {
+// added to the sum, so the encoders admitted after it see it. What it does
+// subtract is the other interactive jobs in flight: MemAvailable lags their
+// allocations, so a burst read against the same figure would all get in.
+func (a *admission) tryReserve(need, reserve int64, interactive bool) (avail int64, ok bool, free int64) {
 	avail, readable := a.available()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !readable {
-		a.reserved += need
+		a.take(need, interactive)
 		return 0, true, 0
 	}
 	free = avail - a.reserved
 	headroom := free
-	if againstHost {
-		headroom = avail
+	if interactive {
+		headroom = avail - a.interactiveReserved
 	}
 	if headroom < need+reserve {
 		return avail, false, free
 	}
-	a.reserved += need
+	a.take(need, interactive)
 	return avail, true, free
 }
 
-func (a *admission) releaseFn(need int64) func() {
+// take books need; the caller holds mu. A negative need gives it back.
+func (a *admission) take(need int64, interactive bool) {
+	a.reserved += need
+	if interactive {
+		a.interactiveReserved += need
+	}
+}
+
+func (a *admission) releaseFn(need int64, interactive bool) func() {
 	var once sync.Once
 	return func() {
 		once.Do(func() {
 			a.mu.Lock()
-			a.reserved -= need
+			a.take(-need, interactive)
 			a.mu.Unlock()
 		})
 	}
