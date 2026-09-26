@@ -45,6 +45,7 @@ func (s *CommandService) SetOverride(ctx context.Context, override *metadata.Met
 	if err := s.events.Publish(ctx, evtOverride); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evtOverride.EventName()), slog.Any("err", err))
 	}
+	s.publishItemUpdated(ctx, override.MediaItemID, library.UpdateReasonMetadataEdited)
 	// When an admin edits the title on an orphan item (no TMDB/IMDB IDs yet),
 	// the intent is "this is the correct title - please match it now". The
 	// enricher reads media_items.title for its search query, so propagate
@@ -132,10 +133,15 @@ func (s *CommandService) RemoveOverride(ctx context.Context, id string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.RemoveOverride")
 	defer span.End()
 	span.SetAttributes(attribute.String("override.id", id))
+	// Read first: once deleted, nothing says which title the override was on.
+	target, getErr := s.overrides.Get(ctx, id)
 	if err := s.overrides.Delete(ctx, id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("CommandService.RemoveOverride: %w", err)
+	}
+	if getErr == nil && target != nil {
+		s.publishItemUpdated(ctx, target.MediaItemID, library.UpdateReasonMetadataEdited)
 	}
 	return nil
 }
@@ -164,6 +170,7 @@ func (s *CommandService) ResetOverrides(ctx context.Context, mediaItemID string)
 	if err := s.events.Publish(ctx, evtRemoved); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evtRemoved.EventName()), slog.Any("err", err))
 	}
+	s.publishItemUpdated(ctx, shared.MediaItemID(mediaItemID), library.UpdateReasonMetadataReset)
 	return nil
 }
 
@@ -245,6 +252,8 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 			return fmt.Errorf("reset children: %w", err)
 		}
 	}
+
+	s.publishItemUpdated(ctx, item.ID, library.UpdateReasonMetadataReset)
 
 	// Trigger re-enrichment with background context (request ctx may be done)
 	if se, ok := s.enricher.(SingleItemEnricher); ok {

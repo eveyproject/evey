@@ -166,6 +166,7 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 	if err = s.events.Publish(ctx, evtRemoved); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evtRemoved.EventName()), slog.Any("err", err))
 	}
+	s.publishItemUpdated(ctx, shared.MediaItemID(mediaItemID), library.UpdateReasonMetadataReset)
 
 	// 4. Re-fetch (state pre-enrich) so we hand the enricher the persisted form.
 	item, err = s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))

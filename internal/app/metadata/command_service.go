@@ -2,8 +2,10 @@ package metadata
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/metadata"
@@ -131,4 +133,13 @@ func (s *CommandService) RelinkCollections(ctx context.Context, limit int) (Reli
 		return RelinkReport{}, nil
 	}
 	return r.RelinkCollections(ctx, limit)
+}
+
+// publishItemUpdated announces a metadata change a viewer can see (webhook
+// media.item.updated), next to the finer-grained metadata.* event.
+func (s *CommandService) publishItemUpdated(ctx context.Context, mediaItemID shared.MediaItemID, reason string) {
+	evt := library.MediaItemUpdated{MediaItemID: mediaItemID, Reason: reason, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
 }

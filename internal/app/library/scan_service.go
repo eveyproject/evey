@@ -965,6 +965,12 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		s.metadata.extractAndStoreChapters(ctx, string(existing.ID), f.Path)
 	}
 	s.indexItem(ctx, existing)
+	s.publish(ctx, library.MediaItemUpdated{
+		MediaItemID: existing.ID,
+		LibraryID:   existing.LibraryID,
+		Reason:      library.UpdateReasonFileReplaced,
+		OccurredAt:  time.Now(),
+	})
 	if existing.Overview == "" {
 		s.publish(ctx, library.MediaItemAdded{
 			MediaItemID: existing.ID,

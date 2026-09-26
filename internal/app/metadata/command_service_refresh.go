@@ -165,6 +165,7 @@ func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, t
 	if err := s.events.Publish(ctx, evtTmdb); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evtTmdb.EventName()), slog.Any("err", err))
 	}
+	s.publishItemUpdated(ctx, shared.MediaItemID(mediaItemID), library.UpdateReasonMetadataRefreshed)
 	return nil
 }
 
@@ -223,6 +224,7 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 	if err := s.events.Publish(ctx, evtImdb); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evtImdb.EventName()), slog.Any("err", err))
 	}
+	s.publishItemUpdated(ctx, shared.MediaItemID(mediaItemID), library.UpdateReasonMetadataRefreshed)
 	return nil
 }
 
