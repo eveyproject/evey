@@ -35,5 +35,5 @@ func TestRouteEvidencePlan_MeasuresTheRuntimeShape(t *testing.T) {
 		}
 		require.Contains(t, er.features, transcoding.BFramesFeature("h264", false), "the other features stay")
 	}
-	require.Greater(t, hw, 0, "the backend's routes are in the plan")
+	require.Positive(t, hw, "the backend's routes are in the plan")
 }
