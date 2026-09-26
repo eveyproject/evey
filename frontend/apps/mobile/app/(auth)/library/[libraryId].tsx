@@ -1143,6 +1143,18 @@ export default function LibraryDetailScreen() {
             </View>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+            {isAdmin && selected.size === 1 && (
+              <Pressable
+                onPress={() => { const [only] = Array.from(selected); exitBulk(); router.push(`/media/${only}?edit=1`); }}
+                style={styles.bulkBtn}
+                accessible
+                accessibilityLabel={t("media.contextMenu.editMetadata")}
+                accessibilityRole="button"
+              >
+                <Ionicons name="create-outline" size={20} color={theme.colors.accent} />
+                <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.contextMenu.editMetadata")}</Text>
+              </Pressable>
+            )}
             <Pressable onPress={bulkMarkWatched} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.markWatched", "Watched")}</Text>
