@@ -91,6 +91,7 @@ var gatedInHandler = map[string]string{
 	"GET /api/v1/plugins/{id}/assets/{path...}":        "pluginAssetHandler.authorizeFrontJS: accepts a user token OR a plugin-scoped token pinned to {id}",
 	"/api/v1/devices/ws":                               "WebSocket: the token rides Sec-WebSocket-Protocol, which no HandlerFunc wrapper can read",
 	"/api/v1/syncplay/rooms/{id}/ws":                   "same, plus guest room tokens",
+	"GET /api/v1/admin/backups/{id}":                   "backupDownloadAuth: the admin JWT (httpAdminMiddleware) OR a backup-download token bound to {id}",
 }
 
 // Registering the same pattern twice PANICS http.ServeMux at boot - a server

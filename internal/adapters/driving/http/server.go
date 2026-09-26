@@ -750,7 +750,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		syncplayJoinByCodeHandler(s.SyncPlayHub, s.StreamTokenStore,
 			ratelimit.NewFailureGate("syncplay-join-code", joinCodeFailureThreshold, joinCodeFailureWindow, joinCodeCooldown))))
 	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                            // Play On: WebSocket + REST
-	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL) // binary: download/restore
+	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.StreamTokenStore, s.AdminHeavyRL, s.AdminWriteRL) // binary: download/restore
 	if s.WebhookSvc != nil {
 		// grpc-gateway serves Create/List/Update/Delete/ListDeliveries from the
 		// proto; "test" has no RPC, hence the manual route registered here.

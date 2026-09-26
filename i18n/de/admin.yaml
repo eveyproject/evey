@@ -539,6 +539,7 @@ backup:
   failedCreate: Sicherung konnte nicht erstellt werden
   backupDeleted: Sicherung gelöscht
   failedDeleteBackup: Sicherung konnte nicht gelöscht werden
+  downloadFailed: Die Sicherung konnte nicht heruntergeladen werden
   noBackups: Keine Sicherungen
   noBackupsDesc: Erstellen Sie eine Sicherung, um den Datenbankzustand zu speichern.
   tableHeaders:

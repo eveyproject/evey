@@ -15,6 +15,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 var unsafeFilenameChars = regexp.MustCompile(`[^\w\s.\-()]`)
@@ -269,11 +270,30 @@ func tokenRedactMiddleware(store streamTokenValidator, httpsOnly bool, next http
 					slog.Int("token_len", len(rawTok)))
 			}
 		} else if fromQuery && r.Header.Get("Authorization") == "" {
-			// JWT delivered via ?token= (legacy): promote to a Bearer header.
-			r.Header.Set("Authorization", "Bearer "+rawTok)
+			// JWT delivered via ?token= (legacy images, music, photos): promoted
+			// to a Bearer header for READS only, and never on an admin route - a
+			// session token that leaks from a proxy log or a browser history
+			// must not be able to write anything, or reach the admin surface.
+			// The token has already left the URL either way.
+			if jwtQueryAllowed(r) {
+				r.Header.Set("Authorization", "Bearer "+rawTok)
+			} else {
+				metrics.AuthzDeniedTotal.WithLabelValues("http", "jwt_in_query_refused").Inc()
+				slog.WarnContext(r.Context(), "account token in the URL refused on this route",
+					slog.String("method", r.Method), slog.String("path", r.URL.Path))
+			}
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// jwtQueryAllowed is where an account JWT may still arrive as ?token=: reads
+// outside /api/v1/admin/.
+func jwtQueryAllowed(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	return !strings.HasPrefix(r.URL.Path, "/api/v1/admin/")
 }
 
 type ctxKeyStreamToken struct{}

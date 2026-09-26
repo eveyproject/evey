@@ -141,6 +141,7 @@
   "admin.backup.createBackup": "Create Backup",
   "admin.backup.deleteBackupTitle": "Delete Backup",
   "admin.backup.deleteConfirm": "Delete backup from {{date}}? This cannot be undone.",
+  "admin.backup.downloadFailed": "Could not download the backup",
   "admin.backup.failedCreate": "Failed to create backup",
   "admin.backup.failedDeleteBackup": "Failed to delete backup",
   "admin.backup.noBackups": "No backups",

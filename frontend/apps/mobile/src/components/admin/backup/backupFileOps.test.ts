@@ -55,12 +55,12 @@ beforeEach(() => {
 // authenticated both by query token (redirect-safe) and header; a malformed
 // backup with no id is refused before any I/O.
 describe("downloadBackupFile", () => {
-  it("downloads into documents/backups with the token in the URL and the header", async () => {
+  it("downloads into documents/backups with the token in the header, never the URL", async () => {
     const uri = await downloadBackupFile({ id: "b 1" }, "tok");
     expect(uri).toBe("doc/backups/b 1.tar.gz");
     expect(fs.dirs).toEqual([{ base: "doc", name: "backups", created: true }]);
     expect(fs.download).toHaveBeenCalledWith(
-      "https://s/api/v1/admin/backups/b%201?token=tok",
+      "https://s/api/v1/admin/backups/b%201",
       expect.objectContaining({ uri: "doc/backups/b 1.tar.gz" }),
       { headers: { Authorization: "Bearer tok" }, idempotent: true },
     );
@@ -106,7 +106,7 @@ describe("restoreExistingBackup", () => {
   it("round-trips through a cache temp file and cleans it up", async () => {
     await restoreExistingBackup({ id: "b1" }, "tok");
     expect(fs.dirs).toEqual([{ base: "cache", name: "backup-restore", created: true }]);
-    expect(fs.download.mock.calls[0][0]).toBe("https://s/api/v1/admin/backups/b1?token=tok");
+    expect(fs.download.mock.calls[0][0]).toBe("https://s/api/v1/admin/backups/b1");
     expect(fs.upload.mock.calls[0][1]).toBe("cache/backup-restore/b1.tar.gz");
     expect(fs.deleted).toEqual(["cache/backup-restore/b1.tar.gz"]);
   });

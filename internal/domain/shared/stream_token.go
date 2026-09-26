@@ -12,6 +12,10 @@ const (
 	// may stream exactly one media item (the room's), but must be refused by the
 	// download handler and any endpoint that is not read-only streaming.
 	ScopeSyncplayGuest = "syncplay-guest"
+	// ScopeBackupDownload lets an admin's browser or phone fetch ONE backup
+	// archive by URL (an anchor or a native download cannot send a header).
+	// Minted only by the admin backup route, refused everywhere else.
+	ScopeBackupDownload = "backup-download"
 )
 
 type StreamToken struct {

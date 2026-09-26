@@ -538,6 +538,7 @@ backup:
   failedCreate: "Échec de la création de la sauvegarde"
   backupDeleted: "Sauvegarde supprimée"
   failedDeleteBackup: "Échec de la suppression de la sauvegarde"
+  downloadFailed: Impossible de télécharger la sauvegarde
   noBackups: "Aucune sauvegarde"
   noBackupsDesc: "Créez une sauvegarde pour sauvegarder l'état de la base de données."
   tableHeaders:

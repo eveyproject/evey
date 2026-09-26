@@ -4,23 +4,49 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	appbackup "github.com/evey-project/evey/internal/app/backup"
+	appmedia "github.com/evey-project/evey/internal/app/media"
 	backupdomain "github.com/evey-project/evey/internal/domain/backup"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen domainuser.TokenGenerator, heavyRL, writeRL *ratelimit.Limiter) {
+// backupDownloadTokenTTL is how long a minted download link stays usable:
+// long enough for the browser or phone to start the transfer, no more.
+const backupDownloadTokenTTL = 2 * time.Minute
+
+func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen domainuser.TokenGenerator, tokens *appmedia.StreamTokenStore, heavyRL, writeRL *ratelimit.Limiter) {
 	admin := httpAdminMiddleware(tokenGen)
+
+	// An anchor or a native download cannot send the Authorization header, and
+	// the account JWT is no longer accepted in an admin URL: the admin mints a
+	// short token bound to THIS backup (header-authenticated), and the URL
+	// carries that instead.
+	mux.HandleFunc("POST /api/v1/admin/backups/{id}/download-token", admin(func(w http.ResponseWriter, r *http.Request) {
+		claims := HTTPClaimsFromContext(r.Context())
+		backupID := r.PathValue("id")
+		if tokens == nil || claims == nil || backupID == "" || len(backupID) > 128 {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		token := tokens.CreateBackupDownload(shared.UserID(claims.UserID), backupID, backupDownloadTokenTTL)
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]string{"token": token}); err != nil {
+			slog.WarnContext(r.Context(), "backup download token encode failed", slog.Any("err", err))
+		}
+	}))
 
 	mux.HandleFunc("POST /api/v1/admin/backups", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.backup.Create")
@@ -81,7 +107,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 		}
 	}))
 
-	mux.HandleFunc("GET /api/v1/admin/backups/{id}", admin(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/admin/backups/{id}", backupDownloadAuth(admin, func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.backup.Download")
 		defer span.End()
 		r = r.WithContext(ctx)
@@ -162,4 +188,23 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})))
+}
+
+// backupDownloadAuth lets a backup download through on the admin JWT, or on a
+// backup-download token bound to this very backup id; any other token is
+// handed to the admin gate, which refuses it.
+func backupDownloadAuth(admin func(http.HandlerFunc) http.HandlerFunc, next http.HandlerFunc) http.HandlerFunc {
+	viaAdmin := admin(next)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if st, ok := StreamTokenFromContext(r.Context()); ok && st.Scope == shared.ScopeBackupDownload {
+			if st.MediaItemID != shared.MediaItemID(r.PathValue("id")) {
+				metrics.AuthzDeniedTotal.WithLabelValues("http", "backup_token_scope_mismatch").Inc()
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+			next(w, r)
+			return
+		}
+		viaAdmin(w, r)
+	}
 }
