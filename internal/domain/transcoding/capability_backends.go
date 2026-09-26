@@ -30,7 +30,10 @@ type HWBackendCap struct {
 	Codecs       []string `json:"codecs,omitempty"`
 	DecodeCodecs []string `json:"decode_codecs,omitempty"`
 	Features     []string `json:"features,omitempty"`
-	Routes       []string `json:"routes,omitempty"`
+	// Routes is written even when empty: an empty list is the fail-closed
+	// verdict "no route proven" and must survive persistence - omitted, it
+	// came back nil and read as "every route trusted".
+	Routes []string `json:"routes"`
 	// FailedRoutes are route+codec combinations (HWRouteCombo) that failed a
 	// runtime re-proof: that topology no longer takes that output codec here,
 	// the other codecs keep it. A calibration writes a fresh row without them.
@@ -75,7 +78,10 @@ func (b HWBackendCap) DeinterlacesOnGPU() bool {
 }
 
 // Proves reports whether this backend ran route end-to-end through the builder.
-// nil Routes (pre-probe) is trusted, matching HWRouteProven.
+// nil Routes is trusted: it only survives on a row benched before the route
+// probes existed (ProbeVersion < 5) - normalized() turns nil into "no route
+// proven" on every later row, so a persisted empty verdict cannot read as
+// proof once the row is published.
 func (b HWBackendCap) Proves(route string) bool {
 	if b.Routes == nil {
 		return true

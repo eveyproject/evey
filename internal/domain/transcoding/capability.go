@@ -404,7 +404,7 @@ func (c EncodeCapability) Snapshot() HostCapabilitySnapshot {
 // ProbeVersion is kept - the calibration's staleness check reads it.
 func (c EncodeCapability) normalized() EncodeCapability {
 	if c.ProbeVersion >= decodeClassProbeVersion {
-		return c
+		return c.withRouteVerdicts()
 	}
 	c.HWDecodeCodecs = withImpliedMain10(c.HWDecodeCodecs)
 	if len(c.Backends) > 0 {
@@ -415,6 +415,33 @@ func (c EncodeCapability) normalized() EncodeCapability {
 		}
 		c.Backends = backends
 	}
+	return c
+}
+
+// withRouteVerdicts makes a route-probed row (ProbeVersion >= 5) say what it
+// proved: a backend whose Routes is nil gets the empty list, the fail-closed
+// verdict the probe wrote. Rows persisted while Routes was omitted when empty
+// came back nil, and Proves read nil as "every route trusted" - a backend
+// with no working route was offered every one of them.
+func (c EncodeCapability) withRouteVerdicts() EncodeCapability {
+	fix := false
+	for _, b := range c.Backends {
+		if b.Routes == nil {
+			fix = true
+			break
+		}
+	}
+	if !fix {
+		return c
+	}
+	backends := make([]HWBackendCap, len(c.Backends))
+	copy(backends, c.Backends)
+	for i := range backends {
+		if backends[i].Routes == nil {
+			backends[i].Routes = []string{}
+		}
+	}
+	c.Backends = backends
 	return c
 }
 
