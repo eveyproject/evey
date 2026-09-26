@@ -10,6 +10,7 @@ import (
 	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -340,5 +341,30 @@ func TestUpdatePushConsent_RevokeDeletesAll(t *testing.T) {
 	list, _ := subs.ListByUser(context.Background(), "u1")
 	if len(list) != 0 {
 		t.Errorf("expected all subs deleted on revoke, got %+v", list)
+	}
+}
+
+// Each registration is a row and a target of every later notification: past
+// the per-user budget the call is refused, and another user is not charged.
+func TestRegisterWebPush_RateLimitedPerUser(t *testing.T) {
+	t.Parallel()
+	h := newTestPushHandler(notiffakes.NewFakePushSubscriptionRepository())
+	h.registerRL = ratelimit.New(2)
+	t.Cleanup(h.registerRL.Stop)
+	req := &eveyv1.RegisterWebPushRequest{
+		Endpoint: "https://push.example/sub",
+		Keys:     &eveyv1.WebPushKeys{P256Dh: "YWJj", Auth: "ZGVm"},
+	}
+	ctx := ctxWithClaims("u1", "p1", false)
+	for i := range 2 {
+		if _, err := h.RegisterWebPush(ctx, req); err != nil {
+			t.Fatalf("registration %d: %v", i+1, err)
+		}
+	}
+	if got := codeOf(t, func() error { _, err := h.RegisterWebPush(ctx, req); return err }()); got != codes.ResourceExhausted {
+		t.Fatalf("third registration: code = %v, want ResourceExhausted", got)
+	}
+	if _, err := h.RegisterWebPush(ctxWithClaims("u2", "p2", false), req); err != nil {
+		t.Fatalf("another user must keep its own budget: %v", err)
 	}
 }

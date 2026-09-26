@@ -8,6 +8,7 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appnotification "github.com/evey-project/evey/internal/app/notification"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,6 +33,9 @@ type webPushHandler struct {
 	notifCmd    *appnotification.CommandService
 	notifQuery  *appnotification.QueryService
 	vapidPubKey string
+	// registerRL caps subscriptions per user: each one is a row and a target
+	// of every later notification. Nil = unlimited (tests).
+	registerRL *ratelimit.Limiter
 }
 
 func (h *webPushHandler) GetVAPIDKey(ctx context.Context, _ *eveyv1.GetVAPIDKeyRequest) (*eveyv1.GetVAPIDKeyResponse, error) {
@@ -46,6 +50,9 @@ func (h *webPushHandler) RegisterWebPush(ctx context.Context, req *eveyv1.Regist
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if h.registerRL != nil && !h.registerRL.Allow(claims.UserID) {
+		return nil, status.Error(codes.ResourceExhausted, "too many push registrations")
 	}
 	if req.Endpoint == "" || req.Keys == nil || req.Keys.P256Dh == "" || req.Keys.Auth == "" {
 		return nil, status.Error(codes.InvalidArgument, "endpoint and keys required")
