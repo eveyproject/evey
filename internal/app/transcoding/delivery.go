@@ -55,9 +55,18 @@ type DeliveryStrategy struct {
 // ServingPath is the strategy as the admin dashboard reads it, with the
 // route's verdicts (copy / transcode, backend) and the fingerprint's audio
 // copy folded in. The one place a ServingPath is built from a plan.
+//
+// The packager never transcodes: video on it IS a copy, whatever the route
+// says. Route.Copy is ffmpeg's copy-rung verdict (a wired copy producer, cache
+// room), which the packager needs neither of - so a plan could carry the
+// video on the packager while its route, priced for the ffmpeg path that
+// serves the plan if the packager cannot build the source, said "transcode".
+// Read from the route alone, the planned path came out as transcode/mkvgo,
+// disagreed with the copy/mkvgo the adapter served, and tripped the
+// invariant counter that must stay at zero (measured 2026-09-26).
 func (d DeliveryStrategy) ServingPath(route ResolvedRoute, fp DecisionFingerprint) domainplayback.ServingPath {
 	p := domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: string(d.Video), AudioEngine: string(d.Audio)}
-	if route.Copy {
+	if route.Copy || d.Video == EngineMkvgo {
 		p.VideoDecision = "copy"
 	} else {
 		p.VideoBackend = "software"
