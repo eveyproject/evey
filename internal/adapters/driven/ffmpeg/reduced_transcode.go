@@ -48,7 +48,6 @@ import (
 
 	domainmkv "github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/hdr"
 	"github.com/evey-project/evey/internal/pkg/reduceddl"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -92,7 +91,11 @@ func NewReducedTranscoder(ffmpegPath string) *ReducedTranscoder {
 //   - no "-map_chapters": chapter timestamps are whole-file, and copying them
 //     into every timestamp-reset slice would produce garbage after the join.
 //     Chapters are a known, accepted loss on the reduced variant.
-func BuildReducedArgs(src, pattern, listPath string, spec reduceddl.Spec) []string {
+//
+// The picture chain (deinterlace, tone-map or scale, SAR) is the SAME software
+// chain a player session runs (softwareVideoFilter, shared with the clip
+// builder in clip_args.go) instead of a private copy of the tone-map string.
+func BuildReducedArgs(src, pattern, listPath string, spec reduceddl.Spec, picture transcoding.PicturePlan) []string {
 	slice := spec.SliceSec
 	if slice <= 0 {
 		slice = reduceddl.SliceSec
@@ -110,16 +113,14 @@ func BuildReducedArgs(src, pattern, listPath string, spec reduceddl.Spec) []stri
 	// and subtitles all ride along ("?" = do not fail a film with no subs).
 	args = append(args, "-map", "0:v:0", "-map", "0:a", "-map", "0:s?")
 
-	filter := fmt.Sprintf("scale=%d:-2", spec.Width)
-	if spec.ToneMap {
-		tm := hdr.DefaultToneMapOptions()
-		tm.DstWidth = spec.Width // the downscale is folded into the tonemap
-		tm.UseTonemapx = tonemapxAvailable("ffmpeg")
-		if f := hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, tm); f != "" {
-			filter = f
-		}
-	}
-	args = append(args, "-vf", filter)
+	// This production runs for hours under nice, sharing the box with live
+	// viewers: it must never contend for the GPU a playback session needs, so
+	// it always draws the picture in software - whatever route the caller
+	// resolved the plan through.
+	picture = picture.Software()
+	opts := transcoding.HLSProcessOpts{FilePath: src, SubtitleTrackIndex: -1, Profiles: []transcoding.HLSProfile{{Width: spec.Width}}}
+	picture.ApplyTo(&opts)
+	args = append(args, "-vf", softwareVideoFilter(opts, spec.Width))
 
 	args = append(args,
 		// veryfast, not slower: the target is a weak NAS running this under
@@ -163,7 +164,7 @@ func BuildReducedArgs(src, pattern, listPath string, spec reduceddl.Spec) []stri
 //
 // durationMs is the source's play length (the permille denominator). estBytes
 // sizes the space preflight.
-func (t *ReducedTranscoder) TranscodeReducedSlices(ctx context.Context, src, dir string, spec reduceddl.Spec, durationMs, estBytes int64, onProgress func(permille int)) error {
+func (t *ReducedTranscoder) TranscodeReducedSlices(ctx context.Context, src, dir string, spec reduceddl.Spec, picture transcoding.PicturePlan, durationMs, estBytes int64, onProgress func(permille int)) error {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.TranscodeReducedSlices")
 	defer span.End()
 
@@ -190,7 +191,7 @@ func (t *ReducedTranscoder) TranscodeReducedSlices(ctx context.Context, src, dir
 
 	pattern := filepath.Join(dir, reduceddl.SlicePattern)
 	listPath := filepath.Join(dir, reduceddl.ListName(spec.StartSlice))
-	argv := append([]string{"-progress", "pipe:1", "-nostats"}, BuildReducedArgs(src, pattern, listPath, spec)...)
+	argv := append([]string{"-progress", "pipe:1", "-nostats"}, BuildReducedArgs(src, pattern, listPath, spec, picture)...)
 	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Production, Site: "reduced.transcode", Source: procfork.Source{Width: spec.SourceWidth, Height: spec.SourceHeight, TenBit: spec.SourceTenBit}}, t.ffmpegPath, argv...)
 	if err != nil {
 		return fmt.Errorf("reduced-transcode: %w", err)

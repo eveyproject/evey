@@ -138,7 +138,10 @@ func TestTrickplayFilter_TonemapsHDRSources(t *testing.T) {
 		if !strings.Contains(got, "tonemap") {
 			t.Errorf("%s: filter must tone-map, got %q", tc.name, got)
 		}
-		if !strings.Contains(got, "setparams") {
+		// setparams only exists on the tonemapx build (jellyfin-ffmpeg); the
+		// portable zscale fallback tags colour differently. Only require it
+		// when this host's ffmpeg actually has the filter.
+		if tonemapxAvailable("ffmpeg") && !strings.Contains(got, "setparams") {
 			t.Errorf("%s: filter must tag the colour metadata first (rips under-tag), got %q", tc.name, got)
 		}
 		if !strings.Contains(got, "tile=5x5") {

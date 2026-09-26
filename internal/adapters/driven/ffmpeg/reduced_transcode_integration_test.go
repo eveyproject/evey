@@ -29,6 +29,7 @@ import (
 
 	mkvops "github.com/gravity-zero/mkvgo/mkv/ops"
 
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/reduceddl"
 )
 
@@ -70,7 +71,7 @@ func TestReducedSlicesIntegration(t *testing.T) {
 
 	var lastPermille int
 	if err := NewReducedTranscoder("ffmpeg").TranscodeReducedSlices(
-		ctx, src, jobDir, spec, srcDurationSec*1000, 0, func(p int) { lastPermille = p },
+		ctx, src, jobDir, spec, transcoding.PicturePlan{}, srcDurationSec*1000, 0, func(p int) { lastPermille = p },
 	); err != nil {
 		t.Fatalf("TranscodeReducedSlices: %v", err)
 	}
