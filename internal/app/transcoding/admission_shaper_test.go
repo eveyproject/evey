@@ -31,12 +31,27 @@ func shaperFixture(t *testing.T) (*VideoAdmissionShaper, *VideoSessionLimiter, *
 	return shaper, limiter, &clock
 }
 
+// ceilingFor is the removed CeilingFor read the tests were written against:
+// the granted ceiling and whether it trims the offered ladder ((0, false)
+// when nothing fits). Production reads RouteGrant itself.
+func ceilingFor(s *VideoAdmissionShaper, key string, class LadderClass, heights []int, src transcoding.SourceClass) (int, bool) {
+	g := s.GrantRoute(key, RouteAdmission{Natural: class, Heights: heights, Src: src})
+	if !g.OK {
+		return 0, false
+	}
+	top := 0
+	for _, h := range heights {
+		top = max(top, h)
+	}
+	return g.Ceiling, g.Ceiling < top
+}
+
 var ladder = []int{1440, 1080, 720}
 
 func TestAdmissionShaper_EmptyHost_GrantsTheRequestedTop(t *testing.T) {
 	shaper, _, _ := shaperFixture(t)
 
-	h, forced := shaper.CeilingFor("s1", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h, forced := ceilingFor(shaper, "s1", LadderClassSoftware, ladder, transcoding.SourceClass{})
 
 	assert.Equal(t, 1440, h)
 	assert.False(t, forced, "an empty host trims nothing")
@@ -47,7 +62,7 @@ func TestAdmissionShaper_SecondViewer_ForcedDownToWhatFits(t *testing.T) {
 	shaper, limiter, _ := shaperFixture(t)
 	require.True(t, limiter.TryAcquire("hash-first", LadderClassSoftware, 1440), "first viewer holds 0.530")
 
-	h, forced := shaper.CeilingFor("s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h, forced := ceilingFor(shaper, "s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
 
 	assert.Equal(t, 1080, h, "0.530 used + 0.431 = 0.961 fits; 1440 (1.060) does not")
 	assert.True(t, forced)
@@ -58,10 +73,10 @@ func TestAdmissionShaper_NothingFits_NoPinAndNoCeiling(t *testing.T) {
 	require.True(t, limiter.TryAcquire("h1", LadderClassSoftware, 1440))
 	require.True(t, limiter.TryAcquire("h2", LadderClassSoftware, 1080), "0.961 used, 0.039 left")
 
-	_, forced := shaper.CeilingFor("s3", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	_, forced := ceilingFor(shaper, "s3", LadderClassSoftware, ladder, transcoding.SourceClass{})
 
 	assert.False(t, forced, "the ladder stays whole; the shed paths answer this viewer")
-	h, _ := shaper.CeilingFor("s3", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h, _ := ceilingFor(shaper, "s3", LadderClassSoftware, ladder, transcoding.SourceClass{})
 	assert.Equal(t, 0, h, "and no stale grant was pinned")
 }
 
@@ -70,12 +85,12 @@ func TestAdmissionShaper_NothingFits_NoPinAndNoCeiling(t *testing.T) {
 func TestAdmissionShaper_PinSurvivesBudgetFreeingWhileFresh(t *testing.T) {
 	shaper, limiter, _ := shaperFixture(t)
 	require.True(t, limiter.TryAcquire("hash-first", LadderClassSoftware, 1440))
-	h, _ := shaper.CeilingFor("s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h, _ := ceilingFor(shaper, "s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
 	require.Equal(t, 1080, h)
 
 	limiter.Release("hash-first") // the 1440p viewer stops; budget is empty again
 
-	h, forced := shaper.CeilingFor("s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h, forced := ceilingFor(shaper, "s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
 	assert.Equal(t, 1080, h, "a fresh pin never moves: the player's URLs address these bytes")
 	assert.True(t, forced)
 }
@@ -86,14 +101,14 @@ func TestAdmissionShaper_PinSurvivesBudgetFreeingWhileFresh(t *testing.T) {
 func TestAdmissionShaper_ColdPinHeldByALiveSession_DoesNotMove(t *testing.T) {
 	shaper, limiter, clock := shaperFixture(t)
 	require.True(t, limiter.TryAcquire("hash-first", LadderClassSoftware, 1440))
-	h, _ := shaper.CeilingFor("s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h, _ := ceilingFor(shaper, "s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
 	require.Equal(t, 1080, h)
 	require.True(t, limiter.TryAcquire("hash-s2-final", LadderClassSoftware, 1080), "s2's session spawned")
 	shaper.Bind("s2", "hash-s2-final")
 
 	*clock = clock.Add(10 * time.Minute) // long pause, pin is cold
 
-	h, _ = shaper.CeilingFor("s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h, _ = ceilingFor(shaper, "s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
 	assert.Equal(t, 1080, h, "a held stream's ceiling is frozen, cold or not")
 }
 
@@ -103,20 +118,20 @@ func TestAdmissionShaper_ColdPinHeldByALiveSession_DoesNotMove(t *testing.T) {
 func TestAdmissionShaper_AbandonedPinReEvaluatesOnRetry(t *testing.T) {
 	shaper, limiter, clock := shaperFixture(t)
 	require.True(t, limiter.TryAcquire("hash-first", LadderClassSoftware, 1440))
-	h, _ := shaper.CeilingFor("s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h, _ := ceilingFor(shaper, "s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
 	require.Equal(t, 1080, h)
 
 	limiter.Release("hash-first")          // the other viewer finished
 	*clock = clock.Add(defaultPinFreshFor) // s2 never spawned; pin went cold
 
-	h, forced := shaper.CeilingFor("s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h, forced := ceilingFor(shaper, "s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
 	assert.Equal(t, 1440, h, "the retry sees the budget of ITS moment")
 	assert.False(t, forced)
 }
 
 func TestAdmissionShaper_BindIsIdempotentAndBounded(t *testing.T) {
 	shaper, limiter, _ := shaperFixture(t)
-	shaper.CeilingFor("s1", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	ceilingFor(shaper, "s1", LadderClassSoftware, ladder, transcoding.SourceClass{})
 
 	// "same-hash" is LIVE: it must survive any compaction the churn causes.
 	require.True(t, limiter.TryAcquire("same-hash", LadderClassSoftware, 720))
@@ -137,63 +152,46 @@ func TestAdmissionShaper_BindIsIdempotentAndBounded(t *testing.T) {
 }
 
 // ============================================================================
-// StreamPlan reification (Étape 2): the granted decision is an immutable value
-// with its own content hash, minted once and replaced (never mutated) on
-// supersession.
+// StreamPlan reification (Étape 2): the granted decision is an immutable value,
+// minted once and replaced (never mutated) on supersession.
 // ============================================================================
 
-func TestStreamPlan_Hash_IdentityAndDistinctness(t *testing.T) {
-	t.Parallel()
-	base := StreamPlan{Class: LadderClassSoftware, Ceiling: 1080}
-	assert.Equal(t, base.Hash(), StreamPlan{Class: LadderClassSoftware, Ceiling: 1080}.Hash(),
-		"the same (class, ceiling) hashes identically")
-	assert.NotEqual(t, base.Hash(), StreamPlan{Class: LadderClassSoftware, Ceiling: 1440}.Hash(),
-		"a different ceiling is a different plan")
-	assert.NotEqual(t, base.Hash(), StreamPlan{Class: LadderClassHW, Ceiling: 1080}.Hash(),
-		"a different route (class) is a different plan")
-}
-
-func TestAdmissionShaper_PlanFor_ReturnsLivePlanMatchingGrant(t *testing.T) {
+func TestAdmissionShaper_LivePlanMatchesGrant(t *testing.T) {
 	shaper, _, _ := shaperFixture(t)
 
 	g := shaper.GrantRoute("s1", RouteAdmission{Natural: LadderClassSoftware, Heights: ladder})
 	require.True(t, g.OK)
 
-	plan, ok := shaper.PlanFor("s1")
-	require.True(t, ok, "a live stream has a readable plan")
-	assert.Equal(t, LadderClassSoftware, plan.Class)
-	assert.Equal(t, g.Ceiling, plan.Ceiling)
-	assert.Equal(t, g.PlanHash, plan.Hash(), "the grant's PlanHash IS the stored plan's hash")
-
-	_, ok = shaper.PlanFor("never-admitted")
-	assert.False(t, ok, "no plan for a stream that was never admitted")
+	shaper.mu.Lock()
+	pin, ok := shaper.pins["s1"]
+	_, never := shaper.pins["never-admitted"]
+	shaper.mu.Unlock()
+	require.True(t, ok, "a live stream has a stored plan")
+	assert.Equal(t, StreamPlan{Class: LadderClassSoftware, Ceiling: g.Ceiling}, pin.plan, "the grant IS the stored plan")
+	assert.False(t, never, "no plan for a stream that was never admitted")
 }
 
 // The immutability property that makes the cache-hash invariant structural: a
-// live plan's hash never changes across grants; only a supersession (cold +
-// unheld, budget changed) mints a NEW plan with a NEW hash. The plan is never
-// mutated in place.
-func TestAdmissionShaper_PlanHash_StableWhileLive_ChangesOnlyOnSupersession(t *testing.T) {
+// live plan never changes across grants; only a supersession (cold + unheld,
+// budget changed) mints a NEW plan. The plan is never mutated in place.
+func TestAdmissionShaper_PlanStableWhileLive_ChangesOnlyOnSupersession(t *testing.T) {
 	shaper, limiter, clock := shaperFixture(t)
 	require.True(t, limiter.TryAcquire("hash-first", LadderClassSoftware, 1440), "first viewer holds 0.530")
 
 	g1 := shaper.GrantRoute("s2", RouteAdmission{Natural: LadderClassSoftware, Heights: ladder})
 	require.Equal(t, 1080, g1.Ceiling, "forced to 1080 by the first viewer's load")
 
-	// While fresh, every re-grant returns the SAME immutable plan/hash - even
+	// While fresh, every re-grant returns the SAME immutable plan - even
 	// after the budget frees entirely.
 	limiter.Release("hash-first")
 	g2 := shaper.GrantRoute("s2", RouteAdmission{Natural: LadderClassSoftware, Heights: ladder})
-	assert.Equal(t, g1.PlanHash, g2.PlanHash, "a live plan's hash is frozen; it is never mutated")
-	assert.Equal(t, 1080, g2.Ceiling)
+	assert.Equal(t, g1, g2, "a live plan is frozen; it is never mutated")
 
 	// Cold and unheld: the plan is superseded by a NEW one against the now-empty
-	// budget - a different ceiling, hence a different hash.
+	// budget - a different ceiling.
 	*clock = clock.Add(defaultPinFreshFor)
 	g3 := shaper.GrantRoute("s2", RouteAdmission{Natural: LadderClassSoftware, Heights: ladder})
-	require.Equal(t, 1440, g3.Ceiling, "the retry sees the budget of its moment")
-	assert.NotEqual(t, g1.PlanHash, g3.PlanHash, "supersession mints a new plan identity")
-	assert.Equal(t, StreamPlan{Class: LadderClassSoftware, Ceiling: 1440}.Hash(), g3.PlanHash)
+	assert.Equal(t, RouteGrant{Class: LadderClassSoftware, Ceiling: 1440, OK: true}, g3, "the retry sees the budget of its moment")
 }
 
 // ============================================================================
@@ -333,13 +331,13 @@ func countOf(xs []string, want string) int {
 
 func TestAdmissionShaper_NilReceiverAndNilLimiter_AreInert(t *testing.T) {
 	var s *VideoAdmissionShaper
-	h, forced := s.CeilingFor("k", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h, forced := ceilingFor(s, "k", LadderClassSoftware, ladder, transcoding.SourceClass{})
 	assert.Equal(t, 0, h)
 	assert.False(t, forced)
 	s.Bind("k", "h")
 
 	s2 := &VideoAdmissionShaper{}
-	h, forced = s2.CeilingFor("k", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h, forced = ceilingFor(s2, "k", LadderClassSoftware, ladder, transcoding.SourceClass{})
 	assert.Equal(t, 0, h)
 	assert.False(t, forced)
 }
@@ -349,7 +347,7 @@ func TestAdmissionShaper_PinMapStaysBounded(t *testing.T) {
 	shaper.maxPins = 8
 
 	for i := range 50 {
-		shaper.CeilingFor(fmt.Sprintf("s%d", i), LadderClassSoftware, []int{720}, transcoding.SourceClass{})
+		ceilingFor(shaper, fmt.Sprintf("s%d", i), LadderClassSoftware, []int{720}, transcoding.SourceClass{})
 	}
 
 	shaper.mu.Lock()
@@ -365,7 +363,7 @@ func TestAdmissionShaper_ConcurrentAccess_Race(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			key := fmt.Sprintf("s%d", i%5)
-			shaper.CeilingFor(key, LadderClassSoftware, ladder, transcoding.SourceClass{})
+			ceilingFor(shaper, key, LadderClassSoftware, ladder, transcoding.SourceClass{})
 			shaper.Bind(key, fmt.Sprintf("hash-%d", i))
 			if limiter.TryAcquire(fmt.Sprintf("hash-%d", i), LadderClassSoftware, 720) {
 				limiter.Release(fmt.Sprintf("hash-%d", i))
@@ -394,7 +392,7 @@ func TestAdmissionShaper_ForcedDemotion_LandsOnTheRequestedClassCheapestFit(t *t
 		require.True(t, limiter.TryAcquire(fmt.Sprintf("occupant-%d", i), LadderClassHW, 1080))
 	}
 
-	h, forced := shaper.CeilingFor("viewer", LadderClassHW, []int{2160, 1440, 1080, 720}, transcoding.SourceClass{})
+	h, forced := ceilingFor(shaper, "viewer", LadderClassHW, []int{2160, 1440, 1080, 720}, transcoding.SourceClass{})
 	assert.Equal(t, 1080, h, "2160 (0.465) and 1440 (0.300) overflow the GPU pool; 1080 (0.245) fits")
 	assert.True(t, forced)
 }
@@ -411,10 +409,10 @@ func TestAdmissionShaper_FreshPin_KeepsItsOwnClassIgnoringLaterRequests(t *testi
 	clock := time.Unix(1_700_000_000, 0)
 	shaper.now = func() time.Time { return clock }
 
-	h, _ := shaper.CeilingFor("stream", LadderClassHW, []int{1440}, transcoding.SourceClass{})
+	h, _ := ceilingFor(shaper, "stream", LadderClassHW, []int{1440}, transcoding.SourceClass{})
 	require.Equal(t, 1440, h, "granted at hw's 1440p cost (0.300), well under budget")
 
-	h2, forced := shaper.CeilingFor("stream", LadderClassSoftware, []int{1440}, transcoding.SourceClass{})
+	h2, forced := ceilingFor(shaper, "stream", LadderClassSoftware, []int{1440}, transcoding.SourceClass{})
 	assert.Equal(t, 1440, h2, "a fresh pin ignores a later request's class and returns its OWN grant")
 	assert.False(t, forced)
 }
@@ -440,7 +438,6 @@ func TestAdmissionShaper_GPUFull_SpillsToSoftwareRoute(t *testing.T) {
 
 	require.True(t, g.OK, "CPU pool is empty: the stream must be served, not refused")
 	assert.Equal(t, LadderClassSoftware, g.Class, "spilled to the software route")
-	assert.True(t, g.Forced)
 	assert.Equal(t, 1440, g.Ceiling, "granted the tallest SOFTWARE rung that fits an empty CPU pool")
 
 	// The spill is pinned: manifest and segments must keep seeing it.
@@ -501,7 +498,6 @@ func TestAdmissionShaper_SpillPin_StableWhileFresh_BackToHWWhenCold(t *testing.T
 	g3 := shaper.GrantRoute("s", RouteAdmission{Natural: LadderClassHW, Heights: natural, FallbackHeights: sw})
 	assert.Equal(t, LadderClassHW, g3.Class, "cold and unheld: back to the hardware route")
 	assert.Equal(t, 2160, g3.Ceiling)
-	assert.False(t, g3.Forced)
 }
 
 // A software-natural stream never spills anywhere: the fallback is a
@@ -705,17 +701,17 @@ func TestAdmissionShaper_NineLiveVariants_PinFailsSafeAsHeld(t *testing.T) {
 // pass a ladder and nothing promises it is sorted. The max-scan and the
 // "was the ceiling trimmed?" comparisons that depend on it both survived
 // mutation testing, and `forced` is what tells the caller its ladder was cut.
-func TestAdmissionShaper_CeilingFor_TopIsTheMaxWhateverTheOrder(t *testing.T) {
+func TestAdmissionShaper_TopIsTheMaxWhateverTheOrder(t *testing.T) {
 	shaper, _, _ := shaperFixture(t)
 
 	// Same set, deliberately unsorted: the answer must not depend on order.
-	h, forced := shaper.CeilingFor("s1", LadderClassSoftware, []int{720, 1440, 1080}, transcoding.SourceClass{})
+	h, forced := ceilingFor(shaper, "s1", LadderClassSoftware, []int{720, 1440, 1080}, transcoding.SourceClass{})
 	assert.Equal(t, 1440, h, "the tallest rung is the top, wherever it sits in the slice")
 	assert.False(t, forced, "granting the tallest requested rung is not a trim")
 
 	// A single-rung ladder: granting it is never forced.
 	shaper2, _, _ := shaperFixture(t)
-	h2, forced2 := shaper2.CeilingFor("s2", LadderClassSoftware, []int{720}, transcoding.SourceClass{})
+	h2, forced2 := ceilingFor(shaper2, "s2", LadderClassSoftware, []int{720}, transcoding.SourceClass{})
 	assert.Equal(t, 720, h2)
 	assert.False(t, forced2, "serving the only rung asked for is not a trim")
 }
@@ -727,14 +723,14 @@ func TestAdmissionShaper_ForcedIsStrictlyBelowTheRequestedTop(t *testing.T) {
 	shaper, limiter, _ := shaperFixture(t)
 
 	// Ask for exactly what the host can serve alone: no trim.
-	h, forced := shaper.CeilingFor("s1", LadderClassSoftware, []int{1080}, transcoding.SourceClass{})
+	h, forced := ceilingFor(shaper, "s1", LadderClassSoftware, []int{1080}, transcoding.SourceClass{})
 	assert.Equal(t, 1080, h)
 	assert.False(t, forced, "a grant equal to the requested top is not forced")
 
 	// Now load the box so the same request can only get 720.
 	shaper2, limiter2, _ := shaperFixture(t)
 	require.True(t, limiter2.TryAcquire("holder", LadderClassSoftware, 1440))
-	h2, forced2 := shaper2.CeilingFor("s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	h2, forced2 := ceilingFor(shaper2, "s2", LadderClassSoftware, ladder, transcoding.SourceClass{})
 	assert.Less(t, h2, 1440, "a loaded host must trim")
 	assert.True(t, forced2, "a grant below the requested top is forced")
 
@@ -751,7 +747,7 @@ func TestAdmissionShaper_NoteRoute_DetectsADriftOnceThenAdopts(t *testing.T) {
 	base := drifts()
 
 	shaper.NoteRoute("ghost", "h264/nvenc/zero-copy") // no pin: nothing to note
-	shaper.CeilingFor("s1", LadderClassSoftware, ladder, transcoding.SourceClass{})
+	ceilingFor(shaper, "s1", LadderClassSoftware, ladder, transcoding.SourceClass{})
 	shaper.NoteRoute("s1", "h264/nvenc/zero-copy")
 	shaper.NoteRoute("s1", "h264/nvenc/zero-copy")
 	assert.Equal(t, base, drifts(), "the same route again is not a drift")

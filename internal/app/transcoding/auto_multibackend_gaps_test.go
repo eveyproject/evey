@@ -226,8 +226,7 @@ func TestAutoGap_FailClosedAboveTallestProvenRung(t *testing.T) {
 	s := NewVideoAdmissionShaper(l)
 	g := s.GrantRoute("stream", RouteAdmission{Natural: LadderClassHW, Heights: []int{480, 720, 1080, 2160}, Route: key, SourceFPS: 24})
 	require.True(t, g.OK)
-	assert.Equal(t, 1080, g.Ceiling)
-	assert.True(t, g.Forced, "the ladder is trimmed below the unproven 2160")
+	assert.Equal(t, 1080, g.Ceiling, "the ladder is trimmed below the unproven 2160")
 
 	// The backend pick prices at the wanted rung bounded by the backend's
 	// ceiling, so a backend whose evidence stops under its ceiling is not

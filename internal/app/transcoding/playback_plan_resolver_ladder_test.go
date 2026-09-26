@@ -414,7 +414,7 @@ func TestShapeLadder_SpillKeepsTheDeliveryCaps(t *testing.T) {
 		AdmissionRoute: func(_ string, req RouteAdmission) RouteGrant {
 			require.Equal(t, LadderClassHW, req.Natural)
 			swHeights = req.FallbackHeights()
-			return RouteGrant{OK: true, Class: LadderClassSoftware, Forced: true, Ceiling: 720}
+			return RouteGrant{OK: true, Class: LadderClassSoftware, Ceiling: 720}
 		},
 	}
 	pr.Selector = NewProducerSelector(&SoftwareProducer{}, &SegmentOrchestrator{})

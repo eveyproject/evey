@@ -1,11 +1,8 @@
 package transcoding
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"log/slog"
 	"slices"
-	"strconv"
 	"sync"
 	"time"
 
@@ -20,22 +17,9 @@ import (
 // a live one. So the ladder a player's manifest was built from and the ladder
 // every one of its segments is shaped by are identical BY CONSTRUCTION, not by the
 // freshness/bound bookkeeping that used to be the only thing guaranteeing it.
-//
-// Hash() gives the plan a stable content identity: two grants of the same live
-// plan return the same PlanHash, and a supersession that lands a different route
-// or ceiling returns a different one - the seam a future segment-time read can
-// assert the manifest-time plan against.
 type StreamPlan struct {
 	Class   LadderClass
 	Ceiling int
-}
-
-// Hash is the plan's stable content identity (short sha256 over class|ceiling).
-// Deterministic and collision-safe for the tiny (class, height) space; the
-// truncation to 16 hex chars is ample and keeps it compact for logs/URLs.
-func (p StreamPlan) Hash() string {
-	sum := sha256.Sum256([]byte(string(p.Class) + "|" + strconv.Itoa(p.Ceiling)))
-	return hex.EncodeToString(sum[:8])
 }
 
 // VideoAdmissionShaper decides, per stream, the TALLEST ladder rung the host
@@ -77,7 +61,7 @@ type VideoAdmissionShaper struct {
 type streamPin struct {
 	// plan is the IMMUTABLE admission decision (class + ceiling). A fresh or held
 	// pin always answers with ITS OWN plan regardless of what class a later
-	// CeilingFor call asks about (stability - see StreamPlan's doc); only a pin
+	// GrantRoute call asks about (stability - see StreamPlan's doc); only a pin
 	// that goes cold AND unheld is superseded, and then a NEW plan is minted
 	// against the newly-requested class. Never mutated in place.
 	plan StreamPlan
@@ -126,52 +110,14 @@ func NewVideoAdmissionShaper(limiter *VideoSessionLimiter) *VideoAdmissionShaper
 	}
 }
 
-// CeilingFor returns the ladder ceiling granted to the stream identified by
-// key, whose encode would run in ladder class class, given the distinct
-// heights its shaped ladder offers. The second return is true when the
-// ceiling actually trims the ladder (forced below its top). A (0, false)
-// return means nothing fits right now: the caller keeps the full ladder and
-// the shed paths answer the viewer.
-//
-// A fresh or still-held pin returns unconditionally, in ITS OWN class and
-// height, ignoring class - a stream re-routed after this call was first made
-// (e.g. hw demoted to software on retry with a different fingerprint) must
-// not have its already-addressed cache hash moved out from under it. Only a
-// cold, unheld pin re-evaluates, and does so against the newly-requested
-// class.
-func (s *VideoAdmissionShaper) CeilingFor(key string, class LadderClass, heights []int, src transcoding.SourceClass) (int, bool) {
-	g := s.GrantRoute(key, RouteAdmission{Natural: class, Heights: heights, Src: src})
-	if !g.OK {
-		return 0, false
-	}
-	// Height semantics only: this legacy surface reports whether the ladder is
-	// TRIMMED. A granted class differing from the asked one is GrantRoute's
-	// richer contract, not this one's.
-	top := 0
-	for _, h := range heights {
-		if h > top {
-			top = h
-		}
-	}
-	return g.Ceiling, g.Ceiling < top
-}
-
 // RouteGrant is the shaper's full answer for one stream: which ladder class
 // (and therefore which producer route and resource pool) it may spawn under,
-// and up to which rung. Forced is true when the grant trims anything the
-// viewer naturally had - a lower ceiling, or the software route instead of the
-// hardware one. OK=false means nothing fits anywhere right now: the caller
-// keeps the natural shape and the shed paths answer the viewer.
+// and up to which rung. OK=false means nothing fits anywhere right now: the
+// caller keeps the natural shape and the shed paths answer the viewer.
 type RouteGrant struct {
 	Class   LadderClass
 	Ceiling int
-	Forced  bool
 	OK      bool
-	// PlanHash is the content identity of the immutable StreamPlan this grant
-	// carries (StreamPlan.Hash). Stable across every grant of the same live
-	// stream, distinct after a supersession. Empty when OK is false. The seam a
-	// segment-time reader can later assert its plan matches the manifest's.
-	PlanHash string
 }
 
 // GrantRoute grants a route and ceiling for the stream identified by key,
@@ -217,13 +163,7 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, req RouteAdmission) RouteG
 		fresh := now.Sub(pin.lastSeen) < s.pinFreshFor
 		if fresh || s.anyBoundHeld(pin) {
 			pin.lastSeen = now
-			return RouteGrant{
-				Class:    pin.plan.Class,
-				Ceiling:  pin.plan.Ceiling,
-				Forced:   pin.plan.Class != natural || pin.plan.Ceiling < top,
-				OK:       true,
-				PlanHash: pin.plan.Hash(),
-			}
+			return RouteGrant{Class: pin.plan.Class, Ceiling: pin.plan.Ceiling, OK: true}
 		}
 		// Cold and holding nothing: this pin belongs to a playback attempt
 		// that ended (or never started). Fall through and re-evaluate against
@@ -239,7 +179,7 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, req RouteAdmission) RouteG
 			slog.Info("video admission: ladder ceiling forced by load",
 				slog.String("stream", key), slog.Int("requested_top", top), slog.Int("granted", granted))
 		}
-		return RouteGrant{Class: plan.Class, Ceiling: plan.Ceiling, Forced: granted < top, OK: true, PlanHash: plan.Hash()}
+		return RouteGrant{Class: plan.Class, Ceiling: plan.Ceiling, OK: true}
 	}
 
 	// The natural pool is full at every rung. A hardware stream may spill to
@@ -254,7 +194,7 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, req RouteAdmission) RouteG
 				s.pins[key] = &streamPin{plan: plan, lastSeen: now}
 				slog.Info("video admission: gpu pool full, stream spilled to the software route",
 					slog.String("stream", key), slog.Int("granted", granted))
-				return RouteGrant{Class: plan.Class, Ceiling: plan.Ceiling, Forced: true, OK: true, PlanHash: plan.Hash()}
+				return RouteGrant{Class: plan.Class, Ceiling: plan.Ceiling, OK: true}
 			}
 		}
 	}
@@ -282,25 +222,6 @@ func (s *VideoAdmissionShaper) PinnedClass(key string) (LadderClass, bool) {
 	return pin.plan.Class, true
 }
 
-// PlanFor returns the immutable StreamPlan currently governing key, refreshing
-// its freshness like PinnedClass. ok=false when no plan exists for key (never
-// admitted, or superseded/evicted). The read API a manifest- or segment-time
-// caller uses to shape its ladder off the ONE emitted plan instead of
-// re-deriving it - the construction-guaranteed half of the cache-hash invariant.
-func (s *VideoAdmissionShaper) PlanFor(key string) (StreamPlan, bool) {
-	if s == nil {
-		return StreamPlan{}, false
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	pin, ok := s.pins[key]
-	if !ok {
-		return StreamPlan{}, false
-	}
-	pin.lastSeen = s.now()
-	return pin.plan, true
-}
-
 // FreezeLadder records the shaped ABR ladder emitted for key's stream onto its
 // live pin, so subsequent manifest-/segment-time shaping reads it verbatim rather
 // than re-deriving it. A no-op when no pin exists for key (a copy request, or a
@@ -324,7 +245,7 @@ func (s *VideoAdmissionShaper) FreezeLadder(key string, ladder []transcoding.HLS
 }
 
 // FrozenLadder returns the ladder frozen for key's stream, refreshing the pin's
-// freshness like PlanFor. It answers ONLY while the pin is authoritative - fresh,
+// freshness like PinnedClass. It answers ONLY while the pin is authoritative - fresh,
 // or cold but still held by a live session - matching GrantRoute's stability
 // contract exactly: an abandoned (cold + unheld) stream returns nothing so its
 // retry re-derives against the budget of its moment. A COPY is returned so the
