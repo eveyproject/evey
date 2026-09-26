@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -158,6 +159,12 @@ func TestTreeCPUTicks_CountsTheForkedChildren(t *testing.T) {
 		t.Fatal(err)
 	}
 	time.Sleep(300 * time.Millisecond)
+	// Frozen before the reads: a running child gains a tick between two of
+	// them and the leaf's own tree then misses by one (12 CI runs in 100).
+	if err := cmd.Process.Signal(syscall.SIGSTOP); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(20 * time.Millisecond)
 	_, child, _ := procStat(cmd.Process.Pid)
 	if child <= before {
 		t.Skip("the busy child was not scheduled")
