@@ -605,8 +605,12 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// segments produced on demand by SegmentOrchestrator into SegmentCache.
 	// Replaced the previous ffmpeg-writes-the-playlist path that drifted out
 	// after ~9 min of continuous playback (cf features/hls_vod_playlist_refacto).
+	// The picture route for the clips drawn outside a session (sync preview):
+	// the player's resolver when the HLS pipeline is wired, software otherwise.
+	pictureOf := softwarePicturePlanner(s.LibQuerySvc)
 	if s.HLSTranscoder != nil && s.HLSVODOrch != nil {
 		if vodHandler := newHLSVODServe(s, s.LibQuerySvc, hlsAccessCache, parentalChk); vodHandler != nil {
+			pictureOf = vodHandler.picturePlan
 			// Audio rendition handler - same auth/parental/cache/manifest
 			// dependencies as the video pipeline, plus the AudioOrch nil-safe
 			// wrap. Routed via vodHandler.serveHTTP (it dispatches the
@@ -781,7 +785,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.MetadataCmdSvc != nil && s.MetadataQuerySvc != nil {
 		registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc)
 	}
-	registerSyncPreviewRoute(mux, s.SeekIndexSvc, s.TokenGen, s.syncPreviewLimiter())
+	registerSyncPreviewRoute(mux, s.SeekIndexSvc, s.TokenGen, s.syncPreviewLimiter(), pictureOf)
 	if s.MetadataCmdSvc != nil {
 		var cfgSvc *appconfig.Service
 		if s.ServerCfgRepo != nil {

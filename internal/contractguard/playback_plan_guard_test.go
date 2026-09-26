@@ -38,6 +38,12 @@ var planResolverSurface = map[string]bool{
 	"IsCopy":          true, // a decision-level fact
 	"ProducerForPlan": true, // a projection of plan.Route
 	"QualityPolicy":   true, // the policy object, not a derivation
+	// The whole route for ONE picture drawn outside a player session (the
+	// sync-preview clip, the reduced download): the same resolveRoute the plan
+	// runs, for a fixed browser target, with no ladder, pin or fingerprint to
+	// project. A plan of its own for a consumer that has no session, not a
+	// facet of a session's plan re-derived downstream.
+	"ResolvePicture": true,
 }
 
 // planSubDerivations are the resolver's former entry points that each

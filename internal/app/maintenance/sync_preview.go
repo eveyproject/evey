@@ -22,6 +22,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 // SyncPreviewMaxSec bounds a preview. Long enough to judge lip sync on a line
@@ -55,6 +57,11 @@ type SyncPreviewRequest struct {
 	// advances it). Zero shows the file as it is - the "before" a judgement
 	// needs to be made against.
 	ShiftSec float64
+	// Picture is the player's picture decision for this file (accelerator,
+	// tone-map, deinterlace, SAR): the clip is drawn the way the viewer sees
+	// the film, by the same route. The zero value draws it in software with
+	// no correction - what a caller without the resolver can offer.
+	Picture transcoding.PicturePlan
 }
 
 // SyncPreviewRenderer builds a small, browser-playable clip of one moment of a
