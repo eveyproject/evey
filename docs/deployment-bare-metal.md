@@ -26,6 +26,10 @@ CGO_ENABLED=0 go build -ldflags="-s -w"                                        -
 
 # install side by side, e.g.:
 sudo install -m 0755 evey evey-plugin-launcher /opt/evey/
+
+# optional: shell completion and the manual page, both printed by the binary
+/opt/evey/evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
+/opt/evey/evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null
 ```
 
 Lookup order in `launcherPath()` (`internal/adapters/driven/pluginrunner/runner_landlock.go`):

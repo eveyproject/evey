@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,7 +19,7 @@ import (
 // title, early-stop rate after one point, mean points, and whether the model
 // was confirmed. Reads and encodes only; nothing touches the library.
 func adminLadderProbe(args []string) error {
-	fset := flag.NewFlagSet("ladder-probe", flag.ExitOnError)
+	fset := adminFlags("ladder-probe")
 	window := fset.Float64("window", 8, "seconds per scene")
 	cacheDir := fset.String("cache", "", "point cache directory (default <tmp>/ladder-bench-cache)")
 	outDir := fset.String("out", "", "directory to write each title's probe JSON (optional)")

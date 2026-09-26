@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,7 +33,7 @@ import (
 //   - `admission_full` is a VERDICT (the box refused a new stream = its ceiling),
 //     not an error: the command still exits 0.
 func adminLoadTest(args []string) error {
-	fs := flag.NewFlagSet("load-test", flag.ExitOnError)
+	fs := adminFlags("load-test")
 	scenario := fs.String("scenario", "balanced",
 		"transcode | natural | mkvgo | light | balanced | heavy | mkvgo+N (N pinned transcodes, then pure direct-play)")
 	maxViewers := fs.Int("max-viewers", 0, "cap the ramp (0 = server default, 12)")

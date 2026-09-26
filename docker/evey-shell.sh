@@ -20,7 +20,7 @@
 #    all of it -- no branding, no launcher, no verbs. e.g.
 #      docker exec -it -e EVEY_SHELL=plain evey-server bash
 
-_EVEY_VERBS='reset-password rotate-jwt-key restore-backup reindex-search migrate reclassify reindex-no-cue validate-streaming artwork-gc load-test doctor rollback list-users'
+_EVEY_VERBS='reset-password rotate-jwt-key restore-backup reindex-search migrate reclassify reindex-no-cue validate-streaming artwork-gc load-test doctor rollback ladder-bench ladder-probe route-bench list-users list-libraries'
 
 # ---------------------------------------------------------------------------
 # Look & feel
@@ -89,10 +89,12 @@ _evey_load_main_menu() {
 _evey_load_admin_menu() {
     admin_labels=(   'doctor' 'migrate' 'reset-password' 'rotate-jwt-key' 'restore-backup' \
                      'reindex-search' 'reclassify' 'reindex-no-cue' 'validate-streaming' \
-                     'artwork-gc' 'load-test' 'rollback' 'list-users' '← back' )
+                     'artwork-gc' 'load-test' 'rollback' 'route-bench' 'ladder-bench' 'ladder-probe' \
+                     'list-users' 'list-libraries' '← back' )
     admin_prefills=( 'doctor' 'migrate ' 'reset-password --user ' 'rotate-jwt-key' 'restore-backup ' \
                      'reindex-search' 'reclassify ' 'reindex-no-cue --root ' 'validate-streaming --root ' \
-                     'artwork-gc' 'load-test --scenario balanced --max-viewers ' 'rollback' 'list-users' '' )
+                     'artwork-gc' 'load-test --scenario balanced --max-viewers ' 'rollback' 'route-bench ' \
+                     'ladder-bench ' 'ladder-probe ' 'list-users' 'list-libraries' '' )
     admin_descs=(    'health-check everything (--repair fixes safe stuff)' \
                      'schema: up | down | version' \
                      'generate a new password, print it once' \
@@ -105,7 +107,11 @@ _evey_load_admin_menu() {
                      'delete orphaned artwork (dry-run; --apply deletes)' \
                      'ramp viewers, find the capacity ceiling' \
                      'read-only advisor: version, schema, newest backup' \
+                     'cost of each transcode route on this host (heavy, never while serving)' \
+                     'ladder complexity features on a few scenes (heavy, never while serving)' \
+                     'per-title probe timing on given files (encodes, never while serving)' \
                      'print all user emails' \
+                     'print the library root paths' \
                      'to the main menu' )
 }
 
@@ -194,6 +200,22 @@ _evey_load_admin_options() {
             option_labels=('run')
             option_commands=('list-users')
             option_kinds=(  'run') ;;
+        list-libraries)
+            option_labels=('run')
+            option_commands=('list-libraries')
+            option_kinds=(  'run') ;;
+        route-bench)
+            option_labels=('synthetic clips only (auto-detect the GPU)' '--backend none (CPU routes only)' '<file>... (real titles too)')
+            option_commands=('route-bench'                              'route-bench --backend none'       'route-bench ')
+            option_kinds=(  'run'                                       'run'                             'prompt') ;;
+        ladder-bench)
+            option_labels=('<file>... (features + CRF encodes)' '--efficiency <file>... (encoder curves)')
+            option_commands=('ladder-bench '                    'ladder-bench --efficiency ')
+            option_kinds=(  'prompt'                            'prompt') ;;
+        ladder-probe)
+            option_labels=('<file>...')
+            option_commands=('ladder-probe ')
+            option_kinds=(  'prompt') ;;
         *)  return 1 ;;
     esac
 }
@@ -537,6 +559,15 @@ case $- in
 
         # `?` is a quick synonym for the cheat-sheet (aliases only expand here).
         alias '?'='evey_help' 2>/dev/null
+
+        # The image ships no man binary: `man evey` pages the manual the
+        # binary renders itself.
+        man() {
+            case "${1:-}" in
+                evey|evey-admin) command evey man --text | "${PAGER:-more}" ;;
+                *) printf 'this image ships no manual pages; `man evey` is the one it has (mkvgo --help for the media tool)\n' >&2; return 1 ;;
+            esac
+        }
 
         # zsh-style completion, everywhere the same readline runs (the real
         # prompt AND the launcher's inline command line): first Tab lists the

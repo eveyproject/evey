@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io/fs"
 	"os"
@@ -20,7 +19,7 @@ import (
 //
 // Dry-run by default: prints what it WOULD delete. Pass --apply to delete.
 func adminArtworkGC(args []string) error {
-	fset := flag.NewFlagSet("artwork-gc", flag.ExitOnError)
+	fset := adminFlags("artwork-gc")
 	root := fset.String("root", "/data/artworks", "artwork directory to scan (server default: /data/artworks)")
 	apply := fset.Bool("apply", false, "actually delete orphans (default: dry-run)")
 	if err := fset.Parse(args); err != nil {

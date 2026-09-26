@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io/fs"
 	"os"
@@ -21,7 +20,7 @@ import (
 // ffmpeg pipeline instead of stateless packaging. Read-only: it never touches a
 // file; `reindex-no-cue` is the fix for a missing index.
 func adminValidateStreaming(args []string) error {
-	flags := flag.NewFlagSet("validate-streaming", flag.ExitOnError)
+	flags := adminFlags("validate-streaming")
 	root := flags.String("root", "", "directory tree to scan (required)")
 	errorsOnly := flags.Bool("errors-only", false, "report only error-severity findings (skip warnings)")
 	if err := flags.Parse(args); err != nil {
