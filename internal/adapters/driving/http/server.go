@@ -133,6 +133,9 @@ type HTTPServer struct {
 	// ProbeSignals collects the P3 ceiling-hit signal from the serve path; nil = off.
 	ProbeSignals  *apptranscoding.ProbeSignalStore
 	HLSTranscoder domaintranscoding.HLSProcess
+	// vod is the HLS pipeline's handler once built (Routes); its resolver is
+	// the one the info surfaces decide with (PlaybackDecider).
+	vod *hlsVODServe
 	// AudioOrch manages audio-only HLS rendition sessions (EXT-X-MEDIA).
 	// Nil-safe: the audio rendition routes return 404 when unset. Wiring
 	// from wire.go lands after the feature flag stabilises.
@@ -599,7 +602,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("DELETE /api/v1/admin/media/{id}/segments", deleteSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/segments/propagate", propagateSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 	}
-	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
+	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.PlaybackDecider(), s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
 
 	// VOD-style HLS pipeline: manifest precomputed in Go from durationMs,
 	// segments produced on demand by SegmentOrchestrator into SegmentCache.
@@ -610,6 +613,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	pictureOf := softwarePicturePlanner(s.LibQuerySvc)
 	if s.HLSTranscoder != nil && s.HLSVODOrch != nil {
 		if vodHandler := newHLSVODServe(s, s.LibQuerySvc, hlsAccessCache, parentalChk); vodHandler != nil {
+			s.vod = vodHandler
 			pictureOf = vodHandler.picturePlan
 			// Audio rendition handler - same auth/parental/cache/manifest
 			// dependencies as the video pipeline, plus the AudioOrch nil-safe
@@ -893,4 +897,23 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			mux.Handle("/", gwHandler)
 		}
 	}
+}
+
+// PlaybackDecider is the decider the info surfaces (HTTP playback-info, gRPC
+// GetStreamInfo) answer with: the HLS pipeline's own resolver, so the answer
+// is the plan's decision with its pins, not the bare core. Read lazily: the
+// pipeline is built by Routes, after the gRPC server that asks for this.
+func (s *HTTPServer) PlaybackDecider() apptranscoding.PlaybackDecider {
+	return playbackDeciderFunc(func(ctx context.Context, req apptranscoding.PlaybackRequest) domaintranscoding.PlaybackDecision {
+		if s.vod == nil {
+			return apptranscoding.UnwiredDecider().Decide(ctx, req)
+		}
+		return s.vod.planResolver().Decide(ctx, req)
+	})
+}
+
+type playbackDeciderFunc func(ctx context.Context, req apptranscoding.PlaybackRequest) domaintranscoding.PlaybackDecision
+
+func (f playbackDeciderFunc) Decide(ctx context.Context, req apptranscoding.PlaybackRequest) domaintranscoding.PlaybackDecision {
+	return f(ctx, req)
 }

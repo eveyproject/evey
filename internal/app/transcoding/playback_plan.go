@@ -15,6 +15,19 @@ import (
 
 // PlaybackRequest is the transport-free input to plan resolution: source
 // facts, client capabilities, profile preferences and the request-time pins.
+// PlaybackDecider answers the plan's decision for a request that will not be
+// served by the caller (the pre-play info surfaces): Decide with the
+// request-time pins, no route, ladder, pin or fingerprint behind it.
+// *PlanResolver is the production decider.
+type PlaybackDecider interface {
+	Decide(ctx context.Context, req PlaybackRequest) transcoding.PlaybackDecision
+}
+
+// UnwiredDecider decides without a host: no calibration, no copy producer,
+// the operator's toggles unread. What an info surface answers before the
+// serving pipeline is wired (tests, a server without the HLS pipeline).
+func UnwiredDecider() PlaybackDecider { return &PlanResolver{} }
+
 type PlaybackRequest struct {
 	MediaID    string
 	SourcePath string

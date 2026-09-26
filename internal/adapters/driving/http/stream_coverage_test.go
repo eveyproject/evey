@@ -149,7 +149,7 @@ func TestMediaArtwork_StreamToken_WrongMediaID_403(t *testing.T) {
 }
 
 func TestPlaybackInfo_StreamsError_500(t *testing.T) {
-	h := playbackInfoHandler(
+	h := playbackInfoHandler(nil,
 		&fakeMediaStreamsGetter{
 			item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/a.mkv"}},
 			sErr: errTest,

@@ -244,12 +244,14 @@ Still to do, each gated on something outside the code, in this order:
   the route proofs, the cost evidence and the runtime re-proof. A `Resolve`
   now reads the capability and the route costs once, on a copy of the
   resolver (`frozen`), the way it reads the policy.
-- Two info surfaces (gRPC `GetStreamInfo`, HTTP playback-info) decide on the
-  pure core, without the request-time pins: their answer can say copy where
-  the plan transcodes. The client keeps the served variant's truth over
-  them; `contractguard/playback_decision_guard_test.go` lists the two with
-  what closes them (a decider bound to the gRPC handler after the HTTP
-  wiring) and refuses a third.
+- Two info surfaces (gRPC `GetStreamInfo`, HTTP playback-info) decided on the
+  pure core, without the request-time pins: their answer could say copy where
+  the plan transcodes. Both now decide through a `PlaybackDecider`, the HLS
+  pipeline's resolver (`HTTPServer.PlaybackDecider`); the gRPC handler is
+  built before that pipeline, so main binds it (`SetPlaybackDecider`) before
+  the server serves, and `contractguard/playback_decision_guard_test.go`
+  refuses any caller of the core and a main that no longer binds. An
+  unbound handler decides on the unwired resolver, the pre-binding answer.
 
 Not added, on purpose: a `Pricer` interface (`chargesFor` is already the one
 pricing function), a struct split of `DecisionFingerprint` (the classification

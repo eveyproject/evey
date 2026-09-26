@@ -40,6 +40,12 @@ var handlerFieldExceptions = map[string]map[string]string{
 	"photoHandler": {
 		"serverCtx": "late-bound; the code documents the nil case",
 	},
+	"playbackHandler": {
+		// The HTTP pipeline owns the resolver; main binds it with
+		// SetPlaybackDecider once buildHTTPHandler returns, before Start
+		// (TestMainBindsThePlaybackDeciderBeforeServing keeps that order).
+		"decider": "late-bound; nil decides on the unwired resolver, the pre-binding behavior",
+	},
 }
 
 const minRegisteredHandlers = 20

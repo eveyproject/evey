@@ -56,6 +56,17 @@ type playbackHandler struct {
 	// changes take effect on restart. Both zero = feature off.
 	remoteNetDetector    *network.Detector
 	maxRemoteBitrateKbps int
+	// decider answers GetStreamInfo with the plan's decision (Decide with the
+	// request-time pins) - bound by the composition root once the HTTP
+	// pipeline that owns the resolver exists, before this server starts.
+	decider apptranscoding.PlaybackDecider
+}
+
+func (h *playbackHandler) playbackDecider() apptranscoding.PlaybackDecider {
+	if h.decider == nil {
+		return apptranscoding.UnwiredDecider()
+	}
+	return h.decider
 }
 
 func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
@@ -265,18 +276,32 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	client := clientProfileFromRequest(req)
 	prefs, maxBitrateKbps := h.resolvePlaybackPrefs(ctx, req, streams)
 
-	sourcePath := ""
+	preq := apptranscoding.PlaybackRequest{
+		MediaID:             req.MediaItemId,
+		Container:           containerFormat,
+		Streams:             streams,
+		Client:              client,
+		Prefs:               prefs,
+		MaxBitrateKbps:      maxBitrateKbps,
+		AudioTrack:          prefs.AudioTrack,
+		SubtitleBurnInTrack: prefs.SubtitleBurnInTrack,
+		WasmAudio:           prefs.WasmAudio,
+	}
 	if item.File != nil {
-		sourcePath = item.File.Path
+		preq.SourcePath = item.File.Path
+		preq.SourceBytes = item.File.Size
 		// Same bitrate fallback the HLS plan applies, so the verdict here and the
 		// master agree on a cap when the video stream carries no bitrate.
-		prefs.SourceBitrateKbps = item.File.BitrateBps() / 1000
+		preq.SourceBitrateKbps = item.File.BitrateBps() / 1000
 		// A file stored in one-track blocks is refused everywhere; the decision
 		// routes it to the HLS master (never the raw file) so every client
 		// meets the typed 503 (file_needs_remux) it already knows how to show.
-		prefs.SourceNeedsRemux = item.File.NeedsRemux()
+		preq.SourceNeedsRemux = item.File.NeedsRemux()
 	}
-	decision := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, containerFormat, client, maxBitrateKbps, prefs, sourcePath)
+	// The plan's decision, the one the master this info announces is served
+	// from: the core plus the request-time pins (Decide), never the bare core.
+	decided := h.playbackDecider().Decide(ctx, preq)
+	decision := &decided
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
 		err := status.Errorf(codes.FailedPrecondition, "transcoding disabled by user preferences")
 		span.RecordError(err)
