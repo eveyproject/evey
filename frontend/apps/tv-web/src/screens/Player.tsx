@@ -7,7 +7,8 @@ import {
   useLibraryServiceGetMediaItem,
   pickPreferredStreamIndex,
   pickDefaultSubtitle,
-  isBurnInSubtitle,
+  playerAudioStreams,
+  playerSubtitleStreams,
   burnInSubtitleIndex as pickBurnInSubtitle,
   clientSubtitleTrack,
   createPlayerEventReporter,
@@ -15,7 +16,7 @@ import {
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import {
-  useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, useChapters, usePlayerProfilePrefs,
+  useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, useChapters, usePlayerProfilePrefs, useAutoMarkWatched,
   useSleepTimer,
   useSyncplay,
   useParentalGate,
@@ -145,16 +146,8 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   }, []);
 
   // --- tracks ---------------------------------------------------------------
-  const audioStreams = useMemo(
-    () => (streamInfo?.mediaStreams ?? []).filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO")
-      .map((s) => ({ index: s.index ?? 0, language: s.language, title: s.title, codec: s.codec, channels: s.channels, isDefault: s.isDefault })),
-    [streamInfo],
-  );
-  const subtitleStreams = useMemo(
-    () => (streamInfo?.mediaStreams ?? []).filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
-      .map((s, i) => ({ index: s.index ?? 0, trackIndex: i, language: s.language, title: s.title, codec: s.codec, isDefault: s.isDefault, isForced: s.isForced, burnIn: isBurnInSubtitle(s.codec) })),
-    [streamInfo],
-  );
+  const audioStreams = useMemo(() => playerAudioStreams(streamInfo?.mediaStreams), [streamInfo]);
+  const subtitleStreams = useMemo(() => playerSubtitleStreams(streamInfo?.mediaStreams), [streamInfo]);
   const [selectedAudio, setSelectedAudio] = useState<number | null>(audio ?? null);
   const [selectedSubtitle, setSelectedSubtitle] = useState<number | null>(subtitle === "off" ? null : subtitle ?? null);
   const userPickedAudio = useRef(audio !== undefined);
@@ -199,6 +192,8 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
 
   // The profile's own choice, as on the television, toggled from the menu.
   const toggleAutoplay = useCallback(() => { void setAutoplayNext(!autoAdvance); }, [setAutoplayNext, autoAdvance]);
+  // Past 90% the title is watched: the rule every player shares.
+  useAutoMarkWatched(mediaId, time, duration);
   const nextEp = useNextEpisode({
     media,
     currentTime: time,

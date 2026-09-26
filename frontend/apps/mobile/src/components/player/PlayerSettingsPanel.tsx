@@ -14,25 +14,9 @@ import {
 } from "../../lib/subtitleStyle";
 import { formatAudioTrackLabel, qualityRungsFromHeights, trackDisplayName } from "@evey/api";
 
-export interface AudioStream {
-  index: number;
-  trackIndex: number;
-  language?: string;
-  title?: string;
-  isDefault?: boolean;
-  channels?: number;
-}
-
-export interface SubtitleStream {
-  index: number;
-  trackIndex: number;
-  language?: string;
-  title?: string;
-  isDefault?: boolean;
-  isForced?: boolean;
-  codec?: string;
-  burnIn?: boolean;
-}
+// The track shapes every player lists: one definition in @evey/api.
+export type { PlayerAudioStream as AudioStream, PlayerSubtitleStream as SubtitleStream } from "@evey/api";
+import type { PlayerAudioStream as AudioStream, PlayerSubtitleStream as SubtitleStream } from "@evey/api";
 
 export const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 

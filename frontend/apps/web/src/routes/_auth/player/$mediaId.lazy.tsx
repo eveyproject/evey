@@ -3,7 +3,7 @@ import { createLazyFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { libraryServiceGetMediaItem, libraryServiceListMediaItems, isBurnInSubtitle } from "@evey/api";
+import { libraryServiceGetMediaItem, libraryServiceListMediaItems, playerAudioStreams, playerSubtitleStreams } from "@evey/api";
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { useChapters } from "@/hooks/useChapters";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
@@ -234,49 +234,8 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   // unrelated state (share dialog, syncplay ws, season selection): they flow
   // into PlayerProvider, whose own value memo exists precisely to avoid churning
   // every player consumer, and a fresh array every render defeats it.
-  const audioStreams: AudioStream[] = useMemo(
-    () =>
-      streamInfo?.mediaStreams
-        ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO")
-        .map((s, i) => ({
-          index: s.index ?? 0,
-          trackIndex: i,
-          language: s.language,
-          title: s.title,
-          isDefault: s.isDefault,
-          codec: s.codec,
-          channels: s.channels,
-        })) ?? [],
-    [streamInfo?.mediaStreams],
-  );
-
-  const subtitleStreams: SubtitleStream[] = useMemo(
-    () =>
-      streamInfo?.mediaStreams
-        ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
-        .map((s, i) => {
-          const codec = s.codec?.toLowerCase() ?? "";
-          // burnIn now means ONLY "the server must burn this in", i.e. a bitmap
-          // no player can draw. PGS is a bitmap too, but the server decodes it
-          // once and PGSSubtitleOverlay draws it, so it must NOT be flagged here
-          // - flagging it is what sent ?subtitleTrack= and turned a
-          // direct-playing remux into a full transcode.
-          const burnIn = isBurnInSubtitle(codec);
-          return {
-            index: s.index ?? 0,
-            trackIndex: i,
-            language: s.language,
-            title: s.title,
-            isDefault: s.isDefault,
-            isForced: s.isForced,
-            isExternal: s.isExternal,
-            externalPath: s.externalPath,
-            codec: s.codec,
-            burnIn,
-          };
-        }) ?? [],
-    [streamInfo?.mediaStreams],
-  );
+  const audioStreams: AudioStream[] = useMemo(() => playerAudioStreams(streamInfo?.mediaStreams), [streamInfo?.mediaStreams]);
+  const subtitleStreams: SubtitleStream[] = useMemo(() => playerSubtitleStreams(streamInfo?.mediaStreams), [streamInfo?.mediaStreams]);
 
   const { data: chapters } = useChapters(mediaId);
   const startPositionMs = resolveStartPositionMs(!!restart, progress);

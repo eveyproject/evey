@@ -33,25 +33,5 @@ export function pickNativeAudioTrack(
   return null;
 }
 
-// pickPreferredStreamIndex resolves the stream `index` (the manifest-relative
-// id used by streamInfo / restartWithTracks - NOT the 0-based trackIndex)
-// whose language matches the first entry of an ordered preference list
-// that's actually present in the file. Used to apply a profile's
-// audio_languages/subtitle_languages preference (see player/[id].tsx) - a
-// scoped port of the web's resolveDefaultAudio/resolveDefaultSubtitle
-// preference step (hlsPlayerUtils.ts); mobile has no per-series or
-// device-local override to reconcile, so only the profile-preference step
-// is needed here.
-export function pickPreferredStreamIndex(
-  streams: { index: number; language?: string }[],
-  preferredLangs: string[],
-): number | null {
-  for (const lang of preferredLangs) {
-    if (!lang) continue;
-    const want = normalizeLangCode(lang);
-    if (!want) continue;
-    const match = streams.find((s) => normalizeLangCode(s.language) === want);
-    if (match) return match.index;
-  }
-  return null;
-}
+// The profile-language pick is the one every player uses (@evey/api).
+export { pickPreferredStreamIndex } from "@evey/api";

@@ -22,6 +22,7 @@ import * as defaultSubtitle from "./defaultSubtitle";
 import * as pgsCues from "./pgsCues";
 import * as subtitleCues from "./subtitleCues";
 import * as clientSubtitleTrack from "./clientSubtitleTrack";
+import * as playerStreams from "./playerStreams";
 import * as selectedAudioStream from "./selectedAudioStream";
 import * as trackPick from "./trackPick";
 import * as langCodes from "./langCodes";
@@ -83,6 +84,7 @@ const SHARED_MODULES = {
   pgsCues,
   subtitleCues,
   clientSubtitleTrack,
+  playerStreams,
   selectedAudioStream,
   trackPick,
   langCodes,
