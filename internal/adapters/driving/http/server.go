@@ -749,7 +749,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("POST /api/v1/syncplay/join-code", ratelimit.MiddlewareFunc(s.LoginRL,
 		syncplayJoinByCodeHandler(s.SyncPlayHub, s.StreamTokenStore,
 			ratelimit.NewFailureGate("syncplay-join-code", joinCodeFailureThreshold, joinCodeFailureWindow, joinCodeCooldown))))
-	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                            // Play On: WebSocket + REST
+	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                                                // Play On: WebSocket + REST
 	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.StreamTokenStore, s.AdminHeavyRL, s.AdminWriteRL) // binary: download/restore
 	if s.WebhookSvc != nil {
 		// grpc-gateway serves Create/List/Update/Delete/ListDeliveries from the
