@@ -5,6 +5,7 @@ import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { eveyFetch, useUserServiceListUsers, useUserServiceListAllProfiles } from "@evey/api";
+import { useMediaLabels } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 // Mirrors frontend/apps/web/src/features/admin/logsClassify.ts. The search
@@ -139,6 +140,9 @@ const LogRow = memo(function LogRow({
   names: Map<string, string>;
 }) {
   const [open, setOpen] = useState(false);
+  // Named only once the row is opened: that is when the ids show, and a long
+  // list then costs no lookup (same resolver as the web explorer).
+  const mediaLabels = useMediaLabels(open && entry.mediaId ? [entry.mediaId] : []);
 
   const copy = useCallback(() => {
     void Share.share({ message: entry.raw });
@@ -179,9 +183,9 @@ const LogRow = memo(function LogRow({
               ) : null}
               {ids.map(([k, v]) => {
                 if (!v) return null;
-                // Resolve user/session ids to a human name when known; the id
+                // Resolve user and media ids to a human name when known; the id
                 // stays visible in parens so it's still greppable/copyable.
-                const name = k === "user" ? names.get(v) : undefined;
+                const name = k === "user" ? names.get(v) : k === "media" ? mediaLabels.get(v)?.label : undefined;
                 return (
                   <Text key={k} style={{ color: theme.colors.textMuted, fontSize: 11 }}>
                     {k}: {name ? `${name} (${v})` : v}
