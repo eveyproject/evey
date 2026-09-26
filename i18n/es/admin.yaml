@@ -349,6 +349,8 @@ users:
   failedRevoke: "Error al revocar la invitación"
   inviteCreated: "Enlace de invitación creado"
   maxUsesLabel: "Máximo de usos (vacío = ilimitado)"
+  inviteMaxProfilesLabel: "Perfiles máximos de la nueva cuenta (vacío = ilimitado)"
+  inviteMaxProfiles: "Perfiles máx.: {{max}}"
   expiresAtLabel: "Fecha de expiración (opcional)"
   inviteIsAdmin: "Crear como administrador"
   inviteLibraries: "Bibliotecas accesibles"

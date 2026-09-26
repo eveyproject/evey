@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { parseInviteProfileCap } from "@evey/client";
 import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, Switch, ActivityIndicator, StyleSheet, ScrollView, Share } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -308,6 +309,7 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const serverUrl = useServerUrl();
   const [showCreate, setShowCreate] = useState(false);
   const [maxUses, setMaxUses] = useState("");
+  const [inviteMaxProfiles, setInviteMaxProfiles] = useState("");
   // Invite scoping (mirror web CreateInviteForm): expiry preset, admin flag,
   // and per-library access. Mobile uses expiry-day presets rather than a
   // datetime picker - same resulting expiresAt on the wire.
@@ -326,6 +328,7 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
         toast.success(t("admin.users.inviteCreated", "Invite link created"));
         setShowCreate(false);
         setMaxUses("");
+        setInviteMaxProfiles("");
         setExpiryDays(0);
         setInviteIsAdmin(false);
         setInviteLibs(new Set());
@@ -351,13 +354,14 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
       await createInvite.mutateAsync({
         data: {
           maxUses: maxUses ? parseInt(maxUses) : undefined,
+          maxProfiles: parseInviteProfileCap(inviteMaxProfiles),
           expiresAt,
           isAdmin: inviteIsAdmin,
           libraryIds: inviteIsAdmin ? [] : Array.from(inviteLibs),
         },
       });
     } catch {}
-  }, [maxUses, expiryDays, inviteIsAdmin, inviteLibs, createInvite]);
+  }, [maxUses, inviteMaxProfiles, expiryDays, inviteIsAdmin, inviteLibs, createInvite]);
 
   const handleShare = useCallback(async (link: V1InviteLink) => {
     const url = `${serverUrl}/register?invite=${link.code}`;
@@ -415,6 +419,11 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
                 <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
                   {(link.timesUsed ?? 0)} / {link.maxUses ?? "\u221E"}
                 </Text>
+                {link.maxProfiles != null && (
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                    {t("admin.users.inviteMaxProfiles", { max: link.maxProfiles })}
+                  </Text>
+                )}
                 <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
                   {link.expiresAt ? new Date(link.expiresAt).toLocaleDateString() : t("admin.users.never", "Never")}
                 </Text>
@@ -468,6 +477,17 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
             style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
             accessible={true}
             accessibilityLabel={t("admin.users.maxUsesLabel", "Max uses (empty = unlimited)")}
+          />
+          <TextInput
+            placeholder={t("admin.users.inviteMaxProfilesLabel")}
+            placeholderTextColor={theme.colors.textMuted}
+            value={inviteMaxProfiles}
+            onChangeText={setInviteMaxProfiles}
+            keyboardType="number-pad"
+            style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md, marginTop: 8 }]}
+            accessible={true}
+            accessibilityLabel={t("admin.users.inviteMaxProfilesLabel")}
+            testID="invite-max-profiles"
           />
 
           {/* Expiry preset */}

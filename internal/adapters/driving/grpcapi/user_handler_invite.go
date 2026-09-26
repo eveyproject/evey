@@ -33,6 +33,16 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 		span.SetStatus(otelcodes.Error, "admin required")
 		return nil, status.Error(codes.PermissionDenied, "admin required")
 	}
+	// Same rule as CreateUser's max_profiles: negative is refused, unset is no cap.
+	var maxProfiles *int
+	if req.MaxProfiles != nil {
+		if *req.MaxProfiles < 0 {
+			span.SetStatus(otelcodes.Error, "max_profiles must be >= 0")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.limit_negative", map[string]string{"field": "max_profiles"})
+		}
+		mp := int(*req.MaxProfiles)
+		maxProfiles = &mp
+	}
 	libIDs := make([]shared.LibraryID, len(req.LibraryIds))
 	for i, raw := range req.LibraryIds {
 		libIDs[i] = shared.LibraryID(raw)
@@ -44,6 +54,7 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 		user.WithInviteMaxUses(int(req.MaxUses)),
 		user.WithInviteAdmin(req.IsAdmin),
 		user.WithInviteLibraries(libIDs),
+		user.WithInviteMaxProfiles(maxProfiles),
 		user.WithInviteExpiresAt(fromTimestamppbPtr(req.ExpiresAt)),
 	)
 	if err != nil {

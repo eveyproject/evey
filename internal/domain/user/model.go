@@ -202,8 +202,11 @@ type InviteLink struct {
 	UsedCount  int
 	IsAdmin    bool
 	LibraryIDs []shared.LibraryID
-	ExpiresAt  *time.Time
-	CreatedAt  time.Time
+	// MaxProfiles is copied onto the account the invite creates (nil = no cap),
+	// the same limit an admin can set when creating a user directly.
+	MaxProfiles *int
+	ExpiresAt   *time.Time
+	CreatedAt   time.Time
 }
 
 type QuickConnectRequest struct {
@@ -362,6 +365,9 @@ func (inv *InviteLink) Validate() error {
 	if inv.MaxUses < 0 {
 		return errors.New("invite link max uses must not be negative")
 	}
+	if inv.MaxProfiles != nil && *inv.MaxProfiles < 0 {
+		return errors.New("invite link max profiles must not be negative")
+	}
 	return nil
 }
 
@@ -381,6 +387,10 @@ func WithInviteAdmin(isAdmin bool) InviteLinkOption {
 
 func WithInviteLibraries(ids []shared.LibraryID) InviteLinkOption {
 	return func(l *InviteLink) { l.LibraryIDs = ids }
+}
+
+func WithInviteMaxProfiles(n *int) InviteLinkOption {
+	return func(l *InviteLink) { l.MaxProfiles = n }
 }
 
 func WithInviteExpiresAt(t *time.Time) InviteLinkOption {

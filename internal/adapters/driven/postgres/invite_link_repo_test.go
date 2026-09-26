@@ -44,6 +44,17 @@ func TestInviteLinkRepo_Create_GetByToken(t *testing.T) {
 	assert.Equal(t, link.ID, got.ID)
 	assert.Equal(t, link.Token, got.Token)
 	assert.Equal(t, link.MaxUses, got.MaxUses)
+	assert.Nil(t, got.MaxProfiles, "no cap stays NULL")
+
+	// The profile cap round-trips (migration 000170).
+	capped := newTestInviteLink("inv1-cap", string(u.ID), "tok-cap")
+	two := 2
+	capped.MaxProfiles = &two
+	require.NoError(t, repo.Create(ctx, capped))
+	gotCapped, err := repo.GetByToken(ctx, "tok-cap")
+	require.NoError(t, err)
+	require.NotNil(t, gotCapped.MaxProfiles)
+	assert.Equal(t, 2, *gotCapped.MaxProfiles)
 }
 
 func TestInviteLinkRepo_ListByCreator(t *testing.T) {

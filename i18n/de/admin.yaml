@@ -349,6 +349,8 @@ users:
   failedRevoke: Widerruf fehlgeschlagen
   inviteCreated: Einladungslink erstellt
   maxUsesLabel: Max. Verwendungen (leer = unbegrenzt)
+  inviteMaxProfilesLabel: "Max. Profile für das neue Konto (leer = unbegrenzt)"
+  inviteMaxProfiles: "Max. Profile: {{max}}"
   expiresAtLabel: Ablaufdatum (optional)
   inviteIsAdmin: Als Administrator anlegen
   inviteLibraries: Zugängliche Bibliotheken

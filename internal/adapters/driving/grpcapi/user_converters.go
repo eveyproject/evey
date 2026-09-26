@@ -82,7 +82,7 @@ func inviteLinkToProto(l *user.InviteLink) *eveyv1.InviteLink {
 	for i, id := range l.LibraryIDs {
 		libs[i] = string(id)
 	}
-	return &eveyv1.InviteLink{
+	pb := &eveyv1.InviteLink{
 		Id:         l.ID,
 		Code:       l.Token,
 		CreatedBy:  string(l.CreatedBy),
@@ -93,6 +93,11 @@ func inviteLinkToProto(l *user.InviteLink) *eveyv1.InviteLink {
 		LibraryIds: libs,
 		IsAdmin:    l.IsAdmin,
 	}
+	if l.MaxProfiles != nil {
+		v := int32(*l.MaxProfiles)
+		pb.MaxProfiles = &v
+	}
+	return pb
 }
 
 func quickConnectToProto(q *user.QuickConnectRequest) *eveyv1.QuickConnectResponse {

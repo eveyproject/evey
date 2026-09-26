@@ -16,6 +16,29 @@
     "application/json"
   ],
   "paths": {
+    "/api/v1/admin/profiles": {
+      "get": {
+        "summary": "ListAllProfiles returns every profile on the server, owner included\n(Profile.user_id). Admin-only: it is what lets the admin panel show one\nrow per user WITH its profiles in a single call instead of an N+1 fan-out\nof ListProfiles, and what fills the \"whose history?\" profile picker.",
+        "operationId": "UserService_ListAllProfiles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListAllProfilesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
     "/api/v1/api-keys": {
       "get": {
         "operationId": "UserService_ListAPIKeys",
@@ -1123,6 +1146,11 @@
         },
         "isAdmin": {
           "type": "boolean"
+        },
+        "maxProfiles": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Cap on the profiles of the account this invite creates, like\nCreateUserRequest.max_profiles (unset = no cap, must be \u003e= 0)."
         }
       }
     },
@@ -1193,6 +1221,11 @@
         },
         "isAdmin": {
           "type": "boolean"
+        },
+        "maxProfiles": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Cap on the profiles of the account this invite creates (unset = no cap)."
         }
       }
     },
@@ -1204,6 +1237,18 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1APIKey"
+          }
+        }
+      }
+    },
+    "v1ListAllProfilesResponse": {
+      "type": "object",
+      "properties": {
+        "profiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Profile"
           }
         }
       }
@@ -1320,6 +1365,11 @@
           "type": "integer",
           "format": "int32",
           "description": "Parental MaxAge cap stored on the profile. Only meaningful when\nis_kids=true; absent means \"use the implicit kids default (12)\"."
+        },
+        "lastActiveAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When an access token was last minted for this profile (login or refresh).\nAbsent = never. Admin impersonation does not count."
         }
       }
     },

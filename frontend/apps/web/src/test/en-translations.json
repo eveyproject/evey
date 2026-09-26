@@ -1439,6 +1439,8 @@
   "admin.users.inviteLibraries": "Accessible libraries",
   "admin.users.inviteLibrariesHelp": "Leave empty to grant access to all libraries.",
   "admin.users.inviteLinks": "Invite Links",
+  "admin.users.inviteMaxProfiles": "Max profiles: {{max}}",
+  "admin.users.inviteMaxProfilesLabel": "Max profiles for the new account (empty = unlimited)",
   "admin.users.inviteRevoked": "Invite link revoked",
   "admin.users.kidsProfile": "Kids",
   "admin.users.lastActive": "Last active",
