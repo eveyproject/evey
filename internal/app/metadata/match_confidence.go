@@ -8,35 +8,32 @@ import (
 
 // Guard against a provider result that names a different work than the file.
 //
-// Why it exists: prod 2026-06-03, "/media/films/The Megeladon - 1080p.mkv"
-// (misspelled "Megalodon") was stored as TMDB 1439930 "The Punisher: One Last
-// Kill". TMDB returns nothing for the misspelled query, the cascade retry in
-// searchAndFetchBest trims trailing words down to "The", and every popular
-// "The ..." candidate shares the stopword "the" with the query - so the
-// coherence filter in pickBestMatch accepted the top result. Nothing compared
-// the two titles before persisting.
+// Why it exists: prod 2026-06-03, a film whose filename misspelled its title
+// was stored as an unrelated "The ..." title. TMDB returns nothing for the
+// misspelled query, the cascade retry in searchAndFetchBest trims trailing
+// words down to "The", and every popular "The ..." candidate shares the
+// stopword "the" with the query - so the coherence filter in pickBestMatch
+// accepted the top result. Nothing compared the two titles before persisting.
 //
 // The thresholds below are calibrated on the owner's production catalogue
 // (dumped 2026-08-23). Replayed on the 1329 movies carrying a TMDB id they
 // reject 5, all confirmed wrong matches, and on the 207 matched series they
-// reject none. Every legitimate pair is kept - French display titles ("Le Jour
-// d'après" for "The day after tomorrow"), filename typos, numbering and
-// director's-cut variants.
+// reject none. Every legitimate pair is kept - French display titles over an
+// English filename, filename typos, numbering and director's-cut variants.
 
 // titleCoverageThreshold is the share of the query's content words that must
 // be found in the candidate title. Bounded on both sides by production data:
-// the tightest legitimate pair is "Rebel moon chapter two curse of forgiveness
-// directors cut" against "Rebel Moon - Part Two: The Scargiver" at 3/8 =
-// 0.375, and the loosest wrong match ("Hush big hit" against "The Big Flame")
-// sits at 1/3 = 0.333. 0.35 is the midpoint.
+// the tightest legitimate pair (a "chapter two ... directors cut" filename
+// against the provider's "Part Two" title) is at 3/8 = 0.375, and the loosest
+// wrong match shares one word of three, 1/3 = 0.333. 0.35 is the midpoint.
 const titleCoverageThreshold = 0.35
 
 // titleCompactSimilarity is the whole-string tolerance, applied after
 // stripping separators. Catches titles the tokenizer splits differently
-// ("Motherandroid" vs "Mother/Android") and single-word typos.
+// ("Fathermachine" vs "Father/Machine") and single-word typos.
 const titleCompactSimilarity = 0.85
 
-// titleWordSimilarity is the per-word tolerance ("Tomorow" vs "Tomorrow").
+// titleWordSimilarity is the per-word tolerance ("Silense" vs "Silence").
 // Only applied from titleWordFuzzyMinLen runes up, so short words still have
 // to match exactly and "Red 2" never absorbs "Red 3".
 const (
@@ -45,7 +42,7 @@ const (
 )
 
 // titleStopwords are the words that carry no identity. A shared "the" or "de"
-// is precisely what let the Megeladon match through.
+// is precisely what let the 2026-06-03 mismatch through.
 var titleStopwords = map[string]bool{
 	"the": true, "a": true, "an": true, "of": true, "and": true, "or": true,
 	"in": true, "on": true, "to": true, "for": true, "with": true,
@@ -106,7 +103,7 @@ func contentWords(norm string) []string {
 }
 
 // wordBoundaryContains accepts the common "filename carries a marketing
-// subtitle" case ("Train to Busan Presents Peninsula" vs "Peninsula"). The
+// subtitle" case ("Night Train Presents Archipelago" vs "Archipelago"). The
 // contained side must carry an identity word, otherwise a query reduced to
 // "La" would match any title starting with "La".
 func wordBoundaryContains(a, b string) bool {
@@ -121,8 +118,8 @@ func wordBoundaryContains(a, b string) bool {
 }
 
 // hasIdentityWord ignores stopwords and bare numbers: a candidate reduced to
-// "2001" (what normalization leaves of the CJK title "老夫子2001") is contained
-// in "2001 L'odyssée de l'espace" without naming the same film.
+// "3001" (what normalization leaves of a CJK title ending in 3001) is
+// contained in "3001 Le voyage des étoiles" without naming the same film.
 func hasIdentityWord(norm string) bool {
 	for w := range strings.FieldsSeq(norm) {
 		if !titleStopwords[w] && strings.TrimLeft(w, "0123456789") != "" {
