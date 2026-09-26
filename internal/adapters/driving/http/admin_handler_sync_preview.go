@@ -8,12 +8,14 @@ package httpapi
 // without touching the metadata route group.
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -24,9 +26,14 @@ import (
 // renderer misbehaved and the browser should not be handed it.
 const syncPreviewMaxBytes = 64 << 20
 
+// PicturePlanner resolves the player's picture decision for a media item:
+// the accelerator, tone-map, deinterlace and SAR the viewer's session would
+// get. nil = no resolver wired; the clip is then drawn in software, uncorrected.
+type PicturePlanner func(ctx context.Context, mediaID string) domaintranscoding.PicturePlan
+
 // registerSyncPreviewRoute wires GET /api/v1/admin/media/{id}/sync-preview.
 // Rendering a clip runs ffmpeg, so it goes behind the heavy limiter.
-func registerSyncPreviewRoute(mux *http.ServeMux, seekIndex *appmaintenance.SeekIndexService, tokenGen domainuser.TokenGenerator, heavyRL *ratelimit.Limiter) {
+func registerSyncPreviewRoute(mux *http.ServeMux, seekIndex *appmaintenance.SeekIndexService, tokenGen domainuser.TokenGenerator, heavyRL *ratelimit.Limiter, picture PicturePlanner) {
 	if seekIndex == nil {
 		return
 	}
@@ -42,6 +49,12 @@ func registerSyncPreviewRoute(mux *http.ServeMux, seekIndex *appmaintenance.Seek
 				LenSec:   floatQuery(q.Get("len"), 20),
 				Track:    int(floatQuery(q.Get("track"), 0)),
 				ShiftSec: floatQuery(q.Get("shift"), 0),
+			}
+			// The clip is drawn by the player's own route (GPU, tone-map, SAR),
+			// so the operator judges the picture the viewer sees, and a 4K HEVC
+			// decode does not run in software while they wait.
+			if picture != nil {
+				req.Picture = picture(ctx, r.PathValue("id"))
 			}
 			clip, err := seekIndex.SyncPreviewOfMedia(ctx, r.PathValue("id"), req)
 			if err != nil {

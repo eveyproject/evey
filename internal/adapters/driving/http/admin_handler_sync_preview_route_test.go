@@ -45,7 +45,7 @@ func newSyncPreviewMux(t *testing.T, catalog stubSyncCatalog, renderer *stubSync
 		svc.WithSyncPreviewRenderer(renderer)
 	}
 	mux := http.NewServeMux()
-	registerSyncPreviewRoute(mux, svc, gen, ratelimit.NewWithBurst(100, 100))
+	registerSyncPreviewRoute(mux, svc, gen, ratelimit.NewWithBurst(100, 100), nil)
 	return mux, adminTok, userTok
 }
 
