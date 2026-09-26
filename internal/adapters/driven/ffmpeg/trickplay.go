@@ -15,6 +15,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/hdr"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -279,28 +280,44 @@ func (c trickplayColour) isHDR() bool {
 //
 // The graph used to be select,scale,showinfo,tile - no colour handling - so an
 // HDR source was sampled as if it were SDR and the strip came out washed out and
-// tinted, while the player (which DOES tone-map) showed the right picture. Tag
-// the colour metadata first: rips under-tag, and a DoVi P5 container tags nothing
-// at all. Same curve as the playback path (bt2390, desat=0, peak 100 -> bt709).
+// tinted, while the player (which DOES tone-map) showed the right picture.
+// Delegates to the player's own tone-map builder (buildToneMapFilter, which
+// handles the tonemapx/zscale portability the private copy used to hardcode)
+// so the strip and the player never drift on the curve. The strip already
+// scaled in base, so dstWidth=0 folds no further downscale; the tone-map runs
+// AFTER base, on the small tiles, not the source frame.
 func trickplayFilter(base string, col trickplayColour) string {
 	if !col.isHDR() {
 		return base // the vast majority of files: no needless colour pass
 	}
-	trc := "smpte2084"
-	if strings.EqualFold(col.Transfer, "arib-std-b67") {
-		trc = "arib-std-b67"
+	info := &hdr.HDRInfo{IsHDR: true, Type: trickplayHDRType(col)}
+	return base + "," + buildToneMapFilter(info, 0)
+}
+
+// trickplayHDRType maps the thumbnail probe's colour signal onto the Type
+// hdr.setParamsFor reads to tag the frame before tonemapx: HLG needs its own
+// transfer tag, everything else (PQ, and an untagged DoVi base layer) is PQ-ish.
+func trickplayHDRType(col trickplayColour) string {
+	switch strings.ToLower(strings.TrimSpace(col.Transfer)) {
+	case "smpte2084":
+		return "hdr10"
+	case "arib-std-b67":
+		return "hlg"
 	}
-	return fmt.Sprintf(
-		"setparams=color_primaries=bt2020:color_trc=%s:colorspace=bt2020nc,%s,tonemapx=tonemap=bt2390:desat=0:peak=100:t=bt709:m=bt709:p=bt709:format=yuv420p",
-		trc, base,
-	)
+	return "dolby_vision" // untagged DoVi P5 container: no transfer, only the RPU
 }
 
 // probeColour reads the source's transfer curve and DoVi presence. Best-effort:
 // on any failure it returns the zero value (SDR), i.e. today's behaviour - a
 // thumbnail pass must never fail because a probe did.
 func (g *TrickplayGenerator) probeColour(ctx context.Context, filePath string) trickplayColour {
-	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "trickplay.colour"}, g.probeBinary,
+	return probeSourceColour(ctx, g.probeBinary, "trickplay.colour", filePath)
+}
+
+// probeSourceColour is the probe behind probeColour, shared with the sync
+// preview: both render a small SDR picture of a source that may be HDR.
+func probeSourceColour(ctx context.Context, probeBinary, site, filePath string) trickplayColour {
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: site}, probeBinary,
 		"-v", "quiet",
 		"-select_streams", "v:0",
 		"-print_format", "json",

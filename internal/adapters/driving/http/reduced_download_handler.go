@@ -45,11 +45,12 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/singleflight"
 
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/bgtasks"
-	"github.com/evey-project/evey/internal/pkg/hdr"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/reduceddl"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -80,7 +81,7 @@ type ReducedTranscoder interface {
 	// TranscodeReducedSlices returns when ffmpeg exits. Slices become
 	// available WHILE it runs - that is the whole point - so the caller reads
 	// readiness from the job dir, not from this returning.
-	TranscodeReducedSlices(ctx context.Context, srcPath, dir string, spec reduceddl.Spec, durationMs, estBytes int64, onProgress func(permille int)) error
+	TranscodeReducedSlices(ctx context.Context, srcPath, dir string, spec reduceddl.Spec, picture domaintranscoding.PicturePlan, durationMs, estBytes int64, onProgress func(permille int)) error
 }
 
 type reducedJob struct {
@@ -158,6 +159,11 @@ type reducedTarget struct {
 	durationMs int64
 	sourceSize int64
 	spec       reduceddl.Spec
+	// picture is the software picture decision the production draws with
+	// (the source corrections PictureFor resolves - tone-map, SAR, interlace).
+	// BuildReducedArgs forces it back to software regardless: this job runs
+	// for hours under nice, it never contends for the GPU with a viewer.
+	picture domaintranscoding.PicturePlan
 	// eligible is false when a reduced variant makes no sense for this source
 	// (already 720p or smaller, dimensions unknown). Nothing is produced then.
 	eligible bool
@@ -214,38 +220,38 @@ func (h *reducedServe) resolve(w http.ResponseWriter, r *http.Request) (reducedT
 	t.jobDir = filepath.Join(h.cacheDir, reducedJobDirName(string(item.ID), fingerprint, reducedConsumer(claims)))
 	t.spec = reduceddl.Spec{SliceSec: reduceddl.SliceSec}
 
-	width, toneMap, src := h.videoShape(r.Context(), t.mediaID)
+	width, picture, src := h.videoShape(r.Context(), t.mediaID)
 	t.spec.Width = width
-	t.spec.ToneMap = toneMap
+	t.picture = picture
+	t.spec.ToneMap = picture.ToneMap // diagnostic only: BuildReducedArgs now reads t.picture directly
 	t.spec.SourceWidth, t.spec.SourceHeight, t.spec.SourceTenBit = src.Width, src.Height, src.TenBit
 	t.eligible = width > 0 && t.durationMs > 0
 	return t, true
 }
 
-// videoShape reads the delivery width (0 = not worth reducing) and whether the
-// source needs HDR->SDR grading off the item's probed streams. An unprobed or
-// unreadable item yields 0: refusing to offer beats offering a variant we
-// cannot size or grade.
-func (h *reducedServe) videoShape(ctx context.Context, mediaID string) (width int, toneMap bool, src procfork.Source) {
+// videoShape reads the delivery width (0 = not worth reducing) and the
+// player's picture decision for the source (the same PictureFor a session
+// with no accelerator draws with: tone-map, SAR, interlace corrections). An
+// unprobed or unreadable item yields width 0: refusing to offer beats
+// offering a variant we cannot size or grade.
+func (h *reducedServe) videoShape(ctx context.Context, mediaID string) (width int, picture domaintranscoding.PicturePlan, src procfork.Source) {
 	if h.streams == nil {
-		return 0, false, src
+		return 0, picture, src
 	}
 	streams, err := h.streams.GetMediaStreams(ctx, mediaID)
 	if err != nil {
-		return 0, false, src
+		return 0, picture, src
 	}
-	hdrStreams := make([]hdr.VideoStream, 0, len(streams))
 	for _, s := range streams {
 		if s == nil {
 			continue
 		}
-		hdrStreams = append(hdrStreams, s)
 		if s.StreamType == domainlibrary.Video && width == 0 && s.Width != nil && s.Height != nil {
 			width = reduceddl.WidthFor(*s.Width, *s.Height)
 			src = procfork.Source{Width: *s.Width, Height: *s.Height, TenBit: s.BitDepth != nil && *s.BitDepth > 8}
 		}
 	}
-	return width, hdr.DetectHDR(hdrStreams).IsHDR, src
+	return width, apptranscoding.PictureFor(streams), src
 }
 
 // --- readiness -------------------------------------------------------------
@@ -426,7 +432,7 @@ func (h *reducedServe) produce(ctx context.Context, t reducedTarget) {
 			h.progress[t.jobDir] = permille
 			h.mu.Unlock()
 		}
-		return nil, h.transcoder.TranscodeReducedSlices(ctx, t.srcPath, t.jobDir, t.spec,
+		return nil, h.transcoder.TranscodeReducedSlices(ctx, t.srcPath, t.jobDir, t.spec, t.picture,
 			t.durationMs, reduceddl.EstimatedBytes(t.durationMs), onProgress)
 	})
 

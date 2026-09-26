@@ -19,6 +19,7 @@ import (
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/reduceddl"
 )
@@ -40,7 +41,7 @@ func newFakeReducedTranscoder(slices int) *fakeReducedTranscoder {
 	return f
 }
 
-func (f *fakeReducedTranscoder) TranscodeReducedSlices(_ context.Context, _, dir string, spec reduceddl.Spec, _, _ int64, onProgress func(int)) error {
+func (f *fakeReducedTranscoder) TranscodeReducedSlices(_ context.Context, _, dir string, spec reduceddl.Spec, _ domaintranscoding.PicturePlan, _, _ int64, onProgress func(int)) error {
 	f.calls.Add(1)
 	<-f.lastMu
 	f.lastVal = spec

@@ -16,13 +16,15 @@ import (
 // reduced_transcode.go. A reorder is a product change, not a refactor.
 func TestBuildReducedArgs(t *testing.T) {
 	args := BuildReducedArgs("/media/film.mkv", "/cache/reduced/j/slice-%05d.mkv", "/cache/reduced/j/slices-00000.csv",
-		reduceddl.Spec{Width: 1280, SliceSec: 600})
+		reduceddl.Spec{Width: 1280, SliceSec: 600}, transcoding.PicturePlan{})
 
 	assert.Equal(t, []string{
 		"-hide_banner", "-v", "error", "-nostdin", "-y",
 		"-i", "/media/film.mkv",
 		"-map", "0:v:0", "-map", "0:a", "-map", "0:s?",
-		"-vf", "scale=1280:-2",
+		// The same software chain the clip and a player session run: the
+		// flag-gated deinterlace is a no-op on progressive content.
+		"-vf", "bwdif=mode=send_frame:deint=interlaced,scale=1280:-2,setsar=1",
 		"-c:v", "libx264", "-preset", "veryfast",
 		"-crf", "23",
 		"-maxrate", "2500k",
@@ -52,7 +54,7 @@ func TestBuildReducedArgsResumesAtTheRightSlice(t *testing.T) {
 	// 4*600. Slices run a little long (the cut waits for the next keyframe),
 	// so seeking to the arithmetic guess would skip 9 s of film here.
 	args := BuildReducedArgs("/media/film.mkv", "/j/slice-%05d.mkv", "/j/slices-00004.csv",
-		reduceddl.Spec{Width: 1280, SliceSec: 600, StartSlice: 4, StartSec: 2409.6})
+		reduceddl.Spec{Width: 1280, SliceSec: 600, StartSlice: 4, StartSec: 2409.6}, transcoding.PicturePlan{})
 
 	// -ss must come BEFORE -i to be an input seek (fast); after -i it would
 	// decode and discard 40 minutes of film.
@@ -64,15 +66,16 @@ func TestBuildReducedArgsResumesAtTheRightSlice(t *testing.T) {
 
 	// And a run that starts at zero must not carry a pointless seek.
 	fresh := BuildReducedArgs("/media/film.mkv", "/j/slice-%05d.mkv", "/j/slices-00000.csv",
-		reduceddl.Spec{Width: 1280, SliceSec: 600})
+		reduceddl.Spec{Width: 1280, SliceSec: 600}, transcoding.PicturePlan{})
 	assert.NotContains(t, fresh, "-ss")
 }
 
 // The tonemap folds the downscale into its own scale, so the plain scale must
 // step aside - two scales would resize twice and waste the weak NAS's CPU.
 func TestBuildReducedArgsToneMapsHDRAndScalesOnce(t *testing.T) {
+	picture := transcoding.PicturePlan{ToneMap: true, Topology: transcoding.TopologySoftwareHDR}
 	args := BuildReducedArgs("/media/hdr.mkv", "/j/slice-%05d.mkv", "/j/slices-00000.csv",
-		reduceddl.Spec{Width: 1280, SliceSec: 600, ToneMap: true})
+		reduceddl.Spec{Width: 1280, SliceSec: 600}, picture)
 
 	vf := args[indexOf(t, args, "-vf")+1]
 	assert.Contains(t, vf, "tonemap")
@@ -81,11 +84,21 @@ func TestBuildReducedArgsToneMapsHDRAndScalesOnce(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(vf, "1280"), "the frame must be resized once, not twice")
 }
 
+// A GPU-resolved plan must never reach the reduced production: it runs for
+// hours under nice, sharing the box with live viewers.
+func TestBuildReducedArgs_AlwaysSoftware(t *testing.T) {
+	picture := transcoding.PicturePlan{Accel: transcoding.VAAPI, Device: "/dev/dri/renderD128", Topology: transcoding.TopologyZeroCopy}
+	args := BuildReducedArgs("/media/film.mkv", "/j/slice-%05d.mkv", "/j/slices-00000.csv",
+		reduceddl.Spec{Width: 1280, SliceSec: 600}, picture)
+	assert.NotContains(t, args, "-hwaccel")
+	assert.Equal(t, "libx264", args[indexOf(t, args, "-c:v")+1])
+}
+
 // A zero SliceSec is a caller bug, not a licence to emit "-segment_time 0"
 // (which makes ffmpeg cut on every keyframe and produce thousands of files).
 func TestBuildReducedArgsFallsBackToTheDefaultSliceLength(t *testing.T) {
 	args := BuildReducedArgs("/media/film.mkv", "/j/slice-%05d.mkv", "/j/slices-00000.csv",
-		reduceddl.Spec{Width: 1280})
+		reduceddl.Spec{Width: 1280}, transcoding.PicturePlan{})
 	assert.Equal(t, "600", args[indexOf(t, args, "-segment_time")+1])
 }
 
@@ -107,7 +120,7 @@ func indexOf(t *testing.T, args []string, flag string) int {
 // premise 8 of the 2026-08-24 OOM forensics). The default 10 s bound stays.
 func TestBuildReducedArgs_InterleaveStaysBounded(t *testing.T) {
 	t.Parallel()
-	args := BuildReducedArgs("/media/film.mkv", "/cache/reduced/j/slice-%05d.mkv", "/cache/reduced/j/slices-00000.csv", reduceddl.Spec{Width: 1280})
+	args := BuildReducedArgs("/media/film.mkv", "/cache/reduced/j/slice-%05d.mkv", "/cache/reduced/j/slices-00000.csv", reduceddl.Spec{Width: 1280}, transcoding.PicturePlan{})
 	for _, a := range args {
 		if a == "-max_interleave_delta" {
 			t.Fatal("-max_interleave_delta must not be set on the reduced production")
