@@ -22,4 +22,15 @@ config.resolver.unstable_enableSymlinks = true;
 // fail fast at resolution instead.
 config.resolver.blockList = [/\.test\.(ts|tsx|js|jsx)$/];
 
+// expo-router's native tabs (unused here) pull expo-symbols, whose Android
+// build requires the 7 Material Symbols font weights (~6.6 MB in the APK).
+// Resolving that font package to an empty module drops them.
+const upstreamResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName.startsWith("@expo-google-fonts/material-symbols")) {
+    return { type: "empty" };
+  }
+  return (upstreamResolveRequest ?? context.resolveRequest)(context, moduleName, platform);
+};
+
 module.exports = withNativeWind(config, { input: "./global.css" });
