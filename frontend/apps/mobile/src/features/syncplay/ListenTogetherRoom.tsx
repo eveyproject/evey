@@ -140,13 +140,13 @@ export function ListenTogetherRoom({
 
       {state.isHost ? (
         <View style={styles.controls}>
-          <Pressable onPress={() => controls.sendPrev()} disabled={state.trackIndex <= 0} accessibilityRole="button" accessibilityLabel={t("media.player.previous", "Previous")} hitSlop={8}>
+          <Pressable onPress={() => controls.sendPrev()} disabled={state.trackIndex <= 0} accessibilityRole="button" accessibilityLabel={t("mobile.music.previousTrack")} hitSlop={8}>
             <Ionicons name="play-skip-back" size={28} color={state.trackIndex <= 0 ? theme.colors.border : theme.colors.text} />
           </Pressable>
-          <Pressable onPress={togglePlay} accessibilityRole="button" accessibilityLabel={status.playing ? t("media.player.pause", "Pause") : t("media.player.play", "Play")} testID="room-play-pause" hitSlop={8}>
+          <Pressable onPress={togglePlay} accessibilityRole="button" accessibilityLabel={status.playing ? t("player.controls.pause") : t("player.controls.play")} testID="room-play-pause" hitSlop={8}>
             <Ionicons name={status.playing ? "pause-circle" : "play-circle"} size={56} color={theme.colors.accent} />
           </Pressable>
-          <Pressable onPress={() => controls.sendNext()} disabled={state.trackIndex >= state.queue.length - 1} accessibilityRole="button" accessibilityLabel={t("media.player.next", "Next")} hitSlop={8}>
+          <Pressable onPress={() => controls.sendNext()} disabled={state.trackIndex >= state.queue.length - 1} accessibilityRole="button" accessibilityLabel={t("mobile.music.nextTrack")} hitSlop={8}>
             <Ionicons name="play-skip-forward" size={28} color={state.trackIndex >= state.queue.length - 1 ? theme.colors.border : theme.colors.text} />
           </Pressable>
         </View>
