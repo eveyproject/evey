@@ -349,6 +349,8 @@ users:
   failedRevoke: Failed to revoke invite
   inviteCreated: Invite link created
   maxUsesLabel: Max uses (empty = unlimited)
+  inviteMaxProfilesLabel: "Max profiles for the new account (empty = unlimited)"
+  inviteMaxProfiles: "Max profiles: {{max}}"
   expiresAtLabel: Expires at (optional)
   inviteIsAdmin: Create as administrator
   inviteLibraries: Accessible libraries

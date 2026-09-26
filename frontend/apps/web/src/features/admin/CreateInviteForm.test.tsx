@@ -47,6 +47,17 @@ describe("CreateInviteForm", () => {
     });
   });
 
+  // The account the invite creates gets the profile cap an admin would set
+  // creating the user directly; empty means no cap.
+  it("submits the profile cap typed for the new account", async () => {
+    render(<CreateInviteForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
+    await userEvent.type(screen.getByLabelText("Max profiles for the new account (empty = unlimited)"), "2");
+    await userEvent.click(screen.getByRole("button", { name: "Create Invite Link" }));
+    expect(mutateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ maxProfiles: 2 }),
+    });
+  });
+
   it("converts the datetime-local expiresAt to RFC3339 before submit", async () => {
     render(<CreateInviteForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
     const expires = screen.getByLabelText("Expires at (optional)");

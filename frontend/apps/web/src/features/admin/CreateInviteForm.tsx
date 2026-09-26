@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { parseInviteProfileCap } from "@evey/client";
 import { useTranslation } from "react-i18next";
 import {
   useUserServiceCreateInviteLink,
@@ -11,6 +12,7 @@ import { toast } from "@evey/store";
 export function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
   const { t } = useTranslation();
   const [maxUses, setMaxUses] = useState("");
+  const [maxProfiles, setMaxProfiles] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [libraryIds, setLibraryIds] = useState<string[]>([]);
@@ -43,6 +45,7 @@ export function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
     createInvite.mutate({
       data: {
         maxUses: maxUses ? parseInt(maxUses) : undefined,
+        maxProfiles: parseInviteProfileCap(maxProfiles),
         expiresAt: expiresAtISO,
         isAdmin,
         libraryIds: isAdmin ? [] : libraryIds,
@@ -58,6 +61,13 @@ export function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
         min={1}
         value={maxUses}
         onChange={(e) => setMaxUses(e.target.value)}
+      />
+      <Input
+        label={t("admin.users.inviteMaxProfilesLabel")}
+        type="number"
+        min={1}
+        value={maxProfiles}
+        onChange={(e) => setMaxProfiles(e.target.value)}
       />
       <Input
         label={t("admin.users.expiresAtLabel")}

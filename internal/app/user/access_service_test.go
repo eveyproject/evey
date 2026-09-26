@@ -118,6 +118,33 @@ func TestRegisterWithInvite_Happy(t *testing.T) {
 	}
 }
 
+// An invite can carry the profile cap an admin would set creating the user
+// directly; the account it creates inherits it, and creating one profile past
+// it is refused.
+func TestRegisterWithInvite_AppliesTheInviteProfileCap(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	two := 2
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv-cap", Token: "cap-token", MaxUses: 1, MaxProfiles: &two})
+
+	u, err := d.svc.RegisterWithInvite(ctx, "cap-token", "carol", "longpassword", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.MaxProfiles == nil || *u.MaxProfiles != 2 {
+		t.Fatalf("MaxProfiles = %v, want 2", u.MaxProfiles)
+	}
+
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv-free", Token: "free-token", MaxUses: 1})
+	free, err := d.svc.RegisterWithInvite(ctx, "free-token", "dave", "longpassword", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if free.MaxProfiles != nil {
+		t.Fatalf("an invite without a cap must not set one, got %d", *free.MaxProfiles)
+	}
+}
+
 func TestRegisterWithInvite_ShortPassword(t *testing.T) {
 	d := newAccessTestDeps()
 	_, err := d.svc.RegisterWithInvite(context.Background(), "tok", "bob", "short", "b@b.com")

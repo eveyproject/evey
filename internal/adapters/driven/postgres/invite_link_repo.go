@@ -33,9 +33,9 @@ func (r *InviteLinkRepository) Create(ctx context.Context, link *user.InviteLink
 		return err
 	}
 	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
-		`INSERT INTO invite_links (id, created_by, token, label, max_uses, used_count, is_admin, library_ids, expires_at, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-		link.ID, link.CreatedBy, link.Token, link.Label, link.MaxUses, link.UsedCount, link.IsAdmin, libJSON, link.ExpiresAt, link.CreatedAt,
+		`INSERT INTO invite_links (id, created_by, token, label, max_uses, used_count, is_admin, library_ids, expires_at, created_at, max_profiles)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		link.ID, link.CreatedBy, link.Token, link.Label, link.MaxUses, link.UsedCount, link.IsAdmin, libJSON, link.ExpiresAt, link.CreatedAt, link.MaxProfiles,
 	)
 	return err
 }
@@ -45,8 +45,13 @@ func scanInviteLink(scanner interface {
 }) (*user.InviteLink, error) {
 	link := &user.InviteLink{}
 	var libJSON []byte
-	if err := scanner.Scan(&link.ID, &link.CreatedBy, &link.Token, &link.Label, &link.MaxUses, &link.UsedCount, &link.IsAdmin, &libJSON, &link.ExpiresAt, &link.CreatedAt); err != nil {
+	var maxProfiles sql.NullInt64
+	if err := scanner.Scan(&link.ID, &link.CreatedBy, &link.Token, &link.Label, &link.MaxUses, &link.UsedCount, &link.IsAdmin, &libJSON, &link.ExpiresAt, &link.CreatedAt, &maxProfiles); err != nil {
 		return nil, err
+	}
+	if maxProfiles.Valid {
+		mp := int(maxProfiles.Int64)
+		link.MaxProfiles = &mp
 	}
 	if len(libJSON) > 0 {
 		if err := json.Unmarshal(libJSON, &link.LibraryIDs); err != nil {
@@ -64,7 +69,7 @@ func (r *InviteLinkRepository) GetByToken(ctx context.Context, token string) (*u
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	row := txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT id, created_by, token, label, max_uses, used_count, is_admin, library_ids, expires_at, created_at
+		`SELECT id, created_by, token, label, max_uses, used_count, is_admin, library_ids, expires_at, created_at, max_profiles
 		 FROM invite_links WHERE token = $1`, token)
 	return scanInviteLink(row)
 }
@@ -75,7 +80,7 @@ func (r *InviteLinkRepository) ListByCreator(ctx context.Context, creatorID stri
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, created_by, token, label, max_uses, used_count, is_admin, library_ids, expires_at, created_at
+		`SELECT id, created_by, token, label, max_uses, used_count, is_admin, library_ids, expires_at, created_at, max_profiles
 		 FROM invite_links WHERE created_by = $1 ORDER BY created_at LIMIT 500`, creatorID)
 	if err != nil {
 		return nil, err

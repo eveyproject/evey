@@ -348,6 +348,8 @@ users:
   failedRevoke: "Échec de la révocation de l'invitation"
   inviteCreated: "Lien d'invitation créé"
   maxUsesLabel: "Nombre max d'utilisations (vide = illimité)"
+  inviteMaxProfilesLabel: "Profils max du nouveau compte (vide = illimité)"
+  inviteMaxProfiles: "Profils max : {{max}}"
   expiresAtLabel: "Date d'expiration (optionnel)"
   inviteIsAdmin: "Créer un administrateur"
   inviteLibraries: "Bibliothèques accessibles"

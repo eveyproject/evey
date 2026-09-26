@@ -94,6 +94,7 @@ export * from "./lib/musicRoutes";
 export * from "./lib/logMedia";
 export * from "./lib/webhookEvents";
 export * from "./lib/scanReport";
+export * from "./lib/inviteProfileCap";
 export * from "./syncplay/roomQueue";
 
 export * from "./plugins/slotEntries";

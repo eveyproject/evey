@@ -140,6 +140,12 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
 	}
 	u.IsAdmin = invite.IsAdmin
+	// The invite's profile cap becomes the account's, exactly as an admin
+	// would have set it creating the user directly.
+	if invite.MaxProfiles != nil {
+		mp := *invite.MaxProfiles
+		u.MaxProfiles = &mp
+	}
 
 	// Pre-build the default Profile so its ID is stable before the tx; we
 	// publish the ProfileCreated event with this exact ID after commit.

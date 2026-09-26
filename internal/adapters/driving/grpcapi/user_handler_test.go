@@ -1030,6 +1030,34 @@ func TestCreateInviteLink_Success(t *testing.T) {
 	}
 }
 
+// The invite carries the same profile cap CreateUser takes, with the same rule
+// (negative refused, unset = no cap).
+func TestCreateInviteLink_MaxProfiles(t *testing.T) {
+	env := setupUserHandler()
+	ctx := adminCtx()
+	three := int32(3)
+	resp, err := env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 1, MaxProfiles: &three})
+	if err != nil {
+		t.Fatalf("CreateInviteLink: %v", err)
+	}
+	if resp.MaxProfiles == nil || *resp.MaxProfiles != 3 {
+		t.Fatalf("max_profiles = %v, want 3", resp.MaxProfiles)
+	}
+
+	unset, err := env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 1})
+	if err != nil {
+		t.Fatalf("CreateInviteLink: %v", err)
+	}
+	if unset.MaxProfiles != nil {
+		t.Fatalf("an unset cap must stay unset, got %d", *unset.MaxProfiles)
+	}
+
+	negative := int32(-1)
+	if _, err := env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 1, MaxProfiles: &negative}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("negative cap: code = %v, want InvalidArgument", status.Code(err))
+	}
+}
+
 func TestCreateInviteLink_Unauthenticated(t *testing.T) {
 	env := setupUserHandler()
 	_, err := env.handler.CreateInviteLink(context.Background(), &eveyv1.CreateInviteLinkRequest{})

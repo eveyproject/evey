@@ -349,6 +349,8 @@ users:
   failedRevoke: "आमंत्रण निरस्त करने में विफल"
   inviteCreated: "आमंत्रण लिंक बनाया गया"
   maxUsesLabel: "अधिकतम उपयोग (खाली = असीमित)"
+  inviteMaxProfilesLabel: "नए खाते के अधिकतम प्रोफ़ाइल (खाली = असीमित)"
+  inviteMaxProfiles: "अधिकतम प्रोफ़ाइल: {{max}}"
   expiresAtLabel: "समाप्ति तिथि (वैकल्पिक)"
   inviteIsAdmin: "व्यवस्थापक के रूप में बनाएँ"
   inviteLibraries: "सुलभ लाइब्रेरी"

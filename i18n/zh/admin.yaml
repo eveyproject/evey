@@ -349,6 +349,8 @@ users:
   failedRevoke: "撤销邀请失败"
   inviteCreated: "邀请链接已创建"
   maxUsesLabel: "最大使用次数（留空 = 无限制）"
+  inviteMaxProfilesLabel: "新账户的最大资料数（留空 = 不限）"
+  inviteMaxProfiles: "最大资料数：{{max}}"
   expiresAtLabel: "过期时间（可选）"
   inviteIsAdmin: "创建为管理员"
   inviteLibraries: "可访问的媒体库"

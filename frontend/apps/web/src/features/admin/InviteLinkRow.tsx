@@ -43,6 +43,9 @@ export function InviteLinkRow({ link }: { link: V1InviteLink }) {
       </td>
       <td data-label={t("admin.users.uses")} className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {link.timesUsed ?? 0} / {link.maxUses ?? "\u221E"}
+        {link.maxProfiles != null && (
+          <div className="text-xs">{t("admin.users.inviteMaxProfiles", { max: link.maxProfiles })}</div>
+        )}
       </td>
       <td data-label={t("admin.users.expires")} className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {link.expiresAt ? new Date(link.expiresAt).toLocaleString() : t("admin.users.never")}

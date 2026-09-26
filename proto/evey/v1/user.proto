@@ -275,6 +275,8 @@ message InviteLink {
   google.protobuf.Timestamp created_at = 7;
   repeated string library_ids = 8;
   bool is_admin = 9;
+  // Cap on the profiles of the account this invite creates (unset = no cap).
+  optional int32 max_profiles = 10;
 }
 
 message QuickConnectResponse {
@@ -415,6 +417,9 @@ message CreateInviteLinkRequest {
   google.protobuf.Timestamp expires_at = 2;
   repeated string library_ids = 3;
   bool is_admin = 4;
+  // Cap on the profiles of the account this invite creates, like
+  // CreateUserRequest.max_profiles (unset = no cap, must be >= 0).
+  optional int32 max_profiles = 5;
 }
 
 message ListInviteLinksRequest {}
