@@ -223,6 +223,34 @@ Still to do, each gated on something outside the code, in this order:
    picture of "which engine serves which request" is a separate clarification,
    deliberately kept out of this ADR.
 
+**Four faults found by the follow-up review (2026-09-26), fixed:**
+
+- A backend that proved NO route came back from persistence as "every route
+  trusted": `HWBackendCap.Routes` was omitted from the row's JSON when empty
+  and read as nil, which `Proves` trusts. The empty verdict is written as is,
+  and a route-probed row's nil verdict is published as no proof
+  (`EncodeCapability.normalized`).
+- The planned serving path read the video decision off the route alone.
+  `Route.Copy` is ffmpeg's copy-rung verdict (a copy producer, cache room);
+  the packager needs neither, so a packaged master planned as
+  transcode/mkvgo, disagreed with the copy served and tripped
+  `evey_hlsvod_delivery_disagreements`. The path says copy whenever the
+  packager carries the video; the ffmpeg ladder behind it stays shaped and
+  admitted, on purpose - it serves the plan when the packager cannot build
+  the source.
+- The calibration proved and priced every route with the low-power encoder
+  (the backend's full feature list) while the runtime, opted out by default,
+  ran the full one. One derivation, `RuntimeHWFeatures`, serves the runtime,
+  the route proofs, the cost evidence and the runtime re-proof. A `Resolve`
+  now reads the capability and the route costs once, on a copy of the
+  resolver (`frozen`), the way it reads the policy.
+- Two info surfaces (gRPC `GetStreamInfo`, HTTP playback-info) decide on the
+  pure core, without the request-time pins: their answer can say copy where
+  the plan transcodes. The client keeps the served variant's truth over
+  them; `contractguard/playback_decision_guard_test.go` lists the two with
+  what closes them (a decider bound to the gRPC handler after the HTTP
+  wiring) and refuses a third.
+
 Not added, on purpose: a `Pricer` interface (`chargesFor` is already the one
 pricing function), a struct split of `DecisionFingerprint` (the classification
 guard removes the double source of truth the split was for), a route frozen
@@ -237,3 +265,33 @@ on the pin (a behaviour change to decide on its own).
   duplicates they guarded.
 - `ErrRouteNotExpressible` in production is a planner bug, visible as a
   counter, not a silent CPU encode under a GPU bill.
+
+## Addendum (2026-09-26): one picture outside a session
+
+Three producers draw a browser-playable SDR picture without being a player
+session: the sync-preview clip an operator judges lip-sync on, the reduced
+download a phone keeps, the trickplay strip. Each kept a private copy of the
+tone-map string and none of the other corrections; the clip wrote H.264
+High 10 from every 10-bit source (Firefox: "the file is corrupt") and decoded
+4K HEVC on three CPU threads while the operator waited.
+
+- `transcoding.PicturePlan` (domain) is the picture decision detached from
+  the HLS session: accelerator, device, features, topology, tone-map, HDR
+  range, deinterlace verdict, telecine, SAR. `ApplyTo` is its ONE projection
+  onto `HLSProcessOpts`, field for field as the fingerprint projects them.
+- `PlanResolver.ResolvePicture` runs the same `resolveRoute` the plan runs,
+  for a fixed target (one small H.264 SDR picture, `ClientVideoCodecs`
+  h264, `MaxHeight` the consumer's), with the per-title block; no ladder,
+  no admission pin, no fingerprint: a clip takes no session slot, so
+  admission never spills it. `PictureFor` is the software base for a host
+  without the pipeline. It is a plan-level entry point (the guard names it).
+- `ffmpeg.BuildClipArgs` builds one MP4 clip from the player's own chains
+  (`hwInitArgs`, `hwSourceFilterPrefix`, `hwToneMapStage`, `hwRungScaleFilter`,
+  `resolveToneMap`, `scaleFilterFor`); the reduced download and the
+  trickplay take the same software chain. A GPU clip that fails to start is
+  retried in software by its caller and demotes nothing: the operator must
+  see the clip, and one preview is not evidence against a calibration.
+- Left out on purpose: the reduced download stays on the CPU (it runs for
+  hours under nice and must not contend for the GPU with viewers), and the
+  clip's HLG source is folded as PQ, exactly as the player's `ToneMap`
+  bool path does today.
