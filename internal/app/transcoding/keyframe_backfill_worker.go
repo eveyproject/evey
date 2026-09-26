@@ -173,6 +173,7 @@ func NewKeyframeBackfillWorker(
 	if opts.ItemPause <= 0 {
 		opts.ItemPause = 200 * time.Millisecond
 	}
+	registerKeyframesCoverage(store)
 	return &KeyframeBackfillWorker{
 		store:        store,
 		items:        items,

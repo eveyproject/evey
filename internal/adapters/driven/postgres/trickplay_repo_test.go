@@ -211,6 +211,10 @@ func TestTrickplayRepo_ListMissing_SkipsRecordedFailures(t *testing.T) {
 	ids, err = tpRepo.ListMissingMediaItemIDs(ctx, 1)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"tpf-m2"}, ids, "a failure matching the current file suppresses the item")
+	cov, err := tpRepo.TrickplayCoverage(ctx, 1)
+	require.NoError(t, err)
+	assertCoveragePending(t, cov, 1)
+	assert.Equal(t, int64(2), cov.TotalItems, "a settled failure counts as done, not as gone")
 
 	// A STALE failure (recorded against other bytes) must not suppress.
 	require.NoError(t, tpRepo.RecordFailure(ctx, "tpf-m2", 999, mod, "old failure"))

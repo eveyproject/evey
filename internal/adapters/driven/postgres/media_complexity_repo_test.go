@@ -53,6 +53,13 @@ func TestComplexityRepo_ListUnclassified_OnlyClassifiableItems(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"cx-movie", "cx-episode"}, ids,
 		"only video items with a known duration are classifiable candidates")
+
+	// The system-health count is the same list, weighted by duration.
+	c, err := repo.ComplexityCoverage(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), c.TotalItems)
+	assert.Equal(t, int64(0), c.DoneItems)
+	assert.InDelta(t, (90+40)*60.0, c.TotalSeconds, 0.001)
 }
 
 // Get/Set round-trip, and the probe queue: a title enters it when its

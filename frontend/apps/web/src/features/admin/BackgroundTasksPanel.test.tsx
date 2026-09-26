@@ -14,11 +14,11 @@ vi.mock("@evey/api", async (importOriginal) => ({
 
 vi.mock("@evey/store", () => ({ toast: mockToast }));
 
-function renderPanel() {
+function renderPanel(showCoverage = false) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   return render(
     <QueryClientProvider client={qc}>
-      <BackgroundTasksPanel />
+      <BackgroundTasksPanel showCoverage={showCoverage} />
     </QueryClientProvider>,
   );
 }
@@ -111,6 +111,40 @@ describe("BackgroundTasksPanel", () => {
     expect(bar).toHaveAttribute("aria-valuemax", "12");
     expect(screen.getByTestId("task-progress-library_scan")).toHaveTextContent("3 of 12");
     expect(screen.queryByTestId("task-progress-level_backfill")).toBeNull();
+  });
+
+  // The health page: how far each task is through the whole library, weighted
+  // by media duration, and when it should be done at the measured pace; the
+  // whole on top. The dashboard keeps its compact rows.
+  it("shows library-wide progress and ETA on the health page only", async () => {
+    mockFetch.mockImplementation(({ method }: { method: string }) =>
+      Promise.resolve(method === "GET"
+        ? [
+            { ...base, name: "intro_detection", state: "running",
+              coverage: { doneItems: 10, totalItems: 40, doneSeconds: 3600, totalSeconds: 7200, etaSeconds: 7200 } },
+            { ...base, name: "trickplay_generation",
+              coverage: { doneItems: 20, totalItems: 20, doneSeconds: 7200, totalSeconds: 7200 } },
+            { ...base, name: "keyframe_backfill",
+              coverage: { doneItems: 1, totalItems: 5, doneSeconds: 0, totalSeconds: 3600 } },
+          ]
+        : undefined),
+    );
+    const { unmount } = renderPanel(true);
+    const intro = await screen.findByTestId("task-coverage-intro_detection");
+    expect(intro).toHaveTextContent("50% of the library · 30 left · done in ≈ 2 h");
+    expect(screen.getByTestId("task-coverage-trickplay_generation")).toHaveTextContent("library up to date");
+    // No pace measured yet: said, not guessed.
+    expect(screen.getByTestId("task-coverage-keyframe_backfill")).toHaveTextContent("estimating the time left");
+    // The whole: 10800 of 18000 media seconds; unknown ETA while keyframes has none.
+    const overall = screen.getByTestId("background-tasks-overall");
+    expect(overall).toHaveTextContent("All media");
+    expect(overall).toHaveTextContent("60% of the library · 34 left · estimating the time left");
+    unmount();
+
+    renderPanel(false);
+    await screen.findByText("Intro detection");
+    expect(screen.queryByTestId("task-coverage-intro_detection")).toBeNull();
+    expect(screen.queryByTestId("background-tasks-overall")).toBeNull();
   });
 
   it("says so when the tasks cannot be read, rather than showing an empty server", async () => {

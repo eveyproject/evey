@@ -33,9 +33,9 @@ function task(over: Partial<BackgroundTaskView>): BackgroundTaskView {
   return { name: "x", state: "idle", processed: 0, controllable: true, paused: false, processes: 0, rssBytes: 0, cpuPercent: 0, cpuSecondsTotal: 0, forks: 0, ...over };
 }
 
-function renderPanel() {
+function renderPanel(showCoverage = false) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={qc}><BackgroundTasksPanel theme={theme} /></QueryClientProvider>);
+  return render(<QueryClientProvider client={qc}><BackgroundTasksPanel theme={theme} showCoverage={showCoverage} /></QueryClientProvider>);
 }
 
 beforeEach(() => {
@@ -85,5 +85,26 @@ describe("BackgroundTasksPanel", () => {
     fireEvent.click(screen.getByText("admin.backgroundTasks.resume"));
     await waitFor(() => expect(eveyFetchMock).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/v1/admin/background-tasks/backfill/resume", method: "POST" })));
     await waitFor(() => expect(toastMock.error).toHaveBeenCalled());
+  });
+  // The health screen, as the web's health page: each task's library-wide
+  // progress and ETA, and the whole on top. The dashboard keeps its rows.
+  it("shows library-wide progress and ETA only when asked (the health screen)", async () => {
+    const list = [
+      task({ name: "intro", state: "running", coverage: { doneItems: 10, totalItems: 40, doneSeconds: 3600, totalSeconds: 7200, etaSeconds: 7200 } }),
+      task({ name: "kf", coverage: { doneItems: 1, totalItems: 5, doneSeconds: 0, totalSeconds: 3600 } }),
+    ];
+    eveyFetchMock.mockResolvedValue(list);
+    const { unmount } = renderPanel(true);
+    await waitFor(() => expect(screen.getByText("admin.backgroundTasks.overallTitle")).toBeTruthy());
+    expect(screen.getByText("admin.backgroundTasks.libraryProgress · admin.backgroundTasks.remaining:30 · admin.backgroundTasks.etaHours:2")).toBeTruthy();
+    // No pace yet for kf, so no ETA for the whole either: said, not guessed.
+    expect(screen.getAllByText("admin.backgroundTasks.libraryProgress · admin.backgroundTasks.remaining:4 · admin.backgroundTasks.etaUnknown")).toHaveLength(1);
+    expect(screen.getByText("admin.backgroundTasks.libraryProgress · admin.backgroundTasks.remaining:34 · admin.backgroundTasks.etaUnknown")).toBeTruthy();
+    unmount();
+
+    renderPanel(false);
+    await waitFor(() => expect(screen.getByText("admin.activity.bgTask.intro")).toBeTruthy());
+    expect(screen.queryByText("admin.backgroundTasks.overallTitle")).toBeNull();
+    expect(screen.queryByText(/admin\.backgroundTasks\.libraryProgress/)).toBeNull();
   });
 });

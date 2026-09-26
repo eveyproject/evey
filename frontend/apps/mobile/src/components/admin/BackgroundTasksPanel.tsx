@@ -2,7 +2,7 @@ import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-nati
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "@evey/api";
-import { useBackgroundTaskControl, useBackgroundTasks, type BackgroundTaskView } from "@evey/client";
+import { coverageLine, useBackgroundTaskControl, useBackgroundTasks, type BackgroundTaskView, type CoverageProgress } from "@evey/client";
 import { useTheme } from "../../providers/ThemeProvider";
 
 // BackgroundTasksPanel draws what the web's does, from the same @evey/client
@@ -10,9 +10,24 @@ import { useTheme } from "../../providers/ThemeProvider";
 // costs right now, and where the stop button is.
 export { BACKGROUND_TASKS_QUERY_KEY, type BackgroundTaskView } from "@evey/client";
 
-function TaskRow({ task, theme }: { task: BackgroundTaskView; theme: ReturnType<typeof useTheme> }) {
+// CoverageBar is the library-wide progress of one task or of all of them, as
+// on the web: a bar weighted by media duration and one sentence.
+function CoverageBar({ progress, theme, testID }: { progress: CoverageProgress; theme: ReturnType<typeof useTheme>; testID: string }) {
   const { t } = useTranslation();
-  const { label, running, since, hasCost, progress, armed, pending, resume, pressStop } = useBackgroundTaskControl(task, t);
+  const pct = Math.floor(progress.ratio * 100);
+  return (
+    <View style={styles.progressRow} testID={testID}>
+      <View style={[styles.coverageTrack, { backgroundColor: theme.colors.border }]}>
+        <View style={[styles.progressFill, { backgroundColor: theme.colors.success, width: `${pct}%` }]} />
+      </View>
+      <Text style={{ color: theme.colors.textMuted, fontSize: 11, flex: 1 }}>{coverageLine(t, progress)}</Text>
+    </View>
+  );
+}
+
+function TaskRow({ task, theme, showCoverage }: { task: BackgroundTaskView; theme: ReturnType<typeof useTheme>; showCoverage: boolean }) {
+  const { t } = useTranslation();
+  const { label, running, since, hasCost, progress, coverage, armed, pending, resume, pressStop } = useBackgroundTaskControl(task, t);
   const dotColor = running ? theme.colors.success : task.paused ? theme.colors.warning : theme.colors.border;
 
   return (
@@ -44,6 +59,7 @@ function TaskRow({ task, theme }: { task: BackgroundTaskView; theme: ReturnType<
             </Text>
           </View>
         ) : null}
+        {showCoverage && coverage ? <CoverageBar progress={coverage} theme={theme} testID={`task-coverage-${task.name}`} /> : null}
         {hasCost ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 1 }}>
             {t("admin.backgroundTasks.impact", { processes: task.processes, memory: formatBytes(task.rssBytes), cpu: Math.round(task.cpuPercent) })}
@@ -85,9 +101,11 @@ function TaskRow({ task, theme }: { task: BackgroundTaskView; theme: ReturnType<
   );
 }
 
-export function BackgroundTasksPanel({ theme }: { theme: ReturnType<typeof useTheme> }) {
+// showCoverage: the health screen also shows how far each task and the whole
+// library are, as the web's health page does.
+export function BackgroundTasksPanel({ theme, showCoverage = false }: { theme: ReturnType<typeof useTheme>; showCoverage?: boolean }) {
   const { t } = useTranslation();
-  const { tasks, runningCount, isError, loaded } = useBackgroundTasks();
+  const { tasks, overall, runningCount, isError, loaded } = useBackgroundTasks();
 
   return (
     <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
@@ -100,12 +118,18 @@ export function BackgroundTasksPanel({ theme }: { theme: ReturnType<typeof useTh
           {runningCount > 0 ? t("admin.backgroundTasks.runningCount", { count: runningCount }) : t("admin.backgroundTasks.allIdle")}
         </Text>
       </View>
+      {showCoverage && overall ? (
+        <View style={[styles.overall, { borderColor: theme.colors.border }]} testID="background-tasks-overall">
+          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("admin.backgroundTasks.overallTitle")}</Text>
+          <CoverageBar progress={overall} theme={theme} testID="coverage-overall" />
+        </View>
+      ) : null}
       {isError && !loaded ? (
         <Text style={styles.empty}>{t("admin.backgroundTasks.unavailable")}</Text>
       ) : tasks.length === 0 ? (
         <Text style={styles.empty}>{t("admin.backgroundTasks.empty")}</Text>
       ) : (
-        tasks.map((task) => <TaskRow key={task.name} task={task} theme={theme} />)
+        tasks.map((task) => <TaskRow key={task.name} task={task} theme={theme} showCoverage={showCoverage} />)
       )}
     </View>
   );
@@ -119,6 +143,8 @@ const styles = StyleSheet.create({
   progressRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
   progressTrack: { flex: 1, height: 5, borderRadius: 3, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3 },
+  coverageTrack: { width: 72, height: 5, borderRadius: 3, overflow: "hidden" },
+  overall: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 6 },
   badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   ctrlBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   empty: { color: "#888", fontSize: 13, textAlign: "center", paddingVertical: 16 },

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Activity, Pause, Play, Square } from "lucide-react";
 import { formatBytes } from "@evey/api";
-import { useBackgroundTaskControl, useBackgroundTasks, type BackgroundTaskView } from "@evey/client";
+import { coverageLine, useBackgroundTaskControl, useBackgroundTasks, type BackgroundTaskView, type CoverageProgress } from "@evey/client";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -10,9 +10,31 @@ import { ICON } from "@/constants/iconSizes";
 // The list, its order and the controls are @evey/client's (useBackgroundTasks).
 export { BACKGROUND_TASKS_QUERY_KEY, type BackgroundTaskView } from "@evey/client";
 
-function TaskRow({ task }: { task: BackgroundTaskView }) {
+// CoverageBar is the library-wide progress of one task or of all of them:
+// a bar weighted by media duration and one sentence (percent, left, ETA).
+function CoverageBar({ progress, testId }: { progress: CoverageProgress; testId: string }) {
   const { t } = useTranslation();
-  const { label, running, since, hasCost, progress, armed, pending, resume, pressStop } = useBackgroundTaskControl(task, t);
+  const line = coverageLine(t, progress);
+  return (
+    <span className="mt-1 flex items-center gap-2" data-testid={testId}>
+      <span
+        className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-[var(--border)]"
+        role="progressbar"
+        aria-label={line}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.floor(progress.ratio * 100)}
+      >
+        <span className="block h-full rounded-full bg-[var(--success,#16a34a)] transition-[width] duration-500" style={{ width: `${Math.floor(progress.ratio * 100)}%` }} />
+      </span>
+      <span className="text-xs tabular-nums text-[var(--text-muted)]">{line}</span>
+    </span>
+  );
+}
+
+function TaskRow({ task, showCoverage }: { task: BackgroundTaskView; showCoverage: boolean }) {
+  const { t } = useTranslation();
+  const { label, running, since, hasCost, progress, coverage, armed, pending, resume, pressStop } = useBackgroundTaskControl(task, t);
 
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--border)] py-2 text-sm last:border-b-0">
@@ -54,6 +76,7 @@ function TaskRow({ task }: { task: BackgroundTaskView }) {
             </span>
           </span>
         )}
+        {showCoverage && coverage && <CoverageBar progress={coverage} testId={`task-coverage-${task.name}`} />}
       </div>
       {hasCost && (
         <span className="shrink-0 text-xs tabular-nums text-[var(--text)]" data-testid={`task-cost-${task.name}`}>
@@ -91,10 +114,11 @@ function TaskRow({ task }: { task: BackgroundTaskView }) {
 
 // BackgroundTasksPanel is the one place an admin sees what Evey is doing on
 // its own (backfills, detections, sweeps), what it costs right now, and where
-// the stop button is. Shared by the dashboard and the health page.
-export function BackgroundTasksPanel() {
+// the stop button is. Shared by the dashboard and the health page; the health
+// page also shows how far each task and the whole library are (showCoverage).
+export function BackgroundTasksPanel({ showCoverage = false }: { showCoverage?: boolean }) {
   const { t } = useTranslation();
-  const { tasks, runningCount, isError, loaded } = useBackgroundTasks();
+  const { tasks, overall, runningCount, isError, loaded } = useBackgroundTasks();
 
   return (
     <Card className="flex flex-col" data-testid="background-tasks-panel">
@@ -114,6 +138,12 @@ export function BackgroundTasksPanel() {
           )}
         </span>
       </div>
+      {showCoverage && overall && (
+        <div className="mb-2 rounded-md border border-[var(--border)] px-3 py-2" data-testid="background-tasks-overall">
+          <span className="text-sm font-medium text-[var(--text)]">{t("admin.backgroundTasks.overallTitle")}</span>
+          <CoverageBar progress={overall} testId="coverage-overall" />
+        </div>
+      )}
       {isError && !loaded ? (
         <p className="py-4 text-center text-sm text-[var(--text-muted)]">{t("admin.backgroundTasks.unavailable")}</p>
       ) : tasks.length === 0 ? (
@@ -121,7 +151,7 @@ export function BackgroundTasksPanel() {
       ) : (
         <ul className="flex flex-col">
           {tasks.map((task) => (
-            <TaskRow key={task.name} task={task} />
+            <TaskRow key={task.name} task={task} showCoverage={showCoverage} />
           ))}
         </ul>
       )}

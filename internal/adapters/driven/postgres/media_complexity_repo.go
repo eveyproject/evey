@@ -113,10 +113,8 @@ func (r *MediaComplexityRepo) ListUnclassified(ctx context.Context, limit int) (
 		SELECT mi.id
 		FROM media_items mi
 		INNER JOIN media_files mf ON mf.media_item_id = mi.id
-		WHERE mi.complexity_class IS NULL
-		  AND mf.file_path <> ''
-		  AND mi.type IN ('movie', 'episode')
-		  AND mf.duration_ms > 0
+		WHERE ` + complexityPendingSQL + `
+		  AND ` + complexityEligibleSQL + `
 		ORDER BY mi.added_at ASC
 		LIMIT $1`
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, limit)

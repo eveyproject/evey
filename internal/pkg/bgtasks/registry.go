@@ -44,6 +44,9 @@ type Task struct {
 	// Both 0 when the worker announced nothing.
 	BatchTotal int64 `json:"batchTotal,omitempty"`
 	BatchDone  int64 `json:"batchDone,omitempty"`
+	// Coverage is the whole library's progress for this task, when the task
+	// counts it (SetCoverage).
+	Coverage *Coverage `json:"coverage,omitempty"`
 }
 
 type entry struct {
@@ -70,9 +73,12 @@ type Registry struct {
 	m  map[string]*entry
 	// pollInterval paces WaitResumed; shortened by tests.
 	pollInterval time.Duration
+	cov          *coverageState
 }
 
-func New() *Registry { return &Registry{m: make(map[string]*entry), pollInterval: time.Second} }
+func New() *Registry {
+	return &Registry{m: make(map[string]*entry), pollInterval: time.Second, cov: newCoverageState()}
+}
 
 func (r *Registry) get(name string) *entry {
 	e := r.m[name]
@@ -263,6 +269,9 @@ func (r *Registry) Snapshot() []Task {
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	for i := range out {
+		out[i].Coverage = r.coverageOf(out[i].Name)
+	}
 	return out
 }
 

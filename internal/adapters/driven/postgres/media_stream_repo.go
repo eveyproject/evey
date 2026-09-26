@@ -304,10 +304,8 @@ func (r *MediaStreamRepository) ListVideoLevelMissing(ctx context.Context, limit
 	}
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT DISTINCT media_item_id FROM media_streams
-		 WHERE stream_type = 'video'
-		   AND ((lower(codec) = 'h264' AND level IS NULL)
-		     OR (lower(codec) IN ('hevc', 'av1', 'vp9') AND (level IS NULL OR color_transfer IS NULL))
-		     OR (lower(codec) IN ('mpeg2video', 'mpeg4', 'msmpeg4v3') AND idet_interlaced IS NULL))
+		 WHERE `+levelEligibleSQL+`
+		   AND `+levelPendingSQL+`
 		   AND NOT (media_item_id = ANY($1))
 		 ORDER BY media_item_id
 		 LIMIT $2`, pq.Array(exclude), limit)
@@ -457,13 +455,8 @@ func (r *MediaStreamRepository) ListVideoKeyframesMissing(ctx context.Context, l
 	}
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT DISTINCT media_item_id FROM media_streams
-		 WHERE stream_type = 'video'
-		   AND level IS NOT NULL AND keyframes_ms IS NULL
-		   AND keyframes_probe_version < $3
-		   AND (lower(codec) = 'h264'
-		     OR (lower(codec) IN ('hevc', 'av1', 'vp9') AND color_transfer IS NOT NULL
-		         AND (dovi_profile IS NULL
-		           OR (dovi_profile = 8 AND dovi_bl_compat IN (1, 2, 4)))))
+		 WHERE `+keyframesEligibleSQL+`
+		   AND `+keyframesPendingSQL("$3")+`
 		   AND NOT (media_item_id = ANY($1))
 		 ORDER BY media_item_id
 		 LIMIT $2`, pq.Array(exclude), limit, probeVersion)

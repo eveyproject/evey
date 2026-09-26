@@ -100,6 +100,7 @@ func NewComplexityWorker(
 	if opts.ItemPause <= 0 {
 		opts.ItemPause = 5 * time.Second
 	}
+	registerComplexityCoverage(repo)
 	return &ComplexityWorker{
 		repo:         repo,
 		classifier:   classifier,
