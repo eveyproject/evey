@@ -16,12 +16,12 @@ import {
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import {
-  useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, useChapters, usePlayerProfilePrefs, useAutoMarkWatched,
+  useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, useChapters, usePlayerProfilePrefs, useAutoMarkWatched, useRemoteSeek,
   useSleepTimer,
   useSyncplay,
   useParentalGate,
   playerTitle,
-  clampSeekTarget, holdScrubRate, tapSeekStep, SEEK_COMMIT_DELAY_MS, HOLD_SCRUB_TICK_MS,
+  clampSeekTarget,
   SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive,
   resolveStartPositionMs,
   shedI18nKey,
@@ -383,70 +383,30 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
     return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
   }, [showOsd]);
 
-  // --- seek gesture (same rules as the Android TV player) -------------------
-  const [preview, setPreview] = useState<number | null>(null);
-  const previewRef = useRef<number | null>(null);
+  // --- seek gesture: the one every television player runs (useRemoteSeek) ---
   const timeRef = useRef(0);
   const durationRef = useRef(0);
   timeRef.current = time;
   durationRef.current = duration;
-  const tapCountRef = useRef(0);
-  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const holdRef = useRef<{ dir: 1 | -1; startedAt: number; lastAt: number; timer: ReturnType<typeof setInterval> } | null>(null);
-
-  const setPreviewSec = useCallback((sec: number) => { previewRef.current = sec; setPreview(sec); }, []);
-  const commitSeek = useCallback(() => {
-    const target = previewRef.current;
-    previewRef.current = null;
-    setPreview(null);
-    tapCountRef.current = 0;
-    const video = videoRef.current;
-    if (video && target !== null) video.currentTime = target;
-  }, []);
-  const scheduleCommit = useCallback(() => {
-    if (commitTimer.current) clearTimeout(commitTimer.current);
-    commitTimer.current = setTimeout(() => { commitTimer.current = null; commitSeek(); }, SEEK_COMMIT_DELAY_MS);
-  }, [commitSeek]);
-  const seekBy = useCallback((sec: number) => {
-    const base = previewRef.current ?? timeRef.current;
-    tapCountRef.current += 1;
-    const step = Math.sign(sec) * tapSeekStep(tapCountRef.current, Math.abs(sec));
-    setPreviewSec(clampSeekTarget(base, step, durationRef.current));
-    scheduleCommit();
-    showOsd();
-  }, [setPreviewSec, scheduleCommit, showOsd]);
+  const {
+    previewSec: preview,
+    bump: seekBy,
+    beginHold,
+    endHold,
+    commitNow,
+    isHolding,
+  } = useRemoteSeek({
+    positionSec: time,
+    getPosition: () => timeRef.current,
+    getDuration: () => durationRef.current,
+    seekTo: (sec) => { if (videoRef.current) videoRef.current.currentTime = sec; },
+    onActivity: showOsd,
+  });
   const seekTo = useCallback((sec: number) => {
     const video = videoRef.current;
     if (video) video.currentTime = clampSeekTarget(0, sec, durationRef.current);
     showOsd();
   }, [showOsd]);
-  const beginHold = useCallback((dir: 1 | -1) => {
-    if (holdRef.current) return;
-    if (commitTimer.current) { clearTimeout(commitTimer.current); commitTimer.current = null; }
-    const now = Date.now();
-    const timer = setInterval(() => {
-      const hold = holdRef.current;
-      if (!hold) return;
-      const t = Date.now();
-      const dt = (t - hold.lastAt) / 1000;
-      hold.lastAt = t;
-      const base = previewRef.current ?? timeRef.current;
-      setPreviewSec(clampSeekTarget(base, hold.dir * holdScrubRate(t - hold.startedAt) * dt, durationRef.current));
-      showOsd();
-    }, HOLD_SCRUB_TICK_MS);
-    holdRef.current = { dir, startedAt: now, lastAt: now, timer };
-  }, [setPreviewSec, showOsd]);
-  const endHold = useCallback(() => {
-    const hold = holdRef.current;
-    if (!hold) return;
-    clearInterval(hold.timer);
-    holdRef.current = null;
-    scheduleCommit();
-  }, [scheduleCommit]);
-  useEffect(() => () => {
-    if (holdRef.current) clearInterval(holdRef.current.timer);
-    if (commitTimer.current) clearTimeout(commitTimer.current);
-  }, []);
 
   // Watch together: the room drives play, pause and seek; this player's own
   // play and pause are offered to the room (the server keeps host authority).
@@ -517,7 +477,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       // The browser repeats a held key: the first repeat starts the scrub,
       // the release ends it. A plain press is one tap.
       if (e.repeat) beginHold(dir);
-      else if (!holdRef.current) seekBy(dir * (dir > 0 ? forward : backward));
+      else if (!isHolding()) seekBy(dir * (dir > 0 ? forward : backward));
     };
     const onKeyDown = (e: KeyboardEvent) => {
       const overlayFocused = !!document.querySelector(".skip-btn.focused, .nextep-btn.focused");
@@ -535,8 +495,8 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
           if (dir !== 0) { seekKey(e, dir); return; }
           if (isUp(e)) { setBarFocus("play"); showOsd(); return; }
           if (isEnter(e)) {
-            if (previewRef.current !== null) { if (commitTimer.current) clearTimeout(commitTimer.current); commitSeek(); }
-            else togglePlay();
+            // A pending jump lands now; with nothing pending it is play/pause.
+            if (!commitNow()) togglePlay();
           }
           showOsd();
           return;
@@ -571,7 +531,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [seekBy, beginHold, endHold, commitSeek, togglePlay, showOsd, setBarFocus, skip, nextEp, panel, shedReason, streamInfoOpen]);
+  }, [seekBy, beginHold, endHold, commitNow, isHolding, togglePlay, showOsd, setBarFocus, skip, nextEp, panel, shedReason, streamInfoOpen]);
 
   useTvKeys(useCallback((key, e) => {
     if (panel) return;
