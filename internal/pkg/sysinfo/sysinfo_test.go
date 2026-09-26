@@ -213,3 +213,110 @@ func TestFFmpegVersion_FailureIsNotCached(t *testing.T) {
 		t.Error("a failed probe was cached: the next call would never retry, even once the binary is back")
 	}
 }
+
+// Process by process: a delta for one alive at both samples, its whole count
+// for one born in between (a reused pid is a new process: same pid, new start
+// time), nothing for one that exited - never its whole life taken away.
+func TestWindowTicks(t *testing.T) {
+	before := map[proc]uint64{
+		{10, 1}: 100, // keeps running
+		{11, 1}: 500, // exits in the window
+		{12, 1}: 900, // exits, and pid 12 is reused
+	}
+	after := map[proc]uint64{
+		{10, 1}: 130,
+		{12, 7}: 5,
+		{13, 8}: 20, // born in the window
+	}
+	if got := windowTicks(before, after); got != 30+5+20 {
+		t.Fatalf("window = %d ticks, want 55", got)
+	}
+}
+
+// Measured on the old sum: a busy child exiting between the two samples made
+// the second sum smaller than the first, and Evey read 0 % while another
+// child kept a core busy. The per-process window keeps the survivor's work.
+func TestWindowTicks_AChildExitingMidWindowDoesNotZeroTheOthers(t *testing.T) {
+	if _, err := os.Stat("/proc/self/stat"); err != nil {
+		t.Skip("no /proc")
+	}
+	start := func() *exec.Cmd {
+		cmd := exec.Command("sh", "-c", "while :; do :; done")
+		if err := cmd.Start(); err != nil {
+			t.Skip("no sh")
+		}
+		t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+		return cmd
+	}
+	exiting := start()
+	time.Sleep(time.Second) // a long life the old sum would take away
+	survivor := start()
+	roots := []int{os.Getpid()}
+	t1 := treeTicks(roots)
+	_ = exiting.Process.Kill()
+	_ = exiting.Wait()
+	time.Sleep(300 * time.Millisecond)
+	// Frozen before the read, as in TestTreeCPUTicks_CountsTheForkedChildren.
+	if err := survivor.Process.Signal(syscall.SIGSTOP); err != nil {
+		t.Fatal(err)
+	}
+	t2 := treeTicks(roots)
+	var sum1, sum2 uint64
+	for _, v := range t1 {
+		sum1 += v
+	}
+	for _, v := range t2 {
+		sum2 += v
+	}
+	if sum2 >= sum1 {
+		t.Skip("the exiting child had not outrun the survivor; nothing to show")
+	}
+	if got := windowTicks(t1, t2); got == 0 {
+		t.Fatalf("the survivor's work vanished (sums %d -> %d)", sum1, sum2)
+	}
+}
+
+func TestCompanionPIDs(t *testing.T) {
+	cases := map[string][]int{
+		"":            nil,
+		"123 456":     {123, 456},
+		" 789 ":       {789},
+		"1 abc 42 -3": {42}, // pid 1 would be the whole container
+	}
+	for env, want := range cases {
+		got := companionPIDs(env)
+		if len(got) != len(want) {
+			t.Fatalf("%q -> %v, want %v", env, got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("%q -> %v, want %v", env, got, want)
+			}
+		}
+	}
+}
+
+// A companion root brings its whole tree: the embedded Postgres forks one
+// backend per connection, all of them its children, none of them ours.
+func TestTreeTicks_CompanionRootBringsItsTree(t *testing.T) {
+	if _, err := os.Stat("/proc/self/stat"); err != nil {
+		t.Skip("no /proc")
+	}
+	cmd := exec.Command("sh", "-c", "sleep 30 & wait")
+	if err := cmd.Start(); err != nil {
+		t.Skip("no sh")
+	}
+	defer func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }()
+	time.Sleep(200 * time.Millisecond)
+	tree := treeTicks([]int{cmd.Process.Pid})
+	var pids []int
+	for p := range tree {
+		pids = append(pids, p.pid)
+		if p.pid == os.Getpid() {
+			t.Fatal("the companion's tree must not climb up to its parent")
+		}
+	}
+	if len(pids) < 2 {
+		t.Fatalf("companion tree %v: want the root and its sleep child", pids)
+	}
+}
