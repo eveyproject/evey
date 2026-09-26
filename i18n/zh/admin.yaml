@@ -539,6 +539,7 @@ backup:
   failedCreate: "创建备份失败"
   backupDeleted: "备份已删除"
   failedDeleteBackup: "删除备份失败"
+  downloadFailed: 无法下载备份
   noBackups: "没有备份"
   noBackupsDesc: "创建备份以保存数据库状态。"
   tableHeaders:

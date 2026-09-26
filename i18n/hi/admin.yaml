@@ -539,6 +539,7 @@ backup:
   failedCreate: "बैकअप बनाने में विफल"
   backupDeleted: "बैकअप मिटाया गया"
   failedDeleteBackup: "बैकअप मिटाने में विफल"
+  downloadFailed: बैकअप डाउनलोड नहीं हो सका
   noBackups: "कोई बैकअप नहीं"
   noBackupsDesc: "डेटाबेस स्थिति सहेजने के लिए बैकअप बनाएं।"
   tableHeaders:

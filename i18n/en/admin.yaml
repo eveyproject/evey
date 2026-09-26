@@ -539,6 +539,7 @@ backup:
   failedCreate: Failed to create backup
   backupDeleted: Backup deleted
   failedDeleteBackup: Failed to delete backup
+  downloadFailed: Could not download the backup
   noBackups: No backups
   noBackupsDesc: Create a backup to save your database state.
   tableHeaders:

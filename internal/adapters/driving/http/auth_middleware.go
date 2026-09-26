@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
@@ -100,6 +101,12 @@ func httpStreamAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) htt
 		jwtPath := authMw(next)
 		return func(w http.ResponseWriter, r *http.Request) {
 			if st, ok := StreamTokenFromContext(r.Context()); ok {
+				if st.Scope == shared.ScopeBackupDownload {
+					// Bound to a backup id, never to a media route.
+					metrics.AuthzDeniedTotal.WithLabelValues("http", "backup_token_off_route").Inc()
+					http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+					return
+				}
 				claims := &domainuser.Claims{UserID: string(st.UserID), ProfileID: string(st.ProfileID)}
 				ctx := context.WithValue(r.Context(), httpClaimsCtxKey{}, claims)
 				next(w, r.WithContext(ctx))

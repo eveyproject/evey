@@ -37,7 +37,7 @@ func newBackupTestMux(t *testing.T, isAdmin bool) (*http.ServeMux, string) {
 	writeRL := ratelimit.New(100)
 
 	mux := http.NewServeMux()
-	registerBackupRoutes(mux, svc, gen, rl, writeRL)
+	registerBackupRoutes(mux, svc, gen, nil, rl, writeRL)
 	return mux, token
 }
 
@@ -56,7 +56,7 @@ func newBackupTestMuxWithStore(t *testing.T, isAdmin bool) (*http.ServeMux, stri
 	writeRL := ratelimit.New(100)
 
 	mux := http.NewServeMux()
-	registerBackupRoutes(mux, svc, gen, rl, writeRL)
+	registerBackupRoutes(mux, svc, gen, nil, rl, writeRL)
 	return mux, token, store
 }
 
@@ -75,7 +75,7 @@ func newBackupTestMuxWithDumper(t *testing.T, isAdmin bool) (*http.ServeMux, str
 	writeRL := ratelimit.New(100)
 
 	mux := http.NewServeMux()
-	registerBackupRoutes(mux, svc, gen, rl, writeRL)
+	registerBackupRoutes(mux, svc, gen, nil, rl, writeRL)
 	return mux, token, dumper
 }
 

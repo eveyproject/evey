@@ -539,6 +539,7 @@ backup:
   failedCreate: "Error al crear la copia de seguridad"
   backupDeleted: "Copia de seguridad eliminada"
   failedDeleteBackup: "Error al eliminar la copia de seguridad"
+  downloadFailed: No se pudo descargar la copia de seguridad
   noBackups: "Sin copias de seguridad"
   noBackupsDesc: "Crea una copia de seguridad para guardar el estado de la base de datos."
   tableHeaders:

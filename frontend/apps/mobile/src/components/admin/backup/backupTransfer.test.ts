@@ -16,27 +16,23 @@ describe("isBackupRestorable", () => {
 });
 
 describe("buildBackupDownloadUrl", () => {
-  it("appends the access token as a query param", () => {
-    expect(buildBackupDownloadUrl("https://evey.example", "bkp-1", "tok-abc")).toBe(
-      "https://evey.example/api/v1/admin/backups/bkp-1?token=tok-abc",
+  // The account token rides the header of the native download: an admin URL
+  // carrying it would land in proxy logs, and the server now refuses it there.
+  it("never puts a token in the URL", () => {
+    expect(buildBackupDownloadUrl("https://evey.example", "bkp-1")).toBe(
+      "https://evey.example/api/v1/admin/backups/bkp-1",
     );
   });
 
   it("strips a trailing slash from the base URL", () => {
-    expect(buildBackupDownloadUrl("https://evey.example/", "bkp-1", "tok-abc")).toBe(
-      "https://evey.example/api/v1/admin/backups/bkp-1?token=tok-abc",
-    );
-  });
-
-  it("omits the token param when there is no access token", () => {
-    expect(buildBackupDownloadUrl("https://evey.example", "bkp-1", null)).toBe(
+    expect(buildBackupDownloadUrl("https://evey.example/", "bkp-1")).toBe(
       "https://evey.example/api/v1/admin/backups/bkp-1",
     );
   });
 
   it("encodes an id that contains URL-unsafe characters", () => {
-    expect(buildBackupDownloadUrl("https://evey.example", "bkp/../1", "t")).toBe(
-      "https://evey.example/api/v1/admin/backups/bkp%2F..%2F1?token=t",
+    expect(buildBackupDownloadUrl("https://evey.example", "bkp/../1")).toBe(
+      "https://evey.example/api/v1/admin/backups/bkp%2F..%2F1",
     );
   });
 });

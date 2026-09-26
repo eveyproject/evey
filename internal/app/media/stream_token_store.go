@@ -310,6 +310,27 @@ func (s *StreamTokenStore) CreateGuestToken(mediaItemID, roomID string, ttl time
 	return token
 }
 
+// CreateBackupDownload mints the short token an admin puts in a backup
+// download URL instead of the account JWT. It is bound to one backup id and
+// carries ScopeBackupDownload, which only that download route accepts.
+func (s *StreamTokenStore) CreateBackupDownload(userID shared.UserID, backupID string, ttl time.Duration) string {
+	if ttl <= 0 {
+		ttl = s.ttl
+	}
+	token := uuid.New().String()
+	s.issuedAt.Store(token, s.now())
+	s.tokens.Store(token, &shared.StreamToken{
+		Token:       token,
+		UserID:      userID,
+		MediaItemID: shared.MediaItemID(backupID),
+		Scope:       shared.ScopeBackupDownload,
+		ExpiresAt:   s.now().Add(ttl),
+		TTL:         ttl,
+	})
+	s.persistNew(token)
+	return token
+}
+
 // Validate checks the token, verifies it matches the mediaItemID, and renews the TTL.
 // If mediaItemID is empty, any media is accepted (used by middleware).
 func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamToken, bool) {

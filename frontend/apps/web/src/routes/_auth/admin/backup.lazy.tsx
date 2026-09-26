@@ -3,8 +3,9 @@ import { Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useAuthStore, toast } from "@evey/store";
+import { toast } from "@evey/store";
 import {
+  eveyFetch,
   eveyFetchRaw,
   useBackupServiceListBackups,
   backupServiceCreateBackup,
@@ -224,21 +225,28 @@ function useDeleteBackup() {
 
 function BackupRow({ backup }: { backup: Backup }) {
   const { t } = useTranslation();
-  const token = useAuthStore((s) => s.accessToken);
   const deleteBackup = useDeleteBackup();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
-  function handleDownload() {
+  // An anchor cannot send the Authorization header, and the server refuses the
+  // account token in an admin URL: mint a short token bound to this backup
+  // (header-authenticated) and put THAT in the link.
+  async function handleDownload() {
     if (!backup.id) return;
-    const a = document.createElement("a");
-    a.href = `/api/v1/admin/backups/${backup.id}`;
-    if (token) {
-      a.href += `?token=${encodeURIComponent(token)}`;
+    try {
+      const { token: downloadToken } = await eveyFetch<{ token: string }>({
+        url: `/api/v1/admin/backups/${encodeURIComponent(backup.id)}/download-token`,
+        method: "POST",
+      });
+      const a = document.createElement("a");
+      a.href = `/api/v1/admin/backups/${encodeURIComponent(backup.id)}?token=${encodeURIComponent(downloadToken)}`;
+      a.download = `${backup.id}.tar.gz`;
+      a.click();
+    } catch (err) {
+      toast.error(apiErrorMessage(err as Error, t, t("admin.backup.downloadFailed", "Could not download the backup")));
     }
-    a.download = `${backup.id}.tar.gz`;
-    a.click();
   }
 
   async function handleRestore() {

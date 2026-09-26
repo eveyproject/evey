@@ -13,7 +13,7 @@ import { buildBackupDownloadUrl, buildBackupRestoreUrl, isBackupRestorable, type
  */
 export async function downloadBackupFile(backup: BackupSummary, accessToken: string | null): Promise<string> {
   if (!isBackupRestorable(backup)) throw new Error("invalid backup id");
-  const url = buildBackupDownloadUrl(getBaseURL(), backup.id, accessToken);
+  const url = buildBackupDownloadUrl(getBaseURL(), backup.id);
   const dir = new Directory(Paths.document, "backups");
   if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
   const destination = new File(dir, `${backup.id}.tar.gz`);
@@ -54,7 +54,7 @@ export async function restoreFromFile(fileUri: string, accessToken: string | nul
 export async function restoreExistingBackup(backup: BackupSummary, accessToken: string | null): Promise<void> {
   if (!isBackupRestorable(backup)) throw new Error("invalid backup id");
   const baseURL = getBaseURL();
-  const downloadUrl = buildBackupDownloadUrl(baseURL, backup.id, accessToken);
+  const downloadUrl = buildBackupDownloadUrl(baseURL, backup.id);
   const tempDir = new Directory(Paths.cache, "backup-restore");
   if (!tempDir.exists) tempDir.create({ intermediates: true, idempotent: true });
   const tempFile = new File(tempDir, `${backup.id}.tar.gz`);
