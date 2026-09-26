@@ -31,6 +31,86 @@ export interface BackgroundTaskView {
   // The batch in progress when the worker announced it: items planned and done.
   batchTotal?: number;
   batchDone?: number;
+  // The whole library's progress for this task, when it counts it.
+  coverage?: BackgroundTaskCoverage;
+}
+
+// Mirrors bgtasks.Coverage: items and media duration done out of the total,
+// and the remaining time at the pace of the last 30 min (absent until known,
+// and while nothing moves).
+export interface BackgroundTaskCoverage {
+  doneItems: number;
+  totalItems: number;
+  doneSeconds: number;
+  totalSeconds: number;
+  etaSeconds?: number;
+}
+
+export interface CoverageProgress {
+  ratio: number;
+  remainingItems: number;
+  etaSeconds: number | null;
+  complete: boolean;
+}
+
+// coverageProgress weighs by media duration when known (a 3 h film is more
+// work than a 20 min episode), by items otherwise.
+export function coverageProgress(c: BackgroundTaskCoverage | undefined): CoverageProgress | null {
+  if (!c || c.totalItems <= 0) return null;
+  const raw = c.totalSeconds > 0 ? c.doneSeconds / c.totalSeconds : c.doneItems / c.totalItems;
+  const remainingItems = Math.max(0, c.totalItems - c.doneItems);
+  return {
+    ratio: Math.min(1, Math.max(0, raw)),
+    remainingItems,
+    etaSeconds: remainingItems > 0 ? (c.etaSeconds ?? null) : null,
+    complete: remainingItems === 0,
+  };
+}
+
+// overallCoverage is every counted task together. The tasks run side by side,
+// so the whole is done when the slowest is: its ETA, unknown while any
+// unfinished task has none yet.
+export function overallCoverage(tasks: BackgroundTaskView[]): CoverageProgress | null {
+  const counted = tasks.map((task) => task.coverage).filter((c): c is BackgroundTaskCoverage => !!c && c.totalItems > 0);
+  if (counted.length === 0) return null;
+  let done = 0;
+  let total = 0;
+  let remainingItems = 0;
+  let eta: number | null = 0;
+  for (const c of counted) {
+    const p = coverageProgress(c)!;
+    done += c.totalSeconds > 0 ? c.doneSeconds : 0;
+    total += c.totalSeconds;
+    remainingItems += p.remainingItems;
+    if (!p.complete) eta = eta === null || p.etaSeconds === null ? null : Math.max(eta, p.etaSeconds);
+  }
+  return {
+    ratio: total > 0 ? Math.min(1, done / total) : 0,
+    remainingItems,
+    etaSeconds: remainingItems > 0 ? eta : null,
+    complete: remainingItems === 0,
+  };
+}
+
+// formatEta is a rough duration: an estimate, not a countdown.
+export function formatEta(t: TFunction, seconds: number): string {
+  const mins = seconds / 60;
+  if (mins < 1) return t("admin.backgroundTasks.etaUnderMinute");
+  if (mins < 90) return t("admin.backgroundTasks.etaMinutes", { count: Math.round(mins) });
+  const hours = mins / 60;
+  if (hours < 48) return t("admin.backgroundTasks.etaHours", { count: Math.round(hours) });
+  return t("admin.backgroundTasks.etaDays", { count: Math.round(hours / 24) });
+}
+
+// coverageLine is the one sentence both apps print under a task or the whole.
+export function coverageLine(t: TFunction, p: CoverageProgress): string {
+  if (p.complete) return t("admin.backgroundTasks.upToDate");
+  const parts = [
+    t("admin.backgroundTasks.libraryProgress", { percent: Math.floor(p.ratio * 100) }),
+    t("admin.backgroundTasks.remaining", { count: p.remainingItems }),
+    p.etaSeconds !== null ? formatEta(t, p.etaSeconds) : t("admin.backgroundTasks.etaUnknown"),
+  ];
+  return parts.join(" · ");
 }
 
 // batchProgress is the share of the announced batch that is done, null when
@@ -63,6 +143,7 @@ export function useBackgroundTasks() {
   const tasks = [...(query.data ?? [])].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   return {
     tasks,
+    overall: overallCoverage(tasks),
     runningCount: tasks.filter((x) => x.state === "running").length,
     isError: query.isError,
     // A failed refresh keeps the last list on screen; only no list at all is an error state.
@@ -111,6 +192,7 @@ export function useBackgroundTaskControl(task: BackgroundTaskView, t: TFunction)
     // process alive at the instant of the snapshot.
     hasCost: running && (task.processes > 0 || task.cpuPercent > 0),
     progress: batchProgress(task),
+    coverage: coverageProgress(task.coverage),
     armed,
     pending: control.isPending,
     resume: () => control.mutate("resume"),

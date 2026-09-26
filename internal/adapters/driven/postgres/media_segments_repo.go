@@ -294,21 +294,9 @@ func (r *MediaSegmentRepository) ListSeasonsPendingIntroDetection(ctx context.Co
 
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT DISTINCT mi.parent_id
-		FROM media_items mi
-		LEFT JOIN media_segments intro
-		       ON intro.media_item_id = mi.id AND intro.type = 'intro'
-		LEFT JOIN intro_detection_attempts att
-		       ON att.media_item_id = mi.id
-		WHERE mi.type = 'episode'
-		  AND mi.parent_id <> ''
-		  AND (
-		        intro.id IS NULL
-		     OR NOT (
-		            intro.source = ANY($1)
-		         OR (intro.source = ANY($2) AND intro.end_ms - intro.start_ms >= $3)
-		        )
-		      )
-		  AND (att.media_item_id IS NULL OR att.algo_version <> $4 OR att.attempts < $5)
+		FROM `+introFromSQL+`
+		WHERE `+introEligibleSQL+`
+		  AND `+introPendingSQL+`
 		  AND NOT (mi.parent_id = ANY($6))
 		ORDER BY mi.parent_id
 		LIMIT $7

@@ -465,7 +465,7 @@ function SystemHealthPage() {
             <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
               {t("admin.systemHealth.backgroundTasksSection")}
             </h2>
-            <BackgroundTasksPanel />
+            <BackgroundTasksPanel showCoverage />
           </div>
 
           {dashData?.storage && dashData.storage.length > 0 && (

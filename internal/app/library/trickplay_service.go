@@ -97,6 +97,7 @@ func NewTrickplayService(
 	events shared.EventBus,
 	configRepo shared.ServerConfigRepository,
 ) *TrickplayService {
+	registerTrickplayCoverage(repo)
 	return &TrickplayService{
 		trickplayRepo:     repo,
 		trickplayGen:      gen,

@@ -263,6 +263,7 @@ func NewIntroDetectionService(
 	detector IntroDetector,
 	cacheDir string,
 ) *IntroDetectionService {
+	registerIntroCoverage(segmentRepo)
 	return &IntroDetectionService{
 		segmentRepo:        segmentRepo,
 		trickplayRepo:      trickplayRepo,

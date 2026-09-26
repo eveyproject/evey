@@ -186,16 +186,8 @@ func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context, minAl
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT mi.id FROM media_items mi
 		 INNER JOIN media_files mf ON mf.media_item_id = mi.id
-		 WHERE mf.file_path != ''
-		   AND mi.type IN ('movie', 'episode')
-		   AND NOT EXISTS (
-		     SELECT 1 FROM trickplay_manifests tm
-		     WHERE tm.media_item_id = mi.id AND tm.algo_version >= $1)
-		   AND NOT EXISTS (
-		     SELECT 1 FROM trickplay_failures tf
-		     WHERE tf.media_item_id = mi.id
-		       AND tf.file_size = mf.file_size
-		       AND tf.mod_time = mf.mod_time)
+		 WHERE `+trickplayEligibleSQL+`
+		   AND `+trickplayPendingSQL("$1")+`
 		 ORDER BY mi.added_at DESC
 		 LIMIT 10000`, minAlgoVersion)
 	if err != nil {

@@ -41,6 +41,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
 	"github.com/evey-project/evey/internal/pkg/coalesce"
 	"github.com/evey-project/evey/internal/pkg/cpubudget"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
@@ -868,6 +869,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		bgStoppers = append(bgStoppers, probeWorker.Stop)
 		slog.Default().Info("title probe worker enabled (default-on; opt out with server_config transcoding.title_probe=off)")
 	}
+	// Library-wide progress and ETA of the heavy workers for the system-health
+	// view: one COUNT per worker a minute, from the counts they registered.
+	coverageCtx, stopCoverage := context.WithCancel(ctx)
+	go bgtasks.RunCoverageSampler(coverageCtx, time.Minute)
+	bgStoppers = append(bgStoppers, stopCoverage)
 	// The cast tracker's Stop performs the FINAL flush of derived positions -
 	// the common end of a cast is the user turning everything off, and losing
 	// that last write would defeat the tracker. Registered on the same drain

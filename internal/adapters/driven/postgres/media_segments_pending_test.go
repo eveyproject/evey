@@ -99,12 +99,20 @@ func TestMediaSegmentRepo_ListSeasonsPendingIntroDetection(t *testing.T) {
 		[]string{"season-credits-only", "season-tidb", "season-stub", "season-bare"},
 		got,
 		"the work list is 'intro still to do', not 'no segment at all'")
+	// One episode per season here: the per-episode count is the same list.
+	cov, err := segRepo.IntroCoverage(ctx, 5, 2)
+	require.NoError(t, err)
+	assertCoveragePending(t, cov, len(got))
+	assert.Equal(t, int64(7), cov.TotalItems)
 
 	// A bump of the algo version re-enables the parked season, exactly like
 	// IntroDetectionExhaustedBatch: one supported way to force a re-detection.
 	got, err = segRepo.ListSeasonsPendingIntroDetection(ctx, 6, 2, 100, nil)
 	require.NoError(t, err)
 	assert.Contains(t, got, "season-exhausted", "an algo bump re-enables a parked season")
+	cov, err = segRepo.IntroCoverage(ctx, 6, 2)
+	require.NoError(t, err)
+	assertCoveragePending(t, cov, len(got))
 
 	// exclude is the in-run skip set: a season already swept this cycle must
 	// not be handed back by the next batch, or the drain loop spins on it.

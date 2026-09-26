@@ -135,6 +135,7 @@ func NewLevelBackfillWorker(
 	if opts.ItemPause <= 0 {
 		opts.ItemPause = 3 * time.Second
 	}
+	registerLevelCoverage(store)
 	return &LevelBackfillWorker{
 		store:        store,
 		items:        items,

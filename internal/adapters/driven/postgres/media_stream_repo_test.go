@@ -193,6 +193,10 @@ func TestMediaStreamRepo_ListVideoLevelMissing_Scope(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{string(itemA.ID), string(itemB.ID), string(itemD.ID), string(itemF.ID), string(itemG.ID)}, ids,
 		"candidates = h264 NULL-level + hevc/av1/vp9 missing HDR truth + legacy codec missing idet verdict")
+	cov, err := streamRepo.LevelCoverage(ctx)
+	require.NoError(t, err)
+	assertCoveragePending(t, cov, len(ids))
+	assert.Equal(t, int64(9), cov.TotalItems, "every probed video codec counts, done or not")
 
 	excluded, err := streamRepo.ListVideoLevelMissing(ctx, 10,
 		[]string{string(itemA.ID), string(itemB.ID), string(itemD.ID), string(itemF.ID), string(itemG.ID)})
@@ -434,6 +438,9 @@ func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{string(itemA.ID), string(itemC.ID), string(itemE.ID)}, ids,
 		"candidates = copy-eligible streams only (h264 leveled; hevc probed, not DoVi-incompatible)")
+	cov, err := streamRepo.KeyframesCoverage(ctx, 1)
+	require.NoError(t, err)
+	assertCoveragePending(t, cov, len(ids))
 
 	// Fill A's keyframes; it must drop out of the candidate query and read back.
 	kf := []int64{0, 3253, 6548, 13138}
@@ -450,6 +457,10 @@ func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{string(itemC.ID), string(itemE.ID)}, after,
 		"an indexed item is no longer a candidate; the hevc candidates remain")
+	covAfter, err := streamRepo.KeyframesCoverage(ctx, 1)
+	require.NoError(t, err)
+	assertCoveragePending(t, covAfter, len(after))
+	assert.Equal(t, cov.DoneItems+1, covAfter.DoneItems, "the indexed item moved to done")
 
 	// Never overwrite; empty slice is a no-op.
 	n2, err := streamRepo.SetKeyframes(ctx, itemA.ID, []int64{999})
@@ -497,6 +508,12 @@ func TestMediaStreamRepo_KeyframeCandidates_StampedUnindexableDropOut(t *testing
 	ids, err = streamRepo.ListVideoKeyframesMissing(ctx, 10, nil, version)
 	require.NoError(t, err)
 	assert.Equal(t, []string{string(itemB.ID)}, ids, "a stamped row must drop out of the candidates")
+	cov, err := streamRepo.KeyframesCoverage(ctx, version)
+	require.NoError(t, err)
+	assertCoveragePending(t, cov, 1)
+	cov, err = streamRepo.KeyframesCoverage(ctx, version+1)
+	require.NoError(t, err)
+	assertCoveragePending(t, cov, 2)
 
 	ids, err = streamRepo.ListVideoKeyframesMissing(ctx, 10, nil, version+1)
 	require.NoError(t, err)

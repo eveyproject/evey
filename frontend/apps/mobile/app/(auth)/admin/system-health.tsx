@@ -11,6 +11,7 @@ import {
   eveyFetch,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { BackgroundTasksPanel } from "../../../src/components/admin/BackgroundTasksPanel";
 import { formatBytes } from "@evey/api";
 
 const HISTORY_SIZE = 30;
@@ -283,6 +284,12 @@ export default function SystemHealthScreen() {
           </View>
         </>
       )}
+
+      {/* Background tasks, with how far each one and the whole library are */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+        {t("admin.systemHealth.backgroundTasksSection")}
+      </Text>
+      <BackgroundTasksPanel theme={theme} showCoverage />
 
       {/* Storage */}
       {dashboard?.storage && dashboard.storage.length > 0 && (
