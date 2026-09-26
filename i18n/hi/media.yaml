@@ -487,6 +487,7 @@ playlist:
   phRating: "उदा. 7.0"
   phCollectionName: "उदा. 2015 के बाद की एक्शन फ़िल्में"
   download: "प्लेलिस्ट डाउनलोड करें"
+  downloadAllDone: "प्लेलिस्ट डाउनलोड: {{started}} शुरू, {{skipped}} पहले से मौजूद या वीडियो नहीं, {{failed}} विफल"
   generate: "प्लेलिस्ट बनाएँ"
   generateFailed: "प्लेलिस्ट नहीं बनाई जा सकी"
   generated: "प्लेलिस्ट बन गई"

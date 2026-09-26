@@ -6,6 +6,7 @@ import React from "react";
 // accessibilityLabel - the only text a screen reader gets for these buttons -
 // in English regardless of the app's language.
 
+vi.mock("../hooks/usePlaylistDownloadAll", () => ({ usePlaylistDownloadAll: () => ({ downloadAll: vi.fn(), downloading: false }) }));
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),

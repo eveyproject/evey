@@ -492,6 +492,7 @@ playlist:
   manual: Manual
   smart: Smart
   download: Download playlist
+  downloadAllDone: "Playlist download: {{started}} started, {{skipped}} already here or not a video, {{failed}} failed"
   generate: Generate playlist
   generating: Generating…
   generatedName: My mix

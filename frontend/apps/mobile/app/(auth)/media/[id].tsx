@@ -53,6 +53,7 @@ import { downloadStageLabel } from "../../../src/lib/downloadStageLabel";
 import { chooseDownloadQuality } from "../../../src/lib/downloadQualityGate";
 import { startReducedDownload, reducedDownloadMessage } from "../../../src/lib/reducedDownload";
 import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
+import { audioCodecsOf } from "../../../src/lib/playlistDownload";
 import { formatBytes, formatChannelLayout, formatDurationMs, formatTimeMs, itemLabel, seasonLabel, trackPickParams, type TrackPick } from "@evey/api";
 import { TrackPickChips } from "../../../src/components/TrackPickChips";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
@@ -78,16 +79,6 @@ const EPISODE_PAGE_SIZE = 20;
 // Per-episode view of the shared watch-history fetch (percent is 0-100, the
 // server's percent_complete scale - same as the row's progress bar).
 type EpisodeProgress = { percent: number; played: boolean };
-
-// Audio codecs of the item's source file, captured into the download index so
-// the player can tell a hearable local copy from one that would play silent
-// (raw remux with e.g. AC-3 on a device without that decoder).
-function audioCodecsOf(item?: { streams?: { type?: string; codec?: string }[] }): string[] | undefined {
-  const codecs = (item?.streams ?? [])
-    .filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO" && s.codec)
-    .map((s) => s.codec as string);
-  return codecs.length > 0 ? codecs : undefined;
-}
 
 function isSeriesType(type?: string) {
   return type === "MEDIA_ITEM_TYPE_SERIES";

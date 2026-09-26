@@ -8,6 +8,10 @@ import React from "react";
 // is confirmed by name and goes back; a failed fetch is a retry and an
 // absent playlist a plain notice.
 const alerts = vi.hoisted(() => ({ last: null as any }));
+const dl = vi.hoisted(() => ({ downloadAll: vi.fn(), ids: [] as string[] }));
+vi.mock("../../../src/hooks/usePlaylistDownloadAll", () => ({
+  usePlaylistDownloadAll: (ids: string[]) => { dl.ids = ids; return { downloadAll: dl.downloadAll, downloading: false }; },
+}));
 vi.mock("react-native", () => ({
   View: ({ children }: any) => React.createElement("div", null, children),
   Text: ({ children }: any) => React.createElement("span", null, children),
@@ -96,6 +100,14 @@ describe("playlist detail screen (mobile)", () => {
     await alerts.last.buttons.find((b: any) => b.style === "destructive").onPress();
     await waitFor(() => expect(alerts.last.title).toBe("common.error"));
     expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  // The phone downloads a playlist title by title (a ZIP is not playable offline).
+  it("downloads every title of the playlist from the header", () => {
+    render(<PlaylistDetailScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "media.playlist.download" }));
+    expect(dl.downloadAll).toHaveBeenCalledTimes(1);
+    expect(dl.ids).toEqual(["m1", "m2", "m3"]);
   });
 
   it("a smart playlist has no reorder or remove, only its rules editor", () => {

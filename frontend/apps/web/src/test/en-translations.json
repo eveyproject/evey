@@ -2637,6 +2637,7 @@
   "media.playlist.description": "Description",
   "media.playlist.descriptionPlaceholder": "Description (optional)",
   "media.playlist.download": "Download playlist",
+  "media.playlist.downloadAllDone": "Playlist download: {{started}} started, {{skipped}} already here or not a video, {{failed}} failed",
   "media.playlist.editRules": "Edit Rules",
   "media.playlist.failedRemove": "Failed to remove",
   "media.playlist.field": "Field",

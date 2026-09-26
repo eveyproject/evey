@@ -492,6 +492,7 @@ playlist:
   manual: Manuell
   smart: Smart
   download: Playlist herunterladen
+  downloadAllDone: "Playlist-Download: {{started}} gestartet, {{skipped}} schon vorhanden oder kein Video, {{failed}} fehlgeschlagen"
   generate: Playlist generieren
   generating: Wird generiert…
   generatedName: Mein Mix

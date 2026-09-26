@@ -13,6 +13,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
+import { usePlaylistDownloadAll } from "../../../src/hooks/usePlaylistDownloadAll";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { usePlaylistDetail, useDeletePlaylist, useRemoveFromPlaylist, useReorderPlaylistItems, useUpdatePlaylist, type PlaylistItem } from "../../../src/api/playlists";
@@ -156,10 +157,29 @@ export default function PlaylistDetailScreen() {
     ]);
   }, [id, removeMutation, t]);
 
+  const { downloadAll, downloading: downloadingAll } = usePlaylistDownloadAll(
+    (playlist?.items ?? []).map((it) => it.media_item_id).filter(Boolean),
+  );
+
   const headerRight = () => (
-    <TouchableOpacity onPress={confirmDelete} style={{ marginRight: 8 }} hitSlop={8} accessible={true} accessibilityLabel={t("common.delete")} accessibilityRole="button">
-      <Ionicons name="trash-outline" size={22} color={theme.colors.error} />
-    </TouchableOpacity>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginRight: 8 }}>
+      {(playlist?.items?.length ?? 0) > 0 && (
+        <TouchableOpacity
+          onPress={() => { void downloadAll(); }}
+          disabled={downloadingAll}
+          hitSlop={8}
+          accessible={true}
+          accessibilityLabel={t("media.playlist.download")}
+          accessibilityRole="button"
+          testID="playlist-download-all"
+        >
+          {downloadingAll ? <ActivityIndicator size="small" color={theme.colors.accent} /> : <Ionicons name="download-outline" size={22} color={theme.colors.text} />}
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity onPress={confirmDelete} hitSlop={8} accessible={true} accessibilityLabel={t("common.delete")} accessibilityRole="button">
+        <Ionicons name="trash-outline" size={22} color={theme.colors.error} />
+      </TouchableOpacity>
+    </View>
   );
 
   if (isLoading) {

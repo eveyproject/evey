@@ -492,6 +492,7 @@ playlist:
   manual: Manual
   smart: Inteligente
   download: Descargar lista
+  downloadAllDone: "Descarga de la lista: {{started}} iniciadas, {{skipped}} ya presentes o no vídeo, {{failed}} fallidas"
   generate: Generar lista
   generating: Generando…
   generatedName: Mi mezcla
