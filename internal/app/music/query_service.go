@@ -94,6 +94,13 @@ func (s *QueryService) ListTracksCursor(ctx context.Context, libraryID shared.Li
 	return s.tracks.ListByLibraryCursor(ctx, libraryID, search, cursor, limit)
 }
 
+// ShuffleTracks draws up to limit random tracks from the whole library.
+func (s *QueryService) ShuffleTracks(ctx context.Context, libraryID shared.LibraryID, limit int) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.music.ShuffleTracks")
+	defer span.End()
+	return s.tracks.SampleByLibrary(ctx, libraryID, limit)
+}
+
 func (s *QueryService) ListTracksByAlbum(ctx context.Context, libraryID shared.LibraryID, album string) ([]music.Track, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.music.ListTracksByAlbum")
 	defer span.End()

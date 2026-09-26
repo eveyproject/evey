@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildTrackQueryUrl, TRACKS_PAGE_SIZE } from "./musicTrackQuery";
+import { buildShuffleQueryUrl, buildTrackQueryUrl, SHUFFLE_QUEUE_SIZE, TRACKS_PAGE_SIZE } from "./musicTrackQuery";
 
 function params(url: string): URLSearchParams {
   return new URLSearchParams(url.split("?")[1]);
@@ -63,5 +63,17 @@ describe("buildTrackQueryUrl", () => {
     const p = params(buildTrackQueryUrl({ libraryID: "lib-1", search: "   " }));
     expect(p.get("search")).toBeNull();
     expect(p.get("offset")).toBe("0");
+  });
+});
+
+// Shuffle play draws from the whole library server-side: a shuffle of the
+// loaded pages only ever reached the first tracks of a large library.
+describe("buildShuffleQueryUrl", () => {
+  it("asks the server for a random draw of the queue size", () => {
+    const p = params(buildShuffleQueryUrl("lib-1"));
+    expect(p.get("libraryId")).toBe("lib-1");
+    expect(p.get("shuffle")).toBe("true");
+    expect(p.get("limit")).toBe(String(SHUFFLE_QUEUE_SIZE));
+    expect(p.get("cursor")).toBeNull();
   });
 });

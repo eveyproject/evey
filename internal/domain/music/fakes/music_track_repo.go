@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"math/rand/v2"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -610,4 +611,17 @@ func (r *FakeMusicTrackRepository) SetAlbumCoverArtURL(_ context.Context, librar
 		r.tracks[id] = t
 	}
 	return nil
+}
+
+// SampleByLibrary returns up to limit of the library's tracks in random order.
+func (r *FakeMusicTrackRepository) SampleByLibrary(ctx context.Context, libraryID shared.LibraryID, limit int) ([]music.Track, error) {
+	all, err := r.ListAllByLibrary(ctx, libraryID)
+	if err != nil || limit <= 0 {
+		return nil, err
+	}
+	rand.Shuffle(len(all), func(i, j int) { all[i], all[j] = all[j], all[i] })
+	if len(all) > limit {
+		all = all[:limit]
+	}
+	return all, nil
 }

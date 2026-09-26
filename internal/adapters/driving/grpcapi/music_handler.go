@@ -100,6 +100,20 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 
 	limit, offset := clampLimitOffset(req.Limit, req.Offset, 50)
 
+	if req.Shuffle {
+		tracks, err := h.svc.QueryService().ShuffleTracks(ctx, shared.LibraryID(req.LibraryId), limit)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, internalError(ctx, "shuffle tracks", err)
+		}
+		resp := &eveyv1.ListTracksResponse{Total: int32(len(tracks))}
+		for _, t := range tracks {
+			resp.Tracks = append(resp.Tracks, trackToProto(t, isAdmin))
+		}
+		return resp, nil
+	}
+
 	// Keyset path: the client already holds a cursor from a previous page, so
 	// offset/total are skipped entirely - recomputing total here would pay
 	// back exactly the COUNT(*) OVER() cost the cursor path exists to avoid.
