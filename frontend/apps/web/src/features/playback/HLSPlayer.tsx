@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAuthStore, toast, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey, isClientDrawableSubtitle } from "@evey/api";
-import { useQueryClient } from "@tanstack/react-query";
+import { useAuthStore, toast } from "@evey/store";
+import { isClientDrawableSubtitle } from "@evey/api";
 import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Users, Clock, MessageSquare } from "lucide-react";
 import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
@@ -56,7 +55,7 @@ import { useOverlayTime } from "./hooks/useOverlayTime";
 import { useCasting } from "@/hooks/useCasting";
 import { useRemotePlayback } from "@/hooks/useRemotePlayback";
 // Admin message on screen: the same 12 s as the other players and the cast receiver.
-import { ADMIN_MESSAGE_MS, servedVariant, shedI18nKey } from "@evey/client";
+import { ADMIN_MESSAGE_MS, servedVariant, shedI18nKey, usePlayerProfilePrefs } from "@evey/client";
 
 
 export type { AudioStream, SubtitleStream };
@@ -175,48 +174,20 @@ export function HLSPlayer({
     streamInfo.playMethod !== "PLAY_METHOD_DIRECT_PLAY"
   );
 
-  // Fetch the active profile to read audio/subtitle language preferences.
-  const { data: currentUser } = useUserServiceGetCurrentUser();
+  // The running profile, its languages and its "auto-play next episode"
+  // choice: the same reading on every player (usePlayerProfilePrefs).
   const activeProfileId = useAuthStore((s) => s.profileId);
   // Identity carried by a Cast Connect launch, so a television signed in
   // elsewhere refuses the cast instead of opening the wrong thing.
   const castProfileId = activeProfileId;
   const castUserId = userIdFromAccessToken(useAuthStore((s) => s.accessToken));
-  const { data: profilesResp } = useUserServiceListProfiles(
-    currentUser?.id ?? "",
-    { query: { enabled: !!currentUser?.id } },
-  );
-  const activeProfile = useMemo(
-    () =>
-      profilesResp?.profiles?.find((p) => p.id === activeProfileId) ??
-      profilesResp?.profiles?.find((p) => p.isDefault) ??
-      profilesResp?.profiles?.[0],
-    [profilesResp, activeProfileId],
-  );
-
-  // The profile's "auto-play next episode" choice. The player's own toggle
-  // flips it optimistically (override) and persists it on the profile, so the
-  // choice follows the viewer to the phone and the television; the profile
-  // list refetch then takes over and the override is dropped.
-  const qc = useQueryClient();
-  const updateProfile = useUserServiceUpdateProfile();
-  const [autoplayNextOverride, setAutoplayNextOverride] = useState<boolean | null>(null);
-  const autoplayNext = autoplayNextOverride ?? autoplayNextEpisode(activeProfile?.preferences);
-  useEffect(() => { setAutoplayNextOverride(null); }, [activeProfile?.preferences]);
-  const handleAutoplayNextChange = useCallback(async (enabled: boolean) => {
-    if (!activeProfile?.id) return;
-    setAutoplayNextOverride(enabled);
-    try {
-      await updateProfile.mutateAsync({
-        id: activeProfile.id,
-        data: { preferences: autoplayNextPreferences(activeProfile.preferences, enabled) },
-      });
-      if (currentUser?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(currentUser.id) });
-    } catch (err) {
-      console.warn("autoplay next update failed", err);
-      setAutoplayNextOverride(null);
-    }
-  }, [activeProfile, updateProfile, qc, currentUser?.id]);
+  const {
+    profile: activeProfile,
+    audioLangs: prefAudioLangs,
+    subtitleLangs: profileSubtitleLangs,
+    autoplayNext,
+    setAutoplayNext: handleAutoplayNextChange,
+  } = usePlayerProfilePrefs();
   // The next-episode card and the skip button share the bottom-right corner:
   // the button steps aside while the card is up.
   const [nextCardVisible, setNextCardVisible] = useState(false);
@@ -225,18 +196,11 @@ export function HLSPlayer({
   // locale as a last resort (e.g. profile with locale "fr" but no explicit
   // audio_languages still prefers French audio).
   const profileAudioLangs = useMemo((): string[] => {
-    const raw = activeProfile?.preferences?.["audio_languages"] ?? "";
-    const fromPrefs = raw.split(",").map((s) => s.trim()).filter(Boolean);
     const locale = activeProfile?.locale ?? "";
     // Append locale as final fallback only if not already in the list.
-    if (locale && !fromPrefs.includes(locale)) return [...fromPrefs, locale];
-    return fromPrefs;
-  }, [activeProfile]);
-
-  const profileSubtitleLangs = useMemo((): string[] => {
-    const raw = activeProfile?.preferences?.["subtitle_languages"] ?? "";
-    return raw.split(",").map((s) => s.trim()).filter(Boolean);
-  }, [activeProfile]);
+    if (locale && !prefAudioLangs.includes(locale)) return [...prefAudioLangs, locale];
+    return prefAudioLangs;
+  }, [prefAudioLangs, activeProfile?.locale]);
 
   // Initialize audio/subtitle from streams + whatever prefs are available at
   // first render (profile may not be loaded yet - profileAudioLangs is empty).

@@ -5,7 +5,6 @@ import {
   formatTime,
   trackDisplayName,
   useLibraryServiceGetMediaItem,
-  useUserServiceUpdateProfile,
   pickPreferredStreamIndex,
   pickDefaultSubtitle,
   isBurnInSubtitle,
@@ -14,9 +13,9 @@ import {
   createPlayerEventReporter,
   type V1MediaStream,
 } from "@evey/api";
-import { useAuthStore, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
+import { useAuthStore } from "@evey/store";
 import {
-  useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, useChapters, useActiveProfile,
+  useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, useChapters, usePlayerProfilePrefs,
   useSleepTimer,
   useSyncplay,
   useParentalGate,
@@ -65,10 +64,6 @@ const QUALITIES = [0, 2160, 1080, 720, 480];
 // No wasm audio engine here: the server transcodes AC-3/E-AC-3 to AAC.
 const TV_DEVICE = { deviceId: "tv-browser", deviceName: "TV Browser", clientName: "Evey TV", wasmAudio: false };
 
-function csv(v: string | undefined): string[] {
-  return (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-}
-
 // The television player, driven by the remote alone: OK shows the bar and
 // pauses, left/right seek (taps add up, a hold scrubs with a picture),
 // down opens the settings (audio, subtitles, quality, speed, chapters),
@@ -90,7 +85,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const [ladderBitrates, setLadderBitrates] = useState<number[]>([]);
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
   const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
-  const { profile } = useActiveProfile();
+  const { audioLangs: profileAudioLangs, subtitleLangs: profileSubLangs, autoplayNext: autoAdvance, setAutoplayNext } = usePlayerProfilePrefs();
   const { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, progress, restartWithTracks } =
     useTvPlaySession(mediaId, TV_DEVICE, {
       ...(audio !== undefined ? { audioStreamIndex: audio } : {}),
@@ -164,8 +159,6 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   const [selectedSubtitle, setSelectedSubtitle] = useState<number | null>(subtitle === "off" ? null : subtitle ?? null);
   const userPickedAudio = useRef(audio !== undefined);
   const userPickedSubtitle = useRef(subtitle !== undefined);
-  const profileAudioLangs = useMemo(() => csv(profile?.preferences?.["audio_languages"]), [profile]);
-  const profileSubLangs = useMemo(() => csv(profile?.preferences?.["subtitle_languages"]), [profile]);
 
   // Profile preference first, then the file's default, then the first track.
   useEffect(() => {
@@ -205,18 +198,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   );
 
   // The profile's own choice, as on the television, toggled from the menu.
-  const [autoplayOverride, setAutoplayOverride] = useState<boolean | null>(null);
-  const autoAdvance = autoplayOverride ?? autoplayNextEpisode(profile?.preferences);
-  const updateProfile = useUserServiceUpdateProfile();
-  const toggleAutoplay = useCallback(() => {
-    if (!profile?.id) return;
-    const next = !autoAdvance;
-    setAutoplayOverride(next);
-    updateProfile.mutate(
-      { id: profile.id, data: { preferences: autoplayNextPreferences(profile.preferences, next) } },
-      { onError: () => setAutoplayOverride(!next) },
-    );
-  }, [profile, autoAdvance, updateProfile]);
+  const toggleAutoplay = useCallback(() => { void setAutoplayNext(!autoAdvance); }, [setAutoplayNext, autoAdvance]);
   const nextEp = useNextEpisode({
     media,
     currentTime: time,
