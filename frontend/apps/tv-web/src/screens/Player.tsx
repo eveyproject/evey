@@ -16,7 +16,7 @@ import {
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import {
-  useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, useChapters, usePlayerProfilePrefs, useAutoMarkWatched, useRemoteSeek,
+  useMediaSegments, useNextEpisode, useProgressReporter, usePlaybackSettings, useChapters, usePlayerProfilePrefs, useAutoMarkWatched, useRemoteSeek, nextPlaybackSpeed,
   useSleepTimer,
   useSyncplay,
   useParentalGate,
@@ -60,7 +60,6 @@ const OSD_HIDE_MS = 4000;
 const OSD_FOCUSED_HIDE_MS = 8000;
 const BAR_BUTTONS = ["rewind", "play", "forward", "speed", "settings"] as const;
 type BarFocus = (typeof BAR_BUTTONS)[number] | "timeline";
-const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const QUALITIES = [0, 2160, 1080, 720, 480];
 // No wasm audio engine here: the server transcodes AC-3/E-AC-3 to AAC.
 const TV_DEVICE = { deviceId: "tv-browser", deviceName: "TV Browser", clientName: "Evey TV", wasmAudio: false };
@@ -717,7 +716,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
 
   // --- bar -------------------------------------------------------------------
   const cycleSpeed = useCallback(() => {
-    const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    const next = nextPlaybackSpeed(speed);
     setSpeed(next);
     if (videoRef.current) videoRef.current.playbackRate = next;
     showOsd();
