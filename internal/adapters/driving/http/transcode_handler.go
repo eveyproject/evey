@@ -169,14 +169,18 @@ func libraryStatsHandler(libSvc LibraryLister, counter LibraryItemCounter) http.
 // --- playbackInfoHandler ---
 
 type playbackServe struct {
+	decider       apptranscoding.PlaybackDecider
 	libSvc        MediaStreamsGetter
 	libraryAccess LibraryAccessChecker
 	profilePrefs  ProfilePrefsGetter
 	parental      ParentalChecker
 }
 
-func playbackInfoHandler(libSvc MediaStreamsGetter, libraryAccess LibraryAccessChecker, profilePrefs ProfilePrefsGetter, parental ParentalChecker) http.HandlerFunc {
-	h := &playbackServe{libSvc: libSvc, libraryAccess: libraryAccess, profilePrefs: profilePrefs, parental: parental}
+func playbackInfoHandler(decider apptranscoding.PlaybackDecider, libSvc MediaStreamsGetter, libraryAccess LibraryAccessChecker, profilePrefs ProfilePrefsGetter, parental ParentalChecker) http.HandlerFunc {
+	if decider == nil {
+		decider = apptranscoding.UnwiredDecider()
+	}
+	h := &playbackServe{decider: decider, libSvc: libSvc, libraryAccess: libraryAccess, profilePrefs: profilePrefs, parental: parental}
 	return h.serveHTTP
 }
 
@@ -239,17 +243,24 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// on existence, so PlaybackInfo doesn't report "transcode" for a title that
 	// merely carries a bitmap track the user isn't playing.
 	prefs.SubtitleBurnInTrack = parseIntQuery(r, "subtitleTrack", -1)
-	containerFormat := ""
-	if item.File != nil {
-		containerFormat = item.File.ContainerFormat
-	}
-	sourcePath := ""
-	if item.File != nil {
-		sourcePath = item.File.Path
-		prefs.SourceBitrateKbps = item.File.BitrateBps() / 1000
-		prefs.SourceNeedsRemux = item.File.NeedsRemux()
-	}
-	decision := apptranscoding.MakePlaybackDecisionWithPrefs(r.Context(), streams, containerFormat, client, userMaxBitrate, prefs, sourcePath)
+	// The plan's decision (Decide: the core plus the request-time pins), the
+	// same one the master this info announces will be served from.
+	decided := h.decider.Decide(r.Context(), apptranscoding.PlaybackRequest{
+		MediaID:             mediaID,
+		SourcePath:          item.File.Path,
+		Container:           item.File.ContainerFormat,
+		Streams:             streams,
+		Client:              client,
+		Prefs:               prefs,
+		MaxBitrateKbps:      userMaxBitrate,
+		AudioTrack:          prefs.AudioTrack,
+		SubtitleBurnInTrack: prefs.SubtitleBurnInTrack,
+		WasmAudio:           prefs.WasmAudio,
+		SourceBytes:         sourceBytesOf(item),
+		SourceBitrateKbps:   item.File.BitrateBps() / 1000,
+		SourceNeedsRemux:    item.File.NeedsRemux(),
+	})
+	decision := &decided
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
 		span.SetStatus(codes.Error, "transcoding disallowed by prefs")
 		http.Error(w, `{"message":"transcoding disabled by user preferences"}`, http.StatusUnprocessableEntity)

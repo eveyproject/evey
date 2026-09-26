@@ -239,10 +239,13 @@ func run() error {
 	gwMux, gwConn := registerGateway(grpcAddr)
 	var httpSrv *http.Server
 	if gwMux != nil {
-		handler, err := buildHTTPHandler(gwMux, deps, cfg, startTime, logCfg.Dir, ctx, qcHub)
+		handler, decider, err := buildHTTPHandler(gwMux, deps, cfg, startTime, logCfg.Dir, ctx, qcHub)
 		if err != nil {
 			return err
 		}
+		// GetStreamInfo decides with the plan's resolver, owned by the HTTP
+		// pipeline built just now; bound before the gRPC server starts.
+		grpcSrv.SetPlaybackDecider(decider)
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
 			Handler:           handler,

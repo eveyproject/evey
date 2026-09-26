@@ -19,12 +19,11 @@ import (
 // decides without those pins - it showed (2026-09-26) as a stream info that
 // said "copy" where the plan transcoded the same request.
 //
-// Two callers remain, listed with what makes them tolerable and what closes
-// them; a third is a red test.
-var playbackDecisionCoreCallers = map[string]string{
-	"internal/adapters/driving/grpcapi/playback_handler.go": "GetStreamInfo, the pre-play info: the client keeps the served variant's truth over it (packages/client streamInfoModel) - to route through Decide once a decider can be bound to the gRPC handler after the HTTP wiring that owns the resolver",
-	"internal/adapters/driving/http/transcode_handler.go":   "playback-info, the same pre-play info over HTTP - closes with the gRPC one",
-}
+// No production caller remains: the two pre-play info surfaces (gRPC
+// GetStreamInfo, HTTP playback-info) decide through a PlaybackDecider bound
+// to the HLS pipeline's resolver. A tolerated caller would be listed here
+// with what makes it tolerable and what closes it.
+var playbackDecisionCoreCallers = map[string]string{}
 
 func TestOnlyThePlanDecidesPlayback(t *testing.T) {
 	t.Parallel()
@@ -82,5 +81,50 @@ func TestOnlyThePlanDecidesPlayback(t *testing.T) {
 		if !seen[rel] {
 			t.Errorf("%s no longer calls the decision core: drop it from playbackDecisionCoreCallers", rel)
 		}
+	}
+}
+
+// The gRPC handler is built before the HTTP pipeline that owns the resolver,
+// so its decider is bound late (GRPCServer.SetPlaybackDecider). Unbound, it
+// decides on the unwired resolver: no calibration, no copy producer - a stream
+// info that can say "transcode" where the served master copies. The binding
+// must happen in main, before the gRPC server serves.
+func TestMainBindsThePlaybackDeciderBeforeServing(t *testing.T) {
+	t.Parallel()
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, repoRoot+"/cmd/evey/main.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, served := 0, 0
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		recv, isIdent := sel.X.(*ast.Ident)
+		if !isIdent || recv.Name != "grpcSrv" {
+			return true
+		}
+		switch sel.Sel.Name {
+		case "SetPlaybackDecider":
+			bound = fset.Position(call.Pos()).Line
+		case "Start":
+			served = fset.Position(call.Pos()).Line
+		}
+		return true
+	})
+	if bound == 0 {
+		t.Fatal("cmd/evey/main.go never calls grpcSrv.SetPlaybackDecider: GetStreamInfo decides on the unwired resolver")
+	}
+	if served == 0 {
+		t.Fatal("cmd/evey/main.go never calls grpcSrv.Start")
+	}
+	if bound > served {
+		t.Errorf("cmd/evey/main.go binds the playback decider (line %d) after the gRPC server starts (line %d)", bound, served)
 	}
 }

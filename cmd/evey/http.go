@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
+
 	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 
 	"fmt"
-	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,12 +13,16 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+
 	"github.com/evey-project/evey/internal/adapters/driven/ociregistry"
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	appcast "github.com/evey-project/evey/internal/app/chromecast"
 	appdlna "github.com/evey-project/evey/internal/app/dlna"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/app/updatecheck"
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -33,7 +36,9 @@ import (
 // IP: a TV polls every 3 s (20/min), three of them behind one NAT still fit.
 const quickConnectPollPerMinute = 60
 
-func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, startTime time.Time, logDir string, ctx context.Context, qcHub *quickconnecthub.Hub) (http.Handler, error) {
+// buildHTTPHandler also returns the plan's decider the HTTP pipeline owns, for
+// the gRPC GetStreamInfo built before it (main binds it with SetPlaybackDecider).
+func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, startTime time.Time, logDir string, ctx context.Context, qcHub *quickconnecthub.Hub) (http.Handler, apptranscoding.PlaybackDecider, error) {
 	mux := http.NewServeMux()
 
 	ratelimit.SetTrustedProxies(cfg.Server.TrustedProxies)
@@ -375,10 +380,10 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 	proxyTrust, err := network.NewProxyTrust(cfg.Server.TrustedProxies, cfg.Server.RealIPHeader, cfg.Server.ForwardedProto)
 	if err != nil {
-		return nil, fmt.Errorf("proxy trust: %w", err)
+		return nil, nil, fmt.Errorf("proxy trust: %w", err)
 	}
 
-	return httpapi.RequestIDMiddleware(httpapi.TokenRedactMiddlewareWithStore(srv.StreamTokenStore, cfg.Server.ForwardedProto, eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddleware(cfg.Server.ForwardedProto, httpapi.CORSMiddleware(cfg.EffectiveBaseURL(), httpapi.CSRFMiddleware(cfg.Server.ForwardedProto, proxyTrust.Middleware(httpapi.BodyReadTimeoutMiddleware(netMw(mux))))))))), nil
+	return httpapi.RequestIDMiddleware(httpapi.TokenRedactMiddlewareWithStore(srv.StreamTokenStore, cfg.Server.ForwardedProto, eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddleware(cfg.Server.ForwardedProto, httpapi.CORSMiddleware(cfg.EffectiveBaseURL(), httpapi.CSRFMiddleware(cfg.Server.ForwardedProto, proxyTrust.Middleware(httpapi.BodyReadTimeoutMiddleware(netMw(mux))))))))), srv.PlaybackDecider(), nil
 }
 
 func resolveVAPIDPublicKey(cfgRepo shared.ServerConfigRepository, cfg *config.Config) string {
