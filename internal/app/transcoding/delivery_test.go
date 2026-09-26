@@ -115,6 +115,14 @@ func TestDeliveryStrategy_ServingPath(t *testing.T) {
 			domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: "software", AudioDecision: "transcode", AudioEngine: "ffmpeg"}},
 		{"wasm audio", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineClient}, ResolvedRoute{Copy: true}, DecisionFingerprint{},
 			domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "wasm", AudioEngine: "client"}},
+		// The packager carries the video while the route, priced for the ffmpeg
+		// path behind it (no copy producer, or no cache room), says transcode:
+		// what is served is a copy, and the planned path must say so or the
+		// adapter is accused of re-deciding (measured 2026-09-26).
+		{"packager video on a transcode route", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo}, ResolvedRoute{Backend: BackendSelection{Name: "vaapi"}}, DecisionFingerprint{},
+			domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"}},
+		{"hybrid on a software transcode route", DeliveryStrategy{Video: EngineMkvgo, Audio: EngineFFmpeg}, ResolvedRoute{}, DecisionFingerprint{},
+			domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

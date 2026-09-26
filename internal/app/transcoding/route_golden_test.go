@@ -387,10 +387,13 @@ func TestResolvedRoute_ProjectionsAgree(t *testing.T) {
 		require.Equal(t, plan.Route.Backend.Name, plan.HWAccel, "%s: plan accel", sc.name)
 		require.True(t, plan.Route.Topology.Legal(), "%s: topology %s", sc.name, plan.Route.Topology)
 		// The delivery strategy is a projection too: the packager carries a
-		// video only when the route is the copy rung, and audio on the
-		// packager implies video on the packager.
+		// video only when the decision copies it (the packager's own gate -
+		// Route.Copy is ffmpeg's copy-rung verdict, which also needs a wired
+		// copy producer and cache room), and audio on the packager implies
+		// video on the packager.
 		if plan.Delivery.Video == EngineMkvgo {
-			require.True(t, plan.Route.Copy, "%s: the packager carries a copy only", sc.name)
+			require.True(t, VideoCopyEligible(plan.Decision, req.Streams), "%s: the packager carries a copy only", sc.name)
+			require.Equal(t, "copy", plan.Delivery.ServingPath(plan.Route, fp).VideoDecision, "%s: the planned path says copy", sc.name)
 		}
 		if plan.Delivery.Audio == EngineMkvgo {
 			require.Equal(t, EngineMkvgo, plan.Delivery.Video, "%s: packager audio rides packager video", sc.name)
