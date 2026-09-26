@@ -9,11 +9,3 @@ type ContainerReader interface {
 	ReadAttachments(ctx context.Context, path string) ([]Attachment, error)
 	ReadTags(ctx context.Context, path string) ([]Tag, error)
 }
-
-type ContainerWriter interface {
-	Mux(ctx context.Context, opts MuxOptions) error
-	Demux(ctx context.Context, path string, opts DemuxOptions) error
-	AddTrack(ctx context.Context, containerPath string, input TrackInput) error
-	RemoveTrack(ctx context.Context, containerPath string, trackID uint64) error
-	ExtractAttachment(ctx context.Context, containerPath string, attachmentID uint64, destPath string) error
-}

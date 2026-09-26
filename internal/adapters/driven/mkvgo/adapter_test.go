@@ -93,34 +93,6 @@ func TestFromExtContainer(t *testing.T) {
 	}
 }
 
-func TestToExtTrackInput(t *testing.T) {
-	input := mkv.TrackInput{
-		SourcePath: "/media/track.aac",
-		TrackID:    2,
-		Language:   "fre",
-		Name:       "French Audio",
-		IsDefault:  true,
-	}
-
-	ext := toExtTrackInput(input)
-
-	if ext.SourcePath != input.SourcePath {
-		t.Errorf("source = %q", ext.SourcePath)
-	}
-	if ext.TrackID != input.TrackID {
-		t.Errorf("trackID = %d", ext.TrackID)
-	}
-	if ext.Language != input.Language {
-		t.Errorf("language = %q", ext.Language)
-	}
-	if ext.Name != input.Name {
-		t.Errorf("name = %q", ext.Name)
-	}
-	if !ext.IsDefault {
-		t.Error("isDefault should be true")
-	}
-}
-
 func TestFromExtTrackNilPointers(t *testing.T) {
 	ext := extmkv.Track{ID: 1, Type: extmkv.VideoTrack, Codec: "hevc"}
 	out := fromExtTrack(ext)

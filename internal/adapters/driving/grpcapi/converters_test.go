@@ -4,11 +4,9 @@ import (
 	"testing"
 	"time"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/playback"
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -430,39 +428,6 @@ func TestHWDeviceToProto(t *testing.T) {
 	pb := hwDeviceToProto(d)
 	if pb.Name != "/dev/dri/renderD128" {
 		t.Error("Name mismatch")
-	}
-}
-
-func TestMkvContainerToProto(t *testing.T) {
-	t.Parallel()
-	w, h := uint32(1920), uint32(1080)
-	ch := uint8(2)
-	sr := float64(44100)
-	bd := uint8(16)
-	dur, _ := shared.NewDurationMs(120000)
-	c := &mkv.Container{
-		Path:     "/f.mkv",
-		Duration: dur,
-		Info:     mkv.SegmentInfo{MuxingApp: "libmatroska", WritingApp: "mkvmerge", Title: "Test"},
-		Tracks: []mkv.Track{
-			{ID: 1, Type: mkv.VideoTrack, Codec: "V_MPEG4/ISO/AVC", Width: &w, Height: &h},
-			{ID: 2, Type: mkv.AudioTrack, Codec: "A_AAC", Channels: &ch, SampleRate: &sr, BitDepth: &bd},
-		},
-		Chapters:    []mkv.Chapter{{ID: 1, Title: "Ch1", StartMs: 0, EndMs: 60000}},
-		Attachments: []mkv.Attachment{{ID: 1, Name: "cover.jpg", MIMEType: "image/jpeg", Size: 1234}},
-	}
-	pb := mkvContainerToProto(c)
-	if pb.Path != "/f.mkv" || len(pb.Tracks) != 2 || len(pb.Chapters) != 1 || len(pb.Attachments) != 1 {
-		t.Error("container fields mismatch")
-	}
-}
-
-func TestMkvChapterFromProto(t *testing.T) {
-	t.Parallel()
-	pb := &eveyv1.Chapter{Title: "Chapter 1", StartMs: 0, EndMs: 60000}
-	ch := mkvChapterFromProto(pb)
-	if ch.Title != "Chapter 1" || ch.StartMs != 0 || ch.EndMs != 60000 {
-		t.Error("fields mismatch")
 	}
 }
 

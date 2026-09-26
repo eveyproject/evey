@@ -258,7 +258,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// buildServices, or the operator's saved setting is silently ignored.
 	slog.Info("transcoding: max concurrent jobs", slog.Int("max", transcodingSvc.MaxConcurrent()))
 
-	mkvSvc := appmkv.NewService(infra.mkvAdapter, infra.mkvAdapter)
+	mkvSvc := appmkv.NewService(infra.mkvAdapter)
 	collectionCmdSvc := appcollection.NewCommandService(r.Collection, r.Collection, r.MediaItem)
 	collectionQuerySvc := appcollection.NewQueryService(r.Collection, postgres.NewCollectionSmartQuerier(db))
 
