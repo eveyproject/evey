@@ -19,7 +19,7 @@ export function isTokenExpired(token: string): boolean {
 // /auth/refresh at the same time. Falls back to running directly where the Web
 // Locks API is unavailable.
 async function underRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
-  if (typeof navigator !== "undefined" && "locks" in navigator) {
+  if (typeof navigator !== "undefined" && (navigator as Navigator & { locks?: LockManager | null }).locks) {
     return (navigator as Navigator & { locks: LockManager }).locks.request(
       "evey-refresh-token",
       { mode: "exclusive" },

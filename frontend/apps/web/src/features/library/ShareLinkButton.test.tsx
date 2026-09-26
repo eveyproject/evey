@@ -22,7 +22,8 @@ vi.mock("@/components/ui/Button", () => ({
 const writeText = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
-  Object.assign(navigator, { clipboard: { writeText } });
+  // navigator.clipboard is a prototype getter: define an own property over it.
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
   writeText.mockResolvedValue(undefined);
 });
 afterEach(() => {

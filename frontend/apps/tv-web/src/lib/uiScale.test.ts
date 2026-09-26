@@ -19,6 +19,7 @@ describe("the interface scale", () => {
     expect(document.documentElement.style.fontSize).toBe("32px");
     Object.defineProperty(window, "innerWidth", { value: 1280, configurable: true });
     window.dispatchEvent(new Event("resize"));
-    expect(document.documentElement.style.fontSize).toBe(`${(1280 / 960) * 0.8 * 10}px`);
+    // Numeric: the DOM serializes the length with its own precision.
+    expect(parseFloat(document.documentElement.style.fontSize)).toBeCloseTo((1280 / 960) * 0.8 * 10, 4);
   });
 });

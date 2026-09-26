@@ -12,6 +12,7 @@
     "gen:themes": "tsx packages/theme/gen-theme-css.mts"
   },
   "devDependencies": {
+    "happy-dom": "^20.14.5",
     "oxlint": "1.80.0",
     "turbo": "2.5.4",
     "typescript": "5.9.3"

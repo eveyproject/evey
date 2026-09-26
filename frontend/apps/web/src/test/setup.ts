@@ -3,7 +3,18 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { vi } from "vitest";
 
-// jsdom doesn't provide ResizeObserver
+// happy-dom ships no window.prompt / confirm / alert (jsdom stubs them as
+// "not implemented"); the tests that need one spy on it, so it must exist.
+// (Skipped under a per-file `@vitest-environment node`: no window there.)
+if (typeof window !== "undefined") {
+  for (const k of ["prompt", "confirm", "alert"] as const) {
+    if (typeof window[k] !== "function") {
+      (window as unknown as Record<string, unknown>)[k] = () => undefined;
+    }
+  }
+}
+
+// The test DOM doesn't provide ResizeObserver
 (globalThis as Record<string, unknown>).ResizeObserver = class {
   constructor(_cb: ResizeObserverCallback) {}
   observe() {}

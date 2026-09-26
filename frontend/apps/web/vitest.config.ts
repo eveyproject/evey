@@ -21,7 +21,10 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: "jsdom",
+    // happy-dom: the same suite ran in 33 s against jsdom's 52 s on one box
+    // (environment 64 s vs 133 s of worker time, measured 2026-09-27); on the
+    // 4-vCPU CI runner the jsdom suite was the frontend job's 18 minutes.
+    environment: "happy-dom",
     setupFiles: ["./src/test/setup.ts"],
     css: false,
   },
