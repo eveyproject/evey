@@ -476,7 +476,7 @@ func TestHLSVOD_ForcedCeiling_ShapesManifestAndFingerprintAlike(t *testing.T) {
 	h.admissionRoute = func(key string, req apptranscoding.RouteAdmission) apptranscoding.RouteGrant {
 		pinKeys = append(pinKeys, key)
 		// the host can only afford the short rung
-		return apptranscoding.RouteGrant{Class: req.Natural, Ceiling: 720, Forced: true, OK: true}
+		return apptranscoding.RouteGrant{Class: req.Natural, Ceiling: 720, OK: true}
 	}
 	h.admissionBind = func(_ string, fpHash string) { boundHashes = append(boundHashes, fpHash) }
 
@@ -731,7 +731,7 @@ func TestHLSVOD_SpilledStream_FingerprintAndSpawnFollowTheSoftwareRoute(t *testi
 		require.Equal(t, apptranscoding.LadderClassHW, natural, "this stream is hardware-natural")
 		require.NotNil(t, fallback, "a hw-natural stream must offer the software fallback")
 		require.NotEmpty(t, fallback(), "the software ladder must be shapeable")
-		return apptranscoding.RouteGrant{Class: apptranscoding.LadderClassSoftware, Ceiling: 1080, Forced: true, OK: true}
+		return apptranscoding.RouteGrant{Class: apptranscoding.LadderClassSoftware, Ceiling: 1080, OK: true}
 	}
 	h.admissionPinnedClass = func(string) (apptranscoding.LadderClass, bool) {
 		return apptranscoding.LadderClassSoftware, true
@@ -1294,7 +1294,7 @@ func TestHLSVOD_Master_CodecsFollowTheSpilledFingerprint(t *testing.T) {
 	assert.Contains(t, master(), `CODECS="hvc1.`, "premise: on the GPU this HEVC-capable client's ladder is HEVC")
 
 	h.admissionRoute = func(_ string, _ apptranscoding.RouteAdmission) apptranscoding.RouteGrant {
-		return apptranscoding.RouteGrant{Class: apptranscoding.LadderClassSoftware, Ceiling: 1080, Forced: true, OK: true}
+		return apptranscoding.RouteGrant{Class: apptranscoding.LadderClassSoftware, Ceiling: 1080, OK: true}
 	}
 	h.admissionPinnedClass = func(string) (apptranscoding.LadderClass, bool) { return apptranscoding.LadderClassSoftware, true }
 	spilled := master()
