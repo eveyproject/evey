@@ -92,6 +92,7 @@ export * from "./lib/photoRoutes";
 export * from "./lib/photoSlideshow";
 export * from "./lib/musicRoutes";
 export * from "./lib/logMedia";
+export * from "./lib/webhookEvents";
 
 export * from "./plugins/slotEntries";
 export * from "./plugins/hostProtocol";

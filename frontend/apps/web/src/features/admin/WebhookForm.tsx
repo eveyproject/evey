@@ -2,27 +2,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useWebhookServiceCreateWebhook, useWebhookServiceUpdateWebhook } from "@evey/api";
 import type { V1WebhookConfig } from "@evey/api";
+import { WEBHOOK_EVENT_TYPES } from "@evey/client";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
-const EVENT_TYPES = [
-  "media.item.added",
-  "media.item.updated",
-  "media.item.removed",
-  "library.created",
-  "library.deleted",
-  "library.scan.started",
-  "library.scan.completed",
-  "playback.started",
-  "playback.stopped",
-  "user.created",
-  "user.deleted",
-  "user.login.succeeded",
-  "user.login.failed",
-  "backup.created",
-  "backup.failed",
-] as const;
 
 interface WebhookFormProps {
   onSuccess: () => void;
@@ -115,7 +99,7 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
         </label>
         {!allEvents && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-2">
-            {EVENT_TYPES.map((evt) => (
+            {WEBHOOK_EVENT_TYPES.map((evt) => (
               <label key={evt} className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"

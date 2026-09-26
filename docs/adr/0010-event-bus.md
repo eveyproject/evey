@@ -50,3 +50,16 @@ redundant on the music side and were kept deliberately, for that reason:
 `music.track.deleted` and `music.track.removed`, and `music.album.created` is
 published for every scanned track that has an album, not when an album first
 appears. Collapsing them is a breaking change to schedule as such, not a cleanup.
+
+## Amendment (2026-09-26): the form offers what is published
+
+The web and phone webhook forms offered three names nothing published
+(`media.item.updated`, `user.login.failed`, `backup.created`) and hid most of
+the real ones behind `*`. The three are now published - `media.item.updated`
+only for a change a viewer can see (metadata edited, reset or refreshed, file
+replaced on disk; never the scan's bookkeeping), `user.login.failed` with the
+typed username and a reason (never the password), `backup.created` for manual
+and scheduled backups alike (`backup.failed` too) - and both forms read one
+list, `frontend/packages/client/src/lib/webhookEvents.ts`, which
+`contractguard/webhook_events_test.go` holds equal to the `EventName()`
+declarations of `internal/domain` (50 events on this date).
