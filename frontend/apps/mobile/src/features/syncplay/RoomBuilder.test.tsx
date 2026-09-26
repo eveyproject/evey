@@ -22,8 +22,8 @@ vi.mock("@evey/api", () => ({
   useMusicServiceListTracks: () => ({ data: { tracks: [] } }),
 }));
 const albumItems = vi.hoisted(() => vi.fn());
-vi.mock("@evey/client", async (orig) => ({
-  ...(await orig<typeof import("@evey/client")>()),
+vi.mock("@evey/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/client")>()),
   albumRoomQueueItems: (...a: unknown[]) => albumItems(...a),
   usePlaylistList: () => ({ data: [] }),
 }));

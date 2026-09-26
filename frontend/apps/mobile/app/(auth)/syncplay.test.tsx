@@ -27,8 +27,8 @@ const joinByCode = vi.hoisted(() => vi.fn());
 const createRoomFromQueue = vi.hoisted(() => vi.fn());
 const syncState = vi.hoisted(() => ({ roomId: null as string | null }));
 vi.mock("../../src/hooks/useSyncPlay", () => ({ useSyncPlay: () => ({ joinByCode, createRoomFromQueue, leaveRoom: vi.fn(), state: syncState }) }));
-vi.mock("@evey/api", async (orig) => ({
-  ...(await orig<typeof import("@evey/api")>()),
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceListLibraries: () => ({ data: { libraries: [{ id: "lib-music", type: "LIBRARY_TYPE_MUSIC" }] } }),
 }));
 vi.mock("../../src/stores/musicQueue", () => ({ useMusicQueueStore: { setState: vi.fn() } }));

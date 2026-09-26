@@ -74,8 +74,8 @@ vi.mock("../hooks/useSyncPlay", () => ({
 }));
 
 // -------------------------------------------------------------------------------------
-vi.mock("@evey/api", async (orig) => ({
-  ...(await orig<typeof import("@evey/api")>()),
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceListLibraries: () => ({ data: { libraries: [{ id: "lib-music", type: "LIBRARY_TYPE_MUSIC" }] } }),
 }));
 vi.mock("../stores/musicQueue", () => ({ useMusicQueueStore: { setState: vi.fn() } }));
