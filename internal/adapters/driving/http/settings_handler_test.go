@@ -519,7 +519,7 @@ func TestServerSettings_Put_MaxConcurrent_NilTranscodingSafe(t *testing.T) {
 func TestServerSettings_Put_RateLimits_UpdatesLimiters(t *testing.T) {
 	env := newSettingsTestEnv(t, validUserValidator(true))
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
-		strings.NewReader(`{"loginRateLimit":42,"globalRateLimit":99,"hwAccelEnabled":true}`))
+		strings.NewReader(`{"loginRateLimit":42,"globalRateLimit":99}`))
 	req.Header.Set("Authorization", "Bearer tok")
 	rec := httptest.NewRecorder()
 	env.mux.ServeHTTP(rec, req)
@@ -532,17 +532,11 @@ func TestServerSettings_Put_RateLimits_UpdatesLimiters(t *testing.T) {
 	if env.cfg.Server.GlobalRateLimitMax != 99 {
 		t.Errorf("GlobalRateLimitMax = %d want 99", env.cfg.Server.GlobalRateLimitMax)
 	}
-	if !env.cfg.Transcoding.HWAccelEnabled {
-		t.Errorf("HWAccelEnabled should be true")
-	}
 	if got := env.store.sets[cfgKeyRateLimitLogin]; got != "42" {
 		t.Errorf("store login = %q", got)
 	}
 	if got := env.store.sets[cfgKeyRateLimitGlobal]; got != "99" {
 		t.Errorf("store global = %q", got)
-	}
-	if got := env.store.sets[cfgKeyTranscodeHWAccel]; got != "true" {
-		t.Errorf("store hwaccel = %q", got)
 	}
 }
 
@@ -583,7 +577,7 @@ func TestServerSettings_ConcurrentReadWrite_NoRace(t *testing.T) {
 			defer reqs.Done()
 			for j := range 60 {
 				put := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
-					strings.NewReader(`{"serverName":"n","maxConcurrentTranscodes":4,"hwAccelEnabled":true,"av1Enabled":true,"av1MaxHeight":1080,"skipPreviewEnabled":true}`))
+					strings.NewReader(`{"serverName":"n","maxConcurrentTranscodes":4,"hwMode":"auto","av1Enabled":true,"av1MaxHeight":1080,"skipPreviewEnabled":true}`))
 				put.Header.Set("Authorization", "Bearer tok")
 				env.mux.ServeHTTP(httptest.NewRecorder(), put)
 
