@@ -12,23 +12,23 @@ func TestEquivalent(t *testing.T) {
 		a, b string
 		want bool
 	}{
-		{"identique", "From Zero", "From Zero", true},
-		{"casse", "from zero", "FROM ZERO", true},
-		{"ponctuation", "crime of the century!", "Crime of the Century", true},
+		{"identique", "From Nowhere", "From Nowhere", true},
+		{"casse", "from nowhere", "FROM NOWHERE", true},
+		{"ponctuation", "song of the valley!", "Song of the Valley", true},
 		{"accents", "Cœur de pirate", "coeur de pirate", false}, // œ n'est pas replié, cf accentFolds
 		{"accents simples", "Éxité", "exite", true},
-		{"suffixe d'édition à droite", "Crime Of The Century", "Crime Of The Century (Remastered 2025)", true},
-		{"suffixe d'édition à gauche", "Crime Of The Century (Remastered 2025)", "Crime Of The Century", true},
-		{"tiret séparateur", "From Zero - Deluxe", "From Zero", true},
+		{"suffixe d'édition à droite", "Song Of The Valley", "Song Of The Valley (Remastered 2025)", true},
+		{"suffixe d'édition à gauche", "Song Of The Valley (Remastered 2025)", "Song Of The Valley", true},
+		{"tiret séparateur", "From Nowhere - Deluxe", "From Nowhere", true},
 
 		// Le cas qui compte : deux albums réellement différents du même artiste
 		// ne doivent JAMAIS être rapprochés, sinon on ressert la pochette de
 		// l'album vedette (prod 2026-07-25).
-		{"albums différents", "From Zero", "Hybrid Theory", false},
-		{"albums différents avec édition", "From Zero", "Hybrid Theory (Deluxe Edition)", false},
+		{"albums différents", "From Nowhere", "Mixed Signals", false},
+		{"albums différents avec édition", "From Nowhere", "Mixed Signals (Deluxe Edition)", false},
 		{"préfixe sans frontière de mot", "Meteora", "Meteorafoo", false},
-		{"vide à gauche", "", "From Zero", false},
-		{"vide à droite", "From Zero", "", false},
+		{"vide à gauche", "", "From Nowhere", false},
+		{"vide à droite", "From Nowhere", "", false},
 		{"ponctuation seule", "!!!", "???", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -41,8 +41,8 @@ func TestEquivalent(t *testing.T) {
 
 func TestEquivalentIsSymmetric(t *testing.T) {
 	pairs := [][2]string{
-		{"From Zero", "From Zero (Deluxe Edition)"},
-		{"From Zero", "Hybrid Theory"},
+		{"From Nowhere", "From Nowhere (Deluxe Edition)"},
+		{"From Nowhere", "Mixed Signals"},
 		{"Meteora", "Meteora"},
 	}
 	for _, p := range pairs {
@@ -54,8 +54,8 @@ func TestEquivalentIsSymmetric(t *testing.T) {
 
 func TestNormalize(t *testing.T) {
 	for _, tc := range []struct{ in, want string }{
-		{"  From   Zero  ", "from zero"},
-		{"Crime Of The Century (Remastered 2025)", "crime of the century remastered 2025"},
+		{"  From   Nowhere  ", "from nowhere"},
+		{"Song Of The Valley (Remastered 2025)", "song of the valley remastered 2025"},
 		{"AC/DC", "ac dc"},
 		{"", ""},
 		{"...", ""},

@@ -235,8 +235,8 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 		// aller le contredire avec une devinette externe. Sans ce garde-fou, la
 		// recherche iTunes partait pour TOUS les albums et SetAlbumCoverArtURL
 		// écrasait ensuite la pochette de toutes les pistes du dossier - les MP3
-		// de "Apple Essentials" portaient la bonne pochette et affichaient celle
-		// de Hybrid Theory (prod 07-25).
+		// de "Orchard Essentials" portaient la bonne pochette et affichaient celle
+		// de Mixed Signals (prod 07-25).
 		if ak.HasEmbeddedArt {
 			continue
 		}

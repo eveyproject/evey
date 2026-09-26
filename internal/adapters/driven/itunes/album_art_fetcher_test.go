@@ -17,11 +17,11 @@ import (
 // Results[0] SANS vérifier que l'album renvoyé était celui demandé. Vérifié en
 // direct contre l'API iTunes réelle :
 //
-//	term="Linkin Park From Zero"       -> "Hybrid Theory (Deluxe Edition)"
-//	term="Linkin Park Apple Essentials" -> "Hybrid Theory"
+//	term="Neon Harbor From Nowhere"       -> "Mixed Signals (Deluxe Edition)"
+//	term="Neon Harbor Orchard Essentials" -> "Mixed Signals"
 //
 // La recherche plein-texte d'iTunes retombe sur l'album le plus POPULAIRE de
-// l'artiste quand le titre demandé ne matche pas. Les deux albums Linkin Park de
+// l'artiste quand le titre demandé ne matche pas. Les deux albums Neon Harbor de
 // la bibliothèque du user affichaient donc tous les deux la pochette de Hybrid
 // Theory. Une pochette absente est honnête ; une pochette fausse est un mensonge.
 
@@ -57,14 +57,14 @@ func album(artist, collection, art string) map[string]any {
 
 func TestFetchRejectsAResultForAnotherAlbum(t *testing.T) {
 	fake := &fakeITunes{results: []map[string]any{
-		// Ce que renvoie réellement iTunes pour "Linkin Park From Zero".
-		album("LINKIN PARK", "Hybrid Theory (Deluxe Edition)", "https://x/100x100bb.jpg"),
-		album("LINKIN PARK", "Meteora", "https://x/100x100bb.jpg"),
+		// Ce que renvoie réellement iTunes pour "Neon Harbor From Nowhere".
+		album("NEON HARBOR", "Mixed Signals (Deluxe Edition)", "https://x/100x100bb.jpg"),
+		album("NEON HARBOR", "Meteora", "https://x/100x100bb.jpg"),
 	}}
 	srv := fake.serve()
 	defer srv.Close()
 
-	_, _, err := newFetcherAgainst(t, srv).Fetch(context.Background(), "Linkin Park", "From Zero")
+	_, _, err := newFetcherAgainst(t, srv).Fetch(context.Background(), "Neon Harbor", "From Nowhere")
 	if !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("aucun résultat ne correspond à l'album demandé : attendu os.ErrNotExist, obtenu %v", err)
 	}
@@ -75,8 +75,8 @@ func TestFetchRejectsAResultForAnotherAlbum(t *testing.T) {
 
 func TestFetchPicksTheMatchingAlbumEvenWhenItIsNotFirst(t *testing.T) {
 	fake := &fakeITunes{results: []map[string]any{
-		album("LINKIN PARK", "Hybrid Theory (Deluxe Edition)", "https://x/wrong/100x100bb.jpg"),
-		album("LINKIN PARK", "From Zero", "https://x/right/100x100bb.jpg"),
+		album("NEON HARBOR", "Mixed Signals (Deluxe Edition)", "https://x/wrong/100x100bb.jpg"),
+		album("NEON HARBOR", "From Nowhere", "https://x/right/100x100bb.jpg"),
 	}}
 	srv := fake.serve()
 	defer srv.Close()
@@ -93,7 +93,7 @@ func TestFetchPicksTheMatchingAlbumEvenWhenItIsNotFirst(t *testing.T) {
 	f := itunes.NewAlbumArtFetcher(client)
 	f.SetSearchEndpointForTest(srv.URL + "/search")
 
-	if _, _, err := f.Fetch(context.Background(), "Linkin Park", "From Zero"); err != nil {
+	if _, _, err := f.Fetch(context.Background(), "Neon Harbor", "From Nowhere"); err != nil {
 		t.Fatalf("Fetch: %v", err)
 	}
 	if !strings.Contains(gotURL, "/right/") {
@@ -105,13 +105,13 @@ func TestFetchPicksTheMatchingAlbumEvenWhenItIsNotFirst(t *testing.T) {
 }
 
 // Un titre d'édition ne doit pas faire rater un match légitime : la
-// bibliothèque du user contient "Crime Of The Century (Remastered 2025)", et
+// bibliothèque du user contient "Song Of The Valley (Remastered 2025)", et
 // iTunes renvoie parfois le titre nu (ou l'inverse).
 func TestFetchToleratesEditionSuffixes(t *testing.T) {
 	for _, tc := range []struct{ name, asked, returned string }{
-		{"suffixe côté iTunes", "Crime Of The Century", "Crime Of The Century (Remastered 2025)"},
-		{"suffixe côté bibliothèque", "Crime Of The Century (Remastered 2025)", "Crime Of The Century"},
-		{"casse et ponctuation", "crime of the century!", "Crime of the Century"},
+		{"suffixe côté iTunes", "Song Of The Valley", "Song Of The Valley (Remastered 2025)"},
+		{"suffixe côté bibliothèque", "Song Of The Valley (Remastered 2025)", "Song Of The Valley"},
+		{"casse et ponctuation", "song of the valley!", "Song of the Valley"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := &fakeITunes{}
@@ -119,8 +119,8 @@ func TestFetchToleratesEditionSuffixes(t *testing.T) {
 			defer srv.Close()
 			// L'URL d'artwork doit pointer sur le serveur de test, sinon le
 			// Fetch part sur le réseau réel après un match réussi.
-			fake.results = []map[string]any{album("Supertramp", tc.returned, srv.URL+"/art/100x100bb.jpg")}
-			if _, _, err := newFetcherAgainst(t, srv).Fetch(context.Background(), "Supertramp", tc.asked); err != nil {
+			fake.results = []map[string]any{album("Skyrider", tc.returned, srv.URL+"/art/100x100bb.jpg")}
+			if _, _, err := newFetcherAgainst(t, srv).Fetch(context.Background(), "Skyrider", tc.asked); err != nil {
 				t.Fatalf("un match légitime doit passer : %v", err)
 			}
 			if fake.artHits != 1 {
@@ -130,13 +130,13 @@ func TestFetchToleratesEditionSuffixes(t *testing.T) {
 	}
 }
 
-// Même titre, autre artiste : iTunes a beaucoup d'albums "From Zero".
+// Même titre, autre artiste : iTunes a beaucoup d'albums "From Nowhere".
 func TestFetchRejectsTheRightTitleFromTheWrongArtist(t *testing.T) {
-	fake := &fakeITunes{results: []map[string]any{album("Indubious", "From Zero", "https://x/100x100bb.jpg")}}
+	fake := &fakeITunes{results: []map[string]any{album("Indubious", "From Nowhere", "https://x/100x100bb.jpg")}}
 	srv := fake.serve()
 	defer srv.Close()
 
-	if _, _, err := newFetcherAgainst(t, srv).Fetch(context.Background(), "Linkin Park", "From Zero"); !errors.Is(err, os.ErrNotExist) {
+	if _, _, err := newFetcherAgainst(t, srv).Fetch(context.Background(), "Neon Harbor", "From Nowhere"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("attendu os.ErrNotExist pour un homonyme d'un autre artiste, obtenu %v", err)
 	}
 }

@@ -287,8 +287,8 @@ describe("MusicPage", () => {
   it("gives every album card a fixed width so the title length cannot drive the cover size", async () => {
     setupMocks(mockTracks, 2);
     mockAlbumsHook.mockReturnValue({ data: { albums: [
-      { id: "a1", title: "Even in the Quietest Moments and Then Some More Words", artist: "Supertramp", year: 1977, coverArtUrl: "", trackCount: 8, duration: 2400 },
-      { id: "a2", title: "From Zero", artist: "Linkin Park", year: 2024, coverArtUrl: "", trackCount: 11, duration: 1900 },
+      { id: "a1", title: "Even in the Quietest Moments and Then Some More Words", artist: "Skyrider", year: 1977, coverArtUrl: "", trackCount: 8, duration: 2400 },
+      { id: "a2", title: "From Nowhere", artist: "Neon Harbor", year: 2024, coverArtUrl: "", trackCount: 11, duration: 1900 },
     ] } });
 
     const mod = await import("./index.lazy");
@@ -299,7 +299,7 @@ describe("MusicPage", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Albums" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Albums" }));
 
-    await waitFor(() => expect(screen.getByText("From Zero")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("From Nowhere")).toBeInTheDocument());
 
     const cards = document.querySelectorAll(".evey-album-card");
     expect(cards).toHaveLength(2);

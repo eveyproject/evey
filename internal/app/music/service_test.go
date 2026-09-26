@@ -405,8 +405,8 @@ func TestDeleteTrack_PublishesEvent(t *testing.T) {
 func TestListTracks_SearchFilter(t *testing.T) {
 	dir := "/fake/music"
 	scanner := musicScannerFromFiles(dir, []fakeAudioFile{
-		{relPath: "beethoven.mp3", data: []byte("dataB")},
-		{relPath: "mozart.mp3", data: []byte("dataM")},
+		{relPath: "ludvigson.mp3", data: []byte("dataB")},
+		{relPath: "amadeon.mp3", data: []byte("dataM")},
 	})
 
 	repo := fakes.NewFakeMusicTrackRepository()
@@ -418,12 +418,12 @@ func TestListTracks_SearchFilter(t *testing.T) {
 	}
 
 	// search by filename (title falls back to basename on parse failure)
-	tracks, total, err := svc.ListTracks(ctx, "lib-1", 50, 0, "beethoven")
+	tracks, total, err := svc.ListTracks(ctx, "lib-1", 50, 0, "ludvigson")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if total != 1 || len(tracks) != 1 {
-		t.Fatalf("expected 1 result for 'beethoven', got %d (total %d)", len(tracks), total)
+		t.Fatalf("expected 1 result for 'ludvigson', got %d (total %d)", len(tracks), total)
 	}
 }
 
@@ -484,14 +484,14 @@ func TestSearch_ReturnsMatches(t *testing.T) {
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
-	if _, err := repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Title: "Symphony No.9", Artist: "Beethoven", FilePath: "/a/t1.mp3"}); err != nil {
+	if _, err := repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Title: "Symphony No.9", Artist: "Ludvigson", FilePath: "/a/t1.mp3"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-1", Title: "Piano Sonata", Artist: "Mozart", FilePath: "/a/t2.mp3"}); err != nil {
+	if _, err := repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-1", Title: "Piano Sonata", Artist: "Amadeon", FilePath: "/a/t2.mp3"}); err != nil {
 		t.Fatal(err)
 	}
 
-	results, err := svc.Search(ctx, "lib-1", "beethoven", 50)
+	results, err := svc.Search(ctx, "lib-1", "ludvigson", 50)
 	if err != nil {
 		t.Fatal(err)
 	}

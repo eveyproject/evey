@@ -5,8 +5,8 @@
 // le résultat correspond à ce qu'il a demandé sert la pochette d'un autre album.
 // C'est arrivé en prod (2026-07-25) - la recherche plein-texte d'iTunes retombe
 // sur l'album le plus populaire de l'artiste quand le titre demandé n'est pas
-// indexé, et deux albums Linkin Park se sont retrouvés avec la pochette de
-// Hybrid Theory. La comparaison doit donc être stricte sur le fond et tolérante
+// indexé, et deux albums Neon Harbor se sont retrouvés avec la pochette de
+// Mixed Signals. La comparaison doit donc être stricte sur le fond et tolérante
 // sur la forme.
 package titlematch
 
@@ -18,8 +18,8 @@ import (
 // Equivalent dit si deux libellés désignent la même chose. Accepte l'égalité
 // après normalisation, ou l'inclusion d'un titre dans l'autre sur une frontière
 // de mot - de quoi absorber les suffixes d'édition présents d'un seul côté
-// ("Crime Of The Century" vs "Crime Of The Century (Remastered 2025)"), sans
-// jamais rapprocher deux titres réellement différents ("From Zero" et "Hybrid
+// ("Song Of The Valley" vs "Song Of The Valley (Remastered 2025)"), sans
+// jamais rapprocher deux titres réellement différents ("From Nowhere" et "Hybrid
 // Theory" ne se contiennent pas).
 func Equivalent(a, b string) bool {
 	na, nb := Normalize(a), Normalize(b)

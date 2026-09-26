@@ -68,14 +68,14 @@ import ArtistDetailScreen from "./[id]";
 // The library's whole album catalog - GetAlbums has no artist filter, so the
 // screen must keep only the ones matching this artist itself.
 const ALL_ALBUMS = [
-  { id: "album-1", title: "Discovery", artist: "Daft Punk", year: 2001, coverArtUrl: "" },
-  { id: "album-2", title: "Random Access Memories", artist: "Daft Punk", year: 2013, coverArtUrl: "" },
-  { id: "album-3", title: "Currents", artist: "Tame Impala", year: 2015, coverArtUrl: "" },
+  { id: "album-1", title: "Voyage", artist: "Chrome Duo", year: 2001, coverArtUrl: "" },
+  { id: "album-2", title: "Random Access Memories", artist: "Chrome Duo", year: 2013, coverArtUrl: "" },
+  { id: "album-3", title: "Currents", artist: "Calm Lagoon", year: 2015, coverArtUrl: "" },
 ];
 
 beforeEach(() => {
   vi.clearAllMocks();
-  localSearchParamsMock.mockReturnValue({ id: "Daft Punk", libraryId: "lib-music-1" });
+  localSearchParamsMock.mockReturnValue({ id: "Chrome Duo", libraryId: "lib-music-1" });
   getAlbumsMock.mockImplementation((_params, options) => {
     const select = options?.query?.select;
     return { data: select ? select({ albums: ALL_ALBUMS }) : ALL_ALBUMS, isLoading: false };
@@ -85,14 +85,14 @@ beforeEach(() => {
 describe("ArtistDetailScreen (TV)", () => {
   it("only lists albums that belong to this artist", () => {
     render(<ArtistDetailScreen />);
-    expect(screen.getByLabelText("Discovery")).toBeTruthy();
+    expect(screen.getByLabelText("Voyage")).toBeTruthy();
     expect(screen.getByLabelText("Random Access Memories")).toBeTruthy();
     expect(screen.queryByLabelText("Currents")).toBeNull();
   });
 
   it("drills further down into an album on press, carrying the library id", () => {
     render(<ArtistDetailScreen />);
-    fireEvent.click(screen.getByLabelText("Discovery"));
+    fireEvent.click(screen.getByLabelText("Voyage"));
     expect(pushMock).toHaveBeenCalledWith(
       expect.stringContaining("/(auth)/music/album/album-1"),
     );

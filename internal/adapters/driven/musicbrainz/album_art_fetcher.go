@@ -5,7 +5,7 @@
 // une requête PAR CHAMPS (`artist:"..." AND releasegroup:"..."`) et renvoie un
 // score. Une recherche plein-texte, elle, retombe sur l'album le plus populaire
 // de l'artiste quand le titre demandé n'est pas indexé - c'est ce qui a collé la
-// pochette de Hybrid Theory sur deux albums Linkin Park en prod (2026-07-25).
+// pochette de Mixed Signals sur deux albums Neon Harbor en prod (2026-07-25).
 // Ici la mauvaise correspondance est écartée par construction, pas rattrapée.
 package musicbrainz
 
@@ -47,7 +47,7 @@ const (
 
 	// Une pochette d'album est carrée. Cover Art Archive sert des SCANS
 	// d'éditions physiques : l'image « front » d'un release-group peut être une
-	// cassette (mesuré : 320x500 pour From Zero), qui serait rognée dans une
+	// cassette (mesuré : 320x500 pour From Nowhere), qui serait rognée dans une
 	// grille carrée. On tolère l'imprécision d'un scan, pas un format qui n'est
 	// pas une pochette.
 	minAspect = 0.85
@@ -124,9 +124,9 @@ func (f *AlbumArtFetcher) Fetch(ctx context.Context, artist, album string) ([]by
 func (f *AlbumArtFetcher) findReleaseGroup(ctx context.Context, artist, album string) (string, error) {
 	// Requête LARGE, vérification STRICTE. Le titre interrogé est débarrassé de
 	// son suffixe d'édition : une recherche par champs sur
-	// `releasegroup:"Crime Of The Century (Remastered 2025)"` ne renvoie RIEN,
+	// `releasegroup:"Song Of The Valley (Remastered 2025)"` ne renvoie RIEN,
 	// alors que le même album ressort avec un score de 100 sur
-	// `releasegroup:"Crime Of The Century"` (mesuré contre l'API réelle). La
+	// `releasegroup:"Song Of The Valley"` (mesuré contre l'API réelle). La
 	// correspondance est ensuite contrôlée sur le titre COMPLET, donc élargir la
 	// requête ne relâche pas la vérification.
 	// Les guillemets délimitent la valeur dans la syntaxe de recherche : ceux

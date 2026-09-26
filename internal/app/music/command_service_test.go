@@ -120,8 +120,8 @@ func TestCommandService_FetchMissingAlbumArt_HappyPath(t *testing.T) {
 // Régression prod 2026-07-25 : le fetcher externe partait pour TOUS les albums
 // dont l'image cache manquait sur disque, sans regarder si les fichiers audio
 // portaient déjà leur pochette EMBARQUÉE - et écrasait ensuite le cover_art_url
-// de toutes les pistes du dossier. Les MP3 de "Apple Essentials" (Linkin Park)
-// embarquaient la bonne pochette et affichaient celle de Hybrid Theory, devinée
+// de toutes les pistes du dossier. Les MP3 de "Orchard Essentials" (Neon Harbor)
+// embarquaient la bonne pochette et affichaient celle de Mixed Signals, devinée
 // par iTunes. Le fichier audio est autoritaire : on ne va pas deviner à sa place.
 func TestCommandService_FetchMissingAlbumArt_SkipsAlbumsThatAlreadyHaveEmbeddedArt(t *testing.T) {
 	cmd, repo, _ := newCmdWithFakes(t)
@@ -131,8 +131,8 @@ func TestCommandService_FetchMissingAlbumArt_SkipsAlbumsThatAlreadyHaveEmbeddedA
 	libID := "lib1"
 	embedded := "/api/v1/music/tracks/t1/art"
 	_, _ = repo.Upsert(context.Background(), music.Track{
-		ID: "t1", LibraryID: shared.LibraryID(libID), Title: "In The End",
-		Artist: "Linkin Park", AlbumArtist: "Linkin Park", Album: "Apple Essentials",
+		ID: "t1", LibraryID: shared.LibraryID(libID), Title: "At The Close",
+		Artist: "Neon Harbor", AlbumArtist: "Neon Harbor", Album: "Orchard Essentials",
 		FilePath: "/m/Essentials/01.mp3", CoverArtURL: embedded,
 	})
 
@@ -207,8 +207,8 @@ func TestCommandService_FetchMissingAlbumArt_RestoresEmbeddedArtClobberedInDB(t 
 	// État exact de la prod : la piste PORTE une pochette dans son fichier, mais
 	// sa ligne en base a été écrasée par une URL album-art.
 	_, _ = repo.Upsert(context.Background(), music.Track{
-		ID: "t1", LibraryID: shared.LibraryID(libID), Title: "In The End",
-		Artist: "Linkin Park", AlbumArtist: "Linkin Park", Album: "Apple Essentials",
+		ID: "t1", LibraryID: shared.LibraryID(libID), Title: "At The Close",
+		Artist: "Neon Harbor", AlbumArtist: "Neon Harbor", Album: "Orchard Essentials",
 		FilePath: path,
 	})
 	if err := repo.SetAlbumCoverArtURL(context.Background(), shared.LibraryID(libID),
@@ -242,7 +242,7 @@ func TestCommandService_FetchMissingAlbumArt_FallsBackToFetcherWithoutLocalArt(t
 
 	_, _ = repo.Upsert(context.Background(), music.Track{
 		ID: "t9", LibraryID: shared.LibraryID(libID), Title: "School",
-		Artist: "Supertramp", AlbumArtist: "Supertramp", Album: "Crime Of The Century",
+		Artist: "Skyrider", AlbumArtist: "Skyrider", Album: "Song Of The Valley",
 		FilePath: path,
 	})
 
@@ -255,7 +255,7 @@ func TestCommandService_FetchMissingAlbumArt_FallsBackToFetcherWithoutLocalArt(t
 	}
 }
 
-// Régression prod 2026-07-25, cas "From Zero" : aucune pochette dans les
+// Régression prod 2026-07-25, cas "From Nowhere" : aucune pochette dans les
 // fichiers, et une image récupérée AVANT que le fetcher ne vérifie la
 // correspondance - donc la pochette d'un autre album. Le garde-fou os.Stat
 // scellait ce mauvais choix définitivement. Une image sans témoin doit être
@@ -272,11 +272,11 @@ func TestCommandService_FetchMissingAlbumArt_DropsAnUnverifiedImageTheSourceNoLo
 	scanner.FileData = map[string][]byte{path: []byte("flac sans pochette")}
 	_, _ = repo.Upsert(context.Background(), music.Track{
 		ID: "fz1", LibraryID: shared.LibraryID(libID), Title: "The Emptiness Machine",
-		Artist: "Linkin Park", AlbumArtist: "Linkin Park", Album: "From Zero",
+		Artist: "Neon Harbor", AlbumArtist: "Neon Harbor", Album: "From Nowhere",
 		FilePath: path,
 	})
 
-	// Image héritée de l'ancien fetch non vérifié (la pochette de Hybrid Theory),
+	// Image héritée de l'ancien fetch non vérifié (la pochette de Mixed Signals),
 	// SANS témoin de vérification.
 	sum := sha256.Sum256([]byte("/m/FromZero" + "|"))
 	hash := hex.EncodeToString(sum[:])
@@ -317,7 +317,7 @@ func TestCommandService_FetchMissingAlbumArt_TrustsAnAlreadyVerifiedImage(t *tes
 	libID := "lib1"
 	_, _ = repo.Upsert(context.Background(), music.Track{
 		ID: "v1", LibraryID: shared.LibraryID(libID), Title: "School",
-		Artist: "Supertramp", AlbumArtist: "Supertramp", Album: "Crime Of The Century",
+		Artist: "Skyrider", AlbumArtist: "Skyrider", Album: "Song Of The Valley",
 		FilePath: "/m/Crime/01.flac",
 	})
 
@@ -330,7 +330,7 @@ func TestCommandService_FetchMissingAlbumArt_TrustsAnAlreadyVerifiedImage(t *tes
 	if err := os.WriteFile(img, []byte("GOODCOVER"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(img+".matched", []byte("Supertramp|Crime Of The Century\n"), 0o644); err != nil {
+	if err := os.WriteFile(img+".matched", []byte("Skyrider|Song Of The Valley\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

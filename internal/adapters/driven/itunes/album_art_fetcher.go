@@ -119,8 +119,8 @@ func (f *AlbumArtFetcher) Fetch(ctx context.Context, artist, album string) ([]by
 // matchingArtwork retient le premier résultat dont l'ARTISTE et l'ALBUM
 // correspondent vraiment à la demande, et renvoie ok=false si aucun ne
 // correspond. Sans ce filtre, iTunes servait l'album vedette de l'artiste dès
-// que le titre demandé n'était pas indexé : "Linkin Park From Zero" renvoie
-// "Hybrid Theory (Deluxe Edition)" en premier résultat.
+// que le titre demandé n'était pas indexé : "Neon Harbor From Nowhere" renvoie
+// "Mixed Signals (Deluxe Edition)" en premier résultat.
 func matchingArtwork(results []searchResult, artist, album string) (string, bool) {
 	for _, r := range results {
 		if r.ArtworkURL100 == "" {

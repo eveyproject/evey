@@ -16,8 +16,8 @@ import (
 // every field round-trips, with all values distinct so a swapped pair shows.
 func TestMusicDocument_RoundTripsEveryField(t *testing.T) {
 	in := music.Track{
-		ID: "t-1", LibraryID: "lib-2", Title: "Blue Train", Artist: "Coltrane", Album: "Blue Train LP",
-		AlbumArtist: "John Coltrane", Year: 1958, TrackNumber: 3, DiskNumber: 2, Duration: 642.5,
+		ID: "t-1", LibraryID: "lib-2", Title: "Grey Rail", Artist: "Saxwell", Album: "Grey Rail LP",
+		AlbumArtist: "John Saxwell", Year: 1958, TrackNumber: 3, DiskNumber: 2, Duration: 642.5,
 		FilePath: "/music/blue.flac", FileSize: 41_000_000, MimeType: "audio/flac", Bitrate: 900,
 		SampleRate: 44100, Channels: 6, Genre: "Jazz", AlbumFolder: "/music", CoverArtURL: "/art/blue.jpg",
 	}

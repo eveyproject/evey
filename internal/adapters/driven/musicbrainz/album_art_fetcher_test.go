@@ -91,16 +91,16 @@ func release(id, format string) map[string]any {
 }
 
 // Le cas qui a motivé le changement de provider : iTunes ne connaît pas
-// "From Zero" et renvoyait Hybrid Theory. MusicBrainz le trouve par champs.
+// "From Nowhere" et renvoyait Mixed Signals. MusicBrainz le trouve par champs.
 func TestFetchReturnsTheArtOfTheMatchingReleaseGroup(t *testing.T) {
 	square := jpegOfSize(t, 500, 500)
 	s := &stubAPIs{
-		searchResults: []map[string]any{releaseGroup("rg-1", "From Zero", "Linkin Park")},
+		searchResults: []map[string]any{releaseGroup("rg-1", "From Nowhere", "Neon Harbor")},
 		releases:      []map[string]any{release("rel-cd", "CD")},
 		art:           map[string][]byte{"/release/rel-cd/front-500": square},
 	}
 
-	data, mime, err := newFetcher(t, s).Fetch(context.Background(), "Linkin Park", "From Zero")
+	data, mime, err := newFetcher(t, s).Fetch(context.Background(), "Neon Harbor", "From Nowhere")
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
 	}
@@ -116,11 +116,11 @@ func TestFetchReturnsTheArtOfTheMatchingReleaseGroup(t *testing.T) {
 // le seul résultat renvoyé - c'est exactement la faute d'iTunes.
 func TestFetchRejectsAReleaseGroupForAnotherAlbum(t *testing.T) {
 	s := &stubAPIs{
-		searchResults: []map[string]any{releaseGroup("rg-ht", "Hybrid Theory", "Linkin Park")},
+		searchResults: []map[string]any{releaseGroup("rg-ht", "Mixed Signals", "Neon Harbor")},
 		art:           map[string][]byte{"/release-group/rg-ht/front-500": jpegOfSize(t, 500, 500)},
 	}
 
-	_, _, err := newFetcher(t, s).Fetch(context.Background(), "Linkin Park", "From Zero")
+	_, _, err := newFetcher(t, s).Fetch(context.Background(), "Neon Harbor", "From Nowhere")
 	if !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("attendu os.ErrNotExist, obtenu %v", err)
 	}
@@ -131,22 +131,22 @@ func TestFetchRejectsAReleaseGroupForAnotherAlbum(t *testing.T) {
 
 func TestFetchRejectsTheRightTitleFromTheWrongArtist(t *testing.T) {
 	s := &stubAPIs{
-		searchResults: []map[string]any{releaseGroup("rg-x", "From Zero", "Indubious")},
+		searchResults: []map[string]any{releaseGroup("rg-x", "From Nowhere", "Indubious")},
 	}
-	if _, _, err := newFetcher(t, s).Fetch(context.Background(), "Linkin Park", "From Zero"); !errors.Is(err, os.ErrNotExist) {
+	if _, _, err := newFetcher(t, s).Fetch(context.Background(), "Neon Harbor", "From Nowhere"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("attendu os.ErrNotExist pour un homonyme, obtenu %v", err)
 	}
 }
 
 // Cover Art Archive sert des SCANS d'éditions physiques : l'image « front » du
-// release-group de From Zero est une cassette (mesuré : 320x500). Dans une
+// release-group de From Nowhere est une cassette (mesuré : 320x500). Dans une
 // grille carrée elle serait rognée, donc on doit préférer l'édition CD ou
 // numérique - et refuser le scan hors proportions même en repli.
 func TestFetchPrefersASquareReleaseOverANonSquareReleaseGroupScan(t *testing.T) {
 	cassette := jpegOfSize(t, 320, 500)
 	square := jpegOfSize(t, 500, 500)
 	s := &stubAPIs{
-		searchResults: []map[string]any{releaseGroup("rg-1", "From Zero", "Linkin Park")},
+		searchResults: []map[string]any{releaseGroup("rg-1", "From Nowhere", "Neon Harbor")},
 		releases: []map[string]any{
 			release("rel-vinyl", `12" Vinyl`),
 			release("rel-digital", "Digital Media"),
@@ -157,7 +157,7 @@ func TestFetchPrefersASquareReleaseOverANonSquareReleaseGroupScan(t *testing.T) 
 		},
 	}
 
-	data, _, err := newFetcher(t, s).Fetch(context.Background(), "Linkin Park", "From Zero")
+	data, _, err := newFetcher(t, s).Fetch(context.Background(), "Neon Harbor", "From Nowhere")
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
 	}
@@ -173,13 +173,13 @@ func TestFetchPrefersASquareReleaseOverANonSquareReleaseGroupScan(t *testing.T) 
 
 func TestFetchRejectsANonSquareScanEvenAsLastResort(t *testing.T) {
 	s := &stubAPIs{
-		searchResults: []map[string]any{releaseGroup("rg-1", "From Zero", "Linkin Park")},
+		searchResults: []map[string]any{releaseGroup("rg-1", "From Nowhere", "Neon Harbor")},
 		art: map[string][]byte{
 			"/release-group/rg-1/front-500":  jpegOfSize(t, 320, 500),
 			"/release-group/rg-1/front-1200": jpegOfSize(t, 383, 599),
 		},
 	}
-	if _, _, err := newFetcher(t, s).Fetch(context.Background(), "Linkin Park", "From Zero"); !errors.Is(err, os.ErrNotExist) {
+	if _, _, err := newFetcher(t, s).Fetch(context.Background(), "Neon Harbor", "From Nowhere"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("un scan aux proportions de cassette doit être refusé, obtenu %v", err)
 	}
 }
@@ -189,12 +189,12 @@ func TestFetchRejectsANonSquareScanEvenAsLastResort(t *testing.T) {
 func TestFetchFallsBackToTheReleaseGroupArt(t *testing.T) {
 	square := jpegOfSize(t, 500, 494) // scan légèrement imprécis, toléré
 	s := &stubAPIs{
-		searchResults: []map[string]any{releaseGroup("rg-2", "Crime Of The Century", "Supertramp")},
+		searchResults: []map[string]any{releaseGroup("rg-2", "Song Of The Valley", "Skyrider")},
 		releases:      []map[string]any{release("rel-cd", "CD")},
 		art:           map[string][]byte{"/release-group/rg-2/front-500": square},
 	}
 
-	data, _, err := newFetcher(t, s).Fetch(context.Background(), "Supertramp", "Crime Of The Century")
+	data, _, err := newFetcher(t, s).Fetch(context.Background(), "Skyrider", "Song Of The Valley")
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
 	}
@@ -204,20 +204,20 @@ func TestFetchFallsBackToTheReleaseGroupArt(t *testing.T) {
 }
 
 // Le suffixe d'édition ne doit pas faire rater la correspondance : la
-// bibliothèque du user a "Crime Of The Century (Remastered 2025)".
+// bibliothèque du user a "Song Of The Valley (Remastered 2025)".
 func TestFetchToleratesEditionSuffixes(t *testing.T) {
 	square := jpegOfSize(t, 500, 500)
 	s := &stubAPIs{
-		searchResults: []map[string]any{releaseGroup("rg-3", "Crime of the Century", "Supertramp")},
+		searchResults: []map[string]any{releaseGroup("rg-3", "Song of the Valley", "Skyrider")},
 		art:           map[string][]byte{"/release-group/rg-3/front-500": square},
 	}
 	if _, _, err := newFetcher(t, s).Fetch(context.Background(),
-		"Supertramp", "Crime Of The Century (Remastered 2025)"); err != nil {
+		"Skyrider", "Song Of The Valley (Remastered 2025)"); err != nil {
 		t.Fatalf("un match légitime doit passer : %v", err)
 	}
 }
 
-// Mesuré contre l'API réelle : `releasegroup:"Crime Of The Century (Remastered
+// Mesuré contre l'API réelle : `releasegroup:"Song Of The Valley (Remastered
 // 2025)"` ne renvoie AUCUN résultat, alors que le titre nu sort avec un score de
 // 100. La requête doit donc porter le titre débarrassé de son suffixe d'édition,
 // la vérification restant faite sur le titre complet.
@@ -234,12 +234,12 @@ func TestFetchQueriesTheTitleWithoutItsEditionSuffix(t *testing.T) {
 
 	f := musicbrainz.NewAlbumArtFetcher(nil)
 	f.SetBaseURLsForTest(mb.URL, mb.URL)
-	_, _, _ = f.Fetch(context.Background(), "Supertramp", "Crime Of The Century (Remastered 2025)")
+	_, _, _ = f.Fetch(context.Background(), "Skyrider", "Song Of The Valley (Remastered 2025)")
 
 	if strings.Contains(gotQuery, "Remastered") {
 		t.Errorf("le suffixe d'édition ne doit pas être interrogé : %q", gotQuery)
 	}
-	if !strings.Contains(gotQuery, "Crime Of The Century") {
+	if !strings.Contains(gotQuery, "Song Of The Valley") {
 		t.Errorf("le titre de base doit être interrogé : %q", gotQuery)
 	}
 }
@@ -247,11 +247,11 @@ func TestFetchQueriesTheTitleWithoutItsEditionSuffix(t *testing.T) {
 func TestBaseTitleStripping(t *testing.T) {
 	square := jpegOfSize(t, 500, 500)
 	for _, tc := range []struct{ name, libraryTitle, providerTitle string }{
-		{"remaster", "Crime Of The Century (Remastered 2025)", "Crime of the Century"},
-		{"deluxe", "From Zero (Deluxe Edition)", "From Zero"},
+		{"remaster", "Song Of The Valley (Remastered 2025)", "Song of the Valley"},
+		{"deluxe", "From Nowhere (Deluxe Edition)", "From Nowhere"},
 		{"crochets", "Meteora [Explicit]", "Meteora"},
 		{"suffixes empilés", "Meteora (Deluxe) [Explicit]", "Meteora"},
-		{"aucun suffixe", "Hybrid Theory", "Hybrid Theory"},
+		{"aucun suffixe", "Mixed Signals", "Mixed Signals"},
 		// Un titre entièrement parenthésé n'a pas de base à extraire : il doit
 		// rester interrogeable tel quel.
 		{"titre entre parenthèses", "(What's the Story) Morning Glory?", "(What's the Story) Morning Glory?"},
@@ -268,10 +268,10 @@ func TestBaseTitleStripping(t *testing.T) {
 	}
 }
 
-// Aucun résultat : "Apple Essentials" est une playlist Apple, pas une sortie.
+// Aucun résultat : "Orchard Essentials" est une playlist Apple, pas une sortie.
 func TestFetchReturnsNotExistWhenNothingMatches(t *testing.T) {
 	s := &stubAPIs{searchResults: nil}
-	if _, _, err := newFetcher(t, s).Fetch(context.Background(), "Linkin Park", "Apple Essentials"); !errors.Is(err, os.ErrNotExist) {
+	if _, _, err := newFetcher(t, s).Fetch(context.Background(), "Neon Harbor", "Orchard Essentials"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("attendu os.ErrNotExist, obtenu %v", err)
 	}
 }
@@ -279,7 +279,7 @@ func TestFetchReturnsNotExistWhenNothingMatches(t *testing.T) {
 func TestFetchRequiresBothArtistAndAlbum(t *testing.T) {
 	s := &stubAPIs{}
 	f := newFetcher(t, s)
-	for _, tc := range []struct{ artist, album string }{{"", "From Zero"}, {"Linkin Park", ""}, {"", ""}} {
+	for _, tc := range []struct{ artist, album string }{{"", "From Nowhere"}, {"Neon Harbor", ""}, {"", ""}} {
 		if _, _, err := f.Fetch(context.Background(), tc.artist, tc.album); !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("(%q,%q) : attendu os.ErrNotExist, obtenu %v", tc.artist, tc.album, err)
 		}
