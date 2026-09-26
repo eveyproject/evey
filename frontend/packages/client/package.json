@@ -5,6 +5,9 @@
   "description": "Platform-free hooks and logic shared by the web, mobile and TV clients",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
   "dependencies": {
     "@evey/api": "workspace:*",
     "@evey/media-caps": "workspace:*",
