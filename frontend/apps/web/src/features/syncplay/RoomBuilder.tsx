@@ -1,13 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useMusicServiceGetAlbums, useMusicServiceListTracks } from "@evey/api";
 import {
-  useMusicServiceGetAlbums,
-  useMusicServiceListTracks,
-  musicServiceListTracks,
-  playlistServiceGetPlaylistItems,
-  collectAllPages,
-  EXPORT_PAGE_SIZE,
-} from "@evey/api";
+  addToRoomQueue,
+  removeFromRoomQueue,
+  moveInRoomQueue,
+  albumRoomQueueItems,
+  playlistRoomQueueItems,
+  type RoomQueueItem,
+} from "@evey/client";
 import { useAuthStore, toast } from "@evey/store";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePlaylistList } from "@/features/playlist/api";
@@ -27,11 +28,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-export interface QueueItem {
-  id: string;
-  title: string;
-  artist: string;
-}
+export type QueueItem = RoomQueueItem;
 
 interface AlbumLite {
   id: string;
@@ -52,34 +49,12 @@ interface RoomBuilderProps {
 
 type Tab = "albums" | "tracks" | "playlists";
 
-const MAX_QUEUE = 500;
 
 /**
  * RoomBuilder lets the host assemble a music room queue from a mix of whole
  * albums, individual tracks and playlists, then create the room. The backend
  * room model already supports a multi-item queue; this is the UI for it.
  */
-
-// ListTracks defaults to 50 rows when the caller sends no pagination
-// (clampLimitOffset, grpcapi/music_handler.go). Both call sites below build a
-// playback queue meant to hold the whole album, and the response carries no
-// signal that it was cut - a 60-track box set silently became a 50-track room.
-async function albumTracks(libraryId: string, albumId: string): Promise<QueueItem[]> {
-  const collected = await collectAllPages<{ id?: string; title?: string; artist?: string }>(
-    (pageIndex) =>
-      musicServiceListTracks({
-        libraryId,
-        albumId,
-        limit: EXPORT_PAGE_SIZE,
-        offset: pageIndex * EXPORT_PAGE_SIZE,
-      }).then((r) => ({ rows: r.tracks ?? [] })),
-  );
-  return collected.rows.map((tr): QueueItem => ({
-    id: tr.id ?? "",
-    title: tr.title ?? "",
-    artist: tr.artist ?? "",
-  }));
-}
 
 export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps) {
   const { t } = useTranslation();
@@ -131,31 +106,15 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
   const queueIds = useMemo(() => new Set(queue.map((q) => q.id)), [queue]);
 
   const addItems = useCallback((items: QueueItem[]) => {
-    setQueue((prev) => {
-      const seen = new Set(prev.map((q) => q.id));
-      const next = [...prev];
-      for (const it of items) {
-        if (it.id && !seen.has(it.id) && next.length < MAX_QUEUE) {
-          seen.add(it.id);
-          next.push(it);
-        }
-      }
-      return next;
-    });
+    setQueue((prev) => addToRoomQueue(prev, items));
   }, []);
 
   const removeItem = useCallback((id: string) => {
-    setQueue((prev) => prev.filter((q) => q.id !== id));
+    setQueue((prev) => removeFromRoomQueue(prev, id));
   }, []);
 
   const move = useCallback((idx: number, dir: -1 | 1) => {
-    setQueue((prev) => {
-      const j = idx + dir;
-      if (j < 0 || j >= prev.length) return prev;
-      const next = [...prev];
-      [next[idx], next[j]] = [next[j], next[idx]];
-      return next;
-    });
+    setQueue((prev) => moveInRoomQueue(prev, idx, dir));
   }, []);
 
   const openAlbum = useCallback(
@@ -166,7 +125,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
       try {
         // Scope server-side by the album's opaque id (returns exactly that
         // album's tracks) instead of a fuzzy title search + client filter.
-        setExpanded({ title: album.title, tracks: await albumTracks(libraryId, album.id) });
+        setExpanded({ title: album.title, tracks: await albumRoomQueueItems(libraryId, album.id) });
       } catch {
         // Collapse rather than show a fake empty album: a failed load used to
         // render exactly like an album with zero tracks. Same error surface as
@@ -185,7 +144,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
       if (!libraryId || !album.id) return;
       setBusy(true);
       try {
-        addItems(await albumTracks(libraryId, album.id));
+        addItems(await albumRoomQueueItems(libraryId, album.id));
       } catch {
         // The queue stays unchanged - but the user asked for an action, so a
         // silent no-op reads as a broken button. Say it failed.
@@ -201,13 +160,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
     async (playlistId: string) => {
       setBusy(true);
       try {
-        const res = await playlistServiceGetPlaylistItems(playlistId);
-        const its = (res.items ?? []).map((it): QueueItem => ({
-          id: it.mediaItemId ?? "",
-          title: it.title ?? "",
-          artist: "",
-        }));
-        addItems(its);
+        addItems(await playlistRoomQueueItems(playlistId));
       } catch {
         toast.error(t("media.syncplay.addPlaylistFailed"));
       } finally {
