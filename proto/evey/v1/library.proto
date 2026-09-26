@@ -309,6 +309,10 @@ message ScanProgress {
   string current_path = 5;
   double percent = 6;
   string error = 7;
+  // Library roots the scan could not read (unmounted share, permissions).
+  // Non-empty means the scan is PARTIAL: what was reachable is up to date,
+  // these folders were skipped and nothing in them was removed.
+  repeated string failed_paths = 8;
 }
 
 enum ScanPhase {

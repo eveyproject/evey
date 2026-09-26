@@ -35,7 +35,10 @@ type LibraryScanCompleted struct {
 	ItemsAdded   int
 	ItemsUpdated int
 	ItemsRemoved int
-	OccurredAt   time.Time
+	// FailedPaths are the roots the scan could not read: non-empty means the
+	// scan is partial, not complete.
+	FailedPaths []string
+	OccurredAt  time.Time
 }
 
 func (e LibraryScanCompleted) EventName() string { return "library.scan.completed" }

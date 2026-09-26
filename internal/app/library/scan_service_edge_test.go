@@ -171,6 +171,38 @@ func TestScanService_MusicLibrary_PathErrorContinues(t *testing.T) {
 	assert.Contains(t, logs, "music scan path failed")
 }
 
+// A root that cannot be read makes the scan PARTIAL, and says so: the report
+// and the library.scan.completed event name the failed root, instead of a
+// clean "done" over a library half of which was never looked at.
+func TestScanService_MusicLibrary_FailedRootIsReportedAsPartial(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-m", Type: "music", Paths: []string{"/music/a", "/music/b"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-m", Type: "music", Paths: []string{"/music/a", "/music/b"}})
+	music := newFakeTypedDirScanner()
+	music.Errs["/music/a"] = errors.New("share unmounted")
+	music.Results["/music/b"] = 7
+	h.svc.WithMusicScanner(music)
+
+	report, err := h.svc.ScanLibraryReport(context.Background(), "lib-m")
+	require.NoError(t, err)
+	assert.Equal(t, 7, report.Added)
+	assert.Equal(t, []string{"/music/a"}, report.FailedPaths)
+
+	var completed *library.LibraryScanCompleted
+	for _, e := range h.bus.PublishedEvents() {
+		if c, ok := e.(library.LibraryScanCompleted); ok {
+			completed = &c
+		}
+	}
+	require.NotNil(t, completed)
+	assert.Equal(t, []string{"/music/a"}, completed.FailedPaths)
+
+	music.Errs = map[string]error{}
+	report, err = h.svc.ScanLibraryReport(context.Background(), "lib-m")
+	require.NoError(t, err)
+	assert.Empty(t, report.FailedPaths, "every root read: the scan is complete")
+}
+
 // --- Photo scanner: nil rejected ---
 
 func TestScanService_PhotoLibrary_NilScannerError(t *testing.T) {

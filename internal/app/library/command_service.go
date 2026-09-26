@@ -192,6 +192,11 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 	return s.scan.ScanLibrary(ctx, libraryID)
 }
 
+// ScanLibraryReport is ScanLibrary plus the roots the scan could not read.
+func (s *CommandService) ScanLibraryReport(ctx context.Context, libraryID string) (ScanReport, error) {
+	return s.scan.ScanLibraryReport(ctx, libraryID)
+}
+
 func (s *CommandService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) shared.Duration {
 	dur, _, _ := s.scan.ProbeAndStoreStreams(ctx, mediaItemID, filePath)
 	return dur

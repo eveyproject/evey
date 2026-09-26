@@ -422,6 +422,7 @@ libraries:
   removePathNamed: "Pfad {{index}} entfernen"
   failedDelete: Bibliothek konnte nicht gelöscht werden
   scanStarted: Scan gestartet
+  scanPartial: "Unvollständiger Scan - diese Ordner konnten nicht gelesen werden: {{paths}}"
   failedScan: Scan konnte nicht gestartet werden
   refreshMetadata: Alle erneut mit TMDB abgleichen
   refreshMetadataTooltip: "Führt die TMDB-Suche für jedes Element neu aus - langsam, korrigiert aber frühere falsche Zuordnungen. Verwenden Sie dies nach großen Umbenennungs-Batches."

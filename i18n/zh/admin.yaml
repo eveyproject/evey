@@ -422,6 +422,7 @@ libraries:
   removePathNamed: "移除路径 {{index}}"
   failedDelete: "删除媒体库失败"
   scanStarted: "扫描已开始"
+  scanPartial: "扫描不完整 - 这些文件夹无法读取：{{paths}}"
   failedScan: "启动扫描失败"
   refreshMetadata: "从 TMDB 重新匹配全部"
   refreshMetadataTooltip: "对每个项目重新运行 TMDB 搜索 - 较慢，但可纠正过去的错误匹配。在大批量重命名后使用。"

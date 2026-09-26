@@ -422,6 +422,7 @@ libraries:
   removePathNamed: "Remove path {{index}}"
   failedDelete: Failed to delete library
   scanStarted: Scan started
+  scanPartial: "Partial scan - these folders could not be read: {{paths}}"
   failedScan: Failed to start scan
   refreshMetadata: Re-match all from TMDB
   refreshMetadataTooltip: Re-runs the TMDB search on every item - slow, but corrects past wrong matches. Use this after large rename batches.
