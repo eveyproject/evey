@@ -32,7 +32,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
 }));
 
 vi.mock("@evey/store", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
   useAuthStore: (fn: (s: { accessToken: string }) => unknown) => fn({ accessToken: "tok" }),
 }));
 
@@ -50,6 +50,9 @@ async function getBackupPage() {
   const mod = await import("./backup.lazy");
   return (mod.Route as unknown as { component: React.ComponentType }).component;
 }
+
+import { eveyFetch } from "@evey/api";
+import { toast } from "@evey/store";
 
 const mockBackup = {
   id: "backup-001",
@@ -135,5 +138,39 @@ describe("BackupPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Restore$/i }));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     expect(screen.getAllByText(/Restore Backup/i).length).toBeGreaterThan(0);
+  });
+
+  // The account token is no longer accepted in an admin URL: the link carries
+  // a short token minted for THIS backup, never the session token.
+  it("Download mints a backup-bound token and links with it, not the session token", async () => {
+    mockUseQuery.mockReturnValue({ data: [mockBackup], isLoading: false });
+    vi.mocked(eveyFetch).mockResolvedValue({ token: "dl-tok" });
+    const clicked: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      clicked.push(this.getAttribute("href") ?? "");
+    });
+    const BackupPage = await getBackupPage();
+    render(React.createElement(BackupPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /^Download$/i }));
+
+    await waitFor(() => expect(clicked).toHaveLength(1));
+    expect(vi.mocked(eveyFetch)).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "/api/v1/admin/backups/backup-001/download-token", method: "POST" }),
+    );
+    expect(clicked[0]).toBe("/api/v1/admin/backups/backup-001?token=dl-tok");
+    click.mockRestore();
+  });
+
+  it("Download says so when the token cannot be minted, instead of a dead link", async () => {
+    mockUseQuery.mockReturnValue({ data: [mockBackup], isLoading: false });
+    vi.mocked(eveyFetch).mockRejectedValue(new Error("forbidden"));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const BackupPage = await getBackupPage();
+    render(React.createElement(BackupPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /^Download$/i }));
+
+    await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalled());
+    expect(click).not.toHaveBeenCalled();
+    click.mockRestore();
   });
 });
