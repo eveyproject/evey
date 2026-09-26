@@ -2801,6 +2801,7 @@
   "mobile.auth.enableBiometricDesc": "Use biometrics to unlock the app next time.",
   "mobile.auth.haveInvite": "Have an invite? Sign up",
   "mobile.auth.hidePassword": "Hide password",
+  "mobile.auth.rememberFailed": "This device could not remember your login",
   "mobile.auth.rememberMe": "Remember me",
   "mobile.auth.showPassword": "Show password",
   "mobile.auth.unlockBiometric": "Unlock with biometrics",

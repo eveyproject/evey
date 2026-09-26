@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const store = new Map<string, string>();
 let broken = false;
 vi.mock("expo-secure-store", () => ({
+  isAvailableAsync: vi.fn(async () => !broken),
   getItemAsync: vi.fn(async (k: string) => {
     if (broken) throw new Error("no keystore");
     return store.get(k) ?? null;
@@ -17,11 +18,11 @@ vi.mock("expo-secure-store", () => ({
   }),
 }));
 
-import { clearSavedCredentials, getSavedCredentials, saveCredentials } from "./saved-credentials";
+import { canSaveCredentials, clearSavedCredentials, getSavedCredentials, saveCredentials } from "./saved-credentials";
 
 // "Remember me" lives in the keystore, apart from the tokens, and never throws:
-// without a keystore the checkbox simply does not stick (documented as such -
-// whether that silence is acceptable is the user's call, not this test's).
+// without a keystore the login screen hides the checkbox, and a refused write
+// is reported to the caller instead of passing for a saved login.
 describe("saved credentials", () => {
   beforeEach(() => {
     store.clear();
@@ -30,7 +31,8 @@ describe("saved credentials", () => {
 
   it("round-trips a login and clears it", async () => {
     expect(await getSavedCredentials()).toBeNull();
-    await saveCredentials("alice", "s3cret");
+    expect(await canSaveCredentials()).toBe(true);
+    expect(await saveCredentials("alice", "s3cret")).toBe(true);
     expect(await getSavedCredentials()).toEqual({ username: "alice", password: "s3cret" });
     await clearSavedCredentials();
     expect(await getSavedCredentials()).toBeNull();
@@ -44,7 +46,8 @@ describe("saved credentials", () => {
 
   it("never throws without a keystore", async () => {
     broken = true;
-    await expect(saveCredentials("alice", "x")).resolves.toBeUndefined();
+    await expect(canSaveCredentials()).resolves.toBe(false);
+    await expect(saveCredentials("alice", "x")).resolves.toBe(false);
     await expect(getSavedCredentials()).resolves.toBeNull();
     await expect(clearSavedCredentials()).resolves.toBeUndefined();
   });

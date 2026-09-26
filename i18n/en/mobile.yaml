@@ -44,6 +44,7 @@ auth:
   enableBiometricDesc: Use biometrics to unlock the app next time.
   haveInvite: Have an invite? Sign up
   rememberMe: Remember me
+  rememberFailed: This device could not remember your login
   hidePassword: Hide password
   showPassword: Show password
 profileSelect:

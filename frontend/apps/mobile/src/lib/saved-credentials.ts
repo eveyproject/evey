@@ -20,12 +20,24 @@ export async function getSavedCredentials(): Promise<{ username: string; passwor
   }
 }
 
-export async function saveCredentials(username: string, password: string): Promise<void> {
+// Whether this device has a keystore to remember a login in. Without one the
+// login screen hides the checkbox instead of offering a promise it can't keep.
+export async function canSaveCredentials(): Promise<boolean> {
+  try {
+    return await SecureStore.isAvailableAsync();
+  } catch {
+    return false;
+  }
+}
+
+// Resolves false when the keystore refused the write, so the caller can say so.
+export async function saveCredentials(username: string, password: string): Promise<boolean> {
   try {
     await SecureStore.setItemAsync(USER_KEY, username);
     await SecureStore.setItemAsync(PASS_KEY, password);
+    return true;
   } catch {
-    /* no keystore available: silently skip, the checkbox just won't stick */
+    return false;
   }
 }
 

@@ -44,6 +44,7 @@ auth:
   enableBiometricDesc: अगली बार ऐप अनलॉक करने के लिए बायोमेट्रिक्स का उपयोग करें।
   haveInvite: निमंत्रण है? साइन अप करें
   rememberMe: मुझे याद रखें
+  rememberFailed: यह डिवाइस आपका लॉगिन याद नहीं रख सका
   hidePassword: पासवर्ड छुपाएं
   showPassword: पासवर्ड दिखाएं
 profileSelect:
