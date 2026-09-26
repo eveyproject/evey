@@ -13,18 +13,13 @@ import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   useLibraryServiceGetMediaItem,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceGetWatchProgress,
-  useUserServiceGetCurrentUser,
-  useUserServiceListProfiles,
-  useUserServiceUpdateProfile,
-  getUserServiceListProfilesQueryKey,
   parseTrackPick,
 } from "@evey/api";
-import { useAuthStore, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
+import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { dashUrlFor, devDashEnabled } from "../../../src/lib/devDash";
@@ -39,7 +34,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview, holdScrubRate, tapSeekStep } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
-import { resolveStartPositionMs, servedVariant, shedI18nKey, usePlayingVideoTrack } from "@evey/client";
+import { resolveStartPositionMs, servedVariant, shedI18nKey, usePlayerProfilePrefs, usePlayingVideoTrack } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { QualityPicker } from "../../../src/components/QualityPicker";
@@ -224,57 +219,16 @@ export default function PlayerScreen() {
     });
   const profileId = useAuthStore((s) => s.profileId) ?? "";
 
-  // Profile audio/subtitle language preference (audio_languages/subtitle_languages,
-  // CSV of ISO 639-1 codes in profile.preferences - shared web/mobile/tv
-  // convention, see settings/playback.tsx). Mirrors the web player's
-  // HLSPlayer.tsx / mobile's player screen: applied to the initial track
-  // resolution below, but never overrides an explicit in-session pick
-  // (userPickedAudioRef / userPickedSubtitleRef).
-  const { data: currentUserForPrefs } = useUserServiceGetCurrentUser();
-  const { data: profilesRespForPrefs } = useUserServiceListProfiles(
-    currentUserForPrefs?.id ?? "",
-    { query: { enabled: !!currentUserForPrefs?.id } } as never,
-  );
-  const activeProfile = useMemo(
-    () =>
-      profilesRespForPrefs?.profiles?.find((p) => p.id === profileId) ??
-      profilesRespForPrefs?.profiles?.find((p) => p.isDefault) ??
-      profilesRespForPrefs?.profiles?.[0],
-    [profilesRespForPrefs, profileId],
-  );
-  // Per-profile "auto-play next episode" toggle (player.settings.autoplayNext).
-  // The override lets the in-player menu flip the value optimistically
-  // before the profile refetch lands - null means "use the server value".
-  const [autoplayNextOverride, setAutoplayNextOverride] = useState<boolean | null>(null);
-  const autoplayNext = autoplayNextOverride ?? autoplayNextEpisode(activeProfile?.preferences);
-  const qc = useQueryClient();
-  const updateAutoplayNextProfile = useUserServiceUpdateProfile();
-  const handleToggleAutoplayNext = useCallback(async () => {
-    if (!activeProfile?.id) return;
-    const next = !autoplayNext;
-    setAutoplayNextOverride(next);
-    try {
-      await updateAutoplayNextProfile.mutateAsync({
-        id: activeProfile.id,
-        data: { preferences: autoplayNextPreferences(activeProfile.preferences, next) },
-      });
-      if (currentUserForPrefs?.id) {
-        void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(currentUserForPrefs.id) });
-      }
-    } catch {
-      // mutationErrorNet already toasted the failure
-      setAutoplayNextOverride(null);
-    }
-  }, [activeProfile, autoplayNext, updateAutoplayNextProfile, currentUserForPrefs?.id, qc]);
-
-  const profileAudioLangs = useMemo((): string[] => {
-    const raw = activeProfile?.preferences?.["audio_languages"] ?? "";
-    return raw.split(",").map((s) => s.trim()).filter(Boolean);
-  }, [activeProfile]);
-  const profileSubtitleLangs = useMemo((): string[] => {
-    const raw = activeProfile?.preferences?.["subtitle_languages"] ?? "";
-    return raw.split(",").map((s) => s.trim()).filter(Boolean);
-  }, [activeProfile]);
+  // The running profile's languages and "auto-play next episode" choice, the
+  // same reading on every player (usePlayerProfilePrefs). A track picked in
+  // this session is never overridden by them (userPickedAudioRef / ...).
+  const {
+    audioLangs: profileAudioLangs,
+    subtitleLangs: profileSubtitleLangs,
+    autoplayNext,
+    setAutoplayNext,
+  } = usePlayerProfilePrefs();
+  const handleToggleAutoplayNext = useCallback(() => setAutoplayNext(!autoplayNext), [setAutoplayNext, autoplayNext]);
 
   const [showControls, setShowControls] = useState(true);
   // True while the action bar owns the D-pad. Mirrors the existing

@@ -23,6 +23,7 @@ export * from "./hooks/useCpuBudgetForm";
 export * from "./hooks/useParentalGate";
 export * from "./hooks/useWatchedMap";
 export * from "./hooks/useActiveProfile";
+export * from "./hooks/usePlayerProfilePrefs";
 export * from "./hooks/useNextEpisode";
 export * from "./hooks/useUpNextCountdown";
 export * from "./hooks/useChapterSkippables";

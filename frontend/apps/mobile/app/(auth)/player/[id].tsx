@@ -35,17 +35,13 @@ import {
 } from "../../../src/lib/offlineProgress";
 import { getDeviceAudioCodecs } from "../../../src/lib/deviceCodecs";
 import { useTranslation } from "react-i18next";
-import { toast, useAuthStore, autoplayNextEpisode, autoplayNextPreferences } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 import { ICON_SIZE } from "@evey/theme";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListMediaItems,
   usePlaybackServiceMarkAsWatched,
-  useUserServiceGetCurrentUser,
-  useUserServiceListProfiles,
-  useUserServiceUpdateProfile,
-  getUserServiceListProfilesQueryKey,
   createPlayerEventReporter,
   burnInSubtitleIndex as pickBurnInSubtitle,
   clientSubtitleTrack,
@@ -56,7 +52,6 @@ import {
   playbackServiceReportProgress,
   type SubtitleCue,
 } from "@evey/api";
-import { useQueryClient } from "@tanstack/react-query";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
@@ -70,7 +65,7 @@ import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack, pickPreferredStreamIndex } from "../../../src/lib/audioTrackMatch";
 import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
 import { backPressAction, playerExit } from "../../../src/lib/playerExit";
-import { resolveStartPositionMs, servedVariant, usePlayingVideoTrack } from "@evey/client";
+import { resolveStartPositionMs, servedVariant, usePlayerProfilePrefs, usePlayingVideoTrack } from "@evey/client";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -416,51 +411,18 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   restartWithTracksRef.current = () =>
     restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
 
-  // Profile audio/subtitle language preference (audio_languages/subtitle_languages,
-  // CSV of ISO 639-1 codes in profile.preferences - shared web/tv/mobile convention,
-  // see settings/playback.tsx). Mirrors the web player's HLSPlayer.tsx: applied
-  // to the initial track resolution below, but never overrides an explicit
-  // in-session pick (userPickedAudioRef / userPickedSubtitleRef).
+  // The running profile, its languages and its "auto-play next episode"
+  // choice: the same reading on every player (usePlayerProfilePrefs). A track
+  // picked in this session is never overridden by them (userPickedAudioRef /
+  // userPickedSubtitleRef).
   const activeProfileId = useAuthStore((s) => s.profileId);
-  const { data: currentUserForPrefs } = useUserServiceGetCurrentUser();
-  const { data: profilesRespForPrefs } = useUserServiceListProfiles(
-    currentUserForPrefs?.id ?? "",
-    { query: { enabled: !!currentUserForPrefs?.id } } as never,
-  );
-  const activeProfile = useMemo(
-    () =>
-      profilesRespForPrefs?.profiles?.find((p) => p.id === activeProfileId) ??
-      profilesRespForPrefs?.profiles?.find((p) => p.isDefault) ??
-      profilesRespForPrefs?.profiles?.[0],
-    [profilesRespForPrefs, activeProfileId],
-  );
-
-  // "Auto-play next episode" per-profile toggle. Optimistic override so the
-  // switch flips instantly; reset to null (fall back to the server value) if
-  // the save fails - the global mutation error handler toasts the failure.
-  const qc = useQueryClient();
-  const updateProfileMutation = useUserServiceUpdateProfile();
-  const [autoplayNextOverride, setAutoplayNextOverride] = useState<boolean | null>(null);
-  const autoplayNext = autoplayNextOverride ?? autoplayNextEpisode(activeProfile?.preferences);
-  const handleAutoplayNextChange = useCallback(
-    async (enabled: boolean) => {
-      if (!activeProfile?.id) return;
-      setAutoplayNextOverride(enabled);
-      try {
-        await updateProfileMutation.mutateAsync({
-          id: activeProfile.id,
-          data: { preferences: autoplayNextPreferences(activeProfile.preferences, enabled) },
-        });
-        if (currentUserForPrefs?.id) {
-          void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(currentUserForPrefs.id) });
-        }
-      } catch {
-        setAutoplayNextOverride(null);
-        // mutationErrorNet already toasted the failure
-      }
-    },
-    [activeProfile, updateProfileMutation, qc, currentUserForPrefs],
-  );
+  const {
+    profile: activeProfile,
+    audioLangs: profileAudioLangs,
+    subtitleLangs: profileSubtitleLangs,
+    autoplayNext,
+    setAutoplayNext: handleAutoplayNextChange,
+  } = usePlayerProfilePrefs();
 
   // Resolving the on-disk path is an AUTHORIZATION decision, not a file lookup:
   // downstream, a truthy localFilePath deliberately bypasses the server's shed
@@ -508,14 +470,6 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       .catch(() => { if (!cancelled) setLocalFilePath(null); });
     return () => { cancelled = true; };
   }, [mediaId, activeProfileId, activeProfile]);
-  const profileAudioLangs = useMemo((): string[] => {
-    const raw = activeProfile?.preferences?.["audio_languages"] ?? "";
-    return raw.split(",").map((s) => s.trim()).filter(Boolean);
-  }, [activeProfile]);
-  const profileSubtitleLangs = useMemo((): string[] => {
-    const raw = activeProfile?.preferences?.["subtitle_languages"] ?? "";
-    return raw.split(",").map((s) => s.trim()).filter(Boolean);
-  }, [activeProfile]);
 
   // Set initial selected audio index: profile preference first, then the
   // manifest's isDefault stream, then the first stream. Once the user has
