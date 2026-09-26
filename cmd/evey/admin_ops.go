@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,6 +49,19 @@ func adminListUsers(args []string) error {
 		fmt.Println(email)
 	}
 	return rows.Err()
+}
+
+// list-libraries -- the library roots, one per line, for `--root` completion.
+func adminListLibraries(args []string) error {
+	_, db, cleanup, err := openAdminDB()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	for _, p := range libraryPaths(db) {
+		fmt.Println(p)
+	}
+	return nil
 }
 
 // -------------------------------------------------------------------------
@@ -127,7 +139,7 @@ type checkResult struct {
 }
 
 func adminDoctor(args []string) error {
-	fs := flag.NewFlagSet("doctor", flag.ExitOnError)
+	fs := adminFlags("doctor")
 	repair := fs.Bool("repair", false, "apply safe fixes (create + chown missing writable dirs)")
 	if err := fs.Parse(args); err != nil {
 		return err

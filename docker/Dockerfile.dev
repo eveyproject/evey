@@ -84,7 +84,7 @@ RUN CGO_ENABLED=0 go build \
 
 # Same admin shell as prod (Dockerfile:224-234), sourced live from the bind mount so edits need no rebuild.
 RUN ln -sf /app/tmp/evey /usr/local/bin/evey \
-    && printf '\n# Evey admin shell: CLI completion + interactive launcher\nfor _f in /app/docker/evey-completion.bash /app/docker/mkvgo-completion.bash; do [ -r "$_f" ] && . "$_f"; done\n[ -r /app/docker/evey-shell.sh ] && . /app/docker/evey-shell.sh\n' >> /etc/bash.bashrc
+    && printf '\n# Evey admin shell: CLI completion + interactive launcher\nfor _f in /app/cmd/evey/evey-completion.bash /app/docker/mkvgo-completion.bash; do [ -r "$_f" ] && . "$_f"; done\n[ -r /app/docker/evey-shell.sh ] && . /app/docker/evey-shell.sh\n' >> /etc/bash.bashrc
 
 ENV EVEY_LOG_DEV_MODE=true
 

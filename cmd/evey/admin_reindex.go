@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io/fs"
 	"os"
@@ -31,7 +30,7 @@ import (
 // untouched. The rewrite also refuses upfront when the volume lacks the room
 // for its temporary copy.
 func adminReindexNoCue(args []string) error {
-	flags := flag.NewFlagSet("reindex-no-cue", flag.ExitOnError)
+	flags := adminFlags("reindex-no-cue")
 	root := flags.String("root", "", "directory tree to scan (required)")
 	apply := flags.Bool("apply", false, "actually rewrite files (default: dry-run, report only)")
 	keepBackup := flags.Bool("keep-backup", true, "keep the .mkvgobak copy of each rewritten original (rewrites only; ignored by --mode inplace)")

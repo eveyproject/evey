@@ -429,13 +429,14 @@ COPY --from=frontend /app/apps/web/dist /srv
 COPY --from=frontend /app/apps/tv-web/dist /srv/tv
 
 # Admin shell polish shown on `docker exec -it evey-server bash`: tab-completion
-# for the `evey` maintenance CLI and the `mkvgo` media tool, plus a one-time
+# for the `evey` maintenance CLI (the binary prints its own script, so it always
+# matches the subcommands it ships) and the `mkvgo` media tool, plus a one-time
 # greeting (banner + both command groups). The `evey` binary is already at /evey;
 # symlink it onto PATH so `evey admin …` works from any cwd. All sourced from the
 # system bashrc - nothing here touches the running server.
-RUN ln -sf /evey /usr/local/bin/evey
+RUN ln -sf /evey /usr/local/bin/evey \
+    && /evey completion bash > /etc/bash_completion.d/evey
 COPY --from=builder /mkvgo /usr/local/bin/mkvgo
-COPY docker/evey-completion.bash /etc/bash_completion.d/evey
 COPY docker/mkvgo-completion.bash /etc/bash_completion.d/mkvgo
 COPY docker/evey-shell.sh /etc/evey/shell.sh
 RUN printf '\n# Evey admin shell: CLI completion + interactive launcher\nfor _f in /etc/bash_completion.d/evey /etc/bash_completion.d/mkvgo; do [ -r "$_f" ] && . "$_f"; done\n[ -r /etc/evey/shell.sh ] && . /etc/evey/shell.sh\n' >> /etc/bash.bashrc

@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -31,140 +30,20 @@ func runAdmin(args []string) error {
 	if len(args) < 1 {
 		return adminUsage()
 	}
-	switch args[0] {
-	case "reset-password":
-		return adminResetPassword(args[1:])
-	case "rotate-jwt-key":
-		return adminRotateJWTKey(args[1:])
-	case "restore-backup":
-		return adminRestoreBackup(args[1:])
-	case "reindex-search":
-		return adminReindexSearch(args[1:])
-	case "migrate":
-		return adminMigrate(args[1:])
-	case "reclassify":
-		return adminReclassify(args[1:])
-	case "reindex-no-cue":
-		return adminReindexNoCue(args[1:])
-	case "validate-streaming":
-		return adminValidateStreaming(args[1:])
-	case "artwork-gc":
-		return adminArtworkGC(args[1:])
-	case "load-test":
-		return adminLoadTest(args[1:])
-	case "doctor":
-		return adminDoctor(args[1:])
-	case "rollback":
-		return adminRollback(args[1:])
-	case "list-users":
-		return adminListUsers(args[1:])
-	case "ladder-bench":
-		return adminLadderBench(args[1:])
-	case "ladder-probe":
-		return adminLadderProbe(args[1:])
-	case "route-bench":
-		return adminRouteBench(args[1:])
-	case "-h", "--help", "help":
-		_ = adminUsage()
+	if isHelpArg(args[0]) {
+		printAdminUsage(os.Stdout)
 		return nil
-	default:
+	}
+	cmd := findAdminCommand(args[0])
+	if cmd == nil {
 		fmt.Fprintf(os.Stderr, "unknown admin subcommand: %s\n\n", args[0])
 		return adminUsage()
 	}
-}
-
-func adminUsage() error {
-	fmt.Fprintf(os.Stderr, `usage: evey admin <subcommand> [flags]
-
-Recovery subcommands:
-  reset-password --user <email>     Generate a new password for the user, print it once.
-  rotate-jwt-key                    Regenerate the JWT signing key. Invalidates ALL active sessions.
-  restore-backup <path>             Restore the database from a pg_dump.gz file.
-  reindex-search [--library <id>] [--purge]
-                                    Rebuild the Meilisearch index from the database (no metadata
-                                    fetch). --purge clears the index first to drop orphan docs an
-                                    upsert can't. If Meili is down, reports the Postgres fallback
-                                    and does nothing.
-
-Schema subcommands:
-  migrate up [--no-backup]          Apply all pending migrations.
-  migrate down [--no-backup]        Roll back exactly one migration step.
-  migrate version                   Print current schema version (exit 1 if dirty).
-
-Per-title encoding subcommands:
-  reclassify <media-id>             Force-recompute the complexity class for one media item.
-  reclassify --all                  Wipe + re-queue every classified item (worker will pick them up).
-
-Media maintenance subcommands:
-  reindex-no-cue --root <dir>       Rebuild the seek index (Cues) of MKV/WebM files that lack one,
-                                    fixing slow resume. Dry-run by default; pass --apply to rewrite.
-                                    Each rewrite is validated + cross-checked and keeps a .mkvgobak
-                                    backup. --limit N for a cautious first run; --keep-backup=false
-                                    to drop backups. --resync repairs files with a CORRUPTED region
-                                    the strict pass refuses (skips the damage, keeps the rest; reports
-                                    the lost bytes). LONG: rewrites each file in full (hours on a
-                                    large library); shows a progress bar while applying.
-  validate-streaming --root <dir>   Report each MKV/WebM file's streaming-readiness
-                                    (Cues index, keyframe cues, DefaultDuration…) -
-                                    what the on-demand HLS rung and seeking rely on.
-                                    Read-only; --errors-only to skip warnings.
-  artwork-gc [--root <dir>] [--apply]
-                                    Delete artwork files on disk that no DB row
-                                    references (orphans from the old UUID-named
-                                    scheme). Dry-run by default; --apply deletes.
-                                    --root defaults to /data/artworks.
-
-Capacity subcommands (need a LIVE server - HTTP client of the local gateway):
-  load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S]
-                                    scenarios: transcode, natural, mkvgo, light (80/20),
-                                    balanced (50/50), heavy (20/80), mkvgo+N (N pinned
-                                    transcodes then pure direct-play)
-                                    Ramp simulated viewers until the box hits its
-                                    ceiling and report the sustained count + TTFF/
-                                    segment latencies. --scenario is one of
-                                    transcode|natural|mkvgo|light|balanced|heavy
-                                    (default balanced); --max-viewers caps the ramp
-                                    (0 = server default 12). Short sanity run:
-                                    load-test --scenario balanced --max-viewers 4.
-                                    Ctrl-C offers to cancel; admission_full is the
-                                    ceiling verdict (exit 0), not an error.
-
-Diagnostics:
-  ladder-bench [--scenes 3] [--window 8] [--heights 1080,720] [--crf 18,23,28] [--out rows.csv] <file>...
-                                    Measure the ladder engine's candidate complexity
-                                    features on a few scenes of each title, encode
-                                    them at fixed CRFs and score bitrate + XPSNR.
-                                    Prints one CSV row per scene and the rank
-                                    correlation of every feature with the encode
-                                    cost. Runs ffmpeg for minutes; never on a box
-                                    that is serving viewers.
-  route-bench [--backend nvenc|vaapi|qsv|none] [--heights 1080,2160] [--fps 24,30,50,60] [--out rows.csv] [--json run.json] [<file>...]
-                                    Measure what a production session of each
-                                    transcode route (GPU zero-copy, bridge,
-                                    tone-map, passthrough, decoupled, CPU) costs
-                                    on this host - fps, CPU cores, GPU engines -
-                                    against the boot calibration and the
-                                    admission cost model, on synthetic clips per
-                                    frame rate plus any real files given. Runs the
-                                    production calibration first unless
-                                    --capability points at a persisted one.
-                                    Minutes of full load; never while serving.
-  doctor [--repair]                 Health-check DB, schema, jwt.key, Meilisearch
-                                    (+ index drift), media mounts (owned by the
-                                    server UID?), cache dirs, ffmpeg/mkvgo and
-                                    disk. --repair applies only the safe fixes
-                                    (create + chown missing writable dirs).
-  rollback                          Read-only advisor: print the running version,
-                                    schema, newest pre-migration backup and the
-                                    exact HOST commands to roll back (the
-                                    container has no Docker access, by design).
-  list-users                        Print user emails, one per line (drives
-                                    reset-password --user Tab-completion).
-
-Configuration is read from EVEY_* env vars (same as the server).
-See docs/runbooks/recovery.md and docs/runbooks/cli.md for full procedures.
-`)
-	return fmt.Errorf("admin: subcommand required")
+	if cmd.noFlags && len(args) > 1 && isHelpArg(args[1]) {
+		printAdminCommandHelp(os.Stdout, cmd)
+		return nil
+	}
+	return cmd.run(args[1:])
 }
 
 // adminResetPassword generates a fresh password, hashes it via the
@@ -172,7 +51,7 @@ See docs/runbooks/recovery.md and docs/runbooks/cli.md for full procedures.
 // plaintext to stdout. Operator must capture stdout - the password
 // isn't logged or stored anywhere else.
 func adminResetPassword(args []string) error {
-	fs := flag.NewFlagSet("reset-password", flag.ExitOnError)
+	fs := adminFlags("reset-password")
 	email := fs.String("user", "", "user email (required)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -227,7 +106,7 @@ func adminResetPassword(args []string) error {
 // every session is logged out. Refresh tokens are JWTs too, so they're
 // dead by the same mechanism (no separate DB cleanup needed).
 func adminRotateJWTKey(args []string) error {
-	fs := flag.NewFlagSet("rotate-jwt-key", flag.ExitOnError)
+	fs := adminFlags("rotate-jwt-key")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -368,7 +247,7 @@ func generateRandomPassword(byteLen int) (string, error) {
 // external switch, version bump, or a DB restore that doesn't carry the
 // index). Reads straight from Postgres, no metadata-provider calls.
 func adminReindexSearch(args []string) error {
-	fs := flag.NewFlagSet("reindex-search", flag.ExitOnError)
+	fs := adminFlags("reindex-search")
 	libraryID := fs.String("library", "", "library ID to reindex (default: all libraries)")
 	purge := fs.Bool("purge", false, "clear the index first, then rebuild - removes stale/orphan docs an upsert can't (brief empty-search window)")
 	if err := fs.Parse(args); err != nil {

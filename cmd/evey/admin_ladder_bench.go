@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/csv"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,7 +19,7 @@ import (
 // on. It only reads the titles and writes to --out; nothing touches the
 // library or the caches.
 func adminLadderBench(args []string) error {
-	fset := flag.NewFlagSet("ladder-bench", flag.ExitOnError)
+	fset := adminFlags("ladder-bench")
 	scenes := fset.Int("scenes", 3, "scenes sampled per title")
 	window := fset.Float64("window", 8, "seconds per scene")
 	heights := fset.String("heights", "1080,720", "encode heights, comma-separated (a height above the source is skipped)")

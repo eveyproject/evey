@@ -24,11 +24,11 @@ set -eu
 
 # ── Subcommands that need no service ─────────────────────────────────────
 # `docker run --rm gravityz/evey version` identifies the image without
-# Postgres, Meili or the privilege drop. Every other invocation (the server,
-# `admin ...`) goes through the full boot below so an embedded database is up
-# when the command runs.
+# Postgres, Meili or the privilege drop; help, man and completion need nothing
+# either. Every other invocation (the server, `admin ...`) goes through the
+# full boot below so an embedded database is up when the command runs.
 case "${1:-}" in
-    version|--version|-v)
+    version|--version|-v|help|--help|-h|man|completion)
         exec /evey "$@" ;;
 esac
 

@@ -25,17 +25,12 @@ import (
 )
 
 func main() {
-	// `evey version` answers "what is this binary?" with no config, no DB and
-	// no network - the one question an operator must be able to ask a container
-	// that will not start.
-	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version" || os.Args[1] == "-v") {
-		b := buildID()
-		fmt.Printf("evey %s\ncommit     %s\nbuilt      %s\n", b.Version, b.Commit, b.BuildDate)
-		return
-	}
-	if len(os.Args) > 1 && os.Args[1] == "admin" {
-		if err := runAdmin(os.Args[2:]); err != nil {
-			fmt.Fprintf(os.Stderr, "admin: %v\n", err)
+	// `evey version`, `help`, `man`, `completion` answer with no config, no DB
+	// and no network: what an operator must be able to ask a container that
+	// will not start. `admin` runs one tool instead of the server.
+	if handled, err := runCLI(os.Args[1:]); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		return

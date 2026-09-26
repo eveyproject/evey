@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -21,7 +20,7 @@ import (
 // admission cost model believe it costs. It reads clips and writes rows;
 // nothing it does touches the library, the caches or the persisted capability.
 func adminRouteBench(args []string) error {
-	fset := flag.NewFlagSet("route-bench", flag.ExitOnError)
+	fset := adminFlags("route-bench")
 	backend := fset.String("backend", "", "accelerator to measure: nvenc, vaapi, qsv (default: auto-detect), none = CPU routes only")
 	device := fset.String("device", "", "VAAPI/QSV render node (default: the calibration's)")
 	heights := fset.String("heights", "1080,2160", "rungs measured, comma-separated")
