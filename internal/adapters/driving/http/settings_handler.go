@@ -388,7 +388,6 @@ func registerServerSettingsRoutes(
 		var body struct {
 			ServerName              *string `json:"serverName"`
 			MaxConcurrentTranscodes *int    `json:"maxConcurrentTranscodes"`
-			HWAccelEnabled          *bool   `json:"hwAccelEnabled"`
 			HWMode                  *string `json:"hwMode"`
 			LoginRateLimit          *int    `json:"loginRateLimit"`
 			GlobalRateLimit         *int    `json:"globalRateLimit"`
@@ -476,14 +475,6 @@ func registerServerSettingsRoutes(
 					// The orchestrator takes no runtime cap on concurrent
 					// rafales; SetMaxConcurrent above bounds the background
 					// transcode jobs, which is the primary use of this setting.
-				}},
-			{cfgKey: cfgKeyTranscodeHWAccel,
-				apply: func() string {
-					if body.HWAccelEnabled == nil {
-						return ""
-					}
-					cfg.Transcoding.HWAccelEnabled = *body.HWAccelEnabled
-					return strconv.FormatBool(*body.HWAccelEnabled)
 				}},
 			{cfgKey: cfgKeyTranscodeHWMode,
 				apply: func() string {

@@ -18,7 +18,7 @@
 # A wrong GID just means no GPU access - evey falls back to software
 # transcode, nothing breaks.
 #
-# After enabling, flip hwAccelEnabled on in /admin server settings and
+# After enabling, set the hardware mode in /admin server settings and
 # verify inside the container with: docker compose exec evey vainfo
 services:
   evey:
