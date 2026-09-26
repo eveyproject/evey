@@ -163,6 +163,10 @@ func TestFeedQuerier_ContinueWatching_AndNextEpisode(t *testing.T) {
 	seedProgress(t, db, "feed-p", eps[1], 10*time.Minute, false, now.Add(-30*time.Minute))
 	_, epsB := seedSeries(t, itemRepo, lib.ID, "feedB", 1, 2, 40*time.Minute)
 	seedProgress(t, db, "feed-p", epsB[0], 40*time.Minute, true, now.Add(-3*time.Hour))
+	// Series C has two episodes started: only the most recently played one shows.
+	_, epsC := seedSeries(t, itemRepo, lib.ID, "feedC", 1, 3, 40*time.Minute)
+	seedProgress(t, db, "feed-p", epsC[0], 10*time.Minute, false, now.Add(-5*time.Hour))
+	seedProgress(t, db, "feed-p", epsC[1], 10*time.Minute, false, now.Add(-4*time.Hour))
 
 	items, err := fq.ContinueWatching(ctx, "feed-p", 20)
 	require.NoError(t, err)
@@ -177,12 +181,12 @@ func TestFeedQuerier_ContinueWatching_AndNextEpisode(t *testing.T) {
 	require.Contains(t, got, eps[1], "the in-progress episode resumes")
 	assert.Equal(t, 1, got[eps[1]].SeasonNumber)
 	assert.Equal(t, 2, got[eps[1]].EpisodeNumber)
-	// Observed 2026-09-16: a series with an in-progress episode ALSO gets its
-	// next unwatched episode as a next-up card (the exclusion is per episode,
-	// not per series). Pinned as-is; whether the row should show one card per
-	// series is a product call, not this test's.
-	require.Contains(t, got, eps[2])
-	assert.Zero(t, got[eps[2]].Position.Milliseconds())
+	// One card per series (decided 2026-09-26): a series resuming an episode
+	// gets no next-up card for its following episode.
+	assert.NotContains(t, got, eps[2], "no second card for a series already resuming an episode")
+	require.Contains(t, got, epsC[1], "the most recently played of two started episodes")
+	assert.NotContains(t, got, epsC[0], "one card per series, even with two episodes started")
+	assert.NotContains(t, got, epsC[2])
 	require.Contains(t, got, epsB[1], "series B: the first unwatched episode is offered")
 	assert.NotContains(t, got, epsB[0])
 	assert.Zero(t, got[epsB[1]].Position.Milliseconds())
@@ -204,7 +208,7 @@ func TestFeedQuerier_ContinueWatching_AndNextEpisode(t *testing.T) {
 	for _, it := range resume {
 		resumeIDs = append(resumeIDs, string(it.MediaItemID))
 	}
-	assert.Equal(t, []string{eps[1], "feed-resume", eps[2], epsB[1]}, resumeIDs)
+	assert.Equal(t, []string{eps[1], "feed-resume", epsB[1], epsC[1]}, resumeIDs)
 	top, err := fq.ResumePlayback(ctx, "feed-p", 2)
 	require.NoError(t, err)
 	require.Len(t, top, 2)
