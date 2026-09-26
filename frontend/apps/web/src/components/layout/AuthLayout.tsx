@@ -35,11 +35,14 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   useEffect(() => {
     const el = mainRef.current;
     if (!el) return;
-    // Feature-detected: jsdom (tests) implements neither Element.scrollTo
+    // Feature-detected: a test DOM may implement neither Element.scrollTo
     // nor the Web Animations API.
     if (typeof el.scrollTo === "function") el.scrollTo({ top: 0 });
     if (typeof el.animate !== "function") return;
     const anim = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: "ease-out" });
+    // Cancelling rejects `finished`; nobody awaits it, so mark it handled
+    // (browsers do so themselves, happy-dom reports it as unhandled).
+    anim.finished?.catch(() => {});
     return () => anim.cancel();
   }, [location.pathname]);
 

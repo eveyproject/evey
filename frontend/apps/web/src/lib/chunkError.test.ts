@@ -90,14 +90,18 @@ describe("chunkError", () => {
     it("does not reload when sessionStorage is unusable", () => {
       // Firefox with cookies blocked: reading storage throws, so the loop guard
       // cannot be trusted and a reload loop would be worse than one error screen.
-      const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-        throw new Error("storage denied");
+      const original = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+      Object.defineProperty(globalThis, "sessionStorage", {
+        get() {
+          throw new Error("storage denied");
+        },
+        configurable: true,
       });
       try {
         expect(reloadOnceForChunkError()).toBe(false);
         expect(reload).not.toHaveBeenCalled();
       } finally {
-        spy.mockRestore();
+        if (original) Object.defineProperty(globalThis, "sessionStorage", original);
       }
     });
   });
@@ -112,6 +116,13 @@ describe("chunkError", () => {
 // so the click reads as dead. The vite:preloadError listener itself must
 // reload (once), not merely record evidence for a boundary that will never run.
 describe("navigation-time chunk failure", () => {
+  beforeEach(() => {
+    // Its own clean session: the once-per-session key must not be inherited
+    // from whatever the tests above left behind.
+    resetPreloadErrorForTests();
+    sessionStorage.clear();
+  });
+
   it("reloads once straight from the vite:preloadError event", () => {
     const reloadMock = vi.fn();
     Object.defineProperty(window, "location", {
