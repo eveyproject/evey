@@ -494,6 +494,25 @@ func (c EncodeCapability) HWCanDecodeSource(codec string, tenBit bool, pixFmt st
 }
 
 // LowPowerFeature names the probed Intel low-power (VDEnc) encoder feature of a codec.
+// RuntimeHWFeatures is the feature list an encode session really runs with:
+// the low-power features are dropped unless the operator opted in. The ONE
+// derivation for the runtime (effectiveHWFeatures) and for the calibration's
+// route proofs and cost evidence, so what is measured is what is emitted -
+// the calibration used to prove and price every route with the low-power
+// encoder while the runtime, opted out by default, ran the full one.
+func RuntimeHWFeatures(features []string, lowPower bool) []string {
+	if lowPower {
+		return features
+	}
+	out := make([]string, 0, len(features))
+	for _, f := range features {
+		if !strings.HasPrefix(f, "low_power_") {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
 func LowPowerFeature(codec string) string {
 	codec = strings.ToLower(strings.TrimSpace(codec))
 	if codec == "" {

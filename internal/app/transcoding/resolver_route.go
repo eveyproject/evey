@@ -475,18 +475,10 @@ func (pr *PlanResolver) titleBlocked(mediaID string) bool {
 	return pr.HWRouteBlocked != nil && mediaID != "" && pr.HWRouteBlocked(mediaID)
 }
 
-// effectiveHWFeatures drops the low-power features unless the admin opted in.
+// effectiveHWFeatures drops the low-power features unless the admin opted in:
+// the domain's one derivation, shared with the calibration's proofs.
 func effectiveHWFeatures(pol HWPolicy, features []string) []string {
-	if pol.LowPower {
-		return features
-	}
-	out := make([]string, 0, len(features))
-	for _, f := range features {
-		if !strings.HasPrefix(f, "low_power_") {
-			out = append(out, f)
-		}
-	}
-	return out
+	return transcoding.RuntimeHWFeatures(features, pol.LowPower)
 }
 
 func (pr *PlanResolver) effectiveVideoCodec(pol HWPolicy, decision transcoding.PlaybackDecision, streams []*library.MediaStream) (codec, accel, device string, features []string, usable, softwareDecode bool) {

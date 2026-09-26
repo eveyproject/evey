@@ -215,6 +215,9 @@ func (r *BenchmarkRunner) ensureRouteMire(ctx context.Context, m routeMire) (str
 // the resolver honours; nil is reserved for rows benched before this existed.
 func (r *BenchmarkRunner) probeHWRoutes(ctx context.Context, backend, device string, codecs, features []string, hwTonemap, hw10Bit, hdr10, hwDeint bool, decodeClasses []string) []string {
 	accel := transcoding.HWAccelType(backend)
+	// Proven in the shape the runtime emits by default (no low-power encoder
+	// unless opted in): the low-power feature has its own probe.
+	features = transcoding.RuntimeHWFeatures(features, false)
 	proven := []string{}
 	for _, p := range routeProbesFor(accel, codecs, features, hwTonemap, hw10Bit, hdr10, hwDeint, decodeClasses) {
 		mire, ok := r.ensureRouteMire(ctx, p.mire)
@@ -244,6 +247,9 @@ func (r *BenchmarkRunner) HWRouteUsable(ctx context.Context, backend, device, ro
 	if device == "" {
 		device = hwDevicePath(backend)
 	}
+	// Re-proven in the shape the failed session ran: the runtime's default,
+	// without the opt-in low-power encoder.
+	features = transcoding.RuntimeHWFeatures(features, false)
 	for _, p := range routeProbesFor(accel, []string{"h264", "hevc", "av1"}, features, true, true, true, true, nil) {
 		if p.route != route {
 			continue

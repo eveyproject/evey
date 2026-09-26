@@ -164,8 +164,12 @@ func routeEvidencePlan(cap *transcoding.EncodeCapability) []evidenceRoute {
 			if !ok {
 				continue
 			}
+			// Priced in the shape the runtime emits by default: the low-power
+			// encoder is opt-in, so an opted-in session is priced at the full
+			// encoder's cost (the heavier of the two), never the reverse.
 			routes = append(routes, evidenceRoute{
-				route: sh.Route, codec: sh.Codec, backend: bc.Backend, device: bc.Device, features: bc.Features,
+				route: sh.Route, codec: sh.Codec, backend: bc.Backend, device: bc.Device,
+				features:  transcoding.RuntimeHWFeatures(bc.Features, false),
 				hdrSample: hdr, softwareDecode: swDec, opts: opts,
 			})
 		}
