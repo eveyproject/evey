@@ -435,6 +435,7 @@ COPY --from=frontend /app/apps/tv-web/dist /srv/tv
 # symlink it onto PATH so `evey admin …` works from any cwd. All sourced from the
 # system bashrc - nothing here touches the running server.
 RUN ln -sf /evey /usr/local/bin/evey \
+    && mkdir -p /etc/bash_completion.d \
     && /evey completion bash > /etc/bash_completion.d/evey
 COPY --from=builder /mkvgo /usr/local/bin/mkvgo
 COPY docker/mkvgo-completion.bash /etc/bash_completion.d/mkvgo
