@@ -2,14 +2,14 @@ import { useQueries } from "@tanstack/react-query";
 import { libraryServiceGetMediaItem } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 
-// What a media id in a log line IS: the operator reads "Black Bird S01E01 -
+// What a media id in a log line IS: the operator reads "Some Series S01E01 -
 // Pilot", not an uuid and not a bare episode title. An episode names its
 // series and season by walking parentId twice (episode -> season -> series);
 // the walk is cached per id by react-query, so a screen full of lines about
 // the same episode costs three requests, not three per line.
 export interface MediaLabel {
   kind: "movie" | "episode" | "season" | "series" | "track" | "album" | "other";
-  // label is the human line without the kind word ("Black Bird S01E01 - Pilot").
+  // label is the human line without the kind word ("Some Series S01E01 - Pilot").
   label: string;
 }
 

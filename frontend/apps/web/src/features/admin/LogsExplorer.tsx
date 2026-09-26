@@ -13,7 +13,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ICON } from "@/constants/iconSizes";
 import { buildIdentityIndex, labelFor, resolveUserFilter, type IdentityIndex } from "./logIdentities";
-import { useMediaLabels, type MediaLabelIndex } from "./logMedia";
+import { useMediaLabels, type MediaLabelIndex } from "@evey/client";
 import {
   type LogEntry,
   type LogSearchResponse,
@@ -122,7 +122,7 @@ function matchClient(e: LogEntry, f: FilterParams): boolean {
 // `open` is owned by the explorer, not the row: the live tail anchors the
 // viewport on an expanded row as new lines pile up above it, so the parent has
 // to know which rows are open.
-// `media` names the title behind a media id ("Black Bird S01E01 - Pilot"):
+// `media` names the title behind a media id ("Some Series S01E01 - Pilot"):
 // an episode called "Pilot" is every series' first episode.
 const LogRow = memo(function LogRow({
   entry,
