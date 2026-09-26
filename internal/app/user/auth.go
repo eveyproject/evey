@@ -44,6 +44,14 @@ func loginAttemptKey(username string) string {
 	return strings.ToLower(strings.TrimSpace(username))
 }
 
+// publishLoginFailed announces a refused login (webhook user.login.failed).
+func (s *CommandService) publishLoginFailed(ctx context.Context, username, reason string) {
+	evt := user.LoginFailed{Username: username, Reason: reason, AuthMethod: "local", OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+}
+
 func (s *CommandService) Login(ctx context.Context, username, password string, ttlOverride ...time.Duration) (accessToken, refreshToken string, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.Login")
 	defer span.End()
@@ -57,6 +65,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		slog.WarnContext(ctx, "login attempt IsLocked", slog.String("username", username), slog.Any("err", lockErr))
 	}
 	if locked {
+		s.publishLoginFailed(ctx, username, "locked")
 		return "", "", ErrAccountLocked
 	}
 
@@ -74,6 +83,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		// credential-stuffing run is searchable, not just inferable from the
 		// rate-limit store's aggregate.
 		slog.WarnContext(ctx, "login failed", slog.String("username", username), slog.String("reason", "unknown_user"))
+		s.publishLoginFailed(ctx, username, "unknown_user")
 		return "", "", ErrInvalidCredentials
 	}
 	// Verify BEFORE the CanLogin gate so a disabled account costs the same bcrypt
@@ -83,6 +93,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	// boundary, so timing is the only remaining oracle).
 	ok, err := s.hasher.Verify(password, u.PasswordHash)
 	if !u.CanLogin() {
+		s.publishLoginFailed(ctx, username, "disabled")
 		return "", "", ErrUserDisabled
 	}
 	if err != nil || !ok {
@@ -90,6 +101,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 			slog.WarnContext(ctx, "login attempt Record", slog.String("username", username), slog.Any("err", recErr))
 		}
 		slog.WarnContext(ctx, "login failed", slog.String("username", username), slog.String("reason", "bad_password"))
+		s.publishLoginFailed(ctx, username, "bad_password")
 		return "", "", ErrInvalidCredentials
 	}
 	if resetErr := s.loginAttempts.Reset(ctx, attemptKey); resetErr != nil {

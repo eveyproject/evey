@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -307,6 +309,44 @@ func TestLogin_Happy(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected login.succeeded event")
+	}
+}
+
+// A refused login is announced (webhook user.login.failed) with what was
+// typed and why - never the password.
+func TestLogin_FailureIsAnnounced(t *testing.T) {
+	cases := []struct {
+		name, username, password, reason string
+		seed                             bool
+	}{
+		{"unknown user", "nobody", "pw", "unknown_user", false},
+		{"wrong password", "alice", "not-it", "bad_password", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := newAuthTestDeps()
+			if tc.seed {
+				seedAuthUser(t, d, "u1", "alice", "mypassword", false, true)
+			}
+			if _, _, err := d.svc.Login(context.Background(), tc.username, tc.password); err == nil {
+				t.Fatal("this login was supposed to fail")
+			}
+			var got *user.LoginFailed
+			for _, e := range d.events.PublishedEvents() {
+				if lf, ok := e.(user.LoginFailed); ok {
+					got = &lf
+				}
+			}
+			if got == nil {
+				t.Fatal("expected a user.login.failed event")
+			}
+			if got.Username != tc.username || got.Reason != tc.reason {
+				t.Fatalf("event = %+v, want username %q reason %q", *got, tc.username, tc.reason)
+			}
+			if strings.Contains(fmt.Sprintf("%+v", *got), tc.password) {
+				t.Fatal("the password must never ride the event")
+			}
+		})
 	}
 }
 

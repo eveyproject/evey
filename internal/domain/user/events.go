@@ -54,6 +54,18 @@ type LoginSucceeded struct {
 
 func (e LoginSucceeded) EventName() string { return "user.login.succeeded" }
 
+// LoginFailed is a refused password login. Username is what was typed (never
+// the password); Reason is unknown_user, bad_password, disabled or locked, so
+// a receiver can tell a replayed list from a brute force on one account.
+type LoginFailed struct {
+	Username   string
+	Reason     string
+	AuthMethod string
+	OccurredAt time.Time
+}
+
+func (e LoginFailed) EventName() string { return "user.login.failed" }
+
 type PasswordChanged struct {
 	UserID     shared.UserID
 	OccurredAt time.Time
