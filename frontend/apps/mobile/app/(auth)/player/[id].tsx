@@ -41,14 +41,11 @@ import { BottomSheet } from "../../../src/components/BottomSheet";
 import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListMediaItems,
-  usePlaybackServiceMarkAsWatched,
   createPlayerEventReporter,
-  burnInSubtitleIndex as pickBurnInSubtitle,
-  clientSubtitleTrack,
-  isBurnInSubtitle,
+  playerAudioStreams,
+  playerSubtitleStreams,
   parseTrackPick,
   parseVttCues,
-  pickDefaultSubtitle,
   playbackServiceReportProgress,
   type SubtitleCue,
 } from "@evey/api";
@@ -62,10 +59,10 @@ import { useChapters } from "../../../src/hooks/useChapters";
 import { useHlsRungs } from "../../../src/hooks/useHlsRungs";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
-import { pickNativeAudioTrack, pickPreferredStreamIndex } from "../../../src/lib/audioTrackMatch";
+import { pickNativeAudioTrack } from "../../../src/lib/audioTrackMatch";
 import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
 import { backPressAction, playerExit } from "../../../src/lib/playerExit";
-import { resolveStartPositionMs, servedVariant, usePlayerProfilePrefs, usePlayingVideoTrack } from "@evey/client";
+import { resolveStartPositionMs, servedVariant, useAutoMarkWatched, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack } from "@evey/client";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -106,7 +103,6 @@ import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 // now live in the settings panel (web parity).
 type SheetName = "chapters" | "streamInfo" | "sleepTimer" | "syncPlay" | "episodes" | "playOn";
 
-const WATCHED_THRESHOLD = 0.9;
 
 // An expired or vanished stream token is the one native failure worth
 // retrying, and it is common: the token store is in memory, so a server
@@ -313,13 +309,9 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // The status listener is installed before restartWithTracks exists in its
   // closure, so it reaches it through a ref that is kept current below.
   const restartWithTracksRef = useRef<(() => void) | null>(null);
-  const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(trackPick.audio ?? 0);
   // Audio tracks the NATIVE player exposes from the HLS manifest - the source
   // of truth for a no-reload client-side switch (see handleAudioSelect).
   const [nativeAudioTracks, setNativeAudioTracks] = useState<{ id?: string; language?: string; label?: string }[]>([]);
-  const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(
-    typeof trackPick.subtitle === "number" ? trackPick.subtitle : null,
-  );
   const [selectedQuality, setSelectedQuality] = useState(0);
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -358,58 +350,8 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // reset effect below).
   const [externalSubtitle, setExternalSubtitle] = useState<{ name: string; cues: SubtitleCue[] } | null>(null);
 
-  const audioStreams: AudioStream[] = useMemo(
-    () =>
-      streamInfo?.mediaStreams
-        ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO")
-        .map((s, i) => ({
-          index: s.index ?? 0,
-          trackIndex: i,
-          language: s.language,
-          title: s.title,
-          isDefault: s.isDefault,
-          channels: s.channels,
-        })) ?? [],
-    [streamInfo],
-  );
-
-  const subtitleStreams: SubtitleStream[] = useMemo(
-    () =>
-      streamInfo?.mediaStreams
-        ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
-        .map((s, i) => ({
-          index: s.index ?? 0,
-          trackIndex: i,
-          language: s.language,
-          title: s.title,
-          isDefault: s.isDefault,
-          isForced: s.isForced,
-          codec: s.codec,
-          // burnIn now means ONLY "the server must burn this in", i.e. a bitmap
-          // no player can draw. A PGS track is a bitmap too but the server
-          // decodes it once and the overlay draws it, so it is NOT a burn-in and
-          // must never reach ?subtitleTrack= - that is what used to turn a
-          // direct-playing 4K remux into a full transcode.
-          burnIn: isBurnInSubtitle(s.codec),
-        })) ?? [],
-    [streamInfo],
-  );
-
-  // What the SERVER may be told about the subtitle selection - never the raw
-  // selection, which would add a burn-in (and with it a full transcode) the
-  // running session does not have. See burnInSubtitleIndex for the whole story.
-  // restartForSubtitleChange stays explicit rather than reading this: it acts on
-  // the track the viewer is moving TO, before it lands in state.
-  const burnInSubtitleIndex = useMemo(
-    () => pickBurnInSubtitle(selectedSubtitleIndex, subtitleStreams),
-    [selectedSubtitleIndex, subtitleStreams],
-  );
-
-  // Keep the recovery path pointing at the CURRENT selection, so a retry after
-  // a dead token comes back on the same audio, subtitle and quality the viewer
-  // had chosen rather than resetting them.
-  restartWithTracksRef.current = () =>
-    restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
+  const audioStreams: AudioStream[] = useMemo(() => playerAudioStreams(streamInfo?.mediaStreams), [streamInfo]);
+  const subtitleStreams: SubtitleStream[] = useMemo(() => playerSubtitleStreams(streamInfo?.mediaStreams), [streamInfo]);
 
   // The running profile, its languages and its "auto-play next episode"
   // choice: the same reading on every player (usePlayerProfilePrefs). A track
@@ -423,6 +365,38 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     autoplayNext,
     setAutoplayNext: handleAutoplayNextChange,
   } = usePlayerProfilePrefs();
+
+  // The audio and subtitle choice, shared with the television
+  // (usePlayerTrackSelection): the title page's pick and a hand pick win over
+  // the profile's languages, a new title starts from scratch.
+  // burnInSubtitleIndex is what the SERVER may be told - never the raw
+  // selection; restartForSubtitleChange stays explicit, it acts on the track
+  // the viewer is moving TO, before it lands in state.
+  const {
+    selectedAudioIndex,
+    setSelectedAudioIndex,
+    selectedSubtitleIndex,
+    setSelectedSubtitleIndex,
+    userPickedAudioRef,
+    userPickedSubtitleRef,
+    burnInSubtitleIndex,
+    clientSubtitleIndex,
+  } = usePlayerTrackSelection({
+    mediaId,
+    pick: trackPick,
+    audioStreams,
+    subtitleStreams,
+    audioLangs: profileAudioLangs,
+    subtitleLangs: profileSubtitleLangs,
+    restartWithTracks,
+  });
+
+  // Keep the recovery path pointing at the CURRENT selection, so a retry after
+  // a dead token comes back on the same audio, subtitle and quality the viewer
+  // had chosen rather than resetting them.
+  restartWithTracksRef.current = () =>
+    restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
+
 
   // Resolving the on-disk path is an AUTHORIZATION decision, not a file lookup:
   // downstream, a truthy localFilePath deliberately bypasses the server's shed
@@ -471,48 +445,6 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     return () => { cancelled = true; };
   }, [mediaId, activeProfileId, activeProfile]);
 
-  // Set initial selected audio index: profile preference first, then the
-  // manifest's isDefault stream, then the first stream. Once the user has
-  // manually picked a track, this must NOT run again: restartWithTracks
-  // re-derives audioStreams (new reference), which re-fired this effect and
-  // reset the choice back to the isDefault track - the user's language change
-  // silently reverted. Mirrors the web player's userPickedAudioRef guard.
-  const userPickedAudioRef = useRef(trackPick.audio !== undefined);
-  useEffect(() => {
-    if (userPickedAudioRef.current) return;
-    const preferred = pickPreferredStreamIndex(audioStreams, profileAudioLangs);
-    if (preferred !== null) { setSelectedAudioIndex(preferred); return; }
-    const def = audioStreams.find((s) => s.isDefault);
-    if (def) setSelectedAudioIndex(def.index);
-    else if (audioStreams.length > 0) setSelectedAudioIndex(audioStreams[0].index);
-  }, [audioStreams, profileAudioLangs]);
-
-  // Same guard for subtitles: applies the choice once, and never again once the
-  // viewer has picked a subtitle by hand (see handleSubtitleSelect).
-  //
-  // It used to consult the profile's subtitle_languages preference and nothing
-  // else, so "no preference" meant "no subtitle". Since no profile on a real
-  // server had that preference set, the answer was always none - and a film
-  // whose forced French track is flagged DEFAULT by the container opened with
-  // its foreign-language lines untranslated (prod, 2026-09-05). The audio side
-  // of this screen has always honoured the file's default; the subtitle side
-  // now does too.
-  const userPickedSubtitleRef = useRef(trackPick.subtitle !== undefined);
-  // A bitmap track picked on the media page is the server's to burn in: one
-  // restart once the streams are known, never again.
-  const pickedBurnInAppliedRef = useRef(false);
-  useEffect(() => {
-    if (userPickedSubtitleRef.current) {
-      if (pickedBurnInAppliedRef.current || typeof trackPick.subtitle !== "number") return;
-      const picked = subtitleStreams.find((s) => s.index === trackPick.subtitle);
-      if (!picked) return;
-      pickedBurnInAppliedRef.current = true;
-      if (picked.burnIn) restartWithTracks(selectedAudioIndex, picked.index, undefined);
-      return;
-    }
-    const preferred = pickDefaultSubtitle(subtitleStreams, profileSubtitleLangs);
-    if (preferred !== null) setSelectedSubtitleIndex(preferred);
-  }, [subtitleStreams, profileSubtitleLangs, trackPick.subtitle, restartWithTracks, selectedAudioIndex]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -543,20 +475,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     setSubtitleOffsetMs(0);
     // An externally-picked subtitle file means nothing on the next title.
     setExternalSubtitle(null);
-    // Nor does a track PICKED BY HAND on the previous one. The two refs exist
-    // to stop the profile's language preference from clobbering a manual pick
-    // when it arrives asynchronously - that is their whole job. On web that
-    // scope is one episode, because HLSPlayer is mounted with key={mediaId}
-    // and remounts each time. This screen is REUSED (see above), so the same
-    // guard silently widened to "every episode of the session": once a viewer
-    // chose a subtitle on episode N, episode N+1 never derived its own track,
-    // and the stale absolute index usually matched nothing in the new
-    // episode's streams - so the subtitles they had turned on were simply OFF,
-    // with no toast, no indicator and nothing to click.
-    userPickedAudioRef.current = false;
-    userPickedSubtitleRef.current = false;
-    setSelectedAudioIndex(0);
-    setSelectedSubtitleIndex(null);
+    // (A hand-picked track is forgotten by usePlayerTrackSelection.)
   }, [mediaId]);
   // Whether the NEXT player instance should start playing. Changing tracks or
   // quality recreates the native player, whose setup used to call play()
@@ -956,24 +875,8 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   const effectiveDurationRef = useRef(0);
   effectiveDurationRef.current = effectiveDuration;
 
-  // Standard resume semantics: mark the item as watched once playback
-  // crosses the MaxResumePct threshold (90%). The server only marks
-  // Completed=true on explicit MarkAsWatched calls - without this the user
-  // had to manually toggle "watched" after every episode.
-  const profileId = useAuthStore((s) => s.profileId) ?? "";
-  const markAsWatchedMut = usePlaybackServiceMarkAsWatched();
-  const autoMarkedRef = useRef(false);
-  useEffect(() => { autoMarkedRef.current = false; }, [mediaId]);
-  useEffect(() => {
-    if (autoMarkedRef.current) return;
-    if (progress?.played) { autoMarkedRef.current = true; return; }
-    if (!profileId || !mediaId) return;
-    if (effectiveDuration <= 0 || currentTime <= 0) return;
-    if (currentTime / effectiveDuration >= WATCHED_THRESHOLD) {
-      autoMarkedRef.current = true;
-      markAsWatchedMut.mutate({ mediaItemId: mediaId, params: { profileId } });
-    }
-  }, [currentTime, effectiveDuration, progress?.played, profileId, mediaId, markAsWatchedMut]);
+  // Past 90% the title is watched: the rule every player shares.
+  useAutoMarkWatched(mediaId, currentTime, effectiveDuration);
 
   const { data: playbackSettings } = usePlaybackSettings();
   const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
@@ -1356,18 +1259,6 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     restartForSubtitleChange(null);
     setSelectedSubtitleIndex(null);
   }, [externalSubtitle, restartForSubtitleChange]);
-
-  // The subtitle track (if any) SubtitleOverlay should fetch and draw itself:
-  // null when off, or when the selection is a burn-in image track the server
-  // already draws into the video (avoids a doubled rendering).
-  //
-  // Note the SUBTITLE-RELATIVE index, not the absolute stream index the
-  // selection carries - see clientSubtitleTrack for why the two must not be
-  // confused.
-  const clientSubtitleIndex = useMemo(
-    () => clientSubtitleTrack(selectedSubtitleIndex, subtitleStreams),
-    [selectedSubtitleIndex, subtitleStreams],
-  );
 
   const handleQualitySelect = useCallback(
     (quality: number) => {

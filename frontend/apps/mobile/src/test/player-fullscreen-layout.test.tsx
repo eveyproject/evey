@@ -168,6 +168,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useLibraryServiceGetMediaItem: () => ({ data: { id: "media-1", type: "MEDIA_ITEM_TYPE_MOVIE", title: "Some Movie", durationMs: "3600000" } }),
   useLibraryServiceListMediaItems: () => ({ data: { items: [] } }),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn() }),
+  usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
   useUserServiceGetCurrentUser: () => ({ data: { id: "user-1" } }),
   useUserServiceListProfiles: () => ({ data: { profiles: [] } }),
   createPlayerEventReporter: () => vi.fn(),

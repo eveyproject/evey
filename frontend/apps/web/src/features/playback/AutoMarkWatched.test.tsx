@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { useRef } from "react";
 import { AutoMarkWatched } from "./AutoMarkWatched";
 
@@ -38,7 +38,7 @@ function makeVideo(duration: number, currentTime: number): HTMLVideoElement {
 }
 
 function fireTick(video: HTMLVideoElement) {
-  video.dispatchEvent(new Event("timeupdate"));
+  act(() => { video.dispatchEvent(new Event("timeupdate")); });
 }
 
 describe("AutoMarkWatched", () => {

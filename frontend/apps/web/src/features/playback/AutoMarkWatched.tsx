@@ -1,8 +1,5 @@
-import { useEffect, useRef } from "react";
-import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
-import { useQueryClient } from "@tanstack/react-query";
-import { usePlaybackServiceMarkAsWatched, usePlaybackServiceGetWatchProgress } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useEffect, useState } from "react";
+import { useAutoMarkWatched } from "@evey/client";
 
 interface AutoMarkWatchedProps {
   mediaId: string;
@@ -20,65 +17,25 @@ interface AutoMarkWatchedProps {
   transcodeOffsetRef?: React.RefObject<number>;
 }
 
-const THRESHOLD = 0.9;
-
 /**
- * MaxResumePct=90, the standard watched ceiling: once playback crosses 90% of the
- * media's runtime, fire MarkAsWatched once. The server's
- * ReportProgressBySession path always sends Completed=false, so without
- * this the user has to manually toggle "watched" after every episode.
- *
- * The component is render-less; mount alongside the player.
+ * The web player's feed for useAutoMarkWatched (the rule every player shares):
+ * the <video> element's own clock, read on timeupdate without re-rendering the
+ * player. Render-less; mount alongside the player.
  */
 export function AutoMarkWatched({ mediaId, videoRef, knownDurationSec, transcodeOffsetRef }: AutoMarkWatchedProps) {
-  const profileId = useAuthStore((s) => s.profileId) ?? "";
-  const { data: progress } = usePlaybackServiceGetWatchProgress(
-    mediaId,
-    { profileId },
-    { query: { enabled: !!mediaId && !!profileId } },
-  );
-  const queryClient = useQueryClient();
-  const { mutate } = usePlaybackServiceMarkAsWatched({
-    mutation: {
-      // Mirror the manual mark-watched paths (MediaCard.invalidateItem): without
-      // this the silent 90% auto-mark updated the server but no cache, so a
-      // finished episode lingered as unwatched / in "Continue Watching" until
-      // staleTime (5min) elapsed.
-      onSuccess: () => {
-        invalidateWatchedState(queryClient, mediaId);
-      },
-    },
-  });
-  const firedRef = useRef(false);
-
-  // Reset on media change.
-  useEffect(() => { firedRef.current = false; }, [mediaId]);
-
-  // Pre-flag if the server already says it's played, to avoid redundant calls.
-  useEffect(() => {
-    if (progress?.played) firedRef.current = true;
-  }, [progress?.played]);
+  const [clock, setClock] = useState({ pos: 0, dur: 0 });
+  useAutoMarkWatched(mediaId, clock.pos, clock.dur);
 
   useEffect(() => {
-    if (!mediaId || !profileId) return;
     const video = videoRef.current;
     if (!video) return;
-
     const tick = () => {
-      if (firedRef.current) return;
       const dur = knownDurationSec && knownDurationSec > 0 ? knownDurationSec : video.duration;
-      if (!Number.isFinite(dur) || dur <= 0) return;
-      const cur = (transcodeOffsetRef?.current ?? 0) + video.currentTime;
-      if (cur <= 0) return;
-      if (cur / dur >= THRESHOLD) {
-        firedRef.current = true;
-        mutate({ mediaItemId: mediaId, params: { profileId } });
-      }
+      setClock({ pos: (transcodeOffsetRef?.current ?? 0) + video.currentTime, dur: Number.isFinite(dur) ? dur : 0 });
     };
-
     video.addEventListener("timeupdate", tick);
     return () => video.removeEventListener("timeupdate", tick);
-  }, [mediaId, profileId, videoRef, knownDurationSec, transcodeOffsetRef, mutate]);
+  }, [mediaId, videoRef, knownDurationSec, transcodeOffsetRef]);
 
   return null;
 }

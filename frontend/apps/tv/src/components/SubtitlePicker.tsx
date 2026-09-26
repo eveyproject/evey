@@ -4,16 +4,9 @@ import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
 import { FONT_SIZE } from "@evey/theme";
 
-export interface SubtitleStream {
-  index: number;
-  trackIndex: number;
-  language?: string;
-  title?: string;
-  isDefault?: boolean;
-  isForced?: boolean;
-  codec?: string;
-  burnIn?: boolean;
-}
+// The track shapes every player lists: one definition in @evey/api.
+export type { PlayerSubtitleStream as SubtitleStream } from "@evey/api";
+import type { PlayerSubtitleStream as SubtitleStream } from "@evey/api";
 
 interface SubtitlePickerProps {
   visible: boolean;

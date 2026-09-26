@@ -5,14 +5,9 @@ import { FocusableCard } from "./FocusableCard";
 import { FONT_SIZE } from "@evey/theme";
 import { formatChannelLayout } from "@evey/api";
 
-export interface AudioStream {
-  index: number;
-  trackIndex: number;
-  language?: string;
-  title?: string;
-  isDefault?: boolean;
-  channels?: number;
-}
+// The track shapes every player lists: one definition in @evey/api.
+export type { PlayerAudioStream as AudioStream } from "@evey/api";
+import type { PlayerAudioStream as AudioStream } from "@evey/api";
 
 interface AudioTrackPickerProps {
   visible: boolean;
