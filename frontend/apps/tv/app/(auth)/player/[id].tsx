@@ -28,7 +28,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
-import { resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek } from "@evey/client";
+import { resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { QualityPicker } from "../../../src/components/QualityPicker";
@@ -668,11 +668,9 @@ export default function PlayerScreen() {
     }
   }, [skipFwd, skipBwd, beginHold, endHold, bumpSeek, isHolding]);
 
-  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
   const cycleSpeed = useCallback(() => {
     setPlaybackSpeed((prev) => {
-      const idx = SPEEDS.indexOf(prev as (typeof SPEEDS)[number]);
-      const next = SPEEDS[(idx + 1) % SPEEDS.length];
+      const next = nextPlaybackSpeed(prev);
       withPlayer((p) => { p.playbackRate = next; });
       return next;
     });

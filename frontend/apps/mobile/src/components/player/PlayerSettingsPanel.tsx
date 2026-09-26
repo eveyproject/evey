@@ -18,7 +18,9 @@ import { formatAudioTrackLabel, qualityRungsFromHeights, trackDisplayName } from
 export type { PlayerAudioStream as AudioStream, PlayerSubtitleStream as SubtitleStream } from "@evey/api";
 import type { PlayerAudioStream as AudioStream, PlayerSubtitleStream as SubtitleStream } from "@evey/api";
 
-export const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+// The speed list every player offers lives in @evey/client.
+export { SPEED_OPTIONS } from "@evey/client";
+import { SPEED_OPTIONS } from "@evey/client";
 
 interface PlayerSettingsPanelProps {
   audioStreams: AudioStream[];
