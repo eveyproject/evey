@@ -195,16 +195,10 @@ func TestStartScheduler_TickerCreatesBackup(t *testing.T) {
 	bus := newChannelEventBus()
 	svc := NewService(store, dumper, "1.0.0", WithEventBus(bus))
 
-	// Simulate what the scheduler does on tick: CreateBackup + publish event
+	// CreateBackup announces its own failure.
 	ctx := context.Background()
-	if _, err := svc.CreateBackup(ctx); err != nil {
-		if svc.events != nil {
-			evt := backupmodel.BackupFailed{
-				Error:      err.Error(),
-				OccurredAt: time.Now(),
-			}
-			_ = svc.events.Publish(ctx, evt)
-		}
+	if _, err := svc.CreateBackup(ctx); err == nil {
+		t.Fatal("expected the dump error")
 	}
 
 	select {
@@ -245,17 +239,9 @@ func TestStartScheduler_PublishError(t *testing.T) {
 	dumper.Err = errors.New("db down")
 	svc := NewService(store, dumper, "1.0.0", WithEventBus(&failingEventBus{}))
 
-	// Simulate scheduler publish error path
-	ctx := context.Background()
-	if _, err := svc.CreateBackup(ctx); err != nil {
-		if svc.events != nil {
-			evt := backupmodel.BackupFailed{
-				Error:      err.Error(),
-				OccurredAt: time.Now(),
-			}
-			// This should not panic even when Publish returns error
-			_ = svc.events.Publish(ctx, evt)
-		}
+	// A failing publish must not hide the backup error nor panic.
+	if _, err := svc.CreateBackup(context.Background()); err == nil || !strings.Contains(err.Error(), "db down") {
+		t.Fatalf("expected the dump error, got %v", err)
 	}
 }
 

@@ -737,6 +737,43 @@ func TestWithEventBus_PublishesBackupFailedOnScheduledError(t *testing.T) {
 	}
 }
 
+// A manual backup is announced too: backup.created with its id and size on
+// success, backup.failed on error - not only the scheduled ones.
+func TestCreateBackup_AnnouncesManualBackups(t *testing.T) {
+	store := fakes.NewFakeBackupStore()
+	bus := &fakeEventCollector{}
+	svc := NewService(store, fakes.NewFakeDatabaseDumper(), "1.0.0", WithEventBus(bus))
+
+	m, err := svc.CreateBackup(context.Background())
+	if err != nil {
+		t.Fatalf("CreateBackup: %v", err)
+	}
+	if len(bus.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(bus.events))
+	}
+	bc, ok := bus.events[0].(backupmodel.BackupCreated)
+	if !ok || bc.EventName() != "backup.created" {
+		t.Fatalf("expected backup.created, got %T", bus.events[0])
+	}
+	if bc.BackupID != m.ID || bc.SizeBytes != m.Size || bc.SizeBytes == 0 {
+		t.Fatalf("event %+v does not describe backup %s (%d bytes)", bc, m.ID, m.Size)
+	}
+
+	failing := fakes.NewFakeDatabaseDumper()
+	failing.Err = errors.New("db unreachable")
+	bus = &fakeEventCollector{}
+	svc = NewService(store, failing, "1.0.0", WithEventBus(bus))
+	if _, err := svc.CreateBackup(context.Background()); err == nil {
+		t.Fatal("expected the dump error")
+	}
+	if len(bus.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(bus.events))
+	}
+	if _, ok := bus.events[0].(backupmodel.BackupFailed); !ok {
+		t.Fatalf("expected backup.failed for a manual backup, got %T", bus.events[0])
+	}
+}
+
 // --- Cleanup edge cases ---
 
 func TestCleanupOldBackups_NegativeRetention(t *testing.T) {
