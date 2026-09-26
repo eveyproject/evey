@@ -254,6 +254,18 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 		// is already present we skip the (external, rate-limited) fetch.
 		hash := albumArtHash(ak.AlbumFolder, "")
 		dst := filepath.Join(s.albumArtDir, hash+".jpg")
+		// Une image posée dans le dossier (cover.jpg, folder.jpg...) est le
+		// choix du propriétaire : elle passe avant toute source externe.
+		if found, copied := s.useFolderCover(ctx, libraryID, ak.AlbumFolder, hash, dst); found {
+			if copied {
+				fetched++
+			}
+			continue
+		}
+		// Plus d'image dans le dossier : le cache ne la représente plus.
+		if err := os.Remove(localMarkerPath(dst)); err != nil && !os.IsNotExist(err) {
+			slog.WarnContext(ctx, "music: remove folder cover marker", slog.String("path", dst), slog.Any("err", err))
+		}
 		if _, statErr := os.Stat(dst); statErr == nil {
 			// ... sauf si l'image a été écrite AVANT que le fetcher ne vérifie
 			// que le résultat correspondait bien à l'album demandé : elle peut
