@@ -9,7 +9,7 @@ import (
 func TestAlbumFolderHash_MatchesCoverArtFormula(t *testing.T) {
 	// The album folder hash must equal sha256(folder + "|") so it stays
 	// consistent with the on-disk cover-art addressing.
-	folder := "/media4/Linkin Park - From Zero (Deluxe Edition)"
+	folder := "/media4/Neon Harbor - From Nowhere (Deluxe Edition)"
 	sum := sha256.Sum256([]byte(folder + "|"))
 	want := hex.EncodeToString(sum[:])
 	if got := AlbumFolderHash(folder); got != want {
@@ -18,7 +18,7 @@ func TestAlbumFolderHash_MatchesCoverArtFormula(t *testing.T) {
 }
 
 func TestAlbumID_ShortAndStable(t *testing.T) {
-	folder := "/media4/Linkin Park - From Zero (Deluxe Edition)"
+	folder := "/media4/Neon Harbor - From Nowhere (Deluxe Edition)"
 	id := AlbumID(folder)
 	if len(id) != 16 {
 		t.Fatalf("AlbumID length = %d, want 16 (%q)", len(id), id)

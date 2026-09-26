@@ -386,8 +386,8 @@ func TestMusicTrackRepo_GetAlbums(t *testing.T) {
 // donc un choix LEXICOGRAPHIQUE. Or "/api/v1/music/album-art/…" < "/api/v1/music/
 // tracks/…" ('a' < 't'), si bien qu'une seule ligne portant une pochette iTunes
 // écrasait les pochettes EMBARQUÉES correctes de tout le dossier. Sur la
-// bibliothèque du user, l'album "Apple Essentials" de Linkin Park embarquait la
-// bonne pochette dans ses MP3 et affichait quand même celle de Hybrid Theory,
+// bibliothèque du user, l'album "Orchard Essentials" de Neon Harbor embarquait la
+// bonne pochette dans ses MP3 et affichait quand même celle de Mixed Signals,
 // devinée par iTunes. L'artwork embarqué dans le fichier est la source
 // autoritaire : il doit gagner.
 func TestMusicTrackRepo_GetAlbums_EmbeddedArtBeatsFetchedArt(t *testing.T) {
@@ -405,13 +405,13 @@ func TestMusicTrackRepo_GetAlbums_EmbeddedArtBeatsFetchedArt(t *testing.T) {
 	// Une piste porte une pochette embarquée (CoverArtURL non vide à l'upsert),
 	// l'autre non. Seul SetAlbumCoverArtURL sait écrire une URL album-art, donc
 	// on reproduit le geste exact du fetcher iTunes.
-	embedded := newTestTrack("mt-art-a", lib.ID, "In The End", "Linkin Park", "Apple Essentials")
+	embedded := newTestTrack("mt-art-a", lib.ID, "At The Close", "Neon Harbor", "Orchard Essentials")
 	embedded.FilePath = "/music/essentials/01.mp3"
 	embedded.CoverArtURL = "/api/v1/music/tracks/placeholder/art" // non vide = le fichier a une pochette
 	persistedA, err := repo.Upsert(ctx, embedded)
 	require.NoError(t, err)
 
-	noArt := newTestTrack("mt-art-b", lib.ID, "Numb", "Linkin Park", "Apple Essentials")
+	noArt := newTestTrack("mt-art-b", lib.ID, "Numb", "Neon Harbor", "Orchard Essentials")
 	noArt.FilePath = "/music/essentials/02.mp3"
 	noArt.CoverArtURL = ""
 	_, err = repo.Upsert(ctx, noArt)
@@ -449,7 +449,7 @@ func TestMusicTrackRepo_GetAlbums_FetchedArtStillServedWithoutEmbedded(t *testin
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	tr := newTestTrack("mt-art-c", lib.ID, "School", "Supertramp", "Crime Of The Century")
+	tr := newTestTrack("mt-art-c", lib.ID, "School", "Skyrider", "Song Of The Valley")
 	tr.FilePath = "/music/crime/01.flac"
 	tr.CoverArtURL = "" // aucune pochette dans le fichier
 	_, err := repo.Upsert(ctx, tr)
@@ -502,9 +502,9 @@ func TestMusicTrackRepo_GetArtists_AlbumCountByFolder(t *testing.T) {
 	assert.Equal(t, 2, artists[0].AlbumCount, "two folders sharing one album tag must count as two albums")
 }
 
-// Regression for the LINKIN PARK / Jay-Z featuring bug: 24 tracks share
-// album_artist="Linkin Park", 1 track overrides it to "Jay-Z". Before
-// the folder-based fix, MIN(album_artist) picked "Jay-Z" (J < L) on
+// Regression for the NEON HARBOR / MC Zed featuring bug: 24 tracks share
+// album_artist="Neon Harbor", 1 track overrides it to "MC Zed". Before
+// the folder-based fix, MIN(album_artist) picked "MC Zed" (J < L) on
 // every call. With mode() on (album_folder), the majority wins.
 func TestMusicTrackRepo_GetAlbums_MajorityArtistWinsOnFeaturing(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
@@ -518,21 +518,21 @@ func TestMusicTrackRepo_GetAlbums_MajorityArtistWinsOnFeaturing(t *testing.T) {
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	folder := "/media4/LINKIN PARK - Essentials"
-	// 24 tracks, album_artist = "Linkin Park"
+	folder := "/media4/NEON HARBOR - Essentials"
+	// 24 tracks, album_artist = "Neon Harbor"
 	for i := 0; i < 24; i++ {
-		tr := newTestTrack(fmt.Sprintf("lp-%02d", i), lib.ID, fmt.Sprintf("Song %02d", i), "Linkin Park", "Apple Essentials")
-		tr.AlbumArtist = "Linkin Park"
+		tr := newTestTrack(fmt.Sprintf("lp-%02d", i), lib.ID, fmt.Sprintf("Song %02d", i), "Neon Harbor", "Orchard Essentials")
+		tr.AlbumArtist = "Neon Harbor"
 		tr.FilePath = fmt.Sprintf("%s/%02d.flac", folder, i)
 		{
 			_, uerr := repo.Upsert(ctx, tr)
 			require.NoError(t, uerr)
 		}
 	}
-	// 1 featuring track, album_artist = "Jay-Z" (would lose to MIN() on
+	// 1 featuring track, album_artist = "MC Zed" (would lose to MIN() on
 	// album_artist alphabetical ordering without the folder fix).
-	feat := newTestTrack("lp-17-feat", lib.ID, "Numb/Encore (feat. Jay-Z)", "Jay-Z", "Apple Essentials")
-	feat.AlbumArtist = "Jay-Z"
+	feat := newTestTrack("lp-17-feat", lib.ID, "Numb/Encore (feat. MC Zed)", "MC Zed", "Orchard Essentials")
+	feat.AlbumArtist = "MC Zed"
 	feat.FilePath = folder + "/17-feat.flac"
 	{
 		_, uerr := repo.Upsert(ctx, feat)
@@ -543,12 +543,12 @@ func TestMusicTrackRepo_GetAlbums_MajorityArtistWinsOnFeaturing(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, albums, 1, "folder should collapse to 1 album")
 	assert.Equal(t, 25, albums[0].TrackCount)
-	assert.Equal(t, "Linkin Park", albums[0].Artist, "majority album_artist should win")
-	assert.Equal(t, "Apple Essentials", albums[0].Title)
+	assert.Equal(t, "Neon Harbor", albums[0].Artist, "majority album_artist should win")
+	assert.Equal(t, "Orchard Essentials", albums[0].Title)
 	assert.Equal(t, music.AlbumID(folder), albums[0].ID)
 }
 
-// Two folders that share the same album tag ("Apple Essentials") must
+// Two folders that share the same album tag ("Orchard Essentials") must
 // stay distinct albums. This is the mirror of the previous test: the
 // tag-based grouping would have collapsed them; folder-based keeps them.
 func TestMusicTrackRepo_GetAlbums_SameTagDifferentFoldersStaySplit(t *testing.T) {
@@ -566,13 +566,13 @@ func TestMusicTrackRepo_GetAlbums_SameTagDifferentFoldersStaySplit(t *testing.T)
 	folder1 := "/media/Artist A - Essentials"
 	folder2 := "/media/Artist B - Essentials"
 	for i := 0; i < 5; i++ {
-		t1 := newTestTrack(fmt.Sprintf("a-%d", i), lib.ID, fmt.Sprintf("Track %d", i), "Artist A", "Apple Essentials")
+		t1 := newTestTrack(fmt.Sprintf("a-%d", i), lib.ID, fmt.Sprintf("Track %d", i), "Artist A", "Orchard Essentials")
 		t1.FilePath = fmt.Sprintf("%s/%d.flac", folder1, i)
 		{
 			_, uerr := repo.Upsert(ctx, t1)
 			require.NoError(t, uerr)
 		}
-		t2 := newTestTrack(fmt.Sprintf("b-%d", i), lib.ID, fmt.Sprintf("Track %d", i), "Artist B", "Apple Essentials")
+		t2 := newTestTrack(fmt.Sprintf("b-%d", i), lib.ID, fmt.Sprintf("Track %d", i), "Artist B", "Orchard Essentials")
 		t2.FilePath = fmt.Sprintf("%s/%d.flac", folder2, i)
 		{
 			_, uerr := repo.Upsert(ctx, t2)

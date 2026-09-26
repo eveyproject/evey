@@ -78,14 +78,14 @@ import MusicScreen, { selectMusicFocusSection } from "./music";
 
 const LIBRARIES = [{ id: "lib-music-1", name: "My Music", type: "LIBRARY_TYPE_MUSIC" }];
 const ARTISTS = [
-  { id: "Daft Punk", name: "Daft Punk", trackCount: 12, albumCount: 2, coverArtUrl: "" },
+  { id: "Chrome Duo", name: "Chrome Duo", trackCount: 12, albumCount: 2, coverArtUrl: "" },
 ];
 const ALBUMS = [
-  { id: "album-1", title: "Discovery", artist: "Daft Punk", year: 2001, trackCount: 14, coverArtUrl: "" },
+  { id: "album-1", title: "Voyage", artist: "Chrome Duo", year: 2001, trackCount: 14, coverArtUrl: "" },
 ];
 const TRACKS = [
-  { id: "tr-1", title: "One More Time", artist: "Daft Punk", album: "Discovery", duration: 320 },
-  { id: "tr-2", title: "Aerodynamic", artist: "Daft Punk", album: "Discovery", duration: 210 },
+  { id: "tr-1", title: "Once Again", artist: "Chrome Duo", album: "Voyage", duration: 320 },
+  { id: "tr-2", title: "Streamlined", artist: "Chrome Duo", album: "Voyage", duration: 210 },
 ];
 
 beforeEach(() => {
@@ -124,24 +124,24 @@ describe("MusicScreen (TV)", () => {
 
   it("renders the artists, albums and tracks rows with focusable cards", () => {
     render(<MusicScreen />);
-    expect(screen.getByLabelText("Daft Punk")).toBeTruthy();
-    expect(screen.getByLabelText("Discovery")).toBeTruthy();
-    expect(screen.getByLabelText("One More Time")).toBeTruthy();
-    expect(screen.getByLabelText("Aerodynamic")).toBeTruthy();
+    expect(screen.getByLabelText("Chrome Duo")).toBeTruthy();
+    expect(screen.getByLabelText("Voyage")).toBeTruthy();
+    expect(screen.getByLabelText("Once Again")).toBeTruthy();
+    expect(screen.getByLabelText("Streamlined")).toBeTruthy();
   });
 
   it("drills down into an artist on press", () => {
     render(<MusicScreen />);
-    fireEvent.click(screen.getByLabelText("Daft Punk"));
+    fireEvent.click(screen.getByLabelText("Chrome Duo"));
     expect(pushMock).toHaveBeenCalledWith(
-      expect.stringContaining("/(auth)/music/artist/Daft%20Punk"),
+      expect.stringContaining("/(auth)/music/artist/Chrome%20Duo"),
     );
     expect(pushMock).toHaveBeenCalledWith(expect.stringContaining("libraryId=lib-music-1"));
   });
 
   it("drills down into an album on press", () => {
     render(<MusicScreen />);
-    fireEvent.click(screen.getByLabelText("Discovery"));
+    fireEvent.click(screen.getByLabelText("Voyage"));
     expect(pushMock).toHaveBeenCalledWith(
       expect.stringContaining("/(auth)/music/album/album-1"),
     );
@@ -150,7 +150,7 @@ describe("MusicScreen (TV)", () => {
 
   it("selecting a track loads the full track list into the queue at that index", () => {
     render(<MusicScreen />);
-    fireEvent.click(screen.getByLabelText("Aerodynamic"));
+    fireEvent.click(screen.getByLabelText("Streamlined"));
 
     const state = useMusicQueueStore.getState();
     expect(state.currentIndex).toBe(1);
@@ -173,7 +173,7 @@ describe("MusicScreen (TV)", () => {
     expect(refetchArtists).toHaveBeenCalled();
 
     // Unaffected rows still render.
-    expect(screen.getByLabelText("Discovery")).toBeTruthy();
-    expect(screen.getByLabelText("One More Time")).toBeTruthy();
+    expect(screen.getByLabelText("Voyage")).toBeTruthy();
+    expect(screen.getByLabelText("Once Again")).toBeTruthy();
   });
 });

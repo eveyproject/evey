@@ -115,10 +115,10 @@ func TestResilientMusic_SearchFallsBackToSQL(t *testing.T) {
 func TestMusicRepoFallback_SearchesTheTableAndIgnoresWrites(t *testing.T) {
 	ctx := context.Background()
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	if _, err := repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib1", Title: "Blue Train", Artist: "Coltrane", FilePath: "/m/1.flac"}); err != nil {
+	if _, err := repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib1", Title: "Blue Rail", Artist: "Saxwell", FilePath: "/m/1.flac"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib2", Title: "Blue Monday", Artist: "New Order", FilePath: "/m/2.flac"}); err != nil {
+	if _, err := repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib2", Title: "Blue Evening", Artist: "Fresh Signal", FilePath: "/m/2.flac"}); err != nil {
 		t.Fatal(err)
 	}
 	f := NewMusicRepoFallback(repo)

@@ -395,7 +395,7 @@ describe("HomeScreen music and photo library rows", () => {
       isLoading: false,
     });
     libraryRowResults.set("lib-mus", {
-      data: { albums: [{ id: "alb-1", title: "Kind of Blue", artist: "Miles Davis" }] },
+      data: { albums: [{ id: "alb-1", title: "Tone of Grey", artist: "Milo Brass" }] },
       isLoading: false,
     });
     libraryRowResults.set("lib-pho", {
@@ -415,7 +415,7 @@ describe("HomeScreen music and photo library rows", () => {
 
   it("sends an album card to the album screen and a photo card to the photos screen", () => {
     render(<HomeScreen />);
-    fireEvent.click(screen.getByLabelText("Kind of Blue"));
+    fireEvent.click(screen.getByLabelText("Tone of Grey"));
     // With the library id: the album screen needs both, and a bare id left its
     // query disabled - raw id as the title, "no track found".
     expect(pushMock).toHaveBeenCalledWith("/(auth)/music/album/alb-1?libraryId=lib-mus");

@@ -13,8 +13,8 @@ import (
 // L'ordre porte une décision : MusicBrainz identifie la sortie par une requête
 // PAR CHAMPS, donc il ne peut pas confondre deux albums d'un même artiste ;
 // iTunes, en recherche plein-texte, retombe sur l'album le plus populaire quand
-// le titre n'est pas indexé (prod 2026-07-25 : deux albums Linkin Park avec la
-// pochette de Hybrid Theory). MusicBrainz passe donc d'abord, et iTunes ne sert
+// le titre n'est pas indexé (prod 2026-07-25 : deux albums Neon Harbor avec la
+// pochette de Mixed Signals). MusicBrainz passe donc d'abord, et iTunes ne sert
 // qu'à couvrir les albums absents de Cover Art Archive - sans danger désormais,
 // puisqu'il vérifie lui aussi la correspondance avant de renvoyer une image.
 //

@@ -109,7 +109,7 @@ func buildMusicServices(ctx context.Context, cfg *config.Config, infra *infraDep
 	// identifie la sortie par une requête PAR CHAMPS et ne peut donc pas
 	// confondre deux albums d'un même artiste, là où la recherche plein-texte
 	// d'iTunes retombe sur l'album le plus populaire quand le titre n'est pas
-	// indexé (prod 07-25 : pochette de Hybrid Theory sur deux albums Linkin
+	// indexé (prod 07-25 : pochette de Mixed Signals sur deux albums Linkin
 	// Park). iTunes reste en bout de chaîne pour les albums absents de Cover Art
 	// Archive - sans risque, il vérifie désormais la correspondance lui aussi.
 	// L'artwork EMBARQUÉ dans les fichiers reste prioritaire sur toute la chaîne

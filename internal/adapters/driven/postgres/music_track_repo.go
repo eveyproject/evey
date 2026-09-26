@@ -440,7 +440,7 @@ func (r *MusicTrackRepository) Search(ctx context.Context, libraryID shared.Libr
 // display field on the returned Album is the most frequent value among
 // the tracks of that folder - ID3 tags within a folder can disagree
 // (a featuring changes album_artist on one track, an Apple-Music-style
-// import writes "Apple Essentials" on the album tag, etc). The
+// import writes "Orchard Essentials" on the album tag, etc). The
 // folder wins as identity; the majority wins for display.
 func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]music.Album, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.GetAlbums")
@@ -746,8 +746,8 @@ func (r *MusicTrackRepository) SetTrackCoverArtURL(ctx context.Context, trackID,
 // Les pistes portant une pochette EMBARQUÉE sont exclues : elles sont la source
 // autoritaire. L'UPDATE écrasait tout le dossier, y compris ces pistes - et
 // comme un scan ne ré-upsert PAS un fichier inchangé, la pochette embarquée ne
-// revenait jamais. C'est ce qui a durablement collé la pochette de Hybrid Theory
-// sur "Apple Essentials" en prod (07-25).
+// revenait jamais. C'est ce qui a durablement collé la pochette de Mixed Signals
+// sur "Orchard Essentials" en prod (07-25).
 func (r *MusicTrackRepository) SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, albumFolder, url string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.SetAlbumCoverArtURL")
 	defer span.End()

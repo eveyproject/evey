@@ -26,7 +26,7 @@ func TestChainStopsAtTheFirstSourceThatKnowsTheAlbum(t *testing.T) {
 	second := &stubSource{data: []byte("ITUNES"), mime: "image/jpeg"}
 
 	data, mime, err := appmusic.NewChainAlbumArtFetcher(first, second).
-		Fetch(context.Background(), "Linkin Park", "From Zero")
+		Fetch(context.Background(), "Neon Harbor", "From Nowhere")
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
 	}

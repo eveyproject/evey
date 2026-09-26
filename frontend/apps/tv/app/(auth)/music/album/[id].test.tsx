@@ -68,8 +68,8 @@ import { useMusicQueueStore } from "../../../../src/stores/musicQueue";
 import AlbumDetailScreen from "./[id]";
 
 const ALBUM_TRACKS = [
-  { id: "tr-1", title: "One More Time", artist: "Daft Punk", album: "Discovery", trackNumber: 1, duration: 320, coverArtUrl: "" },
-  { id: "tr-2", title: "Aerodynamic", artist: "Daft Punk", album: "Discovery", trackNumber: 2, duration: 210, coverArtUrl: "" },
+  { id: "tr-1", title: "Once Again", artist: "Chrome Duo", album: "Voyage", trackNumber: 1, duration: 320, coverArtUrl: "" },
+  { id: "tr-2", title: "Streamlined", artist: "Chrome Duo", album: "Voyage", trackNumber: 2, duration: 210, coverArtUrl: "" },
 ];
 
 beforeEach(() => {
@@ -90,13 +90,13 @@ describe("AlbumDetailScreen (TV)", () => {
 
   it("renders every track of the album in order", () => {
     render(<AlbumDetailScreen />);
-    expect(screen.getByLabelText("One More Time")).toBeTruthy();
-    expect(screen.getByLabelText("Aerodynamic")).toBeTruthy();
+    expect(screen.getByLabelText("Once Again")).toBeTruthy();
+    expect(screen.getByLabelText("Streamlined")).toBeTruthy();
   });
 
   it("loads the whole album into the queue, anchored at the pressed track", () => {
     render(<AlbumDetailScreen />);
-    fireEvent.click(screen.getByLabelText("Aerodynamic"));
+    fireEvent.click(screen.getByLabelText("Streamlined"));
 
     const state = useMusicQueueStore.getState();
     expect(state.currentIndex).toBe(1);

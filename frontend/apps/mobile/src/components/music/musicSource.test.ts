@@ -19,7 +19,7 @@ describe("albumMusicSource", () => {
 
 describe("artistMusicSource", () => {
   it("uses the artist name as both id and label", () => {
-    expect(artistMusicSource("The Beatles")).toEqual({ type: "artist", id: "The Beatles", label: "The Beatles" });
+    expect(artistMusicSource("The Lanterns")).toEqual({ type: "artist", id: "The Lanterns", label: "The Lanterns" });
   });
 });
 
@@ -29,11 +29,11 @@ describe("trackListMusicSource", () => {
   });
 
   it("returns an artist source when an artist filter is active", () => {
-    expect(trackListMusicSource(null, "", "The Beatles")).toEqual({ type: "artist", id: "The Beatles", label: "The Beatles" });
+    expect(trackListMusicSource(null, "", "The Lanterns")).toEqual({ type: "artist", id: "The Lanterns", label: "The Lanterns" });
   });
 
   it("prefers the album filter when both are somehow set", () => {
-    expect(trackListMusicSource("a1", "Abbey Road", "The Beatles")).toEqual({ type: "album", id: "a1", label: "Abbey Road" });
+    expect(trackListMusicSource("a1", "Abbey Road", "The Lanterns")).toEqual({ type: "album", id: "a1", label: "Abbey Road" });
   });
 
   it("returns null for an unfiltered listing", () => {
@@ -85,17 +85,17 @@ describe("restoreMusicFilterFromParams", () => {
   });
 
   it("restores an artist filter", () => {
-    expect(restoreMusicFilterFromParams({ artist: "The Beatles" })).toEqual({
+    expect(restoreMusicFilterFromParams({ artist: "The Lanterns" })).toEqual({
       tab: "tracks",
       albumFilter: null,
       albumFilterLabel: "",
-      artistFilter: "The Beatles",
+      artistFilter: "The Lanterns",
       playlistId: null,
     });
   });
 
   it("prioritizes playlistId over album/artist when several are present", () => {
-    expect(restoreMusicFilterFromParams({ playlistId: "p1", album: "a1", artist: "The Beatles" })?.tab).toBe("playlists");
+    expect(restoreMusicFilterFromParams({ playlistId: "p1", album: "a1", artist: "The Lanterns" })?.tab).toBe("playlists");
   });
 
   it("falls back to a bare tab switch with no filter", () => {

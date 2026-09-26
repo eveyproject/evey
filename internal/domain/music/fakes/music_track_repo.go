@@ -396,7 +396,7 @@ func (r *FakeMusicTrackRepository) GetAlbums(_ context.Context, libraryID shared
 		// Même préférence que le repo postgres : la pochette EMBARQUÉE dans le
 		// fichier bat celle récupérée en externe. Le fake prenait « la première
 		// non vide », donc il ne pouvait pas voir le bug de préséance qui a fait
-		// afficher la pochette de Hybrid Theory sur deux albums Linkin Park.
+		// afficher la pochette de Mixed Signals sur deux albums Neon Harbor.
 		if t.CoverArtURL != "" && (agg.cover == "" || preferredCoverArt(t.CoverArtURL, agg.cover)) {
 			agg.cover = t.CoverArtURL
 		}
