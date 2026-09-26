@@ -467,6 +467,10 @@ export EVEY_RESTART_EXIT_CODE
 # unavailable instead of exiting into nothing.
 EVEY_SUPERVISED=1
 export EVEY_SUPERVISED
+# The embedded Postgres and Meilisearch are Evey's load too, but siblings of
+# the server: it counts their trees beside its own in the admin CPU share.
+EVEY_COMPANION_PIDS="$PG_PID $MEILI_PID"
+export EVEY_COMPANION_PIDS
 
 stop_services() {
     if [ -n "$PG_PID" ] && kill -0 "$PG_PID" 2>/dev/null; then
