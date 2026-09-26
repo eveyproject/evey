@@ -7,6 +7,7 @@ import React from "react";
 // answer told the user their playlist was gone - with nothing to retry. The web
 // twin carried the exact same defect and was fixed the same day.
 
+vi.mock("../../../src/hooks/usePlaylistDownloadAll", () => ({ usePlaylistDownloadAll: () => ({ downloadAll: vi.fn(), downloading: false }) }));
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),

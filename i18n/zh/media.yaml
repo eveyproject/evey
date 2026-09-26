@@ -487,6 +487,7 @@ playlist:
   phRating: "例如 7.0"
   phCollectionName: "例如 2015年后的动作片"
   download: "下载播放列表"
+  downloadAllDone: "播放列表下载：已开始 {{started}}，已存在或非视频 {{skipped}}，失败 {{failed}}"
   generate: "生成播放列表"
   generateFailed: "无法生成播放列表"
   generated: "播放列表已生成"
