@@ -64,10 +64,13 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			WHERE wp.profile_id = $1
 			  AND mi.type = 'episode'
 		),
+		-- One card per series: its most recently played in-progress episode.
 		in_progress_eps AS (
-			SELECT mi.id, mi.parent_id, mi.title, 'episode'::text AS type,
+			SELECT DISTINCT ON (s.parent_id)
+			       mi.id, mi.parent_id, mi.title, 'episode'::text AS type,
 			       wp.position_ms, ''::text AS added_at, wp.last_played_at,
-			       s.index_number AS season_number, mi.index_number AS episode_number
+			       s.index_number AS season_number, mi.index_number AS episode_number,
+			       s.parent_id AS series_id
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			INNER JOIN media_items s ON s.id = mi.parent_id
@@ -78,6 +81,7 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			  AND wp.completed = FALSE
 			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
 			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
+			ORDER BY s.parent_id, wp.last_played_at DESC, mi.id
 		),
 		next_unwatched AS (
 			SELECT DISTINCT ON (s.parent_id)
@@ -89,7 +93,8 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			INNER JOIN series_list sl ON sl.series_id = s.parent_id
 			WHERE mi.type = 'episode'
 			  AND NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $1 AND wp2.completed = TRUE)
-			  AND NOT EXISTS (SELECT 1 FROM in_progress_eps ip WHERE ip.id = mi.id)
+			  -- A series already resuming an episode gets no second, next-up card.
+			  AND NOT EXISTS (SELECT 1 FROM in_progress_eps ip WHERE ip.series_id = s.parent_id)
 			ORDER BY s.parent_id, s.index_number, mi.index_number
 		)
 		SELECT id, parent_id, title, type, position_ms, added_at, season_number, episode_number
@@ -126,10 +131,14 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 	defer cancel()
 	limit = clampFeedLimit(limit)
 	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, `
-		WITH in_progress AS (
+		WITH in_progress_all AS (
 			SELECT mi.id, COALESCE(mi.parent_id,'') AS parent_id, mi.title, mi.type,
 			       wp.position_ms, wp.last_played_at,
-			       sea.index_number AS season_number, mi.index_number AS episode_number
+			       sea.index_number AS season_number, mi.index_number AS episode_number,
+			       sea.parent_id AS series_id,
+			       -- One card per series (its latest in-progress episode); a film is its own group.
+			       ROW_NUMBER() OVER (PARTITION BY COALESCE(sea.parent_id, mi.id)
+			                          ORDER BY wp.last_played_at DESC, mi.id) AS rn
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			LEFT JOIN media_items sea ON mi.type = 'episode' AND sea.id = mi.parent_id
@@ -140,6 +149,9 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 			  -- MinResumePct=5 (the classic resume floor): don't surface zaps.
 			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
 			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
+		),
+		in_progress AS (
+			SELECT * FROM in_progress_all WHERE rn = 1
 		),
 		watched_series AS (
 			SELECT DISTINCT s.parent_id AS series_id,
@@ -161,7 +173,8 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 			INNER JOIN media_items sea ON sea.parent_id = ws.series_id AND sea.type = 'season'
 			INNER JOIN media_items mi  ON mi.parent_id = sea.id       AND mi.type  = 'episode'
 			WHERE NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $1 AND wp2.completed = TRUE)
-			AND NOT EXISTS (SELECT 1 FROM in_progress ip WHERE ip.id = mi.id)
+			-- A series already resuming an episode gets no second, next-up card.
+			AND NOT EXISTS (SELECT 1 FROM in_progress ip WHERE ip.series_id = ws.series_id)
 			ORDER BY ws.series_id, sea.index_number, mi.index_number
 		)
 		SELECT id, parent_id, title, type, position_ms, '', season_number, episode_number
