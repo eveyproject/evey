@@ -619,6 +619,7 @@ func (r *FakeMusicTrackRepository) SampleByLibrary(ctx context.Context, libraryI
 	if err != nil || limit <= 0 {
 		return nil, err
 	}
+	//nolint:gosec // G404: a test fake's shuffle order, not a security decision
 	rand.Shuffle(len(all), func(i, j int) { all[i], all[j] = all[j], all[i] })
 	if len(all) > limit {
 		all = all[:limit]
