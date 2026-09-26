@@ -25,10 +25,10 @@ import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 import { useChapters, findCurrentChapterIndex } from "../../../src/hooks/useChapters";
 import { resumeNudger } from "../../../src/lib/resumeNudge";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
-import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview, holdScrubRate, tapSeekStep } from "../../../src/hooks/playerSeek";
+import { seekDeltaForKey } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
-import { resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack } from "@evey/client";
+import { resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { QualityPicker } from "../../../src/components/QualityPicker";
@@ -65,30 +65,22 @@ const CONTROLS_FOCUSED_TIMEOUT = 8000;
 // reads as "the app is struggling" when nothing is wrong.
 const BUFFERING_OVERLAY_DELAY_MS = 1200;
 
-
-// A player control the remote can land on. The overlay used to show three
-// silent circles: nothing said which one was selected, so the viewer pressed
-// OK and hoped. `focusable` is false while the surface owns the D-pad, which
-// keeps left/right seeking instead of walking this row.
-// How long the player waits after the last seek press before it actually
-// jumps. Long enough to chain presses into one move, short enough that a
-// single press still feels immediate.
-const SEEK_COMMIT_DELAY_MS = 600;
 // Android KeyEvent actions as react-native-tvos forwards them. Measured on
 // the box (2026-09-20): a tap delivers ONE event, "right" with action 1; a
 // held key delivers "longRight" with action 0 once the platform's long-press
 // delay has passed, then "longRight" with action 1 on release.
 const KEY_ACTION_DOWN = 0;
 const KEY_ACTION_UP = 1;
-// Between those two events the preview scrubs, every tick, at a rate that
-// climbs with the hold (holdScrubRate in playerSeek.ts).
-const HOLD_SCRUB_TICK_MS = 100;
 // Bottom panel geometry, shared with the trickplay anchor math.
 const PANEL_PADDING_H = 40;
 const PANEL_GAP = 16;
 const TIME_LABEL_WIDTH = 70;
 const TRICKPLAY_HALF_WIDTH = 160;
 
+// A player control the remote can land on. The overlay used to show three
+// silent circles: nothing said which one was selected, so the viewer pressed
+// OK and hoped. `focusable` is false while the surface owns the D-pad, which
+// keeps left/right seeking instead of walking this row.
 function PlayerControlButton({
   label,
   onPress,
@@ -276,15 +268,9 @@ export default function PlayerScreen() {
   // Debounced "the stream stalled" indicator - see setIsBufferingDebounced
   // below for why it is not just `ev.status === "loading"` on its own.
   const [isBuffering, setIsBuffering] = useState(false);
-  // Local target position shown the instant a seek key is pressed, released once
-  // the real playhead (fed by the player's own timeUpdate listener) catches up -
-  // see playerSeek.ts. Without this the progress bar only moved on the next
-  // timeUpdate tick, which read as unresponsive during an accelerated hold.
-  const [seekPreviewSec, setSeekPreviewSec] = useState<number | null>(null);
   // Mirrors for the remote handlers: a key repeat or a hold tick arrives
   // faster than this screen re-renders on the television, and a closure over
   // the state would add to a playhead that is already stale.
-  const seekPreviewRef = useRef<number | null>(null);
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
   // A fatal native failure (decoder error, 401 on a segment, broken manifest)
@@ -333,10 +319,6 @@ export default function PlayerScreen() {
     restartWithTracks,
   });
 
-  // Kept in a ref rather than a dependency: it is read inside the native
-  // listener, which must stay subscribed across renders.
-  needsFineTimeRef.current =
-    showControls || !isPlaying || seekPreviewSec !== null || clientSubtitleIndex !== null;
 
 
   const { data: chaptersData } = useChapters(mediaId);
@@ -487,11 +469,6 @@ export default function PlayerScreen() {
         setDuration(p.duration);
         durationRef.current = p.duration;
       });
-      setSeekPreviewSec((prev) => {
-        const next = prev !== null && shouldReleaseSeekPreview(ev.currentTime, prev) ? null : prev;
-        seekPreviewRef.current = next;
-        return next;
-      });
     });
     const statusSub = player.addListener("statusChange", (ev) => {
       withPlayer((p) => {
@@ -639,142 +616,57 @@ export default function PlayerScreen() {
   const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
   const skipBwd = playbackSettings?.skipBackwardSeconds ?? 30;
 
-  // A seek the viewer can build up. One press used to be one jump: reaching
-  // five minutes ahead meant ten separate seeks, ten restarts of the stream,
-  // and a timeline that lurched. Presses now accumulate into a preview the bar
-  // and the clock show live, and ONE seek commits it once the pressing stops.
+  // A seek the viewer builds up with the remote, the same on every television
+  // player (useRemoteSeek): presses move a preview the bar and the clock show
+  // live, ONE seek lands once the pressing stops, a held key scrubs.
+  const {
+    previewSec: seekPreviewSec,
+    bump: bumpSeek,
+    beginHold,
+    endHold,
+    commitNow: commitSeekNow,
+    isHolding,
+  } = useRemoteSeek({
+    positionSec: currentTime,
+    getPosition: () => currentTimeRef.current,
+    getDuration: () => durationRef.current,
+    seekTo: (sec) => withPlayer((p) => { p.currentTime = sec; }),
+    onActivity: resetHideTimer,
+  });
   const pendingSeekDelta = seekPreviewSec === null ? 0 : Math.round(seekPreviewSec - currentTime);
-  const seekCommitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (seekCommitRef.current) clearTimeout(seekCommitRef.current); }, []);
 
-  const setPreview = useCallback((sec: number) => {
-    seekPreviewRef.current = sec;
-    setSeekPreviewSec(sec);
-  }, []);
-  // How many taps the pending seek is made of: the step grows with it (see
-  // tapSeekStep) and the count resets once the seek commits.
-  const tapCountRef = useRef(0);
-  const scheduleCommit = useCallback(() => {
-    if (seekCommitRef.current) clearTimeout(seekCommitRef.current);
-    seekCommitRef.current = setTimeout(() => {
-      seekCommitRef.current = null;
-      tapCountRef.current = 0;
-      const target = seekPreviewRef.current;
-      if (target === null) return;
-      withPlayer((p) => { p.currentTime = target; });
-    }, SEEK_COMMIT_DELAY_MS);
-  }, [withPlayer]);
+  // Kept in a ref rather than a dependency: it is read inside the native
+  // listener, which must stay subscribed across renders.
+  needsFineTimeRef.current =
+    showControls || !isPlaying || seekPreviewSec !== null || clientSubtitleIndex !== null;
 
-  // Shared by the on-screen buttons and the remote's left/right: move the
-  // preview now, commit the real seek when the viewer stops pressing. Each
-  // further tap in the same gesture takes a bigger step.
-  const bumpSeek = useCallback(
-    (delta: number) => {
-      const base = seekPreviewRef.current ?? currentTimeRef.current;
-      tapCountRef.current += 1;
-      const step = Math.sign(delta) * tapSeekStep(tapCountRef.current, Math.abs(delta));
-      setPreview(clampSeekTarget(base, step, durationRef.current));
-      scheduleCommit();
-      resetHideTimer();
-    },
-    [setPreview, scheduleCommit, resetHideTimer],
-  );
-
-  // Holding left/right scrubs. Each longLeft/longRight used to be one fixed
-  // x4 jump, and Android delivers TWO of them per hold (press and release):
-  // whatever the hold, the playhead moved four minutes and stopped, which the
-  // owner read as "I cannot seek further" (2026-09-20). Now the press starts
-  // a clock, a tick every 100ms moves the preview at a rate that grows with
-  // the hold, and the release commits ONE seek.
-  const holdRef = useRef<{ dir: 1 | -1; startedAt: number; lastAt: number; moved: boolean; timer: ReturnType<typeof setInterval> } | null>(null);
   // Which seek key is currently down, for the sets that never send a
   // longLeft/longRight and instead repeat the plain key while it is held: a
   // second "down" for the same direction before its "up" is that repeat, and
   // starts the same scrub a long-press event would.
   const seekKeyDownRef = useRef<1 | -1 | null>(null);
-  const stopHold = useCallback(() => {
-    if (holdRef.current) clearInterval(holdRef.current.timer);
-    holdRef.current = null;
-  }, []);
-  useEffect(() => stopHold, [stopHold]);
-  const beginHold = useCallback(
-    (dir: 1 | -1) => {
-      if (holdRef.current) return; // already scrubbing
-      const now = Date.now();
-      const timer = setInterval(() => {
-        const hold = holdRef.current;
-        if (!hold) return;
-        const t = Date.now();
-        const heldMs = t - hold.startedAt;
-        const dt = (t - hold.lastAt) / 1000;
-        hold.lastAt = t;
-        hold.moved = true;
-        const base = seekPreviewRef.current ?? currentTimeRef.current;
-        setPreview(clampSeekTarget(base, hold.dir * holdScrubRate(heldMs) * dt, durationRef.current));
-        resetHideTimer();
-      }, HOLD_SCRUB_TICK_MS);
-      holdRef.current = { dir, startedAt: now, lastAt: now, moved: false, timer };
-    },
-    [setPreview, resetHideTimer],
-  );
-  const endHold = useCallback(
-    (dir: 1 | -1, skipSec: number) => {
-      const hold = holdRef.current;
-      stopHold();
-      if (hold?.moved) {
-        scheduleCommit();
-        resetHideTimer();
-        return;
-      }
-      // A tap, or a hold released before its first tick: one skip.
-      bumpSeek(dir * skipSec);
-    },
-    [stopHold, scheduleCommit, resetHideTimer, bumpSeek],
-  );
-
-  // Remote-driven seek: left/right (plain skip) and longLeft/longRight
-  // (accelerated, native TV "hold" events - see playerSeek.ts). Updates a local
-  // preview position immediately so the progress bar moves on the SAME frame as
-  // the keypress instead of waiting for the player's next timeUpdate tick.
-  const seekByKey = useCallback(
-    (type: string) => {
-      const delta = seekDeltaForKey(type, skipBwd, skipFwd);
-      if (delta === 0) return;
-      bumpSeek(delta);
-    },
-    [skipBwd, skipFwd, bumpSeek],
-  );
-
-  // OK on the timeline: the pending jump lands now rather than after the
-  // settle delay; with nothing pending it is the play/pause it always was.
-  const commitSeekNow = useCallback(() => {
-    if (!seekCommitRef.current) return false;
-    clearTimeout(seekCommitRef.current);
-    seekCommitRef.current = null;
-    tapCountRef.current = 0;
-    const target = seekPreviewRef.current;
-    if (target !== null) withPlayer((p) => { p.currentTime = target; });
-    resetHideTimer();
-    return true;
-  }, [withPlayer, resetHideTimer]);
 
   // One reading of a left/right press, shared by the surface and the focused
-  // timeline: a tap is a skip that adds up, a hold scrubs.
+  // timeline: a tap is a skip that adds up, a hold scrubs. Android sends TWO
+  // longLeft/longRight per hold (press and release), with the key action.
   const handleSeekKey = useCallback((type: string, evt: { eventKeyAction?: number | string }) => {
     const dir: 1 | -1 = type === "right" || type === "longRight" ? 1 : -1;
     const long = type === "longLeft" || type === "longRight";
     const action = Number(evt.eventKeyAction);
     const skip = dir > 0 ? skipFwd : skipBwd;
-    if (Number.isNaN(action)) seekByKey(type); // no key action (Apple TV): one event per press
-    else if (action === KEY_ACTION_DOWN) {
+    if (Number.isNaN(action)) {
+      // No key action (Apple TV): one event per press.
+      const delta = seekDeltaForKey(type, skipBwd, skipFwd);
+      if (delta !== 0) bumpSeek(delta);
+    } else if (action === KEY_ACTION_DOWN) {
       if (long || seekKeyDownRef.current === dir) beginHold(dir);
       else seekKeyDownRef.current = dir;
     } else if (action === KEY_ACTION_UP) {
       seekKeyDownRef.current = null;
-      if (long || holdRef.current) endHold(dir, skip);
+      if (long || isHolding()) endHold(skip);
       else bumpSeek(dir * skip);
     }
-  }, [skipFwd, skipBwd, seekByKey, beginHold, endHold, bumpSeek]);
+  }, [skipFwd, skipBwd, beginHold, endHold, bumpSeek, isHolding]);
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
   const cycleSpeed = useCallback(() => {
