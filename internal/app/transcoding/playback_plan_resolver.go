@@ -132,10 +132,33 @@ func (pr *PlanResolver) Resolve(ctx context.Context, req PlaybackRequest) (Playb
 	// derivation below reads req.Source and req.Policy.
 	req.Source = SnapshotOf(req)
 	req.Policy = pr.hwPolicy()
+	// The host capability and the route costs are read ONCE too: the
+	// derivations below run on a copy of the resolver whose readers answer
+	// this request's snapshot, so a calibration published mid-request (a
+	// demotion, a re-bench) cannot pick a backend at the route and price
+	// another at admission. Decide alone (a caller that skips Resolve) reads
+	// live, exactly as it reads the policy.
+	pr = pr.frozen()
 	if req.LineKbps > 0 || req.ABRFloor {
 		return pr.resolveLineConstrained(ctx, req), nil
 	}
 	return pr.resolveDecided(ctx, req, pr.Decide(ctx, req)), nil
+}
+
+// frozen is this resolver with its capability and route-cost readers pinned
+// to the values they return now. A shallow copy: every other field is a port
+// or a setting, shared as before.
+func (pr *PlanResolver) frozen() *PlanResolver {
+	f := *pr
+	if pr.Capability != nil {
+		snap := pr.Capability()
+		f.Capability = func() transcoding.HostCapabilitySnapshot { return snap }
+	}
+	if pr.RouteCosts != nil {
+		costs := pr.RouteCosts()
+		f.RouteCosts = func() *RouteCostModel { return costs }
+	}
+	return &f
 }
 
 // resolveDecided is Resolve past the decision: the one derivation of the
