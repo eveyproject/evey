@@ -13,11 +13,11 @@ import {
   isRemoteAccessDisabled,
   remoteAccessDisabledMessage,
 } from "@evey/api";
-import { useAuthStore, useServerListStore, isDefaultServerName } from "@evey/store";
+import { useAuthStore, useServerListStore, isDefaultServerName, toast } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
 import { setRefreshToken } from "../src/lib/refresh-token";
-import { getSavedCredentials, saveCredentials, clearSavedCredentials } from "../src/lib/saved-credentials";
+import { canSaveCredentials, getSavedCredentials, saveCredentials, clearSavedCredentials } from "../src/lib/saved-credentials";
 import { useBiometricAvailable, useBiometricEnabled, authenticateBiometric } from "../src/hooks/useBiometric";
 import { PasswordInput } from "../src/components/PasswordInput";
 import { writeGuestSession } from "../src/features/syncplay/guestSession";
@@ -28,6 +28,8 @@ export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
+  // Hidden until the keystore answers: a device without one can't remember a login.
+  const [canRemember, setCanRemember] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const setTokens = useAuthStore((s) => s.setTokens);
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -56,6 +58,9 @@ export default function Login() {
   // retyping credentials every time.
   useEffect(() => {
     let cancelled = false;
+    void canSaveCredentials().then((ok) => {
+      if (!cancelled) setCanRemember(ok);
+    });
     void getSavedCredentials().then((saved) => {
       if (cancelled || !saved) return;
       setUsername((u) => u || saved.username);
@@ -147,8 +152,11 @@ export default function Login() {
         if (data.accessToken) {
           setTokens(data.accessToken);
           if (data.refreshToken) await setRefreshToken(data.refreshToken);
-          if (remember) await saveCredentials(username.trim(), password.trim());
-          else await clearSavedCredentials();
+          if (remember && canRemember) {
+            if (!(await saveCredentials(username.trim(), password.trim()))) {
+              toast.error(t("mobile.auth.rememberFailed", "This device could not remember your login"));
+            }
+          } else await clearSavedCredentials();
           router.replace("/profile-select");
         }
       },
@@ -267,6 +275,7 @@ export default function Login() {
         accessible={true}
         accessibilityLabel={t("auth.login.password")}
       />
+      {canRemember && (
       <Pressable
         onPress={() => setRemember((r) => !r)}
         accessible={true}
@@ -284,6 +293,7 @@ export default function Login() {
           {t("mobile.auth.rememberMe", "Remember me")}
         </Text>
       </Pressable>
+      )}
       <Pressable
         onPress={handleLogin}
         disabled={isPending}

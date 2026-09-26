@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -69,7 +69,10 @@ vi.mock("../hooks/useServerUrl", () => ({ useServerUrl: () => "http://test-serve
 
 vi.mock("../lib/refresh-token", () => ({ setRefreshToken: vi.fn() }));
 
+const keystore = vi.hoisted(() => ({ available: true }));
+
 vi.mock("../lib/saved-credentials", () => ({
+  canSaveCredentials: vi.fn(() => Promise.resolve(keystore.available)),
   getSavedCredentials: vi.fn(() => Promise.resolve(null)),
   saveCredentials: vi.fn(),
   clearSavedCredentials: vi.fn(),
@@ -96,6 +99,12 @@ function makeWrapper() {
 
 function renderLogin() {
   return render(React.createElement(Login), { wrapper: makeWrapper() });
+}
+
+function hasRememberMe(container: HTMLElement): boolean {
+  return [...container.querySelectorAll("button")].some(
+    (b) => b.getAttribute("accessibilityLabel") === "Remember me",
+  );
 }
 
 function hasForgotPasswordLink(container: HTMLElement): boolean {
@@ -125,5 +134,20 @@ describe("Login screen", () => {
   it("hides the reset link while the setup status is still unknown", () => {
     setupStatus.data = undefined;
     expect(hasForgotPasswordLink(renderLogin().container)).toBe(false);
+  });
+
+  it("offers remember me when the device has a keystore", async () => {
+    keystore.available = true;
+    const { container } = renderLogin();
+    await waitFor(() => expect(hasRememberMe(container)).toBe(true));
+  });
+
+  // The checkbox used to stay ticked on a device without a keystore while
+  // nothing was saved: a promise the device could not keep.
+  it("hides remember me when the device has no keystore", async () => {
+    keystore.available = false;
+    const { container } = renderLogin();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(hasRememberMe(container)).toBe(false);
   });
 });

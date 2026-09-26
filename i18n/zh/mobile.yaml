@@ -44,6 +44,7 @@ auth:
   enableBiometricDesc: 下次使用生物识别解锁应用。
   haveInvite: 有邀请？注册
   rememberMe: 记住我
+  rememberFailed: 此设备无法记住你的登录信息
   hidePassword: 隐藏密码
   showPassword: 显示密码
 profileSelect:
