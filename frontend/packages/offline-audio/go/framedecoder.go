@@ -75,6 +75,9 @@ func (d *FrameDecoder) Decode(au []byte) ([]byte, error) {
 		}
 		n := hdr.Sync.NumBlocks * ac3.SamplesPerBlock
 		if err := d.dec.DecodeFrame(frame); err != nil {
+			if d.outCh == -1 {
+				d.settleFromHeaders(&hdr, au[size:])
+			}
 			au = au[size:]
 			d.bad++
 			// The filter bank's carry over is garbage after a failed frame.
@@ -112,6 +115,23 @@ func (d *FrameDecoder) chooseStereo(hdr *ac3.Header) bool {
 	d.outCh = 2
 	return d.dec.SetDownmix(pcm.LayoutStereo) == nil
 }
+
+// settleFromHeaders fixes a multichannel output that no decode has sized yet,
+// for a first frame that fails: its silence needs a width. 7.1 is what ac3go
+// would have merged - a 3/2+LFE core followed by the standard side/back pair.
+func (d *FrameDecoder) settleFromHeaders(hdr *ac3.Header, rest []byte) {
+	d.outCh = 6
+	var dep ac3.Header
+	if d.maxCh >= 8 && hdr.Acmod == ac3.Acmod3F2R && hdr.Lfeon &&
+		ac3.ParseHeader(rest, &dep) == nil && dep.Sync.Strmtyp == ac3.StrmtypDependent &&
+		dep.Chanmape && dep.Chanmap == eac3Chanmap71 {
+		d.outCh = 8
+	}
+}
+
+// eac3Chanmap71 is ac3go's own constant for the standard 7.1 extension (side
+// left, side right and the back pair, table E.5), unexported there.
+const eac3Chanmap71 = 0x1A00
 
 // appendMultichannel maps the decoded planes onto the output layout and
 // appends them interleaved as s16le.
