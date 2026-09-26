@@ -40,6 +40,10 @@ type TrackReader interface {
 	// in the DB but whose cached image was wiped gets re-fetched rather than
 	// staying silently broken.
 	ListAllAlbums(ctx context.Context, libraryID shared.LibraryID) ([]AlbumKey, error)
+	// SampleByLibrary returns up to limit tracks of the library drawn at
+	// random, a fresh draw on every call (the "shuffle" of the whole library,
+	// not of the tracks a client happened to have loaded).
+	SampleByLibrary(ctx context.Context, libraryID shared.LibraryID, limit int) ([]Track, error)
 }
 
 // TrackWriter is the write surface of the track store.

@@ -7,7 +7,7 @@ import { Shuffle } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { shuffleTracks } from "@/features/music/musicFormat";
-import { useMusicLibraries, useMusicTracks, useMusicAlbums, useMusicArtists, type Track } from "@/features/music/musicQueries";
+import { useMusicLibraries, useMusicTracks, useMusicAlbums, useMusicArtists, fetchShuffledTracks, type Track } from "@/features/music/musicQueries";
 import { TracksTab } from "@/features/music/TracksTab";
 import { AlbumsTab } from "@/features/music/AlbumsTab";
 import { ArtistsTab } from "@/features/music/ArtistsTab";
@@ -63,8 +63,20 @@ function MusicPage() {
     playInStore(t, allTracks, source);
   }
 
-  // Ephemeral shuffle: randomize the loaded tracks and play - no saved playlist.
-  function playRandom() {
+  // Ephemeral shuffle - no saved playlist. Over the plain listing the draw is
+  // server-side, from the whole library: the loaded pages are only the first
+  // tracks. An album or a search is already loaded in full, so it shuffles
+  // what is on screen.
+  async function playRandom() {
+    if (!albumFilter && !search && activeLibraryID) {
+      try {
+        const drawn = await fetchShuffledTracks(activeLibraryID);
+        if (drawn.length > 0) handlePlay(drawn[0], drawn);
+        return;
+      } catch {
+        // Fall back to the loaded tracks rather than doing nothing.
+      }
+    }
     const pool = tracks ?? [];
     if (pool.length === 0) return;
     const shuffled = shuffleTracks(pool);
@@ -128,7 +140,7 @@ function MusicPage() {
         {(tracks?.length ?? 0) > 0 && (
           <button
             type="button"
-            onClick={playRandom}
+            onClick={() => { void playRandom(); }}
             data-testid="music-shuffle-play"
             className="sm:ml-auto inline-flex items-center gap-2 px-4 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer"
           >

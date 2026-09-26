@@ -113,6 +113,10 @@ message ListTracksRequest {
   // set, offset is ignored and the page is served by index seek instead of the
   // COUNT(*) OVER() window the offset path carries.
   string cursor = 6;
+  // When set, returns up to limit tracks drawn at random from the WHOLE
+  // library (a fresh draw per call), ignoring offset, search and cursor - the
+  // "shuffle" button's queue, instead of a shuffle of the pages already loaded.
+  bool shuffle = 7;
 }
 
 message ListTracksResponse {

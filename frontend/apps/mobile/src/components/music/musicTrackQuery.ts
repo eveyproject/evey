@@ -30,6 +30,16 @@ export interface TrackQueryInput {
   cursor?: string;
 }
 
+// SHUFFLE_QUEUE_SIZE is how many tracks a "shuffle play" draws: a long
+// queue, not the whole library.
+export const SHUFFLE_QUEUE_SIZE = 200;
+
+// buildShuffleQueryUrl asks the server for random tracks from the WHOLE
+// library, instead of shuffling the pages the screen happened to load.
+export function buildShuffleQueryUrl(libraryID: string): string {
+  return `/api/v1/music/tracks?libraryId=${encodeURIComponent(libraryID)}&shuffle=true&limit=${SHUFFLE_QUEUE_SIZE}`;
+}
+
 export function buildTrackQueryUrl(input: TrackQueryInput): string {
   const { libraryID, albumID, cursor } = input;
   const search = (input.search ?? "").trim();

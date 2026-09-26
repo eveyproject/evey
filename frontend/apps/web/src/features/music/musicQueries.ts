@@ -69,6 +69,35 @@ export function useMusicLibraries() {
 // the tab behaves exactly as before.
 const TRACK_PAGE_SIZE = 200;
 
+function toTrack(t: NonNullable<Awaited<ReturnType<typeof musicServiceListTracks>>["tracks"]>[number]): Track {
+  return {
+    ID: t.id ?? "",
+    Title: t.title ?? "",
+    Artist: t.artist ?? "",
+    Album: t.album ?? "",
+    AlbumArtist: t.albumArtist ?? "",
+    Year: t.year ?? 0,
+    TrackNumber: t.trackNumber ?? 0,
+    DiskNumber: t.diskNumber ?? 0,
+    Duration: t.duration ?? 0,
+    FilePath: t.filePath ?? "",
+    MimeType: t.mimeType ?? "",
+    Genre: t.genre ?? "",
+    CoverArtURL: t.coverArtUrl ?? "",
+  };
+}
+
+// SHUFFLE_QUEUE_SIZE is how many tracks a "play random" draws from the
+// server: a long queue, not the whole library.
+export const SHUFFLE_QUEUE_SIZE = 200;
+
+// fetchShuffledTracks draws random tracks from the WHOLE library server-side,
+// instead of shuffling only the pages this screen happened to load.
+export async function fetchShuffledTracks(libraryID: string, limit = SHUFFLE_QUEUE_SIZE): Promise<Track[]> {
+  const res = await musicServiceListTracks({ libraryId: libraryID, shuffle: true, limit });
+  return (res.tracks ?? []).map(toTrack);
+}
+
 export function useMusicTracks(libraryID: string | undefined, search: string, albumId?: string) {
   const effectiveSearch = albumId ? undefined : (search || undefined);
   const query = useInfiniteQuery({
@@ -93,21 +122,7 @@ export function useMusicTracks(libraryID: string | undefined, search: string, al
   const data = useMemo(
     () =>
       (query.data?.pages ?? []).flatMap((page) =>
-        (page.tracks ?? []).map<Track>((t) => ({
-          ID: t.id ?? "",
-          Title: t.title ?? "",
-          Artist: t.artist ?? "",
-          Album: t.album ?? "",
-          AlbumArtist: t.albumArtist ?? "",
-          Year: t.year ?? 0,
-          TrackNumber: t.trackNumber ?? 0,
-          DiskNumber: t.diskNumber ?? 0,
-          Duration: t.duration ?? 0,
-          FilePath: t.filePath ?? "",
-          MimeType: t.mimeType ?? "",
-          Genre: t.genre ?? "",
-          CoverArtURL: t.coverArtUrl ?? "",
-        })),
+        (page.tracks ?? []).map(toTrack),
       ),
     [query.data],
   );

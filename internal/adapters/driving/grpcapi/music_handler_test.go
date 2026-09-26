@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -90,6 +91,31 @@ func TestMusicHandler_ListTracks_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int32(2), resp.Total)
 	assert.Len(t, resp.Tracks, 2)
+}
+
+// Shuffle draws from the WHOLE library, not from a first page: with a page
+// of 50, a draw of 50 still reaches past the first 50 tracks, and it never
+// leaves the library.
+func TestMusicHandler_ListTracks_ShuffleDrawsFromTheWholeLibrary(t *testing.T) {
+	h, repo, _, _ := newTestMusicHandler()
+	for i := range 120 {
+		seedTrack(repo, fmt.Sprintf("t-%03d", i), "lib-1", "Some Track", "Some Artist")
+	}
+	seedTrack(repo, "other", "lib-2", "Some Track", "Some Artist")
+
+	seen := map[string]bool{}
+	for range 10 {
+		resp, err := h.ListTracks(adminCtx(), &eveyv1.ListTracksRequest{LibraryId: "lib-1", Shuffle: true, Limit: 50})
+		require.NoError(t, err)
+		require.Len(t, resp.Tracks, 50)
+		for _, tr := range resp.Tracks {
+			require.NotEqual(t, "other", tr.Id, "a draw never leaves the library")
+			seen[tr.Id] = true
+		}
+	}
+	// Ten draws of 50 from 120: a shuffle of a first page would never see
+	// more than 50 distinct tracks.
+	assert.Greater(t, len(seen), 50)
 }
 
 func TestMusicHandler_ListTracks_ByAlbumID(t *testing.T) {

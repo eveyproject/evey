@@ -38,7 +38,7 @@ import type { Track } from "../../../src/components/music/musicTypes";
 import { shuffleArray } from "../../../src/lib/shuffleArray";
 import { trackListMusicSource, restoreMusicFilterFromParams } from "../../../src/components/music/musicSource";
 import { averageAlbumProgress } from "../../../src/components/music/albumDownloadProgress";
-import { buildTrackQueryUrl } from "../../../src/components/music/musicTrackQuery";
+import { buildShuffleQueryUrl, buildTrackQueryUrl } from "../../../src/components/music/musicTrackQuery";
 import { coverArtUri } from "../../../src/lib/coverArtUri";
 
 interface LibraryItem {
@@ -276,10 +276,20 @@ export default function MusicScreen() {
     setQueue(allTracks, index, trackListMusicSource(albumFilter, albumFilterLabel, artistFilter));
   }, [filteredTracks, setQueue, albumFilter, albumFilterLabel, artistFilter]);
 
-  // "Shuffle play" the whole (album/search-scoped) library listing - an
-  // ephemeral randomized queue, not a saved playlist.
-  const handleShufflePlay = useCallback(() => {
-    const pool = tracks ?? [];
+  // "Shuffle play" - an ephemeral randomized queue, not a saved playlist. Over
+  // the plain listing the draw is server-side, from the whole library: the
+  // loaded pages are only its first tracks. An album, an artist or a search is
+  // already loaded in full, so it shuffles what is on screen.
+  const handleShufflePlay = useCallback(async () => {
+    let pool = tracks ?? [];
+    if (!albumFilter && !artistFilter && !debouncedTrackSearch.trim() && activeLibraryID) {
+      try {
+        const drawn = await eveyFetch<{ tracks?: Track[] }>({ url: buildShuffleQueryUrl(activeLibraryID), method: "GET" });
+        if ((drawn.tracks ?? []).length > 0) pool = drawn.tracks ?? [];
+      } catch {
+        // Fall back to the loaded tracks rather than doing nothing.
+      }
+    }
     if (pool.length === 0) return;
     const shuffled = shuffleArray(pool).map((t): QueueTrack => ({
       id: t.id,
@@ -289,7 +299,7 @@ export default function MusicScreen() {
       duration: t.duration,
     }));
     setQueue(shuffled, 0, trackListMusicSource(albumFilter, albumFilterLabel, artistFilter));
-  }, [tracks, setQueue, albumFilter, albumFilterLabel, artistFilter]);
+  }, [tracks, setQueue, albumFilter, albumFilterLabel, artistFilter, debouncedTrackSearch, activeLibraryID]);
 
   // Tracks are single-file media items - same server endpoint and startDownload
   // path as a movie/episode download, just tagged "audio" for the extension.
@@ -734,7 +744,7 @@ export default function MusicScreen() {
             {(tracks ?? []).length > 0 && (
               <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={handleShufflePlay}
+                onPress={() => { void handleShufflePlay(); }}
                 testID="music-shuffle-play"
                 accessibilityLabel={t("media.music.playRandom")}
                 style={[styles.iconBtn, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm }]}
