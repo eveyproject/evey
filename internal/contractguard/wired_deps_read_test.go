@@ -22,11 +22,7 @@ import (
 // So every exported field must be READ in its own package (a selector that is
 // not the target of an assignment). An exception says why, and one that no
 // longer applies (the field is read, or gone) fails too, so the list cannot rot.
-var wiredDepsExceptions = map[string]map[string]string{
-	"GRPCServerDeps": {
-		"PushRegisterRL": "intended rate limit on push registration, wired but not applied yet - open ticket, keep it visible rather than delete it",
-	},
-}
+var wiredDepsExceptions = map[string]map[string]string{}
 
 func TestWiredDepsAreRead(t *testing.T) {
 	t.Parallel()

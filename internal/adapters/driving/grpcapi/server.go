@@ -309,7 +309,7 @@ func (s *GRPCServer) RegisterServices() {
 		eveyv1.RegisterPhotoServiceServer(s.server, &photoHandler{svc: d.Photo, userAccess: d.UserAccess, libQuery: d.LibQuery, translator: d.Translator})
 	}
 	if d.PushEnabled {
-		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{notifCmd: d.NotifCmd, notifQuery: d.NotifQuery, vapidPubKey: d.VAPIDPubKey})
+		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{notifCmd: d.NotifCmd, notifQuery: d.NotifQuery, vapidPubKey: d.VAPIDPubKey, registerRL: d.PushRegisterRL})
 	}
 	eveyv1.RegisterRatingServiceServer(s.server, &ratingHandler{thumbs: d.UserRatings, libQuery: d.LibQuery, userAccess: d.UserAccess})
 	if d.IntroCache != nil || d.IntroBackfill != nil {
