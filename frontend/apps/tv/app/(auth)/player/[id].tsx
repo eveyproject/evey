@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   createPlayerEventReporter,
-  formatTime,
   itemLabel,
   playerAudioStreams,
   playerSubtitleStreams,
@@ -9,13 +8,11 @@ import {
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler, BackHandler, findNodeHandle } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetMediaItem,
   parseTrackPick,
 } from "@evey/api";
-import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { dashUrlFor, devDashEnabled } from "../../../src/lib/devDash";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
@@ -50,7 +47,8 @@ import {
   type SubtitleStyle,
 } from "../../../src/lib/subtitleStyle";
 import { NextEpisodeOverlay } from "../../../src/components/NextEpisodeOverlay";
-import { TrickplaySeekPreview } from "../../../src/components/TrickplaySeekPreview";
+import { PlayerBottomPanel } from "../../../src/components/PlayerBottomPanel";
+import { PlayerStatusScreen, PlayerLoadingScreen } from "../../../src/components/PlayerStatusScreen";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { useSyncplay } from "../../../src/hooks/useSyncplay";
@@ -72,78 +70,6 @@ const BUFFERING_OVERLAY_DELAY_MS = 1200;
 // delay has passed, then "longRight" with action 1 on release.
 const KEY_ACTION_DOWN = 0;
 const KEY_ACTION_UP = 1;
-// Bottom panel geometry, shared with the trickplay anchor math.
-const PANEL_PADDING_H = 40;
-const PANEL_GAP = 16;
-const TIME_LABEL_WIDTH = 70;
-const TRICKPLAY_HALF_WIDTH = 160;
-
-// A player control the remote can land on. The overlay used to show three
-// silent circles: nothing said which one was selected, so the viewer pressed
-// OK and hoped. `focusable` is false while the surface owns the D-pad, which
-// keeps left/right seeking instead of walking this row.
-function PlayerControlButton({
-  label,
-  onPress,
-  accessibilityLabel,
-  focusable,
-  buttonRef,
-  primary,
-  small,
-  nextFocusLeft,
-  nextFocusRight,
-  nextFocusDown,
-  nextFocusUp,
-}: {
-  label: string;
-  onPress: () => void;
-  accessibilityLabel: string;
-  focusable: boolean;
-  // Explicit neighbours. Left to itself, Android's geometric search sent the
-  // remote from the play button to the syncplay badge at the top of the
-  // screen (measured on the box, 2026-09-19); these four keep the row and the
-  // settings icon talking to each other.
-  nextFocusLeft?: number;
-  nextFocusRight?: number;
-  nextFocusDown?: number;
-  nextFocusUp?: number;
-  // Handed the node so the screen can give it the focus when the row appears:
-  // hasTVPreferredFocus is read at MOUNT, and these buttons are mounted long
-  // before they become focusable (measured on the box, 2026-09-19 - the row
-  // showed up with nothing lit).
-  buttonRef?: React.RefObject<View | null>;
-  primary?: boolean;
-  small?: boolean;
-}) {
-  const [focused, setFocused] = useState(false);
-  const size = small ? 56 : primary ? 104 : 84;
-  return (
-    <Pressable
-      ref={buttonRef as never}
-      focusable={focusable}
-      nextFocusLeft={nextFocusLeft}
-      nextFocusRight={nextFocusRight}
-      nextFocusDown={nextFocusDown}
-      nextFocusUp={nextFocusUp}
-      onPress={onPress}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      accessible={true}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      style={[
-        styles.controlButton,
-        { width: size, height: size, borderRadius: size / 2 },
-        focused && styles.controlButtonFocused,
-      ]}
-    >
-      <Text style={[styles.controlLabel, { fontSize: small ? 26 : primary ? 40 : 22 }, focused && styles.controlLabelFocused]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 export default function PlayerScreen() {
   // `restart=1` means the viewer chose "from the beginning" on the media page.
   // Without it the player always resumes, which is the right default - this is
@@ -155,7 +81,6 @@ export default function PlayerScreen() {
   // Tracks picked on the media page (absolute stream indices, "off" = no
   // subtitle): they seed the selection below and count as a manual pick.
   const trackPick = parseTrackPick({ audio, subtitle });
-  const theme = useTheme();
   const { t } = useTranslation();
   const mediaId = id ?? "";
   useAudioCapsBeacon(mediaId);
@@ -233,6 +158,14 @@ export default function PlayerScreen() {
   const settingsButtonRef = useRef<View>(null);
   const speedButtonRef = useRef<View>(null);
   const timelineRef = useRef<View>(null);
+  const barRefs = useMemo(() => ({
+    rewind: rewindButtonRef,
+    play: playButtonRef,
+    forward: forwardButtonRef,
+    speed: speedButtonRef,
+    settings: settingsButtonRef,
+    timeline: timelineRef,
+  }), []);
   // The timeline is a control of its own in the row: while it holds the
   // focus, left/right move the playhead instead of walking the buttons, and
   // OK lands the jump (owner, 2026-09-22: "the timer bar must be selectable
@@ -1196,29 +1129,18 @@ export default function PlayerScreen() {
   // other internal term.
   if (shedReason) {
     return (
-      <View style={[styles.container, { backgroundColor: "#000" }]}>
-        <Ionicons name="time-outline" size={48} color="rgba(255,255,255,0.7)" />
-        <Text style={{ color: "#fff", fontSize: 21, fontWeight: "600", marginTop: 20, textAlign: "center", paddingHorizontal: 60 }}>
-          {t(shedI18nKey(shedReason, "title"))}
-        </Text>
-        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 17, marginTop: 12, textAlign: "center", paddingHorizontal: 80 }}>
-          {t(shedI18nKey(shedReason, "body"))}
-        </Text>
-        <Pressable
-          onPress={() => {
-            // Retrying after a shed means the user wants playback back - always autoplay.
-            resumeAfterRestartRef.current = true;
-            restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
-          }}
-          style={{ marginTop: 28 }}
-          hasTVPreferredFocus
-        >
-          <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{t("player.retry")}</Text>
-        </Pressable>
-        <Pressable onPress={handleBack} style={{ marginTop: 20 }}>
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 17 }}>{t("player.goBack", "Go back")}</Text>
-        </Pressable>
-      </View>
+      <PlayerStatusScreen
+        icon="time-outline"
+        title={t(shedI18nKey(shedReason, "title"))}
+        body={t(shedI18nKey(shedReason, "body"))}
+        actionLabel={t("player.retry")}
+        onAction={() => {
+          // Retrying after a shed means the user wants playback back - always autoplay.
+          resumeAfterRestartRef.current = true;
+          restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
+        }}
+        onBack={handleBack}
+      />
     );
   }
 
@@ -1226,73 +1148,40 @@ export default function PlayerScreen() {
   // again, so the screen offers the one action that helps: sign in.
   if (isAuthError) {
     return (
-      <View style={[styles.container, { backgroundColor: "#000" }]}>
-        <Ionicons name="log-in-outline" size={48} color="rgba(255,255,255,0.7)" />
-        <Text style={{ color: "#fff", fontSize: 21, fontWeight: "600", marginTop: 20, textAlign: "center", paddingHorizontal: 60 }}>
-          {t("player.sessionExpired.title", "Your session has expired")}
-        </Text>
-        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 17, marginTop: 12, textAlign: "center", paddingHorizontal: 80 }}>
-          {t("player.sessionExpired.body", "Sign in again to keep watching.")}
-        </Text>
-        <Pressable onPress={() => router.replace("/login")} style={{ marginTop: 28 }} hasTVPreferredFocus>
-          <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{t("auth.login.signIn")}</Text>
-        </Pressable>
-        <Pressable onPress={handleBack} style={{ marginTop: 20 }}>
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 17 }}>{t("player.goBack", "Go back")}</Text>
-        </Pressable>
-      </View>
+      <PlayerStatusScreen
+        icon="log-in-outline"
+        title={t("player.sessionExpired.title", "Your session has expired")}
+        body={t("player.sessionExpired.body", "Sign in again to keep watching.")}
+        actionLabel={t("auth.login.signIn")}
+        onAction={() => router.replace("/login")}
+        onBack={handleBack}
+      />
     );
   }
 
   if (isError || nativeError) {
     return (
-      <View style={[styles.container, { backgroundColor: "#000" }]}>
-        <Text style={{ color: "#fff", fontSize: 21 }}>
-          {t("player.failedToLoadStream", "Failed to load stream")}
-        </Text>
-        <Pressable
-          onPress={() => {
-            // A fatal native error otherwise stays glued to the screen even if
-            // the retry succeeds - see the nativeError reset effect above for
-            // the twin bug (a stale error surviving a media CHANGE).
-            setNativeError(null);
-            resumeAfterRestartRef.current = true;
-            restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
-          }}
-          style={{ marginTop: 24 }}
-          hasTVPreferredFocus
-        >
-          <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{t("player.retry")}</Text>
-        </Pressable>
-        <Pressable onPress={handleBack} style={{ marginTop: 20 }}>
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 17 }}>{t("player.goBack", "Go back")}</Text>
-        </Pressable>
-      </View>
+      <PlayerStatusScreen
+        title={t("player.failedToLoadStream", "Failed to load stream")}
+        actionLabel={t("player.retry")}
+        onAction={() => {
+          // A fatal native error otherwise stays glued to the screen even if
+          // the retry succeeds - see the nativeError reset effect above for
+          // the twin bug (a stale error surviving a media CHANGE).
+          setNativeError(null);
+          resumeAfterRestartRef.current = true;
+          restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
+        }}
+        onBack={handleBack}
+      />
     );
   }
 
-  if (isLoading || !streamUrl) {
-    return (
-      <View style={[styles.container, { backgroundColor: "#000" }]}>
-        <ActivityIndicator size="large" color={theme.colors.accent} />
-      </View>
-    );
-  }
+  if (isLoading || !streamUrl) return <PlayerLoadingScreen />;
 
   // The preview position (set the instant a seek key fires) takes over the
   // display until the real playhead catches up - see playerSeek.ts.
   const displayTime = seekPreviewSec ?? currentTime;
-  const seekProgress = duration > 0 ? displayTime / duration : 0;
-  // The thumbnail rides above the timeline at the playhead, kept inside the
-  // panel's width so a seek near either edge never pushes it off screen.
-  const trickplayLaneWidth = Math.max(0, screenWidth - 2 * PANEL_PADDING_H - 2 * TIME_LABEL_WIDTH - 2 * PANEL_GAP);
-  const trickplayLeft = PANEL_PADDING_H + TIME_LABEL_WIDTH + PANEL_GAP
-    + Math.max(TRICKPLAY_HALF_WIDTH, Math.min(trickplayLaneWidth - TRICKPLAY_HALF_WIDTH, seekProgress * trickplayLaneWidth));
-  // The wall clock at the end of the film at this speed, rounded to the
-  // minute: the question a viewer asks at eleven at night.
-  const endsAtLabel = duration > 0
-    ? new Date(Date.now() + ((duration - displayTime) * 1000) / (playbackSpeed || 1)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : null;
 
   return (
     <View style={[styles.container, { backgroundColor: "#000" }]}>
@@ -1537,156 +1426,31 @@ export default function PlayerScreen() {
             </View>
           </View>
 
-          {/* One panel at the bottom holds everything the remote can do:
-              a row of buttons, the timeline under it, and the clock. The
-              three seek controls used to float in the middle of the picture
-              while the options hid bottom right - two places to look, and
-              a mask over the film (owner, 2026-09-22: "something obvious,
-              something clean"). Focus lands on the play button on the first
-              DOWN press, walks the row left and right, and drops onto the
-              timeline with another DOWN. */}
-          <View style={[styles.bottomPanel, styles.scrimBottom]}>
-            {/* Trickplay thumbnail, above the panel at the playhead: the
-                D-pad seek has no live picture to look at, so the tile sits
-                where the cursor is, not in the middle of the screen. Renders
-                nothing on its own without a manifest or sprites. */}
-            {seekPreviewSec !== null && (
-              <View style={styles.trickplayLane} pointerEvents="none">
-                <View style={[styles.trickplayAnchor, { left: trickplayLeft }]}>
-                  <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={seekPreviewSec} warm={showControls} />
-                </View>
-              </View>
-            )}
-            {seekPreviewSec === null && (
-              <View style={styles.trickplayWarm} pointerEvents="none">
-                <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={null} warm={showControls} />
-              </View>
-            )}
-
-            <View style={styles.controlsRow}>
-              <View style={styles.controlsGroup}>
-                <PlayerControlButton
-                  label={`-${skipBwd}s`}
-                  focusable={barFocused}
-                  buttonRef={rewindButtonRef}
-                  nextFocusLeft={focusTags.rewind}
-                  nextFocusRight={focusTags.play}
-                  nextFocusUp={focusTags.rewind}
-                  nextFocusDown={focusTags.timeline ?? focusTags.rewind}
-                  onPress={() => bumpSeek(-skipBwd)}
-                  accessibilityLabel={t("player.controls.rewind", { seconds: skipBwd })}
-                />
-                <PlayerControlButton
-                  label={isPlaying ? "\u2016" : "\u25B6"}
-                  primary
-                  focusable={barFocused}
-                  buttonRef={playButtonRef}
-                  nextFocusLeft={focusTags.rewind}
-                  nextFocusRight={focusTags.forward}
-                  nextFocusUp={focusTags.play}
-                  nextFocusDown={focusTags.timeline ?? focusTags.play}
-                  onPress={togglePlayPause}
-                  accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")}
-                />
-                <PlayerControlButton
-                  label={`+${skipFwd}s`}
-                  focusable={barFocused}
-                  buttonRef={forwardButtonRef}
-                  nextFocusLeft={focusTags.play}
-                  nextFocusRight={focusTags.speed ?? focusTags.settings}
-                  nextFocusUp={focusTags.forward}
-                  nextFocusDown={focusTags.timeline ?? focusTags.forward}
-                  onPress={() => bumpSeek(skipFwd)}
-                  accessibilityLabel={t("player.controls.forward", { seconds: skipFwd })}
-                />
-              </View>
-              <View style={styles.controlsGroup}>
-                {endsAtLabel !== null && (
-                  <Text style={styles.endsAtText}>{String(t("player.controls.endsAt", `Ends at ${endsAtLabel}`, { time: endsAtLabel }))}</Text>
-                )}
-                <PlayerControlButton
-                  label={`${playbackSpeed}x`}
-                  small
-                  focusable={barFocused}
-                  buttonRef={speedButtonRef}
-                  nextFocusLeft={focusTags.forward}
-                  nextFocusRight={focusTags.settings}
-                  nextFocusUp={focusTags.speed}
-                  nextFocusDown={focusTags.timeline ?? focusTags.speed}
-                  onPress={cycleSpeed}
-                  accessibilityLabel={t("player.settings.speed", "Speed")}
-                />
-                <PlayerControlButton
-                  label={"\u2699"}
-                  small
-                  focusable={barFocused}
-                  buttonRef={settingsButtonRef}
-                  nextFocusLeft={focusTags.speed ?? focusTags.forward}
-                  nextFocusRight={focusTags.settings}
-                  nextFocusUp={focusTags.settings}
-                  nextFocusDown={focusTags.timeline ?? focusTags.settings}
-                  onPress={() => setShowTrackMenu(true)}
-                  accessibilityLabel={t("player.controls.more", "More")}
-                />
-              </View>
-            </View>
-
-            {/* The timeline is a control: reached with DOWN from any button,
-                it keeps the native focus on itself (left and right point back
-                at it) so those keys move the playhead, and OK lands the
-                pending jump. Focused, it thickens and shows a knob at the
-                playhead - a thin bar alone never said it was the one lit. */}
-            <View style={styles.timelineRow}>
-              <Text style={styles.timeText}>{formatTime(displayTime)}</Text>
-              {/* How far the pending jump goes. Pressing the seek button four
-                  times is one jump of four steps, and this is what says so
-                  before it commits. */}
-              {pendingSeekDelta !== 0 && (
-                <Text style={styles.seekDeltaText}>
-                  {pendingSeekDelta > 0 ? "+" : "-"}{formatTime(Math.abs(pendingSeekDelta))}
-                </Text>
-              )}
-              <Pressable
-                ref={timelineRef as never}
-                focusable={barFocused}
-                nextFocusLeft={focusTags.timeline}
-                nextFocusRight={focusTags.timeline}
-                nextFocusUp={focusTags.play}
-                nextFocusDown={focusTags.timeline}
-                onFocus={() => { setTimelineFocused(true); resetHideTimer(); }}
-                onBlur={() => setTimelineFocused(false)}
-                onPress={() => { if (!commitSeekNow()) togglePlayPause(); }}
-                accessible={true}
-                accessibilityRole="adjustable"
-                accessibilityLabel={t("player.a11y.progress", "Playback progress")}
-                accessibilityValue={{
-                  min: 0,
-                  max: Math.max(0, Math.round(duration)),
-                  now: Math.max(0, Math.round(displayTime)),
-                  text: `${formatTime(displayTime)} / ${formatTime(duration)}`,
-                }}
-                style={styles.timelineHit}
-              >
-                <View style={[styles.seekBarTrack, timelineFocused && styles.seekBarTrackFocused]}>
-                  <View style={[styles.seekBarFill, timelineFocused && { backgroundColor: theme.colors.accent }, { flex: seekProgress }]} />
-                  <View style={{ flex: 1 - seekProgress }} />
-                  {duration > 0 &&
-                    chapters.map((ch, i) => {
-                      const pct = (ch.startTimeMs / 1000 / duration) * 100;
-                      if (pct <= 0 || pct >= 100) return null;
-                      return <View key={i} style={[styles.chapterNotch, { left: `${pct}%` }]} />;
-                    })}
-                </View>
-                {timelineFocused && (
-                  <View
-                    pointerEvents="none"
-                    style={[styles.seekKnob, { left: `${Math.max(0, Math.min(100, seekProgress * 100))}%`, borderColor: theme.colors.accent }]}
-                  />
-                )}
-              </Pressable>
-              <Text style={styles.timeText}>{formatTime(duration)}</Text>
-            </View>
-          </View>
+          <PlayerBottomPanel
+            style={styles.scrimBottom}
+            mediaId={mediaId}
+            screenWidth={screenWidth}
+            displayTime={displayTime}
+            duration={duration}
+            seekPreviewSec={seekPreviewSec}
+            pendingSeekDelta={pendingSeekDelta}
+            isPlaying={isPlaying}
+            playbackSpeed={playbackSpeed}
+            skipFwd={skipFwd}
+            skipBwd={skipBwd}
+            chapters={chapters}
+            barFocused={barFocused}
+            focusTags={focusTags}
+            refs={barRefs}
+            timelineFocused={timelineFocused}
+            onTimelineFocusChange={setTimelineFocused}
+            onSeekBy={bumpSeek}
+            onTogglePlayPause={togglePlayPause}
+            onCycleSpeed={cycleSpeed}
+            onOpenSettings={() => setShowTrackMenu(true)}
+            onCommitSeek={commitSeekNow}
+            onActivity={resetHideTimer}
+          />
         </View>
       )}
     </View>
@@ -1745,137 +1509,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "700",
-  },
-  // Bigger and closer together than the old silent circles, and sitting in
-  // the middle of the screen rather than floating above the action bar.
-  controlButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderWidth: 3,
-    borderColor: "transparent",
-  },
-  // The selected control is unmistakable from the sofa: filled, outlined, dark
-  // glyph. A focus ring alone was invisible on a bright frame.
-  controlButtonFocused: {
-    backgroundColor: "rgba(255,255,255,0.92)",
-    borderColor: "#fff",
-  },
-  controlLabel: { color: "#fff", fontWeight: "700" },
-  controlLabelFocused: { color: "#111" },
-  seekDeltaText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    marginLeft: 8,
-  },
-  bottomPanel: {
-    paddingTop: 16,
-    paddingBottom: 28,
-    paddingHorizontal: PANEL_PADDING_H,
-    gap: 12,
-  },
-  controlsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  controlsGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 20,
-  },
-  endsAtText: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 17,
-    fontVariant: ["tabular-nums"],
-    marginRight: 8,
-  },
-  episodeHint: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  episodeHintText: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 18,
-  },
-  // A lane the tile floats in, sitting on top of the panel; the anchor is
-  // positioned by the playhead and centred on it.
-  trickplayLane: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: -(180 + 16),
-    height: 180,
-  },
-  trickplayAnchor: {
-    position: "absolute",
-    top: 0,
-    marginLeft: -TRICKPLAY_HALF_WIDTH,
-  },
-  // Off screen while nothing is previewed: keeps the manifest and the first
-  // sheet warm without drawing anything.
-  trickplayWarm: {
-    position: "absolute",
-    width: 0,
-    height: 0,
-    overflow: "hidden",
-  },
-  timelineRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: PANEL_GAP,
-  },
-  timeText: {
-    color: "#fff",
-    fontSize: 17,
-    fontVariant: ["tabular-nums"],
-    minWidth: TIME_LABEL_WIDTH,
-    textAlign: "center",
-  },
-  seekBarTrack: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    flexDirection: "row",
-    overflow: "hidden",
-  },
-  seekBarTrackFocused: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "rgba(255,255,255,0.45)",
-  },
-  seekBarFill: {
-    backgroundColor: "#fff",
-  },
-  // Tall enough to be a target for the focus engine and the pointer, the
-  // track itself sits in its middle.
-  timelineHit: {
-    flex: 1,
-    height: 32,
-    justifyContent: "center",
-  },
-  seekKnob: {
-    position: "absolute",
-    top: 5,
-    marginLeft: -11,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 3,
-    backgroundColor: "#fff",
-  },
-  chapterNotch: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: 2,
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
 });
