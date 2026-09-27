@@ -68,3 +68,6 @@ music:
   previousTrack: Previous track
   nextTrack: Next track
   closePlayer: Close player
+appUpdate:
+  available: "Update available: {{version}}"
+  openStore: "Update Evey to {{version}} on the Play Store"

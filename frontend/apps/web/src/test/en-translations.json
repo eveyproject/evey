@@ -2801,6 +2801,8 @@
   "media.syncplay.watchingWithMore": "Watching with: {{names}} +{{count}} more",
   "media.track": "Track {{number}}",
   "media.updated": "Updated",
+  "mobile.appUpdate.available": "Update available: {{version}}",
+  "mobile.appUpdate.openStore": "Update Evey to {{version}} on the Play Store",
   "mobile.auth.biometricPrompt": "Unlock Evey",
   "mobile.auth.enableBiometric": "Enable biometric login?",
   "mobile.auth.enableBiometricDesc": "Use biometrics to unlock the app next time.",

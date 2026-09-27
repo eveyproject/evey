@@ -8,6 +8,8 @@ import { useAuthStore } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrlNullable } from "../hooks/useServerUrl";
 import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
+import { useAppUpdate } from "../hooks/useAppUpdate";
+import { openStorePage } from "../lib/appUpdate";
 
 // The header the owner asked for (2026-09-19): the search field, the bell and
 // the viewer's own face, top right, on every screen of the shell - the three
@@ -37,6 +39,7 @@ export function TopHeader({ onSearch, onNotifications, onProfile, onCustomize }:
   const accessToken = useAuthStore((s) => s.accessToken);
   const activeProfileId = useAuthStore((s) => s.profileId);
   const authHeaders = useAuthHeaders();
+  const update = useAppUpdate();
   // A failed count must never blank the header: no badge is the honest
   // degradation (same rule the rail's bell had).
   const { data: unread, isError: unreadFailed } = useNotificationServiceGetUnreadCount();
@@ -60,7 +63,26 @@ export function TopHeader({ onSearch, onNotifications, onProfile, onCustomize }:
     <View style={styles.header}>
       {/* Two flexing sides so the field sits in the middle of the screen and
           not wherever the icons leave room (owner, 2026-09-19). */}
-      <View style={styles.side} />
+      <View style={styles.side}>
+        {/* A newer build than this one: the Play Store would not install it on
+            its own (see lib/appUpdate.ts), so the header offers its page. */}
+        {update && (
+          <Pressable
+            onPress={() => void openStorePage()}
+            onFocus={() => setFocused("update")}
+            onBlur={() => setFocused(null)}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={t("mobile.appUpdate.openStore", { version: update.version, defaultValue: `Update Evey to ${update.version} on the Play Store` })}
+            style={[styles.customizeButton, ring("update")]}
+          >
+            <Ionicons name="arrow-up-circle" size={24} color={theme.colors.accent} />
+            <Text style={[styles.customizeText, { color: focused === "update" ? theme.colors.text : theme.colors.textMuted }]} numberOfLines={1}>
+              {t("mobile.appUpdate.available", { version: update.version, defaultValue: `Update available: ${update.version}` })}
+            </Text>
+          </Pressable>
+        )}
+      </View>
       {/* The search field is a button that opens the search screen: a live
           text field up here would hold the remote's focus on every screen and
           swallow the D-pad. It reads as a field because that is what the

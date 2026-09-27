@@ -68,3 +68,6 @@ music:
   previousTrack: 上一曲
   nextTrack: 下一曲
   closePlayer: 关闭播放器
+appUpdate:
+  available: "有可用更新：{{version}}"
+  openStore: "在 Play 商店将 Evey 更新到 {{version}}"

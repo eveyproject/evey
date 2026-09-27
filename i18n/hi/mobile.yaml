@@ -68,3 +68,6 @@ music:
   previousTrack: पिछला ट्रैक
   nextTrack: अगला ट्रैक
   closePlayer: प्लेयर बंद करें
+appUpdate:
+  available: "अपडेट उपलब्ध: {{version}}"
+  openStore: "Play Store पर Evey को {{version}} में अपडेट करें"
