@@ -641,15 +641,26 @@ activity:
   bgIdle: "idle"
   bgProcessed: "{{n}} done"
   bgTask:
-    complexity_classifier: "Complexity classifier"
+    complexity_classifier: "Video complexity analysis"
     intro_detection: "Intro detection"
-    keyframe_backfill: "Keyframe backfill"
-    level_backfill: "Level backfill"
-    trickplay_generation: "Trickplay generation"
+    keyframe_backfill: "Keyframe indexing"
+    level_backfill: "Video details refresh"
+    trickplay_generation: "Seek bar thumbnails"
     library_scan: "New media analysis"
-    collection_relink: "Collection relink"
-    compat_download: "Compatible download"
-    reduced_download: "Reduced download"
+    collection_relink: "Collection linking"
+    compat_download: "Offline download (converted audio)"
+    reduced_download: "Offline download (smaller copy)"
+  bgTaskHelpLabel: "About: {{name}}"
+  bgTaskHelp:
+    complexity_classifier: "Samples a few frames of each video to measure how much motion it carries. Used to pick transcoding bitrates that suit the content. Runs continuously over the library."
+    intro_detection: "Finds the intros and end credits of episodes (sound shared across the season, file chapters). Feeds the Skip Intro button. Runs continuously and pauses while something is playing."
+    keyframe_backfill: "Reads each file's seek index (keyframe positions) and checks that its frame rate is constant. Lets the video be sent as is, without transcoding. Runs continuously, after the video details refresh."
+    level_backfill: "Re-reads the technical details of files already in the library (H.264/HEVC profile, HDR, Dolby Vision, interlacing of old rips). Lets the video be sent without transcoding and avoids wrong colours. Runs continuously and pauses while something is playing."
+    trickplay_generation: "Generates the thumbnails shown while dragging the seek bar (one frame every 7 seconds). Runs when media is added, and at startup for items that have none yet."
+    library_scan: "Walks the library folders and analyses new or changed files so they show up. Runs at startup, periodically, and as soon as a file changes."
+    collection_relink: "Asks the metadata source which saga each movie belongs to and links it. Only runs when an admin starts it."
+    compat_download: "Prepares a copy for a phone that cannot play the original audio track: the picture is copied as is, the sound converted to stereo. Only runs when a user starts a download."
+    reduced_download: "Prepares a lighter 720p copy when the original file is too large for the device. Only runs when a user starts a download."
   tabs:
     playHistory: Play History
     serverStats: Server Stats

@@ -5,6 +5,7 @@ import { coverageLine, useBackgroundTaskControl, useBackgroundTasks, type Backgr
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { ICON } from "@/constants/iconSizes";
 
 // The list, its order and the controls are @evey/client's (useBackgroundTasks).
@@ -33,7 +34,7 @@ function CoverageBar({ progress, testId }: { progress: CoverageProgress; testId:
 }
 
 function TaskRow({ task, showCoverage }: { task: BackgroundTaskView; showCoverage: boolean }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { label, running, since, hasCost, progress, coverage, armed, pending, resume, pressStop } = useBackgroundTaskControl(task, t);
 
   return (
@@ -45,6 +46,11 @@ function TaskRow({ task, showCoverage }: { task: BackgroundTaskView; showCoverag
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-[var(--text)]">{label}</span>
+          {i18n.exists(`admin.activity.bgTaskHelp.${task.name}`) && (
+            <InfoTooltip label={t("admin.activity.bgTaskHelpLabel", { name: label })}>
+              {t(`admin.activity.bgTaskHelp.${task.name}`)}
+            </InfoTooltip>
+          )}
           {task.paused ? (
             <Badge variant="warning">{running ? t("admin.backgroundTasks.stopping") : t("admin.backgroundTasks.paused")}</Badge>
           ) : running ? (

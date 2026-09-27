@@ -641,15 +641,26 @@ activity:
   bgIdle: "inaktiv"
   bgProcessed: "{{n}} erledigt"
   bgTask:
-    complexity_classifier: "Komplexitäts-Klassifizierung"
+    complexity_classifier: "Analyse der Videokomplexität"
     intro_detection: "Intro-Erkennung"
     keyframe_backfill: "Keyframe-Indexierung"
-    level_backfill: "Level-Nachtrag"
-    trickplay_generation: "Trickplay-Erzeugung"
+    level_backfill: "Aktualisierung der Videodetails"
+    trickplay_generation: "Vorschaubilder der Zeitleiste"
     library_scan: "Analyse neuer Medien"
-    collection_relink: "Sammlungen neu verknüpfen"
-    compat_download: "Kompatibler Download"
-    reduced_download: "Reduzierter Download"
+    collection_relink: "Verknüpfung der Sammlungen"
+    compat_download: "Offline-Download (Audio konvertiert)"
+    reduced_download: "Offline-Download (verkleinerte Kopie)"
+  bgTaskHelpLabel: "Info: {{name}}"
+  bgTaskHelp:
+    complexity_classifier: "Tastet einige Bilder jedes Videos ab, um zu messen, wie viel Bewegung es enthält. Dient zur Wahl passender Transkodierungs-Bitraten. Läuft laufend über die Bibliothek."
+    intro_detection: "Findet Intros und Abspänne von Episoden (gemeinsamer Ton der Staffel, Kapitel der Datei). Liefert die Schaltfläche „Intro überspringen“. Läuft laufend und pausiert während einer Wiedergabe."
+    keyframe_backfill: "Liest den Suchindex jeder Datei (Keyframe-Positionen) und prüft, ob die Bildrate konstant ist. Erlaubt es, das Video ohne Transkodierung zu senden. Läuft laufend, nach der Aktualisierung der Videodetails."
+    level_backfill: "Liest die technischen Details bereits vorhandener Dateien neu (H.264/HEVC-Profil, HDR, Dolby Vision, Zeilensprung alter Rips). Erlaubt das Senden ohne Transkodierung und verhindert falsche Farben. Läuft laufend und pausiert während einer Wiedergabe."
+    trickplay_generation: "Erzeugt die Vorschaubilder beim Ziehen der Zeitleiste (ein Bild alle 7 Sekunden). Läuft beim Hinzufügen eines Mediums und beim Start für Einträge ohne Vorschau."
+    library_scan: "Durchsucht die Bibliotheksordner und analysiert neue oder geänderte Dateien, damit sie erscheinen. Läuft beim Start, regelmäßig und sobald sich eine Datei ändert."
+    collection_relink: "Fragt die Metadatenquelle, zu welcher Sammlung jeder Film gehört, und verknüpft ihn. Läuft nur, wenn ein Admin es startet."
+    compat_download: "Erstellt eine Kopie für ein Telefon, das die Original-Tonspur nicht abspielen kann: das Bild wird unverändert kopiert, der Ton in Stereo umgewandelt. Läuft nur, wenn ein Benutzer einen Download startet."
+    reduced_download: "Erstellt eine leichtere 720p-Kopie, wenn die Originaldatei für das Gerät zu groß ist. Läuft nur, wenn ein Benutzer einen Download startet."
   tabs:
     playHistory: Wiedergabeverlauf
     serverStats: Serverstatistiken

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -70,7 +70,7 @@ describe("BackgroundTasksPanel", () => {
     renderPanel();
     await screen.findByText("Intro detection");
     const row = screen.getAllByRole("listitem")[0];
-    const stop = row.querySelector("button") as HTMLButtonElement;
+    const stop = within(row).getByRole("button", { name: "Stop" });
     expect(stop).toHaveTextContent("Stop");
 
     await userEvent.click(stop);
@@ -91,12 +91,21 @@ describe("BackgroundTasksPanel", () => {
     renderPanel();
     await screen.findByText("stopped by admin");
     const [stoppedRow, plainRow] = screen.getAllByRole("listitem");
-    expect(stoppedRow).toHaveTextContent("Level backfill");
+    expect(stoppedRow).toHaveTextContent("Video details refresh");
     await userEvent.click(screen.getByRole("button", { name: /Resume/ }));
     await waitFor(() =>
       expect(mockFetch).toHaveBeenCalledWith({ url: "/api/v1/admin/background-tasks/level_backfill/resume", method: "POST" }),
     );
-    expect(plainRow.querySelector("button")).toBeNull();
+    expect(within(plainRow).queryByRole("button", { name: /Stop|Resume/ })).toBeNull();
+  });
+
+  it("explains what a task is for behind its info button", async () => {
+    renderPanel();
+    await screen.findByText("Video details refresh");
+    const help = screen.getByRole("button", { name: "About: Video details refresh" });
+    expect(screen.queryByText(/Dolby Vision/)).toBeNull();
+    await userEvent.click(help);
+    expect(screen.getByRole("dialog", { name: "About: Video details refresh" })).toHaveTextContent(/Dolby Vision/);
   });
 
   it("draws how far the announced batch is, and no bar without one", async () => {

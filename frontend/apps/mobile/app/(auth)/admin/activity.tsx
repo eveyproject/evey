@@ -1,4 +1,4 @@
-import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet, Share } from "react-native";
+import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet, Share, Alert } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -280,7 +280,7 @@ type BgTask = { name: string; state: string; detail?: string; processed: number;
 // every 5s for a live-ish view.
 function BackgroundTasksCard() {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data } = useQuery<BgTask[]>({
     queryKey: ["/api/v1/admin/background-tasks"],
     queryFn: () => eveyFetch<BgTask[]>({ url: "/api/v1/admin/background-tasks", method: "GET" }),
@@ -296,6 +296,9 @@ function BackgroundTasksCard() {
       </Text>
       {data.map((task) => {
         const running = task.state === "running";
+        const label = t(`admin.activity.bgTask.${task.name}`, task.name);
+        const helpKey = `admin.activity.bgTaskHelp.${task.name}`;
+        const help = i18n.exists(helpKey) ? t(helpKey) : "";
         return (
           <View key={task.name} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
@@ -307,10 +310,21 @@ function BackgroundTasksCard() {
                   backgroundColor: running ? theme.colors.success : theme.colors.border,
                 }}
               />
-              <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} numberOfLines={1}>
-                {t(`admin.activity.bgTask.${task.name}`, task.name)}
+              <Text style={{ color: theme.colors.text, fontSize: 13, flexShrink: 1 }} numberOfLines={1}>
+                {label}
                 {running && task.detail ? ` · ${task.detail}` : ""}
               </Text>
+              {help ? (
+                <Pressable
+                  onPress={() => Alert.alert(label, help)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("admin.activity.bgTaskHelpLabel", { name: label })}
+                >
+                  <Ionicons name="information-circle-outline" size={15} color={theme.colors.textMuted} />
+                </Pressable>
+              ) : null}
+              <View style={{ flex: 1 }} />
             </View>
             <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
               {running ? t("admin.activity.bgRunning", "running") : t("admin.activity.bgIdle", "idle")}
