@@ -149,6 +149,10 @@ class Ac3goDecoder(
   @Volatile private var badFrames = 0L
   @Volatile private var silentFrames = 0L
   @Volatile private var silentRunFrames = 0L
+  // ac3go's own counters as one line, refreshed every SUMMARY_EVERY frames:
+  // a string per access unit would be garbage at 31 units a second.
+  @Volatile private var summary = ""
+  private var summaryAt = -SUMMARY_EVERY
 
   init {
     setInitialInputBufferSize(inputSize)
@@ -166,10 +170,12 @@ class Ac3goDecoder(
     "badFrames" to badFrames,
     "silentFrames" to silentFrames,
     "silentRunFrames" to silentRunFrames,
+    "decoder" to summary,
   )
 
   override fun release() {
     super.release()
+    summary = go.decoderSummary()
     Log.i("EveyAc3go", "ac3go released ${snapshot()}")
     Ac3goPlaybackStats.detach(this)
   }
@@ -201,6 +207,10 @@ class Ac3goDecoder(
     badFrames = go.badFrames()
     silentFrames = go.silentFrames()
     silentRunFrames = go.silentRunFrames()
+    if (frames - summaryAt >= SUMMARY_EVERY) {
+      summary = go.decoderSummary()
+      summaryAt = frames
+    }
     if (pcm == null || pcm.isEmpty()) {
       outputBuffer.shouldBeSkipped = true
       return null
@@ -209,5 +219,9 @@ class Ac3goDecoder(
     go.channels().toInt().let { if (it > 0) channels = it }
     outputBuffer.init(inputBuffer.timeUs, pcm.size).put(pcm).flip()
     return null
+  }
+
+  private companion object {
+    const val SUMMARY_EVERY = 64L
   }
 }

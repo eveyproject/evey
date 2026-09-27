@@ -3,7 +3,7 @@ module github.com/gravity-zero/evey-offline-audio
 go 1.27
 
 require (
-	github.com/gravity-zero/ac3go v0.0.0-20260725211506-1c0c5883d854
+	github.com/gravity-zero/ac3go v0.0.0-20260927100319-707bc52f64c0
 	github.com/gravity-zero/mkvgo v0.34.1
 )
 

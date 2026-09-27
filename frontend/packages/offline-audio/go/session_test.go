@@ -243,6 +243,37 @@ func TestReadPCMMatchesDirectDecode(t *testing.T) {
 	}
 }
 
+// A downloaded E-AC-3 5.1 film comes out of the pass with its downmix, not
+// silence: the AAC written over the source track is all the file keeps.
+func TestReadPCMEAC3IsHeard(t *testing.T) {
+	frames := ac3Frames(t, filepath.Join("testdata", "tones_48k_5p1_384k.eac3"))
+	var audio []mkv.Block
+	for i, frame := range frames {
+		audio = append(audio, mkv.Block{TrackNumber: 1, Timecode: int64(i) * 32, Keyframe: true, Data: frame})
+	}
+	path := filepath.Join(t.TempDir(), "eac3.mkv")
+	writeFixtureMKV(t, path, int64(len(frames))*32,
+		fixtureTrack{track: audioTrack(1, "eac3", "fre", true, 6, 48000), blocks: audio},
+	)
+	s, err := Open(path, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var got []byte
+	for {
+		chunk, err := s.ReadPCM()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(chunk) == 0 {
+			break
+		}
+		got = append(got, chunk...)
+	}
+	assertHeardAsMix(t, "offline pass", got, handMixedStereo(t, frames))
+}
+
 func TestFullPassReplacesAudioKeepsSubs(t *testing.T) {
 	path, _ := ac3FixtureMKV(t)
 	tmp := t.TempDir()

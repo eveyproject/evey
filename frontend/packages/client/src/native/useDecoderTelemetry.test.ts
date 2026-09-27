@@ -21,6 +21,7 @@ const stats = (over: Partial<DecoderStats>): DecoderStats => ({
   badFrames: 0,
   silentFrames: 0,
   silentRunFrames: 0,
+  decoder: "",
   ...over,
 });
 

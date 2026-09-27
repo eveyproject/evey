@@ -1,6 +1,8 @@
 package offlineaudio
 
 import (
+	"fmt"
+
 	"github.com/gravity-zero/ac3go/ac3"
 	"github.com/gravity-zero/ac3go/pcm"
 )
@@ -26,6 +28,7 @@ type FrameDecoder struct {
 	frames    int64
 	silent    int64
 	silentRun int64
+	depSkips  int64      // dependent substreams stepped over here, before ac3go sees them
 	mixFor    pcm.Layout // source layout the mix below was built for
 	mix       [][]mixTap // per output channel, the source planes summed into it
 }
@@ -69,6 +72,7 @@ func (d *FrameDecoder) Decode(au []byte) ([]byte, error) {
 		// offline pass does (see Session.decodeNext).
 		if hdr.Sync.Strmtyp == ac3.StrmtypDependent || hdr.Sync.Substreamid != 0 {
 			au = au[size:]
+			d.depSkips++
 			continue
 		}
 		if d.outCh == 0 && !d.chooseStereo(&hdr) {
@@ -275,6 +279,22 @@ func (d *FrameDecoder) SilentFrames() int64 { return d.silent }
 // SilentRunFrames is the number of consecutive silent frames ending at the
 // last one handed back.
 func (d *FrameDecoder) SilentRunFrames() int64 { return d.silentRun }
+
+// DecoderSummary is ac3go's own account of the stream in one short line for
+// the telemetry beacon: failures by cause (truncated, bad header, substream,
+// reduced rate, block, overrun, dependent), dependent substreams skipped,
+// layout changes, frames downmixed and the coded layout of the last frame.
+func (d *FrameDecoder) DecoderSummary() string {
+	st := d.dec.Stats()
+	last := "none"
+	if st.LastLayout != nil {
+		last = st.LastLayout.String()
+	}
+	return fmt.Sprintf("err=%d/%d/%d/%d/%d/%d/%d skip=%d lay=%d mix=%d last=%s",
+		st.Truncated, st.BadHeaders, st.UnsupportedSubstreams, st.UnsupportedReducedRate,
+		st.BlockErrors, st.Overruns, st.DependentErrors,
+		st.DependentSkipped+d.depSkips, st.LayoutChanges, st.Downmixed, last)
+}
 
 // Reset drops the state carried between frames, for a seek or a flush.
 func (d *FrameDecoder) Reset() { d.dec.Reset() }
