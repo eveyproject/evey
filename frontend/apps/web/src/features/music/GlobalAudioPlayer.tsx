@@ -259,6 +259,7 @@ export function GlobalAudioPlayer() {
         if (e instanceof DOMException && e.name !== "AbortError") console.warn("Autoplay blocked:", e.message);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- playing?.ID already tracks every playing transition (store only replaces the object on a real track change); listing playing would refire on immaterial reference churn
   }, [playing?.ID, src]);
 
   useEffect(() => {
@@ -278,6 +279,7 @@ export function GlobalAudioPlayer() {
     } else if (playing) {
       void audio.play().catch(() => { /* autoplay may be blocked */ });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- playing?.ID already tracks every playing transition, see the effect above
   }, [externallyPaused, playing?.ID]);
 
   // Report this playback to the admin "En cours de lecture" panel every ~10s

@@ -9,7 +9,7 @@ vi.mock("react-native", () => ({
   View: ({ children, onLayout, ...p }: any) => {
     React.useEffect(() => {
       onLayout?.({ nativeEvent: { layout: { height: 100 } } });
-    }, []);
+    }, [onLayout]);
     return React.createElement("div", p, children);
   },
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),

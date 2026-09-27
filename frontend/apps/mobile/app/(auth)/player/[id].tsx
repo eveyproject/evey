@@ -1203,7 +1203,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(index, burnInSubtitleIndex, selectedQuality || undefined);
     },
-    [player, nativeAudioTracks, audioStreams, restartWithTracks, burnInSubtitleIndex, selectedQuality],
+    [player, nativeAudioTracks, audioStreams, restartWithTracks, burnInSubtitleIndex, selectedQuality, userPickedAudioRef, setSelectedAudioIndex],
   );
 
   // Restarts the transcode when entering/leaving a burn-in (PGS/VobSub)
@@ -1239,7 +1239,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       restartForSubtitleChange(index);
       setSelectedSubtitleIndex(index);
     },
-    [restartForSubtitleChange],
+    [restartForSubtitleChange, userPickedSubtitleRef, setSelectedSubtitleIndex],
   );
 
   // Upload button in PlayerSettingsPanel: picks + converts a local subtitle
@@ -1253,7 +1253,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     setSelectedSubtitleIndex(null);
     setExternalSubtitle({ name: picked.name, cues: parseVttCues(picked.vtt) });
     setSettingsOpen(false);
-  }, [restartForSubtitleChange]);
+  }, [restartForSubtitleChange, userPickedSubtitleRef, setSelectedSubtitleIndex]);
 
   // Re-selects an already-loaded external subtitle (e.g. after switching back
   // from a server track) without re-picking the file.
@@ -1262,7 +1262,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     userPickedSubtitleRef.current = true;
     restartForSubtitleChange(null);
     setSelectedSubtitleIndex(null);
-  }, [externalSubtitle, restartForSubtitleChange]);
+  }, [externalSubtitle, restartForSubtitleChange, userPickedSubtitleRef, setSelectedSubtitleIndex]);
 
   const handleQualitySelect = useCallback(
     (quality: number) => {

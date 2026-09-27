@@ -408,18 +408,21 @@ function LibraryPage() {
   // isFetchingNextPage prevents overlapping fetches; hasMore short-circuits
   // when the server has no further pages (including when searchActive, because
   // hasMore is false for the one-shot search path).
+  // The members, not activeQuery: react-query wraps its result in a new Proxy
+  // every render, while fetchNextPage is bound once per observer.
+  const { isFetchingNextPage, fetchNextPage } = activeQuery;
   useEffect(() => {
     if (
       !shouldAutoFetchMore({
         hasLocalFilters,
         hasMore,
-        isFetching: activeQuery.isFetchingNextPage,
+        isFetching: isFetchingNextPage,
         filteredCount: localFiltered.length,
         loadedCount: items.length,
       })
     ) return;
-    void activeQuery.fetchNextPage();
-  }, [hasLocalFilters, hasMore, activeQuery.isFetchingNextPage, activeQuery.fetchNextPage, localFiltered.length, items.length]);
+    void fetchNextPage();
+  }, [hasLocalFilters, hasMore, isFetchingNextPage, fetchNextPage, localFiltered.length, items.length]);
 
   const [randomLoading, setRandomLoading] = useState(false);
   // Shuffle play: start one random item from the current view. A movie plays

@@ -717,7 +717,7 @@ export default function AdminUsersScreen() {
         },
       });
     } catch {}
-  }, [newUsername, newEmail, newPassword, newIsAdmin, newMaxProfiles, newMaxDevicesPerProfile, newSelectedLibs, createUser]);
+  }, [newUsername, newEmail, newPassword, newIsAdmin, newMaxProfiles, newMaxDevicesPerProfile, createUser]);
 
   const handleDelete = useCallback((user: V1User) => {
     Alert.alert(t("common.delete"), `${t("common.delete")} ${user.username}?`, [

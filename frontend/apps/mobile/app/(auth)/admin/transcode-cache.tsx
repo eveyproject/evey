@@ -222,7 +222,7 @@ export default function AdminTranscodeCacheScreen() {
         )}
       </Pressable>
     </View>
-  ), [theme, deletingFile, handleDeleteFile]);
+  ), [theme, deletingFile, handleDeleteFile, t]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>

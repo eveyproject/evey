@@ -295,7 +295,7 @@ export default function SearchScreen() {
         </TouchableOpacity>
       );
     },
-    [theme, router, authHeaders, serverUrl],
+    [theme, router, authHeaders, serverUrl, t],
   );
 
   return (

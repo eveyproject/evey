@@ -49,7 +49,7 @@ vi.mock("expo-router", () => ({
   // No real navigator in this test - just run the focus callback on mount,
   // matching how useFocusEffect behaves the first time a screen mounts.
   useFocusEffect: (cb: () => void | (() => void)) => {
-    React.useEffect(() => cb(), []);
+    React.useEffect(() => cb(), [cb]);
   },
 }));
 

@@ -169,7 +169,7 @@ export default function ProfileSelect() {
     setBusy(null);
     if (res === "ok") leaveToApp();
     else if (res === "pin") setPinTarget(p);
-  }, [busy, currentIsKids, switchProfile]);
+  }, [busy, currentIsKids, switchProfile, activeProfileId]);
 
   // Auto-skip when no kids profile exists.
   useEffect(() => {

@@ -265,7 +265,7 @@ export function useSubtitleManager({
     const video = videoRef.current;
     if (!video) return;
     applyCuePosition(video, subtitleStyle.position);
-  }, [subtitleStyle.position]);
+  }, [subtitleStyle.position, videoRef]);
 
   // ::cue style injection for subtitle appearance. Font size is computed in
   // px from the live element height (see cueFontSizePx) and tracks resizes /
@@ -307,7 +307,7 @@ export function useSubtitleManager({
       styleElRef.current?.remove();
       styleElRef.current = null;
     };
-  }, [subtitleStyle]);
+  }, [subtitleStyle, videoRef]);
 
   // Cleanup blob URL on unmount
   useEffect(() => {

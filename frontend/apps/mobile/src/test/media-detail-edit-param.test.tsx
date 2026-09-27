@@ -71,7 +71,7 @@ vi.mock("expo-router", () => ({
   // navigator here, so run the callback once on mount (same shape as
   // media-detail-episodes.test.tsx).
   useFocusEffect: (cb: () => void | (() => void)) => {
-    React.useEffect(() => cb(), []);
+    React.useEffect(() => cb(), [cb]);
   },
 }));
 

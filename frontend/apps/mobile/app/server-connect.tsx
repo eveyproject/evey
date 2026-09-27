@@ -134,7 +134,7 @@ export default function ServerConnect() {
     } else {
       router.replace("/login");
     }
-  }, [servers, setActiveServer, setServerName]);
+  }, [servers, setActiveServer, setServerName, t]);
 
   // Submit a new server URL.
   async function handleConnect() {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatTime } from "@evey/api";
 import { Icon } from "../components/icons";
@@ -42,10 +42,10 @@ export function SettingsPanel({ sections, onClose }: Props) {
     setRow(idx >= 0 ? idx : 0);
     setOpen(target.key);
   };
-  const closeList = () => {
+  const closeList = useCallback(() => {
     setRow(Math.max(0, sections.findIndex((s) => s.key === open)));
     setOpen(null);
-  };
+  }, [sections, open]);
 
   // A long list (chapters, subtitle style) keeps the row the remote is on in view.
   useEffect(() => {
@@ -96,7 +96,7 @@ export function SettingsPanel({ sections, onClose }: Props) {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [section, sections, row, count, onClose]);
+  }, [section, sections, row, count, onClose, closeList]);
 
   return (
     <div className="modal-backdrop player-sheet-backdrop">

@@ -219,7 +219,7 @@ export default function CollectionDetailScreen() {
         ],
       );
     },
-    [t, removeItemMut, id, refetch],
+    [t, removeItemMut, refetch],
   );
 
   const renderItem = useCallback(

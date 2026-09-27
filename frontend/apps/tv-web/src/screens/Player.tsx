@@ -135,7 +135,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       barFocusRef.current = null;
       setBarFocusState(null);
     }, barFocusRef.current ? OSD_FOCUSED_HIDE_MS : OSD_HIDE_MS);
-  }, []);
+  }, [setOsd]);
   const setBarFocus = useCallback((next: BarFocus | null) => {
     barFocusRef.current = next;
     setBarFocusState(next);
@@ -545,9 +545,11 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   // --- settings panel --------------------------------------------------------
   // The labels the phone, the browser and the Android television print, from
   // the shared helpers: one track must not read differently per client.
-  const audioLabel = (s: V1MediaStream, fallback: string) => formatAudioTrackLabel(s, fallback);
-  const subtitleLabel = (s: V1MediaStream, fallback: string) =>
-    `${trackDisplayName(s, fallback)}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`;
+  const audioLabel = useCallback((s: V1MediaStream, fallback: string) => formatAudioTrackLabel(s, fallback), []);
+  const subtitleLabel = useCallback(
+    (s: V1MediaStream, fallback: string) => `${trackDisplayName(s, fallback)}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`,
+    [t],
+  );
   const sections: PanelSection[] = useMemo(() => {
     const out: PanelSection[] = [];
     if (audioStreams.length > 1) {
@@ -709,7 +711,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       });
     }
     return out;
-  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, panel, time, t, restartKeepingPlace, seekTo, sleep, clientSubtitle, subtitleStyle, applySubtitleStyle, volume, nextEp, media?.type, autoAdvance, toggleAutoplay, streamInfo]);
+  }, [audioStreams, subtitleStreams, selectedAudio, selectedSubtitle, burnIn, quality, speed, chapters, panel, time, t, restartKeepingPlace, seekTo, sleep, clientSubtitle, subtitleStyle, applySubtitleStyle, volume, nextEp, media?.type, autoAdvance, toggleAutoplay, streamInfo, subtitleLabel, audioLabel]);
 
   // --- bar -------------------------------------------------------------------
   const cycleSpeed = useCallback(() => {
