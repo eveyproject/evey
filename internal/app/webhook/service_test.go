@@ -518,6 +518,33 @@ func TestUpdate_SecretMaskEcho_KeepsStoredSecret(t *testing.T) {
 	}
 }
 
+// A secret of exactly 4 characters is masked whole ("****"), so the echo of it
+// must be recognised too: at that boundary the merge compared "****" with
+// "abcd****" and wrote the mask over the secret.
+func TestUpdate_ShortSecretMaskEcho_KeepsStoredSecret(t *testing.T) {
+	t.Parallel()
+	for _, realSecret := range []string{"ab", "abcd"} {
+		repo := &fakeWebhookRepo{}
+		svc, _ := newTestService(repo, &fakeDeliveryRepo{}, sharedfakes.NewFakeEventBus())
+		ctx := context.Background()
+		cfg := &webhookdomain.Config{Name: "short", URL: "http://orig.com", Events: []string{"*"}, Enabled: true, Secret: realSecret}
+		if err := svc.Create(ctx, cfg); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		update := &webhookdomain.Config{ID: cfg.ID, Name: "short", URL: "http://orig.com", Events: []string{"*"}, Enabled: true, Secret: "****"}
+		if err := svc.Update(ctx, update); err != nil {
+			t.Fatalf("Update: %v", err)
+		}
+		stored, err := repo.GetByID(ctx, cfg.ID)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if stored.Secret != realSecret {
+			t.Fatalf("%d-char secret overwritten by its mask echo: got %q", len(realSecret), stored.Secret)
+		}
+	}
+}
+
 // TestUpdate_NewSecret_IsStored covers the legitimate "operator rotates the
 // secret" path - must still work after the mask-echo fix.
 func TestUpdate_NewSecret_IsStored(t *testing.T) {
