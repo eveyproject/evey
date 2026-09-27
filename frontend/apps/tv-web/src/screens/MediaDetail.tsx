@@ -29,6 +29,7 @@ import {
   CARD_WIDTH_GRID,
   POSTER_RATIO,
   RESUME_PROGRESS_QUERY,
+  invalidateWatchedState,
   personTypeLabelKey,
   resolvePlayTarget,
   sortByIndexNumber,
@@ -217,8 +218,8 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
 
   const invalidateWatched = () => {
     void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${mediaId}/progress`] });
-    void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
-    void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
+    // History, Up Next, Continue Watching and the home feeds, from the one list.
+    invalidateWatchedState(qc);
   };
   const markWatched = usePlaybackServiceMarkAsWatched({
     mutation: {

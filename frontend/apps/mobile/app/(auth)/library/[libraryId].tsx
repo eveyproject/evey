@@ -42,6 +42,7 @@ import type {
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { toast } from "@evey/store";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -64,7 +65,7 @@ import {
   buildBulkMediaIds,
   selectableMediaIds,
 } from "../../../src/components/library/libraryFilterUtils";
-import { videoStream, isHdrStream, resolutionLabel } from "@evey/client";
+import { videoStream, isHdrStream, resolutionLabel, invalidateWatchedState } from "@evey/client";
 
 const NUM_COLUMNS = 3;
 const SPACING = 8;
@@ -183,6 +184,7 @@ export default function LibraryDetailScreen() {
   const profileId = useAuthStore((s) => s.profileId) ?? "";
   const isAdmin = useAuthStore((s) => s.isAdmin);
 
+  const qc = useQueryClient();
   const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedWatched", "Marked watched")) } });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedUnwatched", "Marked unwatched")) } });
   const bulkFavorite = useBulkFavorite();
@@ -218,9 +220,10 @@ export default function LibraryDetailScreen() {
       catch { failed++; }
     }
     if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
+    invalidateWatchedState(qc);
     setBulkBusy(false);
     exitBulk();
-  }, [selected, markWatched, profileId, exitBulk, t, bulkBusy]);
+  }, [selected, markWatched, profileId, exitBulk, t, bulkBusy, qc]);
 
   const bulkMarkUnwatched = useCallback(async () => {
     if (bulkBusy) return;
@@ -231,9 +234,10 @@ export default function LibraryDetailScreen() {
       catch { failed++; }
     }
     if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
+    invalidateWatchedState(qc);
     setBulkBusy(false);
     exitBulk();
-  }, [selected, markUnwatched, profileId, exitBulk, t, bulkBusy]);
+  }, [selected, markUnwatched, profileId, exitBulk, t, bulkBusy, qc]);
 
   const bulkToggleFavorite = useCallback(async () => {
     if (bulkBusy) return;

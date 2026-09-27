@@ -15,6 +15,7 @@ import { usePlaylistList, useAddToPlaylist } from "@/features/playlist/api";
 import { AddToCollectionModal } from "@/features/collection/AddToCollectionModal";
 import { Modal } from "@/components/ui/Modal";
 import { toast, useAuthStore } from "@evey/store";
+import { invalidateWatchedState } from "@evey/client";
 import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createLazyFileRoute("/_auth/favorites")({
@@ -117,17 +118,9 @@ function FavoritesPage() {
     try {
       await Promise.all(ids.map((mediaItemId) => fn({ mediaItemId, params: { profileId } })));
       ids.forEach((id) => queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${id}`] }));
-      // Mirror the single-card path (MediaCard.invalidateItem): refresh watch
-      // history so the "watched" badges (useWatchedMap) update, and the home
-      // feeds that filter watched items server-side.
-      void queryClient.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
-      void queryClient.invalidateQueries({
-        predicate: (q) => {
-          const k = q.queryKey?.[0];
-          if (typeof k !== "string") return false;
-          return k.startsWith("/api/v1/feeds/") || k === "/api/v1/popular";
-        },
-      });
+      // Watch history (the "watched" badges) and every watched-sensitive home
+      // row, once for the batch.
+      invalidateWatchedState(queryClient);
       toast.success(watched ? t("media.favorites.markedWatched", { count: ids.length }) : t("media.favorites.markedUnwatched", { count: ids.length }));
       clear();
       setBulkMode(false);

@@ -107,7 +107,7 @@ describe("history screen (mobile)", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Remove from history" })[0]);
     expect(api.unwatch).toHaveBeenCalledWith({ mediaItemId: "m-a0" });
     api.unwatchOpts.onSuccess();
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["history"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["/api/v1/playback/history"] });
     api.unwatchOpts.onError();
     expect(toast.error).toHaveBeenCalledWith("Failed to remove from history");
 

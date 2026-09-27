@@ -64,7 +64,7 @@ import { MetadataEditSheet } from "../../../src/components/media/MetadataEditShe
 import { PlayOnSheet } from "../../../src/components/media/PlayOnSheet";
 import { SagaSection } from "../../../src/components/media/SagaSection";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
-import { RESUME_PROGRESS_QUERY } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, invalidateWatchedState } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { StarIcons } from "../../../src/components/media/StarIcons";
 import { personKeyExtractor, renderCastItem } from "../../../src/components/media/CastCard";
@@ -255,18 +255,12 @@ export default function MediaDetailScreen() {
   episodeDownloadsRef.current = episodeDownloads;
   const [bulkDownload, setBulkDownload] = useState<{ done: number; total: number } | null>(null);
 
+  // The shared list of watched-sensitive keys: the hand-rolled one here aimed at
+  // a "/api/v1/activity/popular-media" key no query uses, and missed Up Next
+  // and Continue Watching.
   const invalidateWatched = useCallback(() => {
     if (id) void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${id}/progress`] });
-    void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
-    // All home feeds filter watched items server-side; refresh the lot so
-    // the just-marked item disappears from the homepage immediately.
-    void qc.invalidateQueries({
-      predicate: (q) => {
-        const k = q.queryKey?.[0];
-        if (typeof k !== "string") return false;
-        return k.startsWith("/api/v1/feeds/") || k === "/api/v1/activity/popular-media";
-      },
-    });
+    invalidateWatchedState(qc);
   }, [id, qc]);
 
   const markWatched = usePlaybackServiceMarkAsWatched({

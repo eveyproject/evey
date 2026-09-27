@@ -21,7 +21,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useAuthStore, toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { RESUME_PROGRESS_QUERY } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, invalidateWatchedState } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
@@ -259,8 +259,8 @@ export default function MediaDetailScreen() {
 
   const invalidateWatched = useCallback(() => {
     if (id) void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${id}/progress`] });
-    void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
-    void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
+    // History, Up Next, Continue Watching and the home feeds, from the one list.
+    invalidateWatchedState(qc);
   }, [id, qc]);
 
   const markWatched = usePlaybackServiceMarkAsWatched({

@@ -27,6 +27,7 @@ import {
   mergeGenres,
   progressPercent,
   genreTranslationKey,
+  invalidateWatchedState,
   mediaTypeLabelKey,
   useCollection,
   useCollections,
@@ -352,7 +353,7 @@ export function HistoryScreen() {
   const rows = (data?.pages ?? []).flatMap((p) => p.items ?? []);
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
-      onSuccess: () => { void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() }); },
+      onSuccess: () => { invalidateWatchedState(qc); },
       onError: () => toast.error(t("auth.watchHistory.clearFailed", "Could not remove from history")),
     },
   });

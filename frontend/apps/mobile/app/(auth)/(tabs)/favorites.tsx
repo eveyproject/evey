@@ -19,6 +19,8 @@ import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { toast } from "@evey/store";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateWatchedState } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -73,6 +75,7 @@ export default function FavoritesScreen() {
   const [showBulkPlaylist, setShowBulkPlaylist] = useState(false);
   const [showBulkCollection, setShowBulkCollection] = useState(false);
 
+  const qc = useQueryClient();
   const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedWatched", "Marked watched")) } });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedUnwatched", "Marked unwatched")) } });
 
@@ -96,9 +99,10 @@ export default function FavoritesScreen() {
       catch { failed++; }
     }
     if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
+    invalidateWatchedState(qc);
     setBulkBusy(false);
     exitBulk();
-  }, [selected, markWatched, profileId, exitBulk, t, bulkBusy]);
+  }, [selected, markWatched, profileId, exitBulk, t, bulkBusy, qc]);
 
   const bulkMarkUnwatched = useCallback(async () => {
     if (bulkBusy) return;
@@ -109,9 +113,10 @@ export default function FavoritesScreen() {
       catch { failed++; }
     }
     if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
+    invalidateWatchedState(qc);
     setBulkBusy(false);
     exitBulk();
-  }, [selected, markUnwatched, profileId, exitBulk, t, bulkBusy]);
+  }, [selected, markUnwatched, profileId, exitBulk, t, bulkBusy, qc]);
 
   const sortOptions: Array<{ key: SortKey; label: string }> = [
     { key: "addedAt", label: t("media.search.dateAdded") || "Date added" },

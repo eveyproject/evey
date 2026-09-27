@@ -11,11 +11,11 @@ import {
   usePlaybackServiceGetWatchHistory,
   usePlaybackServiceMarkAsUnwatched,
   usePlaybackServiceClearWatchHistory,
-  getPlaybackServiceGetWatchHistoryQueryKey,
   watchHistoryLabel,
 } from "@evey/api";
 import type { V1WatchProgress } from "@evey/api";
 import { toast } from "@evey/store";
+import { invalidateWatchedState } from "@evey/client";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../src/hooks/useServerUrl";
 import { useAuthenticatedImage } from "../../src/hooks/useAuthenticatedImage";
@@ -163,7 +163,7 @@ export default function HistoryScreen() {
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
       onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
+        invalidateWatchedState(qc);
       },
       onError: () => toast.error(t("media.history.removeFailed", "Failed to remove from history")),
     },
@@ -174,7 +174,7 @@ export default function HistoryScreen() {
       onSuccess: () => {
         setPage(1);
         setHasMore(true);
-        void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
+        invalidateWatchedState(qc);
         toast.success(t("auth.watchHistory.cleared", "History cleared"));
       },
       onError: () => toast.error(t("auth.watchHistory.clearFailed", "Failed to clear history")),
