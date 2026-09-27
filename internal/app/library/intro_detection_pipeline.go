@@ -121,7 +121,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 
 	// Visual pHash + audio confirmation. classifyConfirmed can yield an intro
 	// AND a short preceding recap.
-	if needIntro() && s.isTrickplayEnabled(ctx) {
+	if needIntro() && cfg.PHashIntroEnabled && s.isTrickplayEnabled(ctx) {
 		result, phashErr := s.pHashPass(ctx, item, cfg)
 		if errors.Is(phashErr, errTrickplayPending) {
 			// Not a failure of this file: the manifest is simply not generated

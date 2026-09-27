@@ -89,6 +89,12 @@ type introConfig struct {
 	// (same rationale as the heuristic-floor guard). Re-enable explicitly to
 	// restore the old behaviour.
 	AudioDiscoveryEnabled bool `json:"audio_discovery_enabled"` // default false
+
+	// PHashIntroEnabled gates the visual pHash intro pass. OFF by default since v6:
+	// it made no intro in the last 200 prod decisions (16-25 Sept 2026), and in dev
+	// its only output was a false positive (Citadel S02, one 52s segment at scattered
+	// offsets). Off also means an episode no longer waits for its trickplay sprites.
+	PHashIntroEnabled bool `json:"phash_intro_enabled"` // default false
 }
 
 // defaultIntroConfig returns the values previously hardcoded throughout the
@@ -135,6 +141,7 @@ func defaultIntroConfig() introConfig {
 		MaxServeCreditsLeadMs: domainlibrary.SuspiciousCreditsLeadMs,
 		SeasonClusterEnabled:  true,
 		AudioDiscoveryEnabled: false,
+		PHashIntroEnabled:     false,
 
 		SkipUnservableSilenceFallback: false,
 	}
