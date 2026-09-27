@@ -279,6 +279,38 @@ func TestQueryService_GetMergedConfig_OrphanedOverride_DefaultEnabled(t *testing
 	assert.Equal(t, 0, configs[0].DisplayOrder)
 }
 
+// The merged config is the home layout every client renders. It must come back
+// in one total order - by display order, ties broken by feed type - or two
+// devices sorting the same rows can place tied rows differently.
+func TestQueryService_GetMergedConfig_TotalOrder(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	queryRepo.AdminConfigs = []*feed.AdminConfig{
+		{FeedType: feed.TypeResumePlayback, Enabled: true, DisplayOrder: 0},
+		{FeedType: feed.TypeRecommended, Enabled: true, DisplayOrder: 1},
+		{FeedType: feed.TypeMostPopular, Enabled: true, DisplayOrder: 2},
+	}
+	zero, one := 0, 1
+	queryRepo.ProfileConfigs["p1"] = []*feed.ProfileConfig{
+		{ProfileID: "p1", FeedType: feed.TypeMostPopular, DisplayOrder: &zero},
+		{ProfileID: "p1", FeedType: feed.PluginType("plg-weather"), DisplayOrder: &one},
+	}
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	configs, err := svc.GetMergedConfig(context.Background(), "p1")
+	require.NoError(t, err)
+	got := make([]feed.Type, len(configs))
+	for i, c := range configs {
+		got[i] = c.FeedType
+	}
+	assert.Equal(t, []feed.Type{
+		feed.TypeMostPopular, feed.TypeResumePlayback,
+		feed.PluginType("plg-weather"), feed.TypeRecommended,
+	}, got)
+}
+
 func TestQueryService_ResumePlayback(t *testing.T) {
 	queryRepo := fakes.NewFakeConfigQueryRepo()
 	querier := fakes.NewFakeFeedQuerier()
