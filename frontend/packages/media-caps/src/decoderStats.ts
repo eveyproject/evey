@@ -21,6 +21,12 @@ export interface DecoderStats {
   silentFrames: number;
   /** Consecutive silent frames ending at the last one. */
   silentRunFrames: number;
+  /**
+   * ac3go's own account, one line: failures by cause, dependent substreams
+   * skipped, layout changes, frames downmixed, last coded layout. "" on a
+   * build before it.
+   */
+  decoder: string;
 }
 
 const SAMPLES_PER_FRAME = 1536;
@@ -54,6 +60,7 @@ export function formatDecoderStats(stats: DecoderStats): string {
     `bad=${stats.badFrames}`,
     `silent=${stats.silentFrames}`,
     `run=${stats.silentRunFrames}`,
+    ...(stats.decoder ? [stats.decoder] : []),
   ].join(" ");
 }
 
@@ -72,6 +79,7 @@ function toStats(raw: unknown): DecoderStats | null {
     badFrames: num("badFrames"),
     silentFrames: num("silentFrames"),
     silentRunFrames: num("silentRunFrames"),
+    decoder: typeof r.decoder === "string" ? r.decoder : "",
   };
 }
 

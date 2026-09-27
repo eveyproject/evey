@@ -11,6 +11,7 @@ const base: DecoderStats = {
   badFrames: 0,
   silentFrames: 0,
   silentRunFrames: 0,
+  decoder: "err=0/0/0/0/0/0/0 skip=0 lay=0 mix=1924 last=L,C,R,Ls,Rs,LFE",
 };
 
 describe("decoder stats", () => {
@@ -20,6 +21,8 @@ describe("decoder stats", () => {
     expect(parseDecoderStats(null)).toBeNull();
     // A missing counter reads 0 rather than NaN in the beacon.
     expect(parseDecoderStats({ codec: "ac3" })?.frames).toBe(0);
+    // A build before ac3go's own counters sends no summary.
+    expect(parseDecoderStats({ codec: "ac3" })?.decoder).toBe("");
   });
 
   it("converts frames to seconds at the stream's rate", () => {
@@ -36,7 +39,11 @@ describe("decoder stats", () => {
 
   it("formats one short line for the beacon", () => {
     const line = formatDecoderStats({ ...base, silentFrames: 1924, silentRunFrames: 1924 });
-    expect(line).toBe("codec=eac3 src=6ch out=2ch max=2ch rate=48000 frames=1924 bad=0 silent=1924 run=1924");
+    expect(line).toBe(
+      "codec=eac3 src=6ch out=2ch max=2ch rate=48000 frames=1924 bad=0 silent=1924 run=1924 " +
+        "err=0/0/0/0/0/0/0 skip=0 lay=0 mix=1924 last=L,C,R,Ls,Rs,LFE",
+    );
+    expect(formatDecoderStats({ ...base, decoder: "" })).not.toContain("err=");
     expect(line.length).toBeLessThan(200);
   });
 });

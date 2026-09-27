@@ -2,6 +2,8 @@ package offlineaudio
 
 import (
 	"bytes"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/gravity-zero/ac3go/ac3"
@@ -24,6 +26,86 @@ func referencePCM(t *testing.T, frames [][]byte) []byte {
 		out = appendStereoS16(out, dec.Samples(0), dec.Samples(1))
 	}
 	return out
+}
+
+// handMixedStereo is the Lo/Ro downmix of frames computed here from the
+// native channels and the stream's own mix levels, not by ac3go's downmix:
+// comparing ac3go against itself is how a silent E-AC-3 downmix passed
+// (2026-09-27). Front channels at unity, centre and surrounds at the stated
+// levels, LFE dropped, each output normalized so its gains sum to one.
+func handMixedStereo(t *testing.T, frames [][]byte) []byte {
+	t.Helper()
+	dec := ac3.NewDecoder()
+	var out []byte
+	for _, f := range frames {
+		if err := dec.DecodeFrame(f); err != nil {
+			t.Fatal(err)
+		}
+		var h ac3.Header
+		if err := ac3.ParseHeader(f, &h); err != nil {
+			t.Fatal(err)
+		}
+		c, s := h.CenterMixLevel(), h.SurroundMixLevel()
+		layout := dec.OutputLayout()
+		type gain struct{ lo, ro float32 }
+		gains := make([]gain, len(layout))
+		var sumL, sumR float32
+		for i, ch := range layout {
+			switch ch {
+			case pcm.ChannelLeft:
+				gains[i] = gain{1, 0}
+			case pcm.ChannelRight:
+				gains[i] = gain{0, 1}
+			case pcm.ChannelCenter:
+				gains[i] = gain{c, c}
+			case pcm.ChannelLeftSurround:
+				gains[i] = gain{s, 0}
+			case pcm.ChannelRightSurround:
+				gains[i] = gain{0, s}
+			case pcm.ChannelLFE:
+			default:
+				t.Fatalf("layout %v: no hand mix for %s", layout, ch)
+			}
+			sumL += gains[i].lo
+			sumR += gains[i].ro
+		}
+		n := len(dec.Samples(0))
+		for i := range n {
+			var l, r float32
+			for ch, g := range gains {
+				v := dec.Samples(ch)[i]
+				l += v * g.lo / sumL
+				r += v * g.ro / sumR
+			}
+			lv, rv := s16le(l), s16le(r)
+			out = append(out, byte(lv), byte(lv>>8), byte(rv), byte(rv>>8))
+		}
+	}
+	return out
+}
+
+// assertHeardAsMix fails unless got is audible and matches the hand mix
+// within float rounding (two steps of s16).
+func assertHeardAsMix(t *testing.T, name string, got, want []byte) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%s: %d bytes, want %d", name, len(got), len(want))
+	}
+	peak := 0
+	for i := 0; i+1 < len(got); i += 2 {
+		g := int(int16(uint16(got[i]) | uint16(got[i+1])<<8))
+		w := int(int16(uint16(want[i]) | uint16(want[i+1])<<8))
+		if d := g - w; d > 2 || d < -2 {
+			t.Fatalf("%s: sample %d = %d, hand mix %d", name, i/2, g, w)
+		}
+		if g < 0 {
+			g = -g
+		}
+		peak = max(peak, g)
+	}
+	if peak < 256 {
+		t.Fatalf("%s: peak %d, the stereo output is (near) silent", name, peak)
+	}
 }
 
 func newFrameDecoder(t *testing.T) *FrameDecoder {
@@ -55,6 +137,27 @@ func TestFrameDecoderMatchesContinuousDecode(t *testing.T) {
 		}
 		if d.SampleRate() != 48000 || d.BadFrames() != 0 {
 			t.Fatalf("%s: rate %d bad %d", fixture, d.SampleRate(), d.BadFrames())
+		}
+	}
+}
+
+// On a phone (two-channel output) a 5.1 stream is heard as its own downmix,
+// AC-3 and E-AC-3 alike, and the silence counters stay at zero.
+func TestFrameDecoderStereoIsTheStreamMixedDown(t *testing.T) {
+	for _, fixture := range []string{"testdata/tone_48k_5p1_448k.ac3", "testdata/tones_48k_5p1_384k.eac3"} {
+		frames := ac3Frames(t, fixture)
+		d := newFrameDecoder(t)
+		var got []byte
+		for _, f := range frames {
+			out, err := d.Decode(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, out...)
+		}
+		assertHeardAsMix(t, fixture, got, handMixedStereo(t, frames))
+		if d.Frames() != int64(len(frames)) || d.SilentFrames() != 0 || d.SilentRunFrames() != 0 {
+			t.Fatalf("%s: frames %d silent %d run %d", fixture, d.Frames(), d.SilentFrames(), d.SilentRunFrames())
 		}
 	}
 }
@@ -305,5 +408,42 @@ func TestFrameDecoderFirstFrameDamagedKeepsTimeline(t *testing.T) {
 		if total != len(frames)*n*6*2 {
 			t.Fatalf("%s: %d bytes for %d frames, want %d", fixture, total, len(frames), len(frames)*n*6*2)
 		}
+	}
+}
+
+// The beacon's summary carries ac3go's own counters: a 5.1 stream on a phone
+// is downmixed frame after frame, and a damaged frame shows up by its cause.
+func TestFrameDecoderSummaryCountsTheStream(t *testing.T) {
+	frames := ac3Frames(t, "testdata/tones_48k_5p1_384k.eac3")
+	d := newFrameDecoder(t)
+	for _, f := range frames {
+		if _, err := d.Decode(f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := fmt.Sprintf("err=0/0/0/0/0/0/0 skip=0 lay=0 mix=%d last=", len(frames))
+	if got := d.DecoderSummary(); !strings.HasPrefix(got, want) || strings.HasSuffix(got, "last=none") {
+		t.Fatalf("summary %q, want prefix %q and a layout", got, want)
+	}
+
+	var hdr ac3.Header
+	if err := ac3.ParseHeader(frames[1], &hdr); err != nil {
+		t.Fatal(err)
+	}
+	damaged := append([]byte(nil), frames[1]...)
+	for i := hdr.AudioStartBit/8 + 1; i < len(damaged); i++ {
+		damaged[i] = 0xFF
+	}
+	d = newFrameDecoder(t)
+	for _, f := range [][]byte{frames[0], damaged} {
+		if _, err := d.Decode(f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := d.DecoderSummary(); strings.HasPrefix(got, "err=0/0/0/0/0/0/0 ") {
+		t.Fatalf("summary %q counts no failure for a damaged frame", got)
+	}
+	if len(d.DecoderSummary()) > 90 {
+		t.Fatalf("summary %q too long for the beacon", d.DecoderSummary())
 	}
 }
