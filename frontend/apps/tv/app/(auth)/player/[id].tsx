@@ -48,6 +48,9 @@ import {
 } from "../../../src/lib/subtitleStyle";
 import { NextEpisodeOverlay } from "../../../src/components/NextEpisodeOverlay";
 import { PlayerBottomPanel } from "../../../src/components/PlayerBottomPanel";
+import { PlayerScrim } from "../../../src/components/PlayerScrim";
+import { useTheme } from "../../../src/providers/ThemeProvider";
+import { FONT_SIZE } from "@evey/theme";
 import { PlayerStatusScreen, PlayerLoadingScreen } from "../../../src/components/PlayerStatusScreen";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
@@ -71,6 +74,7 @@ const BUFFERING_OVERLAY_DELAY_MS = 1200;
 const KEY_ACTION_DOWN = 0;
 const KEY_ACTION_UP = 1;
 export default function PlayerScreen() {
+  const theme = useTheme();
   // `restart=1` means the viewer chose "from the beginning" on the media page.
   // Without it the player always resumes, which is the right default - this is
   // the only way to say otherwise.
@@ -1213,7 +1217,7 @@ export default function PlayerScreen() {
 
       {isBuffering && (
         <View style={styles.bufferingOverlay} pointerEvents="none">
-          <ActivityIndicator size="large" color="#fff" />
+          <ActivityIndicator size="large" color={theme.colors.accent} />
         </View>
       )}
 
@@ -1413,7 +1417,8 @@ export default function PlayerScreen() {
         <View style={styles.overlay} pointerEvents="box-none">
           {/* Top bar: what is playing, and the badges that are state rather
               than controls. */}
-          <View style={[styles.topBar, styles.scrimTop]}>
+          <View style={styles.topBar}>
+            <PlayerScrim edge="top" />
             <Text style={styles.mediaTitle} numberOfLines={1}>
               {playerTitle(media, series?.title ?? (season ? itemLabel(season, t) : undefined))}
             </Text>
@@ -1435,7 +1440,6 @@ export default function PlayerScreen() {
           </View>
 
           <PlayerBottomPanel
-            style={styles.scrimBottom}
             mediaId={mediaId}
             screenWidth={screenWidth}
             displayTime={displayTime}
@@ -1480,16 +1484,15 @@ const styles = StyleSheet.create({
   },
   // No veil over the middle of the frame. A flat 40% black across the whole
   // picture is what made the controls feel like a mask sitting on the film
-  // (owner, 2026-09-19); the title and the timeline carry their own darker
-  // bands instead, and the image between them stays the image.
+  // (owner, 2026-09-19); the title and the timeline carry their own fades
+  // (PlayerScrim) instead, and the image between them stays the image.
   overlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "space-between",
   },
-  scrimTop: { backgroundColor: "rgba(0,0,0,0.55)" },
-  scrimBottom: { backgroundColor: "rgba(0,0,0,0.55)" },
   topBar: {
-    paddingTop: 24,
+    paddingTop: 32,
+    paddingBottom: 72,
     paddingHorizontal: 40,
     flexDirection: "row",
     alignItems: "center",
@@ -1497,8 +1500,8 @@ const styles = StyleSheet.create({
   },
   mediaTitle: {
     color: "#fff",
-    fontSize: 21,
-    fontWeight: "600",
+    fontSize: FONT_SIZE["2xl"],
+    fontWeight: "700",
     flex: 1,
   },
   badgeRow: {
@@ -1508,14 +1511,16 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   speedBadge: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   speedText: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: FONT_SIZE.sm,
     fontWeight: "700",
   },
 });

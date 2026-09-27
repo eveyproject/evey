@@ -1,10 +1,12 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { formatTime } from "@evey/api";
+import { FONT_SIZE } from "@evey/theme";
 import type { Chapter } from "../hooks/useChapters";
 import { useTheme } from "../providers/ThemeProvider";
 import { PlayerControlButton } from "./PlayerControlButton";
 import { TrickplaySeekPreview } from "./TrickplaySeekPreview";
+import { PlayerScrim } from "./PlayerScrim";
 
 // Panel geometry, shared with the trickplay anchor math.
 const PANEL_PADDING_H = 40;
@@ -107,6 +109,7 @@ export function PlayerBottomPanel({
 
   return (
     <View style={[styles.bottomPanel, style]}>
+      <PlayerScrim edge="bottom" />
       {/* Trickplay thumbnail, above the panel at the playhead: the D-pad seek
           has no live picture to look at, so the tile sits where the cursor
           is, not in the middle of the screen. Renders nothing on its own
@@ -127,7 +130,8 @@ export function PlayerBottomPanel({
       <View style={styles.controlsRow}>
         <View style={styles.controlsGroup}>
           <PlayerControlButton
-            label={`-${skipBwd}s`}
+            icon="play-back"
+            caption={`${skipBwd}s`}
             focusable={barFocused}
             buttonRef={refs.rewind}
             nextFocusLeft={focusTags.rewind}
@@ -138,7 +142,7 @@ export function PlayerBottomPanel({
             accessibilityLabel={t("player.controls.rewind", { seconds: skipBwd })}
           />
           <PlayerControlButton
-            label={isPlaying ? "‖" : "▶"}
+            icon={isPlaying ? "pause" : "play"}
             primary
             focusable={barFocused}
             buttonRef={refs.play}
@@ -150,7 +154,8 @@ export function PlayerBottomPanel({
             accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")}
           />
           <PlayerControlButton
-            label={`+${skipFwd}s`}
+            icon="play-forward"
+            caption={`${skipFwd}s`}
             focusable={barFocused}
             buttonRef={refs.forward}
             nextFocusLeft={focusTags.play}
@@ -166,7 +171,7 @@ export function PlayerBottomPanel({
             <Text style={styles.endsAtText}>{String(t("player.controls.endsAt", `Ends at ${endsAtLabel}`, { time: endsAtLabel }))}</Text>
           )}
           <PlayerControlButton
-            label={`${playbackSpeed}x`}
+            text={`${playbackSpeed}x`}
             small
             focusable={barFocused}
             buttonRef={refs.speed}
@@ -178,7 +183,7 @@ export function PlayerBottomPanel({
             accessibilityLabel={t("player.settings.speed", "Speed")}
           />
           <PlayerControlButton
-            label={"⚙"}
+            icon="settings-sharp"
             small
             focusable={barFocused}
             buttonRef={refs.settings}
@@ -203,7 +208,7 @@ export function PlayerBottomPanel({
             is one jump of four steps, and this is what says so before it
             commits. */}
         {pendingSeekDelta !== 0 && (
-          <Text style={styles.seekDeltaText}>
+          <Text style={[styles.seekDeltaText, { color: theme.colors.accent }]}>
             {pendingSeekDelta > 0 ? "+" : "-"}{formatTime(Math.abs(pendingSeekDelta))}
           </Text>
         )}
@@ -229,7 +234,7 @@ export function PlayerBottomPanel({
           style={styles.timelineHit}
         >
           <View style={[styles.seekBarTrack, timelineFocused && styles.seekBarTrackFocused]}>
-            <View style={[styles.seekBarFill, timelineFocused && { backgroundColor: theme.colors.accent }, { flex: seekProgress }]} />
+            <View style={[styles.seekBarFill, { backgroundColor: theme.colors.accent, flex: seekProgress }]} />
             <View style={{ flex: 1 - seekProgress }} />
             {duration > 0 &&
               chapters.map((ch, i) => {
@@ -253,10 +258,10 @@ export function PlayerBottomPanel({
 
 const styles = StyleSheet.create({
   bottomPanel: {
-    paddingTop: 16,
-    paddingBottom: 28,
+    paddingTop: 72,
+    paddingBottom: 32,
     paddingHorizontal: PANEL_PADDING_H,
-    gap: 12,
+    gap: 14,
   },
   controlsRow: {
     flexDirection: "row",
@@ -266,17 +271,16 @@ const styles = StyleSheet.create({
   controlsGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 20,
+    gap: 16,
   },
   endsAtText: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 17,
+    color: "rgba(255,255,255,0.75)",
+    fontSize: FONT_SIZE.base,
     fontVariant: ["tabular-nums"],
-    marginRight: 8,
+    marginRight: 12,
   },
   seekDeltaText: {
-    color: "#fff",
-    fontSize: 17,
+    fontSize: FONT_SIZE.lg,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
     marginLeft: 8,
@@ -310,7 +314,8 @@ const styles = StyleSheet.create({
   },
   timeText: {
     color: "#fff",
-    fontSize: 17,
+    fontSize: FONT_SIZE.lg,
+    fontWeight: "600",
     fontVariant: ["tabular-nums"],
     minWidth: TIME_LABEL_WIDTH,
     textAlign: "center",
@@ -319,18 +324,15 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.3)",
+    backgroundColor: "rgba(255,255,255,0.25)",
     flexDirection: "row",
     overflow: "hidden",
   },
   seekBarTrackFocused: {
     height: 10,
     borderRadius: 5,
-    backgroundColor: "rgba(255,255,255,0.45)",
   },
-  seekBarFill: {
-    backgroundColor: "#fff",
-  },
+  seekBarFill: {},
   // Tall enough to be a target for the focus engine and the pointer, the
   // track itself sits in its middle.
   timelineHit: {
@@ -340,19 +342,19 @@ const styles = StyleSheet.create({
   },
   seekKnob: {
     position: "absolute",
-    top: 5,
-    marginLeft: -11,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 3,
+    top: 4,
+    marginLeft: -12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 4,
     backgroundColor: "#fff",
   },
   chapterNotch: {
     position: "absolute",
     top: 0,
     bottom: 0,
-    width: 2,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    width: 3,
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
 });

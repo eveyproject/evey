@@ -1,11 +1,14 @@
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import { FONT_SIZE } from "@evey/theme";
 import { useTheme } from "../providers/ThemeProvider";
+import { FocusableCard } from "./FocusableCard";
 
 // What the player shows instead of a picture: a server not ready yet, an
 // expired session, a stream that failed. One action that can help, then a
-// way back; the remote lands on the action.
+// way back; the remote lands on the action. Same buttons as ScreenState, the
+// rest of the app's error screens, on the player's black.
 export function PlayerStatusScreen({
   icon,
   title,
@@ -25,15 +28,26 @@ export function PlayerStatusScreen({
   const theme = useTheme();
   return (
     <View style={styles.container}>
-      {icon ? <Ionicons name={icon} size={48} color="rgba(255,255,255,0.7)" /> : null}
-      <Text style={[styles.title, icon ? styles.titleUnderIcon : null]}>{title}</Text>
+      {icon ? <Ionicons name={icon} size={56} color="rgba(255,255,255,0.7)" /> : null}
+      <Text style={styles.title}>{title}</Text>
       {body ? <Text style={styles.body}>{body}</Text> : null}
-      <Pressable onPress={onAction} style={{ marginTop: body ? 28 : 24 }} hasTVPreferredFocus>
-        <Text style={[styles.action, { color: theme.colors.accent }]}>{actionLabel}</Text>
-      </Pressable>
-      <Pressable onPress={onBack} style={{ marginTop: 20 }}>
-        <Text style={styles.back}>{t("player.goBack", "Go back")}</Text>
-      </Pressable>
+      <View style={styles.actions}>
+        <FocusableCard
+          onPress={onAction}
+          hasTVPreferredFocus
+          accessibilityLabel={actionLabel}
+          style={[styles.button, { backgroundColor: theme.colors.accent }]}
+        >
+          <Text style={[styles.buttonLabel, { color: theme.colors.onAccent }]}>{actionLabel}</Text>
+        </FocusableCard>
+        <FocusableCard
+          onPress={onBack}
+          accessibilityLabel={t("player.goBack", "Go back")}
+          style={[styles.button, { backgroundColor: theme.colors.surface }]}
+        >
+          <Text style={[styles.buttonLabel, { color: theme.colors.text }]}>{t("player.goBack", "Go back")}</Text>
+        </FocusableCard>
+      </View>
     </View>
   );
 }
@@ -48,10 +62,10 @@ export function PlayerLoadingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#000" },
-  title: { color: "#fff", fontSize: 21, textAlign: "center", paddingHorizontal: 60 },
-  titleUnderIcon: { fontWeight: "600", marginTop: 20 },
-  body: { color: "rgba(255,255,255,0.7)", fontSize: 17, marginTop: 12, textAlign: "center", paddingHorizontal: 80 },
-  action: { fontSize: 20, fontWeight: "600" },
-  back: { color: "rgba(255,255,255,0.7)", fontSize: 17 },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12, padding: 48, backgroundColor: "#000" },
+  title: { color: "#fff", fontSize: FONT_SIZE["2xl"], fontWeight: "700", textAlign: "center", marginTop: 8 },
+  body: { color: "rgba(255,255,255,0.7)", fontSize: FONT_SIZE.lg, textAlign: "center", maxWidth: 900 },
+  actions: { flexDirection: "row", gap: 12, marginTop: 20 },
+  button: { paddingVertical: 10, paddingHorizontal: 36, borderRadius: 8 },
+  buttonLabel: { fontSize: FONT_SIZE.lg, fontWeight: "600" },
 });
