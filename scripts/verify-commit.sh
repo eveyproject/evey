@@ -74,9 +74,12 @@ if [ "${VERIFY_INNER:-0}" = "1" ]; then
 
     if [ "$FRONTEND" = "1" ]; then
         echo "→ [bonus] pnpm install --frozen-lockfile (what a clean clone fails on first)"
+        # `corepack pnpm`, not `corepack enable`: enabling writes the pnpm shim
+        # into /usr/local/bin, which a non-root user cannot, and its silenced
+        # failure surfaced as "pnpm: not found" (2026-09-27).
         docker run --rm --user "$(id -u):$(id -g)" \
-            -v "$WT/frontend":/app -w /app -e HOME=/tmp -e CI=1 \
-            "$NODE_CI_IMAGE" sh -c 'corepack enable >/dev/null 2>&1; pnpm install --frozen-lockfile --ignore-scripts'
+            -v "$WT/frontend":/app -w /app -e HOME=/tmp -e CI=1 -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+            "$NODE_CI_IMAGE" sh -c 'corepack pnpm install --frozen-lockfile --ignore-scripts'
     fi
 
     echo "✅ clean checkout of $SHORT guards, generates, vets and builds$([ "$UNIT" = 1 ] && echo ', passes unit -race')$([ "$FRONTEND" = 1 ] && echo ', installs')."
