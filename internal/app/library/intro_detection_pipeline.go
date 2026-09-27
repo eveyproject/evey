@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sort"
 	"strings"
@@ -59,9 +60,13 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.runPipeline")
 	defer span.End()
 	// The registry's context: Stop cancels it, and the forks below are charged
-	// to the task through it.
-	ctx, done := bgtasks.BeginCtx(ctx, introDetectionTask, string(item.ID))
-	defer done()
+	// to the task through it. An admin dry-run is foreground work, so pausing the
+	// sweep must not cancel it.
+	if !isIntroDryRun(ctx) {
+		var done func()
+		ctx, done = bgtasks.BeginCtx(ctx, introDetectionTask, string(item.ID))
+		defer done()
+	}
 
 	mediaItemID := string(item.ID)
 	cfg := loadIntroConfig(ctx, s.configRepo)
@@ -104,22 +109,13 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	// ---- intro-only passes: each runs only while the intro is still missing ----
 
 	// Season cluster hint: a season-level audio clustering already located this
-	// episode's recurring intro at its own offset. Refine the raw cluster window
-	// to silence/black boundaries, anchored on the cluster window.
+	// episode's recurring intro at its own offset, widened per episode. Served as
+	// is: on 54 dev episodes the silence/black refinement, the subtitle vote and
+	// the scene-cut snap each moved a correct window away from the truth, and the
+	// refinement erased three intros (2026-09-27). 0.8 keeps it a lone audio witness.
 	if needIntro() && hint != nil {
 		seg := *hint
-		refined := s.refineWithPrecisionPass(ctx, item.File.Path, []confirmedWindow{{startMs: hint.StartMs, endMs: hint.EndMs}})
-		if len(refined) > 0 {
-			seg.StartMs, seg.EndMs = refined[0].startMs, refined[0].endMs
-		}
-		// The audio run length is a poor end on music-bleed shows. Fuse every
-		// available end witness (audio + subtitle + silence) and snap to a scene
-		// cut; raise the confidence when independent signals agree.
-		end, conf := s.fuseIntroEnd(ctx, item.File.Path, seg.StartMs, seg.EndMs)
-		seg.EndMs = end
-		if conf > 0 {
-			seg.Confidence = 0.6 + 0.4*conf
-		}
+		seg.Confidence = 0.8
 		add([]domainlibrary.MediaSegment{seg}, "season_cluster_hint")
 	}
 
@@ -438,6 +434,10 @@ func (s *IntroDetectionService) fuseIntroEnd(ctx context.Context, filePath strin
 			end = snapped
 		}
 	}
+	// Every witness and both stages, so an eval can replay the end without re-decoding.
+	slog.DebugContext(ctx, "intro_detection.fuse_end",
+		slog.Int64("audio_end_ms", audioEnd), slog.String("votes", fmt.Sprint(votes)),
+		slog.Int64("fused_ms", fb.ms), slog.Int64("snapped_ms", end), slog.Float64("confidence", fb.confidence))
 	return end, fb.confidence
 }
 

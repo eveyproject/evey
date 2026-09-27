@@ -109,7 +109,7 @@ func TestDiscover_AlignedPosition_StillWorks(t *testing.T) {
 	// Regression guard for the easy case the current detector already handles.
 	r := rand.New(rand.NewSource(5))
 	intro := makeNoise(r, 120)
-	at := 200
+	at := 240 // ~29.7s at the real 8.08 frames/s, clear of the 25s anti-bumper floor
 	target := episodeWithIntro(r, 800, at, intro, 4)
 	sibs := [][]uint32{
 		episodeWithIntro(r, 800, at, intro, 4),

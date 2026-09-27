@@ -22,8 +22,10 @@ import (
 // Everything here operates on raw Chromaprint fingerprints ([]uint32, ~8
 // frames/sec) so it is deterministic and unit-testable without ffmpeg/fpcalc.
 
-// chromaprintFramesPerSec is fpcalc's fixed analysis rate (~0.1238 s/frame).
-const chromaprintFramesPerSec = 7.56
+// chromaprintFramesPerSec is fpcalc's analysis rate: 11025 Hz resampling, one
+// item per 1365-sample hop (a third of its 4096 frame), measured 8.08/s. The old
+// 7.56 stretched every audio time by 6.8%, pushing late intro ends into content.
+const chromaprintFramesPerSec = 11025.0 / 1365.0
 
 func framesToMs(frames int) int64 { return int64(float64(frames) / chromaprintFramesPerSec * 1000.0) }
 

@@ -31,6 +31,7 @@ type IntroDetector interface {
 	AudioBandedFingerprint(ctx context.Context, filePath string, startSec, durationSec float64, binMs int) ([]float64, error)
 	SubtitleCueStarts(ctx context.Context, filePath string) ([]int64, error)
 	SceneCutTimestamps(ctx context.Context, filePath string, startSec, durationSec, threshold float64) ([]int64, error)
+	GrayThumbnails(ctx context.Context, filePath string, startSec, durationSec, fps float64) ([][]byte, error)
 }
 
 // Chromaprinter is an optional adapter wrapping fpcalc - when set, the
@@ -51,6 +52,7 @@ type IntroDetectionService struct {
 	configRepo        shared.ServerConfigRepository
 	fpCache           domainlibrary.IntroFingerprintCacheRepository
 	audioFPCache      domainlibrary.IntroAudioFingerprintCacheRepository
+	edgeCache         edgeFrameCache // decoded edge windows, reused across a season's dry-runs
 	chapterRepo       domainlibrary.ChapterQueryRepo
 	chromaprinter     Chromaprinter
 	metadataProvider  domainlibrary.IntroMetadataProvider
@@ -1054,6 +1056,7 @@ func (s *IntroDetectionService) DetectSeries(ctx context.Context, seriesID strin
 // that truth via upsert. No community contribution, no end-credit/studio side
 // effects beyond the returned list.
 func (s *IntroDetectionService) DetectIntroDryRun(ctx context.Context, mediaItemID string) ([]domainlibrary.MediaSegment, error) {
+	ctx = context.WithValue(ctx, introDryRunKey{}, true)
 	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		return nil, fmt.Errorf("get media item: %w", err)
@@ -1093,6 +1096,15 @@ func (s *IntroDetectionService) DetectIntroDryRun(ctx context.Context, mediaItem
 		out = append(out, seg)
 	}
 	return out, nil
+}
+
+// introDryRunKey marks a context as an admin dry-run: foreground work that is
+// not the sweep, so the sweep's Stop control must not reach it.
+type introDryRunKey struct{}
+
+func isIntroDryRun(ctx context.Context) bool {
+	v, _ := ctx.Value(introDryRunKey{}).(bool)
+	return v
 }
 
 // detectIntroWithHint runs the per-episode pipeline. hint, when non-nil, is the

@@ -263,6 +263,9 @@ func TestClassifyConfirmed_NoRecapWhenEarlierIsLong(t *testing.T) {
 // ExtractTileHashes, PrecisionPass, AudioFallback return zero/not-found;
 // DetectEndCredits and DetectStudioLogo return the configured responses.
 type fakeDetector struct {
+	// thumbs answers GrayThumbnails; nil decodes nothing, so no visual widening.
+	thumbs func(path string, startSec, durationSec, fps float64) [][]byte
+
 	creditsStartMs int64
 	creditsEndMs   int64
 	creditsFound   bool
@@ -343,6 +346,12 @@ func (f *fakeDetector) SubtitleCueStarts(_ context.Context, _ string) ([]int64, 
 }
 func (f *fakeDetector) SceneCutTimestamps(_ context.Context, _ string, _, _, _ float64) ([]int64, error) {
 	return f.sceneCuts, nil
+}
+func (f *fakeDetector) GrayThumbnails(_ context.Context, path string, startSec, durationSec, fps float64) ([][]byte, error) {
+	if f.thumbs == nil {
+		return nil, nil
+	}
+	return f.thumbs(path, startSec, durationSec, fps), nil
 }
 
 // fakeSegmentRepo records all Upsert calls and stores segments by (mediaItemID, type).
