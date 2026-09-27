@@ -299,7 +299,7 @@ export default function MediaDetailScreen() {
     { query: { enabled: !!(id && (isSeries || isSeason)) } },
   );
 
-  const children = childrenData?.items ?? [];
+  const children = useMemo(() => childrenData?.items ?? [], [childrenData?.items]);
 
   useEffect(() => {
     if (isSeries && children.length > 0 && !firstSeasonId) {

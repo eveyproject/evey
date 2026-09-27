@@ -180,7 +180,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
     },
   });
   const { data, isLoading, isError, error, refetch } = usePlaybackServiceGetWatchHistory(limit ? { limit } : undefined);
-  const items = data?.items ?? [];
+  const items = useMemo(() => data?.items ?? [], [data?.items]);
 
   function getDateGroup(iso: string | undefined): string {
     if (!iso) return t("common.unknown");

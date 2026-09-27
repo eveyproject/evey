@@ -465,7 +465,10 @@ export default function LibraryDetailScreen() {
 
   // Whatever the active (non-search-narrowed) endpoint returned so far -
   // used both as the display source and as the facet sample below.
-  const rawItems = searchActive ? (searchData?.items ?? []) : serverFiltersActive ? filterItems : allItems;
+  const rawItems = useMemo(
+    () => (searchActive ? (searchData?.items ?? []) : serverFiltersActive ? filterItems : allItems),
+    [searchActive, searchData?.items, serverFiltersActive, filterItems, allItems],
+  );
 
   // Resolution/codec/audio+subtitle language have no server param at all
   // (see LibraryServiceFilterMediaItemsParams) - always narrowed client-side,
