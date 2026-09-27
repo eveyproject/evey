@@ -320,8 +320,10 @@ const styles = StyleSheet.create({
     minWidth: TIME_LABEL_WIDTH,
     textAlign: "center",
   },
+  // A fixed height, not flex: in the column-wise hit area `flex: 1` stretched
+  // the track to the area's whole height - a thick grey slab, not a line.
   seekBarTrack: {
-    flex: 1,
+    alignSelf: "stretch",
     height: 6,
     borderRadius: 3,
     backgroundColor: "rgba(255,255,255,0.25)",
