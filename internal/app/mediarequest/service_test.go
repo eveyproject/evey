@@ -3,6 +3,7 @@ package mediarequest_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
@@ -330,5 +331,41 @@ func TestCreateAndAnswer_SurviveAFailingEventBus(t *testing.T) {
 
 	if _, err := svc.Answer(context.Background(), req.ID, mediarequest.StatusApproved, "ok", "prof-admin"); err != nil {
 		t.Fatalf("a failing event bus must not fail the answer: %v", err)
+	}
+}
+
+// A page size is the client's to ask for, within a ceiling: an absent or
+// oversized limit falls back to the default instead of loading the whole table.
+func TestList_PageSizeIsClamped(t *testing.T) {
+	repo := mrfakes.NewFakeRepository()
+	ctx := context.Background()
+	for i := range 600 {
+		r, err := mediarequest.NewRequest(fmt.Sprintf("req-%03d", i), "prf-1", "usr-1", mediarequest.MediaTypeMovie, "Some Movie")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.Create(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := newService(repo, mrfakes.NewFakeAccess(true), &fakeBus{})
+
+	for _, c := range []struct{ limit, want int }{{0, 50}, {200, 200}, {201, 50}} {
+		got, err := svc.ListMyRequests(ctx, "prf-1", c.limit, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != c.want {
+			t.Errorf("ListMyRequests(limit=%d) = %d rows, want %d", c.limit, len(got), c.want)
+		}
+	}
+	for _, c := range []struct{ limit, want int }{{0, 100}, {500, 500}, {501, 100}} {
+		got, err := svc.ListAll(ctx, nil, c.limit, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != c.want {
+			t.Errorf("ListAll(limit=%d) = %d rows, want %d", c.limit, len(got), c.want)
+		}
 	}
 }
