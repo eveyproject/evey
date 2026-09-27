@@ -70,7 +70,8 @@ import { MetadataEditSheet } from "../../../src/components/media/MetadataEditShe
 import { PlayOnSheet } from "../../../src/components/media/PlayOnSheet";
 import { SagaSection } from "../../../src/components/media/SagaSection";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
-import { resolutionLabel } from "@evey/client";
+import { resolutionLabel, RESUME_PROGRESS_QUERY } from "@evey/client";
+import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 
 const POSTER_WIDTH = 100;
 const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
@@ -582,9 +583,12 @@ export default function MediaDetailScreen() {
   const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } } as never);
   const profileRegion = (profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0])?.region;
 
-  const { data: watchProgress } = usePlaybackServiceGetWatchProgress(id ?? "", undefined, {
-    query: { enabled: !!id, retry: false },
+  const { data: watchProgress, refetch: refetchProgress } = usePlaybackServiceGetWatchProgress(id ?? "", undefined, {
+    query: { ...RESUME_PROGRESS_QUERY, enabled: !!id, retry: false },
   });
+  // The player stacks on top of this screen and autoplay moves on from the
+  // episode it opened with: back here, the Resume label must be re-read.
+  useRefetchOnReturn(refetchProgress);
   const profileId = useAuthStore((s) => s.profileId);
   const isAdmin = useAuthStore((s) => s.isAdmin);
   // Same active-profile resolution as the player screen (player/[id].tsx's

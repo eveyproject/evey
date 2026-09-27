@@ -46,6 +46,7 @@ export * from "./lib/certifications";
 export * from "./lib/resumeNudge";
 export * from "./lib/playbackSpeeds";
 export * from "./lib/invalidateWatchedState";
+export * from "./lib/resumeProgressQuery";
 export * from "./lib/seekGesture";
 export * from "./lib/network-scan";
 export * from "./lib/pluginBridge";

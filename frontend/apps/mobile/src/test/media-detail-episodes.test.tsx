@@ -40,6 +40,7 @@ vi.mock("react-native", () => ({
   },
   Share: { share: vi.fn() },
   Platform: { OS: "android", select: (o: any) => o.android },
+  AppState: { addEventListener: () => ({ remove: vi.fn() }) },
 }));
 
 // --- expo-image -------------------------------------------------------------------------

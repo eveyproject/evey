@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen } from "@testing-library/react";
+import { render, fireEvent, screen, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 
@@ -37,6 +37,7 @@ vi.mock("react-native", () => ({
   },
   Linking: { openURL: vi.fn(() => Promise.resolve()) },
   StyleSheet: { create: (s: any) => s, absoluteFillObject: {}, hairlineWidth: 1 },
+  AppState: { addEventListener: () => ({ remove: () => {} }) },
 }));
 
 // --- expo-image / @expo/vector-icons mocks ----------------------------------
@@ -62,6 +63,9 @@ vi.mock("react-i18next", () => ({
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
 const backMock = vi.fn();
+// The latest focus effect the screen registered: calling it plays "the screen
+// is shown", its return value "the screen is covered".
+let focusEffect: (() => void | (() => void)) | null = null;
 vi.mock("expo-router", () => ({
   router: {
     push: (...args: unknown[]) => pushMock(...args),
@@ -69,6 +73,9 @@ vi.mock("expo-router", () => ({
     back: (...args: unknown[]) => backMock(...args),
   },
   useLocalSearchParams: () => ({ id: "media-1" }),
+  useFocusEffect: (cb: () => void | (() => void)) => {
+    focusEffect = cb;
+  },
 }));
 
 // --- ThemeProvider mock ---------------------------------------------------------
@@ -215,6 +222,31 @@ describe("MediaDetailScreen (TV) watch/rating actions on series and season", () 
     expect(screen.getByText("media.detail.markWatched")).toBeTruthy();
     expect(screen.getByText("Like")).toBeTruthy();
     expect(screen.getByText("Dislike")).toBeTruthy();
+  });
+});
+
+// 27-09 (the owner): back from a player that had autoplayed two episodes, then
+// a night in standby, the page still offered "Resume 7:06" on an episode
+// finished since - and the press started it over at 0. The progress is now
+// never served from cache and re-read each time the page is shown again.
+describe("MediaDetailScreen (TV) resume progress freshness", () => {
+  it("reads the progress with no stale window", () => {
+    renderScreen();
+    const opts = getWatchProgressMock.mock.calls[0]?.[2] as { query?: { staleTime?: number } };
+    expect(opts?.query?.staleTime).toBe(0);
+  });
+
+  it("re-reads the progress when the page is shown again after the player", () => {
+    const refetch = vi.fn();
+    getWatchProgressMock.mockReturnValue({ data: { positionMs: "426000" }, refetch });
+    renderScreen();
+
+    let cover: (() => void) | void = undefined;
+    act(() => { cover = focusEffect?.(); });
+    expect(refetch).not.toHaveBeenCalled();
+    act(() => { cover?.(); });
+    act(() => { focusEffect?.(); });
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 });
 

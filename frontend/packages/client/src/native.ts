@@ -22,5 +22,6 @@ export * from "./native/auth-refresh";
 export * from "./native/displayHdr";
 export * from "./native/deviceCodecs";
 export * from "./native/useDeviceRegistration";
+export * from "./native/useRefetchOnReturn";
 export * from "./native/fetcher-setup";
 export * from "./native/PluginWebView";

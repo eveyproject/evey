@@ -28,6 +28,7 @@ import {
   CARD_WIDTH_FEATURED,
   CARD_WIDTH_GRID,
   POSTER_RATIO,
+  RESUME_PROGRESS_QUERY,
   personTypeLabelKey,
   resolvePlayTarget,
   sortByIndexNumber,
@@ -202,7 +203,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
   const qc = useQueryClient();
   const profileId = useAuthStore((s) => s.profileId);
   const { data: media, isLoading, error, refetch } = useLibraryServiceGetMediaItem(mediaId);
-  const { data: watchProgress } = usePlaybackServiceGetWatchProgress(mediaId);
+  const { data: watchProgress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, { query: RESUME_PROGRESS_QUERY });
   const { data: isFavorite } = useIsFavorite(mediaId);
   const toggleFavorite = useToggleFavorite(mediaId);
   const [playlistOpen, setPlaylistOpen] = useState(false);

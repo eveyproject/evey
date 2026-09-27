@@ -18,12 +18,16 @@ vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), isPending: false }),
-  usePlaybackServiceGetWatchProgress: () => ({ data: mockWatchProgress }),
+  usePlaybackServiceGetWatchProgress: (...args: unknown[]) => {
+    mockWatchProgressArgs = args;
+    return { data: mockWatchProgress };
+  },
   useLibraryServiceListMediaItems: () => ({ data: undefined }),
   useLibraryServiceGetMediaItem: () => ({ data: undefined }),
 }));
 
 let mockWatchProgress: { positionMs?: string; played?: boolean } | undefined;
+let mockWatchProgressArgs: unknown[] = [];
 let mockIsAdmin = false;
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -134,6 +138,16 @@ describe("MediaDetailActions", () => {
   beforeEach(() => {
     mockIsAdmin = false;
     mockWatchProgress = undefined;
+  });
+
+  // 27-09: a Resume label served from cache outlives what the player (autoplay)
+  // or another device did since; on the web a return within the 5-minute
+  // staleTime, or a tab left open, showed it. Read on every mount and focus.
+  it("reads the watch progress with no stale window, refetched on focus", () => {
+    render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
+    const opts = mockWatchProgressArgs[2] as { query?: { staleTime?: number; refetchOnWindowFocus?: boolean } };
+    expect(opts?.query?.staleTime).toBe(0);
+    expect(opts?.query?.refetchOnWindowFocus).toBe(true);
   });
 
   it("renders tagline", () => {
