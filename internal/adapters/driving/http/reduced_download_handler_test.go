@@ -290,6 +290,24 @@ func TestReducedDownload_FailureIsReportedAndRetryable(t *testing.T) {
 	assert.EqualValues(t, 2, tr.calls.Load())
 }
 
+// panickingReducedTranscoder stands in for an encoder that panics mid-job.
+type panickingReducedTranscoder struct{}
+
+func (panickingReducedTranscoder) TranscodeReducedSlices(context.Context, string, string, reduceddl.Spec, domaintranscoding.PicturePlan, int64, int64, func(int)) error {
+	panic("encoder blew up")
+}
+
+// The production runs on a goroutine detached from the request: a panic there
+// took the whole server down. It must end as a failed job instead.
+func TestReducedDownload_PanicEndsAsAFailedJob(t *testing.T) {
+	h := newTestReducedServe(t, panickingReducedTranscoder{}, allowAll(), nil)
+
+	w := doReducedRequest(h.handlePrepare, http.MethodPost, "/api/v1/media/m1/reduced-download")
+	assert.Equal(t, http.StatusAccepted, w.Code)
+	failed := waitReducedStatus(t, h, "failed")
+	assert.Contains(t, failed["error"], "encoder blew up")
+}
+
 // The phone saying "done" must actually free the disk, and must not be able to
 // pull the floor out from under a running ffmpeg.
 func TestReducedDownload_DiscardFreesTheJobButNotUnderARunningProduction(t *testing.T) {

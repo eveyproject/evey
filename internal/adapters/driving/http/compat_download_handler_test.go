@@ -177,6 +177,24 @@ func TestCompatDownload_FailureIsReportedAndRetryable(t *testing.T) {
 	assert.EqualValues(t, 2, tr.calls.Load())
 }
 
+// panickingCompatTranscoder stands in for an encoder that panics mid-job.
+type panickingCompatTranscoder struct{}
+
+func (panickingCompatTranscoder) TranscodeCompat(context.Context, string, string, int64, func(int)) error {
+	panic("encoder blew up")
+}
+
+// The production runs on a goroutine detached from the request: a panic there
+// took the whole server down. It must end as a failed job instead.
+func TestCompatDownload_PanicEndsAsAFailedJob(t *testing.T) {
+	h := newTestCompatServe(t, panickingCompatTranscoder{}, allowAll())
+
+	w := doCompatRequest(h.handlePrepare, http.MethodPost, "/api/v1/media/m1/compat-download", false)
+	assert.Equal(t, http.StatusAccepted, w.Code)
+	failed := waitCompatStatus(t, h, "failed")
+	assert.Contains(t, failed["error"], "encoder blew up")
+}
+
 // gatedCompatTranscoder blocks every production until the gate opens and
 // records how many ran at once - the concurrency the cap under test bounds.
 type gatedCompatTranscoder struct {

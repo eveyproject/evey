@@ -426,7 +426,9 @@ func (h *reducedServe) handlePrepare(w http.ResponseWriter, r *http.Request) {
 func (h *reducedServe) produce(ctx context.Context, t reducedTarget) {
 	done := bgtasks.Begin("reduced_download", t.mediaID)
 	defer done()
-	_, err, _ := h.group.Do(t.jobDir, func() (any, error) {
+	_, err, _ := h.group.Do(t.jobDir, func() (_ any, err error) {
+		// Detached goroutine: a panic here would take the whole server down.
+		defer recoverAsError(&err)
 		onProgress := func(permille int) {
 			h.mu.Lock()
 			h.progress[t.jobDir] = permille
