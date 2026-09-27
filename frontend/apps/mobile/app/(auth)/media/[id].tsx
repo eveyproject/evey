@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef, memo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -15,8 +15,6 @@ import {
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Skeleton } from "../../../src/components/Skeleton";
-import { ProgressBar } from "../../../src/components/ProgressBar";
-import { MediaCard } from "../../../src/components/MediaCard";
 import { GenreDot } from "../../../src/components/GenreDot";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,17 +28,13 @@ import {
   WATCH_HISTORY_OVERLAY_LIMIT,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
-  useFeedServiceSimilarItems,
   useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
   useShareServiceCreateShareLink,
-  useRatingServiceGetMyThumbRating,
-  ratingServicePutThumbRating,
-  getRatingServiceGetMyThumbRatingQueryKey,
 } from "@evey/api";
-import type { V1MediaItem, V1MediaPerson, V1MediaStream, V1Trailer } from "@evey/api";
+import type { V1MediaItem } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
@@ -54,7 +48,7 @@ import { chooseDownloadQuality } from "../../../src/lib/downloadQualityGate";
 import { startReducedDownload, reducedDownloadMessage } from "../../../src/lib/reducedDownload";
 import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
 import { audioCodecsOf } from "../../../src/lib/playlistDownload";
-import { formatBytes, formatChannelLayout, formatDurationMs, formatTimeMs, itemLabel, seasonLabel, trackPickParams, type TrackPick } from "@evey/api";
+import { formatBytes, formatDurationMs, formatTimeMs, itemLabel, seasonLabel, trackPickParams, type TrackPick } from "@evey/api";
 import { TrackPickChips } from "../../../src/components/TrackPickChips";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
@@ -70,16 +64,19 @@ import { MetadataEditSheet } from "../../../src/components/media/MetadataEditShe
 import { PlayOnSheet } from "../../../src/components/media/PlayOnSheet";
 import { SagaSection } from "../../../src/components/media/SagaSection";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
-import { resolutionLabel, RESUME_PROGRESS_QUERY } from "@evey/client";
+import { RESUME_PROGRESS_QUERY } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
+import { StarIcons } from "../../../src/components/media/StarIcons";
+import { personKeyExtractor, renderCastItem } from "../../../src/components/media/CastCard";
+import { EpisodeRow, type EpisodeProgress } from "../../../src/components/media/EpisodeRow";
+import { TrailerButton } from "../../../src/components/media/TrailerButton";
+import { SimilarSection } from "../../../src/components/media/SimilarSection";
+import { FileInfoSection } from "../../../src/components/media/FileInfoSection";
+import { useMyThumbRating, useSetThumbRating } from "../../../src/hooks/useThumbRating";
 
 const POSTER_WIDTH = 100;
 const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
 const EPISODE_PAGE_SIZE = 20;
-
-// Per-episode view of the shared watch-history fetch (percent is 0-100, the
-// server's percent_complete scale - same as the row's progress bar).
-type EpisodeProgress = { percent: number; played: boolean };
 
 function isSeriesType(type?: string) {
   return type === "MEDIA_ITEM_TYPE_SERIES";
@@ -99,286 +96,6 @@ function formatEpisodeLabel(seasonIndex?: number, episodeIndex?: number): string
   if (s > 0 && e > 0) return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
   if (e > 0) return `E${String(e).padStart(2, "0")}`;
   return null;
-}
-
-function StarIcons({ rating }: { rating: number }) {
-  const theme = useTheme();
-  // rating out of 10, show 5 stars
-  const filled = Math.round(rating / 2);
-  return (
-    <View style={{ flexDirection: "row", gap: 1 }}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Ionicons
-          key={i}
-          name={i <= filled ? "star" : "star-outline"}
-          size={12}
-          color={i <= filled ? "#f5c518" : theme.colors.textMuted}
-        />
-      ))}
-    </View>
-  );
-}
-
-const CastCard = memo(function CastCard({ person }: { person: V1MediaPerson }) {
-  const theme = useTheme();
-  const personType = person.type?.replace("PERSON_TYPE_", "") ?? "";
-  const roleLabel = personType.charAt(0) + personType.slice(1).toLowerCase();
-
-  return (
-    <Pressable
-      onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
-      style={{ width: 80, marginRight: theme.spacing.sm, alignItems: "center" }}
-      accessible={true}
-      accessibilityLabel={person.name ?? "Person"}
-      accessibilityRole="button"
-    >
-      {person.thumbUrl ? (
-        <Image
-          source={{ uri: person.thumbUrl }}
-          style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.colors.surface }}
-          contentFit="cover"
-          transition={200}
-        />
-      ) : (
-        <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>
-            {person.name ? person.name[0].toUpperCase() : "?"}
-          </Text>
-        </View>
-      )}
-      <Text style={{ color: theme.colors.text, fontSize: 11, marginTop: 4, textAlign: "center" }} numberOfLines={1}>
-        {person.name}
-      </Text>
-      {person.role ? (
-        <Text style={{ color: theme.colors.textMuted, fontSize: 10, textAlign: "center" }} numberOfLines={1}>
-          {person.role}
-        </Text>
-      ) : personType && personType !== "ACTOR" ? (
-        <Text style={{ color: theme.colors.textMuted, fontSize: 10, textAlign: "center" }} numberOfLines={1}>
-          {roleLabel}
-        </Text>
-      ) : null}
-    </Pressable>
-  );
-});
-
-const EpisodeRow = memo(function EpisodeRow({
-  item, serverUrl, theme, authHeaders, downloadProgress,
-  progress, onDownload, onPlay,
-}: {
-  item: V1MediaItem;
-  serverUrl: string;
-  theme: ReturnType<typeof useTheme>;
-  authHeaders?: { Authorization: string };
-  downloadProgress?: number;
-  progress?: EpisodeProgress;
-  onDownload?: (item: V1MediaItem) => void;
-  onPlay: (item: V1MediaItem) => void;
-}) {
-  const { t } = useTranslation();
-  // "backdrop", not "poster": an episode's still lives under the backdrop type
-  // (same as the web episode rows). Asking for a poster gave an empty 16:9 box
-  // on most episodes, since episodes rarely carry one.
-  const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "backdrop", 240, item) : undefined;
-  // No per-row fetch here: the parent derives every row's progress from ONE
-  // GetWatchHistory call (audit 25-08 H3 - a season open used to fire one
-  // GetWatchProgress per visible row, a 20-request burst on a weak NAS).
-  const percent = progress?.percent ?? 0;
-  // A fully-watched episode has its resume position reset, so `percent` is 0 -
-  // it would look identical to a never-watched one. `played` is the truth for
-  // "seen in full"; show the same check badge as the cards, and keep the
-  // partial bar only for an episode left mid-way.
-  const watched = progress?.played === true;
-  const downloadable = !!onDownload && hasMediaFile(item);
-
-  return (
-    <Pressable
-      onPress={() => item.id && onPlay(item)}
-      style={{
-        flexDirection: "row",
-        padding: theme.spacing.sm,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: theme.colors.border,
-      }}
-      accessible={true}
-      accessibilityLabel={item.title ?? "Episode"}
-      accessibilityRole="button"
-    >
-      <View style={{ width: 120, height: 68, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }}>
-        <Image
-          source={episodeUri ? { uri: episodeUri, headers: authHeaders } : undefined}
-          style={{ width: 120, height: 68 }}
-          contentFit="cover"
-          transition={200}
-        />
-        {!watched && percent > 0 && (
-          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 2 }}>
-            <ProgressBar percent={percent} />
-          </View>
-        )}
-        {watched && (
-          <View style={{
-            position: "absolute", top: 4, right: 4,
-            width: 20, height: 20, borderRadius: 10,
-            backgroundColor: theme.colors.success,
-            alignItems: "center", justifyContent: "center",
-          }}>
-            <Ionicons name="checkmark" size={13} color={theme.colors.onSuccess} />
-          </View>
-        )}
-      </View>
-      <View style={{ flex: 1, marginLeft: theme.spacing.sm, justifyContent: "center" }}>
-        <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
-          {item.indexNumber != null ? `${item.indexNumber}. ` : ""}{item.title}
-        </Text>
-        {(() => {
-          const runtime = formatDurationMs(item.durationMs);
-          return runtime ? (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>
-              {runtime}
-            </Text>
-          ) : null;
-        })()}
-        {item.overview ? (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={2}>
-            {item.overview}
-          </Text>
-        ) : null}
-      </View>
-      {downloadable ? (
-        <Pressable
-          onPress={(e) => { e.stopPropagation(); onDownload!(item); }}
-          disabled={downloadProgress !== undefined}
-          hitSlop={8}
-          style={{ justifyContent: "center", paddingHorizontal: theme.spacing.sm }}
-          accessible={true}
-          accessibilityLabel={t("common.download") || "Download"}
-          accessibilityRole="button"
-        >
-          {downloadProgress !== undefined ? (
-            Number.isFinite(downloadProgress) ? (
-              <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "700" }}>
-                {Math.round(downloadProgress * 100)}%
-              </Text>
-            ) : (
-              <Ionicons name="cloud-download" size={18} color={theme.colors.accent} />
-            )
-          ) : (
-            <Ionicons name="download-outline" size={18} color={theme.colors.textMuted} />
-          )}
-        </Pressable>
-      ) : null}
-    </Pressable>
-  );
-});
-
-const TrailerButton = memo(function TrailerButton({ trailer }: { trailer: V1Trailer }) {
-  const { t } = useTranslation();
-  const theme = useTheme();
-
-  const url = (() => {
-    if (!trailer.key || !trailer.site) return null;
-    switch (trailer.site.toLowerCase()) {
-      case "youtube":
-        return `https://www.youtube.com/watch?v=${trailer.key}`;
-      case "vimeo":
-        return `https://vimeo.com/${trailer.key}`;
-      default:
-        return null;
-    }
-  })();
-
-  if (!url) return null;
-
-  return (
-    <Pressable
-      onPress={() => Linking.openURL(url)}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: theme.radii.sm,
-        backgroundColor: theme.colors.surface,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: theme.colors.border,
-      }}
-      accessible={true}
-      accessibilityLabel={t("media.detail.trailer")}
-      accessibilityRole="link"
-    >
-      <Ionicons name="play" size={14} color={theme.colors.text} />
-      <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "500" }}>
-        {t("media.detail.trailer")}
-      </Text>
-    </Pressable>
-  );
-});
-
-const SimilarSection = memo(function SimilarSection({ item }: { item: V1MediaItem }) {
-  const { t } = useTranslation();
-  const theme = useTheme();
-  const screenW = Dimensions.get("window").width;
-  const { data: similarData } = useFeedServiceSimilarItems(item.id ?? "");
-  const firstGenre = item.genres?.[0];
-  const hasSimilar = (similarData?.items?.length ?? 0) > 0;
-  const { data: byGenreData } = useLibraryServiceListMediaItems(
-    { genre: firstGenre, type: item.type as never },
-    { query: { enabled: !hasSimilar && !!firstGenre } } as never,
-  );
-
-  const cards: V1MediaItem[] = useMemo(() => {
-    const fromFeed = (similarData?.items ?? [])
-      .filter((fi: any) => !!fi.mediaItemId)
-      .map((fi: any) => ({ id: fi.mediaItemId!, title: fi.title }));
-
-    const fromGenre = (byGenreData?.items ?? [])
-      .filter((m) => m.id && m.id !== item.id)
-      .map((m) => ({ id: m.id!, title: m.title, year: m.year, type: m.type }));
-
-    return (fromFeed.length ? fromFeed : fromGenre) as V1MediaItem[];
-  }, [similarData?.items, byGenreData?.items, item.id]);
-
-  const renderCard = useCallback(
-    ({ item: c }: { item: V1MediaItem }) => (
-      <MediaCard
-        item={c}
-        onPress={() => c.id && router.push(`/(auth)/media/${c.id}`)}
-        width={screenW * 0.28}
-      />
-    ),
-    [screenW],
-  );
-
-  if (!cards.length) return null;
-
-  return (
-    <View style={{ marginTop: theme.spacing.lg }}>
-      <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600", marginBottom: theme.spacing.sm }}>
-        {t("media.detail.similarTitles")}
-      </Text>
-      <FlatList
-        horizontal
-        data={cards}
-        keyExtractor={similarKeyExtractor}
-        renderItem={renderCard}
-        showsHorizontalScrollIndicator={false}
-      />
-    </View>
-  );
-});
-
-function similarKeyExtractor(c: V1MediaItem) {
-  return c.id ?? "";
-}
-
-function personKeyExtractor(p: V1MediaPerson) {
-  return p.id ?? p.name ?? "";
-}
-
-function renderCastItem({ item }: { item: V1MediaPerson }) {
-  return <CastCard person={item} />;
 }
 
 // Per-source critic ratings shown in the hero (web parity: MediaDetailHero).
@@ -401,140 +118,6 @@ function formatSeriesRuntime(totalMs?: string, episodeCount?: number): string {
   if (days > 0) return `${days}d ${h}h`;
   if (h > 0) return m > 0 ? `${h}h ${m}min` : `${h}h`;
   return `${m}min`;
-}
-
-function hdrLabel(s?: V1MediaStream): string | null {
-  if (!s) return null;
-  switch (s.colorTransfer?.trim().toLowerCase()) {
-    case "smpte2084": return "HDR10";
-    case "arib-std-b67": return "HLG";
-  }
-  const cs = s.colorSpace?.trim().toLowerCase() ?? "";
-  if (cs.startsWith("bt2020") && (s.bitDepth ?? 0) >= 10) return "HDR10";
-  return null;
-}
-
-function FileInfoSection({ item }: { item: V1MediaItem }) {
-  const { t } = useTranslation();
-  const theme = useTheme();
-  const [open, setOpen] = useState(false);
-
-  if (!item.filePath && !item.fileSize && !item.containerFormat && !(item.streams && item.streams.length > 0)) {
-    return null;
-  }
-
-  const videoStream = item.streams?.find((s) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
-  const audioStreams = item.streams?.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO") ?? [];
-  const primaryAudio = audioStreams.find((s) => s.isDefault) ?? audioStreams[0];
-  const techBadges = [
-    resolutionLabel(videoStream),
-    hdrLabel(videoStream),
-    formatChannelLayout(primaryAudio?.channels) || null,
-    Number(item.fileSize ?? 0) > 0 ? formatBytes(item.fileSize) : null,
-  ].filter((b): b is string => !!b);
-
-  return (
-    <View style={{ marginTop: theme.spacing.lg }}>
-      {techBadges.length > 0 && (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: theme.spacing.sm }}>
-          {techBadges.map((b, i) => <InfoBadge key={i} label={b} />)}
-        </View>
-      )}
-      <Pressable
-        onPress={() => setOpen((v) => !v)}
-        style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: theme.spacing.sm }}
-        accessible={true}
-        accessibilityLabel={t("media.detail.fileInfo")}
-        accessibilityRole="button"
-      >
-        <Ionicons
-          name={open ? "chevron-down" : "chevron-forward"}
-          size={16}
-          color={theme.colors.textMuted}
-        />
-        <Text style={{ color: theme.colors.textMuted, fontSize: 14, fontWeight: "600" }}>
-          {t("media.detail.fileInfo")}
-        </Text>
-      </Pressable>
-      {open && (
-        <View style={{ gap: 8 }}>
-          {item.filePath ? (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontFamily: "monospace" }} numberOfLines={2}>
-              {item.filePath}
-            </Text>
-          ) : null}
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {item.fileSize ? <InfoBadge label={formatBytes(item.fileSize)} /> : null}
-            {item.containerFormat ? <InfoBadge label={item.containerFormat.toUpperCase()} /> : null}
-            {item.bitrate ? <InfoBadge label={`${Math.round(parseInt(item.bitrate) / 1000)} kbps`} /> : null}
-            {(() => { const r = formatDurationMs(item.durationMs); return r ? <InfoBadge label={r} /> : null; })()}
-          </View>
-          {item.streams && item.streams.length > 0 ? (
-            <View style={{ gap: 4, marginTop: 4 }}>
-              {item.streams.map((s, i) => {
-                const typeLabel = s.type?.replace("MEDIA_STREAM_TYPE_", "") ?? "";
-                const res = s.width && s.height ? `${s.width}x${s.height}` : undefined;
-                return (
-                  <View key={i} style={{ flexDirection: "row", gap: 8 }}>
-                    <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: "600", width: 60 }}>
-                      {typeLabel}
-                    </Text>
-                    <Text style={{ color: theme.colors.textMuted, fontSize: 11, flex: 1 }} numberOfLines={1}>
-                      {[s.codec, s.language, s.title, res].filter(Boolean).join(" - ")}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          ) : null}
-        </View>
-      )}
-    </View>
-  );
-}
-
-// Mirrors apps/web/src/hooks/useRating.ts (like=1, dislike=-1, 0=cleared),
-// inlined here rather than shared since only this file is in scope.
-function useMyThumbRating(mediaId: string | undefined) {
-  return useRatingServiceGetMyThumbRating(mediaId ?? "", {
-    query: { enabled: !!mediaId, select: (d) => d.value ?? 0, staleTime: 60_000 },
-  });
-}
-
-function useSetThumbRating(mediaId: string | undefined) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (value: number) => ratingServicePutThumbRating(mediaId ?? "", { value }),
-    onMutate: async (value: number) => {
-      if (!mediaId) return { prev: undefined };
-      const key = getRatingServiceGetMyThumbRatingQueryKey(mediaId);
-      await qc.cancelQueries({ queryKey: key });
-      const prev = qc.getQueryData<{ value?: number }>(key);
-      qc.setQueryData(key, { value });
-      return { prev };
-    },
-    onError: (_err: Error, _vars: number, ctx?: { prev?: { value?: number } }) => {
-      if (ctx?.prev !== undefined && mediaId)
-        qc.setQueryData(getRatingServiceGetMyThumbRatingQueryKey(mediaId), ctx.prev);
-    },
-    onSettled: () => {
-      if (mediaId) void qc.invalidateQueries({ queryKey: getRatingServiceGetMyThumbRatingQueryKey(mediaId) });
-    },
-  });
-}
-
-function InfoBadge({ label }: { label: string }) {
-  const theme = useTheme();
-  return (
-    <View style={{
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: theme.radii.sm,
-      backgroundColor: theme.colors.surface,
-    }}>
-      <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: "500" }}>{label}</Text>
-    </View>
-  );
 }
 
 export default function MediaDetailScreen() {
