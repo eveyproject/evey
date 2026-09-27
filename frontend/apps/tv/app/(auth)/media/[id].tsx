@@ -21,6 +21,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useAuthStore, toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
+import { RESUME_PROGRESS_QUERY } from "@evey/client";
+import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -222,7 +224,12 @@ export default function MediaDetailScreen() {
   // attachable yet, native focus is lost and every select goes nowhere.
   const [armPlayFocus, setArmPlayFocus] = useState(false);
   const playBtnRef = useRef<View>(null);
-  const { data: watchProgress } = usePlaybackServiceGetWatchProgress(id ?? "");
+  const { data: watchProgress, refetch: refetchProgress } = usePlaybackServiceGetWatchProgress(id ?? "", undefined, {
+    query: RESUME_PROGRESS_QUERY,
+  });
+  // The player stacks on top of this screen and autoplay moves on from the
+  // episode it opened with: back here, the Resume label must be re-read.
+  useRefetchOnReturn(refetchProgress);
   const profileId = useAuthStore((s) => s.profileId);
   const qc = useQueryClient();
   const serverUrl = useServerUrl();

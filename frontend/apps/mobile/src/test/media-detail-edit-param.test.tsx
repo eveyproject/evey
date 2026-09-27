@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, act } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -36,6 +36,12 @@ vi.mock("react-native", () => ({
   },
   Share: { share: vi.fn() },
   Platform: { OS: "android", select: (o: any) => o.android },
+  AppState: {
+    addEventListener: (_e: string, cb: (s: string) => void) => {
+      appStateRef.current = cb;
+      return { remove: vi.fn() };
+    },
+  },
 }));
 
 // --- expo-image -------------------------------------------------------------------------
@@ -129,11 +135,17 @@ vi.mock("../components/library/BulkAddSheets", () => ({
 }));
 
 // --- @evey/store -----------------------------------------------------------------------
-const { isAdminRef, editParamRef, metadataSheetProps } = vi.hoisted(() => ({
-  isAdminRef: { current: true },
-  editParamRef: { current: undefined as string | undefined },
-  metadataSheetProps: vi.fn((_p: { visible: boolean }) => null),
-}));
+const { isAdminRef, editParamRef, metadataSheetProps, appStateRef, getWatchProgress, refetchProgress } = vi.hoisted(() => {
+  const refetchProgress = vi.fn();
+  return {
+    appStateRef: { current: null as ((s: string) => void) | null },
+    refetchProgress,
+    getWatchProgress: vi.fn((..._args: unknown[]) => ({ data: undefined, refetch: refetchProgress })),
+    isAdminRef: { current: true },
+    editParamRef: { current: undefined as string | undefined },
+    metadataSheetProps: vi.fn((_p: { visible: boolean }) => null),
+  };
+});
 vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: any) => unknown) =>
     selector({ profileId: "profile-1", isAdmin: isAdminRef.current, accessToken: "tok" }),
@@ -152,7 +164,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetMediaItem: () => ({ data: movieItem, isLoading: false }),
   useLibraryServiceListMediaItems: () => ({ data: { items: [] } }),
-  usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
+  usePlaybackServiceGetWatchProgress: (...args: unknown[]) => getWatchProgress(...args),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), isPending: false }),
   useFeedServiceSimilarItems: () => ({ data: { items: [] } }),
@@ -198,5 +210,22 @@ describe("MediaDetailScreen ?edit=1", () => {
     editParamRef.current = "1";
     render(<MediaDetailScreen />, { wrapper: makeWrapper() });
     expect(metadataSheetProps).not.toHaveBeenCalled();
+  });
+});
+
+// 27-09 (the owner, on the TV; same stack here): a Resume label read before the
+// player, and never again, outlived autoplay and a night in the background.
+describe("MediaDetailScreen resume progress freshness", () => {
+  it("reads the progress with no stale window", () => {
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+    const opts = getWatchProgress.mock.calls[0]?.[2] as { query?: { staleTime?: number } };
+    expect(opts?.query?.staleTime).toBe(0);
+  });
+
+  it("re-reads the progress when the app comes back to the foreground", () => {
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+    expect(refetchProgress).not.toHaveBeenCalled();
+    act(() => appStateRef.current?.("active"));
+    expect(refetchProgress).toHaveBeenCalledTimes(1);
   });
 });

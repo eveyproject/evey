@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatTimeMs, itemLabel, type TrackPick } from "@evey/api";
 import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
+import { RESUME_PROGRESS_QUERY } from "@evey/client";
 import { Play, RotateCcw, EyeOff, Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { useTranslation } from "react-i18next";
@@ -97,7 +98,7 @@ export function MediaDetailActions({
   const { needsPin } = useParentalGate(item.officialRating);
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(item.id!, undefined, {
-    query: { enabled: !!item.id, retry: false },
+    query: { ...RESUME_PROGRESS_QUERY, enabled: !!item.id, retry: false },
   });
   const watched = watchedOverride ?? (progress?.played === true);
   const resumeMs = progress?.positionMs;

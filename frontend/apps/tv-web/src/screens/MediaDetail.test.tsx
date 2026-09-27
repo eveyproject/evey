@@ -30,7 +30,10 @@ vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetMediaItem: (...a: unknown[]) => getMediaItem(...a),
   useLibraryServiceListMediaItems: (...a: unknown[]) => listMediaItems(...a),
-  usePlaybackServiceGetWatchProgress: () => ({ data: { positionMs: "0" } }),
+  usePlaybackServiceGetWatchProgress: (...args: unknown[]) => {
+    watchProgressArgs = args;
+    return { data: { positionMs: "0" } };
+  },
   usePlaybackServiceMarkAsWatched: () => ({ mutate: markWatched, isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: markUnwatched, isPending: false }),
   useFeedServiceSimilarItems: () => ({ data: { items: [] } }),
@@ -66,7 +69,17 @@ beforeEach(() => {
   needsPin.mockReturnValue(false);
 });
 
+let watchProgressArgs: unknown[] = [];
+
 describe("the title page", () => {
+  // 27-09: a Resume label served from cache outlived the autoplay that moved
+  // on from its episode; it is read again every time the page is shown.
+  it("reads the watch progress with no stale window", () => {
+    render(<MediaDetailScreen mediaId="m-1" />);
+    const opts = watchProgressArgs[2] as { query?: { staleTime?: number } };
+    expect(opts?.query?.staleTime).toBe(0);
+  });
+
   it("plays the title itself for a film", () => {
     render(<MediaDetailScreen mediaId="m-1" />);
     fireEvent.click(screen.getByText("player.controls.play"));
