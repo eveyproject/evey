@@ -2,6 +2,7 @@ package main
 
 import (
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,25 @@ var (
 	commit    = unknownStamp
 	buildDate = unknownStamp
 )
+
+// The TV app build released with this server, stamped from
+// frontend/apps/tv/app.json (expo.version, expo.android.versionCode):
+//
+//	-ldflags "-X main.tvVersion=0.1.11 -X main.tvVersionCode=56"
+var (
+	tvVersion     = ""
+	tvVersionCode = ""
+)
+
+// tvRelease reads those stamps. An unstamped or malformed versionCode yields
+// 0, which /healthz treats as "no TV release known" rather than a version.
+func tvRelease() (string, int) {
+	code, err := strconv.Atoi(strings.TrimSpace(tvVersionCode))
+	if err != nil || code <= 0 {
+		return "", 0
+	}
+	return strings.TrimSpace(tvVersion), code
+}
 
 // buildIdentity is the single answer to "what is this binary?", resolved once
 // so /healthz, the admin API and the boot banner cannot disagree.

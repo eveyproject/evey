@@ -78,6 +78,32 @@ func TestHealthzHandler_AdvertisesServerName(t *testing.T) {
 	}
 }
 
+// The TV app compares its own versionCode to the one released with the
+// server: the Play Store auto-update rarely runs on a television (27-09, a TV
+// stuck a week on 0.1.4). Unstamped, the field is absent rather than zero.
+func TestHealthzHandler_AdvertisesTVRelease(t *testing.T) {
+	decode := func(srv *HTTPServer) map[string]any {
+		w := httptest.NewRecorder()
+		srv.healthzHandler(w, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+		var body map[string]any
+		if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		return body
+	}
+
+	body := decode(&HTTPServer{StartTime: time.Now(), DB: &fakeDBPinger{}, TVRelease: ClientRelease{Version: "0.1.11", VersionCode: 56}})
+	clients, _ := body["clients"].(map[string]any)
+	tv, _ := clients["tv"].(map[string]any)
+	if tv["version"] != "0.1.11" || tv["version_code"] != float64(56) {
+		t.Fatalf("clients.tv = %v, want version 0.1.11 and version_code 56", body["clients"])
+	}
+
+	if body := decode(&HTTPServer{StartTime: time.Now(), DB: &fakeDBPinger{}}); body["clients"] != nil {
+		t.Fatalf("unstamped build: clients = %v, want absent", body["clients"])
+	}
+}
+
 // The build stamps are what makes a deployment verifiable over HTTP alone
 // (scripts/verify-deploy.sh). A stamped server must report the SHA verbatim -
 // not a truncation, not the version string.

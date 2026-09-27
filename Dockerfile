@@ -111,8 +111,14 @@ RUN set -eu; \
 
 COPY . .
 COPY --from=protogen /src/gen/ gen/
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
-      -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}" \
+# The TV app build released with this server (read from its app.json), which
+# /healthz advertises so a TV can tell it is behind. An image must carry it:
+# a missing stamp fails here instead of silently advertising nothing.
+RUN set -eu; \
+    TV_LDFLAGS="$(sh scripts/tv-release-ldflags.sh)"; \
+    [ -n "${TV_LDFLAGS}" ] || { echo "ERROR: no TV release stamp (scripts/tv-release-ldflags.sh, frontend/apps/tv/app.json)" >&2; exit 1; }; \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+      -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE} ${TV_LDFLAGS}" \
       -o /evey ./cmd/evey
 # Landlock pre-exec shim used by sandbox_mode=landlock (and auto). Pure Go,
 # CGO-free; lives next to /evey so the runner finds it via os.Executable().

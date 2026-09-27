@@ -67,3 +67,26 @@ func TestBuildTimeAge(t *testing.T) {
 		t.Fatalf("buildTimeAge(unknown) = %v, want 0", got)
 	}
 }
+
+// A malformed or missing versionCode stamp must not advertise a TV release:
+// an app comparing against 0 or garbage would nag or never notice.
+func TestTVRelease(t *testing.T) {
+	origV, origC := tvVersion, tvVersionCode
+	t.Cleanup(func() { tvVersion, tvVersionCode = origV, origC })
+	for _, tc := range []struct {
+		v, code  string
+		wantV    string
+		wantCode int
+	}{
+		{"0.1.11", "56", "0.1.11", 56},
+		{" 0.1.11 ", " 56 ", "0.1.11", 56},
+		{"0.1.11", "", "", 0},
+		{"0.1.11", "abc", "", 0},
+		{"0.1.11", "-3", "", 0},
+	} {
+		tvVersion, tvVersionCode = tc.v, tc.code
+		if v, code := tvRelease(); v != tc.wantV || code != tc.wantCode {
+			t.Errorf("tvRelease(%q, %q) = (%q, %d), want (%q, %d)", tc.v, tc.code, v, code, tc.wantV, tc.wantCode)
+		}
+	}
+}

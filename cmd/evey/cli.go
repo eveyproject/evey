@@ -24,6 +24,9 @@ func runCLI(args []string) (handled bool, err error) {
 	case "version", "--version", "-v":
 		b := buildID()
 		fmt.Printf("evey %s\ncommit     %s\nbuilt      %s\n", b.Version, b.Commit, b.BuildDate)
+		if v, code := tvRelease(); code > 0 {
+			fmt.Printf("tv app     %s (versionCode %d)\n", v, code)
+		}
 	case "help", "--help", "-h":
 		printUsage(os.Stdout)
 	case "admin":
