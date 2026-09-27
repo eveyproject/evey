@@ -43,6 +43,12 @@ class EveyOfflineAudioModule : Module() {
     // to the server whatever the device's own decoders or audio output say.
     Function("playbackDecoders") { listOf("ac3", "eac3") }
 
+    // What Ac3goAudioRenderer's decoder has handed the sink in this playback
+    // (or the last one), null when ac3go never took a track.
+    Function("playbackDecoderStats") { Ac3goPlaybackStats.snapshot() }
+
+    Function("resetPlaybackDecoderStats") { Ac3goPlaybackStats.reset() }
+
     AsyncFunction("optimize") { inPath: String, outPath: String, label: String, promise: Promise ->
       if (!running.compareAndSet(false, true)) {
         promise.reject(CodedException("busy", "an optimization pass is already running", null))

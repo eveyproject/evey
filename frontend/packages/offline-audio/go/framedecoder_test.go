@@ -103,6 +103,35 @@ func TestFrameDecoderDamagedFrameIsSilence(t *testing.T) {
 	if d.BadFrames() != 1 {
 		t.Fatalf("bad frames = %d, want 1", d.BadFrames())
 	}
+	// The damaged frame counts as heard silence; the good one after it ends the run.
+	if d.Frames() != 3 || d.SilentFrames() != 1 || d.SilentRunFrames() != 0 {
+		t.Fatalf("frames %d silent %d run %d, want 3 1 0", d.Frames(), d.SilentFrames(), d.SilentRunFrames())
+	}
+}
+
+// A run of silent frames is counted while it lasts, the telemetry's signal.
+func TestFrameDecoderCountsASilentRun(t *testing.T) {
+	frames := ac3Frames(t, "testdata/tone_48k_5p1_448k.ac3")
+	var hdr ac3.Header
+	if err := ac3.ParseHeader(frames[1], &hdr); err != nil {
+		t.Fatal(err)
+	}
+	d := newFrameDecoder(t)
+	if _, err := d.Decode(frames[0]); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 3 {
+		damaged := append([]byte(nil), frames[i+1]...)
+		for j := hdr.AudioStartBit/8 + 1; j < len(damaged); j++ {
+			damaged[j] = 0xFF
+		}
+		if _, err := d.Decode(damaged); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if d.SilentRunFrames() != 3 || d.SilentFrames() != 3 || d.Frames() != 4 {
+		t.Fatalf("run %d silent %d frames %d, want 3 3 4", d.SilentRunFrames(), d.SilentFrames(), d.Frames())
+	}
 }
 
 func TestFrameDecoderIgnoresNonSyncframeBytes(t *testing.T) {

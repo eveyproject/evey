@@ -56,7 +56,8 @@ class Ac3goAudioRenderer(
     val inputSize = if (format.maxInputSize != Format.NO_VALUE) format.maxInputSize else DEFAULT_INPUT_SIZE
     val maxChannels = outputMaxChannels()
     Log.i(TAG, "ac3go decoding ${format.sampleMimeType} ${format.channelCount}ch ${format.sampleRate}Hz, output up to ${maxChannels}ch")
-    return Ac3goDecoder(BUFFERS, BUFFERS, inputSize, maxChannels)
+    val codec = if (format.sampleMimeType == MimeTypes.AUDIO_AC3) "ac3" else "eac3"
+    return Ac3goDecoder(BUFFERS, BUFFERS, inputSize, maxChannels, codec, format.channelCount)
   }
 
   override fun getOutputFormat(decoder: Ac3goDecoder): Format =
@@ -83,11 +84,52 @@ class Ac3goAudioRenderer(
 
 class Ac3goDecoderException(message: String, cause: Throwable?) : DecoderException(message, cause)
 
+/**
+ * The decoder of the current playback, for the JS telemetry poll. The last
+ * snapshot outlives the decoder so a report sent as the player closes still
+ * has the whole run.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+object Ac3goPlaybackStats {
+  @Volatile private var current: Ac3goDecoder? = null
+  @Volatile private var last: Map<String, Any>? = null
+
+  fun attach(decoder: Ac3goDecoder) {
+    current = decoder
+    last = null
+  }
+
+  fun detach(decoder: Ac3goDecoder) {
+    if (current !== decoder) return
+    last = decoder.snapshot()
+    current = null
+  }
+
+  fun snapshot(): Map<String, Any>? = current?.snapshot() ?: last
+
+  /**
+   * A new playback starts: forget the previous one, including a decoder not
+   * released yet, so a title ac3go never decodes reports nothing rather than
+   * the counters of the one before.
+   */
+  fun reset() {
+    current = null
+    last = null
+  }
+}
+
 /** One ac3go FrameDecoder behind media3's decoder thread. */
 // SimpleDecoder fills the arrays itself (createInputBuffer/createOutputBuffer).
 @Suppress("UNCHECKED_CAST")
 @UnstableApi
-class Ac3goDecoder(inputs: Int, outputs: Int, inputSize: Int, maxChannels: Int) :
+class Ac3goDecoder(
+  inputs: Int,
+  outputs: Int,
+  inputSize: Int,
+  private val maxChannels: Int,
+  private val codec: String,
+  private val sourceChannels: Int,
+) :
   SimpleDecoder<DecoderInputBuffer, SimpleDecoderOutputBuffer, Ac3goDecoderException>(
     arrayOfNulls<DecoderInputBuffer>(inputs) as Array<DecoderInputBuffer>,
     arrayOfNulls<SimpleDecoderOutputBuffer>(outputs) as Array<SimpleDecoderOutputBuffer>,
@@ -101,8 +143,35 @@ class Ac3goDecoder(inputs: Int, outputs: Int, inputSize: Int, maxChannels: Int) 
   @Volatile var channels: Int = 2
     private set
 
+  // Copied from Go on the decoder thread after each unit: the FrameDecoder is
+  // not safe to read from the JS thread that polls these.
+  @Volatile private var frames = 0L
+  @Volatile private var badFrames = 0L
+  @Volatile private var silentFrames = 0L
+  @Volatile private var silentRunFrames = 0L
+
   init {
     setInitialInputBufferSize(inputSize)
+    Ac3goPlaybackStats.attach(this)
+  }
+
+  /** What the player heard so far, the shape the telemetry beacon reports. */
+  fun snapshot(): Map<String, Any> = mapOf(
+    "codec" to codec,
+    "sourceChannels" to sourceChannels,
+    "outputChannels" to channels,
+    "maxChannels" to maxChannels,
+    "sampleRate" to sampleRate,
+    "frames" to frames,
+    "badFrames" to badFrames,
+    "silentFrames" to silentFrames,
+    "silentRunFrames" to silentRunFrames,
+  )
+
+  override fun release() {
+    super.release()
+    Log.i("EveyAc3go", "ac3go released ${snapshot()}")
+    Ac3goPlaybackStats.detach(this)
   }
 
   override fun getName() = "ac3go"
@@ -128,6 +197,10 @@ class Ac3goDecoder(inputs: Int, outputs: Int, inputSize: Int, maxChannels: Int) 
     } catch (e: Exception) {
       return Ac3goDecoderException("ac3go decode failed", e)
     }
+    frames = go.frames()
+    badFrames = go.badFrames()
+    silentFrames = go.silentFrames()
+    silentRunFrames = go.silentRunFrames()
     if (pcm == null || pcm.isEmpty()) {
       outputBuffer.shouldBeSkipped = true
       return null

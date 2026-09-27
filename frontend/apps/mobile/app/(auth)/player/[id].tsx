@@ -51,6 +51,7 @@ import {
 } from "@evey/api";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
+import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
@@ -487,6 +488,9 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // audio-offset debounce below so it can snapshot the playhead without
   // re-firing that effect on every timeUpdate tick (currentTime changes ~2x/s).
   const currentTimeRef = useRef(0);
+  // What ac3go handed the speakers, reported: a track decoded to silence is
+  // otherwise invisible (the picture plays, progress ticks).
+  useDecoderTelemetry(mediaId, reportPlayerEvent, () => currentTimeRef.current);
   // Set right before an audio-offset restart to the pre-restart playhead, so
   // the next player instance's setup callback resumes there instead of at the
   // stale server-reported watch progress (see the `player` useVideoPlayer call).

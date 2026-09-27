@@ -11,6 +11,8 @@ export type { CastProfile, CastUrlExtras, ObservedReceiverCaps, ReceiverStreamIn
 export { askReceiverCaps, CAPS_NAMESPACE, CAPS_REQUEST, CAPS_RETRY_MS, CAPS_TIMEOUT_MS, parseCapsReport } from "./castCaps";
 export type { AskReceiverCapsOptions, CapsAnswer, CapsTransport } from "./castCaps";
 export type { ProbePoster, ReportOutcome } from "./reportProbe";
+export { formatDecoderStats, framesToSec, getPlaybackDecoderStats, isSilentRunAlarming, parseDecoderStats, resetPlaybackDecoderStats, SILENT_RUN_ALARM_SEC } from "./decoderStats";
+export type { DecoderStats } from "./decoderStats";
 
 interface EveyMediaCapsNative {
   getAudioProbe(): Promise<AudioProbe>;
