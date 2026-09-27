@@ -834,6 +834,9 @@ async function startWasmEngine(): Promise<void> {
       // both read "aac-latched", and telling them apart from prod logs alone
       // cost hours on 2026-07-30.
       onDiagnostic: (detail) => reportEvent("cast_receiver_audio_guard", detail),
+      // Ten seconds of exact zeros from the wasm leg: a track decoded to
+      // silence, which no other guard sees (see silenceWatch.ts).
+      onSilentAudio: (detail) => reportEvent("cast_receiver_audio_silence_error", detail),
       // Releases the start gate: picture and sound begin together.
       onFirstAudio: () => startGate.audioReady(),
       // Audio-lead compensation: a TV's display pipeline delays the picture

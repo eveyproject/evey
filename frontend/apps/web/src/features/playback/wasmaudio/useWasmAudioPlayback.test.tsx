@@ -78,6 +78,7 @@ describe("useWasmAudioPlayback telemetry", () => {
     captured!.onModeChange!("aac");
     captured!.onDiagnostic!("probe refused: decode too slow");
     for (let cuts = 1; cuts <= 9; cuts++) captured!.onStallGate!(cuts);
+    captured!.onSilentAudio!("run=10.0s silent=10.0s segs=4 ch=2 rate=48000");
 
     const types = reportEvent.mock.calls.map((c) => `${c[0].type}:${c[0].details}`);
     expect(types).toEqual([
@@ -87,6 +88,7 @@ describe("useWasmAudioPlayback telemetry", () => {
       "wasm_audio_gate:cuts=2",
       "wasm_audio_gate:cuts=4",
       "wasm_audio_gate:cuts=8",
+      "wasm_audio_silence_error:run=10.0s silent=10.0s segs=4 ch=2 rate=48000",
     ]);
     expect(reportEvent.mock.calls[0][0]).toMatchObject({ posSec: 12.3, fatal: false });
   });
