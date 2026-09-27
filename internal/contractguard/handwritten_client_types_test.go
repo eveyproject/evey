@@ -16,7 +16,9 @@
 //
 // Honest limits:
 //   - only calls whose URL is a literal in the same file;
-//   - only the top-level interface handed to eveyFetch, not nested ones;
+//   - nested interfaces are followed only when declared in the same file and
+//     named by the field's type (X, X[], Array<X>, X | null); inline object
+//     types are not;
 //   - a field the client declares and never reads is still flagged, which is
 //     the right call: it is a promise nobody kept.
 package contractguard
@@ -143,6 +145,111 @@ func tsInterfaceFields(src, name string) ([]string, bool) {
 		out = append(out, f[1])
 	}
 	return out, true
+}
+
+// protoFieldTypeRe is fieldRe with the type captured: a message-typed field is
+// where a nested client interface has to be checked too.
+var protoFieldTypeRe = regexp.MustCompile(`^\s*(?:repeated\s+|optional\s+)?(map<[^>]+>|[\w.]+)\s+(\w+)\s*=\s*\d+`)
+
+// protoFieldTypes maps a message name to its fields' json names and the bare
+// name of their type (package prefix dropped).
+func protoFieldTypes(t *testing.T, dir string) map[string]map[string]string {
+	t.Helper()
+	out := map[string]map[string]string{}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read proto dir: %v", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".proto") {
+			continue
+		}
+		b, rerr := os.ReadFile(filepath.Join(dir, e.Name()))
+		if rerr != nil {
+			t.Fatalf("read %s: %v", e.Name(), rerr)
+		}
+		var current string
+		for line := range strings.SplitSeq(string(b), "\n") {
+			if m := msgRe.FindStringSubmatch(line); m != nil {
+				current = m[1]
+				out[current] = map[string]string{}
+				continue
+			}
+			if strings.HasPrefix(strings.TrimSpace(line), "}") {
+				current = ""
+				continue
+			}
+			if current == "" {
+				continue
+			}
+			if m := protoFieldTypeRe.FindStringSubmatch(line); m != nil {
+				typ := m[1]
+				if i := strings.LastIndex(typ, "."); i >= 0 {
+					typ = typ[i+1:]
+				}
+				out[current][jsonName(m[2])] = typ
+			}
+		}
+	}
+	return out
+}
+
+var (
+	tsFieldTypeRe = regexp.MustCompile(`(?m)^\s*(\w+)\??\s*:\s*([^;\n]+)`)
+	// tsNamedTypeRe reads the interface a field points at: X, X[], Array<X>,
+	// optionally "| null" / "| undefined" after it.
+	tsNamedTypeRe = regexp.MustCompile(`^(?:Array<(\w+)>|(\w+)(?:\[\])?)\s*(?:\|\s*(?:null|undefined)\s*)*$`)
+)
+
+// tsNestedRefs maps each field of a TS interface to the interface its type
+// names, when it names one.
+func tsNestedRefs(src, name string) map[string]string {
+	re := regexp.MustCompile(`(?s)(?:interface|type)\s+` + regexp.QuoteMeta(name) + `\s*=?\s*\{(.*?)\n\}`)
+	m := re.FindStringSubmatch(src)
+	if m == nil {
+		return nil
+	}
+	out := map[string]string{}
+	for _, f := range tsFieldTypeRe.FindAllStringSubmatch(m[1], -1) {
+		if tm := tsNamedTypeRe.FindStringSubmatch(strings.TrimSpace(f[2])); tm != nil {
+			ref := tm[1]
+			if ref == "" {
+				ref = tm[2]
+			}
+			out[f[1]] = ref
+		}
+	}
+	return out
+}
+
+// nestedClientTypeFindings follows the fields of typeName that point at another
+// interface of the same file, whose proto field is a message, and checks that
+// interface against that message - the same promise, one level down.
+func nestedClientTypeFindings(src, rel, typeName, msg string, fields map[string]map[string]bool, types map[string]map[string]string, seen map[string]bool) []string {
+	key := typeName + "=" + msg
+	if seen[key] {
+		return nil
+	}
+	seen[key] = true
+	var out []string
+	for field, ref := range tsNestedRefs(src, typeName) {
+		sub := types[msg][field]
+		if len(fields[sub]) == 0 {
+			continue // scalar, map, enum or unknown: nothing to compare
+		}
+		declared, ok := tsInterfaceFields(src, ref)
+		if !ok {
+			continue
+		}
+		for _, d := range declared {
+			if fields[sub][d] || clientTypeAllowlist[rel+":"+ref+"."+d] != "" {
+				continue
+			}
+			out = append(out, rel+": "+ref+"."+d+" (via "+typeName+"."+field+") is not a field of "+sub)
+		}
+		out = append(out, nestedClientTypeFindings(src, rel, ref, sub, fields, types, seen)...)
+	}
+	return out
 }
 
 func handwrittenClientFiles(t *testing.T) []string {
@@ -302,6 +409,23 @@ func TestHandWrittenClientTypeGuardFiresOnAWrapperThatDoesNotExist(t *testing.T)
 	}
 }
 
+// The nested pass has to fire on the level below the wrapper too: a list item
+// interface that promises a field its proto message lacks is the same empty
+// screen, one level down.
+func TestHandWrittenClientTypeGuardFollowsNestedInterfaces(t *testing.T) {
+	protoDir := filepath.Join(repoRoot, "proto/evey/v1")
+	fields := protoResponseFields(t, protoDir)
+	types := protoFieldTypes(t, protoDir)
+	if types["ListPlaylistsResponse"]["playlists"] != "PlaylistProto" {
+		t.Fatalf("ListPlaylistsResponse.playlists type = %q - the type parser has drifted", types["ListPlaylistsResponse"]["playlists"])
+	}
+	src := "interface Resp {\n  playlists: Item[] | null;\n}\ninterface Item {\n  id: string;\n  vanished: string;\n}\n"
+	got := nestedClientTypeFindings(src, "fixture.ts", "Resp", "ListPlaylistsResponse", fields, types, map[string]bool{})
+	if len(got) != 1 || !strings.Contains(got[0], "Item.vanished") {
+		t.Fatalf("findings = %v, want exactly Item.vanished - id is a real field and must not be flagged", got)
+	}
+}
+
 func TestHandWrittenClientTypesMatchTheEndpointTheyCall(t *testing.T) {
 	protoDir := filepath.Join(repoRoot, "proto/evey/v1")
 	routes := parseHTTPRoutes(t, protoDir)
@@ -309,9 +433,10 @@ func TestHandWrittenClientTypesMatchTheEndpointTheyCall(t *testing.T) {
 		t.Fatalf("parsed %d GET routes, want at least 50 - the parser has drifted", len(routes))
 	}
 	fields := protoResponseFields(t, protoDir)
+	types := protoFieldTypes(t, protoDir)
 
 	var findings []string
-	checked := 0
+	checked, nested := 0, 0
 	for _, f := range handwrittenClientFiles(t) {
 		b, err := os.ReadFile(f)
 		if err != nil {
@@ -349,6 +474,9 @@ func TestHandWrittenClientTypesMatchTheEndpointTheyCall(t *testing.T) {
 				}
 				findings = append(findings, rel+": "+typeName+"."+d+" is not a field of "+msg)
 			}
+			seen := map[string]bool{}
+			findings = append(findings, nestedClientTypeFindings(src, rel, typeName, msg, fields, types, seen)...)
+			nested += len(seen) - 1
 		}
 	}
 	if checked == 0 {
@@ -360,5 +488,5 @@ func TestHandWrittenClientTypesMatchTheEndpointTheyCall(t *testing.T) {
 			"Either the server must send them, or the client must stop claiming them.",
 			strings.Join(findings, "\n  "))
 	}
-	t.Logf("checked %d hand-written response types", checked)
+	t.Logf("checked %d hand-written response types, %d nested interfaces", checked, nested)
 }
