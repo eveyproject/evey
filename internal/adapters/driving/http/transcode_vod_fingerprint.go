@@ -149,7 +149,7 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		AudioTrack:          audioTrack,
 		SubtitleBurnInTrack: subBurnIn,
 		VideoCodecs:         splitCSVQuery(r, "videoCodecs"),
-		AudioCodecs:         splitCSVQuery(r, "audioCodecs"),
+		AudioCodecs:         domaintranscoding.WithoutBrokenPlayerCodecs(r.UserAgent(), splitCSVQuery(r, "audioCodecs")),
 		Containers:          splitCSVQuery(r, "containers"),
 		// Re-baked into every child URI for the same reason as the lists above:
 		// parseClientCapabilities reads it back on the segment request.

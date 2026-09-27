@@ -112,13 +112,17 @@ func videoKeyframesMissing(streams []*library.MediaStream) bool {
 // conservative web default. Only an explicit signal lifts a default: a client
 // that omits HDR support keeps tonemapping rather than direct-playing raw HDR
 // to a display that would wash it out.
-func clientProfileFromRequest(req *eveyv1.GetStreamInfoRequest) transcoding.ClientProfile {
+//
+// userAgent drops the codecs a known-broken build declares, the same
+// correction the HLS handlers apply to ?audioCodecs, so the stream info and
+// the master agree on the audio decision.
+func clientProfileFromRequest(req *eveyv1.GetStreamInfoRequest, userAgent string) transcoding.ClientProfile {
 	client := transcoding.DefaultWebProfile
 	if len(req.SupportedCodecs) > 0 {
 		client.VideoCodecs = req.SupportedCodecs
 	}
-	if len(req.SupportedAudioCodecs) > 0 {
-		client.AudioCodecs = req.SupportedAudioCodecs
+	if codecs := transcoding.WithoutBrokenPlayerCodecs(userAgent, req.SupportedAudioCodecs); len(codecs) > 0 {
+		client.AudioCodecs = codecs
 	}
 	if len(req.SupportedContainers) > 0 {
 		client.Containers = req.SupportedContainers
@@ -273,7 +277,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		resp.MediaStreams = append(resp.MediaStreams, mediaStreamToProto(s))
 	}
 
-	client := clientProfileFromRequest(req)
+	client := clientProfileFromRequest(req, interceptors.UserAgentFromCtx(ctx))
 	prefs, maxBitrateKbps := h.resolvePlaybackPrefs(ctx, req, streams)
 
 	preq := apptranscoding.PlaybackRequest{

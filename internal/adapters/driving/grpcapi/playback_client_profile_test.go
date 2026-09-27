@@ -17,7 +17,7 @@ import (
 // PQ its display would wash out.
 
 func TestClientProfileFromRequest_OmittedFieldsKeepTheWebDefault(t *testing.T) {
-	got := clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{})
+	got := clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{}, "")
 
 	assert.Equal(t, transcoding.DefaultWebProfile, got,
 		"an empty request must reproduce the conservative default exactly")
@@ -33,7 +33,7 @@ func TestClientProfileFromRequest_EmptyListsDoNotErasTheDefault(t *testing.T) {
 		SupportedCodecs:      []string{},
 		SupportedAudioCodecs: []string{},
 		SupportedContainers:  []string{},
-	})
+	}, "")
 
 	assert.Equal(t, transcoding.DefaultWebProfile.VideoCodecs, got.VideoCodecs)
 	assert.Equal(t, transcoding.DefaultWebProfile.AudioCodecs, got.AudioCodecs)
@@ -48,7 +48,7 @@ func TestClientProfileFromRequest_DeclaredCapabilitiesReplaceTheDefault(t *testi
 		MaxWidth:             3840,
 		MaxHeight:            2160,
 		SupportsHdr:          true,
-	})
+	}, "")
 
 	assert.Equal(t, []string{"hevc", "av1"}, got.VideoCodecs,
 		"a declared list REPLACES the default, it does not merge with it")
@@ -63,9 +63,9 @@ func TestClientProfileFromRequest_DeclaredCapabilitiesReplaceTheDefault(t *testi
 // proto default keeps the level-blind decision, a declared ceiling is copied
 // as-is (the decision compares it to the stream's level_idc).
 func TestClientProfileFromRequest_H264LevelCeiling(t *testing.T) {
-	assert.Equal(t, 0, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{}).MaxH264Level)
-	assert.Equal(t, 41, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxH264Level: 41}).MaxH264Level)
-	assert.Equal(t, 0, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxH264Level: -3}).MaxH264Level)
+	assert.Equal(t, 0, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{}, "").MaxH264Level)
+	assert.Equal(t, 41, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxH264Level: 41}, "").MaxH264Level)
+	assert.Equal(t, 0, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxH264Level: -3}, "").MaxH264Level)
 }
 
 // The dimension caps are "> 0 means set". A zero (the proto default for an
@@ -80,7 +80,7 @@ func TestClientProfileFromRequest_NonPositiveDimensionsAreNotACap(t *testing.T) 
 		{name: "negative", w: -1, h: -1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxWidth: tc.w, MaxHeight: tc.h})
+			got := clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxWidth: tc.w, MaxHeight: tc.h}, "")
 
 			assert.Equal(t, transcoding.DefaultWebProfile.MaxWidth, got.MaxWidth,
 				"a non-positive width is 'not set', never a cap of %d", tc.w)
@@ -134,4 +134,22 @@ func TestVideoKeyframesMissing(t *testing.T) {
 	t.Run("a nil entry is skipped, not dereferenced", func(t *testing.T) {
 		assert.True(t, videoKeyframesMissing([]*library.MediaStream{nil, video(nil)}))
 	})
+}
+
+// The builds whose ac3go played E-AC-3 as silence on a phone (mobile beta.68/69,
+// TV 0.1.9/0.1.10) lose eac3 from their declaration, so the stream info
+// transcodes what they would have played mute. Any other client keeps it.
+func TestClientProfileFromRequest_DropsEAC3ForTheSilentBuilds(t *testing.T) {
+	req := &eveyv1.GetStreamInfoRequest{SupportedAudioCodecs: []string{"aac", "ac3", "eac3"}}
+
+	got := clientProfileFromRequest(req, "EveyMobile/0.0.1-beta.69 (Android 16; Phone Pro)")
+	assert.Equal(t, []string{"aac", "ac3"}, got.AudioCodecs)
+
+	got = clientProfileFromRequest(req, "EveyMobile/0.0.1-beta.70 (Android 16; Phone Pro)")
+	assert.Equal(t, []string{"aac", "ac3", "eac3"}, got.AudioCodecs)
+
+	// A declaration left empty by the correction falls back to the default.
+	only := &eveyv1.GetStreamInfoRequest{SupportedAudioCodecs: []string{"eac3"}}
+	got = clientProfileFromRequest(only, "EveyTV/0.1.10 (Android TV 14; Chromecast HD)")
+	assert.Equal(t, transcoding.DefaultWebProfile.AudioCodecs, got.AudioCodecs)
 }
