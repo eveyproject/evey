@@ -74,6 +74,13 @@ func (c *Chromaprinter) Compute(ctx context.Context, filePath string, startSec, 
 	if lengthSec <= 0 {
 		lengthSec = 240 // default: scan first 4 minutes (covers the typical intro region)
 	}
+	// One slot for the decode|fpcalc pair, taken before the timeout starts: two
+	// forks charging their own on a one-slot share deadlock until it fires.
+	ctx, releaseSlot, err := procfork.HoldScanSlot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer releaseSlot()
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 

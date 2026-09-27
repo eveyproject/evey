@@ -851,6 +851,9 @@ func (s *IntroDetectionService) backfillMovies(ctx context.Context, libraryID st
 func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID string) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.detectSeason")
 	defer span.End()
+	// The season cluster forks before any per-episode BeginCtx: untagged, they
+	// drew on the global share (1 slot on 7 cores) instead of this task's.
+	ctx = bgtasks.WithTask(ctx, introDetectionTask)
 
 	episodeType := string(domainlibrary.Episode)
 

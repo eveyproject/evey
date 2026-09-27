@@ -195,6 +195,33 @@ func TestInputThreads(t *testing.T) {
 	}
 }
 
+// chromaprint's decode|fpcalc pipe on 7 cores at the default share (1 slot):
+// without the held slot fpcalc waited on its own decoder until the timeout.
+func TestHoldScanSlot_PipelineOfScanForksFitsOneSlot(t *testing.T) {
+	t.Parallel()
+	budget := cpubudget.New(7)
+	held, release, err := holdScanSlot(context.Background(), budget)
+	if err != nil {
+		t.Fatal(err)
+	}
+	short, cancel := context.WithTimeout(held, 300*time.Millisecond)
+	defer cancel()
+	_, f1, err := command(short, budget, Options{Class: Scan, Site: "chromaprint.decode"}, "ffmpeg", "-threads", "1", "-i", "f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, f2, err := command(short, budget, Options{Class: Scan, Site: "chromaprint.fpcalc", UnboundedThreads: true}, "fpcalc", "-raw", "-")
+	if err != nil {
+		t.Fatalf("second fork of the pipe must not queue behind the first: %v", err)
+	}
+	f2(nil, nil)
+	f1(nil, nil)
+	release()
+	if snap := budget.Snapshot(); snap.Held != 0 {
+		t.Fatalf("release must give the slot back: %+v", snap)
+	}
+}
+
 func TestCommand_ScanForkWaitsForTheCPUBudget(t *testing.T) {
 	t.Parallel()
 	budget := cpubudget.New(1) // one slot for every background task together
