@@ -575,6 +575,33 @@ func TestRefreshToken_PreservesBoundProfile(t *testing.T) {
 	require.Equal(t, "p-kid", claims.ProfileID, "silent refresh must preserve the bound profile, not fall back to default")
 }
 
+// The rotated refresh token must carry the binding forward: seeding it by hand
+// (above) never exercised the code that stores it, so a rotation that dropped
+// the profile let the SECOND silent refresh land a kids profile on the default.
+func TestRefreshToken_BoundProfileSurvivesRotation(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-def", UserID: "u1", Name: "Main", IsDefault: true})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-kid", UserID: "u1", Name: "Kid", IsKids: true})
+
+	raw := "bound-token-rot"
+	h := sha256.Sum256([]byte(raw))
+	kid := shared.ProfileID("p-kid")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &kid, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, rotated, err := d.svc.RefreshToken(ctx, raw, "", "")
+	require.NoError(t, err)
+	access, _, err := d.svc.RefreshToken(ctx, rotated, "", "")
+	require.NoError(t, err)
+	claims, err := d.tokens.ValidateAccessToken(access)
+	require.NoError(t, err)
+	require.Equal(t, "p-kid", claims.ProfileID, "the second silent refresh must still be on the kids profile")
+}
+
 // An explicit switch to a profile that is not the caller's is refused outright,
 // never quietly downgraded to the default profile. Uncovered until 2026-09-17
 // (mutation run): the gate was fail-closed, but nothing pinned it.
