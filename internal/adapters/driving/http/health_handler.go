@@ -31,6 +31,20 @@ type healthResponse struct {
 	// the mobile/TV discovery probe, so the name reaches the server list from
 	// the same answer that proves this is an Evey server.
 	Name string `json:"name,omitempty"`
+	// Clients names the app builds released with this server, so an app can
+	// tell it is behind: the Play Store auto-update rarely runs on a TV.
+	Clients *healthClients `json:"clients,omitempty"`
+}
+
+type healthClients struct {
+	TV *ClientRelease `json:"tv,omitempty"`
+}
+
+// ClientRelease is a client app build, read from the app's app.json when the
+// server was built. The zero value means the build was not stamped.
+type ClientRelease struct {
+	Version     string `json:"version"`
+	VersionCode int    `json:"version_code"`
 }
 
 func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
@@ -79,6 +93,10 @@ func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Cfg != nil {
 		resp.Name = s.Cfg.EffectiveServerName()
+	}
+	if s.TVRelease.VersionCode > 0 {
+		tv := s.TVRelease
+		resp.Clients = &healthClients{TV: &tv}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

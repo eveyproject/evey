@@ -118,6 +118,7 @@ scripts/*
 !scripts/hygiene-guard.py
 !scripts/gate-receipt.py
 !scripts/verify-commit.sh
+!scripts/tv-release-ldflags.sh
 !scripts/dash-harness/
 !scripts/dash-harness/*
 # The shadow-exit corpus of ADR-0030 (temporary, goes with the shadow).

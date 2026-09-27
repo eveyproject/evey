@@ -63,6 +63,9 @@ type HTTPServer struct {
 	// verified over plain HTTP, with no shell on the host.
 	Commit    string
 	BuildDate string
+	// TVRelease is the TV app build released with this server, advertised on
+	// /healthz; zero when the build was not stamped.
+	TVRelease ClientRelease
 	StartTime time.Time
 	LogDir    string
 	DataDir   string
