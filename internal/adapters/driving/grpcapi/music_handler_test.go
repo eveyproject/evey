@@ -356,6 +356,31 @@ func TestMusicHandler_GetArtists_Success(t *testing.T) {
 	assert.Len(t, resp.Artists, 1)
 }
 
+// Albums and artists name what a library holds: a viewer granted another
+// library only is refused, the granted one answers. Neutralising either gate
+// left the package green (sabotage sweep, 2026-09-28).
+func TestMusicHandler_AlbumsAndArtists_LibraryAccessDenied(t *testing.T) {
+	h, repo, libraryAccess, _ := newTestMusicHandler()
+	repo.Upsert(context.Background(), music.Track{ID: "t1", LibraryID: "lib-1", Title: "Some Track", Artist: "Some Artist", Album: "Some Album", FilePath: "/m/a/1.mp3"})
+	libraryAccess.Grant(context.Background(), "user-2", "lib-2")
+	ctx := userCtx("user-2", "profile-2")
+
+	if _, err := h.GetAlbums(ctx, &eveyv1.GetAlbumsRequest{LibraryId: "lib-1"}); err == nil {
+		t.Error("GetAlbums on a library the viewer was not granted must fail")
+	}
+	if _, err := h.GetArtists(ctx, &eveyv1.GetArtistsRequest{LibraryId: "lib-1"}); err == nil {
+		t.Error("GetArtists on a library the viewer was not granted must fail")
+	}
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	if _, err := h.GetAlbums(ctx, &eveyv1.GetAlbumsRequest{LibraryId: "lib-1"}); err != nil {
+		t.Errorf("control: GetAlbums on a granted library: %v", err)
+	}
+	if _, err := h.GetArtists(ctx, &eveyv1.GetArtistsRequest{LibraryId: "lib-1"}); err != nil {
+		t.Errorf("control: GetArtists on a granted library: %v", err)
+	}
+}
+
 func TestMusicHandler_GetArtists_Unauthenticated(t *testing.T) {
 	h, _, _, _ := newTestMusicHandler()
 
