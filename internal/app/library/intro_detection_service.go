@@ -1117,7 +1117,7 @@ func (s *IntroDetectionService) DetectIntroDryRun(ctx context.Context, mediaItem
 // persist loop drops a heuristic intro under minHeuristicIntroMs.
 func hasServableIntro(segments []domainlibrary.MediaSegment) bool {
 	for _, seg := range segments {
-		if seg.Type == "intro" && !(isHeuristicSegmentSource(seg.Source) && seg.EndMs-seg.StartMs < minHeuristicIntroMs) {
+		if seg.Type == "intro" && (!isHeuristicSegmentSource(seg.Source) || seg.EndMs-seg.StartMs >= minHeuristicIntroMs) {
 			return true
 		}
 	}
