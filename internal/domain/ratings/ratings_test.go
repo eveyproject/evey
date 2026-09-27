@@ -22,6 +22,10 @@ func TestMinAgeFor(t *testing.T) {
 		{"US", "NC-17", 17},
 		{"US", "TV-MA", 17},
 		{"US", "TV-Y7", 7},
+		// Not rated / unrated map to -1: the parental filter reads it as "block" for a kids profile.
+		{"US", "NR", -1},
+		{"US", "UR", -1},
+		{"IN", "S", -1},
 		// UK BBFC
 		{"GB", "U", 0},
 		{"GB", "12A", 12},
@@ -105,6 +109,7 @@ func TestWorstCaseMinAge(t *testing.T) {
 		{"foreign cert raises the floor", "FR", "", map[string]string{"AU": "R 18+"}, 18},
 		{"unknown labels resolve to -1", "FR", "ZZ-bogus", map[string]string{"XX": "weird"}, -1},
 		{"all-ages stays 0", "FR", "TP", nil, 0},
+		{"an unrated label does not mask a known cert", "US", "NR", map[string]string{"GB": "15"}, 15},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
