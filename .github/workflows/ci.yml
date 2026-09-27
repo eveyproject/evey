@@ -27,15 +27,11 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # Backend is split in two parallel jobs (was one ~13-17 min sequential
-  # backend job): `quality` carries vet + govulncheck + golangci-lint + gosec,
-  # `correctness` carries build + unit tests + postgres testcontainers.
-  # The two share the same proto-generate prelude but run on separate
-  # runners - wallclock drops from sum(quality, correctness) to max(...).
-  # Cost: setup-go + buf duplicated, but both cache hit so the overhead
-  # is ~30-60s per job, far less than what's saved.
-  quality:
-    name: Backend - quality & security
+  # One backend job: quality (vet, govulncheck, lint, gosec) then build and
+  # tests. Split in two, the setup was paid twice and the quality half (3 min)
+  # never shortened the run - the frontend job (~17 min) sets the wall clock.
+  backend:
+    name: Backend - quality, build & test
     # fetch-depth: 0 below - the proto breaking-change check diffs against the
     # pre-push SHA, which a depth-1 checkout would not contain.
     # Self-hosted temporarily disabled 2026-07-03 - reusing GitHub-hosted runners
@@ -149,32 +145,6 @@ jobs:
           skip-save-cache: true
           args: --config=.golangci.gosec.yml
 
-  correctness:
-    name: Backend - build & test
-    # Self-hosted temporarily disabled 2026-07-03 - reusing GitHub-hosted runners
-    # for now. Restore the ternary below to route push + same-repo PRs back to the
-    # self-hosted workers (fork PRs stayed on GitHub-hosted so untrusted code never
-    # executes on the self-hosted runner - RCE guard):
-    # runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'self-hosted' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: install buf
-        uses: bufbuild/buf-action@v1
-        with:
-          version: "1.68.2"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          setup_only: true
-
-      - name: generate proto
-        run: buf generate
-
       - name: build
         run: go build ./...
 
@@ -259,9 +229,14 @@ jobs:
       # Runs every vitest project at once (web, mobile, tv, store, api). Until
       # 2026-07-23 this job was typecheck+lint+build only, so the whole frontend
       # suite gated nothing despite being the larger half of the project's tests.
+      # vitest defaults to (CPUs - 1) workers: on a 2-vCPU private-repo runner
+      # that is ONE worker, and the 2026-09-26 run spent 776 s wall for 675 s of
+      # summed worker time. nproc is printed so the log proves the count.
       - name: unit tests
         working-directory: frontend
-        run: pnpm run test
+        run: |
+          echo "nproc=$(nproc)"
+          pnpm run test --maxWorkers="$(nproc)"
 
       - name: build
         working-directory: frontend
@@ -274,9 +249,9 @@ jobs:
     name: Docker - build & push
     runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
-    needs: [quality, correctness, frontend]
+    needs: [backend, frontend]
     # Only publish on push events (branch push or release tag) and on an
-    # explicit manual run - never on PRs. The 3 backend/frontend jobs already
+    # explicit manual run - never on PRs. The backend/frontend jobs already
     # gate this, so a failing test/lint blocks the image from reaching either
     # registry.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -298,11 +273,14 @@ jobs:
       # semver release", never "last commit on master that happened to build".
       #
       # Three image variants, ONE job: they share every layer but the plugin
-      # runtimes (the Dockerfile's RUNTIMES arg, its own layer), so the lean
-      # build does the work and the nodejs/full builds add one apt layer each
-      # from the builder's local cache. As a 3-job matrix each variant rebuilt
-      # Go, the frontend and wasm from scratch: 3 x ~10 min of runner per push
-      # (measured 2026-09-26), for one shared apt layer of difference.
+      # runtimes (the Dockerfile's RUNTIMES arg, its own layer), so the full
+      # build does the work and the lean/nodejs builds reuse it from the
+      # builder's local cache. As a 3-job matrix each variant rebuilt Go, the
+      # frontend and wasm from scratch: 3 x ~10 min of runner per push.
+      #
+      # Branch pushes build `full` only - the variant prod runs. lean and
+      # nodejs cost ~7 min more per push (measured 2026-09-26, run
+      # 36279088790) and ship on release tags and manual runs.
       #
       # The variant suffix (`-nodejs`, `-full`) is applied to every tag via
       # `flavor.suffix` so each variant gets a parallel set:
@@ -420,7 +398,7 @@ jobs:
       # auth endpoint resetting the runner's connection while fetching the base
       # images' pull tokens, before the Dockerfile even starts - a retry a
       # minute later passes. build-push-action has no retry input, so the step
-      # is doubled. The nodejs/full builds run on the same builder with the
+      # is doubled. The lean/nodejs builds run on the same builder with the
       # base images already pulled.
       #
       # COMMIT/BUILD_DATE stamp the binary so /healthz and the admin API
@@ -430,8 +408,9 @@ jobs:
       # lie guard (which rejects an empty or malformed value) never fires
       # in CI - it exists for hand-run builds outside a git checkout.
       #
-      # One GHA cache scope for the three variants: they share every layer but
-      # the runtimes one, and mode=max exports them all.
+      # One GHA cache scope, exported by the full build only: mode=max already
+      # holds every shared layer, and each export cost minutes (lean's first
+      # export took 340 s on 2026-09-26) for the one runtimes layer it added.
       #
       # ignore-error=true: the image build+push is the deliverable; the GHA
       # cache export is a best-effort speedup. The GitHub Actions Cache
@@ -441,64 +420,9 @@ jobs:
       # hiccup mask a successful publish. (If the cache stays down, builds
       # just run uncached - switch to type=local for persistent on-disk
       # caching on the runner if speed becomes an issue.)
-      - name: Build and push (lean)
-        id: build-lean
-        continue-on-error: true
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: ${{ steps.platforms.outputs.value }}
-          tags: ${{ steps.meta-lean.outputs.tags }}
-          labels: ${{ steps.meta-lean.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.meta-lean.outputs.version }}
-            RUNTIMES=lean
-            COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ steps.stamp.outputs.date }}
-            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
-          cache-from: type=gha,scope=docker
-          cache-to: type=gha,mode=max,scope=docker,ignore-error=true
-          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
-
-      - name: Build and push (lean, retry)
-        id: build-lean-retry
-        if: steps.build-lean.outcome == 'failure'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: ${{ steps.platforms.outputs.value }}
-          tags: ${{ steps.meta-lean.outputs.tags }}
-          labels: ${{ steps.meta-lean.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.meta-lean.outputs.version }}
-            RUNTIMES=lean
-            COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ steps.stamp.outputs.date }}
-            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
-          cache-from: type=gha,scope=docker
-          cache-to: type=gha,mode=max,scope=docker,ignore-error=true
-          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
-
-      - name: Build and push (nodejs)
-        id: build-nodejs
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: ${{ steps.platforms.outputs.value }}
-          tags: ${{ steps.meta-nodejs.outputs.tags }}
-          labels: ${{ steps.meta-nodejs.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.meta-nodejs.outputs.version }}
-            RUNTIMES=nodejs
-            COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ steps.stamp.outputs.date }}
-            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
-          cache-from: type=gha,scope=docker
-          cache-to: type=gha,mode=max,scope=docker,ignore-error=true
-          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
-
       - name: Build and push (full)
         id: build-full
+        continue-on-error: true
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -513,6 +437,61 @@ jobs:
             IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
           cache-from: type=gha,scope=docker
           cache-to: type=gha,mode=max,scope=docker,ignore-error=true
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
+
+      - name: Build and push (full, retry)
+        id: build-full-retry
+        if: steps.build-full.outcome == 'failure'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ steps.platforms.outputs.value }}
+          tags: ${{ steps.meta-full.outputs.tags }}
+          labels: ${{ steps.meta-full.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta-full.outputs.version }}
+            RUNTIMES=full
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.stamp.outputs.date }}
+            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+          cache-from: type=gha,scope=docker
+          cache-to: type=gha,mode=max,scope=docker,ignore-error=true
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
+
+      - name: Build and push (lean)
+        id: build-lean
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ steps.platforms.outputs.value }}
+          tags: ${{ steps.meta-lean.outputs.tags }}
+          labels: ${{ steps.meta-lean.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta-lean.outputs.version }}
+            RUNTIMES=lean
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.stamp.outputs.date }}
+            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+          cache-from: type=gha,scope=docker
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
+
+      - name: Build and push (nodejs)
+        id: build-nodejs
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ steps.platforms.outputs.value }}
+          tags: ${{ steps.meta-nodejs.outputs.tags }}
+          labels: ${{ steps.meta-nodejs.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta-nodejs.outputs.version }}
+            RUNTIMES=nodejs
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.stamp.outputs.date }}
+            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+          cache-from: type=gha,scope=docker
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
 
       # Docker Hub page: short blurb + docs/dockerhub.md as the full description.
@@ -538,19 +517,18 @@ jobs:
     name: CI passed
     runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
-    needs: [quality, correctness, frontend, docker]
+    needs: [backend, frontend, docker]
     if: always()
     steps:
       - name: verify required jobs
         env:
-          QUALITY: ${{ needs.quality.result }}
-          CORRECTNESS: ${{ needs.correctness.result }}
+          BACKEND: ${{ needs.backend.result }}
           FRONTEND: ${{ needs.frontend.result }}
           DOCKER: ${{ needs.docker.result }}
         run: |
           set -e
           fail=0
-          for kv in "quality=$QUALITY" "correctness=$CORRECTNESS" "frontend=$FRONTEND" "docker=$DOCKER"; do
+          for kv in "backend=$BACKEND" "frontend=$FRONTEND" "docker=$DOCKER"; do
             name="${kv%%=*}"
             result="${kv#*=}"
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then
