@@ -58,7 +58,7 @@ describe("useDecoderTelemetry", () => {
     expect(report).not.toHaveBeenCalled();
   });
 
-  // The a series case: the picture plays, ac3go hands back exact zeros.
+  // The silent E-AC-3 case: the picture plays, ac3go hands back exact zeros.
   it("reports the stats once ten seconds are in, the silence once, and the run on close", async () => {
     const { unmount } = renderHook(() => useDecoderTelemetry("m1", report, () => 42.4, read, reset));
     current = stats({ frames: 200 });
