@@ -322,8 +322,8 @@ func TestMusicHandler_SearchMusic_SpecificLibrary_DeniesUnauthorized(t *testing.
 // empty list - while still filtering by the user's accessible libraries.
 func TestMusicHandler_SearchMusic_CrossLibrary_SQLFallbackNotEmpty(t *testing.T) {
 	h, repo, libraryAccess, _ := newTestMusicHandler() // no search index → repo SQL fallback
-	repo.Upsert(context.Background(), music.Track{ID: "t1", LibraryID: "lib-1", Title: "Numb", Artist: "Neon Harbor", FilePath: "/m/a/1.mp3"})
-	repo.Upsert(context.Background(), music.Track{ID: "t2", LibraryID: "lib-2", Title: "Numbers", Artist: "Other", FilePath: "/m/b/1.mp3"})
+	repo.Upsert(context.Background(), music.Track{ID: "t1", LibraryID: "lib-1", Title: "Numbra", Artist: "Neon Harbor", FilePath: "/m/a/1.mp3"})
+	repo.Upsert(context.Background(), music.Track{ID: "t2", LibraryID: "lib-2", Title: "Numbrality", Artist: "Other", FilePath: "/m/b/1.mp3"})
 	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
 
 	ctx := userCtx("user-2", "profile-2")
@@ -331,7 +331,7 @@ func TestMusicHandler_SearchMusic_CrossLibrary_SQLFallbackNotEmpty(t *testing.T)
 
 	require.NoError(t, err)
 	require.Len(t, resp.Tracks, 1)
-	assert.Equal(t, "Numb", resp.Tracks[0].Title)
+	assert.Equal(t, "Numbra", resp.Tracks[0].Title)
 	assert.Equal(t, "lib-1", resp.Tracks[0].LibraryId)
 }
 

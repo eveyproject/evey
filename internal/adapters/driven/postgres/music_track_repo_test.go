@@ -411,7 +411,7 @@ func TestMusicTrackRepo_GetAlbums_EmbeddedArtBeatsFetchedArt(t *testing.T) {
 	persistedA, err := repo.Upsert(ctx, embedded)
 	require.NoError(t, err)
 
-	noArt := newTestTrack("mt-art-b", lib.ID, "Numb", "Neon Harbor", "Orchard Essentials")
+	noArt := newTestTrack("mt-art-b", lib.ID, "Some Other Track", "Neon Harbor", "Orchard Essentials")
 	noArt.FilePath = "/music/essentials/02.mp3"
 	noArt.CoverArtURL = ""
 	_, err = repo.Upsert(ctx, noArt)
@@ -449,7 +449,7 @@ func TestMusicTrackRepo_GetAlbums_FetchedArtStillServedWithoutEmbedded(t *testin
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	tr := newTestTrack("mt-art-c", lib.ID, "School", "Skyrider", "Song Of The Valley")
+	tr := newTestTrack("mt-art-c", lib.ID, "Some Song", "Skyrider", "Song Of The Valley")
 	tr.FilePath = "/music/crime/01.flac"
 	tr.CoverArtURL = "" // aucune pochette dans le fichier
 	_, err := repo.Upsert(ctx, tr)
@@ -531,7 +531,7 @@ func TestMusicTrackRepo_GetAlbums_MajorityArtistWinsOnFeaturing(t *testing.T) {
 	}
 	// 1 featuring track, album_artist = "MC Zed" (would lose to MIN() on
 	// album_artist alphabetical ordering without the folder fix).
-	feat := newTestTrack("lp-17-feat", lib.ID, "Numb/Encore (feat. MC Zed)", "MC Zed", "Orchard Essentials")
+	feat := newTestTrack("lp-17-feat", lib.ID, "Some Track (feat. MC Zed)", "MC Zed", "Orchard Essentials")
 	feat.AlbumArtist = "MC Zed"
 	feat.FilePath = folder + "/17-feat.flac"
 	{
