@@ -24,6 +24,7 @@ export default defineConfig({
       // The shared plugin host (@evey/client/native/PluginWebView) imports the
       // WebView from the package, where a per-test vi.mock does not reach.
       { find: "react-native-webview", replacement: resolve(__dirname, "./src/test/__mocks__/react-native-webview.ts") },
+      { find: "react-native-svg", replacement: resolve(__dirname, "./src/test/__mocks__/react-native-svg.ts") },
     ],
   },
   define: {
