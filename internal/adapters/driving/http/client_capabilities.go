@@ -38,7 +38,11 @@ func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscodi
 		client.VideoCodecs = strings.Split(v, ",")
 	}
 	if v := r.URL.Query().Get("audioCodecs"); v != "" {
-		client.AudioCodecs = strings.Split(v, ",")
+		// A build known to play a declared codec as silence loses it here, the
+		// one reading every decision shares (see WithoutBrokenPlayerCodecs).
+		if codecs := domaintranscoding.WithoutBrokenPlayerCodecs(r.UserAgent(), strings.Split(v, ",")); len(codecs) > 0 {
+			client.AudioCodecs = codecs
+		}
 	}
 	if v := r.URL.Query().Get("containers"); v != "" {
 		client.Containers = strings.Split(v, ",")

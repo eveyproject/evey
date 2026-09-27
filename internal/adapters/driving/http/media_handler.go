@@ -196,7 +196,7 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 			observeCastFetch(r, h.castProgress, durMs*start/item.File.Size)
 		}
 	}
-	http.ServeFile(w, r, item.File.Path)
+	serveFileLogged(w, r, mediaID, item.File.Path)
 }
 
 func downloadHandler(libSvc MediaArchiveSource, baseURL string, libraryAccess LibraryAccessChecker, parental ParentalChecker) http.HandlerFunc {

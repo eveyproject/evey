@@ -130,7 +130,7 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		AudioTrack:          parseIntQuery(r, "audioTrack", 0),
 		SubtitleBurnInTrack: parseIntQuery(r, "subtitleTrack", -1),
 		VideoCodecs:         splitCSVQuery(r, "videoCodecs"),
-		AudioCodecs:         splitCSVQuery(r, "audioCodecs"),
+		AudioCodecs:         domaintranscoding.WithoutBrokenPlayerCodecs(r.UserAgent(), splitCSVQuery(r, "audioCodecs")),
 		Containers:          splitCSVQuery(r, "containers"),
 		UseFMP4:             true,
 		AudioRenditions:     audioRenditions,
