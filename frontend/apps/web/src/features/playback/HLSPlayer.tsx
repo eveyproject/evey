@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore, toast } from "@evey/store";
 import { isClientDrawableSubtitle } from "@evey/api";
-import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Users, Clock, MessageSquare } from "lucide-react";
+import { Users } from "lucide-react";
 import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
 import { PGSSubtitleOverlay } from "./PGSSubtitleOverlay";
@@ -21,7 +21,7 @@ import { registerRenderStats, playbackSnapshot } from "./playbackSnapshot";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
-import { DownloadButton } from "./DownloadButton";
+import { GestureFeedback, AdminMessageBanner, BufferingIndicator, FatalErrorOverlay, ShedOverlay } from "./PlayerOverlays";
 import type { Chapter } from "@/hooks/useChapters";
 import { usePlaybackSettings } from "@/hooks/usePlaybackSettings";
 import { useSleepTimer } from "@/hooks/useSleepTimer";
@@ -55,7 +55,7 @@ import { useOverlayTime } from "./hooks/useOverlayTime";
 import { useCasting } from "@/hooks/useCasting";
 import { useRemotePlayback } from "@/hooks/useRemotePlayback";
 // Admin message on screen: the same 12 s as the other players and the cast receiver.
-import { ADMIN_MESSAGE_MS, servedVariant, shedI18nKey, usePlayerProfilePrefs } from "@evey/client";
+import { ADMIN_MESSAGE_MS, servedVariant, usePlayerProfilePrefs } from "@evey/client";
 
 
 export type { AudioStream, SubtitleStream };
@@ -1363,113 +1363,18 @@ export function HLSPlayer({
           </button>
         </div>
       )}
-      {seekFlash === "left" && (
-        <div className="absolute left-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none z-[6]">
-          <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
-            <RotateCcw size={ICON["2xl"]} className="text-white" />
-          </div>
-        </div>
-      )}
-      {seekFlash === "right" && (
-        <div className="absolute right-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none z-[6]">
-          <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
-            <RotateCw size={ICON["2xl"]} className="text-white" />
-          </div>
-        </div>
-      )}
-      {swipeIndicator && (
-        <div
-          className={`absolute top-0 bottom-0 w-16 flex items-center justify-center pointer-events-none z-[6] ${swipeIndicator.type === "volume" ? "right-4" : "left-4"}`}
-        >
-          <div className="flex flex-col items-center gap-2 rounded-xl bg-black/60 px-3 py-4 backdrop-blur-sm">
-            {swipeIndicator.type === "volume" ? <Volume2 size={ICON.lg} className="text-white" /> : <Sun size={ICON.lg} className="text-white" />}
-            <div className="w-1 h-24 rounded-full bg-white/20 relative overflow-hidden">
-              <div
-                className="absolute bottom-0 left-0 right-0 rounded-full bg-white"
-                style={{ height: `${Math.round((swipeIndicator.type === "volume" ? swipeIndicator.value : (swipeIndicator.value - 0.2) / 1.3) * 100)}%` }}
-              />
-            </div>
-            <span className="text-white text-xs font-medium">{Math.round(swipeIndicator.value * 100)}%</span>
-          </div>
-        </div>
-      )}
-      {actionFlash && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[6]">
-          <div className="rounded-full bg-black/40 w-16 h-16 flex items-center justify-center animate-ping-once">
-            {actionFlash === "play" ? (
-              <Play size={ICON["2xl"]} className="text-white ml-1" fill="currentColor" />
-            ) : (
-              <Pause size={ICON["2xl"]} className="text-white" fill="currentColor" />
-            )}
-          </div>
-        </div>
-      )}
-      {adminMessage && (
-        <div className="absolute top-6 inset-x-0 flex justify-center pointer-events-none z-[8]">
-          <div
-            role="status"
-            data-testid="admin-message"
-            className="flex items-center gap-3 max-w-xl mx-4 px-4 py-3 rounded-[var(--radius-md)] bg-black/75 border border-white/20 text-white shadow-lg backdrop-blur-sm animate-fade-in"
-          >
-            <MessageSquare size={ICON.md} className="shrink-0 text-white/80" />
-            <span className="text-sm font-medium break-words">{adminMessage}</span>
-          </div>
-        </div>
-      )}
-      {isBuffering && !isPlaying && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[5]">
-          <div className="flex flex-col items-center gap-2">
-            <Loader size={ICON["3xl"]} className="animate-spin text-white/80" />
-            <span className="text-white/80 text-sm font-medium">{t("player.buffering")}</span>
-          </div>
-        </div>
-      )}
+      <GestureFeedback seekFlash={seekFlash} swipeIndicator={swipeIndicator} actionFlash={actionFlash} />
+      {adminMessage && <AdminMessageBanner message={adminMessage} />}
+      {isBuffering && !isPlaying && <BufferingIndicator />}
       {fatalError && (
-        <div className="absolute inset-0 flex items-center justify-center z-[10] bg-[var(--overlay-bg-strong)]">
-          <div className="flex flex-col items-center gap-4 text-white">
-            <TriangleAlert size={ICON["4xl"]} className="text-[var(--color-danger)]" strokeWidth={1.5} />
-            <p className="text-lg font-medium">{t("player.playbackFailed")}</p>
-            <p className="text-sm text-[var(--overlay-text-muted)]">{t("player.unableToPlayAnyQuality")}</p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => { setFatalError(false); window.location.reload(); }}
-                className="px-4 py-2 rounded text-sm font-medium bg-[var(--overlay-btn-hover-bg)]"
-              >
-                {t("player.retry")}
-              </button>
-              {/* Playability fallback: if the server can't deliver a playable
-                  stream, let the user download the original file instead of
-                  being stuck on the error. */}
-              {streamToken && (
-                <DownloadButton mediaId={mediaId} token={streamToken} title={title} />
-              )}
-            </div>
-          </div>
-        </div>
+        <FatalErrorOverlay
+          mediaId={mediaId}
+          streamToken={streamToken}
+          title={title}
+          onRetry={() => { setFatalError(false); window.location.reload(); }}
+        />
       )}
-      {/* Server-side load shed (503): distinct overlay from fatalError above -
-          nothing is broken, the server just isn't ready to serve THIS request
-          yet. Calm icon (no red TriangleAlert) and copy that names neither
-          "transcoding" nor any other internal term. */}
-      {shedReason && !fatalError && (
-        <div className="absolute inset-0 flex items-center justify-center z-[10] bg-[var(--overlay-bg-strong)]">
-          <div className="flex flex-col items-center gap-4 text-white text-center px-6">
-            <Clock size={ICON["4xl"]} className="text-white/80" strokeWidth={1.5} />
-            <p className="text-lg font-medium">
-              {t(shedI18nKey(shedReason, "title"))}
-            </p>
-            <p className="text-sm text-[var(--overlay-text-muted)] max-w-sm">
-              {t(shedI18nKey(shedReason, "body"))}
-            </p>
-            <button
-              onClick={handleShedRetry}
-              className="px-4 py-2 rounded text-sm font-medium bg-[var(--overlay-btn-hover-bg)]"
-            >
-              {t("player.retry")}
-            </button>
-          </div>
-        </div>
-      )}
+      {shedReason && !fatalError && <ShedOverlay shedReason={shedReason} onRetry={handleShedRetry} />}
       <ProgressReporter
         sessionId={sessionId}
         videoRef={videoRef}
