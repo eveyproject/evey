@@ -52,6 +52,10 @@ interface ProgressReporterProps {
 // segments before the autoplay handoff, late enough that we don't waste
 // transcode budget on abandoned plays.
 
+// HTMLMediaElement.HAVE_METADATA, spelled out: not every DOM implementation
+// carries the constant (happy-dom does not).
+const HAVE_METADATA = 1;
+
 export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, mediaId, mediaType, onRemoteStop, onRemoteMessage, cast, remoteActive = false }: ProgressReporterProps) {
   const pendingRef = useRef(false);
   const errorCountRef = useRef(0);
@@ -71,10 +75,30 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
   remoteActiveRef.current = remoteActive;
 
   useEffect(() => {
+    // The last local state seen while the element still held this session's
+    // media: at unmount videoRef is already null and a detached element reads
+    // 0, so the final report is built from this, never from the live element.
+    let last: { positionMs: string; isPaused: boolean; isMuted: boolean; volumeLevel: number } | null = null;
+    const snapshot = (video: HTMLVideoElement) => {
+      if (video.readyState < HAVE_METADATA) return;
+      last = {
+        positionMs: String(Math.floor(((transcodeOffsetRef?.current ?? 0) + video.currentTime) * 1000)),
+        isPaused: video.paused,
+        isMuted: video.muted,
+        volumeLevel: Math.round(video.volume * 100),
+      };
+    };
+    const element = videoRef.current;
+    const onMediaEvent = () => { if (element) snapshot(element); };
+    element?.addEventListener("timeupdate", onMediaEvent);
+    element?.addEventListener("pause", onMediaEvent);
+    element?.addEventListener("volumechange", onMediaEvent);
+
     const id = setInterval(async () => {
       const video = videoRef.current;
       const cast = castRef.current;
       const casting = cast?.active === true;
+      if (video) snapshot(video);
       if (!video || pendingRef.current) return;
       if (errorCountRef.current > 0 && errorCountRef.current % 3 !== 0) {
         errorCountRef.current++;
@@ -168,10 +192,9 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
 
     return () => {
       clearInterval(id);
-      // Live read on purpose: a sessionId/mediaId change must report the element as it is now.
-      // On full unmount it is already null (no final report); capturing it instead risks reporting an element hls.destroy reset to 0.
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-      const video = videoRef.current;
+      element?.removeEventListener("timeupdate", onMediaEvent);
+      element?.removeEventListener("pause", onMediaEvent);
+      element?.removeEventListener("volumechange", onMediaEvent);
       const cast = castRef.current;
       if (cast?.active) {
         // Teardown mid-cast: persist the REMOTE position, not the stale
@@ -186,17 +209,9 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
         }).catch((err) => console.warn("final progress report failed", err));
         return;
       }
-      if (!video) return;
-      playbackServiceReportProgress({
-        sessionId,
-        // A plain number box, not a DOM node: the latest offset is the one wanted.
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-        positionMs: String(Math.floor(((transcodeOffsetRef?.current ?? 0) + video.currentTime) * 1000)),
-        isPaused: video.paused,
-        isMuted: video.muted,
-        volumeLevel: Math.round(video.volume * 100),
-        castDeviceName: "",
-      }).catch((err) => console.warn("final progress report failed", err));
+      if (!last) return;
+      playbackServiceReportProgress({ sessionId, ...last, castDeviceName: "" })
+        .catch((err) => console.warn("final progress report failed", err));
     };
     // Re-create the interval when the underlying mediaId changes so a new
     // ep gets its own prewarmedForRef bookkeeping.
