@@ -42,6 +42,7 @@ import { Toasts } from "./components/Toasts";
 import { useMusicQueueStore } from "./music/queue";
 import { applyThemeVars, useAppliedTheme } from "./lib/theme";
 import { applyUiScale, storedUiScale } from "./lib/uiScale";
+import { keepFullscreen } from "./lib/fullscreen";
 import { readChoice, shouldAskWhichClient, shouldGoToWebClient } from "./lib/clientChoice";
 import { ClientChoice } from "./components/ClientChoice";
 import { useDeviceRegistration, usePresenceHeartbeat } from "@evey/client/web";
@@ -68,6 +69,7 @@ applyThemeVars("default");
 applyUiScale(storedUiScale());
 
 initTvNavigation();
+keepFullscreen();
 
 const queryClient = new QueryClient({
   mutationCache: mutationErrorNet(),
