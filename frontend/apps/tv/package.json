@@ -20,6 +20,7 @@
     "@evey/voice-search": "workspace:*",
     "@expo/vector-icons": "15.1.1",
     "@tanstack/react-query": "5.102.6",
+    "css-tree": "1.1.3",
     "expo": "55.0.23",
     "expo-audio": "^55.0.14",
     "expo-file-system": "55.0.19",
