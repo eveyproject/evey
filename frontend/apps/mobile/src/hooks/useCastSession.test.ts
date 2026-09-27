@@ -607,6 +607,34 @@ it("re-loads when the MEDIA changes, and resumes a re-cast of the same title whe
   expect(castClientInstance!.loadMedia.mock.calls[2][0].startTime).toBe(0);
 });
 
+// Stopping a cast hands the film back to the phone where the television got to:
+// the local player sat parked at the cast's start, and resuming from there
+// rewound the viewer by everything they had just watched.
+it("puts the local player at the television's position when the cast ends", async () => {
+  castState = 4; // CONNECTED
+  castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
+  eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
+  const player = { ...fakePlayer(), currentTime: 0 };
+  const { rerender } = mount(player);
+  await act(async () => {});
+
+  castMediaStatus = { streamPosition: 1830 };
+  await act(async () => { rerender(); });
+  expect(player.currentTime).toBe(0);
+
+  castState = 0; // the user stopped the cast
+  castClientInstance = null;
+  castMediaStatus = null;
+  await act(async () => { rerender(); });
+  expect(player.currentTime).toBe(1830);
+
+  // Once handed back, the position is spent: a later disconnect-shaped render
+  // must not yank the viewer back to 1830 after they moved on locally.
+  player.currentTime = 1900;
+  await act(async () => { rerender(); });
+  expect(player.currentTime).toBe(1900);
+});
+
 // A receiver that stops answering must leave a trace from the SENDER's side:
 // the 2026-08-31 death left the phone spinning and the logs silent.
 describe("cast_sender_stall beacon", () => {
