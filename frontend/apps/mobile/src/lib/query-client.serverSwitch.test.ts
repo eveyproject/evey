@@ -2,9 +2,28 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { vi } from "vitest";
 
 vi.mock("./online-manager", () => ({ setupOnlineManager: () => {} }));
+const appState = vi.hoisted(() => ({ listeners: [] as ((s: string) => void)[] }));
+vi.mock("react-native", () => ({
+  AppState: {
+    addEventListener: (_: string, cb: (s: string) => void) => {
+      appState.listeners.push(cb);
+      return { remove: () => {} };
+    },
+  },
+}));
 
 import { queryClient } from "./query-client";
 import { useServerListStore } from "@evey/store";
+
+// The home layout is set per profile on the server; one changed on another
+// device must reload when the phone comes back to the foreground.
+describe("query cache vs app foreground", () => {
+  it("invalidates the home layout when the app becomes active", () => {
+    queryClient.setQueryData(["/api/v1/feeds/config", { profileId: "p1" }], { configs: [] });
+    appState.listeners.forEach((cb) => cb("active"));
+    expect(queryClient.getQueryState(["/api/v1/feeds/config", { profileId: "p1" }])?.isInvalidated).toBe(true);
+  });
+});
 
 // Query keys do not carry the server: without a clear on switch, server A's
 // home rows, media details and profile data are served as server B's until

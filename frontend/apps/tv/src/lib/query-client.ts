@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { AppState } from "react-native";
 import { shouldRetryQuery, useServerListStore } from "@evey/store";
-import { setupReachability } from "@evey/client";
+import { refreshHomeLayoutOnForeground, setupReachability } from "@evey/client";
 import { mutationErrorNet } from "./mutationErrorNet";
 import { pingServer, resolveServerUrl } from "./server-config";
 
@@ -20,19 +20,25 @@ export const queryClient = new QueryClient({
 // never learnt it had lost the network, and a wifi drop or a wake from standby
 // left its screens on failed queries (see setupReachability). The phone reads
 // the OS network state instead (expo-network, which this app does not ship).
+const onForeground = (listener: () => void) => {
+  const sub = AppState.addEventListener("change", (next) => {
+    if (next === "active") listener();
+  });
+  return () => sub.remove();
+};
+
 setupReachability({
   queryClient,
   probe: async () => {
     const url = await resolveServerUrl(useServerListStore.getState().getActiveServer()?.url);
     return url ? pingServer(url) : true;
   },
-  onForeground: (listener) => {
-    const sub = AppState.addEventListener("change", (next) => {
-      if (next === "active") listener();
-    });
-    return () => sub.remove();
-  },
+  onForeground,
 });
+
+// The home tab never unmounts: a layout changed on another device stayed
+// invisible here until the app was killed.
+refreshHomeLayoutOnForeground(queryClient, onForeground);
 
 // Switching the active server invalidates EVERYTHING the cache holds: query
 // keys do not carry the server, so home rows, media details and profile data

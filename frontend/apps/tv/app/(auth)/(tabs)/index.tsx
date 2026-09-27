@@ -35,7 +35,7 @@ import { CARD_WIDTH_FEATURED, POSTER_RATIO, GRID_GAP, homeWidgetBudget } from ".
 import { HOME_LIBRARY_ROW_PAGE_SIZE } from "../../../src/lib/homeLibraryRows";
 import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
-import { buildHomeSections, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
+import { buildHomeSections, placedPluginIds, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
 
 // How long the home waits for its slower rows before showing what it has.
 const HOME_REVEAL_CAP_MS = 2500;
@@ -512,10 +512,7 @@ export default function HomeScreen() {
   const recentlyAddedItems = recentlyAdded.data?.items ?? [];
   // Stable identity: a fresh Set every render would make PluginSlot
   // re-evaluate its list on every unrelated re-render of this screen.
-  const placedPluginIds = useMemo(
-    () => new Set(sections.filter((s) => s.kind === "plugin").map((s) => s.pluginId)),
-    [sections],
-  );
+  const placedPlugins = useMemo(() => placedPluginIds(feedConfigData?.configs ?? []), [feedConfigData]);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
 
   // Item counts per section, in render order, so selectHomeFocusTarget can
@@ -805,7 +802,7 @@ export default function HomeScreen() {
           it under every row made the user reorder it by hand. The ones it DOES
           place are rendered inline below, so they are excluded here or they
           would appear twice. */}
-      <PluginSlot name="home.section" excludeRegistered={placedPluginIds} />
+      <PluginSlot name="home.section" excludeRegistered={placedPlugins} />
       {sections.map((section, i) =>
         renderSection(section, i, section.kind === "library" ? renderCursor++ : -1),
       )}
