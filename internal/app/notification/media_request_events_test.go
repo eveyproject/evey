@@ -15,6 +15,7 @@ import (
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 )
 
 // A new media request pages the operators only; the requester hears back
@@ -36,13 +37,13 @@ func TestNotificationService_MediaRequestEvents(t *testing.T) {
 	svc.Register()
 
 	bus.Publish(ctx, mediarequest.RequestCreated{
-		RequestID: "req-1", ProfileID: "p-bob", UserID: "u-bob", MediaType: mediarequest.MediaTypeMovie, Title: "Heat", OccurredAt: time.Now(),
+		RequestID: "req-1", ProfileID: "p-bob", UserID: "u-bob", MediaType: mediarequest.MediaTypeMovie, Title: "Some Movie", OccurredAt: time.Now(),
 	})
 	adminNotifs, err := repo.ListByProfile(ctx, "p-admin", false, 0, 0)
 	require.NoError(t, err)
 	require.Len(t, adminNotifs, 1)
 	assert.Equal(t, notifdom.TypeMediaRequest, adminNotifs[0].Type)
-	assert.Contains(t, adminNotifs[0].Title, "Heat")
+	assert.Contains(t, adminNotifs[0].Title, "Some Movie")
 	assert.Equal(t, string(mediarequest.MediaTypeMovie), adminNotifs[0].Message)
 	assert.NotNil(t, adminNotifs[0].ExpiresAt, "operator pages expire, they are not kept forever")
 	bobNotifs, err := repo.ListByProfile(ctx, "p-bob", false, 0, 0)
@@ -50,13 +51,13 @@ func TestNotificationService_MediaRequestEvents(t *testing.T) {
 	assert.Empty(t, bobNotifs, "the requester is not paged about their own request")
 
 	bus.Publish(ctx, mediarequest.RequestAnswered{
-		RequestID: "req-1", ProfileID: "p-bob", Title: "Heat", Status: mediarequest.StatusApproved, Note: "added to the queue", OccurredAt: time.Now(),
+		RequestID: "req-1", ProfileID: "p-bob", Title: "Some Movie", Status: mediarequest.StatusApproved, Note: "added to the queue", OccurredAt: time.Now(),
 	})
 	bobNotifs, err = repo.ListByProfile(ctx, "p-bob", false, 0, 0)
 	require.NoError(t, err)
 	require.Len(t, bobNotifs, 1)
 	assert.Equal(t, notifdom.TypeRequestAnswered, bobNotifs[0].Type)
-	assert.Contains(t, bobNotifs[0].Title, "Heat")
+	assert.Contains(t, bobNotifs[0].Title, "Some Movie")
 	assert.Contains(t, bobNotifs[0].Message, string(mediarequest.StatusApproved))
 	assert.Contains(t, bobNotifs[0].Message, "added to the queue")
 	adminNotifs, _ = repo.ListByProfile(ctx, "p-admin", false, 0, 0)
@@ -67,4 +68,31 @@ func TestNotificationService_MediaRequestEvents(t *testing.T) {
 	gone, err := repo.ListByProfile(ctx, "p-gone", false, 0, 0)
 	require.NoError(t, err)
 	assert.Len(t, gone, 1, "the row is still written for the profile id; only the push locale is unresolved")
+}
+
+// The answer's push is written for the REQUESTER: in their profile's language,
+// not the operator's who answered nor the server default.
+func TestNotificationService_RequestAnsweredPushSpeaksTheRequesterLanguage(t *testing.T) {
+	t.Parallel()
+	tr, err := eveyi18n.NewFromDir("../../../i18n")
+	require.NoError(t, err)
+	ctx := context.Background()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p-admin", UserID: "u-admin", Name: "Root", Locale: "en"})
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p-bob", UserID: "u-bob", Name: "Bob", Locale: "fr"})
+	subs := notiffakes.NewFakePushSubscriptionRepository()
+	require.NoError(t, subs.Upsert(ctx, "u-bob", "p-bob", "https://push.invalid/bob", "k", "a"))
+	sender := notiffakes.NewFakePushSender()
+	bus := sharedfakes.NewFakeEventBus()
+
+	svc := appnotification.NewCommandService(notiffakes.NewFakeNotificationRepository(), notiffakes.NewFakeSettingsRepository(),
+		notiffakes.NewFakeWatchHistoryAnalyzer(), profileRepo, bus,
+		appnotification.WithPush(sender, subs), appnotification.WithTranslator(tr))
+	svc.Register()
+
+	bus.Publish(ctx, mediarequest.RequestAnswered{
+		RequestID: "req-1", ProfileID: "p-bob", Title: "Some Movie", Status: mediarequest.StatusApproved, OccurredAt: time.Now(),
+	})
+	require.Len(t, sender.Calls, 1)
+	assert.Equal(t, "Votre demande de média a été mise à jour : Some Movie", sender.Calls[0].Title)
 }
