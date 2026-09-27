@@ -15,14 +15,19 @@ import (
 // stream codes no more, else 5.1 in Android's order, or 7.1 for an E-AC-3
 // 7.1 stream on an output that takes eight.
 type FrameDecoder struct {
-	dec    *ac3.Decoder
-	maxCh  int
-	outCh  int // 0 until the first frame decides
-	out    []byte
-	rate   int
-	bad    int64
-	mixFor pcm.Layout // source layout the mix below was built for
-	mix    [][]mixTap // per output channel, the source planes summed into it
+	dec   *ac3.Decoder
+	maxCh int
+	outCh int // 0 until the first frame decides
+	out   []byte
+	rate  int
+	bad   int64
+	// What the player heard, for the telemetry beacon: a decoder that hands
+	// back silence without failing leaves no other trace (2026-09-27).
+	frames    int64
+	silent    int64
+	silentRun int64
+	mixFor    pcm.Layout // source layout the mix below was built for
+	mix       [][]mixTap // per output channel, the source planes summed into it
 }
 
 type mixTap struct {
@@ -84,9 +89,11 @@ func (d *FrameDecoder) Decode(au []byte) ([]byte, error) {
 			d.dec.Reset()
 			if d.outCh > 0 {
 				d.out = append(d.out, make([]byte, n*d.outCh*2)...)
+				d.countFrame(true)
 			}
 			continue
 		}
+		start := len(d.out)
 		au = au[d.dec.AccessUnitSize():]
 		if d.outCh == -1 {
 			d.outCh = 6
@@ -102,8 +109,31 @@ func (d *FrameDecoder) Decode(au []byte) ([]byte, error) {
 		} else {
 			d.appendMultichannel(n)
 		}
+		d.countFrame(allZero(d.out[start:]))
 	}
 	return d.out, nil
+}
+
+// countFrame tracks the frames handed to the sink and the run of silent ones
+// ending at the last. Exact zeros, not a level: a decoded soundtrack is never
+// bit-for-bit zero for long, a decoder that lost the audio is.
+func (d *FrameDecoder) countFrame(silent bool) {
+	d.frames++
+	if !silent {
+		d.silentRun = 0
+		return
+	}
+	d.silent++
+	d.silentRun++
+}
+
+func allZero(b []byte) bool {
+	for _, v := range b {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // chooseStereo fixes the output at stereo, with ac3go's downmix, when the
@@ -234,6 +264,17 @@ func (d *FrameDecoder) SampleRate() int { return d.rate }
 
 // BadFrames counts the frames replaced by silence since creation.
 func (d *FrameDecoder) BadFrames() int64 { return d.bad }
+
+// Frames counts the frames handed back since creation, bad ones included.
+func (d *FrameDecoder) Frames() int64 { return d.frames }
+
+// SilentFrames counts the frames handed back as pure silence since creation,
+// bad ones included.
+func (d *FrameDecoder) SilentFrames() int64 { return d.silent }
+
+// SilentRunFrames is the number of consecutive silent frames ending at the
+// last one handed back.
+func (d *FrameDecoder) SilentRunFrames() int64 { return d.silentRun }
 
 // Reset drops the state carried between frames, for a seek or a flush.
 func (d *FrameDecoder) Reset() { d.dec.Reset() }

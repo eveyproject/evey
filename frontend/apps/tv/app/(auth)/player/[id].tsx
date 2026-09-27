@@ -19,6 +19,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { dashUrlFor, devDashEnabled } from "../../../src/lib/devDash";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
+import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
@@ -272,6 +273,9 @@ export default function PlayerScreen() {
   // faster than this screen re-renders on the television, and a closure over
   // the state would add to a playhead that is already stale.
   const currentTimeRef = useRef(0);
+  // What ac3go handed the speakers, reported: a track decoded to silence is
+  // otherwise invisible (the picture plays, progress ticks).
+  useDecoderTelemetry(mediaId, reportPlayerEvent, () => currentTimeRef.current);
   const durationRef = useRef(0);
   // A fatal native failure (decoder error, 401 on a segment, broken manifest)
   // surfaces ONLY through the player's statusChange event - isError from
