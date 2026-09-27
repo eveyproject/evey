@@ -189,6 +189,19 @@ func TestRemux_NonEBMLSource_Unsupported(t *testing.T) {
 	assert.Equal(t, 0, rmx.calls)
 }
 
+// Parental guard: the remux serves the film itself, so a title hidden from the
+// profile is a 404 and is never produced, library access notwithstanding.
+func TestRemux_ParentalBlocked_NotFound(t *testing.T) {
+	rmx := &fakeRemuxer{canRemux: true, payload: []byte("DATA")}
+	h := newTestRemuxServe(t, rmx, allowAll())
+	h.parental = testFakeParentalChecker{block: true}
+
+	w := doRemuxRequest(h, false, "")
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, 0, rmx.calls, "a parental-blocked title must never be remuxed")
+}
+
 // IDOR guard: a profile without access to the item's library gets 404 (not an
 // existence oracle) and the remux is never produced.
 func TestRemux_LibraryAccessDenied_NotFound(t *testing.T) {
