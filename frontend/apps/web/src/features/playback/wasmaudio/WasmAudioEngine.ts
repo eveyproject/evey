@@ -24,6 +24,7 @@ import { AAC_SAMPLES_PER_FRAME, adtsFromFrames, extractAacFrames, parseAacConfig
 import { outputMix } from "./channelMix";
 import { planRelayHandover, type Segment } from "./relayHandover";
 import { SegmentRetryTracker } from "./segmentRetry";
+import { pcmIsSilent, SilenceRun } from "./silenceWatch";
 
 const WASM_URL = "/wasm/ac3go.wasm";
 const WASM_EXEC_URL = "/wasm/wasm_exec.js";
@@ -201,6 +202,11 @@ export interface WasmAudioEngineOptions {
   // boundary, and from the viewer's seat that is "no sound" - the 2026-09-02
   // beta report could only be inferred, the gate left no trace. Telemetry only.
   onStallGate?: (cuts: number) => void;
+  // onSilentAudio fires ONCE per engine when the wasm leg has decoded ten
+  // seconds of consecutive pure digital silence: a decoder that loses the
+  // track without failing (ac3go's silent E-AC-3 downmix, 2026-09-27) looks
+  // healthy to every other guard here. Telemetry only.
+  onSilentAudio?: (detail: string) => void;
   leadCompensationSec?: number;
   // userOffsetSec is the viewer's own A/V correction from the player menu
   // (positive = audio later, the server's audioOffsetMs convention), applied
@@ -326,6 +332,7 @@ export class WasmAudioEngine {
   // segments[0] because a deep resume starts mid-file, never at segment 0.
   private everScheduled = false;
   private decodeFailStreak = 0;
+  private silence = new SilenceRun();
   // Per-index backoff/attempt-cap state for pump()'s retry loop - see
   // segmentRetry.ts for the policy itself and why it exists.
   private readonly retryTracker = new SegmentRetryTracker();
@@ -1147,6 +1154,11 @@ export class WasmAudioEngine {
           // Only wasm decodes settle the starvation debt: the native leg
           // delivering is precisely NOT evidence that the wasm leg is alive.
           if (!seg.native) this.owedSince = null;
+          if (d.kind === "pcm" && this.silence.record(target, seg.dur, pcmIsSilent(d))) {
+            this.opts.onSilentAudio?.(
+              `run=${this.silence.currentRunSec.toFixed(1)}s silent=${this.silence.silentSec.toFixed(1)}s segs=${this.silence.segments} ch=${d.channels} rate=${d.sampleRate}`,
+            );
+          }
           if (!this.firstAudioFired) {
             // The pump decodes from the live playhead, so the FIRST cached
             // segment is the one the start needs.

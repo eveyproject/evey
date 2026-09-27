@@ -167,6 +167,7 @@ export function useWasmAudioPlayback({
           onStallGate: (cuts) => {
             if (stallGateReportDue(cuts)) report("wasm_audio_gate", `cuts=${cuts}`);
           },
+          onSilentAudio: (detail) => report("wasm_audio_silence_error", detail),
         });
         engineRef.current = engine;
         unregisterStats = registerEngineStats(video, () => engine.debugStats());
