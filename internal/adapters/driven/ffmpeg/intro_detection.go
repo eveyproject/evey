@@ -996,3 +996,43 @@ func SlidingBestPearsonBanded(target, reference []float64, vectorSize int) (best
 	}
 	return bestCorr, bestOffsetBins
 }
+
+// EdgeThumbWidth and EdgeThumbHeight size the grey thumbnails GrayThumbnails decodes:
+// small enough that a 20s window is a few KB, large enough to tell a title card from
+// a scene.
+const (
+	EdgeThumbWidth  = 32
+	EdgeThumbHeight = 18
+)
+
+// GrayThumbnails decodes [startSec, startSec+durationSec] into EdgeThumbWidth x
+// EdgeThumbHeight 8-bit grey frames at fps frames per second, in order. It feeds the
+// visual widening of an audio-confirmed intro, which compares these frames across
+// episodes at their audio alignment.
+func (d *IntroDetector) GrayThumbnails(ctx context.Context, filePath string, startSec, durationSec, fps float64) ([][]byte, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.GrayThumbnails")
+	defer span.End()
+	if filePath == "" || durationSec <= 0 || fps <= 0 {
+		return nil, nil
+	}
+	args := []string{
+		"-nostdin", "-v", "error",
+		"-threads", strconv.Itoa(introFFmpegThreads()),
+		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
+		"-t", strconv.FormatFloat(durationSec, 'f', 3, 64),
+		"-i", filePath,
+		"-an", "-sn", "-dn",
+		"-vf", fmt.Sprintf("fps=%g,scale=%d:%d,format=gray", fps, EdgeThumbWidth, EdgeThumbHeight),
+		"-f", "rawvideo", "-",
+	}
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Scan, Site: "intro.edge_frames"}, d.binary, args...)
+	if err != nil {
+		return nil, fmt.Errorf("gray thumbnails %s: %w", filePath, err)
+	}
+	const frameSize = EdgeThumbWidth * EdgeThumbHeight
+	frames := make([][]byte, 0, len(out)/frameSize)
+	for i := 0; i+frameSize <= len(out); i += frameSize {
+		frames = append(frames, out[i:i+frameSize])
+	}
+	return frames, nil
+}

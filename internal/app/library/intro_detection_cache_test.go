@@ -60,6 +60,9 @@ func (d *hashesDetector) SubtitleCueStarts(_ context.Context, _ string) ([]int64
 func (d *hashesDetector) SceneCutTimestamps(_ context.Context, _ string, _, _, _ float64) ([]int64, error) {
 	return nil, nil
 }
+func (d *hashesDetector) GrayThumbnails(_ context.Context, _ string, _, _, _ float64) ([][]byte, error) {
+	return nil, nil
+}
 
 // newServiceWithCache wires the smallest possible IntroDetectionService for
 // cache-behavior tests: a detector that fails on second extract, a temp

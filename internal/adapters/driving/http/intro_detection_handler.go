@@ -54,6 +54,9 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, li
 				http.Error(w, `{"message":"dry-run needs an episode or movie id"}`, http.StatusBadRequest)
 				return
 			}
+			// The body-read deadline would cancel r.Context() mid-detection at 30s,
+			// silently degrading every pass still running (measured 2026-09-27).
+			ClearBodyReadDeadline(w)
 			segs, err := svc.DetectIntroDryRun(r.Context(), mediaID)
 			if err != nil {
 				slog.WarnContext(ctx, "intro detection dry-run failed",

@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"log/slog"
+	"math/bits"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 )
@@ -49,7 +50,7 @@ func defaultClusterParams(n int) clusterParams {
 		// noise; tightening it didn't sharpen the fused end anyway (the fusion's
 		// scene-cut/silence votes dominate the boundary).
 		MaxFrameBits: 12,
-		MinRunFrames: 110, // ~14.5s @ 7.56fps - longer than discovery's 80 to reject short recaps
+		MinRunFrames: 110, // ~13.6s @ 8.08fps - longer than discovery's 80 to reject short recaps
 		// No 0:00 guard for the cluster: in ripped/remuxed media the intro very
 		// often starts at the very beginning (no broadcast bumper to skip), so a
 		// 25s floor (used by the per-episode discovery fallback) would miss those
@@ -185,6 +186,66 @@ func buildSeasonCluster(eps []episodeFP, p clusterParams) (seasonCluster, bool) 
 	return best, true
 }
 
+// Seeded extension: the strict cluster decides whether and where the intro is; a run
+// that tolerates short gaps then widens each carrier's own window. A dub or remix breaks
+// the strict run after ~14s on some seasons (Billions S06: 14s found of a 27s intro).
+const (
+	seedExtendMaxBits = 6 // strict per-frame match: gaps make a loose threshold chain noise
+	seedExtendGapSec  = 3.5
+)
+
+// extendCarrierWindow returns carrier c's window in frames: its signature placement,
+// widened to the longest gap-tolerant run it shares with any other carrier at their
+// mutual alignment. A run that does not overlap the placement is ignored, so the
+// extension can widen a confirmed intro but never move it or create one.
+func extendCarrierWindow(eps []episodeFP, cl seasonCluster, c clusterCarrier) (int, int) {
+	s0, e0 := c.offsetFrames, c.offsetFrames+len(cl.sig)
+	var self []uint32
+	byID := make(map[string][]uint32, len(eps))
+	for _, ep := range eps {
+		byID[ep.id] = ep.fp
+		if ep.id == c.id {
+			self = ep.fp
+		}
+	}
+	gap := msToFrames(seedExtendGapSec * 1000)
+	s1, e1 := s0, e0
+	for _, o := range cl.carriers {
+		if o.id == c.id {
+			continue
+		}
+		s, e := gapRunAtShift(self, byID[o.id], o.offsetFrames-c.offsetFrames, seedExtendMaxBits, gap)
+		if e > s && s < e0 && e > s0 {
+			s1, e1 = min(s1, s), max(e1, e)
+		}
+	}
+	return s1, e1
+}
+
+// gapRunAtShift is the longest run of a against b at ONE alignment (b index = a index +
+// off) where frames match within maxBits and consecutive matches are at most gapFrames
+// apart. Returns [start, end) in a, or (0, 0) when nothing matches.
+func gapRunAtShift(a, b []uint32, off, maxBits, gapFrames int) (int, int) {
+	bestS, bestE, runS, last := 0, 0, -1, -1
+	for i := max(0, -off); i < min(len(a), len(b)-off); i++ {
+		if bits.OnesCount32(a[i]^b[i+off]) > maxBits {
+			continue
+		}
+		if runS >= 0 && i-last <= gapFrames {
+			last = i
+			continue
+		}
+		if runS >= 0 && last+1-runS > bestE-bestS {
+			bestS, bestE = runS, last+1
+		}
+		runS, last = i, i
+	}
+	if runS >= 0 && last+1-runS > bestE-bestS {
+		bestS, bestE = runS, last+1
+	}
+	return bestS, bestE
+}
+
 // seasonClusterEpisodeCap bounds how many episodes the clustering fingerprints,
 // keeping the anchor/score passes affordable on very long single seasons.
 const seasonClusterEpisodeCap = 40
@@ -256,14 +317,31 @@ func (s *IntroDetectionService) clusterSeasonIntro(ctx context.Context, parentID
 			dropped++
 			continue
 		}
+		s, e := extendCarrierWindow(eps, cluster, c)
 		out[c.id] = domainlibrary.MediaSegment{
 			Type:       "intro",
-			StartMs:    startMs,
-			EndMs:      framesToMs(c.offsetFrames + sigFrames),
+			StartMs:    framesToMs(s),
+			EndMs:      framesToMs(e),
 			Source:     "audio_cluster",
 			Confidence: 0.9,
 		}
 	}
+	paths := make(map[string]string, len(candidates))
+	for _, ep := range candidates {
+		paths[string(ep.ID)] = ep.File.Path
+	}
+	order := make([]string, 0, len(cluster.carriers))
+	for _, c := range cluster.carriers {
+		if _, ok := out[c.id]; ok {
+			order = append(order, c.id)
+		}
+	}
+	starts := make([]float64, 0, len(order))
+	for _, id := range order {
+		starts = append(starts, float64(out[id].StartMs)/1000)
+	}
+	ambiguous := ambiguousSignature(float64(framesToMs(sigFrames))/1000, starts)
+	s.widenHintsByFrames(ctx, order, paths, out, ambiguous)
 	slog.InfoContext(ctx, "intro_detection: season cluster",
 		slog.String("parent_id", parentID),
 		slog.Int("episodes", len(eps)),
