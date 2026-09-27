@@ -67,7 +67,7 @@ describe("tv notifications screen", () => {
   it("asks without a limit, marks an unread row read on tap and opens its title, and refreshes list and badge", () => {
     api.list.data = {
       notifications: [
-        { id: "n1", title: "new_movie", mediaItemId: "m1", message: "Heat arrived" },
+        { id: "n1", title: "new_movie", mediaItemId: "m1", message: "Some Movie arrived" },
         { id: "n2", title: "old", readAt: "2026-09-15T00:00:00Z", mediaItemId: "m2" },
         { id: "n3", title: "no-media" },
       ],
@@ -75,7 +75,7 @@ describe("tv notifications screen", () => {
     render(<NotificationsScreen />);
     expect(api.listArgs).toEqual([]);
     expect(screen.getByRole("button", { name: "label:new_movie" }).getAttribute("data-focus")).toBe("true");
-    expect(screen.getByText("Heat arrived")).toBeTruthy();
+    expect(screen.getByText("Some Movie arrived")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "label:new_movie" }));
     expect(api.markRead).toHaveBeenCalledWith({ id: "n1" });

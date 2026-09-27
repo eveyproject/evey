@@ -128,7 +128,7 @@ func TestDeleteMediaItem_UnknownIsNotFound(t *testing.T) {
 	assert.Equal(t, codes.NotFound, status.Code(err))
 	assert.Empty(t, auditEntries(t, repo, "delete_media_item"))
 
-	require.NoError(t, mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Heat"}))
+	require.NoError(t, mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Some Movie"}))
 	_, err = d.DeleteMediaItem(ctx, &eveyv1.DeleteMediaItemRequest{Id: "mi-1"})
 	require.NoError(t, err)
 	assert.Len(t, auditEntries(t, repo, "delete_media_item"), 1)

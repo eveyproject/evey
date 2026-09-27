@@ -53,7 +53,7 @@ describe("tv statistics screen", () => {
     stats.data = {
       totalPlays: 12, uniqueItemsWatched: 7, totalWatchTimeMs: String(5 * 3_600_000 + 7 * 60_000),
       genres: [{ genre: "Drama", totalTimeMs: "1800000" }, { genre: "Action", totalTimeMs: "3600000" }, { genre: "Tiny", totalTimeMs: "1000" }],
-      mostPlayed: [{ mediaItemId: "m1", title: "Heat", playCount: 4 }, { title: "No id", playCount: 1 }],
+      mostPlayed: [{ mediaItemId: "m1", title: "Some Movie", playCount: 4 }, { title: "No id", playCount: 1 }],
     };
     render(<StatsScreen />);
     expect(stats.args).toEqual({ id: "p1", enabled: true });
@@ -67,7 +67,7 @@ describe("tv statistics screen", () => {
     const widths = rows.map((r) => (r.querySelector("[data-width]") as HTMLElement).getAttribute("data-width"));
     expect(widths).toEqual(["100%", "50%", "2%"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Heat, 4 common.userStats.playsLabel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Some Movie, 4 common.userStats.playsLabel" }));
     expect(router.push).toHaveBeenCalledWith("/media/m1");
     fireEvent.click(screen.getByRole("button", { name: "No id, 1 common.userStats.playsLabel" }));
     expect(router.push).toHaveBeenCalledTimes(1);

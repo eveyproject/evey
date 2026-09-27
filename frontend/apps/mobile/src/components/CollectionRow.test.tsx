@@ -33,21 +33,21 @@ describe("CollectionRow", () => {
       <CollectionRow
         title="Sagas"
         collections={[
-          { id: "c1", name: "Alien", posterUrl: "http://x/alien.jpg" },
+          { id: "c1", name: "Some Saga", posterUrl: "http://x/some-saga.jpg" },
           { id: "c2", name: "Weekend", rules: [{ field: "genre", operator: "eq", value: "Drame" }] },
         ] as any}
       />,
     );
-    fireEvent.click(screen.getByLabelText("Alien"));
+    fireEvent.click(screen.getByLabelText("Some Saga"));
     expect(router.push).toHaveBeenLastCalledWith("/collections/c1");
     fireEvent.click(screen.getByLabelText("Weekend"));
     expect(router.push).toHaveBeenLastCalledWith("/collections/smart/c2");
     expect(screen.getByText("W")).toBeTruthy();
-    expect(document.querySelector("img")?.getAttribute("src")).toBe("http://x/alien.jpg");
+    expect(document.querySelector("img")?.getAttribute("src")).toBe("http://x/some-saga.jpg");
   });
 
   it("the see-all link goes where the caller says", () => {
-    render(<CollectionRow title="Sagas" seeAllHref="/collections" collections={[{ id: "c1", name: "Alien" }] as any} />);
+    render(<CollectionRow title="Sagas" seeAllHref="/collections" collections={[{ id: "c1", name: "Some Saga" }] as any} />);
     fireEvent.click(screen.getByLabelText("See all"));
     expect(router.push).toHaveBeenCalledWith("/collections");
   });

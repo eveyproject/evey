@@ -43,7 +43,7 @@ describe("SagaSection", () => {
     useMediaItemCollectionsMock.mockReturnValue({
       data: {
         collections: [
-          { id: "c1", name: "Alien", itemCount: 4 },
+          { id: "c1", name: "Some Saga", itemCount: 4 },
           { id: "c2", name: "No Count Saga", itemCount: 0 },
         ],
       },
@@ -52,18 +52,18 @@ describe("SagaSection", () => {
     render(<SagaSection mediaItemId="m1" />);
 
     expect(screen.getByText("media.collections.partOf")).toBeTruthy();
-    expect(screen.getByText("Alien")).toBeTruthy();
+    expect(screen.getByText("Some Saga")).toBeTruthy();
     expect(screen.getByText("4 titles")).toBeTruthy();
     expect(screen.getByText("No Count Saga")).toBeTruthy();
   });
 
   it("navigates to the collection page on press", () => {
     useMediaItemCollectionsMock.mockReturnValue({
-      data: { collections: [{ id: "c1", name: "Alien", itemCount: 4 }] },
+      data: { collections: [{ id: "c1", name: "Some Saga", itemCount: 4 }] },
     });
 
     render(<SagaSection mediaItemId="m1" />);
-    fireEvent.click(screen.getByLabelText("Alien"));
+    fireEvent.click(screen.getByLabelText("Some Saga"));
     expect(pushMock).toHaveBeenCalledWith("/collections/c1");
   });
 

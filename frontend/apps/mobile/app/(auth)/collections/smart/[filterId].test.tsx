@@ -78,7 +78,7 @@ describe("smart collection screen (mobile)", () => {
   it("counts the server total, pages as the grid scrolls, shows rule badges and opens a title", () => {
     api.col.data = {
       collection: { name: "Nineties", rules: [{ field: "year", operator: "gte", value: "1990" }, { field: "genre", operator: "weird", value: "Drama" }] },
-      items: [{ id: "m1", title: "Heat", year: 1995 }, { id: "m2", title: "No year" }],
+      items: [{ id: "m1", title: "Some Movie", year: 1995 }, { id: "m2", title: "No year" }],
       total: 312,
     };
     const { rerender } = render(<SmartFilterScreen />);
@@ -95,7 +95,7 @@ describe("smart collection screen (mobile)", () => {
     list.onEndReached?.();
     expect(api.col.fetchNextPage).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByText("Heat"));
+    fireEvent.click(screen.getByText("Some Movie"));
     expect(router.push).toHaveBeenCalledWith("/media/m1");
   });
 

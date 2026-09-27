@@ -30,7 +30,7 @@ const theme = {
 const t = (k: string, d?: string | Record<string, unknown>) => (typeof d === "string" ? d : k);
 
 const session = {
-  sessionId: "s1", mediaItemId: "m1", mediaTitle: "Heat", profileName: "alice", deviceName: "Firefox", deviceType: "web",
+  sessionId: "s1", mediaItemId: "m1", mediaTitle: "Some Movie", profileName: "alice", deviceName: "Firefox", deviceType: "web",
   playMethod: "transcode", resolution: "1080p", videoCodec: "hevc", audioCodec: "aac", bandwidthBps: "8000000",
   durationMs: "6000000", positionMs: "1500000", progress: 25, isPaused: false,
   seriesTitle: "Show", seasonNumber: 1, episodeNumber: 7, castDeviceName: "Salon TV",
@@ -52,13 +52,13 @@ describe("SessionCard", () => {
   it("opens the media page from the title", () => {
     pushMock.mockClear();
     render(<SessionCard session={session} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
-    fireEvent.click(screen.getByText("Heat"));
+    fireEvent.click(screen.getByText("Some Movie"));
     expect(pushMock).toHaveBeenCalledWith("/media/m1");
   });
 
   it("shows what is playing, for whom, how, and the time left", () => {
     render(<SessionCard session={session} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
-    expect(screen.getByText("Heat")).toBeTruthy();
+    expect(screen.getByText("Some Movie")).toBeTruthy();
     expect(screen.getByText("Show - S01E07")).toBeTruthy();
     expect(screen.getByText("alice")).toBeTruthy();
     expect(screen.getByText("Firefox (web)")).toBeTruthy();

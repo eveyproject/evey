@@ -19,12 +19,12 @@ describe("HoverPreview", () => {
     render(
       <HoverPreview
         item={{
-          id: "1", title: "Heat", type: "MEDIA_ITEM_TYPE_MOVIE", year: 1995, communityRating: 8.25,
+          id: "1", title: "Some Movie", type: "MEDIA_ITEM_TYPE_MOVIE", year: 1995, communityRating: 8.25,
           genres: ["Crime", "Drama", "Thriller", "Action"], overview: "A thief and a cop.",
         } as any}
       />,
     );
-    expect(screen.getByText("Heat")).toBeInTheDocument();
+    expect(screen.getByText("Some Movie")).toBeInTheDocument();
     expect(screen.getByText("1995")).toBeInTheDocument();
     expect(screen.getByText("8.3")).toBeInTheDocument();
     expect(screen.getByText("Film")).toBeInTheDocument();
