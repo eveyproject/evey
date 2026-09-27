@@ -518,8 +518,11 @@ func TestSubtitleHandler_ParentalBlocked_NotFound(t *testing.T) {
 		File:           &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
 		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
 	}
+	// The stream lookup fails: past the parental gate that is a 500, so only
+	// the gate itself can answer this 404 (the fixture file does not exist
+	// either, and a missing file is a 404 too - it hid a gate that did nothing).
 	h := subtitleHandler(
-		&fakeMediaStreamsGetter{item: item},
+		&fakeMediaStreamsGetter{item: item, sErr: errTest},
 		"http://localhost",
 		allowAll(),
 		alwaysBlockChecker{},

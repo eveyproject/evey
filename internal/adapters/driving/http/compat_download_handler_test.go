@@ -297,4 +297,12 @@ func TestCompatDownload_GuardsMirrorTheRawDownload(t *testing.T) {
 	h.handlePrepare(rec, req)
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 	assert.EqualValues(t, 0, tr.calls.Load())
+
+	// A title the profile's parental rules hide is a 404 and never produced,
+	// library access notwithstanding: the compat file is the film itself.
+	blocked := newTestCompatServe(t, tr, allowAll())
+	blocked.parental = testFakeParentalChecker{block: true}
+	w = doCompatRequest(blocked.handlePrepare, http.MethodPost, "/api/v1/media/m1/compat-download", false)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.EqualValues(t, 0, tr.calls.Load())
 }

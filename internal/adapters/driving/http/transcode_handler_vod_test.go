@@ -1194,6 +1194,24 @@ func TestPrewarmNext_NextItemParentalBlocked_Forbidden(t *testing.T) {
 		"prewarm-next must reject (404, existence hidden) when nextItem is parental-restricted for this profile")
 }
 
+// The mirror case: the CURRENT episode is the one hidden. A kid blocked on it
+// must not use prewarm-next as a pivot to reach the next one, which is viewable.
+func TestPrewarmNext_CurrentItemParentalBlocked_NotFound(t *testing.T) {
+	cur := newEpisode("ep-a", "lib-a")
+	next := newEpisode("ep-b", "lib-a")
+	libSvc := &prewarmStreamsGetter{
+		items: map[string]*domainlibrary.MediaItem{"ep-a": cur, "ep-b": next},
+		next:  next,
+	}
+	access := &libIDAccessChecker{allowed: map[string]bool{"lib-a": true}}
+	parental := &blockMediaParental{blocked: map[string]bool{"ep-a": true}}
+	h, _ := buildVODHandler(t, libSvc, access, parental)
+
+	w := doPrewarmRequest(h, "ep-a")
+	assert.Equal(t, http.StatusNotFound, w.Code,
+		"prewarm-next must reject (404, existence hidden) when the current item is parental-restricted")
+}
+
 // Sanity: current item access denial still blocks. Mirrors the existing
 // check on curItem so it doesn't regress when adding the nextItem check.
 func TestPrewarmNext_CurrentItemAccessDenied_Forbidden(t *testing.T) {

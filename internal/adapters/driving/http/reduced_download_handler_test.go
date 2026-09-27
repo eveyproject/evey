@@ -393,6 +393,21 @@ func TestReducedDownload_GuardsMirrorTheRawDownload(t *testing.T) {
 		handler(rec, req)
 		assert.Equal(t, http.StatusForbidden, rec.Code, "%s must refuse a token scoped elsewhere", name)
 	}
+
+	// A title the profile's parental rules hide is a 404 on every verb and is
+	// never produced, library access notwithstanding.
+	blocked := newTestReducedServe(t, tr, allowAll(), nil)
+	blocked.parental = testFakeParentalChecker{block: true}
+	for name, handler := range map[string]http.HandlerFunc{
+		"plan":    blocked.handlePlan,
+		"prepare": blocked.handlePrepare,
+		"status":  blocked.handleStatus,
+	} {
+		w := doReducedRequest(handler, http.MethodPost, "/api/v1/media/m1/reduced-download")
+		assert.Equal(t, http.StatusNotFound, w.Code, "%s must hide a parental-blocked title", name)
+	}
+	assert.Equal(t, http.StatusNotFound, doReducedSlice(blocked, 0).Code)
+	assert.EqualValues(t, 0, tr.calls.Load())
 	assert.EqualValues(t, 0, tr.calls.Load())
 }
 
