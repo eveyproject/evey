@@ -284,7 +284,7 @@ ci-fast-build:
 	@echo "→ go build ./..."
 	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go build ./...'
 
-# ci-fast-unit: the CI `correctness` unit step, same package selection and same
+# ci-fast-unit: the CI `backend` unit step, same package selection and same
 # -race. It is here because vet, build and lint all pass on a test that asserts
 # the WRONG value: the capped-CRF headroom shipped green through this gate and
 # broke CI, since the only transcode check that ran was the path-triggered
@@ -363,8 +363,8 @@ ci-local-frontend:
 	@echo "→ frontend typecheck (pnpm --filter web)"
 	@cd frontend && npx pnpm --filter web run typecheck
 
-# pre-push: mirror of the three CI jobs that gate the docker build - `quality`
-# (vet + govulncheck + build + gosec ratchet + lint), `correctness` (unit -race,
+# pre-push: mirror of the two CI jobs that gate the docker build - `backend`
+# (vet + govulncheck + build + gosec ratchet + lint, unit -race,
 # postgres via repo-itest-gate) and `frontend` - run by the git pre-push hook so
 # a red pipeline never surprises you 10 minutes after the push. Everything here
 # is cache-backed (Go per package+flags, turbo per task), so an unchanged push
@@ -501,7 +501,7 @@ repo-itest-gate:
 
 # repo-itest: the postgres package against a REAL Postgres (testcontainers).
 # Runs in the test image because it needs the docker socket - the dev container
-# has none. Same invocation as the CI `correctness` job, minus -race.
+# has none. Same invocation as the CI `backend` job, minus -race.
 repo-itest: test-image
 	docker run --rm \
 	  -v $(PWD):/app \
