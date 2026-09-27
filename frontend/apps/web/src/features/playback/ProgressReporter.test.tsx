@@ -256,4 +256,64 @@ describe("ProgressReporter", () => {
     unmount();
     expect(clearSpy).toHaveBeenCalled();
   });
+
+  // The player unmounts as a whole: React has already cleared videoRef when
+  // the effect cleans up, so the final report must come from what was seen
+  // while the element still held the media (measured: 0 calls before 27-09).
+  describe("final report when the player closes", () => {
+    function Host({ sessionId, onVideo }: { sessionId: string; onVideo: (v: HTMLVideoElement) => void }) {
+      const ref = React.useRef<HTMLVideoElement | null>(null);
+      return React.createElement(React.Fragment, null,
+        React.createElement("video", { ref: (el: HTMLVideoElement | null) => { ref.current = el; if (el) onVideo(el); } }),
+        React.createElement(ProgressReporterRef.current!, { sessionId, videoRef: ref }),
+      );
+    }
+    const ProgressReporterRef: { current: null | typeof import("./ProgressReporter").ProgressReporter } = { current: null };
+    function play(v: HTMLVideoElement, at: number, readyState = 4) {
+      Object.defineProperty(v, "readyState", { value: readyState, configurable: true });
+      Object.defineProperty(v, "currentTime", { value: at, configurable: true, writable: true });
+      Object.defineProperty(v, "paused", { value: false, configurable: true });
+      Object.defineProperty(v, "muted", { value: false, configurable: true });
+      Object.defineProperty(v, "volume", { value: 1, configurable: true });
+      v.dispatchEvent(new Event("timeupdate"));
+    }
+
+    beforeEach(async () => {
+      ProgressReporterRef.current = (await import("./ProgressReporter")).ProgressReporter;
+    });
+
+    it("reports the last position seen when the whole player unmounts", () => {
+      let video: HTMLVideoElement | null = null;
+      const { unmount } = render(React.createElement(Host, { sessionId: "sess1", onVideo: (v) => { video = v; } }));
+      play(video!, 1234.5);
+      unmount();
+      expect(mockReportProgress).toHaveBeenCalledTimes(1);
+      expect(mockReportProgress).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "sess1", positionMs: "1234500", castDeviceName: "" }));
+    });
+
+    it("keeps the last real position when the element is emptied before teardown", () => {
+      let video: HTMLVideoElement | null = null;
+      const { unmount } = render(React.createElement(Host, { sessionId: "sess1", onVideo: (v) => { video = v; } }));
+      play(video!, 600);
+      // hls.destroy detaches the media: no source, the clock reads 0.
+      play(video!, 0, 0);
+      unmount();
+      expect(mockReportProgress).toHaveBeenCalledWith(expect.objectContaining({ positionMs: "600000" }));
+    });
+
+    it("sends nothing when no media was ever loaded", () => {
+      const { unmount } = render(React.createElement(Host, { sessionId: "sess1", onVideo: () => {} }));
+      unmount();
+      expect(mockReportProgress).not.toHaveBeenCalled();
+    });
+
+    it("closes the previous session with its own position when the session changes", () => {
+      let video: HTMLVideoElement | null = null;
+      const onVideo = (v: HTMLVideoElement) => { video = v; };
+      const { rerender } = render(React.createElement(Host, { sessionId: "sess1", onVideo }));
+      play(video!, 2400);
+      rerender(React.createElement(Host, { sessionId: "sess2", onVideo }));
+      expect(mockReportProgress).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "sess1", positionMs: "2400000" }));
+    });
+  });
 });
