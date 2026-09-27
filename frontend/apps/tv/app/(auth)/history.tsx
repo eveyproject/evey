@@ -12,6 +12,7 @@ import {
 import type { V1WatchProgress } from "@evey/api";
 import { formatDurationMs } from "@evey/api";
 import { toast } from "@evey/store";
+import { invalidateWatchedState } from "@evey/client";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { progressPercent } from "../../src/lib/progressPercent";
 import { ScreenState } from "../../src/components/ScreenState";
@@ -65,7 +66,7 @@ export default function HistoryScreen() {
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
       onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
+        invalidateWatchedState(qc);
       },
       onError: () => toast.error(t("auth.watchHistory.clearFailed", "Could not remove from history")),
     },

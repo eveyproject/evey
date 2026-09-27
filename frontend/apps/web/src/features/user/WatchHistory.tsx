@@ -6,10 +6,10 @@ import {
   usePlaybackServiceGetWatchHistory,
   usePlaybackServiceMarkAsUnwatched,
   usePlaybackServiceClearWatchHistory,
-  getPlaybackServiceGetWatchHistoryQueryKey,
   watchHistoryLabel,
 } from "@evey/api";
 import { toast } from "@evey/store";
+import { invalidateWatchedState } from "@evey/client";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -19,14 +19,6 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { MS_PER_DAY } from "@/lib/time";
-
-// Home feeds (and popular-media) filter watched items server-side, so a change
-// to watch state must invalidate them too. Mirrors MediaCard.invalidateItem.
-function isWatchedFeedQuery(q: { queryKey: readonly unknown[] }): boolean {
-  const k = q.queryKey?.[0];
-  if (typeof k !== "string") return false;
-  return k.startsWith("/api/v1/feeds/") || k === "/api/v1/popular";
-}
 
 type WatchProgress = {
   id?: string;
@@ -74,9 +66,8 @@ function HistoryItem({ item }: { item: WatchProgress }) {
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
       onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
         // Unwatching restores the item to the watched-filtered home feeds.
-        void qc.invalidateQueries({ predicate: isWatchedFeedQuery });
+        invalidateWatchedState(qc, item.mediaItemId);
       },
     },
   });
@@ -170,10 +161,9 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
   const clearAll = usePlaybackServiceClearWatchHistory({
     mutation: {
       onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
         // Clearing history un-watches everything, so the items return to the
         // watched-filtered home feeds ("Continue Watching" etc.).
-        void qc.invalidateQueries({ predicate: isWatchedFeedQuery });
+        invalidateWatchedState(qc);
         toast.success(t("auth.watchHistory.cleared"));
       },
       onError: (err: Error) => toast.error(err?.message || t("auth.watchHistory.clearFailed")),

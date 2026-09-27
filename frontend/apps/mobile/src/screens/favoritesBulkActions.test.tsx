@@ -87,6 +87,12 @@ vi.mock("../hooks/useServerUrl", () => ({ useServerUrl: () => "http://test-serve
 vi.mock("../hooks/useDebounce", () => ({ useDebounce: (v: unknown) => v }));
 vi.mock("../components/Skeleton", () => ({ Skeleton: () => null }));
 
+const invalidateQueries = vi.hoisted(() => vi.fn());
+vi.mock("@tanstack/react-query", async (orig) => ({
+  ...(await orig<typeof import("@tanstack/react-query")>()),
+  useQueryClient: () => ({ invalidateQueries }),
+}));
+
 const { markWatchedMock, markUnwatchedMock } = vi.hoisted(() => ({
   markWatchedMock: vi.fn(),
   markUnwatchedMock: vi.fn(),
@@ -215,5 +221,7 @@ describe("FavoritesScreen bulk actions run one at a time", () => {
     await screen.findByLabelText("Alpha");
     expect(markUnwatchedMock).not.toHaveBeenCalled();
     expect(markWatchedMock).toHaveBeenCalledTimes(1);
+    // The batch refreshes the watched badges and the home rows once it ends.
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["/api/v1/playback/history"] });
   });
 });
