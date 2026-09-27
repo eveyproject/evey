@@ -53,9 +53,9 @@ describe("offline-audio bridge", () => {
 
   it("runs the pass with a progress listener that is removed afterwards", async () => {
     const onProgress = vi.fn();
-    const summary = await optimizeAudio("/in.mkv", "/out.mkv", onProgress, "Heat");
+    const summary = await optimizeAudio("/in.mkv", "/out.mkv", onProgress, "Some Movie");
     expect(summary.sourceCodec).toBe("eac3");
-    expect(native.optimize).toHaveBeenCalledWith("/in.mkv", "/out.mkv", "Heat");
+    expect(native.optimize).toHaveBeenCalledWith("/in.mkv", "/out.mkv", "Some Movie");
     expect(native.listeners).toHaveLength(1);
     expect(native.removed).toBe(1);
     // No listener is registered when nobody asked for progress.
@@ -81,8 +81,8 @@ describe("offline-audio bridge", () => {
   });
 
   it("joins slices with the server's true duration and names slices like the muxer", async () => {
-    await joinDownloadSlices("/d", 3, "/out.mkv", 5_400_000, undefined, "Heat");
-    expect(native.joinSlices).toHaveBeenCalledWith("/d", 3, "/out.mkv", 5_400_000, "Heat");
+    await joinDownloadSlices("/d", 3, "/out.mkv", 5_400_000, undefined, "Some Movie");
+    expect(native.joinSlices).toHaveBeenCalledWith("/d", 3, "/out.mkv", 5_400_000, "Some Movie");
     native.joinSlices.mockRejectedValueOnce(Object.assign(new Error("hole"), { code: "slice-missing" }));
     await expect(joinDownloadSlices("/d", 3, "/out.mkv", 1)).rejects.toMatchObject({ code: "slice-missing" });
     await deleteJoinedSlices("/d", 3);

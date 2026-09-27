@@ -33,7 +33,7 @@ import AdminQoEScreen from "./qoe";
 
 const dashboard = (over: Record<string, unknown> = {}) => ({
   summary: { window: "24h", total_events: 1200, starved_events: 84, starved_ratio: 0.07, unique_sessions: 9, unique_media: 5 },
-  top_starved_titles: [{ media_item_id: "m1", title: "Heat", file_path: "/m/film.mkv", starved_events: 40, total_events: 300, starved_ratio: 0.13, last_starved_at: new Date().toISOString() }],
+  top_starved_titles: [{ media_item_id: "m1", title: "Some Movie", file_path: "/m/some-movie.mkv", starved_events: 40, total_events: 300, starved_ratio: 0.13, last_starved_at: new Date().toISOString() }],
   by_device: [{ device_class: "mobile", total_events: 700, starved_events: 60, starved_ratio: 0.085, avg_buffer_ms: 5200.4, avg_encoded_kbps: 4100.6 }],
   ...over,
 });
@@ -57,7 +57,7 @@ beforeEach(() => {
 describe("admin qoe screen (mobile)", () => {
   it("asks for the chosen window, grades health from the ratio, and lists starved titles, devices and limits", async () => {
     mount();
-    await waitFor(() => expect(screen.getByText("Heat")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Some Movie")).toBeTruthy());
     expect(eveyFetch).toHaveBeenCalledWith({ url: "/api/v1/admin/qoe/dashboard?window=24h", method: "GET" });
     // 7 % starved over 1200 events = marginal.
     expect(screen.getByText("admin.qoe.health.marginal")).toBeTruthy();

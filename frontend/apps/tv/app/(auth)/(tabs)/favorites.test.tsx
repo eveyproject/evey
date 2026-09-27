@@ -48,13 +48,13 @@ beforeEach(() => {
 
 describe("tv favourites screen", () => {
   it("shows the grid with the first card focused, opens a title, names an untitled one", () => {
-    favs.data = [{ mediaItemId: "m1", title: "Heat", year: 1995 }, { mediaItemId: "m2" }];
+    favs.data = [{ mediaItemId: "m1", title: "Some Movie", year: 1995 }, { mediaItemId: "m2" }];
     render(<FavoritesScreen />);
     const cards = screen.getAllByRole("button");
     expect(cards).toHaveLength(2);
     expect(cards[0].getAttribute("data-focus")).toBe("true");
     expect(cards[1].getAttribute("data-focus")).toBe("false");
-    expect(cards[0].getAttribute("aria-label")).toBe("Heat");
+    expect(cards[0].getAttribute("aria-label")).toBe("Some Movie");
     expect(cards[1].getAttribute("aria-label")).toBe("Untitled");
     expect(screen.getByText("1995")).toBeTruthy();
     fireEvent.click(cards[1]);

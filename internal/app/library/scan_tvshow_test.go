@@ -315,7 +315,7 @@ func TestScanTVShow_SeriesFingerprint(t *testing.T) {
 }
 
 // Regression for the duplicate-series bug: episode filenames of the same show
-// with inconsistent casing ("The Boys" vs "The boys") must group under ONE
+// with inconsistent casing ("Some Series" vs "Some series") must group under ONE
 // series, not split into two fiches with seasons scattered between them.
 func TestScanTVShow_MixedCaseTitle_SingleSeries(t *testing.T) {
 	t.Parallel()
@@ -326,15 +326,15 @@ func TestScanTVShow_MixedCaseTitle_SingleSeries(t *testing.T) {
 	})
 
 	scanner.Results["/tv"] = []library.ScannedFile{
-		{Path: "/media2/series/The Boys/S02/The Boys S02E01.mkv", Size: 100, Title: "The Boys", Season: new(2), Episode: new(1), Type: library.Episode},
-		{Path: "/media2/series/The Boys/S05/The boys S05E08.mkv", Size: 200, Title: "The boys", Season: new(5), Episode: new(8), Type: library.Episode},
+		{Path: "/media2/series/Some Series/S02/Some Series S02E01.mkv", Size: 100, Title: "Some Series", Season: new(2), Episode: new(1), Type: library.Episode},
+		{Path: "/media2/series/Some Series/S05/Some series S05E08.mkv", Size: 200, Title: "Some series", Season: new(5), Episode: new(8), Type: library.Episode},
 	}
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
 	require.NoError(t, err)
 
 	series := itemsByType(mediaRepo, "series")
-	require.Len(t, series, 1, "The Boys / The boys must be one series, not two")
+	require.Len(t, series, 1, "Some Series / Some series must be one series, not two")
 
 	seasons := itemsByType(mediaRepo, "season")
 	require.Len(t, seasons, 2, "both seasons hang off the single series")

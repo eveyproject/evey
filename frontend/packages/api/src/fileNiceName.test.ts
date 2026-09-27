@@ -8,7 +8,7 @@ describe("niceNameFromPath", () => {
 
   it("handles the real library's naming", () => {
     expect(niceNameFromPath("/media/films/Arrival - 1080p.mkv")).toBe("Arrival");
-    expect(niceNameFromPath("/media/Avatar - 2160P.mkv")).toBe("Avatar");
+    expect(niceNameFromPath("/media/Some Movie - 2160P.mkv")).toBe("Some Movie");
     expect(niceNameFromPath("/media/dvdrip/L'agence.avi")).toBe("L'agence");
   });
 

@@ -58,7 +58,7 @@ describe("stats screen (mobile)", () => {
       totalPlays: 12, uniqueItemsWatched: 5, totalWatchTimeMs: String(3 * 3_600_000 + 5 * 60_000),
       genres: [genres[1], genres[0], ...genres.slice(2)],
       byMonth: [{ year: now.getFullYear(), month: now.getMonth() + 1, totalTimeMs: String(2 * 3_600_000) }],
-      mostPlayed: [{ mediaItemId: "m1", title: "Heat", playCount: 4, totalTimeMs: String(90 * 60_000) }, { title: "no id", playCount: 1 }],
+      mostPlayed: [{ mediaItemId: "m1", title: "Some Movie", playCount: 4, totalTimeMs: String(90 * 60_000) }, { title: "no id", playCount: 1 }],
     };
     render(<StatsScreen />);
     expect(stats.args).toEqual({ id: "p1", enabled: true });
@@ -78,7 +78,7 @@ describe("stats screen (mobile)", () => {
     expect(charts.bars.maxValue).toBe(Math.ceil(2 * 1.1));
 
     expect(screen.getByText("1.5h")).toBeTruthy();
-    fireEvent.click(screen.getByText("Heat").closest("button")!);
+    fireEvent.click(screen.getByText("Some Movie").closest("button")!);
     expect(router.push).toHaveBeenCalledWith("/media/m1");
     fireEvent.click(screen.getByText("no id").closest("button")!);
     expect(router.push).toHaveBeenCalledTimes(1);

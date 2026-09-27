@@ -14,7 +14,7 @@ vi.mock("lucide-react", () => ({
 // initial, and an accessible name even without a title.
 describe("PosterPlaceholder", () => {
   it("picks the icon by media kind", () => {
-    const { rerender } = render(<PosterPlaceholder type="MEDIA_ITEM_TYPE_MOVIE" title="Heat" iconSize={44} />);
+    const { rerender } = render(<PosterPlaceholder type="MEDIA_ITEM_TYPE_MOVIE" title="Some Movie" iconSize={44} />);
     expect(screen.getByTestId("icon-movie").getAttribute("data-size")).toBe("44");
     rerender(<PosterPlaceholder type="MEDIA_ITEM_TYPE_EPISODE" title="E1" />);
     expect(screen.getByTestId("icon-tv")).toBeInTheDocument();
@@ -25,10 +25,10 @@ describe("PosterPlaceholder", () => {
   });
 
   it("labels the image with the title, shows it or hides it on request", () => {
-    const { rerender } = render(<PosterPlaceholder title="Heat" />);
-    expect(screen.getByRole("img", { name: "Heat" })).toHaveTextContent("Heat");
-    rerender(<PosterPlaceholder title="Heat" showTitle={false} />);
-    expect(screen.getByRole("img", { name: "Heat" })).toHaveTextContent("");
+    const { rerender } = render(<PosterPlaceholder title="Some Movie" />);
+    expect(screen.getByRole("img", { name: "Some Movie" })).toHaveTextContent("Some Movie");
+    rerender(<PosterPlaceholder title="Some Movie" showTitle={false} />);
+    expect(screen.getByRole("img", { name: "Some Movie" })).toHaveTextContent("");
   });
 
   it("without a title: generic label and a question mark", () => {

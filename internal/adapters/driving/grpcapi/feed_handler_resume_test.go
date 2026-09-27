@@ -15,8 +15,8 @@ import (
 func TestFeedHandler_ResumePlayback_Success(t *testing.T) {
 	h, _, _, querier := newFeedHandler()
 	querier.ResumePlaybackItems = []*feed.FeedItem{
-		{MediaItemID: "m1", Title: "Wednesday"},
-		{MediaItemID: "m2", Title: "The Bear"},
+		{MediaItemID: "m1", Title: "Some Series"},
+		{MediaItemID: "m2", Title: "Some Other Series"},
 	}
 
 	ctx := ctxWithClaims("user-1", "profile-1", false)
