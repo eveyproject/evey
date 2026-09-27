@@ -2,7 +2,7 @@ package ffmpeg
 
 import "testing"
 
-// a 4K remux, 24000/1001, Matroska millisecond timestamps around a
+// A 4K film, 24000/1001, Matroska millisecond timestamps around a
 // `-ss 279.000` seek: packets from the keyframe before the target, in decode
 // order (B-frames out of presentation order), as ffprobe lists them.
 var remuxPacketsAt279 = []float64{278.945, 279.154, 279.070, 279.029, 278.987, 279.112, 279.279, 279.196, 279.237, 279.404}

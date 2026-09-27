@@ -1394,30 +1394,30 @@ func TestFetchBestCandidate_AltTitleLazyFetch(t *testing.T) {
 // return the best candidate from the trimmed query.
 func TestSearchAndFetchBest_CascadeRetryFindsResult(t *testing.T) {
 	// The fake provider returns nothing for the full query and for
-	// intermediate trims, but returns a result for "a remux".
+	// intermediate trims, but returns a result for "Zorblax".
 	primary := &fakeProvider{
 		name: "tmdb",
-		// Search is keyed on exact query string; anything not "a remux" → nil
+		// Search is keyed on exact query string; anything not "Zorblax" → nil
 		detailResult: &domain.MetadataResult{
-			Title:       "a remux: Choisis ton destin",
+			Title:       "Zorblax: Take your road",
 			Overview:    "Action thriller.",
 			ProviderIDs: map[string]string{"tmdb": "800001"},
 		},
 	}
 	// Manually wire search results only for the trimmed query.
 	primary.searchResults = []domain.MetadataResult{
-		{Title: "a remux: Choisis ton destin", ProviderIDs: map[string]string{"tmdb": "800001"}},
+		{Title: "Zorblax: Take your road", ProviderIDs: map[string]string{"tmdb": "800001"}},
 	}
 
 	// We need a provider whose Search returns nothing for the long query
 	// but something for the short one. Override with a custom fakeProvider.
 	shortQueryProvider := &cascadeTestProvider{
-		wantQuery: "a remux",
+		wantQuery: "Zorblax",
 		result: []domain.MetadataResult{
-			{Title: "a remux: Choisis ton destin", ProviderIDs: map[string]string{"tmdb": "800001"}},
+			{Title: "Zorblax: Take your road", ProviderIDs: map[string]string{"tmdb": "800001"}},
 		},
 		detailResult: &domain.MetadataResult{
-			Title:       "a remux: Choisis ton destin",
+			Title:       "Zorblax: Take your road",
 			Overview:    "Action thriller.",
 			ProviderIDs: map[string]string{"tmdb": "800001"},
 		},
@@ -1425,9 +1425,9 @@ func TestSearchAndFetchBest_CascadeRetryFindsResult(t *testing.T) {
 	e, _, _, _, _, _ := newTestEnricher(&fakeProvider{name: "tmdb"}, nil, nil)
 
 	result := e.searchAndFetchBest(context.Background(), shortQueryProvider,
-		"a remux Choisis Ton Destin", nil, "movie", 0, slog.Default())
+		"Zorblax Take Your Road", nil, "movie", 0, slog.Default())
 	require.NotNil(t, result, "cascade retry must return a result")
-	assert.Equal(t, "a remux: Choisis ton destin", result.Title)
+	assert.Equal(t, "Zorblax: Take your road", result.Title)
 }
 
 // cascadeTestProvider returns results only when the query equals wantQuery.

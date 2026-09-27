@@ -221,7 +221,7 @@ func TestWidenHintsByFrames_KeepsAnIntroWhoseEdgesDifferSlightly(t *testing.T) {
 }
 
 // A long or stable signature is trusted whatever the pictures say: only the ambiguous
-// audio profile can be vetoed (Stranger Things S05, 62s, correlates 0.44 at its edges).
+// audio profile can be vetoed (a series' S05, 62s, correlates 0.44 at its edges).
 func TestWidenHintsByFrames_NeverRejectsAnUnambiguousSignature(t *testing.T) {
 	t.Parallel()
 	r := rand.New(rand.NewSource(31))
@@ -245,7 +245,7 @@ func TestAmbiguousSignature(t *testing.T) {
 	t.Parallel()
 	require.True(t, ambiguousSignature(13.9, []float64{640, 631, 505, 480, 118, 508, 570}), "City of Blood: short, scattered")
 	require.False(t, ambiguousSignature(13.9, []float64{85, 67, 74, 84, 62, 78, 71, 75, 44, 78, 64}), "Billions: short but stable")
-	require.False(t, ambiguousSignature(61.7, []float64{221, 589, 300, 450}), "Stranger Things: long")
+	require.False(t, ambiguousSignature(61.7, []float64{221, 589, 300, 450}), "series S05: long")
 }
 
 func TestFrameCorr_IgnoresContrast(t *testing.T) {

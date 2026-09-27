@@ -32,7 +32,7 @@ describe("hashString", () => {
   });
 
   it("returns an unsigned 32-bit integer", () => {
-    const h = hashString("The Matrix");
+    const h = hashString("Some Movie");
     expect(h).toBeGreaterThanOrEqual(0);
     expect(Number.isInteger(h)).toBe(true);
   });
