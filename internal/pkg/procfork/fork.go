@@ -76,6 +76,20 @@ func SetCPUBudget(b *cpubudget.Budget) { cpuBudgetRef.Store(b) }
 // CPUBudget returns the installed budget, nil when none.
 func CPUBudget() *cpubudget.Budget { return cpuBudgetRef.Load() }
 
+// HoldScanSlot takes one slot of ctx's task for a pipeline of Scan forks run
+// under the returned context: each fork charging its own slot left fpcalc
+// waiting on its own decoder's until the timeout (one-slot share, 2026-09-27).
+func HoldScanSlot(ctx context.Context) (context.Context, func(), error) {
+	return holdScanSlot(ctx, cpuBudgetRef.Load())
+}
+
+func holdScanSlot(ctx context.Context, budget *cpubudget.Budget) (context.Context, func(), error) {
+	if budget == nil {
+		return ctx, func() {}, nil
+	}
+	return budget.Acquire(ctx, bgtasks.TaskFromContext(ctx), 1)
+}
+
 func lookPath(bin string) string {
 	p, err := exec.LookPath(bin)
 	if err != nil {
