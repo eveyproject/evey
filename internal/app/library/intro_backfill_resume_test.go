@@ -134,3 +134,50 @@ func TestIntroBackfill_SweepBlocksAConcurrentAdminBackfill(t *testing.T) {
 	assert.ErrorIs(t, err, ErrIntroBackfillAlreadyRunning,
 		"an admin backfill must not stack a second sweep on top of the automatic one")
 }
+
+// The sweep is a loop, not a one-shot: once the work list comes back empty it
+// sleeps and asks again, so seasons scanned later are picked up without a
+// restart - and it stops when the server shuts down.
+func TestIntroBackfill_LoopAsksAgainAfterAnEmptyListAndStopsOnShutdown(t *testing.T) {
+	t.Parallel()
+	repo, items := resumeFixture(t, 2)
+	listed := make(chan int, 64)
+	repo.onPendingListed = func(n int) {
+		select {
+		case listed <- n:
+		default:
+		}
+	}
+	svc := resumeService(repo, items)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		svc.runResumableBackfill(ctx)
+		close(done)
+	}()
+
+	sawEmpty := false
+	deadline := time.After(5 * time.Second)
+	for asked := false; !asked; {
+		select {
+		case n := <-listed:
+			if sawEmpty {
+				asked = true
+			}
+			if n == 0 {
+				sawEmpty = true
+			}
+		case <-deadline:
+			cancel()
+			t.Fatalf("the sweep never asked again after an empty work list (saw empty: %v)", sawEmpty)
+		}
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the sweep kept running after its context was cancelled")
+	}
+}
