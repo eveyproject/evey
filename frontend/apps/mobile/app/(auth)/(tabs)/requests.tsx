@@ -110,7 +110,7 @@ export default function RequestsScreen() {
     undefined,
     { query: { enabled: canRequest } },
   );
-  const myRequests = myRequestsResp?.items ?? [];
+  const myRequests = useMemo(() => myRequestsResp?.items ?? [], [myRequestsResp?.items]);
   const requestedKeys = useMemo(() => new Set(myRequests.map((r) => candidateKey(r))), [myRequests]);
 
   // Video scope fires BOTH provider searches and merges them; the server's

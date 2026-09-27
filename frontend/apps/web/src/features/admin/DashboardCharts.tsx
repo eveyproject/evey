@@ -26,7 +26,7 @@ export function PlayActivityChart() {
   const { data } = useActivityServiceGetAnalytics({
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
-  const daily = data?.dailyPlays ?? [];
+  const daily = useMemo(() => data?.dailyPlays ?? [], [data?.dailyPlays]);
   const accent = useCssVar("--accent", "#c81e1e");
   const textMuted = useCssVar("--text-muted");
 
@@ -100,7 +100,7 @@ export function PeakHours() {
   const { data } = useActivityServiceGetAnalytics({
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
-  const hourly = data?.hourlyPlays ?? [];
+  const hourly = useMemo(() => data?.hourlyPlays ?? [], [data?.hourlyPlays]);
   const accent = useCssVar("--accent", "#c81e1e");
   const textMuted = useCssVar("--text-muted");
 

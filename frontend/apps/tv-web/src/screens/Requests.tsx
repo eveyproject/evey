@@ -79,7 +79,7 @@ export function RequestsScreen() {
   const policy = useMediaRequestServiceGetRequestPolicy();
   const canRequest = policy.data?.canRequest === true;
   const { data: mineResp, isLoading: mineLoading } = useMediaRequestServiceListMyRequests(undefined, { query: { enabled: canRequest } });
-  const mine = mineResp?.items ?? [];
+  const mine = useMemo(() => mineResp?.items ?? [], [mineResp?.items]);
   const requested = useMemo(() => new Set(mine.map((r) => candidateKey(r))), [mine]);
 
   const enabled = canRequest && submitted.trim().length > 0;

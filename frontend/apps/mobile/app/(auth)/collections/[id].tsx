@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -169,7 +169,7 @@ export default function CollectionDetailScreen() {
   const reorderMut = useReorderCollectionItems(id ?? "");
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const col = data?.collection;
-  const items = data?.items ?? [];
+  const items = useMemo(() => data?.items ?? [], [data?.items]);
 
   const [editVisible, setEditVisible] = useState(false);
 

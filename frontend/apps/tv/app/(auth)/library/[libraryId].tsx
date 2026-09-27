@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, FlatList, ScrollView, TextInput, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -250,7 +250,10 @@ export default function LibraryDetailScreen() {
     setHasMore(hasMoreFromCursor(data.pagination));
   }, [data, cursor]);
 
-  const displayItems = searchActive ? (searchData?.items ?? []) : allItems;
+  const displayItems = useMemo(
+    () => (searchActive ? (searchData?.items ?? []) : allItems),
+    [searchActive, searchData?.items, allItems],
+  );
 
   // Shuffle play: with a search or type/genre facet active, shuffle among
   // what's actually on screen so the pick honors it. With no facet, shuffle

@@ -478,7 +478,7 @@ export default function MediaDetailScreen() {
     toast.success(t("media.detail.downloadComplete"));
   }, [episodes, downloadEpisodeFile, bulkDownload, t]);
 
-  const people = media?.people ?? [];
+  const people = useMemo(() => media?.people ?? [], [media?.people]);
   const actors = useMemo(
     () => people.filter((p) => p.type === "PERSON_TYPE_ACTOR" || p.type === "PERSON_TYPE_GUEST_STAR"),
     [people],

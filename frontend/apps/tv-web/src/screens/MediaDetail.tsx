@@ -260,7 +260,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
     { parentId: mediaId, "pagination.pageSize": 500 },
     { query: { enabled: !!mediaId && (isSeries || isSeason) } },
   );
-  const children = childrenData?.items ?? [];
+  const children = useMemo(() => childrenData?.items ?? [], [childrenData?.items]);
   const seasons = useMemo(() => (isSeries ? sortByIndexNumber(children) : []), [isSeries, children]);
   const firstSeasonId = seasons[0]?.id ?? "";
   const { data: firstSeasonEpisodes } = useLibraryServiceListMediaItems(

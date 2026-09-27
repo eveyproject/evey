@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
@@ -62,7 +62,7 @@ export default function ProfileSelect() {
     query: { enabled: !!userId },
   });
 
-  const profiles = profilesData?.profiles ?? [];
+  const profiles = useMemo(() => profilesData?.profiles ?? [], [profilesData?.profiles]);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [pinTarget, setPinTarget] = useState<V1Profile | null>(null);

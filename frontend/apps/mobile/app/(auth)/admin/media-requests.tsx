@@ -369,7 +369,7 @@ function AccessTab({ theme }: { theme: ReturnType<typeof useTheme> }) {
     },
   });
 
-  const overrides = settings?.overrides ?? [];
+  const overrides = useMemo(() => settings?.overrides ?? [], [settings?.overrides]);
   const overriddenIds = useMemo(() => new Set(overrides.map((o) => o.userId)), [overrides]);
   const availableUsers = (usersData?.users ?? []).filter((u) => u.id && !overriddenIds.has(u.id));
 
