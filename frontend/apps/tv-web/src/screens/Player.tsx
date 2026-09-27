@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   formatAudioTrackLabel,
-  formatTime,
   trackDisplayName,
   useLibraryServiceGetMediaItem,
   pickPreferredStreamIndex,
@@ -44,11 +43,11 @@ import { SkipSegmentButton } from "../player/SkipSegmentButton";
 import { StreamInfoPanel } from "../player/StreamInfoPanel";
 import type Hls from "hls.js";
 import { useTvKeys, FocusRoot } from "../tv/focus";
-import { Spinner, Button, Pressable } from "../components/ui";
-import { Icon } from "../components/icons";
+import { Spinner, Button } from "../components/ui";
 import { goBack, replace } from "../app/router";
 import { SubtitleOverlay } from "../player/SubtitleOverlay";
-import { TrickplayTile } from "../player/TrickplayTile";
+import { PlayerOsd, BAR_BUTTONS, type BarFocus } from "../player/PlayerOsd";
+import { NextEpisodeCard } from "../player/NextEpisodeCard";
 import { SettingsPanel, chapterLabel, type PanelSection } from "../player/SettingsPanel";
 import { useMusicQueueStore } from "../music/queue";
 import { decideHlsFatal } from "../lib/hlsRecovery";
@@ -58,8 +57,6 @@ import { ParentalPINModal } from "../components/ParentalPINModal";
 const OSD_HIDE_MS = 4000;
 // With the remote on a control the viewer is choosing: the bar waits longer.
 const OSD_FOCUSED_HIDE_MS = 8000;
-const BAR_BUTTONS = ["rewind", "play", "forward", "speed", "settings"] as const;
-type BarFocus = (typeof BAR_BUTTONS)[number] | "timeline";
 const QUALITIES = [0, 2160, 1080, 720, 480];
 // No wasm audio engine here: the server transcodes AC-3/E-AC-3 to AAC.
 const TV_DEVICE = { deviceId: "tv-browser", deviceName: "TV Browser", clientName: "Evey TV", wasmAudio: false };
@@ -735,7 +732,6 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   // --- render ---------------------------------------------------------------
   const shown = preview ?? time;
   needsFineTimeRef.current = osd || paused || panel || preview !== null || clientSubtitle !== null;
-  const pct = duration > 0 ? Math.min(100, (shown / duration) * 100) : 0;
   const barVisible = osd || paused || panel || barFocus !== null;
   // Only while the bar is up: formatting a local time is not free, and it is
   // written nowhere else.
@@ -759,18 +755,6 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
     );
   }
 
-  const control = (key: BarFocus, label: string, content: React.ReactNode, size: "small" | "normal" | "primary" = "normal") => (
-    <button
-      type="button"
-      tabIndex={-1}
-      aria-label={label}
-      className={`ctl ${size} ${barFocus === key ? "focused" : ""}`}
-      onClick={() => { setBarFocus(key); pressBar.current(key); }}
-    >
-      {content}
-    </button>
-  );
-
   return (
     <div className="player" onClick={(e) => { if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === "VIDEO") { if (!osdRef.current) showOsd(); else togglePlay(); } }}>
       <video ref={videoRef} playsInline autoPlay />
@@ -786,51 +770,25 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
         </FocusRoot>
       ) : null}
       {barVisible ? (
-        <div className="osd-layer">
-          <div className="osd-topbar">
-            <span className="osd-title">{media ? playerTitle(media, media.seriesTitle) : ""}</span>
-            <span className="osd-badges">
-              {roomId ? (
-                <span className={`osd-room ${syncplay.state.connected ? "on" : ""}`}>
-                  {syncplay.state.connected ? t("media.syncplay.connected", "Connected") : t("media.syncplay.join", "Join a room")}
-                </span>
-              ) : null}
-              {quality > 0 ? <span className="osd-badge">{quality}p</span> : null}
-            </span>
-          </div>
-          <div className="osd-panel">
-            <div className="osd-trickplay" style={{ left: `calc(4rem + 7rem + 1.6rem + (100% - 8rem - 14rem - 3.2rem) * ${pct / 100})` }}>
-              <TrickplayTile mediaId={mediaId} previewTimeSec={preview} warm={barVisible} />
-            </div>
-            <div className="osd-controls">
-              <div className="osd-group">
-                {control("rewind", t("player.controls.rewind", { seconds: skipBack }), `-${skipBack}s`)}
-                {control("play", paused ? t("player.controls.play") : t("player.controls.pause"), <Icon name={paused ? "play" : "pause"} size={40} />, "primary")}
-                {control("forward", t("player.controls.forward", { seconds: skipFwd }), `+${skipFwd}s`)}
-              </div>
-              <div className="osd-group">
-                {endsAt ? <span className="osd-ends">{t("player.controls.endsAt", { time: endsAt, defaultValue: `Ends at ${endsAt}` })}</span> : null}
-                {control("speed", t("player.settings.speed", "Speed"), `${speed}x`, "small")}
-                {control("settings", t("player.controls.more", "More"), <Icon name="settings" size={26} />, "small")}
-              </div>
-            </div>
-            <div className="osd-timeline">
-              <span className="osd-time">{formatTime(shown)}</span>
-              {pendingDelta !== 0 ? <span className="osd-delta">{pendingDelta > 0 ? "+" : "-"}{formatTime(Math.abs(pendingDelta))}</span> : null}
-              <div className={`osd-track-hit ${barFocus === "timeline" ? "focused" : ""}`}>
-                <div className="osd-track">
-                  <div className="osd-fill" style={{ width: `${pct}%` }} />
-                  {duration > 0 && (chapters ?? []).map((c, i) => {
-                    const p = (c.startTimeMs / 1000 / duration) * 100;
-                    return p > 0 && p < 100 ? <i key={i} className="osd-notch" style={{ left: `${p}%` }} /> : null;
-                  })}
-                </div>
-                {barFocus === "timeline" ? <span className="osd-knob" style={{ left: `${pct}%` }} /> : null}
-              </div>
-              <span className="osd-time">{formatTime(duration)}</span>
-            </div>
-          </div>
-        </div>
+        <PlayerOsd
+          mediaId={mediaId}
+          title={media ? playerTitle(media, media.seriesTitle) : ""}
+          roomId={roomId}
+          syncConnected={syncplay.state.connected}
+          quality={quality}
+          shown={shown}
+          duration={duration}
+          preview={preview}
+          pendingDelta={pendingDelta}
+          endsAt={endsAt}
+          paused={paused}
+          speed={speed}
+          skipBack={skipBack}
+          skipFwd={skipFwd}
+          chapters={chapters}
+          barFocus={barFocus}
+          onPress={(key) => { setBarFocus(key); pressBar.current(key); }}
+        />
       ) : null}
       {!panel && !streamInfoOpen ? (
         <SkipSegmentButton
@@ -842,27 +800,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
           onNextEpisode={nextEp.nextEpisode ? nextEp.playNow : undefined}
         />
       ) : null}
-      {nextEp.visible && nextEp.nextEpisode ? (
-        <FocusRoot className="nextep-card">
-          <div className="nextep-heading">
-            {nextEp.ended
-              ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(nextEp.countdown, 0) })
-              : t("player.nextEpisodeOverlay.upNext", "Up next")}
-          </div>
-          <div className="nextep-title">
-            {[
-              nextEp.nextEpisode.indexNumber != null
-                ? t("player.nextEpisodeOverlay.episode", { number: nextEp.nextEpisode.indexNumber })
-                : t("player.nextEpisodeOverlay.nextEpisode", "Next episode"),
-              nextEp.nextEpisode.title,
-            ].filter(Boolean).join(" - ")}
-          </div>
-          <div className="nextep-actions">
-            <Pressable className="tv-card nextep-btn primary" focusKey="nextep:play" autoFocus onPress={nextEp.playNow}>{t("player.nextEpisodeOverlay.playNow", "Play now")}</Pressable>
-            <Pressable className="tv-card nextep-btn" focusKey="nextep:cancel" onPress={nextEp.cancel}>{t("common.cancel", "Cancel")}</Pressable>
-          </div>
-        </FocusRoot>
-      ) : null}
+      {nextEp.visible ? <NextEpisodeCard nextEp={nextEp} /> : null}
       {panel ? <SettingsPanel sections={sections} onClose={() => { setPanel(false); showOsd(); }} /> : null}
       {streamInfoOpen ? (
         <StreamInfoPanel streamInfo={streamInfo} served={servedVariant(streamInfo, playingVariant, ladderBitrates)} audioStreamIndex={selectedAudio} onClose={() => { setStreamInfoOpen(false); showOsd(); }} />
