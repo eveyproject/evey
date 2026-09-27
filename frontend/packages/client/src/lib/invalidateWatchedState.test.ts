@@ -33,6 +33,15 @@ describe("invalidateWatchedState", () => {
     expect(matches("/api/v1/libraries")).toBe(false);
   });
 
+  // The Continue Watching row of all four homes reads /api/v1/playback/resume,
+  // not a /feeds/ key: a title finished in the player stayed in it for the
+  // cache's lifetime, longer on a television whose home tab never unmounts.
+  it("invalidates the Continue Watching row", () => {
+    const { qc, calls } = fakeQC();
+    invalidateWatchedState(qc, "mi-1");
+    expect(predicateFor(calls)("/api/v1/playback/resume")).toBe(true);
+  });
+
   it("invalidates the item + its progress when a mediaId is given", () => {
     const { qc, spy } = fakeQC();
     invalidateWatchedState(qc, "mi-1");
