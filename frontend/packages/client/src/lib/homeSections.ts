@@ -42,6 +42,17 @@ export function resolveMaxItems(configured: number | undefined, fallback: number
   return configured && configured > 0 ? configured : fallback;
 }
 
+/** Plugins the config places, enabled or not. A plugin outside this set is new
+ * and renders at the top; a disabled one must stay hidden, not come back there. */
+export function placedPluginIds(configs: readonly FeedConfigEntry[]): Set<string> {
+  return new Set(
+    configs
+      .map((c) => c.feedType ?? "")
+      .filter((ft) => ft.startsWith("plugin:"))
+      .map((ft) => ft.slice("plugin:".length)),
+  );
+}
+
 /**
  * The ordered row plan for the home screen.
  *

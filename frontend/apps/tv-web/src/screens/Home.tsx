@@ -23,6 +23,7 @@ import {
   buildHomeSections,
   homeWidgetBudget,
   mediaTypeLabelKey,
+  placedPluginIds,
   progressPercent,
   resolveMaxItems,
   useCollections,
@@ -255,10 +256,7 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
     () => (popular.data ?? []).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem),
     [popular.data],
   );
-  const placedPluginIds = useMemo(
-    () => new Set(sections.filter((s) => s.kind === "plugin").map((s) => (s as Extract<HomeSection, { kind: "plugin" }>).pluginId)),
-    [sections],
-  );
+  const placedPlugins = useMemo(() => placedPluginIds(feedConfigData?.configs ?? []), [feedConfigData]);
 
   type LibraryData = { items?: V1MediaItem[]; albums?: Record<string, unknown>[] } | undefined;
   const libraryData = (section: Extract<HomeSection, { kind: "library" }>): LibraryData =>
@@ -393,7 +391,7 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
 
   return (
     <FocusRoot autoFocus className="home-screen">
-      <div className="home-plugin"><PluginSlot name="home.section" excludeRegistered={placedPluginIds} /></div>
+      <div className="home-plugin"><PluginSlot name="home.section" excludeRegistered={placedPlugins} /></div>
       {sections.map(renderSection)}
       {isAllEmpty ? (
         <FocusRoot className="home-empty">

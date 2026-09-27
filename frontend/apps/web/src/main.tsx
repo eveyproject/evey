@@ -9,6 +9,7 @@ import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
 import { setupOnlineManager } from "@/lib/online-manager";
 import { mutationErrorNet } from "@/lib/mutationErrorNet";
+import { onDocumentVisible, refreshHomeLayoutOnForeground } from "@evey/client";
 import { shouldRetryQuery } from "@/lib/queryRetry";
 import { ThemeLoader } from "@/features/themes/ThemeLoader";
 import "./i18n";
@@ -200,6 +201,9 @@ const queryClient = queryClientRef = new QueryClient({
     },
   },
 });
+
+// The home layout changed from another device shows as soon as this tab is looked at again.
+refreshHomeLayoutOnForeground(queryClient, onDocumentVisible);
 
 // Fallback shown when a route render throws. Keeps the rest of the app
 // functional and gives the user an escape hatch (reload) instead of a blank

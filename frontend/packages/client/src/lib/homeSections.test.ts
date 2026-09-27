@@ -1,7 +1,21 @@
 import { describe, it, expect } from "vitest";
 import type { V1Library } from "@evey/api";
-import { buildHomeSections, resolveMaxItems, FEED_TYPES } from "./homeSections";
+import { buildHomeSections, placedPluginIds, resolveMaxItems, FEED_TYPES } from "./homeSections";
 import { MAX_HOME_LIBRARY_ROWS } from "./homeLibraryRows";
+
+describe("placedPluginIds", () => {
+  // A plugin the viewer switched OFF is placed too: the TV used to count only
+  // the enabled ones, so a hidden widget came back at the top of its home
+  // while web and mobile kept it hidden.
+  it("counts a disabled plugin row as placed", () => {
+    const ids = placedPluginIds([
+      { feedType: "plugin:plg-on", enabled: true },
+      { feedType: "plugin:plg-off", enabled: false },
+      { feedType: "recommended", enabled: true },
+    ]);
+    expect([...ids].sort()).toEqual(["plg-off", "plg-on"]);
+  });
+});
 
 const movies: V1Library = { id: "lib-mov", name: "Movies", type: "LIBRARY_TYPE_MOVIES" };
 const shows: V1Library = { id: "lib-tv", name: "Shows", type: "LIBRARY_TYPE_SHOWS" };
