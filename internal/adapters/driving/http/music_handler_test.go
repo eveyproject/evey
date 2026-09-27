@@ -192,6 +192,42 @@ func TestStreamTrack_AccessDenied_403(t *testing.T) {
 	}
 }
 
+// Every music route that serves bytes consults the library gate and refuses a
+// library the viewer cannot access. Asserting on the code alone proved nothing:
+// the fixture path does not exist, so the file lookup 404s the same way and
+// neutralising the gate left the package green (sabotage sweep, 2026-09-28).
+// The checker records that it was asked.
+func TestMusicRoutes_LibraryAccessDenied_GateConsulted(t *testing.T) {
+	for _, path := range []string{
+		"/api/v1/music/tracks/t1/art",
+		"/api/v1/music/tracks/t1/stream",
+		"/api/v1/music/tracks/t1/download",
+		"/api/v1/music/albums/download?libraryId=lib-A&album=Some+Album",
+	} {
+		t.Run(path, func(t *testing.T) {
+			repo := musicfakes.NewFakeMusicTrackRepository()
+			file := writeTempFile(t, t.TempDir(), "t1.mp3", []byte("ID3-fake-audio"))
+			if _, err := repo.Upsert(context.Background(), domainmusic.Track{
+				ID: "t1", LibraryID: shared.LibraryID("lib-A"), Title: "Some Track", Album: "Some Album", FilePath: file,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			checker := denyAll()
+			mux, token, _ := newMusicMux(t, false, checker, repo, nil)
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if !checker.called.Load() {
+				t.Fatalf("the library gate was never consulted (status %d)", w.Code)
+			}
+			if w.Code != http.StatusNotFound {
+				t.Errorf("expected 404, got %d", w.Code)
+			}
+		})
+	}
+}
+
 func TestStreamTrack_Success(t *testing.T) {
 	dir := t.TempDir()
 	body := []byte("ID3\x04\x00\x00\x00\x00\x00\x00fake-audio-content")
