@@ -61,7 +61,7 @@ func TestCorrelateEnvelopes_SameFilmAgreesAtZero(t *testing.T) {
 }
 
 // A track moved by a known amount is found at that amount, with the sign that
-// says which way. This is the a prod title shape: 12 s of displacement.
+// says which way. This is the dubbed-film shape: 12 s of displacement.
 func TestCorrelateEnvelopes_FindsAKnownDisplacement(t *testing.T) {
 	a := filmEnvelope(4000, 7)
 	step := float64(coherenceWindowSec) / 4000
@@ -123,7 +123,7 @@ func TestCorrelateEnvelopes_StepIsDerivedFromTheData(t *testing.T) {
 	// coherenceEnvelopeStep.
 	const n = 7500
 	a := filmEnvelope(n, 21)
-	const d = 373 // frames, the a prod title displacement (373 x 32 ms = 11.936 s)
+	const d = 373 // frames, the dubbed-film displacement (373 x 32 ms = 11.936 s)
 	b := shift(a, d)
 	lag, _, ok := correlateEnvelopes(a, b)
 	if !ok {

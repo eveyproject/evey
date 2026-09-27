@@ -73,10 +73,10 @@ func TestRefreshMetadata_PreferredTMDB_ReenrichesFromStoredID(t *testing.T) {
 	h, provider, mediaRepo := newRefreshMetadataHandler()
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
-		ID: "mi-1", Type: library.MovieItem, Title: "a prod title",
-		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "9772"}},
+		ID: "mi-1", Type: library.MovieItem, Title: "Some Movie",
+		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "900772"}},
 	}))
-	provider.ByProviderID["9772"] = &domainmetadata.MetadataResult{Title: "a prod title"}
+	provider.ByProviderID["900772"] = &domainmetadata.MetadataResult{Title: "Some Movie"}
 
 	stream := newRefreshStream(ctx)
 	err := h.RefreshMetadata(&eveyv1.RefreshMetadataRequest{
@@ -95,10 +95,10 @@ func TestRefreshMetadata_PreferredIMDB_UsesStoredIMDBID(t *testing.T) {
 	h, provider, mediaRepo := newRefreshMetadataHandler()
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
-		ID: "mi-2", Type: library.MovieItem, Title: "a prod title",
-		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"imdb": "tt0118571"}},
+		ID: "mi-2", Type: library.MovieItem, Title: "Some Movie",
+		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"imdb": "tt9000571"}},
 	}))
-	provider.ByProviderID["tt0118571"] = &domainmetadata.MetadataResult{Title: "a prod title"}
+	provider.ByProviderID["tt9000571"] = &domainmetadata.MetadataResult{Title: "Some Movie"}
 
 	stream := newRefreshStream(ctx)
 	err := h.RefreshMetadata(&eveyv1.RefreshMetadataRequest{

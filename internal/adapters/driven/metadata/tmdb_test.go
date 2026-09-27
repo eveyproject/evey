@@ -390,7 +390,7 @@ func TestSearch_YearFallbackWithoutYear(t *testing.T) {
 // round-trip per row - an empty Artwork left every candidate coverless.
 // w500 like the collection mapper: these are grid thumbnails, not hero art.
 func TestMapSearchResult_PosterArtwork(t *testing.T) {
-	r := mapSearchResult(tmdbSearchItem{ID: 603, Title: "Matrix", PosterPath: "/abc.jpg"}, "movie", movieGenres)
+	r := mapSearchResult(tmdbSearchItem{ID: 603, Title: "Some Movie", PosterPath: "/abc.jpg"}, "movie", movieGenres)
 	require.Len(t, r.Artwork, 1)
 	assert.Equal(t, "poster", r.Artwork[0].Type)
 	assert.Equal(t, "https://image.tmdb.org/t/p/w500/abc.jpg", r.Artwork[0].URL)

@@ -513,7 +513,7 @@ func TestSeekIndexService_PictureMissing_IsManualWithoutARebuild(t *testing.T) {
 }
 
 // A declared audio start offset is a FACT about the file, never a defect to
-// rewrite. a prod title (prod 2026-07-13) carried a deliberate 12.000 s
+// rewrite. A dubbed film (prod 2026-07-13) carried a deliberate 12.000 s
 // alignment for its French dub; "repair all" retimed it to zero, the dub then
 // played 12 s early in every player, and no backup existed. These two tests are
 // that incident, frozen: the verdict must not be repairable, and the bulk job
@@ -523,7 +523,7 @@ func TestSeekIndexService_AudioOffsetIsNeverRepaired(t *testing.T) {
 	dub := filepath.Join(dir, "deliberate_dub_offset.mkv")
 	require.NoError(t, os.WriteFile(dub, []byte("x"), 0o644))
 	reidx := &fakeReindexer{hasIndex: map[string]bool{dub: true}}
-	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m-dub", Title: "a prod title", Path: dub}}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m-dub", Title: "Some Movie", Path: dub}}}
 	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
 		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
 			// 12 seconds: exactly the alignment the repair destroyed.

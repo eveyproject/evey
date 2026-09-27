@@ -39,7 +39,7 @@ describe("clientSubtitleTrack", () => {
 });
 
 describe("burnInSubtitleIndex", () => {
-  // The a 4K remux 4K remux of the 2026-09-08 incident: a PGS track the
+  // The 4K remux of the 2026-09-08 incident: a PGS track the
   // file flags default, auto-selected by pickDefaultSubtitle without ever
   // restarting the session for it. The stream is direct-playing with nothing
   // burnt in, so a restart for an unrelated reason must not send the index -

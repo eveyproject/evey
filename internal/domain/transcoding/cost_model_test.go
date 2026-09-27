@@ -18,7 +18,7 @@ func TestCostModelV2_Predict(t *testing.T) {
 	require.True(t, ok)
 	assert.InDelta(t, 1.0, c.Confidence, 1e-9)
 	assert.InDelta(t, 3550, float64(m.RungKbps(c, 1920, 1080, 23.976, 23)), 150, "the fit on all titles at the reference point")
-	// a remux: YDIF 1.46, measured 886; the model over-predicts it (its worst case, x1.9).
+	// The 4K film: YDIF 1.46, measured 886; the model over-predicts it (its worst case, x1.9).
 	v, _ := m.Predict(ComplexityMetrics{MotionMean: 1.46, FramesSampled: 192, MetricVersion: CanonicalMetricVersion})
 	assert.InDelta(t, 1340, float64(m.RungKbps(v, 1920, 1080, 23.976, 23)), 60)
 

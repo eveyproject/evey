@@ -92,8 +92,8 @@ func TestMetadataSearchMetadata(t *testing.T) {
 	year := 2020
 	rating := 8.5
 	provider.SearchResults["batman"] = []metadata.MetadataResult{
-		{Title: "Batman Begins", Year: &year, CommunityRating: &rating, Genres: []string{"Action"}},
-		{Title: "The Batman", Year: &year},
+		{Title: "Some Movie Begins", Year: &year, CommunityRating: &rating, Genres: []string{"Action"}},
+		{Title: "The Some Movie", Year: &year},
 	}
 
 	resp, err := h.SearchMetadata(context.Background(), &eveyv1.SearchMetadataRequest{
@@ -107,8 +107,8 @@ func TestMetadataSearchMetadata(t *testing.T) {
 	if len(resp.Results) != 2 {
 		t.Fatalf("expected 2 results, got %d", len(resp.Results))
 	}
-	if resp.Results[0].Title != "Batman Begins" {
-		t.Errorf("expected title 'Batman Begins', got %q", resp.Results[0].Title)
+	if resp.Results[0].Title != "Some Movie Begins" {
+		t.Errorf("expected title 'Some Movie Begins', got %q", resp.Results[0].Title)
 	}
 	if resp.Results[0].Rating != 8.5 {
 		t.Errorf("expected rating 8.5, got %f", resp.Results[0].Rating)

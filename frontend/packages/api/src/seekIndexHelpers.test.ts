@@ -89,7 +89,7 @@ describe("verdictOf", () => {
     expect(verdictOf({ hasIndex: true, unreadable: true })).toBe("informational");
     expect(verdictOf({ hasIndex: true, damagedBytes: "512" })).toBe("repairable");
     // An offset alone is a fact about the file, never a repair: rewriting one
-    // erased a deliberate 12s dub alignment in prod (a prod title).
+    // erased a deliberate 12s dub alignment in prod.
     expect(verdictOf({ hasIndex: true, audioDelaySec: 0.9 })).toBe("informational");
     // Tracks measured to disagree are worth saying, and still nothing more.
     expect(

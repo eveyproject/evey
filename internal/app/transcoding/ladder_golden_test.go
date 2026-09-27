@@ -254,7 +254,7 @@ func TestLadderGolden(t *testing.T) {
 	// Titles with persisted metrics: the cost model prices the CPU route (the
 	// GPU keeps the table until the codec efficiency model exists). Three
 	// motion levels, two hosts, three sources, three clients.
-	motions := []float64{1.46, 4.05, 8.46} // a remux, Avatar, another title
+	motions := []float64{1.46, 4.05, 8.46} // three measured films, calm to busy
 	for _, ydif := range motions {
 		repo := goldenComplexity{class: transcoding.ClassFilmNormal, metrics: transcoding.ComplexityMetrics{MotionMean: ydif, FramesSampled: 192, MetricVersion: transcoding.CanonicalMetricVersion}}
 		hosts := []goldenHost{
