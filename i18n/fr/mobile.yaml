@@ -68,3 +68,6 @@ music:
   previousTrack: Piste precedente
   nextTrack: Piste suivante
   closePlayer: Fermer le lecteur
+appUpdate:
+  available: "Mise à jour disponible : {{version}}"
+  openStore: "Mettre à jour Evey en {{version}} sur le Play Store"

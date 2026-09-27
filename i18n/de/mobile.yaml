@@ -68,3 +68,6 @@ music:
   previousTrack: "Vorheriger Titel"
   nextTrack: "Nachster Titel"
   closePlayer: "Player schliessen"
+appUpdate:
+  available: "Update verfügbar: {{version}}"
+  openStore: "Evey im Play Store auf {{version}} aktualisieren"
