@@ -2,7 +2,6 @@ package library
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -27,6 +26,6 @@ func TestRunPipeline_PHashIntroPassIsOffByDefault(t *testing.T) {
 		_, err := svc.runPipeline(context.Background(), item, nil)
 		return err
 	}
-	require.False(t, errors.Is(run(""), errTrickplayPending), "off by default: no wait for sprites")
+	require.NotErrorIs(t, run(""), errTrickplayPending, "off by default: no wait for sprites")
 	require.ErrorIs(t, run(`{"phash_intro_enabled":true}`), errTrickplayPending, "on: the pHash pass needs the sprites")
 }
