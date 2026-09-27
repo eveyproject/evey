@@ -296,7 +296,7 @@ func (r *MediaSegmentRepository) ListSeasonsPendingIntroDetection(ctx context.Co
 		SELECT DISTINCT mi.parent_id
 		FROM `+introFromSQL+`
 		WHERE `+introEligibleSQL+`
-		  AND `+introPendingSQL+`
+		  AND `+introPendingSQL("$8")+`
 		  AND NOT (mi.parent_id = ANY($6))
 		ORDER BY mi.parent_id
 		LIMIT $7
@@ -306,6 +306,7 @@ func (r *MediaSegmentRepository) ListSeasonsPendingIntroDetection(ctx context.Co
 		library.MinCoveringIntroMs,
 		algoVersion, maxAttempts,
 		pq.Array(exclude), limit,
+		pq.Array(library.IntroVersionedSources()),
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -405,6 +406,44 @@ func (r *MediaSegmentRepository) IntroDetectionExhaustedBatch(ctx context.Contex
 		return nil, err
 	}
 	return result, nil
+}
+
+// IntroDetectionAttemptVersions returns each attempted item's last algorithm version.
+func (r *MediaSegmentRepository) IntroDetectionAttemptVersions(ctx context.Context, mediaItemIDs []string) (map[string]int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.IntroDetectionAttemptVersions")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if len(mediaItemIDs) == 0 {
+		return map[string]int{}, nil
+	}
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
+		SELECT media_item_id, algo_version FROM intro_detection_attempts
+		WHERE media_item_id = ANY($1)`, pq.Array(mediaItemIDs))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[string]int, len(mediaItemIDs))
+	for rows.Next() {
+		var id string
+		var v int
+		if err := rows.Scan(&id, &v); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		out[id] = v
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return out, nil
 }
 
 var _ library.MediaSegmentRepository = (*MediaSegmentRepository)(nil)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -183,7 +184,10 @@ const currentAudioAlgoVersion int16 = 1
 // v5: late title sequences become visible - fingerprint window 480s→720s,
 // MaxIntroStartMs 240s→660s (gold-refuted cap), cluster hints capped too.
 // Episodes parked at v4 with no detectable intro (long cold opens) re-enter.
-const introDetectionAlgoVersion = 5
+// v6: real chromaprint rate, cluster window served as found and widened by audio
+// and pictures, ambiguous signatures vetoed by pictures. audio_cluster and phash
+// intros from v5 and older are re-detected once (IntroVersionedSources).
+const introDetectionAlgoVersion = 6
 
 // maxIntroDetectionAttempts bounds the backfill's re-decodes of an episode that
 // keeps yielding no usable intro at the same algo version (one retry for the
@@ -890,6 +894,16 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			slog.WarnContext(ctx, "intro detection: batch get existing segments", slog.String("parent_id", parentID), slog.Any("err", batchErr))
 			existingByID = nil
 		}
+		pageIDStrs := make([]string, len(pageIDs))
+		for i, id := range pageIDs {
+			pageIDStrs[i] = string(id)
+		}
+		// A detector-made intro only settles at the version that made it. On a read
+		// error the versions are unknown and those episodes are re-detected.
+		attemptVersions, verErr := s.segmentRepo.IntroDetectionAttemptVersions(ctx, pageIDStrs)
+		if verErr != nil {
+			slog.WarnContext(ctx, "intro detection: batch attempt versions", slog.String("parent_id", parentID), slog.Any("err", verErr))
+		}
 		// Pass 1: filter the page down to candidates needing detection (not
 		// manual-locked, no good intro yet already covered above).
 		var candidates []*domainlibrary.MediaItem
@@ -905,7 +919,8 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			// coverage (community DBs, last-resort heuristics, sub-5s stubs).
 			settled := false
 			for _, sg := range existing {
-				if sg.Type == "intro" && domainlibrary.IntroDetectionSettled(sg.Source, sg.EndMs-sg.StartMs) {
+				if sg.Type == "intro" && domainlibrary.IntroDetectionSettled(sg.Source, sg.EndMs-sg.StartMs,
+					attemptVersions[string(ep.ID)] == introDetectionAlgoVersion) {
 					settled = true
 					break
 				}
@@ -1098,6 +1113,40 @@ func (s *IntroDetectionService) DetectIntroDryRun(ctx context.Context, mediaItem
 	return out, nil
 }
 
+// hasServableIntro reports whether segments hold an intro that will be stored: the
+// persist loop drops a heuristic intro under minHeuristicIntroMs.
+func hasServableIntro(segments []domainlibrary.MediaSegment) bool {
+	for _, seg := range segments {
+		if seg.Type == "intro" && !(isHeuristicSegmentSource(seg.Source) && seg.EndMs-seg.StartMs < minHeuristicIntroMs) {
+			return true
+		}
+	}
+	return false
+}
+
+// dropStaleDetectorIntro deletes the episode's stored intro when a detector made it
+// (IntroVersionedSources). Chapters, operator marks and community rows are left alone.
+func (s *IntroDetectionService) dropStaleDetectorIntro(ctx context.Context, mediaItemID string) {
+	existing, err := s.segmentRepo.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
+	if err != nil {
+		slog.WarnContext(ctx, "intro_detection: read stored intro", slog.String("media_id", mediaItemID), slog.Any("err", err))
+		return
+	}
+	for _, sg := range existing {
+		if sg.Type != "intro" || !slices.Contains(domainlibrary.IntroVersionedSources(), sg.Source) {
+			continue
+		}
+		if err := s.segmentRepo.DeleteByMediaItemIDAndType(ctx, shared.MediaItemID(mediaItemID), "intro"); err != nil {
+			slog.WarnContext(ctx, "intro_detection: drop stale detector intro", slog.String("media_id", mediaItemID), slog.Any("err", err))
+			return
+		}
+		slog.InfoContext(ctx, "intro_detection: stale detector intro dropped, this version finds none",
+			slog.String("media_id", mediaItemID), slog.String("source", sg.Source),
+			slog.Int64("start_ms", sg.StartMs), slog.Int64("end_ms", sg.EndMs))
+		return
+	}
+}
+
 // introDryRunKey marks a context as an admin dry-run: foreground work that is
 // not the sweep, so the sweep's Stop control must not reach it.
 type introDryRunKey struct{}
@@ -1155,16 +1204,22 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 		segments = append(segments, *seg)
 	}
 
-	if len(segments) == 0 {
-		slog.InfoContext(ctx, "intro_detection: no segments found", slog.String("media_id", mediaItemID))
-		return nil
-	}
-
 	// Persist on a context detached from the detection budget: a slow scan
 	// exhausting the allowance must not void the results found before it - the
 	// write costs milliseconds where re-detection costs another full decode.
 	persistCtx, cancelPersist := context.WithTimeout(context.WithoutCancel(ctx), introPersistBudget)
 	defer cancelPersist()
+
+	// A detector intro an older version stored and this version no longer finds (a
+	// recurring cue the picture check now vetoes) must not stay served.
+	if !hasServableIntro(segments) {
+		s.dropStaleDetectorIntro(persistCtx, mediaItemID)
+	}
+
+	if len(segments) == 0 {
+		slog.InfoContext(ctx, "intro_detection: no segments found", slog.String("media_id", mediaItemID))
+		return nil
+	}
 	for _, seg := range segments {
 		// Heuristic-floor guard: a sub-5s intro from a heuristic source is almost
 		// always a degenerate result - the silence pass locking onto the

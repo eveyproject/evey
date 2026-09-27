@@ -191,6 +191,10 @@ type MediaSegmentRepository interface {
 	// Batched so a season sweep issues one query per page instead of one per
 	// candidate episode.
 	IntroDetectionExhaustedBatch(ctx context.Context, mediaItemIDs []string, algoVersion, maxAttempts int) (map[string]bool, error)
+	// IntroDetectionAttemptVersions returns the algorithm version of each item's last
+	// detection attempt; an item never attempted is absent. It tells a detector-made
+	// intro from the current version apart from one an older version left behind.
+	IntroDetectionAttemptVersions(ctx context.Context, mediaItemIDs []string) (map[string]int, error)
 }
 
 // PersonQueryRepo is the read-only subset of PersonRepository for query
