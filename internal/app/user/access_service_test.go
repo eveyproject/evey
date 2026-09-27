@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	ufakes "github.com/evey-project/evey/internal/domain/user/fakes"
@@ -143,6 +145,59 @@ func TestRegisterWithInvite_AppliesTheInviteProfileCap(t *testing.T) {
 	if free.MaxProfiles != nil {
 		t.Fatalf("an invite without a cap must not set one, got %d", *free.MaxProfiles)
 	}
+}
+
+// An invite scoped to some libraries restricts the account it creates to
+// exactly those; an admin invite grants nothing (admins see every library),
+// and a grant that fails refuses the registration - an account left without
+// grants would see every library instead of the few it was invited to.
+func TestRegisterWithInvite_LibraryScope(t *testing.T) {
+	ctx := context.Background()
+	scoped := []shared.LibraryID{"lib-a", "lib-b"}
+
+	t.Run("member gets exactly the invited libraries", func(t *testing.T) {
+		d := newAccessTestDeps()
+		access := ufakes.NewFakeLibraryAccessRepository()
+		d.svc = NewAccessService(d.users, d.apiKeys, d.invites, d.quickConnect, d.hasher, d.events, WithLibraryAccess(access))
+		_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv-s", Token: "scoped", MaxUses: 1, LibraryIDs: scoped})
+
+		u, err := d.svc.RegisterWithInvite(ctx, "scoped", "erin", "longpassword", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, _ := access.GetByUserID(ctx, u.ID)
+		slices.Sort(got)
+		if !slices.Equal(got, scoped) {
+			t.Fatalf("grants = %v, want %v", got, scoped)
+		}
+	})
+
+	t.Run("admin invite grants nothing", func(t *testing.T) {
+		d := newAccessTestDeps()
+		access := ufakes.NewFakeLibraryAccessRepository()
+		d.svc = NewAccessService(d.users, d.apiKeys, d.invites, d.quickConnect, d.hasher, d.events, WithLibraryAccess(access))
+		_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv-a", Token: "admin", MaxUses: 1, IsAdmin: true, LibraryIDs: scoped})
+
+		u, err := d.svc.RegisterWithInvite(ctx, "admin", "frank", "longpassword", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := access.GetByUserID(ctx, u.ID); len(got) != 0 {
+			t.Fatalf("admin got grants %v, want none", got)
+		}
+	})
+
+	t.Run("a failed grant refuses the registration", func(t *testing.T) {
+		d := newAccessTestDeps()
+		access := ufakes.NewFakeLibraryAccessRepository()
+		access.Err = errors.New("db down")
+		d.svc = NewAccessService(d.users, d.apiKeys, d.invites, d.quickConnect, d.hasher, d.events, WithLibraryAccess(access))
+		_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv-f", Token: "fail", MaxUses: 1, LibraryIDs: scoped})
+
+		if _, err := d.svc.RegisterWithInvite(ctx, "fail", "gina", "longpassword", ""); err == nil {
+			t.Fatal("registration succeeded without its library grants")
+		}
+	})
 }
 
 func TestRegisterWithInvite_ShortPassword(t *testing.T) {
