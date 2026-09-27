@@ -66,15 +66,21 @@ func trickplayPendingSQL(version string) string {
 
 // introPendingSQL: no covering intro yet, and attempts left at this
 // algorithm version. $1..$5 are the locked sources, the covering sources, the
-// minimum covering length, the algorithm version and the attempt cap.
-const introPendingSQL = `(
+// minimum covering length, the algorithm version and the attempt cap; versioned
+// numbers the placeholder of the versioned sources, whose intro only covers when
+// the last attempt ran at $4 (IS NOT DISTINCT FROM: an episode never attempted has
+// a NULL version, which must read "not current", not an unknown that drops it).
+func introPendingSQL(versioned string) string {
+	return `(
 	        intro.id IS NULL
 	     OR NOT (
 	            intro.source = ANY($1)
-	         OR (intro.source = ANY($2) AND intro.end_ms - intro.start_ms >= $3)
+	         OR (intro.source = ANY($2) AND intro.end_ms - intro.start_ms >= $3
+	             AND (NOT intro.source = ANY(` + versioned + `) OR att.algo_version IS NOT DISTINCT FROM $4))
 	        )
 	      )
 	  AND (att.media_item_id IS NULL OR att.algo_version <> $4 OR att.attempts < $5)`
+}
 
 const introFromSQL = `media_items mi
 	LEFT JOIN media_segments intro
@@ -141,7 +147,7 @@ func (r *TrickplayRepository) TrickplayCoverage(ctx context.Context, minAlgoVers
 
 func (r *MediaSegmentRepository) IntroCoverage(ctx context.Context, algoVersion, maxAttempts int) (bgtasks.Coverage, error) {
 	return queryCoverage(ctx, r.db, "postgres.mediasegment.IntroCoverage", `
-		SELECT bool_or(`+introPendingSQL+`) AS pending,
+		SELECT bool_or(`+introPendingSQL("$6")+`) AS pending,
 		       COALESCE((SELECT MAX(duration_ms) FROM media_files WHERE media_item_id = mi.id), 0) AS dur
 		FROM `+introFromSQL+`
 		WHERE `+introEligibleSQL+`
@@ -149,5 +155,6 @@ func (r *MediaSegmentRepository) IntroCoverage(ctx context.Context, algoVersion,
 		pq.Array(library.IntroLockedSources()),
 		pq.Array(library.IntroCoveringSources()),
 		library.MinCoveringIntroMs,
-		algoVersion, maxAttempts)
+		algoVersion, maxAttempts,
+		pq.Array(library.IntroVersionedSources()))
 }

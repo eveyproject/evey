@@ -55,11 +55,28 @@ func TestMediaSegmentRepo_ListSeasonsPendingIntroDetection(t *testing.T) {
 		StartMs: 2_400_000, EndMs: 2_520_000, Source: "blackdetect", Confidence: 0.6,
 	}))
 
-	// A season with a real, file-derived intro: settled, must NOT come back.
+	// A season with a real, file-derived intro detected at the current version:
+	// settled, must NOT come back.
 	covered := newTestEpisode(t, itemRepo, ctx, "pending-covered", lib.ID, "season-covered")
 	require.NoError(t, segRepo.Upsert(ctx, &library.MediaSegment{
 		MediaItemID: covered.ID, Type: "intro",
 		StartMs: 30_000, EndMs: 90_000, Source: "audio_cluster", Confidence: 0.9,
+	}))
+	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, string(covered.ID), 5))
+
+	// An authored chapter intro: settled at any algorithm version.
+	chapter := newTestEpisode(t, itemRepo, ctx, "pending-chapter", lib.ID, "season-chapter")
+	require.NoError(t, segRepo.Upsert(ctx, &library.MediaSegment{
+		MediaItemID: chapter.ID, Type: "intro",
+		StartMs: 30_000, EndMs: 90_000, Source: "mkv_chapter", Confidence: 1.0,
+	}))
+
+	// A detector intro with NO attempt row (stored before attempts were recorded):
+	// its version is unknown, so it is re-detected once. NULL must read "not current".
+	legacy := newTestEpisode(t, itemRepo, ctx, "pending-legacy", lib.ID, "season-legacy")
+	require.NoError(t, segRepo.Upsert(ctx, &library.MediaSegment{
+		MediaItemID: legacy.ID, Type: "intro",
+		StartMs: 30_000, EndMs: 90_000, Source: "phash", Confidence: 0.9,
 	}))
 
 	// A season whose intro comes from a community DB: NOT settled - those
@@ -96,20 +113,23 @@ func TestMediaSegmentRepo_ListSeasonsPendingIntroDetection(t *testing.T) {
 	got, err := segRepo.ListSeasonsPendingIntroDetection(ctx, 5, 2, 100, nil)
 	require.NoError(t, err)
 	assert.ElementsMatch(t,
-		[]string{"season-credits-only", "season-tidb", "season-stub", "season-bare"},
+		[]string{"season-credits-only", "season-tidb", "season-stub", "season-bare", "season-legacy"},
 		got,
 		"the work list is 'intro still to do', not 'no segment at all'")
 	// One episode per season here: the per-episode count is the same list.
 	cov, err := segRepo.IntroCoverage(ctx, 5, 2)
 	require.NoError(t, err)
 	assertCoveragePending(t, cov, len(got))
-	assert.Equal(t, int64(7), cov.TotalItems)
+	assert.Equal(t, int64(9), cov.TotalItems)
 
 	// A bump of the algo version re-enables the parked season, exactly like
 	// IntroDetectionExhaustedBatch: one supported way to force a re-detection.
 	got, err = segRepo.ListSeasonsPendingIntroDetection(ctx, 6, 2, 100, nil)
 	require.NoError(t, err)
 	assert.Contains(t, got, "season-exhausted", "an algo bump re-enables a parked season")
+	assert.Contains(t, got, "season-covered", "an algo bump re-detects a detector-made intro once")
+	assert.NotContains(t, got, "season-chapter", "an authored chapter survives the bump")
+	assert.NotContains(t, got, "season-manual", "an operator mark survives the bump")
 	cov, err = segRepo.IntroCoverage(ctx, 6, 2)
 	require.NoError(t, err)
 	assertCoveragePending(t, cov, len(got))
@@ -117,7 +137,7 @@ func TestMediaSegmentRepo_ListSeasonsPendingIntroDetection(t *testing.T) {
 	// exclude is the in-run skip set: a season already swept this cycle must
 	// not be handed back by the next batch, or the drain loop spins on it.
 	got, err = segRepo.ListSeasonsPendingIntroDetection(ctx, 5, 2, 100,
-		[]string{"season-credits-only", "season-tidb", "season-stub"})
+		[]string{"season-credits-only", "season-tidb", "season-stub", "season-legacy"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"season-bare"}, got)
 
@@ -126,4 +146,23 @@ func TestMediaSegmentRepo_ListSeasonsPendingIntroDetection(t *testing.T) {
 	got, err = segRepo.ListSeasonsPendingIntroDetection(ctx, 5, 2, 2, nil)
 	require.NoError(t, err)
 	assert.Len(t, got, 2, "the batch must honour its own limit")
+}
+
+func TestMediaSegmentRepo_IntroDetectionAttemptVersions(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	segRepo := postgres.NewMediaSegmentRepository(db)
+	ctx := context.Background()
+	lib := newTestLibrary("attemptverlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	a := newTestEpisode(t, itemRepo, ctx, "attv-a", lib.ID, "attv-season-a")
+	newTestEpisode(t, itemRepo, ctx, "attv-b", lib.ID, "attv-season-b")
+	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, string(a.ID), 5))
+	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, string(a.ID), 6))
+
+	got, err := segRepo.IntroDetectionAttemptVersions(ctx, []string{"attv-a", "attv-b"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int{"attv-a": 6}, got, "the LAST version; never-attempted items are absent")
 }

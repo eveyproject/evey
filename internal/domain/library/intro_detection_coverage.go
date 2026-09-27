@@ -38,6 +38,12 @@ func IntroLockedSources() []string { return []string{"manual", "manual_propagate
 // so a file-derived detection can replace what they carry.
 func IntroCoveringSources() []string { return []string{"mkv_chapter", "audio_cluster", "phash"} }
 
+// IntroVersionedSources are the covering sources a DETECTOR computed: their answer
+// changes with the detection algorithm, so they only settle an episode when its last
+// detection attempt ran at the current algorithm version. A bump re-detects them once.
+// An mkv chapter was written by a muxer, not guessed: it stays settled across bumps.
+func IntroVersionedSources() []string { return []string{"audio_cluster", "phash"} }
+
 // IsCommunityIntroSource reports whether the segment came from a community
 // database rather than from this server's own analysis of this file. Community
 // timestamps describe SOMEONE ELSE'S copy (repack, edit, different cut), so
@@ -60,9 +66,15 @@ func IsCommunityIntroSource(source string) bool {
 //
 // An episode with NO intro row at all is never settled; callers handle that
 // case before reaching here.
-func IntroDetectionSettled(source string, spanMs int64) bool {
+//
+// detectedAtCurrentVersion reports whether the episode's last detection attempt ran at
+// the current algorithm version; it only matters for IntroVersionedSources.
+func IntroDetectionSettled(source string, spanMs int64, detectedAtCurrentVersion bool) bool {
 	if slices.Contains(IntroLockedSources(), source) {
 		return true
 	}
-	return slices.Contains(IntroCoveringSources(), source) && spanMs >= MinCoveringIntroMs
+	if !slices.Contains(IntroCoveringSources(), source) || spanMs < MinCoveringIntroMs {
+		return false
+	}
+	return detectedAtCurrentVersion || !slices.Contains(IntroVersionedSources(), source)
 }

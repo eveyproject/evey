@@ -607,7 +607,8 @@ func (r *fakeSegmentRepo) pendingSeasons(algoVersion, maxAttempts, limit int, ex
 			}
 			settled := false
 			for _, sg := range r.replay(ep) {
-				if sg.Type == "intro" && domainlibrary.IntroDetectionSettled(sg.Source, sg.EndMs-sg.StartMs) {
+				a, attempted := r.attempts[string(ep)]
+				if sg.Type == "intro" && domainlibrary.IntroDetectionSettled(sg.Source, sg.EndMs-sg.StartMs, attempted && a.version == algoVersion) {
 					settled = true
 					break
 				}
@@ -642,6 +643,20 @@ func (r *fakeSegmentRepo) RecordIntroDetectionAttempt(_ context.Context, mediaIt
 	}
 	r.attempts[mediaItemID] = a
 	return nil
+}
+
+// IntroDetectionAttemptVersions mirrors the postgres query: last version per
+// attempted item, absent otherwise.
+func (r *fakeSegmentRepo) IntroDetectionAttemptVersions(_ context.Context, mediaItemIDs []string) (map[string]int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make(map[string]int, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		if a, ok := r.attempts[id]; ok {
+			out[id] = a.version
+		}
+	}
+	return out, nil
 }
 
 // IntroDetectionExhaustedBatch mirrors the postgres batch query: one call
