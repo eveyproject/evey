@@ -117,7 +117,7 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, lib
         },
       );
     },
-    [selectedId, removeItem],
+    [selectedId, removeItem, t],
   );
 
   const handleDelete = useCallback(

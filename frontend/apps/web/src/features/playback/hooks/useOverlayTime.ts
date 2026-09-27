@@ -31,7 +31,7 @@ export function useOverlayTime({
     }
     video.addEventListener("timeupdate", onTime);
     return () => video.removeEventListener("timeupdate", onTime);
-  }, []);
+  }, [videoRef, transcodeOffsetRef, knownDurationSecRef]);
 
   return { overlayTime, overlayDuration };
 }

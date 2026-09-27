@@ -72,7 +72,7 @@ export function CastMediaButton({ mediaId, title, resumeMs, audioTrack, gate }: 
     } finally {
       setBusy(false);
     }
-  }, [connected, stopCast, gate, startCast, resolveCastUrl, title, t]);
+  }, [connected, stopCast, gate, startCast, resolveCastUrl, title, t, userId, profileId, mediaId, audioTrack]);
 
   // No Cast path in this browser (Firefox, Safari, iOS): no button. The
   // server-brokered fallback inside startCast only exists for browsers that

@@ -51,6 +51,7 @@ export default function Login() {
     if (canUseBiometric) {
       handleBiometricLogin();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prompt once when biometric becomes usable; the handler is rebuilt every render
   }, [canUseBiometric]);
 
   // Prefill from the keystore when the user opted into "remember me" - being

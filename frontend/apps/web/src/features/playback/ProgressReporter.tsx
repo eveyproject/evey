@@ -168,6 +168,9 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
 
     return () => {
       clearInterval(id);
+      // Live read on purpose: a sessionId/mediaId change must report the element as it is now.
+      // On full unmount it is already null (no final report); capturing it instead risks reporting an element hls.destroy reset to 0.
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
       const video = videoRef.current;
       const cast = castRef.current;
       if (cast?.active) {
@@ -186,6 +189,8 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
       if (!video) return;
       playbackServiceReportProgress({
         sessionId,
+        // A plain number box, not a DOM node: the latest offset is the one wanted.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
         positionMs: String(Math.floor(((transcodeOffsetRef?.current ?? 0) + video.currentTime) * 1000)),
         isPaused: video.paused,
         isMuted: video.muted,

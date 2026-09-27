@@ -1017,7 +1017,7 @@ export default function AdminPluginsScreen() {
       { text: t("common.cancel"), style: "cancel" },
       { text: t("admin.plugin.uninstall"), style: "destructive", onPress: () => uninstallPlugin.mutate({ id: plugin.id }) },
     ]);
-  }, [uninstallPlugin]);
+  }, [uninstallPlugin, t]);
 
   const closeInstallModal = useCallback(() => {
     setInstallOpen(false);

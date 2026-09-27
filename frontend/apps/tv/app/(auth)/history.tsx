@@ -82,7 +82,7 @@ export default function HistoryScreen() {
         isPending={unwatch.isPending}
       />
     ),
-    [theme, unwatch, router],
+    [theme, unwatch],
   );
 
   // "Empty" and "the server did not answer" are different sentences, and this

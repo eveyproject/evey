@@ -64,7 +64,7 @@ vi.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: MOVIE_ID }),
   router: { push: vi.fn(), back: vi.fn(), replace: vi.fn() },
   useFocusEffect: (cb: () => void | (() => void)) => {
-    React.useEffect(() => cb(), []);
+    React.useEffect(() => cb(), [cb]);
   },
 }));
 

@@ -72,7 +72,7 @@ vi.mock("expo-router", () => ({
   // No real navigator in this test - just run the focus callback on mount,
   // matching downloads-screen.test.tsx's mock of the same hook.
   useFocusEffect: (cb: () => void | (() => void)) => {
-    React.useEffect(() => cb(), []);
+    React.useEffect(() => cb(), [cb]);
   },
 }));
 

@@ -437,7 +437,7 @@ export default function MediaDetailScreen() {
         });
       }
     },
-    [t, activeProfile, media, confirmDeleteDownload],
+    [t, activeProfile, media, confirmDeleteDownload, children, selectedSeason],
   );
 
   // Stable prop for EpisodeRow. Passing an inline arrow here made the memo()

@@ -187,12 +187,14 @@ function SyncPlayPage() {
     const tok = useAuthStore.getState().accessToken;
     const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
     return `/api/v1/music/tracks/${currentTrack.id}/stream${tp}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only currentTrack.id is read, already tracked
   }, [currentTrack?.id]);
   const artUrl = useMemo(() => {
     if (!currentTrack) return "";
     const tok = useAuthStore.getState().accessToken;
     const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
     return `/api/v1/music/tracks/${currentTrack.id}/art${tp}${tp ? "&" : "?"}w=320`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only currentTrack.id is read, already tracked
   }, [currentTrack?.id]);
 
   async function handleCreateQueue(items: QueueItem[]) {

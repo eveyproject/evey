@@ -190,7 +190,7 @@ export default function NotificationsScreen() {
     } else if (n.mediaItemId) {
       router.push(`/media/${n.mediaItemId}`);
     }
-  }, [markRead, router]);
+  }, [markRead]);
 
   const handleMarkRead = useCallback((n: V1Notification) => {
     if (!n.readAt && n.id) markRead.mutate({ id: n.id });

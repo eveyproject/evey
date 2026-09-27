@@ -218,5 +218,5 @@ export function usePlayerKeyboard({
 
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, []);
+  }, [videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef, playbackSpeedRef, subtitleStreamsRef, currentSubtitleRef, anyPanelOpenRef, closePanelRef, pipToggleRef, castRef, onCloseRef, revealControlsRef]);
 }

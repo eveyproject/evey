@@ -50,7 +50,7 @@ export default function FavoritesScreen() {
         )}
       </FocusableCard>
     ),
-    [theme, router],
+    [theme, router, t],
   );
 
   if (isLoading || isError) {

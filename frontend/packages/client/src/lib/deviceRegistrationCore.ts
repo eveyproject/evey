@@ -60,8 +60,8 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
   const { serverUrl, deviceType, deviceName, pauseInBackground, onLoadAndPlay, getDeviceId, subscribeBackground } = options;
   // Latest router/token/url/name in a ref so the reconnect loop's closures see
   // fresh values without restarting the WS on every render.
-  const stateRef = useRef({ accessToken, serverUrl, deviceName, onLoadAndPlay, getDeviceId });
-  stateRef.current = { accessToken, serverUrl, deviceName, onLoadAndPlay, getDeviceId };
+  const stateRef = useRef({ accessToken, serverUrl, deviceName, onLoadAndPlay, getDeviceId, subscribeBackground });
+  stateRef.current = { accessToken, serverUrl, deviceName, onLoadAndPlay, getDeviceId, subscribeBackground };
 
   useEffect(() => {
     if (!accessToken || !serverUrl) return;
@@ -149,8 +149,10 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
       }
     }
 
+    // Read through the ref: the caller passes a fresh arrow function each
+    // render, and adding it to the effect deps would restart the socket then.
     const unsubscribe = pauseInBackground
-      ? subscribeBackground?.((isBackground) => {
+      ? stateRef.current.subscribeBackground?.((isBackground) => {
           if (!isBackground) {
             if (backgrounded) {
               backgrounded = false;

@@ -90,7 +90,7 @@ export default function NotificationsScreen() {
     if (n.mediaItemId) {
       router.push(`/media/${n.mediaItemId}`);
     }
-  }, [markRead, router]);
+  }, [markRead]);
 
   const renderNotifItem = useCallback(
     ({ item, index }: { item: V1Notification; index: number }) => (

@@ -228,6 +228,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
       params: { mediaId: exit.mediaId },
       replace: true,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- playerExit only reads item.type/item.parentId, both already tracked
   }, [router, mediaId, mediaItem?.type, mediaItem?.parentId]);
 
   // Memoise so these arrays keep a stable identity across re-renders driven by

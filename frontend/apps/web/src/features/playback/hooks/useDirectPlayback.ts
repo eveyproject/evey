@@ -147,5 +147,7 @@ export function useDirectPlayback({
       video.removeEventListener("canplaythrough", handlePlaying);
       video.removeEventListener("pause", handlePlaying);
     };
-  }, [streamInfo, startPositionMs, onEnded, transcodeMode]);
+  // The refs and setters are stable at the call site (useRef / useState /
+  // useCallback with no deps), so listing them never re-runs the effect.
+  }, [streamInfo, startPositionMs, onEnded, transcodeMode, videoRef, positionRef, setTranscodeMode, setIsBuffering, streamTokenRef, onStreamTokenRefreshRef]);
 }

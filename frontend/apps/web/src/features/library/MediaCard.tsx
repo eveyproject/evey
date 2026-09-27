@@ -109,6 +109,7 @@ export const MediaCard = memo(function MediaCard({
     // cross-origin opacity. The backend endpoint is same-origin, no ORB.
     return posterSrc
       ?? (item.id ? artworkUrl(item.id, "poster", item) : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- artworkUrl only reads item.id/item.updatedAt, both already tracked
   }, [posterSrc, item.id, item.updatedAt]);
 
   // Pull the primary artwork's blurhash (if any) for the placeholder. The

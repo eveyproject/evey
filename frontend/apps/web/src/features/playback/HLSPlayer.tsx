@@ -521,7 +521,7 @@ export function HLSPlayer({
     // platform routing above already picks the path that works here; if it
     // failed, say so honestly instead of opening a door that cannot open.
     toast.error(t("player.cast.connectFailed"));
-  }, [castConnected, stopCast, startCast, resolveCastUrl, title, t]);
+  }, [castConnected, stopCast, startCast, resolveCastUrl, title, t, castUserId, castProfileId, mediaId, currentTrackIndex, currentSubtitle]);
 
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -1004,7 +1004,7 @@ export function HLSPlayer({
         setSeriesTrackPrefs(seriesId, { ...cur, subtitleLang: lang });
       }
     }
-  }, [selectedBurnInTrack, subtitleStreams, transcodeMode, setCurrentSubtitle, setTranscodeStartTime, setPreferredSubtitleLang, seriesId, getSeriesTrackPrefs, setSeriesTrackPrefs]);
+  }, [selectedBurnInTrack, subtitleStreams, transcodeMode, setCurrentSubtitle, setTranscodeStartTime, seriesId]);
 
   // Live cast state for the keyboard shortcuts, refreshed render-time (same
   // pattern as lastCastPosRef): while casting, space/k must toggle the TV.
@@ -1158,7 +1158,7 @@ export function HLSPlayer({
       if (adminMessageTimer.current) clearTimeout(adminMessageTimer.current);
       cleanupTimers();
     };
-  }, []);
+  }, [cleanupTimers]);
 
   // Sync hls.js level with autoQuality / currentQuality state
   useEffect(() => {

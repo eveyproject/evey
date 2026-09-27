@@ -56,6 +56,7 @@ const ToastItem = memo(function ToastItem({ toast }: { toast: Toast }) {
     }, duration);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: one entry animation, one announce and one timer per toast
   }, []);
 
   const color = typeColors[toast.type];

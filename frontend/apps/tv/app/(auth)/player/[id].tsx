@@ -483,9 +483,13 @@ export default function PlayerScreen() {
       });
     },
   });
+  // The hook's object changes with every socket state; connect is a stable
+  // useCallback, so the effect depends on it alone.
+  const { connect: syncplayConnect } = syncplay;
+  const syncplayRoomId = syncplay.state.roomId;
   useEffect(() => {
-    if (roomId && !syncplay.state.roomId) syncplay.connect(roomId);
-  }, [roomId, syncplay.state.roomId, syncplay.connect]);
+    if (roomId && !syncplayRoomId) syncplayConnect(roomId);
+  }, [roomId, syncplayRoomId, syncplayConnect]);
 
   // Past 90% the title is watched: the rule every player shares.
   useAutoMarkWatched(mediaId, currentTime, duration);
@@ -630,7 +634,7 @@ export default function PlayerScreen() {
       resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(index, burnInSubtitleIndex, selectedQuality || undefined);
     },
-    [player, restartWithTracks, burnInSubtitleIndex, selectedQuality],
+    [player, restartWithTracks, burnInSubtitleIndex, selectedQuality, setSelectedAudioIndex, userPickedAudioRef],
   );
 
   const handleSubtitleSelect = useCallback(
@@ -648,7 +652,7 @@ export default function PlayerScreen() {
       }
       setSelectedSubtitleIndex(index);
     },
-    [player, restartWithTracks, selectedAudioIndex, selectedQuality, subtitleStreams, selectedSubtitleIndex],
+    [player, restartWithTracks, selectedAudioIndex, selectedQuality, subtitleStreams, selectedSubtitleIndex, setSelectedSubtitleIndex, userPickedSubtitleRef],
   );
 
   const handleSkipIntro = useCallback(
@@ -817,6 +821,10 @@ export default function PlayerScreen() {
   }, [nextEp.previousEpisode, handleNavigateEpisode]);
 
   const sleepTimer = useSleepTimer({ onMinutesFire: () => withPlayer((p) => p.pause()) });
+  // Both hooks return a fresh object every render; their cancel callbacks are
+  // stable, so effects depend on those instead of the whole object.
+  const { cancel: cancelSleepTimer } = sleepTimer;
+  const { cancel: cancelNextEp } = nextEp;
 
   // "End of episode" sleep mode has no countdown of its own - it rides the same
   // "ended" signal the next-episode auto-advance uses. Cancelling the
@@ -824,10 +832,10 @@ export default function PlayerScreen() {
   useEffect(() => {
     if (nextEp.ended && sleepTimer.state?.kind === "endOfEpisode") {
       withPlayer((p) => p.pause());
-      sleepTimer.cancel();
-      nextEp.cancel();
+      cancelSleepTimer();
+      cancelNextEp();
     }
-  }, [nextEp.ended, sleepTimer.state?.kind, withPlayer, sleepTimer.cancel, nextEp.cancel]);
+  }, [nextEp.ended, sleepTimer.state?.kind, withPlayer, cancelSleepTimer, cancelNextEp]);
 
   // The 30s "up next" card only informs - the D-pad still seeks and pauses
   // right through it (item B4). Only the real end-of-episode countdown
@@ -1041,7 +1049,7 @@ export default function PlayerScreen() {
         return true;
       }
       if (endedOverlayOpen) {
-        nextEp.cancel(); // closeAllOverlays cannot dismiss this one
+        cancelNextEp(); // closeAllOverlays cannot dismiss this one
         return true;
       }
       if (anyOverlayOpen) {
@@ -1056,7 +1064,7 @@ export default function PlayerScreen() {
       return false; // nothing open: the player's own exit contract runs
     });
     return () => sub.remove();
-  }, [anySubPanelOpen, anyOverlayOpen, endedOverlayOpen, nextEp.cancel, barFocused, closeSubPanels, closeAllOverlays, resetHideTimer]);
+  }, [anySubPanelOpen, anyOverlayOpen, endedOverlayOpen, cancelNextEp, barFocused, closeSubPanels, closeAllOverlays, resetHideTimer]);
 
   // Imperative focus reclaim: whenever no overlay/bar should own the D-pad,
   // force native focus back onto the surface - if no native view is focused

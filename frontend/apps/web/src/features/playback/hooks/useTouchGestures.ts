@@ -61,7 +61,7 @@ export function useTouchGestures({
     const video = videoRef.current;
     swipeStartVolumeRef.current = video?.volume ?? 1;
     swipeStartBrightnessRef.current = brightnessRef.current;
-  }, []);
+  }, [videoRef]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     const start = touchStartRef.current;
@@ -106,7 +106,7 @@ export function useTouchGestures({
       setBrightness(newBri);
       setSwipeIndicator({ type: "brightness", value: newBri });
     }
-  }, []);
+  }, [videoRef]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     const start = touchStartRef.current;
@@ -180,7 +180,7 @@ export function useTouchGestures({
         onSingleTap();
       }, 300);
     }
-  }, []);
+  }, [videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef, onToggleFullscreen, onSingleTap]);
 
 
   const setBrightnessValue = useCallback((value: number) => {

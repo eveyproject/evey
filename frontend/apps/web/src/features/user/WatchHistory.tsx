@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { formatDurationMs } from "@evey/api";
 import { Clock, Film } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -182,7 +182,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
   const { data, isLoading, isError, error, refetch } = usePlaybackServiceGetWatchHistory(limit ? { limit } : undefined);
   const items = useMemo(() => data?.items ?? [], [data?.items]);
 
-  function getDateGroup(iso: string | undefined): string {
+  const getDateGroup = useCallback((iso: string | undefined): string => {
     if (!iso) return t("common.unknown");
     const date = new Date(iso);
     const now = new Date();
@@ -195,7 +195,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
     if (diffDays < 7) return t("auth.watchHistory.thisWeek");
     if (diffDays < 30) return t("auth.watchHistory.thisMonth");
     return date.toLocaleDateString(undefined, { year: "numeric", month: "long" });
-  }
+  }, [t]);
 
   const virtualRows = useMemo(() => {
     const grouped = items.reduce<Record<string, WatchProgress[]>>((acc, item) => {
@@ -212,7 +212,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
       );
     }
     return rows;
-  }, [items, t]);
+  }, [items, getDateGroup]);
 
   const virtualizer = useVirtualizer({
     count: virtualRows.length,

@@ -340,7 +340,7 @@ export default function AdminBackupScreen() {
         </View>
       </View>
     );
-  }, [theme, handleDelete, handleRestore, downloadBackup, restoreBackup]);
+  }, [theme, handleDelete, handleRestore, downloadBackup, restoreBackup, t]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
