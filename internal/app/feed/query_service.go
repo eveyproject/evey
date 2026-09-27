@@ -1,7 +1,9 @@
 package feed
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/feed"
@@ -101,6 +103,12 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 		}
 		result = append(result, m)
 	}
+	// One total order for every client: an override can land on the same
+	// display order as an admin row, and a tie left to each client's sort
+	// placed those rows differently from one device to the next.
+	slices.SortStableFunc(result, func(a, b *feed.MergedConfig) int {
+		return cmp.Or(cmp.Compare(a.DisplayOrder, b.DisplayOrder), cmp.Compare(a.FeedType, b.FeedType))
+	})
 	return result, nil
 }
 
