@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -268,10 +269,21 @@ func (h *compatServe) handlePrepare(w http.ResponseWriter, r *http.Request) {
 	writeCompatStatus(w, http.StatusAccepted, "preparing", "", 0)
 }
 
+// recoverAsError turns a panic in a detached production into its error, so the
+// job ends failed and retryable instead of crashing the process.
+func recoverAsError(err *error) {
+	if rec := recover(); rec != nil {
+		slog.Error("download production panicked", slog.Any("panic", rec), slog.String("stack", string(debug.Stack())))
+		*err = fmt.Errorf("production panicked: %v", rec)
+	}
+}
+
 func (h *compatServe) produce(ctx context.Context, mediaID, srcPath, outPath string, durationMs int64) {
 	done := bgtasks.Begin("compat_download", mediaID)
 	defer done()
-	_, err, _ := h.group.Do(outPath, func() (any, error) {
+	_, err, _ := h.group.Do(outPath, func() (_ any, err error) {
+		// Detached goroutine: a panic here would take the whole server down.
+		defer recoverAsError(&err)
 		if fi, statErr := os.Stat(outPath); statErr == nil && fi.Size() > 0 {
 			return nil, nil
 		}
