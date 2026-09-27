@@ -84,6 +84,25 @@ func TestPlaybackInfo_IDOR_403(t *testing.T) {
 	}
 }
 
+// A title the profile's parental rules hide answers like one that does not
+// exist, even to a profile with access to its library: the playback decision
+// names codecs, tracks and a stream URL.
+func TestPlaybackInfo_ParentalBlocked_404(t *testing.T) {
+	h := playbackInfoHandler(nil,
+		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/a"}}},
+		allowAll(),
+		nil, testFakeParentalChecker{block: true})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
+	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
 func TestPlaybackInfo_OK(t *testing.T) {
 	w1 := 1920
 	h1 := 1080
