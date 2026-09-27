@@ -241,7 +241,7 @@ func TestCommandService_FetchMissingAlbumArt_FallsBackToFetcherWithoutLocalArt(t
 	scanner.FileData = map[string][]byte{path: []byte("pas un fichier taggé")}
 
 	_, _ = repo.Upsert(context.Background(), music.Track{
-		ID: "t9", LibraryID: shared.LibraryID(libID), Title: "School",
+		ID: "t9", LibraryID: shared.LibraryID(libID), Title: "Some Song",
 		Artist: "Skyrider", AlbumArtist: "Skyrider", Album: "Song Of The Valley",
 		FilePath: path,
 	})
@@ -271,7 +271,7 @@ func TestCommandService_FetchMissingAlbumArt_DropsAnUnverifiedImageTheSourceNoLo
 	path := "/m/FromZero/01.flac"
 	scanner.FileData = map[string][]byte{path: []byte("flac sans pochette")}
 	_, _ = repo.Upsert(context.Background(), music.Track{
-		ID: "fz1", LibraryID: shared.LibraryID(libID), Title: "The Emptiness Machine",
+		ID: "fz1", LibraryID: shared.LibraryID(libID), Title: "Some Track",
 		Artist: "Neon Harbor", AlbumArtist: "Neon Harbor", Album: "From Nowhere",
 		FilePath: path,
 	})
@@ -316,7 +316,7 @@ func TestCommandService_FetchMissingAlbumArt_TrustsAnAlreadyVerifiedImage(t *tes
 
 	libID := "lib1"
 	_, _ = repo.Upsert(context.Background(), music.Track{
-		ID: "v1", LibraryID: shared.LibraryID(libID), Title: "School",
+		ID: "v1", LibraryID: shared.LibraryID(libID), Title: "Some Song",
 		Artist: "Skyrider", AlbumArtist: "Skyrider", Album: "Song Of The Valley",
 		FilePath: "/m/Crime/01.flac",
 	})
