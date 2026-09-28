@@ -85,3 +85,33 @@ func TestNextTime_TooManyFields(t *testing.T) {
 	_, err := cron.NextTime("0 * * * * *", time.Now())
 	require.Error(t, err)
 }
+
+// Field boundaries: a range includes both ends, a range or value past the
+// field's limits is refused, and "*" and "*/n" reach the field's last value.
+// Ranges had no working-case test at all and every boundary survived
+// mutation (2026-09-28) - a backup schedule set to "22-23" would silently
+// skip 23:00 if the upper end were exclusive.
+func TestNextTime_FieldBoundaries(t *testing.T) {
+	at := func(h, m int) time.Time { return time.Date(2026, 3, 10, h, m, 0, 0, time.UTC) }
+	cases := []struct {
+		name, expr string
+		from, want time.Time
+	}{
+		{"a range includes its upper end", "0 22-23 * * *", at(22, 30), at(23, 0)},
+		{"a range includes its lower end", "0 22-23 * * *", at(21, 30), at(22, 0)},
+		{"the last minute and hour are accepted", "59 23 * * *", at(23, 58), at(23, 59)},
+		{"* reaches the field's last value", "* * * * *", at(23, 58), at(23, 59)},
+		{"a step reaches the field's last value", "*/59 * * * *", at(10, 30), at(10, 59)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			next, err := cron.NextTime(c.expr, c.from)
+			require.NoError(t, err)
+			assert.Equal(t, c.want, next)
+		})
+	}
+	for _, bad := range []string{"0 0-24 * * *", "0 * 0-5 * *", "0 * * 1-13 *", "0 * * * 0-7"} {
+		_, err := cron.NextTime(bad, at(0, 0))
+		assert.Error(t, err, "%q reaches past its field and must be refused", bad)
+	}
+}
