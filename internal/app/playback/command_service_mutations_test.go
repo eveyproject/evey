@@ -200,6 +200,38 @@ func TestRunCleanup_NPositive_LogsInfo(t *testing.T) {
 	}
 }
 
+// The retention purge deletes rows, so its window is pinned: a finished
+// session older than the retention goes, a recent one and an open one stay,
+// and the purge runs once a day, not on every 30s sweep. Neither the cutoff
+// nor the daily gate had a test (mutation 2026-09-28): a sign slip on the
+// cutoff would delete the recent history instead.
+func TestRunCleanup_RetentionPurgeWindow(t *testing.T) {
+	cmd, _, sr, _, _, _ := newCmdSvc()
+	cmd.sessionRetention = func() int { return 30 }
+	ctx := context.Background()
+	ended := func(daysAgo int) *time.Time { t := time.Now().AddDate(0, 0, -daysAgo); return &t }
+	_ = sr.Create(ctx, &playback.PlaySession{ID: "s-old", ProfileID: "p1", MediaItemID: "m1", StartedAt: time.Now().AddDate(0, 0, -41), EndedAt: ended(40)})
+	_ = sr.Create(ctx, &playback.PlaySession{ID: "s-recent", ProfileID: "p1", MediaItemID: "m1", StartedAt: time.Now().AddDate(0, 0, -11), EndedAt: ended(10)})
+	_ = sr.Create(ctx, &playback.PlaySession{ID: "s-open", ProfileID: "p1", MediaItemID: "m1", StartedAt: time.Now()})
+
+	cmd.runCleanup(ctx, time.Hour)
+	if s, _ := sr.GetByID(ctx, "s-old"); s != nil {
+		t.Error("a session finished 40 days ago must be purged under a 30-day retention")
+	}
+	for _, id := range []string{"s-recent", "s-open"} {
+		if s, _ := sr.GetByID(ctx, id); s == nil {
+			t.Errorf("%s must survive the purge", id)
+		}
+	}
+
+	// A second sweep the same day does not purge again.
+	_ = sr.Create(ctx, &playback.PlaySession{ID: "s-old-2", ProfileID: "p1", MediaItemID: "m1", StartedAt: time.Now().AddDate(0, 0, -41), EndedAt: ended(40)})
+	cmd.runCleanup(ctx, time.Hour)
+	if s, _ := sr.GetByID(ctx, "s-old-2"); s == nil {
+		t.Error("the purge runs once a day: the next 30s sweep must not purge again")
+	}
+}
+
 func TestRunCleanup_NZero_NoLog(t *testing.T) {
 	buf, restore := captureSlogBuffer(t)
 	defer restore()
