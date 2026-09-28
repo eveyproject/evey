@@ -282,6 +282,25 @@ func TestPluginAsset_NoWebRootConfigured(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code, "missing web_root must refuse to serve")
 }
 
+// web_root is read back from the database and re-validated on every request: a
+// row carrying a traversal must not widen what the handler serves. The check
+// had no test (sabotage sweep, 2026-09-28).
+func TestPluginAsset_WebRootTraversalRefused(t *testing.T) {
+	mux, token, repo, _ := setupPluginAssetTest(t)
+	require.NoError(t, repo.Create(context.Background(), &plugin.Plugin{
+		ID: "evil", Name: "evil", Kind: plugin.KindPlugin, Enabled: true,
+		WebRoot:  "../../",
+		Frontend: []plugin.FrontModule{{Slot: "home.section", Src: "x.js"}},
+	}))
+
+	req := httptest.NewRequest("GET", "/api/v1/plugins/evil/assets/x.js", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "a web_root that climbs out of the plugin dir must be refused")
+}
+
 func TestPluginAsset_DisabledPlugin(t *testing.T) {
 	mux, token, repo, _ := setupPluginAssetTest(t)
 	require.NoError(t, repo.Create(context.Background(), &plugin.Plugin{
