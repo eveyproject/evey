@@ -67,6 +67,24 @@ func TestStreamTokenStore_ExplicitTTLIsHonoured(t *testing.T) {
 				return s.CreateGuestToken("m1", "room-1", ttl)
 			},
 		},
+		// The two mint paths the table missed: a zero TTL is "use the default",
+		// never a token born expired (mutation 2026-09-28).
+		{
+			name: "syncplay guest token with 0 falls back to the default",
+			ttl:  0,
+			want: defaultTTL,
+			mint: func(s *media.StreamTokenStore, ttl time.Duration) string {
+				return s.CreateGuestToken("m1", "room-1", ttl)
+			},
+		},
+		{
+			name: "backup download token with 0 falls back to the default",
+			ttl:  0,
+			want: defaultTTL,
+			mint: func(s *media.StreamTokenStore, ttl time.Duration) string {
+				return s.CreateBackupDownload("u1", "bk-1", ttl)
+			},
+		},
 	}
 
 	for _, tc := range cases {
