@@ -5,8 +5,9 @@ import (
 	"encoding/binary"
 )
 
-// StripJPEGAppExif returns JPEG bytes with all APP1 (0xFFE1) and APP2 (0xFFE2)
-// segments removed, stripping EXIF, XMP, and ICC profile metadata.
+// StripJPEGAppExif returns JPEG bytes with all APP1 (0xFFE1), APP2 (0xFFE2),
+// APP13 (0xFFED) and COM (0xFFFE) segments removed, stripping EXIF, XMP, ICC,
+// IPTC and comment metadata.
 // Returns nil if no such segments were found (no change needed).
 // Non-JPEG input returns nil.
 func StripJPEGAppExif(data []byte) []byte {
@@ -38,7 +39,7 @@ func StripJPEGAppExif(data []byte) []byte {
 			out.Write(data[i:])
 			break
 		}
-		if marker == 0xE1 || marker == 0xE2 {
+		if marker == 0xE1 || marker == 0xE2 || marker == 0xED || marker == 0xFE {
 			found = true
 		} else {
 			out.Write(data[i:end])

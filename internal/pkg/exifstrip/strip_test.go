@@ -70,6 +70,23 @@ func TestStripJPEGAppExif_StripsBothAPP1AndAPP2(t *testing.T) {
 	}
 }
 
+// IPTC (APP13: city, location, author) and COM comments carry the same kind of
+// private data as EXIF, so they go too; APP0 (JFIF) stays.
+func TestStripJPEGAppExif_StripsIPTCAndComment(t *testing.T) {
+	for _, marker := range []byte{0xED, 0xFE} {
+		data := []byte{
+			0xFF, 0xD8,
+			0xFF, marker, 0x00, 0x04, 0xAA, 0xBB,
+			0xFF, 0xE0, 0x00, 0x04, 0xCC, 0xDD, // APP0
+		}
+		got := StripJPEGAppExif(data)
+		want := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0xCC, 0xDD}
+		if !bytes.Equal(got, want) {
+			t.Errorf("marker %x: got %x, want %x", marker, got, want)
+		}
+	}
+}
+
 func TestStripJPEGAppExif_MultipleAPP1(t *testing.T) {
 	data := []byte{
 		0xFF, 0xD8,
