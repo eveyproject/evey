@@ -14,8 +14,8 @@
 //   - a field written for ONE message masks its never-written namesake on
 //     another message (names are matched tree-wide, not per-message);
 //   - a field written on one RPC path but left empty on another (the
-//     streams-on-list case) is invisible here - that class is covered by the
-//     response-contract tests in grpcapi (response_contract_test.go);
+//     streams-on-list case) is invisible here - that class is covered per path
+//     in grpcapi (TestLibraryHandler_{Get,List,Filter}MediaItem(s)_HydratesStreams);
 //   - a client property access that merely shares a proto field's JSON name
 //     can flag a false positive: triage it into the allowlist with a reason.
 package contractguard
