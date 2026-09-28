@@ -56,6 +56,18 @@ func TestDetectHDR_DolbyVision(t *testing.T) {
 	}
 }
 
+// A Dolby Vision profile of 0 is no profile (an unread or blank DoVi record):
+// an 8-bit SDR stream carrying it stays SDR instead of being sent down the
+// always-transcode Dolby Vision path (mutation 2026-09-28).
+func TestDetectHDR_DoViProfileZeroIsNotDolbyVision(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", BitDepth: new(8), DoViProfile: new(0)},
+	}
+	if info := DetectHDR(toVS(streams)); info.IsHDR {
+		t.Fatalf("a zero DoVi profile must not make the stream HDR, got %+v", info)
+	}
+}
+
 func TestDetectHDR_SDR(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", BitDepth: ptr(8)},
