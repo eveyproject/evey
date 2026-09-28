@@ -92,6 +92,10 @@ describe("PluginsPage", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it("shows spinner while loading", async () => {
+    // Set, not inherited: clearAllMocks keeps the return value an earlier test
+    // gave the mock, so in a shuffled run this test saw a loaded list.
+    const { useAdminPluginServiceListPlugins } = await import("@evey/api");
+    vi.mocked(useAdminPluginServiceListPlugins).mockReturnValue({ data: undefined, isLoading: true } as ReturnType<typeof useAdminPluginServiceListPlugins>);
     const mod = await import("./plugins.lazy");
     const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(PluginsPage), { wrapper: createWrapper() });

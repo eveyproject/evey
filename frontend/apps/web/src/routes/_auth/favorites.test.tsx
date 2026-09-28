@@ -95,6 +95,10 @@ describe("FavoritesPage", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it("shows skeleton while loading", async () => {
+    // Set, not inherited: clearAllMocks keeps the return value an earlier test
+    // gave the mock, so in a shuffled run this test saw a loaded list.
+    const { useFavoritesList } = await import("@/hooks/useFavorite");
+    vi.mocked(useFavoritesList).mockReturnValue({ data: undefined, isLoading: true } as never);
     const mod = await import("./favorites.lazy");
     const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(FavoritesPage), { wrapper: createWrapper() });
