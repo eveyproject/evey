@@ -97,6 +97,33 @@ func TestStripJPEGAppExif_StandaloneMarkers(t *testing.T) {
 	}
 }
 
+// The last restart marker (RST7 = 0xD7) is standalone like RST0: read as a
+// length-prefixed segment it would swallow the EXIF block that follows and
+// ship it (mutation 2026-09-28: only RST0 was tested).
+func TestStripJPEGAppExif_LastRestartMarkerIsStandalone(t *testing.T) {
+	data := []byte{
+		0xFF, 0xD8,
+		0xFF, 0xD7, // RST7
+		0xFF, 0xE1, 0x00, 0x04, 0xAA, 0xBB,
+	}
+	got := StripJPEGAppExif(data)
+	want := []byte{0xFF, 0xD8, 0xFF, 0xD7}
+	if !bytes.Equal(got, want) {
+		t.Errorf("got %x, want %x", got, want)
+	}
+}
+
+// A file cut right after a 0xFF byte must not panic reading the marker past
+// the end; the dangling byte of an already-truncated file is dropped.
+func TestStripJPEGAppExif_TrailingLoneFF(t *testing.T) {
+	data := []byte{0xFF, 0xD8, 0xFF, 0xE1, 0x00, 0x04, 0xAA, 0xBB, 0xFF}
+	got := StripJPEGAppExif(data)
+	want := []byte{0xFF, 0xD8}
+	if !bytes.Equal(got, want) {
+		t.Errorf("got %x, want %x", got, want)
+	}
+}
+
 func TestStripJPEGAppExif_NonMarkerByte(t *testing.T) {
 	data := []byte{0xFF, 0xD8, 0x42, 0x43, 0x44}
 	if StripJPEGAppExif(data) != nil {
