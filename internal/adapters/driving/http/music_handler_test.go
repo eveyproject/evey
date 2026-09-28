@@ -666,3 +666,28 @@ func TestDownloadTrack_MismatchedStreamToken_Forbidden(t *testing.T) {
 		t.Errorf("a stream token bound to another track must be refused, got %d", w.Code)
 	}
 }
+
+// The album download takes a token bound to the album (id, else name) it was
+// minted for; replayed on another album it must be refused. Only the single
+// track had this test (sabotage sweep, 2026-09-28).
+func TestDownloadAlbum_MismatchedStreamToken_Forbidden(t *testing.T) {
+	dir := t.TempDir()
+	trackPath := writeTempFile(t, dir, "song.mp3", []byte("audiodata"))
+	repo := musicfakes.NewFakeMusicTrackRepository()
+	if _, err := repo.Upsert(context.Background(), domainmusic.Track{
+		ID: "t1", LibraryID: shared.LibraryID("lib-A"), Title: "Song", Album: "Some Album", FilePath: trackPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	libLister := &fakeMediaItemGetter{libraries: []*domainlibrary.Library{{ID: "lib-A", Paths: []string{dir}}}}
+	mux, _ := newMusicMuxWithLister(t, repo, allowAll(), libLister)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/albums/download?libraryId=lib-A&album=Some+Album", nil)
+	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey,
+		&shared.StreamToken{UserID: "user-1", MediaItemID: "Another Album", Scope: shared.ScopeStream}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("a token bound to another album must be refused, got %d", w.Code)
+	}
+}
