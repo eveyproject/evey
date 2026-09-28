@@ -1,8 +1,6 @@
 package httpapi
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -719,14 +717,8 @@ func TestDownloadAlbum_TrackOutsideRootsLeftOut(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (%s)", w.Code, w.Body.String())
 	}
-	zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
-	if err != nil {
-		t.Fatalf("zip read: %v", err)
-	}
-	var names []string
-	for _, f := range zr.File {
-		names = append(names, f.Name)
-	}
+	// zipEntryNames also asserts every entry is stored, not re-deflated.
+	names := zipEntryNames(t, w.Body.Bytes())
 	if len(names) != 1 || !strings.Contains(names[0], "Inside") {
 		t.Errorf("zip entries = %v, want only the in-roots track", names)
 	}
