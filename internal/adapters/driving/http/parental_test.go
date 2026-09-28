@@ -80,9 +80,17 @@ func TestParentalChecker_BlockedByParental(t *testing.T) {
 func TestParentalChecker_BlockedTag(t *testing.T) {
 	p := &domainuser.Profile{ID: "p1", IsKids: true, Parental: &domainuser.ParentalSettings{Enabled: true, BlockedTags: []string{"horror"}}}
 	pc := NewParentalChecker(&fakeProfileGetter{profile: p})
-	item := &domainlibrary.MediaItem{ID: "m1", Catalog: &domainlibrary.MediaCatalog{Tags: []string{"Horror"}}}
+	// An all-ages certification, so the kids age rule lets the title through
+	// and only the tag can block it: an unrated item failed closed on its own
+	// and hid a tag check that did nothing (sabotage sweep, 2026-09-28).
+	allAges := &domainlibrary.MediaClassification{CertificationsByCountry: map[string]string{"US": "G"}}
+	item := &domainlibrary.MediaItem{ID: "m1", Classification: allAges, Catalog: &domainlibrary.MediaCatalog{Tags: []string{"Horror"}}}
 	if !pc.BlockedByParental(context.Background(), "p1", item) {
 		t.Error("expected item with a blocked tag to be blocked")
+	}
+	clean := &domainlibrary.MediaItem{ID: "m2", Classification: allAges, Catalog: &domainlibrary.MediaCatalog{Tags: []string{"Comedy"}}}
+	if pc.BlockedByParental(context.Background(), "p1", clean) {
+		t.Error("control: the same all-ages title without the tag must pass")
 	}
 }
 

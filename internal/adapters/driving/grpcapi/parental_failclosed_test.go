@@ -43,9 +43,12 @@ func TestResolveParentalFilter_FailsClosedWhenTheProfileCannotBeLoaded(t *testin
 	if !got.blockAll {
 		t.Error("blockAll = false: an unreadable profile must be blocked outright, like the HTTP side")
 	}
+	// A certification that resolves to age 0: maxAge 0 alone lets it through,
+	// so only blockAll can stop it. A bare "G" with no country does not
+	// resolve and failed closed on its own, which left blockAll untested.
 	if !mediaItemBlockedByParental(got, &library.MediaItem{
 		Title:          "A G-rated title",
-		Classification: &library.MediaClassification{OfficialRating: "G"},
+		Classification: &library.MediaClassification{CertificationsByCountry: map[string]string{"US": "G"}},
 	}) {
 		t.Error("a G-rated item passed the filter of a profile whose parental settings could not be read")
 	}
