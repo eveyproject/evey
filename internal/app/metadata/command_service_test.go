@@ -384,6 +384,37 @@ func TestResetItemMetadata_SeriesCascadesToChildren(t *testing.T) {
 	assert.Equal(t, "ep", ep.Title)
 }
 
+// Resetting a SEASON cascades to its episodes too, not only a series: the
+// season half of the cascade condition had no test (mutation 2026-09-28).
+func TestResetItemMetadata_SeasonCascadesToEpisodes(t *testing.T) {
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(),
+		nil,
+	)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "se1", Type: library.Season, ParentID: "s1", Title: "Season 1",
+		File:     &library.MediaFile{Path: "/media/Some Series/S01"},
+		Overview: "s-overview",
+	}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "e1", Type: library.Episode, ParentID: "se1", Title: "Ep",
+		File:     &library.MediaFile{Path: "/media/Some Series/S01/ep.mkv"},
+		Overview: "e-overview",
+	}))
+
+	require.NoError(t, cmdSvc.ResetItemMetadata(ctx, "se1"))
+
+	ep, _ := mediaRepo.GetByID(ctx, shared.MediaItemID("e1"))
+	assert.Empty(t, ep.Overview, "resetting the season must reset its episodes")
+}
+
 // --- WaitWorkers ---
 
 func TestWaitWorkers_NoWorkersReturnsImmediately(t *testing.T) {
