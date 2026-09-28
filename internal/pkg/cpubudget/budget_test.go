@@ -132,6 +132,35 @@ func TestAcquire_OverrideHasItsOwnShareUnderTheCeiling(t *testing.T) {
 	rt2()
 }
 
+// A task's own share binds even when a heavier task has raised the ceiling
+// above it: with room left under the ceiling, the smaller share still stops
+// at its own count. Every other test hit the ceiling first, so the per-share
+// arithmetic could go wrong unseen (mutation 2026-09-28).
+func TestAcquire_OwnShareBindsBelowARaisedCeiling(t *testing.T) {
+	t.Parallel()
+	b := New(10)
+	// trickplay: 5 of its own; heavy: 8, which lifts the ceiling to 8;
+	// the default tasks share 2.
+	b.SetPolicy(Policy{GlobalPercent: 20, TaskPercent: map[string]int{"trickplay": 50, "heavy": 80}})
+	rt, ok := acquire(t, b, "trickplay", 5)
+	if !ok {
+		t.Fatal("trickplay must get its 5 slots")
+	}
+	if _, granted := acquire(t, b, "trickplay", 1); granted {
+		t.Fatal("a 6th trickplay slot exceeds its own share, ceiling room notwithstanding")
+	}
+	rt()
+
+	rd, ok := acquire(t, b, "scan", 2)
+	if !ok {
+		t.Fatal("the default tasks must get their 2 shared slots")
+	}
+	if _, granted := acquire(t, b, "complexity", 1); granted {
+		t.Fatal("a 3rd default-task slot exceeds the shared default share, ceiling room notwithstanding")
+	}
+	rd()
+}
+
 func TestAcquire_TwoHeavyTasksNeverStack(t *testing.T) {
 	t.Parallel()
 	b := New(10)
