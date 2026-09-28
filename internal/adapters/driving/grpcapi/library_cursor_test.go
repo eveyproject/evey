@@ -9,6 +9,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -234,4 +235,44 @@ func TestLibraryHandler_ListMediaItems_CursorWalk(t *testing.T) {
 		Pagination: &eveyv1.PaginationRequest{PageSize: 2, Cursor: "not-a-cursor!!"},
 	})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+// A kids profile walks a library by cursor. A title the SQL pre-filter lets
+// through (no official rating, a foreign certification only) is dropped by the
+// in-memory parental pass: the page comes back one short, and a cursor derived
+// from the FILTERED page read it as the last one - every title after it was
+// out of reach for the kids profile.
+func TestLibraryHandler_ListMediaItems_CursorWalkSurvivesAParentalDrop(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, profiles, _ := newTestLibraryHandler()
+	ctx := context.Background()
+	pg := &library.MediaClassification{OfficialRating: "PG"}
+	for _, id := range []string{"a", "c", "d", "e"} {
+		mediaQuery.Seed(&library.MediaItem{ID: shared.MediaItemID("mi-" + id), LibraryID: "lib-1", Title: id, SortTitle: id, Type: "movie", Classification: pg})
+	}
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-b", LibraryID: "lib-1", Title: "b", SortTitle: "b", Type: "movie",
+		Classification: &library.MediaClassification{CertificationsByCountry: map[string]string{"GB": "18"}}})
+	maxAge := 13
+	profiles.Create(ctx, &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}})
+	libraryAccess.Grant(ctx, "user-2", "lib-1")
+	kid := userCtx("user-2", "profile-2")
+
+	var seen []string
+	cursor := ""
+	for range 10 {
+		resp, err := h.ListMediaItems(kid, &eveyv1.ListMediaItemsRequest{
+			LibraryId:  "lib-1",
+			Pagination: &eveyv1.PaginationRequest{PageSize: 2, Cursor: cursor},
+		})
+		require.NoError(t, err)
+		for _, it := range resp.Items {
+			seen = append(seen, it.Id)
+		}
+		cursor = resp.Pagination.NextCursor
+		if cursor == "" {
+			break
+		}
+	}
+	assert.Equal(t, []string{"mi-a", "mi-c", "mi-d", "mi-e"}, seen,
+		"the kids profile must reach every title it may see, past the page that lost one")
 }

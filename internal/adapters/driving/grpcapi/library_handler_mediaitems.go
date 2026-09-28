@@ -367,13 +367,17 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	// like Outbreak (cert AU/GB only, empty official_rating) on a kids
 	// profile. Apply the strict in-memory predicate as a second pass to
 	// match the feeds / playback gates.
+	// The cursor is read from the page the database returned, before that pass:
+	// a page one short after it is not the last page, and a cursor built from
+	// it ended a kids profile's walk at the first title it could not see.
+	nextCursor := nextMediaItemsCursor(items, filter)
 	items = filterOutParentalBlocked(pf, items)
 	resp := &eveyv1.ListMediaItemsResponse{
 		Pagination: &eveyv1.PaginationResponse{
 			TotalItems: int32(total),
 			Page:       req.Pagination.GetPage(),
 			PageSize:   req.Pagination.GetPageSize(),
-			NextCursor: nextMediaItemsCursor(items, filter),
+			NextCursor: nextCursor,
 		},
 	}
 	if ps := int(req.Pagination.GetPageSize()); ps > 0 {
