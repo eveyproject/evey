@@ -12,6 +12,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,6 +101,41 @@ func TestActivityHandler_GetPopularMedia_DefaultLimit(t *testing.T) {
 // The popular row is scoped like every other row: a title in a library the
 // member was not granted, or one that no longer exists, is dropped; an admin
 // sees all of them; a failing access lookup fails closed.
+// The popular row of a kids profile drops what its parental rules hide, like
+// every other home row. Neutralising that filter left the package green
+// (sabotage sweep, 2026-09-28).
+func TestActivityHandler_GetPopularMedia_ParentalFiltered(t *testing.T) {
+	h, _, stats, _, _ := newActivityHandler()
+	stats.MostPopular = []activity.MediaPlayCount{
+		{MediaItemID: "mi-clean", Title: "Safe", PlayCount: 9},
+		{MediaItemID: "mi-violent", Title: "Action", PlayCount: 5},
+	}
+	g := map[string]string{"US": "G"}
+	mediaRepo := libfakes.NewFakeMediaItemQueryRepo()
+	mediaRepo.Seed(&library.MediaItem{ID: "mi-clean", LibraryID: "lib-1", Type: library.MovieItem, Title: "Safe",
+		Catalog: &library.MediaCatalog{}, Classification: &library.MediaClassification{CertificationsByCountry: g}})
+	mediaRepo.Seed(&library.MediaItem{ID: "mi-violent", LibraryID: "lib-1", Type: library.MovieItem, Title: "Action",
+		Catalog: &library.MediaCatalog{Tags: []string{"violence"}}, Classification: &library.MediaClassification{CertificationsByCountry: g}})
+	h.libQuery = applibrary.NewQueryService(libfakes.NewFakeLibraryQueryRepo(), mediaRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	maxAge := 7
+	profiles := userfakes.NewFakeProfileRepository()
+	require.NoError(t, profiles.Create(context.Background(), &user.Profile{
+		ID: "profile-1", UserID: "user-1", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{Enabled: true, MaxAge: &maxAge, BlockedTags: []string{"violence"}},
+	}))
+	h.userQuery = appuser.NewQueryService(userfakes.NewFakeUserRepository(), profiles,
+		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository())
+
+	resp, err := h.GetPopularMedia(ctxWithClaims("user-1", "profile-1", false), &eveyv1.GetPopularMediaRequest{Limit: 10})
+	require.NoError(t, err)
+	var got []string
+	for _, it := range resp.Items {
+		got = append(got, it.MediaItemId)
+	}
+	assert.Equal(t, []string{"mi-clean"}, got, "the hidden title must not be offered to the kids profile")
+}
+
 func TestActivityHandler_GetPopularMedia_LibraryScoped(t *testing.T) {
 	h, _, stats, _, _ := newActivityHandler()
 	stats.MostPopular = []activity.MediaPlayCount{
