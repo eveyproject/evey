@@ -17,6 +17,9 @@ func TestTracker_AttributesForkToTask(t *testing.T) {
 	if _, err := exec.LookPath("sleep"); err != nil {
 		t.Skip("sleep not in PATH")
 	}
+	// Totals are process-wide and cumulative: read the count before this fork,
+	// so a rerun (-count>1) measures its own fork instead of the sum of all runs.
+	before := Totals()["test_task_track"].Forks
 	ctx := bgtasks.WithTask(context.Background(), "test_task_track")
 	cmd, finish, err := Command(ctx, Options{Class: Probe, Site: "test.track"}, "sleep", "1")
 	if err != nil {
@@ -59,7 +62,7 @@ func TestTracker_AttributesForkToTask(t *testing.T) {
 		}
 	}
 	tot, ok := Totals()["test_task_track"]
-	if !ok || tot.Forks != 1 {
+	if !ok || tot.Forks != before+1 {
 		t.Fatalf("totals must charge the task one fork, got %+v (%v)", tot, ok)
 	}
 }
