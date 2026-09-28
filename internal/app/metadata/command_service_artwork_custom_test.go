@@ -191,3 +191,21 @@ func assertNoLeftoverFiles(t *testing.T, dataDir, mediaItemID string) {
 	require.NoError(t, err)
 	assert.Empty(t, entries, "no file (partial or final) must remain after a failed upload")
 }
+
+// The stored file keeps the source's extension when it is a plausible one
+// (".jpeg" included, a query string stripped), and falls back to .jpg for an
+// over-long suffix or a dot that only sits in the host name. None of these
+// boundaries was pinned (mutation 2026-09-28).
+func TestArtworkDestPath_Extension(t *testing.T) {
+	svc := newArtworkCmdSvc(metafakes.NewFakeMetadataOverrideRepository(), metafakes.NewFakeArtworkRepository())
+	for _, c := range []struct{ url, ext string }{
+		{"https://img.example/p/poster.jpeg", ".jpeg"},
+		{"https://img.example/p/poster.webp?w=500", ".webp"},
+		{"https://img.example/p/poster.tifffff", ".jpg"},
+		{"https://img.example/p/noextension", ".jpg"},
+	} {
+		u := c.url
+		got := svc.artworkDestPath(&domain.ArtworkRecord{ID: "a1", MediaItemID: "mi-1", SourceURL: &u})
+		assert.Equal(t, c.ext, filepath.Ext(got), "extension kept for %s", c.url)
+	}
+}
