@@ -304,6 +304,21 @@ func TestPhotoHandler_DeletePhoto_NotFound(t *testing.T) {
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
+// A member deleting a photo from a library they were not granted is refused and
+// the photo stays.
+func TestPhotoHandler_DeletePhoto_NonAdminOutsideTheirLibraryDenied(t *testing.T) {
+	h, repo, libraryAccess, _ := newTestPhotoHandler()
+	seedPhoto(repo, "p-1", "lib-1", "Keep Me")
+	libraryAccess.Grant(context.Background(), "user-2", "lib-2")
+
+	_, err := h.DeletePhoto(userCtx("user-2", "profile-2"), &eveyv1.DeletePhotoRequest{Id: "p-1"})
+
+	require.Error(t, err)
+	got, gErr := repo.GetByID(context.Background(), "p-1")
+	require.NoError(t, gErr)
+	assert.NotNil(t, got, "the photo must still be there")
+}
+
 func TestPhotoHandler_DeletePhoto_Unauthenticated(t *testing.T) {
 	h, _, _, _ := newTestPhotoHandler()
 

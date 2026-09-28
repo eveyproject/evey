@@ -919,6 +919,15 @@ func TestUpdateProfile_OtherProfileDenied(t *testing.T) {
 	assertCode(t, err, codes.PermissionDenied)
 }
 
+// A member naming a profile that does not exist gets the same refusal as for
+// someone else's profile: a distinct NotFound would tell them which ids exist.
+func TestUpdateProfile_NonAdminMissingProfileLooksForbidden(t *testing.T) {
+	env := setupUserHandler()
+	newName := "Probe"
+	_, err := env.handler.UpdateProfile(userCtx("usr-1", "prf-1"), &eveyv1.UpdateProfileRequest{Id: "prf-nope", Name: &newName})
+	assertCode(t, err, codes.PermissionDenied)
+}
+
 // --- DeleteProfile tests ---
 
 func TestDeleteProfile_Success(t *testing.T) {
