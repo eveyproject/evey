@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -689,5 +691,43 @@ func TestDownloadAlbum_MismatchedStreamToken_Forbidden(t *testing.T) {
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
 		t.Errorf("a token bound to another album must be refused, got %d", w.Code)
+	}
+}
+
+// An album track whose file lies outside every library root is left out of the
+// archive while its sibling is kept (sabotage sweep, 2026-09-28).
+func TestDownloadAlbum_TrackOutsideRootsLeftOut(t *testing.T) {
+	root := t.TempDir()
+	inside := writeTempFile(t, root, "01.mp3", []byte("in"))
+	outside := writeTempFile(t, t.TempDir(), "02.mp3", []byte("out"))
+	repo := musicfakes.NewFakeMusicTrackRepository()
+	for _, tr := range []domainmusic.Track{
+		{ID: "t1", LibraryID: "lib-A", Title: "Inside", Album: "Some Album", TrackNumber: 1, FilePath: inside},
+		{ID: "t2", LibraryID: "lib-A", Title: "Outside", Album: "Some Album", TrackNumber: 2, FilePath: outside},
+	} {
+		if _, err := repo.Upsert(context.Background(), tr); err != nil {
+			t.Fatal(err)
+		}
+	}
+	libLister := &fakeMediaItemGetter{libraries: []*domainlibrary.Library{{ID: "lib-A", Paths: []string{root}}}}
+	mux, token := newMusicMuxWithLister(t, repo, allowAll(), libLister)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/albums/download?libraryId=lib-A&album=Some+Album", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+	if err != nil {
+		t.Fatalf("zip read: %v", err)
+	}
+	var names []string
+	for _, f := range zr.File {
+		names = append(names, f.Name)
+	}
+	if len(names) != 1 || !strings.Contains(names[0], "Inside") {
+		t.Errorf("zip entries = %v, want only the in-roots track", names)
 	}
 }

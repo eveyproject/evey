@@ -154,3 +154,32 @@ func TestDownloadPlaylist_TokenBoundElsewhere_Forbidden(t *testing.T) {
 		t.Errorf("a token bound to another playlist must be refused, got %d", w.Code)
 	}
 }
+
+// A playlist track whose file lies outside every library root is left out of
+// the archive, next to a title that is kept: without it the playlist route
+// read any file a track row pointed at (sabotage sweep, 2026-09-28).
+func TestDownloadPlaylist_TrackOutsideRootsLeftOut(t *testing.T) {
+	root := t.TempDir()
+	movie := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", Type: domainlibrary.MovieItem, Title: "Some Movie", File: &domainlibrary.MediaFile{Path: archiveTempFile(t, root, "some-movie.mkv", "movie")}}
+	track := &music.Track{ID: "t1", LibraryID: "lib1", Title: "Song", FilePath: archiveTempFile(t, t.TempDir(), "song.flac", "audio")}
+	h := &playlistHandler{
+		plSvc: &fakePlaylistSource{
+			pl: &playlist.Playlist{Name: "Mine", ProfileID: "p1", Type: playlist.Manual},
+			plItems: []*playlist.PlaylistItem{
+				{MediaItemID: "m1", MediaType: playlist.MediaTypeVideo},
+				{MediaItemID: "t1", MediaType: playlist.MediaTypeMusic},
+			},
+		},
+		libSvc:     &fakeMediaItemGetter{item: movie, libraries: []*domainlibrary.Library{{ID: "lib1", Paths: []string{root}}}},
+		music:      &fakeMusicResolver{tracks: map[string]*music.Track{"t1": track}},
+		libChecker: allowAll(),
+		baseURL:    "http://localhost",
+	}
+	w := runPlaylistDownload(t, h, testClaims(false))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	if got := zipEntryNames(t, w.Body.Bytes()); !reflect.DeepEqual(got, []string{"Some Movie.mkv"}) {
+		t.Errorf("zip entries = %v, want only the in-roots title", got)
+	}
+}
