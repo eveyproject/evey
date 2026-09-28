@@ -1,5 +1,5 @@
 ---
-source_sha: 82f98fcae7d7d2028b57419f257f377ba2928df3c32c0a66a00c30682eda65c1
+source_sha: 0cbab39ffa95c9d5b92240456049d1f9bc27697af69bc1423e9f3c1f3d4a7556
 ---
 # Evey CLI - `evey admin`
 
@@ -12,6 +12,22 @@ Alle Befehle lesen ihre Konfiguration aus denselben `EVEY_*`-Umgebungsvariablen
 wie der Server selbst (`EVEY_DB_USER`, `EVEY_DB_PASSWORD`, `EVEY_DB_HOST`,
 `EVEY_DB_PORT`, `EVEY_DB_NAME`, `EVEY_DB_SSLMODE`, `EVEY_BACKUP_DIR`, ...).
 
+```
+evey                          Start the server.
+evey admin <subcommand>       One-shot operator tool (below). `evey admin` alone lists them,
+                              `evey admin <subcommand> --help` details one.
+evey version                  Version, commit, build date - needs no config or database.
+evey help                     Command summary.
+evey man [--text]             The manual: roff for `man`, plain text with --text.
+evey completion bash          The bash completion script.
+```
+
+Jedes andere erste Argument wird abgelehnt (Exit 1), statt stillschweigend den
+Server zu starten. Die Go-Tabelle in `cmd/evey/admin_commands.go` ist die einzige
+Beschreibung jedes Unterbefehls: Die Usage-Liste, `--help`, die Manpage, das
+Vervollständigungsskript und die Container-Shell werden von
+`cmd/evey/admin_cli_test.go` gegen sie geprüft.
+
 ## Kurzreferenz
 
 ```
@@ -22,7 +38,8 @@ evey admin reindex-search [--library <id>] [--purge]   Rebuild the Meilisearch i
 evey admin migrate up [--no-backup]          Apply pending migrations.
 evey admin migrate down [--no-backup]        Roll back one migration step.
 evey admin migrate version                   Print current schema version (exit 1 if dirty).
-evey admin list-users                        Print user emails, one per line.
+evey admin list-users                        Print user emails, one per line (feeds `--user` completion).
+evey admin list-libraries                    Print the library root paths, one per line (feeds `--root` completion).
 ```
 
 ### Wartung der Medien
@@ -61,7 +78,7 @@ evey admin rollback                          Read-only advisor: prints the runni
                                              newest pre-migration backup and the exact HOST commands
                                              to roll back. The container has no Docker access, by
                                              design, so it advises rather than acts.
-evey admin load-test [minimal|standard|max] [--scenario <s>] [--max-viewers N] [--duration S]
+evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S] [--cold-cache]
                                              Needs a LIVE server (it is an HTTP client of the local
                                              gateway). Ramps simulated viewers until the box hits its
                                              ceiling, then reports the sustained count with TTFF and
@@ -72,6 +89,15 @@ evey admin load-test [minimal|standard|max] [--scenario <s>] [--max-viewers N] [
                                              `load-test --scenario balanced --max-viewers 4`.
                                              `admission_full` is the ceiling verdict (exit 0), not an
                                              error.
+evey admin route-bench [--backend nvenc|vaapi|qsv|none] [--heights ...] [--fps ...] [--out rows.csv] [--json run.json] [<file>...]
+                                             Measure what a session of each transcode route costs on
+                                             this host against the calibration and the admission cost
+                                             model. Minutes of full load; never while serving.
+evey admin ladder-bench [--scenes 3] [--window 8] [--heights ...] [--crf ...] [--out rows.csv] <file>...
+                                             Ladder complexity features on a few scenes per title,
+                                             encoded at fixed CRFs and scored. Never while serving.
+evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
+                                             Per-title probe timing and early-stop rate on the files.
 ```
 
 > Die vollständige, stets aktuelle Liste liefert `evey admin` ohne Unterbefehl -
@@ -111,6 +137,28 @@ evey admin migrate version
 ```
 
 In der vorinstallierten Binärdatei stecken bereits alle Unterbefehle.
+
+## Tab-Vervollständigung und Manpage
+
+Das Binary bringt seine eigene Bash-Vervollständigung und Manpage mit, beide
+passen also immer zu den Unterbefehlen, die es ausliefert:
+
+```sh
+evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
+evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null && sudo mandb -q
+```
+
+zsh-Nutzer: zuerst `autoload -U +X bashcompinit && bashcompinit`, dann dasselbe
+Skript einlesen. Die Vervollständigung deckt die Unterbefehle ab, ihre Flags und
+Flag-Werte (`--mode`, `--backend`, `--scenario`), Benutzer-E-Mails nach
+`--user`, die dem Server bekannten Bibliothekswurzeln nach `--root` (plus jedes
+Verzeichnis), nur Mediendateien für die Dateiargumente von `ladder-bench`,
+`ladder-probe` und `route-bench`, und `.sql.gz`-Dumps für `restore-backup`.
+
+Das Docker-Image installiert die Vervollständigung beim Bauen, und seine
+Admin-Shell (`docker exec -it evey-server bash`) beantwortet `man evey`, indem
+sie `evey man --text` seitenweise anzeigt, da das Image kein `man`-Binary
+mitliefert.
 
 ## Die Unterbefehle im Einzelnen
 

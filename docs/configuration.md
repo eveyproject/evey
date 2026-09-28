@@ -31,11 +31,10 @@ password on the command line. Set `EVEY_DB_PASSWORD` / `MEILI_MASTER_KEY`
 explicitly only when you bring your own database or search engine - an explicit
 value always wins over the file.
 
-
-```env
-EVEY_SERVER_BASE_URL=https://media.example.com  # your public URL
-EVEY_TMDB_API_KEY=<your-tmdb-key>               # better metadata (free at themoviedb.org)
-```
+Metadata works out of the box: a TMDB key is built in. A key of your own
+(free at themoviedb.org) gives you your own quota; set it in **Admin > Server
+config > API Keys**, or seed it with `EVEY_TMDB_API_KEY`. Once the server is
+published, `EVEY_SERVER_BASE_URL` is the one variable to add - section 2.
 
 ## 2. A published instance, in two variables
 
@@ -162,6 +161,7 @@ Notes:
 EVEY_SERVER_PORT=9090                  # gRPC listen port (default 9090); HTTP API binds at SERVER_PORT+1 = 9091
 EVEY_HTTP_PORT=9091                    # compose-only: host port exposed by Docker for the HTTP gateway (not read by the server binary)
 EVEY_SERVER_NAME=Evey                  # display name
+EVEY_DEMO=false                        # public demo instance only (demo.eveyproject.org): locks admin writes, no mail/push/webhooks
 EVEY_VERSION=latest                    # Docker image tag (latest, v0.1.0-beta.1, etc.)
 ```
 
@@ -253,7 +253,7 @@ restart:
 Each also has an environment equivalent (`EVEY_KEYFRAME_BACKFILL`,
 `EVEY_LEVEL_BACKFILL_BATCH`, ...), but the panel row wins.
 
-**Background CPU budget** (Admin > Server configuration > Background CPU) bounds
+**Background CPU budget** (Admin > Server configuration > Processing power) bounds
 the processor every background task may take together, live (no restart):
 
 | Key | Value |

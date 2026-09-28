@@ -1,5 +1,5 @@
 ---
-source_sha: 8e9b10f4cdc162d51247a1432d8c6b2a3ab2490d0c01a856d52961436aa38556
+source_sha: 2ff1222cb6483b259b30b0a40ec51e6e4e8d1e7a7f4a5877a9761a0186adff2d
 ---
 
 # वीडियो परोसना - HLS प्लेबैक का रास्ता
@@ -120,9 +120,21 @@ container हमेशा **CMAF** (fMP4) रहता है: हर variant �
 `needsFMP4Segments` हमेशा true लौटाता है।) *उन्हीं* सेगमेंट के ऊपर:
 
 - **HLS** (`master.m3u8` → `stream_N.m3u8` → `EXT-X-MAP` init + `.m4s`) - दोनों इंजनों पर।
-- **DASH** (`manifest.mpd`) - **सिर्फ़ mkvgo के copy वाले रास्ते पर**
-  (`OnDemandPlan.HasDASH`), बाइट-दर-बाइट वही, बिना कुछ सहेजे; ffmpeg के transcode
-  वाले रास्ते पर नहीं, और AES-128 एन्क्रिप्शन चालू होने पर बंद।
+- **DASH** (`manifest.mpd`) - mkvgo के copy वाले रास्ते पर packager का अपना
+  manifest (`OnDemandPlan.HasDASH`, बाइट-दर-बाइट वही, बिना कुछ सहेजे, AES-128
+  में बंद); ffmpeg वाले रास्ते पर एक manifest जो **plan से घोषित** होता है, उन्हीं
+  fragments पर जिन्हें HLS playlists पता करती हैं (`ManifestGenerator.MPD`), और
+  जो किसी भी fragment के बनने से पहले लिखा जाता है। इसे ईमानदार बनाता है
+  **segment grid** (`domain/transcoding.SegmentGrid`): हर transcoded rung को frames
+  की एक ही पूर्ण संख्या पर काटा जाता है (23.976 fps पर 72, 25 पर 75, 29.97 पर
+  90), जिससे एक segment वीडियो ट्रैक के ticks में सटीक और पूरे switch set में एक
+  जैसा रहता है; copy वाला fallback अपना keyframe plan घोषित करता है। जिस स्रोत का
+  frame rate अज्ञात या बदलता हुआ हो, वह पुरानी 3 s वाली घड़ी पर रहता है, HLS
+  रखता है और `manifest.mpd` पर 404 देता है। किसी client को DASH पर नहीं बदला गया:
+  हर जगह HLS ही डिफ़ॉल्ट है। बने हुए fragments पर mkvgo का `DASHFromCMAF` parity
+  oracle है (`internal/pkg/cmafparity`, 23.976/25/29.97 fps पर
+  `TestDASHGridIntegration`: cold, seek, दो rung वाला switch set, एक AAC frame के
+  भीतर अलग ऑडियो)।
 
 हर सत्र के URL दोबारा पकाए जाते हैं (`transcode_vod_manifest_rebake.go`) ताकि वे
 स्ट्रीम टोकन साथ ले जाएँ - HLS और DASH, दोनों के लिए, और बिना cookie वाले

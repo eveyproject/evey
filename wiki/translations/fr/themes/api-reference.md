@@ -1,5 +1,5 @@
 ---
-source_sha: d7589893f88623d5f9ecd03d54b2f38ec845cd7eb4a550e31a8ffb93d93353cb
+source_sha: 72324d88dd91ef30b9ee280c903c4879dad626512f8f23deee264b8281e0538f
 ---
 
 # Référence de l'API des thèmes
@@ -145,4 +145,4 @@ Applique une animation nommée à un élément de l'hôte désigné par `selecto
 
 ## Exemples
 
-Le répertoire `examples/themes/` n'existe pas encore. Des exemples de référence (`dark-cozy`, `aurora`, `minimal-player`) sont prévus pour la phase 8.5 de la refonte des thèmes et des extensions. En attendant, partez du `theme.css` de n'importe quelle extension existante en `language: css` présente dans la base de données : ces fichiers emploient le même format, compatible avec l'assainisseur.
+Deux thèmes accompagnent les exemples d'extensions : `examples/plugins/theme-dark-blue` (un `theme.css` court qui ne remplace que des variables de couleur) et `examples/plugins/open-workshop` (une refonte visuelle complète). Copiez l'un ou l'autre comme point de départ - tous deux passent déjà l'assainisseur.

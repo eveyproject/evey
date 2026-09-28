@@ -251,4 +251,4 @@ cascade-delete with the plugin or the user. Declare `prefs` in `permissions`.
 
 ## Examples
 
-The `examples/plugins/` directory does not yet contain examples updated to the current two-kind model. New reference examples (`tmdb-enricher`, `discord-notify`, `library-stats`) are planned in Phase 8.5 of the theme/plugin redesign. Until then, the existing examples in `examples/plugins/` show the IPC wire format and gRPC stubs but use the legacy manifest format (add `kind: plugin` when adapting them).
+`examples/plugins/` holds working plugins in the current manifest format: starters in Node.js and Python (`nodejs-example`, `python-example`), a metadata provider (`metadata-example`), a webhook receiver (`webhook-receiver`), a home widget (`weather`), plugin configuration and secrets (`config-demo`), the data store with the `public` / `prefs` permissions and the `admin.nav` slot (`data-demo`), and two themes. [dev-setup.md](dev-setup.md#3-scaffold-your-first-plugin) walks through copying one.

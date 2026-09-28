@@ -1,5 +1,5 @@
 ---
-source_sha: 641ed9ad2a04551e1c5e1db07a26cb739f2708ce4ec146e2a5590265cd4216ca
+source_sha: d7ed6dd50005bc7e22c522df514264be5d132bc0ca91bd3052d5321a026acad0
 ---
 
 # Système d'extensions
@@ -15,7 +15,7 @@ Cette page est une carte. Le détail se trouve dans trois documents dédiés :
 
 | Document | Ce qu'on y trouve |
 |---|---|
-| **[plugins/dev-setup.md](plugins/dev-setup.md)** | Écrire sa première extension : prérequis, squelette, la boucle installer/itérer, la signature, la soumission au catalogue, le dépannage. **Commencez ici.** |
+| **[plugins/dev-setup.md](plugins/dev-setup.md)** | Écrire sa première extension : prérequis, squelette, la boucle installer/itérer, la signature, la diffusion, le dépannage. **Commencez ici.** |
 | **[plugins/api-reference.md](plugins/api-reference.md)** | Le contrat : schéma du manifeste, IPC et magasin de données côté serveur, le pont `evey.*` côté interface, la liste des emplacements d'insertion, et chaque capacité (`metadata.provider`, `media.read/write`, `notification.sender`, `webhook.receiver`, `public`, `prefs`). |
 | **[plugins/security-model.md](plugins/security-model.md)** | Modèle de menace et couches de défense : séparation d'UID, la liste noire d'appels système (noyau et LD_PRELOAD), les modes d'isolation (`auto` se résout en landlock → bubblewrap → basic ; `strict` ajoute la bibliothèque LD_PRELOAD à bubblewrap), le moniteur de ressources en espace utilisateur, l'analyse statique, l'assainisseur CSS, la signature et le versionnage, la liste blanche des emplacements, et les limites connues. |
 

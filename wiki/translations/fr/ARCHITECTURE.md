@@ -1,5 +1,5 @@
 ---
-source_sha: 9a5d70ca4ec498856d033e2a59e9d37b3807b77a7becd78ac3ef4c872f0c077b
+source_sha: 5c6e8f241b8d7ece14cf4136bad0d6ef75c0ebe244984e6c99eda87eab1f6dc9
 ---
 
 # Architecture
@@ -20,12 +20,12 @@ Règle de dépendance : `adapters -> app -> domain`. Le domaine n'importe jamais
 
 ## Contextes délimités
 
-Trente et un paquets de contexte vivent sous `internal/domain/` et `internal/app/` : 20 existent dans les deux couches, 2 n'existent que dans le domaine (`ratings`, `shared`), 9 seulement dans l'application. La collaboration passe en partie par des événements de domaine publiés sur un bus partagé ; la couche applicative lit aussi directement le paquet de domaine d'un contexte voisin (voir [Relations](#relations)).
+Trente paquets de contexte vivent sous `internal/domain/` et `internal/app/` : 19 existent dans les deux couches, 2 n'existent que dans le domaine (`ratings`, `shared`), 9 seulement dans l'application. La collaboration passe en partie par des événements de domaine publiés sur un bus partagé ; la couche applicative lit aussi directement le paquet de domaine d'un contexte voisin (voir [Relations](#relations)).
 
 | Contexte | Responsabilité |
 | --- | --- |
 | `user` | comptes, authentification, sessions, préférences |
-| `library` | bibliothèques, dossiers, tâches de scan, index des médias, personnes, collections, trickplay, détection des génériques |
+| `library` | bibliothèques, dossiers, tâches de scan, index des médias, personnes, collections, favoris et pouces d'un profil (les pouces n'ont pas de service applicatif : la RPC de notation enregistre et lit `UserRatingRepository` tel quel), trickplay, détection des génériques |
 | `media` (application seulement) | liens de partage et jetons de flux |
 | `mediarequest` | demandes de médias soumises par les utilisateurs |
 | `metadata` | enrichissement TMDB et OMDb, illustrations |
@@ -35,10 +35,9 @@ Trente et un paquets de contexte vivent sous `internal/domain/` et `internal/app
 | `mkv` | opérations sur conteneurs MKV (via `mkvgo`) |
 | `music` | lecture et étiquetage propres à l'audio |
 | `photo` | bibliothèques photo |
-| `favorite` | favoris par utilisateur |
+| `favorite` (application seulement) | favoris par profil ; le modèle et `FavoriteRepository` vivent dans `domain/library` |
 | `playlist` | playlists utilisateur, playlists intelligentes |
 | `collection` (application seulement) | collections composées par l'administrateur ; ses ports vivent dans `domain/library` |
-| `rating` (application seulement) | pouce vers le haut ou vers le bas, stocké comme `library.UserRating` |
 | `ratings` (domaine seulement) | fait correspondre les classifications par pays (CSA, FSK, MPAA, BBFC, ACB) à un unique âge minimum |
 | `feed` | fil d'activité et découverte |
 | `activity` | chronologie d'activité de l'utilisateur |
@@ -222,7 +221,7 @@ flowchart LR
         a_music[music]
         a_photo[photo]
         a_user[user]
-        a_misc[favorite, playlist, collection,<br/>rating, feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest]
+        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest]
     end
 
     subgraph domain[Domain core - internal/domain]
@@ -312,7 +311,7 @@ flowchart LR
     end
 
     subgraph domainScan[domain/library]
-        repo[(MediaItemRepository port<br/>+ command/query split)]
+        repo[(MediaItemCommandRepo + MediaItemQueryRepo ports)]
         bus[(EventBus port)]
     end
 

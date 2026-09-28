@@ -1,5 +1,5 @@
 ---
-source_sha: 8e943dfd72345f44add4c70011cd163dc77c351f5f410f69d2165ba7c88ea11d
+source_sha: 8484e89ecf7884dab922e606a1bd9a4b81a1a77bd7092c0eef919eaf1e394813
 ---
 
 # 不使用容器的安装（不用 Docker）
@@ -28,6 +28,10 @@ CGO_ENABLED=0 go build -ldflags="-s -w"                                        -
 
 # 并排安装，例如：
 sudo install -m 0755 evey evey-plugin-launcher /opt/evey/
+
+# 可选：shell 补全和手册页，都由二进制文件直接输出
+/opt/evey/evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
+/opt/evey/evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null
 ```
 
 `launcherPath()`（`internal/adapters/driven/pluginrunner/runner_landlock.go`）的查找顺序：
@@ -191,12 +195,12 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 
 这样服务器就彻底没有特权 - 服务器端的 RCE 也没法 `setuid(0)`，因为服务器手里一个能力都没有；
 持有能力的只有那个不吃任何外部输入的小启动器（而且它会拒绝任何低于 1000 的目标 UID）。
-这一层是**尽力而为**的：如果启动器降不下去（缺少该能力，或者设置了 `no_new_privs`），
-它会记一条警告，并让扩展以服务器的 UID 运行，而不是直接失败 - 所以它绝不会导致扩展起不来。
+如果启动器降不下去（缺少该能力，或者设置了 `no_new_privs`），`basic` 模式下的扩展会被**拒绝** -
+在那里 UID 是它与机密之间唯一的一道墙；在 Landlock 下，它会记一条警告，并让扩展以服务器的 UID 运行。
 
 > **与 `no_new_privs` 不兼容。** 如果你在启动服务器时带上了 `no-new-privileges`
-> （或 systemd 的 `NoNewPrivileges=yes`），文件能力在 exec 时会被忽略，
-> UID 隔离就悄悄退化成同 UID 运行（只留一条警告）。两者只能选一个。
+> （或 systemd 的 `NoNewPrivileges=yes`），文件能力在 exec 时会被忽略：
+> `basic` 模式下扩展会被拒绝，Landlock 下 UID 隔离退化成同 UID 运行（留一条警告）。两者只能选一个。
 
 如果服务器反而是**以 root 运行**的（不推荐），它会直接把扩展降到 1001，
 也就不需要启动器的那项能力了。

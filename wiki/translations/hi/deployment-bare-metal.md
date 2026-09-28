@@ -1,5 +1,5 @@
 ---
-source_sha: 8e943dfd72345f44add4c70011cd163dc77c351f5f410f69d2165ba7c88ea11d
+source_sha: 8484e89ecf7884dab922e606a1bd9a4b81a1a77bd7092c0eef919eaf1e394813
 ---
 
 # कंटेनर के बिना इंस्टॉलेशन (Docker के बिना)
@@ -31,6 +31,10 @@ CGO_ENABLED=0 go build -ldflags="-s -w"                                        -
 
 # दोनों को अगल-बगल इंस्टॉल करें, जैसे:
 sudo install -m 0755 evey evey-plugin-launcher /opt/evey/
+
+# वैकल्पिक: shell completion और manual page, दोनों बाइनरी ही छापती है
+/opt/evey/evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
+/opt/evey/evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null
 ```
 
 `launcherPath()` में खोज का क्रम (`internal/adapters/driven/pluginrunner/runner_landlock.go`):
@@ -216,15 +220,16 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 इससे सर्वर पूरी तरह बिना विशेषाधिकार का बना रहता है - सर्वर पर RCE हो जाए तो भी
 वह `setuid(0)` नहीं कर सकता, क्योंकि सर्वर के पास कोई cap है ही नहीं; वह सिर्फ़
 उस नन्ही launcher के पास है जो कोई इनपुट नहीं लेती (और जो 1000 से नीचे का कोई भी
-लक्षित UID मानने से इनकार कर देती है)। यह **जितना बन पड़े उतना** वाला इंतज़ाम है:
-launcher UID न उतार पाए (capability न हो, या `no_new_privs` सेट हो), तो वह
-चेतावनी लॉग करके एक्सटेंशन को सर्वर के ही UID पर चला देता है, नाकाम नहीं होता -
-यानी इससे एक्सटेंशन का शुरू होना कभी नहीं टूटता।
+लक्षित UID मानने से इनकार कर देती है)। अगर launcher UID न उतार पाए (capability
+न हो, या `no_new_privs` सेट हो), तो `basic` मोड में एक्सटेंशन **अस्वीकार** कर
+दिया जाता है - वहाँ secrets के चारों ओर UID ही उसकी अकेली दीवार है; Landlock के
+तहत वह चेतावनी लॉग करके उसे सर्वर के ही UID पर चला देता है।
 
 > **`no_new_privs` के साथ यह नहीं चलता।** आप सर्वर को `no-new-privileges` के साथ
 > शुरू करते हैं (या systemd में `NoNewPrivileges=yes` के साथ), तो exec के समय file
-> capability अनदेखी रह जाती है और uid separation चुपचाप घटकर एक ही UID पर आ जाता
-> है (चेतावनी के साथ)। दोनों में से कोई एक ही चुनें।
+> capability अनदेखी रह जाती है: `basic` मोड में एक्सटेंशन अस्वीकार हो जाते हैं,
+> और Landlock के तहत uid separation घटकर एक ही UID पर आ जाता है (चेतावनी के
+> साथ)। दोनों में से कोई एक ही चुनें।
 
 इसके बजाय सर्वर **root से** चले (यह सुझाया नहीं जाता), तो वह खुद ही एक्सटेंशन को
 सीधे 1001 पर उतार देता है और launcher वाली capability की ज़रूरत नहीं पड़ती।

@@ -1,5 +1,5 @@
 ---
-source_sha: 82f98fcae7d7d2028b57419f257f377ba2928df3c32c0a66a00c30682eda65c1
+source_sha: 0cbab39ffa95c9d5b92240456049d1f9bc27697af69bc1423e9f3c1f3d4a7556
 ---
 
 # Evey CLI - `evey admin`
@@ -11,6 +11,20 @@ Evey 的服务器二进制文件同时也是运维用的 CLI。不带参数执�
 `EVEY_DB_PASSWORD`、`EVEY_DB_HOST`、`EVEY_DB_PORT`、`EVEY_DB_NAME`、
 `EVEY_DB_SSLMODE`、`EVEY_BACKUP_DIR` 等等）。
 
+```
+evey                          Start the server.
+evey admin <subcommand>       One-shot operator tool (below). `evey admin` alone lists them,
+                              `evey admin <subcommand> --help` details one.
+evey version                  Version, commit, build date - needs no config or database.
+evey help                     Command summary.
+evey man [--text]             The manual: roff for `man`, plain text with --text.
+evey completion bash          The bash completion script.
+```
+
+其他任何第一个参数都会被拒绝（退出码 1），而不是悄悄启动服务器。`cmd/evey/admin_commands.go`
+里的 Go 表是每个子命令的唯一描述：用法列表、`--help`、手册、补全脚本和容器 shell 都由
+`cmd/evey/admin_cli_test.go` 对照它进行检查。
+
 ## 速查
 
 ```
@@ -21,7 +35,8 @@ evey admin reindex-search [--library <id>] [--purge]   Rebuild the Meilisearch i
 evey admin migrate up [--no-backup]          Apply pending migrations.
 evey admin migrate down [--no-backup]        Roll back one migration step.
 evey admin migrate version                   Print current schema version (exit 1 if dirty).
-evey admin list-users                        Print user emails, one per line.
+evey admin list-users                        Print user emails, one per line (feeds `--user` completion).
+evey admin list-libraries                    Print the library root paths, one per line (feeds `--root` completion).
 ```
 
 ### 媒体维护
@@ -60,7 +75,7 @@ evey admin rollback                          Read-only advisor: prints the runni
                                              newest pre-migration backup and the exact HOST commands
                                              to roll back. The container has no Docker access, by
                                              design, so it advises rather than acts.
-evey admin load-test [minimal|standard|max] [--scenario <s>] [--max-viewers N] [--duration S]
+evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S] [--cold-cache]
                                              Needs a LIVE server (it is an HTTP client of the local
                                              gateway). Ramps simulated viewers until the box hits its
                                              ceiling, then reports the sustained count with TTFF and
@@ -71,6 +86,15 @@ evey admin load-test [minimal|standard|max] [--scenario <s>] [--max-viewers N] [
                                              `load-test --scenario balanced --max-viewers 4`.
                                              `admission_full` is the ceiling verdict (exit 0), not an
                                              error.
+evey admin route-bench [--backend nvenc|vaapi|qsv|none] [--heights ...] [--fps ...] [--out rows.csv] [--json run.json] [<file>...]
+                                             Measure what a session of each transcode route costs on
+                                             this host against the calibration and the admission cost
+                                             model. Minutes of full load; never while serving.
+evey admin ladder-bench [--scenes 3] [--window 8] [--heights ...] [--crf ...] [--out rows.csv] <file>...
+                                             Ladder complexity features on a few scenes per title,
+                                             encoded at fixed CRFs and scored. Never while serving.
+evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
+                                             Per-title probe timing and early-stop rate on the files.
 ```
 
 > 永远最新的完整列表，是不带子命令直接执行 `evey admin` - 由它打印出来。
@@ -108,6 +132,23 @@ evey admin migrate version
 ```
 
 预装好的二进制文件里，每一个子命令都已经编译进去了。
+
+## Tab 补全与手册
+
+二进制文件自带 bash 补全和手册，所以两者总是与它所带的子命令一致：
+
+```sh
+evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
+evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null && sudo mandb -q
+```
+
+zsh 用户：先执行 `autoload -U +X bashcompinit && bashcompinit`，再 source 同一个脚本。
+补全覆盖子命令、它们的参数及参数取值（`--mode`、`--backend`、`--scenario`），`--user`
+之后的用户邮箱，`--root` 之后服务器已知的媒体库根目录（以及任意目录），`ladder-bench`、
+`ladder-probe` 和 `route-bench` 的文件参数只补全媒体文件，`restore-backup` 则补全 `.sql.gz` 转储。
+
+Docker 镜像在构建时就装好了补全，它的管理 shell（`docker exec -it evey-server bash`）
+在你输入 `man evey` 时会分页显示 `evey man --text`，因为镜像里没有 `man` 程序。
 
 ## 子命令详解
 

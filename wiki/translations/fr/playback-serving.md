@@ -1,5 +1,5 @@
 ---
-source_sha: 8e9b10f4cdc162d51247a1432d8c6b2a3ab2490d0c01a856d52961436aa38556
+source_sha: 2ff1222cb6483b259b30b0a40ec51e6e4e8d1e7a7f4a5877a9761a0186adff2d
 ---
 
 # Servir une vidéo - le chemin de lecture HLS
@@ -127,10 +127,22 @@ des segments `.m4s`. (La branche MPEG-TS de `hls_transcoder.go` est morte :
 `needsFMP4Segments` rend toujours `true`.) Au-dessus des *mêmes* segments :
 
 - **HLS** (`master.m3u8` → `stream_N.m3u8` → l'init `EXT-X-MAP` puis les `.m4s`) - sur les deux moteurs.
-- **DASH** (`manifest.mpd`) - **sur le seul chemin de copie mkvgo**
-  (`OnDemandPlan.HasDASH`), à l'octet près, sans un octet de stockage ; absent du
-  chemin de transcodage ffmpeg, et désactivé quand le chiffrement AES-128 est en
-  service.
+- **DASH** (`manifest.mpd`) - sur le chemin de copie mkvgo, le manifeste du
+  packager lui-même (`OnDemandPlan.HasDASH`, à l'octet près, sans stockage,
+  désactivé sous AES-128) ; sur le chemin ffmpeg, un manifeste **déclaré depuis
+  le plan** sur les mêmes fragments que ceux adressés par les playlists HLS
+  (`ManifestGenerator.MPD`), écrit avant qu'aucun fragment n'existe. Ce qui le
+  rend honnête, c'est la **grille de segments** (`domain/transcoding.SegmentGrid`) :
+  chaque palier transcodé est découpé sur le même nombre entier d'images (72 à
+  23,976 i/s, 75 à 25, 90 à 29,97), si bien qu'un segment est exact dans les
+  ticks de la piste vidéo et identique dans tout le jeu de bascule ; le repli en
+  copie déclare son plan d'images clés. Une source à la fréquence d'images
+  inconnue ou variable reste sur l'ancienne horloge de 3 s, garde HLS, et répond
+  404 sur `manifest.mpd`. Aucun client n'est basculé en DASH : HLS reste le
+  choix par défaut partout. Le `DASHFromCMAF` de mkvgo appliqué aux fragments
+  produits sert d'oracle de parité (`internal/pkg/cmafparity`,
+  `TestDASHGridIntegration` à 23,976/25/29,97 i/s : à froid, déplacement, jeu de
+  bascule à deux paliers, audio séparé à moins d'une trame AAC).
 
 Les URL propres à une session sont reforgées
 (`transcode_vod_manifest_rebake.go`) pour porter le jeton de flux, en HLS comme

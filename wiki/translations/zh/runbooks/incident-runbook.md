@@ -1,5 +1,5 @@
 ---
-source_sha: baf759b03f8e14d6048f850d6927ea2371fa5533ad8148f6f86faf5364ba5f66
+source_sha: d6c99c91037371ee077e57625c65e0ac542e80e0737a6e83c3320644603ab562
 ---
 
 # 故障处理手册
@@ -209,7 +209,7 @@ docker volume inspect evey_evey-cache   # compose-mangled name may vary
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- 如果宿主机的卷比这个值还小，就调低 `EVEY_TRANSCODING_CACHE_MAX_GB`（默认 `50`）。
+- 如果宿主机的卷空间紧张，就调低转码缓存预算（Admin > 服务器设置，默认 `10` GB）；无论预算多少，清理器都会在缓存卷上保留 2 GiB 空闲空间。
 
 ## 7. 扩展崩溃了
 
@@ -230,7 +230,7 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 
 ## 8. 投屏卡住、没声音，或者手机一直转圈
 
-下面的一切都能从管理面板的 Logs 页面读到（或者用 `GET /api/v1/admin/logs/search?q=<term>&limit=200`），不需要登录机器。时间均为 UTC。每一条信标都是一行 `player-client: playback event reported`，带有 `type=` 和一个 `details=` 字符串。
+下面的一切都能从管理面板的 Logs 页面读到（或者用 `GET /api/v1/admin/logs/search?q=<term>&limit=200`），不需要登录机器。时间均为 UTC。每一条信标都是一行 `player-client: playback event reported`，带有 `type=` 和一个 `details=` 字符串。这些路由返回的内容里绝不会出现凭据（bearer、JWT 以及 `token=`/`password=` 的值都显示为 `[redacted]`），所以无法通过搜索日志找回投屏 URL 里的令牌 - 请搜索媒体 id，而不是令牌。
 
 1. **接收端还活着吗，活到什么时候？** 搜索 `cast_receiver_alive`。播放期间接收端每 30 s 发一条；`details` 里带着 `buf=<behind>/<ahead>/<ranges>`（播放头之后和之前已缓冲的秒数）以及 `pos_sec`。播放健康时 `ahead` 在几十秒量级。**最后一条信标的时间，就是接收端死掉或被杀掉的时刻**：在那之后什么都没有，就说明电视已经不再运行接收端了，不管手机上显示什么。
 2. **它为什么停了？** 搜索 `cast_receiver_finished`：`reason=INTERRUPTED` 表示有新的 LOAD 顶掉了正在运行的那个（往前几秒找 `StartStream`），`reason=ERROR` 则带着播放器的错误。最后一条 `alive` 之后完全没有 `finished`，说明接收端进程消失了，最常见的是 Chromecast HD 在 20+ Mbps 的 copy master 上因内存被杀。

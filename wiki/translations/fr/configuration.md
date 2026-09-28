@@ -1,11 +1,11 @@
 ---
-source_sha: edf6fa7ecabb8c31137336323b01b741e8a1bce27edd5522fd8ea94384001d1b
+source_sha: a7cdb2195f99559246f23706d11f64ad40c0cb3dcd88a52f3caf61af02c7ce8c
 ---
 
 # Configuration
 
-Deux endroits, une règle. **Ce qui doit exister avant le démarrage du serveur**
-- secrets, câblage du conteneur, informations sur le reverse proxy - vit dans le
+Deux endroits, une règle. **Ce qui doit exister avant le démarrage du
+serveur** - secrets, câblage du conteneur, informations sur le reverse proxy - vit dans le
 fichier compose. **Ce qu'un administrateur règle ensuite** - niveau de
 journalisation, langue, limites de transcodage, accélération matérielle,
 surveillance des dossiers, bac à sable et quotas des extensions - vit dans
@@ -38,11 +38,11 @@ réclame aucun mot de passe en ligne de commande. Ne renseignez explicitement
 de données ou votre propre moteur de recherche : une valeur explicite l'emporte
 toujours sur le fichier.
 
-
-```env
-EVEY_SERVER_BASE_URL=https://media.example.com  # votre URL publique
-EVEY_TMDB_API_KEY=<your-tmdb-key>               # de meilleures métadonnées (gratuit sur themoviedb.org)
-```
+Les métadonnées fonctionnent dès l'installation : une clé TMDB est intégrée.
+Une clé à vous (gratuite sur themoviedb.org) vous donne votre propre quota ;
+saisissez-la dans **Admin > Configuration du serveur > Clés API**, ou amorcez-la
+avec `EVEY_TMDB_API_KEY`. Une fois le serveur publié, `EVEY_SERVER_BASE_URL` est
+la seule variable à ajouter - section 2.
 
 ## 2. Une instance publiée, en deux variables
 
@@ -178,6 +178,7 @@ détection du propriétaire des médias comprise ; il vous revient alors de gar
 EVEY_SERVER_PORT=9090                  # port d'écoute gRPC (9090 par défaut) ; l'API HTTP écoute sur SERVER_PORT+1 = 9091
 EVEY_HTTP_PORT=9091                    # compose uniquement : port de l'hôte exposé par Docker pour la passerelle HTTP (le binaire du serveur ne le lit pas)
 EVEY_SERVER_NAME=Evey                  # nom affiché
+EVEY_DEMO=false                        # instance de démo publique uniquement (demo.eveyproject.org) : verrouille les écritures admin, ni mail ni push ni webhooks
 EVEY_VERSION=latest                    # tag de l'image Docker (latest, v0.1.0-beta.1, etc.)
 ```
 
@@ -276,6 +277,43 @@ suivant :
 Chacune a aussi son équivalent en variable d'environnement
 (`EVEY_KEYFRAME_BACKFILL`, `EVEY_LEVEL_BACKFILL_BATCH`, ...), mais c'est la
 ligne du panneau qui l'emporte.
+
+Le **budget CPU de fond** (Admin > Configuration du serveur > Puissance allouée)
+borne le processeur que toutes les tâches de fond peuvent prendre ensemble, à
+chaud (sans redémarrage) :
+
+| Clé | Valeur |
+| --- | --- |
+| `background.cpu_percent` | part de la capacité CPU où puisent toutes les tâches de fond : `25` (par défaut, en douceur) ou `50` (coup de fouet) |
+| `background.cpu_percent.<task>` | la part propre d'une tâche lourde, de `1` à `80`, qui remplace la part globale pour cette tâche : `library_scan`, `trickplay_generation`, `intro_detection`, `complexity_classifier` |
+
+Les parts ne s'additionnent jamais : la somme de tout ce qui tourne en fond reste
+sous la plus haute part fixée. Une part est convertie en cœurs entiers (25 % de
+8 cœurs = 2), un au minimum. Chaque ffmpeg de fond réserve ses threads dans ce
+budget avant de démarrer ; le scan des bibliothèques et la détection des
+génériques y dimensionnent leur parallélisme, la génération des miniatures
+trickplay ses threads de décodage. La lecture met toujours en pause toute
+analyse de fond (`transcoding.pause_bg_on_playback`). `EVEY_LIBRARY_SCAN_WORKERS`
+et `EVEY_INTRO_DETECTION_MAX_PARALLEL` dimensionnent ces deux réserves à la main
+et contournent le budget pour elles. Les anciennes clés `trickplay.adaptive_cpu`
+(`false` = 50 %) et `intro_detection.use_all_cores` (`true` = 80 % pour la
+détection des génériques) sont toujours honorées tant que les nouvelles ne sont
+pas fixées.
+
+Le **budget du cache de transcodage** (Admin > Paramètres du serveur,
+`transcoding.cache_max_gb`, `10` par défaut, appliqué au redémarrage) borne tout
+le cache de transcodage sur le disque : segments de lecture, remux de démarrage
+rapide et téléchargements compatibles, ensemble, sous un seul nombre. C'est une
+taille absolue à dessein : le cache vit sur le volume `evey-cache` à côté de ce
+que l'opérateur y fait tourner d'autre, et l'usage du reste du volume lui
+appartient. Un seul balayeur l'applique, du moins récemment utilisé au plus
+récent, en n'épargnant que ce qu'un spectateur est en train de lire. Quel que
+soit le budget, il garde aussi 2 Gio libres sur le volume du cache, et retire un
+téléchargement que personne n'a récupéré depuis 7 jours. Une session de copie
+(remux) ne stocke jamais le film entier : elle garde une fenêtre de segments
+autour du spectateur et relit la source pour tout ce qui en sort. Le chemin
+mkvgo sans stockage, qui sert la plupart des sources MKV et MP4, ne touche
+jamais au cache.
 
 ### Extensions (bac à sable et limites)
 ```env

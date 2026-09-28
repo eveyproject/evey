@@ -81,10 +81,10 @@ If `make dev` fails on `bwrap`:
 
 ## 3. Scaffold your first plugin
 
-Examples live in `examples/plugins/` and `examples/themes/`. Pick the closest one to your use case (TMDB enricher, Discord notifier, Spotify now-playing, weather, dark theme, etc.) and copy it into a working directory. For the persistence + permission features, see **`examples/plugins/data-demo`** - it uses the per-plugin data store and requests the `public` / `prefs` permissions + the `admin.nav` slot.
+Examples live in `examples/plugins/`: starters in Node.js and Python (`nodejs-example`, `python-example`), a metadata provider (`metadata-example`), a webhook receiver (`webhook-receiver`), a home widget (`weather`), plugin configuration (`config-demo`) and two themes (`theme-dark-blue`, `open-workshop`). Pick the closest one to your use case and copy it into a working directory. For the persistence + permission features, see **`examples/plugins/data-demo`** - it uses the per-plugin data store and requests the `public` / `prefs` permissions + the `admin.nav` slot.
 
 ```sh
-cp -r examples/plugins/discord-notify ~/my-first-plugin
+cp -r examples/plugins/nodejs-example ~/my-first-plugin
 cd ~/my-first-plugin
 ```
 
@@ -95,7 +95,7 @@ Edit `plugin.yaml`:
 - `kind`: `plugin` (backend required) or `theme` (frontend-only)
 - `language`: `python` | `nodejs` | `go` | `php` | `ruby` | `lua` | `bash` | `sh` (manifest identifier - not the interpreter binary name; `python3`/`node` are not valid `language` values, see `entrypoint` below).
 - `entrypoint`: command line the runtime executes
-- `permissions`: declare every host API you call. The installer rejects calls that aren't declared. See `docs/plugins.md#security-model` for the exhaustive list.
+- `permissions`: declare every host API you call. The installer rejects calls that aren't declared. See the [permissions catalog](security-model.md#permissions-catalog) for the exhaustive list.
 - `external_fetch`: when you need to talk to a third-party API. Entries are bare hostnames (`api.example.com`) - no scheme required or used (any `https://` prefix is parsed and only the hostname is kept), no wildcards (`*.example.com` is rejected at install: `external_fetch entry %q is a wildcard - use explicit hostnames`), no literal IP addresses (all of them, not just RFC1918). The validator lives in `internal/adapters/driven/pluginrunner/manifest.go` (`validateExternalFetch`); its test coverage is in `internal/adapters/driven/pluginrunner/manifest_test.go` - run `go test ./internal/adapters/driven/pluginrunner/...` to check your value matches.
 
 Frontend module (optional for `kind: plugin`, banned for `kind: theme`):
@@ -112,7 +112,7 @@ The slot must exist in `internal/domain/plugin/slots.go` (`home.section`, `home.
 socket (`SetData`/`GetData`/`DeleteData`/`ListDataKeys`) - no permission needed,
 wiped automatically on uninstall. For per-user preferences from your iframe,
 request the `prefs` permission; for read-only access to non-sensitive media
-(title/poster), request `public`. See `docs/plugins/api-reference.md`. Admin,
+(title/poster), request `public`. See the [API reference](api-reference.md#permissions). Admin,
 auth, system and generic write scopes can never be requested.
 
 ## 4. Run the install loop
@@ -228,16 +228,15 @@ own site). What "distribution" means today:
 | `bwrap: ... permission denied` | Default Docker seccomp blocks `unshare`. | The repo ships a custom seccomp profile (`docker/seccomp.json`). Make sure your compose file applies it. |
 | `forbidden pattern "fetch(" found in theme JS` | Theme JS scanner caught a banned API. | Themes must only call `evey.theme.*`. Read `internal/pkg/themejs/scan.go` to see what's blocked. |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | All wildcards are rejected at install, no exceptions. | Use `api.tmdb.org` (and list every explicit subdomain you need), not `*.tmdb.org` or `cdn.*.tmdb.org`. |
-| `installer: slot "admin.section" not allowed` | Refonte 2-kinds bans plugin frontends in privileged areas. | Pick a non-critical slot from the whitelist or rethink the plugin. |
+| `installer: slot "admin.section" not allowed` | Plugin frontends are banned from privileged areas. | Pick a non-critical slot from the whitelist or rethink the plugin. |
 | `cosign verify-blob: failed signature` | Public key on the server doesn't match the private key used to sign. | Re-sign with the right key, or update `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`. |
 | Plugin starts then dies with exit 137 | OOM killed by cgroup. | Lower memory usage or increase `EVEY_PLUGINS_MEMORY_MB`. |
 | Frontend module not visible | Plugin not enabled, slot mismatch, or `web_root` prefix wrong in `frontend.src`. | Check the admin Plugins page (status badge), confirm the slot string matches a real `<PluginSlot name=...>` mount, look at the network panel for `/api/v1/plugins/{id}/assets/...` calls. |
 
 ## 10. Going further
 
-- Security model end-to-end: `docs/plugins.md#security-model`
-- Host API surface: `docs/plugins.md#host-api-reference`
-- Available slots: `docs/plugins.md#available-plugin-slots`
+- Security model end-to-end: [security-model.md](security-model.md)
+- Host API surface: [api-reference.md](api-reference.md)
+- Available slots: [api-reference.md](api-reference.md#slots)
 - SDK code per language: `sdk/`
-- Reference plugins: `examples/plugins/` (TMDB, Discord, Spotify, weather, library-stats)
-- Reference themes: `examples/themes/` (dark-cozy, aurora, minimal-player)
+- Reference plugins and themes: `examples/plugins/`

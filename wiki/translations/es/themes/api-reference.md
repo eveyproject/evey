@@ -1,5 +1,5 @@
 ---
-source_sha: d7589893f88623d5f9ecd03d54b2f38ec845cd7eb4a550e31a8ffb93d93353cb
+source_sha: 72324d88dd91ef30b9ee280c903c4879dad626512f8f23deee264b8281e0538f
 ---
 
 # Referencia de la API de temas
@@ -145,4 +145,4 @@ Aplica una animación con nombre a un elemento del anfitrión que case con `sele
 
 ## Ejemplos
 
-El directorio `examples/themes/` todavía no existe. Los ejemplos de referencia (`dark-cozy`, `aurora`, `minimal-player`) están previstos para la fase 8.5 del rediseño de temas y extensiones. Hasta entonces, tome como punto de partida el `theme.css` de cualquier extensión con `language: css` que ya tenga en la base de datos: esos archivos usan el mismo formato compatible con el saneador.
+Dos temas acompañan a los ejemplos de extensiones: `examples/plugins/theme-dark-blue` (un `theme.css` corto que solo sustituye variables de color) y `examples/plugins/open-workshop` (un rediseño completo). Copie cualquiera de los dos como punto de partida - ambos pasan ya el saneador.

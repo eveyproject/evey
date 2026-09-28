@@ -1,5 +1,5 @@
 ---
-source_sha: 9a924b08827ea52fbbdec1a2dca7d22e3d8f6f32d236aefcc93e97b85a4652c8
+source_sha: 2d10a959b8d809ae197a485f1214dbb6d86d37c8658c1c4d4c12d0222f6593f8
 ---
 
 # Référence de l'API des extensions
@@ -221,4 +221,4 @@ Donne à l'iframe de l'extension la lecture et l'écriture des préférences de 
 
 ## Exemples
 
-Le dossier `examples/plugins/` ne contient pas encore d'exemples mis à jour pour le modèle actuel à deux genres. De nouveaux exemples de référence (`tmdb-enricher`, `discord-notify`, `library-stats`) sont prévus pour la phase 8.5 de la refonte des thèmes et des extensions. En attendant, les exemples présents dans `examples/plugins/` montrent le format d'échange IPC et les stubs gRPC, mais utilisent l'ancien format de manifeste (ajoutez `kind: plugin` en les adaptant).
+`examples/plugins/` contient des extensions fonctionnelles au format de manifeste actuel : des points de départ en Node.js et en Python (`nodejs-example`, `python-example`), une source de métadonnées (`metadata-example`), un récepteur de webhooks (`webhook-receiver`), un widget d'accueil (`weather`), la configuration et les secrets d'une extension (`config-demo`), le magasin de données avec les permissions `public` / `prefs` et l'emplacement `admin.nav` (`data-demo`), et deux thèmes. [dev-setup.md](dev-setup.md#3-scaffold-your-first-plugin) explique comment en copier un.

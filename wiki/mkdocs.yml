@@ -29,10 +29,10 @@ theme:
   logo: assets/brand/favicon.svg
   favicon: assets/brand/favicon.svg
   features:
-    # Top-level sections become tabs across the header instead of one long
-    # sidebar. With nine sections and sixty pages, the sidebar forced a reader
-    # to scroll past Operations to discover Contributing; tabs show the whole
-    # map at a glance and the sidebar then only carries the current section.
+    # Top-level sections become tabs across the header: Home, Discover and
+    # Technical guide. The two parts never share a sidebar, so a reader weighing
+    # Evey is not handed a runbook, and an operator's sidebar carries only the
+    # technical sections (setup, settings, operations, extending, internals).
     - navigation.tabs
     - navigation.sections
     - navigation.top
@@ -96,351 +96,246 @@ plugins:
           build: true
           nav_translations:
             Home: Accueil
-            Getting started: Prise en main
+            Discover: Découvrir
+            Why Evey: Pourquoi Evey
+            What you get: "Ce qu'Evey vous offre"
+            On every screen: Sur tous les écrans
+            Technical guide: Guide technique
+            Setup: Mise en place
             Installation: Installation
+            First steps: Premiers pas
             Configuration: Configuration
             Reverse proxy: Reverse proxy
             Bare metal deployment: Déploiement sans conteneur
             Backups: Sauvegardes
-            Understanding Evey: Comprendre Evey
-            What Evey is trying to be: Ce qu'Evey cherche à être
-            Playback and serving: Lecture et diffusion
-            Transcoding: Transcodage
-            Notifications: Notifications
+            Settings: Réglages
+            Viewer settings: Réglages utilisateur
+            Administration: Administration
+            Transcoding and hardware: Transcodage et matériel
             Single sign-on (OIDC): Authentification unique (OIDC)
+            Notifications: Notifications
             Languages and accessibility: Langues et accessibilité
-            Plugins: Extensions
-            Overview: Vue d'ensemble
-            Plugin API reference: Référence de l'API des extensions
-            Plugin developer setup: Mise en place pour développer une extension
-            Plugin sandbox deployment: Déploiement du bac à sable des extensions
-            Plugin permissions and slots: Permissions et emplacements des extensions
-            Themes: Thèmes
-            Theme API reference: Référence de l'API des thèmes
-            Theme security model: Modèle de sécurité des thèmes
             Operations: Exploitation
             Command line: Ligne de commande
             Media health: Santé des médias
             Recovery: Restauration
             Migrations: Migrations
-            Releases: Publication d'une version
             Incidents: Incidents
-            Contributing: Contribuer
-            Codebase map: Carte du code
-            Code conventions: Conventions de code
+            Releases: "Publication d'une version"
+            Extending: Étendre Evey
+            Plugins: Extensions
+            Plugin API reference: "Référence de l'API des extensions"
+            Plugin developer setup: Mise en place pour développer une extension
+            Plugin sandbox deployment: Déploiement du bac à sable des extensions
+            Plugin permissions and slots: Permissions et emplacements des extensions
+            Theme API reference: "Référence de l'API des thèmes"
+            Theme security model: Modèle de sécurité des thèmes
+            Under the hood: Sous le capot
+            How playback works: Comment fonctionne la lecture
             Architecture: Architecture
             Plugin sandbox and threat model: Bac à sable des extensions et modèle de menace
-            Frontend design system: Système de design de l'interface
             Server API: API du serveur
+            Overview: "Vue d'ensemble"
             Public API: API publique
-            Admin API: API d'administration
+            Admin API: "API d'administration"
             Plugin API: API des extensions
-            Architecture decisions: Décisions d'architecture
-            Index: Index
-            0001 Hexagonal architecture: 0001 Architecture hexagonale
-            0002 Transactional unit port: 0002 Port d'unité transactionnelle
-            0003 Plugin-scoped JWT tokens: 0003 Jetons JWT limités à une extension
-            0004 Proto deprecation strategy: 0004 Stratégie de dépréciation des protos
-            0005 Two-layer authorization: 0005 Autorisation à deux couches
-            0006 Scanner change-detection contract: 0006 Contrat de détection de changement du scanner
-            0009 CQRS repository split: 0009 Séparation CQRS des dépôts
-            0010 In-process event bus with typed domain events: 0010 Bus d'événements en mémoire avec événements typés
-            0011 External intro detection providers ahead of the...: 0011 Fournisseurs externes de détection de générique en tête...
-            0012 Deny-by-default authorization for plugin tokens: 0012 Autorisation refusée par défaut pour les jetons d'extension
-            0013 Userspace plugin resource monitor: 0013 Moniteur de ressources des extensions en espace utilisateur
-            0014 Landlock plugin sandbox via a pre-exec launcher shim: 0014 Bac à sable Landlock via une amorce avant exécution
-            0015 Hardware-accelerated transcoding - one full-HW image...: 0015 Transcodage matériel - une image tout matériel...
-            0016 In-process mkvgo fast-path for the MKV scan prober: 0016 Chemin rapide mkvgo en mémoire pour la sonde MKV
-            0017 Software HDR→SDR tone-map at delivery resolution, not...: 0017 Tonemap HDR→SDR logiciel à la résolution de diffusion...
-            0018 CMCD-based QoE telemetry with a non-blocking...: 0018 Télémétrie de qualité CMCD sans blocage...
-            0019 Token-epoch revocation for stateless JWTs: 0019 Révocation par époque de jeton pour des JWT sans état
-            0020 HLS-native audio rendition: 0020 Piste audio native HLS
-            0021 Plugins on TV - WebView portage now, native SDUI...: 0021 Extensions sur TV - portage WebView, rendu natif ensuite...
-            0022 HLS decision pinning and A/V resync: 0022 Épinglage de décision HLS et resynchro A/V
-            0023 Refresh-token rotation grace window: 0023 Fenêtre de grâce pour la rotation des jetons
-            0024 App-layer PlaybackPlan resolver: 0024 Résolveur de plan de lecture côté application
-            0025 Server-driven cast with a custom Web Receiver: 0025 Cast piloté par le serveur avec un récepteur web dédié
-            0026 Remote access inferred from a published URL, unless...: 0026 Accès distant déduit d'une URL publiée, sauf...
+            Contributing: Contribuer
         - locale: de
           name: Deutsch
           build: true
           nav_translations:
             Home: Startseite
-            Getting started: Erste Schritte
+            Discover: Entdecken
+            Why Evey: Warum Evey
+            What you get: Was Sie bekommen
+            On every screen: Auf jedem Bildschirm
+            Technical guide: Technisches Handbuch
+            Setup: Einrichtung
             Installation: Installation
+            First steps: Erste Schritte
             Configuration: Konfiguration
             Reverse proxy: Reverse Proxy
             Bare metal deployment: Installation ohne Container
             Backups: Sicherungen
-            Understanding Evey: Evey verstehen
-            What Evey is trying to be: Was Evey sein will
-            Playback and serving: Wiedergabe und Auslieferung
-            Transcoding: Transkodierung
-            Notifications: Benachrichtigungen
+            Settings: Einstellungen
+            Viewer settings: Einstellungen für Zuschauer
+            Administration: Administration
+            Transcoding and hardware: Transkodierung und Hardware
             Single sign-on (OIDC): Single Sign-on (OIDC)
+            Notifications: Benachrichtigungen
             Languages and accessibility: Sprachen und Barrierefreiheit
-            Plugins: Erweiterungen
-            Overview: Überblick
-            Plugin API reference: API-Referenz für Erweiterungen
-            Plugin developer setup: Einrichtung für Erweiterungen
-            Plugin sandbox deployment: Sandbox-Betrieb für Erweiterungen
-            Plugin permissions and slots: Berechtigungen und Slots für Erweiterungen
-            Themes: Themes
-            Theme API reference: API-Referenz für Themes
-            Theme security model: Sicherheitsmodell für Themes
             Operations: Betrieb
             Command line: Kommandozeile
             Media health: Medienzustand
             Recovery: Wiederherstellung
             Migrations: Migrationen
-            Releases: Veröffentlichungen
             Incidents: Störungen
-            Contributing: Mitarbeiten
-            Codebase map: Karte des Codes
-            Code conventions: Code-Konventionen
+            Releases: Veröffentlichungen
+            Extending: Erweitern
+            Plugins: Erweiterungen
+            Plugin API reference: API-Referenz für Erweiterungen
+            Plugin developer setup: Einrichtung für Erweiterungen
+            Plugin sandbox deployment: Sandbox-Betrieb für Erweiterungen
+            Plugin permissions and slots: Berechtigungen und Slots für Erweiterungen
+            Theme API reference: API-Referenz für Themes
+            Theme security model: Sicherheitsmodell für Themes
+            Under the hood: Unter der Haube
+            How playback works: Wie die Wiedergabe funktioniert
             Architecture: Architektur
             Plugin sandbox and threat model: Sandbox und Bedrohungsmodell für Erweiterungen
-            Frontend design system: Design-System der Oberfläche
             Server API: Server-API
+            Overview: Überblick
             Public API: Öffentliche API
             Admin API: Administrations-API
             Plugin API: Erweiterungs-API
-            Architecture decisions: Architekturentscheidungen
-            Index: Übersicht
-            0001 Hexagonal architecture: 0001 Hexagonale Architektur
-            0002 Transactional unit port: 0002 Port für transaktionale Einheit
-            0003 Plugin-scoped JWT tokens: 0003 Auf eine Erweiterung begrenzte JWT
-            0004 Proto deprecation strategy: 0004 Strategie zur Proto-Abkündigung
-            0005 Two-layer authorization: 0005 Zweischichtige Autorisierung
-            0006 Scanner change-detection contract: 0006 Vertrag zur Änderungserkennung des Scanners
-            0009 CQRS repository split: 0009 CQRS-Trennung der Repositories
-            0010 In-process event bus with typed domain events: 0010 Prozessinterner Event-Bus mit typisierten Domänenereignissen
-            0011 External intro detection providers ahead of the...: 0011 Externe Anbieter zur Intro-Erkennung zuerst...
-            0012 Deny-by-default authorization for plugin tokens: 0012 Standardmäßig verweigerte Autorisierung für Erweiterungs-Token
-            0013 Userspace plugin resource monitor: 0013 Ressourcenmonitor für Erweiterungen im Userspace
-            0014 Landlock plugin sandbox via a pre-exec launcher shim: 0014 Landlock-Sandbox über einen vorgelagerten Launcher
-            0015 Hardware-accelerated transcoding - one full-HW image...: 0015 Hardware-Transkodierung - ein vollständiges HW-Image...
-            0016 In-process mkvgo fast-path for the MKV scan prober: 0016 Prozessinterner mkvgo-Schnellpfad für die MKV-Sonde
-            0017 Software HDR→SDR tone-map at delivery resolution, not...: 0017 Software-HDR→SDR-Tonemap in Ausgabeauflösung...
-            0018 CMCD-based QoE telemetry with a non-blocking...: 0018 CMCD-basierte QoE-Telemetrie ohne Blockieren...
-            0019 Token-epoch revocation for stateless JWTs: 0019 Token-Epochen-Widerruf für zustandslose JWT
-            0020 HLS-native audio rendition: 0020 HLS-native Audiospur
-            0021 Plugins on TV - WebView portage now, native SDUI...: 0021 Erweiterungen auf dem TV - zuerst WebView, später nativ...
-            0022 HLS decision pinning and A/V resync: 0022 HLS-Entscheidungsbindung und A/V-Resynchronisation
-            0023 Refresh-token rotation grace window: 0023 Kulanzfenster für die Token-Rotation
-            0024 App-layer PlaybackPlan resolver: 0024 PlaybackPlan-Resolver auf Anwendungsebene
-            0025 Server-driven cast with a custom Web Receiver: 0025 Servergesteuertes Casting mit eigenem Web Receiver
-            0026 Remote access inferred from a published URL, unless...: 0026 Fernzugriff aus einer veröffentlichten URL abgeleitet...
+            Contributing: Mitarbeiten
         - locale: es
           name: Español
           build: true
           nav_translations:
             Home: Inicio
-            Getting started: Primeros pasos
+            Discover: Descubrir
+            Why Evey: Por qué Evey
+            What you get: Lo que Evey le ofrece
+            On every screen: En todas las pantallas
+            Technical guide: Guía técnica
+            Setup: Puesta en marcha
             Installation: Instalación
+            First steps: Primeros pasos
             Configuration: Configuración
             Reverse proxy: Proxy inverso
             Bare metal deployment: Despliegue sin contenedor
             Backups: Copias de seguridad
-            Understanding Evey: Entender Evey
-            What Evey is trying to be: Qué pretende ser Evey
-            Playback and serving: Reproducción y difusión
-            Transcoding: Transcodificación
-            Notifications: Notificaciones
+            Settings: Ajustes
+            Viewer settings: Ajustes del espectador
+            Administration: Administración
+            Transcoding and hardware: Transcodificación y hardware
             Single sign-on (OIDC): Inicio de sesión único (OIDC)
+            Notifications: Notificaciones
             Languages and accessibility: Idiomas y accesibilidad
-            Plugins: Extensiones
-            Overview: Visión general
-            Plugin API reference: Referencia de la API de extensiones
-            Plugin developer setup: Preparación para desarrollar extensiones
-            Plugin sandbox deployment: Despliegue del entorno aislado de extensiones
-            Plugin permissions and slots: Permisos y ranuras de extensiones
-            Themes: Temas
-            Theme API reference: Referencia de la API de temas
-            Theme security model: Modelo de seguridad de los temas
             Operations: Operación
             Command line: Línea de comandos
             Media health: Salud de los medios
             Recovery: Recuperación
             Migrations: Migraciones
-            Releases: Publicación de versiones
             Incidents: Incidencias
-            Contributing: Contribuir
-            Codebase map: Mapa del código
-            Code conventions: Convenciones de código
+            Releases: Publicación de versiones
+            Extending: Ampliar Evey
+            Plugins: Extensiones
+            Plugin API reference: Referencia de la API de extensiones
+            Plugin developer setup: Preparación para desarrollar extensiones
+            Plugin sandbox deployment: Despliegue del entorno aislado de extensiones
+            Plugin permissions and slots: Permisos y ranuras de extensiones
+            Theme API reference: Referencia de la API de temas
+            Theme security model: Modelo de seguridad de los temas
+            Under the hood: Bajo el capó
+            How playback works: Cómo funciona la reproducción
             Architecture: Arquitectura
             Plugin sandbox and threat model: Entorno aislado y modelo de amenazas de extensiones
-            Frontend design system: Sistema de diseño de la interfaz
             Server API: API del servidor
+            Overview: Visión general
             Public API: API pública
             Admin API: API de administración
             Plugin API: API de extensiones
-            Architecture decisions: Decisiones de arquitectura
-            Index: Índice
-            0001 Hexagonal architecture: 0001 Arquitectura hexagonal
-            0002 Transactional unit port: 0002 Puerto de unidad transaccional
-            0003 Plugin-scoped JWT tokens: 0003 Tokens JWT limitados a una extensión
-            0004 Proto deprecation strategy: 0004 Estrategia de obsolescencia de los protos
-            0005 Two-layer authorization: 0005 Autorización en dos capas
-            0006 Scanner change-detection contract: 0006 Contrato de detección de cambios del escáner
-            0009 CQRS repository split: 0009 Separación CQRS de los repositorios
-            0010 In-process event bus with typed domain events: 0010 Bus de eventos en proceso con eventos tipados
-            0011 External intro detection providers ahead of the...: 0011 Proveedores externos de detección de intros primero...
-            0012 Deny-by-default authorization for plugin tokens: 0012 Autorización denegada por defecto para tokens de extensión
-            0013 Userspace plugin resource monitor: 0013 Monitor de recursos de extensiones en espacio de usuario
-            0014 Landlock plugin sandbox via a pre-exec launcher shim: 0014 Entorno aislado Landlock mediante un lanzador previo
-            0015 Hardware-accelerated transcoding - one full-HW image...: 0015 Transcodificación por hardware - una imagen completa...
-            0016 In-process mkvgo fast-path for the MKV scan prober: 0016 Ruta rápida mkvgo en proceso para la sonda MKV
-            0017 Software HDR→SDR tone-map at delivery resolution, not...: 0017 Tonemap HDR→SDR por software a la resolución de salida...
-            0018 CMCD-based QoE telemetry with a non-blocking...: 0018 Telemetría de calidad CMCD sin bloqueo...
-            0019 Token-epoch revocation for stateless JWTs: 0019 Revocación por época de token para JWT sin estado
-            0020 HLS-native audio rendition: 0020 Pista de audio nativa de HLS
-            0021 Plugins on TV - WebView portage now, native SDUI...: 0021 Extensiones en TV - primero WebView, nativo después...
-            0022 HLS decision pinning and A/V resync: 0022 Fijación de decisión HLS y resincronización A/V
-            0023 Refresh-token rotation grace window: 0023 Ventana de gracia en la rotación de tokens
-            0024 App-layer PlaybackPlan resolver: 0024 Resolutor del plan de reproducción en la aplicación
-            0025 Server-driven cast with a custom Web Receiver: 0025 Cast dirigido por el servidor con receptor web propio
-            0026 Remote access inferred from a published URL, unless...: 0026 Acceso remoto deducido de una URL publicada, salvo...
+            Contributing: Contribuir
         - locale: hi
           name: हिन्दी
           build: true
           nav_translations:
             Home: मुख्य पृष्ठ
-            Getting started: शुरुआत करें
+            Discover: परिचय
+            Why Evey: Evey क्यों
+            What you get: आपको क्या मिलता है
+            On every screen: हर स्क्रीन पर
+            Technical guide: तकनीकी गाइड
+            Setup: सेटअप
             Installation: इंस्टॉलेशन
+            First steps: पहले कदम
             Configuration: कॉन्फ़िगरेशन
             Reverse proxy: रिवर्स प्रॉक्सी
             Bare metal deployment: कंटेनर के बिना परिनियोजन
             Backups: बैकअप
-            Understanding Evey: Evey को समझना
-            What Evey is trying to be: Evey क्या बनना चाहता है
-            Playback and serving: प्लेबैक और वितरण
-            Transcoding: ट्रांसकोडिंग
-            Notifications: सूचनाएँ
+            Settings: सेटिंग्स
+            Viewer settings: दर्शक सेटिंग्स
+            Administration: प्रशासन
+            Transcoding and hardware: ट्रांसकोडिंग और हार्डवेयर
             Single sign-on (OIDC): सिंगल साइन-ऑन (OIDC)
+            Notifications: सूचनाएँ
             Languages and accessibility: भाषाएँ और सुगम्यता
-            Plugins: एक्सटेंशन
-            Overview: परिचय
-            Plugin API reference: एक्सटेंशन API संदर्भ
-            Plugin developer setup: एक्सटेंशन डेवलपर सेटअप
-            Plugin sandbox deployment: एक्सटेंशन सैंडबॉक्स परिनियोजन
-            Plugin permissions and slots: एक्सटेंशन अनुमतियाँ और स्लॉट
-            Themes: थीम
-            Theme API reference: थीम API संदर्भ
-            Theme security model: थीम सुरक्षा मॉडल
             Operations: संचालन
             Command line: कमांड लाइन
             Media health: मीडिया स्वास्थ्य
             Recovery: पुनर्प्राप्ति
             Migrations: माइग्रेशन
-            Releases: रिलीज़
             Incidents: घटनाएँ
-            Contributing: योगदान
-            Codebase map: कोड का नक्शा
-            Code conventions: कोड परंपराएँ
+            Releases: रिलीज़
+            Extending: विस्तार
+            Plugins: एक्सटेंशन
+            Plugin API reference: एक्सटेंशन API संदर्भ
+            Plugin developer setup: एक्सटेंशन डेवलपर सेटअप
+            Plugin sandbox deployment: एक्सटेंशन सैंडबॉक्स परिनियोजन
+            Plugin permissions and slots: एक्सटेंशन अनुमतियाँ और स्लॉट
+            Theme API reference: थीम API संदर्भ
+            Theme security model: थीम सुरक्षा मॉडल
+            Under the hood: भीतरी संरचना
+            How playback works: प्लेबैक कैसे काम करता है
             Architecture: आर्किटेक्चर
             Plugin sandbox and threat model: एक्सटेंशन सैंडबॉक्स और ख़तरा मॉडल
-            Frontend design system: इंटरफ़ेस डिज़ाइन सिस्टम
             Server API: सर्वर API
+            Overview: सारांश
             Public API: सार्वजनिक API
             Admin API: व्यवस्थापन API
             Plugin API: एक्सटेंशन API
-            Architecture decisions: आर्किटेक्चर निर्णय
-            Index: सूची
-            0001 Hexagonal architecture: 0001 हेक्सागोनल आर्किटेक्चर
-            0002 Transactional unit port: 0002 लेनदेन इकाई पोर्ट
-            0003 Plugin-scoped JWT tokens: 0003 एक्सटेंशन तक सीमित JWT टोकन
-            0004 Proto deprecation strategy: 0004 प्रोटो अप्रचलन रणनीति
-            0005 Two-layer authorization: 0005 दो-स्तरीय प्राधिकरण
-            0006 Scanner change-detection contract: 0006 स्कैनर परिवर्तन-पहचान अनुबंध
-            0009 CQRS repository split: 0009 CQRS रिपॉज़िटरी विभाजन
-            0010 In-process event bus with typed domain events: 0010 टाइप किए गए डोमेन इवेंट के साथ इन-प्रोसेस इवेंट बस
-            0011 External intro detection providers ahead of the...: 0011 पहले बाहरी इंट्रो पहचान प्रदाता...
-            0012 Deny-by-default authorization for plugin tokens: 0012 एक्सटेंशन टोकन के लिए डिफ़ॉल्ट रूप से अस्वीकृत प्राधिकरण
-            0013 Userspace plugin resource monitor: 0013 यूज़रस्पेस में एक्सटेंशन संसाधन मॉनिटर
-            0014 Landlock plugin sandbox via a pre-exec launcher shim: 0014 पूर्व-निष्पादन लॉन्चर के ज़रिए Landlock सैंडबॉक्स
-            0015 Hardware-accelerated transcoding - one full-HW image...: 0015 हार्डवेयर ट्रांसकोडिंग - एक पूर्ण HW इमेज...
-            0016 In-process mkvgo fast-path for the MKV scan prober: 0016 MKV जाँच के लिए इन-प्रोसेस mkvgo फ़ास्ट-पाथ
-            0017 Software HDR→SDR tone-map at delivery resolution, not...: 0017 डिलीवरी रिज़ॉल्यूशन पर सॉफ़्टवेयर HDR→SDR टोनमैप...
-            0018 CMCD-based QoE telemetry with a non-blocking...: 0018 बिना रुकावट CMCD आधारित QoE टेलीमेट्री...
-            0019 Token-epoch revocation for stateless JWTs: 0019 स्टेटलेस JWT के लिए टोकन-एपोक निरस्तीकरण
-            0020 HLS-native audio rendition: 0020 HLS-मूल ऑडियो ट्रैक
-            0021 Plugins on TV - WebView portage now, native SDUI...: 0021 TV पर एक्सटेंशन - पहले WebView, बाद में नेटिव...
-            0022 HLS decision pinning and A/V resync: 0022 HLS निर्णय पिनिंग और A/V पुनःसमन्वय
-            0023 Refresh-token rotation grace window: 0023 टोकन रोटेशन के लिए छूट अवधि
-            0024 App-layer PlaybackPlan resolver: 0024 ऐप स्तर पर PlaybackPlan रिज़ॉल्वर
-            0025 Server-driven cast with a custom Web Receiver: 0025 अपने Web Receiver के साथ सर्वर-संचालित कास्ट
-            0026 Remote access inferred from a published URL, unless...: 0026 प्रकाशित URL से अनुमानित दूरस्थ पहुँच, जब तक...
+            Contributing: योगदान
         - locale: zh
           name: 中文
           build: true
           nav_translations:
             Home: 首页
-            Getting started: 快速上手
+            Discover: 了解 Evey
+            Why Evey: 为什么选择 Evey
+            What you get: 你能得到什么
+            On every screen: 每一块屏幕
+            Technical guide: 技术指南
+            Setup: 部署
             Installation: 安装
+            First steps: 第一步
             Configuration: 配置
             Reverse proxy: 反向代理
             Bare metal deployment: 不使用容器的部署
             Backups: 备份
-            Understanding Evey: 理解 Evey
-            What Evey is trying to be: Evey 想成为什么
-            Playback and serving: 播放与分发
-            Transcoding: 转码
-            Notifications: 通知
+            Settings: 设置
+            Viewer settings: 观众设置
+            Administration: 管理
+            Transcoding and hardware: 转码与硬件
             Single sign-on (OIDC): 单点登录（OIDC）
+            Notifications: 通知
             Languages and accessibility: 语言与无障碍
-            Plugins: 扩展
-            Overview: 概览
-            Plugin API reference: 扩展 API 参考
-            Plugin developer setup: 扩展开发环境准备
-            Plugin sandbox deployment: 扩展沙箱部署
-            Plugin permissions and slots: 扩展权限与插槽
-            Themes: 主题
-            Theme API reference: 主题 API 参考
-            Theme security model: 主题安全模型
             Operations: 运维
             Command line: 命令行
             Media health: 媒体健康
             Recovery: 恢复
             Migrations: 迁移
-            Releases: 版本发布
             Incidents: 故障处理
-            Contributing: 参与贡献
-            Codebase map: 代码地图
-            Code conventions: 代码约定
+            Releases: 版本发布
+            Extending: 扩展 Evey
+            Plugins: 扩展
+            Plugin API reference: 扩展 API 参考
+            Plugin developer setup: 扩展开发环境准备
+            Plugin sandbox deployment: 扩展沙箱部署
+            Plugin permissions and slots: 扩展权限与插槽
+            Theme API reference: 主题 API 参考
+            Theme security model: 主题安全模型
+            Under the hood: 深入原理
+            How playback works: 播放如何工作
             Architecture: 架构
             Plugin sandbox and threat model: 扩展沙箱与威胁模型
-            Frontend design system: 界面设计系统
             Server API: 服务端 API
+            Overview: 概览
             Public API: 公开 API
             Admin API: 管理 API
             Plugin API: 扩展 API
-            Architecture decisions: 架构决策
-            Index: 索引
-            0001 Hexagonal architecture: 0001 六边形架构
-            0002 Transactional unit port: 0002 事务单元端口
-            0003 Plugin-scoped JWT tokens: 0003 限定于单个扩展的 JWT 令牌
-            0004 Proto deprecation strategy: 0004 proto 弃用策略
-            0005 Two-layer authorization: 0005 双层授权
-            0006 Scanner change-detection contract: 0006 扫描器变更检测约定
-            0009 CQRS repository split: 0009 CQRS 仓储拆分
-            0010 In-process event bus with typed domain events: 0010 带类型化领域事件的进程内事件总线
-            0011 External intro detection providers ahead of the...: 0011 优先使用外部片头检测提供方...
-            0012 Deny-by-default authorization for plugin tokens: 0012 扩展令牌默认拒绝授权
-            0013 Userspace plugin resource monitor: 0013 用户态扩展资源监控
-            0014 Landlock plugin sandbox via a pre-exec launcher shim: 0014 通过前置启动器实现的 Landlock 沙箱
-            0015 Hardware-accelerated transcoding - one full-HW image...: 0015 硬件转码 - 单一全硬件镜像...
-            0016 In-process mkvgo fast-path for the MKV scan prober: 0016 MKV 探测的进程内 mkvgo 快速路径
-            0017 Software HDR→SDR tone-map at delivery resolution, not...: 0017 按输出分辨率进行的软件 HDR→SDR 色调映射...
-            0018 CMCD-based QoE telemetry with a non-blocking...: 0018 无阻塞的 CMCD QoE 遥测...
-            0019 Token-epoch revocation for stateless JWTs: 0019 无状态 JWT 的令牌纪元吊销
-            0020 HLS-native audio rendition: 0020 HLS 原生音轨
-            0021 Plugins on TV - WebView portage now, native SDUI...: 0021 电视上的扩展 - 先 WebView，后原生...
-            0022 HLS decision pinning and A/V resync: 0022 HLS 决策固定与音画重新同步
-            0023 Refresh-token rotation grace window: 0023 令牌轮换的宽限窗口
-            0024 App-layer PlaybackPlan resolver: 0024 应用层 PlaybackPlan 解析器
-            0025 Server-driven cast with a custom Web Receiver: 0025 使用自有 Web Receiver 的服务端驱动投屏
-            0026 Remote access inferred from a published URL, unless...: 0026 从已发布 URL 推断远程访问，除非...
+            Contributing: 参与贡献
 
 markdown_extensions:
   - admonition
@@ -486,76 +381,56 @@ extra:
       link: https://github.com/Evey-project
 
 # ── The manifest ──────────────────────────────────────────────────────────────
-# Paths resolve against wiki/content/ first, then docs/. Keep user-facing pages
-# above contributor pages: the person who lands here is installing a server, not
-# reading an ADR.
+# Paths resolve against wiki/content/ first, then docs/. Two parts: Discover is
+# for someone deciding whether Evey is for them, the Technical guide for someone
+# running it. Contributor documents (decision records, codebase map, code
+# conventions, frontend design system) stay in the repository, linked from
+# contributing.md: the person who lands here is choosing or running a server,
+# not reading an ADR.
 nav:
   - Home: index.md
-  - Getting started:
-      - Installation: installation.md
-      - Configuration: configuration.md
-      - Reverse proxy: reverse-proxy.md
-      - Bare metal deployment: deployment-bare-metal.md
-      - Backups: backups.md
-  - Understanding Evey:
-      - What Evey is trying to be: philosophy.md
-      - Playback and serving: playback-serving.md
-      - Transcoding: transcoding.md
-      - Notifications: notifications.md
-      - Single sign-on (OIDC): oidc.md
-      - Languages and accessibility: i18n-accessibility.md
-  - Plugins:
-      - Overview: plugins.md
-      - Plugin API reference: plugins/api-reference.md
-      - Plugin developer setup: plugins/dev-setup.md
-      - Plugin sandbox deployment: plugins/sandbox-deployment.md
-      - Plugin permissions and slots: plugins/security-model.md
-  - Themes:
-      - Theme API reference: themes/api-reference.md
-      - Theme security model: themes/security-model.md
-  - Operations:
-      - runbooks/index.md
-      - Command line: runbooks/cli.md
-      - Media health: runbooks/media-health.md
-      - Recovery: runbooks/recovery.md
-      - Migrations: runbooks/migration-runbook.md
-      - Incidents: runbooks/incident-runbook.md
-      - Releases: runbooks/release.md
-  - Contributing:
-      - Architecture: ARCHITECTURE.md
-      - Code conventions: code-conventions.md
-      - Codebase map: CODEBASE_MAP.md
-      - Plugin sandbox and threat model: SECURITY.md
-      - Frontend design system: frontend-design-system.md
-      - Server API:
-          - Overview: api/README.md
-          - Public API: api/public/README.md
-          - Admin API: api/admin/README.md
-          - Plugin API: api/plugins/README.md
-      - Architecture decisions:
-          - Index: adr/README.md
-          - "0001 Hexagonal architecture": adr/0001-hexagonal-architecture.md
-          - "0002 Transactional unit port": adr/0002-transactional-unit-port.md
-          - "0003 Plugin-scoped JWT tokens": adr/0003-plugin-scoped-tokens.md
-          - "0004 Proto deprecation strategy": adr/0004-proto-deprecation-strategy.md
-          - "0005 Two-layer authorization": adr/0005-two-layer-authorization.md
-          - "0006 Scanner change-detection contract": adr/0006-scanner-change-detection.md
-          - "0009 CQRS repository split": adr/0009-cqrs-repo-split.md
-          - "0010 In-process event bus": adr/0010-event-bus.md
-          - "0011 External intro providers": adr/0011-intro-detection-providers.md
-          - "0012 Deny-by-default authorization for plugin tokens": adr/0012-plugin-token-deny-by-default.md
-          - "0013 Userspace plugin resource monitor": adr/0013-userspace-plugin-resource-monitor.md
-          - "0014 Landlock plugin sandbox": adr/0014-landlock-plugin-sandbox.md
-          - "0015 One image for every GPU": adr/0015-hardware-acceleration.md
-          - "0016 In-process mkvgo fast-path for the MKV scan prober": adr/0016-mkv-fastpath-prober.md
-          - "0017 Software HDR→SDR tone-map at delivery resolution, not...": adr/0017-software-hdr-tonemap-delivery-resolution.md
-          - "0018 CMCD-based QoE telemetry with a non-blocking...": adr/0018-cmcd-qoe-pipeline.md
-          - "0019 Token-epoch revocation for stateless JWTs": adr/0019-token-epoch-revocation.md
-          - "0020 HLS-native audio rendition": adr/0020-hls-native-audio-rendition.md
-          - "0021 Plugins on TV - WebView portage now, native SDUI...": adr/0021-plugins-on-tv.md
-          - "0022 HLS decision pinning and A/V resync": adr/0022-hls-decision-pinning-and-av-resync.md
-          - "0023 Refresh-token rotation grace window": adr/0023-refresh-rotation-grace.md
-          - "0024 App-layer PlaybackPlan resolver": adr/0024-playback-plan-resolver.md
-          - "0025 Server-driven cast with a custom Web Receiver": adr/0025-server-driven-cast.md
-          - "0026 Remote access inferred from a published URL, unless...": adr/0026-remote-access-inferred-from-a-published-url.md
-          - "0028 The install is one compose file": adr/0028-install-is-one-compose-file.md
+  - Discover:
+      - Why Evey: philosophy.md
+      - What you get: discover/features.md
+      - On every screen: discover/apps.md
+  - Technical guide:
+      - Setup:
+          - Installation: installation.md
+          - First steps: guide/first-steps.md
+          - Configuration: configuration.md
+          - Reverse proxy: reverse-proxy.md
+          - Bare metal deployment: deployment-bare-metal.md
+          - Backups: backups.md
+      - Settings:
+          - Viewer settings: guide/viewer-settings.md
+          - Administration: guide/admin-settings.md
+          - Transcoding and hardware: transcoding.md
+          - Single sign-on (OIDC): oidc.md
+          - Notifications: notifications.md
+          - Languages and accessibility: i18n-accessibility.md
+      - Operations:
+          - runbooks/index.md
+          - Command line: runbooks/cli.md
+          - Media health: runbooks/media-health.md
+          - Recovery: runbooks/recovery.md
+          - Migrations: runbooks/migration-runbook.md
+          - Incidents: runbooks/incident-runbook.md
+          - Releases: runbooks/release.md
+      - Extending:
+          - Plugins: plugins.md
+          - Plugin API reference: plugins/api-reference.md
+          - Plugin developer setup: plugins/dev-setup.md
+          - Plugin sandbox deployment: plugins/sandbox-deployment.md
+          - Plugin permissions and slots: plugins/security-model.md
+          - Theme API reference: themes/api-reference.md
+          - Theme security model: themes/security-model.md
+      - Under the hood:
+          - How playback works: playback-serving.md
+          - Architecture: ARCHITECTURE.md
+          - Plugin sandbox and threat model: SECURITY.md
+          - Server API:
+              - Overview: api/README.md
+              - Public API: api/public/README.md
+              - Admin API: api/admin/README.md
+              - Plugin API: api/plugins/README.md
+          - Contributing: contributing.md

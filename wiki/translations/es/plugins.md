@@ -1,5 +1,5 @@
 ---
-source_sha: 641ed9ad2a04551e1c5e1db07a26cb739f2708ce4ec146e2a5590265cd4216ca
+source_sha: d7ed6dd50005bc7e22c522df514264be5d132bc0ca91bd3052d5321a026acad0
 ---
 
 # Sistema de extensiones
@@ -15,7 +15,7 @@ Esta página es un mapa. El detalle está en tres documentos monográficos:
 
 | Documento | Qué contiene |
 |---|---|
-| **[plugins/dev-setup.md](plugins/dev-setup.md)** | Cómo escribir su primera extensión: requisitos previos, andamiaje, el ciclo de instalar e iterar, la firma, el envío al catálogo y la resolución de problemas. **Empiece por aquí.** |
+| **[plugins/dev-setup.md](plugins/dev-setup.md)** | Cómo escribir su primera extensión: requisitos previos, andamiaje, el ciclo de instalar e iterar, la firma, la distribución y la resolución de problemas. **Empiece por aquí.** |
 | **[plugins/api-reference.md](plugins/api-reference.md)** | El contrato: esquema del manifiesto, IPC y almacén de datos del backend, el puente `evey.*` de la interfaz, la lista de slots y cada una de las capacidades (`metadata.provider`, `media.read/write`, `notification.sender`, `webhook.receiver`, `public`, `prefs`). |
 | **[plugins/security-model.md](plugins/security-model.md)** | Modelo de amenazas y capas de defensa: separación de UID, la lista de denegación seccomp del núcleo y del LD_PRELOAD, los modos de sandbox (`auto` resuelve landlock → bubblewrap → basic; `strict` añade la biblioteca LD_PRELOAD a bubblewrap), el monitor de recursos en espacio de usuario, el análisis estático, el saneador de CSS, la firma y el versionado, la lista blanca de slots y los límites conocidos. |
 

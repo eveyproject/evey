@@ -1,5 +1,5 @@
 ---
-source_sha: 8e9b10f4cdc162d51247a1432d8c6b2a3ab2490d0c01a856d52961436aa38556
+source_sha: 2ff1222cb6483b259b30b0a40ec51e6e4e8d1e7a7f4a5877a9761a0186adff2d
 ---
 
 # Servir un vídeo: la vía de reproducción HLS
@@ -129,10 +129,23 @@ segmentos `.m4s`. (La rama MPEG-TS de `hls_transcoder.go` está muerta:
 
 - **HLS** (`master.m3u8` → `stream_N.m3u8` → el `EXT-X-MAP` de inicialización más
   los `.m4s`) - en los dos motores.
-- **DASH** (`manifest.mpd`) - **solo en la vía de copia de mkvgo**
-  (`OnDemandPlan.HasDASH`), idéntico byte a byte y sin coste de almacenamiento;
-  no está en la vía de transcodificación de ffmpeg y se desactiva cuando el
-  cifrado AES-128 está activo.
+- **DASH** (`manifest.mpd`) - en la vía de copia de mkvgo, el propio manifiesto
+  del empaquetador (`OnDemandPlan.HasDASH`, idéntico byte a byte, sin
+  almacenamiento, desactivado con AES-128); en la vía de ffmpeg, un manifiesto
+  **declarado a partir del plan** sobre los mismos fragmentos que direccionan las
+  listas HLS (`ManifestGenerator.MPD`), escrito antes de que exista ningún
+  fragmento. Lo que lo hace honesto es la **rejilla de segmentos**
+  (`domain/transcoding.SegmentGrid`): cada escalón transcodificado se corta en el
+  mismo número entero de fotogramas (72 a 23,976 fps, 75 a 25, 90 a 29,97), de
+  modo que un segmento es exacto en los ticks de la pista de vídeo e idéntico en
+  todo el conjunto de conmutación; el repliegue en copia declara su plan de
+  fotogramas clave. Una fuente con frecuencia de imagen desconocida o variable se
+  queda en el antiguo reloj de 3 s, mantiene HLS y responde 404 en
+  `manifest.mpd`. Ningún cliente pasa a DASH: HLS sigue siendo el predeterminado
+  en todas partes. El `DASHFromCMAF` de mkvgo sobre los fragmentos producidos es
+  el oráculo de paridad (`internal/pkg/cmafparity`, `TestDASHGridIntegration` a
+  23,976/25/29,97 fps: en frío, salto, conjunto de conmutación de dos escalones,
+  audio separado dentro de una trama AAC).
 
 Las URL de cada sesión se vuelven a grabar
 (`transcode_vod_manifest_rebake.go`) para que lleven el token del flujo, tanto en

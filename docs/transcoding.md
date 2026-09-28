@@ -2,6 +2,12 @@
 
 Evey transcodes media on-the-fly when the client doesn't support the source format.
 
+**In short.** Most installs need nothing here: the server measures what the
+machine can convert and admits that many conversions at once. To use a
+graphics card, expose it to the container (below), then leave **Hardware
+acceleration** on **Auto** in **Admin → Transcoding**. The rest of this page
+explains what happens behind that choice.
+
 ## How It Works
 
 Evey picks the best playback method automatically:
@@ -10,6 +16,9 @@ Evey picks the best playback method automatically:
 3. **Transcode** - re-encode to HLS with adaptive bitrate
 
 ## Configuration
+
+Both values below are first-boot seeds: the admin panel (**Admin →
+Transcoding**) wins once a value is saved there.
 
 ```env
 EVEY_TRANSCODING_MAX_CONCURRENT=2
@@ -60,7 +69,7 @@ serves whichever backend you then select.
 
 ### Enabling it
 
-Hardware acceleration is controlled from **Admin → Server configuration → Encode
+Hardware acceleration is controlled from **Admin → Transcoding → Encode
 calibration**:
 
 - A master **Hardware acceleration** toggle. Off = software only (the escape
@@ -144,7 +153,7 @@ apart, with no playback and host CPU under 20 %. That keeps a ~2-5 min bench
 off the boot path and off a host busy with a migration or a library scan (a
 bench measured under load is flagged *provisional* and redone when idle). While
 the bench runs, a new playback is told to wait about 2 minutes (`calibrating`);
-**Admin → Encode calibration** shows whether the calibration is pending, running
+**Admin → Transcoding → Encode calibration** shows whether the calibration is pending, running
 or done, and "Recalibrate" (`POST /api/v1/admin/transcode/calibration/recalibrate`)
 runs it right away. The clip's
 decode + tonemap + encode cost is what the cap is derived from, so a
@@ -210,7 +219,7 @@ audio when the source packages verbatim.
 
 ## Verify
 
-Open **Admin → Server configuration → Encode calibration**: it shows the
+Open **Admin → Transcoding → Encode calibration**: it shows the
 detected accelerators, the active backend, the measured software/HW ceilings,
 and any automatic HW→software fallbacks. A "Recalibrate" button re-runs the
 benchmark after a hardware or driver change.

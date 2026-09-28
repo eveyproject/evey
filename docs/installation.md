@@ -96,6 +96,8 @@ Then open `http://<your-ip>:9091`. With no admin yet, you land on the **setup
 wizard** (`/setup`): create the first admin account. After that, log in and
 **add a library** (Admin → Libraries), pointing it at a path under `/media`
 (your `MEDIA_DIR`, mounted read-write). The first scan starts automatically.
+The wizard, the libraries, inviting people and what to check before sharing
+the address are walked through in [First steps](guide/first-steps.md).
 
 The compose file above mounts it read-write on purpose: the seek-index repair
 rebuilds files in place, and a `:ro` mount makes those repairs fail. Add `:ro`
@@ -432,13 +434,13 @@ Two things to know on ARM:
   benchmarks and route-proves each shape on your board before offering it -
   nothing is assumed from the SoC name, and a shape that does not prove stays on
   the CPU. RKMPP has not been validated by the project on real hardware yet: treat
-  it as best-effort and check **Admin → Encode calibration** for what was
+  it as best-effort and check **Admin → Transcoding → Encode calibration** for what was
   certified. The Raspberry Pi **V4L2 M2M** encoder is **not** wired: on a Pi or
   a Synology-class ARM (Realtek) NAS there is no hardware encode path, so ARM =
   **direct play** (the client plays the file as-is, near-zero cost) plus
   **software transcode** on the CPU. Capacity is calibrated, not guessed: a weak
   core keeps the 720p software floor and admits one encode at a time; you may
-  still lower `transcoding.max_video_sessions` (Admin → Server Config) and lean
+  still lower `transcoding.max_video_sessions` (Admin → Transcoding) and lean
   on direct play.
 - **HDR tone-mapping is on the fast path on ARM too.** The bundled arm64
   jellyfin-ffmpeg ships the SIMD `tonemapx` filter (NEON), just like the amd64

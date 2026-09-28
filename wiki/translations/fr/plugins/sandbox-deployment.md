@@ -1,5 +1,5 @@
 ---
-source_sha: b94aa88f55554960b3e73981b575626e610e3effb4316b9d152996dedb316b9f
+source_sha: 0846a653f87edb54addf042a0876b46fd3ab9e42930e3f12e27706e59ce0bc97
 ---
 
 # Isolation des extensions : quelle configuration pour votre serveur
@@ -29,6 +29,12 @@ Une extension que vous installez est enfermée. Selon votre machine, cet enclos 
   avez approuvé cette permission.
 - **Plafonne processeur, mémoire, disque et nombre de processus**, pour qu'une
   extension emballée ne puisse pas mettre le serveur à terre.
+- **Garde vos secrets illisibles** : la clé de signature des connexions et les
+  sauvegardes.
+
+À cela s'ajoute que l'installation d'une extension est **réservée à
+l'administrateur**, que le code est **analysé** à la recherche de motifs
+suspects, et que vous **approuvez ses permissions** avant qu'elle ne tourne.
 
 **Pour voir ce qui s'applique réellement :** Admin → Plugins → Security Dashboard
 affiche le *bac à sable de l'hôte*, c'est-à-dire ce à quoi le mode `auto` s'est
@@ -37,12 +43,6 @@ S'il affiche **basic**, votre hôte n'offre aucune isolation du système de
 fichiers par chemin (les extensions tournent avec la seule bascule d'UID et
 seccomp) ; les sondes disent pourquoi, et les sections ci-dessous disent comment
 y remédier.
-- **Garde vos secrets illisibles** : la clé de signature des connexions et les
-  sauvegardes.
-
-À cela s'ajoute que l'installation d'une extension est **réservée à
-l'administrateur**, que le code est **analysé** à la recherche de motifs
-suspects, et que vous **approuvez ses permissions** avant qu'elle ne tourne.
 
 ---
 
@@ -81,8 +81,10 @@ est qu'une couche redondante de plus.
 
 **Le piège :** la séparation d'uid est **incompatible avec l'option de durcissement
 Docker `no-new-privileges`**, il faut choisir. Si votre installation ne peut pas
-l'accorder, Evey ne casse pas : il enregistre un avertissement et exécute
-l'extension normalement (vous n'avez simplement pas le mur supplémentaire).
+l'accorder sur une machine ancienne (`basic`), Evey **refuse de démarrer
+l'extension** plutôt que de la faire tourner à côté de vos secrets ; sur une
+machine récente, il enregistre un avertissement et exécute l'extension
+normalement (vous n'avez simplement pas le mur supplémentaire).
 L'image officielle embarque déjà tout le nécessaire ; vous n'avez que cette
 variable à poser.
 

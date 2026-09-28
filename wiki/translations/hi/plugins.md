@@ -1,5 +1,5 @@
 ---
-source_sha: 641ed9ad2a04551e1c5e1db07a26cb739f2708ce4ec146e2a5590265cd4216ca
+source_sha: d7ed6dd50005bc7e22c522df514264be5d132bc0ca91bd3052d5321a026acad0
 ---
 
 # एक्सटेंशन तंत्र
@@ -14,7 +14,7 @@ subprocess** के रूप में चलता है, जो Unix domain 
 
 | दस्तावेज़ | उसमें क्या है |
 |---|---|
-| **[plugins/dev-setup.md](plugins/dev-setup.md)** | अपना पहला एक्सटेंशन लिखना: पूर्व-शर्तें, ढाँचा, इंस्टॉल और दोहराव का चक्र, हस्ताक्षर, कैटलॉग में जमा करना, गड़बड़ियाँ सुलझाना। **यहीं से शुरू करें।** |
+| **[plugins/dev-setup.md](plugins/dev-setup.md)** | अपना पहला एक्सटेंशन लिखना: पूर्व-शर्तें, ढाँचा, इंस्टॉल और दोहराव का चक्र, हस्ताक्षर, वितरण, गड़बड़ियाँ सुलझाना। **यहीं से शुरू करें।** |
 | **[plugins/api-reference.md](plugins/api-reference.md)** | अनुबंध: manifest का ढाँचा, बैकएंड IPC और डेटा स्टोर, `evey.*` वाला frontend पुल, slot की सूची, और हर क्षमता (`metadata.provider`, `media.read/write`, `notification.sender`, `webhook.receiver`, `public`, `prefs`)। |
 | **[plugins/security-model.md](plugins/security-model.md)** | ख़तरे का मॉडल और बचाव की परतें: UID अलग करना, कर्नेल और LD_PRELOAD वाली seccomp denylist, सैंडबॉक्स के तरीके (`auto` क्रम से landlock → bubblewrap → basic तय करता है; `strict` bubblewrap के साथ LD_PRELOAD लाइब्रेरी भी जोड़ता है), userspace का संसाधन मॉनिटर, static विश्लेषण, CSS का sanitizer, हस्ताक्षर और संस्करण, slot की allowlist, और जानी-मानी सीमाएँ। |
 
