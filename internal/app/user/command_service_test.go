@@ -1173,11 +1173,6 @@ func TestLogout_WithoutToken_EndsNothing(t *testing.T) {
 	}
 }
 
-// TestLogout_RevokesStreamTokens proves Logout cuts the user's outstanding
-// stream/cast tokens (via the same TokenRevoker used by DisableUser /
-// ChangePassword), not just their refresh token. Without this, a logged-out
-// user's opaque stream token (up to 12h TTL) keeps serving media bytes long
-// after the session ended.
 // No logout revokes the ACCOUNT's tokens any more, whichever path it takes:
 // the only revoker available works per user, so using it would stop the film
 // playing on the television because a phone was signed out. Cutting an
