@@ -43,6 +43,16 @@ func TestScan_LocalStorage_Blocked(t *testing.T) {
 	}
 }
 
+// A blocked literal that ends the file exactly is still found: the scan must
+// check the last position, where a minified theme can put it (mutation
+// 2026-09-28: the end-of-source boundary was never exercised).
+func TestScan_LiteralAtTheVeryEnd_Blocked(t *testing.T) {
+	src := []byte(`var s=localStorage`)
+	if err, _ := Scan(src); err == nil {
+		t.Error("a blocked literal ending the source must be rejected")
+	}
+}
+
 func TestScan_DocumentCookie_Blocked(t *testing.T) {
 	src := []byte(`var c = document.cookie;`)
 	err, _ := Scan(src)
