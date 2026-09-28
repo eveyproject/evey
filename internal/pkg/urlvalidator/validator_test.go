@@ -1,6 +1,8 @@
 package urlvalidator
 
 import (
+	"context"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -253,4 +255,18 @@ func TestValidateRedirectURL_EmptyScheme(t *testing.T) {
 	err := ValidateRedirectURL("example.com/path")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")
+}
+
+// A hostname (not an IP literal) is resolved and each address checked: one
+// that points at loopback is refused. Only literals and blocked names were
+// tested, so a slip sending names down the literal branch - which accepts
+// them unresolved - went unseen (mutation 2026-09-28). ip6-localhost comes
+// from /etc/hosts, no network needed; skipped where it does not resolve.
+func TestValidateWebhookURL_HostnameResolvingToLoopbackRefused(t *testing.T) {
+	if addrs, err := net.DefaultResolver.LookupIPAddr(context.Background(), "ip6-localhost"); err != nil || len(addrs) == 0 {
+		t.Skip("ip6-localhost does not resolve locally here")
+	}
+	if err := ValidateWebhookURL("http://ip6-localhost:8080/hook"); err == nil {
+		t.Error("a hostname resolving to loopback must be refused")
+	}
 }
