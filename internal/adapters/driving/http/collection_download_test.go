@@ -142,3 +142,25 @@ func TestDownloadCollection_NotFound(t *testing.T) {
 		t.Errorf("expected 404 for missing collection, got %d", w.Code)
 	}
 }
+
+// A download token is bound to the one collection it was minted for; replayed
+// on another it must be refused before the archive is built. Neutralising the
+// check left the package green (sabotage sweep, 2026-09-28).
+func TestDownloadCollection_TokenBoundElsewhere_Forbidden(t *testing.T) {
+	movie := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", Type: domainlibrary.MovieItem, Title: "Some Movie", File: &domainlibrary.MediaFile{Path: archiveTempFile(t, t.TempDir(), "some-movie.mkv", "movie")}}
+	h := &collectionHandler{
+		collSvc:    &fakeCollectionSource{col: &domainlibrary.Collection{Name: "Faves"}, items: []*domainlibrary.MediaItem{movie}},
+		libSvc:     &fakeMediaItemGetter{},
+		libChecker: allowAll(),
+		baseURL:    "http://localhost",
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/collections/c1/download", nil)
+	req.SetPathValue("id", "c1")
+	req = withHTTPClaims(req, testClaims(false))
+	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{UserID: "user-1", MediaItemID: "c-other", Scope: shared.ScopeStream}))
+	w := httptest.NewRecorder()
+	h.downloadCollection(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("a token bound to another collection must be refused, got %d", w.Code)
+	}
+}

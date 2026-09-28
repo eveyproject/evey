@@ -128,3 +128,29 @@ func TestDownloadPlaylist_NoFiles_NotFound(t *testing.T) {
 		t.Errorf("expected 404 for playlist with no downloadable files, got %d", w.Code)
 	}
 }
+
+// A download token is bound to the one playlist it was minted for; replayed on
+// another it must be refused before the archive is built. Neutralising the
+// check left the package green (sabotage sweep, 2026-09-28).
+func TestDownloadPlaylist_TokenBoundElsewhere_Forbidden(t *testing.T) {
+	movie := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", Type: domainlibrary.MovieItem, Title: "Some Movie", File: &domainlibrary.MediaFile{Path: archiveTempFile(t, t.TempDir(), "some-movie.mkv", "movie")}}
+	h := &playlistHandler{
+		plSvc: &fakePlaylistSource{
+			pl:      &playlist.Playlist{Name: "Mine", ProfileID: "p1", Type: playlist.Manual},
+			plItems: []*playlist.PlaylistItem{{MediaItemID: "m1", MediaType: playlist.MediaTypeVideo}},
+		},
+		libSvc:     &fakeMediaItemGetter{item: movie},
+		music:      &fakeMusicResolver{},
+		libChecker: allowAll(),
+		baseURL:    "http://localhost",
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/playlists/p1/download", nil)
+	req.SetPathValue("id", "p1")
+	req = withHTTPClaims(req, testClaims(false))
+	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{UserID: "user-1", MediaItemID: "p-other", Scope: shared.ScopeStream}))
+	w := httptest.NewRecorder()
+	h.downloadPlaylist(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("a token bound to another playlist must be refused, got %d", w.Code)
+	}
+}
