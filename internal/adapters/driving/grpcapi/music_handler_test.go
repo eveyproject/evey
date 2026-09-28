@@ -420,6 +420,21 @@ func TestMusicHandler_DeleteTrack_NotFound(t *testing.T) {
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
+// A member, even one granted the library, cannot delete a track: the handler
+// refuses before any lookup. RBAC holds the same line; this is the one behind it.
+func TestMusicHandler_DeleteTrack_NonAdminDenied(t *testing.T) {
+	h, repo, libraryAccess, _ := newTestMusicHandler()
+	seedTrack(repo, "t-1", "lib-1", "Keep Me", "Artist A")
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+
+	_, err := h.DeleteTrack(userCtx("user-2", "profile-2"), &eveyv1.DeleteTrackRequest{Id: "t-1"})
+
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	got, gErr := repo.GetByID(context.Background(), "t-1")
+	require.NoError(t, gErr)
+	assert.NotNil(t, got, "the track must still be there")
+}
+
 func TestMusicHandler_DeleteTrack_Unauthenticated(t *testing.T) {
 	h, _, _, _ := newTestMusicHandler()
 
