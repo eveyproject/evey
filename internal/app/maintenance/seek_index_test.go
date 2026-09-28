@@ -419,6 +419,37 @@ func TestSeekIndexService_ReindexLibrary_RollingBackupWindow(t *testing.T) {
 	assert.Zero(t, res.WithBackup, "rollup reflects the drained window")
 }
 
+// The window is judged while the job runs, not only at its end: the drain
+// purges everything left anyway, so the final state could not tell a window
+// that purged one backup too early - a repair whose rollback was already gone
+// (mutation 2026-09-28). With a window of 2, the i-th rewrite sees
+// max(0, i-2) backups purged.
+func TestSeekIndexService_ReindexLibrary_WindowKeepsTheLastBackupsDuringTheJob(t *testing.T) {
+	dir := t.TempDir()
+	files := make([]appmaintenance.MediaRef, 5)
+	hasIndex := map[string]bool{}
+	for i := range files {
+		p := filepath.Join(dir, fmt.Sprintf("f%d.mkv", i))
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+		files[i] = appmaintenance.MediaRef{MediaID: fmt.Sprintf("m%d", i), Path: p}
+		hasIndex[p] = false
+	}
+	reidx := &fakeReindexer{hasIndex: hasIndex, hasBackup: map[string]bool{}}
+	var purgedAtRewrite []int
+	reidx.onReindexed = func(string) {
+		reidx.mu.Lock()
+		purgedAtRewrite = append(purgedAtRewrite, len(reidx.deleted))
+		reidx.mu.Unlock()
+	}
+	svc := appmaintenance.NewSeekIndexService(reidx, fakeCatalog{files: files}, nil)
+
+	require.NoError(t, svc.StartReindexLibrary(context.Background(), "",
+		appmaintenance.ReindexRunOptions{BackupWindow: 2}))
+	waitIdle(t, svc)
+	assert.Equal(t, []int{0, 0, 0, 1, 2}, purgedAtRewrite,
+		"the two latest backups must still exist when the next file is rewritten")
+}
+
 // A panic inside the reindexer must release the job slot (otherwise every
 // later start is refused with ErrJobRunning until restart) and surface as the
 // job-level error of the summary.
