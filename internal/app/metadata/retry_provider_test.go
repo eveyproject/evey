@@ -114,6 +114,24 @@ func TestRetryProvider_GetByProviderID_RetriesAndSucceeds(t *testing.T) {
 	}
 }
 
+// GetByProviderID gives up after maxAttempts like Search does: three calls, the
+// last error returned. Only its success path was tested (mutation 2026-09-28).
+func TestRetryProvider_GetByProviderID_GivesUpAfterMaxAttempts(t *testing.T) {
+	boom := errors.New("boom")
+	inner := &decoratorFakeProvider{
+		name:        "imdb",
+		getByIDErrs: []error{boom, boom, boom, nil},
+		idResult:    &domainmetadata.MetadataResult{Title: "too late"},
+	}
+	r := NewRetryProvider(inner, 3, time.Microsecond)
+	if _, err := r.GetByProviderID(context.Background(), "tt1", "movie"); !errors.Is(err, boom) {
+		t.Fatalf("err = %v, want boom", err)
+	}
+	if inner.getByIDCalls != 3 {
+		t.Fatalf("calls = %d, want 3", inner.getByIDCalls)
+	}
+}
+
 func TestRetryProvider_Unwrap(t *testing.T) {
 	inner := &decoratorFakeProvider{name: "tmdb"}
 	r := NewRetryProvider(inner, 3, time.Microsecond)
