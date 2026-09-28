@@ -906,6 +906,10 @@ func TestUpdateProfile_PreservesUnreferencedFields(t *testing.T) {
 
 func TestUpdateProfile_OtherProfileDenied(t *testing.T) {
 	env := setupUserHandler()
+	// The target EXISTS and belongs to another account: a missing profile is
+	// refused with the same code by an earlier branch, which hid an ownership
+	// check that did nothing (sabotage sweep, 2026-09-28).
+	env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-other", UserID: "usr-2", Name: "Theirs"})
 	ctx := userCtx("usr-1", "prf-1")
 	newName := "Hacked"
 	_, err := env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{

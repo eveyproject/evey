@@ -391,6 +391,23 @@ func TestParentalUpdateSettings_FromKidsProfile_Refused(t *testing.T) {
 	}
 }
 
+// The kids profile edits its SIBLING: the target is the parent profile, so the
+// gate has to read the caller's own profile to know it is restricted. Every
+// other test here edited the kids profile itself and never reached that read.
+func TestParentalUpdateSettings_FromKidsProfile_OnSiblingRefused(t *testing.T) {
+	mux, gen, kidsID := newKidsCallerMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: kidsID, IsAdmin: false})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/prof-1/parental", strings.NewReader(`{"maxAge":99}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("a kids profile must not change a sibling's parental settings: want 403, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
 // Clearing the blocked-tag list is the same escalation by another field.
 func TestParentalUpdateSettings_FromKidsProfile_RefusesBlockedTagsWipe(t *testing.T) {
 	mux, gen, kidsID := newKidsCallerMux(t)
