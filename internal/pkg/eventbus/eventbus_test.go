@@ -197,6 +197,30 @@ func TestAllRetriesExhausted(t *testing.T) {
 	assert.Equal(t, int32(3), calls.Load(), "handler called MaxRetries times")
 }
 
+// More retries than configured backoffs: the last backoff is reused for the
+// rest, and the worker never reads past the list (an index panic there would
+// take the whole server down, not just the handler). Only equal-length
+// configs were tested (mutation 2026-09-28).
+func TestRetriesBeyondTheBackoffListReuseTheLastOne(t *testing.T) {
+	t.Parallel()
+	bus := eventbus.New(eventbus.WithRetry(eventbus.RetryConfig{
+		MaxRetries: 5,
+		Backoffs:   []time.Duration{time.Millisecond},
+	}))
+	defer bus.Stop()
+
+	var calls atomic.Int32
+	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
+		calls.Add(1)
+		panic("always fails")
+	})
+	_ = bus.Publish(context.Background(), testEvent{msg: "long retry"})
+
+	if !waitFor(t, 2*time.Second, func() bool { return calls.Load() == 5 }) {
+		t.Fatalf("handler must be tried MaxRetries times with one backoff reused; got %d", calls.Load())
+	}
+}
+
 func TestPublisherCtxCancelDoesNotAbortWorker(t *testing.T) {
 	t.Parallel()
 	bus := eventbus.New()
