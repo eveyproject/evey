@@ -581,7 +581,9 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 				seen[entryName] = n + 1
 				entryName = fmt.Sprintf("%s (%d)%s", baseNow, n+1, extNow)
 			}
-			zfw, zipErr := zw.Create(entryName)
+			// Stored, not deflated, like the media archives: audio is already
+			// compressed, so deflate only burnt NAS CPU for nothing.
+			zfw, zipErr := zw.CreateHeader(&zip.FileHeader{Name: entryName, Method: zip.Store})
 			if zipErr != nil {
 				slog.WarnContext(r.Context(), "music album download: zip create", slog.Any("err", zipErr))
 				return
