@@ -59,6 +59,21 @@ func TestBackgroundCleanup(t *testing.T) {
 	}
 }
 
+// The background sweep removes what expired and only that: a live entry
+// survives it. The expired half alone proved nothing - Get hides an expired
+// entry by itself - so a sweep evicting the wrong ones went unseen
+// (mutation 2026-09-28).
+func TestBackgroundCleanup_KeepsLiveEntries(t *testing.T) {
+	c, stop := cache.New[int](10 * time.Millisecond)
+	defer stop()
+	c.Set("live", 1, time.Hour)
+	c.Set("dead", 2, time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
+	if _, ok := c.Get("live"); !ok {
+		t.Fatal("the sweep evicted an entry that had not expired")
+	}
+}
+
 func TestOverwrite(t *testing.T) {
 	c, stop := cache.New[int](0)
 	defer stop()
