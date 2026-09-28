@@ -350,7 +350,7 @@ func TestClientInfoUnary_SpoofedXFFFromUntrustedPeerDoesNotWarn(t *testing.T) {
 // Trusting it hands the caller the per-IP rate limiters via a forged header.
 func TestResolveClientIP_UnparseablePeerAddressIsNotTrusted(t *testing.T) {
 	ratelimit.SetTrustedProxies([]string{"10.0.0.0/8"})
-	t.Cleanup(func() { ratelimit.SetTrustedProxies(nil) })
+	t.Cleanup(func() { ratelimit.SetTrustedProxies(defaultTrustedProxies) })
 
 	md := metadata.Pairs("x-forwarded-for", "203.0.113.9")
 	ctx := peer.NewContext(metadata.NewIncomingContext(context.Background(), md),
@@ -371,7 +371,7 @@ func TestResolveClientIP_UnparseablePeerAddressIsNotTrusted(t *testing.T) {
 // fix above does not break an in-process or socket-based transport.
 func TestResolveClientIP_UnixSocketPeerStaysTrusted(t *testing.T) {
 	ratelimit.SetTrustedProxies([]string{"10.0.0.0/8"})
-	t.Cleanup(func() { ratelimit.SetTrustedProxies(nil) })
+	t.Cleanup(func() { ratelimit.SetTrustedProxies(defaultTrustedProxies) })
 
 	md := metadata.Pairs("x-forwarded-for", "203.0.113.9")
 	ctx := peer.NewContext(metadata.NewIncomingContext(context.Background(), md),

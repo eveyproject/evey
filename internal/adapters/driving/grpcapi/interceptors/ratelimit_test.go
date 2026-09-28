@@ -173,7 +173,7 @@ func TestRateLimitUnary_RefusalLogCarriesResolutionReasoning(t *testing.T) {
 
 	// A trusted peer forwarding a real client: the honored path.
 	ratelimit.SetTrustedProxies([]string{"10.0.0.0/8"})
-	t.Cleanup(func() { ratelimit.SetTrustedProxies(nil) })
+	t.Cleanup(func() { ratelimit.SetTrustedProxies(defaultTrustedProxies) })
 
 	limiters := map[string]*interceptors.MethodLimiter{
 		testMethod: {Limiter: ratelimit.NewWithBurst(1, 0.06), RetryAfterSecs: 10},
