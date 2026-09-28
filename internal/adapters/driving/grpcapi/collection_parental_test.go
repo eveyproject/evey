@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -117,4 +119,93 @@ func TestCollectionGetCollection_ParentalFilterOnItems(t *testing.T) {
 	assert.Equal(t, "For everyone", kidResp.Items[0].Title)
 	assert.EqualValues(t, 1, kidResp.Total)
 	assert.EqualValues(t, 1, kidResp.Collection.ItemCount)
+}
+
+// The collection reads a kids profile reaches each filter what its parental
+// rules hide. Neutralising any of these three filters left the package green
+// (sabotage sweep, 2026-09-28): only ListCollections had a test.
+//
+// col-clean holds a clean title, col-blocked only a title tagged "violence",
+// col-mixed both. Both titles carry a US "G" rating so the age rule passes and
+// the blocked tag is the only difference.
+func newKidsCollectionFixture(t *testing.T) (*collectionHandler, context.Context) {
+	t.Helper()
+	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
+	mediaRepo := libraryfakes.NewFakeMediaItemStore()
+	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
+	cmdSvc := appcollection.NewCommandService(cmdRepo, queryRepo, mediaRepo)
+	querySvc := appcollection.NewQueryService(queryRepo, libraryfakes.NewFakeCollectionSmartQuerier())
+
+	maxAge := 7
+	kid := &user.Profile{
+		ID: "prf-kid", UserID: "usr-kid", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{Enabled: true, MaxAge: &maxAge, BlockedTags: []string{"violence"}},
+	}
+	profileRepo := userfakes.NewFakeProfileRepository()
+	if err := profileRepo.Create(context.Background(), kid); err != nil {
+		t.Fatal(err)
+	}
+	userQuery := appuser.NewQueryService(userfakes.NewFakeUserRepository(), profileRepo,
+		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository())
+	h := &collectionHandler{cmd: cmdSvc, query: querySvc, userQuery: userQuery, userAccess: newPermissiveTestUserAccess()}
+
+	g := map[string]string{"US": "G"}
+	_ = mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m-clean", LibraryID: "lib-1", Title: "Safe", Type: "movie",
+		Catalog: &library.MediaCatalog{Tags: []string{}}, Classification: &library.MediaClassification{CertificationsByCountry: g}})
+	_ = mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m-violent", LibraryID: "lib-1", Title: "Action", Type: "movie",
+		Catalog: &library.MediaCatalog{Tags: []string{"violence"}}, Classification: &library.MediaClassification{CertificationsByCountry: g}})
+	seedCollection(cmdRepo, "col-clean", "Clean")
+	seedCollection(cmdRepo, "col-blocked", "Blocked")
+	seedCollection(cmdRepo, "col-mixed", "Mixed")
+	_ = cmdRepo.LinkItem(context.Background(), "col-clean", "m-clean", 0)
+	_ = cmdRepo.LinkItem(context.Background(), "col-blocked", "m-violent", 0)
+	_ = cmdRepo.LinkItem(context.Background(), "col-mixed", "m-clean", 0)
+	_ = cmdRepo.LinkItem(context.Background(), "col-mixed", "m-violent", 1)
+
+	ctx := interceptors.ContextWithClaims(context.Background(), &user.Claims{UserID: "usr-kid", Username: "kid", ProfileID: string(kid.ID)})
+	return h, ctx
+}
+
+func TestCollectionGetCollection_ParentalHidesAWhollyBlockedCollection(t *testing.T) {
+	h, kidCtx := newKidsCollectionFixture(t)
+	if _, err := h.GetCollection(kidCtx, &eveyv1.GetCollectionRequest{Id: "col-blocked"}); status.Code(err) != codes.NotFound {
+		t.Errorf("a collection of hidden titles must read as not found, got %v", err)
+	}
+	if _, err := h.GetCollection(kidCtx, &eveyv1.GetCollectionRequest{Id: "col-clean"}); err != nil {
+		t.Errorf("control: a clean collection must open: %v", err)
+	}
+}
+
+func TestCollectionListCollectionsForMediaItem_ParentalSkipsBlockedCollections(t *testing.T) {
+	h, kidCtx := newKidsCollectionFixture(t)
+	resp, err := h.ListCollectionsForMediaItem(kidCtx, &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "m-violent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range resp.Collections {
+		if c.Id == "col-blocked" {
+			t.Errorf("a collection whose every title is hidden must not be listed, got %v", c.Id)
+		}
+	}
+	// Control: the clean title's collections are listed.
+	clean, err := h.ListCollectionsForMediaItem(kidCtx, &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "m-clean"})
+	if err != nil || len(clean.Collections) == 0 {
+		t.Errorf("control: the clean title's collections must be listed, got %v (%v)", clean, err)
+	}
+}
+
+func TestCollectionGetCollectionItems_ParentalDropsBlockedTitles(t *testing.T) {
+	h, kidCtx := newKidsCollectionFixture(t)
+	resp, err := h.GetCollectionItems(kidCtx, &eveyv1.GetCollectionItemsRequest{Id: "col-mixed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range resp.MediaItemIds {
+		if id == "m-violent" {
+			t.Errorf("a hidden title must not be among the items, got %v", resp.MediaItemIds)
+		}
+	}
+	if resp.Total != 1 {
+		t.Errorf("total = %d, want 1 (the hidden title does not count)", resp.Total)
+	}
 }

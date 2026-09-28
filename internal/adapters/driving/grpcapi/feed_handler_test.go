@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appfeed "github.com/evey-project/evey/internal/app/feed"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appuser "github.com/evey-project/evey/internal/app/user"
@@ -15,6 +16,7 @@ import (
 	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -283,6 +285,37 @@ func newFeedHandlerWithAccess() feedHandlerWithAccessResult {
 		querier:        querier,
 		mediaQueryRepo: mediaQueryRepo,
 		libraryAccess:  libraryAccess,
+	}
+}
+
+// Every home feed goes through filterAccessibleAndAllowed; for a kids profile
+// it drops what the parental rules hide. Neutralising that branch left the
+// package green (sabotage sweep, 2026-09-28): the tests only granted libraries.
+func TestFeedHandler_FilterDropsParentalBlockedTitles(t *testing.T) {
+	res := newFeedHandlerWithAccess()
+	g := map[string]string{"US": "G"}
+	res.mediaQueryRepo.Seed(&library.MediaItem{ID: "m-clean", LibraryID: "lib-1", Type: library.MovieItem, Title: "Safe",
+		Catalog: &library.MediaCatalog{}, Classification: &library.MediaClassification{CertificationsByCountry: g}})
+	res.mediaQueryRepo.Seed(&library.MediaItem{ID: "m-violent", LibraryID: "lib-1", Type: library.MovieItem, Title: "Action",
+		Catalog: &library.MediaCatalog{Tags: []string{"violence"}}, Classification: &library.MediaClassification{CertificationsByCountry: g}})
+	maxAge := 7
+	profiles := userfakes.NewFakeProfileRepository()
+	if err := profiles.Create(context.Background(), &user.Profile{
+		ID: "prf-kid", UserID: "usr-kid", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{Enabled: true, MaxAge: &maxAge, BlockedTags: []string{"violence"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res.handler.userQuery = appuser.NewQueryService(userfakes.NewFakeUserRepository(), profiles,
+		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository())
+	ctx := interceptors.ContextWithClaims(context.Background(), &user.Claims{UserID: "usr-kid", ProfileID: "prf-kid"})
+
+	got, err := res.handler.filterAccessibleAndAllowed(ctx, []*feed.FeedItem{{MediaItemID: "m-clean"}, {MediaItemID: "m-violent"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].MediaItemID != "m-clean" {
+		t.Errorf("the kids profile's feed must keep only the clean title, got %v", got)
 	}
 }
 
