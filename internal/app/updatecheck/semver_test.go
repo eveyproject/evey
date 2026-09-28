@@ -15,13 +15,13 @@ func TestSemverLess(t *testing.T) {
 		a, b string
 		less bool
 	}{
-		{"1.9.9", "2.0.0", true},    // major wins over everything below it
+		{"1.9.9", "2.0.0", true}, // major wins over everything below it
 		{"2.0.0", "1.99.99", false},
-		{"1.2.3", "1.2.3", false},   // equal is not less, either way
+		{"1.2.3", "1.2.3", false}, // equal is not less, either way
 		{"1.2.3-beta.1", "1.2.3-beta.1", false},
-		{"1.2.3", "1.2.3-rc.1", false},          // a release is never below its pre-release
+		{"1.2.3", "1.2.3-rc.1", false}, // a release is never below its pre-release
 		{"1.2.3-rc.1", "1.2.3", true},
-		{"1.0.0-2", "1.0.0-alpha", true},        // numeric identifiers sort before alphanumeric
+		{"1.0.0-2", "1.0.0-alpha", true}, // numeric identifiers sort before alphanumeric
 		{"1.0.0-alpha", "1.0.0-2", false},
 		{"1.0.0-alpha", "1.0.0-beta", true},     // alphanumeric compare lexically
 		{"1.0.0-alpha.1", "1.0.0-alpha", false}, // more identifiers sort after, not before
