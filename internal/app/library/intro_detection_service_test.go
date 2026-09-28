@@ -1409,6 +1409,43 @@ func TestPropagateSegment_PaginatesAllSiblings(t *testing.T) {
 	require.Equal(t, total, count, "every sibling must be visited by propagation")
 }
 
+// Propagation never overwrites a segment the admin set by hand on a sibling:
+// the free sibling receives the propagated intro, the locked one keeps its
+// manual segment untouched. The lock had no test (mutation 2026-09-28).
+func TestPropagateSegment_SkipsASiblingWithAManualSegment(t *testing.T) {
+	t.Parallel()
+	dur, _ := shared.NewDurationMs(3_600_000)
+	ep := func(id string) *domainlibrary.MediaItem {
+		return &domainlibrary.MediaItem{ID: shared.MediaItemID(id), Type: domainlibrary.Episode, ParentID: "season-1",
+			File: &domainlibrary.MediaFile{Path: "/" + id + ".mkv", Duration: dur}}
+	}
+	ref, locked, free := ep("ep-ref"), ep("ep-locked"), ep("ep-free")
+	segRepo := &fakeSegmentRepo{seeded: []*domainlibrary.MediaSegment{
+		{ID: "ref-seg", MediaItemID: ref.ID, Type: "intro", StartMs: 0, EndMs: 40_000, Source: "manual", Confidence: 1.0},
+		{ID: "locked-seg", MediaItemID: locked.ID, Type: "intro", StartMs: 5_000, EndMs: 20_000, Source: "manual"},
+	}}
+	manifest := &domainlibrary.TrickplayManifest{
+		MediaItemID: ref.ID, Interval: 10, TileWidth: 5, TileHeight: 1, Width: 160, Height: 90, ImageCount: 1,
+	}
+	cacheDir := t.TempDir()
+	// The manifest names ep-ref, so every episode resolves to the same sidecar
+	// and matches the reference (same fixture as the batch-error test below).
+	writeTrickplaySidecarFixture(t, cacheDir, "ep-ref", 10, 5, 5)
+	svc := NewIntroDetectionService(segRepo, &fakeTrickplayRepoWithManifest{manifest: manifest},
+		&fakeMediaItemRepo{item: ref, siblings: []*domainlibrary.MediaItem{locked, free}},
+		&fakeConfigRepo{}, &fakeDetector{tileHashes: []uint64{0x1111, 0x2222, 0x3333, 0x4444, 0x5555}}, cacheDir)
+
+	_, err := svc.PropagateSegment(context.Background(), "ep-ref", "intro")
+	require.NoError(t, err)
+
+	wrote := map[shared.MediaItemID]bool{}
+	for _, sg := range segRepo.upserted {
+		wrote[sg.MediaItemID] = true
+	}
+	require.True(t, wrote[free.ID], "control: the free sibling must receive the propagated intro")
+	require.False(t, wrote[locked.ID], "a sibling with a manual intro must be left alone")
+}
+
 // --- pickWindowMatchingDuration tests ---
 
 func TestPickWindowMatchingDuration_PicksClosestToDuration(t *testing.T) {
