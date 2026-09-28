@@ -405,6 +405,11 @@ func TestGetPluginLogs_RejectsTraversal(t *testing.T) {
 		if err == nil && resp != nil && len(resp.Entries) > 0 {
 			t.Errorf("plugin id %q escaped the log directory and returned %d entries", id, len(resp.Entries))
 		}
+		// Refused outright, not merely answered empty: the glob below the check
+		// happens to find nothing today, which let the check go untested.
+		if status.Code(err) != codes.InvalidArgument {
+			t.Errorf("plugin id %q must be refused as invalid, got %v", id, err)
+		}
 	}
 }
 
