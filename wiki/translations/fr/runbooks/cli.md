@@ -25,7 +25,7 @@ evey completion bash          Le script de complétion bash.
 
 Tout autre premier argument est refusé (sortie 1) plutôt que de démarrer le
 serveur en silence. La table Go de `cmd/evey/admin_commands.go` est l'unique
-description de chaque sous-commande : la liste d'usage, `--help`, le manuel, le
+description de chaque sous-commande : la liste d'usage, `--help`, le manuel, le
 script de complétion et le shell du conteneur sont vérifiés contre elle par
 `cmd/evey/admin_cli_test.go`.
 
@@ -155,14 +155,14 @@ Le binaire déjà installé embarque toutes les sous-commandes.
 ## Complétion et manuel
 
 Le binaire embarque sa propre complétion bash et son manuel, si bien que les
-deux correspondent toujours aux sous-commandes qu'il livre :
+deux correspondent toujours aux sous-commandes qu'il livre :
 
 ```sh
 evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
 evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null && sudo mandb -q
 ```
 
-Sous zsh : d'abord `autoload -U +X bashcompinit && bashcompinit`, puis sourcez
+Sous zsh : d'abord `autoload -U +X bashcompinit && bashcompinit`, puis sourcez
 le même script. La complétion couvre les sous-commandes, leurs options et les
 valeurs de ces options (`--mode`, `--backend`, `--scenario`), les adresses des
 utilisateurs après `--user`, les racines de bibliothèques connues du serveur

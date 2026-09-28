@@ -33,6 +33,9 @@ theme:
     # Technical guide. The two parts never share a sidebar, so a reader weighing
     # Evey is not handed a runbook, and an operator's sidebar carries only the
     # technical sections (setup, settings, operations, extending, internals).
+    # The demo bar above the header can be closed; it returns only when its
+    # text changes (overrides/main.html).
+    - announce.dismiss
     - navigation.tabs
     - navigation.sections
     - navigation.top
@@ -44,6 +47,11 @@ theme:
     # follows.
     - navigation.footer
     - content.code.copy
+    # Numbered bubbles in a code block that open the explanation of one line,
+    # so the compose file stays short and every line can still be explained.
+    - content.code.annotate
+    # A tab picked once (docker-compose.yml / .env) stays picked on the page.
+    - content.tabs.link
     - content.action.edit
     - search.suggest
     - search.highlight
@@ -356,6 +364,8 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.highlight:
       anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences:

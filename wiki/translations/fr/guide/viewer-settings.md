@@ -1,5 +1,5 @@
 ---
-source_sha: 48560184418f09f59a0147095354999490a70abb4f0d86904e7c50b9b4b2b835
+source_sha: 5eee9b7d91ff4e7f592e19232c8e2bcaa6dbd8516301cccf7b266b23b3a06252
 ---
 # Réglages utilisateur
 
@@ -79,7 +79,7 @@ sous-titres, `<` et `>` pour la vitesse, `P` pour l'image dans l'image, et `0`
 
 ## Profils et contrôle parental
 
-**Paramètres > Profils** crée, modifie et supprime les profils (le profil par
+**Paramètres → Profils** crée, modifie et supprime les profils (le profil par
 défaut ne peut pas être supprimé). Chaque profil a :
 
 | Champ | Ce qu'il fait |
@@ -89,7 +89,7 @@ défaut ne peut pas être supprimé). Chaque profil a :
 | **Âge maximum** | Les titres au-dessus ne sont jamais envoyés à ce profil - ni dans les listes, ni dans la recherche, ni au lecteur. Décidé par le serveur : aucune application ne peut le contourner. |
 | **Langue** et **Région** | Remplacent, pour ce profil, la langue de l'interface et le pays des classifications. |
 
-**Paramètres > Contrôle parental** définit le **code PIN à 4 chiffres** du
+**Paramètres → Contrôle parental** définit le **code PIN à 4 chiffres** du
 compte. La première fois, il demande le mot de passe du compte ; pour le
 changer ensuite, il demande le code actuel. Un code PIN est obligatoire dès
 qu'un profil enfant existe.
@@ -113,7 +113,7 @@ doit être récupéré à nouveau.
 
 ## Notifications
 
-**Paramètres > Notifications** active les notifications push sur cet appareil
+**Paramètres → Notifications** active les notifications push sur cet appareil
 et règle, séparément pour les films, les séries et la musique, ce que vous
 voulez recevoir : **Toutes**, **Pertinentes**, **Importantes uniquement** ou
 **Désactivé**. Le push demande que l'administrateur l'ait configuré

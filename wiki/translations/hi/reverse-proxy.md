@@ -1,5 +1,5 @@
 ---
-source_sha: 06a2075124844fd29e2a0a34d0dfe067f47f6d6ad77a67d0ed6cfa86a3562723
+source_sha: 6206dabdc6ff848ca510df9c4b2f78a112fdd636b130b05b32f18fd574e98f9d
 ---
 
 # रिवर्स प्रॉक्सी
@@ -11,7 +11,7 @@ Evey पोर्ट **9091** पर **API और वेब UI, दोनों*
 आप प्रॉक्सी कहीं भी चलाएँ, ये सेट कर दें ताकि Evey को अपना सार्वजनिक URL पता रहे
 और वह प्रॉक्सी के forwarded हेडर पर भरोसा करे:
 
-```env
+```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
 EVEY_TRUSTED_PROXIES=172.16.0.0/12       # सिर्फ़ तभी ज़रूरी जब प्रॉक्सी एक container हो; loopback पर भरोसा हमेशा रहता है
 ```
@@ -114,7 +114,7 @@ frame-src https://www.gstatic.com
 साथ आने वाला हर उदाहरण डोमेन **एक ही जगह** से पढ़ता है: आपकी `.env` फ़ाइल का
 `EVEY_DOMAIN`। इसे एक बार सेट कर दें; Caddy, Nginx और Traefik, तीनों इसे उठा लेंगे।
 
-```env
+```env title=".env"
 EVEY_DOMAIN=media.example.com
 ```
 
@@ -137,7 +137,7 @@ Manager, या किसी साझा Docker नेटवर्क पर �
 दूसरा प्रॉक्सी लगाने से कुछ नहीं मिलता। evey सेवा को उसी प्रॉक्सी के नेटवर्क पर
 रखें और लक्ष्य `evey-server:9091` रखें:
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     # कोई ports नहीं: भीतर आने का इकलौता रास्ता प्रॉक्सी है

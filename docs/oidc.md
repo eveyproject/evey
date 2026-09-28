@@ -4,7 +4,7 @@ Evey supports Single Sign-On via OpenID Connect. Users can log in with Google, K
 
 ## Configuration
 
-```env
+```env title=".env"
 EVEY_OIDC_ENABLED=true
 EVEY_OIDC_ISSUER=https://auth.example.com/realms/main
 EVEY_OIDC_CLIENT_ID=evey

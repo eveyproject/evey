@@ -1,5 +1,5 @@
 ---
-source_sha: 2f1c2cafd1c1e20b2e8d011ec2457b1f01bde072b96b93d077d7694cf6537497
+source_sha: 69eb69dc75f4051d291795ad196ce5ee4b61038c94cbe8a97d9b7ee7d7470a69
 ---
 
 # बैकअप
@@ -8,7 +8,7 @@ Evey आपके डेटाबेस का बैकअप एक तय स
 
 ## कॉन्फ़िगरेशन
 
-```env
+```env title=".env"
 EVEY_BACKUP_DIR=/data/backups          # बैकअप यहाँ रखे जाते हैं
 EVEY_BACKUP_INTERVAL_HOURS=24          # स्वतः बैकअप का अंतराल (0 = बंद)
 EVEY_BACKUP_RETENTION_DAYS=30          # इससे पुराने बैकअप हटा दें (0 = हमेशा रखें)
@@ -48,7 +48,7 @@ curl -X POST -H "Authorization: Bearer <token>" http://localhost:9091/api/v1/adm
 ध्यान रखें कि `EVEY_BACKUP_DIR` किसी स्थायी वॉल्यूम या होस्ट के पथ पर जाता हो। डिफ़ॉल्ट `/data/backups`, `evey-data` नाम के Docker वॉल्यूम के भीतर ही रहता है।
 
 बैकअप होस्ट पर रखने के लिए:
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     volumes:

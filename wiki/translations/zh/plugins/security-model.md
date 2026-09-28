@@ -90,7 +90,7 @@ CRITICAL 问题或 `mime_mismatch` 会设置 `Safe = false` 并阻止安装。
 | JS `Function.constructor` 逃逸 | `(fn).constructor("...")()` 立即调用，以及 `const F = (fn).constructor; F("...")`（通过绑定重写跟踪保存下来的引用） | 以变量为参数的调用 `F(code)` 会被重写为 `.constructor(code)`，并由变量参数模式匹配 |
 | 多步碎片化拼接 | `$a="s"; $b="y"; $c="s"; $d="t"; $e="e"; $f="m"; $g=$a.$b.$c.$d.$e.$f; $g(...)` | 无害的碎片与"危险"值分开跟踪；危险检查只对最终拼接出的字符串触发 |
 
-每一类绕过手法在 `tests/fixtures/plugins/malicious/` 中都有一个永久回归测试。新增一类需要：(1) 提交 fixture，(2) 扩展分析器规则或规范化处理，(3) 检测生效后，`installer_security_test.go` 把 `workerANeeded:true → false`。
+每一类绕过手法在 `tests/fixtures/plugins/malicious/` 中都有一个永久回归测试。新增一类需要：（1）提交 fixture，（2）扩展分析器规则或规范化处理，（3）检测生效后，`installer_security_test.go` 把 `workerANeeded:true → false`。
 
 **不在范围内（由沙箱强制）：**AST 层面的动态变换 - `strrev("metsys")`、`base64.b64decode(...)`、`eval(open("/encoded").read())`、运行时 regex.replace。正则分析器无法解析这些；运行时沙箱（Landlock 白名单或 bwrap 挂载白名单，加上内核 seccomp 黑名单）+ 用户态资源监控 + IPC 对端凭据，共同保证扩展无法逃逸、无法外泄 `/data`、也无法超出所声明的权限。
 

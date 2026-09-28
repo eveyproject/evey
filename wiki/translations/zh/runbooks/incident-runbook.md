@@ -1,5 +1,5 @@
 ---
-source_sha: d6c99c91037371ee077e57625c65e0ac542e80e0737a6e83c3320644603ab562
+source_sha: ffbf9fdc31bed5852bae361afeb788edd4c45c60a46c9b02b5cefe3e5c7d810a
 ---
 
 # 故障处理手册
@@ -209,7 +209,7 @@ docker volume inspect evey_evey-cache   # compose-mangled name may vary
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- 如果宿主机的卷空间紧张，就调低转码缓存预算（Admin > 服务器设置，默认 `10` GB）；无论预算多少，清理器都会在缓存卷上保留 2 GiB 空闲空间。
+- 如果宿主机的卷空间紧张，就调低转码缓存预算（Admin → 服务器设置，默认 `10` GB）；无论预算多少，清理器都会在缓存卷上保留 2 GiB 空闲空间。
 
 ## 7. 扩展崩溃了
 

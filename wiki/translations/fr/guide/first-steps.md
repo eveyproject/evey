@@ -1,5 +1,5 @@
 ---
-source_sha: c73c55a6e5d6b1b9fa29cf297de23c0491fb8c067209ea11d5e8ece8986a630f
+source_sha: f1ea44197021d6c8d4791aa939ef1b103613cd438a70d3c00ce1af151c0ca580
 ---
 # Premiers pas
 
@@ -15,7 +15,7 @@ Un serveur sans administrateur s'ouvre sur un assistant en quatre étapes.
 
 1. **Langue.** La langue par défaut des nouveaux profils et des métadonnées
    (titres, résumés, genres). Vous pourrez la changer plus tard dans
-   **Admin > Configuration du serveur > Langue et région**, avec la région qui
+   **Admin → Configuration du serveur → Langue et région**, avec la région qui
    décide des classifications d'âge appliquées.
 2. **Bienvenue.**
 3. **Compte administrateur.** Un nom d'utilisateur d'au moins trois caractères
@@ -27,7 +27,7 @@ Un serveur sans administrateur s'ouvre sur un assistant en quatre étapes.
 
 ## Ajouter vos bibliothèques
 
-**Admin > Bibliothèques > Ajouter une bibliothèque.** Une bibliothèque a un
+**Admin → Bibliothèques → Ajouter une bibliothèque.** Une bibliothèque a un
 nom, un type (films, séries, musique ou photos) et un ou plusieurs dossiers.
 
 **Les dossiers sont des chemins à l'intérieur du conteneur**, pas sur votre
@@ -50,8 +50,8 @@ Pour un film, l'année aide beaucoup. Pour un épisode, c'est `S01E05` ou `1x05`
 qui compte. Les étiquettes de release (résolution, source, codec, audio,
 marqueurs de langue comme `VOSTFR` ou `MULTI`, éditions comme « Director's
 Cut ») sont retirées avant la recherche. Si vos fichiers portent une étiquette
-que le scanner ne connaît pas, ajoutez-la dans **Admin > Configuration du
-serveur > Jetons d'analyse**.
+que le scanner ne connaît pas, ajoutez-la dans **Admin → Configuration du
+serveur → Jetons d'analyse**.
 
 Pour chaque bibliothèque, vous choisissez aussi :
 
@@ -75,7 +75,7 @@ identifiant TMDB ou IMDb.
 Evey est livré avec une clé **TMDB**, la source des titres, affiches,
 distributions et collections : les métadonnées fonctionnent dès l'installation.
 Les autres sources sont facultatives et leurs clés se saisissent dans
-**Admin > Configuration du serveur > Clés API** :
+**Admin → Configuration du serveur → Clés API** :
 
 | Clé | Apporte |
 | --- | --- |
@@ -89,7 +89,7 @@ l'environnement.
 
 ## Inviter le foyer
 
-**Admin > Utilisateurs** offre deux portes d'entrée :
+**Admin → Utilisateurs** offre deux portes d'entrée :
 
 - **Créer un utilisateur** : vous choisissez le nom et le mot de passe.
 - **Créer un lien d'invitation** : la personne choisit les siens. Un lien peut
@@ -113,14 +113,14 @@ matériel, Evey mesure combien de vidéos il peut convertir en même temps, avec
 le processeur et avec la carte graphique s'il y en a une. Cela prend environ
 deux minutes, ne se lance que quand personne ne regarde, et un lecteur qui
 demande une conversion pendant ce temps est invité à réessayer un peu plus
-tard. Le résultat se trouve dans **Admin > Configuration transcodage** : ce
+tard. Le résultat se trouve dans **Admin → Configuration transcodage** : ce
 nombre est un plafond que vous pouvez abaisser, jamais relever. Pour utiliser
 une carte graphique, voir [Transcodage et matériel](../transcoding.md).
 
 ## Avant de partager l'adresse
 
 1. **Accès distant.** Evey ne s'ouvre à Internet que si vous lui avez donné une
-   adresse publique. Vérifiez **Admin > Accès distant** : si le serveur est
+   adresse publique. Vérifiez **Admin → Accès distant** : si le serveur est
    joignable depuis l'extérieur alors que l'accès distant est coupé, la page le
    signale en rouge, et tous ceux qui sont hors de votre réseau reçoivent une
    erreur. Voir l'[administration](admin-settings.md#remote-access).
@@ -136,5 +136,5 @@ une carte graphique, voir [Transcodage et matériel](../transcoding.md).
 Ouvrez l'application Android ou Android TV, tapez l'adresse du serveur, et
 connectez-vous. Sur une télévision, choisissez la **connexion rapide** : la
 télé affiche un code et un QR code, que vous approuvez depuis
-**Paramètres > Connexion rapide** sur un téléphone ou un ordinateur déjà
+**Paramètres → Connexion rapide** sur un téléphone ou un ordinateur déjà
 connecté. Plus de détails dans [Sur tous les écrans](../discover/apps.md).

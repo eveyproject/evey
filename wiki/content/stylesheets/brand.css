@@ -128,3 +128,69 @@
 .md-typeset table:not([class]) td {
   padding: 0.7em 0.9em;
 }
+
+/* ── Code ─────────────────────────────────────────────────────────────────────
+   A block that is a file carries its name in a bar above it, like an editor
+   tab, so "save this as docker-compose.yml" reads at a glance. The bar keeps
+   the dark ground of the header in both schemes, underlined in brand red. The
+   rounding is set on the bar and the block, never with overflow: hidden, which
+   would clip the annotation bubbles that open over the code. */
+.md-typeset .highlight span.filename {
+  display: flex;
+  align-items: center;
+  margin-top: 1em;
+  padding: 0.55em 1.2em;
+  border-radius: 0.4rem 0.4rem 0 0;
+  border-bottom: 2px solid var(--md-primary-fg-color);
+  background-color: #0b0f19;
+  color: #e6e8f0;
+  font-family: var(--md-code-font-family);
+  font-size: 0.78em;
+  font-weight: 500;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .highlight span.filename {
+  background-color: #1a2133;
+}
+
+.md-typeset .highlight span.filename + pre,
+.md-typeset .highlight span.filename + pre > code {
+  margin-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.md-typeset pre > code {
+  border-radius: 0.4rem;
+}
+
+/* The numbered bubbles in a code block take the brand red instead of the
+   theme's default accent, so they read as "click me" against the syntax
+   colours. */
+.md-typeset .md-annotation__index::after {
+  background-color: var(--md-primary-fg-color);
+}
+
+/* Buttons wrap on a phone; without a bottom margin the second row sits flush
+   against the first and the two read as one control. */
+.md-typeset .md-button {
+  margin: 0 0.4rem 0.6rem 0;
+}
+
+/* The demo bar: brand red on the dark header ground, one line, the whole bar
+   is the link. */
+.md-banner {
+  background-color: #7f1414;
+  color: #ffffff;
+}
+
+.md-banner a.evey-announce,
+.md-banner a.evey-announce:hover {
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.md-banner a.evey-announce:hover {
+  text-decoration: underline;
+}

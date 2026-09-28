@@ -1,5 +1,5 @@
 ---
-source_sha: d6c99c91037371ee077e57625c65e0ac542e80e0737a6e83c3320644603ab562
+source_sha: ffbf9fdc31bed5852bae361afeb788edd4c45c60a46c9b02b5cefe3e5c7d810a
 ---
 
 # Runbook d'incident
@@ -262,7 +262,7 @@ docker volume inspect evey_evey-cache   # le nom malmené par compose peut varie
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- Abaissez le budget du cache de transcodage (Admin > Paramètres du serveur, `10` Go par défaut) si le volume de l'hôte est juste ; quel que soit le budget, le balayeur garde 2 Gio libres sur le volume du cache.
+- Abaissez le budget du cache de transcodage (Admin → Paramètres du serveur, `10` Go par défaut) si le volume de l'hôte est juste ; quel que soit le budget, le balayeur garde 2 Gio libres sur le volume du cache.
 
 ## 7. Une extension a planté
 

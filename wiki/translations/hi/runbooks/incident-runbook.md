@@ -1,5 +1,5 @@
 ---
-source_sha: d6c99c91037371ee077e57625c65e0ac542e80e0737a6e83c3320644603ab562
+source_sha: ffbf9fdc31bed5852bae361afeb788edd4c45c60a46c9b02b5cefe3e5c7d810a
 ---
 
 # घटना रनबुक
@@ -209,7 +209,7 @@ docker volume inspect evey_evey-cache   # compose-mangled name may vary
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- होस्ट का वॉल्यूम तंग हो तो ट्रांसकोड कैश का बजट घटाएँ (Admin > सर्वर सेटिंग्स, डिफ़ॉल्ट `10` GB); बजट जो भी हो, sweeper कैश वॉल्यूम पर 2 GiB ख़ाली रखता है।
+- होस्ट का वॉल्यूम तंग हो तो ट्रांसकोड कैश का बजट घटाएँ (Admin → सर्वर सेटिंग्स, डिफ़ॉल्ट `10` GB); बजट जो भी हो, sweeper कैश वॉल्यूम पर 2 GiB ख़ाली रखता है।
 
 ## 7. एक्सटेंशन क्रैश हो गया
 

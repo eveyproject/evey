@@ -1,5 +1,5 @@
 ---
-source_sha: d1faf9fca32831f3db985c8b6b2429cff4e1340e4ac48a181d72d3ec7533dba9
+source_sha: eea86697845889523ecbd07dd3d88da0143ac37f477404249051c73e160c80c8
 ---
 
 # Notifications
@@ -14,7 +14,7 @@ Toujours actives. Une icône de cloche affiche le nombre de messages non lus. Au
 ### Courriel (SMTP)
 Un courriel part dès qu'une notification est créée. Il faut pour cela configurer le SMTP :
 
-```env
+```env title=".env"
 EVEY_SMTP_HOST=smtp.example.com
 EVEY_SMTP_PORT=587
 EVEY_SMTP_USERNAME=notifications@example.com

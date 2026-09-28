@@ -71,7 +71,7 @@ for full screen, `M` to mute, `C` for subtitles, `<` and `>` for the speed,
 
 ## Profiles and parental control
 
-**Settings > Profiles** creates, edits and deletes profiles (the default
+**Settings → Profiles** creates, edits and deletes profiles (the default
 profile cannot be deleted). Each profile has:
 
 | Field | What it does |
@@ -81,7 +81,7 @@ profile cannot be deleted). Each profile has:
 | **Max age rating** | Titles above it are never sent to this profile - not in lists, not in search, not to the player. Set by the server, so no app can bypass it. |
 | **Language** and **Region** | Override the interface language and the ratings country for this profile. |
 
-**Settings > Parental** sets the account's **4-digit PIN**. The first time,
+**Settings → Parental** sets the account's **4-digit PIN**. The first time,
 it asks for the account password; changing it later asks for the current PIN.
 A PIN is required as soon as a kids profile exists.
 
@@ -101,7 +101,7 @@ it. A badge says when a download has expired and must be fetched again.
 
 ## Notifications
 
-**Settings > Notifications** switches push notifications on for this device
+**Settings → Notifications** switches push notifications on for this device
 and sets, for films, series and music separately, how much you want to hear:
 **All**, **Relevant**, **Important only** or **Disabled**. Push requires the
 administrator to have set it up ([Notifications](../notifications.md)).

@@ -1,5 +1,5 @@
 ---
-source_sha: 0de496a664ed813f5ad423017ddfe0563349e3baaee95acf2ee582c2e970dd84
+source_sha: ffa2d81166e7b4ed70cb689b95ea6c53767a79b4a69552e5f0334112ce647605
 ---
 # Transkodierung
 
@@ -44,7 +44,7 @@ verwendet, hängt einzig daran, was Sie durchreichen. Die Begründung steht in
 
 Installieren Sie das [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), reservieren Sie danach die GPU **und** fordern Sie die Treiber-Fähigkeit `video` an (ohne sie bringt das Toolkit zwar `nvidia-smi` und CUDA ein, aber nicht `libnvidia-encode.so`, und NVENC lässt sich dann nicht laden):
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     environment:
@@ -63,7 +63,7 @@ services:
 Reichen Sie den DRM-Render-Node durch; libva wählt den passenden Treiber
 (iHD, i965 oder radeonsi) anhand der PCI-Kennung der GPU von selbst:
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     devices:

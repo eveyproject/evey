@@ -100,7 +100,7 @@ Edit `plugin.yaml`:
 
 Frontend module (optional for `kind: plugin`, banned for `kind: theme`):
 
-```yaml
+```yaml title="plugin.yaml"
 frontend:
   - slot: home.section
     src: dist/index.js

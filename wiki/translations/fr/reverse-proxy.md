@@ -1,5 +1,5 @@
 ---
-source_sha: 06a2075124844fd29e2a0a34d0dfe067f47f6d6ad77a67d0ed6cfa86a3562723
+source_sha: 6206dabdc6ff848ca510df9c4b2f78a112fdd636b130b05b32f18fd574e98f9d
 ---
 
 # Reverse proxy
@@ -11,7 +11,7 @@ simple. Un reverse proxy n'a qu'à terminer le TLS et tout renvoyer vers
 Quel que soit le proxy retenu, ces deux variables permettent à Evey de connaître
 son URL publique et de faire confiance aux en-têtes que le proxy lui transmet :
 
-```env
+```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
 EVEY_TRUSTED_PROXIES=172.16.0.0/12       # utile seulement si le proxy est un conteneur ; la boucle locale est toujours de confiance
 ```
@@ -120,7 +120,7 @@ Tous les exemples fournis lisent le domaine à **un seul endroit** :
 `EVEY_DOMAIN`, dans votre `.env`. Renseignez-le une fois ; Caddy, Nginx et
 Traefik le reprennent tous.
 
-```env
+```env title=".env"
 EVEY_DOMAIN=media.example.com
 ```
 
@@ -144,7 +144,7 @@ façon seul le proxy exposé au client peut faire respecter les règles de
 diffusion. Un second proxy derrière lui n'apporte rien. Placez le service evey
 sur le réseau de ce proxy et visez `evey-server:9091` :
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     # pas de ports : le proxy est la seule porte d'entrée

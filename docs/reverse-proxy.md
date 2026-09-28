@@ -7,7 +7,7 @@ reverse proxy only needs to terminate TLS and forward everything to
 Wherever you run a proxy, set these so Evey knows its public URL and trusts the
 proxy's forwarded headers:
 
-```env
+```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
 EVEY_TRUSTED_PROXIES=172.16.0.0/12       # only needed if the proxy is a container; loopback is always trusted
 ```
@@ -102,7 +102,7 @@ Rules of thumb:
 Every bundled example reads the domain from **one place**: `EVEY_DOMAIN` in
 your `.env`. Set it once; Caddy, Nginx and Traefik all pick it up.
 
-```env
+```env title=".env"
 EVEY_DOMAIN=media.example.com
 ```
 
@@ -125,7 +125,7 @@ enforced by the proxy that faces the client anyway - a second proxy behind it
 adds nothing. Put the evey service on that proxy's network and target
 `evey-server:9091`:
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     # no ports: the proxy is the only way in

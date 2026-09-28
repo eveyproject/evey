@@ -1,5 +1,5 @@
 ---
-source_sha: b5ebe9aa528d6b195b210870c763195df806015fe80273fefda50e5e3927aad7
+source_sha: f5903cb3e9c912275de11f7f8719c97fd054491f4dfab32be7fdaa643ea1c396
 ---
 
 # OIDC / SSO 接入
@@ -8,7 +8,7 @@ Evey 支持通过 OpenID Connect 实现单点登录。用户可以用 Google、K
 
 ## 配置
 
-```env
+```env title=".env"
 EVEY_OIDC_ENABLED=true
 EVEY_OIDC_ISSUER=https://auth.example.com/realms/main
 EVEY_OIDC_CLIENT_ID=evey

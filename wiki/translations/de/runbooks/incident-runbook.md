@@ -1,5 +1,5 @@
 ---
-source_sha: d6c99c91037371ee077e57625c65e0ac542e80e0737a6e83c3320644603ab562
+source_sha: ffbf9fdc31bed5852bae361afeb788edd4c45c60a46c9b02b5cefe3e5c7d810a
 ---
 # Runbook: Störungen
 
@@ -258,7 +258,7 @@ docker volume inspect evey_evey-cache   # der von compose verbogene Name kann ab
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- Senken Sie das Budget des Transkodierungs-Caches (Admin > Servereinstellungen, Standard `10` GB), wenn das Volume des Hosts knapp ist; unabhängig vom Budget hält der Sweeper 2 GiB auf dem Cache-Volume frei.
+- Senken Sie das Budget des Transkodierungs-Caches (Admin → Servereinstellungen, Standard `10` GB), wenn das Volume des Hosts knapp ist; unabhängig vom Budget hält der Sweeper 2 GiB auf dem Cache-Volume frei.
 
 ## 7. Eine Erweiterung ist abgestürzt
 

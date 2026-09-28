@@ -3,8 +3,8 @@
 Two places, one rule. **What must exist before the server boots** - secrets,
 container wiring, reverse-proxy facts - lives in the compose file. **What an
 operator tunes afterwards** - log level, language, transcoding limits, hardware
-acceleration, watcher, plugin sandbox and quotas - lives in **Admin > Server
-config**, is stored in the database, survives a container recreate, and mostly
+acceleration, watcher, plugin sandbox and quotas - lives in **Admin → Server
+Config**, is stored in the database, survives a container recreate, and mostly
 applies without a restart.
 
 Setting one of those in the environment only seeds a first boot. That is why
@@ -32,8 +32,8 @@ explicitly only when you bring your own database or search engine - an explicit
 value always wins over the file.
 
 Metadata works out of the box: a TMDB key is built in. A key of your own
-(free at themoviedb.org) gives you your own quota; set it in **Admin > Server
-config > API Keys**, or seed it with `EVEY_TMDB_API_KEY`. Once the server is
+(free at themoviedb.org) gives you your own quota; set it in **Admin → Server
+Config → API Keys**, or seed it with `EVEY_TMDB_API_KEY`. Once the server is
 published, `EVEY_SERVER_BASE_URL` is the one variable to add - section 2.
 
 ## 2. A published instance, in two variables
@@ -42,7 +42,7 @@ Behind a reverse proxy, with hardware transcoding, the whole environment is two
 variables. Everything else people commonly carry in a compose file is either
 already in the image or a default:
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     image: gravityz/evey:latest
@@ -127,7 +127,7 @@ refuse writes). Auto-detection only steps aside entirely (falls back to
 the reserved uid `1001` - chown your media to a regular user, or set
 `PUID`/`PGID` explicitly:
 
-```env
+```env title=".env"
 PUID=1026   # run the server as this user id  (host: `id -u <media-owner>`)
 PGID=100    # ...and this group id
 ```
@@ -228,12 +228,12 @@ affected - they keep the wasm decoder, which is validated there. Set it to
 **Prefer the admin panel.** Concurrency, hardware acceleration, AV1, the cache
 budget and the advanced limits (max concurrent HLS sessions, software and
 software-HDR height ceilings, one-rung-at-a-time encoding, one hardware encoder
-per rung) all live under **Admin > Transcoding configuration**. Values saved
+per rung) all live under **Admin → Transcoding configuration**. Values saved
 there survive restarts and take precedence over the environment; the panel says
 which ones only take effect after a restart.
 
-**Background-worker flags** are set as rows under **Admin > Server
-configuration** (the panel suggests the keys, and shows the matching environment
+**Background-worker flags** are set as rows under **Admin → Server
+Configuration** (the panel suggests the keys, and shows the matching environment
 variable and expected value for each). All are read at boot, so they apply on
 restart:
 
@@ -253,7 +253,7 @@ restart:
 Each also has an environment equivalent (`EVEY_KEYFRAME_BACKFILL`,
 `EVEY_LEVEL_BACKFILL_BATCH`, ...), but the panel row wins.
 
-**Background CPU budget** (Admin > Server configuration > Processing power) bounds
+**Background CPU budget** (**Admin → Server Config → Processing power**) bounds
 the processor every background task may take together, live (no restart):
 
 | Key | Value |
@@ -272,7 +272,7 @@ the budget for them. The former `trickplay.adaptive_cpu` (`false` = 50 %) and
 `intro_detection.use_all_cores` (`true` = 80 % for intro detection) keys are
 still honoured until the new ones are set.
 
-**Transcode cache budget** (Admin > Server settings, `transcoding.cache_max_gb`,
+**Transcode cache budget** (**Admin → Server Config → Server Settings**, `transcoding.cache_max_gb`,
 default `10`, applied at restart) bounds the whole transcode cache on disk:
 playback segments, fast-start remuxes and compat downloads together, under one
 number. It is an absolute size on purpose: the cache lives on the `evey-cache`

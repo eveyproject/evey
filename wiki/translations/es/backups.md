@@ -1,5 +1,5 @@
 ---
-source_sha: 2f1c2cafd1c1e20b2e8d011ec2457b1f01bde072b96b93d077d7694cf6537497
+source_sha: 69eb69dc75f4051d291795ad196ce5ee4b61038c94cbe8a97d9b7ee7d7470a69
 ---
 
 # Copias de seguridad
@@ -8,7 +8,7 @@ Evey puede copiar la base de datos automáticamente según una programación.
 
 ## Configuración
 
-```env
+```env title=".env"
 EVEY_BACKUP_DIR=/data/backups          # Dónde se guardan las copias
 EVEY_BACKUP_INTERVAL_HOURS=24          # Intervalo de copia automática (0 = desactivado)
 EVEY_BACKUP_RETENTION_DAYS=30          # Eliminar las copias más antiguas (0 = conservarlas siempre)
@@ -48,7 +48,7 @@ La restauración a partir de una copia se hace desde la API de administración. 
 Compruebe que `EVEY_BACKUP_DIR` apunta a un volumen persistente o a una ruta del host. El valor por defecto, `/data/backups`, queda dentro del volumen Docker `evey-data`.
 
 Para guardar las copias en el host:
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     volumes:
