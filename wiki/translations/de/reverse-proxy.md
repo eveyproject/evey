@@ -1,5 +1,5 @@
 ---
-source_sha: 06a2075124844fd29e2a0a34d0dfe067f47f6d6ad77a67d0ed6cfa86a3562723
+source_sha: 6206dabdc6ff848ca510df9c4b2f78a112fdd636b130b05b32f18fd574e98f9d
 ---
 # Reverse Proxy
 
@@ -11,7 +11,7 @@ ausgeliefert werden müsste, gibt es nicht**.
 Egal, welchen Proxy Sie einsetzen: Setzen Sie diese Werte, damit Evey seine
 öffentliche URL kennt und den weitergereichten Headern des Proxys vertraut:
 
-```env
+```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
 EVEY_TRUSTED_PROXIES=172.16.0.0/12       # nur nötig, wenn der Proxy ein Container ist; Loopback gilt immer als vertrauenswürdig
 ```
@@ -120,7 +120,7 @@ Alle mitgelieferten Beispiele lesen die Domain an **einer einzigen Stelle**:
 `EVEY_DOMAIN` in Ihrer `.env`. Einmal setzen genügt, Caddy, Nginx und Traefik
 greifen den Wert alle auf.
 
-```env
+```env title=".env"
 EVEY_DOMAIN=media.example.com
 ```
 
@@ -145,7 +145,7 @@ Client zeigt. Ein zweiter Proxy dahinter bringt nichts. Hängen Sie den
 evey-Dienst in das Netzwerk dieses Proxys und lassen Sie ihn auf
 `evey-server:9091` zeigen:
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     # keine Ports: der Proxy ist der einzige Weg hinein

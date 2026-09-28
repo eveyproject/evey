@@ -1,5 +1,5 @@
 ---
-source_sha: 2f1c2cafd1c1e20b2e8d011ec2457b1f01bde072b96b93d077d7694cf6537497
+source_sha: 69eb69dc75f4051d291795ad196ce5ee4b61038c94cbe8a97d9b7ee7d7470a69
 ---
 
 # 备份
@@ -8,7 +8,7 @@ Evey 可以按计划自动备份数据库。
 
 ## 配置
 
-```env
+```env title=".env"
 EVEY_BACKUP_DIR=/data/backups          # 备份的存放位置
 EVEY_BACKUP_INTERVAL_HOURS=24          # 自动备份的间隔（0 = 关闭）
 EVEY_BACKUP_RETENTION_DAYS=30          # 删除早于此天数的备份（0 = 永久保留）
@@ -48,7 +48,7 @@ curl -X POST -H "Authorization: Bearer <token>" http://localhost:9091/api/v1/adm
 请确认 `EVEY_BACKUP_DIR` 指向一个持久卷或宿主机路径。默认的 `/data/backups` 位于 `evey-data` 这个 Docker 卷内部。
 
 若要把备份存放在宿主机上：
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     volumes:

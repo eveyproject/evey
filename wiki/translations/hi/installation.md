@@ -1,5 +1,5 @@
 ---
-source_sha: c781817bb39af138ca65b5a030c42b0e6e199a7cd2613b2415b3dcba8e7427be
+source_sha: ec58362c8a7e791e617d5615c213693bfbd23e8c8494c6d1e5b6bce5ce563cb2
 ---
 # इंस्टॉलेशन
 
@@ -8,9 +8,11 @@ Evey **एक ही कंटेनर** के रूप में चलत�
 में, पहली शुरुआत पर बनाए गए राज़ों के साथ। खंड 1 की compose फ़ाइल ही पूरा इंस्टॉलेशन है।
 इसे न `.env` चाहिए, न `--privileged`, न मेमोरी या CPU की कोई सेटिंग।
 
-> Git रिपॉज़िटरी के मूल की `docker-compose.yml` वह फ़ाइल **नहीं** है। वह संचालक वाली
-> बनावट है (खंड 7): अलग सेवा के रूप में Postgres, साथ आने वाला Caddy, और एक `.env`
-> जिसके बिना वह शुरू ही नहीं होती। नीचे वाला ब्लॉक कॉपी करें, रिपॉज़िटरी की फ़ाइल नहीं।
+!!! warning "यह रिपॉज़िटरी की docker-compose.yml नहीं है"
+
+    Git रिपॉज़िटरी के मूल की `docker-compose.yml` वह फ़ाइल **नहीं** है। वह संचालक वाली
+    बनावट है (खंड 7): अलग सेवा के रूप में Postgres, साथ आने वाला Caddy, और एक `.env`
+    जिसके बिना वह शुरू ही नहीं होती। नीचे वाला ब्लॉक कॉपी करें, रिपॉज़िटरी की फ़ाइल नहीं।
 
 Docker के बिना Evey चलाने के लिए देखें [deployment-bare-metal.md](deployment-bare-metal.md)।
 
@@ -27,54 +29,63 @@ Docker के बिना Evey चलाने के लिए देखें
 इसे `docker-compose.yml` के रूप में सहेजें, आख़िरी volume पंक्ति में अपने मीडिया के
 पाथ के साथ। राज़ पहली शुरुआत पर `./evey-data/keys` में आ जाते हैं; गढ़ने को कुछ नहीं।
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
-    image: gravityz/evey:latest        # pin a tag here (e.g. 0.2.0-beta.1, sha-1a2b3c4)
+    image: gravityz/evey:latest # (1)!
     container_name: evey-server
     ports:
-      - "9091:9091"
+      - "9091:9091" # (2)!
     # environment:
-    #   EVEY_SERVER_BASE_URL: http://<your-ip>:9091   # e-mail links, OIDC redirects, cast/device URLs
+    #   EVEY_SERVER_BASE_URL: http://<your-ip>:9091
     volumes:
-      - ./evey-data:/data              # database, JWT key, generated secrets, search index, logs, backups
-      - evey-cache:/cache              # transcode + trickplay cache (safe to prune)
-      # Read-write so the seek-index repair rebuilds files in place; append
-      # `:ro` for a read-only library and accept that those repairs fail.
-      - /path/to/your/media:/media
-    # The embedded database is stopped cleanly AFTER the server on `docker
-    # stop`; a large catalogue needs more than Docker's 10s default.
-    stop_grace_period: 60s
+      - ./evey-data:/data # (3)!
+      - evey-cache:/cache # (4)!
+      - /path/to/your/media:/media # (5)!
+    stop_grace_period: 60s # (6)!
     restart: unless-stopped
 
 volumes:
   evey-cache:
 ```
 
-Environment को **न्यूनतम** रखें - compose फ़ाइल में (या राज़ों के लिए `.env` में) सिर्फ़
-वही आता है: आपके अपने लाए राज़, बाहरी होने पर DB कनेक्शन, स्टोरेज पाथ, और रिवर्स
-प्रॉक्सी की बातें। लगभग बाक़ी सब (सर्वर का नाम, एक साथ ट्रांसकोड, दर-सीमाएँ, लॉग स्तर,
-स्कैन/निगरानी अंतराल, बैकअप शेड्यूल, API कुंजियाँ) **Admin → सर्वर कॉन्फ़िग से चलते-चलते
-बदला जा सकता है** और उसे compose में ठूँसना नहीं चाहिए।
-`PUID`/`PGID`: डिफ़ॉल्ट रूप से सेट नहीं → entrypoint आपके `/media` mounts के मालिक को
-अपनाता है ताकि उसी जगह होने वाली मरम्मत काम करे; `id -u`/`id -g` से बदलें। कंटेनर सिर्फ़
-mapping लागू करने के लिए root के रूप में शुरू होता है, फिर विशेषाधिकार छोड़ देता है - सर्वर
-कभी root के रूप में नहीं चलता।
+1. इमेज। यहाँ एक टैग पिन करें (`0.2.0-beta.1`, या न बदलने वाला `sha-1a2b3c4`) ताकि एक दिन के अंतर पर किए गए दो pull एक ही कोड चलाएँ - देखें [Evey अपडेट करना](#4-updating-evey)।
+2. API और वेब इंटरफ़ेस, एक ही पोर्ट पर, सादे HTTP में। HTTPS के लिए आगे एक [रिवर्स प्रॉक्सी](reverse-proxy.md) रखें और ठीक नीचे `EVEY_SERVER_BASE_URL` को सार्वजनिक पते के साथ uncomment करें: ई-मेल के लिंक, OIDC redirects और cast URLs उसी से बनते हैं।
+3. Evey का सब कुछ: डेटाबेस, JWT कुंजी, बनाए गए राज़, खोज सूचकांक, लॉग, बैकअप, एक्सटेंशन। बैकअप इसी फ़ोल्डर का लेना है।
+4. ट्रांसकोड और trickplay cache। मिटाना सुरक्षित है: ज़रूरत पर फिर भर जाता है।
+5. आपकी लाइब्रेरी, colon के बाईं ओर। जान-बूझकर पढ़ने-लिखने के लिए: seek-index मरम्मत फ़ाइलों को उसी जगह फिर से बनाती है। सिर्फ़ पढ़ने वाली लाइब्रेरी के लिए `:ro` जोड़ें और मान लें कि वे मरम्मतें विफल होंगी। और फ़ोल्डर `/media2`, `/media3`... के रूप में जुड़ते हैं।
+6. `docker stop` पर embedded डेटाबेस सर्वर के बाद व्यवस्थित रूप से बंद होता है; बड़े catalogue को Docker के डिफ़ॉल्ट 10 s से ज़्यादा चाहिए।
 
-**NAS पर (Synology Container Manager, QNAP Container Station):**
+!!! tip "Environment न्यूनतम रखें"
 
-- डेटा फ़ोल्डर पहली शुरुआत **से पहले** बनाएँ (compose के बगल में `mkdir evey-data`, या
-  File Station से): Docker CLI के उलट, ये इंटरफ़ेस ऐसा bind mount नहीं मानते जिसका फ़ोल्डर
-  मौजूद न हो। पहले से और कुछ नहीं बनाना - entrypoint `plugins/`, `keys/`, `postgres/`
-  ख़ुद बनाता है।
-- `PUID`/`PGID` को उस DSM उपयोगकर्ता पर सेट करें जिसका मीडिया है (SSH पर `id <user>`;
-  Synology पर आमतौर पर `1026` के आसपास और group `100` = `users`), स्वचालित पहचान पर
-  भरोसा करने के बजाय: DSM share अक्सर `root` का होता है, जिसे entrypoint कभी नहीं अपनाता।
-- Quick Sync वाला Intel NAS: `docker-compose.gpu.yml` की `devices:` और `group_add:`
-  पंक्तियाँ जोड़ें (render group का GID `getent group render` या
-  `stat -c %g /dev/dri/renderD128` से मिलता है)।
-- कोई `.env` नहीं चाहिए - रिपॉज़िटरी के मूल की `.env` माँगने वाली `docker-compose.yml`
-  संचालक वाली बनावट है, यह नहीं।
+    compose फ़ाइल (या राज़ों के लिए `.env`) में सिर्फ़ ये आते हैं: आपके अपने लाए राज़,
+    बाहरी होने पर डेटाबेस कनेक्शन, स्टोरेज पाथ, और रिवर्स प्रॉक्सी की बातें। लगभग बाक़ी
+    सब - सर्वर का नाम, एक साथ ट्रांसकोड, दर-सीमाएँ, लॉग स्तर, स्कैन और निगरानी
+    अंतराल, बैकअप शेड्यूल, API कुंजियाँ - **Admin → सर्वर कॉन्फ़िग से चलते-चलते बदला
+    जा सकता है** और compose से बाहर रहता है।
+
+!!! info "फ़ाइलें किसकी हैं: PUID और PGID"
+
+    डिफ़ॉल्ट रूप से सेट नहीं: entrypoint आपके `/media` mounts के मालिक को अपनाता है,
+    ताकि उसी जगह होने वाली मरम्मत लिख सके। ख़ुद चुनने के लिए `environment:` के तहत
+    `PUID` और `PGID` सेट करें (आपके `id -u` और `id -g`)। कंटेनर सिर्फ़ यह mapping
+    लागू करने के लिए root के रूप में शुरू होता है, फिर विशेषाधिकार छोड़ देता है - सर्वर
+    ख़ुद कभी root के रूप में नहीं चलता।
+
+???+ note "NAS पर (Synology Container Manager, QNAP Container Station)"
+
+    - डेटा फ़ोल्डर पहली शुरुआत **से पहले** बनाएँ (compose के बगल में `mkdir evey-data`, या
+      File Station से): Docker CLI के उलट, ये इंटरफ़ेस ऐसा bind mount नहीं मानते जिसका फ़ोल्डर
+      मौजूद न हो। पहले से और कुछ नहीं बनाना - entrypoint `plugins/`, `keys/`, `postgres/`
+      ख़ुद बनाता है।
+    - `PUID`/`PGID` को उस DSM उपयोगकर्ता पर सेट करें जिसका मीडिया है (SSH पर `id <user>`;
+      Synology पर आमतौर पर `1026` के आसपास और group `100` = `users`), स्वचालित पहचान पर
+      भरोसा करने के बजाय: DSM share अक्सर `root` का होता है, जिसे entrypoint कभी नहीं अपनाता।
+    - Quick Sync वाला Intel NAS: `docker-compose.gpu.yml` की `devices:` और `group_add:`
+      पंक्तियाँ जोड़ें (render group का GID `getent group render` या
+      `stat -c %g /dev/dri/renderD128` से मिलता है)।
+    - कोई `.env` नहीं चाहिए - रिपॉज़िटरी के मूल की `.env` माँगने वाली `docker-compose.yml`
+      संचालक वाली बनावट है, यह नहीं।
 
 ## 2. पहली शुरुआत
 
@@ -93,21 +104,17 @@ docker compose logs -f evey
 
 फिर `http://<आपका-ip>:9091` खोलें। जब तक कोई व्यवस्थापक नहीं है, आप **सेटअप विज़ार्ड**
 (`/setup`) पर पहुँचते हैं: पहला व्यवस्थापक खाता बनाएँ। उसके बाद साइन इन करें और `/media`
-के तहत किसी पाथ (आपका `MEDIA_DIR`, पढ़ने-लिखने के लिए माउंट) की ओर इशारा करती **लाइब्रेरी
+के तहत किसी पाथ (वहाँ माउंट किया गया आपका फ़ोल्डर) की ओर इशारा करती **लाइब्रेरी
 जोड़ें** (Admin → लाइब्रेरी)। पहला स्कैन अपने आप शुरू होता है। विज़ार्ड, लाइब्रेरी, लोगों को
 आमंत्रित करना और पता साझा करने से पहले क्या जाँचें - यह सब [पहले कदम](guide/first-steps.md)
 में है।
-
-ऊपर की compose फ़ाइल इसे जान-बूझकर पढ़ने-लिखने के लिए माउंट करती है: seek-index मरम्मत
-फ़ाइलों को उसी जगह फिर से बनाती है, और `:ro` mount से वे मरम्मतें विफल होती हैं। `:ro`
-तभी जोड़ें जब आप उन्हें छोड़ने को तैयार हों।
 
 ## 3. आम बदलाव
 
 **बदलाव, हर एक उस फ़ाइल में कुछ पंक्तियाँ:**
 
 - *दूसरा मीडिया फ़ोल्डर*: `volumes:` के तहत `- /other/path:/media2` जोड़ें (`/media3`,
-  ... इसी तरह)। इन्हें पढ़ने-लिखने के लिए माउंट करें, ऊपर की टिप्पणी देखें।
+  ... इसी तरह)। इन्हें भी पहले वाले की तरह पढ़ने-लिखने के लिए माउंट करें।
 - *किसी ऐसे रिवर्स प्रॉक्सी के पीछे जो आप पहले से चलाते हैं* (Nginx Proxy Manager,
   Traefik, ... किसी Docker नेटवर्क पर): `ports:` हटाएँ, प्रॉक्सी के नेटवर्क से जुड़ें और
   सर्वर को उसका सार्वजनिक URL और किस पड़ोसी पर भरोसा करना है, बताएँ:
@@ -266,70 +273,78 @@ docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password
 embedded डेटाबेस बंद करता है**, इसीलिए embedded डेटाबेस से पहले का हर इंस्टॉल बिना छुए
 चलता रहता है:
 
-```yaml
-services:
-  evey:
-    # ... as above, plus:
-    environment:
-      EVEY_DB_HOST: postgres
-      EVEY_DB_SSLMODE: disable          # internal Docker network; the bundled Postgres has no TLS
-    depends_on:
-      postgres: { condition: service_healthy }
+=== "docker-compose.yml"
 
-  postgres:
-    image: postgres:16-alpine
-    container_name: evey-postgres
-    environment:
-      POSTGRES_DB: ${EVEY_DB_NAME:-evey}
-      POSTGRES_USER: ${EVEY_DB_USER:-evey}
-      POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:?EVEY_DB_PASSWORD must be set in .env}
-    volumes:
-      - ./postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${EVEY_DB_USER:-evey}"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-```
+    ```yaml
+    services:
+      evey:
+        # ... as above, plus:
+        environment:
+          EVEY_DB_HOST: postgres
+          EVEY_DB_SSLMODE: disable          # internal network, no TLS
+        depends_on:
+          postgres: { condition: service_healthy }
 
-```env
-EVEY_DB_PASSWORD=<strong-password>   # must NOT be the default 'evey' - the server refuses to start otherwise
-```
+      postgres:
+        image: postgres:16-alpine
+        container_name: evey-postgres
+        environment:
+          POSTGRES_DB: ${EVEY_DB_NAME:-evey}
+          POSTGRES_USER: ${EVEY_DB_USER:-evey}
+          POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:?EVEY_DB_PASSWORD must be set in .env}
+        volumes:
+          - ./postgres-data:/var/lib/postgresql/data
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U ${EVEY_DB_USER:-evey}"]
+          interval: 5s
+          timeout: 3s
+          retries: 5
+        restart: unless-stopped
+    ```
+
+=== ".env"
+
+    ```env
+    EVEY_DB_PASSWORD=<strong-password>   # must NOT be the default 'evey' - the server refuses to start otherwise
+    ```
 
 **बाहरी Meilisearch, वही विचार।** अलग खोज कंटेनर अपना जीवनचक्र और volume रखता है (और
 आपको सिर्फ़ सूचकांक रीसेट करने के लिए `docker compose restart meilisearch` करने देता है)।
 Embedded वाला बंद करें, सर्वर को इसकी ओर मोड़ें, और कुंजी साझा करें - स्पष्ट
 `MEILI_MASTER_KEY` हमेशा बनाई गई `./evey-data/keys/meili.key` पर भारी पड़ता है:
 
-```yaml
-services:
-  evey:
-    # ... plus:
-    environment:
-      EVEY_EMBEDDED_MEILI: "false"
-      EVEY_MEILI_URL: http://meilisearch:7700
-    depends_on:
-      meilisearch: { condition: service_healthy }
+=== "docker-compose.yml"
 
-  meilisearch:
-    image: getmeili/meilisearch:v1.12
-    container_name: evey-meilisearch
-    environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
-      MEILI_NO_ANALYTICS: "true"
-    volumes:
-      - ./meili-data:/meili_data
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
-      interval: 5s
-      retries: 5
-    restart: unless-stopped
-```
+    ```yaml
+    services:
+      evey:
+        # ... plus:
+        environment:
+          EVEY_EMBEDDED_MEILI: "false"
+          EVEY_MEILI_URL: http://meilisearch:7700
+        depends_on:
+          meilisearch: { condition: service_healthy }
 
-```env
-MEILI_MASTER_KEY=<run: openssl rand -hex 16>
-```
+      meilisearch:
+        image: getmeili/meilisearch:v1.12
+        container_name: evey-meilisearch
+        environment:
+          MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
+          MEILI_NO_ANALYTICS: "true"
+        volumes:
+          - ./meili-data:/meili_data
+        healthcheck:
+          test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
+          interval: 5s
+          retries: 5
+        restart: unless-stopped
+    ```
+
+=== ".env"
+
+    ```env
+    MEILI_MASTER_KEY=<run: openssl rand -hex 16>
+    ```
 
 हो सके तो उस कंटेनर को बिना root वाला `user:` और एक `mem_limit` दें - आधिकारिक इमेज root
 के रूप में चलती है और उसकी resident मेमोरी (memory-mapped सूचकांक) बड़ी दिखती है पर

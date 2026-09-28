@@ -1,5 +1,5 @@
 ---
-source_sha: 06a2075124844fd29e2a0a34d0dfe067f47f6d6ad77a67d0ed6cfa86a3562723
+source_sha: 6206dabdc6ff848ca510df9c4b2f78a112fdd636b130b05b32f18fd574e98f9d
 ---
 
 # 反向代理
@@ -9,7 +9,7 @@ Evey 在 **9091** 端口上同时提供 **API 和网页界面**（普通 HTTP）
 
 无论用哪种代理，都要设置以下两项，好让 Evey 知道自己的公开地址，并信任代理转发过来的请求头：
 
-```env
+```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
 EVEY_TRUSTED_PROXIES=172.16.0.0/12       # 仅当代理本身是容器时才需要；环回地址始终受信任
 ```
@@ -94,7 +94,7 @@ frame-src https://www.gstatic.com
 所有内置示例都从**同一个地方**读取域名：`.env` 里的 `EVEY_DOMAIN`。设置一次，
 Caddy、Nginx 和 Traefik 都会读到。
 
-```env
+```env title=".env"
 EVEY_DOMAIN=media.example.com
 ```
 
@@ -114,7 +114,7 @@ EVEY_DOMAIN=media.example.com
 而流媒体相关的规则本来也只有直面客户端的那层代理才能生效 - 在它后面再套一层代理毫无意义。
 把 evey 服务接入那层代理所在的网络，并让它指向 `evey-server:9091`：
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     # 不映射端口：代理是唯一的入口

@@ -1,5 +1,5 @@
 ---
-source_sha: a7cdb2195f99559246f23706d11f64ad40c0cb3dcd88a52f3caf61af02c7ce8c
+source_sha: f8a4c4c0cff61bcab8e0c2da5453fe2689339488b1c66d260a2907b56b1187cb
 ---
 # Configuración
 
@@ -7,7 +7,7 @@ Dos lugares, una regla. **Lo que tiene que existir antes de que arranque el
 servidor** - secretos, cableado del contenedor, datos del proxy inverso - vive
 en el archivo compose. **Lo que un operador ajusta después** - nivel de log,
 idioma, límites de transcodificación, aceleración por hardware, vigilancia de
-archivos, entorno aislado y cuotas de las extensiones - vive en **Admin >
+archivos, entorno aislado y cuotas de las extensiones - vive en **Admin →
 Configuración del servidor**, se guarda en la base de datos, sobrevive a una
 recreación del contenedor y casi siempre se aplica sin reiniciar.
 
@@ -37,7 +37,7 @@ búsqueda - un valor explícito siempre gana al archivo.
 
 Los metadatos funcionan desde el principio: hay una clave de TMDB integrada. Una
 clave propia (gratuita en themoviedb.org) le da su propia cuota; introdúzcala en
-**Admin > Configuración del servidor > Claves API**, o siémbrela con
+**Admin → Configuración del servidor → Claves API**, o siémbrela con
 `EVEY_TMDB_API_KEY`. Una vez publicado el servidor, `EVEY_SERVER_BASE_URL` es la
 única variable que hay que añadir - sección 2.
 
@@ -47,7 +47,7 @@ Detrás de un proxy inverso y con transcodificación por hardware, todo el entor
 son dos variables. Todo lo demás que se suele poner en un archivo compose o ya
 está en la imagen o es un valor por defecto:
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     image: gravityz/evey:latest
@@ -134,7 +134,7 @@ escrituras). La detección automática solo se aparta del todo (recae en
 al uid reservado `1001` - pase sus medios a un usuario normal con chown, o fije
 `PUID`/`PGID` explícitamente:
 
-```env
+```env title=".env"
 PUID=1026   # run the server as this user id  (host: `id -u <media-owner>`)
 PGID=100    # ...and this group id
 ```
@@ -241,12 +241,12 @@ NO se ven afectados - conservan el descodificador wasm, validado en ellos. Ponga
 hardware, AV1, el presupuesto de la caché y los límites avanzados (máximo de
 sesiones HLS simultáneas, techos de altura por software y software-HDR, codificar
 un peldaño cada vez, un codificador de hardware por peldaño) están todos en
-**Admin > Transcodificación**. Los valores guardados allí sobreviven a los
+**Admin → Transcodificación**. Los valores guardados allí sobreviven a los
 reinicios y tienen prioridad sobre el entorno; el panel indica cuáles solo surten
 efecto tras reiniciar.
 
 **Los indicadores de los workers en segundo plano** se fijan como filas en
-**Admin > Configuración del servidor** (el panel sugiere las claves y muestra para
+**Admin → Configuración del servidor** (el panel sugiere las claves y muestra para
 cada una la variable de entorno equivalente y el valor esperado). Todos se leen
 al arrancar, así que se aplican al reiniciar:
 
@@ -266,7 +266,7 @@ al arrancar, así que se aplican al reiniciar:
 Cada uno tiene también un equivalente en el entorno (`EVEY_KEYFRAME_BACKFILL`,
 `EVEY_LEVEL_BACKFILL_BATCH`, ...), pero la fila del panel gana.
 
-**Presupuesto de CPU en segundo plano** (Admin > Configuración del servidor >
+**Presupuesto de CPU en segundo plano** (Admin → Configuración del servidor →
 Potencia asignada) limita el procesador que pueden tomar juntas todas las tareas
 de fondo, en caliente (sin reiniciar):
 
@@ -287,7 +287,7 @@ saltan el presupuesto para ellas. Las antiguas claves `trickplay.adaptive_cpu`
 (`false` = 50 %) e `intro_detection.use_all_cores` (`true` = 80 % para la
 detección de intros) se siguen respetando hasta que se fijen las nuevas.
 
-**Presupuesto de la caché de transcodificación** (Admin > Configuración del
+**Presupuesto de la caché de transcodificación** (Admin → Configuración del
 servidor, `transcoding.cache_max_gb`, `10` por defecto, se aplica al reiniciar)
 limita toda la caché de transcodificación en el disco: segmentos de reproducción,
 remux de arranque rápido y descargas compatibles juntos, bajo un solo número. Es

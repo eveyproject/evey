@@ -1,5 +1,5 @@
 ---
-source_sha: 2f1c2cafd1c1e20b2e8d011ec2457b1f01bde072b96b93d077d7694cf6537497
+source_sha: 69eb69dc75f4051d291795ad196ce5ee4b61038c94cbe8a97d9b7ee7d7470a69
 ---
 
 # Sauvegardes
@@ -8,7 +8,7 @@ Evey sait sauvegarder votre base de données tout seul, à intervalle régulier.
 
 ## Configuration
 
-```env
+```env title=".env"
 EVEY_BACKUP_DIR=/data/backups          # Emplacement des sauvegardes
 EVEY_BACKUP_INTERVAL_HOURS=24          # Intervalle des sauvegardes automatiques (0 = désactivé)
 EVEY_BACKUP_RETENTION_DAYS=30          # Supprimer les sauvegardes plus anciennes que cela (0 = conserver indéfiniment)
@@ -48,7 +48,7 @@ La restauration depuis une sauvegarde passe par l'API d'administration. L'intég
 Assurez-vous que `EVEY_BACKUP_DIR` pointe vers un volume persistant ou un chemin de l'hôte. La valeur par défaut, `/data/backups`, se trouve à l'intérieur du volume Docker `evey-data`.
 
 Pour ranger les sauvegardes sur l'hôte :
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     volumes:

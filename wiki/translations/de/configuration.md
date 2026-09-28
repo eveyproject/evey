@@ -1,5 +1,5 @@
 ---
-source_sha: a7cdb2195f99559246f23706d11f64ad40c0cb3dcd88a52f3caf61af02c7ce8c
+source_sha: f8a4c4c0cff61bcab8e0c2da5453fe2689339488b1c66d260a2907b56b1187cb
 ---
 # Konfiguration
 
@@ -7,7 +7,7 @@ Zwei Orte, eine Regel. **Was vor dem Serverstart existieren muss** - Geheimnisse
 Verdrahtung des Containers, Angaben zum Reverse Proxy - steht in der
 Compose-Datei. **Was ein Betreiber danach einstellt** - Log-Level, Sprache,
 Grenzen der Transkodierung, Hardware-Beschleunigung, Dateiüberwachung, Sandbox
-und Kontingente der Erweiterungen - steht unter **Admin > Serverkonfiguration**,
+und Kontingente der Erweiterungen - steht unter **Admin → Serverkonfiguration**,
 wird in der Datenbank gespeichert, übersteht ein Neuerzeugen des Containers und
 wirkt meist ohne Neustart.
 
@@ -38,7 +38,7 @@ ein ausdrücklicher Wert gewinnt immer gegen die Datei.
 
 Metadaten funktionieren sofort: Ein TMDB-Schlüssel ist eingebaut. Ein eigener
 Schlüssel (kostenlos auf themoviedb.org) gibt Ihnen Ihr eigenes Kontingent;
-setzen Sie ihn unter **Admin > Serverkonfiguration > API-Schlüssel** oder
+setzen Sie ihn unter **Admin → Serverkonfiguration → API-Schlüssel** oder
 belegen Sie ihn mit `EVEY_TMDB_API_KEY` vor. Ist der Server veröffentlicht, ist
 `EVEY_SERVER_BASE_URL` die eine Variable, die hinzukommt - Abschnitt 2.
 
@@ -48,7 +48,7 @@ Hinter einem Reverse Proxy und mit Hardware-Transkodierung besteht die ganze
 Umgebung aus zwei Variablen. Alles andere, was man gern in eine Compose-Datei
 schreibt, steckt entweder schon im Image oder ist ein Standardwert:
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     image: gravityz/evey:latest
@@ -137,7 +137,7 @@ vielleicht noch verweigern). Die automatische Erkennung tritt nur ganz zurück
 oder der reservierten UID `1001` gehört - übertragen Sie Ihre Medien per chown
 an einen normalen Benutzer, oder setzen Sie `PUID`/`PGID` ausdrücklich:
 
-```env
+```env title=".env"
 PUID=1026   # run the server as this user id  (host: `id -u <media-owner>`)
 PGID=100    # ...and this group id
 ```
@@ -246,11 +246,11 @@ wieder einzuschalten.
 Hardware-Beschleunigung, AV1, das Budget des Caches und die erweiterten Grenzen
 (maximale gleichzeitige HLS-Sitzungen, Höhenobergrenzen für Software und
 Software-HDR, eine Stufe nach der anderen kodieren, ein Hardware-Encoder je
-Stufe) liegen alle unter **Admin > Transkodierung**. Dort gespeicherte Werte
+Stufe) liegen alle unter **Admin → Transkodierung**. Dort gespeicherte Werte
 überstehen Neustarts und haben Vorrang vor der Umgebung; der Bereich sagt, welche
 erst nach einem Neustart wirken.
 
-**Schalter der Hintergrund-Worker** werden als Zeilen unter **Admin >
+**Schalter der Hintergrund-Worker** werden als Zeilen unter **Admin →
 Serverkonfiguration** gesetzt (der Bereich schlägt die Schlüssel vor und zeigt
 für jeden die passende Umgebungsvariable und den erwarteten Wert). Alle werden
 beim Start gelesen und wirken daher nach einem Neustart:
@@ -271,7 +271,7 @@ beim Start gelesen und wirken daher nach einem Neustart:
 Jeder hat auch eine Entsprechung in der Umgebung (`EVEY_KEYFRAME_BACKFILL`,
 `EVEY_LEVEL_BACKFILL_BATCH`, ...), aber die Zeile im Bereich gewinnt.
 
-**CPU-Budget für den Hintergrund** (Admin > Serverkonfiguration > Zugeteilte
+**CPU-Budget für den Hintergrund** (Admin → Serverkonfiguration → Zugeteilte
 Rechenleistung) begrenzt den Prozessor, den alle Hintergrundaufgaben zusammen
 nehmen dürfen, live (ohne Neustart):
 
@@ -293,7 +293,7 @@ Schlüssel `trickplay.adaptive_cpu` (`false` = 50 %) und
 `intro_detection.use_all_cores` (`true` = 80 % für die Intro-Erkennung) werden
 weiter beachtet, bis die neuen gesetzt sind.
 
-**Budget des Transkodierungs-Caches** (Admin > Servereinstellungen,
+**Budget des Transkodierungs-Caches** (Admin → Serverkonfiguration → Servereinstellungen,
 `transcoding.cache_max_gb`, Standard `10`, beim Neustart angewandt) begrenzt den
 ganzen Transkodierungs-Cache auf der Platte: Wiedergabesegmente,
 Schnellstart-Remuxe und kompatible Downloads zusammen, unter einer einzigen

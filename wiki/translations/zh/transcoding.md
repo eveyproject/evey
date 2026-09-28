@@ -1,5 +1,5 @@
 ---
-source_sha: 0de496a664ed813f5ad423017ddfe0563349e3baaee95acf2ee582c2e970dd84
+source_sha: ffa2d81166e7b4ed70cb689b95ea6c53767a79b4a69552e5f0334112ce647605
 ---
 
 # 转码
@@ -38,7 +38,7 @@ Evey 只发布**一个镜像**，其中的 ffmpeg 把 NVENC、VAAPI 和 QSV 全�
 
 先装好 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)，然后既要预留 GPU，**也要**申请 `video` 这项驱动能力（少了它，工具包只会注入 `nvidia-smi` 和 CUDA，不会注入 `libnvidia-encode.so`，于是 NVENC 加载失败）：
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     environment:
@@ -57,7 +57,7 @@ services:
 把 DRM render 节点暴露出来即可；libva 会根据 GPU 的 PCI id 自动挑对驱动
 （iHD / i965 / radeonsi）：
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     devices:
@@ -117,7 +117,7 @@ EVEY_TRANSCODING_HW_PER_VARIANT=false
 EVEY_TRANSCODING_SINGLE_VARIANT=1
 ```
 
-> **有五项设置如今在管理面板里**（管理 > 转码 > 高级限制）：`HW_PER_VARIANT`、
+> **有五项设置如今在管理面板里**（管理 → 转码 → 高级限制）：`HW_PER_VARIANT`、
 > `SINGLE_VARIANT`、`MAX_SESSIONS`、`SOFTWARE_MAX_HEIGHT` 和 `SOFTWARE_HDR_MAX_HEIGHT`。
 > 在那里保存的值会持久化，并且优先于环境变量，所以改一个播放上限不必再去编辑 compose
 > 文件、重建容器。这五项都在启动时读取，面板上也这么写着：保存只是存下你的选择，

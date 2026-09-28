@@ -40,7 +40,7 @@ client address - see [Reverse proxy](../reverse-proxy.md#real-client-ips-and-the
 Remote access is a choice about who may reach the server, not a protection:
 sign-in is what protects the library.
 
-### Server config
+### Server Config
 
 The page groups the server's own settings in cards:
 

@@ -1,5 +1,5 @@
 ---
-source_sha: 48560184418f09f59a0147095354999490a70abb4f0d86904e7c50b9b4b2b835
+source_sha: 5eee9b7d91ff4e7f592e19232c8e2bcaa6dbd8516301cccf7b266b23b3a06252
 ---
 # Einstellungen für Zuschauer
 
@@ -77,7 +77,7 @@ des Films zu springen.
 
 ## Profile und Jugendschutz
 
-**Einstellungen > Profile** legt Profile an, bearbeitet und löscht sie (das
+**Einstellungen → Profile** legt Profile an, bearbeitet und löscht sie (das
 Standardprofil lässt sich nicht löschen). Jedes Profil hat:
 
 | Feld | Was es tut |
@@ -87,7 +87,7 @@ Standardprofil lässt sich nicht löschen). Jedes Profil hat:
 | **Max. Altersfreigabe** | Titel darüber werden diesem Profil nie geschickt - nicht in Listen, nicht in der Suche, nicht an den Player. Der Server legt es fest, keine App kann es umgehen. |
 | **Sprache** und **Region** | Überschreiben für dieses Profil die Sprache der Oberfläche und das Land der Freigaben. |
 
-**Einstellungen > Kindersicherung** legt die **vierstellige PIN** des Kontos
+**Einstellungen → Kindersicherung** legt die **vierstellige PIN** des Kontos
 fest. Beim ersten Mal fragt sie nach dem Kontopasswort; um sie später zu
 ändern, nach der aktuellen PIN. Eine PIN ist Pflicht, sobald ein Kinderprofil
 existiert.
@@ -111,7 +111,7 @@ ein Download abgelaufen ist und neu geholt werden muss.
 
 ## Benachrichtigungen
 
-**Einstellungen > Benachrichtigungen** schaltet Push-Benachrichtigungen für
+**Einstellungen → Benachrichtigungen** schaltet Push-Benachrichtigungen für
 dieses Gerät ein und legt für Filme, Serien und Musik getrennt fest, wie viel
 Sie hören wollen: **Alle**, **Relevant**, **Nur wichtige** oder
 **Deaktiviert**. Push setzt voraus, dass der Administrator es eingerichtet hat

@@ -1,5 +1,5 @@
 ---
-source_sha: d6c99c91037371ee077e57625c65e0ac542e80e0737a6e83c3320644603ab562
+source_sha: ffbf9fdc31bed5852bae361afeb788edd4c45c60a46c9b02b5cefe3e5c7d810a
 ---
 
 # Guía de incidencias
@@ -258,7 +258,7 @@ docker volume inspect evey_evey-cache   # el nombre que retuerce compose puede v
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- Baje el presupuesto de la caché de transcodificación (Admin > Ajustes del servidor, `10` GB por defecto) si el volumen del host va justo; sea cual sea el presupuesto, el barredor mantiene 2 GiB libres en el volumen de la caché.
+- Baje el presupuesto de la caché de transcodificación (Admin → Ajustes del servidor, `10` GB por defecto) si el volumen del host va justo; sea cual sea el presupuesto, el barredor mantiene 2 GiB libres en el volumen de la caché.
 
 ## 7. Una extensión se ha caído
 

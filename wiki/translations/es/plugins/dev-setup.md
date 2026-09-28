@@ -1,5 +1,5 @@
 ---
-source_sha: 8da868d1b798afe178e9ef7c621a9a0513b023c77f535745e4e5d2c44b5dae50
+source_sha: d5cb641722482071362563f54ebfa269c77cb3d81faa2c0ec9878ad7f4ef501c
 ---
 # Preparación para desarrollar extensiones
 
@@ -103,7 +103,7 @@ Edite `plugin.yaml`:
 
 Módulo frontal (opcional para `kind: plugin`, prohibido para `kind: theme`):
 
-```yaml
+```yaml title="plugin.yaml"
 frontend:
   - slot: home.section
     src: dist/index.js

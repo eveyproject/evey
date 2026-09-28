@@ -1,5 +1,5 @@
 ---
-source_sha: d1faf9fca32831f3db985c8b6b2429cff4e1340e4ac48a181d72d3ec7533dba9
+source_sha: eea86697845889523ecbd07dd3d88da0143ac37f477404249051c73e160c80c8
 ---
 
 # Notificaciones
@@ -14,7 +14,7 @@ Siempre activas. El usuario ve un icono de campana con el número de mensajes si
 ### Correo electrónico (SMTP)
 Envía un correo cada vez que se genera una notificación. Necesita la configuración SMTP:
 
-```env
+```env title=".env"
 EVEY_SMTP_HOST=smtp.example.com
 EVEY_SMTP_PORT=587
 EVEY_SMTP_USERNAME=notifications@example.com

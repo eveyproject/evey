@@ -1,5 +1,5 @@
 ---
-source_sha: 0de496a664ed813f5ad423017ddfe0563349e3baaee95acf2ee582c2e970dd84
+source_sha: ffa2d81166e7b4ed70cb689b95ea6c53767a79b4a69552e5f0334112ce647605
 ---
 
 # ट्रांसकोडिंग
@@ -43,7 +43,7 @@ Evey **एक ही image** देता है, जिसके ffmpeg मे�
 
 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) इंस्टॉल करें, फिर GPU आरक्षित करें **और** साथ में `video` ड्राइवर क्षमता भी माँगें (उसके बिना toolkit `nvidia-smi`/CUDA तो डाल देता है पर `libnvidia-encode.so` नहीं, और NVENC लोड ही नहीं हो पाता):
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     environment:
@@ -62,7 +62,7 @@ services:
 DRM render node खोल दें; libva, GPU की PCI id देखकर सही ड्राइवर (iHD / i965 /
 radeonsi) खुद चुन लेता है:
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     devices:
@@ -142,7 +142,7 @@ EVEY_TRANSCODING_HW_PER_VARIANT=false
 EVEY_TRANSCODING_SINGLE_VARIANT=1
 ```
 
-> **पाँच सेटिंग्स अब व्यवस्थापन पैनल में रहती हैं** (Admin > ट्रांसकोडिंग >
+> **पाँच सेटिंग्स अब व्यवस्थापन पैनल में रहती हैं** (Admin → ट्रांसकोडिंग →
 > उन्नत सीमाएँ): `HW_PER_VARIANT`, `SINGLE_VARIANT`, `MAX_SESSIONS`,
 > `SOFTWARE_MAX_HEIGHT` और `SOFTWARE_HDR_MAX_HEIGHT`। वहाँ सहेजी गई वैल्यू बनी
 > रहती है और env पर भारी पड़ती है, इसलिए प्लेबैक की कोई सीमा बदलने के लिए अब

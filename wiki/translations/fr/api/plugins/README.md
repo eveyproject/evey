@@ -15,8 +15,8 @@ Points d'accès pour gérer les extensions et les intégrations par webhook.
 
 ## Développer une extension
 
-Les extensions dialoguent avec le serveur Evey par gRPC. La [documentation des extensions](../../plugins.md) contient le guide de développement complet, notamment :
-- le cycle de vie d'une extension (installation, activation, configuration, désactivation, désinstallation) ;
-- les points d'accroche disponibles pour les événements ;
-- le schéma de configuration ;
+Les extensions dialoguent avec le serveur Evey par gRPC. La [documentation des extensions](../../plugins.md) contient le guide de développement complet, notamment :
+- le cycle de vie d'une extension (installation, activation, configuration, désactivation, désinstallation) ;
+- les points d'accroche disponibles pour les événements ;
+- le schéma de configuration ;
 - l'isolation de sécurité (seccomp, séparation des processus).

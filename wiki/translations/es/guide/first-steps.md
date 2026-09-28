@@ -1,5 +1,5 @@
 ---
-source_sha: c73c55a6e5d6b1b9fa29cf297de23c0491fb8c067209ea11d5e8ece8986a630f
+source_sha: f1ea44197021d6c8d4791aa939ef1b103613cd438a70d3c00ce1af151c0ca580
 ---
 # Primeros pasos
 
@@ -15,7 +15,7 @@ Un servidor sin administrador se abre con un asistente de cuatro pasos.
 
 1. **Idioma.** El idioma por defecto de los perfiles nuevos y de los metadatos
    (títulos, sinopsis, géneros). Puede cambiarlo más tarde en
-   **Admin > Configuración del servidor > Idioma y región**, junto con la región
+   **Admin → Configuración del servidor → Idioma y región**, junto con la región
    que decide qué clasificaciones de edad se aplican.
 2. **Bienvenida.**
 3. **Cuenta de administrador.** Un nombre de usuario de al menos tres caracteres
@@ -27,7 +27,7 @@ Un servidor sin administrador se abre con un asistente de cuatro pasos.
 
 ## Añadir sus bibliotecas
 
-**Admin > Bibliotecas > Añadir biblioteca.** Una biblioteca tiene un nombre, un
+**Admin → Bibliotecas → Añadir biblioteca.** Una biblioteca tiene un nombre, un
 tipo (películas, series, música o fotos) y una o varias carpetas.
 
 **Las carpetas son rutas dentro del contenedor**, no en su máquina. Con el
@@ -50,7 +50,7 @@ En una película, el año ayuda mucho. En un episodio, lo que cuenta es `S01E05`
 o `1x05`. Las etiquetas de release (resolución, origen, códec, audio, marcas de
 idioma como `VOSTFR` o `MULTI`, ediciones como «Director's Cut») se quitan antes
 de la búsqueda. Si sus archivos llevan una etiqueta que el escáner no conoce,
-añádala en **Admin > Configuración del servidor > Tokens del analizador**.
+añádala en **Admin → Configuración del servidor → Tokens del analizador**.
 
 Para cada biblioteca, además elige:
 
@@ -75,7 +75,7 @@ TMDB o IMDb.
 Evey incluye una clave de **TMDB**, la fuente de títulos, carteles, repartos y
 colecciones, así que los metadatos funcionan desde el principio. Las demás
 fuentes son opcionales y sus claves se introducen en
-**Admin > Configuración del servidor > Claves API**:
+**Admin → Configuración del servidor → Claves API**:
 
 | Clave | Aporta |
 | --- | --- |
@@ -89,7 +89,7 @@ entorno.
 
 ## Invitar al hogar
 
-**Admin > Usuarios** ofrece dos puertas de entrada:
+**Admin → Usuarios** ofrece dos puertas de entrada:
 
 - **Crear usuario**: usted elige el nombre y la contraseña.
 - **Crear enlace de invitación**: la persona elige los suyos. Un enlace puede
@@ -112,14 +112,14 @@ hardware, Evey mide cuántos vídeos puede convertir a la vez, con el procesador
 y con la tarjeta gráfica si la hay. Tarda unos dos minutos, solo se ejecuta
 cuando nadie está mirando, y a un reproductor que pida una conversión mientras
 tanto se le indica que lo vuelva a intentar en un momento. El resultado está en
-**Admin > Transcodificación**: ese número es un techo que puede bajar, nunca
+**Admin → Transcodificación**: ese número es un techo que puede bajar, nunca
 subir. Para usar una tarjeta gráfica, vea
 [Transcodificación y hardware](../transcoding.md).
 
 ## Antes de compartir la dirección
 
 1. **Acceso remoto.** Evey solo se abre a Internet si le ha dado una dirección
-   pública. Revise **Admin > Acceso remoto**: si el servidor es accesible desde
+   pública. Revise **Admin → Acceso remoto**: si el servidor es accesible desde
    fuera pero el acceso remoto está desactivado, la página lo avisa en rojo, y
    todos los que están fuera de su red reciben un error. Vea la
    [administración](admin-settings.md#remote-access).
@@ -135,5 +135,5 @@ subir. Para usar una tarjeta gráfica, vea
 Abra la aplicación de Android o de Android TV, escriba la dirección del
 servidor e inicie sesión. En una tele, elija la **conexión rápida**: la tele
 muestra un código y un código QR, que usted aprueba desde
-**Ajustes > Conexión rápida** en un teléfono o un ordenador en el que ya haya
+**Ajustes → Conexión rápida** en un teléfono o un ordenador en el que ya haya
 iniciado sesión. Más en [En todas las pantallas](../discover/apps.md).

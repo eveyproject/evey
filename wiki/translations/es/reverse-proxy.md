@@ -1,5 +1,5 @@
 ---
-source_sha: 06a2075124844fd29e2a0a34d0dfe067f47f6d6ad77a67d0ed6cfa86a3562723
+source_sha: 6206dabdc6ff848ca510df9c4b2f78a112fdd636b130b05b32f18fd574e98f9d
 ---
 
 # Proxy inverso
@@ -11,7 +11,7 @@ cifrar). Al proxy inverso le basta con terminar TLS y reenviarlo todo a
 Sea cual sea el proxy que utilice, defina estas variables para que Evey conozca
 su URL pública y confíe en las cabeceras que el proxy le reenvía:
 
-```env
+```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
 EVEY_TRUSTED_PROXIES=172.16.0.0/12       # solo hace falta si el proxy es un contenedor; loopback siempre es de confianza
 ```
@@ -118,7 +118,7 @@ Todos los ejemplos incluidos leen el dominio de **un único sitio**:
 `EVEY_DOMAIN`, en el archivo `.env`. Defínalo una vez y Caddy, Nginx y Traefik lo
 recogerán.
 
-```env
+```env title=".env"
 EVEY_DOMAIN=media.example.com
 ```
 
@@ -142,7 +142,7 @@ streaming solo puede aplicarlas el proxy que da la cara al cliente, de manera
 que un segundo proxy por detrás no aporta nada. Ponga el servicio evey en la red
 de ese proxy y apunte a `evey-server:9091`:
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     # sin ports: el proxy es la única vía de entrada

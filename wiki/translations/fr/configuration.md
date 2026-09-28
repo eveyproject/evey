@@ -1,5 +1,5 @@
 ---
-source_sha: a7cdb2195f99559246f23706d11f64ad40c0cb3dcd88a52f3caf61af02c7ce8c
+source_sha: f8a4c4c0cff61bcab8e0c2da5453fe2689339488b1c66d260a2907b56b1187cb
 ---
 
 # Configuration
@@ -9,12 +9,12 @@ serveur** - secrets, câblage du conteneur, informations sur le reverse proxy - 
 fichier compose. **Ce qu'un administrateur règle ensuite** - niveau de
 journalisation, langue, limites de transcodage, accélération matérielle,
 surveillance des dossiers, bac à sable et quotas des extensions - vit dans
-**Admin > Server config**, est rangé dans la base, survit à une recréation du
+**Admin → Server config**, est rangé dans la base, survit à une recréation du
 conteneur et s'applique le plus souvent sans redémarrage.
 
 Poser l'un de ces réglages dans l'environnement ne fait qu'amorcer le premier
 démarrage. C'est pourquoi cette page ne liste pas toutes les variables `EVEY_*`
-que le binaire accepte : les autres sont des amorces de premier démarrage et des
+que le binaire accepte : les autres sont des amorces de premier démarrage et des
 soupapes. `internal/config/config.go` est la référence exhaustive si vous en
 avez besoin.
 
@@ -40,7 +40,7 @@ toujours sur le fichier.
 
 Les métadonnées fonctionnent dès l'installation : une clé TMDB est intégrée.
 Une clé à vous (gratuite sur themoviedb.org) vous donne votre propre quota ;
-saisissez-la dans **Admin > Configuration du serveur > Clés API**, ou amorcez-la
+saisissez-la dans **Admin → Configuration du serveur → Clés API**, ou amorcez-la
 avec `EVEY_TMDB_API_KEY`. Une fois le serveur publié, `EVEY_SERVER_BASE_URL` est
 la seule variable à ajouter - section 2.
 
@@ -50,7 +50,7 @@ Derrière un reverse proxy, avec le transcodage matériel, tout l'environnement
 tient en deux variables. Le reste de ce que l'on traîne d'ordinaire dans un
 fichier compose est soit déjà dans l'image, soit une valeur par défaut :
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     image: gravityz/evey:latest
@@ -142,7 +142,7 @@ montages de médias appartiennent à root ou à l'uid réservé `1001` : donnez
 vos médias à un utilisateur ordinaire avec `chown`, ou fixez `PUID` et `PGID`
 explicitement :
 
-```env
+```env title=".env"
 PUID=1026   # faire tourner le serveur sous cet id d'utilisateur (hôte : `id -u <media-owner>`)
 PGID=100    # ...et sous cet id de groupe
 ```
@@ -251,12 +251,12 @@ concernés, ils conservent le décodeur wasm, qui y est validé. Passez la varia
 matérielle, l'AV1, le budget de cache et les limites avancées (nombre maximal de
 sessions HLS simultanées, plafonds de hauteur pour le logiciel et le logiciel
 HDR, encodage d'un palier à la fois, un encodeur matériel par palier) se
-trouvent tous sous **Admin > Transcoding configuration**. Les valeurs
+trouvent tous sous **Admin → Transcoding configuration**. Les valeurs
 enregistrées là survivent aux redémarrages et priment sur l'environnement ; le
 panneau signale celles qui ne prennent effet qu'après un redémarrage.
 
 **Les drapeaux des tâches de fond** se posent sous forme de lignes dans
-**Admin > Server configuration** : le panneau propose les clés et affiche, pour
+**Admin → Server configuration** : le panneau propose les clés et affiche, pour
 chacune, la variable d'environnement correspondante et la valeur attendue.
 Toutes sont lues au démarrage, elles ne s'appliquent donc qu'au redémarrage
 suivant :
@@ -278,7 +278,7 @@ Chacune a aussi son équivalent en variable d'environnement
 (`EVEY_KEYFRAME_BACKFILL`, `EVEY_LEVEL_BACKFILL_BATCH`, ...), mais c'est la
 ligne du panneau qui l'emporte.
 
-Le **budget CPU de fond** (Admin > Configuration du serveur > Puissance allouée)
+Le **budget CPU de fond** (Admin → Configuration du serveur → Puissance allouée)
 borne le processeur que toutes les tâches de fond peuvent prendre ensemble, à
 chaud (sans redémarrage) :
 
@@ -300,7 +300,7 @@ et contournent le budget pour elles. Les anciennes clés `trickplay.adaptive_cpu
 détection des génériques) sont toujours honorées tant que les nouvelles ne sont
 pas fixées.
 
-Le **budget du cache de transcodage** (Admin > Paramètres du serveur,
+Le **budget du cache de transcodage** (Admin → Configuration du serveur → Paramètres du serveur,
 `transcoding.cache_max_gb`, `10` par défaut, appliqué au redémarrage) borne tout
 le cache de transcodage sur le disque : segments de lecture, remux de démarrage
 rapide et téléchargements compatibles, ensemble, sous un seul nombre. C'est une

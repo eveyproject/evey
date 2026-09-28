@@ -1,5 +1,5 @@
 ---
-source_sha: c73c55a6e5d6b1b9fa29cf297de23c0491fb8c067209ea11d5e8ece8986a630f
+source_sha: f1ea44197021d6c8d4791aa939ef1b103613cd438a70d3c00ce1af151c0ca580
 ---
 # Erste Schritte
 
@@ -16,7 +16,7 @@ Schritten.
 
 1. **Sprache.** Die Standardsprache für neue Profile und für Metadaten (Titel,
    Zusammenfassungen, Genres). Sie können sie später unter
-   **Admin > Serverkonfiguration > Sprache & Region** ändern, zusammen mit der
+   **Admin → Serverkonfiguration → Sprache & Region** ändern, zusammen mit der
    Region, die festlegt, welche Altersfreigaben gelten.
 2. **Willkommen.**
 3. **Admin-Konto.** Ein Benutzername mit mindestens drei Zeichen und ein
@@ -27,7 +27,7 @@ Schritten.
 
 ## Ihre Bibliotheken hinzufügen
 
-**Admin > Bibliotheken > Bibliothek hinzufügen.** Eine Bibliothek hat einen
+**Admin → Bibliotheken → Bibliothek hinzufügen.** Eine Bibliothek hat einen
 Namen, einen Typ (Filme, Serien, Musik oder Fotos) und einen oder mehrere
 Ordner.
 
@@ -51,7 +51,7 @@ Bei Filmen hilft das Jahr sehr. Bei Folgen zählt `S01E05` oder `1x05`.
 Release-Kennzeichen (Auflösung, Quelle, Codec, Ton, Sprachkennzeichen wie
 `VOSTFR` oder `MULTI`, Fassungen wie „Director's Cut“) werden vor der Suche
 entfernt. Tragen Ihre Dateien ein Kennzeichen, das der Scanner nicht kennt,
-fügen Sie es unter **Admin > Serverkonfiguration > Parser-Tokens** hinzu.
+fügen Sie es unter **Admin → Serverkonfiguration → Parser-Tokens** hinzu.
 
 Pro Bibliothek wählen Sie außerdem:
 
@@ -76,7 +76,7 @@ TMDB- oder IMDb-ID einfügen.
 Evey bringt einen Schlüssel für **TMDB** mit, die Quelle für Titel, Poster,
 Besetzung und Sammlungen, sodass Metadaten sofort funktionieren. Andere Quellen
 sind optional, ihre Schlüssel gehören unter
-**Admin > Serverkonfiguration > API-Schlüssel**:
+**Admin → Serverkonfiguration → API-Schlüssel**:
 
 | Schlüssel | Bringt |
 | --- | --- |
@@ -90,7 +90,7 @@ Umgebung.
 
 ## Den Haushalt einladen
 
-**Admin > Benutzer** bietet zwei Wege hinein:
+**Admin → Benutzer** bietet zwei Wege hinein:
 
 - **Benutzer erstellen**: Sie wählen Benutzername und Passwort.
 - **Einladungslink erstellen**: Die Person wählt ihre eigenen. Ein Link kann
@@ -113,14 +113,14 @@ misst Evey, wie viele Videos es gleichzeitig umwandeln kann, mit dem Prozessor
 und mit der Grafikkarte, falls vorhanden. Das dauert etwa zwei Minuten, läuft
 nur, wenn niemand schaut, und ein Player, der in dieser Zeit eine Umwandlung
 anfordert, wird gebeten, es gleich noch einmal zu versuchen. Das Ergebnis steht
-unter **Admin > Transkodierung**: Diese Zahl ist eine Obergrenze, die Sie senken,
+unter **Admin → Transkodierung**: Diese Zahl ist eine Obergrenze, die Sie senken,
 aber nie anheben können. Um eine Grafikkarte zu nutzen, siehe
 [Transkodierung und Hardware](../transcoding.md).
 
 ## Bevor Sie die Adresse teilen
 
 1. **Fernzugriff.** Evey öffnet sich dem Internet nur, wenn Sie ihm eine
-   öffentliche Adresse gegeben haben. Prüfen Sie **Admin > Fernzugriff**: Ist der
+   öffentliche Adresse gegeben haben. Prüfen Sie **Admin → Fernzugriff**: Ist der
    Server von außen erreichbar, der Fernzugriff aber aus, sagt die Seite das in
    Rot, und alle außerhalb Ihres Netzes bekommen einen Fehler. Siehe
    [Administration](admin-settings.md#remote-access).
@@ -136,6 +136,6 @@ aber nie anheben können. Um eine Grafikkarte zu nutzen, siehe
 Öffnen Sie die Android- oder Android-TV-App, geben Sie die Adresse des Servers
 ein und melden Sie sich an. Wählen Sie auf einem Fernseher die
 **Schnellverbindung**: Der Fernseher zeigt einen Code und einen QR-Code, den Sie
-unter **Einstellungen > Schnellverbindung** auf einem Handy oder Computer
+unter **Einstellungen → Schnellverbindung** auf einem Handy oder Computer
 bestätigen, auf dem Sie schon angemeldet sind. Mehr dazu unter
 [Auf jedem Bildschirm](../discover/apps.md).

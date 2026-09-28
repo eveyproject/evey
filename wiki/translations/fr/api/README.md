@@ -10,8 +10,8 @@ Spécifications OpenAPI (Swagger 2.0) du serveur multimédia Evey.
 
 | Section | Description |
 |---------|-------------|
-| [API publique](public/README.md) | Points d'accès destinés aux utilisateurs : navigation dans les médias, lecture, collections, playlists, etc. |
-| [API d'administration](admin/README.md) | Administration du serveur : configuration système, transcodage, sauvegardes, métadonnées, etc. |
+| [API publique](public/README.md) | Points d'accès destinés aux utilisateurs : navigation dans les médias, lecture, collections, playlists, etc. |
+| [API d'administration](admin/README.md) | Administration du serveur : configuration système, transcodage, sauvegardes, métadonnées, etc. |
 | [API des extensions](plugins/README.md) | Gestion des extensions et intégrations par webhook. |
 
 ## Utilisation
@@ -20,7 +20,7 @@ Chaque dossier contient des fichiers `.swagger.json` individuels, importables da
 
 ## Régénération
 
-Ces spécifications sont générées à partir des définitions protobuf par `buf generate`. Pour les mettre à jour :
+Ces spécifications sont générées à partir des définitions protobuf par `buf generate`. Pour les mettre à jour :
 
 ```bash
 buf generate --template buf.gen.local.yaml

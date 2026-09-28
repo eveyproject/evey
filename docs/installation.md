@@ -6,10 +6,12 @@ with their secrets generated on first boot. The compose file in section 1 is
 the whole install. It needs no `.env`, no `--privileged`, and no memory or CPU
 setting.
 
-> The `docker-compose.yml` at the root of the Git repository is **not** that
-> file. It is the operator layout (section 7): Postgres as a sibling service,
-> a bundled Caddy, and a `.env` it refuses to start without. Copy the block
-> below, not the repository's file.
+!!! warning "Not the repository's docker-compose.yml"
+
+    The `docker-compose.yml` at the root of the Git repository is **not** that
+    file. It is the operator layout (section 7): Postgres as a sibling service,
+    a bundled Caddy, and a `.env` it refuses to start without. Copy the block
+    below, not the repository's file.
 
 To run Evey outside Docker, see [deployment-bare-metal.md](deployment-bare-metal.md).
 
@@ -26,56 +28,65 @@ To run Evey outside Docker, see [deployment-bare-metal.md](deployment-bare-metal
 Save this as `docker-compose.yml`, with your media path on the last volume
 line. Secrets land in `./evey-data/keys` on first boot; nothing to invent.
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
-    image: gravityz/evey:latest        # pin a tag here (e.g. 0.2.0-beta.1, sha-1a2b3c4)
+    image: gravityz/evey:latest # (1)!
     container_name: evey-server
     ports:
-      - "9091:9091"
+      - "9091:9091" # (2)!
     # environment:
-    #   EVEY_SERVER_BASE_URL: http://<your-ip>:9091   # e-mail links, OIDC redirects, cast/device URLs
+    #   EVEY_SERVER_BASE_URL: http://<your-ip>:9091
     volumes:
-      - ./evey-data:/data              # database, JWT key, generated secrets, search index, logs, backups
-      - evey-cache:/cache              # transcode + trickplay cache (safe to prune)
-      # Read-write so the seek-index repair rebuilds files in place; append
-      # `:ro` for a read-only library and accept that those repairs fail.
-      - /path/to/your/media:/media
-    # The embedded database is stopped cleanly AFTER the server on `docker
-    # stop`; a large catalogue needs more than Docker's 10s default.
-    stop_grace_period: 60s
+      - ./evey-data:/data # (3)!
+      - evey-cache:/cache # (4)!
+      - /path/to/your/media:/media # (5)!
+    stop_grace_period: 60s # (6)!
     restart: unless-stopped
 
 volumes:
   evey-cache:
 ```
 
-Keep the environment **minimal** - only secrets you bring yourself, the DB
-connection when external, storage paths, and reverse-proxy facts belong in the
-compose file (or in a `.env` for the secrets). Almost everything else (server
-name, transcode concurrency, rate limits, log level, scan/watcher intervals,
-backup schedule, API keys) is **editable at runtime from Admin → Server
-Config** and should NOT be stuffed into the compose.
-`PUID`/`PGID`: unset by default → the entrypoint adopts the owner of your
-`/media` mounts so in-place repairs work; override with `id -u`/`id -g`. The
-container starts as root only to apply the mapping, then drops privileges -
-the server never runs as root.
+1. The image. Pin a tag here (`0.2.0-beta.1`, or an immutable `sha-1a2b3c4`) so two pulls a day apart run the same code - see [Updating Evey](#4-updating-evey).
+2. The API and the web interface, on one port, in plain HTTP. For HTTPS put a [reverse proxy](reverse-proxy.md) in front and uncomment `EVEY_SERVER_BASE_URL` below with the public address: e-mail links, OIDC redirects and cast URLs are built from it.
+3. Everything Evey owns: database, JWT key, generated secrets, search index, logs, backups, plugins. This is the folder to back up.
+4. Transcode and trickplay cache. Safe to prune: it refills on demand.
+5. Your library, left of the colon. Read-write on purpose: the seek-index repair rebuilds files in place. Append `:ro` for a read-only library and accept that those repairs fail. More folders go in as `/media2`, `/media3`...
+6. On `docker stop` the embedded database is stopped cleanly after the server; a large catalogue needs more than Docker's 10 s default.
 
-**On a NAS (Synology Container Manager, QNAP Container Station):**
+!!! tip "Keep the environment minimal"
 
-- Create the data folder **before** the first start (`mkdir evey-data` next
-  to the compose, or from File Station): those UIs refuse a bind mount whose
-  folder does not exist, unlike the Docker CLI. Nothing else to pre-create -
-  the entrypoint makes `plugins/`, `keys/`, `postgres/` itself.
-- Set `PUID`/`PGID` to the DSM user that owns the media (`id <user>` over
-  SSH; on Synology that is typically `1026`-ish and group `100` = `users`)
-  rather than relying on the automatic detection: a DSM share is often owned
-  by `root`, which the entrypoint never adopts.
-- Intel NAS with Quick Sync: add the `devices:` and `group_add:` lines from
-  `docker-compose.gpu.yml` (the render group's GID from `getent group render`
-  or `stat -c %g /dev/dri/renderD128`).
-- No `.env` is needed - the `.env`-gated `docker-compose.yml` at the root of
-  the repository is the operator layout, not this one.
+    Only the secrets you bring yourself, the database connection when it is
+    external, storage paths and reverse-proxy facts belong in the compose file (or
+    in a `.env` for the secrets). Almost everything else - server name, transcode
+    concurrency, rate limits, log level, scan and watcher intervals, backup
+    schedule, API keys - is **editable at runtime from Admin → Server Config** and
+    stays out of the compose.
+
+!!! info "Who owns the files: PUID and PGID"
+
+    Unset by default: the entrypoint adopts the owner of your `/media` mounts, so
+    in-place repairs can write. To choose, set `PUID` and `PGID` under
+    `environment:` (your `id -u` and `id -g`). The container starts as root only to
+    apply that mapping, then drops privileges - the server itself never runs as
+    root.
+
+???+ note "On a NAS (Synology Container Manager, QNAP Container Station)"
+
+    - Create the data folder **before** the first start (`mkdir evey-data` next
+      to the compose, or from File Station): those UIs refuse a bind mount whose
+      folder does not exist, unlike the Docker CLI. Nothing else to pre-create -
+      the entrypoint makes `plugins/`, `keys/`, `postgres/` itself.
+    - Set `PUID`/`PGID` to the DSM user that owns the media (`id <user>` over
+      SSH; on Synology that is typically `1026`-ish and group `100` = `users`)
+      rather than relying on the automatic detection: a DSM share is often owned
+      by `root`, which the entrypoint never adopts.
+    - Intel NAS with Quick Sync: add the `devices:` and `group_add:` lines from
+      `docker-compose.gpu.yml` (the render group's GID from `getent group render`
+      or `stat -c %g /dev/dri/renderD128`).
+    - No `.env` is needed - the `.env`-gated `docker-compose.yml` at the root of
+      the repository is the operator layout, not this one.
 
 ## 2. First launch
 
@@ -95,20 +106,16 @@ On first boot the server:
 Then open `http://<your-ip>:9091`. With no admin yet, you land on the **setup
 wizard** (`/setup`): create the first admin account. After that, log in and
 **add a library** (Admin → Libraries), pointing it at a path under `/media`
-(your `MEDIA_DIR`, mounted read-write). The first scan starts automatically.
+(the folder you mounted there). The first scan starts automatically.
 The wizard, the libraries, inviting people and what to check before sharing
 the address are walked through in [First steps](guide/first-steps.md).
-
-The compose file above mounts it read-write on purpose: the seek-index repair
-rebuilds files in place, and a `:ro` mount makes those repairs fail. Add `:ro`
-only if you accept losing them.
 
 ## 3. Common variations
 
 **Variations, each a few lines on that file:**
 
 - *A second media folder*: add `- /other/path:/media2` under `volumes:`
-  (`/media3`, ... likewise). Mount them read-write, see the comment above.
+  (`/media3`, ... likewise). Mount them read-write, like the first one.
 - *Behind a reverse proxy you already run* (Nginx Proxy Manager, Traefik, ...
   on a Docker network): remove `ports:`, join the proxy's network and tell the
   server its public URL and which peer to trust:
@@ -274,36 +281,40 @@ run it as a sibling service: add the service and point the server at it -
 **`EVEY_DB_HOST` being set is what turns the embedded database off**, which is why every install from before the embedded database keeps
 working untouched:
 
-```yaml
-services:
-  evey:
-    # ... as above, plus:
-    environment:
-      EVEY_DB_HOST: postgres
-      EVEY_DB_SSLMODE: disable          # internal Docker network; the bundled Postgres has no TLS
-    depends_on:
-      postgres: { condition: service_healthy }
+=== "docker-compose.yml"
 
-  postgres:
-    image: postgres:16-alpine
-    container_name: evey-postgres
-    environment:
-      POSTGRES_DB: ${EVEY_DB_NAME:-evey}
-      POSTGRES_USER: ${EVEY_DB_USER:-evey}
-      POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:?EVEY_DB_PASSWORD must be set in .env}
-    volumes:
-      - ./postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${EVEY_DB_USER:-evey}"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-```
+    ```yaml
+    services:
+      evey:
+        # ... as above, plus:
+        environment:
+          EVEY_DB_HOST: postgres
+          EVEY_DB_SSLMODE: disable          # internal network, no TLS
+        depends_on:
+          postgres: { condition: service_healthy }
 
-```env
-EVEY_DB_PASSWORD=<strong-password>   # must NOT be the default 'evey' - the server refuses to start otherwise
-```
+      postgres:
+        image: postgres:16-alpine
+        container_name: evey-postgres
+        environment:
+          POSTGRES_DB: ${EVEY_DB_NAME:-evey}
+          POSTGRES_USER: ${EVEY_DB_USER:-evey}
+          POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:?EVEY_DB_PASSWORD must be set in .env}
+        volumes:
+          - ./postgres-data:/var/lib/postgresql/data
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U ${EVEY_DB_USER:-evey}"]
+          interval: 5s
+          timeout: 3s
+          retries: 5
+        restart: unless-stopped
+    ```
+
+=== ".env"
+
+    ```env
+    EVEY_DB_PASSWORD=<strong-password>   # must NOT be the default 'evey' - the server refuses to start otherwise
+    ```
 
 **External Meilisearch, same idea.** A separate search container keeps its
 own lifecycle and volume (and lets you `docker compose restart meilisearch` to
@@ -311,34 +322,38 @@ reset just the index). Turn the embedded one off, point the server at it, and
 share the key - an explicit `MEILI_MASTER_KEY` always wins over the generated
 `./evey-data/keys/meili.key`:
 
-```yaml
-services:
-  evey:
-    # ... plus:
-    environment:
-      EVEY_EMBEDDED_MEILI: "false"
-      EVEY_MEILI_URL: http://meilisearch:7700
-    depends_on:
-      meilisearch: { condition: service_healthy }
+=== "docker-compose.yml"
 
-  meilisearch:
-    image: getmeili/meilisearch:v1.12
-    container_name: evey-meilisearch
-    environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
-      MEILI_NO_ANALYTICS: "true"
-    volumes:
-      - ./meili-data:/meili_data
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
-      interval: 5s
-      retries: 5
-    restart: unless-stopped
-```
+    ```yaml
+    services:
+      evey:
+        # ... plus:
+        environment:
+          EVEY_EMBEDDED_MEILI: "false"
+          EVEY_MEILI_URL: http://meilisearch:7700
+        depends_on:
+          meilisearch: { condition: service_healthy }
 
-```env
-MEILI_MASTER_KEY=<run: openssl rand -hex 16>
-```
+      meilisearch:
+        image: getmeili/meilisearch:v1.12
+        container_name: evey-meilisearch
+        environment:
+          MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
+          MEILI_NO_ANALYTICS: "true"
+        volumes:
+          - ./meili-data:/meili_data
+        healthcheck:
+          test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
+          interval: 5s
+          retries: 5
+        restart: unless-stopped
+    ```
+
+=== ".env"
+
+    ```env
+    MEILI_MASTER_KEY=<run: openssl rand -hex 16>
+    ```
 
 Give that container a non-root `user:` and a `mem_limit` if you can - the
 official image runs as root and its resident set (memory-mapped index) looks

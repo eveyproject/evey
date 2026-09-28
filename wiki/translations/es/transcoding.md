@@ -1,5 +1,5 @@
 ---
-source_sha: 0de496a664ed813f5ad423017ddfe0563349e3baaee95acf2ee582c2e970dd84
+source_sha: ffa2d81166e7b4ed70cb689b95ea6c53767a79b4a69552e5f0334112ce647605
 ---
 
 # Transcodificación
@@ -45,7 +45,7 @@ está en [ADR-0015](adr/0015-hardware-acceleration.md).
 
 Instale el [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) y reserve después la GPU **y** pida la capacidad `video` del controlador (sin ella, el toolkit inyecta `nvidia-smi` y CUDA, pero no `libnvidia-encode.so`, y NVENC no llega a cargarse):
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     environment:
@@ -64,7 +64,7 @@ services:
 Exponga el nodo de renderizado DRM; libva escoge sola el controlador adecuado
 (iHD, i965 o radeonsi) a partir del id PCI de la GPU:
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     devices:
@@ -153,8 +153,8 @@ EVEY_TRANSCODING_HW_PER_VARIANT=false
 EVEY_TRANSCODING_SINGLE_VARIANT=1
 ```
 
-> **Cinco ajustes viven ya en el panel de administración** (Admin >
-> Transcodificación > Límites avanzados): `HW_PER_VARIANT`,
+> **Cinco ajustes viven ya en el panel de administración** (Admin →
+> Transcodificación → Límites avanzados): `HW_PER_VARIANT`,
 > `SINGLE_VARIANT`, `MAX_SESSIONS`, `SOFTWARE_MAX_HEIGHT` y
 > `SOFTWARE_HDR_MAX_HEIGHT`. Un valor guardado ahí se conserva y prevalece sobre
 > el entorno, de modo que ya no hay que editar un archivo compose y recrear el

@@ -38,7 +38,7 @@ NVENC, or VAAPI/QSV depending purely on what you map. See
 
 Install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html), then reserve the GPU **and** request the `video` driver capability (without it the toolkit injects `nvidia-smi`/CUDA but not `libnvidia-encode.so`, and NVENC fails to load):
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     environment:
@@ -57,7 +57,7 @@ services:
 Expose the DRM render node; libva auto-selects the right driver (iHD / i965 /
 radeonsi) from the GPU's PCI id:
 
-```yaml
+```yaml title="docker-compose.yml"
 services:
   evey:
     devices:
@@ -134,7 +134,7 @@ EVEY_TRANSCODING_HW_PER_VARIANT=false
 EVEY_TRANSCODING_SINGLE_VARIANT=1
 ```
 
-> **Five settings now live in the admin panel** (Admin > Transcoding configuration >
+> **Five settings now live in the admin panel** (Admin → Transcoding configuration →
 > Advanced limits): `HW_PER_VARIANT`, `SINGLE_VARIANT`, `MAX_SESSIONS`,
 > `SOFTWARE_MAX_HEIGHT` and `SOFTWARE_HDR_MAX_HEIGHT`. A value saved there is
 > persisted and wins over the environment, so you no longer have to edit a

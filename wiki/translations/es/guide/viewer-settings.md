@@ -1,5 +1,5 @@
 ---
-source_sha: 48560184418f09f59a0147095354999490a70abb4f0d86904e7c50b9b4b2b835
+source_sha: 5eee9b7d91ff4e7f592e19232c8e2bcaa6dbd8516301cccf7b266b23b3a06252
 ---
 # Ajustes del espectador
 
@@ -78,7 +78,7 @@ subtítulos, `<` y `>` para la velocidad, `P` para imagen en imagen, y de `0` a
 
 ## Perfiles y control parental
 
-**Ajustes > Perfiles** crea, edita y borra perfiles (el perfil por defecto no se
+**Ajustes → Perfiles** crea, edita y borra perfiles (el perfil por defecto no se
 puede borrar). Cada perfil tiene:
 
 | Campo | Qué hace |
@@ -88,7 +88,7 @@ puede borrar). Cada perfil tiene:
 | **Clasificación de edad máxima** | Los títulos por encima nunca se envían a este perfil - ni en las listas, ni en la búsqueda, ni al reproductor. Lo decide el servidor: ninguna aplicación puede saltárselo. |
 | **Idioma** y **Región** | Sustituyen, para este perfil, el idioma de la interfaz y el país de las clasificaciones. |
 
-**Ajustes > Control parental** define el **PIN de 4 cifras** de la cuenta. La
+**Ajustes → Control parental** define el **PIN de 4 cifras** de la cuenta. La
 primera vez pide la contraseña de la cuenta; para cambiarlo después, pide el PIN
 actual. Un PIN es obligatorio en cuanto existe un perfil infantil.
 
@@ -111,7 +111,7 @@ hay que volver a obtenerla.
 
 ## Notificaciones
 
-**Ajustes > Notificaciones** activa las notificaciones push en este dispositivo
+**Ajustes → Notificaciones** activa las notificaciones push en este dispositivo
 y fija, por separado para películas, series y música, cuánto quiere recibir:
 **Todas**, **Relevantes**, **Solo importantes** o **Desactivado**. El push
 requiere que el administrador lo haya configurado

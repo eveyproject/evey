@@ -12,7 +12,7 @@ A server with no administrator opens on a four-step wizard.
 
 1. **Language.** The default language for new profiles and for metadata
    (titles, summaries, genres). You can change it later in
-   **Admin > Server config > Language & Region**, along with the region that
+   **Admin → Server Config → Language & Region**, along with the region that
    decides which age ratings apply.
 2. **Welcome.**
 3. **Administrator account.** A username of at least three characters and a
@@ -23,7 +23,7 @@ A server with no administrator opens on a four-step wizard.
 
 ## Add your libraries
 
-**Admin > Libraries > Add Library.** A library has a name, a type (films,
+**Admin → Libraries → Add Library.** A library has a name, a type (films,
 series, music or photos) and one or more folders.
 
 **The folders are paths inside the container**, not on your host. With the
@@ -46,7 +46,7 @@ The year helps a lot for films. For episodes, `S01E05` or `1x05` is what
 matters. Release tags (resolution, source, codec, audio, language tags such
 as `VOSTFR` or `MULTI`, edition names such as "Director's Cut") are stripped
 before the search. If your files carry a tag the scanner does not know, add it
-in **Admin > Server config > Parser tokens**.
+in **Admin → Server Config → Parser tokens**.
 
 Per library, you also choose:
 
@@ -69,7 +69,7 @@ or paste the right TMDB or IMDb id.
 
 Evey ships with a key for **TMDB**, the source of titles, posters, cast and
 collections, so metadata works out of the box. Other sources are optional and
-their keys go in **Admin > Server config > API Keys**:
+their keys go in **Admin → Server Config → API Keys**:
 
 | Key | Adds |
 | --- | --- |
@@ -82,7 +82,7 @@ A key set in the panel wins over the same key given in the environment.
 
 ## Invite the household
 
-**Admin > Users** has two ways in:
+**Admin → Users** has two ways in:
 
 - **Create User**: you choose the username and the password.
 - **Create Invite Link**: the person chooses their own. A link can expire, be
@@ -103,14 +103,14 @@ The first time it starts on a machine, and again when the hardware changes,
 Evey measures how many videos it can convert at once, with the processor and
 with the graphics card if there is one. It takes about two minutes, runs only
 when nobody is watching, and a player asking for a conversion meanwhile is
-told to try again shortly. The result is in **Admin > Transcoding**: that
+told to try again shortly. The result is in **Admin → Transcoding**: that
 number is the ceiling you can lower, never raise. To use a graphics card, see
 [Transcoding and hardware](../transcoding.md).
 
 ## Before you share the address
 
 1. **Remote access.** Evey opens itself to the internet only when you gave it
-   a public address. Check **Admin > Remote Access**: if the server is
+   a public address. Check **Admin → Remote Access**: if the server is
    reachable from outside but remote access is off, the page says so in red,
    and everyone outside your network gets an error. See
    [Administration](admin-settings.md#remote-access).
@@ -125,5 +125,5 @@ number is the ceiling you can lower, never raise. To use a graphics card, see
 
 Open the Android or Android TV app, type the server's address, and sign in.
 On a TV, choose **Quick Connect**: the TV shows a code and a QR code, and you
-approve it from **Settings > Quick Connect** on a phone or a computer that is
+approve it from **Settings → Quick Connect** on a phone or a computer that is
 already signed in. More in [On every screen](../discover/apps.md).

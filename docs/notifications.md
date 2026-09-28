@@ -10,7 +10,7 @@ Always enabled. Users see a bell icon with unread count. No configuration needed
 ### Email (SMTP)
 Sends an email when a notification is created. Requires SMTP configuration:
 
-```env
+```env title=".env"
 EVEY_SMTP_HOST=smtp.example.com
 EVEY_SMTP_PORT=587
 EVEY_SMTP_USERNAME=notifications@example.com
