@@ -1,5 +1,5 @@
 ---
-source_sha: baf759b03f8e14d6048f850d6927ea2371fa5533ad8148f6f86faf5364ba5f66
+source_sha: d6c99c91037371ee077e57625c65e0ac542e80e0737a6e83c3320644603ab562
 ---
 # Runbook: Störungen
 
@@ -258,7 +258,7 @@ docker volume inspect evey_evey-cache   # der von compose verbogene Name kann ab
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- Senken Sie `EVEY_TRANSCODING_CACHE_MAX_GB` (Standard `50`), wenn das Volume des Hosts kleiner ist als dieser Wert.
+- Senken Sie das Budget des Transkodierungs-Caches (Admin > Servereinstellungen, Standard `10` GB), wenn das Volume des Hosts knapp ist; unabhängig vom Budget hält der Sweeper 2 GiB auf dem Cache-Volume frei.
 
 ## 7. Eine Erweiterung ist abgestürzt
 
@@ -283,7 +283,10 @@ Alles Folgende lesen Sie auf der Protokollseite im Administrationsbereich (oder
 über `GET /api/v1/admin/logs/search?q=<term>&limit=200`): Eine Shell auf der
 Maschine brauchen Sie dafür nicht. Zeiten sind UTC. Jedes Signal ist eine Zeile
 `player-client: playback event reported` mit `type=` und einer Zeichenkette
-`details=`.
+`details=`. Zugangsdaten tauchen in dem, was diese Routen liefern, nie auf
+(Bearer, JWTs und `token=`/`password=`-Werte erscheinen als `[redacted]`), das
+Token einer Cast-URL lässt sich also nicht per Logsuche wiederfinden - suchen
+Sie nach der Medien-ID, nicht nach dem Token.
 
 1. **Lebte der Empfänger, und bis wann?** Suchen Sie nach
    `cast_receiver_alive`. Der Empfänger schickt eines alle 30 s, solange er

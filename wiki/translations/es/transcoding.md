@@ -1,10 +1,17 @@
 ---
-source_sha: aa2eb3901d0f475fc80f6f02196efd56ffd3beb911d1b5b63e4d270fd3d28c20
+source_sha: 0de496a664ed813f5ad423017ddfe0563349e3baaee95acf2ee582c2e970dd84
 ---
 
 # Transcodificación
 
 Evey transcodifica al vuelo cuando el cliente no admite el formato de origen.
+
+**En resumen.** La mayoría de las instalaciones no necesitan nada aquí: el
+servidor mide lo que la máquina puede convertir y admite ese número de
+conversiones a la vez. Para usar una tarjeta gráfica, expóngala al contenedor
+(más abajo) y deje **Aceleración por hardware** en **Auto** en **Admin →
+Transcodificación**. El resto de la página explica lo que hay detrás de esa
+elección.
 
 ## Cómo funciona
 
@@ -15,9 +22,13 @@ Evey elige por sí solo el mejor método de reproducción:
 
 ## Configuración
 
+Los dos valores de abajo solo siembran el primer arranque: el panel de
+administración (**Admin → Transcodificación**) manda en cuanto se guarda un
+valor allí.
+
 ```env
 EVEY_TRANSCODING_MAX_CONCURRENT=2
-# auto | off | nvenc | vaapi | qsv - véase «Aceleración por hardware», más abajo
+# auto | off | nvenc | vaapi | qsv | rkmpp - véase «Aceleración por hardware», más abajo
 EVEY_TRANSCODING_HW_MODE=off
 ```
 
@@ -65,16 +76,50 @@ es una sola y sirve para el backend que después seleccione.
 
 ### Cómo activarla
 
-La aceleración por hardware se maneja desde **Admin → Configuración del servidor
-→ Calibración de codificación**:
+La aceleración por hardware se maneja desde **Admin → Transcodificación →
+Calibración de codificación**:
 
 - Un interruptor general de **aceleración por hardware**. Desactivado = solo
   software (la válvula de escape para una GPU o un controlador caprichosos);
   activado = se usa la GPU.
 - Con él activado, aparece un selector de **Backend**: `Auto` (la calibración
-  elige el mejor de los detectados) o forzar `NVENC`, `VAAPI` o `QSV`. Si el
+  elige el mejor de los detectados) o forzar `NVENC`, `VAAPI`, `QSV` o `RKMPP`. Si el
   backend forzado resulta inservible, se recae en software y la tarjeta muestra
   cuál está activo de verdad.
+
+**Qué hace `Auto`.** Usted expone el hardware al contenedor (`/dev/dri`, la
+reserva de NVIDIA, el nodo MPP de Rockchip); Evey hace el resto, solo a partir
+de mediciones - nunca por el nombre de una CPU o una GPU:
+
+1. **Detectar**: se sondea cada nodo de render DRM para VAAPI y, en un nodo
+   Intel, para QSV; cada GPU NVIDIA por su índice CUDA; el nodo MPP de
+   Rockchip. Cada codificador tiene que superar una codificación real antes de
+   contar.
+2. **Certificar**: cada acelerador detectado recorre la escalera de
+   codificación (720p → 2160p) con la misma forma de pipeline que usa la
+   ejecución, se queda con el peldaño más alto que sostiene a 1,2× tiempo real
+   y luego pasa un control de corrección visual. Por debajo del tiempo real a
+   720p = rechazado, solo software. Cada backend certificado se guarda con **su
+   propio** techo, matriz de descodificación, funciones y rutas probadas - un
+   acelerador que solo llega a 1080p junto a otro que llega a 2160p sirve
+   escaleras de 1080p, nunca las del otro.
+3. **Medir las rutas**: para cada ruta que un backend ha probado (SDR, HEVC,
+   AV1, mapeo de tono en GPU, puente por CPU, HDR conservado, descodificación
+   desacoplada) y para las rutas por software, se mide una sesión de producción
+   en caliente en los peldaños de referencia y en el techo de la ruta - así un
+   backend certificado solo en 720p, o el suelo de software de 720p, también
+   tiene su coste.
+4. **Elegir según la carga**: el resolutor elige, en cada petición, el backend
+   certificado más barato que haya probado la ruta y admita el códec (el
+   HDR→SDR puede ir al mapeo de tono OpenCL de VAAPI mientras el HEVC toma un
+   QSV más rápido en la misma máquina). La admisión tasa la sesión según la
+   medición de esa ruta frente a una reserva de CPU y otra de acelerador; una
+   reserva llena desvía un flujo de GPU a la CPU o rechaza.
+
+La escalera por software tiene un suelo de **720p SDR / 480p HDR**: una CPU
+que no supera ningún peldaño con margen sigue ofreciendo esos peldaños,
+admitiendo una sola sesión a la vez. La reproducción directa y la copia/remux
+nunca ocupan una plaza de codificación y no se ven afectadas por nada de esto.
 
 La elección se guarda y se vuelve a medir en caliente, sin reiniciar. También se
 puede sembrar desde el entorno, para los despliegues sin interfaz:
@@ -82,7 +127,7 @@ puede sembrar desde el entorno, para los despliegues sin interfaz:
 ```env
 # O bien el antiguo interruptor de sí/no…
 EVEY_TRANSCODING_HW_ACCEL_ENABLED=true
-# …o bien el modo unificado (auto|off|nvenc|vaapi|qsv); el valor del panel de
+# …o bien el modo unificado (auto|off|nvenc|vaapi|qsv|rkmpp); el valor del panel de
 # administración manda sobre este.
 EVEY_TRANSCODING_HW_MODE=auto
 # Pasar a software sin esperar más cuando una GPU se queda atascada (5 s por defecto).
@@ -96,20 +141,20 @@ EVEY_TRANSCODING_HW_PER_VARIANT=false
 # Codificar únicamente el peldaño ABR que el cliente esté pidiendo de verdad
 # (bajo demanda, un codificador por peldaño), en lugar de un ffmpeg que produce
 # la escalera entera.
-# DESACTIVADO por defecto (=0, la escalera multivariante), y ese ES el valor
-# correcto para un NAS flojo: la vía multivariante comparte UNA sola
-# descodificación de la fuente entre todos los peldaños. La monovariante (=1)
-# vuelve a descodificar la fuente EN CADA peldaño, así que cuando el reproductor
-# sondea el ABR o salta entre peldaños se lanzan varias descodificaciones
-# simultáneas (de 4K, por ejemplo) que se ahogan entre sí: el clásico ir y venir
-# a 360p con paradas en una máquina limitada por la descodificación. Ponga =1
-# solo en una máquina con potencia de sobra para pagar una descodificación por
-# peldaño. La caché funciona igual en los dos casos.
-EVEY_TRANSCODING_SINGLE_VARIANT=0
+# ACTIVADO por defecto (=1). La multivariante comparte una descodificación entre
+# los peldaños, pero también codifica cada peldaño que el espectador nunca ve -
+# medido en producción, tres codificaciones inútiles ahogaban la cuarta. La
+# calibración mide la MISMA forma que ejecuta el servidor (un peldaño por sonda
+# en monovariante, la escalera paralela acumulada en multivariante), para las
+# escaleras por software Y por hardware, de modo que los techos corresponden a
+# lo que cuesta de verdad una sesión. Ponga =0 solo en una máquina sin
+# descodificación por hardware Y con fuentes pesadas, para recuperar la
+# descodificación compartida. La caché funciona igual en los dos casos.
+EVEY_TRANSCODING_SINGLE_VARIANT=1
 ```
 
-> **Cinco ajustes viven ya en el panel de administración** (Admin > Configuración
-> de transcodificación > Límites avanzados): `HW_PER_VARIANT`,
+> **Cinco ajustes viven ya en el panel de administración** (Admin >
+> Transcodificación > Límites avanzados): `HW_PER_VARIANT`,
 > `SINGLE_VARIANT`, `MAX_SESSIONS`, `SOFTWARE_MAX_HEIGHT` y
 > `SOFTWARE_HDR_MAX_HEIGHT`. Un valor guardado ahí se conserva y prevalece sobre
 > el entorno, de modo que ya no hay que editar un archivo compose y recrear el
@@ -119,10 +164,20 @@ EVEY_TRANSCODING_SINGLE_VARIANT=0
 
 ### Muestra para la calibración de la codificación
 
-En el arranque (y con `POST /api/v1/admin/transcode/calibration/recalibrate`), el
-benchmark mide contra un clip en 4K hasta dónde llega esta máquina
+El benchmark mide contra un clip en 4K hasta dónde llega esta máquina
 codificando en tiempo real, por separado para SDR y para HDR
-(`software_max_height` y `software_hdr_max_height`). El tope sale del coste de
+(`software_max_height` y `software_hdr_max_height`). **El arranque nunca lo
+ejecuta**: el servidor arranca en milisegundos con lo que tenga (la calibración
+guardada, o un repliegue por software en 720p en el primer arranque) y lanza el
+benchmark en el primer *momento tranquilo* - cinco sondeos seguidos, separados
+4 s, sin ninguna reproducción y con la CPU por debajo del 20 %. Así un
+benchmark de 2 a 5 minutos queda fuera del arranque y lejos de una máquina
+ocupada con una migración o un escaneo de biblioteca (un benchmark medido bajo
+carga se marca como *provisional* y se repite en reposo). Mientras corre, a una
+reproducción nueva se le pide esperar unos 2 minutos (`calibrating`); **Admin →
+Transcodificación → Calibración de codificación** indica si la calibración está
+pendiente, en curso o hecha, y «Recalibrar»
+(`POST /api/v1/admin/transcode/calibration/recalibrate`) la lanza enseguida. El tope sale del coste de
 descodificar, mapear el tono y codificar ese clip, de manera que **un clip de
 contenido real calibra con mucha más honradez que uno sintético**: el sintético
 exagera el coste y deja el tope demasiado bajo (síntoma clásico: una película en
@@ -160,6 +215,21 @@ controlador VA de d3d12 se cae con la codificación multivariante de Evey. Evey
 detecta que está en WSL y atenúa VAAPI y QSV en el panel de administración.
 Valide VAAPI y QSV en un host Linux nativo.
 
+### HDR conservado y HDR10+
+
+En una GPU sondeada para la codificación Main10 (`hw_hdr10_encode`), una fuente
+HDR reproducida por un cliente compatible con HDR que descodifica HEVC se
+recodifica como HEVC Main10 conservando el HDR: la señalización HDR10 estática
+(bt2020 / PQ o HLG, SEI de la pantalla de masterización) se transmite. Los
+metadatos dinámicos HDR10+ **no** se reemiten, así que un título HDR10+ se
+reproduce como HDR10 simple por esa vía. Dolby Vision perfil 7 recae del mismo
+modo en su capa base HDR10; el perfil 5 se convierte a SDR con mapeo de tono.
+
+La frecuencia de muestreo del audio nunca es motivo para recodificar: una pista
+de 96 kHz que la lista de códecs del cliente acepta se copia tal cual. Un
+cliente cuyo descodificador se detiene en 48 kHz tiene que decirlo en su
+declaración de códecs; el servidor no lo presupone.
+
 ## Audio AC-3 / E-AC-3 en el navegador (descodificador WebAssembly)
 
 Casi ningún navegador sabe descodificar AC-3 ni E-AC-3 de forma nativa (es cosa
@@ -179,7 +249,7 @@ gastada en el audio cuando la fuente se empaqueta tal cual.
 
 ## Comprobación
 
-Abra **Admin → Configuración del servidor → Calibración de codificación**: ahí
+Abra **Admin → Transcodificación → Calibración de codificación**: ahí
 están los aceleradores detectados, el backend activo, los techos medidos por
 software y por hardware y cualquier repliegue automático de hardware a software.
 El botón «Recalibrar» vuelve a ejecutar el benchmark después de un cambio de

@@ -1,5 +1,5 @@
 ---
-source_sha: 3d8fbe1c5a9eaaf5a9d46a8e52149434b1407765fcc2a5a5604241e185e7e46f
+source_sha: 80123a8d7d69b50b13baa0a7c638767ebf54582aa06f7b85e176a6fee202d4ca
 ---
 
 # Modèle de sécurité des extensions : ce qu'un auteur peut déclarer

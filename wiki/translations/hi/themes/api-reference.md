@@ -1,5 +1,5 @@
 ---
-source_sha: d7589893f88623d5f9ecd03d54b2f38ec845cd7eb4a550e31a8ffb93d93353cb
+source_sha: 72324d88dd91ef30b9ee280c903c4879dad626512f8f23deee264b8281e0538f
 ---
 
 # थीम API का संदर्भ
@@ -144,4 +144,4 @@ evey.theme.observe("player.playing", function(isPlaying) {
 
 ## उदाहरण
 
-`examples/themes/` डायरेक्टरी अभी बनी नहीं है। संदर्भ के उदाहरण (`dark-cozy`, `aurora`, `minimal-player`) थीम और एक्सटेंशन के नए सिरे से डिज़ाइन के चरण 8.5 में आने हैं। तब तक शुरुआत के लिए डेटाबेस में मौजूद किसी भी ऐसे एक्सटेंशन की `theme.css` लें जिसका `language: css` हो - वे फ़ाइलें उसी प्रारूप में हैं जिसे sanitizer स्वीकार करता है।
+एक्सटेंशन के उदाहरणों के साथ दो थीम आती हैं: `examples/plugins/theme-dark-blue` (एक छोटी `theme.css` जो सिर्फ़ रंगों के वेरिएबल बदलती है) और `examples/plugins/open-workshop` (पूरा नया रूप)। शुरुआत के लिए इनमें से किसी को भी कॉपी करें - दोनों पहले से sanitizer पास करती हैं।

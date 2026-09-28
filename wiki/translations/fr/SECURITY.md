@@ -1,5 +1,5 @@
 ---
-source_sha: cedd6279871b02ee5b56bc2d600191e35f9d7855582acd5ee99d971519549edc
+source_sha: 2afa372fc288cb82c9e90ad0f1bb879056bb0e14682a438cab6ce64d779bf48d
 ---
 
 # Bac à sable des extensions et modèle de menace
@@ -70,7 +70,7 @@ Un processus d'extension peut basculer vers un compte distinct de celui du serve
 - `on` bascule toujours, comme couche indépendante supplémentaire.
 - `off` ne bascule jamais.
 
-**C'est l'amorce qui effectue la bascule, pas le serveur.** Le serveur reste non root et sans capacité ; l'amorce porte la capacité nécessaire et change d'identité juste avant de lancer l'extension. Elle refuse toute identité cible inférieure à 1000, et travaille **au mieux** : si elle ne peut pas basculer, faute de capacité ou parce que l'option qui bloque l'acquisition de privilèges est posée, elle avertit et lance l'extension sous l'identité du serveur plutôt que d'échouer. Activer la séparation ne peut donc jamais empêcher une extension de démarrer.
+**C'est l'amorce qui effectue la bascule, pas le serveur.** Le serveur reste non root et sans capacité ; l'amorce porte la capacité nécessaire et change d'identité juste avant de lancer l'extension. Elle refuse toute identité cible inférieure à 1000. Si elle ne peut pas basculer (faute de capacité, parce que l'option qui bloque l'acquisition de privilèges est posée, ou parce que le binaire de l'amorce lui-même manque), l'issue dépend du mode : en `basic`, où l'identité est le seul rempart autour des secrets, l'extension est **refusée** (fermeture par défaut) ; sous `landlock`, où le système de fichiers est déjà cloisonné, elle avertit et lance l'extension sous l'identité du serveur.
 
 Ce que cela apporte, **même sur un noyau sans Landlock** :
 
@@ -201,7 +201,7 @@ sandbox_mode: auto   # default - resolves landlock → bubblewrap → basic for 
 # sandbox_mode: strict      # bubblewrap + LD_PRELOAD seccomp lib
 ```
 
-La séparation d'uid est un réglage **distinct**, qui décide si les extensions tournent sous une identité différente. En automatique, elle ne s'active qu'en mode `basic` ; forcée, elle s'applique partout comme couche indépendante supplémentaire. Elle travaille au mieux, est portée par l'amorce, et est incompatible avec l'option qui bloque l'acquisition de privilèges. Un guide par situation se trouve dans [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md).
+La séparation d'uid est un réglage **distinct**, qui décide si les extensions tournent sous une identité différente. En automatique, elle ne s'active qu'en mode `basic` ; forcée, elle s'applique partout comme couche indépendante supplémentaire. Elle est portée par l'amorce, fermée par défaut en `basic` (au mieux seulement sous `landlock`), et incompatible avec l'option qui bloque l'acquisition de privilèges. Un guide par situation se trouve dans [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md).
 
 Ce que chaque couche donne selon le mode, les valeurs reflétant toujours ce que la machine permet :
 
@@ -241,6 +241,23 @@ Tout ce qui précède concerne les extensions. L'autre moitié de la surface d'a
 
 - **Un seul point d'écoute est fait pour être publié, et ce n'est pas celui du gRPC.** Le port gRPC natif est un transport interne dont le seul client est la passerelle HTTP du même processus ; l'API HTTP est ce port plus un. Le point d'écoute gRPC se lie à la boucle locale par défaut, précisément parce que le verrou d'accès distant décrit ci-dessous est un intergiciel HTTP qui ne le couvre pas. L'élargir est possible et journalise un avertissement au démarrage ; le protéger par un pare-feu devient alors le travail de l'administrateur.
 - **Le verrou d'accès distant décide « local ou distant » à partir de LA seule adresse cliente validée à la frontière des proxys de confiance, jamais d'un en-tête.** Un client ne peut pas se déclarer local par un en-tête pour être traité comme tel, et une requête qui n'a pas franchi cette frontière est classée distante, donc refusée, plutôt que crue sur parole. C'est un contrôle de *déploiement*, au sens « cette instance est pour mon réseau », et non une couche d'authentification : c'est l'authentification qui protège les données.
+
+## Ce que les logs peuvent contenir
+
+Le fichier de log du serveur est ce que servent les routes de logs de
+l'administration (suivi, recherche, flux en direct), ce qui finit dans les
+rapports de bug et ce qu'emporte une sauvegarde : les identifiants y sont donc
+effacés **à l'écriture** (`internal/pkg/logger/redact.go`). Un attribut dont la
+clé désigne un secret (`authorization`, `token`, `access_token`,
+`refresh_token`, `api_key`, `password`, `pin`, `secret`, ...) est remplacé en
+entier, et toute chaîne - le message compris - qui porte un bearer, un JWT ou
+une paire `secret=valeur` est nettoyée. Les routes de logs de l'administration
+appliquent la même règle à la sortie pour les lignes écrites avant que ce
+nettoyage n'existe. Deux conséquences pour le code : une valeur non secrète ne
+doit pas être journalisée sous un nom de clé secret (elle serait masquée -
+`token_info` et `device_pin` sont les noms employés aujourd'hui), et un nouveau
+type d'identifiant doit être ajouté à cette liste avant d'être journalisé une
+seule fois.
 
 ## Signaler une vulnérabilité
 

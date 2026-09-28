@@ -1,5 +1,5 @@
 ---
-source_sha: 08006f9a4de04688a908faa8a60bfce27e963d3aa5d3c3d5208407c913778c33
+source_sha: c781817bb39af138ca65b5a030c42b0e6e199a7cd2613b2415b3dcba8e7427be
 ---
 
 # Installation
@@ -62,13 +62,31 @@ stockage et les informations du reverse proxy ont leur place dans le fichier
 compose (ou dans un `.env` pour les secrets). Presque tout le reste (nom du
 serveur, concurrence de transcodage, limites de débit, niveau de journalisation,
 intervalles d'analyse et de surveillance, planification des sauvegardes, clés
-d'API) se **modifie à chaud depuis Admin → Server Config** et n'a PAS à être
+d'API) se **modifie à chaud depuis Admin → Configuration du serveur** et n'a PAS à être
 entassé dans le compose.
 `PUID` et `PGID` : non définis par défaut → le point d'entrée adopte le
 propriétaire de vos montages `/media`, pour que les réparations sur place
 fonctionnent ; passez outre avec `id -u` et `id -g`. Le conteneur ne démarre en
 root que le temps d'appliquer la correspondance, puis abandonne ses privilèges ;
 le serveur, lui, ne tourne jamais en root.
+
+**Sur un NAS (Synology Container Manager, QNAP Container Station) :**
+
+- Créez le dossier de données **avant** le premier démarrage (`mkdir evey-data`
+  à côté du compose, ou depuis File Station) : ces interfaces refusent un
+  montage dont le dossier n'existe pas, contrairement à la ligne de commande
+  Docker. Rien d'autre à créer d'avance - le point d'entrée crée lui-même
+  `plugins/`, `keys/` et `postgres/`.
+- Fixez `PUID`/`PGID` sur l'utilisateur DSM propriétaire des médias
+  (`id <utilisateur>` en SSH ; sur Synology, c'est typiquement autour de `1026`
+  avec le groupe `100` = `users`) plutôt que de compter sur la détection
+  automatique : un partage DSM appartient souvent à `root`, que le point
+  d'entrée n'adopte jamais.
+- NAS Intel avec Quick Sync : ajoutez les lignes `devices:` et `group_add:` de
+  `docker-compose.gpu.yml` (le GID du groupe render s'obtient avec
+  `getent group render` ou `stat -c %g /dev/dri/renderD128`).
+- Aucun `.env` n'est nécessaire - le `docker-compose.yml` à la racine du dépôt,
+  qui exige un `.env`, est la disposition opérateur, pas celle-ci.
 
 ## 2. Premier lancement
 
@@ -90,9 +108,11 @@ Au tout premier démarrage, le serveur :
 Ouvrez ensuite `http://<your-ip>:9091`. Tant qu'aucun administrateur n'existe,
 vous arrivez sur l'**assistant d'installation** (`/setup`) : créez le premier
 compte administrateur. Connectez-vous ensuite et **ajoutez une bibliothèque**
-(Admin → Libraries) en la faisant pointer vers un chemin sous `/media`,
+(Admin → Bibliothèques) en la faisant pointer vers un chemin sous `/media`,
 c'est-à-dire votre `MEDIA_DIR`, monté en lecture-écriture. La première analyse
-démarre toute seule.
+démarre toute seule. L'assistant, les bibliothèques, l'invitation des proches et
+ce qu'il faut vérifier avant de partager l'adresse sont détaillés dans les
+[premiers pas](guide/first-steps.md).
 
 Si le fichier compose ci-dessus le monte en lecture-écriture, c'est à dessein :
 la réparation de l'index de navigation reconstruit les fichiers sur place, et un
@@ -191,6 +211,20 @@ l'épingler.
   Ne prenez `-nodejs` ou `-full` que si vos extensions réclament ces
   environnements ; sinon, la variante par défaut est la plus légère. Écrivez par
   exemple `EVEY_VERSION=latest-nodejs`.
+- **Des variantes GPU** - les étiquettes publiées embarquent toutes les familles
+  d'accélérateurs (Intel Gen9 à aujourd'hui, AMD), soit environ 900 Mo rien que
+  pour les compilateurs OpenCL d'Intel. Une image construite soi-même peut ne
+  garder que la famille de sa machine avec
+  `docker build --build-arg GPU=intel-legacy .` (Intel Gen9 à Gen11, les
+  UHD 6xx), `GPU=intel` (Gen12 et plus récent), `GPU=amd`, ou `GPU=none`.
+  L'étiquette d'image `org.evey.gpu` garde la trace du choix. NVIDIA n'a besoin
+  d'aucune variante : aucune bibliothèque NVIDIA n'est intégrée à une image, le
+  NVIDIA Container Toolkit injecte le pilote de l'hôte à l'exécution
+  (`--gpus all` ou une réservation de périphérique dans le compose), donc NVENC
+  fonctionne avec toutes les variantes, `none` compris. Sur une machine qui a à
+  la fois un iGPU Intel et une carte NVIDIA, le mode `auto` du calibrage choisit
+  VAAPI en premier ; fixez le mode matériel sur `nvenc` dans le panneau de
+  transcodage pour utiliser la carte.
 
 ## 5. Sauvegardes et récupération
 
@@ -226,6 +260,15 @@ docker compose logs --tail=200 evey     # journaux du serveur (erreurs de migrat
   qui n'est pas un cluster Postgres, ou une erreur préfixée `postgres:` venue de
   Postgres lui-même (disque plein, permissions sur `./evey-data/postgres`,
   système de fichiers en partage réseau).
+- **Redémarrages en boucle avec `permission denied` sur `/cache/...` dans le
+  journal.** Le volume `evey-cache` appartient à un autre uid que celui sous
+  lequel tourne le serveur (`PUID`, ou le propriétaire des médias adopté). Les
+  images antérieures au 2026-09-17 ne le ré-attribuaient que si `./evey-data`
+  changeait aussi de propriétaire : un dossier de données créé d'avance au nom
+  de `PUID` (le cas NAS ci-dessus) laissait le cache de côté. Mettez l'image à
+  jour ; sur une ancienne, lancez une fois `docker run --rm -v evey_evey-cache:/c
+  alpine chown -R <PUID>:<PGID> /c` (le volume s'appelle
+  `<projet>_evey-cache`).
 - **La base externe est injoignable.** Vérifiez que Postgres est en bonne santé
   et que le mot de passe correspond :
   ```bash
@@ -431,17 +474,29 @@ NAS ARM, un VPS Ampere), épinglez un `vX.Y.Z` stable dans `EVEY_VERSION`.
 
 Deux choses à savoir sur ARM :
 
-- **Pas de transcodage matériel sur un NAS ARM de type Synology (Realtek).**
-  Evey ne câble que trois moteurs d'accélération : Intel QSV, VAAPI et NVENC.
-  QSV et les pilotes VAAPI d'Intel sont propres au x86 et ne sont volontairement
-  pas installés dans l'image arm64 ; NVENC est du NVIDIA. Evey ne câble **pas**
-  les encodeurs vidéo natifs d'ARM (les VPU V4L2 M2M du Raspberry Pi, le RKMPP
-  de Rockchip) : sur une carte ARM, il n'existe donc aucun chemin d'encodage
-  matériel. En pratique, ARM signifie **lecture directe** (le client lit le
-  fichier tel quel, pour un coût quasi nul) plus **transcodage logiciel** sur le
-  processeur. Sur un cœur ARM modeste, gardez `transcoding.max_video_sessions`
-  bas (1 ou 2, dans Admin → Server Config) et appuyez-vous sur la lecture
-  directe.
+- **Transcodage matériel sur ARM : Rockchip seulement, et seulement ce que le
+  calibrage prouve.** Evey câble quatre moteurs d'accélération : Intel QSV,
+  VAAPI, NVENC, et **RKMPP** de Rockchip (SoC de la classe RK3588 / RK3576 /
+  RK3568, via les encodeurs `h264_rkmpp` / `hevc_rkmpp` du jellyfin-ffmpeg arm64,
+  le décodage `drm_prime`, la mise à l'échelle RGA et un tone mapping OpenCL sur
+  l'ICD Mali quand il est présent). QSV et les pilotes VAAPI d'Intel sont
+  propres au x86 et ne sont volontairement pas installés dans l'image arm64 ;
+  NVENC est du NVIDIA. Pour utiliser RKMPP, exposez au conteneur le nœud du
+  service MPP et le nœud de rendu DRM (`/dev/mpp_service`, `/dev/dri`, et
+  `/dev/rga` si le noyau l'expose) ; Evey le détecte, lance un vrai test
+  d'encodage, puis mesure et éprouve chaque format sur votre carte avant de le
+  proposer - rien n'est déduit du nom du SoC, et un format qui échoue reste sur
+  le processeur. RKMPP n'a pas encore été validé par le projet sur du vrai
+  matériel : considérez-le comme expérimental et regardez dans **Admin →
+  Transcodage → Calibrage de l'encodage** ce qui a été certifié. L'encodeur
+  **V4L2 M2M** du Raspberry Pi n'est **pas** câblé : sur un Pi ou un NAS ARM de
+  type Synology (Realtek), il n'y a aucun chemin d'encodage matériel, donc ARM
+  signifie **lecture directe** (le client lit le fichier tel quel, pour un coût
+  quasi nul) plus **transcodage logiciel** sur le processeur. La capacité est
+  calibrée, pas devinée : un cœur modeste garde le plancher logiciel de 720p et
+  n'admet qu'un encodage à la fois ; vous pouvez encore abaisser
+  `transcoding.max_video_sessions` (Admin → Transcodage) et vous appuyer sur la
+  lecture directe.
 - **Le tone mapping HDR emprunte lui aussi le chemin rapide sur ARM.** Le
   jellyfin-ffmpeg arm64 fourni embarque le filtre SIMD `tonemapx` (en NEON), tout
   comme la compilation amd64 embarque sa variante AVX2 : la conversion HDR→SDR

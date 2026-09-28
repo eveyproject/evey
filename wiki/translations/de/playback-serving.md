@@ -1,5 +1,5 @@
 ---
-source_sha: 8e9b10f4cdc162d51247a1432d8c6b2a3ab2490d0c01a856d52961436aa38556
+source_sha: 2ff1222cb6483b259b30b0a40ec51e6e4e8d1e7a7f4a5877a9761a0186adff2d
 ---
 # Ein Video ausliefern - der Weg der HLS-Wiedergabe
 
@@ -130,10 +130,23 @@ Der Container ist immer **CMAF** (fMP4): je Variante eine `init.mp4` und dazu
 `needsFMP4Segments` liefert immer true.) Über *denselben* Segmenten liegen:
 
 - **HLS** (`master.m3u8` → `stream_N.m3u8` → `EXT-X-MAP`-Init und `.m4s`) - bei beiden Maschinen.
-- **DASH** (`manifest.mpd`) - **nur auf dem copy-Weg über mkvgo**
-  (`OnDemandPlan.HasDASH`), Byte für Byte identisch und ohne zusätzlichen
-  Speicherbedarf; auf dem Transkodierungsweg über ffmpeg gibt es das nicht, und
-  bei eingeschalteter AES-128-Verschlüsselung ist es abgeschaltet.
+- **DASH** (`manifest.mpd`) - auf dem copy-Weg über mkvgo das eigene Manifest
+  des Packagers (`OnDemandPlan.HasDASH`, Byte für Byte identisch, ohne Speicher,
+  unter AES-128 abgeschaltet); auf dem ffmpeg-Weg ein **aus dem Plan
+  deklariertes** Manifest über dieselben Fragmente, die die HLS-Playlists
+  adressieren (`ManifestGenerator.MPD`), geschrieben, bevor es ein einziges
+  Fragment gibt. Ehrlich macht es das **Segmentraster**
+  (`domain/transcoding.SegmentGrid`): Jede transkodierte Stufe wird auf dieselbe
+  ganze Zahl von Frames geschnitten (72 bei 23,976 fps, 75 bei 25, 90 bei
+  29,97), sodass ein Segment in den Ticks der Videospur exakt und über das ganze
+  Umschalt-Set identisch ist; der copy-Rückfall deklariert seinen
+  Keyframe-Plan. Eine Quelle mit unbekannter oder variabler Bildrate bleibt beim
+  alten 3-s-Takt, behält HLS und antwortet auf `manifest.mpd` mit 404. Kein
+  Client wird auf DASH umgestellt: HLS bleibt überall der Standard. mkvgos
+  `DASHFromCMAF` über die erzeugten Fragmente ist das Paritätsorakel
+  (`internal/pkg/cmafparity`, `TestDASHGridIntegration` bei 23,976/25/29,97 fps:
+  kalt, Sprung, Umschalt-Set mit zwei Stufen, getrenntes Audio innerhalb eines
+  AAC-Frames).
 
 Die URLs je Sitzung werden neu eingebacken
 (`transcode_vod_manifest_rebake.go`), damit sie das Token des Streams tragen -

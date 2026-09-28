@@ -1,5 +1,5 @@
 ---
-source_sha: 8e943dfd72345f44add4c70011cd163dc77c351f5f410f69d2165ba7c88ea11d
+source_sha: 8484e89ecf7884dab922e606a1bd9a4b81a1a77bd7092c0eef919eaf1e394813
 ---
 
 # Installation sans conteneur (hors Docker)
@@ -33,6 +33,10 @@ CGO_ENABLED=0 go build -ldflags="-s -w"                                        -
 
 # installation côte à côte, par exemple :
 sudo install -m 0755 evey evey-plugin-launcher /opt/evey/
+
+# facultatif : complétion du shell et page de manuel, toutes deux produites par le binaire
+/opt/evey/evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
+/opt/evey/evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null
 ```
 
 Ordre de recherche dans `launcherPath()` (`internal/adapters/driven/pluginrunner/runner_landlock.go`) :
@@ -232,16 +236,17 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 Le serveur reste ainsi totalement dépourvu de privilèges : une exécution de code
 à distance sur le serveur ne peut pas appeler `setuid(0)`, puisque le serveur ne
 détient aucune capacité. Seul le lanceur, minuscule et sans entrée à traiter, en
-possède une, et il refuse tout UID cible inférieur à 1000. Le mécanisme
-fonctionne **au mieux** : si le lanceur ne parvient pas à rétrograder (capacité
-manquante, ou `no_new_privs` positionné), il journalise un avertissement et
-exécute l'extension sous l'UID du serveur au lieu d'échouer, de sorte qu'il
-n'empêche jamais une extension de démarrer.
+possède une, et il refuse tout UID cible inférieur à 1000. Si le lanceur ne
+parvient pas à rétrograder (capacité manquante, ou `no_new_privs` positionné),
+une extension en mode `basic` est **refusée** - l'UID y est son seul rempart
+autour des secrets ; sous Landlock, il journalise un avertissement et
+l'exécute sous l'UID du serveur.
 
 > **Incompatible avec `no_new_privs`.** Si vous lancez le serveur avec
 > `no-new-privileges` (ou `NoNewPrivileges=yes` sous systemd), la capacité de
-> fichier est ignorée à l'`exec` et la séparation d'UID se dégrade en silence
-> vers un UID unique, avec un avertissement. Il faut choisir l'un ou l'autre.
+> fichier est ignorée à l'`exec` : les extensions sont refusées en mode
+> `basic`, et sous Landlock la séparation d'UID se dégrade vers un UID unique,
+> avec un avertissement. Il faut choisir l'un ou l'autre.
 
 Si le serveur tourne **en root** (ce qui n'est pas recommandé), il rétrograde
 lui-même les extensions vers 1001 et la capacité du lanceur devient inutile.

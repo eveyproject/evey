@@ -240,8 +240,8 @@ Note: a true syscall *allowlist* for `strict` is still roadmap; today `strict` =
 Implementation deps:
 
 - `evey-plugin-launcher` (pure-Go, CGO-free) shipped next to the server binary - applies Landlock + the kernel seccomp filter. Used by `landlock`, `auto`, and `basic`.
-- `apk add bubblewrap` in `Dockerfile` (community repo, ~200 KB) - present in the runtime image; used by `bubblewrap`/`strict`.
-- For bubblewrap: Linux kernel `unprivileged_userns_clone=1` (Alpine ≥3.18 default). Inside Docker, the namespace/mount setup typically needs `--security-opt seccomp=unconfined` or relaxed AppArmor - which is why `auto` prefers Landlock for the containerised deployment.
+- `bubblewrap`, installed with `apt-get` in the runtime stage of the `Dockerfile` (Debian package, ~200 KB); used by `bubblewrap`/`strict`.
+- For bubblewrap: unprivileged user namespaces enabled in the host kernel (`kernel.unprivileged_userns_clone=1` where that sysctl exists). Inside Docker, the namespace/mount setup typically needs `--security-opt seccomp=unconfined` or relaxed AppArmor - which is why `auto` prefers Landlock for the containerised deployment.
 
 ## Plugin network egress (brokered, since 2026-07-11)
 
@@ -252,8 +252,9 @@ RPC over its `AF_UNIX` host socket, gated on the `network` permission. The host
 (`internal/adapters/driving/pluginhost/fetch.go`) then, in Go:
 
 - checks the target host is on the plugin's declared `external_fetch` allow-list
-  (a real per-host contract now, not a best-effort DNS hint) - exact host or a
-  `*.domain` wildcard;
+  (a real per-host contract now, not a best-effort DNS hint) - an exact host,
+  matched case-insensitively (the matcher also understands a `*.domain` form,
+  but the installer refuses wildcard entries, so none ever reach it);
 - restricts the scheme to `http`/`https` and the method to `GET`/`HEAD`;
 - dials through the SSRF-safe client (`internal/pkg/ssrf`), which rejects
   private/reserved/link-local IPs **after** DNS resolution at connect time, so
@@ -267,25 +268,24 @@ restrict the internal subnet to the Postgres + Meilisearch endpoints. A bug in
 the broker's validation then still hits a network wall; the two layers fail
 orthogonally.
 
-**Limitations of V1**:
-- IP literals bypass: a plugin calling `connect("1.2.3.4", 443)` does not go
-  through DNS and reaches the IP unimpeded.
-- Custom resolvers: a plugin shipping a UDP resolver (`53/udp`) can query an
-  arbitrary nameserver and reach any host.
-- SNI/Host header trickery: once any whitelisted host is resolved, the plugin
-  can reuse that TCP connection target.
+**What the broker does not cover.** The bypasses of the earlier DNS allow-list
+(IP literals, a plugin shipping its own resolver, reusing a resolved connection
+through SNI/Host tricks) belonged to direct egress and are gone with it: the
+plugin process cannot open an IP socket at all. What remains is the limit
+already stated in the plugin security model: the broker controls *where* a call
+goes, not *what* it carries, so data can still leave towards a host on the
+allow-list.
 
 **Mitigation guidance**:
-- Treat `network` permission as "audit manually": verify the plugin source
-  does not call IPs directly, ship its own resolver, or call non-whitelisted
-  paths.
+- Treat `network` permission as "audit manually": allow only hosts you trust
+  with the plugin's data, and read what the plugin sends them.
 - Operators should monitor egress traffic from the host running the plugin
   runtime (Prometheus + flow exporter, or simply `ss -tnp | grep <plugin-pid>`).
 
 **Roadmap V2** (post-1.0):
-- netfilter rules per plugin namespace constraining outbound to whitelisted
-  CIDRs only.
-- Optional egress HTTP proxy with TLS SNI inspection.
+- A container-level nftables egress firewall as an independent layer behind the
+  broker.
+- Optional egress HTTP proxy with request-level inspection.
 
 ## Network exposure (outside the plugin threat model)
 

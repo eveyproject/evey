@@ -1,5 +1,5 @@
 ---
-source_sha: d7589893f88623d5f9ecd03d54b2f38ec845cd7eb4a550e31a8ffb93d93353cb
+source_sha: 72324d88dd91ef30b9ee280c903c4879dad626512f8f23deee264b8281e0538f
 ---
 
 # 主题 API 参考
@@ -141,4 +141,4 @@ evey.theme.observe("player.playing", function(isPlaying) {
 
 ## 示例
 
-`examples/themes/` 目录目前还不存在。参考示例（`dark-cozy`、`aurora`、`minimal-player`）计划放在主题 / 扩展改版的第 8.5 阶段。在此之前，可以拿数据库里任何一个 `language: css` 的现有扩展的 `theme.css` 作为起点 - 那些文件用的是同一种、净化器认得的写法。
+扩展示例里附带了两个主题：`examples/plugins/theme-dark-blue`（一个只覆盖颜色变量的简短 `theme.css`）和 `examples/plugins/open-workshop`（完整的界面重塑）。任选一个复制作为起点 - 两者都已经能通过净化器。

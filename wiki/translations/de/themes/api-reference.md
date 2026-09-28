@@ -1,5 +1,5 @@
 ---
-source_sha: d7589893f88623d5f9ecd03d54b2f38ec845cd7eb4a550e31a8ffb93d93353cb
+source_sha: 72324d88dd91ef30b9ee280c903c4879dad626512f8f23deee264b8281e0538f
 ---
 # Referenz der Theme-API
 
@@ -173,9 +173,4 @@ Zugriff auf das DOM.
 
 ## Beispiele
 
-Das Verzeichnis `examples/themes/` gibt es noch nicht. Die Referenzbeispiele
-(`dark-cozy`, `aurora`, `minimal-player`) sind für Phase 8.5 des Umbaus von
-Themes und Erweiterungen vorgesehen. Nehmen Sie bis dahin die `theme.css` einer
-beliebigen bestehenden Erweiterung mit `language: css` aus der Datenbank als
-Ausgangspunkt - diese Dateien liegen im selben Format vor, mit dem die
-Bereinigung umgehen kann.
+Zwei Themes liegen den Beispielen für Erweiterungen bei: `examples/plugins/theme-dark-blue` (eine kurze `theme.css`, die nur Farbvariablen überschreibt) und `examples/plugins/open-workshop` (eine vollständige Umgestaltung). Kopieren Sie eines davon als Ausgangspunkt - beide bestehen die Bereinigung bereits.

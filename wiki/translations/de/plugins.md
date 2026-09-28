@@ -1,5 +1,5 @@
 ---
-source_sha: 641ed9ad2a04551e1c5e1db07a26cb739f2708ce4ec146e2a5590265cd4216ca
+source_sha: d7ed6dd50005bc7e22c522df514264be5d132bc0ca91bd3052d5321a026acad0
 ---
 # Erweiterungssystem
 
@@ -15,7 +15,7 @@ Dokumenten:
 
 | Dokument | Was darin steht |
 |---|---|
-| **[plugins/dev-setup.md](plugins/dev-setup.md)** | Die erste eigene Erweiterung schreiben: Voraussetzungen, Gerüst, die Schleife aus Installieren und Nachbessern, Signieren, Einreichen in den Katalog, Fehlersuche. **Hier anfangen.** |
+| **[plugins/dev-setup.md](plugins/dev-setup.md)** | Die erste eigene Erweiterung schreiben: Voraussetzungen, Gerüst, die Schleife aus Installieren und Nachbessern, Signieren, Verbreiten, Fehlersuche. **Hier anfangen.** |
 | **[plugins/api-reference.md](plugins/api-reference.md)** | Der Vertrag: Schema des Manifests, IPC und Datenspeicher im Backend, die Frontend-Brücke `evey.*`, die Liste der Slots und jede einzelne Fähigkeit (`metadata.provider`, `media.read/write`, `notification.sender`, `webhook.receiver`, `public`, `prefs`). |
 | **[plugins/security-model.md](plugins/security-model.md)** | Bedrohungsmodell und Schutzschichten: UID-Trennung, die seccomp-Sperrliste im Kernel und über LD_PRELOAD, die Sandbox-Modi (`auto` arbeitet landlock → bubblewrap → basic ab; `strict` ergänzt bubblewrap um die LD_PRELOAD-Bibliothek), der Ressourcenmonitor im Userspace, die statische Analyse, die CSS-Bereinigung, Signaturen und Versionierung, die Positivliste der Slots sowie die bekannten Grenzen. |
 

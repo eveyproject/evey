@@ -1,5 +1,5 @@
 ---
-source_sha: 8e9b10f4cdc162d51247a1432d8c6b2a3ab2490d0c01a856d52961436aa38556
+source_sha: 2ff1222cb6483b259b30b0a40ec51e6e4e8d1e7a7f4a5877a9761a0186adff2d
 ---
 
 # 送出一段视频 - HLS 播放路径
@@ -104,8 +104,16 @@ source_sha: 8e9b10f4cdc162d51247a1432d8c6b2a3ab2490d0c01a856d52961436aa38556
 在*同一批*分片之上：
 
 - **HLS**（`master.m3u8` → `stream_N.m3u8` → `EXT-X-MAP` 的 init 加 `.m4s`）- 两台引擎都支持。
-- **DASH**（`manifest.mpd`）- **只有 mkvgo 的拷贝路径**才有（`OnDemandPlan.HasDASH`），
-  字节完全一致，不额外占存储；ffmpeg 的转码路径上没有，开启 AES-128 加密时也会关闭。
+- **DASH**（`manifest.mpd`）- 在 mkvgo 拷贝路径上，是打包器自己的清单（`OnDemandPlan.HasDASH`，
+  字节完全一致，不占存储，AES-128 下关闭）；在 ffmpeg 路径上，是一份**依据计划声明**的清单，
+  覆盖 HLS 播放列表所指向的同一批分片（`ManifestGenerator.MPD`），在任何分片生成之前就已写好。
+  让它名副其实的是**分段网格**（`domain/transcoding.SegmentGrid`）：每一档转码都按同样的整数帧数切分
+  （23.976 fps 时 72 帧，25 时 75，29.97 时 90），因此一个分段在视频轨的时基上是精确的，
+  在整组切换档位中完全一致；拷贝回退路径则声明自己的关键帧计划。帧率未知或可变的源保留旧的 3 秒时钟，
+  继续使用 HLS，并对 `manifest.mpd` 返回 404。没有任何客户端被切换到 DASH：HLS 在所有地方仍是默认。
+  对产出分片运行 mkvgo 的 `DASHFromCMAF` 作为一致性基准（`internal/pkg/cmafparity`，
+  `TestDASHGridIntegration`，覆盖 23.976/25/29.97 fps：冷启动、跳转、两档切换组、
+  音频分离且误差在一个 AAC 帧之内）。
 
 按会话生成的 URL 会被重新烘焙一遍（`transcode_vod_manifest_rebake.go`）以带上流令牌，
 HLS 和 DASH 一视同仁，连没有 Cookie 的 Chromecast 也包括在内。

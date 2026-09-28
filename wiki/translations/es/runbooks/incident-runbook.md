@@ -1,5 +1,5 @@
 ---
-source_sha: baf759b03f8e14d6048f850d6927ea2371fa5533ad8148f6f86faf5364ba5f66
+source_sha: d6c99c91037371ee077e57625c65e0ac542e80e0737a6e83c3320644603ab562
 ---
 
 # Guía de incidencias
@@ -258,7 +258,7 @@ docker volume inspect evey_evey-cache   # el nombre que retuerce compose puede v
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- Baje `EVEY_TRANSCODING_CACHE_MAX_GB` (por defecto `50`) si el volumen del host es más pequeño que eso.
+- Baje el presupuesto de la caché de transcodificación (Admin > Ajustes del servidor, `10` GB por defecto) si el volumen del host va justo; sea cual sea el presupuesto, el barredor mantiene 2 GiB libres en el volumen de la caché.
 
 ## 7. Una extensión se ha caído
 
@@ -284,6 +284,10 @@ administración (o con
 `GET /api/v1/admin/logs/search?q=<term>&limit=200`): no hace falta ningún
 intérprete de órdenes en la máquina. Las horas son UTC. Cada baliza es una línea
 `player-client: playback event reported` con un `type=` y una cadena `details=`.
+Las credenciales nunca aparecen en lo que devuelven estas rutas (bearers, JWT y
+valores `token=`/`password=` se muestran como `[redacted]`), así que el token de
+una URL de cast no se recupera buscando en los logs: busque el id del medio, no
+el token.
 
 1. **¿Estaba vivo el receptor, y hasta cuándo?** Busque `cast_receiver_alive`.
    El receptor manda una cada 30 s mientras reproduce; `details` lleva

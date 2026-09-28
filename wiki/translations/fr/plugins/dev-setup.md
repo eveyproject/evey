@@ -1,5 +1,5 @@
 ---
-source_sha: 9b00a1bf6f075f82f8e9597c3828dbfca92c890b4a4161556c2ed5ad50171ee6
+source_sha: 8da868d1b798afe178e9ef7c621a9a0513b023c77f535745e4e5d2c44b5dae50
 ---
 
 # Mise en place pour développer une extension
@@ -78,10 +78,10 @@ Si `make dev` échoue sur `bwrap` : vérifiez que `which bwrap` renvoie bien un 
 
 ## 3. Créer votre première extension
 
-Des exemples vivent dans `examples/plugins/` et `examples/themes/`. Prenez le plus proche de votre besoin et copiez-le dans un répertoire de travail. Pour la persistance et les permissions, regardez **`examples/plugins/data-demo`** : il utilise le magasin de données par extension et demande les permissions `public` et `prefs` ainsi que l'emplacement `admin.nav`.
+Des exemples vivent dans `examples/plugins/` : des points de départ en Node.js et en Python (`nodejs-example`, `python-example`), une source de métadonnées (`metadata-example`), un récepteur de webhooks (`webhook-receiver`), un widget d'accueil (`weather`), la configuration d'une extension (`config-demo`) et deux thèmes (`theme-dark-blue`, `open-workshop`). Prenez le plus proche de votre besoin et copiez-le dans un répertoire de travail. Pour la persistance et les permissions, regardez **`examples/plugins/data-demo`** : il utilise le magasin de données par extension et demande les permissions `public` et `prefs` ainsi que l'emplacement `admin.nav`.
 
 ```sh
-cp -r examples/plugins/discord-notify ~/my-first-plugin
+cp -r examples/plugins/nodejs-example ~/my-first-plugin
 cd ~/my-first-plugin
 ```
 
@@ -216,8 +216,8 @@ Il n'existe pas encore de catalogue officiel : un administrateur installe une ex
 
 ## 10. Pour aller plus loin
 
-- Le modèle de sécurité de bout en bout et la surface de l'API hôte : [plugins.md](../plugins.md)
-- Les emplacements disponibles : [api-reference.md](api-reference.md)
+- Le modèle de sécurité de bout en bout : [security-model.md](security-model.md)
+- La surface de l'API hôte : [api-reference.md](api-reference.md)
+- Les emplacements disponibles : [api-reference.md](api-reference.md#slots)
 - Le code des SDK par langage : `sdk/`
-- Les extensions de référence : `examples/plugins/`
-- Les thèmes de référence : `examples/themes/`
+- Les extensions et thèmes de référence : `examples/plugins/`

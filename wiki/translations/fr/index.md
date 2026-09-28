@@ -1,5 +1,5 @@
 ---
-source_sha: aedd9ba6244ba2dbc7e348c929241546a233301b93c88350c78c524424a8728f
+source_sha: 4ee97dc5ef2cdb11b0aa01a535284eaf511ab308d1429dbb9882b9a5838ba8ca
 hide:
 - navigation
 ---
@@ -13,78 +13,83 @@ hide:
 
 # Evey
 
-Serveur multimédia auto-hébergé pour vos films, séries, musiques et photos. Un
-conteneur, votre matériel, vos fichiers.
+**Vos films, vos séries, votre musique et vos photos, diffusés depuis votre
+propre machine vers tous les écrans de la maison - et au-delà.**
 
-[Installer Evey](installation.md){ .md-button .md-button--primary }
-[Voir le code source](https://github.com/Evey-project/evey){ .md-button }
+Evey est un serveur multimédia auto-hébergé. Vous lui indiquez les dossiers que
+vous avez déjà, il reconnaît ce qu'ils contiennent, les habille d'affiches, de
+résumés et de distributions, et les lit sur le web, sur les téléphones Android,
+sur Android TV et sur un Chromecast. Rien ne quitte votre domicile si vous ne
+le publiez pas, et personne d'autre ne décide de ce que vous pouvez regarder.
 
-## Par où commencer
+[Découvrir Evey](philosophy.md){ .md-button .md-button--primary }
+[L'installer](installation.md){ .md-button }
+[Essayer la démo](https://demo.eveyproject.org){ .md-button }
+
+Envie de cliquer avant d'installer ? La démo publique sur
+[demo.eveyproject.org](https://demo.eveyproject.org) fait tourner le vrai serveur avec des films libres :
+connectez-vous avec `demo` / `demo`. Elle est remise à zéro régulièrement, et les
+écrans d'administration sont visibles mais surtout en lecture seule.
+
+## Deux portes d'entrée
 
 <div class="grid cards" markdown>
 
--   __Installer__
+-   __Découvrir__
 
     ---
 
-    Un seul fichier compose, aucun secret à inventer. Postgres et l'index de
-    recherche tournent dans le conteneur et génèrent leurs propres accès au
-    premier démarrage.
+    Ce qu'Evey cherche à être, ce qu'il apporte à ceux qui regardent, et les
+    appareils sur lesquels il fonctionne. Aucun terminal nécessaire.
 
-    [Guide d'installation](installation.md)
+    [Pourquoi Evey](philosophy.md) · [Ce qu'Evey vous offre](discover/features.md) ·
+    [Sur tous les écrans](discover/apps.md)
 
--   __Configurer__
-
-    ---
-
-    Tout ce qu'un administrateur peut changer, et où ça se règle. La quasi
-    totalité se trouve dans le panneau d'administration, pas dans des variables
-    d'environnement.
-
-    [Référence de configuration](configuration.md)
-
--   __Passer derrière un proxy__
+-   __Guide technique__
 
     ---
 
-    Caddy, nginx, Traefik et Apache, avec les en-têtes dont la diffusion et la
-    lecture par WebSocket ont réellement besoin.
+    Installer le serveur, les dix premières minutes après son démarrage, chaque
+    réglage qu'un spectateur ou un administrateur peut modifier, et que faire le
+    jour où quelque chose tourne mal.
 
-    [Guide du reverse proxy](reverse-proxy.md)
-
--   __Protéger vos données__
-
-    ---
-
-    Ce que le serveur sauvegarde tout seul, ce qu'il ne sauvegarde pas, et
-    comment restaurer une base qui refuse de démarrer.
-
-    [Sauvegardes](backups.md) · [Restauration](runbooks/recovery.md)
+    [Installation](installation.md) · [Premiers pas](guide/first-steps.md) ·
+    [Administration](guide/admin-settings.md)
 
 </div>
 
-## Ce qu'il fait
+## Pourquoi on l'adopte
 
-- **Il lit ce qui vous appartient.** Lecture directe dès que le client sait
-  ouvrir le fichier tel quel, transcodage matériel ou logiciel quand il ne sait
-  pas, et un flux HLS qui change de piste audio et de qualité en cours de route.
-- **Il vous suit d'un appareil à l'autre.** Web, Android, Android TV et
-  Chromecast, avec les reprises de lecture, l'état de visionnage et les
-  téléchargements hors ligne.
-- **Il est fait pour un foyer.** Des profils avec leur thème et leur langue, un
-  contrôle parental appliqué côté serveur, et le visionnage à plusieurs avec
-  SyncPlay.
-- **Il s'étend sans recompilation.** Les extensions tournent isolées, avec des
-  jetons restreints et des permissions refusées par défaut, et les thèmes sont
-  des données plutôt que du code.
+- **Il lit le fichier que vous avez.** Quand un appareil sait lire un fichier
+  tel quel, Evey l'envoie sans y toucher : qualité d'origine, aucun travail
+  pour le serveur. Quand il ne sait pas, Evey ne convertit que ce qui manque,
+  avec la carte graphique s'il y en a une.
+- **Il s'installe en un fichier.** Un conteneur, un fichier compose, aucun mot
+  de passe à inventer. La base de données et le moteur de recherche vivent à
+  l'intérieur et se configurent seuls.
+- **Il est pensé pour un foyer.** Des profils pour chacun, des profils enfants
+  protégés par un code PIN, des limites d'âge appliquées par le serveur plutôt
+  que par l'application, et un salon pour regarder ensemble depuis des
+  domiciles différents.
+- **Il peut être ouvert sur Internet sans crainte.** L'accès distant s'ouvre
+  quand vous publiez le serveur et reste fermé sinon, la connexion échoue en
+  refusant plutôt qu'en laissant passer, et les extensions tournent dans un bac
+  à sable avec les seules permissions qu'elles ont déclarées.
+- **C'est un logiciel libre.** Sous licence
+  [AGPL-3.0-or-later](https://www.gnu.org/licenses/agpl-3.0.html). Le code est
+  sur [GitHub](https://github.com/Evey-project/evey), tout comme la liste de ce
+  dont le serveur ne sait pas encore vous protéger.
 
-## Contribuer
+## Accès rapides
 
-La page [architecture](ARCHITECTURE.md) explique comment le serveur est
-découpé, et les [décisions d'architecture](adr/README.md) racontent pourquoi
-chaque choix structurant a été fait. Les auteurs d'extensions commencent par la
-[mise en place pour développer une extension](plugins/dev-setup.md).
+| Vous voulez | Lisez |
+| --- | --- |
+| L'essayer sur votre machine | [Installation](installation.md) |
+| Le mettre sur Internet en HTTPS | [Reverse proxy](reverse-proxy.md) |
+| Utiliser votre carte graphique pour la conversion | [Transcodage et matériel](transcoding.md) |
+| Savoir ce que fait chaque réglage | [Réglages utilisateur](guide/viewer-settings.md) · [Administration](guide/admin-settings.md) |
+| Relancer un serveur après un plantage | [Restauration](runbooks/recovery.md) |
+| Écrire une extension | [Extensions](plugins.md) |
 
-Evey est distribué sous licence [AGPL-3.0-or-later](https://www.gnu.org/licenses/agpl-3.0.html).
-Les signalements de sécurité vont à `security@eveyproject.org` - voir le
-[modèle de menace](SECURITY.md).
+Les signalements de sécurité s'adressent à `security@eveyproject.org` - voir le
+[bac à sable des extensions et modèle de menace](SECURITY.md).

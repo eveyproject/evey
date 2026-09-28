@@ -23,16 +23,16 @@ A plugin you install is boxed in. The box, depending on your machine:
   approved that permission).
 - **Caps CPU, memory, disk and process count**, so a runaway plugin can't take
   the server down.
+- **Keeps your secrets unreadable** - the login‑signing key and backups.
+
+On top of that: plugins are **admin‑only to install**, they're **scanned** for
+suspicious code, and you **approve their permissions** before they run.
 
 **Check what's actually in force:** Admin → Plugins → Security Dashboard shows
 the *host sandbox* - the mode `auto` resolved to (`landlock`, `bubblewrap` or
 `basic`) with the individual probe results. If it shows **basic**, your host
 offers no per-path filesystem isolation (plugins run with UID-drop + seccomp
 only); the probes tell you why, and the sections below tell you how to fix it.
-- **Keeps your secrets unreadable** - the login‑signing key and backups.
-
-On top of that: plugins are **admin‑only to install**, they're **scanned** for
-suspicious code, and you **approve their permissions** before they run.
 
 ---
 

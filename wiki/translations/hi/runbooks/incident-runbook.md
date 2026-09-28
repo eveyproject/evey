@@ -1,5 +1,5 @@
 ---
-source_sha: baf759b03f8e14d6048f850d6927ea2371fa5533ad8148f6f86faf5364ba5f66
+source_sha: d6c99c91037371ee077e57625c65e0ac542e80e0737a6e83c3320644603ab562
 ---
 
 # घटना रनबुक
@@ -209,7 +209,7 @@ docker volume inspect evey_evey-cache   # compose-mangled name may vary
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- होस्ट का वॉल्यूम इससे छोटा हो तो `EVEY_TRANSCODING_CACHE_MAX_GB` (डिफ़ॉल्ट `50`) घटाएँ।
+- होस्ट का वॉल्यूम तंग हो तो ट्रांसकोड कैश का बजट घटाएँ (Admin > सर्वर सेटिंग्स, डिफ़ॉल्ट `10` GB); बजट जो भी हो, sweeper कैश वॉल्यूम पर 2 GiB ख़ाली रखता है।
 
 ## 7. एक्सटेंशन क्रैश हो गया
 
@@ -230,7 +230,7 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 
 ## 8. कास्ट जम गया, आवाज़ चली गई, या फ़ोन घूमता ही रहता है
 
-नीचे सब कुछ व्यवस्थापन के Logs पृष्ठ से पढ़ा जा सकता है (या `GET /api/v1/admin/logs/search?q=<term>&limit=200` से): मशीन पर shell की ज़रूरत नहीं। समय UTC में हैं। हर beacon एक `player-client: playback event reported` पंक्ति है, जिसमें `type=` और एक `details=` स्ट्रिंग होती है।
+नीचे सब कुछ व्यवस्थापन के Logs पृष्ठ से पढ़ा जा सकता है (या `GET /api/v1/admin/logs/search?q=<term>&limit=200` से): मशीन पर shell की ज़रूरत नहीं। समय UTC में हैं। हर beacon एक `player-client: playback event reported` पंक्ति है, जिसमें `type=` और एक `details=` स्ट्रिंग होती है। इन routes के जवाब में क्रेडेंशियल कभी नहीं दिखते (bearer, JWT और `token=`/`password=` के मान `[redacted]` दिखते हैं), इसलिए cast URL का token लॉग खोजकर नहीं मिलता - token नहीं, मीडिया id खोजें।
 
 1. **receiver ज़िंदा था या नहीं, और कब तक?** `cast_receiver_alive` खोजें। चलते रहने पर receiver हर 30 s में एक भेजता है; `details` में `buf=<behind>/<ahead>/<ranges>` (playhead के पीछे और आगे बफ़र हुए सेकंड) तथा `pos_sec` होते हैं। स्वस्थ प्लेबैक में `ahead` दहाई सेकंडों में रहता है। **आख़िरी beacon का समय ही वह क्षण है जब receiver मरा या मारा गया**: उसके बाद कुछ न होने का अर्थ है कि टेलीविज़न अब receiver नहीं चला रहा, फ़ोन चाहे जो दिखाए।
 2. **वह रुका क्यों?** `cast_receiver_finished` खोजें: `reason=INTERRUPTED` का अर्थ है कि किसी नए LOAD ने चालू वाले की जगह ले ली (कुछ सेकंड पहले का `StartStream` देखें), और `reason=ERROR` के साथ प्लेयर की त्रुटि आती है। आख़िरी `alive` के बाद कोई `finished` ही न हो = receiver प्रक्रिया ग़ायब हो गई (अक्सर 20+ Mbps के copy master पर मेमोरी के कारण मारा गया Chromecast HD)।

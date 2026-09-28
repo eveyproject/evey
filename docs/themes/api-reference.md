@@ -139,4 +139,4 @@ Applies a named animation to a host element matched by `selector` via the bridge
 
 ## Examples
 
-The `examples/themes/` directory does not yet exist. Reference examples (`dark-cozy`, `aurora`, `minimal-player`) are planned in Phase 8.5 of the theme/plugin redesign. Until then, use the `theme.css` of any existing plugin with `language: css` in the database as a starting point - those files use the same sanitizer-compatible format.
+Two themes ship with the plugin examples: `examples/plugins/theme-dark-blue` (a short `theme.css` that only overrides colour variables) and `examples/plugins/open-workshop` (a complete restyle). Copy either as a starting point - both already pass the sanitizer.

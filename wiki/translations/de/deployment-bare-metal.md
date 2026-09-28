@@ -1,5 +1,5 @@
 ---
-source_sha: 8e943dfd72345f44add4c70011cd163dc77c351f5f410f69d2165ba7c88ea11d
+source_sha: 8484e89ecf7884dab922e606a1bd9a4b81a1a77bd7092c0eef919eaf1e394813
 ---
 # Installation ohne Container (ohne Docker)
 
@@ -33,6 +33,10 @@ CGO_ENABLED=0 go build -ldflags="-s -w"                                        -
 
 # nebeneinander installieren, zum Beispiel:
 sudo install -m 0755 evey evey-plugin-launcher /opt/evey/
+
+# optional: Shell-Vervollständigung und Manpage, beide vom Binary ausgegeben
+/opt/evey/evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
+/opt/evey/evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null
 ```
 
 Suchreihenfolge in `launcherPath()` (`internal/adapters/driven/pluginrunner/runner_landlock.go`):
@@ -231,17 +235,17 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 So bleibt der Server vollständig ohne Sonderrechte - eine RCE im Server kann
 kein `setuid(0)` ausführen, weil der Server keine Capabilities hält. Die hat nur
 der winzige Launcher, der keinerlei Eingaben entgegennimmt (und der jede
-Ziel-UID unter 1000 ablehnt). Das Ganze ist auf **bestes Bemühen** angelegt:
-Kann der Launcher nicht herabstufen (fehlende Capability oder gesetztes
-`no_new_privs`), schreibt er eine Warnung und startet die Erweiterung unter der
-UID des Servers, statt abzubrechen. Der Start einer Erweiterung scheitert daran
-also nie.
+Ziel-UID unter 1000 ablehnt). Kann der Launcher nicht herabstufen (fehlende
+Capability oder gesetztes `no_new_privs`), wird eine Erweiterung im Modus
+`basic` **abgelehnt** - dort ist die UID ihre einzige Mauer um die Geheimnisse;
+unter Landlock schreibt er eine Warnung und startet sie unter der UID des
+Servers.
 
 > **Unverträglich mit `no_new_privs`.** Starten Sie den Server mit
 > `no-new-privileges` (oder mit `NoNewPrivileges=yes` in systemd), wird die
-> Datei-Capability beim exec ignoriert und die UID-Trennung fällt stillschweigend
-> auf dieselbe UID zurück (immerhin mit einer Warnung). Entscheiden Sie sich für
-> das eine oder das andere.
+> Datei-Capability beim exec ignoriert: Erweiterungen werden im Modus `basic`
+> abgelehnt, und unter Landlock fällt die UID-Trennung auf dieselbe UID zurück
+> (mit einer Warnung). Entscheiden Sie sich für das eine oder das andere.
 
 Läuft der Server stattdessen **als root** (nicht empfohlen), stuft er
 Erweiterungen selbst auf 1001 herab und die Capability des Launchers wird nicht

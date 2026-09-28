@@ -136,9 +136,9 @@ Applied to `theme.js` at install time. A pattern that matches causes install to 
 
 > **Default is `landlock`** (`sandbox_mode=auto` resolves to it on the official
 > Docker image): a Landlock LSM filesystem allowlist + `-restrict-net` (no
-> direct IP egress for any plugin) + the kernel + `LD_PRELOAD` seccomp denylist
-> + `-deny-inet`, all under Docker's default seccomp+AppArmor with zero host
-> changes. See [`docs/plugins.md`](../plugins.md) for the map and
+> direct IP egress for any plugin) + the kernel + `LD_PRELOAD` seccomp
+> denylist + `-deny-inet`, all under Docker's default seccomp+AppArmor with
+> zero host changes. See [`docs/plugins.md`](../plugins.md) for the map and
 > [`docs/SECURITY.md`](../SECURITY.md#sandbox-modes) for the full per-mode table.
 
 The confinement layers below apply subject to host capability. The launcher
@@ -246,8 +246,9 @@ document has been **removed**. `runner_dns.go` no longer exists;
 `buildBwrapCmd` does not bind-mount `/etc/hosts` (see the comment in
 `internal/adapters/driven/pluginrunner/runner_bwrap.go`: "no /etc/hosts
 whitelist is bind-mounted here anymore"). It was replaced by a stricter
-mechanism: direct IP egress is cut entirely for every plugin (`-restrict-net`
-+ `-deny-inet` in `landlock`/`basic`, `--unshare-net` in `bubblewrap`/`strict`)
+mechanism: direct IP egress is cut entirely for every plugin
+(`-restrict-net` + `-deny-inet` in `landlock`/`basic`, `--unshare-net` in
+`bubblewrap`/`strict`)
 and network-permitted plugins reach the network only through the host `Fetch`
 broker, which enforces the `external_fetch` allow-list and an SSRF-safe dialer
 host-side (see [Plugin network egress](../SECURITY.md#plugin-network-egress-brokered-since-2026-07-11) in `docs/SECURITY.md`).

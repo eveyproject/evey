@@ -1,5 +1,5 @@
 ---
-source_sha: baf759b03f8e14d6048f850d6927ea2371fa5533ad8148f6f86faf5364ba5f66
+source_sha: d6c99c91037371ee077e57625c65e0ac542e80e0737a6e83c3320644603ab562
 ---
 
 # Runbook d'incident
@@ -262,7 +262,7 @@ docker volume inspect evey_evey-cache   # le nom malmené par compose peut varie
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- Abaissez `EVEY_TRANSCODING_CACHE_MAX_GB` (`50` par défaut) si le volume de l'hôte est plus petit que cela.
+- Abaissez le budget du cache de transcodage (Admin > Paramètres du serveur, `10` Go par défaut) si le volume de l'hôte est juste ; quel que soit le budget, le balayeur garde 2 Gio libres sur le volume du cache.
 
 ## 7. Une extension a planté
 
@@ -287,7 +287,10 @@ Tout ce qui suit se lit depuis la page Logs de l'administration (ou par
 `GET /api/v1/admin/logs/search?q=<term>&limit=200`) : aucun shell sur la machine
 n'est nécessaire. Les heures sont en UTC. Chaque balise est une ligne
 `player-client: playback event reported`, avec un `type=` et une chaîne
-`details=`.
+`details=`. Les identifiants n'apparaissent jamais dans ce que renvoient ces
+routes (bearers, JWT et valeurs `token=`/`password=` s'affichent
+`[redacted]`) : le jeton d'une URL de cast ne se retrouve donc pas par une
+recherche dans les logs - cherchez l'identifiant du média, pas le jeton.
 
 1. **Le récepteur était-il vivant, et jusqu'à quand ?** Cherchez
    `cast_receiver_alive`. Le récepteur en émet une toutes les 30 s pendant la

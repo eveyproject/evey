@@ -1,5 +1,5 @@
 ---
-source_sha: 641ed9ad2a04551e1c5e1db07a26cb739f2708ce4ec146e2a5590265cd4216ca
+source_sha: d7ed6dd50005bc7e22c522df514264be5d132bc0ca91bd3052d5321a026acad0
 ---
 
 # 扩展系统
@@ -12,7 +12,7 @@ Evey 的扩展为服务器补上元数据来源、媒体处理、Webhook、通�
 
 | 文档 | 内容 |
 |---|---|
-| **[plugins/dev-setup.md](plugins/dev-setup.md)** | 写出你的第一个扩展：前置条件、脚手架、安装与迭代的循环、签名、提交到目录、排错。**请从这里开始。** |
+| **[plugins/dev-setup.md](plugins/dev-setup.md)** | 写出你的第一个扩展：前置条件、脚手架、安装与迭代的循环、签名、分发、排错。**请从这里开始。** |
 | **[plugins/api-reference.md](plugins/api-reference.md)** | 契约本身：清单的结构、后端 IPC 与数据存储、`evey.*` 前端桥、插槽列表，以及每一项能力（`metadata.provider`、`media.read/write`、`notification.sender`、`webhook.receiver`、`public`、`prefs`）。 |
 | **[plugins/security-model.md](plugins/security-model.md)** | 威胁模型与各层防御：UID 隔离、内核与 LD_PRELOAD 两层 seccomp 拒绝清单、沙箱模式（`auto` 会依次尝试 landlock → bubblewrap → basic；`strict` 会在 bubblewrap 之上再加载 LD_PRELOAD 库）、用户态资源监视器、静态分析、CSS 净化器、签名与版本管理、插槽白名单，以及已知的局限。 |
 

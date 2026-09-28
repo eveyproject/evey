@@ -1,5 +1,5 @@
 ---
-source_sha: 8e943dfd72345f44add4c70011cd163dc77c351f5f410f69d2165ba7c88ea11d
+source_sha: 8484e89ecf7884dab922e606a1bd9a4b81a1a77bd7092c0eef919eaf1e394813
 ---
 
 # Despliegue sin contenedor (sin Docker)
@@ -32,6 +32,10 @@ CGO_ENABLED=0 go build -ldflags="-s -w"                                        -
 
 # install side by side, e.g.:
 sudo install -m 0755 evey evey-plugin-launcher /opt/evey/
+
+# opcional: autocompletado del shell y página de manual, ambos generados por el binario
+/opt/evey/evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
+/opt/evey/evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null
 ```
 
 Orden de búsqueda en `launcherPath()` (`internal/adapters/driven/pluginrunner/runner_landlock.go`):
@@ -229,15 +233,16 @@ Así el servidor se mantiene por completo sin privilegios: una ejecución remota
 código en el servidor no puede llamar a `setuid(0)`, porque el servidor no posee
 ninguna capacidad; la tiene únicamente el diminuto lanzador, que no recibe
 entrada alguna (y que rechaza cualquier UID de destino por debajo de 1000).
-Funciona **en la medida de lo posible**: si el lanzador no logra rebajar el UID
-(falta la capacidad, o está activo `no_new_privs`), registra un aviso y ejecuta
-la extensión con el UID del servidor en vez de fallar, de manera que esto nunca
-impide el arranque de una extensión.
+Si el lanzador no logra rebajar el UID (falta la capacidad, o está activo
+`no_new_privs`), una extensión en modo `basic` se **rechaza** - ahí el UID es su
+único muro alrededor de los secretos; bajo Landlock registra un aviso y la
+ejecuta con el UID del servidor.
 
 > **Incompatible con `no_new_privs`.** Si lanza el servidor con
 > `no-new-privileges` (o con `NoNewPrivileges=yes` en systemd), la capacidad de
-> archivo se ignora en el `exec` y la separación de UID degrada en silencio a un
-> mismo UID (con un aviso). Hay que elegir entre una cosa y la otra.
+> archivo se ignora en el `exec`: las extensiones se rechazan en modo `basic`,
+> y bajo Landlock la separación de UID degrada a un mismo UID (con un aviso).
+> Hay que elegir entre una cosa y la otra.
 
 Si en cambio el servidor se ejecuta **como root** (algo no recomendable), rebaja
 las extensiones a 1001 por sí mismo y la capacidad del lanzador deja de hacer
