@@ -102,6 +102,8 @@ func TestNextTime_FieldBoundaries(t *testing.T) {
 		{"the last minute and hour are accepted", "59 23 * * *", at(23, 58), at(23, 59)},
 		{"* reaches the field's last value", "* * * * *", at(23, 58), at(23, 59)},
 		{"a step reaches the field's last value", "*/59 * * * *", at(10, 30), at(10, 59)},
+		{"a range may start at the field's first value", "0 0-1 * * *", at(0, 30), at(1, 0)},
+		{"a one-value range is valid", "0 5-5 * * *", at(4, 0), at(5, 0)},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
