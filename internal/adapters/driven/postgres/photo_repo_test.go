@@ -212,11 +212,12 @@ func TestPhotoRepo_UpdateFilePath(t *testing.T) {
 	require.NoError(t, repo.Upsert(ctx, newTestPhoto("ph8", lib.ID, "")))
 
 	newMod := time.Now().UTC().Truncate(time.Millisecond)
-	require.NoError(t, repo.UpdateFilePath(ctx, "ph8", "/photos/new_path.jpg", newMod))
+	require.NoError(t, repo.UpdateFilePath(ctx, "ph8", "/photos/new_path.jpg", "Voyage", newMod))
 
 	got, err := repo.GetByID(ctx, "ph8")
 	require.NoError(t, err)
 	assert.Equal(t, "/photos/new_path.jpg", got.FilePath)
+	assert.Equal(t, "Voyage", got.Album, "the album moves with the file")
 }
 
 // The keyset ORDER BY is (taken_at DESC NULLS LAST, created_at DESC, id DESC).

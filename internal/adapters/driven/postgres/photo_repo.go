@@ -406,15 +406,15 @@ func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID shared
 	return photos, err
 }
 
-func (r *PhotoRepository) UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error {
+func (r *PhotoRepository) UpdateFilePath(ctx context.Context, id, newPath, album string, modTime time.Time) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.photo.UpdateFilePath")
 	defer span.End()
 	span.SetAttributes(attribute.String("photo.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE photos SET file_path = $1, mod_time = $2, updated_at = NOW() WHERE id = $3`,
-		newPath, modTime, id)
+		`UPDATE photos SET file_path = $1, album = $2, mod_time = $3, updated_at = NOW() WHERE id = $4`,
+		newPath, album, modTime, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
