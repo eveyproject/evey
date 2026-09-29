@@ -26,6 +26,7 @@ import { PluginCard } from "@/features/admin/PluginCard";
 import { PluginSecurityDashboard } from "@/features/admin/PluginSecurityDashboard";
 import { uploadRefusalMessage } from "@/features/plugins/uploadRefusal";
 import { PluginResourceLimits } from "@/features/admin/PluginResourceLimits";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/plugins")({
   component: PluginsPage,
@@ -605,6 +606,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
 
 function PluginsPage() {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const [showModal, setShowModal] = useState(false);
   const [uninstallTarget, setUninstallTarget] = useState<{ id: string; name: string } | null>(null);
   const queryClient = useQueryClient();
@@ -660,7 +662,7 @@ function PluginsPage() {
         <h2 className="text-xl font-semibold text-[var(--text)]">
           {t("admin.plugins.title")}
         </h2>
-        <Button onClick={() => setShowModal(true)}>{t("admin.plugins.installPlugin")}</Button>
+        <Button onClick={() => setShowModal(true)} {...lock}>{t("admin.plugins.installPlugin")}</Button>
       </div>
 
       {runtimes.length > 0 && (

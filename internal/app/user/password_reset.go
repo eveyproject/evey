@@ -107,7 +107,7 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 	}
 
 	newPassword = normalizePassword(newPassword)
-	if len(newPassword) < minPasswordLength {
+	if len(newPassword) < s.minPasswordLength {
 		return ErrPasswordTooShort
 	}
 

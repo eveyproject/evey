@@ -20,6 +20,7 @@ import { Modal } from "@/components/ui/Modal";
 import { translateNotificationTitle, useRelativeTime, notificationUrl } from "@/features/user/notificationUtils";
 import { useInfiniteSentinel } from "@/hooks/useInfiniteSentinel";
 import { Spinner } from "@/components/ui/Spinner";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 type Notification = {
   id?: string;
@@ -57,6 +58,7 @@ function NotifIcon({ type }: { type?: string }) {
 // The page used to be display-only - pretty, and useless.
 function NotificationRow({ notif }: { notif: Notification }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const navigate = useNavigate();
   const relativeTime = useRelativeTime();
   const qc = useQueryClient();
@@ -100,6 +102,7 @@ function NotificationRow({ notif }: { notif: Notification }) {
       </div>
       {!isRead && notif.id && (
         <button
+          {...lock}
           onClick={(e) => { e.stopPropagation(); markRead.mutate({ id: notif.id! }); }}
           disabled={markRead.isPending}
           className="shrink-0 text-xs text-[var(--accent)] hover:underline disabled:opacity-50 mt-1"
@@ -115,6 +118,7 @@ const NOTIFICATIONS_PAGE_SIZE = 50;
 
 function NotificationsPage() {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const qc = useQueryClient();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -157,6 +161,7 @@ function NotificationsPage() {
           <div className="flex gap-2">
             {hasUnread && (
               <Button
+                {...lock}
                 variant="secondary"
                 loading={markAllRead.isPending}
                 onClick={() => markAllRead.mutate({ data: {} })}
@@ -164,7 +169,7 @@ function NotificationsPage() {
                 {t("common.notifications.markAllRead")}
               </Button>
             )}
-            <Button variant="danger" onClick={() => setShowDeleteModal(true)}>
+            <Button {...lock} variant="danger" onClick={() => setShowDeleteModal(true)}>
               {t("common.notifications.deleteAll")}
             </Button>
           </div>
@@ -202,7 +207,7 @@ function NotificationsPage() {
           <Button variant="ghost" onClick={() => setShowDeleteModal(false)}>
             {t("common.cancel")}
           </Button>
-          <Button variant="danger" loading={deleteAll.isPending} onClick={() => deleteAll.mutate({})}>
+          <Button {...lock} variant="danger" loading={deleteAll.isPending} onClick={() => deleteAll.mutate({})}>
             {t("common.notifications.deleteAll")}
           </Button>
         </div>

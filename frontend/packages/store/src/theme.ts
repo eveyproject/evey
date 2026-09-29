@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { lazyZustandStorage, registerPersistedStore } from "./storage";
+import { isDemoMode } from "./demo";
 
 interface ThemeState {
   theme: string;
@@ -46,6 +47,8 @@ export const useThemeStore = create<ThemeState>()(
       setTheme: (theme, pluginId) => set({ theme, pluginId: pluginId ?? null, customVars: null }),
       setCustomVars: (customVars) => set({ customVars }),
       applyFromPreferences: (prefs) => {
+        // Demo: the shared profile's theme is not this visitor's pick.
+        if (isDemoMode()) return;
         const theme = prefs?.[THEME_PREF_KEY];
         if (!theme) return;
         const pluginId = prefs[THEME_PLUGIN_PREF_KEY] ?? null;

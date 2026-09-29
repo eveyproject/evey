@@ -24,9 +24,15 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 export const Route = createLazyFileRoute("/_auth/admin/transcode-cache")({
-  component: TranscodeCachePage,
+  // Every control here is an operator write the demo refuses (DemoReadOnly).
+  component: () => (
+    <DemoReadOnly>
+      <TranscodeCachePage />
+    </DemoReadOnly>
+  ),
 });
 
 const CACHE_QUERY_KEY = getTranscodeCacheServiceGetTranscodeCacheQueryKey();

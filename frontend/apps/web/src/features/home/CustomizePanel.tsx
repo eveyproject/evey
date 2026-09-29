@@ -14,6 +14,8 @@ import { FEED_LABEL_KEYS, isKnownFeedType, isPluginFeedType, pluginIdFromFeedTyp
 import { Switch } from "@/components/ui/Switch";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { ICON } from "@/constants/iconSizes";
+import { useDemoMode } from "@/hooks/useDemoMode";
+import { useDemoFeedConfig } from "./demoFeedConfig";
 
 interface HomePlugin {
   id: string;
@@ -80,6 +82,10 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
   const pluginNames = new Map(homePlugins.map((p) => [p.id, p.name]));
   const updateMutation = useFeedServiceUpdateProfileFeedConfig();
   const resetMutation = useFeedServiceResetProfileFeedConfig();
+  // Demo: the profile is shared, so the layout is this browser's (see
+  // demoFeedConfig) and nothing is sent to the server, which would refuse it.
+  const demo = useDemoMode();
+  const [demoRows, writeDemoRows] = useDemoFeedConfig();
 
   const [rows, setRows] = useState<Row[]>([]);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -88,9 +94,10 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
   const overIdxRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!data?.configs) return;
+    const source = demo && demoRows ? demoRows : data?.configs;
+    if (!source) return;
     const installedPluginIds = new Set(homePlugins.map((p) => p.id));
-    const configured = data.configs
+    const configured = source
       .map((c) => ({
         feedType: c.feedType ?? "",
         enabled: c.enabled ?? true,
@@ -126,7 +133,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
     // identity churn from the useQuery refetch - it only matters when the
     // set actually changes, which we already pick up via pluginsData.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, pluginsData]);
+  }, [data, pluginsData, demo, demoRows]);
 
   useEffect(() => {
     if (!open) return;
@@ -152,6 +159,10 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
       return next;
     });
     const row = rows[i];
+    if (demo) {
+      writeDemoRows(rows.map((r, j) => ({ feedType: r.feedType, enabled: j === i ? !r.enabled : r.enabled, displayOrder: j })));
+      return;
+    }
     // Persist using the rendered index `i` rather than row.displayOrder so
     // freshly-added plugin rows (which start at a negative order to land at
     // the top) get a clean 0..N-1 value in the DB the first time the user
@@ -180,6 +191,10 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
     const reordered = [...rows];
     const [moved] = reordered.splice(from, 1);
     reordered.splice(to, 0, moved);
+    if (demo) {
+      writeDemoRows(reordered.map((r, i) => ({ feedType: r.feedType, enabled: r.enabled, displayOrder: i })));
+      return;
+    }
     let errored = false;
     reordered.forEach((r, i) => {
       if (r.displayOrder !== i) {
@@ -198,7 +213,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
         );
       }
     });
-  }, [rows, updateMutation, queryClient, t]);
+  }, [rows, updateMutation, queryClient, t, demo, writeDemoRows]);
 
   const startPointerDrag = useCallback((i: number, e: ReactPointerEvent) => {
     e.preventDefault();
@@ -241,6 +256,11 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
   }, [dragIdx, commitReorder]);
 
   const resetAll = () => {
+    if (demo) {
+      // Back to the shared layout: the local one is simply forgotten.
+      writeDemoRows(null);
+      return;
+    }
     rows.forEach((r) => {
       resetMutation.mutate(
         { feedType: r.feedType },

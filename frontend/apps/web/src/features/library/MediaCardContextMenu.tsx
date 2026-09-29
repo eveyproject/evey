@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const CardContextMenu = memo(function CardContextMenu({
   mediaId,
@@ -22,6 +23,7 @@ export const CardContextMenu = memo(function CardContextMenu({
   onAddToCollection: () => void;
 }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const ref = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -212,6 +214,7 @@ export const CardContextMenu = memo(function CardContextMenu({
           role="menuitem"
           tabIndex={i === focusedIndex ? 0 : -1}
           onClick={it.onClick}
+          {...(it.key === "edit-metadata" ? {} : lock)}
           onFocus={() => setFocusedIndex(i)}
           data-testid={`media-context-menu-${it.key}`}
           className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"

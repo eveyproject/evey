@@ -6,10 +6,16 @@ import { useAdminSystemServiceGetDashboard, useAdminSystemServiceGetSystemInfo, 
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { BackgroundTasksPanel } from "@/features/admin/BackgroundTasksPanel";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 import type { V1SystemInfo } from "@evey/api";
 
 export const Route = createLazyFileRoute("/_auth/admin/system-health")({
-  component: SystemHealthPage,
+  // Every control here is an operator write the demo refuses (DemoReadOnly).
+  component: () => (
+    <DemoReadOnly>
+      <SystemHealthPage />
+    </DemoReadOnly>
+  ),
 });
 
 const MAX_HISTORY = 30;

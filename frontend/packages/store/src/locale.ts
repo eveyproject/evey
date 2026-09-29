@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { lazyZustandStorage, registerPersistedStore } from "./storage";
+import { isDemoMode } from "./demo";
 
 // Who last chose the locale. Precedence (user decision 2026-08-05):
 // profile > explicit user pick > device language > server default.
@@ -21,7 +22,12 @@ export const useLocaleStore = create<LocaleState>()(
       source: null,
       // Default "user": an unmarked caller is an explicit pick somewhere in
       // the UI, and must not be silently overridden by a server default.
-      setLocale: (locale, source) => set({ locale, source: source ?? "user" }),
+      // On the demo the profile is shared by every visitor, so its locale
+      // (JWT claim, profile sync) is not this visitor's choice: ignored.
+      setLocale: (locale, source) => {
+        if (source === "profile" && isDemoMode()) return;
+        set({ locale, source: source ?? "user" });
+      },
     }),
     {
       name: "evey-locale",

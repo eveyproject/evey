@@ -51,6 +51,7 @@ to.
 | [0028](0028-install-is-one-compose-file.md) | The install is one compose file | 2026-08-29 | Accepted |
 | [0029](0029-transcoding-routes-are-measured-not-assumed.md) | Transcoding routes are measured, not assumed (route-priced admission, per-route backend, proof-gated fallback) | 2026-09-13 | Accepted |
 | [0030](0030-one-plan-one-decision.md) | One plan, one decision (route resolved once and carried by the plan; fingerprint, class, cost key, producer and builder are projections) | 2026-09-17 | Accepted, implemented (closed 2026-09-18) |
+| [0031](0031-demo-mode-is-a-boot-flag-on-the-production-binary.md) | The demo is the production binary behind one boot flag (EVEY_DEMO, deny-by-default policy, guarded list) | 2026-09-28 | Accepted |
 
 ## Retired
 

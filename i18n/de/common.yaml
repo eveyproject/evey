@@ -256,3 +256,9 @@ clientChoice:
   body: Diese Seite ist für einen Fernseher und seine Fernbedienung gemacht. Am Computer ist die Web-Version die bequemere.
   openWeb: Web-Version öffnen
   stay: Hier bleiben
+
+demo:
+  banner: "Demo-Server: Änderungen werden regelmäßig zurückgesetzt, die Verwaltung ist schreibgeschützt."
+  credentials: "Anmeldung mit demo / demo"
+  locked: "In der Demo gesperrt"
+  readOnly: "Schreibgeschützt in der Demo: die Einstellungen werden angezeigt, nicht bearbeitet."

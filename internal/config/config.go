@@ -245,6 +245,19 @@ type ServerConfig struct {
 	// entirely (admin RPCs return FailedPrecondition, the runner is not
 	// constructed).
 	PluginsEnabled bool
+	// Demo turns this instance into a public demo: every visitor is an admin,
+	// so every admin operation is refused except the reads named in
+	// internal/pkg/demo, and the outbound ports (mail, webhooks, push) are
+	// wired to sinks. Read once from EVEY_DEMO at boot, never persisted and
+	// never shown by the panel - a switch a visitor could flip is not a switch.
+	// The one deliberate exception to "operator settings live in the panel".
+	Demo bool
+	// DemoMediaDir is where the demo bootstrap downloads the freely licensed
+	// media and points its libraries. Read once with Demo.
+	DemoMediaDir string
+	// DemoPluginDir holds the plugin bundles the demo bootstrap installs
+	// (internal/pkg/demo.Plugins); a bundle that is not there is skipped.
+	DemoPluginDir string
 }
 
 type DBConfig struct {
@@ -846,6 +859,9 @@ func Load() (*Config, error) {
 			LoginRateLimitMax:  envInt("EVEY_RATELIMIT_LOGIN_MAX", 10),
 			GlobalRateLimitMax: envInt("EVEY_RATELIMIT_GLOBAL_MAX", 300),
 			PluginsEnabled:     envBool("EVEY_PLUGINS_ENABLED", true),
+			Demo:               envBool("EVEY_DEMO", false),
+			DemoMediaDir:       envStr("EVEY_DEMO_MEDIA_DIR", "/data/demo-media"),
+			DemoPluginDir:      envStr("EVEY_DEMO_PLUGIN_DIR", "/data/demo-plugins"),
 		},
 		DB: DBConfig{
 			Host:     dbHost,

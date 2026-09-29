@@ -20,6 +20,7 @@ import { CreateUserForm } from "@/features/admin/CreateUserForm";
 import { CreateInviteForm } from "@/features/admin/CreateInviteForm";
 import { UserRow } from "@/features/admin/UserRow";
 import { InviteLinkRow } from "@/features/admin/InviteLinkRow";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/users")({
   component: UsersPage,
@@ -27,6 +28,7 @@ export const Route = createLazyFileRoute("/_auth/admin/users")({
 
 function UsersPage() {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const [showUserModal, setShowUserModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const queryClient = useQueryClient();
@@ -67,7 +69,7 @@ function UsersPage() {
           <h2 className="text-xl font-semibold text-[var(--text)]">
             {t("admin.users.title")}
           </h2>
-          <Button onClick={() => setShowUserModal(true)}>{t("admin.users.createUser")}</Button>
+          <Button onClick={() => setShowUserModal(true)} {...lock}>{t("admin.users.createUser")}</Button>
         </div>
 
         {isLoading ? (
@@ -117,7 +119,7 @@ function UsersPage() {
           <h2 className="text-xl font-semibold text-[var(--text)]">
             {t("admin.users.inviteLinks")}
           </h2>
-          <Button variant="secondary" onClick={() => setShowInviteModal(true)}>
+          <Button variant="secondary" onClick={() => setShowInviteModal(true)} {...lock}>
             {t("admin.users.createInviteLink")}
           </Button>
         </div>

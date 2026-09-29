@@ -12,6 +12,8 @@ import { PinPromptDialog } from "@/features/profile/PinPromptDialog";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { useDemoMode } from "@/hooks/useDemoMode";
+import { markDemoManualLogout } from "@/lib/demoAutoLogin";
 
 // Accept undefined: `active` can be undefined when the profiles list is empty
 // (loading window, or a transient 0-profile state), and the avatar button calls
@@ -35,6 +37,7 @@ interface Props {
 
 export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
   const { t } = useTranslation();
+  const demo = useDemoMode();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const logout = useAuthStore((s) => s.logout);
@@ -142,8 +145,11 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
     qc.clear();
     logout();
     localStorage.removeItem("evey-recent-searches");
+    // A deliberate sign-out on the demo holds the login form open for a day
+    // instead of signing this visitor straight back in as `demo`.
+    if (demo) markDemoManualLogout();
     void navigate({ to: "/login" });
-  }, [qc, logout, navigate]);
+  }, [qc, logout, navigate, demo]);
 
   const handleJoinRoom = useCallback(async () => {
     const code = joinCode.trim();

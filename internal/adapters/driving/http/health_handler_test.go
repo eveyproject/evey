@@ -78,6 +78,27 @@ func TestHealthzHandler_AdvertisesServerName(t *testing.T) {
 	}
 }
 
+// The phone and the television learn they are talking to the demo from the
+// same discovery answer, before login. Off the demo the field is absent, not
+// false, so an older client sees exactly the body it always saw.
+func TestHealthzHandler_AdvertisesDemo(t *testing.T) {
+	for demo, want := range map[bool]bool{true: true, false: false} {
+		cfg := &config.Config{}
+		cfg.Server.Demo = demo
+		srv := &HTTPServer{Cfg: cfg, StartTime: time.Now(), DB: &fakeDBPinger{}}
+		w := httptest.NewRecorder()
+		srv.healthzHandler(w, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+		var body map[string]any
+		if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		got, present := body["demo"]
+		if present != want || (want && got != true) {
+			t.Errorf("EVEY_DEMO=%v: healthz demo = %v (present=%v), want present=%v", demo, got, present, want)
+		}
+	}
+}
+
 // The TV app compares its own versionCode to the one released with the
 // server: the Play Store auto-update rarely runs on a television (27-09, a TV
 // stuck a week on 0.1.4). Unstamped, the field is absent rather than zero.

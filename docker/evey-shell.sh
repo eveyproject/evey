@@ -20,7 +20,7 @@
 #    all of it -- no branding, no launcher, no verbs. e.g.
 #      docker exec -it -e EVEY_SHELL=plain evey-server bash
 
-_EVEY_VERBS='reset-password rotate-jwt-key restore-backup reindex-search migrate reclassify reindex-no-cue validate-streaming artwork-gc load-test doctor rollback ladder-bench ladder-probe route-bench list-users list-libraries'
+_EVEY_VERBS='reset-password rotate-jwt-key restore-backup reindex-search migrate reclassify reindex-no-cue validate-streaming artwork-gc load-test doctor rollback ladder-bench ladder-probe route-bench list-users list-libraries demo-seed'
 
 # ---------------------------------------------------------------------------
 # Look & feel
@@ -90,11 +90,11 @@ _evey_load_admin_menu() {
     admin_labels=(   'doctor' 'migrate' 'reset-password' 'rotate-jwt-key' 'restore-backup' \
                      'reindex-search' 'reclassify' 'reindex-no-cue' 'validate-streaming' \
                      'artwork-gc' 'load-test' 'rollback' 'route-bench' 'ladder-bench' 'ladder-probe' \
-                     'list-users' 'list-libraries' '← back' )
+                     'list-users' 'list-libraries' 'demo-seed' '← back' )
     admin_prefills=( 'doctor' 'migrate ' 'reset-password --user ' 'rotate-jwt-key' 'restore-backup ' \
                      'reindex-search' 'reclassify ' 'reindex-no-cue --root ' 'validate-streaming --root ' \
                      'artwork-gc' 'load-test --scenario balanced --max-viewers ' 'rollback' 'route-bench ' \
-                     'ladder-bench ' 'ladder-probe ' 'list-users' 'list-libraries' '' )
+                     'ladder-bench ' 'ladder-probe ' 'list-users' 'list-libraries' 'demo-seed' '' )
     admin_descs=(    'health-check everything (--repair fixes safe stuff)' \
                      'schema: up | down | version' \
                      'generate a new password, print it once' \
@@ -112,6 +112,7 @@ _evey_load_admin_menu() {
                      'per-title probe timing on given files (encodes, never while serving)' \
                      'print all user emails' \
                      'print the library root paths' \
+                     'seed the public demo accounts (EVEY_DEMO=1 only; dry-run; --apply writes)' \
                      'to the main menu' )
 }
 
@@ -204,6 +205,10 @@ _evey_load_admin_options() {
             option_labels=('run')
             option_commands=('list-libraries')
             option_kinds=(  'run') ;;
+        demo-seed)
+            option_labels=('plan (dry run)' '--apply (accounts + libraries)' '--apply --media (also download the films, gigabytes)')
+            option_commands=('demo-seed'     'demo-seed --apply'              'demo-seed --apply --media')
+            option_kinds=(  'run'           'run'                            'run') ;;
         route-bench)
             option_labels=('synthetic clips only (auto-detect the GPU)' '--backend none (CPU routes only)' '<file>... (real titles too)')
             option_commands=('route-bench'                              'route-bench --backend none'       'route-bench ')

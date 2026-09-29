@@ -6,6 +6,7 @@ import { useAuthStore, useLocaleStore } from "@evey/store";
 import i18n, { supportedLanguages } from "@/i18n";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { DemoModeProvider } from "@/hooks/useDemoMode";
 import { RouteErrorComponent } from "@/components/ui/RouteErrorComponent";
 import { ToastContainer } from "@/components/ui/ToastContainer";
 
@@ -95,10 +96,12 @@ function RootComponent() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <DocumentTitle />
-        <PageViewReporter />
-        <Outlet />
-        <ToastContainer />
+        <DemoModeProvider>
+          <DocumentTitle />
+          <PageViewReporter />
+          <Outlet />
+          <ToastContainer />
+        </DemoModeProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

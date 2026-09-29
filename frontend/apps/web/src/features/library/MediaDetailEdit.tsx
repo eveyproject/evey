@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
 import { IdentifyMetadataModal } from "./IdentifyMetadataModal";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 interface EditForm {
   title: string;
@@ -424,7 +425,9 @@ export function MetadataEditPanel({
     );
   }
 
+  // Every control here rewrites a title for everyone: read-only on the demo.
   return (
+    <DemoReadOnly>
     <form onSubmit={handleSave} className="flex flex-col gap-4">
       {/* What is actually on disk, read-only. When a match is wrong every other
           field here already holds the WRONG film's data - the filename is the
@@ -512,5 +515,6 @@ export function MetadataEditPanel({
         </div>
       </Modal>
     </form>
+    </DemoReadOnly>
   );
 }

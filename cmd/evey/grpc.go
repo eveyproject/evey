@@ -14,6 +14,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	"github.com/evey-project/evey/internal/config"
+	"github.com/evey-project/evey/internal/pkg/demo"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
@@ -205,7 +206,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		LogDir:                 logDir,
 		ServerCtx:              serverCtx,
 		Translator:             deps.translator,
-		SMTPConfigured:         cfg.SMTP.Host != "",
+		SMTPConfigured:         cfg.SMTP.Host != "" && !cfg.Server.Demo,
 		ServerCfgSvc:           deps.serverCfgSvc,
 		ShareSvc:               deps.media.shareSvc,
 		Music:                  deps.media.musicSvc,
@@ -234,33 +235,44 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		grpcDeps.PushRegisterRL = ratelimit.New(10)
 	}
 
+	unary := []grpc.UnaryServerInterceptor{
+		// Request id FIRST: recovery/sanitizer/ratelimit log too, and
+		// before this they did so without a request_id (the id was only
+		// stamped by LoggingUnary, six interceptors deep).
+		interceptors.RequestIDUnary(),
+		interceptors.RecoveryUnary(),
+		interceptors.ErrorSanitizerUnary(),
+		interceptors.LocaleUnary(),
+		interceptors.ClientInfoUnary(),
+		interceptors.RateLimitUnary(publicRL),
+		interceptors.LoggingUnary(grpcLog),
+		pluginTokenInterceptor.Unary(),
+		authInterceptor.Unary(),
+	}
+	stream := []grpc.StreamServerInterceptor{
+		interceptors.RequestIDStream(),
+		interceptors.RecoveryStream(),
+		interceptors.ErrorSanitizerStream(),
+		interceptors.LocaleStream(),
+		interceptors.ClientInfoStream(),
+		interceptors.RateLimitStream(publicRL),
+		interceptors.LoggingStream(grpcLog),
+		pluginTokenInterceptor.Stream(),
+		authInterceptor.Stream(),
+	}
+	if cfg.Server.Demo {
+		// Last, so an anonymous caller is still told Unauthenticated first.
+		demoInterceptor := interceptors.NewDemoInterceptor(interceptors.DefaultRBACConfig(), deps.translator)
+		// Every visitor is an administrator: what the open reads say about
+		// the other visitors (addresses, browsers) is blanked on the way out.
+		redact := interceptors.NewRedactInterceptor(demo.RedactedFields...)
+		unary = append(unary, demoInterceptor.Unary(), redact.Unary())
+		stream = append(stream, demoInterceptor.Stream(), redact.Stream())
+	}
 	grpcSrv := grpcapi.NewGRPCServer(grpcDeps,
 		grpc.MaxRecvMsgSize(16*1024*1024),
-		grpc.ChainUnaryInterceptor(
-			// Request id FIRST: recovery/sanitizer/ratelimit log too, and
-			// before this they did so without a request_id (the id was only
-			// stamped by LoggingUnary, six interceptors deep).
-			interceptors.RequestIDUnary(),
-			interceptors.RecoveryUnary(),
-			interceptors.ErrorSanitizerUnary(),
-			interceptors.LocaleUnary(),
-			interceptors.ClientInfoUnary(),
-			interceptors.RateLimitUnary(publicRL),
-			interceptors.LoggingUnary(grpcLog),
-			pluginTokenInterceptor.Unary(),
-			authInterceptor.Unary(),
-		),
-		grpc.ChainStreamInterceptor(
-			interceptors.RequestIDStream(),
-			interceptors.RecoveryStream(),
-			interceptors.ErrorSanitizerStream(),
-			interceptors.LocaleStream(),
-			interceptors.ClientInfoStream(),
-			interceptors.RateLimitStream(publicRL),
-			interceptors.LoggingStream(grpcLog),
-			pluginTokenInterceptor.Stream(),
-			authInterceptor.Stream(),
-		),
+		grpc.ChainUnaryInterceptor(unary...),
+		grpc.ChainStreamInterceptor(stream...),
 	)
 	grpcSrv.RegisterServices()
 	return grpcSrv

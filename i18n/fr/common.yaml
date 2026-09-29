@@ -256,3 +256,9 @@ clientChoice:
   body: Cette page est faite pour une télévision et sa télécommande. Sur un ordinateur, la version web est plus confortable.
   openWeb: Ouvrir la version web
   stay: Rester ici
+
+demo:
+  banner: "Serveur de démonstration : les modifications sont remises à zéro régulièrement et l'administration est en lecture seule."
+  credentials: "Connectez-vous avec demo / demo"
+  locked: "Verrouillé sur la démo"
+  readOnly: "Lecture seule sur la démo : les réglages sont affichés, pas modifiables."

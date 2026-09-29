@@ -3,7 +3,8 @@ import { Users, ChevronDown } from "lucide-react";
 import { EveyWordmark } from "@/components/ui/EveyLogo";
 import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useUserServiceLogin, useAdminSystemServiceGetSetupStatus, eveyFetch, normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
+import { useUserServiceLogin, useAdminSystemServiceGetSetupStatus, adminSystemServiceGetSetupStatus, userServiceLogin, eveyFetch, normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
+import { demoAutoLoginAllowed, DEMO_USERNAME, DEMO_PASSWORD } from "@/lib/demoAutoLogin";
 import { useAuthStore, isDefaultServerName } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
@@ -14,13 +15,16 @@ import { writeGuestSession } from "@/features/syncplay/guestSession";
 
 type LoginSearch = {
   oidc_error?: string;
+  // ?manual=1 shows the form on the demo instead of signing in as `demo`.
+  manual?: boolean;
 };
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
     oidc_error: typeof search.oidc_error === "string" ? search.oidc_error : undefined,
+    manual: search.manual === true || search.manual === "1" || search.manual === "true" ? true : undefined,
   }),
-  beforeLoad: () => {
+  beforeLoad: async ({ context, search }) => {
     const { accessToken } = useAuthStore.getState();
     if (accessToken) {
       try {
@@ -32,6 +36,28 @@ export const Route = createFileRoute("/login")({
         if (e && typeof e === "object" && "to" in e) throw e; // re-throw redirect
         // expired or malformed token - stay on login
       }
+    }
+    // The demo signs its visitors in by itself: its credentials are public
+    // and its hourly restore wipes every session, so a form asking for a
+    // password everyone knows would only be friction. A visitor who signed
+    // out on purpose gets the form for a day (demoAutoLogin.ts), ?manual=1
+    // always does.
+    if (search.manual || !demoAutoLoginAllowed()) return;
+    try {
+      const info = await context.queryClient.fetchQuery<{ demoMode?: boolean }>({
+        queryKey: ["setup-status"],
+        queryFn: () => adminSystemServiceGetSetupStatus(),
+        staleTime: 60_000,
+      });
+      if (!info.demoMode) return;
+      const resp = await userServiceLogin({ username: DEMO_USERNAME, password: DEMO_PASSWORD });
+      if (resp.accessToken) {
+        useAuthStore.getState().setTokens(resp.accessToken);
+        throw redirect({ to: "/home" });
+      }
+    } catch (e) {
+      if (e && typeof e === "object" && "to" in e) throw e; // re-throw redirect
+      // the form is the fallback: the server said no, or is not the demo
     }
   },
   component: LoginPage,
@@ -120,6 +146,13 @@ function LoginPage() {
             </p>
           )}
           <p className="text-[var(--text-muted)] text-sm mt-1">{t("auth.login.signInToAccount")}</p>
+          {/* The demo publishes its credentials: the visitor has to be told
+              them somewhere, and the login page is where they are needed. */}
+          {setupStatus.data?.demoMode && (
+            <p className="text-sm mt-3 px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--toast-warning-bg)] text-[var(--text)]" data-testid="login-demo-credentials">
+              {t("common.demo.credentials")}
+            </p>
+          )}
         </div>
         {oidc_error && (
           <p className="text-sm text-center mb-4 text-[var(--color-danger)]">{t("auth.login.ssoFailed")}</p>

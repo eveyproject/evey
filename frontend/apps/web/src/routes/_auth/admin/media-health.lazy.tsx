@@ -15,9 +15,15 @@ import { StatsGrid } from "@/features/admin/seekIndex/StatsGrid";
 import { SeekIndexTable } from "@/features/admin/seekIndex/SeekIndexTable";
 import { SeekIndexFilters } from "@/features/admin/seekIndex/SeekIndexFilters";
 import { RepairConfirmModal } from "@/features/admin/seekIndex/RepairConfirmModal";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 export const Route = createLazyFileRoute("/_auth/admin/media-health")({
-  component: SeekIndexPage,
+  // Every control here is an operator write the demo refuses (DemoReadOnly).
+  component: () => (
+    <DemoReadOnly>
+      <SeekIndexPage />
+    </DemoReadOnly>
+  ),
 });
 
 function SeekIndexPage() {

@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { Pagination } from "@/components/ui/Pagination";
 import { BackButton } from "@/components/ui/BackButton";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/collections/$collectionId")({
   component: CollectionDetailPage,
@@ -20,6 +21,7 @@ export const Route = createLazyFileRoute("/_auth/collections/$collectionId")({
 
 function CollectionDetailPage() {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const { collectionId } = Route.useParams();
   const [page, setPage] = useState(1);
   const pageSize = 50;
@@ -63,6 +65,7 @@ function CollectionDetailPage() {
               />
               {isAdmin && (
                 <Button
+                  {...lock}
                   variant="danger"
                   className="absolute top-4 right-4"
                   onClick={handleDelete}
@@ -93,7 +96,7 @@ function CollectionDetailPage() {
                 )}
               </div>
               {isAdmin && (
-                <Button variant="danger" onClick={handleDelete} data-testid="collection-delete-btn">
+                <Button {...lock} variant="danger" onClick={handleDelete} data-testid="collection-delete-btn">
                   {t("common.delete")}
                 </Button>
               )}
@@ -153,6 +156,7 @@ function CollectionDetailPage() {
                 {isAdmin && items.length > 1 && (
                   <div className="absolute top-1 left-1 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <button
+                      {...lock}
                       type="button"
                       aria-label={t("media.collections.moveUp")}
                       title={t("media.collections.moveUp")}
@@ -169,6 +173,7 @@ function CollectionDetailPage() {
                       <ChevronUp size={14} />
                     </button>
                     <button
+                      {...lock}
                       type="button"
                       aria-label={t("media.collections.moveDown")}
                       title={t("media.collections.moveDown")}
@@ -188,6 +193,7 @@ function CollectionDetailPage() {
                 )}
                 {isAdmin && (
                   <button
+                    {...lock}
                     type="button"
                     aria-label={t("media.collections.removeItem")}
                     title={t("media.collections.removeItem")}

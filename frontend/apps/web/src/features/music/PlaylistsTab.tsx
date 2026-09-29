@@ -19,6 +19,7 @@ import { formatTime } from "@evey/api";
 import { shuffleTracks } from "./musicFormat";
 import type { Track } from "./musicQueries";
 import { TrackArt } from "./TrackArt";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export function PlaylistsTab({
   allTracks,
@@ -30,6 +31,7 @@ export function PlaylistsTab({
   libraryID?: string;
 }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const queryClient = useQueryClient();
   const accessToken = useAuthStore((s) => s.accessToken);
   const [selected, setSelected] = useState<string | null>(null);
@@ -167,6 +169,7 @@ export function PlaylistsTab({
                   <span className="text-xs text-[var(--text-muted)]">{formatTime(tr.Duration)}</span>
                 </button>
                 <button
+                  {...lock}
                   type="button"
                   onClick={() => handleRemove(tr.ID)}
                   aria-label={t("common.delete")}
@@ -190,6 +193,7 @@ export function PlaylistsTab({
       {libraryID && (
         <div className="flex justify-end">
           <button
+            {...lock}
             type="button"
             onClick={handleGenerate}
             disabled={generate.isPending}
@@ -220,6 +224,7 @@ export function PlaylistsTab({
             )}
           </button>
           <button
+            {...lock}
             type="button"
             onClick={() => p.id && confirm(t("media.playlist.deleteConfirm", { name: p.name ?? "" })) && handleDeletePlaylist(p.id)}
             aria-label={t("common.delete")}

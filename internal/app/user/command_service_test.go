@@ -203,6 +203,29 @@ func TestSetup_ShortPassword(t *testing.T) {
 	}
 }
 
+// The floor is a composition parameter: lowered, a four-character password
+// seeds the demo account; left alone, the same password is still refused.
+func TestSetup_MinPasswordLengthOption(t *testing.T) {
+	d := newAuthTestDeps()
+	d.svc = NewCommandService(d.users, d.profiles, d.refreshTkns, d.roles, d.userRoles,
+		d.hasher, d.tokens, d.events, 7*24*time.Hour, ufakes.NewFakeQuickConnectRepository(),
+		WithMinPasswordLength(4))
+	if _, err := d.svc.Setup(context.Background(), "demo", "demo", "d@d.com"); err != nil {
+		t.Fatalf("with a floor of 4, %q must seed the account, got %v", "demo", err)
+	}
+
+	if _, err := newAuthTestDeps().svc.Setup(context.Background(), "demo", "demo", "d@d.com"); !errors.Is(err, ErrPasswordTooShort) {
+		t.Fatalf("without the option the production floor of 8 must hold, got %v", err)
+	}
+	d = newAuthTestDeps()
+	d.svc = NewCommandService(d.users, d.profiles, d.refreshTkns, d.roles, d.userRoles,
+		d.hasher, d.tokens, d.events, 7*24*time.Hour, ufakes.NewFakeQuickConnectRepository(),
+		WithMinPasswordLength(0))
+	if _, err := d.svc.Setup(context.Background(), "demo", "demo", "d@d.com"); !errors.Is(err, ErrPasswordTooShort) {
+		t.Fatalf("a floor below 1 is ignored, the default must hold, got %v", err)
+	}
+}
+
 func TestSetup_PasswordBoundary(t *testing.T) {
 	t.Run("exactly 7 chars rejected", func(t *testing.T) {
 		d := newAuthTestDeps()

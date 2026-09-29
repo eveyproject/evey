@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/Badge";
 import { SessionTrackBadges } from "@/features/admin/SessionTrackBadges";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AdminTrickplayThumbnail } from "@/features/admin/AdminTrickplayThumbnail";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/sessions")({
   component: SessionsPage,
@@ -53,6 +54,7 @@ function ProfileAvatar({ profileName, size = 40 }: { profileName?: string; size?
 
 function SessionCard({ session }: { session: V1ActiveSession }) {
   const { t } = useTranslation();
+  const { demo, lock } = useDemoLock();
   const queryClient = useQueryClient();
   const killSession = useAdminSessionServiceKillSession({
     mutation: {
@@ -136,7 +138,8 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
               variant="ghost"
               className="shrink-0 !px-2 !py-1"
               onClick={() => setConfirming(true)}
-              title={t("admin.sessions.stopSession")}
+              title={demo ? t("common.demo.locked") : t("admin.sessions.stopSession")}
+              {...lock}
             >
               <StopIcon />
             </Button>

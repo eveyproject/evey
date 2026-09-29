@@ -23,6 +23,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { RequestPoster } from "@/features/requests/RequestPoster";
 import { useInfiniteSentinel } from "@/hooks/useInfiniteSentinel";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/requests")({
   component: RequestsPage,
@@ -70,6 +71,7 @@ function candidateKey(c: { mediaType?: string; provider?: string; providerId?: s
 
 function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const queryClient = useQueryClient();
   const [scope, setScope] = useState<SearchScope>("video");
   const [query, setQuery] = useState("");
@@ -238,6 +240,7 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
                     </Link>
                   ) : (
                     <Button
+                      {...lock}
                       type="button"
                       variant={alreadyRequested ? "secondary" : "primary"}
                       disabled={alreadyRequested || createRequest.isPending}

@@ -174,7 +174,7 @@ func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSe
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "count admins", err)
 	}
-	resp := &eveyv1.SetupStatusResponse{SetupComplete: admins > 0, ServerName: d.serverName()}
+	resp := &eveyv1.SetupStatusResponse{SetupComplete: admins > 0, ServerName: d.serverName(), DemoMode: d.cfg != nil && d.cfg.Server.Demo}
 	// Public projection of the recovery flag so the logged-out login page can
 	// show the "Forgot password?" link (mirrors GetSystemInfo). It only reads
 	// config (SMTP configured + auth.password_recovery_enabled), no auth needed.

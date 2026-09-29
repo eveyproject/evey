@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Card } from "@/components/ui/Card";
+import { useDemoMode } from "@/hooks/useDemoMode";
 
 type SetupStatus = { setupComplete?: boolean };
 
@@ -74,6 +75,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
 
 function SetupPage() {
   const { t, i18n } = useTranslation();
+  const demo = useDemoMode();
   const navigate = useNavigate();
   const { setTokens } = useAuthStore();
   const setLocaleStore = useLocaleStore((s) => s.setLocale);
@@ -164,10 +166,14 @@ function SetupPage() {
     { value: "LIBRARY_TYPE_PHOTOS", label: t("auth.setup.libraryTypes.photos") },
   ];
 
+  // The server's floor is eight characters, four on the demo instance (its
+  // published password is "demo"); the wizard mirrors the floor it will be
+  // judged by so the seed can be typed here.
+  const minPassword = demo ? 4 : 8;
   function validateAdmin(form: AdminForm): AdminErrors {
     const errors: AdminErrors = {};
     if (form.username.length < 3) errors.username = t("auth.setup.usernameMin");
-    if (form.password.length < 8) errors.password = t("auth.setup.passwordMin");
+    if (form.password.length < minPassword) errors.password = t("auth.setup.passwordMin");
     if (form.password !== form.confirmPassword) errors.confirmPassword = t("auth.setup.passwordMismatch");
     return errors;
   }

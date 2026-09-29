@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export interface BulkActionBarProps {
   count: number;
@@ -25,6 +26,7 @@ export function BulkActionBar({
   markUnwatchedPending,
 }: BulkActionBarProps) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   // AddCollectionItem is RoleAdmin server-side. The decision lives here rather
   // than at each call site so the library and the favorites bar can never
   // disagree about it.
@@ -41,17 +43,17 @@ export function BulkActionBar({
       </span>
       <span className="text-sm mr-1 text-[var(--text-muted)]">{t("media.library.selected", "selected")}</span>
 
-      <Button variant="secondary" onClick={onMarkWatched} loading={markWatchedPending} disabled={count === 0}>
+      <Button {...lock} variant="secondary" onClick={onMarkWatched} loading={markWatchedPending} disabled={count === 0}>
         {t("media.library.markWatched", "Mark watched")}
       </Button>
-      <Button variant="secondary" onClick={onMarkUnwatched} loading={markUnwatchedPending} disabled={count === 0}>
+      <Button {...lock} variant="secondary" onClick={onMarkUnwatched} loading={markUnwatchedPending} disabled={count === 0}>
         {t("media.library.markUnwatched", "Mark unwatched")}
       </Button>
-      <Button variant="secondary" onClick={onAddToPlaylist} disabled={count === 0}>
+      <Button {...lock} variant="secondary" onClick={onAddToPlaylist} disabled={count === 0}>
         {t("media.library.addToPlaylist", "Add to playlist")}
       </Button>
       {isAdmin && (
-        <Button variant="secondary" onClick={onAddToCollection} disabled={count === 0} data-testid="bulk-add-to-collection">
+        <Button {...lock} variant="secondary" onClick={onAddToCollection} disabled={count === 0} data-testid="bulk-add-to-collection">
           {t("media.library.addToCollection", "Add to collection")}
         </Button>
       )}

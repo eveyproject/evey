@@ -15,6 +15,17 @@ import (
 
 var _ webhook.Sender = (*HTTPSender)(nil)
 
+// Discard is the sender the demo instance is wired with: the webhook pipeline
+// (events, delivery log, retries) runs unchanged, the host makes no outbound
+// call. It answers 200 so the delivery log shows a success, not a failure.
+type Discard struct{}
+
+var _ webhook.Sender = Discard{}
+
+func (Discard) Send(context.Context, string, map[string]string, []byte) (int, error) {
+	return http.StatusOK, nil
+}
+
 type HTTPSender struct {
 	client *http.Client
 }

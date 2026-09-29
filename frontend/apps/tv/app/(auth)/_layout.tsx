@@ -10,6 +10,7 @@ import { useMusicQueueStore } from "../../src/stores/musicQueue";
 import { HomeShortcutButton, HOME_SHORTCUT_INSET } from "../../src/components/HomeShortcutButton";
 import { isDeepScreenPath, HOME_PATH } from "../../src/lib/homeShortcut";
 import { ErrorBoundary } from "../../src/components/ErrorBoundary";
+import { DemoBanner } from "../../src/components/DemoBanner";
 import { refreshAccessTokenIfNeeded } from "../../src/lib/auth-refresh";
 import { resolveServerUrl } from "../../src/lib/server-config";
 import { initI18n } from "../../src/i18n";
@@ -93,6 +94,7 @@ export default function AuthLayout() {
 
   return (
     <View style={{ flex: 1 }}>
+      <DemoBanner />
       {/* A boundary HERE, not only at the root: one at the root turns any
           render error into a blank application, taking the music player and
           the way home with it. Contained at this level, a broken screen shows

@@ -15,6 +15,7 @@ import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 const SCOPE_OPTIONS = [
   "media:read",
@@ -45,6 +46,7 @@ interface CreatedKey {
 
 export function APIKeySettings() {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
     const qc = useQueryClient();
   const { data, isLoading } = useUserServiceListAPIKeys();
   const keys = data?.apiKeys ?? [];
@@ -131,7 +133,7 @@ export function APIKeySettings() {
             {t("auth.apiDocs.link")}
           </Link>
         </div>
-        <Button variant="primary" onClick={() => setCreateOpen(true)}>
+        <Button {...lock} variant="primary" onClick={() => setCreateOpen(true)}>
           {t("common.newKey")}
         </Button>
       </div>
@@ -176,6 +178,7 @@ export function APIKeySettings() {
                 <td className="py-3 pr-4 text-[var(--text-muted)]">{formatDate(k.lastUsedAt)}</td>
                 <td className="py-3">
                   <Button
+                    {...lock}
                     variant="danger"
                     className="py-1 px-2 text-xs"
                     onClick={() => setRevokeTarget(k)}
@@ -223,7 +226,7 @@ export function APIKeySettings() {
             <Button variant="secondary" onClick={() => { setCreateOpen(false); setNewName(""); setNameError(""); setSelectedScopes(new Set()); }}>
               {t("common.cancel")}
             </Button>
-            <Button variant="primary" loading={createMutation.isPending} onClick={handleCreate}>
+            <Button {...lock} variant="primary" loading={createMutation.isPending} onClick={handleCreate}>
               {t("common.create")}
             </Button>
           </div>
@@ -262,6 +265,7 @@ export function APIKeySettings() {
               {t("common.cancel")}
             </Button>
             <Button
+              {...lock}
               variant="danger"
               loading={revokeMutation.isPending}
               onClick={() => { if (revokeTarget?.id) revokeMutation.mutate({ id: revokeTarget.id }); }}

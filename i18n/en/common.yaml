@@ -256,3 +256,9 @@ clientChoice:
   body: This page is made for a television and its remote control. On a computer, the web version is the comfortable one.
   openWeb: Open the web version
   stay: Stay here
+
+demo:
+  banner: "Demo server: changes are reset regularly and administration is read-only."
+  credentials: "Sign in with demo / demo"
+  locked: "Locked on the demo"
+  readOnly: "Read-only on the demo: the settings are shown, not editable."

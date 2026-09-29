@@ -1,9 +1,9 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, BackHandler, ScrollView, StyleSheet } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceLogin } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useUserServiceLogin, useAdminSystemServiceGetSetupStatus } from "@evey/api";
+import { useAuthStore, useDemoStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { setRefreshToken } from "../src/lib/refresh-token";
 import { clearServerUrl } from "../src/lib/server-config";
@@ -20,6 +20,15 @@ export default function Login() {
   const [qcBtnFocused, setQcBtnFocused] = useState(false);
   const [serverBtnFocused, setServerBtnFocused] = useState(false);
   const setTokens = useAuthStore((s) => s.setTokens);
+  // The demo publishes its credentials; the login screen is where the viewer
+  // needs them. Public answer, no token required.
+  const setupStatus = useAdminSystemServiceGetSetupStatus({ query: { staleTime: 60_000 } });
+  // Known BEFORE the login lands: the locale claim of the shared demo
+  // profile arrives with the token and must not override this set's pick.
+  const demoMode = setupStatus.data?.demoMode === true;
+  useEffect(() => {
+    if (setupStatus.data) useDemoStore.getState().setDemoMode(demoMode);
+  }, [demoMode, setupStatus.data]);
 
   // Back to the server screen: this is the root once a server is chosen, so
   // the remote's BACK key otherwise leaves the app for the Android home - a
@@ -91,6 +100,11 @@ export default function Login() {
       <Text style={[styles.title, { color: theme.colors.text }]}>
         {t("auth.login.signIn")}
       </Text>
+      {setupStatus.data?.demoMode && (
+        <Text style={[styles.demoHint, { color: theme.colors.text, backgroundColor: theme.colors.warning + "33", borderRadius: theme.radii.md }]} testID="login-demo-credentials">
+          {t("common.demo.credentials")}
+        </Text>
+      )}
 
       <TextInput
         placeholder={t("auth.login.username")}
@@ -218,6 +232,13 @@ const styles = StyleSheet.create({
     fontSize: 42,
     fontWeight: "bold",
     marginBottom: 32,
+  },
+  demoHint: {
+    fontSize: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    marginTop: -16,
+    marginBottom: 24,
   },
   input: {
     width: 500,

@@ -21,9 +21,15 @@ import { IntroDetectionSettingsCard } from "@/features/admin/serverConfig/IntroD
 import { ParserTokensCard } from "@/features/admin/serverConfig/ParserTokensCard";
 import { ServerSettingsCard } from "@/features/admin/serverConfig/ServerSettingsCard";
 import { UpdateCheckCard } from "@/features/admin/serverConfig/UpdateCheckCard";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 export const Route = createLazyFileRoute("/_auth/admin/server-config")({
-  component: ServerConfigPage,
+  // Every control here is an operator write the demo refuses (DemoReadOnly).
+  component: () => (
+    <DemoReadOnly>
+      <ServerConfigPage />
+    </DemoReadOnly>
+  ),
 });
 
 function ServerConfigPage() {

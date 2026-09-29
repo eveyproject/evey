@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useAuthStore, loadProfileCache, shouldPickProfileOnColdStart } from "@evey/store";
 import { AuthLayout } from "@/components/layout/AuthLayout";
 import { ImpersonationBanner } from "@/components/layout/ImpersonationBanner";
+import { DemoBanner } from "@/components/layout/DemoBanner";
 import { PresenceHeartbeat } from "@/components/PresenceHeartbeat";
 import { RouteErrorComponent } from "@/components/ui/RouteErrorComponent";
 import { isTokenExpired, refreshTokenUnderLock } from "@/lib/authRefresh";
@@ -41,6 +42,7 @@ export const Route = createFileRoute("/_auth")({
       <ProfileCacheSync />
       <PresenceHeartbeat />
       <ImpersonationBanner />
+      <DemoBanner />
       <Outlet />
     </AuthLayout>
   ),

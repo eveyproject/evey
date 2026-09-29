@@ -16,6 +16,7 @@ import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { artworkUrl } from "./artworkUrl";
 import { PosterPlaceholder } from "./PosterPlaceholder";
 import { ICON } from "@/constants/iconSizes";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 const WATCHED_THRESHOLD_PCT = 95;
 
@@ -89,6 +90,7 @@ export const MediaCard = memo(function MediaCard({
   onRequestAddToCollection,
 }: MediaCardProps) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const [imgLoaded, setImgLoaded] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -449,6 +451,7 @@ export const MediaCard = memo(function MediaCard({
     </Link>
     {item.id && (
       <button
+        {...lock}
         type="button"
         className={`tap-hit absolute z-badge flex items-center justify-center w-6 h-6 rounded-full transition-colors-fast cursor-pointer ${
           watched

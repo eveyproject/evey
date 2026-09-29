@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { EditProfileDialog } from "./EditProfileDialog";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 interface ProfileManagerListProps {
   userId: string;
@@ -28,6 +29,7 @@ interface ProfileManagerListProps {
 
 export function ProfileManagerList({ userId, profiles, canSetDefault = false }: ProfileManagerListProps) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<V1Profile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<V1Profile | null>(null);
@@ -87,6 +89,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
               </div>
               {canSetDefault && !isDefault && (
                 <Button
+                  {...lock}
                   variant="ghost"
                   aria-label={t("auth.profile.manage.setDefault", "Set as default")}
                   loading={setDefault.isPending && setDefault.variables?.id === p.id}
@@ -98,6 +101,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
                 </Button>
               )}
               <Button
+                {...lock}
                 variant="ghost"
                 aria-label={t("common.edit", "Edit")}
                 onClick={() => setEditing(p)}
@@ -115,6 +119,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
                 }
               >
                 <Button
+                  {...lock}
                   variant="danger"
                   aria-label={t("common.delete", "Delete")}
                   disabled={isDefault}
@@ -153,6 +158,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
             {t("common.cancel", "Cancel")}
           </Button>
           <Button
+            {...lock}
             variant="danger"
             loading={deleteProfile.isPending}
             onClick={() => {

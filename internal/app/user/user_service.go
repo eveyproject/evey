@@ -22,9 +22,31 @@ type UserService struct {
 	uow           shared.TransactionalUnit
 	defaultLocale func() string // optional: resolves server.language, defaults to "en"
 	tokenRevoker  TokenRevoker  // optional: bumps token_epoch on security events
+	// minPassword is the floor CreateUser enforces; 0 means the production
+	// default. Lowered at composition on the demo instance only.
+	minPassword int
 }
 
 type UserServiceOption func(*UserService)
+
+// UserWithMinPasswordLength lowers the password floor CreateUser enforces.
+// Composition-level on purpose: the one caller is the demo bootstrap, whose
+// published administrator password is shorter than the production floor. A
+// value below 1 is ignored.
+func UserWithMinPasswordLength(n int) UserServiceOption {
+	return func(s *UserService) {
+		if n >= 1 {
+			s.minPassword = n
+		}
+	}
+}
+
+func (s *UserService) minPasswordLength() int {
+	if s.minPassword >= 1 {
+		return s.minPassword
+	}
+	return defaultMinPasswordLength
+}
 
 // WithDefaultLocale lets wire inject a function that returns the server-wide
 // default locale (typically reading `server.language` from ServerConfig).
@@ -123,7 +145,7 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 		return fmt.Errorf("invalid user: %w", err)
 	}
 	password = normalizePassword(password)
-	if len(password) < 8 {
+	if len(password) < s.minPasswordLength() {
 		return ErrPasswordTooShort
 	}
 	hash, err := s.hasher.Hash(password)

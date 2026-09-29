@@ -11,9 +11,11 @@ import {
 import { toast } from "@evey/store";
 import { Plus } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export function AddToPlaylistButton({ trackID }: { trackID: string }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -81,6 +83,7 @@ export function AddToPlaylistButton({ trackID }: { trackID: string }) {
   return (
     <div className="relative inline-block" ref={ref}>
       <button
+        {...lock}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={t("media.music.addToPlaylist")}

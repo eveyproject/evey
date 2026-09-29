@@ -34,6 +34,9 @@ type healthResponse struct {
 	// Clients names the app builds released with this server, so an app can
 	// tell it is behind: the Play Store auto-update rarely runs on a TV.
 	Clients *healthClients `json:"clients,omitempty"`
+	// Demo says this is the public demo instance: mobile and TV read it from
+	// the same discovery answer and show the banner before login.
+	Demo bool `json:"demo,omitempty"`
 }
 
 type healthClients struct {
@@ -93,6 +96,7 @@ func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Cfg != nil {
 		resp.Name = s.Cfg.EffectiveServerName()
+		resp.Demo = s.Cfg.Server.Demo
 	}
 	if s.TVRelease.VersionCode > 0 {
 		tv := s.TVRelease
