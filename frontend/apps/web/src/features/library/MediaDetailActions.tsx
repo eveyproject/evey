@@ -31,6 +31,7 @@ import { TrailerSection } from "./MediaDetailTrailer";
 import { MetadataEditPanel } from "./MediaDetailEdit";
 import { MediaDetailTracks } from "./MediaDetailTracks";
 import { hasMediaFile } from "./mediaDetailUtils";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 interface MediaDetailActionsProps {
   item: V1MediaItem;
@@ -56,6 +57,7 @@ export function MediaDetailActions({
   streamToken,
 }: MediaDetailActionsProps) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
@@ -251,12 +253,12 @@ export function MediaDetailActions({
             Kept in sync with apps/mobile. */}
         {item.id && !isSeries && !isSeason && (
           watched ? (
-            <Button variant="secondary" size="lg" loading={markUnwatched.isPending} onClick={() => { if (profileId) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-unwatched-btn">
+            <Button {...lock} variant="secondary" size="lg" loading={markUnwatched.isPending} onClick={() => { if (profileId) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-unwatched-btn">
               <EyeOff size={ICON.md} />
               {t("media.detail.markUnwatched")}
             </Button>
           ) : (
-            <Button variant="secondary" size="lg" loading={markWatched.isPending} onClick={() => { if (profileId) markWatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-watched-btn">
+            <Button {...lock} variant="secondary" size="lg" loading={markWatched.isPending} onClick={() => { if (profileId) markWatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-watched-btn">
               <Eye size={ICON.md} />
               {t("media.detail.markWatched")}
             </Button>
@@ -302,7 +304,7 @@ export function MediaDetailActions({
         {item.id && <FavoriteButton mediaId={item.id} size="lg" />}
         {item.id && <RatingButtons mediaId={item.id} />}
         {item.id && (
-          <Button variant="secondary" size="lg" onClick={() => setPlaylistModalOpen(true)}>
+          <Button {...lock} variant="secondary" size="lg" onClick={() => setPlaylistModalOpen(true)}>
             <Plus size={ICON.md} />
             {t("media.detail.addToPlaylist")}
           </Button>
@@ -312,6 +314,7 @@ export function MediaDetailActions({
             Admin-gated like the RPC (AddCollectionItem is RoleAdmin). */}
         {item.id && isAdmin && (
           <Button
+            {...lock}
             variant="secondary"
             size="lg"
             data-testid="add-to-collection-button"

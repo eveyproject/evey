@@ -19,12 +19,14 @@ import { EditUserModal } from "./EditUserModal";
 import { LibraryAccessModal } from "./LibraryAccessModal";
 import { BitrateModal } from "./BitrateModal";
 import { UserProfilesPanel } from "./UserProfilesPanel";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 // profiles are handed down from the page, which reads every profile in one
 // call: fanning out one ListProfiles per row would be N+1 requests for a table
 // that is almost always fully expanded on a family server.
 export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Profile[] }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -116,6 +118,7 @@ export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Pr
           <Button
             variant="secondary"
             onClick={() => setShowEdit(true)}
+            {...lock}
           >
             {t("common.edit") || "Edit"}
           </Button>
@@ -132,6 +135,7 @@ export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Pr
             <Button
               variant="secondary"
               onClick={() => setShowLibraryAccess(true)}
+              {...lock}
             >
               {t("admin.nav.libraries")}
             </Button>
@@ -139,6 +143,7 @@ export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Pr
           <Button
             variant="secondary"
             onClick={() => setShowBitrate(true)}
+            {...lock}
           >
             {t("admin.users.bitrate")}
           </Button>
@@ -148,6 +153,7 @@ export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Pr
             onClick={() =>
               disableUser.mutate({ id: user.id!, params: { disabled: user.enabled !== false } })
             }
+            {...lock}
           >
             {user.enabled !== false ? t("common.disable") : t("common.enable")}
           </Button>
@@ -155,6 +161,7 @@ export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Pr
             variant="danger"
             loading={deleteUser.isPending}
             onClick={() => setShowDeleteConfirm(true)}
+            {...lock}
           >
             {t("common.delete")}
           </Button>

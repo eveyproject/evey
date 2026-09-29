@@ -14,6 +14,7 @@ import type { SmartCollection } from "@/features/collection/SmartCollectionDialo
 import { CollectionDialog } from "@/features/collection/CollectionDialog";
 import type { EditableCollection } from "@/features/collection/CollectionDialog";
 import { collectionSubtitle, type CollectionSubtitleParts } from "@evey/client";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/collections/")({
   component: CollectionsPage,
@@ -32,6 +33,7 @@ function CollectionCardSkeleton() {
 
 function CollectionPosterCard({ col, onEdit }: { col: Collection; onEdit: (col: Collection) => void }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const deleteMut = useDeleteCollection();
   const initial = col.name[0]?.toUpperCase() ?? "?";
@@ -83,6 +85,7 @@ function CollectionPosterCard({ col, onEdit }: { col: Collection; onEdit: (col: 
       {isAdmin && (
         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity-fast">
           <button
+            {...lock}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -95,6 +98,7 @@ function CollectionPosterCard({ col, onEdit }: { col: Collection; onEdit: (col: 
             <Pencil size={16} aria-hidden="true" />
           </button>
           <button
+            {...lock}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -126,6 +130,7 @@ function collectionToSmartCollection(col: Collection): SmartCollection {
 
 function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: () => void; onDelete: () => void }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const rulesLabel = (col.rules ?? [])
     .map((r) => {
@@ -156,6 +161,7 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
         {isAdmin && (
           <div className="flex gap-1 flex-shrink-0">
             <button
+              {...lock}
               onClick={onEdit}
               aria-label={t("common.edit")}
               data-testid={`smart-edit-${col.id}`}
@@ -164,6 +170,7 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
               <Pencil size={16} strokeWidth={1.5}  aria-hidden="true" />
             </button>
             <button
+              {...lock}
               onClick={onDelete}
               aria-label={t("common.delete")}
               data-testid={`smart-delete-${col.id}`}
@@ -187,6 +194,7 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
 
 function CollectionsPage() {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   // Every write on a collection is RoleAdmin server-side (rbac.go): offering
   // these to a viewer only bought them a 403 once they had committed to the
   // gesture.
@@ -221,11 +229,11 @@ function CollectionsPage() {
         </h1>
         {isAdmin && (
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={openCreateCollection} data-testid="new-collection">
+            <Button {...lock} variant="secondary" onClick={openCreateCollection} data-testid="new-collection">
               <Plus size={16} />
               {t("media.collections.newCollection")}
             </Button>
-            <Button variant="secondary" onClick={openCreate} data-testid="new-smart-collection">
+            <Button {...lock} variant="secondary" onClick={openCreate} data-testid="new-smart-collection">
               <Plus size={16} />
               {t("media.collections.newSmartCollection")}
             </Button>

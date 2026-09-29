@@ -7,9 +7,15 @@ import { VideoSessionsCard } from "@/features/admin/transcoding/VideoSessionsCar
 import { LoadTestCard } from "@/features/admin/transcoding/LoadTestCard";
 import { ConcurrencyCard } from "@/features/admin/transcoding/ConcurrencyCard";
 import { AdvancedTranscodingCard } from "@/features/admin/transcoding/AdvancedTranscodingCard";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 export const Route = createLazyFileRoute("/_auth/admin/transcoding")({
-  component: TranscodingConfigPage,
+  // Every control here is an operator write the demo refuses (DemoReadOnly).
+  component: () => (
+    <DemoReadOnly>
+      <TranscodingConfigPage />
+    </DemoReadOnly>
+  ),
 });
 
 // TranscodingConfigPage groups every transcoding-related admin control -

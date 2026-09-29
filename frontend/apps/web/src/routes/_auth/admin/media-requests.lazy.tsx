@@ -26,6 +26,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { RequestPoster } from "@/features/requests/RequestPoster";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/media-requests")({
   component: AdminMediaRequestsPage,
@@ -48,6 +49,7 @@ function capitalize(s?: string) {
 
 function RequestRow({ request }: { request: V1MediaRequestProto }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
 
@@ -99,13 +101,13 @@ function RequestRow({ request }: { request: V1MediaRequestProto }) {
               rows={2}
             />
             <div className="flex gap-2">
-              <Button variant="primary" loading={answer.isPending} onClick={() => handleAnswer("approved")}>
+              <Button variant="primary" loading={answer.isPending} onClick={() => handleAnswer("approved")} {...lock}>
                 {t("admin.mediaRequests.approve")}
               </Button>
-              <Button variant="danger" loading={answer.isPending} onClick={() => handleAnswer("rejected")}>
+              <Button variant="danger" loading={answer.isPending} onClick={() => handleAnswer("rejected")} {...lock}>
                 {t("admin.mediaRequests.reject")}
               </Button>
-              <Button variant="secondary" loading={answer.isPending} onClick={() => handleAnswer("later")}>
+              <Button variant="secondary" loading={answer.isPending} onClick={() => handleAnswer("later")} {...lock}>
                 {t("admin.mediaRequests.later")}
               </Button>
             </div>
@@ -172,6 +174,7 @@ function QueueTab() {
 
 function AccessTab() {
   const { t } = useTranslation();
+  const { demo, lock } = useDemoLock();
   const queryClient = useQueryClient();
   const { data: settings, isLoading } = useAdminMediaRequestServiceGetAccessSettings();
   const { data: usersData } = useUserServiceListUsers();
@@ -228,7 +231,7 @@ function AccessTab() {
           checked={settings?.defaultEnabled ?? false}
           onChange={() => setDefault.mutate({ data: { enabled: !(settings?.defaultEnabled ?? false) } })}
           label={t("admin.mediaRequests.accessDefaultLabel")}
-          disabled={setDefault.isPending}
+          disabled={setDefault.isPending || demo}
         />
       </Card>
 
@@ -275,6 +278,7 @@ function AccessTab() {
               type="button"
               disabled={!addUserId || setUserAccess.isPending}
               onClick={() => setUserAccess.mutate({ userId: addUserId, data: { mode: addMode as V1AccessMode } })}
+              {...lock}
             >
               {t("admin.mediaRequests.addOverride")}
             </Button>

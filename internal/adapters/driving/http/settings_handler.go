@@ -127,6 +127,11 @@ type settingValue struct {
 	// ignoring - the operator's next move is to wonder why the setting "did
 	// nothing". Omitted from the JSON when false to keep the payload quiet.
 	RequiresRestart bool `json:"requiresRestart,omitempty"`
+	// Locked tells the panel the server will refuse a write of this key - the
+	// demo instance locks every one of them. The panel greys what the server
+	// says is locked and nothing else, so no client carries its own copy of
+	// the demo policy.
+	Locked bool `json:"locked,omitempty"`
 }
 
 type settingDef struct {
@@ -362,6 +367,7 @@ func registerServerSettingsRoutes(
 					Default:         s.defaultVal,
 					Source:          source(s.cfgKey),
 					RequiresRestart: s.requiresRestart,
+					Locked:          cfg.Server.Demo,
 				}
 			}
 		})

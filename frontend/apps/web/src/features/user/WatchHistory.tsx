@@ -19,6 +19,7 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { MS_PER_DAY } from "@/lib/time";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 type WatchProgress = {
   id?: string;
@@ -154,6 +155,7 @@ const HEADER_HEIGHT = 36;
 
 export function WatchHistory({ limit, showClearButton = false }: Props) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const parentRef = useRef<HTMLDivElement>(null);
 
   const [showClearModal, setShowClearModal] = useState(false);
@@ -233,7 +235,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
     <div className="flex flex-col gap-4" data-testid="history-list">
       {showClearButton && items.length > 0 && (
         <div className="flex justify-end">
-          <Button variant="danger" onClick={() => setShowClearModal(true)} data-testid="clear-history-btn">
+          <Button {...lock} variant="danger" onClick={() => setShowClearModal(true)} data-testid="clear-history-btn">
             {t("auth.watchHistory.clearHistory")}
           </Button>
         </div>
@@ -274,7 +276,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
           <Button variant="ghost" onClick={() => setShowClearModal(false)}>
             {t("common.cancel")}
           </Button>
-          <Button variant="danger" onClick={handleClearAll}>
+          <Button {...lock} variant="danger" onClick={handleClearAll}>
             {t("auth.watchHistory.clearAll")}
           </Button>
         </div>

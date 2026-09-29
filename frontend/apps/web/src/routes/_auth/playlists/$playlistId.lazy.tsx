@@ -10,6 +10,7 @@ import { toast, useAuthStore } from "@evey/store";
 import { startTokenDownload } from "@/utils/downloadToken";
 import { usePlaylistDetail, useRemoveFromPlaylist, type PlaylistItem } from "@/features/playlist/api";
 import { SmartPlaylistRulesEditor } from "@/features/playlist/SmartPlaylistRulesEditor";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/playlists/$playlistId")({
   component: PlaylistDetail,
@@ -17,6 +18,7 @@ export const Route = createLazyFileRoute("/_auth/playlists/$playlistId")({
 
 function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistItem; playlistId: string; playlistType: string }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const remove = useRemoveFromPlaylist();
 
   return (
@@ -41,6 +43,7 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
       )}
       {playlistType === "manual" && (
         <button
+          {...lock}
           onClick={() => {
             remove.mutate(
               { playlistId, mediaItemId: item.media_item_id },

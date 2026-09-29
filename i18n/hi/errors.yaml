@@ -133,3 +133,6 @@ plugin:
   not_enabled: "प्लगइन सक्षम नहीं है"
   already_running: "प्लगइन पहले से चल रहा है"
   not_running: "प्लगइन नहीं चल रहा है"
+
+demo:
+  locked: "डेमो सर्वर पर उपलब्ध नहीं है"

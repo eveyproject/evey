@@ -387,7 +387,14 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		return nil, nil, fmt.Errorf("proxy trust: %w", err)
 	}
 
-	return httpapi.RequestIDMiddleware(httpapi.TokenRedactMiddlewareWithStore(srv.StreamTokenStore, cfg.Server.ForwardedProto, eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddleware(cfg.Server.ForwardedProto, httpapi.CORSMiddleware(cfg.EffectiveBaseURL(), httpapi.CSRFMiddleware(cfg.Server.ForwardedProto, proxyTrust.Middleware(httpapi.BodyReadTimeoutMiddleware(netMw(mux))))))))), srv.PlaybackDecider(), nil
+	// Innermost, right around the mux: the demo lock judges the pattern the mux
+	// resolves, after every network/CSRF/auth-agnostic layer has had its say.
+	var root http.Handler = mux
+	if cfg.Server.Demo {
+		root = httpapi.DemoLockMiddleware(mux, deps.translator, mux)
+	}
+
+	return httpapi.RequestIDMiddleware(httpapi.TokenRedactMiddlewareWithStore(srv.StreamTokenStore, cfg.Server.ForwardedProto, eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddleware(cfg.Server.ForwardedProto, httpapi.CORSMiddleware(cfg.EffectiveBaseURL(), httpapi.CSRFMiddleware(cfg.Server.ForwardedProto, proxyTrust.Middleware(httpapi.BodyReadTimeoutMiddleware(netMw(root))))))))), srv.PlaybackDecider(), nil
 }
 
 func resolveVAPIDPublicKey(cfgRepo shared.ServerConfigRepository, cfg *config.Config) string {

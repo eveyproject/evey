@@ -21,9 +21,15 @@ import {
   useTriggerAutoDetect,
 } from "@/hooks/useAdminSegments";
 import type { MediaSegment } from "@/hooks/useAdminSegments";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 export const Route = createLazyFileRoute("/_auth/admin/media/$mediaId")({
-  component: AdminMediaSegmentsPage,
+  // Every control here is an operator write the demo refuses (DemoReadOnly).
+  component: () => (
+    <DemoReadOnly>
+      <AdminMediaSegmentsPage />
+    </DemoReadOnly>
+  ),
 });
 
 const SEGMENT_TYPES = ["intro", "recap", "end_credits", "studio_logo"] as const;

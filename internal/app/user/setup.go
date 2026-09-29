@@ -62,7 +62,7 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	if username == "" {
 		return nil, ErrUsernameRequired
 	}
-	if len(password) < minPasswordLength {
+	if len(password) < s.minPasswordLength {
 		return nil, ErrPasswordTooShort
 	}
 	admins, err := s.users.CountAdmins(ctx)

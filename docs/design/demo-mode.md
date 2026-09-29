@@ -1,7 +1,11 @@
 # Demo mode - design proposal
 
 Date: 2026-09-08
-Status: **Proposal. Nothing here is implemented.**
+Status: **Implemented 2026-09-28** - the decision that shipped is
+[ADR-0031](../adr/0031-demo-mode-is-a-boot-flag-on-the-production-binary.md);
+this page is the design history. Two details settled on the way: the demo
+tracks the last release, and the eight-character password floor is lowered to
+four at composition on the demo so `demo` / `demo` can be seeded.
 
 > This is a design document, not an architecture decision record. It describes a
 > mode the server does not have yet, so it records an intention rather than a
@@ -186,15 +190,25 @@ plugin route, never on the admin one.
 - The machine: server restart and shutdown, log download, cache path changes.
 
 **Open**, because it is the product: browsing, playback with real transcoding,
-search, profiles, parental control, playlists, collections, favourites,
-subtitles, theme and language, SyncPlay, the admin panel in read mode, and the
-weather plugin's configuration.
+search, the profile picker, parental control (PIN check), subtitles, theme and
+language (kept in the browser), SyncPlay, and the admin panel in read mode -
+the weather plugin's configuration included, read.
 
-**Pre-installed rather than installable:** the `weather` example plugin ships in
-the seeded data directory. It is the cheapest honest demonstration of the plugin
-system - it renders a real home-page section, it fetches from a real third party
-through the egress broker, and its two configuration fields are safe to expose
-because the manifest pins the hosts it may reach.
+**Shown, not changed** (28-09 arbitration): collections, playlists, favourites,
+ratings, watched marks, media requests and metadata edits are shared content
+on a shared account - a visitor who deletes a collection deletes it for
+everyone until the restore. Their writes are locked and the web greys the
+controls; only watch progress is written, because playback needs it.
+
+**Pre-installed rather than installable:** the bootstrap installs the `weather`
+example plugin from the bundle the operator drops under `EVEY_DEMO_PLUGIN_DIR`
+(`weather.zip`, built from `examples/plugins/weather` with runtime deps only -
+a stale dev bundle carrying esbuild is refused by the installer's scan), sets
+it on Paris and re-applies that config at every boot. It is the cheapest honest
+demonstration of the plugin system - it renders a real home-page section and
+fetches from a real third party through the egress broker. Visual only: the
+seeded plugin is shared by every visitor, so its config is read-only like every
+other plugin write, and the panel greys the fields.
 
 ## Reset cadence
 

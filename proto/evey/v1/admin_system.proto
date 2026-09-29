@@ -310,6 +310,10 @@ message SetupStatusResponse {
   // "Evey"): the pre-auth screens (login, tab title) brand the instance with
   // it. Public projection of the same value /healthz advertises.
   string server_name = 5;
+  // demo_mode says this is the public demo instance (EVEY_DEMO=1): the
+  // clients show a banner and grey out what the server reports locked. The
+  // server refuses the locked operations whether or not a client honours it.
+  bool demo_mode = 6;
 }
 
 message GetServerConfigRequest {}

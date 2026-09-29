@@ -18,6 +18,7 @@ import { PlayActivityChart, PeakHours } from "./DashboardCharts";
 import { OnlineNow } from "./DashboardOnline";
 import { BackgroundTasksPanel } from "./BackgroundTasksPanel";
 import { DashboardUpdateBanner } from "./DashboardUpdateBanner";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 interface DashboardStatsProps {
   info: V1DashboardInfo;
@@ -61,12 +62,16 @@ export function DashboardStats({ info }: DashboardStatsProps) {
         })}
       </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-        <div className="lg:col-span-2">
-          <NowPlaying />
+      {/* Their only controls stop or drive another visitor's session, which
+          the demo refuses; the cards themselves are the dashboard's reads. */}
+      <DemoReadOnly silent>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+          <div className="lg:col-span-2">
+            <NowPlaying />
+          </div>
+          <OnlineNow />
         </div>
-        <OnlineNow />
-      </div>
+      </DemoReadOnly>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
@@ -93,7 +98,10 @@ export function DashboardStats({ info }: DashboardStatsProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <div className="lg:col-span-2">
-          <BackgroundTasksPanel />
+          {/* Stop/resume drive host work: locked on the demo, the table is a read. */}
+          <DemoReadOnly silent>
+            <BackgroundTasksPanel />
+          </DemoReadOnly>
         </div>
         <QuickActions />
       </div>

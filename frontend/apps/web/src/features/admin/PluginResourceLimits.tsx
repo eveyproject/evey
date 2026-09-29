@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 const SANDBOX_MODES = ["auto", "landlock", "bubblewrap", "strict", "basic"];
 
@@ -22,6 +23,7 @@ const SANDBOX_MODES = ["auto", "landlock", "bubblewrap", "strict", "basic"];
  */
 export function PluginResourceLimits() {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const queryClient = useQueryClient();
   const { data, isLoading } = useAdminPluginServiceGetPluginResourceLimits();
 
@@ -117,7 +119,7 @@ export function PluginResourceLimits() {
               />
             </div>
             <div className="flex justify-end">
-              <Button onClick={handleSave} loading={update.isPending} data-testid="rl-save">
+              <Button onClick={handleSave} loading={update.isPending} data-testid="rl-save" {...lock}>
                 {t("admin.plugins.resourceLimits.save")}
               </Button>
             </div>

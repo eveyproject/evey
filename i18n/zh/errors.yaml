@@ -133,3 +133,6 @@ plugin:
   not_enabled: "插件未启用"
   already_running: "插件已在运行"
   not_running: "插件未运行"
+
+demo:
+  locked: "演示服务器上不可用"

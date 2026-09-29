@@ -21,8 +21,9 @@ const (
 	loginMaxAttempts   = 5
 	loginAttemptWindow = 15 * time.Minute
 
-	// minPasswordLength is enforced by both Setup and ResetPassword.
-	minPasswordLength = 8
+	// defaultMinPasswordLength is enforced by both Setup and ResetPassword,
+	// unless WithMinPasswordLength lowers it at composition (the demo).
+	defaultMinPasswordLength = 8
 )
 
 // CommandService handles auth, setup and token management.
@@ -47,6 +48,8 @@ type CommandService struct {
 	setupDone       bool
 	uow             shared.TransactionalUnit
 	tokenRevoker    TokenRevoker // optional: bumps token_epoch on security events
+	// minPasswordLength is the floor Setup and ResetPassword enforce.
+	minPasswordLength int
 }
 
 func NewCommandService(
@@ -76,6 +79,8 @@ func NewCommandService(
 		loginAttempts:   newLoginAttemptLimiter(loginMaxAttempts, loginAttemptWindow),
 		loginMaxFails:   loginMaxAttempts,
 		loginWindow:     loginAttemptWindow,
+
+		minPasswordLength: defaultMinPasswordLength,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -84,6 +89,19 @@ func NewCommandService(
 }
 
 type CommandServiceOption func(*CommandService)
+
+// WithMinPasswordLength lowers the password floor Setup and ResetPassword
+// enforce. Composition-level on purpose: the one caller is the demo instance,
+// whose published credentials are shorter than the production floor, and the
+// floor is a parameter of the service rather than a mode the service knows
+// about. A value below 1 is ignored.
+func WithMinPasswordLength(n int) CommandServiceOption {
+	return func(s *CommandService) {
+		if n >= 1 {
+			s.minPasswordLength = n
+		}
+	}
+}
 
 func WithPasswordReset(resetTokens user.PasswordResetTokenRepository, serverCfg shared.ServerConfigRepository, smtpConfigured bool) CommandServiceOption {
 	return func(s *CommandService) {

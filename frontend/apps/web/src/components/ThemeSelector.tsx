@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useUserServiceUpdateProfile } from "@evey/api";
 import { pluginThemeName } from "./theme-utils";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
+import { useDemoMode } from "@/hooks/useDemoMode";
 import { usePluginThemes } from "@evey/client";
 
 const builtInLabels: Record<ThemeName, string> = {
@@ -28,6 +29,10 @@ export function ThemeSelector() {
   // here and the phone and the television follow, and the other way round.
   const { profile: activeProfile } = useActiveProfile();
   const updateProfile = useUserServiceUpdateProfile();
+  // On the demo the profile is shared by every visitor: the theme stays in
+  // this browser (the persisted store) and is neither read from nor written
+  // to the profile - the server would refuse the write anyway.
+  const demo = useDemoMode();
 
   useEffect(() => {
     applyFromPreferences(activeProfile?.preferences);
@@ -42,13 +47,13 @@ export function ThemeSelector() {
       // every caller and test sees.
       if (pluginId) setTheme(name, pluginId);
       else setTheme(name);
-      if (!activeProfile?.id) return;
+      if (!activeProfile?.id || demo) return;
       updateProfile.mutate({
         id: activeProfile.id,
         data: { preferences: themePreferences(activeProfile.preferences, name, pluginId) },
       });
     },
-    [setTheme, updateProfile, activeProfile],
+    [setTheme, updateProfile, activeProfile, demo],
   );
 
   return (

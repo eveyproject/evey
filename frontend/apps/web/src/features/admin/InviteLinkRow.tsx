@@ -7,9 +7,11 @@ import type { V1InviteLink } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { INVITES_QUERY_KEY } from "./users-constants";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export function InviteLinkRow({ link }: { link: V1InviteLink }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const queryClient = useQueryClient();
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
 
@@ -56,6 +58,7 @@ export function InviteLinkRow({ link }: { link: V1InviteLink }) {
             {t("admin.users.copyLink")}
           </Button>
           <Button
+            {...lock}
             variant="danger"
             loading={revoke.isPending}
             onClick={() => setShowRevokeConfirm(true)}
@@ -70,6 +73,7 @@ export function InviteLinkRow({ link }: { link: V1InviteLink }) {
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setShowRevokeConfirm(false)}>{t("common.cancel")}</Button>
             <Button
+              {...lock}
               variant="danger"
               loading={revoke.isPending}
               onClick={() => {

@@ -3,6 +3,9 @@ import { render, fireEvent, screen } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------
+// The demo strip fetches the public setup status through react-query; this
+// layout test renders without a QueryClient and is not about the demo.
+vi.mock("../../src/components/DemoBanner", () => ({ DemoBanner: () => null }));
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>

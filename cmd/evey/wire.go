@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appcollection "github.com/evey-project/evey/internal/app/collection"
 	appconfig "github.com/evey-project/evey/internal/app/config"
+	appdemo "github.com/evey-project/evey/internal/app/demo"
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
@@ -41,9 +43,11 @@ import (
 	"github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/domain/webhook"
 	"github.com/evey-project/evey/internal/pkg/bgtasks"
 	"github.com/evey-project/evey/internal/pkg/coalesce"
 	"github.com/evey-project/evey/internal/pkg/cpubudget"
+	"github.com/evey-project/evey/internal/pkg/demo"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
@@ -158,7 +162,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// SMTP status is known here (before userAuthSvc is built) so password
 	// reset is wired through constructor options, not post-hoc. The actual
 	// email Register() calls happen further down after the services exist.
-	smtpConfigured := cfg.SMTP.Host != ""
+	// On the demo the mail port is a sink whatever the environment says: no
+	// emailer is registered and password recovery reports itself off, so a
+	// visitor cannot make the host send mail. Replacing the adapter (rather
+	// than refusing at a handler) also covers the event subscribers.
+	smtpConfigured := cfg.SMTP.Host != "" && !cfg.Server.Demo
 	// guardedTokens enforces users.token_epoch on every access-token mint and
 	// validation: bumping the epoch (disable, role change, password change,
 	// admin session kill) revokes outstanding tokens within ~30s instead of
@@ -179,6 +187,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appuser.WithLoginAttemptRepository(r.LoginAttempt),
 		appuser.CommandWithTokenRevoker(securityRevoker),
 	}
+	if cfg.Server.Demo {
+		// The published demo password is shorter than the production floor;
+		// the floor is a parameter of the service, chosen here, not a mode it
+		// knows about.
+		userAuthOpts = append(userAuthOpts, appuser.WithMinPasswordLength(demo.MinPasswordLength))
+	}
 	userAuthSvc := appuser.NewCommandService(
 		r.User, r.Profile, r.RefreshToken,
 		r.Role, r.UserRole,
@@ -196,7 +210,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		}
 		return cfg.Metadata.Language
 	}
-	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db), appuser.WithDefaultLocale(serverLocaleFn), appuser.WithTokenRevoker(securityRevoker))
+	userSvcOpts := []appuser.UserServiceOption{appuser.WithDefaultLocale(serverLocaleFn), appuser.WithTokenRevoker(securityRevoker)}
+	if cfg.Server.Demo {
+		// Same floor as the setup path: the bootstrap creates the published
+		// `demo` administrator through CreateUser when an administrator exists.
+		userSvcOpts = append(userSvcOpts, appuser.UserWithMinPasswordLength(demo.MinPasswordLength))
+	}
+	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db), userSvcOpts...)
 	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess), appuser.WithAccessDefaultLocale(serverLocaleFn), appuser.WithAccessUnitOfWork(postgres.NewTxUnit(db)))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
 
@@ -326,7 +346,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	pluginInstallerSvc, pluginRuntimeSvc, pluginQuerySvc, pluginTokenSvc, pluginSecurityDashboardSvc, pluginIdleMgr, pluginHostSrv, memProfile := buildPluginSubsystem(ctx, infra, rootLog)
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
-	webhookSender := webhooksender.New()
+	var webhookSender webhook.Sender = webhooksender.New()
+	if cfg.Server.Demo {
+		// The stored webhooks keep firing on events, into a sink: the delivery
+		// log still shows the product, the host makes no outbound call.
+		webhookSender = webhooksender.Discard{}
+	}
 	webhookSvc := appwebhook.NewService(r.Webhook, r.WebhookDelivery, webhookSender, webhookLog, bus)
 	// The delivery log is append-only and purely diagnostic; without a sweep it
 	// grew for the lifetime of the deployment. Rides the same daily retention
@@ -1144,5 +1169,53 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		return nil, err
 	}
 	buildEventWiring(ctx, cfg, infra, deps, rootLog)
+	// The demo sets itself up when the flag is on and cleans up after itself
+	// when the flag is gone (a marker in the server config says it ran here).
+	startDemoLifecycle(ctx, cfg, infra, deps, rootLog)
 	return deps, nil
+}
+
+// startDemoBootstrap makes the demo instance self-sufficient: the `demo`
+// administrator, the visitor accounts, the four libraries and the freely
+// licensed media, from the product's own services. Detached from the boot
+// path (the media alone is gigabytes on a slow mirror), bounded by the server
+// context, recovered like every fire-and-forget goroutine.
+func startDemoLifecycle(ctx context.Context, cfg *config.Config, infra *infraDeps, deps *appDeps, rootLog *slog.Logger) {
+	r := infra.repos
+	boot := appdemo.NewBootstrapper(r.User, r.Profile, deps.user.authSvc, deps.user.userSvc,
+		r.Library, deps.library.cmdSvc, infra.hasher, cfg.Server.DemoMediaDir, eveylogger.NewWith(rootLog, "demo")).
+		WithLibraryAccess(r.LibraryAccess).
+		WithMarker(r.ServerCfg).
+		WithPlugins(r.Plugin, deps.engagement.pluginInstallerSvc, deps.engagement.pluginRuntimeSvc, cfg.Server.DemoPluginDir).
+		WithHomeLayout(deps.engagement.feedCmdSvc).
+		WithHistory(r.MediaItemQuery, r.WatchProgress, deps.media.playbackSvc.CommandService())
+	if !cfg.Server.Demo {
+		// Cheap check on the boot path, the teardown itself detached.
+		probe, cancel := context.WithTimeout(ctx, 10*time.Second)
+		was := boot.WasBootstrapped(probe)
+		cancel()
+		if !was {
+			return
+		}
+	}
+	go func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				slog.Error("panic recovered in demo lifecycle", slog.Any("panic", rec), slog.Any("stack", debug.Stack()))
+			}
+		}()
+		if cfg.Server.Demo {
+			if err := boot.Run(ctx); err != nil && ctx.Err() == nil {
+				slog.Error("demo bootstrap", slog.Any("err", err))
+			}
+			return
+		}
+		// Bounded like the other background writes: the deletes are a few
+		// rows and a few gigabytes of files, not a download.
+		tctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		defer cancel()
+		if err := boot.Teardown(tctx); err != nil {
+			slog.Error("demo teardown", slog.Any("err", err))
+		}
+	}()
 }

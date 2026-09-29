@@ -22,6 +22,7 @@ import { Select } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { LibraryForm } from "@/features/admin/LibraryForm";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/libraries")({
   component: LibrariesPage,
@@ -94,6 +95,7 @@ function useSchedule(libraryId: string) {
 
 function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () => void }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const queryClient = useQueryClient();
   const { data: schedule, isLoading } = useSchedule(library.id!);
   const [preset, setPreset] = useState("");
@@ -201,6 +203,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
               variant="danger"
               loading={deleteMutation.isPending}
               onClick={() => deleteMutation.mutate()}
+              {...lock}
             >
               {t("common.remove")}
             </Button>
@@ -212,6 +215,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
             loading={saveMutation.isPending}
             disabled={!cronValue}
             onClick={() => saveMutation.mutate()}
+            {...lock}
           >
             {t("common.save")}
           </Button>
@@ -223,6 +227,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
 
 function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat[] }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const queryClient = useQueryClient();
   const [scanDone, setScanDone] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -333,11 +338,12 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
                 setScanDone(false);
                 scanLib.mutate({ id: library.id! });
               }}
+              {...lock}
             >
               {scanDone ? t("admin.libraries.scanAgain") : t("admin.libraries.scan")}
             </Button>
           )}
-          <Button variant="secondary" onClick={() => setShowEdit(true)}>
+          <Button variant="secondary" onClick={() => setShowEdit(true)} {...lock}>
             {t("common.edit")}
           </Button>
           {supportsProviderMatching(library.type) && (
@@ -348,6 +354,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
                 onClick={() => matchOrphans.mutate()}
                 title={t("admin.libraries.matchOrphansTooltip")}
                 data-testid="match-orphans-btn"
+                {...lock}
               >
                 {t("admin.libraries.matchOrphans")}
               </Button>
@@ -357,18 +364,20 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
                 onClick={() => refreshMetadata.mutate()}
                 title={t("admin.libraries.refreshMetadataTooltip")}
                 data-testid="refresh-library-metadata-btn"
+                {...lock}
               >
                 {t("admin.libraries.refreshMetadata")}
               </Button>
             </>
           )}
-          <Button variant="secondary" onClick={() => setShowSchedule(true)}>
+          <Button variant="secondary" onClick={() => setShowSchedule(true)} {...lock}>
             {t("admin.libraries.schedule")}
           </Button>
           <Button
             variant="danger"
             loading={deleteLib.isPending}
             onClick={() => setShowDeleteConfirm(true)}
+            {...lock}
           >
             {t("common.delete")}
           </Button>
@@ -411,6 +420,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
 
 function LibrariesPage() {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const [showModal, setShowModal] = useState(false);
   const queryClient = useQueryClient();
   const { data, isLoading } = useLibraryServiceListLibraries();
@@ -443,10 +453,11 @@ function LibrariesPage() {
               onClick={() => relinkCollections.mutate()}
               title={t("admin.libraries.relinkCollectionsTooltip")}
               data-testid="relink-collections-btn"
+              {...lock}
             >
               {t("admin.libraries.relinkCollections")}
             </Button>
-            <Button onClick={() => setShowModal(true)} data-testid="add-library-btn">{t("admin.libraries.addLibrary")}</Button>
+            <Button onClick={() => setShowModal(true)} data-testid="add-library-btn" {...lock}>{t("admin.libraries.addLibrary")}</Button>
           </div>
         }
       />

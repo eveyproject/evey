@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { usePlaylistList, useDeletePlaylist, type Playlist } from "@/features/playlist/api";
 import { CreatePlaylistModal } from "@/features/playlist/CreatePlaylistModal";
 import { toast } from "@evey/store";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/playlists/")({
   component: PlaylistsIndex,
@@ -31,6 +32,7 @@ function PlaylistCardSkeleton() {
 
 function PlaylistCard({ playlist, onDelete }: { playlist: Playlist; onDelete: () => void }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   return (
     <div
       className="group p-5 transition-all duration-200 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-lg)]"
@@ -64,6 +66,7 @@ function PlaylistCard({ playlist, onDelete }: { playlist: Playlist; onDelete: ()
           </p>
         </div>
         <button
+          {...lock}
           onClick={(e) => { e.preventDefault(); onDelete(); }}
           className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-all text-[var(--text-muted)]"
           title={t("media.playlist.deletePlaylist")}
@@ -78,6 +81,7 @@ function PlaylistCard({ playlist, onDelete }: { playlist: Playlist; onDelete: ()
 
 function PlaylistsIndex() {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const { data: playlists, isLoading, isError, error, refetch } = usePlaylistList();
   const deletePlaylist = useDeletePlaylist();
   const [createOpen, setCreateOpen] = useState(false);
@@ -94,7 +98,7 @@ function PlaylistsIndex() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-[var(--text)]">{t("media.playlist.playlists")}</h1>
-        <Button onClick={() => setCreateOpen(true)} data-testid="playlist-create-btn">{t("media.playlist.newPlaylist")}</Button>
+        <Button {...lock} onClick={() => setCreateOpen(true)} data-testid="playlist-create-btn">{t("media.playlist.newPlaylist")}</Button>
       </div>
 
       {isLoading ? (

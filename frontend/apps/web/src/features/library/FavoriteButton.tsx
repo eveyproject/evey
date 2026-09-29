@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
 import { ACTION_ICON_BOX } from "@/components/ui/Button";
 import { ICON } from "@/constants/iconSizes";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 interface FavoriteButtonProps {
   mediaId: string;
@@ -12,6 +13,7 @@ interface FavoriteButtonProps {
 
 export function FavoriteButton({ mediaId, size = "md", className = "" }: FavoriteButtonProps) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const { data: isFav } = useIsFavorite(mediaId);
   const toggle = useToggleFavorite(mediaId);
 
@@ -23,6 +25,7 @@ export function FavoriteButton({ mediaId, size = "md", className = "" }: Favorit
 
   return (
     <button
+      {...lock}
       type="button"
       onClick={(e) => {
         e.preventDefault();

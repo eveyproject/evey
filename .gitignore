@@ -121,6 +121,10 @@ scripts/*
 !scripts/tv-release-ldflags.sh
 !scripts/dash-harness/
 !scripts/dash-harness/*
+!scripts/directplay-harness/
+!scripts/directplay-harness/*
+# The demo host's hourly restore (ADR-0031).
+!scripts/demo-restore.sh
 # The shadow-exit corpus of ADR-0030 (temporary, goes with the shadow).
 # ...mais jamais le compte de dev.
 scripts/tv/.env

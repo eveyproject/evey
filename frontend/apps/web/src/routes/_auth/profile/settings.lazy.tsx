@@ -20,6 +20,7 @@ import { LanguageSettings } from "@/features/user/LanguageSettings";
 import { RegionSettings } from "@/features/user/RegionSettings";
 import { AutoplayNextSettings } from "@/features/user/AutoplayNextSettings";
 import { PlaybackSettings } from "@/features/user/PlaybackSettings";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 import { NotificationSettings } from "@/features/user/NotificationSettings";
 import { DeviceSettings } from "@/features/user/DeviceSettings";
 import { QuickConnectSettings } from "@/features/user/QuickConnectSettings";
@@ -334,14 +335,19 @@ function SettingsPage() {
             <>
               <AutoplayNextSettings />
               <div className="border-t border-[var(--border)] mt-6 pt-6">
-                <PlaybackSettings />
+                {/* Read by the SERVER off the shared profile: nowhere private to keep them on the demo. */}
+                <DemoReadOnly>
+                  <PlaybackSettings />
+                </DemoReadOnly>
               </div>
             </>
           )}
-          {tab === "profiles" && <ProfilesSection />}
-          {tab === "notifications" && <NotificationSettings />}
-          {tab === "parental" && <ParentalSection />}
-          {tab === "devices" && <DeviceSettings />}
+          {/* The account and its profiles are shared by every demo visitor:
+              these tabs show, and write nothing. */}
+          {tab === "profiles" && <DemoReadOnly><ProfilesSection /></DemoReadOnly>}
+          {tab === "notifications" && <DemoReadOnly><NotificationSettings /></DemoReadOnly>}
+          {tab === "parental" && <DemoReadOnly><ParentalSection /></DemoReadOnly>}
+          {tab === "devices" && <DemoReadOnly><DeviceSettings /></DemoReadOnly>}
           {tab === "quick-connect" && <QuickConnectSettings />}
           {/* One plugin at a time, picked in the menu: a plugin's settings UI
               is a full iframe, and stacking every installed one in a single

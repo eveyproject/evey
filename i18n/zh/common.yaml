@@ -256,3 +256,9 @@ clientChoice:
   body: 本页面为电视和遥控器设计。在电脑上，网页版更为舒适。
   openWeb: 打开网页版
   stay: 留在这里
+
+demo:
+  banner: "演示服务器：更改会定期重置，管理功能为只读。"
+  credentials: "使用 demo / demo 登录"
+  locked: "演示中已锁定"
+  readOnly: "演示中为只读：设置仅供查看，不可编辑。"

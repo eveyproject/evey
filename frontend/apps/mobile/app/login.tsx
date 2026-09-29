@@ -13,7 +13,7 @@ import {
   isRemoteAccessDisabled,
   remoteAccessDisabledMessage,
 } from "@evey/api";
-import { useAuthStore, useServerListStore, isDefaultServerName, toast } from "@evey/store";
+import { useAuthStore, useServerListStore, useDemoStore, isDefaultServerName, toast } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
 import { setRefreshToken } from "../src/lib/refresh-token";
@@ -102,6 +102,12 @@ export default function Login() {
   useEffect(() => {
     if (activeServerId && setupStatus.data) setServerName(activeServerId, advertisedName);
   }, [activeServerId, advertisedName, setupStatus.data, setServerName]);
+  // Known BEFORE the login lands: the locale claim of the shared demo
+  // profile arrives with the token and must not override this device's pick.
+  const demoMode = setupStatus.data?.demoMode === true;
+  useEffect(() => {
+    if (setupStatus.data) useDemoStore.getState().setDemoMode(demoMode);
+  }, [demoMode, setupStatus.data]);
 
   // Handle OIDC deep link callback (evey://oidc-callback)
   useEffect(() => {
@@ -255,6 +261,16 @@ export default function Login() {
           </Text>
           <Text style={{ color: theme.colors.accent, fontSize: 12 }}>{t("common.change", "Change")}</Text>
         </Pressable>
+      )}
+      {/* The demo publishes its credentials: the login screen is where the
+          visitor needs them. */}
+      {setupStatus.data?.demoMode && (
+        <Text
+          style={{ color: theme.colors.text, fontSize: 13, marginBottom: theme.spacing.md, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radii.md, backgroundColor: theme.colors.warning + "33" }}
+          testID="login-demo-credentials"
+        >
+          {t("common.demo.credentials")}
+        </Text>
       )}
       <TextInput
         placeholder={t("auth.login.username")}

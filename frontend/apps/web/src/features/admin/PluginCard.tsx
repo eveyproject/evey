@@ -20,6 +20,8 @@ import {
 import { toast } from "@evey/store";
 import type { V1Plugin, V1PluginState } from "@evey/api";
 import { PluginUpdateDialog } from "./PluginUpdateDialog";
+import { useDemoLock } from "@/hooks/useDemoMode";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 type PluginWithPermissions = V1Plugin & {
   permissions?: string[];
@@ -265,7 +267,10 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
     updateConfig.mutate({ pluginId, data: { values: resolved } });
   }
 
+  // The seeded plugin is shared by every visitor: its config is read-only
+  // on the demo (the server refuses the write, the fields say so).
   return (
+    <DemoReadOnly>
     <div className="flex flex-col gap-3">
       {keys.map((key) => {
         const schema = configSchema?.[key];
@@ -309,6 +314,7 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
         </div>
       )}
     </div>
+    </DemoReadOnly>
   );
 }
 
@@ -327,6 +333,9 @@ interface PluginCardProps {
 
 export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling = false }: PluginCardProps) {
   const { t } = useTranslation();
+  // The plugin's own configuration stays editable on the demo (the panel
+  // above); the lifecycle - enable, disable, update, uninstall - does not.
+  const { lock } = useDemoLock();
   const queryClient = useQueryClient();
   const [showConfig, setShowConfig] = useState(false);
   const [showReport, setShowReport] = useState(false);
@@ -416,9 +425,9 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
 
       <div className="flex gap-2 pt-1 flex-wrap">
         {plugin.enabled ? (
-          <Button variant="secondary" disabled={toggling} onClick={onDisable}>{t("common.disable")}</Button>
+          <Button variant="secondary" disabled={toggling} onClick={onDisable} {...lock}>{t("common.disable")}</Button>
         ) : (
-          <Button variant="primary" disabled={toggling} onClick={onEnable}>{t("common.enable")}</Button>
+          <Button variant="primary" disabled={toggling} onClick={onEnable} {...lock}>{t("common.enable")}</Button>
         )}
         <Button variant="ghost" onClick={() => setShowConfig((v) => !v)}>
           {showConfig ? t("admin.plugin.hideConfig") : t("admin.plugin.config")}
@@ -430,10 +439,11 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
           variant="secondary"
           onClick={() => setShowUpdateInput((v) => !v)}
           data-testid="plugin-update-toggle"
+          {...lock}
         >
           {t("admin.plugin.update", "Update from source...")}
         </Button>
-        <Button variant="danger" onClick={onUninstall}>{t("admin.plugin.uninstall")}</Button>
+        <Button variant="danger" onClick={onUninstall} {...lock}>{t("admin.plugin.uninstall")}</Button>
       </div>
 
       {showUpdateInput && (

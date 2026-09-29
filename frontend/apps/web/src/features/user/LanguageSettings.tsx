@@ -6,6 +6,7 @@ import { useLocaleStore, useAuthStore } from "@evey/store";
 import { useUserServiceUpdateProfile, userServiceRefreshToken, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 // Common media languages offered in the audio/subtitle selectors (ISO 639-1).
 // Rendered via Intl.DisplayNames so the label is localized to the UI language.
@@ -34,6 +35,10 @@ export function LanguageSettings() {
   // The active profile (from the JWT), falling back to the default one.
   const { profile: activeProfile, userId } = useActiveProfile();
   const updateProfile = useUserServiceUpdateProfile();
+  // Demo: the profile is shared by every visitor. The UI language stays in
+  // this browser (locale store), the media-language preferences cannot be
+  // saved anywhere private, so their selects are locked.
+  const { demo, lock } = useDemoLock();
 
   // Mirror the server-truth preferences in a ref so two quick edits (e.g. audio
   // then subtitle) merge onto each other instead of both spreading the same
@@ -71,8 +76,9 @@ export function LanguageSettings() {
     void i18n.changeLanguage(code);
     // 2. Update locale store (sent as Accept-Language header)
     setLocale(code);
-    // 3. Update profile locale on server + refresh JWT
-    if (activeProfile?.id) {
+    // 3. Update profile locale on server + refresh JWT (not on the demo: the
+    //    profile is shared, the browser keeps the choice)
+    if (activeProfile?.id && !demo) {
       try {
         await updateProfile.mutateAsync({ id: activeProfile.id, data: { locale: code } });
         // 4. Refresh token to get new JWT with updated locale
@@ -144,6 +150,7 @@ export function LanguageSettings() {
           options={mediaLangOptionsWithNone}
           value={currentAudioLang}
           onChange={handleAudioLangChange}
+          {...lock}
         />
       </div>
 
@@ -159,6 +166,7 @@ export function LanguageSettings() {
           options={mediaLangOptionsWithNone}
           value={currentSubtitleLang}
           onChange={handleSubtitleLangChange}
+          {...lock}
         />
       </div>
     </div>

@@ -29,7 +29,7 @@ _evey() {
 
     local subs="reset-password rotate-jwt-key restore-backup reindex-search migrate \
 reclassify reindex-no-cue validate-streaming artwork-gc load-test doctor rollback \
-ladder-bench ladder-probe route-bench list-users list-libraries help"
+ladder-bench ladder-probe route-bench list-users list-libraries demo-seed help"
 
     if [ "$COMP_CWORD" -eq 1 ]; then
         COMPREPLY=( $(compgen -W "admin version help man completion" -- "$cur") )
@@ -85,6 +85,7 @@ ladder-bench ladder-probe route-bench list-users list-libraries help"
         reindex-no-cue)     opts="--root --apply --limit --mode --deep-verify --resync --keep-backup" ;;
         validate-streaming) opts="--root --errors-only" ;;
         artwork-gc)         opts="--root --apply" ;;
+        demo-seed)          opts="--apply --media" ;;
         load-test)          opts="--scenario --mode --max-viewers --duration --cold-cache" ;;
         doctor)             opts="--repair" ;;
         ladder-bench)       opts="--scenes --window --heights --crf --preset --out --ref-height --ref-crf --efficiency --mode --cache --encoders --device" ;;

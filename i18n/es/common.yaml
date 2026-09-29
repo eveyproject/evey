@@ -256,3 +256,9 @@ clientChoice:
   body: Esta página está hecha para un televisor y su mando a distancia. En un ordenador, la versión web es más cómoda.
   openWeb: Abrir la versión web
   stay: Quedarse aquí
+
+demo:
+  banner: "Servidor de demostración: los cambios se restablecen periódicamente y la administración es de solo lectura."
+  credentials: "Inicia sesión con demo / demo"
+  locked: "Bloqueado en la demo"
+  readOnly: "Solo lectura en la demo: los ajustes se muestran, no se editan."

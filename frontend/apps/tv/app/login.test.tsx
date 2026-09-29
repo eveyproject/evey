@@ -37,10 +37,12 @@ vi.mock("@evey/api", () => ({
     api.opts = o.mutation;
     return { mutate: api.mutate, isPending: api.isPending };
   },
+  useAdminSystemServiceGetSetupStatus: () => ({ data: undefined }),
 }));
 const order = vi.hoisted(() => ({ calls: [] as string[] }));
 vi.mock("@evey/store", () => ({
   useAuthStore: (sel: (s: { setTokens: (t: string) => void }) => unknown) => sel({ setTokens: () => { order.calls.push("access"); } }),
+  useDemoStore: { getState: () => ({ setDemoMode: () => {} }) },
 }));
 vi.mock("../src/lib/refresh-token", () => ({ setRefreshToken: async () => { order.calls.push("refresh"); } }));
 vi.mock("../src/providers/ThemeProvider", () => ({

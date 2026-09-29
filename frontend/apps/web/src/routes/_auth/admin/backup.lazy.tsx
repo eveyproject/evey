@@ -30,6 +30,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/backup")({
   component: BackupPage,
@@ -52,6 +53,7 @@ function formatRunTime(iso: string | undefined, t: (k: string, opts?: Record<str
 
 function ScheduleSection() {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const queryClient = useQueryClient();
 
   const { data: schedule, isLoading } = useQuery({
@@ -173,6 +175,7 @@ function ScheduleSection() {
                 loading={saveMutation.isPending}
                 disabled={!dirty || !!cronError}
                 onClick={() => saveMutation.mutate()}
+                {...lock}
               >
                 {t("admin.backup.schedule.save")}
               </Button>
@@ -180,6 +183,7 @@ function ScheduleSection() {
                 variant="secondary"
                 loading={runMutation.isPending}
                 onClick={() => runMutation.mutate()}
+                {...lock}
               >
                 {t("admin.backup.schedule.runNow")}
               </Button>
@@ -225,6 +229,7 @@ function useDeleteBackup() {
 
 function BackupRow({ backup }: { backup: Backup }) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const deleteBackup = useDeleteBackup();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState(false);
@@ -287,7 +292,7 @@ function BackupRow({ backup }: { backup: Backup }) {
       </td>
       <td data-label={t("admin.backup.tableHeaders.actions")} className="px-4 py-3">
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={handleDownload} className="text-xs">
+          <Button variant="secondary" onClick={handleDownload} className="text-xs" {...lock}>
             {t("common.download")}
           </Button>
           <Button
@@ -295,6 +300,7 @@ function BackupRow({ backup }: { backup: Backup }) {
             loading={restoring}
             onClick={() => setConfirmRestore(true)}
             className="text-xs"
+            {...lock}
           >
             {t("common.restore")}
           </Button>
@@ -303,6 +309,7 @@ function BackupRow({ backup }: { backup: Backup }) {
             loading={deleteBackup.isPending}
             onClick={() => setConfirmDelete(true)}
             className="text-xs"
+            {...lock}
           >
             {t("common.delete")}
           </Button>
@@ -416,6 +423,7 @@ function RestoreUploadModal({
 
 function BackupPage() {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const { data: backups, isLoading, isError, error, refetch } = useBackups();
   const createBackup = useCreateBackup();
   const [showRestoreUpload, setShowRestoreUpload] = useState(false);
@@ -427,12 +435,14 @@ function BackupPage() {
           <Button
             variant="secondary"
             onClick={() => setShowRestoreUpload(true)}
+            {...lock}
           >
             {t("admin.backup.restoreFromFile")}
           </Button>
           <Button
             loading={createBackup.isPending}
             onClick={() => createBackup.mutate()}
+            {...lock}
           >
             {t("admin.backup.createBackup")}
           </Button>

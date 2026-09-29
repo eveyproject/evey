@@ -17,6 +17,7 @@ import { Modal } from "@/components/ui/Modal";
 import { toast, useAuthStore } from "@evey/store";
 import { invalidateWatchedState } from "@evey/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/favorites")({
   component: FavoritesPage,
@@ -43,6 +44,7 @@ function BulkPlaylistModal({
   const manualPlaylists = (playlists ?? []).filter((p) => p.type === "manual");
 
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
 
   async function handleAdd(playlistId: string, playlistName: string) {
     try {
@@ -66,6 +68,7 @@ function BulkPlaylistModal({
         <div className="space-y-1">
           {manualPlaylists.map((pl) => (
             <button
+              {...lock}
               key={pl.id}
               onClick={() => void handleAdd(pl.id, pl.name)}
               disabled={addTo.isPending}

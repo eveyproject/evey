@@ -24,6 +24,8 @@ import { useMostPopular } from "@/hooks/usePopular";
 import { useWatchedMap } from "@/hooks/useWatchedMap";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { CustomizePanel } from "@/features/home/CustomizePanel";
+import { useDemoFeedConfig } from "@/features/home/demoFeedConfig";
+import { useDemoMode } from "@/hooks/useDemoMode";
 import { NextUpRow } from "@/features/home/NextUpRow";
 import { coverArtSrc } from "../../lib/coverArtSrc";
 
@@ -268,13 +270,18 @@ function HomePage() {
   const contentError = librariesIsError ? librariesErrorObj : recentErrorObj;
   const retryContent = () => { void refetchLibraries(); void refetchRecent(); };
 
+  // Demo: the profile is shared by every visitor, so a layout this visitor
+  // customised lives in the browser and wins over the shared one.
+  const demo = useDemoMode();
+  const [demoRows] = useDemoFeedConfig();
+
   const allSections = useMemo(() => {
-    const configs = feedConfig?.configs;
-    if (!configs || configs.length === 0 || feedConfigError) {
+    const configs = demo && demoRows ? demoRows : feedConfig?.configs;
+    if (!configs || configs.length === 0 || (feedConfigError && !(demo && demoRows))) {
       return FALLBACK_ORDER.map((ft, i) => ({ feedType: ft, enabled: true, displayOrder: i, maxItems: undefined as number | undefined }));
     }
     return [...configs].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-  }, [feedConfig, feedConfigError]);
+  }, [feedConfig, feedConfigError, demo, demoRows]);
 
   const sections = useMemo(() => allSections.filter((c) => c.enabled), [allSections]);
 

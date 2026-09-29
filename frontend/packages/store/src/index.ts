@@ -11,3 +11,4 @@ export * from "./toast";
 export * from "./server-migration";
 export * from "./queryRetry";
 export * from "./autoplayNext";
+export * from "./demo";

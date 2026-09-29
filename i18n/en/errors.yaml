@@ -133,3 +133,6 @@ plugin:
   not_enabled: "Plugin is not enabled"
   already_running: "Plugin is already running"
   not_running: "Plugin is not running"
+
+demo:
+  locked: "Not available on the demo server"

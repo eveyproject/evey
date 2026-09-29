@@ -3,6 +3,7 @@ import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { useMyRating, useSetRating } from "@/hooks/useRating";
 import { ACTION_ICON_BOX } from "@/components/ui/Button";
 import { ICON } from "@/constants/iconSizes";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 interface RatingButtonsProps {
   mediaId: string;
@@ -10,6 +11,7 @@ interface RatingButtonsProps {
 
 export function RatingButtons({ mediaId }: RatingButtonsProps) {
   const { t } = useTranslation();
+  const { lock } = useDemoLock();
   const { data: rating = 0, isError } = useMyRating(mediaId);
   const setRating = useSetRating(mediaId);
 
@@ -39,6 +41,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
   return (
     <div className="flex gap-1.5">
       <button
+        {...lock}
         type="button"
         onClick={() => handleClick(1)}
         disabled={unknown}
@@ -49,6 +52,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
         <ThumbsUp size={ICON.xl} aria-hidden="true" />
       </button>
       <button
+        {...lock}
         type="button"
         onClick={() => handleClick(-1)}
         disabled={unknown}

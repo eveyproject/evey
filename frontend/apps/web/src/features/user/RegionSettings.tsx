@@ -5,6 +5,7 @@ import { useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from 
 import { useQueryClient } from "@tanstack/react-query";
 import { ISO_REGIONS } from "./regionList";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 function regionOptions(locale: string): { value: string; label: string }[] {
   try {
@@ -29,6 +30,9 @@ export function RegionSettings() {
   // wrong region.
   const { profile: activeProfile, userId } = useActiveProfile();
   const updateProfile = useUserServiceUpdateProfile();
+  // The region is read by the server for every visitor of the shared
+  // profile, so it has nowhere private to live on the demo: locked.
+  const { lock } = useDemoLock();
 
   const options = useMemo(() => {
     return [{ value: "", label: t("common.region.auto") }, ...regionOptions(i18n.language)];
@@ -55,6 +59,7 @@ export function RegionSettings() {
         options={options}
         value={current}
         onChange={handleChange}
+        {...lock}
       />
     </div>
   );

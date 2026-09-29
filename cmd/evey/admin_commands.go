@@ -43,6 +43,7 @@ var adminRunners = map[string]func([]string) error{
 	"route-bench":        adminRouteBench,
 	"list-users":         adminListUsers,
 	"list-libraries":     adminListLibraries,
+	"demo-seed":          adminDemoSeed,
 }
 
 func init() {
@@ -180,6 +181,16 @@ var adminCommands = []adminCommand{
 		long: "Routes: GPU zero-copy, bridge, tone-map, passthrough, decoupled, CPU. Measures fps, CPU cores and GPU engines on " +
 			"synthetic clips per frame rate plus any real files given. Runs the production calibration first unless " +
 			"--capability points at a persisted one. Minutes of full load; never while serving.",
+	},
+	{
+		name: "demo-seed", args: "[--apply] [--media]", group: groupRecovery,
+		short: "Run the demo bootstrap by hand: the demo administrator, the visitor accounts, the four libraries, optionally the media.",
+		long: "Refuses unless EVEY_DEMO=1. The server does the same at every boot with EVEY_DEMO=1; this seeds an instance ahead " +
+			"of its first boot or shows what the bootstrap would do. Creates the demo/demo administrator (through the setup path " +
+			"when no administrator exists), the accounts a visitor can \"connect as\" (a household with a kids profile behind a PIN, " +
+			"a viewer with a device cap and a bitrate ceiling, a guest confined to the films, a disabled account), the four " +
+			"libraries under EVEY_DEMO_MEDIA_DIR, and with --media the freely licensed films, episodes, tracks and photos of the " +
+			"embedded manifest (gigabytes). Idempotent: what exists is left alone. Dry-run by default; --apply writes.",
 	},
 	{
 		name: "list-users", group: groupCompletion, noFlags: true,
