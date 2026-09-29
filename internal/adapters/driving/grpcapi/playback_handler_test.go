@@ -11,6 +11,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
@@ -636,6 +637,7 @@ func newTestPlaybackHandlerWithAccess() (*playbackHandler, *libfakes.FakeMediaIt
 
 func TestGetStreamInfo_AudioCodecsWired(t *testing.T) {
 	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	h.decider = copyRungDecider()
 	ctx := pbAdminCtx()
 
 	mediaQuery.Seed(&library.MediaItem{
@@ -645,7 +647,7 @@ func TestGetStreamInfo_AudioCodecsWired(t *testing.T) {
 		File:  &library.MediaFile{ContainerFormat: "mp4"},
 	})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
-		{MediaItemID: "mi-audio", StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-audio", StreamType: "video", Codec: "h264", Profile: "High", Level: new(40), Keyframes: copyRungKeyframes, Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{MediaItemID: "mi-audio", StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
 	})
 
@@ -695,6 +697,7 @@ func TestGetStreamInfo_AudioCodecsDirectPlay(t *testing.T) {
 // direct_stream branch (it returned DirectPlayUrl=/stream).
 func TestGetStreamInfo_DirectStream_RoutesToHLS(t *testing.T) {
 	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	h.decider = copyRungDecider()
 	ctx := pbAdminCtx()
 
 	mediaQuery.Seed(&library.MediaItem{
@@ -704,7 +707,7 @@ func TestGetStreamInfo_DirectStream_RoutesToHLS(t *testing.T) {
 		File:  &library.MediaFile{ContainerFormat: "mkv"},
 	})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
-		{MediaItemID: "mi-ds", StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-ds", StreamType: "video", Codec: "h264", Profile: "High", Level: new(40), Keyframes: copyRungKeyframes, Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{MediaItemID: "mi-ds", StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	})
 
@@ -1661,6 +1664,7 @@ func TestPlaybackHandler_MarkWatched_ErrorMapping(t *testing.T) {
 // (file_needs_remux) every client renders instead of a stall.
 func TestGetStreamInfo_ChunkedFile_RoutesToHLSForTheRefusal(t *testing.T) {
 	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	h.decider = copyRungDecider()
 	ctx := pbAdminCtx()
 
 	mediaQuery.Seed(&library.MediaItem{
@@ -1670,7 +1674,7 @@ func TestGetStreamInfo_ChunkedFile_RoutesToHLSForTheRefusal(t *testing.T) {
 		File:  &library.MediaFile{ContainerFormat: "mp4", InterleaveBackstepMs: 366_000},
 	})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
-		{MediaItemID: "mi-chunked", StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-chunked", StreamType: "video", Codec: "h264", Profile: "High", Level: new(40), Keyframes: copyRungKeyframes, Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{MediaItemID: "mi-chunked", StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	})
 
@@ -1686,3 +1690,35 @@ func TestGetStreamInfo_ChunkedFile_RoutesToHLSForTheRefusal(t *testing.T) {
 	assert.Equal(t, "copy", resp.VideoDecision)
 	assert.Equal(t, "copy", resp.AudioDecision)
 }
+
+// copyRungKeyframes is the keyframe index a probed source carries once
+// backfilled: without one the copy rung stays closed and the plan re-encodes.
+var copyRungKeyframes = []int64{0, 2000, 4000}
+
+// copyRungDecider is a plan resolver with a copy rung wired. Stream info
+// reports the plan's verdict: with no copy producer the video is re-encoded
+// whatever the codecs say, so a test about the copy path needs the rung.
+func copyRungDecider() apptranscoding.PlaybackDecider {
+	return &apptranscoding.PlanResolver{CopyProducer: copyRungProducer{}}
+}
+
+type copyRungProducer struct{}
+
+func (copyRungProducer) Profiles(base []transcoding.HLSProfile, _ apptranscoding.SourceDims, _ transcoding.PlaybackDecision, _ transcoding.EncodeCapability) []transcoding.HLSProfile {
+	return base
+}
+
+func (copyRungProducer) EnsureSegmentRange(context.Context, apptranscoding.DecisionFingerprint, int, int) error {
+	panic("copyRungProducer: stream info never produces segments")
+}
+
+func (copyRungProducer) PreWarm(apptranscoding.DecisionFingerprint, int, int) {
+	panic("copyRungProducer: stream info never pre-warms")
+}
+
+func (copyRungProducer) WaitBudget() time.Duration { return 0 }
+
+func (copyRungProducer) NotifyClientHint(string, int, int, bool, int) {}
+func (copyRungProducer) ActiveSessionCount() int                      { return 0 }
+func (copyRungProducer) RemoveSession(string)                         {}
+func (copyRungProducer) Close()                                       {}
