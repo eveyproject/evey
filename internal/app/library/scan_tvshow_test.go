@@ -464,3 +464,35 @@ func TestScanTVShow_EpisodeIndexNumber(t *testing.T) {
 	require.NotNil(t, episodes[0].IndexNumber)
 	assert.Equal(t, 7, *episodes[0].IndexNumber)
 }
+
+// The year on the show folder is the one hint that tells a remake from the
+// original at enrichment time, so the series created from its episodes must
+// carry it; a show without a year stays without one.
+func TestScanTVShow_SeriesKeepsFolderYear(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Old Show (1954)/S01/e01.mkv", Size: 500, Title: "Old Show", Year: new(1954), Season: new(1), Episode: new(1), Type: library.Episode},
+		{Path: "/tv/Undated/S01/e01.mkv", Size: 600, Title: "Undated", Season: new(1), Episode: new(1), Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	byTitle := map[string]*library.MediaItem{}
+	for _, s := range itemsByType(mediaRepo, "series") {
+		byTitle[s.Title] = s
+	}
+	require.Len(t, byTitle, 2)
+	require.NotNil(t, byTitle["Old Show"].Catalog, "the dated series carries a catalog")
+	require.NotNil(t, byTitle["Old Show"].Catalog.Year)
+	assert.Equal(t, 1954, *byTitle["Old Show"].Catalog.Year)
+	if c := byTitle["Undated"].Catalog; c != nil {
+		assert.Nil(t, c.Year, "no year invented for an undated show")
+	}
+}

@@ -113,10 +113,17 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			// title parsed from a malformed filename is rejected (ErrEmptyTitle)
 			// instead of silently persisting as an unnamed series row. Mirrors
 			// the movie/episode path in createMediaFile (scan_service.go).
-			newSeries, buildErr := library.NewMediaItem(shared.LibraryID(libraryID), library.Series, showTitle,
+			seriesOpts := []library.MediaItemOption{
 				library.WithMediaItemID(shared.MediaItemID(uuid.New().String())),
 				library.WithMediaItemFile(&library.MediaFile{Fingerprint: fp}),
-			)
+			}
+			// The year the user wrote on the show folder ("Sherlock Holmes
+			// (1954)/") is the one hint that tells remakes apart; without it
+			// the provider search picked the 1984 series for a 1954 one.
+			if f.Year != nil {
+				seriesOpts = append(seriesOpts, library.WithMediaItemYear(*f.Year))
+			}
+			newSeries, buildErr := library.NewMediaItem(shared.LibraryID(libraryID), library.Series, showTitle, seriesOpts...)
 			if buildErr != nil {
 				slog.WarnContext(ctx, "scan: skipping series that fails domain invariants",
 					slog.String("path", f.Path), slog.Any("err", buildErr))
