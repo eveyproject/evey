@@ -9,6 +9,10 @@ import (
 	"path"
 )
 
+// maxZipMemberBytes caps one extracted member: the 4K 60 fps Big Buck Bunny
+// master, the largest the manifest names, is under 1 GiB.
+const maxZipMemberBytes = 4 << 30
+
 // extractZipMember writes the named member of the archive at zipPath to dest,
 // through a .part file like a plain download. The member is matched on its
 // base name: the Blender masters ship as a single file at the archive root.
@@ -36,7 +40,14 @@ func extractZipMember(zipPath, member, dest string) (err error) {
 		if cerr != nil {
 			return cerr
 		}
-		if _, werr := io.Copy(out, rc); werr != nil {
+		// Bounded: the header declares the member's size and a member larger
+		// than the largest demo master is not one of ours - a decompression
+		// bomb stops at the cap instead of filling the disk.
+		n, werr := io.Copy(out, io.LimitReader(rc, maxZipMemberBytes+1))
+		if werr == nil && (n > maxZipMemberBytes || uint64(n) != f.UncompressedSize64) {
+			werr = fmt.Errorf("zip member %s: %d bytes extracted, header declares %d (cap %d)", member, n, f.UncompressedSize64, int64(maxZipMemberBytes))
+		}
+		if werr != nil {
 			_ = out.Close()
 			return errors.Join(werr, removeTemp(part))
 		}

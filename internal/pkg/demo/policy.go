@@ -53,7 +53,7 @@ const MinPasswordLength = len(Password)
 // visitor's session, or that changes what every other visitor sees (the
 // account is shared: collections, playlists, favourites, ratings, watched
 // marks, metadata) is not here - the demo is visual.
-var OpenAdminRPCs = map[string]string{
+var OpenAdminRPCs = map[string]string{ //nolint:gosec // G101: RPC and route names with their reasons, no credential ("reset-password" is a path)
 	"/evey.v1.AdminSystemService/GetSystemInfo":     "version, uptime and counters; the dashboard's first card",
 	"/evey.v1.AdminSystemService/GetLoadTestStatus": "read of a job nobody can start on the demo",
 	"/evey.v1.AdminSystemService/GetServerConfig":   "read; secret keys are masked by the config store (IsSecretKey)",
@@ -359,7 +359,7 @@ var OpenRoutes = map[string]string{
 }
 
 // LockedRoutes are the HTTP mux patterns the demo refuses, with the reason.
-var LockedRoutes = map[string]string{
+var LockedRoutes = map[string]string{ //nolint:gosec // G101: RPC and route names with their reasons, no credential ("reset-password" is a path)
 	"GET /api/v1/admin/fs/browse":               "browses the host filesystem",
 	"GET /api/v1/admin/logs":                    "host logs carry other visitors' addresses even after redaction",
 	"GET /api/v1/admin/logs/search":             "same",
