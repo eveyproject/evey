@@ -121,14 +121,14 @@ describe("getFmp4AudioPassthrough (Android TV)", () => {
   // media3/ExoPlayer reads MP3 back out of an fMP4 `mp4a` sample entry, so the
   // server may COPY an old rip's MP3 track instead of cascading it through its
   // AAC encoder (20.3 dB of coding noise under dense music, measured 2026-09-06).
-  it("declares mp3 so the server can pass the track through", () => {
-    expect(getFmp4AudioPassthrough()).toEqual(["mp3"]);
+  it("declares mp3 and opus so the server can pass those tracks through", () => {
+    expect(getFmp4AudioPassthrough()).toEqual(["mp3", "opus"]);
   });
 
   // The opt-in selects from what the server can mux and advertise; anything
   // else here would be refused server-side anyway.
-  it("declares mp3 and nothing else", () => {
-    expect(getFmp4AudioPassthrough()).toHaveLength(1);
+  it("declares mp3 and opus and nothing else", () => {
+    expect(getFmp4AudioPassthrough()).toHaveLength(2);
   });
 
   // Two different questions. Conflating them is what shipped the re-encode on

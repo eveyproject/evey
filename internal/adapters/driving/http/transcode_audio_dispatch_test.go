@@ -243,7 +243,7 @@ func TestDispatchAudioPlaylist_CarriesThePlanPins(t *testing.T) {
 	libSvc := &testFakeStreamsGetter{item: item, streams: streams}
 	h := buildVODHandlerWithAudio(t, libSvc, allowAll(), testFakeParentalChecker{}, &fakeAudioEnsurer{})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/audio_0.m3u8?vd=transcode&vc=h264&ad=transcode", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/audio_0.m3u8?vd=transcode&vc=h264&ad=transcode&fmp4AudioPassthrough=mp3%2Copus", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("file", "audio_0.m3u8")
 	req = withHTTPClaims(req, testClaims(false))
@@ -258,5 +258,8 @@ func TestDispatchAudioPlaylist_CarriesThePlanPins(t *testing.T) {
 		for _, pin := range []string{"vd=transcode", "vc=h264", "ad=transcode"} {
 			assert.Contains(t, line, pin, "child URI must carry the plan's pin")
 		}
+		// The passthrough opt-in is a decision input too: without it the init
+		// and segments re-decide to AAC under a master that promised the copy.
+		assert.Contains(t, line, "fmp4AudioPassthrough=mp3%2Copus", "child URI must carry the passthrough opt-in")
 	}
 }

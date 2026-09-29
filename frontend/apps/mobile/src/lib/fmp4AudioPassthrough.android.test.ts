@@ -21,17 +21,19 @@ describe("getFmp4AudioPassthrough (android)", () => {
   // media3/ExoPlayer reads MP3 back out of an fMP4 `mp4a` sample entry, so the
   // server can COPY an old rip's MP3 track instead of cascading it through its
   // AAC encoder (prod 2026-09-06: 20.3 dB of coding noise under dense music).
-  it("declares mp3 so the server can pass the track through", async () => {
+  // Opus too (2026-09-29): media3 demuxes Opus in fMP4, so the Blender
+  // films' Opus tracks are copied instead of re-encoded to AAC.
+  it("declares mp3 and opus so the server can pass those tracks through", async () => {
     const { getFmp4AudioPassthrough } = await import("./deviceCodecs");
-    expect(getFmp4AudioPassthrough()).toEqual(["mp3"]);
+    expect(getFmp4AudioPassthrough()).toEqual(["mp3", "opus"]);
   });
 
   // The opt-in is about the CONTAINER, not the decoder. Anything else declared
   // here would be a codec nobody proved the muxer and the RFC 6381 attribute
   // can carry, and the server would refuse it anyway.
-  it("declares mp3 and nothing else", async () => {
+  it("declares mp3 and opus and nothing else", async () => {
     const { getFmp4AudioPassthrough } = await import("./deviceCodecs");
-    expect(getFmp4AudioPassthrough()).toHaveLength(1);
+    expect(getFmp4AudioPassthrough()).toHaveLength(2);
   });
 
   // Two different questions, and conflating them is what shipped the bug on

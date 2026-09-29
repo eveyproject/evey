@@ -1,4 +1,4 @@
-.PHONY: dash-harness dash-web dash-exoplayer proto-gen plugin-sdk plugin-zips build test test-image test-shell bench lint sec-scan clean \
+.PHONY: dash-harness directplay-harness dash-web dash-exoplayer proto-gen plugin-sdk plugin-zips build test test-image test-shell bench lint sec-scan clean \
 	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
 	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch ci-hygiene pre-push hooks \
 	gate gate-status verify-commit \
@@ -120,7 +120,7 @@ bench:
 # B-frame MKV, asserting served segments match the keyframe plan (timeline
 # AND audio content correlation).
 transcode-itest:
-	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ ./internal/adapters/driven/mkvgo/ -run Integration -count=1 -v -timeout=300s'
+	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ ./internal/adapters/driven/mkvgo/ ./internal/adapters/driven/prober/ -run Integration -count=1 -v -timeout=300s'
 
 # dash-harness: plays manifest.mpd in REAL DASH players (Shaka, dash.js) in a
 # headless, muted Google Chrome (Playwright's Chromium has no H.264/AAC), against
@@ -130,6 +130,16 @@ transcode-itest:
 dash-harness:
 	@test -n "$(MEDIA)" -a -n "$(CHROME)" || { echo "usage: make dash-harness MEDIA='<id>[:vd=transcode] ...' CHROME=/path/to/google-chrome EVEY_USER=.. EVEY_PASS=.."; exit 2; }
 	EVEY_CHROME="$(CHROME)" node scripts/dash-harness/run.mjs $(MEDIA)
+
+# directplay-harness: every title the server decides to DIRECT PLAY is played
+# raw, muted, in Playwright's Chromium and Firefox (+ a real Chrome with
+# CHROME=...), each engine declaring its own capabilities like the web client,
+# and must advance. The last link no other gate checks (Elephants Dream, VP9
+# Profile 3, was announced direct play to browsers that cannot decode it).
+# Dev tool, not part of the gate. EVEY_USER/EVEY_PASS (default demo/demo),
+# EVEY_URL (default http://localhost:9091), SECONDS (default 6).
+directplay-harness:
+	EVEY_USER="$${EVEY_USER:-demo}" EVEY_PASS="$${EVEY_PASS:-demo}" EVEY_CHROME="$(CHROME)" node scripts/directplay-harness/run.mjs
 
 # dash-web: the Evey web player's own journey with the dev DASH flag
 # (localStorage evey.dev.dash=1): login, start, seek, quality and audio through

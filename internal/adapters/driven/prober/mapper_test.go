@@ -49,6 +49,13 @@ func TestMapContainer_FullSDRHEVC(t *testing.T) {
 	// regression). EBML family -> "matroska" (decision maps it to "mkv"); the
 	// same container over the ISO-BMFF route reports "mp4".
 	assert.Equal(t, "matroska", res.Container)
+	// A WebM declares itself in its EBML DocType (mkvgo v0.35.0 reads it):
+	// the container a browser plays raw is named as such.
+	c.DocType = "webm"
+	if webmRes, webmOK := mapContainer(c, true); assert.True(t, webmOK) {
+		assert.Equal(t, "webm", webmRes.Container)
+	}
+	c.DocType = ""
 	if mp4Res, mp4OK := mapContainer(c, false); assert.True(t, mp4OK) {
 		assert.Equal(t, "mp4", mp4Res.Container)
 	}
@@ -340,4 +347,42 @@ func TestScanTypeOf_AgreesWithMkvgo(t *testing.T) {
 	for _, w := range []string{"progressive", "interlaced", "tt", "bb", "tb", "bt", "", "unknown"} {
 		assert.Equal(t, extmkv.ScanTypeOf(w), string(library.ScanTypeOf(w)), "%q", w)
 	}
+}
+
+// The Matroska "VP9 Codec Feature Metadata" CodecPrivate (Sprite Fright's
+// real bytes) is not a vpcC: a reader that took it for one produced
+// "Profile 1", level 1 and a ycgco colour. Such a track goes to ffprobe; a
+// track with no CodecPrivate (a WebM) or a real vpcC fast-paths as before.
+func TestMapContainer_VP9FeatureMetadataGoesToFFprobe(t *testing.T) {
+	bt709 := uint16(1)
+	vp9 := func(cp []byte) *extmkv.Container {
+		tr := extmkv.Track{
+			Type: extmkv.VideoTrack, Codec: "vp9",
+			Width: new(uint32(2048)), Height: new(uint32(858)),
+			CodecPrivate: cp, ColorSpace: &bt709, ColourDetermined: true,
+		}
+		return &extmkv.Container{DurationMs: 1000, Tracks: []extmkv.Track{tr}}
+	}
+	_, ok := mapContainer(vp9([]byte{0x01, 0x01, 0x00, 0x03, 0x01, 0x08, 0x04, 0x01, 0x01}), true)
+	assert.False(t, ok, "feature metadata CodecPrivate must fall back to ffprobe")
+
+	res, ok := mapContainer(vp9(nil), true)
+	require.True(t, ok, "a WebM VP9 without CodecPrivate fast-paths")
+	require.NotNil(t, res.Streams[0].FieldOrder)
+	assert.Equal(t, "progressive", *res.Streams[0].FieldOrder, "VP9 has no interlaced mode")
+
+	// A real vpcC: version 1, three flag bytes, then profile/level/bitdepth-chroma.
+	res, ok = mapContainer(vp9([]byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x28, 0x80, 0x01, 0x01, 0x01, 0x00, 0x00}), true)
+	assert.True(t, ok, "a vpcC-shaped CodecPrivate is not the feature-metadata form")
+	_ = res
+}
+
+// VP8 has no interlaced mode either: ffprobe says "progressive", so does the
+// fast path (a track that says nothing).
+func TestMapContainer_VP8IsProgressive(t *testing.T) {
+	tr := extmkv.Track{Type: extmkv.VideoTrack, Codec: "vp8", Width: new(uint32(1920)), Height: new(uint32(800))}
+	res, ok := mapContainer(&extmkv.Container{DurationMs: 1000, Tracks: []extmkv.Track{tr}}, true)
+	require.True(t, ok)
+	require.NotNil(t, res.Streams[0].FieldOrder)
+	assert.Equal(t, "progressive", *res.Streams[0].FieldOrder)
 }

@@ -102,7 +102,12 @@ export function getFmp4AudioPassthrough(): string[] {
         (window as unknown as { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource)
       : undefined;
   if (!MS || typeof MS.isTypeSupported !== "function") return (_fmp4AudioPassthrough = []);
-  return (_fmp4AudioPassthrough = MS.isTypeSupported('audio/mp4; codecs="mp4a.6B"') ? ["mp3"] : []);
+  const out: string[] = [];
+  if (MS.isTypeSupported('audio/mp4; codecs="mp4a.6B"')) out.push("mp3");
+  // Opus muxed in fMP4 (the Opus-in-ISOBMFF binding): Chrome and Firefox take
+  // it, Safari does not - so it is declared, never assumed, like mp3.
+  if (MS.isTypeSupported('audio/mp4; codecs="opus"')) out.push("opus");
+  return (_fmp4AudioPassthrough = out);
 }
 
 export function appendCodecParams(params: URLSearchParams): void {

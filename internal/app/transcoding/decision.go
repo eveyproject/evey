@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -341,7 +342,7 @@ func MakePlaybackDecisionWithPrefs(
 	}
 
 	checkBitrate(d, servedBitrate, effectiveMaxBitrate)
-	checkContainer(d, containerFormat, client)
+	checkContainer(d, containerFormat, specs, client, firstOrEmpty(sourcePath))
 	applyCodecPreferences(d, specs, client, prefs)
 	applyAudioChannelTarget(d, specs, client, prefs)
 	applyDirectPlayPrefs(d, prefs)
@@ -756,10 +757,62 @@ func checkBitrate(d *transcoding.PlaybackDecision, servedBitrate, effectiveMaxBi
 	}
 }
 
-func checkContainer(d *transcoding.PlaybackDecision, containerFormat string, client transcoding.ClientProfile) {
+// webmCodecs is the codec set WebM permits (video VP8/VP9/AV1, audio
+// Vorbis/Opus). Neither prober can tell a WebM from an MKV - ffprobe names the
+// shared demuxer "matroska,webm", mkvgo reports the family - but a browser's
+// demuxer does not read the DocType either: a Matroska whose video and audio
+// tracks all sit in this set plays as WebM wherever WebM plays.
+var webmCodecs = map[string]bool{"vp8": true, "vp9": true, "av1": true, "vorbis": true, "opus": true}
+
+func firstOrEmpty(paths []string) string {
+	if len(paths) == 0 {
+		return ""
+	}
+	return paths[0]
+}
+
+// webmShaped reports whether every video and audio track is a WebM codec (at
+// least one such track). Subtitle tracks are not judged: a browser ignores the
+// Matroska text tracks it cannot read and the sidecar route serves them.
+func webmShaped(specs []StreamSpec) bool {
+	judged := 0
+	for _, s := range specs {
+		switch s.Type {
+		case "video":
+			if !webmCodecs[normalizeVideoCodec(s.Codec)] {
+				return false
+			}
+		case "audio":
+			if !webmCodecs[normalizeAudioCodec(s.Codec)] {
+				return false
+			}
+		default:
+			continue
+		}
+		judged++
+	}
+	return judged > 0
+}
+
+// checkContainer judges the container against what the client declared. The
+// Matroska family needs care: the probers name both MKV and WebM "matroska",
+// but a browser only plays the raw file when it is served as WebM - Firefox
+// refuses `video/x-matroska` outright (measured 2026-09-29: the player looped
+// on a .mkv it could not open), and the Content-Type follows the extension.
+// So a "webm" client takes a Matroska only when the file IS a .webm and every
+// track is a WebM codec; an "mkv" client (native players) takes any Matroska.
+func checkContainer(d *transcoding.PlaybackDecision, containerFormat string, specs []StreamSpec, client transcoding.ClientProfile, sourcePath string) {
 	containerLower := strings.ToLower(containerFormat)
-	if containerLower == "matroska" {
-		containerLower = "mkv"
+	if containerLower == "matroska" || containerLower == "webm" {
+		if contains(client.Containers, "mkv") {
+			return
+		}
+		isWebMFile := containerLower == "webm" || strings.EqualFold(filepath.Ext(sourcePath), ".webm")
+		if isWebMFile && contains(client.Containers, "webm") && webmShaped(specs) {
+			return
+		}
+		d.TranscodeReasons = append(d.TranscodeReasons, "container_incompatible")
+		return
 	}
 	if !contains(client.Containers, containerLower) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "container_incompatible")

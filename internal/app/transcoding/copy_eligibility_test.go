@@ -95,7 +95,42 @@ func TestCopyRungEligible_AV1VP9(t *testing.T) {
 	assert.False(t, CopyRungEligible(CopySource{Codec: "vp9", Profile: "Profile 1", Level: new(41), ColorTransfer: &bt709}),
 		"VP9 Profile 1 (4:2:2) has no browser decode - not wired")
 	assert.False(t, CopyRungEligible(CopySource{Codec: "vp9", Profile: "Profile 0", ColorTransfer: &bt709}),
-		"unknown level gates VP9 copy off")
+		"unknown level AND unknown size gates VP9 copy off")
+	// The VP9 level is never in the file: with the picture size known it is
+	// derived (Spring, 2048x858 → level 4.0), as mkvgo derives it for its vpcC.
+	spring := CopySource{Codec: "vp9", Profile: "Profile 0", Width: 2048, Height: 858, ColorTransfer: &bt709}
+	assert.True(t, CopyRungEligible(spring), "VP9 with a known picture size derives its level")
+	assert.Equal(t, "vp09.00.40.08", CopyVideoCodecString(spring))
+	assert.Empty(t, CopyBlocker(spring))
+	// A probed level always wins over the derivation.
+	springL := spring
+	springL.Level = new(41)
+	assert.Equal(t, "vp09.00.41.08", CopyVideoCodecString(springL))
+	// VP9 Profile 0 is 8-bit: no HDR can hide behind an unprobed transfer, the
+	// colour gate does not apply (Sprite Fright through ffprobe: colour space
+	// known, transfer not). Profile 2 (10-bit) keeps the gate.
+	sf := CopySource{Codec: "vp9", Profile: "Profile 0", Width: 2048, Height: 858}
+	assert.Empty(t, CopyBlocker(sf))
+	assert.Equal(t, "vp09.00.40.08", CopyVideoCodecString(sf))
+	assert.Equal(t, "hdr_truth_unknown", CopyBlocker(CopySource{Codec: "vp9", Profile: "Profile 2", TenBit: true, Width: 3840, Height: 2160}))
+	// Only VP9 derives: an H.264 without a level stays blocked.
+	assert.Equal(t, "level_unknown", CopyBlocker(CopySource{Codec: "h264", Profile: "High", Width: 1920, Height: 1080, ColorTransfer: &bt709}))
+}
+
+// The VP9 level table (Annex A of the bitstream spec), by maximum luma
+// picture size: the same one mkvgo writes into a vpcC. Levels 6.0 and 6.1
+// share a picture size and differ by sample rate, so 8K derives as 6.0.
+func TestVP9LevelForSize(t *testing.T) {
+	for _, c := range []struct{ w, h, want int }{
+		{256, 144, 10}, {640, 360, 21}, {1280, 720, 31}, {1920, 1080, 40}, {2048, 858, 40},
+		{3840, 2160, 50}, {4096, 2160, 50}, {7680, 4320, 60}, {8192, 4352, 60}, {16384, 8704, 62},
+	} {
+		got, ok := VP9LevelForSize(c.w, c.h)
+		assert.True(t, ok)
+		assert.Equal(t, c.want, got, "%dx%d", c.w, c.h)
+	}
+	_, ok := VP9LevelForSize(0, 1080)
+	assert.False(t, ok, "unknown size: no level")
 }
 
 func TestCopyRungEligible_VFR(t *testing.T) {

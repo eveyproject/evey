@@ -125,8 +125,9 @@ func TestAudioCopyCodecAllowedFor_OptIn(t *testing.T) {
 			t.Errorf("%s must stay allowed with no declaration", c)
 		}
 	}
-	// A stale or hostile declaration can only ever pick from the opt-in set.
-	for _, c := range []string{"dts", "truehd", "flac", "opus"} {
+	// A stale or hostile declaration can only ever pick from the opt-in set
+	// (mp3 and opus today).
+	for _, c := range []string{"dts", "truehd", "flac"} {
 		greedy := domaintranscoding.ClientProfile{FMP4AudioPassthrough: []string{c}}
 		if AudioCopyCodecAllowedFor(c, greedy) {
 			t.Errorf("%q must not be unlockable by a client declaration", c)
@@ -138,6 +139,33 @@ func TestAudioCopyCodecAllowedFor_OptIn(t *testing.T) {
 	}
 	if !AudioCopyCodecAllowedFor("mp3", domaintranscoding.ClientProfile{FMP4AudioPassthrough: []string{"MP3"}}) {
 		t.Error("the client's declared spelling must be normalised")
+	}
+}
+
+// Opus is the second opt-in: a client that declares it gets the Opus track
+// copied into fMP4; one that does not still gets the AAC re-encode; and the
+// declaration unlocks nothing outside fmp4PassthroughOptIn (flac stays out).
+func TestAudioCopyCodecAllowedFor_OpusOptIn(t *testing.T) {
+	none := domaintranscoding.ClientProfile{}
+	opusOK := domaintranscoding.ClientProfile{FMP4AudioPassthrough: []string{"opus"}}
+	both := domaintranscoding.ClientProfile{FMP4AudioPassthrough: []string{"mp3", "opus", "flac"}}
+	if AudioCopyCodecAllowedFor("opus", none) {
+		t.Error("opus must stay re-encoded for a client that did not opt in")
+	}
+	if !AudioCopyCodecAllowedFor("opus", opusOK) {
+		t.Error("an opted-in client must get the opus passthrough")
+	}
+	if AudioCopyCodecAllowedFor("mp3", opusOK) {
+		t.Error("opting into opus says nothing about mp3")
+	}
+	if !AudioCopyCodecAllowedFor("opus", both) || !AudioCopyCodecAllowedFor("mp3", both) {
+		t.Error("a client may opt into both")
+	}
+	if AudioCopyCodecAllowedFor("flac", both) {
+		t.Error("flac is not in the opt-in set: a declaration cannot unlock it")
+	}
+	if AudioCopyCodecAllowed("opus") {
+		t.Error("opus must not enter the always-wired set: Safari does not take it")
 	}
 }
 

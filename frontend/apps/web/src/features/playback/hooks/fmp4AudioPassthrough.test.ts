@@ -13,6 +13,7 @@ vi.mock("@/utils/codec", () => ({
 }));
 
 const MP3_IN_FMP4 = 'audio/mp4; codecs="mp4a.6B"';
+const OPUS_IN_FMP4 = 'audio/mp4; codecs="opus"';
 
 function stubMediaSource(answer: (type: string) => boolean) {
   vi.stubGlobal("MediaSource", { isTypeSupported: (t: string) => answer(t) });
@@ -84,6 +85,22 @@ describe("getFmp4AudioPassthrough", () => {
     const { getBrowserCapabilities } = await import("@/utils/codec");
     expect(getBrowserCapabilities().audioCodecs).toContain("mp3");
     expect(getFmp4AudioPassthrough()).toEqual([]);
+  });
+});
+
+// Opus is the second opt-in: declared when MSE takes it in fMP4 (Chrome,
+// Firefox), alongside or without mp3, and never on the native-HLS path.
+describe("getFmp4AudioPassthrough / opus", () => {
+  it("declares opus when MSE accepts it in fMP4", async () => {
+    stubMediaSource((t) => t === OPUS_IN_FMP4);
+    const { getFmp4AudioPassthrough } = await import("./hlsPlayerUtils");
+    expect(getFmp4AudioPassthrough()).toEqual(["opus"]);
+  });
+
+  it("declares both when the browser takes both", async () => {
+    stubMediaSource(() => true);
+    const { getFmp4AudioPassthrough } = await import("./hlsPlayerUtils");
+    expect(getFmp4AudioPassthrough()).toEqual(["mp3", "opus"]);
   });
 });
 

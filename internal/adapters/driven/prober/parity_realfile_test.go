@@ -3,6 +3,7 @@ package prober
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -31,16 +32,53 @@ func TestParity_AgainstFFprobe(t *testing.T) {
 	if dir == "" {
 		t.Skip("set EVEY_PARITY_DIR to a folder of real .mkv/.mp4 files to run the parity check")
 	}
-	var files []string
-	// *.MOV uppercase matters: filepath.Glob is case-sensitive and real
-	// iPhone/camera files ship as IMG_xxxx.MOV (production lowercases the ext,
-	// so those files DO take the fast-path - the gate must see them too).
-	for _, pat := range []string{"*.mkv", "*.webm", "*.mp4", "*.m4v", "*.m4a", "*.mov", "*.MOV"} {
-		matched, _ := filepath.Glob(filepath.Join(dir, pat))
-		files = append(files, matched...)
-	}
-	require.NotEmpty(t, files, "no .mkv/.webm/.mp4/.m4v/.mov in EVEY_PARITY_DIR")
+	files := parityFiles(t, dir)
+	require.NotEmpty(t, files, "no .mkv/.webm/.mp4/.m4v/.mov under EVEY_PARITY_DIR")
+	parityAgainstFFprobe(t, files)
+}
 
+// TestIntegration_ParityFixtures is the same gate on the committed fixtures
+// under testdata/parity (one-second ffmpeg encodes: VP9 in a Matroska with the
+// feature-metadata CodecPrivate and in a WebM, VP9 profile 3 4:4:4 10-bit,
+// VP8/Vorbis, H.264/AAC in MP4, H.264/MP3 in Matroska). It runs wherever
+// ffprobe is (the dev container, `make transcode-itest`), so a mkvgo bump or a
+// mapper change that makes the fast path disagree with ffprobe on these
+// shapes fails before it reaches a library. The 2026-09-29 VP9 misparse
+// (Profile 1, level 1, ycgco colour off a feature-metadata CodecPrivate)
+// would have failed here.
+func TestIntegration_ParityFixtures(t *testing.T) {
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("ffprobe not in PATH - the fixture parity gate needs the real prober")
+	}
+	files := parityFiles(t, filepath.Join("testdata", "parity"))
+	require.NotEmpty(t, files, "no fixtures under testdata/parity")
+	parityAgainstFFprobe(t, files)
+}
+
+// parityFiles lists every container the fast path may take, recursively (a
+// series library keeps its episodes under Show/Season NN/).
+func parityFiles(t *testing.T, dir string) []string {
+	t.Helper()
+	// *.MOV uppercase matters: real iPhone/camera files ship as IMG_xxxx.MOV
+	// (production lowercases the ext, so those files DO take the fast-path -
+	// the gate must see them too).
+	exts := map[string]bool{".mkv": true, ".webm": true, ".mp4": true, ".m4v": true, ".m4a": true, ".mov": true, ".MOV": true}
+	var files []string
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		if exts[filepath.Ext(path)] {
+			files = append(files, path)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	return files
+}
+
+func parityAgainstFFprobe(t *testing.T, files []string) {
+	t.Helper()
 	mr := realMetaReader{} // routes EBML vs ISO-BMFF exactly like the dispatcher
 	ff := ffmpeg.NewProber("ffprobe")
 	ctx := context.Background()
@@ -84,8 +122,13 @@ func TestParity_AgainstFFprobe(t *testing.T) {
 					assert.Equalf(t, deref(p.Height), deref(m.Height), "%s video[%d] height", name, i)
 					assert.Truef(t, colorSpaceEquiv(derefS(p.ColorSpace), derefS(m.ColorSpace), m.Codec),
 						"%s video[%d] color_space: ffprobe=%q mkvgo=%q", name, i, derefS(p.ColorSpace), derefS(m.ColorSpace))
-					assert.Equalf(t, deref(p.Level), deref(m.Level), "%s video[%d] level", name, i)
-					assert.Equalf(t, fieldOrderNorm(derefS(p.FieldOrder)), fieldOrderNorm(derefS(m.FieldOrder)),
+					assert.Truef(t, levelEquiv(deref(p.Level), deref(m.Level), m.Codec),
+						"%s video[%d] level: ffprobe=%d mkvgo=%d", name, i, deref(p.Level), deref(m.Level))
+					if p.Profile != "" && m.Profile != "" {
+						assert.Truef(t, profileEquiv(p.Profile, m.Profile, m.Codec),
+							"%s video[%d] profile: ffprobe=%q mkvgo=%q", name, i, p.Profile, m.Profile)
+					}
+					assert.Truef(t, fieldOrderEquiv(derefS(p.FieldOrder), derefS(m.FieldOrder), m.Codec),
 						"%s video[%d] field_order: ffprobe=%q mkvgo=%q", name, i, derefS(p.FieldOrder), derefS(m.FieldOrder))
 					assert.Equalf(t, deref(p.DoViProfile), deref(m.DoViProfile), "%s video[%d] dovi_profile", name, i)
 					assert.Equalf(t, deref(p.DoViBLCompat), deref(m.DoViBLCompat), "%s video[%d] dovi_bl_compat", name, i)
@@ -123,6 +166,35 @@ func normCodec(c string) string {
 // limit), and "" is SDR-safe (never a false HDR).
 func colorSpaceEquiv(ff, mk, codec string) bool {
 	return ff == mk || (mk == "" && codec == "h264")
+}
+
+// profileEquiv is an exact match. The pair once tolerated here (mkvgo
+// "Baseline" for ffprobe "Constrained Baseline", the SPS constraint_set1
+// flag) was fixed in mkvgo v0.35.0; the gate is strict.
+func profileEquiv(ff, mk, _ string) bool {
+	return ff == mk
+}
+
+// levelEquiv accepts an exact match, or a derived VP8/VP9 level where ffprobe
+// has none: those codecs carry no level in the bitstream (ffprobe reports -99
+// on every WebM), mkvgo derives one from the picture size and so does the copy
+// gate, so a value there is not a disagreement.
+func levelEquiv(ff, mk int, codec string) bool {
+	return ff == mk || (ff <= 0 && (codec == "vp9" || codec == "vp8"))
+}
+
+// fieldOrderEquiv compares the decision-relevant bit ("is it interlaced"),
+// and accepts an unknown on either side for VP8/VP9/AV1: those codecs have no
+// interlaced mode, ffprobe says nothing or "progressive" depending on the
+// container, the fast path says "progressive" - the same truth.
+func fieldOrderEquiv(ff, mk, codec string) bool {
+	if fieldOrderNorm(ff) == fieldOrderNorm(mk) {
+		return true
+	}
+	if codec == "vp8" || codec == "vp9" || codec == "av1" {
+		return library.ScanTypeOf(ff) != library.ScanInterlaced && library.ScanTypeOf(mk) != library.ScanInterlaced
+	}
+	return false
 }
 
 // fieldOrderNorm collapses both vocabularies to the decision-relevant bit

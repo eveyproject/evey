@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { V1StreamInfo } from "@evey/api";
 
 interface AudioTrack {
@@ -55,6 +55,8 @@ export function useDirectPlayback({
   streamTokenRef,
   onStreamTokenRefreshRef,
 }: UseDirectPlaybackArgs) {
+  // The source (URL minus its token) whose expired-token retry was spent.
+  const refreshedForRef = useRef<string | null>(null);
   useEffect(() => {
     const video = videoRef.current;
     if (!video || transcodeMode) return;
@@ -80,13 +82,18 @@ export function useDirectPlayback({
       }, 3000);
     }
     function handleEnded() { onEnded?.(); }
-    let tokenRefreshAttempted = false;
     function handleError() {
       const v = video;
       if (!v) return;
       const e = v.error;
       if (!e) return;
       if (import.meta.env.DEV) console.warn("[player] direct play error:", e.code, e.message);
+      // One retry per SOURCE, remembered across effect runs: the refresh
+      // re-renders the parent with a new URL, which re-runs this effect, and
+      // a per-run flag then retried forever (Firefox on a .mkv it cannot
+      // open: 660 reloads a minute, measured 2026-09-29).
+      const sourceKey = v.src.replace(/([?&])token=[^&]*/, "$1");
+      const tokenRefreshAttempted = refreshedForRef.current === sourceKey;
       // The most common error after a long pause is a 401 from the stream token
       // expiring (5-min sliding TTL). The HTML5 video element exposes only a
       // generic MediaError, so we can't read the HTTP status - but we can try
@@ -100,7 +107,7 @@ export function useDirectPlayback({
         v.src &&
         v.src.includes("token=")
       ) {
-        tokenRefreshAttempted = true;
+        refreshedForRef.current = sourceKey;
         const positionSec = positionRef.current || (v.currentTime || 0);
         (async () => {
           try {

@@ -140,7 +140,7 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 	// source's own codec through the copy manifest).
 	chosenVideoCodec := rp.FP.VideoCodec
 
-	return apptranscoding.ManifestInput{
+	in := apptranscoding.ManifestInput{
 		MediaID:             mediaID,
 		DurationSec:         float64(item.File.Duration.Milliseconds()) / 1000.0,
 		Grid:                rp.FP.Grid,
@@ -148,14 +148,10 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		StreamToken:         token,
 		AudioTrack:          audioTrack,
 		SubtitleBurnInTrack: subBurnIn,
-		VideoCodecs:         splitCSVQuery(r, "videoCodecs"),
-		AudioCodecs:         domaintranscoding.WithoutBrokenPlayerCodecs(r.UserAgent(), splitCSVQuery(r, "audioCodecs")),
-		Containers:          splitCSVQuery(r, "containers"),
 		// Re-baked into every child URI for the same reason as the lists above:
 		// parseClientCapabilities reads it back on the segment request.
-		FMP4AudioPassthrough: splitCSVQuery(r, "fmp4AudioPassthrough"),
-		UseFMP4:              h.useFMP4,
-		ChosenVideoCodec:     chosenVideoCodec,
+		UseFMP4:          h.useFMP4,
+		ChosenVideoCodec: chosenVideoCodec,
 		// The codec the segments will ACTUALLY carry: the source codec on
 		// audio passthrough (ac-3/ec-3 for Safari-class clients, mp3 for a
 		// client that opted into FMP4AudioPassthrough), the decision's encoder
@@ -180,29 +176,9 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		// codec lists: it MUST be re-baked into the variant/segment URLs or the
 		// segment-time makeDecision silently downgrades an HDR copy rung to a
 		// tonemapped h264 transcode that contradicts the master's CODECS.
-		HDRCapable: r != nil && r.URL.Query().Get("hdr") == "1",
-		ScreenHeight: func() int {
-			if r == nil {
-				return 0
-			}
-			return parseIntQuery(r, "screenHeight", 0)
-		}(),
-		MaxHeight: func() int {
-			if r == nil {
-				return 0
-			}
-			return parseIntQuery(r, "maxHeight", 0)
-		}(),
-		MaxH264Level: func() int {
-			if r == nil {
-				return 0
-			}
-			return parseIntQuery(r, "maxH264Level", 0)
-		}(),
 		// The channel ceiling is a decision input on the audio rendition the
 		// same way hdr=1 is on the video rung: the EXT-X-MEDIA URIs must carry
 		// it or the rendition re-derives the SOURCE layout (see field doc).
-		MaxAudioChannels: maxAudioChannelsQuery(r),
 		// wasm-audio path: propagate wasmAudio=1 into every variant/segment URI.
 		// The segment's fingerprint is sealed VIDEO-ONLY (videoAudioTrack=-1 when
 		// wasmAudio), so a segment request that lost the flag would re-derive a
@@ -229,7 +205,12 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		// of serving a stranger's bytes. The plan's hash IS this request's
 		// fingerprint hash - sealed and compared values are one resolution.
 		FingerprintHash: rp.FPHash,
-	}, nil
+	}
+	// The client's declared capabilities, baked once for every playlist
+	// (bakeClientInputs): the child URIs re-ask for the client the master was
+	// decided for.
+	bakeClientInputs(r, &in)
+	return in, nil
 }
 
 // audioOffsetMsQuery parses the user's audio resync request (ms; positive =
