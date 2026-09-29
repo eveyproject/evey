@@ -122,6 +122,21 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			if ms.FieldOrder == nil {
 				ms.FieldOrder = library.NormalizeFieldOrder(t.ScanType)
 			}
+			// VP8, VP9 and AV1 have no interlaced coding at all: a track that
+			// says nothing is progressive, which is what ffprobe reports for
+			// them (parity gap measured on a VP8 WebM, 2026-09-29).
+			if ms.FieldOrder == nil && codecNeverInterlaced(codec) {
+				ms.FieldOrder = library.NormalizeFieldOrder("progressive")
+			}
+			// A VP9 CodecPrivate in the Matroska "Codec Feature Metadata" form
+			// ({id, len 1, value} records: profile, level, bit depth, chroma -
+			// what ffmpeg and mkvmerge write) is not a vpcC. A reader that took
+			// it for one produced a wrong profile, an invalid level and a bogus
+			// colour (Sprite Fright, 2026-09-29: "Profile 1", level 1, ycgco).
+			// Until the pinned mkvgo parses it, such a track is ffprobe's.
+			if codec == "vp9" && isVP9FeatureMetadata(t.CodecPrivate) {
+				return nil, false
+			}
 			if t.FrameRate != nil && *t.FrameRate > 0 {
 				fr := *t.FrameRate
 				ms.Framerate = &fr
@@ -205,13 +220,19 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 	if err != nil {
 		dur = shared.Duration{} // negative/corrupt duration -> unknown, scan recovers
 	}
-	// The dispatcher only routes EBML (Matroska/WebM) and ISO-BMFF here; the
-	// fast-path can't tell WebM from MKV, so report the family name "matroska"
-	// (checkContainer normalises it to "mkv", and WebM is a Matroska subset the
-	// same players handle). ffprobe classifies everything else.
+	// The dispatcher only routes EBML (Matroska/WebM) and ISO-BMFF here. A
+	// WebM says so in its EBML DocType (mkvgo >= v0.35.0 reads it): report
+	// "webm", the container a browser plays raw (served as video/webm); any
+	// other EBML is "matroska", which a browser does not take raw (Firefox
+	// refuses video/x-matroska). ffprobe classifies everything else - and
+	// names both "matroska" (one demuxer), so the decision keeps its own
+	// extension check for that path (checkContainer).
 	container := "mp4"
 	if ebml {
 		container = "matroska"
+		if c.IsWebM() {
+			container = "webm"
+		}
 	}
 	return &library.ProbeResult{Streams: streams, Duration: dur, Container: container}, true
 }
@@ -276,4 +297,31 @@ func aacProfileFromASC(asc []byte) string {
 		aot = 32 + (uint32(asc[0]&0x07)<<3 | uint32(asc[1]>>5))
 	}
 	return aacProfileNames[aot]
+}
+
+// codecNeverInterlaced reports the codecs whose bitstream has no interlaced
+// mode: an unknown field order on them is "progressive", not "unknown".
+func codecNeverInterlaced(codec string) bool {
+	switch codec {
+	case "vp8", "vp9", "av1":
+		return true
+	}
+	return false
+}
+
+// isVP9FeatureMetadata recognises the Matroska "VP9 Codec Feature Metadata"
+// CodecPrivate: a sequence of {id, length, value} records, each 3 bytes with
+// length 1 and id in 1..4 (Profile, Level, Bit depth, Chroma subsampling). A
+// vpcC (the other shape a VP9 CodecPrivate takes) starts with version 0x01
+// followed by three flag bytes, so its second byte is 0, never 1.
+func isVP9FeatureMetadata(cp []byte) bool {
+	if len(cp) == 0 || len(cp)%3 != 0 || len(cp) > 12 {
+		return false
+	}
+	for i := 0; i < len(cp); i += 3 {
+		if cp[i] < 1 || cp[i] > 4 || cp[i+1] != 1 {
+			return false
+		}
+	}
+	return true
 }

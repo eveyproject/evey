@@ -129,16 +129,8 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		StreamToken:         token,
 		AudioTrack:          parseIntQuery(r, "audioTrack", 0),
 		SubtitleBurnInTrack: parseIntQuery(r, "subtitleTrack", -1),
-		VideoCodecs:         splitCSVQuery(r, "videoCodecs"),
-		AudioCodecs:         domaintranscoding.WithoutBrokenPlayerCodecs(r.UserAgent(), splitCSVQuery(r, "audioCodecs")),
-		Containers:          splitCSVQuery(r, "containers"),
 		UseFMP4:             true,
 		AudioRenditions:     audioRenditions,
-		// Same re-bake rule as buildManifestInput: hdr is a decision input.
-		HDRCapable: r.URL.Query().Get("hdr") == "1",
-		// Re-baked like the codec lists: this playlist's own init/segment URIs
-		// must ask for the same layout it was built for.
-		MaxAudioChannels: maxAudioChannelsQuery(r),
 		// wasm-audio passthrough: bake wasmAudio=1 into the segment/init URIs so
 		// their fingerprint matches this playlist's copy init (see field doc).
 		WasmAudio: h.wasmAudio(r),
@@ -151,6 +143,11 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		PinnedVideoCodec:    r.URL.Query().Get("vc"),
 	}
 
+	// The client's declared capabilities, the same way the master bakes them
+	// (bakeClientInputs): this playlist's init and segments must re-decide for
+	// the client the master was decided for - dropped here, the opt-in was
+	// lost and the segments came out AAC under a master advertising Opus.
+	bakeClientInputs(r, &in)
 	out, err := h.manifestGen.AudioPlaylist(in, trackIdx)
 	if err != nil {
 		logInternal(r.Context(), "audio playlist: manifest", err)

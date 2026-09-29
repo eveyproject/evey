@@ -77,7 +77,9 @@ export function getPlayerAudioCodecs(): string[] {
 // signal at the server's 192k rendition was 30.6 dB on dialogue but only
 // 20.3 dB on dense music - which is what "the background is not on the same
 // plane as the voices" sounds like. A passthrough adds none of it.
-const FMP4_AUDIO_PASSTHROUGH = Platform.OS === "android" ? ["mp3"] : [];
+// Opus joins mp3 on Android: media3/ExoPlayer demuxes Opus in fMP4 (the
+// Opus-in-ISOBMFF binding); AVPlayer takes neither, so Apple stays empty.
+const FMP4_AUDIO_PASSTHROUGH = Platform.OS === "android" ? ["mp3", "opus"] : [];
 
 /**
  * The audio codecs this device takes muxed in fMP4, for the play session's

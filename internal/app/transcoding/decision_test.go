@@ -212,6 +212,51 @@ func TestDirectStream_MKV_Container(t *testing.T) {
 	assert.Equal(t, "mp4", d.Container)
 }
 
+// A Matroska whose tracks are all WebM codecs is a WebM to the browser's
+// demuxer, whatever the probe called it: a client that plays WebM direct
+// plays it. One non-WebM track, or a client without WebM, and the container
+// is incompatible as before (the symmetric cases).
+func TestDirectPlay_WebMShapedMatroska(t *testing.T) {
+	webm := transcoding.ClientProfile{VideoCodecs: []string{"h264", "vp9"}, AudioCodecs: []string{"aac", "opus"}, Containers: []string{"mp4", "webm"}}
+	vp9opus := []*library.MediaStream{
+		{StreamType: "video", Codec: "vp9", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "opus", Channels: new(2), IsDefault: true},
+		{StreamType: "subtitle", Codec: "subrip"},
+	}
+	// Probed "matroska" but the file is a .webm (both probers say matroska
+	// for a WebM); or probed "webm" outright.
+	d := apptranscode.MakePlaybackDecision(t.Context(), vp9opus, "matroska", webm, 0, "/media/Spring (2019).webm")
+	assert.Equal(t, "direct_play", d.PlayMethod)
+	assert.Empty(t, d.TranscodeReasons)
+	d = apptranscode.MakePlaybackDecision(t.Context(), vp9opus, "webm", webm, 0)
+	assert.Equal(t, "direct_play", d.PlayMethod)
+	assert.Empty(t, d.TranscodeReasons)
+
+	// The same tracks in a .mkv: served as video/x-matroska, which Firefox
+	// refuses - a webm client does not take it (the symmetric case).
+	d = apptranscode.MakePlaybackDecision(t.Context(), vp9opus, "matroska", webm, 0, "/media/Sprite Fright (2021).mkv")
+	assert.Contains(t, d.TranscodeReasons, "container_incompatible", "an .mkv is not a WebM to the browser")
+	d = apptranscode.MakePlaybackDecision(t.Context(), vp9opus, "matroska", webm, 0)
+	assert.Contains(t, d.TranscodeReasons, "container_incompatible", "unknown extension: not assumed WebM")
+
+	mixed := []*library.MediaStream{
+		{StreamType: "video", Codec: "vp9", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	d = apptranscode.MakePlaybackDecision(t.Context(), mixed, "matroska", webm, 0, "/media/x.webm")
+	assert.Contains(t, d.TranscodeReasons, "container_incompatible", "an AAC track is not WebM")
+
+	mp4Only := webm
+	mp4Only.Containers = []string{"mp4"}
+	d = apptranscode.MakePlaybackDecision(t.Context(), vp9opus, "matroska", mp4Only, 0, "/media/x.webm")
+	assert.Contains(t, d.TranscodeReasons, "container_incompatible", "the client did not declare webm")
+
+	mkv := webm
+	mkv.Containers = []string{"mp4", "mkv"}
+	d = apptranscode.MakePlaybackDecision(t.Context(), mixed, "matroska", mkv, 0)
+	assert.NotContains(t, d.TranscodeReasons, "container_incompatible", "an mkv client takes any Matroska")
+}
+
 func TestHDR_NonHDRClient(t *testing.T) {
 	hdrType := "HDR10"
 	streams := []*library.MediaStream{

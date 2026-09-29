@@ -95,9 +95,18 @@ func SourceCopyVideoCodec(streams []*library.MediaStream) string {
 			DoViProfile:   s.DoViProfile,
 			DoViBLCompat:  s.DoViBLCompat,
 			FrameRateMode: s.FrameRateMode,
+			Width:         derefInt(s.Width),
+			Height:        derefInt(s.Height),
 		})
 	}
 	return ""
+}
+
+func derefInt(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 // SourceCopyBlocker names why the source video cannot ride the copy rung
@@ -140,6 +149,8 @@ func copySourceOf(s *library.MediaStream) CopySource {
 		DoViProfile:   s.DoViProfile,
 		DoViBLCompat:  s.DoViBLCompat,
 		FrameRateMode: s.FrameRateMode,
+		Width:         derefInt(s.Width),
+		Height:        derefInt(s.Height),
 	}
 }
 
@@ -194,7 +205,14 @@ var audioCopyCodecs = map[string]bool{"aac": true, "ac3": true, "eac3": true}
 // 26.9 dB the 128k rendition scored on a clean source in September, which is
 // what "the background is not on the same plane as the voices" sounds like.
 // A passthrough adds exactly none of it.
-var fmp4PassthroughOptIn = map[string]bool{"mp3": true}
+//
+// opus (2026-09-29): every Blender open movie the demo ships carries Opus,
+// and the HLS session re-encoded it to AAC for nothing - MSE takes Opus in
+// fMP4 on Chrome and Firefox (isTypeSupported audio/mp4;codecs="opus"), not on
+// Safari, hence opt-in like mp3. The muxed bytes read back as `opus, Opus,
+// 48000, 2` (ffmpeg 7 `-c:a copy` into fragmented MP4, measured on Sprite
+// Fright), and the master advertises CODECS "opus" (audioCodecAttr).
+var fmp4PassthroughOptIn = map[string]bool{"mp3": true, "opus": true}
 
 // AudioCopyCodecAllowed reports whether a (lowercased) source audio codec is in
 // the always-wired passthrough set above. Used by the mkvgo CMAF packager gate,

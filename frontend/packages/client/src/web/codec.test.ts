@@ -48,6 +48,16 @@ describe("getBrowserCapabilities", () => {
     expect(caps.containers).toContain("webm");
   });
 
+  // VP8 and Vorbis are decodable everywhere but never declared: no hardware
+  // VP8 decoder exists, and a raw 1080p VP8 stuttered where its transcode did
+  // not. The server keeps transcoding those files.
+  it("never declares vp8 or vorbis even when the browser plays them", () => {
+    vi.spyOn(HTMLVideoElement.prototype, "canPlayType").mockReturnValue("probably");
+    const caps = getBrowserCapabilities();
+    expect(caps.videoCodecs).not.toContain("vp8");
+    expect(caps.audioCodecs).not.toContain("vorbis");
+  });
+
   it("includes av1 when av01 codec supported", () => {
     vi.spyOn(HTMLVideoElement.prototype, "canPlayType").mockImplementation((type) => {
       if (type.includes("av01")) return "probably";

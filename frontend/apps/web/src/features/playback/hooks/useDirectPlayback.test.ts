@@ -163,3 +163,37 @@ describe("useDirectPlayback", () => {
     hook.unmount();
   });
 });
+
+// The refresh re-renders the parent with the fresh-token URL, which re-runs
+// the effect. A file the browser cannot open at all (Firefox on a .mkv) then
+// errors again: the retry must not be re-armed by the re-run, or the player
+// reloads the source forever (660 reloads a minute, measured 2026-09-29).
+it("does not retry again after the parent re-renders with the refreshed URL", async () => {
+  const video = makeVideo();
+  const setTranscodeMode = vi.fn();
+  const onStreamTokenRefreshRef = { current: vi.fn().mockResolvedValue("fresh") };
+  const base = {
+    videoRef: { current: video },
+    positionRef: { current: 0 },
+    streamInfo: { directPlayUrl: "/api/v1/media/m1/stream?token=old" } as V1StreamInfo,
+    startPositionMs: 0,
+    transcodeMode: false,
+    onEnded: vi.fn(),
+    setTranscodeMode,
+    setIsBuffering: vi.fn(),
+    streamTokenRef: { current: "old" },
+    onStreamTokenRefreshRef,
+  };
+  const hook = renderHook((p: typeof base) => useDirectPlayback(p), { initialProps: base });
+  (video as { error: MediaError | null }).error = { code: 4, message: "Failed to init decoder" } as MediaError;
+  video.dispatchEvent(new Event("error"));
+  await flush();
+  expect(onStreamTokenRefreshRef.current).toHaveBeenCalledTimes(1);
+  expect(setTranscodeMode).not.toHaveBeenCalled();
+
+  hook.rerender({ ...base, streamInfo: { directPlayUrl: "/api/v1/media/m1/stream?token=fresh" } as V1StreamInfo });
+  video.dispatchEvent(new Event("error"));
+  await flush();
+  expect(onStreamTokenRefreshRef.current).toHaveBeenCalledTimes(1);
+  expect(setTranscodeMode).toHaveBeenCalledWith(true);
+});

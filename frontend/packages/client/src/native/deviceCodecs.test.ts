@@ -53,7 +53,7 @@ describe("deviceCodecs", () => {
     expect(m.getDeviceAudioCodecs()).toEqual(["aac", "mp3", "opus", "flac", "vorbis"]);
     expect(m.getDeviceHdrSupport()).toBe(false);
     expect(m.getDeviceMaxH264Level()).toBe(41);
-    expect(m.getFmp4AudioPassthrough()).toEqual(["mp3"]);
+    expect(m.getFmp4AudioPassthrough()).toEqual(["mp3", "opus"]);
   });
 
   it("android with the native module: the Dolby family needs the sink's yes, HDR follows hdr10/hlg", async () => {

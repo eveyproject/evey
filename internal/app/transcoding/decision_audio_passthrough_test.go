@@ -126,3 +126,24 @@ func TestPackagedAudio_UndecodableCodecKeepsItsOwnReason(t *testing.T) {
 	assert.NotContains(t, d.TranscodeReasons, "audio_passthrough_unsupported",
 		"the codec check already refused it; the passthrough pass must stay quiet")
 }
+
+// The demo's Blender films: VP9/Opus in a .mkv, which the web plays as an
+// HLS copy. An opted-in browser gets the Opus track verbatim (direct_stream
+// survives); one without the opt-in is told the track is re-encoded.
+func TestPackagedAudio_OpusFollowsTheOptIn(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "vp9", Width: new(1920), Height: new(858), Bitrate: int64Ptr(6000000), IsDefault: true},
+		{StreamType: "audio", Codec: "opus", Channels: new(2), IsDefault: true},
+	}
+	web := transcoding.ClientProfile{VideoCodecs: []string{"h264", "vp9"}, AudioCodecs: []string{"aac", "opus"}, Containers: []string{"mp4", "webm"}}
+
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "matroska", web, 0, "/media/Sprite Fright (2021).mkv")
+	assert.Equal(t, "transcode", d.AudioDecision, "no opt-in: the packager re-encodes and the decision says so")
+	assert.Contains(t, d.TranscodeReasons, "audio_passthrough_unsupported")
+
+	web.FMP4AudioPassthrough = []string{"opus"}
+	d = apptranscode.MakePlaybackDecision(t.Context(), streams, "matroska", web, 0, "/media/Sprite Fright (2021).mkv")
+	assert.Equal(t, "copy", d.AudioDecision)
+	assert.Equal(t, "direct_stream", d.PlayMethod, "video and audio both copy: a pure remux")
+	assert.NotContains(t, d.TranscodeReasons, "audio_passthrough_unsupported")
+}

@@ -106,6 +106,10 @@ export function getBrowserCapabilities(): BrowserCapabilities {
   const videoCodecs: string[] = [];
   if (canPlay('video/mp4; codecs="avc1.42E01E"')) videoCodecs.push("h264");
   if (canPlayHevc()) videoCodecs.push("hevc");
+  // VP8 is deliberately NOT declared although every browser decodes it: it
+  // has no hardware decoder, and a 1080p VP8 file played raw stuttered on a
+  // loaded desktop (2026-09-29) where the H.264 transcode it replaced did
+  // not. VP9/Opus stay: they are hardware-decoded where they are declared.
   if (canPlay('video/webm; codecs="vp9"')) videoCodecs.push("vp9");
   if (canPlay('video/mp4; codecs="av01.0.00M.08"')) videoCodecs.push("av1");
 
