@@ -474,6 +474,20 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 				exactCandidates = append(exactCandidates, r)
 			}
 		}
+		// Several series share an exact title across remakes ("Sherlock
+		// Holmes" 1954, 1965, 1984...): the year the user wrote on the show
+		// folder picks among them, the way pickBestMatch does for films.
+		if len(exactCandidates) > 1 && year != nil {
+			var dated []domainmetadata.MetadataResult
+			for _, r := range exactCandidates {
+				if r.Year != nil && *r.Year == *year {
+					dated = append(dated, r)
+				}
+			}
+			if len(dated) == 1 {
+				exactCandidates = dated
+			}
+		}
 		if len(exactCandidates) == 1 {
 			providerID := exactCandidates[0].ProviderIDs[provider.Name()]
 			if providerID != "" {
@@ -1053,12 +1067,52 @@ func sharesAnyWord(qw map[string]bool, candidate string) bool {
 func wordSet(s string) map[string]bool {
 	m := make(map[string]bool)
 	for w := range strings.FieldsSeq(strings.ToLower(s)) {
-		// The em/en dashes here are INPUT data to strip from external titles,
-		// not prose - keep them despite the hyphen-only house style.
-		t := strings.Trim(w, ".,:;!?'\"()[]{}«»—–-")
+		// The em/en dashes (U+2014, U+2013) are INPUT data to strip from
+		// external titles, not prose - spelled as escapes so the house style
+		// (plain '-' everywhere) holds in the source.
+		t := strings.Trim(w, ".,:;!?'\"()[]{}«»\u2014\u2013-")
 		if t != "" {
 			m[t] = true
 		}
 	}
 	return m
+}
+
+// RefreshSeriesChildren re-enriches every season and episode of a series
+// from the series' CURRENT provider ids. An admin who re-identifies a series
+// changes what its episodes are (the 1954 "Sherlock Holmes" and the 1984 one
+// share no episode), so the children must follow; left alone they kept the
+// titles and overviews of the previous match. Rate-limited like the bulk
+// pass; a child that fails is logged and skipped, the others still land.
+func (e *Enricher) RefreshSeriesChildren(ctx context.Context, series *domainlib.MediaItem, log *slog.Logger) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.RefreshSeriesChildren")
+	defer span.End()
+	span.SetAttributes(attribute.String("series.id", string(series.ID)))
+	if series.Type != domainlib.Series {
+		return nil
+	}
+	seasonType, episodeType := string(domainlib.Season), string(domainlib.Episode)
+	seriesID := string(series.ID)
+	seasons, err := e.mediaItems.List(ctx, domainlib.ListMediaItemsFilter{ParentID: &seriesID, Type: &seasonType})
+	if err != nil {
+		return fmt.Errorf("RefreshSeriesChildren: list seasons: %w", err)
+	}
+	for _, season := range seasons {
+		if err := e.apiLimiter.Wait(ctx); err != nil {
+			return err
+		}
+		e.autoEnrichSeason(ctx, season, log)
+		seasonID := string(season.ID)
+		episodes, err := e.mediaItems.List(ctx, domainlib.ListMediaItemsFilter{ParentID: &seasonID, Type: &episodeType})
+		if err != nil {
+			return fmt.Errorf("RefreshSeriesChildren: list episodes of season %s: %w", seasonID, err)
+		}
+		for _, ep := range episodes {
+			if err := e.apiLimiter.Wait(ctx); err != nil {
+				return err
+			}
+			e.autoEnrichEpisode(ctx, ep, log)
+		}
+	}
+	return nil
 }

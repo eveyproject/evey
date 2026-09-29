@@ -166,6 +166,7 @@ func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, t
 		slog.WarnContext(ctx, "publish event", slog.String("event", evtTmdb.EventName()), slog.Any("err", err))
 	}
 	s.publishItemUpdated(ctx, shared.MediaItemID(mediaItemID), library.UpdateReasonMetadataRefreshed)
+	s.refreshSeriesChildren(item)
 	return nil
 }
 
@@ -225,7 +226,38 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 		slog.WarnContext(ctx, "publish event", slog.String("event", evtImdb.EventName()), slog.Any("err", err))
 	}
 	s.publishItemUpdated(ctx, shared.MediaItemID(mediaItemID), library.UpdateReasonMetadataRefreshed)
+	s.refreshSeriesChildren(item)
 	return nil
+}
+
+// SeriesChildrenRefresher is the optional enricher capability behind the
+// cascade below; the production Enricher has it, the test fakes need not.
+type SeriesChildrenRefresher interface {
+	RefreshSeriesChildren(ctx context.Context, series *library.MediaItem, log *slog.Logger) error
+}
+
+// refreshSeriesChildren makes a re-identified series' seasons and episodes
+// follow it. Detached from the request (a season of TMDB calls outlives a
+// gateway timeout) but bound to the service context and its wait group, like
+// the orphan drain, so a shutdown cancels and awaits it.
+func (s *CommandService) refreshSeriesChildren(item *library.MediaItem) {
+	if item == nil || item.Type != library.Series {
+		return
+	}
+	r, ok := s.enricher.(SeriesChildrenRefresher)
+	if !ok {
+		return
+	}
+	ctx := s.shutdownCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	s.workerWg.Go(func() {
+		log := slog.Default().With(slog.String("series_id", string(item.ID)))
+		if err := r.RefreshSeriesChildren(ctx, item, log); err != nil {
+			log.Warn("refresh series children after re-identification", slog.Any("err", err))
+		}
+	})
 }
 
 // lookupTMDBByIMDB asks any provider that implements ExternalIDLookup to

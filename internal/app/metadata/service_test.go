@@ -1089,3 +1089,50 @@ func TestSearchMetadata_AllProvidersFailingIsNotAnEmptyResult(t *testing.T) {
 	require.Error(t, err, "every provider failed - that is not an empty catalogue")
 	assert.Empty(t, results)
 }
+
+// fakeCascadingEnricher also has the optional series-children capability, so
+// the service's re-identification cascade can be observed.
+type fakeCascadingEnricher struct {
+	fakeItemEnricher
+	mu       sync.Mutex
+	cascaded []string
+}
+
+func (f *fakeCascadingEnricher) RefreshSeriesChildren(_ context.Context, series *library.MediaItem, _ *slog.Logger) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cascaded = append(f.cascaded, string(series.ID))
+	return nil
+}
+
+// Re-identifying a series must make its seasons and episodes follow (the
+// 1954 "Sherlock Holmes" and the 1984 one share no episode); re-identifying
+// a film touches nothing else. Both refresh entry points cascade.
+func TestRefreshItemMetadata_SeriesCascadesToChildren(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	provider := metafakes.NewFakeMetadataProvider("tmdb")
+	provider.ByProviderID["6560"] = &metadata.MetadataResult{Title: "Sherlock Holmes"}
+	provider.ByProviderID["9761"] = &metadata.MetadataResult{Title: "Elephants Dream"}
+	provider.ByProviderID["tt0046639"] = &metadata.MetadataResult{Title: "Sherlock Holmes"}
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus,
+		[]metadata.MetadataProvider{provider},
+	)
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	enricher := &fakeCascadingEnricher{}
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "series-1", Title: "Old", Type: library.Series}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "series-2", Title: "Old", Type: library.Series}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "film-1", Title: "Old", Type: library.MovieItem}))
+
+	require.NoError(t, cmdSvc.RefreshItemMetadata(ctx, "series-1", "6560", "tv"))
+	require.NoError(t, cmdSvc.RefreshItemMetadataByIMDB(ctx, "series-2", "tt0046639", "tv"))
+	require.NoError(t, cmdSvc.RefreshItemMetadata(ctx, "film-1", "9761", "movie"))
+	cmdSvc.WaitWorkers()
+
+	assert.ElementsMatch(t, []string{"series-1", "series-2"}, enricher.cascaded, "both series cascade, the film does not")
+}

@@ -643,3 +643,19 @@ func TestSetExtraParserTokens_NilClears(t *testing.T) {
 	assert.Empty(t, got.Quality, "extras must be cleared")
 	assert.Equal(t, "Movie foo", got.Title, "foo leaks back into title once cleared")
 }
+
+// A dated show ("Sherlock Holmes (1954) - S01E01 - Title.mp4") keeps its
+// year next to its season/episode: the scanner stamps it on the series so
+// enrichment can tell the 1954 series from its remakes.
+func TestParse_SeriesWithYear(t *testing.T) {
+	info := ParseFilename("Sherlock Holmes (1954) - S01E01 - The Case of the Cunningham Heritage.mp4")
+
+	assert.Equal(t, "series", info.Type)
+	assert.Equal(t, "Sherlock Holmes", info.Title)
+	require.NotNil(t, info.Year)
+	assert.Equal(t, 1954, *info.Year)
+	require.NotNil(t, info.Season)
+	assert.Equal(t, 1, *info.Season)
+	require.NotNil(t, info.Episode)
+	assert.Equal(t, 1, *info.Episode)
+}
