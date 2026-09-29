@@ -56,7 +56,7 @@ func TestPhoto_KillMutant_SearchLimitBoundary(t *testing.T) {
 func TestPhoto_KillMutant_MovedFileDetection(t *testing.T) {
 	dir := "/fake/photos"
 	scanner := photofakes.NewFakePhotoScanner()
-	newPath := dir + "/moved.jpg"
+	newPath := dir + "/Voyage/moved.jpg"
 	scanner.Files = []photo.ScannedImageFile{{
 		Path:     newPath,
 		Size:     10,
@@ -96,6 +96,10 @@ func TestPhoto_KillMutant_MovedFileDetection(t *testing.T) {
 	}
 	if p.FilePath != newPath {
 		t.Fatalf("FilePath not updated: got %q want %q", p.FilePath, newPath)
+	}
+	// The album follows the file: from the root (no album) into "Voyage".
+	if p.Album != "Voyage" {
+		t.Fatalf("album not updated on move: got %q want %q", p.Album, "Voyage")
 	}
 
 	all, err := repo.ListAllByLibrary(ctx, "lib1")

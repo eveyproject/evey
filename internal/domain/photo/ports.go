@@ -14,7 +14,11 @@ import (
 type CommandRepo interface {
 	Upsert(ctx context.Context, p Photo) error
 	Delete(ctx context.Context, id string) error
-	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
+	// UpdateFilePath re-points a photo whose file moved (same hash, new path).
+	// The album is the folder the file now sits in, so it moves with the path:
+	// a photo dragged into "Voyage/" joins that album instead of keeping the
+	// one its old folder gave it.
+	UpdateFilePath(ctx context.Context, id, newPath, album string, modTime time.Time) error
 }
 
 // QueryRepo is the read side of the photo store.

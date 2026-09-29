@@ -158,7 +158,7 @@ func (s *CommandService) buildPhotoJobs(ctx context.Context, dir string, idx *sc
 		if movedID, isMove := idx.Moved(f.Path, hash); isMove {
 			// The row survives at its NEW path - exclude it from the prune pass.
 			movedIDs[movedID] = true
-			if updateErr := s.repo.UpdateFilePath(ctx, movedID, f.Path, f.ModTime); updateErr != nil {
+			if updateErr := s.repo.UpdateFilePath(ctx, movedID, f.Path, albumOf(dir, f.Path), f.ModTime); updateErr != nil {
 				slog.WarnContext(ctx, "photo update path", slog.String("id", movedID), slog.Any("err", updateErr))
 			}
 			return nil
@@ -215,15 +215,7 @@ func (s *CommandService) processOnePhoto(ctx context.Context, libraryID string, 
 	}
 
 	title := strings.TrimSuffix(j.name, filepath.Ext(j.name))
-	// Album = subdirectory path relative to the library root, so two
-	// physical folders with the same name (e.g. nested "Ma Sorciere…"
-	// dirs) don't collapse into one logical album.
-	parentDir := filepath.Dir(j.path)
-	album := strings.TrimPrefix(parentDir, j.dir)
-	album = strings.TrimPrefix(album, string(filepath.Separator))
-	if parentDir == j.dir {
-		album = ""
-	}
+	album := albumOf(j.dir, j.path)
 
 	width, height := s.scanner.ImageDimensions(j.path)
 
@@ -278,4 +270,18 @@ func (s *CommandService) DeletePhoto(ctx context.Context, photoID string) error 
 		slog.WarnContext(ctx, "photo: PhotoRemoved publish failed", slog.String("photoID", photoID), slog.Any("err", pubErr))
 	}
 	return nil
+}
+
+// albumOf is the album a photo belongs to: its folder relative to the scan
+// root (so two folders with the same name at different depths stay two
+// albums), empty for a file at the root. Shared by the new-file and the
+// moved-file paths, so a move between folders changes the album the way a
+// fresh scan would have set it.
+func albumOf(dir, path string) string {
+	parentDir := filepath.Dir(path)
+	if parentDir == dir {
+		return ""
+	}
+	album := strings.TrimPrefix(parentDir, dir)
+	return strings.TrimPrefix(album, string(filepath.Separator))
 }

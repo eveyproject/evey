@@ -269,7 +269,7 @@ func (r *FakeRepository) ListAllByLibrary(_ context.Context, libraryID shared.Li
 	return result, nil
 }
 
-func (r *FakeRepository) UpdateFilePath(_ context.Context, id, newPath string, modTime time.Time) error {
+func (r *FakeRepository) UpdateFilePath(_ context.Context, id, newPath, album string, modTime time.Time) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -277,6 +277,7 @@ func (r *FakeRepository) UpdateFilePath(_ context.Context, id, newPath string, m
 	defer r.mu.Unlock()
 	if p, ok := r.photos[id]; ok {
 		p.FilePath = newPath
+		p.Album = album
 		p.ModTime = modTime
 		r.photos[id] = p
 	}
