@@ -1,5 +1,5 @@
 ---
-source_sha: 2dada6a4bec10e2dacad382eaef08c5e13dc2134f67204ec207f7e125b5cbf50
+source_sha: 3b28483f95cf0e01f8af366abbbe130d63e2bfdb7657c49aefe090c25a5ced6f
 reviewed: true
 ---
 # Reverse proxy
@@ -62,15 +62,6 @@ réglage fin est un extrait facultatif.
 Evey émet une Content-Security-Policy complète. Si votre proxy la laisse passer,
 il n'y a rien d'autre à faire.
 
-> Jusqu'au 23 juillet 2026, cette phrase était fausse : il manquait `media-src`
-> et `worker-src` à la politique de l'application, si bien que `blob:` retombait
-> sur `default-src 'self'` et que la lecture MSE échouait pour qui la laissait
-> passer. Personne ne l'avait vu, parce que la configuration Caddy fournie
-> retire l'en-tête de l'application et pose le sien. Si vous faites tourner une
-> version plus ancienne derrière Nginx Proxy Manager ou Traefik et que le lecteur
-> ne démarre pas, voilà pourquoi : posez la politique ci-dessous au niveau du
-> proxy, ou mettez Evey à jour.
-
 Beaucoup d'installations la retirent au contraire (`header_down
 -Content-Security-Policy` dans Caddy) et posent la leur. C'est possible, mais
 **votre** politique doit alors garder ces éléments, sans quoi des fonctions
@@ -98,6 +89,17 @@ frame-src https://www.gstatic.com
 `base-uri` et `object-src` ne retombent pas sur `default-src` : une politique
 qui les omet laisse libres l'injection de `<base href>` et l'intégration par
 `<object>`/`<embed>`. Gardez-les si vous posez votre propre politique.
+
+Une page a besoin d'une politique plus large : `/cast-receiver.html`, la page
+que charge un Chromecast quand il lit depuis Evey. Le lecteur Cast y injecte
+des styles, des polices et des images venus de `www.gstatic.com`, et
+l'application envoie pour cette raison une politique propre à cette page.
+Laissez passer l'en-tête de l'application sur ce chemin, ou appliquez cette
+politique à ce seul chemin :
+
+```
+default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://www.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: https:; worker-src 'self' blob:; font-src 'self' data: https://www.gstatic.com; connect-src 'self' https: wss:; frame-src https://www.gstatic.com; base-uri 'self'; object-src 'none'
+```
 
 Quelques règles simples :
 
@@ -203,8 +205,8 @@ directe sur son propre disque. **Advanced** → *Custom Nginx Configuration*
 (l'onglet `Custom Locations` ne sait pas exprimer l'expression régulière) :
 
 ```nginx
-# Envois de plugins, restaurations de sauvegarde.
-client_max_body_size 100M;
+# Envois de plugins (jusqu'à 100 Mo) et restaurations de sauvegarde (jusqu'à 2 Go).
+client_max_body_size 2G;
 
 # Streaming : pas de tampon, pas de délai.
 location ~ ^/api/v1/media/.+/(hls|stream) {
@@ -262,13 +264,11 @@ les deux réglages ne se comportent donc correctement qu'ensemble.
 semblaient venir de l'adresse privée du proxy, et tout le monde était classé en
 local. Après, les vrais clients distants sont correctement identifiés, et si
 l'accès distant est désactivé, ils sont refusés sur toutes les routes
-(`403 {"code":"remote_access_disabled"}`). Cette séquence exacte a bloqué tout
-un foyer, pendant deux jours, hors d'un serveur qui fonctionnait : la
-configuration du proxy avait changé, aucun réglage de l'application, et le seul
-symptôme visible était des clients en échec sans erreur côté serveur.
+(`403 {"code":"remote_access_disabled"}`), sans qu'aucun réglage de
+l'application ait changé.
 
-Evey s'en protège désormais : l'accès distant est activé par défaut dès qu'une
-adresse publique est configurée, son état est journalisé à chaque démarrage, les
+Evey s'en protège : l'accès distant est activé par défaut dès qu'une adresse
+publique est configurée et qu'aucun choix explicite n'a été fait, son état est journalisé à chaque démarrage, les
 refus sont journalisés avec l'adresse du client, `evey admin doctor` échoue
 clairement sur « publié mais refuse tout », et le panneau d'administration
 affiche un avertissement. Après tout changement de la confiance accordée au
