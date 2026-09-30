@@ -66,15 +66,17 @@ back unchanged, so saving the other fields never wipes a secret.
 
 ## Backend IPC
 
-The plugin process communicates with the Evey host via gRPC over a Unix domain socket. The socket path is passed in the `EVEY_PLUGIN_SOCK` environment variable at startup.
-
-The host authenticates the plugin process by verifying its PID via `SO_PEERCRED` immediately after `cmd.Start` - no token is issued to the process itself.
+The plugin process and the Evey host talk gRPC over two Unix domain sockets,
+whose paths are passed in the environment at startup:
 
 ```
-EVEY_PLUGIN_SOCK=/tmp/evey/plugins/<plugin_id>/host.sock
 EVEY_PLUGIN_ID=<plugin_id>
-EVEY_HOST_SOCK=<path>          # socket the plugin can dial back to reach the host
+EVEY_PLUGIN_SOCK=/tmp/evey/plugins/<plugin_id>/plugin.sock   # your process listens here and serves PluginService
+EVEY_HOST_SOCK=/tmp/evey/plugins/<plugin_id>/host.sock       # your process dials here to call HostService
 ```
+
+The host authenticates the plugin process on its socket by the PID the kernel
+reports (`SO_PEERCRED`) - no token is issued to the process itself.
 
 A separate, short-lived JWT (5 minutes, scoped to `plugin_id` + `user_id`) is issued on demand via the `IssuePluginToken` RPC - the plugin's *frontend iframe* fetches one to authenticate its own `public`/`prefs`-scoped calls. It has no relation to the backend socket above and is never handed to the plugin process at startup.
 
@@ -109,11 +111,11 @@ reached from the plugin's iframe, where a user context exists.
 
 When a plugin declares a `frontend` module, the HTML for the iframe `srcdoc` includes a bridge script that exposes `window.evey` to the module's JavaScript.
 
-The frontend module has no direct access to the host page's DOM, `window`, `fetch`, `localStorage`, or any other browser global beyond what is explicitly provided via `window.evey`.
+The frontend module runs in a sandboxed frame with an opaque origin: it has no access to the host page's DOM, cookies or storage, and reaches Evey only through `window.evey`. Its own network access is limited by the frame's `connect-src` to the hosts of its `external_fetch` list, over `https://`; a plugin without that list can open no connection at all.
 
 ### `evey.navigate(path)`
 
-Navigates the host application to `path`. The path must be a whitelisted route; requests to `/admin/*`, `/auth/*`, `/setup/*`, and `/profile/security/*` are silently dropped.
+Navigates the host application to `path`. The path must start with `/home`, `/library`, `/media`, `/player`, `/settings` or `/search`; anything else (the admin area, sign-in, setup, an absolute or protocol-relative URL) is silently dropped.
 
 ```js
 evey.navigate("/library/movies");

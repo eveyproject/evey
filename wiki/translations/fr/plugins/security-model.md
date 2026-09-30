@@ -1,5 +1,5 @@
 ---
-source_sha: 2f19c650c31baaff6c7e79f4cb38f11050f9c3959419e781d95e02a21affb7f8
+source_sha: d7bce24287ed4a776ee318f491cfe4acc864b662ff571e9f917bb3021465d410
 reviewed: true
 ---
 # Permissions et emplacements
@@ -57,6 +57,8 @@ et la politique de signature qu'un serveur peut imposer :
 
 ## Catalogue des permissions
 
+Une permission se déclare sous `permissions` ; toute autre valeur fait refuser l'installation. Recevoir des webhooks (`webhook.receiver`) et fournir des métadonnées (`metadata.provider`) sont des capacités, déclarées sous `capabilities` : voir [Référence de l'API des plugins](api-reference.md#capabilities).
+
 | Permission | Ce qu'elle accorde |
 |---|---|
 | `network` | Le plugin peut ouvrir des connexions réseau sortantes. Elle **doit** aller avec une liste `external_fetch` non vide : sans elle, l'installation est refusée. |
@@ -69,7 +71,8 @@ et la politique de signature qu'un serveur peut imposer :
 | `api.user` | Le plugin peut appeler les RPC propres à l'utilisateur (lire son profil, ses préférences). |
 | `api.metadata` | Le plugin peut appeler les RPC de métadonnées : chercher et écrire des données d'enrichissement. |
 | `notification.sender` | Le plugin peut publier des événements de notification (push web, e-mail, webhook). |
-| `webhook.receiver` | Le plugin peut s'enregistrer comme cible de webhook (il reçoit des HTTP POST de services externes). |
+| `public` | L'interface du plugin peut lire une projection sans risque des médias (identifiant, titre, type, année, résumé, affiche), jamais les chemins ni les flux. Voir [Référence de l'API des plugins](api-reference.md#public). |
+| `prefs` | L'interface du plugin peut lire et écrire les préférences de l'utilisateur courant dans l'espace de noms du plugin. Voir [Référence de l'API des plugins](api-reference.md#prefs). |
 | `hardware.gpu` | **La permission la plus risquée : réservée à l'administrateur, pour les plugins officiels du projet.** Accorde le nœud de rendu DRM de l'hôte (`-render-dev`, le vrai `renderD1xx`, jamais un nœud de carte, jamais `/dev/dxg`/`/dev/nvidia*`/`/dev/kfd`) : une surface d'attaque sur le pilote noyau, et une frontière de mémoire GPU PARTAGÉE avec le transcodeur (fuite de mémoire entre processus possible sur les GPU AMD, Apple et Qualcomm ; un GPU bloqué peut figer le transcodage). Sans cette permission, les nœuds de périphérique GPU sont entièrement exclus de la liste de périphériques autorisés par Landlock (refusés quels que soient les droits DAC). Avec elle, le lanceur ajoute une règle Landlock `IOCTL_DEV` explicite, limitée à ce seul fichier (ABI v5 et plus) ; sur les ABI Landlock plus anciennes, les ioctl ne sont pas du tout gouvernés par Landlock, si bien que l'accès en lecture et écriture suffit déjà à soumettre des commandes au GPU. L'installeur affiche un avertissement CRITIQUE bien visible dans l'aperçu ; ne l'accordez qu'à des plugins officiels, de confiance. |
 
 ## Règles d'accès externe
