@@ -1,5 +1,5 @@
 ---
-source_sha: e41521039aa8e4842bc54b7e645384700736d0d0c6cc17a5c7e4aca52b570e11
+source_sha: 70f1b2800b49143b1d28815dd9f5debd717d59cd95f6f436325fc029a8969897
 reviewed: false
 ---
 # Installation
@@ -58,9 +58,9 @@ volumes:
    ausführen: siehe [Sicherungen und Updates](backups.md#updating-evey).
 2. Die API und die Weboberfläche, auf einem Port, in einfachem HTTP.
 3. Alles, was Evey gehört: Datenbank, Signaturschlüssel, erzeugte Passwörter,
-   Suchindex, Logs, Sicherungen, Plugins. Dieser Ordner muss gesichert werden.
-4. Cache für Transkodierung und Vorschaubilder. Er kann jederzeit gelöscht
-   werden und füllt sich bei Bedarf neu.
+   Suchindex, Vorschaubilder der Zeitleiste, Bilder, Logs, Sicherungen, Plugins. Dieser Ordner muss gesichert werden.
+4. Transkodierungs-Cache: Segmente, verkleinerte Fotos und Cover. Er kann
+   jederzeit gelöscht werden und füllt sich bei Bedarf neu.
 5. Ihre Medien. Absichtlich mit Schreibzugriff eingebunden: Die Reparaturen
    unter [Mediengesundheit](runbooks/media-health.md) schreiben Dateien an Ort
    und Stelle neu. Hängen Sie `:ro` an, um eine schreibgeschützte Bibliothek zu
@@ -89,8 +89,8 @@ an. Nichts muss von Hand vorbereitet werden.
 
 | Ort | Enthält | Löschbar? |
 | --- | --- | --- |
-| `./evey-data` | Datenbank, Signaturschlüssel, erzeugte Passwörter, Suchindex, Logs, Sicherungen, Plugins | Nein. Geht er verloren, gehen alle Konten, der Wiedergabeverlauf und alle Einstellungen verloren. Nur `meili/` darin darf weg: Der Suchindex wird mit `evey admin reindex-search` aus der Datenbank neu aufgebaut. |
-| Volume `evey-cache` | Transkodierte Segmente, Vorschaubilder der Zeitleiste | Ja. Wird bei Bedarf neu erzeugt. |
+| `./evey-data` | Datenbank, Signaturschlüssel, erzeugte Passwörter, Suchindex, Vorschaubilder der Zeitleiste, Bilder, Logs, Sicherungen, Plugins | Nein. Geht er verloren, gehen alle Konten, der Wiedergabeverlauf und alle Einstellungen verloren. Nur `meili/` darin darf weg: Der Suchindex wird mit `evey admin reindex-search` aus der Datenbank neu aufgebaut. |
+| Volume `evey-cache` | Transkodierte Segmente, verkleinerte Fotos und Cover | Ja. Wird bei Bedarf neu erzeugt. |
 | Ihre Medienordner | Ihre Dateien | Evey löscht sie nicht; einen Titel in Evey zu entfernen, entfernt ihn aus der Bibliothek, nicht von der Festplatte. Evey schreibt dort in drei Fällen: bei einer Reparatur aus der Mediengesundheit (das Original bleibt als Sicherung erhalten), bei von OpenSubtitles heruntergeladenen Untertiteln (ein Ordner `.subtitles` neben dem Film) und für eine Prüfdatei von wenigen Sekunden, die kontrolliert, dass die Ordnerüberwachung noch Ereignisse empfängt. |
 
 ## Häufige Varianten
