@@ -10,7 +10,7 @@ Evey runs the host process (Go) and ships plugins as ZIPs. The plugin runtime de
 
 | Tool | Why | Install |
 |---|---|---|
-| Go ≥ 1.25 | Build the Evey host | `https://go.dev/dl/` |
+| Go ≥ 1.27 | Build the Evey host | `https://go.dev/dl/` |
 | Docker + Docker Compose | Default dev stack (Postgres, Meilisearch, server, web) | https://docs.docker.com/engine/install/ |
 | `bubblewrap` (`bwrap`) | Sandbox for plugin processes - required for the `bubblewrap` and `strict` modes | `apt install bubblewrap` (Debian/Ubuntu), `dnf install bubblewrap` (Fedora), `pacman -S bubblewrap` (Arch). macOS: install Linux in a VM, bwrap is Linux-only. |
 
@@ -27,7 +27,7 @@ Pick what your plugin actually uses; you don't need them all.
 | Go | Go ≥ 1.21 | No bundled stubs - generate with `protoc-gen-go` + `protoc-gen-go-grpc`; a compiled Go binary also needs the `native-binary` permission. |
 | Dart / Java / PHP / Ruby / Swift | Per-language toolchain | Stubs are pre-generated in `sdk/<lang>/`. |
 | CSS-only theme | Nothing extra | A theme is a ZIP with `kind: theme` + a `theme.css`. |
-| Theme JS | Nothing extra (the host runs your JS inside a sandboxed `iframe` with `sandbox="allow-scripts"` and a locked-down CSP) | The static scanner refuses any access to `document`, `window`, `fetch`, `localStorage`, etc. - see `internal/pkg/themejs/scan.go`. |
+| Theme JS | Nothing extra (the host runs your JS inside a sandboxed `iframe` with `sandbox="allow-scripts"` and a locked-down CSP) | The static scanner refuses cookies, storage, network calls and access to the host page (`document.cookie`, `localStorage`, `fetch(`, `window.parent`...) - see [Themes](../themes.md#what-the-scanner-refuses). |
 
 ### Generating stubs for another language
 
@@ -60,7 +60,7 @@ stubs for the languages it ships (`sdk/<lang>/`).
 
 | Tool | Why |
 |---|---|
-| `cosign` (Sigstore) | Sign your plugin ZIP. `EVEY_PLUGINS_COSIGN_POLICY` defaults to `warn` (not `off`) - with `warn` and no public key configured, verification is a no-op (a warning is logged, nothing is blocked); set `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` to actually verify signatures, or `enforce` to refuse unsigned uploads. https://docs.sigstore.dev/cosign/installation/ |
+| `cosign` (Sigstore) | Sign your plugin ZIP. `EVEY_PLUGINS_COSIGN_POLICY` defaults to `warn` (not `off`) - with `warn` and no public key configured, verification is a no-op (a warning is logged, nothing is blocked); set `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` to actually verify signatures, and the policy to `enforce` to refuse unsigned uploads (`enforce` without a public key stops the server at startup rather than accept every plugin unverified). https://docs.sigstore.dev/cosign/installation/ |
 | `pre-commit` | Catch obvious issues before submitting a plugin. |
 | `golangci-lint` | Required if your plugin is in Go and you want linting parity with the host. |
 
@@ -73,7 +73,7 @@ cp .env.dev.example .env.dev   # generates a sane local config
 make dev                        # docker compose up: postgres, meilisearch, server (Air), web (Vite)
 ```
 
-When the server is healthy, browse to https://evey.test (Caddy serves it). Default credentials are seeded in `.env.dev` - change them before exposing the instance.
+When the server is healthy, browse to https://evey.test (Caddy serves it). The setup wizard creates the administrator account on first launch, as described in [First setup](../getting-started/first-setup.md).
 
 If `make dev` fails on `bwrap`:
 - Confirm `which bwrap` returns a path on the host
@@ -125,9 +125,11 @@ zip -r my-first-plugin.zip . -x ".*" "node_modules/*" "*.pyc"
 # upload through the admin UI
 open https://evey.test/admin/plugins
 # or via the API
-curl -F "file=@my-first-plugin.zip" \
+curl -F "plugin=@my-first-plugin.zip" \
      -H "Authorization: Bearer $EVEY_TOKEN" \
-     https://evey.test/api/v1/admin/plugins
+     https://evey.test/api/v1/admin/plugins/upload
+# a signature goes in a second field: -F "sig=@my-first-plugin.zip.sig"
+# an update that asks for new permissions: -F "accept_permission_changes=true"
 ```
 
 The installer runs in this order - every step can refuse the install:
@@ -150,10 +152,10 @@ Hot-reload your plugin while developing:
 ```sh
 # edit code → re-zip → re-upload via UI (Update button)
 # or, faster: drop the file directly into the plugin directory inside the container
-docker compose exec evey ls /var/lib/evey/plugins/<plugin-id>/
+docker compose exec evey ls /data/plugins/<plugin-id>/
 ```
 
-When you bump `version`, the installer accepts the upload as an update. If you add a new permission, you'll hit the escalation flow - that's the design, not a bug.
+An upload is accepted as an update only when its `version` is higher than the installed one: bump it on every iteration (a same or lower version is refused), or uninstall first. If you add a new permission, you'll hit the escalation flow - that's the design, not a bug.
 
 Logs from the plugin process land in:
 - `/admin/plugins/<id>` - last N lines via the UI
@@ -196,7 +198,7 @@ Defaults applied to every plugin process:
 
 | Env var | Default | Effect |
 |---|---|---|
-| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto` = picks best available (normally `landlock`). `landlock` = Landlock LSM allowlist + unconditional TCP egress denial (`-restrict-net` + seccomp `-deny-inet`, no carve-out for the `network` permission) + LD_PRELOAD seccomp. `basic` = LD_PRELOAD seccomp + UID drop only (debug). `bubblewrap` = full namespace + bind-mount root readonly + `--unshare-net` (also unconditional, every plugin, regardless of the `network` permission). `strict` = bubblewrap + seccomp allowlist. |
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto` = picks best available (normally `landlock`). `landlock` = Landlock LSM allowlist + unconditional TCP egress denial (`-restrict-net` + seccomp `-deny-inet`, no carve-out for the `network` permission) + LD_PRELOAD seccomp. `basic` = LD_PRELOAD seccomp + UID drop only (debug). `bubblewrap` = full namespace + bind-mount root readonly + `--unshare-net` (also unconditional, every plugin, regardless of the `network` permission). `strict` = bubblewrap + the LD_PRELOAD seccomp shim. |
 | `EVEY_PLUGINS_MEMORY_MB` | 256 | Max RSS. The resource monitor polls `/proc` and stops the plugin past this. `0` disables. |
 | `EVEY_PLUGINS_CPU_NICE` | 10 | `nice` value (0-19) applied at spawn so a plugin can never starve the server of CPU. |
 | `EVEY_PLUGINS_PIDS_MAX` | 64 | Max thread/process count. Prevents fork bombs. `0` disables. |
@@ -228,9 +230,10 @@ own site). What "distribution" means today:
 | `bwrap: ... permission denied` | `bubblewrap` mode inside Docker: the default seccomp and AppArmor profiles block the `unshare` and `mount` calls it needs. | Keep the default `auto` mode, which uses Landlock in a container. Otherwise apply the bundled profile `docker/seccomp-evey.json` (also in the image at `/etc/evey/seccomp.json`), a deliberate security downgrade: see [Plugin sandbox setup](sandbox-deployment.md). |
 | `forbidden pattern "fetch(" found in theme JS` | Theme JS scanner caught a banned API. | Themes must only call `evey.theme.*`. Read `internal/pkg/themejs/scan.go` to see what's blocked. |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | All wildcards are rejected at install, no exceptions. | Use `api.tmdb.org` (and list every explicit subdomain you need), not `*.tmdb.org` or `cdn.*.tmdb.org`. |
-| `installer: slot "admin.section" not allowed` | Plugin frontends are banned from privileged areas. | Pick a non-critical slot from the whitelist or rethink the plugin. |
+| `manifest: frontend slot "admin.section" not allowed` | Plugin frontends are banned from privileged areas. | Pick a non-critical slot from the whitelist or rethink the plugin. |
 | `cosign verify-blob: failed signature` | Public key on the server doesn't match the private key used to sign. | Re-sign with the right key, or update `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`. |
-| Plugin starts then dies with exit 137 | OOM killed by cgroup. | Lower memory usage or increase `EVEY_PLUGINS_MEMORY_MB`. |
+| `plugin already installed at version 1.0.0, new version must be higher` | The ZIP carries the version already installed. | Bump `version` in `plugin.yaml`, or uninstall the plugin first. |
+| Plugin stops, the log says `memory quota exceeded (… MB > … MB)` | The resource monitor killed it past its memory limit (exit 137). | Lower memory usage, or raise the plugin's memory limit on its card in **Admin → Plugins** (`EVEY_PLUGINS_MEMORY_MB` sets the default). |
 | Frontend module not visible | Plugin not enabled, slot mismatch, or `web_root` prefix wrong in `frontend.src`. | Check the admin Plugins page (status badge), confirm the slot string matches a real `<PluginSlot name=...>` mount, look at the network panel for `/api/v1/plugins/{id}/assets/...` calls. |
 
 ## 10. Going further
