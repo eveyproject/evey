@@ -1,5 +1,5 @@
 ---
-source_sha: 2d10a959b8d809ae197a485f1214dbb6d86d37c8658c1c4d4c12d0222f6593f8
+source_sha: bb7b744c4f03cee0ce9a6cdfdd4b96cd6e99f6d71eee21c50f601fc4595ae619
 reviewed: true
 ---
 # Référence de l'API des plugins
@@ -74,19 +74,17 @@ enregistrer les autres champs n'efface donc jamais un secret.
 
 ## Communication avec le serveur
 
-Le processus du plugin communique avec l'hôte Evey en gRPC sur une socket de
-domaine Unix. Le chemin de la socket est transmis au démarrage dans la variable
-d'environnement `EVEY_PLUGIN_SOCK`.
-
-L'hôte authentifie le processus du plugin en vérifiant son PID par
-`SO_PEERCRED` juste après `cmd.Start` : aucun jeton n'est remis au processus
-lui-même.
+Le processus du plugin et l'hôte Evey dialoguent en gRPC sur deux sockets de
+domaine Unix, dont les chemins sont transmis dans l'environnement au démarrage :
 
 ```
-EVEY_PLUGIN_SOCK=/tmp/evey/plugins/<plugin_id>/host.sock
 EVEY_PLUGIN_ID=<plugin_id>
-EVEY_HOST_SOCK=<chemin>        # la socket que le plugin peut appeler pour joindre l'hôte
+EVEY_PLUGIN_SOCK=/tmp/evey/plugins/<plugin_id>/plugin.sock   # votre processus y écoute et sert PluginService
+EVEY_HOST_SOCK=/tmp/evey/plugins/<plugin_id>/host.sock       # votre processus y appelle HostService
 ```
+
+L'hôte authentifie le processus du plugin sur sa socket par le PID que signale
+le noyau (`SO_PEERCRED`) : aucun jeton n'est remis au processus lui-même.
 
 Un JWT distinct, de courte durée (5 minutes, limité à `plugin_id` + `user_id`), est
 émis à la demande par le RPC `IssuePluginToken` : c'est *l'iframe d'interface* du
@@ -134,15 +132,18 @@ utilisateur existe.
 Quand un plugin déclare un module `frontend`, le HTML du `srcdoc` de l'iframe
 contient un script de pont qui expose `window.evey` au JavaScript du module.
 
-Le module d'interface n'a aucun accès direct au DOM de la page hôte, à son
-`window`, à `fetch`, à `localStorage`, ni à aucune autre globale du navigateur,
-au-delà de ce que fournit explicitement `window.evey`.
+Le module d'interface tourne dans un cadre isolé, d'origine opaque : il n'a
+accès ni au DOM de la page hôte, ni à ses cookies, ni à son stockage, et ne
+joint Evey que par `window.evey`. Son propre accès au réseau est limité par le
+`connect-src` du cadre aux hôtes de sa liste `external_fetch`, en `https://` ;
+un plugin sans cette liste ne peut ouvrir aucune connexion.
 
 ### `evey.navigate(path)`
 
-Fait naviguer l'application hôte vers `path`. Le chemin doit être une route
-autorisée ; les demandes vers `/admin/*`, `/auth/*`, `/setup/*` et
-`/profile/security/*` sont ignorées sans message.
+Fait naviguer l'application hôte vers `path`. Le chemin doit commencer par
+`/home`, `/library`, `/media`, `/player`, `/settings` ou `/search` ; tout le
+reste (l'administration, la connexion, la configuration initiale, une adresse
+absolue ou sans schéma) est ignoré sans message.
 
 ```js
 evey.navigate("/library/movies");

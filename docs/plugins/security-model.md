@@ -48,6 +48,8 @@ signature policy a server can enforce: [Writing a plugin](dev-setup.md).
 
 ## Permissions catalog
 
+A permission is declared under `permissions`; any other value refuses the install. Receiving webhooks (`webhook.receiver`) and providing metadata (`metadata.provider`) are capabilities, declared under `capabilities`: see [Plugin API reference](api-reference.md#capabilities).
+
 | Permission | What it grants |
 |---|---|
 | `network` | Plugin may make outbound network connections. **Must** be combined with a non-empty `external_fetch` list - refused at install without it. |
@@ -60,7 +62,8 @@ signature policy a server can enforce: [Writing a plugin](dev-setup.md).
 | `api.user` | Plugin may call user-scoped RPCs (read own profile, preferences). |
 | `api.metadata` | Plugin may call metadata RPCs: search and write enrichment data. |
 | `notification.sender` | Plugin may publish notification events (web push, email, webhook). |
-| `webhook.receiver` | Plugin may register as a webhook target (receives HTTP POST from external services). |
+| `public` | The plugin's interface may read a safe projection of media items (id, title, type, year, overview, poster), never paths or streams. See [Plugin API reference](api-reference.md#public). |
+| `prefs` | The plugin's interface may read and write the current user's preferences in the plugin's own namespace. See [Plugin API reference](api-reference.md#prefs). |
 | `hardware.gpu` | **Highest-risk permission - admin-only, first-party tier.** Grants the host's DRM render node (`-render-dev`, the real `renderD1xx`, never a card node, never `/dev/dxg`/`/dev/nvidia*`/`/dev/kfd`): a kernel-driver attack surface and a GPU-memory boundary SHARED with the transcoder (cross-process memory leak possible on AMD/Apple/Qualcomm GPUs; a hung GPU can stall transcoding). Without this permission, GPU device nodes are excluded from the Landlock device allowlist entirely (denied regardless of DAC). With it granted, the launcher adds an explicit `IOCTL_DEV` Landlock rule scoped to that one file (ABI v5+); on older Landlock ABIs, ioctls aren't governed by Landlock at all, so read+write access alone already permits GPU command submission. The installer surfaces a loud CRITICAL warning at preview; grant only to trusted, first-party plugins. |
 
 ## External fetch rules
