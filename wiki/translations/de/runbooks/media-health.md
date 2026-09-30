@@ -1,139 +1,154 @@
 ---
-source_sha: 4abf3c80428cd67c34ec53516788e91cc6019eab33ecc17b138c08d22a4bde30
+source_sha: 6793435ce29d5b03c7d7504757f1dc297b95ed73f6f61930a65ecd174182af6a
+reviewed: false
 ---
-# Medienzustand (Admin → Medienzustand)
+# Medienzustand
 
-Die Seite Medienzustand nimmt sich jede MKV- und WebM-Datei einer Bibliothek vor
-und gibt jeder Datei EIN Urteil. Der Zweck: reparieren, was sich reparieren
-lässt, und aufhören, ewig dieselben Warnungen zu lesen - nicht eine Liste mit
-600 Befunden pflegen, auf die niemand reagiert.
+**Admin → Medienzustand** liest jede MKV/WebM-Datei Ihrer Bibliotheken und gibt
+jeder eine einzige Antwort. Ziel ist eine Seite, die sich leert: Was Evey
+beheben kann, behebt es; der Rest wird einmal erwähnt und kann als gesehen
+markiert werden.
 
-## Die vier Urteile
+<figure class="evey-shot" markdown="span">
+  ![Admin → Medienzustand nach einem Scan der Demo-Bibliotheken](../images/admin-media-health.webp){ loading=lazy }
+  <figcaption>Ein Scan, bei dem nichts mehr zu tun ist: Jede Datei ist gesund (Oberfläche auf Englisch).</figcaption>
+</figure>
 
-| Urteil | Was es bedeutet | Was der Server dagegen tut |
-|---|---|---|
-| **Gesund** | Index, Ton-Timing, Container und Größen sind in Ordnung. | Nichts. |
-| **Reparierbar** | Ein Defekt, den der Server selbst und gefahrlos beheben kann. | **Alle reparieren** behebt sie im Hintergrund allesamt (siehe unten). |
-| **Ihre Entscheidung** | Ein Defekt, den nur die Quelle beheben kann, oder eine Reparatur mit echtem Preis. | Nichts von allein. Haken Sie ihn ab oder beschaffen Sie die Datei neu. |
-| **Info** | Eine Merkwürdigkeit ohne Auswirkung auf die Wiedergabe. | Nichts. Haken Sie sie ab, um die Ansicht zu leeren. |
+## Zwei Urteile
 
-Jede Zeile trägt zusätzlich die Kennzeichen, die hinter ihrem Urteil stehen.
-Die Kennzeichen, nach Urteil gruppiert:
+| Urteil | Was es bedeutet | Was Evey tut |
+| --- | --- | --- |
+| **Gesund** | Index, Container, Größen und Audio-Timing stimmen. | Nichts. |
+| **Hier reparierbar** | Ein Fehler, den Evey auf diesem Server repariert. | **Alle reparieren** erledigt sie im Hintergrund. |
+| **Information** | Etwas an der Datei Gemessenes, das Evey nicht von selbst umschreibt. | Nichts. Markieren Sie es als gesehen. |
 
-**Reparierbar**
+Es gibt kein drittes Urteil, das Ihnen eine Aufgabe zuschiebt. Eine Messung, auf
+die Evey nicht reagieren kann, ist ein Hinweis, und eine Messung kann falsch
+sein: Wenn die Datei gut läuft, ist sie in Ordnung.
 
-- Ein *fehlender* Suchindex oder ein Index, der zwar da, aber unbrauchbar ist
-  (auf die Tonspur bezogen, auf Spuren verweisend, die die Datei nicht mehr hat,
-  oder zu grob, um einen Sprung nahe am Ziel landen zu lassen). Die Reparatur
-  baut die Cues neu auf: Die Datei wird in eine temporäre Kopie geschrieben,
-  vollständig neu geprüft (Spuren, Dauer, Index) und dann eingetauscht. Sie
-  kuriert langsames Springen und langsames Fortsetzen.
-- *Ton bei +N s* - eine Tonspur beginnt später als das Bild (ein Fehler beim
-  Muxen, die klassischen „Lippen vor dem Ton“). Die Reparatur richtet die Spur
-  an Ort und Stelle neu aus.
-- *Falscher Container* - die `.mkv` ist in Wahrheit eine MP4- oder MOV-Datei.
-  Einen Matroska-Index gibt es hier nicht aufzubauen; die Reparatur **benennt sie
-  in `.mp4` um** und aktualisiert den Bibliothekseintrag. Neu geschrieben wird
-  nichts.
-- *Beschädigt ~Größe* - ein beschädigter Abschnitt mitten in der Datei, an dem
-  ein striktes Neuschreiben scheitert. Die Reparatur kann **neu
-  synchronisieren**: Sie überspringt den beschädigten Bereich und setzt danach
-  wieder auf. Diese Bytes sind endgültig verloren, deshalb fragt der Dialog
-  ausdrücklich danach (*Auch N beschädigte Dateien neu synchronisieren*) - ohne
-  Häkchen bleiben beschädigte Dateien unangetastet.
+### Hier reparierbar
 
-**Ihre Entscheidung**
+- **Ohne Seek-Index**, oder mit einem, der nicht nutzbar ist. Das Symptom ist
+  ein langsamer Sprung oder ein langsames Fortsetzen. Der Index wird in einer
+  temporären Kopie neu aufgebaut, die Kopie wird vollständig geprüft (Spuren,
+  Dauer, Index) und ersetzt dann die Datei.
+- **Falscher Container**: Die `.mkv` ist in Wahrheit eine MP4- oder MOV-Datei.
+  Sie wird in `.mp4` umbenannt und die Bibliothek folgt; nichts wird
+  umgeschrieben.
+- **Beschädigter Abschnitt**: ein beschädigter Bereich mitten in der Datei. Die
+  Reparatur überspringt ihn und synchronisiert, was folgt, neu, diese Bytes
+  gehen also endgültig verloren. Der Reparaturdialog fragt ausdrücklich danach
+  (**Auch N beschädigte Dateien neu synchronisieren**); bleibt das Kästchen
+  leer, werden beschädigte Dateien nicht angefasst. Dasselbe gilt für eine
+  Datei, deren Beschädigung erst beim Umschreiben auftaucht (**Beschädigung bei
+  der Reparatur gefunden**): Der Scan liest nur die Köpfe und konnte sie nicht
+  sehen.
+- **Spuren blockweise abgelegt**: minutenlang Video, dann minutenlang Audio,
+  statt nebeneinander. Kein Player kommt über den ersten Block hinaus.
+  **Spuren neu verschachteln** schreibt sie ohne Neukodierung nebeneinander und
+  prüft, dass jedes Paket angekommen ist, bevor die Datei ersetzt wird.
 
-- *Unvollständiger Download - fehlendes Ende ~Größe* - das deklarierte Ende der
-  Datei liegt jenseits ihrer tatsächlichen Größe, und der Durchlauf hat den
-  Abriss bestätigt. Das fehlende Ende bekommt kein Werkzeug zurück: Die Größe
-  sagt Ihnen, ob es um einen Rumpf von 9 KB geht (bei der Wiedergabe unsichtbar)
-  oder um eine fehlende Schlussszene. Wirklich beheben lässt sich das nur, indem
-  Sie die Quelle neu beschaffen.
-- *Audio -N s* - eine Tonspur endet N Sekunden **vor dem Bild** (gemessen wird
-  Inhalt gegen Inhalt, nie gegen die deklarierte Dauer des Containers, die
-  lediglich die Behauptung eines Muxers ist). Die Wiedergabe füllt das fehlende
-  Ende mit Stille; der Ton steht schlicht nicht in der Datei.
-- *Grobe Suche* - der Index wurde neu aufgebaut, und eine Lücke bleibt. Woran es
-  liegt, sagt das Detail: Keyframes, die niemand in die Cues eingetragen hat
-  (ein zweiter Neuaufbau schließt die Lücke), ein Abschnitt ganz ohne Keyframe
-  (nur eine Neukodierung macht ihn anspringbar) oder **ein Abschnitt ganz ohne
-  Bild** - dort friert das Bild ein, was der Index auch tut, und Abhilfe schafft
-  allein die Quelle.
+### Information
 
-**Info**
+- **Unvollständiger Download**: Das Ende der Datei ist nie angekommen. Sie läuft
+  bis zum Schnitt. Kein Werkzeug holt den fehlenden Teil zurück; nur die Quelle
+  kann das.
+- **Grobe Suche**: Der neu aufgebaute Index hat noch eine Lücke, meist im
+  Abspann. Ein Sprung in die Lücke landet an ihrem Rand; überall sonst sind
+  Sprünge exakt.
+- **Ton bei +N s**: Eine Audiospur beginnt nach dem Bild. So wird eine
+  Synchronfassung an einen Schnitt angeglichen, und jeder Player folgt dem. Evey
+  schreibt das nie um.
+- **Tonspuren N s auseinander**: Die eigenen Audiospuren der Datei stimmen nicht
+  überein, eine davon sitzt also an der falschen Stelle. Keine Messung kann
+  sagen, welche.
+- **Ton N s neben dem Bild**: Eine Audiospur liegt entfernt von der Stelle, an
+  der die Untertitel, die auf das Bild getimt sind, die Sprache verorten.
+- **Tonspur auf 0 gezogen**: das Zeichen, das eine frühere Reparatur hinterlässt,
+  wenn sie eine Spur um ihre angegebene Verzögerung zurückgezogen hat. Läuft
+  die Synchronfassung jetzt zu früh, ist der entfernte Betrag nicht mehr in der
+  Datei.
+- **Audio -N s**: Eine Audiospur endet vor dem Bild. Die Wiedergabe füllt die
+  Lücke mit Stille.
+- **Überschüssige Bytes**: überzählige Bytes nach dem Ende des Dateiinhalts. Sie
+  läuft gut.
+- **Unlesbar**: Der Scan konnte die Datei nicht lesen (fehlt, nicht lesbar oder
+  ein Container, den der Parser abgelehnt hat). Prüfen Sie die Einbindung oder
+  die Quelle.
 
-- *Überschüssige Bytes* - Bytes jenseits des deklarierten Endes des Segments
-  (ein abgebrochenes Anhängen, das Journal eines Torrent-Clients). Das Medium
-  ist vollständig und läuft einwandfrei; jedes künftige Neuschreiben wirft sie
-  weg.
+## Die Synchronität mit dem Auge prüfen
 
-## Abhaken
+Für die drei Audio-Hinweise erstellt **Synchronität prüfen** in der Zeile der
+Datei einen kurzen Ausschnitt auf dem Server: Wählen Sie einen Moment, eine Spur
+und einen zu testenden Versatz, und schauen Sie ihn an, bei Bedarf verlangsamt.
+Der Vergleich von Spuren sagt, ob sie übereinstimmen, nie, welche dem Bild folgt;
+nur das Anschauen entscheidet.
 
-*Gesehen, nicht mehr melden* (je Datei) und *Alle als gesehen markieren* (je
-Gruppe) nehmen einen Befund aus der Ansicht *Wartend*. Der Haken hängt an der
-Identität der Datei **und an ihren Bytes**: Ändert sich die Datei (Größe oder
-mtime), stellt der nächste Scan die Diagnose neu, und der Befund kommt zurück.
-*Erneut melden* macht den Haken rückgängig. Ein Haken, den Sie während eines
-laufenden Scans setzen, bleibt nach dessen Ende erhalten (sofern die Datei
-unverändert ist).
+**Anwenden** verschiebt diese Spur um den gewählten Versatz. Die Änderung wird
+als Ihr Urteil gespeichert, nicht als Messung, und der **Verlauf** kann sie
+rückgängig machen.
 
-Mit den Ansichten über der Tabelle (*Wartend*, *Reparierbar*, *Ihre
-Entscheidung*, *Info*, *Gesehen*, *Sicherungen*, *Alle*) und dem Suchfeld
-arbeiten Sie eine große Bibliothek ab: *Wartend* ist die Aufgabenliste,
-*Gesehen* ist das, worüber Sie schon entschieden haben.
+## Als gesehen markieren
 
-## Scans, und warum der erste Scan nach einer Aktualisierung lange dauert
+**Gesehen, nicht mehr melden** (eine Datei) und **Alle als gesehen markieren**
+(eine Gruppe) nehmen einen Informationshinweis aus der Ansicht **Wartend**.
+Markieren lassen sich nur Hinweise: Ein reparierbarer Fehler wird repariert. Die
+Markierung gehört zur Datei, wie sie ist: Ändern sich Größe oder Datum, stellt
+der nächste Scan die Diagnose erneut. **Erneut melden** hebt die Markierung auf.
 
-Ein Scan liest von jeder Datei nur den Kopf (ein paar KB) und übernimmt das
-vorige Urteil, solange sich die Datei nicht geändert hat. Zwei Dinge erzwingen
-eine frische Diagnose für alles:
+Die Ansichten über der Tabelle (**Wartend**, **Reparierbar**, **Info**,
+**Gesehen**, **Sicherungen**, **Alle**) und das Suchfeld sind der Weg durch eine
+große Bibliothek: **Wartend** ist die Aufgabenliste.
 
-- die Datei hat sich geändert (Größe oder mtime);
-- **die Erkennung im Server hat sich geändert** - eine neue Regel, eine
-  korrigierte Bezugsgröße, ein verschobener Schwellwert. Jede solche Änderung
-  erhöht eine interne Diagnoseversion, und der nächste Scan stellt die Diagnose
-  einmalig für die ganze Bibliothek neu, statt ein Urteil zu zeigen, das eine
-  neuere Regel nicht mehr fällen würde. Auf einem NAS sind das bei einer großen
-  Bibliothek Stunden; die Scans danach sind wieder schnell.
+## Scans
 
-## Sicherungen und Zurückrollen
+Ein Scan liest den Anfang jeder Datei (einige Kilobyte) und verwendet die
+vorherige Antwort für eine Datei weiter, die sich nicht geändert hat.
+**Festplattennutzung** legt das Tempo fest:
 
-**Lesen Sie das, bevor Sie in einer Störung nach *Wiederherstellen* greifen: Ob
-es überhaupt eine physische Kopie des Originals gibt, hängt an der
-Reparaturstrategie, und eine der drei hebt keine auf.**
+- **Zurückhaltend**: eine Datei nach der anderen, dann eine Pause, so lang wie
+  das Lesen gedauert hat. Die Festplatten bleiben etwa die Hälfte der Zeit frei,
+  sodass jemand weiterschauen kann.
+- **Schnell**: mehrere Dateien gleichzeitig, ohne Pause. Etwa dreimal schneller
+  bei einer über mehrere Festplatten verteilten Bibliothek, aber die Wiedergabe
+  kann dabei ruckeln.
 
-| Strategie | Physische Sicherung | Wie das Zurückrollen funktioniert |
-|---|---|---|
-| `rewrite` | `.mkvgobak` neben der Datei | Die Kopie zurückspielen |
-| `auto` | `.mkvgobak` (fällt auf ein Neuschreiben zurück) | Die Kopie zurückspielen |
-| `inplace` | **keine, niemals** | Die umgekehrte Verschiebung anwenden, die im Reparaturprotokoll steht |
+Zwei Dinge lassen einen Scan alles neu diagnostizieren: eine geänderte Datei und
+eine neue Version von Evey, deren Prüfungen sich geändert haben. Der erste Scan
+nach einem solchen Update dauert bei einer großen Bibliothek daher lange; die
+folgenden sind wieder schnell.
 
-`inplace` ist ein chirurgischer Eingriff - ein Schreibvorgang in der Datei, kein
-Remux - und diesen Weg nimmt die Neuausrichtung des Tons (das Kennzeichen „Ton
-bei +N s“). Kopiert wird dabei nichts: Der Weg zurück ist der Eintrag im
-`audit_log`, der die angewandte Verschiebung festhält, und der Umstand, dass die
-entgegengesetzte Verschiebung sie aufhebt. Ist dieser Eintrag weg, ist auch das
-Zurückrollen weg. Maßgeblich für die drei Strategien ist
-`admin_media.proto`; `inplace` ignoriert sowohl *Sicherungen behalten* als auch
-die Zahl der aufzubewahrenden Sicherungen.
+## Sicherungen, Verlauf und Rückgängigmachen
 
-Für die beiden Strategien, die eine Kopie aufheben, gilt: *Wiederherstellen*
-holt eine einzelne Datei zurück, *Alle wiederherstellen* den gewählten Bereich.
-Würden die Sicherungen das Volume sprengen, sagt die Seite das und schlägt vor,
-sie abzuschalten - dann bleiben während des Laufs nur die letzten paar erhalten
-und werden am Ende entfernt, wobei jede Reparatur vor dem Tausch geprüft wurde.
+**Sicherungen behalten** ist standardmäßig an: Jede umgeschriebene Datei behält
+ihr Original als `.mkvgobak` daneben. **Wiederherstellen** stellt eine Datei
+wieder her, **Alle wiederherstellen** den gewählten Umfang, und **Sicherungen
+löschen** entfernt sie endgültig. Ist die Option aus, existieren während eines
+Laufs nur die letzten Kopien, und sie werden an dessen Ende entfernt; jede
+Reparatur wird dann gründlicher geprüft, bevor sie die Datei ersetzt. Würde eine
+Kopie jeder Datei das Volume füllen, sagt die Seite das vor dem Lauf.
 
-Reparaturen brauchen die Medienordner **les- und schreibbar** im Container
-eingehängt (kein `:ro` am Bind-Mount) - die Seite nennt Ihnen die Dateien, die
-auf einem nur lesbaren Volume liegen.
+Das **Reparaturjournal** listet jede Änderung, die eine Reparatur an den Bytes
+einer Datei vorgenommen hat, über die ganze Bibliothek; der **Verlauf** zeigt sie
+für eine Datei. Manche Änderungen lassen sich dort ohne Kopie rückgängig machen:
 
-## Die Entsprechungen auf der Kommandozeile
+| Änderung | Rückgängig |
+| --- | --- |
+| Audiospur verschoben | Wendet genau die entgegengesetzte Verschiebung an. |
+| In `.mp4` umbenannt | Benennt sie zurück. |
+| Index neu aufgebaut | Nichts rückgängig zu machen: Bild und Ton bleiben unberührt. |
+| Beschädigter Abschnitt übersprungen | Nur die Sicherung bringt die verlorenen Bytes zurück, deshalb behält diese Reparatur immer eine. |
 
-Dieselbe Maschinerie steht auf der Kommandozeile für Betreiber bereit (siehe
-`cli.md`):
+Reparaturen schreiben in Ihre Medienordner. Diese müssen im Container mit
+Schreibzugriff eingebunden sein (kein `:ro` am Volume); nach einem Lauf, der auf
+ein schreibgeschütztes Volume gestoßen ist, sagt die Seite das. Scannen
+funktioniert in beiden Fällen.
 
-- `evey admin reindex-no-cue --root <dir> [--apply] [--resync]` - der Neuaufbau
-  des Index, standardmäßig ein Trockenlauf;
-- `evey admin validate-streaming --root <dir>` - der nur lesende Bericht zur
-  Streaming-Tauglichkeit.
+## Von der Kommandozeile
+
+Dieselbe Maschinerie gibt es in der Betreiber-CLI (siehe `cli.md`):
+
+- `evey admin reindex-no-cue --root <dir> [--apply] [--resync]` baut die
+  fehlenden Indizes neu auf, als Probelauf, solange `--apply` fehlt;
+- `evey admin validate-streaming --root <dir>` gibt den schreibgeschützten
+  Bericht zur Streaming-Bereitschaft aus.

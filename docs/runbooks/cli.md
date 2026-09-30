@@ -110,26 +110,15 @@ evey admin demo-seed [--apply] [--media]     Run the demo bootstrap by hand: the
 
 ## How to invoke
 
-### From the host with the stack running (Docker dev / production)
-
-The Makefile wraps the most common ops in container-shell calls so they
-work without sourcing `.env` and without pg_dump on the host:
+### In the container (standard installation)
 
 ```sh
-make migrate-version
-make migrate-up
-make migrate-down
+docker exec evey-server evey admin doctor
+docker exec -it evey-server bash      # an admin shell: evey admin ..., man evey
 ```
 
-These shell out to `docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate <op>'`,
-so `evey-server` must be up - start it with `make dev` first if it isn't.
-
-### Direct shell into the running container
-
-```sh
-docker exec -it evey-server sh
-/app # go run ./cmd/evey admin reset-password --user alice@example.com
-```
+The image sets the database password file, so the commands reach the embedded
+database without any extra environment.
 
 ### On a bare-metal install (no Docker)
 
@@ -139,6 +128,17 @@ evey admin migrate version
 ```
 
 The pre-installed binary already has every subcommand built in.
+
+### On the development stack
+
+The Makefile wraps the migration commands, which run from the source tree in
+the `evey-server` dev container:
+
+```sh
+make migrate-version
+make migrate-up
+make migrate-down
+```
 
 ## Tab-completion and the manual
 
