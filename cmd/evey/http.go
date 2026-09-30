@@ -5,7 +5,6 @@ import (
 
 	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -41,7 +40,8 @@ const quickConnectPollPerMinute = 60
 func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, startTime time.Time, logDir string, ctx context.Context, qcHub *quickconnecthub.Hub) (http.Handler, apptranscoding.PlaybackDecider, error) {
 	mux := http.NewServeMux()
 
-	ratelimit.SetTrustedProxies(cfg.Server.TrustedProxies)
+	// Read live: Admin -> Remote Access can change the list while serving.
+	ratelimit.SetTrustedProxySource(cfg.EffectiveTrustedProxies)
 
 	loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
 	globalRL := ratelimit.New(cfg.Server.GlobalRateLimitMax)
@@ -159,6 +159,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		StartTime: startTime,
 		LogDir:    logDir,
 		HTTPSOnly: cfg.Server.ForwardedProto,
+		HTTPSMode: cfg.EffectiveHTTPS,
 
 		SearchHealth: deps.searchHealth,
 
@@ -379,13 +380,17 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		}
 	}()
 
-	netDetector := network.NewDetector(cfg.RemoteAccess.LANNetworks)
-	netMw := networkMiddleware(netDetector, cfg.EffectiveRemoteAccessEnabled, slog.Default())
+	// The LAN list is read live, like the on/off switch: Admin -> Remote Access
+	// changes both, and the gate follows without a restart.
+	lan := network.NewLiveDetector(func() (cidrs []string) {
+		cfg.WithReadLock(func() { cidrs = cfg.RemoteAccess.LANNetworks })
+		return cidrs
+	})
+	netMw := networkMiddleware(lan.Detector, cfg.EffectiveRemoteAccessEnabled, slog.Default())
 
-	proxyTrust, err := network.NewProxyTrust(cfg.Server.TrustedProxies, cfg.Server.RealIPHeader, cfg.Server.ForwardedProto)
-	if err != nil {
-		return nil, nil, fmt.Errorf("proxy trust: %w", err)
-	}
+	// The trusted proxies and the HTTPS flag are read on every request, like
+	// the remote-access switch and the LAN list: the panel changes them live.
+	proxyTrust := network.NewLiveProxyTrust(cfg.EffectiveTrustedProxies, cfg.Server.RealIPHeader, cfg.EffectiveHTTPS)
 
 	// Innermost, right around the mux: the demo lock judges the pattern the mux
 	// resolves, after every network/CSRF/auth-agnostic layer has had its say.
@@ -394,7 +399,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		root = httpapi.DemoLockMiddleware(mux, deps.translator, mux)
 	}
 
-	return httpapi.RequestIDMiddleware(httpapi.TokenRedactMiddlewareWithStore(srv.StreamTokenStore, cfg.Server.ForwardedProto, eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddleware(cfg.Server.ForwardedProto, httpapi.CORSMiddleware(cfg.EffectiveBaseURL(), httpapi.CSRFMiddleware(cfg.Server.ForwardedProto, proxyTrust.Middleware(httpapi.BodyReadTimeoutMiddleware(netMw(root))))))))), srv.PlaybackDecider(), nil
+	return httpapi.RequestIDMiddleware(httpapi.TokenRedactMiddlewareLive(srv.StreamTokenStore, cfg.EffectiveHTTPS, eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddlewareLive(cfg.EffectiveHTTPS, httpapi.CORSMiddlewareLive(cfg.EffectiveBaseURL, httpapi.CSRFMiddlewareLive(cfg.EffectiveHTTPS, proxyTrust.Middleware(httpapi.BodyReadTimeoutMiddleware(netMw(root))))))))), srv.PlaybackDecider(), nil
 }
 
 func resolveVAPIDPublicKey(cfgRepo shared.ServerConfigRepository, cfg *config.Config) string {

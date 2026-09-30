@@ -184,10 +184,10 @@ settings:
     transcodeTitle: "ट्रांसकोडिंग"
     allowDirectPlay: "डायरेक्ट प्ले की अनुमति दें"
     allowDirectPlayDesc: "जब डिवाइस समर्थन करे तो मूल फ़ाइल चलाएं।"
-    allowDirectStream: "डायरेक्ट स्ट्रीम की अनुमति दें"
+    allowDirectStream: "रीमक्स की अनुमति दें"
     allowDirectStreamDesc: "संभव होने पर बिना री-एनकोडिंग के कंटेनर को रीमक्स करें।"
     allowTranscoding: "ट्रांसकोडिंग की अनुमति दें"
-    allowTranscodingDesc: "यदि डायरेक्ट प्ले/स्ट्रीम उपलब्ध न हो तो ट्रांसकोडिंग पर वापस जाएं।"
+    allowTranscodingDesc: "यदि न सीधा प्लेबैक संभव हो न रीमक्स, तो ट्रांसकोडिंग पर वापस जाएं।"
     autoplayNextTitle: "अगला एपिसोड अपने आप चलाएँ"
     autoplayNextDesc: "यह एपिसोड खत्म होने पर अगला एपिसोड अपने आप शुरू करें। अगला एपिसोड बटन हर हाल में उपलब्ध रहता है।"
   quickConnect:

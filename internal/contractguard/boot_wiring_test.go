@@ -56,9 +56,9 @@ var bootWirings = []struct {
 	{
 		name:       "trusted proxy list",
 		receiver:   "ratelimit",
-		setter:     "SetTrustedProxies",
+		setter:     "SetTrustedProxySource",
 		declaredIn: filepath.Join("internal", "pkg", "ratelimit", "limiter.go"),
-		argSuffix:  ".Server.TrustedProxies",
+		argSuffix:  ".EffectiveTrustedProxies",
 		why: "the boot keeps the package-level default, which is wider than any configured list " +
 			"and honors X-Forwarded-For from the whole LAN",
 	},

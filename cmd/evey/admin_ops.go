@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -205,7 +206,9 @@ func adminDoctor(args []string) error {
 	// Read through the SAME two sources the server resolves at boot (env, then
 	// the persisted panel value) - judging on env alone would report a lockout
 	// on every instance configured from the panel.
-	res = append(res, checkRemoteAccess(effectiveRemoteAccess(db, cfg), cfg.Server.BaseURL))
+	ra := effectiveRemoteAccess(db, cfg)
+	res = append(res, checkRemoteAccess(ra, cfg.Server.BaseURL))
+	res = append(res, checkTrustedProxies(ra, cfg.Server.TrustedProxies))
 
 	// External tools.
 	res = append(res, checkTool("ffmpeg", "transcoding needs it"))
@@ -566,6 +569,38 @@ func isTTY(f *os.File) bool {
 // route). It is a FAIL rather than a WARN because nothing works for anyone
 // outside the house - and the symptom people report ("it works on your phone,
 // not on mine") points at the client, not here.
+// checkTrustedProxies judges the list that decides whose forwarded address is
+// believed: the panel's when one is saved, else EVEY_TRUSTED_PROXIES. A range
+// covering every address lets any client choose the address it is seen with,
+// which disarms the remote-access gate and the rate limits. A public range can
+// be right (a CDN in front of the server) but deserves a second look.
+func checkTrustedProxies(ra config.RemoteAccessConfig, envList []string) checkResult {
+	list, source := envList, "EVEY_TRUSTED_PROXIES"
+	if len(ra.TrustedProxies) > 0 {
+		if norm, err := config.NormalizeTrustedProxies(ra.TrustedProxies); err == nil {
+			list, source = norm, "Admin > Remote access"
+		}
+	}
+	var public []string
+	for _, cidr := range list {
+		if config.IsCatchAllProxyRange(cidr) {
+			return checkResult{"trusted proxies", "FAIL",
+				fmt.Sprintf("%s trusts %s: any client can choose the address it is seen with", source, cidr),
+				"list only your reverse proxy's address or network"}
+		}
+		ip, _, err := net.ParseCIDR(cidr)
+		if err == nil && !ip.IsLoopback() && !ip.IsPrivate() {
+			public = append(public, cidr)
+		}
+	}
+	if len(public) > 0 {
+		return checkResult{"trusted proxies", "WARN",
+			fmt.Sprintf("%s trusts public ranges %v", source, public),
+			"keep them only if they are your own proxies (a CDN, for example)"}
+	}
+	return checkResult{"trusted proxies", "ok", fmt.Sprintf("%v (%s)", list, source), ""}
+}
+
 func checkRemoteAccess(ra config.RemoteAccessConfig, baseURL string) checkResult {
 	// Same source of truth as the admin panel and the boot log. This used to
 	// re-derive "published" inline, which made three independent copies of one

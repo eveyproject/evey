@@ -28,7 +28,7 @@ playlist:
   cannot_remove_smart: "Impossible de supprimer des éléments d'une liste intelligente"
   limit_reached: "Limite d'éléments de la liste atteinte"
   duplicate_name: "Une liste avec ce nom existe déjà"
-  not_found: "Liste de lecture introuvable"
+  not_found: "Playlist introuvable"
 
 playback:
   cannot_stop_other_session: "Impossible d'arrêter la session d'un autre utilisateur"
@@ -59,7 +59,7 @@ admin:
   scanner_not_available: "Scanner non disponible"
   service_not_configured: "Service non configuré"
   heavy_op_running: "Une opération lourde est déjà en cours"
-  metadata_library_unmatchable: "Ce type de bibliothèque n'a aucun fournisseur de métadonnées à re-matcher"
+  metadata_library_unmatchable: "Ce type de bibliothèque n'a aucun fournisseur de métadonnées pour réidentifier"
   scheduled_task_not_found: "Tâche planifiée introuvable"
   seek_index_read_only: "Le volume média est monté en lecture seule - remonte-le en lecture-écriture (retire :ro), redémarre les conteneurs, puis réessaye"
   seek_index_job_running: "Une tâche d'index de positionnement est déjà en cours - relance l'analyse pour suivre sa progression"
@@ -101,7 +101,7 @@ media:
   not_found: "Média introuvable"
 
 transcode:
-  max_concurrent_reached: "Le serveur est occupé par d'autres transcodages. Réessaye dans un instant."
+  max_concurrent_reached: "Le serveur est occupé par d'autres transcodages. Réessayez dans un instant."
   job_not_found: "Tâche de transcodage introuvable"
 
 share:
@@ -112,7 +112,7 @@ syncplay:
   room_not_found: "Salon introuvable"
   code_required: "Un code d'invitation est requis"
   too_many_rooms: "Trop de salons actifs - fermez-en un avant d'en ouvrir un autre"
-  playlist_empty: "Cette liste de lecture est vide"
+  playlist_empty: "Cette playlist est vide"
   queue_empty: "La file d'attente est vide"
   name_too_long: "Le nom du salon doit faire 100 caractères au plus"
 

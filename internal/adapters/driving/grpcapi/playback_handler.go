@@ -49,13 +49,11 @@ type playbackHandler struct {
 	// keyframeOnDemand fills a missing keyframe index inline at GetStreamInfo
 	// (bounded fast-path probe; see apptranscoding.KeyframeOnDemand). Optional.
 	keyframeOnDemand *apptranscoding.KeyframeOnDemand
-	// remoteNetDetector + maxRemoteBitrateKbps enforce the operator-wide
-	// remote-access bitrate cap: a session whose real client IP is classified
-	// WAN is clamped to maxRemoteBitrateKbps. Snapshot at boot from
-	// cfg.RemoteAccess (LAN list + cap), same lifetime as the HTTP detector -
-	// changes take effect on restart. Both zero = feature off.
-	remoteNetDetector    *network.Detector
-	maxRemoteBitrateKbps int
+	// remoteAccess reads the operator-wide remote bitrate cap and the LAN list
+	// live, per request: a session whose real client IP is classified WAN is
+	// clamped to the cap, and a change in Admin -> Remote Access applies to the
+	// next playback without a restart. nil or a zero cap = feature off.
+	remoteAccess func() (maxKbps int, lanNetworks []string)
 	// decider answers GetStreamInfo with the plan's decision (Decide with the
 	// request-time pins) - bound by the composition root once the HTTP
 	// pipeline that owns the resolver exists, before this server starts.
@@ -206,11 +204,13 @@ func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.
 	// detector - so it never throttles an obviously-local viewer even if the
 	// admin forgot to list a private range in LANNetworks. An unresolved IP fails
 	// open (no cap), so an IP-plumbing hiccup can't wrongly throttle a LAN user.
-	if h.maxRemoteBitrateKbps > 0 && h.remoteNetDetector != nil {
-		if ip := net.ParseIP(interceptors.ClientIPFromCtx(ctx)); ip != nil &&
-			!ip.IsPrivate() && h.remoteNetDetector.DetectIP(ip) == network.WAN {
-			if maxBitrateKbps == 0 || h.maxRemoteBitrateKbps < maxBitrateKbps {
-				maxBitrateKbps = h.maxRemoteBitrateKbps
+	if h.remoteAccess != nil {
+		if remoteCap, lan := h.remoteAccess(); remoteCap > 0 {
+			if ip := net.ParseIP(interceptors.ClientIPFromCtx(ctx)); ip != nil &&
+				!ip.IsPrivate() && network.NewDetector(lan).DetectIP(ip) == network.WAN {
+				if maxBitrateKbps == 0 || remoteCap < maxBitrateKbps {
+					maxBitrateKbps = remoteCap
+				}
 			}
 		}
 	}
@@ -303,8 +303,9 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		preq.SourceNeedsRemux = item.File.NeedsRemux()
 	}
 	// The plan's decision, the one the master this info announces is served
-	// from: the core plus the request-time pins (Decide), never the bare core.
-	decided := h.playbackDecider().Decide(ctx, preq)
+	// from: the core plus the request-time pins and the route's tone-map
+	// (Reported), never the bare core.
+	decided := h.playbackDecider().Reported(ctx, preq)
 	decision := &decided
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
 		err := status.Errorf(codes.FailedPrecondition, "transcoding disabled by user preferences")

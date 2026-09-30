@@ -184,10 +184,10 @@ settings:
     transcodeTitle: Transcoding
     allowDirectPlay: Allow direct play
     allowDirectPlayDesc: Play original file when device supports it.
-    allowDirectStream: Allow direct stream
+    allowDirectStream: Allow remux
     allowDirectStreamDesc: Remux container without re-encoding when possible.
     allowTranscoding: Allow transcoding
-    allowTranscodingDesc: Fall back to transcoding if direct play/stream is unavailable.
+    allowTranscodingDesc: Fall back to transcoding when neither Direct Play nor remux is possible.
     autoplayNextTitle: "Auto-play next episode"
     autoplayNextDesc: "Start the next episode on its own when this one ends. The Next episode button stays available either way."
   quickConnect:

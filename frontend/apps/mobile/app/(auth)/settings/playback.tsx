@@ -517,7 +517,7 @@ export default function PlaybackSettingsScreen() {
         <View style={[s.row, { justifyContent: "space-between" }]}>
           <View style={{ flex: 1, paddingRight: 12 }}>
             <Text style={s.label}>
-              {t("auth.settings.playback.allowDirectStream", "Allow direct stream")}
+              {t("auth.settings.playback.allowDirectStream", "Allow remux")}
             </Text>
             <Text style={s.sublabel}>
               {t(
@@ -541,7 +541,7 @@ export default function PlaybackSettingsScreen() {
             <Text style={s.sublabel}>
               {t(
                 "auth.settings.playback.allowTranscodingDesc",
-                "Fall back to transcoding if direct play/stream is unavailable.",
+                "Fall back to transcoding when neither Direct Play nor remux is possible.",
               )}
             </Text>
           </View>

@@ -181,6 +181,12 @@ streamInfo:
     client_line_exceeded: 客户端测得的线路无法承载直拷
     abr_floor_requested: 播放器请求的保底档位
     file_needs_remux: "文件按单轨道分块存储（需要修复）"
+    audio_passthrough_unsupported: "音轨无法在流中原样传输"
+    preferred_video_codec: "首选视频编码（配置文件设置）"
+    preferred_audio_codec: "首选音频编码（配置文件设置）"
+    direct_play_disabled: "配置文件中已关闭直接播放"
+    direct_stream_disabled: "配置文件中已关闭重封装"
+    video_codec_pinned: "本次会话保持视频编码不变"
 jumpToChapter: "跳转到章节：{{chapter}}"
 cast:
   noDevices: 在服务器网络中未找到投屏设备。

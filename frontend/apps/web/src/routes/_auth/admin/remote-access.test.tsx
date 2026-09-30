@@ -104,6 +104,32 @@ describe("RemoteAccessPage", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /^Save$/i })).not.toBeDisabled());
   });
 
+  it("saves the trusted proxy list, and an emptied field hands it back to the environment", async () => {
+    const mutate = vi.fn();
+    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    mockUseRA.mockReturnValue({
+      data: { ...mockConfig, trustedProxies: ["172.18.0.0/16"], trustedProxiesFromPanel: true },
+      isLoading: false,
+    });
+    mockUseNet.mockReturnValue({ data: undefined });
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    const input = screen.getByDisplayValue("172.18.0.0/16");
+    expect(screen.getByText(/Current list: saved here\./)).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: " 172.18.0.0/16 ,, 10.0.0.2 " } });
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
+    expect(mutate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ trustedProxies: ["172.18.0.0/16", "10.0.0.2"], clearTrustedProxies: false }),
+    );
+
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
+    expect(mutate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ trustedProxies: [], clearTrustedProxies: true }),
+    );
+  });
+
   it("shows spinner when loading", async () => {
     mockUseRA.mockReturnValue({ data: undefined, isLoading: true });
     mockUseNet.mockReturnValue({ data: undefined });

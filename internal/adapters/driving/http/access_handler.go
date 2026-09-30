@@ -51,6 +51,10 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 				"lockoutRisk":          lockoutRisk,
 			}
 		})
+		// Outside the lock: TrustedProxiesView takes it itself.
+		trusted, fromPanel := cfg.TrustedProxiesView()
+		payload["trustedProxies"] = trusted
+		payload["trustedProxiesFromPanel"] = fromPanel
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(payload); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
@@ -72,6 +76,8 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			ExternalURL          *string  `json:"externalUrl"`
 			LANNetworks          []string `json:"lanNetworks"`
 			MaxRemoteBitrateKbps *int     `json:"maxRemoteBitrateKbps"`
+			TrustedProxies       []string `json:"trustedProxies"`
+			ClearTrustedProxies  bool     `json:"clearTrustedProxies"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -97,6 +103,18 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			}
 		}
 
+		var trustedProxies []string
+		if len(body.TrustedProxies) > 0 {
+			list, err := config.PanelTrustedProxies(body.TrustedProxies)
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(otelcodes.Error, "invalid trustedProxies")
+				messageError(w, "invalid trustedProxies: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+			trustedProxies = list
+		}
+
 		var snapshot config.RemoteAccessConfig
 		cfg.ApplyServerSettings(func() {
 			if body.Enabled != nil {
@@ -115,6 +133,12 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			}
 			if body.MaxRemoteBitrateKbps != nil {
 				cfg.RemoteAccess.MaxRemoteBitrateKbps = *body.MaxRemoteBitrateKbps
+			}
+			switch {
+			case len(trustedProxies) > 0:
+				cfg.RemoteAccess.TrustedProxies = trustedProxies
+			case body.ClearTrustedProxies:
+				cfg.RemoteAccess.TrustedProxies = nil
 			}
 			snapshot = cfg.RemoteAccess
 		})

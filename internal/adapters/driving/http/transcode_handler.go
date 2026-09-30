@@ -245,7 +245,7 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	prefs.SubtitleBurnInTrack = parseIntQuery(r, "subtitleTrack", -1)
 	// The plan's decision (Decide: the core plus the request-time pins), the
 	// same one the master this info announces will be served from.
-	decided := h.decider.Decide(r.Context(), apptranscoding.PlaybackRequest{
+	decided := h.decider.Reported(r.Context(), apptranscoding.PlaybackRequest{
 		MediaID:             mediaID,
 		SourcePath:          item.File.Path,
 		Container:           item.File.ContainerFormat,

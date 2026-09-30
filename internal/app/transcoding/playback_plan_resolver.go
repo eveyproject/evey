@@ -180,6 +180,12 @@ func (pr *PlanResolver) resolveDecided(ctx context.Context, req PlaybackRequest,
 	// resolver): the key is a projection of the route, not of the shaper.
 	grant.PinKey = pinKey
 	fp := pr.fingerprintFor(ctx, req, decision, route, profiles, pinKey)
+	// Decide judged the HDR keepable on this GPU; a per-title block or a full
+	// pool can still land the stream on a route that tone-maps. Report what the
+	// bytes are, not what was hoped for. Reasons stay out of the hash.
+	if fp.HDRTonemap && !slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
+		decision.TranscodeReasons = append(slices.Clone(decision.TranscodeReasons), "hdr_tonemapping_needed")
+	}
 	if pr.AdmissionNoteRoute != nil && !isCopy {
 		pr.AdmissionNoteRoute(pinKey, route.Identity())
 	}
@@ -327,6 +333,48 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 		}
 	}
 	return *d
+}
+
+// Reported is the decision the pre-play info surfaces show: Decide, plus what
+// the route alone already knows about the picture. A GPU unable to serve this
+// source, or a title blocked from the GPU, tone-maps on the CPU although
+// Decide judged the HDR keepable, and Stream info must say so. Admission is
+// left out: a spill on a full pool is decided when the stream is served, and
+// nothing is reserved here.
+func (pr *PlanResolver) Reported(ctx context.Context, req PlaybackRequest) transcoding.PlaybackDecision {
+	req.Source = SnapshotOf(req)
+	req.Policy = pr.hwPolicy()
+	pr = pr.frozen()
+	d := pr.Decide(ctx, req)
+	isCopy := pr.IsCopy(d, req.Streams, req.SourceBytes)
+	route := pr.resolveRoute(req, d, isCopy)
+	if route.Topology.ToneMap != transcoding.ToneMapNone && !slices.Contains(d.TranscodeReasons, "hdr_tonemapping_needed") {
+		d.TranscodeReasons = append(slices.Clone(d.TranscodeReasons), "hdr_tonemapping_needed")
+	}
+	// The announced decision must be the served one. The decision says "copy"
+	// from the codecs alone; the copy RUNG has gates of its own (keyframe
+	// index, level, colour truth, a wired producer) and the master serves a
+	// re-encode when one is closed. Reporting "copy" then was a lie the player
+	// showed as a tooltip (the demo's VP9 films, 2026-09-29: "copy" on screen,
+	// an H.264 ladder in the segments). Name the gate, the way the master's
+	// log does (TranscodeCause), and say transcode.
+	// A direct play hands the raw file over: no rung, no gate, nothing to
+	// correct - the rule is for the packaged sessions only.
+	if d.VideoDecision == "copy" && d.PlayMethod != "direct_play" && !isCopy {
+		d.VideoDecision = "transcode"
+		gate := SourceCopyBlocker(req.Streams)
+		if gate == "" {
+			gate = "copy_rung_unavailable"
+		} else {
+			gate = "copy_blocked:" + gate
+		}
+		d.TranscodeReasons = append(slices.Clone(d.TranscodeReasons), gate)
+		if d.VideoCodec == "" {
+			d.VideoCodec = transcoding.DefaultVideoCodec
+		}
+		d.PlayMethod = "transcode"
+	}
+	return d
 }
 
 // snapshot returns the request's source snapshot, taking it when a caller

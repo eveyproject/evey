@@ -34,6 +34,10 @@ const (
 )
 
 func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsOnly bool, oidcLoginRL ...*ratelimit.Limiter) {
+	registerOIDCRoutesFn(mux, oidcSvc, fixedBool(httpsOnly), oidcLoginRL...)
+}
+
+func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsOnly func() bool, oidcLoginRL ...*ratelimit.Limiter) {
 	mux.HandleFunc("GET /api/v1/auth/oidc/config", func(w http.ResponseWriter, r *http.Request) {
 		_, span := tracing.StartSpan(r.Context(), "http.auth.oidc.GetConfig")
 		defer span.End()
@@ -106,7 +110,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 			Value:    accessToken,
 			Path:     "/api/v1/auth/oidc/session",
 			HttpOnly: true,
-			Secure:   httpsOnly,
+			Secure:   httpsOnly(),
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   oidcSessionCookieAge,
 		})
@@ -116,7 +120,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 			Value:    refreshToken,
 			Path:     "/api/v1/auth/",
 			HttpOnly: true,
-			Secure:   httpsOnly,
+			Secure:   httpsOnly(),
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   refreshCookieMaxAge,
 		})
@@ -128,7 +132,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 				Value:    rawIDToken,
 				Path:     "/api/v1/auth/",
 				HttpOnly: true,
-				Secure:   httpsOnly,
+				Secure:   httpsOnly(),
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   refreshCookieMaxAge,
 			})
@@ -151,7 +155,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 			Value:    "",
 			Path:     "/api/v1/auth/oidc/session",
 			HttpOnly: true,
-			Secure:   httpsOnly,
+			Secure:   httpsOnly(),
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   -1,
 		})

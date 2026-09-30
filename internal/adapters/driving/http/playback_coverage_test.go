@@ -211,7 +211,7 @@ type recordingDecider struct {
 	decision domaintranscoding.PlaybackDecision
 }
 
-func (d *recordingDecider) Decide(_ context.Context, req apptranscoding.PlaybackRequest) domaintranscoding.PlaybackDecision {
+func (d *recordingDecider) Reported(_ context.Context, req apptranscoding.PlaybackRequest) domaintranscoding.PlaybackDecision {
 	d.got = req
 	d.calls++
 	return d.decision

@@ -76,9 +76,28 @@ describe("admin remote access screen (mobile)", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("admin.remoteAccess.saved"));
     expect(eveyFetch).toHaveBeenCalledWith({
       url: "/api/v1/admin/remote-access", method: "PUT",
-      data: { enabled: true, externalUrl: "https://evey.example", lanNetworks: ["10.0.0.0/8", "172.16.0.0/12"], maxRemoteBitrateKbps: 0 },
+      data: {
+        enabled: true, externalUrl: "https://evey.example", lanNetworks: ["10.0.0.0/8", "172.16.0.0/12"], maxRemoteBitrateKbps: 0,
+        trustedProxies: [], clearTrustedProxies: true,
+      },
     });
     await waitFor(() => expect(screen.queryByTestId("header")).toBeNull());
+  });
+
+  it("sends the trusted proxy list split, and says where the current list comes from", async () => {
+    eveyFetch.mockImplementation(async (req: { url: string }) =>
+      req.url.endsWith("network-info") ? { interfaces: [] } : { ...config, trustedProxies: ["127.0.0.0/8"] },
+    );
+    mount();
+    await waitFor(() => expect(field("trustedProxies").value).toBe("127.0.0.0/8"));
+    expect(screen.getByText(/admin\.remoteAccess\.trustedProxiesFromEnv/)).toBeTruthy();
+    fireEvent.change(field("trustedProxies"), { target: { value: "172.18.0.0/16, 10.0.0.2" } });
+    fireEvent.click(screen.getByText("common.save"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(eveyFetch).toHaveBeenCalledWith(expect.objectContaining({
+      method: "PUT",
+      data: expect.objectContaining({ trustedProxies: ["172.18.0.0/16", "10.0.0.2"], clearTrustedProxies: false }),
+    }));
   });
 
   it("turning remote access off clears the external URL, and a refused save toasts", async () => {

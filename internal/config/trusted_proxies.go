@@ -46,8 +46,20 @@ var mandatoryTrustedProxies = []string{"127.0.0.1/32", "::1/128"}
 // the list decides who may rename a client, and a silently dropped entry means
 // the proxy is not trusted, which is the failure mode above.
 func trustedProxiesFromEnv(key string) ([]string, error) {
-	out := make([]string, 0, len(mandatoryTrustedProxies)+4)
-	seen := make(map[string]struct{}, len(mandatoryTrustedProxies)+4)
+	out, err := NormalizeTrustedProxies(strings.Split(os.Getenv(key), ","))
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", key, err)
+	}
+	return out, nil
+}
+
+// NormalizeTrustedProxies is the one reading of a trusted-proxy list, whether
+// it comes from EVEY_TRUSTED_PROXIES or from Admin -> Remote Access: the
+// loopback baseline, then the entries, canonical and deduplicated. Empty
+// entries are skipped; a malformed one is an error naming it.
+func NormalizeTrustedProxies(entries []string) ([]string, error) {
+	out := make([]string, 0, len(mandatoryTrustedProxies)+len(entries))
+	seen := make(map[string]struct{}, len(mandatoryTrustedProxies)+len(entries))
 	add := func(cidr string) {
 		if _, dup := seen[cidr]; dup {
 			return
@@ -55,17 +67,15 @@ func trustedProxiesFromEnv(key string) ([]string, error) {
 		seen[cidr] = struct{}{}
 		out = append(out, cidr)
 	}
-
 	for _, base := range mandatoryTrustedProxies {
 		norm, err := normalizeProxyCIDR(base)
 		if err != nil {
-			return nil, fmt.Errorf("%s: built-in entry %q is not a CIDR: %w", key, base, err)
+			return nil, fmt.Errorf("built-in entry %q is not a CIDR: %w", base, err)
 		}
 		add(norm)
 	}
-
 	var bad []string
-	for raw := range strings.SplitSeq(os.Getenv(key), ",") {
+	for _, raw := range entries {
 		entry := strings.TrimSpace(raw)
 		if entry == "" {
 			continue
@@ -78,9 +88,15 @@ func trustedProxiesFromEnv(key string) ([]string, error) {
 		add(norm)
 	}
 	if len(bad) > 0 {
-		return nil, fmt.Errorf("%s: invalid entries %v - each entry must be a CIDR (172.16.0.0/12) or a bare address (172.18.0.2)", key, bad)
+		return nil, fmt.Errorf("invalid entries %v - each entry must be a CIDR (172.16.0.0/12) or a bare address (172.18.0.2)", bad)
 	}
 	return out, nil
+}
+
+// IsCatchAllProxyRange reports a normalized entry that covers every address:
+// trusting it lets any client choose the address it is seen with.
+func IsCatchAllProxyRange(cidr string) bool {
+	return cidr == "0.0.0.0/0" || cidr == "::/0"
 }
 
 // normalizeProxyCIDR canonicalises one entry. A bare address is read as a

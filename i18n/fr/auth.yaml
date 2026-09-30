@@ -184,10 +184,10 @@ settings:
     transcodeTitle: "Transcodage"
     allowDirectPlay: "Autoriser la lecture directe"
     allowDirectPlayDesc: "Lire le fichier original si l'appareil le supporte."
-    allowDirectStream: "Autoriser le flux direct"
+    allowDirectStream: "Autoriser le remux"
     allowDirectStreamDesc: "Remuxer le conteneur sans ré-encoder si possible."
     allowTranscoding: "Autoriser le transcodage"
-    allowTranscodingDesc: "Transcoder en dernier recours si la lecture/flux direct est impossible."
+    allowTranscodingDesc: "Transcoder en dernier recours, si ni la lecture directe ni le remux ne sont possibles."
     autoplayNextTitle: "Épisode suivant automatique"
     autoplayNextDesc: "Lancer l'épisode suivant tout seul à la fin de celui-ci. Le bouton Épisode suivant reste disponible dans tous les cas."
   quickConnect:
@@ -318,7 +318,7 @@ watchHistory:
   clearAll: "Tout effacer"
   cleared: "Historique de lecture effacé"
   clearFailed: "Impossible d'effacer l'historique de lecture"
-  title: Historique de visionnage
+  title: Historique de lecture
   openMedia: Ouvrir les détails du média
 rateLimit:
   title: "Trop de tentatives"

@@ -25,7 +25,7 @@ settings:
   server: Serveur
   changeServer: Changer de serveur
   changeServerConfirm: "Changer de serveur déconnecte cette télévision. Continuer ?"
-  signOut: Déconnexion
+  signOut: Se déconnecter
   signOutConfirm: Êtes-vous sûr ?
   about: À propos
   appVersion: Version de l'app

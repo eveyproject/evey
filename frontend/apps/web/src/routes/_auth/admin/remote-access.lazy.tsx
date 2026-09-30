@@ -39,6 +39,7 @@ function RemoteAccessPage() {
   const [externalUrl, setExternalUrl] = useState("");
   const [lanNetworks, setLanNetworks] = useState("");
   const [maxBitrate, setMaxBitrate] = useState("0");
+  const [trustedProxies, setTrustedProxies] = useState("");
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -47,6 +48,7 @@ function RemoteAccessPage() {
       setExternalUrl(data.externalUrl ?? "");
       setLanNetworks((data.lanNetworks ?? []).join(", "));
       setMaxBitrate(String(data.maxRemoteBitrateKbps ?? 0));
+      setTrustedProxies((data.trustedProxies ?? []).join(", "));
     }
   }, [data]);
 
@@ -65,11 +67,18 @@ function RemoteAccessPage() {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+    const proxies = trustedProxies
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     saveMutation.mutate({
       enabled,
       externalUrl,
       lanNetworks: networks,
       maxRemoteBitrateKbps: parseInt(maxBitrate, 10) || 0,
+      // An emptied field hands the answer back to EVEY_TRUSTED_PROXIES.
+      trustedProxies: proxies,
+      clearTrustedProxies: proxies.length === 0,
     });
   }
 
@@ -158,6 +167,25 @@ function RemoteAccessPage() {
                   {t("admin.remoteAccess.usingDefault", "Using default:")} {data.serverBaseUrl}
                 </p>
               )}
+              <p className="text-xs text-[var(--text-muted)] -mt-2">
+                {t("admin.remoteAccess.externalUrlHttpsHint")}
+              </p>
+
+              <Input
+                label={t("admin.remoteAccess.trustedProxies")}
+                placeholder="172.16.0.0/12"
+                value={trustedProxies}
+                onChange={(e) => {
+                  setTrustedProxies(e.target.value);
+                  setDirty(true);
+                }}
+              />
+              <p className="text-xs text-[var(--text-muted)] -mt-2">
+                {t("admin.remoteAccess.trustedProxiesHint")}{" "}
+                {data?.trustedProxiesFromPanel
+                  ? t("admin.remoteAccess.trustedProxiesFromPanel")
+                  : t("admin.remoteAccess.trustedProxiesFromEnv")}
+              </p>
 
               <Input
                 label={t("admin.remoteAccess.lanNetworks")}

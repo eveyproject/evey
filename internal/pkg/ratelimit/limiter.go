@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -229,6 +230,7 @@ func SetTrustedProxies(cidrs []string) {
 	nets := parseTrustedCIDRs(cidrs)
 	trustedProxyMu.Lock()
 	trustedProxyNets = nets
+	trustedProxySrc, trustedProxyLast = nil, nil
 	trustedProxyMu.Unlock()
 }
 
@@ -245,7 +247,44 @@ func parseTrustedCIDRs(cidrs []string) []*net.IPNet {
 	return nets
 }
 
+// SetTrustedProxySource makes the trusted list follow a source read on every
+// check (Admin -> Remote Access can change it while the server runs). The list
+// is parsed again only when it differs from the last one seen.
+func SetTrustedProxySource(src func() []string) {
+	trustedProxyMu.Lock()
+	trustedProxySrc = src
+	trustedProxyLast = nil
+	trustedProxyMu.Unlock()
+	refreshTrustedProxies()
+}
+
+var (
+	trustedProxySrc  func() []string
+	trustedProxyLast []string
+)
+
+func refreshTrustedProxies() {
+	trustedProxyMu.RLock()
+	src := trustedProxySrc
+	trustedProxyMu.RUnlock()
+	if src == nil {
+		return
+	}
+	cur := src()
+	trustedProxyMu.RLock()
+	same := trustedProxyLast != nil && slices.Equal(cur, trustedProxyLast)
+	trustedProxyMu.RUnlock()
+	if same {
+		return
+	}
+	nets := parseTrustedCIDRs(cur)
+	trustedProxyMu.Lock()
+	trustedProxyNets, trustedProxyLast = nets, slices.Clone(cur)
+	trustedProxyMu.Unlock()
+}
+
 func isTrustedProxy(ip net.IP) bool {
+	refreshTrustedProxies()
 	trustedProxyMu.RLock()
 	defer trustedProxyMu.RUnlock()
 	for _, n := range trustedProxyNets {

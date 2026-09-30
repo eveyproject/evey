@@ -4,42 +4,45 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 )
 
 type ProxyTrust struct {
-	trustedCIDRs []*net.IPNet
+	trusted      *LiveCIDRSet
 	realIPHeader string
-	trustProto   bool
+	trustProto   func() bool
 }
 
+// NewProxyTrust builds a boundary on a fixed list. An invalid CIDR is an error.
 func NewProxyTrust(trustedCIDRs []string, realIPHeader string, trustProto bool) (*ProxyTrust, error) {
-	nets := make([]*net.IPNet, 0, len(trustedCIDRs))
 	for _, cidr := range trustedCIDRs {
-		_, ipNet, err := net.ParseCIDR(cidr)
-		if err != nil {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
 			return nil, fmt.Errorf("invalid CIDR %q: %w", cidr, err)
 		}
-		nets = append(nets, ipNet)
 	}
+	fixed := slices.Clone(trustedCIDRs)
+	return NewLiveProxyTrust(func() []string { return fixed }, realIPHeader, func() bool { return trustProto }), nil
+}
+
+// NewLiveProxyTrust builds a boundary that reads the trusted list and the
+// HTTPS flag on every request, so a change in Admin -> Remote Access applies to
+// the next request. The sources must be safe to call concurrently; entries are
+// expected validated upstream (an invalid one is skipped).
+func NewLiveProxyTrust(trustedCIDRs func() []string, realIPHeader string, trustProto func() bool) *ProxyTrust {
 	header := strings.TrimSpace(realIPHeader)
 	if header == "" {
 		header = "X-Forwarded-For"
 	}
 	return &ProxyTrust{
-		trustedCIDRs: nets,
+		trusted:      NewLiveCIDRSet(trustedCIDRs),
 		realIPHeader: header,
 		trustProto:   trustProto,
-	}, nil
+	}
 }
 
 func (p *ProxyTrust) isTrusted(ip net.IP) bool {
-	for _, cidr := range p.trustedCIDRs {
-		if cidr.Contains(ip) {
-			return true
-		}
-	}
-	return false
+	return p.trusted.Contains(ip)
 }
 
 func (p *ProxyTrust) ResolveClientIP(r *http.Request) string {
@@ -105,7 +108,7 @@ func (p *ProxyTrust) Middleware(next http.Handler) http.Handler {
 		// untrusted chain entirely.
 		r.Header.Set("X-Forwarded-For", clientIP)
 
-		if p.trustProto {
+		if p.trustProto() {
 			if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
 				r.URL.Scheme = proto
 			}

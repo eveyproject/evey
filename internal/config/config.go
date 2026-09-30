@@ -200,6 +200,10 @@ type RemoteAccessConfig struct {
 	ExternalURL          string
 	LANNetworks          []string
 	MaxRemoteBitrateKbps int
+	// TrustedProxies is the list saved in Admin -> Remote Access. When not
+	// empty it replaces EVEY_TRUSTED_PROXIES (loopback is always kept, see
+	// NormalizeTrustedProxies); empty hands the answer back to the environment.
+	TrustedProxies []string
 }
 
 type LogConfig struct {
