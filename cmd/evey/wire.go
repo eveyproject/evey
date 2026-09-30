@@ -197,7 +197,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		r.User, r.Profile, r.RefreshToken,
 		r.Role, r.UserRole,
 		infra.hasher, guardedTokens, bus,
-		7*24*time.Hour, r.QuickConnect,
+		cfg.JWT.RefreshTokenTTL, r.QuickConnect,
 		userAuthOpts...,
 	)
 	userAuthSvc.InitSetupState(ctx)
@@ -233,7 +233,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 				AllowedEmailDomains: cfg.OIDC.AllowedEmailDomains,
 			},
 			r.User, r.Profile, r.RefreshToken, r.UserRole,
-			guardedTokens, bus, postgres.NewTxUnit(db), 7*24*time.Hour,
+			guardedTokens, bus, postgres.NewTxUnit(db), cfg.JWT.RefreshTokenTTL,
 		)
 		if oidcErr != nil {
 			return nil, fmt.Errorf("oidc init: %w", oidcErr)

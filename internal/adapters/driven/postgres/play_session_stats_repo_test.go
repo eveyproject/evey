@@ -264,3 +264,39 @@ func TestPlaySessionStatsRepo_GetServerStats_WatchTimeDedup(t *testing.T) {
 	assert.Equal(t, int64(3_600_000), srvStats.TotalPlayTimeMs,
 		"server watch-time must de-dup resumes per (profile, media): want MAX not SUM")
 }
+
+// The server stats are cached for 5 minutes, and the live counters were
+// cached with them: the admin dashboard, polling every 3 s, showed "0 active
+// streams" beside two Now Playing cards. A playback that starts after the
+// cache was filled must be counted on the very next read.
+func TestPlaySessionStatsRepo_GetServerStats_ActiveStreamsAreNeverCached(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	sessionRepo := postgres.NewPlaySessionRepository(db)
+	statsRepo := postgres.NewPlaySessionStatsReader(db)
+	ctx := context.Background()
+
+	u := newTestUser("livu1")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("livp1", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("livlib1")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("livmi1", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	require.NoError(t, sessionRepo.Create(ctx, newTestPlaySession("livps1", string(p.ID), string(item.ID))))
+	first, err := statsRepo.GetServerStats(ctx) // fills the rollup cache
+	require.NoError(t, err)
+	require.Equal(t, 1, first.ActiveStreams)
+
+	require.NoError(t, sessionRepo.Create(ctx, newTestPlaySession("livps2", string(p.ID), string(item.ID))))
+	second, err := statsRepo.GetServerStats(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, second.ActiveStreams, "a playback started after the cache was filled must be counted at once")
+}

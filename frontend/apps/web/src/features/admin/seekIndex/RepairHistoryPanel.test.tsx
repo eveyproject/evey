@@ -31,7 +31,7 @@ beforeEach(() => {
   api.history = { data: undefined, isLoading: false, refetch: vi.fn() };
 });
 
-// Evey keeps no copy of a repaired file: the journal IS the way back. Each
+// The journal is the way back, with or without a backup copy. Each
 // entry shows what was done, on what evidence (a measurement or the file's
 // own claim), how far the sound moved; undo is offered only while an entry
 // is reversible and refetches the journal once done.

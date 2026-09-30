@@ -214,7 +214,6 @@ type LogConfig struct {
 	PluginRetentionDays int
 	AuditRetentionDays  int // DB audit_log table; 0 = keep forever (append-only)
 	DevMode             bool
-	PluginDebug         bool
 }
 
 type ServerConfig struct {
@@ -262,6 +261,11 @@ type ServerConfig struct {
 	// DemoPluginDir holds the plugin bundles the demo bootstrap installs
 	// (internal/pkg/demo.Plugins); a bundle that is not there is skipped.
 	DemoPluginDir string
+	// PasswordRecoveryEnabled mirrors the panel's password-recovery switch
+	// (server_config auth.password_recovery_enabled), for the settings GET.
+	// The recovery flow itself reads the stored key on every request, and
+	// still needs SMTP.
+	PasswordRecoveryEnabled bool
 }
 
 type DBConfig struct {
@@ -360,7 +364,7 @@ type TranscodingConfig struct {
 	// HWFirstSegmentTimeout is the HW fast-fail watchdog window: a hardware
 	// transcode session that hasn't written its init segment within this delay
 	// is treated as a dead/stuck GPU and demoted to software immediately, rather
-	// than letting the player wait out the full segment timeout. Default 5s.
+	// than letting the player wait out the full segment timeout. Default 10s.
 	HWFirstSegmentTimeout time.Duration
 	// HWPerVariant, when true, makes the HW transcode path spawn one single-
 	// output ffmpeg per ABR rung (one-encoder-per-rung model) instead of a single
@@ -530,7 +534,12 @@ type PlaybackConfig struct {
 	SessionRetentionDays int
 }
 
+// EffectiveBaseURL is the public address in force now: the External URL saved
+// in Admin -> Remote Access, else the base URL. Not to be called under the
+// config lock.
 func (c *Config) EffectiveBaseURL() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if c.RemoteAccess.ExternalURL != "" {
 		return c.RemoteAccess.ExternalURL
 	}
@@ -573,10 +582,29 @@ func (c *Config) EffectiveMaxVideoBitrateKbps() int {
 	defer c.mu.RUnlock()
 	return c.Transcoding.MaxVideoBitrateKbps
 }
+
+// EffectiveMaxVideoBitrateRemoteKbps is the ceiling for a client outside the
+// LAN: the stricter of Transcoding's remote ceiling and Remote Access's Max
+// Remote Bitrate. Stream info used to apply only the second and the served
+// master only the first, so a player was announced an 8 Mb/s transcode while
+// the full-rate copy went out.
 func (c *Config) EffectiveMaxVideoBitrateRemoteKbps() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.Transcoding.MaxVideoBitrateRemoteKbps
+	return RemoteBitrateCapKbps(c.Transcoding.MaxVideoBitrateRemoteKbps, c.RemoteAccess.MaxRemoteBitrateKbps)
+}
+
+// RemoteBitrateCapKbps combines the two remote ceilings: 0 means "no cap"
+// for either, otherwise the lower one wins.
+func RemoteBitrateCapKbps(transcodingKbps, remoteAccessKbps int) int {
+	switch {
+	case transcodingKbps <= 0:
+		return max(remoteAccessKbps, 0)
+	case remoteAccessKbps <= 0:
+		return transcodingKbps
+	default:
+		return min(transcodingKbps, remoteAccessKbps)
+	}
 }
 func (c *Config) EffectiveHWLowPowerEnabled() bool {
 	c.mu.RLock()
@@ -969,7 +997,6 @@ func Load() (*Config, error) {
 			PluginRetentionDays: envInt("EVEY_LOG_PLUGIN_RETENTION_DAYS", 10),
 			AuditRetentionDays:  envInt("EVEY_AUDIT_LOG_RETENTION_DAYS", 0),
 			DevMode:             envBool("EVEY_LOG_DEV_MODE", false),
-			PluginDebug:         envBool("EVEY_PLUGIN_DEBUG", false),
 		},
 		RemoteAccess: RemoteAccessConfig{
 			Enabled: envBool("EVEY_REMOTE_ACCESS_ENABLED", false),

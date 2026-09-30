@@ -1,5 +1,5 @@
 ---
-source_sha: 42c27e66812582bf1c48a887315333f32ff642577fd30a9a193ebf1cac2ac7b1
+source_sha: 0fa25623b65f622140263aa361947cec121a05518d43d35c8abfabab6637c591
 reviewed: true
 ---
 # Réponse aux incidents
@@ -436,8 +436,9 @@ inconnu dans sa liste de sessions.
      WHERE ended_at IS NULL
      ORDER BY started_at DESC LIMIT 20;"
    ```
-2. Coupez-la depuis l'interface d'administration : **Admin → Activité → En cours
-   de lecture → ⋯ → Arrêter la session**, ou via gRPC
+2. Coupez-la depuis l'interface d'administration : **Admin → En cours de
+   lecture**, l'icône d'arrêt de la session (**Arrêter la session**), puis
+   **Arrêter** pour confirmer ; ou via gRPC
    `AdminSessionService/KillSession` avec le `session_id`. La session prend fin
    5 s plus tard, pour que le lecteur reçoive l'ordre d'arrêt.
 3. Si la session ne répond pas, supprimez de force la session HLS (le dossier est

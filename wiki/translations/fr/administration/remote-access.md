@@ -1,5 +1,5 @@
 ---
-source_sha: 1bffdb30b4e4b18a27866ddee2328b15bb2e673bbb3d62cca51a941c7084643b
+source_sha: fff4f29a51e1c144db473e7f53efc34660d3fe41ef149263f32a283daf865c54
 reviewed: true
 ---
 # Accès distant et HTTPS
@@ -49,7 +49,7 @@ ceux du réseau à la requête suivante, le débit à la lecture suivante.
 | **URL externe** | L'adresse publique. Les liens des e-mails, les redirections d'authentification unique et les URL de diffusion en sont dérivés. Une adresse en `https://` active aussi le mode HTTPS (voir plus bas). |
 | **Proxys de confiance** | Les reverse proxys dont Evey croit l'adresse client transmise. La boucle locale est toujours de confiance. Champ vide : la liste vient de `EVEY_TRUSTED_PROXIES`. |
 | **Réseaux LAN** | Les plages d'adresses considérées comme la maison. Les plages privées sont listées par défaut. Ajoutez ici la plage d'un VPN (Tailscale, WireGuard) si ses clients doivent compter comme locaux. |
-| **Débit distant maximal** | Un plafond de débit pour les clients hors des réseaux locaux, en kbit/s (0 = aucun). Une adresse privée n'est jamais plafonnée. Voir [Comment la lecture est décidée](../playback/how-playback-is-decided.md#limits-on-the-session). |
+| **Débit distant maximal** | Un plafond de débit pour les clients hors des réseaux locaux, en kbit/s (0 = aucun). Une adresse privée n'est jamais plafonnée. Quand **Admin → Transcodage** fixe aussi un plafond pour les spectateurs distants, c'est le plus bas des deux qui s'applique. Voir [Comment la lecture est décidée](../playback/how-playback-is-decided.md#limits-on-the-session). |
 
 ## HTTPS : un reverse proxy devant Evey
 

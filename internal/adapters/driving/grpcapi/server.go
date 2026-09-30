@@ -193,16 +193,7 @@ func (s *GRPCServer) RegisterServices() {
 	}
 	// Operator remote-access bitrate cap, read live from cfg.RemoteAccess (the
 	// admin PUT writes it under the same lock). nil cfg (tests) leaves it off.
-	var playbackRemoteAccess func() (int, []string)
-	if cfg := d.Cfg; cfg != nil {
-		playbackRemoteAccess = func() (maxKbps int, lan []string) {
-			cfg.WithReadLock(func() {
-				maxKbps = cfg.RemoteAccess.MaxRemoteBitrateKbps
-				lan = slices.Clone(cfg.RemoteAccess.LANNetworks)
-			})
-			return maxKbps, lan
-		}
-	}
+	playbackRemoteAccess := remoteAccessFromConfig(d.Cfg)
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: d.LibCmd, query: d.LibQuery, metadataSvc: d.MetadataQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, scheduler: d.Scheduler, translator: d.Translator})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg})
 	s.playback = &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, metadataSvc: d.MetadataQuery, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand, remoteAccess: playbackRemoteAccess}
@@ -373,4 +364,21 @@ func loadTestOrNil(r *apploadtest.Runner) loadTestRunner {
 		return nil
 	}
 	return r
+}
+
+// remoteAccessFromConfig reads the remote ceiling and the LAN list live, for
+// Stream info. The ceiling is the same combined one the served master applies
+// (EffectiveMaxVideoBitrateRemoteKbps), or Stream info would announce a cap
+// the stream does not honour. nil cfg (tests) leaves it off.
+func remoteAccessFromConfig(cfg *config.Config) func() (int, []string) {
+	if cfg == nil {
+		return nil
+	}
+	return func() (maxKbps int, lan []string) {
+		cfg.WithReadLock(func() {
+			maxKbps = config.RemoteBitrateCapKbps(cfg.Transcoding.MaxVideoBitrateRemoteKbps, cfg.RemoteAccess.MaxRemoteBitrateKbps)
+			lan = slices.Clone(cfg.RemoteAccess.LANNetworks)
+		})
+		return maxKbps, lan
+	}
 }

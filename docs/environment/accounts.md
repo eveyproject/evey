@@ -8,6 +8,7 @@ Session lifetimes, the signing key, and single sign-on.
 | --- | --- | --- |
 | `EVEY_JWT_PRIVATE_KEY_PATH` | `/data/jwt.key` | The key that signs every session, generated on the first start. Losing it signs everyone out. |
 | `EVEY_JWT_ACCESS_TTL` | `15m` | Lifetime of an access token. Apps renew it silently. |
+| `EVEY_JWT_REFRESH_TTL` | `168h` (7 days) | Lifetime of a sign-in session: without using an app for that long, you sign in again. |
 | `EVEY_JWT_REFRESH_LONG_TTL` | `4320h` (180 days) | Lifetime of a session an app asks to keep, such as a TV signed in with Quick Connect. |
 
 ## Single sign-on (OIDC)

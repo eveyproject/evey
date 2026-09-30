@@ -75,9 +75,10 @@ lowest of these limits is transcoded down to it:
 - the account's **Max Bitrate**, set by an administrator;
 - the profile's **Max Streaming Bitrate**, and its **Max Cellular Bitrate** when
   a phone reports a mobile connection;
-- **Max Remote Bitrate** (**Admin → Remote Access**) when the viewer's address
-  is public and outside the **LAN Networks**. A private address is never
-  capped.
+- **Max Remote Bitrate** (**Admin → Remote Access**) and the remote viewers'
+  ceiling of **Admin → Transcoding**, the lower of the two, when the viewer's
+  address is public and outside the **LAN Networks**. A private address is
+  never capped.
 
 ## Reading Stream info
 

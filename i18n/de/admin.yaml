@@ -961,8 +961,8 @@ transcodeCache:
   settingsSaveFailed: "Einstellungen konnten nicht gespeichert werden"
   throttle: "Transkodierungen drosseln, wenn der Client-Puffer voll ist"
   transcodingSettings: "Transkodierungs-Einstellungen"
-  hwAccelNote: "Die Hardware-Beschleunigung wird in Serverkonfiguration → Encode-Kalibrierung konfiguriert."
-  hwAccelNoteLink: "Zur Serverkonfiguration"
+  hwAccelNote: "Die Hardware-Beschleunigung wird unter Transkodierung → Encode-Kalibrierung konfiguriert."
+  hwAccelNoteLink: "Zu Transkodierung"
   hwDevices: Hardware-Beschleunigung
 
 dashboardStats:
@@ -1028,6 +1028,8 @@ serverSettings:
   skipPreview: Vorschau-Segmente überspringen
   skipPreviewInfo: "Blendet die kurze Vorschau der nächsten Folge aus, die manche Serien am Ende einblenden. Bei Aktivierung lässt der Server diese Segmente bei der Wiedergabe weg, selbst wenn der Client sie sonst anzeigen würde."
   introAutoSkip: "Intros automatisch überspringen"
+  passwordRecovery: "Passwort-Wiederherstellung"
+  passwordRecoveryHint: "Zeigt auf der Anmeldeseite einen Link „Passwort vergessen?\", der einen Link zum Zurücksetzen per E-Mail sendet. Erfordert eine konfigurierte E-Mail (SMTP). Gilt sofort."
   auditRetentionDays: "Aufbewahrung des Audit-Logs (Tage, 0 = unbegrenzt)"
   metricsRetentionDays: "Aufbewahrung der Servermetriken (Tage)"
   qoeRetentionDays: "Aufbewahrung der Wiedergabequalität (QoE) (Tage)"
@@ -1549,7 +1551,7 @@ repairJournal:
 repairHistory:
   btn: "Verlauf"
   title: "Was mit {{title}} geschehen ist"
-  intro: "Evey behält keine Kopie einer reparierten Datei. Dieses Journal ist die Aufzeichnung jeder Änderung an ihren Bytes - und für die exakt umkehrbaren der Weg zurück."
+  intro: "Jede Änderung, die eine Reparatur an den Bytes dieser Datei vorgenommen hat. Die exakt umkehrbaren lassen sich hier rückgängig machen, mit oder ohne Sicherungskopie."
   empty: "An dieser Datei wurde nie etwas verändert."
   opReindex: "Index neu aufgebaut"
   opResync: "Beschädigter Abschnitt übersprungen"

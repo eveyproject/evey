@@ -112,7 +112,6 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, 90, cfg.Log.RetentionDays)
 	assert.Equal(t, 10, cfg.Log.PluginRetentionDays)
 	assert.False(t, cfg.Log.DevMode)
-	assert.False(t, cfg.Log.PluginDebug)
 
 	assert.False(t, cfg.RemoteAccess.Enabled)
 	assert.Empty(t, cfg.RemoteAccess.ExternalURL)

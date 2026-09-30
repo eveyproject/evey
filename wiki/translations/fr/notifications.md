@@ -1,5 +1,5 @@
 ---
-source_sha: f905b0c655ef0e8732ff61ae6298621532868128cd52c20af3e88b2f5592f0de
+source_sha: 5dca3b7fe64acb5cf79df57c6da42ed90ae968596cba80b381b921667c8e36e9
 reviewed: true
 ---
 # Notifications
@@ -42,10 +42,8 @@ L'e-mail de réinitialisation du mot de passe demande que le SMTP soit configur�
 Un administrateur doit aussi activer la fonction :
 
 1. Configurez le SMTP (voir plus haut).
-2. Enregistrez le réglage `auth.password_recovery_enabled` = `true`. Le panneau
-   n'a pas d'interrupteur pour cela : un administrateur l'envoie par l'API,
-   `PUT /api/v1/admin/config` avec
-   `{"values": {"auth.password_recovery_enabled": "true"}}`.
+2. Activez **Récupération du mot de passe** dans **Admin → Configuration du
+   serveur**. Le réglage s'applique immédiatement.
 3. La page de connexion affiche alors un lien **Mot de passe oublié ?**.
 
 Si le SMTP est retiré après coup, la récupération du mot de passe se désactive

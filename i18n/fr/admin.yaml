@@ -200,7 +200,7 @@ plugins:
     saved: "Limites de ressources mises à jour"
     saveFailed: "Échec de la mise à jour des limites de ressources"
   title: "Plugins"
-  installPlugin: "Installer un Plugin"
+  installPlugin: "Installer un plugin"
   uploadFile: "Téléverser un fichier"
   fromUrl: "Depuis une URL"
   installFromUrl: Installer depuis une URL
@@ -229,7 +229,7 @@ plugins:
   failedUninstall: "Échec de la désinstallation du plugin"
   toggleFailed: "Échec du changement d'état du plugin"
   uninstallFailed: Échec de la désinstallation du plugin
-  uninstallTitle: "Désinstaller le Plugin"
+  uninstallTitle: "Désinstaller le plugin"
   uninstallConfirm: "Désinstaller le plugin \"{{name}}\" ? Cette action est irréversible."
   selectFileFirst: "Sélectionnez d'abord un fichier plugin"
   fileMissing: "Fichier manquant - sélectionnez à nouveau"
@@ -960,8 +960,8 @@ transcodeCache:
   settingsSaveFailed: "Échec de l'enregistrement des paramètres"
   throttle: "Brider les transcodages quand le buffer client est plein"
   transcodingSettings: "Paramètres de transcodage"
-  hwAccelNote: "L'accélération matérielle se configure dans Configuration serveur → Calibration d'encodage."
-  hwAccelNoteLink: "Aller à Configuration serveur"
+  hwAccelNote: "L'accélération matérielle se configure dans Transcodage → Calibrage de l'encodage."
+  hwAccelNoteLink: "Aller à Transcodage"
   hwDevices: Accélération matérielle
 
 dashboardStats:
@@ -1240,6 +1240,8 @@ serverSettings:
   skipPreview: "Passer les segments d'aperçu"
   skipPreviewInfo: "Masque l'aperçu du prochain épisode (la courte bande-annonce insérée à la fin de certains shows). Le serveur ignore ces segments même si le client les demanderait."
   introAutoSkip: "Saut automatique des intros"
+  passwordRecovery: "Récupération du mot de passe"
+  passwordRecoveryHint: "Affiche un lien « Mot de passe oublié ? » sur la page de connexion, qui envoie un lien de réinitialisation par e-mail. Nécessite que l'e-mail (SMTP) soit configuré. S'applique immédiatement."
   auditRetentionDays: "Rétention du journal d'audit (jours, 0 = conserver toujours)"
   metricsRetentionDays: "Rétention des métriques serveur (jours)"
   qoeRetentionDays: "Rétention qualité de lecture (QoE) (jours)"
@@ -1548,7 +1550,7 @@ repairJournal:
 repairHistory:
   btn: "Historique"
   title: "Ce qui a été fait à {{title}}"
-  intro: "Evey ne conserve aucune copie d'un fichier réparé. Ce journal est la trace de chaque modification de ses octets - et, pour celles dont l'inverse est exact, le chemin du retour."
+  intro: "Chaque modification qu'une réparation a apportée aux octets de ce fichier. Celles dont l'inverse est exact s'annulent d'ici, avec ou sans copie de sauvegarde."
   empty: "Rien n'a jamais été fait à ce fichier."
   opReindex: "Index reconstruit"
   opResync: "Zone corrompue sautée"

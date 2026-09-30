@@ -42,7 +42,7 @@ network ones to the next request, the bitrate to the next playback.
 | **External URL** | The public address. E-mail links, single sign-on redirects and cast URLs are built from it. An `https://` address also turns on HTTPS mode (below). |
 | **Trusted proxies** | The reverse proxies whose forwarded client address Evey believes. Loopback is always trusted. Empty: the list comes from `EVEY_TRUSTED_PROXIES`. |
 | **LAN Networks** | The address ranges treated as home. Private ranges are listed by default. Add a VPN range (Tailscale, WireGuard) here if its clients should count as home. |
-| **Max Remote Bitrate** | A bitrate ceiling for clients outside the local networks, in kbit/s (0 = none). A private address is never capped. See [How playback is decided](../playback/how-playback-is-decided.md#limits-on-the-session). |
+| **Max Remote Bitrate** | A bitrate ceiling for clients outside the local networks, in kbit/s (0 = none). A private address is never capped. When **Admin → Transcoding** also sets a ceiling for remote viewers, the lower of the two applies. See [How playback is decided](../playback/how-playback-is-decided.md#limits-on-the-session). |
 
 ## HTTPS: a reverse proxy in front of Evey
 

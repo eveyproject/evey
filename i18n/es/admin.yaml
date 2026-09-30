@@ -961,8 +961,8 @@ transcodeCache:
   settingsSaveFailed: "Error al guardar los ajustes"
   throttle: "Limitar transcodificaciones cuando el búfer del cliente está lleno"
   transcodingSettings: "Ajustes de transcodificación"
-  hwAccelNote: "La aceleración de hardware se configura en Configuración del servidor → Calibración de codificación."
-  hwAccelNoteLink: "Ir a Configuración del servidor"
+  hwAccelNote: "La aceleración de hardware se configura en Transcodificación → Calibración de codificación."
+  hwAccelNoteLink: "Ir a Transcodificación"
   hwDevices: Aceleración de hardware
 
 dashboardStats:
@@ -1028,6 +1028,8 @@ serverSettings:
   skipPreview: Saltar segmentos de avance
   skipPreviewInfo: "Oculta el breve avance del proximo episodio que algunas series insertan al final. Si esta activo, el servidor omite estos segmentos durante la reproduccion aunque el cliente los muestre."
   introAutoSkip: "Saltar intros automaticamente"
+  passwordRecovery: "Recuperación de contraseña"
+  passwordRecoveryHint: "Muestra un enlace «¿Olvidaste tu contraseña?» en la página de inicio de sesión, que envía un enlace de restablecimiento por correo. Requiere que el correo (SMTP) esté configurado. Se aplica de inmediato."
   auditRetentionDays: "Retencion del registro de auditoria (dias, 0 = conservar siempre)"
   metricsRetentionDays: "Retencion de metricas del servidor (dias)"
   qoeRetentionDays: "Retencion de calidad de reproduccion (QoE) (dias)"
@@ -1549,7 +1551,7 @@ repairJournal:
 repairHistory:
   btn: "Historial"
   title: "Lo que se hizo a {{title}}"
-  intro: "Evey no guarda ninguna copia de un archivo reparado. Este registro es la huella de cada cambio en sus bytes - y, para los de inverso exacto, el camino de vuelta."
+  intro: "Cada cambio que una reparación hizo en los bytes de este archivo. Los de inverso exacto se deshacen desde aquí, con o sin copia de seguridad."
   empty: "Nunca se ha hecho nada a este archivo."
   opReindex: "Índice reconstruido"
   opResync: "Tramo dañado omitido"

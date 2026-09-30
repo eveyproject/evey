@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/config"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
@@ -937,5 +938,38 @@ func TestServerSettings_SingleVariantDefaultsToOn(t *testing.T) {
 	}
 	if v.Default != true {
 		t.Errorf("panel default = %v, want true - it must match config.go's EVEY_TRANSCODING_SINGLE_VARIANT default", v.Default)
+	}
+}
+
+// Password recovery could only be switched on through the raw config API; the
+// panel now writes the key the reset flow itself reads.
+func TestServerSettings_PasswordRecoverySwitchWritesTheResetFlowKey(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	put := func(body string) int {
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer tok")
+		rec := httptest.NewRecorder()
+		env.mux.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if code := put(`{"passwordRecoveryEnabled":true}`); code != http.StatusOK {
+		t.Fatalf("PUT = %d", code)
+	}
+	if got := env.store.sets[appuser.PasswordRecoveryConfigKey]; got != "true" {
+		t.Fatalf("stored %s = %q, want \"true\"", appuser.PasswordRecoveryConfigKey, got)
+	}
+	if !env.cfg.Server.PasswordRecoveryEnabled {
+		t.Fatal("the settings GET would still report the switch off")
+	}
+
+	if code := put(`{"passwordRecoveryEnabled":null}`); code != http.StatusOK {
+		t.Fatalf("reset PUT = %d", code)
+	}
+	if v, ok := env.store.sets[appuser.PasswordRecoveryConfigKey]; ok && v == "true" {
+		t.Fatalf("after reset the reset flow still reads %q", v)
+	}
+	if env.cfg.Server.PasswordRecoveryEnabled {
+		t.Fatal("after reset the switch still reads on")
 	}
 }

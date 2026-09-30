@@ -360,9 +360,8 @@ export function SeekIndexTable({
                         {t("admin.seekIndex.reinterleaveBtn")}
                       </Button>
                     )}
-                    {/* What was done to this file's bytes. Evey keeps no copy
-                        of a repaired file, so this journal is both the history
-                        and the way back. */}
+                    {/* What was done to this file's bytes: the history, and
+                        the way back even without a backup copy. */}
                     <Button
                       variant="ghost"
                       className="text-xs"
