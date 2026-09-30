@@ -44,8 +44,9 @@ server checks the checksum and the schema version first, and refuses a backup
 taken by a version with a different schema instead of loading it. To go back to
 an older version with its data, see [Going back](#going-back) below.
 
-When the server does not start any more, the same restore is available from
-the command line: [Recovery](runbooks/recovery.md).
+When the server does not start any more, the command line restores the dumps
+taken before a migration (`pre-migration-*.sql.gz`), not the `.tar.gz` backups
+of this panel: see [Recovery](runbooks/recovery.md).
 
 ## Updating Evey
 
