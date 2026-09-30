@@ -17,6 +17,10 @@ Three jobs, in order:
    simply absent, and the plugin falls back to English.
 3. Guard. Stale translations and leaked hostnames/credentials fail --check.
 
+A translation is published only when its front matter says `reviewed: true`:
+a complete but unreviewed translation stays out, and the page falls back to
+English. A missing page is better than a poor one.
+
 A translation carries `source_sha` in its front matter: the sha256 of the
 English file it was translated from. When the English page moves on, the sha
 stops matching and the translation is stale - it still ships (a slightly old
@@ -56,27 +60,12 @@ LANGUAGES = ["fr", "de", "es", "hi", "zh"]
 # The OpenAPI specs are the API reference - the README pages around them are
 # just an index, so publishing one without the other ships broken links.
 ASSET_GLOBS = ["api/**/*.swagger.json"]
+# Screenshots: binary, so copied as is rather than read for the leak scan.
+IMAGE_GLOBS = ["images/**/*.png", "images/**/*.webp"]
 
 # Brand files, copied from evey-brand/ (outside docs/) to build/assets/brand/.
-# The site is the project's public face, so it uses the real mark rather than a
-# copy that would drift from evey-brand/, the single source of truth.
-# The boot banner from cmd/evey/banner.go, injected at copy time rather than
-# written into docs/: these pages are read on GitHub too, where the CSS that
-# colours the V does not apply. Injecting keeps the source files plain.
-WORDMARK_PAGES = {"runbooks/cli.md"}
-WORDMARK_ROWS = [
-    ("███████╗", "██╗   ██╗", "███████╗", "██╗   ██╗"),
-    ("██╔════╝", "██║   ██║", "██╔════╝", "╚██╗ ██╔╝"),
-    ("█████╗  ", "██║   ██║", "█████╗  ", " ╚████╔╝ "),
-    ("██╔══╝  ", "╚██╗ ██╔╝", "██╔══╝  ", "  ╚██╔╝  "),
-    ("███████╗", " ╚████╔╝ ", "███████╗", "   ██║   "),
-    ("╚══════╝", "  ╚═══╝  ", "╚══════╝", "   ╚═╝   "),
-]
-WORDMARK = '<pre class="evey-wordmark" aria-hidden="true">' + "\n".join(
-    f"<span>{a}</span><span class=\"v\">{v}</span><span>{e}{y}</span>"
-    for a, v, e, y in WORDMARK_ROWS
-) + "</pre>\n\n"
-
+# The site uses the real mark rather than a copy that would drift from
+# evey-brand/, the single source of truth.
 BRAND_FILES = {
     "evey-brand/favicon/favicon.svg": "assets/brand/favicon.svg",
     "evey-brand/svg/evey-wordmark-transparent-white.svg": "assets/brand/wordmark.svg",
@@ -88,6 +77,15 @@ STALE_BANNER = {
     "es": "Esta traducción está desactualizada respecto a la versión en inglés. En caso de duda, consulte la página en inglés.",
     "hi": "यह अनुवाद अंग्रेज़ी संस्करण से पुराना है। संदेह होने पर अंग्रेज़ी पृष्ठ पढ़ें।",
     "zh": "此翻译落后于英文版本。如有疑问，请阅读英文页面。",
+}
+
+
+DRAFT_BANNER = {
+    "fr": "Brouillon non relu : cette page n'est pas encore publiée.",
+    "de": "Unüberprüfter Entwurf: Diese Seite ist noch nicht veröffentlicht.",
+    "es": "Borrador sin revisar: esta página aún no está publicada.",
+    "hi": "बिना समीक्षा का मसौदा: यह पृष्ठ अभी प्रकाशित नहीं है।",
+    "zh": "未审阅的草稿：此页面尚未发布。",
 }
 
 
@@ -293,6 +291,26 @@ def split_front_matter(text: str) -> tuple[dict, str]:
     return (meta if isinstance(meta, dict) else {}), text[match.end():]
 
 
+# ── Sources ───────────────────────────────────────────────────────────────────
+# A page may end with an HTML comment listing what its behavioural claims rest
+# on (a file and a symbol, a test, an ADR, an i18n key). It is invisible on the
+# site and read in review. The only mechanical check: a cited repository path
+# that no longer exists is reported, as a warning - the page may need a look
+# after a refactor, it is not wrong for that alone.
+SOURCES_BLOCK = re.compile(r"<!--\s*sources\b(.*?)-->", re.DOTALL)
+SOURCE_PATH = re.compile(r"(?<![\w./-])((?:internal|cmd|frontend|docs|i18n|wiki|docker|scripts)/[\w./-]+)")
+
+
+def missing_sources(rel: str, text: str) -> list[str]:
+    out: list[str] = []
+    for block in SOURCES_BLOCK.findall(text):
+        for path in SOURCE_PATH.findall(block):
+            path = path.rstrip(".,;:")
+            if not (REPO / path).exists():
+                out.append(f"{rel}: {path}")
+    return out
+
+
 # ── Leak guard ────────────────────────────────────────────────────────────────
 # Publishing is one-way: a hostname pushed to a public site is scraped and
 # cached within the hour. These patterns are deliberately blunt - a false
@@ -349,6 +367,12 @@ def main() -> int:
         help="fail on a missing page, a stale translation or a leak (CI gate)",
     )
     parser.add_argument(
+        "--drafts",
+        action="store_true",
+        help="review preview: also publish translations marked `reviewed: false`, "
+        "under a draft banner. Never used for the public site.",
+    )
+    parser.add_argument(
         "--restamp",
         action="store_true",
         help="rewrite every translation's source_sha to the current English page. "
@@ -376,11 +400,13 @@ def main() -> int:
     unresolved: list[str] = []
     structure: list[str] = []
     translated = {lang: 0 for lang in LANGUAGES}
+    held = {lang: 0 for lang in LANGUAGES}
+    cited: list[str] = []
 
     # The set of paths that exist on the site, needed before any link is
     # rewritten: a link is "off-site" only relative to what actually ships.
     published = {rel for rel in paths if source_for(rel) is not None}
-    for pattern in ASSET_GLOBS:
+    for pattern in ASSET_GLOBS + IMAGE_GLOBS:
         published.update(str(a.relative_to(DOCS)) for a in DOCS.glob(pattern))
 
     for rel in paths:
@@ -396,12 +422,13 @@ def main() -> int:
         # it must not move because the blob URL prefix changed.
         digest = sha(english)
         leaks.extend(scan_for_leaks(Path(rel), english))
+        cited.extend(missing_sources(rel, english))
         english, dangling = rewrite_offsite_links(rel, english, published)
         unresolved.extend(dangling)
 
         dest = staging / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(WORDMARK + english if rel in WORDMARK_PAGES else english, encoding="utf-8")
+        dest.write_text(english, encoding="utf-8")
 
         for lang in LANGUAGES:
             tr = TRANSLATIONS / lang / rel
@@ -409,6 +436,10 @@ def main() -> int:
                 continue
             raw = tr.read_text(encoding="utf-8")
             meta, body = split_front_matter(raw)
+            draft = args.drafts and meta.get("reviewed") is False
+            if meta.get("reviewed") is not True and not draft:
+                held[lang] += 1
+                continue
             leaks.extend(scan_for_leaks(Path(f"{lang}/{rel}"), body))
             body, dangling = rewrite_offsite_links(rel, body, published)
             unresolved.extend(dangling)
@@ -423,9 +454,15 @@ def main() -> int:
             elif meta.get("source_sha") != digest:
                 stale.append(f"{lang}/{rel}")
                 body = f"!!! warning\n    {STALE_BANNER[lang]}\n\n" + body
+            if draft:
+                body = f"!!! note\n    {DRAFT_BANNER[lang]}\n\n" + body
             translated[lang] += 1
-            if rel in WORDMARK_PAGES:
-                body = WORDMARK + body
+            # Page settings (hide: navigation...) ride in the same front matter
+            # as source_sha and reviewed; they go back on top, above any banner.
+            page_meta = {k: v for k, v in meta.items() if k not in ("source_sha", "reviewed")}
+            if page_meta:
+                header = yaml.safe_dump(page_meta, allow_unicode=True, sort_keys=False).strip()
+                body = f"---\n{header}\n---\n\n" + body
             out = staging / rel.replace(".md", f".{lang}.md")
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(body, encoding="utf-8")
@@ -439,6 +476,13 @@ def main() -> int:
             body = src.read_text(encoding="utf-8")
             leaks.extend(scan_for_leaks(rel, body))
             dest = staging / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            assets += 1
+
+    for pattern in IMAGE_GLOBS:
+        for src in sorted(DOCS.glob(pattern)):
+            dest = staging / src.relative_to(DOCS)
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
             assets += 1
@@ -473,7 +517,7 @@ def main() -> int:
     print(f"assets: {assets} copied")
     for lang in LANGUAGES:
         pct = (translated[lang] * 100 // total) if total else 0
-        print(f"  {lang}: {translated[lang]}/{total} translated ({pct}%)")
+        print(f"  {lang}: {translated[lang]}/{total} reviewed and published ({pct}%), {held[lang]} held back unreviewed")
 
     if restamped:
         print("\nRESTAMPED - source_sha refreshed, on your word that the content follows:")
@@ -502,6 +546,10 @@ def main() -> int:
             print(f"  {problem}")
         if args.check:
             failed = True
+    if cited:
+        print("\nSOURCES - a path cited in a page's sources block no longer exists (warning):")
+        for problem in cited:
+            print(f"  {problem}")
     if leaks:
         failed = True
         print("\nLEAK GUARD - these would be published as-is:")

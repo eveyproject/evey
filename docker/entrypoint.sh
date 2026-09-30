@@ -253,7 +253,7 @@ if [ "$EVEY_EMBEDDED_POSTGRES" = "true" ]; then
     if [ -s "$PGDATA_DIR/PG_VERSION" ]; then
         have="$(cat "$PGDATA_DIR/PG_VERSION")"
         if [ "$have" != "$PG_MAJOR" ]; then
-            echo "evey: $PGDATA_DIR holds a Postgres $have cluster but this image ships Postgres $PG_MAJOR - dump it with the previous image, move the directory aside, then restore (docs/installation.md, 'Postgres major upgrade')" >&2
+            echo "evey: $PGDATA_DIR holds a Postgres $have cluster but this image ships Postgres $PG_MAJOR - dump it with the previous image, move the directory aside, then restore (docs/operations/advanced-deployments.md, 'Postgres major upgrade')" >&2
             exit 1
         fi
     elif [ -d "$PGDATA_DIR" ] && [ -n "$(ls -A "$PGDATA_DIR" 2>/dev/null)" ]; then

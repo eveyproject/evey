@@ -1,135 +1,151 @@
 ---
-source_sha: 4abf3c80428cd67c34ec53516788e91cc6019eab33ecc17b138c08d22a4bde30
+source_sha: 6793435ce29d5b03c7d7504757f1dc297b95ed73f6f61930a65ecd174182af6a
+reviewed: true
 ---
+# Santé des médias
 
-# Santé des médias (admin → Media health)
+**Admin → Santé des médias** lit chaque fichier MKV/WebM de vos bibliothèques et
+donne à chacun une seule réponse. Le but est une page qui se vide : ce qu'Evey
+sait réparer, il le répare ; le reste est signalé une fois et peut être marqué
+comme vu.
 
-La page Media health inspecte chaque MKV/WebM d'une bibliothèque et donne à
-chaque fichier UN verdict. L'objectif : réparer pour de bon ce qui peut l'être,
-et cesser de relire éternellement les mêmes avertissements - pas d'entretenir
-une liste de 600 constats sur lesquels personne n'agit.
+<figure class="evey-shot" markdown="span">
+  ![Admin → Santé des médias après une analyse des bibliothèques de démo](../images/admin-media-health.webp){ loading=lazy }
+  <figcaption>Une analyse sans rien à faire : tous les fichiers sont sains (interface en anglais).</figcaption>
+</figure>
 
-## Les quatre verdicts
+## Deux verdicts
 
-| Verdict | Ce que cela veut dire | Ce que le serveur en fait |
-|---|---|---|
-| **Healthy** | Index, calage audio, conteneur et tailles : tout est bon. | Rien. |
-| **Repairable** | Un défaut que le serveur sait corriger seul, sans risque. | **Repair all** les corrige tous en arrière-plan (voir plus bas). |
-| **Your call** | Un défaut que seule la source peut corriger, ou une réparation qui se paie d'une vraie contrepartie. | Rien d'automatique. Acquittez-le, ou récupérez le fichier à nouveau. |
-| **Info** | Une curiosité sans effet sur la lecture. | Rien. Acquittez-le pour dégager la vue. |
+| Verdict | Ce qu'il signifie | Ce que fait Evey |
+| --- | --- | --- |
+| **Sain** | Index, conteneur, tailles et calage de l'audio sont corrects. | Rien. |
+| **Réparable ici** | Un défaut qu'Evey répare sur ce serveur. | **Tout réparer** s'en charge en arrière-plan. |
+| **Information** | Une mesure faite sur le fichier, qu'Evey ne réécrit pas de lui-même. | Rien. Marquez-la comme vue. |
 
-Chaque ligne porte aussi les badges de détail qui expliquent son verdict. Les
-badges, groupés par verdict :
+Il n'y a pas de troisième verdict qui vous confierait une corvée. Une mesure sur
+laquelle Evey ne peut pas agir reste une remarque, et une mesure peut se tromper :
+si le fichier se lit bien, il va bien.
 
-**Repairable**
+### Réparable ici
 
-- Index de navigation *manquant*, ou index présent mais inutilisable (calé sur
-  la piste audio, référençant des pistes que le fichier n'a plus, ou trop
-  clairsemé pour faire atterrir une navigation près de sa cible). La réparation
-  reconstruit les Cues : le fichier est réécrit dans une copie temporaire,
-  entièrement revalidé (pistes, durée, index), puis échangé. Le symptôme qu'elle
-  guérit : navigation et reprise lentes.
-- *Audio +Ns* - une piste audio démarre en retard sur la vidéo (un défaut de
-  multiplexage, le classique « les lèvres en avance sur le son »). La réparation
-  réaligne la piste sur place.
-- *Wrong container* - le `.mkv` est en réalité un MP4/MOV. Il n'y a aucun index
-  Matroska à construire ; la réparation **le renomme en `.mp4`** et met à jour
-  l'entrée de bibliothèque. Rien n'est réécrit.
-- *Damaged ~size* - une zone corrompue au milieu du fichier, qu'une réécriture
-  stricte refuse. La réparation peut **resynchroniser** : elle saute la zone
-  endommagée et resynchronise ce qui suit. Ces octets sont perdus pour de bon,
-  et la fenêtre de réparation le demande donc explicitement (*Also resync N
-  damaged file(s)*) - case décochée, les fichiers endommagés sont laissés
-  tranquilles.
+- **Index de lecture manquant**, ou inutilisable. Le symptôme : un déplacement
+  dans la lecture ou une reprise lents. L'index est reconstruit dans une copie
+  temporaire, la copie est entièrement vérifiée (pistes, durée, index), puis elle
+  remplace le fichier.
+- **Mauvais conteneur** : le `.mkv` est en réalité un fichier MP4 ou MOV. Il est
+  renommé en `.mp4` et la bibliothèque suit ; rien n'est réécrit.
+- **Zone endommagée** : une région corrompue au milieu du fichier. La réparation
+  la saute et resynchronise la suite, et ces octets sont perdus pour de bon. La
+  fenêtre de réparation le demande explicitement (**Resynchroniser aussi N
+  fichiers endommagés**) ; case décochée, les fichiers endommagés ne sont pas
+  touchés. Il en va de même pour un fichier dont la corruption n'apparaît qu'à la
+  réécriture (**Corruption trouvée à la réparation**) : l'analyse ne lit que les
+  en-têtes et ne pouvait pas la voir.
+- **Pistes rangées par blocs** : des minutes de vidéo, puis des minutes de son,
+  au lieu d'être côte à côte. Aucun lecteur ne dépasse le premier bloc.
+  **Ré-entrelacer les pistes** les réécrit côte à côte sans réencodage et vérifie
+  que chaque paquet a été conservé avant de remplacer le fichier.
 
-**Your call**
+### Information
 
-- *Incomplete download - missing tail ~size* - la fin déclarée du fichier
-  dépasse sa taille réelle, et le parcours a confirmé la coupure. Aucun outil ne
-  récupère cette queue manquante : la taille vous dit s'il s'agit d'un talon de
-  9 Ko (invisible à la lecture) ou d'une scène finale absente. Le seul vrai
-  correctif est de récupérer la source à nouveau.
-- *Audio -Ns* - une piste audio s'arrête N secondes **avant l'image** (mesure du
-  contenu contre le contenu, jamais contre la durée déclarée du conteneur, qui
-  n'est qu'une affirmation du multiplexeur). La lecture comble la fin par du
-  silence ; le son n'est tout simplement pas dans le fichier.
-- *Coarse seeking* - l'index a été reconstruit et un trou subsiste. Le détail en
-  dit la raison : des images clés que personne n'a indexées (une seconde
-  reconstruction referme le trou), une zone totalement dépourvue d'image clé
-  (seul un réencodage la rend navigable), ou **une zone totalement dépourvue
-  d'image** - la vidéo y gèle quoi que fasse l'index, et le seul remède est la
-  source.
+- **Téléchargement incomplet** : la fin du fichier n'est jamais arrivée. Il se
+  lit jusqu'à la coupure. Aucun outil ne récupère la partie manquante ; seule la
+  source le peut.
+- **Recherche imprécise** : l'index reconstruit a encore un trou, le plus souvent
+  le générique de fin. Un déplacement dans ce trou arrive à son bord ; partout
+  ailleurs, la recherche est exacte.
+- **Audio à +N s** : une piste audio commence après l'image. C'est ainsi qu'un
+  doublage est calé sur un montage, et tous les lecteurs le respectent. Evey ne le
+  réécrit jamais.
+- **Pistes audio décalées de N s** : les pistes audio du fichier ne concordent
+  pas entre elles, donc l'une d'elles est mal placée. Aucune mesure ne peut dire
+  laquelle.
+- **Son décalé de N s par rapport à l'image** : une piste audio s'écarte de
+  l'endroit où les sous-titres, calés sur l'image, placent les dialogues.
+- **Piste audio ramenée à 0** : la trace que laisse une réparation antérieure qui
+  a ramené une piste de son décalage déclaré. Si le doublage passe maintenant en
+  avance, le décalage retiré n'est plus dans le fichier.
+- **Audio -N s** : une piste audio se termine avant l'image. La lecture comble le
+  manque par du silence.
+- **Octets excédentaires** : des octets en trop après la fin du contenu du
+  fichier. Il se lit sans problème.
+- **Illisible** : l'analyse n'a pas pu lire le fichier (absent, illisible, ou un
+  conteneur refusé par l'analyseur). Vérifiez le montage ou la source.
 
-**Info**
+## Vérifier la synchro à l'œil
 
-- *Trailing bytes* - des octets en trop après la fin déclarée du Segment (un
-  ajout interrompu, le journal d'un client torrent). Le média est complet et se
-  lit très bien ; toute réécriture ultérieure les fera disparaître.
+Pour les trois remarques sur l'audio, **Vérifier la synchro**, sur la ligne du
+fichier, fabrique un court extrait sur le serveur : choisissez un moment, une
+piste et un décalage à essayer, puis regardez-le, au ralenti si besoin. Comparer
+des pistes dit si elles concordent, jamais laquelle suit l'image ; seul le
+visionnage tranche.
 
-## Acquitter
+**Appliquer** déplace cette piste du décalage choisi. La modification est
+enregistrée comme votre jugement, pas comme une mesure, et **Historique** peut
+l'annuler.
 
-*Seen, stop flagging* (par fichier) et *Mark all as seen* (par groupe) sortent
-un constat de la vue *Awaiting*. L'acquittement est lié à l'identité du fichier
-**et à ses octets** : si le fichier change (taille ou date de modification),
-l'analyse suivante le diagnostique à neuf et le signalement revient. *Flag
-again* annule l'acquittement. Un acquittement posé pendant qu'une analyse tourne
-est conservé quand cette analyse s'achève, pour un fichier resté inchangé.
+## Marquer comme vu
 
-Les vues en haut du tableau (*Awaiting*, *Repairable*, *Your call*, *Info*,
-*Seen*, *Backups*, *All*), plus le champ de recherche, sont ce qui permet
-d'avancer sur une grande bibliothèque : *Awaiting* est la liste des choses à
-faire, *Seen* ce sur quoi vous avez déjà tranché.
+**Vu, ne plus signaler** (un fichier) et **Tout marquer comme vu** (un groupe)
+retirent une remarque Information de la vue **En attente**. Seules les remarques
+peuvent être marquées : un défaut réparable se répare. La marque vaut pour le
+fichier tel qu'il est : si sa taille ou sa date change, l'analyse suivante le
+diagnostique à nouveau. **Re-signaler** annule la marque.
 
-## Les analyses, et pourquoi la première après une mise à jour est longue
+Les vues au-dessus du tableau (**En attente**, **Réparable**, **Info**,
+**Vus**, **Sauvegardes**, **Tous**) et la zone de recherche servent à traiter une
+grande bibliothèque : **En attente** est la liste des choses à faire.
 
-Une analyse lit chaque fichier en en-tête seul (quelques Ko chacun) et réemploie
-le verdict précédent quand le fichier n'a pas changé. Deux choses forcent un
-diagnostic neuf de tout :
+## Analyses
 
-- le fichier a changé (taille ou date de modification) ;
-- **les détecteurs du serveur ont changé** - une nouvelle règle, une référence
-  corrigée, un seuil déplacé. Chacun de ces changements incrémente une version
-  interne de diagnostic, et l'analyse suivante rediagnostique toute la
-  bibliothèque une bonne fois, plutôt que d'afficher un verdict qu'une règle
-  plus récente ne rendrait pas. Sur un NAS, comptez des heures pour une grande
-  bibliothèque ; les analyses suivantes sont de nouveau rapides.
+Une analyse lit le début de chaque fichier (quelques kilo-octets) et reprend la
+réponse précédente pour un fichier qui n'a pas changé. **Usage des disques** règle
+le rythme :
 
-## Sauvegardes et retour arrière
+- **Discret** : un fichier à la fois, puis une pause aussi longue que la lecture.
+  Les disques restent libres environ la moitié du temps, et quelqu'un peut
+  continuer à regarder.
+- **Rapide** : plusieurs fichiers à la fois, sans pause. Environ trois fois plus
+  rapide sur une bibliothèque répartie sur plusieurs disques, mais la lecture
+  peut saccader pendant ce temps.
 
-**Lisez ceci avant de vous jeter sur *Roll back* en plein incident :
-l'existence d'une copie physique de l'original dépend de la stratégie de
-réparation, et l'une des trois n'en garde aucune.**
+Deux choses font tout rediagnostiquer à une analyse : un fichier qui a changé, et
+une nouvelle version d'Evey dont les contrôles ont changé. La première analyse
+après une telle mise à jour est donc longue sur une grande bibliothèque ; les
+suivantes redeviennent rapides.
 
-| Stratégie | Sauvegarde physique | Comment se passe un retour arrière |
-|---|---|---|
-| `rewrite` | un `.mkvgobak` à côté du fichier | On restaure la copie |
-| `auto` | un `.mkvgobak` (avec repli sur une réécriture) | On restaure la copie |
-| `inplace` | **aucune, jamais** | On réapplique le décalage inverse consigné dans le journal de réparation |
+## Sauvegardes, historique et annulation
 
-`inplace` est un correctif chirurgical - une écriture dans le fichier, sans
-remultiplexage - et c'est le chemin qu'emprunte un réalignement audio (le badge
-« Audio +Ns »). Rien n'est copié : le chemin du retour, c'est l'entrée de
-journal dans `audit_log`, qui porte le décalage appliqué, sachant que le
-décalage opposé le défait. Si cette entrée de journal a disparu, le retour
-arrière aussi. `admin_media.proto` fait référence pour les trois stratégies ;
-`inplace` ignore aussi bien *Keep backups* que le nombre de sauvegardes à
-conserver.
+**Conserver les sauvegardes** est activé par défaut : chaque fichier réécrit garde
+son original en `.mkvgobak` à côté de lui. **Restaurer** remet un fichier, **Tout
+restaurer** la sélection en cours, et **Supprimer les sauvegardes** les efface
+pour de bon. Désactivé, seules les dernières copies existent pendant une passe, et
+elles sont supprimées à la fin ; chaque réparation est alors vérifiée plus à fond
+avant de remplacer le fichier. Quand garder une copie de chaque fichier
+remplirait le volume, la page le dit avant la passe.
 
-Pour les deux stratégies qui gardent bien une copie : *Roll back* restaure un
-fichier, *Roll back all* restaure le périmètre sélectionné. Quand les
-sauvegardes menacent de déborder le volume, la page le dit et propose de les
-désactiver - seules les dernières sont alors gardées pendant la tâche puis
-supprimées à la fin, chaque réparation ayant été validée avant l'échange.
+Le **Journal des réparations** liste chaque modification qu'une réparation a
+apportée aux octets d'un fichier, sur toute la bibliothèque ; **Historique** le
+montre pour un seul fichier. Certaines modifications s'y annulent sans aucune
+copie :
 
-Les réparations exigent que les dossiers de médias soient montés **en
-lecture-écriture** dans le conteneur (pas de `:ro` sur le montage lié) - la page
-vous indique quels fichiers reposent sur un volume en lecture seule.
+| Modification | Annulation |
+| --- | --- |
+| Piste audio déplacée | Applique le décalage exactement inverse. |
+| Renommé en `.mp4` | Lui rend son nom d'origine. |
+| Index reconstruit | Rien à annuler : l'image et le son sont intacts. |
+| Zone corrompue sautée | Seule la sauvegarde rend les octets perdus, c'est pourquoi cette réparation en garde toujours une. |
 
-## Les équivalents en ligne de commande
+Les réparations écrivent dans vos dossiers de médias. Ils doivent être montés en
+lecture-écriture dans le conteneur (pas de `:ro` sur le volume) ; après une passe
+qui a rencontré un volume en lecture seule, la page le signale. L'analyse
+fonctionne dans les deux cas.
 
-Le même moteur est accessible depuis la CLI d'exploitation (voir `cli.md`) :
+## En ligne de commande
 
-- `evey admin reindex-no-cue --root <dir> [--apply] [--resync]` - la
-  reconstruction de l'index, à blanc par défaut ;
-- `evey admin validate-streaming --root <dir>` - le rapport, en lecture seule,
-  d'aptitude à la diffusion.
+Le même moteur est disponible dans la CLI d'exploitation (voir `cli.md`) :
+
+- `evey admin reindex-no-cue --root <dossier> [--apply] [--resync]` reconstruit
+  les index manquants, à blanc sauf avec `--apply` ;
+- `evey admin validate-streaming --root <dossier>` affiche le rapport de
+  préparation au streaming, en lecture seule.

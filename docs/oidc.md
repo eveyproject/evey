@@ -22,7 +22,7 @@ In your identity provider, create a new client/application:
 |-------|-------|
 | Client ID | `evey` |
 | Client Secret | generate one |
-| Redirect URI | `{EVEY_SERVER_BASE_URL}/api/v1/auth/oidc/callback` |
+| Redirect URI | `https://<your address>/api/v1/auth/oidc/callback` |
 | Grant Type | Authorization Code |
 | Scopes | `openid email profile` |
 

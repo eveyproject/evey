@@ -31,9 +31,11 @@ Browser push notifications. VAPID keys are auto-generated on first startup. User
 
 Password reset emails require SMTP to be configured. An admin must also enable the feature:
 
-1. Configure SMTP (see above)
-2. In the admin panel, set `auth.password_recovery_enabled` to `true` in server config
-3. The login page will show a "Forgot your password?" link
+1. Configure SMTP (see above).
+2. Store the setting `auth.password_recovery_enabled` = `true`. The panel has no
+   switch for it: an administrator sends it through the API, `PUT
+   /api/v1/admin/config` with `{"values": {"auth.password_recovery_enabled": "true"}}`.
+3. The login page then shows a "Forgot your password?" link.
 
 If SMTP is removed after enabling, password recovery is automatically disabled.
 

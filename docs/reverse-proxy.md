@@ -4,15 +4,18 @@ Evey serves **both the API and the web UI** on port **9091** (plain HTTP). A
 reverse proxy only needs to terminate TLS and forward everything to
 `evey:9091`: there is **no separate frontend to build or serve**.
 
-Wherever you run a proxy, set these so Evey knows its public URL and trusts the
-proxy's forwarded headers:
+Wherever you run a proxy, tell Evey its public URL and which proxy to trust.
+The simplest place is **Admin → Remote Access**: an `https://` **External URL**
+and, when the proxy is a container, its network in **Trusted proxies**. Both
+apply without a restart. The same answers can come from the environment, for
+an installation described entirely as code (the panel wins when both are set):
 
 ```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
 EVEY_TRUSTED_PROXIES=172.16.0.0/12       # only needed if the proxy is a container; loopback is always trusted
 ```
 
-An `https://` base URL is what tells Evey a proxy terminates TLS in front of
+An `https://` address is what tells Evey a proxy terminates TLS in front of
 it: cookies get the `Secure` flag, HSTS is sent, and `X-Forwarded-Proto` from
 a trusted proxy is honoured. No separate switch is needed (the former
 `EVEY_FORWARDED_PROTO` is still accepted as an override, but deprecated).
@@ -226,7 +229,7 @@ Once your proxy forwards the real client address, Evey can tell a viewer at home
 from one on the internet. That is what the WAN bitrate cap and the remote-access
 gate act on, so the two settings only behave correctly together:
 
-- `EVEY_TRUSTED_PROXIES` must cover the proxy (`172.16.0.0/12` when it is a
+- The trusted proxies (panel or `EVEY_TRUSTED_PROXIES`) must cover the proxy (`172.16.0.0/12` when it is a
   container on the Docker network; nothing to add when it runs on the host,
   loopback is always trusted). Whatever you set is ADDED to the loopback
   baseline - it never replaces it, so a Docker value cannot silently stop the

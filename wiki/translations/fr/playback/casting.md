@@ -1,0 +1,54 @@
+---
+source_sha: 66951bf73de4e59bd21b6ea9468df82ac79d31950e742e6c87203c05a77dda76
+reviewed: true
+---
+# Diffusion (Chromecast)
+
+Le bouton **Caster**, dans le lecteur web sous Chrome et dans l'application
+Android, envoie le film vers un Chromecast ou une TV équipée de Chromecast.
+Le téléphone ou le navigateur ne fait que lancer la session : la TV lit le
+flux directement depuis le serveur, via l'application récepteur d'Evey, et le
+serveur décide de ce qu'il envoie en fonction de la TV, pas de l'appareil qui
+a lancé la diffusion.
+
+## Ce que le serveur sait du récepteur
+
+C'est la TV qui décode le flux : la décision de lecture repose donc sur les
+capacités du récepteur, tirées de la source la plus fiable disponible :
+
+1. **Ce que le récepteur a constaté sur lui-même.** Au démarrage, le
+   récepteur d'Evey teste son propre appareil (les codecs et résolutions
+   qu'il sait afficher, s'il affiche le HDR, s'il transmet l'audio Dolby tel
+   quel, combien de canaux audio sa sortie restitue) et le déclare. Quand
+   cette déclaration arrive, c'est elle qui est utilisée.
+2. **Sinon, le modèle.** Le nom que remonte le SDK Cast (Chromecast avec
+   Google TV, Chromecast Ultra, Google TV Streamer...) correspond aux
+   capacités documentées de cette famille.
+3. **Sinon, un profil prudent.** Un appareil inconnu, un récepteur qui n'a
+   pas répondu à temps ou un appareil trouvé sans nom de modèle reçoit les
+   capacités du plus ancien Chromecast.
+
+Cet ordre suit le coût d'une erreur : prêter à l'appareil une capacité qu'il
+n'a pas donne un écran noir, alors qu'en supposer trop peu ne coûte qu'un
+transcodage.
+
+Le Dolby Digital (AC-3, E-AC-3) n'est envoyé tel quel qu'à un récepteur qui a
+déclaré le transmettre nativement ; sinon il est réencodé en AAC.
+
+## La connexion de la TV
+
+Avant de demander un flux, le récepteur mesure son propre débit et le joint à
+la demande. Le serveur conserve la vidéo d'origine quand ce débit la porte
+avec une marge de 20 %. Sinon, il choisit la qualité la plus haute que la
+connexion supporte. Si la lecture cale malgré tout, le récepteur recharge une
+fois sur la qualité la plus basse, à condition qu'elle divise le débit par
+deux. Les Infos du flux affichent alors **Le débit mesuré par le client ne
+peut pas porter la copie** ou **Palier de survie demandé par le lecteur**.
+
+Les anciens appareils de diffusion ne changent pas de qualité d'eux-mêmes en
+cours de lecture : c'est pourquoi le serveur fait ce choix à leur place.
+
+## Quand une diffusion ne fonctionne pas
+
+[A cast froze, went silent, or the phone keeps spinning](../runbooks/incident-runbook.md#8-a-cast-froze-went-silent-or-the-phone-keeps-spinning)
+(procédure en anglais).

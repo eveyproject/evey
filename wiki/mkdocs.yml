@@ -26,16 +26,13 @@ theme:
   name: material
   language: en
   custom_dir: overrides
-  logo: assets/brand/favicon.svg
+  # The full wordmark, not the V alone: the V stays the favicon.
+  logo: assets/brand/wordmark.svg
   favicon: assets/brand/favicon.svg
   features:
-    # Top-level sections become tabs across the header: Home, Discover and
-    # Technical guide. The two parts never share a sidebar, so a reader weighing
-    # Evey is not handed a runbook, and an operator's sidebar carries only the
-    # technical sections (setup, settings, operations, extending, internals).
-    # The demo bar above the header can be closed; it returns only when its
-    # text changes (overrides/main.html).
-    - announce.dismiss
+    # Top-level sections become tabs across the header, one per kind of
+    # question: getting a server running, administering it, understanding
+    # playback, operating it, extending it, and how it is built.
     - navigation.tabs
     - navigation.sections
     - navigation.top
@@ -80,6 +77,12 @@ extra_css:
   - stylesheets/brand.css
 
 plugins:
+  # Click a screenshot to open it full size, then pinch or scroll to zoom.
+  - glightbox:
+      zoomable: true
+      draggable: true
+      skip_classes:
+        - no-zoom
   - search:
       # Without this the six languages share one index and a French search
       # surfaces German and Chinese pages. mkdocs-static-i18n rebuilds one
@@ -99,251 +102,88 @@ plugins:
           name: English
           default: true
           build: true
+        # A translation is published only once it is reviewed (`reviewed: true`,
+        # see wiki/README.md). A language is built once its first reviewed page
+        # lands, with its nav titles; until then only the review preview
+        # (make wiki-drafts) shows its drafts.
         - locale: fr
           name: Français
+          # Its reviewed pages are published; the others fall back to English.
           build: true
           nav_translations:
             Home: Accueil
-            Discover: Découvrir
-            Why Evey: Pourquoi Evey
-            What you get: "Ce qu'Evey vous offre"
-            On every screen: Sur tous les écrans
-            Technical guide: Guide technique
-            Setup: Mise en place
-            Installation: Installation
-            First steps: Premiers pas
-            Configuration: Configuration
-            Reverse proxy: Reverse proxy
-            Bare metal deployment: Déploiement sans conteneur
-            Backups: Sauvegardes
-            Settings: Réglages
-            Viewer settings: Réglages utilisateur
+            Getting started: Premiers pas
+            Install: Installation
+            First setup: Première configuration
+            Apps and devices: Applications et appareils
             Administration: Administration
-            Transcoding and hardware: Transcodage et matériel
+            Libraries and metadata: Bibliothèques et métadonnées
+            Users, profiles and parental control: Utilisateurs, profils et contrôle parental
+            Remote access and HTTPS: Accès distant et HTTPS
+            Reverse proxy configurations: Configurations de reverse proxy
+            Hardware acceleration: Accélération matérielle
             Single sign-on (OIDC): Authentification unique (OIDC)
-            Notifications: Notifications
-            Languages and accessibility: Langues et accessibilité
+            E-mail and notifications: E-mail et notifications
+            Backups and updates: Sauvegardes et mises à jour
+            Playback: Lecture
+            How playback is decided: Comment Evey choisit le mode de lecture
+            Transcoding and server capacity: Transcodage et capacité du serveur
+            HDR and Dolby Vision: HDR et Dolby Vision
+            Audio: Audio
+            Subtitles: Sous-titres
+            Casting: Diffusion (Chromecast)
             Operations: Exploitation
-            Command line: Ligne de commande
+            Troubleshooting: Dépannage
+            Monitoring and logs: Supervision et logs
+            Background work and server load: Tâches de fond et charge du serveur
             Media health: Santé des médias
+            Command line: Ligne de commande
             Recovery: Restauration
-            Migrations: Migrations
-            Incidents: Incidents
-            Releases: "Publication d'une version"
-            Extending: Étendre Evey
-            Plugins: Extensions
-            Plugin API reference: "Référence de l'API des extensions"
-            Plugin developer setup: Mise en place pour développer une extension
-            Plugin sandbox deployment: Déploiement du bac à sable des extensions
-            Plugin permissions and slots: Permissions et emplacements des extensions
-            Theme API reference: "Référence de l'API des thèmes"
-            Theme security model: Modèle de sécurité des thèmes
-            Under the hood: Sous le capot
-            How playback works: Comment fonctionne la lecture
-            Architecture: Architecture
-            Plugin sandbox and threat model: Bac à sable des extensions et modèle de menace
+            Database migrations: Migrations de la base
+            Incident runbook: Procédures d'incident
+            Advanced deployments: Déploiements avancés
+            Without a container: Sans conteneur
+            Plugin sandbox setup: Mise en place de la sandbox des plugins
+            Configuration reference: Référence de configuration
+            Environment variables: Variables d'environnement
+            Server and network: Serveur et réseau
+            Database and search: Base de données et recherche
+            Accounts and sign-in: Comptes et connexion
+            Transcoding and hardware: Transcodage et matériel
+            Playback delivery and downloads: Diffusion de la lecture et téléchargements
+            Background work: Tâches de fond
+            Plugins and sandbox: Plugins et sandbox
+            Backups, logs and monitoring: Sauvegardes, logs et supervision
+            Plugins & API: Plugins et API
+            Plugins: Plugins
+            Writing a plugin: Écrire un plugin
+            Plugin API reference: Référence de l'API des plugins
+            Permissions and slots: Permissions et slots
+            Themes: Thèmes
+            Webhooks and API keys: Webhooks et clés d'API
             Server API: API du serveur
-            Overview: "Vue d'ensemble"
             Public API: API publique
-            Admin API: "API d'administration"
-            Plugin API: API des extensions
+            Admin API: API d'administration
+            Plugin API: API des plugins
+            Internals: Fonctionnement interne
+            Design principles: Principes de conception
+            Architecture: Architecture
+            Playback pipeline: Chaîne de lecture
+            Security model and plugin sandbox: Modèle de sécurité et sandbox des plugins
+            Languages and accessibility: Langues et accessibilité
             Contributing: Contribuer
         - locale: de
           name: Deutsch
-          build: true
-          nav_translations:
-            Home: Startseite
-            Discover: Entdecken
-            Why Evey: Warum Evey
-            What you get: Was Sie bekommen
-            On every screen: Auf jedem Bildschirm
-            Technical guide: Technisches Handbuch
-            Setup: Einrichtung
-            Installation: Installation
-            First steps: Erste Schritte
-            Configuration: Konfiguration
-            Reverse proxy: Reverse Proxy
-            Bare metal deployment: Installation ohne Container
-            Backups: Sicherungen
-            Settings: Einstellungen
-            Viewer settings: Einstellungen für Zuschauer
-            Administration: Administration
-            Transcoding and hardware: Transkodierung und Hardware
-            Single sign-on (OIDC): Single Sign-on (OIDC)
-            Notifications: Benachrichtigungen
-            Languages and accessibility: Sprachen und Barrierefreiheit
-            Operations: Betrieb
-            Command line: Kommandozeile
-            Media health: Medienzustand
-            Recovery: Wiederherstellung
-            Migrations: Migrationen
-            Incidents: Störungen
-            Releases: Veröffentlichungen
-            Extending: Erweitern
-            Plugins: Erweiterungen
-            Plugin API reference: API-Referenz für Erweiterungen
-            Plugin developer setup: Einrichtung für Erweiterungen
-            Plugin sandbox deployment: Sandbox-Betrieb für Erweiterungen
-            Plugin permissions and slots: Berechtigungen und Slots für Erweiterungen
-            Theme API reference: API-Referenz für Themes
-            Theme security model: Sicherheitsmodell für Themes
-            Under the hood: Unter der Haube
-            How playback works: Wie die Wiedergabe funktioniert
-            Architecture: Architektur
-            Plugin sandbox and threat model: Sandbox und Bedrohungsmodell für Erweiterungen
-            Server API: Server-API
-            Overview: Überblick
-            Public API: Öffentliche API
-            Admin API: Administrations-API
-            Plugin API: Erweiterungs-API
-            Contributing: Mitarbeiten
+          build: false
         - locale: es
           name: Español
-          build: true
-          nav_translations:
-            Home: Inicio
-            Discover: Descubrir
-            Why Evey: Por qué Evey
-            What you get: Lo que Evey le ofrece
-            On every screen: En todas las pantallas
-            Technical guide: Guía técnica
-            Setup: Puesta en marcha
-            Installation: Instalación
-            First steps: Primeros pasos
-            Configuration: Configuración
-            Reverse proxy: Proxy inverso
-            Bare metal deployment: Despliegue sin contenedor
-            Backups: Copias de seguridad
-            Settings: Ajustes
-            Viewer settings: Ajustes del espectador
-            Administration: Administración
-            Transcoding and hardware: Transcodificación y hardware
-            Single sign-on (OIDC): Inicio de sesión único (OIDC)
-            Notifications: Notificaciones
-            Languages and accessibility: Idiomas y accesibilidad
-            Operations: Operación
-            Command line: Línea de comandos
-            Media health: Salud de los medios
-            Recovery: Recuperación
-            Migrations: Migraciones
-            Incidents: Incidencias
-            Releases: Publicación de versiones
-            Extending: Ampliar Evey
-            Plugins: Extensiones
-            Plugin API reference: Referencia de la API de extensiones
-            Plugin developer setup: Preparación para desarrollar extensiones
-            Plugin sandbox deployment: Despliegue del entorno aislado de extensiones
-            Plugin permissions and slots: Permisos y ranuras de extensiones
-            Theme API reference: Referencia de la API de temas
-            Theme security model: Modelo de seguridad de los temas
-            Under the hood: Bajo el capó
-            How playback works: Cómo funciona la reproducción
-            Architecture: Arquitectura
-            Plugin sandbox and threat model: Entorno aislado y modelo de amenazas de extensiones
-            Server API: API del servidor
-            Overview: Visión general
-            Public API: API pública
-            Admin API: API de administración
-            Plugin API: API de extensiones
-            Contributing: Contribuir
+          build: false
         - locale: hi
           name: हिन्दी
-          build: true
-          nav_translations:
-            Home: मुख्य पृष्ठ
-            Discover: परिचय
-            Why Evey: Evey क्यों
-            What you get: आपको क्या मिलता है
-            On every screen: हर स्क्रीन पर
-            Technical guide: तकनीकी गाइड
-            Setup: सेटअप
-            Installation: इंस्टॉलेशन
-            First steps: पहले कदम
-            Configuration: कॉन्फ़िगरेशन
-            Reverse proxy: रिवर्स प्रॉक्सी
-            Bare metal deployment: कंटेनर के बिना परिनियोजन
-            Backups: बैकअप
-            Settings: सेटिंग्स
-            Viewer settings: दर्शक सेटिंग्स
-            Administration: प्रशासन
-            Transcoding and hardware: ट्रांसकोडिंग और हार्डवेयर
-            Single sign-on (OIDC): सिंगल साइन-ऑन (OIDC)
-            Notifications: सूचनाएँ
-            Languages and accessibility: भाषाएँ और सुगम्यता
-            Operations: संचालन
-            Command line: कमांड लाइन
-            Media health: मीडिया स्वास्थ्य
-            Recovery: पुनर्प्राप्ति
-            Migrations: माइग्रेशन
-            Incidents: घटनाएँ
-            Releases: रिलीज़
-            Extending: विस्तार
-            Plugins: एक्सटेंशन
-            Plugin API reference: एक्सटेंशन API संदर्भ
-            Plugin developer setup: एक्सटेंशन डेवलपर सेटअप
-            Plugin sandbox deployment: एक्सटेंशन सैंडबॉक्स परिनियोजन
-            Plugin permissions and slots: एक्सटेंशन अनुमतियाँ और स्लॉट
-            Theme API reference: थीम API संदर्भ
-            Theme security model: थीम सुरक्षा मॉडल
-            Under the hood: भीतरी संरचना
-            How playback works: प्लेबैक कैसे काम करता है
-            Architecture: आर्किटेक्चर
-            Plugin sandbox and threat model: एक्सटेंशन सैंडबॉक्स और ख़तरा मॉडल
-            Server API: सर्वर API
-            Overview: सारांश
-            Public API: सार्वजनिक API
-            Admin API: व्यवस्थापन API
-            Plugin API: एक्सटेंशन API
-            Contributing: योगदान
+          build: false
         - locale: zh
           name: 中文
-          build: true
-          nav_translations:
-            Home: 首页
-            Discover: 了解 Evey
-            Why Evey: 为什么选择 Evey
-            What you get: 你能得到什么
-            On every screen: 每一块屏幕
-            Technical guide: 技术指南
-            Setup: 部署
-            Installation: 安装
-            First steps: 第一步
-            Configuration: 配置
-            Reverse proxy: 反向代理
-            Bare metal deployment: 不使用容器的部署
-            Backups: 备份
-            Settings: 设置
-            Viewer settings: 观众设置
-            Administration: 管理
-            Transcoding and hardware: 转码与硬件
-            Single sign-on (OIDC): 单点登录（OIDC）
-            Notifications: 通知
-            Languages and accessibility: 语言与无障碍
-            Operations: 运维
-            Command line: 命令行
-            Media health: 媒体健康
-            Recovery: 恢复
-            Migrations: 迁移
-            Incidents: 故障处理
-            Releases: 版本发布
-            Extending: 扩展 Evey
-            Plugins: 扩展
-            Plugin API reference: 扩展 API 参考
-            Plugin developer setup: 扩展开发环境准备
-            Plugin sandbox deployment: 扩展沙箱部署
-            Plugin permissions and slots: 扩展权限与插槽
-            Theme API reference: 主题 API 参考
-            Theme security model: 主题安全模型
-            Under the hood: 深入原理
-            How playback works: 播放如何工作
-            Architecture: 架构
-            Plugin sandbox and threat model: 扩展沙箱与威胁模型
-            Server API: 服务端 API
-            Overview: 概览
-            Public API: 公开 API
-            Admin API: 管理 API
-            Plugin API: 扩展 API
-            Contributing: 参与贡献
+          build: false
 
 markdown_extensions:
   - admonition
@@ -391,56 +231,73 @@ extra:
       link: https://github.com/Evey-project
 
 # ── The manifest ──────────────────────────────────────────────────────────────
-# Paths resolve against wiki/content/ first, then docs/. Two parts: Discover is
-# for someone deciding whether Evey is for them, the Technical guide for someone
-# running it. Contributor documents (decision records, codebase map, code
-# conventions, frontend design system) stay in the repository, linked from
-# contributing.md: the person who lands here is choosing or running a server,
-# not reading an ADR.
+# Paths resolve against wiki/content/ first, then docs/. One tab per kind of
+# question. Each topic has one canonical page; the others link to it rather
+# than explaining it again (wiki/README.md, "One page per topic").
 nav:
   - Home: index.md
-  - Discover:
-      - Why Evey: philosophy.md
-      - What you get: discover/features.md
-      - On every screen: discover/apps.md
-  - Technical guide:
-      - Setup:
-          - Installation: installation.md
-          - First steps: guide/first-steps.md
-          - Configuration: configuration.md
-          - Reverse proxy: reverse-proxy.md
-          - Bare metal deployment: deployment-bare-metal.md
-          - Backups: backups.md
-      - Settings:
-          - Viewer settings: guide/viewer-settings.md
-          - Administration: guide/admin-settings.md
-          - Transcoding and hardware: transcoding.md
-          - Single sign-on (OIDC): oidc.md
-          - Notifications: notifications.md
-          - Languages and accessibility: i18n-accessibility.md
-      - Operations:
-          - runbooks/index.md
-          - Command line: runbooks/cli.md
-          - Media health: runbooks/media-health.md
-          - Recovery: runbooks/recovery.md
-          - Migrations: runbooks/migration-runbook.md
-          - Incidents: runbooks/incident-runbook.md
-          - Releases: runbooks/release.md
-      - Extending:
-          - Plugins: plugins.md
-          - Plugin API reference: plugins/api-reference.md
-          - Plugin developer setup: plugins/dev-setup.md
-          - Plugin sandbox deployment: plugins/sandbox-deployment.md
-          - Plugin permissions and slots: plugins/security-model.md
-          - Theme API reference: themes/api-reference.md
-          - Theme security model: themes/security-model.md
-      - Under the hood:
-          - How playback works: playback-serving.md
-          - Architecture: ARCHITECTURE.md
-          - Plugin sandbox and threat model: SECURITY.md
-          - Server API:
-              - Overview: api/README.md
-              - Public API: api/public/README.md
-              - Admin API: api/admin/README.md
-              - Plugin API: api/plugins/README.md
-          - Contributing: contributing.md
+  - Getting started:
+      - Install: installation.md
+      - First setup: getting-started/first-setup.md
+      - Apps and devices: getting-started/apps.md
+  - Administration:
+      - Libraries and metadata: administration/libraries.md
+      - Users, profiles and parental control: administration/users.md
+      - Remote access and HTTPS:
+          - administration/remote-access.md
+          - Reverse proxy configurations: reverse-proxy.md
+      - Hardware acceleration: administration/hardware-acceleration.md
+      - Single sign-on (OIDC): oidc.md
+      - E-mail and notifications: notifications.md
+      - Backups and updates: backups.md
+  - Playback:
+      - How playback is decided: playback/how-playback-is-decided.md
+      - Transcoding and server capacity: playback/transcoding.md
+      - HDR and Dolby Vision: playback/hdr.md
+      - Audio: playback/audio.md
+      - Subtitles: playback/subtitles.md
+      - Casting: playback/casting.md
+  - Operations:
+      - Troubleshooting: operations/troubleshooting.md
+      - Monitoring and logs: operations/monitoring.md
+      - Background work and server load: operations/background-work.md
+      - Media health: runbooks/media-health.md
+      - Command line: runbooks/cli.md
+      - Recovery: runbooks/recovery.md
+      - Database migrations: runbooks/migration-runbook.md
+      - Incident runbook: runbooks/incident-runbook.md
+      - Advanced deployments:
+          - operations/advanced-deployments.md
+          - Without a container: deployment-bare-metal.md
+          - Plugin sandbox setup: plugins/sandbox-deployment.md
+      - Environment variables:
+          - configuration.md
+          - Server and network: environment/server.md
+          - Database and search: environment/database-search.md
+          - Accounts and sign-in: environment/accounts.md
+          - Libraries and metadata: environment/libraries.md
+          - Transcoding and hardware: environment/transcoding.md
+          - Playback delivery and downloads: environment/playback-delivery.md
+          - Background work: environment/background.md
+          - Plugins and sandbox: environment/plugins.md
+          - E-mail and notifications: environment/notifications.md
+          - Backups, logs and monitoring: environment/logs-monitoring.md
+  - Plugins & API:
+      - Plugins: plugins.md
+      - Writing a plugin: plugins/dev-setup.md
+      - Plugin API reference: plugins/api-reference.md
+      - Permissions and slots: plugins/security-model.md
+      - Themes: themes.md
+      - Webhooks and API keys: webhooks-api-keys.md
+      - Server API:
+          - api/README.md
+          - Public API: api/public/README.md
+          - Admin API: api/admin/README.md
+          - Plugin API: api/plugins/README.md
+  - Internals:
+      - Design principles: design-principles.md
+      - Architecture: ARCHITECTURE.md
+      - Playback pipeline: playback-serving.md
+      - Security model and plugin sandbox: SECURITY.md
+      - Languages and accessibility: i18n-accessibility.md
+      - Contributing: contributing.md

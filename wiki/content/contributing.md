@@ -15,6 +15,7 @@ page points at them.
 | Follow the conventions the code already uses | [Code conventions](code-conventions.md) |
 | Work on the interface | [Frontend design system](frontend-design-system.md) |
 | Know why a structural choice was made | [Architecture decisions](adr/README.md) |
+| Cut a release | [Release runbook](runbooks/release.md) |
 
 ## Why a decision record, and where
 

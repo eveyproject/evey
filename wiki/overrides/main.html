@@ -13,25 +13,6 @@
   the rendered result list, so if the script never executes the reader simply
   gets the unfiltered behaviour back - nothing breaks.
 #}
-{#
-  A thin bar above the header on every page, in the reader's language, that
-  points at the public demo. Dismissible (announce.dismiss): it comes back only
-  when its text changes.
-#}
-{% block announce %}
-  {% set demo = {
-    "en": "Try Evey without installing anything: the public demo, sign in with demo / demo",
-    "fr": "Essayez Evey sans rien installer : la démo publique, connexion demo / demo",
-    "de": "Evey ohne Installation ausprobieren: die öffentliche Demo, Anmeldung mit demo / demo",
-    "es": "Pruebe Evey sin instalar nada: la demo pública, acceso con demo / demo",
-    "hi": "बिना कुछ इंस्टॉल किए Evey आज़माएँ: सार्वजनिक डेमो, demo / demo से साइन इन करें",
-    "zh": "无需安装即可试用 Evey：公开演示，用 demo / demo 登录"
-  } %}
-  <a href="https://demo.eveyproject.org" class="evey-announce">
-    {{ demo.get(config.theme.language, demo["en"]) }} &rarr;
-  </a>
-{% endblock %}
-
 {% block scripts %}
   {{ super() }}
   <script>

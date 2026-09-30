@@ -1,91 +1,75 @@
 ---
 hide:
   - navigation
+  - toc
 ---
 
-<pre class="evey-wordmark" aria-hidden="true"><span>███████╗</span><span class="v">██╗   ██╗</span><span>███████╗██╗   ██╗</span>
-<span>██╔════╝</span><span class="v">██║   ██║</span><span>██╔════╝╚██╗ ██╔╝</span>
-<span>█████╗  </span><span class="v">██║   ██║</span><span>█████╗   ╚████╔╝ </span>
-<span>██╔══╝  </span><span class="v">╚██╗ ██╔╝</span><span>██╔══╝    ╚██╔╝  </span>
-<span>███████╗</span><span class="v"> ╚████╔╝ </span><span>███████╗   ██║   </span>
-<span>╚══════╝</span><span class="v">  ╚═══╝  </span><span>╚══════╝   ╚═╝   </span></pre>
+# Evey documentation
 
-# Evey
+Evey is a self-hosted server for films, series, music and photos. For every
+playback it compares the file, the player and the server, keeps the original
+whenever the player can use it, and re-encodes only what it must. Most
+installations need nothing beyond libraries and users: hardware, capacity and
+playback routes are detected and measured by the server itself.
 
-**Your films, your series, your music and your photos, streamed from your own
-machine to every screen in the house - and beyond it.**
+<div class="evey-showcase" markdown>
 
-Evey is a self-hosted media server. You point it at the folders you already
-have, it recognises what is in them, dresses them with posters, summaries and
-cast, and plays them on the web, on Android phones, on Android TV and on a
-Chromecast. Nothing leaves your home unless you publish it, and nobody else
-decides what you can watch.
+<figure class="evey-shot" markdown="span">
+  ![The home page](images/showcase-home.webp){ loading=lazy data-gallery="showcase" }
+  <figcaption>The home page: resume playback, then each library.</figcaption>
+</figure>
 
-[Discover Evey](philosophy.md){ .md-button .md-button--primary }
-[Install it](installation.md){ .md-button }
-[Try the demo](https://demo.eveyproject.org){ .md-button }
+<figure class="evey-shot" markdown="span">
+  ![A film page](images/showcase-media.webp){ loading=lazy data-gallery="showcase" }
+  <figcaption>A film page, with its artwork, ratings and credits.</figcaption>
+</figure>
 
-Want to click around first? The public demo at [demo.eveyproject.org](https://demo.eveyproject.org)
-runs the real server with free films: sign in with `demo` / `demo`. It is
-reset regularly, and the administration screens are visible but mostly
-read-only.
+<figure class="evey-shot" markdown="span">
+  ![The web player](images/showcase-player.webp){ loading=lazy data-gallery="showcase" }
+  <figcaption>The web player.</figcaption>
+</figure>
 
-## Two ways in
-
-<div class="grid cards" markdown>
-
--   __Discover__
-
-    ---
-
-    What Evey is trying to be, what it does for the people who watch, and the
-    devices it plays on. No terminal required.
-
-    [Why Evey](philosophy.md) · [What you get](discover/features.md) ·
-    [On every screen](discover/apps.md)
-
--   __Technical guide__
-
-    ---
-
-    Installing the server, the first ten minutes after it starts, every setting
-    a viewer or an administrator can change, and what to do on the day
-    something goes wrong.
-
-    [Installation](installation.md) · [First steps](guide/first-steps.md) ·
-    [Administration](guide/admin-settings.md)
+<figure class="evey-shot" markdown="span">
+  ![The admin dashboard while two films play](images/showcase-dashboard.webp){ loading=lazy data-gallery="showcase" }
+  <figcaption>The admin dashboard while two people watch: the picture each one is seeing, and how it is delivered.</figcaption>
+</figure>
 
 </div>
 
-## Why people run it
+<div class="grid cards" markdown>
 
-- **It plays the file you have.** When a device can read a file as it is,
-  Evey sends it untouched: full quality, no work for the server. When it
-  cannot, Evey converts only what is missing, with the graphics card when
-  there is one.
-- **It installs in one file.** One container, one compose file, no password to
-  invent. The database and the search engine live inside and set themselves up.
-- **It is made for a household.** Profiles for everyone, kids profiles behind
-  a PIN, age limits enforced by the server rather than by the app, and a room
-  to watch together from different homes.
-- **It is safe to open to the internet.** Remote access opens when you
-  publish the server and stays shut otherwise, sign-in fails closed, and
-  extensions run in a sandbox with only the permissions they declared.
-- **It is free software.** Licensed under the
-  [AGPL-3.0-or-later](https://www.gnu.org/licenses/agpl-3.0.html). The code is
-  on [GitHub](https://github.com/Evey-project/evey), and so is everything the
-  server still cannot protect you from.
+-   **[Install Evey](installation.md)**
 
-## Quick links
+    One container and one compose file. Requirements and first launch.
 
-| You want to | Read |
-| --- | --- |
-| Try it on your machine | [Installation](installation.md) |
-| Put it on the internet with HTTPS | [Reverse proxy](reverse-proxy.md) |
-| Use your graphics card for conversion | [Transcoding and hardware](transcoding.md) |
-| Know what each setting does | [Viewer settings](guide/viewer-settings.md) · [Administration](guide/admin-settings.md) |
-| Get a server back after a crash | [Recovery](runbooks/recovery.md) |
-| Write an extension | [Plugins](plugins.md) |
+-   **[First setup](getting-started/first-setup.md)**
 
-Security reports go to `security@eveyproject.org` - see the
-[plugin sandbox and threat model](SECURITY.md).
+    The setup wizard, your libraries, the people who will use the server.
+
+-   **[Administration](administration/libraries.md)**
+
+    Libraries, users and profiles, remote access, hardware acceleration,
+    backups.
+
+-   **[How playback is decided](playback/how-playback-is-decided.md)**
+
+    Direct Play, Remux and Transcode, and how to read Stream info.
+
+-   **[Troubleshooting](operations/troubleshooting.md)**
+
+    Where to look when something does not work: symptoms, logs, recovery.
+
+-   **[Plugins & API](plugins.md)**
+
+    Installing and writing plugins and themes, the server API.
+
+</div>
+
+<p class="evey-meta">
+Evey is in beta and has no numbered release yet: this documentation follows the
+development branch. ·
+<a href="https://github.com/Evey-project/evey">Source on GitHub</a> ·
+<a href="https://demo.eveyproject.org">Public demo</a> (sign in with demo / demo) ·
+AGPL-3.0-or-later ·
+Security reports: security@eveyproject.org
+</p>

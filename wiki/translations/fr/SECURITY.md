@@ -1,264 +1,462 @@
 ---
-source_sha: 2afa372fc288cb82c9e90ad0f1bb879056bb0e14682a438cab6ce64d779bf48d
+source_sha: b03e46cb18fe95a75d28169aa7763bf6b493b3b772e5df11e16890944e458076
+reviewed: true
 ---
+# Sandbox des plugins et modèle de menace
 
-# Bac à sable des extensions et modèle de menace
+Cette page décrit ce que fait le serveur pour contenir un plugin : les
+vérifications à l'installation, les couches de protection à l'exécution, les
+modes de sandbox, et ce que chacun ne peut toujours pas empêcher. Si vous
+écrivez un plugin et voulez savoir ce que vous pouvez déclarer et ce qui sera
+refusé, lisez [Permissions et slots](plugins/security-model.md).
 
-> **Quelle page cherchez-vous ?** Celle-ci décrit ce que le *serveur* fait pour
-> confiner une extension : les couches, les modes de bac à sable, ce que chacun
-> ne sait toujours pas empêcher, et comment le configurer. Si vous écrivez une
-> extension et voulez savoir ce que vous pouvez déclarer et ce qui sera refusé,
-> lisez plutôt [le modèle de sécurité des extensions](plugins/security-model.md).
-> Les deux pages traitent le même sujet par les deux bouts et évitent
-> délibérément de se répéter.
+## Modèle de menace
 
-Cette page décrit les couches de défense qu'Evey applique aux extensions tierces, les limites de ces défenses, et la feuille de route vers une isolation plus forte.
+Les plugins tournent dans des processus séparés qui dialoguent avec le serveur
+en gRPC sur des sockets Unix. Par défaut, le serveur ne fait confiance à aucun
+code de plugin. Les risques contre lesquels il se protège, du plus grave au
+moins grave :
 
-## Modèle de menace : ce qu'une extension hostile tenterait
+1. **Usurpation** : un plugin se fait passer pour un autre afin d'utiliser ses
+   permissions.
+2. **Élévation de privilèges** : un plugin sort de sa sandbox et exécute des
+   commandes avec les droits du serveur.
+3. **Accès aux fichiers** : un plugin lit ou écrit hors de son propre dossier,
+   en particulier les secrets du serveur.
+4. **Exfiltration réseau** : un plugin envoie des données vers un hôte de son
+   choix.
+5. **Abus de ressources** : minage, fork bomb, épuisement de la mémoire ou du
+   disque.
+6. **Chaîne d'approvisionnement** : du code obscurci ou compilé que l'analyse
+   ne sait pas lire.
 
-Les extensions tournent dans des processus séparés qui échangent en gRPC avec l'hôte sur des sockets Unix. L'hôte ne fait par défaut confiance à aucun code d'extension. Les risques contre lesquels nous nous défendons, par gravité décroissante :
+## À l'installation
 
-1. **Usurpation d'identité sur le canal hôte** : une extension malveillante se fait passer pour une autre afin d'obtenir ses permissions.
-2. **Élévation de privilèges** : une extension s'échappe de son bac à sable et exécute des commandes arbitraires sous l'identité du serveur.
-3. **Fuite ou écriture de fichiers** : une extension lit ou écrit hors de son répertoire d'installation.
-4. **Exfiltration réseau** : une extension ouvre des connexions sortantes pour renvoyer des données.
-5. **Abus de ressources** : minage, bombe à fourche, épuisement des descripteurs.
-6. **Chaîne d'approvisionnement** : un auteur livre du code obfusqué ou compilé que l'analyseur statique ne peut pas inspecter.
+### Extraction du ZIP
 
-## Couches de défense actuelles
+Avant qu'aucun fichier ne soit écrit :
 
-### 1. Analyse statique à l'installation
+- au plus 5 000 entrées, 100 Mo par fichier, 500 Mo décompressés au total, et
+  un taux de compression de 100:1 (bombes de décompression) ;
+- les entrées dont le chemin sort de l'archive (`..`) sont refusées ;
+- les liens symboliques sont refusés ;
+- les bits setuid, setgid et sticky sont retirés.
 
-Chaque archive est décompressée dans un répertoire temporaire et parcourue par l'analyseur. Les catégories examinées, avec leur gravité :
+Source : `internal/adapters/driven/pluginrunner/zip.go`.
+
+### Manifeste et permissions
+
+Le manifeste déclare les permissions que demande le plugin. Une permission
+inconnue fait refuser l'installation. Elles sont ensuite appliquées :
+
+- **`subprocess`** autorise les processus enfants. Sans elle, le noyau refuse
+  la création de processus (`-deny-fork`), et le filtre `LD_PRELOAD` refuse en
+  plus `execve` aux plugins interprétés.
+- **`native-binary`** autorise la livraison de code compilé ou d'archives, que
+  l'analyse ne sait pas lire.
+- **Les permissions d'API** (`api.library`, `api.user`, `api.metadata`,
+  `media.read`, `media.write`, `notification.sender`...) sont vérifiées à
+  chaque appel vers le serveur par
+  [`PluginPermissionInterceptor`](../internal/adapters/driving/grpcapi/plugin_interceptor.go).
+
+La liste complète des permissions se trouve dans
+[Permissions et slots](plugins/security-model.md#permissions-catalog).
+
+### Analyse statique
+
+Chaque fichier du paquet est analysé par
+[`pluginrunner.AnalyzePlugin`](../internal/adapters/driven/pluginrunner/analyzer.go),
+après une passe de normalisation qui défait les obscurcissements courants
+(alias, concaténations de chaînes, f-strings) :
 
 | Catégorie | Gravité | Exemples |
 |---|---|---|
-| exécution de commandes | CRITIQUE | `os.system`, `subprocess.run`, `exec()`, `child_process.exec`, les équivalents PHP et Ruby |
-| réseau | AVERTISSEMENT ou CRITIQUE | `requests.get`, `fetch`, shells inversés |
-| système de fichiers | AVERTISSEMENT ou CRITIQUE | `/etc/passwd`, `.ssh/`, `rm -rf`, manipulations de liens |
-| obfuscation | CRITIQUE | `eval`, `exec`, décodage base64, séquences hexadécimales, chaînes redirigées vers un shell |
-| privilèges | CRITIQUE | `setuid`, `chmod 4777`, `sudo`, signal envoyé au processus 1 |
-| minage | CRITIQUE | `stratum+tcp`, `xmrig`, `cryptonight` |
-| installation à l'exécution | CRITIQUE | `pip install`, `npm install`, un téléchargement redirigé vers un shell |
-| import dynamique | CRITIQUE | `__import__()`, `importlib.import_module` |
-| évasion du bac à sable | CRITIQUE | `vm.runIn*`, `process.binding`, `new Function`, la traversée de hiérarchie de classes Python |
-| désérialisation | CRITIQUE ou AVERTISSEMENT | `pickle.loads`, `marshal.loads`, `__reduce__` ; avertissement pour un chargement YAML sans chargeur explicite |
-| code natif | CRITIQUE ou AVERTISSEMENT | `ctypes.CDLL`, `ffi.Library` ; avertissement pour les pointeurs non sûrs en Go |
-| binaire compilé | AVERTISSEMENT devenant blocage | `.so`, `.dll`, `.exe`, `.wasm`, `.jar`, opaques à l'analyseur |
-| archive imbriquée | AVERTISSEMENT devenant blocage | `.zip`, `.tar.gz`, code extractible |
-| type de fichier incohérent | AVERTISSEMENT traité comme critique | l'extension annonce une image, le contenu est autre chose |
-| URL suspecte | AVERTISSEMENT | schéma non HTTP dans une URL littérale |
-| dépendances non embarquées | AVERTISSEMENT | un fichier de dépendances présent sans modules embarqués |
+| `shell_exec` | CRITIQUE | `os.system`, `subprocess.run`, `child_process.exec`, PHP `system()`/`shell_exec()`/`proc_open()`, `preg_replace /e`, backticks Ruby, `open('\|cmd')` |
+| `network` | AVERTISSEMENT / CRITIQUE | `requests.get`, `fetch`, reverse shells et bind shells |
+| `filesystem` | AVERTISSEMENT / CRITIQUE | `/etc/passwd`, `.ssh/`, `rm -rf`, opérations sur des liens symboliques |
+| `obfuscation` | CRITIQUE | `eval`, décodage base64, séquences hexadécimales, `__builtins__`, `base64 -d \| bash` |
+| `privilege` | CRITIQUE | `setuid`, `chmod 4777`, `sudo`, signal envoyé au PID 1 |
+| `cryptomining` | CRITIQUE | `stratum+tcp`, `xmrig`, `cryptonight` |
+| `runtime_install` | CRITIQUE | `pip install`, `npm install`, `curl ... \| sh` |
+| `dynamic_import` | CRITIQUE | `__import__()`, `importlib.import_module` |
+| `sandbox_escape` | CRITIQUE | `vm.runIn*`, `process.binding`, `new Function`, `__subclasses__()`, `__mro__` |
+| `deserialization` | CRITIQUE / AVERTISSEMENT | `pickle.loads`, `marshal.loads`, `__reduce__` ; AVERTISSEMENT : `yaml.load()` sans Loader |
+| `native_code` | CRITIQUE / AVERTISSEMENT | `ctypes.CDLL`, `ffi.Library` ; AVERTISSEMENT : `unsafe` en Go |
+| `compiled_binary` | AVERTISSEMENT, puis BLOCAGE | `.so`, `.dll`, `.exe`, `.wasm`, `.jar` |
+| `embedded_archive` | AVERTISSEMENT, puis BLOCAGE | `.zip`, `.tar.gz` |
+| `mime_mismatch` | traité comme CRITIQUE | une extension d'image pour un autre contenu |
+| `suspicious_url` | AVERTISSEMENT | un schéma autre que HTTP dans une URL |
+| `unvendored_deps` | AVERTISSEMENT | un `requirements.txt` ou `package.json` sans modules embarqués |
 
-Une trouvaille critique, ou un type de fichier incohérent, bloque l'installation.
+Un résultat CRITIQUE ou un `mime_mismatch` fait refuser l'installation.
+`compiled_binary` et `embedded_archive` la font refuser, sauf si le manifeste
+déclare `native-binary`.
 
-Les binaires compilés et les archives imbriquées bloquent l'installation **par défaut**, tant que le manifeste ne déclare pas la permission `native-binary`. L'administrateur voit à la fois l'avertissement et la permission demandée à l'étape de prévisualisation, avant d'accepter.
+**Ce que l'analyse ne peut pas garantir.** Elle fonctionne par motifs. Elle
+déjoue des classes d'obscurcissement connues (concaténation en plusieurs étapes
+vers une fonction appelable, recherche d'une fonction native par son nom,
+évasion par `Function.constructor`), chacune couverte par un cas de test de
+régression dans `tests/fixtures/plugins/malicious/`, mais elle ne peut pas
+suivre toutes les transformations faites à l'exécution (`strrev("metsys")`,
+décodage d'une charge lue dans un fichier). Elle lit aussi les commentaires :
+un commentaire `# pip install foo` déclenche `runtime_install`. **C'est la
+sandbox d'exécution qui fait office de barrière, pas l'analyse** : un plugin
+qui passerait un motif entre les mailles ne peut toujours ni lire les données
+du serveur, ni faire un appel système interdit, ni dépasser ses limites de
+ressources, ni appeler une méthode du serveur pour laquelle il n'a pas de
+permission.
 
-### 2. Barrière des permissions du manifeste
+### Signature
 
-Le `plugin.yaml` déclare les permissions demandées, et l'exécution les applique à deux niveaux.
+Un paquet peut être signé avec cosign. `EVEY_PLUGINS_COSIGN_POLICY` détermine
+l'effet d'une vérification qui échoue :
 
-- **`subprocess`** autorise le lancement de processus enfants. Sans elle, la couche préchargée refuse l'exécution pour les extensions interprétées. La liste noire du noyau, elle, ne refuse pas l'exécution puisque l'amorce doit lancer l'extension, mais les enfants héritent du filtre et du domaine Landlock.
-- **`native-binary`** est nécessaire pour livrer des binaires ou des archives. L'administrateur doit accepter ce code opaque à l'installation.
-- **Les permissions d'API** sont vérifiées à chaque appel par l'intercepteur dédié.
-
-### 3. Séparation d'uid
-
-Un processus d'extension peut basculer vers un compte distinct de celui du serveur, ce qui rend les secrets de ce dernier illisibles par simple permission de fichiers. Le réglage accepte trois valeurs :
-
-- `auto` bascule **seulement quand le bac à sable retombe en mode `basic`**, le seul cas où les permissions de fichiers sont ce qui protège les secrets. Sous Landlock ou bubblewrap, c'est redondant et donc ignoré.
-- `on` bascule toujours, comme couche indépendante supplémentaire.
-- `off` ne bascule jamais.
-
-**C'est l'amorce qui effectue la bascule, pas le serveur.** Le serveur reste non root et sans capacité ; l'amorce porte la capacité nécessaire et change d'identité juste avant de lancer l'extension. Elle refuse toute identité cible inférieure à 1000. Si elle ne peut pas basculer (faute de capacité, parce que l'option qui bloque l'acquisition de privilèges est posée, ou parce que le binaire de l'amorce lui-même manque), l'issue dépend du mode : en `basic`, où l'identité est le seul rempart autour des secrets, l'extension est **refusée** (fermeture par défaut) ; sous `landlock`, où le système de fichiers est déjà cloisonné, elle avertit et lance l'extension sous l'identité du serveur.
-
-Ce que cela apporte, **même sur un noyau sans Landlock** :
-
-- Les secrets du serveur sont protégés par les permissions de fichiers : la clé JWT et les sauvegardes sont rendues accessibles à leur seul propriétaire **à l'exécution**, si bien que la protection tient même sur un répertoire de données monté depuis la machine hôte.
-- Combiné au marquage non capturable du serveur, la clé JWT en mémoire et les secrets d'environnement sont illisibles par les fichiers de processus.
-
-Toutes les extensions partagent la même identité, si bien qu'elles ne sont pas isolées **les unes des autres** par les seules permissions : c'est le confinement des fichiers, Landlock ou bubblewrap, qui s'en charge. En mode `basic` avec séparation d'uid, une extension malveillante pourrait lire ou perturber les fichiers d'une voisine ; les isoler entre elles sans Landlock demanderait une identité *par extension*.
-
-### 4. Confinement des appels système
-
-Deux filtres appliquent presque la même liste noire, et ne diffèrent que sur les appels de signalisation. Tous deux commencent par interdire l'acquisition de nouveaux privilèges, puis installent un programme qui refuse les appels de la liste et laisse passer le reste.
-
-1. **Au niveau du noyau, la couche principale.** L'amorce est placée en tête de la ligne de commande et installe le filtre **juste avant l'exécution**, pour l'architecture de compilation. Le filtre est hérité au travers de l'exécution, dans l'extension puis dans tout enfant qu'elle lancerait. Parce qu'il est installé par l'amorce et non par préchargement de bibliothèque, il **contraint aussi les binaires compilés**, qui ne chargeaient jamais la couche préchargée et la contournaient donc entièrement.
-2. **Par préchargement, en ceinture et bretelles pour les extensions dynamiques.** Un petit constructeur est préchargé dans les extensions interprétées : même liste noire, et il marque en plus l'extension elle-même comme non capturable.
-
-**Lequel des deux s'applique dépend du mode** : le filtre noyau de l'amorce en modes `landlock` et `basic`, la couche préchargée en modes `strict` et `basic`. Les modes `bubblewrap` et `strict` n'exécutent **pas** l'amorce : un binaire compilé sous `bubblewrap` simple n'a donc aucune liste noire d'appels système, son confinement venant des espaces de noms et de l'isolation des fichiers.
-
-Les appels bloqués, par catégorie :
-
-| Catégorie | Appels bloqués |
+| Politique | Effet |
 |---|---|
-| Contrôle et débogage de processus | `ptrace`, lecture et écriture de la mémoire d'un autre processus |
-| Signaux | `kill` dans les deux filtres ; l'amorce refuse en plus la signalisation par identifiant de fil, tandis que la couche préchargée ne la refuse que si elle vise le processus 1 |
-| Montage | `mount`, `umount2`, `pivot_root`, `chroot` |
-| Espaces de noms | `unshare`, `setns` |
-| Modules noyau | chargement et déchargement de modules |
-| BPF et compteurs de performance | `bpf`, `perf_event_open` |
-| Entrées-sorties matérielles | `ioperm`, `iopl`, couche préchargée seulement |
-| Mémoire d'échange | `swapon`, `swapoff` |
-| Contrôle du système | `syslog`, `reboot`, et le réglage de l'horloge |
-| Redémarrage par noyau chargé | `kexec_load` dans les deux filtres |
-| Famille setuid | tous les changements d'identité |
-| Capacités | `capset` |
+| `off` | La signature n'est pas vérifiée. |
+| `warn` (par défaut) | Un échec est consigné et affiché à l'administrateur, sans bloquer. Sans clé publique configurée, rien n'est vérifié. |
+| `enforce` | Un échec fait refuser l'installation ou la mise à jour. |
+
+La clé publique est fournie par `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`. Source :
+`internal/adapters/driven/pluginrunner/cosign.go`.
+
+### Aperçu par l'administrateur
+
+`POST /api/v1/admin/plugins/preview` exécute l'analyse sans installer.
+L'administrateur voit les permissions demandées, chaque résultat avec son
+fichier, sa ligne et sa catégorie, les URL trouvées dans le code, et
+l'empreinte SHA256 du paquet ; cette même empreinte est vérifiée au moment de
+l'installation, si bien que le paquet analysé est bien celui qui est installé.
+Une mise à jour affiche la différence de permissions, de slots et d'hôtes, et
+toute nouvelle permission doit être explicitement acceptée.
+
+L'administrateur est le point de décision pour les permissions élevées : Evey
+expose la surface, l'administrateur accepte ou refuse.
+
+## À l'exécution
+
+### Fichiers
+
+Un plugin voit son propre dossier et son dossier de socket, pas les données du
+serveur. Le moyen dépend du [mode de sandbox](#sandbox-modes) : une liste
+d'autorisations Landlock, ou une liste blanche de montages bubblewrap. En mode
+`basic` sur un noyau sans Landlock, il n'y a pas de confinement par chemin : ce
+sont alors l'utilisateur séparé et les permissions de fichiers qui protègent
+les secrets du serveur (voir plus bas).
+
+### Réseau
+
+Un plugin n'a **aucun accès direct au réseau**, quoi qu'il déclare : toute
+socket IP est refusée (`-deny-inet` en `landlock` et `basic`, un namespace
+réseau en `bubblewrap` et `strict`). Un plugin doté de la permission `network`
+appelle la méthode `Fetch` du serveur par sa socket Unix. Le serveur, dans
+`internal/adapters/driving/pluginhost/fetch.go` :
+
+- vérifie la cible dans la liste `external_fetch` du plugin (hôtes exacts,
+  sans distinction de casse) ;
+- n'autorise que `http` et `https`, et seulement `GET` et `HEAD` ;
+- se connecte via un client protégé contre le SSRF (`internal/pkg/ssrf`), qui
+  refuse les adresses privées, réservées et link-local après la résolution DNS,
+  de sorte que le DNS rebinding et les redirections sont revérifiés ;
+- n'ajoute aucun identifiant du serveur, et plafonne la taille de la réponse.
+
+Cela ferme les voies que laissait l'accès direct (adresses IP littérales comme
+`169.254.169.254`, résolveur propre au plugin). Reste une limite : le relais
+contrôle *où* part un appel, pas *ce qu'il* transporte. Voir les
+[Limites connues](#known-limits).
+
+**Recommandé aux administrateurs système.** Le relais déplace la surface SSRF
+vers le serveur. Une règle de sortie sur le conteneur `evey-server`,
+indépendante du code, ajoute un second rempart : bloquer `169.254.0.0/16` et
+restreindre le réseau interne aux points d'accès de la base et du moteur de
+recherche.
+
+### Appels système
+
+Deux filtres seccomp refusent les mêmes appels système dangereux :
+
+1. **Le filtre noyau**, installé par
+   [`evey-plugin-launcher`](../cmd/evey-plugin-launcher) juste avant de lancer
+   le plugin ([`seccomp_linux.go`](../cmd/evey-plugin-launcher/seccomp_linux.go)).
+   Le plugin et ses enfants en héritent, et il **couvre aussi les binaires
+   compilés statiques**. Un appel système d'une architecture différente tue le
+   processus. Appliqué en `landlock` et `basic`.
+2. **Le filtre `LD_PRELOAD`**, [`sandbox/sandbox.c`](../sandbox/sandbox.c),
+   chargé dans les plugins interprétés qui ne déclarent pas `subprocess`. Il
+   refuse en plus `execve`/`execveat` et interdit le vidage mémoire du plugin.
+   Appliqué en `landlock`, `basic` et `strict`. Si la bibliothèque manque, un
+   tel plugin n'est pas démarré (`plugin.error`).
+
+Appels système refusés :
+
+| Catégorie | Appels système |
+|---|---|
+| Débogage | `ptrace`, `process_vm_readv`, `process_vm_writev` |
+| Signaux | `kill` ; le filtre noyau refuse aussi `tgkill`, le filtre `LD_PRELOAD` refuse `tkill`/`tgkill` visant le PID 1 |
+| Montages | `mount`, `umount2`, `pivot_root`, `chroot` |
+| Namespaces | `unshare`, `setns` |
+| Modules noyau | `init_module`, `finit_module`, `delete_module` |
+| BPF, perf | `bpf`, `perf_event_open` |
+| Entrées-sorties matérielles | `ioperm`, `iopl` (filtre `LD_PRELOAD` seulement) |
+| Swap | `swapon`, `swapoff` |
+| Contrôle du système | `syslog`, `reboot`, `settimeofday`, `clock_settime`, `clock_adjtime`, `adjtimex` |
+| Kexec | `kexec_load` ; `kexec_file_load` (filtre `LD_PRELOAD` seulement) |
+| Identité | `setuid`, `setgid`, `setreuid`, `setregid`, `setresuid`, `setresgid`, `capset` |
 | Trousseau de clés | `add_key`, `request_key`, `keyctl` |
 
-L'exécution d'un nouveau programme est **refusée par la couche préchargée**, pour qu'une extension interprétée sans la permission `subprocess` ne puisse pas lancer d'enfant, mais **pas par le filtre noyau de l'amorce**, qui doit lui-même lancer l'extension. Les enfants héritent de toute façon du filtre et du domaine Landlock, et restent donc confinés.
+Pour un plugin sans `subprocess`, le noyau refuse aussi la création de
+processus (`fork`, `vfork`, `clone` sans `CLONE_THREAD`) ; les threads
+fonctionnent toujours.
 
-**Aucune sortie IP pour AUCUNE extension.** Toute extension, avec ou sans permission réseau, se voit refuser l'ouverture de sockets internet au niveau du noyau, ou placer dans un espace réseau isolé selon le mode. Une extension qui a besoin du réseau ne se connecte pas directement : elle appelle le relais de l'hôte par sa socket locale, laquelle reste autorisée, et c'est l'hôte qui applique la liste des hôtes déclarés et un client protégé contre les requêtes vers l'intérieur. Cela ferme le trou des adresses IP littérales, celles des métadonnées d'infrastructure par exemple, qu'une liste blanche de noms et un filtre par port ne pouvaient pas fermer. Voir [ADR-0014](adr/0014-landlock-plugin-sandbox.md).
+Il s'agit d'une **liste de refus** : `open`, `read`, `write`, `mmap`, `socket`
+et `connect` en Unix restent autorisés. Les chemins sont confinés par la couche
+fichiers, pas par seccomp. En `bubblewrap`, le lanceur n'est pas utilisé : un
+binaire statique n'y a aucun filtre seccomp, et il est contenu par les
+namespaces et la liste blanche de montages.
 
-Les limites, à lire attentivement :
+### Un utilisateur séparé
 
-- **C'est une liste noire, pas une liste blanche.** Lire, écrire, ouvrir, projeter en mémoire et créer des fils restent permis. Une véritable liste blanche d'appels système reste au programme.
-- **Le confinement des fichiers vient d'une autre couche.** Les appels système ne bornent pas les chemins : c'est le rôle de Landlock ou de bubblewrap. Sur un noyau qui n'a ni l'un ni l'autre, l'extension peut lire tout fichier lisible par tous, mais pas les secrets du serveur, protégés par les permissions.
-- **Fermeture par défaut pour les extensions interprétées.** Si la couche préchargée est introuvable et que l'extension n'a pas la permission `subprocess`, le lanceur refuse de la démarrer et émet un événement d'erreur. Le filtre noyau, lui, travaille au mieux : un noyau sans ce mécanisme dégrade vers les autres couches.
+Un plugin peut tourner sous l'utilisateur 1001 (`evey-plugin`), distinct du
+serveur (1000), de sorte que les permissions de fichiers suffisent à lui
+rendre illisibles les secrets du serveur. `EVEY_PLUGINS_UID_SEPARATION` le
+règle :
 
-### 5. Une socket hôte par extension, authentifiée par identifiants de pair
+- `auto` (par défaut) : seulement quand la sandbox se résout en `basic`, seul
+  cas où les permissions de fichiers sont l'unique rempart autour des
+  secrets ;
+- `on` : toujours, comme couche supplémentaire ;
+- `off` : jamais.
 
-L'hôte expose une socket Unix par extension. Chaque appel entrant est authentifié en trois temps : lecture de l'identifiant de processus du pair auprès du **noyau**, valeur qu'un programme ne peut pas falsifier ; comparaison avec celui enregistré juste après le lancement ; et estampillage de l'identité de l'extension dans le contexte, cette identité venant de la socket et jamais du réseau.
+Le changement d'utilisateur est fait par le lanceur, qui détient
+`cap_setuid` ; le serveur, lui, tourne sans privilège ni capacité. Le lanceur
+refuse toute cible inférieure à 1000. S'il ne peut pas changer d'utilisateur,
+un plugin en `basic` est refusé (l'utilisateur y est l'unique rempart), alors
+qu'en `landlock` il tourne sous l'utilisateur du serveur, avec un
+avertissement. En `bubblewrap` et `strict`, c'est le namespace utilisateur qui
+joue ce rôle.
 
-Conséquences : une extension ne peut pas se faire passer pour une autre au moyen d'un en-tête, celui-ci étant ignoré ; elle ne peut pas atteindre la socket d'une autre, la vérification d'identifiant rejetant la connexion ; et elle ne peut pas faire transiter ses appels par un processus enfant, dont l'identifiant diffère. Ce dernier point est voulu et cohérent avec la permission `subprocess`.
+Quand la séparation est active, la clé de signature (`0600`) et les
+sauvegardes (dossier `0700`, fichiers `0600`) sont réservées à leur
+propriétaire à l'exécution, ce qui tient même sur un `/data` monté depuis
+l'hôte. Tous les plugins partagent l'utilisateur 1001 : ils sont isolés les
+uns des autres par la couche fichiers, pas par l'utilisateur.
 
-### 6. Barrière de prévisualisation par l'administrateur
+### Authentification de la socket
 
-Un point d'accès dédié exécute l'analyseur statique et renvoie le manifeste et les trouvailles sans rien installer. L'administrateur voit les permissions demandées, chaque trouvaille avec sa gravité, son fichier et sa ligne, les URL extraites regroupées par type, et l'empreinte de la source, qui correspondra à celle de l'installation.
+Chaque plugin a sa propre socket, `/tmp/evey/plugins/<plugin_id>/host.sock`,
+servie par son propre serveur gRPC. À chaque appel, le serveur lit le PID de
+l'appelant auprès du noyau (`SO_PEERCRED`, impossible à falsifier depuis
+l'espace utilisateur) et le compare au PID enregistré au démarrage du plugin.
+L'identité du plugin vient de la socket, jamais d'un en-tête. Un plugin ne
+peut donc ni se faire passer pour un autre, ni appeler la socket d'un autre
+plugin, ni faire passer ses appels par un processus enfant.
 
-C'est l'administrateur qui constitue la frontière de confiance pour les permissions élevées : Evey montre la surface, l'administrateur accepte ou refuse.
+### Limites de ressources
 
-### 7. Notification de panne d'une extension
+Un moniteur en espace utilisateur (les cgroups ne sont pas disponibles dans
+un conteneur non privilégié) lit `/proc/<pid>` environ toutes les 2 secondes
+et arrête un plugin qui dépasse une limite :
 
-Le lanceur publie un événement d'erreur quand la bibliothèque de bac à sable manque alors que l'extension n'a pas la permission `subprocess`, quand le processus se termine anormalement, et quand l'intercepteur d'authentification consigne une tentative avec un identifiant de processus qui ne correspond pas. Le service de notifications s'y abonne et prévient l'administrateur par le canal configuré.
+- mémoire (RSS), 256 Mio par défaut ;
+- processus et threads, 64 par défaut ;
+- disque occupé par son dossier, 100 Mio par défaut, vérifié toutes les 30
+  secondes ;
+- priorité CPU, `nice` 10 par défaut, appliquée au démarrage.
 
-### 8. Durcissement du processus serveur
+Les limites se règlent par plugin dans **Admin → Plugins**. Voir
+l'[ADR-0013](adr/0013-userspace-plugin-resource-monitor.md).
 
-Au démarrage, le serveur se marque non capturable. Les fichiers de son propre processus - mémoire, environnement, table des descripteurs - basculent alors sous une propriété que ses voisins de même identité ne peuvent pas lire. Cela compte surtout dans le repli sans Landlock, par exemple sur un vieux noyau de NAS, où une extension pourrait autrement récupérer la clé JWT en mémoire et les secrets d'environnement. Sur un noyau avec Landlock, l'accès est déjà refusé ; c'est la ceinture et les bretelles, valables sur tous les noyaux. Cela n'empêche pas le serveur de lire ses propres fichiers, et un échec est journalisé sans être fatal.
+### Isolation de l'interface
 
-## Modes de bac à sable
+L'interface d'un plugin s'exécute dans une `<iframe sandbox="allow-scripts">`,
+sans accès à la même origine, sans formulaires ni fenêtres surgissantes, sous
+une Content-Security-Policy qui n'autorise les connexions que vers ses hôtes
+`external_fetch`. Le pont limite ce qu'elle peut demander à la page : `toast`
+au plus 3 fois par seconde, 200 caractères, sans HTML ; `navigate` refuse
+`/admin/*`, `/auth/*`, `/setup/*` et `/profile/security/*` ; `resize` entre 50
+et 800 px. Les slots sont vérifiés à l'installation, puis de nouveau à
+l'affichage.
 
-Le mode se configure par fichier ou par variable d'environnement, et vaut `auto` par défaut. Il choisit le **mécanisme** de confinement, et les appels système comme la sortie réseau dépendent ensuite de ce mécanisme : les modes `landlock` et `basic` passent l'extension par l'amorce, qui installe la liste noire d'appels système et le refus des sockets internet ; les modes `bubblewrap` et `strict` isolent plutôt le réseau par un espace de noms et n'ont pas de liste noire venue de l'amorce, `strict` n'ajoutant que la couche préchargée. Ce qui s'applique dans **tous** les modes : la séparation d'uid, le moniteur de ressources, et le fait que **la sortie IP directe est coupée**, une extension réseau ne joignant l'extérieur que par le relais de l'hôte.
+### Durcissement du serveur
+
+Au démarrage, le serveur interdit son propre vidage mémoire
+(`PR_SET_DUMPABLE=0`, [`hardening_linux.go`](../cmd/evey/hardening_linux.go)) :
+un processus tournant sous le même utilisateur ne peut pas lire sa mémoire ni
+son environnement via `/proc`, ce qui protège la clé de signature en mémoire
+ainsi que les mots de passe de la base et du moteur de recherche, même sur un
+noyau sans Landlock.
+
+### Notification des plantages
+
+Le runner publie un événement `plugin.error` quand la bibliothèque de sandbox
+manque pour un plugin qui en a besoin, ou quand un plugin se termine en
+erreur. Le service de notification le transmet à l'administrateur par les
+canaux configurés. Un PID qui ne correspond pas sur une socket est consigné
+comme avertissement.
+
+## Modes de sandbox
+
+Le mode détermine la façon dont les fichiers et le réseau sont confinés.
+`EVEY_PLUGINS_SANDBOX_MODE` fixe la valeur initiale (`auto` par défaut) ; elle
+se modifie ensuite dans **Admin → Plugins**. Le runner l'applique dans
+[`applySandbox`](../internal/adapters/driven/pluginrunner/runner.go). Dans
+tous les modes : aucun accès IP direct, le moniteur de ressources, et
+l'authentification de la socket.
 
 ### `auto` (par défaut)
 
-Résout le meilleur mécanisme que la machine gère réellement, dans l'ordre **landlock, bubblewrap, basic**.
-
-- Il **préfère landlock** : aucun privilège nécessaire, fonctionnement sous les seccomp et AppArmor par défaut de Docker sans rien changer sur la machine, et impossibilité de le relâcher une fois appliqué. C'est le bon défaut pour le déploiement en conteneur.
-- Il ne retombe sur **bubblewrap** que là où Landlock est absent *et* où un bac à sable jetable se construit réellement, c'est-à-dire hors conteneur ou dans un conteneur privilégié.
-- Sinon **basic**. Le mode retenu est journalisé au premier démarrage d'extension.
+Se résout, une fois, au premier démarrage d'un plugin, vers le mode le plus
+robuste que la machine permet : **landlock**, puis **bubblewrap**, puis
+**basic**. Landlock passe en premier parce qu'il ne demande aucun privilège et
+fonctionne sous le profil de sécurité par défaut de Docker. bubblewrap n'est
+choisi que si Landlock est absent et qu'une sandbox de test se construit
+réellement
+([`ProbeSandbox`](../internal/adapters/driven/pluginrunner/sandbox_probe.go)),
+ce qui revient en pratique à une installation sans conteneur ou à un
+conteneur privilégié. Le mode retenu est consigné dans les logs et affiché sur
+la ligne **Sandbox de l'hôte** du **Tableau de bord sécurité**, dans
+**Admin → Plugins**.
 
 ### `landlock`
 
-- **Ce qu'il confine :** les fichiers, par une liste blanche appliquée par l'amorce - répertoires système en lecture et exécution, répertoire de l'extension et sa socket en écriture, tout le reste refusé, notamment le répertoire de données et les répertoires des autres extensions. Côté réseau, **aucune sortie IP directe pour aucune extension** ; celles qui ont la permission passent par le relais de l'hôte. S'y ajoutent les deux listes noires d'appels système.
-- **Ce qu'il exige :** un noyau 5.13 ou plus avec Landlock actif, et le binaire d'amorce. Ni montage, ni espace de noms, ni privilège : il tourne proprement sous le profil de sécurité par défaut de Docker.
-- **Quand il est retenu :** quand le mode est imposé, auquel cas une extension est refusée si Landlock ne peut pas être appliqué, ou quand le mode automatique s'y résout, le cas normal de l'image officielle.
-- **Ses limites :** la liste par hôte vit désormais côté hôte, dans le relais, et non dans le noyau. Le confinement des fichiers, lui, tient dans tous les cas.
+- **Fichiers :** une liste d'autorisations Landlock appliquée par le lanceur.
+  Dossiers système (`/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`, `/app`,
+  `/dev`) en lecture seule ; dossier du plugin et dossier de sa socket en
+  lecture-écriture ; tout le reste, y compris `/data` et les autres plugins,
+  refusé.
+- **Réseau :** `-restrict-net` et `-deny-inet` ; sortie uniquement via
+  `Fetch`.
+- **Appels système :** le filtre noyau et le filtre `LD_PRELOAD`.
+- **Prérequis :** un noyau 5.13 ou plus récent avec Landlock dans la liste
+  des LSM actifs, et le lanceur (c'est le cas avec l'image officielle sur une
+  machine récente). Un mode `landlock` explicite refuse de démarrer un plugin
+  qu'il ne peut pas confiner.
 
 ### `bubblewrap`
 
-- **Ce qu'il confine :** les fichiers, le réseau et la vue des processus, par six espaces de noms non partagés, le réseau l'étant inconditionnellement pour **toute** extension, et par une liste blanche de montages : répertoires système en lecture seule, répertoire de l'extension et sa socket en écriture, un `/proc` synthétique, un `/dev` minimal et un `/tmp` en mémoire. Le répertoire de données, `/var`, `/home`, `/root` et les répertoires voisins ne sont tout simplement pas montés. Ce mode n'invoque jamais l'amorce : sa liste noire d'appels système ne s'applique donc **pas** ici, et la couche préchargée non plus, réservée à `strict`. Le confinement vient des seuls espaces de noms.
-- **Ce qu'il exige :** le binaire bubblewrap ainsi que les appels de montage et d'espaces de noms ; dans Docker cela suppose une sécurité relâchée, ce qui le réserve en pratique à une machine sans conteneur ou à un conteneur privilégié.
-- **Ses limites :** l'espace de noms cgroup non partagé est un espace de noms, pas une limite de ressources, celles-ci venant du moniteur. Aucune liste noire d'appels système ne s'applique dans ce mode.
+- **Fichiers et processus :** six namespaces isolés (`user`, `pid`, `uts`,
+  `ipc`, `cgroup`, `net`) et une liste blanche de montages ; rien d'autre
+  n'existe à l'intérieur.
+
+  | Chemin | Accès |
+  |---|---|
+  | `/usr`, `/bin`, `/sbin`, `/lib`, `/lib64` | lecture seule |
+  | `/etc/ssl`, `/etc/ca-certificates`, `/etc/resolv.conf`, `/etc/nsswitch.conf`, `/etc/{alpine,os}-release` | lecture seule (jamais `/etc` en entier : ni `passwd`, ni `shadow`, ni `ssh`) |
+  | le dossier du plugin, le dossier de sa socket | lecture-écriture |
+  | `/proc` | son propre montage |
+  | `/dev` | un jeu synthétique minimal (null, zero, random, urandom, tty, pts) |
+  | `/tmp` | un tmpfs vide |
+
+  `/data`, `/var`, `/home`, `/root`, `/run` et les dossiers des autres
+  plugins n'existent pas à l'intérieur. Un plugin témoin
+  (`tests/fixtures/plugins/canary-sandbox-runtime/`) vérifie cette disposition
+  sur une installation en fonctionnement. Source : `buildBwrapCmd` dans
+  `internal/adapters/driven/pluginrunner/runner_bwrap.go`.
+- **Réseau :** le namespace réseau, pour tous les plugins.
+- **Appels système :** aucun filtre seccomp ; ce sont les namespaces qui
+  isolent.
+- **Prérequis :** le binaire `bwrap` et les appels système `mount`/`unshare`.
+  Dans Docker, cela exige un profil de sécurité assoupli : c'est donc, en
+  pratique, un mode pour les installations sans conteneur.
 
 ### `strict`
 
-Identique à `bubblewrap`, **plus** la couche préchargée par-dessus. Mêmes exigences et mêmes limites. Une véritable liste blanche d'appels système reste au programme.
+`bubblewrap`, plus le filtre `LD_PRELOAD` (plugins interprétés uniquement).
 
 ### `basic`
 
-- **Ce qu'il confine :** la bascule d'identité, la liste noire d'appels système du noyau, le refus des sockets internet et un Landlock au mieux, le tout apporté en enveloppant l'extension dans l'amorce, présente dans l'image officielle. Sans elle, sur certaines images de développement, il dégrade vers la seule couche préchargée et la bascule d'identité.
-- **Quand il est retenu :** quand le mode est imposé, ou quand le mode automatique n'a ni Landlock ni bubblewrap utilisable.
-- **Ses limites :** c'est le mode le plus faible pour le confinement des *fichiers*. Sans Landlock, il n'y a **aucun confinement par chemin** : une extension peut lire les fichiers non sensibles lisibles par tous, et la liste des processus est visible. Ce n'est **pas** « aucune isolation » : les secrets du serveur restent protégés par les permissions et le marquage non capturable, l'extension n'a aucune sortie IP, les appels système dangereux sont bloqués au niveau du noyau, y compris pour les binaires compilés, et les ressources sont plafonnées par le moniteur.
+Le dernier recours d'`auto` : l'utilisateur séparé, le filtre noyau, le filtre
+`LD_PRELOAD`, `-deny-inet`, et Landlock si le noyau le propose. Sur un noyau
+sans Landlock, il n'y a pas de confinement par chemin : un plugin peut lire les
+fichiers lisibles par tous qui ne sont pas sensibles, et voir la liste des
+processus. Les secrets du serveur restent protégés par l'utilisateur séparé et
+`PR_SET_DUMPABLE`, le réseau est coupé, et les appels système dangereux sont
+refusés, binaires compilés compris.
 
-### Résumé des postures
+### Récapitulatif
 
-| Déploiement | Fichiers | Réseau | Appels dangereux | Secrets | Verdict |
-|---|---|---|---|---|---|
-| Docker avec Landlock | liste blanche par chemin | aucune sortie directe, tout passe par le relais | bloqués, binaires compilés compris | protégés | **forte** |
-| Docker sans Landlock, vieux NAS par exemple | aucun, les fichiers lisibles par tous le sont | aucune sortie IP | bloqués, binaires compilés compris | protégés | correcte, sans équivaloir à Landlock |
-| Hors conteneur, en bubblewrap | espaces de noms et liste blanche de montages | espace réseau isolé | isolation par espaces de noms ; couche préchargée en `strict`, le filtre noyau de l'amorce ne s'appliquant pas ici | protégés | **la plus forte** |
+| Couche | landlock | basic | bubblewrap | strict |
+|---|---|---|---|---|
+| Fichiers | liste d'autorisations Landlock | aucune sans Landlock (permissions de fichiers seules) | liste blanche de montages | liste blanche de montages |
+| Réseau | `-restrict-net` + `-deny-inet` | `-deny-inet` | namespace réseau | namespace réseau |
+| Seccomp noyau (binaires statiques compris) | oui | oui | non | non |
+| Seccomp `LD_PRELOAD` (plugins interprétés sans `subprocess`) | oui | oui | non | oui |
+| Utilisateur séparé | avec `on` | oui (`auto`) | namespace utilisateur | namespace utilisateur |
+| Limites de ressources | oui | oui | oui | oui |
 
-## Limites connues du bac à sable
+| Déploiement | Ce que vous obtenez |
+|---|---|
+| Docker sur un noyau récent (`auto` donne `landlock`) | Confinement par chemin, aucun accès réseau direct, appels système dangereux refusés, binaires statiques compris. C'est le cas normal. |
+| Docker sur un ancien noyau sans Landlock, par exemple un vieux NAS (`auto` donne `basic`) | Secrets protégés et réseau coupé, mais fichiers lisibles par tous visibles. Voir [Mise en place de la sandbox des plugins](plugins/sandbox-deployment.md). |
+| Sans conteneur (`auto` donne `bubblewrap`) | L'isolation des fichiers et des processus la plus forte, sans filtre seccomp pour les binaires statiques. |
 
-| Limite | Portée | Ce qui l'atténue aujourd'hui | Feuille de route |
-|---|---|---|---|
-| Aucun confinement des fichiers par chemin en mode `basic` | une extension peut lire les fichiers non sensibles lisibles par tous, et les répertoires des extensions voisines sont visibles | les secrets du serveur restent protégés par les permissions et le marquage non capturable ; l'analyseur signale les motifs d'accès aux fichiers sensibles ; le mode automatique préfère Landlock ou bubblewrap | aucune : Landlock ou bubblewrap sont la réponse, et tous deux sont déjà livrés |
-| Toutes les extensions partagent la même identité | une extension malveillante peut envoyer des signaux à ses voisines, la signalisation du serveur étant bloquée | le marquage non capturable ferme la lecture croisée des fichiers de processus ; Landlock et bubblewrap isolent complètement les répertoires | un espace de noms utilisateur par extension, via bubblewrap |
-| La liste d'appels système est une liste noire | lire, écrire, ouvrir et communiquer localement restent libres ; le traçage, les montages, les espaces de noms, le chargement de modules, la famille setuid, le trousseau et les sockets internet sont bloqués au niveau du noyau, binaires compilés compris | la liste noire installée par l'amorce avant l'exécution, plus la barrière de la permission `subprocess` | un vrai mode en liste blanche pour `strict` |
-| Le relais déplace la surface d'attaque vers l'hôte | un défaut dans sa validation d'URL ou d'adresse laisserait une extension joindre une adresse interne par l'hôte | le relais applique la liste des hôtes déclarés et un client qui refuse les adresses privées et réservées au moment de la connexion ; les administrateurs devraient ajouter un pare-feu de sortie sur le conteneur, comme couche indépendante | des règles de filtrage par espace de noms, ou un relais de sortie dédié |
-| L'analyseur est contournable par obfuscation | un attaquant motivé peut dissimuler ses motifs | la prévisualisation et la revue des permissions par l'administrateur ; la frontière d'application reste le bac à sable, pas l'analyseur | une notation de risque côté serveur et une vérification de réputation de l'auteur |
+## Configuration
 
-## Réglage du mode
+| Variable | Défaut | Effet |
+|---|---|---|
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` ou `basic`. Modifiable aussi dans **Admin → Plugins**. |
+| `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` ou `off`. Incompatible avec `no_new_privs` sur le conteneur. |
+| `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` ou `enforce`. |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | aucune | La clé avec laquelle les signatures sont vérifiées. |
 
-Le mode se configure par fichier ou par variable d'environnement ; la section précédente détaille chaque mode.
+L'image officielle embarque `evey-plugin-launcher` (Landlock et le filtre
+noyau) et `bubblewrap`. bubblewrap nécessite aussi les namespaces utilisateur
+non privilégiés sur la machine hôte. Quelle configuration pour quelle machine,
+en termes simples :
+[Mise en place de la sandbox des plugins](plugins/sandbox-deployment.md).
 
-```yaml
-sandbox_mode: auto   # default - resolves landlock → bubblewrap → basic for this host
-# sandbox_mode: landlock    # Landlock LSM allowlist + no-IP-egress (-deny-inet) + seccomp (fails closed if Landlock absent)
-# sandbox_mode: basic       # UID drop + kernel/LD_PRELOAD seccomp + -deny-inet + best-effort Landlock
-# sandbox_mode: bubblewrap  # bwrap namespace isolation (bare-metal / privileged only)
-# sandbox_mode: strict      # bubblewrap + LD_PRELOAD seccomp lib
-```
+## Limites connues
 
-La séparation d'uid est un réglage **distinct**, qui décide si les extensions tournent sous une identité différente. En automatique, elle ne s'active qu'en mode `basic` ; forcée, elle s'applique partout comme couche indépendante supplémentaire. Elle est portée par l'amorce, fermée par défaut en `basic` (au mieux seulement sous `landlock`), et incompatible avec l'option qui bloque l'acquisition de privilèges. Un guide par situation se trouve dans [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md).
+| Limite | Conséquence | Ce qui la restreint aujourd'hui |
+|---|---|---|
+| Pas de confinement par chemin en `basic` sur un noyau sans Landlock | Un plugin peut lire les fichiers non sensibles lisibles par tous, et les dossiers des autres plugins | Secrets protégés par l'utilisateur séparé et `PR_SET_DUMPABLE` ; `auto` préfère Landlock ou bubblewrap |
+| Tous les plugins partagent l'utilisateur 1001 | Un plugin peut envoyer des signaux à ses voisins (pas au serveur) | `PR_SET_DUMPABLE` empêche de lire les autres processus via `/proc` ; Landlock et bubblewrap isolent les dossiers des plugins |
+| Seccomp est une liste de refus | Les appels sur les fichiers et les sockets Unix restent permis | Les chemins sont confinés par Landlock ou bubblewrap ; les sockets IP sont refusées |
+| Le relais déplace la surface SSRF vers le serveur | Une faille dans sa validation pourrait atteindre une adresse interne | Liste d'autorisations et client anti-SSRF en Go ; une règle de sortie sur le conteneur comme couche indépendante |
+| Le relais contrôle où part un appel, pas ce qu'il transporte | Des données peuvent partir vers un hôte de la liste du plugin | N'autoriser que des hôtes auxquels vous confiez ces données |
+| L'analyse fonctionne par motifs | Un obscurcissement délibéré peut cacher du code | L'aperçu par l'administrateur ; la barrière est la sandbox, pas l'analyse |
+| `LD_PRELOAD` ne couvre que les plugins interprétés dynamiques | Un binaire statique en `basic` sans le lanceur y échappe | L'image officielle embarque toujours le lanceur, dont le filtre noyau couvre les binaires statiques |
 
-Ce que chaque couche donne selon le mode, les valeurs reflétant toujours ce que la machine permet :
+## Exposition réseau (hors modèle de menace des plugins)
 
-| Couche | auto | landlock | basic | bubblewrap | strict |
-|---|---|---|---|---|---|
-| Séparation d'uid | active en `basic` seulement | inactive, à forcer si voulu | active | par espace de noms utilisateur | par espace de noms utilisateur |
-| Liste noire du noyau, avant exécution, binaires compilés compris | oui si résolu en `landlock` ou `basic`, non si résolu en `bubblewrap` | oui | oui | non, ce mode n'invoque pas l'amorce | non, `strict` n'ajoute que la couche préchargée |
-| Couche préchargée, extensions interprétées | oui | oui | oui | non | oui |
-| Refus des sockets internet | oui | oui | oui | sans objet, espace réseau isolé | sans objet, espace réseau isolé |
-| Confinement des fichiers | le meilleur disponible | liste blanche Landlock | aucun, permissions seules | liste blanche de montages | liste blanche de montages |
-| Réseau, aucune sortie directe dans tous les cas | sockets refusées | restriction et refus | sockets refusées | espace réseau isolé | espace réseau isolé |
-| Espaces de noms | sans objet | sans objet | sans objet | non partagés | non partagés |
-| Plafonds de ressources | moniteur et politesse d'ordonnancement | idem | idem | idem | idem |
+Deux règles déterminent qui peut atteindre le serveur :
 
-En modes `bubblewrap` et `strict`, l'amorce n'est pas utilisée : c'est l'espace de noms utilisateur qui apporte l'isolation d'identité à la place de la bascule.
+- **Seul le port HTTP est destiné à être publié.** Le port gRPC
+  (`EVEY_SERVER_PORT`, 9090 par défaut) est un transport interne dont le seul
+  client est la passerelle HTTP du même processus ; l'API HTTP est sur ce port
+  plus un. gRPC n'écoute par défaut que sur la boucle locale
+  (`EVEY_GRPC_BIND=127.0.0.1`), car le contrôle d'accès distant est un
+  middleware HTTP qui ne le couvre pas. Élargir cette écoute affiche un
+  avertissement ; la filtrer devient alors la responsabilité de
+  l'administrateur système.
+- **Le contrôle d'accès distant se fonde sur la seule adresse client validée à
+  la frontière des proxys de confiance**, jamais sur un en-tête de la requête.
+  Un client ne peut pas se faire passer pour `127.0.0.1` via
+  `X-Forwarded-For`, et une requête qui n'a pas traversé cette frontière est
+  considérée comme distante. C'est un contrôle de déploiement, pas une
+  authentification.
 
-Dépendances d'implémentation : l'amorce, écrite en Go pur, livrée à côté du binaire du serveur et utilisée par les modes `landlock`, `auto` et `basic` ; le binaire bubblewrap, présent dans l'image d'exécution et utilisé par les modes `bubblewrap` et `strict` ; et, pour ce dernier, un noyau autorisant les espaces de noms utilisateur non privilégiés. Dans Docker, la mise en place des espaces de noms demande en général une sécurité relâchée, ce qui explique que le mode automatique préfère Landlock pour le déploiement en conteneur.
-
-## Sortie réseau des extensions, par relais
-
-Les extensions n'ont **aucun accès réseau direct** : le bac à sable refuse toute socket internet à chaque extension, quelle que soit sa permission. Celle qui a besoin du réseau appelle le relais de l'hôte par sa socket locale, appel conditionné à la permission `network`. L'hôte, en Go :
-
-- vérifie que l'hôte visé figure sur la liste déclarée par l'extension, ce qui est désormais un vrai contrat par hôte et non une indication de résolution de noms ;
-- restreint le schéma à `http` et `https`, et la méthode à `GET` et `HEAD` ;
-- compose par un client protégé, qui refuse les adresses privées, réservées et de lien local **après** résolution DNS au moment de la connexion, de sorte que les redirections et les réattributions de noms sont revérifiées ;
-- n'attache aucun identifiant du serveur, et plafonne la taille de la réponse.
-
-**Durcissement recommandé côté administration.** Le relais déplace la surface d'attaque vers l'hôte : ajoutez donc une couche de sortie indépendante sur le conteneur du serveur, qui ne fait pas confiance au code. Bloquez la plage de lien local, qui porte les métadonnées d'infrastructure, et restreignez le sous-réseau interne aux seuls points de la base de données et de la recherche. Un défaut dans la validation du relais se heurte alors encore à un mur réseau, et les deux couches échouent de façons indépendantes.
-
-**Ce que cette première version ne couvre pas** tenait à l'ancien mécanisme et n'a plus lieu d'être depuis que la sortie directe est coupée : les adresses IP littérales, les résolveurs de noms embarqués et les détours par le nom d'hôte présenté ne sont plus atteignables depuis le processus de l'extension. Ce qui demeure est le point ci-dessus : le relais contrôle la destination, pas le contenu.
-
-**Conseils d'exploitation.** Traitez la permission réseau comme un audit manuel : vérifiez que l'extension ne s'adresse pas à des adresses en dur et n'embarque pas son propre résolveur. Et surveillez le trafic sortant de la machine qui héberge les extensions.
-
-## Exposition réseau, hors du modèle de menace des extensions
-
-Tout ce qui précède concerne les extensions. L'autre moitié de la surface d'attaque est de savoir qui peut joindre le serveur, et deux invariants méritent d'être énoncés ici, parce qu'un lecteur qui cherche comment exposer Evey sans risque commence par cette page.
-
-- **Un seul point d'écoute est fait pour être publié, et ce n'est pas celui du gRPC.** Le port gRPC natif est un transport interne dont le seul client est la passerelle HTTP du même processus ; l'API HTTP est ce port plus un. Le point d'écoute gRPC se lie à la boucle locale par défaut, précisément parce que le verrou d'accès distant décrit ci-dessous est un intergiciel HTTP qui ne le couvre pas. L'élargir est possible et journalise un avertissement au démarrage ; le protéger par un pare-feu devient alors le travail de l'administrateur.
-- **Le verrou d'accès distant décide « local ou distant » à partir de LA seule adresse cliente validée à la frontière des proxys de confiance, jamais d'un en-tête.** Un client ne peut pas se déclarer local par un en-tête pour être traité comme tel, et une requête qui n'a pas franchi cette frontière est classée distante, donc refusée, plutôt que crue sur parole. C'est un contrôle de *déploiement*, au sens « cette instance est pour mon réseau », et non une couche d'authentification : c'est l'authentification qui protège les données.
+Voir [Accès distant et HTTPS](administration/remote-access.md) et la
+[Référence de configuration](environment/server.md#remote-access).
 
 ## Ce que les logs peuvent contenir
 
-Le fichier de log du serveur est ce que servent les routes de logs de
-l'administration (suivi, recherche, flux en direct), ce qui finit dans les
-rapports de bug et ce qu'emporte une sauvegarde : les identifiants y sont donc
-effacés **à l'écriture** (`internal/pkg/logger/redact.go`). Un attribut dont la
-clé désigne un secret (`authorization`, `token`, `access_token`,
-`refresh_token`, `api_key`, `password`, `pin`, `secret`, ...) est remplacé en
-entier, et toute chaîne - le message compris - qui porte un bearer, un JWT ou
-une paire `secret=valeur` est nettoyée. Les routes de logs de l'administration
-appliquent la même règle à la sortie pour les lignes écrites avant que ce
-nettoyage n'existe. Deux conséquences pour le code : une valeur non secrète ne
-doit pas être journalisée sous un nom de clé secret (elle serait masquée -
-`token_info` et `device_pin` sont les noms employés aujourd'hui), et un nouveau
-type d'identifiant doit être ajouté à cette liste avant d'être journalisé une
-seule fois.
+Le log du serveur alimente **Logs & Debug**, les rapports de bug et les
+sauvegardes : les identifiants y sont donc masqués au moment de l'écriture
+(`internal/pkg/logger/redact.go`). Un attribut dont la clé désigne un secret
+(`authorization`, `token`, `api_key`, `password`, `pin`, `secret`...) est
+remplacé en entier, et toute chaîne contenant un jeton bearer, un JWT ou une
+paire `secret=valeur` est masquée. Les routes de consultation des logs
+appliquent la même règle aux lignes plus anciennes. Côté code : ne jamais
+journaliser une valeur non secrète sous un nom de clé secret (elle serait
+masquée), et ajouter tout nouveau type d'identifiant à cette liste avant de le
+journaliser.
 
 ## Signaler une vulnérabilité
 
-Signalez en privé, jamais dans un ticket public : `security@eveyproject.org`. C'est l'adresse que donne la [politique de sécurité](../SECURITY.md) du dépôt, et elle couvre l'authentification, les permissions et les évasions de bac à sable des extensions comme le reste. Ne testez pas contre des instances Evey partagées ou publiques qui ne sont pas les vôtres.
+Signalez-la en privé, jamais dans une issue publique :
+`security@eveyproject.org`, l'adresse de la
+[politique de sécurité](../SECURITY.md) du dépôt. Elle couvre
+l'authentification des plugins, les permissions et les évasions de sandbox
+comme tout le reste. Ne testez pas sur des instances d'Evey qui ne sont pas
+les vôtres.
