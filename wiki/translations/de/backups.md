@@ -1,5 +1,5 @@
 ---
-source_sha: 91ffe72783a80b591d04c2bf56329c458fa3055ea3fb320fa66ae50e512635dc
+source_sha: 97b31b19a771829c011c797f4712f4cccf1903064069d080bb2eaadb59c386e2
 reviewed: false
 ---
 # Sicherungen und Updates
@@ -16,8 +16,9 @@ Sie enthält **nicht**:
 - Ihre Mediendateien;
 - den Transkodierungs-Cache (wird bei Bedarf neu erzeugt);
 - den Suchindex (wird aus der Datenbank neu aufgebaut);
-- die Dateien in `./evey-data/keys`, darunter den Schlüssel, der die Sitzungen
-  signiert, und die installierten Plugin-Dateien.
+- die Schlüssel in `./evey-data`: `jwt.key`, der die Sitzungen signiert, und
+  den Ordner `keys` (Datenbankpasswort, Suchschlüssel);
+- die installierten Plugin-Dateien.
 
 Eine Datenbanksicherung stellt Eveys Zustand also auf derselben Installation
 wieder her. Um eine Maschine neu aufbauen zu können, bewahren Sie zusätzlich

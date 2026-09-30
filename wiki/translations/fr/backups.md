@@ -1,5 +1,5 @@
 ---
-source_sha: 91ffe72783a80b591d04c2bf56329c458fa3055ea3fb320fa66ae50e512635dc
+source_sha: 97b31b19a771829c011c797f4712f4cccf1903064069d080bb2eaadb59c386e2
 reviewed: true
 ---
 # Sauvegardes et mises à jour
@@ -17,8 +17,9 @@ Elle ne contient **pas** :
 - vos fichiers de médias ;
 - le cache de transcodage (régénéré à la demande) ;
 - l'index de recherche (reconstruit depuis la base) ;
-- les fichiers de `./evey-data/keys`, dont la clé qui signe les sessions,
-  ni les fichiers des plugins installés.
+- les clés rangées dans `./evey-data` : `jwt.key`, qui signe les sessions, et
+  le dossier `keys` (mot de passe de la base, clé de recherche) ;
+- les fichiers des plugins installés.
 
 Une sauvegarde de la base restaure donc l'état d'Evey sur la même
 installation. Pour pouvoir reconstruire une machine, gardez aussi une copie
