@@ -1,5 +1,5 @@
 ---
-source_sha: 6555028a4db17b1100f792eae26273aaa7fa4ddc7a77c0d6d8f0ddacd9c5aa76
+source_sha: 305f13e3ff6f705b51384ec1d553349c48887a6ee0bd367b61e102a000be8911
 reviewed: true
 ---
 # Thèmes
@@ -89,9 +89,14 @@ l'interface pour tromper l'utilisateur.
 
 **Règles de superposition plein écran** : le bloc de règles entier est retiré.
 
-Un bloc est retiré quand il contient `position: fixed` ou `position: sticky` avec
-au moins deux de : `top: 0`, `left: 0`, `width: 100vw`, `height: 100vh`. C'est la
-forme type d'une superposition CSS d'hameçonnage.
+Un bloc est retiré quand il associe `position: fixed` ou `position: sticky` à
+une boîte qui couvre l'écran : `inset: 0`, les quatre bords à `0`, ou au moins
+deux de `top: 0`, `right: 0`, `bottom: 0`, `left: 0`, `width: 100vw`,
+`height: 100vh` dont l'une des deux tailles de l'écran. Un en-tête fixé par
+`top: 0; left: 0` et dimensionné par son contenu est conservé. Les déclarations
+d'un même sélecteur s'additionnent d'une règle à l'autre : répartir la forme sur
+plusieurs blocs ne permet pas d'y échapper. C'est la forme type d'une
+superposition CSS d'hameçonnage.
 
 **`pointer-events: none` sur des éléments interactifs** : la déclaration est
 retirée du bloc.
@@ -156,17 +161,17 @@ confiance (déconnexion, profil, vraies notifications).
 .evey-media-card:hover { transform: scale(1.03); transition: transform 120ms ease; }
 ```
 
-### Exemple : un lecteur personnalisé
+### Exemple : une autre couleur d'accent
+
+L'interface tire ses boutons, ses liens, ses états actifs et la barre de
+progression du lecteur de quelques propriétés personnalisées ;
+`examples/plugins/theme-dark-blue/theme.css` les énumère. Les redéfinir
+restyle tous les écrans d'un coup :
 
 ```css
-.player-controls {
-  background: linear-gradient(to top, rgba(0,0,0,.8), transparent);
-  border-radius: 0 0 8px 8px;
-}
-
-.player-progress-bar {
-  accent-color: var(--color-accent);
-  height: 4px;
+:root {
+  --accent: #e8a33d;
+  --accent-hover: #f0b95c;
 }
 ```
 
