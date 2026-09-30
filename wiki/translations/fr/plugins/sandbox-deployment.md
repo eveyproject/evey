@@ -1,5 +1,5 @@
 ---
-source_sha: 0846a653f87edb54addf042a0876b46fd3ab9e42930e3f12e27706e59ce0bc97
+source_sha: a6f8003c3c1502fd56c9686aaf41877fd1dc643a86c7f3eb3cb6910f60615fd6
 reviewed: true
 ---
 # Sandbox des plugins : quel réglage pour votre serveur
@@ -26,8 +26,9 @@ cette boîte :
 - **bloque les actions système dangereuses** : déboguer d'autres processus,
   charger des modules noyau, changer l'heure, monter des disques, etc. sont
   refusés par le noyau ;
-- **coupe le réseau**, sauf si le plugin l'a explicitement demandé (et que vous
-  avez approuvé cette permission) ;
+- **coupe l'accès direct au réseau**, toujours. Un plugin qui a demandé le
+  réseau (et que vous avez approuvé) ne joint que les hôtes qu'il a déclarés,
+  par l'intermédiaire du serveur ;
 - **plafonne le processeur, la mémoire, le disque et le nombre de processus**,
   pour qu'un plugin emballé ne fasse pas tomber le serveur ;
 - **garde vos secrets illisibles** : la clé qui signe les connexions, et les
@@ -51,7 +52,7 @@ les sondes vous disent pourquoi, et les sections ci-dessous comment y remédier.
 | Votre serveur | Ce que vous obtenez d'office | Quelque chose à faire ? |
 |---|---|---|
 | **Linux récent dans Docker** (noyau ≥ 5.13, en gros tout ce qui date de 2021 environ ou après) : *le cas normal* | **L'isolation la plus forte** (Landlock), automatiquement. | **Rien.** Gardez les réglages par défaut. |
-| **Vieux NAS dans Docker** (par exemple un ancien Synology, noyau < 5.13) | Une bonne isolation, **sans les cloisons de fichiers par dossier**. Les secrets, le réseau et les actions système restent verrouillés. | Facultatif : activez la **séparation d'UID** (plus bas) pour une protection des secrets doublée. |
+| **Vieux NAS dans Docker** (par exemple un ancien Synology, noyau < 5.13) | Une bonne isolation, **sans les cloisons de fichiers par dossier**. Les secrets, le réseau et les actions système restent verrouillés. | **Rien.** La séparation d'UID (plus bas) s'active d'elle-même dans ce cas. |
 | **Tout Linux, sans Docker** (installation directe) | **L'isolation la plus forte**, automatiquement (Landlock sur un noyau récent, sinon les espaces de noms de bubblewrap). | Suivez le [guide d'installation sans Docker](../deployment-bare-metal.md). |
 
 Pour savoir dans quel cas vous êtes : ouvrez **Admin → Plugins** ; le badge du
@@ -110,9 +111,10 @@ ce qui vaut pour *toute* sandbox qui n'est pas une machine virtuelle complète.
 
 **Vieux NAS dans Docker, sans cloisons par dossier (`basic`) :**
 
-- ✅ Vos **secrets restent protégés** (clé de connexion, sauvegardes), *surtout si
-  vous mettez la séparation d'UID sur `on`*.
-- ✅ Le plugin n'a **aucun accès réseau** sans permission.
+- ✅ Vos **secrets restent protégés** (clé de connexion, sauvegardes) par le
+  compte séparé, que `auto` active ici.
+- ✅ Le plugin n'a **aucun accès direct au réseau** ; s'il y est autorisé, il ne
+  joint que les hôtes qu'il a déclarés.
 - ✅ Les **actions système dangereuses restent bloquées** par le noyau.
 - ⚠️ Mais sans cloisons par dossier, un plugin malveillant **pourrait lire des
   fichiers ordinaires, non secrets**, **lister les processus en cours** et, comme
@@ -136,11 +138,12 @@ EVEY_PLUGINS_SANDBOX_MODE=auto          # choisit la plus forte disponible
 # EVEY_PLUGINS_UID_SEPARATION=auto      # (par défaut) active seulement là où c'est utile
 ```
 
-**2. Vieux NAS, protection maximale des secrets :**
+**2. Vieux NAS :** rien à régler, `auto` y fait déjà tourner les plugins sous
+le compte séparé. Laissez `no-new-privileges` hors du `security_opt` de votre
+compose, qui l'en empêcherait :
 ```bash
 EVEY_PLUGINS_SANDBOX_MODE=auto
-EVEY_PLUGINS_UID_SEPARATION=on          # force la cloison des secrets
-# et NE mettez PAS no-new-privileges dans le security_opt de votre compose
+EVEY_PLUGINS_UID_SEPARATION=auto        # (par défaut) actif dans le cas basic
 ```
 
 **3. Précautions maximales sur un serveur récent (les deux cloisons) :**
