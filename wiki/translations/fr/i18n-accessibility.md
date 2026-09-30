@@ -1,5 +1,5 @@
 ---
-source_sha: 507ac22fa3a3e19be004b58f4eb8c59130fdf70e75855b01aae6d4b67fc7e4cd
+source_sha: 6ad73949864d3c9b0dea20d620fb0f5e4a2b176cba0f54c8e15090f66f2b929c
 reviewed: true
 ---
 # Langues et accessibilité
@@ -19,9 +19,10 @@ certifiée*.
 - **Traduit :** l'interface elle-même : boutons, menus, réglages, messages
   d'erreur, textes des e-mails et des notifications push.
 - **Pas traduit par Evey :** les métadonnées des médias (titres, résumés,
-  genres) viennent de votre source de métadonnées (TMDB/OMDb), dans la **langue
-  des métadonnées** que vous configurez (`EVEY_METADATA_LANGUAGE`), indépendante
-  de la langue de l'interface. Vos bibliothèques, vos noms de fichiers et tout ce
+  genres) viennent de votre source de métadonnées (TMDB/OMDb), dans la **Langue
+  des métadonnées** choisie dans l'assistant de configuration ou dans **Admin →
+  Configuration du serveur → Langue et région** (`EVEY_METADATA_LANGUAGE` n'est
+  que la valeur par défaut), indépendante de la langue de l'interface. Vos bibliothèques, vos noms de fichiers et tout ce
   que vous saisissez sont conservés tels quels.
 
 L'interface peut donc être en français et le synopsis d'un film en anglais (ou
@@ -49,7 +50,9 @@ plutôt que vide ou sous forme de clé.
   annoncent la bonne langue.
 - La langue vient de la préférence de votre compte, sinon de la langue du
   navigateur ou de l'appareil (`Accept-Language` est lu, sans la région :
-  `fr-FR` → `fr`), sinon de l'anglais.
+  `fr-FR` → `fr`), sinon de la **Langue du serveur** de **Admin → Configuration
+  du serveur → Langue et région** (qui fixe aussi la langue des nouveaux
+  comptes), sinon de l'anglais.
 - L'interpolation et les pluriels passent par i18next (`{{count}}`, etc.).
 
 ### Limites, en toute honnêteté
