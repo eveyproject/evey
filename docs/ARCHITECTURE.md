@@ -16,7 +16,7 @@ Dependency rule: `adapters -> app -> domain`. Domain never imports app or adapte
 
 ## Bounded contexts
 
-Thirty context packages live under `internal/domain/` and `internal/app/`: 19 exist in both layers, 2 are domain-only (`ratings`, `shared`), 9 are app-only. Collaboration happens partly via domain events published through a shared bus; the app layer also reads a neighbouring context's domain package directly (see [Relations](#relations)).
+Thirty-two context packages live under `internal/domain/` and `internal/app/`: 19 exist in both layers, 2 are domain-only (`ratings`, `shared`), 11 are app-only. Collaboration happens partly via domain events published through a shared bus; the app layer also reads a neighbouring context's domain package directly (see [Relations](#relations)).
 
 | Context | Responsibility |
 | --- | --- |
@@ -49,6 +49,8 @@ Thirty context packages live under `internal/domain/` and `internal/app/`: 19 ex
 | `maintenance` (app only) | admin-triggered media maintenance: seek-index rebuild, repair journal, undo, audio integrity |
 | `presence` (app only) | in-memory, non-persisted registry of who is connected right now |
 | `qoe` (app only) | CMCD (CTA-5004) playback telemetry ingest and aggregation |
+| `demo` (app only) | the public demo instance (`EVEY_DEMO=1`): seeds its accounts, libraries and freely licensed media through the product's own services, and resets itself |
+| `updatecheck` (app only) | compares the running build with what the registry publishes and tells the administrator; it never updates anything |
 | `shared` (domain only) | cross-cutting ports (`EventBus`, `TransactionalUnit`, `ServerConfigRepository`, `ShareLinkRepository`), typed ids, cursors, stream tokens |
 
 ### Relations
@@ -60,7 +62,7 @@ Thirty context packages live under `internal/domain/` and `internal/app/`: 19 ex
 - `plugin` → `pluginrunner` publishes `plugin.error` / `plugin.started`, and `app/plugin` consumes them for its security dashboard. There is no bridge feeding domain events into plugins: plugins reach the API with scoped JWTs (see ADR-0003). The bus itself is ADR-0010.
 - `shared.TransactionalUnit` wraps multi-aggregate writes (see ADR-0002).
 
-No package under `internal/domain` imports another context's domain package - a rule enforced by `internal/contractguard/domain_imports_test.go` (see [Architecture guards](#architecture-guards)). The app layer is not bound by it: 14 app packages import a neighbouring context's domain package today.
+No package under `internal/domain` imports another context's domain package - a rule enforced by `internal/contractguard/domain_imports_test.go` (see [Architecture guards](#architecture-guards)). The app layer is not bound by it: 15 app packages import a neighbouring context's domain package today.
 
 ## Typical data flow - "user plays a media"
 
@@ -78,7 +80,7 @@ Wire graphs live in `cmd/evey/wire.go` and its siblings (`wire_infra.go`, `wire_
 
 ## Architecture guards
 
-The rules above are not documentation-only. `internal/contractguard/` holds 31 static tests across 20 files that fail the build when the codebase drifts from them.
+The rules above are not documentation-only. `internal/contractguard/` holds 54 static tests across 29 files that fail the build when the codebase drifts from them.
 
 The hexagonal rule itself is `TestDomainContextsDoNotImportEachOther` (ADR-0001), in `domain_imports_test.go`. It walks `internal/domain` and enforces exactly this: a context may import `internal/domain/shared` and its own package tree, nothing else from `internal/domain`, and never `internal/app` or `internal/adapters`. Its scope stops at `internal/domain` - it says nothing about the app layer.
 
@@ -182,14 +184,16 @@ flowchart TB
 ```
 
 > **Production differs from this dev topology.** The install compose declares
-> three services only - `evey`, `postgres`, `caddy`. There is no separate
-> `evey-web` container (nor the dev-only mailcatcher and Metro bundler): the
-> `evey-server` binary serves the built web UI from `/srv`, so the reverse proxy
-> forwards *everything* - UI and API - to it on `:9091`. There is no separate
-> `evey-meilisearch` container either: the Meilisearch binary is baked into the
-> `evey` image (`Dockerfile`, `meili-download` stage, pinned to 1.12.8) and keeps
-> its index under `/data/meili`. See
-> [installation.md](installation.md) and [reverse-proxy.md](reverse-proxy.md).
+> one service, `evey`. There is no separate `evey-web` container (nor the
+> dev-only mailcatcher and Metro bundler): the binary serves the built web UI
+> from `/srv`, so a reverse proxy forwards *everything* - UI and API - to it on
+> `:9091`. Postgres and Meilisearch run inside the same container, supervised
+> by `docker/entrypoint.sh`: PostgreSQL 17 with its data under `/data/postgres`,
+> and the Meilisearch binary (`Dockerfile`, `meili-download` stage, pinned to
+> 1.12.8) with its index under `/data/meili`. The repository's own
+> `docker-compose.yml` keeps separate `postgres` and `caddy` services, described
+> in [Advanced deployments](operations/advanced-deployments.md). See
+> [Install](installation.md) and [Reverse proxy](reverse-proxy.md).
 
 ### Level 3 - Component (zoom on `evey-server`)
 
@@ -216,7 +220,7 @@ flowchart LR
         a_music[music]
         a_photo[photo]
         a_user[user]
-        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest]
+        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest,<br/>demo, updatecheck]
     end
 
     subgraph domain[Domain core - internal/domain]
