@@ -53,9 +53,9 @@ volumes:
    [Backups and updates](backups.md#updating-evey).
 2. The API and the web interface, on one port, in plain HTTP.
 3. Everything Evey owns: database, signing key, generated passwords, search
-   index, logs, backups, plugins. This is the folder to back up.
-4. Transcoding and thumbnail cache. It can be deleted at any time and refills
-   on demand.
+   index, timeline thumbnails, artwork, logs, backups, plugins. This is the folder to back up.
+4. Transcoding cache: segments, resized photos and covers. It can be deleted
+   at any time and refills on demand.
 5. Your media. Mounted read-write on purpose: the repairs of
    [Media health](runbooks/media-health.md) rewrite files in place. Append
    `:ro` for a read-only library and those repairs will fail. More folders are
@@ -81,8 +81,8 @@ on the setup wizard: continue with [First setup](getting-started/first-setup.md)
 
 | Location | Contains | Can be deleted? |
 | --- | --- | --- |
-| `./evey-data` | Database, signing key, generated passwords, search index, logs, backups, plugins | No. Losing it loses every account, watch history and setting. Only `meili/` inside it can go: the search index is rebuilt from the database with `evey admin reindex-search`. |
-| `evey-cache` volume | Transcoded segments, timeline thumbnails | Yes. Regenerated on demand. |
+| `./evey-data` | Database, signing key, generated passwords, search index, timeline thumbnails, artwork, logs, backups, plugins | No. Losing it loses every account, watch history and setting. Only `meili/` inside it can go: the search index is rebuilt from the database with `evey admin reindex-search`. |
+| `evey-cache` volume | Transcoded segments, resized photos and covers | Yes. Regenerated on demand. |
 | Your media folders | Your files | Evey does not delete them; removing a title in Evey removes it from the library, not from the disk. It writes there in three cases: a repair run from Media health (the original is kept as a backup), subtitles downloaded from OpenSubtitles (a `.subtitles` folder next to the film), and a probe file of a few seconds that checks the folder watcher still receives events. |
 
 ## Common variations

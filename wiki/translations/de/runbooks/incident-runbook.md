@@ -1,5 +1,5 @@
 ---
-source_sha: 48dbaf6ad48fbd8e4d23d62bfdbf8f0d0fedcc1f002b407062e12466485506ad
+source_sha: 3a41d86519a03aab692820f316d27cf9feb1e8da69e124f838de91eea3408a9b
 reviewed: false
 ---
 # Störungshandbuch
@@ -79,13 +79,13 @@ Verbindung, es führt die Epoch-Abfrage nicht aus. Der Prometheus-Zähler ist
 docker exec evey-server which ffmpeg ffprobe
 docker exec evey-server ffmpeg -version | head -1
 docker logs --since 10m evey-server | grep -iE 'ffmpeg|transcode|hls'
-docker exec evey-server ls -ld /cache/transcode /cache/trickplay
+docker exec evey-server ls -ld /cache/transcode /data/trickplay
 docker exec evey-server df -h /cache
 ```
 
 **Häufige Ursachen und Behebung**:
 - **ffmpeg fehlt** (eigenes Image ohne ffmpeg): aus dem offiziellen `Dockerfile` neu bauen.
-- **Cache-Verzeichnis nicht beschreibbar**: `EVEY_TRANSCODING_CACHE_DIR` ist im Code standardmäßig `/data/transcode`, aber die Compose-Datei legt es über das benannte Volume `evey-cache` auf `/cache/transcode`. `EVEY_TRICKPLAY_CACHE_DIR` ist standardmäßig `/cache/trickplay`. Beschreibbarkeit prüfen:
+- **Cache-Verzeichnis nicht beschreibbar**: `EVEY_TRANSCODING_CACHE_DIR` ist im Code standardmäßig `/data/transcode`, aber die Compose-Datei legt es über das benannte Volume `evey-cache` auf `/cache/transcode`. `EVEY_TRICKPLAY_CACHE_DIR` ist im Image `/data/trickplay` (`/cache/trickplay` ist der Standard außerhalb davon). Beschreibbarkeit prüfen:
   ```sh
   docker exec evey-server touch /cache/transcode/.write-test && \
     docker exec evey-server rm /cache/transcode/.write-test
@@ -235,7 +235,7 @@ docker logs --tail=300 evey-server | grep -i meili
 **Diagnose**:
 ```sh
 docker exec evey-server df -h /cache
-docker exec evey-server du -sh /cache/transcode /cache/trickplay 2>/dev/null
+docker exec evey-server du -sh /cache/transcode /data/trickplay 2>/dev/null
 docker volume inspect evey_evey-cache   # der von Compose erzeugte Name kann abweichen
 ```
 
@@ -250,7 +250,7 @@ docker volume inspect evey_evey-cache   # der von Compose erzeugte Name kann abw
   erzeugt. **Alle löschen** unter Admin → Transkodierungs-Cache leert genauso.
 - Trickplay ist teurer neu zu erzeugen; nur bei Bedarf leeren:
   ```sh
-  docker exec evey-server sh -c 'rm -rf /cache/trickplay/*'
+  docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
 - Senken Sie das **Budget des Transcode-Caches** (**Admin → Serverkonfiguration → Servereinstellungen**, Standard `10` GB), wenn das Volume des Hosts knapp ist; unabhängig vom Budget hält die Bereinigung 2 GiB auf dem Cache-Volume frei.
 

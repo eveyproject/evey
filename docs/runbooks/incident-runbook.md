@@ -74,13 +74,13 @@ run the epoch query. The Prometheus counter is
 docker exec evey-server which ffmpeg ffprobe
 docker exec evey-server ffmpeg -version | head -1
 docker logs --since 10m evey-server | grep -iE 'ffmpeg|transcode|hls'
-docker exec evey-server ls -ld /cache/transcode /cache/trickplay
+docker exec evey-server ls -ld /cache/transcode /data/trickplay
 docker exec evey-server df -h /cache
 ```
 
 **Common causes + fix**:
 - **ffmpeg binary missing** (custom image without it): rebuild from the official `Dockerfile`.
-- **Cache dir not writable**: `EVEY_TRANSCODING_CACHE_DIR` defaults to `/data/transcode` in code but compose maps it to `/cache/transcode` via the `evey-cache` named volume. `EVEY_TRICKPLAY_CACHE_DIR` defaults to `/cache/trickplay`. Verify writability:
+- **Cache dir not writable**: `EVEY_TRANSCODING_CACHE_DIR` defaults to `/data/transcode` in code but compose maps it to `/cache/transcode` via the `evey-cache` named volume. `EVEY_TRICKPLAY_CACHE_DIR` is `/data/trickplay` in the image (`/cache/trickplay` is the default outside it). Verify writability:
   ```sh
   docker exec evey-server touch /cache/transcode/.write-test && \
     docker exec evey-server rm /cache/transcode/.write-test
@@ -221,7 +221,7 @@ docker logs --tail=300 evey-server | grep -i meili
 **Diagnose**:
 ```sh
 docker exec evey-server df -h /cache
-docker exec evey-server du -sh /cache/transcode /cache/trickplay 2>/dev/null
+docker exec evey-server du -sh /cache/transcode /data/trickplay 2>/dev/null
 docker volume inspect evey_evey-cache   # compose-mangled name may vary
 ```
 
@@ -236,7 +236,7 @@ docker volume inspect evey_evey-cache   # compose-mangled name may vary
   the same purge.
 - Trickplay is more expensive to regenerate; only purge if necessary:
   ```sh
-  docker exec evey-server sh -c 'rm -rf /cache/trickplay/*'
+  docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
 - Lower the **Transcode cache budget** (**Admin → Server Config → Server Settings**, default `10` GB) if the host volume is tight; whatever the budget, the sweeper keeps 2 GiB free on the cache volume.
 

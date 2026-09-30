@@ -1,5 +1,5 @@
 ---
-source_sha: 48dbaf6ad48fbd8e4d23d62bfdbf8f0d0fedcc1f002b407062e12466485506ad
+source_sha: 3a41d86519a03aab692820f316d27cf9feb1e8da69e124f838de91eea3408a9b
 reviewed: true
 ---
 # Réponse aux incidents
@@ -112,7 +112,7 @@ les journaux du serveur.
 docker exec evey-server which ffmpeg ffprobe
 docker exec evey-server ffmpeg -version | head -1
 docker logs --since 10m evey-server | grep -iE 'ffmpeg|transcode|hls'
-docker exec evey-server ls -ld /cache/transcode /cache/trickplay
+docker exec evey-server ls -ld /cache/transcode /data/trickplay
 docker exec evey-server df -h /cache
 ```
 
@@ -123,7 +123,8 @@ docker exec evey-server df -h /cache
 - **Dossier de cache non inscriptible** : `EVEY_TRANSCODING_CACHE_DIR` vaut
   `/data/transcode` par défaut dans le code, mais le compose le place sur
   `/cache/transcode` via le volume nommé `evey-cache`.
-  `EVEY_TRICKPLAY_CACHE_DIR` vaut `/cache/trickplay` par défaut. Vérifiez qu'on
+  `EVEY_TRICKPLAY_CACHE_DIR` vaut `/data/trickplay` dans l'image (`/cache/trickplay`
+  est la valeur par défaut hors de l'image). Vérifiez qu'on
   peut y écrire :
   ```sh
   docker exec evey-server touch /cache/transcode/.write-test && \
@@ -287,7 +288,7 @@ contrôle de santé du conteneur clignote.
 **Diagnostic** :
 ```sh
 docker exec evey-server df -h /cache
-docker exec evey-server du -sh /cache/transcode /cache/trickplay 2>/dev/null
+docker exec evey-server du -sh /cache/transcode /data/trickplay 2>/dev/null
 docker volume inspect evey_evey-cache   # le nom donné par compose peut varier
 ```
 
@@ -305,7 +306,7 @@ docker volume inspect evey_evey-cache   # le nom donné par compose peut varier
 - Les miniatures de navigation coûtent plus cher à régénérer ; ne les purgez
   qu'en cas de besoin :
   ```sh
-  docker exec evey-server sh -c 'rm -rf /cache/trickplay/*'
+  docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
 - Baissez le **Budget du cache de transcodage** (**Admin → Configuration du
   serveur → Paramètres du serveur**, 10 Go par défaut) si le volume de la machine est juste ; quel que soit le budget, le

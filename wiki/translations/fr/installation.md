@@ -1,5 +1,5 @@
 ---
-source_sha: e41521039aa8e4842bc54b7e645384700736d0d0c6cc17a5c7e4aca52b570e11
+source_sha: 70f1b2800b49143b1d28815dd9f5debd717d59cd95f6f436325fc029a8969897
 reviewed: true
 ---
 # Installation
@@ -58,10 +58,10 @@ volumes:
    le même code : voir [Sauvegardes et mises à jour](backups.md#updating-evey).
 2. L'API et l'interface web, sur un seul port, en HTTP simple.
 3. Tout ce qui appartient à Evey : base de données, clé de signature, mots de
-   passe générés, index de recherche, logs, sauvegardes, plugins. C'est le
-   dossier à sauvegarder.
-4. Le cache de transcodage et des miniatures. Il peut être supprimé à tout
-   moment et se reconstitue à la demande.
+   passe générés, index de recherche, miniatures de navigation, visuels, logs,
+   sauvegardes, plugins. C'est le dossier à sauvegarder.
+4. Le cache de transcodage : segments, photos et pochettes redimensionnées. Il
+   peut être supprimé à tout moment et se reconstitue à la demande.
 5. Vos médias. Montés en lecture-écriture volontairement : les réparations de
    la [Santé des médias](runbooks/media-health.md) réécrivent les fichiers sur
    place. Ajoutez `:ro` pour une bibliothèque en lecture seule, et ces
@@ -90,8 +90,8 @@ administrateur s'ouvre sur l'assistant de configuration : poursuivez avec la
 
 | Emplacement | Contenu | Peut-on le supprimer ? |
 | --- | --- | --- |
-| `./evey-data` | Base de données, clé de signature, mots de passe générés, index de recherche, logs, sauvegardes, plugins | Non : vous perdriez les comptes, l'historique de lecture et les réglages. Seul `meili/` peut partir : l'index de recherche se reconstruit depuis la base avec `evey admin reindex-search`. |
-| Volume `evey-cache` | Segments transcodés, miniatures de navigation | Oui. Tout se régénère à la demande. |
+| `./evey-data` | Base de données, clé de signature, mots de passe générés, index de recherche, miniatures de navigation, visuels, logs, sauvegardes, plugins | Non : vous perdriez les comptes, l'historique de lecture et les réglages. Seul `meili/` peut partir : l'index de recherche se reconstruit depuis la base avec `evey admin reindex-search`. |
+| Volume `evey-cache` | Segments transcodés, photos et pochettes redimensionnées | Oui. Tout se régénère à la demande. |
 | Vos dossiers de médias | Vos fichiers | Evey ne les supprime pas : retirer un titre dans Evey le retire de la bibliothèque, pas du disque. Il y écrit dans trois cas : une réparation lancée depuis la Santé des médias (l'original est gardé en copie de secours), les sous-titres téléchargés depuis OpenSubtitles (un dossier `.subtitles` à côté du film), et un fichier de test de quelques secondes qui vérifie que la surveillance du dossier reçoit toujours les événements. |
 
 ## Variantes courantes
