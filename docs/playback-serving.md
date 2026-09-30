@@ -22,7 +22,8 @@ with everything addressed by one hash:
   AC-3 path. Video and audio are decided **independently** - the common case is
   "copy the video, re-encode the audio to AAC".
 - **Q3 - How much can this host encode?** The calibrated **capability** (from the
-  boot benchmark) plus **admission** (which ladder rung fits, is there a slot).
+  measurement taken at the first quiet moment) plus **admission** (which ladder
+  rung fits, is there a slot).
 
 Two engines run through all of it:
 
@@ -40,29 +41,36 @@ Open these in sequence to trace a single playback request end to end:
 
 1. **Entry** · `internal/adapters/driving/http/transcode_handler_vod.go` -
    `serveHTTP` authenticates, then dispatches to master / variant / segment / audio.
-2. **Q2 · Decision** · `internal/app/transcoding/decision.go` -
+2. **The plan** · `http/transcode_vod_plan.go` marshals the request into a
+   `PlaybackRequest`; `app/transcoding/playback_plan_resolver.go` -
+   `PlanResolver.Resolve` returns one immutable `PlaybackPlan`: the decision
+   (Q2), the ladder class, the shaped ladder, the hardware route, the packager
+   and the fingerprint. Every manifest and segment of the session is served from
+   it ([ADR-0030](adr/0030-one-plan-one-decision.md)). `makeDecision` and
+   `buildFingerprint` in `http/transcode_vod_fingerprint.go` are thin wrappers
+   for the call sites without a plan (prewarm, on-demand master).
+3. **Q2 · Decision** · `internal/app/transcoding/decision.go` -
    `MakePlaybackDecisionWithPrefs` (pure): the per-track copy/transcode brain.
-   Wrapped by `makeDecision` in `http/transcode_vod_fingerprint.go`, which layers
-   on the request-time pins (`vd=` / `ad=`), the audio-resync override, etc.
-3. **Q3 · Capability** · `internal/app/transcoding/calibration_service.go` -
-   `Current()` returns `domain/transcoding.Derive(report, policy)`: the host's
-   ceilings, derived from the last benchmark.
-4. **Ladder shaping** · `http/transcode_vod_profiles.go` - `profilesForDecision`:
-   complexity class → producer profiles → source/capability caps → CMCD/av1 caps →
-   admission route+ceiling, then **freezes the shaped ladder** on the admission pin
-   (read verbatim on every later call - the cache-hash invariant made structural).
-5. **Admission** · `internal/app/transcoding/admission_shaper.go`
-   (immutable `StreamPlan`) + `video_session_limiter.go`: the route (with hw→software
-   spill) and the capacity slot.
-6. **Fingerprint** · `http/transcode_vod_fingerprint.go` (`buildFingerprint`) builds a
-   `DecisionFingerprint` (type + `Hash()` in `app/transcoding/segment_cache.go`).
-   The hash is the cache key.
+   The resolver layers on the request-time pins (`vd=` / `ad=`), the
+   audio-resync override, etc.
+4. **Q3 · Capability** · `internal/app/transcoding/calibration_service.go` -
+   `Current()` returns `domain/transcoding.Derive(report, policy)`
+   (`derive.go`): the host's ceilings, derived from the last calibration.
+5. **Ladder and admission** · the resolver shapes the ladder (complexity class
+   → producer profiles → source/capability caps → CMCD/AV1 caps → admission
+   route and ceiling), then **freezes it** on the admission pin
+   (`admission_shaper.go`, `FreezeLadder`), read verbatim on every later call -
+   the cache-hash invariant made structural. `video_session_limiter.go` holds
+   the capacity slot; the route spills from hardware to software when full.
+6. **Fingerprint** · a `DecisionFingerprint` (type + `Hash()` in
+   `app/transcoding/segment_cache.go`), assembled by the resolver. The hash is
+   the cache key.
 7. **Producing the bytes** · copy → **mkvgo** `app/transcoding/ondemand.go` (port) /
    `adapters/driven/mkvgo/ondemand.go`; transcode → **ffmpeg**
    `adapters/driven/ffmpeg/hls_transcoder.go` (`BuildFFmpegArgs` is pure; segments
    land in `/cache/transcode/segments/<hash>/`).
 8. **Packaging** · `app/transcoding/manifest_generator.go` - `master.m3u8` /
-   `stream_N.m3u8` (and `manifest.mpd` on the mkvgo path).
+   `stream_N.m3u8`; `manifest_generator_dash.go` - `manifest.mpd`.
 
 ## The two engines, by cost
 
