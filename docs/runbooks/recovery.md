@@ -26,15 +26,16 @@ password: <random 24-byte base64url>
 
 Notes:
 - The user record's `updated_at` is bumped, but no other state changes.
-- Existing sessions remain valid until their natural expiry. If you
-  also want to log the user out everywhere, run `rotate-jwt-key`
-  afterward.
+- Existing sessions remain valid until their natural expiry. To sign
+  the user out everywhere, disable the account in **Admin → Users**
+  (**Disable**), then enable it again: disabling deletes its refresh
+  tokens and invalidates its access tokens at once.
 - The plaintext is never logged. If you lose the output you have to
   run the command again.
 
 ## rotate-jwt-key
 
-Force-invalidate every active session by replacing the RSA signing key.
+Replace the RSA key that signs access tokens.
 
 ```sh
 evey admin rotate-jwt-key
@@ -45,14 +46,20 @@ Behavior:
   `/data/jwt.key`) is renamed to `<path>.rotated-<UTC-timestamp>`.
 - On next server start, `LoadOrGenerateRSAKey` regenerates a fresh
   2048-bit RSA key.
-- All previously-issued access tokens fail signature verification →
-  every user is logged out.
-- Refresh tokens are JWTs signed with the same key, so they're dead
-  too - no separate cleanup needed.
+- All previously-issued access tokens fail signature verification.
+- Refresh tokens are checked against the hash stored in the database,
+  not against the key, so they stay valid: an app whose access token is
+  refused refreshes it and carries on. To end every session as well,
+  empty the table:
+  ```sql
+  DELETE FROM refresh_tokens;
+  ```
 
 When to use:
-- Suspected key leak.
-- Mass session-kill required (incident response, contractor offboard).
+- Suspected key leak: nobody can mint valid access tokens with the old
+  key any more.
+- Mass session kill: together with the `DELETE` above. For one account,
+  disabling it in **Admin → Users** is enough.
 
 ## restore-backup
 
@@ -84,3 +91,10 @@ Pre-migration backups are produced automatically before each
 `migrate.Up()` and live under `EVEY_BACKUP_DIR` (default
 `/data/backups`). The newest dump of each of the 3 most recent schema
 versions is kept; the others are pruned.
+
+<!-- sources
+reset-password: cmd/evey/admin.go - adminResetPassword (no session revoked)
+refresh validation by stored hash: internal/app/user/auth.go - validateRefreshToken
+disable signs out: internal/app/user/user_service.go - DisableUser (DeleteByUserID + revokeTokens)
+pre-migration retention: internal/adapters/driven/postgres/migrate_backup.go - pruneOldBackups
+-->

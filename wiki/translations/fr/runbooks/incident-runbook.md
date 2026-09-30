@@ -1,5 +1,5 @@
 ---
-source_sha: 0fa25623b65f622140263aa361947cec121a05518d43d35c8abfabab6637c591
+source_sha: 86f34e154bd76e23fa0313aeb2bed55714515156f1084f6bffefe2812d4ad4d0
 reviewed: true
 ---
 # Réponse aux incidents
@@ -7,12 +7,18 @@ reviewed: true
 Les premiers gestes face aux pannes courantes d'Evey. Chaque section suit le même
 fil : **symptôme → diagnostic → correction**.
 
-Conteneurs : `evey-server`, `evey-postgres`, `evey-meilisearch`, `evey-caddy`
-(production), `evey-web` + `evey-mailcatcher` (surcouche de développement). Une
-installation par défaut n'a **que `evey-server`** : PostgreSQL et Meilisearch
-tournent à l'intérieur. Remplacez alors `docker exec evey-postgres psql -U ...`
-ci-dessous par `docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey ...'`,
-et leurs journaux sont les lignes `postgres:` / Meili de `docker logs evey-server`.
+Les commandes visent l'installation standard : un seul conteneur, `evey-server`,
+dans lequel tournent PostgreSQL et Meilisearch ; leurs journaux sont les lignes
+`postgres:` et Meilisearch de `docker logs evey-server`. La disposition du
+`docker-compose.yml` du dépôt ajoute des conteneurs `evey-postgres` et
+`evey-caddy` ([Déploiements avancés](../operations/advanced-deployments.md)).
+
+Pour lancer du SQL sur la base intégrée :
+
+```sh
+docker exec evey-server sh -c \
+  'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
+```
 
 Port HTTP par défaut : `9091` (`EVEY_HTTP_PORT`). Point de santé : `/healthz`.
 
@@ -73,7 +79,7 @@ auth rejected: the token epoch could not be read, so every authenticated
 request is failing - check the database, not the JWT key
 ```
 
-Si cette ligne est présente, arrêtez-vous là dans cette section et passez au §1
+Si cette ligne est présente, arrêtez-vous là dans cette section et passez au §4
 (base de données). `/healthz` peut rester au vert : il ne fait qu'un ping de la
 connexion, sans lancer la requête d'epoch. Le compteur Prometheus correspondant
 est `evey_auth_failures_total{reason="epoch_lookup_failed"}`.
@@ -106,7 +112,7 @@ les journaux du serveur.
 docker exec evey-server which ffmpeg ffprobe
 docker exec evey-server ffmpeg -version | head -1
 docker logs --since 10m evey-server | grep -iE 'ffmpeg|transcode|hls'
-docker exec evey-server ls -ld /cache/transcode /data/trickplay
+docker exec evey-server ls -ld /cache/transcode /cache/trickplay
 docker exec evey-server df -h /cache
 ```
 
@@ -124,11 +130,16 @@ docker exec evey-server df -h /cache
     docker exec evey-server rm /cache/transcode/.write-test
   ```
 - **Cache plein** → voir la section 6.
-- **Accélération matérielle mal configurée** : réglez
-  `EVEY_TRANSCODING_HW_ACCEL_ENABLED=false` pour forcer le logiciel, redémarrez,
-  et confirmez que la régression vient du matériel avant de la réactiver.
-- **Trop de transcodages simultanés** : `EVEY_TRANSCODING_MAX_CONCURRENT` (par
-  défaut `2`). Augmentez prudemment si la machine a des cœurs.
+- **L'accélération matérielle se comporte mal** : réglez **Accélération
+  matérielle** sur **Désactivée (processeur uniquement)** dans **Admin →
+  Configuration transcodage → Calibrage de l'encodage** (appliqué à chaud, avec
+  une nouvelle mesure) pour garder tous les transcodages sur le processeur, et
+  confirmez que le problème vient du matériel avant de revenir à **Auto**.
+- **« Le serveur est occupé par d'autres transcodages »** : la capacité en
+  direct est mesurée, pas réglée ; voir [Transcodage et capacité du serveur](../playback/transcoding.md#sharing-the-capacity).
+  `EVEY_TRANSCODING_MAX_CONCURRENT` (**Maximum simultané** dans **Admin → Cache
+  de transcodage**) ne couvre que les tâches de transcodage hors lecture en
+  direct.
 
 ### 3c. « Ça charge en boucle » ou « ça a coupé », et les journaux ne disent pas pourquoi
 
@@ -228,83 +239,45 @@ l'identifiant du média.
 
 ## 4. Connexion à la base refusée, ou erreurs
 
-**Symptôme** : les journaux du serveur contiennent
-`dial tcp ... connect: connection refused`, `pq: ...`, ou les requêtes expirent.
+**Symptôme** : les journaux du serveur contiennent `dial tcp ... connect: connection refused`, `pq: ...`, ou des requêtes qui expirent.
 
 **Diagnostic** :
 ```sh
-docker ps --filter name=evey-postgres
-docker inspect --format='{{.State.Health.Status}}' evey-postgres
-docker exec evey-postgres pg_isready -U "$EVEY_DB_USER"
-docker logs --tail=200 evey-postgres
-docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
+docker logs --tail=300 evey-server | grep -iE 'postgres|database'
+docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey -c "
   SELECT count(*), state
     FROM pg_stat_activity
    WHERE datname = current_database()
-   GROUP BY state;"
+   GROUP BY state;"'
+df -h ./evey-data
 ```
 
-**Causes fréquentes et correction** :
-
-- Conteneur PostgreSQL arrêté → `docker compose up -d postgres`, surveillez les
-  journaux (corruption, manque de mémoire).
-- Mauvais identifiants → l'environnement du serveur doit correspondre aux
-  `EVEY_DB_USER` / `EVEY_DB_PASSWORD` / `EVEY_DB_NAME` du service `postgres`. Par
-  défaut : `evey` / `evey` / `evey`.
-- Réserve de connexions épuisée (`too many connections` ou longues attentes) →
-  vérifiez `EVEY_DB_MAX_OPEN_CONNS` (par défaut `50`). Terminez les sessions
-  bloquées :
+**Causes courantes et correctifs** :
+- **Disque plein** sous `./evey-data` (la base vit dans `./evey-data/postgres`) → libérez de la place, puis `docker compose restart evey`.
+- **Pool de connexions épuisé** (`too many connections` ou longues attentes) → `EVEY_DB_MAX_OPEN_CONNS` (`25` par défaut). Coupez les sessions bloquées :
   ```sql
   SELECT pg_terminate_backend(pid)
     FROM pg_stat_activity
    WHERE state = 'idle in transaction'
      AND now() - state_change > interval '5 minutes';
   ```
-- Disque plein sur `postgres-data/` → `df -h`, libérer de l'espace, redémarrer.
+- **Conteneur PostgreSQL séparé** (disposition du dépôt) : `docker ps --filter name=evey-postgres`, `docker logs --tail=200 evey-postgres` ; les `EVEY_DB_USER` / `EVEY_DB_PASSWORD` / `EVEY_DB_NAME` du serveur doivent correspondre au service `postgres`.
 
 ## 5. Meilisearch en panne
 
-**Symptôme** : la recherche renvoie des résultats dégradés, les journaux montrent
-`meilisearch unavailable, using SQL search fallback`.
+**Symptôme** : la recherche renvoie des résultats dégradés, les journaux affichent `meilisearch unavailable, using SQL search fallback`.
 
-**Comportement** : Evey a un repli robuste : la recherche continue de fonctionner
-en SQL (`cmd/evey/wire.go` branche un adaptateur de recherche résilient, qui
-journalise `meilisearch unavailable, using SQL search fallback` quand Meili est
-injoignable). Rien à faire pour rester en ligne ; seule la qualité du classement
-baisse.
+**Comportement** : la recherche continue de fonctionner par SQL (`cmd/evey/wire.go` câble un adaptateur de recherche résilient qui journalise cette ligne quand Meilisearch est injoignable). Aucune action n'est nécessaire pour rester en ligne ; seule la qualité du classement baisse.
 
-**Mode de déploiement** : le `docker-compose.yml` par défaut fait tourner
-Meilisearch **intégré dans le conteneur `evey-server`**
-(`EVEY_EMBEDDED_MEILI: "true"`). Un conteneur `evey-meilisearch` séparé n'existe
-que dans la surcouche de développement (`docker-compose.override.yml`). En mode
-intégré, « Meilisearch en panne » signifie que le processus evey-server est en
-mauvaise santé : il n'y a pas de conteneur séparé à redémarrer.
+Meilisearch tourne dans `evey-server` (`EVEY_EMBEDDED_MEILI`, actif par défaut) et n'écoute que sur `127.0.0.1:7700`, à l'intérieur du conteneur.
 
-**Diagnostic et correction (intégré, par défaut)** :
+**Diagnostic et correctif** :
 ```sh
-docker ps --filter name=evey-server
-curl -sf http://localhost:7700/health          # port redirigé depuis evey-server
-docker logs --tail=200 evey-server | grep -i meili
+docker exec evey-server curl -sf http://127.0.0.1:7700/health
+docker logs --tail=300 evey-server | grep -i meili
 ```
-
-- Serveur en mauvaise santé → `docker compose restart evey-server`.
-- Index corrompu → arrêtez evey-server, sauvegardez `./evey-data/meili-data/`,
-  videz-le, redémarrez, puis lancez une réindexation complète depuis le panneau
-  d'administration.
-
-**Diagnostic et correction (surcouche de développement seulement)** :
-```sh
-docker ps --filter name=evey-meilisearch
-curl -sf http://localhost:7700/health
-docker logs --tail=200 evey-meilisearch
-```
-
-- Conteneur arrêté → `docker compose up -d meilisearch`.
-- `MEILI_MASTER_KEY` différente → les journaux du serveur montrent des échecs
-  d'authentification. Alignez la variable sur les deux services et redémarrez.
-- Index corrompu → arrêtez Meili, sauvegardez `./meili-data/`, videz-le,
-  redémarrez, puis lancez une réindexation complète depuis le panneau
-  d'administration.
+- En mauvaise santé → `docker compose restart evey`.
+- Index corrompu → arrêtez le conteneur, mettez `./evey-data/meili` de côté, redémarrez, puis reconstruisez l'index depuis la base : `docker exec evey-server evey admin reindex-search`.
 
 ## 6. Disque du cache de transcodage plein
 
@@ -314,7 +287,7 @@ contrôle de santé du conteneur clignote.
 **Diagnostic** :
 ```sh
 docker exec evey-server df -h /cache
-docker exec evey-server du -sh /cache/transcode /cache/trickplay /data/trickplay 2>/dev/null
+docker exec evey-server du -sh /cache/transcode /cache/trickplay 2>/dev/null
 docker volume inspect evey_evey-cache   # le nom donné par compose peut varier
 ```
 
@@ -332,10 +305,10 @@ docker volume inspect evey_evey-cache   # le nom donné par compose peut varier
 - Les miniatures de navigation coûtent plus cher à régénérer ; ne les purgez
   qu'en cas de besoin :
   ```sh
-  docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
+  docker exec evey-server sh -c 'rm -rf /cache/trickplay/*'
   ```
-- Baissez le budget du cache de transcodage (Admin → Configuration du serveur, 10 Go
-  par défaut) si le volume de la machine est juste ; quel que soit le budget, le
+- Baissez le **Budget du cache de transcodage** (**Admin → Configuration du
+  serveur → Paramètres du serveur**, 10 Go par défaut) si le volume de la machine est juste ; quel que soit le budget, le
   nettoyeur garde 2 Gio libres sur le volume du cache.
 
 ## 7. Un plugin a planté
@@ -430,11 +403,11 @@ inconnu dans sa liste de sessions.
 
 1. Identifiez le `session_id` :
    ```sh
-   docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
-     SELECT id, user_id, profile_id, device, ip_address, started_at
+   docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey -c "
+     SELECT id, profile_id, device_name, client_ip, started_at
      FROM play_sessions
      WHERE ended_at IS NULL
-     ORDER BY started_at DESC LIMIT 20;"
+     ORDER BY started_at DESC LIMIT 20;"'
    ```
 2. Coupez-la depuis l'interface d'administration : **Admin → En cours de
    lecture**, l'icône d'arrêt de la session (**Arrêter la session**), puis
@@ -446,31 +419,28 @@ inconnu dans sa liste de sessions.
    ```sh
    docker exec evey-server rm -rf /cache/transcode/<media_item_id>/
    ```
-4. Si le jeton de rafraîchissement doit aussi être révoqué (mot de passe
-   peut-être compromis) :
-   ```sh
-   docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
-     DELETE FROM refresh_tokens WHERE user_id = '<user_id>';"
-   ```
-   Tous les appareils de cet utilisateur devront se reconnecter. Pour un
-   verrouillage complet, réinitialisez le mot de passe avec
-   `evey admin reset-password --user <nom d'utilisateur>`.
+4. Si le compte lui-même est compromis, **Admin → Utilisateurs → Désactiver**
+   sur ce compte : cela supprime ses jetons de rafraîchissement et invalide
+   aussitôt ses jetons d'accès, si bien que chaque appareil est déconnecté.
+   Posez un nouveau mot de passe (`evey admin reset-password --user <e-mail>`,
+   qui à lui seul ne met fin à aucune session), puis **Activer** de nouveau le
+   compte.
 
 ## Débloquer un scan de bibliothèque figé
 
 Symptôme : un scan de bibliothèque est « en cours » depuis des heures, sans
 progression des fichiers dans les journaux.
 
-1. Vérifiez indirectement la table `scan_service.scanning` : si le processus est
-   bloqué, le processeur est au repos et les journaux récents ne montrent aucun
-   `scan_service` :
+1. Vérifiez si le scan journalise encore quelque chose : si le processus est
+   bloqué, le processeur est au repos et les journaux récents ne montrent aucune
+   ligne `scan:` :
    ```sh
-   docker compose logs --tail=500 evey-server | grep scan_service
+   docker logs --tail=500 evey-server | grep 'scan:'
    ```
 2. Le verrou d'un scan est **en mémoire** (aucune ligne en base) : un
    redémarrage du serveur l'efface :
    ```sh
-   docker compose restart evey-server
+   docker compose restart evey
    ```
 3. Si un fichier précis provoque des paniques répétées (voir les traces),
    mettez-le en quarantaine en le sortant du chemin de la bibliothèque, puis
@@ -494,10 +464,10 @@ docker compose logs --tail=100 -f
 # Configuration du serveur
 docker exec evey-server env | grep ^EVEY_ | sort
 
-# Taille et verrous de PostgreSQL
-docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
-  SELECT pg_size_pretty(pg_database_size(current_database()));"
+# Taille de la base
+docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey -c "
+  SELECT pg_size_pretty(pg_database_size(current_database()));"'
 
 # Disque de la machine hôte
-df -h . ./postgres-data ./meili-data ./evey-data
+df -h ./evey-data
 ```
