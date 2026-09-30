@@ -1,20 +1,18 @@
 ---
-source_sha: eea86697845889523ecbd07dd3d88da0143ac37f477404249051c73e160c80c8
+source_sha: 5dca3b7fe64acb5cf79df57c6da42ed90ae968596cba80b381b921667c8e36e9
+reviewed: false
 ---
 # Benachrichtigungen
 
-Evey kann Ihre Benutzer benachrichtigen, wenn neue Medien hinzukommen, eine
-Sicherung scheitert oder andere Ereignisse eintreten.
+Evey kann Benutzer benachrichtigen, wenn neue Medien hinzukommen, Sicherungen fehlschlagen und bei anderen Ereignissen.
 
 ## Kanäle
 
-### Benachrichtigungen in der Anwendung
-Immer aktiv. Die Benutzer sehen ein Glockensymbol mit der Anzahl der ungelesenen
-Benachrichtigungen. Einzurichten ist dafür nichts.
+### In der App
+Immer aktiv. Benutzer sehen ein Glockensymbol mit der Zahl der ungelesenen Benachrichtigungen. Keine Konfiguration nötig.
 
 ### E-Mail (SMTP)
-Verschickt eine E-Mail, sobald eine Benachrichtigung entsteht. Voraussetzung ist
-eine eingerichtete SMTP-Verbindung:
+Sendet eine E-Mail, wenn eine Benachrichtigung entsteht. Erfordert eine SMTP-Konfiguration:
 
 ```env title=".env"
 EVEY_SMTP_HOST=smtp.example.com
@@ -26,33 +24,28 @@ EVEY_SMTP_TLS=starttls
 ```
 
 TLS-Modi:
-- `starttls` - unverschlüsselt verbinden und danach auf TLS umstellen (Port 587, der übliche Fall)
-- `ssl` - direkt über TLS verbinden (Port 465)
-- `none` - ohne Verschlüsselung (nicht empfohlen)
+- `starttls` - unverschlüsselt verbinden, dann auf TLS umstellen (Port 587, am häufigsten)
+- `ssl` - direkt mit TLS verbinden (Port 465)
+- `none` - keine Verschlüsselung (nicht empfohlen)
 
-### Web Push
-Push-Benachrichtigungen des Browsers. Die VAPID-Schlüssel entstehen beim ersten
-Start von selbst. Die Benutzer schalten den Kanal in ihren Profileinstellungen
-selbst ein.
+### Web-Push
+Push-Benachrichtigungen im Browser. VAPID-Schlüssel werden beim ersten Start automatisch erzeugt. Benutzer melden sich in ihren Profileinstellungen an.
 
-## Passwort zurücksetzen
+## Passwort-Wiederherstellung
 
-E-Mails zum Zurücksetzen des Passworts setzen eine eingerichtete
-SMTP-Verbindung voraus. Zusätzlich muss ein Administrator die Funktion
-einschalten:
+E-Mails zum Zurücksetzen des Passworts erfordern eine SMTP-Konfiguration. Außerdem muss ein Administrator die Funktion einschalten:
 
-1. SMTP einrichten (siehe oben)
-2. Im Administrationsbereich in der Serverkonfiguration
-   `auth.password_recovery_enabled` auf `true` setzen
-3. Auf der Anmeldeseite erscheint daraufhin der Link „Passwort vergessen?“
+1. SMTP konfigurieren (siehe oben).
+2. **Passwort-Wiederherstellung** unter **Admin → Serverkonfiguration**
+   einschalten. Das gilt sofort.
+3. Die Anmeldeseite zeigt dann einen Link „Passwort vergessen?".
 
-Wird die SMTP-Verbindung später wieder entfernt, schaltet sich das Zurücksetzen
-des Passworts von selbst ab.
+Wird SMTP nach dem Einschalten entfernt, wird die Passwort-Wiederherstellung automatisch deaktiviert.
 
 ## Benachrichtigungsstufen
 
-Die Benutzer legen je Medientyp fest, wie viel sie hören wollen:
-- **Alle** - über alles benachrichtigen
-- **Relevant** - nur, wenn die Genres zum bisher Gesehenen passen
-- **Nur Wichtiges** - dieselbe Prüfung, strenger angelegt
-- **Deaktiviert** - für diesen Typ gar keine Benachrichtigungen
+Benutzer können ihre Benachrichtigungsvorliebe pro Medientyp festlegen:
+- **Alle** - bei allem benachrichtigen
+- **Relevant** - nur wenn die Genres zum Verlauf des Benutzers passen
+- **Nur wichtige** - strengerer Genre-Abgleich
+- **Deaktiviert** - keine Benachrichtigungen für diesen Typ
