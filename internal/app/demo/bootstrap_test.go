@@ -41,6 +41,10 @@ func (l *repoLibraries) CreateLibrary(ctx context.Context, lib *library.Library)
 	return l.repo.Create(ctx, lib)
 }
 
+func (l *repoLibraries) UpdateLibrary(ctx context.Context, lib *library.Library) error {
+	return l.repo.Update(ctx, lib)
+}
+
 func (l *repoLibraries) ScanLibrary(_ context.Context, id string) (int, int, error) {
 	l.scans = append(l.scans, id)
 	return 0, 0, nil
@@ -759,5 +763,58 @@ func TestResetIfIdle_WaitsForAnIdleServerButHonoursTheFloor(t *testing.T) {
 	u, _ := h.users.GetByUsername(ctx, demo.Username)
 	if ok, _ := ufakes.NewFakePasswordHasher().Verify(demo.Password, u.PasswordHash); !ok {
 		t.Error("the reset did not restore the published password")
+	}
+}
+
+// The public demo still carries "Demo - Films" & co: the next boot renames
+// those libraries (same id, nothing recreated), a second boot changes nothing,
+// and an operator's own library that only shares an old name is left alone.
+func TestEnsureLibraries_RenamesTheFormerDemoLibrariesInPlace(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	old, err := library.NewLibrary("lib-old-films", "Demo - Films", library.LibraryType("movie"),
+		library.WithLibraryPaths([]string{filepath.Join(h.dir, "movies")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stranger, err := library.NewLibrary("lib-mine", "Demo - Séries", library.LibraryType("tvshow"),
+		library.WithLibraryPaths([]string{"/media/my-series"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range []*library.Library{old, stranger} {
+		if createErr := h.libs.repo.Create(ctx, l); createErr != nil {
+			t.Fatal(createErr)
+		}
+	}
+
+	libs, created, err := h.boot.EnsureLibraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if libs["movies"] != "lib-old-films" {
+		t.Fatalf("movies -> %s, want the renamed lib-old-films", libs["movies"])
+	}
+	for _, c := range created {
+		if c == "movies" {
+			t.Fatal("a second movies library was created next to the old one")
+		}
+	}
+	got, _ := h.libs.repo.GetByID(ctx, "lib-old-films")
+	if got == nil || got.Name != "Movies" {
+		t.Fatalf("old films library now named %v, want Movies", got)
+	}
+	mine, _ := h.libs.repo.GetByID(ctx, "lib-mine")
+	if mine == nil || mine.Name != "Demo - Séries" {
+		t.Fatalf("the operator's own library was touched: %v", mine)
+	}
+
+	before, _ := h.libs.repo.List(ctx, library.ListLibrariesFilter{})
+	if _, again, err := h.boot.EnsureLibraries(ctx); err != nil || len(again) != 0 {
+		t.Fatalf("second run: created %v, err %v - want nothing", again, err)
+	}
+	after, _ := h.libs.repo.List(ctx, library.ListLibrariesFilter{})
+	if len(after) != len(before) {
+		t.Fatalf("second run changed the library count %d -> %d", len(before), len(after))
 	}
 }
