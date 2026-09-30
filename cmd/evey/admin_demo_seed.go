@@ -38,6 +38,10 @@ func (l repoLibraries) CreateLibrary(ctx context.Context, lib *library.Library) 
 	return l.repo.Create(ctx, lib)
 }
 
+func (l repoLibraries) UpdateLibrary(ctx context.Context, lib *library.Library) error {
+	return l.repo.Update(ctx, lib)
+}
+
 func (l repoLibraries) ScanLibrary(context.Context, string) (int, int, error) { return 0, 0, nil }
 
 func (l repoLibraries) DeleteLibrary(ctx context.Context, id string) error {

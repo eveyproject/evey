@@ -51,6 +51,7 @@ type Accounts interface {
 // Libraries is the slice of the library service the bootstrap needs.
 type Libraries interface {
 	CreateLibrary(ctx context.Context, lib *library.Library) error
+	UpdateLibrary(ctx context.Context, lib *library.Library) error
 	ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error)
 	DeleteLibrary(ctx context.Context, libraryID string) error
 }
@@ -251,6 +252,9 @@ func (b *Bootstrapper) Teardown(ctx context.Context) error {
 	names := map[string]bool{}
 	for _, spec := range demo.Libraries {
 		names[spec.Name] = true
+		for _, former := range spec.FormerNames {
+			names[former] = true
+		}
 	}
 	for _, l := range existing {
 		if !names[l.Name] {
@@ -415,6 +419,16 @@ func (b *Bootstrapper) EnsureLibraries(ctx context.Context) (map[string]shared.L
 			out[spec.Folder] = l.ID
 			continue
 		}
+		if l := formerLibrary(byName, spec, dir); l != nil {
+			old := l.Name
+			l.Name = spec.Name
+			if err := b.libSvc.UpdateLibrary(ctx, l); err != nil {
+				return nil, nil, fmt.Errorf("demo libraries: rename %s: %w", old, err)
+			}
+			b.log.Info("demo: library renamed", "from", old, "to", spec.Name)
+			out[spec.Folder] = l.ID
+			continue
+		}
 		lib, err := library.NewLibrary(shared.LibraryID(id.New("lib-")), spec.Name, library.LibraryType(spec.Type),
 			library.WithLibraryPaths([]string{dir}),
 			library.WithLibraryScanOnStartup(true),
@@ -430,6 +444,25 @@ func (b *Bootstrapper) EnsureLibraries(ctx context.Context) (map[string]shared.L
 		created = append(created, spec.Folder)
 	}
 	return out, created, nil
+}
+
+// formerLibrary finds the library a previous release created for spec: one of
+// its former names AND pointed at the demo folder, so an operator's own
+// library that happens to share the name is never taken over. Idempotent: once
+// renamed, the library is found by its current name.
+func formerLibrary(byName map[string]*library.Library, spec demo.Library, dir string) *library.Library {
+	for _, former := range spec.FormerNames {
+		l, ok := byName[former]
+		if !ok {
+			continue
+		}
+		for _, p := range l.Paths {
+			if filepath.Clean(p) == filepath.Clean(dir) {
+				return l
+			}
+		}
+	}
+	return nil
 }
 
 // DownloadMedia fetches every manifest file that is missing, folder by folder

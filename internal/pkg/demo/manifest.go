@@ -16,14 +16,18 @@ type Library struct {
 	Name   string
 	Type   string
 	Folder string
+	// FormerNames are names a running demo may still carry: the bootstrap
+	// renames such a library (when it points at Folder) instead of creating a
+	// second one, and the teardown still recognises it.
+	FormerNames []string
 }
 
 // Libraries are created at boot when missing, by name.
 var Libraries = []Library{
-	{Name: "Demo - Films", Type: "movie", Folder: "movies"},
-	{Name: "Demo - Séries", Type: "tvshow", Folder: "series"},
-	{Name: "Demo - Musique", Type: "music", Folder: "music"},
-	{Name: "Demo - Photos", Type: "photo", Folder: "photos"},
+	{Name: "Movies", Type: "movie", Folder: "movies", FormerNames: []string{"Demo - Films"}},
+	{Name: "Shows", Type: "tvshow", Folder: "series", FormerNames: []string{"Demo - Séries"}},
+	{Name: "Music", Type: "music", Folder: "music", FormerNames: []string{"Demo - Musique"}},
+	{Name: "Photos", Type: "photo", Folder: "photos", FormerNames: []string{"Demo - Photos"}},
 }
 
 // Manifest is the demo catalogue, every entry redistributable: the Blender
@@ -173,9 +177,9 @@ var RetiredPlugins = []string{"weather"}
 var Home = []HomeSection{
 	{Plugin: "weather-v2"},
 	{Type: "resume_playback"},
-	{Library: "Demo - Films"},
-	{Library: "Demo - Séries"},
-	{Library: "Demo - Musique"},
+	{Library: "Movies"},
+	{Library: "Shows"},
+	{Library: "Music"},
 	{Type: "most_popular"},
 }
 
