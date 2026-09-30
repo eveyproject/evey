@@ -51,7 +51,7 @@
     },
     "/api/v1/admin/media/audio-remux-library": {
       "post": {
-        "summary": "RemuxAudioLibrary kicks a background job repairing every file the scan\nflagged with an audio start delay above the defect floor. Progress via\nGetSeekIndexJob (kind \"remux_audio\").",
+        "summary": "RemuxAudioLibrary is RETIRED: it always fails with FAILED_PRECONDITION.\nSee RemuxAudioMedia - this is the bulk form that did the July damage.",
         "operationId": "AdminMediaService_RemuxAudioLibrary",
         "responses": {
           "200": {
@@ -146,6 +146,61 @@
         ]
       }
     },
+    "/api/v1/admin/media/repairs": {
+      "get": {
+        "summary": "ListMediaRepairs answers \"what did the repairs touch\" across the whole\nlibrary: every journal entry in a time window, newest first, optionally\none batch kind. The 98 files rewritten on 2026-07-13 were only ever found\nby a hand-written query on file modification times; this is that\nquestion, asked of the journal, from the health page.",
+        "operationId": "AdminMediaService_ListMediaRepairs",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMediaRepairsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sinceMs",
+            "description": "since_ms / until_ms bound the window (unix ms); 0 = open on that side.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "untilMs",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "job",
+            "description": "job keeps only one batch kind (\"reindex\", \"rollback\", \"purge\",\n\"fix_container\", \"scan\"); empty = every entry, operator actions included.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Optional cap, default 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
     "/api/v1/admin/media/seek-index": {
       "get": {
         "summary": "ScanSeekIndex returns the cached result of the last completed scan for the\nscope - instant, no disk I/O. scanned_at_ms is 0 when no scan has completed\nyet; kick one with StartSeekIndexScan and poll GetSeekIndexJob. Files\nwithout an index seek/resume slowly because the player has to scan\nlinearly; has_backup reports whether a prior reindex left a restorable\n.mkvgobak.",
@@ -213,7 +268,7 @@
     },
     "/api/v1/admin/media/seek-index/ack-group": {
       "post": {
-        "summary": "AckSeekIndexGroup acknowledges every pending file of one verdict\n(\"manual\" or \"informational\") in scope. Returns how many it marked.",
+        "summary": "AckSeekIndexGroup acknowledges every pending file of one verdict\n(\"informational\" - the only ackable one) in scope. Returns how many it\nmarked.",
         "operationId": "AdminMediaService_AckSeekIndexGroup",
         "responses": {
           "200": {
@@ -295,6 +350,39 @@
             }
           }
         },
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/seek-index/job/cancel": {
+      "post": {
+        "summary": "CancelSeekIndexJob stops the running seek-index job at its next file\nboundary (a repair in flight finishes or rolls back; no file is left\nhalf-written) and returns at once. cancelled=false when nothing was\nrunning. Observe the end via GetSeekIndexJob (last.cancelled).",
+        "operationId": "AdminMediaService_CancelSeekIndexJob",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CancelSeekIndexJobResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CancelSeekIndexJobRequest"
+            }
+          }
+        ],
         "tags": [
           "AdminMediaService"
         ]
@@ -464,7 +552,7 @@
     },
     "/api/v1/admin/media/{mediaId}/audio-remux": {
       "post": {
-        "summary": "RemuxAudioMedia repairs one file whose audio content starts late (repack\nmux defect diagnosed by the scan's audio_delay_sec): a stream-copy remux\nshifts the audio back onto the video, is re-probed to prove the delay is\ngone, then atomically swapped in with the original kept as .mkvgobak.\nAsync like the reindex; outcome via GetSeekIndexJob.",
+        "summary": "RemuxAudioMedia is RETIRED: it always fails with FAILED_PRECONDITION.\nIt used to pull every audio track that started after the picture back\nonto it by its own declared delay, with no upper bound - which is exactly\nhow a deliberate dub alignment looks - and rewrote 98 files that way on\n2026-07-13 with no surviving backup. An audio start offset is a fact\nabout a file, measured and shown by the scan (audio_delay_sec,\naudio_tracks_lag_sec), never something Evey rewrites. The RPC stays so a\ndeployed client gets a translated refusal instead of UNIMPLEMENTED.",
         "operationId": "AdminMediaService_RemuxAudioMedia",
         "responses": {
           "200": {
@@ -486,6 +574,45 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/{mediaId}/audio-shift": {
+      "post": {
+        "summary": "ApplyAudioShift moves one audio track by an amount a PERSON judged on a\npreview clip. Nothing this server measures can say whether the sound\nfollows the picture - comparing a file's own tracks says only whether they\nagree with each other - so this is the one path where a human's ear is the\nevidence, and the journal records it as exactly that.",
+        "operationId": "AdminMediaService_ApplyAudioShift",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ApplyAudioShiftResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminMediaServiceApplyAudioShiftBody"
+            }
           }
         ],
         "tags": [
@@ -517,6 +644,76 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/{mediaId}/reinterleave": {
+      "post": {
+        "summary": "ReinterleaveMedia re-muxes one file whose tracks are stored in blocks of\none track at a time (see SeekIndexItem.interleave_backstep_sec), in the\nbackground; the original is kept as a backup. Outcome via GetSeekIndexJob.",
+        "operationId": "AdminMediaService_ReinterleaveMedia",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ReinterleaveMediaResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/{mediaId}/repair-history": {
+      "get": {
+        "summary": "GetMediaRepairHistory returns what has been done to one file's bytes,\nnewest first: which operation, on what evidence, and whether it can still\nbe undone. Evey keeps no copy of a repaired file - the entry itself is the\nway back - so this is the only place that history exists.",
+        "operationId": "AdminMediaService_GetMediaRepairHistory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetMediaRepairHistoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Optional cap, default 20.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
           }
         ],
         "tags": [
@@ -594,6 +791,45 @@
         ]
       }
     },
+    "/api/v1/admin/media/{mediaId}/undo-repair": {
+      "post": {
+        "summary": "UndoMediaRepair replays the file's most recent reversible repair\nbackwards, from its journal entry. Refused when the last repair discarded\nbytes (nothing can bring those back) or was written by a newer version\nwhose payload this build cannot read safely.",
+        "operationId": "AdminMediaService_UndoMediaRepair",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UndoMediaRepairResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminMediaServiceUndoMediaRepairBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
     "/api/v1/admin/trickplay/generate-all": {
       "post": {
         "operationId": "AdminMediaService_GenerateAllTrickplays",
@@ -618,6 +854,21 @@
     }
   },
   "definitions": {
+    "AdminMediaServiceApplyAudioShiftBody": {
+      "type": "object",
+      "properties": {
+        "track": {
+          "type": "string",
+          "format": "uint64",
+          "description": "track is the Matroska track number to move, as listed by the preview."
+        },
+        "shiftSec": {
+          "type": "number",
+          "format": "double",
+          "description": "shift_sec is signed: positive delays the track against the picture."
+        }
+      }
+    },
     "AdminMediaServiceReindexMediaSeekIndexBody": {
       "type": "object",
       "properties": {
@@ -638,6 +889,9 @@
           "description": "resync repairs a file the strict reindex REFUSED for a corrupted region\n(junk between clusters, a lying size): the tolerant rewrite skips the\ndamaged span and resynchronises, recovering everything before and after.\nIt ALWAYS rewrites and forces a backup - this is the one repair that loses\ndata (the skipped span, logged). For the per-file \"repair anyway\" action\non a file that failed a normal repair. Overrides mode/skip_backup."
         }
       }
+    },
+    "AdminMediaServiceUndoMediaRepairBody": {
+      "type": "object"
     },
     "protobufAny": {
       "type": "object",
@@ -676,7 +930,7 @@
         },
         "verdict": {
           "type": "string",
-          "description": "\"manual\" or \"informational\" - the only verdicts one can acknowledge."
+          "description": "\"informational\" - the only verdict one can acknowledge. A repairable\ndefect is repaired, not waved through."
         }
       }
     },
@@ -703,6 +957,21 @@
     },
     "v1AckSeekIndexMediaResponse": {
       "type": "object"
+    },
+    "v1ApplyAudioShiftResponse": {
+      "type": "object"
+    },
+    "v1CancelSeekIndexJobRequest": {
+      "type": "object"
+    },
+    "v1CancelSeekIndexJobResponse": {
+      "type": "object",
+      "properties": {
+        "cancelled": {
+          "type": "boolean",
+          "title": "a job was running and has been asked to stop"
+        }
+      }
     },
     "v1DeleteMediaItemResponse": {
       "type": "object"
@@ -732,6 +1001,18 @@
         "generated": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "v1GetMediaRepairHistoryResponse": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MediaRepairEntry"
+          }
         }
       }
     },
@@ -782,6 +1063,18 @@
         }
       }
     },
+    "v1ListMediaRepairsResponse": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MediaRepairEntry"
+          }
+        }
+      }
+    },
     "v1MatchOrphansInLibraryRequest": {
       "type": "object",
       "properties": {
@@ -800,6 +1093,78 @@
           "description": "Number of orphaned items queued for enrichment. The job runs async;\nthe actual matched count is observable by re-listing items with\nempty providerIds."
         }
       }
+    },
+    "v1MediaRepairEntry": {
+      "type": "object",
+      "properties": {
+        "atMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "op": {
+          "type": "string",
+          "description": "op: \"reindex\", \"resync_damaged\", \"container_fix\", \"audio_retime\",\n\"rollback\"."
+        },
+        "outcome": {
+          "type": "string",
+          "description": "outcome: \"applied\", \"skipped\", \"rolled_back\", \"failed\"."
+        },
+        "error": {
+          "type": "string"
+        },
+        "job": {
+          "type": "string",
+          "description": "job names the batch this belonged to, so a whole run reads as one thing."
+        },
+        "evidenceMethod": {
+          "type": "string",
+          "description": "evidence_method says what justified acting: \"track-coherence\" is a\nmeasurement, \"declared-defect\" is the file's own claim taken at face\nvalue - the weak case that caused the 2026-07-13 incident."
+        },
+        "evidenceLagSec": {
+          "type": "number",
+          "format": "double"
+        },
+        "evidenceConfidence": {
+          "type": "number",
+          "format": "double"
+        },
+        "shiftSec": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          },
+          "description": "shift_sec is what was applied per audio track, signed. Its opposite is the\nundo, which is why no copy of the original is kept."
+        },
+        "audibleBefore": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "audibleAfter": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sizeBefore": {
+          "type": "string",
+          "format": "int64"
+        },
+        "sizeAfter": {
+          "type": "string",
+          "format": "int64"
+        },
+        "reversible": {
+          "type": "boolean",
+          "description": "reversible: this entry alone carries enough to put the file back."
+        },
+        "mediaId": {
+          "type": "string",
+          "description": "media_id and path name the file, for the cross-library listing where an\nentry is not read under one media's row. path is the file as it was\nrecorded, which survives a media being deleted and re-added."
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "description": "MediaRepairEntry is one rewrite of one file, as recorded when it happened."
     },
     "v1PurgeSeekIndexBackupsRequest": {
       "type": "object",
@@ -895,6 +1260,14 @@
         "dstBytes": {
           "type": "string",
           "format": "int64"
+        }
+      }
+    },
+    "v1ReinterleaveMediaResponse": {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean"
         }
       }
     },
@@ -1050,11 +1423,12 @@
         "repairable": {
           "type": "integer",
           "format": "int32",
-          "description": "The triage the page is built on. repairable is exactly what Repair all\nacts on; manual and informational count only the files still awaiting\nthe operator's eyes (acknowledged ones are in acked)."
+          "description": "The triage the page is built on. repairable is exactly what Repair all\nacts on; informational counts only the remarks still awaiting the\noperator's eyes (acknowledged ones are in acked)."
         },
         "manual": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "description": "manual is always 0 since the \"your call\" verdict was removed. Kept only\nso an older client keeps parsing; do not read it."
         },
         "informational": {
           "type": "integer",
@@ -1067,6 +1441,25 @@
         "containerFixAvailable": {
           "type": "boolean",
           "description": "container_fix_available: the server can rename a mislabelled .mkv to .mp4\nand repoint the catalog (part of Repair all when true)."
+        },
+        "brokenInterleave": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count stored as blocks of one track at a time (see interleave_backstep_sec)."
+        },
+        "reinterleaveAvailable": {
+          "type": "boolean",
+          "description": "reinterleave_available: the server can re-mux a file stored in blocks\n(part of Repair all when true)."
+        },
+        "audioPictureOff": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count whose sound is measured off the picture (see audio_picture_lag_sec)."
+        },
+        "unreadable": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count the scan could not diagnose at all (see unreadable)."
         }
       }
     },
@@ -1132,11 +1525,11 @@
         },
         "seekCoarse": {
           "type": "boolean",
-          "description": "seek_coarse = the index was rebuilt and is STILL too coarse to seek into:\nthe encode's own keyframes sit further apart than a seek can tolerate, and\nno index can be denser than the keyframes it names. Reported apart from\nmissing_index precisely so it stays OUT of the repair queue - offering a\nrepair that cannot change anything is what pinned 134 prod files. The\nremedy is a re-encode or a better source."
+          "description": "seek_coarse = the index was rebuilt and is STILL too coarse to seek into:\nthe encode's own keyframes sit further apart than a seek can tolerate, and\nno index can be denser than the keyframes it names. Reported apart from\nmissing_index precisely so it stays OUT of the repair queue - offering a\nrepair that cannot change anything is what pinned 134 prod files. The\nremedy is a re-encode or a better source, and it is offered as a remark\n(informational verdict), never as an instruction."
         },
         "verdict": {
           "type": "string",
-          "description": "verdict is the ONE answer per file: \"healthy\", \"repairable\" (Evey repairs\nit - Repair all acts on exactly these), \"manual\" (only the operator can:\nre-acquire, re-encode) or \"informational\" (a fact that changes nothing\nfor playback). Manual/informational files can be acknowledged."
+          "description": "verdict is the ONE answer per file, and there are only two non-healthy\nones: \"repairable\" (Evey repairs it here - Repair all acts on exactly\nthese) and \"informational\" (something we measured and mention, possibly\nwrong, never a chore). Informational files can be acknowledged.\nThe former \"manual\" verdict is GONE: a detector that cannot repair\nsomething has not earned the right to hand the operator an instruction."
         },
         "ackedAtMs": {
           "type": "string",
@@ -1146,6 +1539,47 @@
         "seekCoarseDetail": {
           "type": "string",
           "description": "seek_coarse_detail is the diagnoser's own account of the remaining hole\n(\"the video cues leave a 44s hole - ...\") - often the final credits alone."
+        },
+        "audioTracksLagSec": {
+          "type": "number",
+          "format": "double",
+          "description": "audio_tracks_lag_sec is how far this file's OWN audio tracks disagree once\ntheir declared offsets are applied, in seconds, and it is what decides\nwhether audio_delay_sec matters. Two tracks of one film share their music\nand effects bed: they line up when the offsets are RIGHT (a dub aligned to\nits cut - nothing to do) and disagree when a track sits in the wrong place.\n0 with audio_tracks_checked true means PROVEN coherent."
+        },
+        "audioTracksChecked": {
+          "type": "boolean",
+          "description": "audio_tracks_checked says the comparison actually ran, so a 0 lag reads as\n\"proven coherent\" rather than \"never looked\". It runs on every file with\ntwo or more audio tracks; false when the file has one audio track, or the\ntwo mixes shared no legible signal."
+        },
+        "audioTrackZeroed": {
+          "type": "boolean",
+          "description": "audio_track_zeroed is the fingerprint of a track that was retimed onto the\npicture: one audio track starts at exactly 0 while a sibling keeps its\nsmall priming offset. A muxer treats sibling tracks alike; only a repair\nthat pulled ONE track back by its own declared delay leaves this shape\n(the 2026-07-13 batch). It names the touched file; the amount removed is\ngone from the file and nothing here can restore it. Informational."
+        },
+        "resyncRequired": {
+          "type": "boolean",
+          "description": "resync_required = a repair ALREADY ran on this file and the strict rewrite\nrefused it: the source is structurally corrupt somewhere the scan never\nlooked. The scan is head-mostly on purpose (7 000 files must not each cost\na full salvage walk on a NAS), so this class of damage is only ever\ndiscovered BY a repair - and before this field the answer was thrown away\nwith the error, leaving the operator a raw Go string and no button.\nIt means \"only a resync can repair this\", exactly like damaged_bytes \u003e 0,\nwith one difference that must not be blurred: the amount a resync would\ndrop is UNKNOWN here, so it is never folded into the damaged byte total."
+        },
+        "interleaveBackstepSec": {
+          "type": "number",
+          "format": "double",
+          "description": "interleave_backstep_sec \u003e 0 = the tracks sit in separate blocks of minutes\n(video alone, then audio alone): the largest step BACKWARDS of the cluster\ntimestamp between two sampled positions. No sequential player gets past\nthe first block; only a re-mux by timestamp fixes it. Informational."
+        },
+        "audioPictureLagSec": {
+          "type": "number",
+          "format": "double",
+          "description": "audio_picture_lag_sec is the measured offset of the worst audio track\nagainst the PICTURE, read off the file's own subtitles (positive = the\nsound must move later); audio_picture_track is that track's ordinal and\naudio_picture_checked says the measure ran and concluded. Informational:\nthe operator applies the value with the preview."
+        },
+        "audioPictureTrack": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "audioPictureChecked": {
+          "type": "boolean"
+        },
+        "unreadable": {
+          "type": "boolean",
+          "description": "unreadable = the scan could not diagnose this file at all: missing or\nunreadable on disk, or a container the parser refused. Every other flag\nis unset and has_index is true so it never enters a repair queue;\nunreadable_detail is the error in the prober's words. Informational: the\noperator re-acquires the file or fixes the mount. Such a file used to be\ndropped from the scan with a log line - the sickest files of a library\nwere the ones the health page never showed."
+        },
+        "unreadableDetail": {
+          "type": "string"
         }
       },
       "description": "SeekIndexItem is the per-file diagnosis surfaced by ScanSeekIndex."
@@ -1213,6 +1647,10 @@
             "$ref": "#/definitions/v1SeekIndexJobFailure"
           },
           "title": "capped at 50"
+        },
+        "cancelled": {
+          "type": "boolean",
+          "description": "cancelled: the job stopped at a file boundary on request (the cancel RPC\nor the server going down); done \u003c total is not a failure here."
         }
       },
       "description": "SeekIndexJobSummary describes the last finished job (since server boot)."
@@ -1252,11 +1690,28 @@
         "libraryId": {
           "type": "string",
           "description": "Optional: when set, only this library is scanned. Empty = every library."
+        },
+        "pace": {
+          "type": "string",
+          "description": "How much of the media disks the scan may take:\n  \"gentle\" (default, and what anything unknown means) - one file at a\n    time, then a stand-aside as long as the file just took to read. The\n    disks stay free about half the time, so playback survives the scan.\n  \"fast\" - several files at once, no pause. For a library spread over\n    several disks, where one file at a time leaves the other spindles\n    idle; expect the disks to be busy for the whole run."
         }
       }
     },
     "v1StartSeekIndexScanResponse": {
       "type": "object"
+    },
+    "v1UndoMediaRepairResponse": {
+      "type": "object",
+      "properties": {
+        "shiftSec": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          },
+          "description": "shift_sec is what was applied to undo, per track."
+        }
+      }
     }
   }
 }

@@ -1,0 +1,193 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/backup_schedule.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "BackupScheduleService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/admin/backup-schedule": {
+      "get": {
+        "operationId": "BackupScheduleService_GetBackupSchedule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1BackupSchedule"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "BackupScheduleService"
+        ]
+      },
+      "patch": {
+        "operationId": "BackupScheduleService_UpdateBackupSchedule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1BackupSchedule"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1UpdateBackupScheduleRequest"
+            }
+          }
+        ],
+        "tags": [
+          "BackupScheduleService"
+        ]
+      }
+    },
+    "/api/v1/admin/backup-schedule/run": {
+      "post": {
+        "operationId": "BackupScheduleService_RunBackupNow",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RunBackupNowResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RunBackupNowRequest"
+            }
+          }
+        ],
+        "tags": [
+          "BackupScheduleService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1BackupSchedule": {
+      "type": "object",
+      "properties": {
+        "cronExpression": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "retentionDays": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "lastRunAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "nextRunAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastStatus": {
+          "type": "string"
+        },
+        "lastError": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1RunBackupNowRequest": {
+      "type": "object"
+    },
+    "v1RunBackupNowResponse": {
+      "type": "object",
+      "properties": {
+        "backupId": {
+          "type": "string"
+        }
+      }
+    },
+    "v1UpdateBackupScheduleRequest": {
+      "type": "object",
+      "properties": {
+        "cronExpression": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "retentionDays": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    }
+  }
+}

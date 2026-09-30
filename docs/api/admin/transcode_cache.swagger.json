@@ -157,6 +157,11 @@
             "type": "object",
             "$ref": "#/definitions/v1CacheFileEntry"
           }
+        },
+        "activeEncodingSessions": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Viewers whose stream is being ENCODED right now - the ones a wipe cuts off,\nbecause their ffmpeg is writing into the very directory it removes. Surfaced\nso the confirmation can say so: the server logged the warning, but nobody\nreads a server log while clicking a button. Direct-play viewers are not\ncounted; a wipe never touches them."
         }
       }
     }

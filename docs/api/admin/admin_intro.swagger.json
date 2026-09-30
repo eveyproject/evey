@@ -1,0 +1,155 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/admin_intro.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "AdminIntroService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/admin/intro-cache/backfill": {
+      "post": {
+        "operationId": "AdminIntroService_BackfillIntroDetection",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1BackfillIntroDetectionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1BackfillIntroDetectionRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminIntroService"
+        ]
+      }
+    },
+    "/api/v1/admin/intro-cache/{tmdbId}/{season}/{episode}": {
+      "delete": {
+        "operationId": "AdminIntroService_InvalidateIntroCache",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1InvalidateIntroCacheResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tmdbId",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "season",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "episode",
+            "in": "path",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "AdminIntroService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1BackfillIntroDetectionRequest": {
+      "type": "object",
+      "properties": {
+        "libraryId": {
+          "type": "string",
+          "description": "library_id scopes the backfill to one library. Empty = all libraries."
+        }
+      }
+    },
+    "v1BackfillIntroDetectionResponse": {
+      "type": "object",
+      "properties": {
+        "seasonsScheduled": {
+          "type": "integer",
+          "format": "int32",
+          "description": "seasons_scheduled is the number of seasons passed to the detection\npipeline. The job runs in the background; this is not a completion count."
+        }
+      }
+    },
+    "v1InvalidateIntroCacheResponse": {
+      "type": "object",
+      "properties": {
+        "rowsDeleted": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    }
+  }
+}

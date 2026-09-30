@@ -12,7 +12,6 @@ User-facing endpoints available to all authenticated users.
 | [collection.swagger.json](collection.swagger.json) | Smart and manual collections |
 | [favorite.swagger.json](favorite.swagger.json) | Favorite items |
 | [feed.swagger.json](feed.swagger.json) | Home feed sections (continue watching, recently added, etc.) |
-| [filter.swagger.json](filter.swagger.json) | Saved filters |
 | [playlist.swagger.json](playlist.swagger.json) | Playlists (create, reorder, share) |
 | [rating.swagger.json](rating.swagger.json) | User ratings |
 | [share.swagger.json](share.swagger.json) | Public share links |
@@ -21,6 +20,7 @@ User-facing endpoints available to all authenticated users.
 | [push.swagger.json](push.swagger.json) | Web push subscriptions |
 | [music.swagger.json](music.swagger.json) | Music library (artists, albums, tracks) |
 | [photo.swagger.json](photo.swagger.json) | Photo library (albums, photos) |
+| [media_request.swagger.json](media_request.swagger.json) | Media requests: search, submit, policy; the administrator's answers and request access |
 
 ## Authentication
 

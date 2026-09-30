@@ -1,5 +1,5 @@
 ---
-source_sha: e314c511a93178cdc35b47b8bcd886cb60fd2ea303b7fc7d6f6c3c9ca1f9b6d0
+source_sha: 36c96049e9495129225a1a4d0a1273989914586cc0b0fb010ee4d6e99afb4219
 reviewed: true
 ---
 # API d'administration
@@ -15,9 +15,11 @@ Les points d'accès réservés aux utilisateurs ayant les droits d'administrateu
 | [server_config.swagger.json](server_config.swagger.json) | Réglages du serveur, en clé/valeur |
 | [remote_access.swagger.json](remote_access.swagger.json) | Accès distant et réglages réseau |
 | [backup.swagger.json](backup.swagger.json) | Sauvegarde et restauration de la base de données |
+| [backup_schedule.swagger.json](backup_schedule.swagger.json) | Sauvegardes planifiées : expression cron, rétention, lancement immédiat |
 | [activity.swagger.json](activity.swagger.json) | Historique de lecture, historique des connexions, métriques du serveur |
 | [admin_session.swagger.json](admin_session.swagger.json) | Journal d'audit |
 | [admin_task.swagger.json](admin_task.swagger.json) | Tâches de fond planifiées |
+| [presence.swagger.json](presence.swagger.json) | Qui est connecté en ce moment (le signal des applications et la liste de l'administrateur) |
 
 ### Médias et transcodage
 | Spécification | Contenu |
@@ -27,6 +29,7 @@ Les points d'accès réservés aux utilisateurs ayant les droits d'administrateu
 | [transcoding.swagger.json](transcoding.swagger.json) | Profils de transcodage, détection du matériel, tâches en cours |
 | [transcode_cache.swagger.json](transcode_cache.swagger.json) | Gestion du cache de transcodage |
 | [mkv.swagger.json](mkv.swagger.json) | Outils pour le conteneur MKV (pistes, chapitres, multiplexage et démultiplexage) |
+| [admin_intro.swagger.json](admin_intro.swagger.json) | Cache des temps d'intro : invalider un épisode, remplissage |
 
 ### Utilisateurs et règles
 | Spécification | Contenu |

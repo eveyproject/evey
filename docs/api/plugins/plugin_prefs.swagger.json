@@ -1,0 +1,214 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/plugin_prefs.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "PluginUserDataService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/plugin-prefs": {
+      "get": {
+        "operationId": "PluginUserDataService_ListPrefs",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListPrefsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "PluginUserDataService"
+        ]
+      }
+    },
+    "/api/v1/plugin-prefs/{key}": {
+      "get": {
+        "operationId": "PluginUserDataService_GetPref",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetPrefResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PluginUserDataService"
+        ]
+      },
+      "delete": {
+        "operationId": "PluginUserDataService_DeletePref",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeletePrefResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PluginUserDataService"
+        ]
+      },
+      "put": {
+        "operationId": "PluginUserDataService_SetPref",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetPrefResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PluginUserDataServiceSetPrefBody"
+            }
+          }
+        ],
+        "tags": [
+          "PluginUserDataService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "PluginUserDataServiceSetPrefBody": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1DeletePrefResponse": {
+      "type": "object"
+    },
+    "v1GetPrefResponse": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "found": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1ListPrefsResponse": {
+      "type": "object",
+      "properties": {
+        "prefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PluginPref"
+          }
+        }
+      }
+    },
+    "v1PluginPref": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "v1SetPrefResponse": {
+      "type": "object"
+    }
+  }
+}

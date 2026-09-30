@@ -1,0 +1,610 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/media_request.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "MediaRequestService"
+    },
+    {
+      "name": "AdminMediaRequestService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/admin/media-requests": {
+      "get": {
+        "summary": "ListRequests returns all requests, optionally filtered by status.",
+        "operationId": "AdminMediaRequestService_ListRequests",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AdminListRequestsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "statuses",
+            "description": "empty = all",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "AdminMediaRequestService"
+        ]
+      }
+    },
+    "/api/v1/admin/media-requests/access": {
+      "get": {
+        "summary": "GetAccessSettings returns the global default plus every per-user override.",
+        "operationId": "AdminMediaRequestService_GetAccessSettings",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetAccessSettingsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminMediaRequestService"
+        ]
+      }
+    },
+    "/api/v1/admin/media-requests/access/default": {
+      "put": {
+        "summary": "SetAccessDefault sets the global default (enabled/disabled).",
+        "operationId": "AdminMediaRequestService_SetAccessDefault",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetAccessDefaultResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1SetAccessDefaultRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaRequestService"
+        ]
+      }
+    },
+    "/api/v1/admin/media-requests/access/user/{userId}": {
+      "put": {
+        "summary": "SetUserAccess sets or clears a per-user override.",
+        "operationId": "AdminMediaRequestService_SetUserAccess",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetUserAccessResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminMediaRequestServiceSetUserAccessBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaRequestService"
+        ]
+      }
+    },
+    "/api/v1/admin/media-requests/{id}/answer": {
+      "post": {
+        "summary": "AnswerRequest records the operator's decision (approved/rejected/later)\nand note, and notifies the requester.",
+        "operationId": "AdminMediaRequestService_AnswerRequest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1MediaRequestProto"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminMediaRequestServiceAnswerRequestBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaRequestService"
+        ]
+      }
+    },
+    "/api/v1/media-requests": {
+      "get": {
+        "summary": "ListMyRequests returns the caller's own requests, newest first.",
+        "operationId": "MediaRequestService_ListMyRequests",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMyRequestsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "MediaRequestService"
+        ]
+      },
+      "post": {
+        "summary": "CreateRequest submits a new request for the caller's profile. Fails with\nPermissionDenied when requests are disabled for the caller.",
+        "operationId": "MediaRequestService_CreateRequest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1MediaRequestProto"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateRequestRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MediaRequestService"
+        ]
+      }
+    },
+    "/api/v1/media-requests/policy": {
+      "get": {
+        "summary": "GetRequestPolicy tells the client whether the caller may submit requests\n(drives whether the UI entry point is shown).",
+        "operationId": "MediaRequestService_GetRequestPolicy",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetRequestPolicyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "MediaRequestService"
+        ]
+      }
+    },
+    "/api/v1/media-requests/search": {
+      "get": {
+        "summary": "SearchTitles resolves candidate titles for a media type from the metadata\nproviders (movie/tv -\u003e TMDB/OMDb/IMDb, music -\u003e MusicBrainz).",
+        "operationId": "MediaRequestService_SearchTitles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SearchTitlesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaType",
+            "description": "movie | tv | music",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "year",
+            "description": "optional filter, 0 = unset",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "MediaRequestService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "AdminMediaRequestServiceAnswerRequestBody": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "title": "approved | rejected | later"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "AdminMediaRequestServiceSetUserAccessBody": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "$ref": "#/definitions/v1AccessMode"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1AccessMode": {
+      "type": "string",
+      "enum": [
+        "ACCESS_MODE_UNSPECIFIED",
+        "ACCESS_MODE_DEFAULT",
+        "ACCESS_MODE_ENABLED",
+        "ACCESS_MODE_DISABLED"
+      ],
+      "default": "ACCESS_MODE_UNSPECIFIED",
+      "description": "AccessMode is the tri-state a per-user override can be set to.\n\n - ACCESS_MODE_DEFAULT: clear the override, fall back to the global default"
+    },
+    "v1AdminListRequestsResponse": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MediaRequestProto"
+          }
+        }
+      }
+    },
+    "v1CreateRequestRequest": {
+      "type": "object",
+      "properties": {
+        "mediaType": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "posterUrl": {
+          "type": "string"
+        }
+      }
+    },
+    "v1GetAccessSettingsResponse": {
+      "type": "object",
+      "properties": {
+        "defaultEnabled": {
+          "type": "boolean"
+        },
+        "overrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1UserAccessOverride"
+          }
+        }
+      }
+    },
+    "v1GetRequestPolicyResponse": {
+      "type": "object",
+      "properties": {
+        "canRequest": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1ListMyRequestsResponse": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MediaRequestProto"
+          }
+        }
+      }
+    },
+    "v1MediaRequestProto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "profileId": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "mediaType": {
+          "type": "string",
+          "title": "movie | tv | music"
+        },
+        "provider": {
+          "type": "string",
+          "title": "tmdb | imdb | musicbrainz | ''"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "posterUrl": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "title": "pending | approved | rejected | later"
+        },
+        "adminNote": {
+          "type": "string"
+        },
+        "answeredBy": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "answeredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "requesterName": {
+          "type": "string",
+          "description": "requester_name is populated on the admin moderation view for display."
+        }
+      }
+    },
+    "v1SearchTitlesResponse": {
+      "type": "object",
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1TitleCandidate"
+          }
+        }
+      }
+    },
+    "v1SetAccessDefaultRequest": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1SetAccessDefaultResponse": {
+      "type": "object"
+    },
+    "v1SetUserAccessResponse": {
+      "type": "object"
+    },
+    "v1TitleCandidate": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "posterUrl": {
+          "type": "string"
+        },
+        "overview": {
+          "type": "string"
+        },
+        "inLibrary": {
+          "type": "boolean",
+          "description": "in_library reports that this exact title is ALREADY on the server, matched\nby provider id (never by title, which would produce false positives on\nremakes and same-name releases). Requesting it is refused server-side, and\nmedia_item_id lets the client offer \"go watch it\" instead.\n\nOnly movies and series are resolved: music lives in music_tracks, which\nstores no MusicBrainz id, so a music candidate always reports false rather\nthan guess from the album title."
+        },
+        "mediaItemId": {
+          "type": "string"
+        }
+      }
+    },
+    "v1UserAccessOverride": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
