@@ -9,11 +9,10 @@ import { repairOpLabel, repairEvidenceLine, repairShiftSummary } from "@evey/cli
 
 // What was done to this file's bytes, and the way back.
 //
-// Evey keeps no copy of a repaired file - duplicating multi-gigabyte media for
-// every repair costs a library its disk, and the copies that were kept during
-// the 2026-07-13 batch got purged by the rolling window anyway. The bargain is
-// this journal instead: each entry records the transformation precisely enough
-// to be replayed backwards, so "undo" reads the entry rather than a backup.
+// A .mkvgobak copy exists only while "Keep backups" holds it, and the rolling
+// window purged the copies of the 2026-07-13 batch anyway. So each entry
+// records the transformation precisely enough to be replayed backwards:
+// "undo" reads the entry, not a backup.
 //
 // The panel shows the evidence alongside the action on purpose. An entry that
 // says "declared-defect" acted on what the file claimed about itself; one that

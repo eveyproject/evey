@@ -1,5 +1,5 @@
 ---
-source_sha: 756d0f87aa76ec07a91f519cec7ad7cf722e4193e2e7fad2860ff965a893d4db
+source_sha: 24e34e0b33eb8acd096fe2be879ca8bda28a01e6cbf963847e6dd4b661827adb
 reviewed: true
 ---
 # Comptes et connexion
@@ -12,6 +12,7 @@ Durée des sessions, clé de signature et authentification unique.
 | --- | --- | --- |
 | `EVEY_JWT_PRIVATE_KEY_PATH` | `/data/jwt.key` | La clé qui signe toutes les sessions, générée au premier démarrage. La perdre déconnecte tout le monde. |
 | `EVEY_JWT_ACCESS_TTL` | `15m` | Durée de vie d'un jeton d'accès. Les applications le renouvellent sans rien demander. |
+| `EVEY_JWT_REFRESH_TTL` | `168h` (7 jours) | Durée de vie d'une session de connexion : sans utiliser une application pendant ce temps, il faut se reconnecter. |
 | `EVEY_JWT_REFRESH_LONG_TTL` | `4320h` (180 jours) | Durée de vie d'une session qu'une application demande à conserver, comme une TV connectée par Connexion rapide. |
 
 ## Authentification unique (OIDC)

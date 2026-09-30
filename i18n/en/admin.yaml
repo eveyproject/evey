@@ -961,8 +961,8 @@ transcodeCache:
   settingsSaveFailed: "Failed to save settings"
   throttle: "Throttle transcodes when client buffer is full"
   transcodingSettings: "Transcoding Settings"
-  hwAccelNote: "Hardware acceleration is configured in Server Config → Encode calibration."
-  hwAccelNoteLink: "Go to Server Config"
+  hwAccelNote: "Hardware acceleration is configured in Transcoding → Encode calibration."
+  hwAccelNoteLink: "Go to Transcoding"
   hwDevices: Hardware Acceleration
 
 dashboardStats:
@@ -1241,6 +1241,8 @@ serverSettings:
   skipPreview: Skip preview segments
   skipPreviewInfo: "Hides the short next-episode preview some shows splice in at the end. When enabled, the server omits these segments from playback even if the client would otherwise show them."
   introAutoSkip: "Auto-skip intros"
+  passwordRecovery: "Password recovery"
+  passwordRecoveryHint: "Shows a \"Forgot your password?\" link on the sign-in page, which e-mails a reset link. Needs e-mail (SMTP) to be configured. Applies immediately."
   auditRetentionDays: "Audit log retention (days, 0 = keep forever)"
   metricsRetentionDays: "Server metrics retention (days)"
   qoeRetentionDays: "Playback quality (QoE) retention (days)"
@@ -1549,7 +1551,7 @@ repairJournal:
 repairHistory:
   btn: "History"
   title: "What was done to {{title}}"
-  intro: "Evey keeps no copy of a repaired file. This journal is the record of every change to its bytes - and, for the ones whose inverse is exact, the way back."
+  intro: "Every change a repair made to this file's bytes. The ones whose inverse is exact can be undone from here, with or without a backup copy."
   empty: "Nothing has ever been done to this file."
   opReindex: "Index rebuilt"
   opResync: "Damaged stretch skipped"

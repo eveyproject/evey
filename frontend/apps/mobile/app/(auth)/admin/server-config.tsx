@@ -37,6 +37,7 @@ interface ServerSettings {
   periodicScanInterval: SettingValue<string>;
   skipPreviewEnabled: SettingValue<boolean>;
   introAutoSkipEnabled: SettingValue<boolean>;
+  passwordRecoveryEnabled?: SettingValue<boolean>;
   auditRetentionDays: SettingValue<number>;
   metricsRetentionDays: SettingValue<number>;
   qoeRetentionDays: SettingValue<number>;
@@ -82,6 +83,7 @@ export default function AdminServerConfigScreen() {
   const [scanInterval, setScanInterval] = useState("");
   const [skipPreview, setSkipPreview] = useState(false);
   const [introAutoSkip, setIntroAutoSkip] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [auditDays, setAuditDays] = useState("");
   const [metricsDays, setMetricsDays] = useState("");
   const [qoeDays, setQoeDays] = useState("");
@@ -101,6 +103,7 @@ export default function AdminServerConfigScreen() {
       setScanInterval(settings.periodicScanInterval?.source === "override" ? String(settings.periodicScanInterval.value) : "");
       setSkipPreview(settings.skipPreviewEnabled?.value ?? false);
       setIntroAutoSkip(settings.introAutoSkipEnabled?.value ?? false);
+      setPasswordRecovery(settings.passwordRecoveryEnabled?.value ?? false);
       setAuditDays(settings.auditRetentionDays?.source === "override" ? String(settings.auditRetentionDays.value) : "");
       setMetricsDays(settings.metricsRetentionDays?.source === "override" ? String(settings.metricsRetentionDays.value) : "");
       setQoeDays(settings.qoeRetentionDays?.source === "override" ? String(settings.qoeRetentionDays.value) : "");
@@ -160,6 +163,7 @@ export default function AdminServerConfigScreen() {
       if (scanInterval) body.periodicScanInterval = scanInterval;
       body.skipPreviewEnabled = skipPreview;
       body.introAutoSkipEnabled = introAutoSkip;
+      body.passwordRecoveryEnabled = passwordRecovery;
       if (auditDays) body.auditRetentionDays = parseInt(auditDays, 10);
       if (metricsDays) body.metricsRetentionDays = parseInt(metricsDays, 10);
       if (qoeDays) body.qoeRetentionDays = parseInt(qoeDays, 10);
@@ -173,7 +177,7 @@ export default function AdminServerConfigScreen() {
     }
   }, [
     maxTranscodes, hwAccel, loginRate, globalRate, logLevel, libraryWatcher,
-    scanInterval, skipPreview, introAutoSkip, auditDays, metricsDays, qoeDays, sessionDays,
+    scanInterval, skipPreview, introAutoSkip, passwordRecovery, auditDays, metricsDays, qoeDays, sessionDays,
     cacheGB, saveMutation,
   ]);
 
@@ -752,6 +756,21 @@ export default function AdminServerConfigScreen() {
                 />
               </View>
               {settings.introAutoSkipEnabled && <DefaultHint setting={settings.introAutoSkipEnabled} field="introAutoSkipEnabled" />}
+
+              <Text style={s.label}>{t("admin.serverSettings.passwordRecovery")}</Text>
+              <View style={staticStyles.switchRow}>
+                <Text style={{ color: theme.colors.text, fontSize: 15 }}>
+                  {passwordRecovery ? t("common.enabled", "Activé") : t("common.disabled", "Désactivé")}
+                </Text>
+                <Switch
+                  value={passwordRecovery}
+                  onValueChange={(v) => { setPasswordRecovery(v); setSettingsDirty(true); }}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                  accessibilityLabel={t("admin.serverSettings.passwordRecovery")}
+                />
+              </View>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }}>{t("admin.serverSettings.passwordRecoveryHint")}</Text>
+              {settings.passwordRecoveryEnabled && <DefaultHint setting={settings.passwordRecoveryEnabled} field="passwordRecoveryEnabled" />}
 
               <Text style={s.label}>
                 {t("admin.serverSettings.auditRetentionDays", "Rétention des logs d'audit (jours, 0 = illimité)")} {t("admin.serverSettings.retentionSweepHint", "(s'applique à la prochaine purge quotidienne)")}

@@ -21,6 +21,7 @@ interface ServerSettings {
   periodicScanInterval: SettingValue<string>;
   skipPreviewEnabled: SettingValue<boolean>;
   introAutoSkipEnabled: SettingValue<boolean>;
+  passwordRecoveryEnabled?: SettingValue<boolean>;
   auditRetentionDays: SettingValue<number>;
   metricsRetentionDays: SettingValue<number>;
   qoeRetentionDays: SettingValue<number>;
@@ -45,6 +46,7 @@ export function ServerSettingsCard() {
   const [scanInterval, setScanInterval] = useState("");
   const [skipPreview, setSkipPreview] = useState(false);
   const [introAutoSkip, setIntroAutoSkip] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [auditDays, setAuditDays] = useState("");
   const [metricsDays, setMetricsDays] = useState("");
   const [qoeDays, setQoeDays] = useState("");
@@ -62,6 +64,7 @@ export function ServerSettingsCard() {
       setScanInterval(data.periodicScanInterval.source === "override" ? String(data.periodicScanInterval.value) : "");
       setSkipPreview(data.skipPreviewEnabled.value);
       setIntroAutoSkip(data.introAutoSkipEnabled?.value ?? false);
+      setPasswordRecovery(data.passwordRecoveryEnabled?.value ?? false);
       setAuditDays(data.auditRetentionDays?.source === "override" ? String(data.auditRetentionDays.value) : "");
       setMetricsDays(data.metricsRetentionDays?.source === "override" ? String(data.metricsRetentionDays.value) : "");
       setQoeDays(data.qoeRetentionDays?.source === "override" ? String(data.qoeRetentionDays.value) : "");
@@ -94,6 +97,7 @@ export function ServerSettingsCard() {
     if (scanInterval) body.periodicScanInterval = scanInterval;
     body.skipPreviewEnabled = skipPreview;
     body.introAutoSkipEnabled = introAutoSkip;
+    body.passwordRecoveryEnabled = passwordRecovery;
     if (auditDays) body.auditRetentionDays = parseInt(auditDays, 10);
     if (metricsDays) body.metricsRetentionDays = parseInt(metricsDays, 10);
     if (qoeDays) body.qoeRetentionDays = parseInt(qoeDays, 10);
@@ -179,6 +183,19 @@ export function ServerSettingsCard() {
               />
             </div>
             {data.introAutoSkipEnabled && <ResetBtn setting={data.introAutoSkipEnabled} field="introAutoSkipEnabled" />}
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-[var(--text)]">{t("admin.serverSettings.passwordRecovery")}</label>
+              <Switch
+                checked={passwordRecovery}
+                onChange={() => { setPasswordRecovery(!passwordRecovery); setDirty(true); }}
+                label={t("admin.serverSettings.passwordRecovery")}
+                data-testid="password-recovery-toggle"
+              />
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">{t("admin.serverSettings.passwordRecoveryHint")}</p>
+            {data.passwordRecoveryEnabled && <ResetBtn setting={data.passwordRecoveryEnabled} field="passwordRecoveryEnabled" />}
           </div>
           {/* Retention windows are re-read by their sweeps at every pass (no
               restart); the cache budget is a boot snapshot, hence its hint. */}

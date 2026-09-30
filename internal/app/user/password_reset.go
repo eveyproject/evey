@@ -19,11 +19,15 @@ import (
 // email exists) and the atomic reset that also evicts every refresh token and
 // bumps the token epoch.
 
+// PasswordRecoveryConfigKey is the server setting the admin panel's
+// password-recovery switch writes; the reset flow reads it on every request.
+const PasswordRecoveryConfigKey = "auth.password_recovery_enabled"
+
 func (s *CommandService) IsPasswordRecoveryEnabled(ctx context.Context) bool {
 	if !s.smtpConfigured || s.serverCfg == nil {
 		return false
 	}
-	entry, err := s.serverCfg.Get(ctx, "auth.password_recovery_enabled")
+	entry, err := s.serverCfg.Get(ctx, PasswordRecoveryConfigKey)
 	if err != nil {
 		return false
 	}

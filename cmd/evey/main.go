@@ -17,6 +17,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/config"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
@@ -171,6 +172,7 @@ func run() error {
 	loadOverride(ctx, cfgStore, "log.level", parseStr, &cfg.Log.Level)
 	loadOverride(ctx, cfgStore, "intro_providers.skip_preview_enabled", parseBool, &cfg.Metadata.SkipPreviewEnabled)
 	loadOverride(ctx, cfgStore, "intro_providers.auto_skip_enabled", parseBool, &cfg.Metadata.IntroAutoSkipEnabled)
+	loadOverride(ctx, cfgStore, appuser.PasswordRecoveryConfigKey, parseBool, &cfg.Server.PasswordRecoveryEnabled)
 	// Retention windows + transcode cache budget: panel-managed since 2026-07-23
 	// (operator settings never live in env-only per the project rule). The
 	// retention ones are ALSO re-read live by their sweeps; loading them here

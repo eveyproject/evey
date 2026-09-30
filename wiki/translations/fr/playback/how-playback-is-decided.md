@@ -1,5 +1,5 @@
 ---
-source_sha: 123a3afbd02303f24104933e68093722033e1f2aef98b2ab181ed90fe32af929
+source_sha: 5abb946d280a12a49a7d70f47488a89e1b511810d526ef04103be1c314c3e3bc
 reviewed: true
 ---
 # Comment Evey choisit le mode de lecture
@@ -86,9 +86,10 @@ ces limites est transcodé pour s'y conformer :
 - le **Débit maximal** du compte, fixé par un administrateur ;
 - le **Débit maximum en streaming** du profil, et son **Débit maximum en
   mobile** quand un téléphone est sur le réseau cellulaire ;
-- le **Débit distant maximal** (**Admin → Accès distant**) quand l'adresse du
-  spectateur est publique et hors des **Réseaux LAN**. Une adresse privée n'est
-  jamais plafonnée.
+- le **Débit distant maximal** (**Admin → Accès distant**) et le plafond des
+  spectateurs distants de **Admin → Transcodage**, le plus bas des deux, quand
+  l'adresse du spectateur est publique et hors des **Réseaux LAN**. Une adresse
+  privée n'est jamais plafonnée.
 
 ## Lire les Infos du flux
 

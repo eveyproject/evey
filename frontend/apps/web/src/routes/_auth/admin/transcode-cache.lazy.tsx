@@ -99,7 +99,7 @@ function TranscodingSettings() {
         <p className="text-xs text-[var(--text-muted)]">
           {t("admin.transcodeCache.hwAccelNote")}{" "}
           <Link
-            to="/admin/server-config"
+            to="/admin/transcoding"
             className="underline text-[var(--accent)] hover:opacity-80"
           >
             {t("admin.transcodeCache.hwAccelNoteLink")}

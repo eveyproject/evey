@@ -69,10 +69,20 @@ describe("ServerSettingsCard", () => {
       libraryWatcherEnabled: true,
       skipPreviewEnabled: false,
       introAutoSkipEnabled: false,
+      passwordRecoveryEnabled: false,
       transcodeCacheMaxGB: 120,
     });
     expect(put.data).not.toHaveProperty("auditRetentionDays");
     await waitFor(() => expect(screen.getByTestId("server-config-save-btn")).toBeDisabled());
+  });
+
+  it("the password recovery switch is saved like the other toggles", async () => {
+    mount(settings({ passwordRecoveryEnabled: sv(false, false) }));
+    fireEvent.click(await screen.findByTestId("password-recovery-toggle"));
+    fireEvent.click(screen.getByTestId("server-config-save-btn"));
+    await waitFor(() => expect(eveyFetchMock).toHaveBeenCalledWith(expect.objectContaining({ method: "PUT" })));
+    const put = eveyFetchMock.mock.calls.find((c) => (c[0] as { method: string }).method === "PUT")![0] as { data: Record<string, unknown> };
+    expect(put.data.passwordRecoveryEnabled).toBe(true);
   });
 
   it("an override offers a reset that nulls that one field", async () => {

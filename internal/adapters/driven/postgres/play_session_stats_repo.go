@@ -167,6 +167,15 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 
 	if r.serverStatsCache != nil && time.Now().Before(r.serverStatsTTL) {
 		cached := *r.serverStatsCache
+		// The rollups below are worth a 5-minute cache, the two live counters
+		// are not: the dashboard polls every 3 s and showed "0 active streams"
+		// beside two Now Playing cards, and the demo reset reads the same
+		// count to decide whether someone is watching.
+		if err := r.liveCounters(ctx, &cached); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
 		return &cached, nil
 	}
 
@@ -205,6 +214,16 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 
 	cached := *stats
 	return &cached, nil
+}
+
+// liveCounters re-reads the running playbacks and transcodes, the two figures
+// of the server stats that must never be served from the rollup cache.
+func (r *PlaySessionStatsReader) liveCounters(ctx context.Context, stats *activity.ServerStatsResult) error {
+	return txFromCtx(ctx, r.db).QueryRowContext(ctx,
+		`SELECT
+			(SELECT COUNT(*) FROM play_sessions WHERE ended_at IS NULL),
+			(SELECT COUNT(*) FROM transcode_sessions WHERE status IN ('queued', 'running'))`,
+	).Scan(&stats.ActiveStreams, &stats.ActiveTranscodes)
 }
 
 // popularMediaRollup returns the most-played items of the last 90 days with

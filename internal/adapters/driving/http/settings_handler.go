@@ -14,6 +14,7 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/config"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/logger"
@@ -22,17 +23,19 @@ import (
 )
 
 const (
-	cfgKeyServerName        = "server.name"
-	cfgKeyTranscodeMaxConc  = "transcoding.max_concurrent"
-	cfgKeyTranscodeHWAccel  = "transcoding.hw_accel_enabled"
-	cfgKeyTranscodeHWMode   = "transcoding.hw_mode"
-	cfgKeyRateLimitLogin    = "ratelimit.login_max"
-	cfgKeyRateLimitGlobal   = "ratelimit.global_max"
-	cfgKeyLogLevel          = "log.level"
-	cfgKeyWatcherEnabled    = "library.watcher_enabled"
-	cfgKeyScanInterval      = "library.periodic_scan_interval"
-	cfgKeySkipPreview       = "intro_providers.skip_preview_enabled"
-	cfgKeyIntroAutoSkip     = "intro_providers.auto_skip_enabled"
+	cfgKeyServerName       = "server.name"
+	cfgKeyTranscodeMaxConc = "transcoding.max_concurrent"
+	cfgKeyTranscodeHWAccel = "transcoding.hw_accel_enabled"
+	cfgKeyTranscodeHWMode  = "transcoding.hw_mode"
+	cfgKeyRateLimitLogin   = "ratelimit.login_max"
+	cfgKeyRateLimitGlobal  = "ratelimit.global_max"
+	cfgKeyLogLevel         = "log.level"
+	cfgKeyWatcherEnabled   = "library.watcher_enabled"
+	cfgKeyScanInterval     = "library.periodic_scan_interval"
+	cfgKeySkipPreview      = "intro_providers.skip_preview_enabled"
+	cfgKeyIntroAutoSkip    = "intro_providers.auto_skip_enabled"
+	// Read by the password-reset flow on every request (and only with SMTP).
+	cfgKeyPasswordRecovery  = appuser.PasswordRecoveryConfigKey
 	cfgKeyTranscodeSWAV1    = "transcoding.software_av1_max_height"
 	cfgKeyTranscodeAV1En    = "transcoding.av1_enabled"
 	cfgKeyTranscodeAV1Max   = "transcoding.av1_max_height"
@@ -254,6 +257,11 @@ func registerServerSettingsRoutes(
 		{jsonKey: "introAutoSkipEnabled", cfgKey: cfgKeyIntroAutoSkip, defaultVal: false,
 			getter: func() any { return cfg.Metadata.IntroAutoSkipEnabled },
 			reset:  func() { cfg.Metadata.IntroAutoSkipEnabled = false }},
+		// Password recovery used to be reachable only through the raw config
+		// API. The reset flow reads the stored key live, so no restart.
+		{jsonKey: "passwordRecoveryEnabled", cfgKey: cfgKeyPasswordRecovery, defaultVal: false,
+			getter: func() any { return cfg.Server.PasswordRecoveryEnabled },
+			reset:  func() { cfg.Server.PasswordRecoveryEnabled = false }},
 		// AV1 software ceiling: 0 = Auto (calibrated; AV1 stays hardware-only when
 		// the bench found software AV1 non-viable). A non-zero value force-enables
 		// AV1 software at that height. Read live from the calibration service.
@@ -402,6 +410,7 @@ func registerServerSettingsRoutes(
 			PeriodicScanInterval    *string `json:"periodicScanInterval"`
 			SkipPreviewEnabled      *bool   `json:"skipPreviewEnabled"`
 			IntroAutoSkip           *bool   `json:"introAutoSkipEnabled"`
+			PasswordRecovery        *bool   `json:"passwordRecoveryEnabled"`
 			SoftwareAV1MaxHeight    *int    `json:"softwareAV1MaxHeight"`
 			AV1Enabled              *bool   `json:"av1Enabled"`
 			AV1MaxHeight            *int    `json:"av1MaxHeight"`
@@ -609,6 +618,14 @@ func registerServerSettingsRoutes(
 					}
 					cfg.Metadata.IntroAutoSkipEnabled = *body.IntroAutoSkip
 					return strconv.FormatBool(*body.IntroAutoSkip)
+				}},
+			{cfgKey: cfgKeyPasswordRecovery,
+				apply: func() string {
+					if body.PasswordRecovery == nil {
+						return ""
+					}
+					cfg.Server.PasswordRecoveryEnabled = *body.PasswordRecovery
+					return strconv.FormatBool(*body.PasswordRecovery)
 				}},
 			{cfgKey: cfgKeyTranscodeSWAV1,
 				apply: func() string {

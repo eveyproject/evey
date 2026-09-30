@@ -330,7 +330,7 @@ Symptom: admin sees an unexpected device in **Now Playing** (admin panel), or a 
      WHERE ended_at IS NULL
      ORDER BY started_at DESC LIMIT 20;"
    ```
-2. Kill from admin UI: **Admin → Activity → Now Playing → ⋯ → Kill session**, or via gRPC `AdminSessionService/KillSession` with the `session_id`. The session is terminated 5s later so the player can receive the stop command.
+2. Kill from admin UI: **Admin → Now Playing**, the stop icon on the session (**Stop session**), then **Stop** to confirm; or via gRPC `AdminSessionService/KillSession` with the `session_id`. The session is terminated 5s later so the player can receive the stop command.
 3. If the session is unresponsive, force-delete the HLS session (directory is `<cacheDir>/<mediaItemID>`, default `/cache/transcode/<mediaItemID>`):
    ```sh
    docker exec evey-server rm -rf /cache/transcode/<media_item_id>/

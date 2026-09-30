@@ -7,6 +7,7 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/domain/user"
@@ -219,4 +220,23 @@ func TestGetWatchProgress_RefusalIsAnEmptyProgressNotAnError(t *testing.T) {
 	assert.Zero(t, resp.PositionMs, "the refusal must be indistinguishable from 'never watched'")
 	assert.False(t, resp.Played)
 	assert.Empty(t, resp.MediaItemId, "an empty progress carries no id either - nothing confirms the media")
+}
+
+// Stream info and the served master read one ceiling: a cap set only under
+// Transcoding reaches Stream info too (it used to see only Remote Access's).
+func TestRemoteAccessFromConfigUsesTheCombinedCeiling(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Transcoding.MaxVideoBitrateRemoteKbps = 20000
+	cfg.RemoteAccess.LANNetworks = []string{"10.0.0.0/8"}
+	read := remoteAccessFromConfig(cfg)
+	if kbps, _ := read(); kbps != 20000 {
+		t.Fatalf("Transcoding ceiling alone: Stream info sees %d, want 20000", kbps)
+	}
+	cfg.RemoteAccess.MaxRemoteBitrateKbps = 8000
+	if kbps, lan := read(); kbps != 8000 || len(lan) != 1 {
+		t.Fatalf("both set: Stream info sees %d (lan %v), want the stricter 8000", kbps, lan)
+	}
+	if kbps := cfg.EffectiveMaxVideoBitrateRemoteKbps(); kbps != 8000 {
+		t.Fatalf("the served master sees %d, want the same 8000", kbps)
+	}
 }
