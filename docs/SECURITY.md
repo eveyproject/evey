@@ -28,7 +28,7 @@ against, from the most to the least severe:
 Before any file is written:
 
 - at most 5,000 entries, 100 MB per file, 500 MB uncompressed in total, and a
-  compression ratio of 100:1 (decompression bombs);
+  compression ratio of 100:1 above 1 MB uncompressed (decompression bombs);
 - entries whose path leaves the archive (`..`) are refused;
 - symbolic links are refused;
 - setuid, setgid and sticky bits are removed.
@@ -180,10 +180,11 @@ Refused system calls:
 | Namespaces | `unshare`, `setns` |
 | Kernel modules | `init_module`, `finit_module`, `delete_module` |
 | BPF, perf | `bpf`, `perf_event_open` |
-| Hardware I/O | `ioperm`, `iopl` (`LD_PRELOAD` filter only) |
+| Hardware I/O | `ioperm`, `iopl` (x86-64 only, where they exist) |
 | Swap | `swapon`, `swapoff` |
 | System control | `syslog`, `reboot`, `settimeofday`, `clock_settime`, `clock_adjtime`, `adjtimex` |
-| Kexec | `kexec_load`; `kexec_file_load` (`LD_PRELOAD` filter only) |
+| Kexec | `kexec_load`, `kexec_file_load` |
+| Kernel exploit primitives | `io_uring_setup`, `io_uring_enter`, `io_uring_register`, `userfaultfd` |
 | Identity | `setuid`, `setgid`, `setreuid`, `setregid`, `setresuid`, `setresgid`, `capset` |
 | Keyring | `add_key`, `request_key`, `keyctl` |
 
@@ -290,9 +291,12 @@ Security Dashboard**.
 ### `landlock`
 
 - **Filesystem:** a Landlock allowlist applied by the launcher. System
-  directories (`/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`, `/app`,
-  `/dev`) read-only; the plugin's directory and socket directory read-write;
-  everything else, including `/data` and other plugins, denied.
+  directories (`/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`, `/app`)
+  read-only; of `/dev`, only `null`, `zero`, `full`, `random` and `urandom`, so
+  graphics card nodes and the server's terminal stay out of reach; the
+  plugin's directory and socket directory read-write; everything else,
+  including `/data` and other plugins, denied. A plugin granted `hardware.gpu`
+  gets its render node as the one exception.
 - **Network:** `-restrict-net` and `-deny-inet`; egress only through `Fetch`.
 - **System calls:** the kernel filter and the `LD_PRELOAD` filter.
 - **Requires:** a kernel 5.13 or newer with Landlock in the active LSM list,
@@ -418,6 +422,6 @@ test against Evey instances that are not yours.
 
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go
-runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go (LD_PRELOAD layered in landlock) ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driving/pluginhost/fetch.go - Fetch
+runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - systemReadOnlyDirs, safeDevNodes ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls ; internal/adapters/driven/pluginrunner/runner_landlock.go (LD_PRELOAD layered in landlock) ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driving/pluginhost/fetch.go - Fetch
 config: internal/config/config.go - EVEY_PLUGINS_SANDBOX_MODE, EVEY_PLUGINS_COSIGN_POLICY, EVEY_PLUGINS_COSIGN_PUBLIC_KEY, EVEY_GRPC_BIND
 -->
