@@ -1,199 +1,200 @@
 ---
-source_sha: 0846a653f87edb54addf042a0876b46fd3ab9e42930e3f12e27706e59ce0bc97
+source_sha: a6f8003c3c1502fd56c9686aaf41877fd1dc643a86c7f3eb3cb6910f60615fd6
+reviewed: false
 ---
-# Sandbox für Erweiterungen - welches Setup für Ihren Server
+# Plugin-Sandbox - welche Einrichtung für Ihren Server
 
-Evey führt Erweiterungen von Dritten in einer Sandbox aus. **Für fast alle lautet
-die Antwort: Lassen Sie die Voreinstellungen.** Der Server erkennt Ihren Rechner
-und wählt automatisch die stärkste Isolation, die er bieten kann. Lesen Sie nur
-weiter, wenn Sie ein **altes NAS** betreiben, Evey **ohne Docker** laufen lassen
-oder **noch weiter abdichten** wollen.
+Evey führt Plugins von Dritten in einer Sandbox aus. **Für fast alle lautet die
+Antwort: Standardeinstellungen lassen.** Der Server erkennt Ihre Maschine und
+wählt automatisch die stärkste mögliche Isolation. Lesen Sie nur weiter, wenn Sie
+ein **altes NAS** betreiben, Evey **ohne Docker** betreiben oder **noch weiter
+absichern** wollen.
 
 Das vollständige technische Modell steht in [SECURITY.md](../SECURITY.md). Diese
-Seite ist die Entscheidungshilfe in einfachen Worten.
+Seite ist die allgemeinverständliche Entscheidungshilfe.
 
 ---
 
 ## Was Sie schützt (in einfachen Worten)
 
-Eine Erweiterung, die Sie installieren, ist eingesperrt. Je nach Rechner:
+Ein installiertes Plugin wird eingesperrt. Der Käfig, je nach Maschine:
 
-- **Begrenzt der Käfig die Dateien, die sie anfassen kann** - sie sieht ihren
-  eigenen Ordner und die Systembibliotheken, die sie zum Laufen braucht, sonst
-  nichts (nicht Ihre Medien, nicht Ihre Geheimnisse, nicht andere Erweiterungen).
-- **Blockiert er gefährliche Systemaktionen** - andere Prozesse debuggen,
-  Kernelmodule laden, die Uhr stellen, Datenträger einhängen usw. lehnt der
-  Kernel ab.
-- **Kappt er das Netzwerk**, sofern die Erweiterung es nicht ausdrücklich
-  verlangt hat (und Sie diese Berechtigung genehmigt haben).
-- **Deckelt er CPU, Speicher, Plattenplatz und Prozesszahl**, damit eine
-  außer Kontrolle geratene Erweiterung den Server nicht lahmlegen kann.
-- **Hält er Ihre Geheimnisse unlesbar** - den Schlüssel, der Anmeldungen
-  signiert, und die Sicherungen.
+- **Begrenzt, welche Dateien es anfassen kann** - es sieht seinen eigenen Ordner
+  und die Systembibliotheken, die es zum Laufen braucht, sonst nichts (nicht Ihre
+  Medien, nicht Ihre Geheimnisse, nicht andere Plugins).
+- **Blockiert gefährliche Systemaktionen** - andere Prozesse debuggen,
+  Kernelmodule laden, die Uhr stellen, Datenträger einbinden usw. werden vom
+  Kernel verweigert.
+- **Kappt den direkten Netzwerkzugang**, immer. Ein Plugin, das Netzwerk verlangt
+  hat (und das Sie genehmigt haben), erreicht nur die Hosts, die es angegeben
+  hat, über den Server.
+- **Begrenzt CPU, Speicher, Festplatte und Prozessanzahl**, damit ein
+  entgleistes Plugin den Server nicht lahmlegen kann.
+- **Hält Ihre Geheimnisse unlesbar** - den Schlüssel, der Anmeldungen signiert,
+  und die Sicherungen.
 
-Obendrein: Erweiterungen kann **nur der Administrator installieren**, sie werden
-auf verdächtigen Code **gescannt**, und Sie **genehmigen ihre Berechtigungen**,
-bevor sie laufen.
+Dazu kommt: Plugins können **nur Administratoren installieren**, sie werden auf
+verdächtigen Code **gescannt**, und Sie **genehmigen ihre Berechtigungen**, bevor
+sie laufen.
 
-**Prüfen, was tatsächlich gilt:** Admin → Plugins → Security Dashboard zeigt die
-*Host-Sandbox* - den Modus, zu dem `auto` aufgelöst wurde (`landlock`,
-`bubblewrap` oder `basic`), mit den einzelnen Prüfergebnissen. Zeigt sie
-**basic**, bietet Ihr Host keine Dateisystem-Isolation pro Pfad (Erweiterungen
-laufen nur mit UID-Wechsel + seccomp); die Prüfungen sagen, warum, und die
+**Prüfen, was tatsächlich gilt:** Admin → Plugins → Sicherheits-Dashboard zeigt
+die *Host-Sandbox* - den Modus, zu dem `auto` aufgelöst wurde (`landlock`,
+`bubblewrap` oder `basic`), mit den einzelnen Prüfergebnissen. Zeigt es
+**basic**, bietet Ihr Host keine Isolation pro Dateisystempfad (Plugins laufen
+nur mit UID-Herabstufung und seccomp); die Prüfungen sagen Ihnen warum, und die
 Abschnitte unten, wie Sie es beheben.
 
 ---
 
-## Wählen Sie Ihre Situation
+## Ihre Situation wählen
 
-| Ihr Server | Was Sie ohne weiteres Zutun bekommen | Etwas zu tun? |
+| Ihr Server | Was Sie ohne Zutun bekommen | Etwas zu tun? |
 |---|---|---|
-| **Aktuelles Linux in Docker** (Kernel ≥ 5.13 - praktisch alles ab ~2021) - *der Normalfall* | **Stärkste Isolation** (Landlock), automatisch. | **Nichts.** Voreinstellungen lassen. |
-| **Altes NAS in Docker** (z. B. älteres Synology, Kernel < 5.13) | Gute Isolation, **ohne die Dateiwände pro Ordner**. Geheimnisse, Netzwerk und Systemaktionen bleiben abgeriegelt. | Optional: **UID-Trennung** einschalten (siehe unten), als doppelte Absicherung der Geheimnisse. |
-| **Beliebiges Linux, ohne Docker** (Bare Metal) | **Stärkste Isolation**, automatisch (Landlock auf einem aktuellen Kernel, sonst bubblewrap-Namespaces). | Folgen Sie der [Anleitung ohne Container](../deployment-bare-metal.md). |
+| **Modernes Linux in Docker** (Kernel ≥ 5.13 - im Grunde alles ab ~2021) - *der Normalfall* | **Stärkste Isolation** (Landlock), automatisch. | **Nichts.** Standards lassen. |
+| **Altes NAS in Docker** (z. B. ältere Synology, Kernel < 5.13) | Gute Isolation, **ohne die Dateiwände pro Ordner**. Geheimnisse, Netzwerk und Systemaktionen bleiben verriegelt. | **Nichts.** Die UID-Trennung (unten) schaltet sich in diesem Fall selbst ein. |
+| **Beliebiges Linux, ohne Docker** | **Stärkste Isolation**, automatisch (Landlock auf einem modernen Kernel, sonst bubblewrap-Namespaces). | Folgen Sie der [Anleitung ohne Container](../deployment-bare-metal.md). |
 
-So erfahren Sie, welcher Fall bei Ihnen vorliegt: Öffnen Sie **Admin → Plugins** -
-das Abzeichen im Sicherheitsbereich zeigt den tatsächlich geltenden
-Sandbox-Modus: `landlock` oder `bubblewrap` heißt stark, `basic` heißt der Fall
-„altes NAS“.
+Woran Sie erkennen, was Sie haben: Öffnen Sie **Admin → Plugins** - das Abzeichen
+des Sicherheitsbereichs zeigt den tatsächlich geltenden Sandbox-Modus: `landlock`
+oder `bubblewrap` heißt stark, `basic` heißt der Fall „altes NAS".
 
 ---
 
-## Der eine Regler, den Sie vielleicht anfassen: UID-Trennung
+## Der eine Regler, den Sie anfassen könnten: die UID-Trennung
 
-**Was sie tut, einfach gesagt:** Sie lässt eine Erweiterung unter einem **anderen
-Benutzerkonto** als Evey selbst laufen, sodass sie Eveys geheime Dateien physisch
-nicht lesen kann - selbst wenn nichts anderes sie aufhielte.
+**Was sie tut, einfach gesagt:** Sie lässt ein Plugin unter einem **anderen
+Benutzerkonto** als Evey selbst laufen, sodass es die geheimen Dateien von Evey
+physisch nicht lesen kann - selbst wenn nichts anderes es aufhielte.
 
-**Wann sie zählt:** nur auf einem **alten Rechner ohne die Dateiwände pro Ordner**
-(also im Fall `basic`). Auf aktuellen Rechnern halten die Dateiwände die
-Geheimnisse schon außer Reichweite; dort ist die UID-Trennung nur eine
-zusätzliche, redundante Schicht.
+**Wann sie zählt:** nur auf einer **alten Maschine ohne die Dateiwände pro
+Ordner** (also im Fall `basic`). Auf modernen Maschinen halten die Dateiwände die
+Geheimnisse bereits fern, dort ist die UID-Trennung nur eine redundante
+zusätzliche Schicht.
 
 **Die Einstellung** - `EVEY_PLUGINS_UID_SEPARATION`:
 
-| Wert | Bedeutung | Verwenden, wenn |
+| Wert | Bedeutung | Nutzen, wenn |
 |---|---|---|
-| `auto` *(Standard)* | Schaltet sich **nur ein, wenn sie wirklich gebraucht wird** (der Fall `basic`). Aus, wo sie redundant ist. | **Lassen Sie das** - es tut auf jedem Rechner das Richtige. |
-| `on` | **Immer an**, auch auf aktuellen Rechnern - eine zweite, unabhängige Wand um die Geheimnisse, zusätzlich zu den Dateiwänden. | Sie wollen maximale doppelte Absicherung und nehmen den kleinen Preis unten in Kauf. |
-| `off` | **Nie.** | Eine bestimmte Erweiterung verhält sich darunter falsch (selten). |
+| `auto` *(Standard)* | Schaltet sich **nur ein, wenn sie wirklich gebraucht wird** (der Fall `basic`). Aus, wo sie redundant ist. | **So lassen** - sie tut auf jeder Maschine das Richtige. |
+| `on` | **Immer an**, auch auf modernen Maschinen - eine zweite, unabhängige Mauer um die Geheimnisse, zusätzlich zu den Dateiwänden. | Sie wollen doppelte Absicherung und nehmen die kleinen Kosten unten in Kauf. |
+| `off` | **Nie.** | Ein bestimmtes Plugin verhält sich darunter falsch (selten). |
 
-**Der Haken:** Die UID-Trennung ist **unverträglich mit der Docker-Härtung
-`no-new-privileges`** - entscheiden Sie sich für eines. Kann Ihr Setup sie auf
-einem alten Rechner (`basic`) nicht gewähren, **weigert sich Evey, die
-Erweiterung zu starten**, statt sie neben Ihren Geheimnissen laufen zu lassen;
-auf einem aktuellen Rechner schreibt es eine Warnung und startet die Erweiterung
-normal (Sie bekommen nur die zusätzliche Wand nicht). Das offizielle Image bringt
-schon alles Nötige mit; Sie setzen nur diese Variable.
+**Der Haken:** Die UID-Trennung ist **nicht mit der Docker-Härtungsoption
+`no-new-privileges` vereinbar** - wählen Sie eines von beiden. Kann Ihre
+Einrichtung sie auf einer alten Maschine (`basic`) nicht gewähren, **verweigert
+Evey den Start des Plugins**, statt es neben Ihren Geheimnissen laufen zu lassen;
+auf einer modernen Maschine protokolliert es eine Warnung und führt das Plugin
+normal aus (Sie bekommen nur die zusätzliche Mauer nicht). Das offizielle Image
+bringt schon alles Nötige mit; Sie setzen nur diese Variable.
 
-**Der kleine Preis von `on`:** Die Erweiterung läuft unter einem eigenen Konto,
-sodass eine Erweiterung, die Hilfsdateien *in ihren eigenen Ordner* schreibt,
-stolpern könnte. Passiert das, setzen Sie `off`. (Deshalb ist `auto` der
-Standard - es geht dieses Risiko nur dort ein, wo es einen echten Nutzen gibt.)
+**Kleine Kosten von `on`:** Das Plugin läuft unter einem eigenen Konto, sodass
+ein Plugin, das Arbeitsdateien *in seinen eigenen Ordner* schreibt, stolpern
+könnte. Tut eines das, setzen Sie `off`. (Deshalb ist der Standard `auto` - er
+geht dieses Risiko nur dort ein, wo es einen echten Nutzen gibt.)
 
 ---
 
 ## Die Risiken, in einfachen Worten
 
-Was eine **bösartige** Erweiterung tun könnte und was nicht - je nach Szenario:
+Was ein **bösartiges** Plugin tun könnte und was nicht - nach Szenario:
 
-**Aktuelles Linux (Docker oder Bare Metal):**
-Eine böse Erweiterung ist vollständig eingesperrt. Sie **kann** Ihre Geheimnisse
-**nicht** lesen, die Dateien anderer Erweiterungen **nicht** sehen oder
-anfassen, **keine** beliebigen Netzwerkaufrufe machen und das System **nicht**
-manipulieren. Der einzige realistische Ausweg ist ein ernster Fehler im
-Linux-**Kernel** - das gilt für *jede* Sandbox, die keine vollständige virtuelle
-Maschine ist.
+**Modernes Linux (Docker oder ohne Container):**
+Ein schlechtes Plugin ist vollständig eingesperrt. Es **kann** Ihre Geheimnisse
+**nicht** lesen, die Dateien anderer Plugins **nicht** sehen oder anfassen,
+**keine** beliebigen Netzwerkaufrufe machen und das System **nicht** manipulieren.
+Der einzige realistische Ausweg ist ein schwerer Fehler im Linux-**Kernel** - das
+gilt für *jede* Sandbox, die keine vollständige virtuelle Maschine ist.
 
 **Altes NAS in Docker, ohne Wände pro Ordner (`basic`):**
-- ✅ Ihre **Geheimnisse bleiben geschützt** (Anmeldeschlüssel, Sicherungen) -
-  *besonders, wenn Sie die UID-Trennung auf `on` stellen*.
-- ✅ Die Erweiterung bekommt **kein Netzwerk**, sofern nicht erlaubt.
+- ✅ Ihre **Geheimnisse bleiben geschützt** (Anmeldeschlüssel, Sicherungen), durch
+  das eigene Benutzerkonto, das `auto` hier einschaltet.
+- ✅ Das Plugin hat **kein direktes Netzwerk**; ein erlaubtes erreicht nur die
+  Hosts, die es angegeben hat.
 - ✅ **Gefährliche Systemaktionen bleiben** im Kernel **blockiert**.
-- ⚠️ Ohne Wände pro Ordner **könnte** eine böse Erweiterung aber **gewöhnliche,
+- ⚠️ Ohne Wände pro Ordner **könnte** ein schlechtes Plugin aber **gewöhnliche,
   nicht geheime Dateien lesen**, **laufende Prozesse auflisten** und - weil sich
-  Erweiterungen ein Konto teilen - möglicherweise **die Dateien einer anderen
-  Erweiterung lesen oder stören**.
-- **Fazit:** Installieren Sie auf so einem Host nur Erweiterungen, denen Sie
-  vertrauen, oder wechseln Sie für die vollen Dateiwände auf einen aktuellen
-  Kernel.
+  Plugins ein Konto teilen - möglicherweise **die Dateien eines anderen Plugins
+  lesen oder stören**.
+- **Unterm Strich:** Installieren Sie auf so einem Host nur Plugins, denen Sie
+  vertrauen, oder wechseln Sie auf einen modernen Kernel für die vollen
+  Dateiwände.
 
 ---
 
 ## Konfigurationsbeispiele (zum Kopieren)
 
-Diese gehören in Ihre `.env` (Docker Compose) oder in `EVEY_*`-Umgebungsvariablen.
+Diese gehören in Ihre `.env` (Docker Compose) oder als `EVEY_*`-Umgebungsvariablen.
 
-**1. Normaler aktueller Server - empfohlen (nichts tun):**
+**1. Normaler moderner Server - empfohlen (nichts tun):**
 ```bash
-# Defaults are correct. Optionally make it explicit:
-EVEY_PLUGINS_SANDBOX_MODE=auto          # picks the strongest available
-# EVEY_PLUGINS_UID_SEPARATION=auto      # (default) on only where needed
+# Die Standards passen. Optional ausdrücklich setzen:
+EVEY_PLUGINS_SANDBOX_MODE=auto          # wählt das stärkste verfügbare
+# EVEY_PLUGINS_UID_SEPARATION=auto      # (Standard) nur wo nötig an
 ```
 
-**2. Altes NAS, Geheimnisse maximal schützen:**
+**2. Altes NAS:** nichts zu setzen, `auto` führt Plugins dort bereits unter dem
+eigenen Konto aus. Halten Sie `no-new-privileges` aus dem `security_opt` Ihrer
+Compose-Datei heraus, es würde das verhindern:
 ```bash
 EVEY_PLUGINS_SANDBOX_MODE=auto
-EVEY_PLUGINS_UID_SEPARATION=on          # force the secret wall on
-# and do NOT set no-new-privileges in your compose security_opt
+EVEY_PLUGINS_UID_SEPARATION=auto        # (Standard) im Fall basic an
 ```
 
-**3. Maximale doppelte Absicherung auf einem aktuellen Server (beide Wände):**
+**3. Doppelte Absicherung auf einem modernen Server (beide Mauern stapeln):**
 ```bash
 EVEY_PLUGINS_SANDBOX_MODE=auto          # → landlock
-EVEY_PLUGINS_UID_SEPARATION=on          # add the independent uid wall on top
+EVEY_PLUGINS_UID_SEPARATION=on          # die unabhängige UID-Mauer obendrauf
 ```
 
 **4. Einen bestimmten Modus festlegen (fortgeschritten):**
 ```bash
-EVEY_PLUGINS_SANDBOX_MODE=landlock      # refuse to start plugins if Landlock is unavailable (fail‑closed)
+EVEY_PLUGINS_SANDBOX_MODE=landlock      # Plugins nicht starten, wenn Landlock fehlt (fail-closed)
 ```
 
-**5. Eine Erweiterung funktioniert unter UID-Trennung nicht:**
+**5. Ein Plugin bricht unter der UID-Trennung:**
 ```bash
 EVEY_PLUGINS_UID_SEPARATION=off
 ```
 
 **6. Ressourcengrenzen (alle später unter Admin → Plugins änderbar):**
 ```bash
-EVEY_PLUGINS_MEMORY_MB=256              # max RAM per plugin
-EVEY_PLUGINS_PIDS_MAX=64                # max processes/threads
-EVEY_PLUGINS_DISK_MAX_MB=100            # max install‑dir size (0 = off)
-EVEY_PLUGINS_CPU_NICE=10                # scheduling priority 0-19 (higher = nicer)
+EVEY_PLUGINS_MEMORY_MB=256              # max. RAM pro Plugin
+EVEY_PLUGINS_PIDS_MAX=64                # max. Prozesse/Threads
+EVEY_PLUGINS_DISK_MAX_MB=100            # max. Größe des Installationsordners (0 = aus)
+EVEY_PLUGINS_CPU_NICE=10                # Scheduling-Priorität 0-19 (höher = zurückhaltender)
 ```
 
 ---
 
 ## Den Sandbox-Modus im laufenden Betrieb ändern
 
-Sie können den Modus über die Karte **Resource limits** unter **Admin → Plugins**
-ändern. Laufende Erweiterungen werden **automatisch neu gestartet**, damit der
-neue Modus sofort greift (kein manuelles Deaktivieren/Aktivieren). Das
-Sicherheitsabzeichen zeigt den tatsächlich geltenden Modus. Kann eine
-Erweiterung unter dem neuen Modus nicht laufen (z. B. wenn Sie unter Docker
-`bubblewrap` gewählt haben, das dort Privilegien braucht), erscheint sie im
-Dashboard als **fehlerhaft** - schalten Sie einfach zurück.
+Sie können den Modus auf der Karte **Ressourcenlimits** unter **Admin → Plugins**
+ändern. Laufende Plugins werden **automatisch neu gestartet**, damit der neue
+Modus sofort gilt (kein manuelles Deaktivieren/Aktivieren). Das
+Sicherheitsabzeichen zeigt den tatsächlich geltenden Modus. Kann ein Plugin unter
+dem neuen Modus nicht laufen (z. B. wenn Sie `bubblewrap` in Docker gewählt
+haben, wo es Rechte braucht), erscheint es im Dashboard als **fehlerhaft** -
+schalten Sie einfach zurück.
 
 ---
 
-## Prüfen, ob es funktioniert
+## Prüfen, dass es funktioniert
 
 ```bash
-# the launcher carries the capability used for uid separation:
+# der Launcher trägt die Capability für die UID-Trennung:
 docker exec evey-server getcap /evey-plugin-launcher        # → cap_setuid=ep
 
-# which user a running plugin runs as (evey = shared with server, evey-plugin = separated):
+# unter welchem Benutzer ein laufendes Plugin läuft (evey = mit dem Server geteilt, evey-plugin = getrennt):
 docker exec evey-server ps -o user,pid,args | grep -v grep | grep -iE "node|python"
 
-# the sandbox mode actually in force: the Security badge on the Admin → Plugins page.
+# der tatsächlich geltende Sandbox-Modus: das Sicherheitsabzeichen auf der Seite Admin → Plugins.
 ```
 
 ---
 
 ## Siehe auch
 
-- [SECURITY.md](../SECURITY.md) - das vollständige Sicherheitsmodell der
-  Erweiterungen (jede Schicht, die Tabelle je Modus, bekannte Grenzen).
+- [SECURITY.md](../SECURITY.md) - das vollständige Sicherheitsmodell der Plugins
+  (jede Schicht, die Tabelle pro Modus, bekannte Grenzen).
 - [deployment-bare-metal.md](../deployment-bare-metal.md) - Betrieb ohne Docker.
-- [installation.md](../installation.md) - die Anleitung zum Selbsthosten mit
-  Docker.
+- [installation.md](../installation.md) - die Anleitung zum Selbsthosten mit Docker.
