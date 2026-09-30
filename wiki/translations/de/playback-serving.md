@@ -1,201 +1,198 @@
 ---
 source_sha: fbe5c63d26023c75b078bb43d1151792e32f425b107270e73ddeebd67c742e4a
+reviewed: false
 ---
-# Ein Video ausliefern - der Weg der HLS-Wiedergabe
+# Ein Video ausliefern - der HLS-Wiedergabeweg
 
-Hier geht es um den **Lesepfad**: Was geschieht, wenn ein Player ein Video
-anfordert, von der ersten Anfrage nach `master.m3u8` bis hinunter zu den Bytes
-eines Segments. Er ist das Gegenstück zur Scan-Pipeline aus
-[ARCHITECTURE.md](ARCHITECTURE.md) (dem Schreibpfad, der das Lesemodell füllt)
-und die ausführliche Fassung dessen, was in
-[CODEBASE_MAP.md](CODEBASE_MAP.md) unter „Golden path 4“ steht.
+Dies ist der **Leseweg**: was passiert, wenn ein Player ein Video anfordert, von
+der ersten Anfrage nach `master.m3u8` bis zu den Bytes eines Segments. Er ist
+das Gegenstück zur Scan-Pipeline in [ARCHITECTURE.md](ARCHITECTURE.md) (der
+Schreibweg, der das Lesemodell befüllt) und die Vertiefung hinter
+[CODEBASE_MAP.md](CODEBASE_MAP.md) „Golden path 4".
 
-Der Weg der Wiedergabe ist **lebenswichtig** und verteilt sich auf rund acht
-Dateien im `http`-Adapter. Eine einzelne Funktion, die den ganzen Ablauf
-durchspielt, gibt es nicht - dieses Dokument ist die Karte dazu.
+Der Wiedergabeweg ist **LEBENSWICHTIG** und über ~8 Dateien im Adapter `http`
+verteilt. Es gibt keine einzelne Funktion, die den ganzen Ablauf ausführt -
+dieses Dokument ist die Karte.
 
 ## Das Denkmodell: 3 Fragen, 2 Maschinen, 1 Schlüssel
 
 Ein Video auszuliefern läuft darauf hinaus, drei Fragen zu beantworten und die
-Antwort danach zu verpacken - adressiert wird dabei alles über einen einzigen
-Hash:
+Antwort dann zu verpacken, wobei alles über einen einzigen Hash adressiert wird:
 
-- **F1 - Komme ich billig an die Datei heran?** Die Verteilung der Prüfung
-  richtet sich nach der **Dateiendung**: `.mkv/.webm` und `.mp4/.mov` gehen an
-  **mkvgo** (nur der Dateikopf, kein eigener Prozess); alles andere und jeder
-  Fehlschlag auf dem schnellen Weg geht an **ffprobe**, das maßgeblich bleibt.
-- **F2 - Kann der Client die Datei so abspielen, wie sie ist?** Die
-  **Entscheidung** über die Wiedergabe, gefällt *je Spur*: beim Bild `copy`
-  gegen `transcode`, beim Ton `copy` gegen `transcode` gegen den AC-3-Weg über
-  wasm. Bild und Ton werden **unabhängig voneinander** entschieden - der übliche
-  Fall lautet „das Bild kopieren, den Ton nach AAC neu kodieren“.
-- **F3 - Wie viel kann diese Maschine kodieren?** Die kalibrierte
-  **Leistungsfähigkeit** (aus dem Benchmark beim Start) und dazu die
-  **Zulassung** (welche Stufe der Leiter hineinpasst und ob ein Platz frei ist).
+- **F1 - Kann ich die Datei günstig lesen?** Verteilung der Prüfung nach
+  **Dateiendung**: `.mkv/.webm` und `.mp4/.mov` gehen an **mkvgo** (nur der
+  Kopf, kein Prozess); alles andere und jedes Scheitern des schnellen Wegs geht
+  an **ffprobe** (die Autorität).
+- **F2 - Kann der Client sie so abspielen, wie sie ist?** Die
+  Wiedergabe**entscheidung**, *pro Spur* getroffen: Video `copy` gegenüber
+  `transcode`, Audio `copy` gegenüber `transcode` gegenüber dem wasm-Weg für
+  AC-3. Video und Audio werden **unabhängig** entschieden - der häufige Fall ist
+  „Video kopieren, Audio nach AAC neu kodieren".
+- **F3 - Wie viel kann dieser Host kodieren?** Die kalibrierte **Kapazität**
+  (aus der im ersten ruhigen Moment erstellten Messung) plus die **Zulassung**
+  (welche Stufe der Leiter passt, ist ein Platz frei).
 
-Zwei Maschinen ziehen sich durch das Ganze:
+Zwei Maschinen laufen durch alles hindurch:
 
-- **mkvgo** - liest und verpackt neu (Remux, auf Abruf), ohne einen Prozess zu starten. **Kostenlos.**
-- **ffmpeg / ffprobe** - dekodiert, kodiert neu und prüft, indem es einen Prozess startet. **Teuer.**
+- **mkvgo** - liest und verpackt neu (Remux / auf Anfrage), ohne einen Prozess zu starten. **Kostenlos.**
+- **ffmpeg / ffprobe** - dekodiert, kodiert neu, prüft, indem es einen Prozess startet. **Teuer.**
 
-Und ein Schlüssel: Alles (das Cache-Verzeichnis, die ffmpeg-Sitzung, die URLs
-der Segmente) wird über den **Fingerabdruck der Entscheidung** adressiert, also
-über einen Hash dieser Entscheidung. Gleiche Bytes ⇒ gleicher Hash ⇒ eine
-einzige gemeinsam genutzte Kodierung. Ob das ganze System richtig arbeitet,
-hängt daran, dass dieser Hash zwischen dem Manifest, das ein Player in Händen
-hält, und jedem später abgerufenen Segment **stabil** bleibt.
+Ein Schlüssel: Alles (Cache-Verzeichnis, ffmpeg-Sitzung, Segment-URLs) wird über
+den **Entscheidungs-Fingerabdruck** adressiert - einen Hash der Entscheidung.
+Gleiche Bytes ⇒ gleicher Hash ⇒ eine gemeinsame Kodierung. Die Korrektheit des
+ganzen Systems hängt davon ab, dass dieser Hash **stabil** bleibt zwischen dem
+Manifest, das ein Player hält, und jedem Segment, das er später abruft.
 
 ## Lesereihenfolge - einer Anfrage durch den Code folgen
 
-Öffnen Sie diese Dateien der Reihe nach, um eine einzelne Wiedergabeanfrage von
-Anfang bis Ende zu verfolgen:
+Öffnen Sie diese der Reihe nach, um eine einzelne Wiedergabeanfrage von Anfang
+bis Ende zu verfolgen:
 
-1. **Eintritt** · `internal/adapters/driving/http/transcode_handler_vod.go` -
-   `serveHTTP` authentifiziert und verteilt danach auf Master, Variante, Segment
-   oder Ton.
-2. **F2 · Entscheidung** · `internal/app/transcoding/decision.go` -
-   `MakePlaybackDecisionWithPrefs` (rein): das Gehirn, das je Spur über copy
-   oder transcode entscheidet. Umhüllt wird es von `makeDecision` in
-   `http/transcode_vod_fingerprint.go`, das die Festlegungen aus der Anfrage
-   (`vd=` / `ad=`), die Übersteuerung für den Tonabgleich und weiteres darüber
-   legt.
-3. **F3 · Leistungsfähigkeit** · `internal/app/transcoding/calibration_service.go` -
-   `Current()` liefert `domain/transcoding.Derive(report, policy)`: die
-   Obergrenzen der Maschine, abgeleitet aus dem letzten Benchmark.
-4. **Die Leiter formen** · `http/transcode_vod_profiles.go` -
-   `profilesForDecision`: Komplexitätsklasse → Producer-Profile → Obergrenzen
-   aus Quelle und Leistungsfähigkeit → Obergrenzen aus CMCD und AV1 → Route und
-   Obergrenze der Zulassung, und dann **friert es die geformte Leiter** auf der
-   Festlegung der Zulassung **ein** (bei jedem späteren Aufruf wird sie
-   unverändert gelesen - die Invariante des Cache-Hashes, baulich verankert).
-5. **Zulassung** · `internal/app/transcoding/admission_shaper.go`
-   (das unveränderliche `StreamPlan`) und `video_session_limiter.go`: die Route
-   (samt Ausweichen von Hardware auf Software) und der Platz im Kontingent.
-6. **Fingerabdruck** · `http/transcode_vod_fingerprint.go` (`buildFingerprint`)
-   baut einen `DecisionFingerprint` (Typ und `Hash()` in
-   `app/transcoding/segment_cache.go`). Dieser Hash ist der Schlüssel zum Cache.
-7. **Die Bytes erzeugen** · copy → **mkvgo** `app/transcoding/ondemand.go` (Port)
-   und `adapters/driven/mkvgo/ondemand.go`; transcode → **ffmpeg**
+1. **Eingang** · `internal/adapters/driving/http/transcode_handler_vod.go` -
+   `serveHTTP` authentifiziert und verteilt dann an Master / Variante / Segment / Audio.
+2. **Der Plan** · `http/transcode_vod_plan.go` übersetzt die Anfrage in einen
+   `PlaybackRequest`; `app/transcoding/playback_plan_resolver.go` -
+   `PlanResolver.Resolve` liefert einen einzigen unveränderlichen `PlaybackPlan`:
+   die Entscheidung (F2), die Leiterklasse, die geformte Leiter, den
+   Hardwareweg, den Paketierer und den Fingerabdruck. Jedes Manifest und jedes
+   Segment der Sitzung wird aus ihm ausgeliefert
+   ([ADR-0030](adr/0030-one-plan-one-decision.md)). `makeDecision` und
+   `buildFingerprint` in `http/transcode_vod_fingerprint.go` sind dünne Hüllen
+   für die Aufrufstellen ohne Plan (Vorabladen, Master auf Anfrage).
+3. **F2 · Entscheidung** · `internal/app/transcoding/decision.go` -
+   `MakePlaybackDecisionWithPrefs` (rein): das Gehirn für Kopieren oder
+   Transkodieren pro Spur. Der Resolver fügt die Festlegungen der Anfrage
+   (`vd=` / `ad=`), die Übersteuerung der Audio-Resynchronisation usw. hinzu.
+4. **F3 · Kapazität** · `internal/app/transcoding/calibration_service.go` -
+   `Current()` liefert `domain/transcoding.Derive(report, policy)`
+   (`derive.go`): die Obergrenzen des Hosts, aus der letzten Kalibrierung
+   abgeleitet.
+5. **Leiter und Zulassung** · der Resolver formt die Leiter (Komplexitätsklasse
+   → Profile der Produzenten → Obergrenzen von Quelle und Kapazität →
+   Obergrenzen CMCD/AV1 → Weg und Obergrenze der Zulassung) und **friert sie
+   dann ein** auf der Festlegung der Zulassung (`admission_shaper.go`,
+   `FreezeLadder`), bei jedem späteren Aufruf unverändert gelesen - die
+   Invariante des Cache-Hashs strukturell gemacht. `video_session_limiter.go`
+   hält den Kapazitätsplatz; der Weg weicht von Hardware auf Software aus, wenn
+   sie voll ist.
+6. **Fingerabdruck** · ein `DecisionFingerprint` (Typ + `Hash()` in
+   `app/transcoding/segment_cache.go`), vom Resolver zusammengesetzt. Der Hash
+   ist der Cache-Schlüssel.
+7. **Die Bytes erzeugen** · Kopie → **mkvgo** `app/transcoding/ondemand.go` (Port) /
+   `adapters/driven/mkvgo/ondemand.go`; Transkodierung → **ffmpeg**
    `adapters/driven/ffmpeg/hls_transcoder.go` (`BuildFFmpegArgs` ist rein; die
    Segmente landen in `/cache/transcode/segments/<hash>/`).
-8. **Verpacken** · `app/transcoding/manifest_generator.go` - `master.m3u8` und
-   `stream_N.m3u8` (auf dem mkvgo-Weg zusätzlich `manifest.mpd`).
+8. **Verpackung** · `app/transcoding/manifest_generator.go` - `master.m3u8` /
+   `stream_N.m3u8`; `manifest_generator_dash.go` - `manifest.mpd`.
 
-## Die zwei Maschinen, nach Kosten sortiert
+## Die zwei Maschinen, nach Kosten
 
-Der **Probe-Dispatcher** (`adapters/driven/prober/dispatcher.go`) ist eine
-Zuständigkeitskette entlang der Dateiendung: Er versucht es mit mkvgo und fällt
-bei jedem Zweifel auf ffprobe zurück (Fehler beim Parsen, ein Panic, ein
-Ergebnis, das sich nicht abbilden lässt, eine verlorene Medienspur im MP4,
-Dolby Vision Profil 5, eine unlesbare Farbangabe). Beide schnellen Wege sind
-immer aktiv (die Schalter in `wire.go` sind nil); ffprobe ist das
-Sicherheitsnetz und wird nie übergangen. Ein zweiter, baugleicher Dispatcher
-(`keyframe_dispatcher.go`) kümmert sich um den Suchindex.
+Der **Prüfverteiler** (`adapters/driven/prober/dispatcher.go`) ist eine
+Zuständigkeitskette nach Dateiendung: Er versucht mkvgo und fällt bei jedem
+Zweifel auf ffprobe zurück (Parse-Fehler, Panic, nicht abbildbares Ergebnis,
+eine verlorene MP4-Medienspur, DoVi-Profil 5, unlesbare Farbe). Beide schnellen
+Wege sind immer an (nil-Schalter in `wire.go`); ffprobe ist das Sicherheitsnetz,
+nie umgangen. Ein zweiter, identischer Verteiler (`keyframe_dispatcher.go`)
+kümmert sich um den Wiedergabeindex.
 
 | Vorgang | mkvgo (kostenlos) | ffprobe / ffmpeg (teuer) |
 |---|---|---|
-| Metadaten prüfen (Codec, Maße, HDR, Bitrate, Dauer) | `.mkv/.webm/.mp4/.mov`, nur der Dateikopf | alles Übrige, oder als Rückfall |
-| Modus der Bildrate (cfr/vfr) | `AnalyzeFrameRateMode` | - (umgestellt) |
+| Prüfung der Metadaten (Codec, Maße, HDR, Bitrate, Dauer) | `.mkv/.webm/.mp4/.mov` nur der Kopf | alles andere, oder Rückfall |
+| Bildratenmodus (cfr/vfr) | `AnalyzeFrameRateMode` | - (migriert) |
 | Remux MKV→MP4 (ohne Neukodierung) | `RemuxToMP4` | - |
-| HLS/DASH auf Abruf (die copy-Stufe) | `OnDemandPackager` | - |
-| Bild neu kodieren / HDR-Tone-Mapping | - | `hls_transcoder.go` |
-| Halbbilder erkennen (idet), Landen nach einem Sprung, chromaprint, DoVi P5 | - (braucht Dekodierung oder Side-Data) | ffmpeg / ffprobe |
+| HLS/DASH auf Anfrage (Kopierstufe) | `OnDemandPackager` | - |
+| Video neu kodieren / HDR-Tone-Mapping | - | `hls_transcoder.go` |
+| Zeilensprungerkennung (idet), Sprungziel, chromaprint, DoVi P5 | - (braucht Dekodierung / Seitendaten) | ffmpeg / ffprobe |
 
-Drei ffprobe-Aufrufe laufen weiterhin auf MKV- und MP4-Quellen, deren Daten
-mkvgo bereits bereitstellt (die Dauer in `trickplay.go`, Bitrate und Maße in
-`complexity_classifier.go`, die Tonverzögerung bei der Wiedergabe in
-`audio_delay.go`) - Kandidaten für eine Umstellung; der Gewinn an CPU ist
-gering, es ist überwiegend Verdrahtung.
+Drei ffprobe-Aufrufe laufen noch auf MKV/MP4-Quellen, deren Daten mkvgo bereits
+liefert (Dauer in `trickplay.go`, Bitrate+Maße in `complexity_classifier.go`,
+Audioverzögerung der Wiedergabe in `audio_delay.go`) - Kandidaten für eine
+Migration; kleiner CPU-Gewinn, hauptsächlich Verdrahtung.
 
-## Der Ton wird getrennt vom Bild entschieden
+## Audio wird getrennt vom Video entschieden
 
-`makeDecision` liefert `VideoDecision` und `AudioDecision` unabhängig
-voneinander. Die „copy-Stufe“ (`isCopyRequest`) hängt allein am **Bild**; selbst
-ein kopiertes Bild trägt in der Regel eine neu kodierte AAC-Spur neben sich. Für
-den Ton gibt es drei Ausgänge: kopieren, nach AAC transkodieren (ffmpeg, wenig
-Aufwand) oder - bei **AC-3 / E-AC-3** in einem Browser, der das nicht selbst
-dekodieren kann - den **wasm-Weg**: Der Master enthält dann nur noch Bild und
-trägt ein `#EVEY-AUDIO-URI`-Tag, das AC-3 wird **kopiert** (über mkvgo
-`od_audio`, sofern sich der Plan bauen lässt, sonst über ffmpeg `-c:a copy`),
-und `ac3go.wasm` dekodiert es im Browser nach PCM (`WasmAudioEngine.ts`),
-taktgenau zum Bild. Safari wird anhand seiner Fähigkeiten ausgenommen, nicht
-anhand seines Namens: `canWasmDecodeAC3()` liefert nur dann true, wenn der
-Browser meldet, dass er AC-3 *nicht* selbst abspielen kann - Safari meldet, dass
-er es kann.
+`makeDecision` erzeugt `VideoDecision` und `AudioDecision` unabhängig voneinander.
+Die „Kopierstufe" (`isCopyRequest`) hängt nur am **Video**; selbst ein kopiertes
+Video trägt meist eine daneben nach AAC neu kodierte Spur. Die Audioentscheidung
+hat drei Ergebnisse: kopieren, nach AAC transkodieren (ffmpeg, leicht) oder - für
+**AC-3 / E-AC-3** in einem Browser, der es nicht nativ dekodieren kann - den
+**wasm-Weg**: Der Master wird mit einem Tag `#EVEY-AUDIO-URI` zu reinem Video,
+das AC-3 wird **kopiert** (mkvgo `od_audio`, wenn der Plan es baut, sonst ffmpeg
+`-c:a copy`), und `ac3go.wasm` dekodiert es im Browser zu PCM
+(`WasmAudioEngine.ts`), an die Uhr des Videos gekoppelt. Safari wird über die
+Fähigkeit ausgeschlossen, nicht über den Namen: `canWasmDecodeAC3()` liefert nur
+dann true, wenn der Browser meldet, AC-3 *nicht* nativ abspielen zu können -
+Safari meldet, dass es kann.
 
-## Verpacken: CMAF, HLS, DASH
+## Verpackung: CMAF, HLS, DASH
 
-Der Container ist immer **CMAF** (fMP4): je Variante eine `init.mp4` und dazu
+Der Container ist immer **CMAF** (fMP4): ein `init.mp4` pro Variante plus
 `.m4s`-Segmente. (Der MPEG-TS-Zweig in `hls_transcoder.go` ist tot -
-`needsFMP4Segments` liefert immer true.) Über *denselben* Segmenten liegen:
+`needsFMP4Segments` liefert immer true.) Über *dieselben* Segmente:
 
-- **HLS** (`master.m3u8` → `stream_N.m3u8` → `EXT-X-MAP`-Init und `.m4s`) - bei beiden Maschinen.
-- **DASH** (`manifest.mpd`) - auf dem copy-Weg über mkvgo das eigene Manifest
-  des Packagers (`OnDemandPlan.HasDASH`, Byte für Byte identisch, ohne Speicher,
+- **HLS** (`master.m3u8` → `stream_N.m3u8` → Init `EXT-X-MAP` + `.m4s`) - beide Maschinen.
+- **DASH** (`manifest.mpd`) - auf dem Kopierweg von mkvgo das eigene Manifest
+  des Paketierers (`OnDemandPlan.HasDASH`, byte-identisch, kein Speicherbedarf,
   unter AES-128 abgeschaltet); auf dem ffmpeg-Weg ein **aus dem Plan
   deklariertes** Manifest über dieselben Fragmente, die die HLS-Playlists
-  adressieren (`ManifestGenerator.MPD`), geschrieben, bevor es ein einziges
-  Fragment gibt. Ehrlich macht es das **Segmentraster**
+  adressieren (`ManifestGenerator.MPD`), geschrieben, bevor ein Fragment
+  existiert. Ehrlich macht es das **Segmentraster**
   (`domain/transcoding.SegmentGrid`): Jede transkodierte Stufe wird auf dieselbe
-  ganze Zahl von Frames geschnitten (72 bei 23,976 fps, 75 bei 25, 90 bei
-  29,97), sodass ein Segment in den Ticks der Videospur exakt und über das ganze
-  Umschalt-Set identisch ist; der copy-Rückfall deklariert seinen
+  ganze Zahl von Bildern geschnitten (72 bei 23,976 fps, 75 bei 25, 90 bei
+  29,97), sodass ein Segment in den Ticks der Videospur exakt und über die
+  Umschaltgruppe identisch ist; der Kopier-Rückfall deklariert seinen
   Keyframe-Plan. Eine Quelle mit unbekannter oder variabler Bildrate bleibt beim
   alten 3-s-Takt, behält HLS und antwortet auf `manifest.mpd` mit 404. Kein
-  Client wird auf DASH umgestellt: HLS bleibt überall der Standard. mkvgos
-  `DASHFromCMAF` über die erzeugten Fragmente ist das Paritätsorakel
+  Client wird auf DASH umgestellt: HLS bleibt überall der Standard.
+  `DASHFromCMAF` von mkvgo über die erzeugten Fragmente ist das Paritätsorakel
   (`internal/pkg/cmafparity`, `TestDASHGridIntegration` bei 23,976/25/29,97 fps:
-  kalt, Sprung, Umschalt-Set mit zwei Stufen, getrenntes Audio innerhalb eines
+  kalt, Sprung, Umschaltgruppe mit zwei Stufen, getrenntes Audio innerhalb eines
   AAC-Frames).
 
-Die URLs je Sitzung werden neu eingebacken
-(`transcode_vod_manifest_rebake.go`), damit sie das Token des Streams tragen -
-bei HLS wie bei DASH, den Chromecast ohne Cookies eingeschlossen.
+URLs pro Sitzung werden neu gebacken (`transcode_vod_manifest_rebake.go`), um das
+Stream-Token zu tragen, für HLS und DASH gleichermaßen, auch für den Chromecast
+ohne Cookies.
 
-## Die eingesetzten Entwurfsmuster
+## Genutzte Entwurfsmuster
 
-- **Ports und Adapter (hexagonale Architektur)** - die Anwendungsschicht spricht
-  mit Schnittstellen (`StreamProber`, `BenchmarkRunner`, `OnDemandPackager`,
-  `StreamProducer`), die ffmpeg und mkvgo umsetzen. Eine neue Maschine ist ein
-  neuer Adapter.
-- **Strategie** - `StreamProducer` (Software, Hardware, copy), ausgewählt von
-  einem `ProducerSelector`.
-- **Zuständigkeitskette mit Rückfall** - die Dispatcher für Prüfung und
-  Keyframes (mkvgo → das maßgebliche ffprobe).
-- **Inhaltsadressierter Cache** - der Hash des `DecisionFingerprint` ist der
-  Schlüssel zum Cache und zur ffmpeg-Sitzung.
-- **Reiner Kern, imperative Hülle** - `Derive`, `MakePlaybackDecision` und das
-  Kostenmodell sind rein und werden ohne ffmpeg und ohne Datenbank per Unit-Test
-  geprüft.
-- **Unveränderliches Wertobjekt** - `StreamPlan`: die Entscheidung der Zulassung
-  wird einmal ausgegeben und danach nie verändert, damit die Invariante zwischen
-  URLs↔Bytes schon von der Bauart her hält.
-- **Geordnetes Nachgeben** - auf jeder Stufe steht ein sicherer Rückfall bereit:
-  720p als voreingestellte Leistungsfähigkeit, das Ausweichen von Hardware auf
-  Software, copy → transcode, mkvgo → ffprobe.
+- **Ports und Adapter (hexagonal)** - die Anwendungsschicht spricht mit
+  Schnittstellen (`StreamProber`, `BenchmarkRunner`, `OnDemandPackager`,
+  `StreamProducer`); ffmpeg und mkvgo implementieren sie. Eine neue Maschine ist
+  ein neuer Adapter.
+- **Strategie** - `StreamProducer` (Software / Hardware / Kopie), von einem
+  `ProducerSelector` gewählt.
+- **Zuständigkeitskette mit Rückfall** - die Verteiler für Prüfung und Keyframes
+  (mkvgo → Autorität ffprobe).
+- **Inhaltsadressierter Cache** - der Hash `DecisionFingerprint` ist der Schlüssel
+  von Cache und ffmpeg-Sitzung.
+- **Reiner Kern / imperative Hülle** - `Derive`, `MakePlaybackDecision`, das
+  Kostenmodell sind rein und ohne ffmpeg oder Datenbank unit-getestet.
+- **Unveränderliches Wertobjekt** - `StreamPlan`: die Zulassungsentscheidung,
+  einmal ausgegeben, nie verändert, sodass die Invariante URLs↔Bytes durch
+  Konstruktion hält.
+- **Sanftes Zurückfallen** - ein sicherer Rückfall bei jedem Schritt: 720p als
+  Standardkapazität, Ausweichen von Hardware auf Software, Kopie→Transkodierung,
+  mkvgo→ffprobe.
 
-## Das Entscheidungsgehirn: der PlanResolver in der Anwendungsschicht
+## Das Entscheidungsgehirn: der PlanResolver der Anwendungsschicht
 
-Das Gehirn, das eine Anfrage bearbeitet - die Festlegungen der Entscheidung, das
-Formen der Leiter, die Wegwahl bei der Hardware, das Zusammensetzen des
-Fingerabdrucks, die Wegwahl für die copy-Stufe und die Auswahl des Producers -,
-sitzt in der Anwendungsschicht: `PlanResolver`
-(`app/transcoding/playback_plan_resolver.go`) mit der konkreten Umsetzung
+Das Gehirn der Anfragebearbeitung - Festlegungen der Entscheidung, Formung der
+Leiter, Hardwareweg, Zusammensetzen des Fingerabdrucks, Weg der Kopierstufe,
+Wahl des Produzenten - liegt in der Anwendungsschicht: `PlanResolver`
+(`app/transcoding/playback_plan_resolver.go`), der konkrete
 `PlaybackPlanResolver`
 ([`playback_plan.go`](../internal/app/transcoding/playback_plan.go)). Jede
-Anfrage wird genau **einmal** aufgelöst: Der http-Adapter überführt den
-`*http.Request` in eine transportfreie `PlaybackRequest`
-(`http/transcode_vod_plan.go`) und liefert danach aus dem zurückgegebenen,
-unveränderlichen `PlaybackPlan` aus. Jeder Abnehmer - die Eingabe für das
-Manifest, die Prüfung auf Lastabwurf, die Versiegelung gegen veraltete URLs, die
-Auswahl des Producers, der Schlüssel des Segments - liest diese eine Auflösung.
-*Innerhalb einer Anfrage* hält die Invariante des Cache-Hashes damit schon von
-der Bauart her (und der heiße Pfad für ein Segment kam von rund fünf Abfragen
-der Profileinstellungen auf eine einzige herunter). Die Helfer für die
-Tatsachen über die Quelle (Codec, HDR, SAR, Zehn-Bit, …) liegen daneben in
-`app/transcoding/source_facts.go`; im Adapter stehen nur noch dünne Aliasse.
-Über mehrere Anfragen hinweg ruht die Invariante nach wie vor darauf, was in die
-URLs eingebacken wird: **Jede Eingabe der Entscheidung muss in die
-Kind-URLs eingebacken sein**, sonst kann eine Abfrage mitten in der Wiedergabe
-den Plan unter dem Player wegziehen (`querySuffix` in
-`manifest_generator.go`).
+Anfrage wird **einmal** aufgelöst: Der http-Adapter übersetzt den
+`*http.Request` in einen transportunabhängigen `PlaybackRequest`
+(`http/transcode_vod_plan.go`) und liefert aus dem zurückgegebenen
+unveränderlichen `PlaybackPlan` aus. Jeder Verbraucher - Eingabe des Manifests,
+Abwurfprüfung, Versiegelung veralteter URLs, Wahl des Produzenten,
+Segmentschlüssel - liest diese eine Auflösung, sodass die Invariante des
+Cache-Hashs *innerhalb einer Anfrage* durch Konstruktion hält (und der heiße Pfad
+der Segmente von ~5 Abrufen der Profilvorlieben auf 1 fiel). Die Hilfen für
+Quelleigenschaften (Codec, HDR, SAR, 10 Bit…) liegen daneben in
+`app/transcoding/source_facts.go`; der Adapter behält dünne Aliase. Über Anfragen
+hinweg beruht die Invariante weiterhin auf dem Einbacken in URLs: **Jede Eingabe
+der Entscheidung muss in die Kind-URLs eingebacken werden**, sonst kann eine
+Abfrage mitten in der Wiedergabe den Plan unter dem Player kippen (`querySuffix`
+in `manifest_generator.go`).
