@@ -1,5 +1,5 @@
 ---
-source_sha: 5abb946d280a12a49a7d70f47488a89e1b511810d526ef04103be1c314c3e3bc
+source_sha: 1ba4c65cfb14b1f65376a6dcc31dd7a325cfffb9e3f20082f430ba214a292009
 reviewed: true
 ---
 # Comment Evey choisit le mode de lecture
@@ -93,11 +93,18 @@ ces limites est transcodé pour s'y conformer :
 
 ## Lire les Infos du flux
 
-Les **Infos du flux**, accessibles depuis le menu du lecteur, affichent la
-**Méthode**, puis chaque piste avec sa décision (*copié*, *transcodé*, ou
-*décodé client* pour un audio que le lecteur web décode lui-même) et, sous
-**Pourquoi pas de lecture directe**, les raisons. Elles se répartissent en
-quatre catégories :
+Les **Infos du flux** (le bouton d'information, (i), des contrôles du lecteur ; sur la TV, dans
+le menu d'options du lecteur) affichent la **Méthode**, puis chaque piste avec
+sa décision (*copié*, *transcodé*, ou *décodé client* pour un audio que le
+lecteur web décode lui-même) et, sous **Pourquoi pas de lecture directe**, les
+raisons.
+
+<figure class="evey-shot evey-shot--narrow" markdown="span">
+  ![Les Infos du flux dans le lecteur web, pour un remux](../images/player-stream-info.webp){ loading=lazy }
+  <figcaption>Un remux : vidéo et audio copiés, et la seule raison pour laquelle le fichier n'est pas lu tel quel (interface en anglais).</figcaption>
+</figure>
+
+Les raisons se répartissent en quatre catégories :
 
 | Origine | Exemples, tels qu'affichés |
 | --- | --- |

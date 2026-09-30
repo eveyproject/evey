@@ -232,3 +232,31 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Home page: better with less. Two columns of short paragraphs, one
+   on a phone; the link closing each paragraph sits on its own line. */
+.md-typeset .evey-points {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 1.6rem;
+  margin-bottom: 1.2rem;
+}
+.md-typeset .evey-points > div > p:first-child {
+  margin-bottom: 0.3rem;
+}
+.md-typeset .evey-points > div > p:last-child a:last-child {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+}
+@media screen and (max-width: 44.9375em) {
+  .md-typeset .evey-points {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A capture taller than it is wide (a player panel): half the column, so it
+   does not fill the screen; full width on a phone. */
+.md-typeset figure.evey-shot--narrow {
+  max-width: 28rem;
+}

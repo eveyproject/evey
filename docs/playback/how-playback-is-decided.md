@@ -82,10 +82,17 @@ lowest of these limits is transcoded down to it:
 
 ## Reading Stream info
 
-**Stream info**, in the player's menu, shows the method, then each track with
-its decision (*copied*, *transcoded*, or *client-decoded* for audio the web
-player decodes itself), and under **Why not direct play** the reasons. They
-fall into four groups:
+**Stream info** (the information button, (i), in the player's controls; on the TV, in the
+player's options menu) shows the method, then each track with its decision
+(*copied*, *transcoded*, or *client-decoded* for audio the web player decodes
+itself), and under **Why not direct play** the reasons.
+
+<figure class="evey-shot evey-shot--narrow" markdown="span">
+  ![Stream info in the web player, for a Remux](../images/player-stream-info.webp){ loading=lazy }
+  <figcaption>A Remux: video and audio copied, and the one reason the file is not played as it is.</figcaption>
+</figure>
+
+The reasons fall into four groups:
 
 | Where the reason comes from | Examples as shown |
 | --- | --- |
@@ -136,5 +143,6 @@ client caps: internal/domain/transcoding/playback_decision.go - ClientProfile ; 
 example: internal/app/transcoding/route_golden_test.go - "nvenc-pass | 2160p-hevc-hdr10-70m | hdr-tv{,-20m} | {plain,gpu-full,title-blocked}"
 tone-map reported: internal/app/transcoding/route_tonemap_report_test.go
 labels: i18n player.streamInfo.* ; auth.settings.playback.*
+entry point: frontend/apps/web/src/features/playback/StreamInfoPanel.tsx ; frontend/apps/mobile/src/components/player/PlayerControlsRow.tsx ; frontend/apps/tv/src/components/TrackOptionsMenu.tsx
 adr: 0024, 0029, 0030
 -->
