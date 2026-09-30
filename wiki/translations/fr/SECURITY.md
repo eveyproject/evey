@@ -1,5 +1,5 @@
 ---
-source_sha: 4b5bd295d6a5fa42752a51cf7fd2e4aa3df9d48dc69b08580895dd44d998e442
+source_sha: 01b96ebf878ff22b7cec6d3e9e3d92b3c6e34b4affde439de1a7f09e4ca1d543
 reviewed: true
 ---
 # Sandbox des plugins et modèle de menace
@@ -272,8 +272,8 @@ L'interface d'un plugin s'exécute dans une `<iframe sandbox="allow-scripts">`,
 sans accès à la même origine, sans formulaires ni fenêtres surgissantes, sous
 une Content-Security-Policy qui n'autorise les connexions que vers ses hôtes
 `external_fetch`. Le pont limite ce qu'elle peut demander à la page : `toast`
-au plus 3 fois par seconde, 200 caractères, sans HTML ; `navigate` refuse
-`/admin/*`, `/auth/*`, `/setup/*` et `/profile/security/*` ; `resize` entre 50
+au plus 3 fois par seconde, 200 caractères, sans HTML ; `navigate` n'accepte
+que `/home`, `/library`, `/media`, `/player`, `/settings` et `/search` ; `resize` entre 50
 et 800 px. Les slots sont vérifiés à l'installation, puis de nouveau à
 l'affichage.
 

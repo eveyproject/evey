@@ -1,5 +1,5 @@
 ---
-source_sha: d7bce24287ed4a776ee318f491cfe4acc864b662ff571e9f917bb3021465d410
+source_sha: f4ecae392bc0b50e2c1ef8c70f50db7121732b5c6e7c194891cf416bffb92680
 reviewed: true
 ---
 # Permissions et emplacements
@@ -133,8 +133,8 @@ Source : `internal/domain/plugin/slots.go`.
 
 Les modules d'interface tournent dans une `<iframe>` isolée, sans accès à la page
 hôte. Le pont limite ce qu'ils peuvent faire : `evey.toast`, au plus 3 messages par
-seconde, 200 caractères, sans HTML ; `evey.navigate` refuse `/admin/*`,
-`/auth/*`, `/setup/*` et `/profile/security/*` ; `evey.resize` est borné entre 50
+seconde, 200 caractères, sans HTML ; `evey.navigate` n'accepte que `/home`,
+`/library`, `/media`, `/player`, `/settings` et `/search` ; `evey.resize` est borné entre 50
 et 800 px.
 
 ## Mise à jour d'un plugin
