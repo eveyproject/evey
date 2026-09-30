@@ -1,5 +1,5 @@
 ---
-source_sha: 86f34e154bd76e23fa0313aeb2bed55714515156f1084f6bffefe2812d4ad4d0
+source_sha: 48dbaf6ad48fbd8e4d23d62bfdbf8f0d0fedcc1f002b407062e12466485506ad
 reviewed: true
 ---
 # Réponse aux incidents
@@ -414,10 +414,10 @@ inconnu dans sa liste de sessions.
    **Arrêter** pour confirmer ; ou via gRPC
    `AdminSessionService/KillSession` avec le `session_id`. La session prend fin
    5 s plus tard, pour que le lecteur reçoive l'ordre d'arrêt.
-3. Si la session ne répond pas, supprimez de force la session HLS (le dossier est
-   `<cacheDir>/<mediaItemID>`, par défaut `/cache/transcode/<mediaItemID>`) :
+3. Si le flux continue malgré tout, redémarrez le conteneur : tous les
+   encodeurs s'arrêtent avec lui.
    ```sh
-   docker exec evey-server rm -rf /cache/transcode/<media_item_id>/
+   docker compose restart evey
    ```
 4. Si le compte lui-même est compromis, **Admin → Utilisateurs → Désactiver**
    sur ce compte : cela supprime ses jetons de rafraîchissement et invalide
