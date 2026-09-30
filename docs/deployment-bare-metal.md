@@ -59,7 +59,7 @@ dynamically-linked plugins and is layered on top of Landlock/bubblewrap.
 ### Runtimes
 
 Install whatever your plugins' `entrypoint:` invokes. The runner recognises
-these interpreters (`knownInterpreters` in `runner.go`): `python3`, `python`,
+these interpreters (`knownInterpreters` in `runner_start.go`): `python3`, `python`,
 `node`, `php`, `ruby`, `perl`, `lua`, `bash`, `sh`. At minimum:
 
 - **`python3`** - the majority of community plugins.
@@ -77,14 +77,20 @@ Plus the core runtime dependencies:
 
 ## 2. Run as a dedicated non-root user
 
-**Never run the server as root.** Create two unprivileged users matching the
-UIDs the plugin host uses (`pluginUID = 1001`, `pluginGID = 1001` in
+**Never run the server as root.** Create a group and two unprivileged users,
+as the Docker image does; plugins are dropped to UID 1001 (`pluginUID` in
 `pluginhost/host_server.go`):
 
 ```bash
-sudo useradd --system --uid 1000 --shell /usr/sbin/nologin evey
+sudo groupadd --gid 1000 evey
+sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
 sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugin
 ```
+
+The group's id matters: the launcher drops a plugin to UID 1001 and to the
+server's own group, and refuses any id below 1000. A group created by
+`useradd --system` alone gets a system id below 1000, and plugins in `basic`
+mode are then refused.
 
 - `evey` (UID 1000) runs the server.
 - `evey-plugin` (UID 1001) is the UID plugins are dropped to (by the launcher
