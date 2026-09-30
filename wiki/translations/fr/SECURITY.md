@@ -1,5 +1,5 @@
 ---
-source_sha: 01b96ebf878ff22b7cec6d3e9e3d92b3c6e34b4affde439de1a7f09e4ca1d543
+source_sha: 0ac15ab64c61bb43ae41b6ec652dda6261a8eed8431ec891b4f9ad3b33dd7d21
 reviewed: true
 ---
 # Sandbox des plugins et modèle de menace
@@ -37,7 +37,7 @@ moins grave :
 Avant qu'aucun fichier ne soit écrit :
 
 - au plus 5 000 entrées, 100 Mo par fichier, 500 Mo décompressés au total, et
-  un taux de compression de 100:1 (bombes de décompression) ;
+  un taux de compression de 100:1 au-delà de 1 Mo décompressé (bombes de décompression) ;
 - les entrées dont le chemin sort de l'archive (`..`) sont refusées ;
 - les liens symboliques sont refusés ;
 - les bits setuid, setgid et sticky sont retirés.
@@ -197,10 +197,11 @@ Appels système refusés :
 | Namespaces | `unshare`, `setns` |
 | Modules noyau | `init_module`, `finit_module`, `delete_module` |
 | BPF, perf | `bpf`, `perf_event_open` |
-| Entrées-sorties matérielles | `ioperm`, `iopl` (filtre `LD_PRELOAD` seulement) |
+| Entrées-sorties matérielles | `ioperm`, `iopl` (x86-64 seulement, où ils existent) |
 | Swap | `swapon`, `swapoff` |
 | Contrôle du système | `syslog`, `reboot`, `settimeofday`, `clock_settime`, `clock_adjtime`, `adjtimex` |
-| Kexec | `kexec_load` ; `kexec_file_load` (filtre `LD_PRELOAD` seulement) |
+| Kexec | `kexec_load`, `kexec_file_load` |
+| Primitives d'exploitation du noyau | `io_uring_setup`, `io_uring_enter`, `io_uring_register`, `userfaultfd` |
 | Identité | `setuid`, `setgid`, `setreuid`, `setregid`, `setresuid`, `setresgid`, `capset` |
 | Trousseau de clés | `add_key`, `request_key`, `keyctl` |
 
@@ -320,10 +321,13 @@ la ligne **Sandbox de l'hôte** du **Tableau de bord sécurité**, dans
 ### `landlock`
 
 - **Fichiers :** une liste d'autorisations Landlock appliquée par le lanceur.
-  Dossiers système (`/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`, `/app`,
-  `/dev`) en lecture seule ; dossier du plugin et dossier de sa socket en
+  Dossiers système (`/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`, `/app`)
+  en lecture seule ; dans `/dev`, seulement `null`, `zero`, `full`, `random` et
+  `urandom`, pour que les nœuds des cartes graphiques et le terminal du serveur
+  restent hors d'atteinte ; dossier du plugin et dossier de sa socket en
   lecture-écriture ; tout le reste, y compris `/data` et les autres plugins,
-  refusé.
+  refusé. Un plugin qui a reçu `hardware.gpu` obtient son nœud de rendu, seule
+  exception.
 - **Réseau :** `-restrict-net` et `-deny-inet` ; sortie uniquement via
   `Fetch`.
 - **Appels système :** le filtre noyau et le filtre `LD_PRELOAD`.
