@@ -1,46 +1,48 @@
 ---
-source_sha: 6206dabdc6ff848ca510df9c4b2f78a112fdd636b130b05b32f18fd574e98f9d
+source_sha: 3b28483f95cf0e01f8af366abbbe130d63e2bfdb7657c49aefe090c25a5ced6f
+reviewed: false
 ---
-
 # Proxy inverso
 
-Evey sirve **tanto la API como la interfaz web** en el puerto **9091** (HTTP sin
-cifrar). Al proxy inverso le basta con terminar TLS y reenviarlo todo a
-`evey:9091`: **no hay ningún frontend aparte que compilar ni servir**.
+Evey sirve **la API y la interfaz web juntas** en el puerto **9091** (HTTP sin
+cifrar). Un proxy inverso solo tiene que terminar TLS y reenviar todo a
+`evey:9091`: **no hay un frontend aparte que compilar ni servir**.
 
-Sea cual sea el proxy que utilice, defina estas variables para que Evey conozca
-su URL pública y confíe en las cabeceras que el proxy le reenvía:
+Uses el proxy que uses, indica a Evey su URL pública y en qué proxy confiar. El
+sitio más sencillo es **Admin → Acceso remoto**: una **URL externa** en
+`https://` y, cuando el proxy es un contenedor, su red en **Proxies de
+confianza**. Ambos se aplican sin reiniciar. Las mismas respuestas pueden venir
+del entorno, para una instalación descrita por completo como código (el panel
+prevalece cuando ambos están definidos):
 
 ```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
-EVEY_TRUSTED_PROXIES=172.16.0.0/12       # solo hace falta si el proxy es un contenedor; loopback siempre es de confianza
+EVEY_TRUSTED_PROXIES=172.16.0.0/12       # solo si el proxy es un contenedor; el loopback siempre es de confianza
 ```
 
-Una URL base en `https://` es lo que le indica a Evey que hay un proxy
-terminando TLS por delante: las cookies reciben el atributo `Secure`, se envía
-HSTS y se respeta la cabecera `X-Forwarded-Proto` procedente de un proxy de
-confianza. No hace falta ningún interruptor aparte (la antigua
-`EVEY_FORWARDED_PROTO` se sigue aceptando como anulación, pero está obsoleta).
+Una dirección `https://` es lo que le dice a Evey que un proxy termina TLS
+delante de él: las cookies reciben la marca `Secure`, se envía HSTS y se cree la
+cabecera `X-Forwarded-Proto` de un proxy de confianza. No hace falta ningún
+interruptor aparte (la antigua `EVEY_FORWARDED_PROTO` se sigue aceptando como
+anulación, pero está obsoleta).
 
-## Streaming: qué le hacen los valores por defecto de un proxy
+## Streaming: lo que los valores por defecto de un proxy le hacen
 
-Evey funciona detrás de un proxy inverso sin tocarle la configuración de
-fábrica: toda respuesta de larga duración o bien envía bytes de forma continua
-(segmentos HLS, reproducción directa, salida de la transcodificación) o bien
-avisa al cliente cada 30 s (los flujos de eventos), de modo que un tiempo de
-espera de lectura por defecto nunca llega a saltar. Aun así, conviene saber dos
-cosas:
+Evey funciona detrás de un proxy inverso con sus valores por defecto: cada
+respuesta de larga duración envía bytes de forma continua (segmentos HLS,
+reproducción directa, salida de transcodificación) o hace ping al cliente cada
+30 s (los flujos de eventos), así que un tiempo de espera de lectura por defecto
+nunca salta. Aun así conviene saber dos cosas:
 
 - **Búfer.** Un proxy que almacena las respuestas en búfer (nginx lo hace por
-  defecto) carga el archivo de reproducción directa en sus propios búferes y
-  archivos temporales antes de entregárselo al cliente: funciona, pero una
-  película de varios GB pasa entonces por el disco de la máquina del proxy.
+  defecto) lee un archivo en reproducción directa en sus propios búferes y
+  archivos temporales antes de que lo reciba el cliente: funciona, pero una
+  película de varios GB pasa entonces por el disco del equipo del proxy.
   `proxy_buffering off` en las rutas de streaming lo evita.
-- **Análisis de biblioteca.** `/api/v1/libraries/*/scan` transmite el progreso
-  durante todo el tiempo que dure el análisis; un proxy que limite la duración
-  total de una respuesta (algo poco frecuente: ni nginx ni Caddy lo hacen por
-  defecto) lo cortaría antes de tiempo. El análisis en sí sigue adelante en el
-  servidor de todos modos.
+- **Escaneos.** `/api/v1/libraries/*/scan` transmite el progreso mientras dura el
+  escaneo; un proxy que limita la duración total de una respuesta (raro: nginx y
+  Caddy no lo hacen por defecto) lo cortaría. El escaneo continúa de todos modos
+  en el servidor.
 
 Las rutas afectadas:
 
@@ -50,39 +52,29 @@ Las rutas afectadas:
 /api/v1/libraries/*/scan
 ```
 
-El Caddy incluido y los ejemplos de Nginx y Traefik que vienen a continuación
-aplican ambas cosas (sin búfer y sin tiempo de espera) a esas rutas. Con un
-proxy que se administra desde una interfaz gráfica, como Nginx Proxy Manager,
-los valores por defecto bastan y el ajuste queda en un fragmento opcional.
+El Caddy incluido y los ejemplos de Nginx y Traefik de abajo aplican ambas cosas
+(sin búfer, sin tiempo de espera) en estas rutas. Con un proxy gestionado por
+interfaz como Nginx Proxy Manager, los valores por defecto sirven y el ajuste es
+un fragmento opcional.
 
-## Cabeceras de seguridad y CSP: léalo si su proxy define las suyas
+## Cabeceras de seguridad y CSP: léelo si tu proxy pone las suyas
 
-Evey emite una Content-Security-Policy completa. Si su proxy la deja pasar tal
-cual, no hay nada más que hacer.
+Evey emite una Content-Security-Policy completa. Si tu proxy la deja pasar, ya
+está.
 
-> Hasta el 2026-07-23 esa frase era falsa: a la política de la aplicación le
-> faltaban `media-src` y `worker-src`, así que `blob:` recaía en
-> `default-src 'self'` y la reproducción MSE se rompía para todo aquel que la
-> dejara pasar. Pasó desapercibido porque la configuración de Caddy incluida
-> elimina la cabecera de la aplicación y compone la suya. Si utiliza una versión
-> anterior a esa detrás de Nginx Proxy Manager o de Traefik y el reproductor no
-> arranca, la causa es esta: componga en el proxy la política que aparece más
-> abajo, o actualice.
+Muchas configuraciones la eliminan (`header_down -Content-Security-Policy` en
+Caddy) y ponen la suya: está bien, pero entonces **tu** política debe conservar
+estos tokens o algunas funciones fallan en silencio:
 
-Muchas instalaciones prefieren eliminarla (`header_down -Content-Security-Policy`
-en Caddy) y componer la suya propia. No hay problema, pero entonces **su**
-política tiene que conservar estos valores o algunas funciones dejarán de
-funcionar sin previo aviso:
-
-| Valor | Directiva | Qué se rompe sin él |
+| Token | Directiva | Qué falla sin él |
 | --- | --- | --- |
-| `'unsafe-inline'` | `script-src` | Todas las interfaces de extensión (iframe en blanco). El paquete de una extensión se descarga con el token del usuario y se inserta en un iframe `srcdoc`, y un documento srcdoc hereda la política de quien lo incrusta. Entretanto, lo que acota a la extensión es el `sandbox="allow-scripts"` del iframe (origen opaco, sin acceso al DOM ni a las cookies del padre). |
-| `'wasm-unsafe-eval'` | `script-src` | La reproducción de AC-3/E-AC-3 en el navegador (el descodificador WebAssembly ac3go no puede compilarse → la película se ve sin sonido). Es el valor concreto que permite únicamente compilar Wasm, NO el `eval()` general. |
-| `https://www.gstatic.com` | `script-src` (y `frame-src`) | El SDK emisor de Google Cast no llega a cargarse → nadie ve el botón de emisión. Es la única forma que tiene un navegador de descubrir Chromecasts en la red local del usuario. |
-| `blob:` | `media-src` | La reproducción MSE (hls.js engancha el flujo mediante una URL blob). |
-| `blob:` | `worker-src` | hls.js pasa sin avisar a demultiplexar en el hilo principal (reproducción más entrecortada en el móvil). |
+| `'unsafe-inline'` | `script-src` | Todas las interfaces de plugins (iframe en blanco). El paquete de un plugin se descarga con el token del usuario y se inserta en un iframe `srcdoc`, y un documento srcdoc hereda la política de la página que lo incrusta. Lo que acota al plugin es el `sandbox="allow-scripts"` del iframe (origen opaco, sin acceso al DOM ni a las cookies de la página). |
+| `'wasm-unsafe-eval'` | `script-src` | La reproducción AC-3/E-AC-3 en el navegador (el decodificador WebAssembly ac3go no puede compilarse → la película se reproduce sin sonido). Es el token acotado que solo permite compilar Wasm, NO `eval()` en general. |
+| `https://www.gstatic.com` | `script-src` (+ `frame-src`) | El SDK emisor de Google Cast no carga → nadie tiene botón de envío. Es la única forma de que un navegador descubra los Chromecast de la red local del usuario. |
+| `blob:` | `media-src` | La reproducción MSE (hls.js conecta el flujo mediante una URL blob). |
+| `blob:` | `worker-src` | hls.js vuelve en silencio a desmultiplexar en el hilo principal (más entrecortado en móvil). |
 
-Una política probada para un proxy que compone la suya:
+Una política probada para un proxy que pone la suya:
 
 ```
 default-src 'self'; base-uri 'self'; object-src 'none';
@@ -93,30 +85,39 @@ connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:;
 frame-src https://www.gstatic.com
 ```
 
-`base-uri` y `object-src` no recaen en `default-src`, así que una política que
-los omita deja sin restricción la inyección de `<base href>` y la incrustación
-de `<object>` y `<embed>`. Consérvelos si compone su propia política.
+`base-uri` y `object-src` no recurren a `default-src`, así que una política que
+los omite deja sin restricción la inyección de `<base href>` y la incrustación
+con `<object>`/`<embed>`. Consérvalos si pones tu propia política.
+
+Una página necesita una política más amplia: `/cast-receiver.html`, la página que
+carga un Chromecast cuando reproduce desde Evey. El reproductor Cast inserta en
+ella estilos, fuentes e imágenes de `www.gstatic.com`, y por eso la aplicación le
+envía su propia política. Deja la cabecera de la aplicación en esa ruta, o aplica
+esta política solo a esa ruta:
+
+```
+default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://www.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: https:; worker-src 'self' blob:; font-src 'self' data: https://www.gstatic.com; connect-src 'self' https: wss:; frame-src https://www.gstatic.com; base-uri 'self'; object-src 'none'
+```
 
 Reglas prácticas:
 
-- **Al navegador debe llegar exactamente una cabecera CSP.** Si llegan dos (por
-  ejemplo la de la aplicación Y la de su proxy, o la de Caddy Y el fragmento
-  «Advanced» de Nginx Proxy Manager), los navegadores aplican la
-  *intersección*: gana la más estricta y el fallo es silencioso. Compruébelo con
+- **Al navegador debe llegar exactamente una cabecera CSP.** Con dos (por
+  ejemplo la de la aplicación Y la de tu proxy, o la de Caddy Y el fragmento
+  "Advanced" de Nginx Proxy Manager), los navegadores aplican la *intersección*:
+  gana la más estricta y el fallo es silencioso. Compruébalo con
   `curl -sI https://your.domain | grep -ci content-security-policy`
-  → tiene que imprimir `1`.
-- **Mantenga la política en UNA sola línea.** Una CSP repartida en varias líneas
-  dentro de la configuración de un proxy es una fuente clásica de corrupción
-  silenciosa: al unirlas se pierden los caracteres de la juntura (una vez
-  `...gstatic.com; connect-src` quedó como `...gstaticonnect-src`, lo que
-  desactivó el SDK de Cast y fusionó dos directivas).
-- `'unsafe-inline'` en `script-src` tiene un coste real y hoy por hoy resulta
-  imprescindible (las interfaces de extensión, véase la tabla). Quitarlo solo es
-  seguro en una instalación que no ejecute ningún frontend de extensión.
+  → debe mostrar `1`.
+- **Mantén la política en UNA línea.** Una CSP partida en varias líneas en la
+  configuración de un proxy es una corrupción silenciosa clásica: la unión se
+  come los caracteres de la costura (`...gstatic.com; connect-src` se convirtió
+  una vez en `...gstaticonnect-src`, lo que desactivó el SDK de Cast y fusionó
+  dos directivas).
+- `'unsafe-inline'` en `script-src` tiene un coste real y hoy es imprescindible
+  (interfaces de plugins, ver la tabla). Quitarlo solo es seguro en un despliegue
+  que no ejecuta ninguna interfaz de plugin.
 
-Todos los ejemplos incluidos leen el dominio de **un único sitio**:
-`EVEY_DOMAIN`, en el archivo `.env`. Defínalo una vez y Caddy, Nginx y Traefik lo
-recogerán.
+Todos los ejemplos incluidos leen el dominio de **un solo sitio**: `EVEY_DOMAIN`
+en tu `.env`. Defínelo una vez; Caddy, Nginx y Traefik lo recogen.
 
 ```env title=".env"
 EVEY_DOMAIN=media.example.com
@@ -124,31 +125,31 @@ EVEY_DOMAIN=media.example.com
 
 ## Caddy (incluido)
 
-El repositorio trae [`docker/Caddyfile`](../docker/Caddyfile) (del que
-[`docker/Dockerfile.caddy`](../docker/Dockerfile.caddy) construye una imagen):
-obtiene HTTPS automático para `EVEY_DOMAIN` y reenvía todo a `evey:9091`, con
-las excepciones de streaming ya puestas. También compone las cabeceras de
-seguridad y la CSP canónicas de la sección anterior (y elimina la CSP de la
-propia aplicación, para que al navegador llegue exactamente una). Añada un
-servicio `caddy` a su compose (véase el servicio `caddy` del
-[`docker-compose.yml`](../docker-compose.yml) del repositorio).
+El repositorio incluye [`docker/Caddyfile`](../docker/Caddyfile) (convertido en
+imagen por [`docker/Dockerfile.caddy`](../docker/Dockerfile.caddy)): obtiene
+HTTPS automático para `EVEY_DOMAIN` y reenvía todo a `evey:9091`, con las
+excepciones de streaming ya definidas. También pone las cabeceras de seguridad y
+la CSP canónicas de la sección anterior (y elimina la CSP de la aplicación para
+que llegue exactamente una al navegador). Añade un servicio `caddy` a tu compose
+(consulta el servicio `caddy` del [`docker-compose.yml`](../docker-compose.yml)
+del repositorio).
 
-### Detrás de un proxy que ya tiene en marcha (TLS terminado aguas arriba)
+### Detrás de un proxy que ya tienes (TLS terminado antes)
 
-En un NAS que ya cuenta con un proxy inverso (el del fabricante, Nginx Proxy
-Manager, un Traefik en una red Docker compartida) **no hace falta Caddy**: Evey
-emite sus propias cabeceras de seguridad y una CSP completa, y las reglas de
-streaming solo puede aplicarlas el proxy que da la cara al cliente, de manera
-que un segundo proxy por detrás no aporta nada. Ponga el servicio evey en la red
-de ese proxy y apunte a `evey-server:9091`:
+En un NAS que ya tiene un proxy inverso (el del fabricante, Nginx Proxy Manager,
+un Traefik en una red Docker compartida), **no hace falta Caddy**: Evey emite sus
+propias cabeceras de seguridad y una CSP completa, y las reglas de streaming solo
+puede aplicarlas el proxy que da la cara al cliente: un segundo proxy detrás no
+aporta nada. Pon el servicio evey en la red de ese proxy y apunta a
+`evey-server:9091`:
 
 ```yaml title="docker-compose.yml"
 services:
   evey:
-    # sin ports: el proxy es la única vía de entrada
+    # sin ports: el proxy es la única entrada
     environment:
       EVEY_SERVER_BASE_URL: https://media.example.com
-      EVEY_TRUSTED_PROXIES: 172.16.0.0/12     # restrínjalo a la subred del proxy cuando la conozca
+      EVEY_TRUSTED_PROXIES: 172.16.0.0/12     # acótalo a la subred del proxy cuando la conozcas
     # ...
 networks:
   default:
@@ -156,25 +157,25 @@ networks:
     external: true
 ```
 
-Después, en ese proxy y para la ruta hacia `evey-server:9091`: reenvíe
-`X-Forwarded-For` y `X-Forwarded-Proto`, active la compatibilidad con WebSocket
-y aplique las reglas de streaming de más arriba (sin búfer y sin tiempo de
-espera de lectura ni de escritura en las rutas de streaming). Las secciones de
-Nginx, Traefik y Nginx Proxy Manager que siguen muestran las líneas exactas.
+Después, en ese proxy, para la ruta hacia `evey-server:9091`: reenvía
+`X-Forwarded-For` y `X-Forwarded-Proto`, activa el soporte de WebSocket y aplica
+las reglas de streaming de arriba (sin búfer, sin tiempo de espera de lectura o
+escritura en las rutas de streaming): las secciones de Nginx, Traefik y Nginx
+Proxy Manager de abajo muestran las líneas exactas.
 
 ## Nginx
 
-Utilice [`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template)
-(hay un compose listo para usar en
+Usa [`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template)
+(hay un compose listo en
 [`examples/nginx/docker-compose.nginx.yml`](../examples/nginx/docker-compose.nginx.yml)).
-La imagen de nginx lo genera al arrancar sustituyendo `EVEY_DOMAIN`; los
-certificados deben existir con los nombres de archivo correspondientes. Reenvía
-a `evey:9091` con el búfer de streaming desactivado, sin ninguna etapa de
-compilación del frontend.
+La imagen de nginx la genera al arrancar sustituyendo `EVEY_DOMAIN`: los
+certificados deben existir con los nombres de archivo correspondientes. Reenvía a
+`evey:9091` con el búfer de streaming desactivado, sin paso de compilación del
+frontend.
 
 ## Traefik
 
-Consulte [`examples/traefik/docker-compose.traefik.yml`](../examples/traefik/docker-compose.traefik.yml):
+Consulta [`examples/traefik/docker-compose.traefik.yml`](../examples/traefik/docker-compose.traefik.yml):
 
 ```bash
 docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.yml up -d
@@ -182,30 +183,29 @@ docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.
 
 ## Nginx Proxy Manager
 
-El contenedor evey tiene que estar en la red que utiliza NPM (véase «Detrás de
-un proxy que ya tiene en marcha», más arriba). Después, en **Edit Proxy Host**:
+El contenedor evey debe estar en la red que usa NPM (consulta "Detrás de un proxy
+que ya tienes" más arriba). Después, **Edit Proxy Host**:
 
 1. **Details**: Scheme `http`, Forward Hostname `evey-server`, Forward Port
-   `9091`. **Websockets Support: on** (para SyncPlay). **Cache Assets: off**,
-   porque guardaría en caché los segmentos multimedia y las listas de
-   reproducción con una caducidad fija. Block Common Exploits puede quedarse
-   activado (desactívelo si alguna búsqueda o la subida de una extensión
-   responde 403 sin motivo aparente).
-2. **SSL**: su certificado, Force SSL y HTTP/2. Aquí HSTS es opcional, ya que la
-   aplicación lo envía por su cuenta.
-Y con eso basta: NPM reenvía por sí solo `X-Forwarded-For`, `X-Forwarded-Proto`
-y la cabecera Host, y sus tiempos de espera por defecto nunca llegan a saltar
-con los flujos de Evey (véase la sección sobre streaming, más arriba).
+   `9091`. **Websockets Support: on** (SyncPlay). **Cache Assets: off**: guardaría
+   en caché los segmentos y listas de reproducción con una caducidad fija. Block
+   Common Exploits puede quedarse activado (desactívalo si una búsqueda o la
+   subida de un plugin responde alguna vez 403 sin motivo).
+2. **SSL**: tu certificado, Force SSL, HTTP/2. HSTS es opcional aquí: la
+   aplicación ya lo envía.
+Eso es todo: NPM reenvía por sí solo `X-Forwarded-For` / `X-Forwarded-Proto` y la
+cabecera Host, y sus tiempos de espera por defecto nunca saltan en los flujos de
+Evey (consulta la sección de streaming de arriba).
 
-**Opcional**: evitar que NPM haga pasar por su propio disco los archivos de
-reproducción directa. Vaya a **Advanced** → *Custom Nginx Configuration* (la
-pestaña `Custom Locations` no permite expresar la expresión regular):
+**Opcional**: evitar que NPM almacene los archivos en reproducción directa en su
+propio disco: **Advanced** → *Custom Nginx Configuration* (la pestaña `Custom Locations`
+no admite la expresión regular):
 
 ```nginx
-# Subida de extensiones, restauración de copias de seguridad.
-client_max_body_size 100M;
+# Subidas de plugins (hasta 100 MB) y restauraciones de copias (hasta 2 GB).
+client_max_body_size 2G;
 
-# Streaming: sin búfer y sin tiempo de espera.
+# Streaming: sin búfer, sin tiempo de espera.
 location ~ ^/api/v1/media/.+/(hls|stream) {
     proxy_pass http://evey-server:9091;
     proxy_buffering off;
@@ -220,7 +220,7 @@ location ~ ^/api/v1/media/.+/(hls|stream) {
     proxy_set_header X-Forwarded-Proto $scheme;
 }
 
-# Los análisis de biblioteca transmiten su progreso mientras dura el análisis.
+# Los escaneos de biblioteca transmiten su progreso mientras dura el escaneo.
 location ~ ^/api/v1/libraries/.+/scan {
     proxy_pass http://evey-server:9091;
     proxy_buffering off;
@@ -235,40 +235,37 @@ location ~ ^/api/v1/libraries/.+/scan {
 }
 ```
 
-El resto de rutas (la interfaz web, el resto de la API, el WebSocket de
-SyncPlay) pasan por el bloque proxy propio de NPM, el que configura la pestaña
-Details. Si omite el fragmento no se rompe nada: lo único que cambia es dónde se
-almacenan en búfer los archivos grandes.
+Todas las demás rutas (la interfaz web, el resto de la API, el WebSocket de
+SyncPlay) pasan por el bloque de proxy propio de NPM, que configura la pestaña
+Details. Si omites el fragmento no se rompe nada: solo cambia dónde se almacenan
+los archivos grandes.
 
-## Las IP reales de los clientes y el filtro de acceso remoto
+## Direcciones reales de los clientes y el bloqueo del acceso remoto
 
-En cuanto el proxy reenvía la dirección real del cliente, Evey puede distinguir
-a un espectador que está en casa de otro que está en internet. Sobre esa
-distinción actúan el límite de tasa de bits en WAN y el filtro de acceso remoto,
-por lo que ambos ajustes solo se comportan como es debido si van juntos:
+En cuanto tu proxy reenvía la dirección real del cliente, Evey distingue a un
+espectador en casa de uno en internet. Sobre eso actúan el límite de bitrate WAN
+y el bloqueo del acceso remoto, así que ambos ajustes solo se comportan bien
+juntos:
 
-- `EVEY_TRUSTED_PROXIES` tiene que cubrir el proxy (`172.16.0.0/12` cuando es un
-  contenedor de la red Docker; nada que añadir cuando se ejecuta en el host, ya
-  que loopback siempre es de confianza). Lo que indique se SUMA a la base
-  loopback, nunca la sustituye, así que un valor pensado para Docker no puede
-  impedir en silencio que el filtro vea las direcciones reales de los clientes.
-- Si encadena varios proxies, cada uno debe conservar `X-Forwarded-For`. En
-  Caddy se hace con `servers { trusted_proxies static private_ranges }`; nginx
-  usa `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`.
+- Los proxies de confianza (panel o `EVEY_TRUSTED_PROXIES`) deben cubrir el proxy
+  (`172.16.0.0/12` cuando es un contenedor en la red de Docker; nada que añadir
+  cuando corre en el equipo, el loopback siempre es de confianza). Lo que definas
+  se AÑADE a la base del loopback, nunca la sustituye, así que un valor de Docker
+  no puede impedir en silencio que el bloqueo vea las direcciones reales.
+- Cada proxy de una cadena debe conservar `X-Forwarded-For`. En Caddy es
+  `servers { trusted_proxies static private_ranges }`; nginx usa
+  `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`.
 
-**Activar esto cambia quién cuenta como remoto.** Antes, todas las peticiones
-parecían venir de la dirección privada del propio proxy, así que todo el mundo
-quedaba clasificado como LAN. Después, los clientes remotos de verdad se
-identifican correctamente y, si el acceso remoto está desactivado, se les
-rechaza en todas las rutas (`403 {"code":"remote_access_disabled"}`). Esa misma
-secuencia dejó a toda una casa fuera de un servidor que funcionaba durante dos
-días: cambió la configuración del proxy, no cambió ningún ajuste de la
-aplicación y el único síntoma visible fue que los clientes fallaban sin ningún
-error del lado del servidor.
+**Activarlo cambia quién cuenta como remoto.** Antes, cada petición parecía venir
+de la dirección privada del propio proxy, así que todo el mundo se clasificaba
+como LAN. Después, los clientes remotos reales se identifican correctamente, y si
+el acceso remoto está desactivado se rechazan en todas las rutas
+(`403 {"code":"remote_access_disabled"}`), aunque no haya cambiado ningún ajuste
+de la aplicación.
 
-Evey ahora se protege de ello: el acceso remoto queda activado por defecto en
-cuanto hay una URL pública configurada, el estado se registra en cada arranque,
-los rechazos se registran junto con la IP del cliente, `evey admin doctor` falla
-de forma bien visible ante un «publicado pero rechazando» y el panel de
-administración muestra un aviso. Si modifica los ajustes de confianza del proxy,
-ejecute después `evey admin doctor`.
+Evey se protege contra ello: el acceso remoto se activa por defecto cuando hay una
+URL pública configurada y no se ha tomado ninguna decisión explícita, el estado se
+registra en cada arranque, los rechazos se registran con la IP del cliente,
+`evey admin doctor` falla de forma visible ante "publicado pero rechazando", y el
+panel de administración muestra un aviso. Si cambias los ajustes de confianza del
+proxy, comprueba `evey admin doctor` después.

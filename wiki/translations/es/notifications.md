@@ -1,18 +1,18 @@
 ---
-source_sha: eea86697845889523ecbd07dd3d88da0143ac37f477404249051c73e160c80c8
+source_sha: 5dca3b7fe64acb5cf79df57c6da42ed90ae968596cba80b381b921667c8e36e9
+reviewed: false
 ---
-
 # Notificaciones
 
-Evey puede avisar a sus usuarios cuando se añade contenido nuevo, cuando falla una copia de seguridad y ante otros sucesos.
+Evey puede avisar a los usuarios cuando se añade contenido nuevo, cuando falla una copia de seguridad y ante otros eventos.
 
 ## Canales
 
-### Notificaciones dentro de la aplicación
-Siempre activas. El usuario ve un icono de campana con el número de mensajes sin leer. No hay nada que configurar.
+### Notificaciones en la aplicación
+Siempre activadas. Los usuarios ven una campana con el número de no leídas. No hace falta configurar nada.
 
-### Correo electrónico (SMTP)
-Envía un correo cada vez que se genera una notificación. Necesita la configuración SMTP:
+### Correo (SMTP)
+Envía un correo cuando se crea una notificación. Requiere configurar SMTP:
 
 ```env title=".env"
 EVEY_SMTP_HOST=smtp.example.com
@@ -24,27 +24,28 @@ EVEY_SMTP_TLS=starttls
 ```
 
 Modos TLS:
-- `starttls` - conexión en claro que después se eleva a TLS (puerto 587, el caso más habitual)
-- `ssl` - conexión directamente cifrada con TLS (puerto 465)
-- `none` - sin cifrado (no recomendable)
+- `starttls`: conexión sin cifrar que pasa a TLS (puerto 587, el más habitual)
+- `ssl`: conexión directa con TLS (puerto 465)
+- `none`: sin cifrado (no recomendado)
 
 ### Web Push
-Notificaciones push del navegador. Las claves VAPID se generan solas en el primer arranque. Cada usuario decide si quiere recibirlas desde los ajustes de su perfil.
+Notificaciones push del navegador. Las claves VAPID se generan automáticamente en el primer arranque. Cada usuario las activa desde los ajustes de su perfil.
 
-## Recuperación de la contraseña
+## Recuperación de contraseña
 
-Los correos de restablecimiento de contraseña necesitan que SMTP esté configurado. Además, un administrador tiene que activar la función:
+Los correos de restablecimiento de contraseña requieren SMTP configurado. Además, un administrador debe activar la función:
 
-1. Configure SMTP (véase más arriba)
-2. En el panel de administración, ponga `auth.password_recovery_enabled` en `true` dentro de la configuración del servidor
-3. La página de inicio de sesión mostrará entonces el enlace «¿Ha olvidado su contraseña?»
+1. Configura SMTP (ver arriba).
+2. Activa **Recuperación de contraseña** en **Admin → Configuración del servidor**.
+   Se aplica de inmediato.
+3. La página de inicio de sesión muestra entonces un enlace "¿Olvidaste tu contraseña?".
 
-Si se retira la configuración SMTP después de haber activado la función, la recuperación de contraseña se desactiva sola.
+Si se quita SMTP después de activarla, la recuperación de contraseña se desactiva automáticamente.
 
 ## Niveles de notificación
 
-Cada usuario elige qué quiere recibir para cada tipo de contenido:
-- **Todas** - avisar de todo
-- **Relevantes** - solo si los géneros coinciden con su historial de visionado
-- **Solo importantes** - coincidencia de géneros más estricta
-- **Desactivadas** - ninguna notificación para ese tipo
+Cada usuario puede elegir su preferencia de notificación por tipo de contenido:
+- **Todas**: avisar de todo
+- **Relevantes**: solo si los géneros coinciden con el historial del usuario
+- **Solo importantes**: coincidencia de géneros más estricta
+- **Desactivado**: ninguna notificación para este tipo
