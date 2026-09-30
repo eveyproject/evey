@@ -69,7 +69,7 @@ Rationale: themes must not be able to style password inputs or privileged UI ele
 
 **Full-screen overlay rules** - entire rule block removed.
 
-A rule block is removed when it contains `position: fixed` or `position: sticky` combined with at least two of: `top: 0`, `left: 0`, `width: 100vw`, `height: 100vh`. This pattern is the canonical CSS phishing overlay.
+A rule block is removed when it combines `position: fixed` or `position: sticky` with a box that covers the screen: `inset: 0`, the four sides at `0`, or at least two of `top: 0`, `right: 0`, `bottom: 0`, `left: 0`, `width: 100vw`, `height: 100vh` including one of the two viewport sizes. A header pinned with `top: 0; left: 0` and sized by its content is kept. Declarations for the same selector are added up across rules, so splitting the pattern over several blocks does not escape it. This pattern is the canonical CSS phishing overlay.
 
 **`pointer-events: none` on interactive elements** - declaration removed from rule block.
 
@@ -120,17 +120,16 @@ the trusted controls (logout, profile, real notifications).
 .evey-media-card:hover { transform: scale(1.03); transition: transform 120ms ease; }
 ```
 
-### Example: custom player theme
+### Example: a different accent colour
+
+The interface draws buttons, links, active states and the player's progress
+bar from a few custom properties; `examples/plugins/theme-dark-blue/theme.css`
+lists them. Overriding them restyles every screen at once:
 
 ```css
-.player-controls {
-  background: linear-gradient(to top, rgba(0,0,0,.8), transparent);
-  border-radius: 0 0 8px 8px;
-}
-
-.player-progress-bar {
-  accent-color: var(--color-accent);
-  height: 4px;
+:root {
+  --accent: #e8a33d;
+  --accent-hover: #f0b95c;
 }
 ```
 
