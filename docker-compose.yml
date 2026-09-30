@@ -117,7 +117,7 @@ services:
     # Advanced (bare-metal namespace isolation): bubblewrap mode is available but
     # needs the mount syscall, which the default AppArmor blocks inside Docker -
     # enabling it in a container requires a relaxed seccomp profile (a security
-    # downgrade). See "Advanced: bubblewrap mode" in docs/plugins.md.
+    # downgrade). See docs/plugins/sandbox-deployment.md.
     # Hardware-accelerated transcoding is opt-in via an overlay file so the
     # base stack stays `up`-able on hosts without a GPU:
     #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d

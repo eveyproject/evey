@@ -1,5 +1,5 @@
 ---
-source_sha: d5cb641722482071362563f54ebfa269c77cb3d81faa2c0ec9878ad7f4ef501c
+source_sha: eb1cc28305f9e7d331f7b27f3797ed9dd7f71f4c3afbe25d9ebd85489b9e8059
 reviewed: true
 ---
 # Préparer son environnement de développement de plugins
@@ -321,7 +321,7 @@ signifie :
 
 | Symptôme | Cause | Correction |
 |---|---|---|
-| `bwrap: ... permission denied` | Le profil seccomp Docker par défaut bloque `unshare`. | Le dépôt fournit un profil seccomp personnalisé (`docker/seccomp.json`). Vérifiez que votre fichier compose l'applique. |
+| `bwrap: ... permission denied` | Mode `bubblewrap` dans Docker : les profils seccomp et AppArmor par défaut bloquent les appels `unshare` et `mount` dont il a besoin. | Gardez le mode `auto` par défaut, qui utilise Landlock dans un conteneur. Sinon, appliquez le profil fourni `docker/seccomp-evey.json` (aussi présent dans l'image sous `/etc/evey/seccomp.json`), un affaiblissement assumé de la sécurité : voir [Configuration du sandbox des plugins](sandbox-deployment.md). |
 | `forbidden pattern "fetch(" found in theme JS` | L'analyse du JS de thème a repéré une API interdite. | Un thème ne doit appeler que `evey.theme.*`. Voyez `internal/pkg/themejs/scan.go` pour la liste de ce qui est bloqué. |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | Tous les jokers sont refusés à l'installation, sans exception. | Utilisez `api.tmdb.org` (et listez chaque sous-domaine nécessaire), pas `*.tmdb.org` ni `cdn.*.tmdb.org`. |
 | `installer: slot "admin.section" not allowed` | Les interfaces de plugins sont interdites dans les zones privilégiées. | Choisissez un emplacement non critique dans la liste, ou repensez le plugin. |
