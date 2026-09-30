@@ -1,34 +1,56 @@
 ---
-source_sha: 6f985b91384f5a0566bd38dfa9962efdfce4a6b07d1697db8a21ab17c08d0469
+source_sha: 68ae93ace6a6ac1dc58140bf8cdc28c60bd2db3d0b2ce148ec58433940070f68
+reviewed: false
 ---
+# Migraciones de la base de datos
 
-# Guía de migraciones
-
-Cómo ejecuta Evey las migraciones de esquema y cómo operar sobre ellas sin riesgo.
+Cómo cambia Evey el esquema de su base de datos durante una actualización, y qué
+hacer cuando algo sale mal. Los comandos apuntan a la instalación estándar, en la
+que la base de datos se ejecuta dentro del contenedor `evey-server`.
 
 ## Cómo se ejecutan las migraciones
 
-Las migraciones van **incrustadas** en el binario (`go:embed`) y se ejecutan solas al arrancar el servidor, desde `internal/adapters/driven/postgres/migrate.go`, con `golang-migrate/migrate/v4`. Fuente: `internal/adapters/driven/postgres/migrations/NNNNNN_<name>.{up,down}.sql`.
+Las migraciones van integradas en el binario (`go:embed`) y las aplica
+`golang-migrate` al arrancar el servidor
+(`internal/adapters/driven/postgres/migrate.go`, archivos
+`internal/adapters/driven/postgres/migrations/NNNNNN_<name>.{up,down}.sql`).
+El estado es la tabla `schema_migrations`: `{version, dirty}`.
 
-Las migraciones se aplican solas cuando arranca `evey-server`. **Además** hay una CLI para el control manual: `evey admin migrate up | down | version` (está en `cmd/evey/admin.go`; `version` imprime la versión actual del esquema y sale con 1 si la base de datos está marcada `dirty`). Las reglas `migrate-up` y `migrate-down` del `Makefile` la envuelven a través de `./cmd/evey admin migrate`. Se hace un `pg_dump` previo a la migración de forma automática cuando `EVEY_BACKUP_DIR` está definida (pase `--no-backup` para saltárselo).
+Antes de aplicar nada, el servidor escribe un volcado completo en
+`/data/backups/pre-migration-<version>-<time>.sql.gz` (`EVEY_BACKUP_DIR`). Se
+conserva el volcado más reciente de cada una de las 3 últimas versiones del
+esquema.
 
-El estado se guarda en la tabla `schema_migrations`, que gestiona golang-migrate: `{version, dirty}`.
+Las mismas operaciones están disponibles a mano:
 
-## Lista de comprobación antes de migrar
+```sh
+docker exec evey-server evey admin migrate version   # sale con 1 cuando el esquema está dirty
+docker exec evey-server evey admin migrate up
+docker exec evey-server evey admin migrate down      # exactamente un paso
+```
 
-1. **Copie la base de datos.** Evey trae un extremo de copia de seguridad (véase `docs/backups.md`):
+`up` y `down` también hacen antes un volcado; `--no-backup` lo omite.
+
+Para ejecutar SQL contra la base de datos integrada:
+
+```sh
+docker exec evey-server sh -c \
+  'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
+```
+
+## Antes de una actualización
+
+1. **Haz una copia de seguridad** en **Admin → Copia de seguridad y restauración**
+   (**Ejecutar ahora**), o desde un script:
    ```sh
    curl -X POST -H "Authorization: Bearer <admin-token>" \
      http://localhost:9091/api/v1/admin/backups
    ```
-   O lance `pg_dump` directamente contra el contenedor:
-   ```sh
-   docker exec evey-postgres pg_dump -U "$EVEY_DB_USER" "$EVEY_DB_NAME" \
-     | gzip > backup-$(date -u +%Y%m%dT%H%M%SZ).sql.gz
-   ```
-   Compruebe que el volcado no está vacío y que pasa `gunzip -t`.
+   El volcado automático previo a la migración es una segunda copia, no un
+   sustituto.
 
-2. **Mire el tamaño de las tablas** si la migración toca alguna grande (media_items, watch_progress, tracks, hls_sessions):
+2. **Con un catálogo grande**, mira el tamaño de las tablas más grandes: una
+   migración que reescribe una de ellas tarda más.
    ```sql
    SELECT relname,
           pg_size_pretty(pg_total_relation_size(relid)) AS total,
@@ -38,112 +60,90 @@ El estado se guarda en la tabla `schema_migrations`, que gestiona golang-migrate
     LIMIT 20;
    ```
 
-3. **Mire las sesiones y los bloqueos activos** antes de una migración con mucho DDL:
-   ```sql
-   SELECT pid, state, wait_event_type, wait_event,
-          now() - query_start AS duration, left(query, 120)
-     FROM pg_stat_activity
-    WHERE datname = current_database()
-      AND pid <> pg_backend_pid()
-    ORDER BY query_start;
-   ```
-   Mate las sesiones largas o en `idle in transaction` (`SELECT pg_terminate_backend(pid)`) antes de lanzar una migración que tome bloqueos fuertes.
+3. **Comprueba la versión actual**: `evey admin migrate version`. Si indica un
+   esquema dirty, consulta primero
+   [Una migración que se detuvo a medias](#a-migration-that-stopped-halfway).
 
-4. **Mire la versión de migración actual**:
-   ```sql
-   SELECT version, dirty FROM schema_migrations;
-   ```
-   Si `dirty = true`, siga la sección de recuperación antes de hacer ninguna otra cosa.
+## Ejecutar las migraciones
 
-## Lanzar una migración
-
-Las migraciones se ejecutan al arrancar el servidor. Para aplicar las pendientes:
+Se ejecutan al arrancar la nueva imagen:
 
 ```sh
-docker compose pull evey       # si va a desplegar una imagen nueva
-docker compose up -d evey
-docker logs -f evey-server     # siga el registro de arranque
+docker compose pull && docker compose up -d
+docker logs -f evey-server
 ```
 
-Ha ido bien si no hay errores de migración y el servidor responde 200 en `/healthz`. Compruébelo:
+El contenedor se declara sano en cuanto las migraciones están aplicadas y el
+servidor responde:
 
 ```sh
 curl -sf http://localhost:9091/healthz && echo OK
-docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" \
-  -c "SELECT version, dirty FROM schema_migrations;"
+docker exec evey-server evey admin migrate version
 ```
 
-## Vuelta atrás
+## Volver atrás
 
-Retroceda un paso con la regla ya preparada:
+`evey admin rollback` muestra la versión en ejecución, la versión del esquema, el
+volcado previo a la migración más reciente y los comandos exactos que ejecutar en
+el equipo. No cambia nada: el contenedor no tiene acceso a Docker.
 
-```sh
-make migrate-down     # envuelve `evey admin migrate down`, retrocede EXACTAMENTE un paso
-make migrate-version  # confirme dónde ha aterrizado
-```
+La forma habitual de volver atrás es la imagen anterior con el volcado hecho antes
+de la actualización: consulta [Volver atrás](../backups.md#going-back) en Copias
+de seguridad y actualizaciones. `evey admin migrate down` revierte en cambio paso
+a paso, cuando basta con el `.down.sql` de ese paso.
 
-Repítala una vez por paso para seguir retrocediendo. Se hace un `pg_dump` previo
-a la migración de forma automática cuando `EVEY_BACKUP_DIR` está definida.
+No edites `schema_migrations` a mano, salvo para quitar un estado dirty (abajo),
+y haz antes un volcado.
 
-La otra vía es **volver a desplegar la imagen anterior**, cuyas migraciones
-incrustadas se detienen en la versión N-1.
+Restaura el volcado previo a la migración en lugar de migrar hacia abajo cuando
+la actualización eliminó datos (una columna quitada, un cambio de tipo).
 
-> No edite `schema_migrations` a mano. Una revisión anterior de esta guía
-> afirmaba que no existía ninguna regla `migrate-down` y mandaba al operador
-> aplicar el `.down.sql` con `psql` y después hacer a mano un
-> `UPDATE schema_migrations SET version = ...`, en plena incidencia. Se
-> contradecía con la sección «Cómo se ejecutan las migraciones», nueve líneas
-> más arriba. La regla ha existido siempre (`Makefile:314`). Recurra a la
-> cirugía manual solo si la base de datos está marcada `dirty` y
-> `migrate down` se niega a ejecutarse, y haga un volcado antes.
+## Una migración que se detuvo a medias
 
-Restaure siempre desde la copia previa a la migración si se han desplegado cambios que destruyen datos (DROP COLUMN, cambios de tipo) y esa copia es más reciente que el punto en el que el tráfico de producción se separó.
-
-## Recuperación: estado `dirty`
-
-Si el registro de arranque dice `Dirty database version N. Fix and force version.`, la última migración se cayó a medias. Arregle el esquema a mano hasta dejarlo en el estado que quiera y limpie después la marca:
+Si el registro muestra `Dirty database version N. Fix and force version.`, una
+migración se interrumpió a medio camino. Lleva el esquema al estado que quieras y
+después quita la marca:
 
 ```sql
--- Inspección: ¿qué dice ahora mismo schema_migrations?
 SELECT version, dirty FROM schema_migrations;
 
--- O bien vuelva a aplicar a mano las sentencias del up.sql, o bien
--- deshaga con el down.sql. Después limpie el bit dirty en la versión
--- a la que haya llegado de verdad:
+-- Vuelve a aplicar a mano el resto del up.sql, o revierte con el down.sql,
+-- y después registra la versión a la que llegaste realmente:
 UPDATE schema_migrations SET version = <N>, dirty = false;
 ```
 
-Reinicie `evey-server`. golang-migrate continuará desde ahí.
+Reinicia el contenedor; las migraciones continúan desde ahí. Restaurar el volcado
+previo a la migración es la otra salida.
 
-## Casos particulares
+## Escribir una migración
 
-Migraciones recientes como referencia (véase `internal/adapters/driven/postgres/migrations/`):
+Para quienes contribuyen. Ejemplos en `internal/adapters/driven/postgres/migrations/`:
 
-- **`000066_cascade_and_email_unique.up.sql`** - `ALTER TABLE ... DROP CONSTRAINT ... ADD CONSTRAINT ... FOREIGN KEY`. Toma un `ACCESS EXCLUSIVE` sobre las dos tablas mientras dura el ADD. Barato en tablas pequeñas, doloroso en `media_items` y `watch_progress`. El patrón para tablas grandes: añadir con `NOT VALID` y hacer después un `VALIDATE CONSTRAINT` en una segunda sentencia (validar solo toma `SHARE UPDATE EXCLUSIVE`).
-- **`000067_sort_title_index.up.sql`, `000068_watch_progress_composite_index.up.sql`, `000069_quick_connect_shortcode_index.up.sql`** - un `CREATE INDEX` pelado. En tablas grandes bloquea las escrituras. Plantéese un `CREATE INDEX CONCURRENTLY` a mano durante una ventana de mantenimiento (no puede ejecutarse dentro de la transacción de migrate: aplíquelo fuera de banda y después anote la versión).
-- **`000072_syncplay_queue.up.sql`** - `ALTER TABLE ... ADD COLUMN ... NOT NULL DEFAULT '[]'`. En PG 11 y posteriores esto es solo metadatos y va rápido. Aun así toma un `ACCESS EXCLUSIVE` un instante.
+- **`000066_cascade_and_email_unique.up.sql`**: `ALTER TABLE ... DROP CONSTRAINT ... ADD CONSTRAINT ... FOREIGN KEY`. Toma `ACCESS EXCLUSIVE` en ambas tablas mientras dura el ADD. Barato en tablas pequeñas, doloroso en `media_items` / `watch_progress`. Patrón para tablas grandes: añadir con `NOT VALID` y después `VALIDATE CONSTRAINT` en una segunda sentencia (validar solo toma `SHARE UPDATE EXCLUSIVE`).
+- **`000067_sort_title_index.up.sql`, `000068_watch_progress_composite_index.up.sql`, `000069_quick_connect_shortcode_index.up.sql`**: `CREATE INDEX` simple. En tablas grandes bloquea las escrituras. `CREATE INDEX CONCURRENTLY` no puede ejecutarse dentro de una transacción de migrate.
+- **`000072_syncplay_queue.up.sql`**: `ALTER TABLE ... ADD COLUMN ... NOT NULL DEFAULT '[]'`. En PG 11+ solo toca metadatos y es rápido. Aun así mantiene `ACCESS EXCLUSIVE` un momento.
 
 Pautas:
 
-- **Un ALTER largo** que reescriba la tabla (cambio de tipo, añadir un valor por defecto no constante en un PG antiguo) → comprobación de bloqueos obligatoria, y cuente con una parada del servicio.
-- **DROP COLUMN** → son solo metadatos, pero la columna no se puede recuperar sin una copia. No la elimine nunca en la misma entrega en la que se despliega una versión nueva del código: mejor en dos pasos, primero dejar de leer la columna, desplegar, y eliminarla en la entrega siguiente.
-- **Una clave ajena sobre tablas grandes** → `ADD CONSTRAINT ... NOT VALID` y un `VALIDATE CONSTRAINT` en una migración posterior. Evite un `ADD CONSTRAINT ... FOREIGN KEY ...` único y bloqueante.
-- **UPDATE por lotes o relleno** → nunca dentro de una sola migración sobre una tabla grande. Entregue una migración de esquema que no haga nada más una tarea en segundo plano.
-- **Sustitución de una columna (expand → migrate → contract)** → no meta en una sola migración el `ADD COLUMN`, el relleno, el `SET NOT NULL` y el `DROP COLUMN` de la antigua. Esa forma solo funciona porque hoy Evey corre en una sola instancia y las migraciones se aplican de forma síncrona al arrancar: durante esa ventana no pueden convivir el código viejo leyendo la columna eliminada y el nuevo leyendo la nueva, así que un despliegue progresivo o con varias réplicas serviría errores desde la mitad que fuera por detrás.
-  Hay migraciones escritas así, que se dejan como están porque ya se entregaron: `000077` y `000098_playlists_profile_id.up.sql` (añade `profile_id`, rellena, pone `NOT NULL` y elimina `user_id`).
-  Para una nueva, repártala en tres entregas:
-  1. **expandir** - añada la columna nueva como anulable, escriba en *las dos* columnas y siga leyendo la antigua;
-  2. **migrar** - rellene la columna nueva (con una tarea en segundo plano, no con la migración) y pase después las lecturas a ella;
-  3. **contraer** - cuando ningún código desplegado toque ya la columna antigua, ponga `NOT NULL` y elimínela.
-  Cada paso se despliega y se deshace por separado, cosa que la versión de un solo archivo no permite.
+- **ALTER largo** que reescribe la tabla (cambio de tipo, añadir un valor por defecto no constante en un PG antiguo) → espera una interrupción del servicio con un catálogo grande.
+- **DROP COLUMN** → solo metadatos, pero la columna no se puede recuperar sin una copia. Nunca la elimines en la misma versión en la que se despliega una nueva versión del código: mejor en dos pasos, dejar de leer la columna, desplegar, y eliminarla en la versión siguiente.
+- **FK en tablas grandes** → `ADD CONSTRAINT ... NOT VALID` y después `VALIDATE CONSTRAINT` en una migración posterior. Evita un único `ADD CONSTRAINT ... FOREIGN KEY ...` bloqueante.
+- **UPDATE masivo / relleno** → nunca en una sola migración sobre una tabla grande. Entrega una migración de esquema vacía + una tarea en segundo plano.
+- **Sustitución de columna (expand → migrate → contract)** → no juntes `ADD COLUMN` + relleno + `SET NOT NULL` + `DROP COLUMN` de la antigua en una sola migración. Esa forma solo funciona porque hoy Evey se ejecuta en una sola instancia, con las migraciones aplicadas de forma síncrona al arrancar: durante la ventana, el código antiguo que lee la columna eliminada y el código nuevo que lee la nueva no pueden convivir, así que un despliegue progresivo o con varias réplicas serviría errores desde la mitad que va por detrás.
+  Migraciones conocidas escritas así, que se mantienen tal cual porque ya se publicaron: `000077` y `000098_playlists_profile_id.up.sql` (añade `profile_id`, rellena, fija `NOT NULL`, elimina `user_id`).
+  Para una nueva, repártela en tres versiones:
+  1. **expand**: añadir la columna nueva admitiendo nulos, escribir en *ambas* columnas, seguir leyendo la antigua;
+  2. **migrate**: rellenar la columna nueva (tarea en segundo plano, no la migración) y después pasar las lecturas a ella;
+  3. **contract**: cuando ningún código desplegado toque ya la columna antigua, `SET NOT NULL` y eliminarla.
+  Cada paso se puede desplegar y revertir por separado, algo que la versión de un solo archivo no permite.
 
-## Comprobaciones después de migrar
+## Después de una actualización
 
 ```sh
 curl -sf http://localhost:9091/healthz
-docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" \
-  -c "SELECT version, dirty FROM schema_migrations;"
+docker exec evey-server evey admin migrate version
 docker logs --since 10m evey-server 2>&1 | grep -iE 'migrat|error'
 ```
 
-Pruebe por encima unos cuantos extremos afectados por la migración (`/api/v1/...`).
+Después vacía la caché de transcodificación si la versión cambió cómo se
+codifican los vídeos (**Admin → Caché de transcodificación**).
