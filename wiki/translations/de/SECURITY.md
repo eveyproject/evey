@@ -1,5 +1,5 @@
 ---
-source_sha: 2afa372fc288cb82c9e90ad0f1bb879056bb0e14682a438cab6ce64d779bf48d
+source_sha: 0ac15ab64c61bb43ae41b6ec652dda6261a8eed8431ec891b4f9ad3b33dd7d21
 ---
 # Sandbox und Bedrohungsmodell für Erweiterungen
 

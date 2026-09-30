@@ -1,5 +1,5 @@
 ---
-source_sha: 507ac22fa3a3e19be004b58f4eb8c59130fdf70e75855b01aae6d4b67fc7e4cd
+source_sha: 6ad73949864d3c9b0dea20d620fb0f5e4a2b176cba0f54c8e15090f66f2b929c
 ---
 # Sprachen und Barrierefreiheit
 

@@ -147,8 +147,8 @@ Her der Encoder sichtbar macht.
 **Häufige Ursachen und Behebung**:
 - **Wiederholte kurze Sprünge nach vorn**: Jeder kann einen neuen Encoder
   starten, und die Obergrenze pro Hash (`MaxSessionsPerHash`, Standard 2)
-  verdrängt den am längsten ungenutzten. Erwarten Sie `session killed
-  reason:lru_cap` im Log. In Maßen normal.
+  verdrängt den am längsten ungenutzten. Erwarten Sie `session killed reason:lru_cap`
+  im Log. In Maßen normal.
 - **Der Client ist ungeduldiger als der Server**: `clientSegmentPatience` (6 s)
   ist das Maß, an dem das Fenster zum Erreichen eines Sprungziels ausgerichtet
   ist; AndroidX Media3 gibt ein Segment nach ~8 s auf, während das

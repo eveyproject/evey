@@ -64,8 +64,8 @@ Standardeinstellungen, und die Feinabstimmung ist ein optionaler Schnipsel.
 Evey sendet eine vollständige Content-Security-Policy. Lässt Ihr Proxy sie
 durch, sind Sie fertig.
 
-Viele Installationen entfernen sie stattdessen (`header_down
--Content-Security-Policy` in Caddy) und setzen eine eigene - das ist in
+Viele Installationen entfernen sie stattdessen (`header_down -Content-Security-Policy`
+in Caddy) und setzen eine eigene - das ist in
 Ordnung, aber dann muss **Ihre** Richtlinie diese Tokens behalten, sonst
 brechen Funktionen stillschweigend weg:
 
