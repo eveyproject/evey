@@ -324,9 +324,9 @@ Symptom: admin sees an unexpected device in **Now Playing** (admin panel), or a 
      ORDER BY started_at DESC LIMIT 20;"'
    ```
 2. Kill from admin UI: **Admin → Now Playing**, the stop icon on the session (**Stop session**), then **Stop** to confirm; or via gRPC `AdminSessionService/KillSession` with the `session_id`. The session is terminated 5s later so the player can receive the stop command.
-3. If the session is unresponsive, force-delete the HLS session (directory is `<cacheDir>/<mediaItemID>`, default `/cache/transcode/<mediaItemID>`):
+3. If the stream keeps running anyway, restart the container: every encoder stops with it.
    ```sh
-   docker exec evey-server rm -rf /cache/transcode/<media_item_id>/
+   docker compose restart evey
    ```
 4. If the account itself is compromised, **Admin → Users → Disable** on it: that deletes its refresh tokens and invalidates its access tokens at once, so every device is signed out. Set a new password (`evey admin reset-password --user <email>`, which on its own ends no session), then **Enable** the account again.
 
