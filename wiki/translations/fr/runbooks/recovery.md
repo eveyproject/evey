@@ -1,5 +1,5 @@
 ---
-source_sha: 98cd8a5b76bc4dabe53892ee6a3e33de75d73948d89d9d58d0b637fc39a3484e
+source_sha: ee8527dd07b1c7262f2f353e0f33f6004d9ae87c801d3274d9c9a31c109637be
 reviewed: true
 ---
 # Récupération
@@ -34,14 +34,16 @@ Remarques :
 - Le champ `updated_at` de l'utilisateur est mis à jour, rien d'autre ne
   change.
 - Les sessions existantes restent valides jusqu'à leur expiration normale. Pour
-  aussi déconnecter l'utilisateur partout, lancez ensuite `rotate-jwt-key`.
+  déconnecter l'utilisateur partout, désactivez le compte dans
+  **Admin → Utilisateurs** (**Désactiver**), puis réactivez-le : la
+  désactivation supprime ses jetons de rafraîchissement et invalide aussitôt ses
+  jetons d'accès.
 - Le mot de passe en clair n'est jamais journalisé. Si vous perdez la sortie, il
   faut relancer la commande.
 
 ## rotate-jwt-key
 
-Invalide de force toutes les sessions actives en remplaçant la clé de signature
-RSA.
+Remplace la clé RSA qui signe les jetons d'accès.
 
 ```sh
 evey admin rotate-jwt-key
@@ -54,15 +56,21 @@ Comportement :
 - Au démarrage suivant du serveur, `LoadOrGenerateRSAKey` génère une nouvelle
   clé RSA de 2048 bits.
 - Tous les jetons d'accès émis auparavant échouent à la vérification de
-  signature : tous les utilisateurs sont déconnectés.
-- Les jetons de rafraîchissement sont des JWT signés avec la même clé : ils sont
-  morts eux aussi, sans nettoyage séparé.
+  signature.
+- Les jetons de rafraîchissement sont vérifiés par l'empreinte stockée en base,
+  pas par la clé : ils restent valides, et une application dont le jeton d'accès
+  est refusé le renouvelle et continue. Pour mettre fin aussi à toutes les
+  sessions, videz la table :
+  ```sql
+  DELETE FROM refresh_tokens;
+  ```
 
 Quand l'utiliser :
 
-- Fuite de clé soupçonnée.
-- Besoin de couper toutes les sessions d'un coup (réponse à un incident, départ
-  d'un prestataire).
+- Fuite de clé soupçonnée : plus personne ne peut fabriquer de jeton d'accès
+  valide avec l'ancienne clé.
+- Coupure de toutes les sessions : avec le `DELETE` ci-dessus. Pour un seul
+  compte, le désactiver dans **Admin → Utilisateurs** suffit.
 
 ## restore-backup
 
