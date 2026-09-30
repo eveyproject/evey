@@ -1,5 +1,5 @@
 ---
-source_sha: 82ddd8ca6e191f22d2ea6f4b82a8d797acb01ac67bea2dbeb57c7aab2fd2f126
+source_sha: fc91b3be124757e49009dbe56dd9647724bd582d2bc356702367e4982e757455
 reviewed: true
 ---
 # La CLI d'Evey : `evey admin`
@@ -116,28 +116,15 @@ evey admin demo-seed [--apply] [--media]     Run the demo bootstrap by hand: the
 
 ## Comment l'appeler
 
-### Depuis la machine hôte, la pile en marche (Docker, dev ou production)
-
-Le Makefile enveloppe les opérations les plus courantes dans des appels au shell
-du conteneur, pour qu'elles fonctionnent sans charger le `.env` et sans pg_dump
-sur la machine hôte :
+### Dans le conteneur (installation standard)
 
 ```sh
-make migrate-version
-make migrate-up
-make migrate-down
+docker exec evey-server evey admin doctor
+docker exec -it evey-server bash      # un shell d'administration : evey admin ..., man evey
 ```
 
-Elles exécutent `docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate <op>'` :
-`evey-server` doit donc tourner ; lancez-le d'abord avec `make dev` si ce n'est
-pas le cas.
-
-### Un shell directement dans le conteneur en marche
-
-```sh
-docker exec -it evey-server sh
-/app # go run ./cmd/evey admin reset-password --user alice@example.com
-```
+L'image fixe le fichier du mot de passe de la base, si bien que les commandes
+joignent la base intégrée sans aucune variable de plus.
 
 ### Sur une installation sans Docker
 
@@ -147,6 +134,17 @@ evey admin migrate version
 ```
 
 Le binaire installé contient déjà toutes les sous-commandes.
+
+### Sur la pile de développement
+
+Le Makefile enveloppe les commandes de migration, qui s'exécutent depuis les
+sources dans le conteneur de développement `evey-server` :
+
+```sh
+make migrate-version
+make migrate-up
+make migrate-down
+```
 
 ## Complétion et manuel
 

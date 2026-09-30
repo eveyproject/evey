@@ -1,12 +1,13 @@
 ---
-source_sha: 0cbab39ffa95c9d5b92240456049d1f9bc27697af69bc1423e9f3c1f3d4a7556
+source_sha: fc91b3be124757e49009dbe56dd9647724bd582d2bc356702367e4982e757455
+reviewed: false
 ---
-# Evey CLI - `evey admin`
+# Evey-CLI - `evey admin`
 
-Die Server-Binärdatei von Evey ist zugleich die Kommandozeile für Betreiber.
-Rufen Sie `evey` ohne Argumente auf, startet der HTTP- und gRPC-Server; steht
-`admin` als erstes Argument da, wechselt sie in einen einmaligen Betreibermodus
-und endet, sobald der Befehl durch ist.
+Das Serverprogramm von Evey dient zugleich als Betreiber-CLI. Wird `evey`
+ohne Argumente aufgerufen, startet es den HTTP/gRPC-Server; mit `admin` als
+erstem Argument wechselt es in einen einmaligen Betreibermodus und beendet
+sich, sobald der Befehl fertig ist.
 
 Alle Befehle lesen ihre Konfiguration aus denselben `EVEY_*`-Umgebungsvariablen
 wie der Server selbst (`EVEY_DB_USER`, `EVEY_DB_PASSWORD`, `EVEY_DB_HOST`,
@@ -23,17 +24,17 @@ evey completion bash          The bash completion script.
 ```
 
 Jedes andere erste Argument wird abgelehnt (Exit 1), statt stillschweigend den
-Server zu starten. Die Go-Tabelle in `cmd/evey/admin_commands.go` ist die einzige
-Beschreibung jedes Unterbefehls: Die Usage-Liste, `--help`, die Manpage, das
-Vervollständigungsskript und die Container-Shell werden von
-`cmd/evey/admin_cli_test.go` gegen sie geprüft.
+Server zu starten. Die Go-Tabelle in `cmd/evey/admin_commands.go` ist die
+einzige Beschreibung jedes Unterbefehls: Nutzungsliste, `--help`, Handbuch,
+Vervollständigungsskript und Container-Shell werden von
+`cmd/evey/admin_cli_test.go` dagegen geprüft.
 
 ## Kurzreferenz
 
 ```
 evey admin reset-password --user <email>     Generate a new password, print it once.
 evey admin rotate-jwt-key                    Regenerate JWT signing key (kills ALL sessions).
-evey admin restore-backup <path>             Restore the database from a .sql.gz dump (the suffix is required).
+evey admin restore-backup <path>             Restore the database from a .sql.gz dump (the suffix is required; not the panel's .tar.gz backups).
 evey admin reindex-search [--library <id>] [--purge]   Rebuild the Meilisearch index from Postgres (--purge clears orphan docs first; if Meili is down, reports the Postgres fallback and does nothing).
 evey admin migrate up [--no-backup]          Apply pending migrations.
 evey admin migrate down [--no-backup]        Roll back one migration step.
@@ -42,7 +43,7 @@ evey admin list-users                        Print user emails, one per line (fe
 evey admin list-libraries                    Print the library root paths, one per line (feeds `--root` completion).
 ```
 
-### Wartung der Medien
+### Medienwartung
 
 ```
 evey admin reindex-no-cue --root <dir> [--apply] [--limit N] [--resync] [--keep-backup=false]
@@ -100,18 +101,43 @@ evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
                                              Per-title probe timing and early-stop rate on the files.
 ```
 
-> Die vollständige, stets aktuelle Liste liefert `evey admin` ohne Unterbefehl -
-> sie gibt 2026-07-23 aus; `reindex-no-cue`, die Reparatur des Suchindex hinter
-> den wiederkehrenden Störungen mit langsamem Fortsetzen, war eine der
-> fehlenden.
+### Demo-Instanz
 
-## Wie Sie sie aufrufen
+```
+evey admin demo-seed [--apply] [--media]     Run the demo bootstrap by hand: the demo administrator,
+                                             the visitor accounts, the four libraries, and with
+                                             --media the freely licensed media (gigabytes). Refuses
+                                             unless EVEY_DEMO=1. Dry-run by default.
+```
 
-### Vom Host aus, bei laufendem Stack (Docker in der Entwicklung oder im Produktivbetrieb)
+> Die vollständige, stets aktuelle Liste liefert `evey admin` ohne
+> Unterbefehl: Es gibt jeden Unterbefehl aus, den das Programm enthält.
 
-Das Makefile verpackt die gängigsten Handgriffe in Aufrufe der Container-Shell,
-damit sie ohne ein gesourctes `.env` und ohne pg_dump auf dem Host
-funktionieren:
+## Aufruf
+
+### Im Container (Standardinstallation)
+
+```sh
+docker exec evey-server evey admin doctor
+docker exec -it evey-server bash      # eine Admin-Shell: evey admin ..., man evey
+```
+
+Das Image setzt die Passwortdatei der Datenbank, sodass die Befehle die
+eingebettete Datenbank ohne zusätzliche Umgebung erreichen.
+
+### Auf einer Installation ohne Docker
+
+```sh
+evey admin reset-password --user alice@example.com
+evey admin migrate version
+```
+
+Das installierte Programm enthält bereits jeden Unterbefehl.
+
+### Auf dem Entwicklungsstack
+
+Das Makefile kapselt die Migrationsbefehle, die aus dem Quellbaum im
+Entwicklungscontainer `evey-server` laufen:
 
 ```sh
 make migrate-version
@@ -119,88 +145,67 @@ make migrate-up
 make migrate-down
 ```
 
-Diese rufen `docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate <op>'` auf,
-`evey-server` muss also laufen - starten Sie ihn andernfalls zuerst mit `make dev`.
+## Tab-Vervollständigung und Handbuch
 
-### Unmittelbar in den laufenden Container hinein
-
-```sh
-docker exec -it evey-server sh
-/app # go run ./cmd/evey admin reset-password --user alice@example.com
-```
-
-### Bei einer Installation ohne Container (ohne Docker)
-
-```sh
-evey admin reset-password --user alice@example.com
-evey admin migrate version
-```
-
-In der vorinstallierten Binärdatei stecken bereits alle Unterbefehle.
-
-## Tab-Vervollständigung und Manpage
-
-Das Binary bringt seine eigene Bash-Vervollständigung und Manpage mit, beide
-passen also immer zu den Unterbefehlen, die es ausliefert:
+Das Programm bringt seine eigene Bash-Vervollständigung und sein eigenes
+Handbuch mit, sodass beide immer zu den mitgelieferten Unterbefehlen passen:
 
 ```sh
 evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
 evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null && sudo mandb -q
 ```
 
-zsh-Nutzer: zuerst `autoload -U +X bashcompinit && bashcompinit`, dann dasselbe
-Skript einlesen. Die Vervollständigung deckt die Unterbefehle ab, ihre Flags und
-Flag-Werte (`--mode`, `--backend`, `--scenario`), Benutzer-E-Mails nach
+zsh-Benutzer: zuerst `autoload -U +X bashcompinit && bashcompinit`, dann dasselbe
+Skript einlesen. Die Vervollständigung deckt die Unterbefehle, ihre Optionen und
+Optionswerte ab (`--mode`, `--backend`, `--scenario`), Benutzer-E-Mails nach
 `--user`, die dem Server bekannten Bibliothekswurzeln nach `--root` (plus jedes
 Verzeichnis), nur Mediendateien für die Dateiargumente von `ladder-bench`,
 `ladder-probe` und `route-bench`, und `.sql.gz`-Dumps für `restore-backup`.
 
 Das Docker-Image installiert die Vervollständigung beim Bauen, und seine
 Admin-Shell (`docker exec -it evey-server bash`) beantwortet `man evey`, indem
-sie `evey man --text` seitenweise anzeigt, da das Image kein `man`-Binary
-mitliefert.
+sie `evey man --text` seitenweise anzeigt, da das Image kein `man`-Programm
+mitbringt.
 
-## Die Unterbefehle im Einzelnen
+## Unterbefehle im Detail
 
 ### `migrate`
 
-- `up` wendet jede ausstehende Migration der Reihe nach an. Ist
-  `EVEY_BACKUP_DIR` gesetzt, entsteht davor automatisch ein `pg_dump` (im
-  Docker-Image standardmäßig `/data/backups`). Scheitert Up auf halbem Weg,
-  bleibt `schema_migrations.dirty = true` zurück; siehe
-  `migration-runbook.md`.
-- `down` rollt genau eine Migration zurück. Chirurgisch, nicht „alles
-  einreißen“ - ein `down --all` gibt es nicht. Auch hier entsteht vorher ein
-  `pg_dump`.
-- `version` gibt die aktuelle Schemaversion aus. Der Rückgabewert ist 1, dazu
-  eine `DIRTY`-Warnung, wenn eine frühere Migration auf halbem Weg gescheitert
-  ist (also einige, aber nicht alle `Up`-Anweisungen durchliefen).
-- `--no-backup` überspringt das pg_dump in beide Richtungen. Nützlich auf
-  Rechnern ohne installiertes `postgres-client` (der typische Fall bei der
-  Entwicklung unter WSL, wo das Makefile den Schalter bereits mitgibt).
+- `up` wendet jede ausstehende Migration der Reihe nach an. Ein `pg_dump` vor
+  der Migration wird automatisch erstellt, wenn `EVEY_BACKUP_DIR` gesetzt ist
+  (Standard im Docker-Image: `/data/backups`). Ein Fehler mitten in Up
+  hinterlässt `schema_migrations.dirty = true`; siehe `migration-runbook.md`.
+- `down` macht genau eine Migration rückgängig. Gezielt, kein „alles abreißen" -
+  es gibt kein `down --all`. Erstellt ebenfalls vorher einen `pg_dump`.
+- `version` gibt die aktuelle Schemaversion aus. Liefert Exit-Code 1 mit einer
+  Warnung `DIRTY`, wenn eine frühere Migration auf halbem Weg gescheitert ist
+  (also einige, aber nicht alle `Up`-Anweisungen gelaufen sind).
+- `--no-backup` überspringt den pg_dump in beide Richtungen. Nützlich auf Hosts
+  ohne installierten `postgres-client` (typischer WSL-Entwicklungsweg, auf dem
+  das Makefile die Option bereits übergibt).
 
 ### `reset-password`, `rotate-jwt-key`, `restore-backup`, `reindex-search`
 
-Das vollständige Vorgehen samt Voraussetzungen und Nachbedingungen steht in
-`docs/runbooks/recovery.md`.
+Siehe `docs/runbooks/recovery.md` für das vollständige Vorgehen, die
+Voraussetzungen und die Nachbedingungen.
 
 ## Was *nicht* in `evey admin` steckt
 
-Drei eigenständige Binärdateien liegen neben `cmd/evey`, weil sie keine
+Drei eigenständige Programme liegen neben `cmd/evey`, weil sie keine
 Betreiberbefehle im Sinne von Wiederherstellung oder Schema sind:
 
-| Binärdatei | Wozu | Warum eigenständig |
+| Programm | Zweck | Warum eigenständig |
 |---|---|---|
-| `cmd/intro-backfill` | Die Intro-Erkennung nach einer Änderung an der Pipeline für einen Ausschnitt des Katalogs auffrischen | **API-Client** - spricht mit `/api/v1/admin/media/{id}/detect-segments` und einem Bearer-Token, nicht im selben Prozess. |
-| `cmd/intro-diag` | Nachvollziehen, warum die Intro-Erkennung per pHash bei einer bestimmten Serie angeschlagen hat oder eben nicht | Ein Werkzeug zum **Debuggen in der Entwicklung** - liest die Trickplay-Sprites von der Platte und gibt Bild für Bild eine Karte der Hamming-Treffer aus. Optional zusätzlich ein Durchgang mit Kreuzkorrelation des Tons. |
-| `cmd/trickplay-verify` | Nachprüfen, dass jede Trickplay-Kachel wirklich das Bild zum eingetragenen Zeitstempel zeigt | Ein Werkzeug für **QA und CI** - holt die Bilder über ffmpeg erneut aus der Quelle, bildet ihren aHash und vergleicht ihn mit der Kachel. |
+| `cmd/intro-backfill` | Die Intro-Erkennung für einen Teil des Katalogs nach einer Änderung der Pipeline auffrischen | **API-Client** - spricht mit `/api/v1/admin/media/{id}/detect-segments` mit einem Bearer-Token, nicht im Prozess. |
+| `cmd/intro-diag` | Diagnostizieren, warum die pHash-Intro-Erkennung bei einer bestimmten Serie getroffen hat (oder nicht) | **Entwickler-Debugwerkzeug** - liest Trickplay-Sprites von der Festplatte und gibt eine Hamming-Trefferkarte Bild für Bild aus. Optionaler Durchlauf mit Audio-Kreuzkorrelation. |
+| `cmd/trickplay-verify` | Prüfen, dass jede Trickplay-Kachel wirklich das Bild zum gespeicherten Zeitpunkt zeigt | **QA/CI-Werkzeug** - extrahiert die Quellbilder mit ffmpeg neu und vergleicht ihren aHash mit der Kachel. |
 
-Sie werden als eigene Binärdateien ausgeliefert, weil keine davon die ganze
-Verdrahtung der Serverkonfiguration braucht - es sind eng gefasste Werkzeuge für
-den einmaligen Lauf, kein Teil der Oberfläche für die Wiederherstellung.
+Sie werden als eigene Programme ausgeliefert, weil keines davon die gesamte
+Serverkonfiguration braucht - es sind gezielte, einmalige Werkzeuge, kein Teil
+der Wiederherstellung.
 
 ## Verwandte Runbooks
 
-- `migration-runbook.md` - Schema ausrollen, zurückrollen, aus dem Zustand `dirty` herausfinden.
-- `recovery.md` - Passwort zurücksetzen, JWT-Schlüssel wechseln, Sicherung zurückspielen, Suche neu indizieren.
-- `incident-runbook.md` - die erste Reaktion, wenn sich der Server danebenbenimmt.
+- `migration-runbook.md` - Schema ausrollen, zurücknehmen, Zustand „dirty" beheben.
+- `recovery.md` - Passwort zurücksetzen, JWT-Schlüssel rotieren, Sicherung wiederherstellen, Suchindex neu aufbauen.
+- `incident-runbook.md` - erste Reaktion, wenn der Server sich seltsam verhält.
