@@ -43,6 +43,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/eventbus"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/netmeter"
+	"sync/atomic"
 )
 
 // libraryDeps groups library scanning, querying and scheduling services.
@@ -215,6 +216,9 @@ type appDeps struct {
 	// the sync-preview clip from the same instance. Built before the HTTP
 	// handler, so it is never nil by the time that route is registered.
 	seekIndexSvc *appmaintenance.SeekIndexService
+	// The same instance for the demo lifecycle, which starts before the gRPC
+	// server is built and reads it from its own goroutine once the seed is done.
+	demoSeekIndex atomic.Pointer[appmaintenance.SeekIndexService]
 	// keyframeOnDemand fills a missing keyframe index inline at playback
 	// negotiation (bounded fast-path probe shared with the backfill worker).
 	keyframeOnDemand *apptranscoding.KeyframeOnDemand
