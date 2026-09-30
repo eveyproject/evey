@@ -176,15 +176,267 @@ plugins:
         - locale: de
           name: Deutsch
           build: false
+          nav_translations:
+            Home: Startseite
+            Getting started: Erste Schritte
+            Install: Installation
+            First setup: Ersteinrichtung
+            Apps and devices: Apps und Geräte
+            Administration: Verwaltung
+            Libraries and metadata: Bibliotheken und Metadaten
+            Users, profiles and parental control: Benutzer, Profile und Kindersicherung
+            Remote access and HTTPS: Fernzugriff und HTTPS
+            Reverse proxy configurations: Reverse-Proxy-Konfigurationen
+            Hardware acceleration: Hardwarebeschleunigung
+            Single sign-on (OIDC): Single Sign-on (OIDC)
+            E-mail and notifications: E-Mail und Benachrichtigungen
+            Backups and updates: Sicherungen und Updates
+            Playback: Wiedergabe
+            How playback is decided: Wie Evey die Wiedergabeart wählt
+            Transcoding and server capacity: Transkodierung und Serverkapazität
+            HDR and Dolby Vision: HDR und Dolby Vision
+            Audio: Audio
+            Subtitles: Untertitel
+            Casting: Streamen auf Chromecast
+            Watching together: Zusammen schauen
+            Operations: Betrieb
+            Troubleshooting: Fehlerbehebung
+            Monitoring and logs: Überwachung und Logs
+            Background work and server load: Hintergrundaufgaben und Serverlast
+            Media health: Medienzustand
+            Command line: Kommandozeile
+            Recovery: Wiederherstellung
+            Database migrations: Datenbankmigrationen
+            Incident runbook: Störungshandbuch
+            Advanced deployments: Erweiterte Bereitstellungen
+            Without a container: Ohne Container
+            Plugin sandbox setup: Plugin-Sandbox einrichten
+            Configuration reference: Konfigurationsreferenz
+            Environment variables: Umgebungsvariablen
+            Server and network: Server und Netzwerk
+            Database and search: Datenbank und Suche
+            Accounts and sign-in: Konten und Anmeldung
+            Transcoding and hardware: Transkodierung und Hardware
+            Playback delivery and downloads: Auslieferung und Downloads
+            Background work: Hintergrundaufgaben
+            Plugins and sandbox: Plugins und Sandbox
+            Backups, logs and monitoring: Sicherungen, Logs und Überwachung
+            Plugins & API: Plugins und API
+            Plugins: Plugins
+            Writing a plugin: Ein Plugin schreiben
+            Plugin API reference: Plugin-API-Referenz
+            Permissions and slots: Berechtigungen und Slots
+            Themes: Themes
+            Webhooks and API keys: Webhooks und API-Schlüssel
+            Server API: Server-API
+            Public API: Öffentliche API
+            Admin API: Admin-API
+            Plugin API: Plugin-API
+            Internals: Interna
+            Design principles: Gestaltungsprinzipien
+            Architecture: Architektur
+            Playback pipeline: Wiedergabekette
+            Security model and plugin sandbox: Sicherheitsmodell und Plugin-Sandbox
+            Languages and accessibility: Sprachen und Barrierefreiheit
+            Contributing: Mitwirken
         - locale: es
           name: Español
           build: false
+          nav_translations:
+            Home: Inicio
+            Getting started: Primeros pasos
+            Install: Instalación
+            First setup: Primera configuración
+            Apps and devices: Aplicaciones y dispositivos
+            Administration: Administración
+            Libraries and metadata: Bibliotecas y metadatos
+            Users, profiles and parental control: Usuarios, perfiles y control parental
+            Remote access and HTTPS: Acceso remoto y HTTPS
+            Reverse proxy configurations: Configuraciones de proxy inverso
+            Hardware acceleration: Aceleración por hardware
+            Single sign-on (OIDC): Inicio de sesión único (OIDC)
+            E-mail and notifications: Correo y notificaciones
+            Backups and updates: Copias de seguridad y actualizaciones
+            Playback: Reproducción
+            How playback is decided: Cómo elige Evey el modo de reproducción
+            Transcoding and server capacity: Transcodificación y capacidad del servidor
+            HDR and Dolby Vision: HDR y Dolby Vision
+            Audio: Audio
+            Subtitles: Subtítulos
+            Casting: Enviar a Chromecast
+            Watching together: Ver juntos
+            Operations: Operación
+            Troubleshooting: Solución de problemas
+            Monitoring and logs: Supervisión y registros
+            Background work and server load: Tareas en segundo plano y carga del servidor
+            Media health: Salud de medios
+            Command line: Línea de comandos
+            Recovery: Recuperación
+            Database migrations: Migraciones de la base de datos
+            Incident runbook: Manual de incidentes
+            Advanced deployments: Despliegues avanzados
+            Without a container: Sin contenedor
+            Plugin sandbox setup: Configurar el sandbox de plugins
+            Configuration reference: Referencia de configuración
+            Environment variables: Variables de entorno
+            Server and network: Servidor y red
+            Database and search: Base de datos y búsqueda
+            Accounts and sign-in: Cuentas e inicio de sesión
+            Transcoding and hardware: Transcodificación y hardware
+            Playback delivery and downloads: Entrega de la reproducción y descargas
+            Background work: Tareas en segundo plano
+            Plugins and sandbox: Plugins y sandbox
+            Backups, logs and monitoring: Copias, registros y supervisión
+            Plugins & API: Plugins y API
+            Plugins: Plugins
+            Writing a plugin: Escribir un plugin
+            Plugin API reference: Referencia de la API de plugins
+            Permissions and slots: Permisos y slots
+            Themes: Temas
+            Webhooks and API keys: Webhooks y claves de API
+            Server API: API del servidor
+            Public API: API pública
+            Admin API: API de administración
+            Plugin API: API de plugins
+            Internals: Funcionamiento interno
+            Design principles: Principios de diseño
+            Architecture: Arquitectura
+            Playback pipeline: Cadena de reproducción
+            Security model and plugin sandbox: Modelo de seguridad y sandbox de plugins
+            Languages and accessibility: Idiomas y accesibilidad
+            Contributing: Contribuir
         - locale: hi
           name: हिन्दी
           build: false
+          nav_translations:
+            Home: मुखपृष्ठ
+            Getting started: शुरुआत
+            Install: इंस्टॉल करें
+            First setup: पहली सेटिंग
+            Apps and devices: ऐप और डिवाइस
+            Administration: प्रशासन
+            Libraries and metadata: लाइब्रेरी और मेटाडेटा
+            Users, profiles and parental control: उपयोगकर्ता, प्रोफ़ाइल और अभिभावक नियंत्रण
+            Remote access and HTTPS: रिमोट एक्सेस और HTTPS
+            Reverse proxy configurations: रिवर्स प्रॉक्सी कॉन्फ़िगरेशन
+            Hardware acceleration: हार्डवेयर एक्सेलेरेशन
+            Single sign-on (OIDC): सिंगल साइन-ऑन (OIDC)
+            E-mail and notifications: ई-मेल और सूचनाएँ
+            Backups and updates: बैकअप और अपडेट
+            Playback: प्लेबैक
+            How playback is decided: Evey प्लेबैक का तरीका कैसे चुनता है
+            Transcoding and server capacity: ट्रांसकोडिंग और सर्वर क्षमता
+            HDR and Dolby Vision: HDR और Dolby Vision
+            Audio: ऑडियो
+            Subtitles: सबटाइटल
+            Casting: Chromecast पर कास्ट करना
+            Watching together: साथ में देखें
+            Operations: संचालन
+            Troubleshooting: समस्या निवारण
+            Monitoring and logs: निगरानी और लॉग
+            Background work and server load: बैकग्राउंड काम और सर्वर लोड
+            Media health: मीडिया स्वास्थ्य
+            Command line: कमांड लाइन
+            Recovery: पुनर्प्राप्ति
+            Database migrations: डेटाबेस माइग्रेशन
+            Incident runbook: घटना पुस्तिका
+            Advanced deployments: उन्नत डिप्लॉयमेंट
+            Without a container: कंटेनर के बिना
+            Plugin sandbox setup: प्लगइन सैंडबॉक्स सेटअप
+            Configuration reference: कॉन्फ़िगरेशन संदर्भ
+            Environment variables: एनवायरनमेंट वेरिएबल
+            Server and network: सर्वर और नेटवर्क
+            Database and search: डेटाबेस और खोज
+            Accounts and sign-in: खाते और साइन-इन
+            Transcoding and hardware: ट्रांसकोडिंग और हार्डवेयर
+            Playback delivery and downloads: प्लेबैक डिलीवरी और डाउनलोड
+            Background work: बैकग्राउंड काम
+            Plugins and sandbox: प्लगइन और सैंडबॉक्स
+            Backups, logs and monitoring: बैकअप, लॉग और निगरानी
+            Plugins & API: प्लगइन और API
+            Plugins: प्लगइन
+            Writing a plugin: प्लगइन लिखना
+            Plugin API reference: प्लगइन API संदर्भ
+            Permissions and slots: अनुमतियाँ और स्लॉट
+            Themes: थीम
+            Webhooks and API keys: वेबहुक और API कुंजियाँ
+            Server API: सर्वर API
+            Public API: सार्वजनिक API
+            Admin API: प्रशासन API
+            Plugin API: प्लगइन API
+            Internals: आंतरिक संरचना
+            Design principles: डिज़ाइन सिद्धांत
+            Architecture: आर्किटेक्चर
+            Playback pipeline: प्लेबैक पाइपलाइन
+            Security model and plugin sandbox: सुरक्षा मॉडल और प्लगइन सैंडबॉक्स
+            Languages and accessibility: भाषाएँ और सुलभता
+            Contributing: योगदान करें
         - locale: zh
           name: 中文
           build: false
+          nav_translations:
+            Home: 首页
+            Getting started: 入门
+            Install: 安装
+            First setup: 首次设置
+            Apps and devices: 应用与设备
+            Administration: 管理
+            Libraries and metadata: 媒体库与元数据
+            Users, profiles and parental control: 用户、个人资料与家长控制
+            Remote access and HTTPS: 远程访问与 HTTPS
+            Reverse proxy configurations: 反向代理配置
+            Hardware acceleration: 硬件加速
+            Single sign-on (OIDC): 单点登录 (OIDC)
+            E-mail and notifications: 电子邮件与通知
+            Backups and updates: 备份与更新
+            Playback: 播放
+            How playback is decided: Evey 如何选择播放方式
+            Transcoding and server capacity: 转码与服务器容量
+            HDR and Dolby Vision: HDR 与杜比视界
+            Audio: 音频
+            Subtitles: 字幕
+            Casting: 投放到 Chromecast
+            Watching together: 一起看
+            Operations: 运维
+            Troubleshooting: 故障排除
+            Monitoring and logs: 监控与日志
+            Background work and server load: 后台任务与服务器负载
+            Media health: 媒体健康
+            Command line: 命令行
+            Recovery: 恢复
+            Database migrations: 数据库迁移
+            Incident runbook: 事故手册
+            Advanced deployments: 高级部署
+            Without a container: 不使用容器
+            Plugin sandbox setup: 插件沙箱设置
+            Configuration reference: 配置参考
+            Environment variables: 环境变量
+            Server and network: 服务器与网络
+            Database and search: 数据库与搜索
+            Accounts and sign-in: 账户与登录
+            Transcoding and hardware: 转码与硬件
+            Playback delivery and downloads: 播放分发与下载
+            Background work: 后台任务
+            Plugins and sandbox: 插件与沙箱
+            Backups, logs and monitoring: 备份、日志与监控
+            Plugins & API: 插件与 API
+            Plugins: 插件
+            Writing a plugin: 编写插件
+            Plugin API reference: 插件 API 参考
+            Permissions and slots: 权限与插槽
+            Themes: 主题
+            Webhooks and API keys: Webhook 与 API 密钥
+            Server API: 服务器 API
+            Public API: 公开 API
+            Admin API: 管理 API
+            Plugin API: 插件 API
+            Internals: 内部原理
+            Design principles: 设计原则
+            Architecture: 架构
+            Playback pipeline: 播放链路
+            Security model and plugin sandbox: 安全模型与插件沙箱
+            Languages and accessibility: 语言与无障碍
+            Contributing: 参与贡献
 
 markdown_extensions:
   - admonition

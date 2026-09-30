@@ -1,95 +1,154 @@
 ---
-source_sha: 4ee97dc5ef2cdb11b0aa01a535284eaf511ab308d1429dbb9882b9a5838ba8ca
+source_sha: 9e2d7867cc55d0c1e56c8b94a38f02164edd7cfdafed58c39880904efaa4e00c
+reviewed: false
 hide:
-- navigation
+  - navigation
+  - toc
 ---
 
-<pre class="evey-wordmark" aria-hidden="true"><span>███████╗</span><span class="v">██╗   ██╗</span><span>███████╗██╗   ██╗</span>
-<span>██╔════╝</span><span class="v">██║   ██║</span><span>██╔════╝╚██╗ ██╔╝</span>
-<span>█████╗  </span><span class="v">██║   ██║</span><span>█████╗   ╚████╔╝ </span>
-<span>██╔══╝  </span><span class="v">╚██╗ ██╔╝</span><span>██╔══╝    ╚██╔╝  </span>
-<span>███████╗</span><span class="v"> ╚████╔╝ </span><span>███████╗   ██║   </span>
-<span>╚══════╝</span><span class="v">  ╚═══╝  </span><span>╚══════╝   ╚═╝   </span></pre>
+# Evey-Dokumentation
 
-# Evey
+Evey ist ein selbst gehosteter Server für Filme, Serien, Musik und Fotos. Bei
+jeder Wiedergabe vergleicht er die Datei, den Player und den Server, behält das
+Original, wann immer der Player damit umgehen kann, und kodiert nur neu, was
+neu kodiert werden muss. Die meisten Installationen brauchen nicht mehr als
+Bibliotheken und Benutzer: Hardware, Kapazität und Wiedergabewege erkennt und
+misst der Server selbst.
 
-**Ihre Filme, Serien, Musik und Fotos, gestreamt von Ihrem eigenen Rechner auf
-jeden Bildschirm im Haus - und darüber hinaus.**
+<div class="evey-showcase" markdown>
 
-Evey ist ein selbst gehosteter Medienserver. Sie zeigen ihm die Ordner, die Sie
-schon haben, er erkennt, was darin liegt, versieht es mit Postern,
-Zusammenfassungen und Besetzung und spielt es im Browser, auf Android-Handys,
-auf Android TV und auf einem Chromecast ab. Nichts verlässt Ihr Zuhause, solange
-Sie es nicht veröffentlichen, und niemand sonst entscheidet, was Sie sehen
-dürfen.
+<figure class="evey-shot" markdown="span">
+  ![Die Startseite](images/showcase-home.webp){ loading=lazy data-gallery="showcase" }
+  <figcaption>Die Startseite: Wiedergabe fortsetzen, dann jede Bibliothek.</figcaption>
+</figure>
 
-[Evey entdecken](philosophy.md){ .md-button .md-button--primary }
-[Installieren](installation.md){ .md-button }
-[Demo ausprobieren](https://demo.eveyproject.org){ .md-button }
+<figure class="evey-shot" markdown="span">
+  ![Eine Filmseite](images/showcase-media.webp){ loading=lazy data-gallery="showcase" }
+  <figcaption>Eine Filmseite mit Bildern, Bewertungen und Besetzung.</figcaption>
+</figure>
 
-Erst einmal herumklicken? Die öffentliche Demo unter
-[demo.eveyproject.org](https://demo.eveyproject.org) läuft mit dem echten Server und freien Filmen:
-Melden Sie sich mit `demo` / `demo` an. Sie wird regelmäßig zurückgesetzt, und
-die Verwaltungsseiten sind sichtbar, aber größtenteils schreibgeschützt.
+<figure class="evey-shot" markdown="span">
+  ![Der Web-Player](images/showcase-player.webp){ loading=lazy data-gallery="showcase" }
+  <figcaption>Der Web-Player.</figcaption>
+</figure>
 
-## Zwei Wege hinein
-
-<div class="grid cards" markdown>
-
--   __Entdecken__
-
-    ---
-
-    Was Evey sein will, was es denen bringt, die zuschauen, und auf welchen
-    Geräten es läuft. Kein Terminal nötig.
-
-    [Warum Evey](philosophy.md) · [Was Sie bekommen](discover/features.md) ·
-    [Auf jedem Bildschirm](discover/apps.md)
-
--   __Technisches Handbuch__
-
-    ---
-
-    Den Server installieren, die ersten zehn Minuten nach dem Start, jede
-    Einstellung, die Zuschauer oder Administratoren ändern können, und was zu
-    tun ist, wenn etwas schiefgeht.
-
-    [Installation](installation.md) · [Erste Schritte](guide/first-steps.md) ·
-    [Administration](guide/admin-settings.md)
+<figure class="evey-shot" markdown="span">
+  ![Das Admin-Dashboard während zwei Filme laufen](images/showcase-dashboard.webp){ loading=lazy data-gallery="showcase" }
+  <figcaption>Das Admin-Dashboard, während zwei Personen schauen: das Bild, das jede sieht, und wie es ausgeliefert wird.</figcaption>
+</figure>
 
 </div>
 
-## Warum man es betreibt
+## Mehr mit weniger
 
-- **Es spielt die Datei, die Sie haben.** Kann ein Gerät eine Datei so lesen,
-  wie sie ist, schickt Evey sie unverändert: volle Qualität, keine Arbeit für
-  den Server. Kann es das nicht, wandelt Evey nur um, was fehlt - mit der
-  Grafikkarte, wenn eine da ist.
-- **Es installiert sich mit einer Datei.** Ein Container, eine Compose-Datei,
-  kein Passwort zum Ausdenken. Datenbank und Suchmaschine leben darin und
-  richten sich selbst ein.
-- **Es ist für einen Haushalt gemacht.** Profile für alle, Kinderprofile hinter
-  einer PIN, Altersgrenzen, die der Server durchsetzt statt der App, und ein
-  Raum, um von verschiedenen Wohnungen aus gemeinsam zu schauen.
-- **Man kann es gefahrlos ins Internet stellen.** Der Fernzugriff öffnet sich,
-  wenn Sie den Server veröffentlichen, und bleibt sonst zu; die Anmeldung
-  scheitert im Zweifel geschlossen, und Erweiterungen laufen in einer Sandbox
-  mit nur den Berechtigungen, die sie angegeben haben.
-- **Es ist freie Software.** Lizenziert unter
-  [AGPL-3.0-or-later](https://www.gnu.org/licenses/agpl-3.0.html). Der Code
-  liegt auf [GitHub](https://github.com/Evey-project/evey), und dort steht
-  auch, wovor der Server Sie noch nicht schützen kann.
+<div class="evey-points" markdown>
 
-## Schnellzugriff
+<div markdown>
 
-| Sie möchten | Lesen Sie |
-| --- | --- |
-| Es auf Ihrem Rechner ausprobieren | [Installation](installation.md) |
-| Es mit HTTPS ins Internet stellen | [Reverse Proxy](reverse-proxy.md) |
-| Ihre Grafikkarte für die Umwandlung nutzen | [Transkodierung und Hardware](transcoding.md) |
-| Wissen, was jede Einstellung tut | [Einstellungen für Zuschauer](guide/viewer-settings.md) · [Administration](guide/admin-settings.md) |
-| Einen Server nach einem Absturz zurückholen | [Wiederherstellung](runbooks/recovery.md) |
-| Eine Erweiterung schreiben | [Erweiterungen](plugins.md) |
+**Der günstigste Weg zuerst**
 
-Sicherheitsmeldungen gehen an `security@eveyproject.org` - siehe
-[Sandbox und Bedrohungsmodell für Erweiterungen](SECURITY.md).
+Die Datei, wie sie ist, dann ohne Encoder neu verpackt, dann nur die Spuren
+neu kodiert, die es brauchen. Ein Zuschauer in Direktwiedergabe oder Remux
+kostet den Server kaum mehr als das Lesen der Datei, so bedient eine
+bescheidene Maschine viele gleichzeitig.
+[Wie Evey die Wiedergabeart wählt](playback/how-playback-is-decided.md)
+
+</div>
+
+<div markdown>
+
+**Ein Server, der sich selbst vermisst**
+
+Er misst echte 4K-Kodierungen auf dem Prozessor und jeder Grafikkarte und
+nutzt eine Karte nur für das, was sie bewiesen hat. Keine Kapazität zu
+schätzen.
+[Transkodierung und Serverkapazität](playback/transcoding.md)
+
+</div>
+
+<div markdown>
+
+**Voll heißt abgelehnt, nicht langsamer**
+
+Nicht mehr Kodierungen als gemessen; ist er voll, erfährt der Player, dass der
+Server beschäftigt ist, statt dass jeder Stream schlechter wird.
+Hintergrundaufgaben pausieren während der Wiedergabe.
+[Hintergrundaufgaben und Serverlast](operations/background-work.md)
+
+</div>
+
+<div markdown>
+
+**Ein Plugin, drei Bildschirme**
+
+Dasselbe Plugin-Paket läuft im Web, auf Android und auf Android TV und weiß,
+auf welchem Bildschirm es gelandet ist.
+[Plugin-API-Referenz](plugins/api-reference.md#on-a-television)
+
+</div>
+
+<div markdown>
+
+**Plugins werden eingesperrt, nicht vertraut**
+
+Code vor der Installation analysiert, nur das eigene Verzeichnis, gefährliche
+Systemaufrufe verweigert, kein direktes Netzwerk, ein standardmäßig
+verweigertes Token.
+[Sicherheitsmodell und Plugin-Sandbox](SECURITY.md)
+
+</div>
+
+<div markdown>
+
+**Was Stream-Info sagt, läuft auch**
+
+Eine Entscheidung pro Wiedergabe, und Stream-Info liest sie aus dem Plan, den
+der Encoder ausführt, samt dem Grund, warum die Datei nicht so abgespielt
+wurde, wie sie ist.
+[Wie Evey die Wiedergabeart wählt](playback/how-playback-is-decided.md#reading-stream-info)
+
+</div>
+
+</div>
+
+## Wegweiser
+
+<div class="grid cards" markdown>
+
+-   **[Evey installieren](installation.md)**
+
+    Ein Container und eine Compose-Datei. Voraussetzungen und erster Start.
+
+-   **[Ersteinrichtung](getting-started/first-setup.md)**
+
+    Der Einrichtungsassistent, Ihre Bibliotheken, die Personen, die den Server
+    nutzen werden.
+
+-   **[Verwaltung](administration/libraries.md)**
+
+    Bibliotheken, Benutzer und Profile, Fernzugriff, Hardwarebeschleunigung,
+    Sicherungen.
+
+-   **[Wie Evey die Wiedergabeart wählt](playback/how-playback-is-decided.md)**
+
+    Direktwiedergabe, Remux und Transkodierung, und wie man Stream-Info liest.
+
+-   **[Fehlerbehebung](operations/troubleshooting.md)**
+
+    Wo man nachsieht, wenn etwas nicht funktioniert: Symptome, Logs,
+    Wiederherstellung.
+
+-   **[Plugins und API](plugins.md)**
+
+    Plugins und Themes installieren und schreiben, die Server-API.
+
+</div>
+
+<p class="evey-meta">
+Evey ist in der Beta und hat noch keine nummerierte Version: Diese
+Dokumentation folgt dem Entwicklungszweig. ·
+<a href="https://github.com/Evey-project/evey">Quellcode auf GitHub</a> ·
+<a href="https://demo.eveyproject.org">Öffentliche Demo</a> (Anmeldung mit demo / demo) ·
+AGPL-3.0-or-later ·
+Sicherheitsmeldungen: security@eveyproject.org
+</p>

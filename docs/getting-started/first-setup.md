@@ -11,7 +11,7 @@ A server with no administrator opens on a wizard of four steps:
 1. **Language**: the default language of new profiles and of metadata (titles,
    summaries, genres).
 2. **Welcome**.
-3. **Administrator account**: a username of at least 3 characters and a
+3. **Admin account**: a username of at least 3 characters and a
    password of at least 8. The optional server name appears on the sign-in page
    and in the apps' server list.
 4. **First library**: a name and a type. You can skip it and add libraries
