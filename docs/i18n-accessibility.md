@@ -14,8 +14,10 @@ particular as *best-effort, not certified*.
 - **Translated:** the UI chrome - buttons, menus, settings, error messages,
   email/push notification text.
 - **Not translated by Evey:** media metadata (titles, plot summaries, genres)
-  comes from your metadata provider (TMDB/OMDb) in the **metadata language** you
-  configure (`EVEY_METADATA_LANGUAGE`), which is independent of the UI language.
+  comes from your metadata provider (TMDB/OMDb) in the **Metadata language** set
+  in the setup wizard or in **Admin → Server Config → Language & Region**
+  (`EVEY_METADATA_LANGUAGE` is only the default), which is independent of the UI
+  language.
   Your own libraries, file names, and anything you type are stored as-is.
 
 So the UI can be in French while a movie's synopsis is in English (or vice
@@ -41,7 +43,9 @@ than showing a blank or a key.
   with the active language so assistive tech announces the right language.
 - Language is picked from your account preference, falling back to the
   browser/device language (`Accept-Language` is parsed, region stripped:
-  `fr-FR` → `fr`), then to English.
+  `fr-FR` → `fr`), then to the **Server language** of **Admin → Server Config →
+  Language & Region** (which also sets the language of new accounts), then to
+  English.
 - Interpolation and pluralization use i18next (`{{count}}` etc.).
 
 ### Honest limitations
