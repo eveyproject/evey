@@ -17,10 +17,10 @@ import (
 // facts, client capabilities, profile preferences and the request-time pins.
 // PlaybackDecider answers the plan's decision for a request that will not be
 // served by the caller (the pre-play info surfaces): Decide with the
-// request-time pins, no route, ladder, pin or fingerprint behind it.
-// *PlanResolver is the production decider.
+// request-time pins, plus the route's tone-map, with no ladder, pin or
+// fingerprint behind it. *PlanResolver is the production decider.
 type PlaybackDecider interface {
-	Decide(ctx context.Context, req PlaybackRequest) transcoding.PlaybackDecision
+	Reported(ctx context.Context, req PlaybackRequest) transcoding.PlaybackDecision
 }
 
 // UnwiredDecider decides without a host: no calibration, no copy producer,

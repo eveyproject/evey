@@ -181,6 +181,12 @@ streamInfo:
     client_line_exceeded: La línea medida por el cliente no puede llevar la copia
     abr_floor_requested: Escalón de supervivencia pedido por el reproductor
     file_needs_remux: "Archivo almacenado en bloques de una sola pista (necesita reparación)"
+    audio_passthrough_unsupported: "La pista de audio no puede transmitirse sin cambios en el stream"
+    preferred_video_codec: "Códec de vídeo preferido (ajuste del perfil)"
+    preferred_audio_codec: "Códec de audio preferido (ajuste del perfil)"
+    direct_play_disabled: "Reproducción directa desactivada en el perfil"
+    direct_stream_disabled: "Remux desactivado en el perfil"
+    video_codec_pinned: "Códec de vídeo mantenido para esta sesión"
 jumpToChapter: "Ir al capítulo: {{chapter}}"
 cast:
   noDevices: No se encontraron dispositivos de cast en la red del servidor.

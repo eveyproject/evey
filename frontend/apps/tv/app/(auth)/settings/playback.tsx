@@ -431,7 +431,7 @@ export default function PlaybackSettingsScreen() {
       </View>
 
       <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>
-        {t("auth.settings.playback.allowDirectStream", "Allow direct stream")}
+        {t("auth.settings.playback.allowDirectStream", "Allow remux")}
       </Text>
       <Text style={[styles.hint, { color: theme.colors.textMuted }]}>
         {t("auth.settings.playback.allowDirectStreamDesc", "Remux container without re-encoding when possible.")}
@@ -452,7 +452,7 @@ export default function PlaybackSettingsScreen() {
         {t("auth.settings.playback.allowTranscoding", "Allow transcoding")}
       </Text>
       <Text style={[styles.hint, { color: theme.colors.textMuted }]}>
-        {t("auth.settings.playback.allowTranscodingDesc", "Fall back to transcoding if direct play/stream is unavailable.")}
+        {t("auth.settings.playback.allowTranscodingDesc", "Fall back to transcoding when neither Direct Play nor remux is possible.")}
       </Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         {TOGGLE_OPTIONS.map((opt) => (

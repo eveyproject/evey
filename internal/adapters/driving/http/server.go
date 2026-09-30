@@ -70,6 +70,9 @@ type HTTPServer struct {
 	LogDir    string
 	DataDir   string
 	HTTPSOnly bool
+	// HTTPSMode, when set, is read on every request instead of HTTPSOnly, so
+	// an https External URL saved in the panel applies without a restart.
+	HTTPSMode func() bool
 
 	// DB is used for liveness checks; may be nil (check skipped).
 	DB DBPinger
@@ -692,7 +695,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if gwMux != nil {
 		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
+			authCookieMiddleware(gwMux, s.https()).ServeHTTP(w, r)
 		}))
 		mux.HandleFunc("POST /api/v1/auth/forgot-password", ratelimit.MiddlewareFunc(s.PasswordResetRL, func(w http.ResponseWriter, r *http.Request) {
 			gwMux.ServeHTTP(w, r)
@@ -706,7 +709,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		// shared LoginRL until 2026-09-19, whose 10/min prod default refused
 		// every other poll of a single television.
 		mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}", ratelimit.MiddlewareFunc(s.QuickConnectPollRL, func(w http.ResponseWriter, r *http.Request) {
-			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
+			authCookieMiddleware(gwMux, s.https()).ServeHTTP(w, r)
 		}))
 		if s.QuickConnectHub != nil {
 			// Same limiter as the polling QC route: each open SSE connection
@@ -716,12 +719,12 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		}
 		mux.HandleFunc("POST /api/v1/auth/refresh", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
 			r = injectRefreshTokenFromCookie(r)
-			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
+			authCookieMiddleware(gwMux, s.https()).ServeHTTP(w, r)
 		}))
 		mux.HandleFunc("POST /api/v1/auth/logout", func(w http.ResponseWriter, r *http.Request) {
 			// The cookie names THIS device's session, so only it is ended.
 			r = injectRefreshTokenFromCookie(r)
-			clearRefreshCookie(w, s.HTTPSOnly)
+			clearRefreshCookie(w, s.https())
 			if s.OIDCSvc != nil {
 				if ep := s.OIDCSvc.EndSessionEndpoint(); ep != "" {
 					rec := &discardResponseWriter{header: make(http.Header)}
@@ -733,12 +736,12 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 					if c, err := r.Cookie(oidcIDTokenCookieName); err == nil && c.Value != "" {
 						q.Set("id_token_hint", c.Value)
 					}
-					clearOIDCIDTokenCookie(w, s.HTTPSOnly)
+					clearOIDCIDTokenCookie(w, s.https())
 					http.Redirect(w, r, ep+"?"+q.Encode(), http.StatusFound)
 					return
 				}
 			}
-			clearOIDCIDTokenCookie(w, s.HTTPSOnly)
+			clearOIDCIDTokenCookie(w, s.https())
 			// Logout is best-effort: cookie cleared above. If there's no auth,
 			// don't call the gateway (it would return 401 → frontend retry loops).
 			if r.Header.Get("Authorization") == "" {
@@ -863,7 +866,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 
 	if s.OIDCSvc != nil {
-		registerOIDCRoutes(mux, s.OIDCSvc, s.HTTPSOnly, s.OIDCLoginRL)
+		registerOIDCRoutesFn(mux, s.OIDCSvc, s.https, s.OIDCLoginRL)
 	} else {
 		mux.HandleFunc("GET /api/v1/auth/oidc/config", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
@@ -909,14 +912,23 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 func (s *HTTPServer) PlaybackDecider() apptranscoding.PlaybackDecider {
 	return playbackDeciderFunc(func(ctx context.Context, req apptranscoding.PlaybackRequest) domaintranscoding.PlaybackDecision {
 		if s.vod == nil {
-			return apptranscoding.UnwiredDecider().Decide(ctx, req)
+			return apptranscoding.UnwiredDecider().Reported(ctx, req)
 		}
-		return s.vod.planResolver().Decide(ctx, req)
+		return s.vod.planResolver().Reported(ctx, req)
 	})
 }
 
 type playbackDeciderFunc func(ctx context.Context, req apptranscoding.PlaybackRequest) domaintranscoding.PlaybackDecision
 
-func (f playbackDeciderFunc) Decide(ctx context.Context, req apptranscoding.PlaybackRequest) domaintranscoding.PlaybackDecision {
+func (f playbackDeciderFunc) Reported(ctx context.Context, req apptranscoding.PlaybackRequest) domaintranscoding.PlaybackDecision {
 	return f(ctx, req)
+}
+
+// https reports the HTTPS mode now: the live source when wired, else the
+// boot-time flag.
+func (s *HTTPServer) https() bool {
+	if s.HTTPSMode != nil {
+		return s.HTTPSMode()
+	}
+	return s.HTTPSOnly
 }

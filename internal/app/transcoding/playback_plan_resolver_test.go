@@ -219,3 +219,30 @@ func TestPlanResolver_Decide_HonorsAudioTranscodePin(t *testing.T) {
 	assert.Contains(t, d.TranscodeReasons, "decision_pinned")
 	assert.NotEmpty(t, d.AudioCodec, "a forced audio transcode must name the output codec")
 }
+
+// What stream-info announces is what the master serves. A decision that says
+// "copy" on the codecs while the copy rung is gated (here: no keyframe index,
+// and no producer wired) is reported as the transcode it will be, with the
+// gate named - the tooltip must not say "copy" over an H.264 ladder.
+func TestPlanResolver_Reported_NamesTheClosedCopyGate(t *testing.T) {
+	pr := &PlanResolver{UseFMP4: true}
+	req := resolverTestRequest()
+	req.Client = transcoding.ClientProfile{VideoCodecs: []string{"h264"}, AudioCodecs: []string{"aac"}, Containers: []string{"mp4", "webm"}}
+	// The pure decision copies the video: the client decodes h264.
+	pure := pr.Decide(context.Background(), req)
+	require.Equal(t, "copy", pure.VideoDecision)
+
+	d := pr.Reported(context.Background(), req)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Equal(t, "transcode", d.PlayMethod)
+	assert.Contains(t, d.TranscodeReasons, "copy_blocked:no_keyframes")
+	assert.NotEmpty(t, d.VideoCodec, "a transcode names its encoder")
+
+	// A direct play (mp4 to an mp4 client) is the raw file: no rung is
+	// involved and the report stays a direct play.
+	req.Container = "mp4"
+	direct := pr.Reported(context.Background(), req)
+	assert.Equal(t, "direct_play", direct.PlayMethod)
+	assert.Equal(t, "copy", direct.VideoDecision)
+	assert.Empty(t, direct.TranscodeReasons)
+}

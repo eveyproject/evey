@@ -14,6 +14,8 @@ interface RemoteAccessConfig {
   serverBaseUrl: string;
   lanNetworks: string[];
   maxRemoteBitrateKbps: number;
+  trustedProxies?: string[];
+  trustedProxiesFromPanel?: boolean;
   // The server derives these from the current request/config (mirror web).
   lockoutRisk?: boolean;
   published?: boolean;
@@ -46,6 +48,7 @@ export default function AdminRemoteAccessScreen() {
   const [externalUrl, setExternalUrl] = useState("");
   const [lanNetworks, setLanNetworks] = useState("");
   const [maxBitrate, setMaxBitrate] = useState("0");
+  const [trustedProxies, setTrustedProxies] = useState("");
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -55,6 +58,7 @@ export default function AdminRemoteAccessScreen() {
       setExternalUrl(data.externalUrl);
       setLanNetworks(data.lanNetworks.join(", "));
       setMaxBitrate(String(data.maxRemoteBitrateKbps));
+      setTrustedProxies((data.trustedProxies ?? []).join(", "));
       setDirty(false);
     }
   }, [data]);
@@ -63,6 +67,7 @@ export default function AdminRemoteAccessScreen() {
     setSaving(true);
     try {
       const networks = lanNetworks.split(",").map((s) => s.trim()).filter(Boolean);
+      const proxies = trustedProxies.split(",").map((s) => s.trim()).filter(Boolean);
       await eveyFetch<RemoteAccessConfig>({
         url: "/api/v1/admin/remote-access",
         method: "PUT",
@@ -71,6 +76,9 @@ export default function AdminRemoteAccessScreen() {
           externalUrl,
           lanNetworks: networks,
           maxRemoteBitrateKbps: parseInt(maxBitrate, 10) || 0,
+          // An emptied field hands the answer back to EVEY_TRUSTED_PROXIES.
+          trustedProxies: proxies,
+          clearTrustedProxies: proxies.length === 0,
         },
       });
       toast.success(t("admin.remoteAccess.saved"));
@@ -81,7 +89,7 @@ export default function AdminRemoteAccessScreen() {
     } finally {
       setSaving(false);
     }
-  }, [enabled, externalUrl, lanNetworks, maxBitrate, qc, t]);
+  }, [enabled, externalUrl, lanNetworks, maxBitrate, trustedProxies, qc, t]);
 
   const onRefresh = useCallback(async () => {
     await refetch();
@@ -171,6 +179,27 @@ export default function AdminRemoteAccessScreen() {
               Using default: {data.serverBaseUrl}
             </Text>
           )}
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 4 }}>
+            {t("admin.remoteAccess.externalUrlHttpsHint")}
+          </Text>
+
+          {/* Trusted proxies */}
+          <Text style={s.label}>{t("admin.remoteAccess.trustedProxies")}</Text>
+          <TextInput
+            value={trustedProxies}
+            onChangeText={(v) => { setTrustedProxies(v); setDirty(true); }}
+            style={s.input}
+            accessibilityLabel={t("admin.remoteAccess.trustedProxies")}
+            placeholderTextColor={theme.colors.textMuted}
+            placeholder="172.16.0.0/12"
+            autoCapitalize="none"
+          />
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 4 }}>
+            {t("admin.remoteAccess.trustedProxiesHint")}{" "}
+            {data?.trustedProxiesFromPanel
+              ? t("admin.remoteAccess.trustedProxiesFromPanel")
+              : t("admin.remoteAccess.trustedProxiesFromEnv")}
+          </Text>
 
           {/* LAN Networks */}
           <Text style={s.label}>{t("admin.remoteAccess.lanNetworks")}</Text>

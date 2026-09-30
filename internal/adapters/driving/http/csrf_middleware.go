@@ -26,7 +26,7 @@ func generateCSRFToken() (string, error) {
 // On every response it sets a _csrf cookie (HttpOnly=false so JS can read it).
 // On state-changing methods (POST/PUT/PATCH/DELETE) it verifies
 // the X-CSRF-Token header matches the cookie value.
-func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
+func csrfMiddlewareFn(httpsOnly func() bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
@@ -83,7 +83,7 @@ func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 				Value:    token,
 				Path:     "/",
 				HttpOnly: false, // JS must read this
-				Secure:   httpsOnly,
+				Secure:   httpsOnly(),
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   86400, // 24h
 			})
@@ -93,7 +93,17 @@ func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 	})
 }
 
+func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
+	return csrfMiddlewareFn(fixedBool(httpsOnly), next)
+}
+
 // CSRFMiddleware is the exported wrapper for use in main wiring.
 func CSRFMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 	return csrfMiddleware(httpsOnly, next)
+}
+
+// CSRFMiddlewareLive reads the HTTPS flag on every request (Admin -> Remote
+// Access can change it while the server runs).
+func CSRFMiddlewareLive(httpsOnly func() bool, next http.Handler) http.Handler {
+	return csrfMiddlewareFn(httpsOnly, next)
 }

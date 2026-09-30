@@ -36,7 +36,7 @@ func newWANRequest(path string) *http.Request {
 
 func gateHandler(enabled bool, logger *slog.Logger) http.Handler {
 	detector := network.NewDetector([]string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"})
-	mw := networkMiddleware(detector, func() bool { return enabled }, logger)
+	mw := networkMiddleware(func() *network.Detector { return detector }, func() bool { return enabled }, logger)
 	return mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("reached"))
@@ -153,7 +153,7 @@ func TestNetworkMiddleware_FlagFlipIsRaceFree(t *testing.T) {
 	cfg.RemoteAccess.Enabled = false
 
 	detector := network.NewDetector(cfg.RemoteAccess.LANNetworks)
-	h := networkMiddleware(detector, cfg.EffectiveRemoteAccessEnabled,
+	h := networkMiddleware(func() *network.Detector { return detector }, cfg.EffectiveRemoteAccessEnabled,
 		slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 	)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
 
@@ -183,6 +183,36 @@ func TestNetworkMiddleware_FlagFlipIsRaceFree(t *testing.T) {
 		})
 	}
 	wg.Wait()
+}
+
+// Admin -> Remote Access edits the LAN list as well as the switch. The gate used
+// to build its detector once at boot, so a VPN range added in the panel kept
+// being refused until a restart.
+func TestNetworkMiddleware_LANListChangeAppliesWithoutRestart(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.RemoteAccess.LANNetworks = []string{"192.168.0.0/16"}
+	lan := network.NewLiveDetector(func() (cidrs []string) {
+		cfg.WithReadLock(func() { cidrs = cfg.RemoteAccess.LANNetworks })
+		return cidrs
+	})
+	h := networkMiddleware(lan.Detector, cfg.EffectiveRemoteAccessEnabled,
+		slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+	)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+
+	vpnClient := func() int {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, fromBoundary("/api/v1/auth/login", "100.64.3.4"))
+		return rec.Code
+	}
+	if got := vpnClient(); got != http.StatusForbidden {
+		t.Fatalf("before the change: status %d, want 403", got)
+	}
+	cfg.ApplyServerSettings(func() {
+		cfg.RemoteAccess.LANNetworks = []string{"192.168.0.0/16", "100.64.0.0/10"}
+	})
+	if got := vpnClient(); got != http.StatusOK {
+		t.Fatalf("after adding the VPN range: status %d, want 200", got)
+	}
 }
 
 // The settings pair is read as ONE snapshot: a reader must never observe the

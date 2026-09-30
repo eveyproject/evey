@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"slices"
 	"time"
 
 	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
@@ -38,7 +39,6 @@ import (
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
-	"github.com/evey-project/evey/internal/pkg/network"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"google.golang.org/grpc"
@@ -191,18 +191,21 @@ func (s *GRPCServer) RegisterServices() {
 	case d.HLSVODOrch != nil:
 		hlsMgr = d.HLSVODOrch
 	}
-	// Operator remote-access bitrate cap, snapshot at boot from cfg.RemoteAccess
-	// (same lifetime as the HTTP network.Detector; changes take effect on
-	// restart). nil cfg (tests) leaves the cap off.
-	var playbackRemoteDetector *network.Detector
-	playbackMaxRemoteBitrate := 0
-	if d.Cfg != nil {
-		playbackRemoteDetector = network.NewDetector(d.Cfg.RemoteAccess.LANNetworks)
-		playbackMaxRemoteBitrate = d.Cfg.RemoteAccess.MaxRemoteBitrateKbps
+	// Operator remote-access bitrate cap, read live from cfg.RemoteAccess (the
+	// admin PUT writes it under the same lock). nil cfg (tests) leaves it off.
+	var playbackRemoteAccess func() (int, []string)
+	if cfg := d.Cfg; cfg != nil {
+		playbackRemoteAccess = func() (maxKbps int, lan []string) {
+			cfg.WithReadLock(func() {
+				maxKbps = cfg.RemoteAccess.MaxRemoteBitrateKbps
+				lan = slices.Clone(cfg.RemoteAccess.LANNetworks)
+			})
+			return maxKbps, lan
+		}
 	}
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: d.LibCmd, query: d.LibQuery, metadataSvc: d.MetadataQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, scheduler: d.Scheduler, translator: d.Translator})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg})
-	s.playback = &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, metadataSvc: d.MetadataQuery, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand, remoteNetDetector: playbackRemoteDetector, maxRemoteBitrateKbps: playbackMaxRemoteBitrate}
+	s.playback = &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, metadataSvc: d.MetadataQuery, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand, remoteAccess: playbackRemoteAccess}
 	eveyv1.RegisterPlaybackServiceServer(s.server, s.playback)
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: d.Transcoding, userQuery: d.UserQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: d.Mkv, libQuery: d.LibQuery, userAccess: d.UserAccess})

@@ -11,7 +11,6 @@ import (
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
-	"github.com/evey-project/evey/internal/pkg/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,8 +21,7 @@ import (
 // the client/profile ceiling, and an unresolved client IP fails open.
 func TestResolvePlaybackPrefs_RemoteBitrateCap(t *testing.T) {
 	h := &playbackHandler{
-		remoteNetDetector:    network.NewDetector([]string{"10.0.0.0/8"}),
-		maxRemoteBitrateKbps: 4000,
+		remoteAccess: func() (int, []string) { return 4000, []string{"10.0.0.0/8"} },
 	}
 	streams := []*library.MediaStream{}
 
@@ -58,10 +56,28 @@ func TestResolvePlaybackPrefs_RemoteBitrateCap(t *testing.T) {
 	})
 
 	t.Run("cap disabled leaves bitrate untouched", func(t *testing.T) {
-		off := &playbackHandler{remoteNetDetector: network.NewDetector(nil), maxRemoteBitrateKbps: 0}
+		off := &playbackHandler{remoteAccess: func() (int, []string) { return 0, nil }}
 		ctx := interceptors.WithClientIP(context.Background(), "203.0.113.7")
 		_, mb := off.resolvePlaybackPrefs(ctx, &eveyv1.GetStreamInfoRequest{}, streams)
 		assert.Equal(t, 0, mb)
+	})
+
+	// Admin -> Remote Access writes the live config; the next playback reads
+	// it. The cap used to be copied at boot, so a change needed a restart.
+	t.Run("a changed cap and LAN list apply to the next playback", func(t *testing.T) {
+		remoteCap, lan := 4000, []string{"10.0.0.0/8"}
+		live := &playbackHandler{remoteAccess: func() (int, []string) { return remoteCap, lan }}
+		ctx := interceptors.WithClientIP(context.Background(), "203.0.113.7")
+		_, mb := live.resolvePlaybackPrefs(ctx, &eveyv1.GetStreamInfoRequest{}, streams)
+		assert.Equal(t, 4000, mb)
+
+		remoteCap = 1500
+		_, mb = live.resolvePlaybackPrefs(ctx, &eveyv1.GetStreamInfoRequest{}, streams)
+		assert.Equal(t, 1500, mb)
+
+		lan = append(lan, "203.0.113.0/24")
+		_, mb = live.resolvePlaybackPrefs(ctx, &eveyv1.GetStreamInfoRequest{}, streams)
+		assert.Equal(t, 0, mb, "an address added to the LAN list is no longer capped")
 	})
 }
 

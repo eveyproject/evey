@@ -34,9 +34,9 @@ favorites:
   rating: Note
   noFavorites: Pas encore de favoris
   noFavoritesDesc: "Cliquez sur l'icône cœur de n'importe quel média pour l'ajouter aux favoris."
-  addToPlaylist: Ajouter à la liste de lecture
-  noPlaylists: Pas encore de listes de lecture.
-  failedAddPlaylist: "Échec de l'ajout à la liste de lecture"
+  addToPlaylist: Ajouter à la playlist
+  noPlaylists: Pas encore de playlists.
+  failedAddPlaylist: "Échec de l'ajout à la playlist"
   itemsAddedToPlaylist_one: "{{count}} élément ajouté à \"{{name}}\""
   itemsAddedToPlaylist_other: "{{count}} éléments ajoutés à \"{{name}}\""
   markedWatched_one: "{{count}} élément marqué comme vu"
@@ -101,7 +101,7 @@ itemType:
   season: "Saison"
   episode: "Épisode"
   album: "Album"
-  track: "Piste"
+  track: "Titre"
   photo: "Photo"
   artist: "Artiste"
 
@@ -137,9 +137,9 @@ library:
   failedFavorites: "Échec de l'ajout de certains éléments aux favoris"
   duration: Durée
   type: Type
-  addToPlaylist: Ajouter à la liste de lecture
-  noPlaylists: Pas encore de listes de lecture.
-  failedAddPlaylist: "Échec de l'ajout à la liste de lecture"
+  addToPlaylist: Ajouter à la playlist
+  noPlaylists: Pas encore de playlists.
+  failedAddPlaylist: "Échec de l'ajout à la playlist"
   itemsAddedToPlaylist_one: "{{count}} élément ajouté à \"{{name}}\""
   itemsAddedToPlaylist_other: "{{count}} éléments ajoutés à \"{{name}}\""
   filters: Filtres
@@ -158,7 +158,7 @@ library:
   typeMovie: Film
   typeShow: Série
   typeEpisode: Épisode
-  typeTrack: Piste
+  typeTrack: Titre
   typePhoto: Photo
   typeLabel: Type
   genreText: "Genre (texte)"
@@ -223,7 +223,7 @@ detail:
   markedUnwatched: Marqué comme non vu
   markWatchedFailed: "Impossible de marquer comme vu"
   markUnwatchedFailed: "Impossible de marquer comme non vu"
-  addToPlaylist: Ajouter à la liste de lecture
+  addToPlaylist: Ajouter à la playlist
   yourRating: "Votre note"
   editMetadata: Modifier les métadonnées
   cast: Distribution
@@ -272,11 +272,11 @@ detail:
   idChangedWarning: "ID modifié - l'enregistrement récupérera les métadonnées du fournisseur"
   refreshMetadata: Actualiser les métadonnées
   resetMetadata: Réinitialiser les métadonnées
-  rematchMetadata: Re-rechercher les métadonnées
+  rematchMetadata: Réidentifier
   rematchConfirm: "Cette action supprimera tous les remplacements et identifiants du fournisseur, puis relancera la recherche de métadonnées depuis le nom de fichier d'origine. Continuer ?"
-  rematchSuccess: "Re-match : {{title}}"
+  rematchSuccess: "Réidentifié : {{title}}"
   rematchSuccessFallback: recherche terminée
-  rematchFailed: Échec de la re-recherche de métadonnées
+  rematchFailed: Échec de la réidentification
   identify:
     openButton: Identifier sur TMDB
     title: Identifier sur TMDB
@@ -342,7 +342,7 @@ certBody:
   TW: MOC
 contextMenu:
   editMetadata: Modifier les métadonnées
-  addToPlaylist: Ajouter à la liste de lecture
+  addToPlaylist: Ajouter à la playlist
   addToCollection: Ajouter à la collection
   addToFavorites: Ajouter aux favoris
   removeFromFavorites: Retirer des favoris
@@ -354,30 +354,30 @@ contextMenu:
   markError: "Échec du marquage comme {{status}}"
 music:
   title: Musique
-  tracks: Pistes
+  tracks: Titres
   albums: Albums
   artists: Artistes
   playlists: Playlists
   noPlaylists: Aucune playlist.
   emptyPlaylist: Cette playlist est vide.
-  downloadTrack: Télécharger la piste
+  downloadTrack: Télécharger le titre
   downloadAlbum: Télécharger l'album
-  searchPlaceholder: "Rechercher pistes, artistes, albums…"
+  searchPlaceholder: "Rechercher titres, artistes, albums…"
   loading: "Chargement…"
-  noTracks: Aucune piste trouvée.
-  noTracksSearch: Aucune piste ne correspond à votre recherche.
+  noTracks: Aucun titre trouvé.
+  noTracksSearch: Aucun titre ne correspond à votre recherche.
   noAlbums: Aucun album trouvé.
   noArtists: Aucun artiste trouvé.
   noLibraries: "Aucune bibliothèque musicale trouvée. Ajoutez-en une dans le panneau d'administration."
   noMusicLibraries: Aucune bibliothèque musicale
   queue: "File d'attente"
   queueEmpty: "File d'attente vide"
-  trackDeleted: Piste supprimée
-  failedDeleteTrack: Échec de la suppression de la piste
-  deleteTrackConfirm: Supprimer cette piste ? Cette action est irréversible.
-  deleteTrack: Supprimer la piste
-  trackCount_one: "{{count}} piste"
-  trackCount_other: "{{count}} pistes"
+  trackDeleted: Titre supprimé
+  failedDeleteTrack: Échec de la suppression du titre
+  deleteTrackConfirm: Supprimer ce titre ? Cette action est irréversible.
+  deleteTrack: Supprimer le titre
+  trackCount_one: "{{count}} titre"
+  trackCount_other: "{{count}} titres"
   albumCount_one: "{{count}} album"
   albumCount_other: "{{count}} albums"
   genre: Genre
@@ -448,7 +448,7 @@ syncplay:
   queueEmpty: "Ajoutez des albums, titres ou playlists pour constituer la file de la salle."
   noAlbums: "Aucun album trouvé"
   noPlaylists: "Aucune playlist"
-  albumLoadFailed: "Impossible de charger les pistes de cet album"
+  albumLoadFailed: "Impossible de charger les titres de cet album"
   addAlbumFailed: "Impossible d'ajouter l'album à la file"
   addPlaylistFailed: "Impossible d'ajouter la playlist à la file"
   join: Rejoindre une salle
@@ -459,7 +459,7 @@ syncplay:
   members: membres
   sharedTrack: Piste partagée
   followingHost: "Vous êtes synchronisé avec l'hôte."
-  noTracks: Aucune piste trouvée
+  noTracks: Aucun titre trouvé
   notMusicRoom: "Cette salle n'est pas une salle musicale."
   orPlaylist: "Ou choisir une playlist"
   queue: "File d'attente"
@@ -480,7 +480,7 @@ playlist:
   typeEpisode: Épisode
   typeAlbum: Album
   typeArtist: Artiste
-  typeTrack: Piste
+  typeTrack: Titre
   phGenre: "ex. Action"
   phYear: "ex. 2020"
   phLibrary: "ex. library-id"
@@ -498,15 +498,15 @@ playlist:
   generatedName: Mon mix
   generated: Playlist générée
   generateFailed: Échec de la génération
-  createTitle: Créer une liste de lecture
-  createPlaylist: Créer une liste de lecture
-  newPlaylist: "+ Nouvelle liste de lecture"
-  noPlaylists: Pas encore de listes de lecture.
-  addTitle: Ajouter à la liste de lecture
-  addSuccess: "Ajouté à la liste de lecture"
-  addError: "Échec de l'ajout à la liste de lecture"
-  createSuccess: Liste de lecture créée
-  createError: Échec de la création de la liste de lecture
+  createTitle: Créer une playlist
+  createPlaylist: Créer une playlist
+  newPlaylist: "+ Nouvelle playlist"
+  noPlaylists: Pas encore de playlists.
+  addTitle: Ajouter à la playlist
+  addSuccess: "Ajouté à la playlist"
+  addError: "Échec de l'ajout à la playlist"
+  createSuccess: Playlist créée
+  createError: Échec de la création de la playlist
   rules: Règles
   addRule: Ajouter une règle
   field: Champ
@@ -515,12 +515,12 @@ playlist:
   opLte: "Inférieur ou égal à"
   opEq: "Égal à"
   value: Valeur
-  playlists: Listes de lecture
-  notFound: Liste de lecture introuvable.
+  playlists: Playlists
+  notFound: Playlist introuvable.
   noItems: Aucun élément
   noItemsSmart: Aucun média ne correspond à ces règles.
   noItemsManual: Ajoutez des éléments depuis la page de détail du média.
-  removedFromPlaylist: Retiré de la liste de lecture
+  removedFromPlaylist: Retiré de la playlist
   failedRemove: Échec du retrait
   moveItemUp: Monter
   moveItemDown: Descendre
@@ -528,17 +528,17 @@ playlist:
   deleteConfirm: "Supprimer \"{{name}}\" ?"
   deleted: "\"{{name}}\" supprimée"
   deleteFailed: Échec de la suppression
-  deletePlaylist: Supprimer la liste de lecture
-  noPlaylistsDesc: Créez une liste de lecture pour organiser vos médias.
+  deletePlaylist: Supprimer la playlist
+  noPlaylistsDesc: Créez une playlist pour organiser vos médias.
   editRules: Modifier les règles
   saveRules: Enregistrer les règles
   noRules: "Aucune règle définie. Cliquez sur \"Modifier les règles\" pour en ajouter."
   noRulesYet: Pas encore de règles. Ajoutez au moins une règle pour filtrer les éléments.
   rulesSaved: Règles enregistrées
   rulesSaveFailed: Échec de la sauvegarde des règles
-  playlistDeleted: Liste de lecture supprimée
-  updated: Liste de lecture mise à jour
-  updateFailed: Échec de la mise à jour de la liste de lecture
+  playlistDeleted: Playlist supprimée
+  updated: Playlist mise à jour
+  updateFailed: Échec de la mise à jour de la playlist
   reorderFailed: Échec du réordonnancement
   confirmDelete: Supprimer la playlist « {{name}} » ?
   confirmRemoveItem: Retirer de la playlist ?

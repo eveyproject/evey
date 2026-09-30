@@ -25,8 +25,14 @@ import (
 // /healthz (the server probe of every client) take part; static files
 // belong to the web app and need no CORS.
 func CORSMiddleware(baseURL string, next http.Handler) http.Handler {
-	allowed := strings.TrimRight(baseURL, "/")
+	return CORSMiddlewareLive(func() string { return baseURL }, next)
+}
+
+// CORSMiddlewareLive reads the public address on every request, so an External
+// URL saved in Admin -> Remote Access applies without a restart.
+func CORSMiddlewareLive(baseURL func() string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		allowed := strings.TrimRight(baseURL(), "/")
 		origin := r.Header.Get("Origin")
 		if origin == "" || !corsPath(r.URL.Path) {
 			next.ServeHTTP(w, r)

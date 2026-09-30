@@ -11,7 +11,7 @@ nav:
   libraries: Bibliothèques
   transcoding: Transcodage
   artworks: Cache artworks
-  seekIndex: "Santé média"
+  seekIndex: "Santé des médias"
   usersAccess: Utilisateurs et accès
   users: Utilisateurs
   mediaRequests: Demandes de média
@@ -81,7 +81,7 @@ logs:
     remux: Remux
     hw-detect: Détection matérielle
     intro: Détection intro
-    trickplay: Trickplay
+    trickplay: Miniatures de navigation
     qoe: QoE lecture
     chromecast: Chromecast
     auth: Authentification
@@ -176,12 +176,12 @@ plugin:
     bannerSafe: "Aucun changement de permissions - mise à jour sûre"
     tabSlots: "Slots"
     tabExternalFetch: "Appels externes"
-    tabFindings: "Alertes"
+    tabFindings: "Résultats de l'analyse"
     tabSignature: "Signature"
     emptyPermissions: "Aucun changement de permissions"
     emptySlots: "Aucun changement de slots"
     emptyExternalFetch: "Aucun changement d'appels externes"
-    noFindings: "Aucune alerte"
+    noFindings: "L'analyse n'a rien relevé"
     signatureInvalid: "Invalide"
     ackLabel: "J'ai examiné les nouvelles permissions et j'accepte de les accorder à ce plugin"
     apply: "Appliquer la mise à jour"
@@ -190,12 +190,12 @@ plugins:
   installFromFile: "Installer depuis un fichier (.zip)"
   resourceLimits:
     title: "Limites de ressources"
-    description: "Plafonds par plugin appliqués par le runtime. La mémoire, les PID et le disque s'appliquent au prochain balayage du moniteur ; le nice CPU et le mode bac à sable s'appliquent aux plugins (re)démarrés ensuite."
+    description: "Plafonds par plugin appliqués par le runtime. La mémoire, les PID et le disque s'appliquent au prochain balayage du moniteur ; le nice CPU et le mode sandbox s'appliquent aux plugins (re)démarrés ensuite."
     memoryMb: "Mémoire max (Mio)"
     pidsMax: "Processus max"
     diskMaxMb: "Disque max (Mio)"
     cpuNice: "Nice CPU (0-19)"
-    sandboxMode: "Mode bac à sable"
+    sandboxMode: "Mode sandbox"
     save: "Enregistrer les limites"
     saved: "Limites de ressources mises à jour"
     saveFailed: "Échec de la mise à jour des limites de ressources"
@@ -217,7 +217,7 @@ plugins:
   installAnyway: "Installer quand même"
   install: "Installer"
   subprocessRequired: "Permission de sous-processus requise"
-  subprocessWarning: "Ce plugin peut exécuter des commandes système, contournant le sandbox seccomp. Installez-le uniquement si vous faites confiance à l'auteur."
+  subprocessWarning: "Ce plugin peut exécuter des commandes système, contournant la sandbox seccomp. Installez-le uniquement si vous faites confiance à l'auteur."
   noPlugins: "Aucun plugin installé."
   notFound: "Ce plugin n'est pas installé, pas activé, ou n'a pas de page d'administration."
   pluginEnabled: "Plugin activé"
@@ -247,7 +247,7 @@ plugins:
     critical: critique
     warnings: avertissements
     errorBadge: Erreur
-    findings: Résultats
+    findings: "Résultats de l'analyse"
     lastError: Dernière erreur
     noData: Aucune donnée de sécurité disponible.
     signed: Signé
@@ -257,7 +257,7 @@ plugins:
     sandboxBasicWarning: "Les plugins tournent avec UID-drop + seccomp uniquement - cet hôte n'offre aucune isolation du système de fichiers par chemin."
     sandboxBasicHint: "Un noyau ≥ 5.13 avec Landlock dans la liste LSM active apporte une isolation forte sans autre changement sur l'hôte."
     probeLandlock: "Noyau Landlock"
-    probeLauncher: "Lanceur sandbox"
+    probeLauncher: "Lanceur de la sandbox"
     probeBubblewrap: "Bubblewrap"
 
 dashboard:
@@ -417,7 +417,7 @@ libraries:
   editLibraryNamed: "Modifier {{name}}"
   scanLibraryNamed: "Scanner {{name}}"
   scheduleLibraryNamed: "Planification du scan pour {{name}}"
-  matchOrphansNamed: "Matcher les orphelins de {{name}}"
+  matchOrphansNamed: "Identifier les orphelins de {{name}}"
   refreshMetadataNamed: "Actualiser les métadonnées de {{name}}"
   deleteLibraryNamed: "Supprimer {{name}}"
   removePathNamed: "Supprimer le chemin {{index}}"
@@ -425,14 +425,14 @@ libraries:
   scanStarted: "Scan lancé"
   scanPartial: "Scan partiel - ces dossiers n'ont pas pu être lus : {{paths}}"
   failedScan: "Échec du lancement du scan"
-  refreshMetadata: "Re-matcher tout sur TMDB"
-  refreshMetadataTooltip: "Relance la recherche TMDB sur tous les items. Lent, mais corrige les mauvais matchings passés. À utiliser après un gros renommage."
-  refreshAllMetadataStarted: "Re-matching lancé - les titres et posters vont se corriger en tâche de fond"
-  matchOrphans: "Matcher les orphelins"
-  matchOrphansTooltip: "Cible uniquement les items qui n'ont jamais trouvé de match TMDB au scan (provider IDs vides). Rapide, tourne en tâche de fond."
-  matchOrphansStarted_one: "{{count}} orphelin en file de matching - il aura son poster/résumé dès que TMDB répond"
-  matchOrphansStarted_other: "{{count}} orphelins en file de matching - ils auront leur poster/résumé dès que TMDB répond"
-  matchOrphansEmpty: "Aucun orphelin à matcher dans cette bibliothèque - tous les items ont déjà leurs provider IDs"
+  refreshMetadata: "Tout réidentifier avec TMDB"
+  refreshMetadataTooltip: "Relance la recherche TMDB sur tous les éléments. Lent, mais corrige les mauvaises identifications passées. À utiliser après un gros renommage."
+  refreshAllMetadataStarted: "Réidentification lancée - les titres et posters vont se corriger en tâche de fond"
+  matchOrphans: "Identifier les orphelins"
+  matchOrphansTooltip: "Cible uniquement les éléments que TMDB n'a jamais identifiés au scan (aucun identifiant de fournisseur). Rapide, tourne en tâche de fond."
+  matchOrphansStarted_one: "{{count}} orphelin en attente d'identification - il aura son affiche et son résumé dès que TMDB répond"
+  matchOrphansStarted_other: "{{count}} orphelins en attente d'identification - ils auront leur affiche et leur résumé dès que TMDB répond"
+  matchOrphansEmpty: "Aucun orphelin à identifier dans cette bibliothèque - tous les éléments sont déjà identifiés"
   relinkCollections: "Réparer les sagas"
   relinkCollectionsTooltip: "Rattache aux sagas les films qui n'en font partie d'aucune : leurs suites sont déjà dans la bibliothèque, mais l'appartenance ne s'écrivait qu'à l'enrichissement. Tourne en tâche de fond."
   relinkCollectionsStarted: "Réparation des sagas lancée - les films rejoindront leur saga au fil des réponses de TMDB"
@@ -587,7 +587,7 @@ backup:
 
 webhooks:
   title: Webhooks
-  createWebhook: "Créer un Webhook"
+  createWebhook: "Créer un webhook"
   editWebhook: "Modifier le Webhook"
   webhookCreated: "Webhook créé"
   webhookUpdated: "Webhook mis à jour"
@@ -613,7 +613,7 @@ webhooks:
     events: "Événements"
     allEvents: "Tous les événements"
     enabled: "Activé"
-    createWebhook: "Créer un Webhook"
+    createWebhook: "Créer un webhook"
 
 analytics:
   title: "Analytique"
@@ -644,7 +644,7 @@ activity:
     intro_detection: "Détection d'intro"
     keyframe_backfill: "Repérage des images clés"
     level_backfill: "Relecture des infos vidéo"
-    trickplay_generation: "Vignettes de la barre de lecture"
+    trickplay_generation: "Miniatures de navigation"
     library_scan: "Analyse des nouveaux médias"
     collection_relink: "Rattachement des sagas"
     compat_download: "Téléchargement hors ligne (audio converti)"
@@ -742,9 +742,9 @@ serverConfig:
   saveSmtp: "Enregistrer les paramètres SMTP"
   smtpSaved: "Paramètres SMTP enregistrés"
   failedSmtp: "Échec de l'enregistrement de {{key}}"
-  trickplayTitle: "Miniatures Trickplay"
-  trickplayDesc: "Générer automatiquement les miniatures de prévisualisation pour les films et épisodes."
-  trickplayEnabled: "Activer les miniatures trickplay"
+  trickplayTitle: "Miniatures de navigation"
+  trickplayDesc: "Générer automatiquement les miniatures de navigation des films et épisodes."
+  trickplayEnabled: "Activer les miniatures de navigation"
   trickplayCpuHint: "La part de processeur de la génération se règle dans « Puissance allouée »."
   memoryProfileTitle: "Profil mémoire"
   memoryProfileSubtitle: "Contrôle le niveau de suspension des processus de plugin inactifs pour économiser la RAM."
@@ -772,8 +772,8 @@ serverConfig:
         label: "Analyse des nouveaux médias"
         desc: "Sondage, chapitres et plan de diffusion des fichiers trouvés par un scan."
       trickplay_generation:
-        label: "Miniatures trickplay"
-        desc: "Threads de décodage de la génération des miniatures de la timeline."
+        label: "Miniatures de navigation"
+        desc: "Threads de décodage de la génération des miniatures de navigation."
       intro_detection:
         label: "Détection d'intro"
         desc: "Épisodes et films analysés en parallèle pour l'intro, le résumé et le générique."
@@ -790,8 +790,8 @@ serverConfig:
     levelBackfillDesc: "Passe de fond qui renseigne le niveau H.264/HEVC manquant sur les fichiers déjà scannés."
     keyframeBackfillLabel: "Rattrapage de l'index des keyframes"
     keyframeBackfillDesc: "Passe de fond qui indexe les keyframes et classe les fichiers en CFR/VFR. Peut être coûteuse en E/S sur une grande bibliothèque."
-    snapshotFastpathLabel: "Chemin rapide des vignettes de timeline"
-    snapshotFastpathDesc: "Utilise le décodeur rapide mkvgo pour les vignettes de prévisualisation de la timeline. Désactivé, seul le décodeur ffmpeg exact est utilisé."
+    snapshotFastpathLabel: "Chemin rapide des miniatures de navigation"
+    snapshotFastpathDesc: "Utilise le décodeur rapide mkvgo pour les miniatures de navigation. Désactivé, seul le décodeur ffmpeg exact est utilisé."
     paceTitle: "Rythme"
     paceDesc: "Cadence des passes de rattrapage ci-dessus. Laisser vide pour utiliser la valeur par défaut du serveur. La taille de lot et l'intervalle d'inactivité doivent être supérieurs à 0 pour être pris en compte ; la pause accepte 0."
     paceDefaultPlaceholder: "valeur par défaut du serveur"
@@ -878,6 +878,11 @@ remoteAccess:
   enableRemoteAccess: "Activer l'accès distant"
   externalUrl: "URL externe"
   lanNetworks: "Réseaux LAN (CIDR, séparés par des virgules)"
+  trustedProxies: "Proxys de confiance (IP ou CIDR, séparés par des virgules)"
+  trustedProxiesHint: "Adresses des proxys inverses autorisés à transmettre l'adresse réelle du client (X-Forwarded-For). La boucle locale est toujours acceptée ; 0.0.0.0/0 est refusé."
+  trustedProxiesFromPanel: "Liste actuelle : enregistrée ici."
+  trustedProxiesFromEnv: "Liste actuelle : issue de EVEY_TRUSTED_PROXIES (laissez le champ vide pour la conserver)."
+  externalUrlHttpsHint: "Une adresse en https:// active aussi le mode HTTPS (cookies sécurisés, HSTS), sans redémarrage."
   maxRemoteBitrate: "Débit distant maximal (Kbps, 0 = illimité)"
   saved: "Paramètres d'accès distant enregistrés"
   networkInterfaces: "Interfaces réseau du serveur"
@@ -1204,7 +1209,7 @@ calibration:
   fallbackInit: "échec d'init GPU"
   hwModeLabel: "Accélération matérielle"
   hwModeAuto: "Auto (meilleur disponible)"
-  hwModeOff: "Désactivée (software uniquement)"
+  hwModeOff: "Désactivée (processeur uniquement)"
   detected: "Détecté : {{list}}"
   detectedNone: "Aucun accélérateur GPU détecté"
   modeApplied: "Mode appliqué - recalibrage…"
@@ -1314,7 +1319,7 @@ segments:
   title: "Segments du média"
   markStart: "Marquer début ici"
   markEnd: "Marquer fin ici"
-  save: "Sauvegarder"
+  save: "Enregistrer"
   delete: "Supprimer"
   redetect: "Re-déclencher détection auto"
   propagate: "Appliquer à la saison"
@@ -1333,8 +1338,8 @@ segments:
   end: "Fin mm:ss"
   startLabel: "Début mm:ss"
   endLabel: "Fin mm:ss"
-  noChanges: "Aucune modification à sauvegarder."
-  saveError: "Erreur lors de la sauvegarde"
+  noChanges: "Aucune modification à enregistrer."
+  saveError: "Erreur lors de l'enregistrement"
   deleteError: "Erreur lors de la suppression"
   redetectSuccess: "Détection lancée. Actualisez dans 1-2 minutes."
   redetectError: "Erreur lors du déclenchement de la détection"

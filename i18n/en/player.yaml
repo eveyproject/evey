@@ -181,6 +181,12 @@ streamInfo:
     client_line_exceeded: The line the client measured cannot carry the copy
     abr_floor_requested: Survival rung asked for by the player
     file_needs_remux: "File stored in one-track blocks (needs a repair)"
+    audio_passthrough_unsupported: "Audio track cannot be passed through unchanged in the stream"
+    preferred_video_codec: "Preferred video codec (profile setting)"
+    preferred_audio_codec: "Preferred audio codec (profile setting)"
+    direct_play_disabled: "Direct Play turned off in the profile"
+    direct_stream_disabled: "Remux turned off in the profile"
+    video_codec_pinned: "Video codec kept for this session"
 cast:
   noDevices: "No cast device found - neither on the server's network nor on yours."
   loadFailed: "Could not start playback on the cast device."

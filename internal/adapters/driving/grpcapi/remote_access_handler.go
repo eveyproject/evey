@@ -39,6 +39,7 @@ func (h *remoteAccessHandler) GetRemoteAccess(ctx context.Context, _ *eveyv1.Get
 		out = raConfigToProto(&h.cfg.RemoteAccess, h.cfg.Server.BaseURL)
 		out.ServerBaseUrl = h.cfg.Server.BaseURL
 	})
+	out.TrustedProxies, out.TrustedProxiesFromPanel = h.cfg.TrustedProxiesView()
 	return out, nil
 }
 
@@ -56,6 +57,14 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 		if err := urlvalidator.ValidateExternalURL(*req.ExternalUrl); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid ExternalURL: %v", err)
 		}
+	}
+	var trustedProxies []string
+	if len(req.TrustedProxies) > 0 {
+		list, err := config.PanelTrustedProxies(req.TrustedProxies)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid trusted_proxies: %v", err)
+		}
+		trustedProxies = list
 	}
 	var snapshot config.RemoteAccessConfig
 	var baseURL string
@@ -75,6 +84,12 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 		if req.MaxRemoteBitrateKbps != nil {
 			h.cfg.RemoteAccess.MaxRemoteBitrateKbps = int(*req.MaxRemoteBitrateKbps)
 		}
+		switch {
+		case len(trustedProxies) > 0:
+			h.cfg.RemoteAccess.TrustedProxies = trustedProxies
+		case req.ClearTrustedProxies:
+			h.cfg.RemoteAccess.TrustedProxies = nil
+		}
 		snapshot = h.cfg.RemoteAccess
 		baseURL = h.cfg.Server.BaseURL
 	})
@@ -88,6 +103,7 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 	}
 	out := raConfigToProto(&snapshot, baseURL)
 	out.ServerBaseUrl = baseURL
+	out.TrustedProxies, out.TrustedProxiesFromPanel = h.cfg.TrustedProxiesView()
 	return out, nil
 }
 

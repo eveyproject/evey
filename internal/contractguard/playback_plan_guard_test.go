@@ -44,6 +44,11 @@ var planResolverSurface = map[string]bool{
 	// project. A plan of its own for a consumer that has no session, not a
 	// facet of a session's plan re-derived downstream.
 	"ResolvePicture": true,
+	// What the pre-play info surfaces (GetStreamInfo, playback-info) show: Decide
+	// plus the tone-map the same resolveRoute already knows, so Stream info names
+	// an HDR->SDR the served plan will do. No admission, nothing reserved: the
+	// report of a plan not yet served, not a facet re-derived beside one.
+	"Reported": true,
 }
 
 // planSubDerivations are the resolver's former entry points that each

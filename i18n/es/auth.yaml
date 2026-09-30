@@ -184,10 +184,10 @@ settings:
     transcodeTitle: "Transcodificación"
     allowDirectPlay: "Permitir reproducción directa"
     allowDirectPlayDesc: "Reproducir el archivo original cuando el dispositivo lo admite."
-    allowDirectStream: "Permitir stream directo"
+    allowDirectStream: "Permitir remux"
     allowDirectStreamDesc: "Remuxear el contenedor sin recodificar cuando sea posible."
     allowTranscoding: "Permitir transcodificación"
-    allowTranscodingDesc: "Recurrir a la transcodificación si la reproducción o stream directo no está disponible."
+    allowTranscodingDesc: "Recurrir a la transcodificación si no es posible ni la reproducción directa ni el remux."
     autoplayNextTitle: "Reproducir automáticamente el siguiente episodio"
     autoplayNextDesc: "Iniciar el siguiente episodio por sí solo cuando termine este. El botón Siguiente episodio sigue disponible de todos modos."
   quickConnect:

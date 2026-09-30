@@ -42,6 +42,11 @@ message RemoteAccessConfig {
   // of the contract rather than something an operator has to infer.
   bool published = 6;
   bool lockout_risk = 7;
+  // The trusted proxies in force, without the loopback baseline that is always
+  // trusted: the panel's list when one is saved, else EVEY_TRUSTED_PROXIES.
+  repeated string trusted_proxies = 8;
+  // True when the list above comes from the panel rather than the environment.
+  bool trusted_proxies_from_panel = 9;
 }
 
 message UpdateRemoteAccessRequest {
@@ -49,6 +54,11 @@ message UpdateRemoteAccessRequest {
   optional string external_url = 2;
   repeated string lan_networks = 3;
   optional int32 max_remote_bitrate_kbps = 4;
+  // Replaces EVEY_TRUSTED_PROXIES while not empty (loopback is always kept).
+  // An empty list, sent with clear_trusted_proxies, hands the answer back to
+  // the environment.
+  repeated string trusted_proxies = 5;
+  bool clear_trusted_proxies = 6;
 }
 
 message GetRemoteAccessRequest {}

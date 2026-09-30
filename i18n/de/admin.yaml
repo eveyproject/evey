@@ -879,6 +879,11 @@ remoteAccess:
   enableRemoteAccess: Fernzugriff aktivieren
   externalUrl: Externe URL
   lanNetworks: LAN-Netzwerke (CIDR, kommagetrennt)
+  trustedProxies: "Vertrauenswürdige Proxys (IP oder CIDR, kommagetrennt)"
+  trustedProxiesHint: "Adressen der Reverse-Proxys, die die echte Client-Adresse übermitteln dürfen (X-Forwarded-For). Loopback ist immer vertrauenswürdig; 0.0.0.0/0 wird abgelehnt."
+  trustedProxiesFromPanel: "Aktuelle Liste: hier gespeichert."
+  trustedProxiesFromEnv: "Aktuelle Liste: aus EVEY_TRUSTED_PROXIES (Feld leer lassen, um sie zu behalten)."
+  externalUrlHttpsHint: "Eine https://-Adresse aktiviert auch den HTTPS-Modus (Secure-Cookies, HSTS), ohne Neustart."
   maxRemoteBitrate: Max. Remote-Bitrate (Kbps, 0 = unbegrenzt)
   saved: Fernzugriff-Einstellungen gespeichert
   networkInterfaces: Server-Netzwerkschnittstellen

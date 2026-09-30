@@ -172,6 +172,18 @@ func TokenRedactMiddlewareWithStore(store streamTokenValidator, httpsOnly bool, 
 	return tokenRedactMiddleware(store, httpsOnly, next)
 }
 
+// TokenRedactMiddlewareLive reads the HTTPS flag on every request.
+func TokenRedactMiddlewareLive(store streamTokenValidator, httpsOnly func() bool, next http.Handler) http.Handler {
+	return tokenRedactMiddlewareFn(store, httpsOnly, next)
+}
+
+func tokenRedactMiddleware(store streamTokenValidator, httpsOnly bool, next http.Handler) http.Handler {
+	return tokenRedactMiddlewareFn(store, fixedBool(httpsOnly), next)
+}
+
+// fixedBool adapts a boot-time flag to the per-request form.
+func fixedBool(b bool) func() bool { return func() bool { return b } }
+
 type streamTokenValidator interface {
 	ValidateAny(token string) (*shared.StreamToken, bool)
 }
@@ -206,7 +218,7 @@ func setHLSCookie(w http.ResponseWriter, reqPath, token string, ttl time.Duratio
 	})
 }
 
-func tokenRedactMiddleware(store streamTokenValidator, httpsOnly bool, next http.Handler) http.Handler {
+func tokenRedactMiddlewareFn(store streamTokenValidator, httpsOnly func() bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The player hits the media routes as raw URLs, so a stream token can
 		// arrive three ways: ?token= (legacy web + cast), the evey_hls httpOnly
@@ -257,7 +269,7 @@ func tokenRedactMiddleware(store streamTokenValidator, httpsOnly bool, next http
 				// Mint/slide the httpOnly cookie so a native player re-authenticates
 				// on every segment without the token ever touching the URL.
 				if isHLSPath(r.URL.Path) {
-					setHLSCookie(w, r.URL.Path, rawTok, st.TTL, httpsOnly)
+					setHLSCookie(w, r.URL.Path, rawTok, st.TTL, httpsOnly())
 				}
 			} else if fromQuery {
 				// opaque token invalid/expired: don't set as Bearer, handler returns 401.
@@ -331,7 +343,16 @@ func SecurityHeadersMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 	return securityHeadersMiddleware(httpsOnly, next)
 }
 
+// SecurityHeadersMiddlewareLive reads the HTTPS flag (HSTS) on every request.
+func SecurityHeadersMiddlewareLive(httpsOnly func() bool, next http.Handler) http.Handler {
+	return securityHeadersMiddlewareFn(httpsOnly, next)
+}
+
 func securityHeadersMiddleware(httpsOnly bool, next http.Handler) http.Handler {
+	return securityHeadersMiddlewareFn(fixedBool(httpsOnly), next)
+}
+
+func securityHeadersMiddlewareFn(httpsOnly func() bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
@@ -375,7 +396,7 @@ func securityHeadersMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 		} else {
 			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; media-src 'self' blob:; worker-src 'self' blob:; font-src 'self' data:; connect-src 'self' https: wss:; frame-src https://www.gstatic.com; base-uri 'self'; object-src 'none'")
 		}
-		if httpsOnly || r.TLS != nil {
+		if httpsOnly() || r.TLS != nil {
 			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 		}
 		next.ServeHTTP(w, r)
