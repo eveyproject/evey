@@ -16,6 +16,7 @@ import (
 
 	appdemo "github.com/evey-project/evey/internal/app/demo"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
@@ -701,5 +702,62 @@ func TestEnsureAdmin_RestoresThePublishedPasswordAfterATeardown(t *testing.T) {
 	}
 	if !u.IsAdmin || !u.Enabled {
 		t.Error("demo must be an enabled administrator")
+	}
+}
+
+type fakeStreams struct{ active int }
+
+func (f *fakeStreams) GetServerStats(context.Context) (*activity.ServerStatsResult, error) {
+	return &activity.ServerStatsResult{ActiveStreams: f.active}, nil
+}
+
+// The in-server reset: nothing while someone watches, unless the daily floor
+// is due; when it runs, every demo profile's progress is cleared and the seed
+// is re-asserted - here, the published password a teardown had rotated.
+func TestResetIfIdle_WaitsForAnIdleServerButHonoursTheFloor(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.boot.EnsureAdmin(ctx); err != nil {
+		t.Fatal(err)
+	}
+	progress := pbfakes.NewFakeWatchProgressRepository()
+	streams := &fakeStreams{active: 1}
+	h.boot.WithReset(streams, progress)
+
+	admin, _ := h.users.GetByUsername(ctx, demo.Username)
+	profs, _ := h.profiles.GetByUserID(ctx, admin.ID)
+	pid := profs[0].ID
+	_ = progress.Upsert(ctx, &playback.WatchProgress{ID: "wp-1", ProfileID: pid, MediaItemID: "m1"})
+
+	done, err := h.boot.ResetIfIdle(ctx, false)
+	if err != nil || done {
+		t.Fatalf("reset under a viewer: done=%v err=%v", done, err)
+	}
+	if wp, _ := progress.GetByProfileAndMedia(ctx, string(pid), "m1"); wp == nil {
+		t.Fatal("progress cleared while someone was watching")
+	}
+
+	done, err = h.boot.ResetIfIdle(ctx, true)
+	if err != nil || !done {
+		t.Fatalf("daily floor: done=%v err=%v", done, err)
+	}
+	if wp, _ := progress.GetByProfileAndMedia(ctx, string(pid), "m1"); wp != nil {
+		t.Error("the floor reset kept the visitor's progress")
+	}
+
+	streams.active = 0
+	_ = progress.Upsert(ctx, &playback.WatchProgress{ID: "wp-2", ProfileID: pid, MediaItemID: "m2"})
+	admin.PasswordHash = "rotated"
+	_ = h.users.Update(ctx, admin)
+	done, err = h.boot.ResetIfIdle(ctx, false)
+	if err != nil || !done {
+		t.Fatalf("idle reset: done=%v err=%v", done, err)
+	}
+	if wp, _ := progress.GetByProfileAndMedia(ctx, string(pid), "m2"); wp != nil {
+		t.Error("the idle reset kept the visitor's progress")
+	}
+	u, _ := h.users.GetByUsername(ctx, demo.Username)
+	if ok, _ := ufakes.NewFakePasswordHasher().Verify(demo.Password, u.PasswordHash); !ok {
+		t.Error("the reset did not restore the published password")
 	}
 }
