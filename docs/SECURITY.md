@@ -247,7 +247,7 @@ A plugin's interface runs in an `<iframe sandbox="allow-scripts">`, without
 same-origin access, forms or popups, under a Content-Security-Policy that
 allows connections only to its `external_fetch` hosts. The bridge limits what
 it can ask of the page: `toast` at most 3 per second, 200 characters, no HTML;
-`navigate` refuses `/admin/*`, `/auth/*`, `/setup/*` and `/profile/security/*`;
+`navigate` accepts only `/home`, `/library`, `/media`, `/player`, `/settings` and `/search`;
 `resize` between 50 and 800 px. Slots are checked at install and again at
 render.
 

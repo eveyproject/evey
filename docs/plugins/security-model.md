@@ -115,8 +115,8 @@ Source: `internal/domain/plugin/slots.go`.
 
 Frontend modules run in a sandboxed `<iframe>` with no access to the host
 page. The bridge limits what they can do: `evey.toast` at most 3 messages per
-second, 200 characters, no HTML; `evey.navigate` refuses `/admin/*`, `/auth/*`,
-`/setup/*` and `/profile/security/*`; `evey.resize` is clamped to 50-800 px.
+second, 200 characters, no HTML; `evey.navigate` accepts only `/home`, `/library`,
+`/media`, `/player`, `/settings` and `/search`; `evey.resize` is clamped to 50-800 px.
 
 ## Update workflow
 
