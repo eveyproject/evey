@@ -1,5 +1,6 @@
 ---
-source_sha: 4609c608404f7d7614f31c97a0e6a7ce865e34c4d562caf6ca04af7ced28096a
+source_sha: d950d41e450f1d05a29cf775d0b79159572cfa1353c7e02ac009671bb0bcefc1
+reviewed: false
 ---
 # Öffentliche API
 
@@ -9,14 +10,13 @@ Endpunkte für Benutzer, verfügbar für alle angemeldeten Benutzer.
 
 | Spezifikation | Beschreibung |
 |------|-------------|
-| [library.swagger.json](library.swagger.json) | Bibliotheken, Medieneinträge, Suche, Personen |
-| [playback.swagger.json](playback.swagger.json) | Streaming, Fortschritt, Wiedergabeverlauf, Fortsetzen |
-| [user.swagger.json](user.swagger.json) | Anmeldung, Profile, API-Schlüssel, Schnellverbindung |
+| [library.swagger.json](library.swagger.json) | Bibliotheken, Medien, Suche, Personen |
+| [playback.swagger.json](playback.swagger.json) | Streaming, Fortschritt, Verlauf, Fortsetzen |
+| [user.swagger.json](user.swagger.json) | Authentifizierung, Profile, API-Schlüssel, Schnellverbindung |
 | [collection.swagger.json](collection.swagger.json) | Intelligente und manuelle Sammlungen |
 | [favorite.swagger.json](favorite.swagger.json) | Favoriten |
-| [feed.swagger.json](feed.swagger.json) | Bereiche der Startseite (weiterschauen, neu hinzugefügt usw.) |
-| [filter.swagger.json](filter.swagger.json) | Gespeicherte Filter |
-| [playlist.swagger.json](playlist.swagger.json) | Playlists (anlegen, umordnen, teilen) |
+| [feed.swagger.json](feed.swagger.json) | Abschnitte der Startseite (Weiterschauen, kürzlich hinzugefügt usw.) |
+| [playlist.swagger.json](playlist.swagger.json) | Playlists (anlegen, umsortieren, teilen) |
 | [rating.swagger.json](rating.swagger.json) | Bewertungen der Benutzer |
 | [share.swagger.json](share.swagger.json) | Öffentliche Freigabelinks |
 | [syncplay.swagger.json](syncplay.swagger.json) | Räume für synchrone Wiedergabe |
@@ -24,6 +24,7 @@ Endpunkte für Benutzer, verfügbar für alle angemeldeten Benutzer.
 | [push.swagger.json](push.swagger.json) | Web-Push-Abonnements |
 | [music.swagger.json](music.swagger.json) | Musikbibliothek (Künstler, Alben, Titel) |
 | [photo.swagger.json](photo.swagger.json) | Fotobibliothek (Alben, Fotos) |
+| [media_request.swagger.json](media_request.swagger.json) | Medienanfragen: Suche, Einreichen, Regeln; die Antworten des Administrators und der Zugang zu Anfragen |
 
 ## Authentifizierung
 

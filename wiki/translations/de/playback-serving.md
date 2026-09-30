@@ -1,5 +1,5 @@
 ---
-source_sha: 2ff1222cb6483b259b30b0a40ec51e6e4e8d1e7a7f4a5877a9761a0186adff2d
+source_sha: fbe5c63d26023c75b078bb43d1151792e32f425b107270e73ddeebd67c742e4a
 ---
 # Ein Video ausliefern - der Weg der HLS-Wiedergabe
 
