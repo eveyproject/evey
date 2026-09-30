@@ -53,13 +53,6 @@ Proxy Manager, the defaults are fine and the tuning is an optional snippet.
 Evey emits a complete Content-Security-Policy. If your proxy passes it through,
 you're done.
 
-> Until 2026-07-23 that sentence was wrong: the app's policy was missing
-> `media-src` and `worker-src`, so `blob:` fell back to `default-src 'self'` and
-> MSE playback broke for anyone who passed it through. It went unnoticed because
-> the bundled Caddy config strips the app header and curates its own. If you run
-> a version older than that behind Nginx Proxy Manager or Traefik and your player
-> fails to start, this is why - curate the policy below at the proxy, or upgrade.
-
 Many setups instead strip it (`header_down -Content-Security-Policy` in Caddy)
 and curate their own - that's fine, but then **your** policy must keep these
 tokens or features break silently:
@@ -86,6 +79,16 @@ frame-src https://www.gstatic.com
 `base-uri` and `object-src` have no fallback to `default-src`, so a policy that
 omits them leaves `<base href>` injection and `<object>`/`<embed>` embedding
 unrestricted. Keep them if you curate your own policy.
+
+One page needs a wider policy: `/cast-receiver.html`, the page a Chromecast
+loads when it plays from Evey. The Cast player injects styles, fonts and
+images from `www.gstatic.com` into it, and the app sends that page its own
+policy for this reason. Leave the app's header on that path, or apply this
+policy to that path only:
+
+```
+default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://www.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: https:; worker-src 'self' blob:; font-src 'self' data: https://www.gstatic.com; connect-src 'self' https: wss:; frame-src https://www.gstatic.com; base-uri 'self'; object-src 'none'
+```
 
 Rules of thumb:
 
@@ -186,8 +189,8 @@ streams (see the streaming section above).
 express the regex):
 
 ```nginx
-# Plugin uploads, backup restores.
-client_max_body_size 100M;
+# Plugin uploads (up to 100 MB) and backup restores (up to 2 GB).
+client_max_body_size 2G;
 
 # Streaming - no buffering, no timeout.
 location ~ ^/api/v1/media/.+/(hls|stream) {
@@ -242,13 +245,11 @@ gate act on, so the two settings only behave correctly together:
 like it came from the proxy's own private address, so everyone was classified
 LAN. After it, real remote clients are correctly identified - and if remote
 access is disabled they are refused on every route
-(`403 {"code":"remote_access_disabled"}`). That exact sequence locked a whole
-household out of a working server for two days: the proxy config changed, no
-application setting did, and the only visible symptom was clients failing with
-no server-side error.
+(`403 {"code":"remote_access_disabled"}`), although no application setting
+changed.
 
-Evey now guards against it: remote access defaults to enabled whenever a public
-URL is configured, the state is logged at every boot, refusals are logged with
-the client IP, `evey admin doctor` fails loudly on "published but refusing", and
-the admin panel shows a warning. If you change proxy trust settings, check
+Evey guards against it: remote access defaults to enabled whenever a public
+URL is configured and no explicit choice was made, the state is logged at every
+boot, refusals are logged with the client IP, `evey admin doctor` fails loudly
+on "published but refusing", and the admin panel shows a warning. If you change proxy trust settings, check
 `evey admin doctor` afterwards.

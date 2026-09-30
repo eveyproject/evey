@@ -10,7 +10,8 @@ server {
     ssl_certificate     /etc/ssl/certs/${EVEY_DOMAIN}.pem;
     ssl_certificate_key /etc/ssl/private/${EVEY_DOMAIN}.key;
 
-    client_max_body_size 100M;
+    # Plugin uploads (up to 100 MB) and backup restores (up to 2 GB).
+    client_max_body_size 2G;
 
     # Streaming - no buffering, no timeout
     location ~ ^/api/v1/media/.+/(transcode|hls|stream) {
