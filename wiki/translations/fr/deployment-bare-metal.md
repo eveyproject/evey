@@ -1,5 +1,5 @@
 ---
-source_sha: 6cc762f64836b49bd3a49bd9b35c97a935b7f1fbc1bd20e9face59ed55072167
+source_sha: a919f7b655a1b0f7627661e72171149d235f92679027f0fe8b24a98631bd4185
 reviewed: true
 ---
 # Installation sans Docker
@@ -68,7 +68,7 @@ Landlock ou bubblewrap.
 ### Environnements d'exécution
 
 Installez ce qu'appelle l'`entrypoint:` de vos plugins. Le lanceur reconnaît ces
-interpréteurs (`knownInterpreters` dans `runner.go`) : `python3`, `python`,
+interpréteurs (`knownInterpreters` dans `runner_start.go`) : `python3`, `python`,
 `node`, `php`, `ruby`, `perl`, `lua`, `bash`, `sh`. Au minimum :
 
 - **`python3`** : la majorité des plugins de la communauté.
@@ -88,14 +88,20 @@ Plus les dépendances de base :
 
 ## 2. Faire tourner Evey sous un utilisateur dédié non root
 
-**Ne faites jamais tourner le serveur en root.** Créez deux utilisateurs sans
-privilèges, avec les UID qu'utilise l'hôte des plugins (`pluginUID = 1001`,
-`pluginGID = 1001` dans `pluginhost/host_server.go`) :
+**Ne faites jamais tourner le serveur en root.** Créez un groupe et deux
+utilisateurs sans privilèges, comme le fait l'image Docker ; les plugins sont
+rétrogradés à l'UID 1001 (`pluginUID` dans `pluginhost/host_server.go`) :
 
 ```bash
-sudo useradd --system --uid 1000 --shell /usr/sbin/nologin evey
+sudo groupadd --gid 1000 evey
+sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
 sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugin
 ```
+
+L'identifiant du groupe compte : le lanceur fait passer un plugin à l'UID 1001
+et au groupe du serveur, et refuse tout identifiant inférieur à 1000. Un groupe
+créé par `useradd --system` seul reçoit un identifiant système inférieur à
+1000, et les plugins en mode `basic` sont alors refusés.
 
 - `evey` (UID 1000) fait tourner le serveur.
 - `evey-plugin` (UID 1001) est l'UID sous lequel les plugins passent (via le
