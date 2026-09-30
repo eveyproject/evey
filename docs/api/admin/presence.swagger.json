@@ -1,0 +1,171 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/presence.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "PresenceService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/admin/presence/online": {
+      "get": {
+        "summary": "ListOnline returns everyone currently online (admin only).",
+        "operationId": "PresenceService_ListOnline",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListOnlineResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "PresenceService"
+        ]
+      }
+    },
+    "/api/v1/presence/heartbeat": {
+      "post": {
+        "summary": "Heartbeat marks the caller as online right now. Any authenticated user; the\nweb app calls it on an interval while its tab is visible.",
+        "operationId": "PresenceService_Heartbeat",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1HeartbeatResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1HeartbeatRequest"
+            }
+          }
+        ],
+        "tags": [
+          "PresenceService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1HeartbeatRequest": {
+      "type": "object"
+    },
+    "v1HeartbeatResponse": {
+      "type": "object",
+      "properties": {
+        "onlineCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "How many users are online right now (including the caller)."
+        }
+      }
+    },
+    "v1ListOnlineResponse": {
+      "type": "object",
+      "properties": {
+        "users": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1OnlineUser"
+          }
+        },
+        "total": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1OnlineUser": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "profileId": {
+          "type": "string"
+        },
+        "isAdmin": {
+          "type": "boolean"
+        },
+        "clientIp": {
+          "type": "string"
+        },
+        "userAgent": {
+          "type": "string"
+        },
+        "lastSeenUnix": {
+          "type": "string",
+          "format": "int64",
+          "description": "Epoch seconds of the last heartbeat, and how many seconds ago that was."
+        },
+        "idleSeconds": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "isCastReceiver": {
+          "type": "boolean",
+          "description": "True when this online device is a beaconing cast receiver. Derived\nserver-side from the product user agent so the panel needs no knowledge of\nthat string, and can offer the \"stop this receiver\" control."
+        }
+      }
+    }
+  }
+}

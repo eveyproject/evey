@@ -36,6 +36,7 @@
         "parameters": [
           {
             "name": "profileId",
+            "description": "profile_id: a non-admin caller may only ask for its own (anything else is\nPermissionDenied). An admin may ask for any profile, or leave it empty\ntogether with user_id to get the whole server's history.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -48,6 +49,7 @@
           },
           {
             "name": "type",
+            "description": " - MEDIA_ITEM_TYPE_BOOK: Deprecated: see LIBRARY_TYPE_BOOKS.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -96,6 +98,13 @@
           {
             "name": "pagination.cursor",
             "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` - guarantees no skips/duplicates under concurrent writes.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "userId",
+            "description": "user_id narrows to every profile of one account. Admin-only; ignored for\nanyone else.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -712,7 +721,8 @@
         "MEDIA_ITEM_TYPE_PHOTO",
         "MEDIA_ITEM_TYPE_BOOK"
       ],
-      "default": "MEDIA_ITEM_TYPE_UNSPECIFIED"
+      "default": "MEDIA_ITEM_TYPE_UNSPECIFIED",
+      "description": " - MEDIA_ITEM_TYPE_BOOK: Deprecated: see LIBRARY_TYPE_BOOKS."
     },
     "v1MonthlyPlayCount": {
       "type": "object",
@@ -844,6 +854,16 @@
         "endedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "profileName": {
+          "type": "string",
+          "description": "Who watched. Resolved by JOIN, never persisted on the session row: an\nadmin reading the server-wide history needs a name, not a profile UUID.\nEmpty for a profile that has since been deleted."
+        },
+        "userId": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
         }
       }
     },

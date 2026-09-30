@@ -390,7 +390,8 @@
         "HW_ACCEL_TYPE_NONE",
         "HW_ACCEL_TYPE_VAAPI",
         "HW_ACCEL_TYPE_NVENC",
-        "HW_ACCEL_TYPE_QSV"
+        "HW_ACCEL_TYPE_QSV",
+        "HW_ACCEL_TYPE_RKMPP"
       ],
       "default": "HW_ACCEL_TYPE_NONE"
     },

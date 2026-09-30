@@ -1,5 +1,5 @@
 ---
-source_sha: 4609c608404f7d7614f31c97a0e6a7ce865e34c4d562caf6ca04af7ced28096a
+source_sha: d950d41e450f1d05a29cf775d0b79159572cfa1353c7e02ac009671bb0bcefc1
 reviewed: true
 ---
 # API publique
@@ -16,7 +16,6 @@ Les points d'accès ouverts à tous les utilisateurs authentifiés.
 | [collection.swagger.json](collection.swagger.json) | Collections intelligentes et manuelles |
 | [favorite.swagger.json](favorite.swagger.json) | Favoris |
 | [feed.swagger.json](feed.swagger.json) | Sections de l'accueil (reprendre la lecture, ajouts récents, etc.) |
-| [filter.swagger.json](filter.swagger.json) | Filtres enregistrés |
 | [playlist.swagger.json](playlist.swagger.json) | Playlists (création, réorganisation, partage) |
 | [rating.swagger.json](rating.swagger.json) | Notes des utilisateurs |
 | [share.swagger.json](share.swagger.json) | Liens de partage publics |
@@ -25,6 +24,7 @@ Les points d'accès ouverts à tous les utilisateurs authentifiés.
 | [push.swagger.json](push.swagger.json) | Abonnements aux notifications push du navigateur |
 | [music.swagger.json](music.swagger.json) | Bibliothèque musicale (artistes, albums, titres) |
 | [photo.swagger.json](photo.swagger.json) | Bibliothèque de photos (albums, photos) |
+| [media_request.swagger.json](media_request.swagger.json) | Demandes de médias : recherche, envoi, règles ; les réponses de l'administrateur et l'accès aux demandes |
 
 ## Authentification
 

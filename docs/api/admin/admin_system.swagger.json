@@ -350,6 +350,11 @@
           "type": "string",
           "format": "int64",
           "description": "Theoretical outgoing rate: the summed source bitrate of every active\nplay session - what the server would push if every client pulled at\nfull speed."
+        },
+        "eveyCpuPercent": {
+          "type": "number",
+          "format": "double",
+          "description": "The part of cpu_percent taken by Evey itself: the server and every\nprocess it forked (ffmpeg, ffprobe). The rest is the host's other work."
         }
       }
     },
@@ -771,6 +776,10 @@
         "serverName": {
           "type": "string",
           "description": "server_name is the admin-chosen instance name (Server settings, default\n\"Evey\"): the pre-auth screens (login, tab title) brand the instance with\nit. Public projection of the same value /healthz advertises."
+        },
+        "demoMode": {
+          "type": "boolean",
+          "description": "demo_mode says this is the public demo instance (EVEY_DEMO=1): the\nclients show a banner and grey out what the server reports locked. The\nserver refuses the locked operations whether or not a client honours it."
         }
       }
     },

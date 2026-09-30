@@ -11,16 +11,17 @@ API = ROOT / "docs" / "api"
 MAPPING = {
     "public": [
         "library", "playback", "user", "collection", "favorite", "feed",
-        "filter", "playlist", "rating", "share", "syncplay", "music",
-        "photo", "push", "notification",
+        "playlist", "rating", "share", "syncplay", "music",
+        "photo", "push", "notification", "media_request",
     ],
     "admin": [
         "admin_system", "admin_media", "admin_session", "admin_task",
         "server_config", "metadata", "transcoding", "transcode_cache",
         "backup", "activity", "library_access", "remote_access",
-        "parental", "playback_settings", "mkv",
+        "parental", "playback_settings", "mkv", "admin_intro",
+        "backup_schedule", "presence",
     ],
-    "plugins": ["admin_plugin", "webhook"],
+    "plugins": ["admin_plugin", "webhook", "plugin_prefs"],
 }
 
 for category, services in MAPPING.items():

@@ -126,6 +126,7 @@
           },
           {
             "name": "type",
+            "description": " - MEDIA_ITEM_TYPE_BOOK: Deprecated: see LIBRARY_TYPE_BOOKS.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -561,7 +562,8 @@
         "MEDIA_ITEM_TYPE_PHOTO",
         "MEDIA_ITEM_TYPE_BOOK"
       ],
-      "default": "MEDIA_ITEM_TYPE_UNSPECIFIED"
+      "default": "MEDIA_ITEM_TYPE_UNSPECIFIED",
+      "description": " - MEDIA_ITEM_TYPE_BOOK: Deprecated: see LIBRARY_TYPE_BOOKS."
     },
     "v1MetadataOverride": {
       "type": "object",

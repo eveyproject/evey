@@ -171,6 +171,17 @@
         },
         "lockoutRisk": {
           "type": "boolean"
+        },
+        "trustedProxies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The trusted proxies in force, without the loopback baseline that is always\ntrusted: the panel's list when one is saved, else EVEY_TRUSTED_PROXIES."
+        },
+        "trustedProxiesFromPanel": {
+          "type": "boolean",
+          "description": "True when the list above comes from the panel rather than the environment."
         }
       }
     },
@@ -192,6 +203,16 @@
         "maxRemoteBitrateKbps": {
           "type": "integer",
           "format": "int32"
+        },
+        "trustedProxies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Replaces EVEY_TRUSTED_PROXIES while not empty (loopback is always kept).\nAn empty list, sent with clear_trusted_proxies, hands the answer back to\nthe environment."
+        },
+        "clearTrustedProxies": {
+          "type": "boolean"
         }
       }
     }

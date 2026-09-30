@@ -8,6 +8,7 @@ Endpoints for managing plugins and webhook integrations.
 |------|-------------|
 | [admin_plugin.swagger.json](admin_plugin.swagger.json) | Install, enable, disable, uninstall plugins. Plugin config and logs. Plugin runtimes. |
 | [webhook.swagger.json](webhook.swagger.json) | CRUD webhooks, delivery history |
+| [plugin_prefs.swagger.json](plugin_prefs.swagger.json) | A plugin interface's per-user preferences (the `prefs` permission) |
 
 ## Plugin Development
 

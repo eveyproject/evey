@@ -79,6 +79,51 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "profileId",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminSessionService"
+        ]
+      }
+    },
+    "/api/v1/admin/cast-receivers/{profileId}/command": {
+      "post": {
+        "summary": "SendCastReceiverCommand reaches a Chromecast that is still beating but has\nno play session left to address. Keyed by PROFILE because that is all the\nonline-devices panel knows, and what the receiver's own stream token\ncarries. Same vocabulary as SendSessionCommand.",
+        "operationId": "AdminSessionService_SendCastReceiverCommand",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SendCastReceiverCommandResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminSessionServiceSendCastReceiverCommandBody"
+            }
           }
         ],
         "tags": [
@@ -178,6 +223,15 @@
     }
   },
   "definitions": {
+    "AdminSessionServiceSendCastReceiverCommandBody": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "title": "\"pause\" | \"play\" | \"stop\" | \"message:\u003ctext\u003e\""
+        }
+      }
+    },
     "AdminSessionServiceSendSessionCommandBody": {
       "type": "object",
       "properties": {
@@ -308,6 +362,23 @@
         "coverArtUrl": {
           "type": "string",
           "description": "Album cover URL for music sessions (media_type \"track\"); empty for video,\nwhich the panel renders from a trickplay thumbnail instead."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owning account. profile_name alone (\"Papa\") does not say whose household\nit belongs to once two accounts use the same profile names."
+        },
+        "username": {
+          "type": "string"
+        },
+        "videoEngine": {
+          "type": "string",
+          "description": "What the server ACTUALLY serves, recorded when the master playlist is\nrendered (the decisions above are the client's start-time declaration,\naudio_decision then follows the wasm beacons). video_engine: \"mkvgo\"\n(on-demand copy) | \"ffmpeg\". video_backend, transcode only: \"software\" |\n\"qsv\" | \"vaapi\" | \"nvenc\". audio_engine: \"mkvgo\" | \"ffmpeg\" | \"client\"\n(ac3go wasm decode on the player). Empty on sessions started before this."
+        },
+        "videoBackend": {
+          "type": "string"
+        },
+        "audioEngine": {
+          "type": "string"
         }
       }
     },
@@ -350,6 +421,13 @@
         },
         "deviceName": {
           "type": "string"
+        },
+        "profileId": {
+          "type": "string",
+          "description": "Which PROFILE of that account acted. Persisted with the entry (a profile\ncan be renamed or deleted later); profile_name is resolved by JOIN and is\nempty once the profile is gone."
+        },
+        "profileName": {
+          "type": "string"
         }
       }
     },
@@ -383,6 +461,9 @@
           }
         }
       }
+    },
+    "v1SendCastReceiverCommandResponse": {
+      "type": "object"
     },
     "v1SendSessionCommandResponse": {
       "type": "object"
