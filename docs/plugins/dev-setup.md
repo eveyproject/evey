@@ -225,7 +225,7 @@ own site). What "distribution" means today:
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `bwrap: ... permission denied` | Default Docker seccomp blocks `unshare`. | The repo ships a custom seccomp profile (`docker/seccomp.json`). Make sure your compose file applies it. |
+| `bwrap: ... permission denied` | `bubblewrap` mode inside Docker: the default seccomp and AppArmor profiles block the `unshare` and `mount` calls it needs. | Keep the default `auto` mode, which uses Landlock in a container. Otherwise apply the bundled profile `docker/seccomp-evey.json` (also in the image at `/etc/evey/seccomp.json`), a deliberate security downgrade: see [Plugin sandbox setup](sandbox-deployment.md). |
 | `forbidden pattern "fetch(" found in theme JS` | Theme JS scanner caught a banned API. | Themes must only call `evey.theme.*`. Read `internal/pkg/themejs/scan.go` to see what's blocked. |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | All wildcards are rejected at install, no exceptions. | Use `api.tmdb.org` (and list every explicit subdomain you need), not `*.tmdb.org` or `cdn.*.tmdb.org`. |
 | `installer: slot "admin.section" not allowed` | Plugin frontends are banned from privileged areas. | Pick a non-critical slot from the whitelist or rethink the plugin. |

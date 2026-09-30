@@ -1,5 +1,5 @@
 ---
-source_sha: 5c6e8f241b8d7ece14cf4136bad0d6ef75c0ebe244984e6c99eda87eab1f6dc9
+source_sha: d16d3f599569727f87e37dc766b79a61f2a11ed5e5379a37f377420a53b83af9
 reviewed: true
 ---
 # Architecture
@@ -136,7 +136,7 @@ domaine d'un contexte voisin.
 Les graphes de câblage vivent dans `cmd/evey/wire.go` et ses voisins
 (`wire_infra.go`, `wire_services.go`, `wire_adapters.go`, `wire_events.go`,
 `wire_helpers.go`). Les tests contournent les adaptateurs en injectant des
-doublures qui implémentent les mêmes ports du domaine : 21 des 22 paquets de
+doublures qui implémentent les mêmes ports du domaine : 20 des 21 paquets de
 domaine fournissent un sous-paquet `fakes/`. Voir
 [ADR-0001](adr/0001-hexagonal-architecture.md).
 

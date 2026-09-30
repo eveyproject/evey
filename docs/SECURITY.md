@@ -271,7 +271,7 @@ channels. A PID mismatch on a host socket is logged as a warning.
 The mode selects how the filesystem and the network are confined.
 `EVEY_PLUGINS_SANDBOX_MODE` sets the initial value (default `auto`); it can be
 changed in **Admin → Plugins**. The runner applies it in
-[`applySandbox`](../internal/adapters/driven/pluginrunner/runner.go). In every
+[`applySandbox`](../internal/adapters/driven/pluginrunner/runner_sandbox.go). In every
 mode: no direct IP egress, the resource monitor, and the host socket
 authentication.
 
@@ -418,6 +418,6 @@ test against Evey instances that are not yours.
 
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go
-runtime: internal/adapters/driven/pluginrunner/runner.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go (LD_PRELOAD layered in landlock) ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driving/pluginhost/fetch.go - Fetch
+runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go (LD_PRELOAD layered in landlock) ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driving/pluginhost/fetch.go - Fetch
 config: internal/config/config.go - EVEY_PLUGINS_SANDBOX_MODE, EVEY_PLUGINS_COSIGN_POLICY, EVEY_PLUGINS_COSIGN_PUBLIC_KEY, EVEY_GRPC_BIND
 -->

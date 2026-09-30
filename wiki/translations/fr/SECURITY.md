@@ -1,5 +1,5 @@
 ---
-source_sha: b03e46cb18fe95a75d28169aa7763bf6b493b3b772e5df11e16890944e458076
+source_sha: 4b5bd295d6a5fa42752a51cf7fd2e4aa3df9d48dc69b08580895dd44d998e442
 reviewed: true
 ---
 # Sandbox des plugins et modèle de menace
@@ -299,7 +299,7 @@ comme avertissement.
 Le mode détermine la façon dont les fichiers et le réseau sont confinés.
 `EVEY_PLUGINS_SANDBOX_MODE` fixe la valeur initiale (`auto` par défaut) ; elle
 se modifie ensuite dans **Admin → Plugins**. Le runner l'applique dans
-[`applySandbox`](../internal/adapters/driven/pluginrunner/runner.go). Dans
+[`applySandbox`](../internal/adapters/driven/pluginrunner/runner_sandbox.go). Dans
 tous les modes : aucun accès IP direct, le moniteur de ressources, et
 l'authentification de la socket.
 

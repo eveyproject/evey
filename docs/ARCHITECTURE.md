@@ -74,7 +74,7 @@ No package under `internal/domain` imports another context's domain package - a 
 
 ## Composition root
 
-Wire graphs live in `cmd/evey/wire.go` and its siblings (`wire_infra.go`, `wire_services.go`, `wire_adapters.go`, `wire_events.go`, `wire_helpers.go`). Tests bypass adapters by injecting fakes that implement the same domain ports - 21 of the 22 domain packages ship a `fakes/` subpackage. See [ADR-0001](adr/0001-hexagonal-architecture.md).
+Wire graphs live in `cmd/evey/wire.go` and its siblings (`wire_infra.go`, `wire_services.go`, `wire_adapters.go`, `wire_events.go`, `wire_helpers.go`). Tests bypass adapters by injecting fakes that implement the same domain ports - 20 of the 21 domain packages ship a `fakes/` subpackage. See [ADR-0001](adr/0001-hexagonal-architecture.md).
 
 ## Architecture guards
 

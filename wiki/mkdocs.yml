@@ -132,6 +132,7 @@ plugins:
             Audio: Audio
             Subtitles: Sous-titres
             Casting: Diffusion (Chromecast)
+            Watching together: Regarder ensemble
             Operations: Exploitation
             Troubleshooting: Dépannage
             Monitoring and logs: Supervision et logs
@@ -257,6 +258,7 @@ nav:
       - Audio: playback/audio.md
       - Subtitles: playback/subtitles.md
       - Casting: playback/casting.md
+      - Watching together: playback/watching-together.md
   - Operations:
       - Troubleshooting: operations/troubleshooting.md
       - Monitoring and logs: operations/monitoring.md
