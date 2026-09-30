@@ -1,5 +1,5 @@
 ---
-source_sha: 2ff1222cb6483b259b30b0a40ec51e6e4e8d1e7a7f4a5877a9761a0186adff2d
+source_sha: fbe5c63d26023c75b078bb43d1151792e32f425b107270e73ddeebd67c742e4a
 reviewed: true
 ---
 # Servir une vidéo : le chemin de lecture HLS
@@ -28,7 +28,7 @@ réponse, le tout adressé par un seul hachage :
   le chemin AC-3 en wasm. Vidéo et audio sont décidés **indépendamment** : le cas
   courant est « copier la vidéo, réencoder l'audio en AAC ».
 - **Q3 : combien cette machine peut-elle encoder ?** La **capacité** calibrée (issue
-  du banc d'essai au démarrage) et **l'admission** (quel barreau de l'échelle
+  de la mesure prise au premier moment calme) et **l'admission** (quel barreau de l'échelle
   convient, reste-t-il une place).
 
 Deux moteurs traversent l'ensemble :
@@ -52,32 +52,38 @@ bout :
 1. **Entrée** · `internal/adapters/driving/http/transcode_handler_vod.go` :
    `serveHTTP` authentifie, puis aiguille vers master / variante / segment /
    audio.
-2. **Q2 · Décision** · `internal/app/transcoding/decision.go` :
+2. **Le plan** · `http/transcode_vod_plan.go` traduit la requête en
+   `PlaybackRequest` ; `app/transcoding/playback_plan_resolver.go` :
+   `PlanResolver.Resolve` renvoie un seul `PlaybackPlan` immuable : la décision
+   (Q2), la classe d'échelle, l'échelle mise en forme, la route matérielle,
+   l'empaqueteur et l'empreinte. Chaque manifeste et chaque segment de la
+   session est servi à partir de lui ([ADR-0030](adr/0030-one-plan-one-decision.md)).
+   `makeDecision` et `buildFingerprint` dans `http/transcode_vod_fingerprint.go`
+   sont de minces enveloppes pour les appels sans plan (préchargement, master à
+   la demande).
+3. **Q2 · Décision** · `internal/app/transcoding/decision.go` :
    `MakePlaybackDecisionWithPrefs` (pure), le cerveau copie/transcodage piste par
-   piste. Enveloppée par `makeDecision` dans `http/transcode_vod_fingerprint.go`,
-   qui y ajoute les épinglages de la requête (`vd=` / `ad=`), le forçage de la
-   resynchronisation audio, etc.
-3. **Q3 · Capacité** · `internal/app/transcoding/calibration_service.go` :
-   `Current()` renvoie `domain/transcoding.Derive(report, policy)`, les plafonds
-   de la machine, déduits du dernier banc d'essai.
-4. **Mise en forme de l'échelle** · `http/transcode_vod_profiles.go` :
-   `profilesForDecision` : classe de complexité → profils des producteurs →
-   plafonds de la source et de la capacité → plafonds CMCD/av1 → route et plafond
-   d'admission, puis **fige l'échelle** sur l'épinglage d'admission (relue telle
-   quelle à chaque appel suivant : l'invariant du hachage de cache rendu
-   structurel).
-5. **Admission** · `internal/app/transcoding/admission_shaper.go` (`StreamPlan`
-   immuable) + `video_session_limiter.go` : la route (avec bascule du matériel
-   vers le logiciel) et la place de capacité.
-6. **Empreinte** · `http/transcode_vod_fingerprint.go` (`buildFingerprint`)
-   construit une `DecisionFingerprint` (type et `Hash()` dans
-   `app/transcoding/segment_cache.go`). Le hachage est la clé du cache.
+   piste. Le résolveur y ajoute les épinglages de la requête (`vd=` / `ad=`), le
+   forçage de la resynchronisation audio, etc.
+4. **Q3 · Capacité** · `internal/app/transcoding/calibration_service.go` :
+   `Current()` renvoie `domain/transcoding.Derive(report, policy)` (`derive.go`),
+   les plafonds de la machine, déduits de la dernière calibration.
+5. **Échelle et admission** · le résolveur met l'échelle en forme (classe de
+   complexité → profils des producteurs → plafonds de la source et de la
+   capacité → plafonds CMCD/AV1 → route et plafond d'admission), puis **la
+   fige** sur l'épinglage d'admission (`admission_shaper.go`, `FreezeLadder`),
+   relue telle quelle à chaque appel suivant : l'invariant du hachage de cache
+   rendu structurel. `video_session_limiter.go` tient la place de capacité ; la
+   route bascule du matériel vers le logiciel quand il est plein.
+6. **Empreinte** · une `DecisionFingerprint` (type et `Hash()` dans
+   `app/transcoding/segment_cache.go`), assemblée par le résolveur. Le hachage
+   est la clé du cache.
 7. **Produire les octets** · copie → **mkvgo** `app/transcoding/ondemand.go`
    (port) / `adapters/driven/mkvgo/ondemand.go` ; transcodage → **ffmpeg**
    `adapters/driven/ffmpeg/hls_transcoder.go` (`BuildFFmpegArgs` est pure ; les
    segments arrivent dans `/cache/transcode/segments/<hash>/`).
 8. **Empaquetage** · `app/transcoding/manifest_generator.go` : `master.m3u8` /
-   `stream_N.m3u8` (et `manifest.mpd` sur le chemin mkvgo).
+   `stream_N.m3u8` ; `manifest_generator_dash.go` : `manifest.mpd`.
 
 ## Les deux moteurs, selon leur coût
 
