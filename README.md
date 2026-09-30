@@ -100,7 +100,7 @@ Android and Android TV apps connect to your server URL. Use **Quick Connect** to
 
 ## Features
 
-- Adaptive HLS transcoding with [hardware acceleration](docs/transcoding.md) (VAAPI, NVENC, QSV)
+- Adaptive HLS transcoding with [hardware acceleration](docs/administration/hardware-acceleration.md) (VAAPI, NVENC, QSV)
 - Android & Android TV apps (Expo/React Native)
 - Full-text search powered by Meilisearch
 - Multi-language metadata (TMDB/OMDb) + 6 UI languages (EN, FR, DE, ES, ZH, HI)
@@ -115,7 +115,7 @@ Android and Android TV apps connect to your server URL. Use **Quick Connect** to
 
 ## Plugins & Themes
 
-You can extend Evey with plugins: themes, metadata providers, UI widgets. They run with multi-layer isolation (static analysis at install, UID drop, seccomp syscall filter, optional `LD_PRELOAD` guard). Each layer has known limits - **always review third-party plugins before installing them**. See [docs/plugins/security-model.md](docs/plugins/security-model.md) for the full model and caveats.
+You can extend Evey with plugins: themes, metadata providers, UI widgets. They run with multi-layer isolation (static analysis at install, UID drop, seccomp syscall filter, optional `LD_PRELOAD` guard). Each layer has known limits - **always review third-party plugins before installing them**. See [docs/SECURITY.md](docs/SECURITY.md) for the full model and its limits.
 
 Quick CSS theme:
 ```yaml
@@ -145,12 +145,14 @@ works, how to add a language, and the a11y gaps that remain), see
 
 | | |
 |---|---|
-| [Installation & Operations](docs/installation.md) | Full setup, ARM, PUID/PGID, updating |
+| [Installation](docs/installation.md) | The compose file, first launch, PUID/PGID |
+| [Advanced deployments](docs/operations/advanced-deployments.md) | External database, ARM, image tags |
 | [Configuration](docs/configuration.md) | All env variables |
 | [Languages & Accessibility](docs/i18n-accessibility.md) | i18n + a11y: state & gaps |
 | [Reverse Proxy](docs/reverse-proxy.md) | Caddy, Nginx, Traefik |
-| [Transcoding](docs/transcoding.md) | Hardware acceleration |
-| [Backups](docs/backups.md) | Schedule & restore |
+| [Playback](docs/playback/how-playback-is-decided.md) | How Direct Play, Remux and Transcode are chosen |
+| [Hardware acceleration](docs/administration/hardware-acceleration.md) | GPU setup and calibration |
+| [Backups and updates](docs/backups.md) | Schedule, restore, updating |
 | [Notifications](docs/notifications.md) | SMTP & push |
 | [SSO / OIDC](docs/oidc.md) | Single sign-on |
 | [Plugins](docs/plugins.md) | Build your own |

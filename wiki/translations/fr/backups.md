@@ -1,56 +1,92 @@
 ---
-source_sha: 69eb69dc75f4051d291795ad196ce5ee4b61038c94cbe8a97d9b7ee7d7470a69
+source_sha: 2e9dd594680b5a256f594657ea2db3cb464005f9bdf98def7aa174fc011cb10a
+reviewed: true
 ---
+# Sauvegardes et mises à jour
 
-# Sauvegardes
+## Ce que contient une sauvegarde
 
-Evey sait sauvegarder votre base de données tout seul, à intervalle régulier.
+Une sauvegarde est une copie de la **base de données** : comptes, profils,
+bibliothèques et leurs métadonnées, historique de lecture et points de
+reprise, collections et playlists, réglages, enregistrements des plugins,
+webhooks et journaux d'audit. C'est une archive `.tar.gz` qui contient le
+dump SQL et un manifeste avec son empreinte SHA256.
 
-## Configuration
+Elle ne contient **pas** :
 
-```env title=".env"
-EVEY_BACKUP_DIR=/data/backups          # Emplacement des sauvegardes
-EVEY_BACKUP_INTERVAL_HOURS=24          # Intervalle des sauvegardes automatiques (0 = désactivé)
-EVEY_BACKUP_RETENTION_DAYS=30          # Supprimer les sauvegardes plus anciennes que cela (0 = conserver indéfiniment)
-```
+- vos fichiers de médias ;
+- le cache de transcodage (régénéré à la demande) ;
+- l'index de recherche (reconstruit depuis la base) ;
+- les fichiers de `./evey-data/keys`, dont la clé qui signe les sessions,
+  ni les fichiers des plugins installés.
 
-## Ce qui est sauvegardé
+Une sauvegarde de la base restaure donc l'état d'Evey sur la même
+installation. Pour pouvoir reconstruire une machine, gardez aussi une copie
+de tout le dossier `./evey-data` : les sauvegardes de la base s'y trouvent,
+dans `./evey-data/backups`.
 
-La sauvegarde couvre l'ensemble des données utilisateur :
-- Comptes, profils, rôles, permissions
-- Bibliothèques, collections, listes de lecture, favoris
-- Progression de visionnage, historique de lecture
-- Extensions, configuration du serveur, tâches planifiées
-- Notifications, webhooks, journaux d'audit
+## Sauvegardes planifiées
 
-**Hors sauvegarde** : les fichiers multimédias (ils vous appartiennent) et le cache de transcodage (régénéré automatiquement).
+**Admin → Sauvegarde BDD et restauration → Planification** : une expression
+cron (par exemple `0 3 * * *`, tous les jours à 3 h) et une durée de
+conservation en jours. Les sauvegardes plus anciennes sont supprimées après
+chaque exécution planifiée. **Lancer maintenant** en crée une
+immédiatement.
 
-## Format d'une sauvegarde
+<figure class="evey-shot" markdown="span">
+  ![Admin → Sauvegarde BDD et restauration avec une planification quotidienne](images/admin-backup.webp){ loading=lazy }
+  <figcaption>Une sauvegarde chaque jour à 3 h, conservée 30 jours.</figcaption>
+</figure>
 
-Chaque sauvegarde est une archive `.tar.gz` qui contient :
-- `manifest.json` - métadonnées, version, empreinte d'intégrité SHA256
-- `dump.sql` - le dump PostgreSQL complet
+Indépendamment de la planification, le serveur sauvegarde aussi la base avant
+d'appliquer une migration lors d'une mise à jour (voir plus bas).
 
-## Sauvegarde manuelle
+## Restaurer
 
-Une sauvegarde se déclenche depuis le panneau d'administration ou par l'API :
+**Admin → Sauvegarde BDD et restauration** liste les sauvegardes et en
+restaure une, ou restaure un fichier que vous téléversez. La restauration
+remplace la base actuelle.
+
+Une sauvegarde ne se restaure que sur un serveur dont le schéma de base est
+identique : le serveur vérifie d'abord l'empreinte et la version du schéma,
+et refuse une sauvegarde prise par une version dont le schéma diffère plutôt
+que de la charger. Pour revenir à une version plus ancienne avec ses données,
+voir [Revenir en arrière](#going-back).
+
+Quand le serveur ne démarre plus, la même restauration est disponible en
+ligne de commande : [Restauration](runbooks/recovery.md).
+
+## Mettre à jour Evey
 
 ```bash
-curl -X POST -H "Authorization: Bearer <token>" http://localhost:9091/api/v1/admin/backups
+docker compose pull && docker compose up -d
+docker compose logs -f evey
 ```
 
-## Restauration
+C'est toute la mise à jour. Quand la nouvelle version doit modifier la base,
+elle écrit d'abord un dump dans `./evey-data/backups/pre-migration-*`, puis
+applique les migrations au démarrage ; sur un gros catalogue, cela peut
+prendre quelques minutes, et le conteneur est de nouveau signalé en bonne
+santé dès que le serveur répond. Evey vérifie toutes les 6 heures si une image plus récente
+est publiée et le signale dans le panneau d'administration ; il ne se met
+jamais à jour tout seul.
 
-La restauration depuis une sauvegarde passe par l'API d'administration. L'intégrité de l'archive est vérifiée par son empreinte SHA256 avant toute application.
+**Figez ce que vous exécutez.** `latest` suit la dernière version publiée.
+Pour un serveur sur lequel vous comptez, mettez un tag de version (`0.2.0`)
+ou un tag immuable `sha-<commit>` sur la ligne `image:`, pour que deux `pull`
+à un jour d'écart exécutent le même code. Un tag de branche comme
+`beta-0.0.1` bouge à chaque modification.
 
-## Stockage persistant
+**Savoir quelle version tourne.** `docker exec evey-server evey version`
+affiche la version et le commit du binaire en cours d'exécution.
 
-Assurez-vous que `EVEY_BACKUP_DIR` pointe vers un volume persistant ou un chemin de l'hôte. La valeur par défaut, `/data/backups`, se trouve à l'intérieur du volume Docker `evey-data`.
+### Revenir en arrière
 
-Pour ranger les sauvegardes sur l'hôte :
-```yaml title="docker-compose.yml"
-services:
-  evey:
-    volumes:
-      - /path/on/host/backups:/data/backups
-```
+Remettez le tag précédent sur la ligne `image:` et lancez
+`docker compose up -d`. Si la version plus récente avait migré la base,
+restaurez d'abord son dump d'avant migration :
+`docker exec evey-server evey admin rollback` affiche les étapes exactes avec
+le chemin du dump.
+
+Les tags d'image, les variantes de runtime et les familles de GPU sont
+décrits dans [Déploiements avancés](operations/advanced-deployments.md#image-tags).

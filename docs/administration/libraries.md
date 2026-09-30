@@ -1,0 +1,108 @@
+# Libraries and metadata
+
+A library is a type and a set of folders. Evey scans the folders, recognises
+each file from its name, and fetches its metadata: titles, summaries, posters,
+cast, ratings. Libraries are managed in **Admin → Libraries**.
+
+<figure class="evey-shot" markdown="span">
+  ![Admin → Libraries on the demo server](../images/admin-libraries.webp){ loading=lazy }
+  <figcaption><strong>Admin → Libraries</strong>: one row per library, with its folders, its item count and its last scan.</figcaption>
+</figure>
+
+## Types
+
+| Type | Recognised as | Metadata from |
+| --- | --- | --- |
+| **Movies** | One film per file (or per folder) | TMDB, completed by OMDb when a key is set |
+| **Shows** | Series, seasons, episodes | TMDB |
+| **Music** | Artists, albums, tracks | The files' tags, MusicBrainz; covers from Cover Art Archive, then iTunes |
+| **Photos** | Albums, pictures with their shooting details | The files |
+
+Keep films and series in separate libraries: the type tells the scanner what to
+look for.
+
+## Folders are paths inside the container
+
+The folder picker lists what the container sees. With the installation's
+compose file, your media folder is `/media`, so a folder `/srv/media/films` on
+the host is `/media/films` for Evey. A second mounted folder (`/media2`) is
+added the same way.
+
+## Naming files
+
+The scanner recognises names like these:
+
+```text
+/media/films/The Mirror (1999)/The Mirror (1999) 1080p.mkv
+/media/films/Lantern.2010.1080p.BluRay.x264.mkv
+/media/series/The Outpost/Season 01/The.Outpost.S01E05.720p.mkv
+/media/series/Quiet Storm/Quiet.Storm.03x10.mkv
+```
+
+For a film, the year matters most. For an episode, `S01E05` or `1x05`. Release
+tags (resolution, source, codec, audio, language tags such as `VOSTFR` or
+`MULTI`, editions such as "Director's Cut") are removed before the search. If
+your files carry a tag the parser does not know, add it in **Admin → Server
+Config → Parser tokens**; it applies from the next scan.
+
+## How new files are picked up
+
+Each library has three options:
+
+| Option | Effect |
+| --- | --- |
+| **Realtime monitoring** | New, renamed and deleted files are picked up as they appear. A periodic check (every 2 minutes by default) catches what the file system did not report, which happens on network shares. |
+| **Scan on startup** | A scan each time the server starts. |
+| **Schedule** | A full scan every 6 or 12 hours, daily, weekly, or on a cron expression. |
+
+The server also checks that its folder watcher still receives events, by
+writing a probe file into the library folder for a few seconds. A library
+where events stop arriving is walked more often until the watcher recovers.
+
+## When a title is wrong or missing
+
+- **Match orphans only** (per library) retries the files that were never
+  recognised. It is fast.
+- **Re-match all from TMDB** redoes the search for every title in the library.
+  It is slow, and corrects old mistakes after a large renaming.
+- **Edit Metadata** on a title changes its details by hand, or pastes the right
+  TMDB or IMDb id. A value you edit is kept: later refreshes do not overwrite
+  it. **Re-match metadata** on the title discards your edits and searches again
+  from the file name.
+- **Repair sagas** joins films that belong to no collection back to their saga,
+  when the other films of the saga are already in the library.
+
+## Metadata keys
+
+Evey ships with a TMDB key, so metadata works without configuration. Other
+sources are optional; their keys go in **Admin → Server Config → API Keys**,
+and a key set there wins over the same key given in the environment.
+
+| Key | Adds |
+| --- | --- |
+| TMDB (your own) | Your own request quota instead of the shared one. |
+| OMDb | A second source for films TMDB knows little about. |
+| OpenSubtitles | Searching and downloading subtitles a file does not carry, through the server API (the apps do not offer it yet). See [Subtitles](../playback/subtitles.md). |
+| TheIntroDB | Intro, recap and credits timings from a community database: 500 lookups a day with a key instead of 100 without. |
+
+## Intro, recap and credits
+
+Evey marks the intro, the recap and the credits of episodes and films so the
+players can offer to skip them. The timings come from community databases
+(TheIntroDB, then IntroDB) when they know the title, and from the server's own
+analysis of the files otherwise. An administrator can adjust the segments of a
+title by hand, or run the detection again.
+
+Players show a **Skip** button by default. **Auto-skip intros** (**Admin →
+Server Config → Server Settings**, off by default) makes every player skip them
+on its own.
+
+<!-- sources
+types: i18n admin.libraries.types.* ; internal/adapters/driven/metadata/musicbrainz_provider.go ; internal/app/music/album_art_chain.go
+options, schedules: i18n admin.libraries.realtimeMonitoring, scanOnStartup, schedule options ; internal/config/config.go - EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL
+watcher probe: internal/app/library/watcher_probe.go - probeOnce, UnhealthyLibraries
+rematch: i18n admin.libraries.matchOrphans, refreshMetadata, relinkCollectionsTooltip ; media.detail.rematchConfirm
+keys: i18n admin.serverConfig.apiKeys.* ; admin introProvidersTidbAuthed
+opensubtitles folder: internal/app/subtitle/service.go
+intro providers: docs/adr/0011-intro-detection-providers.md
+-->

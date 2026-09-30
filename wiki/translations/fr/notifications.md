@@ -1,18 +1,20 @@
 ---
-source_sha: eea86697845889523ecbd07dd3d88da0143ac37f477404249051c73e160c80c8
+source_sha: f905b0c655ef0e8732ff61ae6298621532868128cd52c20af3e88b2f5592f0de
+reviewed: true
 ---
-
 # Notifications
 
-Evey sait prévenir vos utilisateurs quand un média vient d'être ajouté, quand une sauvegarde échoue, et à l'occasion d'autres événements.
+Evey peut prévenir les utilisateurs quand un média est ajouté, quand une
+sauvegarde échoue, et lors d'autres événements.
 
 ## Canaux
 
-### Notifications dans l'application
-Toujours actives. Une icône de cloche affiche le nombre de messages non lus. Aucune configuration n'est nécessaire.
+### Dans l'application
+Toujours actives. Une cloche affiche le nombre de notifications non lues. Rien à
+configurer.
 
-### Courriel (SMTP)
-Un courriel part dès qu'une notification est créée. Il faut pour cela configurer le SMTP :
+### E-mail (SMTP)
+Envoie un e-mail à chaque notification créée. Demande une configuration SMTP :
 
 ```env title=".env"
 EVEY_SMTP_HOST=smtp.example.com
@@ -23,28 +25,38 @@ EVEY_SMTP_FROM=noreply@example.com
 EVEY_SMTP_TLS=starttls
 ```
 
-Les modes TLS :
-- `starttls` - la connexion s'ouvre en clair puis bascule en TLS (port 587, le cas le plus répandu)
-- `ssl` - la connexion est chiffrée d'emblée (port 465)
-- `none` - aucun chiffrement (déconseillé)
+Modes TLS :
 
-### Web Push
-Les notifications poussées par le navigateur. Les clés VAPID sont générées automatiquement au premier démarrage, et chaque utilisateur y souscrit depuis les réglages de son profil.
+- `starttls` : connexion en clair, puis passage en TLS (port 587, le plus
+  courant) ;
+- `ssl` : connexion directement en TLS (port 465) ;
+- `none` : aucun chiffrement (déconseillé).
+
+### Notifications push du navigateur
+Les clés VAPID sont générées automatiquement au premier démarrage. Chaque
+utilisateur les active depuis les réglages de son profil.
 
 ## Récupération du mot de passe
 
-Les courriels de réinitialisation réclament un SMTP configuré. Un administrateur doit en outre activer la fonction :
+L'e-mail de réinitialisation du mot de passe demande que le SMTP soit configuré.
+Un administrateur doit aussi activer la fonction :
 
-1. Configurez le SMTP (voir plus haut)
-2. Dans le panneau d'administration, passez `auth.password_recovery_enabled` à `true` dans la configuration du serveur
-3. La page de connexion affiche alors un lien « Mot de passe oublié ? »
+1. Configurez le SMTP (voir plus haut).
+2. Enregistrez le réglage `auth.password_recovery_enabled` = `true`. Le panneau
+   n'a pas d'interrupteur pour cela : un administrateur l'envoie par l'API,
+   `PUT /api/v1/admin/config` avec
+   `{"values": {"auth.password_recovery_enabled": "true"}}`.
+3. La page de connexion affiche alors un lien **Mot de passe oublié ?**.
 
-Si le SMTP est retiré après coup, la récupération du mot de passe se désactive toute seule.
+Si le SMTP est retiré après coup, la récupération du mot de passe se désactive
+d'elle-même.
 
 ## Niveaux de notification
 
-Chaque utilisateur règle sa préférence type de média par type de média :
-- **Toutes** - être averti de tout
-- **Pertinentes** - uniquement quand les genres correspondent à l'historique de visionnage
-- **Importantes uniquement** - une correspondance de genres plus stricte
-- **Désactivé** - aucune notification pour ce type
+Chaque utilisateur choisit son niveau de notification par type de média :
+
+- **Toutes** : tout est notifié ;
+- **Pertinentes** : seulement si les genres correspondent à son historique de
+  visionnage ;
+- **Importantes uniquement** : une correspondance de genres plus stricte ;
+- **Désactivé** : aucune notification pour ce type.

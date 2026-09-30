@@ -1,52 +1,86 @@
-# Backups
+# Backups and updates
 
-Evey can automatically back up your database on a schedule.
+## What a backup contains
 
-## Configuration
+A backup is a copy of the **database**: accounts, profiles, libraries and
+their metadata, watch history and resume points, collections and playlists,
+settings, plugin records, webhooks and audit logs. It is a `.tar.gz` holding
+the SQL dump and a manifest with the dump's SHA256.
 
-```env title=".env"
-EVEY_BACKUP_DIR=/data/backups          # Where backups are stored
-EVEY_BACKUP_INTERVAL_HOURS=24          # Auto-backup interval (0 = disabled)
-EVEY_BACKUP_RETENTION_DAYS=30          # Delete backups older than this (0 = keep forever)
-```
+It does **not** contain:
 
-## What's Backed Up
+- your media files;
+- the transcoding cache (regenerated on demand);
+- the search index (rebuilt from the database);
+- the files in `./evey-data/keys`, including the key that signs sessions, and
+  the installed plugin files.
 
-The backup includes all user data:
-- Users, profiles, roles, permissions
-- Libraries, collections, playlists, favorites
-- Watch progress, play history
-- Plugins, server config, scheduled tasks
-- Notifications, webhooks, audit logs
+A database backup therefore restores Evey's state on the same installation. To
+be able to rebuild a machine, keep a copy of the whole `./evey-data` folder as
+well: the database backups are inside it, in `./evey-data/backups`.
 
-**Not backed up**: media files (those are yours) and transcode cache (regenerated automatically).
+## Scheduled backups
 
-## Backup Format
+**Admin → Database Backup → Schedule**: a cron expression (for example
+`0 3 * * *`, every day at 3 AM) and a retention in days. Backups older than the
+retention are deleted after each scheduled run. **Run now** makes one
+immediately.
 
-Each backup is a `.tar.gz` containing:
-- `manifest.json` - metadata, version, SHA256 integrity hash
-- `dump.sql` - full PostgreSQL dump
+<figure class="evey-shot" markdown="span">
+  ![Admin → Database Backup with a daily schedule](images/admin-backup.webp){ loading=lazy }
+  <figcaption>A backup every day at 3 AM, kept 30 days.</figcaption>
+</figure>
 
-## Manual Backup
+The server also dumps the database on its own before applying a migration
+during an update, whatever the schedule (see below).
 
-Trigger a backup from the admin panel or via API:
+## Restoring
+
+**Admin → Database Backup** lists the backups and restores one, or restores
+from a file you upload. Restoring replaces the current database.
+
+A backup can only be restored on a server with the same database schema: the
+server checks the checksum and the schema version first, and refuses a backup
+taken by a version with a different schema instead of loading it. To go back to
+an older version with its data, see [Going back](#going-back) below.
+
+When the server does not start any more, the same restore is available from
+the command line: [Recovery](runbooks/recovery.md).
+
+## Updating Evey
 
 ```bash
-curl -X POST -H "Authorization: Bearer <token>" http://localhost:9091/api/v1/admin/backups
+docker compose pull && docker compose up -d
+docker compose logs -f evey
 ```
 
-## Restore
+That is the whole update. When the new version needs to change the database,
+it first writes a dump to `./evey-data/backups/pre-migration-*`, then applies
+the migrations while starting; a large catalogue can take a few minutes, and
+the container reports healthy once it serves again. Evey checks every 6 hours
+whether a newer image is published and says so in the admin panel; it never
+updates itself.
 
-Restoring from backup is available through the admin API. The backup integrity is verified via SHA256 hash before applying.
+**Pin what you run.** `latest` follows the most recent release. For a server
+you rely on, put a release tag (`0.2.0`) or an immutable `sha-<commit>` tag on
+the `image:` line, so that two pulls a day apart run the same code. A branch
+tag such as `beta-0.0.1` moves with every change.
 
-## Persistent Storage
+**Which version is running.** `docker exec evey-server evey version` prints the
+version and the commit of the running binary.
 
-Make sure `EVEY_BACKUP_DIR` maps to a persistent volume or host path. The default `/data/backups` is inside the `evey-data` Docker volume.
+### Going back
 
-To store backups on the host:
-```yaml title="docker-compose.yml"
-services:
-  evey:
-    volumes:
-      - /path/on/host/backups:/data/backups
-```
+Put the previous tag on the `image:` line and run `docker compose up -d`. If
+the newer version had migrated the database, restore its pre-migration dump
+first: `docker exec evey-server evey admin rollback` prints the exact steps
+with the dump's path.
+
+Image tags, runtime variants and GPU flavours are described in
+[Advanced deployments](operations/advanced-deployments.md#image-tags).
+
+<!-- sources
+contents: internal/app/backup/service.go - CreateBackup, restore schema check ; internal/adapters/driven/filesystem/backup_store.go
+schedule: i18n admin.backup.schedule.* ; cmd/evey/main.go (DB cron scheduler, env fallback)
+pre-migration dump, rollback, update check: previous docs/installation.md (Updating Evey) ; i18n admin Server Config Updates
+-->

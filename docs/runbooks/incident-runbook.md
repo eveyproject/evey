@@ -55,7 +55,7 @@ run the epoch query. The Prometheus counter is
 
 **Common causes + fix**:
 - **JWT key missing or changed**: `EVEY_JWT_PRIVATE_KEY_PATH` (default `/data/jwt.key`) not readable, or was rotated. Every token signed by the old key is now invalid - there is no mitigation beyond restoring the old key from backup or forcing every user to re-login. Confirm the `evey-data` volume is mounted correctly at `/data`.
-- **Rate limit tripping every request**: check `EVEY_RATELIMIT_LOGIN_MAX` (default `10` per IP per minute) and `EVEY_RATELIMIT_GLOBAL_MAX` (default `300`). Reverse proxy forwarding all traffic as a single IP will trip this fast - set `EVEY_TRUSTED_PROXIES`, restart. Dev override already sets `1000` / `10000`.
+- **Rate limit tripping every request**: check `EVEY_RATELIMIT_LOGIN_MAX` (default `10` per IP per minute) and `EVEY_RATELIMIT_GLOBAL_MAX` (default `300`). Reverse proxy forwarding all traffic as a single IP will trip this fast - add the proxy to **Trusted proxies** in Admin → Remote Access (applies without a restart; `EVEY_TRUSTED_PROXIES` also works). Dev override already sets `1000` / `10000`.
 - Clock skew between server and clients → `date -u` on the host.
 
 ## 3. Transcoding fails / videos won't play transcoded
@@ -239,13 +239,13 @@ docker volume inspect evey_evey-cache   # compose-mangled name may vary
   ```
   This also drops `photos/` (resized photo variants) and `track-art/` (a
   track's tag-embedded cover, extracted once and resized) under it - both are
-  rebuilt on the next request. The admin panel's "Clear cache" button does
+  rebuilt on the next request. **Clear All** in Admin → Transcode Cache does
   the same purge.
 - Trickplay is more expensive to regenerate; only purge if necessary:
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
   ```
-- Lower the transcode cache budget (Admin → Server settings, default `10` GB) if the host volume is tight; whatever the budget, the sweeper keeps 2 GiB free on the cache volume.
+- Lower the transcode cache budget (Admin → Server Config, default `10` GB) if the host volume is tight; whatever the budget, the sweeper keeps 2 GiB free on the cache volume.
 
 ## 7. Plugin crashed
 

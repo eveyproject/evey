@@ -28,42 +28,6 @@
   color: #e6e8f0;
 }
 
-/* The boot banner from cmd/evey/banner.go, on the landing page. Same split -
-   E and E and Y in the text colour, V in brand red - so the site opens on the
-   same mark a self-hoster sees in their terminal on first start. It scales with
-   the viewport because at a fixed size it either overflows a phone or looks
-   lost on a desktop. */
-.evey-wordmark {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: clamp(0.36rem, 2.1vw, 0.95rem);
-  line-height: 1.05;
-  letter-spacing: 0;
-  margin: 0 0 1.2rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  overflow-x: auto;
-  color: var(--md-default-fg-color);
-  white-space: pre;
-}
-
-.evey-wordmark .v {
-  color: #c81e1e;
-}
-
-[data-md-color-scheme="slate"] .evey-wordmark .v {
-  color: #f36464;
-}
-
-/* Material wraps a <pre> in its own code styling; the landing mark is artwork,
-   not a code sample. */
-.evey-wordmark code,
-.md-typeset .evey-wordmark {
-  background: none;
-  box-shadow: none;
-  padding: 0;
-}
-
 /* ── Breathing room ───────────────────────────────────────────────────────────
    Material packs the sidebar, the prose and the table of contents tight against
    each other. On a documentation site that is read for troubleshooting, that
@@ -177,20 +141,94 @@
   margin: 0 0.4rem 0.6rem 0;
 }
 
-/* The demo bar: brand red on the dark header ground, one line, the whole bar
-   is the link. */
-.md-banner {
-  background-color: #7f1414;
-  color: #ffffff;
+/* Home page: the destinations under the two-sentence introduction. A compact
+   grid, one line of description each - the page is an index, not a banner. */
+.md-typeset .grid.cards > ul > li {
+  padding: 0.8rem 1rem;
 }
 
-.md-banner a.evey-announce,
-.md-banner a.evey-announce:hover {
-  color: #ffffff;
-  font-weight: 600;
-  text-decoration: none;
+.md-typeset .evey-meta {
+  margin-top: 2rem;
+  font-size: 0.72rem;
+  color: var(--md-default-fg-color--light);
 }
 
-.md-banner a.evey-announce:hover {
-  text-decoration: underline;
+/* Screenshots of the interface: a thin frame so a dark capture does not melt
+   into the dark theme, a pointer to say it opens full size (glightbox). */
+.md-typeset figure.evey-shot {
+  margin: 1.2rem 0;
+}
+.md-typeset figure.evey-shot img {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4rem;
+  cursor: zoom-in;
+}
+.md-typeset figure.evey-shot figcaption {
+  font-size: 0.72rem;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Two captures to compare, side by side; stacked on a phone. */
+.md-typeset .evey-shot-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+}
+@media screen and (max-width: 44.9375em) {
+  .md-typeset .evey-shot-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Logo ─────────────────────────────────────────────────────────────────────
+   The logo is the full wordmark, so the site name Material prints next to it
+   would only repeat it. The name stays in the markup for screen readers; the
+   page title Material swaps in on scroll is untouched. */
+.md-header__button.md-logo img,
+.md-nav__title .md-nav__button.md-logo img {
+  width: auto;
+  height: 1.2rem;
+}
+.md-header__title .md-header__topic:first-child {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Material drops the header logo on narrow screens and leaves the site name
+   alone; with the name hidden the header would be blank, so the wordmark stays. */
+@media screen and (max-width: 76.1875em) {
+  .md-header__button.md-logo {
+    display: inline-block;
+  }
+}
+
+/* The drawer's title bar is brand red by default, which swallows the red V of
+   the wordmark: the dark ground of the header instead, and no repeated name. */
+.md-nav--primary .md-nav__title[for="__drawer"] {
+  background-color: #0b0f19;
+  color: transparent;
+}
+
+/* Home page: four captures of the interface, two by two, one per row on a
+   phone, in one 16:10 frame each. The dashboard capture is wider: its frame
+   keeps the left part (menu and live playback cards). Click-through opens the
+   full images as one gallery. */
+.md-typeset .evey-showcase {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem 1rem;
+  margin: 1.2rem 0 1.6rem;
+}
+.md-typeset .evey-showcase figure.evey-shot {
+  margin: 0;
+}
+.md-typeset .evey-showcase figure.evey-shot img {
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  object-position: left top;
+}
+@media screen and (max-width: 44.9375em) {
+  .md-typeset .evey-showcase {
+    grid-template-columns: 1fr;
+  }
 }

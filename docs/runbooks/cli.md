@@ -96,9 +96,10 @@ evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
                                              Per-title probe timing and early-stop rate on the files.
 ```
 
-> The full, always-current list is `evey admin` with no subcommand - it prints
-> 2026-07-23; `reindex-no-cue`, the seek-index repair behind the recurring slow-
-> resume incidents, was among the missing ones.
+> The full, always-current list is `evey admin` with no subcommand: it prints
+> every subcommand the binary carries. This page used to miss several of them
+> until 2026-07-23; `reindex-no-cue`, the seek-index repair behind the recurring
+> slow-resume incidents, was among the missing ones.
 
 ## How to invoke
 

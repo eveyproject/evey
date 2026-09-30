@@ -6,7 +6,7 @@
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go \
 	mutation-test docker-image verify-deploy \
-	wiki wiki-check wiki-serve
+	wiki wiki-check wiki-serve wiki-drafts
 
 BINARY=evey
 DC=docker compose --env-file .env.dev
@@ -768,3 +768,10 @@ wiki-serve:
 	@echo "→ wiki: http://localhost:8000 (Ctrl-C to stop)"
 	@$(WIKI_DOCKER) -p 8000:8000 $(WIKI_IMAGE) sh -c 'pip install -q --disable-pip-version-check -r requirements.txt && \
 	  python3 assemble.py && mkdocs serve -a 0.0.0.0:8000'
+
+# Review preview: the translations still marked `reviewed: false`, with a draft
+# banner, and their languages built. Never what the public site publishes.
+wiki-drafts:
+	@echo "→ wiki drafts: http://localhost:8001 (Ctrl-C to stop)"
+	@$(WIKI_DOCKER) -e EVEY_WIKI_DRAFTS=true -p 8001:8001 $(WIKI_IMAGE) sh -c 'pip install -q --disable-pip-version-check -r requirements.txt && \
+	  python3 assemble.py --drafts && mkdocs serve -a 0.0.0.0:8001'

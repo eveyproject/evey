@@ -25,7 +25,7 @@
 # Usage:  scripts/make-bench-sample.sh <source-4k.mov> [out-dir] [start-seconds]
 # Output: <out>/evey-bench-sdr.hevc, <out>/evey-bench-hdr10.hevc + their SHA256.
 # Then host both as release assets and pin URL+SHA256 via the env vars in
-# docs/transcoding.md, or ship the defaults in cmd/evey/wire.go.
+# docs/playback/transcoding.md, or ship the defaults in cmd/evey/wire.go.
 #
 # Attribution (CC-BY) goes in NOTICE/THIRD_PARTY when the asset is published.
 set -euo pipefail
