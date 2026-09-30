@@ -1,86 +1,101 @@
 ---
-source_sha: d7ed6dd50005bc7e22c522df514264be5d132bc0ca91bd3052d5321a026acad0
+source_sha: d8e413ff58f8ce72144723face5dd368f60cfd95dca1f70e39fb86b40afa9886
+reviewed: false
 ---
-# Erweiterungssystem
+# Plugins
 
-Erweiterungen rüsten den Server um Metadatenanbieter, Medienverarbeitung,
-Webhooks, Benachrichtigungen, Frontend-Module und CSS-Themes nach. Eine
-Erweiterung läuft als **abgeschotteter Unterprozess** und spricht mit dem Host
-über gRPC auf einem Unix-Domain-Socket; bringt sie eine Oberfläche mit, wird
-diese in einem **abgeschotteten iframe** dargestellt und erreicht den Host über
-eine Brücke aus `postMessage`.
+Plugins ergänzen Evey um das, was es nicht von selbst tut: Metadatenquellen,
+Benachrichtigungskanäle, Webhook-Empfänger, Abschnitte der Startseite,
+Überlagerungen im Player und Themes. Jedes Plugin ist ein eigener Prozess, der
+über einen lokalen Socket mit dem Server spricht, von einer Sandbox eingesperrt
+und auf die Berechtigungen beschränkt, die sein Manifest angibt. Seine
+Oberfläche, falls es eine hat, läuft in einem isolierten Rahmen der Seite.
 
-Diese Seite ist eine Übersicht. Die Einzelheiten stehen in drei eigenen
-Dokumenten:
+<div class="evey-shot-pair" markdown>
 
-| Dokument | Was darin steht |
-|---|---|
-| **[plugins/dev-setup.md](plugins/dev-setup.md)** | Die erste eigene Erweiterung schreiben: Voraussetzungen, Gerüst, die Schleife aus Installieren und Nachbessern, Signieren, Verbreiten, Fehlersuche. **Hier anfangen.** |
-| **[plugins/api-reference.md](plugins/api-reference.md)** | Der Vertrag: Schema des Manifests, IPC und Datenspeicher im Backend, die Frontend-Brücke `evey.*`, die Liste der Slots und jede einzelne Fähigkeit (`metadata.provider`, `media.read/write`, `notification.sender`, `webhook.receiver`, `public`, `prefs`). |
-| **[plugins/security-model.md](plugins/security-model.md)** | Bedrohungsmodell und Schutzschichten: UID-Trennung, die seccomp-Sperrliste im Kernel und über LD_PRELOAD, die Sandbox-Modi (`auto` arbeitet landlock → bubblewrap → basic ab; `strict` ergänzt bubblewrap um die LD_PRELOAD-Bibliothek), der Ressourcenmonitor im Userspace, die statische Analyse, die CSS-Bereinigung, Signaturen und Versionierung, die Positivliste der Slots sowie die bekannten Grenzen. |
+<figure class="evey-shot" markdown="span">
+  ![Die Startseite ohne Plugins](images/home-no-plugin.webp){ loading=lazy }
+  <figcaption>Ohne Plugins.</figcaption>
+</figure>
 
-Wie die Rechtevergabe hinter den Tokens von Erweiterungen funktioniert
-(standardmäßig verweigert, fest verriegelte Scopes, die Brücke, über die nie ein
-Token in ein iframe gelangt), steht in
-[adr/0012-plugin-token-deny-by-default.md](adr/0012-plugin-token-deny-by-default.md);
-die Ressourcengrenzen behandelt
-[adr/0013-userspace-plugin-resource-monitor.md](adr/0013-userspace-plugin-resource-monitor.md).
+<figure class="evey-shot" markdown="span">
+  ![Die Startseite mit dem Wetter-Plugin](images/home.webp){ loading=lazy }
+  <figcaption>Mit dem Beispiel-Plugin für das Wetter: ein Abschnitt oben, in seinem eigenen Rahmen gezeichnet.</figcaption>
+</figure>
 
-## Architektur
+</div>
 
+## Plugins installieren und verwalten
+
+**Admin → Plugins** installiert ein Plugin aus seiner ZIP-Datei. Bevor etwas
+installiert wird, zeigt die Vorschau:
+
+<figure class="evey-shot" markdown="span">
+  ![Admin → Plugins auf dem Demo-Server](images/admin-plugins.webp){ loading=lazy }
+  <figcaption><strong>Admin → Plugins</strong>: die verfügbaren Laufzeiten, die Ressourcengrenzen und eine Karte pro Plugin (Oberfläche auf Englisch).</figcaption>
+</figure>
+
+- die Berechtigungen, die das Plugin angibt, die Slots der Oberfläche, in denen
+  es erscheinen möchte, und die Hosts, die es kontaktieren wird;
+- was die statische Analyse in seinem Code gefunden hat;
+- seine Signatur, wenn der Server Signaturen prüft.
+
+Ein Plugin, bei dessen Analyse ein kritisches Muster gefunden wird, wird
+abgelehnt. Ein Update eines installierten Plugins durchläuft dieselbe Vorschau;
+verlangt es neue Berechtigungen, Slots oder Hosts, müssen Sie den Unterschied
+ausdrücklich annehmen.
+
+Jedes Plugin hat dann auf seiner Karte: aktivieren oder deaktivieren,
+aktualisieren, Logs und seine Ressourcengrenzen (Speicher, Prozesse,
+Festplatte, CPU-Priorität). Die Zeile **Host-Sandbox** des
+**Sicherheits-Dashboards** zeigt den auf diesem Host tatsächlich geltenden
+Sandbox-Modus: siehe [Plugin-Sandbox einrichten](plugins/sandbox-deployment.md),
+wenn sie `basic` anzeigt.
+
+Plugins sind standardmäßig aktiviert. `EVEY_PLUGINS_ENABLED=false` schaltet das
+Subsystem ganz ab.
+
+## Was ein Plugin kann und was nicht
+
+Ein Plugin sieht sein eigenes Verzeichnis und nicht die Daten des Servers, hat
+keinen direkten Netzwerkzugang (ein Plugin mit Netzwerkerlaubnis erreicht nur
+die Hosts, die es angegeben hat, über den Server) und kann keine Prozesse
+starten, außer es gibt die Berechtigung `subprocess` an. Die Berechtigungen, die
+ein Plugin verlangen kann, stehen unter
+[Berechtigungen und Slots](plugins/security-model.md). Wie die Sandbox
+funktioniert und was sie noch nicht verhindern kann, beschreibt
+[Sicherheitsmodell und Plugin-Sandbox](SECURITY.md).
+
+Prüfen Sie ein Plugin von Dritten vor der Installation, wie jede Software:
+Sobald ein Host auf der Liste eines Plugins steht, kann der Server nicht
+überprüfen, was das Plugin an ihn sendet.
+
+## Ein Plugin schreiben
+
+```mermaid
+flowchart LR
+  subgraph server["Evey-Server"]
+    host["HostService<br/>prüft jeden Aufruf gegen<br/>die angegebenen Berechtigungen"]
+    ui["Weboberfläche<br/>Plugin-Slots"]
+  end
+  subgraph plugin["Plugin, in seiner Sandbox"]
+    backend["PluginService<br/>Ihr Backend-Prozess"]
+    front["Frontend-Modul<br/>isolierter iframe"]
+  end
+  backend <-->|"gRPC über einen Unix-Socket"| host
+  front <-->|"postMessage-Brücke"| ui
+  host -->|"Fetch: nur angegebene Hosts"| net(("Internet"))
 ```
-+------------------+      gRPC (Unix socket)      +-------------------+
-|   Evey Server    | <--------------------------> |  Plugin Process   |
-|                  |   /tmp/evey/plugins/{id}/    |                   |
-|  HostService     |   plugin.sock                |  PluginService    |
-|  (serves RPCs)   |                              |  (implements)     |
-+------------------+                              +-------------------+
-        |                                                  |
-        v                                                  v
-+------------------+                              +-------------------+
-|  Permission /    |                              |  SDK stubs        |
-|  scope checker   |                              |  (multi-language) |
-+------------------+                              +-------------------+
-        |
-        v
-+------------------+     iframe sandbox           +-------------------+
-|  Frontend        | <--------------------------> |  Frontend module  |
-|  PluginSlot      |   postMessage bridge         |  (in srcdoc)      |
-+------------------+                              +-------------------+
-```
 
-Eine Erweiterung dürfen Sie in **jeder Sprache schreiben, die sich über
-`entrypoint:` starten lässt** - der Runner schränkt Sie dabei nicht ein. Fertig
-erzeugte gRPC-Stubs für das SDK liegen für Python, Node.js, PHP, Ruby, Dart,
-Java und Swift bei (`sdk/<lang>/`, bei der Installation automatisch
-mitkopiert); für Go gibt es keine mitgelieferten Stubs, die erzeugen Sie mit
-`protoc-gen-go` und `protoc-gen-go-grpc`. Interpretersprachen ohne
-mitgelieferte Stubs (Bash, Lua, Perl, …) funktionieren, indem Sie den
-Interpreter unmittelbar aufrufen, und kompilierte Binärdateien (Go, Rust, …)
-brauchen die Berechtigung `native-binary`. Die Einrichtung je Sprache:
-[plugins/dev-setup.md](plugins/dev-setup.md#per-language).
+Ein Plugin kann in jeder Sprache geschrieben werden, die sein `entrypoint`
+starten kann. Erzeugte gRPC-Stubs werden für Python, Node.js, PHP, Ruby, Dart,
+Java und Swift mitgeliefert; Go-Stubs werden mit `protoc-gen-go` erzeugt;
+kompilierte Programme brauchen die Berechtigung `native-binary`.
 
-Die drei Säulen:
-
-- **Fähigkeiten und Scopes** - eine Erweiterung führt in ihrem Manifest auf,
-  welche Fähigkeiten sie braucht; erteilt werden sie vom Administrator bei der
-  Installation. Der Host setzt sie bei jedem Aufruf durch und verweigert im
-  Zweifel. Der vollständige Katalog steht in
-  [plugins/api-reference.md](plugins/api-reference.md#capabilities).
-- **Sandbox** - die Prozesse im Backend laufen abgeschottet (eingehegt bei
-  Dateisystem, Systemaufrufen und Netz) und unter einem Ressourcenmonitor im
-  Userspace; der Frontend-Code läuft in einem streng verriegelten iframe. Die
-  Einzelheiten: [plugins/security-model.md](plugins/security-model.md).
-- **Vertrauen** - Erweiterungen sind über SHA256 festgeschrieben und lassen sich
-  mit Cosign signieren; der Server kann so eingestellt werden, dass er eine
-  Signatur verlangt. Siehe
-  [plugins/security-model.md](plugins/security-model.md#update-workflow).
-
-## Das Subsystem einschalten
-
-Erweiterungen sind standardmäßig an (`EVEY_PLUGINS_ENABLED=true`). Der
-Sandbox-Modus steht in `EVEY_PLUGINS_SANDBOX_MODE` (Standardwert `auto`, was im
-offiziellen Image auf Landlock hinausläuft). Die Ressourcengrenzen
-(`EVEY_PLUGINS_MEMORY_MB`, `_PIDS_MAX`, `_DISK_MAX_MB`, `_CPU_NICE`) sind unter
-**Admin → Plugins** änderbar.
-Siehe [configuration.md](configuration.md) und [plugins/dev-setup.md](plugins/dev-setup.md#7-resource-limits-and-sandbox).
+| Seite | Inhalt |
+| --- | --- |
+| [Ein Plugin schreiben](plugins/dev-setup.md) | Voraussetzungen, erstes Plugin, die Installationsschleife, Signieren, Verteilen. Hier beginnen. |
+| [Plugin-API-Referenz](plugins/api-reference.md) | Das Manifest, die Backend-Aufrufe und der Datenspeicher, die Frontend-Brücke `evey.*`, die Capabilities. |
+| [Berechtigungen und Slots](plugins/security-model.md) | Was ein Manifest angeben darf, was bei der Installation geprüft wird, die Regeln für externe Abrufe, die Slots. |
+| [Themes](themes.md) | Die Oberfläche mit CSS und einem abgeschotteten Skript neu gestalten. |
+| [Webhooks und API-Schlüssel](webhooks-api-keys.md) | Evey mit anderen Werkzeugen verbinden, ohne ein Plugin zu schreiben. |
