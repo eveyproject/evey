@@ -92,7 +92,7 @@ docker exec evey-server df -h /cache
   ```
 - **Cache voll** → siehe Abschnitt 6.
 - **Die Hardwarebeschleunigung verhält sich falsch**: Stellen Sie **Hardware-Beschleunigung** unter **Admin → Transkodierung → Encode-Kalibrierung** auf **Aus (nur Software)** (gilt sofort, mit neuer Messung), um jede Transkodierung auf dem Prozessor zu halten, und prüfen Sie, dass das Problem von der Hardware kommt, bevor Sie zu **Auto** zurückkehren.
-- **„Der Server transkodiert gerade andere Streams"**: Die Kapazität für laufende Wiedergabe wird gemessen, nicht eingestellt; siehe [Transkodierung und Serverkapazität](../playback/transcoding.md#sharing-the-capacity). `EVEY_TRANSCODING_MAX_CONCURRENT` (**Max Concurrent** unter **Admin → Transkodierungs-Cache**) betrifft nur Transkodierungsaufträge außerhalb der laufenden Wiedergabe.
+- **„Der Server transkodiert gerade andere Streams"**: Die Kapazität für laufende Wiedergabe wird gemessen, nicht eingestellt; siehe [Transkodierung und Serverkapazität](../playback/transcoding.md#sharing-the-capacity). `EVEY_TRANSCODING_MAX_CONCURRENT` (**Max. gleichzeitig** unter **Admin → Transkodierungs-Cache**) betrifft nur Transkodierungsaufträge außerhalb der laufenden Wiedergabe.
 
 ### 3c. „Es puffert / es hat abgebrochen", und die Logs sagen nicht warum
 
