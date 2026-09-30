@@ -1,5 +1,5 @@
 ---
-source_sha: 7a130827b0ba31330a54269b3d9e83b6ddd534f47a8009c82c6945df914cb007
+source_sha: 82ddd8ca6e191f22d2ea6f4b82a8d797acb01ac67bea2dbeb57c7aab2fd2f126
 reviewed: true
 ---
 # La CLI d'Evey : `evey admin`
@@ -35,7 +35,7 @@ Les textes d'aide ci-dessous sont ceux que le binaire affiche, en anglais.
 ```
 evey admin reset-password --user <email>     Generate a new password, print it once.
 evey admin rotate-jwt-key                    Regenerate JWT signing key (kills ALL sessions).
-evey admin restore-backup <path>             Restore the database from a .sql.gz dump (the suffix is required).
+evey admin restore-backup <path>             Restore the database from a .sql.gz dump (the suffix is required; not the panel's .tar.gz backups).
 evey admin reindex-search [--library <id>] [--purge]   Rebuild the Meilisearch index from Postgres (--purge clears orphan docs first; if Meili is down, reports the Postgres fallback and does nothing).
 evey admin migrate up [--no-backup]          Apply pending migrations.
 evey admin migrate down [--no-backup]        Roll back one migration step.
@@ -102,11 +102,17 @@ evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
                                              Per-title probe timing and early-stop rate on the files.
 ```
 
+### Instance de démonstration
+
+```
+evey admin demo-seed [--apply] [--media]     Run the demo bootstrap by hand: the demo administrator,
+                                             the visitor accounts, the four libraries, and with
+                                             --media the freely licensed media (gigabytes). Refuses
+                                             unless EVEY_DEMO=1. Dry-run by default.
+```
+
 > La liste complète et toujours à jour est `evey admin` sans sous-commande : il
-> affiche toutes les sous-commandes que contient le binaire. Cette page en
-> oubliait plusieurs jusqu'au 23 juillet 2026 ; `reindex-no-cue`, la réparation
-> de l'index de lecture derrière les incidents récurrents de reprise lente,
-> en faisait partie.
+> affiche toutes les sous-commandes que contient le binaire.
 
 ## Comment l'appeler
 

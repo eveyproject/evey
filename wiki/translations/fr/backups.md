@@ -1,5 +1,5 @@
 ---
-source_sha: 2e9dd594680b5a256f594657ea2db3cb464005f9bdf98def7aa174fc011cb10a
+source_sha: 91ffe72783a80b591d04c2bf56329c458fa3055ea3fb320fa66ae50e512635dc
 reviewed: true
 ---
 # Sauvegardes et mises à jour
@@ -53,8 +53,9 @@ et refuse une sauvegarde prise par une version dont le schéma diffère plutôt
 que de la charger. Pour revenir à une version plus ancienne avec ses données,
 voir [Revenir en arrière](#going-back).
 
-Quand le serveur ne démarre plus, la même restauration est disponible en
-ligne de commande : [Restauration](runbooks/recovery.md).
+Quand le serveur ne démarre plus, la ligne de commande restaure les dumps pris
+avant une migration (`pre-migration-*.sql.gz`), pas les sauvegardes `.tar.gz`
+de ce panneau : voir [Restauration](runbooks/recovery.md).
 
 ## Mettre à jour Evey
 

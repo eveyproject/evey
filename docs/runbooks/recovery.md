@@ -58,7 +58,8 @@ When to use:
 
 Apply a `pg_dump.gz` produced by the pre-migration backup mechanism (or
 any other source) into the configured database. **Overwrites existing
-data.**
+data.** The file must end in `.sql.gz`: the `.tar.gz` backups of
+**Admin → Database Backup** are restored from the panel, not by this command.
 
 ```sh
 evey admin restore-backup /data/backups/pre-migration-15-20260418T220130Z.sql.gz
@@ -81,4 +82,5 @@ Requirements:
 
 Pre-migration backups are produced automatically before each
 `migrate.Up()` and live under `EVEY_BACKUP_DIR` (default
-`/data/backups`). The most recent 3 are kept; older ones are pruned.
+`/data/backups`). The newest dump of each of the 3 most recent schema
+versions is kept; the others are pruned.

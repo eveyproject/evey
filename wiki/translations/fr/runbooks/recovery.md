@@ -1,5 +1,5 @@
 ---
-source_sha: 75f950590ae90c9a9a77cfcea37f93cbbe8eb70a0dbea1df56d154a205d2fc12
+source_sha: 98cd8a5b76bc4dabe53892ee6a3e33de75d73948d89d9d58d0b637fc39a3484e
 reviewed: true
 ---
 # Récupération
@@ -68,7 +68,9 @@ Quand l'utiliser :
 
 Applique un `pg_dump.gz` produit par la sauvegarde d'avant migration (ou par
 toute autre source) sur la base de données configurée. **Écrase les données
-existantes.**
+existantes.** Le fichier doit se terminer par `.sql.gz` : les sauvegardes
+`.tar.gz` de **Admin → Sauvegarde BDD et restauration** se restaurent depuis le panneau,
+pas par cette commande.
 
 ```sh
 evey admin restore-backup /data/backups/pre-migration-15-20260418T220130Z.sql.gz
@@ -94,4 +96,5 @@ Prérequis :
 
 Les sauvegardes d'avant migration sont produites automatiquement avant chaque
 `migrate.Up()` et rangées dans `EVEY_BACKUP_DIR` (par défaut `/data/backups`).
-Les 3 plus récentes sont conservées ; les plus anciennes sont supprimées.
+Le dump le plus récent de chacune des 3 dernières versions du schéma est
+conservé ; les autres sont supprimés.
