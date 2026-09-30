@@ -1,5 +1,5 @@
 ---
-source_sha: d16d3f599569727f87e37dc766b79a61f2a11ed5e5379a37f377420a53b83af9
+source_sha: 173b490b2a261ecfdad76b667acd070ca89ef5c932f0b30034bbf6d22a7bb01a
 reviewed: true
 ---
 # Architecture
@@ -43,9 +43,9 @@ l'application ni les adaptateurs. L'assemblage se fait dans
 
 ## Contextes métier
 
-Trente paquets de contexte vivent sous `internal/domain/` et `internal/app/` : 19
-existent dans les deux couches, 2 seulement dans le domaine (`ratings`,
-`shared`), 9 seulement dans l'application. La collaboration passe en partie par
+Trente-deux paquets de contexte vivent sous `internal/domain/` et `internal/app/` :
+19 existent dans les deux couches, 2 seulement dans le domaine (`ratings`,
+`shared`), 11 seulement dans l'application. La collaboration passe en partie par
 des événements du domaine publiés sur un bus partagé ; la couche applicative lit
 aussi directement le paquet de domaine d'un contexte voisin (voir
 [Relations](#relations)).
@@ -81,6 +81,8 @@ aussi directement le paquet de domaine d'un contexte voisin (voir
 | `maintenance` (application seulement) | maintenance des médias déclenchée par l'administrateur : reconstruction de l'index de lecture, journal des réparations, annulation, intégrité de l'audio |
 | `presence` (application seulement) | registre en mémoire, non persistant, de qui est connecté en ce moment |
 | `qoe` (application seulement) | réception et agrégation de la télémétrie de lecture CMCD (CTA-5004) |
+| `demo` (application seulement) | l'instance de démonstration publique (`EVEY_DEMO=1`) : crée ses comptes, ses bibliothèques et ses médias sous licence libre par les services du produit lui-même, et se réinitialise seule |
+| `updatecheck` (application seulement) | compare la version en service à ce que publie le registre et prévient l'administrateur ; ne met jamais rien à jour |
 | `shared` (domaine seulement) | ports transverses (`EventBus`, `TransactionalUnit`, `ServerConfigRepository`, `ShareLinkRepository`), identifiants typés, curseurs, jetons de flux |
 
 ### Relations
@@ -107,7 +109,7 @@ aussi directement le paquet de domaine d'un contexte voisin (voir
 Aucun paquet sous `internal/domain` n'importe le paquet de domaine d'un autre
 contexte, règle imposée par `internal/contractguard/domain_imports_test.go`
 (voir [Gardes d'architecture](#architecture-guards)). La couche applicative n'y
-est pas tenue : 14 paquets applicatifs importent aujourd'hui le paquet de
+est pas tenue : 15 paquets applicatifs importent aujourd'hui le paquet de
 domaine d'un contexte voisin.
 
 ## Un flux typique : « un utilisateur lance un média »
@@ -143,7 +145,7 @@ domaine fournissent un sous-paquet `fakes/`. Voir
 ## Gardes d'architecture
 
 Les règles ci-dessus ne sont pas que de la documentation. `internal/contractguard/`
-contient 31 tests statiques, répartis dans 20 fichiers, qui font échouer la
+contient 54 tests statiques, répartis dans 29 fichiers, qui font échouer la
 compilation dès que le code s'en écarte.
 
 La règle hexagonale elle-même est `TestDomainContextsDoNotImportEachOther`
@@ -280,15 +282,17 @@ flowchart TB
 ```
 
 > **La production diffère de cette topologie de développement.** Le compose
-> d'installation ne déclare que trois services : `evey`, `postgres`, `caddy`. Il
-> n'y a pas de conteneur `evey-web` séparé (ni le mailcatcher ni le bundler Metro,
-> propres au développement) : le binaire `evey-server` sert l'interface web
-> compilée depuis `/srv`, si bien que le reverse proxy lui renvoie *tout*,
-> interface et API, sur `:9091`. Il n'y a pas non plus de conteneur
-> `evey-meilisearch` séparé : le binaire Meilisearch est intégré à l'image `evey`
-> (`Dockerfile`, étape `meili-download`, figé en 1.12.8) et garde son index sous
-> `/data/meili`. Voir [installation.md](installation.md) et
-> [reverse-proxy.md](reverse-proxy.md).
+> d'installation ne déclare qu'un service, `evey`. Il n'y a pas de conteneur
+> `evey-web` séparé (ni le mailcatcher ni le bundler Metro, propres au
+> développement) : le binaire sert l'interface web compilée depuis `/srv`, si
+> bien qu'un reverse proxy lui renvoie *tout*, interface et API, sur `:9091`.
+> Postgres et Meilisearch tournent dans le même conteneur, supervisés par
+> `docker/entrypoint.sh` : PostgreSQL 17 avec ses données sous `/data/postgres`,
+> et le binaire Meilisearch (`Dockerfile`, étape `meili-download`, figé en
+> 1.12.8) avec son index sous `/data/meili`. Le `docker-compose.yml` du dépôt
+> garde des services `postgres` et `caddy` séparés, décrits dans
+> [Déploiements avancés](operations/advanced-deployments.md). Voir
+> [Installer](installation.md) et [Reverse proxy](reverse-proxy.md).
 
 ### Niveau 3 : composants (zoom sur `evey-server`)
 
@@ -318,7 +322,7 @@ flowchart LR
         a_music[music]
         a_photo[photo]
         a_user[user]
-        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest]
+        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest,<br/>demo, updatecheck]
     end
 
     subgraph domain[Cœur du domaine - internal/domain]
