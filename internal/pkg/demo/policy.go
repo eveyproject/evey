@@ -68,6 +68,7 @@ var OpenAdminRPCs = map[string]string{ //nolint:gosec // G101: RPC and route nam
 	"/evey.v1.AdminPluginService/GetPluginResourceLimits": "read of the sandbox limits; changing them is locked",
 
 	"/evey.v1.AdminMediaService/GetSeekIndexJob":       "read of a job's progress",
+	"/evey.v1.AdminMediaService/ScanSeekIndex":         "read of the last scan's cached result (CachedScan); the scan itself is locked",
 	"/evey.v1.AdminMediaService/GetMediaRepairHistory": "read of past repairs; every repair itself is locked",
 	"/evey.v1.AdminMediaService/ListMediaRepairs":      "read of the repair ledger",
 
@@ -156,8 +157,7 @@ var LockedAdminRPCs = map[string]string{
 	"/evey.v1.AdminMediaService/MatchOrphansInLibrary":    "library-wide provider calls",
 	"/evey.v1.AdminMediaService/GenerateAllTrickplays":    "library-wide ffmpeg",
 	"/evey.v1.AdminMediaService/DeleteMediaItem":          "removes a title for everyone",
-	"/evey.v1.AdminMediaService/ScanSeekIndex":            "walks the media files",
-	"/evey.v1.AdminMediaService/StartSeekIndexScan":       "same",
+	"/evey.v1.AdminMediaService/StartSeekIndexScan":       "walks the media files; the demo runs one itself after its seed",
 	"/evey.v1.AdminMediaService/CancelSeekIndexJob":       "symmetric with the start",
 	"/evey.v1.AdminMediaService/ReindexMediaSeekIndex":    "rewrites a media file's index in place",
 	"/evey.v1.AdminMediaService/RollbackMediaSeekIndex":   "in-place write",

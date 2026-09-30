@@ -159,6 +159,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		WithBaseContext(serverCtx)
 	deps.bgStoppers = append(deps.bgStoppers, seekIndexSvc.Stop)
 	deps.seekIndexSvc = seekIndexSvc
+	deps.demoSeekIndex.Store(seekIndexSvc)
 
 	grpcDeps := grpcapi.GRPCServerDeps{
 		LibCmd:                 deps.library.cmdSvc,

@@ -1209,6 +1209,13 @@ func startDemoLifecycle(ctx context.Context, cfg *config.Config, infra *infraDep
 			if err := boot.Run(ctx); err != nil && ctx.Err() == nil {
 				slog.Error("demo bootstrap", slog.Any("err", err))
 			}
+			// Media health shows the last scan, kept in memory: one after the
+			// seed, so the page is not empty. Visitors cannot start one.
+			if svc := deps.demoSeekIndex.Load(); svc != nil {
+				if err := svc.StartScan(ctx, ""); err != nil {
+					slog.Warn("demo: media health scan", slog.Any("err", err))
+				}
+			}
 			// Hourly when nobody is watching, daily regardless: the demo keeps
 			// itself at its seed, no host cron needed.
 			boot.RunResets(ctx, time.Hour, 24*time.Hour)
