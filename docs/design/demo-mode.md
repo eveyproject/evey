@@ -167,10 +167,10 @@ plugin route, never on the admin one.
    endpoint; replacing the adapter also protects every other road to it - a
    scheduled task, an event subscriber, a plugin.
 
-9. **Reset is not a feature of Evey.** The host restores a seeded database dump
-   and data directory on a schedule: stop, restore, start. No reset endpoint, no
-   self-wiping timer, no demo-only migration. None of that would ever run in
-   production, which is precisely what makes it the code that breaks.
+9. **The reset is the seed run again.** An in-server timer re-runs the
+   idempotent bootstrap and clears the demo profiles' progress; no reset
+   endpoint, no demo-only migration. The host script remains for a full
+   restore of the data directory.
 
 10. **The demo says it is one.** The public server-info payload gains a boolean
    and the three clients render a banner from one translation key.
@@ -212,11 +212,10 @@ other plugin write, and the panel greys the fields.
 
 ## Reset cadence
 
-**When nobody is watching, at most once an hour.** The host asks the server
-whether any playback session is active; if none is, it restores. That is a
-`curl` and an `if` in the restore script, no application code, and it lands
-close to what "reset when the visitor leaves" was reaching for without any of
-its failure modes.
+**When nobody is watching, at most once an hour.** The server checks its own
+active-stream count every hour; if it is zero, it resets. Once a day it resets
+regardless. That lands close to what "reset when the visitor leaves" was
+reaching for without any of its failure modes, and needs nothing on the host.
 
 **Not on logout, and this is a property of the design rather than a cost
 question.** The account is shared, so several visitors are signed in as `demo`

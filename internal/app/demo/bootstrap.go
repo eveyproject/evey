@@ -110,6 +110,10 @@ type Bootstrapper struct {
 	media    library.MediaItemQueryRepo
 	progress playback.ProgressQueryRepo
 	history  History
+
+	// Optional periodic reset (WithReset, reset.go).
+	streams       ActiveStreams
+	progressReset ProgressReset
 }
 
 func NewBootstrapper(users user.UserRepository, profiles user.ProfileRepository, setup AdminSetup, accounts Accounts,

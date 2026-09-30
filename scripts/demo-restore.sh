@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
 # demo-restore.sh -- put the public demo back to its seeded state, when nobody
-# is watching. The reset is deliberately NOT a feature of the server (ADR-0031):
-# it is this script, on the host, next to the compose file, in cron.
+# is watching. Optional: the server already resets itself hourly when idle
+# (ADR-0031). This script is the heavier tool, a full restore of the data
+# directory from a seed archive, for when the in-server reset is not enough.
 #
 # What it does: asks the server whether anything is playing (the dashboard's
 # active-stream count, read with the demo account, which is an administrator),

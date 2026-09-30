@@ -83,10 +83,12 @@ refuse what a stranger must not do to the host.
 - **Outbound ports are sinks at composition**, not refused at a handler: no
   emailer is registered, the webhook sender is `Discard`, no push sender is
   built. Scheduled tasks and event subscribers are covered the same way.
-- **Reset is the host's job**: `scripts/demo-restore.sh` restores a seeded
-  data directory when nobody is watching (the dashboard's active-stream count,
-  read as the demo account), at most hourly, and once a day regardless.
-  Not on logout: the account is shared. No reset endpoint, no demo migration.
+- **The server resets itself**: every hour, when no stream is active, it
+  clears the demo accounts' watch progress and re-runs the seed (password,
+  accounts, libraries, plugins, home, history); once a day regardless. The
+  seed is idempotent, so the reset is the boot path run again, not new code.
+  No host cron. Not on logout: the account is shared. No reset endpoint.
+  `scripts/demo-restore.sh` stays for a full restore of the data directory.
 
 ## Consequences
 

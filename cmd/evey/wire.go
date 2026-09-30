@@ -1188,7 +1188,8 @@ func startDemoLifecycle(ctx context.Context, cfg *config.Config, infra *infraDep
 		WithMarker(r.ServerCfg).
 		WithPlugins(r.Plugin, deps.engagement.pluginInstallerSvc, deps.engagement.pluginRuntimeSvc, cfg.Server.DemoPluginDir).
 		WithHomeLayout(deps.engagement.feedCmdSvc).
-		WithHistory(r.MediaItemQuery, r.WatchProgress, deps.media.playbackSvc.CommandService())
+		WithHistory(r.MediaItemQuery, r.WatchProgress, deps.media.playbackSvc.CommandService()).
+		WithReset(deps.engagement.activityQuerySvc, r.WatchProgress)
 	if !cfg.Server.Demo {
 		// Cheap check on the boot path, the teardown itself detached.
 		probe, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -1208,6 +1209,9 @@ func startDemoLifecycle(ctx context.Context, cfg *config.Config, infra *infraDep
 			if err := boot.Run(ctx); err != nil && ctx.Err() == nil {
 				slog.Error("demo bootstrap", slog.Any("err", err))
 			}
+			// Hourly when nobody is watching, daily regardless: the demo keeps
+			// itself at its seed, no host cron needed.
+			boot.RunResets(ctx, time.Hour, 24*time.Hour)
 			return
 		}
 		// Bounded like the other background writes: the deletes are a few
