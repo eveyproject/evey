@@ -1,5 +1,5 @@
 ---
-source_sha: 91ffe72783a80b591d04c2bf56329c458fa3055ea3fb320fa66ae50e512635dc
+source_sha: 97b31b19a771829c011c797f4712f4cccf1903064069d080bb2eaadb59c386e2
 reviewed: false
 ---
 # Copias de seguridad y actualizaciones
@@ -17,8 +17,9 @@ SHA256 del volcado.
 - tus archivos multimedia;
 - la caché de transcodificación (se regenera bajo demanda);
 - el índice de búsqueda (se reconstruye a partir de la base de datos);
-- los archivos de `./evey-data/keys`, incluida la clave que firma las sesiones,
-  ni los archivos de los plugins instalados.
+- las claves guardadas en `./evey-data`: `jwt.key`, que firma las sesiones, y la
+  carpeta `keys` (contraseña de la base de datos, clave de búsqueda);
+- los archivos de los plugins instalados.
 
 Una copia de la base de datos restaura por tanto el estado de Evey en la misma
 instalación. Para poder reconstruir una máquina, guarda también una copia de toda

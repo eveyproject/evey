@@ -12,8 +12,9 @@ It does **not** contain:
 - your media files;
 - the transcoding cache (regenerated on demand);
 - the search index (rebuilt from the database);
-- the files in `./evey-data/keys`, including the key that signs sessions, and
-  the installed plugin files.
+- the keys kept in `./evey-data`: `jwt.key`, which signs sessions, and the
+  `keys` folder (database password, search key);
+- the installed plugin files.
 
 A database backup therefore restores Evey's state on the same installation. To
 be able to rebuild a machine, keep a copy of the whole `./evey-data` folder as
