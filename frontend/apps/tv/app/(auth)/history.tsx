@@ -11,7 +11,7 @@ import {
 } from "@evey/api";
 import type { V1WatchProgress } from "@evey/api";
 import { formatDurationMs } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useDemoStore } from "@evey/store";
 import { invalidateWatchedState } from "@evey/client";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { progressPercent } from "../../src/lib/progressPercent";
@@ -63,6 +63,8 @@ export default function HistoryScreen() {
     if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  // Demo: the server refuses removing from the shared history.
+  const demo = useDemoStore((st) => st.demoMode);
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
       onSuccess: () => {
@@ -79,11 +81,11 @@ export default function HistoryScreen() {
         theme={theme}
         isFirst={index === 0}
         onPress={() => item.mediaItemId && router.push(`/media/${item.mediaItemId}`)}
-        onRemove={() => item.mediaItemId && unwatch.mutate({ mediaItemId: item.mediaItemId })}
+        onRemove={demo ? undefined : () => item.mediaItemId && unwatch.mutate({ mediaItemId: item.mediaItemId })}
         isPending={unwatch.isPending}
       />
     ),
-    [theme, unwatch],
+    [theme, unwatch, demo],
   );
 
   // "Empty" and "the server did not answer" are different sentences, and this
@@ -142,7 +144,8 @@ function HistoryItem({
   theme: ReturnType<typeof useTheme>;
   isFirst?: boolean;
   onPress: () => void;
-  onRemove: () => void;
+  // Absent on the demo: the history is the shared account's there.
+  onRemove?: () => void;
   isPending: boolean;
 }) {
   const { t } = useTranslation();
@@ -183,6 +186,7 @@ function HistoryItem({
     {/* A remote has no swipe and no long-press, so the removal action has to be
         its own focusable sibling rather than a gesture on the row. Without it
         the mutation below was wired but unreachable. */}
+    {onRemove ? (
     <FocusableCard
       onPress={onRemove}
       disabled={isPending}
@@ -193,6 +197,7 @@ function HistoryItem({
         {t("common.remove", "Remove")}
       </Text>
     </FocusableCard>
+    ) : null}
     </View>
   );
 }

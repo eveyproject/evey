@@ -105,7 +105,7 @@ vi.mock("@evey/api", () => ({
 // Shape copied from packages/store/src/auth.ts: `isAdmin` is a plain boolean
 // field on the store state, read through the selector like the screen does.
 const { isAdminRef } = vi.hoisted(() => ({ isAdminRef: { current: true } }));
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", () => ({ useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }), isDemoMode: () => false,
   useAuthStore: (selector: (s: any) => unknown) => selector({ profileId: "profile-1", isAdmin: isAdminRef.current }),
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));

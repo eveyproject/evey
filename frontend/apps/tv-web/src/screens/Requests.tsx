@@ -8,7 +8,7 @@ import {
   useMediaRequestServiceListMyRequests,
   useMediaRequestServiceSearchTitles,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useDemoStore } from "@evey/store";
 import { FocusRoot } from "../tv/focus";
 import { Pressable, Spinner, TextField } from "../components/ui";
 import { Icon } from "../components/icons";
@@ -71,7 +71,11 @@ function Thumb({ url, inLibrary }: { url?: string; inLibrary?: boolean }) {
 export function RequestsScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"search" | "mine">("search");
+  const [chosenTab, setTab] = useState<"search" | "mine">("search");
+  // The demo refuses the title search (it spends the operator's TMDB key) and
+  // the request itself: only the list of existing requests is shown there.
+  const demo = useDemoStore((s) => s.demoMode);
+  const tab = demo ? "mine" : chosenTab;
   const [scope, setScope] = useState<Scope>("video");
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState("");
@@ -122,8 +126,8 @@ export function RequestsScreen() {
     <FocusRoot autoFocus className="tab-page requests-page">
       <h1 className="tab-title">{t("requests.title")}</h1>
       <FocusRoot className="req-tabs">
-        <Pressable className={`req-tab ${tab === "search" ? "active" : ""}`} autoFocus onPress={() => setTab("search")}>{t("requests.tabSearch")}</Pressable>
-        <Pressable className={`req-tab ${tab === "mine" ? "active" : ""}`} onPress={() => setTab("mine")}>{t("requests.tabMine")}</Pressable>
+        {demo ? null : <Pressable className={`req-tab ${tab === "search" ? "active" : ""}`} autoFocus onPress={() => setTab("search")}>{t("requests.tabSearch")}</Pressable>}
+        <Pressable className={`req-tab ${tab === "mine" ? "active" : ""}`} autoFocus={demo} onPress={() => setTab("mine")}>{t("requests.tabMine")}</Pressable>
       </FocusRoot>
 
       {tab === "search" ? (

@@ -70,7 +70,7 @@ vi.mock("../../../src/components/CollectionRow", () => ({
 }));
 
 // --- @evey/store -------------------------------------------------------------------------
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", () => ({ useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }), isDemoMode: () => false,
   useAuthStore: (selector: (s: any) => unknown) => selector({ profileId: "prof-1", isAdmin: false }),
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));

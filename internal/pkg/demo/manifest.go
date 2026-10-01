@@ -200,7 +200,9 @@ type HomeSection struct {
 // the first boot and after every restore (the shared account's own viewing
 // adds to it during the hour). Films are resumed at Percent of their length
 // (Percent 0 = watched to the end); of a series, the first WatchedEpisodes of
-// season 1 are watched, so Next up offers the following one.
+// season 1 are watched, so Next up offers the following one, and with a
+// Percent that following episode is resumed there too, so Resume mixes films
+// and episodes the way a real account's does.
 type HistoryEntry struct {
 	Film            string
 	Percent         int
@@ -210,8 +212,17 @@ type HistoryEntry struct {
 
 var History = []HistoryEntry{
 	{Film: "Big Buck Bunny"},
+	{Film: "Elephants Dream"},
+	{Film: "Caminandes: Llama Drama"},
 	{Film: "Sintel", Percent: 40},
 	{Film: "Spring", Percent: 60},
-	{Series: "Colonel Bleep", WatchedEpisodes: 2},
-	{Series: "Sherlock Holmes", WatchedEpisodes: 1},
+	{Film: "Tears of Steel", Percent: 25},
+	{Film: "Cosmos Laundromat", Percent: 70},
+	{Film: "Metropolis", Percent: 35},
+	{Film: "His Girl Friday", Percent: 55},
+	{Film: "The General", Percent: 15},
+	{Series: "Colonel Bleep", WatchedEpisodes: 2, Percent: 50},
+	{Series: "Sherlock Holmes", WatchedEpisodes: 1, Percent: 30},
+	{Series: "Bonanza", Percent: 45},
+	{Series: "The Beverly Hillbillies", WatchedEpisodes: 1},
 }

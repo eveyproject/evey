@@ -93,6 +93,15 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 			span.SetStatus(otelcodes.Error, "cannot change caps")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_change_caps")
 		}
+		// The account's credentials are an adult action: from a kids profile a
+		// new password (or e-mail, then a reset) signed the parent out and
+		// reopened the account on its default, unrestricted profile without the
+		// PIN (audit 2026-10-01). Same gate as CreateProfile / DeleteProfile.
+		if req.Password != nil || req.Email != nil || req.Username != nil {
+			if rErr := h.refuseFromRestrictedProfile(ctx, span, claims); rErr != nil {
+				return nil, rErr
+			}
+		}
 	}
 	if req.MaxStreams != nil && *req.MaxStreams < 0 {
 		span.SetStatus(otelcodes.Error, "max_streams must be >= 0")

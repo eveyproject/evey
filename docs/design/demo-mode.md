@@ -188,6 +188,15 @@ plugin route, never on the admin one.
 - Storage and media: library creation and deletion, filesystem browsing, media
   file repair and every in-place write, backup restore.
 - The machine: server restart and shutdown, log download, cache path changes.
+- Credentials that outlive the visitor: API keys, invite links and public share
+  links. The boot and every reset delete the demo accounts' API keys and
+  invite links (a leftover invite would let anyone register).
+- Driving another screen: session commands and device commands ("Play on").
+  Every visitor's browser and phone is a device of the one shared account.
+- Calls on the operator's third-party quotas: the metadata provider searches,
+  the media-request title search, the subtitle provider search and the metadata
+  refresh of a title. On a public host they are a quota anyone can drain, and
+  the built-in TMDB key is shared by every Evey install.
 
 **Open**, because it is the product: browsing, playback with real transcoding,
 search, the profile picker, parental control (PIN check), subtitles, theme and
@@ -197,8 +206,14 @@ the weather plugin's configuration included, read.
 **Shown, not changed** (28-09 arbitration): collections, playlists, favourites,
 ratings, watched marks, media requests and metadata edits are shared content
 on a shared account - a visitor who deletes a collection deletes it for
-everyone until the restore. Their writes are locked and the web greys the
-controls; only watch progress is written, because playback needs it.
+everyone until the restore. Their writes are locked and every client stops
+offering them: the web greys the controls, the phone and the televisions hide
+them (a disabled button that still takes the D-pad focus is a trap). Only watch
+progress is written, because playback needs it.
+
+**Never in clear:** a secret stored in the server configuration (provider API
+keys, SMTP password, VAPID private key) is served masked by every admin read,
+the demo's open ones included.
 
 **Pre-installed rather than installable:** the bootstrap installs the `weather`
 example plugin from the bundle the operator drops under `EVEY_DEMO_PLUGIN_DIR`

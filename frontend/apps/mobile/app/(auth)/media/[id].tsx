@@ -33,7 +33,7 @@ import {
   useShareServiceCreateShareLink,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, useDemoStore } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -173,6 +173,7 @@ export default function MediaDetailScreen() {
   // episode it opened with: back here, the Resume label must be re-read.
   useRefetchOnReturn(refetchProgress);
   const profileId = useAuthStore((s) => s.profileId);
+  const demo = useDemoStore((s) => s.demoMode);
   const isAdmin = useAuthStore((s) => s.isAdmin);
   // Same active-profile resolution as the player screen (player/[id].tsx's
   // activeProfile) - reused here so a download captures the exact profile
@@ -856,6 +857,11 @@ export default function MediaDetailScreen() {
 
         {/* Action row: favorite, watched, playlist */}
         <View style={{ flexDirection: "row", gap: theme.spacing.sm, marginTop: theme.spacing.md, flexWrap: "wrap" }}>
+          {/* On the demo the favourites, ratings, watched marks, playlists and
+              collections are the shared account's and the server refuses
+              them: not offered there (the televisions do the same). */}
+          {demo ? null : (
+            <>
           <Pressable
             onPress={() => toggleFavorite.mutate()}
             disabled={toggleFavorite.isPending}
@@ -927,6 +933,8 @@ export default function MediaDetailScreen() {
               color={myRating === -1 ? theme.colors.onAccent : theme.colors.text}
             />
           </Pressable>
+            </>
+          )}
 
           {/* Deliberately NOT offered for a series/season: the server's
               MarkAsWatched writes a single progress row on the id it is given and
@@ -934,7 +942,7 @@ export default function MediaDetailScreen() {
               consumer descends the tree), so a "watched" series would leave every
               episode unwatched - a misleading button. Web shows it anyway; this is
               the one place we keep the mobile behaviour over web parity. */}
-          {!isSeries && !isSeason && (
+          {!demo && !isSeries && !isSeason && (
             <Pressable
               onPress={() => {
                 if (!profileId) return;
@@ -973,6 +981,7 @@ export default function MediaDetailScreen() {
             </Pressable>
           )}
 
+          {demo ? null : (
           <Pressable
             onPress={() => setPlaylistSheetOpen(true)}
             style={{
@@ -992,10 +1001,14 @@ export default function MediaDetailScreen() {
               {t("media.detail.addToPlaylist")}
             </Text>
           </Pressable>
+          )}
 
           {/* Sends this title's loadAndPlay command to one of the user's other
               connected Evey clients - the mobile counterpart to the web
               player's Cast/RemotePlaybackMenu "Play on" section. */}
+          {/* Locked on the demo: every device there belongs to the shared account,
+              so "Play on" would reach another visitor's screen. */}
+          {demo ? null : (
           <Pressable
             onPress={() => setPlayOnSheetOpen(true)}
             style={{
@@ -1015,10 +1028,11 @@ export default function MediaDetailScreen() {
               {t("player.playOn.title")}
             </Text>
           </Pressable>
+          )}
           {/* Grouping a title into a saga is thought of here, on the title's own
               page, not from a grid card - but only the library's bulk action bar
               offered it. Admin-gated like the RPC (AddCollectionItem is RoleAdmin). */}
-          {isAdmin && id && (
+          {!demo && isAdmin && id && (
             <Pressable
               onPress={() => setCollectionSheetOpen(true)}
               style={{
@@ -1158,7 +1172,9 @@ export default function MediaDetailScreen() {
               </Text>
             </Pressable>
           )}
-          {isAdmin && id && !isSeries && !isSeason && hasMediaFile(media) && (
+          {/* Share link, metadata editor and segment editor: locked on the demo,
+              and none of the three has a read-only view on the phone. */}
+          {!demo && isAdmin && id && !isSeries && !isSeason && hasMediaFile(media) && (
             <Pressable
               onPress={() => createShareLink.mutate({ mediaItemId: id, data: { durationHours: 48 } })}
               disabled={createShareLink.isPending}
@@ -1181,7 +1197,7 @@ export default function MediaDetailScreen() {
               </Text>
             </Pressable>
           )}
-          {isAdmin && id && (
+          {!demo && isAdmin && id && (
             <Pressable
               onPress={() => setMetadataSheetOpen(true)}
               style={{
@@ -1202,7 +1218,7 @@ export default function MediaDetailScreen() {
               </Text>
             </Pressable>
           )}
-          {isAdmin && id && (
+          {!demo && isAdmin && id && (
             <Pressable
               onPress={() => router.push(`/admin/media/${id}` as never)}
               style={{

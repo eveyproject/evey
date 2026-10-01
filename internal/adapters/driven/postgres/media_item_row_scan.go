@@ -27,7 +27,7 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		filePath, fingerprint, containerFormat          *string
 		fileSize, durationMs, bitrate                   *int64
 		streamProbeAttempts, interleaveBackstepMs       sql.NullInt64
-		modTimeRaw                                      sql.NullTime
+		modTimeRaw, latestChildAddedAt                  sql.NullTime
 		premiereDate                                    sql.NullTime
 		year                                            sql.NullInt64
 		providerJSON, genresJSON, studiosJSON, tagsJSON []byte
@@ -39,7 +39,7 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 	if err := src.Scan(
 		&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &scanTitle,
 		&item.SortTitle, &item.OriginalTitle, &item.Overview, &item.Tagline, &item.IndexNumber,
-		&item.AddedAt, &item.UpdatedAt,
+		&item.AddedAt, &item.UpdatedAt, &latestChildAddedAt,
 		&filePath, &fileSize, &fingerprint, &modTimeRaw, &durationMs, &bitrate, &containerFormat, &streamProbeAttempts, &interleaveBackstepMs,
 		&premiereDate, &year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
 		&communityRating, &officialRating, &certJSON, &providerRatingsJSON,
@@ -49,6 +49,10 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 	}
 	if parentID != nil {
 		item.ParentID = *parentID
+	}
+	if latestChildAddedAt.Valid {
+		t := latestChildAddedAt.Time
+		item.LatestChildAddedAt = &t
 	}
 	if scanTitle != nil {
 		item.ScanTitle = *scanTitle

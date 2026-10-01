@@ -43,7 +43,7 @@ export default function FavoritesScreen() {
         <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
           {item.title ?? t("common.untitled", "Untitled")}
         </Text>
-        {item.year != null && (
+        {!!item.year && (
           <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center" }}>
             {item.year}
           </Text>

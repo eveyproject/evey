@@ -1,14 +1,17 @@
 import { useTranslation } from "react-i18next";
-import type { V1MediaStream } from "@evey/api";
+import { languageDisplayName, type V1MediaStream } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
-import { hdrLabel } from "./streamLabels";
+import { hdrLabel, resolutionLabel } from "./streamLabels";
 
 interface StreamListProps {
   streams?: V1MediaStream[];
 }
 
 function StreamRow({ stream }: { stream: V1MediaStream }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const name = languageDisplayName(stream.language, i18n.language);
+  // A track titled "French" already says it: no "French French".
+  const language = name && name.toLowerCase() !== stream.title?.trim().toLowerCase() ? name : null;
   return (
     <div
       className="flex items-center gap-3 py-2 px-3 rounded-[var(--radius-sm)] bg-[var(--surface-raised)]"
@@ -18,9 +21,9 @@ function StreamRow({ stream }: { stream: V1MediaStream }) {
           {stream.codec}
         </span>
       )}
-      {stream.language && (
-        <span className="text-xs uppercase text-[var(--text-muted)]">
-          {stream.language}
+      {language && (
+        <span className="text-xs text-[var(--text-muted)]" title={stream.language}>
+          {language}
         </span>
       )}
       {stream.title && (
@@ -37,7 +40,11 @@ function StreamRow({ stream }: { stream: V1MediaStream }) {
 
 function VideoStreamRow({ stream }: { stream: V1MediaStream }) {
   const hdr = hdrLabel(stream);
-  const dims = stream.width && stream.height ? `${stream.width}x${stream.height}` : null;
+  // The tier every other surface prints, then the exact frame for whoever
+  // needs it: "1080p · 1920×818", not a bare "1920x818" beside a "720p" chip.
+  const tier = resolutionLabel(stream);
+  const frame = stream.width && stream.height ? `${stream.width}×${stream.height}` : null;
+  const dims = tier && frame ? `${tier} · ${frame}` : tier ?? frame;
   const fps = stream.frameRate ? `${Number(stream.frameRate).toFixed(3).replace(/\.?0+$/, "")} fps` : null;
   const depth = stream.bitDepth ? `${stream.bitDepth} bit` : null;
 

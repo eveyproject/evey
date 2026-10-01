@@ -12,6 +12,8 @@
 // 6 and 8 channels, it reads the same in every locale, and it is what the rest
 // of the product (media info, settings) uses. Unknown counts degrade to
 // "<n>ch" rather than guessing a layout.
+import { languageDisplayName } from "./langCodes";
+
 const CHANNEL_LAYOUTS: Record<number, string> = {
   1: "1.0",
   2: "2.0",
@@ -37,8 +39,11 @@ export function formatChannelLayout(channels: number | undefined): string {
 export function trackDisplayName(
   s: { title?: string; language?: string },
   fallback: string,
+  // With the UI locale, a bare language tag reads as a name ("ger" -> "German").
+  locale?: string,
 ): string {
-  return s.title?.trim() || s.language?.trim() || fallback;
+  const lang = locale ? languageDisplayName(s.language, locale) : s.language?.trim();
+  return s.title?.trim() || lang || fallback;
 }
 
 /**
@@ -51,8 +56,9 @@ export function trackDisplayName(
 export function formatAudioTrackLabel(
   s: { title?: string; language?: string; channels?: number },
   fallback: string,
+  locale?: string,
 ): string {
-  const name = trackDisplayName(s, fallback);
+  const name = trackDisplayName(s, fallback, locale);
   const layout = formatChannelLayout(s.channels);
   return layout ? `${name} - ${layout}` : name;
 }

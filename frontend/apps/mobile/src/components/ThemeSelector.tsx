@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect } from "react";
 import { ScrollView, View, Pressable, Text, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
-import { useThemeStore, useAuthStore, themePreferences } from "@evey/store";
+import { useThemeStore, useAuthStore, themePreferences, isDemoMode } from "@evey/store";
 import { themes, FONT_SIZE } from "@evey/theme";
 import { pluginThemeKey, usePluginThemes } from "@evey/client";
 import { useTheme } from "../providers/ThemeProvider";
@@ -57,7 +57,8 @@ function ThemeSelectorImpl() {
   const pickTheme = useCallback(
     (key: string, pluginId?: string) => {
       setTheme(key, pluginId);
-      if (!activeProfile?.id) return;
+      // Demo: the profile is shared, the theme stays on this phone.
+      if (!activeProfile?.id || isDemoMode()) return;
       updateProfile.mutate({
         id: activeProfile.id,
         data: { preferences: themePreferences(activeProfile.preferences, key, pluginId) },

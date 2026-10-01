@@ -11,6 +11,7 @@ import (
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/playback"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -233,7 +234,7 @@ func (d *adminSessionHandler) appendMusicSessions(ctx context.Context, resp *eve
 			PositionMs:  ms.PositionMs,
 			StartedAt:   timestamppb.New(ms.StartedAt),
 			DeviceName:  ms.DeviceName,
-			PlayMethod:  "DirectStream",
+			PlayMethod:  string(playback.DirectStream), // the domain vocabulary every client maps
 			AudioCodec:  track.MimeType,
 			IsPaused:    ms.IsPaused,
 			CoverArtUrl: track.CoverArtURL,

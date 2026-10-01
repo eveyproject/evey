@@ -129,11 +129,12 @@ vi.mock("../components/library/BulkAddSheets", () => ({
 }));
 
 // --- @evey/store -----------------------------------------------------------------------
-const { isAdminRef } = vi.hoisted(() => ({ isAdminRef: { current: true } }));
+const { isAdminRef, demoRef } = vi.hoisted(() => ({ isAdminRef: { current: true }, demoRef: { current: false } }));
 vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: any) => unknown) =>
     selector({ profileId: "profile-1", isAdmin: isAdminRef.current, accessToken: "tok" }),
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+  useDemoStore: (selector: (s: any) => unknown) => selector({ demoMode: demoRef.current }),
 }));
 
 // --- @evey/api -------------------------------------------------------------------------
@@ -201,5 +202,17 @@ describe("MediaDetailScreen add to collection", () => {
     // Defense in depth: the sheet itself must not even mount for a non-admin,
     // not just be unreachable via the button.
     expect(collectionSheetProps).not.toHaveBeenCalled();
+  });
+
+  // The demo refuses collection edits: even its administrator is not offered one.
+  it("hides the button on the demo, admin or not", () => {
+    isAdminRef.current = true;
+    demoRef.current = true;
+    try {
+      render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+      expect(screen.queryByTestId("add-to-collection-button")).toBeNull();
+    } finally {
+      demoRef.current = false;
+    }
   });
 });

@@ -73,7 +73,7 @@ describe("LibraryFiltersPanel", () => {
     expect(h.onCodecsChange).toHaveBeenLastCalledWith([]);
     fireEvent.click(screen.getByText("2160p"));
     expect(h.onResolutionsChange).toHaveBeenCalledWith(["2160p"]);
-    const english = screen.getByText((txt) => txt.toLowerCase() === "english" || txt === "anglais");
+    const english = screen.getByText((txt) => ["english", "anglais"].includes(txt.toLowerCase()));
     fireEvent.click(english);
     expect(h.onAudioLangsChange).toHaveBeenCalledWith(["en"]);
     expect(screen.getByText("zz")).toBeTruthy();

@@ -416,9 +416,13 @@ func (d *adminSystemHandler) GetServerConfig(ctx context.Context, _ *eveyv1.GetS
 		span.RecordError(err)
 		return nil, internalError(ctx, "get server config", err)
 	}
+	// Secrets never leave the store in clear, the same rule as the entry
+	// listing (server_config_handler.go): this map carried the provider API
+	// keys and the VAPID private key raw - to every demo visitor, since the
+	// read is open there (found 2026-10-01).
 	values := make(map[string]string, len(entries))
 	for _, e := range entries {
-		values[e.Key] = e.Value
+		values[e.Key] = appconfig.MaskSecretValue(e.Key, e.Value)
 	}
 	return &eveyv1.ServerConfig{Values: values}, nil
 }
@@ -432,6 +436,11 @@ func (d *adminSystemHandler) UpdateServerConfig(ctx context.Context, req *eveyv1
 	for k, v := range req.Values {
 		if k == "" {
 			return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.key_required")
+		}
+		// The read above serves secrets masked: a map sent back whole must
+		// not overwrite a stored credential with the mask.
+		if appconfig.ShouldKeepStoredSecret(k, v) {
+			continue
 		}
 		if err := d.serverCfgSvc.Set(ctx, k, v); err != nil {
 			span.RecordError(err)

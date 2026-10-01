@@ -65,6 +65,7 @@ vi.mock("@evey/store", () => ({
   useThemeStore: (sel: any) => sel({ theme: "default", setTheme: setThemeMock, applyFromPreferences: () => {} }),
   themePreferences: (current: Record<string, string> | undefined, theme: string) => ({ ...current, theme }),
   useLocaleStore: (sel: any) => sel({ locale: "en", setLocale: setLocaleMock }),
+  isDemoMode: () => false,
 }));
 
 // --- hooks mocks ---------------------------------------------------------------

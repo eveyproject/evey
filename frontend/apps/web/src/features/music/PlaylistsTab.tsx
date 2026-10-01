@@ -196,7 +196,7 @@ export function PlaylistsTab({
             {...lock}
             type="button"
             onClick={handleGenerate}
-            disabled={generate.isPending}
+            disabled={!!lock.disabled || (generate.isPending)}
             data-testid="generate-playlist-btn"
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer disabled:opacity-50 disabled:cursor-default"
           >

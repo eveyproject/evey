@@ -220,7 +220,7 @@ func ReconcileSearchIndex(
 		if ctx.Err() != nil {
 			return indexed, ctx.Err()
 		}
-		batch, err := items.List(ctx, library.ListMediaItemsFilter{Limit: reconcilePageSize, AfterID: afterID})
+		batch, err := items.List(ctx, library.ListMediaItemsFilter{Limit: reconcilePageSize, AfterID: afterID, KeysetByID: true})
 		if err != nil {
 			return indexed, fmt.Errorf("reconcile: list media items after %q: %w", afterID, err)
 		}

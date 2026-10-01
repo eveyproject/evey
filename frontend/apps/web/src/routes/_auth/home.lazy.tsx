@@ -313,8 +313,11 @@ function HomePage() {
           </button>
         </div>
 
-        {/* Plugins mounting the page hero - the strip above every feed. */}
-        <PluginSlot name="home.hero" />
+        {/* Plugins mounting the page hero - the strip above every feed. Plugin
+            slots are wrapped in the rows' own spacing (mb-10, like MediaSlider):
+            bare, the next row's title sat flush under the plugin. empty:hidden
+            drops the gap when no plugin mounts there. */}
+        <div className="mb-10 empty:hidden"><PluginSlot name="home.hero" /></div>
 
         {!isLoading && isContentError ? (
           <FetchErrorState error={contentError} onRetry={retryContent} />
@@ -332,7 +335,7 @@ function HomePage() {
                 which prepends them with a negative displayOrder. Once the
                 user saves a position, the entry persists and is rendered
                 inline below at its sorted slot. */}
-            <PluginSlot name="home.section" excludeRegistered={excludeRegisteredPluginIDs} />
+            <div className="mb-10 empty:hidden"><PluginSlot name="home.section" excludeRegistered={excludeRegisteredPluginIDs} /></div>
             {sections.map((cfg) => {
               const ft = cfg.feedType ?? "";
               const max = cfg.maxItems && cfg.maxItems > 0 ? cfg.maxItems : undefined;
@@ -348,7 +351,7 @@ function HomePage() {
                 // exact position dictated by the customise-home order.
                 // PluginSlot filters internally to just the matching id.
                 const pluginId = ft.slice("plugin:".length);
-                return <PluginSlot key={ft} name="home.section" pluginId={pluginId} />;
+                return <div key={ft} className="mb-10 empty:hidden"><PluginSlot name="home.section" pluginId={pluginId} /></div>;
               }
               const Component = SECTION_REGISTRY[ft];
               return Component ? <Component key={ft} maxItems={max} /> : null;

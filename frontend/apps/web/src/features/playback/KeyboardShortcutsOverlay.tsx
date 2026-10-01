@@ -21,7 +21,7 @@ export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 30, sk
     ["L / \u2192", t("player.shortcuts.seekForward", { seconds: skipForwardSeconds })],
     ["\u2191", t("player.shortcuts.volumeUp")],
     ["\u2193", t("player.shortcuts.volumeDown")],
-    ["0\u20139", t("player.shortcuts.seekPercent")],
+    ["0-9", t("player.shortcuts.seekPercent")],
     ["C", t("player.shortcuts.toggleCaptions")],
     ["< (,)", t("player.shortcuts.decreaseSpeed")],
     ["> (.)", t("player.shortcuts.increaseSpeed")],

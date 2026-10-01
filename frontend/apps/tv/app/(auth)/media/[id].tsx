@@ -18,7 +18,7 @@ import {
 } from "@evey/api";
 import type { V1MediaItem, V1MediaPerson, V1Trailer } from "@evey/api";
 import { useMutation } from "@tanstack/react-query";
-import { useAuthStore, toast } from "@evey/store";
+import { useAuthStore, useDemoStore, toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { RESUME_PROGRESS_QUERY, invalidateWatchedState } from "@evey/client";
@@ -166,6 +166,10 @@ function PosterShelf({
   );
 }
 
+// Opacity of each band of the backdrop fade, top to bottom: the curve the
+// four original steps traced (0.1, 0.35, 0.7, 0.95), sampled finer.
+const FADE_STEPS = Array.from({ length: 16 }, (_, i) => Math.round((0.05 + 0.9 * ((i + 0.5) / 16) ** 1.4) * 1000) / 1000);
+
 // "More like this". Same two-step as web and mobile: the recommendation feed
 // first, and a same-genre listing when the feed has nothing to say - a page
 // that ends on an empty shelf is a dead end for the remote.
@@ -231,6 +235,7 @@ export default function MediaDetailScreen() {
   // episode it opened with: back here, the Resume label must be re-read.
   useRefetchOnReturn(refetchProgress);
   const profileId = useAuthStore((s) => s.profileId);
+  const demo = useDemoStore((s) => s.demoMode);
   const qc = useQueryClient();
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
@@ -436,12 +441,13 @@ export default function MediaDetailScreen() {
             placeholderContentFit="cover"
           />
         ) : null}
-        {/* Fade to bg so the poster/title stay legible over any backdrop. */}
+        {/* Fade to bg so the poster/title stay legible over any backdrop. No
+            gradient module in this app, so it is steps of flat colour: four of
+            them read as hard stripes across a 1080p screen, sixteen blend. */}
         <View style={[StyleSheet.absoluteFillObject, { justifyContent: "flex-end" }]}>
-          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.1 }} />
-          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.35 }} />
-          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.7 }} />
-          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.95 }} />
+          {FADE_STEPS.map((opacity) => (
+            <View key={opacity} style={{ flex: 1, backgroundColor: theme.colors.bg, opacity }} />
+          ))}
         </View>
       </View>
 
@@ -558,6 +564,11 @@ export default function MediaDetailScreen() {
           ) : null}
         </View>
 
+        {/* On the demo the favourites, watched marks, playlists and ratings are
+            the shared account's and the server refuses them: not offered, since
+            a disabled button that still takes the focus is a trap on a remote. */}
+        {demo ? null : (
+          <>
         <Pressable
           onPress={() => toggleFavorite.mutate()}
           disabled={toggleFavorite.isPending}
@@ -634,7 +645,6 @@ export default function MediaDetailScreen() {
             has no way to express "the other direction" on a single control. */}
         {/* No series/season guard here either, matching web's RatingButtons
             (MediaDetailActions.tsx:266). */}
-        <>
             <Pressable
               onPress={() => setThumbRating.mutate(myRating === 1 ? 0 : 1)}
               disabled={thumbsBusy}
@@ -679,7 +689,8 @@ export default function MediaDetailScreen() {
                 {t("media.rating.dislike", "Dislike")}
               </Text>
             </Pressable>
-        </>
+          </>
+        )}
 
         {/* Trailers hand off to whatever app the television has for the site.
             Only rendered when a link can actually be built, and a device with

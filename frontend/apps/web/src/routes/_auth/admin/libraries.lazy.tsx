@@ -46,7 +46,7 @@ function supportsProviderMatching(type: string | undefined): boolean {
 }
 
 function formatDate(iso?: string): string {
-  if (!iso) return "\u2014";
+  if (!iso) return "-";
   try {
     return new Date(iso).toLocaleString();
   } catch {
@@ -307,10 +307,10 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
         <Badge variant="info">{libraryTypeLabel(library.type, t)}</Badge>
       </td>
       <td className="px-4 py-3 text-sm text-[var(--text-muted)]" data-label={t("admin.libraries.tableHeaders.paths")}>
-        {library.paths?.join(", ") ?? "\u2014"}
+        {library.paths?.join(", ") ?? "-"}
       </td>
       <td className="px-4 py-3 text-sm text-[var(--text-muted)]" data-label={t("admin.libraries.tableHeaders.items")}>
-        {totalItems != null ? t("admin.libraries.items", { count: totalItems }) : <span className="opacity-50">{"\u2014"}</span>}
+        {totalItems != null ? t("admin.libraries.items", { count: totalItems }) : <span className="opacity-50">{"-"}</span>}
       </td>
       <td className="px-4 py-3 text-sm text-[var(--text-muted)]" data-label={t("admin.libraries.tableHeaders.lastScanned")}>
         {formatDate(libStat?.lastScannedAt ?? undefined)}

@@ -47,9 +47,8 @@ var RedactedFields = []string{"client_ip", "ip_address", "user_agent"}
 const MinPasswordLength = len(Password)
 
 // OpenAdminRPCs are the admin-only RPCs a demo visitor may call: reads whose
-// answer discloses nothing about the host or about other visitors, plus the
-// one additive write the API try-out needs (CreateAPIKey). Anything the hourly
-// restore cannot undo, that reaches the filesystem, the network or another
+// answer discloses nothing about the host or about other visitors, and the
+// impersonation of a seeded account. Anything the hourly reset cannot undo, that reaches the filesystem, the network or another
 // visitor's session, or that changes what every other visitor sees (the
 // account is shared: collections, playlists, favourites, ratings, watched
 // marks, metadata) is not here - the demo is visual.
@@ -78,11 +77,6 @@ var OpenAdminRPCs = map[string]string{ //nolint:gosec // G101: RPC and route nam
 	"/evey.v1.UserService/ListUsers":       "the seeded accounts; creating, deleting or impersonating one is locked",
 	"/evey.v1.UserService/ListAllProfiles": "the seeded profiles",
 	"/evey.v1.UserService/ListAPIKeys":     "prefix and metadata only",
-	// The API stays usable in read mode from the demo: a key a visitor mints is
-	// governed by this same policy on every call, and the restore revokes it.
-	// Revoking is locked: the keys belong to the shared account, so a visitor
-	// would revoke another visitor's.
-	"/evey.v1.UserService/CreateAPIKey": "lets a visitor try the API; the key can do nothing the visitor cannot",
 	// The immersive view: the seeded accounts and their profiles are there to be
 	// visited. An impersonated visitor is still judged by this policy, as a
 	// non-administrator on top of it.
@@ -111,7 +105,7 @@ var OpenAdminRPCs = map[string]string{ //nolint:gosec // G101: RPC and route nam
 // LockedAdminRPCs are the admin-only RPCs the demo refuses, each with the
 // reason. They are listed rather than left to the default so the decision is
 // written down and the guard can refuse an RPC that is in neither list.
-var LockedAdminRPCs = map[string]string{
+var LockedAdminRPCs = map[string]string{ //nolint:gosec // G101: RPC names with their reasons, no credential ("CreateAPIKey" is a method name)
 	"/evey.v1.AdminSystemService/StartLoadTest":      "spawns synthetic viewers against the demo host",
 	"/evey.v1.AdminSystemService/CancelLoadTest":     "no job to cancel; symmetric with the start",
 	"/evey.v1.AdminSystemService/RestartServer":      "the machine: takes the demo down for everyone",
@@ -129,6 +123,10 @@ var LockedAdminRPCs = map[string]string{
 	"/evey.v1.UserService/DeleteUser":       "identity",
 	"/evey.v1.UserService/DisableUser":      "identity: locks the shared account out for everyone",
 	"/evey.v1.UserService/RevokeAPIKey":     "the keys belong to the shared account: a visitor would revoke another visitor's",
+	// Locked 2026-10-01 (the API needs no try-out on the demo): a minted key
+	// outlived the visitor and the reset, and revoking it is locked above. The
+	// boot and every reset purge the keys minted before (PurgeCredentials).
+	"/evey.v1.UserService/CreateAPIKey": "a credential that outlives the visitor, which no visitor can revoke",
 
 	// Shared content: a collection one visitor edits or deletes is gone for
 	// the 150 others until the restore - the demo shows them, it does not
@@ -276,6 +274,12 @@ var LockedUserRPCs = map[string]string{
 	"/evey.v1.MetadataService/SetMetadataOverride":    "same",
 	"/evey.v1.MetadataService/RemoveMetadataOverride": "same",
 	"/evey.v1.MetadataService/ResearchMetadata":       "re-matches a title for everyone, with provider calls",
+	"/evey.v1.MetadataService/RefreshMetadata":        "re-fetches a title from the providers and rewrites it for everyone",
+	// Provider searches: every call spends the operator's metadata keys - on a
+	// public host, a quota anyone can drain, and the built-in TMDB key is
+	// shared by every Evey install. What each search prepares is locked.
+	"/evey.v1.MetadataService/SearchMetadata":         "a search across every metadata provider per call; the match it prepares is locked",
+	"/evey.v1.MediaRequestService/SearchTitles":       "a TMDB search per call on the operator's key; the request it prepares is locked",
 	"/evey.v1.PluginUserDataService/SetPref":          "plugin preferences of the shared account",
 	"/evey.v1.PluginUserDataService/DeletePref":       "same",
 	"/evey.v1.ParentalService/UpdateParentalSettings": "a PIN set by one visitor locks the others out of the shared profile",
@@ -315,7 +319,6 @@ var OpenRoutes = map[string]string{
 	"GET /api/v1/admin/background-tasks":                "the task table, read",
 	"GET /api/v1/admin/backups":                         "the backup list, read; the download route is locked",
 	"GET /api/v1/admin/library-stats":                   "counters",
-	"GET /api/v1/admin/media/{id}/search-metadata":      "a provider search for one title; the same call the metadata editor makes",
 	"GET /api/v1/admin/plugin-runtimes/available":       "the runtime catalogue, read",
 	"GET /api/v1/admin/plugins/security-dashboard":      "read of the sandbox report",
 	"GET /api/v1/admin/qoe/dashboard":                   "playback quality aggregates",
@@ -339,7 +342,6 @@ var OpenRoutes = map[string]string{
 	"POST /api/v1/cast/play":                         "same",
 	"POST /api/v1/cast/seek":                         "same",
 	"POST /api/v1/cast/stop":                         "same",
-	"POST /api/v1/devices/{id}/command":              "the visitor's own devices",
 	"POST /api/v1/dlna/pause":                        "own DLNA session",
 	"POST /api/v1/dlna/play":                         "same",
 	"POST /api/v1/dlna/stop":                         "same",
@@ -367,7 +369,12 @@ var LockedRoutes = map[string]string{ //nolint:gosec // G101: RPC and route name
 	"GET /api/v1/admin/backups/{id}":            "downloads the database dump - every hash and every setting",
 	"GET /api/v1/admin/network-info":            "discloses the host's interfaces and addresses",
 	"GET /api/v1/admin/media/{id}/sync-preview": "transcodes on every call",
-	"GET /metrics":                              "process and host telemetry; the dashboard shows what a visitor needs",
+	// Every visitor's browser and phone is a device of the one shared account:
+	// "Play on" reached another visitor's screen, the same harm as
+	// SendSessionCommand (locked above for that reason).
+	"POST /api/v1/devices/{id}/command":            "drives another visitor's player: every device belongs to the shared account",
+	"GET /api/v1/admin/media/{id}/search-metadata": "an outbound provider call per request on the operator's key; the match it serves is locked",
+	"GET /metrics": "process and host telemetry; the dashboard shows what a visitor needs",
 
 	"DELETE /api/v1/admin/backups/{id}":                    "deletes files",
 	"DELETE /api/v1/admin/media/{id}/segments":             "segment edits are library maintenance, not the product",
@@ -404,6 +411,7 @@ var LockedRoutes = map[string]string{ //nolint:gosec // G101: RPC and route name
 	"PUT /api/v1/admin/server-settings":                    "operator settings",
 
 	"POST /api/v1/media/{id}/subtitles/download":         "writes a subtitle file next to the media",
+	"GET /api/v1/media/{id}/subtitles/search":            "spends the operator's OpenSubtitles quota (capped per key per day); the download it prepares is locked",
 	"DELETE /api/v1/media/{id}/subtitles/{subtitleId}":   "deletes a file next to the media",
 	"PUT /api/v1/profiles/{id}/parental":                 "a PIN set by one visitor locks every other visitor out of the shared profile",
 	"POST /api/v1/admin/media/{id}/reset-metadata":       "same",

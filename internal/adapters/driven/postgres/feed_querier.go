@@ -426,6 +426,9 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 	if len(targetGenres) == 0 {
 		return nil, nil // nothing to be similar on
 	}
+	targetCount := len(targetGenres)
+	// A series' "Sci-Fi & Fantasy" meets a film's "Science Fiction" and "Fantasy".
+	targetGenres = expandGenreFamilies(targetGenres)
 
 	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, `
 		SELECT mi.id, COALESCE(mi.parent_id,''), mi.title, mi.type, 0, '',
@@ -477,6 +480,7 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 	if err != nil {
 		return nil, err
 	}
+	items = keepMostRelevant(items, targetCount)
 	q.fillPrimaryBlurhashes(ctx, items)
 	return items, nil
 }

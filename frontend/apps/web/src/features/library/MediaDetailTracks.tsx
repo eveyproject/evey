@@ -11,8 +11,8 @@ interface MediaDetailTracksProps {
 const AUTO = "auto";
 const OFF = "off";
 
-export function subtitleTrackLabel(s: V1MediaStream, fallback: string, forced: string): string {
-  const name = trackDisplayName(s, fallback);
+export function subtitleTrackLabel(s: V1MediaStream, fallback: string, forced: string, locale?: string): string {
+  const name = trackDisplayName(s, fallback, locale);
   return s.isForced ? `${name} - ${forced}` : name;
 }
 
@@ -21,21 +21,21 @@ export function subtitleTrackLabel(s: V1MediaStream, fallback: string, forced: s
 // what it always did; the selects only exist to say otherwise before the
 // stream starts, instead of switching tracks mid-film.
 export function MediaDetailTracks({ streams, pick, onChange }: MediaDetailTracksProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const audio = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO" && s.index !== undefined);
   const subtitles = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE" && s.index !== undefined);
   if (audio.length < 2 && subtitles.length === 0) return null;
 
   const audioOptions = [
     { value: AUTO, label: t("media.streams.auto") },
-    ...audio.map((s) => ({ value: String(s.index), label: formatAudioTrackLabel(s, t("media.track", { number: s.index })) })),
+    ...audio.map((s) => ({ value: String(s.index), label: formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language) })),
   ];
   const subtitleOptions = [
     { value: AUTO, label: t("media.streams.auto") },
     { value: OFF, label: t("media.streams.none") },
     ...subtitles.map((s) => ({
       value: String(s.index),
-      label: subtitleTrackLabel(s, t("media.track", { number: s.index }), t("media.streams.forced")),
+      label: subtitleTrackLabel(s, t("media.track", { number: s.index }), t("media.streams.forced"), i18n.language),
     })),
   ];
 

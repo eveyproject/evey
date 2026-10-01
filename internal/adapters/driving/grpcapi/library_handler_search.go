@@ -136,6 +136,26 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 		}
 		resp.Items = append(resp.Items, mi)
 	}
+	// The index row is thin: no rating, no duration, no library - and its
+	// genres were never copied. The grids filter and badge search results on
+	// those (a genre chip plus a query gave an empty grid, audit 2026-10-01),
+	// so each hit is rebuilt from its stored item with the converter List and
+	// Filter use, keeping the index's title. One query for the page.
+	if len(resp.Items) > 0 {
+		ids := make([]string, 0, len(resp.Items))
+		for _, mi := range resp.Items {
+			ids = append(ids, mi.Id)
+		}
+		stored := fetchItemMap(ctx, h.query.GetMediaItemsByIDs, ids)
+		isAdmin := ctxIsAdmin(ctx)
+		for i, mi := range resp.Items {
+			if full := stored[mi.Id]; full != nil {
+				conv := mediaItemToProto(full, isAdmin)
+				conv.Title = mi.Title
+				resp.Items[i] = conv
+			}
+		}
+	}
 	// Search hits are minimal index rows: the document carries no parent link
 	// and no index number, so a hit inside a show comes back naked. Resolve
 	// EPISODE and SEASON hits once against the DB and stamp both fields back.

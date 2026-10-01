@@ -25,7 +25,7 @@ export function InviteLinkRow({ link }: { link: V1InviteLink }) {
     },
   });
 
-  const inviteUrl = link.code ? `${window.location.origin}/register?invite=${link.code}` : "\u2014";
+  const inviteUrl = link.code ? `${window.location.origin}/register?invite=${link.code}` : "-";
 
   async function copyLink() {
     if (link.code) {
@@ -41,7 +41,7 @@ export function InviteLinkRow({ link }: { link: V1InviteLink }) {
   return (
     <tr className="border-b border-[var(--border)]">
       <td data-label={t("admin.users.code")} className="px-4 py-3 font-mono text-sm text-[var(--text)]">
-        {link.code ?? "\u2014"}
+        {link.code ?? "-"}
       </td>
       <td data-label={t("admin.users.uses")} className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {link.timesUsed ?? 0} / {link.maxUses ?? "\u221E"}

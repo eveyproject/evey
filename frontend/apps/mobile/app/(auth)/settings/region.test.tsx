@@ -33,7 +33,7 @@ vi.mock("@evey/api", () => ({
   getUserServiceListProfilesQueryKey: (id: string) => ["profiles", id],
 }));
 const toast = { error: vi.fn() };
-vi.mock("@evey/store", () => ({ toast }));
+vi.mock("@evey/store", () => ({ useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }), isDemoMode: () => false, toast }));
 vi.mock("../../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { bg: "#000", surface: "#111", text: "#fff", textMuted: "#888", border: "#333", surfaceRaised: "#222", accent: "#f00" }, spacing: { sm: 8, md: 16 }, radii: { md: 8 } }),
 }));

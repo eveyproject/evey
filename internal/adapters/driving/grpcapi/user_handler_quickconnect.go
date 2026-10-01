@@ -51,6 +51,12 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 		span.SetStatus(otelcodes.Error, "unauthenticated")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
+	// The device it approves is signed in on the account's DEFAULT profile, not
+	// the approver's: from a kids profile that handed out an unrestricted
+	// session without the PIN (audit 2026-10-01).
+	if rErr := h.refuseFromRestrictedProfile(ctx, span, claims); rErr != nil {
+		return nil, rErr
+	}
 	code := req.Code
 	var fullCode string
 	var err error

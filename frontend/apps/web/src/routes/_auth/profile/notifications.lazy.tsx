@@ -104,7 +104,7 @@ function NotificationRow({ notif }: { notif: Notification }) {
         <button
           {...lock}
           onClick={(e) => { e.stopPropagation(); markRead.mutate({ id: notif.id! }); }}
-          disabled={markRead.isPending}
+          disabled={!!lock.disabled || (markRead.isPending)}
           className="shrink-0 text-xs text-[var(--accent)] hover:underline disabled:opacity-50 mt-1"
         >
           {t("common.notifications.markRead")}

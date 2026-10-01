@@ -23,7 +23,7 @@ import {
   type V1MediaPerson,
   type V1MediaStream,
 } from "@evey/api";
-import { toast, useAuthStore } from "@evey/store";
+import { toast, useAuthStore, useDemoStore } from "@evey/store";
 import {
   CARD_WIDTH_FEATURED,
   CARD_WIDTH_GRID,
@@ -166,7 +166,7 @@ function SagaSection({ mediaItemId }: { mediaItemId: string }) {
 
 // Audio and subtitle chosen before playback; "Auto" is the player's own choice.
 function TrackPickRow({ streams, pick, onChange }: { streams: V1MediaStream[]; pick: TrackPick; onChange: (p: TrackPick) => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const audio = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO" && s.index !== undefined);
   const subtitles = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE" && s.index !== undefined);
   if (audio.length < 2 && subtitles.length === 0) return null;
@@ -179,7 +179,7 @@ function TrackPickRow({ streams, pick, onChange }: { streams: V1MediaStream[]; p
         <FocusRoot className="track-pick-row">
           <span className="track-pick-title">{t("media.streams.audio")}</span>
           {pill("a:auto", t("media.streams.auto"), pick.audio === undefined, () => onChange({ ...pick, audio: undefined }))}
-          {audio.map((s) => pill(`a:${s.index}`, formatAudioTrackLabel(s, t("media.track", { number: s.index })), pick.audio === s.index, () => onChange({ ...pick, audio: s.index })))}
+          {audio.map((s) => pill(`a:${s.index}`, formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language), pick.audio === s.index, () => onChange({ ...pick, audio: s.index })))}
         </FocusRoot>
       ) : null}
       {subtitles.length > 0 ? (
@@ -189,7 +189,7 @@ function TrackPickRow({ streams, pick, onChange }: { streams: V1MediaStream[]; p
           {pill("s:off", t("media.streams.none"), pick.subtitle === "off", () => onChange({ ...pick, subtitle: "off" }))}
           {subtitles.map((s) => pill(
             `s:${s.index}`,
-            `${trackDisplayName(s, t("media.track", { number: s.index }))}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`,
+            `${trackDisplayName(s, t("media.track", { number: s.index }), i18n.language)}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`,
             pick.subtitle === s.index,
             () => onChange({ ...pick, subtitle: s.index }),
           ))}
@@ -203,6 +203,10 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const profileId = useAuthStore((s) => s.profileId);
+  // On the demo the favourites, watched marks, playlists and ratings are the
+  // shared account's and the server refuses them: not offered at all, since a
+  // greyed button that still takes the focus is a trap on a remote.
+  const demo = useDemoStore((s) => s.demoMode);
   const { data: media, isLoading, error, refetch } = useLibraryServiceGetMediaItem(mediaId);
   const { data: watchProgress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, { query: RESUME_PROGRESS_QUERY });
   const { data: isFavorite } = useIsFavorite(mediaId);
@@ -330,7 +334,7 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
     <FocusRoot autoFocus className="detail-page" preferredChildFocusKey={ACTIONS_KEY}>
       <div className="detail-hero" style={{ height: `${HERO_HEIGHT / 10}rem` }}>
         <img src={posterSrc(media.id, "backdrop", 1920)} alt="" />
-        <div className="detail-fade"><i /><i /><i /><i /></div>
+        <div className="detail-fade" />
       </div>
       <div className="detail-head" style={{ marginTop: `${-posterH / 2}rem` }}>
         <img className="detail-poster" src={posterSrc(media.id, "poster", CARD_WIDTH_FEATURED * 2)} alt="" style={{ width: `${posterW}rem`, height: `${posterH}rem` }} />
@@ -367,8 +371,8 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
               </Pressable>
             ) : null}
           </div>
-          {action("fav", isFavorite ? t("media.detail.favorited") : t("media.detail.favorite"), () => toggleFavorite.mutate(), !!isFavorite, toggleFavorite.isPending)}
-          {action(
+          {demo ? null : action("fav", isFavorite ? t("media.detail.favorited") : t("media.detail.favorite"), () => toggleFavorite.mutate(), !!isFavorite, toggleFavorite.isPending)}
+          {demo ? null : action(
             "watched",
             watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched"),
             () => {
@@ -378,9 +382,9 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
             watched,
             markWatched.isPending || markUnwatched.isPending,
           )}
-          {action("playlist", t("media.detail.addToPlaylist"), () => setPlaylistOpen(true))}
-          {action("like", t("media.rating.like", "Like"), () => setThumb.mutate(myRating === 1 ? 0 : 1), myRating === 1, thumbsBusy)}
-          {action("dislike", t("media.rating.dislike", "Dislike"), () => setThumb.mutate(myRating === -1 ? 0 : -1), myRating === -1, thumbsBusy)}
+          {demo ? null : action("playlist", t("media.detail.addToPlaylist"), () => setPlaylistOpen(true))}
+          {demo ? null : action("like", t("media.rating.like", "Like"), () => setThumb.mutate(myRating === 1 ? 0 : 1), myRating === 1, thumbsBusy)}
+          {demo ? null : action("dislike", t("media.rating.dislike", "Dislike"), () => setThumb.mutate(myRating === -1 ? 0 : -1), myRating === -1, thumbsBusy)}
           {trailer ? action("trailer", t("media.detail.trailer"), () => { window.open(trailer, "_blank", "noopener"); }) : null}
         </FocusRoot>
 

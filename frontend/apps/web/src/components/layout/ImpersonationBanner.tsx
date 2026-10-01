@@ -18,7 +18,7 @@ export function ImpersonationBanner() {
   if (!impersonatedBy) return null;
 
   return (
-    <div className="flex items-center justify-center gap-3 bg-[var(--badge-warning-bg,#713f12)] px-4 py-2 text-sm text-[var(--badge-warning-text,#fde047)]">
+    <div className="relative z-badge flex items-center justify-center gap-3 bg-[var(--badge-warning-bg,#713f12)] px-4 py-2 text-sm text-[var(--badge-warning-text,#fde047)]">
       <span>
         {username
           ? t("admin.users.impersonationBanner", { name: username })

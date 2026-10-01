@@ -34,7 +34,7 @@ function maskKey(key: string): string {
 }
 
 function formatDate(iso?: string): string {
-  if (!iso) return "\u2014";
+  if (!iso) return "-";
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 

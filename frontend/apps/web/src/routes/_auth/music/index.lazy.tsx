@@ -12,6 +12,7 @@ import { TracksTab } from "@/features/music/TracksTab";
 import { AlbumsTab } from "@/features/music/AlbumsTab";
 import { ArtistsTab } from "@/features/music/ArtistsTab";
 import { PlaylistsTab } from "@/features/music/PlaylistsTab";
+import { AlbumHeader } from "@/features/music/AlbumHeader";
 
 export const Route = createLazyFileRoute("/_auth/music/")({
   component: MusicPage,
@@ -55,9 +56,11 @@ function MusicPage() {
   // albumFilter holds the opaque album id; resolve a human label for the chip /
   // play-source from the loaded album list, falling back to a loaded track's
   // album name (covers a bookmarked URL before the album list arrives).
-  const albumLabel = albumFilter
-    ? (albums?.find((a) => a.ID === albumFilter)?.Title || tracks?.[0]?.Album || "")
-    : "";
+  const openAlbum = albumFilter ? albums?.find((a) => a.ID === albumFilter) : undefined;
+  const albumLabel = albumFilter ? (openAlbum?.Title || tracks?.[0]?.Album || "") : "";
+  const albumSource: MusicSource | undefined = albumFilter
+    ? { type: "album", id: albumFilter, label: albumLabel || albumFilter }
+    : undefined;
 
   function handlePlay(t: Track, allTracks: Track[], source?: MusicSource) {
     playInStore(t, allTracks, source);
@@ -158,6 +161,16 @@ function MusicPage() {
         ))}
       </div>
 
+      {tab === "tracks" && openAlbum && (tracks?.length ?? 0) > 0 && (
+        <AlbumHeader
+          album={openAlbum}
+          onPlay={() => handlePlay(tracks![0], tracks!, albumSource)}
+          onShuffle={() => {
+            const shuffled = shuffleTracks(tracks!);
+            handlePlay(shuffled[0], shuffled, albumSource);
+          }}
+        />
+      )}
       {tab === "tracks" && (
         <TracksTab
           allTracks={tracks ?? []}
@@ -170,11 +183,10 @@ function MusicPage() {
             handlePlay(
               tr,
               filtered,
-              albumFilter
-                ? { type: "album", id: albumFilter, label: albumLabel || albumFilter }
-                : artistFilter
+              albumSource
+                ?? (artistFilter
                   ? { type: "artist", id: artistFilter, label: artistFilter }
-                  : undefined,
+                  : undefined),
             )
           }
           search={searchInput}

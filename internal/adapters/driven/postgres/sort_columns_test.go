@@ -29,7 +29,7 @@ func TestResolveSortKey(t *testing.T) {
 		{"community_rating alias still works", "community_rating", "community_rating", "mcl.community_rating", true},
 		{"title", "title", "title", "mi.sort_title", true},
 		{"year", "year", "year", "mc.year", true},
-		{"date_added", "date_added", "date_added", "mi.added_at", true},
+		{"date_added", "date_added", "date_added", effectiveAddedAt, true},
 		{"premiere_date", "premiere_date", "premiere_date", "mc.premiere_date", true},
 		// The fallback itself is intended behaviour for input we never emit.
 		{"unknown field falls back to title", "no_such_field", "title", "mi.sort_title", false},
@@ -58,6 +58,9 @@ func TestResolveSortKey(t *testing.T) {
 // wrong one.
 func TestSortColumnMapIsTableQualified(t *testing.T) {
 	for key, col := range SortColumnMap {
+		if col == effectiveAddedAt {
+			continue // an expression over mi.* columns only
+		}
 		if len(col) < 4 || (col[:3] != "mi." && col[:3] != "mc." && col[:4] != "mcl.") {
 			t.Errorf("SortColumnMap[%q] = %q is not qualified with mi./mc./mcl.", key, col)
 		}

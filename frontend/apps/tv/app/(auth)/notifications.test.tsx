@@ -43,7 +43,7 @@ vi.mock("@evey/api", () => ({
 const invalidate = vi.hoisted(() => vi.fn());
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: invalidate }) }));
 const toast = vi.hoisted(() => ({ error: vi.fn() }));
-vi.mock("@evey/store", () => ({ toast }));
+vi.mock("@evey/store", () => ({ toast, useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }) }));
 vi.mock("../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { bg: "#000", surface: "#111", surfaceRaised: "#222", text: "#fff", textMuted: "#888", accent: "#f00" }, radii: { md: 8 } }),
 }));

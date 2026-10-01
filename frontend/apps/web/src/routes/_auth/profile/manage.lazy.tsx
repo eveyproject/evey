@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useDemoLock } from "@/hooks/useDemoMode";
 import { Plus } from "lucide-react";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { Button } from "@/components/ui/Button";
@@ -14,6 +15,8 @@ export const Route = createLazyFileRoute("/_auth/profile/manage")({
 
 function ProfileManagePage() {
   const { t } = useTranslation();
+  // Profiles are the shared account's on the demo: creating one is locked.
+  const { lock } = useDemoLock();
   const [creating, setCreating] = useState(false);
   const { data: user } = useUserServiceGetCurrentUser();
   const userId = user?.id ?? "";
@@ -37,7 +40,7 @@ function ProfileManagePage() {
             )}
           </p>
         </div>
-        <Button variant="primary" onClick={() => setCreating(true)}>
+        <Button {...lock} variant="primary" onClick={() => setCreating(true)}>
           <Plus size={16} aria-hidden="true" />
           {t("auth.profile.manage.createProfile", "Create Profile")}
         </Button>

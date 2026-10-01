@@ -454,22 +454,27 @@ func clampSessionField(s string) string {
 	return s
 }
 
-// servedResolution renders the served video height as e.g. "1080p": the
-// transcode target cap when transcoding, otherwise the source height.
+// servedResolution names the served frame the way every client does
+// (library.ResolutionLabel): the source, scaled down to the transcode's height
+// cap when there is one. A 1920x818 source is "1080p", not "818p".
 func servedResolution(d *transcoding.PlaybackDecision, streams []*library.MediaStream) string {
-	h := d.MaxHeight
-	if h <= 0 {
-		for _, s := range streams {
-			if s.StreamType == library.StreamTypeVideo && s.Height != nil && *s.Height > 0 {
-				h = *s.Height
-				break
+	w, h := 0, 0
+	for _, s := range streams {
+		if s.StreamType == library.StreamTypeVideo && s.Height != nil && *s.Height > 0 {
+			h = *s.Height
+			if s.Width != nil {
+				w = *s.Width
 			}
+			break
 		}
 	}
-	if h <= 0 {
-		return ""
+	if d.MaxHeight > 0 && (h <= 0 || d.MaxHeight < h) {
+		if h > 0 && w > 0 {
+			w = w * d.MaxHeight / h
+		}
+		h = d.MaxHeight
 	}
-	return fmt.Sprintf("%dp", h)
+	return library.ResolutionLabel(w, h)
 }
 
 func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStreamRequest) (*eveyv1.PlaySession, error) {

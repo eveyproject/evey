@@ -241,7 +241,11 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
   /* 5.5rem matches the overlap the poster had before, plus 16% of the backdrop
      height so the whole assembly rides that much higher over the image. */
   --media-hero-overlap: calc(5.5rem + 0.16 * var(--media-hero-h));
-  --media-hero-content-top: calc(var(--media-hero-h) - var(--media-hero-overlap));
+  /* ...but never so low that Play falls under the fold: on a short window the
+     row rides higher over the artwork rather than the artwork being cropped
+     (a 62vh cap cut half the frame, 2026-10-01). 440px is the metadata line,
+     the title, the genres and the action row, plus the header above. */
+  --media-hero-content-top: max(120px, min(calc(var(--media-hero-h) - var(--media-hero-overlap)), calc(100dvh - 440px)));
 }
 
 /* Hero overlay gradients */

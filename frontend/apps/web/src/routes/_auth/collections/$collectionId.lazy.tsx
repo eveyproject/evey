@@ -161,7 +161,7 @@ function CollectionDetailPage() {
                       aria-label={t("media.collections.moveUp")}
                       title={t("media.collections.moveUp")}
                       data-testid={`collection-up-${item.id}`}
-                      disabled={reorder.isPending || items[0]?.id === item.id}
+                      disabled={!!lock.disabled || (reorder.isPending || items[0]?.id === item.id)}
                       onClick={() =>
                         reorder.mutate({
                           mediaItemIds: moveItem(items.map((i) => i.id), item.id, "up"),
@@ -178,7 +178,7 @@ function CollectionDetailPage() {
                       aria-label={t("media.collections.moveDown")}
                       title={t("media.collections.moveDown")}
                       data-testid={`collection-down-${item.id}`}
-                      disabled={reorder.isPending || items[items.length - 1]?.id === item.id}
+                      disabled={!!lock.disabled || (reorder.isPending || items[items.length - 1]?.id === item.id)}
                       onClick={() =>
                         reorder.mutate({
                           mediaItemIds: moveItem(items.map((i) => i.id), item.id, "down"),
@@ -198,7 +198,7 @@ function CollectionDetailPage() {
                     aria-label={t("media.collections.removeItem")}
                     title={t("media.collections.removeItem")}
                     data-testid={`collection-remove-${item.id}`}
-                    disabled={removeItem.isPending}
+                    disabled={!!lock.disabled || removeItem.isPending}
                     onClick={() => {
                       if (!confirm(t("media.collections.removeItemConfirm", { title: item.title }))) return;
                       removeItem.mutate(item.id, {

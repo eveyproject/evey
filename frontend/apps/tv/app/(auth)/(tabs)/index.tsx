@@ -19,7 +19,7 @@ import {
   eveyFetch,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, useDemoStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
@@ -376,6 +376,7 @@ export default function HomeScreen() {
   // settings, not only from the home itself.
   const { customize: customizeParam } = useLocalSearchParams<{ customize?: string }>();
   const [customizeOpen, setCustomizeOpen] = useState(customizeParam === "1");
+  const demo = useDemoStore((st) => st.demoMode);
   useEffect(() => {
     if (customizeParam === "1") setCustomizeOpen(true);
   }, [customizeParam]);
@@ -828,7 +829,8 @@ export default function HomeScreen() {
       ) : null}
 
       <FeedCustomizePanel
-        visible={customizeOpen}
+        // The home layout is the shared profile's on the demo: never opened.
+        visible={customizeOpen && !demo}
         onClose={() => setCustomizeOpen(false)}
         configs={feedConfigData?.configs ?? []}
         profileId={profileId}

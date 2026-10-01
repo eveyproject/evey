@@ -29,6 +29,7 @@ import { CreateProfileDialog } from "@/features/profile/CreateProfileDialog";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
 import { ICON } from "@/constants/iconSizes";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/profile/settings")({
   component: SettingsPage,
@@ -86,6 +87,8 @@ function NavItem({
 
 function ProfileCard() {
   const { t } = useTranslation();
+  // The account and its avatar are shared on the demo: both writes are locked.
+  const { lock } = useDemoLock();
   const qc = useQueryClient();
   const { data: user } = useUserServiceGetCurrentUser();
   // The avatar shown, and the one an upload REPLACES, belong to the profile in
@@ -179,6 +182,7 @@ function ProfileCard() {
       <div className="p-6 flex flex-col gap-4">
         <div className="flex items-center gap-4">
           <button
+            {...lock}
             onClick={handleAvatarClick}
             className="w-14 h-14 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-xl font-bold shrink-0 relative group cursor-pointer overflow-hidden"
             aria-label={t("auth.profile.changeAvatar")}
@@ -204,6 +208,7 @@ function ProfileCard() {
             {memberSince && <p className="text-xs text-[var(--text-muted)] mt-0.5">{memberSince}</p>}
           </div>
           <button
+            {...(editing ? {} : lock)}
             onClick={editing ? () => setEditing(false) : startEdit}
             className="p-2 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--surface-raised)] transition-colors-fast"
             aria-label={editing ? t("common.cancel") : t("auth.profile.editProfile")}

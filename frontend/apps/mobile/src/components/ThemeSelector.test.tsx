@@ -27,7 +27,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceUpdateProfile: () => ({ mutate: api.update }),
 }));
 const store = vi.hoisted(() => ({ theme: "default", setTheme: vi.fn(), applyFromPreferences: vi.fn(), profileId: "p2" }));
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", () => ({ useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }), isDemoMode: () => false,
   useThemeStore: (sel: (s: { theme: string; setTheme: () => void; applyFromPreferences: () => void }) => unknown) =>
     sel({ theme: store.theme, setTheme: store.setTheme, applyFromPreferences: store.applyFromPreferences }),
   useAuthStore: (sel: (s: { profileId: string }) => unknown) => sel({ profileId: store.profileId }),

@@ -43,7 +43,7 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 }));
 vi.mock("../../../src/components/Skeleton", () => ({ Skeleton: () => React.createElement("div", { "data-testid": "skeleton" }) }));
 vi.mock("../../../src/components/LoadFailed", () => ({ LoadFailed: () => React.createElement("div", { "data-testid": "load-failed" }) }));
-vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() }, useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }) }));
 
 let mineLoading = false;
 let mineError = false;

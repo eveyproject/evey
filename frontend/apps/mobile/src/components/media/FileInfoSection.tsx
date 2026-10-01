@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View, Text, Pressable } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
-import { formatBytes, formatChannelLayout, formatDurationMs, type V1MediaItem, type V1MediaStream } from "@evey/api";
+import { formatBytes, formatChannelLayout, formatDurationMs, languageDisplayName, type V1MediaItem, type V1MediaStream } from "@evey/api";
 import { resolutionLabel } from "@evey/client";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -18,7 +18,7 @@ function hdrLabel(s?: V1MediaStream): string | null {
 }
 
 export function FileInfoSection({ item }: { item: V1MediaItem }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const theme = useTheme();
   const [open, setOpen] = useState(false);
 
@@ -76,14 +76,19 @@ export function FileInfoSection({ item }: { item: V1MediaItem }) {
             <View style={{ gap: 4, marginTop: 4 }}>
               {item.streams.map((s, i) => {
                 const typeLabel = s.type?.replace("MEDIA_STREAM_TYPE_", "") ?? "";
-                const res = s.width && s.height ? `${s.width}x${s.height}` : undefined;
+                // Same words as web: the tier then the frame, the language by name.
+                const tier = resolutionLabel(s);
+                const frame = s.width && s.height ? `${s.width}×${s.height}` : undefined;
+                const res = tier && frame ? `${tier} · ${frame}` : tier ?? frame;
+                const name = languageDisplayName(s.language, i18n.language);
+                const language = name && name.toLowerCase() !== s.title?.trim().toLowerCase() ? name : undefined;
                 return (
                   <View key={i} style={{ flexDirection: "row", gap: 8 }}>
                     <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: "600", width: 60 }}>
                       {typeLabel}
                     </Text>
                     <Text style={{ color: theme.colors.textMuted, fontSize: 11, flex: 1 }} numberOfLines={1}>
-                      {[s.codec, s.language, s.title, res].filter(Boolean).join(" - ")}
+                      {[s.codec, language, s.title, res].filter(Boolean).join(" - ")}
                     </Text>
                   </View>
                 );

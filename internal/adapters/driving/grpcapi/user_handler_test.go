@@ -201,6 +201,7 @@ func TestCreateUser_NonAdminDenied(t *testing.T) {
 
 func TestUpdateUser_Self(t *testing.T) {
 	env := setupUserHandler()
+	seedAdultProfile(t, env, "prf-1", "usr-1")
 	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
 
 	ctx := userCtx("usr-1", "prf-1")
@@ -220,6 +221,7 @@ func TestUpdateUser_Self(t *testing.T) {
 // A rename must not store the space a phone keyboard appends: Login trims.
 func TestUpdateUser_TrimsUsernameAndEmail(t *testing.T) {
 	env := setupUserHandler()
+	seedAdultProfile(t, env, "prf-1", "usr-1")
 	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
 
 	newName, newMail := " alice2 ", " a2@b.com "
@@ -382,6 +384,7 @@ func TestUpdateUser_PasswordTooShort_InvalidArgument(t *testing.T) {
 // keep current").
 func TestUpdateUser_EmptyPassword_KeepsCurrent(t *testing.T) {
 	env := setupUserHandler()
+	seedAdultProfile(t, env, "prf-1", "usr-1")
 	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "oldpassword")
 
 	empty := ""
@@ -532,6 +535,7 @@ func persistentCtx() context.Context {
 // session and ask for a password again a week later.
 func TestQuickConnect_LifetimeFollowsThePairing(t *testing.T) {
 	env := setupUserHandler()
+	seedAdultProfile(t, env, "prf-1", "usr-1")
 	seedUser(t, env, &user.User{ID: "usr-1", Username: "tester", IsAdmin: false}, "pass")
 
 	// The television says so when it STARTS the pairing.
@@ -560,6 +564,7 @@ func TestQuickConnect_LifetimeFollowsThePairing(t *testing.T) {
 // A pairing that asked for nothing keeps the short session.
 func TestQuickConnect_ShortSessionWhenNobodyAskedForMore(t *testing.T) {
 	env := setupUserHandler()
+	seedAdultProfile(t, env, "prf-1", "usr-1")
 	seedUser(t, env, &user.User{ID: "usr-1", Username: "tester", IsAdmin: false}, "pass")
 
 	initResp, err := env.handler.InitiateQuickConnect(context.Background(), &eveyv1.InitiateQuickConnectRequest{})
@@ -605,7 +610,9 @@ func TestQuickConnect_Flow(t *testing.T) {
 		t.Fatal("expected not authorized before AuthorizeQuickConnect")
 	}
 
-	// Authorize
+	// Authorize, from an adult profile (the approval is refused from a kids
+	// one, and an unreadable caller profile fails closed).
+	seedAdultProfile(t, env, "prf-1", "usr-1")
 	ctx := userCtx("usr-1", "prf-1")
 	_, err = env.handler.AuthorizeQuickConnect(ctx, &eveyv1.AuthorizeQuickConnectRequest{Code: code})
 	if err != nil {
@@ -1210,6 +1217,36 @@ func TestCreateProfile_FromKidsProfileDenied(t *testing.T) {
 		IsKids: false,
 		Pin:    &kidPIN,
 	})
+	assertCode(t, err, codes.PermissionDenied)
+}
+
+// The account's credentials and a quick-connect approval reach the account's
+// default, unrestricted profile: neither may come from a kids profile.
+func TestAccountActions_FromKidsProfileDenied(t *testing.T) {
+	env := setupUserHandler()
+	ctx := context.Background()
+	kid, err := user.NewProfile("prf-kid", "usr-1", "Kid", user.WithProfileIsKids(true))
+	if err != nil {
+		t.Fatalf("NewProfile: %v", err)
+	}
+	if cErr := env.profileRepo.Create(ctx, kid); cErr != nil {
+		t.Fatalf("seed kid profile: %v", cErr)
+	}
+	kidCtx := userCtx("usr-1", string(kid.ID))
+
+	pw, mail, name := "newpassword1", "kid@example.com", "kid"
+	for label, req := range map[string]*eveyv1.UpdateUserRequest{
+		"password": {Id: "usr-1", Password: &pw},
+		"email":    {Id: "usr-1", Email: &mail},
+		"username": {Id: "usr-1", Username: &name},
+	} {
+		_, uErr := env.handler.UpdateUser(kidCtx, req)
+		if status.Code(uErr) != codes.PermissionDenied {
+			t.Errorf("UpdateUser %s from a kids profile: got %v, want PermissionDenied", label, uErr)
+		}
+	}
+
+	_, err = env.handler.AuthorizeQuickConnect(kidCtx, &eveyv1.AuthorizeQuickConnectRequest{Code: "ABC123"})
 	assertCode(t, err, codes.PermissionDenied)
 }
 

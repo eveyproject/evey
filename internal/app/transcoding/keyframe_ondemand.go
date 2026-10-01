@@ -145,9 +145,10 @@ func (k *KeyframeOnDemand) TryIndex(ctx context.Context, mediaID, filePath strin
 	}
 	// Someone is watching: don't add a keyframe walk on top of a live transcode
 	// on a weak NAS. Leave it to the paced background worker (it yields to
-	// playback too); this playback transcodes, pinned as usual.
+	// playback too); this playback transcodes, pinned as usual. Debug: every
+	// segment of that playback asks again, an INFO line each was log noise.
 	if k.activePlayback != nil && k.activePlayback() > 0 {
-		k.logger.Info("keyframe on-demand: playback active, leaving to the background worker",
+		k.logger.Debug("keyframe on-demand: playback active, leaving to the background worker",
 			slog.String("media_id", mediaID))
 		return false
 	}

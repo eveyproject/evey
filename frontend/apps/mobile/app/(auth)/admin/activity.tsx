@@ -17,7 +17,7 @@ import {
   eveyFetch,
   apiErrorMessage,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useDemoStore } from "@evey/store";
 // Types from generated schemas - not re-exported from @evey/api index
 interface PlayEntry {
   id?: string;
@@ -421,7 +421,9 @@ function StatsTab() {
 export default function AdminActivityScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [tab, setTab] = useState<Tab>("play");
+  const [chosenTab, setTab] = useState<Tab>("play");
+  const demo = useDemoStore((s) => s.demoMode);
+  const tab: Tab = demo && chosenTab === "audit" ? "play" : chosenTab;
   // Deep link from the Users screen ("History" on a profile), mirroring the
   // web's /admin/activity?profileId=. Landing on the unfiltered list and
   // making the admin pick the same profile again is what the button exists to
@@ -481,11 +483,13 @@ export default function AdminActivityScreen() {
     setExporting(false);
   }, [tab, t, watcher.userId, watcher.profileId]);
 
+  // No audit tab on the demo: the server refuses the audit log there (it
+  // carries other visitors' addresses and browsers). Same as the web.
   const tabs: Array<{ id: Tab; label: string }> = [
-    { id: "play", label: t("admin.activity.tabs.playHistory", "Play History") },
-    { id: "audit", label: t("admin.audit.title", "Audit Log") },
-    { id: "stats", label: t("admin.activity.tabs.serverStats", "Stats") },
-  ];
+    { id: "play" as Tab, label: t("admin.activity.tabs.playHistory", "Play History") },
+    { id: "audit" as Tab, label: t("admin.audit.title", "Audit Log") },
+    { id: "stats" as Tab, label: t("admin.activity.tabs.serverStats", "Stats") },
+  ].filter((tb) => !(demo && tb.id === "audit"));
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>

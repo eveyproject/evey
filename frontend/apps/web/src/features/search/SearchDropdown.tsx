@@ -293,7 +293,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                     <div
                       className="flex items-center gap-2 text-xs text-[var(--text-muted)]"
                     >
-                      {item.year && <span>{item.year}</span>}
+                      {!!item.year && <span>{item.year}</span>}
                       {typeLabel(item.type) && (
                         <span
                           className="px-1.5 py-0.5 rounded bg-[var(--surface)] text-xs"

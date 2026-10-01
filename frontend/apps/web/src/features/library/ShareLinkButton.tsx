@@ -4,12 +4,15 @@ import { useTranslation } from "react-i18next";
 import { useShareServiceCreateShareLink } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
+import { useDemoLock } from "@/hooks/useDemoMode";
 
 // Admin-only: mints a PUBLIC (unauthenticated) download link for the media
 // file and copies it to the clipboard. The backend gates creation to admins;
 // this button is also only rendered for admins.
 export function ShareLinkButton({ mediaId }: { mediaId: string }) {
   const { t } = useTranslation();
+  // Locked on the demo: an unauthenticated URL that outlives the visitor.
+  const { lock } = useDemoLock();
   const createLink = useShareServiceCreateShareLink({
     mutation: {
       onSuccess: async (res) => {
@@ -32,6 +35,7 @@ export function ShareLinkButton({ mediaId }: { mediaId: string }) {
 
   return (
     <Button
+      {...lock}
       variant="secondary"
       size="lg"
       loading={createLink.isPending}

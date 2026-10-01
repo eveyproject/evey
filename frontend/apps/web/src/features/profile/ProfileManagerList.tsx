@@ -122,7 +122,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
                   {...lock}
                   variant="danger"
                   aria-label={t("common.delete", "Delete")}
-                  disabled={isDefault}
+                  disabled={!!lock.disabled || (isDefault)}
                   onClick={() => setConfirmDelete(p)}
                 >
                   <Trash2 size={16} aria-hidden="true" />

@@ -95,8 +95,10 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 }));
 
 // --- @evey/store mock -------------------------------------------------------------
+const demoState = { demoMode: false };
 vi.mock("@evey/store", () => ({
   useAuthStore: (selector: any) => selector({ profileId: "prof-1" }),
+  useDemoStore: (selector: any) => selector(demoState),
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
@@ -222,6 +224,21 @@ describe("MediaDetailScreen (TV) watch/rating actions on series and season", () 
     expect(screen.getByText("media.detail.markWatched")).toBeTruthy();
     expect(screen.getByText("Like")).toBeTruthy();
     expect(screen.getByText("Dislike")).toBeTruthy();
+  });
+
+  // The demo refuses favourites, watched marks, playlists and ratings on the
+  // shared account: the page does not offer them there.
+  it("offers none of them on the demo", () => {
+    getMediaItemMock.mockReturnValue({ data: SERIES, isLoading: false, error: null, refetch: vi.fn() });
+    demoState.demoMode = true;
+    try {
+      renderScreen();
+      for (const label of ["media.detail.favorite", "media.detail.markWatched", "media.detail.addToPlaylist", "Like", "Dislike"]) {
+        expect(screen.queryByText(label)).toBeNull();
+      }
+    } finally {
+      demoState.demoMode = false;
+    }
   });
 });
 

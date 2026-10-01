@@ -17,8 +17,7 @@ import { LoadFailed } from "../../../src/components/LoadFailed";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
-import { useAuthStore } from "@evey/store";
-import { toast } from "@evey/store";
+import { useAuthStore, useDemoStore, toast } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateWatchedState } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -65,6 +64,7 @@ export default function FavoritesScreen() {
   const [sortKey, setSortKey] = useState<SortKey>("addedAt");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [bulkMode, setBulkMode] = useState(false);
+  const demo = useDemoStore((st) => st.demoMode);
   // One bulk action at a time: the handlers are sequential per-item loops, and
   // a second press while one runs interleaves two loops over the same
   // selection (half watched / half unwatched - a state nobody asked for).
@@ -180,7 +180,9 @@ export default function FavoritesScreen() {
           style={[styles.gridItem, { width: ITEM_WIDTH, marginLeft: SPACING, marginBottom: SPACING, opacity: bulkMode && !isSelected ? 0.5 : 1 }]}
           activeOpacity={0.7}
           onPress={() => bulkMode ? toggleSelect(item.mediaItemId) : router.push(`/media/${item.mediaItemId}`)}
-          onLongPress={() => !bulkMode && (setBulkMode(true), setSelected(new Set([item.mediaItemId])))}
+          // No bulk selection on the demo: its only actions (watched marks)
+          // are the shared account's, which the server refuses.
+          onLongPress={() => !bulkMode && !demo && (setBulkMode(true), setSelected(new Set([item.mediaItemId])))}
           accessible={true}
           accessibilityLabel={item.title ?? "Untitled"}
           accessibilityRole="button"
@@ -219,7 +221,7 @@ export default function FavoritesScreen() {
           <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
             {item.title ?? "Untitled"}
           </Text>
-          {item.year != null && (
+          {!!item.year && (
             <Text style={{ color: theme.colors.textMuted, fontSize: 11, textAlign: "center" }}>
               {item.year}
             </Text>
@@ -227,7 +229,7 @@ export default function FavoritesScreen() {
         </TouchableOpacity>
       );
     },
-    [theme, router, authHeaders, serverUrl, t, bulkMode, selected, toggleSelect],
+    [theme, router, authHeaders, serverUrl, t, bulkMode, selected, toggleSelect, demo],
   );
 
   if (isError) {

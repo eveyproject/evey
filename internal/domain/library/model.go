@@ -177,6 +177,17 @@ type MediaItem struct {
 	CastNames []string
 	AddedAt   time.Time
 	UpdatedAt time.Time
+	// LatestChildAddedAt is the newest episode's AddedAt, set on series only.
+	LatestChildAddedAt *time.Time
+}
+
+// SortAddedAt is the date "sort by date added" orders on: a series moves up
+// when it gets a new episode.
+func (m *MediaItem) SortAddedAt() time.Time {
+	if m.Type == Series && m.LatestChildAddedAt != nil {
+		return *m.LatestChildAddedAt
+	}
+	return m.AddedAt
 }
 
 // MediaCatalog carries discovery metadata sourced from providers: the

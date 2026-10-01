@@ -17,10 +17,16 @@ package postgres
 var SortColumnMap = map[string]string{
 	"title":            "mi.sort_title",
 	"sort_title":       "mi.sort_title",
-	"added_at":         "mi.added_at",
-	"date_added":       "mi.added_at",
+	"added_at":         effectiveAddedAt,
+	"date_added":       effectiveAddedAt,
 	"year":             "mc.year",
 	"premiere_date":    "mc.premiere_date",
 	"rating":           "mcl.community_rating",
 	"community_rating": "mcl.community_rating",
 }
+
+// effectiveAddedAt is the date a library sorted by "date added" sees: a series
+// moves up when it gets a new episode. Every page has to order and seek on the
+// same expression; the first page used to use it and the cursor pages plain
+// mi.added_at, so series repeated and rows went missing mid-scroll.
+const effectiveAddedAt = `(CASE WHEN mi.type = 'series' THEN COALESCE(mi.latest_child_added_at, mi.added_at) ELSE mi.added_at END)`

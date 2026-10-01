@@ -259,6 +259,7 @@ clientChoice:
 
 demo:
   banner: "Demo server: changes are reset regularly and administration is read-only."
+  tag: "Demo"
   credentials: "Sign in with demo / demo"
   locked: "Locked on the demo"
   readOnly: "Read-only on the demo: the settings are shown, not editable."

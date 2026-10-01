@@ -117,7 +117,8 @@ function PlaylistsIndex() {
             icon={<Folder size={48} strokeWidth={1.5} />}
             title={t("media.playlist.noPlaylists")}
             description={t("media.playlist.noPlaylistsDesc")}
-            action={{ label: t("media.playlist.createPlaylist"), onClick: () => setCreateOpen(true) }}
+            // No create offer on the demo, where playlists are the shared account's.
+            action={lock.disabled ? undefined : { label: t("media.playlist.createPlaylist"), onClick: () => setCreateOpen(true) }}
           />
         </div>
       ) : (

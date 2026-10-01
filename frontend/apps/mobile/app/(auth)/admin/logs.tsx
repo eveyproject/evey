@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { eveyFetch, useUserServiceListUsers, useUserServiceListAllProfiles } from "@evey/api";
 import { useMediaLabels } from "@evey/client";
+import { useDemoStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 // Mirrors frontend/apps/web/src/features/admin/logsClassify.ts. The search
@@ -216,7 +217,28 @@ const LogRow = memo(function LogRow({
   );
 });
 
+// The demo refuses every log route (host logs carry other visitors' addresses
+// even after redaction): say so instead of asking and showing a load failure,
+// as the web does.
 export default function AdminLogsScreen() {
+  const demo = useDemoStore((s) => s.demoMode);
+  return demo ? <DemoLockedLogs /> : <AdminLogsContent />;
+}
+
+function DemoLockedLogs() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg, alignItems: "center", justifyContent: "center", padding: 24 }} testID="logs-demo-locked">
+      <Stack.Screen options={{ headerShown: true, title: t("admin.logs.title"), headerStyle: { backgroundColor: theme.colors.surface }, headerTintColor: theme.colors.text }} />
+      <Ionicons name="document-text-outline" size={48} color={theme.colors.textMuted} />
+      <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600", marginTop: 12, textAlign: "center" }}>{t("errors.demo.locked")}</Text>
+      <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginTop: 6, textAlign: "center" }}>{t("common.demo.banner")}</Text>
+    </View>
+  );
+}
+
+function AdminLogsContent() {
   const theme = useTheme();
   const { t } = useTranslation();
 

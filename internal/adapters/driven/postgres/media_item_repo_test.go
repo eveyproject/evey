@@ -473,3 +473,92 @@ func TestMediaItemRepo_NewEpisode_ClearsSeriesWatched(t *testing.T) {
 		`SELECT completed FROM watch_progress WHERE media_item_id=$1 AND profile_id=$2`, series.ID, p.ID).Scan(&completed))
 	assert.False(t, completed, "a new episode must clear the series' fully-watched flag")
 }
+
+// A full walk by id must visit every row even when the title order disagrees
+// with the id order: with AfterID empty the first page came back in title
+// order, and the walk by id then skipped every row whose id was below page
+// one's last id (the search rebuild lost 34 of 639, audit 2026-10-01).
+func TestMediaItemRepository_KeysetByID_VisitsEveryRowFromTheFirstPage(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+	lib := newTestLibrary("keyset-lib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	// ids ascending, titles descending: page one in title order would be the
+	// highest ids.
+	ids := []string{"ks-a", "ks-b", "ks-c", "ks-d", "ks-e"}
+	for i, id := range ids {
+		it := newTestMediaItem(id, lib.ID)
+		it.Title = string(rune('z' - i))
+		it.SortTitle = it.Title
+		require.NoError(t, repo.Create(ctx, it))
+	}
+
+	seen := map[string]bool{}
+	after := ""
+	for range 10 {
+		page, err := repo.List(ctx, library.ListMediaItemsFilter{Limit: 2, AfterID: after, KeysetByID: true})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		for _, it := range page {
+			seen[string(it.ID)] = true
+		}
+		after = string(page[len(page)-1].ID)
+	}
+	for _, id := range ids {
+		assert.True(t, seen[id], "the walk never reached %s", id)
+	}
+}
+
+// Sorted by date added, a series ranks by its newest episode. The first page
+// used to order on that and the cursor pages on the series' own added_at, so
+// the series came back a second time further down and rows went missing.
+func TestMediaItemRepository_AddedAtCursor_SeriesRanksByNewestEpisodeOnEveryPage(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+	lib := newTestLibrary("added-lib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	base := time.Now().UTC().Truncate(time.Millisecond).Add(-time.Hour)
+	ids := []string{"ad-1", "ad-2", "ad-3", "ad-4", "ad-show"}
+	for i, id := range ids {
+		it := newTestMediaItem(id, lib.ID)
+		it.AddedAt = base.Add(time.Duration(i) * time.Minute)
+		switch id {
+		case "ad-4": // newer than the show's episode: the show ends page one
+			it.AddedAt = base.Add(2 * time.Hour)
+		case "ad-show":
+			it.Type = library.Series
+			it.AddedAt = base.Add(-time.Hour)
+		}
+		require.NoError(t, repo.Create(ctx, it))
+	}
+	_, err := db.ExecContext(ctx, `UPDATE media_items SET latest_child_added_at = $1 WHERE id = 'ad-show'`, base.Add(time.Hour))
+	require.NoError(t, err)
+
+	var order []string
+	cursor := shared.Cursor{}
+	for range 10 {
+		page, err := repo.List(ctx, library.ListMediaItemsFilter{
+			LibraryID: &lib.ID, SortField: "added_at", SortOrder: "desc", Limit: 2, Cursor: cursor,
+		})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		for _, it := range page {
+			order = append(order, string(it.ID))
+		}
+		last := page[len(page)-1]
+		cursor = shared.Cursor{SortField: "added_at", SortValue: last.SortAddedAt().Format(time.RFC3339Nano), LastID: string(last.ID)}
+	}
+	assert.Equal(t, []string{"ad-4", "ad-show", "ad-3", "ad-2", "ad-1"}, order)
+}

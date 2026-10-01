@@ -38,7 +38,7 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
       {item.type && (
         <Badge variant="default">{item.type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase()}</Badge>
       )}
-      {item.year && (
+      {!!item.year && (
         <span className="text-xs flex-shrink-0 text-[var(--text-muted)]">{item.year}</span>
       )}
       {playlistType === "manual" && (
@@ -53,7 +53,7 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
               },
             );
           }}
-          disabled={remove.isPending}
+          disabled={!!lock.disabled || (remove.isPending)}
           className="p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast flex-shrink-0 text-[var(--text-muted)]"
           title={t("common.remove")}
           aria-label={t("common.remove")}

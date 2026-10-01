@@ -123,68 +123,14 @@ export function MediaDetailActions({
 
   return (
     <div className="flex-1 min-w-0 grid gap-x-10 gap-y-5 lg:grid-cols-[minmax(0,92ch)_minmax(190px,1fr)] items-start content-start">
-      {/* Synopsis: no box. A bordered grey card gives the text the same visual
-          weight as a form field, which is what made the page read as an admin
-          panel. A hairline rule and a reading measure do the same containment
-          job while letting the type carry itself. */}
-      {(item.tagline || item.overview) && (
-        <div className="max-w-[92ch] border-l border-[var(--border)] pl-6 py-0.5 space-y-4">
-          {item.tagline && (
-            <p className="text-2xl sm:text-3xl italic leading-snug text-[var(--text-secondary)] text-balance">{item.tagline}</p>
-          )}
-          {item.overview && (
-            <p className="text-lg leading-[1.7] text-[var(--text-muted)]" data-testid="media-overview">{item.overview}</p>
-          )}
-        </div>
-      )}
-
-      {/* Reference column. Credits are looked UP, not read through - stacking
-          them beside the synopsis fills the dead right-hand third and stops the
-          narrative column from being interrupted by data. */}
-      <aside className="lg:col-start-2 space-y-4 lg:border-l lg:border-[var(--border)] lg:pl-6">
-      {directors.length > 0 && (
-        <p className="text-sm text-[var(--text-muted)]">
-          <span className="text-xs uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.director")}</span>
-          {directors.map((d, i) => (
-            <span key={d.id ?? d.name}>
-              {i > 0 && ", "}
-              <Link to="/person/$personId" params={{ personId: d.id ?? "" }} className="hover:underline text-[var(--accent)]">
-                {d.name}
-              </Link>
-            </span>
-          ))}
-        </p>
-      )}
-
-      {writers.length > 0 && (
-        <p className="text-sm text-[var(--text-muted)]">
-          <span className="text-xs uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.writer")}</span>
-          {writers.map((w, i) => (
-            <span key={w.id ?? w.name}>
-              {i > 0 && ", "}
-              <Link to="/person/$personId" params={{ personId: w.id ?? "" }} className="hover:underline text-[var(--accent)]">
-                {w.name}
-              </Link>
-            </span>
-          ))}
-        </p>
-      )}
-
-      {item.studios && item.studios.length > 0 && (
-        <p className="text-sm text-[var(--text-muted)]">
-          <span className="text-xs uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.studio")}</span>
-          {item.studios.join(", ")}
-        </p>
-      )}
-
-      </aside>
-
-      <TrailerSection trailers={item.trailers} />
-
+      {/* Play / Resume first, right under the title: it sat below the synopsis,
+          the credits and the trailer, so on a laptop screen the one control the
+          page exists for was under the fold (1440x900, 2026-09-30). The track
+          choice travels with it, since it is made before pressing Play. */}
       {/* items-center, not the flex default of stretch: the icon-only controls
           carry their own square box, and stretching them to the row height is
           what deformed them into ovals. */}
-      <div className="flex items-center gap-3 flex-wrap pt-2 lg:col-span-2" data-testid="media-actions">
+      <div className="flex items-center gap-3 flex-wrap lg:col-span-2" data-testid="media-actions">
         {item.id && isSeries && (
           <PlaySeriesButton seriesId={item.id} onPlay={handlePlay} />
         )}
@@ -328,6 +274,64 @@ export function MediaDetailActions({
       {item.id && !isSeries && !isSeason && item.streams && (
         <MediaDetailTracks streams={item.streams} pick={trackPick} onChange={setTrackPick} />
       )}
+      {/* Synopsis: no box. A bordered grey card gives the text the same visual
+          weight as a form field, which is what made the page read as an admin
+          panel. A hairline rule and a reading measure do the same containment
+          job while letting the type carry itself. */}
+      {(item.tagline || item.overview) && (
+        <div className="max-w-[92ch] border-l border-[var(--border)] pl-6 py-0.5 space-y-4">
+          {item.tagline && (
+            <p className="text-2xl sm:text-3xl italic leading-snug text-[var(--text-secondary)] text-balance">{item.tagline}</p>
+          )}
+          {item.overview && (
+            <p className="text-lg leading-[1.7] text-[var(--text-muted)]" data-testid="media-overview">{item.overview}</p>
+          )}
+        </div>
+      )}
+
+      {/* Reference column. Credits are looked UP, not read through - stacking
+          them beside the synopsis fills the dead right-hand third and stops the
+          narrative column from being interrupted by data. */}
+      <aside className="lg:col-start-2 space-y-4 lg:border-l lg:border-[var(--border)] lg:pl-6">
+      {directors.length > 0 && (
+        <p className="text-sm text-[var(--text-muted)]">
+          <span className="text-xs uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.director")}</span>
+          {directors.map((d, i) => (
+            <span key={d.id ?? d.name}>
+              {i > 0 && ", "}
+              <Link to="/person/$personId" params={{ personId: d.id ?? "" }} className="hover:underline text-[var(--accent)]">
+                {d.name}
+              </Link>
+            </span>
+          ))}
+        </p>
+      )}
+
+      {writers.length > 0 && (
+        <p className="text-sm text-[var(--text-muted)]">
+          <span className="text-xs uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.writer")}</span>
+          {writers.map((w, i) => (
+            <span key={w.id ?? w.name}>
+              {i > 0 && ", "}
+              <Link to="/person/$personId" params={{ personId: w.id ?? "" }} className="hover:underline text-[var(--accent)]">
+                {w.name}
+              </Link>
+            </span>
+          ))}
+        </p>
+      )}
+
+      {item.studios && item.studios.length > 0 && (
+        <p className="text-sm text-[var(--text-muted)]">
+          <span className="text-xs uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.studio")}</span>
+          {item.studios.join(", ")}
+        </p>
+      )}
+
+      </aside>
+
+      <TrailerSection trailers={item.trailers} />
+
       {item.id && (
         <AddToPlaylistModal
           open={playlistModalOpen}

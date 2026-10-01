@@ -44,7 +44,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
         {...lock}
         type="button"
         onClick={() => handleClick(1)}
-        disabled={unknown}
+        disabled={!!lock.disabled || (unknown)}
         className={btnClass(rating === 1, "bg-[var(--color-success)]")}
         title={rating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
         aria-label={rating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
@@ -55,7 +55,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
         {...lock}
         type="button"
         onClick={() => handleClick(-1)}
-        disabled={unknown}
+        disabled={!!lock.disabled || (unknown)}
         className={btnClass(rating === -1, "bg-[var(--color-danger)]")}
         title={rating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
         aria-label={rating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}

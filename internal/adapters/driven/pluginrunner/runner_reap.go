@@ -63,14 +63,27 @@ func (r *Runner) ReapStaleProcesses() int {
 		victims = append(victims, pid)
 	}
 
+	// An announced sweep must have happened: count what could not be
+	// signalled and say it once, loudly, with the likely cause. A warning per
+	// pid on every boot read as noise while the orphans piled up (audit
+	// 2026-10-01: EPERM on every one, the container had no CAP_KILL).
+	var denied []int
 	for _, pid := range victims {
 		slog.Warn("reaping stale plugin process from a previous server instance",
 			slog.Int("pid", pid))
 		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
 			if killErr := syscall.Kill(pid, syscall.SIGTERM); killErr != nil && killErr != syscall.ESRCH {
+				if killErr == syscall.EPERM {
+					denied = append(denied, pid)
+					continue
+				}
 				slog.Warn("reap stale plugin: SIGTERM failed", slog.Int("pid", pid), slog.Any("err", killErr))
 			}
 		}
+	}
+	if len(denied) > 0 {
+		slog.Error("reap stale plugins: not permitted to signal leftover plugin processes - they keep running; grant the container CAP_KILL (plugins run under their own uid)",
+			slog.Int("count", len(denied)), slog.Any("pids", denied))
 	}
 	if len(victims) > 0 {
 		go func(pids []int) {

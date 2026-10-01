@@ -14,7 +14,7 @@ import {
   watchHistoryLabel,
 } from "@evey/api";
 import type { V1WatchProgress } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useDemoStore } from "@evey/store";
 import { invalidateWatchedState } from "@evey/client";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../src/hooks/useServerUrl";
@@ -43,7 +43,8 @@ function getItemLabel(item: V1WatchProgress, t: TFunction): string {
 
 function HistoryItem({ item, onRemove, isPending }: {
   item: V1WatchProgress;
-  onRemove: () => void;
+  // Absent on the demo: the history is the shared account's there.
+  onRemove?: () => void;
   isPending: boolean;
 }) {
   const theme = useTheme();
@@ -110,6 +111,7 @@ function HistoryItem({ item, onRemove, isPending }: {
         </View>
       </View>
 
+      {onRemove ? (
       <Pressable
         onPress={onRemove}
         disabled={isPending}
@@ -121,6 +123,7 @@ function HistoryItem({ item, onRemove, isPending }: {
       >
         <Ionicons name="close-circle-outline" size={22} color={theme.colors.textMuted} />
       </Pressable>
+      ) : null}
     </Pressable>
   );
 }
@@ -169,6 +172,8 @@ export default function HistoryScreen() {
     },
   });
 
+  // Demo: the server refuses removing from, or clearing, the shared history.
+  const demo = useDemoStore((st) => st.demoMode);
   const clearAll = usePlaybackServiceClearWatchHistory({
     mutation: {
       onSuccess: () => {
@@ -185,11 +190,11 @@ export default function HistoryScreen() {
     ({ item }: { item: V1WatchProgress }) => (
       <HistoryItem
         item={item}
-        onRemove={() => item.mediaItemId && unwatch.mutate({ mediaItemId: item.mediaItemId })}
+        onRemove={demo ? undefined : () => item.mediaItemId && unwatch.mutate({ mediaItemId: item.mediaItemId })}
         isPending={unwatch.isPending}
       />
     ),
-    [unwatch],
+    [unwatch, demo],
   );
 
   const onRefresh = useCallback(async () => {
@@ -228,7 +233,7 @@ export default function HistoryScreen() {
         title: t("auth.watchHistory.title", "Watch History"),
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
-        headerRight: () => items.length > 0 ? (
+        headerRight: () => items.length > 0 && !demo ? (
           <Pressable onPress={handleClear} hitSlop={12} accessible accessibilityLabel={t("auth.watchHistory.clearHistory")} accessibilityRole="button">
             <Ionicons name="trash-outline" size={22} color={theme.colors.textMuted} />
           </Pressable>

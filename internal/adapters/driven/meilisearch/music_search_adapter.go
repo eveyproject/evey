@@ -145,6 +145,17 @@ func (a *MusicSearchAdapter) DocumentCount(ctx context.Context) (int64, error) {
 	return stats.NumberOfDocuments, nil
 }
 
+// Clear drops every track document; the reconcile rebuilds the index from the
+// DB right after, when the index holds more docs than the DB.
+func (a *MusicSearchAdapter) Clear(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx, "meilisearch.music.Clear")
+	defer span.End()
+	if _, err := a.index.DeleteAllDocumentsWithContext(ctx, nil); err != nil {
+		return fmt.Errorf("clear music index: %w", err)
+	}
+	return nil
+}
+
 func (a *MusicSearchAdapter) IndexTrack(ctx context.Context, t music.Track) error {
 	ctx, span := tracing.StartSpan(ctx, "meilisearch.music.IndexTrack")
 	defer span.End()

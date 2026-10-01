@@ -1196,7 +1196,15 @@ func startDemoLifecycle(ctx context.Context, cfg *config.Config, infra *infraDep
 		WithPlugins(r.Plugin, deps.engagement.pluginInstallerSvc, deps.engagement.pluginRuntimeSvc, cfg.Server.DemoPluginDir).
 		WithHomeLayout(deps.engagement.feedCmdSvc).
 		WithHistory(r.MediaItemQuery, r.WatchProgress, deps.media.playbackSvc.CommandService()).
-		WithReset(deps.engagement.activityQuerySvc, r.WatchProgress)
+		WithReset(deps.engagement.activityQuerySvc, r.WatchProgress).
+		WithCredentialPurge(demoCredentials{keys: r.APIKey, invites: r.InviteLink}).
+		WithActivity(func() bool {
+			if hls := deps.media.hlsVODRemover; hls != nil && hls.ActivePlaybackCount() > 0 {
+				return true
+			}
+			now := deps.media.musicNowPlaying
+			return now != nil && len(now.List()) > 0
+		})
 	if !cfg.Server.Demo {
 		// Cheap check on the boot path, the teardown itself detached.
 		probe, cancel := context.WithTimeout(ctx, 10*time.Second)

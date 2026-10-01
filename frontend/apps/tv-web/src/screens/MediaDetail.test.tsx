@@ -16,15 +16,17 @@ vi.mock("../tv/focus", () => ({
   FocusRoot: ({ children, className }: any) => <div className={className}>{children}</div>,
   useFocusable: () => ({ ref: { current: null }, focused: false, focusSelf: () => {} }),
 }));
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k, i18n: { language: "en" } }) }));
 vi.mock("../app/router", () => ({ navigate: (...a: unknown[]) => navigateMock(...a), replace: vi.fn(), goBack: vi.fn() }));
 vi.mock("../components/ParentalPINModal", () => ({
   ParentalPINModal: ({ onVerified }: any) => <button type="button" onClick={() => onVerified()}>pin-modal</button>,
 }));
 vi.mock("../plugins/PluginSlot", () => ({ PluginSlot: () => null }));
 const authState = { profileId: "prf-1", accessToken: "t" };
+const demoState = { demoMode: false };
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign((sel: any) => sel(authState), { getState: () => authState }),
+  useDemoStore: (sel: any) => sel(demoState),
 }));
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
@@ -80,6 +82,21 @@ describe("the title page", () => {
     expect(opts?.query?.staleTime).toBe(0);
   });
 
+  // The demo refuses favourites, watched marks, playlists and ratings on the
+  // shared account: the page does not offer them there, and Play stays.
+  it("offers only what the demo allows", () => {
+    demoState.demoMode = true;
+    try {
+      render(<MediaDetailScreen mediaId="m-1" />);
+      expect(screen.getByText("player.controls.play")).toBeTruthy();
+      for (const label of ["media.detail.favorite", "media.detail.markWatched", "media.detail.addToPlaylist", "media.rating.like", "media.rating.dislike"]) {
+        expect(screen.queryByText(label)).toBeNull();
+      }
+    } finally {
+      demoState.demoMode = false;
+    }
+  });
+
   it("plays the title itself for a film", () => {
     render(<MediaDetailScreen mediaId="m-1" />);
     fireEvent.click(screen.getByText("player.controls.play"));
@@ -116,8 +133,8 @@ describe("the title page", () => {
       isError: false,
     });
     render(<MediaDetailScreen mediaId="m-1" />);
-    fireEvent.click(screen.getByText("fra - 2.0"));
-    fireEvent.click(screen.getByText("fra"));
+    fireEvent.click(screen.getByText("French - 2.0"));
+    fireEvent.click(screen.getByText("French"));
     fireEvent.click(screen.getByText("player.controls.play"));
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ name: "player", mediaId: "m-1", audio: 2, subtitle: 3 }));
   });

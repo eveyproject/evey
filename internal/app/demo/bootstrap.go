@@ -115,6 +115,8 @@ type Bootstrapper struct {
 	// Optional periodic reset (WithReset, reset.go).
 	streams       ActiveStreams
 	progressReset ProgressReset
+	credentials   Credentials
+	busy          func() bool
 }
 
 func NewBootstrapper(users user.UserRepository, profiles user.ProfileRepository, setup AdminSetup, accounts Accounts,
@@ -177,6 +179,9 @@ func (b *Bootstrapper) WithHTTPClient(c *http.Client) *Bootstrapper {
 // libraries are ready within seconds, the media takes as long as the mirrors
 // allow.
 func (b *Bootstrapper) Run(ctx context.Context) error {
+	if err := b.PurgeCredentials(ctx); err != nil {
+		return err
+	}
 	if err := b.EnsureAdmin(ctx); err != nil {
 		return err
 	}
@@ -774,10 +779,19 @@ func (b *Bootstrapper) SeedHistory(ctx context.Context, libs map[string]shared.L
 				continue
 			}
 			for _, ep := range b.firstSeasonEpisodes(ctx, series) {
-				if ep.IndexNumber == nil || *ep.IndexNumber > h.WatchedEpisodes {
+				if ep.IndexNumber == nil {
 					continue
 				}
-				if err := b.seedOne(ctx, profileID, ep, 0); err != nil {
+				percent := 0
+				switch n := *ep.IndexNumber; {
+				case n <= h.WatchedEpisodes:
+				case n == h.WatchedEpisodes+1 && h.Percent > 0 && ep.File != nil && ep.File.Duration.Seconds() > 0:
+					// Resumed, never marked watched for want of a duration.
+					percent = h.Percent
+				default:
+					continue
+				}
+				if err := b.seedOne(ctx, profileID, ep, percent); err != nil {
 					return err
 				}
 			}

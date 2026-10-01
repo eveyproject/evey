@@ -40,6 +40,7 @@ import { trackListMusicSource, restoreMusicFilterFromParams } from "../../../src
 import { averageAlbumProgress } from "../../../src/components/music/albumDownloadProgress";
 import { buildShuffleQueryUrl, buildTrackQueryUrl } from "../../../src/components/music/musicTrackQuery";
 import { coverArtUri } from "../../../src/lib/coverArtUri";
+import { AlbumHeader } from "../../../src/components/music/AlbumHeader";
 
 interface LibraryItem {
   id: string;
@@ -53,6 +54,7 @@ interface MusicAlbum {
   artist: string;
   year: number;
   trackCount: number;
+  duration?: number;
   coverArtUrl?: string;
 }
 
@@ -769,6 +771,20 @@ export default function MusicScreen() {
               </TouchableOpacity>
             )}
           </View>
+
+          {(() => {
+            const openAlbum = albumFilter ? (albums ?? []).find((a) => a.id === albumFilter) : undefined;
+            if (!openAlbum || (tracks ?? []).length === 0) return null;
+            return (
+              <AlbumHeader
+                album={openAlbum}
+                coverUri={coverArtUri(serverUrl, openAlbum.coverArtUrl, ALBUM_ART_SIZE) ?? albumArtUri(openAlbum.id)}
+                authHeaders={authHeaders}
+                onPlay={() => handlePlayTrack(0)}
+                onShuffle={() => { void handleShufflePlay(); }}
+              />
+            );
+          })()}
 
           {/* Hard filter chips - album/artist card taps */}
           {(albumFilter || artistFilter) && (

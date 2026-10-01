@@ -30,7 +30,7 @@ interface FeedConfig {
 // Normalizes a configured row size to a usable positive int, falling back to
 // the historical default (20) when unset/invalid. Mirrors web's home.lazy.tsx
 // (`cfg.maxItems && cfg.maxItems > 0 ? cfg.maxItems : undefined`).
-import { useAuthStore, toast } from "@evey/store";
+import { useAuthStore, toast, useDemoStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { MediaRow } from "../../../src/components/MediaRow";
@@ -538,6 +538,7 @@ export default function HomeScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [showCustomize, setShowCustomize] = useState(false);
+  const demo = useDemoStore((st) => st.demoMode);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -639,7 +640,9 @@ export default function HomeScreen() {
           // widget. The slot itself renders null, so the margins were the gap.
           if (pluginsData && !pluginNames[pluginId]) return null;
           return (
-            <View key={feedType} testID="home-plugin-section" style={{ marginVertical: theme.spacing.sm, marginHorizontal: theme.spacing.md }}>
+            // The rows' own bottom gap (MediaRow: spacing.lg), so the next row
+            // does not sit flush under the widget.
+            <View key={feedType} testID="home-plugin-section" style={{ marginBottom: theme.spacing.lg, marginHorizontal: theme.spacing.md }}>
               <PluginSlot name="home.section" pluginId={pluginId} />
             </View>
           );
@@ -693,6 +696,8 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
       >
         <View style={{ paddingTop: theme.spacing.md }}>
+          {/* The home layout is the shared profile's on the demo: not offered. */}
+          {demo ? null : (
           <Pressable
             onPress={() => setShowCustomize(true)}
             style={{ alignSelf: "flex-end", marginRight: theme.spacing.md, marginBottom: theme.spacing.sm, flexDirection: "row", alignItems: "center", gap: 4 }}
@@ -703,6 +708,7 @@ export default function HomeScreen() {
             <Ionicons name="options-outline" size={16} color={theme.colors.textMuted} />
             <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("media.home.customize") || "Customize"}</Text>
           </Pressable>
+          )}
           {/* Plugins mounting the page hero - same strip-above-every-feed
               placement as the web home. */}
           <View style={{ marginHorizontal: theme.spacing.md }}>

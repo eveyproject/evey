@@ -727,6 +727,31 @@ func TestLibraryHandler_SearchMedia_NonKids_Unfiltered(t *testing.T) {
 	assert.Len(t, resp.Items, 2)
 }
 
+// A search hit is rebuilt from its stored item: the grids filter results on
+// genres and the minimum rating, and an empty genre list made a genre chip
+// plus a query return nothing (audit 2026-10-01). The index's title stays.
+func TestLibraryHandler_SearchMedia_HydratesGenresAndRating(t *testing.T) {
+	h, _, mediaQuery, searchIdx, _, _, _ := newTestLibraryHandler()
+	ctx := adminCtx()
+	rating := 7.5
+	stored := &library.MediaItem{
+		ID: "mi-g", LibraryID: "lib-1", Title: "Genre Film", Type: "movie",
+		Catalog:        &library.MediaCatalog{Genres: []string{"Animation", "Comedy"}},
+		Classification: &library.MediaClassification{CommunityRating: &rating},
+	}
+	mediaQuery.Seed(stored)
+	searchIdx.IndexMediaItem(ctx, stored)
+
+	resp, err := h.SearchMedia(ctx, &eveyv1.SearchMediaRequest{Query: "Genre", Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 1)
+	got := resp.Items[0]
+	assert.Equal(t, []string{"Animation", "Comedy"}, got.Genres)
+	assert.InDelta(t, 7.5, got.CommunityRating, 0.001)
+	assert.Equal(t, "lib-1", got.LibraryId)
+	assert.Equal(t, "Genre Film", got.Title)
+}
+
 func TestLibraryHandler_FilterMediaItems_IDOR_Denied(t *testing.T) {
 	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
 

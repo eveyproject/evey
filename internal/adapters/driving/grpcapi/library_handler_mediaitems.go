@@ -433,7 +433,7 @@ func mediaItemSortValue(m *library.MediaItem, sortKey string) string {
 		// rows from older scans before scan-title was populated).
 		return m.SortTitle
 	case "added_at", "date_added":
-		return m.AddedAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
+		return m.SortAddedAt().UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
 	case "year":
 		if m.Catalog != nil && m.Catalog.Year != nil {
 			return fmt.Sprintf("%010d", *m.Catalog.Year)
