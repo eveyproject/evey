@@ -382,11 +382,17 @@ func adminMigrate(args []string) error {
 		if err := postgres.RunMigrations(db, backupOpts); err != nil {
 			return fmt.Errorf("migrate up: %w", err)
 		}
+		if err := handOverToAppRole(cfg, db); err != nil {
+			return err
+		}
 		fmt.Println("migrations: up - schema at latest version")
 		return nil
 	case "down":
 		if err := postgres.RollbackLastMigration(db, backupOpts); err != nil {
 			return fmt.Errorf("migrate down: %w", err)
+		}
+		if err := handOverToAppRole(cfg, db); err != nil {
+			return err
 		}
 		fmt.Println("migrations: down - one step rolled back")
 		return nil
