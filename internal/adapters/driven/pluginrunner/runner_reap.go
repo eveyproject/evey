@@ -3,6 +3,7 @@
 package pluginrunner
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"strconv"
@@ -14,9 +15,10 @@ import (
 // ReapStaleProcesses terminates plugin processes left behind by a previous
 // server instance. PR_SET_PDEATHSIG is the first line of defense but is not
 // airtight: the kernel clears it when execve'ing a binary with file caps
-// (the prod launcher carries cap_setuid), and group-exit delivery has been
-// observed to race on some kernels (WSL2) - each leaked node process holds
-// ~25 MB. Call once at boot, BEFORE starting plugins.
+// (the prod launcher carries cap_setuid), and it is permission-checked like
+// kill(2), so a server without CAP_KILL never delivers it to a plugin under
+// its own uid (measured 2026-10-01) - each leaked node process holds ~25 MB.
+// Call once at boot, BEFORE starting plugins.
 //
 // A process is reaped only when ALL of these hold:
 //   - its cmdline references a path under one of the runner's plugin dirs
@@ -64,25 +66,20 @@ func (r *Runner) ReapStaleProcesses() int {
 	}
 
 	// An announced sweep must have happened: count what could not be
-	// signalled and say it once, loudly, with the likely cause. A warning per
-	// pid on every boot read as noise while the orphans piled up (audit
-	// 2026-10-01: EPERM on every one, the container had no CAP_KILL).
+	// signalled and say it once, loudly. A plugin under its own uid goes
+	// through the launcher (signalPlugin): without CAP_KILL the server alone
+	// got EPERM on every one and the orphans piled up (audit 2026-10-01).
 	var denied []int
 	for _, pid := range victims {
 		slog.Warn("reaping stale plugin process from a previous server instance",
 			slog.Int("pid", pid))
-		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-			if killErr := syscall.Kill(pid, syscall.SIGTERM); killErr != nil && killErr != syscall.ESRCH {
-				if killErr == syscall.EPERM {
-					denied = append(denied, pid)
-					continue
-				}
-				slog.Warn("reap stale plugin: SIGTERM failed", slog.Int("pid", pid), slog.Any("err", killErr))
-			}
+		if err := signalPlugin(context.Background(), pid, syscall.SIGTERM); err != nil {
+			slog.Warn("reap stale plugin: SIGTERM failed", slog.Int("pid", pid), slog.Any("err", err))
+			denied = append(denied, pid)
 		}
 	}
 	if len(denied) > 0 {
-		slog.Error("reap stale plugins: not permitted to signal leftover plugin processes - they keep running; grant the container CAP_KILL (plugins run under their own uid)",
+		slog.Error("reap stale plugins: leftover plugin processes could not be signalled and keep running",
 			slog.Int("count", len(denied)), slog.Any("pids", denied))
 	}
 	if len(victims) > 0 {
@@ -91,19 +88,15 @@ func (r *Runner) ReapStaleProcesses() int {
 			for _, pid := range pids {
 				// Liveness alone is NOT identity. Across the grace period the
 				// victim usually dies, and Linux is free to hand its pid to any
-				// new process - kill(pid,0) then succeeds for a stranger, and we
-				// SIGKILL it. Re-run the same two checks that made it a victim,
+				// new process. Re-run the same two checks that made it a victim,
 				// so an escalation only ever lands on a process that is STILL a
-				// plugin of ours.
+				// plugin of ours (kill(pid, 0) is no liveness probe here: it is
+				// EPERM for a plugin under its own uid).
 				if !r.stillReapable(pid, myUID) {
 					continue
 				}
-				if syscall.Kill(pid, 0) == nil {
-					if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
-						if killErr := syscall.Kill(pid, syscall.SIGKILL); killErr != nil && killErr != syscall.ESRCH {
-							slog.Warn("reap stale plugin: SIGKILL failed", slog.Int("pid", pid), slog.Any("err", killErr))
-						}
-					}
+				if err := signalPlugin(context.Background(), pid, syscall.SIGKILL); err != nil {
+					slog.Warn("reap stale plugin: SIGKILL failed", slog.Int("pid", pid), slog.Any("err", err))
 				}
 			}
 		}(victims)

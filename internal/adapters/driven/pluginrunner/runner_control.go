@@ -19,20 +19,8 @@ import (
 // group-termination the boot-time reaper and Kill already use, so a plugin's
 // forked children die with it on graceful stop too.
 func signalPluginGroup(ctx context.Context, pid int, sig syscall.Signal) {
-	// Guard against a non-positive pid: kill(-1) hits every process the caller
-	// can signal and kill(0) hits the caller's OWN process group - either would
-	// take the server down. A live plugin always has pid > 0; this is belt-and-
-	// braces so a future caller can never turn a zero pid into that catastrophe.
-	if pid <= 0 {
-		return
-	}
-	// Fall back to the leader pid on ANY group-send error (mirrors the reaper):
-	// a process not spawned as its own group leader has no pgid == pid, so
-	// kill(-pid) returns ESRCH and only the direct kill(pid) reaches it.
-	if err := syscall.Kill(-pid, sig); err != nil {
-		if err := syscall.Kill(pid, sig); err != nil && err != syscall.ESRCH {
-			slog.WarnContext(ctx, "signal plugin", slog.Int("pid", pid), slog.String("signal", sig.String()), slog.Any("err", err))
-		}
+	if err := signalPlugin(ctx, pid, sig); err != nil {
+		slog.WarnContext(ctx, "signal plugin", slog.Int("pid", pid), slog.String("signal", sig.String()), slog.Any("err", err))
 	}
 }
 
@@ -138,8 +126,7 @@ func (r *Runner) Kill(pluginID string) error {
 	// SIGKILL the entire process group - the plugin may have spawned children
 	// (interpreters, worker threads) that need to die along with the leader.
 	// Setpgid:true in SysProcAttr guarantees pgid == pid for the leader.
-	pgid := -entry.cmd.Process.Pid
-	if err := syscall.Kill(pgid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+	if err := signalPlugin(context.Background(), entry.cmd.Process.Pid, syscall.SIGKILL); err != nil {
 		slog.Warn("kill plugin process group", slog.String("pluginID", pluginID), slog.Any("err", err))
 	}
 
