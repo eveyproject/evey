@@ -3,6 +3,7 @@ package dlna
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -56,7 +57,8 @@ func TestFetchDeviceDescription_FallbacksAndRefusals(t *testing.T) {
 		}))
 	}
 	// No name, no UDN: the location stands in for both.
-	anon := serve(`<root><device><serviceList><service><serviceType>urn:AVTransport:1</serviceType><controlURL>http://10.0.0.9:8080/avt</controlURL></service></serviceList></device></root>`)
+	// An absolute control URL on the device itself (another port) is kept.
+	anon := serve(`<root><device><serviceList><service><serviceType>urn:AVTransport:1</serviceType><controlURL>http://127.0.0.1:8080/avt</controlURL></service></serviceList></device></root>`)
 	defer anon.Close()
 	r, err := fetchDeviceDescription(context.Background(), anon.URL)
 	if err != nil {
@@ -65,8 +67,15 @@ func TestFetchDeviceDescription_FallbacksAndRefusals(t *testing.T) {
 	if r.Name != anon.URL || r.ID != anon.URL {
 		t.Errorf("Name/ID = %q/%q, want the location", r.Name, r.ID)
 	}
-	if r.ControlURL != "http://10.0.0.9:8080/avt" {
-		t.Errorf("an absolute control URL is kept as is: %q", r.ControlURL)
+	if r.ControlURL != "http://127.0.0.1:8080/avt" {
+		t.Errorf("an absolute control URL on the same host is kept as is: %q", r.ControlURL)
+	}
+
+	// One on another host would turn every Play into a POST anywhere.
+	elsewhere := serve(`<root><device><serviceList><service><serviceType>urn:AVTransport:1</serviceType><controlURL>http://169.254.169.254/latest</controlURL></service></serviceList></device></root>`)
+	defer elsewhere.Close()
+	if _, err := fetchDeviceDescription(context.Background(), elsewhere.URL); err == nil {
+		t.Error("a control URL on another host must be refused")
 	}
 
 	// A device without AVTransport cannot be played to.
@@ -174,5 +183,25 @@ func TestTransport_RendererErrorsSurface(t *testing.T) {
 	}
 	if err := s.Pause(context.Background(), "ghost"); err == nil {
 		t.Error("an unknown renderer must be refused before any network call")
+	}
+}
+
+// The description is only fetched from the device that answered the M-SEARCH:
+// any LAN host could otherwise make the server GET an arbitrary URL.
+func TestLocationFromResponder(t *testing.T) {
+	src := net.ParseIP("192.168.1.40")
+	for loc, want := range map[string]bool{
+		"http://192.168.1.40:49152/desc.xml": true,
+		"https://192.168.1.40/desc.xml":      true,
+		"http://192.168.1.41:49152/desc.xml": false,
+		"http://127.0.0.1:5432/":             false,
+		"http://tv.local:49152/desc.xml":     false,
+		"file:///etc/passwd":                 false,
+		"gopher://192.168.1.40/":             false,
+		"":                                   false,
+	} {
+		if got := locationFromResponder(loc, src); got != want {
+			t.Errorf("%q from %s: got %v, want %v", loc, src, got, want)
+		}
 	}
 }
