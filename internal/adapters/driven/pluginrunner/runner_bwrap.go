@@ -59,7 +59,10 @@ func buildBwrapCmd(pluginDir, pluginSockDir, mode string) []string {
 		args = append(args, "--bind", pluginSockDir, pluginSockDir)
 	}
 
+	// No capability inside the user namespace. No --new-session: setsid would
+	// leave the process group that Stop, Kill and the boot sweep signal.
 	args = append(args,
+		"--cap-drop", "ALL",
 		"--die-with-parent",
 		"--",
 	)

@@ -118,3 +118,17 @@ func TestBwrapMountWhitelist(t *testing.T) {
 		}
 	}
 }
+
+// The sandboxed process keeps no capability inside its user namespace, and no
+// new session: setsid would take the plugin out of the process group every
+// signal (stop, kill, the boot sweep) is sent to.
+func TestBuildBwrapCmd_DropsCapsKeepsSession(t *testing.T) {
+	for _, mode := range []string{sandboxModeBubblewrap, sandboxModeStrict} {
+		args := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", mode)
+		require.NotNil(t, args)
+		i := slices.Index(args, "--cap-drop")
+		require.GreaterOrEqual(t, i, 0, "%s: --cap-drop missing", mode)
+		assert.Equal(t, "ALL", args[i+1])
+		assert.NotContains(t, args, "--new-session", mode)
+	}
+}
