@@ -87,7 +87,7 @@ type adminSystemHandler struct {
 	startTime      time.Time
 	ffmpegPath     string
 	translator     *eveyi18n.Translator
-	smtpConfigured bool
+	smtpConfigured func() bool        // nil = not configured
 	serverCfgSvc   *appconfig.Service // optional: nil = server.language/region can't be persisted via setup
 	// cfg is the live runtime config: the server name is read from it (the
 	// admin PUT updates it in place) and the setup wizard writes it there so
@@ -260,7 +260,7 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 		UptimeSeconds:           uptimeSecs,
 		FfmpegVersion:           sysinfo.FFmpegVersion(d.ffmpegPath),
 		PasswordRecoveryEnabled: d.userCmd.IsPasswordRecoveryEnabled(ctx),
-		SmtpConfigured:          d.smtpConfigured,
+		SmtpConfigured:          d.smtpConfigured != nil && d.smtpConfigured(),
 	}
 
 	if d.transcodingSvc != nil {

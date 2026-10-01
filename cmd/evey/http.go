@@ -226,6 +226,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		BackupSvc:  deps.backupSvc,
 		WebhookSvc: deps.engagement.webhookSvc,
+		SMTPTester: deps.smtpSender,
 
 		ImageConverter:    deps.imageConverter,
 		ArtworkRepo:       deps.repos.artworkRepo,

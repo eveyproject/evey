@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/evey-project/evey/internal/adapters/driven/email"
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
@@ -193,6 +194,8 @@ type appDeps struct {
 	bus                    *eventbus.InMemoryEventBus
 	cfgStore               *httpapi.ServerConfigStore
 	serverCfgSvc           *appconfig.Service
+	liveSMTP               *appconfig.LiveSMTP
+	smtpSender             *email.LiveSMTPSender
 	pluginRunner           *pluginrunner.Runner
 	pluginResDefaults      appplugin.ResourceDefaults
 	backupSvc              *appbackup.Service

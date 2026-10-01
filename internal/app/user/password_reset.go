@@ -24,7 +24,7 @@ import (
 const PasswordRecoveryConfigKey = "auth.password_recovery_enabled"
 
 func (s *CommandService) IsPasswordRecoveryEnabled(ctx context.Context) bool {
-	if !s.smtpConfigured || s.serverCfg == nil {
+	if s.smtpConfigured == nil || !s.smtpConfigured() || s.serverCfg == nil {
 		return false
 	}
 	entry, err := s.serverCfg.Get(ctx, PasswordRecoveryConfigKey)

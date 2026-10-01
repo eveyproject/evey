@@ -39,7 +39,7 @@ type CommandService struct {
 	events          shared.EventBus
 	quickConnect    user.QuickConnectRepository
 	serverCfg       shared.ServerConfigRepository
-	smtpConfigured  bool
+	smtpConfigured  func() bool // read per request: SMTP is live-editable
 	refreshTokenTTL time.Duration
 	loginAttempts   user.LoginAttemptRepository
 	loginMaxFails   int
@@ -107,8 +107,15 @@ func WithPasswordReset(resetTokens user.PasswordResetTokenRepository, serverCfg 
 	return func(s *CommandService) {
 		s.resetTokens = resetTokens
 		s.serverCfg = serverCfg
-		s.smtpConfigured = smtpConfigured
+		s.smtpConfigured = func() bool { return smtpConfigured }
 	}
+}
+
+// WithLiveSMTPConfigured replaces WithPasswordReset's boot-time SMTP flag with
+// a function read on every request, so SMTP set up from the panel later turns
+// password recovery on without a restart.
+func WithLiveSMTPConfigured(fn func() bool) CommandServiceOption {
+	return func(s *CommandService) { s.smtpConfigured = fn }
 }
 
 // WithUnitOfWork wires a transactional unit so multi-step writes (e.g.

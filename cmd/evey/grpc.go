@@ -207,7 +207,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		LogDir:                 logDir,
 		ServerCtx:              serverCtx,
 		Translator:             deps.translator,
-		SMTPConfigured:         cfg.SMTP.Host != "" && !cfg.Server.Demo,
+		SMTPConfigured:         deps.liveSMTP.Configured,
 		ServerCfgSvc:           deps.serverCfgSvc,
 		ShareSvc:               deps.media.shareSvc,
 		Music:                  deps.media.musicSvc,

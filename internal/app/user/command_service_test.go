@@ -1725,6 +1725,28 @@ func TestIsPasswordRecoveryEnabled_False_NoSMTP(t *testing.T) {
 	}
 }
 
+// SMTP configured from the panel after boot turns recovery on without a restart.
+func TestIsPasswordRecoveryEnabled_FollowsLiveSMTP(t *testing.T) {
+	d := newAuthTestDeps()
+	serverCfg := fakes.NewFakeServerConfigRepository()
+	smtpOn := false
+	d.svc = NewCommandService(
+		d.users, d.profiles, d.refreshTkns, d.roles, d.userRoles,
+		d.hasher, d.tokens, d.events, 7*24*time.Hour, ufakes.NewFakeQuickConnectRepository(),
+		WithPasswordReset(ufakes.NewFakePasswordResetTokenRepository(), serverCfg, false),
+		WithLiveSMTPConfigured(func() bool { return smtpOn }),
+	)
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+	if d.svc.IsPasswordRecoveryEnabled(ctx) {
+		t.Fatal("no SMTP yet: recovery must be off")
+	}
+	smtpOn = true
+	if !d.svc.IsPasswordRecoveryEnabled(ctx) {
+		t.Fatal("SMTP now configured: recovery must turn on live")
+	}
+}
+
 func TestIsPasswordRecoveryEnabled_False_NoServerCfg(t *testing.T) {
 	d := newAuthTestDeps()
 	if d.svc.IsPasswordRecoveryEnabled(context.Background()) {
