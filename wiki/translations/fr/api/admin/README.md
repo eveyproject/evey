@@ -1,5 +1,5 @@
 ---
-source_sha: 36c96049e9495129225a1a4d0a1273989914586cc0b0fb010ee4d6e99afb4219
+source_sha: 8392e2d20e3a5b3c62e2f39d4743e925c172cdcb73dc639a5502e1bf4c16a66d
 reviewed: true
 ---
 # API d'administration
@@ -40,4 +40,6 @@ Les points d'accès réservés aux utilisateurs ayant les droits d'administrateu
 
 ## Authentification
 
-Tous les points d'accès demandent un jeton JWT d'administrateur valide.
+Chaque point d'accès exige un administrateur : le jeton de session d'un compte
+administrateur, ou une clé d'API, qui appartient toujours à l'un d'eux (ses
+scopes peuvent la restreindre).

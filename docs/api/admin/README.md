@@ -36,4 +36,5 @@ Administrative endpoints restricted to users with admin privileges.
 
 ## Authentication
 
-All endpoints require a valid admin JWT token.
+Every endpoint needs an administrator: the session token of an administrator
+account, or an API key, which always belongs to one (its scopes can narrow it).

@@ -1,5 +1,5 @@
 ---
-source_sha: d950d41e450f1d05a29cf775d0b79159572cfa1353c7e02ac009671bb0bcefc1
+source_sha: e1e56c5e8b4af228a44f567d290622a0165ed4a03deb071e09411371605750d5
 reviewed: true
 ---
 # API publique
@@ -28,6 +28,9 @@ Les points d'accès ouverts à tous les utilisateurs authentifiés.
 
 ## Authentification
 
-Tous les points d'accès demandent un jeton JWT valide dans
-`Authorization: Bearer <jeton>`, sauf `/api/v1/auth/login` et
-`/api/v1/setup/*`.
+Les points d'accès prennent `Authorization: Bearer <jeton>` : un jeton de
+session obtenu à la connexion, ou une clé d'API (voir
+[Webhooks et clés d'API](../../webhooks-api-keys.md)). Accessibles sans : la
+connexion et le renouvellement de session, l'inscription par invitation, Quick
+Connect, la réinitialisation du mot de passe, l'assistant d'installation et son
+état, et les liens de téléchargement publics.

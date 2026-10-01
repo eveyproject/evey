@@ -1,5 +1,5 @@
 ---
-source_sha: d950d41e450f1d05a29cf775d0b79159572cfa1353c7e02ac009671bb0bcefc1
+source_sha: e1e56c5e8b4af228a44f567d290622a0165ed4a03deb071e09411371605750d5
 reviewed: false
 ---
 # 公开 API
@@ -28,4 +28,4 @@ reviewed: false
 
 ## 身份验证
 
-除 `/api/v1/auth/login` 和 `/api/v1/setup/*` 之外，所有端点都需要通过 `Authorization: Bearer <token>` 提供有效的 JWT 令牌。
+各端点接受 `Authorization: Bearer <token>`：登录获得的会话令牌，或 API 密钥（见 [Webhook 与 API 密钥](../../webhooks-api-keys.md)）。无需令牌即可访问的有：登录和续期会话、通过邀请注册、Quick Connect、密码重置、设置向导及其状态，以及公开下载链接。

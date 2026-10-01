@@ -1,5 +1,5 @@
 ---
-source_sha: d950d41e450f1d05a29cf775d0b79159572cfa1353c7e02ac009671bb0bcefc1
+source_sha: e1e56c5e8b4af228a44f567d290622a0165ed4a03deb071e09411371605750d5
 reviewed: false
 ---
 # API pública
@@ -28,4 +28,4 @@ Endpoints para los usuarios, disponibles para todos los usuarios autenticados.
 
 ## Autenticación
 
-Todos los endpoints exigen un token JWT válido mediante `Authorization: Bearer <token>`, salvo `/api/v1/auth/login` y `/api/v1/setup/*`.
+Los endpoints reciben `Authorization: Bearer <token>`: un token de sesión obtenido al iniciar sesión, o una clave de API (ver [Webhooks y claves de API](../../webhooks-api-keys.md)). Accesibles sin él: iniciar y renovar sesión, registrarse con una invitación, Quick Connect, restablecer la contraseña, el asistente de configuración y su estado, y los enlaces de descarga públicos.

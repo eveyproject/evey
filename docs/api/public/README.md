@@ -24,4 +24,8 @@ User-facing endpoints available to all authenticated users.
 
 ## Authentication
 
-All endpoints require a valid JWT token via `Authorization: Bearer <token>`, except `/api/v1/auth/login` and `/api/v1/setup/*`.
+Endpoints take `Authorization: Bearer <token>`: a session token from signing
+in, or an API key (see [Webhooks and API keys](../../webhooks-api-keys.md)). Open
+without one: signing in and renewing a session, signing up with an invitation,
+Quick Connect, password reset, the setup wizard and its status, and public
+download links.
