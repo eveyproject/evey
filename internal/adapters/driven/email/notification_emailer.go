@@ -43,6 +43,10 @@ func (e *NotificationEmailer) handle(ctx context.Context, ev shared.Event) {
 	if !ok {
 		return
 	}
+	// Skip the profile/user lookups while no SMTP host is in force.
+	if c, ok := e.sender.(interface{ Configured() bool }); ok && !c.Configured() {
+		return
+	}
 
 	profile, err := e.profiles.GetByID(ctx, notif.ProfileID)
 	if err != nil {

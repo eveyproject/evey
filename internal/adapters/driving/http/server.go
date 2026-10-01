@@ -252,6 +252,10 @@ type HTTPServer struct {
 	// server built without this wired keeps working, just without the route.
 	WebhookSvc *appwebhook.Service
 
+	// SMTPTester backs the Email / SMTP card's "Send test e-mail"
+	// (POST /api/v1/admin/smtp/test). Nil skips the route.
+	SMTPTester SMTPTestSender
+
 	// Image conversion (optional)
 	ImageConverter ImageConverter
 
@@ -769,6 +773,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		// grpc-gateway serves Create/List/Update/Delete/ListDeliveries from the
 		// proto; "test" has no RPC, hence the manual route registered here.
 		registerWebhookRoutes(mux, s.WebhookSvc, s.TokenGen, s.AdminHeavyRL)
+	}
+	if s.SMTPTester != nil {
+		registerSMTPTestRoute(mux, s.SMTPTester, s.UserRepo, s.TokenGen, s.AdminHeavyRL)
 	}
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
 	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, hwModeControllerOf(s.CalibrationSvc), s.LoginRL, s.GlobalRL, s.AdminWriteRL)

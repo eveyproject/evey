@@ -394,6 +394,7 @@ var LockedRoutes = map[string]string{ //nolint:gosec // G101: RPC and route name
 	"POST /api/v1/admin/plugins/preview":                   "analyses a caller-supplied bundle",
 	"POST /api/v1/admin/plugins/upload":                    "installs code",
 	"POST /api/v1/admin/search/reindex":                    "rebuilds the search index under every visitor",
+	"POST /api/v1/admin/smtp/test":                         "sends real mail from the host",
 	"POST /api/v1/admin/translations/refresh-all":          "library-wide provider calls",
 	"POST /api/v1/admin/trickplay/generate-all":            "ffmpeg, library-wide",
 	"POST /api/v1/admin/update-status/check":               "outbound call to the release feed on demand",

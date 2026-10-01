@@ -159,14 +159,16 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
 	libScheduler := applibrary.NewScheduler(r.ScanSchedule, libCmdSvc, schedulerLog)
 
-	// SMTP status is known here (before userAuthSvc is built) so password
-	// reset is wired through constructor options, not post-hoc. The actual
-	// email Register() calls happen further down after the services exist.
-	// On the demo the mail port is a sink whatever the environment says: no
-	// emailer is registered and password recovery reports itself off, so a
-	// visitor cannot make the host send mail. Replacing the adapter (rather
-	// than refusing at a handler) also covers the event subscribers.
-	smtpConfigured := cfg.SMTP.Host != "" && !cfg.Server.Demo
+	// SMTP settings in force: the Admin -> Server Config card wins over
+	// EVEY_SMTP_*, re-read on every smtp.* change so password recovery, the
+	// SMTPConfigured flag and the emailers follow the panel without a restart.
+	// On the demo it is disabled whatever the panel or env say: every send is
+	// a no-op and password recovery reports itself off.
+	liveSMTP := appconfig.NewLiveSMTP(ctx, r.ServerCfg, appconfig.SMTPSettings{
+		Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, Username: cfg.SMTP.Username,
+		Password: cfg.SMTP.Password, From: cfg.SMTP.From, TLS: cfg.SMTP.TLS,
+	}, cfg.Server.Demo)
+	liveSMTP.Watch(bus)
 	// guardedTokens enforces users.token_epoch on every access-token mint and
 	// validation: bumping the epoch (disable, role change, password change,
 	// admin session kill) revokes outstanding tokens within ~30s instead of
@@ -182,7 +184,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// invoked at runtime on a real security event, long after wiring completes.
 	securityRevoker := &compositeTokenRevoker{epoch: guardedTokens}
 	userAuthOpts := []appuser.CommandServiceOption{
-		appuser.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, smtpConfigured),
+		appuser.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, liveSMTP.Configured()),
+		appuser.WithLiveSMTPConfigured(liveSMTP.Configured),
 		appuser.WithUnitOfWork(postgres.NewTxUnit(db)),
 		appuser.WithLoginAttemptRepository(r.LoginAttempt),
 		appuser.CommandWithTokenRevoker(securityRevoker),
@@ -360,11 +363,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	notifCmdSvc, notifQuerySvc := buildNotificationServices(ctx, cfg, infra, rootLog)
 
-	if smtpConfigured {
-		smtpSender := email.NewSMTPSender(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From, cfg.SMTP.TLS)
-		email.NewNotificationEmailer(smtpSender, r.Profile, r.User, cfg.EffectiveServerName).Register(bus)
-		email.NewPasswordResetEmailer(smtpSender, cfg.EffectiveBaseURL, cfg.EffectiveServerName).Register(bus)
-		rootLog.Info("SMTP email notifications enabled", slog.String("host", cfg.SMTP.Host))
+	// Always registered: the sender reads liveSMTP at send time and is a no-op
+	// while no host is set, so SMTP configured later starts sending at once.
+	smtpSender := email.NewLiveSMTPSender(liveSMTP, cfg.EffectiveServerName)
+	email.NewNotificationEmailer(smtpSender, r.Profile, r.User, cfg.EffectiveServerName).Register(bus)
+	email.NewPasswordResetEmailer(smtpSender, cfg.EffectiveBaseURL, cfg.EffectiveServerName).Register(bus)
+	if liveSMTP.Configured() {
+		rootLog.Info("SMTP email notifications enabled", slog.String("host", liveSMTP.Current().Host))
 	}
 	// userAuthSvc already wired with password reset + UoW options above.
 
@@ -1134,6 +1139,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		},
 		cfgStore:          httpapi.NewServerConfigStore(r.ServerCfg),
 		serverCfgSvc:      serverCfgSvc,
+		liveSMTP:          liveSMTP,
+		smtpSender:        smtpSender,
 		pluginRunner:      infra.pluginRunner,
 		pluginResDefaults: pluginResDefaults,
 		backupSvc:         backupSvc,

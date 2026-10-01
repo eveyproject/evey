@@ -99,7 +99,7 @@ type GRPCServerDeps struct {
 	LogDir          string
 	ServerCtx       context.Context
 	Translator      *eveyi18n.Translator
-	SMTPConfigured  bool
+	SMTPConfigured  func() bool                  // live: SMTP is editable from the admin panel; nil = off
 	ServerCfgSvc    *appconfig.Service           // optional: nil = service not registered
 	ShareSvc        *appmedia.ShareService       // optional
 	Music           *appmusic.Service            // optional
