@@ -1,5 +1,5 @@
 ---
-source_sha: 8aff69db523d14863f90a67e1d006815586528d8e04ea12732fa6de3856fee4a
+source_sha: c89d50a53938f9f7a84056f270adf0482f2fbed4e8bd8d475e943e7ea09cc583
 reviewed: false
 ---
 # 高级部署
@@ -134,7 +134,7 @@ docker exec evey-server evey admin reindex-search
 
 ## ARM 主机
 
-稳定版本会发布多架构镜像（`linux/amd64` 和 `linux/arm64`）；Docker 会选择正确的那个。预发布标签和分支标签只有 amd64：在 ARM 主机上请固定一个稳定版本。
+从版本标签构建的镜像（`0.2.0`，包括 `0.2.0-beta.1` 这样的预发布版本）是多架构镜像（`linux/amd64` 和 `linux/arm64`）；Docker 会选择正确的那个。`beta-0.0.1` 这样的分支标签只有 amd64：在 ARM 主机上请固定一个版本标签。
 
 - **ARM 上的硬件转码** 仅限于通过 RKMPP 使用的 Rockchip SoC（RK3588、RK3576、RK3568 级别）。映射 `/dev/mpp_service`、`/dev/dri`，以及内核提供时的 `/dev/rga`；Evey 会在使用编码器之前对其进行探测和基准测试。项目尚未在真实硬件上验证过 RKMPP。树莓派或基于 Realtek 的 ARM NAS 没有 Evey 可以使用的硬件编码器：这些服务器依靠直接播放和软件转码，其规模由与其他主机相同的校准来确定。
 - **HDR 色调映射** 在 ARM（NEON）上使用与 x86-64（AVX2）相同的 SIMD `tonemapx` 滤镜。

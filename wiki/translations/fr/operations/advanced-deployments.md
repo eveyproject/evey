@@ -1,5 +1,5 @@
 ---
-source_sha: 8aff69db523d14863f90a67e1d006815586528d8e04ea12732fa6de3856fee4a
+source_sha: c89d50a53938f9f7a84056f270adf0482f2fbed4e8bd8d475e943e7ea09cc583
 reviewed: true
 ---
 # Déploiements avancés
@@ -162,9 +162,11 @@ démarrage suivant recommence.
 
 ## Machines ARM
 
-Les versions stables publient une image multi-architecture (`linux/amd64` et
-`linux/arm64`) ; Docker choisit la bonne. Les tags de préversion et de branche
-sont en amd64 uniquement : figez une version stable sur une machine ARM.
+Les images construites depuis un tag de version (`0.2.0`, préversions comme
+`0.2.0-beta.1` comprises) sont multi-architecture (`linux/amd64` et
+`linux/arm64`) ; Docker choisit la bonne. Les tags de branche comme
+`beta-0.0.1` sont en amd64 uniquement : figez un tag de version sur une machine
+ARM.
 
 - **Le transcodage matériel sur ARM** se limite aux SoC Rockchip (classe
   RK3588, RK3576, RK3568), via RKMPP. Montez `/dev/mpp_service`, `/dev/dri`

@@ -26,8 +26,10 @@ Three consequences:
 - **A pre-release never touches `latest`.** `latest` means the newest stable
   release; a closed-beta cut is invisible to anyone tracking it. (A pre-release
   also gets no `X.Y` / `X` tags: those are stable-only.)
-- **Multi-arch on every build** (amd64 + arm64), so an ARM operator can pin
-  any of these.
+- **Multi-arch on tags only.** A `v*.*.*` tag (stable or pre-release) builds
+  amd64 + arm64; a branch push builds amd64 only, unless its commit message
+  carries `[arm64]` or the workflow is dispatched by hand. An ARM operator pins
+  a release tag.
 
 The commit is stamped into the binary (`evey version`, `/healthz`) and into
 the image labels (`org.opencontainers.image.revision`), so "which code is

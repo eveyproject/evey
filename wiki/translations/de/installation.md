@@ -1,5 +1,5 @@
 ---
-source_sha: 70f1b2800b49143b1d28815dd9f5debd717d59cd95f6f436325fc029a8969897
+source_sha: 1e142f5db633e6ce71b5b8f23cc10423cca89071a75c05bb222572fb579f2645
 reviewed: false
 ---
 # Installation
@@ -23,7 +23,7 @@ erzeugt werden. Die Compose-Datei unten ist die gesamte Installation: keine
 - Docker mit Compose v2 (`docker compose`, nicht das ältere `docker-compose`).
 - Ein dauerhafter Datenträger für Eveys Daten (die Compose-Datei unten legt sie
   in `./evey-data` neben der Datei ab).
-- Ein x86-64-Host, oder ARM64 mit einem stabilen Release-Tag: siehe
+- Ein x86-64-Host, oder ARM64 mit einem Release-Tag: siehe
   [ARM-Hosts](operations/advanced-deployments.md#arm-hosts).
 
 Evey liefert einfaches HTTP aus. Um ihn von außerhalb Ihres Zuhauses über HTTPS

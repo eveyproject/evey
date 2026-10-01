@@ -1,5 +1,5 @@
 ---
-source_sha: 70f1b2800b49143b1d28815dd9f5debd717d59cd95f6f436325fc029a8969897
+source_sha: 1e142f5db633e6ce71b5b8f23cc10423cca89071a75c05bb222572fb579f2645
 reviewed: false
 ---
 # 安装
@@ -14,7 +14,7 @@ Evey 以一个容器运行。镜像在一个端口上同时提供 API 和网页�
 
 - 带 Compose v2 的 Docker（`docker compose`，而不是旧的 `docker-compose`）。
 - 一块用来存放 Evey 数据的持久磁盘（下面的 compose 文件把数据放在文件旁边的 `./evey-data` 中）。
-- 一台 x86-64 主机，或者使用稳定版本标签的 ARM64 主机：见[ARM 主机](operations/advanced-deployments.md#arm-hosts)。
+- 一台 x86-64 主机，或者使用版本标签的 ARM64 主机：见[ARM 主机](operations/advanced-deployments.md#arm-hosts)。
 
 Evey 提供未加密的 HTTP。要在家庭网络之外通过 HTTPS 访问它，之后在它前面放一个反向代理：见[远程访问与 HTTPS](administration/remote-access.md)。
 
