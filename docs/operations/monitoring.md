@@ -11,6 +11,12 @@ device, and how, track by track (copied, transcoded, and the backend encoding
 it). An administrator can **Stop** a session or **Send message** to the
 viewer.
 
+The dashboard's **Who's Online** card lists who is connected right now, by
+profile, with how long ago each app was last heard from. A Chromecast whose
+television keeps Evey's receiver loaded stays listed after its playback has
+ended and left **Now Playing**; **Stop this Chromecast** sends it a stop
+command, which the television applies within 30 seconds.
+
 **Admin → System Health** shows the processor, memory, bandwidth and storage,
 and how much of the transcoding capacity is in use.
 
@@ -56,6 +62,7 @@ quality). A change applies at the next daily cleanup.
 diagnostic commands are listed in [Command line](../runbooks/cli.md).
 
 <!-- sources
+who's online: frontend/apps/web/src/features/admin/DashboardOnline.tsx (presence heartbeat, profile names, idle, SendCastReceiverCommand) ; i18n admin.online.*
 labels: i18n admin.sessions.*, admin.systemHealth.*, admin.logs.*, admin.qoe.*, admin.analytics.*, admin.activity.*, admin.serverSettings.*RetentionDays, retentionSweepHint
 automatic limits: i18n admin.qoe.overrides.* ; docs/adr/0018-cmcd-qoe-pipeline.md
 -->

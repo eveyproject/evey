@@ -1,5 +1,5 @@
 ---
-source_sha: f6d6e61c9914bed7f2744ebf8dec6a79fc1769dd750e8b0f2109b4ab14d44526
+source_sha: 379364a92d0108cdaeaf5ac5c24f9bf18ca1e30aa45e876c7e38da2ea3d133ca
 reviewed: false
 ---
 # Überwachung und Logs
@@ -14,6 +14,13 @@ Für ein zu untersuchendes Symptom beginnen Sie mit der
 welchem Gerät und wie, Spur für Spur (kopiert, transkodiert und das Backend,
 das kodiert). Ein Administrator kann eine Sitzung **Stoppen** oder dem
 Zuschauer eine **Nachricht senden**.
+
+Die Karte **Wer ist online** im Dashboard listet, wer gerade verbunden ist,
+nach Profil, mit der Zeit seit dem letzten Lebenszeichen jeder App. Ein
+Chromecast, dessen Fernseher Eveys Receiver geladen hält, bleibt nach dem Ende
+seiner Wiedergabe gelistet, auch wenn er aus **Aktuelle Wiedergabe** verschwunden
+ist; **Diesen Chromecast stoppen** schickt ihm einen Stoppbefehl, den der
+Fernseher innerhalb von 30 Sekunden ausführt.
 
 **Admin → Systemzustand** zeigt Prozessor, Speicher, Bandbreite und
 Speicherplatz, und wie viel der Transkodierungskapazität genutzt wird.

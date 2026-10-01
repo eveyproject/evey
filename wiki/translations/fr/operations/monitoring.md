@@ -1,5 +1,5 @@
 ---
-source_sha: f6d6e61c9914bed7f2744ebf8dec6a79fc1769dd750e8b0f2109b4ab14d44526
+source_sha: 379364a92d0108cdaeaf5ac5c24f9bf18ca1e30aa45e876c7e38da2ea3d133ca
 reviewed: true
 ---
 # Supervision et logs
@@ -13,6 +13,12 @@ symptôme précis, commencez par le [Dépannage](troubleshooting.md).
 quel appareil, et comment, piste par piste (copiée, transcodée, et le backend
 qui l'encode). Un administrateur peut **Arrêter** une session ou **Envoyer un
 message** au spectateur.
+
+La carte **Qui est en ligne** du tableau de bord liste qui est connecté en ce
+moment, par profil, avec l'ancienneté du dernier signal de chaque application.
+Un Chromecast dont la TV garde le récepteur d'Evey chargé reste listé après la
+fin de sa lecture, une fois sorti de **En cours de lecture** ; **Arrêter ce
+Chromecast** lui envoie un ordre d'arrêt, que la TV applique sous 30 secondes.
 
 **Admin → Santé du système** montre le processeur, la mémoire, la bande
 passante, le stockage, et la part de la capacité de transcodage utilisée.
