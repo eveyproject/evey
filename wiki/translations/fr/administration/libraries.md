@@ -129,8 +129,8 @@ en existe trois sortes :
 
 Seuls les administrateurs créent et modifient les collections. Tout le monde
 peut les parcourir, et **Télécharger la collection** sur le web récupère les
-fichiers originaux dans un seul ZIP (jusqu'à 1000 titres), sans ce que l'accès
-aux bibliothèques ou la limite d'âge du compte masquent.
+fichiers originaux dans un seul ZIP (jusqu'à 1000 titres), en laissant de côté
+ce que masquent l'accès aux bibliothèques ou la limite d'âge du compte.
 
 ## Clés de métadonnées
 

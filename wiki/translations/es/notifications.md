@@ -1,5 +1,5 @@
 ---
-source_sha: 17119c80beaac1a0cdb297aec8245b13c4fb28fe522600c9e57ffc6e33d1441f
+source_sha: 17e801d5dcfd1734785fe9a87bd5e83debfda31960d03d20b4c3c1e4b9c66b8c
 reviewed: false
 ---
 # Notificaciones
@@ -62,7 +62,7 @@ En **Ajustes → Notificaciones**, cada perfil elige un nivel para
 
 Un género cuenta como habitual cuando aparece en al menos 3 de las últimas 200
 reproducciones del perfil. Un título sin géneros nunca se notifica en los
-niveles Relevantes.
+niveles Relevantes y Solo importantes.
 
 Varios episodios de una misma serie que llegan en menos de 24 horas generan una
 sola notificación que los cuenta, y no se envía ninguna cuando la serie o la

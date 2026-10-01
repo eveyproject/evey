@@ -108,7 +108,7 @@ masquée.
 | **À suivre** | Pour chaque série dont le profil a vu un épisode, le prochain épisode non vu. |
 | **Collections** | Les collections, avec un lien vers la liste complète. |
 | **Recommandé pour vous** | Les films et séries des genres habituels du profil, la meilleure correspondance d'abord, puis par note. Un genre compte quand il apparaît dans au moins 3 des 200 dernières lectures du profil. |
-| **Les plus populaires** | Les films et séries les plus lus sur le serveur ces 90 derniers jours. |
+| **Les plus populaires** | Les films et séries les plus regardés sur le serveur ces 90 derniers jours. |
 | Une rangée par bibliothèque | Les derniers ajouts à cette bibliothèque, du plus récent au plus ancien. |
 
 Recommandé pour vous et Les plus populaires écartent ce que le profil a déjà

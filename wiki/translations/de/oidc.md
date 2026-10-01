@@ -1,5 +1,5 @@
 ---
-source_sha: 2edc135c644943052453572d9223c7834031131c057cd92f3e44e3a9ae72cc8c
+source_sha: 00f9d5811af70059e3ff6fc49a0defb49e3801f0005d12d5b22033634e960f33
 reviewed: false
 ---
 # OIDC / SSO einrichten
@@ -62,8 +62,8 @@ kennzeichnen.
 Ein Konto wird am Anbieter und seiner Benutzerkennung erkannt, nicht an der
 E-Mail. Wer bereits ein lokales Konto mit derselben E-Mail oder demselben
 Benutzernamen hat, kann kein SSO-Konto anlegen: Die Anmeldung scheitert mit
-„SSO-Anmeldung fehlgeschlagen". Verwenden Sie beim Anbieter eine andere Adresse
-oder entfernen Sie zuerst das lokale Konto.
+„SSO-Anmeldung fehlgeschlagen". Ändern Sie beim Anbieter die Adresse oder den
+Benutzernamen oder entfernen Sie zuerst das lokale Konto.
 
 Ein deaktiviertes Konto wird bei der Anmeldung wie üblich abgewiesen.
 

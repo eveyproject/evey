@@ -52,7 +52,8 @@ In **Settings → Notifications**, each profile picks a level for **Movies**,
 | **Disabled** | None. |
 
 A genre counts as usual when it appears in at least 3 of the profile's last 200
-playbacks. A title without genres is never notified at the Relevant levels.
+playbacks. A title without genres is never notified at the Relevant and Important only
+levels.
 
 Several episodes of one series arriving within 24 hours make a single
 notification that counts them, and none is sent when the series or the season
