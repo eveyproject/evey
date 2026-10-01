@@ -1,5 +1,5 @@
 ---
-source_sha: 17e801d5dcfd1734785fe9a87bd5e83debfda31960d03d20b4c3c1e4b9c66b8c
+source_sha: 0f3c964e32d232266d53c9ebfe192d6a3f21996e2437d7ec2cc38945c049774c
 reviewed: true
 ---
 # Notifications
@@ -18,8 +18,10 @@ d'une demande est prévenu quand elle reçoit une réponse.
   push** dans **Paramètres → Notifications**, une fois par navigateur. Le
   serveur crée ses clés de push au premier démarrage ; voir
   [E-mail et notifications](environment/notifications.md#browser-push) pour
-  fournir les vôtres. Les applications Android et TV ne reçoivent pas de
-  notifications push.
+  fournir les vôtres. Les navigateurs n'autorisent le push que sur une adresse
+  HTTPS (ou `localhost`) ; ailleurs, le réglage affiche **Notifications push non
+  configurées sur ce serveur.** Les applications Android et TV ne reçoivent pas
+  de notifications push.
 - **E-mail** : une fois le SMTP configuré, chaque notification est aussi
   envoyée à l'adresse du compte. Il n'y a pas de désinscription par
   utilisateur, et un compte à plusieurs profils reçoit un e-mail par profil.

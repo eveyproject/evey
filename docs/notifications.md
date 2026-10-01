@@ -12,7 +12,9 @@ media requests, and whoever made a request hears back when it is answered.
 - **Browser push**: on the web, each profile turns on **Push Notifications** in
   **Settings → Notifications**, once per browser. The server creates its push
   keys on first start; see [E-mail and notifications](environment/notifications.md#browser-push)
-  to bring your own. The Android and TV apps do not receive push notifications.
+  to bring your own. Browsers allow push only on an HTTPS address (or
+  `localhost`); elsewhere the setting says **Push notifications not configured
+  on this server.** The Android and TV apps do not receive push notifications.
 - **E-mail**: once SMTP is set up, every notification is also sent to the
   account's address. There is no per-user opt-out, and an account with several
   profiles receives one e-mail per profile.
@@ -70,6 +72,7 @@ was just announced.
 Without SMTP the link stays hidden, even with the option on.
 
 <!-- sources
+web push support: frontend/apps/web/src/lib/webpush.ts isPushSupported (serviceWorker + PushManager, secure context only) ; NotificationSettings.tsx shows pushNotConfigured when unsupported
 types: internal/domain/notification/model.go (Type*, IsAdminOnly) ; emitted: internal/app/notification/event_handlers.go, batching.go
 retention 30 d: internal/app/notification/service.go defaultRetentionDays ; grouping 24 h: batching.go episodeGroupWindow + shouldSkipEpisodeNotif
 list filtered by library access: internal/adapters/driving/grpcapi/notification_handler.go allowedLibraryIDs
