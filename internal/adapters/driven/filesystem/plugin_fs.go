@@ -6,9 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/evey-project/evey/internal/pkg/safefs"
 )
 
-const (
+// Vars, not consts, so tests can point them at a temp SDK and their own uid.
+var (
 	pluginUID   = 1001
 	sdkBasePath = "/app/sdk"
 )
@@ -64,8 +67,9 @@ func (fs *PluginFileSystem) CopySDKStubs(language, installDir string) error {
 		if readErr != nil {
 			return fmt.Errorf("read sdk file %s: %w", e.Name(), readErr)
 		}
-		dst := filepath.Join(installDir, e.Name())
-		if writeErr := os.WriteFile(dst, data, 0644); writeErr != nil {
+		// The plugin can plant a link at the stub name (or be the link): write
+		// a temp file then rename over it, never through it.
+		if writeErr := safefs.WriteFileReplace(installDir, e.Name(), data, 0644); writeErr != nil {
 			return fmt.Errorf("write %s: %w", e.Name(), writeErr)
 		}
 	}
@@ -97,7 +101,8 @@ func (fs *PluginFileSystem) ChownPluginDir(dir string) {
 		if walkErr != nil {
 			return walkErr
 		}
-		return os.Chown(path, pluginUID, pluginUID)
+		// Lchown: a link planted in the tree is re-owned itself, never its target.
+		return os.Lchown(path, pluginUID, pluginUID)
 	}); err != nil {
 		slog.Warn("chown plugin dir", slog.String("dir", dir), slog.Any("err", err))
 	}
