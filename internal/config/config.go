@@ -277,6 +277,13 @@ type DBConfig struct {
 	SSLMode      string
 	MaxOpenConns int
 	MaxIdleConns int
+	// AppUser is the unprivileged role the app and its migrations run as when
+	// User is a superuser; User is then kept for the restore only.
+	// EVEY_DB_APP_USER, default evey_app.
+	AppUser string
+	// PrivilegeSplit turns that split off (EVEY_DB_PRIVILEGE_SPLIT=false): the
+	// escape hatch if a database refuses it, at the cost of a superuser app.
+	PrivilegeSplit bool
 }
 
 func (c DBConfig) DSN() string {
@@ -909,8 +916,10 @@ func Load() (*Config, error) {
 			// Postgres connections there cost ~250-500 MB of backend RAM for little
 			// gain on a low-concurrency media server. 25/10 halves that footprint
 			// while staying generous; larger deployments raise it via the env vars.
-			MaxOpenConns: envInt("EVEY_DB_MAX_OPEN_CONNS", 25),
-			MaxIdleConns: envInt("EVEY_DB_MAX_IDLE_CONNS", 10),
+			MaxOpenConns:   envInt("EVEY_DB_MAX_OPEN_CONNS", 25),
+			MaxIdleConns:   envInt("EVEY_DB_MAX_IDLE_CONNS", 10),
+			AppUser:        envStr("EVEY_DB_APP_USER", "evey_app"),
+			PrivilegeSplit: envBool("EVEY_DB_PRIVILEGE_SPLIT", true),
 		},
 		Meilisearch: MeilisearchConfig{
 			URL:    envStr("EVEY_MEILI_URL", "http://localhost:7700"),

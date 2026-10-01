@@ -1,5 +1,5 @@
 ---
-source_sha: c19f05aea8bece6fa3bf10a82d5590583384092dde0102fcdd2192bff8c0c547
+source_sha: a9dc394c2e392290d3479835961c2fb93cd2b301a4f58221133340c39fd00bfd
 reviewed: true
 ---
 # Base de données et recherche
@@ -18,7 +18,9 @@ propre moteur de recherche, ou qui ajuste ceux qui sont intégrés. Voir
 | `EVEY_POSTGRES_DATA_DIR` | `/data/postgres` | L'emplacement de la base intégrée. Il doit se trouver sur un système de fichiers local, pas sur un partage réseau. |
 | `EVEY_DB_HOST` | `localhost` | L'hôte de la base. **La définir désactive la base intégrée.** |
 | `EVEY_DB_PORT` | `5432` | Le port de la base. |
-| `EVEY_DB_USER` | `evey` | L'utilisateur de la base. |
+| `EVEY_DB_USER` | `evey` | Le compte de connexion à la base. Quand c'est un superutilisateur (base intégrée et compose fourni), le serveur ne le garde que pour la restauration et tourne sous `EVEY_DB_APP_USER`. |
+| `EVEY_DB_APP_USER` | `evey_app` | Le rôle sans privilège sous lequel tournent le serveur et ses migrations quand `EVEY_DB_USER` est un superutilisateur. Créé au démarrage, il reçoit la base et ses objets, et un nouveau mot de passe aléatoire à chaque démarrage (jamais écrit nulle part). Une injection SQL ne peut alors ni lancer de programme ni lire de fichier sur l'hôte. |
+| `EVEY_DB_PRIVILEGE_SPLIT` | `true` | `false` fait tout tourner sous `EVEY_DB_USER`, superutilisateur compris. Une porte de sortie si une base refuse la séparation ; sinon le démarrage s'arrête en nommant cette variable. |
 | `EVEY_DB_NAME` | `evey` | Le nom de la base. |
 | `EVEY_DB_PASSWORD` | générée | Le mot de passe. Avec une base externe, le serveur refuse de démarrer sur la valeur `evey`. |
 | `EVEY_DB_PASSWORD_FILE` | `/data/keys/postgres.password` | Un fichier contenant le mot de passe, lu quand `EVEY_DB_PASSWORD` n'est pas définie. Définie par l'image. |
