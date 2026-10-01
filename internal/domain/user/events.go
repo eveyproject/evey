@@ -98,9 +98,11 @@ type APIKeyRevoked struct {
 func (e APIKeyRevoked) EventName() string { return "user.apikey.revoked" }
 
 type PasswordResetRequested struct {
-	UserID     shared.UserID
-	Email      string
-	ResetToken string // raw token for email sending
+	UserID shared.UserID
+	Email  string
+	// Raw token, read in-process by the emailer only; never serialized, since a
+	// `*` webhook marshals every event and this token IS the account.
+	ResetToken string `json:"-"`
 	ExpiresAt  time.Time
 	OccurredAt time.Time
 }
