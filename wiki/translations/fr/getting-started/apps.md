@@ -1,5 +1,5 @@
 ---
-source_sha: 1a99aeddff5f616f0714bba6418afe4c3423676f7f6ac2a5bcd0bdc38f18ca35
+source_sha: ab4170436ce4da6a8bd0fb6a6c4ec318ebec1134d74c74bfa4dbb33e0edd5a3a
 reviewed: true
 ---
 # Applications et appareils
@@ -40,9 +40,6 @@ avec l'application Android. La TV est alors connectée au même compte.
     les profils autorisés à le voir : un profil enfant ne peut pas ouvrir un
     film téléchargé par un autre profil au-dessus de son âge maximum.
   - La **diffusion** vers un Chromecast.
-  - Les **notifications push** pour les nouveaux films, épisodes et albums,
-    si le serveur les a configurées : voir
-    [E-mail et notifications](../notifications.md).
 - **Android TV.** Une interface pensée pour la télécommande.
 
 **Lire sur**, dans les lecteurs web et Android, envoie ce que vous regardez

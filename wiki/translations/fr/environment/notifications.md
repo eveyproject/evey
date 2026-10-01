@@ -1,11 +1,11 @@
 ---
-source_sha: f9e7107994608f10a03d81a80862011f9ceefaa236fe5b2f076b2dcdc7937d5a
+source_sha: a2778ea0b85b4c03545d656feab9c42ce9cc78f8aa8a4a43beb5727f9eee0951
 reviewed: true
 ---
 # E-mail et notifications
 
-Le courrier sortant (invitations, réinitialisations de mot de passe,
-notifications) et les notifications push du navigateur. Voir
+Le courrier sortant (notifications, réinitialisations de mot de passe) et les
+notifications push du navigateur. Voir
 [E-mail et notifications](../notifications.md).
 
 ## E-mail (SMTP)
@@ -19,8 +19,9 @@ notifications) et les notifications push du navigateur. Voir
 | `EVEY_SMTP_FROM` | vide | L'adresse d'expédition, par exemple `noreply@example.com`. |
 | `EVEY_SMTP_TLS` | `starttls` | `starttls`, `ssl` ou `none`. |
 
-Les mêmes réglages se trouvent dans **Admin → Configuration du serveur →
-E-mail / SMTP**.
+Elles sont lues au démarrage du serveur. La carte **E-mail / SMTP** de **Admin →
+Configuration du serveur** enregistre les mêmes champs, mais le serveur ne les
+lit pas.
 
 ## Notifications push
 

@@ -1,20 +1,33 @@
 ---
-source_sha: 5dca3b7fe64acb5cf79df57c6da42ed90ae968596cba80b381b921667c8e36e9
+source_sha: 17119c80beaac1a0cdb297aec8245b13c4fb28fe522600c9e57ffc6e33d1441f
 reviewed: true
 ---
 # Notifications
 
-Evey peut prévenir les utilisateurs quand un média est ajouté, quand une
-sauvegarde échoue, et lors d'autres événements.
+Evey prévient chaque profil quand arrivent de nouveaux films, séries, saisons,
+épisodes ou albums. Les administrateurs sont aussi avertis des sauvegardes en
+échec, des erreurs de plugins et des nouvelles demandes de médias, et l'auteur
+d'une demande est prévenu quand elle reçoit une réponse.
 
-## Canaux
+## Où apparaissent les notifications
 
-### Dans l'application
-Toujours actives. Une cloche affiche le nombre de notifications non lues. Rien à
-configurer.
+- **Dans chaque application** : la cloche, avec le nombre de non-lues. Toujours
+  actif, rien à configurer. Une notification est conservée 30 jours. La liste
+  ne montre que les titres des bibliothèques auxquelles le compte a accès.
+- **Push du navigateur** : sur le web, chaque profil active **Notifications
+  push** dans **Paramètres → Notifications**, une fois par navigateur. Le
+  serveur crée ses clés de push au premier démarrage ; voir
+  [E-mail et notifications](environment/notifications.md#browser-push) pour
+  fournir les vôtres. Les applications Android et TV ne reçoivent pas de
+  notifications push.
+- **E-mail** : une fois le SMTP configuré, chaque notification est aussi
+  envoyée à l'adresse du compte. Il n'y a pas de désinscription par
+  utilisateur, et un compte à plusieurs profils reçoit un e-mail par profil.
 
-### E-mail (SMTP)
-Envoie un e-mail à chaque notification créée. Demande une configuration SMTP :
+## Configurer l'e-mail
+
+Le SMTP est lu dans ces variables au démarrage du serveur ; redémarrez-le après
+une modification :
 
 ```env title=".env"
 EVEY_SMTP_HOST=smtp.example.com
@@ -25,36 +38,41 @@ EVEY_SMTP_FROM=noreply@example.com
 EVEY_SMTP_TLS=starttls
 ```
 
-Modes TLS :
+`EVEY_SMTP_TLS` vaut `starttls` (une connexion en clair passée en TLS,
+généralement port 587), `ssl` (TLS dès le départ, généralement port 465) ou
+`none` (sans chiffrement). La carte **E-mail / SMTP** de **Admin →
+Configuration du serveur** enregistre les mêmes champs, mais le serveur ne les
+lit pas : utilisez les variables.
 
-- `starttls` : connexion en clair, puis passage en TLS (port 587, le plus
-  courant) ;
-- `ssl` : connexion directement en TLS (port 465) ;
-- `none` : aucun chiffrement (déconseillé).
+L'e-mail sert aux notifications et aux réinitialisations de mot de passe ; les
+invitations sont des liens que vous partagez vous-même.
 
-### Notifications push du navigateur
-Les clés VAPID sont générées automatiquement au premier démarrage. Chaque
-utilisateur les active depuis les réglages de son profil.
+## Ce que reçoit chaque profil
+
+Dans **Paramètres → Notifications**, chaque profil choisit un niveau pour
+**Films**, **Séries** et **Musique** :
+
+| Niveau | Nouveaux titres notifiés |
+| --- | --- |
+| **Toutes** | Tous. Le réglage par défaut. |
+| **Pertinentes** | Seulement ceux qui partagent un genre avec les genres habituels du profil. |
+| **Importantes uniquement** | Pour l'instant identique à Pertinentes. |
+| **Désactivé** | Aucun. |
+
+Un genre compte comme habituel quand il apparaît dans au moins 3 des 200
+dernières lectures du profil. Un titre sans genre n'est jamais notifié aux
+niveaux Pertinentes.
+
+Plusieurs épisodes d'une même série arrivés en moins de 24 heures donnent une
+seule notification qui les compte, et aucune n'est envoyée quand la série ou la
+saison vient d'être annoncée.
 
 ## Récupération du mot de passe
 
-L'e-mail de réinitialisation du mot de passe demande que le SMTP soit configuré.
-Un administrateur doit aussi activer la fonction :
-
-1. Configurez le SMTP (voir plus haut).
+1. Configurez l'e-mail (voir plus haut).
 2. Activez **Récupération du mot de passe** dans **Admin → Configuration du
-   serveur**. Le réglage s'applique immédiatement.
-3. La page de connexion affiche alors un lien **Mot de passe oublié ?**.
+   serveur → Paramètres du serveur**. Le réglage s'applique immédiatement.
+3. La page de connexion affiche alors **Mot de passe oublié ?**, qui envoie un
+   lien de réinitialisation par e-mail.
 
-Si le SMTP est retiré après coup, la récupération du mot de passe se désactive
-d'elle-même.
-
-## Niveaux de notification
-
-Chaque utilisateur choisit son niveau de notification par type de média :
-
-- **Toutes** : tout est notifié ;
-- **Pertinentes** : seulement si les genres correspondent à son historique de
-  visionnage ;
-- **Importantes uniquement** : une correspondance de genres plus stricte ;
-- **Désactivé** : aucune notification pour ce type.
+Sans SMTP, le lien reste masqué, même avec l'option activée.

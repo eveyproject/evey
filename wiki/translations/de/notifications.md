@@ -1,18 +1,33 @@
 ---
-source_sha: 5dca3b7fe64acb5cf79df57c6da42ed90ae968596cba80b381b921667c8e36e9
+source_sha: 17119c80beaac1a0cdb297aec8245b13c4fb28fe522600c9e57ffc6e33d1441f
 reviewed: false
 ---
 # Benachrichtigungen
 
-Evey kann Benutzer benachrichtigen, wenn neue Medien hinzukommen, Sicherungen fehlschlagen und bei anderen Ereignissen.
+Evey sagt jedem Profil Bescheid, wenn neue Filme, Serien, Staffeln, Folgen oder
+Alben eintreffen. Administratoren erfahren außerdem von fehlgeschlagenen
+Sicherungen, Plugin-Fehlern und neuen Medienanfragen, und wer eine Anfrage
+gestellt hat, hört zurück, sobald sie beantwortet ist.
 
-## Kanäle
+## Wo Benachrichtigungen erscheinen
 
-### In der App
-Immer aktiv. Benutzer sehen ein Glockensymbol mit der Zahl der ungelesenen Benachrichtigungen. Keine Konfiguration nötig.
+- **In jeder App**: die Glocke mit der Zahl der ungelesenen. Immer aktiv,
+  nichts einzurichten. Eine Benachrichtigung wird 30 Tage aufbewahrt. Die Liste
+  zeigt nur Titel aus Bibliotheken, die das Konto öffnen darf.
+- **Browser-Push**: Im Web schaltet jedes Profil **Push-Benachrichtigungen**
+  unter **Einstellungen → Benachrichtigungen** ein, einmal pro Browser. Der
+  Server erzeugt seine Push-Schlüssel beim ersten Start; siehe
+  [E-Mail und Benachrichtigungen](environment/notifications.md#browser-push),
+  um eigene mitzubringen. Die Android- und TV-Apps erhalten keine
+  Push-Benachrichtigungen.
+- **E-Mail**: Sobald SMTP eingerichtet ist, geht jede Benachrichtigung auch an
+  die Adresse des Kontos. Es gibt keine Abmeldung pro Benutzer, und ein Konto
+  mit mehreren Profilen erhält eine E-Mail pro Profil.
 
-### E-Mail (SMTP)
-Sendet eine E-Mail, wenn eine Benachrichtigung entsteht. Erfordert eine SMTP-Konfiguration:
+## E-Mail einrichten
+
+SMTP wird beim Start des Servers aus diesen Variablen gelesen; starten Sie ihn
+nach einer Änderung neu:
 
 ```env title=".env"
 EVEY_SMTP_HOST=smtp.example.com
@@ -23,29 +38,41 @@ EVEY_SMTP_FROM=noreply@example.com
 EVEY_SMTP_TLS=starttls
 ```
 
-TLS-Modi:
-- `starttls` - unverschlüsselt verbinden, dann auf TLS umstellen (Port 587, am häufigsten)
-- `ssl` - direkt mit TLS verbinden (Port 465)
-- `none` - keine Verschlüsselung (nicht empfohlen)
+`EVEY_SMTP_TLS` ist `starttls` (eine Klartextverbindung wird auf TLS gehoben,
+meist Port 587), `ssl` (TLS von Anfang an, meist Port 465) oder `none` (keine
+Verschlüsselung). Die Karte **E-Mail / SMTP** unter **Admin →
+Serverkonfiguration** speichert dieselben Felder, aber der Server liest sie
+nicht: Verwenden Sie die Variablen.
 
-### Web-Push
-Push-Benachrichtigungen im Browser. VAPID-Schlüssel werden beim ersten Start automatisch erzeugt. Benutzer melden sich in ihren Profileinstellungen an.
+E-Mail dient Benachrichtigungen und dem Zurücksetzen von Passwörtern;
+Einladungen sind Links, die Sie selbst weitergeben.
+
+## Was jedes Profil erhält
+
+Unter **Einstellungen → Benachrichtigungen** wählt jedes Profil eine Stufe für
+**Filme**, **Serien** und **Musik**:
+
+| Stufe | Gemeldete neue Titel |
+| --- | --- |
+| **Alle** | Jeder. Die Vorgabe. |
+| **Relevant** | Nur solche, die ein Genre mit den üblichen Genres des Profils teilen. |
+| **Nur wichtige** | Derzeit dasselbe wie Relevant. |
+| **Deaktiviert** | Keiner. |
+
+Ein Genre gilt als üblich, wenn es in mindestens 3 der letzten 200 Wiedergaben
+des Profils vorkommt. Ein Titel ohne Genres wird auf den Relevant-Stufen nie
+gemeldet.
+
+Mehrere Folgen einer Serie, die innerhalb von 24 Stunden eintreffen, ergeben
+eine einzige Benachrichtigung, die sie zählt, und keine wird gesendet, wenn die
+Serie oder die Staffel gerade angekündigt wurde.
 
 ## Passwort-Wiederherstellung
 
-E-Mails zum Zurücksetzen des Passworts erfordern eine SMTP-Konfiguration. Außerdem muss ein Administrator die Funktion einschalten:
+1. Richten Sie E-Mail ein (siehe oben).
+2. Schalten Sie **Passwort-Wiederherstellung** unter **Admin →
+   Serverkonfiguration → Servereinstellungen** ein. Das gilt sofort.
+3. Die Anmeldeseite zeigt dann **Passwort vergessen?**, das einen Link zum
+   Zurücksetzen per E-Mail schickt.
 
-1. SMTP konfigurieren (siehe oben).
-2. **Passwort-Wiederherstellung** unter **Admin → Serverkonfiguration**
-   einschalten. Das gilt sofort.
-3. Die Anmeldeseite zeigt dann einen Link „Passwort vergessen?".
-
-Wird SMTP nach dem Einschalten entfernt, wird die Passwort-Wiederherstellung automatisch deaktiviert.
-
-## Benachrichtigungsstufen
-
-Benutzer können ihre Benachrichtigungsvorliebe pro Medientyp festlegen:
-- **Alle** - bei allem benachrichtigen
-- **Relevant** - nur wenn die Genres zum Verlauf des Benutzers passen
-- **Nur wichtige** - strengerer Genre-Abgleich
-- **Deaktiviert** - keine Benachrichtigungen für diesen Typ
+Ohne SMTP bleibt der Link verborgen, auch wenn die Option eingeschaltet ist.

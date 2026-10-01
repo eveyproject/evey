@@ -1,5 +1,5 @@
 ---
-source_sha: 1a99aeddff5f616f0714bba6418afe4c3423676f7f6ac2a5bcd0bdc38f18ca35
+source_sha: ab4170436ce4da6a8bd0fb6a6c4ec318ebec1134d74c74bfa4dbb33e0edd5a3a
 reviewed: false
 ---
 # Apps und Geräte
@@ -39,8 +39,6 @@ mit demselben Konto angemeldet.
     dürfen: Ein Kinderprofil kann keinen Film öffnen, den ein anderes Profil
     oberhalb seiner Altersgrenze heruntergeladen hat.
   - **Streamen** auf einen Chromecast.
-  - **Push-Benachrichtigungen** für neue Filme, Folgen und Musik, sofern der
-    Server sie eingerichtet hat: siehe [E-Mail und Benachrichtigungen](../notifications.md).
 - **Android TV.** Eine Oberfläche, die für die Fernbedienung gebaut ist.
 
 **Abspielen auf** sendet in den Playern von Web und Android das, was Sie gerade

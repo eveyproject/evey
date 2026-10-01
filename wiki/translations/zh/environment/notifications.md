@@ -1,10 +1,10 @@
 ---
-source_sha: f9e7107994608f10a03d81a80862011f9ceefaa236fe5b2f076b2dcdc7937d5a
+source_sha: a2778ea0b85b4c03545d656feab9c42ce9cc78f8aa8a4a43beb5727f9eee0951
 reviewed: false
 ---
 # 电子邮件与通知
 
-外发邮件（邀请、密码重置、通知）和浏览器推送。见[电子邮件与通知](../notifications.md)。
+外发邮件（通知、密码重置）和浏览器推送。见[电子邮件与通知](../notifications.md)。
 
 ## 电子邮件（SMTP）
 
@@ -17,7 +17,7 @@ reviewed: false
 | `EVEY_SMTP_FROM` | 空 | 发件人地址，例如 `noreply@example.com`。 |
 | `EVEY_SMTP_TLS` | `starttls` | `starttls`、`ssl` 或 `none`。 |
 
-同样的设置在 **Admin → 服务器配置 → 邮件 / SMTP** 中。
+这些变量在服务器启动时读取。**Admin → 服务器配置** 中的 **邮件 / SMTP** 卡片会保存相同的字段，但服务器不会读取它们。
 
 ## 浏览器推送
 

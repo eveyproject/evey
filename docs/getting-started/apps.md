@@ -34,8 +34,6 @@ is signed in to the same account.
     profiles allowed to see it: a kids profile cannot open a film downloaded by
     another profile above its age limit.
   - **Casting** to a Chromecast.
-  - **Push notifications** for new films, episodes and music, if the server
-    has them configured: see [E-mail and notifications](../notifications.md).
 - **Android TV.** An interface built for the remote.
 
 **Play on**, in the web and Android players, sends what you are watching to

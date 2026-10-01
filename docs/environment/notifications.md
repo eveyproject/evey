@@ -1,6 +1,6 @@
 # E-mail and notifications
 
-Outgoing mail (invitations, password resets, notifications) and browser push.
+Outgoing mail (notifications, password resets) and browser push.
 See [E-mail and notifications](../notifications.md).
 
 ## E-mail (SMTP)
@@ -14,7 +14,8 @@ See [E-mail and notifications](../notifications.md).
 | `EVEY_SMTP_FROM` | empty | The sender address, for example `noreply@example.com`. |
 | `EVEY_SMTP_TLS` | `starttls` | `starttls`, `ssl` or `none`. |
 
-The same settings are in **Admin → Server Config → Email / SMTP**.
+They are read when the server starts. The **Email / SMTP** card in **Admin →
+Server Config** stores the same fields, but the server does not read them.
 
 ## Browser push
 
@@ -25,5 +26,6 @@ The same settings are in **Admin → Server Config → Email / SMTP**.
 
 <!-- sources
 internal/config/config.go - EVEY_SMTP_*, VAPID_*
+SMTP card: SmtpSettingsCard.tsx writes smtp.* keys that no Go code reads
 vapid generation: cmd/evey/wire_helpers.go (GenerateVAPIDKeys, stored as vapid.public_key / vapid.private_key)
 -->
