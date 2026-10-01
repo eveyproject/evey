@@ -1,5 +1,5 @@
 ---
-source_sha: 51c69f3c288f8a28ef5b1fca29d4e522f63fc35d24ec2a2cbcdfa9948a273d8a
+source_sha: 437e3591ffafde2e124be29a142fc1cfa7ecb154ea3e77dfbcb32e462668f452
 reviewed: true
 ---
 # Notifications
@@ -21,14 +21,25 @@ d'une demande est prévenu quand elle reçoit une réponse.
   fournir les vôtres. Les navigateurs n'autorisent le push que sur une adresse
   HTTPS (ou `localhost`) ; ailleurs, le réglage affiche **Les notifications push exigent une adresse HTTPS : ouvrez ce serveur en HTTPS pour les activer.** Les applications Android et TV ne reçoivent pas
   de notifications push.
-- **E-mail** : une fois le SMTP configuré, chaque notification est aussi
-  envoyée à l'adresse du compte. Il n'y a pas de désinscription par
-  utilisateur, et un compte à plusieurs profils reçoit un e-mail par profil.
+- **E-mail** : une fois l'e-mail configuré, chaque notification est aussi
+  envoyée à l'adresse du compte, dans la langue du profil, avec un lien vers le
+  serveur. Un compte à plusieurs profils reçoit un seul e-mail par événement. Il
+  n'y a pas de désinscription par utilisateur.
 
 ## Configurer l'e-mail
 
-Le SMTP est lu dans ces variables au démarrage du serveur ; redémarrez-le après
-une modification :
+**Admin → Configuration du serveur → E-mail / SMTP** : le serveur de messagerie,
+son port, le compte de connexion, l'adresse d'expédition et le mode TLS.
+L'enregistrement s'applique aussitôt, sans redémarrage. **Envoyer un e-mail de
+test** envoie un court message à l'adresse de votre propre compte avec les
+réglages enregistrés, et affiche la réponse du serveur de messagerie en cas
+d'échec.
+
+`starttls` passe une connexion en clair en TLS (généralement port 587), `ssl`
+utilise TLS dès le départ (généralement port 465), `none` envoie sans
+chiffrement.
+
+Les variables `EVEY_SMTP_*` servent de repli, tant que la carte n'a pas d'hôte :
 
 ```env title=".env"
 EVEY_SMTP_HOST=smtp.example.com
@@ -39,11 +50,9 @@ EVEY_SMTP_FROM=noreply@example.com
 EVEY_SMTP_TLS=starttls
 ```
 
-`EVEY_SMTP_TLS` vaut `starttls` (une connexion en clair passée en TLS,
-généralement port 587), `ssl` (TLS dès le départ, généralement port 465) ou
-`none` (sans chiffrement). La carte **E-mail / SMTP** de **Admin →
-Configuration du serveur** enregistre les mêmes champs, mais le serveur ne les
-lit pas : utilisez les variables.
+Dès qu'un hôte est enregistré dans la carte, tous les champs viennent de la
+carte et les variables sont ignorées : le serveur n'envoie donc jamais les
+identifiants des variables à un serveur de messagerie saisi dans le panneau.
 
 L'e-mail sert aux notifications et aux réinitialisations de mot de passe ; les
 invitations sont des liens que vous partagez vous-même.

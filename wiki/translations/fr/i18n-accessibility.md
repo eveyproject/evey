@@ -1,5 +1,5 @@
 ---
-source_sha: 1a764dc349466d08546e1872dd0168db702f96a926dc5a0f771fabb1cd60921b
+source_sha: 3d48e5430ddf686fb21cfa258b7c737dcc71adf37151f1ae4b3b09e68fd5849e
 reviewed: true
 ---
 # Langues et accessibilité
@@ -17,8 +17,9 @@ certifiée*.
 ### Ce qui est traduit, et ce qui ne l'est pas
 
 - **Traduit :** l'interface elle-même : boutons, menus, réglages, messages
-  d'erreur, textes des notifications push. Les e-mails (notifications,
-  réinitialisations de mot de passe) partent en anglais.
+  d'erreur, textes des notifications push, e-mails de notification (dans la langue du
+  destinataire). Les e-mails de réinitialisation du mot de passe partent en
+  anglais.
 - **Pas traduit par Evey :** les métadonnées des médias (titres, résumés,
   genres) viennent de votre source de métadonnées (TMDB/OMDb), dans la **Langue
   des métadonnées** choisie dans l'assistant de configuration ou dans **Admin →

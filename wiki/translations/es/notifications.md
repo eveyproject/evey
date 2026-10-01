@@ -1,5 +1,5 @@
 ---
-source_sha: 51c69f3c288f8a28ef5b1fca29d4e522f63fc35d24ec2a2cbcdfa9948a273d8a
+source_sha: 437e3591ffafde2e124be29a142fc1cfa7ecb154ea3e77dfbcb32e462668f452
 reviewed: false
 ---
 # Notificaciones
@@ -22,14 +22,24 @@ contenido, y quien hizo una solicitud recibe aviso cuando se responde.
   usar las tuyas. Los navegadores solo permiten push en una dirección HTTPS (o
   `localhost`); en otro caso el ajuste muestra **Las notificaciones push necesitan una dirección HTTPS: abre este servidor por HTTPS para activarlas.** Las aplicaciones de Android y TV no
   reciben notificaciones push.
-- **Correo**: una vez configurado el SMTP, cada notificación se envía también a
-  la dirección de la cuenta. No hay baja por usuario, y una cuenta con varios
-  perfiles recibe un correo por perfil.
+- **Correo**: una vez configurado el correo, cada notificación se envía también
+  a la dirección de la cuenta, en el idioma del perfil y con un enlace al
+  servidor. Una cuenta con varios perfiles recibe un solo correo por evento. No
+  hay baja por usuario.
 
 ## Configurar el correo
 
-El SMTP se lee de estas variables al arrancar el servidor; reinícialo tras un
-cambio:
+**Admin → Configuración del servidor → Correo / SMTP**: el servidor de correo,
+su puerto, la cuenta de acceso, la dirección del remitente y el modo TLS.
+Guardar se aplica al momento, sin reiniciar. **Enviar correo de prueba** envía
+un mensaje breve a la dirección de tu propia cuenta con los ajustes guardados y
+muestra la respuesta del servidor de correo si falla.
+
+`starttls` pasa a TLS una conexión en claro (normalmente puerto 587), `ssl` usa
+TLS desde el principio (normalmente puerto 465), `none` envía sin cifrado.
+
+Las variables `EVEY_SMTP_*` son el respaldo, mientras la tarjeta no tenga
+servidor:
 
 ```env title=".env"
 EVEY_SMTP_HOST=smtp.example.com
@@ -40,11 +50,9 @@ EVEY_SMTP_FROM=noreply@example.com
 EVEY_SMTP_TLS=starttls
 ```
 
-`EVEY_SMTP_TLS` vale `starttls` (una conexión en claro que pasa a TLS,
-normalmente puerto 587), `ssl` (TLS desde el principio, normalmente puerto 465)
-o `none` (sin cifrado). La tarjeta **Correo / SMTP** de **Admin →
-Configuración del servidor** guarda los mismos campos, pero el servidor no los
-lee: usa las variables.
+En cuanto se guarda un servidor en la tarjeta, todos los campos salen de la
+tarjeta y se ignoran las variables: así el servidor nunca envía las credenciales
+de las variables a un servidor de correo escrito en el panel.
 
 El correo sirve para las notificaciones y el restablecimiento de contraseñas;
 las invitaciones son enlaces que compartes tú mismo.

@@ -65,12 +65,12 @@ registered there is not the one Evey uses. See [OIDC / SSO](../oidc.md).
 
 ## E-mails do not arrive
 
-SMTP is read from the `EVEY_SMTP_*` variables at startup, not from the **Email /
-SMTP** card. When it is on, the startup log says
-`SMTP email notifications enabled` with the host. A send that fails is logged
-as `email: send notification`, with the server's answer; a TLS mode that does
-not match the port (`starttls` with 587, `ssl` with 465) is the usual mistake.
-See [Notifications](../notifications.md).
+**Send test email** in **Admin → Server Config → Email / SMTP** sends a message
+to your own address with the saved settings and shows the mail server's answer
+when it fails. A TLS mode that does not match the port (`starttls` with 587,
+`ssl` with 465) is the usual mistake. A host saved in the card replaces every
+`EVEY_SMTP_*` variable. Notification sends that fail are logged as
+`email: send notification`. See [Notifications](../notifications.md).
 
 ## A title plays transcoded when you expected Direct Play
 
@@ -135,7 +135,7 @@ The transcoding cache is the usual cause:
 It can be cleared from **Admin → Transcode Cache** at any time.
 
 <!-- sources
-sso: internal/app/user/oidc_service.go (log lines), auth_handler.go /login?oidc_error=1, i18n auth.login.ssoFailed ; smtp: cmd/evey/wire.go:367 log, internal/adapters/driven/email/notification_emailer.go
+sso: internal/app/user/oidc_service.go (log lines), auth_handler.go /login?oidc_error=1, i18n auth.login.ssoFailed ; smtp: internal/adapters/driving/http/smtp_test_handler.go (test send), internal/adapters/driven/email/notification_emailer.go (log)
 posters: internal/app/metadata/command_service_artwork.go (hourly retry) ; i18n admin.artworks.* (/data/artworks, purge variants)
 doctor: cmd/evey/admin_commands.go - doctor
 startup failures: previous docs/installation.md (Troubleshooting) ; docker/entrypoint.sh

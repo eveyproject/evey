@@ -1,5 +1,5 @@
 ---
-source_sha: a2778ea0b85b4c03545d656feab9c42ce9cc78f8aa8a4a43beb5727f9eee0951
+source_sha: 83ece8837b08f345398777a65fee01eeec37d776c49c29ad7d1b6f675ab96046
 reviewed: false
 ---
 # E-Mail und Benachrichtigungen
@@ -18,9 +18,9 @@ Browser-Push. Siehe [E-Mail und Benachrichtigungen](../notifications.md).
 | `EVEY_SMTP_FROM` | leer | Die Absenderadresse, zum Beispiel `noreply@example.com`. |
 | `EVEY_SMTP_TLS` | `starttls` | `starttls`, `ssl` oder `none`. |
 
-Sie werden beim Start des Servers gelesen. Die Karte **E-Mail / SMTP** unter
-**Admin → Serverkonfiguration** speichert dieselben Felder, aber der Server liest
-sie nicht.
+Sie werden beim Start des Servers gelesen und gelten, solange die Karte **E-Mail /
+SMTP** unter **Admin → Serverkonfiguration** keinen Host hat. Sobald dort ein
+Host gespeichert ist, liefert die Karte alle Felder und gilt ohne Neustart.
 
 ## Browser-Push
 

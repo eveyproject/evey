@@ -1,5 +1,5 @@
 ---
-source_sha: a2778ea0b85b4c03545d656feab9c42ce9cc78f8aa8a4a43beb5727f9eee0951
+source_sha: 83ece8837b08f345398777a65fee01eeec37d776c49c29ad7d1b6f675ab96046
 reviewed: false
 ---
 # Correo y notificaciones
@@ -18,9 +18,9 @@ navegador. Consulta [Correo y notificaciones](../notifications.md).
 | `EVEY_SMTP_FROM` | vacía | La dirección del remitente, por ejemplo `noreply@example.com`. |
 | `EVEY_SMTP_TLS` | `starttls` | `starttls`, `ssl` o `none`. |
 
-Se leen al arrancar el servidor. La tarjeta **Correo / SMTP** de **Admin →
-Configuración del servidor** guarda los mismos campos, pero el servidor no los
-lee.
+Se leen al arrancar el servidor y se usan mientras la tarjeta **Correo / SMTP**
+de **Admin → Configuración del servidor** no tenga servidor. En cuanto se guarda
+uno en ella, la tarjeta aporta todos los campos y se aplica sin reiniciar.
 
 ## Push del navegador
 

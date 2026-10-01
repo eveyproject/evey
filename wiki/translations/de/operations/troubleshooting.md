@@ -1,5 +1,5 @@
 ---
-source_sha: 358930f5d871a10d9184002e80eb788d14685e06174afd3a569a059380aa6d0b
+source_sha: 61f4d1f588a54015fae1a0ed84c6418d67bac574fc6ddfb9782f3a32596b4ba4
 reviewed: false
 ---
 # Fehlerbehebung
@@ -74,12 +74,13 @@ registrierte Weiterleitungs-URI nicht die ist, die Evey verwendet. Siehe
 
 ## E-Mails kommen nicht an
 
-SMTP wird beim Start aus den Variablen `EVEY_SMTP_*` gelesen, nicht aus der
-Karte **E-Mail / SMTP**. Ist es aktiv, zeigt das Startlog
-`SMTP email notifications enabled` mit dem Host. Ein fehlgeschlagener Versand
-wird als `email: send notification` mit der Antwort des Servers protokolliert;
-ein TLS-Modus, der nicht zum Port passt (`starttls` mit 587, `ssl` mit 465), ist
-der übliche Fehler. Siehe [Benachrichtigungen](../notifications.md).
+**Test-E-Mail senden** unter **Admin → Serverkonfiguration → E-Mail / SMTP**
+schickt mit den gespeicherten Einstellungen eine Nachricht an Ihre eigene Adresse
+und zeigt bei einem Fehler die Antwort des Mailservers. Ein TLS-Modus, der nicht
+zum Port passt (`starttls` mit 587, `ssl` mit 465), ist der übliche Fehler. Ein
+in der Karte gespeicherter Host ersetzt alle Variablen `EVEY_SMTP_*`.
+Fehlgeschlagene Benachrichtigungs-E-Mails werden als `email: send notification`
+protokolliert. Siehe [Benachrichtigungen](../notifications.md).
 
 ## Ein Titel läuft transkodiert, obwohl Sie Direktwiedergabe erwartet hatten
 

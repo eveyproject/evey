@@ -1,5 +1,5 @@
 ---
-source_sha: 358930f5d871a10d9184002e80eb788d14685e06174afd3a569a059380aa6d0b
+source_sha: 61f4d1f588a54015fae1a0ed84c6418d67bac574fc6ddfb9782f3a32596b4ba4
 reviewed: false
 ---
 # Solución de problemas
@@ -74,12 +74,13 @@ de redirección registrada allí no es la que usa Evey. Consulta
 
 ## Los correos no llegan
 
-El SMTP se lee de las variables `EVEY_SMTP_*` al arrancar, no de la tarjeta
-**Correo / SMTP**. Cuando está activo, el registro de arranque muestra
-`SMTP email notifications enabled` con el host. Un envío que falla se registra
-como `email: send notification`, con la respuesta del servidor; un modo TLS que
-no corresponde al puerto (`starttls` con 587, `ssl` con 465) es el error
-habitual. Consulta [Notificaciones](../notifications.md).
+**Enviar correo de prueba** en **Admin → Configuración del servidor → Correo /
+SMTP** envía un mensaje a tu propia dirección con los ajustes guardados y muestra
+la respuesta del servidor de correo si falla. Un modo TLS que no corresponde al
+puerto (`starttls` con 587, `ssl` con 465) es el error habitual. Un servidor
+guardado en la tarjeta sustituye todas las variables `EVEY_SMTP_*`. Los envíos
+de notificaciones que fallan se registran como `email: send notification`.
+Consulta [Notificaciones](../notifications.md).
 
 ## Un título se transcodifica cuando esperabas Reproducción directa
 

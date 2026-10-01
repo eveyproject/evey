@@ -1,5 +1,5 @@
 ---
-source_sha: 358930f5d871a10d9184002e80eb788d14685e06174afd3a569a059380aa6d0b
+source_sha: 61f4d1f588a54015fae1a0ed84c6418d67bac574fc6ddfb9782f3a32596b4ba4
 reviewed: true
 ---
 # Dépannage
@@ -76,12 +76,13 @@ que l'URI de redirection déclarée chez lui n'est pas celle qu'utilise Evey. Vo
 
 ## Les e-mails n'arrivent pas
 
-Le SMTP est lu dans les variables `EVEY_SMTP_*` au démarrage, pas dans la carte
-**E-mail / SMTP**. Quand il est actif, le journal de démarrage affiche
-`SMTP email notifications enabled` avec l'hôte. Un envoi qui échoue est
-journalisé comme `email: send notification`, avec la réponse du serveur ; un
-mode TLS qui ne correspond pas au port (`starttls` avec 587, `ssl` avec 465) est
-l'erreur habituelle. Voir [Notifications](../notifications.md).
+**Envoyer un e-mail de test** dans **Admin → Configuration du serveur → E-mail /
+SMTP** envoie un message à votre propre adresse avec les réglages enregistrés,
+et affiche la réponse du serveur de messagerie en cas d'échec. Un mode TLS qui
+ne correspond pas au port (`starttls` avec 587, `ssl` avec 465) est l'erreur
+habituelle. Un hôte enregistré dans la carte remplace toutes les variables
+`EVEY_SMTP_*`. Les envois de notifications qui échouent sont journalisés comme
+`email: send notification`. Voir [Notifications](../notifications.md).
 
 ## Un titre est transcodé alors que vous attendiez une lecture directe
 

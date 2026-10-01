@@ -1,5 +1,5 @@
 ---
-source_sha: a2778ea0b85b4c03545d656feab9c42ce9cc78f8aa8a4a43beb5727f9eee0951
+source_sha: 83ece8837b08f345398777a65fee01eeec37d776c49c29ad7d1b6f675ab96046
 reviewed: true
 ---
 # E-mail et notifications
@@ -19,9 +19,10 @@ notifications push du navigateur. Voir
 | `EVEY_SMTP_FROM` | vide | L'adresse d'expédition, par exemple `noreply@example.com`. |
 | `EVEY_SMTP_TLS` | `starttls` | `starttls`, `ssl` ou `none`. |
 
-Elles sont lues au démarrage du serveur. La carte **E-mail / SMTP** de **Admin →
-Configuration du serveur** enregistre les mêmes champs, mais le serveur ne les
-lit pas.
+Elles sont lues au démarrage du serveur et utilisées tant que la carte **E-mail /
+SMTP** de **Admin → Configuration du serveur** n'a pas d'hôte. Dès qu'un hôte y
+est enregistré, la carte fournit tous les champs et s'applique sans
+redémarrage.
 
 ## Notifications push
 

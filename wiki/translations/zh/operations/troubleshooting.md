@@ -1,5 +1,5 @@
 ---
-source_sha: 358930f5d871a10d9184002e80eb788d14685e06174afd3a569a059380aa6d0b
+source_sha: 61f4d1f588a54015fae1a0ed84c6418d67bac574fc6ddfb9782f3a32596b4ba4
 reviewed: false
 ---
 # 故障排除
@@ -50,7 +50,7 @@ docker exec evey-server evey admin doctor
 
 ## 收不到电子邮件
 
-SMTP 在启动时从 `EVEY_SMTP_*` 变量读取，而不是从 **邮件 / SMTP** 卡片读取。启用时，启动日志会显示 `SMTP email notifications enabled` 及主机名。发送失败会以 `email: send notification` 记录，并附上服务器的应答；TLS 模式与端口不匹配（`starttls` 对应 587，`ssl` 对应 465）是常见错误。见[通知](../notifications.md)。
+**Admin → 服务器配置 → 邮件 / SMTP** 中的 **发送测试邮件** 会用已保存的设置向你自己的邮箱发送一封邮件，失败时显示邮件服务器的应答。TLS 模式与端口不匹配（`starttls` 对应 587，`ssl` 对应 465）是常见错误。卡片中保存的主机会取代所有 `EVEY_SMTP_*` 变量。发送失败的通知邮件会以 `email: send notification` 记录。见[通知](../notifications.md)。
 
 ## 你本以为是直接播放的条目却在转码
 
