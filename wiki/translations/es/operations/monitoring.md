@@ -1,5 +1,5 @@
 ---
-source_sha: f6d6e61c9914bed7f2744ebf8dec6a79fc1769dd750e8b0f2109b4ab14d44526
+source_sha: 379364a92d0108cdaeaf5ac5c24f9bf18ca1e30aa45e876c7e38da2ea3d133ca
 reviewed: false
 ---
 # Supervisión y registros
@@ -14,6 +14,13 @@ investigar un síntoma, empieza por
 dispositivo y cómo, pista por pista (copiado, transcodificado, y el backend que
 lo codifica). Un administrador puede **Detener** una sesión o **Enviar mensaje**
 al espectador.
+
+La tarjeta **Quién está en línea** del panel lista quién está conectado ahora
+mismo, por perfil, con cuánto hace que se supo de cada aplicación por última
+vez. Un Chromecast cuyo televisor mantiene cargado el receptor de Evey sigue en
+la lista cuando su reproducción ha terminado y ya no aparece en **Reproduciendo
+ahora**; **Detener este Chromecast** le envía una orden de parada, que el
+televisor aplica en menos de 30 segundos.
 
 **Admin → Estado del sistema** muestra el procesador, la memoria, el ancho de
 banda y el almacenamiento, y qué parte de la capacidad de transcodificación está
