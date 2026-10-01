@@ -99,7 +99,7 @@ private oder reservierte Adressen nach der DNS-Auflösung abgelehnt -
 Weiterleitungen werden gegen beide Regeln erneut geprüft.
 
 > Der Abgleich des Brokers versteht auch eine Form `*.example.com`, aber der
-> Installer lehnt einen solchen Eintrag ab, er kann ihn also nie erreichen.
+> Installer lehnt einen solchen Eintrag ab, ein solcher Eintrag erreicht ihn also nie.
 > Schreiben Sie ausdrückliche Hostnamen.
 
 ## Slot-Liste

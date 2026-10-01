@@ -57,7 +57,7 @@ bescheidene Maschine viele gleichzeitig.
 
 <div markdown>
 
-**Ein Server, der sich selbst vermisst**
+**Ein Server, der sich selbst misst**
 
 Er misst echte 4K-Kodierungen auf dem Prozessor und jeder Grafikkarte und
 nutzt eine Karte nur für das, was sie bewiesen hat. Keine Kapazität zu
@@ -89,7 +89,7 @@ auf welchem Bildschirm es gelandet ist.
 
 <div markdown>
 
-**Plugins werden eingesperrt, nicht vertraut**
+**Plugins werden eingesperrt, nicht für vertrauenswürdig gehalten**
 
 Code vor der Installation analysiert, nur das eigene Verzeichnis, gefährliche
 Systemaufrufe verweigert, kein direktes Netzwerk, ein standardmäßig
