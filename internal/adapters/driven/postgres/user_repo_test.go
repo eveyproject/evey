@@ -190,6 +190,37 @@ func TestUserRepo_GetByOIDCSubject_NotFound(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// LinkOIDCIdentity attaches an SSO identity to a local account, only while it
+// has none, and never an identity another account already holds.
+func TestUserRepo_LinkOIDCIdentity(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewUserRepository(db)
+	ctx := context.Background()
+	issuer := "https://auth.example.com"
+
+	local := newTestUser("u-link")
+	local.PasswordHash = "keep-me"
+	require.NoError(t, repo.Create(ctx, local))
+	require.NoError(t, repo.LinkOIDCIdentity(ctx, local.ID, issuer, "sub-1"))
+
+	got, err := repo.GetByOIDCSubject(ctx, issuer, "sub-1")
+	require.NoError(t, err)
+	assert.Equal(t, local.ID, got.ID)
+	assert.Equal(t, "keep-me", got.PasswordHash, "linking must write the identity columns only")
+
+	require.ErrorIs(t, repo.LinkOIDCIdentity(ctx, local.ID, issuer, "sub-2"), shared.ErrConflict,
+		"an account already linked must not be re-linked")
+
+	other := newTestUser("u-link-other")
+	require.NoError(t, repo.Create(ctx, other))
+	require.ErrorIs(t, repo.LinkOIDCIdentity(ctx, other.ID, issuer, "sub-1"), shared.ErrConflict,
+		"an identity held by another account must conflict")
+
+	assert.ErrorIs(t, repo.LinkOIDCIdentity(ctx, "usr-missing", issuer, "sub-3"), shared.ErrNotFound)
+}
+
 // The partial unique index idx_users_oidc_identity (migration 000113) blocks a
 // second user with the SAME (oidc_issuer, oidc_subject) - even with a different
 // username - so a concurrent OIDC first-login can't create a duplicate identity.

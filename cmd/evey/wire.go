@@ -223,26 +223,35 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess), appuser.WithAccessDefaultLocale(serverLocaleFn), appuser.WithAccessUnitOfWork(postgres.NewTxUnit(db)))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
 
-	var oidcSvc *appuser.OIDCService
-	if cfg.OIDC.Enabled {
-		var oidcErr error
-		oidcSvc, oidcErr = appuser.NewOIDCService(
-			ctx, appuser.OIDCConfig{
-				Enabled:             cfg.OIDC.Enabled,
-				Issuer:              cfg.OIDC.Issuer,
-				ClientID:            cfg.OIDC.ClientID,
-				ClientSecret:        cfg.OIDC.ClientSecret,
-				RedirectURL:         cfg.OIDC.RedirectURL,
-				AllowedEmailDomains: cfg.OIDC.AllowedEmailDomains,
-			},
-			r.User, r.Profile, r.RefreshToken, r.UserRole,
-			guardedTokens, bus, postgres.NewTxUnit(db), cfg.JWT.RefreshTokenTTL,
-		)
-		if oidcErr != nil {
-			return nil, fmt.Errorf("oidc init: %w", oidcErr)
-		}
-		rootLog.Info("OIDC SSO enabled", slog.String("issuer", cfg.OIDC.Issuer))
+	// SSO is always wired: the admin panel can switch it on at runtime, and
+	// discovery is lazy so an unreachable provider never blocks the boot.
+	oidcSettings := appuser.OIDCSettingsSource{
+		Env: appuser.OIDCConfig{
+			Enabled:             cfg.OIDC.Enabled,
+			Issuer:              cfg.OIDC.Issuer,
+			ClientID:            cfg.OIDC.ClientID,
+			ClientSecret:        cfg.OIDC.ClientSecret,
+			RedirectURL:         cfg.OIDC.RedirectURL,
+			AllowedEmailDomains: cfg.OIDC.AllowedEmailDomains,
+		},
+		EnvAllowSignup: cfg.OIDC.AllowSignup,
+		Store:          r.ServerCfg,
+		BaseURL:        cfg.EffectiveBaseURL,
 	}
+	oidcSvc, oidcErr := appuser.NewOIDCService(
+		oidcSettings.Load,
+		r.User, r.Profile, r.RefreshToken, r.UserRole,
+		guardedTokens, bus, postgres.NewTxUnit(db), cfg.JWT.RefreshTokenTTL,
+		appuser.WithOIDCLibraryAccess(r.LibraryAccess),
+	)
+	if oidcErr != nil {
+		return nil, fmt.Errorf("oidc init: %w", oidcErr)
+	}
+	bus.Subscribe(shared.ServerConfigChanged{}.EventName(), func(_ context.Context, evt shared.Event) {
+		if c, ok := evt.(shared.ServerConfigChanged); ok && appuser.OIDCConfigKeys[c.Key] {
+			oidcSvc.Invalidate()
+		}
+	})
 
 	// Buffer player-tick progress writes so the (~5s) hot path skips DB I/O.
 	// Periodic flusher upserts the latest state per (profile, media). On

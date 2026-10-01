@@ -133,8 +133,6 @@ func buildOIDCService(t *testing.T, oidcSrv *testOIDCServer, opts ...func(*OIDCS
 	verifier := provider.Verifier(&gooidc.Config{ClientID: clientID})
 
 	svc := &OIDCService{
-		provider:    provider,
-		verifier:    verifier,
 		userRepo:    userfakes.NewFakeUserRepository(),
 		profiles:    userfakes.NewFakeProfileRepository(),
 		refreshTkns: userfakes.NewFakeRefreshTokenRepository(),
@@ -142,13 +140,19 @@ func buildOIDCService(t *testing.T, oidcSrv *testOIDCServer, opts ...func(*OIDCS
 		tokens:      userfakes.NewFakeTokenGenerator(),
 		events:      sharedfakes.NewFakeEventBus(),
 		stateSecret: []byte("test-secret-32-bytes-long-enough"),
-		issuer:      oidcSrv.issuer,
-		oauth2Cfg: oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: "test-secret",
-			RedirectURL:  "http://localhost/callback",
-			Endpoint:     provider.Endpoint(),
-			Scopes:       []string{gooidc.ScopeOpenID, "profile", "email"},
+		cur: &oidcClient{
+			// Sign-up on: these tests predate the sign-up policy and exercise
+			// account creation; the policy has its own tests.
+			cfg:      OIDCConfig{Enabled: true, Issuer: oidcSrv.issuer, ClientID: clientID, AllowSignup: true, LinkByEmail: true},
+			provider: provider,
+			verifier: verifier,
+			oauth2Cfg: oauth2.Config{
+				ClientID:     clientID,
+				ClientSecret: "test-secret",
+				RedirectURL:  "http://localhost/callback",
+				Endpoint:     provider.Endpoint(),
+				Scopes:       []string{gooidc.ScopeOpenID, "profile", "email"},
+			},
 		},
 	}
 	for _, o := range opts {
@@ -191,7 +195,7 @@ func TestAuthURL_ContainsSignedState(t *testing.T) {
 	defer oidcSrv.close()
 	svc := buildOIDCService(t, oidcSrv)
 
-	url := svc.AuthURL("my-nonce")
+	url, _ := svc.AuthURL(context.Background(), "my-nonce")
 	if url == "" {
 		t.Fatal("AuthURL returned empty string")
 	}
@@ -318,7 +322,7 @@ func TestEndSessionEndpoint_ReturnsURL(t *testing.T) {
 	defer oidcSrv.close()
 	svc := buildOIDCService(t, oidcSrv)
 
-	ep := svc.EndSessionEndpoint()
+	ep := svc.EndSessionEndpoint(context.Background())
 	want := oidcSrv.issuer + "/logout"
 	if ep != want {
 		t.Errorf("EndSessionEndpoint() = %q, want %q", ep, want)
@@ -559,7 +563,7 @@ func TestHandleCallback_EmailDomainNotAllowed(t *testing.T) {
 	oidcSrv.srv.Config.Handler = mux
 
 	svc := buildOIDCService(t, oidcSrv, func(s *OIDCService) {
-		s.allowedEmailDomains = []string{"example.com"}
+		s.cur.cfg.AllowedEmailDomains = []string{"example.com"}
 	})
 
 	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
@@ -1330,7 +1334,7 @@ func TestAuthURL_IncludesNonce(t *testing.T) {
 	defer oidcSrv.close()
 	svc := buildOIDCService(t, oidcSrv)
 
-	raw := svc.AuthURL("my-state-nonce")
+	raw, _ := svc.AuthURL(context.Background(), "my-state-nonce")
 	u, err := url.Parse(raw)
 	if err != nil {
 		t.Fatalf("parse AuthURL: %v", err)
@@ -1391,7 +1395,7 @@ func TestHandleCallback_MissingNonceWhenExpected_Rejected(t *testing.T) {
 func TestHandleCallback_UnverifiedEmail_RejectedUnderAllowlist(t *testing.T) {
 	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
 		"sub": "sub-unverif", "email": "u@example.com", "email_verified": false, "nonce": "n1",
-	}, func(s *OIDCService) { s.allowedEmailDomains = []string{"example.com"} })
+	}, func(s *OIDCService) { s.cur.cfg.AllowedEmailDomains = []string{"example.com"} })
 	defer oidcSrv.close()
 
 	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "n1")
@@ -1403,7 +1407,7 @@ func TestHandleCallback_UnverifiedEmail_RejectedUnderAllowlist(t *testing.T) {
 func TestHandleCallback_VerifiedEmail_AllowedUnderAllowlist(t *testing.T) {
 	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
 		"sub": "sub-verif", "email": "u@example.com", "email_verified": true, "preferred_username": "u", "nonce": "n2",
-	}, func(s *OIDCService) { s.allowedEmailDomains = []string{"example.com"} })
+	}, func(s *OIDCService) { s.cur.cfg.AllowedEmailDomains = []string{"example.com"} })
 	defer oidcSrv.close()
 
 	at, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "n2")
@@ -1479,8 +1483,8 @@ func TestFindOrCreateUser_ExistingUser_DoesNotReplayTheRowItRead(t *testing.T) {
 		}
 	}
 
-	svc := &OIDCService{userRepo: repo, issuer: issuer}
-	if _, err := svc.findOrCreateUser(ctx, sub, "known@example.com", "known", true); err != nil {
+	svc := &OIDCService{userRepo: repo}
+	if _, err := svc.findOrCreateUser(ctx, OIDCConfig{Issuer: issuer}, oidcIdentity{Sub: sub, Email: "known@example.com", PreferredUsername: "known", EmailVerified: true}); err != nil {
 		t.Fatalf("findOrCreateUser: %v", err)
 	}
 
@@ -1512,8 +1516,8 @@ func TestFindOrCreateUser_DisabledUser_StillRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc := &OIDCService{userRepo: repo, issuer: issuer}
-	if _, err := svc.findOrCreateUser(context.Background(), sub, "off@example.com", "off", true); !errors.Is(err, ErrUserDisabled) {
+	svc := &OIDCService{userRepo: repo}
+	if _, err := svc.findOrCreateUser(context.Background(), OIDCConfig{Issuer: issuer}, oidcIdentity{Sub: sub, Email: "off@example.com", PreferredUsername: "off", EmailVerified: true}); !errors.Is(err, ErrUserDisabled) {
 		t.Fatalf("expected ErrUserDisabled, got %v", err)
 	}
 }

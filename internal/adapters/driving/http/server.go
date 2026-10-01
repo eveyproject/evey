@@ -2,9 +2,9 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -729,19 +729,18 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// The cookie names THIS device's session, so only it is ended.
 			r = injectRefreshTokenFromCookie(r)
 			clearRefreshCookie(w, s.https())
-			if s.OIDCSvc != nil {
-				if ep := s.OIDCSvc.EndSessionEndpoint(); ep != "" {
+			// RP-Initiated Logout, only for a session that came through SSO (the
+			// id_token cookie): the client navigates to endSessionUrl itself,
+			// since a fetch cannot follow a redirect to the provider's origin.
+			if c, cErr := r.Cookie(oidcIDTokenCookieName); cErr == nil && c.Value != "" && s.OIDCSvc != nil {
+				if ep := s.OIDCSvc.EndSessionEndpoint(r.Context()); ep != "" {
 					rec := &discardResponseWriter{header: make(http.Header)}
 					gwMux.ServeHTTP(rec, r)
-
-					// RP-Initiated Logout: build end_session URL with id_token_hint
-					q := url.Values{}
-					q.Set("post_logout_redirect_uri", s.BaseURL()+"/login")
-					if c, err := r.Cookie(oidcIDTokenCookieName); err == nil && c.Value != "" {
-						q.Set("id_token_hint", c.Value)
-					}
 					clearOIDCIDTokenCookie(w, s.https())
-					http.Redirect(w, r, ep+"?"+q.Encode(), http.StatusFound)
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(map[string]string{
+						"endSessionUrl": oidcEndSessionURL(ep, s.OIDCSvc.PostLogoutRedirectURL(r.Context()), s.BaseURL()+"/login", c.Value),
+					})
 					return
 				}
 			}
@@ -874,6 +873,15 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 	if s.OIDCSvc != nil {
 		registerOIDCRoutesFn(mux, s.OIDCSvc, s.https, s.OIDCLoginRL)
+		var ssoStore ssoSettingsStore
+		if s.ServerCfgRepo != nil {
+			ssoStore = appconfig.NewService(s.ServerCfgRepo)
+		}
+		var ssoLibs ssoLibraryLookup
+		if s.LibQuerySvc != nil {
+			ssoLibs = s.LibQuerySvc
+		}
+		registerSSOAdminRoutes(mux, s.OIDCSvc, ssoStore, ssoLibs, s.TokenGen, s.AdminWriteRL)
 	} else {
 		mux.HandleFunc("GET /api/v1/auth/oidc/config", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
