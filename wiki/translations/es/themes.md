@@ -1,5 +1,5 @@
 ---
-source_sha: 305f13e3ff6f705b51384ec1d553349c48887a6ee0bd367b61e102a000be8911
+source_sha: 6095a8b2b48d1c8ec2613e48fa7ace4603ea6bf231dc4c39b598eb130cb452bc
 reviewed: false
 ---
 # Temas
@@ -33,7 +33,7 @@ El ZIP debe contener `theme.css` y/o `theme.js` en su raíz. Un paquete sin ning
 
 ## theme.css
 
-Se sirve en `/api/v1/themes/<id>/theme.css`. El archivo pasa por el saneador de CSS al instalar. Lo que se guarda y se sirve es la salida saneada: lo que escribes y lo que se inyecta pueden diferir si se activó alguna regla.
+Se sirve en `/api/v1/themes/<id>/theme.css`. El archivo pasa por el saneador de CSS al instalar.
 
 La hoja de estilos se inyecta como un `<link rel="stylesheet">` en `<head>`. Se aplica globalmente al documento anfitrión. Vale el CSS estándar: propiedades personalizadas, `@keyframes`, `@media`, `@font-face` (con fuentes `data:`), `@layer`, consultas de contenedor.
 

@@ -29,7 +29,7 @@ The ZIP must contain `theme.css` and/or `theme.js` at its root. A package with n
 
 ## theme.css
 
-Served at `/api/v1/themes/<id>/theme.css`. The file is passed through the CSS sanitizer at install time. The sanitized output is what gets stored and served - what you write and what is injected may differ if any rules were triggered.
+Served at `/api/v1/themes/<id>/theme.css`. The file is passed through the CSS sanitizer at install time.
 
 The stylesheet is injected as a `<link rel="stylesheet">` in `<head>`. It applies globally to the host document. Standard CSS applies: custom properties, `@keyframes`, `@media`, `@font-face` (with `data:` sources), `@layer`, container queries.
 
