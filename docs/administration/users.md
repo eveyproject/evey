@@ -93,3 +93,28 @@ server-side limit, fail closed, admins exempt: internal/adapters/driving/http/pa
 downloads: internal/adapters/driving/http/compat_download_handler.go (checkParental) ; frontend/apps/mobile/src/lib/offlineAccess.ts
 requests: i18n admin.mediaRequests.*
 -->
+
+## The home page
+
+The home page is a stack of rows; a row with nothing to show is hidden.
+
+| Row | What it shows |
+| --- | --- |
+| **Resume Playback** | What the profile started and has not finished, most recent first. A title counts as watched at 90 %. |
+| **Up Next** | For each series the profile has watched an episode of, the next unwatched episode. |
+| **Collections** | The collections, with a link to the full list. |
+| **Recommended For You** | Films and series in the profile's usual genres, best match first, then by rating. A genre counts when it appears in at least 3 of the profile's last 200 playbacks. |
+| **Most Popular** | The films and series played most on the server over the last 90 days. |
+| One row per library | The latest additions to that library, newest first. |
+
+Recommended For You and Most Popular leave out what the profile has already
+finished; a series counts as finished once every episode is watched. Plugins can
+add their own rows.
+
+**Admin → Server Config → Home feeds** sets the default for every profile:
+which rows appear, in what order, and how many items each shows. Each profile
+then arranges its own home with **Customize** (on the home page of the web and
+mobile apps, in the header of the TV app): show or hide a row, move it, or
+**Reset to Defaults**. The choice is saved on the server and follows the profile
+to every device. A profile can show a row the administrator has hidden, except
+a plugin's row: there the administrator's choice is final.

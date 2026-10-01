@@ -1,5 +1,5 @@
 ---
-source_sha: 36492c52b264a6f9e288ee05ec9cae5b29f8e340329b30fe064fcf164c5045de
+source_sha: 493189a86da40c20ad5dae6f15c10a6d11082963e6bc451cc0804389e0fbe494
 reviewed: false
 ---
 # Usuarios, perfiles y control parental
@@ -92,3 +92,30 @@ copia al portapapeles.
   locales.
 - Quien tenga el enlace puede descargar el archivo hasta que caduque:
   compártelo como el propio archivo.
+
+## La página de inicio
+
+La página de inicio es una pila de filas; una fila sin nada que mostrar se
+oculta.
+
+| Fila | Qué muestra |
+| --- | --- |
+| **Reanudar reproducción** | Lo que el perfil empezó y no terminó, lo más reciente primero. Un título cuenta como visto al 90 %. |
+| **A continuación** | Para cada serie de la que el perfil ha visto un episodio, el siguiente episodio sin ver. |
+| **Colecciones** | Las colecciones, con un enlace a la lista completa. |
+| **Recomendado para ti** | Películas y series de los géneros habituales del perfil, la mejor coincidencia primero y luego por valoración. Un género cuenta cuando aparece en al menos 3 de las últimas 200 reproducciones del perfil. |
+| **Más popular** | Las películas y series más reproducidas en el servidor en los últimos 90 días. |
+| Una fila por biblioteca | Las últimas incorporaciones a esa biblioteca, la más reciente primero. |
+
+Recomendado para ti y Más popular dejan fuera lo que el perfil ya ha terminado;
+una serie cuenta como terminada cuando se han visto todos sus episodios. Los
+plugins pueden añadir sus propias filas.
+
+**Admin → Configuración del servidor → Feeds de inicio** fija el valor por
+defecto para todos los perfiles: qué filas aparecen, en qué orden y cuántos
+elementos muestra cada una. Cada perfil ordena después su propio inicio con
+**Personalizar** (en la página de inicio de las aplicaciones web y móvil, en la
+cabecera de la aplicación de TV): mostrar u ocultar una fila, moverla o
+**Restablecer**. La elección se guarda en el servidor y sigue al perfil en cada
+dispositivo. Un perfil puede mostrar una fila que el administrador ha ocultado,
+salvo la fila de un plugin: ahí la elección del administrador es definitiva.
