@@ -743,6 +743,13 @@ serverConfig:
   saveSmtp: Save SMTP Settings
   smtpSaved: SMTP settings saved
   failedSmtp: "Failed to save {{key}}"
+  smtpEnvHint: "Values saved here override the server's EVEY_SMTP_* environment variables; a field left empty uses the environment value. Changes apply without a restart."
+  sendTestEmail: "Send test email"
+  testEmailHint: "Sends a short message to your account's email address using the saved settings. Save your changes first."
+  testEmailSent: "Test email sent to {{to}}"
+  testEmailFailed: "Test email failed: {{error}}"
+  testEmailNotConfigured: "No SMTP host is set. Enter one and save before sending a test."
+  testEmailNoRecipient: "Your account has no email address. Add one to your profile first."
   trickplayTitle: Trickplay Thumbnails
   trickplayDesc: Auto-generate timeline preview thumbnails for movies and episodes.
   trickplayEnabled: Enable trickplay thumbnails

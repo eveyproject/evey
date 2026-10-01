@@ -790,6 +790,13 @@ serverConfig:
   saveSmtp: SMTP-Einstellungen speichern
   smtpSaved: SMTP-Einstellungen gespeichert
   failedSmtp: "{{key}} konnte nicht gespeichert werden"
+  smtpEnvHint: "Hier gespeicherte Werte ersetzen die Umgebungsvariablen EVEY_SMTP_* des Servers; ein leeres Feld übernimmt den Wert aus der Umgebung. Änderungen gelten ohne Neustart."
+  sendTestEmail: "Test-E-Mail senden"
+  testEmailHint: "Sendet eine kurze Nachricht an die E-Mail-Adresse deines Kontos mit den gespeicherten Einstellungen. Speichere deine Änderungen zuerst."
+  testEmailSent: "Test-E-Mail an {{to}} gesendet"
+  testEmailFailed: "Test-E-Mail fehlgeschlagen: {{error}}"
+  testEmailNotConfigured: "Kein SMTP-Server festgelegt. Gib einen ein und speichere, bevor du einen Test sendest."
+  testEmailNoRecipient: "Dein Konto hat keine E-Mail-Adresse. Füge zuerst eine in deinem Profil hinzu."
   trickplayTitle: Trickplay-Vorschaubilder
   trickplayDesc: Automatisch Zeitleisten-Vorschaubilder für Filme und Episoden generieren.
   trickplayEnabled: Trickplay-Vorschaubilder aktivieren
