@@ -65,6 +65,38 @@ func TestTagPlanMasterSubtitles_TagsEachRenditionByURI(t *testing.T) {
 	assert.Equal(t, prodPlanMasterWithSubs, tagPlanMasterSubtitles(prodPlanMasterWithSubs, nil))
 }
 
+// Sprite Fright's packager master: the Portuguese title ends in a newline the
+// packager escapes as "\n", and the Matroska implicit-English track of test5
+// carries no LANGUAGE at all.
+const spritePlanMaster = `#EXTM3U
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Italiano",AUTOSELECT=YES,LANGUAGE="it",URI="sub4.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Português\n",AUTOSELECT=YES,LANGUAGE="pt",URI="sub5.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Русский",AUTOSELECT=YES,LANGUAGE="ru",URI="sub6.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Subtitles 1",AUTOSELECT=YES,URI="sub7.m3u8"
+#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="vp09.00.40.08,opus",SUBTITLES="subs"
+playlist.m3u8
+`
+
+// One title the packager spells differently ("Português\n" against a stored
+// title ending in a newline) must not drop the tracks that follow it: every
+// track stays, and the served lines carry the stored title and language.
+func TestPlanSubtitleRenditions_AnEscapedTitleDropsNothingAfterIt(t *testing.T) {
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip", Language: "ita", Title: "Italiano"},
+		{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip", Language: "por", Title: "Português\n"}, // a real newline, as probed
+		{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip", Language: "rus", Title: "Русский"},
+		{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip", Language: "eng"},
+	}
+	got := mapPlanSubtitleRenditions(parsePlanSubtitleRenditions(spritePlanMaster), streams)
+	require.Len(t, got, 4, "the tracks after the escaped title were dropped")
+	assert.Equal(t, 2, got[2].TrackIdx)
+
+	served := tagPlanMasterSubtitles(spritePlanMaster, got)
+	assert.Contains(t, served, `NAME="Português",AUTOSELECT=NO,LANGUAGE="pt"`)
+	assert.Contains(t, served, `NAME="Subtitles 1",AUTOSELECT=NO,LANGUAGE="eng",X-EVEY-TRACK="3"`, "the implicit English gets its language")
+	assert.NotContains(t, served, `\n`)
+}
+
 // The prewarm's full read is skipped for a browser on a packager-subtitled
 // file; the apps and the receiver keep it, they still fetch /subtitle.
 func TestBrowserUserAgent(t *testing.T) {
