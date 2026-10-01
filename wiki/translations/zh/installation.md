@@ -1,5 +1,5 @@
 ---
-source_sha: 1e142f5db633e6ce71b5b8f23cc10423cca89071a75c05bb222572fb579f2645
+source_sha: a6c61f9f7b1e619f46c4d5eea7ca2c2b93356f93c04681e95963303bdf287723
 reviewed: false
 ---
 # 安装
@@ -40,7 +40,7 @@ volumes:
   evey-cache:
 ```
 
-1. `latest` 是最新的版本。真正开始使用 Evey 后请固定一个标签，这样相隔一天的两次拉取运行的是同样的代码：见[备份与更新](backups.md#updating-evey)。
+1. `latest` 是最新的稳定版本。真正开始使用 Evey 后请固定一个标签，这样相隔一天的两次拉取运行的是同样的代码：见[备份与更新](backups.md#updating-evey)。
 2. API 和网页界面，在一个端口上，使用未加密的 HTTP。
 3. 属于 Evey 的一切：数据库、签名密钥、生成的密码、搜索索引、时间轴缩略图、图片、日志、备份、插件。这是需要备份的文件夹。
 4. 转码缓存：分段、缩放后的照片和封面。可以随时删除，需要时会重新生成。

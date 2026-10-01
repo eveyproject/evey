@@ -48,7 +48,7 @@ volumes:
   evey-cache:
 ```
 
-1. `latest` is the most recent release. Pin a tag once you run Evey for real,
+1. `latest` is the most recent stable release. Pin a tag once you run Evey for real,
    so that two pulls a day apart run the same code: see
    [Backups and updates](backups.md#updating-evey).
 2. The API and the web interface, on one port, in plain HTTP.

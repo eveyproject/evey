@@ -1,5 +1,5 @@
 ---
-source_sha: 1e142f5db633e6ce71b5b8f23cc10423cca89071a75c05bb222572fb579f2645
+source_sha: a6c61f9f7b1e619f46c4d5eea7ca2c2b93356f93c04681e95963303bdf287723
 reviewed: true
 ---
 # Installation
@@ -53,7 +53,7 @@ volumes:
   evey-cache:
 ```
 
-1. `latest` désigne la dernière version publiée. Figez un tag dès que le
+1. `latest` désigne la dernière version stable. Figez un tag dès que le
    serveur est utilisé pour de bon, pour que deux `pull` à un jour d'écart exécutent
    le même code : voir [Sauvegardes et mises à jour](backups.md#updating-evey).
 2. L'API et l'interface web, sur un seul port, en HTTP simple.
