@@ -1,5 +1,5 @@
 ---
-source_sha: 3a41d86519a03aab692820f316d27cf9feb1e8da69e124f838de91eea3408a9b
+source_sha: cb3a20b8cc9545de2abfb60adb9e7c2272d0ad6fbc8666679ce2cb180603bae4
 reviewed: true
 ---
 # Réponse aux incidents
@@ -86,11 +86,13 @@ est `evey_auth_failures_total{reason="epoch_lookup_failed"}`.
 
 **Causes fréquentes et correction** :
 
-- **Clé JWT absente ou changée** : `EVEY_JWT_PRIVATE_KEY_PATH` (par défaut
-  `/data/jwt.key`) illisible, ou clé renouvelée. Chaque jeton signé par
-  l'ancienne clé est désormais invalide : il n'y a pas d'autre remède que de
-  restaurer l'ancienne clé depuis une sauvegarde ou de faire reconnecter tout le
-  monde. Vérifiez que le volume `evey-data` est bien monté sur `/data`.
+- **Clé JWT absente ou changée** : rarement la cause. Un
+  `EVEY_JWT_PRIVATE_KEY_PATH` (par défaut `/data/jwt.key`) illisible ou
+  corrompu empêche le serveur de démarrer ; une clé absente est régénérée. Les
+  jetons d'accès signés par l'ancienne clé sont alors refusés, mais les
+  applications les renouvellent avec leur jeton de rafraîchissement, vérifié en
+  base et non avec la clé : les utilisateurs restent connectés. Vérifiez que le
+  volume `evey-data` est monté sur `/data` : sans lui, la base manque aussi.
 - **La limite de débit se déclenche à chaque requête** : vérifiez
   `EVEY_RATELIMIT_LOGIN_MAX` (par défaut `10` par IP et par minute) et
   `EVEY_RATELIMIT_GLOBAL_MAX` (par défaut `300`). Un reverse proxy qui fait

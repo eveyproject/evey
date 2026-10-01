@@ -1,5 +1,5 @@
 ---
-source_sha: 3a41d86519a03aab692820f316d27cf9feb1e8da69e124f838de91eea3408a9b
+source_sha: cb3a20b8cc9545de2abfb60adb9e7c2272d0ad6fbc8666679ce2cb180603bae4
 reviewed: false
 ---
 # 事故手册
@@ -60,7 +60,7 @@ request is failing - check the database, not the JWT key
 如果出现了这一行，就不用再读本节，直接去第 4 节（数据库）。此时 `/healthz` 可能仍是绿色：它只 ping 连接，不执行 epoch 查询。对应的 Prometheus 计数器是 `evey_auth_failures_total{reason="epoch_lookup_failed"}`。
 
 **常见原因 + 修复**：
-- **JWT 密钥丢失或被更改**：`EVEY_JWT_PRIVATE_KEY_PATH`（默认 `/data/jwt.key`）不可读，或者已被轮换。用旧密钥签名的所有令牌现在都无效了：除了从备份恢复旧密钥或强制所有用户重新登录之外，没有别的补救办法。确认 `evey-data` 卷正确挂载在 `/data`。
+- **JWT 密钥丢失或被更改** 很少是原因。不可读或已损坏的 `EVEY_JWT_PRIVATE_KEY_PATH`（默认 `/data/jwt.key`）会阻止服务器启动；缺失的密钥会被重新生成。此后用旧密钥签名的访问令牌会被拒绝，但应用会用刷新令牌续期，而刷新令牌是在数据库中核对的，不依赖密钥：用户保持登录。确认 `evey-data` 卷挂载在 `/data`：没有它，数据库也会缺失。
 - **每个请求都触发速率限制**：检查 `EVEY_RATELIMIT_LOGIN_MAX`（默认每个 IP 每分钟 `10` 次）和 `EVEY_RATELIMIT_GLOBAL_MAX`（默认 `300`）。把所有流量都以同一个 IP 转发的反向代理会很快触发它：在 Admin → 远程访问 中把该代理加入 **受信任的代理**（无需重启即可生效；`EVEY_TRUSTED_PROXIES` 也可以）。开发环境的覆盖配置已经设置为 `1000` / `10000`。
 - 服务器与客户端之间的时钟偏差 → 在主机上运行 `date -u`。
 
