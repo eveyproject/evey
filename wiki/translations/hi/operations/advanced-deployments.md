@@ -1,5 +1,5 @@
 ---
-source_sha: c89d50a53938f9f7a84056f270adf0482f2fbed4e8bd8d475e943e7ea09cc583
+source_sha: 6c5be1c7b73eceb506748f84e685e858d94021c34fe6715f0d4127dfd10d261f
 reviewed: false
 ---
 # उन्नत डिप्लॉयमेंट
@@ -143,7 +143,7 @@ docker exec evey-server evey admin reindex-search
 
 इमेज `gravityz/evey` है।
 
-- रिलीज़ टैग `vX.Y.Z` `X.Y.Z`, `X.Y`, `X` और `latest` प्रकाशित करते हैं। `latest` हमेशा सबसे नया रिलीज़ है।
+- रिलीज़ टैग `vX.Y.Z` `X.Y.Z`, `X.Y`, `X` और `latest` प्रकाशित करते हैं। `latest` हमेशा सबसे नया स्थिर रिलीज़ है: प्री-रिलीज़ (`vX.Y.Z-beta.N`) केवल अपना टैग प्रकाशित करता है और `latest` को कभी नहीं खिसकाता।
 - ब्रांच बिल्ड ब्रांच का नाम (उदाहरण के लिए `beta-0.0.1`) और `sha-<commit>` प्रकाशित करते हैं।
 - **प्लगइन रनटाइम।** डिफ़ॉल्ट इमेज प्लगइन के लिए Python 3 साथ रखती है। `-nodejs` वेरिएंट Node.js जोड़ता है; `-full` PHP, Ruby और Lua जोड़ता है। वेरिएंट तभी इस्तेमाल करें जब आपके इंस्टॉल किए किसी प्लगइन को उसकी ज़रूरत हो।
 - **GPU परिवार।** प्रकाशित इमेज में हर समर्थित Intel और AMD पीढ़ी के ड्राइवर होते हैं। ख़ुद बनाई गई इमेज केवल एक रख सकती है: `docker build --build-arg GPU=intel-legacy .` (Intel Gen9 से Gen11), `GPU=intel` (Gen12 और नए), `GPU=amd` या `GPU=none`। NVIDIA को किसी वेरिएंट की ज़रूरत नहीं: NVIDIA Container Toolkit चलते समय होस्ट का ड्राइवर डालता है।

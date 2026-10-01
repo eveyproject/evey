@@ -1,5 +1,5 @@
 ---
-source_sha: c89d50a53938f9f7a84056f270adf0482f2fbed4e8bd8d475e943e7ea09cc583
+source_sha: 6c5be1c7b73eceb506748f84e685e858d94021c34fe6715f0d4127dfd10d261f
 reviewed: false
 ---
 # 高级部署
@@ -143,7 +143,7 @@ docker exec evey-server evey admin reindex-search
 
 镜像为 `gravityz/evey`。
 
-- 版本标签 `vX.Y.Z` 会发布 `X.Y.Z`、`X.Y`、`X` 和 `latest`。`latest` 总是最新的版本。
+- 版本标签 `vX.Y.Z` 会发布 `X.Y.Z`、`X.Y`、`X` 和 `latest`。`latest` 总是最新的稳定版本：预发布版本（`vX.Y.Z-beta.N`）只发布它自己的标签，从不移动 `latest`。
 - 分支构建会发布分支名称（例如 `beta-0.0.1`）和 `sha-<commit>`。
 - **插件运行时。** 默认镜像为插件捆绑了 Python 3。`-nodejs` 变体加入 Node.js；`-full` 加入 PHP、Ruby 和 Lua。只有当你安装的插件需要时才使用变体。
 - **GPU 系列。** 发布的镜像包含所有受支持的 Intel 和 AMD 代际的驱动。自行构建的镜像可以只保留一种：`docker build --build-arg GPU=intel-legacy .`（Intel Gen9 到 Gen11）、`GPU=intel`（Gen12 及更新）、`GPU=amd` 或 `GPU=none`。NVIDIA 不需要变体：NVIDIA Container Toolkit 会在运行时注入主机的驱动。

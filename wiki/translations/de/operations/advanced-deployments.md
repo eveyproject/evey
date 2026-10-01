@@ -1,5 +1,5 @@
 ---
-source_sha: c89d50a53938f9f7a84056f270adf0482f2fbed4e8bd8d475e943e7ea09cc583
+source_sha: 6c5be1c7b73eceb506748f84e685e858d94021c34fe6715f0d4127dfd10d261f
 reviewed: false
 ---
 # Erweiterte Bereitstellungen
@@ -182,7 +182,8 @@ nur für amd64: Legen Sie auf einem ARM-Host ein Release-Tag fest.
 Das Image ist `gravityz/evey`.
 
 - Release-Tags `vX.Y.Z` veröffentlichen `X.Y.Z`, `X.Y`, `X` und `latest`.
-  `latest` ist immer die neueste Version.
+  `latest` ist immer die neueste stabile Version: Eine Vorabversion
+  (`vX.Y.Z-beta.N`) veröffentlicht nur ihr eigenes Tag und verschiebt es nie.
 - Branch-Builds veröffentlichen den Branch-Namen (zum Beispiel `beta-0.0.1`) und
   `sha-<commit>`.
 - **Plugin-Laufzeiten.** Das Standard-Image bringt Python 3 für Plugins mit. Die

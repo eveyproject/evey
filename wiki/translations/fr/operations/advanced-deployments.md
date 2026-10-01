@@ -1,5 +1,5 @@
 ---
-source_sha: c89d50a53938f9f7a84056f270adf0482f2fbed4e8bd8d475e943e7ea09cc583
+source_sha: 6c5be1c7b73eceb506748f84e685e858d94021c34fe6715f0d4127dfd10d261f
 reviewed: true
 ---
 # Déploiements avancés
@@ -184,7 +184,8 @@ ARM.
 L'image est `gravityz/evey`.
 
 - Les tags de version `vX.Y.Z` publient `X.Y.Z`, `X.Y`, `X` et `latest`.
-  `latest` désigne toujours la dernière version publiée.
+  `latest` désigne toujours la dernière version stable : une préversion
+  (`vX.Y.Z-beta.N`) ne publie que son propre tag et ne le déplace jamais.
 - Les builds de branche publient le nom de la branche (par exemple
   `beta-0.0.1`) et `sha-<commit>`.
 - **Runtimes des plugins.** L'image par défaut embarque Python 3 pour les
