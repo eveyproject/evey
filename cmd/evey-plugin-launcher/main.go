@@ -79,6 +79,9 @@ func main() {
 }
 
 func run(argv []string) int {
+	if len(argv) > 0 && argv[0] == "signal" {
+		return runSignal(argv[1:])
+	}
 	// Captured before any setup so the pre-exec orphan check below can detect a
 	// parent that died while the launcher was confining itself.
 	startPPID := os.Getppid()
