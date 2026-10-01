@@ -1,5 +1,5 @@
 ---
-source_sha: aa4a6dbca83eeb34955b6236d87329e7e8c35d2a88212136ac8e890abbf361a5
+source_sha: 07ef437cfda80f904ab9b75af363b1bc953955e06ee27538265b4d7564457422
 reviewed: false
 ---
 # 故障排除
@@ -37,7 +37,7 @@ docker exec evey-server evey admin doctor
 
 ## 所有人都被登出，或者每次登录都失败
 
-[所有登录都返回 401](../runbooks/incident-runbook.md#2-all-logins-return-401)。常见原因是 `./evey-data` 中的签名密钥丢失或被替换。
+[所有登录都返回 401](../runbooks/incident-runbook.md#2-all-logins-return-401)。常见原因是数据库（每个请求都会向数据库核对账户，数据库无法应答时请求会被拒绝；日志会说明这一点），以及反向代理未列入 **受信任的代理**，导致所有人共用同一个登录频率限制。仅仅丢失或替换签名密钥不会让任何人登出：应用会续期它们的令牌。
 
 ## 你本以为是直接播放的条目却在转码
 

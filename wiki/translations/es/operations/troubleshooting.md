@@ -1,5 +1,5 @@
 ---
-source_sha: aa4a6dbca83eeb34955b6236d87329e7e8c35d2a88212136ac8e890abbf361a5
+source_sha: 07ef437cfda80f904ab9b75af363b1bc953955e06ee27538265b4d7564457422
 reviewed: false
 ---
 # Solución de problemas
@@ -51,7 +51,11 @@ Nada responde, ni siquiera en casa: [El servidor no responde](../runbooks/incide
 ## Todo el mundo ha perdido la sesión, o todo inicio de sesión falla
 
 [Todos los inicios de sesión devuelven 401](../runbooks/incident-runbook.md#2-all-logins-return-401).
-La causa habitual es una clave de firma perdida o sustituida en `./evey-data`.
+Las causas habituales son la base de datos (cada petición comprueba la cuenta en
+ella y se rechaza cuando no responde; el registro lo indica) y un proxy inverso
+que falta en **Proxies de confianza**, que pone a todos bajo un único límite de
+inicios de sesión. Una clave de firma perdida o sustituida no cierra la sesión de
+nadie por sí sola: las aplicaciones renuevan sus tokens.
 
 ## Un título se transcodifica cuando esperabas Reproducción directa
 

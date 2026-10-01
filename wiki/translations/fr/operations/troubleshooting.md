@@ -1,5 +1,5 @@
 ---
-source_sha: aa4a6dbca83eeb34955b6236d87329e7e8c35d2a88212136ac8e890abbf361a5
+source_sha: 07ef437cfda80f904ab9b75af363b1bc953955e06ee27538265b4d7564457422
 reviewed: true
 ---
 # Dépannage
@@ -53,8 +53,11 @@ Rien ne répond, même à la maison :
 ## Tout le monde est déconnecté, ou plus aucune connexion ne fonctionne
 
 [All logins return 401](../runbooks/incident-runbook.md#2-all-logins-return-401).
-La cause habituelle est une clé de signature perdue ou remplacée dans
-`./evey-data`.
+Les causes habituelles sont la base de données (chaque requête vérifie le compte
+auprès d'elle et est refusée quand elle ne répond pas ; le journal le dit) et un
+reverse proxy absent des **Proxys de confiance**, qui place tout le monde sous
+une seule limite de connexions. Une clé de signature perdue ou remplacée ne
+déconnecte personne à elle seule : les applications renouvellent leurs jetons.
 
 ## Un titre est transcodé alors que vous attendiez une lecture directe
 

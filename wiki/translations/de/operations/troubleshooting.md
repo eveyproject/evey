@@ -1,5 +1,5 @@
 ---
-source_sha: aa4a6dbca83eeb34955b6236d87329e7e8c35d2a88212136ac8e890abbf361a5
+source_sha: 07ef437cfda80f904ab9b75af363b1bc953955e06ee27538265b4d7564457422
 reviewed: false
 ---
 # Fehlerbehebung
@@ -51,8 +51,11 @@ Gar nichts antwortet, auch zu Hause nicht:
 ## Alle sind abgemeldet, oder jede Anmeldung schlägt fehl
 
 [Alle Anmeldungen liefern 401](../runbooks/incident-runbook.md#2-all-logins-return-401).
-Die übliche Ursache ist ein verlorener oder ersetzter Signaturschlüssel in
-`./evey-data`.
+Die üblichen Ursachen sind die Datenbank (jede Anfrage prüft das Konto dort und
+wird abgewiesen, wenn sie nicht antwortet; das Log sagt es) und ein Reverse
+Proxy, der unter **Vertrauenswürdige Proxys** fehlt, wodurch alle unter ein
+einziges Anmeldelimit fallen. Ein verlorener oder ersetzter Signaturschlüssel
+allein meldet niemanden ab: Die Apps erneuern ihre Token.
 
 ## Ein Titel läuft transkodiert, obwohl Sie Direktwiedergabe erwartet hatten
 

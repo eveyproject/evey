@@ -61,7 +61,7 @@ run the epoch query. The Prometheus counter is
 `evey_auth_failures_total{reason="epoch_lookup_failed"}`.
 
 **Common causes + fix**:
-- **JWT key missing or changed**: `EVEY_JWT_PRIVATE_KEY_PATH` (default `/data/jwt.key`) not readable, or was rotated. Every token signed by the old key is now invalid - there is no mitigation beyond restoring the old key from backup or forcing every user to re-login. Confirm the `evey-data` volume is mounted correctly at `/data`.
+- **JWT key missing or changed** is rarely the cause. An unreadable or corrupted `EVEY_JWT_PRIVATE_KEY_PATH` (default `/data/jwt.key`) stops the server from starting; a missing one is regenerated. Access tokens signed by the old key are then refused, but the apps renew them with their refresh token, which is checked in the database, not against the key: users stay signed in. Confirm the `evey-data` volume is mounted at `/data`: without it the database is missing too.
 - **Rate limit tripping every request**: check `EVEY_RATELIMIT_LOGIN_MAX` (default `10` per IP per minute) and `EVEY_RATELIMIT_GLOBAL_MAX` (default `300`). Reverse proxy forwarding all traffic as a single IP will trip this fast - add the proxy to **Trusted proxies** in Admin → Remote Access (applies without a restart; `EVEY_TRUSTED_PROXIES` also works). Dev override already sets `1000` / `10000`.
 - Clock skew between server and clients → `date -u` on the host.
 

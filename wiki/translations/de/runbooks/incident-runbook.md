@@ -1,5 +1,5 @@
 ---
-source_sha: 3a41d86519a03aab692820f316d27cf9feb1e8da69e124f838de91eea3408a9b
+source_sha: cb3a20b8cc9545de2abfb60adb9e7c2272d0ad6fbc8666679ce2cb180603bae4
 reviewed: false
 ---
 # Störungshandbuch
@@ -66,7 +66,7 @@ Verbindung, es führt die Epoch-Abfrage nicht aus. Der Prometheus-Zähler ist
 `evey_auth_failures_total{reason="epoch_lookup_failed"}`.
 
 **Häufige Ursachen und Behebung**:
-- **JWT-Schlüssel fehlt oder wurde geändert**: `EVEY_JWT_PRIVATE_KEY_PATH` (Standard `/data/jwt.key`) nicht lesbar oder rotiert. Jedes mit dem alten Schlüssel signierte Token ist nun ungültig - es gibt keine Abhilfe außer den alten Schlüssel aus einer Sicherung zurückzuholen oder alle Benutzer neu anmelden zu lassen. Prüfen Sie, dass das Volume `evey-data` korrekt unter `/data` eingebunden ist.
+- **JWT-Schlüssel fehlt oder wurde geändert** ist selten die Ursache. Ein nicht lesbarer oder beschädigter `EVEY_JWT_PRIVATE_KEY_PATH` (Standard `/data/jwt.key`) verhindert den Start des Servers; ein fehlender wird neu erzeugt. Mit dem alten Schlüssel signierte Zugriffstoken werden dann abgewiesen, aber die Apps erneuern sie mit ihrem Refresh-Token, das in der Datenbank geprüft wird, nicht gegen den Schlüssel: Die Benutzer bleiben angemeldet. Prüfen Sie, dass das Volume `evey-data` unter `/data` eingebunden ist: Ohne es fehlt auch die Datenbank.
 - **Ratenbegrenzung greift bei jeder Anfrage**: Prüfen Sie `EVEY_RATELIMIT_LOGIN_MAX` (Standard `10` pro IP und Minute) und `EVEY_RATELIMIT_GLOBAL_MAX` (Standard `300`). Ein Reverse Proxy, der den ganzen Verkehr als eine einzige IP weiterleitet, löst sie schnell aus - tragen Sie den Proxy unter **Vertrauenswürdige Proxys** in Admin → Fernzugriff ein (gilt ohne Neustart; `EVEY_TRUSTED_PROXIES` funktioniert auch). Die Entwicklungskonfiguration setzt bereits `1000` / `10000`.
 - Uhrzeitabweichung zwischen Server und Clients → `date -u` auf dem Host.
 

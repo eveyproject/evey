@@ -44,7 +44,11 @@ Nothing answers at all, even at home: [Server not reachable](../runbooks/inciden
 ## Everyone is signed out, or every sign-in fails
 
 [All logins return 401](../runbooks/incident-runbook.md#2-all-logins-return-401).
-The usual cause is a lost or replaced signing key in `./evey-data`.
+The usual causes are the database (every request checks the account against
+it and is refused when it cannot answer; the log says so) and a reverse proxy
+missing from **Trusted proxies**, which puts everyone under one sign-in rate
+limit. A lost or replaced signing key alone signs nobody out: the apps renew
+their tokens.
 
 ## A title plays transcoded when you expected Direct Play
 
