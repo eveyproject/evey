@@ -107,6 +107,28 @@ func appendSelfSignalRules(f []unix.SockFilter, self uint32) []unix.SockFilter {
 	return f
 }
 
+// cloneNamespaceFlags are the CLONE_NEW* bits clone(2) shares with unshare(2).
+const cloneNamespaceFlags = unix.CLONE_NEWNS | unix.CLONE_NEWCGROUP | unix.CLONE_NEWUTS |
+	unix.CLONE_NEWIPC | unix.CLONE_NEWUSER | unix.CLONE_NEWPID | unix.CLONE_NEWNET
+
+// appendDenyNamespaceRules closes the namespace door for every plugin, the
+// ones allowed to fork included: clone with a CLONE_NEW* flag is unshare (on
+// the denylist) by another name, and clone3 keeps its flags in a struct the
+// filter cannot read, so it gets ENOSYS and glibc falls back to clone (the
+// -deny-fork contract, see appendDenyForkRules). Leaves A = the syscall nr.
+func appendDenyNamespaceRules(f []unix.SockFilter) []unix.SockFilter {
+	return append(f,
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 1, K: uint32(unix.SYS_CLONE3)},
+		unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | enosysData},
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 4, K: uint32(unix.SYS_CLONE)},
+		unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg0}, // clone flags (low 32 bits hold every CLONE_NEW*)
+		unix.SockFilter{Code: bpfALU | bpfAND | bpfK, K: cloneNamespaceFlags},
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: 0},
+		unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},
+		unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offNR}, // restore A for the blocks below
+	)
+}
+
 // buildSeccompFilter returns a classic-BPF program: validate the ABI (kill on
 // mismatch to foil i386/x32 syscall-number confusion), then EPERM every denied
 // syscall. When denyInet is set, socket(2) with AF_INET/AF_INET6 is also EPERM'd
@@ -141,6 +163,7 @@ func buildSeccompFilter(self uint32, denyInet, denyFork bool) []unix.SockFilter 
 		)
 	}
 	f = appendSelfSignalRules(f, self)
+	f = appendDenyNamespaceRules(f)
 	if denyInet {
 		f = append(f,
 			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 5, K: uint32(unix.SYS_SOCKET)}, // not socket → ALLOW

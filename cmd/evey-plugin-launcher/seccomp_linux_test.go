@@ -106,6 +106,18 @@ func seccompChild(denyInet bool) {
 	if failed {
 		os.Exit(17)
 	}
+	// Namespaces stay closed even for a plugin allowed to fork: clone with a
+	// CLONE_NEW* flag is unshare by another name, and clone3 hides its flags
+	// from the filter. CLONE_NEWUSER|CLONE_FS is EINVAL in the kernel, so a
+	// call the filter lets through cannot create anything.
+	if _, _, errno := unix.Syscall(unix.SYS_CLONE, unix.CLONE_NEWUSER|unix.CLONE_FS, 0, 0); errno != unix.EPERM {
+		fmt.Fprintf(os.Stderr, "clone(CLONE_NEWUSER) not denied: errno=%v\n", errno)
+		os.Exit(18)
+	}
+	if _, _, errno := unix.Syscall(unix.SYS_CLONE3, 0, 0, 0); errno != unix.ENOSYS {
+		fmt.Fprintf(os.Stderr, "clone3 not ENOSYS: errno=%v\n", errno)
+		os.Exit(19)
+	}
 	// AF_UNIX must always work - the plugin talks to HostService over it.
 	if fd, _, errno := unix.Syscall(unix.SYS_SOCKET, uintptr(unix.AF_UNIX), uintptr(unix.SOCK_STREAM), 0); errno != 0 {
 		fmt.Fprintf(os.Stderr, "AF_UNIX socket denied: errno=%v\n", errno)

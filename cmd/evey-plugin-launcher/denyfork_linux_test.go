@@ -148,11 +148,17 @@ func TestBuildSeccompFilter_DenyForkCoversLegacyForkSyscalls(t *testing.T) {
 			t.Errorf("syscall %d has no EPERM block under -deny-fork", nr)
 		}
 	}
-	// And nothing is denied when the flag is off (the subprocess-permission path).
+	// Without the flag (the subprocess-permission path) the legacy fork calls
+	// stay open; clone3 is ENOSYS for every plugin (appendDenyNamespaceRules),
+	// which sh, python subprocess and node spawn/exec/workers were measured to
+	// survive through their clone fallback (2026-10-02).
 	plain := buildSeccompFilter(uint32(os.Getpid()), false, false)
-	for _, ins := range plain {
-		if ins.Code == bpfRET|bpfK && ins.K == retErrno|enosysData {
-			t.Error("clone3 must not be touched without -deny-fork: subprocess plugins need it")
+	for _, nr := range legacyForkSyscalls() {
+		for i, ins := range plain {
+			if ins.Code == bpfJMP|bpfJEQ|bpfK && ins.K == nr && i+1 < len(plain) &&
+				plain[i+1].Code == bpfRET|bpfK && plain[i+1].K == retErrno|epermData {
+				t.Errorf("syscall %d denied without -deny-fork: subprocess plugins need it", nr)
+			}
 		}
 	}
 }
