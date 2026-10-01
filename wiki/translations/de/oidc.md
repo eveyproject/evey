@@ -1,5 +1,5 @@
 ---
-source_sha: 65b23365db26b7098f71c51fcbae29e81a9f718d1b2be22250829cabd85987c1
+source_sha: 4a1aad8cb9228c4a82e7b9a0a3cbe3ee43a07f46b3a7109eb678dd7331ba9fd2
 reviewed: false
 ---
 # OIDC / SSO einrichten
@@ -10,65 +10,76 @@ Android-App zeigt dann **Mit SSO anmelden** neben dem Passwortformular.
 
 ## 1. Evey beim Anbieter registrieren
 
-Legen Sie beim Anbieter einen Client (oder eine Anwendung) an:
+Legen Sie beim Anbieter einen Client (oder eine Anwendung) mit dem Grant-Typ
+Authorization Code, den Scopes `openid email profile`, einem Client-Secret und
+den beiden Adressen an, die die Karte **Single Sign-on (SSO)** unter **Diese
+Adressen beim Anbieter eintragen** zeigt:
 
 | Feld | Wert |
 |-------|-------|
-| Client ID | `evey` oder ein beliebiger Name |
-| Client-Secret | eines erzeugen (Pflicht) |
 | Weiterleitungs-URI | `https://<Ihre Adresse>/api/v1/auth/oidc/callback` |
 | Weiterleitungs-URI nach der Abmeldung | `https://<Ihre Adresse>/login` |
-| Grant-Typ | Authorization Code |
-| Scopes | `openid email profile` |
+
+Beide werden aus der öffentlichen Adresse des Servers gebildet (**Admin →
+Fernzugriff**): Legen Sie diese zuerst fest, wenn Evey unter einer anderen
+Adresse erreicht wird.
 
 ## 2. Evey konfigurieren
 
-```env title=".env"
-EVEY_OIDC_ENABLED=true
-EVEY_OIDC_ISSUER=https://auth.example.com/realms/main
-EVEY_OIDC_CLIENT_ID=evey
-EVEY_OIDC_CLIENT_SECRET=your-client-secret
-EVEY_OIDC_ALLOWED_EMAIL_DOMAINS=example.com,company.org
-```
+**Admin → Serverkonfiguration → Single Sign-on (SSO)**:
 
-`EVEY_OIDC_ISSUER` ist die Basis-URL des Anbieters, ohne
-`/.well-known/openid-configuration`. Die vollständige Liste, einschließlich
-`EVEY_OIDC_REDIRECT_URL`, steht unter [Konten und Anmeldung](environment/accounts.md).
+| Feld | Wirkung |
+| --- | --- |
+| **Single Sign-on aktivieren** | Zeigt die SSO-Schaltfläche auf den Anmeldeseiten. |
+| **Issuer-URL** | Die Adresse des Anbieters, ohne `/.well-known/openid-configuration`. |
+| **Client-ID**, **Client-Secret** | Der oben registrierte Client. Das Secret bleibt auf dem Server und wird nie wieder angezeigt; die Punkte stehen lassen behält es. |
+| **Zugelassene E-Mail-Domains** | Kommagetrennt. Sind sie gesetzt, werden nur diese Adressen angenommen, und der Anbieter muss die Adresse bestätigen. |
+| **Beschriftung der Schaltfläche** | Optional, ersetzt „Mit SSO anmelden". |
+| **Mit bestehenden Konten über bestätigte E-Mail verknüpfen** | Standardmäßig an. Siehe unten. |
+| **Konten für neue SSO-Benutzer anlegen** | Aus, außer wenn E-Mail-Domains zugelassen sind. Siehe unten. |
+| **Bibliothekszugriff neuer SSO-Konten** | **Alle Bibliotheken** oder **Nur die ausgewählten Bibliotheken**. |
 
-## 3. Neu starten
+**Verbindung testen** prüft, ob der Issuer antwortet. **SSO-Einstellungen
+speichern** gilt sofort, ohne Neustart. Die Zeile **Status** zeigt, ob der
+Anbieter erreichbar ist, und andernfalls den letzten Fehler.
 
-```bash
-docker compose up -d
-```
+Die Variablen `EVEY_OIDC_*` unter [Konten und Anmeldung](environment/accounts.md)
+sind der Rückfall: Die Karte sagt, wenn ihre Werte von dort kommen, und
+Speichern übernimmt.
 
-Der Server kontaktiert den Anbieter beim Start. Ist der Aussteller nicht
-erreichbar oder das Client-Secret leer, **startet der Server nicht**: Die Logs
-nennen die Ursache.
+Der Server wartet nie auf den Anbieter: Er startet auch, wenn der Anbieter nicht
+läuft, die SSO-Schaltfläche bleibt verborgen, solange der Anbieter nicht
+erreichbar ist, und die Anmeldung per Passwort funktioniert weiter. Der Anbieter
+wird beim nächsten Anmeldeversuch erneut kontaktiert, höchstens alle 30
+Sekunden.
 
 ## Wer sich anmelden kann
 
-Die erste SSO-Anmeldung legt ein Evey-Konto an, ohne Passwort und mit einem
-Profil. Sein Benutzername ist der `preferred_username` des Anbieters, sonst der
-Teil der E-Mail vor `@`. Das Konto ist ein normaler Benutzer und sieht wie
-jedes Konto ohne Einschränkungen alle Bibliotheken: Schränken Sie es danach
-unter **Admin → Benutzer** ein (siehe [Benutzer](administration/users.md)).
+1. Ein Konto, das sich schon mit diesem Anbieter angemeldet hat, meldet sich
+   wieder an, sofern es nicht deaktiviert ist.
+2. Sonst wird bei eingeschaltetem **Mit bestehenden Konten über bestätigte
+   E-Mail verknüpfen** ein bestehendes Konto mit derselben E-Mail mit dem
+   Anbieter verknüpft und angemeldet, aber nur, wenn der Anbieter die Adresse
+   bestätigt. Das Konto behält sein Passwort.
+3. Sonst wird bei eingeschaltetem **Konten für neue SSO-Benutzer anlegen** ein
+   neues Konto angelegt, mit einem Profil und dem in der Karte gewählten
+   Bibliothekszugriff. Sein Benutzername ist der `preferred_username` des
+   Anbieters, sonst der Teil der E-Mail vor `@`; ein bereits vergebener Name
+   erhält ein kurzes Suffix.
 
-**Begrenzen Sie Registrierungen mit `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** Ist
-die Variable leer, bekommt jeder, der ein Konto beim Anbieter hat, eines auf
-Ihrem Server, was bei einem öffentlichen Anbieter wie Google jeden bedeutet. Mit
-Domains werden nur Adressen dieser Domains angenommen, und der Anbieter muss die Adresse als verifiziert
-kennzeichnen.
+**Konten für neue SSO-Benutzer anlegen** ist standardmäßig aus, wenn keine
+E-Mail-Domain zugelassen ist: Bei einem öffentlichen Anbieter wie Google bekäme
+sonst jeder mit einem Konto dort eines auf Ihrem Server. Ist es aus, können sich
+nur bestehende Konten per SSO anmelden.
 
-Ein Konto wird am Anbieter und seiner Benutzerkennung erkannt, nicht an der
-E-Mail. Wer bereits ein lokales Konto mit derselben E-Mail oder demselben
-Benutzernamen hat, kann kein SSO-Konto anlegen: Die Anmeldung scheitert mit
-„SSO-Anmeldung fehlgeschlagen". Ändern Sie beim Anbieter die Adresse oder den
-Benutzernamen oder entfernen Sie zuerst das lokale Konto.
-
-Ein deaktiviertes Konto wird bei der Anmeldung wie üblich abgewiesen.
+Wird eine Anmeldung abgewiesen, nennt die Anmeldeseite den Grund: Die E-Mail-
+Domain ist nicht zugelassen, kein Konto passt und das Anlegen ist aus, das Konto
+ist deaktiviert, das Konto existiert, konnte aber nicht verknüpft werden, oder
+der Anbieter ist nicht verfügbar.
 
 ## Abmelden
 
 Wenn der Anbieter einen Abmelde-Endpunkt veröffentlicht, beendet die Abmeldung
-bei Evey auch die Sitzung beim Anbieter und kehrt dann zur Anmeldeseite von
-Evey zurück.
+bei Evey nach einer SSO-Anmeldung auch die Sitzung beim Anbieter und kehrt dann
+zur Anmeldeseite von Evey zurück. Die Karte zeigt, ob der Anbieter das
+unterstützt.

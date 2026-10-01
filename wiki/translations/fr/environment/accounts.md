@@ -1,5 +1,5 @@
 ---
-source_sha: 49645a52c7506bc78947f31b763d5b78de15eaf577542b073330d83230b45467
+source_sha: 5df44f47a0668f747a8ddbed4f5d77234414ec1d6cfdf1c546c567546e2674af
 reviewed: true
 ---
 # Comptes et connexion
@@ -19,11 +19,14 @@ Durée des sessions, clé de signature et authentification unique.
 
 | Variable | Défaut | Effet |
 | --- | --- | --- |
-| `EVEY_OIDC_ENABLED` | `false` | Active l'authentification unique. Redémarrez après l'avoir modifiée. |
+| `EVEY_OIDC_ENABLED` | `false` | Active l'authentification unique. |
 | `EVEY_OIDC_ISSUER` | vide | L'URL de l'émetteur du fournisseur, par exemple `https://auth.example.com/realms/main`. |
 | `EVEY_OIDC_CLIENT_ID` | vide | Le client enregistré pour Evey chez le fournisseur. |
 | `EVEY_OIDC_CLIENT_SECRET` | vide | Son secret. |
-| `EVEY_OIDC_REDIRECT_URL` | vide | L'adresse de retour envoyée au fournisseur : `https://<votre adresse>/api/v1/auth/oidc/callback`. Vide : aucune n'est envoyée, et le fournisseur utilise celle enregistrée pour le client. |
-| `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | vide (tous) | Les domaines d'e-mail autorisés à créer un compte à leur première connexion, séparés par des virgules. Le fournisseur doit avoir vérifié l'adresse. |
+| `EVEY_OIDC_REDIRECT_URL` | vide | L'adresse de retour envoyée au fournisseur : `https://<votre adresse>/api/v1/auth/oidc/callback`. Vide : construite à partir de l'adresse publique du serveur (**Admin → Accès distant**). |
+| `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | vide (tous) | Les domaines d'e-mail autorisés à se connecter, séparés par des virgules. Le fournisseur doit avoir vérifié l'adresse. |
+| `EVEY_OIDC_ALLOW_SIGNUP` | vide | `true` ou `false` : créer un compte pour les nouveaux utilisateurs SSO. Vide : activé seulement si des domaines e-mail sont renseignés. |
 
-Configurer un fournisseur : [Authentification unique (OIDC)](../oidc.md).
+Ce sont des valeurs de repli : chaque réglage enregistré dans la carte
+**Authentification unique (SSO)** de **Admin → Configuration du serveur**
+remplace sa variable, sans redémarrage. Configurer un fournisseur : [Authentification unique (OIDC)](../oidc.md).
