@@ -1,56 +1,57 @@
 ---
-source_sha: 69eb69dc75f4051d291795ad196ce5ee4b61038c94cbe8a97d9b7ee7d7470a69
+source_sha: 97b31b19a771829c011c797f4712f4cccf1903064069d080bb2eaadb59c386e2
+reviewed: false
 ---
+# 备份与更新
 
-# 备份
+## 备份包含什么
 
-Evey 可以按计划自动备份数据库。
+备份是**数据库**的副本：账户、个人资料、媒体库及其元数据、观看记录和继续播放位置、合集和播放列表、设置、插件记录、Webhook 和审计日志。它是一个 `.tar.gz`，包含 SQL 转储和一个记录转储 SHA256 的清单。
 
-## 配置
+它**不**包含：
 
-```env title=".env"
-EVEY_BACKUP_DIR=/data/backups          # 备份的存放位置
-EVEY_BACKUP_INTERVAL_HOURS=24          # 自动备份的间隔（0 = 关闭）
-EVEY_BACKUP_RETENTION_DAYS=30          # 删除早于此天数的备份（0 = 永久保留）
-```
+- 你的媒体文件；
+- 转码缓存（需要时重新生成）；
+- 搜索索引（从数据库重建）；
+- 保存在 `./evey-data` 中的密钥：签署会话的 `jwt.key`，以及 `keys` 文件夹（数据库密码、搜索密钥）；
+- 已安装插件的文件。
 
-## 备份包含哪些内容
+因此，数据库备份可以在同一个安装上恢复 Evey 的状态。为了能重建一台机器，还要保留整个 `./evey-data` 文件夹的副本：数据库备份就在其中，位于 `./evey-data/backups`。
 
-备份涵盖全部用户数据：
-- 用户、配置文件、角色、权限
-- 媒体库、合集、播放列表、收藏
-- 观看进度、播放历史
-- 扩展、服务器配置、计划任务
-- 通知、Webhook、审计日志
+## 计划备份
 
-**不在备份范围内**：媒体文件（这些本来就属于你）以及转码缓存（会自动重新生成）。
+**Admin → 备份与恢复 → 计划任务**：一个 cron 表达式（例如 `0 3 * * *`，每天凌晨 3 点）和一个以天为单位的保留期。每次计划运行后，超过保留期的备份会被删除。**立即运行** 会马上创建一个备份。
 
-## 备份格式
+<figure class="evey-shot" markdown="span">
+  ![设置了每日计划的 Admin → 备份与恢复](images/admin-backup.webp){ loading=lazy }
+  <figcaption>每天凌晨 3 点备份一次，保留 30 天（界面为英文）。</figcaption>
+</figure>
 
-每份备份都是一个 `.tar.gz` 归档，其中包含：
-- `manifest.json` - 元数据、版本号、SHA256 完整性校验值
-- `dump.sql` - 完整的 PostgreSQL 转储
-
-## 手动备份
-
-可以从管理面板触发备份，也可以调用 API：
-
-```bash
-curl -X POST -H "Authorization: Bearer <token>" http://localhost:9091/api/v1/admin/backups
-```
+无论计划如何，服务器在更新过程中应用迁移之前，也会自行转储数据库（见下文）。
 
 ## 恢复
 
-通过管理 API 即可从备份恢复。应用备份之前，服务器会先用 SHA256 校验值验证其完整性。
+**Admin → 备份与恢复** 列出备份并恢复其中一个，或者从你上传的文件恢复。恢复会替换当前的数据库。
 
-## 持久化存储
+备份只能在数据库架构相同的服务器上恢复：服务器会先检查校验和与架构版本，对于由架构不同的版本创建的备份，它会拒绝而不是加载。要连同数据一起回到旧版本，见下文的[回退](#going-back)。
 
-请确认 `EVEY_BACKUP_DIR` 指向一个持久卷或宿主机路径。默认的 `/data/backups` 位于 `evey-data` 这个 Docker 卷内部。
+当服务器无法再启动时，命令行恢复的是迁移前创建的转储（`pre-migration-*.sql.gz`），而不是这个面板的 `.tar.gz` 备份：见[恢复](runbooks/recovery.md)。
 
-若要把备份存放在宿主机上：
-```yaml title="docker-compose.yml"
-services:
-  evey:
-    volumes:
-      - /path/on/host/backups:/data/backups
+## 更新 Evey
+
+```bash
+docker compose pull && docker compose up -d
+docker compose logs -f evey
 ```
+
+这就是全部的更新。当新版本需要更改数据库时，它会先把转储写入 `./evey-data/backups/pre-migration-*`，然后在启动时应用迁移；大型片库可能需要几分钟，容器在重新提供服务后会报告为健康。Evey 每 6 小时检查一次是否发布了更新的镜像，并在管理面板中提示；它从不自行更新。
+
+**固定你运行的版本。** `latest` 跟随最新的版本。对于你依赖的服务器，在 `image:` 行上写一个版本标签（`0.2.0`）或一个不可变的 `sha-<commit>` 标签，这样相隔一天的两次拉取运行的是同样的代码。像 `beta-0.0.1` 这样的分支标签会随每次更改而移动。
+
+**正在运行哪个版本。** `docker exec evey-server evey version` 会显示正在运行的二进制文件的版本和提交。
+
+### 回退
+
+把之前的标签写到 `image:` 行上，然后运行 `docker compose up -d`。如果较新的版本已经迁移了数据库，请先恢复它的迁移前转储：`docker exec evey-server evey admin rollback` 会显示带有转储路径的具体步骤。
+
+镜像标签、运行时变体和 GPU 变体在[高级部署](operations/advanced-deployments.md#image-tags)中说明。
