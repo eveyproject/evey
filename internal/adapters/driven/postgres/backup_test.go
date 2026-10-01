@@ -128,6 +128,58 @@ func TestRestoreTables_Validation(t *testing.T) {
 		})
 	}
 
+	// A line the grammar allows must never carry a second statement: psql runs
+	// every `;`-separated statement on the line (measured on psql 17).
+	smuggled := map[string]string{
+		"SET then DROP":                 "SET x=1; DROP TABLE users;",
+		"SET then COPY FROM PROGRAM":    "SET statement_timeout = 0; COPY t FROM PROGRAM 'id';",
+		"SET TO then COPY FROM PROGRAM": "SET x TO 'a'; COPY t FROM PROGRAM 'id';",
+		"SET quoted value hides a semi": "SET x TO 'a;b';",
+		"SET value opens a string":      "SET client_encoding = 'UTF8;",
+		"SET backslash escape":          "SET x = 'a\\';",
+		"SET value opens a comment":     "SET x = 1 /* ;",
+		"SET role by assignment":        "SET role = attacker;",
+		"SET session_authorization":     "SET session_authorization = 'postgres';",
+		"set_config then DROP":          "SELECT pg_catalog.set_config('search_path', '', false); DROP TABLE users;",
+		"set_config backslash value":    "SELECT pg_catalog.set_config('search_path', '\\', false);",
+		"TRUNCATE then DROP":            "TRUNCATE public.t; DROP TABLE users;",
+		"TRUNCATE open identifier":      "TRUNCATE \"t;",
+		"ALTER TRIGGER then DROP":       "ALTER TABLE ONLY public.t DISABLE TRIGGER ALL; DROP TABLE users;",
+		"COPY column list hides SQL":    "COPY public.t (a; DROP TABLE users; SELECT (1) FROM stdin;",
+		"COPY open identifier":          "COPY public.t (\"a) FROM stdin;",
+		"COPY then DROP":                "COPY public.t (a) FROM stdin; DROP TABLE users;",
+	}
+	for name, stmt := range smuggled {
+		t.Run("REJECT: "+name, func(t *testing.T) {
+			body := "-- PostgreSQL database dump\n\n" + stmt + "\n"
+			err := d.RestoreTables(ctx, strings.NewReader(body))
+			if err == nil || !strings.Contains(err.Error(), "rejected") {
+				t.Fatalf("expected rejection, got: %v", err)
+			}
+		})
+	}
+
+	// Verbatim `pg_dump 17.11 --data-only --no-owner --no-privileges
+	// --disable-triggers` output (quoted column, `;` inside COPY data).
+	t.Run("PASS: real pg_dump 17 output", func(t *testing.T) {
+		if err := d.RestoreTables(ctx, strings.NewReader(realPgDump17)); rejected(err) {
+			t.Fatalf("real pg_dump output was rejected: %v", err)
+		}
+	})
+	for _, line := range []string{
+		"SET default_table_access_method = heap;",
+		"SET default_tablespace = '';",
+		"SET search_path = '', pg_catalog;",
+		"TRUNCATE TABLE public.a, public.\"b c\";",
+	} {
+		t.Run("PASS: "+line, func(t *testing.T) {
+			body := "-- PostgreSQL database dump\n" + line + "\n"
+			if err := d.RestoreTables(ctx, strings.NewReader(body)); rejected(err) {
+				t.Fatalf("legit line was rejected: %v", err)
+			}
+		})
+	}
+
 	// Multi-line evasion: a clean COPY block then injected SQL after `\.` must
 	// still be caught (we return to strict validation after the data block).
 	t.Run("REJECT: SQL injected after a COPY data block", func(t *testing.T) {
@@ -140,3 +192,46 @@ func TestRestoreTables_Validation(t *testing.T) {
 		}
 	})
 }
+
+const realPgDump17 = `--
+-- PostgreSQL database dump
+--
+
+\restrict jgaZs3iu9blHO0kd1dxSdvXj34UMk0IcR8e8aWxRPLfp5phbQX6Gaa6Fooo1Qfm
+
+-- Dumped from database version 17.11
+-- Dumped by pg_dump version 17.11
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+SET SESSION AUTHORIZATION DEFAULT;
+
+ALTER TABLE public.users DISABLE TRIGGER ALL;
+
+COPY public.users (id, "user", name) FROM stdin;
+1	a;b	x
+\.
+
+
+ALTER TABLE public.users ENABLE TRIGGER ALL;
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict jgaZs3iu9blHO0kd1dxSdvXj34UMk0IcR8e8aWxRPLfp5phbQX6Gaa6Fooo1Qfm
+`

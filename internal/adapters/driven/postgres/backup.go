@@ -29,16 +29,31 @@ var pgDumpHeader = []byte("-- PostgreSQL database dump")
 // meta-command RCE such as `\!` and `\copy ... from program`. Anything outside
 // this grammar is rejected, so the restore can never carry a server-side
 // program/file COPY, function/DO body, or shell escape regardless of the DB
-// role's privileges.
+// role's privileges. Every token is closed on its own line (no `;`, `\`, `--`,
+// `/*` or unbalanced quote inside a value): psql runs EVERY `;`-separated
+// statement of a line and carries an open quote over to the next one.
+const (
+	dumpIdent = `(?:[a-z_][a-z0-9_]*|"[^"\\;]+")`
+	dumpQName = dumpIdent + `(?:\.` + dumpIdent + `)*`
+	dumpValue = `(?:-?[a-z0-9_.]+|'[^'\\;]*')`
+)
+
 var (
-	reDumpSet         = regexp.MustCompile(`(?i)^SET\s+[a-z_]+\s*(=|TO)\s*.+;$`)
+	reDumpSet         = regexp.MustCompile(`(?i)^SET\s+([a-z_]+)\s*(?:=|TO)\s*` + dumpValue + `(?:\s*,\s*` + dumpValue + `)*;$`)
 	reDumpSessionAuth = regexp.MustCompile(`(?i)^SET\s+SESSION\s+AUTHORIZATION\s+DEFAULT;$`)
-	reDumpSetConfig   = regexp.MustCompile(`(?i)^SELECT\s+pg_catalog\.set_config\('[a-z_]+',\s*'[^']*',\s*(true|false)\);$`)
-	reDumpAlterTrig   = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+(ONLY\s+)?[a-z0-9_."]+\s+(DISABLE|ENABLE)\s+TRIGGER\s+ALL;$`)
-	reDumpTruncate    = regexp.MustCompile(`(?i)^TRUNCATE\s+(TABLE\s+)?[a-z0-9_."][a-z0-9_.,"\s]*;$`)
-	reDumpCopyStdin   = regexp.MustCompile(`(?i)^COPY\s+[a-z0-9_."]+\s*\([^)]*\)\s+FROM\s+stdin;$`)
+	reDumpSetConfig   = regexp.MustCompile(`(?i)^SELECT\s+pg_catalog\.set_config\('[a-z_]+',\s*'[^'\\;]*',\s*(?:true|false)\);$`)
+	reDumpAlterTrig   = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+(?:ONLY\s+)?` + dumpQName + `\s+(?:DISABLE|ENABLE)\s+TRIGGER\s+ALL;$`)
+	reDumpTruncate    = regexp.MustCompile(`(?i)^TRUNCATE\s+(?:TABLE\s+)?(?:ONLY\s+)?` + dumpQName + `(?:\s*,\s*` + dumpQName + `)*;$`)
+	reDumpCopyStdin   = regexp.MustCompile(`(?i)^COPY\s+` + dumpQName + `(?:\s*\(\s*` + dumpIdent + `(?:\s*,\s*` + dumpIdent + `)*\s*\))?\s+FROM\s+stdin;$`)
 	reDumpRestrict    = regexp.MustCompile(`^\\(restrict|unrestrict)\s+\S+$`)
 )
+
+// isIdentitySetting names the GUCs that switch the session identity: `SET role
+// = x` is the same privilege change as the already rejected `SET ROLE x`.
+func isIdentitySetting(name string) bool {
+	n := strings.ToLower(name)
+	return n == "role" || n == "session_authorization"
+}
 
 // allowedDumpLine reports whether a single non-COPY-data line of a data-only
 // dump is part of the safe grammar. The caller handles COPY data separately.
@@ -54,7 +69,7 @@ func allowedDumpLine(line string) bool {
 	case reDumpSetConfig.MatchString(t):
 		return true
 	case reDumpSet.MatchString(t):
-		return true
+		return !isIdentitySetting(reDumpSet.FindStringSubmatch(t)[1])
 	case reDumpAlterTrig.MatchString(t):
 		return true
 	case reDumpTruncate.MatchString(t):
