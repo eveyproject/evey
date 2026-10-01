@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -42,7 +43,7 @@ func ClassifyHWFailure(exitErr error, stderrTail string) transcoding.FailureClas
 		}
 	}
 
-	s := strings.ToLower(stderrTail)
+	s := strings.ToLower(stripStderrNoise(stderrTail))
 	switch {
 	case stderrContainsAny(s,
 		"out of memory", "cuda_error_out_of_memory", "cannot allocate memory",
@@ -62,8 +63,7 @@ func ClassifyHWFailure(exitErr error, stderrTail string) transcoding.FailureClas
 	// themselves like a dead device ("Failed to create Vulkan instance",
 	// "device creation failed" on the derived device). The title falls back
 	// to the CPU bridge/software; the host's features and pools stay.
-	case stderrContainsAny(s,
-		"libplacebo", "vulkan", "tonemap_opencl", "opencl", "failed to map frame", "hwmap"):
+	case isInteropFailure(s):
 		return transcoding.FailureRouteIncompatible
 
 	// DEVICE-level signatures only: the accelerator itself could not be opened.
@@ -119,6 +119,45 @@ func ClassifyHWFailure(exitErr error, stderrTail string) transcoding.FailureClas
 		return transcoding.FailureTransient
 	}
 	return transcoding.FailureUnknown
+}
+
+// interopLogContext is the log prefix of an interop filter instance, as ffmpeg
+// prints it ("[Parsed_hwmap_1 @", "[libplacebo @", "[Parsed_tonemap_opencl_2 @").
+var interopLogContext = regexp.MustCompile(`\[(parsed_)?(libplacebo|hwmap|\w+_opencl|\w+_vulkan)(_\d+)? @`)
+
+// interopFailurePhrases are ffmpeg's own wordings of a Vulkan/OpenCL device or
+// mapping failure (measured on jellyfin-ffmpeg 7.1.4), not the bare word, which
+// a media path or a title would carry just as well.
+var interopFailurePhrases = []string{
+	"vk_error_", "failed to create vulkan", "failed initializing vulkan",
+	"opencl platforms", "opencl device creation failed", "failed to create opencl",
+	"failed to set value 'vulkan", "failed to set value 'opencl",
+	"filter 'libplacebo'", "filter 'hwmap'", "filter 'tonemap_opencl'",
+	"failed to map frame", "failed to derive device", "failed to create derived device",
+}
+
+func isInteropFailure(s string) bool {
+	return interopLogContext.MatchString(s) || stderrContainsAny(s, interopFailurePhrases...)
+}
+
+// bannerLine matches the banner lines and a configuration fragment the 8 KiB
+// stderr ring may have cut mid-line.
+var bannerLine = regexp.MustCompile(`^(ffmpeg version |built with |configuration:|lib\w+ +\d+\.)|--(enable|disable)-`)
+
+// stripStderrNoise drops what ffmpeg prints that is not a log message: the
+// banner (its configuration line lists --enable-vulkan/opencl/libplacebo) and
+// the indented Input/Output/Stream/Metadata dump that carries paths and titles.
+func stripStderrNoise(stderr string) string {
+	lines := strings.Split(stderr, "\n")
+	kept := lines[:0]
+	for _, l := range lines {
+		if l == "" || l[0] == ' ' || l[0] == '\t' || bannerLine.MatchString(l) ||
+			strings.HasPrefix(l, "Input #") || strings.HasPrefix(l, "Output #") {
+			continue
+		}
+		kept = append(kept, l)
+	}
+	return strings.Join(kept, "\n")
 }
 
 func stderrContainsAny(s string, subs ...string) bool {

@@ -58,12 +58,13 @@ func TestBuildFFmpegArgs_ProgressLogReachesEveryBuilder(t *testing.T) {
 
 			// -progress is a GLOBAL option: it must precede everything the
 			// builders emit, including the pre-input -ss of a seek session.
-			require.GreaterOrEqual(t, len(args), 2)
-			assert.Equal(t, "-progress", args[0])
+			// Only the other global, -hide_banner, comes before it.
+			require.GreaterOrEqual(t, len(args), 3)
+			assert.Equal(t, []string{"-hide_banner", "-progress"}, args[:2])
 			// `file:` is load-bearing, not decoration: ffmpeg parses this
 			// argument as a URL, so a path carrying a colon would otherwise be
 			// read as a protocol name.
-			assert.Equal(t, "file:/data/logs/ffmpeg/s.log", args[1])
+			assert.Equal(t, "file:/data/logs/ffmpeg/s.log", args[2])
 		})
 	}
 }
@@ -79,7 +80,7 @@ func TestBuildFFmpegArgs_ProgressLogPrecedesTheSeekFlag(t *testing.T) {
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
 	require.Contains(t, joined, "-ss")
-	assert.Equal(t, "-progress", args[0])
+	assert.Equal(t, []string{"-hide_banner", "-progress"}, args[:2])
 	assert.Less(t, indexOf(args, "-progress"), indexOf(args, "-ss"))
 	assert.Less(t, indexOf(args, "-progress"), indexOf(args, "-i"))
 }

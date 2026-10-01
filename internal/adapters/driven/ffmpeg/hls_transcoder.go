@@ -355,8 +355,15 @@ func audioVariantArgs(opts transcoding.HLSProcessOpts, i int, bitrateKbps int64)
 	return a
 }
 
+// BuildFFmpegArgs is the argv of every HLS video session. -hide_banner leads it:
+// the jellyfin-ffmpeg banner lists --enable-vulkan/opencl/libplacebo, and the
+// stderr tail feeds ClassifyHWFailure. The log level stays ffmpeg's default.
 func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
-	return withProgressLog(opts, buildDecisionArgs(opts))
+	args := buildDecisionArgs(opts)
+	if len(args) == 0 {
+		return args // a refused GPU plan builds nothing
+	}
+	return append([]string{"-hide_banner"}, withProgressLog(opts, args)...)
 }
 
 func buildDecisionArgs(opts transcoding.HLSProcessOpts) []string {

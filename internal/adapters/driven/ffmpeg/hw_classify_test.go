@@ -151,3 +151,75 @@ func TestClassifyHWFailure_TonemapInteropIsRouteLevel(t *testing.T) {
 		t.Errorf("plain device init => %s", got)
 	}
 }
+
+// Verbatim stderr of `ffmpeg -nostdin -init_hw_device vaapi=va:/dev/dri/renderD199
+// -f lavfi -i nullsrc -t 1 -an -f null -` in evey-server (jellyfin-ffmpeg 7.1.4,
+// 2026-10-01): the banner's --enable-vulkan/opencl/libplacebo must not hide the
+// dead device behind a route verdict.
+const measuredBannerDeadVAAPI = `ffmpeg version 7.1.4-Jellyfin Copyright (c) 2000-2026 the FFmpeg developers
+  built with gcc 14 (Debian 14.2.0-19)
+  configuration: --prefix=/usr/lib/jellyfin-ffmpeg --target-os=linux --extra-version=Jellyfin --disable-doc --disable-ffplay --disable-static --disable-libxcb --disable-sdl2 --disable-xlib --enable-lto=auto --enable-gpl --enable-version3 --enable-shared --enable-gmp --enable-gnutls --enable-chromaprint --enable-opencl --enable-libdrm --enable-libxml2 --enable-libass --enable-libfreetype --enable-libfribidi --enable-libfontconfig --enable-libharfbuzz --enable-libbluray --enable-libmp3lame --enable-libopus --enable-libtheora --enable-libvorbis --enable-libopenmpt --enable-libdav1d --enable-libsvtav1 --enable-libwebp --enable-libvpx --enable-libx264 --enable-libx265 --enable-libzvbi --enable-libzimg --enable-libfdk-aac --arch=amd64 --enable-libshaderc --enable-libplacebo --enable-vulkan --enable-vaapi --enable-amf --enable-libvpl --enable-ffnvcodec --enable-cuda --enable-cuda-llvm --enable-cuvid --enable-nvdec --enable-nvenc
+  libavutil      59. 39.100 / 59. 39.100
+  libavcodec     61. 19.101 / 61. 19.101
+  libavformat    61.  7.103 / 61.  7.103
+  libavdevice    61.  3.100 / 61.  3.100
+  libavfilter    10.  5.100 / 10.  5.100
+  libswscale      8.  3.100 /  8.  3.100
+  libswresample   5.  3.100 /  5.  3.100
+  libpostproc    58.  3.100 / 58.  3.100
+`
+
+const measuredDeadVAAPITail = `[AVHWDeviceContext @ 0x57735ffa97c0] No VA display found for device /dev/dri/renderD199.
+Device creation failed: -22.
+Failed to set value 'vaapi=va:/dev/dri/renderD199' for option 'init_hw_device': Invalid argument
+Error parsing global options: Invalid argument
+`
+
+func TestClassifyHWFailure_BannerDoesNotMaskDeadDevice(t *testing.T) {
+	exit := errors.New("exit status 234")
+	if got := ClassifyHWFailure(exit, measuredBannerDeadVAAPI+measuredDeadVAAPITail); got != transcoding.FailureHWInit {
+		t.Errorf("banner + dead VAAPI => %s, want %s", got, transcoding.FailureHWInit)
+	}
+	if got := ClassifyHWFailure(exit, measuredDeadVAAPITail); got != transcoding.FailureHWInit {
+		t.Errorf("dead VAAPI without banner => %s, want %s", got, transcoding.FailureHWInit)
+	}
+	// The 8 KiB ring can start mid configuration line.
+	fragment := "le-libplacebo --enable-vulkan --enable-vaapi --enable-opencl\n"
+	if got := ClassifyHWFailure(exit, fragment+measuredDeadVAAPITail); got != transcoding.FailureHWInit {
+		t.Errorf("banner fragment + dead VAAPI => %s, want %s", got, transcoding.FailureHWInit)
+	}
+	// A real interop failure after the banner stays a route verdict.
+	for _, tail := range []string{
+		"[AVHWDeviceContext @ 0x1] Failed to create Vulkan instance: -9\n[Parsed_hwmap_1 @ 0x2] Failed to create derived device",
+		"[Parsed_libplacebo_2 @ 0x3] Failed to map frame: -38",
+		"[Parsed_hwmap_1 @ 0x2] Failed to derive device: OpenCL device creation failed",
+		"[Parsed_tonemap_opencl_2 @ 0x3] Failed to run kernel",
+		// Measured in evey-server, 2026-10-01 (no GPU in the container).
+		"[libplacebo @ 0x72ed60002580] Found no suitable device, giving up.\n[libplacebo @ 0x72ed60002580] Failed initializing vulkan device",
+		"[AVHWDeviceContext @ 0x5b] No devices found: VK_ERROR_INITIALIZATION_FAILED!\nDevice creation failed: -19.\nFailed to set value 'vulkan=vk' for option 'init_hw_device': No such device",
+		"[AVHWDeviceContext @ 0x57] Failed to get number of OpenCL platforms: -1001.\nDevice creation failed: -19.",
+		"[Parsed_hwmap_0 @ 0x75] Mapping requires a hardware context (a device, or frames on input).",
+	} {
+		if got := ClassifyHWFailure(exit, measuredBannerDeadVAAPI+tail); got != transcoding.FailureRouteIncompatible {
+			t.Errorf("banner + %q => %s, want %s", tail, got, transcoding.FailureRouteIncompatible)
+		}
+	}
+}
+
+// A media path is user data: "Vulkan" or "OpenCL" in a file name is not an
+// interop failure.
+func TestClassifyHWFailure_PathWordsAreNotRouteSignatures(t *testing.T) {
+	exit := errors.New("exit status 254")
+	for _, tail := range []string{
+		"Error opening input file /media/Vulkan Saga/x.mkv.\nError opening input files: No such file or directory",
+		"[in#0 @ 0x5] Error opening input: Invalid data found when processing input\nError opening input file /media/OpenCL Libplacebo Hwmap/x.mkv.",
+		"/media/Vulkan Saga/x.mkv: Input/output error",
+		"/media/Road to Vulkan Device/x.mkv: No such file or directory",
+		// The info dump every session prints: input path and metadata titles.
+		"Input #0, matroska,webm, from '/media/Vulkan Saga/x.mkv':\n  Metadata:\n    title           : OpenCL to Vulkan\n[in#0/matroska @ 0x5] Error during demuxing: Input/output error",
+	} {
+		if got := ClassifyHWFailure(exit, tail); got == transcoding.FailureRouteIncompatible || got.IsHWCapability() {
+			t.Errorf("%q => %s, want a non-HW, non-route class", tail, got)
+		}
+	}
+}
