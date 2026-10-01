@@ -15,6 +15,7 @@ vi.mock("react-i18next", () => ({
       if (key === "media.track") return `Track ${(opts as { number: number }).number}`;
       return { "media.streams.auto": "Auto", "media.streams.none": "Off", "media.streams.forced": "forced", "media.streams.audio": "Audio", "media.streams.subtitles": "Subtitles" }[key] ?? key;
     },
+    i18n: { language: "en" },
   }),
 }));
 vi.mock("../providers/ThemeProvider", () => ({
@@ -44,9 +45,9 @@ describe("TrackPickChips", () => {
     const onChange = vi.fn();
     render(<TrackPickChips streams={streams} pick={{}} onChange={onChange} />);
     expect(screen.getByLabelText("Audio: Auto").getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByLabelText("Audio: eng - 5.1")).toBeTruthy();
+    expect(screen.getByLabelText("Audio: English - 5.1")).toBeTruthy();
     expect(screen.getByLabelText("Audio: Commentary - 2.0")).toBeTruthy();
-    expect(screen.getByLabelText("Subtitles: fre - forced")).toBeTruthy();
+    expect(screen.getByLabelText("Subtitles: French - forced")).toBeTruthy();
     expect(screen.getByLabelText("Subtitles: Auto").getAttribute("aria-selected")).toBe("true");
 
     fireEvent.click(screen.getByLabelText("Audio: Commentary - 2.0"));
@@ -59,7 +60,7 @@ describe("TrackPickChips", () => {
     const onChange = vi.fn();
     render(<TrackPickChips streams={streams} pick={{ audio: 2, subtitle: 3 }} onChange={onChange} />);
     expect(screen.getByLabelText("Audio: Commentary - 2.0").getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByLabelText("Subtitles: fre - forced").getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByLabelText("Subtitles: French - forced").getAttribute("aria-selected")).toBe("true");
     expect(screen.getByLabelText("Audio: Auto").getAttribute("aria-selected")).toBe("false");
     fireEvent.click(screen.getByLabelText("Audio: Auto"));
     expect(onChange).toHaveBeenLastCalledWith({ audio: undefined, subtitle: 3 });

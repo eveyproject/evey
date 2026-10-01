@@ -23,7 +23,7 @@ import {
   type V1TitleCandidate,
   type V1MediaRequestProto,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useDemoStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { LoadFailed } from "../../../src/components/LoadFailed";
@@ -98,7 +98,11 @@ export default function RequestsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>("search");
+  const [chosenTab, setTab] = useState<Tab>("search");
+  // The demo refuses the title search (it spends the operator's TMDB key) and
+  // the request itself: only the list of existing requests is shown there.
+  const demo = useDemoStore((s) => s.demoMode);
+  const tab: Tab = demo ? "mine" : chosenTab;
   const [scope, setScope] = useState<SearchScope>("video");
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
@@ -212,7 +216,7 @@ export default function RequestsScreen() {
       </Text>
 
       <View style={styles.tabRow}>
-        {(["search", "mine"] as Tab[]).map((tb) => (
+        {((demo ? ["mine"] : ["search", "mine"]) as Tab[]).map((tb) => (
           <TouchableOpacity
             key={tb}
             style={[

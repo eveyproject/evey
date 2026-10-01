@@ -42,3 +42,24 @@ describe("normalizeLangCode", () => {
     expect(normalizeLangCode("-FR")).toBe("");
   });
 });
+
+describe("languageDisplayName", () => {
+  it("names the 639-2 codes containers carry, in the UI language", async () => {
+    const { languageDisplayName } = await import("./langCodes");
+    expect(languageDisplayName("ger", "en")).toBe("German");
+    expect(languageDisplayName("fre", "en")).toBe("French");
+    expect(languageDisplayName("eng", "en")).toBe("English");
+    expect(languageDisplayName("dut", "en")).toBe("Dutch");
+    // French UI: Intl says "allemand", the chip reads "Allemand".
+    expect(languageDisplayName("ger", "fr")).toBe("Allemand");
+    expect(languageDisplayName("pt-BR", "en")).toBe("Brazilian Portuguese");
+  });
+
+  it("names no language for undetermined tags and keeps an unknown code as written", async () => {
+    const { languageDisplayName } = await import("./langCodes");
+    expect(languageDisplayName("und", "en")).toBeNull();
+    expect(languageDisplayName("", "en")).toBeNull();
+    expect(languageDisplayName(undefined, "en")).toBeNull();
+    expect(languageDisplayName("qqq", "en")).toBe("qqq");
+  });
+});

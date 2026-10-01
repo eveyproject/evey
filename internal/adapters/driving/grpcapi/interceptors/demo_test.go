@@ -32,7 +32,9 @@ func TestDemoInterceptor_RefusesLockedAndPassesOpen(t *testing.T) {
 		{"/evey.v1.PlaybackService/StartStream", false},                  // user RPC, the product
 		{"/evey.v1.CollectionService/CreateCollection", true},            // LockedAdminRPCs (shared content)
 		{"/evey.v1.FavoriteService/AddFavorite", true},                   // LockedUserRPCs (shared content)
-		{"/evey.v1.UserService/CreateAPIKey", false},                     // admin RPC the demo opens
+		{"/evey.v1.UserService/CreateAPIKey", true},                      // locked 2026-10-01: a key outlived the visitor
+		{"/evey.v1.UserService/ImpersonateUser", false},                  // admin RPC the demo opens
+		{"/evey.v1.MetadataService/RefreshMetadata", true},               // LockedUserRPCs: rewrites a title for everyone
 		{"/evey.v1.AdminSystemService/SomethingNobodyClassified", false}, // not in the RBAC map: not admin, not locked
 	}
 	for _, c := range cases {

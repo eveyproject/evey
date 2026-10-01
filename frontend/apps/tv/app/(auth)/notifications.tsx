@@ -12,7 +12,7 @@ import {
   getNotificationServiceGetUnreadCountQueryKey,
 } from "@evey/api";
 import type { V1Notification } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useDemoStore } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { ScreenState } from "../../src/components/ScreenState";
 import { FocusableCard } from "../../src/components/FocusableCard";
@@ -81,16 +81,19 @@ export default function NotificationsScreen() {
     },
   });
 
-  const hasUnread = notifications.some((n) => !n.readAt);
+  // Demo: the unread list is the shared account's and the server refuses the
+  // read marks - opening one must not raise an error every time.
+  const demo = useDemoStore((st) => st.demoMode);
+  const hasUnread = !demo && notifications.some((n) => !n.readAt);
 
   const handleTap = useCallback((n: V1Notification) => {
-    if (!n.readAt && n.id) {
+    if (!n.readAt && n.id && !demo) {
       markRead.mutate({ id: n.id });
     }
     if (n.mediaItemId) {
       router.push(`/media/${n.mediaItemId}`);
     }
-  }, [markRead]);
+  }, [markRead, demo]);
 
   const renderNotifItem = useCallback(
     ({ item, index }: { item: V1Notification; index: number }) => (

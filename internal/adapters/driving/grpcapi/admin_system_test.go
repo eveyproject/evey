@@ -489,6 +489,44 @@ func TestAdminServerConfig_UpdateActuallyPersists(t *testing.T) {
 	}
 }
 
+// The whole config map went out raw: the provider API keys and the VAPID
+// private key, to every administrator - and to every visitor of the public
+// demo, where this read is open. Secrets come back masked like in the entry
+// listing, and the masked map sent back whole keeps the stored values.
+func TestAdminServerConfig_SecretsNeverLeaveInClear(t *testing.T) {
+	repo := &memServerConfigRepo{m: map[string]string{
+		"api.tmdb_key":      "tmdb-real",
+		"vapid.private_key": "vapid-real",
+		"vapid.public_key":  "vapid-pub",
+		"smtp.password":     "hunter2",
+		"api.empty_key":     "",
+		"server.language":   "fr",
+	}}
+	d := newTestSystemHandler()
+	d.serverCfgSvc = appconfig.NewService(repo)
+	ctx := context.Background()
+
+	resp, err := d.GetServerConfig(ctx, &eveyv1.GetServerConfigRequest{})
+	if err != nil {
+		t.Fatalf("GetServerConfig: %v", err)
+	}
+	for _, k := range []string{"api.tmdb_key", "vapid.private_key", "smtp.password"} {
+		if resp.Values[k] != appconfig.SecretMask {
+			t.Errorf("%s came back as %q, want the mask", k, resp.Values[k])
+		}
+	}
+	if resp.Values["vapid.public_key"] != "vapid-pub" || resp.Values["server.language"] != "fr" || resp.Values["api.empty_key"] != "" {
+		t.Errorf("non-secret or empty values were altered: %v", resp.Values)
+	}
+
+	if _, err := d.UpdateServerConfig(ctx, &eveyv1.UpdateServerConfigRequest{Values: resp.Values}); err != nil {
+		t.Fatalf("UpdateServerConfig: %v", err)
+	}
+	if repo.m["api.tmdb_key"] != "tmdb-real" || repo.m["vapid.private_key"] != "vapid-real" {
+		t.Errorf("sending the masked map back overwrote the stored secrets: %v", repo.m)
+	}
+}
+
 // Without a wired service the endpoint must REFUSE, not report success: a
 // silent no-op is what made the original bug invisible for so long.
 func TestAdminServerConfig_UnwiredRefusesRatherThanLying(t *testing.T) {

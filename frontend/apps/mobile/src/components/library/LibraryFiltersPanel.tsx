@@ -2,47 +2,23 @@ import { useMemo } from "react";
 import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
-import type {
-  LibraryServiceListMediaItemsType,
-  LibraryServiceListMediaItemsSortField,
-  LibraryServiceListMediaItemsSortOrder,
+import {
+  languageDisplayName,
+  type LibraryServiceListMediaItemsType,
+  type LibraryServiceListMediaItemsSortField,
+  type LibraryServiceListMediaItemsSortOrder,
 } from "@evey/api";
 import { BottomSheet } from "../BottomSheet";
 import { GenreDot } from "../GenreDot";
 import { useTheme } from "../../providers/ThemeProvider";
 import type { FilterFacets } from "./libraryFilterUtils";
 
-// Display name for a normalized ISO 639-1 audio/subtitle filter code, so the
-// chips read as language names rather than raw container codes.
-//
-// ⚠️ Intl.DisplayNames alone is NOT enough here. React Native runs on Hermes,
-// which ships without the Intl data unless the app is built against it, so the
-// constructor throws and every chip fell back to its own code: the panel showed
-// "en fr ru zh" where web showed "English, French..." (emulator, 2026-09-05).
-// Web keeps working through Intl because a browser always has that data.
-//
-// So: the runtime first when it can answer, and a table of the codes a media
-// library actually carries behind it. Anything neither knows still falls back to
-// the code, which is a poor label but never a blank chip.
-const LANG_NAMES: Record<string, string> = {
-  ar: "العربية", cs: "Čeština", da: "Dansk", de: "Deutsch", el: "Ελληνικά",
-  en: "English", es: "Español", fi: "Suomi", fr: "Français", he: "עברית",
-  hi: "हिन्दी", hu: "Magyar", id: "Bahasa Indonesia", it: "Italiano",
-  ja: "日本語", ko: "한국어", nl: "Nederlands", no: "Norsk", pl: "Polski",
-  pt: "Português", ro: "Română", ru: "Русский", sv: "Svenska", th: "ไทย",
-  tr: "Türkçe", uk: "Українська", vi: "Tiếng Việt", zh: "中文",
-};
-
+// Display name for a normalized audio/subtitle filter code. The shared rule
+// (languageDisplayName) asks Intl first and falls back to a table of
+// endonyms, because Hermes ships without Intl language data unless built
+// against it: the panel once showed "en fr ru zh" where web said "English".
 function langChipLabel(code: string, locale: string): string {
-  try {
-    const viaIntl = new Intl.DisplayNames([locale], { type: "language" }).of(code);
-    // Intl returns the INPUT unchanged for a code it does not know, so an
-    // answer equal to the code is not an answer.
-    if (viaIntl && viaIntl !== code) return viaIntl;
-  } catch {
-    /* Hermes without Intl data - the table below is the answer */
-  }
-  return LANG_NAMES[code.toLowerCase()] ?? code;
+  return languageDisplayName(code, locale) ?? code;
 }
 
 const SORT_OPTIONS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [

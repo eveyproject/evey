@@ -289,7 +289,7 @@ export const MediaCard = memo(function MediaCard({
           style={{ display: poster ? "none" : "flex" }}
         />
 
-        {showYear && item.year !== undefined && (
+        {showYear && !!item.year && (
           <span
             className="absolute top-2 right-2 text-xs font-medium px-1.5 py-0.5"
             style={{

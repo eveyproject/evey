@@ -108,7 +108,7 @@ export function ServerConnectScreen() {
     const { probe, health } = await probeServer(withScheme);
     setBusy(false);
     if (probe !== "ok") {
-      setError(probe === "not-evey" ? t("mobile.serverConnect.notEvey", "This address answers, but it is not an Evey server.") : t("mobile.serverConnect.unreachable", "Unable to reach server"));
+      setError(probe === "not-evey" ? t("mobile.serverConnect.notEvey", { url: withScheme, defaultValue: "{{url}} answered, but it is not an Evey server." }) : t("mobile.serverConnect.unreachable", "Unable to reach server"));
       return;
     }
     selectServer(withScheme, health?.name);

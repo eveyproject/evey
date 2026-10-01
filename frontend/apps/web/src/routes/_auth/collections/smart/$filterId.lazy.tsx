@@ -150,7 +150,7 @@ function SmartFilterPage() {
                     {item.type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase()}
                   </span>
                 )}
-                {item.year && (
+                {!!item.year && (
                   <span className="text-xs flex-shrink-0 text-[var(--text-muted)]">{item.year}</span>
                 )}
               </Link>

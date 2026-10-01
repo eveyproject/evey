@@ -248,6 +248,45 @@ func TestParentalUpdateSettings_ExistingPIN_RequiresCurrentPIN(t *testing.T) {
 	}
 }
 
+// Relaxing the restrictions frees the profile as surely as disabling them: with
+// a PIN set, lifting or raising the age cap, or unblocking a tag, needs the
+// current PIN too. Tightening does not (audit 2026-10-01: a restricted
+// profile cleared its own cap with its own JWT).
+func TestParentalUpdateSettings_ExistingPIN_LoosenRequiresCurrentPIN(t *testing.T) {
+	mux, gen := newParentalMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
+	put := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/prof-1/parental", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+	if w := put(`{"pin":"1234","currentPassword":"secret"}`); w.Code != http.StatusOK {
+		t.Fatalf("set pin: %d %s", w.Code, w.Body.String())
+	}
+	if w := put(`{"enabled":true,"maxAge":12,"blockedTags":["horror","war"]}`); w.Code != http.StatusOK {
+		t.Fatalf("restrict (tightening needs no pin): %d %s", w.Code, w.Body.String())
+	}
+	for name, body := range map[string]string{
+		"lift the age cap":  `{"unsetMaxAge":true}`,
+		"raise the age cap": `{"maxAge":18}`,
+		"unblock every tag": `{"blockedTags":[]}`,
+		"unblock one tag":   `{"blockedTags":["horror"]}`,
+		"wrong current pin": `{"unsetMaxAge":true,"currentPin":"0000"}`,
+	} {
+		if w := put(body); w.Code != http.StatusForbidden {
+			t.Errorf("%s: got %d, want 403: %s", name, w.Code, w.Body.String())
+		}
+	}
+	if w := put(`{"maxAge":10,"blockedTags":["horror","war","gore"]}`); w.Code != http.StatusOK {
+		t.Errorf("tightening further must stay ungated: %d %s", w.Code, w.Body.String())
+	}
+	if w := put(`{"unsetMaxAge":true,"blockedTags":[],"currentPin":"1234"}`); w.Code != http.StatusOK {
+		t.Fatalf("loosen with the right pin: %d %s", w.Code, w.Body.String())
+	}
+}
+
 // ============================================================
 // Stream token handler tests
 // ============================================================

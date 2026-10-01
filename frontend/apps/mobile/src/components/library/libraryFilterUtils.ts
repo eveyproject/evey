@@ -5,6 +5,7 @@ import type {
   LibraryServiceListMediaItemsSortOrder,
 } from "@evey/api";
 import { normalizeLangCode } from "../../lib/langCodes";
+import { resolutionBand, RESOLUTION_BANDS, type ResolutionBand } from "@evey/client";
 
 // The generated LibraryServiceFilterMediaItemsParams/SortField/SortOrder/Type
 // aliases exist in packages/api/src/generated/library.schemas.ts but aren't
@@ -29,15 +30,13 @@ import { normalizeLangCode } from "../../lib/langCodes";
 // them and find no way to filter for it (emulator, 2026-09-05).
 //
 // Ordered from highest to lowest, which is the order the chips are offered in.
-export const RESOLUTION_OPTIONS = ["4K", "1440p", "1080p", "720p", "SD"] as const;
-export type ResolutionBand = (typeof RESOLUTION_OPTIONS)[number];
+export const RESOLUTION_OPTIONS = RESOLUTION_BANDS;
+export type { ResolutionBand };
 
-export function getResolutionLabel(height: number): ResolutionBand {
-  if (height >= 2160) return "4K";
-  if (height >= 1440) return "1440p";
-  if (height >= 1080) return "1080p";
-  if (height >= 720) return "720p";
-  return "SD";
+// Width-aware since 2026-09-30: a 1920x818 scope film is a 1080p file (it
+// was filed under 720p, off its height). The rule lives in @evey/client.
+export function getResolutionLabel(height: number, width?: number): ResolutionBand {
+  return resolutionBand(width, height);
 }
 
 export function normalizeCodec(codec: string): string {
@@ -72,7 +71,7 @@ export function collectFilterOptions(items: V1MediaItem[]): FilterFacets {
   for (const item of items) {
     for (const stream of item.streams ?? []) {
       if (stream.type === "MEDIA_STREAM_TYPE_VIDEO") {
-        if (stream.height) resolutions.add(getResolutionLabel(stream.height));
+        if (stream.height) resolutions.add(getResolutionLabel(stream.height, stream.width));
         if (stream.codec) codecs.add(normalizeCodec(stream.codec));
       } else if (stream.type === "MEDIA_STREAM_TYPE_AUDIO") {
         // Normalize so 639-2/B and 639-2/T forms of the same language
@@ -133,7 +132,7 @@ export function applyLocalFacetFilters(items: V1MediaItem[], filters: LocalFacet
     const hasStreamInfo = streams.length > 0;
     if (hasRes && hasStreamInfo) {
       const videoStreams = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
-      const itemRes = videoStreams.map((s) => (s.height ? getResolutionLabel(s.height) : "SD"));
+      const itemRes = videoStreams.map((s) => (s.height ? getResolutionLabel(s.height, s.width) : "SD"));
       if (!resolutions!.some((r) => itemRes.includes(r as ResolutionBand))) return false;
     }
     if (hasCodec && hasStreamInfo) {

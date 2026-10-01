@@ -21,6 +21,13 @@ evey.test {
 		}
 	}
 
+	# The server's discovery probe. Every client (TV, phone) checks /healthz
+	# before it signs in; left to the catch-all it got Vite's index.html and
+	# said "not an Evey server" against the dev stack.
+	handle /healthz {
+		reverse_proxy evey:{$EVEY_HTTP_PORT:9091}
+	}
+
 	# WebSocket (Vite HMR): persistent, no keepalive restrictions
 	@websocket {
 		header Connection *Upgrade*

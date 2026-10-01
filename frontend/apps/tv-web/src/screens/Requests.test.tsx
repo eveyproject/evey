@@ -13,7 +13,7 @@ vi.mock("../tv/focus", () => ({
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 vi.mock("../app/router", () => ({ navigate: (...a: unknown[]) => navigateMock(...a), goBack: vi.fn() }));
-vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() }, useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }) }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),

@@ -162,11 +162,26 @@ func (s *CommandService) ReconcileTracks(ctx context.Context, primary music.Musi
 	// left a stale doc), a re-index upserts and can never shrink the count, so
 	// firing every tick would rebuild forever - a CPU loop. Skip it; clear a stale
 	// doc with a manual reindex. Equal counts = in sync.
-	if docCount >= int64(dbCount) {
-		if docCount > int64(dbCount) {
-			slog.WarnContext(ctx, "music search reconcile: index has more docs than the DB (stale doc from a dropped delete); a re-index only upserts and can't shrink it - wipe the search index and reindex to clear",
+	if docCount > int64(dbCount) {
+		// Stale docs: a dropped delete, or a deleted library (no subscriber
+		// purges this index on library.deleted). An upsert can't shrink the
+		// index, so wipe it first when the engine can - then the counts match
+		// and the next tick is in sync, no loop. Same rule as the media index
+		// (library/search_reindex.go); search served 46 ghosts out of 50 hits
+		// until this (audit 2026-10-01).
+		if clearer, ok := primary.(interface{ Clear(context.Context) error }); ok {
+			slog.InfoContext(ctx, "music search reconcile: index larger than the DB (stale docs), wiping then rebuilding",
 				slog.Int64("index_docs", docCount), slog.Int("db_tracks", dbCount))
+			if cErr := clearer.Clear(ctx); cErr != nil {
+				return 0, fmt.Errorf("music reconcile: clear oversized index: %w", cErr)
+			}
+			return s.reindexTracksInto(ctx, primary)
 		}
+		slog.WarnContext(ctx, "music search reconcile: index has more docs than the DB and this engine cannot be wiped - stale results stay until a manual reindex",
+			slog.Int64("index_docs", docCount), slog.Int("db_tracks", dbCount))
+		return 0, nil
+	}
+	if docCount == int64(dbCount) {
 		return 0, nil
 	}
 	slog.InfoContext(ctx, "music search reconcile: index behind the DB, rebuilding",

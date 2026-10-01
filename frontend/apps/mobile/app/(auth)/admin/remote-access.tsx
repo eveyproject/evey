@@ -5,7 +5,7 @@ import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useDemoStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 interface RemoteAccessConfig {
@@ -39,7 +39,11 @@ export default function AdminRemoteAccessScreen() {
     queryFn: () => eveyFetch<RemoteAccessConfig>({ url: "/api/v1/admin/remote-access", method: "GET" }),
   });
 
+  // The host's interfaces are not shown on the demo (the server refuses it):
+  // not asked for there, as on the web.
+  const demo = useDemoStore((s) => s.demoMode);
   const { data: netInfo } = useQuery<{ interfaces: NetworkInterface[] }>({
+    enabled: !demo,
     queryKey: NETWORK_KEY,
     queryFn: () => eveyFetch<{ interfaces: NetworkInterface[] }>({ url: "/api/v1/admin/network-info", method: "GET" }),
   });

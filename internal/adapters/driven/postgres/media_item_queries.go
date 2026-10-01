@@ -213,7 +213,7 @@ func whereAnd(where, predicate string) string {
 func mediaItemCursorSeek(sortField, sortOrder string, cursor shared.Cursor, args []any) (string, []any) {
 	// mi.* columns come from the base table and are never NULL here; everything
 	// else arrives through a LEFT JOIN and can be.
-	nullable := !strings.HasPrefix(sortField, "mi.")
+	nullable := !strings.HasPrefix(sortField, "mi.") && sortField != effectiveAddedAt
 	atNullRow := nullable && cursor.SortValue == ""
 
 	cmp := ">"
@@ -292,16 +292,8 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	switch {
 	case f.Cursor.LastID != "":
 		query += " ORDER BY " + mediaItemOrderBy(sortField, sortOrder)
-	case f.AfterID != "":
+	case f.AfterID != "" || f.KeysetByID:
 		query += " ORDER BY mi.id ASC"
-	case sortField == "added_at" || sortField == "mi.added_at":
-		// mi.id tiebreak so offset pagination is deterministic across pages when
-		// several items share the same added_at (a scan can stamp many rows the
-		// same millisecond) - otherwise a page boundary can skip or repeat a row.
-		// Matches the cursor branch's (sortField, mi.id) total order above.
-		query += fmt.Sprintf(` ORDER BY CASE WHEN mi.type = 'series'
-			 THEN COALESCE(mi.latest_child_added_at, mi.added_at)
-			 ELSE mi.added_at END %s, mi.id %s`, sortOrder, sortOrder)
 	default:
 		// Same ordering as the cursor branch, or the first page an offset serves
 		// would not agree with the pages a cursor serves after it.

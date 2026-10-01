@@ -259,6 +259,7 @@ clientChoice:
 
 demo:
   banner: "Servidor de demostración: los cambios se restablecen periódicamente y la administración es de solo lectura."
+  tag: "Demo"
   credentials: "Inicia sesión con demo / demo"
   locked: "Bloqueado en la demo"
   readOnly: "Solo lectura en la demo: los ajustes se muestran, no se editan."

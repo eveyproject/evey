@@ -50,7 +50,9 @@ func TestFeedQuerier_Recommended_GenrePrefilter(t *testing.T) {
 }
 
 // SimilarItems must return only items sharing a genre with the target, ranked
-// by the number of shared genres, excluding the target itself.
+// by the number of shared genres, excluding the target itself - and only those
+// at the best level of match available (two shared genres at most): a title
+// sharing one genre of two is dropped while another shares both.
 func TestFeedQuerier_SimilarItems_GenrePrefilter(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
@@ -70,6 +72,7 @@ func TestFeedQuerier_SimilarItems_GenrePrefilter(t *testing.T) {
 	mk("sim-a", []string{"Action"})          // shares 1
 	mk("sim-b", []string{"Comedy"})          // shares 0
 	mk("sim-c", []string{"Action", "Drama"}) // shares 2
+	mk("sim-e", []string{"Drama", "Action"}) // shares 2
 
 	items, err := fq.SimilarItems(ctx, "sim-t", "prf-x", 10)
 	require.NoError(t, err)
@@ -82,13 +85,47 @@ func TestFeedQuerier_SimilarItems_GenrePrefilter(t *testing.T) {
 	assert.False(t, hasTarget, "the target itself must be excluded")
 	_, hasB := scores["sim-b"]
 	assert.False(t, hasB, "an item sharing no genre must be excluded")
-	assert.Equal(t, 1, scores["sim-a"], "sim-a shares 1 genre")
+	_, hasA := scores["sim-a"]
+	assert.False(t, hasA, "sim-a shares one genre of two while sim-c and sim-e share both")
 	assert.Equal(t, 2, scores["sim-c"], "sim-c shares 2 genres")
-	// Results must be ordered by shared-genre score descending.
-	require.GreaterOrEqual(t, len(items), 2)
-	for i := 1; i < len(items); i++ {
-		assert.GreaterOrEqual(t, items[i-1].Score, items[i].Score, "items must be score-ordered")
+	assert.Equal(t, 2, scores["sim-e"], "sim-e shares 2 genres")
+
+	// Nothing better than one shared genre: those stay, a thin row beats none.
+	mk("one-t", []string{"Western", "Music"})
+	mk("one-a", []string{"Western"})
+	items, err = fq.SimilarItems(ctx, "one-t", "prf-x", 10)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "one-a", string(items[0].MediaItemID))
+}
+
+// A series carries TMDB's combined genres ("Sci-Fi & Fantasy") where a film
+// carries each half: the two must meet, or an animated series only ever matched
+// films on "Animation".
+func TestFeedQuerier_SimilarItems_SeriesGenresMeetFilmGenres(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	fq := postgres.NewFeedQuerier(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("famlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	mk := func(id string, genres []string) {
+		it := newTestMediaItem(id, lib.ID)
+		it.Catalog.Genres = genres
+		require.NoError(t, itemRepo.Create(ctx, it))
 	}
+	mk("fam-series", []string{"Animation", "Sci-Fi & Fantasy"})
+	mk("fam-film", []string{"Animation", "Science Fiction"})
+	mk("fam-comedy", []string{"Animation", "Comedy"})
+
+	items, err := fq.SimilarItems(ctx, "fam-series", "prf-x", 10)
+	require.NoError(t, err)
+	require.Len(t, items, 1, "only the film sharing both genres, through the family")
+	assert.Equal(t, "fam-film", string(items[0].MediaItemID))
+	assert.Equal(t, 2, items[0].Score)
 }
 
 // seedSeries builds series -> season -> episodes with index numbers, each

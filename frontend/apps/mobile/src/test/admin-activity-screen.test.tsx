@@ -56,7 +56,7 @@ vi.mock("../components/LoadFailed", () => ({
   LoadFailed: () => React.createElement("div", { "data-testid": "load-failed" }),
 }));
 
-vi.mock("@evey/store", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
+vi.mock("@evey/store", () => ({ toast: { error: vi.fn(), info: vi.fn() }, useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }) }));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: undefined }),

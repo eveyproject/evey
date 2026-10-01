@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { V1MediaItem, LibraryServiceListMediaItemsType } from "@evey/api";
+import { languageDisplayName, type V1MediaItem, type LibraryServiceListMediaItemsType } from "@evey/api";
 import { Check, Star, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
@@ -8,17 +8,12 @@ import { GenreDot } from "@/components/ui/GenreDot";
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 import { ICON } from "@/constants/iconSizes";
 import { normalizeLangCode } from "@/features/playback/hooks/hlsPlayerUtils";
+import { resolutionBand, RESOLUTION_BANDS, type ResolutionBand } from "@evey/client";
 
-// Resolution bands derived from stream height
-function getResolutionLabel(height: number): string {
-  if (height >= 2160) return "4K";
-  if (height >= 1080) return "1080p";
-  if (height >= 720) return "720p";
-  return "SD";
-}
-
-const RESOLUTION_OPTIONS = ["4K", "1080p", "720p", "SD"] as const;
-type Resolution = (typeof RESOLUTION_OPTIONS)[number];
+// The bands every client filters on, the same tiers as the poster badge
+// (width-aware: a 1920x818 film is 1080p, not 720p).
+const RESOLUTION_OPTIONS = RESOLUTION_BANDS;
+type Resolution = ResolutionBand;
 
 // Normalize codec strings for display
 function normalizeCodec(codec: string): string {
@@ -42,7 +37,7 @@ export function collectFilterOptions(items: V1MediaItem[]) {
   for (const item of items) {
     for (const stream of item.streams ?? []) {
       if (stream.type === "MEDIA_STREAM_TYPE_VIDEO") {
-        if (stream.height) resolutions.add(getResolutionLabel(stream.height));
+        if (stream.height) resolutions.add(resolutionBand(stream.width, stream.height));
         if (stream.codec) codecs.add(normalizeCodec(stream.codec));
       } else if (stream.type === "MEDIA_STREAM_TYPE_AUDIO") {
         // Normalize so 639-2/B and 639-2/T forms of the same language
@@ -98,7 +93,7 @@ export function applyLocalFilters(
       if (!genres!.some((g) => itemGenres.includes(g))) return false;
     }
     if (hasRes && hasStreamInfo) {
-      const itemRes = videoStreams.map((s) => (s.height ? getResolutionLabel(s.height) : "SD"));
+      const itemRes = videoStreams.map((s) => (s.height ? resolutionBand(s.width, s.height) : "SD"));
       if (!resolutions!.some((r) => itemRes.includes(r as Resolution))) return false;
     }
     if (hasCodec && hasStreamInfo) {
@@ -468,19 +463,12 @@ export function LibraryFiltersPanel({
   const { t, i18n } = useTranslation();
   const activeCount = countActiveFilters(search);
 
-  // Localized display name for a normalized ISO 639-1 code (e.g. "fr" ->
-  // "French"), so the audio/subtitle language filters read as language
-  // names rather than raw container codes. Falls back to the code itself
-  // when Intl.DisplayNames is unavailable or doesn't know the code.
-  const langLabel = useMemo(() => {
-    let names: Intl.DisplayNames | null = null;
-    try {
-      names = new Intl.DisplayNames([i18n.language], { type: "language" });
-    } catch {
-      /* unsupported locale/environment - fall back to the raw code */
-    }
-    return (code: string) => names?.of(code) ?? code;
-  }, [i18n.language]);
+  // The audio/subtitle filters read as language names, by the rule every
+  // surface shares (languageDisplayName).
+  const langLabel = useMemo(
+    () => (code: string) => languageDisplayName(code, i18n.language) ?? code,
+    [i18n.language],
+  );
 
   return (
     <div

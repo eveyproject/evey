@@ -456,7 +456,9 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.L
 		           mode() WITHIN GROUP (ORDER BY NULLIF(artist,'')),
 		           ''
 		       ) AS display_artist,
-		       MIN(year) AS year,
+		       -- year is NOT NULL DEFAULT 0: one untagged track must not hide the
+		       -- album's year.
+		       COALESCE(MIN(NULLIF(year,0)), 0) AS year,
 		       COUNT(*)  AS track_count,
 		       SUM(duration) AS duration,
 		       -- Préférence EXPLICITE pour la pochette embarquée dans le fichier
@@ -522,7 +524,13 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID shared.
 		-- Album identity is the on-disk folder, not the album tag (GetAlbums groups
 		-- on album_folder): two folders sharing one album tag are two albums, so
 		-- count distinct folders to match the artist's actual album count.
-		SELECT COALESCE(NULLIF(album_artist,''), artist), COUNT(*), COUNT(DISTINCT album_folder), MIN(NULLIF(cover_art_url,''))
+		-- Same cover preference as the albums: the file's own art over an
+		-- external one (a plain MIN picked '/album-art/' over '/tracks/').
+		SELECT COALESCE(NULLIF(album_artist,''), artist), COUNT(*), COUNT(DISTINCT album_folder),
+		       COALESCE(
+		           MIN(NULLIF(cover_art_url,'')) FILTER (WHERE cover_art_url LIKE '/api/v1/music/tracks/%'),
+		           MIN(NULLIF(cover_art_url,''))
+		       )
 		FROM music_tracks WHERE library_id=$1
 		GROUP BY 1 ORDER BY 1
 		LIMIT 10000`, libraryID)

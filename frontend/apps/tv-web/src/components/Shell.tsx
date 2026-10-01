@@ -2,6 +2,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNotificationServiceGetUnreadCount } from "@evey/api";
 import { useActiveProfile } from "@evey/client";
+import { useDemoStore } from "@evey/store";
 import { FocusRoot, useBackHandler } from "../tv/focus";
 import { navigate, replace, type Route } from "../app/router";
 import { HOME_CUSTOMIZE_EVENT } from "./StackHeader";
@@ -57,15 +58,20 @@ function TopHeader({ current, onSearch }: { current: Route["name"]; onSearch: ()
   const count = isError ? 0 : (unread?.count ?? 0);
   const { profile } = useActiveProfile();
   const initial = (profile?.name ?? "?").slice(0, 1).toUpperCase();
+  // The demo notice where the tab screens have room for it: the header's empty
+  // left side (a pill over the header would cover the search field).
+  const demo = useDemoStore((s) => s.demoMode);
   return (
     <FocusRoot focusKey="header" className="top-header">
-      <div className="header-side" />
+      <div className="header-side">
+        {demo ? <span className="demo-tag" title={t("common.demo.banner")} data-testid="demo-tag">{t("common.demo.tag")}</span> : null}
+      </div>
       <Pressable className="search-field" label={t("common.nav.search")} onPress={onSearch}>
         <Icon name="search" size={26} />
         <span className="search-field-text">{t("common.nav.search")}</span>
       </Pressable>
       <div className="header-side right">
-        {current === "home" ? (
+        {current === "home" && !demo ? (
           <Pressable className="customize-btn" label={t("common.feeds.customize")} onPress={() => window.dispatchEvent(new Event(HOME_CUSTOMIZE_EVENT))}>
             <Icon name="options-outline" size={22} />
             <span>{t("media.home.customize", "Customize")}</span>

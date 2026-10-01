@@ -81,7 +81,10 @@ export function MediaDetailHero({
     // clipped layer behind, and the poster + text row flows normally on top of
     // it. That is what lets the poster overhang the artwork without being cut
     // off, and what makes the sections below clear it automatically.
-    <div className="evey-media-hero relative w-full -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0">
+    // No w-full: with it the negative margins only SHIFTED a parent-wide box
+    // left, leaving the page padding twice over as a bare strip on the right.
+    // Auto width is what lets them widen it to both edges.
+    <div className="evey-media-hero relative -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0">
       {/* Backdrop layer. Height follows the backdrop's own 16:9 shape instead
           of a fixed band: the old clamp capped at 420px while the image spans
           the full width, so on a wide viewport object-cover had to crop ~40% of
@@ -163,7 +166,7 @@ export function MediaDetailHero({
           {duration && (
             <span className="text-base tabular-nums text-white/70">{duration}</span>
           )}
-          {item.year && (
+          {!!item.year && (
             <span className="text-base tabular-nums text-white/70">{item.year}</span>
           )}
           {item.communityRating !== undefined && item.communityRating > 0 && (

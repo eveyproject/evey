@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/demo"
 )
 
@@ -18,6 +20,78 @@ type ActiveStreams interface {
 // ProgressReset clears a profile's watch progress.
 type ProgressReset interface {
 	DeleteByProfile(ctx context.Context, profileID string) (int, error)
+}
+
+// Credentials are the stored credentials a demo account can hold: API keys
+// and invite links. Both are locked on the demo (policy.go) but some were
+// minted before the locks, and neither expires on its own: a leftover invite
+// lets anyone register an account (RegisterWithInvite is public).
+type Credentials interface {
+	ListAPIKeys(ctx context.Context, userID shared.UserID) ([]*user.APIKeyModel, error)
+	DeleteAPIKey(ctx context.Context, id string) error
+	ListInvites(ctx context.Context, creatorID string) ([]*user.InviteLink, error)
+	DeleteInvite(ctx context.Context, id string) error
+}
+
+// WithCredentialPurge makes the boot and every reset delete the demo accounts'
+// API keys and invite links.
+func (b *Bootstrapper) WithCredentialPurge(c Credentials) *Bootstrapper {
+	b.credentials = c
+	return b
+}
+
+// demoUsernames is every account the demo owns: the shared administrator and
+// the seeded visitor accounts.
+func demoUsernames() []string {
+	names := []string{demo.Username}
+	for _, a := range seedAccounts {
+		names = append(names, a.username)
+	}
+	return names
+}
+
+// PurgeCredentials deletes every API key and invite link of the demo accounts.
+func (b *Bootstrapper) PurgeCredentials(ctx context.Context) error {
+	if b.credentials == nil {
+		return nil
+	}
+	for _, name := range demoUsernames() {
+		u, err := b.users.GetByUsername(ctx, name)
+		if err != nil || u == nil {
+			continue
+		}
+		keys, err := b.credentials.ListAPIKeys(ctx, u.ID)
+		if err != nil {
+			return fmt.Errorf("demo: list api keys of %s: %w", name, err)
+		}
+		for _, k := range keys {
+			if derr := b.credentials.DeleteAPIKey(ctx, k.ID); derr != nil {
+				return fmt.Errorf("demo: delete api key of %s: %w", name, derr)
+			}
+		}
+		invites, err := b.credentials.ListInvites(ctx, string(u.ID))
+		if err != nil {
+			return fmt.Errorf("demo: list invites of %s: %w", name, err)
+		}
+		for _, inv := range invites {
+			if derr := b.credentials.DeleteInvite(ctx, inv.ID); derr != nil {
+				return fmt.Errorf("demo: delete invite of %s: %w", name, derr)
+			}
+		}
+		if n := len(keys) + len(invites); n > 0 {
+			b.log.Info("demo: credentials purged", "account", name, "api_keys", len(keys), "invites", len(invites))
+		}
+	}
+	return nil
+}
+
+// WithActivity adds a second, live "someone is here" signal to the idle
+// check: the play_sessions count lags (a closed tab stays open ~2 min) and
+// knows nothing of a running HLS encode without a session row or of music
+// (audit 2026-10-01). busy reports true while anything plays.
+func (b *Bootstrapper) WithActivity(busy func() bool) *Bootstrapper {
+	b.busy = busy
+	return b
 }
 
 // WithReset enables the periodic reset (RunResets).
@@ -71,6 +145,10 @@ func (b *Bootstrapper) ResetIfIdle(ctx context.Context, force bool) (bool, error
 			b.log.Debug("demo: reset skipped, someone is watching", "streams", stats.ActiveStreams)
 			return false, nil
 		}
+		if b.busy != nil && b.busy() {
+			b.log.Debug("demo: reset skipped, a playback or a music session is live")
+			return false, nil
+		}
 	}
 	if err := b.Reset(ctx); err != nil {
 		return false, err
@@ -84,11 +162,7 @@ func (b *Bootstrapper) ResetIfIdle(ctx context.Context, force bool) (bool, error
 // idempotent seed: administrator and its published password, libraries,
 // plugins and their config, home layout, watch history.
 func (b *Bootstrapper) Reset(ctx context.Context) error {
-	usernames := []string{demo.Username}
-	for _, a := range seedAccounts {
-		usernames = append(usernames, a.username)
-	}
-	for _, name := range usernames {
+	for _, name := range demoUsernames() {
 		u, err := b.users.GetByUsername(ctx, name)
 		if err != nil || u == nil {
 			continue
@@ -102,6 +176,9 @@ func (b *Bootstrapper) Reset(ctx context.Context) error {
 				return fmt.Errorf("demo reset: clear progress of %s: %w", name, err)
 			}
 		}
+	}
+	if err := b.PurgeCredentials(ctx); err != nil {
+		return err
 	}
 	if err := b.EnsureAdmin(ctx); err != nil {
 		return err

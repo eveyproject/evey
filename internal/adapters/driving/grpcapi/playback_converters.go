@@ -26,6 +26,11 @@ func watchProgressToProto(wp *playback.WatchProgress) *eveyv1.WatchProgress {
 		Played:       wp.Completed,
 		PlayCount:    int32(wp.PlayCount),
 		LastPlayedAt: toTimestamppb(wp.LastPlayedAt),
+		// The phone compares its offline copy against this to decide which
+		// position wins; left empty, the local copy always won, resumed at a
+		// stale position and pushed it back to the server (audit 2026-10-01).
+		// The row's last write IS its last play: every report bumps it.
+		UpdatedAt: toTimestamppb(wp.LastPlayedAt),
 	}
 }
 

@@ -14,6 +14,7 @@ import { ProfileSelectScreen } from "./screens/ProfileSelect";
 import { HomeScreen } from "./screens/Home";
 import { LibraryScreen } from "./screens/Library";
 import { MediaDetailScreen } from "./screens/MediaDetail";
+import { DemoBanner } from "./components/DemoBanner";
 import { PlayerScreen } from "./screens/Player";
 import { SettingsScreen } from "./screens/Settings";
 import { SearchScreen } from "./screens/Search";
@@ -211,6 +212,7 @@ function App() {
   const guarded = <ScreenErrorBoundary key={effective.name}>{screen}</ScreenErrorBoundary>;
   return (
     <>
+      {signedIn ? <DemoBanner visible={deep} /> : null}
       {signedIn ? <ThemeFollower /> : null}
       {signedIn ? <DeviceServices /> : null}
       {tab ? <TabShell current={effective.name}>{guarded}</TabShell> : deep ? <div className="deep-screen">{guarded}</div> : guarded}

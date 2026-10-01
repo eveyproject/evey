@@ -14,7 +14,7 @@ import {
   getNotificationServiceGetUnreadCountQueryKey,
 } from "@evey/api";
 import type { V1Notification } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useDemoStore } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../src/components/LoadFailed";
 import { Skeleton } from "../../src/components/Skeleton";
@@ -55,7 +55,7 @@ function iconForType(type: string | undefined): keyof typeof Ionicons.glyphMap {
   }
 }
 
-function NotificationItem({ item, onPress, onMarkRead }: { item: V1Notification; onPress: () => void; onMarkRead: () => void }) {
+function NotificationItem({ item, onPress, onMarkRead }: { item: V1Notification; onPress: () => void; onMarkRead?: () => void }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const isUnread = !item.readAt;
@@ -117,7 +117,7 @@ function NotificationItem({ item, onPress, onMarkRead }: { item: V1Notification;
 
       {/* Icon only: the "Mark as read" label took the width the title needed.
           The single check echoes the header's double check (mark all read). */}
-      {isUnread && (
+      {isUnread && onMarkRead && (
         <Pressable
           onPress={(e) => { e.stopPropagation(); onMarkRead(); }}
           hitSlop={10}
@@ -177,8 +177,11 @@ export default function NotificationsScreen() {
     },
   });
 
+  // Demo: the unread list is the shared account's and the server refuses read
+  // marks and clearing - opening one must not raise an error every time.
+  const demo = useDemoStore((st) => st.demoMode);
   const handleTap = useCallback((n: V1Notification) => {
-    if (!n.readAt && n.id) {
+    if (!n.readAt && n.id && !demo) {
       markRead.mutate({ id: n.id });
     }
     // Where a notification leads (web parity, notificationUtils.notificationUrl):
@@ -190,7 +193,7 @@ export default function NotificationsScreen() {
     } else if (n.mediaItemId) {
       router.push(`/media/${n.mediaItemId}`);
     }
-  }, [markRead]);
+  }, [markRead, demo]);
 
   const handleMarkRead = useCallback((n: V1Notification) => {
     if (!n.readAt && n.id) markRead.mutate({ id: n.id });
@@ -198,9 +201,9 @@ export default function NotificationsScreen() {
 
   const renderNotifItem = useCallback(
     ({ item }: { item: V1Notification }) => (
-      <NotificationItem item={item} onPress={() => handleTap(item)} onMarkRead={() => handleMarkRead(item)} />
+      <NotificationItem item={item} onPress={() => handleTap(item)} onMarkRead={demo ? undefined : () => handleMarkRead(item)} />
     ),
-    [handleTap, handleMarkRead],
+    [handleTap, handleMarkRead, demo],
   );
 
   const onRefresh = useCallback(async () => {
@@ -224,7 +227,7 @@ export default function NotificationsScreen() {
     );
   }
 
-  const hasUnread = notifications.some((n) => !n.readAt);
+  const hasUnread = !demo && notifications.some((n) => !n.readAt);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
@@ -246,7 +249,7 @@ export default function NotificationsScreen() {
                 <Ionicons name="checkmark-done-outline" size={22} color={theme.colors.accent} />
               </Pressable>
             )}
-            {notifications.length > 0 && (
+            {!demo && notifications.length > 0 && (
               <Pressable onPress={handleClearAll} hitSlop={12} accessible accessibilityLabel="Clear all" accessibilityRole="button">
                 <Ionicons name="trash-outline" size={22} color={theme.colors.textMuted} />
               </Pressable>

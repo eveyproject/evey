@@ -647,9 +647,13 @@ func TestSeedHistory_ResumesWatchesAndSkipsWhatExists(t *testing.T) {
 	_ = media.Create(ctx, &library.MediaItem{ID: "bleep", LibraryID: libs["series"], Type: library.Series, Title: "Colonel Bleep"})
 	one := 1
 	_ = media.Create(ctx, &library.MediaItem{ID: "bleep-s1", ParentID: "bleep", Type: library.Season, Title: "Season 1", IndexNumber: &one})
-	for i := 1; i <= 3; i++ {
+	for i := 1; i <= 4; i++ {
 		n := i
-		_ = media.Create(ctx, &library.MediaItem{ID: shared.MediaItemID(fmt.Sprintf("bleep-e%d", i)), ParentID: "bleep-s1", Type: library.Episode, Title: fmt.Sprintf("E%d", i), IndexNumber: &n})
+		ep := &library.MediaItem{ID: shared.MediaItemID(fmt.Sprintf("bleep-e%d", i)), ParentID: "bleep-s1", Type: library.Episode, Title: fmt.Sprintf("E%d", i), IndexNumber: &n}
+		if i >= 3 {
+			ep.File = &library.MediaFile{Path: fmt.Sprintf("/s/e%d", i), Duration: tenMin}
+		}
+		_ = media.Create(ctx, ep)
 	}
 
 	if err := h.boot.SeedHistory(ctx, libs); err != nil {
@@ -657,6 +661,14 @@ func TestSeedHistory_ResumesWatchesAndSkipsWhatExists(t *testing.T) {
 	}
 	if got := hist.resumed["sintel"]; got != 4*60*1000 {
 		t.Errorf("Sintel resumed at %d ms, want 40%% of ten minutes", got)
+	}
+	// The episode after the watched ones is resumed (Resume shows it), the
+	// one after that is left for Next up.
+	if got := hist.resumed["bleep-e3"]; got != 5*60*1000 {
+		t.Errorf("Colonel Bleep E3 resumed at %d ms, want 50%% of ten minutes", got)
+	}
+	if _, ok := hist.resumed["bleep-e4"]; ok {
+		t.Error("Colonel Bleep E4 was seeded, only the episode after the watched ones is resumed")
 	}
 	wantWatched := []string{"bbb", "bleep-e1", "bleep-e2"}
 	if strings.Join(hist.watched, ",") != strings.Join(wantWatched, ",") {
@@ -669,8 +681,8 @@ func TestSeedHistory_ResumesWatchesAndSkipsWhatExists(t *testing.T) {
 	admin, _ := h.users.GetByUsername(ctx, demo.Username)
 	profs, _ := h.profiles.GetByUserID(ctx, admin.ID)
 	pid := profs[0].ID
-	for _, id := range []string{"sintel", "bbb", "bleep-e1", "bleep-e2"} {
-		_ = progress.Upsert(ctx, &playback.WatchProgress{ID: "wp-" + id, ProfileID: pid, MediaItemID: shared.MediaItemID(id), Completed: id != "sintel"})
+	for _, id := range []string{"sintel", "bbb", "bleep-e1", "bleep-e2", "bleep-e3"} {
+		_ = progress.Upsert(ctx, &playback.WatchProgress{ID: "wp-" + id, ProfileID: pid, MediaItemID: shared.MediaItemID(id), Completed: id != "sintel" && id != "bleep-e3"})
 	}
 	if err := h.boot.SeedHistory(ctx, libs); err != nil {
 		t.Fatal(err)
@@ -816,5 +828,29 @@ func TestEnsureLibraries_RenamesTheFormerDemoLibrariesInPlace(t *testing.T) {
 	after, _ := h.libs.repo.List(ctx, library.ListLibrariesFilter{})
 	if len(after) != len(before) {
 		t.Fatalf("second run changed the library count %d -> %d", len(before), len(after))
+	}
+}
+
+// The idle check also reads the live signal: an HLS encode with no session
+// row, or someone listening to music, is not "nobody".
+func TestResetIfIdle_ALivePlaybackOrMusicIsNotIdle(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.boot.EnsureAdmin(ctx); err != nil {
+		t.Fatal(err)
+	}
+	live := true
+	h.boot.WithReset(&fakeStreams{active: 0}, pbfakes.NewFakeWatchProgressRepository()).
+		WithActivity(func() bool { return live })
+
+	if done, err := h.boot.ResetIfIdle(ctx, false); err != nil || done {
+		t.Fatalf("reset under live activity: done=%v err=%v", done, err)
+	}
+	if done, err := h.boot.ResetIfIdle(ctx, true); err != nil || !done {
+		t.Fatalf("the daily floor resets regardless: done=%v err=%v", done, err)
+	}
+	live = false
+	if done, err := h.boot.ResetIfIdle(ctx, false); err != nil || !done {
+		t.Fatalf("idle once nothing plays: done=%v err=%v", done, err)
 	}
 }

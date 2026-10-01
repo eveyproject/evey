@@ -175,6 +175,14 @@ func TestServedResolution(t *testing.T) {
 		assert.Equal(t, "1080p", servedResolution(&transcoding.PlaybackDecision{}, video(&h1080)))
 	})
 
+	t.Run("a cropped scope frame is named by its width's tier, capped or not", func(t *testing.T) {
+		w, h := 1920, 818
+		scope := []*library.MediaStream{{StreamType: library.StreamTypeVideo, Width: &w, Height: &h}}
+		assert.Equal(t, "1080p", servedResolution(&transcoding.PlaybackDecision{}, scope), "1920x818 was labelled 818p")
+		assert.Equal(t, "1080p", servedResolution(&transcoding.PlaybackDecision{MaxHeight: 1080}, scope), "a cap above the source serves the source")
+		assert.Equal(t, "720p", servedResolution(&transcoding.PlaybackDecision{MaxHeight: 720}, scope))
+	})
+
 	t.Run("a source with no usable height renders nothing, never 0p", func(t *testing.T) {
 		assert.Empty(t, servedResolution(&transcoding.PlaybackDecision{}, video(nil)))
 		assert.Empty(t, servedResolution(&transcoding.PlaybackDecision{}, nil))

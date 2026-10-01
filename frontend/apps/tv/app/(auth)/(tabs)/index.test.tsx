@@ -198,6 +198,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
 // --- store / collections / popular mocks -------------------------------------
 vi.mock("@evey/store", () => ({
   useAuthStore: (sel: (s: unknown) => unknown) => sel({ profileId: "prof-1", accessToken: "TOKEN" }),
+  useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }),
 }));
 const collectionsMock = vi.fn();
 vi.mock("../../../src/api/collections", () => ({

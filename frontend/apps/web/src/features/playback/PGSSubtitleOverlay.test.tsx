@@ -4,7 +4,7 @@ import React from "react";
 
 // The real parser is exercised by its own tests; here the blob is a stand-in
 // and the magic check decides text-vs-bitmap.
-const pgs = vi.hoisted(() => ({ isPGS: true }));
+const pgs = vi.hoisted(() => ({ isPGS: true, onlyFirstCue: false }));
 vi.mock("@evey/api", () => ({
   isPGSBlob: () => pgs.isPGS,
   parsePGSBlob: () => ({
@@ -13,7 +13,7 @@ vi.mock("@evey/api", () => ({
     cues: [
       { startMs: 1000, endMs: 2000, x: 192, y: 810, w: 960, h: 108, forced: false, png: new Uint8Array([1]) },
       { startMs: 5000, endMs: 6000, x: 0, y: 0, w: 1920, h: 540, forced: true, png: new Uint8Array([2]) },
-    ],
+    ].slice(0, pgs.onlyFirstCue ? 1 : 2),
   }),
   findActivePGSCue: (cues: { startMs: number; endMs: number }[], t: number) =>
     cues.findIndex((c) => t >= c.startMs && t < c.endMs),
@@ -43,6 +43,7 @@ function seekTo(video: HTMLVideoElement, sec: number) {
 
 beforeEach(() => {
   pgs.isPGS = true;
+  pgs.onlyFirstCue = false;
   objectUrls = 0;
   fetchMock.mockReset();
   fetchMock.mockResolvedValue({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
@@ -57,6 +58,30 @@ afterEach(() => vi.unstubAllGlobals());
 // follows the playhead (shifted by the viewer's resync) off the video's own
 // events, and a track already loaded is never fetched again.
 describe("PGSSubtitleOverlay", () => {
+  // Switching from a full track to a forced one with fewer cues while a late
+  // cue is on screen used to render the new track with the old index:
+  // cues[active] was undefined and the player crashed on cue.x.
+  it("switching to a track with fewer cues mid-cue neither crashes nor keeps the old image", async () => {
+    const video = document.createElement("video");
+    Object.defineProperty(video, "currentTime", { value: 0, writable: true });
+    const videoRef = { current: video };
+    const el = (trackIndex: number) => (
+      <PGSSubtitleOverlay mediaId="m-switch" trackIndex={trackIndex} streamToken="tok" videoRef={videoRef} />
+    );
+    const { container, rerender } = render(el(0));
+    seekTo(video, 5.2);
+    await waitFor(() => expect(container.querySelector("img")?.getAttribute("src")).toBe("blob:cue-1"));
+
+    pgs.onlyFirstCue = true;
+    rerender(el(1));
+    expect(container.querySelector("img")).toBeNull();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(container.querySelector("img")).toBeNull();
+    seekTo(video, 1.5);
+    expect(container.querySelector("img")?.getAttribute("src")).toBe("blob:cue-2");
+  });
+
   it("draws the active cue as percentages of the subtitle plane and follows the playhead", async () => {
     const { video, container } = mount({ mediaId: "m-draw" });
     expect(container.querySelector("img")).toBeNull();

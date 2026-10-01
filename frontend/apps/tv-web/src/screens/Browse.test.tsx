@@ -16,8 +16,10 @@ vi.mock("../tv/focus", () => ({
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 vi.mock("../app/router", () => ({ navigate: (...a: unknown[]) => navigateMock(...a), goBack: vi.fn() }));
 const authState = { profileId: "prf-1", accessToken: "t" };
+const demoState = { demoMode: false };
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign((sel: any) => sel(authState), { getState: () => authState }),
+  useDemoStore: (sel: any) => sel(demoState),
   toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
@@ -101,5 +103,17 @@ describe("the notifications", () => {
     notifications.mockReturnValue({ data: { notifications: [{ id: "n-1", readAt: "2026-09-21T10:00:00Z" }] }, isLoading: false });
     render(<NotificationsScreen />);
     expect(screen.getAllByText("common.notifications.markAllRead")).toHaveLength(1);
+  });
+
+  // The unread list is the shared account's on the demo and the server refuses
+  // the read marks: no mark-all offered, and opening one marks nothing.
+  it("marks nothing on the demo", () => {
+    demoState.demoMode = true;
+    try {
+      render(<NotificationsScreen />);
+      expect(screen.queryByText("common.notifications.markAllRead")).toBeNull();
+    } finally {
+      demoState.demoMode = false;
+    }
   });
 });

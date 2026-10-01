@@ -11,6 +11,7 @@ import { setupOnlineManager } from "@/lib/online-manager";
 import { mutationErrorNet } from "@/lib/mutationErrorNet";
 import { onDocumentVisible, refreshHomeLayoutOnForeground } from "@evey/client";
 import { shouldRetryQuery } from "@/lib/queryRetry";
+import { nextRefreshDelay } from "@/lib/tokenRefreshDelay";
 import { ThemeLoader } from "@/features/themes/ThemeLoader";
 import "./i18n";
 import "./styles/main.css";
@@ -58,8 +59,8 @@ let routerRef: ReturnType<typeof createRouter> | null = null;
 // the user's refresh tokens.
 // How long before expiry the proactive refresh fires. Consistent with the
 // fetcher's own EXPIRY_GRACE_SECONDS (a much smaller last-resort margin).
-const REFRESH_MARGIN_MS = 2 * 60 * 1000;
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let refreshFailures = 0;
 function scheduleTokenRefresh() {
   if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
   const token = useAuthStore.getState().accessToken;
@@ -86,8 +87,7 @@ function scheduleTokenRefresh() {
     }
     // Random jitter in [0, 30s] so two tabs don't wake at the same millisecond.
     const jitter = Math.floor(Math.random() * 30_000);
-    const refreshAt = expiresMs - REFRESH_MARGIN_MS + jitter;
-    const delay = Math.max(refreshAt - Date.now(), 0);
+    const delay = nextRefreshDelay(expiresMs, Date.now(), jitter, refreshFailures);
     refreshTimer = setTimeout(async () => {
       try {
         await runUnderTabLock(async () => {
@@ -96,11 +96,11 @@ function scheduleTokenRefresh() {
           const current = useAuthStore.getState().accessToken;
           if (current && current !== token && !isNearExpiry(current)) return;
           const data = await userServiceRefreshToken({});
-          if (data?.accessToken) {
-            useAuthStore.getState().setTokens(data.accessToken);
-          }
+          if (!data?.accessToken) throw new Error("refresh returned no token");
+          useAuthStore.getState().setTokens(data.accessToken);
         });
-      } catch (err) { console.warn("token refresh failed", err); }
+        refreshFailures = 0;
+      } catch (err) { refreshFailures++; console.warn("token refresh failed", err); }
       scheduleTokenRefresh();
     }, delay);
   } catch (err) { console.warn("parse JWT failed", err); }

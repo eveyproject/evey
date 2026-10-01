@@ -9,7 +9,7 @@ import {
   useUserServiceUpdateProfile,
   type V1Profile,
 } from "@evey/api";
-import { useAuthStore, useServerListStore } from "@evey/store";
+import { useAuthStore, useServerListStore, isDemoMode, toast } from "@evey/store";
 import {
   AUDIO_CHANNELS_OPTIONS,
   AUDIO_CODEC_OPTIONS,
@@ -58,6 +58,13 @@ export function PlaybackSettingsScreen() {
   // failed save never leaves a choice marked that the profile does not hold.
   const save = async (patch: PrefMap) => {
     if (!profile?.id || updateProfile.isPending) return;
+    // Demo: these preferences live on the shared profile and only there (the
+    // player reads them from it), so a local copy would be a lie. Shown, not
+    // changed - said on the press rather than failed by the server.
+    if (isDemoMode()) {
+      toast.info(t("common.demo.locked"));
+      return;
+    }
     try {
       await updateProfile.mutateAsync({ id: profile.id, data: { preferences: { ...profile.preferences, ...patch } } });
       setPrefs((p) => ({ ...p, ...patch }));

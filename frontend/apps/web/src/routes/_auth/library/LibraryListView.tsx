@@ -56,7 +56,7 @@ const ListRow = memo(function ListRow({ item }: { item: V1MediaItem }) {
         {title}
       </span>
       <span className="hidden sm:block w-16 text-xs text-right flex-shrink-0 text-[var(--text-muted)]">
-        {year ?? "\u2014"}
+        {year || "-"}
       </span>
       <span className="hidden md:flex items-center gap-1 w-16 text-xs flex-shrink-0 justify-end text-[var(--text-muted)]">
         {rating != null && rating > 0 ? (
@@ -64,7 +64,7 @@ const ListRow = memo(function ListRow({ item }: { item: V1MediaItem }) {
             <Star size={12} fill="currentColor" className="text-[var(--accent)]" />
             {rating.toFixed(1)}
           </>
-        ) : "\u2014"}
+        ) : "-"}
       </span>
       {typeLabel(type) && (
         <span
@@ -74,7 +74,7 @@ const ListRow = memo(function ListRow({ item }: { item: V1MediaItem }) {
         </span>
       )}
       <span className="hidden lg:block w-16 text-xs text-right flex-shrink-0 text-[var(--text-muted)]">
-        {formatDurationMs(durationMs) || "\u2014"}
+        {formatDurationMs(durationMs) || "-"}
       </span>
     </Link>
   );

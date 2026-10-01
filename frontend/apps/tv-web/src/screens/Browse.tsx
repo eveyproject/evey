@@ -35,7 +35,7 @@ import {
   usePlaylistDetail,
   usePlaylistList,
 } from "@evey/client";
-import { toast } from "@evey/store";
+import { toast, useDemoStore } from "@evey/store";
 import { FocusRoot } from "../tv/focus";
 import { Pressable, Spinner } from "../components/ui";
 import { ScreenState } from "../components/ScreenState";
@@ -319,7 +319,7 @@ export function FavoritesScreen() {
                 key={it.mediaItemId}
                 focusKey={`favorites:${it.mediaItemId}`}
                 title={it.title ?? t("common.untitled", "Untitled")}
-                subtitle={it.year != null ? String(it.year) : undefined}
+                subtitle={it.year ? String(it.year) : undefined}
                 imageUrl={posterSrc(it.mediaItemId, "poster", CARD_WIDTH_GRID * 2)}
                 autoFocus={i === 0}
                 onPress={() => navigate({ name: "media", mediaId: it.mediaItemId })}
@@ -357,6 +357,8 @@ export function HistoryScreen() {
       onError: () => toast.error(t("auth.watchHistory.clearFailed", "Could not remove from history")),
     },
   });
+  // Demo: the history is the shared account's, the server refuses the removal.
+  const demo = useDemoStore((s) => s.demoMode);
 
   if (isLoading || isError) return <ScreenState loading={isLoading} error={isError} onRetry={() => void refetch()} />;
   return (
@@ -386,9 +388,11 @@ export function HistoryScreen() {
                     <span className="history-pct">{Math.round(pct)}%</span>
                   </span>
                 </Pressable>
-                <Pressable className={`tv-card history-remove ${unwatch.isPending ? "dim" : ""}`} label={t("auth.watchHistory.removeFromHistory", "Remove from history")} onPress={() => { if (!unwatch.isPending && row.mediaItemId) unwatch.mutate({ mediaItemId: row.mediaItemId }); }}>
-                  {t("common.remove", "Remove")}
-                </Pressable>
+                {demo ? null : (
+                  <Pressable className={`tv-card history-remove ${unwatch.isPending ? "dim" : ""}`} label={t("auth.watchHistory.removeFromHistory", "Remove from history")} onPress={() => { if (!unwatch.isPending && row.mediaItemId) unwatch.mutate({ mediaItemId: row.mediaItemId }); }}>
+                    {t("common.remove", "Remove")}
+                  </Pressable>
+                )}
               </FocusRoot>
             );
           })}
@@ -516,10 +520,13 @@ export function NotificationsScreen() {
   const markAllRead = useNotificationServiceMarkAllRead({
     mutation: { onSuccess: invalidate, onError: () => toast.error(t("common.notifications.markAllReadFailed", "Could not mark all as read")) },
   });
-  const hasUnread = list.some((n) => !n.readAt);
+  // Demo: the unread list is the shared account's and the server refuses the
+  // read marks - opening one must not raise an error every time.
+  const demo = useDemoStore((s) => s.demoMode);
+  const hasUnread = !demo && list.some((n) => !n.readAt);
 
   const open = (n: V1Notification) => {
-    if (!n.readAt && n.id) markRead.mutate({ id: n.id });
+    if (!n.readAt && n.id && !demo) markRead.mutate({ id: n.id });
     if (n.mediaItemId) navigate({ name: "media", mediaId: n.mediaItemId });
   };
 

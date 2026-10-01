@@ -117,7 +117,7 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
       >
         {displayTitle(item, t)}
       </Text>
-      {item.year != null && (
+      {!!item.year && (
         <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs, lineHeight: CARD_LINE_HEIGHT }}>{item.year}</Text>
       )}
     </Pressable>

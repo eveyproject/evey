@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -352,4 +354,49 @@ func TestServeTranscoded_UncachedRequestsStillHitTheCeiling(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, get("photo-1"))
 	require.Equal(t, http.StatusTooManyRequests, get("photo-2"), "a second fork must still be refused")
+}
+
+// slowPhotoTranscoder counts calls and writes its output in two halves, so a
+// reader that saw the destination mid-write would get a torn file.
+type slowPhotoTranscoder struct{ calls atomic.Int32 }
+
+func (f *slowPhotoTranscoder) Transcode(_ context.Context, _, dst string, _ int, _ string) error {
+	f.calls.Add(1)
+	if err := os.WriteFile(dst, []byte("half"), 0o644); err != nil {
+		return err
+	}
+	time.Sleep(50 * time.Millisecond)
+	return os.WriteFile(dst, []byte("whole-image"), 0o644)
+}
+
+// A cold grid asks for the same variant from several requests at once: one
+// ffmpeg, and nobody served a half-written file.
+func TestServeTranscoded_ConcurrentMisses_OneTranscodeNoTornFile(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src.jpg")
+	require.NoError(t, os.WriteFile(src, []byte("raw"), 0o644))
+	seedPhoto(t, repo, "ph-c", "lib-1", src, "image/jpeg")
+	tc := &slowPhotoTranscoder{}
+	mux, token := newPhotoMux(t, repo, tc, dir)
+
+	var wg sync.WaitGroup
+	bodies := make([]string, 10)
+	for i := range bodies {
+		wg.Go(func() {
+			if i > 0 {
+				time.Sleep(time.Duration(i) * 5 * time.Millisecond)
+			}
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/ph-c/serve?w=400&fmt=webp", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			bodies[i] = w.Body.String()
+		})
+	}
+	wg.Wait()
+	assert.Equal(t, int32(1), tc.calls.Load(), "one ffmpeg per variant")
+	for i, b := range bodies {
+		assert.Equal(t, "whole-image", b, "request %d", i)
+	}
 }

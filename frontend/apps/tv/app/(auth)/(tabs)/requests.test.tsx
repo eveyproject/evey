@@ -103,6 +103,7 @@ vi.mock("@tanstack/react-query", () => ({
 // --- @evey/store mock ------------------------------------------------------------
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+  useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }),
 }));
 
 // --- @evey/api mock --------------------------------------------------------------

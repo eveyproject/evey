@@ -20,7 +20,7 @@ export const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCa
       </p>
 
       <div className="flex items-center gap-2 mb-1.5 text-xs text-[var(--text-muted)]">
-        {item.year && <span>{item.year}</span>}
+        {!!item.year && <span>{item.year}</span>}
         {item.communityRating != null && item.communityRating > 0 && (
           <span className="flex items-center gap-0.5">
             <Star size={12} fill="currentColor" className="text-[var(--accent)]" />

@@ -828,3 +828,31 @@ func TestReconcileTracks_StaleDocs_NoRebuild(t *testing.T) {
 		t.Fatalf("stale-doc divergence must NOT rebuild (would loop), got n=%d indexed=%d", n, len(idx.indexed))
 	}
 }
+
+// clearableMusicIndex is an engine that can be wiped, like Meilisearch.
+type clearableMusicIndex struct {
+	fakeMusicSearchIndex
+	cleared int
+}
+
+func (c *clearableMusicIndex) Clear(_ context.Context) error { c.cleared++; return nil }
+
+// An engine that can be wiped is wiped then rebuilt when it holds MORE docs
+// than the DB (ghosts of a deleted library or a dropped delete): an upsert
+// alone never shrinks it, and search kept serving the ghosts.
+func TestReconcileTracks_StaleDocs_WipesThenRebuildsWhenTheEngineCan(t *testing.T) {
+	cmd, repo, _ := newReconcileCmd(t)
+	seedTrack(repo, "t1")
+	seedTrack(repo, "t2")
+	idx := &clearableMusicIndex{}
+	n, err := cmd.ReconcileTracks(context.Background(), idx, fakeMusicDocCounter{count: 161})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if idx.cleared != 1 {
+		t.Fatalf("want the index wiped once, got %d", idx.cleared)
+	}
+	if n != 2 || len(idx.indexed) != 2 {
+		t.Fatalf("want the 2 DB tracks reindexed after the wipe, got n=%d indexed=%d", n, len(idx.indexed))
+	}
+}

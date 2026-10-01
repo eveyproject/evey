@@ -59,3 +59,62 @@ export function pickPreferredStreamIndex(
   }
   return null;
 }
+
+// Names for the codes a library actually carries, used when the runtime has no
+// Intl language data (Hermes on the phone and the TV ships without it unless
+// built against it) or does not know the code. Endonyms, so the fallback reads
+// right whatever the UI language.
+const FALLBACK_LANGUAGE_NAMES: Record<string, string> = {
+  ar: "العربية", bg: "Български", ca: "Català", cs: "Čeština", da: "Dansk",
+  de: "Deutsch", el: "Ελληνικά", en: "English", es: "Español", et: "Eesti",
+  fa: "فارسی", fi: "Suomi", fr: "Français", he: "עברית", hi: "हिन्दी",
+  hr: "Hrvatski", hu: "Magyar", id: "Bahasa Indonesia", is: "Íslenska",
+  it: "Italiano", ja: "日本語", ko: "한국어", lt: "Lietuvių", lv: "Latviešu",
+  nl: "Nederlands", no: "Norsk", pl: "Polski", pt: "Português", ro: "Română",
+  ru: "Русский", sk: "Slovenčina", sl: "Slovenščina", sr: "Српски", sv: "Svenska",
+  th: "ไทย", tr: "Türkçe", uk: "Українська", vi: "Tiếng Việt", zh: "中文",
+};
+
+// Tags that name no language: undetermined, multiple, no linguistic content.
+const NO_LANGUAGE = new Set(["und", "mul", "zxx", "mis"]);
+
+const displayNamesByLocale = new Map<string, Intl.DisplayNames | null>();
+
+function languageNames(locale: string): Intl.DisplayNames | null {
+  if (!displayNamesByLocale.has(locale)) {
+    let names: Intl.DisplayNames | null = null;
+    try {
+      names = new Intl.DisplayNames([locale], { type: "language" });
+    } catch {
+      names = null; // no Intl language data on this runtime
+    }
+    displayNamesByLocale.set(locale, names);
+  }
+  return displayNamesByLocale.get(locale) ?? null;
+}
+
+/**
+ * The readable name of a track's language tag in the UI language: "ger",
+ * "deu", "de" and "de-DE" all read "German" ("Allemand" in French). Null for
+ * an empty tag or one that names no language ("und"), so the caller decides
+ * whether to say "Unknown" or show nothing. A code nothing knows comes back
+ * as written: a poor label, never a blank one.
+ */
+export function languageDisplayName(code: string | undefined, locale: string): string | null {
+  const raw = (code ?? "").trim();
+  if (!raw) return null;
+  const [primary, ...rest] = raw.toLowerCase().split(/[-_]/);
+  if (!primary || NO_LANGUAGE.has(primary)) return null;
+  const base = ISO_639_2_TO_1[primary] ?? primary;
+  const tag = [base, ...rest.map((r) => (r.length === 2 ? r.toUpperCase() : r))].join("-");
+  let name: string | undefined;
+  try {
+    name = languageNames(locale)?.of(tag);
+  } catch {
+    name = undefined; // a tag Intl rejects as malformed
+  }
+  // Intl hands an unknown code back unchanged: that is not a name.
+  if (!name || name.toLowerCase() === tag.toLowerCase()) name = FALLBACK_LANGUAGE_NAMES[base];
+  if (!name) return raw;
+  return name.charAt(0).toLocaleUpperCase(locale) + name.slice(1);
+}

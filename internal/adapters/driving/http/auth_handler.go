@@ -386,9 +386,13 @@ func (h *parentalHandler) authorizeParentalChange(w http.ResponseWriter, r *http
 	settingNewPIN := body.PIN != nil && *body.PIN != ""
 	mutatingPIN := body.PIN != nil // rotation, clear, or first-time set
 	disablingProtection := body.Enabled != nil && !*body.Enabled
+	// Lifting the age cap, raising it or unblocking a tag frees the profile
+	// just like disabling does - and went through on the profile's own JWT,
+	// PIN or not (audit 2026-10-01). Tightening stays ungated.
+	loosening := loosensParental(profile.Parental, body)
 
 	switch {
-	case (mutatingPIN || disablingProtection) && !noExistingPIN:
+	case (mutatingPIN || disablingProtection || loosening) && !noExistingPIN:
 		return h.requireCurrentPIN(w, r, span, profile, body, profileID)
 	case settingNewPIN && noExistingPIN && h.userRepo != nil:
 		// First-time PIN set: require the account password. Without this a
@@ -397,6 +401,34 @@ func (h *parentalHandler) authorizeParentalChange(w http.ResponseWriter, r *http
 		return h.requireAccountPassword(w, r, span, profile, body, profileID)
 	}
 	return true
+}
+
+// loosensParental reports whether body relaxes the restrictions cur holds:
+// the age cap removed or raised, or a blocked tag no longer blocked.
+func loosensParental(cur *domainuser.ParentalSettings, body parentalUpdateBody) bool {
+	if cur == nil {
+		return false
+	}
+	if cur.MaxAge != nil {
+		if body.UnsetMaxAge {
+			return true
+		}
+		if body.MaxAge != nil && *body.MaxAge > *cur.MaxAge {
+			return true
+		}
+	}
+	if body.BlockedTags != nil {
+		kept := make(map[string]bool, len(body.BlockedTags))
+		for _, tag := range body.BlockedTags {
+			kept[tag] = true
+		}
+		for _, tag := range cur.BlockedTags {
+			if !kept[tag] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // requireCurrentPIN gates rotating/clearing an existing PIN (or disabling

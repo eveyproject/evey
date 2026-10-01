@@ -223,11 +223,28 @@ func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-	if err := h.transcoder.Transcode(ctx, p.FilePath, dstPath, width, fmtStr); err != nil {
+	// One ffmpeg per variant, written aside then renamed: concurrent misses used
+	// to fork one each onto the same file, a neighbour could serve it half
+	// written, and a failure's Remove could delete a sibling's good output.
+	_, err, _ := artworkResizeGroup.Do("photo:"+dstPath, func() (any, error) {
+		if fi, err := os.Stat(dstPath); err == nil && fi.Size() > 0 {
+			return nil, nil
+		}
+		artworkResizeSem <- struct{}{}
+		defer func() { <-artworkResizeSem }()
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		tmpPath := filepath.Join(photoDir, ".tmp-"+dstName)
+		if err := h.transcoder.Transcode(ctx, p.FilePath, tmpPath, width, fmtStr); err != nil {
+			if rmErr := os.Remove(tmpPath); rmErr != nil && !os.IsNotExist(rmErr) {
+				slog.WarnContext(ctx, "photo transcode cleanup", slog.Any("err", rmErr))
+			}
+			return nil, err
+		}
+		return nil, os.Rename(tmpPath, dstPath)
+	})
+	if err != nil {
 		slog.WarnContext(r.Context(), "photo transcode", slog.String("id", p.ID), slog.Any("err", err))
-		_ = os.Remove(dstPath)
 		return false
 	}
 	w.Header().Set("Content-Type", contentType)

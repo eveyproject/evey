@@ -435,6 +435,49 @@ func TestMusicTrackRepo_GetAlbums_EmbeddedArtBeatsFetchedArt(t *testing.T) {
 		"la pochette embarquée doit gagner contre une pochette récupérée en externe")
 }
 
+// One track without a year tag (stored as 0) must not hide the album's year:
+// MIN(year) picked the 0 and every client showed no year at all.
+func TestMusicTrackRepo_GetAlbums_UntaggedYearDoesNotHideTheAlbumYear(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+	lib := newTestLibrary("mt-lib-year")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	tagged := newTestTrack("mt-year-a", lib.ID, "Tagged", "Neon Harbor", "Harbor Lights")
+	tagged.FilePath = "/music/lights/01.mp3"
+	tagged.Year = 2011
+	_, err := repo.Upsert(ctx, tagged)
+	require.NoError(t, err)
+	untagged := newTestTrack("mt-year-b", lib.ID, "Untagged", "Neon Harbor", "Harbor Lights")
+	untagged.FilePath = "/music/lights/02.mp3"
+	untagged.Year = 0
+	_, err = repo.Upsert(ctx, untagged)
+	require.NoError(t, err)
+
+	albums, err := repo.GetAlbums(ctx, lib.ID)
+	require.NoError(t, err)
+	require.Len(t, albums, 1)
+	assert.Equal(t, 2011, albums[0].Year)
+
+	// Nobody tagged: the album still scans, with no year.
+	lib2 := newTestLibrary("mt-lib-noyear")
+	lib2.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib2))
+	bare := newTestTrack("mt-year-c", lib2.ID, "Bare", "Neon Harbor", "No Date")
+	bare.FilePath = "/music/nodate/01.mp3"
+	bare.Year = 0
+	_, err = repo.Upsert(ctx, bare)
+	require.NoError(t, err)
+	albums, err = repo.GetAlbums(ctx, lib2.ID)
+	require.NoError(t, err)
+	require.Len(t, albums, 1)
+	assert.Equal(t, 0, albums[0].Year)
+}
+
 // Sans aucune pochette embarquée, l'artwork externe reste servi : le correctif
 // ci-dessus est une PRÉFÉRENCE, pas un rejet de l'artwork iTunes.
 func TestMusicTrackRepo_GetAlbums_FetchedArtStillServedWithoutEmbedded(t *testing.T) {

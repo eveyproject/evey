@@ -8,6 +8,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/playback"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPlayMethodEnumMapping(t *testing.T) {
@@ -49,6 +50,9 @@ func TestWatchProgressToProto_Timestamps(t *testing.T) {
 	assert.Equal(t, int32(1), pb.PlayCount)
 	assert.NotNil(t, pb.LastPlayedAt)
 	assert.Equal(t, last.Unix(), pb.LastPlayedAt.AsTime().Unix())
+	// The phone's offline/server arbitration reads updated_at: never empty.
+	require.NotNil(t, pb.UpdatedAt, "updated_at is read by the mobile resume arbitration")
+	assert.Equal(t, last.Unix(), pb.UpdatedAt.AsTime().Unix())
 }
 
 func TestPlaySessionToProto_AllMethods(t *testing.T) {

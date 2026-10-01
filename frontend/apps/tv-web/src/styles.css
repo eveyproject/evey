@@ -796,6 +796,34 @@ body.music-on .deep-screen {
 }
 
 /* Toasts: the Android television's, top centre. */
+.demo-tag {
+  padding: 0.4rem 1.4rem;
+  border-radius: 999px;
+  border: 0.1rem solid var(--warning, #f59e0b);
+  color: var(--warning, #f59e0b);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* The demo notice: a pill at the top centre, over the screen rather than in
+   its flow, and out of the focus path (it is not a control). */
+.demo-banner {
+  position: fixed;
+  top: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9998;
+  pointer-events: none;
+  padding: 0.6rem 2rem;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.18);
+  border: 0.1rem solid var(--warning, #f59e0b);
+  color: var(--text);
+  font-size: 1.6rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .toast-stack {
   position: fixed;
   top: 6rem;
@@ -1698,7 +1726,10 @@ body.music-on .deep-screen {
 .detail-page {
   height: 100%;
   overflow-y: auto;
-  padding-bottom: 4.8rem;
+  /* The home shortcut's inset, like every other deep screen (.deep-screen >
+     .screen, HOME_SHORTCUT_INSET on Android): 4.8rem left the last row of a
+     title page under the floating button. */
+  padding-bottom: 8.8rem;
   box-sizing: border-box;
 }
 .detail-hero {
@@ -1712,20 +1743,17 @@ body.music-on .deep-screen {
   height: 100%;
   object-fit: cover;
 }
+/* A real gradient: the four flat bands ported from the Android app (which has
+   no gradient module) drew hard stripes across the artwork. Chromium 79, the
+   oldest webOS engine, masks with -webkit-mask-image: the page colour shows
+   through a gradient mask whose stops follow the old bands' opacities. */
 .detail-fade {
   position: absolute;
   inset: 0;
-  display: flex;
-  flex-direction: column;
-}
-.detail-fade i {
-  flex: 1;
   background: var(--bg);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.35) 37%, rgba(0, 0, 0, 0.7) 62%, rgba(0, 0, 0, 0.95) 88%, #000 100%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.35) 37%, rgba(0, 0, 0, 0.7) 62%, rgba(0, 0, 0, 0.95) 88%, #000 100%);
 }
-.detail-fade i:nth-child(1) { opacity: 0.1; }
-.detail-fade i:nth-child(2) { opacity: 0.35; }
-.detail-fade i:nth-child(3) { opacity: 0.7; }
-.detail-fade i:nth-child(4) { opacity: 0.95; }
 .detail-head {
   position: relative;
   display: flex;

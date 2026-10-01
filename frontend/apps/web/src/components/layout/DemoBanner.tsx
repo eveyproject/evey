@@ -13,7 +13,9 @@ export function DemoBanner() {
   if (!demo) return null;
   return (
     <div
-      className="flex items-center justify-center gap-2 px-4 py-2 text-sm bg-[var(--toast-warning-bg)] border-b border-[var(--toast-warning-border)] text-[var(--text)]"
+      // relative + z-badge: a media page's hero is pulled up under the top
+      // padding, and its backdrop and Back scrim (z-raised) painted over this.
+      className="relative z-badge flex items-center justify-center gap-2 px-4 py-2 text-sm bg-[var(--toast-warning-bg)] border-b border-[var(--toast-warning-border)] text-[var(--text)]"
       role="status"
       data-testid="demo-banner"
     >

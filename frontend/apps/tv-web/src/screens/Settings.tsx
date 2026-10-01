@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAdminSystemServiceGetSystemInfo, useUserServiceGetCurrentUser, useUserServiceUpdateProfile } from "@evey/api";
-import { useAuthStore, useThemeStore, themePreferences } from "@evey/store";
+import { useAuthStore, useThemeStore, themePreferences, isDemoMode } from "@evey/store";
 import { themes } from "@evey/theme";
 import { UI_SCALE_OPTIONS, clearUnlocked, pluginThemeKey, resolveSlotEntries, useActiveProfile, usePluginList, usePluginThemes } from "@evey/client";
 import { applyUiScale, storedUiScale } from "../lib/uiScale";
@@ -71,7 +71,8 @@ export function SettingsScreen() {
   // themePreferences): sending the theme alone would wipe the languages.
   const pickTheme = useCallback((value: string, pluginId?: string) => {
     setTheme(value, pluginId);
-    if (!profile?.id) return;
+    // Demo: the profile is shared, the theme stays on this television.
+    if (!profile?.id || isDemoMode()) return;
     updateProfile.mutate({ id: profile.id, data: { preferences: themePreferences(profile.preferences, value, pluginId) } });
   }, [setTheme, updateProfile, profile]);
 
@@ -80,7 +81,7 @@ export function SettingsScreen() {
     saveLocale(code);
     setLang(code);
     void i18n.changeLanguage(code);
-    if (!profile?.id) return;
+    if (!profile?.id || isDemoMode()) return;
     try {
       await updateProfile.mutateAsync({ id: profile.id, data: { locale: code } });
       await authRefresh.forceRefresh();

@@ -11,7 +11,7 @@ import {
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { ScreenState } from "../../../src/components/ScreenState";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, isDemoMode, toast } from "@evey/store";
 
 import {
   AUDIO_CHANNELS_OPTIONS,
@@ -110,12 +110,18 @@ export default function PlaybackSettingsScreen() {
   const savePref = useCallback(
     (patch: PrefMap) => {
       if (!editedProfile?.id) return Promise.reject(new Error("no default profile"));
+      // Demo: these live on the shared profile and only there (the player
+      // reads them from it). Shown, not changed - said on the press.
+      if (isDemoMode()) {
+        toast.info(t("common.demo.locked"));
+        return Promise.reject(new Error("demo"));
+      }
       return updateProfile.mutateAsync({
         id: editedProfile.id,
         data: { preferences: { ...editedProfile.preferences, ...patch } },
       });
     },
-    [editedProfile, updateProfile],
+    [editedProfile, updateProfile, t],
   );
 
   async function handleBitrate(v: string) {

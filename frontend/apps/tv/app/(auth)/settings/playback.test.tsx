@@ -36,6 +36,8 @@ const authProfileId = vi.hoisted(() => ({ current: null as string | null }));
 vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: Record<string, unknown>) => unknown) =>
     selector({ profileId: authProfileId.current }),
+  isDemoMode: () => false,
+  toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
 
 // --- @tanstack/react-query mock --------------------------------------------------

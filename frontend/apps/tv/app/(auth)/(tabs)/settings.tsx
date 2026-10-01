@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo } from "@evey/api";
-import { useAuthStore, useThemeStore, useLocaleStore, themePreferences } from "@evey/store";
+import { useAuthStore, useThemeStore, useLocaleStore, themePreferences, isDemoMode } from "@evey/store";
 import { themes as builtInThemes } from "@evey/theme";
 import { pluginThemeKey } from "@evey/client";
 import { usePluginThemes } from "../../../src/hooks/usePluginThemes";
@@ -90,7 +90,8 @@ export default function SettingsScreen() {
   const handleThemeChange = useCallback(
     (value: string, pluginId?: string) => {
       setTheme(value, pluginId);
-      if (!activeProfile?.id) return;
+      // Demo: the profile is shared, the theme stays on this television.
+      if (!activeProfile?.id || isDemoMode()) return;
       updateProfile.mutate({
         id: activeProfile.id,
         data: { preferences: themePreferences(activeProfile.preferences, value, pluginId) },
@@ -113,7 +114,7 @@ export default function SettingsScreen() {
     // which profile is in use (see above) and then wrote the language onto
     // somebody else's - switch to a second profile, change the language, and
     // the default profile silently changed instead.
-    if (activeProfile?.id) {
+    if (activeProfile?.id && !isDemoMode()) {
       try {
         await updateProfile.mutateAsync({ id: activeProfile.id, data: { locale: code } });
         // Through the path that writes the rotated refresh token back: a bare
@@ -346,6 +347,9 @@ export default function SettingsScreen() {
       {/* Home layout: the same panel the home screen opens, reachable from
           where a viewer looks for settings (2026-09-19 - the owner believed
           the TV could not reorganise its home at all). */}
+      {/* The home layout is the shared profile's on the demo: not offered. */}
+      {isDemoMode() ? null : (
+        <>
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("common.nav.home")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         <Pressable
@@ -360,6 +364,8 @@ export default function SettingsScreen() {
           <Text style={[styles.label, { color: theme.colors.text }]}>{t("common.feeds.customize")}</Text>
         </Pressable>
       </View>
+        </>
+      )}
 
       {/* Language */}
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("common.language")}</Text>

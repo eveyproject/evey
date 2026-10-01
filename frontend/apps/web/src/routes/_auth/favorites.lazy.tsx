@@ -71,7 +71,7 @@ function BulkPlaylistModal({
               {...lock}
               key={pl.id}
               onClick={() => void handleAdd(pl.id, pl.name)}
-              disabled={addTo.isPending}
+              disabled={!!lock.disabled || (addTo.isPending)}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast hover:bg-[var(--surface-raised)]"
             >
               <span className="text-sm font-medium truncate text-[var(--text)]">{pl.name}</span>

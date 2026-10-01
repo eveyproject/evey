@@ -135,6 +135,7 @@ vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: any) => unknown) =>
     selector({ profileId: "profile-1", isAdmin: false, accessToken: "tok" }),
   toast: toastMock,
+  useDemoStore: (selector: (s: any) => unknown) => selector({ demoMode: false }),
 }));
 
 // --- @evey/api -------------------------------------------------------------------------

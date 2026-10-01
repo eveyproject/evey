@@ -259,6 +259,7 @@ clientChoice:
 
 demo:
   banner: "Demo-Server: Änderungen werden regelmäßig zurückgesetzt, die Verwaltung ist schreibgeschützt."
+  tag: "Demo"
   credentials: "Anmeldung mit demo / demo"
   locked: "In der Demo gesperrt"
   readOnly: "Schreibgeschützt in der Demo: die Einstellungen werden angezeigt, nicht bearbeitet."

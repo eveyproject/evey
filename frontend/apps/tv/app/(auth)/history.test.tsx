@@ -31,7 +31,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   getPlaybackServiceGetWatchHistoryQueryKey: () => ["/api/v1/playback/history"],
 }));
 const toast = vi.hoisted(() => ({ error: vi.fn() }));
-vi.mock("@evey/store", () => ({ toast }));
+vi.mock("@evey/store", () => ({ toast, useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }) }));
 vi.mock("../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { bg: "#000", surface: "#111", text: "#fff", textMuted: "#888", accent: "#f00", border: "#333", danger: "#f33" }, radii: { md: 8 } }),
 }));

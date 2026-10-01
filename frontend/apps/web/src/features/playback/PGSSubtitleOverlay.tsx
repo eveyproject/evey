@@ -74,11 +74,14 @@ export function PGSSubtitleOverlay({ mediaId, trackIndex, streamToken, videoRef,
   const hintRef = useRef(0);
 
   useEffect(() => {
-    if (trackIndex === null || !mediaId || !streamToken) {
-      setTrack(null);
-      setUrls([]);
-      return;
-    }
+    // The previous track's cue index means nothing in the next one (a forced
+    // track has a few dozen cues where the full one had a thousand), and its
+    // images must not stay drawn while the next loads or if it fails.
+    setTrack(null);
+    setUrls([]);
+    setActive(-1);
+    hintRef.current = 0;
+    if (trackIndex === null || !mediaId || !streamToken) return;
     const key = `${mediaId}:${trackIndex}`;
     const cached = touchCached(key);
     if (cached) {
@@ -137,6 +140,7 @@ export function PGSSubtitleOverlay({ mediaId, trackIndex, streamToken, videoRef,
 
   if (!track || active < 0 || track.screenW <= 0 || track.screenH <= 0) return null;
   const cue = track.cues[active];
+  if (!cue) return null;
 
   // Percentages, not pixels: the player box is resized by fullscreen, rotation
   // and window drags, and a percentage follows all three without a listener.

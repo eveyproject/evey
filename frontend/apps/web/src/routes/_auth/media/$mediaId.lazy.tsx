@@ -54,5 +54,7 @@ function MediaPage() {
     );
   }
 
-  return <MediaDetail item={item} initialEdit={edit} />;
+  // Keyed: going from one title to another (Similar, Back) must not carry the
+  // first one's local state - watched override, picked tracks, an open edit form.
+  return <MediaDetail key={item.id} item={item} initialEdit={edit} />;
 }

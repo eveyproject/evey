@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Switch } from "@/components/ui/Switch";
 import { useDemoLock } from "@/hooks/useDemoMode";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 export const Route = createLazyFileRoute("/_auth/admin/remote-access")({
   component: RemoteAccessPage,
@@ -28,11 +29,13 @@ const CONFIG_KEY = getRemoteAccessServiceGetRemoteAccessQueryKey();
 
 function RemoteAccessPage() {
   const { t } = useTranslation();
-  const { lock } = useDemoLock();
+  const { lock, demo } = useDemoLock();
   // `published`/`lockoutRisk` are part of the proto contract now, so no local
   // type extension and no cast: the generated client carries them.
   const { data, isLoading } = useRemoteAccessServiceGetRemoteAccess();
-  const { data: netInfo } = useRemoteAccessServiceGetNetworkInfo();
+  // The host's interfaces are not shown on the demo (the server refuses it):
+  // not asked for there, rather than asked and refused on every visit.
+  const { data: netInfo } = useRemoteAccessServiceGetNetworkInfo({ query: { enabled: !demo } } as never);
   const queryClient = useQueryClient();
 
   const [enabled, setEnabled] = useState(false);
@@ -136,6 +139,8 @@ function RemoteAccessPage() {
       ) : (
         <div className="flex flex-col gap-6">
           <Card>
+            {/* Every field feeds the save the demo refuses: disabled with it. */}
+            <DemoReadOnly silent>
             <div className="flex flex-col gap-4 p-2">
               <div className="flex items-center gap-3">
                 <label className="text-sm font-medium text-[var(--text)]">
@@ -219,6 +224,7 @@ function RemoteAccessPage() {
                 </Button>
               </div>
             </div>
+            </DemoReadOnly>
           </Card>
 
           {netInfo?.interfaces && netInfo.interfaces.length > 0 && (

@@ -43,17 +43,17 @@ export function BulkActionBar({
       </span>
       <span className="text-sm mr-1 text-[var(--text-muted)]">{t("media.library.selected", "selected")}</span>
 
-      <Button {...lock} variant="secondary" onClick={onMarkWatched} loading={markWatchedPending} disabled={count === 0}>
+      <Button {...lock} variant="secondary" onClick={onMarkWatched} loading={markWatchedPending} disabled={!!lock.disabled || (count === 0)}>
         {t("media.library.markWatched", "Mark watched")}
       </Button>
-      <Button {...lock} variant="secondary" onClick={onMarkUnwatched} loading={markUnwatchedPending} disabled={count === 0}>
+      <Button {...lock} variant="secondary" onClick={onMarkUnwatched} loading={markUnwatchedPending} disabled={!!lock.disabled || (count === 0)}>
         {t("media.library.markUnwatched", "Mark unwatched")}
       </Button>
-      <Button {...lock} variant="secondary" onClick={onAddToPlaylist} disabled={count === 0}>
+      <Button {...lock} variant="secondary" onClick={onAddToPlaylist} disabled={!!lock.disabled || (count === 0)}>
         {t("media.library.addToPlaylist", "Add to playlist")}
       </Button>
       {isAdmin && (
-        <Button {...lock} variant="secondary" onClick={onAddToCollection} disabled={count === 0} data-testid="bulk-add-to-collection">
+        <Button {...lock} variant="secondary" onClick={onAddToCollection} disabled={!!lock.disabled || (count === 0)} data-testid="bulk-add-to-collection">
           {t("media.library.addToCollection", "Add to collection")}
         </Button>
       )}

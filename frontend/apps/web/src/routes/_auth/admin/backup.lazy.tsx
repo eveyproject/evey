@@ -31,6 +31,7 @@ import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 import { useDemoLock } from "@/hooks/useDemoMode";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 export const Route = createLazyFileRoute("/_auth/admin/backup")({
   component: BackupPage,
@@ -123,6 +124,7 @@ function ScheduleSection() {
 
   return (
     <Card>
+      <DemoReadOnly silent>
       <div className="flex flex-col gap-4">
         <div>
           <h2 className="text-base font-semibold text-[var(--text)]">{t("admin.backup.schedule.title")}</h2>
@@ -191,6 +193,7 @@ function ScheduleSection() {
           </>
         )}
       </div>
+      </DemoReadOnly>
     </Card>
   );
 }

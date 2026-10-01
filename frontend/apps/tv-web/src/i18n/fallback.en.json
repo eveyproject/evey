@@ -1901,6 +1901,7 @@
   "common.demo.credentials": "Sign in with demo / demo",
   "common.demo.locked": "Locked on the demo",
   "common.demo.readOnly": "Read-only on the demo: the settings are shown, not editable.",
+  "common.demo.tag": "Demo",
   "common.description": "Description",
   "common.deselectAll": "Deselect all",
   "common.disable": "Disable",

@@ -34,14 +34,39 @@ export function isHdrStream(stream?: V1MediaStream): boolean {
   return hdrLabel(stream) !== null;
 }
 
-export function resolutionLabel(stream?: V1MediaStream): string | null {
+// The standard tier a frame belongs to (2160, 1440, 1080, 720), or 0 below
+// 720p. The width counts as much as the height: a scope film cropped to
+// 1920x818 is a 1080p file, and a label read off its height said "818p" on
+// one screen and "720p" on another. Slack on the width absorbs encodes that
+// shave a few columns (1916x798).
+export function resolutionTier(width?: number, height?: number): number {
+  const w = width ?? 0;
+  const h = height ?? 0;
+  const byHeight = h >= 2160 ? 2160 : h >= 1440 ? 1440 : h >= 1080 ? 1080 : h >= 720 ? 720 : 0;
+  const byWidth = w >= 3800 ? 2160 : w >= 2500 ? 1440 : w >= 1880 ? 1080 : w >= 1240 ? 720 : 0;
+  return Math.max(byHeight, byWidth);
+}
+
+// The ONE resolution label every surface prints: "4K", "1440p", "1080p",
+// "720p", and below that the height ("576p").
+export function resolutionLabel(stream?: Pick<V1MediaStream, "width" | "height">): string | null {
   const h = stream?.height ?? 0;
   if (h <= 0) return null;
-  if (h >= 2160) return "4K";
-  if (h >= 1440) return "1440p";
-  if (h >= 1080) return "1080p";
-  if (h >= 720) return "720p";
+  const tier = resolutionTier(stream?.width, h);
+  if (tier === 2160) return "4K";
+  if (tier > 0) return `${tier}p`;
   return `${h}p`;
+}
+
+// The same tiers as filter bands, with everything under 720p as "SD".
+export const RESOLUTION_BANDS = ["4K", "1440p", "1080p", "720p", "SD"] as const;
+export type ResolutionBand = (typeof RESOLUTION_BANDS)[number];
+
+export function resolutionBand(width?: number, height?: number): ResolutionBand {
+  const tier = resolutionTier(width, height);
+  if (tier === 2160) return "4K";
+  if (tier > 0) return `${tier}p` as ResolutionBand;
+  return "SD";
 }
 
 // Null rather than "" so callers skip the chip entirely; the shared formatter

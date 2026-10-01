@@ -163,7 +163,9 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
 
       <div className="flex flex-wrap gap-2 items-end">
         <div className="flex-1">
+          {/* Locked on the demo: every search spends the operator's TMDB key. */}
           <Input
+            {...lock}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -176,7 +178,7 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
             aria-label={t("requests.searchPlaceholder")}
           />
         </div>
-        <Button type="button" loading={isFetching} disabled={!query.trim()} onClick={handleSearch}>
+        <Button type="button" loading={isFetching} disabled={!!lock.disabled || !query.trim()} title={lock.title} onClick={handleSearch}>
           {t("requests.tabSearch")}
         </Button>
       </div>
@@ -243,7 +245,7 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
                       {...lock}
                       type="button"
                       variant={alreadyRequested ? "secondary" : "primary"}
-                      disabled={alreadyRequested || createRequest.isPending}
+                      disabled={!!lock.disabled || (alreadyRequested || createRequest.isPending)}
                       onClick={() => handleRequest(r)}
                       className="w-full"
                     >

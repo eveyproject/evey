@@ -22,7 +22,7 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key) }),
 }));
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
-vi.mock("@evey/store", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("@evey/store", () => ({ useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }), isDemoMode: () => false, toast: { error: vi.fn(), success: vi.fn() } }));
 
 vi.mock("../providers/ThemeProvider", () => ({
   useTheme: () => ({

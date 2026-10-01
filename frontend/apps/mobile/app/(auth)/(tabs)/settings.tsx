@@ -10,7 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, useUserServiceLogout, eveyFetchRaw, apiErrorMessage } from "@evey/api";
 import { clearRefreshToken } from "../../../src/lib/refresh-token";
 import { forceRefresh } from "../../../src/lib/auth-refresh";
-import { useAuthStore, useLocaleStore, useServerListStore, toast } from "@evey/store";
+import { useAuthStore, useLocaleStore, useServerListStore, toast, isDemoMode } from "@evey/store";
 import { useBiometricAvailable, useBiometricEnabled } from "../../../src/hooks/useBiometric";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
@@ -195,8 +195,9 @@ export default function SettingsScreen() {
     // 1. Update UI
     setLocale(code);
     void i18n.changeLanguage(code);
-    // 2. Update profile on server
-    if (activeProfile?.id) {
+    // 2. Update profile on server (not on the demo: the profile is shared, the
+    // language stays on this phone)
+    if (activeProfile?.id && !isDemoMode()) {
       try {
         await updateProfile.mutateAsync({ id: activeProfile.id, data: { locale: code } });
         // 3. Refresh JWT to get the new locale claim - through the one path that

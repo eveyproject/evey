@@ -48,7 +48,7 @@ vi.mock("../../../src/features/plugins/PluginSlot", () => ({ PluginSlot: () => n
 vi.mock("../../../src/components/Skeleton", () => ({ Skeleton: () => null, SkeletonRow: () => null }));
 vi.mock("../../../src/components/MediaRow", () => ({ MediaRow: () => null, default: () => null }));
 vi.mock("../../../src/components/CollectionRow", () => ({ CollectionRow: () => null, default: () => null }));
-vi.mock("@evey/store", () => ({
+vi.mock("@evey/store", () => ({ useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }), isDemoMode: () => false,
   useAuthStore: Object.assign((sel: any) => sel({ accessToken: "t", profileId: "p1", user: { id: "u1" } }), {
     getState: () => ({ accessToken: "t", profileId: "p1", user: { id: "u1" } }),
   }),

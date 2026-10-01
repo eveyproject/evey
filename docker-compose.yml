@@ -58,6 +58,11 @@ services:
       - SETGID
       - FOWNER
       - DAC_OVERRIDE
+      # Plugins run under their own uid (1001): without KILL the server could
+      # not signal them, and every boot's sweep of a previous instance's
+      # orphans failed with EPERM - fifteen leaked node runtimes (~1 GB) on a
+      # dev box, one more per restart (audit 2026-10-01). Container-scoped.
+      - KILL
     # A fork/thread ceiling (ffmpeg + postgres + meili + plugins) - well above
     # legitimate need, bounds a runaway/fork-bomb. Raise nofile for meili/pg and
     # the many concurrent HLS segment handles.

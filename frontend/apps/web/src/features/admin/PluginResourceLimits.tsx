@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { useDemoLock } from "@/hooks/useDemoMode";
+import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 const SANDBOX_MODES = ["auto", "landlock", "bubblewrap", "strict", "basic"];
 
@@ -60,6 +61,9 @@ export function PluginResourceLimits() {
 
   return (
     <Card data-testid="plugin-resource-limits">
+      {/* Every field here feeds a save the demo refuses: disabled with it,
+          not just the button (typing a value nobody can save misleads). */}
+      <DemoReadOnly silent>
       <div className="flex flex-col gap-4 p-4">
         <div className="flex flex-col gap-1">
           <span className="font-semibold text-[var(--text)]">
@@ -126,6 +130,7 @@ export function PluginResourceLimits() {
           </>
         )}
       </div>
+      </DemoReadOnly>
     </Card>
   );
 }

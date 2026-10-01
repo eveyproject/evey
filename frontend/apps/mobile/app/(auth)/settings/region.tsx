@@ -8,7 +8,7 @@ import {
   useUserServiceUpdateProfile,
   getUserServiceListProfilesQueryKey,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, isDemoMode } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { regionOptions } from "../../../src/lib/regionOptions";
 import { useActiveProfile } from "../../../src/hooks/useActiveProfile";
@@ -41,6 +41,11 @@ export default function RegionScreen() {
 
   async function pick(code: string) {
     if (!editedProfile?.id) return;
+    // Demo: the region lives on the shared profile only. Shown, not changed.
+    if (isDemoMode()) {
+      toast.info(t("common.demo.locked"));
+      return;
+    }
     try {
       await updateProfile.mutateAsync({ id: editedProfile.id, data: { region: code } });
       if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });

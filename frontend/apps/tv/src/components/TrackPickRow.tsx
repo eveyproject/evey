@@ -16,7 +16,7 @@ type Choice = { key: string; label: string; selected: boolean; onPress: () => vo
 // action row. "Auto" is the player's own resolution, so an untouched page
 // plays exactly what it always did. Mirrors the mobile TrackPickChips.
 export function TrackPickRow({ streams, pick, onChange }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const theme = useTheme();
   const [focused, setFocused] = useState<string | null>(null);
   const audio = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO" && s.index !== undefined);
@@ -27,7 +27,7 @@ export function TrackPickRow({ streams, pick, onChange }: Props) {
     { key: "auto", label: t("media.streams.auto"), selected: pick.audio === undefined, onPress: () => onChange({ ...pick, audio: undefined }) },
     ...audio.map((s) => ({
       key: String(s.index),
-      label: formatAudioTrackLabel(s, t("media.track", { number: s.index })),
+      label: formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language),
       selected: pick.audio === s.index,
       onPress: () => onChange({ ...pick, audio: s.index }),
     })),
@@ -37,7 +37,7 @@ export function TrackPickRow({ streams, pick, onChange }: Props) {
     { key: "off", label: t("media.streams.none"), selected: pick.subtitle === "off", onPress: () => onChange({ ...pick, subtitle: "off" }) },
     ...subtitles.map((s) => ({
       key: String(s.index),
-      label: `${trackDisplayName(s, t("media.track", { number: s.index }))}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`,
+      label: `${trackDisplayName(s, t("media.track", { number: s.index }), i18n.language)}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`,
       selected: pick.subtitle === s.index,
       onPress: () => onChange({ ...pick, subtitle: s.index }),
     })),

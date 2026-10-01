@@ -40,6 +40,13 @@ type ListMediaItemsFilter struct {
 	// full-table iteration (Meili reindex) - O(log N) per page vs O(n²)
 	// cumulative with offset.
 	AfterID string
+	// KeysetByID orders by id from the FIRST page on. A full walk starts with
+	// AfterID empty, and without this its first page came back in title order
+	// while the following pages went on by id: every item with an id below
+	// page one's last id and a title past page one was never visited - 34 of
+	// 639 lost from the search rebuild, which then re-ran forever (audit
+	// 2026-10-01).
+	KeysetByID bool
 	// Cursor enables sort-aware keyset pagination: WHERE (sort_value, id) >
 	// (cursor.value, cursor.id) on the SortField. Mutually exclusive with
 	// Offset (cursor wins). The cursor's SortField must match the request's

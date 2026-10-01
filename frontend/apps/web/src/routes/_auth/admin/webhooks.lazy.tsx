@@ -90,7 +90,7 @@ function WebhookRow({
     <tr className="border-b border-[var(--border)]">
       <td className="px-4 py-3 max-w-xs" data-label={t("admin.webhooks.tableHeaders.nameUrl")}>
         <div className="font-medium text-sm truncate text-[var(--text)]">
-          {webhook.name || "\u2014"}
+          {webhook.name || "-"}
         </div>
         <div className="text-xs truncate mt-0.5 text-[var(--text-muted)]">
           {webhook.url}
@@ -125,7 +125,7 @@ function WebhookRow({
         </button>
       </td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--text-muted)]" data-label={t("admin.webhooks.tableHeaders.created")}>
-        {webhook.createdAt ? new Date(webhook.createdAt).toLocaleString() : "\u2014"}
+        {webhook.createdAt ? new Date(webhook.createdAt).toLocaleString() : "-"}
       </td>
       <td className="px-4 py-3" data-label={t("admin.webhooks.tableHeaders.actions")}>
         <div className="flex gap-2 flex-wrap">
