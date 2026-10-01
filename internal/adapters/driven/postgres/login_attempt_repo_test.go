@@ -244,3 +244,28 @@ func TestLoginAttemptRepo_PurgeStale_KeepsOutstandingLocks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, n)
 }
+
+// An expired lock must not disarm the counter: a key that never logs in
+// successfully (an attacker's IP, the per-user cap) is never Reset, so it has
+// to lock again once its old lock has run out.
+func TestLoginAttemptRepo_RelocksAfterExpiredLock(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLoginAttemptRepository(db)
+	ctx := context.Background()
+	for range testMaxFails {
+		require.NoError(t, repo.Record(ctx, "ivan", testMaxFails, testWindow))
+	}
+	_, err := db.ExecContext(ctx,
+		`UPDATE login_attempts SET locked_until = NOW() - interval '1 minute', updated_at = NOW() - interval '1 hour' WHERE username = $1`,
+		"ivan")
+	require.NoError(t, err)
+
+	for range testMaxFails {
+		require.NoError(t, repo.Record(ctx, "ivan", testMaxFails, testWindow))
+	}
+	locked, err := repo.IsLocked(ctx, "ivan")
+	require.NoError(t, err)
+	assert.True(t, locked, "a fresh run of maxFails failures after an expired lock must lock again")
+}

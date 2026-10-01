@@ -18,8 +18,11 @@ import (
 //   - login_attempt_limiter.go the default in-memory rate limiter
 
 const (
-	loginMaxAttempts   = 5
+	loginMaxAttempts   = 5 // per (client IP, user)
 	loginAttemptWindow = 15 * time.Minute
+	// loginUserMaxAttempts caps one account across all IPs: high enough that a
+	// stranger needs many addresses to lock it, low enough to stop spraying.
+	loginUserMaxAttempts = 50
 
 	// defaultMinPasswordLength is enforced by both Setup and ResetPassword,
 	// unless WithMinPasswordLength lowers it at composition (the demo).
@@ -28,26 +31,27 @@ const (
 
 // CommandService handles auth, setup and token management.
 type CommandService struct {
-	users           user.UserRepository
-	profiles        user.ProfileRepository
-	refreshTkns     user.RefreshTokenRepository
-	resetTokens     user.PasswordResetTokenRepository
-	roles           user.RoleRepository
-	userRoles       user.UserRoleRepository
-	hasher          user.PasswordHasher
-	tokens          user.TokenGenerator
-	events          shared.EventBus
-	quickConnect    user.QuickConnectRepository
-	serverCfg       shared.ServerConfigRepository
-	smtpConfigured  func() bool // read per request: SMTP is live-editable
-	refreshTokenTTL time.Duration
-	loginAttempts   user.LoginAttemptRepository
-	loginMaxFails   int
-	loginWindow     time.Duration
-	setupMu         sync.Mutex
-	setupDone       bool
-	uow             shared.TransactionalUnit
-	tokenRevoker    TokenRevoker // optional: bumps token_epoch on security events
+	users             user.UserRepository
+	profiles          user.ProfileRepository
+	refreshTkns       user.RefreshTokenRepository
+	resetTokens       user.PasswordResetTokenRepository
+	roles             user.RoleRepository
+	userRoles         user.UserRoleRepository
+	hasher            user.PasswordHasher
+	tokens            user.TokenGenerator
+	events            shared.EventBus
+	quickConnect      user.QuickConnectRepository
+	serverCfg         shared.ServerConfigRepository
+	smtpConfigured    func() bool // read per request: SMTP is live-editable
+	refreshTokenTTL   time.Duration
+	loginAttempts     user.LoginAttemptRepository
+	loginMaxFails     int
+	loginUserMaxFails int
+	loginWindow       time.Duration
+	setupMu           sync.Mutex
+	setupDone         bool
+	uow               shared.TransactionalUnit
+	tokenRevoker      TokenRevoker // optional: bumps token_epoch on security events
 	// minPasswordLength is the floor Setup and ResetPassword enforce.
 	minPasswordLength int
 }
@@ -66,19 +70,20 @@ func NewCommandService(
 	opts ...CommandServiceOption,
 ) *CommandService {
 	s := &CommandService{
-		users:           users,
-		profiles:        profiles,
-		refreshTkns:     refreshTkns,
-		roles:           roles,
-		userRoles:       userRoles,
-		hasher:          hasher,
-		tokens:          tokens,
-		events:          events,
-		refreshTokenTTL: refreshTokenTTL,
-		quickConnect:    quickConnect,
-		loginAttempts:   newLoginAttemptLimiter(loginMaxAttempts, loginAttemptWindow),
-		loginMaxFails:   loginMaxAttempts,
-		loginWindow:     loginAttemptWindow,
+		users:             users,
+		profiles:          profiles,
+		refreshTkns:       refreshTkns,
+		roles:             roles,
+		userRoles:         userRoles,
+		hasher:            hasher,
+		tokens:            tokens,
+		events:            events,
+		refreshTokenTTL:   refreshTokenTTL,
+		quickConnect:      quickConnect,
+		loginAttempts:     newLoginAttemptLimiter(loginMaxAttempts, loginAttemptWindow),
+		loginMaxFails:     loginMaxAttempts,
+		loginUserMaxFails: loginUserMaxAttempts,
+		loginWindow:       loginAttemptWindow,
 
 		minPasswordLength: defaultMinPasswordLength,
 	}

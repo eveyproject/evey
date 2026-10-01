@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
@@ -53,7 +54,8 @@ func enrichClientInfo(ctx context.Context) context.Context {
 	resolved := resolveClientIPReasoned(ctx, md)
 	ctx = context.WithValue(ctx, clientIPKey{}, resolved.IP)
 	ctx = context.WithValue(ctx, clientIPResolutionKey{}, resolved)
-	return ctx
+	// Login scopes its hard lockout by this IP (app layer cannot read our keys).
+	return appuser.WithLoginClientIP(ctx, resolved.IP)
 }
 
 // lastMD returns, for the first key present, its LAST non-empty value: the

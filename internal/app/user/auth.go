@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"slices"
 	"strings"
 	"time"
@@ -44,6 +45,34 @@ func loginAttemptKey(username string) string {
 	return strings.ToLower(strings.TrimSpace(username))
 }
 
+type loginClientIPKey struct{}
+
+// WithLoginClientIP carries the resolved client IP to Login, where it scopes
+// the hard lockout. Set by the gRPC client-info interceptor.
+func WithLoginClientIP(ctx context.Context, ip string) context.Context {
+	return context.WithValue(ctx, loginClientIPKey{}, ip)
+}
+
+// LoginClientIP returns what WithLoginClientIP stored ("" when nothing).
+func LoginClientIP(ctx context.Context) string {
+	ip, _ := ctx.Value(loginClientIPKey{}).(string)
+	return ip
+}
+
+// loginAttemptKeys returns the (IP, user) key the hard lock counts on and the
+// user-only key of the higher distributed-guessing cap. A missing or unparsable
+// IP falls into one shared "unknown" bucket, never a fresh one.
+func loginAttemptKeys(ctx context.Context, username string) (pairKey, userKey string) {
+	ip := LoginClientIP(ctx)
+	if parsed := net.ParseIP(strings.TrimSpace(ip)); parsed != nil {
+		ip = parsed.String()
+	} else {
+		ip = "unknown"
+	}
+	userKey = "user:" + loginAttemptKey(username)
+	return "ip:" + ip + "|" + userKey, userKey
+}
+
 // publishLoginFailed announces a refused login (webhook user.login.failed).
 func (s *CommandService) publishLoginFailed(ctx context.Context, username, reason string) {
 	evt := user.LoginFailed{Username: username, Reason: reason, AuthMethod: "local", OccurredAt: time.Now()}
@@ -52,19 +81,37 @@ func (s *CommandService) publishLoginFailed(ctx context.Context, username, reaso
 	}
 }
 
+func (s *CommandService) loginLocked(ctx context.Context, username string, keys ...string) bool {
+	for _, k := range keys {
+		locked, err := s.loginAttempts.IsLocked(ctx, k)
+		if err != nil {
+			slog.WarnContext(ctx, "login attempt IsLocked", slog.String("username", username), slog.Any("err", err))
+		}
+		if locked {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *CommandService) recordLoginFailure(ctx context.Context, username, pairKey, userKey string) {
+	if err := s.loginAttempts.Record(ctx, pairKey, s.loginMaxFails, s.loginWindow); err != nil {
+		slog.WarnContext(ctx, "login attempt Record", slog.String("username", username), slog.Any("err", err))
+	}
+	if err := s.loginAttempts.Record(ctx, userKey, s.loginUserMaxFails, s.loginWindow); err != nil {
+		slog.WarnContext(ctx, "login attempt Record", slog.String("username", username), slog.Any("err", err))
+	}
+}
+
 func (s *CommandService) Login(ctx context.Context, username, password string, ttlOverride ...time.Duration) (accessToken, refreshToken string, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.Login")
 	defer span.End()
 	username = strings.TrimSpace(username)
 	password = normalizePassword(password)
-	// The lockout counts on the same key the lookup matches on: "Alice" and
-	// "alice" are one account, so they are one attempt counter.
-	attemptKey := loginAttemptKey(username)
-	locked, lockErr := s.loginAttempts.IsLocked(ctx, attemptKey)
-	if lockErr != nil {
-		slog.WarnContext(ctx, "login attempt IsLocked", slog.String("username", username), slog.Any("err", lockErr))
-	}
-	if locked {
+	// Hard lock per (client IP, user): a stranger's failures must not lock the
+	// owner out. The user-wide cap, far higher, still stops distributed guessing.
+	pairKey, userKey := loginAttemptKeys(ctx, username)
+	if s.loginLocked(ctx, username, pairKey, userKey) {
 		s.publishLoginFailed(ctx, username, "locked")
 		return "", "", ErrAccountLocked
 	}
@@ -76,9 +123,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		// runs ONLY for existing users, so the ~100ms (cost-12) delta leaks which
 		// usernames exist. Burn an equivalent bcrypt verify against a fixed hash.
 		_, _ = s.hasher.Verify(password, dummyLoginHash) //nolint:errcheck // constant-time burn; result intentionally discarded
-		if recErr := s.loginAttempts.Record(ctx, attemptKey, s.loginMaxFails, s.loginWindow); recErr != nil {
-			slog.WarnContext(ctx, "login attempt Record", slog.String("username", username), slog.Any("err", recErr))
-		}
+		s.recordLoginFailure(ctx, username, pairKey, userKey)
 		// Per-attempt log (username only, never the password) so a
 		// credential-stuffing run is searchable, not just inferable from the
 		// rate-limit store's aggregate.
@@ -97,14 +142,14 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		return "", "", ErrUserDisabled
 	}
 	if err != nil || !ok {
-		if recErr := s.loginAttempts.Record(ctx, attemptKey, s.loginMaxFails, s.loginWindow); recErr != nil {
-			slog.WarnContext(ctx, "login attempt Record", slog.String("username", username), slog.Any("err", recErr))
-		}
+		s.recordLoginFailure(ctx, username, pairKey, userKey)
 		slog.WarnContext(ctx, "login failed", slog.String("username", username), slog.String("reason", "bad_password"))
 		s.publishLoginFailed(ctx, username, "bad_password")
 		return "", "", ErrInvalidCredentials
 	}
-	if resetErr := s.loginAttempts.Reset(ctx, attemptKey); resetErr != nil {
+	// Only this address's counter: the user-wide one decays with its window, so a
+	// success does not hand a distributed run a fresh budget.
+	if resetErr := s.loginAttempts.Reset(ctx, pairKey); resetErr != nil {
 		slog.WarnContext(ctx, "login attempt Reset", slog.String("username", username), slog.Any("err", resetErr))
 	}
 

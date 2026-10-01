@@ -73,7 +73,8 @@ func (r *LoginAttemptRepository) Record(ctx context.Context, username string, ma
 	//
 	// INSERT path (first attempt): locked_until set immediately when maxFails<=1.
 	// UPDATE path (conflict): locked_until is set when the new count reaches
-	// maxFails AND locked_until IS NULL; an existing lock is never overwritten.
+	// maxFails and no lock is ACTIVE: an active lock is never moved, an expired
+	// one is replaced (a never-Reset key must be able to lock again).
 	_, err := db.ExecContext(ctx, `
 INSERT INTO login_attempts (username, attempt_count, locked_until, updated_at)
 VALUES (
@@ -95,7 +96,7 @@ ON CONFLICT (username) DO UPDATE
                     THEN 1
                     ELSE login_attempts.attempt_count + 1
                 END
-            ) >= $3 AND login_attempts.locked_until IS NULL
+            ) >= $3 AND (login_attempts.locked_until IS NULL OR login_attempts.locked_until <= NOW())
             THEN NOW() + ($2 * interval '1 second')
             ELSE login_attempts.locked_until
           END,
