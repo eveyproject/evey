@@ -56,8 +56,8 @@ accepted, and the provider must mark the address as verified.
 
 An account is recognised by the provider and its user ID, not by e-mail. A
 person who already has a local account with the same e-mail or username cannot
-create an SSO account: the sign-in fails with "SSO sign-in failed". Use a
-different address at the provider, or remove the local account first.
+create an SSO account: the sign-in fails with "SSO sign-in failed". Change the
+address or the username at the provider, or remove the local account first.
 
 A disabled account is refused at sign-in as usual.
 

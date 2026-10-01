@@ -1,5 +1,5 @@
 ---
-source_sha: 2edc135c644943052453572d9223c7834031131c057cd92f3e44e3a9ae72cc8c
+source_sha: 00f9d5811af70059e3ff6fc49a0defb49e3801f0005d12d5b22033634e960f33
 reviewed: true
 ---
 # Authentification unique (OIDC)
@@ -55,17 +55,18 @@ et, comme tout compte sans restriction, voit toutes les bibliothèques :
 restreignez-le ensuite dans **Admin → Utilisateurs** (voir
 [Utilisateurs](administration/users.md)).
 
-**Limitez les inscriptions avec `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** Vide,
-quiconque possède un compte chez le fournisseur en obtient un sur votre serveur,
-ce qui, avec un fournisseur public comme Google, veut dire n'importe qui. Avec
-des domaines, seules ces adresses sont acceptées, et le fournisseur doit marquer
+**Limitez les inscriptions avec `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** Si elle
+est vide, quiconque possède un compte chez le fournisseur en obtient un sur
+votre serveur, ce qui, avec un fournisseur public comme Google, veut dire
+n'importe qui. Avec des domaines, seules les adresses de ces domaines sont
+acceptées, et le fournisseur doit marquer
 l'adresse comme vérifiée.
 
 Un compte est reconnu par le fournisseur et son identifiant d'utilisateur, pas
 par l'e-mail. Une personne qui a déjà un compte local avec le même e-mail ou le
 même nom d'utilisateur ne peut pas créer de compte SSO : la connexion échoue
-avec « Échec de la connexion SSO ». Utilisez une autre adresse chez le
-fournisseur, ou supprimez d'abord le compte local.
+avec « Échec de la connexion SSO ». Changez l'adresse ou le nom d'utilisateur
+chez le fournisseur, ou supprimez d'abord le compte local.
 
 Un compte désactivé est refusé à la connexion, comme d'habitude.
 

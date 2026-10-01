@@ -1,5 +1,5 @@
 ---
-source_sha: 17119c80beaac1a0cdb297aec8245b13c4fb28fe522600c9e57ffc6e33d1441f
+source_sha: 17e801d5dcfd1734785fe9a87bd5e83debfda31960d03d20b4c3c1e4b9c66b8c
 reviewed: true
 ---
 # Notifications
@@ -11,8 +11,8 @@ d'une demande est prévenu quand elle reçoit une réponse.
 
 ## Où apparaissent les notifications
 
-- **Dans chaque application** : la cloche, avec le nombre de non-lues. Toujours
-  actif, rien à configurer. Une notification est conservée 30 jours. La liste
+- **Dans chaque application** : la cloche, avec le nombre de notifications non
+  lues. Toujours là, rien à configurer. Une notification est conservée 30 jours. La liste
   ne montre que les titres des bibliothèques auxquelles le compte a accès.
 - **Push du navigateur** : sur le web, chaque profil active **Notifications
   push** dans **Paramètres → Notifications**, une fois par navigateur. Le
@@ -61,7 +61,7 @@ Dans **Paramètres → Notifications**, chaque profil choisit un niveau pour
 
 Un genre compte comme habituel quand il apparaît dans au moins 3 des 200
 dernières lectures du profil. Un titre sans genre n'est jamais notifié aux
-niveaux Pertinentes.
+niveaux Pertinentes et Importantes uniquement.
 
 Plusieurs épisodes d'une même série arrivés en moins de 24 heures donnent une
 seule notification qui les compte, et aucune n'est envoyée quand la série ou la

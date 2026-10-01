@@ -1,5 +1,5 @@
 ---
-source_sha: 2edc135c644943052453572d9223c7834031131c057cd92f3e44e3a9ae72cc8c
+source_sha: 00f9d5811af70059e3ff6fc49a0defb49e3801f0005d12d5b22033634e960f33
 reviewed: false
 ---
 # Configuración de OIDC / SSO
@@ -63,8 +63,8 @@ verificada.
 Una cuenta se reconoce por el proveedor y su identificador de usuario, no por el
 correo. Una persona que ya tiene una cuenta local con el mismo correo o el mismo
 nombre de usuario no puede crear una cuenta SSO: el inicio de sesión falla con
-«Error de inicio de sesión con SSO». Usa otra dirección en el proveedor, o
-elimina antes la cuenta local.
+«Error de inicio de sesión con SSO». Cambia la dirección o el nombre de usuario
+en el proveedor, o elimina antes la cuenta local.
 
 Una cuenta desactivada se rechaza al iniciar sesión, como siempre.
 

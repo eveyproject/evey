@@ -1,5 +1,5 @@
 ---
-source_sha: 17119c80beaac1a0cdb297aec8245b13c4fb28fe522600c9e57ffc6e33d1441f
+source_sha: 17e801d5dcfd1734785fe9a87bd5e83debfda31960d03d20b4c3c1e4b9c66b8c
 reviewed: false
 ---
 # Benachrichtigungen
@@ -60,8 +60,8 @@ Unter **Einstellungen → Benachrichtigungen** wählt jedes Profil eine Stufe f�
 | **Deaktiviert** | Keiner. |
 
 Ein Genre gilt als üblich, wenn es in mindestens 3 der letzten 200 Wiedergaben
-des Profils vorkommt. Ein Titel ohne Genres wird auf den Relevant-Stufen nie
-gemeldet.
+des Profils vorkommt. Ein Titel ohne Genres wird auf den Stufen Relevant und Nur
+wichtige nie gemeldet.
 
 Mehrere Folgen einer Serie, die innerhalb von 24 Stunden eintreffen, ergeben
 eine einzige Benachrichtigung, die sie zählt, und keine wird gesendet, wenn die
