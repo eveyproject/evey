@@ -1,65 +1,75 @@
 ---
-source_sha: ffbf9fdc31bed5852bae361afeb788edd4c45c60a46c9b02b5cefe3e5c7d810a
+source_sha: 3a41d86519a03aab692820f316d27cf9feb1e8da69e124f838de91eea3408a9b
+reviewed: false
 ---
+# घटना पुस्तिका
 
-# घटना रनबुक
+Evey की आम रुकावटों के लिए पहली प्रतिक्रिया की पुस्तिका। हर सेक्शन: **लक्षण → निदान → समाधान**।
 
-Evey में आम गड़बड़ियों के लिए पहली प्रतिक्रिया की पुस्तिका। हर अनुभाग का ढाँचा एक ही है: **लक्षण → जाँच → समाधान**।
+कमांड मानक इंस्टॉलेशन के लिए हैं: एक कंटेनर, `evey-server`, जिसके अंदर Postgres और Meilisearch चलते हैं; उनके लॉग `docker logs evey-server` की `postgres:` और Meilisearch वाली लाइनें हैं। रिपॉज़िटरी का `docker-compose.yml` लेआउट `evey-postgres` और `evey-caddy` कंटेनर जोड़ता है ([उन्नत डिप्लॉयमेंट](../operations/advanced-deployments.md))।
 
-Container: `evey-server`, `evey-postgres`, `evey-meilisearch`, `evey-caddy` (प्रोडक्शन), `evey-web` + `evey-mailcatcher` (dev override)। डिफ़ॉल्ट इंस्टॉलेशन में **सिर्फ़ `evey-server`** होता है: Postgres और Meilisearch उसी के भीतर चलते हैं - नीचे दिए `docker exec evey-postgres psql -U ...` की जगह `docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey ...'` लिखें, और उनके लॉग `docker logs evey-server` में `postgres:` तथा Meili वाली पंक्तियाँ हैं।
+बिल्ट-इन डेटाबेस पर SQL चलाने के लिए:
 
-डिफ़ॉल्ट HTTP पोर्ट: `9091` (`EVEY_HTTP_PORT`)। Health endpoint: `/healthz`।
+```sh
+docker exec evey-server sh -c \
+  'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
+```
 
-**लॉग।** एक ही धारा की दो प्रतियाँ हैं: रोज़ बनने वाली फ़ाइल `evey-data/logs/evey-YYYY-MM-DD.log` (`EVEY_LOG_DIR`, image के भीतर `/data/logs`) और `docker logs evey-server`। **फ़ाइल ही प्रामाणिक है**: json-file ड्राइवर `docker logs` को घुमा देता है, और घूमने के बाद यह कमांड container के रुकने से कई घंटे पहले ही ख़त्म हो सकती है - तब किसी load test का `stop_detail` या कोई calibration फ़ैसला ग़ायब लगता है, जबकि वह सिर्फ़ घुमाव में चला गया होता है। दोनों में फ़र्क़ दिखे तो फ़ाइल पढ़ें, या root के तौर पर कच्ची `/var/lib/docker/containers/<id>/*-json.log*` फ़ाइलें। नीचे दी `docker logs` की एक-पंक्ति कमांड यह मानकर चलती हैं कि खिड़की हाल की है और घूमी नहीं है।
+डिफ़ॉल्ट HTTP पोर्ट: `9091` (`EVEY_HTTP_PORT`)। हेल्थ एंडपॉइंट: `/healthz`।
 
-## 1. सर्वर तक पहुँच नहीं हो रही
+**लॉग।** एक ही स्ट्रीम की दो प्रतियाँ: रोज़ की फ़ाइल `evey-data/logs/evey-YYYY-MM-DD.log` (`EVEY_LOG_DIR`, इमेज के अंदर `/data/logs`) और `docker logs evey-server`। फ़ाइल प्रामाणिक है: json-file ड्राइवर `docker logs` को घुमाता है, और घुमाव के बाद कमांड कंटेनर से घंटों पहले ख़त्म हो सकता है; लोड टेस्ट का `stop_detail` या कैलिब्रेशन का निष्कर्ष तब ग़ायब लगता है जबकि वह केवल घुमाव में चला गया होता है। जब दोनों में अंतर हो, तो फ़ाइल पढ़ें, या root के रूप में कच्ची `/var/lib/docker/containers/<id>/*-json.log*` फ़ाइलें। नीचे के `docker logs` कमांड हाल की, बिना घुमाई गई अवधि मानते हैं।
 
-**लक्षण**: क्लाइंट जुड़ नहीं पाते; `curl http://localhost:9091/healthz` या तो टाइम आउट हो जाता है या connection refused देता है।
+## 1. सर्वर तक नहीं पहुँचा जा सकता
 
-**जाँच**:
+**लक्षण**: क्लाइंट कनेक्ट नहीं कर पाते; `curl http://localhost:9091/healthz` टाइमआउट होता है या connection refused लौटाता है।
+
+**निदान**:
+
 ```sh
 docker ps --filter name=evey-server
 docker logs --tail=200 evey-server
 docker inspect --format='{{.State.Health.Status}}' evey-server
-ss -ltnp | grep 9091                # port actually listening?
+ss -ltnp | grep 9091                # क्या पोर्ट सचमुच सुन रहा है?
 curl -v http://localhost:9091/healthz
 ```
 
-**आम कारण और समाधान**:
-- Container बंद हो गया → panic देखने के लिए `docker logs evey-server`, ठीक करें, फिर `docker compose up -d evey`।
-- Healthcheck इसलिए विफल है क्योंकि DB या Meili बंद है → अनुभाग 4 और 5 देखें।
-- होस्ट पर पोर्ट की टक्कर → `EVEY_HTTP_PORT` बदलें या पोर्ट ख़ाली करें।
-- आगे लगा Caddy रूट नहीं कर रहा → `docker logs evey-caddy`, `EVEY_DOMAIN` जाँचें और देखें कि `evey` का healthcheck हरा है (Caddy उसी पर निर्भर है)।
+**आम कारण + समाधान**:
+- कंटेनर बंद हो गया → panic के लिए `docker logs evey-server`, ठीक करें, `docker compose up -d evey`।
+- हेल्थचेक विफल है क्योंकि DB या Meili बंद है → सेक्शन 4 और 5 देखें।
+- होस्ट पर पोर्ट टकराव → `EVEY_HTTP_PORT` बदलें या पोर्ट ख़ाली करें।
+- आगे का Caddy रूट नहीं कर रहा → `docker logs evey-caddy`, `EVEY_DOMAIN` जाँचें और यह कि `evey` हेल्थचेक हरा है (Caddy उस पर निर्भर है)।
 
-## 2. हर लॉगिन 401 लौटा रहा है
+## 2. सभी लॉगिन 401 लौटाते हैं
 
-**लक्षण**: हर उपयोगकर्ता - वे व्यवस्थापक भी जो कल ही लॉगिन हुए थे - को `/api/v1/auth/*` से 401 मिलता है।
+**लक्षण**: हर उपयोगकर्ता, कल लॉग इन करने वाले एडमिन सहित, `/api/v1/auth/*` से 401 पाता है।
 
-**जाँच**:
+**निदान**:
+
 ```sh
 docker logs --since 10m evey-server | grep -iE 'epoch|jwt|auth|signing|private key'
 docker exec evey-server ls -l /data/jwt.key
 ```
 
-**पहले epoch वाली पंक्ति खोजें।** प्रमाणित हर अनुरोध उपयोगकर्ता का token epoch डेटाबेस से दोबारा मिलाता है (ADR-0019), और यह जाँच विफल होने पर बंद हो जाती है। इसलिए धीमा, लॉक या अनुपलब्ध डेटाबेस सर्वर के हर अनुरोध से वही 401 निकलवाता है जो एक्सपायर टोकन देता है - पढ़ने में यह बिलकुल JWT की समस्या लगती है, पर है नहीं। सर्वर यह साफ़ कहता है:
+**पहले epoch वाली लाइन खोजें।** हर प्रमाणित अनुरोध उपयोगकर्ता के टोकन epoch को डेटाबेस के विरुद्ध फिर से जाँचता है (ADR-0019), और वह जाँच विफल होने पर मना करती है। इसलिए एक धीमा, लॉक या पहुँच से बाहर डेटाबेस सर्वर के हर अनुरोध को वही 401 लौटवाता है जो समाप्त टोकन लौटाता है, जो बिल्कुल JWT की समस्या जैसा लगता है पर है नहीं। सर्वर यह साफ़ बताता है:
 
 ```
 auth rejected: the token epoch could not be read, so every authenticated
 request is failing - check the database, not the JWT key
 ```
 
-यह पंक्ति मिल जाए तो इस अनुभाग को यहीं छोड़ें और §1 (डेटाबेस) पर जाएँ। यहाँ `/healthz` फिर भी हरा रह सकता है: वह सिर्फ़ कनेक्शन को पिंग करता है, epoch वाली क्वेरी नहीं चलाता। Prometheus का काउंटर `evey_auth_failures_total{reason="epoch_lookup_failed"}` है।
+अगर वह लाइन मौजूद है, तो यह सेक्शन पढ़ना बंद करें और §4 (डेटाबेस) पर जाएँ। `/healthz` यहाँ फिर भी हरा हो सकता है: यह केवल कनेक्शन को पिंग करता है, epoch क्वेरी नहीं चलाता। Prometheus काउंटर है `evey_auth_failures_total{reason="epoch_lookup_failed"}`।
 
-**आम कारण और समाधान**:
-- **JWT कुंजी ग़ायब या बदल गई**: `EVEY_JWT_PRIVATE_KEY_PATH` (डिफ़ॉल्ट `/data/jwt.key`) पढ़ी नहीं जा रही, या उसे बदल दिया गया। पुरानी कुंजी से हस्ताक्षरित हर टोकन अब अमान्य है - बैकअप से पुरानी कुंजी लौटाने या हर उपयोगकर्ता से दोबारा लॉगिन कराने के अलावा कोई उपाय नहीं। पक्का करें कि `evey-data` वॉल्यूम `/data` पर सही से माउंट है।
-- **हर अनुरोध पर rate limit लग रहा है**: `EVEY_RATELIMIT_LOGIN_MAX` (डिफ़ॉल्ट `10` प्रति IP प्रति मिनट) और `EVEY_RATELIMIT_GLOBAL_MAX` (डिफ़ॉल्ट `300`) देखें। जो reverse proxy सारा ट्रैफ़िक एक ही IP से आता दिखाता है, वह इसे तुरंत छू लेगा - `EVEY_TRUSTED_PROXIES` सेट करें और पुनः आरंभ करें। dev override पहले से `1000` / `10000` रखता है।
-- सर्वर और क्लाइंट की घड़ियों में अंतर → होस्ट पर `date -u` चलाएँ।
+**आम कारण + समाधान**:
+- **JWT कुंजी गुम या बदली हुई**: `EVEY_JWT_PRIVATE_KEY_PATH` (डिफ़ॉल्ट `/data/jwt.key`) पढ़ा नहीं जा सकता, या घुमाया गया था। पुरानी कुंजी से हस्ताक्षरित हर टोकन अब अमान्य है: पुरानी कुंजी बैकअप से बहाल करने या हर उपयोगकर्ता को फिर से लॉगिन करवाने के अलावा कोई उपाय नहीं। पुष्टि करें कि `evey-data` वॉल्यूम `/data` पर सही ढंग से माउंट है।
+- **हर अनुरोध पर रेट लिमिट लगना**: `EVEY_RATELIMIT_LOGIN_MAX` (डिफ़ॉल्ट प्रति IP प्रति मिनट `10`) और `EVEY_RATELIMIT_GLOBAL_MAX` (डिफ़ॉल्ट `300`) जाँचें। सारा ट्रैफ़िक एक ही IP के रूप में भेजने वाला रिवर्स प्रॉक्सी इसे जल्दी लगवा देगा: Admin → रिमोट एक्सेस में प्रॉक्सी को **विश्वसनीय प्रॉक्सी** में जोड़ें (बिना रीस्टार्ट के लागू होता है; `EVEY_TRUSTED_PROXIES` भी काम करता है)। डेवलपमेंट ओवरराइड पहले से `1000` / `10000` सेट करता है।
+- सर्वर और क्लाइंट के बीच घड़ी का अंतर → होस्ट पर `date -u`।
 
-## 3. ट्रांसकोडिंग विफल है / ट्रांसकोड किए गए वीडियो नहीं चलते
+## 3. ट्रांसकोडिंग विफल होती है / वीडियो ट्रांसकोड होकर नहीं चलते
 
-**लक्षण**: सीधी प्लेबैक चलती है, ट्रांसकोड ज़रूरी होते ही विफल हो जाती है। प्लेयर त्रुटि दिखाता है और सर्वर लॉग में ffmpeg के exit code आते हैं।
+**लक्षण**: सीधा प्लेबैक काम करता है, ट्रांसकोड ज़रूरी होने पर विफल होता है। प्लेयर त्रुटियाँ, सर्वर लॉग में ffmpeg exit कोड।
 
-**जाँच**:
+**निदान**:
+
 ```sh
 docker exec evey-server which ffmpeg ffprobe
 docker exec evey-server ffmpeg -version | head -1
@@ -68,239 +78,226 @@ docker exec evey-server ls -ld /cache/transcode /data/trickplay
 docker exec evey-server df -h /cache
 ```
 
-**आम कारण और समाधान**:
-- **ffmpeg बाइनरी ग़ायब है** (उसके बिना बनी कस्टम image): आधिकारिक `Dockerfile` से दोबारा बनाएँ।
-- **कैश डायरेक्टरी में लिखा नहीं जा सकता**: कोड में `EVEY_TRANSCODING_CACHE_DIR` का डिफ़ॉल्ट `/data/transcode` है, पर compose उसे `evey-cache` नामक वॉल्यूम के ज़रिए `/cache/transcode` पर मैप करता है। `EVEY_TRICKPLAY_CACHE_DIR` का डिफ़ॉल्ट `/cache/trickplay` है। लिखने की जाँच:
+**आम कारण + समाधान**:
+- **ffmpeg बाइनरी गुम** (उसके बिना कस्टम इमेज): आधिकारिक `Dockerfile` से फिर से बनाएँ।
+- **कैश डायरेक्टरी में लिखा नहीं जा सकता**: `EVEY_TRANSCODING_CACHE_DIR` कोड में डिफ़ॉल्ट रूप से `/data/transcode` है लेकिन compose इसे `evey-cache` नाम वाले वॉल्यूम के ज़रिए `/cache/transcode` पर मैप करता है। `EVEY_TRICKPLAY_CACHE_DIR` इमेज में `/data/trickplay` है (इमेज के बाहर डिफ़ॉल्ट `/cache/trickplay` है)। लिखने की क्षमता जाँचें:
   ```sh
   docker exec evey-server touch /cache/transcode/.write-test && \
     docker exec evey-server rm /cache/transcode/.write-test
   ```
-- **कैश भर गया** → अनुभाग 6 देखें।
-- **HW accel ग़लत कॉन्फ़िगर है**: सॉफ़्टवेयर पर मजबूर करने के लिए `EVEY_TRANSCODING_HW_ACCEL_ENABLED=false` रखें, पुनः आरंभ करें, और दोबारा चालू करने से पहले पक्का करें कि गड़बड़ी वाक़ई हार्डवेयर से जुड़ी है।
-- **एक साथ बहुत ज़्यादा ट्रांसकोड**: `EVEY_TRANSCODING_MAX_CONCURRENT` (डिफ़ॉल्ट `2`)। मशीन में कोर हों तो सावधानी से बढ़ाएँ।
+- **कैश भरा** → सेक्शन 6 देखें।
+- **हार्डवेयर एक्सेलेरेशन गड़बड़ कर रहा है**: **Admin → ट्रांसकोडिंग → एनकोड कैलिब्रेशन** में **हार्डवेयर एक्सेलेरेशन** को **बंद (केवल सॉफ़्टवेयर)** पर करें (तुरंत लागू होता है, फिर से मापता है) ताकि हर ट्रांसकोड प्रोसेसर पर रहे, और **स्वतः** पर लौटने से पहले पुष्टि करें कि समस्या हार्डवेयर से जुड़ी है।
+- **"सर्वर अन्य स्ट्रीम ट्रांसकोड करने में व्यस्त है"**: लाइव क्षमता मापी जाती है, सेट नहीं की जाती; देखें [ट्रांसकोडिंग और सर्वर क्षमता](../playback/transcoding.md#sharing-the-capacity)। `EVEY_TRANSCODING_MAX_CONCURRENT` (**Admin → ट्रांसकोड कैश** में **अधिकतम समवर्ती**) केवल लाइव प्लेबैक के बाहर के ट्रांसकोड कामों को कवर करता है।
 
-### 3c. « रुक-रुक कर चलता है / बीच में कट गया » और लॉग कारण नहीं बताते
+### 3c. "यह बफ़र होता है / यह कट गया" और लॉग कारण नहीं बताते
 
-**लक्षण**: कोई दर्शक किसी ट्रांसकोड किए शीर्षक पर रुकावट या कटाव बताता है, और सर्वर लॉग में `hls-vod: segment timeout` के साथ `err:"context canceled"` दिखता है - जिसका अर्थ है कि **क्लाइंट** ने संबंध तोड़ा, सर्वर का समय समाप्त नहीं हुआ।
+**लक्षण**: एक दर्शक ट्रांसकोड किए गए टाइटल पर अटकने या कटने की शिकायत करता है, और सर्वर लॉग `err:"context canceled"` के साथ `hls-vod: segment timeout` दिखाते हैं, जिसका मतलब है कि क्लाइंट ने कनेक्शन छोड़ा, सर्वर का टाइमआउट नहीं हुआ।
 
-**जाँच**: सर्वर अपना हर फ़ैसला पहले ही दर्ज कर चुका है। वहीं से शुरू करें, क्योंकि वह मुफ़्त है:
+**निदान**: सर्वर अपने हर निर्णय को पहले से दर्ज करता है। वहीं से शुरू करें, क्योंकि यह मुफ़्त है:
 
 ```sh
-# Why a segment request reused an encoder or spawned one, and what it cost the
-# player. Only logged when it costs something: a wait beyond one segment, or a
-# spawn. `over_client_patience: true` is the smoking gun.
+# किसी सेगमेंट अनुरोध ने एनकोडर फिर से इस्तेमाल किया या नया शुरू किया, और प्लेयर को
+# इसकी क्या क़ीमत चुकानी पड़ी। केवल तब लॉग होता है जब कोई क़ीमत हो: एक सेगमेंट से
+# ज़्यादा इंतज़ार, या नई शुरुआत। `over_client_patience: true` पक्का सबूत है।
 docker exec evey-server grep '"software: reach decision"' /data/logs/evey-$(date +%F).log | tail -40
 
-# The encoders themselves: spawns, kills and their reason.
+# एनकोडर ख़ुद: शुरुआत, ख़ात्मा और उनका कारण।
 docker exec evey-server grep -E '"software: session (started|killed)"|per-hash cap' \
   /data/logs/evey-$(date +%F).log | tail -40
 ```
 
-ये पंक्तियाँ बताती हैं कि सर्वर ने क्या *तय किया*। जब आपको यह चाहिए कि ffmpeg ने सेकंड-दर-सेकंड वास्तव में क्या *कर पाया* - यानी समय के साथ सीमा-रेखा की असली स्थिति - तब हर encoder की प्रगति की रिकॉर्डिंग चालू करें:
+ये लाइनें बताती हैं कि सर्वर ने क्या *तय* किया। जब आपको यह चाहिए कि ffmpeg ने सेकंड दर सेकंड असल में क्या *हासिल* किया (समय के साथ एनकोडिंग सीमा की असली स्थिति), तो हर एनकोडर की प्रगति रिकॉर्डिंग चालू करें:
 
 ```sh
-# ON. Applies to the NEXT encoder; no restart needed. $TOKEN is an admin JWT.
+# चालू। अगले एनकोडर पर लागू; रीस्टार्ट की ज़रूरत नहीं। $TOKEN एक एडमिन JWT है।
 curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpeg_progress_log \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"value":"true"}'
 
-# Reproduce the problem, then read one session: out_time = content produced so
-# far, speed = how far ahead of real time the encoder ran.
+# समस्या दोहराएँ, फिर एक सेशन पढ़ें: out_time = अब तक बनी सामग्री,
+# speed = एनकोडर रीयल-टाइम से कितना आगे चला।
 docker exec evey-server ls -t /data/logs/ffmpeg | head
 docker exec evey-server tail -20 /data/logs/ffmpeg/<file>.log
 
-# OFF again when you are done.
+# काम पूरा होने पर फिर से बंद करें।
 curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpeg_progress_log \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"value":"false"}'
 ```
 
-**जाँच के बाहर इसे बंद ही रखें।** यह हर encoder के लिए एक फ़ाइल बनाता है, हर सत्र पर कुछ MB, और मशीन पर होने वाली हर प्लेबैक के लिए लिखी जाती है - कमज़ोर NAS पर यह असली डिस्क और असली लेखन है। फ़ाइल के नाम में फ़ैसले का hash, rung (`-vN-`) और आरंभिक segment (`-sN-`) होते हैं, इसलिए वह ऊपर वाले JSON लॉग से मेल खाती है; उसी स्थान पर दोबारा शुरू हुआ encoder पिछली फ़ाइल पर लिखने के बजाय अपनी अलग फ़ाइल पाता है, और यही encoder की उथल-पुथल को दिखने लायक़ बनाता है।
+**जाँच के अलावा इसे बंद रखें।** यह हर एनकोडर के लिए एक फ़ाइल है, हर सेशन के कुछ MB, मशीन पर हर प्लेबैक के लिए लिखी जाती है: कमज़ोर NAS पर असली डिस्क और असली लेखन। फ़ाइल के नाम में निर्णय हैश, पायदान (`-vN-`) और शुरुआती सेगमेंट (`-sN-`) होता है, इसलिए यह ऊपर के JSON लॉग से मेल खाता है; उसी स्थिति पर दोबारा शुरू होने पर अपनी फ़ाइल मिलती है बजाय पिछली को अधिलेखित करने के, और यही एनकोडर के बार-बार शुरू होने को दिखाई देने लायक़ बनाता है।
 
-**आम कारण और समाधान**:
-- **बार-बार छोटी आगे की छलाँगें**: हर छलाँग एक नया encoder जन्मा सकती है, और per-hash सीमा (`MaxSessionsPerHash`, डिफ़ॉल्ट 2) सबसे पुराने प्रयुक्त encoder को हटा देती है। लॉग में `session killed reason:lru_cap` अपेक्षित है। सीमित मात्रा में यह सामान्य है।
-- **क्लाइंट सर्वर से कम धैर्यवान है**: seek-reach खिड़की `clientSegmentPatience` (6 s) के हिसाब से बनी है; AndroidX Media3 लगभग 8 s पर segment छोड़ देता है जबकि सर्वर का `WaitBudgetDur` 60 s है। जिस `reach decision` पंक्ति में `over_client_patience: true` हो, उसका अर्थ है कि सर्वर ऐसी प्रतीक्षा माँगने वाला था जो कोई प्लेयर नहीं झेलता।
+**आम कारण + समाधान**:
+- **बार-बार छोटी आगे की सीक**: हर एक नया एनकोडर शुरू कर सकती है, और प्रति हैश सीमा (`MaxSessionsPerHash`, डिफ़ॉल्ट 2) सबसे पहले इस्तेमाल हुए को हटा देती है। लॉग में `session killed reason:lru_cap` की उम्मीद करें। संयम में सामान्य है।
+- **क्लाइंट सर्वर से कम धैर्यवान है**: `clientSegmentPatience` (6 s) वह मान है जिसके अनुसार सीक पहुँच की खिड़की तय होती है; AndroidX Media3 किसी सेगमेंट को ~8 s पर छोड़ देता है जबकि सर्वर का `WaitBudgetDur` 60 s है। `over_client_patience: true` वाली `reach decision` लाइन का मतलब है कि सर्वर ऐसा इंतज़ार माँगने वाला था जिसे कोई प्लेयर नहीं झेलता।
 
-### 3b. `stale_rendition` वाले 410 / प्लेयर बीच खेल में अपना master दोबारा माँगता है
+### 3b. `stale_rendition` 410 / प्लेयर चलते-चलते अपना master फिर से लाता है
 
-**लक्षण**: प्लेयर थोड़ी देर रुकता है फिर सँभल जाता है; लॉग में `hls-vod: stale rendition URL refused (the ladder moved under a live player)` दिखता है और अनुरोधों का उत्तर `410 Gone` के साथ `X-Evey-Error: stale_rendition` होता है।
+**लक्षण**: प्लेयर थोड़ी देर अटकता है फिर ठीक हो जाता है; लॉग `hls-vod: stale rendition URL refused (the ladder moved under a live player)` दिखाते हैं और अनुरोधों का जवाब `X-Evey-Error: stale_rendition` के साथ `410 Gone` होता है।
 
-**इसका अर्थ**: यह *सुरक्षा का चलना* है, विफलता नहीं। हर manifest URI में वह decision hash होता है जिसके तहत वह बना था (`fp=`)। 410 का मतलब है कि प्लेयर ने ऐसे सत्र का URL पेश किया जिसकी ABR सीढ़ी तब से बदल चुकी है - उसे परोसना decoder को किसी दूसरे rendition के बाइट देना होता (वही « rainbow screen » वाली घटना-श्रेणी, ADR 0022 §1b)। इनकार करने से प्लेयर साफ़-सुथरा master दोबारा ले आता है।
+**इसका मतलब**: यह एक *सुरक्षा का सक्रिय होना* है, विफलता ख़ुद नहीं। हर मैनिफ़ेस्ट URI उस निर्णय हैश को लिए होता है जिसके तहत वह बना (`fp=`)। 410 का मतलब है कि किसी प्लेयर ने ऐसे सेशन का URL दिया जिसकी ABR सीढ़ी तब से बदल चुकी है: उसे परोसने से डिकोडर को किसी दूसरे रेंडिशन के बाइट मिलते ("इंद्रधनुषी स्क्रीन" वाली घटनाओं की श्रेणी, ADR 0022 §1b)। मना करना इसकी जगह master को साफ़ ढंग से फिर से लाने पर मजबूर करता है।
 
-**जाँच**: WARN पंक्ति में `sealed_fp` बनाम `current_fp` और media id होते हैं।
-- **किसी deploy/restart या व्यवस्थापक की recalibration के तुरंत बाद का झोंका** अपेक्षित है: चालू सत्र capability बदलने के बाद भी जीवित रह गए। कुछ करने की ज़रूरत नहीं; प्लेयर एक poll में फिर मिल जाते हैं।
-- **सामान्य संचालन के दौरान लगातार टपकना** बताता है कि कोई चीज़ चालू धाराओं के नीचे सीढ़ियाँ बदलती रहती है - capability का फड़फड़ाना देखें (`docker logs evey-server | grep -iE 'calibrat|capability'`), भार के नीचे मंथन करता admission shaper, या दोलन करता CMCD cap override।
-- जो प्लेयर **410 पर लूप करते रहते हैं और सँभलते नहीं**, वे पुराना master पकड़े बैठे हैं (पुराना ऐप बिल्ड, या `.m3u8` को ज़ोर-शोर से कैश करता proxy)। पक्का करें कि proxy manifest कैश नहीं करता (`Cache-Control: no-cache` आर-पार जाना चाहिए)।
+**निदान**: WARN में `sealed_fp` बनाम `current_fp` और मीडिया id होता है।
+- **डिप्लॉय/रीस्टार्ट या एडमिन के फिर से कैलिब्रेट करने के ठीक बाद एक झोंका** अपेक्षित है: लाइव सेशन किसी क्षमता बदलाव के बाद भी चलते रहे। कुछ करने की ज़रूरत नहीं; प्लेयर एक पोल में फिर से तालमेल में आ जाते हैं।
+- **सामान्य संचालन के दौरान लगातार टपकना** का मतलब है कि कुछ लाइव स्ट्रीम के नीचे सीढ़ियाँ बदलता रहता है: क्षमता के बार-बार बदलने को खोजें (`docker logs evey-server | grep -iE 'calibrat|capability'`), लोड में डोलता एडमिशन शेपर, या आगे-पीछे होता CMCD सीमा ओवरराइड।
+- जो प्लेयर **410 पर बिना ठीक हुए चक्कर लगाते हैं** उनके पास कैश किया हुआ master है (पुराना ऐप संस्करण, `.m3u8` को आक्रामक ढंग से कैश करने वाला प्रॉक्सी)। जाँचें कि प्रॉक्सी मैनिफ़ेस्ट कैश नहीं करता (`Cache-Control: no-cache` आगे जाना चाहिए)।
 
-## 4. डेटाबेस कनेक्शन अस्वीकृत / त्रुटियाँ
+## 4. डेटाबेस कनेक्शन मना / त्रुटियाँ
 
-**लक्षण**: सर्वर लॉग में `dial tcp ... connect: connection refused`, `pq: ...` दिखता है, या क्वेरियाँ टाइम आउट होती हैं।
+**लक्षण**: सर्वर लॉग में `dial tcp ... connect: connection refused`, `pq: ...` होता है, या क्वेरी टाइमआउट होती हैं।
 
-**जाँच**:
+**निदान**:
+
 ```sh
-docker ps --filter name=evey-postgres
-docker inspect --format='{{.State.Health.Status}}' evey-postgres
-docker exec evey-postgres pg_isready -U "$EVEY_DB_USER"
-docker logs --tail=200 evey-postgres
-docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
+docker logs --tail=300 evey-server | grep -iE 'postgres|database'
+docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey -c "
   SELECT count(*), state
     FROM pg_stat_activity
    WHERE datname = current_database()
-   GROUP BY state;"
+   GROUP BY state;"'
+df -h ./evey-data
 ```
 
-**आम कारण और समाधान**:
-- Postgres container बंद है → `docker compose up -d postgres`, और लॉग में corruption या oom देखें।
-- ग़लत प्रमाण-पत्र → सर्वर का env `postgres` सेवा के `EVEY_DB_USER` / `EVEY_DB_PASSWORD` / `EVEY_DB_NAME` से मेल खाना चाहिए। डिफ़ॉल्ट: `evey` / `evey` / `evey`।
-- Pool ख़ाली नहीं बचा (`too many connections` या लंबा इंतज़ार) → `EVEY_DB_MAX_OPEN_CONNS` (डिफ़ॉल्ट `50`) देखें। अटके सत्र समाप्त करें:
+**आम कारण + समाधान**:
+- `./evey-data` के नीचे **डिस्क भरी** (डेटाबेस `./evey-data/postgres` में रहता है) → जगह ख़ाली करें, फिर `docker compose restart evey`।
+- **पूल ख़त्म** (`too many connections` या लंबा इंतज़ार) → `EVEY_DB_MAX_OPEN_CONNS` (डिफ़ॉल्ट `25`)। अटके सेशन ख़त्म करें:
   ```sql
   SELECT pg_terminate_backend(pid)
     FROM pg_stat_activity
    WHERE state = 'idle in transaction'
      AND now() - state_change > interval '5 minutes';
   ```
-- `postgres-data/` वाली डिस्क भरी है → `df -h`, जगह ख़ाली करें, पुनः आरंभ करें।
+- **अलग Postgres कंटेनर** (रिपॉज़िटरी लेआउट): `docker ps --filter name=evey-postgres`, `docker logs --tail=200 evey-postgres`; सर्वर के `EVEY_DB_USER` / `EVEY_DB_PASSWORD` / `EVEY_DB_NAME` `postgres` सर्विस से मेल खाने चाहिए।
 
-## 5. Meilisearch बंद है
+## 5. Meilisearch बंद
 
-**लक्षण**: खोज कमज़ोर परिणाम देती है, लॉग में `meilisearch unavailable, using SQL search fallback` दिखता है।
+**लक्षण**: खोज घटिया नतीजे लौटाती है, लॉग `meilisearch unavailable, using SQL search fallback` दिखाते हैं।
 
-**व्यवहार**: Evey में सहनशील विकल्प मौजूद है - खोज SQL के ज़रिए चलती रहती है (`cmd/evey/wire.go` एक resilient search adapter जोड़ता है, जो Meili तक न पहुँच पाने पर `meilisearch unavailable, using SQL search fallback` लिखता है)। ऑनलाइन बने रहने के लिए उपयोगकर्ता को कुछ नहीं करना पड़ता; सिर्फ़ क्रमांकन की गुणवत्ता घटती है।
+**व्यवहार**: खोज SQL के ज़रिए काम करती रहती है (`cmd/evey/wire.go` एक मज़बूत सर्च एडैप्टर जोड़ता है जो Meilisearch तक न पहुँच पाने पर वह लाइन लॉग करता है)। ऑनलाइन बने रहने के लिए उपयोगकर्ता को कुछ नहीं करना; केवल रैंकिंग की गुणवत्ता घटती है।
 
-**परिनियोजन के तरीक़े पर टिप्पणी**: डिफ़ॉल्ट `docker-compose.yml` Meilisearch को **`evey-server` container के भीतर embedded** चलाता है (`EVEY_EMBEDDED_MEILI: "true"`)। अलग `evey-meilisearch` container सिर्फ़ dev override में है (`docker-compose.override.yml`)। embedded तरीक़े में « Meilisearch बंद है » का अर्थ है कि evey-server प्रक्रिया ही अस्वस्थ है - पुनः आरंभ करने को कोई अलग container है ही नहीं।
+Meilisearch `evey-server` के अंदर चलता है (`EVEY_EMBEDDED_MEILI`, डिफ़ॉल्ट रूप से चालू), केवल कंटेनर में `127.0.0.1:7700` पर सुनता है।
 
-**जाँच और समाधान (embedded, डिफ़ॉल्ट)**:
+**निदान + समाधान**:
 ```sh
-docker ps --filter name=evey-server
-curl -sf http://localhost:7700/health          # port forwarded from inside evey-server
-docker logs --tail=200 evey-server | grep -i meili
+docker exec evey-server curl -sf http://127.0.0.1:7700/health
+docker logs --tail=300 evey-server | grep -i meili
 ```
-- सर्वर अस्वस्थ → `docker compose restart evey-server`।
-- सूचकांक भ्रष्ट → evey-server रोकें, `./evey-data/meili-data/` का बैकअप लें, मिटाएँ, पुनः आरंभ करें, और व्यवस्थापन पैनल से पूरा re-index चलाएँ।
+- अस्वस्थ → `docker compose restart evey`।
+- इंडेक्स भ्रष्ट → कंटेनर रोकें, `./evey-data/meili` को अलग हटाएँ, फिर से शुरू करें, फिर डेटाबेस से इंडेक्स फिर से बनाएँ: `docker exec evey-server evey admin reindex-search`।
 
-**जाँच और समाधान (सिर्फ़ standalone dev override)**:
-```sh
-docker ps --filter name=evey-meilisearch
-curl -sf http://localhost:7700/health
-docker logs --tail=200 evey-meilisearch
-```
-- Container बंद → `docker compose up -d meilisearch`।
-- `MEILI_MASTER_KEY` मेल नहीं खाती → सर्वर लॉग में auth विफलताएँ दिखती हैं। दोनों सेवाओं का env एक कर के पुनः आरंभ करें।
-- सूचकांक भ्रष्ट → Meili रोकें, `./meili-data/` का बैकअप लें, मिटाएँ, पुनः आरंभ करें, और व्यवस्थापन पैनल से पूरा re-index चलाएँ।
+## 6. ट्रांसकोड कैश डिस्क भरी
 
-## 6. ट्रांसकोड कैश की डिस्क भर गई
+**लक्षण**: ट्रांसकोड `no space left on device` के साथ विफल होते हैं; कंटेनर हेल्थचेक डगमगाता है।
 
-**लक्षण**: ट्रांसकोड `no space left on device` के साथ विफल होते हैं; container का healthcheck डगमगाता है।
+**निदान**:
 
-**जाँच**:
 ```sh
 docker exec evey-server df -h /cache
-docker exec evey-server du -sh /cache/transcode /cache/trickplay /data/trickplay 2>/dev/null
-docker volume inspect evey_evey-cache   # compose-mangled name may vary
+docker exec evey-server du -sh /cache/transcode /data/trickplay 2>/dev/null
+docker volume inspect evey_evey-cache   # compose द्वारा बना नाम अलग हो सकता है
 ```
 
 **समाधान**:
-- सुरक्षित सफ़ाई - कैश दोबारा बन सकता है:
+- सुरक्षित सफ़ाई, कैश फिर से बनाया जा सकता है:
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/transcode/*'
   ```
-  इससे उसके नीचे का `photos/` (फ़ोटो के आकार बदले हुए रूप) और `track-art/` (किसी ट्रैक के टैग में जड़ा कवर, एक बार निकालकर आकार बदला हुआ) भी हटता है - दोनों अगले अनुरोध पर फिर बन जाते हैं। व्यवस्थापन पैनल का « Clear cache » बटन यही सफ़ाई करता है।
-- Trickplay दोबारा बनाना महँगा है; ज़रूरी हो तभी मिटाएँ:
+  यह इसके नीचे के `photos/` (फ़ोटो के छोटे किए गए रूप) और `track-art/` (किसी ट्रैक के टैग में जड़ा कवर, एक बार निकाला और छोटा किया गया) भी हटाता है: दोनों अगले अनुरोध पर फिर से बनते हैं। Admin → ट्रांसकोड कैश में **सभी साफ़ करें** वही सफ़ाई करता है।
+- Trickplay फिर से बनाना ज़्यादा महँगा है; केवल ज़रूरत हो तो साफ़ करें:
   ```sh
-  docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
+  docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
-- होस्ट का वॉल्यूम तंग हो तो ट्रांसकोड कैश का बजट घटाएँ (Admin → सर्वर सेटिंग्स, डिफ़ॉल्ट `10` GB); बजट जो भी हो, sweeper कैश वॉल्यूम पर 2 GiB ख़ाली रखता है।
+- अगर होस्ट वॉल्यूम तंग है तो **ट्रांसकोड कैश बजट** घटाएँ (**Admin → सर्वर कॉन्फ़िग → सर्वर सेटिंग्स**, डिफ़ॉल्ट `10` GB); बजट चाहे जो हो, सफ़ाई करने वाला कैश वॉल्यूम पर 2 GiB ख़ाली रखता है।
 
-## 7. एक्सटेंशन क्रैश हो गया
+## 7. प्लगइन क्रैश हो गया
 
-**लक्षण**: कोई एक्सटेंशन जवाब देना बंद कर देता है; सर्वर लॉग में plugin runner से panic आते हैं।
+**लक्षण**: कोई प्लगइन जवाब देना बंद कर देता है; सर्वर लॉग प्लगइन रनर से panic दिखाते हैं।
 
-**जाँच**:
+**निदान**:
+
 ```sh
 docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
-# Look for: "panic in plugin runner", "plugin process crashed", "remove plugin sock on crash"
+# खोजें: "panic in plugin runner", "plugin process crashed", "remove plugin sock on crash"
 ```
 
 **समाधान**:
-- पहले सर्जिकल पुनरारंभ आज़माएँ, container बंद किए बिना: `POST /api/v1/admin/plugins/<id>/enable`। यह तब भी काम करता है जब एक्सटेंशन पहले से `enabled` हो पर `Error` स्थिति में अटका हो - `StartPlugin` का गार्ड स्थिति के `Running` न होते ही उसे दोबारा चला देता है। पूरे सर्वर को पुनः आरंभ करने के बजाय यही चुनें, ख़ासकर तब जब होस्ट तक SSH पहुँच आसानी से न हो।
-- सर्जिकल पुनरारंभ से बात न बने तो व्यवस्थापन पैनल से उस एक्सटेंशन को बंद कर दें।
-- सर्वर स्वयं अस्थिर हो तो पुनः आरंभ करें: `docker compose restart evey`।
-- एक्सटेंशन की फ़ाइलें `./evey-data/plugins/` (होस्ट) == `/data/plugins` (container) पर देखें। टूटी हुई zip या डायरेक्टरी हटाएँ, फिर पुनः आरंभ करें।
-- panic का trace और plugin id एक्सटेंशन के लेखक को भेजें।
+- पहले एक सटीक रीस्टार्ट आज़माएँ, कंटेनर बंद किए बिना: `POST /api/v1/admin/plugins/<id>/enable`। यह तब भी काम करता है जब प्लगइन पहले से `enabled` है पर `Error` स्थिति में अटका है: जैसे ही स्थिति `Running` न हो, `StartPlugin` की सुरक्षा जाँच उसे फिर से चला देती है। पूरे सर्वर को रीस्टार्ट करने की बजाय इसे पसंद करें, ख़ासकर जब होस्ट तक SSH पहुँच आसानी से उपलब्ध न हो।
+- अगर सटीक रीस्टार्ट से ठीक न हो, तो एडमिन पैनल से गड़बड़ प्लगइन अक्षम करें।
+- अगर सर्वर ख़ुद अस्थिर है, तो रीस्टार्ट करें: `docker compose restart evey`।
+- प्लगइन फ़ाइलें `./evey-data/plugins/` (होस्ट) == `/data/plugins` (कंटेनर) पर देखें। टूटे प्लगइन का zip या डायरेक्टरी हटाएँ, रीस्टार्ट करें।
+- panic ट्रेस + प्लगइन id प्लगइन लेखक को भेजें।
 
-## 8. कास्ट जम गया, आवाज़ चली गई, या फ़ोन घूमता ही रहता है
+## 8. कास्ट अटक गया, आवाज़ चली गई, या फ़ोन घूमता रहता है
 
-नीचे सब कुछ व्यवस्थापन के Logs पृष्ठ से पढ़ा जा सकता है (या `GET /api/v1/admin/logs/search?q=<term>&limit=200` से): मशीन पर shell की ज़रूरत नहीं। समय UTC में हैं। हर beacon एक `player-client: playback event reported` पंक्ति है, जिसमें `type=` और एक `details=` स्ट्रिंग होती है। इन routes के जवाब में क्रेडेंशियल कभी नहीं दिखते (bearer, JWT और `token=`/`password=` के मान `[redacted]` दिखते हैं), इसलिए cast URL का token लॉग खोजकर नहीं मिलता - token नहीं, मीडिया id खोजें।
+नीचे का सब कुछ एडमिन लॉग पेज से पढ़ा जा सकता है (या `GET /api/v1/admin/logs/search?q=<term>&limit=200`): मशीन पर किसी शेल की ज़रूरत नहीं। समय UTC में हैं। हर बीकन `type=` और एक `details=` स्ट्रिंग वाली `player-client: playback event
+reported` लाइन है। इन रूटों के लौटाए गए नतीजों में क्रेडेंशियल कभी नहीं आते (bearer, JWT और `token=`/`password=` मान `[redacted]` दिखते हैं), इसलिए कास्ट URL का टोकन लॉग खोज से वापस नहीं मिल सकता: मीडिया id खोजें, टोकन नहीं।
 
-1. **receiver ज़िंदा था या नहीं, और कब तक?** `cast_receiver_alive` खोजें। चलते रहने पर receiver हर 30 s में एक भेजता है; `details` में `buf=<behind>/<ahead>/<ranges>` (playhead के पीछे और आगे बफ़र हुए सेकंड) तथा `pos_sec` होते हैं। स्वस्थ प्लेबैक में `ahead` दहाई सेकंडों में रहता है। **आख़िरी beacon का समय ही वह क्षण है जब receiver मरा या मारा गया**: उसके बाद कुछ न होने का अर्थ है कि टेलीविज़न अब receiver नहीं चला रहा, फ़ोन चाहे जो दिखाए।
-2. **वह रुका क्यों?** `cast_receiver_finished` खोजें: `reason=INTERRUPTED` का अर्थ है कि किसी नए LOAD ने चालू वाले की जगह ले ली (कुछ सेकंड पहले का `StartStream` देखें), और `reason=ERROR` के साथ प्लेयर की त्रुटि आती है। आख़िरी `alive` के बाद कोई `finished` ही न हो = receiver प्रक्रिया ग़ायब हो गई (अक्सर 20+ Mbps के copy master पर मेमोरी के कारण मारा गया Chromecast HD)।
-3. **फ़ोन ने क्या देखा?** `cast_sender_stall` खोजें: जब Cast SDK अब भी PLAYING कहता है पर स्थिति 20 s से हिली नहीं, तब sender `state=playing frozen=<n>s pos=<p>` भेजता है, और receiver के idle कारण बताने पर `state=idle reason=<r>`। ये पंक्तियाँ WARN स्तर पर लिखी जाती हैं, इसलिए Logs पृष्ठ का चेतावनी फ़िल्टर इन्हें सामने ले आता है। यह उसी मिनट का sender वाला पहलू है - इसके `pos` की तुलना receiver के आख़िरी `pos_sec` से करें।
-4. **क्या सत्र की शृंखला टूटी?** `refresh rejected` खोजें: « not found » वाला refresh token ऐप को लॉग आउट कर के दोबारा लॉग इन कराता है (सहेजे गए प्रमाण-पत्रों से), जिससे धारा फिर से जारी होती है - अब उस पंक्ति में token का `jti`, `issued` और `age` होते हैं, जिनसे पुरानी प्रति और जाली प्रति में फ़र्क़ किया जा सकता है। दोबारा जारी होना देखने के लिए `StartStream` खोजें; एक ही शीर्षक के लिए दोबारा जारी हुए URL पर sender अब receiver को फिर से लोड नहीं करता।
-5. **क्या धारा उपकरण के लिए बहुत बड़ी थी?** `advertises a fallback rung` (copy master की शिखर बिटरेट) और `plan fitted to the client's line` (receiver की `maxKbps` माप या उसका `abr=floor` बचाव, अब plan के इनपुट - उसके बाद का transcode master `client_line_exceeded` या `abr_floor_requested` कारण रखता है) खोजें: जो सत्र 20+ Mbps के copy master पर शुरू हुआ और कुछ सेकंड बाद सीमित 1080p rung पर गिर गया, वहाँ floor rescue अपना काम कर रहा है; पर जो re-LOAD फिर से copy master पर ही शुरू होता है, वही Chromecast HD को मारता है।
-6. **सर्वर की तरफ़ भुखमरी?** `on-demand resource refused` खोजें: लगातार segment पर `context canceled` वाले इनकारों का झोंका scrub है (हर अनुरोध अगले ने रद्द किया), सर्वर की ख़राबी नहीं; लंबी अवधि वाली `served` पंक्तियाँ ज़रूर ख़राबी हैं।
+1. **क्या रिसीवर ज़िंदा था, और कब तक?** `cast_receiver_alive` खोजें। रिसीवर चलाते समय हर 30 s पर एक भेजता है; `details` में `buf=<behind>/<ahead>/<ranges>` (प्लेहेड के पीछे और आगे बफ़र किए गए सेकंड) और `pos_sec` होता है। स्वस्थ प्लेबैक में `ahead` दसियों सेकंड में होता है। **आख़िरी बीकन का समय वह है जब रिसीवर मरा या मारा गया**: उसके बाद कुछ नहीं का मतलब है कि टीवी अब रिसीवर नहीं चला रहा, फ़ोन चाहे जो दिखाए।
+2. **यह क्यों रुका?** `cast_receiver_finished` खोजें: `reason=INTERRUPTED` एक नया LOAD है जो चल रहे को बदल रहा है (कुछ सेकंड पहले एक `StartStream` देखें), `reason=ERROR` प्लेयर त्रुटि लिए होता है। आख़िरी `alive` के बाद कोई `finished` नहीं = रिसीवर प्रोसेस ग़ायब हो गया (ज़्यादातर, 20+ Mbps कॉपी master पर मेमोरी के कारण मारा गया Chromecast HD)।
+3. **फ़ोन ने क्या देखा?** `cast_sender_stall` खोजें: जब Cast SDK अब भी PLAYING कहता है पर स्थिति 20 s से नहीं हिली तो सेंडर `state=playing frozen=<n>s pos=<p>` भेजता है, और जब रिसीवर ने निष्क्रियता का कारण बताया तो `state=idle reason=<r>`। ये लाइनें WARN पर लॉग होती हैं, इसलिए एडमिन लॉग पेज का चेतावनी फ़िल्टर इन्हें दिखाता है। यह उसी मिनट का सेंडर वाला पक्ष है: इसके `pos` की तुलना रिसीवर के आख़िरी `pos_sec` से करें।
+4. **क्या सेशन में शृंखला प्रतिक्रिया हुई?** `refresh rejected` खोजें: "not found" रिफ़्रेश टोकन ऐप को लॉग आउट करके फिर लॉग इन करवाता है (सहेजे गए क्रेडेंशियल), जो स्ट्रीम फिर से जारी करता है; लाइन अब टोकन का `jti`, `issued` और `age` बताती है, जो पुरानी प्रति को जाली से अलग करता है। फिर से जारी होने के लिए `StartStream` खोजें; उसी टाइटल के लिए फिर से जारी URL पर सेंडर अब रिसीवर को फिर से लोड नहीं करता।
+5. **क्या स्ट्रीम डिवाइस के लिए बहुत बड़ी थी?** `advertises a fallback
+   rung` (कॉपी master का अधिकतम बिटरेट) और `plan fitted to the client's
+   line` (रिसीवर का `maxKbps` माप या उसका `abr=floor` बचाव, अब योजना का इनपुट: उसके बाद का ट्रांसकोड master `client_line_exceeded` या `abr_floor_requested` कारण लिए होता है) खोजें: जो सेशन 20+ Mbps कॉपी master पर शुरू हुआ और कुछ सेकंड बाद एक मिलाए गए 1080p पायदान पर आ गया, वह न्यूनतम-पायदान बचाव का अपना काम करना है; फिर से कॉपी master पर शुरू होने वाला नया LOAD वही पैटर्न है जो Chromecast HD को मारता है।
+6. **सर्वर की ओर संसाधनों की कमी?** `on-demand resource refused` खोजें: लगातार सेगमेंट पर `context canceled` मना करने का झोंका तेज़ी से आगे-पीछे खिसकाना है (हर अनुरोध अगले से रद्द), सर्वर की ग़लती नहीं; लंबी अवधि वाली `served` लाइनें सर्वर की ग़लती हैं।
 
-अगर चरण 1-3 में receiver ज़िंदा और sender चुप दिखे, तो समस्या फ़ोन के Cast सत्र में है (SDK, या TV तक का नेटवर्क); और अगर receiver के beacon पहले रुकें, तो टेलीविज़न ही देखने की जगह है (मेमोरी, codec, धारा की बिटरेट)।
+अगर चरण 1-3 रिसीवर को ज़िंदा और सेंडर को चुप दिखाएँ, तो समस्या फ़ोन के Cast सेशन में है (SDK, टीवी तक का नेटवर्क); अगर रिसीवर के बीकन पहले रुकें, तो टीवी को देखें (मेमोरी, कोडेक, स्ट्रीम का बिटरेट)।
 
-## किसी संदिग्ध सत्र या उपकरण को समाप्त करें
+## किसी समझौता किए गए सेशन / डिवाइस को ख़त्म करना
 
-लक्षण: व्यवस्थापक को **Now Playing** (व्यवस्थापन पैनल) में कोई अनपेक्षित उपकरण दिखता है, या कोई उपयोगकर्ता अपनी सत्र सूची में अनजान उपकरण बताता है।
+लक्षण: एडमिन को **अभी चल रहा है** (एडमिन पैनल) में कोई अनपेक्षित डिवाइस दिखता है, या कोई उपयोगकर्ता अपनी सेशन सूची में कोई अनजाना डिवाइस बताता है।
 
 1. `session_id` पहचानें:
    ```sh
-   docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
-     SELECT id, user_id, profile_id, device, ip_address, started_at
+   docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey -c "
+     SELECT id, profile_id, device_name, client_ip, started_at
      FROM play_sessions
      WHERE ended_at IS NULL
-     ORDER BY started_at DESC LIMIT 20;"
+     ORDER BY started_at DESC LIMIT 20;"'
    ```
-2. व्यवस्थापन UI से समाप्त करें: **Admin → Activity → Now Playing → ⋯ → Kill session**, या `session_id` के साथ gRPC `AdminSessionService/KillSession` से। सत्र 5s बाद समाप्त होता है ताकि प्लेयर रुकने का आदेश पा सके।
-3. सत्र जवाब न दे तो HLS सत्र को ज़बरन हटाएँ (डायरेक्टरी `<cacheDir>/<mediaItemID>` होती है, डिफ़ॉल्ट `/cache/transcode/<mediaItemID>`):
+2. एडमिन UI से ख़त्म करें: **Admin → अभी चल रहा है**, सेशन पर रोकने का आइकन (**सत्र रोकें**), फिर पुष्टि के लिए **रोकें**; या `session_id` के साथ gRPC `AdminSessionService/KillSession` से। सेशन 5 s बाद ख़त्म होता है ताकि प्लेयर रोकने का आदेश पा सके।
+3. अगर स्ट्रीम फिर भी चलती रहे, तो कंटेनर रीस्टार्ट करें: हर एनकोडर उसके साथ रुक जाता है।
    ```sh
-   docker exec evey-server rm -rf /cache/transcode/<media_item_id>/
+   docker compose restart evey
    ```
-4. अगर refresh token भी रद्द करना हो (पासवर्ड के उजागर होने का संदेह):
-   ```sh
-   docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
-     DELETE FROM refresh_tokens WHERE user_id = '<user_id>';"
-   ```
-   उस उपयोगकर्ता के सभी उपकरणों को दोबारा लॉग इन करना होगा। पूरी तालाबंदी के लिए `evey admin reset-password --user <username>` से पासवर्ड बदलें।
+4. अगर खाता ख़ुद समझौता किया गया है, तो उस पर **Admin → उपयोगकर्ता → अक्षम करें**: यह उसके रिफ़्रेश टोकन हटाता है और उसके एक्सेस टोकन तुरंत अमान्य करता है, इसलिए हर डिवाइस साइन आउट हो जाता है। नया पासवर्ड सेट करें (`evey admin reset-password --user <email>`, जो अपने आप कोई सेशन ख़त्म नहीं करता), फिर खाते को फिर से **सक्षम करें**।
 
-## अटके हुए लाइब्रेरी स्कैन को छुड़ाएँ
+## अटके लाइब्रेरी स्कैन को खोलना
 
-लक्षण: कोई लाइब्रेरी स्कैन घंटों से « in progress » दिखता है पर लॉग में फ़ाइलों की कोई प्रगति नहीं।
+लक्षण: लाइब्रेरी स्कैन घंटों तक "चल रहा है" दिखाता है पर लॉग में कोई फ़ाइल प्रगति नहीं।
 
-1. `scan_service.scanning` map को परोक्ष रूप से देखें - प्रक्रिया अटकी हो तो CPU ख़ाली रहता है और हाल के लॉग में कोई `scan_service` नहीं आता:
+1. जाँचें कि क्या स्कैन अब भी कुछ लॉग कर रहा है: अगर प्रोसेस अटका है, तो CPU निष्क्रिय है और हाल के लॉग में कोई `scan:` लाइन नहीं:
    ```sh
-   docker compose logs --tail=500 evey-server | grep scan_service
+   docker logs --tail=500 evey-server | grep 'scan:'
    ```
-2. स्कैन का ताला **मेमोरी में** है (कोई DB पंक्ति नहीं), इसलिए सर्वर पुनः आरंभ करने से वह खुल जाता है:
+2. स्कैन लॉक **मेमोरी में** होता है (कोई DB पंक्ति नहीं), इसलिए सर्वर रीस्टार्ट उसे हटा देता है:
    ```sh
-   docker compose restart evey-server
+   docker compose restart evey
    ```
-3. कोई एक फ़ाइल बार-बार panic करा रही हो (stack trace देखें), तो उसे लाइब्रेरी के रास्ते से बाहर हटाकर अलग कर दें, फिर दोबारा स्कैन करें।
-4. inotify watch ख़त्म हो गए हों (कर्नेल की सीमा), तो बढ़ाएँ:
+3. अगर कोई ख़ास फ़ाइल बार-बार panic करवा रही है (स्टैक ट्रेस देखें), तो उसे लाइब्रेरी पाथ से बाहर ले जाकर अलग करें, फिर फिर से स्कैन करें।
+4. अगर inotify watch ख़त्म हो गए हैं (कर्नेल सीमा), तो बढ़ाएँ:
    ```sh
    echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
    sudo sysctl -p
    ```
 
-## सामान्य जाँच-सूची
+## सामान्य निदान चीट-शीट
 
 ```sh
-# Status of everything
+# हर चीज़ की स्थिति
 docker compose ps
 curl -sf http://localhost:9091/healthz && echo healthy
 
-# Tail every container
+# हर कंटेनर के लॉग देखते रहें
 docker compose logs --tail=100 -f
 
-# Server config dump
+# सर्वर कॉन्फ़िग डंप
 docker exec evey-server env | grep ^EVEY_ | sort
 
-# Postgres size / locks
-docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
-  SELECT pg_size_pretty(pg_database_size(current_database()));"
+# डेटाबेस का आकार
+docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey -c "
+  SELECT pg_size_pretty(pg_database_size(current_database()));"'
 
-# Host disk
-df -h . ./postgres-data ./meili-data ./evey-data
+# होस्ट डिस्क
+df -h ./evey-data
 ```
