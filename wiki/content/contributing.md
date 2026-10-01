@@ -28,8 +28,10 @@ start before proposing to change one of those choices.
 
 ## Before you open a pull request
 
-- `make pre-push` is the single gate. It mirrors the CI: a green run there
-  means a green pipeline.
+- `make pre-push` is the gate: it runs the CI's checks locally (vet,
+  vulnerability scan, build, unit tests with `-race`, frontend, lint,
+  architecture guards). It does not build the Docker image or the Android
+  apps: after touching the `Dockerfile` or Kotlin code, build them yourself.
 - Tests are expected for new behaviour and for every bug fix.
 - External contributions need a one-time acceptance of the
   [contributor licence agreement](../CLA.md): Evey is AGPL-3.0-or-later and

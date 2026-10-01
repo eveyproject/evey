@@ -1,5 +1,5 @@
 ---
-source_sha: 053efa5319e4b48ff12a944ce76f5755b01c4022ff1105d87cf82c5135ac1b4d
+source_sha: 0d64371960f5bb56be25ad84664ab862f39caf2e438a08da552c1713a2274048
 reviewed: false
 ---
 # 参与贡献
@@ -25,7 +25,7 @@ Evey 以开放的方式开发，写给参与代码工作的人的文档与代码
 
 ## 在提交 pull request 之前
 
-- `make pre-push` 是唯一的检查关口。它与 CI 一致：在那里通过就意味着流水线会通过。
+- `make pre-push` 是检查关口：它在本地运行 CI 的各项检查（vet、漏洞扫描、构建、带 `-race` 的单元测试、前端、lint、架构守卫）。它不会构建 Docker 镜像或 Android 应用：修改 `Dockerfile` 或 Kotlin 代码后，请自行构建它们。
 - 新的行为和每个缺陷修复都需要测试。
 - 外部贡献需要一次性接受[贡献者许可协议](../CLA.md)：Evey 采用 AGPL-3.0-or-later，同时也以商业许可提供。你保留自己作品的版权。
 

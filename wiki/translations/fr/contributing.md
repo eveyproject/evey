@@ -1,5 +1,5 @@
 ---
-source_sha: 053efa5319e4b48ff12a944ce76f5755b01c4022ff1105d87cf82c5135ac1b4d
+source_sha: 0d64371960f5bb56be25ad84664ab862f39caf2e438a08da552c1713a2274048
 reviewed: true
 ---
 # Contribuer
@@ -32,8 +32,11 @@ elles qu'il faut commencer avant de proposer de revenir sur l'un de ces choix.
 
 ## Avant d'ouvrir une pull request
 
-- `make pre-push` est le seul point de contrôle. Il reproduit la CI : un
-  passage au vert en local, c'est un pipeline au vert.
+- `make pre-push` est le point de contrôle : il exécute en local les
+  vérifications de la CI (vet, recherche de vulnérabilités, build, tests
+  unitaires avec `-race`, frontend, lint, gardes d'architecture). Il ne
+  construit ni l'image Docker ni les applications Android : après avoir touché
+  au `Dockerfile` ou à du code Kotlin, construisez-les vous-même.
 - Des tests sont attendus pour tout nouveau comportement et pour chaque
   correction de bug.
 - Une contribution externe demande d'accepter une fois
