@@ -1,5 +1,5 @@
 ---
-source_sha: ab4170436ce4da6a8bd0fb6a6c4ec318ebec1134d74c74bfa4dbb33e0edd5a3a
+source_sha: fb9873d46e2323723ae54ede6035d085a424d9e6c047c3fb833962b8358dd857
 reviewed: true
 ---
 # Applications et appareils
@@ -28,8 +28,9 @@ avec l'application Android. La TV est alors connectée au même compte.
 
 ## Ce que propose chaque application
 
-- **Web.** Des raccourcis clavier dans le lecteur (`?` les affiche) et le
-  panneau d'administration.
+- **Web.** Des raccourcis clavier dans le lecteur (`?` les affiche), les
+  notifications push du navigateur (voir [Notifications](../notifications.md)),
+  et le panneau d'administration.
 - **Android.**
   - Les **téléchargements** pour regarder hors connexion. Si l'administrateur
     l'a activée (`downloads.quality_choice`, voir
