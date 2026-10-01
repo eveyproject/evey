@@ -175,7 +175,8 @@ release tag on an ARM host.
 The image is `gravityz/evey`.
 
 - Release tags `vX.Y.Z` publish `X.Y.Z`, `X.Y`, `X` and `latest`. `latest` is
-  always the most recent release.
+  always the most recent stable release: a pre-release (`vX.Y.Z-beta.N`)
+  publishes only its own tag and never moves it.
 - Branch builds publish the branch name (for example `beta-0.0.1`) and
   `sha-<commit>`.
 - **Plugin runtimes.** The default image bundles Python 3 for plugins. The
