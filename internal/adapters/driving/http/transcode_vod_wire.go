@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -202,6 +203,13 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 				return 0
 			}
 			return s.Cfg.EffectiveMaxVideoBitrateRemoteKbps()
+		},
+		lanNetworks: func() (lan []string) {
+			if s.Cfg == nil {
+				return nil
+			}
+			s.Cfg.WithReadLock(func() { lan = slices.Clone(s.Cfg.RemoteAccess.LANNetworks) })
+			return lan
 		},
 		userBitrate:       s.UserBitrate,
 		userBitrateLookup: userBitrateLookup,
