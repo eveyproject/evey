@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"unsafe"
 
@@ -55,11 +56,10 @@ const (
 func deniedSyscalls() []uint32 {
 	return []uint32{
 		unix.SYS_PTRACE, unix.SYS_PROCESS_VM_READV, unix.SYS_PROCESS_VM_WRITEV,
-		// Every signal path to a same-uid process (server, Postgres, Meilisearch),
-		// plus pidfd_getfd, which copies an fd out of such a process.
-		unix.SYS_KILL, unix.SYS_TKILL, unix.SYS_TGKILL,
-		unix.SYS_RT_SIGQUEUEINFO, unix.SYS_RT_TGSIGQUEUEINFO,
-		unix.SYS_PIDFD_SEND_SIGNAL, unix.SYS_PIDFD_GETFD,
+		// Signal paths whose target the filter cannot pin to the plugin (tkill
+		// names a thread id, a pidfd hides the pid), plus pidfd_getfd, which
+		// copies an fd out of a same-uid process. See selfSignalSyscalls.
+		unix.SYS_TKILL, unix.SYS_PIDFD_SEND_SIGNAL, unix.SYS_PIDFD_GETFD,
 		unix.SYS_MOUNT, unix.SYS_UMOUNT2, unix.SYS_PIVOT_ROOT, unix.SYS_CHROOT,
 		unix.SYS_UNSHARE, unix.SYS_SETNS,
 		unix.SYS_INIT_MODULE, unix.SYS_FINIT_MODULE, unix.SYS_DELETE_MODULE,
@@ -80,6 +80,33 @@ func deniedSyscalls() []uint32 {
 	}
 }
 
+// selfSignalSyscalls take the target process id as their first argument: the
+// filter lets them through only when it is the plugin itself. Refusing them
+// outright kept node alive on SIGTERM (its handler re-raises with tgkill(self))
+// and broke the Go runtime's self-preemption; any other target (the server,
+// Postgres, Meilisearch, the process group, -1) stays EPERM.
+func selfSignalSyscalls() []uint32 {
+	return []uint32{unix.SYS_KILL, unix.SYS_TGKILL, unix.SYS_RT_SIGQUEUEINFO, unix.SYS_RT_TGSIGQUEUEINFO}
+}
+
+// appendSelfSignalRules adds one block per selfSignalSyscalls entry: ALLOW when
+// args[0] (64-bit, little-endian on both archs) equals self, EPERM otherwise.
+// A non-matching syscall skips the block with A still holding its number.
+func appendSelfSignalRules(f []unix.SockFilter, self uint32) []unix.SockFilter {
+	for _, nr := range selfSignalSyscalls() {
+		f = append(f,
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 6, K: nr},
+			unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg0}, // low 32 bits of the target
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 3, K: self},
+			unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg0 + 4}, // high 32 bits: 0 for a real pid
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 1, K: 0},
+			unix.SockFilter{Code: bpfRET | bpfK, K: retAllow},
+			unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},
+		)
+	}
+	return f
+}
+
 // buildSeccompFilter returns a classic-BPF program: validate the ABI (kill on
 // mismatch to foil i386/x32 syscall-number confusion), then EPERM every denied
 // syscall. When denyInet is set, socket(2) with AF_INET/AF_INET6 is also EPERM'd
@@ -93,7 +120,7 @@ func deniedSyscalls() []uint32 {
 // them needs to fork to run. It is the kernel-hard cap the userspace resource
 // sweep cannot provide (it polls every ~2s; a fork bomb is faster than that).
 // See appendDenyForkRules for the per-syscall reasoning.
-func buildSeccompFilter(denyInet, denyFork bool) []unix.SockFilter {
+func buildSeccompFilter(self uint32, denyInet, denyFork bool) []unix.SockFilter {
 	f := []unix.SockFilter{
 		{Code: bpfLD | bpfW | bpfABS, K: offArch},
 		{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: auditArch}, // arch ok → skip kill
@@ -113,6 +140,7 @@ func buildSeccompFilter(denyInet, denyFork bool) []unix.SockFilter {
 			unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},
 		)
 	}
+	f = appendSelfSignalRules(f, self)
 	if denyInet {
 		f = append(f,
 			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 5, K: uint32(unix.SYS_SOCKET)}, // not socket → ALLOW
@@ -181,7 +209,8 @@ func applySeccomp(denyInet, denyFork bool) error {
 	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
 		return fmt.Errorf("PR_SET_NO_NEW_PRIVS: %w", err)
 	}
-	filter := buildSeccompFilter(denyInet, denyFork)
+	// The launcher execs the plugin in place: its pid is the plugin's pid.
+	filter := buildSeccompFilter(uint32(os.Getpid()), denyInet, denyFork) //nolint:gosec // G115: a Linux pid fits in 32 bits (pid_max <= 2^22)
 	prog := unix.SockFprog{Len: uint16(len(filter)), Filter: &filter[0]}
 	err := unix.Prctl(unix.PR_SET_SECCOMP, uintptr(unix.SECCOMP_MODE_FILTER), uintptr(unsafe.Pointer(&prog)), 0, 0)
 	runtime.KeepAlive(&prog)

@@ -134,7 +134,7 @@ func TestLauncher_WithoutDenyFork_ProcessCloneReachesKernel(t *testing.T) {
 // their presence structurally instead. On arm64 the list is empty by design
 // (the arch has neither syscall).
 func TestBuildSeccompFilter_DenyForkCoversLegacyForkSyscalls(t *testing.T) {
-	filter := buildSeccompFilter(false, true)
+	filter := buildSeccompFilter(uint32(os.Getpid()), false, true)
 	for _, nr := range legacyForkSyscalls() {
 		found := false
 		for i, ins := range filter {
@@ -149,7 +149,7 @@ func TestBuildSeccompFilter_DenyForkCoversLegacyForkSyscalls(t *testing.T) {
 		}
 	}
 	// And nothing is denied when the flag is off (the subprocess-permission path).
-	plain := buildSeccompFilter(false, false)
+	plain := buildSeccompFilter(uint32(os.Getpid()), false, false)
 	for _, ins := range plain {
 		if ins.Code == bpfRET|bpfK && ins.K == retErrno|enosysData {
 			t.Error("clone3 must not be touched without -deny-fork: subprocess plugins need it")

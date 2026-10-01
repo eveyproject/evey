@@ -59,27 +59,51 @@ func seccompChild(denyInet bool) {
 		fmt.Fprintf(os.Stderr, "userfaultfd not denied: errno=%v\n", errno)
 		os.Exit(16)
 	}
-	// Every other way to signal (or steal an fd from) a same-uid process. The
-	// args would otherwise reach the kernel and fail differently (0/EFAULT/EBADF).
+	// Every way to signal (or steal an fd from) ANOTHER same-uid process is
+	// refused; the args would otherwise reach the kernel and fail differently.
+	self, other := uintptr(os.Getpid()), uintptr(os.Getppid())
 	tid := uintptr(unix.Gettid())
-	undenied := false
+	failed := false
 	for _, sc := range []struct {
 		name string
 		nr   uintptr
 		args [3]uintptr
 	}{
+		{"kill parent", unix.SYS_KILL, [3]uintptr{other, 0, 0}},
+		{"kill own group", unix.SYS_KILL, [3]uintptr{0, 0, 0}},
+		{"kill everyone", unix.SYS_KILL, [3]uintptr{^uintptr(0), 0, 0}},
+		{"tgkill parent", unix.SYS_TGKILL, [3]uintptr{other, other, 0}},
 		{"tkill", unix.SYS_TKILL, [3]uintptr{tid, 0, 0}},
-		{"rt_sigqueueinfo", unix.SYS_RT_SIGQUEUEINFO, [3]uintptr{uintptr(os.Getpid()), 0, 0}},
-		{"rt_tgsigqueueinfo", unix.SYS_RT_TGSIGQUEUEINFO, [3]uintptr{uintptr(os.Getpid()), tid, 0}},
+		{"rt_sigqueueinfo parent", unix.SYS_RT_SIGQUEUEINFO, [3]uintptr{other, 0, 0}},
+		{"rt_tgsigqueueinfo parent", unix.SYS_RT_TGSIGQUEUEINFO, [3]uintptr{other, other, 0}},
 		{"pidfd_send_signal", unix.SYS_PIDFD_SEND_SIGNAL, [3]uintptr{^uintptr(0), 0, 0}},
 		{"pidfd_getfd", unix.SYS_PIDFD_GETFD, [3]uintptr{^uintptr(0), 0, 0}},
 	} {
 		if _, _, errno := unix.Syscall(sc.nr, sc.args[0], sc.args[1], sc.args[2]); errno != unix.EPERM {
 			fmt.Fprintf(os.Stderr, "%s not denied: errno=%v\n", sc.name, errno)
-			undenied = true
+			failed = true
 		}
 	}
-	if undenied {
+	// Signals to itself must reach the kernel: node's SIGTERM handler re-raises
+	// with tgkill(self) and stayed alive when refused (orphans after a server
+	// restart), and the Go runtime preempts its own threads the same way.
+	// Signal 0 probes delivery without sending anything.
+	for _, sc := range []struct {
+		name string
+		nr   uintptr
+		args [3]uintptr
+	}{
+		{"kill self", unix.SYS_KILL, [3]uintptr{self, 0, 0}},
+		{"tgkill self", unix.SYS_TGKILL, [3]uintptr{self, tid, 0}},
+		{"rt_sigqueueinfo self", unix.SYS_RT_SIGQUEUEINFO, [3]uintptr{self, 0, 0}},
+		{"rt_tgsigqueueinfo self", unix.SYS_RT_TGSIGQUEUEINFO, [3]uintptr{self, tid, 0}},
+	} {
+		if _, _, errno := unix.Syscall(sc.nr, sc.args[0], sc.args[1], sc.args[2]); errno == unix.EPERM {
+			fmt.Fprintf(os.Stderr, "%s refused: errno=%v\n", sc.name, errno)
+			failed = true
+		}
+	}
+	if failed {
 		os.Exit(17)
 	}
 	// AF_UNIX must always work - the plugin talks to HostService over it.
