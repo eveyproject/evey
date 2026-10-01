@@ -36,8 +36,6 @@ playback routes are detected and measured by the server itself.
 
 </div>
 
-## Better with less
-
 <div class="evey-points" markdown>
 
 <div markdown>

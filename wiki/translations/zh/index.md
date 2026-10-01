@@ -1,5 +1,5 @@
 ---
-source_sha: 9e2d7867cc55d0c1e56c8b94a38f02164edd7cfdafed58c39880904efaa4e00c
+source_sha: 5cde466e14206b2a29398343ce7b115ae0b096216b8e6d056f834cf4b7763057
 reviewed: false
 hide:
   - navigation
@@ -33,8 +33,6 @@ Evey 是一个自托管的电影、剧集、音乐和照片服务器。每次播
 </figure>
 
 </div>
-
-## 少即是多
 
 <div class="evey-points" markdown>
 
