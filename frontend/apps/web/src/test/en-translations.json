@@ -2274,6 +2274,7 @@
   "errors.library.not_found": "Library not found",
   "errors.library.scan_in_progress": "A scan is already running for this library",
   "errors.media.not_found": "Media not found",
+  "errors.media.restricted_profile_edit": "Switch to a profile without parental controls to edit titles and artwork",
   "errors.music.track_not_found": "Track not found",
   "errors.photo.not_found": "Photo not found",
   "errors.playback.cannot_report_other_session": "Cannot report progress for another user's session",

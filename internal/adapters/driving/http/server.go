@@ -540,7 +540,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			WithPlayerEventCastAudioMode(s.CastAudioModeTouch),
 			WithPlayerEventCastCommand(s.CastCommandConsume)))))
 	}
-	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
+	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo, s.UserQuerySvc)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))
 	// Compat download: the server-prepared variant whose audio a phone without
 	// AC-3/DTS decoders can render. POST kicks the (minutes-long, cached,

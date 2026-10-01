@@ -101,6 +101,7 @@ user:
 
 media:
   not_found: "Media not found"
+  restricted_profile_edit: "Switch to a profile without parental controls to edit titles and artwork"
 
 transcode:
   max_concurrent_reached: "The server is busy transcoding other streams. Please try again in a moment."

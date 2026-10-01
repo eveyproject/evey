@@ -101,6 +101,7 @@ user:
 
 media:
   not_found: "媒体未找到"
+  restricted_profile_edit: "请切换到未启用家长控制的个人资料以编辑标题和图片"
 
 transcode:
   max_concurrent_reached: "服务器正忙于转码其他流，请稍后重试"

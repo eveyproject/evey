@@ -63,6 +63,7 @@ func TestSelectArtwork_NonAdminLibraryAccessDenied_NotFound(t *testing.T) {
 		}},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		checker,
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")

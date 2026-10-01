@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
 // --- shared helpers ---
@@ -90,6 +91,7 @@ func TestSelectArtwork_NoAuth_401(t *testing.T) {
 		&fakeArtworkRepo{},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		allowAll(),
+		nil,
 	))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
@@ -107,6 +109,7 @@ func TestSelectArtwork_NonAdmin_403(t *testing.T) {
 		&fakeArtworkRepo{},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		allowAll(),
+		nil,
 	))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
@@ -124,6 +127,7 @@ func TestSelectArtwork_MediaNotFound_404(t *testing.T) {
 		&fakeArtworkRepo{},
 		&fakeMediaItemGetter{err: errTest},
 		allowAll(),
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
@@ -141,6 +145,7 @@ func TestSelectArtwork_NoRecords_404(t *testing.T) {
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		allowAll(),
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
@@ -160,6 +165,7 @@ func TestSelectArtwork_ArtworkIDNotFound_404(t *testing.T) {
 		}},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		allowAll(),
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
@@ -182,6 +188,7 @@ func TestSelectArtwork_OK(t *testing.T) {
 		}},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		allowAll(),
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
@@ -191,5 +198,32 @@ func TestSelectArtwork_OK(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+// The artwork every account sees is not a kids profile's to change; an
+// unreadable profile is refused too (fail-closed), an adult one goes on.
+func TestSelectArtwork_ParentalProfileRefused(t *testing.T) {
+	kid := kidProfile(10)
+	kid.ID = "p1"
+	adult := &domainuser.Profile{ID: "p1", UserID: "u1"}
+	for name, tc := range map[string]struct {
+		getter *fakeProfileGetter
+		want   int
+	}{
+		"kids profile":       {&fakeProfileGetter{profile: kid}, http.StatusForbidden},
+		"unreadable profile": {&fakeProfileGetter{err: errTest}, http.StatusForbidden},
+		"adult profile":      {&fakeProfileGetter{profile: adult}, http.StatusNotFound}, // no artwork records: past the gate
+	} {
+		h := selectArtworkHandler(&fakeArtworkRepo{}, &fakeMediaItemGetter{item: testMediaItem("lib1")}, allowAll(), tc.getter)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
+		req.SetPathValue("id", "m1")
+		req.SetPathValue("artworkId", "art1")
+		req = withHTTPClaims(req, testClaims(false))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != tc.want {
+			t.Errorf("%s: got %d, want %d (%s)", name, w.Code, tc.want, w.Body.String())
+		}
 	}
 }

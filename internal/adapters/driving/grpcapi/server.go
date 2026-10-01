@@ -202,7 +202,7 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterPlaybackServiceServer(s.server, s.playback)
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: d.Transcoding, userQuery: d.UserQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: d.Mkv, libQuery: d.LibQuery, userAccess: d.UserAccess})
-	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{cmd: d.MetadataCmd, query: d.MetadataQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})
+	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{cmd: d.MetadataCmd, query: d.MetadataQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery, translator: d.Translator})
 	srvCtx := d.ServerCtx
 	if srvCtx == nil {
 		srvCtx = context.Background()

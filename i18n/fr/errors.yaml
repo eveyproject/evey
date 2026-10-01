@@ -101,6 +101,7 @@ user:
 
 media:
   not_found: "Média introuvable"
+  restricted_profile_edit: "Passez sur un profil sans contrôle parental pour modifier les titres et les visuels"
 
 transcode:
   max_concurrent_reached: "Le serveur est occupé par d'autres transcodages. Réessayez dans un instant."

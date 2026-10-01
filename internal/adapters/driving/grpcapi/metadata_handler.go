@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/evey-project/evey/internal/app/library"
@@ -23,6 +25,19 @@ type metadataHandler struct {
 	query      *appmetadata.QueryService
 	userAccess *appuser.AccessService
 	libQuery   *applibrary.QueryService
+	userQuery  *appuser.QueryService
+	translator *eveyi18n.Translator
+}
+
+// refuseParentalProfile stops a write from a profile under parental control:
+// titles, overrides and artwork are shared by every account, so a kids
+// profile must not rewrite what everyone sees. Same resolver as browse and
+// playback (admins exempt, fail-closed on an unreadable profile).
+func (h *metadataHandler) refuseParentalProfile(ctx context.Context) error {
+	if h.userQuery == nil || !resolveParentalFilterFromUserQuery(ctx, h.userQuery).enforced() {
+		return nil
+	}
+	return h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.media.restricted_profile_edit")
 }
 
 func (h *metadataHandler) checkMediaItemAccess(ctx context.Context, mediaItemID string) error {
@@ -82,6 +97,9 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 	ctx := stream.Context()
 	_, span := tracing.StartSpan(ctx, "grpc.metadata.RefreshMetadata")
 	defer span.End()
+	if err := h.refuseParentalProfile(ctx); err != nil {
+		return err
+	}
 	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
 		return err
 	}
@@ -154,6 +172,9 @@ func (h *metadataHandler) GetArtwork(ctx context.Context, req *eveyv1.GetArtwork
 func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.SetMetadataOverrideRequest) (*eveyv1.MetadataOverride, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.metadata.SetMetadataOverride")
 	defer span.End()
+	if err := h.refuseParentalProfile(ctx); err != nil {
+		return nil, err
+	}
 	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
 		return nil, err
 	}
@@ -172,6 +193,9 @@ func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.S
 func (h *metadataHandler) RemoveMetadataOverride(ctx context.Context, req *eveyv1.RemoveMetadataOverrideRequest) (*eveyv1.RemoveMetadataOverrideResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.metadata.RemoveMetadataOverride")
 	defer span.End()
+	if err := h.refuseParentalProfile(ctx); err != nil {
+		return nil, err
+	}
 	// Resolve the override → media item so we can gate the call by library
 	// access. Returning NotFound on a stale id keeps existence opaque.
 	override, err := h.cmd.GetOverride(ctx, req.Id)
@@ -207,6 +231,9 @@ func (h *metadataHandler) ListMetadataOverrides(ctx context.Context, req *eveyv1
 func (h *metadataHandler) ResearchMetadata(ctx context.Context, req *eveyv1.ResearchMetadataRequest) (*eveyv1.ResearchMetadataResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.metadata.ResearchMetadata")
 	defer span.End()
+	if err := h.refuseParentalProfile(ctx); err != nil {
+		return nil, err
+	}
 	if req.MediaItemId == "" {
 		return nil, status.Error(codes.InvalidArgument, "media_item_id is required")
 	}
