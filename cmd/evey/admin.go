@@ -90,21 +90,30 @@ func adminResetPassword(args []string) error {
 	if err := userRepo.Update(ctx, user); err != nil {
 		return fmt.Errorf("update user: %w", err)
 	}
+	// A reset is usually a response to a compromise: end the user's sessions
+	// too, as Admin -> Users -> Disable does (refresh tokens + token epoch).
+	if err := postgres.NewRefreshTokenRepository(db).DeleteByUserID(ctx, user.ID); err != nil {
+		return fmt.Errorf("revoke sessions: %w", err)
+	}
+	if err := userRepo.BumpTokenEpoch(ctx, user.ID); err != nil {
+		return fmt.Errorf("revoke access tokens: %w", err)
+	}
 
 	fmt.Printf("user:     %s\n", *email)
 	fmt.Printf("user_id:  %s\n", string(user.ID))
 	fmt.Printf("password: %s\n", newPassword)
 	fmt.Println()
 	fmt.Println("Save this - it is the only time the new password is shown.")
+	fmt.Println("Every session of this user has been ended.")
 	fmt.Fprintf(os.Stderr, "[admin] reset password for user %s (%s)\n", *email, string(user.ID))
 	return nil
 }
 
-// adminRotateJWTKey deletes the on-disk RSA private key. The next
-// server boot regenerates it via LoadOrGenerateRSAKey. Old access
-// tokens fail signature verification against the new public key →
-// every session is logged out. Refresh tokens are JWTs too, so they're
-// dead by the same mechanism (no separate DB cleanup needed).
+// adminRotateJWTKey moves the on-disk RSA private key aside; the next server
+// boot regenerates it via LoadOrGenerateRSAKey. Refresh tokens are checked by
+// their hash in the database, not by the key, so they are deleted here, and
+// every token epoch is bumped so live access tokens die within the epoch cache
+// TTL instead of at the next restart.
 func adminRotateJWTKey(args []string) error {
 	fs := adminFlags("rotate-jwt-key")
 	if err := fs.Parse(args); err != nil {
@@ -132,10 +141,37 @@ func adminRotateJWTKey(args []string) error {
 	}
 	fmt.Printf("Old key backed up to: %s\n", backup)
 	fmt.Printf("New key will be generated on next server start.\n")
+	if err := endAllSessions(); err != nil {
+		return fmt.Errorf("key rotated, but sessions could not be ended (restart the server, then run this again): %w", err)
+	}
 	fmt.Println()
-	fmt.Println("WARNING: every active session is now invalid - all users must re-login.")
+	fmt.Println("Every session has been ended - all users must sign in again.")
 	fmt.Fprintf(os.Stderr, "[admin] rotated jwt key (old → %s)\n", backup)
 	return nil
+}
+
+// endAllSessions deletes every refresh token and bumps every token epoch, in
+// one transaction.
+func endAllSessions() error {
+	_, db, cleanup, err := openAdminDB()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM refresh_tokens`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET token_epoch = token_epoch + 1`); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // adminRestoreBackup feeds a pg_dump.gz file (as produced by the

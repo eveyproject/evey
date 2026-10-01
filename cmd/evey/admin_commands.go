@@ -73,13 +73,13 @@ var adminCommands = []adminCommand{
 		name: "reset-password", args: "--user <email>", group: groupRecovery,
 		short: "Generate a new password for the user, print it once.",
 		long: "Generates a fresh random password for an existing user, stores its hash and prints the plaintext once to stdout. " +
-			"Existing sessions stay valid until they expire; run rotate-jwt-key afterwards to log the user out everywhere.",
+			"Every session of that user is ended at the same time.",
 	},
 	{
 		name: "rotate-jwt-key", group: groupRecovery,
 		short: "Regenerate the JWT signing key. Invalidates ALL active sessions.",
 		long: "Moves the RSA signing key aside (kept as <key>.rotated-<timestamp>); the next server boot generates a new one. " +
-			"Every access and refresh token fails verification from then on, so every user must log in again.",
+			"Every session is ended in the database at once (refresh tokens deleted, access tokens revoked), so every user must sign in again.",
 	},
 	{
 		name: "restore-backup", args: "<path-to-dump.sql.gz>", group: groupRecovery, noFlags: true,
