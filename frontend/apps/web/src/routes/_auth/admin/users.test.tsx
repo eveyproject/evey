@@ -26,6 +26,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceCreateInviteLink: (...args: unknown[]) => mockCreateInviteLink(...args),
   useUserServiceRevokeInviteLink: (...args: unknown[]) => mockRevokeInviteLink(...args),
   useUserServiceListProfiles: () => ({ data: { profiles: [] }, isLoading: false }),
+  useUserServiceGetCurrentUser: () => ({ data: undefined }),
   useUserServiceListAllProfiles: (...args: unknown[]) => mockListAllProfiles(...args),
   useUserServiceCreateProfile: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useUserServiceUpdateProfile: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),

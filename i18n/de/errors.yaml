@@ -96,6 +96,8 @@ user:
   id_required: "Eine Benutzer-ID ist erforderlich"
   profile_id_required: "Eine Profil-ID ist erforderlich"
   invalid_avatar_path: "Ungültiger Avatar-Pfad"
+  current_password_required: "Geben Sie Ihr aktuelles Passwort ein, um Passwort, E-Mail oder Benutzernamen zu ändern"
+  no_local_password: "Dieses Konto meldet sich per Single Sign-On an und hat noch kein Passwort: Bitten Sie einen Administrator, eines festzulegen, oder nutzen Sie das Zurücksetzen des Passworts"
 
 media:
   not_found: "Medium nicht gefunden"

@@ -96,6 +96,8 @@ user:
   id_required: "A user id is required"
   profile_id_required: "A profile id is required"
   invalid_avatar_path: "Invalid avatar path"
+  current_password_required: "Enter your current password to change your password, e-mail or username"
+  no_local_password: "This account signs in with single sign-on and has no password yet: ask an administrator to set one, or use the password reset"
 
 media:
   not_found: "Media not found"

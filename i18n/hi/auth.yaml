@@ -256,6 +256,8 @@ settings:
     changePassword: "पासवर्ड बदलें"
     changePasswordDesc: "कम से कम 8 अक्षरों का मजबूत पासवर्ड उपयोग करें।"
     newPassword: "नया पासवर्ड"
+    currentPassword: "वर्तमान पासवर्ड"
+    currentPasswordHint: "अपना उपयोगकर्ता नाम, ईमेल या पासवर्ड बदलने के लिए आवश्यक।"
     confirmPassword: "पासवर्ड की पुष्टि करें"
     passwordMismatch: "पासवर्ड मेल नहीं खाते"
     passwordMin: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"

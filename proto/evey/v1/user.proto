@@ -344,6 +344,9 @@ message UpdateUserRequest {
   optional int32 max_streams = 6;
   optional int32 max_profiles = 7;
   optional int32 max_devices_per_profile = 8;
+  // Required when the caller edits their OWN password, e-mail or username:
+  // a stolen access token alone must not take the account over.
+  optional string current_password = 9;
 }
 
 message DeleteUserRequest {

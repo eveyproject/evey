@@ -46,6 +46,7 @@ export default function SettingsScreen() {
   const [editEmail, setEditEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
 
   const { data: user } = useUserServiceGetCurrentUser();
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
@@ -67,6 +68,7 @@ export default function SettingsScreen() {
       onSuccess: () => {
         setNewPassword("");
         setConfirmPassword("");
+        setCurrentPassword("");
         setEditingAccount(false);
         toast.success(t("auth.settings.account.profileUpdated") || "Profile updated");
         qc.invalidateQueries({ queryKey: ["/api/v1/users/me"] });
@@ -97,6 +99,7 @@ export default function SettingsScreen() {
   const startEditAccount = useCallback(() => {
     setEditUsername(user?.username ?? "");
     setEditEmail(user?.email ?? "");
+    setCurrentPassword("");
     setEditingAccount(true);
   }, [user]);
 
@@ -120,12 +123,17 @@ export default function SettingsScreen() {
       setEditingAccount(false);
       return;
     }
+    // Username, e-mail and password are credentials: the server re-checks the current password.
+    if (!currentPassword) {
+      Alert.alert(t("errors.user.current_password_required"));
+      return;
+    }
     try {
-      await updateUser.mutateAsync({ id: user.id, data });
+      await updateUser.mutateAsync({ id: user.id, data: { ...data, currentPassword } });
     } catch (err) {
       toast.error(apiErrorMessage(err as Error, t, t("auth.settings.account.updateFailed", "Update failed")));
     }
-  }, [user, editUsername, editEmail, newPassword, confirmPassword, updateUser, t]);
+  }, [user, editUsername, editEmail, newPassword, confirmPassword, currentPassword, updateUser, t]);
 
   // An avatar upload can take seconds on a phone link, and nothing on screen
   // said one was in flight: repeated taps fired concurrent POSTs on the same
@@ -314,6 +322,22 @@ export default function SettingsScreen() {
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
+                style={s.editInput}
+              />
+            </View>
+            <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: theme.spacing.sm, marginTop: theme.spacing.xs }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: theme.spacing.sm }}>
+                {t("auth.settings.account.currentPasswordHint")}
+              </Text>
+              <TextInput
+                placeholder={t("auth.settings.account.currentPassword")}
+                placeholderTextColor={theme.colors.textMuted}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry
+                autoComplete="current-password"
+                textContentType="password"
+                accessibilityLabel={t("auth.settings.account.currentPassword")}
                 style={s.editInput}
               />
             </View>

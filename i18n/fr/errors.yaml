@@ -96,6 +96,8 @@ user:
   id_required: "Un identifiant d'utilisateur est requis"
   profile_id_required: "Un identifiant de profil est requis"
   invalid_avatar_path: "Chemin d'avatar invalide"
+  current_password_required: "Saisissez votre mot de passe actuel pour changer votre mot de passe, votre e-mail ou votre nom d'utilisateur"
+  no_local_password: "Ce compte se connecte par authentification unique et n'a pas encore de mot de passe : demandez à un administrateur d'en définir un, ou utilisez la réinitialisation du mot de passe"
 
 media:
   not_found: "Média introuvable"

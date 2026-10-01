@@ -256,6 +256,8 @@ settings:
     changePassword: "修改密码"
     changePasswordDesc: "请使用至少 8 个字符的强密码。"
     newPassword: "新密码"
+    currentPassword: "当前密码"
+    currentPasswordHint: "更改用户名、电子邮件或密码时需要填写。"
     confirmPassword: "确认密码"
     passwordMismatch: "密码不匹配"
     passwordMin: "密码至少需要 8 个字符"

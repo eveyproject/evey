@@ -256,6 +256,8 @@ settings:
     changePassword: "Changer le mot de passe"
     changePasswordDesc: "Utilisez un mot de passe fort d'au moins 8 caractères."
     newPassword: "Nouveau mot de passe"
+    currentPassword: "Mot de passe actuel"
+    currentPasswordHint: "Requis pour changer votre nom d'utilisateur, votre e-mail ou votre mot de passe."
     confirmPassword: "Confirmer le mot de passe"
     passwordMismatch: "Les mots de passe ne correspondent pas"
     passwordMin: "Le mot de passe doit contenir au moins 8 caractères"
