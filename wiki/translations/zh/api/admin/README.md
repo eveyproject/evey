@@ -1,5 +1,5 @@
 ---
-source_sha: 36c96049e9495129225a1a4d0a1273989914586cc0b0fb010ee4d6e99afb4219
+source_sha: 8392e2d20e3a5b3c62e2f39d4743e925c172cdcb73dc639a5502e1bf4c16a66d
 reviewed: false
 ---
 # 管理 API
@@ -40,4 +40,4 @@ reviewed: false
 
 ## 身份验证
 
-所有端点都需要有效的管理员 JWT 令牌。
+每个端点都需要管理员身份：管理员账户的会话令牌，或始终属于某个管理员的 API 密钥（其 scopes 可以加以限制）。

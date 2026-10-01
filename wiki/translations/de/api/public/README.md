@@ -1,5 +1,5 @@
 ---
-source_sha: d950d41e450f1d05a29cf775d0b79159572cfa1353c7e02ac009671bb0bcefc1
+source_sha: e1e56c5e8b4af228a44f567d290622a0165ed4a03deb071e09411371605750d5
 reviewed: false
 ---
 # Öffentliche API
@@ -28,4 +28,4 @@ Endpunkte für Benutzer, verfügbar für alle angemeldeten Benutzer.
 
 ## Authentifizierung
 
-Alle Endpunkte verlangen ein gültiges JWT über `Authorization: Bearer <token>`, außer `/api/v1/auth/login` und `/api/v1/setup/*`.
+Die Endpunkte erwarten `Authorization: Bearer <token>`: ein Sitzungstoken aus der Anmeldung oder einen API-Schlüssel (siehe [Webhooks und API-Schlüssel](../../webhooks-api-keys.md)). Ohne erreichbar: Anmelden und Erneuern einer Sitzung, Registrieren mit einer Einladung, Quick Connect, Zurücksetzen des Passworts, der Einrichtungsassistent und sein Status sowie öffentliche Download-Links.

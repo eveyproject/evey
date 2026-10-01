@@ -1,5 +1,5 @@
 ---
-source_sha: d950d41e450f1d05a29cf775d0b79159572cfa1353c7e02ac009671bb0bcefc1
+source_sha: e1e56c5e8b4af228a44f567d290622a0165ed4a03deb071e09411371605750d5
 reviewed: false
 ---
 # सार्वजनिक API
@@ -28,4 +28,4 @@ reviewed: false
 
 ## प्रमाणीकरण
 
-`/api/v1/auth/login` और `/api/v1/setup/*` को छोड़कर सभी एंडपॉइंट को `Authorization: Bearer <token>` के ज़रिए एक मान्य JWT टोकन चाहिए।
+एंडपॉइंट `Authorization: Bearer <token>` लेते हैं: साइन इन से मिला सेशन टोकन, या एक API कुंजी (देखें [वेबहुक और API कुंजियाँ](../../webhooks-api-keys.md))। इसके बिना खुले: साइन इन और सेशन नवीनीकरण, आमंत्रण से साइन अप, Quick Connect, पासवर्ड रीसेट, सेटअप विज़ार्ड और उसकी स्थिति, और सार्वजनिक डाउनलोड लिंक।
