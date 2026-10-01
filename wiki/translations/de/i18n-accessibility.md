@@ -1,5 +1,5 @@
 ---
-source_sha: 6ad73949864d3c9b0dea20d620fb0f5e4a2b176cba0f54c8e15090f66f2b929c
+source_sha: 1a764dc349466d08546e1872dd0168db702f96a926dc5a0f771fabb1cd60921b
 reviewed: false
 ---
 # Sprachen und Barrierefreiheit
@@ -17,7 +17,8 @@ bestem Bemühen, nicht zertifiziert*.
 ### Was übersetzt ist und was nicht
 
 - **Übersetzt:** die Bedienoberfläche - Schaltflächen, Menüs, Einstellungen,
-  Fehlermeldungen, Texte von E-Mail- und Push-Benachrichtigungen.
+  Fehlermeldungen, Texte von Push-Benachrichtigungen. E-Mails
+  (Benachrichtigungen, Passwort-Zurücksetzungen) werden auf Englisch versendet.
 - **Nicht von Evey übersetzt:** Die Metadaten der Medien (Titel,
   Zusammenfassungen, Genres) kommen von Ihrer Metadatenquelle (TMDB/OMDb) in der
   **Metadatensprache**, die im Einrichtungsassistenten oder unter **Admin →
