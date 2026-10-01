@@ -95,7 +95,7 @@ an. Nichts muss von Hand vorbereitet werden.
 
 ## Häufige Varianten
 
-Jede davon sind ein paar Zeilen mehr in derselben Datei.
+Jede davon besteht aus ein paar zusätzlichen Zeilen in derselben Datei.
 
 **Ein zweiter Medienordner.** Fügen Sie `- /other/path:/media2` unter
 `volumes:` hinzu.
