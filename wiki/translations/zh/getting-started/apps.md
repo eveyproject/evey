@@ -1,5 +1,5 @@
 ---
-source_sha: 1a99aeddff5f616f0714bba6418afe4c3423676f7f6ac2a5bcd0bdc38f18ca35
+source_sha: ab4170436ce4da6a8bd0fb6a6c4ec318ebec1134d74c74bfa4dbb33e0edd5a3a
 reviewed: false
 ---
 # 应用与设备
@@ -25,7 +25,6 @@ reviewed: false
 - **Android。**
   - **下载**，用于离线观看。当管理员开启后（`downloads.quality_choice`，见[播放分发与下载](../environment/playback-delivery.md)），对于手机放不下的电影，应用会提供一个由服务器准备的较小副本。下载的内容在不联系服务器的情况下可离线播放 30 天，并且只对允许观看它的个人资料可用：儿童个人资料无法打开另一个个人资料下载的、超出其年龄限制的电影。
   - **投放**到 Chromecast。
-  - 新电影、新剧集和新音乐的**推送通知**，前提是服务器已配置：见[电子邮件与通知](../notifications.md)。
 - **Android TV。** 为遥控器设计的界面。
 
 网页和 Android 播放器中的**播放到**，会把你正在看的内容发送到另一个登录了同一账户且当前打开的 Evey 应用，并在那里继续播放。

@@ -1,11 +1,11 @@
 ---
-source_sha: f9e7107994608f10a03d81a80862011f9ceefaa236fe5b2f076b2dcdc7937d5a
+source_sha: a2778ea0b85b4c03545d656feab9c42ce9cc78f8aa8a4a43beb5727f9eee0951
 reviewed: false
 ---
 # Correo y notificaciones
 
-Correo saliente (invitaciones, restablecimiento de contraseñas, notificaciones) y
-push del navegador. Consulta [Correo y notificaciones](../notifications.md).
+Correo saliente (notificaciones, restablecimiento de contraseñas) y push del
+navegador. Consulta [Correo y notificaciones](../notifications.md).
 
 ## Correo (SMTP)
 
@@ -18,7 +18,9 @@ push del navegador. Consulta [Correo y notificaciones](../notifications.md).
 | `EVEY_SMTP_FROM` | vacía | La dirección del remitente, por ejemplo `noreply@example.com`. |
 | `EVEY_SMTP_TLS` | `starttls` | `starttls`, `ssl` o `none`. |
 
-Los mismos ajustes están en **Admin → Configuración del servidor → Correo / SMTP**.
+Se leen al arrancar el servidor. La tarjeta **Correo / SMTP** de **Admin →
+Configuración del servidor** guarda los mismos campos, pero el servidor no los
+lee.
 
 ## Push del navegador
 

@@ -1,11 +1,11 @@
 ---
-source_sha: f9e7107994608f10a03d81a80862011f9ceefaa236fe5b2f076b2dcdc7937d5a
+source_sha: a2778ea0b85b4c03545d656feab9c42ce9cc78f8aa8a4a43beb5727f9eee0951
 reviewed: false
 ---
 # E-Mail und Benachrichtigungen
 
-Ausgehende E-Mails (Einladungen, Passwort-Zurücksetzungen, Benachrichtigungen)
-und Browser-Push. Siehe [E-Mail und Benachrichtigungen](../notifications.md).
+Ausgehende E-Mails (Benachrichtigungen, Passwort-Zurücksetzungen) und
+Browser-Push. Siehe [E-Mail und Benachrichtigungen](../notifications.md).
 
 ## E-Mail (SMTP)
 
@@ -18,7 +18,9 @@ und Browser-Push. Siehe [E-Mail und Benachrichtigungen](../notifications.md).
 | `EVEY_SMTP_FROM` | leer | Die Absenderadresse, zum Beispiel `noreply@example.com`. |
 | `EVEY_SMTP_TLS` | `starttls` | `starttls`, `ssl` oder `none`. |
 
-Dieselben Einstellungen stehen unter **Admin → Serverkonfiguration → E-Mail / SMTP**.
+Sie werden beim Start des Servers gelesen. Die Karte **E-Mail / SMTP** unter
+**Admin → Serverkonfiguration** speichert dieselben Felder, aber der Server liest
+sie nicht.
 
 ## Browser-Push
 

@@ -1,5 +1,5 @@
 ---
-source_sha: 1a99aeddff5f616f0714bba6418afe4c3423676f7f6ac2a5bcd0bdc38f18ca35
+source_sha: ab4170436ce4da6a8bd0fb6a6c4ec318ebec1134d74c74bfa4dbb33e0edd5a3a
 reviewed: false
 ---
 # Aplicaciones y dispositivos
@@ -40,8 +40,6 @@ televisión queda conectada a la misma cuenta.
     perfiles autorizados a verla: un perfil infantil no puede abrir una película
     descargada por otro perfil por encima de su límite de edad.
   - **Transmitir** a un Chromecast.
-  - **Notificaciones push** de nuevas películas, episodios y música, si el
-    servidor las tiene configuradas: consulta [Correo y notificaciones](../notifications.md).
 - **Android TV.** Una interfaz pensada para el mando.
 
 **Reproducir en**, en los reproductores web y de Android, envía lo que estás
