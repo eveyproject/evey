@@ -35,10 +35,10 @@ func allowPermissionEscalation(ctx context.Context) bool {
 	return v
 }
 
-// ApplyUpdate applies a previously previewed update. It re-downloads (or re-reads)
-// the candidate and re-computes its hash to verify it matches acknowledged_hash,
-// preventing TOCTOU. After hash verification it delegates to InstallPlugin with
-// WithAllowPermissionEscalation so the admin's explicit ack is honoured.
+// ApplyUpdate applies a previously previewed update. It downloads (or reads) the
+// candidate ONCE, checks its hash against acknowledged_hash, then installs that
+// same file through the full install pipeline (TOCTOU: a second fetch could serve
+// other bytes), with WithAllowPermissionEscalation to honour the admin's ack.
 func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, acknowledgedHash string) (*plugin.Plugin, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.plugin.ApplyUpdate")
 	defer span.End()
@@ -47,8 +47,8 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 		return nil, ErrPluginNotFound
 	}
 
-	// Re-download/re-read candidate to compute fresh hash (TOCTOU guard).
-	localPath, _, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
+	// Download/read the candidate once and hash it; this file is what gets installed.
+	localPath, fragmentHash, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
 		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
@@ -66,7 +66,10 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 	// Permission escalation is explicitly authorised because the admin has
 	// reviewed and acknowledged the diff in the preview step.
 	ctx = WithAllowPermissionEscalation(ctx)
-	return s.InstallPlugin(ctx, source)
+	if fragmentHash == "" {
+		fragmentHash = acknowledgedHash
+	}
+	return s.installLocalZip(ctx, localPath, fragmentHash)
 }
 
 // checkPermissionEscalation returns ErrPluginPermissionEscalation when the
