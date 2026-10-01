@@ -13,7 +13,7 @@ Duración de las sesiones, la clave de firma y el inicio de sesión único.
 | `EVEY_JWT_PRIVATE_KEY_PATH` | `/data/jwt.key` | La clave que firma los tokens de acceso, generada en el primer arranque. Si se pierde, el siguiente arranque genera una nueva y las aplicaciones renuevan sus tokens: nadie pierde la sesión. |
 | `EVEY_JWT_ACCESS_TTL` | `15m` | Duración de un token de acceso. Las aplicaciones lo renuevan sin que se note. |
 | `EVEY_JWT_REFRESH_TTL` | `168h` (7 días) | Duración de una sesión iniciada: si no usas una aplicación durante ese tiempo, vuelves a iniciar sesión. |
-| `EVEY_JWT_REFRESH_LONG_TTL` | `4320h` (180 días) | Duración de una sesión que una aplicación pide conservar, como un televisor conectado con Quick Connect. |
+| `EVEY_JWT_REFRESH_LONG_TTL` | `4320h` (180 días) | Duración de una sesión que una aplicación pide conservar, como un televisor conectado con Conexión rápida. |
 
 ## Inicio de sesión único (OIDC)
 

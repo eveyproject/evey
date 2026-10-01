@@ -187,7 +187,7 @@ la invariante del hash de caché se cumple por construcción (y la ruta caliente
 los segmentos pasó de ~5 lecturas de preferencias del perfil a 1). Los auxiliares
 de hechos de la fuente (códec, HDR, SAR, diez bits…) viven al lado en
 `app/transcoding/source_facts.go`; el adaptador conserva alias finos. Entre
-peticiones la invariante sigue descansando en el horneado de las URL: **cada
-entrada de la decisión debe quedar horneada en las URL hijas**, o un sondeo a
+peticiones la invariante sigue descansando en lo que se incrusta en las URL: **cada
+entrada de la decisión debe quedar incrustada en las URL hijas**, o un sondeo a
 mitad de reproducción puede cambiar el plan bajo el reproductor (`querySuffix` en
 `manifest_generator.go`).

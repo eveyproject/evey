@@ -117,7 +117,7 @@ espera asperezas y, por favor, informa de casos concretos.
 
 - **Ninguna pasada con lector de pantalla.** Los recorridos con
   NVDA/VoiceOver/TalkBack no están verificados; algunos widgets personalizados
-  (menús, ventanas modales, la barra de búsqueda, los selectores de pistas) pueden
+  (menús, ventanas modales, la barra de progreso, los selectores de pistas) pueden
   no anunciar correctamente su estado o su función.
 - **La gestión del foco no está auditada.** El estilo del foco visible y el orden
   del foco en diálogos y superposiciones no son coherentes en algunos sitios.

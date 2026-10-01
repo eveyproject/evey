@@ -13,7 +13,7 @@ historial y métricas para una pila de supervisión externa.
 | --- | --- | --- |
 | `EVEY_BACKUP_DIR` | `/data/backups` | Dónde se escriben las copias de la base de datos. |
 | `EVEY_BACKUP_INTERVAL_HOURS` | `0` (desactivado) | Una copia cada N horas. Solo se usa cuando no hay programación definida en **Admin → Copia de seguridad y restauración → Programación**, que es la forma habitual. |
-| `EVEY_BACKUP_RETENTION_DAYS` | `30` | Las copias más antiguas se eliminan al arrancar y con la programación anterior. Una programación definida en el panel tiene su propia retención. |
+| `EVEY_BACKUP_RETENTION_DAYS` | `30` | Las copias con más de ese número de días se eliminan al arrancar y con la programación anterior. Una programación definida en el panel tiene su propia retención. |
 
 Consulta [Copias de seguridad y actualizaciones](../backups.md).
 

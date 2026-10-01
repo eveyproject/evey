@@ -24,7 +24,7 @@ Endpoints de administración reservados a los usuarios con privilegios de admini
 ### Medios y transcodificación
 | Especificación | Descripción |
 |------|-------------|
-| [admin_media.swagger.json](admin_media.swagger.json) | Salud de medios (análisis, reparaciones, historial y deshacer), eliminar medios, actualizar metadatos, generar trickplay |
+| [admin_media.swagger.json](admin_media.swagger.json) | Salud de medios (escaneos, reparaciones, historial y deshacer), eliminar medios, actualizar metadatos, generar trickplay |
 | [metadata.swagger.json](metadata.swagger.json) | Proveedores de metadatos, búsqueda, anulaciones |
 | [transcoding.swagger.json](transcoding.swagger.json) | Perfiles de transcodificación, detección de hardware, tareas activas |
 | [transcode_cache.swagger.json](transcode_cache.swagger.json) | Gestión de la caché de transcodificación |
@@ -40,4 +40,4 @@ Endpoints de administración reservados a los usuarios con privilegios de admini
 
 ## Autenticación
 
-Cada endpoint exige un administrador: el token de sesión de una cuenta de administrador, o una clave de API, que siempre pertenece a uno (sus scopes pueden restringirla).
+Cada endpoint exige un administrador: el token de sesión de una cuenta de administrador, o una clave de API, que siempre pertenece a uno (sus ámbitos pueden restringirla).

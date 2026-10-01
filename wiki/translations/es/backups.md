@@ -29,13 +29,13 @@ la carpeta `./evey-data`: las copias de la base de datos están dentro, en
 ## Copias programadas
 
 **Admin → Copia de seguridad y restauración → Programación**: una expresión cron
-(por ejemplo `0 3 * * *`, todos los días a las 3) y una retención en días. Las
+(por ejemplo `0 3 * * *`, todos los días a las 3 de la madrugada) y una retención en días. Las
 copias más antiguas que la retención se eliminan tras cada ejecución programada.
 **Ejecutar ahora** crea una de inmediato.
 
 <figure class="evey-shot" markdown="span">
   ![Admin → Copia de seguridad y restauración con una programación diaria](images/admin-backup.webp){ loading=lazy }
-  <figcaption>Una copia todos los días a las 3, conservada 30 días (interfaz en inglés).</figcaption>
+  <figcaption>Una copia todos los días a las 3 de la madrugada, conservada 30 días (interfaz en inglés).</figcaption>
 </figure>
 
 El servidor también vuelca la base de datos por su cuenta antes de aplicar una

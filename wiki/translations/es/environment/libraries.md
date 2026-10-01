@@ -21,7 +21,7 @@ un valor.
 
 | Variable | Por defecto | Efecto |
 | --- | --- | --- |
-| `EVEY_METADATA_LANGUAGE` | `en` | El idioma de los títulos y resúmenes. Prevalece el idioma elegido en el asistente de configuración o en **Admin → Configuración del servidor → Idioma y región**. |
+| `EVEY_METADATA_LANGUAGE` | `en` | El idioma de los títulos y las sinopsis. Prevalece el idioma elegido en el asistente de configuración o en **Admin → Configuración del servidor → Idioma y región**. |
 | `EVEY_TMDB_API_KEY` | clave integrada | Tu propia clave de TMDB, para tu propia cuota. Prevalece la clave definida en **Admin → Configuración del servidor → Claves API**. |
 | `EVEY_OMDB_API_KEY` | vacía | Una clave de OMDb, una segunda fuente para películas. Misma anulación. |
 | `EVEY_OPENSUBTITLES_API_KEY` | vacía | Una clave de OpenSubtitles, para buscar subtítulos a través de la API. Misma anulación. |

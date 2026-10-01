@@ -122,7 +122,7 @@ reproductores y cuáles tiene que incrustar el servidor en la imagen.
 
 Los pósteres y los fondos se copian al servidor durante los escaneos, en
 `./evey-data/artworks`, y los que faltan se reintentan cada hora. **Admin →
-Cache de artworks** muestra cuántos siguen sin copia local; **Descargar
+Caché de artworks** muestra cuántos siguen sin copia local; **Descargar
 artworks faltantes** los obtiene ahora, y **Purgar variantes corruptas** elimina
 los pósteres redimensionados que un redimensionado fallido dejó vacíos, que se
 vuelven a generar bajo demanda.
@@ -139,7 +139,7 @@ reconstruir; no se pierde nada.
 
 ## Un plugin dejó de funcionar
 
-[Un plugin se ha bloqueado](../runbooks/incident-runbook.md#7-plugin-crashed). Sus
+[Un plugin se ha caído](../runbooks/incident-runbook.md#7-plugin-crashed). Sus
 propios registros están en su tarjeta en **Admin → Plugins**.
 
 ## El disco se llena

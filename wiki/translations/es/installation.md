@@ -88,7 +88,7 @@ el asistente de configuración: continúa con
 
 | Ubicación | Contiene | ¿Se puede borrar? |
 | --- | --- | --- |
-| `./evey-data` | Base de datos, clave de firma, contraseñas generadas, índice de búsqueda, miniaturas de la línea de tiempo, imágenes, registros, copias de seguridad, plugins | No. Perderla supone perder todas las cuentas, el historial y los ajustes. Solo `meili/` puede irse: el índice de búsqueda se reconstruye desde la base de datos con `evey admin reindex-search`. |
+| `./evey-data` | Base de datos, clave de firma, contraseñas generadas, índice de búsqueda, miniaturas de la línea de tiempo, imágenes, registros, copias de seguridad, plugins | No. Perderla supone perder todas las cuentas, el historial y los ajustes. Dentro de ella solo puede borrarse `meili/`: el índice de búsqueda se reconstruye desde la base de datos con `evey admin reindex-search`. |
 | Volumen `evey-cache` | Segmentos transcodificados, fotos y portadas redimensionadas | Sí. Se regenera bajo demanda. |
 | Tus carpetas de medios | Tus archivos | Evey no los borra; quitar un título en Evey lo quita de la biblioteca, no del disco. Escribe ahí en tres casos: una reparación lanzada desde Salud de medios (el original se guarda como copia), subtítulos descargados de OpenSubtitles (una carpeta `.subtitles` junto a la película) y un archivo de prueba de unos segundos que comprueba que el vigilante de carpetas sigue recibiendo eventos. |
 

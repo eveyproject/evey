@@ -49,7 +49,7 @@ momento, y la reproducción continúa allí.
 
 ## Qué dispositivo reproduce qué
 
-Cada aplicación informa de lo que su dispositivo puede decodificar, y el
+Cada aplicación informa de lo que su dispositivo puede descodificar, y el
 servidor decide para cada título si envía el archivo tal cual o lo adapta. La
 misma película puede llegar intacta a una tele y recodificada a un teléfono más
 antiguo. El panel **Información del flujo** del reproductor muestra la decisión y

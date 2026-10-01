@@ -79,7 +79,7 @@ consulta [HDR y Dolby Vision](hdr.md).
 ## Límites de la sesión
 
 Un título cuyo bitrate (vídeo más la pista de audio en reproducción) supera el
-menor de estos límites se transcodifica por debajo de él:
+menor de estos límites se transcodifica hasta ese límite:
 
 - el máximo que indica el reproductor;
 - el **Bitrate máximo** de la cuenta, fijado por un administrador;
