@@ -790,7 +790,7 @@ serverConfig:
   saveSmtp: SMTP-Einstellungen speichern
   smtpSaved: SMTP-Einstellungen gespeichert
   failedSmtp: "{{key}} konnte nicht gespeichert werden"
-  smtpEnvHint: "Hier gespeicherte Werte ersetzen die Umgebungsvariablen EVEY_SMTP_* des Servers; ein leeres Feld übernimmt den Wert aus der Umgebung. Änderungen gelten ohne Neustart."
+  smtpEnvHint: "Sobald hier ein Host eingetragen ist, kommen alle Felder aus dieser Karte und die Umgebungsvariablen EVEY_SMTP_* des Servers werden ignoriert; ohne Host hier gilt die Umgebung. Änderungen gelten ohne Neustart."
   sendTestEmail: "Test-E-Mail senden"
   testEmailHint: "Sendet eine kurze Nachricht an die E-Mail-Adresse deines Kontos mit den gespeicherten Einstellungen. Speichere deine Änderungen zuerst."
   testEmailSent: "Test-E-Mail an {{to}} gesendet"

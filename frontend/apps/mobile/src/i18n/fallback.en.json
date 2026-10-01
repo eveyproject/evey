@@ -1187,7 +1187,7 @@
   "admin.serverConfig.serverLanguage": "Server language",
   "admin.serverConfig.serverRegion": "Server region",
   "admin.serverConfig.show": "Show",
-  "admin.serverConfig.smtpEnvHint": "Values saved here override the server's EVEY_SMTP_* environment variables; a field left empty uses the environment value. Changes apply without a restart.",
+  "admin.serverConfig.smtpEnvHint": "Once a host is entered here, every field comes from this card and the server's EVEY_SMTP_* environment variables are ignored; with no host here, the environment is used. Changes apply without a restart.",
   "admin.serverConfig.smtpHost": "SMTP Host",
   "admin.serverConfig.smtpPassword": "Password",
   "admin.serverConfig.smtpSaved": "SMTP settings saved",
