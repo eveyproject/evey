@@ -1,5 +1,5 @@
 ---
-source_sha: 36492c52b264a6f9e288ee05ec9cae5b29f8e340329b30fe064fcf164c5045de
+source_sha: 493189a86da40c20ad5dae6f15c10a6d11082963e6bc451cc0804389e0fbe494
 reviewed: true
 ---
 # Utilisateurs, profils et contrôle parental
@@ -96,3 +96,31 @@ elle est copiée dans le presse-papiers.
 - Accès distant coupé, le lien ne fonctionne que depuis les réseaux locaux.
 - Qui détient le lien peut télécharger le fichier jusqu'à son expiration :
   partagez-le comme le fichier lui-même.
+
+## La page d'accueil
+
+La page d'accueil est une pile de rangées ; une rangée sans rien à montrer est
+masquée.
+
+| Rangée | Ce qu'elle montre |
+| --- | --- |
+| **Reprendre la lecture** | Ce que le profil a commencé sans le finir, le plus récent d'abord. Un titre compte comme vu à 90 %. |
+| **À suivre** | Pour chaque série dont le profil a vu un épisode, le prochain épisode non vu. |
+| **Collections** | Les collections, avec un lien vers la liste complète. |
+| **Recommandé pour vous** | Les films et séries des genres habituels du profil, la meilleure correspondance d'abord, puis par note. Un genre compte quand il apparaît dans au moins 3 des 200 dernières lectures du profil. |
+| **Les plus populaires** | Les films et séries les plus lus sur le serveur ces 90 derniers jours. |
+| Une rangée par bibliothèque | Les derniers ajouts à cette bibliothèque, du plus récent au plus ancien. |
+
+Recommandé pour vous et Les plus populaires écartent ce que le profil a déjà
+terminé ; une série compte comme terminée une fois chaque épisode vu. Les
+plugins peuvent ajouter leurs propres rangées.
+
+**Admin → Configuration du serveur → Flux d'accueil** fixe le réglage par défaut
+de tous les profils : quelles rangées apparaissent, dans quel ordre, et combien
+d'éléments chacune montre. Chaque profil arrange ensuite son propre accueil avec
+**Personnaliser** (sur la page d'accueil des applications web et mobile, dans
+l'en-tête de l'application TV) : afficher ou masquer une rangée, la déplacer, ou
+**Réinitialiser**. Le choix est enregistré sur le serveur et suit le profil sur
+chaque appareil. Un profil peut afficher une rangée que l'administrateur a
+masquée, sauf la rangée d'un plugin : là, le choix de l'administrateur est
+définitif.

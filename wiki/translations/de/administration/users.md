@@ -1,5 +1,5 @@
 ---
-source_sha: 36492c52b264a6f9e288ee05ec9cae5b29f8e340329b30fe064fcf164c5045de
+source_sha: 493189a86da40c20ad5dae6f15c10a6d11082963e6bc451cc0804389e0fbe494
 reviewed: false
 ---
 # Benutzer, Profile und Kindersicherung
@@ -95,3 +95,30 @@ herunterzuladen; sie wird in die Zwischenablage kopiert.
   Netzwerken.
 - Wer den Link hat, kann die Datei bis zum Ablauf herunterladen: Teilen Sie
   ihn wie die Datei selbst.
+
+## Die Startseite
+
+Die Startseite ist ein Stapel von Zeilen; eine Zeile ohne Inhalt wird
+ausgeblendet.
+
+| Zeile | Was sie zeigt |
+| --- | --- |
+| **Wiedergabe fortsetzen** | Was das Profil begonnen und nicht beendet hat, das Neueste zuerst. Ein Titel gilt bei 90 % als gesehen. |
+| **Als Nächstes** | Für jede Serie, von der das Profil eine Folge gesehen hat, die nächste ungesehene Folge. |
+| **Sammlungen** | Die Sammlungen, mit einem Link zur vollständigen Liste. |
+| **Für Sie empfohlen** | Filme und Serien aus den üblichen Genres des Profils, die beste Übereinstimmung zuerst, dann nach Bewertung. Ein Genre zählt, wenn es in mindestens 3 der letzten 200 Wiedergaben des Profils vorkommt. |
+| **Am beliebtesten** | Die Filme und Serien, die in den letzten 90 Tagen auf dem Server am häufigsten abgespielt wurden. |
+| Eine Zeile pro Bibliothek | Die neuesten Zugänge dieser Bibliothek, das Neueste zuerst. |
+
+Für Sie empfohlen und Am beliebtesten lassen weg, was das Profil schon beendet
+hat; eine Serie gilt als beendet, sobald jede Folge gesehen ist. Plugins können
+eigene Zeilen hinzufügen.
+
+**Admin → Serverkonfiguration → Startseiten-Feeds** legt die Vorgabe für alle
+Profile fest: welche Zeilen erscheinen, in welcher Reihenfolge und wie viele
+Einträge jede zeigt. Jedes Profil ordnet seine eigene Startseite dann mit
+**Anpassen** (auf der Startseite der Web- und Mobil-App, in der Kopfzeile der
+TV-App): eine Zeile ein- oder ausblenden, verschieben oder **Zurücksetzen**. Die
+Wahl wird auf dem Server gespeichert und folgt dem Profil auf jedes Gerät. Ein
+Profil kann eine Zeile einblenden, die der Administrator ausgeblendet hat, außer
+der Zeile eines Plugins: Dort ist die Wahl des Administrators endgültig.
