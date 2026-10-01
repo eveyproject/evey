@@ -24,23 +24,18 @@ func (s *CommandService) VerifyCurrentPassword(ctx context.Context, userID, pass
 	if u.PasswordHash == "" {
 		return ErrNoLocalPassword
 	}
-	key := loginAttemptKey(u.Username)
-	locked, lockErr := s.loginAttempts.IsLocked(ctx, key)
-	if lockErr != nil {
-		slog.WarnContext(ctx, "reauth IsLocked", slog.String("userID", userID), slog.Any("err", lockErr))
-	}
-	if locked {
+	// Same keys as Login: the hard lock per (client IP, user), the per-user cap.
+	pairKey, userKey := loginAttemptKeys(ctx, u.Username)
+	if s.loginLocked(ctx, u.Username, pairKey, userKey) {
 		return ErrAccountLocked
 	}
 	ok, vErr := s.hasher.Verify(normalizePassword(password), u.PasswordHash)
 	if vErr != nil || !ok {
-		if recErr := s.loginAttempts.Record(ctx, key, s.loginMaxFails, s.loginWindow); recErr != nil {
-			slog.WarnContext(ctx, "reauth attempt Record", slog.String("userID", userID), slog.Any("err", recErr))
-		}
+		s.recordLoginFailure(ctx, u.Username, pairKey, userKey)
 		slog.WarnContext(ctx, "reauth failed", slog.String("userID", userID), slog.String("reason", "bad_password"))
 		return ErrInvalidCredentials
 	}
-	if resetErr := s.loginAttempts.Reset(ctx, key); resetErr != nil {
+	if resetErr := s.loginAttempts.Reset(ctx, pairKey); resetErr != nil {
 		slog.WarnContext(ctx, "reauth attempt Reset", slog.String("userID", userID), slog.Any("err", resetErr))
 	}
 	return nil
