@@ -19,11 +19,13 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/pkg/safefs"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -200,26 +202,26 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// (7) Per-file size limit - refuse > 50 MB before opening.
-	stat, statErr := os.Stat(candidate)
+	// The plugin owns its install dir (symlinks included) under the server uid:
+	// resolve beneath pluginDir without following any link, regular files only.
+	rel, relErr := filepath.Rel(filepath.Clean(h.pluginDir), candidate)
+	if relErr != nil {
+		span.SetStatus(otelcodes.Error, "asset path not relative")
+		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
+		return
+	}
+	rel = filepath.ToSlash(rel)
+
+	// (7) Per-file size limit - refuse > 50 MB before reading.
+	stat, statErr := safefs.StatRegular(h.pluginDir, rel)
 	if statErr != nil {
 		span.RecordError(statErr)
 		span.SetStatus(otelcodes.Error, "asset not found")
 		http.Error(w, `{"message":"asset not found"}`, http.StatusNotFound)
 		return
 	}
-	if stat.IsDir() {
-		span.SetStatus(otelcodes.Error, "asset is a directory")
-		http.Error(w, `{"message":"asset not found"}`, http.StatusNotFound)
-		return
-	}
 	if stat.Size() > maxPluginAssetBytes {
-		slog.WarnContext(r.Context(), "plugin asset rejected: size limit",
-			slog.String("plugin_id", pluginID),
-			slog.String("path", requestedPath),
-			slog.Int64("size", stat.Size()),
-			slog.Int64("limit", maxPluginAssetBytes))
-		span.SetStatus(otelcodes.Error, "asset exceeds size limit")
+		h.rejectOversized(r, span, pluginID, requestedPath, stat.Size())
 		http.Error(w, `{"message":"asset too large"}`, http.StatusNotFound)
 		return
 	}
@@ -234,13 +236,21 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	data, readErr := os.ReadFile(candidate)
+	// Read through the fd and take size/mtime from it: the stat above is a
+	// separate open, the file may have been swapped in between.
+	data, fdStat, readErr := safefs.ReadFile(h.pluginDir, rel, maxPluginAssetBytes)
+	if errors.Is(readErr, safefs.ErrTooLarge) {
+		h.rejectOversized(r, span, pluginID, requestedPath, fdStat.Size())
+		http.Error(w, `{"message":"asset too large"}`, http.StatusNotFound)
+		return
+	}
 	if readErr != nil {
 		span.RecordError(readErr)
 		span.SetStatus(otelcodes.Error, "asset read failed")
 		http.Error(w, `{"message":"asset not found"}`, http.StatusNotFound)
 		return
 	}
+	stat = fdStat
 
 	// (4) Content-Type by extension + nosniff.
 	ext := strings.ToLower(filepath.Ext(candidate))
@@ -313,6 +323,15 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 	http.ServeContent(w, r, "", stat.ModTime(), bytes.NewReader(data))
 }
 
+func (h *pluginAssetHandler) rejectOversized(r *http.Request, span trace.Span, pluginID, path string, size int64) {
+	slog.WarnContext(r.Context(), "plugin asset rejected: size limit",
+		slog.String("plugin_id", pluginID),
+		slog.String("path", path),
+		slog.Int64("size", size),
+		slog.Int64("limit", maxPluginAssetBytes))
+	span.SetStatus(otelcodes.Error, "asset exceeds size limit")
+}
+
 func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.plugin.ListThemes")
 	defer span.End()
@@ -340,7 +359,7 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 		// Parse :root { --X: Y; ... } from theme.css so mobile clients (which
 		// can't apply CSS) get a JSON token map to feed their native theme
 		// provider. Web ignores this field and keeps loading theme.css.
-		if cssBytes, readErr := os.ReadFile(filepath.Join(h.pluginDir, p.ID, "theme.css")); readErr == nil {
+		if cssBytes, _, readErr := safefs.ReadFile(h.pluginDir, p.ID+"/theme.css", 0); readErr == nil {
 			if vars := parseRootCSSVars(cssBytes); len(vars) > 0 {
 				entry.Tokens = vars
 			}
