@@ -28,7 +28,7 @@ si le fichier se lit bien, il va bien.
 
 ### Réparable ici
 
-- **Index de lecture manquant**, ou inutilisable. Le symptôme : un déplacement
+- **Sans index de lecture**, ou avec un index inutilisable. Le symptôme : un déplacement
   dans la lecture ou une reprise lents. L'index est reconstruit dans une copie
   temporaire, la copie est entièrement vérifiée (pistes, durée, index), puis elle
   remplace le fichier.
