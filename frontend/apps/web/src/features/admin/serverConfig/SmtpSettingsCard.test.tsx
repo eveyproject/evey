@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import { SmtpSettingsCard } from "./SmtpSettingsCard";
 
@@ -7,6 +7,9 @@ const setMutate = vi.fn();
 vi.mock("./hooks", () => ({ useSetConfigEntry: () => ({ mutate: setMutate, isPending: false }) }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@evey/store", () => ({ toast }));
+const eveyFetch = vi.hoisted(() => vi.fn());
+vi.mock("@evey/api", () => ({ eveyFetch }));
+vi.mock("@/hooks/useDemoMode", () => ({ useDemoLock: () => ({ demo: false, lock: {} }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) => (o ? `${k}(${Object.values(o).join(",")})` : k) }) }));
 vi.mock("@/components/ui/Select", () => ({
   Select: ({ label, value, onChange, options }: any) =>
@@ -60,5 +63,23 @@ describe("SmtpSettingsCard", () => {
     expect(toast.error).toHaveBeenCalledWith("admin.serverConfig.failedSmtp(smtp.password)");
     again.filter((_, i) => i !== 3).forEach((cb) => cb.onSuccess());
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  // The test button posts to the admin route and shows the SMTP server's own
+  // reason on failure, or a translated hint for a known cause.
+  it("sends a test e-mail and surfaces why it failed", async () => {
+    render(<SmtpSettingsCard entries={stored} />);
+    eveyFetch.mockResolvedValueOnce({ to: "admin@example.test" });
+    fireEvent.click(screen.getByText("admin.serverConfig.sendTestEmail"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("admin.serverConfig.testEmailSent(admin@example.test)"));
+    expect(eveyFetch).toHaveBeenCalledWith(expect.objectContaining({ url: "/api/v1/admin/smtp/test", method: "POST" }));
+
+    eveyFetch.mockRejectedValueOnce(Object.assign(new Error("smtp plain auth: 535 bad credentials"), { errorCode: "send_failed" }));
+    fireEvent.click(screen.getByText("admin.serverConfig.sendTestEmail"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("admin.serverConfig.testEmailFailed(smtp plain auth: 535 bad credentials)"));
+
+    eveyFetch.mockRejectedValueOnce(Object.assign(new Error("smtp not configured"), { errorCode: "not_configured" }));
+    fireEvent.click(screen.getByText("admin.serverConfig.sendTestEmail"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("admin.serverConfig.testEmailNotConfigured"));
   });
 });

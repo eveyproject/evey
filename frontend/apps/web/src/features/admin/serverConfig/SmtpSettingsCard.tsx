@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
+import { eveyFetch } from "@evey/api";
+import { useDemoLock } from "@/hooks/useDemoMode";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -30,6 +32,8 @@ export function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefin
   const [from, setFrom] = useState(() => val("smtp.from"));
   const [tls, setTls] = useState(() => val("smtp.tls") || "starttls");
   const [showPassword, setShowPassword] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const { lock } = useDemoLock();
 
   // Re-seed from the config the FIRST time it arrives. useState(() => val())
   // only seeds at mount, so if this card mounts BEFORE the config query
@@ -77,8 +81,25 @@ export function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefin
     }
   }
 
+  // Sends with the SAVED settings (the server re-reads them) to the admin's own address.
+  async function handleTest() {
+    setTesting(true);
+    try {
+      const res = await eveyFetch<{ to?: string }>({ url: "/api/v1/admin/smtp/test", method: "POST", data: {} });
+      toast.success(t("admin.serverConfig.testEmailSent", { to: res?.to ?? "" }));
+    } catch (err) {
+      const e = err as { errorCode?: string; message?: string };
+      if (e.errorCode === "not_configured") toast.error(t("admin.serverConfig.testEmailNotConfigured"));
+      else if (e.errorCode === "no_recipient") toast.error(t("admin.serverConfig.testEmailNoRecipient"));
+      else toast.error(t("admin.serverConfig.testEmailFailed", { error: e.message ?? "" }));
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
+      <p className="text-xs text-[var(--text-muted)]">{t("admin.serverConfig.smtpEnvHint")}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input label={t("admin.serverConfig.smtpHost")} placeholder="smtp.example.com" value={host} onChange={(e) => setHost(e.target.value)} />
         <Input label={t("admin.serverConfig.port")} type="number" placeholder="587" value={port} onChange={(e) => setPort(e.target.value)} />
@@ -93,9 +114,15 @@ export function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefin
         <Select label={t("admin.serverConfig.tlsMode")} value={tls} onChange={setTls} options={TLS_OPTIONS} />
       </div>
 
-      <Button onClick={handleSave} loading={setEntry.isPending}>
-        {t("admin.serverConfig.saveSmtp")}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={handleSave} loading={setEntry.isPending}>
+          {t("admin.serverConfig.saveSmtp")}
+        </Button>
+        <Button variant="secondary" onClick={handleTest} loading={testing} {...lock}>
+          {t("admin.serverConfig.sendTestEmail")}
+        </Button>
+      </div>
+      <p className="text-xs text-[var(--text-muted)]">{t("admin.serverConfig.testEmailHint")}</p>
     </div>
   );
 }
