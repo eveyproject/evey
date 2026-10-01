@@ -38,7 +38,7 @@ imagen a SDR antes de codificarla. Información del flujo indica entonces
 **HDR convertido a SDR (tone-mapping)**.
 
 Si el original podría haberse enviado pero el servidor todavía no puede servirlo
-como copia (por ejemplo porque su índice de búsqueda aún se está construyendo),
+como copia (por ejemplo porque su índice de posicionamiento aún se está construyendo),
 el vídeo se recodifica con el HDR conservado en una tarjeta así, e Información
 del flujo muestra **Copia no disponible, HDR conservado en la recodificación**.
 

@@ -63,7 +63,7 @@ nada:
 **Por defecto: automática.** Cuando `PUID`/`PGID` no están definidos, el
 entrypoint mira al arrancar el propietario de tus montajes `/media*` y ejecuta el
 servidor como ese usuario, para que las funciones que *escriben en* tu biblioteca
-(la reparación del índice de búsqueda reconstruye archivos en el sitio)
+(la reparación del índice de posicionamiento reconstruye archivos en el sitio)
 funcionen de serie, sin `chown` ni configuración. El registro de arranque te dice
 qué se eligió:
 

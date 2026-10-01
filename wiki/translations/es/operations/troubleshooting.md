@@ -62,7 +62,7 @@ para interpretarlos.
 ## La reproducción se para, se queda cargando o no arranca
 
 - Un solo título: abre **Admin → Salud de medios**. Un archivo sin índice de
-  búsqueda, un tramo dañado o pistas guardadas en bloques explican los parones y
+  posicionamiento, un tramo dañado o pistas guardadas en bloques explican los parones y
   los saltos lentos, y la mayoría se reparan en el sitio. Consulta
   [Salud de medios](../runbooks/media-health.md).
 - Varios títulos, cuando varias personas ven algo: el servidor puede estar en su
