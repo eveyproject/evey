@@ -11,7 +11,7 @@ serverConnect:
   connectAnyway: "Conectar de todos modos"
   title: Conectar al servidor
   connect: Conectar
-  connectionFailed: Conexion fallida
+  connectionFailed: Conexión fallida
   unreachableSaved: "{{url}} no respondió. Comprueba la dirección o tu conexión."
   notEvey: "{{url}} respondió, pero no es un servidor Evey. Comprueba la dirección (puede responder un portal Wi-Fi o tu operador)."
   unreachable: No se puede alcanzar el servidor
@@ -25,11 +25,11 @@ settings:
   server: Servidor
   changeServer: Cambiar servidor
   changeServerConfirm: "Cambiar de servidor cierra la sesión en este televisor. ¿Continuar?"
-  signOut: Cerrar sesion
-  signOutConfirm: Estas seguro?
+  signOut: Cerrar sesión
+  signOutConfirm: ¿Estás seguro?
   about: Acerca de
-  appVersion: Version de la app
-  serverVersion: Version del servidor
+  appVersion: Versión de la app
+  serverVersion: Versión del servidor
   switchProfile: "Cambiar perfil"
   uiScale: "Tamaño de la interfaz"
   uiScaleOptionA11y: "Tamaño de la interfaz {{percent}} %"
@@ -60,9 +60,9 @@ servers:
   rename: Renombrar
   renamePlaceholder: Nombre del servidor
   delete: Eliminar
-  deleteConfirmTitle: Eliminar servidor?
-  deleteConfirmMessage: "{{name}} sera eliminado de tus servidores guardados. Los tokens de inicio de sesion para este servidor tambien se eliminaran."
-  cantDeleteOnlyServer: No se puede eliminar el unico servidor guardado
+  deleteConfirmTitle: ¿Eliminar servidor?
+  deleteConfirmMessage: "{{name}} será eliminado de tus servidores guardados. Los tokens de inicio de sesión para este servidor también se eliminarán."
+  cantDeleteOnlyServer: No se puede eliminar el único servidor guardado
   switchedTo: "Cambiado a {{name}}"
 music:
   previousTrack: Pista anterior

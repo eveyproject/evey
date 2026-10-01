@@ -324,7 +324,7 @@ apiDocs:
 rateLimit:
   title: "बहुत अधिक प्रयास"
   body: "बहुत अधिक लॉगिन प्रयास। {{wait}} में पुनः प्रयास करें।"
-  seconds: "{{count}} से"
+  seconds: "{{count}} सेकंड"
   minutes: "{{count}} मि"
 remoteAccess:
   title: "रिमोट एक्सेस अक्षम"

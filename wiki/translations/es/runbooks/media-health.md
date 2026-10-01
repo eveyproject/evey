@@ -28,7 +28,7 @@ archivo se reproduce bien, está bien.
 
 ### Reparable aquí
 
-- **Sin índice de búsqueda** (el índice de posicionamiento del archivo), o con
+- **Sin índice de posicionamiento**, o con
   uno que no se puede usar. El síntoma es un salto o una reanudación lentos. El
   índice se reconstruye en una copia temporal, la copia se comprueba por
   completo (pistas, duración, índice) y después sustituye al archivo.

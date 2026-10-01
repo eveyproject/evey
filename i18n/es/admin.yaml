@@ -11,7 +11,7 @@ nav:
   media: Medios
   libraries: Bibliotecas
   transcoding: Transcodificación
-  artworks: Cache de artworks
+  artworks: Caché de artworks
   seekIndex: "Salud de medios"
   usersAccess: Usuarios y acceso
   users: Usuarios
@@ -76,7 +76,7 @@ logs:
     label: Zona
     all: Todas las zonas
     player: Reproductor / Transcodificación
-    seek-index: Índice de búsqueda (mkvgo)
+    seek-index: Índice de posicionamiento (mkvgo)
     subtitle: Subtítulos
     remux: Remux
     hw-detect: Detección de hardware
@@ -98,9 +98,9 @@ logs:
     other: Otro
 
 artworks:
-  title: Artworks (cache local)
+  title: Artworks (caché local)
   subtitle: Descarga artworks de TMDB localmente para servir WebP en vez de redirigir
-  cacheStatus: Estado del cache
+  cacheStatus: Estado del caché
   storedLocally: artworks almacenados localmente
   totalRecords: Total de registros
   missing: Copia local faltante
@@ -654,7 +654,7 @@ activity:
   bgTaskHelp:
     complexity_classifier: "Muestrea algunos fotogramas de cada vídeo para medir cuánto movimiento contiene. Sirve para elegir tasas de transcodificación adecuadas al contenido. Se ejecuta de forma continua sobre la biblioteca."
     intro_detection: "Localiza las intros y los créditos finales de los episodios (sonido común a la temporada, capítulos del archivo). Alimenta el botón «Saltar intro». Se ejecuta de forma continua y se detiene durante una reproducción."
-    keyframe_backfill: "Lee el índice de búsqueda de cada archivo (posición de los fotogramas clave) y comprueba que la frecuencia de imagen sea constante. Permite enviar el vídeo tal cual, sin transcodificar. Se ejecuta de forma continua, después de la actualización de datos del vídeo."
+    keyframe_backfill: "Lee el índice de posicionamiento de cada archivo (posición de los fotogramas clave) y comprueba que la frecuencia de imagen sea constante. Permite enviar el vídeo tal cual, sin transcodificar. Se ejecuta de forma continua, después de la actualización de datos del vídeo."
     level_backfill: "Vuelve a leer los datos técnicos de los archivos ya en la biblioteca (perfil H.264/HEVC, HDR, Dolby Vision, entrelazado de rips antiguos). Permite enviar el vídeo sin transcodificar y evita colores erróneos. Se ejecuta de forma continua y se detiene durante una reproducción."
     trickplay_generation: "Genera las miniaturas que aparecen al arrastrar la barra de progreso (una imagen cada 7 segundos). Se ejecuta al añadir un medio, y al arrancar para los que aún no tienen."
     library_scan: "Recorre las carpetas de las bibliotecas y analiza los archivos nuevos o modificados para que aparezcan. Se ejecuta al arrancar, periódicamente y en cuanto cambia un archivo."
@@ -812,14 +812,14 @@ serverConfig:
   ingestServingPlanOff: "Desactivado"
   ingestServingPlanPlan: "Plan"
   ingestServingPlanPlanRepair: "Plan + reparación"
-  ingestServingPlanDesc: "El escaneo precalcula la estrategia de reproducción (mkvgo) de los archivos nuevos. \"Plan + reparación\" también repara el índice de búsqueda (seek-index) faltante (se escribe en el archivo de medios)."
+  ingestServingPlanDesc: "El escaneo precalcula la estrategia de reproducción (mkvgo) de los archivos nuevos. \"Plan + reparación\" también repara el índice de posicionamiento (seek-index) faltante (se escribe en el archivo de medios)."
   playabilityShadowLabel: "Sombra de reproducibilidad"
   playabilityShadowOff: "Desactivado"
   playabilityShadowOn: "Activado"
   playabilityShadowDesc: "Compara cada decisión de reproducción con el veredicto de mkvgo y registra las discrepancias. Solo observabilidad, nunca influye en la reproducción."
   artworkTitle: "Descarga de carátulas"
-  artworkDesc: "Almacena posters y otras caratulas localmente en el servidor."
-  artworkInfo: "Cuando esta desactivado, el frontend depende de URLs CDN externas que algunos navegadores bloquean (Firefox Opaque Response Blocking, por ejemplo). Cachear localmente tambien permite al servidor normalizar al formato WebP."
+  artworkDesc: "Almacena pósteres y otras carátulas localmente en el servidor."
+  artworkInfo: "Cuando está desactivado, el frontend depende de URLs CDN externas que algunos navegadores bloquean (Firefox Opaque Response Blocking, por ejemplo). Cachear localmente también permite al servidor normalizar al formato WebP."
   artworkAutoDownload: "Descargar carátulas automáticamente al escanear"
   artworkRetryNow: "Reintentar carátulas faltantes ahora"
   artworkRetryDesc: "Rellena las filas de carátulas que aún carecen de archivo local. También se ejecuta cada hora en segundo plano."
@@ -1014,29 +1014,29 @@ dashboardStats:
 
 serverSettings:
   transcodeMovedHint: "La transcodificación (aceleración por hardware, calibración de codificación, AV1 y concurrencia) se configura en Configuración de transcodificación."
-  title: "Configuracion del servidor"
+  title: "Configuración del servidor"
   serverName: "Nombre del servidor"
-  maxConcurrentTranscodes: "Transcodificaciones simultaneas max."
-  hwAccelEnabled: "Aceleracion por hardware"
+  maxConcurrentTranscodes: "Transcodificaciones simultáneas máx."
+  hwAccelEnabled: "Aceleración por hardware"
   hwMovedHint: "La aceleración por hardware se configura en la tarjeta «Calibración de codificación» más abajo."
-  loginRateLimit: "Limite de inicio de sesion (sol./min)"
-  globalRateLimit: "Limite global (sol./min)"
+  loginRateLimit: "Límite de inicio de sesión (sol./min)"
+  globalRateLimit: "Límite global (sol./min)"
   logLevel: Nivel de registro
   libraryWatcher: Monitor de archivos de biblioteca
-  periodicScanInterval: Intervalo de escaneo periodico
+  periodicScanInterval: Intervalo de escaneo periódico
   restartHint: (se aplica al reiniciar)
   skipPreview: Saltar segmentos de avance
-  skipPreviewInfo: "Oculta el breve avance del proximo episodio que algunas series insertan al final. Si esta activo, el servidor omite estos segmentos durante la reproduccion aunque el cliente los muestre."
-  introAutoSkip: "Saltar intros automaticamente"
+  skipPreviewInfo: "Oculta el breve avance del próximo episodio que algunas series insertan al final. Si está activo, el servidor omite estos segmentos durante la reproducción aunque el cliente los muestre."
+  introAutoSkip: "Saltar intros automáticamente"
   passwordRecovery: "Recuperación de contraseña"
   passwordRecoveryHint: "Muestra un enlace «¿Olvidaste tu contraseña?» en la página de inicio de sesión, que envía un enlace de restablecimiento por correo. Requiere que el correo (SMTP) esté configurado. Se aplica de inmediato."
-  auditRetentionDays: "Retencion del registro de auditoria (dias, 0 = conservar siempre)"
-  metricsRetentionDays: "Retencion de metricas del servidor (dias)"
-  qoeRetentionDays: "Retencion de calidad de reproduccion (QoE) (dias)"
-  playSessionRetentionDays: "Retencion del historial de sesiones (dias, 0 = conservar siempre)"
-  transcodeCacheMaxGB: "Presupuesto de cache de transcodificacion (GB)"
-  retentionSweepHint: "(se aplica en el proximo barrido diario)"
-  saved: "Configuracion guardada"
+  auditRetentionDays: "Retención del registro de auditoría (días, 0 = conservar siempre)"
+  metricsRetentionDays: "Retención de métricas del servidor (días)"
+  qoeRetentionDays: "Retención de calidad de reproducción (QoE) (días)"
+  playSessionRetentionDays: "Retención del historial de sesiones (días, 0 = conservar siempre)"
+  transcodeCacheMaxGB: "Presupuesto de caché de transcodificación (GB)"
+  retentionSweepHint: "(se aplica en el próximo barrido diario)"
+  saved: "Configuración guardada"
   usingDefault: "Valor predeterminado:"
   reset: "Restablecer valor predeterminado"
   softwareAV1MaxHeight: "Límite de software AV1"
@@ -1351,7 +1351,7 @@ segments:
 seekIndex:
   title: "Salud de los medios"
   description: "Un análisis de solo lectura da un veredicto a cada archivo MKV/WebM, y solo hay dos."
-  introRepairable: "índice de búsqueda ausente, tramo corrupto, .mkv que en realidad es un MP4. «Reparar todo» los resuelve en una pasada."
+  introRepairable: "índice de posicionamiento ausente, tramo corrupto, .mkv que en realidad es un MP4. «Reparar todo» los resuelve en una pasada."
   introInformational: "lo que hemos observado y no podemos arreglar aquí. Márcalas como vistas y la página se va vaciando."
   introMore: "Más sobre los dos veredictos"
   introDetailScope: "Cada archivo reparado conserva su original como copia .mkvgobak, restaurable en cualquier momento."
@@ -1373,7 +1373,7 @@ seekIndex:
   repairAll: "Reparar todo ({{count}})"
   rollbackAll: "Restaurar todo ({{count}})"
   statsInspected: "Archivos inspeccionados"
-  statsMissing: "Sin índice de búsqueda"
+  statsMissing: "Sin índice de posicionamiento"
   statsBackup: "Con copia de seguridad"
   statsAudioDelay: "Audio retrasado"
   statsWrongContainer: "Contenedor incorrecto"
@@ -1387,7 +1387,7 @@ seekIndex:
     file: "Archivo"
     container: "Contenedor"
     size: "Tamaño"
-    status: "Índice de búsqueda"
+    status: "Índice de posicionamiento"
   statusIndexed: "Indexado"
   statusMissing: "Falta"
   backupBadge: "Copia"
@@ -1413,7 +1413,7 @@ seekIndex:
   repairHint: "Reconstruye el índice de búsqueda. Seguro por construcción: reescritura a una copia temporal, revalidación completa, intercambio atómico - el original se conserva como .mkvgobak restaurable."
   damagedBadge: "Dañado ~{{size}}"
   truncatedHint: "Este archivo es una descarga incompleta: le falta el final y ninguna herramienta puede recuperarlo. Vuelve a obtener la fuente - un resync solo reconstruiría un principio reproducible, no la película entera."
-  wrongContainerBadge: "Wrong container"
+  wrongContainerBadge: "Contenedor incorrecto"
   wrongContainerHint: "Este .mkv es en realidad un archivo MP4/MOV: no hay índice Matroska que construir. La reparación lo renombra a .mp4 y actualiza la biblioteca."
   brokenInterleaveBadge: "Pistas guardadas por bloques"
   brokenInterleaveHint: "Las pistas están guardadas en bloques separados de varios minutos (solo vídeo, luego solo audio) en vez de intercaladas - una marca de tiempo retrocede {{sec}}s entre dos puntos del archivo. Todas las cabeceras están bien y todos los flujos decodifican, pero ningún reproductor secuencial pasa del primer bloque: la reproducción directa se bloquea y ffmpeg espera minutos su primer segmento de audio. Solo el empaquetador (streaming sin conversión) lo sirve, leyendo unas dos veces el archivo y un bloque entero en cada salto. El botón Volver a intercalar lo reescribe sin pérdida (el original se conserva como copia de seguridad); una simple copia de flujos en otro sitio reproduce el defecto."
