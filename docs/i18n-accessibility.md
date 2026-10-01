@@ -12,8 +12,8 @@ particular as *best-effort, not certified*.
 ### What is and isn't translated
 
 - **Translated:** the UI chrome - buttons, menus, settings, error messages,
-  push notification text. E-mails (notifications, password resets) are sent in
-  English.
+  push notification text, notification e-mails (in the recipient's language).
+  Password reset e-mails are sent in English.
 - **Not translated by Evey:** media metadata (titles, plot summaries, genres)
   comes from your metadata provider (TMDB/OMDb) in the **Metadata language** set
   in the setup wizard or in **Admin → Server Config → Language & Region**

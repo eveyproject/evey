@@ -1,5 +1,5 @@
 ---
-source_sha: a2778ea0b85b4c03545d656feab9c42ce9cc78f8aa8a4a43beb5727f9eee0951
+source_sha: 83ece8837b08f345398777a65fee01eeec37d776c49c29ad7d1b6f675ab96046
 reviewed: false
 ---
 # 电子邮件与通知
@@ -17,7 +17,7 @@ reviewed: false
 | `EVEY_SMTP_FROM` | 空 | 发件人地址，例如 `noreply@example.com`。 |
 | `EVEY_SMTP_TLS` | `starttls` | `starttls`、`ssl` 或 `none`。 |
 
-这些变量在服务器启动时读取。**Admin → 服务器配置** 中的 **邮件 / SMTP** 卡片会保存相同的字段，但服务器不会读取它们。
+这些变量在服务器启动时读取，只要 **Admin → 服务器配置** 中的 **邮件 / SMTP** 卡片没有填写主机就会使用它们。一旦卡片中保存了主机，所有字段都取自卡片，并且无需重启即可生效。
 
 ## 浏览器推送
 

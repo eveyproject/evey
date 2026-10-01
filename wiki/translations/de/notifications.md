@@ -1,5 +1,5 @@
 ---
-source_sha: 51c69f3c288f8a28ef5b1fca29d4e522f63fc35d24ec2a2cbcdfa9948a273d8a
+source_sha: 437e3591ffafde2e124be29a142fc1cfa7ecb154ea3e77dfbcb32e462668f452
 reviewed: false
 ---
 # Benachrichtigungen
@@ -21,14 +21,23 @@ gestellt hat, hört zurück, sobald sie beantwortet ist.
   um eigene mitzubringen. Browser erlauben Push nur unter einer HTTPS-Adresse
   (oder `localhost`); anderswo zeigt die Einstellung **Push-Benachrichtigungen brauchen eine HTTPS-Adresse: Öffnen Sie diesen Server über HTTPS, um sie einzuschalten.** Die Android- und TV-Apps erhalten
   keine Push-Benachrichtigungen.
-- **E-Mail**: Sobald SMTP eingerichtet ist, geht jede Benachrichtigung auch an
-  die Adresse des Kontos. Es gibt keine Abmeldung pro Benutzer, und ein Konto
-  mit mehreren Profilen erhält eine E-Mail pro Profil.
+- **E-Mail**: Sobald E-Mail eingerichtet ist, geht jede Benachrichtigung auch
+  an die Adresse des Kontos, in der Sprache des Profils und mit einem Link zum
+  Server. Ein Konto mit mehreren Profilen erhält eine E-Mail pro Ereignis. Es
+  gibt keine Abmeldung pro Benutzer.
 
 ## E-Mail einrichten
 
-SMTP wird beim Start des Servers aus diesen Variablen gelesen; starten Sie ihn
-nach einer Änderung neu:
+**Admin → Serverkonfiguration → E-Mail / SMTP**: der Mailserver, sein Port, das
+Anmeldekonto, die Absenderadresse und der TLS-Modus. Speichern gilt sofort,
+ohne Neustart. **Test-E-Mail senden** schickt mit den gespeicherten
+Einstellungen eine kurze Nachricht an die Adresse Ihres eigenen Kontos und zeigt
+bei einem Fehler die Antwort des Mailservers.
+
+`starttls` hebt eine Klartextverbindung auf TLS (meist Port 587), `ssl` nutzt
+TLS von Anfang an (meist Port 465), `none` sendet ohne Verschlüsselung.
+
+Die Variablen `EVEY_SMTP_*` sind der Rückfall, solange die Karte keinen Host hat:
 
 ```env title=".env"
 EVEY_SMTP_HOST=smtp.example.com
@@ -39,11 +48,9 @@ EVEY_SMTP_FROM=noreply@example.com
 EVEY_SMTP_TLS=starttls
 ```
 
-`EVEY_SMTP_TLS` ist `starttls` (eine Klartextverbindung wird auf TLS gehoben,
-meist Port 587), `ssl` (TLS von Anfang an, meist Port 465) oder `none` (keine
-Verschlüsselung). Die Karte **E-Mail / SMTP** unter **Admin →
-Serverkonfiguration** speichert dieselben Felder, aber der Server liest sie
-nicht: Verwenden Sie die Variablen.
+Sobald in der Karte ein Host gespeichert ist, kommen alle Felder aus der Karte
+und die Variablen werden ignoriert: Der Server schickt die Zugangsdaten der
+Variablen also nie an einen im Admin-Bereich eingetragenen Mailserver.
 
 E-Mail dient Benachrichtigungen und dem Zurücksetzen von Passwörtern;
 Einladungen sind Links, die Sie selbst weitergeben.
