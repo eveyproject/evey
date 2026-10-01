@@ -13,7 +13,7 @@ reviewed: false
 提供一个视频可以归结为回答三个问题，然后封装答案，所有内容都由一个哈希来寻址：
 
 - **问题 1：我能低成本地读取文件吗？** 按**文件扩展名**分派探测：`.mkv/.webm` 和 `.mp4/.mov` 交给 **mkvgo**（只读文件头，不启动进程）；其他所有文件，以及任何快速路径失败的情况，都交给 **ffprobe**（权威来源）。
-- **问题 2：客户端能原样播放它吗？** 播放**决定**，*按轨道*做出：视频 `copy` 还是 `transcode`，音频 `copy`、`transcode` 还是 wasm AC-3 路线。视频和音频**独立**决定：常见情况是"直接复制视频，把音频重新编码为 AAC"。
+- **问题 2：客户端能原样播放它吗？** 播放**决定**，*按轨道*做出：视频 `copy` 还是 `transcode`，音频 `copy`、`transcode` 还是 wasm AC-3 路线。视频和音频**独立**决定：常见情况是“直接复制视频，把音频重新编码为 AAC”。
 - **问题 3：这台主机能编码多少？** 校准得到的**能力**（来自在第一个空闲时刻进行的测量）加上**准入**（哪个档位放得下、是否有空闲名额）。
 
 两个引擎贯穿其中：
@@ -53,7 +53,7 @@ reviewed: false
 
 ## 音频与视频分开决定
 
-`makeDecision` 独立地产生 `VideoDecision` 和 `AudioDecision`。"直接复制档位"（`isCopyRequest`）只取决于**视频**；即使是直接复制的视频，通常也会附带一条重新编码的 AAC 音轨。音频决定有三种结果：直接复制、转码为 AAC（ffmpeg，开销小），或者，对于在无法原生解码它的浏览器上的 **AC-3 / E-AC-3**，走 **wasm 路线**：master 被做成只有视频并带有一个 `#EVEY-AUDIO-URI` 标签，AC-3 被**直接复制**（计划能构建时用 mkvgo `od_audio`，否则用 ffmpeg `-c:a copy`），由 `ac3go.wasm` 在浏览器中把它解码为 PCM（`WasmAudioEngine.ts`），并与视频时钟锁定。Safari 是按能力而不是按名称排除的：只有当浏览器报告它*不能*原生播放 AC-3 时，`canWasmDecodeAC3()` 才返回 true，而 Safari 报告它能。
+`makeDecision` 独立地产生 `VideoDecision` 和 `AudioDecision`。“直接复制档位”（`isCopyRequest`）只取决于**视频**；即使是直接复制的视频，通常也会附带一条重新编码的 AAC 音轨。音频决定有三种结果：直接复制、转码为 AAC（ffmpeg，开销小），或者，对于在无法原生解码它的浏览器上的 **AC-3 / E-AC-3**，走 **wasm 路线**：master 被做成只有视频并带有一个 `#EVEY-AUDIO-URI` 标签，AC-3 被**直接复制**（计划能构建时用 mkvgo `od_audio`，否则用 ffmpeg `-c:a copy`），由 `ac3go.wasm` 在浏览器中把它解码为 PCM（`WasmAudioEngine.ts`），并与视频时钟锁定。Safari 是按能力而不是按名称排除的：只有当浏览器报告它*不能*原生播放 AC-3 时，`canWasmDecodeAC3()` 才返回 true，而 Safari 报告它能。
 
 ## 封装：CMAF、HLS、DASH
 

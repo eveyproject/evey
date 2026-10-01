@@ -71,7 +71,7 @@ cp .env.dev.example .env.dev   # 生成一份合理的本地配置
 make dev                        # docker compose up：postgres、meilisearch、服务器（Air）、网页（Vite）
 ```
 
-服务器健康后，浏览 https://evey.test（由 Caddy 提供）。设置向导会在首次启动时创建管理员账户，如[首次设置](../getting-started/first-setup.md)所述。
+服务器健康后，在浏览器中打开 https://evey.test（由 Caddy 提供）。设置向导会在首次启动时创建管理员账户，如[首次设置](../getting-started/first-setup.md)所述。
 
 如果 `make dev` 因 `bwrap` 失败：
 - 确认 `which bwrap` 在主机上返回一个路径
@@ -201,7 +201,7 @@ Evey 在启动时验证密钥（PEM 解析）：缺失或格式错误的密钥�
 
 ## 8. 分发插件
 
-目前还没有官方目录：管理员通过在管理面板中上传 ZIP 来安装插件，ZIP 来自你发布它的任何地方（GitHub release、你自己的网站）。目前"分发"的含义是：
+目前还没有官方目录：管理员通过在管理面板中上传 ZIP 来安装插件，ZIP 来自你发布它的任何地方（GitHub release、你自己的网站）。目前“分发”的含义是：
 
 - 把 ZIP、它的 `.sig` 和你的 `cosign.pub` 一起发布（第 6 节），这样接收方管理员可以用 `EVEY_PLUGINS_COSIGN_POLICY=warn` 或 `enforce` 验证上传。
 - 在 README 中写明权限和 `external_fetch` 主机：管理员在安装时会看到并需要批准它们；那里出现意外是安装被拒绝的首要原因。
@@ -223,7 +223,7 @@ Evey 在启动时验证密钥（PEM 解析）：缺失或格式错误的密钥�
 ## 10. 进一步了解
 
 - 端到端的安全模型：[security-model.md](security-model.md)
-- 宿主 API 的范围：[api-reference.md](api-reference.md)
+- 宿主 API 一览：[api-reference.md](api-reference.md)
 - 可用的插槽：[api-reference.md](api-reference.md#slots)
 - 各语言的 SDK 代码：`sdk/`
 - 参考插件和主题：`examples/plugins/`

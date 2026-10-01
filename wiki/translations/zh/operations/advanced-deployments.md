@@ -108,7 +108,7 @@ docker compose restart evey
     MEILI_MASTER_KEY=<run: openssl rand -hex 16>
     ```
 
-索引是从数据库重建的（`evey admin reindex-search`），所以 `meili-data` 随时都可以丢弃。
+搜索索引是从数据库重建的（`evey admin reindex-search`），所以 `meili-data` 随时都可以丢弃。
 
 ## 迁移到内置数据库
 

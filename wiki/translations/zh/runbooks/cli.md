@@ -114,7 +114,7 @@ docker exec -it evey-server bash      # 管理 shell：evey admin ...、man evey
 
 镜像设置了数据库密码文件，所以这些命令无需任何额外环境就能连到内置数据库。
 
-### 在不使用容器的安装上（没有 Docker）
+### 在裸机安装上（没有 Docker）
 
 ```sh
 evey admin reset-password --user alice@example.com
@@ -151,7 +151,7 @@ Docker 镜像在构建时安装补全，它的管理 shell（`docker exec -it ev
 ### `migrate`
 
 - `up` 按顺序应用所有待执行的迁移。当设置了 `EVEY_BACKUP_DIR` 时（Docker 镜像中默认为 `/data/backups`），会自动进行一次迁移前的 `pg_dump`。在 Up 中途失败会留下 `schema_migrations.dirty = true`；见 `migration-runbook.md`。
-- `down` 恰好回滚一个迁移。这是精确的操作，而不是"全部拆掉"：没有 `down --all`。它同样会先进行一次回滚前的 `pg_dump`。
+- `down` 恰好回滚一个迁移。这是精确的操作，而不是“全部拆掉”：没有 `down --all`。它同样会先进行一次回滚前的 `pg_dump`。
 - `version` 输出当前的架构版本。当之前的某个迁移中途失败时（即部分而非全部 `Up` 语句已执行），返回退出码 1 并带有 `DIRTY` 警告。
 - `--no-backup` 在两个方向上都跳过 pg_dump。适用于没有安装 `postgres-client` 的主机（典型的 WSL 开发环境，Makefile 已经传入这个选项）。
 
@@ -174,5 +174,5 @@ Docker 镜像在构建时安装补全，它的管理 shell（`docker exec -it ev
 ## 相关手册
 
 - `migration-runbook.md`：架构部署、回滚、dirty 状态恢复。
-- `recovery.md`：密码重置、JWT 密钥轮换、备份恢复、搜索重建索引。
+- `recovery.md`：密码重置、JWT 密钥轮换、备份恢复、重建搜索索引。
 - `incident-runbook.md`：服务器运行异常时的第一响应。

@@ -28,4 +28,4 @@ reviewed: false
 
 ## 身份验证
 
-各端点接受 `Authorization: Bearer <token>`：登录获得的会话令牌，或 API 密钥（见 [Webhook 与 API 密钥](../../webhooks-api-keys.md)）。无需令牌即可访问的有：登录和续期会话、通过邀请注册、Quick Connect、密码重置、设置向导及其状态，以及公开下载链接。
+各端点接受 `Authorization: Bearer <token>`：登录获得的会话令牌，或 API 密钥（见 [Webhook 与 API 密钥](../../webhooks-api-keys.md)）。无需令牌即可访问的有：登录和续期会话、通过邀请注册、快速连接、密码重置、设置向导及其状态，以及公开下载链接。

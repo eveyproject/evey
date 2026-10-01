@@ -87,9 +87,9 @@ docker exec evey-server df -h /cache
   ```
 - **缓存已满** → 见第 6 节。
 - **硬件加速出问题**：在 **Admin → 转码 → 编码校准** 中把 **硬件加速** 设置为 **关闭（仅软件）**（实时生效并重新测量），让所有转码都留在处理器上，并在切回 **自动** 之前确认问题确实与硬件有关。
-- **"服务器正忙于转码其他流"**：实时容量是测量出来的，而不是设置的；见[转码与服务器容量](../playback/transcoding.md#sharing-the-capacity)。`EVEY_TRANSCODING_MAX_CONCURRENT`（**Admin → 转码缓存** 中的 **Max Concurrent**）只涵盖实时播放之外的转码任务。
+- **“服务器正忙于转码其他流”**：实时容量是测量出来的，而不是设置的；见[转码与服务器容量](../playback/transcoding.md#sharing-the-capacity)。`EVEY_TRANSCODING_MAX_CONCURRENT`（**Admin → 转码缓存** 中的 **最大并发**）只涵盖实时播放之外的转码任务。
 
-### 3c. "一直缓冲 / 播放中断"而日志没有说明原因
+### 3c. “一直缓冲 / 播放中断”而日志没有说明原因
 
 **症状**：一位观众报告某个转码条目出现卡顿或中断，服务器日志显示 `hls-vod: segment timeout` 带 `err:"context canceled"`，这表示是客户端断开了，而不是服务器超时。
 
@@ -135,7 +135,7 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
 
 **症状**：播放器短暂卡顿后恢复；日志显示 `hls-vod: stale rendition URL refused (the ladder moved under a live player)`，请求以 `410 Gone` 和 `X-Evey-Error: stale_rendition` 响应。
 
-**含义**：这是*一项保护措施在起作用*，而不是故障本身。每个清单 URI 都带有构建它时的决定哈希（`fp=`）。410 表示播放器提交了一个来自某会话的 URL，而该会话的 ABR 阶梯此后已被重新调整：提供它会把另一个 rendition 的字节交给解码器（"彩虹屏"一类事故，ADR 0022 §1b）。拒绝会迫使播放器干净地重新获取 master。
+**含义**：这是*一项保护措施在起作用*，而不是故障本身。每个清单 URI 都带有构建它时的决定哈希（`fp=`）。410 表示播放器提交了一个来自某会话的 URL，而该会话的 ABR 阶梯此后已被重新调整：提供它会把另一个 rendition 的字节交给解码器（“彩虹屏”一类事故，ADR 0022 §1b）。拒绝会迫使播放器干净地重新获取 master。
 
 **诊断**：WARN 中带有 `sealed_fp` 与 `current_fp` 以及媒体 id。
 - **在部署/重启或管理员重新校准之后立即出现的一阵** 是预料之中的：实时会话经历了一次能力变化。无需处理；播放器会在一次轮询内重新同步。
@@ -183,7 +183,7 @@ docker exec evey-server curl -sf http://127.0.0.1:7700/health
 docker logs --tail=300 evey-server | grep -i meili
 ```
 - 不健康 → `docker compose restart evey`。
-- 索引损坏 → 停止容器，把 `./evey-data/meili` 移到别处，再次启动，然后从数据库重建索引：`docker exec evey-server evey admin reindex-search`。
+- 索引损坏 → 停止容器，把 `./evey-data/meili` 移到别处，再次启动，然后从数据库重建搜索索引：`docker exec evey-server evey admin reindex-search`。
 
 ## 6. 转码缓存磁盘已满
 
@@ -202,7 +202,7 @@ docker volume inspect evey_evey-cache   # compose 生成的名称可能不同
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/transcode/*'
   ```
-  这也会删除其下的 `photos/`（缩放后的照片版本）和 `track-art/`（从曲目标签中提取一次并缩放的内嵌封面）：两者都会在下一次请求时重建。Admin → 转码缓存 中的 **Clear All** 会执行同样的清理。
+  这也会删除其下的 `photos/`（缩放后的照片版本）和 `track-art/`（从曲目标签中提取一次并缩放的内嵌封面）：两者都会在下一次请求时重建。Admin → 转码缓存 中的 **清除全部** 会执行同样的清理。
 - Trickplay 重新生成的代价更高；仅在必要时清理：
   ```sh
   docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
@@ -232,7 +232,7 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 下面的所有内容都可以从管理日志页面读取（或者 `GET /api/v1/admin/logs/search?q=<term>&limit=200`）：不需要在机器上打开 shell。时间为 UTC。每个信标都是一条带有 `type=` 和 `details=` 字符串的 `player-client: playback event
 reported` 行。凭据从不出现在这些路由返回的内容中（bearer、JWT 以及 `token=`/`password=` 的值显示为 `[redacted]`），所以投放 URL 中的令牌不是日志搜索能找回的：请搜索媒体 id，而不是令牌。
 
-1. **接收器是否还活着，活到什么时候？** 搜索 `cast_receiver_alive`。接收器在播放时每 30 秒发送一次；`details` 带有 `buf=<behind>/<ahead>/<ranges>`（播放头之后和之前缓冲的秒数）和 `pos_sec`。健康的播放显示 `ahead` 为几十秒。**最后一个信标的时间就是接收器死掉或被杀掉的时间**：此后什么都没有，就表示电视已经不再运行接收器，无论手机显示什么。
+1. **接收器是否还活着，活到什么时候？** 搜索 `cast_receiver_alive`。接收器在播放时每 30 秒发送一次；`details` 带有 `buf=<behind>/<ahead>/<ranges>`（播放头后方和前方已缓冲的秒数）和 `pos_sec`。健康的播放显示 `ahead` 为几十秒。**最后一个信标的时间就是接收器死掉或被杀掉的时间**：此后什么都没有，就表示电视已经不再运行接收器，无论手机显示什么。
 2. **为什么停止了？** 搜索 `cast_receiver_finished`：`reason=INTERRUPTED` 表示一个新的 LOAD 替换了正在运行的那个（查找几秒之前的 `StartStream`），`reason=ERROR` 带有播放器错误。最后一个 `alive` 之后完全没有 `finished` = 接收器进程消失了（最常见的是 Chromecast HD 在 20+ Mbps 直拷 master 上因内存不足被杀掉）。
 3. **手机看到了什么？** 搜索 `cast_sender_stall`：当 Cast SDK 仍然显示 PLAYING 但位置 20 秒没有变化时，发送端会发送 `state=playing frozen=<n>s pos=<p>`；当接收器报告了空闲原因时，发送 `state=idle reason=<r>`。这些行以 WARN 级别记录，所以管理日志页面的警告筛选器会显示它们。这是同一分钟内发送端这一侧的情况：把它的 `pos` 与接收器最后的 `pos_sec` 进行比较。
 4. **会话是否发生了连锁反应？** 搜索 `refresh rejected`：刷新令牌 "not found" 会让应用登出再登录（保存的凭据），从而重新签发流；这一行现在会给出令牌的 `jti`、`issued` 和 `age`，可以区分过期的副本和伪造的令牌。搜索 `StartStream` 查看重新签发；对于同一个条目重新签发的 URL，发送端不再重新加载接收器。
@@ -255,7 +255,7 @@ reported` 行。凭据从不出现在这些路由返回的内容中（bearer、J
      WHERE ended_at IS NULL
      ORDER BY started_at DESC LIMIT 20;"'
    ```
-2. 从管理界面终止：**Admin → 正在播放**，点击该会话的停止图标（**Stop session**），然后点击 **停止** 确认；或者通过 gRPC `AdminSessionService/KillSession` 传入 `session_id`。会话会在 5 秒后终止，以便播放器能收到停止指令。
+2. 从管理界面终止：**Admin → 正在播放**，点击该会话的停止图标（**停止会话**），然后点击 **停止** 确认；或者通过 gRPC `AdminSessionService/KillSession` 传入 `session_id`。会话会在 5 秒后终止，以便播放器能收到停止指令。
 3. 如果流仍在运行，重启容器：所有编码器都会随之停止。
    ```sh
    docker compose restart evey
@@ -264,7 +264,7 @@ reported` 行。凭据从不出现在这些路由返回的内容中（bearer、J
 
 ## 解除卡住的媒体库扫描
 
-症状：一次媒体库扫描显示"进行中"好几个小时，但日志中没有文件进度。
+症状：一次媒体库扫描显示“进行中”好几个小时，但日志中没有文件进度。
 
 1. 检查扫描是否还在记录任何内容：如果进程挂起，CPU 处于空闲，最近的日志中没有 `scan:` 行：
    ```sh

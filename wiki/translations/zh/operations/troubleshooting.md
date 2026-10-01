@@ -79,7 +79,7 @@ SMTP 在启动时从 `EVEY_SMTP_*` 变量读取，而不是从 **邮件 / SMTP**
 
 ## 搜索没有结果
 
-从数据库重建索引：`docker exec evey-server evey admin reindex-search`。索引随时都可以重建；不会丢失任何东西。
+从数据库重建搜索索引：`docker exec evey-server evey admin reindex-search`。搜索索引随时都可以重建；不会丢失任何东西。
 
 ## 投放会话卡住或没有声音
 

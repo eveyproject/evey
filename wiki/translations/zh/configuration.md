@@ -15,7 +15,7 @@ reviewed: false
 | [账户与登录](environment/accounts.md) | 会话有效期、签名密钥、单点登录 |
 | [媒体库与元数据](environment/libraries.md) | 扫描、元数据密钥、片头检测 |
 | [转码与硬件](environment/transcoding.md) | 显卡、容量、画质限制、缓存、校准片段 |
-| [播放分发与下载](environment/playback-delivery.md) | 流封装开关、预先准备的下载、播放器跳转按钮 |
+| [播放分发与下载](environment/playback-delivery.md) | 流封装开关、预先准备的下载、播放器的跳过按钮 |
 | [后台任务](environment/background.md) | 后台处理及其节奏 |
 | [插件与沙箱](environment/plugins.md) | 沙箱模式、单独用户、资源限制、签名 |
 | [电子邮件与通知](environment/notifications.md) | SMTP、浏览器推送密钥 |

@@ -115,7 +115,7 @@ docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.
 
 ## Nginx Proxy Manager
 
-evey 容器必须位于 NPM 使用的网络中（见上文"在你已有的代理之后"）。然后，**Edit Proxy Host**：
+evey 容器必须位于 NPM 使用的网络中（见上文“在你已有的代理之后”）。然后，**Edit Proxy Host**：
 
 1. **Details**：Scheme `http`，Forward Hostname `evey-server`，Forward Port `9091`。**Websockets Support: on**（SyncPlay）。**Cache Assets: off**：否则它会以固定过期时间缓存媒体分段和播放列表。Block Common Exploits 可以保持开启（如果搜索或插件上传无故返回 403，就关掉它）。
 2. **SSL**：你的证书、Force SSL、HTTP/2。这里的 HSTS 是可选的：应用已经发送了它。
@@ -168,4 +168,4 @@ location ~ ^/api/v1/libraries/.+/scan {
 
 **开启这一点会改变谁算作远程。** 在此之前，每个请求看起来都来自代理自己的私有地址，所以所有人都被归类为 LAN。在此之后，真正的远程客户端会被正确识别，如果远程访问是关闭的，它们会在所有路由上被拒绝（`403 {"code":"remote_access_disabled"}`），尽管应用的设置没有任何改变。
 
-Evey 对此有所防护：在配置了公网 URL 且没有做出明确选择时，远程访问默认开启；状态会在每次启动时记录；拒绝会连同客户端 IP 一起记录；`evey admin doctor` 会对"已发布却在拒绝"明确报告失败；管理面板会显示警告。如果你更改了代理信任设置，之后请检查 `evey admin doctor`。
+Evey 对此有所防护：在配置了公网 URL 且没有做出明确选择时，远程访问默认开启；状态会在每次启动时记录；拒绝会连同客户端 IP 一起记录；`evey admin doctor` 会对“已发布却在拒绝”明确报告失败；管理面板会显示警告。如果你更改了代理信任设置，之后请检查 `evey admin doctor`。
