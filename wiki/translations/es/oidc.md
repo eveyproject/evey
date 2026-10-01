@@ -1,12 +1,28 @@
 ---
-source_sha: bba2d9d0a70621281091516a01462cd4178130e57b6654f467dfe62130069342
+source_sha: 2edc135c644943052453572d9223c7834031131c057cd92f3e44e3a9ae72cc8c
 reviewed: false
 ---
 # Configuración de OIDC / SSO
 
-Evey admite el inicio de sesión único mediante OpenID Connect. Los usuarios pueden iniciar sesión con Google, Keycloak, Authentik, Authelia o cualquier proveedor compatible con OIDC.
+Evey admite el inicio de sesión único mediante OpenID Connect: Keycloak,
+Authentik, Authelia, Google o cualquier otro proveedor OIDC. La página de inicio
+de sesión de las aplicaciones web y Android muestra entonces **Iniciar sesión
+con SSO** junto al formulario de contraseña.
 
-## Configuración
+## 1. Registrar Evey en el proveedor
+
+Crea un cliente (o aplicación) en el proveedor:
+
+| Campo | Valor |
+|-------|-------|
+| Client ID | `evey`, o cualquier nombre |
+| Secreto del cliente | genera uno (obligatorio) |
+| URI de redirección | `https://<tu dirección>/api/v1/auth/oidc/callback` |
+| URI de redirección tras cerrar sesión | `https://<tu dirección>/login` |
+| Tipo de concesión | Authorization Code |
+| Scopes | `openid email profile` |
+
+## 2. Configurar Evey
 
 ```env title=".env"
 EVEY_OIDC_ENABLED=true
@@ -16,50 +32,44 @@ EVEY_OIDC_CLIENT_SECRET=your-client-secret
 EVEY_OIDC_ALLOWED_EMAIL_DOMAINS=example.com,company.org
 ```
 
-## Configurar el proveedor
+`EVEY_OIDC_ISSUER` es la URL base del proveedor, sin
+`/.well-known/openid-configuration`. La lista completa, incluida
+`EVEY_OIDC_REDIRECT_URL`, está en [Cuentas e inicio de sesión](environment/accounts.md).
 
-### 1. Registrar Evey como cliente OIDC
-
-En tu proveedor de identidad, crea un nuevo cliente o aplicación:
-
-| Campo | Valor |
-|-------|-------|
-| Client ID | `evey` |
-| Client Secret | genera uno |
-| Redirect URI | `https://<tu dirección>/api/v1/auth/oidc/callback` |
-| Grant Type | Authorization Code |
-| Scopes | `openid email profile` |
-
-### 2. Configurar Evey
-
-Define las variables de entorno de arriba en tu `.env`. `EVEY_OIDC_ISSUER` debe ser la URL base del endpoint de descubrimiento de tu proveedor OIDC (sin `/.well-known/openid-configuration`).
-
-### 3. Reiniciar
+## 3. Reiniciar
 
 ```bash
-docker compose restart evey
+docker compose up -d
 ```
 
-La página de inicio de sesión mostrará un botón "Iniciar sesión con SSO".
+El servidor contacta con el proveedor al arrancar. Si el emisor no responde, o
+el secreto del cliente está vacío, **el servidor no arranca**: los registros
+indican la causa.
 
-## Cómo funciona
+## Quién puede iniciar sesión
 
-1. El usuario pulsa "Iniciar sesión con SSO" en la página de inicio de sesión
-2. Evey redirige al proveedor OIDC
-3. El usuario se autentica en el proveedor
-4. El proveedor redirige de vuelta a Evey con un código de autorización
-5. Evey intercambia el código por tokens y crea o actualiza la cuenta del usuario
+El primer inicio de sesión SSO crea una cuenta de Evey, sin contraseña y con un
+perfil. Su nombre de usuario es el `preferred_username` del proveedor o, si
+falta, la parte del correo anterior a `@`. La cuenta es un usuario normal y,
+como toda cuenta sin restricciones, ve todas las bibliotecas: restríngela
+después en **Admin → Usuarios** (ver [Usuarios](administration/users.md)).
 
-## Restricción por dominio
+**Limita los registros con `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** Vacío,
+cualquiera que tenga una cuenta en el proveedor obtiene una en tu servidor, lo
+que con un proveedor público como Google significa cualquiera. Con dominios,
+solo se aceptan esas direcciones, y el proveedor debe marcar la dirección como
+verificada.
 
-`EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` limita qué dominios de correo pueden registrarse. Déjalo vacío para permitir todos los dominios.
+Una cuenta se reconoce por el proveedor y su identificador de usuario, no por el
+correo. Una persona que ya tiene una cuenta local con el mismo correo o el mismo
+nombre de usuario no puede crear una cuenta SSO: el inicio de sesión falla con
+«Error de inicio de sesión con SSO». Usa otra dirección en el proveedor, o
+elimina antes la cuenta local.
 
-## Creación automática de usuarios
+Una cuenta desactivada se rechaza al iniciar sesión, como siempre.
 
-Los usuarios que inician sesión por OIDC por primera vez se crean automáticamente con:
-- un nombre de usuario derivado de `preferred_username` o del prefijo del correo
-- el correo del token OIDC
-- un rol no administrador
-- un perfil por defecto
+## Cerrar sesión
 
-Los usuarios OIDC no pueden definir una contraseña local: siempre se autentican a través del proveedor.
+Cuando el proveedor publica un punto de cierre de sesión, cerrar sesión en Evey
+también cierra la sesión en el proveedor y luego vuelve a la página de inicio de
+sesión de Evey.

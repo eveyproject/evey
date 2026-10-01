@@ -1,8 +1,23 @@
 # OIDC / SSO Setup
 
-Evey supports Single Sign-On via OpenID Connect. Users can log in with Google, Keycloak, Authentik, Authelia, or any OIDC-compliant provider.
+Evey supports Single Sign-On via OpenID Connect: Keycloak, Authentik, Authelia,
+Google or any other OIDC provider. The sign-in page of the web and Android apps
+then shows **Sign in with SSO** next to the password form.
 
-## Configuration
+## 1. Register Evey with the provider
+
+Create a client (or application) in the provider:
+
+| Field | Value |
+|-------|-------|
+| Client ID | `evey`, or any name |
+| Client secret | generate one (required) |
+| Redirect URI | `https://<your address>/api/v1/auth/oidc/callback` |
+| Post-logout redirect URI | `https://<your address>/login` |
+| Grant type | Authorization Code |
+| Scopes | `openid email profile` |
+
+## 2. Configure Evey
 
 ```env title=".env"
 EVEY_OIDC_ENABLED=true
@@ -12,50 +27,52 @@ EVEY_OIDC_CLIENT_SECRET=your-client-secret
 EVEY_OIDC_ALLOWED_EMAIL_DOMAINS=example.com,company.org
 ```
 
-## Provider Setup
+`EVEY_OIDC_ISSUER` is the provider's base URL, without
+`/.well-known/openid-configuration`. The full list, including
+`EVEY_OIDC_REDIRECT_URL`, is in [Accounts and sign-in](environment/accounts.md).
 
-### 1. Register Evey as an OIDC client
-
-In your identity provider, create a new client/application:
-
-| Field | Value |
-|-------|-------|
-| Client ID | `evey` |
-| Client Secret | generate one |
-| Redirect URI | `https://<your address>/api/v1/auth/oidc/callback` |
-| Grant Type | Authorization Code |
-| Scopes | `openid email profile` |
-
-### 2. Configure Evey
-
-Set the environment variables above in your `.env`. The `EVEY_OIDC_ISSUER` must be the base URL of your OIDC provider's discovery endpoint (without `/.well-known/openid-configuration`).
-
-### 3. Restart
+## 3. Restart
 
 ```bash
-docker compose restart evey
+docker compose up -d
 ```
 
-The login page will show a "Sign in with SSO" button.
+The server contacts the provider when it starts. If the issuer cannot be
+reached, or the client secret is empty, **the server does not start**: the logs
+name the cause.
 
-## How It Works
+## Who can sign in
 
-1. User clicks "Sign in with SSO" on the login page
-2. Evey redirects to the OIDC provider
-3. User authenticates with the provider
-4. Provider redirects back to Evey with an authorization code
-5. Evey exchanges the code for tokens and creates/updates the user account
+The first SSO sign-in creates an Evey account, with no password and one
+profile. Its username is the provider's `preferred_username`, otherwise the part
+of the e-mail before `@`. The account is a regular user and, like any account
+without restrictions, sees every library: narrow it in **Admin → Users**
+afterwards (see [Users](administration/users.md)).
 
-## Domain Restriction
+**Restrict sign-ups with `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** Empty, anyone who
+holds an account at the provider gets one on your server, which with a public
+provider such as Google means anyone. With domains set, only those addresses are
+accepted, and the provider must mark the address as verified.
 
-`EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` limits which email domains can register. Leave empty to allow all domains.
+An account is recognised by the provider and its user ID, not by e-mail. A
+person who already has a local account with the same e-mail or username cannot
+create an SSO account: the sign-in fails with "SSO sign-in failed". Use a
+different address at the provider, or remove the local account first.
 
-## Auto User Creation
+A disabled account is refused at sign-in as usual.
 
-Users who log in via OIDC for the first time are automatically created with:
-- Username derived from `preferred_username` or email prefix
-- Email from the OIDC token
-- Non-admin role
-- A default profile
+## Signing out
 
-OIDC users cannot set a local password - they always authenticate through the provider.
+When the provider publishes a logout endpoint, signing out of Evey also ends
+the session at the provider, then returns to the Evey sign-in page.
+
+<!-- sources
+config: internal/config/config.go OIDCConfig (EVEY_OIDC_*) ; boot: cmd/evey/wire.go "oidc init" returns error ; NewOIDCService (empty secret, discovery)
+routes: internal/adapters/driving/http/auth_handler.go (/api/v1/auth/oidc/login, /callback, failure -> /login?oidc_error=1)
+scopes openid profile email: internal/app/user/oidc_service.go:104
+account creation: oidc_service.go findOrCreateUser (GetByOIDCSubject by issuer+sub, allowlist + email_verified, username preferred_username > email prefix > oidc-<hex>, default profile)
+unique email (non-empty) + username (lower) measured in dev pg_indexes 01-10: idx_users_email_unique, idx_users_username_lower
+zero library grants = every library: internal/adapters/driving/grpcapi/library_handler.go getAllowedLibraryIDs
+logout: internal/adapters/driving/http/server.go POST /api/v1/auth/logout (end_session_endpoint, post_logout_redirect_uri = base/login)
+UI: i18n auth.login.signInWithSSO / ssoFailed ; mobile login.tsx ; no SSO on the TV app
+-->

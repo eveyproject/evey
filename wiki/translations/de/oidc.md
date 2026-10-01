@@ -1,12 +1,27 @@
 ---
-source_sha: bba2d9d0a70621281091516a01462cd4178130e57b6654f467dfe62130069342
+source_sha: 2edc135c644943052453572d9223c7834031131c057cd92f3e44e3a9ae72cc8c
 reviewed: false
 ---
 # OIDC / SSO einrichten
 
-Evey unterstützt Single Sign-on über OpenID Connect. Benutzer können sich mit Google, Keycloak, Authentik, Authelia oder jedem OIDC-konformen Anbieter anmelden.
+Evey unterstützt Single Sign-on über OpenID Connect: Keycloak, Authentik,
+Authelia, Google oder jeden anderen OIDC-Anbieter. Die Anmeldeseite der Web- und
+Android-App zeigt dann **Mit SSO anmelden** neben dem Passwortformular.
 
-## Konfiguration
+## 1. Evey beim Anbieter registrieren
+
+Legen Sie beim Anbieter einen Client (oder eine Anwendung) an:
+
+| Feld | Wert |
+|-------|-------|
+| Client ID | `evey` oder ein beliebiger Name |
+| Client-Secret | eines erzeugen (Pflicht) |
+| Weiterleitungs-URI | `https://<Ihre Adresse>/api/v1/auth/oidc/callback` |
+| Weiterleitungs-URI nach der Abmeldung | `https://<Ihre Adresse>/login` |
+| Grant-Typ | Authorization Code |
+| Scopes | `openid email profile` |
+
+## 2. Evey konfigurieren
 
 ```env title=".env"
 EVEY_OIDC_ENABLED=true
@@ -16,50 +31,44 @@ EVEY_OIDC_CLIENT_SECRET=your-client-secret
 EVEY_OIDC_ALLOWED_EMAIL_DOMAINS=example.com,company.org
 ```
 
-## Beim Anbieter einrichten
+`EVEY_OIDC_ISSUER` ist die Basis-URL des Anbieters, ohne
+`/.well-known/openid-configuration`. Die vollständige Liste, einschließlich
+`EVEY_OIDC_REDIRECT_URL`, steht unter [Konten und Anmeldung](environment/accounts.md).
 
-### 1. Evey als OIDC-Client registrieren
-
-Legen Sie bei Ihrem Identitätsanbieter einen neuen Client bzw. eine neue Anwendung an:
-
-| Feld | Wert |
-|-------|-------|
-| Client ID | `evey` |
-| Client Secret | eines erzeugen |
-| Redirect URI | `https://<your address>/api/v1/auth/oidc/callback` |
-| Grant Type | Authorization Code |
-| Scopes | `openid email profile` |
-
-### 2. Evey konfigurieren
-
-Setzen Sie die Umgebungsvariablen oben in Ihrer `.env`. `EVEY_OIDC_ISSUER` muss die Basis-URL des Discovery-Endpunkts Ihres OIDC-Anbieters sein (ohne `/.well-known/openid-configuration`).
-
-### 3. Neu starten
+## 3. Neu starten
 
 ```bash
-docker compose restart evey
+docker compose up -d
 ```
 
-Die Anmeldeseite zeigt dann eine Schaltfläche „Mit SSO anmelden".
+Der Server kontaktiert den Anbieter beim Start. Ist der Aussteller nicht
+erreichbar oder das Client-Secret leer, **startet der Server nicht**: Die Logs
+nennen die Ursache.
 
-## So funktioniert es
+## Wer sich anmelden kann
 
-1. Der Benutzer klickt auf der Anmeldeseite auf „Mit SSO anmelden"
-2. Evey leitet zum OIDC-Anbieter weiter
-3. Der Benutzer authentifiziert sich beim Anbieter
-4. Der Anbieter leitet mit einem Autorisierungscode zu Evey zurück
-5. Evey tauscht den Code gegen Tokens und legt das Benutzerkonto an oder aktualisiert es
+Die erste SSO-Anmeldung legt ein Evey-Konto an, ohne Passwort und mit einem
+Profil. Sein Benutzername ist der `preferred_username` des Anbieters, sonst der
+Teil der E-Mail vor `@`. Das Konto ist ein normaler Benutzer und sieht wie
+jedes Konto ohne Einschränkungen alle Bibliotheken: Schränken Sie es danach
+unter **Admin → Benutzer** ein (siehe [Benutzer](administration/users.md)).
 
-## Domain-Einschränkung
+**Begrenzen Sie Registrierungen mit `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** Leer
+bekommt jeder, der ein Konto beim Anbieter hat, eines auf Ihrem Server, was bei
+einem öffentlichen Anbieter wie Google jeden bedeutet. Mit Domains werden nur
+diese Adressen angenommen, und der Anbieter muss die Adresse als verifiziert
+kennzeichnen.
 
-`EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` begrenzt, welche E-Mail-Domains sich registrieren können. Leer lassen, um alle Domains zuzulassen.
+Ein Konto wird am Anbieter und seiner Benutzerkennung erkannt, nicht an der
+E-Mail. Wer bereits ein lokales Konto mit derselben E-Mail oder demselben
+Benutzernamen hat, kann kein SSO-Konto anlegen: Die Anmeldung scheitert mit
+„SSO-Anmeldung fehlgeschlagen". Verwenden Sie beim Anbieter eine andere Adresse
+oder entfernen Sie zuerst das lokale Konto.
 
-## Automatische Benutzeranlage
+Ein deaktiviertes Konto wird bei der Anmeldung wie üblich abgewiesen.
 
-Benutzer, die sich zum ersten Mal über OIDC anmelden, werden automatisch angelegt mit:
-- einem Benutzernamen aus `preferred_username` oder dem Präfix der E-Mail-Adresse
-- der E-Mail-Adresse aus dem OIDC-Token
-- der Rolle Nicht-Administrator
-- einem Standardprofil
+## Abmelden
 
-OIDC-Benutzer können kein lokales Passwort festlegen - sie authentifizieren sich immer über den Anbieter.
+Wenn der Anbieter einen Abmelde-Endpunkt veröffentlicht, beendet die Abmeldung
+bei Evey auch die Sitzung beim Anbieter und kehrt dann zur Anmeldeseite von
+Evey zurück.
