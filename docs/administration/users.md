@@ -83,18 +83,6 @@ to download the original file; it is copied to the clipboard.
 - Whoever holds the link can download the file until it expires: share it like
   the file itself.
 
-
-<!-- sources
-max devices per profile = concurrent active playback sessions of the profile: internal/app/playback/command_service.go (DeviceQuotaExceeded, ErrMaxDevicesPerProfile)
-share links: internal/adapters/driving/grpcapi/interceptors/rbac.go (ShareService RoleAdmin) ; grpcapi/share_handler.go (48 h default) ; internal/app/media/share_service.go (max 72 h, maxViews) ; http/share_download_handler.go (no auth) ; cmd/evey/gateway.go - networkGateExempt (share not exempt) ; frontend/apps/web/src/features/library/ShareLinkButton.tsx, mobile media/[id].tsx (isAdmin) ; proto/evey/v1/share.proto
-invite options: i18n admin.users.maxUsesLabel, expiresAtLabel, inviteLibraries, inviteMaxProfilesLabel, inviteIsAdmin
-restrictions: i18n admin.users.libraryAccess, maxBitrateDesc, maxProfiles, maxDevicesPerProfile, impersonate
-kids and pin: i18n auth.profile.fields.isKidsHelp, auth.settings.parental.*, errors.auth.pin_required_for_non_kids, errors.auth.parental_needs_non_kids ; internal/app/user/service.go - ErrPINRequired
-server-side limit, fail closed, admins exempt: internal/adapters/driving/http/parental.go - BlockedByParental ; internal/adapters/driving/grpcapi/library_handler_parental.go
-downloads: internal/adapters/driving/http/compat_download_handler.go (checkParental) ; frontend/apps/mobile/src/lib/offlineAccess.ts
-requests: i18n admin.mediaRequests.*
--->
-
 ## The home page
 
 The home page is a stack of rows; a row with nothing to show is hidden.
@@ -119,3 +107,14 @@ mobile apps, in the header of the TV app): show or hide a row, move it, or
 **Reset to Defaults**. The choice is saved on the server and follows the profile
 to every device. A profile can show a row the administrator has hidden, except
 a plugin's row: there the administrator's choice is final.
+
+<!-- sources
+max devices per profile = concurrent active playback sessions of the profile: internal/app/playback/command_service.go (DeviceQuotaExceeded, ErrMaxDevicesPerProfile)
+share links: internal/adapters/driving/grpcapi/interceptors/rbac.go (ShareService RoleAdmin) ; grpcapi/share_handler.go (48 h default) ; internal/app/media/share_service.go (max 72 h, maxViews) ; http/share_download_handler.go (no auth) ; cmd/evey/gateway.go - networkGateExempt (share not exempt) ; frontend/apps/web/src/features/library/ShareLinkButton.tsx, mobile media/[id].tsx (isAdmin) ; proto/evey/v1/share.proto
+invite options: i18n admin.users.maxUsesLabel, expiresAtLabel, inviteLibraries, inviteMaxProfilesLabel, inviteIsAdmin
+restrictions: i18n admin.users.libraryAccess, maxBitrateDesc, maxProfiles, maxDevicesPerProfile, impersonate
+kids and pin: i18n auth.profile.fields.isKidsHelp, auth.settings.parental.*, errors.auth.pin_required_for_non_kids, errors.auth.parental_needs_non_kids ; internal/app/user/service.go - ErrPINRequired
+server-side limit, fail closed, admins exempt: internal/adapters/driving/http/parental.go - BlockedByParental ; internal/adapters/driving/grpcapi/library_handler_parental.go
+downloads: internal/adapters/driving/http/compat_download_handler.go (checkParental) ; frontend/apps/mobile/src/lib/offlineAccess.ts
+requests: i18n admin.mediaRequests.*
+-->

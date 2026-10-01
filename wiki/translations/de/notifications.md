@@ -1,5 +1,5 @@
 ---
-source_sha: 0f3c964e32d232266d53c9ebfe192d6a3f21996e2437d7ec2cc38945c049774c
+source_sha: 51c69f3c288f8a28ef5b1fca29d4e522f63fc35d24ec2a2cbcdfa9948a273d8a
 reviewed: false
 ---
 # Benachrichtigungen
@@ -19,8 +19,7 @@ gestellt hat, hört zurück, sobald sie beantwortet ist.
   Server erzeugt seine Push-Schlüssel beim ersten Start; siehe
   [E-Mail und Benachrichtigungen](environment/notifications.md#browser-push),
   um eigene mitzubringen. Browser erlauben Push nur unter einer HTTPS-Adresse
-  (oder `localhost`); anderswo zeigt die Einstellung **Push-Benachrichtigungen
-  sind auf diesem Server nicht konfiguriert.** Die Android- und TV-Apps erhalten
+  (oder `localhost`); anderswo zeigt die Einstellung **Push-Benachrichtigungen brauchen eine HTTPS-Adresse: Öffnen Sie diesen Server über HTTPS, um sie einzuschalten.** Die Android- und TV-Apps erhalten
   keine Push-Benachrichtigungen.
 - **E-Mail**: Sobald SMTP eingerichtet ist, geht jede Benachrichtigung auch an
   die Adresse des Kontos. Es gibt keine Abmeldung pro Benutzer, und ein Konto

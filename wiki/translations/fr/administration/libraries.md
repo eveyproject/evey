@@ -1,5 +1,5 @@
 ---
-source_sha: 9ec526fd6900c24c0897b5487d0abdf140e3fd5aee6f9a754b78d5e5514fc8d4
+source_sha: f3462cd1e79cf16db4a38f3ecb82da3588ca9b03301e7d32db33118bb80ea428
 reviewed: true
 ---
 # Bibliothèques et métadonnées
@@ -155,7 +155,8 @@ elles connaissent le titre, et sinon de l'analyse des fichiers par le serveur.
 Un administrateur peut ajuster à la main les segments d'un titre, ou relancer
 la détection.
 
-Les lecteurs affichent un bouton **Passer** par défaut. **Saut automatique
+Les lecteurs affichent par défaut les boutons **Passer l'intro**, **Passer le
+résumé** et **Passer le générique**. **Saut automatique
 des intros** (**Admin → Configuration du serveur → Paramètres du serveur**,
 désactivé par défaut) fait passer les intros automatiquement dans tous les
 lecteurs.

@@ -287,8 +287,7 @@ check the server log:
 - **per-plugin** (every plugin start):
   `plugin sandbox applied  sandbox_mode=landlock plugin_id=...`
 - **fell back to basic** (a warning you do *not* want to see if you expected
-  Landlock): `plugin sandbox auto-detection fell back to basic mode: no per-path
-  filesystem isolation available …` - means neither Landlock nor a working bwrap
+  Landlock): `plugin sandbox auto-detection fell back to basic mode: no per-path filesystem isolation available …` - means neither Landlock nor a working bwrap
   was found. Re-check §3.
 
 Confirm the kernel pieces independently:

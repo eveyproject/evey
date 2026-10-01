@@ -1,5 +1,5 @@
 ---
-source_sha: 9ec526fd6900c24c0897b5487d0abdf140e3fd5aee6f9a754b78d5e5514fc8d4
+source_sha: f3462cd1e79cf16db4a38f3ecb82da3588ca9b03301e7d32db33118bb80ea428
 reviewed: false
 ---
 # Bibliotecas y metadatos
@@ -151,7 +151,8 @@ comunitarias (TheIntroDB y luego IntroDB) cuando conocen el título, y si no, de
 propio análisis de los archivos por parte del servidor. Un administrador puede
 ajustar a mano los segmentos de un título o volver a lanzar la detección.
 
-Los reproductores muestran un botón **Omitir** por defecto. **Saltar intros
+Los reproductores muestran por defecto los botones **Saltar intro**, **Saltar
+resumen** y **Saltar créditos**. **Saltar intros
 automáticamente** (**Admin → Configuración del servidor → Configuración del
 servidor**, desactivado por defecto) hace que cada reproductor las salte por sí
 mismo.

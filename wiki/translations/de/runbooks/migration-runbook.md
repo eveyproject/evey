@@ -1,5 +1,5 @@
 ---
-source_sha: 68ae93ace6a6ac1dc58140bf8cdc28c60bd2db3d0b2ce148ec58433940070f68
+source_sha: 771f24a342b202edfea3fa8ec419ba1e7d488e2112cdd4a535c84b7cd1b586c4
 reviewed: false
 ---
 # Datenbankmigrationen
@@ -125,7 +125,7 @@ Für Mitwirkende. Beispiele in `internal/adapters/driven/postgres/migrations/`:
 Regeln:
 
 - **Langes ALTER**, das die Tabelle umschreibt (Typänderung, nicht konstanter Standardwert auf altem PG) → bei einem großen Katalog mit Ausfallzeit rechnen.
-- **DROP COLUMN** → betrifft nur Metadaten, aber die Spalte lässt sich ohne Sicherung nicht wiederherstellen. Nie in derselben Version löschen, mit der eine neue Codeversion ausgerollt wird - lieber in zwei Schritten: aufhören, die Spalte zu lesen, ausrollen, dann in der nächsten Version löschen.
+- **DROP COLUMN** → betrifft nur Metadaten, aber die Spalte lässt sich ohne Sicherung nicht wiederherstellen. Nie in derselben Version löschen wie den Code, der aufhört, sie zu lesen - lieber in zwei Schritten: aufhören, die Spalte zu lesen, ausrollen, dann in der nächsten Version löschen.
 - **Fremdschlüssel auf großen Tabellen** → `ADD CONSTRAINT ... NOT VALID`, dann `VALIDATE CONSTRAINT` in einer folgenden Migration. Ein einzelnes blockierendes `ADD CONSTRAINT ... FOREIGN KEY ...` vermeiden.
 - **Massen-UPDATE / Nachbefüllen** → nie in einer einzigen Migration auf einer großen Tabelle. Eine Schema-Migration ohne Wirkung plus eine Hintergrundaufgabe ausliefern.
 - **Spaltenersatz (erweitern → migrieren → zusammenziehen)** → `ADD COLUMN` + Nachbefüllen + `SET NOT NULL` + `DROP COLUMN` der alten nicht in einer einzigen Migration bündeln. Diese Form funktioniert nur, weil Evey heute als einzelne Instanz läuft, mit beim Start synchron angewendeten Migrationen: Während des Zeitfensters können alter Code, der die gelöschte Spalte liest, und neuer Code, der die neue liest, nicht nebeneinander bestehen, sodass ein schrittweises oder mehrfach repliziertes Ausrollen Fehler aus der zurückliegenden Hälfte liefern würde.

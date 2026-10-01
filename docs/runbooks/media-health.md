@@ -9,7 +9,7 @@ it fixes; the rest is mentioned once and can be marked as seen.
   <figcaption>A scan with nothing left to do: every file is healthy.</figcaption>
 </figure>
 
-## Two verdicts
+## Three verdicts
 
 | Verdict | What it means | What Evey does |
 | --- | --- | --- |
@@ -17,8 +17,8 @@ it fixes; the rest is mentioned once and can be marked as seen.
 | **Repairable here** | A defect Evey repairs on this server. | **Repair all** handles them in the background. |
 | **Information** | Something measured about the file that Evey does not rewrite on its own. | Nothing. Mark it as seen. |
 
-There is no third verdict that hands you a chore. A measurement Evey cannot act
-on is a remark, and a measurement can be wrong: if the file plays fine, it is
+None of them hands you a chore. A measurement Evey cannot act on is a
+remark, and a measurement can be wrong: if the file plays fine, it is
 fine.
 
 ### Repairable here

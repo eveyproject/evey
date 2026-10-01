@@ -1,5 +1,5 @@
 ---
-source_sha: 20c15f25fe69f68ab885ee03c012f737103bebcc94ce6da6d3efd20c3bbaff60
+source_sha: 974b056c376498e40c4211ccbde7fd2d3f94c52f343c81353f4cc6f083b62a40
 reviewed: false
 ---
 # Salud de medios
@@ -14,7 +14,7 @@ visto.
   <figcaption>Un escaneo sin nada pendiente: todos los archivos están sanos (interfaz en inglés).</figcaption>
 </figure>
 
-## Dos veredictos
+## Tres veredictos
 
 | Veredicto | Lo que significa | Lo que hace Evey |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ visto.
 | **Reparable aquí** | Un defecto que Evey repara en este servidor. | **Reparar todo** se ocupa de ellos en segundo plano. |
 | **Información** | Algo medido en el archivo que Evey no reescribe por su cuenta. | Nada. Márcalo como visto. |
 
-No hay un tercer veredicto que te deje una tarea. Una medición sobre la que Evey
+Ninguno te deja una tarea. Una medición sobre la que Evey
 no puede actuar es una observación, y una medición puede equivocarse: si el
 archivo se reproduce bien, está bien.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: 6c5be1c7b73eceb506748f84e685e858d94021c34fe6715f0d4127dfd10d261f
+source_sha: fffc05516a2ca96d615a64bc159a1b837a7601876648b7e40b6167296b59f1d5
 reviewed: false
 ---
 # Erweiterte Bereitstellungen
@@ -183,7 +183,7 @@ Das Image ist `gravityz/evey`.
 
 - Release-Tags `vX.Y.Z` veröffentlichen `X.Y.Z`, `X.Y`, `X` und `latest`.
   `latest` ist immer die neueste stabile Version: Eine Vorabversion
-  (`vX.Y.Z-beta.N`) veröffentlicht nur ihr eigenes Tag und verschiebt es nie.
+  (`vX.Y.Z-beta.N`) veröffentlicht nur ihr eigenes Tag und verschiebt `latest` nie.
 - Branch-Builds veröffentlichen den Branch-Namen (zum Beispiel `beta-0.0.1`) und
   `sha-<commit>`.
 - **Plugin-Laufzeiten.** Das Standard-Image bringt Python 3 für Plugins mit. Die

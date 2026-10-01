@@ -261,8 +261,7 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 
 Everything below is readable from the admin Logs page (or
 `GET /api/v1/admin/logs/search?q=<term>&limit=200`): no shell on the box is
-needed. Times are UTC. Every beacon is a `player-client: playback event
-reported` line with `type=` and a `details=` string. Credentials never appear
+needed. Times are UTC. Every beacon is a `player-client: playback event reported` line with `type=` and a `details=` string. Credentials never appear
 in what these routes return (bearers, JWTs and `token=`/`password=` values read
 `[redacted]`), so a cast URL's token is not something a log search can recover -
 grep for the media id, not the token.
@@ -292,9 +291,7 @@ grep for the media id, not the token.
    `age`, which tells a stale copy from a forged one. Search `StartStream`
    to see re-issues; the sender no longer re-loads the receiver on a re-issued
    URL for the same title.
-5. **Was the stream too big for the device?** Search `advertises a fallback
-   rung` (the copy master's peak bitrate) and `plan fitted to the client's
-   line` (the receiver's `maxKbps` measure or its `abr=floor` rescue, now a
+5. **Was the stream too big for the device?** Search `advertises a fallback rung` (the copy master's peak bitrate) and `plan fitted to the client's line` (the receiver's `maxKbps` measure or its `abr=floor` rescue, now a
    plan input - the transcode master that follows carries the reason
    `client_line_exceeded` or `abr_floor_requested`): a session that started
    on a 20+ Mbps copy master and fell to a fitted 1080p rung after a few
@@ -328,7 +325,7 @@ Symptom: admin sees an unexpected device in **Now Playing** (admin panel), or a 
    ```sh
    docker compose restart evey
    ```
-4. If the account itself is compromised, **Admin → Users → Disable** on it: that deletes its refresh tokens and invalidates its access tokens at once, so every device is signed out. Set a new password (`evey admin reset-password --user <email>`, which on its own ends no session), then **Enable** the account again.
+4. If the account itself is compromised, **Admin → Users → Disable** on it: that deletes its refresh tokens and invalidates its access tokens at once, so every device is signed out. Set a new password (`evey admin reset-password --user <email>`, which also ends the account's sessions), then **Enable** the account again.
 
 ## Unblock a stuck library scan
 

@@ -1,5 +1,5 @@
 ---
-source_sha: ee8527dd07b1c7262f2f353e0f33f6004d9ae87c801d3274d9c9a31c109637be
+source_sha: 64f12b2cc77ed7069bf33f581c2d91e3b13b6ff04cc4a3bc62db72c3607b46fe
 reviewed: false
 ---
 # Wiederherstellung
@@ -30,13 +30,9 @@ password: <random 24-byte base64url>
 ```
 
 Hinweise:
-- Das Feld `updated_at` des Benutzers wird aktualisiert, sonst ändert sich
-  nichts.
-- Bestehende Sitzungen bleiben bis zu ihrem natürlichen Ablauf gültig. Um den
-  Benutzer überall abzumelden, deaktivieren Sie das Konto unter
-  **Admin → Benutzer** (**Deaktivieren**) und aktivieren es danach wieder: Das
-  Deaktivieren löscht seine Refresh-Tokens und macht seine Zugriffstokens
-  sofort ungültig.
+- Alle Sitzungen des Benutzers enden: Seine Refresh-Tokens werden gelöscht und
+  seine Zugriffstokens widerrufen. Eine geöffnete App bemerkt es in etwa 30
+  Sekunden und verlangt eine neue Anmeldung.
 - Das Klartextpasswort wird nie protokolliert. Geht die Ausgabe verloren, muss
   der Befehl erneut ausgeführt werden.
 
@@ -53,21 +49,18 @@ Verhalten:
   `/data/jwt.key`) wird in `<path>.rotated-<UTC-timestamp>` umbenannt.
 - Beim nächsten Serverstart erzeugt `LoadOrGenerateRSAKey` einen neuen
   2048-Bit-RSA-Schlüssel.
-- Alle zuvor ausgestellten Zugriffstokens scheitern an der
-  Signaturprüfung.
-- Refresh-Tokens werden gegen den in der Datenbank gespeicherten Hash
-  geprüft, nicht gegen den Schlüssel, und bleiben daher gültig: Eine App, deren
-  Zugriffstoken abgelehnt wird, erneuert es und macht weiter. Um außerdem jede
-  Sitzung zu beenden, leeren Sie die Tabelle:
-  ```sql
-  DELETE FROM refresh_tokens;
-  ```
+- Alle Sitzungen enden sofort, ohne den Neustart abzuwarten: Der Befehl löscht
+  jedes Refresh-Token und widerruft jedes Zugriffstoken in der Datenbank.
+  Geöffnete Apps bemerken es in etwa 30 Sekunden, und alle melden sich neu an.
+- Ist die Datenbank nicht erreichbar, wird der Schlüssel trotzdem beiseitegelegt
+  und der Befehl meldet es: Führen Sie ihn erneut aus, sobald die Datenbank
+  antwortet.
 
 Wann einsetzen:
 - Vermutetes Schlüsselleck: Niemand kann mit dem alten Schlüssel noch gültige
   Zugriffstokens erzeugen.
-- Alle Sitzungen beenden: zusammen mit dem `DELETE` oben. Für ein einzelnes
-  Konto genügt es, es unter **Admin → Benutzer** zu deaktivieren.
+- Alle Sitzungen beenden. Für ein einzelnes Konto genügt es, es unter **Admin →
+  Benutzer** zu deaktivieren, oder `reset-password`.
 
 ## restore-backup
 

@@ -120,7 +120,7 @@ For contributors. Examples in `internal/adapters/driven/postgres/migrations/`:
 Guidelines:
 
 - **Long ALTER** that rewrites the table (type change, adding a non-constant default on old PG) → expect downtime on a large catalogue.
-- **DROP COLUMN** → only metadata, but the column cannot be restored without a backup. Never drop the same release a new version of the code is rolled out - prefer a two-step: stop reading the column, deploy, then drop in the next release.
+- **DROP COLUMN** → only metadata, but the column cannot be restored without a backup. Never drop it in the same release as the code that stops reading it - prefer a two-step: stop reading the column, deploy, then drop in the next release.
 - **FK on big tables** → `ADD CONSTRAINT ... NOT VALID` then `VALIDATE CONSTRAINT` in a follow-up migration. Avoid a single blocking `ADD CONSTRAINT ... FOREIGN KEY ...`.
 - **Batch UPDATE / backfill** → never in a single migration on a big table. Ship a no-op schema migration + a background job.
 - **Column replacement (expand → migrate → contract)** → do not fold `ADD COLUMN` + backfill + `SET NOT NULL` + `DROP COLUMN` of the old one into a single migration. That shape only works because Evey runs single-instance today, with migrations applied synchronously at boot: during the window, old code reading the dropped column and new code reading the new one cannot coexist, so a rolling or multi-replica deploy would serve errors from whichever half is behind.

@@ -1,5 +1,5 @@
 ---
-source_sha: 87e3250d0329fdea4d7710ddda0cd4624c81d6c2177820f2e45502be4f6fe75f
+source_sha: df7413e4af441d34d3b23275ec280881e68c4257572b636312f678009cf80c2e
 reviewed: false
 ---
 # Despliegue sin contenedor (sin Docker)
@@ -307,8 +307,7 @@ plugin, mira el registro del servidor:
 - **por plugin** (en cada arranque de plugin):
   `plugin sandbox applied  sandbox_mode=landlock plugin_id=...`
 - **vuelta a basic** (un aviso que *no* quieres ver si esperabas Landlock):
-  `plugin sandbox auto-detection fell back to basic mode: no per-path
-  filesystem isolation available …`: significa que no se encontró ni Landlock ni
+  `plugin sandbox auto-detection fell back to basic mode: no per-path filesystem isolation available …`: significa que no se encontró ni Landlock ni
   un bwrap que funcione. Revisa §3.
 
 Confirma las piezas del kernel por separado:

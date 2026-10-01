@@ -1,5 +1,5 @@
 ---
-source_sha: 68ae93ace6a6ac1dc58140bf8cdc28c60bd2db3d0b2ce148ec58433940070f68
+source_sha: 771f24a342b202edfea3fa8ec419ba1e7d488e2112cdd4a535c84b7cd1b586c4
 reviewed: false
 ---
 # 数据库迁移
@@ -101,7 +101,7 @@ UPDATE schema_migrations SET version = <N>, dirty = false;
 准则：
 
 - 会改写整张表的**长 ALTER**（类型变更、在旧版 PG 上添加非常量默认值）→ 在大型片库上预计会有停机时间。
-- **DROP COLUMN** → 只涉及元数据，但没有备份就无法恢复该列。绝不要在推出新版本代码的同一个版本中删除列：最好分两步，先停止读取该列，部署，然后在下一个版本中删除。
+- **DROP COLUMN** → 只涉及元数据，但没有备份就无法恢复该列。绝不要在代码停止读取该列的同一个版本中删除它：最好分两步，先停止读取该列，部署，然后在下一个版本中删除。
 - **大表上的外键** → 先 `ADD CONSTRAINT ... NOT VALID`，再在后续迁移中 `VALIDATE CONSTRAINT`。避免一次性阻塞的 `ADD CONSTRAINT ... FOREIGN KEY ...`。
 - **批量 UPDATE / 回填** → 绝不在大表上用一个迁移完成。发布一个不做事的架构迁移 + 一个后台任务。
 - **替换列（expand → migrate → contract）** → 不要把 `ADD COLUMN` + 回填 + `SET NOT NULL` + 删除旧列的 `DROP COLUMN` 合并到一个迁移中。这种做法之所以能工作，只是因为 Evey 目前以单实例运行，迁移在启动时同步应用：在这个窗口期内，读取已删除列的旧代码和读取新列的新代码无法共存，所以滚动部署或多副本部署会让落后的那一半返回错误。

@@ -1,5 +1,5 @@
 ---
-source_sha: 87e3250d0329fdea4d7710ddda0cd4624c81d6c2177820f2e45502be4f6fe75f
+source_sha: df7413e4af441d34d3b23275ec280881e68c4257572b636312f678009cf80c2e
 reviewed: false
 ---
 # 裸机部署（不使用 Docker）
@@ -189,8 +189,7 @@ sudo chmod 600 /var/lib/evey/jwt.key      # （首次启动时自动以 0600 生
 
 - **auto 解析**（记录一次）：`plugin sandbox auto-detection complete  selected_mode=landlock`（或 `bubblewrap` / `basic`）。
 - **每个插件**（每次插件启动时）：`plugin sandbox applied  sandbox_mode=landlock plugin_id=...`
-- **退回到 basic**（如果你期望 Landlock，这是你*不*想看到的警告）：`plugin sandbox auto-detection fell back to basic mode: no per-path
-  filesystem isolation available …`：表示既没有找到 Landlock，也没有找到可用的 bwrap。重新检查 §3。
+- **退回到 basic**（如果你期望 Landlock，这是你*不*想看到的警告）：`plugin sandbox auto-detection fell back to basic mode: no per-path filesystem isolation available …`：表示既没有找到 Landlock，也没有找到可用的 bwrap。重新检查 §3。
 
 单独确认内核部分：
 

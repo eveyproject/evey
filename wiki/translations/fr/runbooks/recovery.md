@@ -1,5 +1,5 @@
 ---
-source_sha: ee8527dd07b1c7262f2f353e0f33f6004d9ae87c801d3274d9c9a31c109637be
+source_sha: 64f12b2cc77ed7069bf33f581c2d91e3b13b6ff04cc4a3bc62db72c3607b46fe
 reviewed: true
 ---
 # Récupération
@@ -31,13 +31,10 @@ password: <random 24-byte base64url>
 
 Remarques :
 
-- Le champ `updated_at` de l'utilisateur est mis à jour, rien d'autre ne
-  change.
-- Les sessions existantes restent valides jusqu'à leur expiration normale. Pour
-  déconnecter l'utilisateur partout, désactivez le compte dans
-  **Admin → Utilisateurs** (**Désactiver**), puis réactivez-le : la
-  désactivation supprime ses jetons de rafraîchissement et invalide aussitôt ses
-  jetons d'accès.
+- Toutes les sessions de l'utilisateur prennent fin : ses jetons de
+  rafraîchissement sont supprimés et ses jetons d'accès révoqués. Une
+  application ouverte s'en aperçoit en 30 secondes environ et redemande la
+  connexion.
 - Le mot de passe en clair n'est jamais journalisé. Si vous perdez la sortie, il
   faut relancer la commande.
 
@@ -55,22 +52,19 @@ Comportement :
   `/data/jwt.key`) est renommé en `<chemin>.rotated-<horodatage UTC>`.
 - Au démarrage suivant du serveur, `LoadOrGenerateRSAKey` génère une nouvelle
   clé RSA de 2048 bits.
-- Tous les jetons d'accès émis auparavant échouent à la vérification de
-  signature.
-- Les jetons de rafraîchissement sont vérifiés par l'empreinte stockée en base,
-  pas par la clé : ils restent valides, et une application dont le jeton d'accès
-  est refusé le renouvelle et continue. Pour mettre fin aussi à toutes les
-  sessions, videz la table :
-  ```sql
-  DELETE FROM refresh_tokens;
-  ```
+- Toutes les sessions prennent fin immédiatement, sans attendre le
+  redémarrage : la commande supprime tous les jetons de rafraîchissement et
+  révoque tous les jetons d'accès en base. Les applications ouvertes s'en
+  aperçoivent en 30 secondes environ et tout le monde se reconnecte.
+- Si la base est injoignable, la clé est quand même mise de côté et la
+  commande le signale : relancez-la quand la base répond.
 
 Quand l'utiliser :
 
 - Fuite de clé soupçonnée : plus personne ne peut fabriquer de jeton d'accès
   valide avec l'ancienne clé.
-- Coupure de toutes les sessions : avec le `DELETE` ci-dessus. Pour un seul
-  compte, le désactiver dans **Admin → Utilisateurs** suffit.
+- Coupure de toutes les sessions. Pour un seul compte, le désactiver dans
+  **Admin → Utilisateurs**, ou `reset-password`, suffit.
 
 ## restore-backup
 

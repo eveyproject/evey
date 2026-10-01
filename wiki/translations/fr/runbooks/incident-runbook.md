@@ -1,5 +1,5 @@
 ---
-source_sha: cb3a20b8cc9545de2abfb60adb9e7c2272d0ad6fbc8666679ce2cb180603bae4
+source_sha: 183e65df2f01ed4e879613548dd30f3675ca6c82fa34bb3521c12c68938b83be
 reviewed: true
 ---
 # Réponse aux incidents
@@ -426,7 +426,7 @@ inconnu dans sa liste de sessions.
    sur ce compte : cela supprime ses jetons de rafraîchissement et invalide
    aussitôt ses jetons d'accès, si bien que chaque appareil est déconnecté.
    Posez un nouveau mot de passe (`evey admin reset-password --user <e-mail>`,
-   qui à lui seul ne met fin à aucune session), puis **Activer** de nouveau le
+   qui met aussi fin aux sessions du compte), puis **Activer** de nouveau le
    compte.
 
 ## Débloquer un scan de bibliothèque figé

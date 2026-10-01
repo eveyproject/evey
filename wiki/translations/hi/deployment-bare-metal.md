@@ -1,5 +1,5 @@
 ---
-source_sha: 87e3250d0329fdea4d7710ddda0cd4624c81d6c2177820f2e45502be4f6fe75f
+source_sha: df7413e4af441d34d3b23275ec280881e68c4257572b636312f678009cf80c2e
 reviewed: false
 ---
 # बेयर-मेटल डिप्लॉयमेंट (Docker के बिना)
@@ -189,8 +189,7 @@ sudo chmod 600 /var/lib/evey/jwt.key      # (पहली बार चालू
 
 - **auto हल** (एक बार लॉग होता है): `plugin sandbox auto-detection complete  selected_mode=landlock` (या `bubblewrap` / `basic`)।
 - **हर प्लगइन** (हर प्लगइन शुरुआत पर): `plugin sandbox applied  sandbox_mode=landlock plugin_id=...`
-- **basic पर लौटा** (अगर आपको Landlock की उम्मीद थी तो यह चेतावनी आप *नहीं* देखना चाहते): `plugin sandbox auto-detection fell back to basic mode: no per-path
-  filesystem isolation available …`: मतलब न Landlock मिला न काम करने वाला bwrap। §3 फिर से जाँचें।
+- **basic पर लौटा** (अगर आपको Landlock की उम्मीद थी तो यह चेतावनी आप *नहीं* देखना चाहते): `plugin sandbox auto-detection fell back to basic mode: no per-path filesystem isolation available …`: मतलब न Landlock मिला न काम करने वाला bwrap। §3 फिर से जाँचें।
 
 कर्नेल के हिस्सों की अलग से पुष्टि करें:
 
