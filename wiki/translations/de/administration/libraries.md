@@ -1,5 +1,5 @@
 ---
-source_sha: b6d595e92c82851324debcee0de01b789bd1def644e658e011f90ccc857c9de9
+source_sha: 9ec526fd6900c24c0897b5487d0abdf140e3fd5aee6f9a754b78d5e5514fc8d4
 reviewed: false
 ---
 # Bibliotheken und Metadaten
@@ -110,6 +110,26 @@ ankommen, wird häufiger durchlaufen, bis sich die Überwachung erholt.
 - **Reihen reparieren** fügt Filme, die zu keiner Sammlung gehören, wieder ihrer
   Filmreihe hinzu, wenn die anderen Filme der Reihe bereits in der Bibliothek
   sind.
+
+## Sammlungen
+
+**Sammlungen** fasst Titel unter einem Namen zusammen, für alle Konten. Es gibt
+drei Arten:
+
+- **TMDB-Sammlungen**: die Filmreihen, die sich von selbst füllen, wenn TMDB
+  einen Film einer zuordnet. **Reihen reparieren** (oben) holt Filme nach, die
+  ihre verpasst haben.
+- **Neue Sammlung**: eine Liste, die ein Administrator von Hand füllt, mit
+  **Zur Sammlung hinzufügen** auf einem Titel oder einer Auswahl, und ordnet.
+- **Neue Smart-Sammlung**: Regeln zu **Genre**, **Jahr**, **Typ**,
+  **Bewertung ≥** und **Bibliothek**, die ein Titel alle erfüllen muss. Ihr
+  Inhalt wird bei jedem Öffnen ermittelt, sodass neue Titel ohne Zutun
+  erscheinen.
+
+Nur Administratoren legen Sammlungen an und bearbeiten sie. Jeder kann sie
+durchsuchen, und **Sammlung herunterladen** im Web holt die Originaldateien als
+ein ZIP (bis zu 1000 Titel), ohne das, was der Bibliothekszugriff oder die
+Altersgrenze des Kontos ausblendet.
 
 ## Metadaten-Schlüssel
 
