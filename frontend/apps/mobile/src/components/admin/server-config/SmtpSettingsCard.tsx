@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
+import { eveyFetch } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
 import { ChipSelect } from "./ChipSelect";
 import type { ConfigEntry, SaveEntry } from "./types";
@@ -36,6 +37,7 @@ export function SmtpSettingsCard({ entries, saveEntry, saving }: SmtpSettingsCar
   const [from, setFrom] = useState(() => val(entries, "smtp.from"));
   const [tls, setTls] = useState(() => val(entries, "smtp.tls") || "starttls");
   const [showPassword, setShowPassword] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   // Re-seed from the config the FIRST time it arrives (mirrors the web card):
   // useState(() => val()) only seeds at mount, so a card that mounts before
@@ -81,6 +83,23 @@ export function SmtpSettingsCard({ entries, saveEntry, saving }: SmtpSettingsCar
       );
     }
   }, [host, port, username, password, from, tls, saveEntry, t]);
+
+  // Sends with the SAVED settings (the server re-reads them) to the admin's own
+  // address - same route and messages as the web card.
+  const handleTest = useCallback(async () => {
+    setTesting(true);
+    try {
+      const res = await eveyFetch<{ to?: string }>({ url: "/api/v1/admin/smtp/test", method: "POST", data: {} });
+      toast.success(t("admin.serverConfig.testEmailSent", { to: res?.to ?? "" }));
+    } catch (err) {
+      const e = err as { errorCode?: string; message?: string };
+      if (e.errorCode === "not_configured") toast.error(t("admin.serverConfig.testEmailNotConfigured"));
+      else if (e.errorCode === "no_recipient") toast.error(t("admin.serverConfig.testEmailNoRecipient"));
+      else toast.error(t("admin.serverConfig.testEmailFailed", { error: e.message ?? "" }));
+    } finally {
+      setTesting(false);
+    }
+  }, [t]);
 
   const s = styles(theme);
 
@@ -163,6 +182,24 @@ export function SmtpSettingsCard({ entries, saveEntry, saving }: SmtpSettingsCar
           </Text>
         )}
       </Pressable>
+
+      <Pressable
+        onPress={handleTest}
+        disabled={testing}
+        style={[s.testBtn, { opacity: testing ? 0.5 : 1 }]}
+        accessibilityRole="button"
+        testID="smtp-test-btn"
+      >
+        {testing ? (
+          <ActivityIndicator size="small" color={theme.colors.text} />
+        ) : (
+          <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: 15 }}>
+            {t("admin.serverConfig.sendTestEmail", "Send test email")}
+          </Text>
+        )}
+      </Pressable>
+      <Text style={s.hint}>{t("admin.serverConfig.testEmailHint")}</Text>
+      <Text style={s.hint}>{t("admin.serverConfig.smtpEnvHint")}</Text>
     </View>
   );
 }
@@ -173,4 +210,6 @@ const styles = (t: ReturnType<typeof useTheme>) =>
     input: { backgroundColor: t.colors.surface, color: t.colors.text, borderRadius: t.radii.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     showBtn: { paddingHorizontal: 10, paddingVertical: 10, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, backgroundColor: t.colors.surfaceRaised },
     saveBtn: { backgroundColor: t.colors.accent, borderRadius: t.radii.md, paddingVertical: 14, alignItems: "center", marginTop: 24 },
+    testBtn: { borderRadius: t.radii.md, paddingVertical: 14, alignItems: "center", marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, backgroundColor: t.colors.surfaceRaised },
+    hint: { color: t.colors.textMuted, fontSize: 12, marginTop: 8 },
   });
