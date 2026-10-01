@@ -180,8 +180,9 @@ fi
 # operator's `user:` override) - the server never runs as root. Per-plugin
 # resource caps are enforced in userspace by the runner's resource monitor
 # (it polls /proc and stops a plugin that exceeds its memory/PID/disk caps),
-# so no cgroup delegation and no privileged init step is needed. A plugin
-# compromise lands as the separate evey-plugin uid.
+# so no cgroup delegation and no privileged init step is needed. A plugin runs
+# as the separate evey-plugin uid only in the basic sandbox; under Landlock (what
+# auto usually resolves to) it keeps THIS uid, confined by Landlock + seccomp.
 
 # ── Generated secrets ────────────────────────────────────────────────────
 # ensure_secret <file> <label>: print the secret stored at <file>, creating a
@@ -207,9 +208,9 @@ ensure_secret() {
 # search index, so "back up ./evey-data" stays the whole story. It listens on
 # loopback only and asks a password over TCP (scram): any uid in the container
 # can reach 127.0.0.1:5432 - a plugin included - but only the server holds
-# the password. The boot-time admin work (role password, database creation)
-# goes over a unix socket in an owner-only directory, where no password is
-# needed and no other uid can connect.
+# the password. The unix socket (owner-only dir) asks it too: a Landlock plugin
+# shares this uid and the role is the cluster superuser, while /data/keys stays
+# outside its allowlist. Boot-time admin passes it through PGPASSWORD.
 PG_BIN=/usr/lib/postgresql/17/bin
 PG_MAJOR=17
 PGDATA_DIR="${EVEY_POSTGRES_DATA_DIR:-/data/postgres}"
@@ -269,47 +270,100 @@ if [ "$EVEY_EMBEDDED_POSTGRES" = "true" ]; then
         chmod 600 "$pwtmp"
         printf '%s\n' "$pg_pass" > "$pwtmp"
         "$PG_BIN/initdb" -D "$PGDATA_DIR" -U "$pg_user" --pwfile="$pwtmp" \
-            --auth-local=trust --auth-host=scram-sha-256 \
+            --auth-local=scram-sha-256 --auth-host=scram-sha-256 \
             --encoding=UTF8 --locale=C.UTF-8 >/dev/null
         rm -f "$pwtmp"
     fi
 
+    # Clusters initialised before the socket asked a password carry initdb's
+    # `local ... all trust` lines: only those exact lines move to scram (the role
+    # password was set by --pwfile and realigned every boot). Anything else is
+    # an operator edit, left alone but reported.
+    pg_hba="$PGDATA_DIR/pg_hba.conf"
+    pg_hba_gen='^(local[[:space:]]+(all|replication)[[:space:]]+all[[:space:]]+)trust([[:space:]]*)$'
+    if grep -Eq "$pg_hba_gen" "$pg_hba"; then
+        (umask 077; sed -E "s/$pg_hba_gen/\\1scram-sha-256\\3/" "$pg_hba" > "$pg_hba.evey-tmp")
+        mv "$pg_hba.evey-tmp" "$pg_hba"
+        echo "evey: embedded Postgres unix socket now asks the password (pg_hba.conf: initdb's local trust lines moved to scram-sha-256)"
+    fi
+    if grep -Eq '^[[:space:]]*local[[:space:]].*[[:space:]](trust|peer|ident)([[:space:]]|$)' "$pg_hba"; then
+        echo "evey: WARNING $pg_hba has customised local lines that skip the password (trust/peer/ident) - left untouched, but a plugin sharing the server uid can then reach the database as superuser; switch them to scram-sha-256" >&2
+    fi
+
     mkdir -p "$PG_SOCKET_DIR"
     chmod 700 "$PG_SOCKET_DIR"
-    "$PG_BIN/postgres" -D "$PGDATA_DIR" \
-        -c listen_addresses=127.0.0.1 -c port="$pg_port" \
-        -c unix_socket_directories="$PG_SOCKET_DIR" \
-        -c log_min_messages=warning -c log_line_prefix='postgres: %m [%p] ' &
-    PG_PID=$!
 
-    # Up to 120s: a crash-recovery replay after an unclean stop can take a
-    # while on a slow disk, and a not-yet-ready database is not a failure.
-    i=0
-    # -d postgres: pg_isready opens a session named after the user by default,
-    # which logs a spurious FATAL before the evey database exists.
-    until "$PG_BIN/pg_isready" -q -h "$PG_SOCKET_DIR" -p "$pg_port" -d postgres 2>/dev/null; do
-        i=$((i + 1))
-        if [ "$i" -ge 240 ]; then
-            echo "evey: embedded Postgres did not become ready in 120s" >&2
-            kill -TERM "$PG_PID" 2>/dev/null || true
-            exit 1
-        fi
-        if ! kill -0 "$PG_PID" 2>/dev/null; then
-            echo "evey: embedded Postgres exited before becoming ready - check the postgres: lines above" >&2
-            exit 1
-        fi
-        sleep 0.5
-    done
-
+    # pg_start <listen_addresses> [-c ...]: run Postgres in the background and
+    # wait until it accepts connections. pg_isready never authenticates (an auth
+    # request already counts as ready), so it needs no password.
+    pg_start() {
+        pg_listen="$1"; shift
+        "$PG_BIN/postgres" -D "$PGDATA_DIR" \
+            -c listen_addresses="$pg_listen" -c port="$pg_port" \
+            -c unix_socket_directories="$PG_SOCKET_DIR" \
+            -c log_min_messages=warning -c log_line_prefix='postgres: %m [%p] ' "$@" &
+        PG_PID=$!
+        # Up to 120s: a crash-recovery replay after an unclean stop can take a
+        # while on a slow disk, and a not-yet-ready database is not a failure.
+        i=0
+        # -d postgres: pg_isready opens a session named after the user by default,
+        # which logs a spurious FATAL before the evey database exists.
+        until "$PG_BIN/pg_isready" -q -h "$PG_SOCKET_DIR" -p "$pg_port" -d postgres 2>/dev/null; do
+            i=$((i + 1))
+            if [ "$i" -ge 240 ]; then
+                echo "evey: embedded Postgres did not become ready in 120s" >&2
+                kill -TERM "$PG_PID" 2>/dev/null || true
+                exit 1
+            fi
+            if ! kill -0 "$PG_PID" 2>/dev/null; then
+                echo "evey: embedded Postgres exited before becoming ready - check the postgres: lines above" >&2
+                exit 1
+            fi
+            sleep 0.5
+        done
+    }
+    pg_stop() {
+        "$PG_BIN/pg_ctl" -D "$PGDATA_DIR" -m fast -s stop 2>/dev/null || kill -TERM "$PG_PID" 2>/dev/null || true
+        wait "$PG_PID" 2>/dev/null || true
+    }
+    # The password reaches psql through its environment, never argv (world-readable in /proc).
+    pg_psql() {
+        PGPASSWORD="$pg_pass" "$PG_BIN/psql" -h "$PG_SOCKET_DIR" -p "$pg_port" -U "$pg_user" "$@"
+    }
     # Idempotent every boot: the role password follows whatever the operator
     # (or the keys file) says NOW, and the database exists. psql variables keep
     # the values out of the SQL text (:'x' quotes a literal, :"x" an identifier).
-    "$PG_BIN/psql" -q -h "$PG_SOCKET_DIR" -p "$pg_port" -U "$pg_user" -d postgres \
-        -v ON_ERROR_STOP=1 -v u="$pg_user" -v pw="$pg_pass" -v db="$pg_db" <<'SQL'
+    pg_admin() {
+        pg_psql -q -d postgres -v ON_ERROR_STOP=1 -v u="$pg_user" -v db="$pg_db" <<'SQL'
+\getenv pw PGPASSWORD
 ALTER ROLE :"u" PASSWORD :'pw';
 SELECT format('CREATE DATABASE %I OWNER %I', :'db', :'u')
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db') \gexec
 SQL
+    }
+
+    pg_start 127.0.0.1
+    if pg_psql -q -d postgres -tAc 'SELECT 1' >/dev/null 2>&1; then
+        pg_admin
+    else
+        # The stored password no longer matches (EVEY_DB_PASSWORD or the keys
+        # file changed): realign it from a socket-only, owner-only trust start.
+        # Safe because neither the server nor any plugin exists yet.
+        echo "evey: embedded Postgres refused the configured password - realigning the role password through a socket-only maintenance start"
+        pg_stop
+        pg_admin_hba="$PG_SOCKET_DIR/admin_hba.conf"
+        (umask 077; printf 'local all all trust\n' > "$pg_admin_hba")
+        pg_start '' -c hba_file="$pg_admin_hba"
+        pg_admin
+        pg_stop
+        rm -f "$pg_admin_hba"
+        pg_start 127.0.0.1
+        if ! pg_psql -q -d postgres -tAc 'SELECT 1' >/dev/null; then
+            echo "evey: embedded Postgres still refuses the configured password after realigning it - check EVEY_DB_USER/EVEY_DB_PASSWORD and $pg_hba" >&2
+            pg_stop
+            exit 1
+        fi
+    fi
 
     # ── One-shot import: moving an existing install onto the embedded DB ──
     # A plain `pg_dump | gzip` of the previous database dropped at
@@ -324,13 +378,12 @@ SQL
     if [ -s "$PG_IMPORT" ]; then
         if [ "$pg_fresh" = "1" ]; then
             echo "evey: importing $PG_IMPORT into the new embedded database (this can take a while on a large catalogue)"
-            if gunzip -c "$PG_IMPORT" | "$PG_BIN/psql" -q -h "$PG_SOCKET_DIR" -p "$pg_port" -U "$pg_user" -d "$pg_db" -v ON_ERROR_STOP=1 >/dev/null; then
+            if gunzip -c "$PG_IMPORT" | pg_psql -q -d "$pg_db" -v ON_ERROR_STOP=1 >/dev/null; then
                 mv "$PG_IMPORT" "$PG_IMPORT.imported-$(date -u +%Y%m%dT%H%M%SZ)"
                 echo "evey: import done - the dump was renamed *.imported-<stamp>, delete it once you have checked the server"
             else
                 echo "evey: import FAILED - discarding the new cluster so the next boot retries from the dump; fix the dump (a plain pg_dump --no-owner --no-privileges of the evey database, gzipped) or remove it to start empty" >&2
-                "$PG_BIN/pg_ctl" -D "$PGDATA_DIR" -m fast -s stop 2>/dev/null || kill -TERM "$PG_PID" 2>/dev/null || true
-                wait "$PG_PID" 2>/dev/null || true
+                pg_stop
                 rm -rf "$PGDATA_DIR"
                 exit 1
             fi
