@@ -1,5 +1,5 @@
 ---
-source_sha: a919f7b655a1b0f7627661e72171149d235f92679027f0fe8b24a98631bd4185
+source_sha: 87e3250d0329fdea4d7710ddda0cd4624c81d6c2177820f2e45502be4f6fe75f
 reviewed: false
 ---
 # 裸机部署（不使用 Docker）
@@ -16,7 +16,7 @@ reviewed: false
 
 ```bash
 # 在仓库根目录
-CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(git describe --tags)" -o evey ./cmd/evey
+CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(git describe --tags --always) -X main.commit=$(git rev-parse HEAD)" -o evey ./cmd/evey
 CGO_ENABLED=0 go build -ldflags="-s -w"                                        -o evey-plugin-launcher ./cmd/evey-plugin-launcher
 
 # 并排安装，例如：
