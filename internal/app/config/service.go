@@ -135,6 +135,7 @@ func (s *Service) publishChange(ctx context.Context, key, value string, deleted 
 		Value:      value,
 		Deleted:    deleted,
 		OccurredAt: time.Now(),
+		Secret:     value != "" && IsSecretKey(key),
 	}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))

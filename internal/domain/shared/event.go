@@ -2,6 +2,7 @@ package shared
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -26,6 +27,19 @@ type ServerConfigChanged struct {
 	Value      string
 	Deleted    bool
 	OccurredAt time.Time
+	// Secret: Value is a credential. In-process subscribers read it as is;
+	// every JSON copy (a webhook on "*") carries a placeholder instead.
+	Secret bool `json:"-"`
+}
+
+// MarshalJSON keeps the historical wire shape and redacts a secret Value.
+func (e ServerConfigChanged) MarshalJSON() ([]byte, error) {
+	type wire ServerConfigChanged
+	w := wire(e)
+	if e.Secret {
+		w.Value = "[redacted]"
+	}
+	return json.Marshal(w)
 }
 
 func (e ServerConfigChanged) EventName() string { return "server.config.changed" }
