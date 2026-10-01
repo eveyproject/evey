@@ -1,5 +1,5 @@
 ---
-source_sha: e59bbf6aa9d7e1a2cb3513ef0337a093ae293e253430eaa6e6d5dc087423cb60
+source_sha: b6d595e92c82851324debcee0de01b789bd1def644e658e011f90ccc857c9de9
 reviewed: true
 ---
 # Bibliothèques et métadonnées
@@ -20,7 +20,7 @@ bibliothèques se gèrent dans **Admin → Bibliothèques**.
 | --- | --- | --- |
 | **Films** | Un film par fichier (ou par dossier) | TMDB, complété par OMDb si une clé est renseignée |
 | **Séries** | Séries, saisons, épisodes | TMDB |
-| **Musique** | Artistes, albums, titres | Les tags des fichiers, MusicBrainz ; pochettes depuis Cover Art Archive, puis iTunes |
+| **Musique** | Artistes, albums, titres | Les tags des fichiers ; pochettes depuis les fichiers, le dossier de l'album, Cover Art Archive (MusicBrainz), puis iTunes |
 | **Photos** | Albums, photos avec leurs informations de prise de vue | Les fichiers |
 
 Gardez films et séries dans des bibliothèques distinctes : le type indique au
@@ -50,6 +50,35 @@ de langue comme `VOSTFR` ou `MULTI`, éditions comme « Director's Cut ») sont
 retirées avant la recherche. Si vos fichiers portent une étiquette que
 l'analyseur ne connaît pas, ajoutez-la dans **Admin → Configuration du
 serveur → Jetons d'analyse** ; elle s'applique dès le scan suivant.
+
+## Bibliothèques de musique
+
+Le scanner lit les fichiers MP3, FLAC, M4A, OGG, Opus, WAV et AAC, et prend
+chaque titre dans ses tags : titre (le nom du fichier s'il manque), artiste,
+artiste de l'album, album, année, numéros de piste et de disque, genre. Les
+artistes sont regroupés par artiste de l'album, ou par artiste quand ce tag est
+vide.
+
+**Un album, c'est un dossier.** Les titres sont regroupés par le dossier qui les
+contient, pas par leur tag d'album : deux dossiers portant le même tag d'album
+font deux albums, et un album découpé en sous-dossiers `CD1` et `CD2` en fait
+deux. Gardez chaque album dans un seul dossier ; ses titres sont classés par
+numéro de disque puis de piste, et l'album prend le nom que portent la plupart
+de ses titres.
+
+La pochette est l'image intégrée aux fichiers, sinon une image du dossier de
+l'album (`cover.jpg`, `folder.jpg` ou `front.jpg`), sinon Cover Art Archive
+(trouvé via MusicBrainz), sinon iTunes.
+
+## Bibliothèques de photos
+
+Le scanner lit les fichiers JPEG, PNG, HEIC, WebP, GIF, TIFF et BMP. L'album
+d'une photo est son dossier, relatif au dossier de la bibliothèque ; une photo
+à la racine n'en a pas, et déplacer un fichier dans un autre dossier le fait
+passer dans cet album au scan suivant. La date de prise de vue et le modèle
+d'appareil viennent des données EXIF des fichiers JPEG ; les autres formats
+sont listés sans. Les miniatures sont redimensionnées sur le serveur et gardées
+dans le cache de transcodage.
 
 ## Prise en compte des nouveaux fichiers
 
