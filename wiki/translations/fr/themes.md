@@ -1,5 +1,5 @@
 ---
-source_sha: 305f13e3ff6f705b51384ec1d553349c48887a6ee0bd367b61e102a000be8911
+source_sha: 6095a8b2b48d1c8ec2613e48fa7ace4603ea6bf231dc4c39b598eb130cb452bc
 reviewed: true
 ---
 # Thèmes
@@ -37,8 +37,7 @@ n'a ni l'un ni l'autre est accepté, mais le thème n'a aucun effet visible.
 ## theme.css
 
 Servi à `/api/v1/themes/<id>/theme.css`. Le fichier passe par l'assainisseur CSS
-à l'installation. C'est le résultat assaini qui est stocké et servi : ce que vous
-avez écrit et ce qui est injecté peuvent différer si une règle s'est déclenchée.
+à l'installation.
 
 La feuille de style est injectée par un `<link rel="stylesheet">` dans le
 `<head>`. Elle s'applique à tout le document hôte. Le CSS standard fonctionne :

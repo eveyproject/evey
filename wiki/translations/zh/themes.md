@@ -1,5 +1,5 @@
 ---
-source_sha: 305f13e3ff6f705b51384ec1d553349c48887a6ee0bd367b61e102a000be8911
+source_sha: 6095a8b2b48d1c8ec2613e48fa7ace4603ea6bf231dc4c39b598eb130cb452bc
 reviewed: false
 ---
 # 主题
@@ -29,7 +29,7 @@ ZIP 的根目录必须包含 `theme.css` 和/或 `theme.js`。两者都没有的
 
 ## theme.css
 
-在 `/api/v1/themes/<id>/theme.css` 提供。文件在安装时经过 CSS 清理器处理。保存并提供的是清理后的输出：如果触发了某些规则，你写的内容和被注入的内容可能不同。
+在 `/api/v1/themes/<id>/theme.css` 提供。文件在安装时经过 CSS 清理器处理。
 
 样式表以 `<head>` 中的 `<link rel="stylesheet">` 注入。它全局作用于宿主文档。适用标准 CSS：自定义属性、`@keyframes`、`@media`、`@font-face`（使用 `data:` 来源）、`@layer`、容器查询。
 

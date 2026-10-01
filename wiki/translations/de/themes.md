@@ -1,5 +1,5 @@
 ---
-source_sha: 305f13e3ff6f705b51384ec1d553349c48887a6ee0bd367b61e102a000be8911
+source_sha: 6095a8b2b48d1c8ec2613e48fa7ace4603ea6bf231dc4c39b598eb130cb452bc
 reviewed: false
 ---
 # Themes
@@ -33,7 +33,7 @@ Das ZIP muss `theme.css` und/oder `theme.js` in seinem Wurzelverzeichnis enthalt
 
 ## theme.css
 
-Ausgeliefert unter `/api/v1/themes/<id>/theme.css`. Die Datei durchläuft bei der Installation den CSS-Bereiniger. Gespeichert und ausgeliefert wird die bereinigte Ausgabe - was Sie schreiben und was eingefügt wird, kann sich unterscheiden, wenn Regeln gegriffen haben.
+Ausgeliefert unter `/api/v1/themes/<id>/theme.css`. Die Datei durchläuft bei der Installation den CSS-Bereiniger.
 
 Das Stylesheet wird als `<link rel="stylesheet">` in `<head>` eingefügt. Es gilt global für das Host-Dokument. Normales CSS gilt: benutzerdefinierte Eigenschaften, `@keyframes`, `@media`, `@font-face` (mit `data:`-Quellen), `@layer`, Container-Queries.
 
