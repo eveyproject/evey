@@ -1,5 +1,5 @@
 ---
-source_sha: 73f4232ebdb512554747cf529508f5987b0fb6a98e909a18fad120a3acb05c1c
+source_sha: 36492c52b264a6f9e288ee05ec9cae5b29f8e340329b30fe064fcf164c5045de
 reviewed: true
 ---
 # Utilisateurs, profils et contrôle parental
@@ -79,3 +79,20 @@ bibliothèques et en faire la demande. Les demandes arrivent dans **Admin →
 Demandes de média**, où un administrateur les accepte, les refuse ou les
 reporte, avec une note. C'est là aussi qu'on règle qui peut faire une
 demande : tout le monde par défaut, avec des exceptions par utilisateur.
+
+## Liens de téléchargement publics
+
+Sur la page d'un film ou d'un épisode, un administrateur peut créer un **Lien
+de téléchargement public** (applications web et Android). C'est une adresse que
+n'importe qui peut ouvrir, sans compte, pour télécharger le fichier d'origine ;
+elle est copiée dans le presse-papiers.
+
+- Il expire au bout de 48 heures. Par l'API du serveur, il peut durer jusqu'à
+  72 heures et être limité à un nombre de téléchargements
+  (`POST /api/v1/media/{id}/share`).
+- Seuls les administrateurs peuvent créer, lister et révoquer des liens. Les
+  applications ne font que les créer : la liste et la révocation passent par
+  l'API (`GET /api/v1/admin/share-links`, `DELETE /api/v1/share-links/{id}`).
+- Accès distant coupé, le lien ne fonctionne que depuis les réseaux locaux.
+- Qui détient le lien peut télécharger le fichier jusqu'à son expiration :
+  partagez-le comme le fichier lui-même.

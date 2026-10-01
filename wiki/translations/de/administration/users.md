@@ -1,5 +1,5 @@
 ---
-source_sha: 73f4232ebdb512554747cf529508f5987b0fb6a98e909a18fad120a3acb05c1c
+source_sha: 36492c52b264a6f9e288ee05ec9cae5b29f8e340329b30fe064fcf164c5045de
 reviewed: false
 ---
 # Benutzer, Profile und Kindersicherung
@@ -77,3 +77,21 @@ den Bibliotheken fehlt, und ihn anfragen. Anfragen landen unter **Admin →
 Medienanfragen**, wo ein Administrator sie mit einer Notiz annimmt, ablehnt
 oder zurückstellt. Wer anfragen darf, wird dort festgelegt: standardmäßig
 alle, mit Ausnahmen pro Benutzer.
+
+## Öffentliche Download-Links
+
+Auf der Seite eines Films oder einer Folge kann ein Administrator einen
+**Öffentlichen Download-Link** erstellen (Web- und Android-App). Das ist eine
+Adresse, die jeder ohne Konto öffnen kann, um die Originaldatei
+herunterzuladen; sie wird in die Zwischenablage kopiert.
+
+- Er läuft nach 48 Stunden ab. Über die Server-API kann er bis zu 72 Stunden
+  gelten und auf eine Anzahl von Downloads begrenzt werden
+  (`POST /api/v1/media/{id}/share`).
+- Nur Administratoren können Links erstellen, auflisten und widerrufen. Die
+  Apps erstellen sie nur: Auflisten und Widerrufen laufen über die API
+  (`GET /api/v1/admin/share-links`, `DELETE /api/v1/share-links/{id}`).
+- Bei ausgeschaltetem Fernzugriff funktioniert der Link nur aus den lokalen
+  Netzwerken.
+- Wer den Link hat, kann die Datei bis zum Ablauf herunterladen: Teilen Sie
+  ihn wie die Datei selbst.

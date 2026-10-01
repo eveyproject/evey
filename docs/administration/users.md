@@ -68,7 +68,24 @@ libraries and ask for it. Requests arrive in **Admin → Media Requests**, where
 an administrator approves, declines or postpones them, with a note. Who may
 request is set there: everyone by default, with per-user exceptions.
 
+## Public download links
+
+On a film or episode page, an administrator can create a **Public download
+link** (web and Android apps). It is a URL anyone can open, without an account,
+to download the original file; it is copied to the clipboard.
+
+- It expires after 48 hours. Through the server API it can last up to 72 hours
+  and be limited to a number of downloads (`POST /api/v1/media/{id}/share`).
+- Only administrators can create, list and revoke links. The apps only create
+  them: listing and revoking go through the API (`GET /api/v1/admin/share-links`,
+  `DELETE /api/v1/share-links/{id}`).
+- With remote access off, the link only works from the local networks.
+- Whoever holds the link can download the file until it expires: share it like
+  the file itself.
+
+
 <!-- sources
+share links: internal/adapters/driving/grpcapi/interceptors/rbac.go (ShareService RoleAdmin) ; grpcapi/share_handler.go (48 h default) ; internal/app/media/share_service.go (max 72 h, maxViews) ; http/share_download_handler.go (no auth) ; cmd/evey/gateway.go - networkGateExempt (share not exempt) ; frontend/apps/web/src/features/library/ShareLinkButton.tsx, mobile media/[id].tsx (isAdmin) ; proto/evey/v1/share.proto
 invite options: i18n admin.users.maxUsesLabel, expiresAtLabel, inviteLibraries, inviteMaxProfilesLabel, inviteIsAdmin
 restrictions: i18n admin.users.libraryAccess, maxBitrateDesc, maxProfiles, maxDevicesPerProfile, impersonate
 kids and pin: i18n auth.profile.fields.isKidsHelp, auth.settings.parental.*, errors.auth.pin_required_for_non_kids, errors.auth.parental_needs_non_kids ; internal/app/user/service.go - ErrPINRequired
