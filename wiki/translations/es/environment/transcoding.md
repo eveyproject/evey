@@ -43,7 +43,7 @@ Exponer la GPU al contenedor: [Aceleración por hardware](../administration/hard
 | --- | --- | --- |
 | `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | El tamaño de toda la caché de transcodificación (segmentos, remux, descargas preparadas); se elimina primero lo usado hace más tiempo. Siempre se mantienen 2 GiB libres en el volumen. La anula **Presupuesto de caché de transcodificación** en **Configuración del servidor**; se lee al arrancar. |
 | `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | Dónde vive. La define la imagen. |
-| `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | Dónde viven las miniaturas de la barra de búsqueda. La define la imagen: son caras de regenerar, así que se quedan en `/data`. |
+| `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | Dónde viven las miniaturas de la barra de progreso. La define la imagen: son caras de regenerar, así que se quedan en `/data`. |
 
 ## Clip de calibración
 

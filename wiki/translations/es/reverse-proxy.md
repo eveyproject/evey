@@ -69,7 +69,7 @@ estos tokens o algunas funciones fallan en silencio:
 | Token | Directiva | Qué falla sin él |
 | --- | --- | --- |
 | `'unsafe-inline'` | `script-src` | Todas las interfaces de plugins (iframe en blanco). El paquete de un plugin se descarga con el token del usuario y se inserta en un iframe `srcdoc`, y un documento srcdoc hereda la política de la página que lo incrusta. Lo que acota al plugin es el `sandbox="allow-scripts"` del iframe (origen opaco, sin acceso al DOM ni a las cookies de la página). |
-| `'wasm-unsafe-eval'` | `script-src` | La reproducción AC-3/E-AC-3 en el navegador (el decodificador WebAssembly ac3go no puede compilarse → la película se reproduce sin sonido). Es el token acotado que solo permite compilar Wasm, NO `eval()` en general. |
+| `'wasm-unsafe-eval'` | `script-src` | La reproducción AC-3/E-AC-3 en el navegador (el descodificador WebAssembly ac3go no puede compilarse → la película se reproduce sin sonido). Es el token acotado que solo permite compilar Wasm, NO `eval()` en general. |
 | `https://www.gstatic.com` | `script-src` (+ `frame-src`) | El SDK emisor de Google Cast no carga → nadie tiene botón de envío. Es la única forma de que un navegador descubra los Chromecast de la red local del usuario. |
 | `blob:` | `media-src` | La reproducción MSE (hls.js conecta el flujo mediante una URL blob). |
 | `blob:` | `worker-src` | hls.js vuelve en silencio a desmultiplexar en el hilo principal (más entrecortado en móvil). |

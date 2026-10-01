@@ -68,7 +68,7 @@ la consulta del epoch. El contador de Prometheus es
 `evey_auth_failures_total{reason="epoch_lookup_failed"}`.
 
 **Causas habituales + solución**:
-- **Clave JWT ausente o cambiada** rara vez es la causa. Un `EVEY_JWT_PRIVATE_KEY_PATH` (por defecto `/data/jwt.key`) ilegible o dañado impide que el servidor arranque; uno ausente se regenera. Los tokens de acceso firmados con la clave antigua se rechazan entonces, pero las aplicaciones los renuevan con su token de refresco, que se comprueba en la base de datos y no con la clave: los usuarios siguen con la sesión iniciada. Confirma que el volumen `evey-data` está montado en `/data`: sin él también falta la base de datos.
+- **Clave JWT ausente o cambiada** rara vez es la causa. Un `EVEY_JWT_PRIVATE_KEY_PATH` (por defecto `/data/jwt.key`) ilegible o dañado impide que el servidor arranque; uno ausente se regenera. Los tokens de acceso firmados con la clave antigua se rechazan entonces, pero las aplicaciones los renuevan con su token de actualización, que se comprueba en la base de datos y no con la clave: los usuarios siguen con la sesión iniciada. Confirma que el volumen `evey-data` está montado en `/data`: sin él también falta la base de datos.
 - **El límite de peticiones salta en cada petición**: comprueba `EVEY_RATELIMIT_LOGIN_MAX` (por defecto `10` por IP y minuto) y `EVEY_RATELIMIT_GLOBAL_MAX` (por defecto `300`). Un proxy inverso que reenvía todo el tráfico como una sola IP lo hará saltar enseguida: añade el proxy a **Proxies de confianza** en Admin → Acceso remoto (se aplica sin reiniciar; `EVEY_TRUSTED_PROXIES` también sirve). El override de desarrollo ya fija `1000` / `10000`.
 - Desfase de reloj entre servidor y clientes → `date -u` en el equipo.
 
@@ -258,7 +258,7 @@ docker volume inspect evey_evey-cache   # el nombre generado por compose puede v
   ```
 - Baja el **Presupuesto de caché de transcodificación** (**Admin → Configuración del servidor → Configuración del servidor**, `10` GB por defecto) si el volumen del equipo va justo; sea cual sea el presupuesto, el limpiador mantiene 2 GiB libres en el volumen de la caché.
 
-## 7. Un plugin se ha bloqueado
+## 7. Un plugin se ha caído
 
 **Síntoma**: un plugin deja de responder; los registros del servidor muestran panics del ejecutor de plugins.
 

@@ -6,7 +6,7 @@ reviewed: false
 
 Además de la reproducción, el servidor ejecuta trabajo propio: escanear
 bibliotecas, descargar imágenes, generar las miniaturas de la barra de
-búsqueda, detectar intros y créditos, analizar archivos (fotogramas clave,
+progreso, detectar intros y créditos, analizar archivos (fotogramas clave,
 niveles de códec, salud de medios). Esta página explica cómo reparte ese trabajo
 la máquina con las personas que están viendo algo.
 
@@ -29,7 +29,7 @@ está en uso.
 | --- | --- | --- |
 | Escaneo de bibliotecas | Archivos nuevos, modificados y eliminados | Cuando cambian los archivos, según la programación, al arrancar si está activado. Consulta [Bibliotecas y metadatos](../administration/libraries.md). |
 | Descarga de imágenes | Pósteres y fondos guardados en el servidor, en WebP | Durante el escaneo; los que faltan se reintentan cada hora. Desactivada: el navegador carga las imágenes desde internet, algo que algunos navegadores bloquean. |
-| Miniaturas de la barra de búsqueda | Las vistas previas que se muestran al arrastrar la barra de búsqueda (una imagen cada 7 segundos) | Cuando se añade un título, y al arrancar para los que no las tienen. Se puede desactivar en **Configuración del servidor**. |
+| Miniaturas de la barra de progreso | Las vistas previas que se muestran al arrastrar la barra de progreso (una imagen cada 7 segundos) | Cuando se añade un título, y al arrancar para los que no las tienen. Se puede desactivar en **Configuración del servidor**. |
 | Detección de intros y créditos | Los botones **Saltar intro** y **Saltar créditos** | De forma continua, para los títulos que no cubren las bases de datos comunitarias |
 | Índice de fotogramas clave y niveles de códec | Reproducción directa y copia sin recodificar, colores correctos | De forma continua, en los archivos escaneados antes de que se recogiera la información |
 

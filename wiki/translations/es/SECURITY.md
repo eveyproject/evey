@@ -277,7 +277,7 @@ ejecuta con el mismo usuario no puede leer su memoria ni su entorno a través de
 `/proc`, lo que protege la clave de firma en memoria y las contraseñas de la base
 de datos y de la búsqueda, incluso en un kernel sin Landlock.
 
-### Notificación de bloqueos
+### Notificación de fallos
 
 El ejecutor publica un evento `plugin.error` cuando falta la biblioteca del
 sandbox para un plugin que la necesita, o cuando un plugin termina con un error.
@@ -437,7 +437,7 @@ entero, y cualquier cadena que lleve un token bearer, un JWT o un par
 `secret=value` se limpia. Las rutas de registros aplican la misma regla a las
 líneas antiguas al salir. Para el código: nunca registres un valor no secreto
 bajo un nombre de clave secreto (quedará enmascarado), y añade cualquier nuevo
-tipo de credencial a esa lista antes de registrarlo nunca.
+tipo de credencial a esa lista antes de que llegue a registrarse.
 
 ## Informar de una vulnerabilidad
 

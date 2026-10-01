@@ -159,7 +159,7 @@ EVEY_PLUGINS_UID_SEPARATION=off
 EVEY_PLUGINS_MEMORY_MB=256              # RAM máxima por plugin
 EVEY_PLUGINS_PIDS_MAX=64                # procesos/hilos máximos
 EVEY_PLUGINS_DISK_MAX_MB=100            # tamaño máximo del directorio de instalación (0 = sin límite)
-EVEY_PLUGINS_CPU_NICE=10                # prioridad de planificación 0-19 (más alto = más cortés)
+EVEY_PLUGINS_CPU_NICE=10                # prioridad de planificación 0-19 (más alto = menos prioridad)
 ```
 
 ---

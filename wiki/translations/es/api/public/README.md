@@ -12,7 +12,7 @@ Endpoints para los usuarios, disponibles para todos los usuarios autenticados.
 |------|-------------|
 | [library.swagger.json](library.swagger.json) | Bibliotecas, medios, búsqueda, personas |
 | [playback.swagger.json](playback.swagger.json) | Streaming, seguimiento del progreso, historial, reanudación |
-| [user.swagger.json](user.swagger.json) | Autenticación, perfiles, claves de API, Quick Connect |
+| [user.swagger.json](user.swagger.json) | Autenticación, perfiles, claves de API, Conexión rápida |
 | [collection.swagger.json](collection.swagger.json) | Colecciones inteligentes y manuales |
 | [favorite.swagger.json](favorite.swagger.json) | Favoritos |
 | [feed.swagger.json](feed.swagger.json) | Secciones de la página de inicio (seguir viendo, añadidos recientemente, etc.) |
@@ -28,4 +28,4 @@ Endpoints para los usuarios, disponibles para todos los usuarios autenticados.
 
 ## Autenticación
 
-Los endpoints reciben `Authorization: Bearer <token>`: un token de sesión obtenido al iniciar sesión, o una clave de API (ver [Webhooks y claves de API](../../webhooks-api-keys.md)). Accesibles sin él: iniciar y renovar sesión, registrarse con una invitación, Quick Connect, restablecer la contraseña, el asistente de configuración y su estado, y los enlaces de descarga públicos.
+Los endpoints reciben `Authorization: Bearer <token>`: un token de sesión obtenido al iniciar sesión, o una clave de API (ver [Webhooks y claves de API](../../webhooks-api-keys.md)). Accesibles sin él: iniciar y renovar sesión, registrarse con una invitación, Conexión rápida, restablecer la contraseña, el asistente de configuración y su estado, y los enlaces de descarga públicos.

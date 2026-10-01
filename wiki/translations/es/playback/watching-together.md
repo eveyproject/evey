@@ -44,9 +44,10 @@ en todo el servidor, lo que deja fuera de alcance adivinarlos.
 
 ## Qué se mantiene sincronizado
 
-- **En Android y Android TV**, reproducir, pausar y saltar del anfitrión mueve a
-  toda la sala. Los controles de los demás miembros no afectan a nadie más.
-- **En el reproductor web**, pausar y saltar se quedan en tu propia pantalla.
+- **En Android y Android TV**, cuando el anfitrión reproduce, pausa o salta a
+  otro punto, toda la sala le sigue. Los controles de los demás miembros no
+  afectan a nadie más.
+- **En el reproductor web**, pausar y saltar solo afectan a tu propia pantalla.
   **Ponerme al día** te devuelve adonde está la sala, sin mover a nadie más.
   **Sincronizar a todos** lleva a toda la sala a tu posición; cualquier miembro
   puede usarlo, no solo el anfitrión.

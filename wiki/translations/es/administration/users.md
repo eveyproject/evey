@@ -44,7 +44,7 @@ una restricción o reproducir un problema. Un aviso permanece visible, y
 ## Perfiles infantiles y el PIN
 
 Un perfil marcado como **Perfil infantil** se abre sin PIN. Salir de él hacia un
-perfil que no es infantil pide el **PIN de 4 cifras**, definido en **Ajustes →
+perfil que no es infantil pide el **PIN de 4 dígitos**, definido en **Ajustes →
 Control parental**. Definir el PIN por primera vez pide la contraseña de la
 cuenta, y mientras exista un perfil infantil la cuenta debe tener un PIN.
 

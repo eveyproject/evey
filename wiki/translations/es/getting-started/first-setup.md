@@ -63,7 +63,7 @@ Consulta [Aplicaciones y dispositivos](apps.md).
 
 Nada de esto necesita un ajuste:
 
-- **Reproducción.** Cada dispositivo informa de lo que puede decodificar, y el
+- **Reproducción.** Cada dispositivo informa de lo que puede descodificar, y el
   servidor elige, título a título, entre enviar el archivo tal cual,
   reempaquetarlo o recodificar solo lo que el dispositivo no puede reproducir.
   Consulta [Cómo elige Evey el modo de reproducción](../playback/how-playback-is-decided.md).

@@ -114,7 +114,7 @@ limitado). Un tema puede reestilizar libremente estos ganchos; **no** puede
 desviar la cabecera para ocultar o suplantar los controles de confianza (cierre
 de sesión, perfil, notificaciones reales).
 
-### Ejemplo: pósteres más grandes, cuadrícula más densa, esquinas más vivas
+### Ejemplo: pósteres más grandes, cuadrícula más densa, esquinas más rectas
 
 ```css
 /* Pósteres más grandes en una cuadrícula más apretada */

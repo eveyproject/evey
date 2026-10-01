@@ -152,6 +152,6 @@ propio análisis de los archivos por parte del servidor. Un administrador puede
 ajustar a mano los segmentos de un título o volver a lanzar la detección.
 
 Los reproductores muestran un botón **Omitir** por defecto. **Saltar intros
-automaticamente** (**Admin → Configuración del servidor → Configuracion del
+automáticamente** (**Admin → Configuración del servidor → Configuración del
 servidor**, desactivado por defecto) hace que cada reproductor las salte por sí
 mismo.

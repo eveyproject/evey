@@ -28,10 +28,10 @@ archivo se reproduce bien, está bien.
 
 ### Reparable aquí
 
-- **Sin índice de búsqueda**, o con uno que no se puede usar. El síntoma es un
-  salto o una reanudación lentos. El índice se reconstruye en una copia
-  temporal, la copia se comprueba por completo (pistas, duración, índice) y
-  después sustituye al archivo.
+- **Sin índice de búsqueda** (el índice de posicionamiento del archivo), o con
+  uno que no se puede usar. El síntoma es un salto o una reanudación lentos. El
+  índice se reconstruye en una copia temporal, la copia se comprueba por
+  completo (pistas, duración, índice) y después sustituye al archivo.
 - **Contenedor incorrecto**: el `.mkv` es en realidad un archivo MP4 o MOV. Se
   renombra a `.mp4` y la biblioteca lo sigue; no se reescribe nada.
 - **Tramo dañado**: una región corrupta en mitad del archivo. La reparación la
