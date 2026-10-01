@@ -1,5 +1,5 @@
 ---
-source_sha: 5c66f9a9802a391b1f183ae3f0864b667ba8bd97f8da08ace12cfd8995aecde8
+source_sha: aa4a6dbca83eeb34955b6236d87329e7e8c35d2a88212136ac8e890abbf361a5
 reviewed: true
 ---
 # Dépannage
@@ -92,6 +92,15 @@ lecture et ses raisons. Pour les lire, voir
 
 Voir [Sous-titres](../playback/subtitles.md) : quels formats les lecteurs
 dessinent, et lesquels le serveur doit incruster dans l'image.
+
+## Des affiches manquent ou sont cassées
+
+Les affiches et les fonds sont copiés sur le serveur pendant les scans, dans
+`./evey-data/artworks`, et les manquants sont retentés toutes les heures.
+**Admin → Cache artworks** indique combien n'ont pas encore de copie locale ;
+**Télécharger les artworks manquants** les récupère tout de suite, et **Purger
+les variantes corrompues** supprime les affiches redimensionnées laissées vides
+par un redimensionnement raté, qui sont alors reconstruites à la demande.
 
 ## La recherche ne renvoie rien
 

@@ -1,5 +1,5 @@
 ---
-source_sha: 5c66f9a9802a391b1f183ae3f0864b667ba8bd97f8da08ace12cfd8995aecde8
+source_sha: aa4a6dbca83eeb34955b6236d87329e7e8c35d2a88212136ac8e890abbf361a5
 reviewed: false
 ---
 # Fehlerbehebung
@@ -89,6 +89,15 @@ um sie zu lesen.
 
 Siehe [Untertitel](../playback/subtitles.md): welche Formate die Player
 zeichnen und welche der Server ins Bild einbrennen muss.
+
+## Poster fehlen oder sind kaputt
+
+Poster und Hintergründe werden bei Scans auf den Server kopiert, nach
+`./evey-data/artworks`, und fehlende werden stündlich erneut versucht.
+**Admin → Artwork-Cache** zeigt, wie viele noch keine lokale Kopie haben;
+**Fehlende Artworks herunterladen** holt sie sofort, und **Beschädigte
+Varianten bereinigen** entfernt verkleinerte Poster, die ein fehlgeschlagenes
+Verkleinern leer hinterlassen hat und die dann bei Bedarf neu erzeugt werden.
 
 ## Die Suche liefert nichts
 

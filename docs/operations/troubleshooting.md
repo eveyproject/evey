@@ -79,6 +79,14 @@ Open **Stream info** in the player: it names the method and the reasons. See
 See [Subtitles](../playback/subtitles.md): which formats the players draw, and
 which ones the server has to burn into the picture.
 
+## Posters are missing or broken
+
+Posters and backdrops are copied to the server during scans, into
+`./evey-data/artworks`, and missing ones are retried every hour. **Admin →
+Artworks Cache** shows how many still have no local copy; **Download missing
+artworks** fetches them now, and **Purge corrupt variants** removes resized
+posters a failed resize left empty, which are then rebuilt on demand.
+
 ## Search returns nothing
 
 Rebuild the index from the database:
@@ -101,6 +109,7 @@ The transcoding cache is the usual cause:
 It can be cleared from **Admin → Transcode Cache** at any time.
 
 <!-- sources
+posters: internal/app/metadata/command_service_artwork.go (hourly retry) ; i18n admin.artworks.* (/data/artworks, purge variants)
 doctor: cmd/evey/admin_commands.go - doctor
 startup failures: previous docs/installation.md (Troubleshooting) ; docker/entrypoint.sh
 remote access warning: docs/adr/0026-remote-access-inferred-from-a-published-url.md
