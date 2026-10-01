@@ -245,6 +245,23 @@ func TestRequestBitrateCapKbps(t *testing.T) {
 	assert.Equal(t, 50000, h.requestBitrateCapKbps(withHTTPClaims(lan, &domainuser.Claims{UserID: "u1"})), "on the LAN only the user limit applies")
 }
 
+// A public address the admin declared in LAN Networks (a home IPv6 prefix, a
+// CGNAT range) is exempt from the remote ceiling, as Stream info reports it.
+func TestRequestBitrateCapKbps_LANNetworksExempt(t *testing.T) {
+	h := &hlsVODServe{
+		maxVideoBitrateRemoteKbps: func() int { return 20000 },
+		lanNetworks:               func() []string { return []string{"2001:db8:1::/48", "100.64.0.0/10"} },
+	}
+	for _, addr := range []string{"[2001:db8:1::42]:5000", "100.70.1.2:5000"} {
+		r := httptest.NewRequest("GET", "/hls/master.m3u8", nil)
+		r.RemoteAddr = addr
+		assert.Equal(t, 0, h.requestBitrateCapKbps(r), addr)
+	}
+	outside := httptest.NewRequest("GET", "/hls/master.m3u8", nil)
+	outside.RemoteAddr = "[2001:db8:2::1]:5000"
+	assert.Equal(t, 20000, h.requestBitrateCapKbps(outside), "a public address outside LAN Networks stays capped")
+}
+
 type countingUserBitrate struct {
 	kbps  int
 	err   error

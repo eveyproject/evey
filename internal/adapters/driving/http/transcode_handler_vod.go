@@ -229,8 +229,10 @@ type hlsVODServe struct {
 	// maxVideoBitrateRemoteKbps: the ceiling for a public-IP client (0 = none);
 	// userBitrate: the admin per-user limit, cached per user like the prefs.
 	maxVideoBitrateRemoteKbps func() int
-	userBitrate               UserBitrateGetter
-	userBitrateLookup         *pkgcache.TTLCache[int]
+	// lanNetworks: the admin's LAN Networks, exempt from the remote ceiling.
+	lanNetworks       func() []string
+	userBitrate       UserBitrateGetter
+	userBitrateLookup *pkgcache.TTLCache[int]
 	// maxVideoBitrateKbps: server ceiling on the served video bitrate (0 = source).
 	maxVideoBitrateKbps func() int
 

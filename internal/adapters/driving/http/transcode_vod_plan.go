@@ -262,7 +262,7 @@ func (h *hlsVODServe) requestBitrateCapKbps(r *http.Request) int {
 	if claims := HTTPClaimsFromContext(r.Context()); claims != nil && claims.UserID != "" && h.userBitrate != nil {
 		tighten(h.userBitrateLimitFor(r.Context(), claims.UserID))
 	}
-	if h.maxVideoBitrateRemoteKbps != nil && !lanClient(r) {
+	if h.maxVideoBitrateRemoteKbps != nil && !lanClient(r, h.lanNetworksList()) {
 		tighten(h.maxVideoBitrateRemoteKbps())
 	}
 	return cap
@@ -285,14 +285,25 @@ func (h *hlsVODServe) userBitrateLimitFor(ctx context.Context, userID string) in
 }
 
 // lanClient reports whether the request comes from a private, loopback or
-// link-local address (the IP the proxy-trust boundary validated). An unknown
-// address counts as LAN: the cap must never bite on a missing signal.
-func lanClient(r *http.Request) bool {
+// link-local address, or from one of the admin's LAN Networks - the same rule
+// Stream info applies (grpcapi playback_handler), so both agree on who is capped.
+// An unknown address counts as LAN: the cap must never bite on a missing signal.
+func lanClient(r *http.Request, lanNetworks []string) bool {
 	ip := network.ClientIP(r)
 	if ip == nil {
 		return true
 	}
-	return ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified()
+	if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+		return true
+	}
+	return network.NewDetector(lanNetworks).DetectIP(ip) == network.LAN
+}
+
+func (h *hlsVODServe) lanNetworksList() []string {
+	if h.lanNetworks == nil {
+		return nil
+	}
+	return h.lanNetworks()
 }
 
 // itemID is string(item.ID), nil-safe - the MediaID the resolver keys the
