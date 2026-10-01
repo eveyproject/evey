@@ -91,7 +91,7 @@ ante cualquier duda (error de análisis, panic, resultado no traducible, una pis
 multimedia MP4 descartada, DoVi perfil 5, color ilegible). Las dos vías rápidas
 están siempre activas (puertas nil en `wire.go`); ffprobe es la red de seguridad,
 nunca se salta. Un segundo repartidor idéntico (`keyframe_dispatcher.go`) se
-ocupa del índice de búsqueda.
+ocupa del índice de posicionamiento.
 
 | Operación | mkvgo (gratis) | ffprobe / ffmpeg (caro) |
 |---|---|---|

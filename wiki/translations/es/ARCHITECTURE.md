@@ -50,7 +50,7 @@ Treinta y dos paquetes de contexto viven bajo `internal/domain/` e `internal/app
 | `config` (solo app) | ajustes del servidor persistidos, escritos por los puntos de entrada REST y gRPC |
 | `dlna` (solo app) | descubrimiento SSDP y control UPnP AVTransport |
 | `loadtest` (solo app) | simula espectadores HLS contra la propia pila HTTP del servidor |
-| `maintenance` (solo app) | mantenimiento de medios lanzado por el administrador: reconstrucción del índice de búsqueda, diario de reparaciones, deshacer, integridad del audio |
+| `maintenance` (solo app) | mantenimiento de medios lanzado por el administrador: reconstrucción del índice de posicionamiento, diario de reparaciones, deshacer, integridad del audio |
 | `presence` (solo app) | registro en memoria, no persistido, de quién está conectado ahora mismo |
 | `qoe` (solo app) | ingesta y agregación de la telemetría de reproducción CMCD (CTA-5004) |
 | `demo` (solo app) | la instancia de demostración pública (`EVEY_DEMO=1`): crea sus cuentas, bibliotecas y medios de licencia libre mediante los propios servicios del producto, y se reinicia sola |
