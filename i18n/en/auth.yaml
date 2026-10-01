@@ -49,6 +49,14 @@ login:
   ssoFailed: SSO sign-in failed. Please try again.
   or: or
   signInWithSSO: Sign in with SSO
+  ssoError:
+    domain_not_allowed: "Your e-mail domain is not allowed to sign in to this server."
+    signup_disabled: "No account on this server matches your sign-in. Ask an administrator to create one or to invite you."
+    account_disabled: "This account is disabled. Contact an administrator."
+    account_exists: "An account with this e-mail already exists but could not be linked. Sign in with your password, or ask an administrator."
+    unavailable: "Single sign-on is unavailable right now. Sign in with your password or try again later."
+    expired: "The sign-in took too long. Please try again."
+    cancelled: "Sign-in was cancelled."
   forgotPassword: Forgot your password?
 forgotPassword:
   title: Reset Password

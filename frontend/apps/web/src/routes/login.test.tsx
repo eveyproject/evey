@@ -122,6 +122,28 @@ describe("LoginPage", () => {
     expect(screen.getByText(/sso/i)).toBeInTheDocument();
   });
 
+  // The server names why an SSO sign-in was refused; the page says it in
+  // words instead of the generic failure.
+  it("shows the specific SSO refusal reason", async () => {
+    mockUseSearch.mockReturnValue({ oidc_error: "signup_disabled" });
+    const LoginPage = await getLoginPage();
+    render(React.createElement(LoginPage), { wrapper: createWrapper() });
+    const msg = screen.getByTestId("login-sso-error");
+    expect(msg).toHaveTextContent(/no account on this server matches your sign-in/i);
+  });
+
+  it("labels the SSO button with the admin's label", async () => {
+    const { eveyFetch } = await import("@evey/api");
+    vi.mocked(eveyFetch).mockImplementation(async (req: { url: string }) =>
+      req.url === "/api/v1/auth/oidc/config" ? { enabled: true, buttonLabel: "Corp login" } : {},
+    );
+    const LoginPage = await getLoginPage();
+    render(React.createElement(LoginPage), { wrapper: createWrapper() });
+    expect(await screen.findByRole("button", { name: "Corp login" })).toBeInTheDocument();
+    vi.mocked(eveyFetch).mockReset();
+    vi.mocked(eveyFetch).mockResolvedValue({});
+  });
+
   it("renders QuickConnect section", async () => {
     const LoginPage = await getLoginPage();
     render(React.createElement(LoginPage), { wrapper: createWrapper() });

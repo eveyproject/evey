@@ -49,6 +49,14 @@ login:
   ssoFailed: SSO-Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.
   or: oder
   signInWithSSO: Mit SSO anmelden
+  ssoError:
+    domain_not_allowed: "Die Domain Ihrer E-Mail-Adresse ist auf diesem Server nicht zugelassen."
+    signup_disabled: "Zu Ihrer Anmeldung gibt es auf diesem Server kein Konto. Bitten Sie einen Administrator, eines anzulegen oder Sie einzuladen."
+    account_disabled: "Dieses Konto ist deaktiviert. Wenden Sie sich an einen Administrator."
+    account_exists: "Ein Konto mit dieser E-Mail-Adresse existiert bereits, konnte aber nicht verknüpft werden. Melden Sie sich mit Ihrem Passwort an oder wenden Sie sich an einen Administrator."
+    unavailable: "Single Sign-on ist gerade nicht verfügbar. Melden Sie sich mit Ihrem Passwort an oder versuchen Sie es später erneut."
+    expired: "Die Anmeldung hat zu lange gedauert. Bitte versuchen Sie es erneut."
+    cancelled: "Die Anmeldung wurde abgebrochen."
   forgotPassword: Passwort vergessen?
 forgotPassword:
   title: Passwort zurücksetzen

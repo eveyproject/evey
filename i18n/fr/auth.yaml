@@ -49,6 +49,14 @@ login:
   ssoFailed: "Échec de la connexion SSO. Veuillez réessayer."
   or: "ou"
   signInWithSSO: "Se connecter avec SSO"
+  ssoError:
+    domain_not_allowed: "Le domaine de votre adresse e-mail n'est pas autorisé sur ce serveur."
+    signup_disabled: "Aucun compte de ce serveur ne correspond à votre connexion. Demandez à un administrateur de vous en créer un ou de vous inviter."
+    account_disabled: "Ce compte est désactivé. Contactez un administrateur."
+    account_exists: "Un compte utilise déjà cette adresse e-mail mais n'a pas pu être relié. Connectez-vous avec votre mot de passe ou demandez à un administrateur."
+    unavailable: "L'authentification unique est indisponible pour le moment. Connectez-vous avec votre mot de passe ou réessayez plus tard."
+    expired: "La connexion a pris trop de temps. Veuillez réessayer."
+    cancelled: "La connexion a été annulée."
   forgotPassword: "Mot de passe oublié ?"
 forgotPassword:
   title: "Réinitialiser le mot de passe"
