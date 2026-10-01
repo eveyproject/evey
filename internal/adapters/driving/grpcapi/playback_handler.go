@@ -183,6 +183,16 @@ func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.
 				}
 			}
 		}
+		// The account cap (Admin -> Users -> Max Bitrate) too, as the served
+		// plan applies it: otherwise this decision could promise a Direct Play
+		// above the cap.
+		if claims := interceptors.ClaimsFromContext(ctx); claims != nil && claims.UserID != "" {
+			if limit, err := h.userQuery.GetUserBitrateLimit(ctx, claims.UserID); err == nil && limit > 0 {
+				if maxBitrateKbps == 0 || limit < maxBitrateKbps {
+					maxBitrateKbps = limit
+				}
+			}
+		}
 	}
 
 	prefs.WasmAudio = req.WasmAudio

@@ -248,3 +248,26 @@ func TestRemoteAccessFromConfigUsesTheCombinedCeiling(t *testing.T) {
 		t.Fatalf("the served master sees %d, want the same 8000", kbps)
 	}
 }
+
+// The account cap (Admin -> Users -> Max Bitrate) bounds the decision like the
+// served plan does: no Direct Play promised above it, the tighter cap wins.
+func TestResolvePlaybackPrefs_AccountBitrateCap(t *testing.T) {
+	users := userfakes.NewFakeUserRepository()
+	require.NoError(t, users.Create(context.Background(), &user.User{ID: "u-cap", Username: "capped", Email: "c@example.com", Enabled: true, MaxBitrateKbps: 4000}))
+	profiles := userfakes.NewFakeProfileRepository()
+	cap2000 := 2000
+	require.NoError(t, profiles.Create(context.Background(), &user.Profile{ID: "prf-free", UserID: "u-cap", Name: "Free"}))
+	require.NoError(t, profiles.Create(context.Background(), &user.Profile{ID: "prf-tight", UserID: "u-cap", Name: "Tight", MaxBitrateKbps: &cap2000}))
+	h := &playbackHandler{userQuery: appuser.NewQueryService(users, profiles,
+		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository())}
+	ctxFor := func(profileID string) context.Context {
+		return interceptors.ContextWithClaims(context.Background(), &user.Claims{UserID: "u-cap", ProfileID: profileID})
+	}
+
+	_, mb := h.resolvePlaybackPrefs(ctxFor("prf-free"), &eveyv1.GetStreamInfoRequest{}, nil)
+	assert.Equal(t, 4000, mb, "the account cap applies when the profile has none")
+	_, mb = h.resolvePlaybackPrefs(ctxFor("prf-tight"), &eveyv1.GetStreamInfoRequest{}, nil)
+	assert.Equal(t, 2000, mb, "a tighter profile cap wins")
+	_, mb = h.resolvePlaybackPrefs(ctxFor("prf-free"), &eveyv1.GetStreamInfoRequest{MaxBitrate: 3_000_000}, nil)
+	assert.Equal(t, 3000, mb, "a tighter client ceiling wins")
+}
