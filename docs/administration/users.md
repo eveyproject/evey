@@ -28,7 +28,7 @@ household typically shares one account, with a profile per person.
 | Setting | Effect |
 | --- | --- |
 | **Library Access** | The libraries the account sees. Everything else is absent from its searches, home page and API responses. |
-| **Max Bitrate** | A ceiling on the bitrate of the video the server encodes for the account's players (0 = unlimited). |
+| **Max Bitrate** | A ceiling on the bitrate the account's players receive (0 = unlimited). A title above it is transcoded down to it. |
 | **Max profiles** | How many profiles the account may create (0 = unlimited). |
 | **Max devices per profile** | How many playbacks each profile may have running at once, across its devices (0 = unlimited). One more is refused when it starts. |
 
@@ -85,7 +85,6 @@ to download the original file; it is copied to the clipboard.
 
 
 <!-- sources
-account max bitrate: read only by internal/adapters/driving/http/transcode_vod_plan.go (userBitrateLimitFor, encode cap); the playback decision reads the PROFILE cap only (grpcapi/playback_handler.go)
 max devices per profile = concurrent active playback sessions of the profile: internal/app/playback/command_service.go (DeviceQuotaExceeded, ErrMaxDevicesPerProfile)
 share links: internal/adapters/driving/grpcapi/interceptors/rbac.go (ShareService RoleAdmin) ; grpcapi/share_handler.go (48 h default) ; internal/app/media/share_service.go (max 72 h, maxViews) ; http/share_download_handler.go (no auth) ; cmd/evey/gateway.go - networkGateExempt (share not exempt) ; frontend/apps/web/src/features/library/ShareLinkButton.tsx, mobile media/[id].tsx (isAdmin) ; proto/evey/v1/share.proto
 invite options: i18n admin.users.maxUsesLabel, expiresAtLabel, inviteLibraries, inviteMaxProfilesLabel, inviteIsAdmin

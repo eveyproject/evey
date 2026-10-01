@@ -1,5 +1,5 @@
 ---
-source_sha: 93a7bbd14075f9a561be863d85aabddbc09ed2371d0b43390f14adc88a26778f
+source_sha: 8485c27cee750eebc4a2f82a04e647554aa7e8ce88bb1b27e705c8904d573fb0
 reviewed: false
 ---
 # Benutzer, Profile und Kindersicherung
@@ -34,7 +34,7 @@ typischerweise ein Konto, mit einem Profil pro Person.
 | Einstellung | Wirkung |
 | --- | --- |
 | **Bibliothekszugriff** | Die Bibliotheken, die das Konto sieht. Alles andere fehlt in seinen Suchen, auf seiner Startseite und in den API-Antworten. |
-| **Maximale Bitrate** | Eine Obergrenze für die Bitrate des Videos, das der Server für die Player des Kontos kodiert (0 = unbegrenzt). |
+| **Maximale Bitrate** | Eine Obergrenze für die Bitrate, die die Player des Kontos erhalten (0 = unbegrenzt). Ein Titel darüber wird auf diese Grenze heruntertranskodiert. |
 | **Max. Profile** | Wie viele Profile das Konto anlegen darf (0 = unbegrenzt). |
 | **Max. Geräte pro Profil** | Wie viele Wiedergaben jedes Profil gleichzeitig laufen haben darf, über alle seine Geräte (0 = unbegrenzt). Eine weitere wird beim Start abgewiesen. |
 
