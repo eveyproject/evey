@@ -50,7 +50,7 @@ func newTestOIDCSvc(t *testing.T) *appuser.OIDCService {
 		Issuer:       oidcSrv.URL,
 		ClientID:     "test-client",
 		ClientSecret: "test-secret",
-		RedirectURL:  "http://localhost/callback",
+		RedirectURL:  "http://example.com/callback", // httptest requests target example.com
 	}
 	svc, err := appuser.NewOIDCService(
 		func(context.Context) (appuser.OIDCConfig, error) { return oidcCfg, nil },

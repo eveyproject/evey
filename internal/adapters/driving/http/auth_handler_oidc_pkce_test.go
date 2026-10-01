@@ -123,7 +123,7 @@ func newPKCEFixture(t *testing.T) (*http.ServeMux, *pkceIdP) {
 	idp := newPKCEIdP(t)
 	cfg := appuser.OIDCConfig{
 		Enabled: true, Issuer: idp.srv.URL, ClientID: "evey", ClientSecret: "s",
-		RedirectURL: "https://evey.example" + appuser.OIDCCallbackPath, AllowSignup: true,
+		RedirectURL: "https://example.com" + appuser.OIDCCallbackPath, AllowSignup: true,
 	}
 	svc, err := appuser.NewOIDCService(func(context.Context) (appuser.OIDCConfig, error) { return cfg, nil },
 		userfakes.NewFakeUserRepository(), userfakes.NewFakeProfileRepository(), userfakes.NewFakeRefreshTokenRepository(),
