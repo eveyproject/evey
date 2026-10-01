@@ -63,7 +63,7 @@ func pdeathsigHelperMain() int {
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid:   true,
-		Pdeathsig: syscall.SIGTERM,
+		Pdeathsig: syscall.SIGKILL,
 	}
 	// A root server drops the plugin to the evey-plugin uid (pluginSysProcAttr);
 	// the uid change is part of the losing combination (uid drop + seccomp), so
@@ -79,7 +79,7 @@ func pdeathsigHelperMain() int {
 	// Give the launcher time to reach execve so the test exercises the
 	// post-exec process, not the launcher's own setup window.
 	time.Sleep(700 * time.Millisecond)
-	return 0 // die; pdeathsig should now SIGTERM the plugin
+	return 0 // die; pdeathsig should now kill the plugin
 }
 
 // TestLauncher_ParentDeathSignalReachesPlugin locks the launcher's core
@@ -130,7 +130,7 @@ func TestLauncher_ParentDeathSignalReachesPlugin(t *testing.T) {
 		t.Fatalf("helper did not report a child pid (output=%q)", out)
 	}
 	// The helper has exited (Output waits). The plugin must now receive the
-	// parent-death SIGTERM; poll briefly to absorb delivery scheduling.
+	// parent-death signal; poll briefly to absorb delivery scheduling.
 	defer syscall.Kill(-childPid, syscall.SIGKILL) // cleanup either way
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {

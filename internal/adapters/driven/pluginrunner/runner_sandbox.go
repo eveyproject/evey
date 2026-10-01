@@ -221,8 +221,9 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 
 func pluginSysProcAttr() *syscall.SysProcAttr {
 	a := &syscall.SysProcAttr{
-		Setpgid:   true,
-		Pdeathsig: syscall.SIGTERM,
+		Setpgid: true,
+		// KILL: see armParentDeathSignal in the launcher, which re-arms the same.
+		Pdeathsig: syscall.SIGKILL,
 	}
 	// Drop the plugin to a separate uid (evey-plugin) ONLY when we run as root -
 	// because we must also chown the plugin's per-process sock dir + install dir
