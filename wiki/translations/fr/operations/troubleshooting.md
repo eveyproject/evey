@@ -1,5 +1,5 @@
 ---
-source_sha: 61f4d1f588a54015fae1a0ed84c6418d67bac574fc6ddfb9782f3a32596b4ba4
+source_sha: 72036ccee3c5c78a01f2265ae6836c1984ad16370069c11122a98353b3190d1c
 reviewed: true
 ---
 # Dépannage
@@ -61,18 +61,23 @@ déconnecte personne à elle seule : les applications renouvellent leurs jetons.
 
 ## La connexion SSO échoue
 
-La page de connexion affiche « Échec de la connexion SSO » :
+La page de connexion en donne la raison :
 
-- la personne a déjà un compte local avec le même e-mail ou le même nom
-  d'utilisateur ;
-- son adresse est hors de `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`, ou le fournisseur
-  ne l'a pas marquée comme vérifiée (le journal dit
-  `oidc: email domain not allowed` ou
-  `oidc: unverified email rejected under domain allowlist`).
+- **domaine non autorisé** : l'adresse est hors des domaines e-mail autorisés
+  de la carte ;
+- **aucun compte ne correspond** : la création de comptes est désactivée ;
+  activez **Créer un compte pour les nouveaux utilisateurs SSO** ou créez le
+  compte ;
+- **compte désactivé** ;
+- **le compte existe mais n'a pas pu être relié** : le fournisseur n'a pas
+  confirmé l'e-mail, la liaison est désactivée, ou le compte est relié à une
+  autre identité ;
+- **indisponible** : le fournisseur est injoignable ; l'**État** de la carte et
+  **Tester la connexion** montrent l'erreur.
 
 Une page d'erreur affichée par le fournisseur lui-même signifie le plus souvent
-que l'URI de redirection déclarée chez lui n'est pas celle qu'utilise Evey. Voir
-[Authentification unique (OIDC)](../oidc.md).
+que l'URI de redirection déclarée chez lui n'est pas celle qu'affiche la carte.
+Voir [Authentification unique (OIDC)](../oidc.md).
 
 ## Les e-mails n'arrivent pas
 

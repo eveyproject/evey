@@ -1,5 +1,5 @@
 ---
-source_sha: 49645a52c7506bc78947f31b763d5b78de15eaf577542b073330d83230b45467
+source_sha: 5df44f47a0668f747a8ddbed4f5d77234414ec1d6cfdf1c546c567546e2674af
 reviewed: false
 ---
 # Konten und Anmeldung
@@ -19,11 +19,14 @@ Sitzungsdauern, der Signaturschlüssel und Single Sign-on.
 
 | Variable | Standard | Wirkung |
 | --- | --- | --- |
-| `EVEY_OIDC_ENABLED` | `false` | Schaltet Single Sign-on ein. Nach einer Änderung neu starten. |
+| `EVEY_OIDC_ENABLED` | `false` | Schaltet Single Sign-on ein. |
 | `EVEY_OIDC_ISSUER` | leer | Die Issuer-URL des Anbieters, zum Beispiel `https://auth.example.com/realms/main`. |
 | `EVEY_OIDC_CLIENT_ID` | leer | Der beim Anbieter für Evey registrierte Client. |
 | `EVEY_OIDC_CLIENT_SECRET` | leer | Sein Geheimnis. |
-| `EVEY_OIDC_REDIRECT_URL` | leer | Die an den Anbieter gesendete Rückrufadresse: `https://<your address>/api/v1/auth/oidc/callback`. Leer: Es wird keine gesendet, und der Anbieter nutzt die für den Client registrierte. |
-| `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | leer (alle) | E-Mail-Domains, die bei der ersten Anmeldung ein Konto anlegen dürfen, kommagetrennt. Der Anbieter muss die Adresse verifiziert haben. |
+| `EVEY_OIDC_REDIRECT_URL` | leer | Die an den Anbieter gesendete Rückrufadresse: `https://<your address>/api/v1/auth/oidc/callback`. Leer: aus der öffentlichen Adresse des Servers gebildet (**Admin → Fernzugriff**). |
+| `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | leer (alle) | E-Mail-Domains, die sich anmelden dürfen, kommagetrennt. Der Anbieter muss die Adresse verifiziert haben. |
+| `EVEY_OIDC_ALLOW_SIGNUP` | leer | `true` oder `false`: Konten für neue SSO-Benutzer anlegen. Leer: nur an, wenn E-Mail-Domains gesetzt sind. |
 
-Einen Anbieter einrichten: [Single Sign-on (OIDC)](../oidc.md).
+Sie sind der Rückfall: Jede in der Karte **Single Sign-on (SSO)** unter
+**Admin → Serverkonfiguration** gespeicherte Einstellung ersetzt ihre Variable,
+ohne Neustart. Einen Anbieter einrichten: [Single Sign-on (OIDC)](../oidc.md).

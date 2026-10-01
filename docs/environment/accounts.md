@@ -15,17 +15,20 @@ Session lifetimes, the signing key, and single sign-on.
 
 | Variable | Default | Effect |
 | --- | --- | --- |
-| `EVEY_OIDC_ENABLED` | `false` | Turns single sign-on on. Restart after changing it. |
+| `EVEY_OIDC_ENABLED` | `false` | Turns single sign-on on. |
 | `EVEY_OIDC_ISSUER` | empty | The provider's issuer URL, for example `https://auth.example.com/realms/main`. |
 | `EVEY_OIDC_CLIENT_ID` | empty | The client registered for Evey at the provider. |
 | `EVEY_OIDC_CLIENT_SECRET` | empty | Its secret. |
-| `EVEY_OIDC_REDIRECT_URL` | empty | The callback address sent to the provider: `https://<your address>/api/v1/auth/oidc/callback`. Empty: none is sent, and the provider uses the one registered for the client. |
-| `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | empty (all) | E-mail domains allowed to create an account at their first sign-in, comma-separated. The provider must have verified the address. |
+| `EVEY_OIDC_REDIRECT_URL` | empty | The callback address sent to the provider: `https://<your address>/api/v1/auth/oidc/callback`. Empty: built from the server's public address (**Admin → Remote Access**). |
+| `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | empty (all) | E-mail domains allowed to sign in, comma-separated. The provider must have verified the address. |
+| `EVEY_OIDC_ALLOW_SIGNUP` | empty | `true` or `false`: create accounts for new SSO users. Empty: on only when e-mail domains are set. |
 
-Setting up a provider: [Single sign-on (OIDC)](../oidc.md).
+These are the fallback: each setting saved in the **Single sign-on (SSO)** card
+of **Admin → Server Config** replaces its variable, without a restart. Setting
+up a provider: [Single sign-on (OIDC)](../oidc.md).
 
 <!-- sources
 internal/config/config.go - EVEY_JWT_*, EVEY_OIDC_*
 long ttl: internal/adapters/driving/grpcapi/user_handler.go - refreshTTLOverride ; internal/adapters/driving/grpcapi/interceptors/client_info.go (x-persistent-session)
-redirect: internal/app/user/oidc_service.go (oauth2 RedirectURL as given)
+redirect: internal/app/user/oidc_service.go (oauth2 RedirectURL as given) ; panel over env: internal/app/user/oidc_settings.go ResolveOIDCConfig ; EVEY_OIDC_ALLOW_SIGNUP: internal/config/config.go
 -->

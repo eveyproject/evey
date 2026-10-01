@@ -1,5 +1,5 @@
 ---
-source_sha: 61f4d1f588a54015fae1a0ed84c6418d67bac574fc6ddfb9782f3a32596b4ba4
+source_sha: 72036ccee3c5c78a01f2265ae6836c1984ad16370069c11122a98353b3190d1c
 reviewed: false
 ---
 # Solución de problemas
@@ -59,17 +59,21 @@ nadie por sí sola: las aplicaciones renuevan sus tokens.
 
 ## El inicio de sesión SSO falla
 
-La página de inicio de sesión dice «Error de inicio de sesión con SSO»:
+La página de inicio de sesión indica el motivo:
 
-- la persona ya tiene una cuenta local con el mismo correo o el mismo nombre de
-  usuario;
-- su dirección está fuera de `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`, o el proveedor
-  no la marcó como verificada (el registro dice
-  `oidc: email domain not allowed` o
-  `oidc: unverified email rejected under domain allowlist`).
+- **dominio no permitido**: la dirección está fuera de los dominios de correo
+  permitidos en la tarjeta;
+- **ninguna cuenta coincide**: la creación de cuentas está desactivada; activa
+  **Crear cuentas para nuevos usuarios SSO** o crea la cuenta;
+- **cuenta desactivada**;
+- **la cuenta existe pero no se pudo vincular**: el proveedor no confirmó el
+  correo, la vinculación está desactivada o la cuenta está vinculada a otra
+  identidad;
+- **no disponible**: no se puede contactar con el proveedor; el **Estado** de la
+  tarjeta y **Probar la conexión** muestran el error.
 
 Una página de error mostrada por el propio proveedor suele significar que la URI
-de redirección registrada allí no es la que usa Evey. Consulta
+de redirección registrada allí no es la que muestra la tarjeta. Consulta
 [Configuración de OIDC / SSO](../oidc.md).
 
 ## Los correos no llegan

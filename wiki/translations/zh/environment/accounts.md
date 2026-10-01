@@ -1,5 +1,5 @@
 ---
-source_sha: 49645a52c7506bc78947f31b763d5b78de15eaf577542b073330d83230b45467
+source_sha: 5df44f47a0668f747a8ddbed4f5d77234414ec1d6cfdf1c546c567546e2674af
 reviewed: false
 ---
 # 账户与登录
@@ -19,11 +19,12 @@ reviewed: false
 
 | 变量 | 默认值 | 作用 |
 | --- | --- | --- |
-| `EVEY_OIDC_ENABLED` | `false` | 开启单点登录。修改后需重启。 |
+| `EVEY_OIDC_ENABLED` | `false` | 开启单点登录。 |
 | `EVEY_OIDC_ISSUER` | 空 | 提供方的 issuer URL，例如 `https://auth.example.com/realms/main`。 |
 | `EVEY_OIDC_CLIENT_ID` | 空 | 在提供方处为 Evey 注册的客户端。 |
 | `EVEY_OIDC_CLIENT_SECRET` | 空 | 它的密钥。 |
-| `EVEY_OIDC_REDIRECT_URL` | 空 | 发送给提供方的回调地址：`https://<你的地址>/api/v1/auth/oidc/callback`。为空：不发送，提供方使用为该客户端注册的地址。 |
-| `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | 空（全部） | 允许在首次登录时创建账户的电子邮件域名，逗号分隔。提供方必须已验证该地址。 |
+| `EVEY_OIDC_REDIRECT_URL` | 空 | 发送给提供方的回调地址：`https://<你的地址>/api/v1/auth/oidc/callback`。为空：根据服务器的公开地址（**Admin → 远程访问**）生成。 |
+| `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | 空（全部） | 允许登录的电子邮件域名，逗号分隔。提供方必须已验证该地址。 |
+| `EVEY_OIDC_ALLOW_SIGNUP` | 空 | `true` 或 `false`：为新的 SSO 用户创建账户。为空：仅在设置了电子邮件域名时开启。 |
 
-设置提供方：[单点登录（OIDC）](../oidc.md)。
+这些是后备值：在 **Admin → 服务器配置** 的 **单点登录 (SSO)** 卡片中保存的每项设置都会取代对应变量，无需重启。设置提供方：[单点登录（OIDC）](../oidc.md)。

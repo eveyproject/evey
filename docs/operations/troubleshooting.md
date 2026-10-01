@@ -52,16 +52,20 @@ their tokens.
 
 ## SSO sign-in fails
 
-The sign-in page says "SSO sign-in failed":
+The sign-in page names the reason:
 
-- the person already has a local account with the same e-mail or username;
-- their address is outside `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`, or the provider
-  did not mark it as verified (the log says
-  `oidc: email domain not allowed` or
-  `oidc: unverified email rejected under domain allowlist`).
+- **domain not allowed**: the address is outside the card's allowed e-mail
+  domains;
+- **no account matches**: sign-up is off; turn on **Create accounts for new SSO
+  users** or create the account;
+- **account disabled**;
+- **account exists but could not be linked**: the provider did not confirm the
+  e-mail, linking is off, or the account is linked to another identity;
+- **unavailable**: the provider cannot be reached; the card's **Status** and
+  **Test connection** show the error.
 
 An error page shown by the provider itself usually means the redirect URI
-registered there is not the one Evey uses. See [OIDC / SSO](../oidc.md).
+registered there is not the one the card shows. See [OIDC / SSO](../oidc.md).
 
 ## E-mails do not arrive
 
@@ -135,7 +139,7 @@ The transcoding cache is the usual cause:
 It can be cleared from **Admin → Transcode Cache** at any time.
 
 <!-- sources
-sso: internal/app/user/oidc_service.go (log lines), auth_handler.go /login?oidc_error=1, i18n auth.login.ssoFailed ; smtp: internal/adapters/driving/http/smtp_test_handler.go (test send), internal/adapters/driven/email/notification_emailer.go (log)
+sso: internal/adapters/driving/http/auth_handler.go /login?oidc_error=<reason>, i18n auth.login.ssoError.* ; smtp: internal/adapters/driving/http/smtp_test_handler.go (test send), internal/adapters/driven/email/notification_emailer.go (log)
 posters: internal/app/metadata/command_service_artwork.go (hourly retry) ; i18n admin.artworks.* (/data/artworks, purge variants)
 doctor: cmd/evey/admin_commands.go - doctor
 startup failures: previous docs/installation.md (Troubleshooting) ; docker/entrypoint.sh

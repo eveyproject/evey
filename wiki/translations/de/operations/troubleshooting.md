@@ -1,5 +1,5 @@
 ---
-source_sha: 61f4d1f588a54015fae1a0ed84c6418d67bac574fc6ddfb9782f3a32596b4ba4
+source_sha: 72036ccee3c5c78a01f2265ae6836c1984ad16370069c11122a98353b3190d1c
 reviewed: false
 ---
 # Fehlerbehebung
@@ -59,17 +59,21 @@ allein meldet niemanden ab: Die Apps erneuern ihre Token.
 
 ## Die SSO-Anmeldung schlägt fehl
 
-Die Anmeldeseite meldet „SSO-Anmeldung fehlgeschlagen":
+Die Anmeldeseite nennt den Grund:
 
-- die Person hat bereits ein lokales Konto mit derselben E-Mail oder demselben
-  Benutzernamen;
-- ihre Adresse liegt außerhalb von `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`, oder der
-  Anbieter hat sie nicht als verifiziert gekennzeichnet (das Log sagt
-  `oidc: email domain not allowed` oder
-  `oidc: unverified email rejected under domain allowlist`).
+- **Domain nicht zugelassen**: Die Adresse liegt außerhalb der zugelassenen
+  E-Mail-Domains der Karte;
+- **kein passendes Konto**: Das Anlegen von Konten ist aus; schalten Sie
+  **Konten für neue SSO-Benutzer anlegen** ein oder legen Sie das Konto an;
+- **Konto deaktiviert**;
+- **Konto existiert, konnte aber nicht verknüpft werden**: Der Anbieter hat die
+  E-Mail nicht bestätigt, das Verknüpfen ist aus, oder das Konto ist mit einer
+  anderen Identität verknüpft;
+- **nicht verfügbar**: Der Anbieter ist nicht erreichbar; **Status** und
+  **Verbindung testen** in der Karte zeigen den Fehler.
 
 Eine Fehlerseite des Anbieters selbst bedeutet meist, dass die dort
-registrierte Weiterleitungs-URI nicht die ist, die Evey verwendet. Siehe
+registrierte Weiterleitungs-URI nicht die ist, die die Karte zeigt. Siehe
 [OIDC / SSO einrichten](../oidc.md).
 
 ## E-Mails kommen nicht an

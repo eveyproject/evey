@@ -1,5 +1,5 @@
 ---
-source_sha: 61f4d1f588a54015fae1a0ed84c6418d67bac574fc6ddfb9782f3a32596b4ba4
+source_sha: 72036ccee3c5c78a01f2265ae6836c1984ad16370069c11122a98353b3190d1c
 reviewed: false
 ---
 # 故障排除
@@ -41,12 +41,15 @@ docker exec evey-server evey admin doctor
 
 ## SSO 登录失败
 
-登录页显示“SSO 登录失败”：
+登录页会说明原因：
 
-- 该用户已经拥有一个电子邮件或用户名相同的本地账户；
-- 其地址不在 `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` 之内，或提供方没有将其标记为已验证（日志显示 `oidc: email domain not allowed` 或 `oidc: unverified email rejected under domain allowlist`）。
+- **域名不被允许**：该地址不在卡片中允许的电子邮件域名之内；
+- **没有匹配的账户**：未开启创建账户；请开启 **为新的 SSO 用户创建账户** 或手动创建账户；
+- **账户已被禁用**；
+- **账户存在但无法关联**：提供方没有确认该电子邮件、关联功能已关闭，或该账户已关联到另一个身份；
+- **不可用**：无法连接提供方；卡片中的 **状态** 和 **测试连接** 会显示错误。
 
-如果是提供方自己显示的错误页，通常意味着在那里注册的重定向 URI 与 Evey 使用的不一致。见 [OIDC / SSO 设置](../oidc.md)。
+如果是提供方自己显示的错误页，通常意味着在那里登记的重定向 URI 与卡片显示的不一致。见 [OIDC / SSO 设置](../oidc.md)。
 
 ## 收不到电子邮件
 
