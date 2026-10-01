@@ -49,6 +49,14 @@ login:
   ssoFailed: "SSO 登录失败，请重试。"
   or: "或"
   signInWithSSO: "使用 SSO 登录"
+  ssoError:
+    domain_not_allowed: "您的电子邮件域名不允许登录此服务器。"
+    signup_disabled: "此服务器上没有与您的登录对应的账户。请联系管理员为您创建账户或邀请您。"
+    account_disabled: "此账户已被停用。请联系管理员。"
+    account_exists: "已有账户使用此电子邮件，但无法关联。请使用密码登录，或联系管理员。"
+    unavailable: "单点登录暂时不可用。请使用密码登录或稍后再试。"
+    expired: "登录耗时过长，请重试。"
+    cancelled: "登录已取消。"
   forgotPassword: "忘记密码？"
 forgotPassword:
   title: "重置密码"

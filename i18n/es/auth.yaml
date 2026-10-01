@@ -49,6 +49,14 @@ login:
   ssoFailed: "Error de inicio de sesión con SSO. Inténtalo de nuevo."
   or: "o"
   signInWithSSO: "Iniciar sesión con SSO"
+  ssoError:
+    domain_not_allowed: "El dominio de tu correo electrónico no está permitido en este servidor."
+    signup_disabled: "Ninguna cuenta de este servidor corresponde a tu inicio de sesión. Pide a un administrador que te cree una o que te invite."
+    account_disabled: "Esta cuenta está desactivada. Contacta con un administrador."
+    account_exists: "Ya existe una cuenta con este correo, pero no se pudo vincular. Inicia sesión con tu contraseña o pide ayuda a un administrador."
+    unavailable: "El inicio de sesión único no está disponible ahora. Inicia sesión con tu contraseña o inténtalo más tarde."
+    expired: "El inicio de sesión tardó demasiado. Inténtalo de nuevo."
+    cancelled: "Se canceló el inicio de sesión."
   forgotPassword: "¿Olvidaste tu contraseña?"
 forgotPassword:
   title: "Restablecer contraseña"

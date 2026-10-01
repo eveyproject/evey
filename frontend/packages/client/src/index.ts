@@ -89,6 +89,7 @@ export * from "./lib/reachability";
 export * from "./lib/repairLabels";
 export * from "./lib/skipSegments";
 export * from "./lib/parentalPin";
+export * from "./lib/ssoError";
 export * from "./hooks/useSubtitleTrack";
 export * from "./hooks/useTrickplayCues";
 export * from "./lib/subtitleStyle";

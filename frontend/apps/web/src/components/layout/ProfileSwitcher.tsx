@@ -136,12 +136,18 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
     // server never revoked anything. The refresh cookie names this tab's
     // session, so only this device is signed out.
     const access = useAuthStore.getState().accessToken;
-    void eveyFetch({
+    // An SSO session also ends at the provider: the server answers with its
+    // logout URL, which a fetch cannot follow cross-origin, so we navigate.
+    void eveyFetch<{ endSessionUrl?: string } | undefined>({
       url: "/api/v1/auth/logout",
       method: "POST",
       data: {},
       headers: access ? { Authorization: `Bearer ${access}` } : {},
-    }).catch((err) => console.warn("logout failed", err));
+    })
+      .then((res) => {
+        if (res?.endSessionUrl) window.location.assign(res.endSessionUrl);
+      })
+      .catch((err) => console.warn("logout failed", err));
     qc.clear();
     logout();
     localStorage.removeItem("evey-recent-searches");

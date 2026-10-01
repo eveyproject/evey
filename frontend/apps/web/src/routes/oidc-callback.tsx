@@ -23,7 +23,7 @@ function OIDCCallbackPage() {
 
   useEffect(() => {
     if (oidc_error) {
-      void navigate({ to: "/login", search: { oidc_error: "1" } });
+      void navigate({ to: "/login", search: { oidc_error } });
       return;
     }
     (async () => {

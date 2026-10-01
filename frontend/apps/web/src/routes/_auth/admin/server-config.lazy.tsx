@@ -15,6 +15,7 @@ import { BackgroundJobsCard } from "@/features/admin/serverConfig/BackgroundJobs
 import { CpuBudgetCard } from "@/features/admin/serverConfig/CpuBudgetCard";
 import { ApiKeysCard } from "@/features/admin/serverConfig/ApiKeysCard";
 import { SmtpSettingsCard } from "@/features/admin/serverConfig/SmtpSettingsCard";
+import { SsoSettingsCard } from "@/features/admin/serverConfig/SsoSettingsCard";
 import { ArtworkSettingsCard } from "@/features/admin/serverConfig/ArtworkSettingsCard";
 import { TrickplaySettingsCard } from "@/features/admin/serverConfig/TrickplaySettingsCard";
 import { IntroDetectionSettingsCard } from "@/features/admin/serverConfig/IntroDetectionSettingsCard";
@@ -101,6 +102,13 @@ function ServerConfigPage() {
         subtitle={t("admin.serverConfig.feedConfig.subtitle")}
       >
         <FeedConfigCard />
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title={t("admin.sso.title")}
+        subtitle={t("admin.sso.subtitle")}
+      >
+        <SsoSettingsCard />
       </CollapsibleCard>
 
       <CollapsibleCard

@@ -43,12 +43,12 @@ describe("OIDCCallbackPage", () => {
     expect(screen.getByText(/signing/i)).toBeInTheDocument();
   });
 
-  it("redirects to /login with oidc_error when error present", async () => {
+  it("redirects to /login carrying the reason when an error is present", async () => {
     mockUseSearch.mockReturnValue({ oidc_error: "access_denied" });
     const Page = await getOIDCCallbackPage();
     render(React.createElement(Page));
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith({ to: "/login", search: { oidc_error: "1" } });
+      expect(mockNavigate).toHaveBeenCalledWith({ to: "/login", search: { oidc_error: "access_denied" } });
     });
     expect(mockEveyFetch).not.toHaveBeenCalled();
   });

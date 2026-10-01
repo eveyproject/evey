@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useUserServiceLogin, useAdminSystemServiceGetSetupStatus, adminSystemServiceGetSetupStatus, userServiceLogin, eveyFetch, normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
 import { demoAutoLoginAllowed, DEMO_USERNAME, DEMO_PASSWORD } from "@/lib/demoAutoLogin";
 import { useAuthStore, isDefaultServerName } from "@evey/store";
+import { ssoErrorKey } from "@evey/client";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -106,9 +107,9 @@ function LoginPage() {
   }
   const { oidc_error } = Route.useSearch();
 
-  const oidcConfig = useQuery<{ enabled: boolean }>({
+  const oidcConfig = useQuery<{ enabled: boolean; buttonLabel?: string }>({
     queryKey: ["oidc-config"],
-    queryFn: () => eveyFetch<{ enabled: boolean }>({ url: "/api/v1/auth/oidc/config", method: "GET" }),
+    queryFn: () => eveyFetch<{ enabled: boolean; buttonLabel?: string }>({ url: "/api/v1/auth/oidc/config", method: "GET" }),
     staleTime: 60 * 1000,
   });
 
@@ -155,7 +156,7 @@ function LoginPage() {
           )}
         </div>
         {oidc_error && (
-          <p className="text-sm text-center mb-4 text-[var(--color-danger)]">{t("auth.login.ssoFailed")}</p>
+          <p className="text-sm text-center mb-4 text-[var(--color-danger)]" role="alert" data-testid="login-sso-error">{t(ssoErrorKey(oidc_error))}</p>
         )}
         <form
           onSubmit={(e) => {
@@ -214,7 +215,7 @@ function LoginPage() {
               className="w-full"
               onClick={() => { window.location.href = "/api/v1/auth/oidc/login"; }}
             >
-              {t("auth.login.signInWithSSO")}
+              {oidcConfig.data.buttonLabel || t("auth.login.signInWithSSO")}
             </Button>
           </>
         )}

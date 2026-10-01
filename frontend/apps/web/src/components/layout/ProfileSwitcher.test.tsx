@@ -140,6 +140,21 @@ describe("ProfileSwitcher", () => {
     expect(mockNavigate).toHaveBeenCalledWith({ to: "/login" });
   });
 
+  // An SSO session ends at the provider too: the server hands its logout URL
+  // back and the page goes there (a fetch cannot follow it cross-origin).
+  it("sign out of an SSO session navigates to the provider logout URL", async () => {
+    const assign = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, "location", { configurable: true, value: { ...original, assign } });
+    mockEveyFetch.mockResolvedValueOnce({ endSessionUrl: "https://idp.example/logout?id_token_hint=x" });
+    const user = userEvent.setup();
+    renderSwitcher();
+    await user.click(screen.getByTestId("profile-switcher-btn"));
+    await user.click(screen.getByTestId("logout-btn"));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://idp.example/logout?id_token_hint=x"));
+    Object.defineProperty(window, "location", { configurable: true, value: original });
+  });
+
   it("manage profiles button navigates to /profile/manage", async () => {
     const user = userEvent.setup();
     renderSwitcher();

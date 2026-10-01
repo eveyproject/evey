@@ -17,6 +17,7 @@ import { useAuthStore, useServerListStore, useDemoStore, isDefaultServerName, to
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
 import { setRefreshToken } from "../src/lib/refresh-token";
+import { setSsoPollToken } from "../src/lib/ssoFlow";
 import { canSaveCredentials, getSavedCredentials, saveCredentials, clearSavedCredentials } from "../src/lib/saved-credentials";
 import { useBiometricAvailable, useBiometricEnabled, authenticateBiometric } from "../src/hooks/useBiometric";
 import { PasswordInput } from "../src/components/PasswordInput";
@@ -83,9 +84,9 @@ export default function Login() {
     if (saved) login({ data: { username: saved.username, password: saved.password } });
   }
 
-  const oidcConfig = useQuery<{ enabled: boolean }>({
+  const oidcConfig = useQuery<{ enabled: boolean; buttonLabel?: string }>({
     queryKey: ["oidc-config"],
-    queryFn: () => eveyFetch<{ enabled: boolean }>({ url: "/api/v1/auth/oidc/config", method: "GET" }),
+    queryFn: () => eveyFetch<{ enabled: boolean; buttonLabel?: string }>({ url: "/api/v1/auth/oidc/config", method: "GET" }),
     staleTime: 60_000,
   });
 
@@ -109,41 +110,23 @@ export default function Login() {
     if (setupStatus.data) useDemoStore.getState().setDemoMode(demoMode);
   }, [demoMode, setupStatus.data]);
 
-  // Handle OIDC deep link callback (evey://oidc-callback)
-  useEffect(() => {
-    function handleUrl(event: { url: string }) {
-      if (!event.url.includes("oidc-callback")) return;
-      const url = new URL(event.url);
-      const oidcError = url.searchParams.get("oidc_error");
-      if (oidcError) {
-        Alert.alert(t("auth.login.ssoFailed", "SSO login failed"));
-        return;
-      }
-      (async () => {
-        try {
-          const data = await eveyFetch<{ accessToken: string; refreshToken?: string }>({
-            url: "/api/v1/auth/oidc/session",
-            method: "GET",
-          });
-          setTokens(data.accessToken);
-          if (data.refreshToken) await setRefreshToken(data.refreshToken);
-          router.replace("/profile-select");
-        } catch {
-          Alert.alert(t("auth.login.ssoFailed", "SSO login failed"));
-        }
-      })();
-    }
-    const sub = Linking.addEventListener("url", handleUrl);
-    return () => sub.remove();
-  }, [setTokens, t]);
-
+  // SSO for the app: the server parks the tokens and sends a one-time code
+  // through evey://oidc-callback (app/oidc-callback.tsx), which redeems it
+  // with the poll secret kept from here. That secret never leaves the app.
   async function handleOidcLogin() {
     if (!serverUrl) return;
     setOidcLoading(true);
     try {
-      await Linking.openURL(`${serverUrl}/api/v1/auth/oidc/login?redirect_uri=${encodeURIComponent("evey://oidc-callback")}`);
+      const flow = await eveyFetch<{ loginPath: string; pollToken: string }>({
+        url: "/api/v1/auth/oidc/app/start",
+        method: "POST",
+        data: {},
+      });
+      setSsoPollToken(flow.pollToken);
+      await Linking.openURL(`${serverUrl}${flow.loginPath}`);
     } catch {
-      Alert.alert(t("auth.login.ssoFailed", "Could not open SSO login"));
+      setSsoPollToken(null);
+      Alert.alert(t("auth.login.ssoError.unavailable", "Single sign-on is unavailable right now."));
     } finally {
       setOidcLoading(false);
     }
@@ -402,7 +385,7 @@ export default function Login() {
               onPress={() => void handleOidcLogin()}
               disabled={oidcLoading}
               accessible={true}
-              accessibilityLabel={t("auth.login.signInWithSSO", "Sign in with SSO")}
+              accessibilityLabel={oidcConfig.data.buttonLabel || t("auth.login.signInWithSSO", "Sign in with SSO")}
               accessibilityRole="button"
               style={{
                 borderWidth: 1,
@@ -417,7 +400,7 @@ export default function Login() {
                 <ActivityIndicator color={theme.colors.text} size="small" />
               ) : (
                 <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: 16 }}>
-                  {t("auth.login.signInWithSSO", "Sign in with SSO")}
+                  {oidcConfig.data.buttonLabel || t("auth.login.signInWithSSO", "Sign in with SSO")}
                 </Text>
               )}
             </Pressable>
