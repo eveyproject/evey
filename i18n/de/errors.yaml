@@ -101,6 +101,7 @@ user:
 
 media:
   not_found: "Medium nicht gefunden"
+  restricted_profile_edit: "Wechseln Sie zu einem Profil ohne Jugendschutz, um Titel und Bilder zu bearbeiten"
 
 transcode:
   max_concurrent_reached: "Der Server transkodiert gerade andere Streams. Bitte versuche es gleich erneut."

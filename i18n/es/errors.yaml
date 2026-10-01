@@ -101,6 +101,7 @@ user:
 
 media:
   not_found: "Medio no encontrado"
+  restricted_profile_edit: "Cambia a un perfil sin control parental para editar títulos e imágenes"
 
 transcode:
   max_concurrent_reached: "El servidor está ocupado transcodificando otros flujos. Inténtalo de nuevo en un momento."

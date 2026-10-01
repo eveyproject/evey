@@ -495,12 +495,23 @@ func (h *mediaServe) ensureArtworkWebP(ctx context.Context, srcPath, webpPath st
 	return err
 }
 
-func selectArtworkHandler(artworkRepo ArtworkRepo, libSvc MediaItemGetter, libraryAccess LibraryAccessChecker) http.HandlerFunc {
+// selectArtworkHandler changes the artwork every account sees. profiles, when
+// wired, refuses it from a profile under parental control (fail-closed on an
+// unreadable one), like the gRPC metadata writes.
+func selectArtworkHandler(artworkRepo ArtworkRepo, libSvc MediaItemGetter, libraryAccess LibraryAccessChecker, profiles ProfileParentalGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.artwork.Select")
 		defer span.End()
 		r = r.WithContext(ctx)
 		claims := HTTPClaimsFromContext(r.Context())
+		if claims != nil && !claims.IsAdmin && claims.ProfileID != "" && profiles != nil {
+			p, err := profiles.GetProfileByID(r.Context(), claims.ProfileID)
+			if err != nil || p == nil || p.EffectiveParental() != nil {
+				span.SetStatus(otelcodes.Error, "parental profile")
+				http.Error(w, `{"message":"errors.media.restricted_profile_edit"}`, http.StatusForbidden)
+				return
+			}
+		}
 		mediaID := r.PathValue("id")
 		artworkID := r.PathValue("artworkId")
 		span.SetAttributes(
