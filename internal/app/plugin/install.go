@@ -149,15 +149,21 @@ func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (lo
 func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*plugin.Plugin, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.plugin.InstallPlugin")
 	defer span.End()
-	s.installMu.Lock()
-	defer s.installMu.Unlock()
 
 	localPath, expectedHash, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
 		return nil, fmt.Errorf("resolve plugin source: %w: %w", ErrSourceUnavailable, dlErr)
 	}
-	zipPath := localPath
+	return s.installLocalZip(ctx, localPath, expectedHash)
+}
+
+// installLocalZip runs the whole install pipeline (manifest, integrity and
+// signature, extraction, static analysis, swap) on an already-local zip, so a
+// caller that hashed a download installs those exact bytes, never a re-fetch.
+func (s *InstallerService) installLocalZip(ctx context.Context, zipPath, expectedHash string) (*plugin.Plugin, error) {
+	s.installMu.Lock()
+	defer s.installMu.Unlock()
 
 	manifest, err := s.parseAndValidateManifest(zipPath)
 	if err != nil {
