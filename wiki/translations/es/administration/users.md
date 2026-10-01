@@ -1,5 +1,5 @@
 ---
-source_sha: 493189a86da40c20ad5dae6f15c10a6d11082963e6bc451cc0804389e0fbe494
+source_sha: 8485c27cee750eebc4a2f82a04e647554aa7e8ce88bb1b27e705c8904d573fb0
 reviewed: false
 ---
 # Usuarios, perfiles y control parental
@@ -35,7 +35,7 @@ por persona.
 | **Acceso a bibliotecas** | Las bibliotecas que ve la cuenta. Todo lo demás está ausente de sus búsquedas, su página de inicio y las respuestas de la API. |
 | **Bitrate máximo** | Un límite al bitrate que reciben los reproductores de la cuenta (0 = ilimitado). Un título por encima se transcodifica hasta ese límite. |
 | **Perfiles máx** | Cuántos perfiles puede crear la cuenta (0 = ilimitado). |
-| **Dispositivos máx por perfil** | Cuántos dispositivos puede registrar cada perfil (0 = ilimitado). |
+| **Dispositivos máx por perfil** | Cuántas reproducciones puede tener en curso a la vez cada perfil, sumando sus dispositivos (0 = ilimitado). Una más se rechaza al empezar. |
 
 **Conectarse como** abre el servidor tal como lo ve ese usuario, para comprobar
 una restricción o reproducir un problema. Un aviso permanece visible, y
