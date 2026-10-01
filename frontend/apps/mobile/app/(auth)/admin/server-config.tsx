@@ -13,6 +13,7 @@ import { LocaleSettingsCard } from "../../../src/components/admin/server-config/
 import { MemoryProfileCard } from "../../../src/components/admin/server-config/MemoryProfileCard";
 import { MkvgoCard } from "../../../src/components/admin/server-config/MkvgoCard";
 import { SmtpSettingsCard } from "../../../src/components/admin/server-config/SmtpSettingsCard";
+import { SsoSettingsCard } from "../../../src/components/admin/server-config/SsoSettingsCard";
 import { BackgroundJobsCard } from "../../../src/components/admin/server-config/BackgroundJobsCard";
 import { CpuBudgetCard } from "../../../src/components/admin/server-config/CpuBudgetCard";
 import { ParserTokensCard } from "../../../src/components/admin/server-config/ParserTokensCard";
@@ -563,6 +564,14 @@ export default function AdminServerConfigScreen() {
               saveEntry={saveConfigEntry.mutate}
               saving={saveConfigEntry.isPending}
             />
+          </>
+
+          {/* SSO section (mirror web SsoSettingsCard) */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.sso.title")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 12 }}>{t("admin.sso.subtitle")}</Text>
+            <SsoSettingsCard />
           </>
 
           {/* Background CPU budget section */}
