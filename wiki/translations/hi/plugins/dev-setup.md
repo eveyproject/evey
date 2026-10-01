@@ -211,7 +211,7 @@ Evey शुरू होते समय कुंजी जाँचता ह�
 
 | लक्षण | कारण | समाधान |
 |---|---|---|
-| `bwrap: ... permission denied` | Docker के अंदर `bubblewrap` मोड: डिफ़ॉल्ट seccomp और AppArmor प्रोफ़ाइल उसे चाहिए `unshare` और `mount` कॉल रोकती हैं। | डिफ़ॉल्ट `auto` मोड रखें, जो कंटेनर में Landlock इस्तेमाल करता है। वरना साथ आने वाली प्रोफ़ाइल `docker/seccomp-evey.json` लगाएँ (इमेज में `/etc/evey/seccomp.json` पर भी), जो जान-बूझकर सुरक्षा घटाना है: देखें [प्लगइन सैंडबॉक्स सेटअप](sandbox-deployment.md)। |
+| `bwrap: ... permission denied` | Docker के अंदर `bubblewrap` मोड: डिफ़ॉल्ट seccomp और AppArmor प्रोफ़ाइल उसके लिए ज़रूरी `unshare` और `mount` कॉल रोकती हैं। | डिफ़ॉल्ट `auto` मोड रखें, जो कंटेनर में Landlock इस्तेमाल करता है। वरना साथ आने वाली प्रोफ़ाइल `docker/seccomp-evey.json` लगाएँ (इमेज में `/etc/evey/seccomp.json` पर भी), जो जान-बूझकर सुरक्षा घटाना है: देखें [प्लगइन सैंडबॉक्स सेटअप](sandbox-deployment.md)। |
 | `forbidden pattern "fetch(" found in theme JS` | थीम JS स्कैनर ने एक वर्जित API पकड़ी। | थीम को केवल `evey.theme.*` बुलाना चाहिए। क्या रोका जाता है यह देखने के लिए `internal/pkg/themejs/scan.go` पढ़ें। |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | सभी वाइल्डकार्ड इंस्टॉल पर मना होते हैं, कोई अपवाद नहीं। | `api.tmdb.org` इस्तेमाल करें (और हर ज़रूरी स्पष्ट सबडोमेन सूचीबद्ध करें), `*.tmdb.org` या `cdn.*.tmdb.org` नहीं। |
 | `manifest: frontend slot "admin.section" not allowed` | प्लगइन फ़्रंटएंड विशेषाधिकार वाले क्षेत्रों से वर्जित हैं। | श्वेतसूची से कोई गैर-महत्वपूर्ण स्लॉट चुनें या प्लगइन पर फिर से सोचें। |

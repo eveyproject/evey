@@ -65,7 +65,7 @@ frame-src https://www.gstatic.com
 default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://www.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: https:; worker-src 'self' blob:; font-src 'self' data: https://www.gstatic.com; connect-src 'self' https: wss:; frame-src https://www.gstatic.com; base-uri 'self'; object-src 'none'
 ```
 
-अंगूठे के नियम:
+व्यावहारिक नियम:
 
 - **ब्राउज़र तक ठीक एक CSP हेडर पहुँचना चाहिए।** दो होने पर (जैसे ऐप का और आपके प्रॉक्सी का, या Caddy का और Nginx Proxy Manager के "Advanced" स्निपेट का), ब्राउज़र उनका *प्रतिच्छेदन* लागू करते हैं: सबसे सख़्त जीतती है और विफलता चुपचाप होती है। `curl -sI https://your.domain | grep -ci content-security-policy` से जाँचें → इसे `1` दिखाना चाहिए।
 - **नीति को एक ही लाइन में रखें।** प्रॉक्सी कॉन्फ़िग में कई लाइनों में बँटी CSP एक क्लासिक चुपचाप होने वाली गड़बड़ी है: जोड़ने पर जोड़ की जगह के अक्षर निगल लिए जाते हैं (`...gstatic.com; connect-src` एक बार `...gstaticonnect-src` बन गया, जिससे Cast SDK बंद हो गया और दो डायरेक्टिव मिल गए)।

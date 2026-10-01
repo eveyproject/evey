@@ -28,5 +28,5 @@ reviewed: false
 | `EVEY_KEYFRAME_BACKFILL_IDLE_SEC` | `transcoding.keyframe_backfill_idle_sec` | सर्वर डिफ़ॉल्ट | निष्क्रिय होने पर पास के बीच सेकंड (> 0)। |
 | `EVEY_LEVEL_BACKFILL` | `transcoding.level_backfill` | चालू | उन फ़ाइलों का H.264/HEVC स्तर पढ़ता है जो इसके इकट्ठा होने से पहले स्कैन हुई थीं। `off` इसे बंद करता है। |
 | `EVEY_LEVEL_BACKFILL_BATCH`, `_PAUSE_MS`, `_IDLE_SEC` | `transcoding.level_backfill_batch`, `_pause_ms`, `_idle_sec` | सर्वर डिफ़ॉल्ट | वही गति, इस पास के लिए। |
-| `EVEY_SNAPSHOT_FASTPATH` | `transcoding.snapshot_fastpath` | चालू | प्रोसेस के अंदर तेज़ डिकोडर से थंबनेल निकालता है। `off` केवल सटीक ffmpeg एक्सट्रैक्टर इस्तेमाल करता है, उसे ख़ारिज करने के लिए जब कोई थंबनेल ग़लत फ़्रेम दिखाए। |
+| `EVEY_SNAPSHOT_FASTPATH` | `transcoding.snapshot_fastpath` | चालू | प्रोसेस के अंदर तेज़ डिकोडर से थंबनेल निकालता है। `off` केवल सटीक ffmpeg एक्सट्रैक्टर इस्तेमाल करता है, ताकि तेज़ डिकोडर को कारण के रूप में ख़ारिज किया जा सके जब कोई थंबनेल ग़लत फ़्रेम दिखाए। |
 | `EVEY_TITLE_PROBE` | `transcoding.title_probe` | चालू | कम प्राथमिकता पर बैकग्राउंड में टाइटल जाँचता है, प्लेबैक के दौरान रुका हुआ। `off` इसे बंद करता है। |

@@ -19,7 +19,7 @@ reviewed: false
 | [activity.swagger.json](activity.swagger.json) | प्लेबैक इतिहास, लॉगिन इतिहास, सर्वर मेट्रिक्स |
 | [admin_session.swagger.json](admin_session.swagger.json) | ऑडिट लॉग |
 | [admin_task.swagger.json](admin_task.swagger.json) | शेड्यूल किए गए बैकग्राउंड काम |
-| [presence.swagger.json](presence.swagger.json) | अभी कौन जुड़ा है (ऐप की धड़कन और एडमिन सूची) |
+| [presence.swagger.json](presence.swagger.json) | अभी कौन जुड़ा है (ऐप का हार्टबीट और एडमिन सूची) |
 
 ### मीडिया और ट्रांसकोडिंग
 | विनिर्देश | विवरण |
@@ -40,4 +40,4 @@ reviewed: false
 
 ## प्रमाणीकरण
 
-हर एंडपॉइंट को एडमिन चाहिए: किसी एडमिन खाते का सेशन टोकन, या एक API कुंजी, जो हमेशा किसी एडमिन की होती है (उसके scopes उसे सीमित कर सकते हैं)।
+हर एंडपॉइंट को एडमिन चाहिए: किसी एडमिन खाते का सेशन टोकन, या एक API कुंजी, जो हमेशा किसी एडमिन की होती है (उसके दायरे उसे सीमित कर सकते हैं)।
