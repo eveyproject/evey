@@ -8,6 +8,43 @@ type MediaFile struct {
 	URL       string
 	Path      string
 	ZipMember string
+	// Build, instead of URL, assembles Path from several official downloads:
+	// the files nobody publishes ready-made (a Matroska with several audio
+	// tracks, embedded subtitles and chapters) are made by the demo itself.
+	Build *Build
+}
+
+// Build is one file muxed by ffmpeg from Inputs, in order. Args go between
+// the inputs and the output (maps, per-track codecs and metadata); the video
+// is always copied, so the only work is the odd audio track encoded once.
+// Chapters, when set, become the file's chapter marks; the last one ends at
+// DurationSec (ffmpeg does not clamp a later end in Matroska).
+type Build struct {
+	Inputs      []BuildInput
+	Args        []string
+	Chapters    []Chapter
+	DurationSec int
+}
+
+// BuildInput is one download a Build reads. Ext keeps the extension ffmpeg
+// probes the format from.
+type BuildInput struct {
+	URL       string
+	ZipMember string
+	Ext       string
+}
+
+// Chapter is a titled mark, StartSec seconds into the file.
+type Chapter struct {
+	StartSec int
+	Title    string
+}
+
+// RetiredMedia were downloaded by an earlier demo and are deleted at boot,
+// so a title replaced by a richer file does not show twice.
+var RetiredMedia = []string{
+	"movies/Tears of Steel (2012).webm",
+	"movies/Matroska Test 4 - Live Stream (2008).mkv",
 }
 
 // Library is one of the four demo libraries: its display name, the library
@@ -130,11 +167,87 @@ var Manifest = []MediaFile{
 	{URL: "https://upload.wikimedia.org/wikipedia/commons/a/a5/Spring_-_Blender_Open_Movie.webm", Path: "movies/Spring (2019).webm"},
 	{URL: "https://archive.org/download/sprite-fright-2021/Sprite%20Fright%20%282021%29.mkv", Path: "movies/Sprite Fright (2021).mkv"},
 	{URL: "https://archive.org/download/CosmosLaundromatFirstCycle/Cosmos%20Laundromat%20-%20First%20Cycle%20%281080p%29.mp4", Path: "movies/Cosmos Laundromat (2015).mp4"},
-	{URL: "https://media.xiph.org/tearsofsteel/tears_of_steel_1080p.webm", Path: "movies/Tears of Steel (2012).webm"},
+	// Tears of Steel as a Matroska made at boot from the official files:
+	// H264 copied, the stereo MP3, the official Dolby Digital 5.1 mix, the
+	// same mix as Dolby Digital Plus (the one track encoded, once), twelve
+	// official subtitle languages and evenly spaced chapter marks - several audio tracks,
+	// embedded subtitles and AC-3/E-AC-3 in one container.
+	{Path: "movies/Tears of Steel (2012).mkv", Build: &Build{
+		// Twelve of the official subtitle files: the Portuguese ones are left
+		// out, both write their timings "->" (not SRT) and ffmpeg refuses them.
+		Inputs: []BuildInput{
+			{URL: "https://download.blender.org/demo/movies/ToS/tears_of_steel_720p.mov", Ext: ".mov"},
+			{URL: "https://download.blender.org/demo/movies/ToS/Surround-TOS_DVDSURROUND-Dolby%205.1.ac3", Ext: ".ac3"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-en.srt", Ext: ".srt"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-fr-orig.srt", Ext: ".srt"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-de.srt", Ext: ".srt"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-es.srt", Ext: ".srt"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-it.srt", Ext: ".srt"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-nl.srt", Ext: ".srt"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-GK.srt", Ext: ".srt"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-ru.srt", Ext: ".srt"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-JP.srt", Ext: ".srt"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-CZ.srt", Ext: ".srt"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-HU.srt", Ext: ".srt"},
+			{URL: "https://download.blender.org/demo/movies/ToS/subtitles/TOS-HE.srt", Ext: ".srt"},
+		},
+		Args: []string{
+			"-map", "0:v:0", "-map", "0:a:0", "-map", "1:a:0", "-map", "1:a:0",
+			"-map", "2:s:0",
+			"-map", "3:s:0",
+			"-map", "4:s:0",
+			"-map", "5:s:0",
+			"-map", "6:s:0",
+			"-map", "7:s:0",
+			"-map", "8:s:0",
+			"-map", "9:s:0",
+			"-map", "10:s:0",
+			"-map", "11:s:0",
+			"-map", "12:s:0",
+			"-map", "13:s:0",
+			"-c", "copy", "-c:a:2", "eac3", "-b:a:2", "384k",
+			"-metadata", "title=Tears of Steel",
+			"-metadata:s:v:0", "language=eng",
+			"-metadata:s:a:0", "language=eng", "-metadata:s:a:0", "title=Stereo (MP3)", "-disposition:a:0", "default",
+			"-metadata:s:a:1", "language=eng", "-metadata:s:a:1", "title=Dolby Digital 5.1", "-disposition:a:1", "0",
+			"-metadata:s:a:2", "language=eng", "-metadata:s:a:2", "title=Dolby Digital Plus 5.1", "-disposition:a:2", "0",
+			"-metadata:s:s:0", "language=eng", "-metadata:s:s:0", "title=English", "-disposition:s:0", "0",
+			"-metadata:s:s:1", "language=fre", "-metadata:s:s:1", "title=Français", "-disposition:s:1", "0",
+			"-metadata:s:s:2", "language=ger", "-metadata:s:s:2", "title=Deutsch", "-disposition:s:2", "0",
+			"-metadata:s:s:3", "language=spa", "-metadata:s:s:3", "title=Español", "-disposition:s:3", "0",
+			"-metadata:s:s:4", "language=ita", "-metadata:s:s:4", "title=Italiano", "-disposition:s:4", "0",
+			"-metadata:s:s:5", "language=dut", "-metadata:s:s:5", "title=Nederlands", "-disposition:s:5", "0",
+			"-metadata:s:s:6", "language=gre", "-metadata:s:s:6", "title=Ελληνικά", "-disposition:s:6", "0",
+			"-metadata:s:s:7", "language=rus", "-metadata:s:s:7", "title=Русский", "-disposition:s:7", "0",
+			"-metadata:s:s:8", "language=jpn", "-metadata:s:s:8", "title=日本語", "-disposition:s:8", "0",
+			"-metadata:s:s:9", "language=cze", "-metadata:s:s:9", "title=Čeština", "-disposition:s:9", "0",
+			"-metadata:s:s:10", "language=hun", "-metadata:s:s:10", "title=Magyar", "-disposition:s:10", "0",
+			"-metadata:s:s:11", "language=heb", "-metadata:s:s:11", "title=עברית", "-disposition:s:11", "0",
+		},
+		Chapters: []Chapter{
+			{StartSec: 0, Title: "Chapter 01"},
+			{StartSec: 120, Title: "Chapter 02"},
+			{StartSec: 240, Title: "Chapter 03"},
+			{StartSec: 360, Title: "Chapter 04"},
+			{StartSec: 480, Title: "Chapter 05"},
+			{StartSec: 600, Title: "Chapter 06"},
+		},
+		DurationSec: 734,
+	}},
 	{URL: "https://commons.wikimedia.org/w/api.php?action=timedtext&title=File:Sintel_movie_4K.webm&lang=ja&trackformat=srt", Path: "movies/Sintel (2010).ja.srt"},
 	{URL: "https://download.blender.org/demo/movies/Sintel.2010.1080p.mkv", Path: "movies/Sintel (2010).mkv"},
 	{URL: "https://upload.wikimedia.org/wikipedia/commons/a/a2/Elephants_Dream_%282006%29.webm", Path: "movies/Elephants Dream (2006).webm"},
 	{URL: "https://download.blender.org/demo/movies/BBB/bbb_sunflower_2160p_60fps_normal.mp4.zip", Path: "movies/Big Buck Bunny (2008).mp4", ZipMember: "bbb_sunflower_2160p_60fps_normal.mp4"},
+
+	// Matroska's own test suite (IETF CELLAR, github.com/ietf-wg-cellar/
+	// matroska-test-files): Elephants Dream, CC-BY, cut to exercise the parser.
+	// test5 has two audio tracks (the commentary in AAC+ SBR) and subtitles in
+	// seven languages. The damaged test7 and test8 stay in the integration
+	// tests, never in the demo. test4 (a live recording: Clusters of unknown
+	// size, no Duration) is held back: the packager cannot read it yet and the
+	// server has no duration to build its playlist from, so it would show a
+	// film that does not start.
+	{URL: "https://raw.githubusercontent.com/ietf-wg-cellar/matroska-test-files/master/test_files/test5.mkv", Path: "movies/Matroska Test 5 - Multiple Audio and Subtitles (2006).mkv"},
 
 	// Films - public domain classics (archive.org, public-domain marked items)
 	{URL: "https://archive.org/download/his_girl_friday/his_girl_friday.mp4", Path: "movies/His Girl Friday (1940).mp4"},

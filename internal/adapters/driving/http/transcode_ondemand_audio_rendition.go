@@ -125,12 +125,22 @@ func renditionIsTrack(r planAudioRendition, s *domainlibrary.MediaStream) bool {
 		return true
 	}
 	if r.name != "" && s.Title != "" {
-		return strings.EqualFold(r.name, s.Title)
+		return strings.EqualFold(normTrackName(r.name), normTrackName(s.Title))
 	}
 	if r.lang != "" && s.Language != "" {
 		return strings.EqualFold(r.lang, s.Language)
 	}
 	return true
+}
+
+// normTrackName reads a track name the way a viewer does: the packager writes
+// a control character of the stored title as its HLS escape ("Português\n"
+// against a title ending in a real newline), and runs of whitespace are one
+// space. Compared raw, one such title failed to match, and every track after
+// it was dropped from the master (Sprite Fright, 2026-10-01).
+func normTrackName(s string) string {
+	s = strings.NewReplacer(`\n`, " ", `\r`, " ", `\t`, " ", `\"`, `"`).Replace(s)
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // planAudioRenditionsOf reads a plan's master and parses its audio renditions.

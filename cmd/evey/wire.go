@@ -1214,6 +1214,7 @@ func startDemoLifecycle(ctx context.Context, cfg *config.Config, infra *infraDep
 		WithHistory(r.MediaItemQuery, r.WatchProgress, deps.media.playbackSvc.CommandService()).
 		WithReset(deps.engagement.activityQuerySvc, r.WatchProgress).
 		WithCredentialPurge(demoCredentials{keys: r.APIKey, invites: r.InviteLink}).
+		WithAssembler(demoAssembler).
 		WithActivity(func() bool {
 			if hls := deps.media.hlsVODRemover; hls != nil && hls.ActivePlaybackCount() > 0 {
 				return true

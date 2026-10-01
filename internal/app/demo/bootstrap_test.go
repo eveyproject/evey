@@ -299,8 +299,21 @@ func TestManifest_PathsAreConfinedAndUnique(t *testing.T) {
 			t.Errorf("path %q listed twice", f.Path)
 		}
 		seen[clean] = true
-		if len(f.URL) < 8 || f.URL[:8] != "https://" {
-			t.Errorf("url %q is not https", f.URL)
+		urls := []string{f.URL}
+		if f.Build != nil {
+			// A built file has no URL of its own: its inputs do.
+			if f.URL != "" || len(f.Build.Inputs) == 0 {
+				t.Errorf("%s: a Build entry has inputs and no URL of its own", f.Path)
+			}
+			urls = urls[:0]
+			for _, in := range f.Build.Inputs {
+				urls = append(urls, in.URL)
+			}
+		}
+		for _, u := range urls {
+			if len(u) < 8 || u[:8] != "https://" {
+				t.Errorf("url %q is not https", u)
+			}
 		}
 	}
 	if len(demo.Manifest) < 20 {

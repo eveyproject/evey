@@ -117,6 +117,9 @@ type Bootstrapper struct {
 	progressReset ProgressReset
 	credentials   Credentials
 	busy          func() bool
+
+	// Optional Build entries of the manifest (WithAssembler, build.go).
+	assemble Assembler
 }
 
 func NewBootstrapper(users user.UserRepository, profiles user.ProfileRepository, setup AdminSetup, accounts Accounts,
@@ -480,6 +483,7 @@ func (b *Bootstrapper) DownloadMedia(ctx context.Context, libs map[string]shared
 // DownloadManifest is DownloadMedia over an explicit list (tests).
 func (b *Bootstrapper) DownloadManifest(ctx context.Context, manifest []demo.MediaFile, libs map[string]shared.LibraryID) error {
 	touched := map[string]bool{}
+	b.removeRetired(touched)
 	current := ""
 	flush := func() {
 		if current == "" || !touched[current] {
@@ -504,6 +508,15 @@ func (b *Bootstrapper) DownloadManifest(ctx context.Context, manifest []demo.Med
 		}
 		dest := filepath.Join(b.mediaDir, filepath.FromSlash(f.Path))
 		if st, err := os.Stat(dest); err == nil && st.Size() > 0 {
+			continue
+		}
+		if f.Build != nil {
+			b.log.Info("demo: building", "file", f.Path, "inputs", len(f.Build.Inputs))
+			if err := b.build(ctx, f, dest); err != nil {
+				b.log.Warn("demo: build failed, will retry at next boot", "file", f.Path, "err", err)
+				continue
+			}
+			touched[folder] = true
 			continue
 		}
 		b.log.Info("demo: downloading", "file", f.Path)

@@ -92,29 +92,60 @@ func mapPlanSubtitleRenditions(rends []planSubtitleRendition, streams []*domainl
 // pure copy path) so a player can tie each rendition to the picker's ordinal
 // like on the Evey-built masters, and turns the packager's DEFAULT/AUTOSELECT
 // off: the app picks the track, a player-side auto-selection of the forced
-// rendition would draw next to it.
+// rendition would draw next to it. The stored title and language win over the
+// packager's when it has none: Matroska's implicit English came out as an
+// unlabelled "Subtitles 1" while the app said English (test5, 2026-10-01).
 func tagPlanMasterSubtitles(master string, rends []apptranscoding.SubtitleRendition) string {
 	if len(rends) == 0 {
 		return master
 	}
-	byURI := make(map[string]int, len(rends))
+	byURI := make(map[string]apptranscoding.SubtitleRendition, len(rends))
 	for _, r := range rends {
-		byURI[r.URI] = r.TrackIdx
+		byURI[r.URI] = r
 	}
 	return extXMediaSubtitles.ReplaceAllStringFunc(master, func(line string) string {
 		uri, _, _ := strings.Cut(attrOf(line, "URI"), "?")
-		idx, ok := byURI[uri]
+		r, ok := byURI[uri]
 		if !ok {
 			return line
 		}
-		tag := `,X-EVEY-TRACK="` + strconv.Itoa(idx) + `"`
 		line = strings.ReplaceAll(line, "DEFAULT=YES", "DEFAULT=NO")
 		line = strings.ReplaceAll(line, "AUTOSELECT=YES", "AUTOSELECT=NO")
+		if name := hlsQuoted(r.Name); name != "" {
+			line = setAttr(line, "NAME", name)
+		} else if old := attrOf(line, "NAME"); old != "" {
+			line = setAttr(line, "NAME", hlsQuoted(old))
+		}
+		var extra string
+		if attrOf(line, "LANGUAGE") == "" && r.LanguageCode != "" {
+			extra += `,LANGUAGE="` + hlsQuoted(r.LanguageCode) + `"`
+		}
+		extra += `,X-EVEY-TRACK="` + strconv.Itoa(r.TrackIdx) + `"`
 		// Before URI= so the attribute list stays readable; hls.js and
 		// ExoPlayer parse the list as a set, order is cosmetic.
 		if j := strings.Index(line, ",URI="); j >= 0 {
-			return line[:j] + tag + line[j:]
+			return line[:j] + extra + line[j:]
 		}
-		return line + tag
+		return line + extra
 	})
+}
+
+// hlsQuoted is a value safe inside a quoted HLS attribute: no line break, no
+// double quote, single spaces.
+func hlsQuoted(s string) string {
+	return strings.ReplaceAll(normTrackName(s), `"`, "'")
+}
+
+// setAttr replaces the value of a quoted attribute already on the line.
+func setAttr(line, key, value string) string {
+	i := strings.Index(line, key+`="`)
+	if i < 0 {
+		return line
+	}
+	start := i + len(key) + 2
+	j := strings.Index(line[start:], `"`)
+	if j < 0 {
+		return line
+	}
+	return line[:start] + value + line[start+j:]
 }
