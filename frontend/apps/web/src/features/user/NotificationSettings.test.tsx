@@ -63,3 +63,26 @@ describe("NotificationSettings loading", () => {
     // Loading state renders "Loading..." text - covered by unit approach in integration
   });
 });
+
+vi.mock("@/lib/webpush", () => ({
+  isPushSupported: () => false,
+  isPushSubscribed: vi.fn(),
+  subscribeToPush: vi.fn(),
+  unsubscribeFromPush: vi.fn(),
+}));
+
+describe("NotificationSettings push without browser support", () => {
+  it("asks for HTTPS outside a secure context instead of blaming the server", () => {
+    vi.stubGlobal("isSecureContext", false);
+    render(<NotificationSettings />, { wrapper: createWrapper() });
+    expect(screen.getByText(/need an HTTPS address/i)).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it("names the browser when the context is secure", () => {
+    vi.stubGlobal("isSecureContext", true);
+    render(<NotificationSettings />, { wrapper: createWrapper() });
+    expect(screen.getByText(/does not support push/i)).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+});

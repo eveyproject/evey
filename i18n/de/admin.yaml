@@ -366,7 +366,7 @@ users:
   maxProfiles: Max. Profile
   maxProfilesHelp: "Maximale Anzahl Profile, die dieser Benutzer anlegen kann. 0 = unbegrenzt."
   maxDevicesPerProfile: Max. Geräte pro Profil
-  maxDevicesPerProfileHelp: "Maximale Anzahl Geräte pro Profil. 0 = unbegrenzt."
+  maxDevicesPerProfileHelp: "Wie viele Wiedergaben ein Profil gleichzeitig laufen lassen darf, über alle Geräte. 0 = unbegrenzt."
   profilesTitle: "Profile"
   noProfiles: "Dieser Benutzer hat noch keine Profile."
 

@@ -289,7 +289,8 @@ notificationSettings:
   pushEnabled: Push-Benachrichtigungen aktiviert
   pushDisabled: Push-Benachrichtigungen deaktiviert
   pushError: Push-Benachrichtigungen konnten nicht umgeschaltet werden
-  pushNotConfigured: Push-Benachrichtigungen sind auf diesem Server nicht konfiguriert.
+  pushNeedsHttps: "Push-Benachrichtigungen brauchen eine HTTPS-Adresse: Öffnen Sie diesen Server über HTTPS, um sie einzuschalten."
+  pushUnsupported: "Dieser Browser unterstützt keine Push-Benachrichtigungen."
   permissionDenied: Benachrichtigungsberechtigung vom Browser verweigert.
   movies: Filme
   series: Serien

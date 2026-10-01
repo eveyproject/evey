@@ -366,7 +366,7 @@ users:
   maxProfiles: "最大配置文件数"
   maxProfilesHelp: "此用户可创建的最大配置文件数。0 = 无限制。"
   maxDevicesPerProfile: "每个配置文件的最大设备数"
-  maxDevicesPerProfileHelp: "每个配置文件可注册的最大设备数。0 = 无限制。"
+  maxDevicesPerProfileHelp: "每个配置文件在其所有设备上可同时进行的播放数。0 = 无限制。"
   profilesTitle: "个人资料"
   noProfiles: "此用户尚无个人资料。"
 
