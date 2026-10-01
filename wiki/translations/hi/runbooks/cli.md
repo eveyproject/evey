@@ -1,17 +1,12 @@
 ---
-source_sha: 0cbab39ffa95c9d5b92240456049d1f9bc27697af69bc1423e9f3c1f3d4a7556
+source_sha: fc91b3be124757e49009dbe56dd9647724bd582d2bc356702367e4982e757455
+reviewed: false
 ---
-
 # Evey CLI - `evey admin`
 
-Evey सर्वर की बाइनरी ही संचालक की CLI का काम भी करती है। `evey` को बिना किसी
-argument के चलाएँ, तो वह HTTP/gRPC सर्वर शुरू कर देती है; पहले argument के तौर पर
-`admin` दें, तो वह एक-बार-चलने वाले संचालक मोड में चली जाती है और कमांड पूरी होते
-ही बाहर निकल जाती है।
+Evey सर्वर का बाइनरी ऑपरेटर CLI का काम भी करता है। जब `evey` बिना आर्ग्युमेंट के चलाया जाता है, तो यह HTTP/gRPC सर्वर शुरू करता है; पहले आर्ग्युमेंट के रूप में `admin` होने पर यह एक बार चलने वाले ऑपरेटर मोड में चला जाता है और कमांड पूरा होने पर बाहर निकल जाता है।
 
-सारी कमांड अपना कॉन्फ़िगरेशन उन्हीं `EVEY_*` env वेरिएबल से पढ़ती हैं जिनसे सर्वर
-खुद पढ़ता है (`EVEY_DB_USER`, `EVEY_DB_PASSWORD`, `EVEY_DB_HOST`, `EVEY_DB_PORT`,
-`EVEY_DB_NAME`, `EVEY_DB_SSLMODE`, `EVEY_BACKUP_DIR`, ...)।
+सभी कमांड कॉन्फ़िगरेशन उन्हीं `EVEY_*` एनवायरनमेंट वेरिएबल से पढ़ते हैं जिनसे सर्वर ख़ुद पढ़ता है (`EVEY_DB_USER`, `EVEY_DB_PASSWORD`, `EVEY_DB_HOST`, `EVEY_DB_PORT`, `EVEY_DB_NAME`, `EVEY_DB_SSLMODE`, `EVEY_BACKUP_DIR`, ...)।
 
 ```
 evey                          Start the server.
@@ -23,17 +18,14 @@ evey man [--text]             The manual: roff for `man`, plain text with --text
 evey completion bash          The bash completion script.
 ```
 
-कोई भी दूसरा पहला आर्ग्युमेंट चुपचाप सर्वर शुरू करने के बजाय अस्वीकार कर दिया
-जाता है (exit 1)। `cmd/evey/admin_commands.go` की Go तालिका हर subcommand का
-इकलौता विवरण है: usage सूची, `--help`, manual, completion script और container
-shell, सब `cmd/evey/admin_cli_test.go` में उसी के सामने जाँचे जाते हैं।
+कोई भी दूसरा पहला आर्ग्युमेंट चुपचाप सर्वर शुरू करने की बजाय मना कर दिया जाता है (exit 1)। `cmd/evey/admin_commands.go` में Go तालिका हर सबकमांड का एकमात्र विवरण है: उपयोग सूची, `--help`, मैनुअल, कम्प्लीशन स्क्रिप्ट और कंटेनर शेल सभी `cmd/evey/admin_cli_test.go` द्वारा इसके विरुद्ध जाँचे जाते हैं।
 
-## एक नज़र में
+## त्वरित संदर्भ
 
 ```
 evey admin reset-password --user <email>     Generate a new password, print it once.
 evey admin rotate-jwt-key                    Regenerate JWT signing key (kills ALL sessions).
-evey admin restore-backup <path>             Restore the database from a .sql.gz dump (the suffix is required).
+evey admin restore-backup <path>             Restore the database from a .sql.gz dump (the suffix is required; not the panel's .tar.gz backups).
 evey admin reindex-search [--library <id>] [--purge]   Rebuild the Meilisearch index from Postgres (--purge clears orphan docs first; if Meili is down, reports the Postgres fallback and does nothing).
 evey admin migrate up [--no-backup]          Apply pending migrations.
 evey admin migrate down [--no-backup]        Roll back one migration step.
@@ -42,7 +34,7 @@ evey admin list-users                        Print user emails, one per line (fe
 evey admin list-libraries                    Print the library root paths, one per line (feeds `--root` completion).
 ```
 
-### मीडिया का रखरखाव
+### मीडिया रखरखाव
 
 ```
 evey admin reindex-no-cue --root <dir> [--apply] [--limit N] [--resync] [--keep-backup=false]
@@ -67,7 +59,7 @@ evey admin reclassify <media-id>             Force-recompute the encoding comple
 evey admin reclassify --all                  Wipe and re-queue every classified item.
 ```
 
-### जाँच और क्षमता
+### निदान और क्षमता
 
 ```
 evey admin doctor [--repair]                 Health-check DB, schema, jwt.key, Meilisearch (plus
@@ -100,17 +92,40 @@ evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
                                              Per-title probe timing and early-stop rate on the files.
 ```
 
-> पूरी और हमेशा ताज़ा सूची पाने के लिए `evey admin` बिना किसी subcommand के चलाएँ -
-> वह छापता है
-> 2026-07-23; `reindex-no-cue`, यानी वह seek-index मरम्मत जो बार-बार होने वाली धीमे
-> resume की घटनाओं के पीछे थी, उन्हीं छूटी हुई कमांड में से एक थी।
+### डेमो इंस्टेंस
 
-## चलाने के तरीक़े
+```
+evey admin demo-seed [--apply] [--media]     Run the demo bootstrap by hand: the demo administrator,
+                                             the visitor accounts, the four libraries, and with
+                                             --media the freely licensed media (gigabytes). Refuses
+                                             unless EVEY_DEMO=1. Dry-run by default.
+```
 
-### होस्ट से, जब पूरा stack चल रहा हो (Docker dev / उत्पादन)
+> पूरी और हमेशा अद्यतन सूची है बिना सबकमांड के `evey admin`: यह बाइनरी में मौजूद हर सबकमांड छापता है।
 
-Makefile सबसे आम कामों को container के shell में लपेट देता है, ताकि वे बिना `.env`
-पढ़े और बिना होस्ट पर pg_dump हुए चल जाएँ:
+## कैसे चलाएँ
+
+### कंटेनर में (मानक इंस्टॉलेशन)
+
+```sh
+docker exec evey-server evey admin doctor
+docker exec -it evey-server bash      # एक एडमिन शेल: evey admin ..., man evey
+```
+
+इमेज डेटाबेस पासवर्ड फ़ाइल सेट करती है, इसलिए कमांड बिना किसी अतिरिक्त एनवायरनमेंट के बिल्ट-इन डेटाबेस तक पहुँच जाते हैं।
+
+### बेयर-मेटल इंस्टॉलेशन पर (बिना Docker)
+
+```sh
+evey admin reset-password --user alice@example.com
+evey admin migrate version
+```
+
+पहले से इंस्टॉल बाइनरी में हर सबकमांड पहले से मौजूद है।
+
+### डेवलपमेंट स्टैक पर
+
+Makefile माइग्रेशन कमांड को लपेटता है, जो डेवलपमेंट कंटेनर `evey-server` में सोर्स ट्री से चलते हैं:
 
 ```sh
 make migrate-version
@@ -118,88 +133,46 @@ make migrate-up
 make migrate-down
 ```
 
-ये असल में
-`docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate <op>'`
-चलाते हैं, इसलिए `evey-server` चालू होना चाहिए - न चल रहा हो तो पहले `make dev` से
-शुरू करें।
+## टैब-कम्प्लीशन और मैनुअल
 
-### चलते container में सीधे shell खोलकर
-
-```sh
-docker exec -it evey-server sh
-/app # go run ./cmd/evey admin reset-password --user alice@example.com
-```
-
-### कंटेनर के बिना इंस्टॉलेशन पर (Docker के बिना)
-
-```sh
-evey admin reset-password --user alice@example.com
-evey admin migrate version
-```
-
-पहले से इंस्टॉल की हुई बाइनरी में हर subcommand पहले से मौजूद है।
-
-## Tab-completion और manual
-
-बाइनरी अपना bash completion और manual ख़ुद साथ रखती है, इसलिए दोनों हमेशा उन्हीं
-subcommands से मेल खाते हैं जो वह लेकर आती है:
+बाइनरी अपना bash कम्प्लीशन और मैनुअल साथ रखता है, इसलिए दोनों हमेशा उसके सबकमांड से मेल खाते हैं:
 
 ```sh
 evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
 evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null && sudo mandb -q
 ```
 
-zsh उपयोगकर्ता: पहले `autoload -U +X bashcompinit && bashcompinit`, फिर वही
-script source करें। completion में subcommands, उनके flags और flag के मान
-(`--mode`, `--backend`, `--scenario`), `--user` के बाद उपयोगकर्ताओं के ईमेल,
-`--root` के बाद सर्वर को ज्ञात लाइब्रेरी roots (और कोई भी डायरेक्टरी),
-`ladder-bench`, `ladder-probe` और `route-bench` के फ़ाइल आर्ग्युमेंट के लिए सिर्फ़
-मीडिया फ़ाइलें, और `restore-backup` के लिए `.sql.gz` dumps आते हैं।
+zsh उपयोगकर्ता: पहले `autoload -U +X bashcompinit && bashcompinit`, फिर वही स्क्रिप्ट लोड करें। कम्प्लीशन सबकमांड, उनके फ़्लैग और फ़्लैग मान (`--mode`, `--backend`, `--scenario`), `--user` के बाद उपयोगकर्ता ई-मेल, `--root` के बाद सर्वर को ज्ञात लाइब्रेरी रूट (और कोई भी डायरेक्टरी), `ladder-bench`, `ladder-probe` और `route-bench` के फ़ाइल आर्ग्युमेंट के लिए केवल मीडिया फ़ाइलें, और `restore-backup` के लिए `.sql.gz` डंप को कवर करता है।
 
-Docker इमेज build के समय completion इंस्टॉल कर देती है, और उसका admin shell
-(`docker exec -it evey-server bash`) `man evey` का जवाब `evey man --text` को पन्ना
-दर पन्ना दिखाकर देता है, क्योंकि इमेज में `man` बाइनरी नहीं है।
+Docker इमेज बिल्ड के समय कम्प्लीशन इंस्टॉल करती है और इसका एडमिन शेल (`docker exec -it evey-server bash`) `man evey` का जवाब `evey man --text` को पेज करके देता है, क्योंकि इमेज में कोई `man` बाइनरी नहीं है।
 
-## Subcommand का ब्योरा
+## सबकमांड का विवरण
 
 ### `migrate`
 
-- `up` हर बचे हुए माइग्रेशन को क्रम से लगाता है। `EVEY_BACKUP_DIR` सेट हो, तो
-  माइग्रेशन से पहले एक `pg_dump` अपने आप ले लिया जाता है (Docker image में डिफ़ॉल्ट:
-  `/data/backups`)। Up के बीच में विफल होने पर `schema_migrations.dirty = true` रह
-  जाता है; `migration-runbook.md` देखें।
-- `down` ठीक एक माइग्रेशन वापस पलटता है। यह सर्जरी जैसा है, "सब कुछ गिरा दो" जैसा
-  नहीं - `down --all` जैसा कुछ है ही नहीं। यह भी पलटने से पहले एक `pg_dump` ले लेता
-  है।
-- `version` मौजूदा स्कीमा संस्करण छापता है। पिछला माइग्रेशन बीच में विफल हुआ हो
-  (यानी `Up` के कुछ statement चले, सब नहीं), तो यह `DIRTY` चेतावनी के साथ exit code
-  1 लौटाता है।
-- `--no-backup` दोनों दिशाओं में pg_dump छोड़ देता है। यह उन होस्ट पर काम आता है
-  जहाँ `postgres-client` इंस्टॉल नहीं है (WSL पर dev का यही आम रास्ता है, जहाँ
-  Makefile यह फ़्लैग पहले से देता है)।
+- `up` सभी लंबित माइग्रेशन क्रम से लागू करता है। जब `EVEY_BACKUP_DIR` सेट हो (Docker इमेज में डिफ़ॉल्ट: `/data/backups`) तो माइग्रेशन से पहले अपने आप एक `pg_dump` लिया जाता है। Up के बीच में विफलता `schema_migrations.dirty = true` छोड़ती है; देखें `migration-runbook.md`।
+- `down` ठीक एक माइग्रेशन वापस करता है। यह सटीक है, "सब गिरा दो" नहीं: कोई `down --all` नहीं है। यह भी वापस करने से पहले एक `pg_dump` लेता है।
+- `version` मौजूदा स्कीमा संस्करण छापता है। जब पिछला माइग्रेशन बीच में विफल हुआ हो (यानी कुछ लेकिन सभी नहीं `Up` स्टेटमेंट चले) तो `DIRTY` चेतावनी के साथ exit code 1 लौटाता है।
+- `--no-backup` दोनों दिशाओं में pg_dump छोड़ देता है। ऐसे होस्ट पर उपयोगी जहाँ `postgres-client` इंस्टॉल नहीं है (आम WSL डेवलपमेंट स्थिति, जहाँ Makefile पहले से यह फ़्लैग देता है)।
 
 ### `reset-password`, `rotate-jwt-key`, `restore-backup`, `reindex-search`
 
-पूरी प्रक्रिया, पूर्व-शर्तें और बाद की स्थिति `docs/runbooks/recovery.md` में देखें।
+पूरी प्रक्रिया, पूर्व-शर्तों और बाद की स्थितियों के लिए `docs/runbooks/recovery.md` देखें।
 
-## `evey admin` में जो *नहीं* है
+## `evey admin` में क्या *नहीं* है
 
-`cmd/evey` के बगल में तीन अलग बाइनरी रहती हैं, क्योंकि वे उबरने या स्कीमा वाले
-अर्थ में संचालक की कमांड नहीं हैं:
+तीन अलग बाइनरी `cmd/evey` के बगल में रहते हैं क्योंकि वे पुनर्प्राप्ति या स्कीमा के अर्थ में ऑपरेटर कमांड नहीं हैं:
 
-| बाइनरी | किसलिए | अलग क्यों |
+| बाइनरी | उद्देश्य | अलग क्यों |
 |---|---|---|
-| `cmd/intro-backfill` | शृंखला में कोई बदलाव होने के बाद, कैटलॉग के एक हिस्से पर intro पहचान दोबारा चलाना | **API क्लाइंट** - यह bearer टोकन के साथ `/api/v1/admin/media/{id}/detect-segments` से बात करता है, प्रक्रिया के भीतर नहीं चलता। |
-| `cmd/intro-diag` | किसी ख़ास शृंखला पर pHash वाली intro पहचान क्यों मिली (या क्यों नहीं मिली), यह जाँचना | **डेवलपर का debug** औज़ार - डिस्क से trickplay sprite पढ़ता है और फ़्रेम-दर-फ़्रेम Hamming मिलान का नक्शा छापता है। साथ में ऑडियो की cross-correlation का एक वैकल्पिक दौर। |
-| `cmd/trickplay-verify` | जाँचना कि हर trickplay टाइल सचमुच उसी समय-चिह्न का फ़्रेम दिखाती है जो दर्ज है | **QA/CI** औज़ार - ffmpeg से स्रोत के फ़्रेम दोबारा निकालता है और उन्हें टाइल के सामने aHash करके मिलाता है। |
+| `cmd/intro-backfill` | पाइपलाइन बदलाव के बाद कैटलॉग के एक हिस्से पर इंट्रो पहचान ताज़ा करना | **API क्लाइंट**: bearer टोकन के साथ `/api/v1/admin/media/{id}/detect-segments` से बात करता है, प्रोसेस के अंदर नहीं। |
+| `cmd/intro-diag` | निदान करना कि किसी ख़ास सीरीज़ पर pHash इंट्रो पहचान क्यों मिली (या नहीं मिली) | **डेवलपर डीबग** उपकरण: डिस्क से trickplay स्प्राइट पढ़ता है, फ़्रेम दर फ़्रेम Hamming मिलान का नक्शा छापता है। वैकल्पिक ऑडियो क्रॉस-कोरिलेशन पास। |
+| `cmd/trickplay-verify` | जाँचना कि हर trickplay टाइल सचमुच दर्ज टाइमस्टैम्प का फ़्रेम दिखाती है | **QA/CI** उपकरण: ffmpeg से स्रोत फ़्रेम फिर से निकालता है और टाइल से उनका aHash मिलाता है। |
 
-ये अलग बाइनरी के रूप में इसलिए भेजी जाती हैं कि इनमें से किसी को भी सर्वर का पूरा
-कॉन्फ़िगरेशन-तंत्र नहीं चाहिए - ये सीमित दायरे वाले, एक बार चलाने के औज़ार हैं,
-उबरने की सतह का हिस्सा नहीं।
+वे अलग बाइनरी के रूप में आते हैं क्योंकि उनमें से किसी को पूरे सर्वर कॉन्फ़िगरेशन की ज़रूरत नहीं: वे सीमित, एक बार चलने वाले उपकरण हैं, पुनर्प्राप्ति सतह का हिस्सा नहीं।
 
-## जुड़ी हुई रनबुक
+## संबंधित पुस्तिकाएँ
 
-- `migration-runbook.md` - स्कीमा तैनात करना, वापस पलटना, dirty स्थिति से उबरना।
-- `recovery.md` - पासवर्ड रीसेट, JWT कुंजी बदलना, बैकअप पुनर्स्थापित करना, खोज का
-  index दोबारा बनाना।
-- `incident-runbook.md` - सर्वर गड़बड़ करने लगे तो पहला जवाब।
+- `migration-runbook.md`: स्कीमा डिप्लॉय, वापसी, dirty स्थिति से पुनर्प्राप्ति।
+- `recovery.md`: पासवर्ड रीसेट, JWT कुंजी रोटेशन, बैकअप पुनर्स्थापना, सर्च रीइंडेक्स।
+- `incident-runbook.md`: सर्वर के गड़बड़ करने पर पहली प्रतिक्रिया।
