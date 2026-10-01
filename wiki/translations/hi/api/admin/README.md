@@ -1,5 +1,5 @@
 ---
-source_sha: 8392e2d20e3a5b3c62e2f39d4743e925c172cdcb73dc639a5502e1bf4c16a66d
+source_sha: f1907adff4cc0c2d70169aaefdc143b3040b23f0c75f5fc0813c852b00f5c66f
 reviewed: false
 ---
 # प्रशासन API
@@ -24,7 +24,7 @@ reviewed: false
 ### मीडिया और ट्रांसकोडिंग
 | विनिर्देश | विवरण |
 |------|-------------|
-| [admin_media.swagger.json](admin_media.swagger.json) | मीडिया आइटम हटाना, मेटाडेटा ताज़ा करना, trickplay बनाना |
+| [admin_media.swagger.json](admin_media.swagger.json) | मीडिया स्वास्थ्य (स्कैन, मरम्मत, इतिहास और पूर्ववत), मीडिया आइटम हटाना, मेटाडेटा ताज़ा करना, trickplay बनाना |
 | [metadata.swagger.json](metadata.swagger.json) | मेटाडेटा प्रदाता, खोज, ओवरराइड |
 | [transcoding.swagger.json](transcoding.swagger.json) | ट्रांसकोड प्रोफ़ाइल, हार्डवेयर पहचान, सक्रिय काम |
 | [transcode_cache.swagger.json](transcode_cache.swagger.json) | ट्रांसकोड कैश प्रबंधन |

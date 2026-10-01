@@ -1,5 +1,5 @@
 ---
-source_sha: 8392e2d20e3a5b3c62e2f39d4743e925c172cdcb73dc639a5502e1bf4c16a66d
+source_sha: f1907adff4cc0c2d70169aaefdc143b3040b23f0c75f5fc0813c852b00f5c66f
 reviewed: true
 ---
 # API d'administration
@@ -24,7 +24,7 @@ Les points d'accès réservés aux utilisateurs ayant les droits d'administrateu
 ### Médias et transcodage
 | Spécification | Contenu |
 |------|-------------|
-| [admin_media.swagger.json](admin_media.swagger.json) | Suppression de médias, rafraîchissement des métadonnées, génération des miniatures de navigation |
+| [admin_media.swagger.json](admin_media.swagger.json) | Santé des médias (scans, réparations, historique et annulation), suppression de médias, rafraîchissement des métadonnées, génération des miniatures de navigation |
 | [metadata.swagger.json](metadata.swagger.json) | Sources de métadonnées, recherche, corrections manuelles |
 | [transcoding.swagger.json](transcoding.swagger.json) | Profils de transcodage, détection du matériel, tâches en cours |
 | [transcode_cache.swagger.json](transcode_cache.swagger.json) | Gestion du cache de transcodage |

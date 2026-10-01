@@ -20,7 +20,7 @@ Administrative endpoints restricted to users with admin privileges.
 ### Media & Transcoding
 | Spec | Description |
 |------|-------------|
-| [admin_media.swagger.json](admin_media.swagger.json) | Delete media items, refresh metadata, generate trickplay |
+| [admin_media.swagger.json](admin_media.swagger.json) | Media health (scans, repairs, history and undo), delete media items, refresh metadata, generate trickplay |
 | [metadata.swagger.json](metadata.swagger.json) | Metadata providers, search, overrides |
 | [transcoding.swagger.json](transcoding.swagger.json) | Transcode profiles, hardware detection, active jobs |
 | [transcode_cache.swagger.json](transcode_cache.swagger.json) | Transcode cache management |
