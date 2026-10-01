@@ -8,7 +8,7 @@ vi.mock("./hooks", () => ({ useSetConfigEntry: () => ({ mutate: setMutate, isPen
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@evey/store", () => ({ toast }));
 const eveyFetch = vi.hoisted(() => vi.fn());
-vi.mock("@evey/api", () => ({ eveyFetch }));
+vi.mock("@evey/api", async (importOriginal) => ({ ...(await importOriginal<typeof import("@evey/api")>()), eveyFetch }));
 vi.mock("@/hooks/useDemoMode", () => ({ useDemoLock: () => ({ demo: false, lock: {} }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) => (o ? `${k}(${Object.values(o).join(",")})` : k) }) }));
 vi.mock("@/components/ui/Select", () => ({
