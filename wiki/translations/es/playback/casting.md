@@ -1,5 +1,5 @@
 ---
-source_sha: 66951bf73de4e59bd21b6ea9468df82ac79d31950e742e6c87203c05a77dda76
+source_sha: 415152806ac79bbe7326d23d95c89da3cae024a96f949905210f201684b7f10b
 reviewed: false
 ---
 # Enviar a Chromecast
@@ -46,6 +46,28 @@ llevar la copia** o **Escalón de supervivencia pedido por el reproductor**.
 
 Los dispositivos de envío más antiguos no cambian de calidad por sí solos durante
 la reproducción; por eso el servidor toma esa decisión por ellos.
+
+## Navegadores sin sesión Cast propia
+
+En el reproductor web, el botón **Transmitir** aparece cuando el navegador
+puede enviar: Chrome en un ordenador, que abre su selector de Google Cast, y
+los navegadores que admiten la reproducción remota, como Safari o Chrome en
+Android. Firefox no muestra ninguno.
+
+Cuando el navegador no puede abrir por sí mismo una sesión Cast (Safari,
+Chrome en Android), una pulsación pasa por el servidor, que lo intenta en este
+orden y toma el primer dispositivo que encuentra en cada paso:
+
+1. un Chromecast en la red del dispositivo que tienes en la mano, reproducido
+   por el receptor de Evey como arriba;
+2. un televisor DLNA en la red del servidor. Recibe el flujo que estaba
+   reproduciendo el navegador (el archivo original en Reproducción directa, el
+   flujo transcodificado en otro caso): no se toma ninguna decisión para el
+   propio televisor;
+3. tus propias aplicaciones de Evey abiertas y con sesión iniciada en la misma
+   cuenta: si hay una sola, retoma la película, como con **Reproducir en**; si
+   hay varias, el reproductor remite a **Reproducir en** para elegir;
+4. el propio selector de dispositivos del navegador.
 
 ## Cuando un envío no funciona
 

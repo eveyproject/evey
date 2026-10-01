@@ -1,5 +1,5 @@
 ---
-source_sha: 66951bf73de4e59bd21b6ea9468df82ac79d31950e742e6c87203c05a77dda76
+source_sha: 415152806ac79bbe7326d23d95c89da3cae024a96f949905210f201684b7f10b
 reviewed: false
 ---
 # Streamen auf Chromecast
@@ -49,6 +49,28 @@ Kopie nicht** oder **Vom Player angeforderte Notfallstufe**.
 
 Ältere Cast-Geräte wechseln die Qualität während der Wiedergabe nicht von
 selbst; deshalb trifft der Server diese Wahl für sie.
+
+## Browser ohne eigene Cast-Sitzung
+
+Im Web-Player erscheint die Schaltfläche **Streamen**, wenn der Browser
+übertragen kann: Chrome auf einem Computer, das seine Google-Cast-Auswahl
+öffnet, und Browser, die Remote-Wiedergabe unterstützen, etwa Safari oder
+Chrome unter Android. Firefox zeigt keine.
+
+Wo der Browser selbst keine Cast-Sitzung öffnen kann (Safari, Chrome unter
+Android), läuft ein Tippen über den Server, der es in dieser Reihenfolge
+versucht und bei jedem Schritt das erste gefundene Gerät nimmt:
+
+1. ein Chromecast im Netzwerk des Geräts, das Sie in der Hand halten,
+   abgespielt über Eveys Receiver wie oben;
+2. ein DLNA-Fernseher im Netzwerk des Servers. Er erhält den Stream, den der
+   Browser gerade abgespielt hat (die Originaldatei bei Direktwiedergabe,
+   sonst den transkodierten Stream): Für den Fernseher selbst wird keine
+   Entscheidung getroffen;
+3. Ihre eigenen Evey-Apps, die geöffnet und mit demselben Konto angemeldet
+   sind: Eine einzelne übernimmt den Film, wie mit **Abspielen auf**; bei
+   mehreren verweist der Player zur Auswahl auf **Abspielen auf**;
+4. die eigene Geräteauswahl des Browsers.
 
 ## Wenn das Streamen nicht funktioniert
 

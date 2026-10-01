@@ -1,5 +1,5 @@
 ---
-source_sha: 66951bf73de4e59bd21b6ea9468df82ac79d31950e742e6c87203c05a77dda76
+source_sha: 415152806ac79bbe7326d23d95c89da3cae024a96f949905210f201684b7f10b
 reviewed: true
 ---
 # Diffusion (Chromecast)
@@ -47,6 +47,27 @@ peut pas porter la copie** ou **Palier de survie demandé par le lecteur**.
 
 Les anciens appareils de diffusion ne changent pas de qualité d'eux-mêmes en
 cours de lecture : c'est pourquoi le serveur fait ce choix à leur place.
+
+## Navigateurs sans session Cast propre
+
+Dans le lecteur web, le bouton **Caster** apparaît quand le navigateur sait
+diffuser : Chrome sur ordinateur, qui ouvre son sélecteur Google Cast, et les
+navigateurs qui gèrent la lecture à distance, comme Safari ou Chrome sur
+Android. Firefox n'en affiche pas.
+
+Quand le navigateur ne sait pas ouvrir lui-même une session Cast (Safari,
+Chrome sur Android), un appui passe par le serveur, qui essaie dans cet ordre
+et prend le premier appareil trouvé à chaque étape :
+
+1. un Chromecast sur le réseau de l'appareil que vous tenez, lu par le
+   récepteur d'Evey comme ci-dessus ;
+2. une TV DLNA sur le réseau du serveur. Elle reçoit le flux que lisait le
+   navigateur (le fichier d'origine en lecture directe, le flux transcodé
+   sinon) : aucune décision n'est prise pour la TV elle-même ;
+3. vos propres applications Evey ouvertes et connectées au même compte : une
+   seule reprend le film, comme avec **Lire sur** ; s'il y en a plusieurs, le
+   lecteur renvoie vers **Lire sur** pour choisir ;
+4. le sélecteur d'appareils du navigateur lui-même.
 
 ## Quand une diffusion ne fonctionne pas
 

@@ -43,6 +43,27 @@ by the player**.
 Older cast devices do not switch quality on their own during playback; this is
 why the server makes that choice for them.
 
+## Browsers without a Cast session of their own
+
+In the web player the **Cast** button appears when the browser can cast:
+Chrome on a computer, which opens its Google Cast picker, and browsers that
+support remote playback, such as Safari or Chrome on Android. Firefox shows
+none.
+
+Where the browser cannot open a Cast session itself (Safari, Chrome on
+Android), a tap goes through the server, which tries in this order and takes
+the first device it finds at each step:
+
+1. a Chromecast on the network of the device you are holding, played through
+   Evey's receiver as above;
+2. a DLNA TV on the server's network. It receives the stream the browser was
+   playing (the original file in Direct Play, the transcoded stream
+   otherwise): no decision is made for the TV itself;
+3. your own Evey apps open and signed in to the same account: a single one
+   takes the film over, as with **Play on**; with several, the player points
+   to **Play on** to choose;
+4. the browser's own device picker.
+
 ## When a cast does not work
 
 [A cast froze, went silent, or the phone keeps spinning](../runbooks/incident-runbook.md#8-a-cast-froze-went-silent-or-the-phone-keeps-spinning).
@@ -54,5 +75,7 @@ no wasm on the receiver: frontend/apps/web/src/cast-receiver/main.ts - CAST_WASM
 line and floor: internal/app/transcoding/resolver_line.go
 senders: frontend/apps/web, frontend/apps/mobile (useCastSession) ; not frontend/apps/tv
 server-driven receiver: docs/adr/0025-server-driven-cast.md
+web button and fallbacks: frontend/apps/web/src/features/playback/HLSPlayer.tsx - castAvailable, handleMobileCast ; hooks/hlsPlayerUtils.ts - pickCastTapPath, planRendererLoad, pickPlayOnFallback ; hooks/useCasting.ts - startCast (castDevices[0], renderers[0])
+DLNA: internal/app/dlna/service.go (SSDP AVTransport) ; not in frontend/apps/mobile
 labels: i18n player.streamInfo.reason.client_line_exceeded, abr_floor_requested
 -->
