@@ -1,39 +1,43 @@
 ---
-source_sha: e314c511a93178cdc35b47b8bcd886cb60fd2ea303b7fc7d6f6c3c9ca1f9b6d0
+source_sha: 36c96049e9495129225a1a4d0a1273989914586cc0b0fb010ee4d6e99afb4219
+reviewed: false
 ---
 # API de administración
 
-Endpoints de administración, reservados a los usuarios con privilegios de administrador.
+Endpoints de administración reservados a los usuarios con privilegios de administrador.
 
 ## Especificaciones
 
 ### Sistema
 | Especificación | Descripción |
 |------|-------------|
-| [admin_system.swagger.json](admin_system.swagger.json) | Panel, información del sistema, asistente de instalación |
-| [server_config.swagger.json](server_config.swagger.json) | Almacén clave-valor de la configuración del servidor |
+| [admin_system.swagger.json](admin_system.swagger.json) | Panel, información del sistema, asistente de configuración |
+| [server_config.swagger.json](server_config.swagger.json) | Almacén clave/valor de la configuración del servidor |
 | [remote_access.swagger.json](remote_access.swagger.json) | Acceso remoto y ajustes de red |
 | [backup.swagger.json](backup.swagger.json) | Copia de seguridad y restauración de la base de datos |
-| [activity.swagger.json](activity.swagger.json) | Historial de reproducción, historial de inicios de sesión, métricas del servidor |
+| [backup_schedule.swagger.json](backup_schedule.swagger.json) | Copias programadas: cron, retención, ejecutar ahora |
+| [activity.swagger.json](activity.swagger.json) | Historial de reproducciones, historial de inicios de sesión, métricas del servidor |
 | [admin_session.swagger.json](admin_session.swagger.json) | Registro de auditoría |
 | [admin_task.swagger.json](admin_task.swagger.json) | Tareas programadas en segundo plano |
+| [presence.swagger.json](presence.swagger.json) | Quién está conectado ahora mismo (el latido de las aplicaciones y la lista de administración) |
 
 ### Medios y transcodificación
 | Especificación | Descripción |
 |------|-------------|
-| [admin_media.swagger.json](admin_media.swagger.json) | Borrar elementos multimedia, actualizar metadatos, generar trickplay |
-| [metadata.swagger.json](metadata.swagger.json) | Proveedores de metadatos, búsqueda, sobrescrituras |
-| [transcoding.swagger.json](transcoding.swagger.json) | Perfiles de transcodificación, detección de hardware, trabajos activos |
+| [admin_media.swagger.json](admin_media.swagger.json) | Eliminar medios, actualizar metadatos, generar trickplay |
+| [metadata.swagger.json](metadata.swagger.json) | Proveedores de metadatos, búsqueda, anulaciones |
+| [transcoding.swagger.json](transcoding.swagger.json) | Perfiles de transcodificación, detección de hardware, tareas activas |
 | [transcode_cache.swagger.json](transcode_cache.swagger.json) | Gestión de la caché de transcodificación |
-| [mkv.swagger.json](mkv.swagger.json) | Herramientas para contenedores MKV (pistas, capítulos, mux/demux) |
+| [mkv.swagger.json](mkv.swagger.json) | Herramientas del contenedor MKV (pistas, capítulos, mux/demux) |
+| [admin_intro.swagger.json](admin_intro.swagger.json) | Caché de tiempos de intro: invalidar un episodio, relleno |
 
 ### Usuarios y políticas
 | Especificación | Descripción |
 |------|-------------|
-| [library_access.swagger.json](library_access.swagger.json) | Control de acceso a bibliotecas por usuario |
+| [library_access.swagger.json](library_access.swagger.json) | Control de acceso a las bibliotecas por usuario |
 | [parental.swagger.json](parental.swagger.json) | Control parental y PIN |
 | [playback_settings.swagger.json](playback_settings.swagger.json) | Ajustes globales de reproducción |
 
 ## Autenticación
 
-Todos los endpoints requieren un token JWT de administrador válido.
+Todos los endpoints exigen un token JWT de administrador válido.
