@@ -17,6 +17,7 @@ const (
 	bpfABS = 0x20
 	bpfJMP = 0x05
 	bpfJEQ = 0x10
+	bpfJGE = 0x30
 	bpfJA  = 0x00
 	bpfK   = 0x00
 	bpfRET = 0x06
@@ -37,6 +38,7 @@ const (
 	retKillProcess = 0x80000000 // SECCOMP_RET_KILL_PROCESS
 	retErrno       = 0x00050000 // SECCOMP_RET_ERRNO (| errno)
 	retAllow       = 0x7fff0000 // SECCOMP_RET_ALLOW
+	x32SysBit      = 0x40000000 // __X32_SYSCALL_BIT: x32 calls pass the x86_64 arch check
 	epermData      = 1          // EPERM, fits in SECCOMP_RET_DATA
 	enosysData     = 38         // ENOSYS, fits in SECCOMP_RET_DATA
 )
@@ -97,6 +99,9 @@ func buildSeccompFilter(denyInet, denyFork bool) []unix.SockFilter {
 		{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: auditArch}, // arch ok → skip kill
 		{Code: bpfRET | bpfK, K: retKillProcess},
 		{Code: bpfLD | bpfW | bpfABS, K: offNR}, // A = syscall nr
+		// x32 numbers would never match the denylist below; no arm64 nr is this high.
+		{Code: bpfJMP | bpfJGE | bpfK, Jt: 0, Jf: 1, K: x32SysBit},
+		{Code: bpfRET | bpfK, K: retKillProcess},
 	}
 	// Self-contained 2-instruction DENY block per syscall (sandbox.c pattern):
 	// match → fall through to the EPERM ret; no match → skip it.
