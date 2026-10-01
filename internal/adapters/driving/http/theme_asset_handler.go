@@ -4,7 +4,6 @@ import (
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/pkg/safefs"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -75,7 +75,9 @@ func (h *themeAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	data, err := os.ReadFile(cssPath)
+	// The theme owns its install dir (symlinks included) under the server uid,
+	// and this route is public: no link is followed, regular files only.
+	data, _, err := safefs.ReadFile(h.pluginDir, id+"/theme.css", 0)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "theme.css not found")
@@ -131,7 +133,7 @@ func (h *themeAssetHandler) handleThemeJS(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	data, err := os.ReadFile(jsPath)
+	data, _, err := safefs.ReadFile(h.pluginDir, id+"/theme.js", 0)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "theme.js not found")
