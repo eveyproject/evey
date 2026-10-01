@@ -256,6 +256,8 @@ settings:
     changePassword: "Cambiar contraseña"
     changePasswordDesc: "Usa una contraseña segura de al menos 8 caracteres."
     newPassword: "Nueva contraseña"
+    currentPassword: "Contraseña actual"
+    currentPasswordHint: "Necesaria para cambiar tu nombre de usuario, correo electrónico o contraseña."
     confirmPassword: "Confirmar contraseña"
     passwordMismatch: "Las contraseñas no coinciden"
     passwordMin: "La contraseña debe tener al menos 8 caracteres"

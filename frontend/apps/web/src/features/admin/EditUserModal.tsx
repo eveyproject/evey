@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUserServiceUpdateUser,
+  useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
   useLibraryAccessServiceGetUserLibraryAccess,
   useLibraryAccessServiceRevokeAllUserLibraryAccess,
@@ -28,6 +29,11 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
   const [username, setUsername] = useState(user.username ?? "");
   const [email, setEmail] = useState(user.email ?? "");
   const [password, setPassword] = useState("");
+  const [currentPwd, setCurrentPwd] = useState("");
+  // An admin editing their OWN account re-enters their password, like on the
+  // settings page; editing someone else needs no proof (AUTH-3).
+  const { data: me } = useUserServiceGetCurrentUser();
+  const isSelf = !!me?.id && me.id === user.id;
   const [isAdmin, setIsAdmin] = useState(user.isAdmin ?? false);
   const [maxProfiles, setMaxProfiles] = useState<string>(String(user.maxProfiles ?? 0));
   const [maxDevicesPerProfile, setMaxDevicesPerProfile] = useState<string>(String(user.maxDevicesPerProfile ?? 0));
@@ -53,6 +59,7 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
       setUsername(user.username ?? "");
       setEmail(user.email ?? "");
       setPassword("");
+      setCurrentPwd("");
       setIsAdmin(user.isAdmin ?? false);
       setMaxProfiles(String(user.maxProfiles ?? 0));
       setMaxDevicesPerProfile(String(user.maxDevicesPerProfile ?? 0));
@@ -90,6 +97,11 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user.id) return;
+    const credentialChange = username.trim() !== user.username || email.trim() !== (user.email ?? "") || !!password;
+    if (isSelf && credentialChange && !currentPwd) {
+      toast.error(t("errors.user.current_password_required"));
+      return;
+    }
     setSaving(true);
 
     try {
@@ -103,6 +115,7 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
       if (parsedMaxProfiles !== (user.maxProfiles ?? 0)) data.maxProfiles = parsedMaxProfiles;
       if (parsedMaxDevices !== (user.maxDevicesPerProfile ?? 0)) data.maxDevicesPerProfile = parsedMaxDevices;
 
+      if (isSelf && credentialChange) data.currentPassword = currentPwd;
       if (Object.keys(data).length > 0) {
         await updateUser.mutateAsync({ id: user.id, data });
       }
@@ -136,6 +149,12 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
         <Input label={t("admin.users.username")} value={username} onChange={(e) => setUsername(e.target.value)} required />
         <Input label={t("admin.users.email")} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <Input label={t("admin.users.newPassword") || "New password"} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("admin.users.leaveBlank") || "Leave blank to keep current"} />
+        {isSelf && (
+          <div className="flex flex-col gap-1">
+            <Input label={t("auth.settings.account.currentPassword")} type="password" autoComplete="current-password" value={currentPwd} onChange={(e) => setCurrentPwd(e.target.value)} />
+            <p className="text-xs text-[var(--text-muted)]">{t("auth.settings.account.currentPasswordHint")}</p>
+          </div>
+        )}
         <Checkbox label={t("admin.users.admin")} checked={isAdmin} onChange={setIsAdmin} />
         <div className="flex flex-col gap-1">
           <Input

@@ -14,6 +14,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -122,6 +123,11 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		slog.WarnContext(ctx, "grpc UpdateUser: user query failed", slog.Any("err", err))
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
 	}
+	if req.Id == claims.UserID && changesCredentials(req, u) {
+		if rErr := h.reauthenticate(ctx, span, claims.UserID, req.GetCurrentPassword()); rErr != nil {
+			return nil, rErr
+		}
+	}
 	if req.Username != nil {
 		u.Username = strings.TrimSpace(*req.Username)
 	}
@@ -174,6 +180,45 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		}
 	}
 	return userToProto(u), nil
+}
+
+// changesCredentials reports whether req alters a login credential of u: a new
+// password, or an e-mail (reset target) or username (login id) that differs
+// from the stored one. Resending unchanged values is not a change.
+func changesCredentials(req *eveyv1.UpdateUserRequest, u *user.User) bool {
+	if req.Password != nil && *req.Password != "" {
+		return true
+	}
+	if req.Email != nil && strings.TrimSpace(*req.Email) != u.Email {
+		return true
+	}
+	return req.Username != nil && strings.TrimSpace(*req.Username) != u.Username
+}
+
+// reauthenticate checks the caller's current password before they change their
+// own credentials (AUTH-3): a stolen access token alone must not be enough.
+func (h *userHandler) reauthenticate(ctx context.Context, span trace.Span, userID, current string) error {
+	if strings.TrimSpace(current) == "" {
+		span.SetStatus(otelcodes.Error, "current password required")
+		return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.current_password_required")
+	}
+	err := h.auth.VerifyCurrentPassword(ctx, userID, current)
+	if err == nil {
+		return nil
+	}
+	span.SetStatus(otelcodes.Error, err.Error())
+	switch {
+	case errors.Is(err, appuser.ErrNoLocalPassword):
+		return h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.no_local_password")
+	case errors.Is(err, appuser.ErrAccountLocked):
+		return h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.auth.too_many_attempts")
+	case errors.Is(err, appuser.ErrInvalidCredentials):
+		// PermissionDenied, not Unauthenticated: clients sign out on a 401.
+		return h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.invalid_password")
+	default:
+		span.RecordError(err)
+		return internalError(ctx, "verify current password", err)
+	}
 }
 
 func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequest) (*eveyv1.DeleteUserResponse, error) {

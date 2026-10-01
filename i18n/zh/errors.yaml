@@ -96,6 +96,8 @@ user:
   id_required: "需要用户 ID"
   profile_id_required: "需要个人资料 ID"
   invalid_avatar_path: "头像路径无效"
+  current_password_required: "请输入当前密码以更改密码、电子邮件或用户名"
+  no_local_password: "此账户通过单点登录登录，尚未设置密码：请联系管理员设置密码，或使用密码重置"
 
 media:
   not_found: "媒体未找到"

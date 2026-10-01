@@ -103,6 +103,7 @@ function ProfileCard() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
+  const [currentPwd, setCurrentPwd] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   // Revoke the previous object URL when the preview changes or the page unmounts,
   // so repeated avatar uploads in one session don't leak blob URLs.
@@ -120,6 +121,7 @@ function ProfileCard() {
         setEditing(false);
         setPassword("");
         setConfirmPwd("");
+        setCurrentPwd("");
         toast.success(t("auth.profile.profileUpdated"));
       },
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("auth.profile.failedToUpdate"))),
@@ -131,6 +133,7 @@ function ProfileCard() {
     setEmail(user?.email ?? "");
     setPassword("");
     setConfirmPwd("");
+    setCurrentPwd("");
     setEditing(true);
   };
 
@@ -145,7 +148,9 @@ function ProfileCard() {
       data.password = password;
     }
     if (Object.keys(data).length === 0) { setEditing(false); return; }
-    updateUser.mutate({ id: user.id, data });
+    // Username, e-mail and password are credentials: the server re-checks the current password.
+    if (!currentPwd) { toast.error(t("errors.user.current_password_required")); return; }
+    updateUser.mutate({ id: user.id, data: { ...data, currentPassword: currentPwd } });
   };
 
   const handleAvatarClick = () => fileInputRef.current?.click();
@@ -239,6 +244,17 @@ function ProfileCard() {
                   onChange={(e) => setConfirmPwd(e.target.value)}
                 />
               </div>
+            </div>
+            <div className="border-t border-[var(--border)] pt-3 mt-1">
+              <p className="text-xs text-[var(--text-muted)] mb-2">{t("auth.settings.account.currentPasswordHint")}</p>
+              <Input
+                label={t("auth.settings.account.currentPassword")}
+                type="password"
+                autoComplete="current-password"
+                required
+                value={currentPwd}
+                onChange={(e) => setCurrentPwd(e.target.value)}
+              />
             </div>
             <div className="flex gap-2 pt-1">
               <Button variant="primary" loading={updateUser.isPending} onClick={handleSave}>{t("auth.profile.save")}</Button>

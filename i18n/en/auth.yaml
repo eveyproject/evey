@@ -256,6 +256,8 @@ settings:
     changePassword: Change Password
     changePasswordDesc: Use a strong password with at least 8 characters.
     newPassword: New password
+    currentPassword: "Current password"
+    currentPasswordHint: "Required to change your username, e-mail or password."
     confirmPassword: Confirm password
     passwordMismatch: Passwords do not match
     passwordMin: Password must be at least 8 characters

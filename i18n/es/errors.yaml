@@ -96,6 +96,8 @@ user:
   id_required: "Se requiere un identificador de usuario"
   profile_id_required: "Se requiere un identificador de perfil"
   invalid_avatar_path: "Ruta de avatar no válida"
+  current_password_required: "Introduce tu contraseña actual para cambiar tu contraseña, correo electrónico o nombre de usuario"
+  no_local_password: "Esta cuenta inicia sesión con inicio de sesión único y aún no tiene contraseña: pide a un administrador que la defina o usa el restablecimiento de contraseña"
 
 media:
   not_found: "Medio no encontrado"

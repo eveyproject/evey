@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUserServiceUpdateUser,
+  useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
   getUserServiceListUsersQueryKey,
   getUserServiceListProfilesQueryKey,
@@ -41,6 +42,11 @@ export function EditUserScreen({ user, onSaved, onCancel }: Props) {
   const [username, setUsername] = useState(user.username ?? "");
   const [email, setEmail] = useState(user.email ?? "");
   const [password, setPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  // An admin editing their OWN account re-enters their password, like on the
+  // settings screen; editing someone else needs no proof (AUTH-3).
+  const { data: me } = useUserServiceGetCurrentUser();
+  const isSelf = !!me?.id && me.id === user.id;
   const [isAdmin, setIsAdmin] = useState(user.isAdmin ?? false);
   const [maxProfiles, setMaxProfiles] = useState<string>(String(user.maxProfiles ?? 0));
   const [maxDevicesPerProfile, setMaxDevicesPerProfile] = useState<string>(
@@ -59,6 +65,7 @@ export function EditUserScreen({ user, onSaved, onCancel }: Props) {
     setUsername(user.username ?? "");
     setEmail(user.email ?? "");
     setPassword("");
+    setCurrentPassword("");
     setIsAdmin(user.isAdmin ?? false);
     setMaxProfiles(String(user.maxProfiles ?? 0));
     setMaxDevicesPerProfile(String(user.maxDevicesPerProfile ?? 0));
@@ -129,6 +136,13 @@ export function EditUserScreen({ user, onSaved, onCancel }: Props) {
     if (Object.keys(data).length === 0) {
       onSaved?.();
       return;
+    }
+    if (isSelf && (data.username !== undefined || data.email !== undefined || data.password !== undefined)) {
+      if (!currentPassword) {
+        setError(t("errors.user.current_password_required"));
+        return;
+      }
+      data.currentPassword = currentPassword;
     }
 
     updateUser.mutate({ id: user.id, data });
@@ -214,6 +228,32 @@ export function EditUserScreen({ user, onSaved, onCancel }: Props) {
             accessibilityLabel={t("admin.users.newPassword", "New password")}
           />
         </View>
+
+        {isSelf && (
+          <View style={s.field}>
+            <Text style={[s.label, { color: theme.colors.textMuted }]}>
+              {t("auth.settings.account.currentPassword")}
+            </Text>
+            <TextInput
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              secureTextEntry
+              autoComplete="current-password"
+              placeholder={t("auth.settings.account.currentPasswordHint")}
+              placeholderTextColor={theme.colors.textMuted}
+              style={[
+                s.input,
+                {
+                  backgroundColor: theme.colors.surface,
+                  color: theme.colors.text,
+                  borderColor: theme.colors.border,
+                  borderRadius: theme.radii.md,
+                },
+              ]}
+              accessibilityLabel={t("auth.settings.account.currentPassword")}
+            />
+          </View>
+        )}
 
         {/* isAdmin toggle */}
         <View

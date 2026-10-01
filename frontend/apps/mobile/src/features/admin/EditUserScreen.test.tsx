@@ -66,6 +66,7 @@ vi.mock("../../providers/ThemeProvider", () => ({
 // --- API mocks ------------------------------------------------------------------------
 const mutateMock = vi.fn();
 const invalidateMock = vi.fn();
+const currentUserMock = vi.fn(() => ({ data: { id: "admin-1" } }));
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
@@ -77,6 +78,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
     data: { profiles: [] },
     isLoading: false,
   }),
+  useUserServiceGetCurrentUser: () => currentUserMock(),
   getUserServiceListUsersQueryKey: () => ["users"],
   getUserServiceListProfilesQueryKey: (id: string) => ["profiles", id],
 }));
@@ -266,6 +268,34 @@ describe("EditUserScreen", () => {
         expect(onSaved).toHaveBeenCalled();
       });
       expect(mutateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  // AUTH-3: the admin editing their OWN account proves it with their password;
+  // editing someone else (the tests above) never asks for it.
+  describe("self edit", () => {
+    it("requires and sends the current password", async () => {
+      currentUserMock.mockReturnValue({ data: { id: "u1" } });
+      renderScreen();
+      fireEvent.change(screen.getByRole("textbox", { name: /email/i }), { target: { value: "self@example.com" } });
+      fireEvent.click(screen.getByRole("button", { name: /save/i }));
+      await waitFor(() => expect(screen.getByText("errors.user.current_password_required")).toBeTruthy());
+      expect(mutateMock).not.toHaveBeenCalled();
+
+      fireEvent.change(screen.getByRole("textbox", { name: /currentPassword/ }), { target: { value: "mypassword" } });
+      fireEvent.click(screen.getByRole("button", { name: /save/i }));
+      await waitFor(() => {
+        expect(mutateMock).toHaveBeenCalledWith({
+          id: "u1",
+          data: { email: "self@example.com", currentPassword: "mypassword" },
+        });
+      });
+      currentUserMock.mockReturnValue({ data: { id: "admin-1" } });
+    });
+
+    it("hides the field for another user", () => {
+      renderScreen();
+      expect(screen.queryByRole("textbox", { name: /currentPassword/ })).toBeNull();
     });
   });
 

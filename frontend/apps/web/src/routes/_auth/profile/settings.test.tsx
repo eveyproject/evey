@@ -223,6 +223,25 @@ describe("SettingsPage", () => {
     render(React.createElement(SettingsPage), { wrapper: createWrapper() });
     expect(screen.getByText("alice")).toBeInTheDocument();
   });
+
+  // AUTH-3: a stolen token alone must not change the account's credentials.
+  it("sends the current password with a credential change, and refuses without it", async () => {
+    const mutate = vi.fn();
+    mockUpdateUser.mockReturnValue({ mutate, isPending: false });
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: "Edit Profile" }));
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(mutate).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/Current password/i), { target: { value: "oldpassword" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(mutate).toHaveBeenCalledWith({
+      id: "u-1",
+      data: { email: "new@example.com", currentPassword: "oldpassword" },
+    });
+  });
 });
 
 // The menu used to be a horizontal tab strip: the six translated labels never

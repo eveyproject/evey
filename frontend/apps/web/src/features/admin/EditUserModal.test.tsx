@@ -8,6 +8,7 @@ const updateMutateAsync = vi.fn();
 const setAccessMutateAsync = vi.fn();
 const revokeAccessMutateAsync = vi.fn();
 const getAccessMock = vi.fn();
+const currentUserMock = vi.fn();
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
@@ -25,6 +26,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
     isPending: false,
   }),
   useUserServiceListProfiles: (_id: string, _opts: unknown) => ({ data: { profiles: [] }, isLoading: false }),
+  useUserServiceGetCurrentUser: () => currentUserMock(),
   useUserServiceCreateProfile: () => ({ mutate: vi.fn(), isPending: false }),
   useUserServiceDeleteProfile: () => ({ mutate: vi.fn(), isPending: false }),
   useUserServiceSetDefaultProfile: () => ({ mutate: vi.fn(), isPending: false }),
@@ -60,6 +62,7 @@ describe("EditUserModal", () => {
     updateMutateAsync.mockReset().mockResolvedValue({});
     setAccessMutateAsync.mockReset().mockResolvedValue({});
     revokeAccessMutateAsync.mockReset().mockResolvedValue({});
+    currentUserMock.mockReset().mockReturnValue({ data: { id: "admin-1" } });
     getAccessMock.mockReset().mockReturnValue({
       data: { libraryIds: [], libraries: [] },
       isLoading: false,
@@ -136,5 +139,30 @@ describe("EditUserModal", () => {
     await u.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  // AUTH-3: the admin editing their OWN account proves it with their password;
+  // editing someone else (every test above) never asks for it.
+  it("asks an admin editing their own account for the current password", async () => {
+    currentUserMock.mockReturnValue({ data: { id: "u1" } });
+    const u = userEvent.setup();
+    render(<EditUserModal user={baseUser} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
+    const email = screen.getByLabelText("Email");
+    await u.clear(email);
+    await u.type(email, "self@example.com");
+    await u.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateMutateAsync).not.toHaveBeenCalled();
+
+    await u.type(screen.getByLabelText("Current password"), "mypassword");
+    await u.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateMutateAsync).toHaveBeenCalledWith({
+      id: "u1",
+      data: { email: "self@example.com", currentPassword: "mypassword" },
+    });
+  });
+
+  it("does not show the current password field for another user", () => {
+    render(<EditUserModal user={baseUser} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
+    expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
   });
 });
