@@ -1,5 +1,5 @@
 ---
-source_sha: e1e56c5e8b4af228a44f567d290622a0165ed4a03deb071e09411371605750d5
+source_sha: 58e220cb177619c27f3d55f0ae3d1c6a3b4df50ab6ace660df93aa8ccf6e6df9
 reviewed: false
 ---
 # सार्वजनिक API
@@ -16,7 +16,7 @@ reviewed: false
 | [collection.swagger.json](collection.swagger.json) | स्मार्ट और मैनुअल कलेक्शन |
 | [favorite.swagger.json](favorite.swagger.json) | पसंदीदा आइटम |
 | [feed.swagger.json](feed.swagger.json) | मुखपृष्ठ के सेक्शन (देखना जारी रखें, हाल ही में जोड़े गए आदि) |
-| [playlist.swagger.json](playlist.swagger.json) | प्लेलिस्ट (बनाना, क्रम बदलना, साझा करना) |
+| [playlist.swagger.json](playlist.swagger.json) | प्लेलिस्ट, हाथ से या नियमों से बनी |
 | [rating.swagger.json](rating.swagger.json) | उपयोगकर्ता रेटिंग |
 | [share.swagger.json](share.swagger.json) | सार्वजनिक साझा लिंक |
 | [syncplay.swagger.json](syncplay.swagger.json) | तालमेल वाले प्लेबैक कमरे |

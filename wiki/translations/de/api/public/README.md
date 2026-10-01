@@ -1,5 +1,5 @@
 ---
-source_sha: e1e56c5e8b4af228a44f567d290622a0165ed4a03deb071e09411371605750d5
+source_sha: 58e220cb177619c27f3d55f0ae3d1c6a3b4df50ab6ace660df93aa8ccf6e6df9
 reviewed: false
 ---
 # Öffentliche API
@@ -16,7 +16,7 @@ Endpunkte für Benutzer, verfügbar für alle angemeldeten Benutzer.
 | [collection.swagger.json](collection.swagger.json) | Intelligente und manuelle Sammlungen |
 | [favorite.swagger.json](favorite.swagger.json) | Favoriten |
 | [feed.swagger.json](feed.swagger.json) | Abschnitte der Startseite (Weiterschauen, kürzlich hinzugefügt usw.) |
-| [playlist.swagger.json](playlist.swagger.json) | Playlists (anlegen, umsortieren, teilen) |
+| [playlist.swagger.json](playlist.swagger.json) | Playlists, von Hand oder nach Regeln erstellt |
 | [rating.swagger.json](rating.swagger.json) | Bewertungen der Benutzer |
 | [share.swagger.json](share.swagger.json) | Öffentliche Freigabelinks |
 | [syncplay.swagger.json](syncplay.swagger.json) | Räume für synchrone Wiedergabe |

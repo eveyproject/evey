@@ -1,5 +1,5 @@
 ---
-source_sha: e1e56c5e8b4af228a44f567d290622a0165ed4a03deb071e09411371605750d5
+source_sha: 58e220cb177619c27f3d55f0ae3d1c6a3b4df50ab6ace660df93aa8ccf6e6df9
 reviewed: true
 ---
 # API publique
@@ -16,7 +16,7 @@ Les points d'accès ouverts à tous les utilisateurs authentifiés.
 | [collection.swagger.json](collection.swagger.json) | Collections intelligentes et manuelles |
 | [favorite.swagger.json](favorite.swagger.json) | Favoris |
 | [feed.swagger.json](feed.swagger.json) | Sections de l'accueil (reprendre la lecture, ajouts récents, etc.) |
-| [playlist.swagger.json](playlist.swagger.json) | Playlists (création, réorganisation, partage) |
+| [playlist.swagger.json](playlist.swagger.json) | Playlists, faites à la main ou par règles |
 | [rating.swagger.json](rating.swagger.json) | Notes des utilisateurs |
 | [share.swagger.json](share.swagger.json) | Liens de partage publics |
 | [syncplay.swagger.json](syncplay.swagger.json) | Salons de lecture synchronisée |
