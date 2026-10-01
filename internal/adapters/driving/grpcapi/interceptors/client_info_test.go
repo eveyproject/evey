@@ -391,3 +391,17 @@ type fakeAddr struct{ network, addr string }
 
 func (f fakeAddr) Network() string { return f.network }
 func (f fakeAddr) String() string  { return f.addr }
+
+// The trusted hop appends its own x-real-ip / x-real-user-agent AFTER anything
+// the client smuggled in, so the last value is the one the proxy vouches for.
+func TestClientInfoUnary_TrustedHopValueWinsOverSmuggledOne(t *testing.T) {
+	md := metadata.MD{
+		"x-real-ip":         {"1.2.3.4", "203.0.113.9"},
+		"x-real-user-agent": {"forged-agent", "real-agent"},
+	}
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+	ctx = peer.NewContext(ctx, &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 40000}})
+	got := resolveViaInterceptor(t, ctx)
+	assert.Equal(t, "203.0.113.9", interceptors.ClientIPFromCtx(got))
+	assert.Equal(t, "real-agent", interceptors.UserAgentFromCtx(got))
+}

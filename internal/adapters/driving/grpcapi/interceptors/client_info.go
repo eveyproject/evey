@@ -41,7 +41,7 @@ func enrichClientInfo(ctx context.Context) context.Context {
 	// Prefer the REAL client user-agent the gateway annotator captured; the raw
 	// "user-agent" metadata is grpc-go's own ("grpc-go/x.y.z") once a request
 	// crosses the HTTP->gRPC gateway.
-	if ua := firstMD(md, "x-real-user-agent", "grpcgateway-user-agent", "user-agent"); ua != "" {
+	if ua := lastMD(md, "x-real-user-agent", "grpcgateway-user-agent", "user-agent"); ua != "" {
 		ctx = context.WithValue(ctx, userAgentKey{}, ua)
 	}
 	if vals := md.Get("x-device-name"); len(vals) > 0 {
@@ -56,11 +56,16 @@ func enrichClientInfo(ctx context.Context) context.Context {
 	return ctx
 }
 
-// firstMD returns the first non-empty value across the given metadata keys.
-func firstMD(md metadata.MD, keys ...string) string {
+// lastMD returns, for the first key present, its LAST non-empty value: the
+// gateway appends its own values after whatever the client sent, so on a
+// repeated key the trusted hop's value is the last one, never the first.
+func lastMD(md metadata.MD, keys ...string) string {
 	for _, k := range keys {
-		if vals := md.Get(k); len(vals) > 0 && vals[0] != "" {
-			return vals[0]
+		vals := md.Get(k)
+		for i := len(vals) - 1; i >= 0; i-- {
+			if vals[i] != "" {
+				return vals[i]
+			}
 		}
 	}
 	return ""
@@ -105,7 +110,7 @@ func resolveClientIPReasoned(ctx context.Context, md metadata.MD) ratelimit.Prox
 		PeerIP:      peerIP,
 		PeerTrusted: localTransport || (parsed != nil && ratelimit.IsTrustedProxy(parsed)),
 	}
-	res.XFF = firstMD(md, "x-real-ip", "x-forwarded-for")
+	res.XFF = lastMD(md, "x-real-ip", "x-forwarded-for")
 	if res.PeerTrusted && res.XFF != "" {
 		if ip := strings.TrimSpace(strings.Split(res.XFF, ",")[0]); ip != "" {
 			res.IP = ip
