@@ -3,6 +3,7 @@ package metadata
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -135,6 +136,12 @@ func (p *OMDbProvider) doRequest(ctx context.Context, rawURL string) ([]byte, er
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
+		// *url.Error quotes the request URL, apikey included: drop it before
+		// the error reaches a wrap or a log line.
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			ue.URL = redactAPIKey(ue.URL)
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -300,4 +307,18 @@ type omdbDetail struct {
 type omdbRating struct {
 	Source string `json:"Source"`
 	Value  string `json:"Value"`
+}
+
+// redactAPIKey replaces the apikey query value of rawURL.
+func redactAPIKey(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "omdb request"
+	}
+	q := u.Query()
+	if q.Has("apikey") {
+		q.Set("apikey", "REDACTED")
+		u.RawQuery = q.Encode()
+	}
+	return u.String()
 }

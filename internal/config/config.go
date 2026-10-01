@@ -733,6 +733,11 @@ func (c *Config) WarnValidate() error {
 	if c.DB.Password == "evey" {
 		hardFail("EVEY_DB_PASSWORD is the default 'evey' - set a strong database password")
 	}
+	// Warned, not refused: installs that copied .env.example would stop on
+	// their next upgrade, for a database the compose keeps off the network.
+	if c.DB.Password == "changeme" {
+		slog.Warn("config hardening: EVEY_DB_PASSWORD is the .env.example placeholder 'changeme' - set a strong database password")
+	}
 
 	// Finite ranges. Out of 98 EVEY_* variables only the plugin enums were
 	// checked, so a value that cannot possibly work started the server anyway
