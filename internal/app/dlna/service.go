@@ -134,12 +134,17 @@ func (s *Service) discover(ctx context.Context) ([]Renderer, error) {
 	var renderers []Renderer
 	buf := make([]byte, 4096)
 	for {
-		n, _, err := conn.ReadFromUDP(buf)
+		n, src, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			break
 		}
 		location := parseLocationHeader(string(buf[:n]))
 		if location == "" {
+			continue
+		}
+		if !locationFromResponder(location, src.IP) {
+			slog.DebugContext(ctx, "dlna: skip a location the responder does not host",
+				slog.String("location", location), slog.String("from", src.IP.String()))
 			continue
 		}
 		if _, ok := seen[location]; ok {
@@ -234,6 +239,9 @@ func fetchDeviceDescription(ctx context.Context, location string) (*Renderer, er
 	if err != nil {
 		return nil, fmt.Errorf("resolve control url: %w", err)
 	}
+	if !sameHost(location, controlURL) {
+		return nil, fmt.Errorf("control url %q is not on the device %q", controlURL, location)
+	}
 
 	name := root.Device.FriendlyName
 	if name == "" {
@@ -255,6 +263,26 @@ func fetchDeviceDescription(ctx context.Context, location string) (*Renderer, er
 		Location:   location,
 		ControlURL: controlURL,
 	}, nil
+}
+
+// locationFromResponder reports whether an SSDP LOCATION points at the host
+// that sent it, as an http(s) URL on its IP. Anything else (another host, a
+// name, another scheme) would let any LAN machine make the server fetch it.
+func locationFromResponder(location string, src net.IP) bool {
+	u, err := url.Parse(location)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	ip := net.ParseIP(u.Hostname())
+	return ip != nil && src != nil && ip.Equal(src)
+}
+
+// sameHost reports whether two URLs name the same host (any port).
+func sameHost(a, b string) bool {
+	ua, errA := url.Parse(a)
+	ub, errB := url.Parse(b)
+	return errA == nil && errB == nil && ua.Hostname() != "" && strings.EqualFold(ua.Hostname(), ub.Hostname()) &&
+		(ub.Scheme == "http" || ub.Scheme == "https")
 }
 
 func resolveURL(base, ref string) (string, error) {
