@@ -1,5 +1,5 @@
 ---
-source_sha: 6ad73949864d3c9b0dea20d620fb0f5e4a2b176cba0f54c8e15090f66f2b929c
+source_sha: 1a764dc349466d08546e1872dd0168db702f96a926dc5a0f771fabb1cd60921b
 reviewed: false
 ---
 # Idiomas y accesibilidad
@@ -16,7 +16,8 @@ accesibilidad en particular como *un esfuerzo razonable, no certificado*.
 ### Qué se traduce y qué no
 
 - **Traducido:** la interfaz (botones, menús, ajustes, mensajes de error, texto
-  de las notificaciones por correo y push).
+  de las notificaciones push). Los correos (notificaciones, restablecimiento de
+  contraseñas) se envían en inglés.
 - **No lo traduce Evey:** los metadatos de los medios (títulos, sinopsis, géneros)
   vienen de tu proveedor de metadatos (TMDB/OMDb) en el **Idioma de metadatos**
   definido en el asistente de configuración o en **Admin → Configuración del
