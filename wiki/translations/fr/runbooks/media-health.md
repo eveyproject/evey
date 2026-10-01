@@ -1,5 +1,5 @@
 ---
-source_sha: 6793435ce29d5b03c7d7504757f1dc297b95ed73f6f61930a65ecd174182af6a
+source_sha: 20c15f25fe69f68ab885ee03c012f737103bebcc94ce6da6d3efd20c3bbaff60
 reviewed: true
 ---
 # Santé des médias
@@ -80,7 +80,7 @@ piste et un décalage à essayer, puis regardez-le, au ralenti si besoin. Compar
 des pistes dit si elles concordent, jamais laquelle suit l'image ; seul le
 visionnage tranche.
 
-**Appliquer** déplace cette piste du décalage choisi. La modification est
+**Appliquer N s à cette piste** déplace cette piste du décalage choisi. La modification est
 enregistrée comme votre jugement, pas comme une mesure, et **Historique** peut
 l'annuler.
 
