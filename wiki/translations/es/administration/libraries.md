@@ -1,5 +1,5 @@
 ---
-source_sha: e59bbf6aa9d7e1a2cb3513ef0337a093ae293e253430eaa6e6d5dc087423cb60
+source_sha: b6d595e92c82851324debcee0de01b789bd1def644e658e011f90ccc857c9de9
 reviewed: false
 ---
 # Bibliotecas y metadatos
@@ -20,7 +20,7 @@ pósteres, reparto, valoraciones. Las bibliotecas se gestionan en
 | --- | --- | --- |
 | **Películas** | Una película por archivo (o por carpeta) | TMDB, completado por OMDb cuando hay una clave |
 | **Series** | Series, temporadas, episodios | TMDB |
-| **Música** | Artistas, álbumes, pistas | Las etiquetas de los archivos, MusicBrainz; portadas de Cover Art Archive, luego iTunes |
+| **Música** | Artistas, álbumes, pistas | Las etiquetas de los archivos; portadas de los archivos, la carpeta del álbum, Cover Art Archive (MusicBrainz), luego iTunes |
 | **Fotos** | Álbumes, imágenes con sus datos de captura | Los archivos |
 
 Mantén películas y series en bibliotecas separadas: el tipo le dice al escáner
@@ -50,6 +50,34 @@ de idioma como `VOSTFR` o `MULTI`, ediciones como «Director's Cut») se elimina
 antes de la búsqueda. Si tus archivos llevan una etiqueta que el analizador no
 conoce, añádela en **Admin → Configuración del servidor → Tokens del
 analizador**; se aplica a partir del siguiente escaneo.
+
+## Bibliotecas de música
+
+El escáner lee archivos MP3, FLAC, M4A, OGG, Opus, WAV y AAC, y toma cada pista
+de sus etiquetas: título (el nombre del archivo si falta), artista, artista del
+álbum, álbum, año, números de pista y de disco, género. Los artistas se agrupan
+por artista del álbum, o por artista cuando esa etiqueta está vacía.
+
+**Un álbum es una carpeta.** Las pistas se agrupan por la carpeta en la que
+están, no por su etiqueta de álbum: dos carpetas con la misma etiqueta de álbum
+son dos álbumes, y un álbum repartido en subcarpetas `CD1` y `CD2` aparece como
+dos. Mantén cada álbum en una sola carpeta; sus pistas se ordenan por número de
+disco y luego por número de pista, y el álbum toma el nombre que lleva la
+mayoría de sus pistas.
+
+La portada es la imagen incrustada en los archivos, si no una imagen de la
+carpeta del álbum (`cover.jpg`, `folder.jpg` o `front.jpg`), si no Cover Art
+Archive (encontrada mediante MusicBrainz), si no iTunes.
+
+## Bibliotecas de fotos
+
+El escáner lee archivos JPEG, PNG, HEIC, WebP, GIF, TIFF y BMP. El álbum de una
+foto es su carpeta, relativa a la carpeta de la biblioteca; una foto en el nivel
+superior no tiene, y mover un archivo a otra carpeta lo pasa a ese álbum en el
+siguiente escaneo. La fecha de captura y el modelo de cámara vienen de los datos
+EXIF de los archivos JPEG; los demás formatos se listan sin ellos. Las
+miniaturas se redimensionan en el servidor y se guardan en la caché de
+transcodificación.
 
 ## Cómo se detectan los archivos nuevos
 

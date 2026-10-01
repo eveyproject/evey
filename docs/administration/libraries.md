@@ -15,7 +15,7 @@ cast, ratings. Libraries are managed in **Admin → Libraries**.
 | --- | --- | --- |
 | **Movies** | One film per file (or per folder) | TMDB, completed by OMDb when a key is set |
 | **Shows** | Series, seasons, episodes | TMDB |
-| **Music** | Artists, albums, tracks | The files' tags, MusicBrainz; covers from Cover Art Archive, then iTunes |
+| **Music** | Artists, albums, tracks | The files' tags; covers from the files, the album folder, Cover Art Archive (MusicBrainz), then iTunes |
 | **Photos** | Albums, pictures with their shooting details | The files |
 
 Keep films and series in separate libraries: the type tells the scanner what to
@@ -44,6 +44,32 @@ tags (resolution, source, codec, audio, language tags such as `VOSTFR` or
 `MULTI`, editions such as "Director's Cut") are removed before the search. If
 your files carry a tag the parser does not know, add it in **Admin → Server
 Config → Parser tokens**; it applies from the next scan.
+
+## Music libraries
+
+The scanner reads MP3, FLAC, M4A, OGG, Opus, WAV and AAC files, and takes each
+track from its tags: title (the file name when it is missing), artist, album
+artist, album, year, track and disc numbers, genre. Artists are grouped by
+album artist, or by artist when that tag is empty.
+
+**An album is a folder.** Tracks are grouped by the folder they sit in, not by
+their album tag: two folders sharing one album tag are two albums, and an album
+split into `CD1` and `CD2` subfolders shows as two. Keep each album in one
+folder; its tracks are ordered by disc number, then track number, and the album
+takes the name most of its tracks carry.
+
+The cover is the picture embedded in the files, otherwise an image in the album
+folder (`cover.jpg`, `folder.jpg` or `front.jpg`), otherwise Cover Art Archive
+(found through MusicBrainz), otherwise iTunes.
+
+## Photo libraries
+
+The scanner reads JPEG, PNG, HEIC, WebP, GIF, TIFF and BMP files. A photo's
+album is its folder, relative to the library folder; a photo at the top level
+has none, and moving a file to another folder moves it to that album at the
+next scan. The date taken and the camera model come from the EXIF data of JPEG
+files; the other formats are listed without them. Thumbnails are resized on the
+server and kept in the transcoding cache.
 
 ## How new files are picked up
 
@@ -98,6 +124,9 @@ Server Config → Server Settings**, off by default) makes every player skip the
 on its own.
 
 <!-- sources
+music: internal/adapters/driven/filesystem/music_scanner.go (audioExts) ; internal/app/music/command_service.go - parseTrack (AlbumFolder = parent dir, title fallback) ; postgres/music_track_repo.go - GetAlbums GROUP BY album_folder, mode() display_album, ORDER BY disk_number, track_number ; GetArtists COALESCE(album_artist, artist)
+album art order: internal/app/music/album_art_folder.go (folderCoverNames, embedded wins) ; cmd/evey/wire_services.go (musicbrainz then itunes)
+photos: internal/adapters/driven/filesystem/photo_scanner.go (imageExts) ; internal/app/photo/command_service.go - albumOf, processOnePhoto (EXIF JPEG only) ; http/photo_handler.go - serveTranscoded (cache photos/)
 types: i18n admin.libraries.types.* ; internal/adapters/driven/metadata/musicbrainz_provider.go ; internal/app/music/album_art_chain.go
 options, schedules: i18n admin.libraries.realtimeMonitoring, scanOnStartup, schedule options ; internal/config/config.go - EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL
 watcher probe: internal/app/library/watcher_probe.go - probeOnce, UnhealthyLibraries

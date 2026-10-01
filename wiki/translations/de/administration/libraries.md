@@ -1,5 +1,5 @@
 ---
-source_sha: e59bbf6aa9d7e1a2cb3513ef0337a093ae293e253430eaa6e6d5dc087423cb60
+source_sha: b6d595e92c82851324debcee0de01b789bd1def644e658e011f90ccc857c9de9
 reviewed: false
 ---
 # Bibliotheken und Metadaten
@@ -20,7 +20,7 @@ Zusammenfassungen, Poster, Besetzung, Bewertungen. Bibliotheken werden unter
 | --- | --- | --- |
 | **Filme** | Ein Film pro Datei (oder pro Ordner) | TMDB, ergänzt durch OMDb, wenn ein Schlüssel gesetzt ist |
 | **Serien** | Serien, Staffeln, Folgen | TMDB |
-| **Musik** | Künstler, Alben, Titel | Die Tags der Dateien, MusicBrainz; Cover von Cover Art Archive, dann iTunes |
+| **Musik** | Künstler, Alben, Titel | Die Tags der Dateien; Cover aus den Dateien, dem Albumordner, Cover Art Archive (MusicBrainz), dann iTunes |
 | **Fotos** | Alben, Bilder mit ihren Aufnahmedaten | Die Dateien |
 
 Halten Sie Filme und Serien in getrennten Bibliotheken: Der Typ sagt dem
@@ -50,6 +50,35 @@ Release-Tags (Auflösung, Quelle, Codec, Audio, Sprach-Tags wie `VOSTFR` oder
 Ihre Dateien ein Tag, das der Parser nicht kennt, fügen Sie es unter
 **Admin → Serverkonfiguration → Parser-Tokens** hinzu; es gilt ab dem nächsten
 Scan.
+
+## Musikbibliotheken
+
+Der Scanner liest MP3-, FLAC-, M4A-, OGG-, Opus-, WAV- und AAC-Dateien und
+entnimmt jeden Titel seinen Tags: Titel (der Dateiname, wenn er fehlt),
+Künstler, Albumkünstler, Album, Jahr, Titel- und CD-Nummer, Genre. Künstler
+werden nach Albumkünstler gruppiert, oder nach Künstler, wenn dieser Tag leer
+ist.
+
+**Ein Album ist ein Ordner.** Titel werden nach dem Ordner gruppiert, in dem sie
+liegen, nicht nach ihrem Album-Tag: Zwei Ordner mit demselben Album-Tag sind
+zwei Alben, und ein Album, das auf Unterordner `CD1` und `CD2` verteilt ist,
+erscheint als zwei. Behalten Sie jedes Album in einem Ordner; seine Titel werden
+nach CD-Nummer und dann nach Titelnummer sortiert, und das Album trägt den
+Namen, den die meisten seiner Titel tragen.
+
+Das Cover ist das in die Dateien eingebettete Bild, sonst ein Bild im
+Albumordner (`cover.jpg`, `folder.jpg` oder `front.jpg`), sonst Cover Art
+Archive (über MusicBrainz gefunden), sonst iTunes.
+
+## Fotobibliotheken
+
+Der Scanner liest JPEG-, PNG-, HEIC-, WebP-, GIF-, TIFF- und BMP-Dateien. Das
+Album eines Fotos ist sein Ordner, relativ zum Bibliotheksordner; ein Foto auf
+der obersten Ebene hat keines, und wer eine Datei in einen anderen Ordner
+verschiebt, verschiebt sie beim nächsten Scan in dieses Album. Aufnahmedatum
+und Kameramodell stammen aus den EXIF-Daten von JPEG-Dateien; die anderen
+Formate werden ohne sie aufgeführt. Vorschaubilder werden auf dem Server
+verkleinert und im Transkodierungs-Cache gehalten.
 
 ## Wie neue Dateien erkannt werden
 
