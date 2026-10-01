@@ -47,6 +47,7 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
 	title := "Scheduled Backup Failed"
 	push := pushSpec{key: "notifications.push.backup_failed.title", fallback: title}
+	fanoutID := uuid.New().String()
 	for _, p := range profiles {
 		n, err := notification.NewNotification(uuid.New().String(), p.ID, notification.TypeBackupFailed, title,
 			notification.WithNotificationMessage(e.Error),
@@ -57,7 +58,7 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
 			continue
 		}
-		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
+		s.persistAndDispatch(ctx, n, push, p.Locale, fanoutID)
 	}
 }
 
@@ -104,6 +105,7 @@ func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.
 		msg = "plugin reported an error"
 	}
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
+	fanoutID := uuid.New().String()
 	for _, p := range profiles {
 		n, err := notification.NewNotification(uuid.New().String(), p.ID, notification.TypePluginError, title,
 			notification.WithNotificationMessage(msg),
@@ -114,7 +116,7 @@ func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.
 			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
 			continue
 		}
-		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
+		s.persistAndDispatch(ctx, n, push, p.Locale, fanoutID)
 	}
 	slog.InfoContext(ctx, "plugin error notified",
 		slog.String("plugin_id", e.PluginID),
@@ -157,6 +159,7 @@ func (s *CommandService) handleMediaRequestCreated(parentCtx context.Context, ev
 		fallback: title,
 	}
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
+	fanoutID := uuid.New().String()
 	for _, p := range profiles {
 		n, err := notification.NewNotification(uuid.New().String(), p.ID, notification.TypeMediaRequest, title,
 			notification.WithNotificationMessage(string(e.MediaType)),
@@ -167,7 +170,7 @@ func (s *CommandService) handleMediaRequestCreated(parentCtx context.Context, ev
 			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
 			continue
 		}
-		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
+		s.persistAndDispatch(ctx, n, push, p.Locale, fanoutID)
 	}
 	slog.InfoContext(ctx, "media request notified to admins", slog.String("request_id", e.RequestID), slog.Int("admins", len(profiles)))
 }
@@ -216,6 +219,6 @@ func (s *CommandService) handleRequestAnswered(parentCtx context.Context, ev sha
 		slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(e.ProfileID)), slog.Any("err", err))
 		return
 	}
-	s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, locale))
+	s.persistAndDispatch(ctx, n, push, locale, uuid.New().String())
 	slog.InfoContext(ctx, "media request answer notified", slog.String("request_id", e.RequestID), slog.String("status", string(e.Status)))
 }

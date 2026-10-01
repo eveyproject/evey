@@ -35,4 +35,7 @@ push:
     title: "प्लगइन त्रुटि"
   plugin_error_id:
     title: "प्लगइन त्रुटि: {plugin}"
+email:
+  open: "{server} खोलें: {url}"
+  sent_by: "{server} द्वारा भेजा गया।"
 

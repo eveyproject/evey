@@ -15,12 +15,14 @@ import (
 // push + publish" primitive used by both the batching path and the event
 // handlers.
 
-func (s *CommandService) persistAndDispatch(ctx context.Context, n *notification.Notification, pushTitle string) {
+// fanoutID is one id per fan-out (shared by its per-profile rows); locale is
+// the profile's, for the push title.
+func (s *CommandService) persistAndDispatch(ctx context.Context, n *notification.Notification, push pushSpec, locale, fanoutID string) {
 	if createErr := s.repo.Create(ctx, n); createErr != nil {
 		slog.WarnContext(ctx, "create notification failed", slog.String("profileID", string(n.ProfileID)), slog.Any("err", createErr))
 		return
 	}
-	s.sendPush(ctx, n.ProfileID, pushTitle, n.Message)
+	s.sendPush(ctx, n.ProfileID, push.resolveTitle(s.translator, locale), n.Message)
 	evt := notification.NotificationCreated{
 		NotificationID: n.ID,
 		ProfileID:      n.ProfileID,
@@ -28,6 +30,11 @@ func (s *CommandService) persistAndDispatch(ctx context.Context, n *notification
 		Title:          n.Title,
 		MediaItemID:    n.MediaItemID,
 		OccurredAt:     n.CreatedAt,
+		FanoutID:       fanoutID,
+		TitleKey:       push.key,
+		TitleParams:    push.params,
+		TitleFallback:  push.fallback,
+		Message:        n.Message,
 	}
 	if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
 		slog.WarnContext(ctx, "publish notification.created", slog.Any("err", pubErr))

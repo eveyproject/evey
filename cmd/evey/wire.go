@@ -366,7 +366,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// Always registered: the sender reads liveSMTP at send time and is a no-op
 	// while no host is set, so SMTP configured later starts sending at once.
 	smtpSender := email.NewLiveSMTPSender(liveSMTP, cfg.EffectiveServerName)
-	email.NewNotificationEmailer(smtpSender, r.Profile, r.User, cfg.EffectiveServerName).Register(bus)
+	email.NewNotificationEmailer(smtpSender, r.Profile, r.User, cfg.EffectiveServerName,
+		email.WithNotificationLocale(infra.translator, serverLocaleFn), email.WithNotificationBaseURL(cfg.EffectiveBaseURL)).Register(bus)
 	email.NewPasswordResetEmailer(smtpSender, cfg.EffectiveBaseURL, cfg.EffectiveServerName).Register(bus)
 	if liveSMTP.Configured() {
 		rootLog.Info("SMTP email notifications enabled", slog.String("host", liveSMTP.Current().Host))
