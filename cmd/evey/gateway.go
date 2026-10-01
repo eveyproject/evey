@@ -31,14 +31,7 @@ func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
 			MarshalOptions: protojson.MarshalOptions{EmitUnpopulated: true},
 		}),
-		runtime.WithIncomingHeaderMatcher(func(key string) (string, bool) {
-			switch strings.ToLower(key) {
-			case "accept-language", "x-locale", "x-persistent-session":
-				return strings.ToLower(key), true
-			default:
-				return runtime.DefaultHeaderMatcher(key)
-			}
-		}),
+		runtime.WithIncomingHeaderMatcher(gatewayHeaderMatcher),
 		// Capture the REAL client user-agent + IP into metadata. Without this,
 		// downstream sees grpc-go's own user-agent and the gateway->grpc peer
 		// (a private container IP) - useless in the audit log. ratelimit.ClientIP
@@ -105,6 +98,30 @@ func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 		}
 	}
 	return mux, conn
+}
+
+// gatewayOwnedMetadata are the keys only this gateway (or grpc-gateway itself)
+// may set: the gRPC side trusts them because they come from a trusted peer.
+var gatewayOwnedMetadata = map[string]bool{
+	"x-real-ip": true, "x-forwarded-for": true, "x-forwarded-host": true,
+	"x-real-user-agent": true, "x-request-id": true,
+}
+
+// gatewayHeaderMatcher maps HTTP headers to gRPC metadata. A client must never
+// smuggle a gateway-owned key through Grpc-Metadata-*: grpc-gateway puts header
+// pairs BEFORE WithMetadata ones, so a forged x-real-ip used to win.
+func gatewayHeaderMatcher(key string) (string, bool) {
+	k := strings.ToLower(key)
+	switch k {
+	case "accept-language", "x-locale", "x-persistent-session":
+		return k, true
+	}
+	if inner, ok := strings.CutPrefix(k, strings.ToLower(runtime.MetadataHeaderPrefix)); ok &&
+		(gatewayOwnedMetadata[inner] || strings.HasPrefix(inner, runtime.MetadataPrefix)) {
+		return "", false
+	}
+	md, ok := runtime.DefaultHeaderMatcher(key)
+	return strings.ToLower(md), ok
 }
 
 // remoteAccessRefusalCode is the stable token clients map onto "remote access is
