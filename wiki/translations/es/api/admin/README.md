@@ -1,5 +1,5 @@
 ---
-source_sha: 8392e2d20e3a5b3c62e2f39d4743e925c172cdcb73dc639a5502e1bf4c16a66d
+source_sha: f1907adff4cc0c2d70169aaefdc143b3040b23f0c75f5fc0813c852b00f5c66f
 reviewed: false
 ---
 # API de administración
@@ -24,7 +24,7 @@ Endpoints de administración reservados a los usuarios con privilegios de admini
 ### Medios y transcodificación
 | Especificación | Descripción |
 |------|-------------|
-| [admin_media.swagger.json](admin_media.swagger.json) | Eliminar medios, actualizar metadatos, generar trickplay |
+| [admin_media.swagger.json](admin_media.swagger.json) | Salud de medios (análisis, reparaciones, historial y deshacer), eliminar medios, actualizar metadatos, generar trickplay |
 | [metadata.swagger.json](metadata.swagger.json) | Proveedores de metadatos, búsqueda, anulaciones |
 | [transcoding.swagger.json](transcoding.swagger.json) | Perfiles de transcodificación, detección de hardware, tareas activas |
 | [transcode_cache.swagger.json](transcode_cache.swagger.json) | Gestión de la caché de transcodificación |

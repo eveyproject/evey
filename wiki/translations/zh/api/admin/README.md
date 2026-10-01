@@ -1,5 +1,5 @@
 ---
-source_sha: 8392e2d20e3a5b3c62e2f39d4743e925c172cdcb73dc639a5502e1bf4c16a66d
+source_sha: f1907adff4cc0c2d70169aaefdc143b3040b23f0c75f5fc0813c852b00f5c66f
 reviewed: false
 ---
 # 管理 API
@@ -24,7 +24,7 @@ reviewed: false
 ### 媒体与转码
 | 规范 | 说明 |
 |------|-------------|
-| [admin_media.swagger.json](admin_media.swagger.json) | 删除媒体条目、刷新元数据、生成 trickplay |
+| [admin_media.swagger.json](admin_media.swagger.json) | 媒体健康（扫描、修复、历史和撤销）、删除媒体条目、刷新元数据、生成 trickplay |
 | [metadata.swagger.json](metadata.swagger.json) | 元数据提供商、搜索、覆盖 |
 | [transcoding.swagger.json](transcoding.swagger.json) | 转码配置、硬件检测、活动任务 |
 | [transcode_cache.swagger.json](transcode_cache.swagger.json) | 转码缓存管理 |

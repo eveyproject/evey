@@ -1,5 +1,5 @@
 ---
-source_sha: 8392e2d20e3a5b3c62e2f39d4743e925c172cdcb73dc639a5502e1bf4c16a66d
+source_sha: f1907adff4cc0c2d70169aaefdc143b3040b23f0c75f5fc0813c852b00f5c66f
 reviewed: false
 ---
 # Admin-API
@@ -24,7 +24,7 @@ Verwaltungsendpunkte, beschränkt auf Benutzer mit Administratorrechten.
 ### Medien und Transkodierung
 | Spezifikation | Beschreibung |
 |------|-------------|
-| [admin_media.swagger.json](admin_media.swagger.json) | Medien löschen, Metadaten aktualisieren, Trickplay erzeugen |
+| [admin_media.swagger.json](admin_media.swagger.json) | Medienzustand (Scans, Reparaturen, Verlauf und Rückgängigmachen), Medien löschen, Metadaten aktualisieren, Trickplay erzeugen |
 | [metadata.swagger.json](metadata.swagger.json) | Metadatenanbieter, Suche, Übersteuerungen |
 | [transcoding.swagger.json](transcoding.swagger.json) | Transkodierungsprofile, Hardwareerkennung, laufende Aufträge |
 | [transcode_cache.swagger.json](transcode_cache.swagger.json) | Verwaltung des Transkodierungs-Caches |
