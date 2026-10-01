@@ -56,7 +56,7 @@
     "common.clientChoice.title": "Interfaz de televisión",
     "mobile.serverConnect.connect": "Conectar",
     "mobile.serverConnect.connectAnyway": "Conectar de todos modos",
-    "mobile.serverConnect.connectionFailed": "Conexion fallida",
+    "mobile.serverConnect.connectionFailed": "Conexión fallida",
     "mobile.serverConnect.hint": "Introduzca la URL de su instancia Evey autoalojada",
     "mobile.serverConnect.insecureBody": "{{url}} está fuera de su red local y usa http://. Su contraseña y todo lo que vea viajarían sin cifrar. Use https:// si su servidor lo permite.",
     "mobile.serverConnect.insecureTitle": "Esta conexión no está cifrada",

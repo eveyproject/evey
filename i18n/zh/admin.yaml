@@ -1413,7 +1413,7 @@ seekIndex:
   repairHint: "重建检索索引。构造上安全:重写到临时副本、完整重新校验、原子交换 - 原文件保留为可回滚的 .mkvgobak 备份。"
   damagedBadge: "已损坏 ~{{size}}"
   truncatedHint: "此文件是不完整的下载：结尾缺失且任何工具都无法恢复。请重新获取源文件 - 重新同步只能重建一个可播放的开头，而非整部影片。"
-  wrongContainerBadge: "Wrong container"
+  wrongContainerBadge: "容器错误"
   wrongContainerHint: "这个 .mkv 实际上是 MP4/MOV 文件：没有 Matroska 索引可建。修复会将其重命名为 .mp4 并更新媒体库。"
   brokenInterleaveBadge: "轨道按块存放"
   brokenInterleaveHint: "各轨道按数分钟的独立块存放（先只有视频，再只有音频），而非交错排列 - 文件中两处之间时间戳倒退了 {{sec}} 秒。所有头部正常、所有流都能解码，但任何顺序读取的播放器都过不了第一块：直接播放卡住，ffmpeg 要等数分钟才拿到第一个音频分段。只有打包器（不转换的流式播放）能播放它，约读取两倍文件量，每次跳转还要读完整个块。\"重新交错轨道\"按钮会无损重写它（原文件保留为备份）；在别处做简单的流复制只会原样复制该布局。"
