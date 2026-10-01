@@ -96,8 +96,25 @@
  * unpatched filter denies every thread-directed signal (fails closed). */
 #define SELF_PID 0xffffffffu
 
+/* Kill on a foreign ABI (i386 numbers differ) and on x32 calls, which carry
+ * AUDIT_ARCH_X86_64 but nr | 0x40000000, so no DENY below would match them. */
+#if defined(__x86_64__)
+#define SANDBOX_AUDIT_ARCH AUDIT_ARCH_X86_64
+#elif defined(__aarch64__)
+#define SANDBOX_AUDIT_ARCH AUDIT_ARCH_AARCH64
+#endif
+
 static struct sock_filter filter[] = {
+#ifdef SANDBOX_AUDIT_ARCH
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SANDBOX_AUDIT_ARCH, 1, 0),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+#endif
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+#if defined(__x86_64__)
+    BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 0x40000000, 0, 1),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+#endif
 
     /* Thread-directed signals: allowed only towards this process (raise/abort,
      * pthread_kill, runtime preemption), never another same-uid process (server,

@@ -21,6 +21,16 @@ func TestSandboxShim_Signals(t *testing.T) {
 	if os.Getenv("EVEY_SHIM_PROBE") == "1" {
 		os.Exit(shimProbe())
 	}
+	out, err := runUnderShim(t, "TestSandboxShim_Signals")
+	if err != nil {
+		t.Fatalf("shim probe failed: %v\n%s", err, out)
+	}
+}
+
+// runUnderShim builds the shim and re-execs this binary's test under LD_PRELOAD
+// with EVEY_SHIM_PROBE=1; it skips when the shim cannot be measured here.
+func runUnderShim(t *testing.T, test string) ([]byte, error) {
+	t.Helper()
 	cc, err := exec.LookPath("gcc")
 	if err != nil {
 		if cc, err = exec.LookPath("cc"); err != nil {
@@ -31,20 +41,24 @@ func TestSandboxShim_Signals(t *testing.T) {
 	if out, err := exec.Command(cc, "-shared", "-fPIC", "-nostartfiles", "-o", so, "../../sandbox/sandbox.c").CombinedOutput(); err != nil {
 		t.Fatalf("build sandbox.c: %v\n%s", err, out)
 	}
-	cmd := exec.Command(os.Args[0], "-test.run=^TestSandboxShim_Signals$")
+	cmd := exec.Command(os.Args[0], "-test.run=^"+test+"$")
 	cmd.Env = append(os.Environ(), "EVEY_SHIM_PROBE=1", "LD_PRELOAD="+so)
 	out, err := cmd.CombinedOutput()
 	if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() == shimProbeSkip {
 		t.Skipf("shim not loaded into the test binary (static build?): %s", out)
 	}
-	if err != nil {
-		t.Fatalf("shim probe failed: %v\n%s", err, out)
-	}
+	return out, err
+}
+
+// shimActive is false when LD_PRELOAD had no effect (static test binary).
+func shimActive() bool {
+	_, _, e := unix.RawSyscall(unix.SYS_UNSHARE, 0, 0, 0)
+	return e == unix.EPERM
 }
 
 func shimProbe() int {
-	if _, _, e := unix.RawSyscall(unix.SYS_UNSHARE, 0, 0, 0); e != unix.EPERM {
-		fmt.Fprintf(os.Stderr, "shim filter not active (unshare errno=%v)\n", e)
+	if !shimActive() {
+		fmt.Fprintln(os.Stderr, "shim filter not active")
 		return shimProbeSkip
 	}
 	self, parent := uintptr(os.Getpid()), uintptr(os.Getppid())
