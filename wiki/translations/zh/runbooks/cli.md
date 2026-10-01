@@ -1,5 +1,5 @@
 ---
-source_sha: fc91b3be124757e49009dbe56dd9647724bd582d2bc356702367e4982e757455
+source_sha: f17930061339f3eb3099a82e050ac2879e82832832be4739cf28de6bb5bcbec3
 reviewed: false
 ---
 # Evey CLI - `evey admin`
@@ -24,7 +24,7 @@ evey completion bash          The bash completion script.
 
 ```
 evey admin reset-password --user <email>     Generate a new password, print it once.
-evey admin rotate-jwt-key                    Regenerate JWT signing key (kills ALL sessions).
+evey admin rotate-jwt-key                    Regenerate JWT signing key (access tokens only, see recovery.md).
 evey admin restore-backup <path>             Restore the database from a .sql.gz dump (the suffix is required; not the panel's .tar.gz backups).
 evey admin reindex-search [--library <id>] [--purge]   Rebuild the Meilisearch index from Postgres (--purge clears orphan docs first; if Meili is down, reports the Postgres fallback and does nothing).
 evey admin migrate up [--no-backup]          Apply pending migrations.
