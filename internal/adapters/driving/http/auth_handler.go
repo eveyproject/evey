@@ -15,6 +15,7 @@ import (
 
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/oauth2"
 
 	appuser "github.com/evey-project/evey/internal/app/user"
 
@@ -30,6 +31,10 @@ const (
 	oidcSessionCookieAge  = 5 * 60 // 5 minutes - one-time exchange
 
 	oidcIDTokenCookieName = "evey_oidc_id_token"
+
+	// oidcLoginCookieName holds the PKCE verifier of the login in progress; the
+	// signed state carries its challenge, so the callback is bound to this browser.
+	oidcLoginCookieName = "evey_oidc_login"
 
 	refreshCookieName   = "evey_refresh"
 	refreshCookieMaxAge = 30 * 24 * 3600 // 30 days
@@ -73,6 +78,17 @@ func oidcEndSessionURL(endpoint, postLogout, fallback, idToken string) string {
 		sep = "&"
 	}
 	return endpoint + sep + q.Encode()
+}
+
+// oidcLoginCookiePath scopes the login cookie to the callback as the browser
+// sees it (the configured redirect URL), so no other request carries it.
+func oidcLoginCookiePath(ctx context.Context, oidcSvc *appuser.OIDCService) string {
+	if cfg, err := oidcSvc.Config(ctx); err == nil {
+		if u, err := url.Parse(cfg.RedirectURL); err == nil && strings.HasPrefix(u.Path, "/") {
+			return u.Path
+		}
+	}
+	return appuser.OIDCCallbackPath
 }
 
 func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsOnly func() bool, oidcLoginRL ...*ratelimit.Limiter) {
@@ -132,7 +148,10 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 			}
 			nonce = hex.EncodeToString(nonceBuf[:])
 		}
-		authURL, err := oidcSvc.AuthURL(ctx, nonce)
+		// PKCE verifier: only its challenge goes to the IdP and into the signed
+		// state; the verifier stays in this browser and must come back with it.
+		verifier := oauth2.GenerateVerifier()
+		authURL, err := oidcSvc.AuthURL(ctx, nonce, verifier)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "provider unavailable")
@@ -140,6 +159,16 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 			fail(w, r, nonce, oidcErrorReason(err))
 			return
 		}
+		// Lax: the callback is a top-level GET coming from the IdP.
+		http.SetCookie(w, &http.Cookie{
+			Name:     oidcLoginCookieName,
+			Value:    verifier,
+			Path:     oidcLoginCookiePath(ctx, oidcSvc),
+			HttpOnly: true,
+			Secure:   httpsOnly(),
+			SameSite: http.SameSiteLaxMode,
+			MaxAge:   int(appuser.OIDCStateTTL / time.Second),
+		})
 		http.Redirect(w, r, authURL, http.StatusFound)
 	}))
 
@@ -150,6 +179,20 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 		q := r.URL.Query()
 		code := q.Get("code")
 		state := q.Get("state")
+		// The verifier is single-use: read it, then drop it whatever the outcome.
+		var verifier string
+		if c, err := r.Cookie(oidcLoginCookieName); err == nil {
+			verifier = c.Value
+		}
+		http.SetCookie(w, &http.Cookie{
+			Name:     oidcLoginCookieName,
+			Value:    "",
+			Path:     oidcLoginCookiePath(ctx, oidcSvc),
+			HttpOnly: true,
+			Secure:   httpsOnly(),
+			SameSite: http.SameSiteLaxMode,
+			MaxAge:   -1,
+		})
 
 		// The IdP reports a refusal or a cancel as ?error=...; the state, when
 		// valid, still says which client to send the person back to.
@@ -174,7 +217,7 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 			return
 		}
 
-		nonce, err := oidcSvc.ValidateState(state)
+		nonce, err := oidcSvc.ValidateBoundState(state, verifier)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "invalid state")
@@ -183,11 +226,17 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 				fail(w, r, "", "expired")
 				return
 			}
+			// Genuine state, but not issued to this browser (login CSRF, or a
+			// cookie lost on the way): never exchange the code.
+			if errors.Is(err, appuser.ErrStateUnbound) {
+				fail(w, r, nonce, "failed")
+				return
+			}
 			http.Error(w, "invalid state", http.StatusBadRequest)
 			return
 		}
 
-		accessToken, refreshToken, rawIDToken, err := oidcSvc.HandleCallback(r.Context(), code, nonce)
+		accessToken, refreshToken, rawIDToken, err := oidcSvc.HandleCallback(r.Context(), code, nonce, verifier)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "handle callback failed")

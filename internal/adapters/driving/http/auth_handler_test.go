@@ -145,7 +145,7 @@ func TestOIDCCallback_ValidState_TokenExchangeFails_RedirectsToError(t *testing.
 	registerOIDCRoutes(mux, svc, false)
 
 	// Generate valid signed state via AuthURL.
-	authURL, err := svc.AuthURL(context.Background(), "testnonce")
+	authURL, err := svc.AuthURL(context.Background(), "testnonce", "test-verifier")
 	if err != nil {
 		t.Fatalf("AuthURL: %v", err)
 	}
@@ -163,6 +163,7 @@ func TestOIDCCallback_ValidState_TokenExchangeFails_RedirectsToError(t *testing.
 	// so the handler redirects to /login?oidc_error=1.
 	req := httptest.NewRequest(http.MethodGet,
 		"/api/v1/auth/oidc/callback?code=bogus-code&state="+validState, nil)
+	req.AddCookie(&http.Cookie{Name: oidcLoginCookieName, Value: "test-verifier"})
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
