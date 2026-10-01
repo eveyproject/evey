@@ -74,7 +74,7 @@ Begründung: Themes dürfen Passwortfelder oder privilegierte Elemente der Oberf
 
 **Regeln für Vollbild-Überlagerungen** - der ganze Regelblock wird entfernt.
 
-Ein Regelblock wird entfernt, wenn er `position: fixed` oder `position: sticky` mit einer Box verbindet, die den Bildschirm bedeckt: `inset: 0`, die vier Seiten auf `0`, oder mindestens zwei von `top: 0`, `right: 0`, `bottom: 0`, `left: 0`, `width: 100vw`, `height: 100vh`, darunter eine der beiden Bildschirmgrößen. Eine mit `top: 0; left: 0` fixierte, durch ihren Inhalt bemessene Kopfzeile bleibt erhalten. Die Deklarationen eines Selektors werden über Regeln hinweg addiert, das Aufteilen des Musters auf mehrere Blöcke entgeht ihm also nicht. Dieses Muster ist die klassische CSS-Überlagerung für Phishing.
+Ein Regelblock wird entfernt, wenn er `position: fixed` oder `position: sticky` mit einer Box verbindet, die den Bildschirm bedeckt: `inset: 0`, die vier Seiten auf `0`, oder mindestens zwei von `top: 0`, `right: 0`, `bottom: 0`, `left: 0`, `width: 100vw`, `height: 100vh`, darunter eine der beiden Bildschirmgrößen. Eine mit `top: 0; left: 0` fixierte, durch ihren Inhalt bemessene Kopfzeile bleibt erhalten. Die Deklarationen eines Selektors werden über Regeln hinweg addiert, wer das Muster auf mehrere Blöcke aufteilt, entgeht der Regel also nicht. Dieses Muster ist die klassische CSS-Überlagerung für Phishing.
 
 **`pointer-events: none` auf interaktiven Elementen** - die Deklaration wird aus dem Regelblock entfernt.
 
@@ -165,7 +165,7 @@ evey.theme.css(`
 
 ### `evey.theme.log(level, msg)`
 
-Gibt eine Log-Meldung in der Browserkonsole aus, mit dem Präfix `[evey-theme]`. Erscheint nicht für Endbenutzer.
+Gibt eine Log-Meldung in der Browserkonsole aus, mit dem Präfix `[evey-theme]`. Wird Endbenutzern nicht angezeigt.
 
 - `level`: `"debug"` | `"info"` | `"warn"` | `"error"`
 - `msg`: reiner Text

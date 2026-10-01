@@ -28,7 +28,7 @@ Antwort dann zu verpacken, wobei alles über einen einzigen Hash adressiert wird
   `transcode`, Audio `copy` gegenüber `transcode` gegenüber dem wasm-Weg für
   AC-3. Video und Audio werden **unabhängig** entschieden - der häufige Fall ist
   „Video kopieren, Audio nach AAC neu kodieren".
-- **F3 - Wie viel kann dieser Host kodieren?** Die kalibrierte **Kapazität**
+- **F3 - Wie viel kann dieser Host kodieren?** Die kalibrierte **Fähigkeit**
   (aus der im ersten ruhigen Moment erstellten Messung) plus die **Zulassung**
   (welche Stufe der Leiter passt, ist ein Platz frei).
 
@@ -63,12 +63,12 @@ bis Ende zu verfolgen:
    `MakePlaybackDecisionWithPrefs` (rein): das Gehirn für Kopieren oder
    Transkodieren pro Spur. Der Resolver fügt die Festlegungen der Anfrage
    (`vd=` / `ad=`), die Übersteuerung der Audio-Resynchronisation usw. hinzu.
-4. **F3 · Kapazität** · `internal/app/transcoding/calibration_service.go` -
+4. **F3 · Fähigkeit** · `internal/app/transcoding/calibration_service.go` -
    `Current()` liefert `domain/transcoding.Derive(report, policy)`
    (`derive.go`): die Obergrenzen des Hosts, aus der letzten Kalibrierung
    abgeleitet.
 5. **Leiter und Zulassung** · der Resolver formt die Leiter (Komplexitätsklasse
-   → Profile der Produzenten → Obergrenzen von Quelle und Kapazität →
+   → Profile der Produzenten → Obergrenzen von Quelle und Fähigkeit →
    Obergrenzen CMCD/AV1 → Weg und Obergrenze der Zulassung) und **friert sie
    dann ein** auf der Festlegung der Zulassung (`admission_shaper.go`,
    `FreezeLadder`), bei jedem späteren Aufruf unverändert gelesen - die
@@ -93,7 +93,7 @@ Zweifel auf ffprobe zurück (Parse-Fehler, Panic, nicht abbildbares Ergebnis,
 eine verlorene MP4-Medienspur, DoVi-Profil 5, unlesbare Farbe). Beide schnellen
 Wege sind immer an (nil-Schalter in `wire.go`); ffprobe ist das Sicherheitsnetz,
 nie umgangen. Ein zweiter, identischer Verteiler (`keyframe_dispatcher.go`)
-kümmert sich um den Wiedergabeindex.
+kümmert sich um den Seek-Index.
 
 | Vorgang | mkvgo (kostenlos) | ffprobe / ffmpeg (teuer) |
 |---|---|---|
@@ -171,7 +171,7 @@ ohne Cookies.
   einmal ausgegeben, nie verändert, sodass die Invariante URLs↔Bytes durch
   Konstruktion hält.
 - **Sanftes Zurückfallen** - ein sicherer Rückfall bei jedem Schritt: 720p als
-  Standardkapazität, Ausweichen von Hardware auf Software, Kopie→Transkodierung,
+  Standardfähigkeit, Ausweichen von Hardware auf Software, Kopie→Transkodierung,
   mkvgo→ffprobe.
 
 ## Das Entscheidungsgehirn: der PlanResolver der Anwendungsschicht

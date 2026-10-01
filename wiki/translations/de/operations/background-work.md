@@ -45,4 +45,4 @@ Einige Einstellungen werden einmal gelesen, wenn der Server startet: Beim
 Speichern wird Ihre Wahl abgelegt, ein Neustart wendet sie an. Der
 Admin-Bereich sagt das neben ihnen. Es sind die Karte **Hintergrundarbeiten**
 (Pausieren und Taktung der Keyframe- und Codec-Level-Durchläufe), der Schalter
-**Intro-Skip-Anbieter** und die **Erweiterten Grenzwerte** der Transkodierung.
+**Intro-Skip-Anbieter** und der Bereich **Erweiterte Grenzwerte** der Transkodierung.

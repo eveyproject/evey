@@ -23,7 +23,7 @@ Siehe [Benutzer, Profile und Kindersicherung](administration/users.md),
 [Fernzugriff und HTTPS](administration/remote-access.md),
 [ADR-0026](adr/0026-remote-access-inferred-from-a-published-url.md).
 
-## 2. Code von Dritten wird eingesperrt, nicht vertraut
+## 2. Code von Dritten wird eingesperrt, nicht für vertrauenswürdig gehalten
 
 Ein Plugin erhält die Berechtigungen, die sein Manifest angibt, und nichts
 sonst, wird vor der Installation analysiert, läuft in einer Sandbox ohne

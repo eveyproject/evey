@@ -14,7 +14,7 @@ Strenger Aufbau nach Ports und Adaptern unter `internal/`:
 - `internal/app/<context>/` - Anwendungsdienste. Sie orchestrieren Ports. E/A läuft normalerweise über einen Port; zwei Kontexte sind bewusste Ausnahmen und greifen direkt aufs Netzwerk zu: `dlna` (SSDP / UPnP AVTransport) und `loadtest` (sein eigener HTTP-Client).
 - `internal/adapters/driven/` - ausgehende Adapter, die Domänen-Ports implementieren: `postgres`, `meilisearch`, `ffmpeg`, `mkvgo`, `filesystem`, `prober`, `opensubtitles`, `email`, `webpush`, `webhooksender`, `pluginrunner`, `metadata`, `introproviders`, `search`. Zwei weitere liegen hier, erfüllen aber eine Schnittstelle der Anwendungsschicht statt eines Domänen-Ports: `itunes` und `musicbrainz`, beide `app/music.AlbumArtFetcher`.
 - `internal/adapters/driving/` - eingehende Adapter: `grpcapi` (+ grpc-gateway HTTP), `http` (statische Dateien, Auth-Middleware, SSE, HLS, Assets der Plugin-iframes), `pluginhost` (gRPC-Server auf einem Unix-Socket, über Peer-Credentials authentifiziert - die Host-API, die abgeschottete Plugin-Unterprozesse zurückrufen).
-- `internal/pkg/` - gemeinsamer technischer Kern, von allen Kontexten genutzt (auth, logger, eventbus, i18n, metrics, tracing, ratelimit, procfork, ssrf, cache, ...). Die Serverkonfiguration liegt in `internal/config/`; erzeugter Proto-Code liegt in `gen/`.
+- `internal/pkg/` - gemeinsamer technischer Kern, kontextübergreifend genutzt (auth, logger, eventbus, i18n, metrics, tracing, ratelimit, procfork, ssrf, cache, ...). Die Serverkonfiguration liegt in `internal/config/`; erzeugter Proto-Code liegt in `gen/`.
 
 Abhängigkeitsregel: `adapters -> app -> domain`. Die Domäne importiert nie app oder adapters. Die Zusammensetzung erfolgt in `cmd/evey/wire*.go` - handgeschriebene Verdrahtung, nicht google/wire: `wire.go`, `wire_infra.go`, `wire_services.go`, `wire_adapters.go`, `wire_events.go`, `wire_helpers.go`.
 
@@ -50,7 +50,7 @@ Zweiunddreißig Kontextpakete liegen unter `internal/domain/` und `internal/app/
 | `config` (nur Anwendung) | gespeicherte Servereinstellungen, von den Einstiegspunkten REST und gRPC geschrieben |
 | `dlna` (nur Anwendung) | SSDP-Erkennung und UPnP-AVTransport-Steuerung |
 | `loadtest` (nur Anwendung) | simuliert HLS-Zuschauer gegen den eigenen HTTP-Stack des Servers |
-| `maintenance` (nur Anwendung) | vom Administrator ausgelöste Medienwartung: Neuaufbau des Wiedergabeindex, Reparaturjournal, Rückgängigmachen, Audio-Integrität |
+| `maintenance` (nur Anwendung) | vom Administrator ausgelöste Medienwartung: Neuaufbau des Seek-Index, Reparaturjournal, Rückgängigmachen, Audio-Integrität |
 | `presence` (nur Anwendung) | flüchtiges, nicht gespeichertes Verzeichnis, wer gerade verbunden ist |
 | `qoe` (nur Anwendung) | Empfang und Aggregation der Wiedergabetelemetrie CMCD (CTA-5004) |
 | `demo` (nur Anwendung) | die öffentliche Demo-Instanz (`EVEY_DEMO=1`): legt ihre Konten, Bibliotheken und frei lizenzierten Medien über die eigenen Dienste des Produkts an und setzt sich selbst zurück |

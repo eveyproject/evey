@@ -52,7 +52,7 @@ Englisch zurück, statt leer oder als Schlüssel zu erscheinen.
   richtige Sprache ansagen.
 - Die Sprache kommt aus der Vorliebe Ihres Kontos, sonst aus der Sprache des
   Browsers oder Geräts (`Accept-Language` wird gelesen, ohne Region:
-  `fr-FR` → `fr`), sonst aus der **Sprache des Servers** unter **Admin →
+  `fr-FR` → `fr`), sonst aus der **Serversprache** unter **Admin →
   Serverkonfiguration → Sprache & Region** (die auch die Sprache neuer Konten
   festlegt), sonst Englisch.
 - Interpolation und Pluralformen laufen über i18next (`{{count}}` usw.).

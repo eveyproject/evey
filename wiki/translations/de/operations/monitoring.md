@@ -17,7 +17,7 @@ Zuschauer eine **Nachricht senden**.
 
 Die Karte **Wer ist online** im Dashboard listet, wer gerade verbunden ist,
 nach Profil, mit der Zeit seit dem letzten Lebenszeichen jeder App. Ein
-Chromecast, dessen Fernseher Eveys Receiver geladen hält, bleibt nach dem Ende
+Chromecast, dessen Fernseher Eveys Empfänger geladen hält, bleibt nach dem Ende
 seiner Wiedergabe gelistet, auch wenn er aus **Aktuelle Wiedergabe** verschwunden
 ist; **Diesen Chromecast stoppen** schickt ihm einen Stoppbefehl, den der
 Fernseher innerhalb von 30 Sekunden ausführt.

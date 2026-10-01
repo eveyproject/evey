@@ -62,7 +62,7 @@ volumes:
 4. Transkodierungs-Cache: Segmente, verkleinerte Fotos und Cover. Er kann
    jederzeit gelöscht werden und füllt sich bei Bedarf neu.
 5. Ihre Medien. Absichtlich mit Schreibzugriff eingebunden: Die Reparaturen
-   unter [Mediengesundheit](runbooks/media-health.md) schreiben Dateien an Ort
+   unter [Medienzustand](runbooks/media-health.md) schreiben Dateien an Ort
    und Stelle neu. Hängen Sie `:ro` an, um eine schreibgeschützte Bibliothek zu
    erhalten; diese Reparaturen schlagen dann fehl. Weitere Ordner werden als
    `/media2`, `/media3`... eingebunden.
@@ -91,7 +91,7 @@ an. Nichts muss von Hand vorbereitet werden.
 | --- | --- | --- |
 | `./evey-data` | Datenbank, Signaturschlüssel, erzeugte Passwörter, Suchindex, Vorschaubilder der Zeitleiste, Bilder, Logs, Sicherungen, Plugins | Nein. Geht er verloren, gehen alle Konten, der Wiedergabeverlauf und alle Einstellungen verloren. Nur `meili/` darin darf weg: Der Suchindex wird mit `evey admin reindex-search` aus der Datenbank neu aufgebaut. |
 | Volume `evey-cache` | Transkodierte Segmente, verkleinerte Fotos und Cover | Ja. Wird bei Bedarf neu erzeugt. |
-| Ihre Medienordner | Ihre Dateien | Evey löscht sie nicht; einen Titel in Evey zu entfernen, entfernt ihn aus der Bibliothek, nicht von der Festplatte. Evey schreibt dort in drei Fällen: bei einer Reparatur aus der Mediengesundheit (das Original bleibt als Sicherung erhalten), bei von OpenSubtitles heruntergeladenen Untertiteln (ein Ordner `.subtitles` neben dem Film) und für eine Prüfdatei von wenigen Sekunden, die kontrolliert, dass die Ordnerüberwachung noch Ereignisse empfängt. |
+| Ihre Medienordner | Ihre Dateien | Evey löscht sie nicht; einen Titel in Evey zu entfernen, entfernt ihn aus der Bibliothek, nicht von der Festplatte. Evey schreibt dort in drei Fällen: bei einer Reparatur aus dem Medienzustand (das Original bleibt als Sicherung erhalten), bei von OpenSubtitles heruntergeladenen Untertiteln (ein Ordner `.subtitles` neben dem Film) und für eine Prüfdatei von wenigen Sekunden, die kontrolliert, dass die Ordnerüberwachung noch Ereignisse empfängt. |
 
 ## Häufige Varianten
 

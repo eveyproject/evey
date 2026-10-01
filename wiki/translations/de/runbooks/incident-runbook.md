@@ -174,11 +174,11 @@ Masters.
 **Diagnose**: Die WARN-Zeile trägt `sealed_fp` gegenüber `current_fp` und die
 Medien-ID.
 - Eine **Häufung direkt nach einem Deploy/Neustart oder einer Neukalibrierung**
-  ist zu erwarten: Laufende Sitzungen haben eine Kapazitätsänderung überdauert.
+  ist zu erwarten: Laufende Sitzungen haben eine Änderung der Fähigkeiten überdauert.
   Keine Maßnahme nötig; die Player synchronisieren sich binnen einer Abfrage.
 - Ein **stetiges Tröpfeln im normalen Betrieb** bedeutet, dass etwas Leitern
-  unter laufenden Streams immer wieder umformt - suchen Sie nach schwankender
-  Kapazität (`docker logs evey-server | grep -iE 'calibrat|capability'`), einem
+  unter laufenden Streams immer wieder umformt - suchen Sie nach schwankenden
+  Fähigkeiten (`docker logs evey-server | grep -iE 'calibrat|capability'`), einem
   unter Last hin- und herschaltenden Admission-Shaper oder einer pendelnden
   CMCD-Obergrenze.
 - Player, die **in einer 410-Schleife hängen, ohne sich zu erholen**, halten
@@ -247,7 +247,7 @@ docker volume inspect evey_evey-cache   # der von Compose erzeugte Name kann abw
   Das entfernt darunter auch `photos/` (verkleinerte Fotovarianten) und
   `track-art/` (das in den Tags eines Titels eingebettete Cover, einmal
   extrahiert und verkleinert) - beide werden bei der nächsten Anfrage neu
-  erzeugt. **Alle löschen** unter Admin → Transkodierungs-Cache leert genauso.
+  erzeugt. **Alle leeren** unter Admin → Transkodierungs-Cache leert genauso.
 - Trickplay ist teurer neu zu erzeugen; nur bei Bedarf leeren:
   ```sh
   docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
@@ -303,7 +303,7 @@ Medien-ID, nicht nach dem Token.
    Diese Zeilen werden als WARN protokolliert, der Warnungsfilter der Log-Seite
    zeigt sie also an. Das ist die Seite des Senders in derselben Minute -
    vergleichen Sie sein `pos` mit dem letzten `pos_sec` des Empfängers.
-4. **Ist die Sitzung ins Rutschen gekommen?** Suchen Sie `refresh rejected`: Ein
+4. **Hat die Sitzung eine Kettenreaktion ausgelöst?** Suchen Sie `refresh rejected`: Ein
    Refresh-Token „not found" meldet die App ab und wieder an (gespeicherte
    Zugangsdaten), was den Stream neu ausstellt - die Zeile nennt jetzt `jti`,
    `issued` und `age` des Tokens, was eine veraltete Kopie von einer Fälschung
@@ -341,7 +341,7 @@ Symptom: Der Administrator sieht ein unerwartetes Gerät unter **Aktuelle Wieder
      WHERE ended_at IS NULL
      ORDER BY started_at DESC LIMIT 20;"'
    ```
-2. Im Admin-Bereich beenden: **Admin → Aktuelle Wiedergabe**, das Stopp-Symbol der Sitzung (**Sitzung stoppen**), dann **Stoppen** zur Bestätigung; oder per gRPC `AdminSessionService/KillSession` mit der `session_id`. Die Sitzung endet 5 s später, damit der Player den Stoppbefehl erhält.
+2. Im Admin-Bereich beenden: **Admin → Aktuelle Wiedergabe**, das Stopp-Symbol der Sitzung (**Sitzung beenden**), dann **Stoppen** zur Bestätigung; oder per gRPC `AdminSessionService/KillSession` mit der `session_id`. Die Sitzung endet 5 s später, damit der Player den Stoppbefehl erhält.
 3. Läuft der Stream trotzdem weiter, starten Sie den Container neu: Jeder Encoder stoppt mit ihm.
    ```sh
    docker compose restart evey

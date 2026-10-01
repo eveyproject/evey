@@ -22,8 +22,8 @@ löst nie eine Transkodierung aus.
 ## Kopiert oder neu kodiert
 
 Die Spur wird kopiert, wenn der Player ihren Codec dekodiert und genug Kanäle
-dafür hat, im Rahmen der **Maximalen Audio-Kanäle** des Profils (Stereo, 5.1
-oder 7.1). Sonst wird sie nach AAC neu kodiert:
+dafür hat, im Rahmen der Einstellung **Maximale Audio-Kanäle** des Profils
+(Stereo, 5.1 oder 7.1). Sonst wird sie nach AAC neu kodiert:
 
 - mit so vielen Kanälen, wie Quelle, Player und Profil erlauben, bis 5.1 (eine
   7.1-Quelle wird auf 5.1 heruntergemischt, das jeder Player dekodiert;
@@ -45,7 +45,7 @@ dem Server neu zu kodieren, dekodiert der Web-Player sie selbst, mit einem
 Decoder, der in der Seite läuft: Die Spur wird unverändert gesendet, und
 Stream-Info zeigt sie als *clientseitig dekodiert*. Browser, die Dolby Digital
 nativ dekodieren, wie Safari, erhalten sie als gewöhnliche Spur; die Wahl
-erfolgt durch einen Test des Browsers, nicht durch sein Erkennen.
+beruht auf einem Test des Browsers, nicht darauf, ihn zu erkennen.
 
 Ein Reverse Proxy, der seine eigene Content-Security-Policy setzt, muss
 `'wasm-unsafe-eval'` in `script-src` erlauben, sonst kann der Decoder nicht

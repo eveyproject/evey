@@ -59,10 +59,10 @@ angelegt und gehören diesem Administrator.
 - **Der Schlüssel wird einmal gezeigt**, bei der Erstellung. Speichern Sie ihn
   dann; er kann nicht erneut angezeigt, nur widerrufen werden.
 - **Er handelt als sein Besitzer**, mit Administratorrechten, im Rahmen seiner
-  Bereiche.
-- **Bereiche** begrenzen, was der Schlüssel tun kann:
+  Berechtigungen.
+- **Berechtigungen** (Scopes) begrenzen, was der Schlüssel tun kann:
 
-| Bereich | Erlaubt |
+| Berechtigung | Erlaubt |
 | --- | --- |
 | `media:read` | Metadaten der Medien lesen |
 | `media:write` | Medien ändern und Scans starten |
@@ -73,9 +73,9 @@ angelegt und gehören diesem Administrator.
 | `admin:read` | Aktivität und Statistiken der Verwaltung lesen |
 | `admin:write` | Einstellungen der Verwaltung ändern |
 
-**Ein ohne Bereich erstellter Schlüssel hat vollen Zugriff**, wie sein Besitzer:
+**Ein ohne Berechtigung erstellter Schlüssel hat vollen Zugriff**, wie sein Besitzer:
 Das ist das alte Verhalten, für bestehende Schlüssel beibehalten. Wählen Sie die
-Bereiche, die ein Skript braucht.
+Berechtigungen, die ein Skript braucht.
 
 Der Schlüssel gehört in den Header `Authorization`, mit oder ohne `Bearer`:
 
