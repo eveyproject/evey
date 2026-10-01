@@ -1,9 +1,10 @@
 ---
-source_sha: e314c511a93178cdc35b47b8bcd886cb60fd2ea303b7fc7d6f6c3c9ca1f9b6d0
+source_sha: 36c96049e9495129225a1a4d0a1273989914586cc0b0fb010ee4d6e99afb4219
+reviewed: false
 ---
-# व्यवस्थापन API
+# प्रशासन API
 
-प्रशासनिक endpoints, सिर्फ़ व्यवस्थापक अधिकार वाले उपयोगकर्ताओं के लिए।
+प्रशासनिक एंडपॉइंट, केवल एडमिन विशेषाधिकार वाले उपयोगकर्ताओं के लिए।
 
 ## विनिर्देश
 
@@ -11,21 +12,24 @@ source_sha: e314c511a93178cdc35b47b8bcd886cb60fd2ea303b7fc7d6f6c3c9ca1f9b6d0
 | विनिर्देश | विवरण |
 |------|-------------|
 | [admin_system.swagger.json](admin_system.swagger.json) | डैशबोर्ड, सिस्टम जानकारी, सेटअप विज़ार्ड |
-| [server_config.swagger.json](server_config.swagger.json) | सर्वर कॉन्फ़िगरेशन का key/value भंडार |
+| [server_config.swagger.json](server_config.swagger.json) | सर्वर कॉन्फ़िगरेशन की/वैल्यू स्टोर |
 | [remote_access.swagger.json](remote_access.swagger.json) | रिमोट एक्सेस और नेटवर्क सेटिंग्स |
 | [backup.swagger.json](backup.swagger.json) | डेटाबेस बैकअप और पुनर्स्थापना |
+| [backup_schedule.swagger.json](backup_schedule.swagger.json) | शेड्यूल किए गए बैकअप: cron, प्रतिधारण, अभी चलाएँ |
 | [activity.swagger.json](activity.swagger.json) | प्लेबैक इतिहास, लॉगिन इतिहास, सर्वर मेट्रिक्स |
 | [admin_session.swagger.json](admin_session.swagger.json) | ऑडिट लॉग |
-| [admin_task.swagger.json](admin_task.swagger.json) | निर्धारित पृष्ठभूमि कार्य |
+| [admin_task.swagger.json](admin_task.swagger.json) | शेड्यूल किए गए बैकग्राउंड काम |
+| [presence.swagger.json](presence.swagger.json) | अभी कौन जुड़ा है (ऐप की धड़कन और एडमिन सूची) |
 
 ### मीडिया और ट्रांसकोडिंग
 | विनिर्देश | विवरण |
 |------|-------------|
-| [admin_media.swagger.json](admin_media.swagger.json) | मीडिया आइटम हटाना, मेटाडेटा रिफ़्रेश करना, trickplay बनाना |
+| [admin_media.swagger.json](admin_media.swagger.json) | मीडिया आइटम हटाना, मेटाडेटा ताज़ा करना, trickplay बनाना |
 | [metadata.swagger.json](metadata.swagger.json) | मेटाडेटा प्रदाता, खोज, ओवरराइड |
 | [transcoding.swagger.json](transcoding.swagger.json) | ट्रांसकोड प्रोफ़ाइल, हार्डवेयर पहचान, सक्रिय काम |
-| [transcode_cache.swagger.json](transcode_cache.swagger.json) | ट्रांसकोड कैश का प्रबंधन |
-| [mkv.swagger.json](mkv.swagger.json) | MKV कंटेनर औज़ार (ट्रैक, अध्याय, mux/demux) |
+| [transcode_cache.swagger.json](transcode_cache.swagger.json) | ट्रांसकोड कैश प्रबंधन |
+| [mkv.swagger.json](mkv.swagger.json) | MKV कंटेनर उपकरण (ट्रैक, अध्याय, mux/demux) |
+| [admin_intro.swagger.json](admin_intro.swagger.json) | इंट्रो समय कैश: एक एपिसोड अमान्य करना, बैकफ़िल |
 
 ### उपयोगकर्ता और नीतियाँ
 | विनिर्देश | विवरण |
@@ -36,4 +40,4 @@ source_sha: e314c511a93178cdc35b47b8bcd886cb60fd2ea303b7fc7d6f6c3c9ca1f9b6d0
 
 ## प्रमाणीकरण
 
-हर endpoint को एक मान्य व्यवस्थापक JWT टोकन चाहिए।
+सभी एंडपॉइंट को एक मान्य एडमिन JWT टोकन चाहिए।
