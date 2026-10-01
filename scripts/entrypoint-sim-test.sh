@@ -15,8 +15,12 @@
 #   H. root + regular mixed -> the regular owner is adopted (root never is)
 #   I. /data pre-created by the operator as PUID (Synology) while the cache
 #      volume is still the image's 1000 -> /cache is re-owned on its own test
+#   P. embedded Postgres (needs an evey image, EVEY_PG_IMG): the unix socket
+#      refuses a passwordless login, a legacy trust pg_hba.conf is migrated,
+#      a rotated EVEY_DB_PASSWORD is realigned
 #
 # Usage: scripts/entrypoint-sim-test.sh   (needs docker)
+#        EVEY_PG_IMG=gravityz/evey:beta-0.0.1 scripts/entrypoint-sim-test.sh
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -140,6 +144,42 @@ assert_uid "$outI" 1026 I
 assert_plugins_dir "$outI" "1026:100" I
 echo "$outI" | grep -q "^cache=1026:100$" \
     || { echo "FAIL [I]: /cache must be re-owned 1026:100 even when /data already is (got: $(echo "$outI" | grep '^cache='))"; fail=1; }
+
+# Embedded Postgres cases run the real image with /evey swapped for a stub that
+# probes the socket as the server uid, then exits (no server, no Meili).
+pg_stub='
+    printf "#!/bin/sh\nS=/tmp/evey-pg\npsql -w -h \$S -U evey -d evey -tAc \"select 1\" >/dev/null 2>&1 && echo nopw=ok || echo nopw=refused\nPGPASSWORD=\"\${EVEY_DB_PASSWORD:-\$(cat /data/keys/postgres.password)}\" psql -h \$S -U evey -d evey -tAc \"select 1\" >/dev/null 2>&1 && echo pw=ok || echo pw=refused\n" > /evey
+    chmod +x /evey
+    exec /entrypoint.sh
+'
+pg_case() { # $1=volume, rest = extra docker run args
+    vol="$1"; shift
+    docker run --rm "$@" -v "$ENTRY:/entrypoint.sh:ro" -v "$vol:/data" \
+        -e EVEY_EMBEDDED_MEILI=false --entrypoint sh "$EVEY_PG_IMG" -ec "$pg_stub" 2>&1
+}
+assert_line() { # $1=output $2=line $3=case
+    echo "$1" | grep -qx "$2" || { echo "FAIL [$3]: expected '$2'"; fail=1; }
+}
+if [ -n "${EVEY_PG_IMG:-}" ]; then
+    vol="evey-sim-pg-$$"
+    docker volume create "$vol" >/dev/null
+    echo "--- case P1: fresh cluster -> socket asks the password"
+    out=$(pg_case "$vol"); echo "$out" | grep -E "^(evey|nopw|pw)"
+    assert_line "$out" nopw=refused P1; assert_line "$out" pw=ok P1
+    echo "--- case P2: legacy trust pg_hba.conf -> migrated to scram"
+    docker run --rm -u 1000:1000 -v "$vol:/data" --entrypoint sh "$EVEY_PG_IMG" -c \
+        "sed -i -E 's/^(local[[:space:]].*)scram-sha-256\$/\\1trust/' /data/postgres/pg_hba.conf"
+    out=$(pg_case "$vol"); echo "$out" | grep -E "^(evey|nopw|pw)"
+    echo "$out" | grep -q "initdb's local trust lines moved to scram-sha-256" || { echo "FAIL [P2]: migration not reported"; fail=1; }
+    assert_line "$out" nopw=refused P2; assert_line "$out" pw=ok P2
+    echo "--- case P3: rotated EVEY_DB_PASSWORD -> realigned"
+    out=$(pg_case "$vol" -e EVEY_DB_PASSWORD=sim-rotated); echo "$out" | grep -E "^(evey|nopw|pw)"
+    echo "$out" | grep -q "realigning the role password" || { echo "FAIL [P3]: no realignment"; fail=1; }
+    assert_line "$out" nopw=refused P3; assert_line "$out" pw=ok P3
+    docker volume rm "$vol" >/dev/null
+else
+    echo "--- cases P*: skipped (set EVEY_PG_IMG to an evey image to run them)"
+fi
 
 if [ "$fail" -ne 0 ]; then
     echo "entrypoint sim-test: FAILED"
