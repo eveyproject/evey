@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -404,4 +405,13 @@ func TestClientInfoUnary_TrustedHopValueWinsOverSmuggledOne(t *testing.T) {
 	got := resolveViaInterceptor(t, ctx)
 	assert.Equal(t, "203.0.113.9", interceptors.ClientIPFromCtx(got))
 	assert.Equal(t, "real-agent", interceptors.UserAgentFromCtx(got))
+}
+
+// Login's per-IP lockout reads the IP this interceptor resolved, not the raw
+// metadata: a forged x-real-ip from an untrusted peer must not reach it.
+func TestClientInfoUnary_HandsResolvedIPToLogin(t *testing.T) {
+	md := metadata.Pairs("x-real-ip", "1.2.3.4")
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+	ctx = peer.NewContext(ctx, &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("203.0.113.7"), Port: 40000}})
+	assert.Equal(t, "203.0.113.7", appuser.LoginClientIP(resolveViaInterceptor(t, ctx)))
 }

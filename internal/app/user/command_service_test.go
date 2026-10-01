@@ -1988,7 +1988,8 @@ func TestLogin_ResetClearsLockout(t *testing.T) {
 	d.svc.Login(ctx, "alice", "wrong")
 
 	// Successful login resets, so next wrong+correct cycle works
-	_ = d.svc.loginAttempts.Reset(context.Background(), "alice")
+	pairKey, _ := loginAttemptKeys(ctx, "alice")
+	_ = d.svc.loginAttempts.Reset(context.Background(), pairKey)
 	_, _, err := d.svc.Login(ctx, "alice", "correct")
 	if err != nil {
 		t.Fatalf("login should succeed after reset: %v", err)
