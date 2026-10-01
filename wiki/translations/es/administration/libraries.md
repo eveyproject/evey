@@ -1,5 +1,5 @@
 ---
-source_sha: b6d595e92c82851324debcee0de01b789bd1def644e658e011f90ccc857c9de9
+source_sha: 9ec526fd6900c24c0897b5487d0abdf140e3fd5aee6f9a754b78d5e5514fc8d4
 reviewed: false
 ---
 # Bibliotecas y metadatos
@@ -108,6 +108,26 @@ menudo hasta que el vigilante se recupera.
 - **Reparar sagas** vuelve a unir a su saga las películas que no pertenecen a
   ninguna colección, cuando las otras películas de la saga ya están en la
   biblioteca.
+
+## Colecciones
+
+**Colecciones** agrupa títulos bajo un mismo nombre, para todas las cuentas. Hay
+tres tipos:
+
+- **Colecciones TMDB**: las sagas, que se llenan solas cuando TMDB sitúa una
+  película en una de ellas. **Reparar sagas** (más arriba) recupera las
+  películas que se quedaron fuera de la suya.
+- **Nueva colección**: una lista que un administrador llena a mano, con
+  **Agregar a colección** en un título o en una selección, y ordena.
+- **Nueva colección inteligente**: reglas sobre **Género**, **Año**, **Tipo**,
+  **Valoración ≥** y **Biblioteca**, que un título debe cumplir todas. Su
+  contenido se calcula cada vez que se abre, así que los títulos nuevos
+  aparecen sin hacer nada.
+
+Solo los administradores crean y editan colecciones. Cualquiera puede
+explorarlas, y **Descargar colección** en la web obtiene los archivos originales
+en un solo ZIP (hasta 1000 títulos), sin lo que ocultan el acceso a bibliotecas
+o el límite de edad de la cuenta.
 
 ## Claves de metadatos
 

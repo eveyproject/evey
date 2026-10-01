@@ -1,5 +1,5 @@
 ---
-source_sha: b6d595e92c82851324debcee0de01b789bd1def644e658e011f90ccc857c9de9
+source_sha: 9ec526fd6900c24c0897b5487d0abdf140e3fd5aee6f9a754b78d5e5514fc8d4
 reviewed: true
 ---
 # Bibliothèques et métadonnées
@@ -110,6 +110,27 @@ plus est parcourue plus souvent, jusqu'à ce que la surveillance reprenne.
 - **Réparer les sagas** rattache à leur saga les films qui n'appartiennent à
   aucune collection, quand les autres films de la saga sont déjà dans la
   bibliothèque.
+
+## Collections
+
+**Collections** regroupe des titres sous un même nom, pour tous les comptes. Il
+en existe trois sortes :
+
+- **Collections TMDB** : les sagas, remplies d'elles-mêmes quand TMDB range un
+  film dans l'une d'elles. **Réparer les sagas** (plus haut) rattrape les films
+  qui ont manqué la leur.
+- **Nouvelle collection** : une liste qu'un administrateur remplit à la main,
+  avec **Ajouter à la collection** sur un titre ou sur une sélection, et qu'il
+  met en ordre.
+- **Nouvelle collection intelligente** : des règles sur **Genre**, **Année**,
+  **Type**, **Note ≥** et **Bibliothèque**, qu'un titre doit toutes remplir. Son
+  contenu est calculé à chaque ouverture, si bien que les nouveaux titres y
+  apparaissent sans rien faire.
+
+Seuls les administrateurs créent et modifient les collections. Tout le monde
+peut les parcourir, et **Télécharger la collection** sur le web récupère les
+fichiers originaux dans un seul ZIP (jusqu'à 1000 titres), sans ce que l'accès
+aux bibliothèques ou la limite d'âge du compte masquent.
 
 ## Clés de métadonnées
 

@@ -98,6 +98,23 @@ where events stop arriving is walked more often until the watcher recovers.
 - **Repair sagas** joins films that belong to no collection back to their saga,
   when the other films of the saga are already in the library.
 
+## Collections
+
+**Collections** gathers titles under one name, for every account. There are
+three kinds:
+
+- **TMDB Collections**: the sagas, filled in on their own when TMDB places a
+  film in one. **Repair sagas** (above) catches films that missed theirs.
+- **New collection**: a list an administrator fills by hand, with **Add to
+  Collection** on a title or on a selection, and puts in order.
+- **New smart collection**: rules on **Genre**, **Year**, **Type**, **Rating ≥**
+  and **Library**, which a title must all meet. Its content is worked out each
+  time it is opened, so new titles appear without doing anything.
+
+Only administrators create and edit collections. Anyone can browse them, and
+**Download collection** on the web gets the original files as one ZIP (up to
+1000 titles), leaving out what the account's library access or age limit hides.
+
 ## Metadata keys
 
 Evey ships with a TMDB key, so metadata works without configuration. Other
@@ -124,6 +141,7 @@ Server Config → Server Settings**, off by default) makes every player skip the
 on its own.
 
 <!-- sources
+collections: internal/domain/library/model.go Collection (TmdbID, Rules), MaxCollectionItems 1000 ; rules: internal/adapters/driven/postgres/collection_repo.go (genre, type, year eq/gt/lt/gte/lte, library_id, rating_gte, AND) ; smart evaluated per read: internal/app/collection/query_service.go GetItems ; admin-only writes: interceptors/rbac.go CollectionService ; ZIP: internal/adapters/driving/http/collection_handler.go (library access + parental filter) ; i18n media.collections.*, media.playlist.field*
 music: internal/adapters/driven/filesystem/music_scanner.go (audioExts) ; internal/app/music/command_service.go - parseTrack (AlbumFolder = parent dir, title fallback) ; postgres/music_track_repo.go - GetAlbums GROUP BY album_folder, mode() display_album, ORDER BY disk_number, track_number ; GetArtists COALESCE(album_artist, artist)
 album art order: internal/app/music/album_art_folder.go (folderCoverNames, embedded wins) ; cmd/evey/wire_services.go (musicbrainz then itunes)
 photos: internal/adapters/driven/filesystem/photo_scanner.go (imageExts) ; internal/app/photo/command_service.go - albumOf, processOnePhoto (EXIF JPEG only) ; http/photo_handler.go - serveTranscoded (cache photos/)
