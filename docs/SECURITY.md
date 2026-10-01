@@ -175,7 +175,7 @@ Refused system calls:
 | Category | System calls |
 |---|---|
 | Debugging | `ptrace`, `process_vm_readv`, `process_vm_writev` |
-| Signals | `kill`; the kernel filter also refuses `tgkill`, the `LD_PRELOAD` filter refuses `tkill`/`tgkill` aimed at PID 1 |
+| Signals | `kill`, `pidfd_send_signal`, `pidfd_getfd` (steals a file descriptor); the kernel filter also refuses `tkill`, `tgkill`, `rt_sigqueueinfo`, `rt_tgsigqueueinfo`, the `LD_PRELOAD` filter allows those four only towards the plugin itself. On Landlock ABI 6+, a plugin also cannot signal a process outside its sandbox |
 | Mounts | `mount`, `umount2`, `pivot_root`, `chroot` |
 | Namespaces | `unshare`, `setns` |
 | Kernel modules | `init_module`, `finit_module`, `delete_module` |

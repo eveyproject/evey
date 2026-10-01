@@ -135,6 +135,16 @@ func supportedNetAccess(abi int) uint64 {
 	return 0
 }
 
+// scopedAccess returns the Landlock scopes (ABI v6+): the plugin may neither
+// signal nor reach an abstract unix socket of a process outside its own domain.
+// Older kernels return 0 and reject a non-zero Scoped field, hence the gate.
+func scopedAccess(abi int) uint64 {
+	if abi >= 6 {
+		return uint64(unix.LANDLOCK_SCOPE_SIGNAL | unix.LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET)
+	}
+	return 0
+}
+
 // landlockABI queries the kernel's supported Landlock ABI version. Returns an
 // error when Landlock is absent (ENOSYS) or disabled in the active LSM list
 // (EOPNOTSUPP) - the caller decides whether that is fatal.
@@ -167,7 +177,7 @@ func applyLandlock(cfg config) error {
 	if cfg.restrictNet {
 		handledNet = supportedNetAccess(abi)
 	}
-	attr := unix.LandlockRulesetAttr{Access_fs: handled, Access_net: handledNet}
+	attr := unix.LandlockRulesetAttr{Access_fs: handled, Access_net: handledNet, Scoped: scopedAccess(abi)}
 	rulesetFD, _, errno := unix.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET,
 		uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr), 0)
 	if errno != 0 {

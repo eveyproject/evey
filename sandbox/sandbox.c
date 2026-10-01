@@ -7,6 +7,7 @@
 #include <sched.h>
 #include <stddef.h>
 #include <errno.h>
+#include <unistd.h>
 
 #ifndef __NR_execveat
 #define __NR_execveat 322
@@ -56,6 +57,15 @@
 #ifndef __NR_tgkill
 #define __NR_tgkill 234
 #endif
+#ifndef __NR_rt_tgsigqueueinfo
+#define __NR_rt_tgsigqueueinfo 297
+#endif
+#ifndef __NR_pidfd_send_signal
+#define __NR_pidfd_send_signal 424
+#endif
+#ifndef __NR_pidfd_getfd
+#define __NR_pidfd_getfd 438
+#endif
 #ifndef __NR_clone3
 #define __NR_clone3 435
 #endif
@@ -82,22 +92,26 @@
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, (nr), 0, 1), \
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA))
 
+/* Placeholder for the prelude's self-pid check; never a real pid, so an
+ * unpatched filter denies every thread-directed signal (fails closed). */
+#define SELF_PID 0xffffffffu
+
 static struct sock_filter filter[] = {
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
 
-    /* Signals targeting PID/TID 1 (the server runs as PID 1 in the container).
-     * A plugin shares the server's UID, so it could otherwise kill(1)/tkill(1)/
-     * tgkill(1,...) to DoS it. We deny tkill/tgkill ONLY when args[0]==1, and
-     * deny kill outright below - this still allows raise()/abort() and pthread
-     * self-signaling (a plugin's own tid is never 1, since it is a child PID).
-     * Offsets are local to this 6-instruction prelude and never need to change
-     * when the denylist below grows. */
-    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_tkill,  1, 0),                       /* [1] tkill?  → [3] */
-    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_tgkill, 0, 3),                       /* [2] tgkill? → [3]; else → [6] */
-    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),   /* [3] A = target (low 32) */
-    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 1, 0, 1),                                 /* [4] ==1? → [5]; else → [6] */
-    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA)),    /* [5] deny */
-    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),        /* [6] reload nr */
+    /* Thread-directed signals: allowed only towards this process (raise/abort,
+     * pthread_kill, runtime preemption), never another same-uid process (server,
+     * Postgres...). SELF_PID is patched to getpid() before install; fork/exec are
+     * denied below so it cannot go stale. Offsets are local to this prelude. */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_tkill,             3, 0),        /* [1] → [5] */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_tgkill,            2, 0),        /* [2] → [5] */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_rt_sigqueueinfo,   1, 0),        /* [3] → [5] */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_rt_tgsigqueueinfo, 0, 4),        /* [4] else → [9] */
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),   /* [5] A = target (low 32) */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SELF_PID, 1, 0),                          /* [6] self? → [8] */
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA)),    /* [7] deny */
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),                                 /* [8] allow */
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),        /* [9] reload nr */
 
     /* exec */
     DENY(__NR_execve),
@@ -108,9 +122,11 @@ static struct sock_filter filter[] = {
     DENY(__NR_process_vm_readv),
     DENY(__NR_process_vm_writev),
 
-    /* process signals - kill (any target) has no legitimate plugin use; tkill/
-     * tgkill to PID 1 are already denied by the prelude above. */
+    /* process signals - kill (any target) and pidfd signalling have no plugin
+     * use; pidfd_getfd copies an fd out of another same-uid process. */
     DENY(__NR_kill),
+    DENY(__NR_pidfd_send_signal),
+    DENY(__NR_pidfd_getfd),
 
     /* filesystem mount */
     DENY(__NR_mount),
@@ -239,5 +255,8 @@ static void sandbox_init(void) {
      * to disk on a crash).
      */
     prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
+    for (unsigned i = 0; i < sizeof(filter) / sizeof(filter[0]); i++)
+        if (filter[i].code == (BPF_JMP | BPF_JEQ | BPF_K) && filter[i].k == SELF_PID)
+            filter[i].k = (__u32)getpid();
     prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
 }
