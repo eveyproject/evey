@@ -1,12 +1,16 @@
 package httpapi
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -197,4 +201,91 @@ func TestDevices_Command_BadBody_400(t *testing.T) {
 			t.Errorf("body %q: expected 400, got %d", body, w.Code)
 		}
 	}
+}
+
+// A device socket that never sends its register frame is dropped after
+// deviceWSRegisterWait, and the warning says which client stayed silent and
+// for how long - prod bursts of this line were undiagnosable without it.
+func TestDevicesWS_NoRegisterFrame_LogsClientAndWait(t *testing.T) {
+	prevWait := deviceWSRegisterWait.Swap(int64(200 * time.Millisecond))
+	t.Cleanup(func() { deviceWSRegisterWait.Store(prevWait) })
+
+	// The handler logs from its own goroutine, which srv.Close does not join
+	// for a hijacked socket: the buffer is locked and polled, never raced.
+	logs := &lockedBuffer{}
+	prevLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prevLogger) })
+
+	fx := newDevicesFixture(t)
+	srv := httptest.NewServer(fx.mux)
+	defer srv.Close()
+
+	cfg, err := websocket.NewConfig("ws"+strings.TrimPrefix(srv.URL, "http")+"/api/v1/devices/ws", srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Header = http.Header{
+		"Authorization": {"Bearer " + fx.userTok},
+		"User-Agent":    {"EveyMobile/0.0.1-beta.71 (Android 16; Phone Pro)"},
+	}
+	ws, err := websocket.DialConfig(cfg)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer ws.Close()
+
+	// Stay silent: the server must close the socket on its own.
+	_ = ws.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var msg string
+	if err := websocket.Message.Receive(ws, &msg); err == nil {
+		t.Fatal("server kept the socket open without a register frame")
+	}
+
+	var line map[string]any
+	for deadline := time.Now().Add(2 * time.Second); line == nil && time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		for raw := range bytes.SplitSeq(bytes.TrimSpace(logs.Bytes()), []byte("\n")) {
+			var l map[string]any
+			if json.Unmarshal(raw, &l) == nil && l["msg"] == "devices ws: no register frame" {
+				line = l
+			}
+		}
+	}
+	if line == nil {
+		t.Fatalf("no register warning in logs: %s", logs.Bytes())
+	}
+	if line["user"] != "user-1" {
+		t.Errorf("user = %v, want user-1", line["user"])
+	}
+	if line["user_agent"] != "EveyMobile/0.0.1-beta.71 (Android 16; Phone Pro)" {
+		t.Errorf("user_agent = %v", line["user_agent"])
+	}
+	if ip, _ := line["client_ip"].(string); ip == "" {
+		t.Errorf("client_ip missing: %v", line)
+	}
+	waited, _ := line["waited_ms"].(float64)
+	if waited < 150 || waited > 2000 {
+		t.Errorf("waited_ms = %v, want about 200", waited)
+	}
+	if !strings.Contains(fmt.Sprint(line["err"]), "timeout") {
+		t.Errorf("err = %v, want a read timeout", line["err"])
+	}
+}
+
+// lockedBuffer is a log sink a handler goroutine writes while the test reads.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) Bytes() []byte {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return bytes.Clone(b.buf.Bytes())
 }
