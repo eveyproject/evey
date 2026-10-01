@@ -1,5 +1,5 @@
 ---
-source_sha: 5c66f9a9802a391b1f183ae3f0864b667ba8bd97f8da08ace12cfd8995aecde8
+source_sha: aa4a6dbca83eeb34955b6236d87329e7e8c35d2a88212136ac8e890abbf361a5
 reviewed: false
 ---
 # 故障排除
@@ -59,6 +59,10 @@ docker exec evey-server evey admin doctor
 ## 字幕不显示
 
 见[字幕](../playback/subtitles.md)：播放器能绘制哪些格式，以及哪些格式必须由服务器烧录进画面。
+
+## 海报缺失或损坏
+
+海报和背景图会在扫描期间复制到服务器的 `./evey-data/artworks` 中，缺失的每小时重试一次。**Admin → 图片缓存** 显示还有多少没有本地副本；**下载缺失图片** 会立即获取它们，**清理损坏的变体** 会删除缩放失败后留下的空白海报缩放版本，这些版本之后会在需要时重新生成。
 
 ## 搜索没有结果
 

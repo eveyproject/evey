@@ -1,5 +1,5 @@
 ---
-source_sha: 5c66f9a9802a391b1f183ae3f0864b667ba8bd97f8da08ace12cfd8995aecde8
+source_sha: aa4a6dbca83eeb34955b6236d87329e7e8c35d2a88212136ac8e890abbf361a5
 reviewed: false
 ---
 # Solución de problemas
@@ -89,6 +89,15 @@ para interpretarlos.
 
 Consulta [Subtítulos](../playback/subtitles.md): qué formatos dibujan los
 reproductores y cuáles tiene que incrustar el servidor en la imagen.
+
+## Faltan pósteres o están rotos
+
+Los pósteres y los fondos se copian al servidor durante los escaneos, en
+`./evey-data/artworks`, y los que faltan se reintentan cada hora. **Admin →
+Cache de artworks** muestra cuántos siguen sin copia local; **Descargar
+artworks faltantes** los obtiene ahora, y **Purgar variantes corruptas** elimina
+los pósteres redimensionados que un redimensionado fallido dejó vacíos, que se
+vuelven a generar bajo demanda.
 
 ## La búsqueda no devuelve nada
 
